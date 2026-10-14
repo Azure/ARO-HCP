@@ -30,12 +30,14 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/fleetlistertesting"
 )
 
 func newTestManagementCluster(name, shardID string) *fleetapi.ManagementCluster {
-	resourceID := metadataapi.Must(fleetapi.ToManagementClusterResourceID(name))
+	resourceID := metadataapi.Must(fleetapihelpers.ToManagementClusterResourceID(name))
 	return &fleetapi.ManagementCluster{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID: resourceID,
@@ -143,16 +145,16 @@ func fixtureDesires(t *testing.T) []*kubeapplierapi.ApplyDesire {
 	t.Helper()
 	return []*kubeapplierapi.ApplyDesire{
 		newApplyDesire(t,
-			kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(testSub, testRG, testCluster, "a1"),
+			kubeapplierapihelpers.ToClusterScopedApplyDesireResourceIDString(testSub, testRG, testCluster, "a1"),
 			testMgmtAID),
 		newApplyDesire(t,
-			kubeapplierapi.ToNodePoolScopedApplyDesireResourceIDString(testSub, testRG, testCluster, testNodePool, "a2"),
+			kubeapplierapihelpers.ToNodePoolScopedApplyDesireResourceIDString(testSub, testRG, testCluster, testNodePool, "a2"),
 			testMgmtAID),
 		newApplyDesire(t,
-			kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(testSub, testRG, "other-cluster", "b1"),
+			kubeapplierapihelpers.ToClusterScopedApplyDesireResourceIDString(testSub, testRG, "other-cluster", "b1"),
 			testMgmtBID),
 		newApplyDesire(t,
-			kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(testSub, "other-rg", testCluster, "b2"),
+			kubeapplierapihelpers.ToClusterScopedApplyDesireResourceIDString(testSub, "other-rg", testCluster, "b2"),
 			testMgmtBID),
 	}
 }

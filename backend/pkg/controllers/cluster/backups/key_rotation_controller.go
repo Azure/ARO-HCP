@@ -32,6 +32,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
 	"github.com/Azure/ARO-HCP/internal/backup"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
@@ -152,7 +153,7 @@ func (c *keyRotationBackupSyncer) SyncOnce(ctx context.Context, key controllerut
 		return nil
 	}
 
-	hostedCluster, err := kubeapplierhelpers.GetCachedHostedClusterForCluster(
+	hostedCluster, _, err := kubeapplierhelpers.GetCachedHostedClusterForCluster(
 		ctx, c.readDesireLister, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName,
 	)
 	if err != nil {
@@ -189,40 +190,85 @@ func (c *keyRotationBackupSyncer) SyncOnce(ctx context.Context, key controllerut
 
 	currentDesireName := keyRotationDesireName(keyRotationBackupName(hostedClusterNamespace, kmsKeyFingerprint))
 
-	// Once this rotation's on-demand backup has already completed successfully,
-	// there is nothing left to create: skip straight to the cleanup sweep below.
-	if cachedServiceProviderCluster.Status.KeyRotationBackupFingerprint != kmsKeyFingerprint {
-		// On-demand backups use the first (shortest-lived) schedule's TTL, just long
-		// enough to survive until the next scheduled backup captures the post-rotation state.
-		if c.backupConfig == nil || len(c.backupConfig.Schedules()) == 0 {
-			return utils.TrackError(fmt.Errorf("no backup schedules configured to reuse TTL for on-demand backup (backupConfig=%v)", c.backupConfig))
-		}
-		ttl := c.backupConfig.Schedules()[0].TTL
-		veleroBackup := backup.NewBackup(keyRotationBackupName(hostedClusterNamespace, kmsKeyFingerprint), resourceID, kmsKeyFingerprint, hostedClusterNamespace, controlPlaneNamespace, ttl)
+	// A completed or skipped rotation needs nothing further: fall through to cleanup.
+	alreadyHandled := cachedServiceProviderCluster.Status.KeyRotationBackupFingerprint == kmsKeyFingerprint
 
-		// No explicit in-flight check: Velero queues backups natively, ensuring
-		// on-demand backups run after scheduled backups and provide a valid backup
-		// as soon as possible, avoiding longer waits for the next scheduled backup.
-		desiredApplyDesire, err := buildOnDemandBackupApplyDesire(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, managementClusterResourceID, veleroBackup)
-		if err != nil {
-			return utils.TrackError(fmt.Errorf("failed to build key rotation backup desire: %w", err))
+	if !alreadyHandled {
+		// Same pause toggle the schedule controller uses: fleet-wide config
+		// switch OR the per-cluster admin API state. A backup already in flight
+		// (ApplyDesire exists) is never abandoned once pause takes effect.
+		backupsPaused := cachedServiceProviderCluster.Spec.BackupScheduleState == coreapi.BackupScheduleStateDisabled ||
+			(c.backupConfig != nil && c.backupConfig.BackupScheduleState == coreapi.BackupScheduleStateDisabled)
+
+		inFlight := false
+		if backupsPaused {
+			// Read Cosmos directly (not the informer lister) so a just-created ApplyDesire
+			// that hasn't reached the cache yet is never mistaken for "not started" and
+			// abandoned by the cleanup sweep below. Only needed while paused, to
+			// disambiguate "not started" from "in flight"; skip the extra read otherwise.
+			existingApplyDesire, err := applyDesireCRUD.Get(ctx, strings.ToLower(currentDesireName))
+			if err != nil && !cosmosstorageutils.IsNotFoundError(err) {
+				return utils.TrackError(fmt.Errorf("failed to get current on-demand backup ApplyDesire: %w", err))
+			}
+
+			if existingApplyDesire == nil {
+				// Nothing started yet and paused: record as skipped so it's never
+				// retried after resume. Only a later rotation is eligible.
+				if _, err := c.recordKeyRotationBackupFingerprint(ctx, key, cachedServiceProviderCluster, kmsKeyFingerprint); err != nil {
+					return err
+				}
+				// Return now; the cached ServiceProviderCluster is stale so the cleanup sweep below
+				// couldn't act on this yet. The write above retriggers the informer.
+				return nil
+			}
+
+			// Already in flight: leave the existing ApplyDesire untouched, but still
+			// ensure its companion ReadDesire exists (e.g. crash recovery may have left
+			// the ApplyDesire without one) so the cleanup sweep below can observe the
+			// Velero phase and eventually record completion.
+			desiredReadDesire, err := buildReadDesireFromApplyDesire(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, existingApplyDesire)
+			if err != nil {
+				return utils.TrackError(fmt.Errorf("failed to build key rotation read desire: %w", err))
+			}
+			if err := kubeapplierhelpers.EnsureReadDesire(ctx, readDesireCRUD, c.readDesireLister, desiredReadDesire); err != nil {
+				return err
+			}
+			inFlight = true
 		}
 
-		// Build the paired ReadDesire, then create-or-update both through the
-		// shared kubeapplierhelpers ensure helpers. The ReadDesire is ensured
-		// first so the on-demand backup's status is observed as soon as its
-		// ApplyDesire lands.
-		desiredReadDesire, err := buildReadDesireFromApplyDesire(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, desiredApplyDesire)
-		if err != nil {
-			return utils.TrackError(fmt.Errorf("failed to build key rotation read desire: %w", err))
-		}
+		if !inFlight {
+			// On-demand backups use the first (shortest-lived) schedule's TTL, just long
+			// enough to survive until the next scheduled backup captures the post-rotation state.
+			if c.backupConfig == nil || len(c.backupConfig.Schedules()) == 0 {
+				return utils.TrackError(fmt.Errorf("no backup schedules configured to reuse TTL for on-demand backup (backupConfig=%v)", c.backupConfig))
+			}
+			ttl := c.backupConfig.Schedules()[0].TTL
+			veleroBackup := backup.NewBackup(keyRotationBackupName(hostedClusterNamespace, kmsKeyFingerprint), resourceID, kmsKeyFingerprint, hostedClusterNamespace, controlPlaneNamespace, ttl)
 
-		if err := kubeapplierhelpers.EnsureReadDesire(ctx, readDesireCRUD, c.readDesireLister, desiredReadDesire); err != nil {
-			return err
-		}
+			// No explicit in-flight check: Velero queues backups natively, ensuring
+			// on-demand backups run after scheduled backups and provide a valid backup
+			// as soon as possible, avoiding longer waits for the next scheduled backup.
+			desiredApplyDesire, err := buildOnDemandBackupApplyDesire(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, managementClusterResourceID, veleroBackup)
+			if err != nil {
+				return utils.TrackError(fmt.Errorf("failed to build key rotation backup desire: %w", err))
+			}
 
-		if err := kubeapplierhelpers.EnsureApplyDesire(ctx, applyDesireCRUD, c.applyDesireLister, desiredApplyDesire); err != nil {
-			return err
+			// Build the paired ReadDesire, then create-or-update both through the
+			// shared kubeapplierhelpers ensure helpers. The ReadDesire is ensured
+			// first so the on-demand backup's status is observed as soon as its
+			// ApplyDesire lands.
+			desiredReadDesire, err := buildReadDesireFromApplyDesire(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, desiredApplyDesire)
+			if err != nil {
+				return utils.TrackError(fmt.Errorf("failed to build key rotation read desire: %w", err))
+			}
+
+			if err := kubeapplierhelpers.EnsureReadDesire(ctx, readDesireCRUD, c.readDesireLister, desiredReadDesire); err != nil {
+				return err
+			}
+
+			if err := kubeapplierhelpers.EnsureApplyDesire(ctx, applyDesireCRUD, c.applyDesireLister, desiredApplyDesire); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -242,7 +288,8 @@ func (c *keyRotationBackupSyncer) SyncOnce(ctx context.Context, key controllerut
 // syncDeletion purges on-demand key-rotation desires for a deleted cluster directly
 // from Cosmos. Unlike Schedule desires, these target Backup CRs and have no in-flight
 // check, so setting Type=Delete could race a running Velero backup. Direct purging
-// leaves the Backup CR and its data intact until its TTL expires.
+// leaves the Backup CR and its data intact for Velero cleanup; mgmt-agent may
+// request deletion before TTL expiry after the HostedCluster disappears.
 func (c *keyRotationBackupSyncer) syncDeletion(
 	ctx context.Context,
 	key controllerutils.HCPClusterKey,
@@ -274,7 +321,7 @@ func (c *keyRotationBackupSyncer) syncDeletion(
 			continue
 		}
 		logger.Info("purging on-demand backup ApplyDesire for deleted cluster", "desire", applyDesire.ResourceID.Name)
-		if err := purgeApplyDesire(ctx, *applyDesire, applyDesireCRUD); err != nil {
+		if err := kubeapplierhelpers.PurgeApplyDesire(ctx, applyDesire.ResourceID.Name, applyDesireCRUD); err != nil {
 			return err
 		}
 	}
@@ -369,7 +416,7 @@ func (c *keyRotationBackupSyncer) purgeCompletedOnDemandApplyDesires(
 
 		logger.Info("purging on-demand backup ApplyDesire", "desire", applyDesire.ResourceID.Name, "reason", reason)
 		// Purge the Cosmos document directly, leaving the Velero Backup to expire at its TTL.
-		if err := purgeApplyDesire(ctx, *applyDesire, applyDesireCRUD); err != nil {
+		if err := kubeapplierhelpers.PurgeApplyDesire(ctx, applyDesire.ResourceID.Name, applyDesireCRUD); err != nil {
 			return false, err
 		}
 		return true, nil
@@ -378,6 +425,9 @@ func (c *keyRotationBackupSyncer) purgeCompletedOnDemandApplyDesires(
 	return false, nil
 }
 
+// recordKeyRotationBackupFingerprint durably marks kmsKeyFingerprint as handled,
+// whether the backup completed or was skipped due to pause. Either way this
+// rotation is never acted on again until a new fingerprint appears.
 func (c *keyRotationBackupSyncer) recordKeyRotationBackupFingerprint(
 	ctx context.Context,
 	key controllerutils.HCPClusterKey,
@@ -427,9 +477,10 @@ func (c *keyRotationBackupSyncer) deleteStaleOnDemandReadDesires(
 		reason := "stale: superseded rotation, Backup GC'd by Velero at TTL"
 		if isCurrent {
 			reason = "current: Backup GC'd by Velero at TTL"
-			// Keep the current desire until its completion is durably recorded.
-			fingerprintRecorded := cachedServiceProviderCluster.Status.KeyRotationBackupFingerprint == kmsKeyFingerprint
-			if !fingerprintRecorded || !backupGarbageCollected {
+			// Keep until the outcome (completed or skipped) is durably recorded;
+			// a skipped rotation's ReadDesire is an orphan from a pause race.
+			outcomeRecorded := cachedServiceProviderCluster.Status.KeyRotationBackupFingerprint == kmsKeyFingerprint
+			if !outcomeRecorded || !backupGarbageCollected {
 				continue
 			}
 		} else if !backupGarbageCollected {
@@ -461,7 +512,7 @@ func buildOnDemandBackupApplyDesire(
 	veleroBackup *velerov1.Backup,
 ) (*kubeapplierapi.ApplyDesire, error) {
 	desireName := keyRotationDesireName(veleroBackup.Name)
-	resourceIDStr := kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(
+	resourceIDStr := kubeapplierapihelpers.ToClusterScopedApplyDesireResourceIDString(
 		subscriptionID, resourceGroupName, clusterName, desireName,
 	)
 	resourceID, err := azcorearm.ParseResourceID(resourceIDStr)

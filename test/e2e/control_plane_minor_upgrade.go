@@ -33,7 +33,7 @@ import (
 
 	clusterversion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/version"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
-	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
@@ -62,15 +62,15 @@ var _ = Describe("Customer", func() {
 			upgradeVersionId := fmt.Sprintf("%d.%d", upgradeVersion.Major, upgradeVersion.Minor)
 			if channelGroup == "nightly" {
 				resolvedInstall, err := framework.GetLatestNightlyInstallVersion(ctx, channelGroup, installVersionId)
-				if framework.IsVersionNotFoundError(err) {
-					Skip(fmt.Sprintf("no nightly version for %s: %v", installVersionId, err))
+				if framework.IsVersionNotFoundError(err) || framework.IsIncompatibleNightlyVersionError(err) {
+					Skip(fmt.Sprintf("no usable nightly version for %s: %v", installVersionId, err))
 				}
 				Expect(err).NotTo(HaveOccurred(), "failed to resolve nightly install version for %s", installVersionId)
 				installVersionId = resolvedInstall
 
 				resolvedUpgrade, err := framework.GetLatestNightlyInstallVersion(ctx, channelGroup, upgradeVersionId)
-				if framework.IsVersionNotFoundError(err) {
-					Skip(fmt.Sprintf("no nightly version for %s: %v", upgradeVersionId, err))
+				if framework.IsVersionNotFoundError(err) || framework.IsIncompatibleNightlyVersionError(err) {
+					Skip(fmt.Sprintf("no usable nightly version for %s: %v", upgradeVersionId, err))
 				}
 				Expect(err).NotTo(HaveOccurred(), "failed to resolve nightly upgrade version for %s", upgradeVersionId)
 				upgradeVersionId = resolvedUpgrade

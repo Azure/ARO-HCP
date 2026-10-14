@@ -60,6 +60,12 @@ resourceGroups:
     template: templates/kusto.bicep
     parameters: configurations/kusto-stg.tmpl.bicepparam
     deploymentLevel: ResourceGroup
+    variables:
+    - name: grafanaPrincipalId
+      input:
+        resourceGroup: global
+        step: output
+        name: grafanaPrincipalId
     dependsOn:
     - resourceGroup: global
       step: output
@@ -101,23 +107,6 @@ resourceGroups:
       step: kusto-lookup
     - resourceGroup: svc
       step: subscription-lookup
-  - name: detach-legacy-monitoring-stack
-    action: Shell
-    command: ./detach-legacy-monitoring-stack.sh
-    workingDir: ./scripts
-    variables:
-    - name: KUSTO_RESOURCE_GROUP
-      configRef: kusto.rg
-    shellIdentity:
-      input:
-        resourceGroup: global
-        step: output
-        name: globalMSIId
-    dependsOn:
-    - resourceGroup: kusto-infra
-      step: deploy
-    - resourceGroup: global
-      step: output
   - name: kusto-monitoring
     action: ARMStack
     template: templates/kusto-monitoring.bicep
@@ -156,8 +145,6 @@ resourceGroups:
       step: kusto-lookup
     - resourceGroup: kusto-infra
       step: action-groups
-    - resourceGroup: kusto-infra
-      step: detach-legacy-monitoring-stack
   - name: entity-groups
     action: KustoEntityGroups
     entityGroups:

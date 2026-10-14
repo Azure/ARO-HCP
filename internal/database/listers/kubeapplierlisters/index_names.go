@@ -25,7 +25,7 @@ const (
 	// spec.managementCluster value. Used by the kube-applier binary.
 	ByManagementCluster = "byManagementCluster"
 	// ByCluster groups *Desires by the lower-cased resource ID of their
-	// containing HCPOpenShiftCluster (covering both cluster- and
+	// containing Cluster (covering both cluster- and
 	// node-pool-scoped desires under that cluster).
 	ByCluster = "byCluster"
 	// ByNodePool groups node-pool-scoped *Desires by the lower-cased resource

@@ -25,6 +25,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
@@ -36,6 +37,8 @@ type dispatchRevokeCredentials struct {
 	resourcesDBClient corecosmosstorage.ResourcesDBClient
 	clusterLister     corelisters.ClusterLister
 }
+
+const SystemAdminCredentialDispatchRevokeCredentialsControllerName = "SystemAdminCredentialDispatchRevokeCredentials"
 
 // NewDispatchRevokeCredentialsController returns a Controller that handles the
 // first step of a RevokeCredentials operation: it creates a single
@@ -65,7 +68,7 @@ func NewDispatchRevokeCredentialsController(
 	}
 
 	controller := controllerutils.NewGenericOperationController(
-		"SystemAdminCredentialDispatchRevokeCredentials",
+		SystemAdminCredentialDispatchRevokeCredentialsControllerName,
 		syncer,
 		10*time.Second,
 		activeOperationInformer,
@@ -125,7 +128,7 @@ func (c *dispatchRevokeCredentials) SynchronizeOperation(ctx context.Context, ke
 		operation.ExternalID.Name,
 	)
 
-	revocationResourceID, err := coreapi.ToSystemAdminCredentialRevocationResourceID(
+	revocationResourceID, err := coreapihelpers.ToSystemAdminCredentialRevocationResourceID(
 		operation.ExternalID.SubscriptionID,
 		operation.ExternalID.ResourceGroupName,
 		operation.ExternalID.Name,

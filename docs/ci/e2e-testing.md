@@ -41,7 +41,11 @@ All E2E tests run through Prow. For manual triggers or reruns, use PR comments o
 
 The `ocp-fast`, `ocp-stable`, and `ocp-nightly` variants run the same E2E suite but against different OCP update channels to catch compatibility issues with newer OCP versions early. For more information on OCP update channels, see [What are the differences between each of the update channels?](https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/updating_clusters/understanding-openshift-updates-1#update-availability_understanding-openshift-updates)
 
-This guide intentionally does not hard-code the current runtime region for these jobs. Inspect the live `openshift/release` ci-operator config if you need the current `LOCATION` or `MULTISTAGE_PARAM_OVERRIDE_LOCATION` for a specific job.
+DEV `e2e-parallel` selects a runtime region for each run according to the
+`LOCATION_WEIGHTS` in the live `openshift/release` ci-operator config. Other
+jobs may use an explicit `LOCATION` or
+`MULTISTAGE_PARAM_OVERRIDE_LOCATION`. Inspect the live config when the current
+weights or pinned region matter.
 
 To rerun all failed jobs:
 

@@ -26,6 +26,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 )
 
 type ResourceCRUD[InternalAPIType any, InternalAPITypePointer coreapi.CosmosMetadataAccessorPtr[InternalAPIType]] interface {
@@ -146,6 +147,27 @@ func (FleetPartitionKeyDeriver) PartitionKeyFromObject(obj any) (string, error) 
 	return "", fmt.Errorf("fleet partitioning could not derive a key from %T's resourceID", obj)
 }
 
+// ProviderNamespacePartitionKeyDeriver partitions every document it governs
+// into a single shared partition keyed by the lowercased ARO provider namespace
+// (coreapi.ProviderNamespace). Fleet-global singletons that have no natural
+// sharding dimension — e.g. ControlPlaneVersionRollout, of which there is one
+// per y-stream channel and only a handful fleet-wide — use this so they all
+// live in one partition and can be read/listed with a single-partition query.
+type ProviderNamespacePartitionKeyDeriver struct{}
+
+func (ProviderNamespacePartitionKeyDeriver) PartitionKey(_ *azcorearm.ResourceID, _ string) (string, error) {
+	return strings.ToLower(coreapi.ProviderNamespace), nil
+}
+
+func (ProviderNamespacePartitionKeyDeriver) PartitionKeyFromObject(obj any) (string, error) {
+	switch obj.(type) {
+	case *fleetapi.ControlPlaneVersionRollout:
+		return strings.ToLower(coreapi.ProviderNamespace), nil
+	default:
+		return "", fmt.Errorf("provider-namespace partitioning does not apply to %T", obj)
+	}
+}
+
 // TopLevelResourceName walks a resource ID to its root ancestor and returns
 // its lowercased name. Returns "" if rid is nil or carries no name.
 func TopLevelResourceName(rid *azcorearm.ResourceID) string {
@@ -198,7 +220,7 @@ type ClusterNestedResourceIDBuilder struct{}
 
 func (ClusterNestedResourceIDBuilder) BuildResourceID(ParentResourceID *azcorearm.ResourceID, ResourceType azcorearm.ResourceType, resourceName string) (*azcorearm.ResourceID, error) {
 	if ParentResourceID == nil {
-		return coreapi.ToSubscriptionResourceID(resourceName)
+		return coreapihelpers.ToSubscriptionResourceID(resourceName)
 	}
 
 	if len(ParentResourceID.SubscriptionID) == 0 {
@@ -266,7 +288,7 @@ type NestedCosmosResourceCRUD[InternalAPIType any, InternalAPITypePointer coreap
 	resourceIDBuilder   ResourceIDBuilder
 }
 
-var _ ResourceCRUD[coreapi.HCPOpenShiftClusterNodePool, *coreapi.HCPOpenShiftClusterNodePool] = &NestedCosmosResourceCRUD[coreapi.HCPOpenShiftClusterNodePool, *coreapi.HCPOpenShiftClusterNodePool, GenericDocument[coreapi.HCPOpenShiftClusterNodePool]]{}
+var _ ResourceCRUD[coreapi.NodePool, *coreapi.NodePool] = &NestedCosmosResourceCRUD[coreapi.NodePool, *coreapi.NodePool, GenericDocument[coreapi.NodePool]]{}
 
 // NewCosmosResourceCRUD constructs a CRUD using the subscription-ID partition
 // key policy and the standard ARM-style path builder. For containers that

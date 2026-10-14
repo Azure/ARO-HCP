@@ -27,6 +27,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
 	"github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -47,7 +48,7 @@ func (k StampKey) String() string {
 }
 
 func (k StampKey) GetResourceID() *azcorearm.ResourceID {
-	return metadataapi.Must(fleetapi.ToStampResourceID(k.StampIdentifier))
+	return metadataapi.Must(fleetapihelpers.ToStampResourceID(k.StampIdentifier))
 }
 
 func (k StampKey) AddLoggerValues(logger logr.Logger) logr.Logger {

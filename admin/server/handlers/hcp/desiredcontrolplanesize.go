@@ -20,6 +20,7 @@ import (
 	"net/http"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -63,7 +64,7 @@ func (h *HCPDesiredControlPlaneSizeHandler) ServeHTTP(writer http.ResponseWriter
 	if body.Size != nil && *body.Size == "" {
 		return coreapi.NewCloudError(http.StatusBadRequest, coreapi.CloudErrorCodeInvalidRequestContent, "", "size must not be empty; omit the field to clear")
 	}
-	if body.Size != nil && !coreapi.IsValidHostedClusterControlPlaneSize(*body.Size) {
+	if body.Size != nil && !coreapihelpers.IsValidHostedClusterControlPlaneSize(*body.Size) {
 		return coreapi.NewCloudError(http.StatusBadRequest, coreapi.CloudErrorCodeInvalidRequestContent, "", "size %q must be one of Small, Medium, Large, Xlarge, XXlarge", *body.Size)
 	}
 
@@ -80,6 +81,6 @@ func (h *HCPDesiredControlPlaneSizeHandler) ServeHTTP(writer http.ResponseWriter
 		return fmt.Errorf("failed to replace ServiceProviderCluster: %w", err)
 	}
 
-	_, err = coreapi.WriteJSONResponse(writer, http.StatusOK, desiredControlPlaneSizeRequest{Size: body.Size})
+	_, err = coreapihelpers.WriteJSONResponse(writer, http.StatusOK, desiredControlPlaneSizeRequest{Size: body.Size})
 	return utils.TrackError(err)
 }

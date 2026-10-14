@@ -15,6 +15,8 @@ TOPOLOGY_FILE ?= topology.yaml
 export AZURE_TOKEN_CREDENTIALS ?= dev
 BUILD_SERVICES_OPTS ?= -j7
 
+export GOTOOLCHAIN ?= local
+
 .DEFAULT_GOAL := all
 
 # There is currently no convenient way to run commands against a whole Go workspace
@@ -31,12 +33,12 @@ all: test lint
 # `export` is needed (rather than the `VAR=value command` form) because the
 # go list | xargs go test pipeline runs go test in a subprocess of xargs;
 # without export the env var only reaches go list.
-test: envtest-setup
+test: envtest-setup test-infrastructure
 	@export KUBEBUILDER_ASSETS="$$($(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path --bin-dir $(ENVTEST_BIN_DIR))"; \
 		go list -f '{{.Dir}}/...' -m | xargs go test -timeout 1200s -cover
 .PHONY: test
 
-test-unit: envtest-setup
+test-unit: envtest-setup test-infrastructure
 	@export KUBEBUILDER_ASSETS="$$($(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path --bin-dir $(ENVTEST_BIN_DIR))"; \
 		go list -f '{{.Dir}}/...' -m | xargs go test -timeout 1200s -cover
 .PHONY: test-unit
@@ -96,10 +98,22 @@ verify-kql:
 	hack/kql-verify.sh
 .PHONY: verify-kql
 
+verify-bicep-fixtures:
+	hack/verify-bicep-fixtures.sh
+.PHONY: verify-bicep-fixtures
+
+update-bicep-golden:
+	hack/generate-bicep-golden.sh
+.PHONY: update-bicep-golden
+
+verify-tool-versions:
+	$(MAKE) -C dev-infrastructure/openshift-ci verify
+.PHONY: verify-tool-versions
+
 update: deepcopy json-format
 .PHONY: update
 
-verify: verify-deepcopy verify-json-format verify-generate verify-yamlfmt verify-materialize verify-gomega-assertions verify-mi-containers verify-schema
+verify: verify-deepcopy verify-json-format verify-generate verify-yamlfmt verify-materialize verify-gomega-assertions verify-gomega-cmpdiff verify-mi-containers verify-schema verify-bicep-fixtures verify-tool-versions
 .PHONY: verify
 
 verify-schema:
@@ -109,6 +123,10 @@ verify-schema:
 verify-gomega-assertions:
 	go run ./hack/verify-gomega-assertions ./test/e2e/ ./test/util/
 .PHONY: verify-gomega-assertions
+
+verify-gomega-cmpdiff:
+	go run ./hack/verify-gomega-cmpdiff ./test/e2e ./test/util/...
+.PHONY: verify-gomega-cmpdiff
 
 verify-mi-containers:
 	go run ./hack/verify-mi-containers ./test/e2e/
@@ -283,13 +301,25 @@ infra.clean:
 	@cd dev-infrastructure && DEPLOY_ENV=$(DEPLOY_ENV) make clean
 .PHONY: infra.clean
 
-infra.tracing:
-	cd observability/tracing && KUBECONFIG="$$(cd ../../dev-infrastructure && make -s svc.aks.kubeconfigfile)" make
-.PHONY: infra.tracing
-
 infra.cosmos.access:
 	@cd dev-infrastructure && DEPLOY_ENV=$(DEPLOY_ENV) make cosmos.access
 .PHONY: infra.cosmos.access
+
+local-grafana-start: $(TEMPLATIZE) $(YQ_LINK)
+	DEPLOY_ENV=$(DEPLOY_ENV) ./hack/local-grafana.sh start
+.PHONY: local-grafana-start
+
+local-grafana-stop:
+	./hack/local-grafana.sh stop
+.PHONY: local-grafana-stop
+
+local-grafana-status:
+	./hack/local-grafana.sh status
+.PHONY: local-grafana-status
+
+local-grafana-help:
+	./hack/local-grafana.sh help
+.PHONY: local-grafana-help
 
 #
 # Services
@@ -334,8 +364,8 @@ services_all = $(join services_svc,services_mgmt)
 # Pipelines section
 # This sections is used to reference pipeline runs and should replace
 # the usage of `svc-deploy.sh` script in the future.
-services_svc_pipelines = backend frontend cluster-service maestro.server observability.tracing
-services_mgmt_pipelines = secret-sync-controller acm hypershiftoperator maestro.agent mgmt-agent observability.tracing
+services_svc_pipelines = backend frontend cluster-service maestro.server
+services_mgmt_pipelines = secret-sync-controller acm hypershiftoperator maestro.agent mgmt-agent swift-recorder
 %.deploy_pipeline: $(ORAS_LINK) $(YQ)
 	$(eval export dirname=$(subst .,/,$(basename $@)))
 	./templatize.sh $(DEPLOY_ENV) -p $(shell $(YQ) .serviceGroup ./$(dirname)/pipeline.yaml) -P run
@@ -376,8 +406,13 @@ update-helm-fixtures:
 	$(MAKE) -C tooling/helmtest update
 .PHONY: update-helm-fixtures
 
-test-helm-fixtures:
+test-infrastructure:
+	BICEP="$(BICEP)" go test -C dev-infrastructure system_pool_only_test.go infrastructure_identities_test.go
+.PHONY: test-infrastructure
+
+test-helm-fixtures: test-infrastructure
 	$(MAKE) -C tooling/helmtest test
+	$(MAKE) -C observability/prometheus test
 .PHONY: test-helmcharts
 
 verify-materialize:
@@ -399,7 +434,7 @@ generate-kiota:
 PERS_OVERRIDE_FILE ?= /tmp/personal-dev-override.yaml
 
 build-services: $(TEMPLATIZE)
-	$(MAKE) $(BUILD_SERVICES_OPTS) build-frontend build-backend build-admin build-sessiongate build-mgmt-agent build-kube-applier build-fleet build-aro-hcp-exporter
+	$(MAKE) $(BUILD_SERVICES_OPTS) build-frontend build-backend build-admin build-sessiongate build-mgmt-agent build-swift-recorder build-kube-applier build-fleet build-aro-hcp-exporter
 .PHONY: build-services
 
 build-frontend:
@@ -422,6 +457,10 @@ build-mgmt-agent:
 	$(MAKE) -C mgmt-agent build-and-push
 .PHONY: build-mgmt-agent
 
+build-swift-recorder:
+	$(MAKE) -C swift-recorder build-and-push
+.PHONY: build-swift-recorder
+
 build-kube-applier:
 	$(MAKE) -C kube-applier build-and-push
 .PHONY: build-kube-applier
@@ -440,6 +479,7 @@ record-services-override: $(YQ) $(ORAS)
 	$(MAKE) -C admin record-override OVERRIDE_CONFIG_FILE=/tmp/_admin-override.yaml
 	$(MAKE) -C sessiongate record-override OVERRIDE_CONFIG_FILE=/tmp/_sessiongate-override.yaml
 	$(MAKE) -C mgmt-agent record-override OVERRIDE_CONFIG_FILE=/tmp/_mgmt-agent-override.yaml
+	$(MAKE) -C swift-recorder record-override OVERRIDE_CONFIG_FILE=/tmp/_swift-recorder-override.yaml
 	$(MAKE) -C kube-applier record-override OVERRIDE_CONFIG_FILE=/tmp/_kube-applier-override.yaml
 	$(MAKE) -C fleet record-override OVERRIDE_CONFIG_FILE=/tmp/_fleet-override.yaml
 	$(MAKE) -C tooling/aro-hcp-exporter record-override OVERRIDE_CONFIG_FILE=/tmp/_aro-hcp-exporter-override.yaml
@@ -449,6 +489,7 @@ record-services-override: $(YQ) $(ORAS)
 	  /tmp/_admin-override.yaml \
 	  /tmp/_sessiongate-override.yaml \
 	  /tmp/_mgmt-agent-override.yaml \
+	  /tmp/_swift-recorder-override.yaml \
 	  /tmp/_kube-applier-override.yaml \
 	  /tmp/_fleet-override.yaml \
 	  /tmp/_aro-hcp-exporter-override.yaml \
@@ -487,7 +528,7 @@ ifeq ($(DEPLOY_ENV),$(filter $(DEPLOY_ENV),pers swft))
 ifdef USE_LATEST_IMAGES
 personal-dev-env: latest-services-override install-tools
 	$(MAKE) entrypoint/Region OVERRIDE_CONFIG_FILE=$(PERS_OVERRIDE_FILE)
-	$(MAKE) infra.svc.aks.kubeconfig infra.mgmt.aks.kubeconfig infra.tracing infra.cosmos.access
+	$(MAKE) infra.svc.aks.kubeconfig infra.mgmt.aks.kubeconfig infra.cosmos.access
 else
 personal-dev-env: install-tools
 	$(eval IMAGE_TAG := $(shell DETECT_DIRTY_GIT_WORKTREE=${DETECT_DIRTY_GIT_WORKTREE} DEPLOY_ENV=${DEPLOY_ENV} ./generate-tag.sh))
@@ -496,7 +537,7 @@ personal-dev-env: install-tools
 	$(MAKE) build-services
 	$(MAKE) record-services-override
 	$(MAKE) entrypoint/Region OVERRIDE_CONFIG_FILE=$(PERS_OVERRIDE_FILE)
-	$(MAKE) infra.svc.aks.kubeconfig infra.mgmt.aks.kubeconfig infra.tracing infra.cosmos.access
+	$(MAKE) infra.svc.aks.kubeconfig infra.mgmt.aks.kubeconfig infra.cosmos.access
 endif
 else
 personal-dev-env:
@@ -645,3 +686,8 @@ cleanup: $(TEMPLATIZE)
 image-updater:
 	@$(MAKE) -C tooling/image-updater update
 .PHONY: image-updater
+
+# Tool version bumper
+update-tool-versions:
+	@$(MAKE) -C dev-infrastructure/openshift-ci update-tool-versions
+.PHONY: update-tool-versions

@@ -35,7 +35,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/backups"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	internalazure "github.com/Azure/ARO-HCP/internal/azure"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosclient"
 	"github.com/Azure/ARO-HCP/internal/signal"
 	"github.com/Azure/ARO-HCP/internal/tracing"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -509,35 +509,11 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 		azCoreClientOptions,
 	)
 
-	cosmosDatabaseClient, err := app.NewCosmosDatabaseClient(
-		f.AzureCosmosDBURL,
-		f.AzureCosmosDBName,
-		azCoreClientOptions,
-	)
+	storageFactory, err := app.NewStorageFactory(f.AzureCosmosDBURL, f.AzureCosmosDBName, cosmosclient.Options{ClientOptions: azCoreClientOptions},
+		app.BackendStorageFactoryOptions(!f.InsecureIgnoreUserAzureManagedIdentitiesThatNeedManagedIdentitiesDataplaneAvailableAndUseMock))
 	if err != nil {
-		return nil, utils.TrackError(err)
+		return nil, utils.TrackError(fmt.Errorf("failed to create backend storage factory: %w", err))
 	}
-
-	resourcesCosmosDBClient, billingDBClient, err := app.NewCosmosDBClients(cosmosDatabaseClient)
-	if err != nil {
-		return nil, utils.TrackError(err)
-	}
-
-	fleetDBClient, err := app.NewFleetDBClient(cosmosDatabaseClient)
-	if err != nil {
-		return nil, utils.TrackError(fmt.Errorf("failed to create fleet db client: %w", err))
-	}
-
-	// In the per-management-cluster container model the backend resolves each MC's
-	// kube-applier container by walking the fleet's ManagementCluster lister. We
-	// back the lister with the FleetDBClient directly so the registry is usable
-	// before informers start; the per-MC azcosmos client construction is cached
-	// inside the registry, but the MC list itself is re-read each call so fleet
-	// additions/removals become visible without restarting the backend.
-	kubeApplierDBClients := app.NewKubeApplierDBClients(
-		cosmosDatabaseClient,
-		kubeappliercosmosstorage.NewDBBackedManagementClusterLister(fleetDBClient),
-	)
 
 	clustersServiceClient, err := app.NewClustersServiceClient(ctx, f.ClustersServiceURL, f.ClustersServiceTLSInsecure)
 	if err != nil {
@@ -560,10 +536,7 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 		AppVersion:                         cmd.Version,
 		AzureLocation:                      f.AzureLocation,
 		LeaderElectionLock:                 leaderElectionLock,
-		ResourcesDBClient:                  resourcesCosmosDBClient,
-		BillingDBClient:                    billingDBClient,
-		FleetDBClient:                      fleetDBClient,
-		KubeApplierDBClients:               kubeApplierDBClients,
+		StorageFactory:                     storageFactory,
 		ClustersServiceClient:              clustersServiceClient,
 		MetricsServerListenAddress:         f.MetricsServerListenAddress,
 		HealthzServerListenAddress:         f.HealthzServerListenAddress,

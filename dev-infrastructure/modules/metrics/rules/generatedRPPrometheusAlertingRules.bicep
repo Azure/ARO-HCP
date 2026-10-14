@@ -241,8 +241,8 @@ resource arohcpAccessClusterSaturationAlerts 'Microsoft.AlertsManagement/prometh
   }
 }
 
-resource arohcpClusterProvisionSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
-  name: 'arohcp_cluster_provision_slo_error_alerts'
+resource arohcpClusterProvisionSloLatencyAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_cluster_provision_slo_latency_alerts'
   location: location
   properties: {
     interval: 'PT1M'
@@ -257,7 +257,48 @@ resource arohcpClusterProvisionSloErrorAlerts 'Microsoft.AlertsManagement/promet
             }
           }
         ]
-        alert: 'UJClusterProvisionErrors1h5m'
+        alert: 'userJourneyClusterProvisionStuckOperation'
+        enabled: true
+        labels: {
+          component: 'slo'
+          severity: '4'
+        }
+        annotations: {
+          correlationId: 'userJourneyClusterProvisionStuckOperation/{{ $labels.cluster }}/{{ $labels.resource_id }}/{{ $labels.phase }}'
+          description: 'Cluster create operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 30 minutes. Stuck operations are invisible to success/failure SLIs and require investigation.'
+          info: 'Cluster create operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 30 minutes. Stuck operations are invisible to success/failure SLIs and require investigation.'
+          runbook_url: 'https://aka.ms/arohcp-runbook-cluster-provision'
+          summary: '{{ $labels.cluster }}: Cluster create operation for {{ $labels.resource_id }} stuck in {{ $labels.phase }} for over 30 minutes'
+          title: '{{ $labels.cluster }}: Cluster create operation for {{ $labels.resource_id }} stuck in {{ $labels.phase }} for over 30 minutes'
+        }
+        expression: '(max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((latency:backend_cluster_provision:inflight_duration_seconds > 1800)[6h:5m])) and on (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) latency:backend_cluster_provision:inflight_duration_seconds) unless on (subscription_id) internal_subscription:info'
+        for: 'PT15M'
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
+
+resource arohcpClusterProvisionSloWindowedErrorAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_cluster_provision_slo_windowed_error_alerts'
+  location: location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyClusterProvisionErrors1h5m'
         enabled: true
         labels: {
           component: 'slo'
@@ -267,14 +308,14 @@ resource arohcpClusterProvisionSloErrorAlerts 'Microsoft.AlertsManagement/promet
           slo: 'cluster-provision-errors'
         }
         annotations: {
-          correlationId: 'UJClusterProvisionErrors1h5m/{{ $labels.cluster }}'
-          description: 'More than 72% of cluster create (install) operations are in failed state, indicating a fast error budget burn (14.4x) that would exhaust the 95% SLO budget in ~12 hours. A regional install failure of this magnitude typically points at a shared dependency (e.g. registry, DNS, or ARM) rather than individual clusters.'
-          info: 'More than 72% of cluster create (install) operations are in failed state, indicating a fast error budget burn (14.4x) that would exhaust the 95% SLO budget in ~12 hours. A regional install failure of this magnitude typically points at a shared dependency (e.g. registry, DNS, or ARM) rather than individual clusters.'
+          correlationId: 'userJourneyClusterProvisionErrors1h5m/{{ $labels.cluster }}'
+          description: 'More than 72% of completed cluster create (install) operations on {{ $labels.cluster }} failed over the last hour with at least 3 failures, a 14.4x burn of the 95% SLO budget.'
+          info: 'More than 72% of completed cluster create (install) operations on {{ $labels.cluster }} failed over the last hour with at least 3 failures, a 14.4x burn of the 95% SLO budget.'
           runbook_url: 'https://aka.ms/arohcp-runbook-cluster-provision'
-          summary: '{{ $labels.cluster }}: Cluster provisioning error rate critically high (>72%)'
-          title: '{{ $labels.cluster }}: Cluster provisioning error rate critically high (>72%)'
+          summary: '{{ $labels.cluster }}: Cluster create operations failing fast (>72% of recent operations)'
+          title: '{{ $labels.cluster }}: Cluster create operations failing fast (>72% of recent operations)'
         }
-        expression: 'errors:backend_cluster_provision:error_rate > 0.72'
+        expression: 'errors:backend_cluster_provision:failed_1h >= 3 and errors:backend_cluster_provision:error_rate_1h > 0.72'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -288,7 +329,7 @@ resource arohcpClusterProvisionSloErrorAlerts 'Microsoft.AlertsManagement/promet
             }
           }
         ]
-        alert: 'UJClusterProvisionErrors6h30m'
+        alert: 'userJourneyClusterProvisionErrors6h30m'
         enabled: true
         labels: {
           component: 'slo'
@@ -298,14 +339,14 @@ resource arohcpClusterProvisionSloErrorAlerts 'Microsoft.AlertsManagement/promet
           slo: 'cluster-provision-errors'
         }
         annotations: {
-          correlationId: 'UJClusterProvisionErrors6h30m/{{ $labels.cluster }}'
-          description: 'More than 30% of cluster create (install) operations are in failed state sustained over 30 minutes, indicating a medium error budget burn (6x) that would exhaust the 95% SLO budget in ~28 hours.'
-          info: 'More than 30% of cluster create (install) operations are in failed state sustained over 30 minutes, indicating a medium error budget burn (6x) that would exhaust the 95% SLO budget in ~28 hours.'
+          correlationId: 'userJourneyClusterProvisionErrors6h30m/{{ $labels.cluster }}'
+          description: 'More than 30% of completed cluster create (install) operations on {{ $labels.cluster }} failed over the last 6 hours (at least 5 completions), a 6x burn of the 95% SLO budget.'
+          info: 'More than 30% of completed cluster create (install) operations on {{ $labels.cluster }} failed over the last 6 hours (at least 5 completions), a 6x burn of the 95% SLO budget.'
           runbook_url: 'https://aka.ms/arohcp-runbook-cluster-provision'
-          summary: '{{ $labels.cluster }}: Cluster provisioning error rate elevated (>30%) for 30+ minutes'
-          title: '{{ $labels.cluster }}: Cluster provisioning error rate elevated (>30%) for 30+ minutes'
+          summary: '{{ $labels.cluster }}: Cluster create operation error rate elevated (>30% over 6h)'
+          title: '{{ $labels.cluster }}: Cluster create operation error rate elevated (>30% over 6h)'
         }
-        expression: 'errors:backend_cluster_provision:error_rate > 0.3'
+        expression: 'errors:backend_cluster_provision:total_6h >= 5 and errors:backend_cluster_provision:error_rate_6h > 0.3'
         for: 'PT30M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -319,7 +360,7 @@ resource arohcpClusterProvisionSloErrorAlerts 'Microsoft.AlertsManagement/promet
             }
           }
         ]
-        alert: 'UJClusterProvisionErrors3d'
+        alert: 'userJourneyClusterProvisionErrors3d'
         enabled: true
         labels: {
           component: 'slo'
@@ -328,14 +369,14 @@ resource arohcpClusterProvisionSloErrorAlerts 'Microsoft.AlertsManagement/promet
           slo: 'cluster-provision-errors'
         }
         annotations: {
-          correlationId: 'UJClusterProvisionErrors3d/{{ $labels.cluster }}'
-          description: 'More than 5% of cluster create (install) operations are in failed state sustained over 6 hours, indicating persistent degradation at the 95% SLO boundary that would exhaust the error budget in ~7 days.'
-          info: 'More than 5% of cluster create (install) operations are in failed state sustained over 6 hours, indicating persistent degradation at the 95% SLO boundary that would exhaust the error budget in ~7 days.'
+          correlationId: 'userJourneyClusterProvisionErrors3d/{{ $labels.cluster }}'
+          description: 'More than 5% of completed cluster create (install) operations on {{ $labels.cluster }} failed over the last 3 days (at least 10 completions and 2 failures), a 1x burn that exhausts the 95% SLO error budget over the window.'
+          info: 'More than 5% of completed cluster create (install) operations on {{ $labels.cluster }} failed over the last 3 days (at least 10 completions and 2 failures), a 1x burn that exhausts the 95% SLO error budget over the window.'
           runbook_url: 'https://aka.ms/arohcp-runbook-cluster-provision'
-          summary: '{{ $labels.cluster }}: Cluster provisioning error rate exceeds SLO target (>5%) for 6+ hours'
-          title: '{{ $labels.cluster }}: Cluster provisioning error rate exceeds SLO target (>5%) for 6+ hours'
+          summary: '{{ $labels.cluster }}: Cluster create operation error budget burning (>5% over 3d)'
+          title: '{{ $labels.cluster }}: Cluster create operation error budget burning (>5% over 3d)'
         }
-        expression: 'errors:backend_cluster_provision:error_rate > 0.05'
+        expression: 'errors:backend_cluster_provision:total_3d >= 10 and errors:backend_cluster_provision:failed_3d >= 2 and errors:backend_cluster_provision:error_rate_3d > 0.05'
         for: 'PT6H'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
@@ -349,22 +390,23 @@ resource arohcpClusterProvisionSloErrorAlerts 'Microsoft.AlertsManagement/promet
             }
           }
         ]
-        alert: 'UJClusterProvisionErrorsDegradation'
+        alert: 'userJourneyClusterProvisionErrorsDegradation'
         enabled: true
         labels: {
           component: 'slo'
+          long_window: '6h'
           severity: '4'
           slo: 'cluster-provision-errors'
         }
         annotations: {
-          correlationId: 'UJClusterProvisionErrorsDegradation/{{ $labels.cluster }}'
-          description: 'The cluster create (install) failure rate has been above 15% for 30 minutes. This provides early warning of degradation before SLO-based burn rate alerts fire.'
-          info: 'The cluster create (install) failure rate has been above 15% for 30 minutes. This provides early warning of degradation before SLO-based burn rate alerts fire.'
+          correlationId: 'userJourneyClusterProvisionErrorsDegradation/{{ $labels.cluster }}'
+          description: 'More than 15% of completed cluster create (install) operations on {{ $labels.cluster }} failed over the last 6 hours (at least 5 completions and 2 failures), an early warning of degradation before the burn-rate alerts fire.'
+          info: 'More than 15% of completed cluster create (install) operations on {{ $labels.cluster }} failed over the last 6 hours (at least 5 completions and 2 failures), an early warning of degradation before the burn-rate alerts fire.'
           runbook_url: 'https://aka.ms/arohcp-runbook-cluster-provision'
-          summary: '{{ $labels.cluster }}: Cluster provisioning failure rate exceeds 15% for 30 minutes'
-          title: '{{ $labels.cluster }}: Cluster provisioning failure rate exceeds 15% for 30 minutes'
+          summary: '{{ $labels.cluster }}: Cluster create operation failure rate exceeds 15% over 6h'
+          title: '{{ $labels.cluster }}: Cluster create operation failure rate exceeds 15% over 6h'
         }
-        expression: 'errors:backend_cluster_provision:error_rate > 0.15'
+        expression: 'errors:backend_cluster_provision:total_6h >= 5 and errors:backend_cluster_provision:failed_6h >= 2 and errors:backend_cluster_provision:error_rate_6h > 0.15'
         for: 'PT30M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
@@ -690,7 +732,7 @@ resource arohcpFrontendSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
           summary: '{{ $labels.cluster }}: Frontend HTTP 5xx error rate critically high (>0.72%)'
           title: '{{ $labels.cluster }}: Frontend HTTP 5xx error rate critically high (>0.72%)'
         }
-        expression: '(avg_over_time(errors:frontend_http:error_rate:rate5m[1h]) > 0.0072 and avg_over_time(errors:frontend_http:error_rate:rate5m[5m]) > 0.0072)'
+        expression: '((sum by (cluster, region) (rate(frontend_http_requests_total{code=~"5..",route!~".*hcpoperation(results|statuses).*"}[1h] offset 5m)) / sum by (cluster, region) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[1h] offset 5m))) > 0.0072 and on (cluster) (sum by (cluster, region) (rate(frontend_http_requests_total{code=~"5..",route!~".*hcpoperation(results|statuses).*"}[5m] offset 5m)) / sum by (cluster, region) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[5m] offset 5m))) > 0.0072)'
         for: 'PT2M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -721,7 +763,7 @@ resource arohcpFrontendSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
           summary: '{{ $labels.cluster }}: Frontend HTTP 5xx error rate elevated (>0.30%)'
           title: '{{ $labels.cluster }}: Frontend HTTP 5xx error rate elevated (>0.30%)'
         }
-        expression: '(avg_over_time(errors:frontend_http:error_rate:rate5m[6h]) > 0.003 and avg_over_time(errors:frontend_http:error_rate:rate5m[30m]) > 0.003)'
+        expression: '((sum by (cluster, region) (rate(frontend_http_requests_total{code=~"5..",route!~".*hcpoperation(results|statuses).*"}[6h] offset 5m)) / sum by (cluster, region) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[6h] offset 5m))) > 0.003 and on (cluster) (sum by (cluster, region) (rate(frontend_http_requests_total{code=~"5..",route!~".*hcpoperation(results|statuses).*"}[30m] offset 5m)) / sum by (cluster, region) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[30m] offset 5m))) > 0.003)'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -752,113 +794,7 @@ resource arohcpFrontendSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
           summary: '{{ $labels.cluster }}: Frontend HTTP 5xx error rate exceeds SLO (>0.05%)'
           title: '{{ $labels.cluster }}: Frontend HTTP 5xx error rate exceeds SLO (>0.05%)'
         }
-        expression: '(avg_over_time(errors:frontend_http:error_rate:rate5m[3d]) > 0.0005 and avg_over_time(errors:frontend_http:error_rate:rate5m[6h]) > 0.0005)'
-        for: 'PT1H'
-        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
-      }
-    ]
-    scopes: [
-      azureMonitoring
-    ]
-  }
-}
-
-resource arohcpFrontendSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
-  name: 'arohcp_frontend_slo_availability_alerts'
-  location: location
-  properties: {
-    interval: 'PT1M'
-    rules: [
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'userJourneyFrontendAvailability1h5m'
-        enabled: true
-        labels: {
-          component: 'slo'
-          long_window: '1h'
-          severity: '4'
-          short_window: '5m'
-          slo: 'frontend-availability'
-        }
-        annotations: {
-          correlationId: 'userJourneyFrontendAvailability1h5m/{{ $labels.cluster }}'
-          description: 'Frontend availability on cluster {{ $labels.cluster }} is below 99.28% on both the 1h and 5m windows (14.4x burn of the 99.95% SLO / 0.05% error budget). Sev4 ticket - Errors family pages on the complementary 5xx burn.'
-          info: 'Frontend availability on cluster {{ $labels.cluster }} is below 99.28% on both the 1h and 5m windows (14.4x burn of the 99.95% SLO / 0.05% error budget). Sev4 ticket - Errors family pages on the complementary 5xx burn.'
-          runbook_url: 'https://aka.ms/arohcp-runbook-frontend'
-          summary: '{{ $labels.cluster }}: Frontend HTTP availability critically low (<99.28%)'
-          title: '{{ $labels.cluster }}: Frontend HTTP availability critically low (<99.28%)'
-        }
-        expression: '(avg_over_time(sli:frontend_http:availability:rate5m[1h]) < 0.9928 and avg_over_time(sli:frontend_http:availability:rate5m[5m]) < 0.9928)'
-        for: 'PT2M'
-        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
-      }
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'userJourneyFrontendAvailability6h30m'
-        enabled: true
-        labels: {
-          component: 'slo'
-          long_window: '6h'
-          severity: '4'
-          short_window: '30m'
-          slo: 'frontend-availability'
-        }
-        annotations: {
-          correlationId: 'userJourneyFrontendAvailability6h30m/{{ $labels.cluster }}'
-          description: 'Frontend availability on cluster {{ $labels.cluster }} is below 99.70% on both the 6h and 30m windows (6x burn). Sev4 ticket - Errors family pages on the complementary 5xx burn.'
-          info: 'Frontend availability on cluster {{ $labels.cluster }} is below 99.70% on both the 6h and 30m windows (6x burn). Sev4 ticket - Errors family pages on the complementary 5xx burn.'
-          runbook_url: 'https://aka.ms/arohcp-runbook-frontend'
-          summary: '{{ $labels.cluster }}: Frontend HTTP availability degraded (<99.70%)'
-          title: '{{ $labels.cluster }}: Frontend HTTP availability degraded (<99.70%)'
-        }
-        expression: '(avg_over_time(sli:frontend_http:availability:rate5m[6h]) < 0.997 and avg_over_time(sli:frontend_http:availability:rate5m[30m]) < 0.997)'
-        for: 'PT15M'
-        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
-      }
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'userJourneyFrontendAvailability3d6h'
-        enabled: true
-        labels: {
-          component: 'slo'
-          long_window: '3d'
-          severity: '4'
-          short_window: '6h'
-          slo: 'frontend-availability'
-        }
-        annotations: {
-          correlationId: 'userJourneyFrontendAvailability3d6h/{{ $labels.cluster }}'
-          description: 'Frontend availability on cluster {{ $labels.cluster }} is below the 99.95% SLO on both the 3d and 6h windows (1x burn).'
-          info: 'Frontend availability on cluster {{ $labels.cluster }} is below the 99.95% SLO on both the 3d and 6h windows (1x burn).'
-          runbook_url: 'https://aka.ms/arohcp-runbook-frontend'
-          summary: '{{ $labels.cluster }}: Frontend HTTP availability below SLO (<99.95%)'
-          title: '{{ $labels.cluster }}: Frontend HTTP availability below SLO (<99.95%)'
-        }
-        expression: '(avg_over_time(sli:frontend_http:availability:rate5m[3d]) < 0.9995 and avg_over_time(sli:frontend_http:availability:rate5m[6h]) < 0.9995)'
+        expression: '((sum by (cluster, region) (rate(frontend_http_requests_total{code=~"5..",route!~".*hcpoperation(results|statuses).*"}[3d] offset 5m)) / sum by (cluster, region) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[3d] offset 5m))) > 0.0005 and on (cluster) (sum by (cluster, region) (rate(frontend_http_requests_total{code=~"5..",route!~".*hcpoperation(results|statuses).*"}[6h] offset 5m)) / sum by (cluster, region) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[6h] offset 5m))) > 0.0005)'
         for: 'PT1H'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
@@ -885,7 +821,7 @@ resource arohcpFrontendSloLatencyAlerts 'Microsoft.AlertsManagement/prometheusRu
             }
           }
         ]
-        alert: 'userJourneyFrontendLatencyP991h5m'
+        alert: 'userJourneyFrontendLatency1h5m'
         enabled: true
         labels: {
           component: 'slo'
@@ -895,14 +831,14 @@ resource arohcpFrontendSloLatencyAlerts 'Microsoft.AlertsManagement/prometheusRu
           slo: 'frontend-latency'
         }
         annotations: {
-          correlationId: 'userJourneyFrontendLatencyP991h5m/{{ $labels.cluster }}'
-          description: 'Frontend p99 latency on cluster {{ $labels.cluster }} is above 5s on both the 1h and 5m windows (severe miss of the p99 < 1s ARM sync SLO).'
-          info: 'Frontend p99 latency on cluster {{ $labels.cluster }} is above 5s on both the 1h and 5m windows (severe miss of the p99 < 1s ARM sync SLO).'
+          correlationId: 'userJourneyFrontendLatency1h5m/{{ $labels.cluster }}'
+          description: 'More than 14.4% of Frontend requests on cluster {{ $labels.cluster }} exceeded 1s on both the 1h and 5m windows (14.4x burn of the 1% latency budget).'
+          info: 'More than 14.4% of Frontend requests on cluster {{ $labels.cluster }} exceeded 1s on both the 1h and 5m windows (14.4x burn of the 1% latency budget).'
           runbook_url: 'https://aka.ms/arohcp-runbook-frontend'
-          summary: '{{ $labels.cluster }}: Frontend HTTP p99 latency critically high (>5s)'
-          title: '{{ $labels.cluster }}: Frontend HTTP p99 latency critically high (>5s)'
+          summary: '{{ $labels.cluster }}: Frontend HTTP latency budget burning critically fast (>14.4% over 1s)'
+          title: '{{ $labels.cluster }}: Frontend HTTP latency budget burning critically fast (>14.4% over 1s)'
         }
-        expression: '(avg_over_time(sli:frontend_http:latency_p99:rate5m[1h]) > 5 and avg_over_time(sli:frontend_http:latency_p99:rate5m[5m]) > 5)'
+        expression: '(((sum by (cluster, region) (rate(frontend_http_requests_duration_seconds_bucket{le="+Inf",route!~".*hcpoperation(results|statuses).*"}[1h] offset 5m)) - sum by (cluster, region) (rate(frontend_http_requests_duration_seconds_bucket{le=~"^1([.]0)?$",route!~".*hcpoperation(results|statuses).*"}[1h] offset 5m))) / sum by (cluster, region) (rate(frontend_http_requests_duration_seconds_bucket{le="+Inf",route!~".*hcpoperation(results|statuses).*"}[1h] offset 5m))) > 0.144 and on (cluster) ((sum by (cluster, region) (rate(frontend_http_requests_duration_seconds_bucket{le="+Inf",route!~".*hcpoperation(results|statuses).*"}[5m] offset 5m)) - sum by (cluster, region) (rate(frontend_http_requests_duration_seconds_bucket{le=~"^1([.]0)?$",route!~".*hcpoperation(results|statuses).*"}[5m] offset 5m))) / sum by (cluster, region) (rate(frontend_http_requests_duration_seconds_bucket{le="+Inf",route!~".*hcpoperation(results|statuses).*"}[5m] offset 5m))) > 0.144)'
         for: 'PT2M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -916,7 +852,7 @@ resource arohcpFrontendSloLatencyAlerts 'Microsoft.AlertsManagement/prometheusRu
             }
           }
         ]
-        alert: 'userJourneyFrontendLatencyP996h30m'
+        alert: 'userJourneyFrontendLatency6h30m'
         enabled: true
         labels: {
           component: 'slo'
@@ -926,14 +862,14 @@ resource arohcpFrontendSloLatencyAlerts 'Microsoft.AlertsManagement/prometheusRu
           slo: 'frontend-latency'
         }
         annotations: {
-          correlationId: 'userJourneyFrontendLatencyP996h30m/{{ $labels.cluster }}'
-          description: 'Frontend p99 latency on cluster {{ $labels.cluster }} is above 1s on both the 6h and 30m windows (p99 < 1s ARM sync SLO miss).'
-          info: 'Frontend p99 latency on cluster {{ $labels.cluster }} is above 1s on both the 6h and 30m windows (p99 < 1s ARM sync SLO miss).'
+          correlationId: 'userJourneyFrontendLatency6h30m/{{ $labels.cluster }}'
+          description: 'More than 6% of Frontend requests on cluster {{ $labels.cluster }} exceeded 1s on both the 6h and 30m windows (6x burn of the 1% latency budget).'
+          info: 'More than 6% of Frontend requests on cluster {{ $labels.cluster }} exceeded 1s on both the 6h and 30m windows (6x burn of the 1% latency budget).'
           runbook_url: 'https://aka.ms/arohcp-runbook-frontend'
-          summary: '{{ $labels.cluster }}: Frontend HTTP p99 latency above SLO (>1s)'
-          title: '{{ $labels.cluster }}: Frontend HTTP p99 latency above SLO (>1s)'
+          summary: '{{ $labels.cluster }}: Frontend HTTP latency budget burning fast (>6% over 1s)'
+          title: '{{ $labels.cluster }}: Frontend HTTP latency budget burning fast (>6% over 1s)'
         }
-        expression: '(avg_over_time(sli:frontend_http:latency_p99:rate5m[6h]) > 1 and avg_over_time(sli:frontend_http:latency_p99:rate5m[30m]) > 1)'
+        expression: '(((sum by (cluster, region) (rate(frontend_http_requests_duration_seconds_bucket{le="+Inf",route!~".*hcpoperation(results|statuses).*"}[6h] offset 5m)) - sum by (cluster, region) (rate(frontend_http_requests_duration_seconds_bucket{le=~"^1([.]0)?$",route!~".*hcpoperation(results|statuses).*"}[6h] offset 5m))) / sum by (cluster, region) (rate(frontend_http_requests_duration_seconds_bucket{le="+Inf",route!~".*hcpoperation(results|statuses).*"}[6h] offset 5m))) > 0.06 and on (cluster) ((sum by (cluster, region) (rate(frontend_http_requests_duration_seconds_bucket{le="+Inf",route!~".*hcpoperation(results|statuses).*"}[30m] offset 5m)) - sum by (cluster, region) (rate(frontend_http_requests_duration_seconds_bucket{le=~"^1([.]0)?$",route!~".*hcpoperation(results|statuses).*"}[30m] offset 5m))) / sum by (cluster, region) (rate(frontend_http_requests_duration_seconds_bucket{le="+Inf",route!~".*hcpoperation(results|statuses).*"}[30m] offset 5m))) > 0.06 and on (cluster) (sum by (cluster, region) (max without (prometheus_replica) (increase(frontend_http_requests_duration_seconds_count{route!~".*hcpoperation(results|statuses).*"}[30m] offset 5m)))) >= 50 and on (cluster) (sum by (cluster, region) (max without (prometheus_replica) (increase(frontend_http_requests_duration_seconds_count{route!~".*hcpoperation(results|statuses).*"}[30m] offset 5m))) - sum by (cluster, region) (max without (prometheus_replica) (increase(frontend_http_requests_duration_seconds_bucket{le=~"^1([.]0)?$",route!~".*hcpoperation(results|statuses).*"}[30m] offset 5m)))) >= 3)'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -947,7 +883,7 @@ resource arohcpFrontendSloLatencyAlerts 'Microsoft.AlertsManagement/prometheusRu
             }
           }
         ]
-        alert: 'userJourneyFrontendLatencyP993d6h'
+        alert: 'userJourneyFrontendLatency3d6h'
         enabled: true
         labels: {
           component: 'slo'
@@ -957,14 +893,14 @@ resource arohcpFrontendSloLatencyAlerts 'Microsoft.AlertsManagement/prometheusRu
           slo: 'frontend-latency'
         }
         annotations: {
-          correlationId: 'userJourneyFrontendLatencyP993d6h/{{ $labels.cluster }}'
-          description: 'Frontend p99 latency on cluster {{ $labels.cluster }} is above 1s on both the 3d and 6h windows (1x burn of the p99 < 1s SLO).'
-          info: 'Frontend p99 latency on cluster {{ $labels.cluster }} is above 1s on both the 3d and 6h windows (1x burn of the p99 < 1s SLO).'
+          correlationId: 'userJourneyFrontendLatency3d6h/{{ $labels.cluster }}'
+          description: 'More than 1% of Frontend requests on cluster {{ $labels.cluster }} exceeded 1s on both the 3d and 6h windows (1x burn of the latency budget).'
+          info: 'More than 1% of Frontend requests on cluster {{ $labels.cluster }} exceeded 1s on both the 3d and 6h windows (1x burn of the latency budget).'
           runbook_url: 'https://aka.ms/arohcp-runbook-frontend'
-          summary: '{{ $labels.cluster }}: Frontend HTTP p99 latency above SLO (>1s)'
-          title: '{{ $labels.cluster }}: Frontend HTTP p99 latency above SLO (>1s)'
+          summary: '{{ $labels.cluster }}: Frontend HTTP latency exceeds its SLO budget (>1% over 1s)'
+          title: '{{ $labels.cluster }}: Frontend HTTP latency exceeds its SLO budget (>1% over 1s)'
         }
-        expression: '(avg_over_time(sli:frontend_http:latency_p99:rate5m[3d]) > 1 and avg_over_time(sli:frontend_http:latency_p99:rate5m[6h]) > 1)'
+        expression: '(((sum by (cluster, region) (rate(frontend_http_requests_duration_seconds_bucket{le="+Inf",route!~".*hcpoperation(results|statuses).*"}[3d] offset 5m)) - sum by (cluster, region) (rate(frontend_http_requests_duration_seconds_bucket{le=~"^1([.]0)?$",route!~".*hcpoperation(results|statuses).*"}[3d] offset 5m))) / sum by (cluster, region) (rate(frontend_http_requests_duration_seconds_bucket{le="+Inf",route!~".*hcpoperation(results|statuses).*"}[3d] offset 5m))) > 0.01 and on (cluster) ((sum by (cluster, region) (rate(frontend_http_requests_duration_seconds_bucket{le="+Inf",route!~".*hcpoperation(results|statuses).*"}[6h] offset 5m)) - sum by (cluster, region) (rate(frontend_http_requests_duration_seconds_bucket{le=~"^1([.]0)?$",route!~".*hcpoperation(results|statuses).*"}[6h] offset 5m))) / sum by (cluster, region) (rate(frontend_http_requests_duration_seconds_bucket{le="+Inf",route!~".*hcpoperation(results|statuses).*"}[6h] offset 5m))) > 0.01)'
         for: 'PT1H'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
@@ -1017,83 +953,12 @@ resource arohcpFrontendSloReadyAlerts 'Microsoft.AlertsManagement/prometheusRule
   }
 }
 
-resource arohcpFrontendSloTrafficAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
-  name: 'arohcp_frontend_slo_traffic_alerts'
-  location: location
-  properties: {
-    interval: 'PT1M'
-    rules: [
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'userJourneyFrontendTrafficDrop'
-        enabled: true
-        labels: {
-          component: 'slo'
-          severity: '4'
-          slo: 'frontend-traffic'
-        }
-        annotations: {
-          correlationId: 'userJourneyFrontendTrafficDrop/{{ $labels.cluster }}'
-          description: 'Frontend request rate on cluster {{ $labels.cluster }} is below 10% of its 1-day average for 15m while the 1d baseline exceeded 0.5 RPS (fleet-wide noise floor) and pods are still Ready (traffic drought, not a replica outage).'
-          info: 'Frontend request rate on cluster {{ $labels.cluster }} is below 10% of its 1-day average for 15m while the 1d baseline exceeded 0.5 RPS (fleet-wide noise floor) and pods are still Ready (traffic drought, not a replica outage).'
-          runbook_url: 'https://aka.ms/arohcp-runbook-frontend'
-          summary: '{{ $labels.cluster }}: Frontend HTTP traffic collapsed below 10% of 1d baseline'
-          title: '{{ $labels.cluster }}: Frontend HTTP traffic collapsed below 10% of 1d baseline'
-        }
-        expression: '(avg_over_time(traffic:frontend_http:request_rate:rate5m[15m]) < 0.1 * avg_over_time(traffic:frontend_http:request_rate:rate5m[1d])) and avg_over_time(traffic:frontend_http:request_rate:rate5m[1d]) > 0.5 and sli:frontend:ready:ratio5m > 0'
-        for: 'PT15M'
-        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
-      }
-    ]
-    scopes: [
-      azureMonitoring
-    ]
-  }
-}
-
 resource arohcpFrontendSloSaturationAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'arohcp_frontend_slo_saturation_alerts'
   location: location
   properties: {
     interval: 'PT1M'
     rules: [
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'userJourneyFrontendSaturationCPU'
-        enabled: true
-        labels: {
-          component: 'slo'
-          severity: '4'
-          slo: 'frontend-saturation'
-        }
-        annotations: {
-          correlationId: 'userJourneyFrontendSaturationCPU/{{ $labels.cluster }}'
-          description: 'Frontend container CPU (usage/request) on cluster {{ $labels.cluster }} is above 85% for 15m.'
-          info: 'Frontend container CPU (usage/request) on cluster {{ $labels.cluster }} is above 85% for 15m.'
-          runbook_url: 'https://aka.ms/arohcp-runbook-frontend'
-          summary: '{{ $labels.cluster }}: Frontend pod CPU above 85% of request for 15+ minutes'
-          title: '{{ $labels.cluster }}: Frontend pod CPU above 85% of request for 15+ minutes'
-        }
-        expression: 'sli:frontend:saturation_cpu:ratio5m > 0.85'
-        for: 'PT15M'
-        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
-      }
       {
         actions: [
           for g in actionGroups: {
@@ -1121,6 +986,303 @@ resource arohcpFrontendSloSaturationAlerts 'Microsoft.AlertsManagement/prometheu
         }
         expression: 'sli:frontend:saturation_memory:ratio5m > 0.85'
         for: 'PT15M'
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
+
+resource arohcpClusterDeletionSloWindowedErrorAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_cluster_deletion_slo_windowed_error_alerts'
+  location: location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyClusterDeletionErrors1h5m'
+        enabled: true
+        labels: {
+          component: 'slo'
+          long_window: '1h'
+          severity: '3'
+          short_window: '5m'
+          slo: 'cluster-deletion-errors'
+        }
+        annotations: {
+          correlationId: 'userJourneyClusterDeletionErrors/{{ $labels.cluster }}'
+          description: 'More than 72% of completed cluster delete operations on {{ $labels.cluster }} failed or were canceled over the last hour with at least 3 failures, a 14.4x burn of the 95% SLO budget.'
+          info: 'More than 72% of completed cluster delete operations on {{ $labels.cluster }} failed or were canceled over the last hour with at least 3 failures, a 14.4x burn of the 95% SLO budget.'
+          runbook_url: 'https://aka.ms/cluster-deletion-tsg'
+          summary: '{{ $labels.cluster }}: Cluster delete operations failing fast (>72% over 1h)'
+          title: '{{ $labels.cluster }}: Cluster delete operations failing fast (>72% over 1h)'
+        }
+        expression: 'errors:backend_cluster_deletion_operation:failed_1h >= 3 and errors:backend_cluster_deletion_operation:error_rate_1h > 0.72 and errors:backend_cluster_deletion_operation:error_rate_5m > 0.72'
+        for: 'PT5M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyClusterDeletionErrors6h30m'
+        enabled: true
+        labels: {
+          component: 'slo'
+          long_window: '6h'
+          severity: '3'
+          short_window: '30m'
+          slo: 'cluster-deletion-errors'
+        }
+        annotations: {
+          correlationId: 'userJourneyClusterDeletionErrors/{{ $labels.cluster }}'
+          description: 'More than 30% of completed cluster delete operations on {{ $labels.cluster }} failed or were canceled over the last 6 hours (at least 5 completions), a 6x burn of the 95% SLO budget.'
+          info: 'More than 30% of completed cluster delete operations on {{ $labels.cluster }} failed or were canceled over the last 6 hours (at least 5 completions), a 6x burn of the 95% SLO budget.'
+          runbook_url: 'https://aka.ms/cluster-deletion-tsg'
+          summary: '{{ $labels.cluster }}: Cluster delete operation error rate elevated (>30% over 6h)'
+          title: '{{ $labels.cluster }}: Cluster delete operation error rate elevated (>30% over 6h)'
+        }
+        expression: 'errors:backend_cluster_deletion_operation:total_6h >= 5 and errors:backend_cluster_deletion_operation:error_rate_6h > 0.3 and errors:backend_cluster_deletion_operation:error_rate_30m > 0.3'
+        for: 'PT30M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyClusterDeletionErrors3d'
+        enabled: true
+        labels: {
+          component: 'slo'
+          long_window: '3d'
+          severity: '4'
+          slo: 'cluster-deletion-errors'
+        }
+        annotations: {
+          correlationId: 'userJourneyClusterDeletionErrors/{{ $labels.cluster }}'
+          description: 'More than 5% of completed cluster delete operations on {{ $labels.cluster }} failed or were canceled over the last 3 days (at least 10 completions and 2 failures), a 1x burn that exhausts the 95% SLO error budget over the window.'
+          info: 'More than 5% of completed cluster delete operations on {{ $labels.cluster }} failed or were canceled over the last 3 days (at least 10 completions and 2 failures), a 1x burn that exhausts the 95% SLO error budget over the window.'
+          runbook_url: 'https://aka.ms/cluster-deletion-tsg'
+          summary: '{{ $labels.cluster }}: Cluster delete operation error budget burning (>5% over 3d)'
+          title: '{{ $labels.cluster }}: Cluster delete operation error budget burning (>5% over 3d)'
+        }
+        expression: 'errors:backend_cluster_deletion_operation:total_3d >= 10 and errors:backend_cluster_deletion_operation:failed_3d >= 2 and errors:backend_cluster_deletion_operation:error_rate_3d > 0.05'
+        for: 'PT6H'
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyClusterDeletionErrorsDegradation'
+        enabled: true
+        labels: {
+          component: 'slo'
+          long_window: '6h'
+          severity: '4'
+          slo: 'cluster-deletion-errors'
+        }
+        annotations: {
+          correlationId: 'userJourneyClusterDeletionErrors/{{ $labels.cluster }}'
+          description: 'More than 15% of completed cluster delete operations on {{ $labels.cluster }} failed or were canceled over the last 6 hours (at least 5 completions and 2 failures), an early warning of degradation before the burn-rate alerts fire.'
+          info: 'More than 15% of completed cluster delete operations on {{ $labels.cluster }} failed or were canceled over the last 6 hours (at least 5 completions and 2 failures), an early warning of degradation before the burn-rate alerts fire.'
+          runbook_url: 'https://aka.ms/cluster-deletion-tsg'
+          summary: '{{ $labels.cluster }}: Cluster delete operation failure rate exceeds 15% over 6h'
+          title: '{{ $labels.cluster }}: Cluster delete operation failure rate exceeds 15% over 6h'
+        }
+        expression: 'errors:backend_cluster_deletion_operation:total_6h >= 5 and errors:backend_cluster_deletion_operation:failed_6h >= 2 and errors:backend_cluster_deletion_operation:error_rate_6h > 0.15'
+        for: 'PT30M'
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyClusterDeletionLatency1h5m'
+        enabled: true
+        labels: {
+          component: 'slo'
+          long_window: '1h'
+          severity: '3'
+          short_window: '5m'
+          slo: 'cluster-deletion-latency'
+        }
+        annotations: {
+          correlationId: 'userJourneyClusterDeletionLatency/{{ $labels.cluster }}'
+          description: 'More than 72% of successful cluster deletes exceeded 30 minutes, sustained for 5 minutes. Fast burn rate (14.4x) against the 95% Latency SLO — on track to exhaust the budget in ~12 hours.'
+          info: 'More than 72% of successful cluster deletes exceeded 30 minutes, sustained for 5 minutes. Fast burn rate (14.4x) against the 95% Latency SLO — on track to exhaust the budget in ~12 hours.'
+          runbook_url: 'https://aka.ms/cluster-deletion-tsg'
+          summary: 'Cluster deletion Latency SLO fast burn (>72% slow for 5m)'
+          title: 'Cluster deletion Latency SLO fast burn (>72% slow for 5m)'
+        }
+        expression: 'errors:backend_cluster_deletion_operation:latency_total_1h >= 5 and errors:backend_cluster_deletion_operation:latency_error_rate_1h > 0.72 and errors:backend_cluster_deletion_operation:latency_error_rate_5m > 0.72'
+        for: 'PT5M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyClusterDeletionLatency6h30m'
+        enabled: true
+        labels: {
+          component: 'slo'
+          long_window: '6h'
+          severity: '3'
+          short_window: '30m'
+          slo: 'cluster-deletion-latency'
+        }
+        annotations: {
+          correlationId: 'userJourneyClusterDeletionLatency/{{ $labels.cluster }}'
+          description: 'More than 30% of successful cluster deletes exceeded 30 minutes, sustained for 30 minutes. Medium burn rate (6x) against the 95% Latency SLO — on track to exhaust the budget in ~28 hours.'
+          info: 'More than 30% of successful cluster deletes exceeded 30 minutes, sustained for 30 minutes. Medium burn rate (6x) against the 95% Latency SLO — on track to exhaust the budget in ~28 hours.'
+          runbook_url: 'https://aka.ms/cluster-deletion-tsg'
+          summary: 'Cluster deletion Latency SLO medium burn (>30% slow for 30m)'
+          title: 'Cluster deletion Latency SLO medium burn (>30% slow for 30m)'
+        }
+        expression: 'errors:backend_cluster_deletion_operation:latency_total_6h >= 5 and errors:backend_cluster_deletion_operation:latency_error_rate_6h > 0.3 and errors:backend_cluster_deletion_operation:latency_error_rate_30m > 0.3'
+        for: 'PT30M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyClusterDeletionLatency3d'
+        enabled: true
+        labels: {
+          component: 'slo'
+          long_window: '3d'
+          severity: '4'
+          slo: 'cluster-deletion-latency'
+        }
+        annotations: {
+          correlationId: 'userJourneyClusterDeletionLatency/{{ $labels.cluster }}'
+          description: 'More than 5% of successful cluster deletes exceeded 30 minutes, sustained for 6 hours. Slow burn rate (1x) against the 95% Latency SLO — budget will be exhausted in ~7 days.'
+          info: 'More than 5% of successful cluster deletes exceeded 30 minutes, sustained for 6 hours. Slow burn rate (1x) against the 95% Latency SLO — budget will be exhausted in ~7 days.'
+          runbook_url: 'https://aka.ms/cluster-deletion-tsg'
+          summary: 'Cluster deletion Latency SLO slow burn (>5% slow for 6h)'
+          title: 'Cluster deletion Latency SLO slow burn (>5% slow for 6h)'
+        }
+        expression: 'errors:backend_cluster_deletion_operation:latency_total_3d >= 5 and errors:backend_cluster_deletion_operation:latency_error_rate_3d > 0.05'
+        for: 'PT6H'
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyClusterDeletionStuckOperation'
+        enabled: true
+        labels: {
+          component: 'slo'
+          severity: '4'
+          slo: 'cluster-deletion-stuck'
+        }
+        annotations: {
+          correlationId: 'userJourneyClusterDeletionStuckOperation/{{ $labels.cluster }}/{{ $labels.subscription_id }}'
+          description: 'Cluster delete operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 1 hour. Stuck operations are invisible to success/failure SLIs and require investigation.'
+          info: 'Cluster delete operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 1 hour. Stuck operations are invisible to success/failure SLIs and require investigation.'
+          runbook_url: 'https://aka.ms/cluster-deletion-tsg'
+          summary: 'Cluster deletion operation {{ $labels.resource_id }} stuck in {{ $labels.phase }} for over 1 hour'
+          title: 'Cluster deletion operation {{ $labels.resource_id }} stuck in {{ $labels.phase }} for over 1 hour'
+        }
+        expression: '(max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time(((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type="delete",phase=~"accepted|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} == 1) and (time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{operation_type="delete",phase=~"accepted|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) > 3600))[6h:5m])) and on (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type="delete",phase=~"accepted|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1)) unless on (subscription_id) internal_subscription:info'
+        for: 'PT15M'
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
+
+resource arohcpClusterDeletionSaturationAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_cluster_deletion_saturation_alerts'
+  location: location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyClusterDeletionQueueDepth'
+        enabled: true
+        labels: {
+          component: 'slo'
+          severity: '4'
+        }
+        annotations: {
+          correlationId: 'userJourneyClusterDeletionQueueDepth/{{ $labels.cluster }}/{{ $labels.name }}'
+          description: 'Cluster deletion controller workqueue {{ $labels.name }} has had a depth > 10 for more than 5 minutes, indicating work is accumulating faster than it can be processed.'
+          info: 'Cluster deletion controller workqueue {{ $labels.name }} has had a depth > 10 for more than 5 minutes, indicating work is accumulating faster than it can be processed.'
+          runbook_url: 'https://aka.ms/cluster-deletion-tsg'
+          summary: 'Cluster deletion controller workqueue {{ $labels.name }} depth is high'
+          title: 'Cluster deletion controller workqueue {{ $labels.name }} depth is high'
+        }
+        expression: 'max by (name, cluster, region) (max without (prometheus_replica) (workqueue_depth{name="OperationClusterDelete",namespace="aro-hcp"})) > 10'
+        for: 'PT5M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
     ]

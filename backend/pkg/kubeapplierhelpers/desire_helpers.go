@@ -22,8 +22,8 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
@@ -53,7 +53,7 @@ type DesireParent struct {
 // the cluster.
 func ClusterDesireParent() DesireParent {
 	return DesireParent{toParentResourceIDString: func(subscriptionID, resourceGroupName, clusterName string) string {
-		return coreapi.ToClusterResourceIDString(subscriptionID, resourceGroupName, clusterName)
+		return coreapihelpers.ToClusterResourceIDString(subscriptionID, resourceGroupName, clusterName)
 	}}
 }
 
@@ -61,7 +61,7 @@ func ClusterDesireParent() DesireParent {
 // node pool.
 func NodePoolDesireParent(nodePoolName string) DesireParent {
 	return DesireParent{toParentResourceIDString: func(subscriptionID, resourceGroupName, clusterName string) string {
-		return coreapi.ToNodePoolResourceIDString(subscriptionID, resourceGroupName, clusterName, nodePoolName)
+		return coreapihelpers.ToNodePoolResourceIDString(subscriptionID, resourceGroupName, clusterName, nodePoolName)
 	}}
 }
 
@@ -69,7 +69,7 @@ func NodePoolDesireParent(nodePoolName string) DesireParent {
 // the named SystemAdminCredentialRequest.
 func CredentialRequestDesireParent(credentialRequestName string) DesireParent {
 	return DesireParent{toParentResourceIDString: func(subscriptionID, resourceGroupName, clusterName string) string {
-		return coreapi.ToSystemAdminCredentialRequestResourceIDString(subscriptionID, resourceGroupName, clusterName, credentialRequestName)
+		return coreapihelpers.ToSystemAdminCredentialRequestResourceIDString(subscriptionID, resourceGroupName, clusterName, credentialRequestName)
 	}}
 }
 
@@ -77,7 +77,7 @@ func CredentialRequestDesireParent(credentialRequestName string) DesireParent {
 // named SystemAdminCredentialRevocation.
 func RevocationDesireParent(revocationName string) DesireParent {
 	return DesireParent{toParentResourceIDString: func(subscriptionID, resourceGroupName, clusterName string) string {
-		return coreapi.ToSystemAdminCredentialRevocationResourceIDString(subscriptionID, resourceGroupName, clusterName, revocationName)
+		return coreapihelpers.ToSystemAdminCredentialRevocationResourceIDString(subscriptionID, resourceGroupName, clusterName, revocationName)
 	}}
 }
 

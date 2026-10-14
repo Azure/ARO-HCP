@@ -47,11 +47,11 @@ metadata:
   name: multicluster-engine-operator-config
   namespace: 'multicluster-engine'
 ---
-# Source: multicluster-engine/templates/multicluster-engine-92lsw4ygrj90991gtruh0w98lza00paesv8kq64cv48.clusterrole.yaml
+# Source: multicluster-engine/templates/multicluster-engin-1uvphjce71u56svbcc2clabak6w9emmb0lztezsifgog.clusterrole.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: multicluster-engine-92lsw4ygrj90991gtruh0w98lza00paesv8kq64cv48
+  name: multicluster-engin-1uvphjce71u56svbcc2clabak6w9emmb0lztezsifgog
 rules:
 - apiGroups:
   - ""
@@ -1135,6 +1135,7 @@ rules:
   - config.openshift.io
   resources:
   - apiservers
+  - authentications
   - clusteroperators
   - clusterversions
   - dnses
@@ -1194,7 +1195,6 @@ rules:
 - apiGroups:
   - console.openshift.io
   resources:
-  - consolenotifications
   - consoleplugins
   - consolequickstarts
   verbs:
@@ -2590,6 +2590,7 @@ rules:
   - networking.k8s.io
   resources:
   - ingresses
+  - networkpolicies
   verbs:
   - create
   - delete
@@ -2598,14 +2599,6 @@ rules:
   - patch
   - update
   - watch
-- apiGroups:
-  - networking.k8s.io
-  resources:
-  - networkpolicies
-  verbs:
-  - create
-  - get
-  - update
 - apiGroups:
   - notificationhubs.azure.com
   resources:
@@ -3350,15 +3343,15 @@ rules:
   - update
   - watch
 ---
-# Source: multicluster-engine/templates/multicluster-engine-92lsw4ygrj90991gtruh0w98lza00paesv8kq64cv48.clusterrolebinding.yaml
+# Source: multicluster-engine/templates/multicluster-engin-1uvphjce71u56svbcc2clabak6w9emmb0lztezsifgog.clusterrolebinding.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: multicluster-engine-92lsw4ygrj90991gtruh0w98lza00paesv8kq64cv48
+  name: multicluster-engin-1uvphjce71u56svbcc2clabak6w9emmb0lztezsifgog
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: multicluster-engine-92lsw4ygrj90991gtruh0w98lza00paesv8kq64cv48
+  name: multicluster-engin-1uvphjce71u56svbcc2clabak6w9emmb0lztezsifgog
 subjects:
 - kind: ServiceAccount
   name: multicluster-engine-operator
@@ -3498,6 +3491,8 @@ spec:
           value: 'arohcpsvcdev.azurecr.io/acm-d-cache/azure-service-operator-rhel9@sha256:1234567890'
         - name: OPERAND_IMAGE_BACKPLANE_MUST_GATHER
           value: 'arohcpsvcdev.azurecr.io/acm-d-cache/must-gather-rhel9@sha256:1234567890'
+        - name: OPERAND_IMAGE_CLOUDEVENTS_CONDUCTOR
+          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/cloudevents-conductor-rhel9@sha256:1234567890'
         - name: OPERAND_IMAGE_CLUSTER_API_PROVIDER_AGENT
           value: 'arohcpsvcdev.azurecr.io/acm-d-cache/cluster-api-provider-agent-rhel9@sha256:1234567890'
         - name: OPERAND_IMAGE_CLUSTER_API_PROVIDER_AWS_RHEL9
@@ -3520,6 +3515,8 @@ spec:
           value: 'arohcpsvcdev.azurecr.io/acm-d-cache/cluster-image-set-controller-rhel9@sha256:1234567890'
         - name: OPERAND_IMAGE_CLUSTERLIFECYCLE_STATE_METRICS
           value: 'arohcpsvcdev.azurecr.io/acm-d-cache/clusterlifecycle-state-metrics-rhel9@sha256:1234567890'
+        - name: OPERAND_IMAGE_CLUSTER_PERMISSION
+          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/cluster-permission-rhel9@sha256:1234567890'
         - name: OPERAND_IMAGE_CLUSTER_PROXY
           value: 'arohcpsvcdev.azurecr.io/acm-d-cache/cluster-proxy-rhel9@sha256:1234567890'
         - name: OPERAND_IMAGE_CONSOLE_MCE
@@ -3538,6 +3535,8 @@ spec:
           value: 'arohcpsvcdev.azurecr.io/acm-d-cache/image-based-install-rhel9@sha256:1234567890'
         - name: OPERAND_IMAGE_KUBE_RBAC_PROXY_MCE
           value: 'arohcpsvcdev.azurecr.io/acm-d-cache/kube-rbac-proxy-mce-rhel9@sha256:1234567890'
+        - name: OPERAND_IMAGE_MAESTRO
+          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/maestro-rhel9@sha256:1234567890'
         - name: OPERAND_IMAGE_MANAGEDCLUSTER_IMPORT_CONTROLLER
           value: 'arohcpsvcdev.azurecr.io/acm-d-cache/managedcluster-import-controller-rhel9@sha256:1234567890'
         - name: OPERAND_IMAGE_MANAGED_SERVICEACCOUNT
@@ -3568,14 +3567,18 @@ spec:
           value: 'arohcpsvcdev.azurecr.io/acm-d-cache/ose-cluster-api-rhel9@sha256:1234567890'
         - name: OPERAND_IMAGE_OSE_BAREMETAL_CLUSTER_API_CONTROLLERS_RHEL9
           value: 'arohcpsvcdev.azurecr.io/acm-d-cache/ose-baremetal-cluster-api-controllers-rhel9@sha256:1234567890'
-        - name: OPERAND_IMAGE_POSTGRESQL_13
-          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/postgresql-13@sha256:1234567890'
+        - name: OPERAND_IMAGE_POSTGRESQL_15
+          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/postgresql-15@sha256:1234567890'
+        - name: OPERAND_IMAGE_POSTGRESQL_16
+          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/postgresql-16:latest'
         - name: OPERATOR_VERSION
-          value: 2.11.7
-        - name: OPERATOR_PACKAGE
-          value: multicluster-engine
+          value: 2.17.4
         - name: OPERAND_IMAGE_BACKPLANE_OPERATOR
           value: 'arohcpsvcdev.azurecr.io/acm-d-cache/backplane-rhel9-operator@sha256:1234567890'
+        - name: OPERAND_IMAGE_POSTGRESQL_13
+          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/postgresql-13@sha256:1234567890'
+        - name: OPERATOR_PACKAGE
+          value: multicluster-engine
         image: 'arohcpsvcdev.azurecr.io/acm-d-cache/backplane-rhel9-operator@sha256:1234567890'
         livenessProbe:
           httpGet:

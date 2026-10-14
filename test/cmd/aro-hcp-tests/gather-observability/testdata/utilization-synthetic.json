@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-09-18T12:35:00Z",
+  "start": "2026-09-18T12:00:00Z",
+  "end": "2026-09-18T12:30:00Z",
+  "cpuWindow": "5m rate",
+  "memoryWindow": "instant working set / node available memory",
+  "step": "1m",
+  "clusters": ["synthetic-svc-1", "synthetic-mgmt-1", "synthetic-mgmt-2"],
+  "warnings": ["Synthetic screenshot fixture only. No production identities or measurements.", "One node is missing usage; one node has incomplete capacity discovery."],
+  "snapshots": [
+    {
+      "time": "2026-09-18T12:20:00Z",
+      "reasons": ["Peak aggregate CPU", "Peak pending demand"],
+      "warnings": ["Container metrics cover only observed workloads, not all host activity."],
+      "nodes": [
+        {"cluster":"synthetic-svc-1","name":"svc-system-01","pool":"system","sku":"Standard_D8s_v5","capacity":{"cpu":8,"memory":34359738368},"allocatable":{"cpu":7.5,"memory":30064771072},"usage":{"cpu":2.4,"memory":15032385536}},
+        {"cluster":"synthetic-svc-1","name":"svc-services-01","pool":"services","sku":"Standard_D16s_v5","capacity":{"cpu":16,"memory":68719476736},"allocatable":{"cpu":15.5,"memory":62277025792},"usage":{"cpu":8.2,"memory":33285996544}},
+        {"cluster":"synthetic-mgmt-1","name":"mgmt1-hcp-01","pool":"hcp","sku":"Standard_E16s_v5","capacity":{"cpu":16,"memory":137438953472},"allocatable":{"cpu":15.5,"memory":128849018880},"usage":{"cpu":11.2,"memory":77309411328}},
+        {"cluster":"synthetic-mgmt-1","name":"mgmt1-hcp-02","pool":"hcp","sku":"Standard_E16s_v5","capacity":{"cpu":16,"memory":137438953472},"allocatable":{"cpu":15.5,"memory":128849018880},"usage":{"cpu":null,"memory":null}},
+        {"cluster":"synthetic-mgmt-2","name":"mgmt2-hcp-01","pool":"hcp","sku":"Standard_E32s_v5","capacity":{"cpu":32,"memory":274877906944},"allocatable":{"cpu":31.5,"memory":257698037760},"usage":{"cpu":13.6,"memory":120259084288}},
+        {"cluster":"synthetic-mgmt-2","name":"mgmt2-discovery-02","pool":"system","sku":"Unknown","capacity":{"cpu":null,"memory":null},"allocatable":{"cpu":null,"memory":null},"usage":{"cpu":0.8,"memory":2147483648}}
+      ],
+      "workloads": [
+        {"cluster":"synthetic-svc-1","namespace":"frontend","kind":"Deployment","name":"frontend","component":"frontend","node":"svc-services-01","unscheduled":false,"pods":3,"pendingPods":0,"usage":{"cpu":4.1,"memory":8589934592},"requests":{"cpu":6,"memory":12884901888},"limits":{"cpu":12,"memory":25769803776},"containers":[{"name":"frontend","usage":{"cpu":4.1,"memory":8589934592},"requests":{"cpu":6,"memory":12884901888},"limits":{"cpu":12,"memory":25769803776},"unlimitedCPU":0,"unlimitedMemory":0}]},
+        {"cluster":"synthetic-svc-1","namespace":"monitoring","kind":"DaemonSet","name":"metrics-agent","component":"metrics-agent","node":"svc-system-01","unscheduled":false,"pods":1,"pendingPods":0,"usage":{"cpu":1.2,"memory":4294967296},"requests":{"cpu":1,"memory":4294967296},"limits":{"cpu":0,"memory":8589934592},"containers":[{"name":"agent","usage":{"cpu":1.2,"memory":4294967296},"requests":{"cpu":1,"memory":4294967296},"limits":{"cpu":0,"memory":8589934592},"unlimitedCPU":1,"unlimitedMemory":0}]},
+        {"cluster":"synthetic-mgmt-1","namespace":"ocm-synthetic-alpha-control-plane","kind":"Deployment","name":"kube-apiserver","component":"kube-apiserver","node":"mgmt1-hcp-01","unscheduled":false,"pods":2,"pendingPods":0,"usage":{"cpu":4.5,"memory":21474836480},"requests":{"cpu":6,"memory":25769803776},"limits":{"cpu":0,"memory":51539607552},"containers":[{"name":"kube-apiserver","usage":{"cpu":4.2,"memory":19327352832},"requests":{"cpu":5.5,"memory":23622320128},"limits":{"cpu":0,"memory":47244640256},"unlimitedCPU":2,"unlimitedMemory":0},{"name":"audit-sidecar","usage":{"cpu":0.3,"memory":2147483648},"requests":{"cpu":0.5,"memory":2147483648},"limits":{"cpu":0,"memory":4294967296},"unlimitedCPU":2,"unlimitedMemory":0}]},
+        {"cluster":"synthetic-mgmt-1","namespace":"ocm-synthetic-beta-control-plane","kind":"Deployment","name":"kube-apiserver","component":"kube-apiserver","node":"mgmt1-hcp-01","unscheduled":false,"pods":1,"pendingPods":0,"usage":{"cpu":2.8,"memory":15032385536},"requests":{"cpu":3,"memory":17179869184},"limits":{"cpu":0,"memory":34359738368},"containers":[{"name":"kube-apiserver","usage":{"cpu":2.8,"memory":15032385536},"requests":{"cpu":3,"memory":17179869184},"limits":{"cpu":0,"memory":34359738368},"unlimitedCPU":1,"unlimitedMemory":0}]},
+        {"cluster":"synthetic-mgmt-1","namespace":"ocm-synthetic-beta-control-plane","kind":"Deployment","name":"kube-apiserver","component":"kube-apiserver","node":"mgmt1-hcp-02","unscheduled":false,"pods":1,"pendingPods":0,"usage":{"cpu":null,"memory":null},"requests":{"cpu":3,"memory":17179869184},"limits":{"cpu":0,"memory":34359738368},"containers":[{"name":"kube-apiserver","usage":{"cpu":null,"memory":null},"requests":{"cpu":3,"memory":17179869184},"limits":{"cpu":0,"memory":34359738368},"unlimitedCPU":1,"unlimitedMemory":0}]},
+        {"cluster":"synthetic-mgmt-1","namespace":"ocm-synthetic-alpha-control-plane","kind":"StatefulSet","name":"etcd","component":"etcd","node":"mgmt1-hcp-01","unscheduled":false,"pods":1,"pendingPods":0,"usage":{"cpu":1.8,"memory":17179869184},"requests":{"cpu":2,"memory":17179869184},"limits":{"cpu":4,"memory":34359738368},"containers":[{"name":"etcd","usage":{"cpu":1.8,"memory":17179869184},"requests":{"cpu":2,"memory":17179869184},"limits":{"cpu":4,"memory":34359738368},"unlimitedCPU":0,"unlimitedMemory":0}]},
+        {"cluster":"synthetic-mgmt-1","namespace":"ocm-synthetic-gamma-control-plane","kind":"Deployment","name":"kube-apiserver","component":"kube-apiserver","node":"","unscheduled":true,"pods":2,"pendingPods":2,"usage":{"cpu":null,"memory":null},"requests":{"cpu":6,"memory":34359738368},"limits":{"cpu":0,"memory":68719476736},"containers":[{"name":"kube-apiserver","usage":{"cpu":null,"memory":null},"requests":{"cpu":6,"memory":34359738368},"limits":{"cpu":0,"memory":68719476736},"unlimitedCPU":2,"unlimitedMemory":0}]},
+        {"cluster":"synthetic-mgmt-2","namespace":"ocm-synthetic-delta-control-plane","kind":"Deployment","name":"kube-apiserver","component":"kube-apiserver","node":"mgmt2-hcp-01","unscheduled":false,"pods":3,"pendingPods":0,"usage":{"cpu":7.5,"memory":42949672960},"requests":{"cpu":9,"memory":51539607552},"limits":{"cpu":0,"memory":0},"containers":[{"name":"kube-apiserver","usage":{"cpu":7.5,"memory":42949672960},"requests":{"cpu":9,"memory":51539607552},"limits":{"cpu":0,"memory":0},"unlimitedCPU":3,"unlimitedMemory":3}]},
+        {"cluster":"synthetic-mgmt-2","namespace":"ocm-synthetic-delta-control-plane","kind":"StatefulSet","name":"etcd","component":"etcd","node":"mgmt2-hcp-01","unscheduled":false,"pods":3,"pendingPods":0,"usage":{"cpu":3.6,"memory":34359738368},"requests":{"cpu":6,"memory":51539607552},"limits":{"cpu":12,"memory":103079215104},"containers":[{"name":"etcd","usage":{"cpu":3.6,"memory":34359738368},"requests":{"cpu":6,"memory":51539607552},"limits":{"cpu":12,"memory":103079215104},"unlimitedCPU":0,"unlimitedMemory":0}]},
+        {"cluster":"synthetic-mgmt-2","namespace":"kube-system","kind":"DaemonSet","name":"node-agent","component":"","node":"mgmt2-discovery-02","unscheduled":false,"pods":1,"pendingPods":0,"usage":{"cpu":0.4,"memory":1073741824},"requests":{"cpu":null,"memory":null},"limits":{"cpu":null,"memory":null},"containers":[{"name":"agent","usage":{"cpu":0.4,"memory":1073741824},"requests":{"cpu":null,"memory":null},"limits":{"cpu":null,"memory":null},"unlimitedCPU":null,"unlimitedMemory":null}]}
+      ]
+    },
+    {
+      "time": "2026-09-18T12:30:00Z",
+      "reasons": ["End of collection window"],
+      "warnings": ["Synthetic partial snapshot: query results unavailable."],
+      "nodes": null,
+      "workloads": null
+    }
+  ]
+}

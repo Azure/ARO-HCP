@@ -106,10 +106,10 @@ ARO HCP CI is split across this repository and the OpenShift CI configuration in
 - [Validation](dev-ci-monitoring.md#validation)
 - [Sources of Truth](dev-ci-monitoring.md#sources-of-truth)
 
-### [DEV CI Regional Failover And Failback](dev-region-failover.md)
+### [DEV CI Regional Load Management](dev-region-failover.md)
 
-- Review regional provision health and switch the DEV CI region
-- Validate the switch and fail back when appropriate
+- Review regional provision and E2E health, then drain or rebalance `e2e-parallel`
+- Restore weighted traffic or fail over an explicitly pinned job
 
 ### [Opstool CI Platform](opstool.md)
 
@@ -171,6 +171,9 @@ ARO HCP CI is split across this repository and the OpenShift CI configuration in
 - [Test Suites And Labels](e2e-testing.md#test-suites-and-labels)
 - [Periodic Tests](e2e-testing.md#periodic-tests)
 
+### [Incident-Only E2E Acknowledgement](e2e-ci-kill-switch.md)
+
+- Temporary acknowledgement requirement for automatic E2E during an incident
 ### [Upgrade-Path Presubmit](upgrade-path-presubmit.md)
 
 - [When To Use It](upgrade-path-presubmit.md#when-to-use-it)
@@ -216,9 +219,9 @@ ARO HCP CI is split across this repository and the OpenShift CI configuration in
 - [E2E Subscription Onboarding](e2e-subscription-onboarding.md) documents the end-to-end procedure for adding customer subscriptions across all environments (DEV, INT, STG, PROD), including slot catalog, Boskos, AFEC flags, and RBAC updates.
 - [DEV Mock Identities](dev-mock-identities.md) explains what each DEV mock identity (first-party, ARM helper, MSI mock and its pool) stands in for and why it needs each role it is granted, given the absence of a real FPA and Managed Identities Data Plane.
 - [CI Image Lifecycle](image-lifecycle.md) explains the shared CI build root, job-local image graph, local E2E image injection, and the difference between CI promotion and ACR mirroring.
-- [CI Identity Leasing](identity-leasing.md) explains the managed identity container pool, the MSI mock SP pool, and the current staged model: slot-manager for DEV `e2e-parallel`, legacy ci-operator identity-container leases elsewhere.
+- [CI Identity Leasing](identity-leasing.md) explains the managed identity container pool, the MSI mock SP pool, and catalog-driven slot-manager leasing across DEV, INT, STG, and PROD.
 - [DEV CI Monitoring and Alert Response](dev-ci-monitoring.md) is the canonical Slack and PagerDuty runbook for DEV CI telemetry, alert response, exporter checks, and routing maintenance.
-- [DEV CI Regional Failover And Failback](dev-region-failover.md) defines when and how operators move DEV presubmit provisioning between `westus3`, `centralus`, and `canadacentral`.
+- [DEV CI Regional Load Management](dev-region-failover.md) defines when and how operators drain, rebalance, and restore DEV presubmit traffic across `westus3`, `centralus`, and `canadacentral`.
 - [Opstool CI Platform](opstool.md) explains the standalone AKS platform, shared monitoring infrastructure, and workload rollout model that host DEV CI tools.
 - [CI EV2 Integration](ev2-integration.md) explains how EV2 selects Prow jobs, authenticates to Gangway, and pins runs to the exact rollout commit.
 - [EV2 Retry Catcher](ev2-retry-catcher.md) explains how a narrow, deliberately labeled set of known-issue test failures triggers an automatic single retry of an EV2 gating run instead of a manual retrigger.
@@ -230,6 +233,7 @@ ARO HCP CI is split across this repository and the OpenShift CI configuration in
 ## Source Of Truth
 
 - **This repository** holds product code, test code, EV2 wiring, and the local implementation of cleanup and identity-leasing behavior.
+- **GitHub Actions CodeQL** is defined in `.github/workflows/codeql-analysis.yml`. Python runs once; Go builds every `go.work` module across six jobs with distinct code-scanning categories. When changing the partition, check that every module is assigned exactly once and that each shard uploads an analysis.
 - **`openshift/release`** holds Prow job configuration, ci-operator configuration, and step-registry workflows for ARO HCP CI.
 - **Generated Prow job manifests** under `ci-operator/jobs/Azure/ARO-HCP/` in `openshift/release` are outputs, not hand-edited source.
 

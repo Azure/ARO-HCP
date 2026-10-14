@@ -41,14 +41,24 @@ type ClusterNameRow struct {
 	ClusterName string `kusto:"cluster"`
 }
 
-func serviceLogs(f *kusto.QueryFactory, tableDefinition string, options kusto.QueryOptions, clusterIds []string) ([]kusto.Query, error) {
+type OperationIdRow struct {
+	OperationId string `kusto:"operationId"`
+}
+
+func serviceLogs(f *kusto.QueryFactory, tableDefinition string, options kusto.QueryOptions, clusterIds, operationIds []string) ([]kusto.Query, error) {
 	def, err := f.GetBuiltinQueryDefinition(tableDefinition)
 	if err != nil {
 		return nil, err
 	}
 	queries := make([]kusto.Query, 0, len(ServicesTables))
 	for _, table := range ServicesTables {
-		q, err := f.Build(*def, kusto.NewTemplateDataFromOptions(options, kusto.WithTable(table), kusto.WithClusterIds(clusterIds)))
+		data := kusto.NewTemplateDataFromOptions(options, kusto.WithTable(table), kusto.WithOperationIds(operationIds))
+		// Only container and Clusters Service logs use Clusters Service IDs.
+		// RP, kube-applier, and fleet logs are scoped by ARM resource group.
+		if table == ContainerLogsTable || table == ClustersServiceLogsTable {
+			kusto.WithClusterIds(clusterIds)(&data)
+		}
+		q, err := f.Build(*def, data)
 		if err != nil {
 			return nil, err
 		}

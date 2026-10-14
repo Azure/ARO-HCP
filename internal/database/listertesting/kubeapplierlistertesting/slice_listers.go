@@ -21,6 +21,7 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/listertestingutils"
@@ -41,7 +42,7 @@ func (l *SliceApplyDesireLister) List(ctx context.Context) ([]*kubeapplierapi.Ap
 func (l *SliceApplyDesireLister) GetForCluster(
 	ctx context.Context, subscriptionID, resourceGroupName, clusterName, name string,
 ) (*kubeapplierapi.ApplyDesire, error) {
-	want := kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(subscriptionID, resourceGroupName, clusterName, name)
+	want := kubeapplierapihelpers.ToClusterScopedApplyDesireResourceIDString(subscriptionID, resourceGroupName, clusterName, name)
 	for _, d := range l.Desires {
 		id := listertestingutils.ResourceIDOf(d)
 		if id != nil && strings.EqualFold(id.String(), want) {
@@ -54,7 +55,7 @@ func (l *SliceApplyDesireLister) GetForCluster(
 func (l *SliceApplyDesireLister) GetForNodePool(
 	ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName, name string,
 ) (*kubeapplierapi.ApplyDesire, error) {
-	want := kubeapplierapi.ToNodePoolScopedApplyDesireResourceIDString(
+	want := kubeapplierapihelpers.ToNodePoolScopedApplyDesireResourceIDString(
 		subscriptionID, resourceGroupName, clusterName, nodePoolName, name,
 	)
 	for _, d := range l.Desires {
@@ -69,7 +70,7 @@ func (l *SliceApplyDesireLister) GetForNodePool(
 func (l *SliceApplyDesireLister) GetForSystemAdminCredentialRequest(
 	ctx context.Context, subscriptionID, resourceGroupName, clusterName, credentialRequestName, name string,
 ) (*kubeapplierapi.ApplyDesire, error) {
-	want := kubeapplierapi.ToSystemAdminCredentialRequestScopedApplyDesireResourceIDString(
+	want := kubeapplierapihelpers.ToSystemAdminCredentialRequestScopedApplyDesireResourceIDString(
 		subscriptionID, resourceGroupName, clusterName, credentialRequestName, name,
 	)
 	for _, d := range l.Desires {
@@ -84,7 +85,7 @@ func (l *SliceApplyDesireLister) GetForSystemAdminCredentialRequest(
 func (l *SliceApplyDesireLister) GetForSystemAdminCredentialRevocation(
 	ctx context.Context, subscriptionID, resourceGroupName, clusterName, revocationName, name string,
 ) (*kubeapplierapi.ApplyDesire, error) {
-	want := kubeapplierapi.ToSystemAdminCredentialRevocationScopedApplyDesireResourceIDString(
+	want := kubeapplierapihelpers.ToSystemAdminCredentialRevocationScopedApplyDesireResourceIDString(
 		subscriptionID, resourceGroupName, clusterName, revocationName, name,
 	)
 	for _, d := range l.Desires {
@@ -99,7 +100,7 @@ func (l *SliceApplyDesireLister) GetForSystemAdminCredentialRevocation(
 func (l *SliceApplyDesireLister) GetForManagementCluster(
 	ctx context.Context, stampIdentifier, name string,
 ) (*kubeapplierapi.ApplyDesire, error) {
-	want := kubeapplierapi.ToManagementClusterScopedApplyDesireResourceIDString(stampIdentifier, name)
+	want := kubeapplierapihelpers.ToManagementClusterScopedApplyDesireResourceIDString(stampIdentifier, name)
 	for _, d := range l.Desires {
 		id := listertestingutils.ResourceIDOf(d)
 		if id != nil && strings.EqualFold(id.String(), want) {
@@ -175,7 +176,7 @@ func (l *SliceReadDesireLister) List(ctx context.Context) ([]*kubeapplierapi.Rea
 func (l *SliceReadDesireLister) GetForCluster(
 	ctx context.Context, subscriptionID, resourceGroupName, clusterName, name string,
 ) (*kubeapplierapi.ReadDesire, error) {
-	want := kubeapplierapi.ToClusterScopedReadDesireResourceIDString(subscriptionID, resourceGroupName, clusterName, name)
+	want := kubeapplierapihelpers.ToClusterScopedReadDesireResourceIDString(subscriptionID, resourceGroupName, clusterName, name)
 	for _, d := range l.Desires {
 		id := listertestingutils.ResourceIDOf(d)
 		if id != nil && strings.EqualFold(id.String(), want) {
@@ -188,7 +189,7 @@ func (l *SliceReadDesireLister) GetForCluster(
 func (l *SliceReadDesireLister) GetForNodePool(
 	ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName, name string,
 ) (*kubeapplierapi.ReadDesire, error) {
-	want := kubeapplierapi.ToNodePoolScopedReadDesireResourceIDString(
+	want := kubeapplierapihelpers.ToNodePoolScopedReadDesireResourceIDString(
 		subscriptionID, resourceGroupName, clusterName, nodePoolName, name,
 	)
 	for _, d := range l.Desires {
@@ -203,7 +204,7 @@ func (l *SliceReadDesireLister) GetForNodePool(
 func (l *SliceReadDesireLister) GetForSystemAdminCredentialRequest(
 	ctx context.Context, subscriptionID, resourceGroupName, clusterName, credentialRequestName, name string,
 ) (*kubeapplierapi.ReadDesire, error) {
-	want := kubeapplierapi.ToSystemAdminCredentialRequestScopedReadDesireResourceIDString(
+	want := kubeapplierapihelpers.ToSystemAdminCredentialRequestScopedReadDesireResourceIDString(
 		subscriptionID, resourceGroupName, clusterName, credentialRequestName, name,
 	)
 	for _, d := range l.Desires {
@@ -218,7 +219,7 @@ func (l *SliceReadDesireLister) GetForSystemAdminCredentialRequest(
 func (l *SliceReadDesireLister) GetForSystemAdminCredentialRevocation(
 	ctx context.Context, subscriptionID, resourceGroupName, clusterName, revocationName, name string,
 ) (*kubeapplierapi.ReadDesire, error) {
-	want := kubeapplierapi.ToSystemAdminCredentialRevocationScopedReadDesireResourceIDString(
+	want := kubeapplierapihelpers.ToSystemAdminCredentialRevocationScopedReadDesireResourceIDString(
 		subscriptionID, resourceGroupName, clusterName, revocationName, name,
 	)
 	for _, d := range l.Desires {
@@ -233,7 +234,7 @@ func (l *SliceReadDesireLister) GetForSystemAdminCredentialRevocation(
 func (l *SliceReadDesireLister) GetForManagementCluster(
 	ctx context.Context, stampIdentifier, name string,
 ) (*kubeapplierapi.ReadDesire, error) {
-	want := kubeapplierapi.ToManagementClusterScopedReadDesireResourceIDString(stampIdentifier, name)
+	want := kubeapplierapihelpers.ToManagementClusterScopedReadDesireResourceIDString(stampIdentifier, name)
 	for _, d := range l.Desires {
 		id := listertestingutils.ResourceIDOf(d)
 		if id != nil && strings.EqualFold(id.String(), want) {

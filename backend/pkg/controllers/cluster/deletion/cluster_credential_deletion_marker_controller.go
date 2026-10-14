@@ -46,6 +46,8 @@ type clusterCredentialDeletionMarkerController struct {
 
 var _ controllerutils.ClusterSyncer = (*clusterCredentialDeletionMarkerController)(nil)
 
+const ClusterCredentialDeletionMarkerControllerControllerName = "ClusterCredentialDeletionMarkerController"
+
 func NewClusterCredentialDeletionMarkerController(
 	clock utilsclock.PassiveClock,
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
@@ -63,7 +65,7 @@ func NewClusterCredentialDeletionMarkerController(
 	}
 
 	return controllerutils.NewClusterWatchingController(
-		"ClusterCredentialDeletionMarkerController",
+		ClusterCredentialDeletionMarkerControllerControllerName,
 		resourcesDBClient,
 		informers,
 		nil,
@@ -72,7 +74,7 @@ func NewClusterCredentialDeletionMarkerController(
 	)
 }
 
-func (c *clusterCredentialDeletionMarkerController) NeedsWork(cluster *coreapi.HCPOpenShiftCluster) bool {
+func (c *clusterCredentialDeletionMarkerController) NeedsWork(cluster *coreapi.Cluster) bool {
 	if !cluster.ServiceProviderProperties.UsesNewClusterDeletionApproach {
 		return false
 	}

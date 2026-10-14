@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -99,6 +100,8 @@ func createBackupTestCluster(ctx context.Context, cfg backupTestClusterConfig) b
 }
 
 var _ = Describe("SRE", func() {
+	timeBombDeadline := framework.Must(time.Parse(time.RFC3339, "2026-10-27T00:00:00Z"))
+
 	It("can pause schedules to stop backup execution for an HCP cluster",
 		labels.RequireNothing,
 		labels.High,
@@ -108,6 +111,10 @@ var _ = Describe("SRE", func() {
 		labels.AroRpApiCompatible,
 		labels.MIContainers(1),
 		func(ctx context.Context) {
+			if time.Now().Before(timeBombDeadline) {
+				Skip(fmt.Sprintf("scheduled backup execution is temporarily disabled until %s", timeBombDeadline.Format(time.RFC3339)))
+			}
+
 			tc := framework.NewTestContext()
 			if tc.UsePooledIdentities() {
 				err := tc.AssignIdentityContainers(ctx, 1, framework.IdentityContainerAssignmentRetryInterval)

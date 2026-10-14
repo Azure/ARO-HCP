@@ -8,7 +8,7 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-10-01' exis
   name: aksClusterName
 }
 
-// Diagnostic settings for AKS audit logs
+// Diagnostic settings for AKS audit and control-plane logs
 resource aksDiagnosticSettings 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = {
   scope: aksCluster
   name: 'aks-audit-logs'
@@ -22,6 +22,22 @@ resource aksDiagnosticSettings 'Microsoft.Insights/diagnosticSettings@2021-05-01
       }
       {
         category: 'cluster-autoscaler'
+        enabled: true
+      }
+      {
+        category: 'cloud-controller-manager'
+        enabled: true
+      }
+      {
+        category: 'csi-azuredisk-controller'
+        enabled: true
+      }
+      {
+        category: 'csi-azurefile-controller'
+        enabled: true
+      }
+      {
+        category: 'csi-snapshot-controller'
         enabled: true
       }
       {

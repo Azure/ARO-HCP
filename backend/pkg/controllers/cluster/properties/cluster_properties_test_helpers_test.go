@@ -35,6 +35,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/kubeappliercosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/fleetlistertesting"
@@ -88,14 +90,14 @@ func newSeededReadDesireLister(ctx context.Context, readDesires ...*kubeappliera
 	}, nil
 }
 
-func newTestCluster(hcpClusterName string, opts ...func(*coreapi.HCPOpenShiftCluster)) *coreapi.HCPOpenShiftCluster {
+func newTestCluster(hcpClusterName string, opts ...func(*coreapi.Cluster)) *coreapi.Cluster {
 	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + testSubscriptionID +
 			"/resourceGroups/" + testResourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + hcpClusterName,
 	))
 
-	cluster := &coreapi.HCPOpenShiftCluster{
+	cluster := &coreapi.Cluster{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   resourceID,
 			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
@@ -107,8 +109,8 @@ func newTestCluster(hcpClusterName string, opts ...func(*coreapi.HCPOpenShiftClu
 				Type: resourceID.ResourceType.String(),
 			},
 		},
-		ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
-			ClusterServiceID: metadataapi.Ptr(metadataapi.Must(metadataapi.NewInternalID(testClusterServiceIDStr))),
+		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
+			ClusterServiceID: metadataapihelpers.Ptr(metadataapi.Must(metadataapi.NewInternalID(testClusterServiceIDStr))),
 		},
 	}
 
@@ -137,7 +139,7 @@ func newTestHostedClusterReadDesire(t *testing.T, opts ...func(*hsv1beta1.Hosted
 		opt(hostedCluster)
 	}
 
-	resourceIDString := kubeapplierapi.ToClusterScopedReadDesireResourceIDString(
+	resourceIDString := kubeapplierapihelpers.ToClusterScopedReadDesireResourceIDString(
 		testSubscriptionID,
 		testResourceGroupName,
 		testClusterName,
@@ -177,7 +179,7 @@ func newTestServingCAReadDesire(t *testing.T, caBundlePEM string) *kubeapplierap
 	raw, err := json.Marshal(secret)
 	require.NoError(t, err)
 
-	resourceIDString := kubeapplierapi.ToClusterScopedReadDesireResourceIDString(
+	resourceIDString := kubeapplierapihelpers.ToClusterScopedReadDesireResourceIDString(
 		testSubscriptionID,
 		testResourceGroupName,
 		testClusterName,

@@ -5,7 +5,7 @@
         "builtIn": 1,
         "datasource": {
           "type": "prometheus",
-          "uid": "services-usw3jbol"
+          "uid": "${datasource}"
         },
         "enable": true,
         "hide": true,
@@ -125,11 +125,11 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum(rate(fluentbit_input_bytes_total{pod=~\"$fluentbit\"}[5m])) by (pod, name)",
+          "expr": "sum by (cluster, pod, name) (max without (prometheus_replica) (rate(fluentbit_input_bytes_total{cluster=~\"$cluster\", pod=~\"$fluentbit\"}[$__rate_interval])))",
           "format": "time_series",
           "hide": false,
           "intervalFactor": 1,
-          "legendFormat": "{{ pod }}/{{name}}",
+          "legendFormat": "{{cluster}}/{{pod}}/{{name}}",
           "refId": "A"
         }
       ],
@@ -227,11 +227,11 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum(rate(fluentbit_output_proc_bytes_total{pod=~\"$fluentbit\"}[5m])) by (pod, name)",
+          "expr": "sum by (cluster, pod, name) (max without (prometheus_replica) (rate(fluentbit_output_proc_bytes_total{cluster=~\"$cluster\", pod=~\"$fluentbit\"}[$__rate_interval])))",
           "format": "time_series",
           "hide": false,
           "intervalFactor": 1,
-          "legendFormat": "{{ pod }}/{{name}}",
+          "legendFormat": "{{cluster}}/{{pod}}/{{name}}",
           "refId": "A"
         }
       ],
@@ -328,11 +328,11 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum(rate(fluentbit_input_records_total{pod=~\"$fluentbit\"}[5m])) by (pod, name)",
+          "expr": "sum by (cluster, pod, name) (max without (prometheus_replica) (rate(fluentbit_input_records_total{cluster=~\"$cluster\", pod=~\"$fluentbit\"}[$__rate_interval])))",
           "format": "time_series",
           "hide": false,
           "intervalFactor": 1,
-          "legendFormat": "{{ pod }}/{{name}}",
+          "legendFormat": "{{cluster}}/{{pod}}/{{name}}",
           "refId": "A"
         }
       ],
@@ -430,11 +430,11 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum(rate(fluentbit_output_proc_records_total{pod=~\"$fluentbit\"}[5m])) by (pod, name)",
+          "expr": "sum by (cluster, pod, name) (max without (prometheus_replica) (rate(fluentbit_output_proc_records_total{cluster=~\"$cluster\", pod=~\"$fluentbit\"}[$__rate_interval])))",
           "format": "time_series",
           "hide": false,
           "intervalFactor": 1,
-          "legendFormat": "{{ pod }}/{{name}}",
+          "legendFormat": "{{cluster}}/{{pod}}/{{name}}",
           "refId": "A"
         }
       ],
@@ -532,11 +532,11 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum(rate(fluentbit_output_retries_total{pod=~\"$fluentbit\"}[1m])) by (pod, name)",
+          "expr": "sum by (cluster, pod, name) (max without (prometheus_replica) (rate(fluentbit_output_retries_total{cluster=~\"$cluster\", pod=~\"$fluentbit\"}[$__rate_interval])))",
           "format": "time_series",
           "hide": false,
           "intervalFactor": 1,
-          "legendFormat": "Retries {{ pod }}/{{name}}",
+          "legendFormat": "Retries {{cluster}}/{{pod}}/{{name}}",
           "refId": "A"
         },
         {
@@ -544,10 +544,10 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum(rate(fluentbit_output_retries_failed_total{pod=~\"$fluentbit\"}[1m])) by (pod, name)",
+          "expr": "sum by (cluster, pod, name) (max without (prometheus_replica) (rate(fluentbit_output_retries_failed_total{cluster=~\"$cluster\", pod=~\"$fluentbit\"}[$__rate_interval])))",
           "format": "time_series",
           "intervalFactor": 1,
-          "legendFormat": "Failed {{ pod }}/{{name}}",
+          "legendFormat": "Failed {{cluster}}/{{pod}}/{{name}}",
           "refId": "B"
         }
       ],
@@ -645,11 +645,11 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum(rate(fluentbit_output_errors_total{pod=~\"$fluentbit\"}[1m])) by (pod, name)",
+          "expr": "sum by (cluster, pod, name) (max without (prometheus_replica) (rate(fluentbit_output_errors_total{cluster=~\"$cluster\", pod=~\"$fluentbit\"}[$__rate_interval])))",
           "format": "time_series",
           "hide": false,
           "intervalFactor": 1,
-          "legendFormat": "{{ pod }}/{{ name }}",
+          "legendFormat": "{{cluster}}/{{pod}}/{{name}}",
           "refId": "A"
         }
       ],
@@ -674,6 +674,24 @@
         "type": "datasource"
       },
       {
+        "allValue": ".*",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "datasource": "$datasource",
+        "definition": "label_values(up,cluster)",
+        "includeAll": true,
+        "multi": true,
+        "name": "cluster",
+        "options": [],
+        "query": "label_values(up,cluster)",
+        "refresh": 2,
+        "regex": "^.*-(?:svc|mgmt)-\\d+$",
+        "type": "query"
+      },
+      {
+        "allValue": ".*",
         "current": {
           "text": "All",
           "value": "$__all"
@@ -685,7 +703,7 @@
         "name": "fluentbit",
         "options": [],
         "query": "label_values(fluentbit_input_bytes_total,pod)",
-        "refresh": 1,
+        "refresh": 2,
         "regex": "",
         "type": "query"
       }

@@ -48,6 +48,8 @@ type nodePoolClusterServiceIDClearer struct {
 
 var _ controllerutils.NodePoolSyncer = (*nodePoolClusterServiceIDClearer)(nil)
 
+const NodePoolDeletionClusterServiceIDClearerControllerName = "NodePoolDeletionClusterServiceIDClearer"
+
 func NewNodePoolClusterServiceIDClearerController(
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
@@ -62,7 +64,7 @@ func NewNodePoolClusterServiceIDClearerController(
 	}
 
 	return controllerutils.NewNodePoolWatchingController(
-		"NodePoolDeletionClusterServiceIDClearer",
+		NodePoolDeletionClusterServiceIDClearerControllerName,
 		resourcesDBClient,
 		informers,
 		kubeApplierInformers,
@@ -75,7 +77,7 @@ func NewNodePoolClusterServiceIDClearerController(
 // given NodePool: deletion has been started (DeletionTimestamp), the deleter
 // has already issued the CS delete (ClusterServiceDeletionTimestamp), and a
 // ClusterServiceID is still recorded that needs verification before clearing.
-func (c *nodePoolClusterServiceIDClearer) NeedsWork(nodePool *coreapi.HCPOpenShiftClusterNodePool) bool {
+func (c *nodePoolClusterServiceIDClearer) NeedsWork(nodePool *coreapi.NodePool) bool {
 	// TODO temporary check to skip the new deletion approach for NodePools that were created before the new approach was implemented.
 	// This will be removed once all nodepools whose deletion was triggered before the new approach is fully rolled out have been
 	// fully deleted in all ARO-HCP permanent environments, for all regions.

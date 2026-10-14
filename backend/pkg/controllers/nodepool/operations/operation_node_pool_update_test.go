@@ -46,6 +46,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
@@ -60,7 +61,7 @@ func TestOperationNodePoolUpdate_SynchronizeOperation(t *testing.T) {
 	testClockNow := operationtesting.MustParseTime("2024-06-01T12:00:00Z")
 	fixture := operationtesting.NewNodePoolTestFixture()
 
-	newNodePoolWithVersion := func(version string, mutate ...func(*coreapi.HCPOpenShiftClusterNodePool)) *coreapi.HCPOpenShiftClusterNodePool {
+	newNodePoolWithVersion := func(version string, mutate ...func(*coreapi.NodePool)) *coreapi.NodePool {
 		nodePool := fixture.NewNodePool()
 		nodePool.Properties.Version.ID = version
 		for _, fn := range mutate {
@@ -89,7 +90,7 @@ func TestOperationNodePoolUpdate_SynchronizeOperation(t *testing.T) {
 		return fixture.NewNodePoolVersionController(conditions)
 	}
 
-	newPassingCachedNodePoolReadDesire := func(nodePool *coreapi.HCPOpenShiftClusterNodePool) *kubeapplierapi.ReadDesire {
+	newPassingCachedNodePoolReadDesire := func(nodePool *coreapi.NodePool) *kubeapplierapi.ReadDesire {
 		return newNodePoolReadDesire(t, nodePool, fixture.NewCluster())
 	}
 
@@ -133,8 +134,10 @@ func TestOperationNodePoolUpdate_SynchronizeOperation(t *testing.T) {
 	}
 
 	testCases := []struct {
+		checkDeadline    bool
+		timeoutReason    string
 		name             string
-		existingNodePool *coreapi.HCPOpenShiftClusterNodePool
+		existingNodePool *coreapi.NodePool
 		// When not set, the controller uses a node pool lister that contains the existingNodePool.
 		nodePoolLister    corelisters.NodePoolLister
 		existingOperation *coreapi.Operation
@@ -153,6 +156,7 @@ func TestOperationNodePoolUpdate_SynchronizeOperation(t *testing.T) {
 	}{
 		{
 			name:                            "cs node pool ready transitions operation to succeeded",
+			checkDeadline:                   true,
 			existingNodePool:                newNodePoolWithVersion("4.19.0"),
 			existingOperation:               newOperationAccepted(),
 			existingServiceProviderNodePool: newServiceProviderNodePoolWithDesiredVersion("4.19.0"),
@@ -171,6 +175,8 @@ func TestOperationNodePoolUpdate_SynchronizeOperation(t *testing.T) {
 		},
 		{
 			name:                            "cs node pool updating transitions operation to updating",
+			checkDeadline:                   true,
+			timeoutReason:                   "[clusterServiceNodePoolStatus] cluster service node pool is updating",
 			existingNodePool:                newNodePoolWithVersion("4.19.0"),
 			existingOperation:               newOperationAccepted(),
 			existingServiceProviderNodePool: newServiceProviderNodePoolWithDesiredVersion("4.19.0"),
@@ -215,6 +221,7 @@ func TestOperationNodePoolUpdate_SynchronizeOperation(t *testing.T) {
 		},
 		{
 			name:                            "cs node pool recoverable_error transitions operation to failed",
+			checkDeadline:                   true,
 			existingNodePool:                newNodePoolWithVersion("4.19.0"),
 			existingOperation:               newOperationAccepted(),
 			existingServiceProviderNodePool: newServiceProviderNodePoolWithDesiredVersion("4.19.0"),
@@ -224,7 +231,8 @@ func TestOperationNodePoolUpdate_SynchronizeOperation(t *testing.T) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, coreapi.ProvisioningStateFailed, op.Status)
-				assert.NotNil(t, op.Error)
+				require.NotNil(t, op.Error)
+				assert.Equal(t, coreapi.CloudErrorCodeInternalServerError, op.Error.Code)
 				assert.Contains(t, op.Error.Message, "temporary error occurred")
 			},
 		},
@@ -347,8 +355,10 @@ func TestOperationNodePoolUpdate_SynchronizeOperation(t *testing.T) {
 			},
 		},
 		{
-			name: "cs node pool ready with hypershift node drain spec mismatch keeps operation updating",
-			existingNodePool: newNodePoolWithVersion("4.19.0", func(nodePool *coreapi.HCPOpenShiftClusterNodePool) {
+			name:          "cs node pool ready with hypershift node drain spec mismatch keeps operation updating",
+			checkDeadline: true,
+			timeoutReason: "nodeDrainTimeout",
+			existingNodePool: newNodePoolWithVersion("4.19.0", func(nodePool *coreapi.NodePool) {
 				nodePool.Properties.NodeDrainTimeoutMinutes = ptr.To(int32(60))
 			}),
 			existingOperation:               newOperationAccepted(),
@@ -369,7 +379,7 @@ func TestOperationNodePoolUpdate_SynchronizeOperation(t *testing.T) {
 		},
 		{
 			name: "cs node pool ready with hypershift replicas spec mismatch keeps operation updating",
-			existingNodePool: newNodePoolWithVersion("4.19.0", func(nodePool *coreapi.HCPOpenShiftClusterNodePool) {
+			existingNodePool: newNodePoolWithVersion("4.19.0", func(nodePool *coreapi.NodePool) {
 				nodePool.Properties.Replicas = 3
 			}),
 			existingOperation:               newOperationAccepted(),
@@ -395,7 +405,7 @@ func TestOperationNodePoolUpdate_SynchronizeOperation(t *testing.T) {
 		},
 		{
 			name: "shouldReconcile gate not passed when ClusterServiceID is nil",
-			existingNodePool: newNodePoolWithVersion("4.19.0", func(nodePool *coreapi.HCPOpenShiftClusterNodePool) {
+			existingNodePool: newNodePoolWithVersion("4.19.0", func(nodePool *coreapi.NodePool) {
 				nodePool.ServiceProviderProperties.ClusterServiceID = nil
 			}),
 			existingOperation: newOperationAccepted(),
@@ -407,7 +417,7 @@ func TestOperationNodePoolUpdate_SynchronizeOperation(t *testing.T) {
 		},
 		{
 			name: "shouldReconcile gate not passed when node pool is deleting",
-			existingNodePool: newNodePoolWithVersion("4.19.0", func(nodePool *coreapi.HCPOpenShiftClusterNodePool) {
+			existingNodePool: newNodePoolWithVersion("4.19.0", func(nodePool *coreapi.NodePool) {
 				nodePool.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: testClockNow}
 			}),
 			existingOperation: newOperationAccepted(),
@@ -433,6 +443,39 @@ func TestOperationNodePoolUpdate_SynchronizeOperation(t *testing.T) {
 				assert.Equal(t, coreapi.ProvisioningStateAccepted, nodePool.Properties.ProvisioningState)
 			},
 		},
+	}
+
+	// Exercise the same observations before, at, and after the update deadline.
+	// Successful and failed observations must retain their original result even
+	// after the deadline; only pending operations become DeadlineExceeded.
+	for _, base := range testCases {
+		if !base.checkDeadline {
+			continue
+		}
+		for _, offset := range []time.Duration{time.Second, 0, -time.Second} {
+			tc := base
+			tc.name = fmt.Sprintf("%s/deadline-offset=%s", base.name, offset)
+			tc.existingNodePool = base.existingNodePool.DeepCopy()
+			tc.existingOperation = base.existingOperation.DeepCopy()
+			tc.existingServiceProviderNodePool = base.existingServiceProviderNodePool.DeepCopy()
+			tc.existingNodePool.ServiceProviderProperties.UpdateOperationCompletionDeadline = ptr.To(metav1.NewTime(testClockNow.Add(offset)))
+			if offset < 0 && base.timeoutReason != "" {
+				tc.verifyDB = func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
+					op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
+					require.NoError(t, err)
+					assert.Equal(t, coreapi.ProvisioningStateFailed, op.Status)
+					require.NotNil(t, op.Error)
+					assert.Equal(t, coreapi.CloudErrorCodeDeadlineExceeded, op.Error.Code)
+					assert.Contains(t, op.Error.Message, "node pool update did not complete before the deadline")
+					assert.Contains(t, op.Error.Message, base.timeoutReason)
+					resource, err := db.HCPClusters(operationtesting.TestSubscriptionID, operationtesting.TestResourceGroupName).NodePools(operationtesting.TestClusterName).Get(ctx, operationtesting.TestNodePoolName)
+					require.NoError(t, err)
+					assert.Equal(t, coreapi.ProvisioningStateFailed, resource.Properties.ProvisioningState)
+					assert.Empty(t, resource.ServiceProviderProperties.ActiveOperationID)
+				}
+			}
+			testCases = append(testCases, tc)
+		}
 	}
 
 	for _, tc := range testCases {
@@ -513,7 +556,7 @@ func TestOperationNodePoolUpdate_SynchronizeOperation(t *testing.T) {
 	}
 }
 
-func newNodePoolReadDesire(t *testing.T, nodePool *coreapi.HCPOpenShiftClusterNodePool, cluster *coreapi.HCPOpenShiftCluster) *kubeapplierapi.ReadDesire {
+func newNodePoolReadDesire(t *testing.T, nodePool *coreapi.NodePool, cluster *coreapi.Cluster) *kubeapplierapi.ReadDesire {
 	t.Helper()
 
 	hsNodePool := nodePoolToHypershiftNodePool(nodePool, cluster)
@@ -521,7 +564,7 @@ func newNodePoolReadDesire(t *testing.T, nodePool *coreapi.HCPOpenShiftClusterNo
 	require.NoError(t, err)
 
 	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
-		kubeapplierapi.ToNodePoolScopedReadDesireResourceIDString(
+		kubeapplierapihelpers.ToNodePoolScopedReadDesireResourceIDString(
 			operationtesting.TestSubscriptionID, operationtesting.TestResourceGroupName, operationtesting.TestClusterName, operationtesting.TestNodePoolName,
 			kubeapplierhelpers.ReadDesireNameReadonlyNodePool)))
 
@@ -538,7 +581,7 @@ func newNodePoolReadDesire(t *testing.T, nodePool *coreapi.HCPOpenShiftClusterNo
 	}
 }
 
-func nodePoolToHypershiftNodePool(nodePool *coreapi.HCPOpenShiftClusterNodePool, cluster *coreapi.HCPOpenShiftCluster) *v1beta1.NodePool {
+func nodePoolToHypershiftNodePool(nodePool *coreapi.NodePool, cluster *coreapi.Cluster) *v1beta1.NodePool {
 	effectiveNodeDrainMinutes := nodePool.Properties.NodeDrainTimeoutMinutes
 	if effectiveNodeDrainMinutes == nil {
 		effectiveNodeDrainMinutes = &cluster.CustomerProperties.NodeDrainTimeoutMinutes
@@ -552,6 +595,10 @@ func nodePoolToHypershiftNodePool(nodePool *coreapi.HCPOpenShiftClusterNodePool,
 		Status: v1beta1.NodePoolStatus{
 			Replicas: nodePool.Properties.Replicas,
 			Conditions: []v1beta1.NodePoolCondition{
+				{
+					Type:   v1beta1.NodePoolAllNodesHealthyConditionType,
+					Status: corev1.ConditionTrue,
+				},
 				{
 					Type:   v1beta1.NodePoolAllMachinesReadyConditionType,
 					Status: corev1.ConditionTrue,

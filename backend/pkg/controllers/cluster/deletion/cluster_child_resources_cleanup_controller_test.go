@@ -32,6 +32,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
 	"github.com/Azure/ARO-HCP/internal/backup"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
@@ -109,16 +110,16 @@ func TestClusterChildResourcesCleanupController_SyncOnce(t *testing.T) {
 		}
 	}
 	newTestClusterScopedReadDesire := func(name string) *kubeapplierapi.ReadDesire {
-		return newTestReadDesire(kubeapplierapi.ToClusterScopedReadDesireResourceIDString(
+		return newTestReadDesire(kubeapplierapihelpers.ToClusterScopedReadDesireResourceIDString(
 			testSubscriptionID, testResourceGroupName, testClusterName, name))
 	}
 	newTestNodePoolScopedReadDesire := func(nodePoolName, name string) *kubeapplierapi.ReadDesire {
-		return newTestReadDesire(kubeapplierapi.ToNodePoolScopedReadDesireResourceIDString(
+		return newTestReadDesire(kubeapplierapihelpers.ToNodePoolScopedReadDesireResourceIDString(
 			testSubscriptionID, testResourceGroupName, testClusterName, nodePoolName, name))
 	}
 	newTestClusterScopedApplyDesire := func(name string) *kubeapplierapi.ApplyDesire {
 		resourceID := metadataapi.Must(azcorearm.ParseResourceID(
-			kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(
+			kubeapplierapihelpers.ToClusterScopedApplyDesireResourceIDString(
 				testSubscriptionID, testResourceGroupName, testClusterName, name)))
 		return &kubeapplierapi.ApplyDesire{
 			CosmosMetadata: coreapi.CosmosMetadata{
@@ -188,7 +189,7 @@ func TestClusterChildResourcesCleanupController_SyncOnce(t *testing.T) {
 	}
 
 	fixedNow := time.Date(2026, 5, 6, 12, 0, 0, 0, time.UTC)
-	readyToDeleteClusterOptsFunc := func(c *coreapi.HCPOpenShiftCluster) {
+	readyToDeleteClusterOptsFunc := func(c *coreapi.Cluster) {
 		c.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-time.Hour)}
 		c.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-30 * time.Minute)}
 		c.ServiceProviderProperties.ClusterServiceID = nil
@@ -202,7 +203,7 @@ func TestClusterChildResourcesCleanupController_SyncOnce(t *testing.T) {
 
 	testCases := []struct {
 		name               string
-		existingCluster    *coreapi.HCPOpenShiftCluster
+		existingCluster    *coreapi.Cluster
 		childResources     []any
 		kubeApplierDesires []any
 		wantErr            bool
@@ -221,7 +222,7 @@ func TestClusterChildResourcesCleanupController_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "when no ClusterServiceDeletionTimestamp is set performs a no-op",
-			existingCluster: newTestClusterWithNewDeletionApproach(t, func(c *coreapi.HCPOpenShiftCluster) {
+			existingCluster: newTestClusterWithNewDeletionApproach(t, func(c *coreapi.Cluster) {
 				c.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-time.Hour)}
 				c.ServiceProviderProperties.ClusterServiceDeletionTimestamp = nil
 				c.ServiceProviderProperties.ClusterServiceID = nil
@@ -235,7 +236,7 @@ func TestClusterChildResourcesCleanupController_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "when ClusterServiceID is set performs a no-op",
-			existingCluster: newTestClusterWithNewDeletionApproach(t, func(c *coreapi.HCPOpenShiftCluster) {
+			existingCluster: newTestClusterWithNewDeletionApproach(t, func(c *coreapi.Cluster) {
 				c.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-time.Hour)}
 				c.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-30 * time.Minute)}
 			}),
@@ -351,7 +352,7 @@ func TestClusterChildResourcesCleanupController_SyncOnce(t *testing.T) {
 
 				assertNoClusterScopedKubeApplierResources(t, ctx, kubeApplierDBClients)
 				assertClusterScopedKubeApplierResourceExists(t, ctx, kubeApplierDBClients,
-					kubeapplierapi.ToNodePoolScopedReadDesireResourceIDString(
+					kubeapplierapihelpers.ToNodePoolScopedReadDesireResourceIDString(
 						testSubscriptionID, testResourceGroupName, testClusterName, "workers", "readonly-nodepool"))
 			},
 		},
@@ -616,7 +617,7 @@ func TestClusterChildResourcesCleanupController_SyncOnce(t *testing.T) {
 			mockResourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, resources)
 			require.NoError(t, err)
 
-			clustersForLister := []*coreapi.HCPOpenShiftCluster{}
+			clustersForLister := []*coreapi.Cluster{}
 			if tc.existingCluster != nil {
 				clustersForLister = append(clustersForLister, tc.existingCluster)
 			}

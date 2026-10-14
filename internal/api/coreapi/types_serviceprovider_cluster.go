@@ -58,19 +58,6 @@ const (
 	HostedClusterControlPlaneSizeXXlarge HostedClusterControlPlaneSize = "XXlarge"
 )
 
-// IsValidHostedClusterControlPlaneSize reports whether s names a known tier.
-func IsValidHostedClusterControlPlaneSize(s string) bool {
-	switch HostedClusterControlPlaneSize(s) {
-	case HostedClusterControlPlaneSizeSmall,
-		HostedClusterControlPlaneSizeMedium,
-		HostedClusterControlPlaneSizeLarge,
-		HostedClusterControlPlaneSizeXlarge,
-		HostedClusterControlPlaneSizeXXlarge:
-		return true
-	}
-	return false
-}
-
 // ServiceProviderCluster is used internally by controllers to track and pass information between them.
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type ServiceProviderCluster struct {
@@ -139,13 +126,47 @@ type ServiceProviderClusterSpec struct {
 	// durations up to 24 hours considered normal.
 	// Written by: FetchMSIIdentitiesInfo, FetchDataPlaneOperatorsManagedIdentitiesInfoController, IdentityRoleAssignments
 	EarliestRecheckTimesByController map[string]*metav1.Time `json:"earliestRecheckTimesByController,omitempty"`
+
+	// PinnedVersion, when its ExactVersion is set, is an SRE-specified
+	// cluster-specific exact-version override. The Forced Cluster Desired Version
+	// Assignment controller holds this cluster at PinnedVersion.ExactVersion until
+	// the fleet's bestExactVersion reaches PinnedVersion.UntilExactVersion, after
+	// which the pin is cleared and normal rollout selection resumes. An empty
+	// PinnedVersion (nil ExactVersion) means no pin and serializes as {}.
+	// Written by: Forced Cluster Desired Version Assignment (clear), Admin API HCPVersionPinHandler (set/clear)
+	PinnedVersion ServiceProviderClusterPinnedVersion `json:"pinnedVersion,omitempty"`
 }
 
 // ServiceProviderClusterSpecVersion contains the desired version information.
 type ServiceProviderClusterSpecVersion struct {
 	// DesiredVersion is the full version the controller has resolved and wants to upgrade to (format: x.y.z)
 	// This is compared on each sync to detect when a new upgrade should be triggered.
+	// Written by: Forced Cluster Desired Version Assignment, Z-stream Progressive Desired Version Rollout, InitialNormalClusterDesiredVersion, MinorUpgradeNormalClusterDesiredVersion
 	DesiredVersion *semver.Version `json:"desired_version,omitempty"`
+
+	// DesiredVersionLastTransitionTime is when DesiredVersion last changed. It is
+	// used to decide when a cluster has been mismatched (desired set but not yet
+	// achieved) for longer than the allowed upgrade duration.
+	// Legacy missing/zero timestamps are initialized at first observation by
+	// InitialNormalClusterDesiredVersion without changing the desired version.
+	// TODO: align DesiredVersion with its transition time into a better structure
+	// (mirroring ServiceProviderClusterActiveVersion), instead of two loosely-coupled fields.
+	// Written by: Forced Cluster Desired Version Assignment, Z-stream Progressive Desired Version Rollout, InitialNormalClusterDesiredVersion, MinorUpgradeNormalClusterDesiredVersion
+	DesiredVersionLastTransitionTime *metav1.Time `json:"desired_version_last_transition_time,omitempty"`
+}
+
+// ServiceProviderClusterPinnedVersion is an SRE-specified exact-version pin for a
+// single cluster, held until the fleet's best version reaches UntilExactVersion.
+type ServiceProviderClusterPinnedVersion struct {
+	// ExactVersion is the exact z-stream this cluster is pinned to regardless of
+	// its previous version.
+	// Written by: Forced Cluster Desired Version Assignment (clear), Admin API HCPVersionPinHandler (set/clear)
+	ExactVersion *semver.Version `json:"exactVersion,omitempty"`
+
+	// UntilExactVersion is the fleet bestExactVersion at or above which the pin is
+	// released and normal upgrade selection may continue.
+	// Written by: Forced Cluster Desired Version Assignment (clear), Admin API HCPVersionPinHandler (set/clear)
+	UntilExactVersion *semver.Version `json:"untilExactVersion,omitempty"`
 }
 
 // ServiceProviderClusterStatus contains the observed state of the cluster.
@@ -204,12 +225,53 @@ type ServiceProviderClusterStatus struct {
 	// Written by: ControlPlaneActiveVersions
 	DesiredVersionChannels []string `json:"desiredVersionChannels,omitempty"`
 
+	// ImageContentSources mirrors the observed HostedCluster's
+	// spec.imageContentSources verbatim. nil means the HostedCluster has not yet
+	// been observed, or a successful read found it absent and retracted the mirror.
+	// Admission fails closed without observed state; during migration it may fall
+	// back to ActualHostedCluster when this field is nil. A non-nil pointer to a
+	// possibly empty slice means the HostedCluster has been observed. Empty
+	// observations use an empty, non-nil slice so JSON preserves that distinction.
+	// Written by: ActualHostedCluster
+	ImageContentSources *[]v1beta1.ImageContentSource `json:"imageContentSources,omitempty"`
+
+	// ActualHostedCluster is the HostedCluster as it currently exists on the
+	// management cluster, mirrored here from the kube-applier ReadDesire by the
+	// backend. Both spec and status are carried. Admission prefers the dedicated
+	// ImageContentSources mirror and falls back to this field during migration.
+	//
+	// The frontend is deliberately denied any path to a management cluster (no
+	// kube-applier container access, no ReadDesireLister, no Maestro), so a
+	// frontend compromise cannot create arbitrary resources on a management
+	// cluster. Anything admission needs to know about the real HostedCluster has
+	// to travel through ServiceProviderCluster; see internal/admission/CLAUDE.md.
+	//
+	// The object is mirrored verbatim, exactly as observed on the management
+	// cluster. Nothing is stripped or rewritten on the way in, so a consumer can
+	// read any field without having to know a mirroring policy.
+	//
+	// nil means there is no observed HostedCluster to report: the backend has not
+	// observed one yet (the cluster is still being created, or the first sync has
+	// not run), or a completed read found no HostedCluster on the management
+	// cluster, in which case the mirror is retracted rather than left pointing at
+	// an object that no longer exists. Consumers must treat nil as unavailable
+	// observed state. Safety-critical admission checks must fail closed while it
+	// is nil; they cannot assume a required property such as a data-plane image
+	// mirror is present.
+	//
+	// Backend controllers must NOT read this field. They have first-class access
+	// to the ReadDesire mirror and are expected to read that instead, staying as
+	// close to the source as possible rather than waiting for this copy to catch up.
+	// Written by: ActualHostedCluster
+	ActualHostedCluster *v1beta1.HostedCluster `json:"actualHostedCluster,omitempty"`
+
 	// Validations is a list of conditions that tracks the status of each cluster validation.
 	// Each Condition Type represents a validation and it should be unique among all validations.
 	// A Condition Status of True means that the validation passed successfully, and a Condition Status of False means that the validation failed.
 	// The Condition Reason and Message are used to provide more details about the validation status.
 	// The Condition LastTransitionTime is used to track the last time the validation transitioned from one status to another.
 	Validations []metav1.Condition `json:"validations,omitempty"`
+
 	// MaestroReadonlyBundles contains a list of Maestro readonly bundles references.
 	// These bundles are used to retrieve particular K8s resources from the Management Cluster.
 	// The reference contains a mapping between the logical name we give to the Maestro bundle internally
@@ -219,6 +281,12 @@ type ServiceProviderClusterStatus struct {
 	// this HCP is placed on. Nil means placement has not been resolved yet.
 	// Once set, this field is immutable.
 	ManagementClusterResourceID *azcorearm.ResourceID `json:"managementClusterResourceID,omitempty"`
+
+	// Placement holds capacity availability for the HCP's placement attempt.
+	// CapacityAvailable=True is recorded on the same Replace that sets
+	// Spec.ManagementClusterResourceID.
+	// Written by: PlacementController
+	Placement *ServiceProviderClusterPlacementStatus `json:"placement,omitempty"`
 
 	// DesiredHostedClusterControlPlaneSize mirrors the value of
 	// Spec.DesiredHostedClusterControlPlaneSize once cluster-service reflects
@@ -294,17 +362,37 @@ type ServiceProviderClusterStatus struct {
 	// Written by: FetchDataPlaneOperatorsManagedIdentitiesInfoController
 	DataPlaneOperatorsManagedIdentities ServiceProviderClusterDataPlaneOperatorsManagedIdentities `json:"dataPlaneOperatorsManagedIdentities,omitempty"`
 
-	// KeyRotationBackupFingerprint identifies the latest successful on-demand
-	// key-rotation backup and prevents duplicate backups for the active key.
-	// It is persisted before the corresponding ApplyDesire is deleted so a crash
-	// cannot lose the record. Empty means no backup has completed.
+	// KeyRotationBackupFingerprint identifies the active-key fingerprint of the
+	// most recent KMS rotation whose on-demand backup outcome (completed or
+	// skipped because backups were paused) has been durably recorded, so it's
+	// never acted on again. Only a later rotation with a new fingerprint is
+	// eligible for a new backup. Empty means no rotation has been handled yet.
 	// Written by: KeyRotationBackup
 	KeyRotationBackupFingerprint string `json:"keyRotationBackupFingerprint,omitempty"`
 }
 
+// ServiceProviderClusterPlacementStatus holds placement-specific status for a
+// ServiceProviderCluster. It is kept off the top-level Status.Conditions per the
+// minimalism guidance there ("conditions at other levels can be specified within
+// ServiceProviderClusterStatus too").
+type ServiceProviderClusterPlacementStatus struct {
+	// Conditions holds placement conditions. Known types:
+	//   - "CapacityAvailable": True when suitable placement capacity was found;
+	//     False when no usable capacity exists; Unknown when required observations or
+	//     configuration are unavailable. Placement itself is recorded in
+	//     Spec.ManagementClusterResourceID.
+	// Written by: PlacementController
+	// +optional
+	// +patchMergeKey=type
+	// +patchStrategy=merge
+	// +listType=map
+	// +listMapKey=type
+	Conditions []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type"`
+}
+
 // ServiceProviderClusterMSIManagedIdentities holds Managed Service Identity (MSI)
 // based identity metadata resolved by FetchMSIIdentitiesInfo and consumed by ClusterIdentitySync to
-// populate HCPOpenShiftCluster.Identity.UserAssignedIdentities.
+// populate Cluster.Identity.UserAssignedIdentities.
 type ServiceProviderClusterMSIManagedIdentities struct {
 	// ControlPlaneOperatorsIdentities is a map containing resolved ClientID/PrincipalID
 	// for Managed Service Identity (MSI) based Azure User-Assigned Managed Identities
@@ -472,15 +560,23 @@ type DenyAssignmentReference struct {
 type ServiceProviderClusterStatusVersion struct {
 	// ActiveVersions is an array of versions currently active in the control plane, ordered with the most recent first.
 	// During upgrades, multiple versions can be active simultaneously.
-	ActiveVersions []HCPClusterActiveVersion `json:"active_versions,omitempty"`
+	// Written by: ControlPlaneActiveVersions
+	ActiveVersions []ServiceProviderClusterActiveVersion `json:"active_versions,omitempty"`
 }
 
-// HCPClusterActiveVersion represents a single version active in the control plane.
-type HCPClusterActiveVersion struct {
+// ServiceProviderClusterActiveVersion represents a single version active in the control plane.
+type ServiceProviderClusterActiveVersion struct {
 	// Version is the full version in x.y.z format (e.g., "4.19.2")
+	// Written by: ControlPlaneActiveVersions
 	Version *semver.Version `json:"version,omitempty"`
 	// State is the update state from OpenShift (e.g. configv1.CompletedUpdate or configv1.PartialUpdate).
+	// Written by: ControlPlaneActiveVersions
 	State configv1.UpdateState `json:"state,omitempty"`
+	// LastTransitionTime is when we last observed this version enter its current
+	// State. It is used to decide when a cluster has held an achieved version
+	// long enough to be considered successfully upgraded.
+	// Written by: ControlPlaneActiveVersions
+	LastTransitionTime metav1.Time `json:"lastTransitionTime,omitempty"`
 }
 
 type MaestroBundleReference struct {

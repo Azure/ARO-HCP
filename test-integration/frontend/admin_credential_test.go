@@ -21,20 +21,17 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
-	"net/http"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
-
-	"k8s.io/apimachinery/pkg/util/wait"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
 	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/test-integration/utils/integrationutils"
@@ -47,7 +44,7 @@ func TestRequestAdminCredentialStoresCSR(t *testing.T) {
 }
 
 func testRequestAdminCredentialStoresCSR(t *testing.T, withMock bool) {
-	ctx := context.Background()
+	ctx := t.Context()
 	ctx, cancel := context.WithCancel(ctx)
 
 	testInfo, err := integrationutils.NewIntegrationTestInfoFromEnv(ctx, t, withMock)
@@ -63,14 +60,7 @@ func testRequestAdminCredentialStoresCSR(t *testing.T, withMock bool) {
 		testInfo.Cleanup(context.Background())
 	}()
 
-	err = wait.PollUntilContextCancel(ctx, 100*time.Millisecond, true, func(ctx context.Context) (bool, error) {
-		resp, err := http.Get(testInfo.FrontendURL)
-		if err != nil {
-			return false, nil
-		}
-		resp.Body.Close()
-		return true, nil
-	})
+	err = integrationutils.WaitForHTTPReady(ctx, testInfo.FrontendURL+"/healthz")
 	require.NoError(t, err)
 
 	subscriptionID := coreapitesting.TestSubscriptionID
@@ -90,14 +80,14 @@ func testRequestAdminCredentialStoresCSR(t *testing.T, withMock bool) {
 		},
 		State: coreapi.SubscriptionStateRegistered,
 		Properties: &coreapi.SubscriptionProperties{
-			TenantId: metadataapi.Ptr(coreapitesting.TestTenantID),
+			TenantId: metadataapihelpers.Ptr(coreapitesting.TestTenantID),
 		},
 	}
 	_, err = testInfo.ResourcesDBClient().Subscriptions().Create(ctx, sub, nil)
 	require.NoError(t, err)
 
 	// Create a cluster in Succeeded state with a ClusterServiceID.
-	cluster := &coreapi.HCPOpenShiftCluster{
+	cluster := &coreapi.Cluster{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   clusterResourceID,
 			PartitionKey: strings.ToLower(subscriptionID),
@@ -105,7 +95,7 @@ func testRequestAdminCredentialStoresCSR(t *testing.T, withMock bool) {
 		TrackedResource: coreapi.TrackedResource{
 			Resource: coreapi.NewResource(clusterResourceID),
 		},
-		ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 			ProvisioningState: coreapi.ProvisioningStateSucceeded,
 			ClusterServiceID:  &clusterInternalID,
 		},

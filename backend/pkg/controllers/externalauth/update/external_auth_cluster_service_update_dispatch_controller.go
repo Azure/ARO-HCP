@@ -62,6 +62,8 @@ type externalAuthClusterServiceUpdateDispatchSyncer struct {
 
 var _ controllerutils.ExternalAuthSyncer = (*externalAuthClusterServiceUpdateDispatchSyncer)(nil)
 
+const ExternalAuthClusterServiceUpdateDispatchControllerName = "ExternalAuthClusterServiceUpdateDispatch"
+
 func NewExternalAuthClusterServiceUpdateDispatchController(
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
@@ -76,7 +78,7 @@ func NewExternalAuthClusterServiceUpdateDispatchController(
 	)
 
 	return controllerutils.NewExternalAuthWatchingController(
-		"ExternalAuthClusterServiceUpdateDispatch",
+		ExternalAuthClusterServiceUpdateDispatchControllerName,
 		resourcesDBClient,
 		backendInformers,
 		time.Minute,
@@ -99,7 +101,7 @@ func NewExternalAuthClusterServiceUpdateDispatchSyncer(
 	}
 }
 
-func needsWork(ea *coreapi.HCPOpenShiftClusterExternalAuth) bool {
+func needsWork(ea *coreapi.ExternalAuth) bool {
 	if ea.ServiceProviderProperties.DeletionTimestamp != nil {
 		return false
 	}
@@ -238,7 +240,7 @@ func (c *externalAuthClusterServiceUpdateDispatchSyncer) SyncOnce(ctx context.Co
 }
 
 // marshalClusterServiceExternalAuthUpdatePayload serializes the external auth PATCH body for logging.
-func (c *externalAuthClusterServiceUpdateDispatchSyncer) marshalClusterServiceExternalAuthUpdatePayload(ctx context.Context, externalAuth *coreapi.HCPOpenShiftClusterExternalAuth) (string, error) {
+func (c *externalAuthClusterServiceUpdateDispatchSyncer) marshalClusterServiceExternalAuthUpdatePayload(ctx context.Context, externalAuth *coreapi.ExternalAuth) (string, error) {
 	builder, err := ocm.BuildCSExternalAuth(ctx, externalAuth, true)
 	if err != nil {
 		return "", err

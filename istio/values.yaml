@@ -21,9 +21,6 @@ mise:
     tenantId: "{{ .mise.arm.tenantId }}"
     connectSocket: {{ .mise.audit.connectSocket }}
   miseAppId: "__miseAppId__"
-  tracing:
-    address: "{{ .mise.tracing.address }}"
-    exporter: "{{ .mise.tracing.exporter }}"
   deployment:
     zoneCount: {{ .azureRegionAvailabilityZoneCount }}
   armPolicy:

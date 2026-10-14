@@ -93,7 +93,7 @@ func testIdentityResourceID(name string) *azcorearm.ResourceID {
 	))
 }
 
-func newTestCluster(opts ...func(*coreapi.HCPOpenShiftCluster)) *coreapi.HCPOpenShiftCluster {
+func newTestCluster(opts ...func(*coreapi.Cluster)) *coreapi.Cluster {
 	rid := testClusterResourceID()
 	cluster := coreapitesting.MinimumValidClusterTestCase()
 	cluster.CosmosMetadata = coreapi.CosmosMetadata{
@@ -208,7 +208,7 @@ func resourceNotFoundError() error {
 	return &azcore.ResponseError{StatusCode: 404}
 }
 
-func matchingGetResponseForAllTypes(cluster *coreapi.HCPOpenShiftCluster, spc *coreapi.ServiceProviderCluster) func(ctx context.Context, scope string, denyAssignmentID string, opts *armauthorization.DenyAssignmentsClientGetOptions) (armauthorization.DenyAssignmentsClientGetResponse, error) {
+func matchingGetResponseForAllTypes(cluster *coreapi.Cluster, spc *coreapi.ServiceProviderCluster) func(ctx context.Context, scope string, denyAssignmentID string, opts *armauthorization.DenyAssignmentsClientGetOptions) (armauthorization.DenyAssignmentsClientGetResponse, error) {
 	refs, _ := allDenyAssignmentReferences(cluster)
 	nameToType := make(map[string]string, len(refs))
 	for _, ref := range refs {
@@ -256,6 +256,20 @@ func matchingGetResponseForAllTypes(cluster *coreapi.HCPOpenShiftCluster, spc *c
 				},
 			},
 		}, nil
+	}
+}
+
+func TestDenyAssignmentDefinitions(t *testing.T) {
+	for _, definition := range denyAssignmentDefinitions(newTestCluster()) {
+		t.Run(definition.denyAssignmentType, func(t *testing.T) {
+			assert.NotZero(t, len(definition.actions)+len(definition.dataActions), "deny assignment must deny at least one action or data action")
+			for _, action := range definition.actions {
+				assert.False(t, strings.HasSuffix(action, "/read"), "read action must not be denied: %s", action)
+			}
+			for _, dataAction := range definition.dataActions {
+				assert.False(t, strings.HasSuffix(dataAction, "/read"), "read data action must not be denied: %s", dataAction)
+			}
+		})
 	}
 }
 
@@ -381,7 +395,7 @@ func TestResolvePrincipalID(t *testing.T) {
 func TestSyncOnce(t *testing.T) {
 	tests := []struct {
 		name    string
-		cluster *coreapi.HCPOpenShiftCluster
+		cluster *coreapi.Cluster
 	}{
 		{
 			name:    "cluster not found returns nil",
@@ -389,7 +403,7 @@ func TestSyncOnce(t *testing.T) {
 		},
 		{
 			name: "deletion timestamp set returns nil",
-			cluster: newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
+			cluster: newTestCluster(func(c *coreapi.Cluster) {
 				now := metav1.Now()
 				c.ServiceProviderProperties.DeletionTimestamp = &now
 			}),
@@ -399,9 +413,9 @@ func TestSyncOnce(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
-			var clusters []*coreapi.HCPOpenShiftCluster
+			var clusters []*coreapi.Cluster
 			if tt.cluster != nil {
-				clusters = []*coreapi.HCPOpenShiftCluster{tt.cluster}
+				clusters = []*coreapi.Cluster{tt.cluster}
 			}
 			syncer := &clusterDenyAssignmentSyncer{
 				clock:         clocktesting.NewFakeClock(time.Now()),
@@ -419,13 +433,13 @@ func TestSyncDenyAssignmentNeedsWork(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		cluster  *coreapi.HCPOpenShiftCluster
+		cluster  *coreapi.Cluster
 		spc      *coreapi.ServiceProviderCluster
 		expected bool
 	}{
 		{
 			name: "no cluster service ID",
-			cluster: newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
+			cluster: newTestCluster(func(c *coreapi.Cluster) {
 				c.ServiceProviderProperties.PendingClusterServiceID = nil
 				c.ServiceProviderProperties.ClusterServiceID = nil
 			}),
@@ -451,7 +465,7 @@ func TestSyncDenyAssignmentNeedsWork(t *testing.T) {
 		},
 		{
 			name: "no managed resource group",
-			cluster: newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
+			cluster: newTestCluster(func(c *coreapi.Cluster) {
 				c.CustomerProperties.Platform.ManagedResourceGroup = ""
 			}),
 			spc:      newTestSPC(),
@@ -459,7 +473,7 @@ func TestSyncDenyAssignmentNeedsWork(t *testing.T) {
 		},
 		{
 			name: "empty control plane operators",
-			cluster: newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
+			cluster: newTestCluster(func(c *coreapi.Cluster) {
 				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = nil
 			}),
 			spc:      newTestSPC(),
@@ -467,7 +481,7 @@ func TestSyncDenyAssignmentNeedsWork(t *testing.T) {
 		},
 		{
 			name: "empty data plane operators",
-			cluster: newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
+			cluster: newTestCluster(func(c *coreapi.Cluster) {
 				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators = nil
 			}),
 			spc:      newTestSPC(),
@@ -475,7 +489,7 @@ func TestSyncDenyAssignmentNeedsWork(t *testing.T) {
 		},
 		{
 			name: "nil service managed identity",
-			cluster: newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
+			cluster: newTestCluster(func(c *coreapi.Cluster) {
 				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity = nil
 			}),
 			spc:      newTestSPC(),
@@ -483,7 +497,7 @@ func TestSyncDenyAssignmentNeedsWork(t *testing.T) {
 		},
 		{
 			name: "nil control plane operator value",
-			cluster: newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
+			cluster: newTestCluster(func(c *coreapi.Cluster) {
 				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators["cluster-api-azure"] = nil
 			}),
 			spc:      newTestSPC(),
@@ -491,7 +505,7 @@ func TestSyncDenyAssignmentNeedsWork(t *testing.T) {
 		},
 		{
 			name: "nil data plane operator value",
-			cluster: newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
+			cluster: newTestCluster(func(c *coreapi.Cluster) {
 				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators["image-registry"] = nil
 			}),
 			spc:      newTestSPC(),
@@ -578,7 +592,7 @@ func TestSyncDenyAssignmentUpsert(t *testing.T) {
 
 	tests := []struct {
 		name                 string
-		cluster              *coreapi.HCPOpenShiftCluster
+		cluster              *coreapi.Cluster
 		existingSPC          *coreapi.ServiceProviderCluster
 		mockDenyAssignments  *azuremockclient.DenyAssignmentsClientFunc
 		mockGenericResources *azuremockclient.GenericResourcesClientFunc
@@ -737,7 +751,7 @@ func TestSyncDenyAssignmentUpsert(t *testing.T) {
 			syncer := &clusterDenyAssignmentSyncer{
 				clock:                 fakeClock,
 				resourcesDBClient:     mockDB,
-				clusterLister:         &corelistertesting.SliceClusterLister{Clusters: []*coreapi.HCPOpenShiftCluster{tt.cluster}},
+				clusterLister:         &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{tt.cluster}},
 				subscriptionLister:    &corelistertesting.SliceSubscriptionLister{Subscriptions: []*coreapi.Subscription{testSubscription()}},
 				azureFPAClientBuilder: builder,
 			}
@@ -751,6 +765,64 @@ func TestSyncDenyAssignmentUpsert(t *testing.T) {
 
 			if tt.verify != nil {
 				tt.verify(t, ctx, mockDB)
+			}
+		})
+	}
+}
+
+func TestSyncDenyAssignmentUpsertStalePending(t *testing.T) {
+	staleRef := coreapi.DenyAssignmentReference{
+		DenyAssignmentType:       "stale-type-not-in-definitions",
+		DenyAssignmentResourceID: metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID + "/resourceGroups/" + testManagedRG + "/providers/Microsoft.Authorization/denyAssignments/stale-uuid")),
+	}
+	tests := []struct {
+		name        string
+		deleteErr   error
+		expectError bool
+	}{
+		{name: "removes stale pending assignment when already deleted", deleteErr: resourceNotFoundError()},
+		{name: "retains stale pending assignment when deletion fails", deleteErr: fmt.Errorf("simulated delete failure"), expectError: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+			cluster := newTestCluster()
+			refs, err := allDenyAssignmentReferences(cluster)
+			require.NoError(t, err)
+			spc := newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
+				spc.Status.AzureResources.DenyAssignments.AzureResources = refs
+				spc.Status.AzureResources.DenyAssignments.PendingAzureResources = []coreapi.DenyAssignmentReference{staleRef}
+			})
+			mockDB := corecosmosstoragetesting.NewMockResourcesDBClient()
+			_, err = mockDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Create(ctx, spc, nil)
+			require.NoError(t, err)
+			mockGenericResources := &azuremockclient.GenericResourcesClientFunc{DeleteErr: tt.deleteErr}
+			syncer := &clusterDenyAssignmentSyncer{
+				clock:              clocktesting.NewFakeClock(time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)),
+				resourcesDBClient:  mockDB,
+				clusterLister:      &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{cluster}},
+				subscriptionLister: &corelistertesting.SliceSubscriptionLister{Subscriptions: []*coreapi.Subscription{testSubscription()}},
+				azureFPAClientBuilder: &azuremockclient.FirstPartyApplicationClientBuilderFunc{
+					GenericResourcesClientVal: mockGenericResources,
+					DenyAssignmentsClientVal: &azuremockclient.DenyAssignmentsClientFunc{
+						GetFunc: matchingGetResponseForAllTypes(cluster, spc),
+					},
+				},
+			}
+			err = syncer.SyncOnce(ctx, testKey())
+			if tt.expectError {
+				require.ErrorContains(t, err, "simulated delete failure")
+			} else {
+				require.NoError(t, err)
+			}
+			assert.Equal(t, []string{staleRef.DenyAssignmentResourceID.String()}, mockGenericResources.DeleteCalls)
+			spc, err = mockDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
+			require.NoError(t, err)
+			assert.Equal(t, refs, spc.Status.AzureResources.DenyAssignments.AzureResources)
+			if tt.expectError {
+				assert.Equal(t, []coreapi.DenyAssignmentReference{staleRef}, spc.Status.AzureResources.DenyAssignments.PendingAzureResources)
+			} else {
+				assert.Empty(t, spc.Status.AzureResources.DenyAssignments.PendingAzureResources)
 			}
 		})
 	}

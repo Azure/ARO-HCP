@@ -1,0 +1,191 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "languageVersion": "2.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep"
+    }
+  },
+  "outputs": {
+    "name": {
+      "type": "string",
+      "value": "[parameters('clusterName')]"
+    }
+  },
+  "parameters": {
+    "authorizedCidrs": {
+      "metadata": {
+        "description": "List of authorized IP ranges for API server access"
+      },
+      "nullable": true,
+      "type": "array"
+    },
+    "clusterName": {
+      "metadata": {
+        "description": "Name of the hypershift cluster"
+      },
+      "type": "string"
+    },
+    "etcdEncryptionKeyName": {
+      "metadata": {
+        "description": "The name of the etcd encryption key in the KeyVault"
+      },
+      "type": "string"
+    },
+    "identityValue": {
+      "metadata": {
+        "description": "Cluster Managed Identities"
+      },
+      "type": "object"
+    },
+    "keyVaultName": {
+      "metadata": {
+        "description": "The KeyVault name that contains the etcd encryption key"
+      },
+      "type": "string"
+    },
+    "managedResourceGroupName": {
+      "defaultValue": "[format('{0}-managed', resourceGroup().name)]",
+      "metadata": {
+        "description": "The Hypershift cluster managed resource group name"
+      },
+      "type": "string"
+    },
+    "networkConfig": {
+      "defaultValue": {
+        "hostPrefix": 23,
+        "machineCidr": "10.0.0.0/16",
+        "networkType": "OVNKubernetes",
+        "podCidr": "10.128.0.0/14",
+        "serviceCidr": "172.30.0.0/16"
+      },
+      "metadata": {
+        "description": "Network configuration of the hosted cluster"
+      },
+      "type": "object"
+    },
+    "nsgName": {
+      "metadata": {
+        "description": "The Network security group name for the hcp cluster resources"
+      },
+      "type": "string"
+    },
+    "openshiftVersionId": {
+      "metadata": {
+        "description": "OpenShift Version ID to use"
+      },
+      "type": "string"
+    },
+    "subnetName": {
+      "metadata": {
+        "description": "The subnet name for deploying hcp cluster resources."
+      },
+      "type": "string"
+    },
+    "tags": {
+      "defaultValue": {
+        "aro-hcp.experimental.cluster.size-override": "Minimal"
+      },
+      "metadata": {
+        "description": "Tags that should be added to the ARO HCP cluster"
+      },
+      "type": "object"
+    },
+    "userAssignedIdentitiesValue": {
+      "metadata": {
+        "description": "Cluster Managed Identities: "
+      },
+      "type": "object"
+    },
+    "vnetName": {
+      "metadata": {
+        "description": "The virtual network name for the hcp cluster resources"
+      },
+      "type": "string"
+    }
+  },
+  "resources": {
+    "etcdEncryptionKey": {
+      "apiVersion": "2024-12-01-preview",
+      "existing": true,
+      "name": "[format('{0}/{1}', parameters('keyVaultName'), parameters('etcdEncryptionKeyName'))]",
+      "type": "Microsoft.KeyVault/vaults/keys"
+    },
+    "hcp": {
+      "apiVersion": "2024-06-10-preview",
+      "dependsOn": [
+        "etcdEncryptionKey"
+      ],
+      "identity": "[parameters('identityValue')]",
+      "location": "[resourceGroup().location]",
+      "name": "[parameters('clusterName')]",
+      "properties": {
+        "api": {
+          "authorizedCidrs": "[parameters('authorizedCidrs')]",
+          "visibility": "Public"
+        },
+        "clusterImageRegistry": {
+          "state": "Enabled"
+        },
+        "console": {},
+        "dns": {},
+        "etcd": {
+          "dataEncryption": {
+            "customerManaged": {
+              "encryptionType": "KMS",
+              "kms": {
+                "activeKey": {
+                  "name": "[parameters('etcdEncryptionKeyName')]",
+                  "vaultName": "[parameters('keyVaultName')]",
+                  "version": "[last(split(reference('etcdEncryptionKey').keyUriWithVersion, '/'))]"
+                }
+              }
+            },
+            "keyManagementMode": "CustomerManaged"
+          }
+        },
+        "network": "[parameters('networkConfig')]",
+        "platform": {
+          "managedResourceGroup": "[parameters('managedResourceGroupName')]",
+          "networkSecurityGroupId": "[resourceId('Microsoft.Network/networkSecurityGroups', parameters('nsgName'))]",
+          "operatorsAuthentication": {
+            "userAssignedIdentities": "[parameters('userAssignedIdentitiesValue')]"
+          },
+          "outboundType": "LoadBalancer",
+          "subnetId": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('vnetName'), parameters('subnetName'))]"
+        },
+        "version": {
+          "channelGroup": "stable",
+          "id": "[parameters('openshiftVersionId')]"
+        }
+      },
+      "tags": "[parameters('tags')]",
+      "type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
+    },
+    "keyVault": {
+      "apiVersion": "2024-12-01-preview",
+      "existing": true,
+      "name": "[parameters('keyVaultName')]",
+      "type": "Microsoft.KeyVault/vaults"
+    },
+    "nsg": {
+      "apiVersion": "2022-07-01",
+      "existing": true,
+      "name": "[parameters('nsgName')]",
+      "type": "Microsoft.Network/networkSecurityGroups"
+    },
+    "subnet": {
+      "apiVersion": "2022-07-01",
+      "existing": true,
+      "name": "[format('{0}/{1}', parameters('vnetName'), parameters('subnetName'))]",
+      "type": "Microsoft.Network/virtualNetworks/subnets"
+    },
+    "vnet": {
+      "apiVersion": "2022-07-01",
+      "existing": true,
+      "name": "[parameters('vnetName')]",
+      "type": "Microsoft.Network/virtualNetworks"
+    }
+  }
+}

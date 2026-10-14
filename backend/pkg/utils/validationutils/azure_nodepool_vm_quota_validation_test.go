@@ -64,7 +64,7 @@ func makeTestQuotaSKU(vcpus string) *armcompute.ResourceSKU {
 	}
 }
 
-func newQuotaTestNodePool(t *testing.T, replicas int32, autoScaling *coreapi.NodePoolAutoScaling) *coreapi.HCPOpenShiftClusterNodePool {
+func newQuotaTestNodePool(t *testing.T, replicas int32, autoScaling *coreapi.NodePoolAutoScaling) *coreapi.NodePool {
 	t.Helper()
 	np := newTestNodePool(t, metadataapi.OsDiskTypeManaged, testVMSize)
 	np.Location = testLocation
@@ -96,13 +96,13 @@ func newTestUsageListPager(usages []*armcompute.Usage, fetchErr error) *runtime.
 
 func TestAzureNodePoolVMQuotaValidation_Validate(t *testing.T) {
 	ctx := utils.ContextWithLogger(context.Background(), logr.Discard())
-	cluster := &coreapi.HCPOpenShiftCluster{}
+	cluster := &coreapi.Cluster{}
 	subscription := newTestSubscription()
 
 	tests := []struct {
 		name                       string
 		subscription               *coreapi.Subscription
-		nodePool                   *coreapi.HCPOpenShiftClusterNodePool
+		nodePool                   *coreapi.NodePool
 		setupMockVMSKUCachedReader func(skuReader *cachedreader.MockVirtualMachineResourceSKUsCachedReader)
 		setupMockFPAUsageClient    func(ctrl *gomock.Controller, fpaBuilder *azureclient.MockFirstPartyApplicationClientBuilder)
 		wantOutcome                OutcomeType

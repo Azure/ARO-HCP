@@ -23,6 +23,7 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/listerutils"
 )
 
@@ -60,14 +61,14 @@ func NewReadDesireLister(indexer cache.Indexer) ReadDesireLister {
 func (l *readDesireLister) GetForCluster(
 	ctx context.Context, subscriptionID, resourceGroupName, clusterName, name string,
 ) (*kubeapplierapi.ReadDesire, error) {
-	key := kubeapplierapi.ToClusterScopedReadDesireResourceIDString(subscriptionID, resourceGroupName, clusterName, name)
+	key := kubeapplierapihelpers.ToClusterScopedReadDesireResourceIDString(subscriptionID, resourceGroupName, clusterName, name)
 	return listerutils.GetByKey[kubeapplierapi.ReadDesire](l.indexer, key)
 }
 
 func (l *readDesireLister) GetForNodePool(
 	ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName, name string,
 ) (*kubeapplierapi.ReadDesire, error) {
-	key := kubeapplierapi.ToNodePoolScopedReadDesireResourceIDString(
+	key := kubeapplierapihelpers.ToNodePoolScopedReadDesireResourceIDString(
 		subscriptionID, resourceGroupName, clusterName, nodePoolName, name,
 	)
 	return listerutils.GetByKey[kubeapplierapi.ReadDesire](l.indexer, key)
@@ -76,7 +77,7 @@ func (l *readDesireLister) GetForNodePool(
 func (l *readDesireLister) GetForSystemAdminCredentialRequest(
 	ctx context.Context, subscriptionID, resourceGroupName, clusterName, credentialRequestName, name string,
 ) (*kubeapplierapi.ReadDesire, error) {
-	key := kubeapplierapi.ToSystemAdminCredentialRequestScopedReadDesireResourceIDString(
+	key := kubeapplierapihelpers.ToSystemAdminCredentialRequestScopedReadDesireResourceIDString(
 		subscriptionID, resourceGroupName, clusterName, credentialRequestName, name,
 	)
 	return listerutils.GetByKey[kubeapplierapi.ReadDesire](l.indexer, key)
@@ -85,7 +86,7 @@ func (l *readDesireLister) GetForSystemAdminCredentialRequest(
 func (l *readDesireLister) GetForSystemAdminCredentialRevocation(
 	ctx context.Context, subscriptionID, resourceGroupName, clusterName, revocationName, name string,
 ) (*kubeapplierapi.ReadDesire, error) {
-	key := kubeapplierapi.ToSystemAdminCredentialRevocationScopedReadDesireResourceIDString(
+	key := kubeapplierapihelpers.ToSystemAdminCredentialRevocationScopedReadDesireResourceIDString(
 		subscriptionID, resourceGroupName, clusterName, revocationName, name,
 	)
 	return listerutils.GetByKey[kubeapplierapi.ReadDesire](l.indexer, key)
@@ -94,7 +95,7 @@ func (l *readDesireLister) GetForSystemAdminCredentialRevocation(
 func (l *readDesireLister) GetForManagementCluster(
 	ctx context.Context, stampIdentifier, name string,
 ) (*kubeapplierapi.ReadDesire, error) {
-	key := kubeapplierapi.ToManagementClusterScopedReadDesireResourceIDString(stampIdentifier, name)
+	key := kubeapplierapihelpers.ToManagementClusterScopedReadDesireResourceIDString(stampIdentifier, name)
 	return listerutils.GetByKey[kubeapplierapi.ReadDesire](l.indexer, key)
 }
 

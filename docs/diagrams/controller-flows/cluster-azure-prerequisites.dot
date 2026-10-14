@@ -1,0 +1,26 @@
+digraph cluster_azure_prerequisites {
+  graph [rankdir=TB, bgcolor="white", pad="0.3", nodesep="0.4", ranksep="0.55", fontname="DejaVu Sans", fontsize=18, labelloc=t, label="Cluster create · Azure prerequisites and confirmation", dpi=110];
+  node [shape=box, style="rounded,filled", fillcolor="#e6f0fa", color="#35648a", fontname="DejaVu Sans", fontsize=12, margin="0.16,0.10"];
+  edge [color="#536577", fontname="DejaVu Sans", fontsize=10, arrowsize=0.7];
+  state [label="Cluster + ServiceProviderCluster\nrequested group / identities; pending ID", fillcolor="#e4f2e5", color="#4c8053"];
+  mrg [label="EnsureManagedResourceGroup", fillcolor="#e6f0fa", color="#35648a"];
+  msi [label="FetchMSIIdentitiesInfo", fillcolor="#e6f0fa", color="#35648a"];
+  dp [label="FetchDataPlaneOperatorsManaged\nIdentitiesInfo", fillcolor="#e6f0fa", color="#35648a"];
+  deny [label="ClusterDenyAssignment", fillcolor="#e6f0fa", color="#35648a"];
+  azure [label="Azure group / identities / \ndenies", fillcolor="#fff0da", color="#b27624"];
+  ready [label="Deny creation precondition satisfied\nno pending + nonempty confirmed\nEarliestRecheckTime set", fillcolor="#e4f2e5", color="#4c8053"];
+  state -> mrg [label="group requested"];
+  state -> msi [label="requested identities"];
+  state -> dp [label="operator identities"];
+  state -> deny [label="pending or confirmed ID"];
+  mrg -> azure [label="GET / create resource group"];
+  msi -> azure [label="read identities"];
+  dp -> azure [label="read identities"];
+  mrg -> deny [label="confirmed group"];
+  msi -> deny [label="resolved principals"];
+  dp -> deny [label="resolved principals"];
+  deny -> azure [label="GET / PUT / delete stale\ndenies"];
+  deny -> ready [label="persist confirmed state"];
+  azure -> mrg [label="observe provisioning; retry\n10s", style=dashed, color="#857456", constraint=false];
+  azure -> deny [label="verify / periodic recheck", style=dashed, color="#857456", constraint=false];
+}

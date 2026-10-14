@@ -24,6 +24,8 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/equality"
 
+	"sigs.k8s.io/randfill"
+
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
 )
@@ -32,13 +34,21 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 	seed := rand.Int63()
 	t.Logf("seed: %d", seed)
 
-	fuzzer := coreapitesting.FuzzerFor(
-		coreapitesting.CommonRoundTripFuzzFuncs(),
-		rand.NewSource(seed),
-	)
+	fuzzer := coreapitesting.FuzzerFor(append(coreapitesting.CommonRoundTripFuzzFuncs(),
+		// ContainerRegistry was added in v20261001 and does not exist in v20260630preview.
+		func(j *coreapi.CustomerPlatformProfile, c randfill.Continue) {
+			c.FillNoCustom(j)
+			j.ContainerRegistry = coreapi.ContainerRegistryProfile{}
+		},
+		// KeyVaultType was added in v20261001 and does not exist in v20260630preview.
+		func(j *coreapi.KmsEncryptionProfile, c randfill.Continue) {
+			c.FillNoCustom(j)
+			j.KeyVaultType = ""
+		},
+	), rand.NewSource(seed))
 
 	for i := 0; i < 200; i++ {
-		original := &coreapi.HCPOpenShiftCluster{}
+		original := &coreapi.Cluster{}
 		fuzzer.Fill(original)
 		// ConvertToInternal derives CosmosMetadata.ResourceID from arm.Resource.ID,
 		// so synchronize them for a lossless round-trip comparison.
@@ -52,7 +62,7 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 	}
 
 	for i := 0; i < 200; i++ {
-		original := &coreapi.HCPOpenShiftClusterNodePool{}
+		original := &coreapi.NodePool{}
 		fuzzer.Fill(original)
 		original.ResourceID = original.ID
 		original.CosmosETag = ""
@@ -61,7 +71,7 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 	}
 
 	for i := 0; i < 200; i++ {
-		original := &coreapi.HCPOpenShiftClusterExternalAuth{}
+		original := &coreapi.ExternalAuth{}
 		fuzzer.Fill(original)
 		original.ResourceID = original.ID
 		original.CosmosETag = ""
@@ -70,9 +80,9 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 	}
 }
 
-func roundTripHCPCluster(t *testing.T, original *coreapi.HCPOpenShiftCluster) {
+func roundTripHCPCluster(t *testing.T, original *coreapi.Cluster) {
 	v := version{}
-	externalObj := v.NewHCPOpenShiftCluster(original)
+	externalObj := v.NewCluster(original)
 
 	roundTrippedObj, err := externalObj.ConvertToInternal(nil)
 	require.NoError(t, err)
@@ -86,9 +96,9 @@ func roundTripHCPCluster(t *testing.T, original *coreapi.HCPOpenShiftCluster) {
 	}
 }
 
-func roundTripNodePool(t *testing.T, original *coreapi.HCPOpenShiftClusterNodePool) {
+func roundTripNodePool(t *testing.T, original *coreapi.NodePool) {
 	v := version{}
-	externalObj := v.NewHCPOpenShiftClusterNodePool(original)
+	externalObj := v.NewNodePool(original)
 
 	roundTrippedObj, err := externalObj.ConvertToInternal(nil)
 	require.NoError(t, err)
@@ -102,9 +112,9 @@ func roundTripNodePool(t *testing.T, original *coreapi.HCPOpenShiftClusterNodePo
 	}
 }
 
-func roundTripExternalAuth(t *testing.T, original *coreapi.HCPOpenShiftClusterExternalAuth) {
+func roundTripExternalAuth(t *testing.T, original *coreapi.ExternalAuth) {
 	v := version{}
-	externalObj := v.NewHCPOpenShiftClusterExternalAuth(original)
+	externalObj := v.NewExternalAuth(original)
 
 	roundTrippedObj, err := externalObj.ConvertToInternal(nil)
 	require.NoError(t, err)

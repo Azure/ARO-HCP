@@ -15,7 +15,6 @@
 package agent
 
 import (
-	"context"
 	"errors"
 	"testing"
 
@@ -156,22 +155,6 @@ func TestCopilotSessionErrorCaptureIgnoresUnrelatedEvents(t *testing.T) {
 	}
 	if got, want := err.Error(), "copilot session failed: session failed"; got != want {
 		t.Errorf("Error() = %q, want %q", got, want)
-	}
-}
-
-func TestCopilotSendGateHonorsContextCancellation(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-
-	for _, gateOccupied := range []bool{false, true} {
-		session := &Session{sendGate: make(chan struct{}, 1)}
-		if gateOccupied {
-			session.sendGate <- struct{}{}
-		}
-
-		if err := session.acquireSendGate(ctx); !errors.Is(err, context.Canceled) {
-			t.Errorf("acquireSendGate() with gateOccupied=%t error = %v, want context.Canceled", gateOccupied, err)
-		}
 	}
 }
 

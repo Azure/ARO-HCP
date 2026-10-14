@@ -34,6 +34,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/fleetlistertesting"
@@ -58,14 +59,14 @@ func testClusterResourceID() *azcorearm.ResourceID {
 }
 
 func testMgmtClusterResourceID() *azcorearm.ResourceID {
-	return metadataapi.Must(fleetapi.ToManagementClusterResourceID(testMgmtClusterName))
+	return metadataapi.Must(fleetapihelpers.ToManagementClusterResourceID(testMgmtClusterName))
 }
 
-func newTestHCPCluster(opts ...func(*coreapi.HCPOpenShiftCluster)) *coreapi.HCPOpenShiftCluster {
+func newTestHCPCluster(opts ...func(*coreapi.Cluster)) *coreapi.Cluster {
 	resourceID := testClusterResourceID()
 	clusterServiceID := metadataapi.Must(metadataapi.NewInternalID(testClusterServiceIDStr))
 
-	cluster := &coreapi.HCPOpenShiftCluster{
+	cluster := &coreapi.Cluster{
 		TrackedResource: coreapi.TrackedResource{
 			Resource: coreapi.Resource{
 				ID:   resourceID,
@@ -73,10 +74,14 @@ func newTestHCPCluster(opts ...func(*coreapi.HCPOpenShiftCluster)) *coreapi.HCPO
 				Type: resourceID.ResourceType.String(),
 			},
 		},
-		ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 			ClusterServiceID: &clusterServiceID,
 		},
 	}
+	cluster.CustomerProperties.Platform.VnetIntegrationSubnetID = metadataapi.Must(azcorearm.ParseResourceID(
+		"/subscriptions/" + testClusterSubscriptionID + "/resourceGroups/" + testClusterResourceGroup +
+			"/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/swift",
+	))
 	for _, opt := range opts {
 		opt(cluster)
 	}
@@ -123,7 +128,7 @@ func TestManagementClusterPlacementSyncer_SyncOnce(t *testing.T) {
 		name                                string
 		cachedSPC                           *coreapi.ServiceProviderCluster // SPC in cache, nil means use same as existingSPC
 		existingSPC                         *coreapi.ServiceProviderCluster // SPC in cosmos
-		cachedCluster                       *coreapi.HCPOpenShiftCluster    // cluster in cache
+		cachedCluster                       *coreapi.Cluster                // cluster in cache
 		csShard                             *arohcpv1alpha1.ProvisionShard
 		csError                             error
 		managementClusters                  []*fleetapi.ManagementCluster
@@ -160,7 +165,7 @@ func TestManagementClusterPlacementSyncer_SyncOnce(t *testing.T) {
 			name:        "no cluster service ID - skip",
 			cachedSPC:   newTestSPC(),
 			existingSPC: newTestSPC(),
-			cachedCluster: newTestHCPCluster(func(c *coreapi.HCPOpenShiftCluster) {
+			cachedCluster: newTestHCPCluster(func(c *coreapi.Cluster) {
 				c.ServiceProviderProperties.ClusterServiceID = nil
 			}),
 			expectCSCall:                        false,
@@ -240,7 +245,7 @@ func TestManagementClusterPlacementSyncer_SyncOnce(t *testing.T) {
 				newTestManagementCluster(),
 				func() *fleetapi.ManagementCluster {
 					mc := newTestManagementCluster()
-					mc.ResourceID = metadataapi.Must(fleetapi.ToManagementClusterResourceID("mc2"))
+					mc.ResourceID = metadataapi.Must(fleetapihelpers.ToManagementClusterResourceID("mc2"))
 					return mc
 				}(),
 			},
@@ -276,7 +281,7 @@ func TestManagementClusterPlacementSyncer_SyncOnce(t *testing.T) {
 
 			// Setup cluster lister (cache)
 			clusterLister := &corelistertesting.SliceClusterLister{
-				Clusters: []*coreapi.HCPOpenShiftCluster{tc.cachedCluster},
+				Clusters: []*coreapi.Cluster{tc.cachedCluster},
 			}
 
 			// Setup management cluster lister

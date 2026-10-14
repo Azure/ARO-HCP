@@ -166,6 +166,8 @@ If the Key Vault's RSA key needs rotation, [download the new public key](#2-get-
 > [!NOTE]
 > The `component-sync-pull-secret` contains `registry.stage.redhat.io` credentials for pulling OADP/Velero images. The pull secret JSON is sourced from the [OADP QE automation repo](https://gitlab.cee.redhat.com/migrationqe/oadp-qe-automation/-/blob/main/operator/generic/pull-secrets.json).
 
+The image-updater Prow job consumes a normalized Docker config copy from the `hcm-aro/component-sync-pull-secret/pull-secret` Google Secret Manager field. When rotating this pull secret, update that field with the decoded `config.json` value as part of the same operation; the job does not access the DEV Key Vault directly.
+
 ## Renewing the Prow Token
 
 The `prow-token` secret authenticates EV2 pipeline requests to the OpenShift CI Gangway API for E2E gating tests. It is registered in all 4 global Key Vaults.

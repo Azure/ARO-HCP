@@ -22,12 +22,15 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/fleetcosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/fleetlistertesting"
@@ -70,8 +73,8 @@ func TestPendingCleanupSyncer_SyncOnce(t *testing.T) {
 	ctx := context.Background()
 
 	const thisStamp = "1"
-	thisMC := metadataapi.Must(fleetapi.ToManagementClusterResourceID(thisStamp))
-	otherMC := metadataapi.Must(fleetapi.ToManagementClusterResourceID("2"))
+	thisMC := metadataapi.Must(fleetapihelpers.ToManagementClusterResourceID(thisStamp))
+	otherMC := metadataapi.Must(fleetapihelpers.ToManagementClusterResourceID("2"))
 
 	// Effective placement = Status (CS reality) when set, else Spec.
 	//   a: Status here, Spec nil                 => keep
@@ -100,7 +103,7 @@ func TestPendingCleanupSyncer_SyncOnce(t *testing.T) {
 	fleetDB := fleetcosmosstoragetesting.NewMockFleetDBClient()
 	doc := &fleetapi.ManagementClusterScheduling{
 		CosmosMetadata: coreapi.CosmosMetadata{
-			ResourceID:   metadataapi.Must(fleetapi.ToManagementClusterSchedulingResourceID(thisStamp)),
+			ResourceID:   metadataapi.Must(fleetapihelpers.ToManagementClusterSchedulingResourceID(thisStamp)),
 			PartitionKey: thisStamp,
 		},
 		Status: fleetapi.ManagementClusterSchedulingStatus{PendingAssignedClusters: pending},
@@ -112,7 +115,7 @@ func TestPendingCleanupSyncer_SyncOnce(t *testing.T) {
 	// (seeded with the created doc so its etag matches the fleet DB for the
 	// Replace write path).
 	schedulingLister := &fleetlistertesting.SliceManagementClusterSchedulingLister{Schedulings: []*fleetapi.ManagementClusterScheduling{created}}
-	syncer := &pendingCleanupSyncer{serviceProviderClusterLister: spcLister, managementClusterSchedulingLister: schedulingLister, fleetDBClient: fleetDB}
+	syncer := &pendingCleanupSyncer{serviceProviderClusterLister: spcLister, clusterLister: &corelistertesting.SliceClusterLister{}, managementClusterSchedulingLister: schedulingLister, fleetDBClient: fleetDB}
 	require.NoError(t, syncer.SyncOnce(ctx, controllerutils.ManagementClusterKey{StampIdentifier: thisStamp}))
 
 	updated, err := fleetDB.Stamps().ManagementClusters(thisStamp).Scheduling().Get(ctx, fleetapi.SchedulingResourceName)
@@ -130,7 +133,7 @@ func TestPendingCleanupSyncer_SyncOnce_NoChangeWhenAllValid(t *testing.T) {
 	ctx := context.Background()
 
 	const thisStamp = "1"
-	thisMC := metadataapi.Must(fleetapi.ToManagementClusterResourceID(thisStamp))
+	thisMC := metadataapi.Must(fleetapihelpers.ToManagementClusterResourceID(thisStamp))
 
 	spcLister := &corelistertesting.SliceServiceProviderClusterLister{
 		ServiceProviderClusters: []*coreapi.ServiceProviderCluster{spcForCluster("a", nil, thisMC)},
@@ -139,7 +142,7 @@ func TestPendingCleanupSyncer_SyncOnce_NoChangeWhenAllValid(t *testing.T) {
 	fleetDB := fleetcosmosstoragetesting.NewMockFleetDBClient()
 	doc := &fleetapi.ManagementClusterScheduling{
 		CosmosMetadata: coreapi.CosmosMetadata{
-			ResourceID:   metadataapi.Must(fleetapi.ToManagementClusterSchedulingResourceID(thisStamp)),
+			ResourceID:   metadataapi.Must(fleetapihelpers.ToManagementClusterSchedulingResourceID(thisStamp)),
 			PartitionKey: thisStamp,
 		},
 		Status: fleetapi.ManagementClusterSchedulingStatus{PendingAssignedClusters: []*azcorearm.ResourceID{pendingClusterResourceID("a")}},
@@ -150,7 +153,7 @@ func TestPendingCleanupSyncer_SyncOnce_NoChangeWhenAllValid(t *testing.T) {
 	require.NotEmpty(t, beforeETag, "test fixture: created scheduling doc should carry an etag")
 
 	schedulingLister := &fleetlistertesting.SliceManagementClusterSchedulingLister{Schedulings: []*fleetapi.ManagementClusterScheduling{created}}
-	syncer := &pendingCleanupSyncer{serviceProviderClusterLister: spcLister, managementClusterSchedulingLister: schedulingLister, fleetDBClient: fleetDB}
+	syncer := &pendingCleanupSyncer{serviceProviderClusterLister: spcLister, clusterLister: &corelistertesting.SliceClusterLister{}, managementClusterSchedulingLister: schedulingLister, fleetDBClient: fleetDB}
 	require.NoError(t, syncer.SyncOnce(ctx, controllerutils.ManagementClusterKey{StampIdentifier: thisStamp}))
 
 	updated, err := fleetDB.Stamps().ManagementClusters(thisStamp).Scheduling().Get(ctx, fleetapi.SchedulingResourceName)
@@ -160,4 +163,77 @@ func TestPendingCleanupSyncer_SyncOnce_NoChangeWhenAllValid(t *testing.T) {
 	// The sweep changed nothing, so the semantic-deepequals guard must skip the
 	// Replace entirely: a write would have bumped the server-assigned etag.
 	assert.Equal(t, beforeETag, updated.CosmosETag, "no Replace should occur when the sweep changes nothing (semantic deepequals skip)")
+}
+
+func TestPendingCleanupSyncer_ReservationAfterPlacementStops(t *testing.T) {
+	for _, state := range []coreapi.ProvisioningState{coreapi.ProvisioningStateFailed, coreapi.ProvisioningStateDeleting} {
+		t.Run(string(state), func(t *testing.T) {
+			for _, placement := range []string{"unresolved", "assigned", "observed"} {
+				t.Run(placement, func(t *testing.T) {
+					ctx := context.Background()
+					const stamp = "1"
+					mc := metadataapi.Must(fleetapihelpers.ToManagementClusterResourceID(stamp))
+					clusterID := pendingClusterResourceID("interrupted-create")
+					cluster := &coreapi.Cluster{
+						CosmosMetadata: coreapi.CosmosMetadata{ResourceID: clusterID},
+					}
+					cluster.ID = clusterID
+					cluster.ServiceProviderProperties.ProvisioningState = coreapi.ProvisioningStateProvisioning
+					spc := spcForCluster(clusterID.Name, nil, nil)
+					if placement == "assigned" {
+						spc.Spec.ManagementClusterResourceID = mc
+					}
+					if placement == "observed" {
+						spc.Status.ManagementClusterResourceID = mc
+					}
+
+					fleetDB := fleetcosmosstoragetesting.NewMockFleetDBClient()
+					schedulingCRUD := fleetDB.Stamps().ManagementClusters(stamp).Scheduling()
+					created, err := schedulingCRUD.Create(ctx, schedulingDoc(stamp, 3, 0, 0, 0), nil)
+					require.NoError(t, err)
+					placer := &placementSyncer{fleetDBClient: fleetDB}
+					require.NoError(t, placer.reservePendingAssignment(ctx, created, mc, clusterID))
+					// An interrupted placement can leave the reservation durable without
+					// recording Spec. Keep it while create can still recover.
+					reserved, err := schedulingCRUD.Get(ctx, fleetapi.SchedulingResourceName)
+					require.NoError(t, err)
+					schedulingLister := &fleetlistertesting.SliceManagementClusterSchedulingLister{
+						Schedulings: []*fleetapi.ManagementClusterScheduling{reserved},
+					}
+					cleanup := &pendingCleanupSyncer{
+						serviceProviderClusterLister: &corelistertesting.SliceServiceProviderClusterLister{
+							ServiceProviderClusters: []*coreapi.ServiceProviderCluster{spc},
+						},
+						clusterLister: &corelistertesting.SliceClusterLister{
+							Clusters: []*coreapi.Cluster{cluster},
+						},
+						managementClusterSchedulingLister: schedulingLister,
+						fleetDBClient:                     fleetDB,
+					}
+					key := controllerutils.ManagementClusterKey{StampIdentifier: stamp}
+					require.NoError(t, cleanup.SyncOnce(ctx, key))
+					current, err := schedulingCRUD.Get(ctx, fleetapi.SchedulingResourceName)
+					require.NoError(t, err)
+					assert.Equal(t, pendingStrings([]*azcorearm.ResourceID{clusterID}), pendingStrings(current.Status.PendingAssignedClusters))
+
+					// Placement stops after failure or deletion starts. Assigned/observed
+					// HCPs may still consume capacity, so only unresolved placement is abandoned.
+					cluster.ServiceProviderProperties.ProvisioningState = state
+					if state == coreapi.ProvisioningStateDeleting {
+						now := metav1.Now()
+						cluster.ServiceProviderProperties.DeletionTimestamp = &now
+					}
+					schedulingLister.Schedulings = []*fleetapi.ManagementClusterScheduling{current}
+					require.NoError(t, cleanup.SyncOnce(ctx, key))
+					current, err = schedulingCRUD.Get(ctx, fleetapi.SchedulingResourceName)
+					require.NoError(t, err)
+					if placement == "unresolved" {
+						assert.Empty(t, current.Status.PendingAssignedClusters, "abandoned unresolved placement must release capacity")
+					} else {
+						assert.Equal(t, pendingStrings([]*azcorearm.ResourceID{clusterID}), pendingStrings(current.Status.PendingAssignedClusters))
+					}
+				})
+			}
+		})
+	}
 }

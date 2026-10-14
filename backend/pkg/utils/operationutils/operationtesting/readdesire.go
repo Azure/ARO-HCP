@@ -32,6 +32,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
 )
 
 // NewHostedClusterReadDesire builds a kube-applier ReadDesire fixture wrapping the
@@ -49,7 +50,7 @@ func NewHostedClusterReadDesire(t *testing.T, hostedCluster *v1beta1.HostedClust
 	}
 
 	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
-		kubeapplierapi.ToClusterScopedReadDesireResourceIDString(
+		kubeapplierapihelpers.ToClusterScopedReadDesireResourceIDString(
 			TestSubscriptionID, TestResourceGroupName, TestClusterName, kubeapplierhelpers.ReadDesireNameReadonlyHostedCluster)))
 
 	return &kubeapplierapi.ReadDesire{

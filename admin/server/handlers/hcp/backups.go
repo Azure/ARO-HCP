@@ -24,6 +24,7 @@ import (
 	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/backup"
 	"github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
@@ -66,7 +67,7 @@ type BackupSchedulePatchResponse struct {
 }
 
 type clusterDetails struct {
-	hcpOpenShiftCluster    *coreapi.HCPOpenShiftCluster
+	cluster                *coreapi.Cluster
 	serviceProviderCluster *coreapi.ServiceProviderCluster
 }
 
@@ -79,7 +80,7 @@ func getClusterDetails(
 		return nil, fmt.Errorf("failed to get resource ID: %w", err)
 	}
 
-	hcpOpenShiftCluster, err := resourceDBClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).Get(request.Context(), resourceID.Name)
+	cluster, err := resourceDBClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).Get(request.Context(), resourceID.Name)
 	if err != nil {
 		if cosmosstorageutils.IsNotFoundError(err) {
 			return nil, coreapi.NewCloudError(http.StatusNotFound, coreapi.CloudErrorCodeResourceNotFound, "", "HCP %s not found", resourceID.String())
@@ -96,7 +97,7 @@ func getClusterDetails(
 	}
 
 	return &clusterDetails{
-		hcpOpenShiftCluster:    hcpOpenShiftCluster,
+		cluster:                cluster,
 		serviceProviderCluster: serviceProviderCluster,
 	}, nil
 }
@@ -133,7 +134,7 @@ func (h *HCPGetBackupScheduleHandler) ServeHTTP(writer http.ResponseWriter, requ
 
 	if clusterDetails.serviceProviderCluster.Status.ManagementClusterResourceID == nil {
 		return coreapi.NewCloudError(http.StatusPreconditionFailed, coreapi.CloudErrorCodeInvalidResource, "",
-			"management cluster placement not resolved for cluster %s", clusterDetails.hcpOpenShiftCluster.ResourceID.String())
+			"management cluster placement not resolved for cluster %s", clusterDetails.cluster.ResourceID.String())
 	}
 
 	kubeApplierClient := h.kubeApplierDBClients.For(request.Context(), clusterDetails.serviceProviderCluster.Status.ManagementClusterResourceID)
@@ -142,7 +143,7 @@ func (h *HCPGetBackupScheduleHandler) ServeHTTP(writer http.ResponseWriter, requ
 			"kube-applier client not available for management cluster %s", clusterDetails.serviceProviderCluster.Status.ManagementClusterResourceID.String())
 	}
 
-	readDesireCRUD, err := kubeApplierClient.ReadDesiresForCluster(clusterDetails.hcpOpenShiftCluster.ResourceID.SubscriptionID, clusterDetails.hcpOpenShiftCluster.ResourceID.ResourceGroupName, clusterDetails.hcpOpenShiftCluster.ResourceID.Name)
+	readDesireCRUD, err := kubeApplierClient.ReadDesiresForCluster(clusterDetails.cluster.ResourceID.SubscriptionID, clusterDetails.cluster.ResourceID.ResourceGroupName, clusterDetails.cluster.ResourceID.Name)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get ReadDesire CRUD: %w", err))
 	}
@@ -183,7 +184,7 @@ func (h *HCPGetBackupScheduleHandler) ServeHTTP(writer http.ResponseWriter, requ
 		return utils.TrackError(fmt.Errorf("failed to iterate ReadDesires: %w", err))
 	}
 
-	_, err = coreapi.WriteJSONResponse(writer, http.StatusOK, response)
+	_, err = coreapihelpers.WriteJSONResponse(writer, http.StatusOK, response)
 	return utils.TrackError(err)
 }
 
@@ -214,7 +215,7 @@ func (h *HCPPatchBackupScheduleHandler) ServeHTTP(writer http.ResponseWriter, re
 
 	clusterDetails.serviceProviderCluster.Spec.BackupScheduleState = patch.State
 
-	serviceProviderClusterCRUD := h.resourcesDBClient.ServiceProviderClusters(clusterDetails.hcpOpenShiftCluster.ResourceID.SubscriptionID, clusterDetails.hcpOpenShiftCluster.ResourceID.ResourceGroupName, clusterDetails.hcpOpenShiftCluster.ResourceID.Name)
+	serviceProviderClusterCRUD := h.resourcesDBClient.ServiceProviderClusters(clusterDetails.cluster.ResourceID.SubscriptionID, clusterDetails.cluster.ResourceID.ResourceGroupName, clusterDetails.cluster.ResourceID.Name)
 	serviceProviderCluster, err := serviceProviderClusterCRUD.Replace(request.Context(), clusterDetails.serviceProviderCluster, nil)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to update backup state: %w", err))
@@ -224,7 +225,7 @@ func (h *HCPPatchBackupScheduleHandler) ServeHTTP(writer http.ResponseWriter, re
 		State: serviceProviderCluster.Spec.BackupScheduleState,
 	}
 
-	_, err = coreapi.WriteJSONResponse(writer, http.StatusOK, response)
+	_, err = coreapihelpers.WriteJSONResponse(writer, http.StatusOK, response)
 	return utils.TrackError(err)
 }
 
@@ -268,7 +269,7 @@ func (h *HCPGetOnDemandBackupsHandler) ServeHTTP(writer http.ResponseWriter, req
 
 	if clusterDetails.serviceProviderCluster.Status.ManagementClusterResourceID == nil {
 		return coreapi.NewCloudError(http.StatusPreconditionFailed, coreapi.CloudErrorCodeInvalidResource, "",
-			"management cluster placement not resolved for cluster %s", clusterDetails.hcpOpenShiftCluster.ResourceID.String())
+			"management cluster placement not resolved for cluster %s", clusterDetails.cluster.ResourceID.String())
 	}
 
 	kubeApplierClient := h.kubeApplierDBClients.For(request.Context(), clusterDetails.serviceProviderCluster.Status.ManagementClusterResourceID)
@@ -277,7 +278,7 @@ func (h *HCPGetOnDemandBackupsHandler) ServeHTTP(writer http.ResponseWriter, req
 			"kube-applier client not available for management cluster %s", clusterDetails.serviceProviderCluster.Status.ManagementClusterResourceID.String())
 	}
 
-	readDesireCRUD, err := kubeApplierClient.ReadDesiresForCluster(clusterDetails.hcpOpenShiftCluster.ResourceID.SubscriptionID, clusterDetails.hcpOpenShiftCluster.ResourceID.ResourceGroupName, clusterDetails.hcpOpenShiftCluster.ResourceID.Name)
+	readDesireCRUD, err := kubeApplierClient.ReadDesiresForCluster(clusterDetails.cluster.ResourceID.SubscriptionID, clusterDetails.cluster.ResourceID.ResourceGroupName, clusterDetails.cluster.ResourceID.Name)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get ReadDesire CRUD: %w", err))
 	}
@@ -316,6 +317,6 @@ func (h *HCPGetOnDemandBackupsHandler) ServeHTTP(writer http.ResponseWriter, req
 		return utils.TrackError(fmt.Errorf("failed to iterate ReadDesires: %w", err))
 	}
 
-	_, writeErr := coreapi.WriteJSONResponse(writer, http.StatusOK, response)
+	_, writeErr := coreapihelpers.WriteJSONResponse(writer, http.StatusOK, response)
 	return utils.TrackError(writeErr)
 }

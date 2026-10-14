@@ -157,7 +157,6 @@ type Session struct {
 	client          *CopilotClient
 	logger          logr.Logger
 	lastMessages    json.RawMessage
-	sendGate        chan struct{}
 	usageMu         sync.RWMutex
 	usage           UsageReport
 	usageProvider   string
@@ -166,8 +165,7 @@ type Session struct {
 	seenUsageKeys   map[string]struct{}
 }
 
-// CreateSession creates a new Copilot session for an analysis run.
-func (c *CopilotClient) CreateSession(ctx context.Context, logger logr.Logger, cfg SessionConfig) (*Session, error) {
+func (c *CopilotClient) buildSessionConfig(ctx context.Context, cfg SessionConfig) (*copilot.SessionConfig, error) {
 	sessionCfg := &copilot.SessionConfig{
 		Model:               cfg.Model,
 		SystemMessage:       cfg.SystemMessage,
@@ -192,14 +190,26 @@ func (c *CopilotClient) CreateSession(ctx context.Context, logger logr.Logger, c
 		if err != nil {
 			return nil, fmt.Errorf("acquiring Entra token for BYOK copilot session: %w", err)
 		}
+		// Reasoning with function tools requires Responses on newer models.
 		sessionCfg.Provider = &copilot.ProviderConfig{
 			Type:        "azure",
+			WireAPI:     "responses",
 			BaseURL:     c.cfg.ModelEndpoint,
 			BearerToken: token.Token,
 		}
 		if sessionCfg.Model == "" {
 			sessionCfg.Model = c.cfg.ModelDeployment
 		}
+	}
+
+	return sessionCfg, nil
+}
+
+// CreateSession creates a new Copilot session for an analysis run.
+func (c *CopilotClient) CreateSession(ctx context.Context, logger logr.Logger, cfg SessionConfig) (*Session, error) {
+	sessionCfg, err := c.buildSessionConfig(ctx, cfg)
+	if err != nil {
+		return nil, err
 	}
 
 	session, err := c.inner.CreateSession(ctx, sessionCfg)
@@ -220,7 +230,6 @@ func (c *CopilotClient) CreateSession(ctx context.Context, logger logr.Logger, c
 		inner:           session,
 		client:          c,
 		logger:          logger,
-		sendGate:        make(chan struct{}, 1),
 		usageProvider:   usageProvider,
 		usageDimensions: usageDimensions,
 		usageModel:      sessionCfg.Model,
@@ -338,13 +347,6 @@ func (s *Session) Usage() UsageReport {
 // If ctx is cancelled, the in-flight work is aborted.
 // Returns the final assistant message content.
 func (s *Session) SendAndWait(ctx context.Context, prompt string) (string, error) {
-	// A temporary event subscription associates provider errors with this
-	// request, so calls must not overlap on the same session.
-	if err := s.acquireSendGate(ctx); err != nil {
-		return "", err
-	}
-	defer s.releaseSendGate()
-
 	s.logger.V(1).Info("Sending message to Copilot session.", "promptLength", len(prompt))
 
 	errorCapture := &copilotSessionErrorCapture{provider: s.usageProvider}
@@ -402,26 +404,6 @@ func (s *Session) SendAndWait(ctx context.Context, prompt string) (string, error
 		s.snapshotMessages()
 		return data.Content, nil
 	}
-}
-
-func (s *Session) acquireSendGate(ctx context.Context) error {
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	select {
-	case s.sendGate <- struct{}{}:
-		if err := ctx.Err(); err != nil {
-			s.releaseSendGate()
-			return err
-		}
-		return nil
-	case <-ctx.Done():
-		return ctx.Err()
-	}
-}
-
-func (s *Session) releaseSendGate() {
-	<-s.sendGate
 }
 
 // Disconnect releases in-memory session resources. Session state is preserved

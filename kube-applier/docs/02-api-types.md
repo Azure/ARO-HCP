@@ -231,7 +231,7 @@ revocation.
 - Generated deepcopy compiles and is committed.
 - Hand-written unit tests in `internal/api/kubeapplier/*_test.go` cover:
   - Round-trip JSON for each `*Desire` (mirror existing tests on
-    `HCPOpenShiftCluster`).
+    `Cluster`).
   - Resource-ID parse/format symmetry (including credential-request-scoped variants).
 - No code outside `internal/api/kubeapplier` and `internal/api` itself depends
   on this package yet (so this layer can ship in its own PR).

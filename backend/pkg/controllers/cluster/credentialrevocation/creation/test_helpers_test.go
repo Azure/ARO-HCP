@@ -25,6 +25,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 )
 
@@ -41,7 +42,7 @@ func createTestRevocation(t *testing.T, db *corecosmosstoragetesting.MockResourc
 	t.Helper()
 
 	revocationResourceID := metadataapi.Must(azcorearm.ParseResourceID(
-		coreapi.ToSystemAdminCredentialRevocationResourceIDString(testSubscriptionID, testResourceGroupName, testClusterName, revocationName),
+		coreapihelpers.ToSystemAdminCredentialRevocationResourceIDString(testSubscriptionID, testResourceGroupName, testClusterName, revocationName),
 	))
 
 	revocation := &coreapi.SystemAdminCredentialRevocation{
@@ -65,7 +66,7 @@ func createTestRevocation(t *testing.T, db *corecosmosstoragetesting.MockResourc
 	return revocation
 }
 
-func createTestCluster(t *testing.T, db *corecosmosstoragetesting.MockResourcesDBClient, opts ...func(*coreapi.HCPOpenShiftCluster)) *coreapi.HCPOpenShiftCluster {
+func createTestCluster(t *testing.T, db *corecosmosstoragetesting.MockResourcesDBClient, opts ...func(*coreapi.Cluster)) *coreapi.Cluster {
 	t.Helper()
 
 	clusterResourceID := metadataapi.Must(azcorearm.ParseResourceID(
@@ -74,7 +75,7 @@ func createTestCluster(t *testing.T, db *corecosmosstoragetesting.MockResourcesD
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName,
 	))
 
-	cluster := &coreapi.HCPOpenShiftCluster{
+	cluster := &coreapi.Cluster{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   clusterResourceID,
 			PartitionKey: strings.ToLower(clusterResourceID.SubscriptionID),
@@ -86,7 +87,7 @@ func createTestCluster(t *testing.T, db *corecosmosstoragetesting.MockResourcesD
 			},
 			Location: testAzureLocation,
 		},
-		ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 			ProvisioningState: coreapi.ProvisioningStateSucceeded,
 		},
 	}
@@ -104,7 +105,7 @@ func createTestCredentialRequest(t *testing.T, db *corecosmosstoragetesting.Mock
 	t.Helper()
 
 	credResourceID := metadataapi.Must(azcorearm.ParseResourceID(
-		coreapi.ToSystemAdminCredentialRequestResourceIDString(testSubscriptionID, testResourceGroupName, testClusterName, credName),
+		coreapihelpers.ToSystemAdminCredentialRequestResourceIDString(testSubscriptionID, testResourceGroupName, testClusterName, credName),
 	))
 
 	cred := &coreapi.SystemAdminCredentialRequest{

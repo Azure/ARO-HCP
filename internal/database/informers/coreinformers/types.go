@@ -48,6 +48,7 @@ type BackendInformers interface {
 	SystemAdminCredentialRevocations() (cache.SharedIndexInformer, corelisters.SystemAdminCredentialRevocationLister)
 	BillingDocs() (cache.SharedIndexInformer, corelisters.BillingLister)
 
+	HasSynced() bool
 	RunWithContext(ctx context.Context)
 }
 
@@ -140,6 +141,22 @@ func (b *backendInformers) SystemAdminCredentialRevocations() (cache.SharedIndex
 
 func (b *backendInformers) BillingDocs() (cache.SharedIndexInformer, corelisters.BillingLister) {
 	return b.billingInformer, b.billingLister
+}
+
+func (b *backendInformers) HasSynced() bool {
+	return b.subscriptionInformer.HasSynced() &&
+		b.activeOperationInformer.HasSynced() &&
+		b.allOperationInformer.HasSynced() &&
+		b.clusterInformer.HasSynced() &&
+		b.nodePoolInformer.HasSynced() &&
+		b.externalAuthInformer.HasSynced() &&
+		b.serviceProviderClusterInformer.HasSynced() &&
+		b.serviceProviderNodePoolInformer.HasSynced() &&
+		b.controllerInformer.HasSynced() &&
+		b.managementClusterContentInformer.HasSynced() &&
+		b.systemAdminCredentialRequestInformer.HasSynced() &&
+		b.systemAdminCredentialRevocationInformer.HasSynced() &&
+		b.billingInformer.HasSynced()
 }
 
 func NewBackendInformers(ctx context.Context, resourcesGlobalListers corecosmosstorage.ResourcesGlobalListers, resourcesDBClient corecosmosstorage.ResourcesDBClient, billingGlobalListers billingcosmosstorage.BillingGlobalListers) BackendInformers {
@@ -246,7 +263,7 @@ func (b *backendInformers) RunWithContext(ctx context.Context) {
 	go func() {
 		defer utilruntime.HandleCrash()
 		defer wg.Done()
-		localLogger := logger.WithValues("type", reflect.TypeOf(&coreapi.HCPOpenShiftCluster{}).String())
+		localLogger := logger.WithValues("type", reflect.TypeOf(&coreapi.Cluster{}).String())
 		localCtx := utils.ContextWithLogger(ctx, localLogger)
 
 		b.clusterInformer.RunWithContext(localCtx)
@@ -255,7 +272,7 @@ func (b *backendInformers) RunWithContext(ctx context.Context) {
 	go func() {
 		defer utilruntime.HandleCrash()
 		defer wg.Done()
-		localLogger := logger.WithValues("type", reflect.TypeOf(&coreapi.HCPOpenShiftClusterNodePool{}).String())
+		localLogger := logger.WithValues("type", reflect.TypeOf(&coreapi.NodePool{}).String())
 		localCtx := utils.ContextWithLogger(ctx, localLogger)
 
 		b.nodePoolInformer.RunWithContext(localCtx)
@@ -264,7 +281,7 @@ func (b *backendInformers) RunWithContext(ctx context.Context) {
 	go func() {
 		defer utilruntime.HandleCrash()
 		defer wg.Done()
-		localLogger := logger.WithValues("type", reflect.TypeOf(&coreapi.HCPOpenShiftClusterExternalAuth{}).String())
+		localLogger := logger.WithValues("type", reflect.TypeOf(&coreapi.ExternalAuth{}).String())
 		localCtx := utils.ContextWithLogger(ctx, localLogger)
 
 		b.externalAuthInformer.RunWithContext(localCtx)

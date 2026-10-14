@@ -1,6 +1,6 @@
 # ARO-HCP Resource Creation Flow
 
-This document describes how resources are created in the ARO-HCP architecture, from API request through async completion. Detailed creation flow diagrams are provided for HCPOpenShiftCluster and NodePool. ExternalAuth follows the same general pattern (frontend validation, Cluster Service POST, CosmosDB transaction, backend polling).
+This document describes how resources are created in the ARO-HCP architecture, from API request through async completion. Detailed creation flow diagrams are provided for Cluster and NodePool. ExternalAuth follows the same general pattern (frontend validation, Cluster Service POST, CosmosDB transaction, backend polling).
 
 ## Overview
 
@@ -29,7 +29,7 @@ flowchart TD
 
 ```mermaid
 flowchart LR
-    HCP["HCPOpenShiftCluster<br/>(parent resource)"] --> NP["NodePool<br/>(child of cluster)"]
+    HCP["Cluster<br/>(parent resource)"] --> NP["NodePool<br/>(child of cluster)"]
     HCP --> EA["ExternalAuth<br/>(child of cluster)"]
 
     style HCP fill:#e1f5fe
@@ -37,7 +37,7 @@ flowchart LR
     style EA fill:#fff3e0
 ```
 
-- **HCPOpenShiftCluster** - The hosted control plane cluster. Parent resource.
+- **Cluster** - The hosted control plane cluster. Parent resource.
 - **NodePool** - Worker node pools. Child of a cluster.
 - **ExternalAuth** - External authentication configurations (OIDC providers). Child of a cluster.
 
@@ -76,7 +76,7 @@ flowchart TD
     SUB_MW --> HANDLER
 ```
 
-## HCPOpenShiftCluster Creation
+## Cluster Creation
 
 ```mermaid
 flowchart TD
@@ -259,4 +259,4 @@ stateDiagram-v2
 | Database | CosmosDB (single document per cluster) | CosmosDB (separate operation + resource docs, transactions) |
 | Operation model | Provisioning state on cluster doc, polled via async op record | Dedicated operation documents, periodic relist via expiring watchers triggers controllers |
 | Node pools | Managed by machine-api operator after bootstrap | First-class ARM resource with own lifecycle |
-| Resource types | OpenShiftCluster only | HCPOpenShiftCluster, NodePool, ExternalAuth |
+| Resource types | OpenShiftCluster only | Cluster, NodePool, ExternalAuth |

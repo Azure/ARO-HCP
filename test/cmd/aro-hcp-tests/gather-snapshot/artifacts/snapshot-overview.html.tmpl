@@ -1,7 +1,8 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Snapshot Overview</title>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -12,24 +13,34 @@ h1 { font-size: 18px; margin-bottom: 8px; color: #fff; }
 .tree details > summary { list-style: none; }
 .tree details > summary::-webkit-details-marker { display: none; }
 .tree details > summary::marker { display: none; }
-.node { display: flex; align-items: center; padding: 3px 6px; cursor: pointer; border-radius: 3px; margin: 1px 0; }
+.node { display: flex; flex-wrap: wrap; align-items: center; padding: 6px; cursor: pointer; border-radius: 3px; margin: 1px 0; gap: 4px 0; }
 .node:hover { background: #2a2a4a; }
 .toggle { width: 16px; flex-shrink: 0; text-align: center; color: #666; font-size: 10px; }
 details > summary .toggle::after { content: '\25B6'; }
 details[open] > summary .toggle::after { content: '\25BC'; }
 .icon { width: 18px; flex-shrink: 0; text-align: center; margin-right: 4px; }
-.label { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.label { flex: 1; min-width: 80px; overflow-wrap: anywhere; }
+.time-window { white-space: normal; overflow-wrap: anywhere; }
 .badge { font-size: 10px; padding: 1px 6px; border-radius: 8px; margin-left: 8px; font-weight: bold; flex-shrink: 0; }
 .badge-pass { background: #1b5e20; color: #a5d6a7; }
 .badge-fail { background: #b71c1c; color: #ffcdd2; }
 .badge-skip { background: #f57f17; color: #000; }
 .badge-info { background: #1a237e; color: #90caf9; }
-.filter-toggle { display: none; }
+.filter-toggle { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.filter-toggle:focus-visible + .filter-label { outline: 2px solid #fff; outline-offset: 2px; }
 .filter-label { padding: 4px 12px; border-radius: 4px; font-size: 12px; cursor: pointer; user-select: none; border: 2px solid transparent; margin-right: 8px; margin-bottom: 12px; display: inline-block; }
 .filter-toggle:checked + .filter-label { border-color: #fff; }
 .kql { background: #0d0d1a; border: 1px solid #333; border-radius: 4px; padding: 8px; margin: 4px 0 4px 38px; font-size: 11px; white-space: pre-wrap; word-break: break-all; max-height: 200px; overflow-y: auto; color: #ccc; }
 .leaf { display: flex; align-items: center; padding: 3px 6px; border-radius: 3px; margin: 1px 0; }
 .leaf-dot { width: 16px; flex-shrink: 0; text-align: center; color: #666; font-size: 10px; }
+.hint { margin-bottom: 12px; color: #bbb; }
+@media (max-width: 600px) {
+  body { padding: 8px; }
+  .tree ul { padding-left: 10px; }
+  .time-window { flex-basis: calc(100% - 20px); margin-left: 20px; }
+  .node, .leaf { min-height: 40px; }
+  .kql { margin-left: 8px; }
+}
 
 /* When a filter checkbox is checked, hide tree nodes that lack the matching status. */
 #filter-pass:checked ~ .tree li:not([data-has~="pass"]) { display: none; }
@@ -39,74 +50,79 @@ details[open] > summary .toggle::after { content: '\25BC'; }
 </head>
 <body>
 <h1>Snapshot Query Overview</h1>
+<p class="hint">Expand branches to inspect queries. Multiple status filters require every selected status. Changing filters collapses branches.</p>
 <input type="checkbox" id="filter-pass" class="filter-toggle"><label for="filter-pass" class="filter-label badge-pass">{{.TotalPassCount}} passed</label>
 <input type="checkbox" id="filter-fail" class="filter-toggle"><label for="filter-fail" class="filter-label badge-fail">{{.TotalFailCount}} failed</label>
 <input type="checkbox" id="filter-skip" class="filter-toggle"><label for="filter-skip" class="filter-label badge-skip">{{.TotalSkipCount}} skipped</label>
-<ul class="tree">
-{{range $si, $section := .Sections}}
-  <li data-has="{{$section.Statuses}}">
-    <details open>
-      <summary class="node">
-        <span class="toggle"></span>
-        <span class="icon">&#x1F9EA;</span>
-        <span class="label">{{$section.TestName}} / {{$section.ResourceGroup}}</span>
-        {{if $section.FailCount}}<span class="badge badge-fail">{{$section.FailCount}} failed</span>{{end}}
-        <span class="badge badge-info">{{$section.StartTime}} &mdash; {{$section.EndTime}}</span>
-      </summary>
-      <ul>
-      {{range $ni, $node := $section.Nodes}}
-        <li data-has="{{$node.Statuses}}">
-          <details open>
-            <summary class="node">
-              <span class="toggle"></span>
-              <span class="icon">&#x1F4C1;</span>
-              <span class="label">{{$node.Name}}</span>
-              {{if $node.FailCount}}<span class="badge badge-fail">{{$node.FailCount}} failed</span>{{end}}
-            </summary>
-            <ul>
-            {{range $ci, $child := $node.Children}}
-              <li data-has="{{$child.Statuses}}">
-                <details open>
-                  <summary class="node">
-                    <span class="toggle"></span>
-                    <span class="icon">&#x1F4C2;</span>
-                    <span class="label">{{$child.Name}}</span>
-                  </summary>
-                  <ul>
-                  {{range $qi, $query := $child.Queries}}
-                    <li data-has="{{$query.Status}}">
-                    {{if $query.KQL}}
-                      <details>
-                        <summary class="node">
-                          <span class="toggle"></span>
-                          <span class="icon">{{$query.Icon}}</span>
-                          <span class="label">{{$query.Key}}</span>
-                          <span class="badge {{$query.BadgeClass}}">{{$query.BadgeText}}</span>
-                        </summary>
-                        <div class="kql">{{$query.KQL}}</div>
-                      </details>
-                    {{else}}
-                      <div class="leaf">
-                        <span class="leaf-dot">&middot;</span>
-                        <span class="icon">{{$query.Icon}}</span>
-                        <span class="label">{{$query.Key}}</span>
-                        <span class="badge {{$query.BadgeClass}}">{{$query.BadgeText}}</span>
-                      </div>
-                    {{end}}
-                    </li>
-                  {{end}}
-                  </ul>
-                </details>
-              </li>
-            {{end}}
-            </ul>
-          </details>
-        </li>
-      {{end}}
-      </ul>
-    </details>
-  </li>
-{{end}}
-</ul>
+<ul class="tree"></ul>
+<noscript>JavaScript is required to browse the snapshot. Full inputs are available in snapshot-data.json.</noscript>
+<!-- html/template serializes ordinary Go values as HTML-safe JSON, not trusted script text. -->
+<script id="snapshot-data" type="application/json">{{.Sections}}</script>
+<script id="snapshot-kql" type="application/json">{{.KQL}}</script>
+<script>
+(() => {
+  const sections = JSON.parse(document.getElementById('snapshot-data').textContent) || [];
+  const kql = JSON.parse(document.getElementById('snapshot-kql').textContent);
+  const tree = document.querySelector('.tree');
+  const filters = [...document.querySelectorAll('.filter-toggle')];
+  const statuses = {pass: ['\u2713', 'results'], fail: ['\u2717', 'NO RESULTS'], skip: ['\u2298', 'skipped']};
+  const branches = new WeakMap();
+  function element(tag, className, text) {
+    const el = document.createElement(tag);
+    el.className = className;
+    if (text !== undefined) el.textContent = text;
+    return el;
+  }
+  function matches(tokens) {
+    return filters.every(filter => !filter.checked || tokens.split(' ').includes(filter.id.slice(7)));
+  }
+  function render(items, level, parent) {
+    for (const item of items || []) {
+      const tokens = level === 3 ? item.status : item.statuses;
+      if (!matches(tokens)) continue;
+      const li = element('li', '');
+      li.dataset.has = tokens;
+      const expandable = level < 3 || !!item.kql;
+      const container = element(expandable ? 'details' : 'div', expandable ? '' : 'leaf');
+      const summary = expandable ? element('summary', 'node') : container;
+      const status = statuses[item.status] || ['', ''];
+      summary.append(element('span', expandable ? 'toggle' : 'leaf-dot', expandable ? '' : '\u00b7'));
+      summary.append(element('span', 'icon', level === 3 ? status[0] : ['\ud83e\uddea', '\ud83d\udcc1', '\ud83d\udcc2'][level]));
+      summary.append(element('span', 'label', level === 0 ? item.testName + ' / ' + item.resourceGroup : level === 3 ? item.key : item.name));
+      if (item.failCount) summary.append(element('span', 'badge badge-fail', item.failCount + ' failed'));
+      if (level === 0) summary.append(element('span', 'badge badge-info time-window', item.startTime + ' \u2014 ' + item.endTime));
+      if (level === 3) summary.append(element('span', 'badge' + (statuses[item.status] ? ' badge-' + item.status : ''), status[1]));
+      if (expandable) {
+        container.append(summary);
+        branches.set(container, {item, level});
+      }
+      li.append(container);
+      parent.append(li);
+    }
+  }
+  // Native details retain keyboard behavior. Closing releases descendants,
+  // including KQL text, rather than retaining an ever-growing hidden tree.
+  tree.addEventListener('toggle', event => {
+    const details = event.target;
+    const branch = branches.get(details);
+    if (!branch || !details.isConnected) return;
+    if (!details.open) {
+      while (details.children.length > 1) details.lastElementChild.remove();
+    } else if (details.children.length === 1) {
+      const {item, level} = branch;
+      const content = element(level === 3 ? 'div' : 'ul', level === 3 ? 'kql' : '');
+      if (level === 3) content.textContent = kql[item.kql];
+      else render([item.nodes, item.children, item.queries][level], level + 1, content);
+      details.append(content);
+    }
+  }, true);
+  for (const filter of filters) filter.addEventListener('change', () => {
+    // Rebuild only the root, so newly hidden open branches also release their DOM.
+    tree.replaceChildren();
+    render(sections, 0, tree);
+  });
+  render(sections, 0, tree);
+})();
+</script>
 </body>
 </html>

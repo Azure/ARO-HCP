@@ -92,7 +92,7 @@ func TestChangeFeedWatcher_ExpiryTimerTriggersRelist(t *testing.T) {
 
 	// Construct via the same-package unexported constructor. Passing nil defaults
 	// jitterFn to defaultJitter, exactly as production does.
-	w := newChangeFeedWatcher[coreapi.HCPOpenShiftCluster, *coreapi.HCPOpenShiftCluster, cosmosstorageutils.GenericDocument[coreapi.HCPOpenShiftCluster]](
+	w := newChangeFeedWatcher[coreapi.Cluster, *coreapi.Cluster, cosmosstorageutils.GenericDocument[coreapi.Cluster]](
 		nil,       // desiredResourceTypes: unused, no items are delivered
 		fakeClock, // clock: drives the expiry timer deterministically
 		fakeChangeFeedClient{},

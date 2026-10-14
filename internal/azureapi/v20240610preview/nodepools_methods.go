@@ -24,6 +24,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
 	"github.com/Azure/ARO-HCP/internal/azureapi/v20240610preview/generated"
 )
 
@@ -31,10 +32,24 @@ type NodePool struct {
 	generated.NodePool
 }
 
-var _ coreapi.VersionedCreatableResource[coreapi.HCPOpenShiftClusterNodePool] = &NodePool{}
+var _ coreapi.VersionedCreatableResource[coreapi.NodePool] = &NodePool{}
 
 func (h *NodePool) NewExternal() any {
 	return &NodePool{}
+}
+
+func (h *NodePool) ClearReadOnlyFields() {
+	if h == nil {
+		return
+	}
+	// Keep Name for path mismatch validation and preflight routing.
+	h.ID = nil
+	h.Type = nil
+	h.SystemData = nil
+	clearReadOnlyIdentityFields(h.Identity)
+	if h.Properties != nil {
+		h.Properties.ProvisioningState = nil
+	}
 }
 
 func SetDefaultValuesNodePool(obj *NodePool) {
@@ -68,8 +83,8 @@ func (h *NodePool) GetVersion() coreapi.Version {
 	return versionedInterface
 }
 
-func (h *NodePool) ConvertToInternal(existing *coreapi.HCPOpenShiftClusterNodePool) (*coreapi.HCPOpenShiftClusterNodePool, error) {
-	out := &coreapi.HCPOpenShiftClusterNodePool{}
+func (h *NodePool) ConvertToInternal(existing *coreapi.NodePool) (*coreapi.NodePool, error) {
+	out := &coreapi.NodePool{}
 	errs := field.ErrorList{}
 
 	if h.ID != nil {
@@ -109,7 +124,7 @@ func (h *NodePool) ConvertToInternal(existing *coreapi.HCPOpenShiftClusterNodePo
 	//   When Tags are patched, the tags from the request
 	//   replace all existing tags for the resource
 	//
-	out.Tags = metadataapi.StringPtrMapToStringMap(h.Tags)
+	out.Tags = metadataapihelpers.StringPtrMapToStringMap(h.Tags)
 	if h.Properties != nil {
 		if h.Properties.ProvisioningState != nil {
 			out.Properties.ProvisioningState = coreapi.ProvisioningState(*h.Properties.ProvisioningState)
@@ -183,7 +198,7 @@ func (h *NodePool) ConvertToInternal(existing *coreapi.HCPOpenShiftClusterNodePo
 
 // preserveUnknownNodePoolFields copies customer-facing fields from existing that
 // this API version (2024-06-10-preview) doesn't know about.
-func preserveUnknownNodePoolFields(from, to *coreapi.HCPOpenShiftClusterNodePool) {
+func preserveUnknownNodePoolFields(from, to *coreapi.NodePool) {
 	// DiskType was added in v20251223preview.
 	to.Properties.Platform.OSDisk.DiskType = from.Properties.Platform.OSDisk.DiskType
 }
@@ -259,8 +274,8 @@ func newNodePoolVersionProfile(from *coreapi.NodePoolVersionProfile) generated.N
 		return generated.NodePoolVersionProfile{}
 	}
 	return generated.NodePoolVersionProfile{
-		ID:           metadataapi.PtrOrNil(from.ID),
-		ChannelGroup: metadataapi.PtrOrNil(from.ChannelGroup),
+		ID:           metadataapihelpers.PtrOrNil(from.ID),
+		ChannelGroup: metadataapihelpers.PtrOrNil(from.ChannelGroup),
 	}
 }
 
@@ -269,12 +284,12 @@ func newNodePoolPlatformProfile(from *coreapi.NodePoolPlatformProfile) generated
 		return generated.NodePoolPlatformProfile{}
 	}
 	return generated.NodePoolPlatformProfile{
-		VMSize:           metadataapi.PtrOrNil(from.VMSize),
-		AvailabilityZone: metadataapi.PtrOrNil(from.AvailabilityZone),
+		VMSize:           metadataapihelpers.PtrOrNil(from.VMSize),
+		AvailabilityZone: metadataapihelpers.PtrOrNil(from.AvailabilityZone),
 		// Use Ptr (not PtrOrNil) to ensure boolean is always present in JSON response, even when false
-		EnableEncryptionAtHost: metadataapi.Ptr(from.EnableEncryptionAtHost),
-		OSDisk:                 metadataapi.PtrOrNil(newOSDiskProfile(&from.OSDisk)),
-		SubnetID:               metadataapi.ResourceIDToStringPtr(from.SubnetID),
+		EnableEncryptionAtHost: metadataapihelpers.Ptr(from.EnableEncryptionAtHost),
+		OSDisk:                 metadataapihelpers.PtrOrNil(newOSDiskProfile(&from.OSDisk)),
+		SubnetID:               metadataapihelpers.ResourceIDToStringPtr(from.SubnetID),
 	}
 }
 
@@ -284,8 +299,8 @@ func newOSDiskProfile(from *coreapi.OSDiskProfile) generated.OsDiskProfile {
 	}
 	return generated.OsDiskProfile{
 		SizeGiB:                from.SizeGiB,
-		DiskStorageAccountType: metadataapi.PtrOrNil(generated.DiskStorageAccountType(from.DiskStorageAccountType)),
-		EncryptionSetID:        metadataapi.ResourceIDToStringPtr(from.EncryptionSetID),
+		DiskStorageAccountType: metadataapihelpers.PtrOrNil(generated.DiskStorageAccountType(from.DiskStorageAccountType)),
+		EncryptionSetID:        metadataapihelpers.ResourceIDToStringPtr(from.EncryptionSetID),
 	}
 }
 
@@ -294,15 +309,15 @@ func newNodePoolAutoScaling(from *coreapi.NodePoolAutoScaling) generated.NodePoo
 		return generated.NodePoolAutoScaling{}
 	}
 	return generated.NodePoolAutoScaling{
-		Max: metadataapi.PtrOrNil(from.Max),
-		Min: metadataapi.PtrOrNil(from.Min),
+		Max: metadataapihelpers.PtrOrNil(from.Max),
+		Min: metadataapihelpers.PtrOrNil(from.Min),
 	}
 }
 
-// NewHCPOpenShiftClusterNodePool converts an internal representation to this API version.
+// NewNodePool converts an internal representation to this API version.
 // If from is nil, returns a defaulted external object for use on the write path
 // where defaults are applied before unmarshaling the request body.
-func (v version) NewHCPOpenShiftClusterNodePool(from *coreapi.HCPOpenShiftClusterNodePool) coreapi.VersionedHCPOpenShiftClusterNodePool {
+func (v version) NewNodePool(from *coreapi.NodePool) coreapi.VersionedNodePool {
 	if from == nil {
 		ret := &NodePool{}
 		SetDefaultValuesNodePool(ret)
@@ -316,22 +331,22 @@ func (v version) NewHCPOpenShiftClusterNodePool(from *coreapi.HCPOpenShiftCluste
 
 	out := &NodePool{
 		generated.NodePool{
-			ID:         metadataapi.PtrOrNil(idString),
-			Name:       metadataapi.PtrOrNil(from.Name),
-			Type:       metadataapi.PtrOrNil(from.Type),
-			SystemData: metadataapi.PtrOrNil(newSystemData(from.SystemData)),
-			Location:   metadataapi.PtrOrNil(from.Location),
-			Tags:       metadataapi.StringMapToStringPtrMap(from.Tags),
+			ID:         metadataapihelpers.PtrOrNil(idString),
+			Name:       metadataapihelpers.PtrOrNil(from.Name),
+			Type:       metadataapihelpers.PtrOrNil(from.Type),
+			SystemData: metadataapihelpers.PtrOrNil(newSystemData(from.SystemData)),
+			Location:   metadataapihelpers.PtrOrNil(from.Location),
+			Tags:       metadataapihelpers.StringMapToStringPtrMap(from.Tags),
 			Properties: &generated.NodePoolProperties{
-				ProvisioningState: metadataapi.PtrOrNil(generated.ProvisioningState(from.Properties.ProvisioningState)),
-				Platform:          metadataapi.PtrOrNil(newNodePoolPlatformProfile(&from.Properties.Platform)),
-				Version:           metadataapi.PtrOrNil(newNodePoolVersionProfile(&from.Properties.Version)),
+				ProvisioningState: metadataapihelpers.PtrOrNil(generated.ProvisioningState(from.Properties.ProvisioningState)),
+				Platform:          metadataapihelpers.PtrOrNil(newNodePoolPlatformProfile(&from.Properties.Platform)),
+				Version:           metadataapihelpers.PtrOrNil(newNodePoolVersionProfile(&from.Properties.Version)),
 				// PtrOrNil retained for backward compatibility in this shipped API version.
 				// Note: AutoRepair=false is omitted from GET responses, causing GET-then-PUT
 				// data loss. Fixed in v20251223preview via Ptr. See docs/api-version-defaults-and-storage.md.
-				AutoRepair:              metadataapi.PtrOrNil(from.Properties.AutoRepair),
-				AutoScaling:             metadataapi.PtrOrNil(newNodePoolAutoScaling(from.Properties.AutoScaling)),
-				Replicas:                metadataapi.PtrOrNil(from.Properties.Replicas),
+				AutoRepair:              metadataapihelpers.PtrOrNil(from.Properties.AutoRepair),
+				AutoScaling:             metadataapihelpers.PtrOrNil(newNodePoolAutoScaling(from.Properties.AutoScaling)),
+				Replicas:                metadataapihelpers.PtrOrNil(from.Properties.Replicas),
 				NodeDrainTimeoutMinutes: from.Properties.NodeDrainTimeoutMinutes,
 			},
 			Identity: newManagedServiceIdentity(from.Identity),
@@ -343,8 +358,8 @@ func (v version) NewHCPOpenShiftClusterNodePool(from *coreapi.HCPOpenShiftCluste
 	}
 	for k, v := range from.Properties.Labels {
 		out.Properties.Labels = append(out.Properties.Labels, &generated.Label{
-			Key:   metadataapi.PtrOrNil(k),
-			Value: metadataapi.PtrOrNil(v),
+			Key:   metadataapihelpers.PtrOrNil(k),
+			Value: metadataapihelpers.PtrOrNil(v),
 		})
 	}
 
@@ -353,9 +368,9 @@ func (v version) NewHCPOpenShiftClusterNodePool(from *coreapi.HCPOpenShiftCluste
 	}
 	for _, t := range from.Properties.Taints {
 		out.Properties.Taints = append(out.Properties.Taints, &generated.Taint{
-			Effect: metadataapi.PtrOrNil(generated.Effect(t.Effect)),
-			Key:    metadataapi.PtrOrNil(t.Key),
-			Value:  metadataapi.PtrOrNil(t.Value),
+			Effect: metadataapihelpers.PtrOrNil(generated.Effect(t.Effect)),
+			Key:    metadataapihelpers.PtrOrNil(t.Key),
+			Value:  metadataapihelpers.PtrOrNil(t.Value),
 		})
 	}
 

@@ -20,6 +20,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/listerutils"
 )
 
@@ -49,21 +50,21 @@ func (l *controllerLister) List(ctx context.Context) ([]*coreapi.Controller, err
 }
 
 func (l *controllerLister) ListForResourceGroup(ctx context.Context, subscriptionName, resourceGroupName string) ([]*coreapi.Controller, error) {
-	key := coreapi.ToResourceGroupResourceIDString(subscriptionName, resourceGroupName)
+	key := coreapihelpers.ToResourceGroupResourceIDString(subscriptionName, resourceGroupName)
 	return listerutils.ListFromIndex[coreapi.Controller](l.indexer, ByResourceGroup, key)
 }
 
 func (l *controllerLister) ListForCluster(ctx context.Context, subscriptionName, resourceGroupName, clusterName string) ([]*coreapi.Controller, error) {
-	key := coreapi.ToClusterResourceIDString(subscriptionName, resourceGroupName, clusterName)
+	key := coreapihelpers.ToClusterResourceIDString(subscriptionName, resourceGroupName, clusterName)
 	return listerutils.ListFromIndex[coreapi.Controller](l.indexer, ByCluster, key)
 }
 
 func (l *controllerLister) ListForNodePool(ctx context.Context, subscriptionName, resourceGroupName, clusterName, nodePoolName string) ([]*coreapi.Controller, error) {
-	key := coreapi.ToNodePoolResourceIDString(subscriptionName, resourceGroupName, clusterName, nodePoolName)
+	key := coreapihelpers.ToNodePoolResourceIDString(subscriptionName, resourceGroupName, clusterName, nodePoolName)
 	return listerutils.ListFromIndex[coreapi.Controller](l.indexer, ByNodePool, key)
 }
 
 func (l *controllerLister) ListForExternalAuth(ctx context.Context, subscriptionName, resourceGroupName, clusterName, externalAuthName string) ([]*coreapi.Controller, error) {
-	key := coreapi.ToExternalAuthResourceIDString(subscriptionName, resourceGroupName, clusterName, externalAuthName)
+	key := coreapihelpers.ToExternalAuthResourceIDString(subscriptionName, resourceGroupName, clusterName, externalAuthName)
 	return listerutils.ListFromIndex[coreapi.Controller](l.indexer, ByExternalAuth, key)
 }

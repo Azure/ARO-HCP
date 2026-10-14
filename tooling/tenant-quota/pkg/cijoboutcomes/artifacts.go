@@ -24,14 +24,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/snapshot"
 )
 
-// Sippy is a discovery source, not a complete one: it reports that a run
-// happened and whether it passed, but not the clusters it provisioned, when it
-// finished, or how long each of its tests took. All of that is in the run's own
-// Prow artifacts, so the rows are completed from there.
-//
 // The artifact readers are hcpctl's - see tooling/hcpctl/pkg/snapshot - because
 // they already encode where each file lives, how the artifact directory is
 // named per job, and how test timing metadata is stitched onto test results.
@@ -40,7 +36,10 @@ import (
 // finishedJSONURL is the run's completion record, written by Prow itself rather
 // than by a test step. It is fetched directly because it needs none of the
 // artifact-directory discovery the other files do.
-const finishedJSONURL = "https://storage.googleapis.com/test-platform-results/%s/finished.json"
+const finishedJSONURL = "https://storage.googleapis.com/%s/%s/finished.json"
+
+var errArtifactNotFound = errors.New("artifact not found")
+var errArtifactMalformed = errors.New("artifact malformed")
 
 // prowFinished is the subset of finished.json that reaches Kusto.
 type prowFinished struct {
@@ -48,25 +47,20 @@ type prowFinished struct {
 	Result    string `json:"result"`
 }
 
-// runDetail is what a run's artifacts add to what Sippy already reported.
+// runDetail is optional enrichment, never evidence that a run has completed.
 type runDetail struct {
 	SvcCluster  string
 	MgmtCluster string
+	StartedAt   time.Time
 	FinishedAt  time.Time
-	Tests       []ciTestResult
-	Names       []ciTestName
+	ADOBuildID  string
 }
 
-// fetchRunDetail reads a single run's artifacts.
-//
-// Every field is optional and the returned detail carries whatever was
-// readable, even when the error is non-nil. Artifacts are written by steps that
-// can be skipped, time out, or be cut short when a run is aborted, so a run
-// whose test results are missing may still have yielded its cluster names.
-// Discarding those because a later read failed would lose data the caller can
-// still store.
-func fetchRunDetail(ctx context.Context, client *http.Client, prowURL string) (runDetail, error) {
+// fetchJobOutcomeDetail reads job enrichment only, independent of test sources.
+// Permanent enrichment absence leaves zero fields; transport failures are retried.
+func fetchJobOutcomeDetail(ctx context.Context, client *http.Client, prowURL string) (runDetail, error) {
 	var detail runDetail
+	ctx = utils.ContextWithLogger(ctx, utils.LoggerFromContext(ctx).WithValues("source", "job-outcome"))
 
 	info, err := snapshot.ParseProwURL(prowURL)
 	if err != nil {
@@ -75,78 +69,122 @@ func fetchRunDetail(ctx context.Context, client *http.Client, prowURL string) (r
 
 	var failures []error
 
+	detail, err = fetchProwRunMetadata(ctx, client, info.GCSBucket, info.GCSPrefix)
+	if err != nil {
+		failures = append(failures, err)
+	}
+
 	// Only runs that provision their own clusters have a config.yaml artifact.
 	// The rest resolve their configuration from the sdp-pipelines repository,
 	// which this collector has no checkout of - and their telemetry lives in
 	// their own environment's Kusto, so cluster names would join to nothing
 	// here anyway.
 	if info.IsPullRequest() {
-		jobConfig, err := snapshot.FetchProwJobConfig(ctx, info, "")
+		jobConfig, err := snapshot.FetchProwJobConfigStrict(ctx, client, info)
 		switch {
 		case err != nil:
 			failures = append(failures, fmt.Errorf("failed to read cluster names: %w", err))
-		default:
+		case jobConfig != nil:
 			detail.SvcCluster = jobConfig.ServiceClusterName
 			detail.MgmtCluster = jobConfig.ManagementClusterName
 		}
 	}
 
-	finishedAt, err := fetchFinishedAt(ctx, client, info.GCSPrefix)
-	if err != nil {
-		failures = append(failures, err)
-	} else {
-		detail.FinishedAt = finishedAt
-	}
-
-	results, err := snapshot.FetchProwJobTestResults(ctx, info)
-	if err != nil {
-		failures = append(failures, fmt.Errorf("failed to read test results: %w", err))
-	} else {
-		detail.Tests, detail.Names = testRowsFor(info.ProwID, results)
-	}
-
 	return detail, errors.Join(failures...)
 }
 
+func enrichmentError(ctx context.Context, err error) error {
+	if errors.Is(err, errArtifactNotFound) || errors.Is(err, errArtifactMalformed) {
+		utils.LoggerFromContext(ctx).Info("Artifact enrichment unavailable", "error", err)
+		reason := "malformed"
+		if errors.Is(err, errArtifactNotFound) {
+			reason = "absent"
+		}
+		snapshot.ReportProwArtifactProblem(ctx, "job", reason)
+		return nil
+	}
+	return err
+}
+
+// Source readers return nil slices for unavailable primary data and nonnil empty
+// slices for valid empty reports. Enrichment errors retain names, but not rows.
+func fetchE2ERows(ctx context.Context, client *http.Client, prowURL string) ([]ciTestResult, []ciTestName, error) {
+	ctx = utils.ContextWithLogger(ctx, utils.LoggerFromContext(ctx).WithValues("source", "e2e"))
+	info, err := snapshot.ParseProwURL(prowURL)
+	if err != nil {
+		return nil, nil, err
+	}
+	results, err := snapshot.FetchProwJobTestResultsStrict(ctx, client, info)
+	rows, names := testRowsFor(info.ProwID, results)
+	if err != nil {
+		return nil, names, err
+	}
+	return rows, names, nil
+}
+
 // fetchFinishedAt reads when the run completed.
-func fetchFinishedAt(ctx context.Context, client *http.Client, gcsPrefix string) (time.Time, error) {
-	return fetchFinishedAtFrom(ctx, client, fmt.Sprintf(finishedJSONURL, gcsPrefix))
+func fetchFinishedAt(ctx context.Context, client *http.Client, bucket, gcsPrefix string) (time.Time, error) {
+	return fetchFinishedAtFrom(ctx, client, fmt.Sprintf(finishedJSONURL, bucket, gcsPrefix))
 }
 
 func fetchFinishedAtFrom(ctx context.Context, client *http.Client, url string) (time.Time, error) {
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return time.Time{}, fmt.Errorf("failed to build request for %s: %w", url, err)
-	}
-
-	response, err := client.Do(request)
-	if err != nil {
-		return time.Time{}, fmt.Errorf("failed to fetch %s: %w", url, err)
-	}
-	defer func() { _ = response.Body.Close() }()
-
-	// A run still in progress has no finished.json. That is not an error: the
-	// next pass will find it once the run completes.
-	if response.StatusCode == http.StatusNotFound {
+	var finished prowFinished
+	err := fetchJSONArtifact(ctx, client, url, &finished)
+	// A run still in progress has no finished.json.
+	if errors.Is(err, errArtifactNotFound) {
+		snapshot.ReportProwArtifactProblem(ctx, "job", "absent")
 		return time.Time{}, nil
 	}
-	if response.StatusCode != http.StatusOK {
-		return time.Time{}, fmt.Errorf("unexpected status %d fetching %s", response.StatusCode, url)
-	}
-
-	body, err := io.ReadAll(response.Body)
 	if err != nil {
-		return time.Time{}, fmt.Errorf("failed to read %s: %w", url, err)
-	}
-
-	var finished prowFinished
-	if err := json.Unmarshal(body, &finished); err != nil {
-		return time.Time{}, fmt.Errorf("failed to parse %s: %w", url, err)
+		return time.Time{}, err
 	}
 	if finished.Timestamp <= 0 {
 		return time.Time{}, nil
 	}
 	return time.Unix(finished.Timestamp, 0).UTC(), nil
+}
+
+func fetchADOBuildID(ctx context.Context, client *http.Client, bucket, gcsPrefix string) (string, error) {
+	var job struct {
+		Metadata struct {
+			Annotations map[string]string `json:"annotations"`
+		} `json:"metadata"`
+	}
+	url := fmt.Sprintf("https://storage.googleapis.com/%s/%s/prowjob.json", bucket, gcsPrefix)
+	if err := fetchJSONArtifact(ctx, client, url, &job); err != nil {
+		return "", err
+	}
+	return job.Metadata.Annotations["ev2.rollout/build"], nil
+}
+
+func fetchJSONArtifact(ctx context.Context, client *http.Client, url string, into any) error {
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return fmt.Errorf("failed to build request for %s: %w", url, err)
+	}
+
+	response, err := client.Do(request)
+	if err != nil {
+		return fmt.Errorf("failed to fetch %s: %w", url, err)
+	}
+	defer func() { _ = response.Body.Close() }()
+
+	if response.StatusCode == http.StatusNotFound {
+		return fmt.Errorf("%w: %s", errArtifactNotFound, url)
+	}
+	if response.StatusCode != http.StatusOK {
+		return fmt.Errorf("unexpected status %d fetching %s", response.StatusCode, url)
+	}
+
+	body, err := io.ReadAll(response.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read %s: %w", url, err)
+	}
+
+	if err := json.Unmarshal(body, into); err != nil {
+		return fmt.Errorf("%w: failed to parse %s: %w", errArtifactMalformed, url, err)
+	}
+	return nil
 }
 
 // testRowsFor converts a run's test results into join rows and the distinct
@@ -155,11 +193,13 @@ func fetchFinishedAtFrom(ctx context.Context, client *http.Client, url string) (
 // Only tests that ran are kept. A suite skips a large share of its specs
 // depending on what the run exercises, and a skipped test has no timings and no
 // outcome to attribute, so recording them would roughly double the table to say
-// nothing. Sippy's own synthetic tests are dropped for the same reason they are
-// dropped from the failure counts: they describe Sippy, not the run.
+// nothing. Sippy's synthetic tests describe Sippy, not the run, and are dropped.
 func testRowsFor(buildID string, results []snapshot.TestResult) ([]ciTestResult, []ciTestName) {
-	var rows []ciTestResult
-	var names []ciTestName
+	if results == nil {
+		return nil, nil
+	}
+	rows := make([]ciTestResult, 0, len(results))
+	names := make([]ciTestName, 0, len(results))
 	seen := make(map[string]struct{}, len(results))
 
 	for _, result := range results {
@@ -181,6 +221,7 @@ func testRowsFor(buildID string, results []snapshot.TestResult) ([]ciTestResult,
 			TestID:           testID,
 			Result:           resultOf(result),
 			Failed:           result.Failed,
+			Message:          result.Error,
 			ResourceGroup:    result.ResourceGroup,
 			StartedAt:        result.StartTime.UTC(),
 			FinishedAt:       result.EndTime.UTC(),

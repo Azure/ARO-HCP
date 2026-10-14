@@ -48,7 +48,7 @@ func TestDesiredControlPlaneSizeSyncer_SyncOnce(t *testing.T) {
 	type setup struct {
 		specSize                   *string
 		statusSize                 *string
-		cluster                    *coreapi.HCPOpenShiftCluster
+		cluster                    *coreapi.Cluster
 		seedServiceProviderCluster bool
 		csProperties               map[string]string
 		csGetErr                   error
@@ -100,7 +100,7 @@ func TestDesiredControlPlaneSizeSyncer_SyncOnce(t *testing.T) {
 			setup: setup{
 				seedServiceProviderCluster: true,
 				specSize:                   &largeStr,
-				cluster: newTestCluster(testClusterName, func(c *coreapi.HCPOpenShiftCluster) {
+				cluster: newTestCluster(testClusterName, func(c *coreapi.Cluster) {
 					c.ServiceProviderProperties.ClusterServiceID = nil
 				}),
 			},
@@ -195,7 +195,7 @@ func TestDesiredControlPlaneSizeSyncer_SyncOnce(t *testing.T) {
 				seedServiceProviderCluster: true,
 				specSize:                   nil,
 				statusSize:                 &largeStr,
-				cluster: newTestCluster(testClusterName, func(c *coreapi.HCPOpenShiftCluster) {
+				cluster: newTestCluster(testClusterName, func(c *coreapi.Cluster) {
 					c.ServiceProviderProperties.ExperimentalFeatures.ControlPlanePodSizing = coreapi.MinimalControlPlanePodSizing
 				}),
 				csProperties: map[string]string{
@@ -252,7 +252,7 @@ func TestDesiredControlPlaneSizeSyncer_SyncOnce(t *testing.T) {
 			}
 			clusterLister := &corelistertesting.SliceClusterLister{}
 			if tc.cluster != nil {
-				clusterLister.Clusters = []*coreapi.HCPOpenShiftCluster{tc.cluster}
+				clusterLister.Clusters = []*coreapi.Cluster{tc.cluster}
 			}
 
 			mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)

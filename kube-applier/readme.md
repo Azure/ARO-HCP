@@ -78,7 +78,7 @@ or
 The per-container layout means an escape from one management cluster's pod cannot read
 or write another management cluster's *Desires — there is no shared container to leak
 through. Item IDs still nest cleanly into our existing resourceID structure, so
-queries like "every *Desire under this HCPOpenShiftCluster" remain a prefix scan.
+queries like "every *Desire under this Cluster" remain a prefix scan.
 
 ### Golang type details for Database
 The golang types live in `internal/database`.

@@ -27,6 +27,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -43,7 +44,7 @@ func TestExtraDeleteGateShouldDeleteServiceProviderClusterManagedResourceGroup(t
 		managedRGName     = "test-managed-rg"
 	)
 
-	managedResourceGroupID := metadataapi.Must(coreapi.ToResourceGroupResourceID(subscriptionID, managedRGName))
+	managedResourceGroupID := metadataapi.Must(coreapihelpers.ToResourceGroupResourceID(subscriptionID, managedRGName))
 	serviceProviderClusterResourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + subscriptionID +
 			"/resourceGroups/" + resourceGroupName +

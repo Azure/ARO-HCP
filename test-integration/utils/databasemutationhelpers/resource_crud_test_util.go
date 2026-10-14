@@ -19,17 +19,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/fs"
-	"net/http"
 	"sort"
 	"strconv"
 	"strings"
-	"sync/atomic"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
-
-	"k8s.io/apimachinery/pkg/util/wait"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
@@ -37,6 +32,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/test-integration/utils/integrationutils"
 )
@@ -153,53 +149,31 @@ func (tt *ResourceMutationTest) RunTest(t *testing.T) {
 
 	ctx := t.Context()
 	ctx, cancel := context.WithCancel(ctx)
-	frontendStarted := atomic.Bool{}
-	frontendErrCh := make(chan error, 1)
-	defer func() {
-		if frontendStarted.Load() {
-			require.NoError(t, <-frontendErrCh)
-		}
-	}()
-	adminAPIStarted := atomic.Bool{}
-	adminAPIErrCh := make(chan error, 1)
-	defer func() {
-		if adminAPIStarted.Load() {
-			require.NoError(t, <-adminAPIErrCh)
-		}
-	}()
 	defer cancel()
 	ctx = utils.ContextWithLogger(ctx, integrationutils.DefaultLogger(t))
-	logger := utils.LoggerFromContext(ctx)
 
 	testInfo, err := integrationutils.NewIntegrationTestInfoFromEnv(ctx, t, tt.withMock)
 	require.NoError(t, err)
 	cleanupCtx := context.Background()
 	cleanupCtx = utils.ContextWithLogger(cleanupCtx, integrationutils.DefaultLogger(t))
 	defer testInfo.Cleanup(cleanupCtx)
+	frontendErrCh := make(chan error, 1)
+	adminAPIErrCh := make(chan error, 1)
+	defer func() {
+		cancel()
+		frontendErr, adminErr := <-frontendErrCh, <-adminAPIErrCh
+		require.NoError(t, frontendErr)
+		require.NoError(t, adminErr)
+	}()
 	go func() {
-		frontendStarted.Store(true)
 		frontendErrCh <- testInfo.Frontend.Run(ctx)
 	}()
 	go func() {
-		adminAPIStarted.Store(true)
 		adminAPIErrCh <- testInfo.AdminAPI.Run(ctx)
 	}()
 
 	// wait for migration to complete to eliminate races with our test's second call migrateCosmos and to ensure the server is ready for testing
-	serverUrls := []string{testInfo.FrontendURL, testInfo.AdminURL}
-	err = wait.PollUntilContextCancel(ctx, 1*time.Second, true, func(ctx context.Context) (bool, error) {
-		for _, url := range serverUrls {
-			resp, err := http.Get(url)
-			if err != nil {
-				t.Log(err)
-				return false, nil
-			}
-			if err := resp.Body.Close(); err != nil {
-				logger.Error(err, "failed to close response body")
-			}
-		}
-		return true, nil
-	})
+	err = integrationutils.WaitForHTTPReady(ctx, testInfo.FrontendURL+"/healthz", testInfo.AdminURL+"/healthz/ready")
 	require.NoError(t, err)
 
 	stepInput := NewCosmosStepInput(testInfo)
@@ -213,6 +187,12 @@ func (tt *ResourceMutationTest) RunTest(t *testing.T) {
 		ctx := t.Context()
 		ctx = utils.ContextWithLogger(ctx, integrationutils.DefaultLogger(t))
 
+		// Pure storage tests may intentionally load malformed or duplicate ARM
+		// identities. Only HTTP admission steps need a converged inventory.
+		switch step.StepID().stepType {
+		case "httpCreate", "httpReplace", "httpPatch", "httpDelete":
+			require.NoError(t, testInfo.WaitForFrontendCaches(ctx), "cache convergence before step %s", step.StepID())
+		}
 		step.RunTest(ctx, t, *stepInput)
 	}
 }
@@ -500,6 +480,7 @@ type StepInput struct {
 	ContentLoader          integrationutils.ContentLoader
 	DocumentLister         integrationutils.DocumentLister
 	ResourcesDBClient      corecosmosstorage.ResourcesDBClient
+	FleetDBClient          fleetcosmosstorage.FleetDBClient
 	FrontendURL            string
 	AdminURL               string
 	APIVersion             string
@@ -543,5 +524,6 @@ func NewCosmosStepInput(storageInfo integrationutils.StorageIntegrationTestInfo)
 		ContentLoader:     storageInfo,
 		DocumentLister:    storageInfo,
 		ResourcesDBClient: storageInfo.ResourcesDBClient(),
+		FleetDBClient:     storageInfo.FleetDBClient(),
 	}
 }

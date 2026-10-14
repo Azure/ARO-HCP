@@ -383,7 +383,7 @@ func (c *fetchMSIIdentitiesInfoSyncer) SyncOnce(ctx context.Context, key control
 // the service managed identity that should be resolved via the Managed
 // Identities Data Plane. Control plane operator identities that share a resource
 // ID are de-duplicated so a shared identity is only fetched once.
-func (c *fetchMSIIdentitiesInfoSyncer) collectMSIBasedIdentitiesToFetch(cluster *coreapi.HCPOpenShiftCluster) (*msiBasedIdentitiesToFetch, error) {
+func (c *fetchMSIIdentitiesInfoSyncer) collectMSIBasedIdentitiesToFetch(cluster *coreapi.Cluster) (*msiBasedIdentitiesToFetch, error) {
 	identities := &msiBasedIdentitiesToFetch{}
 
 	// Multiple control plane operators may reference the same user-assigned

@@ -120,7 +120,7 @@ type NodeDetector interface {
 // its evidence, shipped and tested as code. The split is what keeps a detector
 // off the path it has nothing to say on, instead of a runtime check.
 var (
-	podRegistry  = []PodDetector{swiftVFTeardown}
+	podRegistry  = []PodDetector{swiftVFTeardown, cniPluginNotInitialized}
 	nodeRegistry = []NodeDetector{neverReady}
 )
 

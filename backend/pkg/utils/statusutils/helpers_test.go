@@ -28,6 +28,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
 )
 
 // buildController is a tiny helper for table cases. It produces a Controller
@@ -234,7 +235,7 @@ func TestCollectDegradedConditions_Desires(t *testing.T) {
 		return NewFirstObservedBadCache(clocktesting.NewFakePassiveClock(FixedNow))
 	}
 	applyName := func(name string) string {
-		return ApplyDesireSourcePrefix + kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(
+		return ApplyDesireSourcePrefix + kubeapplierapihelpers.ToClusterScopedApplyDesireResourceIDString(
 			TestSubscriptionID, TestResourceGroupName, TestClusterName, name)
 	}
 
@@ -291,7 +292,7 @@ func TestCollectDegradedConditions_Desires(t *testing.T) {
 			[]*kubeapplierapi.ReadDesire{ReadDesireUnder(clusterID, "rd", degraded)},
 			ConditionsOfKnown, ReadDesireSourcePrefix, newCache())
 		if assert.Len(t, got, 1) {
-			wantName := ReadDesireSourcePrefix + kubeapplierapi.ToClusterScopedReadDesireResourceIDString(
+			wantName := ReadDesireSourcePrefix + kubeapplierapihelpers.ToClusterScopedReadDesireResourceIDString(
 				TestSubscriptionID, TestResourceGroupName, TestClusterName, "rd")
 			assert.Equal(t, wantName, got[0].ControllerName)
 			assert.Equal(t, metav1.ConditionTrue, got[0].Condition.Status)
@@ -318,9 +319,9 @@ func TestCollectDegradedConditions_Desires(t *testing.T) {
 		if assert.Len(t, got, 2) {
 			names := []string{got[0].ControllerName, got[1].ControllerName}
 			assert.NotEqual(t, names[0], names[1], "same-named desires at different scopes must get distinct source names")
-			assert.Contains(t, names, ApplyDesireSourcePrefix+kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(
+			assert.Contains(t, names, ApplyDesireSourcePrefix+kubeapplierapihelpers.ToClusterScopedApplyDesireResourceIDString(
 				TestSubscriptionID, TestResourceGroupName, TestClusterName, "config"))
-			assert.Contains(t, names, ApplyDesireSourcePrefix+kubeapplierapi.ToNodePoolScopedApplyDesireResourceIDString(
+			assert.Contains(t, names, ApplyDesireSourcePrefix+kubeapplierapihelpers.ToNodePoolScopedApplyDesireResourceIDString(
 				TestSubscriptionID, TestResourceGroupName, TestClusterName, TestNodePoolName, "config"))
 		}
 	})

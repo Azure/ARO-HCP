@@ -16,6 +16,7 @@ package mismatch
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
@@ -26,11 +27,14 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/workqueue"
+	utilsclock "k8s.io/utils/clock"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
+	internalcontrollerutils "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
@@ -39,8 +43,24 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+const (
+	// deleteOrphanedCosmosSweepPeriod is how often every subscription is swept
+	// for orphaned documents.
+	deleteOrphanedCosmosSweepPeriod = 60 * time.Minute
+
+	// deleteOrphanedCosmosSweepSpreadPeriod is the window over which one sweep's
+	// subscriptions are enqueued. It is deliberately shorter than the sweep period
+	// so a sweep drains before the next one is kicked, even at the top of the
+	// ticker's jitter range.
+	deleteOrphanedCosmosSweepSpreadPeriod = 48 * time.Minute
+
+	deletionGraceOffset = 2 * deleteOrphanedCosmosSweepPeriod
+)
+
 type deleteOrphanedCosmosResources struct {
-	name string
+	internalcontrollerutils.CacheSyncWaiter
+	name  string
+	clock utilsclock.PassiveClock
 
 	subscriptionLister      corelisters.SubscriptionLister
 	managementClusterLister fleetlisters.ManagementClusterLister
@@ -52,6 +72,8 @@ type deleteOrphanedCosmosResources struct {
 	queue workqueue.TypedRateLimitingInterface[string]
 }
 
+const DeleteOrphanedCosmosResourcesControllerName = "DeleteOrphanedCosmosResources"
+
 // NewDeleteOrphanedCosmosResourcesController periodically looks for cosmos objs that don't have an
 // owning cluster and deletes them. The sweep covers two storage layers:
 //
@@ -60,15 +82,20 @@ type deleteOrphanedCosmosResources struct {
 //   - every kube-applier container in the configured KubeApplierDBClients (one container per
 //     management cluster). *Desire documents nest in resourceID space under a cluster or
 //     nodepool; we walk each MC's container and delete any desire whose parent isn't present
-//     in this subscription's resource map.
+//     in this subscription's resource map and is confirmed gone by a point read.
 func NewDeleteOrphanedCosmosResourcesController(
+	clock utilsclock.PassiveClock,
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	kubeApplierDBClients kubeappliercosmosstorage.KubeApplierDBClients,
 	subscriptionLister corelisters.SubscriptionLister,
 	managementClusterLister fleetlisters.ManagementClusterLister,
 ) controllerutils.Controller {
+	if clock == nil {
+		clock = utilsclock.RealClock{}
+	}
 	c := &deleteOrphanedCosmosResources{
-		name:                    "DeleteOrphanedCosmosResources",
+		name:                    DeleteOrphanedCosmosResourcesControllerName,
+		clock:                   clock,
 		subscriptionLister:      subscriptionLister,
 		managementClusterLister: managementClusterLister,
 		resourcesDBClient:       resourcesDBClient,
@@ -76,7 +103,7 @@ func NewDeleteOrphanedCosmosResourcesController(
 		queue: workqueue.NewTypedRateLimitingQueueWithConfig(
 			workqueue.DefaultTypedControllerRateLimiter[string](),
 			workqueue.TypedRateLimitingQueueConfig[string]{
-				Name: "DeleteOrphanedCosmosResources",
+				Name: DeleteOrphanedCosmosResourcesControllerName,
 			},
 		),
 	}
@@ -87,7 +114,7 @@ func NewDeleteOrphanedCosmosResourcesController(
 func (c *deleteOrphanedCosmosResources) synchronizeSubscription(ctx context.Context, subscription string) error {
 	logger := utils.LoggerFromContext(ctx)
 
-	subscriptionResourceID, err := coreapi.ToSubscriptionResourceID(subscription)
+	subscriptionResourceID, err := coreapihelpers.ToSubscriptionResourceID(subscription)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -95,16 +122,20 @@ func (c *deleteOrphanedCosmosResources) synchronizeSubscription(ctx context.Cont
 	if err != nil {
 		return utils.TrackError(err)
 	}
+	if untypedSubscriptionCRUD == nil {
+		logger.V(2).Info("resources client unavailable; skipping incomplete subscription sweep")
+		return nil
+	}
 	// nil options → all-pages iterator. A positive PageSizeHint switches to a
 	// single-page iterator with a continuation token we don't follow, which
 	// would silently truncate the resource set and let orphan checks miss
 	// live parents on later pages.
+	sweepStart := c.clock.Now()
 	subscriptionResourceIterator, err := untypedSubscriptionCRUD.ListRecursive(ctx, nil)
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
-	errs := []error{}
 	// while the number of items is large, but we can paginate through
 	allSubscriptionResourceIDs := map[string]*cosmosstorageutils.TypedDocument{}
 	for _, subscriptionResource := range subscriptionResourceIterator.Items(ctx) {
@@ -124,6 +155,58 @@ func (c *deleteOrphanedCosmosResources) synchronizeSubscription(ctx context.Cont
 	if err := subscriptionResourceIterator.GetError(); err != nil {
 		return utils.TrackError(err)
 	}
+
+	errs := []error{}
+	if err := c.sweepOrphanedResources(ctx, subscriptionResourceID, untypedSubscriptionCRUD, allSubscriptionResourceIDs, sweepStart); err != nil {
+		errs = append(errs, err)
+	}
+	err = c.sweepOrphanedDesires(ctx, subscriptionResourceID, allSubscriptionResourceIDs, sweepStart)
+	if err != nil {
+		errs = append(errs, err)
+	}
+	return errors.Join(errs...)
+}
+
+func orphanReferenceTime(document *cosmosstorageutils.TypedDocument) time.Time {
+	// Prefer creation time whenever the document provides it, regardless of resource type.
+	var resource coreapi.Resource
+	if err := json.Unmarshal(document.Properties, &resource); err == nil && resource.SystemData != nil && resource.SystemData.CreatedAt != nil {
+		return *resource.SystemData.CreatedAt
+	}
+	// Cosmos _ts >= creation time, so this crash-safe fallback can only delay
+	// deletion: it is strictly more conservative than checking creation time.
+	return time.Unix(int64(document.CosmosTimestamp), 0)
+}
+
+func canDeleteOrphan(
+	ctx context.Context,
+	allSubscriptionResourceIDs map[string]*cosmosstorageutils.TypedDocument,
+	document *cosmosstorageutils.TypedDocument,
+	sweepStart time.Time,
+) bool {
+	logger := utils.LoggerFromContext(ctx)
+	resourceID := document.ResourceID
+	if _, parentExists := allSubscriptionResourceIDs[strings.ToLower(resourceID.Parent.String())]; parentExists {
+		logger.V(2).Info("keeping document whose parent is in the snapshot")
+		return false
+	}
+	referenceTime := orphanReferenceTime(document)
+	if referenceTime.After(sweepStart.Add(-deletionGraceOffset)) {
+		logger.V(2).Info("keeping document newer than the sweep grace cutoff", "referenceTime", referenceTime.UTC(), "sweepStart", sweepStart.UTC())
+		return false
+	}
+	return true
+}
+
+func (c *deleteOrphanedCosmosResources) sweepOrphanedResources(
+	ctx context.Context,
+	subscriptionResourceID *azcorearm.ResourceID,
+	untypedSubscriptionCRUD cosmosstorageutils.UntypedResourceCRUD,
+	allSubscriptionResourceIDs map[string]*cosmosstorageutils.TypedDocument,
+	sweepStart time.Time,
+) error {
+	logger := utils.LoggerFromContext(ctx)
+	errs := []error{}
 
 	// longer strings are first, so we're guaranteed to see children before parents when we iterate
 	resourceIDStrings := sets.KeySet(allSubscriptionResourceIDs).UnsortedList()
@@ -154,29 +237,25 @@ func (c *deleteOrphanedCosmosResources) synchronizeSubscription(ctx context.Cont
 			continue
 		}
 
-		localLogger := logger.WithValues(
+		logger := logger.WithValues(
 			utils.LogValues{}.
 				AddCosmosResourceID(currResourceIDString).
 				AddLogValuesForResourceID(currResource.ResourceID)...)
-		ctxWithLocalLogger := utils.ContextWithLogger(ctx, localLogger) // setting so that other calls down the chain will show correctly in kusto for the delete
+		ctxWithLogger := utils.ContextWithLogger(ctx, logger) // setting so that other calls down the chain will show correctly in kusto for the delete
 
 		if currResource.ResourceID.Parent == nil {
 			// this is an unexpected state, so we'll log it and hope it is rare.
-			localLogger.Error(nil, "cosmos resource has no parent", "cosmosResourceID", currResourceIDString)
+			logger.Error(nil, "cosmos resource has no parent", "cosmosResourceID", currResourceIDString)
 			continue
 		}
-		_, parentExists := allSubscriptionResourceIDs[strings.ToLower(currResource.ResourceID.Parent.String())]
-		if !parentExists {
-			localLogger.Info("deleting orphaned cosmos resource by cosmos ID")
-			if err := untypedSubscriptionCRUD.DeleteByCosmosID(ctxWithLocalLogger, currResource.PartitionKey, currResource.ID); err != nil {
-				localLogger.Error(err, "unable to delete orphaned cosmos resource") // logged here so we emit a log line with a filterable context.
+		if canDeleteOrphan(ctxWithLogger, allSubscriptionResourceIDs, currResource, sweepStart) {
+			logger.Info("deleting orphaned cosmos resource by cosmos ID")
+			if err := untypedSubscriptionCRUD.DeleteByCosmosID(ctxWithLogger, currResource.PartitionKey, currResource.ID); err != nil {
+				logger.Error(err, "unable to delete orphaned cosmos resource") // logged here so we emit a log line with a filterable context.
 				errs = append(errs, utils.TrackError(fmt.Errorf("unable to delete %v in %v: %w", currResourceIDString, currResource.ResourceID.Parent.String(), err)))
+				continue
 			}
 		}
-	}
-
-	if err := c.sweepOrphanedDesires(ctx, subscriptionResourceID, allSubscriptionResourceIDs); err != nil {
-		errs = append(errs, err)
 	}
 
 	return errors.Join(errs...)
@@ -185,7 +264,14 @@ func (c *deleteOrphanedCosmosResources) synchronizeSubscription(ctx context.Cont
 // sweepOrphanedDesires walks every configured management cluster's kube-applier container
 // for *Desire documents nested under this subscription and deletes any whose parent (the
 // cluster or nodepool the *Desire is scoped to) is no longer present in
-// allSubscriptionResourceIDs.
+// allSubscriptionResourceIDs, provided the desire is older than the sweep grace cutoff.
+//
+// allSubscriptionResourceIDs is listed once at the start of the sweep, and the rate-limited
+// resource deletes that run before this function can leave it tens of minutes old by the time
+// desires are listed. Any cluster created in that window has desires but no entry in the map,
+// so a map miss alone does not prove the parent is gone. Deleting a live cluster's desires
+// stops the kube-applier from reconciling them and lets the cluster-deletion teardown chain
+// skip ahead (for example, to namespace deletion before the HostedCluster is finalized).
 //
 // In the per-management-cluster container model, the controller cannot use a single client
 // to span all *Desires — it iterates the management clusters from the lister and looks up
@@ -196,6 +282,7 @@ func (c *deleteOrphanedCosmosResources) sweepOrphanedDesires(
 	ctx context.Context,
 	subscriptionResourceID *azcorearm.ResourceID,
 	allSubscriptionResourceIDs map[string]*cosmosstorageutils.TypedDocument,
+	sweepStart time.Time,
 ) error {
 	logger := utils.LoggerFromContext(ctx)
 
@@ -210,17 +297,21 @@ func (c *deleteOrphanedCosmosResources) sweepOrphanedDesires(
 		if mcResourceID == nil {
 			continue
 		}
-		mcLogger := logger.WithValues("managementCluster", strings.ToLower(mcResourceID.String()))
+		logger := logger.WithValues("managementCluster", strings.ToLower(mcResourceID.String()))
 
 		client := c.kubeApplierDBClients.For(ctx, mcResourceID)
 		if client == nil {
-			mcLogger.Error(nil, "no kube-applier client configured for management cluster; skipping")
+			logger.V(2).Info("kube-applier client unavailable; skipping incomplete container scan")
 			continue
 		}
 
 		desireCRUD, err := client.UntypedCRUD(*subscriptionResourceID)
 		if err != nil {
 			errs = append(errs, utils.TrackError(err))
+			continue
+		}
+		if desireCRUD == nil {
+			logger.V(2).Info("untyped kube-applier client unavailable; skipping incomplete container scan")
 			continue
 		}
 		desireIterator, err := desireCRUD.ListRecursive(ctx, nil)
@@ -231,7 +322,7 @@ func (c *deleteOrphanedCosmosResources) sweepOrphanedDesires(
 
 		for _, desire := range desireIterator.Items(ctx) {
 			if desire.ResourceID == nil {
-				localLogger := mcLogger.WithValues(utils.LogValues{}.AddCosmosResourceID(desire.CosmosResourceID))
+				localLogger := logger.WithValues(utils.LogValues{}.AddCosmosResourceID(desire.CosmosResourceID))
 				localLogger.Error(errors.New("kube-applier document has no resource ID"), "deleting invalid document by cosmos ID")
 				ctxWithLocalLogger := utils.ContextWithLogger(ctx, localLogger)
 				if err := desireCRUD.DeleteByCosmosID(ctxWithLocalLogger, desire.PartitionKey, desire.ID); err != nil {
@@ -241,27 +332,28 @@ func (c *deleteOrphanedCosmosResources) sweepOrphanedDesires(
 				continue
 			}
 			if desire.ResourceID.Parent == nil {
-				localLogger := mcLogger.WithValues(utils.LogValues{}.AddCosmosResourceID(desire.ResourceID.String()))
+				localLogger := logger.WithValues(utils.LogValues{}.AddCosmosResourceID(desire.ResourceID.String()))
 				localLogger.Error(nil, "kube-applier desire has no parent in its resource ID")
 				continue
 			}
 
 			desireResourceIDString := strings.ToLower(desire.ResourceID.String())
-			localLogger := mcLogger.WithValues(
+			logger := logger.WithValues(
 				utils.LogValues{}.
 					AddCosmosResourceID(desireResourceIDString).
 					AddLogValuesForResourceID(desire.ResourceID)...)
-			ctxWithLocalLogger := utils.ContextWithLogger(ctx, localLogger)
+			ctxWithLogger := utils.ContextWithLogger(ctx, logger)
 
-			if _, parentExists := allSubscriptionResourceIDs[strings.ToLower(desire.ResourceID.Parent.String())]; parentExists {
+			if !canDeleteOrphan(ctxWithLogger, allSubscriptionResourceIDs, desire, sweepStart) {
 				continue
 			}
 
-			localLogger.Info("deleting orphaned kube-applier desire by cosmos ID",
+			logger.Info("deleting orphaned kube-applier desire by cosmos ID",
 				"partitionKey", desire.PartitionKey)
-			if err := desireCRUD.DeleteByCosmosID(ctxWithLocalLogger, desire.PartitionKey, desire.ID); err != nil {
-				localLogger.Error(err, "unable to delete orphaned kube-applier desire")
+			if err := desireCRUD.DeleteByCosmosID(ctxWithLogger, desire.PartitionKey, desire.ID); err != nil {
+				logger.Error(err, "unable to delete orphaned kube-applier desire")
 				errs = append(errs, utils.TrackError(fmt.Errorf("unable to delete desire %v under missing parent %v: %w", desireResourceIDString, desire.ResourceID.Parent.String(), err)))
+				continue
 			}
 		}
 		if err := desireIterator.GetError(); err != nil {
@@ -294,9 +386,26 @@ func (c *deleteOrphanedCosmosResources) queueAllSubscriptions(ctx context.Contex
 	allSubscriptions, err := c.subscriptionLister.List(ctx)
 	if err != nil {
 		logger.Error(err, "unable to list subscriptions")
+		return
 	}
-	for _, subscription := range allSubscriptions {
-		c.queue.Add(subscription.ResourceID.SubscriptionID)
+	if len(allSubscriptions) == 0 {
+		return
+	}
+
+	// Each subscription costs 1 + N_managementClusters single-partition scans, so
+	// enqueuing every subscription at once drives a RU spike that exceeds the
+	// container's provisioned ceiling and throttles unrelated controllers sharing
+	// the budget. Spread the sweep across deleteOrphanedCosmosSweepSpreadPeriod so
+	// the same work is paced instead of bursted; the sweep still completes within
+	// deleteOrphanedCosmosSweepPeriod.
+	spread := deleteOrphanedCosmosSweepSpreadPeriod / time.Duration(len(allSubscriptions))
+	logger.Info("queueing subscription sweep",
+		"subscriptions", len(allSubscriptions),
+		"spreadPerSubscription", spread,
+		"sweepSpreadPeriod", deleteOrphanedCosmosSweepSpreadPeriod,
+	)
+	for i, subscription := range allSubscriptions {
+		c.queue.AddAfter(subscription.ResourceID.SubscriptionID, time.Duration(i)*spread)
 	}
 }
 
@@ -305,6 +414,10 @@ func (c *deleteOrphanedCosmosResources) Run(ctx context.Context, threadiness int
 	defer utilruntime.HandleCrash()
 	// make sure the work queue is shutdown which will trigger workers to end
 	defer c.queue.ShutDown()
+
+	if !c.WaitForCacheSync(ctx) {
+		return
+	}
 
 	ctx = utils.ContextWithControllerName(ctx, c.name)
 	logger := utils.LoggerFromContext(ctx)
@@ -320,7 +433,12 @@ func (c *deleteOrphanedCosmosResources) Run(ctx context.Context, threadiness int
 		go wait.UntilWithContext(ctx, c.runWorker, time.Second)
 	}
 
-	go wait.JitterUntilWithContext(ctx, c.queueAllSubscriptions, 60*time.Minute, 0.1, true)
+	// immediate=false: every pod restart (rollout, HPA scale, OOMKill) would otherwise
+	// trigger a full sweep at t=0 on every replica simultaneously, which is what turned
+	// a rollout into a Cosmos RU exhaustion event. The trade-off is that the first sweep
+	// after a restart is deferred by one jittered period; that is acceptable for
+	// best-effort garbage collection with no latency SLO.
+	go wait.JitterUntilWithContext(ctx, c.queueAllSubscriptions, deleteOrphanedCosmosSweepPeriod, 0.1, false)
 
 	logger.Info("Started workers")
 

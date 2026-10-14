@@ -25,6 +25,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
@@ -33,6 +34,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -224,6 +226,17 @@ func convertEnableEncryptionAtHostToCSBuilder(in coreapi.NodePoolPlatformProfile
 	return arohcpv1alpha1.NewAzureNodePoolEncryptionAtHost().State(state)
 }
 
+func buildCSOsDisk(osDisk coreapi.OSDiskProfile, storageAccountType, persistence string) *arohcpv1alpha1.AzureNodePoolOsDiskBuilder {
+	builder := arohcpv1alpha1.NewAzureNodePoolOsDisk().
+		SizeGibibytes(int(*osDisk.SizeGiB)).
+		StorageAccountType(storageAccountType).
+		Persistence(persistence)
+	if osDisk.EncryptionSetID != nil {
+		builder.SseEncryptionSetResourceId(osDisk.EncryptionSetID.String())
+	}
+	return builder
+}
+
 func convertClusterImageRegistryStateRPToCS(in coreapi.ClusterImageRegistryProfile) (string, error) {
 	switch in.State {
 	case metadataapi.ClusterImageRegistryStateDisabled:
@@ -296,24 +309,78 @@ func convertEtcdRPToCS(in coreapi.EtcdProfile, activeKeyBuilder *arohcpv1alpha1.
 			EncryptionType(encryptionType)
 
 		if in.DataEncryption.CustomerManaged.Kms != nil {
+			kms := in.DataEncryption.CustomerManaged.Kms
 			activeKeyBuilder.
-				KeyName(in.DataEncryption.CustomerManaged.Kms.ActiveKey.Name).
-				KeyVaultName(in.DataEncryption.CustomerManaged.Kms.ActiveKey.VaultName)
+				KeyName(kms.ActiveKey.Name).
+				KeyVaultName(kms.ActiveKey.VaultName)
 			azureKmsEncryptionBuilder := arohcpv1alpha1.NewAzureKmsEncryption().ActiveKey(activeKeyBuilder)
 
-			if len(in.DataEncryption.CustomerManaged.Kms.Visibility) != 0 {
-				visibility, err := convertKeyVaultVisibilityRPToCS(in.DataEncryption.CustomerManaged.Kms.Visibility)
+			if len(kms.Visibility) != 0 {
+				visibility, err := convertKeyVaultVisibilityRPToCS(kms.Visibility)
 				if err != nil {
 					return nil, err
 				}
 				azureKmsEncryptionBuilder.Visibility(visibility)
 			}
 
+			keyVaultType, err := convertKmsKeyVaultTypeRPToCS(kms.KeyVaultType)
+			if err != nil {
+				return nil, err
+			}
+			azureKmsEncryptionBuilder.KeyVaultType(keyVaultType)
+
 			azureEtcdDataEncryptionCustomerManagedBuilder.Kms(azureKmsEncryptionBuilder)
 		}
 		azureEtcdDataEncryptionBuilder.CustomerManaged(azureEtcdDataEncryptionCustomerManagedBuilder)
 	}
 	return arohcpv1alpha1.NewAzureEtcdEncryption().DataEncryption(azureEtcdDataEncryptionBuilder), nil
+}
+
+func convertKmsKeyVaultTypeRPToCS(vaultType string) (arohcpv1alpha1.AzureKmsEncryptionKeyVaultType, error) {
+	switch vaultType {
+	case "", coreapi.KmsKeyVaultTypeKeyVault:
+		return arohcpv1alpha1.AzureKmsEncryptionKeyVaultTypeKeyVault, nil
+	case coreapi.KmsKeyVaultTypeManagedHSM:
+		return arohcpv1alpha1.AzureKmsEncryptionKeyVaultTypeManagedHsm, nil
+	default:
+		return "", conversionError[arohcpv1alpha1.AzureKmsEncryptionKeyVaultType](vaultType)
+	}
+}
+
+func convertContainerRegistryPullCredentialsToCS(resourceID *azcorearm.ResourceID) *arohcpv1alpha1.AzureContainerRegistryBuilder {
+	if resourceID == nil {
+		return nil
+	}
+	return arohcpv1alpha1.NewAzureContainerRegistry().
+		Credentials(arohcpv1alpha1.NewAzureContainerRegistryCredentials().
+			Type(arohcpv1alpha1.AzureContainerRegistryCredentialTypeManagedIdentity).
+			ManagedIdentity(arohcpv1alpha1.NewAzureUserAssignedManagedIdentity().
+				ResourceID(resourceID.String())))
+}
+
+// ConvertCSContainerRegistryPullCredentialsToRP converts a CS Azure container registry to a flat *azcorearm.ResourceID.
+func ConvertCSContainerRegistryPullCredentialsToRP(csAzure *arohcpv1alpha1.Azure) (*azcorearm.ResourceID, error) {
+	if csAzure == nil {
+		return nil, nil
+	}
+	cr := csAzure.ContainerRegistry()
+	if cr == nil {
+		return nil, nil
+	}
+	creds := cr.Credentials()
+	if creds == nil {
+		return nil, nil
+	}
+	mi, ok := creds.GetManagedIdentity()
+	if !ok {
+		return nil, nil
+	}
+
+	parsed, err := azcorearm.ParseResourceID(mi.ResourceID())
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse container registry pull managed identity resource ID %q: %w", mi.ResourceID(), err)
+	}
+	return parsed, nil
 }
 
 func convertCIDRBlockAllowAccessRPToCS(in coreapi.CustomerAPIProfile) (*arohcpv1alpha1.CIDRBlockAccessBuilder, error) {
@@ -403,11 +470,11 @@ func convertImageDigestMirrorsToCSBuilder(in []coreapi.ImageDigestMirror) []*aro
 	return builders
 }
 
-// BuildCSCluster creates a CS ClusterBuilder object from an HCPOpenShiftCluster object.
+// BuildCSCluster creates a CS ClusterBuilder object from a Cluster object.
 // requiredProperties are caller-specified properties (e.g. provision shard, noop flags).
 // oldClusterServiceCluster, if non-nil, indicates an update and its existing properties
 // are preserved as a base layer.
-func BuildCSCluster(resourceID *azcorearm.ResourceID, tenantID string, hcpCluster *coreapi.HCPOpenShiftCluster, requiredProperties map[string]string, oldClusterServiceCluster *arohcpv1alpha1.Cluster, serviceProviderCluster *coreapi.ServiceProviderCluster) (*arohcpv1alpha1.ClusterBuilder, error) {
+func BuildCSCluster(resourceID *azcorearm.ResourceID, tenantID string, cluster *coreapi.Cluster, requiredProperties map[string]string, oldClusterServiceCluster *arohcpv1alpha1.Cluster, serviceProviderCluster *coreapi.ServiceProviderCluster) (*arohcpv1alpha1.ClusterBuilder, error) {
 	var err error
 
 	clusterBuilder := arohcpv1alpha1.NewCluster()
@@ -418,27 +485,27 @@ func BuildCSCluster(resourceID *azcorearm.ResourceID, tenantID string, hcpCluste
 
 	// These attributes cannot be updated after cluster creation.
 	if oldClusterServiceCluster == nil {
-		csVersionID, err := clusterCSVersionID(serviceProviderCluster, hcpCluster)
+		csVersionID, err := clusterCSVersionID(serviceProviderCluster, cluster)
 		if err != nil {
 			return nil, err
 		}
-		clusterBuilder, azureBuilder, err = withImmutableAttributes(clusterBuilder, hcpCluster,
+		clusterBuilder, azureBuilder, err = withImmutableAttributes(clusterBuilder, cluster,
 			resourceID.SubscriptionID,
 			resourceID.ResourceGroupName,
 			tenantID,
-			hcpCluster.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL,
+			cluster.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL,
 			csVersionID,
 		)
 		if err != nil {
 			return nil, err
 		}
-		apiListening, err := convertVisibilityToListening(hcpCluster.CustomerProperties.API.Visibility)
+		apiListening, err := convertVisibilityToListening(cluster.CustomerProperties.API.Visibility)
 		if err != nil {
 			return nil, err
 		}
 		clusterAPIBuilder.Listening(apiListening)
 
-		ingressListening, err := convertIngressTypeToListening(hcpCluster.CustomerProperties.Ingress.Type)
+		ingressListening, err := convertIngressTypeToListening(cluster.CustomerProperties.Ingress.Type)
 		if err != nil {
 			return nil, err
 		}
@@ -446,7 +513,7 @@ func BuildCSCluster(resourceID *azcorearm.ResourceID, tenantID string, hcpCluste
 			arohcpv1alpha1.NewIngress().Default(true).Listening(ingressListening),
 		))
 
-		etcdEncryption, err := convertEtcdRPToCS(hcpCluster.CustomerProperties.Etcd, clusterKMSActiveKeyBuilder)
+		etcdEncryption, err := convertEtcdRPToCS(cluster.CustomerProperties.Etcd, clusterKMSActiveKeyBuilder)
 		if err != nil {
 			return nil, err
 		}
@@ -467,7 +534,16 @@ func BuildCSCluster(resourceID *azcorearm.ResourceID, tenantID string, hcpCluste
 		properties[k] = v
 	}
 
-	clusterUpdateDispatchConfig := clusterUpdateDispatchConfigFromRP(hcpCluster, serviceProviderCluster)
+	clusterUpdateDispatchConfig := clusterUpdateDispatchConfigFromRP(cluster, serviceProviderCluster)
+
+	// Signal applyToCSBuilders to send the empty-string clearing value to CS.
+	if oldClusterServiceCluster != nil &&
+		clusterUpdateDispatchConfig.ContainerRegistryPullManagedIdentityResourceID == nil &&
+		oldClusterServiceCluster.Azure() != nil &&
+		oldClusterServiceCluster.Azure().ContainerRegistry() != nil {
+		clusterUpdateDispatchConfig.ContainerRegistryPullManagedIdentityResourceID = to.Ptr("")
+	}
+
 	err = clusterUpdateDispatchConfig.applyToCSBuilders(clusterBuilder, clusterAPIBuilder, azureBuilder, clusterKMSActiveKeyBuilder, properties)
 	if err != nil {
 		return nil, err
@@ -478,11 +554,11 @@ func BuildCSCluster(resourceID *azcorearm.ResourceID, tenantID string, hcpCluste
 
 // clusterCSVersionID returns the OpenShift version ID for a new Cluster Service cluster
 // from ServiceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion.
-func clusterCSVersionID(serviceProviderCluster *coreapi.ServiceProviderCluster, hcpCluster *coreapi.HCPOpenShiftCluster) (string, error) {
+func clusterCSVersionID(serviceProviderCluster *coreapi.ServiceProviderCluster, cluster *coreapi.Cluster) (string, error) {
 	if serviceProviderCluster == nil || serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion == nil {
 		return "", fmt.Errorf("control plane desired version is not set on the ServiceProviderCluster")
 	}
-	channelGroup := hcpCluster.CustomerProperties.Version.ChannelGroup
+	channelGroup := cluster.CustomerProperties.Version.ChannelGroup
 	return NewOpenShiftVersionXYZ(serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion.String(), channelGroup), nil
 }
 
@@ -513,25 +589,25 @@ func ConvertHostedClusterSizeOverrideToCS(desiredClusterControlPlanePodSizing co
 	return "", false
 }
 
-func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpCluster *coreapi.HCPOpenShiftCluster, subscriptionID, resourceGroupName, tenantID, identityURL, csVersionID string) (*arohcpv1alpha1.ClusterBuilder, *arohcpv1alpha1.AzureBuilder, error) {
-	clusterImageRegistryState, err := convertClusterImageRegistryStateRPToCS(hcpCluster.CustomerProperties.ClusterImageRegistry)
+func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, cluster *coreapi.Cluster, subscriptionID, resourceGroupName, tenantID, identityURL, csVersionID string) (*arohcpv1alpha1.ClusterBuilder, *arohcpv1alpha1.AzureBuilder, error) {
+	clusterImageRegistryState, err := convertClusterImageRegistryStateRPToCS(cluster.CustomerProperties.ClusterImageRegistry)
 	if err != nil {
 		return nil, nil, err
 	}
-	outboundType, err := convertOutboundTypeRPToCS(hcpCluster.CustomerProperties.Platform.OutboundType)
+	outboundType, err := convertOutboundTypeRPToCS(cluster.CustomerProperties.Platform.OutboundType)
 	if err != nil {
 		return nil, nil, err
 	}
-	fips, err := convertCryptoRestrictionsToCS(hcpCluster.CustomerProperties.CryptoRestrictions)
+	fips, err := convertCryptoRestrictionsToCS(cluster.CustomerProperties.CryptoRestrictions)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	clusterBuilder.
-		ID(hcpCluster.ServiceProviderProperties.PendingClusterServiceID.ClusterID()).
-		Name(strings.ToLower(hcpCluster.Name)).
+		ID(cluster.ServiceProviderProperties.PendingClusterServiceID.ClusterID()).
+		Name(strings.ToLower(cluster.Name)).
 		Region(arohcpv1alpha1.NewCloudRegion().
-			ID(hcpCluster.Location)).
+			ID(cluster.Location)).
 		CloudProvider(arohcpv1alpha1.NewCloudProvider().
 			ID(CSCloudProvider)).
 		Product(arohcpv1alpha1.NewProduct().
@@ -541,13 +617,13 @@ func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpC
 		CCS(arohcpv1alpha1.NewCCS().Enabled(csCCSEnabled)).
 		Version(arohcpv1alpha1.NewVersion().
 			ID(csVersionID).
-			ChannelGroup(hcpCluster.CustomerProperties.Version.ChannelGroup)).
+			ChannelGroup(cluster.CustomerProperties.Version.ChannelGroup)).
 		Network(arohcpv1alpha1.NewNetwork().
-			Type(string(hcpCluster.CustomerProperties.Network.NetworkType)).
-			PodCIDR(hcpCluster.CustomerProperties.Network.PodCIDR).
-			ServiceCIDR(hcpCluster.CustomerProperties.Network.ServiceCIDR).
-			MachineCIDR(hcpCluster.CustomerProperties.Network.MachineCIDR).
-			HostPrefix(int(hcpCluster.CustomerProperties.Network.HostPrefix))).
+			Type(string(cluster.CustomerProperties.Network.NetworkType)).
+			PodCIDR(cluster.CustomerProperties.Network.PodCIDR).
+			ServiceCIDR(cluster.CustomerProperties.Network.ServiceCIDR).
+			MachineCIDR(cluster.CustomerProperties.Network.MachineCIDR).
+			HostPrefix(int(cluster.CustomerProperties.Network.HostPrefix))).
 		ImageRegistry(arohcpv1alpha1.NewClusterImageRegistry().
 			State(clusterImageRegistryState)).
 		FIPS(fips)
@@ -555,29 +631,29 @@ func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpC
 		TenantID(tenantID).
 		SubscriptionID(strings.ToLower(subscriptionID)).
 		ResourceGroupName(strings.ToLower(resourceGroupName)).
-		ResourceName(strings.ToLower(hcpCluster.Name)).
-		ManagedResourceGroupName(hcpCluster.CustomerProperties.Platform.ManagedResourceGroup).
-		SubnetResourceID(hcpCluster.CustomerProperties.Platform.SubnetID.String()).
+		ResourceName(strings.ToLower(cluster.Name)).
+		ManagedResourceGroupName(cluster.CustomerProperties.Platform.ManagedResourceGroup).
+		SubnetResourceID(cluster.CustomerProperties.Platform.SubnetID.String()).
 		NodesOutboundConnectivity(arohcpv1alpha1.NewAzureNodesOutboundConnectivity().
 			OutboundType(outboundType))
 
 	// Cluster Service rejects an empty NetworkSecurityGroupResourceID string.
-	if hcpCluster.CustomerProperties.Platform.NetworkSecurityGroupID != nil {
-		azureBuilder.NetworkSecurityGroupResourceID(hcpCluster.CustomerProperties.Platform.NetworkSecurityGroupID.String())
+	if cluster.CustomerProperties.Platform.NetworkSecurityGroupID != nil {
+		azureBuilder.NetworkSecurityGroupResourceID(cluster.CustomerProperties.Platform.NetworkSecurityGroupID.String())
 	}
 
 	// Cluster Service rejects an empty VnetIntegrationSubnetResourceID string.
-	if hcpCluster.CustomerProperties.Platform.VnetIntegrationSubnetID != nil {
-		azureBuilder.VnetIntegrationSubnetResourceID(hcpCluster.CustomerProperties.Platform.VnetIntegrationSubnetID.String())
+	if cluster.CustomerProperties.Platform.VnetIntegrationSubnetID != nil {
+		azureBuilder.VnetIntegrationSubnetResourceID(cluster.CustomerProperties.Platform.VnetIntegrationSubnetID.String())
 	}
 
 	controlPlaneOperators := make(map[string]*arohcpv1alpha1.AzureControlPlaneManagedIdentityBuilder)
-	for operatorName, identityResourceID := range hcpCluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators {
+	for operatorName, identityResourceID := range cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators {
 		controlPlaneOperators[operatorName] = arohcpv1alpha1.NewAzureControlPlaneManagedIdentity().ResourceID(identityResourceID.String())
 	}
 
 	dataPlaneOperators := make(map[string]*arohcpv1alpha1.AzureDataPlaneManagedIdentityBuilder)
-	for operatorName, identityResourceID := range hcpCluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators {
+	for operatorName, identityResourceID := range cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators {
 		dataPlaneOperators[operatorName] = arohcpv1alpha1.NewAzureDataPlaneManagedIdentity().ResourceID(identityResourceID.String())
 	}
 
@@ -586,23 +662,27 @@ func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpC
 		ControlPlaneOperatorsManagedIdentities(controlPlaneOperators).
 		DataPlaneOperatorsManagedIdentities(dataPlaneOperators)
 
-	if hcpCluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity != nil {
+	if cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity != nil {
 		managedIdentitiesBuilder.ServiceManagedIdentity(arohcpv1alpha1.NewAzureServiceManagedIdentity().
-			ResourceID(hcpCluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity.String()))
+			ResourceID(cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity.String()))
 	}
 
 	azureBuilder.OperatorsAuthentication(arohcpv1alpha1.NewAzureOperatorsAuthentication().ManagedIdentities(managedIdentitiesBuilder))
 
+	if containerRegistryBuilder := convertContainerRegistryPullCredentialsToCS(cluster.CustomerProperties.Platform.ContainerRegistry.PullManagedIdentity); containerRegistryBuilder != nil {
+		azureBuilder.ContainerRegistry(containerRegistryBuilder)
+	}
+
 	// Cluster Service rejects an empty DomainPrefix string.
-	if hcpCluster.CustomerProperties.DNS.BaseDomainPrefix != "" {
-		clusterBuilder.DomainPrefix(hcpCluster.CustomerProperties.DNS.BaseDomainPrefix)
+	if cluster.CustomerProperties.DNS.BaseDomainPrefix != "" {
+		clusterBuilder.DomainPrefix(cluster.CustomerProperties.DNS.BaseDomainPrefix)
 	}
 
 	return clusterBuilder, azureBuilder, nil
 }
 
-// BuildCSNodePool creates a CS NodePoolBuilder object from an HCPOpenShiftClusterNodePool object.
-func BuildCSNodePool(ctx context.Context, nodePool *coreapi.HCPOpenShiftClusterNodePool, updating bool) (*arohcpv1alpha1.NodePoolBuilder, error) {
+// BuildCSNodePool creates a CS NodePoolBuilder object from a NodePool object.
+func BuildCSNodePool(ctx context.Context, nodePool *coreapi.NodePool, updating bool) (*arohcpv1alpha1.NodePoolBuilder, error) {
 	nodePoolBuilder := arohcpv1alpha1.NewNodePool()
 
 	// These attributes cannot be updated after node pool creation.
@@ -629,10 +709,7 @@ func BuildCSNodePool(ctx context.Context, nodePool *coreapi.HCPOpenShiftClusterN
 				ResourceName(strings.ToLower(nodePool.Name)).
 				VMSize(nodePool.Properties.Platform.VMSize).
 				EncryptionAtHost(convertEnableEncryptionAtHostToCSBuilder(nodePool.Properties.Platform)).
-				OsDisk(arohcpv1alpha1.NewAzureNodePoolOsDisk().
-					SizeGibibytes(int(*nodePool.Properties.Platform.OSDisk.SizeGiB)).
-					StorageAccountType(csDiskStorageAccountType).
-					Persistence(csPersistence))).
+				OsDisk(buildCSOsDisk(nodePool.Properties.Platform.OSDisk, csDiskStorageAccountType, csPersistence))).
 			AvailabilityZone(nodePool.Properties.Platform.AvailabilityZone).
 			AutoRepair(nodePool.Properties.AutoRepair)
 	}
@@ -642,8 +719,8 @@ func BuildCSNodePool(ctx context.Context, nodePool *coreapi.HCPOpenShiftClusterN
 	return nodePoolBuilder, nil
 }
 
-// BuildCSExternalAuth creates a CS ExternalAuthBuilder object from an HCPOpenShiftClusterExternalAuth object.
-func BuildCSExternalAuth(ctx context.Context, externalAuth *coreapi.HCPOpenShiftClusterExternalAuth, updating bool) (*arohcpv1alpha1.ExternalAuthBuilder, error) {
+// BuildCSExternalAuth creates a CS ExternalAuthBuilder object from a ExternalAuth object.
+func BuildCSExternalAuth(ctx context.Context, externalAuth *coreapi.ExternalAuth, updating bool) (*arohcpv1alpha1.ExternalAuthBuilder, error) {
 	externalAuthBuilder := arohcpv1alpha1.NewExternalAuth()
 
 	// These attributes cannot be updated after node pool creation.
@@ -663,24 +740,24 @@ func BuildCSExternalAuth(ctx context.Context, externalAuth *coreapi.HCPOpenShift
 	return externalAuthBuilder, nil
 }
 
-// ConvertCStoAdminCredential converts a CS BreakGlassCredential object into an HCPOpenShiftClusterAdminCredential object.
-func ConvertCStoAdminCredential(breakGlassCredential *cmv1.BreakGlassCredential) *coreapi.HCPOpenShiftClusterAdminCredential {
-	return &coreapi.HCPOpenShiftClusterAdminCredential{
+// ConvertCStoAdminCredential converts a CS BreakGlassCredential object into a ClusterAdminCredential object.
+func ConvertCStoAdminCredential(breakGlassCredential *cmv1.BreakGlassCredential) *coreapi.ClusterAdminCredential {
+	return &coreapi.ClusterAdminCredential{
 		ExpirationTimestamp: breakGlassCredential.ExpirationTimestamp(),
 		Kubeconfig:          breakGlassCredential.Kubeconfig(),
 	}
 }
 
-// ConvertCStoHCPOpenShiftVersion converts a CS Version object into an HCPOpenShiftVersion object.
-func ConvertCStoHCPOpenShiftVersion(resourceID *azcorearm.ResourceID, version *arohcpv1alpha1.Version) *coreapi.HCPOpenShiftVersion {
-	return &coreapi.HCPOpenShiftVersion{
+// ConvertCStoOpenShiftVersion converts a CS Version object into an OpenShiftVersion object.
+func ConvertCStoOpenShiftVersion(resourceID *azcorearm.ResourceID, version *arohcpv1alpha1.Version) *coreapi.OpenShiftVersion {
+	return &coreapi.OpenShiftVersion{
 		ProxyResource: coreapi.ProxyResource{
 			Resource: coreapi.Resource{
 				ID:   resourceID,
 				Name: resourceID.Name,
 				Type: resourceID.ResourceType.String(),
 			}},
-		Properties: coreapi.HCPOpenShiftVersionProperties{
+		Properties: coreapi.OpenShiftVersionProperties{
 			ChannelGroup:       version.ChannelGroup(),
 			Enabled:            version.Enabled(),
 			EndOfLifeTimestamp: version.EndOfLifeTimestamp(),
@@ -842,7 +919,7 @@ func ConvertCSManagementClusterToInternal(csShard *arohcpv1alpha1.ProvisionShard
 	}
 	stampIdentifier := aksName[lastDash+1:]
 
-	resourceID, err := fleetapi.ToManagementClusterResourceID(stampIdentifier)
+	resourceID, err := fleetapihelpers.ToManagementClusterResourceID(stampIdentifier)
 	if err != nil {
 		return nil, fmt.Errorf("failed to construct management cluster resource ID from stamp identifier %q: %w", stampIdentifier, err)
 	}

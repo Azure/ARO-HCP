@@ -20,6 +20,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 )
 
 const (
@@ -43,7 +44,6 @@ const (
 	denyAssignmentSuffixKeyVault                 = "keyvault-deny-assignment"
 	denyAssignmentSuffixContainerService         = "containerservice-deny-assignment"
 	denyAssignmentSuffixNetworkVnetMgmt          = "network-vnet-mgmt-deny-assignment"
-	denyAssignmentSuffixNetworkVnetRead          = "network-vnet-read-deny-assignment"
 	denyAssignmentSuffixNetworkVnetJoin          = "network-vnet-join-deny-assignment"
 	denyAssignmentSuffixNetworkLoadBalancing     = "network-loadbalancing-deny-assignment"
 	denyAssignmentSuffixNetworkPrivateConn       = "network-privateconn-deny-assignment"
@@ -69,7 +69,7 @@ type denyAssignmentDefinition struct {
 	conditionalKMS          bool
 }
 
-func denyAssignmentDefinitions(cluster *coreapi.HCPOpenShiftCluster) []denyAssignmentDefinition {
+func denyAssignmentDefinitions(cluster *coreapi.Cluster) []denyAssignmentDefinition {
 	defs := []denyAssignmentDefinition{
 		{
 			denyAssignmentType:      denyAssignmentSuffixResources,
@@ -131,13 +131,6 @@ func denyAssignmentDefinitions(cluster *coreapi.HCPOpenShiftCluster) []denyAssig
 			dataPlaneOperators:      []string{operatorFileCSIDriver},
 			includeServiceManagedID: true,
 			actions:                 networkVirtualNetworksManagementActions(),
-		},
-		{
-			denyAssignmentType:      denyAssignmentSuffixNetworkVnetRead,
-			controlPlaneOperators:   []string{operatorClusterAPIAzure, operatorCloudControllerManager, operatorControlPlane, operatorImageRegistry, operatorIngress, operatorFileCSIDriver, operatorCloudNetworkConfig},
-			dataPlaneOperators:      []string{operatorImageRegistry, operatorFileCSIDriver},
-			includeServiceManagedID: true,
-			actions:                 networkVirtualNetworksReadActions(),
 		},
 		{
 			denyAssignmentType:    denyAssignmentSuffixNetworkVnetJoin,
@@ -207,7 +200,7 @@ func denyAssignmentDefinitions(cluster *coreapi.HCPOpenShiftCluster) []denyAssig
 	return defs
 }
 
-func allDenyAssignmentReferences(cluster *coreapi.HCPOpenShiftCluster) ([]coreapi.DenyAssignmentReference, error) {
+func allDenyAssignmentReferences(cluster *coreapi.Cluster) ([]coreapi.DenyAssignmentReference, error) {
 	defs := denyAssignmentDefinitions(cluster)
 	csClusterID := controllerutils.ClusterServiceIDForCluster(cluster)
 	subscriptionID := cluster.ID.SubscriptionID
@@ -216,7 +209,7 @@ func allDenyAssignmentReferences(cluster *coreapi.HCPOpenShiftCluster) ([]coreap
 	denyAssignmentReferences := make([]coreapi.DenyAssignmentReference, 0, len(defs))
 	for _, d := range defs {
 		daUUID := generateDenyAssignmentUUID(csClusterID, d.denyAssignmentType)
-		azureResourceID, err := coreapi.ToDenyAssignmentResourceID(subscriptionID, managedResourceGroup, daUUID)
+		azureResourceID, err := coreapihelpers.ToDenyAssignmentResourceID(subscriptionID, managedResourceGroup, daUUID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to build deny assignment resource ID for %s: %w", d.denyAssignmentType, err)
 		}
@@ -228,7 +221,7 @@ func allDenyAssignmentReferences(cluster *coreapi.HCPOpenShiftCluster) ([]coreap
 	return denyAssignmentReferences, nil
 }
 
-func isKMSEncryptionEnabled(cluster *coreapi.HCPOpenShiftCluster) bool {
+func isKMSEncryptionEnabled(cluster *coreapi.Cluster) bool {
 	return cluster.CustomerProperties.Etcd.DataEncryption.KeyManagementMode == metadataapi.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged &&
 		cluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged != nil &&
 		cluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms != nil

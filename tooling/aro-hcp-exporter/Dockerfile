@@ -1,6 +1,7 @@
 ARG PLATFORM
 
-FROM --platform=${PLATFORM} mcr.microsoft.com/oss/go/microsoft/golang:1.25-azurelinux3.0 AS builder
+FROM --platform=${PLATFORM} mcr.microsoft.com/oss/go/microsoft/golang:1.26-azurelinux3.0 AS builder
+ENV GOTOOLCHAIN=local
 COPY hcpctl/go.mod hcpctl/go.sum hcpctl/
 COPY metricscache/go.mod metricscache/go.sum metricscache/
 COPY utilitytypes/go.mod utilitytypes/

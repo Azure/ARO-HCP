@@ -32,6 +32,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/billingcosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
@@ -82,10 +83,10 @@ func newTestSubscription() *coreapi.Subscription {
 	}
 }
 
-func newTestCluster(t *testing.T, clusterUID string, provisioningState coreapi.ProvisioningState, createdAt *time.Time) *coreapi.HCPOpenShiftCluster {
+func newTestCluster(t *testing.T, clusterUID string, provisioningState coreapi.ProvisioningState, createdAt *time.Time) *coreapi.Cluster {
 	t.Helper()
 	clusterResourceID := newTestClusterResourceID(t)
-	return &coreapi.HCPOpenShiftCluster{
+	return &coreapi.Cluster{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   clusterResourceID,
 			PartitionKey: strings.ToLower(clusterResourceID.SubscriptionID),
@@ -100,10 +101,10 @@ func newTestCluster(t *testing.T, clusterUID string, provisioningState coreapi.P
 				},
 			},
 		},
-		ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 			ProvisioningState: provisioningState,
 			ClusterUID:        clusterUID,
-			ClusterServiceID:  metadataapi.Ptr(metadataapi.Must(metadataapi.NewInternalID(testClusterServiceIDStr))),
+			ClusterServiceID:  metadataapihelpers.Ptr(metadataapi.Must(metadataapi.NewInternalID(testClusterServiceIDStr))),
 		},
 	}
 }
@@ -122,7 +123,7 @@ func TestCreateBillingDoc_SyncOnce(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		cluster     *coreapi.HCPOpenShiftCluster
+		cluster     *coreapi.Cluster
 		expectError bool
 		verify      func(t *testing.T, billing *billingcosmosstoragetesting.MockBillingDBClient)
 	}{
@@ -206,7 +207,7 @@ func TestCreateBillingDoc_SyncOnce(t *testing.T) {
 				resourcesDBClient: mockResourcesDBClient,
 				billingDBClient:   mockBillingDBClient,
 				clusterLister: &corelistertesting.SliceClusterLister{
-					Clusters: []*coreapi.HCPOpenShiftCluster{tt.cluster},
+					Clusters: []*coreapi.Cluster{tt.cluster},
 				},
 				billingLister: &corelistertesting.SliceBillingLister{
 					BillingDocuments: []*billingcosmosstorage.BillingDocument{},
@@ -244,7 +245,7 @@ func TestCreateBillingDoc_Idempotent(t *testing.T) {
 
 	// Setup slice cluster lister (cache)
 	clusterLister := &corelistertesting.SliceClusterLister{
-		Clusters: []*coreapi.HCPOpenShiftCluster{cluster},
+		Clusters: []*coreapi.Cluster{cluster},
 	}
 
 	controller := &createBillingDoc{
@@ -329,7 +330,7 @@ func TestCreateBillingDoc_ExistingBillingDocButMissingClusterRef(t *testing.T) {
 				resourcesDBClient: mockResourcesDBClient,
 				billingDBClient:   mockBillingDBClient,
 				clusterLister: &corelistertesting.SliceClusterLister{
-					Clusters: []*coreapi.HCPOpenShiftCluster{cluster},
+					Clusters: []*coreapi.Cluster{cluster},
 				},
 				billingLister: &corelistertesting.SliceBillingLister{
 					BillingDocuments: tt.cachedBillingDoc,

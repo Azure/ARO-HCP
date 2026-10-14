@@ -36,7 +36,7 @@ import (
 )
 
 // nodePoolDegradedAggregator rolls per-controller Degraded conditions up
-// onto HCPOpenShiftClusterNodePool.Status.Conditions. See the package and
+// onto NodePool.Status.Conditions. See the package and
 // clusterDegradedAggregator docs for the overall design.
 type nodePoolDegradedAggregator struct {
 	nodePoolLister    corelisters.NodePoolLister
@@ -54,6 +54,8 @@ type nodePoolDegradedAggregator struct {
 
 var _ controllerutils.NodePoolSyncer = (*nodePoolDegradedAggregator)(nil)
 
+const NodePoolDegradedAggregatorControllerName = "NodePoolDegradedAggregator"
+
 // nodePoolDegradedAggregatorInertia is the inertia config used by the
 // node-pool aggregator. Same shape as clusterDegradedAggregatorInertia
 // and kept independent so node-pool-specific controllers can be tuned
@@ -64,7 +66,7 @@ func nodePoolDegradedAggregatorInertia() statusutils.Inertia {
 
 // NewNodePoolDegradedAggregatorController creates a controller that
 // aggregates the Degraded condition from every api.Controller under a
-// given HCPOpenShiftClusterNodePool onto the node pool's
+// given NodePool onto the node pool's
 // Status.Conditions.
 //
 // See NewClusterDegradedAggregatorController for the clock semantics —
@@ -96,7 +98,7 @@ func NewNodePoolDegradedAggregatorController(
 		readDesireLister:  readDesireLister,
 	}
 	return controllerutils.NewNodePoolWatchingController(
-		"NodePoolDegradedAggregator",
+		NodePoolDegradedAggregatorControllerName,
 		resourcesDBClient,
 		informers,
 		kubeApplierInformers,

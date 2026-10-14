@@ -68,7 +68,7 @@ resource mgmtCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
           description: 'Node {{ $labels.node }} on management cluster {{ $labels.cluster }} has zero SWIFT NIC capacity. No HCPs can be scheduled on this node until NIC capacity is restored.'
           info: 'Node {{ $labels.node }} on management cluster {{ $labels.cluster }} has zero SWIFT NIC capacity. No HCPs can be scheduled on this node until NIC capacity is restored.'
           owning_team: 'hcp-sl'
-          runbook_url: 'https://portal.microsofticm.com/imp/v5/incidents/details/802529667'
+          runbook_url: 'https://aka.ms/arohcp-runbook/zero-swift-nic-capacity'
           summary: 'Node {{ $labels.node }} on management cluster {{ $labels.cluster }} has zero SWIFT NIC capacity'
           title: 'Node {{ $labels.node }} on management cluster {{ $labels.cluster }} has zero SWIFT NIC capacity'
         }

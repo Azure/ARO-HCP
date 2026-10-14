@@ -31,6 +31,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
@@ -98,7 +99,7 @@ func NewDesiresCreatorController(
 // credential request. It bundles the preconditions that gate creation: the
 // cluster must be live (not being deleted, and already mapped to a
 // cluster-service ID) and the credential must still be pending issuance.
-func (c *desiresCreator) needsWork(cluster *coreapi.HCPOpenShiftCluster, cred *coreapi.SystemAdminCredentialRequest) bool {
+func (c *desiresCreator) needsWork(cluster *coreapi.Cluster, cred *coreapi.SystemAdminCredentialRequest) bool {
 	if cluster.ServiceProviderProperties.DeletionTimestamp != nil {
 		return false
 	}
@@ -254,7 +255,7 @@ func buildCredentialRequestApplyDesire(
 	target kubeapplierapi.ResourceReference,
 	obj systemadmincredential.KubeObject,
 ) (*kubeapplierapi.ApplyDesire, error) {
-	resourceIDStr := kubeapplierapi.ToSystemAdminCredentialRequestScopedApplyDesireResourceIDString(
+	resourceIDStr := kubeapplierapihelpers.ToSystemAdminCredentialRequestScopedApplyDesireResourceIDString(
 		subscriptionID, resourceGroupName, clusterName, credentialRequestName, desireName,
 	)
 	resourceID, err := azcorearm.ParseResourceID(resourceIDStr)
@@ -291,7 +292,7 @@ func buildCredentialRequestReadDesire(
 	managementCluster *azcorearm.ResourceID,
 	target kubeapplierapi.ResourceReference,
 ) (*kubeapplierapi.ReadDesire, error) {
-	resourceIDStr := kubeapplierapi.ToSystemAdminCredentialRequestScopedReadDesireResourceIDString(
+	resourceIDStr := kubeapplierapihelpers.ToSystemAdminCredentialRequestScopedReadDesireResourceIDString(
 		subscriptionID, resourceGroupName, clusterName, credentialRequestName, desireName,
 	)
 	resourceID, err := azcorearm.ParseResourceID(resourceIDStr)

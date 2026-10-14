@@ -48,6 +48,8 @@ type nodePoolDeletionController struct {
 
 var _ controllerutils.NodePoolSyncer = (*nodePoolDeletionController)(nil)
 
+const NodePoolDeletionControllerControllerName = "NodePoolDeletionController"
+
 func NewNodePoolDeletionController(
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	informers coreinformers.BackendInformers,
@@ -66,7 +68,7 @@ func NewNodePoolDeletionController(
 	}
 
 	return controllerutils.NewNodePoolWatchingController(
-		"NodePoolDeletionController",
+		NodePoolDeletionControllerControllerName,
 		resourcesDBClient,
 		informers,
 		kubeApplierInformers,
@@ -80,7 +82,7 @@ func NewNodePoolDeletionController(
 // - DeletionTimestamp must be set
 // - ClusterServiceDeletionTimestamp must be set
 // - ClusterServiceID must be nil
-func (c *nodePoolDeletionController) NeedsWork(nodePool *coreapi.HCPOpenShiftClusterNodePool) bool {
+func (c *nodePoolDeletionController) NeedsWork(nodePool *coreapi.NodePool) bool {
 	// TODO temporary check to skip the new deletion approach for NodePools that were created before the new approach was implemented.
 	// This will be removed once all nodepools whose deletion was triggered before the new approach is fully rolled out have been
 	// fully deleted in all ARO-HCP permanent environments, for all regions.

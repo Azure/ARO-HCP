@@ -56,6 +56,7 @@ var _ = Describe("Customer", func() {
 
 			By("creating cluster parameters")
 			clusterParams := framework.NewDefaultClusterParams20260901()
+			clusterParams.DisableSwift = false
 			clusterParams.ClusterName = customerClusterName
 			clusterParams.ManagedResourceGroupName = framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 

@@ -25,6 +25,8 @@ import (
 	"github.com/Azure/ARO-HCP/test/util/framework"
 )
 
+const DefaultConcurrency = 20
+
 type RawOptions struct {
 	ResourceGroups   []string
 	DeleteExpired    bool
@@ -33,9 +35,12 @@ type RawOptions struct {
 	CleanupWorkflow  string
 	IsDevelopment    bool
 	Timeout          time.Duration
+	Concurrency      int
 	IncludeLocations []string
 	ExcludeLocations []string
 	Tracked          bool
+	JobID            string
+	JobIDSet         bool
 	SharedDir        string
 	FPAClientID      string
 	FPACertPath      string
@@ -52,10 +57,12 @@ type ValidatedOptions struct {
 }
 
 type completedOptions struct {
+	JobID            string
 	ResourceGroups   []string
 	DryRun           bool
 	IsDevelopment    bool
 	Timeout          time.Duration
+	Concurrency      int
 	IncludeLocations sets.Set[string]
 	ExcludeLocations sets.Set[string]
 	CleanupWorkflow  framework.CleanupWorkflow
@@ -78,6 +85,7 @@ func DefaultOptions() *RawOptions {
 		CleanupWorkflow:  string(framework.CleanupWorkflowStandard),
 		IsDevelopment:    false,
 		Timeout:          60 * time.Minute,
+		Concurrency:      DefaultConcurrency,
 		IncludeLocations: []string{},
 		ExcludeLocations: []string{},
 		Tracked:          false,
@@ -88,6 +96,16 @@ func DefaultOptions() *RawOptions {
 }
 
 func (o *RawOptions) Validate() (*ValidatedOptions, error) {
+	if (o.JobIDSet || o.JobID != "") && strings.TrimSpace(o.JobID) == "" {
+		return nil, fmt.Errorf("--job-id must not be blank")
+	}
+	if o.JobID != "" && (len(o.ResourceGroups) > 0 || o.DeleteExpired) {
+		return nil, fmt.Errorf("--job-id is mutually exclusive with --resource-group and --expired")
+	}
+
+	if o.Concurrency <= 0 {
+		return nil, fmt.Errorf("concurrency must be greater than zero")
+	}
 
 	if o.CleanupWorkflow != string(framework.CleanupWorkflowStandard) && o.CleanupWorkflow != string(framework.CleanupWorkflowNoRP) {
 		return nil, fmt.Errorf("invalid cleanup workflow: %s", o.CleanupWorkflow)
@@ -102,7 +120,7 @@ func (o *RawOptions) Validate() (*ValidatedOptions, error) {
 		{
 			memberFlags:      sets.New("--resource-group", "--expired", "--tracked"),
 			exclusivityGroup: true,
-			oneOfGroup:       true,
+			oneOfGroup:       o.JobID == "",
 			seenFlags:        sets.New[string](),
 		},
 		{
@@ -213,7 +231,7 @@ func (o *ValidatedOptions) Complete() (*Options, error) {
 			resourceGroups = append(resourceGroups, rg)
 		}
 
-		if len(resourceGroups) == 0 {
+		if len(resourceGroups) == 0 && o.JobID == "" {
 			return nil, fmt.Errorf("no %s* files found in %q", prefix, o.SharedDir)
 		}
 	} else {
@@ -231,11 +249,13 @@ func (o *ValidatedOptions) Complete() (*Options, error) {
 
 	return &Options{
 		completedOptions: &completedOptions{
+			JobID:            o.JobID,
 			ResourceGroups:   resourceGroups,
 			DryRun:           o.DryRun,
 			CleanupWorkflow:  framework.CleanupWorkflow(o.CleanupWorkflow),
 			IsDevelopment:    o.IsDevelopment,
 			Timeout:          o.Timeout,
+			Concurrency:      o.Concurrency,
 			IncludeLocations: sets.New(o.IncludeLocations...),
 			ExcludeLocations: sets.New(o.ExcludeLocations...),
 			DeleteExpired:    o.DeleteExpired,

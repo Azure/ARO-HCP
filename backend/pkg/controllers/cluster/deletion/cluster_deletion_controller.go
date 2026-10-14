@@ -54,6 +54,8 @@ type clusterDeletionController struct {
 
 var _ controllerutils.ClusterSyncer = (*clusterDeletionController)(nil)
 
+const ClusterDeletionControllerControllerName = "ClusterDeletionController"
+
 func NewClusterDeletionController(
 	clock utilsclock.PassiveClock,
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
@@ -73,7 +75,7 @@ func NewClusterDeletionController(
 	}
 
 	return controllerutils.NewClusterWatchingController(
-		"ClusterDeletionController",
+		ClusterDeletionControllerControllerName,
 		resourcesDBClient,
 		informers,
 		nil,
@@ -87,7 +89,7 @@ func NewClusterDeletionController(
 // - DeletionTimestamp must be set
 // - ClusterServiceDeletionTimestamp must be set
 // - ClusterServiceID must be nil
-func (c *clusterDeletionController) NeedsWork(cluster *coreapi.HCPOpenShiftCluster) bool {
+func (c *clusterDeletionController) NeedsWork(cluster *coreapi.Cluster) bool {
 	if !cluster.ServiceProviderProperties.UsesNewClusterDeletionApproach {
 		return false
 	}

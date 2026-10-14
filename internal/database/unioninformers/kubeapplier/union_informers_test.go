@@ -31,6 +31,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/kubeappliercosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/informers/kubeapplierinformers"
 	unionkubeapplier "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
@@ -80,6 +81,58 @@ func waitForSync(t *testing.T, ctx context.Context, fns ...cache.InformerSynced)
 // ============================================================================
 // UnionDesireInformer (primitive)
 // ============================================================================
+
+func TestUnionDesireInformer_HasSyncedChecker(test *testing.T) {
+	union := unionkubeapplier.NewUnionDesireInformer()
+	informer := newFakeInformer()
+	informer.synced = false
+	if err := union.Add(mgmtAID, informer); err != nil {
+		test.Fatal(err)
+	}
+	registration, err := union.AddEventHandler(cache.ResourceEventHandlerFuncs{})
+	if err != nil {
+		test.Fatal(err)
+	}
+	defer func() {
+		if err := union.RemoveEventHandler(registration); err != nil {
+			test.Error(err)
+		}
+	}()
+	checker := registration.HasSyncedChecker()
+	if checker.Name() == "" {
+		test.Fatal("checker has no name")
+	}
+	if cache.IsDone(checker) {
+		test.Fatal("unsynced registration reported completion")
+	}
+	union.Remove(mgmtAID)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if !cache.WaitFor(ctx, "union registration", checker) {
+		test.Fatal("checker did not complete after removing the unsynced informer")
+	}
+	if checker.Done() != registration.HasSyncedChecker().Done() {
+		test.Fatal("checker does not return a stable completion channel")
+	}
+}
+
+func TestUnionDesireInformer_RemovedHandlerDoesNotSync(test *testing.T) {
+	union := unionkubeapplier.NewUnionDesireInformer()
+	registration, err := union.AddEventHandler(cache.ResourceEventHandlerFuncs{})
+	if err != nil {
+		test.Fatal(err)
+	}
+	if err := union.RemoveEventHandler(registration); err != nil {
+		test.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	select {
+	case <-registration.HasSyncedChecker().Done():
+		test.Fatal("removed registration reported completion")
+	case <-ctx.Done():
+	}
+}
 
 // 1. create empty union
 // 2. assert HasSynced == true (vacuously, no subs)
@@ -412,15 +465,15 @@ func TestUnionKubeApplierInformers_EndToEnd(t *testing.T) {
 
 	subA := buildPerMCInformers(t, ctx,
 		newApplyDesire(t,
-			kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(testSub, testRG, testCluster, "a1"),
+			kubeapplierapihelpers.ToClusterScopedApplyDesireResourceIDString(testSub, testRG, testCluster, "a1"),
 			mgmtAID),
 		newApplyDesire(t,
-			kubeapplierapi.ToNodePoolScopedApplyDesireResourceIDString(testSub, testRG, testCluster, testNodePool, "a2"),
+			kubeapplierapihelpers.ToNodePoolScopedApplyDesireResourceIDString(testSub, testRG, testCluster, testNodePool, "a2"),
 			mgmtAID),
 	)
 	subB := buildPerMCInformers(t, ctx,
 		newApplyDesire(t,
-			kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(testSub, testRG, "other-cluster", "b1"),
+			kubeapplierapihelpers.ToClusterScopedApplyDesireResourceIDString(testSub, testRG, "other-cluster", "b1"),
 			mgmtBID),
 	)
 
@@ -433,8 +486,8 @@ func TestUnionKubeApplierInformers_EndToEnd(t *testing.T) {
 	}
 
 	// HasSynced across the union after both subs are added + synced.
-	if !u.HasSynced() {
-		t.Errorf("HasSynced = false, want true (both subs synced)")
+	if u.HasSynced() {
+		t.Errorf("HasSynced = true before management-cluster discovery")
 	}
 
 	applyInf, applyLister := u.ApplyDesires()
@@ -536,6 +589,7 @@ type fakeSharedIndexInformer struct {
 }
 
 type fakeRegistration struct {
+	cache.ResourceEventHandlerRegistration
 	synced bool
 }
 

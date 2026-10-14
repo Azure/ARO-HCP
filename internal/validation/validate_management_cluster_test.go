@@ -26,11 +26,12 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
 )
 
 func validManagementCluster(t *testing.T) *fleetapi.ManagementCluster {
 	t.Helper()
-	resourceID := metadataapi.Must(fleetapi.ToManagementClusterResourceID("1"))
+	resourceID := metadataapi.Must(fleetapihelpers.ToManagementClusterResourceID("1"))
 	return &fleetapi.ManagementCluster{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID: resourceID,
@@ -112,14 +113,14 @@ func TestValidateManagementClusterCreate(t *testing.T) {
 		{
 			name: "stamp identifier single char accepted",
 			modify: func(t *testing.T, mc *fleetapi.ManagementCluster) {
-				mc.ResourceID = metadataapi.Must(fleetapi.ToManagementClusterResourceID("a"))
+				mc.ResourceID = metadataapi.Must(fleetapihelpers.ToManagementClusterResourceID("a"))
 			},
 			expectErrors: nil,
 		},
 		{
 			name: "stamp identifier three chars accepted",
 			modify: func(t *testing.T, mc *fleetapi.ManagementCluster) {
-				mc.ResourceID = metadataapi.Must(fleetapi.ToManagementClusterResourceID("ab3"))
+				mc.ResourceID = metadataapi.Must(fleetapihelpers.ToManagementClusterResourceID("ab3"))
 			},
 			expectErrors: nil,
 		},
@@ -370,7 +371,7 @@ func TestValidateManagementClusterUpdate(t *testing.T) {
 		{
 			name: "resourceId changed",
 			modify: func(t *testing.T, mc *fleetapi.ManagementCluster) {
-				mc.ResourceID = metadataapi.Must(fleetapi.ToManagementClusterResourceID("x2"))
+				mc.ResourceID = metadataapi.Must(fleetapihelpers.ToManagementClusterResourceID("x2"))
 			},
 			expectErrors: []expectedError{
 				{fieldPath: "resourceId", message: "immutable"},

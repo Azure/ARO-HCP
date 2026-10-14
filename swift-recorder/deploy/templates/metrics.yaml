@@ -1,0 +1,37 @@
+{{- if .Values.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: swift-recorder-metrics
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: swift-recorder
+    port: metrics
+spec:
+  selector:
+    app.kubernetes.io/name: swift-recorder
+  ports:
+  - name: metrics
+    port: 8091
+    targetPort: metrics
+    protocol: TCP
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: swift-recorder
+  namespace: {{ .Release.Namespace }}
+spec:
+  endpoints:
+  - interval: 30s
+    path: /metrics
+    port: metrics
+    scheme: http
+  namespaceSelector:
+    matchNames:
+    - {{ .Release.Namespace }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: swift-recorder
+      port: metrics
+{{- end }}

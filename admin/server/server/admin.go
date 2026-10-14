@@ -31,8 +31,9 @@ import (
 	"k8s.io/utils/set"
 
 	"github.com/Azure/azure-kusto-go/kusto"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/alertprocessingrules/armalertprocessingrules"
 
-	"github.com/Azure/ARO-HCP/admin/server/handlers"
+	"github.com/Azure/ARO-HCP/admin/server/handlers/alertmanagement"
 	"github.com/Azure/ARO-HCP/admin/server/handlers/cosmosdump"
 	"github.com/Azure/ARO-HCP/admin/server/handlers/hcp"
 	breakglasshandlers "github.com/Azure/ARO-HCP/admin/server/handlers/hcp/breakglass"
@@ -85,10 +86,15 @@ func NewAdminAPI(
 	maxSessionTTL time.Duration,
 	allowedBreakglassGroups set.Set[string],
 	gatherer prometheus.Gatherer,
+	metricsRegisterer prometheus.Registerer,
 	kubeApplierDBClients kubeappliercosmosstorage.KubeApplierDBClients,
+	alertProcessingRulesClient *armalertprocessingrules.Client,
+	alertProcessingRulesResourceGroup string,
+	alertProcessingRulesScopes []string,
 ) *AdminAPI {
 	// Pre-mux middleware (runs on all admin routes before pattern matching)
 	middlewareMux := middleware.NewMiddlewareMux(
+		middleware.NewMiddlewareMetrics(metricsRegisterer).HandleRequest,
 		middleware.MiddlewareLogger,
 		middleware.MiddlewareLowercase,
 		middleware.NewMiddlewareAudit(auditClient).HandleRequest,
@@ -98,14 +104,6 @@ func NewAdminAPI(
 	// HCP resource routes
 	hcpMiddleware := middleware.NewMiddleware(
 		middleware.MiddlewareHCPResourceID,
-	)
-	middlewareMux.Handle(
-		middleware.V1HCPResourcePattern("GET", "/helloworld"),
-		hcpMiddleware.HandlerFunc(errorutils.ReportError(hcp.NewHCPHelloWorldHandler(resourcesDBClient, clustersServiceClient).ServeHTTP)),
-	)
-	middlewareMux.Handle(
-		middleware.V1HCPResourcePattern("GET", "/hellworld/lbs"),
-		hcpMiddleware.HandlerFunc(errorutils.ReportError(hcp.NewHCPDemoListLoadbalancersHandler(resourcesDBClient, clustersServiceClient, fpaCredentialRetriever).ServeHTTP)),
 	)
 	middlewareMux.Handle(
 		middleware.V1HCPResourcePattern("POST", "/breakglass"),
@@ -132,6 +130,10 @@ func NewAdminAPI(
 		hcpMiddleware.HandlerFunc(errorutils.ReportError(hcp.NewHCPDesiredControlPlaneSizeHandler(resourcesDBClient).ServeHTTP)),
 	)
 	middlewareMux.Handle(
+		middleware.V1HCPResourcePattern("POST", "/controlplaneversionpin"),
+		hcpMiddleware.HandlerFunc(errorutils.ReportError(hcp.NewHCPVersionPinHandler(resourcesDBClient).ServeHTTP)),
+	)
+	middlewareMux.Handle(
 		middleware.V1HCPResourcePattern("GET", "/backupschedules"),
 		hcpMiddleware.HandlerFunc(errorutils.ReportError(hcp.NewHCPGetBackupScheduleHandler(resourcesDBClient, kubeApplierDBClients).ServeHTTP)),
 	)
@@ -143,9 +145,6 @@ func NewAdminAPI(
 		middleware.V1HCPResourcePattern("GET", "/backups"),
 		hcpMiddleware.HandlerFunc(errorutils.ReportError(hcp.NewHCPGetOnDemandBackupsHandler(resourcesDBClient, kubeApplierDBClients).ServeHTTP)),
 	)
-
-	// Non-HCP admin routes
-	middlewareMux.Handle("GET /admin/helloworld", handlers.HelloWorldHandler())
 
 	// Stamp management routes
 	middlewareMux.Handle("GET /admin/v1/stamps",
@@ -162,6 +161,18 @@ func NewAdminAPI(
 		errorutils.ReportError(stamphandlers.NewStampApprovalHandler(fleetDBClient).ServeHTTP))
 	middlewareMux.Handle("GET /admin/v1/hcpresourcerequirements/{name}",
 		errorutils.ReportError(hcpresourcerequirementshandlers.NewHCPResourceRequirementsGetHandler(fleetDBClient).ServeHTTP))
+
+	// Alert processing rules routes (registered only when the feature is configured).
+	if alertProcessingRulesClient != nil {
+		middlewareMux.Handle("GET /admin/v1/alertprocessingrules",
+			errorutils.ReportError(alertmanagement.NewAlertProcessingRuleListHandler(alertProcessingRulesClient, alertProcessingRulesResourceGroup).ServeHTTP))
+		middlewareMux.Handle("GET /admin/v1/alertprocessingrules/{name}",
+			errorutils.ReportError(alertmanagement.NewAlertProcessingRuleGetHandler(alertProcessingRulesClient, alertProcessingRulesResourceGroup).ServeHTTP))
+		middlewareMux.Handle("PUT /admin/v1/alertprocessingrules/{name}",
+			errorutils.ReportError(alertmanagement.NewAlertProcessingRulePutHandler(alertProcessingRulesClient, alertProcessingRulesResourceGroup, alertProcessingRulesScopes).ServeHTTP))
+		middlewareMux.Handle("DELETE /admin/v1/alertprocessingrules/{name}",
+			errorutils.ReportError(alertmanagement.NewAlertProcessingRuleDeleteHandler(alertProcessingRulesClient, alertProcessingRulesResourceGroup).ServeHTTP))
+	}
 
 	// Top-level mux (healthz bypasses all middleware)
 	apiMux := http.NewServeMux()

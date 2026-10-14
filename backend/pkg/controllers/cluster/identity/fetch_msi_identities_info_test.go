@@ -207,14 +207,14 @@ func TestNeedsWorkIgnoresEarliestRecheckWhenIdentitiesDiverge(t *testing.T) {
 	}
 }
 
-func newMatchingClusterAndServiceProviderCluster() (*coreapi.HCPOpenShiftCluster, *coreapi.ServiceProviderCluster) {
+func newMatchingClusterAndServiceProviderCluster() (*coreapi.Cluster, *coreapi.ServiceProviderCluster) {
 	operatorResourceID := metadataapi.Must(azcorearm.ParseResourceID(testOperatorIdentityResourceID))
 	serviceManagedIdentity := metadataapi.Must(azcorearm.ParseResourceID(testServiceManagedIdentityID))
 	lowerOperatorResourceIDStr := strings.ToLower(testOperatorIdentityResourceID)
 	lowerServiceManagedIdentityStr := strings.ToLower(testServiceManagedIdentityID)
 
-	cluster := &coreapi.HCPOpenShiftCluster{
-		CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+	cluster := &coreapi.Cluster{
+		CustomerProperties: coreapi.ClusterCustomerProperties{
 			Platform: coreapi.CustomerPlatformProfile{
 				OperatorsAuthentication: coreapi.OperatorsAuthenticationProfile{
 					UserAssignedIdentities: coreapi.UserAssignedIdentitiesProfile{

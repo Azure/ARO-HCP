@@ -32,6 +32,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
 	"github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -43,7 +44,7 @@ type ManagementClusterKey struct {
 }
 
 func (k ManagementClusterKey) GetResourceID() *azcorearm.ResourceID {
-	return metadataapi.Must(fleetapi.ToManagementClusterResourceID(k.StampIdentifier))
+	return metadataapi.Must(fleetapihelpers.ToManagementClusterResourceID(k.StampIdentifier))
 }
 
 func (k ManagementClusterKey) AddLoggerValues(logger logr.Logger) logr.Logger {

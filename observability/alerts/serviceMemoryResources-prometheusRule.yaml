@@ -15,38 +15,91 @@ spec:
       component: service-memory
     rules:
     # Owner: Service Lifecycle team (hcp-sl)
-    # AROSLSRE-1564: Generic memory drift/trend alerting for all ARO-HCP services
-    # Only containers with a configured memory request will match the join;
+    # AROSLSRE-1564: Generic memory/CPU drift/trend alerting for all ARO-HCP services
+    # Only containers with a configured request will match the join;
     # services without a request are naturally excluded.
+    #
+    # Drift alerts compare the 30-minute AVERAGE usage/request ratio (not
+    # instantaneous usage) against 1.2x, and fire only after that average has
+    # been sustained for 5 minutes. A count_over_time data-guard requires at
+    # least 30 minutes of samples so we never alert on partial/warm-up data.
     - alert: ServiceMemoryDrift
       expr: |
         (
-          container_memory_working_set_bytes{container!="", namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|clusters-service|fleet|kube-applier|maestro|mgmt-agent|prometheus|secret-sync-controller|sessiongate"}
-          / on(namespace, pod, container, cluster) group_left()
-          max by(namespace, pod, container, cluster) (
-            kube_pod_container_resource_requests{resource="memory", job="kube-state-metrics", namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|clusters-service|fleet|kube-applier|maestro|mgmt-agent|prometheus|secret-sync-controller|sessiongate"}
-          )
-        ) > 1.5
-      for: 15m
+          avg_over_time(
+            (
+              max by(namespace, pod, container, cluster) (
+                container_memory_working_set_bytes{container!="", namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|clusters-service|fleet|kube-applier|maestro|mgmt-agent|monitoring|prometheus|secret-sync-controller|sessiongate"}
+              )
+              / on(namespace, pod, container, cluster) group_left()
+              max by(namespace, pod, container, cluster) (
+                kube_pod_container_resource_requests{resource="memory", job="kube-state-metrics", namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|clusters-service|fleet|kube-applier|maestro|mgmt-agent|monitoring|prometheus|secret-sync-controller|sessiongate"}
+              )
+            )[30m:1m]
+          ) > 1.2
+        )
+        and on(namespace, pod, container, cluster)
+        (
+          count_over_time(
+            max by(namespace, pod, container, cluster) (
+              container_memory_working_set_bytes{container!="", namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|clusters-service|fleet|kube-applier|maestro|mgmt-agent|monitoring|prometheus|secret-sync-controller|sessiongate"}
+            )[30m:1m]
+          ) >= 30
+        )
+      for: 5m
       labels:
         severity: warning
         team: hcp-sl
       annotations:
-        summary: '{{ $labels.container }} in {{ $labels.namespace }} exceeds 1.5x its memory request on cluster {{ $labels.cluster }}. pod:{{ $labels.pod }}'
+        summary: '{{ $labels.container }} in {{ $labels.namespace }} exceeds 1.2x its memory request on cluster {{ $labels.cluster }}. pod:{{ $labels.pod }}'
         description: |
-          Container {{ $labels.container }} in pod {{ $labels.pod }} (namespace {{ $labels.namespace }}) on cluster {{ $labels.cluster }} is using {{ $value | humanizePercentage }} of its memory request for more than 15 minutes.
+          Container {{ $labels.container }} in pod {{ $labels.pod }} (namespace {{ $labels.namespace }}) on cluster {{ $labels.cluster }} has averaged {{ $value | humanizePercentage }} of its memory request over the last 30 minutes.
           This may indicate a memory leak or workload growth that requires right-sizing the request in config.yaml.
+        runbook_url: https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/service-memory-resources.md
+        owning_team: hcp-sl
+    - alert: ServiceCPUDrift
+      expr: |
+        (
+          avg_over_time(
+            (
+              max by(namespace, pod, container, cluster) (
+                rate(container_cpu_usage_seconds_total{container!="", namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|clusters-service|fleet|kube-applier|maestro|mgmt-agent|monitoring|prometheus|secret-sync-controller|sessiongate"}[5m])
+              )
+              / on(namespace, pod, container, cluster) group_left()
+              max by(namespace, pod, container, cluster) (
+                kube_pod_container_resource_requests{resource="cpu", job="kube-state-metrics", namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|clusters-service|fleet|kube-applier|maestro|mgmt-agent|monitoring|prometheus|secret-sync-controller|sessiongate"}
+              )
+            )[30m:1m]
+          ) > 1.2
+        )
+        and on(namespace, pod, container, cluster)
+        (
+          count_over_time(
+            max by(namespace, pod, container, cluster) (
+              rate(container_cpu_usage_seconds_total{container!="", namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|clusters-service|fleet|kube-applier|maestro|mgmt-agent|monitoring|prometheus|secret-sync-controller|sessiongate"}[5m])
+            )[30m:1m]
+          ) >= 30
+        )
+      for: 5m
+      labels:
+        severity: warning
+        team: hcp-sl
+      annotations:
+        summary: '{{ $labels.container }} in {{ $labels.namespace }} exceeds 1.2x its CPU request on cluster {{ $labels.cluster }}. pod:{{ $labels.pod }}'
+        description: |
+          Container {{ $labels.container }} in pod {{ $labels.pod }} (namespace {{ $labels.namespace }}) on cluster {{ $labels.cluster }} has averaged {{ $value | humanizePercentage }} of its CPU request over the last 30 minutes.
+          This may indicate workload growth that requires right-sizing the request in config.yaml.
         runbook_url: https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/service-memory-resources.md
         owning_team: hcp-sl
     - alert: ServiceMemoryTrend
       expr: |
         (
           predict_linear(
-            container_memory_working_set_bytes{container!="", namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|clusters-service|fleet|kube-applier|maestro|mgmt-agent|prometheus|secret-sync-controller|sessiongate"}[6h], 4 * 3600
+            container_memory_working_set_bytes{container!="", namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|clusters-service|fleet|kube-applier|maestro|mgmt-agent|monitoring|prometheus|secret-sync-controller|sessiongate"}[6h], 4 * 3600
           )
           / on(namespace, pod, container, cluster) group_left()
           max by(namespace, pod, container, cluster) (
-            kube_pod_container_resource_requests{resource="memory", job="kube-state-metrics", namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|clusters-service|fleet|kube-applier|maestro|mgmt-agent|prometheus|secret-sync-controller|sessiongate"}
+            kube_pod_container_resource_requests{resource="memory", job="kube-state-metrics", namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|clusters-service|fleet|kube-applier|maestro|mgmt-agent|monitoring|prometheus|secret-sync-controller|sessiongate"}
           )
         ) > 2.0
       for: 30m

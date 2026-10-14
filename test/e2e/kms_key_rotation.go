@@ -26,9 +26,11 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azkeys"
 
+	"github.com/Azure/ARO-HCP/admin/server/handlers/hcp"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/backup"
-	hcpsdk20260630preview "github.com/Azure/ARO-HCP/test/sdk/v20260630preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	hcpsdk20260901preview "github.com/Azure/ARO-HCP/test/sdk/v20260901preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
@@ -48,18 +50,8 @@ var _ = Describe("Customer", func() {
 
 			tc := framework.NewTestContext()
 
-			By("checking API version availability")
-			apiAvailable, err := tc.IsHCPAPIVersionAvailable(ctx, "2026-06-30-preview")
-			Expect(err).NotTo(HaveOccurred(), "failed to check API version availability")
-			if !apiAvailable {
-				if time.Now().After(framework.V20260630PreviewDeploymentDeadline) {
-					Fail(fmt.Sprintf("API version 2026-06-30-preview should be fully available by %s", framework.V20260630PreviewDeploymentDeadline.Format(time.RFC3339)))
-				}
-				Skip("API version 2026-06-30-preview is not fully available in this environment")
-			}
-
 			if tc.UsePooledIdentities() {
-				err = tc.AssignIdentityContainers(ctx, 1, framework.IdentityContainerAssignmentRetryInterval)
+				err := tc.AssignIdentityContainers(ctx, 1, framework.IdentityContainerAssignmentRetryInterval)
 				Expect(err).NotTo(HaveOccurred(), "failed to assign pooled identity containers")
 			}
 
@@ -67,16 +59,23 @@ var _ = Describe("Customer", func() {
 			resourceGroup, err := tc.NewResourceGroup(ctx, "kms-key-rotate", tc.Location())
 			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for KMS key rotation test")
 
-			By("creating cluster parameters with version 4.22")
-			clusterParams := framework.NewDefaultClusterParams20260630()
+			By("creating cluster parameters with version 4.22 or higher")
+			clusterParams := framework.NewDefaultClusterParams20260901()
 			clusterParams.ClusterName = clusterName
-			clusterParams.OpenshiftVersionId = "4.22"
+			openshiftVersionID, err := framework.PickAtLeastOpenshiftVersionId(clusterParams.OpenshiftVersionId, "4.22")
+			if framework.IsIncompatibleNightlyVersionError(err) {
+				skipMsg := fmt.Sprintf("this test needs OCP >= 4.22, but default version %q does not satisfy it: %v", clusterParams.OpenshiftVersionId, err)
+				GinkgoLogr.Info(skipMsg)
+				Skip(skipMsg)
+			}
+			Expect(err).NotTo(HaveOccurred(), "failed to select OpenShift version >= 4.22 (default version: %q)", clusterParams.OpenshiftVersionId)
+			clusterParams.OpenshiftVersionId = openshiftVersionID
 
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName
 
 			By("creating customer resources")
-			clusterParams, err = tc.CreateClusterCustomerResources20260630(ctx,
+			clusterParams, err = tc.CreateClusterCustomerResources20260901(ctx,
 				resourceGroup,
 				clusterParams,
 				map[string]interface{}{
@@ -87,8 +86,8 @@ var _ = Describe("Customer", func() {
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for KMS key rotation cluster")
 
-			By("creating the HCP cluster with version 4.22")
-			err = tc.CreateHCPClusterFromParam20260630(
+			By("creating the HCP cluster with version 4.22 or higher")
+			err = tc.CreateHCPClusterFromParam20260901(
 				ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
@@ -96,12 +95,6 @@ var _ = Describe("Customer", func() {
 				nil, // imageDigestMirrors
 				framework.ClusterCreationTimeout,
 			)
-			if isAPINotDeployedError(err) {
-				if time.Now().Before(framework.V20260630PreviewDeploymentDeadline) {
-					Skip(fmt.Sprintf("v20260630preview API not yet deployed; skipping until %s", framework.V20260630PreviewDeploymentDeadline.Format(time.RFC3339)))
-				}
-				Fail(fmt.Sprintf("v20260630preview API still not deployed as of %s deadline", framework.V20260630PreviewDeploymentDeadline.Format(time.RFC3339)))
-			}
 			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster for KMS key rotation test")
 
 			By("getting admin REST config")
@@ -174,19 +167,19 @@ var _ = Describe("Customer", func() {
 				"newVersion", firstKeyVersion)
 
 			By("updating the cluster with the new KMS key")
-			hcpClient := tc.Get20260630ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
-			updateResult, err := framework.UpdateHCPCluster20260630(
+			hcpClient := tc.Get20260901ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
+			updateResult, err := framework.UpdateHCPCluster20260901(
 				ctx,
 				hcpClient,
 				*resourceGroup.Name,
 				clusterName,
-				hcpsdk20260630preview.HcpOpenShiftClusterUpdate{
-					Properties: &hcpsdk20260630preview.HcpOpenShiftClusterPropertiesUpdate{
-						Etcd: &hcpsdk20260630preview.EtcdProfileUpdate{
-							DataEncryption: &hcpsdk20260630preview.EtcdDataEncryptionProfileUpdate{
-								CustomerManaged: &hcpsdk20260630preview.CustomerManagedEncryptionProfileUpdate{
-									Kms: &hcpsdk20260630preview.KmsEncryptionProfileUpdate{
-										ActiveKey: &hcpsdk20260630preview.KmsKeyUpdate{
+				hcpsdk20260901preview.HcpOpenShiftClusterUpdate{
+					Properties: &hcpsdk20260901preview.HcpOpenShiftClusterPropertiesUpdate{
+						Etcd: &hcpsdk20260901preview.EtcdProfileUpdate{
+							DataEncryption: &hcpsdk20260901preview.EtcdDataEncryptionProfileUpdate{
+								CustomerManaged: &hcpsdk20260901preview.CustomerManagedEncryptionProfileUpdate{
+									Kms: &hcpsdk20260901preview.KmsEncryptionProfileUpdate{
+										ActiveKey: &hcpsdk20260901preview.KmsKeyUpdate{
 											Version: to.Ptr(firstKeyVersion),
 										},
 									},
@@ -236,7 +229,7 @@ var _ = Describe("Customer", func() {
 
 			if devEnv {
 				firstRotationFingerprint := backup.AzureKMSKeyFingerprint(clusterParams.KeyVaultName, clusterParams.EtcdEncryptionKeyName, firstKeyVersion)
-				verifyOnDemandBackupForFingerprint(ctx, httpClient, adminAPIAddress, hcpResourceID, firstRotationFingerprint, "first")
+				verifyOnDemandBackupRespectingPauseState(ctx, httpClient, adminAPIAddress, hcpResourceID, firstRotationFingerprint, "first")
 			}
 
 			By("disabling first key version")
@@ -283,18 +276,18 @@ var _ = Describe("Customer", func() {
 				"newKeyVersion", secondKeyVersion)
 
 			By("updating the cluster with the new KMS key (second rotation)")
-			updateResult, err = framework.UpdateHCPCluster20260630(
+			updateResult, err = framework.UpdateHCPCluster20260901(
 				ctx,
 				hcpClient,
 				*resourceGroup.Name,
 				clusterName,
-				hcpsdk20260630preview.HcpOpenShiftClusterUpdate{
-					Properties: &hcpsdk20260630preview.HcpOpenShiftClusterPropertiesUpdate{
-						Etcd: &hcpsdk20260630preview.EtcdProfileUpdate{
-							DataEncryption: &hcpsdk20260630preview.EtcdDataEncryptionProfileUpdate{
-								CustomerManaged: &hcpsdk20260630preview.CustomerManagedEncryptionProfileUpdate{
-									Kms: &hcpsdk20260630preview.KmsEncryptionProfileUpdate{
-										ActiveKey: &hcpsdk20260630preview.KmsKeyUpdate{
+				hcpsdk20260901preview.HcpOpenShiftClusterUpdate{
+					Properties: &hcpsdk20260901preview.HcpOpenShiftClusterPropertiesUpdate{
+						Etcd: &hcpsdk20260901preview.EtcdProfileUpdate{
+							DataEncryption: &hcpsdk20260901preview.EtcdDataEncryptionProfileUpdate{
+								CustomerManaged: &hcpsdk20260901preview.CustomerManagedEncryptionProfileUpdate{
+									Kms: &hcpsdk20260901preview.KmsEncryptionProfileUpdate{
+										ActiveKey: &hcpsdk20260901preview.KmsKeyUpdate{
 											Version: to.Ptr(secondKeyVersion),
 										},
 									},
@@ -344,7 +337,7 @@ var _ = Describe("Customer", func() {
 
 			if devEnv {
 				secondRotationFingerprint := backup.AzureKMSKeyFingerprint(clusterParams.KeyVaultName, clusterParams.EtcdEncryptionKeyName, secondKeyVersion)
-				verifyOnDemandBackupForFingerprint(ctx, httpClient, adminAPIAddress, hcpResourceID, secondRotationFingerprint, "second")
+				verifyOnDemandBackupRespectingPauseState(ctx, httpClient, adminAPIAddress, hcpResourceID, secondRotationFingerprint, "second")
 
 				By("verifying backup schedules still exist after rotation")
 				Eventually(func() (bool, error) {
@@ -380,6 +373,69 @@ var _ = Describe("Customer", func() {
 	)
 })
 
+// verifyOnDemandBackupRespectingPauseState checks the current backup schedule
+// state and asserts accordingly: no backup if paused, otherwise the normal
+// on-demand backup flow. It never changes the pause state itself.
+func verifyOnDemandBackupRespectingPauseState(ctx context.Context, httpClient *http.Client, adminAPIAddress, resourceID, fingerprint, rotationLabel string) {
+	const (
+		scheduleStateObservationTimeout  = 2 * time.Minute
+		scheduleStateObservationInterval = 10 * time.Second
+	)
+
+	By(fmt.Sprintf("checking current backup schedule state before verifying %s rotation backup behavior", rotationLabel))
+	// The admin handler leaves BackupExecutionState empty until a schedule's ReadDesire
+	// has observed KubeContent, so wait for every schedule to report a concrete state
+	// before deciding; otherwise an unobserved schedule could be mistaken for "not paused".
+	var schedResp hcp.BackupScheduleResponse
+	Eventually(func() (bool, error) {
+		resp, err := getBackupScheduleViaAdminAPI(ctx, httpClient, adminAPIAddress, resourceID)
+		if err != nil {
+			return false, err
+		}
+		schedResp = resp
+		return allSchedulesHaveConcreteState(resp.Schedules), nil
+	}, scheduleStateObservationTimeout, scheduleStateObservationInterval).Should(BeTrue(),
+		"every backup schedule should report a concrete execution state before evaluating pause behavior")
+
+	// State reflects only the per-cluster toggle; a fleet-wide pause leaves it
+	// Enabled but reports every schedule's BackupExecutionState as Paused, so
+	// check both to avoid waiting for a backup that will never be created.
+	if schedResp.State == coreapi.BackupScheduleStateDisabled || allSchedulesPaused(schedResp.Schedules) {
+		verifyNoOnDemandBackupForFingerprint(ctx, httpClient, adminAPIAddress, resourceID, fingerprint, rotationLabel)
+		return
+	}
+	verifyOnDemandBackupForFingerprint(ctx, httpClient, adminAPIAddress, resourceID, fingerprint, rotationLabel)
+}
+
+// allSchedulesHaveConcreteState reports whether every schedule has observed a
+// non-empty BackupExecutionState, used to avoid deciding pause state from a
+// schedule whose ReadDesire hasn't observed KubeContent yet.
+func allSchedulesHaveConcreteState(schedules []hcp.BackupScheduleDetail) bool {
+	if len(schedules) == 0 {
+		return false
+	}
+	for _, s := range schedules {
+		if s.BackupExecutionState == "" {
+			return false
+		}
+	}
+	return true
+}
+
+// allSchedulesPaused reports whether every schedule is paused, used to detect a
+// fleet-wide pause that the per-cluster State field alone would miss.
+func allSchedulesPaused(schedules []hcp.BackupScheduleDetail) bool {
+	if len(schedules) == 0 {
+		return false
+	}
+	for _, s := range schedules {
+		if s.BackupExecutionState != hcp.BackupExecutionStatePaused {
+			return false
+		}
+	}
+	return true
+}
+
 // verifyOnDemandBackupForFingerprint waits for an on-demand backup carrying the
 // given KMS key fingerprint to appear via the admin API, e.g. after a key rotation.
 func verifyOnDemandBackupForFingerprint(ctx context.Context, httpClient *http.Client, adminAPIAddress, resourceID, fingerprint, rotationLabel string) {
@@ -401,4 +457,50 @@ func verifyOnDemandBackupForFingerprint(ctx context.Context, httpClient *http.Cl
 		return false, nil
 	}, framework.BackupWaitTimeout, framework.BackupWaitInterval).Should(BeTrue(),
 		fmt.Sprintf("on-demand backup with the new key fingerprint should be created after the %s rotation", rotationLabel))
+}
+
+// verifyNoOnDemandBackupForFingerprint asserts no on-demand backup with the given
+// fingerprint appears, used when the rotation completes while backups are paused.
+// Uses a short window (not the full BackupWaitTimeout) since a wrongly-created
+// on-demand backup would show up almost immediately, not after minutes.
+func verifyNoOnDemandBackupForFingerprint(ctx context.Context, httpClient *http.Client, adminAPIAddress, resourceID, fingerprint, rotationLabel string) {
+	const (
+		noBackupCheckDuration   = 2 * time.Minute
+		noBackupCheckInterval   = 15 * time.Second
+		maxTransientErrorBudget = 3
+	)
+
+	By(fmt.Sprintf("verifying no on-demand backup was created after the paused %s rotation", rotationLabel))
+	var lastErr string
+	blipBudget := maxTransientErrorBudget
+	Consistently(func() (bool, error) {
+		resp, err := getOnDemandBackupsViaAdminAPI(ctx, httpClient, adminAPIAddress, resourceID)
+		if err != nil {
+			// Unlike Eventually, Consistently fails immediately on any error from this
+			// func, with no retry tolerance. Tolerate a bounded number of transient
+			// admin API errors so a brief blip doesn't flake this negative assertion,
+			// but a persistently failing API still fails the check once the budget runs out.
+			if blipBudget > 0 {
+				blipBudget--
+				if msg := err.Error(); msg != lastErr {
+					GinkgoLogr.Info("Transient error checking on-demand backups, tolerating", "err", msg, "remainingBudget", blipBudget)
+					lastErr = msg
+				}
+				return true, nil
+			}
+			return false, fmt.Errorf("admin API error budget (%d) exhausted while checking on-demand backups: %w", maxTransientErrorBudget, err)
+		}
+		lastErr = ""
+		for _, b := range resp.Backups {
+			if b.KMSKeyFingerprint == fingerprint {
+				GinkgoLogr.Info("Unexpected on-demand backup found for fingerprint while backup schedules were paused",
+					"backupName", b.Name,
+					"phase", b.Phase,
+					"fingerprint", b.KMSKeyFingerprint)
+				return false, nil
+			}
+		}
+		return true, nil
+	}, noBackupCheckDuration, noBackupCheckInterval).Should(BeTrue(),
+		fmt.Sprintf("no on-demand backup with the %s rotation's key fingerprint should be created while backup schedules are paused", rotationLabel))
 }

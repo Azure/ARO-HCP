@@ -23,6 +23,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -346,10 +347,28 @@ func aggregateNodesBySKU(nodes []*corev1.Node) []capacityreportv1alpha1.NodeSKUC
 	return result
 }
 
+// newZeroFloorResourceList returns a fresh ResourceList seeded with the
+// scheduling-relevant resource types at zero quantity. Aggregation starts
+// from this baseline instead of an empty map so usage/requested never end up
+// with zero entries when there is no matching workload. usage/requested are
+// granular (per-key) Server-Side Apply fields; a granular map whose owned key
+// set drops to zero is collapsed to an invalid null during merge — a
+// currently open, unfixed structured-merge-diff bug:
+// https://github.com/kubernetes-sigs/structured-merge-diff/issues/305.
+// Keeping a stable, non-empty key set (real data only adds to it or leaves
+// entries at zero) sidesteps that collapse entirely.
+func newZeroFloorResourceList() corev1.ResourceList {
+	return corev1.ResourceList{
+		corev1.ResourceCPU:              resource.MustParse("0"),
+		corev1.ResourceMemory:           resource.MustParse("0"),
+		controller.SwiftNICResourceName: resource.MustParse("0"),
+	}
+}
+
 // aggregatePodRequests sums resource requests across containers of
 // non-terminal pods in HostedControlPlane namespaces.
 func aggregatePodRequests(pods []*corev1.Pod, hcpNamespaces sets.Set[string]) corev1.ResourceList {
-	total := corev1.ResourceList{}
+	total := newZeroFloorResourceList()
 	for _, pod := range pods {
 		if !hcpNamespaces.Has(pod.Namespace) {
 			continue
@@ -367,7 +386,7 @@ func aggregatePodRequests(pods []*corev1.Pod, hcpNamespaces sets.Set[string]) co
 // aggregatePodMetrics sums actual resource usage from PodMetrics for pods in
 // HostedControlPlane namespaces.
 func aggregatePodMetrics(metrics []metricsv1beta1.PodMetrics, hcpNamespaces sets.Set[string]) corev1.ResourceList {
-	total := corev1.ResourceList{}
+	total := newZeroFloorResourceList()
 	for _, podMetric := range metrics {
 		if !hcpNamespaces.Has(podMetric.Namespace) {
 			continue

@@ -22,6 +22,7 @@ import (
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -67,14 +68,14 @@ func writeError(ctx context.Context, w http.ResponseWriter, err error) error {
 	if errors.As(err, &ocmError) {
 		resourceID, _ := utils.ResourceIDFromContext(ctx) // used for error reporting
 		cloudErr := ocm.CSErrorToCloudError(err, resourceID)
-		coreapi.WriteCloudError(w, cloudErr)
+		coreapihelpers.WriteCloudError(w, cloudErr)
 		return nil
 	}
 
 	var cloudErr *coreapi.CloudError
 	if err != nil && errors.As(err, &cloudErr) {
 		if cloudErr != nil { // difference between interface is nil and the content is nil
-			coreapi.WriteCloudError(w, cloudErr)
+			coreapihelpers.WriteCloudError(w, cloudErr)
 			return nil
 		}
 	}
@@ -82,26 +83,37 @@ func writeError(ctx context.Context, w http.ResponseWriter, err error) error {
 	if cosmosstorageutils.IsNotFoundError(err) {
 		resourceID, err := utils.ResourceIDFromContext(ctx) // used for error reporting
 		if err != nil {
-			coreapi.WriteInternalServerError(w)
+			coreapihelpers.WriteInternalServerError(w)
 			return nil
 		}
-		coreapi.WriteCloudError(w, coreapi.NewResourceNotFoundError(resourceID))
+		coreapihelpers.WriteCloudError(w, coreapi.NewResourceNotFoundError(resourceID))
 		return nil
 	}
 
 	var stepError *cosmosstorageutils.TransactionStepError
-	if errors.As(err, &stepError) && stepError.HTTPStatusCode == http.StatusPreconditionFailed {
-		w.Header().Set("Retry-After", "1")
-		coreapi.WriteCloudError(w, coreapi.NewCloudError(
-			http.StatusTooManyRequests,
-			coreapi.CloudErrorCodeConflict, "",
-			"The resource was modified by another request. Please retry. (transaction step %d of %d)",
-			stepError.Step, stepError.TotalSteps,
-		))
-		return nil
+	if errors.As(err, &stepError) {
+		switch stepError.HTTPStatusCode {
+		case http.StatusPreconditionFailed:
+			w.Header().Set("Retry-After", "1")
+			coreapihelpers.WriteCloudError(w, coreapi.NewCloudError(
+				http.StatusTooManyRequests,
+				coreapi.CloudErrorCodeConflict, "",
+				"The resource was modified by another request. Please retry. (transaction step %d of %d)",
+				stepError.Step, stepError.TotalSteps,
+			))
+			return nil
+		case http.StatusConflict:
+			coreapihelpers.WriteCloudError(w, coreapi.NewCloudError(
+				http.StatusConflict,
+				coreapi.CloudErrorCodeConflict, "",
+				"The resource already exists. (transaction step %d of %d)",
+				stepError.Step, stepError.TotalSteps,
+			))
+			return nil
+		}
 	}
 
-	coreapi.WriteInternalServerError(w)
+	coreapihelpers.WriteInternalServerError(w)
 	return nil
 }
 
@@ -125,8 +137,13 @@ func predictedResponseStatus(err error) int {
 	}
 
 	var stepError *cosmosstorageutils.TransactionStepError
-	if errors.As(err, &stepError) && stepError.HTTPStatusCode == http.StatusPreconditionFailed {
-		return http.StatusTooManyRequests
+	if errors.As(err, &stepError) {
+		switch stepError.HTTPStatusCode {
+		case http.StatusPreconditionFailed:
+			return http.StatusTooManyRequests
+		case http.StatusConflict:
+			return http.StatusConflict
+		}
 	}
 
 	return http.StatusInternalServerError

@@ -26,7 +26,6 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/validationutils"
-	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
@@ -37,6 +36,9 @@ import (
 )
 
 const (
+	NodePoolValidationAzureNodePoolNSGBasedRequiredConnectivityValidationControllerName = "NodePoolValidationAzureNodePoolNSGBasedRequiredConnectivityValidation"
+	NodePoolValidationAzureNodePoolVMQuotaValidationControllerName                      = "NodePoolValidationAzureNodePoolVMQuotaValidation"
+	NodePoolValidationAzureVMSizeSupportsEphemeralOSDiskValidationControllerName        = "NodePoolValidationAzureVMSizeSupportsEphemeralOSDiskValidation"
 	// consecutiveUnknownCountsCacheCapacity bounds the size of the consecutiveUnknownCounts LRU cache.
 	consecutiveUnknownCountsCacheCapacity = 50000
 
@@ -81,6 +83,17 @@ func NewNodePoolValidationController(
 	informers coreinformers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 ) controllerutils.Controller {
+	return NewNamedNodePoolValidationController(fmt.Sprintf("NodePoolValidation%s", validation.Name()), validation, resourcesDBClient, serviceProviderNodePoolLister, informers, kubeApplierInformers)
+}
+
+func NewNamedNodePoolValidationController(
+	name string,
+	validation validationutils.NodePoolValidation,
+	resourcesDBClient corecosmosstorage.ResourcesDBClient,
+	serviceProviderNodePoolLister corelisters.ServiceProviderNodePoolLister,
+	informers coreinformers.BackendInformers,
+	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
+) controllerutils.Controller {
 
 	syncer := &nodePoolValidationSyncer{
 		retryCooldownChecker:          controllerutil.NewSettableCooldownChecker(),
@@ -91,7 +104,7 @@ func NewNodePoolValidationController(
 	}
 
 	controller := controllerutils.NewNodePoolWatchingController(
-		fmt.Sprintf("NodePoolValidation%s", validation.Name()),
+		name,
 		resourcesDBClient,
 		informers,
 		kubeApplierInformers,
@@ -154,9 +167,6 @@ func (c *nodePoolValidationSyncer) SyncOnce(ctx context.Context, key controlleru
 		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderNodePool: %w", err))
 	}
 
-	if !c.shouldProcess(cachedServiceProviderNodePool) {
-		return nil // no work to do
-	}
 	existingServiceProviderNodePool := cachedServiceProviderNodePool.DeepCopy()
 	subscription, err := c.resourcesDBClient.Subscriptions().Get(ctx, existingNodePool.ID.SubscriptionID)
 	if err != nil {
@@ -225,12 +235,6 @@ func (c *nodePoolValidationSyncer) handleRequeue(key controllerutils.HCPNodePool
 	if c.enqueueAfter != nil && (result.Outcome.Type == validationutils.OutcomeTypeFailed || result.Outcome.Type == validationutils.OutcomeTypeUnknown) {
 		c.enqueueAfter.EnqueueAfter(key, *result.EarliestRetryAfter+time.Second)
 	}
-}
-
-// shouldProcess returns true when the condition associated to the validation does not exist or when it exists but
-// its status is not True.
-func (c *nodePoolValidationSyncer) shouldProcess(serviceProviderNodePool *coreapi.ServiceProviderNodePool) bool {
-	return !meta.IsStatusConditionTrue(serviceProviderNodePool.Status.Validations, c.validation.Name())
 }
 
 // shouldWriteCondition reports whether the newly computed validation condition should be written, versus

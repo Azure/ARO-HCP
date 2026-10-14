@@ -37,6 +37,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
 	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
 	"github.com/Azure/ARO-HCP/internal/backup"
 	"github.com/Azure/ARO-HCP/internal/controllerutils"
@@ -140,7 +141,7 @@ func TestPatchBackupScheduleHandler(t *testing.T) {
 			require.NoError(t, err)
 
 			if tt.seedHCP {
-				hcp := &coreapi.HCPOpenShiftCluster{
+				hcp := &coreapi.Cluster{
 					CosmosMetadata: coreapi.CosmosMetadata{
 						ResourceID:   resourceID,
 						PartitionKey: strings.ToLower(resourceID.SubscriptionID),
@@ -227,7 +228,7 @@ func TestGetBackupScheduleHandler(t *testing.T) {
 	))
 
 	makeReadDesire := func(name string) *kubeapplierapi.ReadDesire {
-		resourceIDStr := kubeapplierapi.ToClusterScopedReadDesireResourceIDString(
+		resourceIDStr := kubeapplierapihelpers.ToClusterScopedReadDesireResourceIDString(
 			coreapitesting.TestSubscriptionID, coreapitesting.TestResourceGroupName, coreapitesting.TestClusterName, name,
 		)
 		resourceID := metadataapi.Must(azcorearm.ParseResourceID(resourceIDStr))
@@ -251,7 +252,7 @@ func TestGetBackupScheduleHandler(t *testing.T) {
 		backupState coreapi.BackupScheduleState,
 	) {
 		t.Helper()
-		hcp := &coreapi.HCPOpenShiftCluster{
+		hcp := &coreapi.Cluster{
 			CosmosMetadata: coreapi.CosmosMetadata{
 				ResourceID:   resourceID,
 				PartitionKey: strings.ToLower(resourceID.SubscriptionID),
@@ -401,7 +402,7 @@ func TestGetBackupScheduleHandler(t *testing.T) {
 				if tt.setMgmtPlacement {
 					seedClusterWithMgmtPlacement(ctx, t, mockResourcesDBClient, resourceID, tt.backupState)
 				} else {
-					hcp := &coreapi.HCPOpenShiftCluster{
+					hcp := &coreapi.Cluster{
 						CosmosMetadata: coreapi.CosmosMetadata{
 							ResourceID:   resourceID,
 							PartitionKey: strings.ToLower(resourceID.SubscriptionID),
@@ -505,7 +506,7 @@ func TestGetOnDemandBackupsHandler(t *testing.T) {
 	))
 
 	makeReadDesire := func(name string) *kubeapplierapi.ReadDesire {
-		resourceIDStr := kubeapplierapi.ToClusterScopedReadDesireResourceIDString(
+		resourceIDStr := kubeapplierapihelpers.ToClusterScopedReadDesireResourceIDString(
 			coreapitesting.TestSubscriptionID, coreapitesting.TestResourceGroupName, coreapitesting.TestClusterName, name,
 		)
 		resourceID := metadataapi.Must(azcorearm.ParseResourceID(resourceIDStr))
@@ -523,7 +524,7 @@ func TestGetOnDemandBackupsHandler(t *testing.T) {
 
 	seedCluster := func(ctx context.Context, t *testing.T, mockResourcesDBClient *corecosmosstoragetesting.MockResourcesDBClient, resourceID *azcorearm.ResourceID) {
 		t.Helper()
-		hcp := &coreapi.HCPOpenShiftCluster{
+		hcp := &coreapi.Cluster{
 			CosmosMetadata: coreapi.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(resourceID.SubscriptionID)},
 			TrackedResource: coreapi.TrackedResource{
 				Resource: coreapi.Resource{ID: resourceID},

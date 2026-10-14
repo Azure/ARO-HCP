@@ -43,6 +43,8 @@ type operationNodePoolDelete struct {
 	notificationClient   *http.Client
 }
 
+const OperationNodePoolDeleteControllerName = "OperationNodePoolDelete"
+
 // NewOperationNodePoolDeleteController returns a new Controller instance that
 // follows an asynchronous node pool deletion operation to completion and updates
 // the corresponding operation document in Cosmos DB.
@@ -81,7 +83,7 @@ func NewOperationNodePoolDeleteController(
 	}
 
 	controller := controllerutils.NewGenericOperationController(
-		"OperationNodePoolDelete",
+		OperationNodePoolDeleteControllerName,
 		syncer,
 		10*time.Second,
 		activeOperationInformer,
@@ -200,13 +202,13 @@ func (c *operationNodePoolDelete) SynchronizeOperation(ctx context.Context, key 
 	return nil
 }
 
-func (c *operationNodePoolDelete) shouldReconcileOperationAndResourceStatus(nodePool *coreapi.HCPOpenShiftClusterNodePool) bool {
+func (c *operationNodePoolDelete) shouldReconcileOperationAndResourceStatus(nodePool *coreapi.NodePool) bool {
 	return nodePool.ServiceProviderProperties.DeletionTimestamp != nil &&
 		nodePool.ServiceProviderProperties.ClusterServiceDeletionTimestamp != nil &&
 		nodePool.ServiceProviderProperties.ClusterServiceID != nil
 }
 
-func (c *operationNodePoolDelete) reconcileOperationAndResourceStatus(ctx context.Context, operation *coreapi.Operation, nodePool *coreapi.HCPOpenShiftClusterNodePool) error {
+func (c *operationNodePoolDelete) reconcileOperationAndResourceStatus(ctx context.Context, operation *coreapi.Operation, nodePool *coreapi.NodePool) error {
 	logger := utils.LoggerFromContext(ctx)
 
 	nodePoolCSID := nodePool.ServiceProviderProperties.ClusterServiceID

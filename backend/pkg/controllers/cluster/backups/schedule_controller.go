@@ -107,7 +107,7 @@ func NewBackupScheduleController(
 // needsDeletionWork returns true when the cluster is being deleted and the
 // schedule controller should tear down backup desires. Only
 // ManagementClusterResourceID is required (to reach the kube-applier).
-func needsDeletionWork(existingCluster coreapi.HCPOpenShiftCluster, serviceProviderCluster coreapi.ServiceProviderCluster) bool {
+func needsDeletionWork(existingCluster coreapi.Cluster, serviceProviderCluster coreapi.ServiceProviderCluster) bool {
 	if existingCluster.ServiceProviderProperties.DeletionTimestamp == nil {
 		return false
 	}
@@ -167,7 +167,7 @@ func (c *backupScheduleSyncer) SyncOnce(ctx context.Context, key controllerutils
 	// CustomerProperties only indicates whether CMK is configured.
 	kmsKeyFingerprint := ""
 	if cm := cachedCluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged; cm != nil && cm.Kms != nil && cm.Kms.ActiveKey.Version != "" {
-		hostedCluster, err := kubeapplierhelpers.GetCachedHostedClusterForCluster(
+		hostedCluster, _, err := kubeapplierhelpers.GetCachedHostedClusterForCluster(
 			ctx, c.readDesireLister, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName,
 		)
 		if err != nil {

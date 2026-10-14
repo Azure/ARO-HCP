@@ -75,6 +75,30 @@ func immutableByReflect[T any](_ context.Context, op operation.Operation, fldPat
 	return nil
 }
 
+// rejectUnsupportedChannelGroupUpdate rejects a channelGroup change on an
+// existing cluster or node pool. Remove this once the backend owns
+// channelGroup control and can apply an update.
+//
+// The update cannot be applied today, for two reasons:
+//
+//   - The backend sends channelGroup to Cluster Service only on create
+//     (BuildCSCluster and BuildCSNodePool). Cluster and node-pool update
+//     dispatch omit the field.
+//   - Cluster Service rejects a patch that includes version at all
+//     so a channelGroup patch is reported as "Attribute 'version' is not allowed".
+func rejectUnsupportedChannelGroupUpdate(op operation.Operation, fldPath *field.Path, newChannelGroup string, oldChannelGroup *string) field.ErrorList {
+	if op.Type != operation.Update || oldChannelGroup == nil {
+		return nil
+	}
+	if newChannelGroup == *oldChannelGroup {
+		return nil
+	}
+	return field.ErrorList{field.Forbidden(
+		fldPath.Child("channelGroup"),
+		"updating channelGroup is not currently supported",
+	)}
+}
+
 // immutableByReflectOnceSet allows a nil→non-nil transition (first-time set)
 // but rejects any change or clearing once the field has been set.
 func immutableByReflectOnceSet[T any](_ context.Context, op operation.Operation, fldPath *field.Path, value, oldValue *T) field.ErrorList {
@@ -124,6 +148,33 @@ func VersionMustBeAtLeast(_ context.Context, op operation.Operation, fldPath *fi
 
 	if newVersion.LT(minVersion) {
 		return field.ErrorList{field.Invalid(fldPath, value, fmt.Sprintf("must be at least %s", minimumVersion))}
+	}
+
+	return nil
+}
+
+// VersionMustBeAtLeastMajorMinor checks if the version is at least the minimum major.minor version,
+// ignoring patch and prerelease.
+func VersionMustBeAtLeastMajorMinor(ctx context.Context, op operation.Operation, fldPath *field.Path, value, _ *string, minimumMajorMinorVersion string) field.ErrorList {
+	if value == nil {
+		return nil
+	}
+	if len(*value) == 0 {
+		return nil
+	}
+
+	newVersion, err := semver.ParseTolerant(*value)
+	if err != nil {
+		return field.ErrorList{field.Invalid(fldPath, value, err.Error())}
+	}
+
+	minVersion, err := semver.ParseTolerant(minimumMajorMinorVersion)
+	if err != nil {
+		return field.ErrorList{field.Invalid(fldPath, value, err.Error())}
+	}
+
+	if newVersion.Major < minVersion.Major || (newVersion.Major == minVersion.Major && newVersion.Minor < minVersion.Minor) {
+		return field.ErrorList{field.Invalid(fldPath, value, fmt.Sprintf("must be at least %s", minimumMajorMinorVersion))}
 	}
 
 	return nil
@@ -975,9 +1026,9 @@ func ValidateMajorUpgrade(fromVersion, toVersion semver.Version) error {
 //   - Downgrade: at most -2 minor versions from the highest control plane version
 //   - Cross-major changes (either direction) require AFEC FeatureExperimentalReleaseFeatures
 //   - NP version must be in the allowed skew map when CP and NP are on different majors
-func ValidateNodePoolVersionChange(desiredVersion semver.Version, activeVersions []coreapi.HCPNodePoolActiveVersion, lowestCPVersion, highestCPVersion *semver.Version, allowMajorUpgrade bool) error {
+func ValidateNodePoolVersionChange(desiredVersion semver.Version, activeVersions []coreapi.ServiceProviderNodePoolActiveVersion, lowestCPVersion, highestCPVersion *semver.Version, allowMajorUpgrade bool) error {
 	// Skip if already in active versions
-	if slices.ContainsFunc(activeVersions, func(av coreapi.HCPNodePoolActiveVersion) bool {
+	if slices.ContainsFunc(activeVersions, func(av coreapi.ServiceProviderNodePoolActiveVersion) bool {
 		return av.Version != nil && av.Version.EQ(desiredVersion)
 	}) {
 		return nil

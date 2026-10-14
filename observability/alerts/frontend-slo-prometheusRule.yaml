@@ -13,7 +13,8 @@ spec:
   # ========================================
   # Frontend (ARM RP) SLO Alerts
   # ========================================
-  # Driven by ARO-28705 recording rules (errors / availability / latency p99).
+  # Driven by raw Frontend request counters and latency histograms. The
+  # ARO-28705 recording rules remain as diagnostic SLIs for dashboards.
   # Naming: {Scope}{Subject}{Metric}{BurnRateTier} per ADR-001.
   #
   # Availability SLO 99.95% -> error budget 0.05% (0.0005):
@@ -21,23 +22,29 @@ spec:
   #   Medium (6x):  6 * 0.0005 = 0.003 -> 0.30% 5xx share
   #   Slow (1x):    1 * 0.0005 = 0.0005 -> 0.05% 5xx share
   #
-  # Latency SLO p99 < 1s (histogram_quantile seconds, not a 1s-bucket share):
-  #   Fast 1h/5m:   p99 > 5s (severe miss)
-  #   Medium 6h/30m: p99 > 1s (SLO miss)
-  #   Slow 3d/6h:   p99 > 1s (ticket)
+  # Latency SLO p99 < 1s -> error budget 1% of requests over 1s:
+  #   Fast (14.4x): 14.4 * 0.01 = 0.144 -> 14.4% slow requests
+  #   Medium (6x):  6 * 0.01 = 0.06 -> 6% slow requests
+  #   Slow (1x):    1 * 0.01 = 0.01 -> 1% slow requests
+  #
+  # Errors and latency ratios are calculated directly over
+  # each alert window. Averaging 5m quantiles is neither an aggregate p99 nor a
+  # burn rate, and averaging 5m ratios (the reverted design) would weight quiet
+  # and busy windows equally. Histogram bucket counts and request counts are
+  # summed across HA replicas because duplicate counts cancel in the ratio;
+  # max per bucket can break cumulative monotonicity (AROSLSRE-1746). offset 5m
+  # avoids evaluating the unsettled ingestion edge.
   #
   # Ready: kube /healthz via Deployment available/spec. Distinguishes a
   # Frontend outage (ready=0) from an ARM traffic drought (HTTP SLIs absent).
   #
   # Multi-window multi-burn-rate (ADR 79 / Google MWMBR): fast and medium
-  # require BOTH long-window and short-window avg_over_time on the rate5m
-  # series (same pattern as kube-apiserver burnrate1h AND burnrate5m). `for`
-  # is a short pending duration only - not a substitute for the short window.
-  # Slow uses 3d long + 6h short at 1x.
+  # require BOTH long-window and short-window conditions. Errors and latency
+  # alerts compute request-weighted ratios directly over each window;
+  # `for` is a short pending duration only, not a substitute for the short
+  # window. Slow uses 3d long + 6h short at 1x.
   #
   # Fast/medium Errors + Latency page Sev 3 (customer-facing UJ).
-  # Availability is Sev 4 only - complementary to Errors on the same denominator,
-  # so dual Sev3 would open two IcMs per 5xx event (review feedback).
   # Slow/traffic/saturation Sev 4 ticket.
   #
   # summary includes {{ $labels.cluster }} (Access / Node Pool convention; prometheus-rules
@@ -49,9 +56,35 @@ spec:
     - alert: userJourneyFrontendErrors1h5m
       expr: |
         (
-          avg_over_time(errors:frontend_http:error_rate:rate5m[1h]) > 0.0072
-          and
-          avg_over_time(errors:frontend_http:error_rate:rate5m[5m]) > 0.0072
+          (
+            sum by (cluster) (
+              rate(frontend_http_requests_total{
+                code=~"5..",
+                route!~".*hcpoperation(results|statuses).*"
+              }[1h] offset 5m)
+            )
+            /
+            sum by (cluster) (
+              rate(frontend_http_requests_total{
+                route!~".*hcpoperation(results|statuses).*"
+              }[1h] offset 5m)
+            )
+          ) > 0.0072
+          and on (cluster)
+          (
+            sum by (cluster) (
+              rate(frontend_http_requests_total{
+                code=~"5..",
+                route!~".*hcpoperation(results|statuses).*"
+              }[5m] offset 5m)
+            )
+            /
+            sum by (cluster) (
+              rate(frontend_http_requests_total{
+                route!~".*hcpoperation(results|statuses).*"
+              }[5m] offset 5m)
+            )
+          ) > 0.0072
         )
       for: 2m
       labels:
@@ -66,9 +99,35 @@ spec:
     - alert: userJourneyFrontendErrors6h30m
       expr: |
         (
-          avg_over_time(errors:frontend_http:error_rate:rate5m[6h]) > 0.003
-          and
-          avg_over_time(errors:frontend_http:error_rate:rate5m[30m]) > 0.003
+          (
+            sum by (cluster) (
+              rate(frontend_http_requests_total{
+                code=~"5..",
+                route!~".*hcpoperation(results|statuses).*"
+              }[6h] offset 5m)
+            )
+            /
+            sum by (cluster) (
+              rate(frontend_http_requests_total{
+                route!~".*hcpoperation(results|statuses).*"
+              }[6h] offset 5m)
+            )
+          ) > 0.003
+          and on (cluster)
+          (
+            sum by (cluster) (
+              rate(frontend_http_requests_total{
+                code=~"5..",
+                route!~".*hcpoperation(results|statuses).*"
+              }[30m] offset 5m)
+            )
+            /
+            sum by (cluster) (
+              rate(frontend_http_requests_total{
+                route!~".*hcpoperation(results|statuses).*"
+              }[30m] offset 5m)
+            )
+          ) > 0.003
         )
       for: 15m
       labels:
@@ -83,9 +142,35 @@ spec:
     - alert: userJourneyFrontendErrors3d6h
       expr: |
         (
-          avg_over_time(errors:frontend_http:error_rate:rate5m[3d]) > 0.0005
-          and
-          avg_over_time(errors:frontend_http:error_rate:rate5m[6h]) > 0.0005
+          (
+            sum by (cluster) (
+              rate(frontend_http_requests_total{
+                code=~"5..",
+                route!~".*hcpoperation(results|statuses).*"
+              }[3d] offset 5m)
+            )
+            /
+            sum by (cluster) (
+              rate(frontend_http_requests_total{
+                route!~".*hcpoperation(results|statuses).*"
+              }[3d] offset 5m)
+            )
+          ) > 0.0005
+          and on (cluster)
+          (
+            sum by (cluster) (
+              rate(frontend_http_requests_total{
+                code=~"5..",
+                route!~".*hcpoperation(results|statuses).*"
+              }[6h] offset 5m)
+            )
+            /
+            sum by (cluster) (
+              rate(frontend_http_requests_total{
+                route!~".*hcpoperation(results|statuses).*"
+              }[6h] offset 5m)
+            )
+          ) > 0.0005
         )
       for: 1h
       labels:
@@ -97,71 +182,62 @@ spec:
         summary: "{{ $labels.cluster }}: Frontend HTTP 5xx error rate exceeds SLO (>0.05%)"
         description: "Frontend 5xx share on cluster {{ $labels.cluster }} is above the 0.05% SLO boundary on both the 3d and 6h windows (1x burn)."
         runbook_url: "https://aka.ms/arohcp-runbook-frontend"
-  - name: arohcp_frontend_slo_availability_alerts
-    labels:
-      component: slo
-    rules:
-    - alert: userJourneyFrontendAvailability1h5m
-      expr: |
-        (
-          avg_over_time(sli:frontend_http:availability:rate5m[1h]) < 0.9928
-          and
-          avg_over_time(sli:frontend_http:availability:rate5m[5m]) < 0.9928
-        )
-      for: 2m
-      labels:
-        severity: "4"
-        slo: frontend-availability
-        long_window: 1h
-        short_window: 5m
-      annotations:
-        summary: "{{ $labels.cluster }}: Frontend HTTP availability critically low (<99.28%)"
-        description: "Frontend availability on cluster {{ $labels.cluster }} is below 99.28% on both the 1h and 5m windows (14.4x burn of the 99.95% SLO / 0.05% error budget). Sev4 ticket - Errors family pages on the complementary 5xx burn."
-        runbook_url: "https://aka.ms/arohcp-runbook-frontend"
-    - alert: userJourneyFrontendAvailability6h30m
-      expr: |
-        (
-          avg_over_time(sli:frontend_http:availability:rate5m[6h]) < 0.997
-          and
-          avg_over_time(sli:frontend_http:availability:rate5m[30m]) < 0.997
-        )
-      for: 15m
-      labels:
-        severity: "4"
-        slo: frontend-availability
-        long_window: 6h
-        short_window: 30m
-      annotations:
-        summary: "{{ $labels.cluster }}: Frontend HTTP availability degraded (<99.70%)"
-        description: "Frontend availability on cluster {{ $labels.cluster }} is below 99.70% on both the 6h and 30m windows (6x burn). Sev4 ticket - Errors family pages on the complementary 5xx burn."
-        runbook_url: "https://aka.ms/arohcp-runbook-frontend"
-    - alert: userJourneyFrontendAvailability3d6h
-      expr: |
-        (
-          avg_over_time(sli:frontend_http:availability:rate5m[3d]) < 0.9995
-          and
-          avg_over_time(sli:frontend_http:availability:rate5m[6h]) < 0.9995
-        )
-      for: 1h
-      labels:
-        severity: "4"
-        slo: frontend-availability
-        long_window: 3d
-        short_window: 6h
-      annotations:
-        summary: "{{ $labels.cluster }}: Frontend HTTP availability below SLO (<99.95%)"
-        description: "Frontend availability on cluster {{ $labels.cluster }} is below the 99.95% SLO on both the 3d and 6h windows (1x burn)."
-        runbook_url: "https://aka.ms/arohcp-runbook-frontend"
   - name: arohcp_frontend_slo_latency_alerts
     labels:
       component: slo
     rules:
-    - alert: userJourneyFrontendLatencyP991h5m
+    - alert: userJourneyFrontendLatency1h5m
       expr: |
         (
-          avg_over_time(sli:frontend_http:latency_p99:rate5m[1h]) > 5
-          and
-          avg_over_time(sli:frontend_http:latency_p99:rate5m[5m]) > 5
+          (
+            (
+              sum by (cluster) (
+                rate(frontend_http_requests_duration_seconds_bucket{
+                  le="+Inf",
+                  route!~".*hcpoperation(results|statuses).*"
+                }[1h] offset 5m)
+              )
+              -
+              sum by (cluster) (
+                rate(frontend_http_requests_duration_seconds_bucket{
+                  le=~"^1([.]0)?$",
+                  route!~".*hcpoperation(results|statuses).*"
+                }[1h] offset 5m)
+              )
+            )
+            /
+            sum by (cluster) (
+              rate(frontend_http_requests_duration_seconds_bucket{
+                le="+Inf",
+                route!~".*hcpoperation(results|statuses).*"
+              }[1h] offset 5m)
+            )
+          ) > 0.144
+          and on (cluster)
+          (
+            (
+              sum by (cluster) (
+                rate(frontend_http_requests_duration_seconds_bucket{
+                  le="+Inf",
+                  route!~".*hcpoperation(results|statuses).*"
+                }[5m] offset 5m)
+              )
+              -
+              sum by (cluster) (
+                rate(frontend_http_requests_duration_seconds_bucket{
+                  le=~"^1([.]0)?$",
+                  route!~".*hcpoperation(results|statuses).*"
+                }[5m] offset 5m)
+              )
+            )
+            /
+            sum by (cluster) (
+              rate(frontend_http_requests_duration_seconds_bucket{
+                le="+Inf",
+                route!~".*hcpoperation(results|statuses).*"
+              }[5m] offset 5m)
+            )
+          ) > 0.144
         )
       for: 2m
       labels:
@@ -170,15 +246,93 @@ spec:
         long_window: 1h
         short_window: 5m
       annotations:
-        summary: "{{ $labels.cluster }}: Frontend HTTP p99 latency critically high (>5s)"
-        description: "Frontend p99 latency on cluster {{ $labels.cluster }} is above 5s on both the 1h and 5m windows (severe miss of the p99 < 1s ARM sync SLO)."
+        summary: "{{ $labels.cluster }}: Frontend HTTP latency budget burning critically fast (>14.4% over 1s)"
+        description: "More than 14.4% of Frontend requests on cluster {{ $labels.cluster }} exceeded 1s on both the 1h and 5m windows (14.4x burn of the 1% latency budget)."
         runbook_url: "https://aka.ms/arohcp-runbook-frontend"
-    - alert: userJourneyFrontendLatencyP996h30m
+    - alert: userJourneyFrontendLatency6h30m
+      # The ratio is meaningful only with enough observations. Deduplicate HA
+      # replicas for the absolute gates so mirrored scrapes do not manufacture
+      # request volume or slow calls.
       expr: |
         (
-          avg_over_time(sli:frontend_http:latency_p99:rate5m[6h]) > 1
-          and
-          avg_over_time(sli:frontend_http:latency_p99:rate5m[30m]) > 1
+          (
+            (
+              sum by (cluster) (
+                rate(frontend_http_requests_duration_seconds_bucket{
+                  le="+Inf",
+                  route!~".*hcpoperation(results|statuses).*"
+                }[6h] offset 5m)
+              )
+              -
+              sum by (cluster) (
+                rate(frontend_http_requests_duration_seconds_bucket{
+                  le=~"^1([.]0)?$",
+                  route!~".*hcpoperation(results|statuses).*"
+                }[6h] offset 5m)
+              )
+            )
+            /
+            sum by (cluster) (
+              rate(frontend_http_requests_duration_seconds_bucket{
+                le="+Inf",
+                route!~".*hcpoperation(results|statuses).*"
+              }[6h] offset 5m)
+            )
+          ) > 0.06
+          and on (cluster)
+          (
+            (
+              sum by (cluster) (
+                rate(frontend_http_requests_duration_seconds_bucket{
+                  le="+Inf",
+                  route!~".*hcpoperation(results|statuses).*"
+                }[30m] offset 5m)
+              )
+              -
+              sum by (cluster) (
+                rate(frontend_http_requests_duration_seconds_bucket{
+                  le=~"^1([.]0)?$",
+                  route!~".*hcpoperation(results|statuses).*"
+                }[30m] offset 5m)
+              )
+            )
+            /
+            sum by (cluster) (
+              rate(frontend_http_requests_duration_seconds_bucket{
+                le="+Inf",
+                route!~".*hcpoperation(results|statuses).*"
+              }[30m] offset 5m)
+            )
+          ) > 0.06
+          and on (cluster)
+          (
+            sum by (cluster) (
+              max without (prometheus_replica) (
+                increase(frontend_http_requests_duration_seconds_count{
+                  route!~".*hcpoperation(results|statuses).*"
+                }[30m] offset 5m)
+              )
+            )
+          ) >= 50
+          and on (cluster)
+          (
+            sum by (cluster) (
+              max without (prometheus_replica) (
+                increase(frontend_http_requests_duration_seconds_count{
+                  route!~".*hcpoperation(results|statuses).*"
+                }[30m] offset 5m)
+              )
+            )
+            -
+            sum by (cluster) (
+              max without (prometheus_replica) (
+                increase(frontend_http_requests_duration_seconds_bucket{
+                  le=~"^1([.]0)?$",
+                  route!~".*hcpoperation(results|statuses).*"
+                }[30m] offset 5m)
+              )
+            )
+          ) >= 3
         )
       for: 15m
       labels:
@@ -187,15 +341,61 @@ spec:
         long_window: 6h
         short_window: 30m
       annotations:
-        summary: "{{ $labels.cluster }}: Frontend HTTP p99 latency above SLO (>1s)"
-        description: "Frontend p99 latency on cluster {{ $labels.cluster }} is above 1s on both the 6h and 30m windows (p99 < 1s ARM sync SLO miss)."
+        summary: "{{ $labels.cluster }}: Frontend HTTP latency budget burning fast (>6% over 1s)"
+        description: "More than 6% of Frontend requests on cluster {{ $labels.cluster }} exceeded 1s on both the 6h and 30m windows (6x burn of the 1% latency budget)."
         runbook_url: "https://aka.ms/arohcp-runbook-frontend"
-    - alert: userJourneyFrontendLatencyP993d6h
+    - alert: userJourneyFrontendLatency3d6h
       expr: |
         (
-          avg_over_time(sli:frontend_http:latency_p99:rate5m[3d]) > 1
-          and
-          avg_over_time(sli:frontend_http:latency_p99:rate5m[6h]) > 1
+          (
+            (
+              sum by (cluster) (
+                rate(frontend_http_requests_duration_seconds_bucket{
+                  le="+Inf",
+                  route!~".*hcpoperation(results|statuses).*"
+                }[3d] offset 5m)
+              )
+              -
+              sum by (cluster) (
+                rate(frontend_http_requests_duration_seconds_bucket{
+                  le=~"^1([.]0)?$",
+                  route!~".*hcpoperation(results|statuses).*"
+                }[3d] offset 5m)
+              )
+            )
+            /
+            sum by (cluster) (
+              rate(frontend_http_requests_duration_seconds_bucket{
+                le="+Inf",
+                route!~".*hcpoperation(results|statuses).*"
+              }[3d] offset 5m)
+            )
+          ) > 0.01
+          and on (cluster)
+          (
+            (
+              sum by (cluster) (
+                rate(frontend_http_requests_duration_seconds_bucket{
+                  le="+Inf",
+                  route!~".*hcpoperation(results|statuses).*"
+                }[6h] offset 5m)
+              )
+              -
+              sum by (cluster) (
+                rate(frontend_http_requests_duration_seconds_bucket{
+                  le=~"^1([.]0)?$",
+                  route!~".*hcpoperation(results|statuses).*"
+                }[6h] offset 5m)
+              )
+            )
+            /
+            sum by (cluster) (
+              rate(frontend_http_requests_duration_seconds_bucket{
+                le="+Inf",
+                route!~".*hcpoperation(results|statuses).*"
+              }[6h] offset 5m)
+            )
+          ) > 0.01
         )
       for: 1h
       labels:
@@ -204,8 +404,8 @@ spec:
         long_window: 3d
         short_window: 6h
       annotations:
-        summary: "{{ $labels.cluster }}: Frontend HTTP p99 latency above SLO (>1s)"
-        description: "Frontend p99 latency on cluster {{ $labels.cluster }} is above 1s on both the 3d and 6h windows (1x burn of the p99 < 1s SLO)."
+        summary: "{{ $labels.cluster }}: Frontend HTTP latency exceeds its SLO budget (>1% over 1s)"
+        description: "More than 1% of Frontend requests on cluster {{ $labels.cluster }} exceeded 1s on both the 3d and 6h windows (1x burn of the latency budget)."
         runbook_url: "https://aka.ms/arohcp-runbook-frontend"
   - name: arohcp_frontend_slo_ready_alerts
     labels:
@@ -222,48 +422,10 @@ spec:
         summary: "{{ $labels.cluster }}: Frontend has no Ready replicas (kube /healthz)"
         description: "aro-hcp-frontend on cluster {{ $labels.cluster }} has 0 available replicas (kube readiness probes hit /healthz). This is a process outage, not an ARM traffic drought."
         runbook_url: "https://aka.ms/arohcp-runbook-frontend"
-  # Traffic drought is Sev 4 (ticket). The 0.5 RPS 1d-baseline floor is a
-  # fleet-wide noise gate, not an SLO: 10% of 0.5 RPS is 0.05 RPS (~3 rpm),
-  # below which a 90% drop is scrape noise / idle INT, not a customer-visible
-  # ARM collapse. Replica death is userJourneyFrontendReady (Sev 3).
-  # One RP bicep is generated for all clouds, so the floor is not per-env.
-  - name: arohcp_frontend_slo_traffic_alerts
-    labels:
-      component: slo
-    rules:
-    - alert: userJourneyFrontendTrafficDrop
-      expr: |
-        (
-          avg_over_time(traffic:frontend_http:request_rate:rate5m[15m])
-          < 0.1 * avg_over_time(traffic:frontend_http:request_rate:rate5m[1d])
-        )
-        and
-        avg_over_time(traffic:frontend_http:request_rate:rate5m[1d]) > 0.5
-        and
-        sli:frontend:ready:ratio5m > 0
-      for: 15m
-      labels:
-        severity: "4"
-        slo: frontend-traffic
-      annotations:
-        summary: "{{ $labels.cluster }}: Frontend HTTP traffic collapsed below 10% of 1d baseline"
-        description: "Frontend request rate on cluster {{ $labels.cluster }} is below 10% of its 1-day average for 15m while the 1d baseline exceeded 0.5 RPS (fleet-wide noise floor) and pods are still Ready (traffic drought, not a replica outage)."
-        runbook_url: "https://aka.ms/arohcp-runbook-frontend"
   - name: arohcp_frontend_slo_saturation_alerts
     labels:
       component: slo
     rules:
-    - alert: userJourneyFrontendSaturationCPU
-      expr: |
-        sli:frontend:saturation_cpu:ratio5m > 0.85
-      for: 15m
-      labels:
-        severity: "4"
-        slo: frontend-saturation
-      annotations:
-        summary: "{{ $labels.cluster }}: Frontend pod CPU above 85% of request for 15+ minutes"
-        description: "Frontend container CPU (usage/request) on cluster {{ $labels.cluster }} is above 85% for 15m."
-        runbook_url: "https://aka.ms/arohcp-runbook-frontend"
     - alert: userJourneyFrontendSaturationMemory
       expr: |
         sli:frontend:saturation_memory:ratio5m > 0.85

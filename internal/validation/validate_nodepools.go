@@ -66,26 +66,26 @@ var nodePoolForbiddenK8sLabelValuesByKey = map[string]map[string]struct{}{
 	},
 }
 
-func ValidateNodePool(ctx context.Context, op operation.Operation, newObj, oldObj *coreapi.HCPOpenShiftClusterNodePool) field.ErrorList {
+func ValidateNodePool(ctx context.Context, op operation.Operation, newObj, oldObj *coreapi.NodePool) field.ErrorList {
 	return validateNodePool(ctx, op, newObj, oldObj)
 }
 
-func toNodePoolTrackedResource(oldObj *coreapi.HCPOpenShiftClusterNodePool) *coreapi.TrackedResource {
+func toNodePoolTrackedResource(oldObj *coreapi.NodePool) *coreapi.TrackedResource {
 	return &oldObj.TrackedResource
 }
 
 // ToNodePoolProperties returns a pointer to the Properties field of a node pool.
 // It is exported for use as a field accessor with safe.Field by external callers
 // (e.g. admission code) that need to navigate into the Properties subtree.
-func ToNodePoolProperties(oldObj *coreapi.HCPOpenShiftClusterNodePool) *coreapi.HCPOpenShiftClusterNodePoolProperties {
+func ToNodePoolProperties(oldObj *coreapi.NodePool) *coreapi.NodePoolProperties {
 	return &oldObj.Properties
 }
 
-func toNodePoolServiceProviderProperties(oldObj *coreapi.HCPOpenShiftClusterNodePool) *coreapi.HCPOpenShiftClusterNodePoolServiceProviderProperties {
+func toNodePoolServiceProviderProperties(oldObj *coreapi.NodePool) *coreapi.NodePoolServiceProviderProperties {
 	return &oldObj.ServiceProviderProperties
 }
 
-func validateNodePool(ctx context.Context, op operation.Operation, newObj, oldObj *coreapi.HCPOpenShiftClusterNodePool) field.ErrorList {
+func validateNodePool(ctx context.Context, op operation.Operation, newObj, oldObj *coreapi.NodePool) field.ErrorList {
 	errs := field.ErrorList{}
 
 	//coreapi.ProxyResource
@@ -96,16 +96,34 @@ func validateNodePool(ctx context.Context, op operation.Operation, newObj, oldOb
 		errs = append(errs, MatchesRegex(ctx, op, field.NewPath("id"), &newObj.ID.Name, nil, nodePoolResourceNameRegex, nodePoolResourceNameErrorString)...)
 	}
 
-	//Properties HCPOpenShiftClusterNodePoolProperties `json:"properties"`
+	//Properties NodePoolProperties `json:"properties"`
 	errs = append(errs, validateNodePoolProperties(ctx, op, field.NewPath("properties"), &newObj.Properties, safe.Field(oldObj, ToNodePoolProperties))...)
 
-	//ServiceProviderProperties HCPOpenShiftClusterNodePoolServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
+	//ServiceProviderProperties NodePoolServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
 	errs = append(errs, validateNodePoolServiceProviderProperties(ctx, op, field.NewPath("serviceProviderProperties"), &newObj.ServiceProviderProperties, safe.Field(oldObj, toNodePoolServiceProviderProperties))...)
+
+	// there are resourceIDs that must be verified with respect to this ID. This is the only level of validation with access to both.
+	errs = append(errs, validateResourceIDsAgainstNodePoolID(ctx, op, newObj, oldObj)...)
 
 	return errs
 }
 
-func toNodePoolPropertiesProvisioningState(oldObj *coreapi.HCPOpenShiftClusterNodePoolProperties) *coreapi.ProvisioningState {
+// validateResourceIDsAgainstNodePoolID validates node pool resource ID fields against the
+// node pool's own ID. A node pool is a child resource of its cluster, so newObj.ID.SubscriptionID
+// is guaranteed to be the same as the parent cluster's subscription ID.
+func validateResourceIDsAgainstNodePoolID(ctx context.Context, op operation.Operation, newObj, _ *coreapi.NodePool) field.ErrorList {
+	if newObj.ID == nil {
+		return nil
+	}
+
+	errs := field.ErrorList{}
+
+	errs = append(errs, SameSubscription(ctx, op, field.NewPath("properties", "platform", "osDisk", "encryptionSetId"), newObj.Properties.Platform.OSDisk.EncryptionSetID, nil, newObj.ID.SubscriptionID)...)
+
+	return errs
+}
+
+func toNodePoolPropertiesProvisioningState(oldObj *coreapi.NodePoolProperties) *coreapi.ProvisioningState {
 	return &oldObj.ProvisioningState
 }
 
@@ -113,7 +131,7 @@ func toNodePoolPropertiesProvisioningState(oldObj *coreapi.HCPOpenShiftClusterNo
 // pool properties. It is exported for use as a field accessor with safe.Field
 // by external callers (e.g. admission code) that need to navigate into the
 // Version subtree.
-func ToNodePoolPropertiesVersion(oldObj *coreapi.HCPOpenShiftClusterNodePoolProperties) *coreapi.NodePoolVersionProfile {
+func ToNodePoolPropertiesVersion(oldObj *coreapi.NodePoolProperties) *coreapi.NodePoolVersionProfile {
 	return &oldObj.Version
 }
 
@@ -121,35 +139,35 @@ func ToNodePoolPropertiesVersion(oldObj *coreapi.HCPOpenShiftClusterNodePoolProp
 // pool properties. It is exported for use as a field accessor with safe.Field
 // by external callers (e.g. admission code) that need to navigate into the
 // Platform subtree.
-func ToNodePoolPropertiesPlatform(oldObj *coreapi.HCPOpenShiftClusterNodePoolProperties) *coreapi.NodePoolPlatformProfile {
+func ToNodePoolPropertiesPlatform(oldObj *coreapi.NodePoolProperties) *coreapi.NodePoolPlatformProfile {
 	return &oldObj.Platform
 }
 
-func toNodePoolPropertiesReplicas(oldObj *coreapi.HCPOpenShiftClusterNodePoolProperties) *int32 {
+func toNodePoolPropertiesReplicas(oldObj *coreapi.NodePoolProperties) *int32 {
 	return &oldObj.Replicas
 }
 
-func toNodePoolPropertiesAutoRepair(oldObj *coreapi.HCPOpenShiftClusterNodePoolProperties) *bool {
+func toNodePoolPropertiesAutoRepair(oldObj *coreapi.NodePoolProperties) *bool {
 	return &oldObj.AutoRepair
 }
 
-func toNodePoolPropertiesAutoScaling(oldObj *coreapi.HCPOpenShiftClusterNodePoolProperties) *coreapi.NodePoolAutoScaling {
+func toNodePoolPropertiesAutoScaling(oldObj *coreapi.NodePoolProperties) *coreapi.NodePoolAutoScaling {
 	return oldObj.AutoScaling
 }
 
-func toNodePoolPropertiesLabels(oldObj *coreapi.HCPOpenShiftClusterNodePoolProperties) map[string]string {
+func toNodePoolPropertiesLabels(oldObj *coreapi.NodePoolProperties) map[string]string {
 	return oldObj.Labels
 }
 
-func toNodePoolPropertiesTaints(oldObj *coreapi.HCPOpenShiftClusterNodePoolProperties) []coreapi.Taint {
+func toNodePoolPropertiesTaints(oldObj *coreapi.NodePoolProperties) []coreapi.Taint {
 	return oldObj.Taints
 }
 
-func toNodePoolPropertiesNodeDrainTimeoutMinutes(oldObj *coreapi.HCPOpenShiftClusterNodePoolProperties) *int32 {
+func toNodePoolPropertiesNodeDrainTimeoutMinutes(oldObj *coreapi.NodePoolProperties) *int32 {
 	return oldObj.NodeDrainTimeoutMinutes
 }
 
-func validateNodePoolProperties(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.HCPOpenShiftClusterNodePoolProperties) field.ErrorList {
+func validateNodePoolProperties(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.NodePoolProperties) field.ErrorList {
 	errs := field.ErrorList{}
 
 	//ProvisioningState coreapi.ProvisioningState       `json:"provisioningState"`
@@ -243,12 +261,12 @@ func validateNodePoolForbiddenLabels(fldPath *field.Path, newLabels map[string]s
 }
 
 var (
-	toNodePoolServiceProviderClusterServiceID = func(oldObj *coreapi.HCPOpenShiftClusterNodePoolServiceProviderProperties) *metadataapi.InternalID {
+	toNodePoolServiceProviderClusterServiceID = func(oldObj *coreapi.NodePoolServiceProviderProperties) *metadataapi.InternalID {
 		return oldObj.ClusterServiceID
 	}
 )
 
-func validateNodePoolServiceProviderProperties(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.HCPOpenShiftClusterNodePoolServiceProviderProperties) field.ErrorList {
+func validateNodePoolServiceProviderProperties(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.NodePoolServiceProviderProperties) field.ErrorList {
 	errs := field.ErrorList{}
 
 	//ClusterServiceID  *InternalID                     `json:"clusterServiceID,omitempty"`
@@ -271,9 +289,9 @@ func validateNodePoolVersionProfile(ctx context.Context, op operation.Operation,
 		errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toNodePoolVersionProfileID))...)
 	}
 
-	// Skip version format validation if version hasn't changed
+	// Skip version ID validation if version hasn't changed
 	if oldObj == nil || newObj.ID != oldObj.ID {
-		errs = append(errs, OpenShiftWithOptionalPrerelease(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toNodePoolVersionProfileID))...)
+		errs = append(errs, validateNodePoolVersionID(ctx, op, fldPath, newObj, oldObj)...)
 	}
 
 	//ChannelGroup string `json:"channelGroup,omitempty"`
@@ -281,10 +299,27 @@ func validateNodePoolVersionProfile(ctx context.Context, op operation.Operation,
 
 	if !op.HasOption(metadataapi.FeatureExperimentalReleaseFeatures) {
 		errs = append(errs, validate.Enum(ctx, op, fldPath.Child("channelGroup"), &newObj.ChannelGroup, safe.Field(oldObj, toNodePoolVersionProfileChannelGroup), metadataapi.AllowedChannelGroups, nil)...)
-		// without feature flag, only allow version 4.20.8 and above
-		errs = append(errs, VersionMustBeAtLeast(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toNodePoolVersionProfileID), "4.20.8")...)
 	} else {
 		errs = append(errs, validate.Enum(ctx, op, fldPath.Child("channelGroup"), &newObj.ChannelGroup, safe.Field(oldObj, toNodePoolVersionProfileChannelGroup), metadataapi.AllowedChannelGroupsWithExperimentalFlag, nil)...)
+	}
+	errs = append(errs, rejectUnsupportedChannelGroupUpdate(op, fldPath, newObj.ChannelGroup, safe.Field(oldObj, toNodePoolVersionProfileChannelGroup))...)
+
+	return errs
+}
+
+// validateNodePoolVersionID validates the version ID format and checks it against the minimum version requirement.
+func validateNodePoolVersionID(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.NodePoolVersionProfile) field.ErrorList {
+	errs := field.ErrorList{}
+
+	errs = append(errs, OpenShiftWithOptionalPrerelease(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toNodePoolVersionProfileID))...)
+
+	// Nightly versions include prerelease identifiers (e.g., X.Y.0-0.nightly-...) that may sort
+	// lower than stable versions in semver comparison, even if the nightly was built after
+	// the minimum supported stable release. Only compare the major.minor of the version.
+	if newObj.ChannelGroup == metadataapi.ChannelGroupNightly {
+		errs = append(errs, VersionMustBeAtLeastMajorMinor(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toNodePoolVersionProfileID), "4.20")...)
+	} else {
+		errs = append(errs, VersionMustBeAtLeast(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toNodePoolVersionProfileID), "4.20.8")...)
 	}
 
 	return errs

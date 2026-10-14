@@ -15,7 +15,7 @@ The `Dockerfile` in this directory defines the base image used in our release co
 
 ### Version Management
 
-- **Go / builder image**: Defined in `.ci-operator.yaml` at the repo root. The `build_root_image.tag` field specifies the OCP builder image tag (e.g., `rhel-9-golang-1.25-openshift-4.21`). This is the single source of truth for both CI (ci-operator reads it directly) and local builds (`versions.mk` extracts it via `yq`).
+- **Go / builder image**: Defined in `.ci-operator.yaml` at the repo root. The `build_root_image.tag` field specifies the OCP builder image tag (e.g., `rhel-9-golang-1.26-openshift-4.22`). This is the single source of truth for both CI (ci-operator reads it directly) and local builds (`versions.mk` extracts it via `yq`).
 - **Promtool**: Pinned in `versions.mk` and as an `ARG` default in the `Dockerfile`.
 - **kubectl, kubelogin, oc**: Always download the latest stable version — no pinning required.
 
@@ -31,6 +31,59 @@ When updating versions:
 The builder image tag is defined in `.ci-operator.yaml` at the repo root. ci-operator uses this as inrepo config to resolve the build root image for the base image build, replacing the previously centrally-defined configuration in https://github.com/openshift/release/blob/master/ci-operator/config/Azure/ARO-HCP/Azure-ARO-HCP-main__baseimage-generator.yaml. A Post Submit job builds this Docker image from the Dockerfile after any PR merges.
 
 And in our Release Job(presubmit/periodic) we consume this prebuild images as build root https://github.com/openshift/release/blob/master/ci-operator/config/Azure/ARO-HCP/Azure-ARO-HCP-main.yaml#L7 .
+
+## Nested Podman Base Image
+
+`Dockerfile.nested-podman` defines a separate, source-free toolchain for
+integration and mega-linter jobs. It extends the existing OpenShift CI
+`ci/nested-podman:latest` image, preserving its entrypoint and rootless Podman
+setup. It installs the tools currently added by the job-local
+`nested-podman-src` image: Git, Go, Make, pass, qrencode, net-tools, and tree.
+EPEL 9 and CentOS Stream 9 use inline repository definitions with official
+signing-key URLs and `gpgcheck=1`. EPEL uses Fedora's mirror service; no EPEL
+release bootstrap RPM is downloaded or installed by this Dockerfile.
+The tree package supplies a dependency of pass that is missing from UBI's
+repositories. A dedicated CentOS Stream 9 BaseOS repository provides it,
+restricted with `includepkgs=tree` so other UBI packages are not replaced.
+Both repositories remain enabled, with CentOS limited to installing or updating tree.
+DNF selects architecture-specific packages and verifies their signatures;
+no direct package RPM URLs or per-architecture checksums are maintained.
+Signature verification and package installation failures fail the build rather
+than publishing an incomplete toolchain.
+
+Local builds pull from `quay-proxy.ci.openshift.org` and require
+[CI registry access](https://docs.ci.openshift.org/how-tos/use-registries-in-build-farm/#how-do-i-gain-access-to-qci).
+Use `NESTED_PODMAN_IMAGE=<pullspec>` to test a different upstream base.
+Do not substitute a stale image from the legacy registry: the base must
+initialize rootless Podman and forward commands through its entrypoint.
+
+Build and smoke-test locally:
+
+```bash
+make build-nested-podman
+make test-nested-podman
+make test-nested-podman-runtime
+```
+
+Both tests use the image's default user without a runtime user override.
+The tools test asserts UID 1000 and checks that Go can compile, test,
+and install into `/opt/app-root`, the GOPATH used by integration jobs.
+The runtime test also asserts that Podman is rootless, exercises the inherited
+entrypoint, and checks the output of a nested container, so an entrypoint that
+silently discards commands fails.
+It uses host networking inside the outer container and does not validate
+nested network isolation. It requires privileged container support; privilege
+is restricted to that local test, not the image build. Use
+`PLATFORM=linux/arm64` on an ARM host. These tests do not replace integration
+and mega-linter jobs on the CI build farm.
+
+Publication and consumption require companion changes in `openshift/release`.
+The intended output is
+`aro-hcp/aro-hcp-ci-images:aro-hcp-nested-podman-ci`, using the same
+`baseimage-generator` promotion pattern as the general CI base. The image
+definition alone does not switch existing jobs.
+See [Nested Podman Toolchain](../../docs/ci/image-lifecycle.md#nested-podman-toolchain)
+for the rollout order and producer/consumer configuration.
 
 ## Scripts Overview
 

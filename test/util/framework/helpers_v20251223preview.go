@@ -59,6 +59,7 @@ type ClusterParams20251223 struct {
 	EncryptionKeyManagementMode   string
 	EncryptionType                string
 	VnetIntegrationSubnetID       string
+	DisableSwift                  bool // Test-only networking choice, independent of visibility.
 	KeyVaultVisibility            string
 	Network                       NetworkConfig
 	APIVisibility                 string
@@ -90,8 +91,9 @@ type NodePoolParams20251223 struct {
 	// Labels are Kubernetes labels propagated to NodePool nodes.
 	Labels []*hcpsdk20251223preview.Label
 	// Taints are Kubernetes taints applied to NodePool nodes.
-	Taints []*hcpsdk20251223preview.Taint
-	Tags   map[string]*string
+	Taints          []*hcpsdk20251223preview.Taint
+	Tags            map[string]*string
+	EncryptionSetID string
 }
 
 // ---------------------------------------------------------------------------
@@ -100,6 +102,7 @@ type NodePoolParams20251223 struct {
 
 func NewDefaultClusterParams20251223() ClusterParams20251223 {
 	params := ClusterParams20251223{
+		DisableSwift:       true,
 		OpenshiftVersionId: DefaultOpenshiftControlPlaneVersionId(),
 		Network: NetworkConfig{
 			NetworkType: "OVNKubernetes",
@@ -376,10 +379,11 @@ func BuildHCPClusterFromParams20251223(
 		}
 	}
 
+	tags, vnetIntegrationSubnetID := buildClusterNetworking(parameters.DisableSwift, parameters.Tags, parameters.VnetIntegrationSubnetID)
 	return hcpsdk20251223preview.HcpOpenShiftCluster{
 		Location: to.Ptr(location),
 		Identity: identity,
-		Tags:     parameters.Tags,
+		Tags:     tags,
 		Properties: &hcpsdk20251223preview.HcpOpenShiftClusterProperties{
 			Version: &hcpsdk20251223preview.VersionProfile{
 				ID:           to.Ptr(parameters.OpenshiftVersionId),
@@ -389,7 +393,7 @@ func BuildHCPClusterFromParams20251223(
 				ManagedResourceGroup:    to.Ptr(parameters.ManagedResourceGroupName),
 				NetworkSecurityGroupID:  to.Ptr(parameters.NsgResourceID),
 				SubnetID:                to.Ptr(parameters.SubnetResourceID),
-				VnetIntegrationSubnetID: to.Ptr(parameters.VnetIntegrationSubnetID),
+				VnetIntegrationSubnetID: vnetIntegrationSubnetID,
 				OperatorsAuthentication: &hcpsdk20251223preview.OperatorsAuthenticationProfile{
 					UserAssignedIdentities: uamis,
 				},
@@ -458,6 +462,10 @@ func BuildNodePoolFromParams20251223(
 		},
 	}
 
+	if parameters.EncryptionSetID != "" {
+		nodePool.Properties.Platform.OSDisk.EncryptionSetID = to.Ptr(parameters.EncryptionSetID)
+	}
+
 	if parameters.AutoScaling != nil {
 		nodePool.Properties.AutoScaling = &hcpsdk20251223preview.NodePoolAutoScaling{
 			Min: to.Ptr(parameters.AutoScaling.Min),
@@ -491,7 +499,11 @@ func CreateHCPClusterAndWait20251223(
 	}
 
 	logger.Info("Starting HCP cluster creation (v20251223preview)", "clusterName", hcpClusterName, "resourceGroup", resourceGroupName, "version", cluster.Properties.Version.ID, "channelGroup", cluster.Properties.Version.ChannelGroup)
-	poller, err := hcpClient.BeginCreateOrUpdate(ctx, resourceGroupName, hcpClusterName, cluster, nil)
+	createCtx, createAttempts := withRequestAttemptTracker(ctx)
+	poller, err := hcpClient.BeginCreateOrUpdate(createCtx, resourceGroupName, hcpClusterName, cluster, nil)
+	if err != nil {
+		poller, err = resumeInFlightHCPClusterCreate20251223(ctx, hcpClient, resourceGroupName, hcpClusterName, createAttempts, err)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("failed starting cluster creation %q in resourcegroup=%q: %w", hcpClusterName, resourceGroupName, err)
 	}
@@ -537,6 +549,16 @@ func UpdateHCPCluster20251223(
 ) (*hcpsdk20251223preview.HcpOpenShiftCluster, error) {
 	ctx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during UpdateHCPCluster20251223 for cluster %s in resource group %s", timeout.Minutes(), hcpClusterName, resourceGroupName))
 	defer cancel()
+
+	// A nil tag map means preserve existing tags, even when adding our deadline.
+	if update.Tags == nil {
+		current, err := hcpClient.Get(ctx, resourceGroupName, hcpClusterName, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed reading tags before updating cluster %q in resource group %q: %w", hcpClusterName, resourceGroupName, err)
+		}
+		update.Tags = current.Tags
+	}
+	update.Tags = updateTimeoutTags(update.Tags, metadataapi.TagClusterMaxUpdateDuration, timeout)
 
 	var hcpOpenShiftCluster *hcpsdk20251223preview.HcpOpenShiftCluster
 	var lastTransientErr error
@@ -599,7 +621,11 @@ func CreateNodePoolAndWait20251223(
 ) (*hcpsdk20251223preview.NodePool, error) {
 	ctx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during CreateNodePoolAndWait20251223 for nodepool %s in cluster %s in resource group %s", timeout.Minutes(), nodePoolName, hcpClusterName, resourceGroupName))
 	defer cancel()
-	poller, err := nodePoolsClient.BeginCreateOrUpdate(ctx, resourceGroupName, hcpClusterName, nodePoolName, nodePool, nil)
+	createCtx, createAttempts := withRequestAttemptTracker(ctx)
+	poller, err := nodePoolsClient.BeginCreateOrUpdate(createCtx, resourceGroupName, hcpClusterName, nodePoolName, nodePool, nil)
+	if err != nil {
+		poller, err = resumeInFlightNodePoolCreate20251223(ctx, nodePoolsClient, resourceGroupName, hcpClusterName, nodePoolName, createAttempts, err)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("failed starting nodepool creation %q for cluster %q in resourcegroup=%q: %w", nodePoolName, hcpClusterName, resourceGroupName, err)
 	}
@@ -791,28 +817,7 @@ func (tc *perItOrDescribeTestContext) CreateNodePoolFromParam20251223(
 		nodePool,
 		timeout,
 	); err != nil {
-		// a separate context for console log download with its own timeout,
-		// to make sure logs are fetched even when the node pool deployment
-		// context is cancelled due to timeout
-		downloadTimeout := 5 * time.Minute
-		downloadCtx, downloadCancel := context.WithTimeoutCause(
-			ctx,
-			downloadTimeout,
-			fmt.Errorf("timeout '%f' minutes exceeded during DownloadAllVirtualMachineConsoleLogs for VMs in managed resource group %s", downloadTimeout.Minutes(), managedResourceGroupName))
-		defer downloadCancel()
-		computeFactory, clientErr := tc.GetARMComputeClientFactory(downloadCtx)
-		if clientErr == nil {
-			consoleLogErr := DownloadAllVirtualMachineConsoleLogs(
-				downloadCtx,
-				computeFactory,
-				managedResourceGroupName,
-				tc.LogDirPath)
-			if consoleLogErr != nil {
-				logger.Error(consoleLogErr, "failed to download VM console logs")
-			}
-		} else {
-			logger.Error(clientErr, "failed to get ARM compute client to download VM console logs")
-		}
+		tc.collectNodePoolFailureArtifacts(nodePoolCtx, logger, resourceGroupName, managedResourceGroupName, hcpClusterName, nodePoolName)
 
 		if errors.Is(err, context.DeadlineExceeded) {
 			return fmt.Errorf("failed to create NodePool %s, caused by: %w, error: %w", nodePoolName, context.Cause(nodePoolCtx), err)
@@ -865,4 +870,55 @@ func (tc *perItOrDescribeTestContext) get20251223ClientFactoryUnlocked(ctx conte
 	tc.clientFactory20251223 = clientFactory
 
 	return tc.clientFactory20251223, nil
+}
+
+// resumeInFlightHCPClusterCreate20251223 returns a poller for a cluster create that
+// is already in flight when the create request was rejected with 409 Conflict.
+// See resumeInFlightCreate.
+func resumeInFlightHCPClusterCreate20251223(
+	ctx context.Context,
+	hcpClient *hcpsdk20251223preview.HcpOpenShiftClustersClient,
+	resourceGroupName string,
+	hcpClusterName string,
+	attempts *requestAttemptTracker,
+	createErr error,
+) (*runtime.Poller[hcpsdk20251223preview.HcpOpenShiftClustersClientCreateOrUpdateResponse], error) {
+	return resumeInFlightCreate(ctx, createErr, attempts, fmt.Sprintf("cluster %q in resourcegroup=%q", hcpClusterName, resourceGroupName),
+		func(ctx context.Context) (hcpsdk20251223preview.HcpOpenShiftClustersClientCreateOrUpdateResponse, string, error) {
+			resp, err := hcpClient.Get(ctx, resourceGroupName, hcpClusterName, nil)
+			if err != nil {
+				return hcpsdk20251223preview.HcpOpenShiftClustersClientCreateOrUpdateResponse{}, "", err
+			}
+			var state string
+			if resp.Properties != nil {
+				state = provisioningStateString(resp.Properties.ProvisioningState)
+			}
+			return hcpsdk20251223preview.HcpOpenShiftClustersClientCreateOrUpdateResponse(resp), state, nil
+		})
+}
+
+// resumeInFlightNodePoolCreate20251223 returns a poller for a node pool create that
+// is already in flight when the create request was rejected with 409 Conflict.
+// See resumeInFlightCreate.
+func resumeInFlightNodePoolCreate20251223(
+	ctx context.Context,
+	nodePoolsClient *hcpsdk20251223preview.NodePoolsClient,
+	resourceGroupName string,
+	hcpClusterName string,
+	nodePoolName string,
+	attempts *requestAttemptTracker,
+	createErr error,
+) (*runtime.Poller[hcpsdk20251223preview.NodePoolsClientCreateOrUpdateResponse], error) {
+	return resumeInFlightCreate(ctx, createErr, attempts, fmt.Sprintf("nodepool %q for cluster %q in resourcegroup=%q", nodePoolName, hcpClusterName, resourceGroupName),
+		func(ctx context.Context) (hcpsdk20251223preview.NodePoolsClientCreateOrUpdateResponse, string, error) {
+			resp, err := nodePoolsClient.Get(ctx, resourceGroupName, hcpClusterName, nodePoolName, nil)
+			if err != nil {
+				return hcpsdk20251223preview.NodePoolsClientCreateOrUpdateResponse{}, "", err
+			}
+			var state string
+			if resp.Properties != nil {
+				state = provisioningStateString(resp.Properties.ProvisioningState)
+			}
+			return hcpsdk20251223preview.NodePoolsClientCreateOrUpdateResponse(resp), state, nil
+		})
 }

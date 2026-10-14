@@ -1,7 +1,3 @@
-deploy:
-	make -C ./tracing deploy
-.PHONY: deploy
-
 UPSTREAM_RULE := alerts/kubernetesControlPlane-prometheusRule.upstream.yaml
 LOCAL_RULE := alerts/kubernetesControlPlane-prometheusRule.yaml
 LOCAL_DIFF := alerts/kubernetesControlPlane-prometheusRule.yaml.diff

@@ -25,5 +25,5 @@ type NodePoolValidation interface {
 	// Name returns the name of the validation.
 	Name() string
 	// Validate validates the NodePool and returns a ValidationResult describing the outcome.
-	Validate(ctx context.Context, cluster *coreapi.HCPOpenShiftCluster, nodePoolSubscription *coreapi.Subscription, nodePool *coreapi.HCPOpenShiftClusterNodePool) ValidationResult
+	Validate(ctx context.Context, cluster *coreapi.Cluster, nodePoolSubscription *coreapi.Subscription, nodePool *coreapi.NodePool) ValidationResult
 }

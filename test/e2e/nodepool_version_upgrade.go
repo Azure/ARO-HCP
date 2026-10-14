@@ -33,7 +33,7 @@ import (
 
 	clusterversion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/version"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
-	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
@@ -213,7 +213,9 @@ var _ = Describe("Customer", func() {
 			Expect(*npGetResponse.Properties.Version.ID).To(Equal(nodePoolDesiredVersion), "expected node pool version to equal %s after upgrade", nodePoolDesiredVersion)
 
 			By("verifying number of nodes ready and not draining meet the expected replicas")
-			Expect(verifiers.VerifyNodePoolReadyAndSchedulableNodeCount(customerNodePoolName, updateReplicas).Verify(ctx, adminRESTConfig)).To(Succeed(), "failed to verify %d ready and schedulable nodes for nodepool %s after upgrade", updateReplicas, customerNodePoolName)
+			Eventually(func() error {
+				return verifiers.VerifyNodePoolReadyAndSchedulableNodeCount(customerNodePoolName, updateReplicas).Verify(ctx, adminRESTConfig)
+			}, 5*time.Minute, 15*time.Second).Should(Succeed(), "failed to verify %d ready and schedulable nodes for nodepool %s after upgrade", updateReplicas, customerNodePoolName)
 
 		},
 		Entry("from 4.20.z to 4.21.zLatest",

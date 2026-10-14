@@ -190,6 +190,9 @@ func PrepareForCreate[InternalAPIType any, InternalAPITypePointer coreapi.Cosmos
 		return fmt.Errorf("create of %T requires InstanceVersion to be 0; refusing to overwrite existing value", newObj)
 	}
 	newObj.SetInstanceVersion(1)
+	if err := setParentResourceID(newObj); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -205,6 +208,35 @@ func PrepareForReplace[InternalAPIType any, InternalAPITypePointer coreapi.Cosmo
 		return fmt.Errorf("replace of %T requires a non-zero InstanceVersion; refusing to perform update; DeepCopy the existing content to avoid overwrite", newObj)
 	}
 	newObj.SetInstanceVersion(newObj.GetInstanceVersion() + 1)
+	if err := setParentResourceID(newObj); err != nil {
+		return err
+	}
+	return nil
+}
+
+// setParentResourceID derives CosmosMetadata.ParentResourceID from the object's
+// resource ID parent. It always clears any stale value to nil first. A nil
+// resource ID or nil parent yields nil. The subscription root sentinel is a
+// non-nil parent whose String() is empty; that case is treated the same as "no
+// parent" (nil, no parse) so subscription-scoped documents omit the field, as
+// they did before this field became a pointer. Only a non-empty parent string is
+// parsed; a parse failure is propagated to the caller.
+func setParentResourceID(newObj coreapi.CosmosMetadataAccessor) error {
+	newObj.GetCosmosData().ParentResourceID = nil
+
+	parentStr := ""
+	if resourceID := newObj.GetResourceID(); resourceID != nil && resourceID.Parent != nil {
+		parentStr = strings.ToLower(resourceID.Parent.String())
+	}
+	if parentStr == "" {
+		return nil
+	}
+
+	parentResourceID, err := azcorearm.ParseResourceID(parentStr)
+	if err != nil {
+		return err
+	}
+	newObj.GetCosmosData().ParentResourceID = parentResourceID
 	return nil
 }
 
@@ -274,6 +306,11 @@ func addCreateToTransaction[InternalAPIType, CosmosAPIType any, InternalAPITypeP
 		},
 	)
 
+	logger := utils.LoggerFromContext(ctx)
+	createLogValues := append(utils.LogValues{}.AddLogValuesForResourceID(cosmosMetadata.ResourceID), "instanceVersion", newObj.GetInstanceVersion())
+	transaction.OnSuccess(func(DBTransactionResult) {
+		logger.Info("created resource (transaction)", createLogValues...)
+	})
 	return cosmosMetadata.GetCosmosUID(), nil
 }
 
@@ -310,6 +347,11 @@ func addReplaceToTransaction[InternalAPIType, CosmosAPIType any, InternalAPIType
 		},
 	)
 
+	logger := utils.LoggerFromContext(ctx)
+	replaceLogValues := append(utils.LogValues{}.AddLogValuesForResourceID(cosmosMetadata.ResourceID), "instanceVersion", newObj.GetInstanceVersion())
+	transaction.OnSuccess(func(DBTransactionResult) {
+		logger.Info("replaced resource (transaction)", replaceLogValues...)
+	})
 	return cosmosMetadata.GetCosmosUID(), nil
 }
 
@@ -332,6 +374,8 @@ func create[InternalAPIType, CosmosAPIType any, InternalAPITypePointer coreapi.C
 		return nil, err
 	}
 
+	utils.LoggerFromContext(ctx).Info("created resource",
+		append(utils.LogValues{}.AddLogValuesForResourceID(cosmosMetadata.ResourceID), "instanceVersion", newObj.GetInstanceVersion())...)
 	return responseItemToInternalObj[InternalAPIType, CosmosAPIType](ctx, cosmosMetadata.GetCosmosUID(), responseItem)
 }
 
@@ -355,6 +399,8 @@ func replace[InternalAPIType, CosmosAPIType any, InternalAPITypePointer coreapi.
 		return nil, err
 	}
 
+	utils.LoggerFromContext(ctx).Info("replaced resource",
+		append(utils.LogValues{}.AddLogValuesForResourceID(cosmosMetadata.ResourceID), "instanceVersion", newObj.GetInstanceVersion())...)
 	return responseItemToInternalObj[InternalAPIType, CosmosAPIType](ctx, cosmosMetadata.GetCosmosUID(), responseItem)
 }
 
@@ -407,6 +453,11 @@ func softDeleteByCosmosID(ctx context.Context, containerClient *azcosmos.Contain
 	if err != nil {
 		return utils.TrackError(err)
 	}
+	logValues := utils.LogValues{}.AddLogValuesForResourceID(doc.ResourceID)
+	if newInstanceVersion, found, verr := unstructured.NestedInt64(doc.Content, "cosmosMetadata", "instanceVersion"); verr == nil && found {
+		logValues = append(logValues, "instanceVersion", newInstanceVersion)
+	}
+	utils.LoggerFromContext(ctx).Info("deleted resource", logValues...)
 	return nil
 }
 

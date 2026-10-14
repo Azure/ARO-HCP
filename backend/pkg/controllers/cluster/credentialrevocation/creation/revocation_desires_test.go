@@ -81,7 +81,7 @@ func TestRevocationDesires_SyncOnce(t *testing.T) {
 			db := corecosmosstoragetesting.NewMockResourcesDBClient()
 			tc.setupDB(db)
 
-			var clusters []*coreapi.HCPOpenShiftCluster
+			var clusters []*coreapi.Cluster
 			if c, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName); err == nil {
 				clusters = append(clusters, c)
 			}

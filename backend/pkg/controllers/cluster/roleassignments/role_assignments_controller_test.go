@@ -43,6 +43,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/azure"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
@@ -93,14 +94,14 @@ func testConfig() *azure.ClusterScopedIdentitiesConfig {
 // the cluster's CustomerProperties.Platform.ManagedResourceGroup.
 func testManagedResourceGroupScope(t *testing.T) string {
 	t.Helper()
-	return metadataapi.Must(coreapi.ToResourceGroupResourceID(testSubscriptionID, testManagedRGName)).String()
+	return metadataapi.Must(coreapihelpers.ToResourceGroupResourceID(testSubscriptionID, testManagedRGName)).String()
 }
 
 // testManagedResourceGroupID returns the confirmed managed resource group reference
 // resource ID used to open the observation gate.
 func testManagedResourceGroupID(t *testing.T) *azcorearm.ResourceID {
 	t.Helper()
-	return metadataapi.Must(coreapi.ToResourceGroupResourceID(testSubscriptionID, testManagedRGName))
+	return metadataapi.Must(coreapihelpers.ToResourceGroupResourceID(testSubscriptionID, testManagedRGName))
 }
 
 // testExpectedRoleAssignmentIDs returns the role assignment IDs the controller expects
@@ -145,17 +146,17 @@ func testUnexpectedRoleAssignmentID(t *testing.T) *azcorearm.ResourceID {
 			"/providers/Microsoft.Authorization/roleDefinitions/99999999-9999-9999-9999-999999999999")))
 }
 
-// newTestCluster builds an HCPOpenShiftCluster addressable by the mock
+// newTestCluster builds a Cluster addressable by the mock
 // ResourcesDBClient with one control-plane operator, one data-plane operator, and a
 // service managed identity, and the given deletion state.
-func newTestCluster(deleting bool) *coreapi.HCPOpenShiftCluster {
+func newTestCluster(deleting bool) *coreapi.Cluster {
 	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + testSubscriptionID +
 			"/resourceGroups/" + testResourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName,
 	))
 
-	cluster := &coreapi.HCPOpenShiftCluster{
+	cluster := &coreapi.Cluster{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   resourceID,
 			PartitionKey: strings.ToLower(resourceID.SubscriptionID),

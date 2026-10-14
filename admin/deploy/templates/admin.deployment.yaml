@@ -60,6 +60,8 @@ spec:
           value: "{{ .Values.fpa.clientId }}"
         - name: AUDIT_CONNECT_SOCKET
           value: "{{ .Values.audit.connectSocket }}"
+        - name: AUDIT_SERVICE_TREE_ID
+          value: "{{ .Values.audit.serviceTreeId }}"
         - name: SESSIONGATE_NAMESPACE
           value: "{{ .Values.sessiongate.namespace }}"
         - name: MIN_SESSION_TTL
@@ -68,6 +70,14 @@ spec:
           value: "{{ .Values.sessiongate.maxSessionTTL }}"
         - name: AZURE_TOKEN_CREDENTIALS
           value: "WorkloadIdentityCredential"
+        - name: APR_SUBSCRIPTION_ID
+          value: "{{ .Values.alertProcessingRules.subscriptionId }}"
+        - name: APR_RESOURCE_GROUP
+          value: "{{ .Values.alertProcessingRules.resourceGroup }}"
+        - name: APR_SVC_AMW_NAME
+          value: "{{ .Values.alertProcessingRules.svcAmwName }}"
+        - name: APR_HCP_AMW_NAME
+          value: "{{ .Values.alertProcessingRules.hcpAmwName }}"
         ports:
         - containerPort: 8443
           name: http

@@ -3,3 +3,5 @@ approvers:
 - deads2k
 - geoberle
 - miguelsorianod
+labels:
+- area/test

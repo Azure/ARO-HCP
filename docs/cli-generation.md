@@ -1,303 +1,107 @@
 # ARO HCP CLI Generation (AAZ)
 
-This document captures the current workflow used to generate an Azure CLI extension from ARO HCP swagger.
+This document describes how the Azure CLI for ARO HCP is generated, where code is published, and ARO HCP-specific considerations when working with the `aaz-dev` tooling.
 
-## Purpose
+For the general Azure CLI development workflow (setup, codespace, workspace editor, code generation, testing, and customization), see:
 
-Generate/update an extension (currently named `arohcp`) from swagger tag `package-2025-12-23-preview` using `azdev` + `aaz-dev`.
+- [Hands-On Azure CLI Development in Codespace](https://github.com/Azure/azure-cli/blob/dev/doc/hands_on_codespace.md)
+- [AAZ Dev Tools documentation](https://azure.github.io/aaz-dev-tools/)
+- [AAZ Dev Tools Workspace Editor](https://azure.github.io/aaz-dev-tools/pages/usage/workspace-editor/)
+- [AAZ Dev Tools Command Customization](https://azure.github.io/aaz-dev-tools/pages/usage/customization/)
 
-## Prerequisites
+Note that `aaz-dev` has both CLI-based code generation and GUI-based code generation, where you run a local Flask web app that you then open and use to generate the AAZ code. We use the GUI-based approach.
 
-- Python virtual environment activated (recommended: repo-local `.venv`)
-- `azdev` installed
-- `aaz-dev` installed
-- Local clones:
-  - `~/workspace/azure-cli-extensions`
-  - `~/workspace/aaz`
-- Swagger module path available in this repo:
-  - `api/redhatopenshift/`
+## Overview
 
-## One-time setup
+The unified ARO CLI - Standard and HCP - is stored in `Azure/azure-cli-extensions`: https://github.com/Azure/azure-cli-extensions/tree/main/src/aro. The initial CLI code is generated from Swagger specs using `aaz-dev`, with customizations added on top of the generated code as needed. The code lives in upstream Azure repositories — not in the ARO-HCP repo. This means customers can install the extension directly from Azure without needing any Red Hat-specific tooling.
 
-```bash
-cd /path/to/ARO-HCP
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -U pip
-pip install azdev aaz-dev
-```
+With Standard and HCP combined into a single CLI extension, the following directories are relevant to HCP work:
 
-Clone required repos:
+| Directory | Description |
+| --- | --- |
+| https://github.com/Azure/azure-cli-extensions/tree/main/src/aro/azext_aro/aaz/latest/aro | Where the generated HCP AAZ code lives |
+| https://github.com/Azure/azure-cli-extensions/tree/main/src/aro/azext_aro/azext_aro_hcp | Where the HCP customizations live |
+| https://github.com/Azure/azure-cli-extensions/tree/main/src/aro/azext_aro/tests/latest/hcp | Where the HCP tests live (unit and integration) |
 
-```bash
-mkdir -p ~/workspace
-git clone https://github.com/Azure/azure-cli-extensions.git ~/workspace/azure-cli-extensions
-git clone https://github.com/Azure/aaz.git ~/workspace/aaz
-```
+### Workflow to develop changes to the extension without publishing a new extension to customers
 
-## Generation commands
+Use this workflow to develop new features and make changes to the CLI without exposing them to customers yet.
 
-Run from this repository root:
+1. API spec upstream to `Azure/azure-rest-api-specs`
+2. aaz-dev: import Swagger, prune command tree, export command models to `Azure/aaz`
+3. Pull generated AAZ code changes from `Azure/aaz` into https://github.com/Azure/azure-cli-extensions/tree/main/src/aro/azext_aro/aaz/latest/aro
+4. Develop any necessary customizations, update tests accordingly, and PR to `Azure/azure-cli-extensions`, taking care that you **do not** change the version in [setup.py](https://github.com/Azure/azure-cli-extensions/blob/main/src/aro/setup.py)
 
-```bash
-source .venv/bin/activate
+### Workflow to push a new extension to customers
 
-azdev setup -r ~/workspace/azure-cli-extensions/
+Use this workflow to expose a new feature to customers as a preview without updating the stable CLI command module.
 
-# ensure the local module is visible to azdev commands
-azdev extension add arohcp
+The steps to develop and submit your changes are the same as above, except that this time you **should** update [setup.py](https://github.com/Azure/azure-cli-extensions/blob/main/src/aro/setup.py) with a new version number. When your PR merges, the Azure CLI team's automation will detect the new version number, build a new extension wheel, and update [index.json](https://github.com/Azure/azure-cli-extensions/blob/main/src/index.json) automatically. This exposes the new extension to customers through `az extension add --name aro`.
 
-aaz-dev command-model generate-from-swagger \
-  -a ~/workspace/aaz \
-  --sm "$PWD/api/redhatopenshift/" \
-  -m arohcp \
-  --rp Microsoft.RedHatOpenShift \
-  --swagger-tag package-2025-12-23-preview
+### Workflow to update the stable CLI command module
 
-aaz-dev cli generate-by-swagger-tag \
-  -a ~/workspace/aaz \
-  -e ~/workspace/azure-cli-extensions/ \
-  --name arohcp \
-  --sm "$PWD/api/redhatopenshift/" \
-  --rp Microsoft.RedHatOpenShift \
-  --tag package-2025-12-23-preview \
-  --profile latest
-```
+Use this workflow to include the extension's functionality in the next release of the stable CLI. Customers will then have access to the new functionality without having to run `az extension add`.
 
-## Post-generation lint compatibility patch
+Copy the contents of [`Azure/azure-cli-extensions/src/aro`](https://github.com/Azure/azure-cli-extensions/tree/main/src/aro) to the corresponding directory in `Azure/azure-cli`. Adjust or remove metadata files as needed, and then open a PR with the changes.
 
-Current generated AAZ args can fail `azdev` rule `option_length_too_long` for:
+### Where code lives
 
-- `--hcp-open-shift-cluster-name`
-- `--node-drain-timeout-minutes`
+| Artifact | Repository | Path |
+| --- | --- | --- |
+| API specs (Swagger/TypeSpec) | `Azure/ARO-HCP` | `api/redhatopenshift/` |
+| Command models | `Azure/aaz` | `Commands/`, `Resources/` |
+| Extension code | `Azure/azure-cli-extensions` | `src/aro/` |
+| Stable command module code | `Azure/azure-cli` | TBD |
 
-Apply short aliases in generated AAZ files before linting:
+In all cases, the command models live in the `Azure/aaz` repo, and the generated code plus customizations (`custom.py`, `commands.py`) live in the appropriate upstream Azure repo. The ARO-HCP repo only contains the Swagger/TypeSpec API specs and this workflow documentation.
 
-```bash
-cd ~/workspace/azure-cli-extensions
+## ARO HCP-specific considerations
 
-find src/arohcp/azext_arohcp/aaz/latest -type f -name '*.py' -print0 | \
-  xargs -0 perl -0777 -pi -e 's/options=\["--hcp-open-shift-cluster-name"\]/options=["-c", "--cluster-name", "--hcp-open-shift-cluster-name"]/g; s/options=\["-n", "--name", "--hcp-open-shift-cluster-name"\]/options=["-n", "--name", "--cluster-name", "--hcp-open-shift-cluster-name"]/g; s/options=\["--node-drain-timeout-minutes"\]/options=["-d", "--drain-timeout", "--node-drain-timeout-minutes"]/g'
-```
+### Swagger, not TypeSpec
 
-## Optional command root rewrite (`az arohcp`)
+When adding resources to the `aaz-dev` workspace, use **Swagger** as the source, not TypeSpec. The TypeSpec import path in `aaz-dev` has a bug where generic type names with angle brackets (e.g. `<RECORD>`) are emitted as-is into generated Python, producing invalid identifiers. See [aaz-dev-tools#562](https://github.com/Azure/aaz-dev-tools/issues/562).
 
-By default, generated commands are rooted at `az red-hat-open-shift`.
+### Pruning the command tree
 
-If you want `az arohcp`, rewrite command names in generated AAZ files:
+When importing a new swagger resource into the command tree, remove the following commands at both the cluster and nodepool levels:
 
-```bash
-cd ~/workspace/azure-cli-extensions/src/arohcp
+- `identity assign`
+- `identity remove`
+- `identity show`
 
-find azext_arohcp/aaz/latest/red_hat_open_shift -type f -name '*.py' -print0 | \
-  xargs -0 sed -i 's/red-hat-open-shift/arohcp/g'
+ARO HCP does not support attaching or removing individual managed identities. Identities are managed as a set through the cluster and node pool create and update commands, not through separate identity assign and remove operations.
 
-find azext_arohcp/aaz/latest/red_hat_open_shift -type f -name '*.py' -print0 | \
-  xargs -0 sed -i 's/Manage Red Hat Open Shift/Manage Red Hat OpenShift Hosted Control Plane Resources/g'
-```
+## Customizations
 
-Then verify:
+After code generation, customizations are applied in `custom.py` and `commands.py` in the extension directory. These files are **not overwritten** by regeneration — they survive across regeneration runs.
 
-```bash
-az arohcp -h
-```
+Customizations use the [AAZ inheritance pattern](https://azure.github.io/aaz-dev-tools/pages/usage/customization/): subclass the generated command in `custom.py`, override callbacks, and register the subclass in `commands.py`.
 
-Quick check before/after rewrite:
+### Current customizations
 
-```bash
-# before rewrite (default generated root)
-az red-hat-open-shift -h
+- **`request-admin-credential`**: exposes the kubeconfig (hidden by default as a secret), replaces literal `\n` sequences with actual newlines, and adds `--file` to write the kubeconfig directly to a file. It also generates a private key and certificate signing request (CSR) on behalf of the user, submits the CSR as part of the API request, and inserts the private key into the resulting kubeconfig.
+- **`cluster create`**: injects `identity.type = "UserAssigned"` into the request body. The generated code sets `userAssignedIdentities` but does not set the required ARM `identity.type` field. This customization also restructures the identity assignment arguments to align more closely with the Standard CLI's user experience.
+- **`cluster update`**: restructures the identity assignment arguments in the same way as `cluster create`.
+- **`get-versions`**: formats output nicely.
 
-# after rewrite + reinstall/reload extension
-az arohcp -h
-```
+## Submitting PRs
 
-## How to find the current API version/tag
+After validating with `azdev linter` and `azdev test`, submit PRs to the upstream repos:
 
-Use the HCP swagger readme files in this repo:
+1. **`Azure/aaz`** — the exported command models from the workspace editor
+2. **`Azure/azure-cli-extensions`** - the generated CLI code plus any `custom.py` / `commands.py` customizations
+3. **`Azure/azure-cli`** - carry over changes made to `Azure/azure-cli-extensions` if/when it's time to GA a new feature and/or API version
 
-- `api/redhatopenshift/resource-manager/Microsoft.RedHatOpenShift/hcpclusters/preview/readme.md`
-- `api/readme.md`
 
-Find latest package tag:
+## Updating to a new API version
 
-```bash
-rg -n "package-[0-9]{4}-[0-9]{2}-[0-9]{2}-preview" \
-  api/redhatopenshift/resource-manager/Microsoft.RedHatOpenShift/hcpclusters/preview/readme.md
-```
+When a new Swagger tag is available (for example, when moving from `2025-12-23-preview` to `2026-06-30-preview`):
 
-Find server model tags:
-
-```bash
-rg -n "Tag v20[0-9]{6}preview" api/readme.md
-```
-
-As of this update, latest HCP preview package tag is:
-
-- `package-2025-12-23-preview`
-
-## Where to plug in the version/tag
-
-Replace the tag in both generation steps:
-
-```bash
-# command model step
---swagger-tag package-2025-12-23-preview
-
-# CLI codegen step
---tag package-2025-12-23-preview
-```
-
-If you are generating server models via `api/readme.md`, use the matching `vYYYYMMDDpreview` tag there (for example `v20251223preview`).
-
-## Expected output locations
-
-- Generated extension code:
-  - `~/workspace/azure-cli-extensions/src/arohcp`
-- MVP vendored copy in this repo (for standalone testing):
-  - `tooling/arohcp-cli`
-- Generated/updated AAZ command model artifacts:
-  - `~/workspace/aaz/Commands/...`
-  - `~/workspace/aaz/Resources/...`
-
-To refresh the vendored MVP extension in this repo:
-
-```bash
-mkdir -p tooling/arohcp-cli
-rsync -a --delete \
-  ~/workspace/azure-cli-extensions/src/arohcp/ \
-  tooling/arohcp-cli/
-```
-
-For MVP standalone testing, apply the same rewrite from
-`red-hat-open-shift` to `arohcp` described in
-Optional command root rewrite (`az arohcp`), but run it against:
-
-- `tooling/arohcp-cli/azext_arohcp/aaz/latest/red_hat_open_shift`
-
-## Validation
-
-From `azure-cli-extensions` repo:
-
-```bash
-cd ~/workspace/azure-cli-extensions
-azdev linter arohcp
-azdev test arohcp --discover
-```
-
-Command root expectations:
-
-- Without the optional rewrite, commands are available under `az red-hat-open-shift`.
-- After applying the optional rewrite and reinstalling/reloading the extension, commands are available under `az arohcp`.
-
-Notes from current generation run:
-
-- `azdev linter arohcp` passes after generation when the local extension has been added via `azdev extension add arohcp`.
-- Generated test scaffold currently contains no test methods (`azext_arohcp/tests/latest/test_arohcp.py` is a TODO template), so `azdev test arohcp --discover` may run with `0 items` until real test cases are added.
-
-Manual smoke check after local extension install:
-
-```bash
-az extension add --source ~/workspace/azure-cli-extensions/src/arohcp/dist/*.whl -y
-az red-hat-open-shift -h
-az arohcp -h
-```
-
-Interpretation:
-
-- If rewrite is **not** applied: `az red-hat-open-shift -h` should work, `az arohcp -h` is expected to fail.
-- If rewrite **is** applied: `az arohcp -h` should work after reinstalling the extension wheel.
-
-If `az arohcp -h` is missing, apply the optional command root rewrite section above and reinstall the extension wheel.
-
-Or build/install from the vendored copy:
-
-```bash
-cd tooling/arohcp-cli
-python -m pip install -U build
-python -m build --wheel
-az extension add --source dist/*.whl -y
-az arohcp -h
-```
-
-## Known warnings seen during generation
-
-- Read-only property requirement warnings (for example: `url`, `issuerUrl`) can appear.
-- Wait-command support warnings for non-standard operations (for example credential request/revoke paths) can appear.
-
-These were non-fatal in generation and did not stop artifact creation.
-
-## Troubleshooting
-
-### `azdev setup` crash with `get_env_path() ... NoneType`
-
-Cause: `azdev` expects a virtual environment marker.
-
-Fix:
-
-```bash
-source .venv/bin/activate
-azdev setup -r ~/workspace/azure-cli-extensions/
-```
-
-### `aaz-dev: command not found`
-
-Install into the active venv:
-
-```bash
-pip install aaz-dev
-```
-
-### `unrecognized modules: [ arohcp ]` during `azdev linter` or `azdev test`
-
-Cause: the extension is generated on disk but is not registered in the current `azdev` dev environment.
-
-Fix:
-
-```bash
-cd ~/workspace/azure-cli-extensions
-azdev extension add arohcp
-```
-
-You can verify visibility with:
-
-```bash
-azdev extension list | rg -n '"name": "arohcp"'
-```
-
-### `extension(s): [ arohcp ] installed from a wheel may need --include-whl-extensions option`
-
-Cause: `azdev linter` detected wheel-installed extension state in the current environment.
-
-Fix:
-
-```bash
-cd ~/workspace/azure-cli-extensions
-azdev linter arohcp --include-whl-extensions
-```
-
-### `... is not a valid git repository`
-
-Ensure target repos are cloned and paths are correct:
-
-```bash
-ls -ld ~/workspace/azure-cli-extensions ~/workspace/aaz
-```
-
-> Note: use `~/workspace/aaz` (not `~/.workspace/aaz`).
-
-### `Path '/absolute/path/to/ARO-HCP/api/redhatopenshift' does not exist`
-
-Cause: the sample path is a placeholder and not a real directory on your machine.
-
-Fix: run from repo root and use `$PWD` (or your full absolute path):
-
-```bash
-source .venv/bin/activate
-aaz-dev command-model generate-from-swagger \
-  -a ~/workspace/aaz \
-  --sm "$PWD/api/redhatopenshift/" \
-  -m arohcp \
-  --rp Microsoft.RedHatOpenShift \
-  --swagger-tag package-2025-12-23-preview
-```
+1. Import the new Swagger resources in the `aaz-dev` workspace editor.
+2. Use **Inherit modifications from exported command models** to carry forward pruning and customizations from the previous version ([documentation](https://azure.github.io/aaz-dev-tools/pages/usage/workspace-editor/#inherit-modifications-from-exported-command-models)).
+3. If needed, update command and argument descriptions in the AAZ Dev Tools GUI. When you inherit previous work as described in step 2, the tool does not apply updates that the API spec has made to existing descriptions, so you must update them manually.
+4. If needed, use the AAZ Dev Tools GUI to flatten JSON-formatted arguments into separate CLI arguments, making them more user-friendly.
+5. Re-export the command models to `aaz`.
+6. Verify that the existing `custom.py` customizations still work.
+7. Run the linter and tests.
+8. Submit the updated PRs.

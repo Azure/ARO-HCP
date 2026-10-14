@@ -1,7 +1,8 @@
 ARG PLATFORM
 
 # Builder image
-FROM --platform=${PLATFORM} mcr.microsoft.com/oss/go/microsoft/golang:1.25-azurelinux3.0 AS builder
+FROM --platform=${PLATFORM} mcr.microsoft.com/oss/go/microsoft/golang:1.26-azurelinux3.0 AS builder
+ENV GOTOOLCHAIN=local
 COPY internal/go.mod internal/go.sum internal/
 COPY tooling/azutils/go.mod tooling/azutils/go.sum tooling/azutils/
 COPY tooling/hcpctl/go.mod tooling/hcpctl/go.sum tooling/hcpctl/

@@ -63,6 +63,8 @@ type clusterClusterServiceUpdateDispatchSyncer struct {
 
 var _ controllerutils.ClusterSyncer = (*clusterClusterServiceUpdateDispatchSyncer)(nil)
 
+const ClusterClusterServiceUpdateDispatchControllerName = "ClusterClusterServiceUpdateDispatch"
+
 func NewClusterClusterServiceUpdateDispatchController(
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
@@ -78,7 +80,7 @@ func NewClusterClusterServiceUpdateDispatchController(
 	)
 
 	return controllerutils.NewClusterWatchingController(
-		"ClusterClusterServiceUpdateDispatch",
+		ClusterClusterServiceUpdateDispatchControllerName,
 		resourcesDBClient,
 		informers,
 		nil,
@@ -104,7 +106,7 @@ func NewClusterClusterServiceUpdateDispatchSyncer(
 	}
 }
 
-func needsWork(cluster *coreapi.HCPOpenShiftCluster) bool {
+func needsWork(cluster *coreapi.Cluster) bool {
 	if cluster.ServiceProviderProperties.DeletionTimestamp != nil {
 		return false
 	}

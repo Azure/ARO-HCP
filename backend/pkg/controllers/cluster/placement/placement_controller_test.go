@@ -16,39 +16,39 @@ package placement
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/mock/gomock"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-
-	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
-	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/fleetcosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/fleetlistertesting"
 	"github.com/Azure/ARO-HCP/internal/kuberesources"
-	"github.com/Azure/ARO-HCP/internal/ocm"
 )
 
 // mcForStamp builds an eligible/ineligible ManagementCluster for a stamp.
 func mcForStamp(stamp string, schedulable, ready bool) *fleetapi.ManagementCluster {
-	resourceID := metadataapi.Must(fleetapi.ToManagementClusterResourceID(stamp))
+	resourceID := metadataapi.Must(fleetapihelpers.ToManagementClusterResourceID(stamp))
 	policy := fleetapi.ManagementClusterSchedulingPolicyUnschedulable
 	if schedulable {
 		policy = fleetapi.ManagementClusterSchedulingPolicySchedulable
@@ -104,11 +104,11 @@ func namedClusterResourceIDs(prefix string, n int) []*azcorearm.ResourceID {
 	return ids
 }
 
-// clusterWithAvailability builds an HCPOpenShiftCluster with the given name and
+// clusterWithAvailability builds a SWIFT Cluster with the given name and
 // control-plane availability, for the informer-cache-backed swiftNICReserver.
-func clusterWithAvailability(name string, availability coreapi.ControlPlaneAvailability) *coreapi.HCPOpenShiftCluster {
+func clusterWithAvailability(name string, availability coreapi.ControlPlaneAvailability) *coreapi.Cluster {
 	rid := clusterResourceIDWithName(name)
-	cluster := &coreapi.HCPOpenShiftCluster{}
+	cluster := newTestHCPCluster()
 	cluster.ID = rid
 	cluster.Name = rid.Name
 	cluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneAvailability = availability
@@ -116,12 +116,12 @@ func clusterWithAvailability(name string, availability coreapi.ControlPlaneAvail
 }
 
 // clusterListerForAvailability builds a cluster lister seeded with one
-// HCPOpenShiftCluster per resource ID, inferring each cluster's control-plane
+// Cluster per resource ID, inferring each cluster's control-plane
 // availability from its name: "sr-*" clusters are SingleReplica (reserve 1),
 // every other cluster is highly available (reserve swiftNICsPerHCP). This lets
 // availableResources resolve per-cluster swift-NIC reservations from the cache.
 func clusterListerForAvailability(ids []*azcorearm.ResourceID) *corelistertesting.SliceClusterLister {
-	clusters := make([]*coreapi.HCPOpenShiftCluster, 0, len(ids))
+	clusters := make([]*coreapi.Cluster, 0, len(ids))
 	for _, id := range ids {
 		availability := coreapi.DefaultControlPlaneAvailability
 		if strings.HasPrefix(id.Name, "sr-") {
@@ -133,7 +133,7 @@ func clusterListerForAvailability(ids []*azcorearm.ResourceID) *corelistertestin
 }
 
 func schedulingDoc(stamp string, ceiling, usage, notReady, pending int64) *fleetapi.ManagementClusterScheduling {
-	resourceID := metadataapi.Must(fleetapi.ToManagementClusterSchedulingResourceID(stamp))
+	resourceID := metadataapi.Must(fleetapihelpers.ToManagementClusterSchedulingResourceID(stamp))
 	notReadyIDs := make([]*azcorearm.ResourceID, notReady)
 	for i := range notReadyIDs {
 		notReadyIDs[i] = clusterResourceIDWithName(fmt.Sprintf("nr-%s-%d", stamp, i))
@@ -141,6 +141,10 @@ func schedulingDoc(stamp string, ceiling, usage, notReady, pending int64) *fleet
 	return &fleetapi.ManagementClusterScheduling{
 		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(stamp)},
 		Status: fleetapi.ManagementClusterSchedulingStatus{
+			Conditions: []metav1.Condition{
+				{Type: fleetapi.ConditionTypeCapacityDataCurrent, Status: metav1.ConditionTrue, Reason: "Test"},
+				{Type: fleetapi.ConditionTypeScalingDataCurrent, Status: metav1.ConditionTrue, Reason: "Test"},
+			},
 			ObservedResources:       fleetapi.ObservedResources{Usage: swiftResourceList(usage)},
 			ScaleCeiling:            fleetapi.ScaleCeiling{Capacity: swiftResourceList(ceiling)},
 			NotReadyResourceIDs:     notReadyIDs,
@@ -231,24 +235,80 @@ func TestAvailableResources_MixedControlPlaneAvailability(t *testing.T) {
 	}
 }
 
-// TestSwiftNICsForResourceID verifies the informer-cache-backed resolver maps a
-// cluster's control-plane availability to its swift-NIC reservation and falls
-// back to the conservative swiftNICsPerHCP when the cluster cannot be resolved.
+func TestSwiftNICsForCluster(t *testing.T) {
+	assert.Equal(t, swiftNICsPerHCP, swiftNICsForCluster(nil), "unknown cluster reserves three NICs")
+	for _, availability := range []coreapi.ControlPlaneAvailability{
+		coreapi.DefaultControlPlaneAvailability, coreapi.SingleReplicaControlPlane, "unknown",
+	} {
+		t.Run(string(availability), func(t *testing.T) {
+			cluster := clusterWithAvailability("cluster", availability)
+			want := swiftNICsPerHCP
+			if availability == coreapi.SingleReplicaControlPlane {
+				want = singleReplicaSwiftNICsPerHCP
+			}
+			assert.Equal(t, want, swiftNICsForCluster(cluster))
+			cluster.CustomerProperties.Platform.VnetIntegrationSubnetID = nil
+			assert.Zero(t, swiftNICsForCluster(cluster), "non-SWIFT clusters never reserve NICs")
+		})
+	}
+}
+
+// TestSwiftNICsForResourceID verifies cluster-aware reservations and conservative
+// fallback when the cluster cannot be resolved.
 func TestSwiftNICsForResourceID(t *testing.T) {
 	haCluster := clusterWithAvailability("ha", coreapi.DefaultControlPlaneAvailability)
 	srCluster := clusterWithAvailability("sr", coreapi.SingleReplicaControlPlane)
+	nonSwiftCluster := clusterWithAvailability("non-swift", coreapi.DefaultControlPlaneAvailability)
+	nonSwiftCluster.CustomerProperties.Platform.VnetIntegrationSubnetID = nil
 
 	syncer := &placementSyncer{
 		clusterLister: &corelistertesting.SliceClusterLister{
-			Clusters: []*coreapi.HCPOpenShiftCluster{haCluster, srCluster},
+			Clusters: []*coreapi.Cluster{haCluster, srCluster, nonSwiftCluster},
 		},
 	}
 	ctx := context.Background()
 
 	assert.Equal(t, swiftNICsPerHCP, syncer.swiftNICsForResourceID(ctx, haCluster.ID), "highly-available cluster reserves the full swiftNICsPerHCP")
 	assert.Equal(t, singleReplicaSwiftNICsPerHCP, syncer.swiftNICsForResourceID(ctx, srCluster.ID), "single-replica cluster reserves 1")
+	assert.Zero(t, syncer.swiftNICsForResourceID(ctx, nonSwiftCluster.ID), "non-SWIFT cluster reserves no NICs")
 	assert.Equal(t, swiftNICsPerHCP, syncer.swiftNICsForResourceID(ctx, clusterResourceIDWithName("missing")), "unresolvable cluster falls back to swiftNICsPerHCP")
 	assert.Equal(t, swiftNICsPerHCP, syncer.swiftNICsForResourceID(ctx, nil), "nil resource ID falls back to swiftNICsPerHCP")
+	syncer.clusterLister = nil
+	assert.Equal(t, swiftNICsPerHCP, syncer.swiftNICsForResourceID(ctx, haCluster.ID), "missing lister reserves three NICs")
+	syncer.clusterLister = &unresolvedClusterLister{err: errors.New("cache unavailable")}
+	assert.Equal(t, swiftNICsPerHCP, syncer.swiftNICsForResourceID(ctx, haCluster.ID), "lister error reserves three NICs")
+	syncer.clusterLister = &unresolvedClusterLister{}
+	assert.Equal(t, swiftNICsPerHCP, syncer.swiftNICsForResourceID(ctx, haCluster.ID), "nil cached cluster reserves three NICs")
+}
+
+type unresolvedClusterLister struct {
+	*corelistertesting.SliceClusterLister
+	err error
+}
+
+func (l *unresolvedClusterLister) Get(context.Context, string, string, string) (*coreapi.Cluster, error) {
+	return nil, l.err
+}
+
+func TestAvailableResources_MixedNetworkingModes(t *testing.T) {
+	doc := schedulingDoc("1", 30, 3, 0, 0)
+	lister := &corelistertesting.SliceClusterLister{}
+	for i, ids := range []*[]*azcorearm.ResourceID{&doc.Status.PendingAssignedClusters, &doc.Status.NotReadyResourceIDs} {
+		for _, availability := range []coreapi.ControlPlaneAvailability{coreapi.DefaultControlPlaneAvailability, coreapi.SingleReplicaControlPlane} {
+			for _, swift := range []bool{false, true} {
+				cluster := clusterWithAvailability(fmt.Sprintf("cluster-%d-%s-%t", i, availability, swift), availability)
+				if !swift {
+					cluster.CustomerProperties.Platform.VnetIntegrationSubnetID = nil
+				}
+				lister.Clusters = append(lister.Clusters, cluster)
+				*ids = append(*ids, cluster.ID)
+			}
+		}
+		*ids = append(*ids, nil, clusterResourceIDWithName(fmt.Sprintf("missing-%d", i)))
+	}
+	syncer := &placementSyncer{clusterLister: lister}
+	// Each list reserves 0 + 0 for non-SWIFT, 3 + 1 for SWIFT, and 3 for a cache miss.
+	assert.Equal(t, int64(30-3-7-7), swiftNICCount(syncer.availableResources(context.Background(), doc)))
 }
 
 func TestAvailableResources_IgnoresNilEntries(t *testing.T) {
@@ -258,7 +318,7 @@ func TestAvailableResources_IgnoresNilEntries(t *testing.T) {
 			// One nil entry (must not reserve) + one real entry (reserves 3).
 			PendingAssignedClusters: []*azcorearm.ResourceID{
 				nil,
-				metadataapi.Must(fleetapi.ToManagementClusterResourceID("x")),
+				metadataapi.Must(fleetapihelpers.ToManagementClusterResourceID("x")),
 			},
 			// One nil entry (must not reserve) + one real entry (reserves 3).
 			NotReadyResourceIDs: []*azcorearm.ResourceID{
@@ -272,86 +332,112 @@ func TestAvailableResources_IgnoresNilEntries(t *testing.T) {
 	assert.Equal(t, int64(3), swiftNICCount(syncer.availableResources(context.Background(), doc)))
 }
 
-// eligibleCandidate builds an eligible schedulingCandidate (empty
-// ineligibleReason) whose resolved available capacity is `available` swift NICs.
-func eligibleCandidate(stamp string, available int64) schedulingCandidate {
-	return schedulingCandidate{
-		resourceID: metadataapi.Must(fleetapi.ToManagementClusterResourceID(stamp)),
-		available:  swiftResourceList(available),
+// eligibleCandidate builds an eligible managementClusterEvaluation whose
+// resolved available capacity is `available` swift NICs.
+func eligibleCandidate(stamp string, available int64) managementClusterEvaluation {
+	return managementClusterEvaluation{
+		resourceID:         metadataapi.Must(fleetapihelpers.ToManagementClusterResourceID(stamp)),
+		eligibility:        eligible,
+		availableResources: corev1.ResourceList{kuberesources.SwiftNICResourceName: *resource.NewQuantity(available, resource.DecimalSI)},
 	}
 }
 
-// ineligibleCandidate builds a schedulingCandidate that selectByCapacity must
-// eliminate, recording the given reason.
-func ineligibleCandidate(stamp, reason string) schedulingCandidate {
-	return schedulingCandidate{
-		resourceID:       metadataapi.Must(fleetapi.ToManagementClusterResourceID(stamp)),
-		ineligibleReason: reason,
+// ineligibleCandidate builds a managementClusterEvaluation that selectByCapacity
+// must eliminate, recording the given reason.
+func ineligibleCandidate(stamp, reason string) managementClusterEvaluation {
+	return managementClusterEvaluation{
+		resourceID:  metadataapi.Must(fleetapihelpers.ToManagementClusterResourceID(stamp)),
+		eligibility: ineligible,
+		reason:      reason,
 	}
+}
+
+func unknownCandidate(stamp string) managementClusterEvaluation {
+	candidate := ineligibleCandidate(stamp, "no scheduling/capacity data available")
+	candidate.eligibility = unknownEligibility
+	return candidate
 }
 
 // TestSelectByCapacity exercises the pure selection function on already-resolved
-// candidates: eligibility (ineligibleReason) and available capacity are inputs,
-// so the cases cover both the ineligible-reason passthrough and capacity-based
+// candidates: eligibility and available capacity are inputs, so the cases
+// cover both the ineligible/unknown-reason passthrough and capacity-based
 // spread/tie-breaking.
 func TestSelectByCapacity(t *testing.T) {
 	rid := func(stamp string) *azcorearm.ResourceID {
-		return metadataapi.Must(fleetapi.ToManagementClusterResourceID(stamp))
+		return metadataapi.Must(fleetapihelpers.ToManagementClusterResourceID(stamp))
 	}
 
 	tests := []struct {
 		name              string
-		candidates        []schedulingCandidate
-		requiredSwiftNICs int64  // swift NICs the new HCP needs; 0 => swiftNICsPerHCP
-		expectedStamp     string // "" => expect error
-		expectError       bool
-		errContains       string // substring the error must enumerate (elimination reason)
+		candidates        []managementClusterEvaluation
+		requiredSwiftNICs *int64 // swift NICs the new HCP needs; nil => swiftNICsPerHCP
+		expectedStamp     string // set when a fit is expected
+		expectBlocked     bool   // true when no fit is expected
+		expectUnknown     bool
+		expectedReason    string
+		messageContains   string
 	}{
-		{name: "no candidates - error", candidates: nil, expectError: true},
+		{name: "no candidates - blocked, no eligible MC", candidates: nil, expectBlocked: true, expectedReason: coreapi.CapacityReasonNoEligibleManagementCluster},
 		{
-			name:        "not schedulable - eliminated with reason",
-			candidates:  []schedulingCandidate{ineligibleCandidate("1", `scheduling policy is "Unschedulable", not "Schedulable"`)},
-			expectError: true,
-			errContains: "scheduling policy",
+			name:            "not schedulable - blocked, no eligible MC",
+			candidates:      []managementClusterEvaluation{ineligibleCandidate("1", `scheduling policy is "Unschedulable", not "Schedulable"`)},
+			expectBlocked:   true,
+			expectedReason:  coreapi.CapacityReasonNoEligibleManagementCluster,
+			messageContains: "scheduling policy",
 		},
 		{
-			name:        "not ready - eliminated with reason",
-			candidates:  []schedulingCandidate{ineligibleCandidate("1", "management cluster is not Ready")},
-			expectError: true,
-			errContains: "not Ready",
+			name:            "not ready - blocked, no eligible MC",
+			candidates:      []managementClusterEvaluation{ineligibleCandidate("1", "management cluster is not Ready")},
+			expectBlocked:   true,
+			expectedReason:  coreapi.CapacityReasonNoEligibleManagementCluster,
+			messageContains: "not Ready",
 		},
 		{
-			name:        "no scheduling data - eliminated with reason",
-			candidates:  []schedulingCandidate{ineligibleCandidate("1", "no scheduling/capacity data available")},
-			expectError: true,
-			errContains: "no scheduling/capacity data",
+			name:            "no scheduling data - availability unknown",
+			candidates:      []managementClusterEvaluation{unknownCandidate("1")},
+			expectBlocked:   true,
+			expectUnknown:   true,
+			expectedReason:  coreapi.CapacityReasonEvaluationIncomplete,
+			messageContains: "no scheduling/capacity data",
 		},
 		{
-			name:        "eligible but below threshold - eliminated with reason",
-			candidates:  []schedulingCandidate{eligibleCandidate("1", 2)},
-			expectError: true,
-			errContains: "insufficient swift-NIC capacity",
+			name:           "unknown candidate prevents declaring capacity exhausted",
+			candidates:     []managementClusterEvaluation{eligibleCandidate("1", 0), unknownCandidate("2")},
+			expectBlocked:  true,
+			expectUnknown:  true,
+			expectedReason: coreapi.CapacityReasonEvaluationIncomplete,
 		},
-		{name: "single fit", candidates: []schedulingCandidate{eligibleCandidate("1", 3)}, expectedStamp: "1"},
-		{name: "exactly at threshold fits", candidates: []schedulingCandidate{eligibleCandidate("1", 3)}, expectedStamp: "1"},
+		{
+			name:          "known fit wins despite unknown candidate",
+			candidates:    []managementClusterEvaluation{unknownCandidate("1"), eligibleCandidate("2", 3)},
+			expectedStamp: "2",
+		},
+		{
+			name:            "eligible but below threshold - blocked, insufficient capacity",
+			candidates:      []managementClusterEvaluation{eligibleCandidate("1", 2)},
+			expectBlocked:   true,
+			expectedReason:  coreapi.CapacityReasonInsufficientCapacity,
+			messageContains: "insufficient swift-NIC capacity",
+		},
+		{name: "exactly at threshold fits", candidates: []managementClusterEvaluation{eligibleCandidate("1", 3)}, expectedStamp: "1"},
 		{
 			name:          "highest available among fits (spread load)",
-			candidates:    []schedulingCandidate{eligibleCandidate("1", 9), eligibleCandidate("2", 3), eligibleCandidate("3", 6)},
+			candidates:    []managementClusterEvaluation{eligibleCandidate("1", 9), eligibleCandidate("2", 3), eligibleCandidate("3", 6)},
 			expectedStamp: "1",
 		},
 		{
 			name:          "skips those below threshold, picks highest fitting",
-			candidates:    []schedulingCandidate{eligibleCandidate("1", 2), eligibleCandidate("2", 5), eligibleCandidate("3", 4)},
+			candidates:    []managementClusterEvaluation{eligibleCandidate("1", 2), eligibleCandidate("2", 5), eligibleCandidate("3", 4)},
 			expectedStamp: "2",
 		},
 		{
 			name:          "tie on available - lowest resource ID wins (order independent)",
-			candidates:    []schedulingCandidate{eligibleCandidate("3", 3), eligibleCandidate("1", 3), eligibleCandidate("2", 3)},
+			candidates:    []managementClusterEvaluation{eligibleCandidate("3", 3), eligibleCandidate("1", 3), eligibleCandidate("2", 3)},
 			expectedStamp: "1",
 		},
 		{
 			name: "mix of ineligible and eligible - picks the eligible fit",
-			candidates: []schedulingCandidate{
+			candidates: []managementClusterEvaluation{
 				ineligibleCandidate("1", "management cluster is not Ready"),
 				eligibleCandidate("2", 3),
 			},
@@ -359,84 +445,88 @@ func TestSelectByCapacity(t *testing.T) {
 		},
 		{
 			name:              "single-replica new cluster fits with only 1 available",
-			candidates:        []schedulingCandidate{eligibleCandidate("1", 1)},
-			requiredSwiftNICs: singleReplicaSwiftNICsPerHCP,
+			candidates:        []managementClusterEvaluation{eligibleCandidate("1", 1)},
+			requiredSwiftNICs: ptr.To(singleReplicaSwiftNICsPerHCP),
 			expectedStamp:     "1",
 		},
 		{
-			name:              "single-replica new cluster eliminated when 0 available",
-			candidates:        []schedulingCandidate{eligibleCandidate("1", 0)},
-			requiredSwiftNICs: singleReplicaSwiftNICsPerHCP,
-			expectError:       true,
-			errContains:       "insufficient swift-NIC capacity",
+			name:              "single-replica new cluster blocked when 0 available",
+			candidates:        []managementClusterEvaluation{eligibleCandidate("1", 0)},
+			requiredSwiftNICs: ptr.To(singleReplicaSwiftNICsPerHCP),
+			expectBlocked:     true,
+			expectedReason:    coreapi.CapacityReasonInsufficientCapacity,
+			messageContains:   "insufficient swift-NIC capacity",
 		},
 		{
-			name:              "highly-available new cluster eliminated when only 1 available",
-			candidates:        []schedulingCandidate{eligibleCandidate("1", 1)},
-			requiredSwiftNICs: swiftNICsPerHCP,
-			expectError:       true,
-			errContains:       "insufficient swift-NIC capacity",
+			name:              "highly-available new cluster blocked when only 1 available",
+			candidates:        []managementClusterEvaluation{eligibleCandidate("1", 1)},
+			requiredSwiftNICs: ptr.To(swiftNICsPerHCP),
+			expectBlocked:     true,
+			expectedReason:    coreapi.CapacityReasonInsufficientCapacity,
+			messageContains:   "insufficient swift-NIC capacity",
+		},
+		{
+			name:              "zero demand fits zero capacity",
+			candidates:        []managementClusterEvaluation{eligibleCandidate("1", 0)},
+			requiredSwiftNICs: ptr.To(int64(0)),
+			expectedStamp:     "1",
+		},
+		{
+			name:              "zero demand rejects negative headroom",
+			candidates:        []managementClusterEvaluation{eligibleCandidate("1", -1)},
+			requiredSwiftNICs: ptr.To(int64(0)),
+			expectBlocked:     true,
+			expectedReason:    coreapi.CapacityReasonInsufficientCapacity,
+			messageContains:   "available -1, need 0",
+		},
+		{
+			name:              "zero demand rejects unknown eligibility",
+			candidates:        []managementClusterEvaluation{unknownCandidate("1")},
+			requiredSwiftNICs: ptr.To(int64(0)),
+			expectBlocked:     true,
+			expectUnknown:     true,
+			expectedReason:    coreapi.CapacityReasonEvaluationIncomplete,
 		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			requiredSwiftNICs := tc.requiredSwiftNICs
-			if requiredSwiftNICs == 0 {
-				requiredSwiftNICs = swiftNICsPerHCP
-			}
-			chosen, err := selectByCapacity(tc.candidates, requiredSwiftNICs)
-			if tc.expectError {
-				require.Error(t, err)
+			requiredSwiftNICs := ptr.Deref(tc.requiredSwiftNICs, swiftNICsPerHCP)
+			chosen, _, condition := selectByCapacity(tc.candidates, requiredSwiftNICs)
+			assert.Equal(t, coreapi.CapacityAvailableConditionType, condition.Type)
+			if tc.expectBlocked {
 				assert.Nil(t, chosen)
-				if tc.errContains != "" {
-					assert.Contains(t, err.Error(), tc.errContains, "error should enumerate the elimination reason")
+				expectedStatus := metav1.ConditionFalse
+				if tc.expectUnknown {
+					expectedStatus = metav1.ConditionUnknown
+				}
+				assert.Equal(t, expectedStatus, condition.Status)
+				assert.Equal(t, tc.expectedReason, condition.Reason, "blocked reason classification")
+				if tc.messageContains != "" {
+					assert.Contains(t, condition.Message, tc.messageContains, "condition message should enumerate the elimination reason")
 				}
 				return
 			}
-			require.NoError(t, err)
 			require.NotNil(t, chosen)
 			assert.Equal(t, rid(tc.expectedStamp).String(), chosen.String())
+			assert.Equal(t, metav1.ConditionTrue, condition.Status)
+			assert.Equal(t, coreapi.CapacityReasonAvailable, condition.Reason)
 		})
 	}
-}
-
-func TestPlacementSyncer_SyncOnce_Backfill(t *testing.T) {
-	ctx := context.Background()
-
-	existing := newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
-		spc.Status.ManagementClusterResourceID = testMgmtClusterResourceID()
-	})
-
-	mockDB := corecosmosstoragetesting.NewMockResourcesDBClient()
-	spcCRUD := mockDB.ServiceProviderClusters(testClusterSubscriptionID, testClusterResourceGroup, testClusterName)
-	created, err := spcCRUD.Create(ctx, existing, nil)
-	require.NoError(t, err)
-
-	// No eligible MC and no fleet capacity data: proves backfill does NOT run
-	// fresh selection (which would fail). A non-deleting cluster is present so the
-	// deletion guard falls through to the status backfill.
-	syncer := &placementSyncer{
-		serviceProviderClusterLister: &corelistertesting.SliceServiceProviderClusterLister{ServiceProviderClusters: []*coreapi.ServiceProviderCluster{created}},
-		clusterLister:                &corelistertesting.SliceClusterLister{Clusters: []*coreapi.HCPOpenShiftCluster{newTestHCPCluster()}},
-		managementClusterLister:      &fleetlistertesting.SliceManagementClusterLister{},
-		cosmosClient:                 mockDB,
-		fleetDBClient:                fleetcosmosstoragetesting.NewMockFleetDBClient(),
-	}
-
-	key := controllerutils.HCPClusterKey{SubscriptionID: testClusterSubscriptionID, ResourceGroupName: testClusterResourceGroup, HCPClusterName: testClusterName}
-	require.NoError(t, syncer.SyncOnce(ctx, key))
-
-	updated, err := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
-	require.NoError(t, err)
-	require.NotNil(t, updated.Spec.ManagementClusterResourceID, "Spec must be backfilled from Status")
-	assert.Equal(t, testMgmtClusterResourceID().String(), updated.Spec.ManagementClusterResourceID.String())
 }
 
 func TestPlacementSyncer_SyncOnce_FreshSelection(t *testing.T) {
 	ctx := context.Background()
 
-	existing := newTestSPC() // Spec and Status both nil
+	existing := newTestSPC() // Spec nil => needsWork is satisfied
+	// Seed a stale CapacityAvailable=False from a prior capacity-blocked reconcile so the
+	// successful placement below must flip it to True on the same Replace that sets Spec.
+	existing.Status.Placement = &coreapi.ServiceProviderClusterPlacementStatus{}
+	meta.SetStatusCondition(&existing.Status.Placement.Conditions, metav1.Condition{
+		Type:   coreapi.CapacityAvailableConditionType,
+		Status: metav1.ConditionFalse,
+		Reason: coreapi.CapacityReasonInsufficientCapacity,
+	})
 
 	mockDB := corecosmosstoragetesting.NewMockResourcesDBClient()
 	spcCRUD := mockDB.ServiceProviderClusters(testClusterSubscriptionID, testClusterResourceGroup, testClusterName)
@@ -450,15 +540,15 @@ func TestPlacementSyncer_SyncOnce_FreshSelection(t *testing.T) {
 	sched1 := schedulingDoc("1", 6, 3, 0, 0)
 	sched2 := schedulingDoc("2", 6, 0, 0, 0)
 	fleetDB := fleetcosmosstoragetesting.NewMockFleetDBClient()
-	_, err = fleetDB.Stamps().ManagementClusters("1").Scheduling().Create(ctx, sched1, nil)
+	sched1, err = fleetDB.Stamps().ManagementClusters("1").Scheduling().Create(ctx, sched1, nil)
 	require.NoError(t, err)
-	_, err = fleetDB.Stamps().ManagementClusters("2").Scheduling().Create(ctx, sched2, nil)
+	sched2, err = fleetDB.Stamps().ManagementClusters("2").Scheduling().Create(ctx, sched2, nil)
 	require.NoError(t, err)
 
+	clusterLister := &corelistertesting.SliceClusterLister{}
 	syncer := &placementSyncer{
 		serviceProviderClusterLister: &corelistertesting.SliceServiceProviderClusterLister{ServiceProviderClusters: []*coreapi.ServiceProviderCluster{created}},
-		// No cluster in cache => no PendingClusterServiceID => fresh selection.
-		clusterLister: &corelistertesting.SliceClusterLister{},
+		clusterLister:                clusterLister,
 		managementClusterLister: &fleetlistertesting.SliceManagementClusterLister{ManagementClusters: []*fleetapi.ManagementCluster{
 			mcForStamp("1", true, true),
 			mcForStamp("2", true, true),
@@ -469,243 +559,223 @@ func TestPlacementSyncer_SyncOnce_FreshSelection(t *testing.T) {
 	}
 
 	key := controllerutils.HCPClusterKey{SubscriptionID: testClusterSubscriptionID, ResourceGroupName: testClusterResourceGroup, HCPClusterName: testClusterName}
+	// The SPC can arrive before the cluster. Do not assign or reserve until
+	// the cluster is cached and its lifecycle and NIC requirement are known.
+	require.NoError(t, syncer.SyncOnce(ctx, key))
+	waiting, err := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
+	require.NoError(t, err)
+	require.Nil(t, waiting.Spec.ManagementClusterResourceID)
+	for _, stamp := range []string{"1", "2"} {
+		scheduling, err := fleetDB.Stamps().ManagementClusters(stamp).Scheduling().Get(ctx, fleetapi.SchedulingResourceName)
+		require.NoError(t, err)
+		assert.Empty(t, scheduling.Status.PendingAssignedClusters)
+	}
+
+	clusterLister.Clusters = []*coreapi.Cluster{newTestHCPCluster()}
 	require.NoError(t, syncer.SyncOnce(ctx, key))
 
 	// Spec set to the emptier eligible MC (stamp "2") per spread selection.
 	updated, err := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
 	require.NoError(t, err)
 	require.NotNil(t, updated.Spec.ManagementClusterResourceID)
-	assert.Equal(t, metadataapi.Must(fleetapi.ToManagementClusterResourceID("2")).String(), updated.Spec.ManagementClusterResourceID.String())
+	assert.Equal(t, metadataapi.Must(fleetapihelpers.ToManagementClusterResourceID("2")).String(), updated.Spec.ManagementClusterResourceID.String())
 
 	// Pending reservation recorded on the chosen MC's scheduling doc.
 	scheduling, err := fleetDB.Stamps().ManagementClusters("2").Scheduling().Get(ctx, fleetapi.SchedulingResourceName)
 	require.NoError(t, err)
 	require.Len(t, scheduling.Status.PendingAssignedClusters, 1)
+
+	// The successful placement flipped CapacityAvailable to True on the same write that set
+	// Spec.ManagementClusterResourceID.
+	require.NotNil(t, updated.Status.Placement)
+	capacity := meta.FindStatusCondition(updated.Status.Placement.Conditions, coreapi.CapacityAvailableConditionType)
+	require.NotNil(t, capacity)
+	assert.Equal(t, metav1.ConditionTrue, capacity.Status)
+	assert.Equal(t, coreapi.CapacityReasonAvailable, capacity.Reason)
 	assert.Equal(t, strings.ToLower(key.GetResourceID().String()), strings.ToLower(scheduling.Status.PendingAssignedClusters[0].String()))
 }
 
-func TestPlacementSyncer_SyncOnce_NoCapacityFails(t *testing.T) {
+func TestPlacementSyncer_SyncOnce_PreservesRecordedPlacement(t *testing.T) {
+	spc := newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
+		spc.Spec.ManagementClusterResourceID = testMgmtClusterResourceID()
+	})
+	cluster := newTestHCPCluster()
+	cluster.CustomerProperties.Platform.VnetIntegrationSubnetID = nil
+	before := spc.DeepCopy()
+	syncer := &placementSyncer{
+		serviceProviderClusterLister: &corelistertesting.SliceServiceProviderClusterLister{ServiceProviderClusters: []*coreapi.ServiceProviderCluster{spc}},
+		clusterLister:                &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{cluster}},
+		// No fleet listers or database clients: an existing placement must skip
+		// evaluation and all writes, regardless of the new preference.
+	}
+	key := controllerutils.HCPClusterKey{SubscriptionID: testClusterSubscriptionID, ResourceGroupName: testClusterResourceGroup, HCPClusterName: testClusterName}
+	require.NoError(t, syncer.SyncOnce(context.Background(), key))
+	assert.Equal(t, before, spc)
+}
+
+func TestPlacementSyncer_SyncOnce_NetworkingModeDemand(t *testing.T) {
+	for _, tc := range []struct {
+		name         string
+		swift        bool
+		availability coreapi.ControlPlaneAvailability
+		capacity     int64
+	}{
+		{name: "non-SWIFT HA fits zero capacity"},
+		{name: "non-SWIFT SingleReplica fits zero capacity", availability: coreapi.SingleReplicaControlPlane},
+		{name: "SWIFT HA fits three NICs", swift: true, capacity: 3},
+		{name: "SWIFT SingleReplica fits one NIC", swift: true, availability: coreapi.SingleReplicaControlPlane, capacity: 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+			cluster := newTestHCPCluster()
+			cluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneAvailability = tc.availability
+			if !tc.swift {
+				cluster.CustomerProperties.Platform.VnetIntegrationSubnetID = nil
+			}
+			db := corecosmosstoragetesting.NewMockResourcesDBClient()
+			spcCRUD := db.ServiceProviderClusters(testClusterSubscriptionID, testClusterResourceGroup, testClusterName)
+			spc, err := spcCRUD.Create(ctx, newTestSPC(), nil)
+			require.NoError(t, err)
+			scheduling := schedulingDoc("1", tc.capacity, 0, 0, 0)
+			fleetDB := fleetcosmosstoragetesting.NewMockFleetDBClient()
+			schedulingCRUD := fleetDB.Stamps().ManagementClusters("1").Scheduling()
+			scheduling, err = schedulingCRUD.Create(ctx, scheduling, nil)
+			require.NoError(t, err)
+			syncer := &placementSyncer{
+				serviceProviderClusterLister:      &corelistertesting.SliceServiceProviderClusterLister{ServiceProviderClusters: []*coreapi.ServiceProviderCluster{spc}},
+				clusterLister:                     &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{cluster}},
+				managementClusterLister:           &fleetlistertesting.SliceManagementClusterLister{ManagementClusters: []*fleetapi.ManagementCluster{mcForStamp("1", true, true)}},
+				managementClusterSchedulingLister: &fleetlistertesting.SliceManagementClusterSchedulingLister{Schedulings: []*fleetapi.ManagementClusterScheduling{scheduling}},
+				cosmosClient:                      db,
+				fleetDBClient:                     fleetDB,
+			}
+			key := controllerutils.HCPClusterKey{SubscriptionID: testClusterSubscriptionID, ResourceGroupName: testClusterResourceGroup, HCPClusterName: testClusterName}
+			require.NoError(t, syncer.SyncOnce(ctx, key))
+			updated, err := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
+			require.NoError(t, err)
+			require.NotNil(t, updated.Spec.ManagementClusterResourceID)
+			assert.Equal(t, mcForStamp("1", true, true).ResourceID, updated.Spec.ManagementClusterResourceID)
+			require.NotNil(t, updated.Status.Placement)
+			assert.True(t, meta.IsStatusConditionTrue(updated.Status.Placement.Conditions, coreapi.CapacityAvailableConditionType))
+			reserved, err := schedulingCRUD.Get(ctx, fleetapi.SchedulingResourceName)
+			require.NoError(t, err)
+			assert.Equal(t, []*azcorearm.ResourceID{key.GetResourceID()}, reserved.Status.PendingAssignedClusters, "zero NIC demand still records the pending assignment")
+		})
+	}
+}
+
+// fakeAfterEnqueuer captures EnqueueAfter calls so tests can assert the placement
+// syncer schedules a fixed-cadence retry when no management cluster has capacity.
+type fakeAfterEnqueuer struct {
+	keys      []any
+	durations []time.Duration
+}
+
+func (f *fakeAfterEnqueuer) EnqueueAfter(key any, d time.Duration) {
+	f.keys = append(f.keys, key)
+	f.durations = append(f.durations, d)
+}
+
+func TestPlacementSyncer_SyncOnce_NoCapacityRecordsBlockedAndRetries(t *testing.T) {
 	ctx := context.Background()
 
 	existing := newTestSPC()
+	existing.Status.Placement = &coreapi.ServiceProviderClusterPlacementStatus{
+		Conditions: []metav1.Condition{{
+			Type: coreapi.CapacityAvailableConditionType, Status: metav1.ConditionUnknown,
+			Reason: coreapi.CapacityReasonEvaluationIncomplete,
+		}},
+	}
 	mockDB := corecosmosstoragetesting.NewMockResourcesDBClient()
 	spcCRUD := mockDB.ServiceProviderClusters(testClusterSubscriptionID, testClusterResourceGroup, testClusterName)
 	created, err := spcCRUD.Create(ctx, existing, nil)
 	require.NoError(t, err)
 
-	// Eligible MC but no scheduling doc in the cache => ineligible => no fit => error.
+	// Eligible MC (schedulable, ready, has a scheduling doc) whose available swift-NIC
+	// capacity (2) is below the required 3 => insufficient capacity => CapacityAvailable=False with
+	// reason InsufficientCapacity.
+	sched1 := schedulingDoc("1", 2, 0, 0, 0)
+	enqueuer := &fakeAfterEnqueuer{}
 	syncer := &placementSyncer{
 		serviceProviderClusterLister:      &corelistertesting.SliceServiceProviderClusterLister{ServiceProviderClusters: []*coreapi.ServiceProviderCluster{created}},
-		clusterLister:                     &corelistertesting.SliceClusterLister{},
+		clusterLister:                     &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{newTestHCPCluster()}},
 		managementClusterLister:           &fleetlistertesting.SliceManagementClusterLister{ManagementClusters: []*fleetapi.ManagementCluster{mcForStamp("1", true, true)}},
-		managementClusterSchedulingLister: &fleetlistertesting.SliceManagementClusterSchedulingLister{},
+		managementClusterSchedulingLister: &fleetlistertesting.SliceManagementClusterSchedulingLister{Schedulings: []*fleetapi.ManagementClusterScheduling{sched1}},
 		cosmosClient:                      mockDB,
 		fleetDBClient:                     fleetcosmosstoragetesting.NewMockFleetDBClient(),
+		enqueueAfter:                      enqueuer,
 	}
 
 	key := controllerutils.HCPClusterKey{SubscriptionID: testClusterSubscriptionID, ResourceGroupName: testClusterResourceGroup, HCPClusterName: testClusterName}
-	require.Error(t, syncer.SyncOnce(ctx, key))
+	// A capacity shortfall is an expected transient, not a controller error: SyncOnce
+	// returns nil and schedules a fixed-cadence retry instead.
+	require.NoError(t, syncer.SyncOnce(ctx, key))
 
 	updated, err := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
 	require.NoError(t, err)
 	assert.Nil(t, updated.Spec.ManagementClusterResourceID)
+
+	// The selection failure records CapacityAvailable=False (reason InsufficientCapacity) on
+	// Status.Placement.Conditions, carrying the selection error's message, so the create
+	// operation can surface a capacity signal while the scheduler retries.
+	require.NotNil(t, updated.Status.Placement)
+	blocked := meta.FindStatusCondition(updated.Status.Placement.Conditions, coreapi.CapacityAvailableConditionType)
+	require.NotNil(t, blocked)
+	assert.Equal(t, metav1.ConditionFalse, blocked.Status)
+	assert.Equal(t, coreapi.CapacityReasonInsufficientCapacity, blocked.Reason)
+
+	// A fixed-cadence retry is scheduled for this key rather than error backoff.
+	require.Equal(t, []time.Duration{placementRetryInterval}, enqueuer.durations)
+	assert.Equal(t, []any{key}, enqueuer.keys)
 }
 
-// TestPlacementSyncer_SyncOnce_PlacementSource is the tabular test for the three
-// placement sources SyncOnce chooses between when Spec is unset:
-//   - Status already set                     => backfill Spec from observed Status
-//   - both nil + PendingClusterServiceID set => backfill Spec from Cluster Service
-//     (rollout-race migration path; NOT a fresh capacity selection)
-//   - both nil + no PendingClusterServiceID  => fresh capacity selection
-//
-// It also covers the defer case: a pending CS ID exists but Cluster Service has
-// not reported a provision shard yet (Spec must stay nil, no error); and the
-// Cluster Service error cases for a pending CS ID: a 404 (the pending ID never
-// became a real cluster) falls through to a FRESH selection, while transient and
-// other non-404 errors are returned so the workqueue retries.
-func TestPlacementSyncer_SyncOnce_PlacementSource(t *testing.T) {
-	pendingCSID := metadataapi.Must(metadataapi.NewInternalID(testClusterServiceIDStr))
+func TestPlacementSyncer_SyncOnce_NoEligibleManagementClusterRecordsBlockedAndRetries(t *testing.T) {
+	ctx := context.Background()
 
-	// freshMC is an eligible management cluster (distinct from the CS-mapped mc1)
-	// used only by the fresh-selection case.
-	const freshStamp = "fresh-mc"
-	freshMCResourceID := metadataapi.Must(fleetapi.ToManagementClusterResourceID(freshStamp))
+	existing := newTestSPC()
+	existing.Status.Placement = &coreapi.ServiceProviderClusterPlacementStatus{
+		Conditions: []metav1.Condition{{
+			Type: coreapi.CapacityAvailableConditionType, Status: metav1.ConditionFalse,
+			Reason: coreapi.CapacityReasonInsufficientCapacity,
+		}},
+	}
+	mockDB := corecosmosstoragetesting.NewMockResourcesDBClient()
+	spcCRUD := mockDB.ServiceProviderClusters(testClusterSubscriptionID, testClusterResourceGroup, testClusterName)
+	created, err := spcCRUD.Create(ctx, existing, nil)
+	require.NoError(t, err)
 
-	tests := []struct {
-		name               string
-		spc                *coreapi.ServiceProviderCluster
-		cluster            *coreapi.HCPOpenShiftCluster // nil => not present in cache
-		managementClusters []*fleetapi.ManagementCluster
-		schedulings        []*fleetapi.ManagementClusterScheduling
-		csShard            *arohcpv1alpha1.ProvisionShard
-		csError            error
-		expectCSCall       bool
-		expectedSpec       string // "" => nil
-		expectError        bool
-	}{
-		{
-			name: "status set - backfill from status (no CS call, no fresh select)",
-			spc: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
-				spc.Status.ManagementClusterResourceID = testMgmtClusterResourceID()
-			}),
-			expectCSCall: false,
-			expectedSpec: testMgmtClusterResourceID().String(),
-		},
-		{
-			name: "both nil + pending CS ID - backfill from Cluster Service (not fresh select)",
-			spc:  newTestSPC(),
-			cluster: newTestHCPCluster(func(c *coreapi.HCPOpenShiftCluster) {
-				c.ServiceProviderProperties.ClusterServiceID = nil
-				c.ServiceProviderProperties.PendingClusterServiceID = &pendingCSID
-			}),
-			managementClusters: []*fleetapi.ManagementCluster{newTestManagementCluster()},
-			csShard: metadataapi.Must(arohcpv1alpha1.NewProvisionShard().
-				HREF(testProvisionShardHREF(testProvisionShardIDStr)).
-				Build()),
-			expectCSCall: true,
-			expectedSpec: testMgmtClusterResourceID().String(),
-		},
-		{
-			name: "both nil + pending CS ID + shard not allocated - defer (no fresh select, no error)",
-			spc:  newTestSPC(),
-			cluster: newTestHCPCluster(func(c *coreapi.HCPOpenShiftCluster) {
-				c.ServiceProviderProperties.ClusterServiceID = nil
-				c.ServiceProviderProperties.PendingClusterServiceID = &pendingCSID
-			}),
-			managementClusters: []*fleetapi.ManagementCluster{newTestManagementCluster()},
-			csShard:            metadataapi.Must(arohcpv1alpha1.NewProvisionShard().Build()), // empty HREF
-			expectCSCall:       true,
-			expectedSpec:       "",
-		},
-		{
-			name: "both nil + no pending CS ID - fresh selection",
-			spc:  newTestSPC(),
-			cluster: newTestHCPCluster(func(c *coreapi.HCPOpenShiftCluster) {
-				c.ServiceProviderProperties.ClusterServiceID = nil
-			}),
-			managementClusters: []*fleetapi.ManagementCluster{mcForStamp(freshStamp, true, true)},
-			schedulings:        []*fleetapi.ManagementClusterScheduling{schedulingDoc(freshStamp, 6, 0, 0, 0)},
-			expectCSCall:       false,
-			expectedSpec:       freshMCResourceID.String(),
-		},
-		{
-			// The pending CS ID is stale: an older backend recorded it then crashed
-			// before creating the cluster in Cluster Service, so CS returns 404.
-			// There is no committed placement to preserve, so SyncOnce must fall
-			// through to a FRESH capacity-aware selection (picks the eligible MC)
-			// rather than deferring forever.
-			name: "both nil + pending CS ID + CS 404 - fresh selection (stale pending ID)",
-			spc:  newTestSPC(),
-			cluster: newTestHCPCluster(func(c *coreapi.HCPOpenShiftCluster) {
-				c.ServiceProviderProperties.ClusterServiceID = nil
-				c.ServiceProviderProperties.PendingClusterServiceID = &pendingCSID
-			}),
-			managementClusters: []*fleetapi.ManagementCluster{mcForStamp(freshStamp, true, true)},
-			schedulings:        []*fleetapi.ManagementClusterScheduling{schedulingDoc(freshStamp, 6, 0, 0, 0)},
-			csError:            metadataapi.Must(ocmerrors.NewError().Status(http.StatusNotFound).Build()),
-			expectCSCall:       true,
-			expectedSpec:       freshMCResourceID.String(),
-		},
-		{
-			// A transient (non-404) Cluster Service error must NOT fresh-select: it
-			// is returned so the workqueue retries. An eligible MC is present to
-			// prove the error short-circuits before fresh selection (no placement
-			// is written).
-			name: "both nil + pending CS ID + CS transient error - return error (retry, no placement)",
-			spc:  newTestSPC(),
-			cluster: newTestHCPCluster(func(c *coreapi.HCPOpenShiftCluster) {
-				c.ServiceProviderProperties.ClusterServiceID = nil
-				c.ServiceProviderProperties.PendingClusterServiceID = &pendingCSID
-			}),
-			managementClusters: []*fleetapi.ManagementCluster{mcForStamp(freshStamp, true, true)},
-			schedulings:        []*fleetapi.ManagementClusterScheduling{schedulingDoc(freshStamp, 6, 0, 0, 0)},
-			csError:            fmt.Errorf("connection refused"),
-			expectCSCall:       true,
-			expectedSpec:       "",
-			expectError:        true,
-		},
-		{
-			// A non-404 Cluster Service HTTP error (e.g. 500) must also be returned
-			// for retry: only a 404 means the cluster was never created and is safe
-			// to fresh-select.
-			name: "both nil + pending CS ID + CS non-404 error - return error (only 404 falls through)",
-			spc:  newTestSPC(),
-			cluster: newTestHCPCluster(func(c *coreapi.HCPOpenShiftCluster) {
-				c.ServiceProviderProperties.ClusterServiceID = nil
-				c.ServiceProviderProperties.PendingClusterServiceID = &pendingCSID
-			}),
-			managementClusters: []*fleetapi.ManagementCluster{mcForStamp(freshStamp, true, true)},
-			schedulings:        []*fleetapi.ManagementClusterScheduling{schedulingDoc(freshStamp, 6, 0, 0, 0)},
-			csError:            metadataapi.Must(ocmerrors.NewError().Status(http.StatusInternalServerError).Build()),
-			expectCSCall:       true,
-			expectedSpec:       "",
-			expectError:        true,
-		},
+	// Missing scheduling data replaces the previous capacity shortfall with Unknown,
+	// rather than misclassifying missing observations as known unavailability.
+	enqueuer := &fakeAfterEnqueuer{}
+	syncer := &placementSyncer{
+		serviceProviderClusterLister:      &corelistertesting.SliceServiceProviderClusterLister{ServiceProviderClusters: []*coreapi.ServiceProviderCluster{created}},
+		clusterLister:                     &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{newTestHCPCluster()}},
+		managementClusterLister:           &fleetlistertesting.SliceManagementClusterLister{ManagementClusters: []*fleetapi.ManagementCluster{mcForStamp("1", true, true)}},
+		managementClusterSchedulingLister: &fleetlistertesting.SliceManagementClusterSchedulingLister{},
+		cosmosClient:                      mockDB,
+		fleetDBClient:                     fleetcosmosstoragetesting.NewMockFleetDBClient(),
+		enqueueAfter:                      enqueuer,
 	}
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			ctx := context.Background()
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
+	key := controllerutils.HCPClusterKey{SubscriptionID: testClusterSubscriptionID, ResourceGroupName: testClusterResourceGroup, HCPClusterName: testClusterName}
+	require.NoError(t, syncer.SyncOnce(ctx, key))
 
-			mockDB := corecosmosstoragetesting.NewMockResourcesDBClient()
-			spcCRUD := mockDB.ServiceProviderClusters(testClusterSubscriptionID, testClusterResourceGroup, testClusterName)
-			created, err := spcCRUD.Create(ctx, tc.spc, nil)
-			require.NoError(t, err)
+	updated, err := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
+	require.NoError(t, err)
+	assert.Nil(t, updated.Spec.ManagementClusterResourceID)
 
-			clusters := []*coreapi.HCPOpenShiftCluster{}
-			if tc.cluster != nil {
-				clusters = append(clusters, tc.cluster)
-			}
+	require.NotNil(t, updated.Status.Placement)
+	capacity := meta.FindStatusCondition(updated.Status.Placement.Conditions, coreapi.CapacityAvailableConditionType)
+	require.NotNil(t, capacity)
+	assert.Equal(t, metav1.ConditionUnknown, capacity.Status)
+	assert.Equal(t, coreapi.CapacityReasonEvaluationIncomplete, capacity.Reason)
 
-			// The fleet DB backs the reservation write path (fresh selection only);
-			// seed it with the same scheduling docs used for scoring.
-			fleetDB := fleetcosmosstoragetesting.NewMockFleetDBClient()
-			for _, s := range tc.schedulings {
-				_, err := fleetDB.Stamps().ManagementClusters(s.PartitionKey).Scheduling().Create(ctx, s, nil)
-				require.NoError(t, err)
-			}
-
-			mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
-			if tc.expectCSCall {
-				mockCSClient.EXPECT().
-					GetClusterProvisionShard(gomock.Any(), pendingCSID).
-					Return(tc.csShard, tc.csError)
-			}
-
-			syncer := &placementSyncer{
-				serviceProviderClusterLister:      &corelistertesting.SliceServiceProviderClusterLister{ServiceProviderClusters: []*coreapi.ServiceProviderCluster{created}},
-				clusterLister:                     &corelistertesting.SliceClusterLister{Clusters: clusters},
-				managementClusterLister:           &fleetlistertesting.SliceManagementClusterLister{ManagementClusters: tc.managementClusters},
-				managementClusterSchedulingLister: &fleetlistertesting.SliceManagementClusterSchedulingLister{Schedulings: tc.schedulings},
-				cosmosClient:                      mockDB,
-				fleetDBClient:                     fleetDB,
-				clusterServiceClient:              mockCSClient,
-			}
-
-			key := controllerutils.HCPClusterKey{SubscriptionID: testClusterSubscriptionID, ResourceGroupName: testClusterResourceGroup, HCPClusterName: testClusterName}
-			err = syncer.SyncOnce(ctx, key)
-			if tc.expectError {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-			}
-
-			updated, err := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
-			require.NoError(t, err)
-			if tc.expectedSpec != "" {
-				require.NotNil(t, updated.Spec.ManagementClusterResourceID)
-				assert.Equal(t, tc.expectedSpec, updated.Spec.ManagementClusterResourceID.String())
-			} else {
-				assert.Nil(t, updated.Spec.ManagementClusterResourceID, "no placement should be written")
-			}
-		})
-	}
+	// A fixed-cadence retry is scheduled rather than error backoff.
+	require.Equal(t, []time.Duration{placementRetryInterval}, enqueuer.durations)
 }
 
 // TestPlacementSyncer_SyncOnce_SkipsDeletingCluster proves a cluster whose
-// deletion has been requested (HCPOpenShiftCluster.ServiceProviderProperties.
+// deletion has been requested (Cluster.ServiceProviderProperties.
 // DeletionTimestamp is set) is neither placed nor reserved, even though an
 // eligible management cluster with capacity is available — so the skip is due to
 // the deletion guard, not a lack of capacity.
@@ -722,7 +792,7 @@ func TestPlacementSyncer_SyncOnce_SkipsDeletingCluster(t *testing.T) {
 
 	// The HCP is being deleted.
 	deletionTime := metav1.Now()
-	deletingCluster := newTestHCPCluster(func(c *coreapi.HCPOpenShiftCluster) {
+	deletingCluster := newTestHCPCluster(func(c *coreapi.Cluster) {
 		c.ServiceProviderProperties.DeletionTimestamp = &deletionTime
 	})
 
@@ -735,7 +805,7 @@ func TestPlacementSyncer_SyncOnce_SkipsDeletingCluster(t *testing.T) {
 
 	syncer := &placementSyncer{
 		serviceProviderClusterLister:      &corelistertesting.SliceServiceProviderClusterLister{ServiceProviderClusters: []*coreapi.ServiceProviderCluster{created}},
-		clusterLister:                     &corelistertesting.SliceClusterLister{Clusters: []*coreapi.HCPOpenShiftCluster{deletingCluster}},
+		clusterLister:                     &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{deletingCluster}},
 		managementClusterLister:           &fleetlistertesting.SliceManagementClusterLister{ManagementClusters: []*fleetapi.ManagementCluster{mcForStamp("1", true, true)}},
 		managementClusterSchedulingLister: &fleetlistertesting.SliceManagementClusterSchedulingLister{Schedulings: []*fleetapi.ManagementClusterScheduling{sched}},
 		cosmosClient:                      mockDB,
@@ -756,34 +826,38 @@ func TestPlacementSyncer_SyncOnce_SkipsDeletingCluster(t *testing.T) {
 	assert.Empty(t, scheduling.Status.PendingAssignedClusters, "a deleting cluster must not reserve capacity")
 }
 
-// TestPlacementSyncer_setSpecPlacement_PreconditionFailureReturnsNil covers the
+// TestPlacementSyncer_recordPlacementDecision_PreconditionFailureReturnsError covers the
 // optimistic-concurrency loser path: when the Replace fails a precondition (412)
-// because another writer updated the ServiceProviderCluster first, setSpecPlacement
-// must swallow the error and return nil (no error / no requeue) rather than
-// propagating it.
-func TestPlacementSyncer_setSpecPlacement_PreconditionFailureReturnsNil(t *testing.T) {
+// because another writer updated the ServiceProviderCluster after SyncOnce read
+// the base, recordPlacementDecision must return the error so the workqueue retries and
+// recomputes the placement decision against fresh state — never swallow it and
+// commit on top of the concurrent transition.
+func TestPlacementSyncer_recordPlacementDecision_PreconditionFailureReturnsError(t *testing.T) {
 	ctx := context.Background()
 	chosen := testMgmtClusterResourceID()
+	condition := metav1.Condition{
+		Type:    coreapi.CapacityAvailableConditionType,
+		Status:  metav1.ConditionTrue,
+		Reason:  coreapi.CapacityReasonAvailable,
+		Message: "placed on " + chosen.Name,
+	}
 	key := controllerutils.HCPClusterKey{SubscriptionID: testClusterSubscriptionID, ResourceGroupName: testClusterResourceGroup, HCPClusterName: testClusterName}
 
-	existing := newTestSPC() // Spec nil => needsWork is satisfied
+	base := newTestSPC() // Spec nil => needsWork is satisfied
 	mockDB := corecosmosstoragetesting.NewMockResourcesDBClient()
 	spcCRUD := mockDB.ServiceProviderClusters(testClusterSubscriptionID, testClusterResourceGroup, testClusterName)
-	created, err := spcCRUD.Create(ctx, existing, nil)
+	created, err := spcCRUD.Create(ctx, base, nil)
 	require.NoError(t, err)
 
-	// Advance the stored document past the cached base so a Replace using the
-	// cached (now-stale) etag fails the precondition. Pass a deep copy to the bump
-	// so `created` keeps its stale etag for the lister below.
+	// Advance the stored document past base so a Replace using base's (now-stale)
+	// etag fails the precondition. Pass a deep copy to the bump so `created` keeps
+	// its stale etag for the recordPlacementDecision base below.
 	_, err = spcCRUD.Replace(ctx, created.DeepCopy(), nil)
 	require.NoError(t, err)
 
-	syncer := &placementSyncer{
-		serviceProviderClusterLister: &corelistertesting.SliceServiceProviderClusterLister{ServiceProviderClusters: []*coreapi.ServiceProviderCluster{created}},
-		cosmosClient:                 mockDB,
-	}
+	syncer := &placementSyncer{cosmosClient: mockDB}
 
-	require.NoError(t, syncer.setSpecPlacement(ctx, key, chosen), "precondition failure must not be returned as an error")
+	require.Error(t, syncer.recordPlacementDecision(ctx, key, created, chosen, condition), "a precondition failure must be returned so the reconcile retries")
 
 	// The losing write must not have applied: Spec stays as the winner left it (nil).
 	updated, err := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
@@ -798,7 +872,7 @@ func TestPlacementSyncer_setSpecPlacement_PreconditionFailureReturnsNil(t *testi
 func TestPlacementSyncer_reservePendingAssignment_CaseInsensitiveIdempotent(t *testing.T) {
 	ctx := context.Background()
 	const stamp = "1"
-	mcResourceID := metadataapi.Must(fleetapi.ToManagementClusterResourceID(stamp))
+	mcResourceID := metadataapi.Must(fleetapihelpers.ToManagementClusterResourceID(stamp))
 
 	clusterResourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + testClusterSubscriptionID + "/resourceGroups/" + testClusterResourceGroup +
@@ -812,18 +886,189 @@ func TestPlacementSyncer_reservePendingAssignment_CaseInsensitiveIdempotent(t *t
 	fleetDB := fleetcosmosstoragetesting.NewMockFleetDBClient()
 	doc := &fleetapi.ManagementClusterScheduling{
 		CosmosMetadata: coreapi.CosmosMetadata{
-			ResourceID:   metadataapi.Must(fleetapi.ToManagementClusterSchedulingResourceID(stamp)),
+			ResourceID:   metadataapi.Must(fleetapihelpers.ToManagementClusterSchedulingResourceID(stamp)),
 			PartitionKey: stamp,
 		},
 		Status: fleetapi.ManagementClusterSchedulingStatus{PendingAssignedClusters: []*azcorearm.ResourceID{alreadyReserved}},
 	}
-	_, err := fleetDB.Stamps().ManagementClusters(stamp).Scheduling().Create(ctx, doc, nil)
+	created, err := fleetDB.Stamps().ManagementClusters(stamp).Scheduling().Create(ctx, doc, nil)
 	require.NoError(t, err)
 
 	syncer := &placementSyncer{fleetDBClient: fleetDB}
-	require.NoError(t, syncer.reservePendingAssignment(ctx, mcResourceID, clusterResourceID))
+	require.NoError(t, syncer.reservePendingAssignment(ctx, created, mcResourceID, clusterResourceID))
 
 	updated, err := fleetDB.Stamps().ManagementClusters(stamp).Scheduling().Get(ctx, fleetapi.SchedulingResourceName)
 	require.NoError(t, err)
 	assert.Len(t, updated.Status.PendingAssignedClusters, 1, "a case-differing duplicate must not be appended")
+}
+
+func TestPlacementSyncer_reservePendingAssignment_StaleSnapshotRejected(t *testing.T) {
+	ctx := context.Background()
+	const stamp = "1"
+	mcResourceID := metadataapi.Must(fleetapihelpers.ToManagementClusterResourceID(stamp))
+	clusterA := clusterResourceIDWithName("probe-a")
+	clusterB := clusterResourceIDWithName("probe-b")
+
+	fleetDB := fleetcosmosstoragetesting.NewMockFleetDBClient()
+	schedulingCRUD := fleetDB.Stamps().ManagementClusters(stamp).Scheduling()
+	snapshot, err := schedulingCRUD.Create(ctx, schedulingDoc(stamp, 3, 0, 0, 0), nil)
+	require.NoError(t, err)
+
+	syncer := &placementSyncer{fleetDBClient: fleetDB}
+	require.NoError(t, syncer.reservePendingAssignment(ctx, snapshot, mcResourceID, clusterA))
+
+	// A reserved against this snapshot; B must not overbook using its stale ETag.
+	err = syncer.reservePendingAssignment(ctx, snapshot, mcResourceID, clusterB)
+	require.Error(t, err)
+	assert.True(t, cosmosstorageutils.IsPreconditionFailedError(err))
+
+	reserved, err := schedulingCRUD.Get(ctx, fleetapi.SchedulingResourceName)
+	require.NoError(t, err)
+	require.Len(t, reserved.Status.PendingAssignedClusters, 1, "B's write must not have applied")
+	assert.Equal(t, strings.ToLower(clusterA.String()), strings.ToLower(reserved.Status.PendingAssignedClusters[0].String()))
+}
+
+func TestSchedulingObservationsDetermineCapacityAvailability(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		mutate     func(*fleetapi.ManagementCluster, *fleetapi.ManagementClusterScheduling)
+		wantStatus metav1.ConditionStatus
+	}{
+		{
+			name: "missing stamp identifier",
+			mutate: func(mc *fleetapi.ManagementCluster, _ *fleetapi.ManagementClusterScheduling) {
+				mc.ResourceID.Parent = nil
+			},
+			wantStatus: metav1.ConditionUnknown,
+		},
+		{
+			name: "invalid scheduling policy",
+			mutate: func(mc *fleetapi.ManagementCluster, _ *fleetapi.ManagementClusterScheduling) {
+				mc.Spec.SchedulingPolicy = ""
+			},
+			wantStatus: metav1.ConditionUnknown,
+		},
+		{
+			name: "readiness not observed",
+			mutate: func(mc *fleetapi.ManagementCluster, _ *fleetapi.ManagementClusterScheduling) {
+				mc.Status.Conditions = nil
+			},
+			wantStatus: metav1.ConditionUnknown,
+		},
+		{
+			name: "capacity observations missing",
+			mutate: func(_ *fleetapi.ManagementCluster, scheduling *fleetapi.ManagementClusterScheduling) {
+				meta.RemoveStatusCondition(&scheduling.Status.Conditions, fleetapi.ConditionTypeCapacityDataCurrent)
+			},
+			wantStatus: metav1.ConditionUnknown,
+		},
+		{
+			name: "scaling observations stale",
+			mutate: func(_ *fleetapi.ManagementCluster, scheduling *fleetapi.ManagementClusterScheduling) {
+				meta.FindStatusCondition(scheduling.Status.Conditions, fleetapi.ConditionTypeScalingDataCurrent).Status = metav1.ConditionFalse
+			},
+			wantStatus: metav1.ConditionUnknown,
+		},
+		{
+			name: "known unschedulable does not require capacity observations",
+			mutate: func(mc *fleetapi.ManagementCluster, scheduling *fleetapi.ManagementClusterScheduling) {
+				mc.Spec.SchedulingPolicy = fleetapi.ManagementClusterSchedulingPolicyUnschedulable
+				scheduling.Status.Conditions = nil
+			},
+			wantStatus: metav1.ConditionFalse,
+		},
+		{
+			name: "known not ready does not require capacity observations",
+			mutate: func(mc *fleetapi.ManagementCluster, scheduling *fleetapi.ManagementClusterScheduling) {
+				meta.FindStatusCondition(mc.Status.Conditions, string(fleetapi.ManagementClusterConditionReady)).Status = metav1.ConditionFalse
+				scheduling.Status.Conditions = nil
+			},
+			wantStatus: metav1.ConditionFalse,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			mc := mcForStamp("1", true, true)
+			scheduling := schedulingDoc("1", 6, 0, 0, 0)
+			tc.mutate(mc, scheduling)
+			syncer := &placementSyncer{
+				managementClusterLister: &fleetlistertesting.SliceManagementClusterLister{
+					ManagementClusters: []*fleetapi.ManagementCluster{mc},
+				},
+				managementClusterSchedulingLister: &fleetlistertesting.SliceManagementClusterSchedulingLister{
+					Schedulings: []*fleetapi.ManagementClusterScheduling{scheduling},
+				},
+			}
+			candidates, err := syncer.evaluateManagementClusters(context.Background())
+			require.NoError(t, err)
+			for _, demand := range []int64{0, singleReplicaSwiftNICsPerHCP, swiftNICsPerHCP} {
+				chosen, _, condition := selectByCapacity(candidates, demand)
+				assert.Nil(t, chosen, "demand %d must not bypass eligibility", demand)
+				assert.Equal(t, tc.wantStatus, condition.Status)
+			}
+		})
+	}
+}
+
+type failingManagementClusterLister struct {
+	*fleetlistertesting.SliceManagementClusterLister
+	err error
+}
+
+func (l *failingManagementClusterLister) List(context.Context) ([]*fleetapi.ManagementCluster, error) {
+	return nil, l.err
+}
+
+func TestPlacementSyncer_FailedEvaluationPreservesCapacityShortfall(t *testing.T) {
+	for _, failure := range []string{"list candidates", "reserve assignment"} {
+		t.Run(failure, func(t *testing.T) {
+			ctx := context.Background()
+			existing := newTestSPC()
+			existing.Status.Placement = &coreapi.ServiceProviderClusterPlacementStatus{
+				Conditions: []metav1.Condition{{
+					Type: coreapi.CapacityAvailableConditionType, Status: metav1.ConditionFalse,
+					Reason: coreapi.CapacityReasonInsufficientCapacity,
+				}},
+			}
+			db := corecosmosstoragetesting.NewMockResourcesDBClient()
+			spcCRUD := db.ServiceProviderClusters(testClusterSubscriptionID, testClusterResourceGroup, testClusterName)
+			created, err := spcCRUD.Create(ctx, existing, nil)
+			require.NoError(t, err)
+			// Valid cache metadata for a scheduling document absent from storage.
+			cachedScheduling := schedulingDoc("1", 6, 0, 0, 0)
+			cachedScheduling.CosmosETag = "stale-etag"
+			cachedScheduling.InstanceVersion = 1
+			syncer := &placementSyncer{
+				serviceProviderClusterLister: &corelistertesting.SliceServiceProviderClusterLister{
+					ServiceProviderClusters: []*coreapi.ServiceProviderCluster{created},
+				},
+				clusterLister: &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{newTestHCPCluster()}},
+				managementClusterLister: &fleetlistertesting.SliceManagementClusterLister{
+					ManagementClusters: []*fleetapi.ManagementCluster{mcForStamp("1", true, true)},
+				},
+				managementClusterSchedulingLister: &fleetlistertesting.SliceManagementClusterSchedulingLister{
+					Schedulings: []*fleetapi.ManagementClusterScheduling{cachedScheduling},
+				},
+				cosmosClient: db,
+				// The cache has capacity but the scheduling document is absent from
+				// storage, so reservation fails after a fitting candidate is found.
+				fleetDBClient: fleetcosmosstoragetesting.NewMockFleetDBClient(),
+			}
+			listErr := errors.New("candidate list unavailable")
+			if failure == "list candidates" {
+				syncer.managementClusterLister = &failingManagementClusterLister{err: listErr}
+			}
+			key := controllerutils.HCPClusterKey{SubscriptionID: testClusterSubscriptionID, ResourceGroupName: testClusterResourceGroup, HCPClusterName: testClusterName}
+			err = syncer.SyncOnce(ctx, key)
+			require.Error(t, err)
+			if failure == "list candidates" {
+				assert.ErrorIs(t, err, listErr)
+			} else {
+				assert.True(t, cosmosstorageutils.IsNotFoundError(err))
+			}
+			updated, err := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
+			require.NoError(t, err)
+			assert.Nil(t, updated.Spec.ManagementClusterResourceID)
+			assert.Equal(t, existing.Status.Placement, updated.Status.Placement)
+		})
+	}
 }

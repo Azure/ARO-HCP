@@ -31,6 +31,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 )
@@ -50,7 +51,7 @@ func TestClusterIdentitySyncer_SyncOnce(t *testing.T) {
 
 	testCases := []struct {
 		name                           string
-		existingCluster                *coreapi.HCPOpenShiftCluster // cluster in cosmos + cache
+		existingCluster                *coreapi.Cluster // cluster in cosmos + cache
 		existingServiceProviderCluster *coreapi.ServiceProviderCluster
 		expectError                    bool
 		expectedHasIdentity            bool
@@ -61,7 +62,7 @@ func TestClusterIdentitySyncer_SyncOnce(t *testing.T) {
 	}{
 		{
 			name: "no work to do - identity already matches ServiceProviderCluster",
-			existingCluster: newTestClusterForClusterIdentitySync(func(c *coreapi.HCPOpenShiftCluster) {
+			existingCluster: newTestClusterForClusterIdentitySync(func(c *coreapi.Cluster) {
 				c.Identity = &coreapi.ManagedServiceIdentity{
 					UserAssignedIdentities: map[string]*coreapi.UserAssignedIdentity{
 						testIdentityResourceID: {
@@ -81,7 +82,7 @@ func TestClusterIdentitySyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "no work to do - nil ClientID/PrincipalID already match ServiceProviderCluster not-found values",
-			existingCluster: newTestClusterForClusterIdentitySync(func(c *coreapi.HCPOpenShiftCluster) {
+			existingCluster: newTestClusterForClusterIdentitySync(func(c *coreapi.Cluster) {
 				c.Identity = &coreapi.ManagedServiceIdentity{
 					UserAssignedIdentities: map[string]*coreapi.UserAssignedIdentity{
 						testIdentityResourceID: {},
@@ -98,7 +99,7 @@ func TestClusterIdentitySyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "success - update ClientID/PrincipalID when ServiceProviderCluster values change",
-			existingCluster: newTestClusterForClusterIdentitySync(func(c *coreapi.HCPOpenShiftCluster) {
+			existingCluster: newTestClusterForClusterIdentitySync(func(c *coreapi.Cluster) {
 				c.Identity = &coreapi.ManagedServiceIdentity{
 					UserAssignedIdentities: map[string]*coreapi.UserAssignedIdentity{
 						testIdentityResourceID: {
@@ -118,7 +119,7 @@ func TestClusterIdentitySyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "no work to do - deleting cluster",
-			existingCluster: newTestClusterForClusterIdentitySync(func(c *coreapi.HCPOpenShiftCluster) {
+			existingCluster: newTestClusterForClusterIdentitySync(func(c *coreapi.Cluster) {
 				c.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: time.Now()}
 				c.Identity = &coreapi.ManagedServiceIdentity{
 					UserAssignedIdentities: map[string]*coreapi.UserAssignedIdentity{
@@ -144,7 +145,7 @@ func TestClusterIdentitySyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "success - fill ClientID/PrincipalID from ServiceProviderCluster",
-			existingCluster: newTestClusterForClusterIdentitySync(func(c *coreapi.HCPOpenShiftCluster) {
+			existingCluster: newTestClusterForClusterIdentitySync(func(c *coreapi.Cluster) {
 				c.Identity = &coreapi.ManagedServiceIdentity{
 					UserAssignedIdentities: map[string]*coreapi.UserAssignedIdentity{
 						testIdentityResourceID: {},
@@ -161,7 +162,7 @@ func TestClusterIdentitySyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "success - fill nil identity map entry from ServiceProviderCluster",
-			existingCluster: newTestClusterForClusterIdentitySync(func(c *coreapi.HCPOpenShiftCluster) {
+			existingCluster: newTestClusterForClusterIdentitySync(func(c *coreapi.Cluster) {
 				c.Identity = &coreapi.ManagedServiceIdentity{
 					UserAssignedIdentities: map[string]*coreapi.UserAssignedIdentity{
 						testIdentityResourceID: nil,
@@ -178,7 +179,7 @@ func TestClusterIdentitySyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "preserves mixed-case identity keys and looks up ServiceProviderCluster by lowercase",
-			existingCluster: newTestClusterForClusterIdentitySync(func(c *coreapi.HCPOpenShiftCluster) {
+			existingCluster: newTestClusterForClusterIdentitySync(func(c *coreapi.Cluster) {
 				c.Identity = &coreapi.ManagedServiceIdentity{
 					UserAssignedIdentities: map[string]*coreapi.UserAssignedIdentity{
 						mixedCaseIdentityResourceID: {},
@@ -195,7 +196,7 @@ func TestClusterIdentitySyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "sets empty identity when ServiceProviderCluster has no matching entry",
-			existingCluster: newTestClusterForClusterIdentitySync(func(c *coreapi.HCPOpenShiftCluster) {
+			existingCluster: newTestClusterForClusterIdentitySync(func(c *coreapi.Cluster) {
 				c.Identity = &coreapi.ManagedServiceIdentity{
 					UserAssignedIdentities: map[string]*coreapi.UserAssignedIdentity{
 						testIdentityResourceID: {},
@@ -212,7 +213,7 @@ func TestClusterIdentitySyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "clears stale identity values when ServiceProviderCluster has no matching entry",
-			existingCluster: newTestClusterForClusterIdentitySync(func(c *coreapi.HCPOpenShiftCluster) {
+			existingCluster: newTestClusterForClusterIdentitySync(func(c *coreapi.Cluster) {
 				c.Identity = &coreapi.ManagedServiceIdentity{
 					UserAssignedIdentities: map[string]*coreapi.UserAssignedIdentity{
 						testIdentityResourceID: {
@@ -232,7 +233,7 @@ func TestClusterIdentitySyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "keeps identity keys unchanged when ServiceProviderCluster is missing",
-			existingCluster: newTestClusterForClusterIdentitySync(func(c *coreapi.HCPOpenShiftCluster) {
+			existingCluster: newTestClusterForClusterIdentitySync(func(c *coreapi.Cluster) {
 				c.Identity = &coreapi.ManagedServiceIdentity{
 					UserAssignedIdentities: map[string]*coreapi.UserAssignedIdentity{
 						testIdentityResourceID: {},
@@ -264,7 +265,7 @@ func TestClusterIdentitySyncer_SyncOnce(t *testing.T) {
 			cachedCluster, err := clusterCRUD.Get(ctx, testClusterName)
 			require.NoError(t, err)
 			sliceClusterLister := &corelistertesting.SliceClusterLister{
-				Clusters: []*coreapi.HCPOpenShiftCluster{cachedCluster},
+				Clusters: []*coreapi.Cluster{cachedCluster},
 			}
 
 			var serviceProviderClusterList []*coreapi.ServiceProviderCluster
@@ -330,16 +331,16 @@ func TestClusterIdentitySyncer_SyncOnce(t *testing.T) {
 	}
 }
 
-// newTestClusterForClusterIdentitySync creates a test HCPOpenShiftCluster with default values
+// newTestClusterForClusterIdentitySync creates a test Cluster with default values
 // for cluster identity sync testing.
-func newTestClusterForClusterIdentitySync(opts ...func(*coreapi.HCPOpenShiftCluster)) *coreapi.HCPOpenShiftCluster {
+func newTestClusterForClusterIdentitySync(opts ...func(*coreapi.Cluster)) *coreapi.Cluster {
 	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + testSubscriptionID +
 			"/resourceGroups/" + testResourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName,
 	))
 
-	cluster := &coreapi.HCPOpenShiftCluster{
+	cluster := &coreapi.Cluster{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   resourceID,
 			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
@@ -368,7 +369,7 @@ func newTestServiceProviderCluster() *coreapi.ServiceProviderCluster {
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName,
 	))
 	serviceProviderClusterResourceID := metadataapi.Must(azcorearm.ParseResourceID(
-		coreapi.ToServiceProviderClusterResourceIDString(testSubscriptionID, testResourceGroupName, testClusterName),
+		coreapihelpers.ToServiceProviderClusterResourceIDString(testSubscriptionID, testResourceGroupName, testClusterName),
 	))
 	return &coreapi.ServiceProviderCluster{
 		CosmosMetadata: coreapi.CosmosMetadata{

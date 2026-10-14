@@ -19,6 +19,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
@@ -33,6 +35,8 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armsubscriptions"
 )
+
+const ProwJobIDTag = "jobID.aro-hcp-ci.redhat.com"
 
 func GetSubscriptionID(ctx context.Context, subscriptionClient *armsubscriptions.Client, subscriptionName string) (string, error) {
 	pager := subscriptionClient.NewListPager(nil)
@@ -66,12 +70,16 @@ func CreateResourceGroup(
 		return nil, fmt.Errorf("resourceGroupTTL must be at least an hour, got %v", resourceGroupTTL)
 	}
 
+	tags := map[string]*string{
+		"e2e.aro-hcp-ci.redhat.com":         to.Ptr("true"),
+		"deleteAfter.aro-hcp-ci.redhat.com": to.Ptr(fmt.Sprintf("%v", time.Now().Add(resourceGroupTTL).Format(time.RFC3339))),
+	}
+	if jobID := os.Getenv("BUILD_ID"); strings.TrimSpace(jobID) != "" {
+		tags[ProwJobIDTag] = to.Ptr(jobID)
+	}
 	resourceGroup, err := resourceGroupsClient.CreateOrUpdate(ctx, resourceGroupName, armresources.ResourceGroup{
 		Location: to.Ptr(location),
-		Tags: map[string]*string{
-			"e2e.aro-hcp-ci.redhat.com":         to.Ptr("true"),
-			"deleteAfter.aro-hcp-ci.redhat.com": to.Ptr(fmt.Sprintf("%v", time.Now().Add(resourceGroupTTL).Format(time.RFC3339))),
-		},
+		Tags:     tags,
 	}, nil)
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
@@ -81,6 +89,27 @@ func CreateResourceGroup(
 	}
 
 	return &resourceGroup.ResourceGroup, nil
+}
+
+func ListResourceGroupsByJobID(ctx context.Context, client *armresources.ResourceGroupsClient, jobID string) ([]*armresources.ResourceGroup, error) {
+	if strings.TrimSpace(jobID) == "" {
+		return nil, fmt.Errorf("job ID must not be blank")
+	}
+	filter := fmt.Sprintf("tagName eq '%s' and tagValue eq '%s'", strings.ReplaceAll(ProwJobIDTag, "'", "''"), strings.ReplaceAll(jobID, "'", "''"))
+	pager := client.NewListPager(&armresources.ResourceGroupsClientListOptions{Filter: to.Ptr(filter)})
+	var resourceGroups []*armresources.ResourceGroup
+	for pager.More() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed listing resource groups by job ID: %w", err)
+		}
+		for _, resourceGroup := range page.Value {
+			if resourceGroup != nil && resourceGroup.Tags[ProwJobIDTag] != nil && *resourceGroup.Tags[ProwJobIDTag] == jobID {
+				resourceGroups = append(resourceGroups, resourceGroup)
+			}
+		}
+	}
+	return resourceGroups, nil
 }
 
 // ListAllExpiredResourceGroups returns all expired e2e resource groups

@@ -31,12 +31,14 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
+	"github.com/openshift/hypershift/api/hypershift/v1beta1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
@@ -61,6 +63,7 @@ type clusterResourcesController struct {
 	clustersServiceClient        ocm.ClusterServiceClientSpec
 	kubeApplierDBClients         kubeappliercosmosstorage.KubeApplierDBClients
 	applyDesireLister            kubeapplierlisters.ApplyDesireLister
+	readDesireLister             kubeapplierlisters.ReadDesireLister
 }
 
 var _ controllerutils.ClusterSyncer = (*clusterResourcesController)(nil)
@@ -76,6 +79,7 @@ func NewClusterResourcesController(
 	_, serviceProviderClusterLister := informers.ServiceProviderClusters()
 	_, nodePoolLister := informers.NodePools()
 	_, applyDesireLister := kubeApplierInformers.ApplyDesires()
+	_, readDesireLister := kubeApplierInformers.ReadDesires()
 
 	syncer := &clusterResourcesController{
 		clusterLister:                clusterLister,
@@ -84,6 +88,7 @@ func NewClusterResourcesController(
 		clustersServiceClient:        clustersServiceClient,
 		kubeApplierDBClients:         kubeApplierDBClients,
 		applyDesireLister:            applyDesireLister,
+		readDesireLister:             readDesireLister,
 	}
 
 	return controllerutils.NewClusterWatchingController(
@@ -100,7 +105,7 @@ func NewClusterResourcesController(
 // It requires the cluster to be placed on a management cluster. Beyond that:
 // - Clusters being deleted need ApplyDesire cleanup
 // - Clusters with a ClusterServiceID need resource syncing
-func (c *clusterResourcesController) NeedsWork(cluster *coreapi.HCPOpenShiftCluster, managementCluster *azcorearm.ResourceID) bool {
+func (c *clusterResourcesController) NeedsWork(cluster *coreapi.Cluster, managementCluster *azcorearm.ResourceID) bool {
 	if managementCluster == nil {
 		return false
 	}
@@ -153,46 +158,6 @@ func (c *clusterResourcesController) SyncOnce(ctx context.Context, key controlle
 	return nil
 }
 
-// deleteAllOwnedApplyDesires removes all ApplyDesire Cosmos documents owned by
-// this controller for the given cluster during cluster deletion.
-// Note: deleting an ApplyDesire document does not trigger deletion of the
-// underlying Kubernetes object;
-// TODO: Teardown of underlying Kubernetes resources.
-func (c *clusterResourcesController) deleteAllOwnedApplyDesires(ctx context.Context, key controllerutils.HCPClusterKey, managementCluster *azcorearm.ResourceID) error {
-	logger := utils.LoggerFromContext(ctx)
-
-	existing, err := c.applyDesireLister.ListForCluster(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
-	if err != nil {
-		return utils.TrackError(fmt.Errorf("list ApplyDesires for deletion cleanup: %w", err))
-	}
-
-	kubeApplierDBClient := c.kubeApplierDBClients.For(ctx, managementCluster)
-	if kubeApplierDBClient == nil {
-		return nil
-	}
-
-	for _, desire := range existing {
-		if desire.Tags == nil ||
-			desire.Tags[kubeapplierapi.TagControllerName] != ClusterResourcesControllerName {
-			continue
-		}
-		scope, err := kubeappliercosmosstorage.ParseDesireScope(desire.ResourceID.Parent)
-		if err != nil {
-			return utils.TrackError(fmt.Errorf("parse scope for ApplyDesire %s: %w", desire.ResourceID.Name, err))
-		}
-		crud, err := kubeApplierDBClient.ApplyDesiresFor(scope)
-		if err != nil {
-			return utils.TrackError(fmt.Errorf("get CRUD for ApplyDesire %s: %w", desire.ResourceID.Name, err))
-		}
-		if err := crud.Delete(ctx, desire.ResourceID.Name); err != nil && !cosmosstorageutils.IsNotFoundError(err) {
-			return utils.TrackError(fmt.Errorf("delete ApplyDesire %s: %w", desire.ResourceID.Name, err))
-		}
-		logger.Info("deleted ApplyDesire document", "desireName", desire.ResourceID.Name)
-	}
-
-	return nil
-}
-
 // fetchAndProcessClusterResources calls the Cluster Service SDK to get cluster resources information
 // and processes the resources.
 func (c *clusterResourcesController) fetchAndProcessClusterResources(ctx context.Context,
@@ -225,7 +190,9 @@ func (c *clusterResourcesController) processClusterResources(ctx context.Context
 		return utils.TrackError(fmt.Errorf("failed to get kube-applier CRUD: %w", err))
 	}
 
-	tags := map[string]string{kubeapplierapi.TagControllerName: ClusterResourcesControllerName}
+	tags := map[string]string{
+		kubeapplierapi.TagControllerName: ClusterResourcesControllerName,
+	}
 
 	resourceMap := resources.Resources()
 	desiredResourceIDs := make(map[string]bool, len(resourceMap))
@@ -268,7 +235,10 @@ func (c *clusterResourcesController) processClusterResources(ctx context.Context
 				continue
 			}
 			// Skipping here drops the desire out of desiredResourceIDs, so
-			// deleteStaleApplyDesires reaps it below.
+			// deleteStaleApplyDesires reaps it below. This is the single-node-pool
+			// path only; when the whole cluster is deleting, SyncOnce never gets
+			// here and nodePoolRemovalStep does the same job from the teardown
+			// chain.
 			//
 			// While Cluster Service still owns the NodePool it is also still
 			// reporting it here, and its ManifestWork keeps the CR materialized
@@ -299,6 +269,18 @@ func (c *clusterResourcesController) processClusterResources(ctx context.Context
 		default:
 			crud = applyDesireCRUD
 
+			// Ensure backend-managed annotations on HostedCluster before creating ApplyDesire
+			if classified.desireName == DesireNameHostedCluster {
+				if err := ensureHostedClusterAnnotations(&unstructuredObj); err != nil {
+					errs = append(errs, utils.TrackError(fmt.Errorf("failed to reconcile HostedCluster annotations for %s: %w", resourceKey, err)))
+					continue
+				}
+				if err := removeNullUsernamePrefixes(&unstructuredObj); err != nil {
+					errs = append(errs, utils.TrackError(fmt.Errorf("failed to normalize HostedCluster authentication for %s: %w", resourceKey, err)))
+					continue
+				}
+			}
+
 			desire, err = buildClusterResourceApplyDesire(
 				key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName,
 				classified.desireName, managementCluster, target, &unstructuredObj, tags,
@@ -314,6 +296,54 @@ func (c *clusterResourcesController) processClusterResources(ctx context.Context
 
 		if err := kubeapplierhelpers.EnsureApplyDesire(ctx, crud, c.applyDesireLister, desire); err != nil {
 			errs = append(errs, err)
+			continue
+		}
+
+		// Ensure ReadDesire exists for resources that go through
+		// ensureMatchingApplyDesiresRemoved during deletion, so operators can
+		// observe their state and debug deletion issues (e.g., stuck finalizers).
+		if shouldCreateReadDesireFor(classified.desireName) {
+			var readDesire *kubeapplierapi.ReadDesire
+			var readErr error
+			var readCRUD cosmosstorageutils.ResourceCRUD[kubeapplierapi.ReadDesire, *kubeapplierapi.ReadDesire]
+
+			if len(classified.nodePoolName) != 0 {
+				readCRUD, readErr = kubeApplierDBClient.ReadDesiresForNodePool(
+					key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, classified.nodePoolName,
+				)
+				if readErr != nil {
+					errs = append(errs, utils.TrackError(fmt.Errorf("failed to get node pool ReadDesire CRUD for %s: %w", classified.nodePoolName, readErr)))
+					continue
+				}
+
+				readDesire, readErr = buildNodePoolResourceReadDesire(
+					key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName,
+					classified.nodePoolName, classified.desireName,
+					managementCluster, target, tags,
+				)
+			} else {
+				readCRUD, readErr = kubeApplierDBClient.ReadDesiresForCluster(
+					key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName,
+				)
+				if readErr != nil {
+					errs = append(errs, utils.TrackError(fmt.Errorf("failed to get cluster ReadDesire CRUD: %w", readErr)))
+					continue
+				}
+
+				readDesire, readErr = buildClusterResourceReadDesire(
+					key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName,
+					classified.desireName, managementCluster, target, tags,
+				)
+			}
+
+			if readErr != nil {
+				errs = append(errs, readErr)
+				continue
+			}
+
+			if err := kubeapplierhelpers.EnsureReadDesire(ctx, readCRUD, c.readDesireLister, readDesire); err != nil {
+				errs = append(errs, err)
+			}
 		}
 	}
 	if err := c.deleteStaleApplyDesires(ctx, key, managementCluster, desiredResourceIDs); err != nil {
@@ -321,6 +351,62 @@ func (c *clusterResourcesController) processClusterResources(ctx context.Context
 	}
 
 	return errors.Join(errs...)
+}
+
+// ensureHostedClusterAnnotations sets backend-managed annotations on a HostedCluster.
+// This allows the backend to manage annotations that are not set by Clusters Service.
+func ensureHostedClusterAnnotations(hostedCluster *unstructured.Unstructured) error {
+	annotations := hostedCluster.GetAnnotations()
+	if annotations == nil {
+		annotations = make(map[string]string)
+	}
+
+	// Set the hypershift machine health check node startup timeout to 10m which controls
+	// how long the machine health check will wait before auto-repairing an unhealthy node.
+	// https://github.com/openshift/hypershift/blob/main/api/hypershift/v1beta1/hostedcluster_types.go#L368-L371
+	annotations[v1beta1.MachineHealthCheckNodeStartupTimeoutAnnotation] = "10m"
+
+	hostedCluster.SetAnnotations(annotations)
+	return nil
+}
+
+// removeNullUsernamePrefixes drops null prefix values emitted when HyperShift's
+// UsernameClaimMapping is marshaled with a nil Prefix pointer. The HostedCluster
+// schema requires prefix to be unset unless prefixPolicy is Prefix.
+func removeNullUsernamePrefixes(hostedCluster *unstructured.Unstructured) error {
+	providers, found, err := unstructured.NestedSlice(hostedCluster.Object,
+		"spec", "configuration", "authentication", "oidcProviders")
+	if err != nil || !found {
+		return err
+	}
+
+	changed := false
+	for _, provider := range providers {
+		providerMap, ok := provider.(map[string]interface{})
+		if !ok {
+			return fmt.Errorf("OIDC provider is not an object")
+		}
+		username, found, err := unstructured.NestedMap(providerMap, "claimMappings", "username")
+		if err != nil {
+			return err
+		}
+		if !found {
+			continue
+		}
+		if prefix, exists := username["prefix"]; exists && prefix == nil {
+			delete(username, "prefix")
+			if err := unstructured.SetNestedMap(providerMap, username, "claimMappings", "username"); err != nil {
+				return err
+			}
+			changed = true
+		}
+	}
+
+	if changed {
+		return unstructured.SetNestedSlice(hostedCluster.Object, providers,
+			"spec", "configuration", "authentication", "oidcProviders")
+	}
+	return nil
 }
 
 type classifiedResource struct {
@@ -339,8 +425,8 @@ type classifiedResource struct {
 //	hypershift.openshift.io    HostedCluster          → HostedCluster
 //	hypershift.openshift.io    NodePool               → NodePool                 (nodePoolName set, scoped under nodepool)
 //	core/v1                    Namespace              → HostedClusterNamespace | ControlPlaneNamespace
-//	core/v1                    ConfigMap              → DefaultIngressConfigMap
-//	core/v1                    Secret                 → OCPPullSecret
+//	core/v1                    ConfigMap              → DefaultIngressConfigMap | ExternalAuthCAConfigMap
+//	core/v1                    Secret                 → OCPPullSecret | ExternalAuthClientSecret
 //	multitenancy.acn.azure.com PodNetwork             → PodNetwork
 //	multitenancy.acn.azure.com PodNetworkInstance      → PodNetworkInstance
 //	secret-sync.x-k8s.io      SecretSync             → {BoundServiceAccountSigningKey,DefaultIngressWildcardCert,KubeAPIServerServingCert}SecretSync
@@ -351,14 +437,14 @@ func classifyClusterResource(obj *unstructured.Unstructured) (classifiedResource
 
 	switch gvk.Kind {
 	case "HostedCluster":
-		return classifiedResource{desireName: "HostedCluster"}, nil
+		return classifiedResource{desireName: DesireNameHostedCluster}, nil
 
 	case "NodePool":
 		// HyperShift names kube NodePool CRs as "<spec.clusterName>-<armName>".
 		// Strip the prefix to recover the ARM nodepool name used in Cosmos.
 		clusterName, _, _ := unstructured.NestedString(obj.Object, "spec", "clusterName")
 		armName := strings.TrimPrefix(name, clusterName+"-")
-		return classifiedResource{desireName: "NodePool", nodePoolName: armName}, nil
+		return classifiedResource{desireName: DesireNameNodePool, nodePoolName: armName}, nil
 
 	case "Namespace":
 		// CS returns two Namespaces: the HostedCluster namespace
@@ -367,40 +453,49 @@ func classifyClusterResource(obj *unstructured.Unstructured) (classifiedResource
 		// (e.g. "ocm-arohcppers-2sdm6b8jke9sm3h8ukc8mbaahngnre5c-j7h3t4w0u1t3b4b").
 		// The ControlPlane namespace carries the "hypershift.openshift.io/cluster" label.
 		if _, ok := obj.GetLabels()["hypershift.openshift.io/cluster"]; ok {
-			return classifiedResource{desireName: "ControlPlaneNamespace"}, nil
+			return classifiedResource{desireName: DesireNameControlPlaneNamespace}, nil
 		}
-		return classifiedResource{desireName: "HostedClusterNamespace"}, nil
+		return classifiedResource{desireName: DesireNameHostedClusterNamespace}, nil
+
+	case "ManagedCluster":
+		return classifiedResource{desireName: DesireNameManagedCluster}, nil
 
 	case "ConfigMap":
-		return classifiedResource{desireName: "DefaultIngressConfigMap"}, nil
+		if obj.GetLabels()["api.openshift.com/type"] == "ext-auth" {
+			return classifiedResource{desireName: DesireNameExternalAuthCAConfigMap}, nil
+		}
+		return classifiedResource{desireName: DesireNameDefaultIngressConfigMap}, nil
 
 	case "Secret":
-		return classifiedResource{desireName: "OCPPullSecret"}, nil
+		if obj.GetLabels()["api.openshift.com/type"] == "ext-auth" {
+			return classifiedResource{desireName: DesireNameExternalAuthClientSecret}, nil
+		}
+		return classifiedResource{desireName: DesireNameOCPPullSecret}, nil
 
 	case "PodNetwork":
-		return classifiedResource{desireName: "PodNetwork"}, nil
+		return classifiedResource{desireName: DesireNamePodNetwork}, nil
 
 	case "PodNetworkInstance":
-		return classifiedResource{desireName: "PodNetworkInstance"}, nil
+		return classifiedResource{desireName: DesireNamePodNetworkInstance}, nil
 
 	case "SecretSync":
 		switch {
 		case strings.Contains(name, "signing-key"):
-			return classifiedResource{desireName: "BoundServiceAccountSigningKeySecretSync"}, nil
+			return classifiedResource{desireName: DesireNameBoundServiceAccountSigningKeySecretSync}, nil
 		case strings.Contains(name, "default-ingress"):
-			return classifiedResource{desireName: "DefaultIngressWildcardCertSecretSync"}, nil
+			return classifiedResource{desireName: DesireNameDefaultIngressWildcardCertSecretSync}, nil
 		case strings.Contains(name, "kube-apiserver"):
-			return classifiedResource{desireName: "KubeAPIServerServingCertSecretSync"}, nil
+			return classifiedResource{desireName: DesireNameKubeAPIServerServingCertSecretSync}, nil
 		}
 
 	case "SecretProviderClass":
 		switch {
 		case strings.Contains(name, "signing-key"):
-			return classifiedResource{desireName: "BoundServiceAccountSigningKeySecretProviderClass"}, nil
+			return classifiedResource{desireName: DesireNameBoundServiceAccountSigningKeySecretProviderClass}, nil
 		case strings.Contains(name, "default-ingress"):
-			return classifiedResource{desireName: "DefaultIngressWildcardCertSecretProviderClass"}, nil
+			return classifiedResource{desireName: DesireNameDefaultIngressWildcardCertSecretProviderClass}, nil
 		case strings.Contains(name, "kube-apiserver"):
-			return classifiedResource{desireName: "KubeAPIServerServingCertSecretProviderClass"}, nil
+			return classifiedResource{desireName: DesireNameKubeAPIServerServingCertSecretProviderClass}, nil
 		}
 	}
 
@@ -417,7 +512,7 @@ func buildClusterResourceApplyDesire(
 	obj *unstructured.Unstructured,
 	tags map[string]string,
 ) (*kubeapplierapi.ApplyDesire, error) {
-	resourceIDStr := kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(
+	resourceIDStr := kubeapplierapihelpers.ToClusterScopedApplyDesireResourceIDString(
 		subscriptionID, resourceGroupName, clusterName, desireName,
 	)
 	resourceID, err := azcorearm.ParseResourceID(resourceIDStr)
@@ -459,7 +554,7 @@ func buildNodePoolResourceApplyDesire(
 	obj *unstructured.Unstructured,
 	tags map[string]string,
 ) (*kubeapplierapi.ApplyDesire, error) {
-	resourceIDStr := kubeapplierapi.ToNodePoolScopedApplyDesireResourceIDString(
+	resourceIDStr := kubeapplierapihelpers.ToNodePoolScopedApplyDesireResourceIDString(
 		subscriptionID, resourceGroupName, clusterName, nodePoolName, desireName,
 	)
 	resourceID, err := azcorearm.ParseResourceID(resourceIDStr)
@@ -494,6 +589,82 @@ func buildNodePoolResourceApplyDesire(
 	}, nil
 }
 
+func buildClusterResourceReadDesire(
+	subscriptionID, resourceGroupName, clusterName, desireName string,
+	managementCluster *azcorearm.ResourceID,
+	target kubeapplierapi.ResourceReference,
+	tags map[string]string,
+) (*kubeapplierapi.ReadDesire, error) {
+	resourceIDStr := kubeapplierapihelpers.ToClusterScopedReadDesireResourceIDString(
+		subscriptionID, resourceGroupName, clusterName, desireName,
+	)
+	resourceID, err := azcorearm.ParseResourceID(resourceIDStr)
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to parse ReadDesire resource ID %q: %w", resourceIDStr, err))
+	}
+
+	return &kubeapplierapi.ReadDesire{
+		CosmosMetadata: coreapi.CosmosMetadata{
+			ResourceID:   resourceID,
+			PartitionKey: strings.ToLower(managementCluster.String()),
+		},
+		Spec: kubeapplierapi.ReadDesireSpec{
+			ManagementCluster: managementCluster,
+			TargetItem:        target,
+		},
+		Tags: tags,
+	}, nil
+}
+
+func buildNodePoolResourceReadDesire(
+	subscriptionID, resourceGroupName, clusterName, nodePoolName, desireName string,
+	managementCluster *azcorearm.ResourceID,
+	target kubeapplierapi.ResourceReference,
+	tags map[string]string,
+) (*kubeapplierapi.ReadDesire, error) {
+	resourceIDStr := kubeapplierapihelpers.ToNodePoolScopedReadDesireResourceIDString(
+		subscriptionID, resourceGroupName, clusterName, nodePoolName, desireName,
+	)
+	resourceID, err := azcorearm.ParseResourceID(resourceIDStr)
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to parse ReadDesire resource ID %q: %w", resourceIDStr, err))
+	}
+
+	return &kubeapplierapi.ReadDesire{
+		CosmosMetadata: coreapi.CosmosMetadata{
+			ResourceID:   resourceID,
+			PartitionKey: strings.ToLower(managementCluster.String()),
+		},
+		Spec: kubeapplierapi.ReadDesireSpec{
+			ManagementCluster: managementCluster,
+			TargetItem:        target,
+		},
+		Tags: tags,
+	}, nil
+}
+
+// shouldCreateReadDesireFor determines if a ReadDesire should be created for a
+// given desire name. ReadDesires are created for resources that go through
+// ensureMatchingApplyDesiresRemoved during deletion, so operators can observe
+// their state (e.g., stuck finalizers) and debug deletion issues.
+// HostedCluster and NodePool ReadDesires are already created
+// by CreateClusterScopedReadDesiresController and CreateNodePoolScopedReadDesiresController
+// respectively, so we only create ReadDesires for resources that don't have
+// dedicated controllers.
+func shouldCreateReadDesireFor(DesireName string) bool {
+	lowerName := strings.ToLower(DesireName)
+	switch lowerName {
+	case strings.ToLower(DesireNamePodNetworkInstance),
+		strings.ToLower(DesireNamePodNetwork),
+		strings.ToLower(DesireNameHostedClusterNamespace),
+		strings.ToLower(DesireNameControlPlaneNamespace),
+		strings.ToLower(DesireNameManagedCluster):
+		return true
+	default:
+		return false
+	}
+}
+
 func (c *clusterResourcesController) deleteStaleApplyDesires(
 	ctx context.Context,
 	key controllerutils.HCPClusterKey,
@@ -525,16 +696,33 @@ func (c *clusterResourcesController) deleteStaleApplyDesires(
 		if err != nil {
 			return utils.TrackError(fmt.Errorf("parse scope for ApplyDesire %s: %w", desire.ResourceID.Name, err))
 		}
-		crud, err := kubeApplierDBClient.ApplyDesiresFor(scope)
+
+		applyDesireCRUD, err := kubeApplierDBClient.ApplyDesiresFor(scope)
 		if err != nil {
 			return utils.TrackError(fmt.Errorf("get CRUD for ApplyDesire %s: %w", desire.ResourceID.Name, err))
 		}
-		removed, err := kubeapplierhelpers.EnsureApplyDesireRemoved(ctx, desire.ResourceID.Name, crud)
+		removed, err := kubeapplierhelpers.EnsureApplyDesireRemoved(ctx, desire.ResourceID.Name, applyDesireCRUD)
 		if err != nil {
 			return err
 		}
 		if removed {
 			logger.Info("purged stale ApplyDesire", "desireName", desire.ResourceID.Name)
+
+			// Also delete the corresponding ReadDesire. ReadDesires created by this
+			// controller outlive their ApplyDesire when deleteStaleApplyDesires removes
+			// a resource no longer returned by Cluster Service. Without this cleanup, the
+			// orphaned ReadDesire would be preserved by the ownership gate during cluster
+			// deletion and never get cleaned up.
+			readDesireCRUD, readErr := kubeApplierDBClient.ReadDesiresFor(scope)
+			if readErr != nil {
+				return utils.TrackError(fmt.Errorf("get ReadDesire CRUD for stale cleanup of %s: %w", desire.ResourceID.Name, readErr))
+			}
+			if delErr := readDesireCRUD.Delete(ctx, desire.ResourceID.Name); delErr != nil &&
+				!cosmosstorageutils.IsNotFoundError(delErr) {
+				return utils.TrackError(
+					fmt.Errorf("delete stale ReadDesire %s: %w", desire.ResourceID.Name, delErr))
+			}
+			logger.Info("purged stale ReadDesire", "desireName", desire.ResourceID.Name)
 		} else {
 			logger.Info("stale ApplyDesire pending deletion", "desireName", desire.ResourceID.Name)
 		}

@@ -49,6 +49,8 @@ type clusterClusterServiceCreateSyncer struct {
 
 var _ controllerutils.ClusterSyncer = (*clusterClusterServiceCreateSyncer)(nil)
 
+const ClusterClusterServiceCreateControllerName = "ClusterClusterServiceCreate"
+
 func NewClusterClusterServiceCreateController(
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	clustersServiceClient ocm.ClusterServiceClientSpec,
@@ -70,7 +72,7 @@ func NewClusterClusterServiceCreateController(
 	}
 
 	return controllerutils.NewClusterWatchingController(
-		"ClusterClusterServiceCreate",
+		ClusterClusterServiceCreateControllerName,
 		resourcesDBClient,
 		backendInformers,
 		nil,
@@ -79,7 +81,7 @@ func NewClusterClusterServiceCreateController(
 	)
 }
 
-func (c *clusterClusterServiceCreateSyncer) needsWork(ctx context.Context, cluster *coreapi.HCPOpenShiftCluster) bool {
+func (c *clusterClusterServiceCreateSyncer) needsWork(ctx context.Context, cluster *coreapi.Cluster) bool {
 	if cluster.ServiceProviderProperties.DeletionTimestamp != nil ||
 		cluster.ServiceProviderProperties.PendingClusterServiceID == nil ||
 		(cluster.ServiceProviderProperties.ClusterServiceID != nil &&
@@ -199,16 +201,17 @@ func (c *clusterClusterServiceCreateSyncer) SyncOnce(ctx context.Context, key co
 	return nil
 }
 
-// createPreconditionDesiredVersionResolved reports whether the ControlPlaneDesiredVersion
-// controller has written the Cincinnati-resolved desired version to the ServiceProviderCluster.
-// Returns (false, nil) when this controller should wait and retry.
+// createPreconditionDesiredVersionResolved reports whether the fleet version
+// rollout controllers have written the resolved desired version to the
+// ServiceProviderCluster. Returns (false, nil) when this controller should wait
+// and retry.
 func (c *clusterClusterServiceCreateSyncer) createPreconditionDesiredVersionResolved(ctx context.Context, serviceProviderCluster *coreapi.ServiceProviderCluster) (bool, error) {
 	logger := utils.LoggerFromContext(ctx)
 
 	if serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion != nil {
 		return true, nil
 	}
-	logger.Info("DesiredVersion not yet set, waiting for ControlPlaneDesiredVersion controller")
+	logger.Info("DesiredVersion not yet set, waiting for the fleet version rollout controllers")
 	return false, nil
 }
 
@@ -303,7 +306,7 @@ func (c *clusterClusterServiceCreateSyncer) csClustersMatchingClusterByAzureInfo
 	return res, nil
 }
 
-func (c *clusterClusterServiceCreateSyncer) createClusterServiceCluster(ctx context.Context, cluster *coreapi.HCPOpenShiftCluster, serviceProviderCluster *coreapi.ServiceProviderCluster, tenantID string) (*arohcpv1alpha1.Cluster, error) {
+func (c *clusterClusterServiceCreateSyncer) createClusterServiceCluster(ctx context.Context, cluster *coreapi.Cluster, serviceProviderCluster *coreapi.ServiceProviderCluster, tenantID string) (*arohcpv1alpha1.Cluster, error) {
 	logger := utils.LoggerFromContext(ctx)
 
 	provisionShardID, err := c.provisionShardID(ctx, serviceProviderCluster)

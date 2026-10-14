@@ -40,6 +40,8 @@ type credentialRequestDeletion struct {
 
 var _ controllerutils.SystemAdminCredentialRequestSyncer = (*credentialRequestDeletion)(nil)
 
+const SystemAdminCredentialClusterDeletionCleanupControllerName = "SystemAdminCredentialClusterDeletionCleanup"
+
 // NewClusterDeletionCleanupController returns a CredentialRequestWatchingController
 // that deletes a SystemAdminCredentialRequest resource. It fires on every
 // SystemAdminCredentialRequest change and only does work once that request's
@@ -68,7 +70,7 @@ func NewClusterDeletionCleanupController(
 	}
 
 	return controllerutils.NewSystemAdminCredentialRequestWatchingController(
-		"SystemAdminCredentialClusterDeletionCleanup",
+		SystemAdminCredentialClusterDeletionCleanupControllerName,
 		resourcesDBClient,
 		backendInformers,
 		kubeApplierInformers,

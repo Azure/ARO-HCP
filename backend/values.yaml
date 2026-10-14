@@ -28,9 +28,6 @@ serviceAccount:
 clustersService:
   namespace: "{{ .clustersService.k8s.namespace }}"
   serviceAccount: "{{ .clustersService.k8s.serviceAccountName }}"
-tracing:
-  address: "{{ .backend.tracing.address }}"
-  exporter: "{{ .backend.tracing.exporter }}"
 serviceKeyVault:
   name: "{{ .serviceKeyVault.name }}"
 fpa:

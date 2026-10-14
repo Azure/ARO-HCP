@@ -1,0 +1,32 @@
+conditional projection: proposed changes are assumed to succeed; no ARM writes are performed.
+Observed transitions and failed-pool reconciliation require a new observation; workload/autoscaler activity and external quota changes are not predicted.
+
+initial:
+  old1  worker  Standard_E32ds_v6  zone=1  max=6  count=2  autoscaled
+
+desired:
+  new1  worker  Standard_E32ds_v6  zone=1  max=6
+
+budget (vCPUs):
+  StandardEdsv6Family:  192
+
+initial headroom (vCPUs):
+  StandardEdsv6Family:  64
+
+fully allocated: true
+
+initial capacity:
+  system:  cpu=0    memory=0GiB     swiftNICs=0
+  infra:   cpu=0    memory=0GiB     swiftNICs=0
+  worker:  cpu=192  memory=1536GiB  swiftNICs=42
+
+actions:
+  margins above floor after each action (c = vCPU, G = memory GiB, n = Swift NICs)
+
+     #  action  role    pool  vm size   change         role margin            quota left
+     1  Create  worker  new1  E32ds_v6  min=1   max=2    +64c   +512G   +14n  Edsv6 0c
+
+steps:      1
+converged:  false
+outcome:    blocked
+reason:     no safe planner action is available for the remaining configuration difference (quota, capacity floor, or pool safety constraints)

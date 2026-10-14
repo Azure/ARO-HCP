@@ -20,6 +20,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/listerutils"
 )
 
@@ -52,11 +53,11 @@ func (l *serviceProviderNodePoolLister) List(ctx context.Context) ([]*coreapi.Se
 //
 //	/subscriptions/<sub>/resourcegroups/<rg>/providers/microsoft.redhatopenshift/hcpopenshiftclusters/<cluster>/serviceproviderclusters/default
 func (l *serviceProviderNodePoolLister) Get(ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName string) (*coreapi.ServiceProviderNodePool, error) {
-	key := coreapi.ToServiceProviderNodePoolResourceIDString(subscriptionID, resourceGroupName, clusterName, nodePoolName)
+	key := coreapihelpers.ToServiceProviderNodePoolResourceIDString(subscriptionID, resourceGroupName, clusterName, nodePoolName)
 	return listerutils.GetByKey[coreapi.ServiceProviderNodePool](l.indexer, key)
 }
 
 func (l *serviceProviderNodePoolLister) ListForNodePool(ctx context.Context, subscriptionName, resourceGroupName, clusterName, nodePoolName string) ([]*coreapi.ServiceProviderNodePool, error) {
-	key := coreapi.ToNodePoolResourceIDString(subscriptionName, resourceGroupName, clusterName, nodePoolName)
+	key := coreapihelpers.ToNodePoolResourceIDString(subscriptionName, resourceGroupName, clusterName, nodePoolName)
 	return listerutils.ListFromIndex[coreapi.ServiceProviderNodePool](l.indexer, ByNodePool, key)
 }

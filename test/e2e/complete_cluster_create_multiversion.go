@@ -48,6 +48,7 @@ var _ = Describe("ARO-HCP", func() {
 		labels.MIContainers(1),
 		func(ctx context.Context, version string) {
 			clusterParams := framework.NewDefaultClusterParams20251223()
+			clusterParams.DisableSwift = false
 
 			customerNetworkSecurityGroupName := "customer-nsg-" + clusterParams.ChannelGroup + "-"
 			customerVnetName := "customer-vnet-" + clusterParams.ChannelGroup + "-"
@@ -68,8 +69,8 @@ var _ = Describe("ARO-HCP", func() {
 			clusterParams.OpenshiftVersionId = version
 			if channelGroup == "nightly" {
 				resolved, err := framework.GetLatestNightlyInstallVersion(ctx, channelGroup, version)
-				if framework.IsVersionNotFoundError(err) {
-					Skip(fmt.Sprintf("no nightly version for %s in %s channel: %v", version, channelGroup, err))
+				if framework.IsVersionNotFoundError(err) || framework.IsIncompatibleNightlyVersionError(err) {
+					Skip(fmt.Sprintf("no usable nightly version for %s in %s channel: %v", version, channelGroup, err))
 				}
 				Expect(err).NotTo(HaveOccurred(), "failed to resolve nightly install version for %s", version)
 				clusterParams.OpenshiftVersionId = resolved

@@ -94,7 +94,7 @@ func TestSerialConsoleHandler(t *testing.T) {
 				// Create HCP cluster with InternalID
 				internalID, err := metadataapi.NewInternalID("/api/clusters_mgmt/v1/clusters/test-cluster-id")
 				require.NoError(t, err)
-				hcp := &coreapi.HCPOpenShiftCluster{
+				hcp := &coreapi.Cluster{
 					CosmosMetadata: coreapi.CosmosMetadata{
 						ResourceID:   resourceID,
 						PartitionKey: strings.ToLower(resourceID.SubscriptionID),
@@ -102,7 +102,7 @@ func TestSerialConsoleHandler(t *testing.T) {
 					TrackedResource: coreapi.TrackedResource{
 						Resource: coreapi.Resource{ID: resourceID},
 					},
-					ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+					ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 						ClusterServiceID: &internalID,
 					},
 				}
@@ -121,7 +121,7 @@ func TestSerialConsoleHandler(t *testing.T) {
 				// Create HCP cluster with InternalID
 				internalID, err := metadataapi.NewInternalID("/api/clusters_mgmt/v1/clusters/test-cluster-id")
 				require.NoError(t, err)
-				hcp := &coreapi.HCPOpenShiftCluster{
+				hcp := &coreapi.Cluster{
 					CosmosMetadata: coreapi.CosmosMetadata{
 						ResourceID:   resourceID,
 						PartitionKey: strings.ToLower(resourceID.SubscriptionID),
@@ -129,7 +129,7 @@ func TestSerialConsoleHandler(t *testing.T) {
 					TrackedResource: coreapi.TrackedResource{
 						Resource: coreapi.Resource{ID: resourceID},
 					},
-					ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+					ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 						ClusterServiceID: &internalID,
 					},
 				}

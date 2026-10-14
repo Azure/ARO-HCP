@@ -55,11 +55,13 @@ type timeWindow struct {
 
 // alertsOutput is written to alerts.json and passed to the HTML template.
 type alertsOutput struct {
-	TimeWindow    timeWindow          `json:"timeWindow"`
-	Summary       alertsSummary       `json:"summary"`
-	Alerts        []alert             `json:"alerts"`
-	FilterKeys    []string            `json:"filterKeys"`
-	FilterOptions map[string][]string `json:"filterOptions"`
+	TimeWindow       timeWindow              `json:"timeWindow"`
+	Summary          alertsSummary           `json:"summary"`
+	Alerts           []alert                 `json:"alerts"`
+	FilterKeys       []string                `json:"filterKeys"`
+	FilterOptions    map[string][]string     `json:"filterOptions"`
+	CollectionErrors []string                `json:"collectionErrors,omitempty"`
+	Diagnostics      *alertDiagnosticsReport `json:"diagnostics,omitempty"`
 }
 
 // Template helpers for the HTML template.
@@ -165,9 +167,19 @@ type observabilityTab struct {
 	HTML  string `json:"html"`
 }
 
+// Keep partial renderer output, but always put an escaped failure notice first.
+func incompleteHTML(partial []byte, err error) []byte {
+	if err == nil {
+		return partial
+	}
+	return append([]byte("<section role=\"alert\" style=\"padding:16px;border:2px solid #d29922\"><h2>Incomplete report</h2><pre>"+template.HTMLEscapeString(err.Error())+"</pre></section>"), partial...)
+}
+
 // renderAlertsHTML renders the Azure Monitor alerts page to HTML bytes.
 func renderAlertsHTML(data any) ([]byte, error) {
 	funcMap := template.FuncMap{
+		"alertDiagnosticsJSON":   alertDiagnosticsJSON,
+		"alertDiagnosticsScript": alertDiagnosticsScript,
 		"formatTime": func(t *time.Time) string {
 			if t == nil {
 				return "-"
@@ -216,7 +228,7 @@ func renderAlertsHTML(data any) ([]byte, error) {
 
 	var buf bytes.Buffer
 	if err := tmpl.Execute(&buf, data); err != nil {
-		return nil, fmt.Errorf("failed to execute template: %w", err)
+		return buf.Bytes(), fmt.Errorf("failed to execute template: %w", err)
 	}
 	return buf.Bytes(), nil
 }

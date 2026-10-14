@@ -120,6 +120,8 @@ Welcome to the **ARO HCP** documentation. This guide provides an overview of the
 - [E2E Testing in CI](ci/e2e-testing.md)
   - How to trigger E2E jobs from PRs
   - How to narrow test selection safely
+- [Incident-Only E2E Acknowledgement](ci/e2e-ci-kill-switch.md)
+  - Temporary acknowledgement requirement for automatic E2E
 - [CI Operations](ci/operations.md)
   - How to trigger, inspect, troubleshoot, and change CI
   - Tiny source-of-truth appendix for job families
@@ -149,7 +151,7 @@ Welcome to the **ARO HCP** documentation. This guide provides an overview of the
   - Walkthrough of an HCP cluster creation process through all the service layers of ARO HCP
 - [Resource Creation Diagram](resource-creation.md)
   - Detailed diagram of the resource creation flow (frontend, backend, Cluster Service, Maestro)
-  - Covers HCPOpenShiftCluster, NodePool, and ExternalAuth resource types
+  - Covers Cluster, NodePool, and ExternalAuth resource types
 - [PostgreSQL](ops/postgres.md)
   - PostgreSQL usage for Clusters Service and Maestro
 - [Postgres Breakglass](ops/postgres-breakglass.md)
@@ -161,8 +163,13 @@ Welcome to the **ARO HCP** documentation. This guide provides an overview of the
 - [Fix Maestro Stale Resource Bundle](ops/fix-maestro-stale-resource-bundle.md)
   - How to resolve Maestro resource bundle staleness issues
 - [Node Health](controllers/node-health.md)
-  - Design for detecting "Ready but broken" management-cluster nodes from kubelet Events
-  - Detection and labeling only, hard-coded detectors, and safety guards
+  - Fault detectors, health metadata and readiness-history evidence
+  - Observation only, with independent mitigation admission and rollout
+- [Node Mitigation](controllers/node-mitigation.md)
+  - Design for SWIFT eviction and guarded never-ready mitigation with shared safety budgets
+  - SWIFT pod eviction, gated never-ready AKS deletion, and durable budget/operation accounting
+- [Node Health and Mitigation Evidence](controllers/node-mitigation-evidence.md)
+  - Rationale, validation methodology and the access-controlled evidence record
 - [Node Rollout Pre-Merge Check](node-rollout-premerge-check.md)
   - Pre-merge check procedure to avoid unexpected node rollouts in production
 - [DEV CI Telemetry Exporter (`tenant-quota`)](../tooling/tenant-quota/README.md)

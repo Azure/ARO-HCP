@@ -20,6 +20,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/listerutils"
 )
 
@@ -50,6 +51,6 @@ func (l *informerBasedSubscriptionLister) List(ctx context.Context) ([]*coreapi.
 //
 //	/subscriptions/<subscriptionID>
 func (l *informerBasedSubscriptionLister) Get(ctx context.Context, subscriptionID string) (*coreapi.Subscription, error) {
-	key := coreapi.ToSubscriptionResourceIDString(subscriptionID)
+	key := coreapihelpers.ToSubscriptionResourceIDString(subscriptionID)
 	return listerutils.GetByKey[coreapi.Subscription](l.indexer, key)
 }

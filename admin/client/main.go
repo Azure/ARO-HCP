@@ -24,8 +24,6 @@ import (
 	"github.com/dusted-go/logging/prettylog"
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
-
-	"github.com/Azure/ARO-HCP/admin/client/cmd/helloworld"
 )
 
 func main() {
@@ -52,9 +50,7 @@ func main() {
 	cmd.PersistentFlags().IntVarP(&logVerbosity, "verbosity", "v", 0, "set the verbosity level")
 
 	// Add subcommands
-	subcommands := []func() (*cobra.Command, error){
-		helloworld.NewHelloWorldCommand,
-	}
+	subcommands := []func() (*cobra.Command, error){}
 
 	for _, newCmd := range subcommands {
 		subCmd, err := newCmd()

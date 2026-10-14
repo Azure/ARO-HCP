@@ -41,6 +41,8 @@ type backfillClusterUID struct {
 	billingDBClient   billingcosmosstorage.BillingDBClient
 }
 
+const BackfillClusterUIDControllerName = "BackfillClusterUID"
+
 // NewBackfillClusterUIDController creates a controller that populates ClusterUID
 // for existing clusters that don't have it set.
 func NewBackfillClusterUIDController(clock utilsclock.PassiveClock, resourcesDBClient corecosmosstorage.ResourcesDBClient, billingDBClient billingcosmosstorage.BillingDBClient, clusterLister corelisters.ClusterLister) controllerutils.ClusterSyncer {
@@ -55,7 +57,7 @@ func NewBackfillClusterUIDController(clock utilsclock.PassiveClock, resourcesDBC
 	return c
 }
 
-func (c *backfillClusterUID) NeedsWork(ctx context.Context, existingCluster *coreapi.HCPOpenShiftCluster) bool {
+func (c *backfillClusterUID) NeedsWork(ctx context.Context, existingCluster *coreapi.Cluster) bool {
 	// Skip if the cluster is deleted or already has ClusterUID.
 	if existingCluster == nil || len(existingCluster.ServiceProviderProperties.ClusterUID) != 0 {
 		return false

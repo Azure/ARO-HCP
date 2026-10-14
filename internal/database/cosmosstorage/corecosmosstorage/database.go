@@ -19,13 +19,14 @@ import (
 
 	"k8s.io/utils/ptr"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosclient"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosratelimit"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -86,9 +87,13 @@ type resourcesCosmosDBClient struct {
 	resources *azcosmos.ContainerClient
 }
 
-// NewResourcesDBClient instantiates a ResourcesDBClient from a Cosmos DatabaseClient instance
-// targeting the Frontends async database (Resources container).
-func NewResourcesDBClient(database *azcosmos.DatabaseClient) (ResourcesDBClient, error) {
+// NewResourcesDBClient creates a Resources client with its own Cosmos pipeline,
+// bound to bucket for all CRUDs, nested clients, transactions, and feeds.
+func NewResourcesDBClient(url, databaseName string, options cosmosclient.Options, bucket *cosmosratelimit.TokenBucket) (ResourcesDBClient, error) {
+	database, err := cosmosclient.NewCosmosDatabaseClient(url, databaseName, options, bucket)
+	if err != nil {
+		return nil, err
+	}
 	resources, err := database.NewContainer(resourcesContainer)
 	if err != nil {
 		return nil, utils.TrackError(err)
@@ -118,13 +123,13 @@ func (d *resourcesCosmosDBClient) Subscriptions() cosmosstorageutils.ResourceCRU
 }
 
 func (d *resourcesCosmosDBClient) ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName string) cosmosstorageutils.ResourceCRUD[coreapi.ServiceProviderCluster, *coreapi.ServiceProviderCluster] {
-	clusterResourceID := metadataapi.Must(coreapi.ToClusterResourceID(subscriptionID, resourceGroupName, clusterName))
+	clusterResourceID := metadataapi.Must(coreapihelpers.ToClusterResourceID(subscriptionID, resourceGroupName, clusterName))
 	return cosmosstorageutils.NewCosmosResourceCRUD[coreapi.ServiceProviderCluster, *coreapi.ServiceProviderCluster, cosmosstorageutils.GenericDocument[coreapi.ServiceProviderCluster]](
 		d.resources, clusterResourceID, coreapi.ServiceProviderClusterResourceType)
 }
 
 func (d *resourcesCosmosDBClient) ServiceProviderNodePools(subscriptionID, resourceGroupName, clusterName, nodePoolName string) cosmosstorageutils.ResourceCRUD[coreapi.ServiceProviderNodePool, *coreapi.ServiceProviderNodePool] {
-	nodePoolResourceID := metadataapi.Must(coreapi.ToNodePoolResourceID(subscriptionID, resourceGroupName, clusterName, nodePoolName))
+	nodePoolResourceID := metadataapi.Must(coreapihelpers.ToNodePoolResourceID(subscriptionID, resourceGroupName, clusterName, nodePoolName))
 	return cosmosstorageutils.NewCosmosResourceCRUD[coreapi.ServiceProviderNodePool, *coreapi.ServiceProviderNodePool, cosmosstorageutils.GenericDocument[coreapi.ServiceProviderNodePool]](
 		d.resources, nodePoolResourceID, coreapi.ServiceProviderNodePoolResourceType)
 }
@@ -170,28 +175,4 @@ func (d *resourcesCosmosDBClient) ReadFeedRanges(ctx context.Context, options *a
 	}
 
 	return resourcesFeedRanges, nil
-}
-
-// NewCosmosDatabaseClient instantiates a generic Cosmos database client.
-func NewCosmosDatabaseClient(url string, dbName string, clientOptions azcore.ClientOptions) (*azcosmos.DatabaseClient, error) {
-	credential, err := azidentity.NewDefaultAzureCredential(
-		&azidentity.DefaultAzureCredentialOptions{
-			ClientOptions:                clientOptions,
-			RequireAzureTokenCredentials: true,
-		})
-	if err != nil {
-		return nil, utils.TrackError(err)
-	}
-
-	client, err := azcosmos.NewClient(
-		url,
-		credential,
-		&azcosmos.ClientOptions{
-			ClientOptions: clientOptions,
-		})
-	if err != nil {
-		return nil, utils.TrackError(err)
-	}
-
-	return client.NewDatabase(dbName)
 }

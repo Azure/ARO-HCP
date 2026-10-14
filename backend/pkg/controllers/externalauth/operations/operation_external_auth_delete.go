@@ -43,6 +43,8 @@ type operationExternalAuthDelete struct {
 	notificationClient   *http.Client
 }
 
+const OperationExternalAuthDeleteControllerName = "OperationExternalAuthDelete"
+
 // NewOperationExternalAuthDeleteController returns a new Controller instance that
 // follows an asynchronous external auth deletion operation to completion and updates
 // the corresponding operation document in Cosmos DB.
@@ -82,7 +84,7 @@ func NewOperationExternalAuthDeleteController(
 	}
 
 	controller := controllerutils.NewGenericOperationController(
-		"OperationExternalAuthDelete",
+		OperationExternalAuthDeleteControllerName,
 		syncer,
 		10*time.Second,
 		activeOperationInformer,
@@ -153,13 +155,13 @@ func (c *operationExternalAuthDelete) SynchronizeOperation(ctx context.Context, 
 	return nil
 }
 
-func (c *operationExternalAuthDelete) shouldReconcileOperationAndResourceStatus(externalAuth *coreapi.HCPOpenShiftClusterExternalAuth) bool {
+func (c *operationExternalAuthDelete) shouldReconcileOperationAndResourceStatus(externalAuth *coreapi.ExternalAuth) bool {
 	return externalAuth.ServiceProviderProperties.DeletionTimestamp != nil &&
 		externalAuth.ServiceProviderProperties.ClusterServiceDeletionTimestamp != nil &&
 		externalAuth.ServiceProviderProperties.ClusterServiceID != nil
 }
 
-func (c *operationExternalAuthDelete) reconcileOperationAndResourceStatus(ctx context.Context, operation *coreapi.Operation, externalAuth *coreapi.HCPOpenShiftClusterExternalAuth) error {
+func (c *operationExternalAuthDelete) reconcileOperationAndResourceStatus(ctx context.Context, operation *coreapi.Operation, externalAuth *coreapi.ExternalAuth) error {
 	logger := utils.LoggerFromContext(ctx)
 
 	csID := externalAuth.ServiceProviderProperties.ClusterServiceID

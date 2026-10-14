@@ -18,7 +18,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"hash/fnv"
+	"io"
+	"log/slog"
+	"math"
 	"os"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -27,30 +33,67 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/sets"
 
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
+	testutilframework "github.com/Azure/ARO-HCP/test/util/framework"
 )
 
 const (
 	DefaultLeaseWaitInterval = 1 * time.Minute
 	DefaultMaxWaitForLease   = 30 * time.Minute
+	DefaultAdmissionTimeout  = 10 * time.Minute
 )
 
 func DefaultAcquireOptions() *RawAcquireOptions {
 	allowedSubscriptions, allowedLocations, selectedLocation := defaultAcquireSelectors()
+	admissionTimeout := strings.TrimSpace(os.Getenv("ARO_HCP_ADMISSION_TIMEOUT"))
+	if admissionTimeout == "" {
+		admissionTimeout = DefaultAdmissionTimeout.String()
+	}
 	return &RawAcquireOptions{
-		ClusterProfileDir:    strings.TrimSpace(os.Getenv("CLUSTER_PROFILE_DIR")),
-		ClusterProfileDirs:   splitSelectorValues(os.Getenv("CLUSTER_PROFILE_DIRS")),
-		DeployEnv:            strings.TrimSpace(os.Getenv("ARO_HCP_DEPLOY_ENV")),
-		AllowedSubscriptions: allowedSubscriptions,
-		AllowedLocations:     allowedLocations,
-		SelectedLocation:     selectedLocation,
-		SharedDir:            strings.TrimSpace(os.Getenv("SHARED_DIR")),
+		ClusterProfileDir:      strings.TrimSpace(os.Getenv("CLUSTER_PROFILE_DIR")),
+		ClusterProfileDirs:     splitSelectorValues(os.Getenv("CLUSTER_PROFILE_DIRS")),
+		Environment:            strings.TrimSpace(os.Getenv("ARO_HCP_SLOT_ENV")),
+		DeployEnv:              strings.TrimSpace(os.Getenv("ARO_HCP_DEPLOY_ENV")),
+		AllowedSubscriptions:   allowedSubscriptions,
+		AllowedLocations:       allowedLocations,
+		SelectedLocation:       selectedLocation,
+		LocationWeights:        strings.TrimSpace(os.Getenv("LOCATION_WEIGHTS")),
+		BuildID:                strings.TrimSpace(os.Getenv("BUILD_ID")),
+		SharedDir:              strings.TrimSpace(os.Getenv("SHARED_DIR")),
+		DisabledAssetAdmission: splitSelectorValues(os.Getenv("ARO_HCP_DISABLE_ASSET_ADMISSION")),
+		AdmissionTimeout:       admissionTimeout,
 
 		LeaseProxyServerURL: strings.TrimSpace(os.Getenv("LEASE_PROXY_SERVER_URL")),
 		LeaseProxyTimeout:   slots.DefaultLeaseProxyTimeout,
 		MaxWaitForLease:     DefaultMaxWaitForLease,
 		LeaseWaitInterval:   DefaultLeaseWaitInterval,
+		// AzureGlobalLoggerLogPath has a default of ${ARTIFACT_DIR}/azure-global-logger.log if ARTIFACT_DIR is non empty. Otherwise
+		// it is azure-global-logger.log, relative to the current working directory.
+		AzureGlobalLoggerLogPath: filepath.Join(os.Getenv("ARTIFACT_DIR"), "azure-global-logger.log"),
 	}
+}
+
+// defaultSetupAzureGlobalLogger is the real implementation behind
+// RawAcquireOptions.SetupAzureGlobalLogger: it creates path (and its parent
+// directory or directories if they don't exist) and points the Azure Go SDK's global logger
+// at it via testutilframework.SetupAzureGlobalLoggerWithLogrLogger. The returned io.Closer
+// is the open log file. Callers must close it once logging is done.
+func defaultSetupAzureGlobalLogger(path string) (io.Closer, error) {
+	pathDir := filepath.Dir(path)
+	if err := os.MkdirAll(pathDir, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create directory %q for azure global logger log file %q: %w", pathDir, path, err)
+	}
+
+	azureGlobalLoggerLogFile, err := os.Create(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create azure global logger log file: %w", err)
+	}
+
+	logger := logr.FromSlogHandler(slog.NewJSONHandler(azureGlobalLoggerLogFile, &slog.HandlerOptions{}))
+	testutilframework.SetupAzureGlobalLoggerWithLogrLogger(logger)
+
+	return azureGlobalLoggerLogFile, nil
 }
 
 func defaultAcquireSelectors() ([]string, []string, string) {
@@ -92,36 +135,58 @@ func normalizeValues(parts []string) []string {
 func BindAcquireOptions(opts *RawAcquireOptions, cmd *cobra.Command) error {
 	cmd.Flags().StringVar(&opts.ClusterProfileDir, "cluster-profile-dir", opts.ClusterProfileDir, "Path to CLUSTER_PROFILE_DIR")
 	cmd.Flags().StringSliceVar(&opts.ClusterProfileDirs, "cluster-profile-dirs", opts.ClusterProfileDirs, "Optional list of cluster profile dirs to resolve the leased subscription's owning tenant/credentials across. Falls back to --cluster-profile-dir when unset.")
-	cmd.Flags().StringVar(&opts.DeployEnv, "deploy-env", opts.DeployEnv, "Deploy environment name (ci00, ci01, int, stg, prod)")
-	cmd.Flags().StringSliceVar(&opts.AllowedSubscriptions, "allowed-subscriptions", opts.AllowedSubscriptions, "Optional catalog subscription_name values allowed for candidate pool selection.")
+	cmd.Flags().StringVar(&opts.Environment, "environment", opts.Environment, "Logical slot environment (dev, int, stg, prod).")
+	cmd.Flags().StringVar(&opts.DeployEnv, "deploy-env", opts.DeployEnv, "Optional deploy environment compatibility selector/assertion (ci00, ci01, int, stg, prod).")
+	cmd.Flags().StringSliceVar(&opts.AllowedSubscriptions, "allowed-subscriptions", opts.AllowedSubscriptions, "Optional catalog subscriptions.e2e values allowed for candidate pool selection.")
 	cmd.Flags().StringSliceVar(&opts.AllowedLocations, "allowed-locations", opts.AllowedLocations, "Optional Azure regions allowed for fixed-mode candidate pool selection.")
+	cmd.Flags().StringVar(&opts.LocationWeights, "location-weights", opts.LocationWeights, "Weighted-mode location weights as comma-separated location=weight entries.")
+	cmd.Flags().StringVar(&opts.BuildID, "build-id", opts.BuildID, "Stable per-run key used for deterministic weighted location selection.")
 	cmd.Flags().StringVar(&opts.SharedDir, "shared-dir", opts.SharedDir, "Path to SHARED_DIR")
 	cmd.Flags().StringVar(&opts.CatalogPath, "slot-catalog", opts.CatalogPath, "Path to the canonical E2E slot catalog")
+	cmd.Flags().StringSliceVar(&opts.DisabledAssetAdmission, "disable-asset-admission", opts.DisabledAssetAdmission, "Emergency opt-out of admission for named asset kinds (repeatable or comma-separated). All other assets remain admitted. Defaults from ARO_HCP_DISABLE_ASSET_ADMISSION.")
+	cmd.Flags().StringVar(&opts.AdmissionTimeout, "admission-timeout", opts.AdmissionTimeout, "Maximum duration for the entire asset admission phase (e.g. 20m). Defaults from ARO_HCP_ADMISSION_TIMEOUT, or 10m when unset.")
 	cmd.Flags().StringVar(&opts.LeaseProxyServerURL, "lease-proxy-server-url", opts.LeaseProxyServerURL, "Lease proxy server URL")
 	cmd.Flags().DurationVar(&opts.LeaseProxyTimeout, "lease-proxy-timeout", opts.LeaseProxyTimeout, "Maximum time to spend probing a single candidate pool, including retryable proxy/network retries.")
 	cmd.Flags().DurationVar(&opts.MaxWaitForLease, "max-wait-for-lease", opts.MaxWaitForLease, "Maximum total time to keep retrying after full candidate-pool passes yield no immediate lease. Zero waits forever.")
 	cmd.Flags().DurationVar(&opts.LeaseWaitInterval, "lease-wait-interval", opts.LeaseWaitInterval, "Wait between retries after a full candidate-pool pass yields no immediate lease.")
+	cmd.Flags().StringVar(&opts.AzureGlobalLoggerLogPath, "azure-global-logger-log-path", opts.AzureGlobalLoggerLogPath, "Path to the file where the Azure global logger writes logs to. Defaults to ${ARTIFACT_DIR}/azure-global-logger.log if ARTIFACT_DIR is non empty. Otherwise it defaults to azure-global-logger.log, relative to the current working directory. It cannot be empty.")
 	return nil
 }
 
 type RawAcquireOptions struct {
-	ClusterProfileDir    string
-	ClusterProfileDirs   []string
-	DeployEnv            string
-	AllowedSubscriptions []string
-	AllowedLocations     []string
-	SelectedLocation     string
-	SharedDir            string
-	CatalogPath          string
-	LeaseProxyServerURL  string
-	LeaseProxyTimeout    time.Duration
-	MaxWaitForLease      time.Duration
-	LeaseWaitInterval    time.Duration
-	Now                  func() time.Time
+	WriteState             func(string, *slots.AcquiredSlotState) error
+	ClusterProfileDir      string
+	ClusterProfileDirs     []string
+	Environment            string
+	DeployEnv              string
+	AllowedSubscriptions   []string
+	AllowedLocations       []string
+	SelectedLocation       string
+	LocationWeights        string
+	BuildID                string
+	SharedDir              string
+	CatalogPath            string
+	LeaseProxyServerURL    string
+	LeaseProxyTimeout      time.Duration
+	MaxWaitForLease        time.Duration
+	LeaseWaitInterval      time.Duration
+	Now                    func() time.Time
+	AssetRegistry          *assets.Registry
+	DisabledAssetAdmission []string
+	AdmissionTimeout       string
+	ResolveSubscriptions   func(context.Context, string, string, string, string) (slots.ResolvedSubscriptions, error)
+	// AzureGlobalLoggerLogPath is the file the Azure SDK's global logger writes
+	// to. See DefaultAcquireOptions for how the CLI computes a default.
+	AzureGlobalLoggerLogPath string
+	// SetupAzureGlobalLogger wires Azure Go SDK's global log listener log output to the given path.
+	// Introduced so tests can override it with a no-op so they never touch the filesystem or that global Azure Go SDK logger.
+	// When not specified, defaultSetupAzureGlobalLogger is used as the SetupAzureGlobalLogger function.
+	SetupAzureGlobalLogger func(path string) (io.Closer, error)
 }
 
 type validatedAcquireOptions struct {
 	*RawAcquireOptions
+	admissionTimeout time.Duration
 }
 
 type ValidatedAcquireOptions struct {
@@ -129,28 +194,37 @@ type ValidatedAcquireOptions struct {
 }
 
 type completedAcquireOptions struct {
-	ClusterProfileDirs []string
-	DeployEnvironment  string
-	SharedDir          string
-	LeaseProxyURL      string
-	LeaseProxyTimeout  time.Duration
-	MaxWaitForLease    time.Duration
-	LeaseWaitInterval  time.Duration
-	// RuntimeLocationOverride carries the concrete runtime region when pool
-	// identity is decoupled from region selection.
-	RuntimeLocationOverride string
-	CandidatePools          []slots.Pool
-	PoolEnvironment         string
-	Now                     func() time.Time
-	Sleep                   func(context.Context, time.Duration) error
+	AssetInventories       []slots.AssetInventory
+	WriteState             func(string, *slots.AcquiredSlotState) error
+	ClusterProfileDirs     []string
+	DeployEnvironment      string
+	SharedDir              string
+	LeaseProxyURL          string
+	LeaseProxyTimeout      time.Duration
+	MaxWaitForLease        time.Duration
+	LeaseWaitInterval      time.Duration
+	RegionSelection        RegionSelection
+	CandidatePools         []slots.Pool
+	PoolEnvironment        string
+	AssetRegistry          *assets.Registry
+	DisabledAssetAdmission []assets.Kind
+	AdmissionTimeout       time.Duration
+	ResolveSubscriptions   func(context.Context, string, string, string, string) (slots.ResolvedSubscriptions, error)
+	Now                    func() time.Time
+	Sleep                  func(context.Context, time.Duration) error
+	// AzureGlobalLoggerCloser is the open azure-global-logger log file, produced
+	// by SetupAzureGlobalLogger during Complete. Run closes it, guarding against
+	// nil since it's reachable from code that doesn't call Complete.
+	AzureGlobalLoggerCloser io.Closer
 }
 
 type AcquireOptions struct {
 	*completedAcquireOptions
 }
 
-func newAcquireCommand() (*cobra.Command, error) {
+func newAcquireCommand(registry *assets.Registry) (*cobra.Command, error) {
 	opts := DefaultAcquireOptions()
+	opts.AssetRegistry = registry
 
 	cmd := &cobra.Command{
 		Use:   "acquire",
@@ -182,8 +256,8 @@ func (o *RawAcquireOptions) Validate() (*ValidatedAcquireOptions, error) {
 	switch {
 	case len(o.effectiveClusterProfileDirs()) == 0:
 		return nil, fmt.Errorf("--cluster-profile-dir or --cluster-profile-dirs must not be empty")
-	case o.DeployEnv == "":
-		return nil, fmt.Errorf("--deploy-env must not be empty")
+	case o.Environment == "" && o.DeployEnv == "":
+		return nil, fmt.Errorf("--environment or --deploy-env must not be empty")
 	case o.SharedDir == "":
 		return nil, fmt.Errorf("--shared-dir must not be empty")
 	case o.LeaseProxyServerURL == "":
@@ -194,10 +268,23 @@ func (o *RawAcquireOptions) Validate() (*ValidatedAcquireOptions, error) {
 		return nil, fmt.Errorf("--max-wait-for-lease must not be negative")
 	case o.LeaseWaitInterval <= 0:
 		return nil, fmt.Errorf("--lease-wait-interval must be greater than zero")
+	case o.AzureGlobalLoggerLogPath == "":
+		return nil, fmt.Errorf("--azure-global-logger-log-path must not be empty")
 	}
 
+	admissionTimeout := DefaultAdmissionTimeout
+	if o.AdmissionTimeout != "" {
+		var err error
+		admissionTimeout, err = time.ParseDuration(o.AdmissionTimeout)
+		if err != nil {
+			return nil, fmt.Errorf("--admission-timeout: %w", err)
+		}
+	}
+	if admissionTimeout <= 0 {
+		return nil, errors.New("--admission-timeout must be greater than zero")
+	}
 	return &ValidatedAcquireOptions{
-		validatedAcquireOptions: &validatedAcquireOptions{RawAcquireOptions: o},
+		validatedAcquireOptions: &validatedAcquireOptions{RawAcquireOptions: o, admissionTimeout: admissionTimeout},
 	}, nil
 }
 
@@ -224,18 +311,69 @@ func (o *ValidatedAcquireOptions) Complete(_ context.Context) (*AcquireOptions, 
 		return nil, err
 	}
 
-	environment, err := catalog.ResolveEnvironmentForDeployEnv(o.DeployEnv)
+	selectedLocation := strings.TrimSpace(o.SelectedLocation)
+	environment := strings.TrimSpace(o.Environment)
+	if environment == "" {
+		environment, err = catalog.ResolveEnvironmentForDeployEnv(o.DeployEnv)
+		if err != nil {
+			return nil, err
+		}
+	} else if _, found := catalog.Environments[environment]; !found {
+		return nil, fmt.Errorf("unknown environment %q", environment)
+	}
+
+	candidatePools, err := catalog.CandidatePools(environment, sets.New(o.AllowedSubscriptions...), sets.New(o.AllowedLocations...), selectedLocation)
 	if err != nil {
 		return nil, err
 	}
+	if o.DeployEnv != "" && o.DeployEnv != catalog.Environments[environment].DeploymentEnvironment.Name {
+		return nil, fmt.Errorf("environment %q has no candidate pool with deploy_env %q", environment, o.DeployEnv)
+	}
 
-	candidatePools, err := catalog.CandidatePools(environment, sets.New(o.AllowedSubscriptions...), sets.New(o.AllowedLocations...), o.SelectedLocation)
+	regionMode, err := catalog.RegionModeForEnvironment(environment)
+	if err != nil {
+		return nil, err
+	}
+	registry := o.AssetRegistry
+	if registry == nil {
+		registry, err = newAssetRegistry()
+		if err != nil {
+			return nil, err
+		}
+	}
+	if err := registry.ValidateRequirements(candidatePools); err != nil {
+		return nil, err
+	}
+	assetInventories, err := catalog.AssetInventories()
+	if err != nil {
+		return nil, err
+	}
+	resolveSubscriptions := o.ResolveSubscriptions
+	if resolveSubscriptions == nil {
+		resolveSubscriptions = slots.ResolvePoolSubscriptions
+	}
+	regionSelection, err := resolveRegionSelection(catalog, environment, regionMode, selectedLocation, o.LocationWeights, o.BuildID)
+	if err != nil {
+		return nil, err
+	}
+	disabledAssetAdmission := make([]assets.Kind, 0, len(o.DisabledAssetAdmission))
+	for _, kind := range o.DisabledAssetAdmission {
+		disabledAssetAdmission = append(disabledAssetAdmission, assets.Kind(strings.TrimSpace(kind)))
+	}
+
+	setupAzureGlobalLoggerFn := o.SetupAzureGlobalLogger
+	if setupAzureGlobalLoggerFn == nil {
+		setupAzureGlobalLoggerFn = defaultSetupAzureGlobalLogger
+	}
+	azureGlobalLoggerCloser, err := setupAzureGlobalLoggerFn(o.AzureGlobalLoggerLogPath)
 	if err != nil {
 		return nil, err
 	}
 
 	return &AcquireOptions{
 		completedAcquireOptions: &completedAcquireOptions{
+			AssetInventories:        assetInventories,
+			WriteState:              o.WriteState,
 			ClusterProfileDirs:      o.effectiveClusterProfileDirs(),
 			DeployEnvironment:       o.DeployEnv,
 			SharedDir:               o.SharedDir,
@@ -243,13 +381,139 @@ func (o *ValidatedAcquireOptions) Complete(_ context.Context) (*AcquireOptions, 
 			LeaseProxyTimeout:       o.LeaseProxyTimeout,
 			MaxWaitForLease:         o.MaxWaitForLease,
 			LeaseWaitInterval:       o.LeaseWaitInterval,
-			RuntimeLocationOverride: o.SelectedLocation,
+			RegionSelection:         regionSelection,
 			CandidatePools:          candidatePools,
 			PoolEnvironment:         environment,
+			AssetRegistry:           registry,
+			DisabledAssetAdmission:  disabledAssetAdmission,
+			AdmissionTimeout:        o.admissionTimeout,
+			ResolveSubscriptions:    resolveSubscriptions,
 			Now:                     o.Now,
 			Sleep:                   sleepContext,
+			AzureGlobalLoggerCloser: azureGlobalLoggerCloser,
 		},
 	}, nil
+}
+
+type RegionSelection struct {
+	Mode                 slots.RegionMode
+	RuntimeRegion        string
+	CatalogRegions       []string
+	NormalizedWeights    []string
+	LocationOverrideUsed bool
+	SelectionKeySource   string
+}
+
+type locationWeight struct {
+	Location string
+	Weight   uint64
+}
+
+func resolveRegionSelection(catalog *slots.Catalog, environment string, regionMode slots.RegionMode, override, rawWeights, buildID string) (RegionSelection, error) {
+	selection := RegionSelection{
+		Mode:                 regionMode,
+		RuntimeRegion:        override,
+		LocationOverrideUsed: override != "",
+	}
+	if regionMode != slots.RegionModeWeighted {
+		return selection, nil
+	}
+
+	regions, err := catalog.RegionsForEnvironment(environment)
+	if err != nil {
+		return RegionSelection{}, err
+	}
+	selection.CatalogRegions = regions
+	if override != "" {
+		if !sets.New(regions...).Has(override) {
+			return RegionSelection{}, fmt.Errorf("location override %q is not allowed for weighted environment %q; allowed locations: %s", override, environment, strings.Join(regions, ","))
+		}
+		return selection, nil
+	}
+
+	weights, totalWeight, err := parseLocationWeights(rawWeights, regions)
+	if err != nil {
+		return RegionSelection{}, fmt.Errorf("invalid LOCATION_WEIGHTS for weighted environment %q: %w", environment, err)
+	}
+	buildID = strings.TrimSpace(buildID)
+	if buildID == "" {
+		return RegionSelection{}, fmt.Errorf("BUILD_ID must not be empty for weighted environment %q without a location override", environment)
+	}
+
+	hasher := fnv.New64a()
+	_, _ = hasher.Write([]byte(buildID))
+	bucket := hasher.Sum64() % totalWeight
+
+	var cumulative uint64
+	for _, weight := range weights {
+		cumulative += weight.Weight
+		if bucket < cumulative {
+			selection.RuntimeRegion = weight.Location
+			selection.NormalizedWeights = normalizedWeightsForCatalog(weights)
+			selection.SelectionKeySource = "BUILD_ID"
+			return selection, nil
+		}
+	}
+
+	return RegionSelection{}, errors.New("weighted location selection did not resolve a region")
+}
+
+func parseLocationWeights(raw string, regions []string) ([]locationWeight, uint64, error) {
+	if strings.TrimSpace(raw) == "" {
+		return nil, 0, errors.New("LOCATION_WEIGHTS must not be empty")
+	}
+
+	allowedRegions := sets.New(regions...)
+	parsedWeights := make(map[string]uint64, len(regions))
+	normalized := strings.ReplaceAll(raw, "\r\n", "\n")
+	normalized = strings.ReplaceAll(normalized, "\r", "\n")
+	normalized = strings.ReplaceAll(normalized, "\n", ",")
+	for _, entry := range strings.Split(normalized, ",") {
+		location, rawWeight, found := strings.Cut(entry, "=")
+		location = strings.TrimSpace(location)
+		rawWeight = strings.TrimSpace(rawWeight)
+		switch {
+		case !found || location == "" || rawWeight == "":
+			return nil, 0, fmt.Errorf("entry %q must use location=weight format", strings.TrimSpace(entry))
+		case !allowedRegions.Has(location):
+			return nil, 0, fmt.Errorf("unknown location %q; allowed locations: %s", location, strings.Join(regions, ","))
+		}
+		if _, found := parsedWeights[location]; found {
+			return nil, 0, fmt.Errorf("location %q is declared more than once", location)
+		}
+
+		weight, err := strconv.ParseUint(rawWeight, 10, 64)
+		if err != nil {
+			return nil, 0, fmt.Errorf("weight for location %q must be a non-negative integer: %w", location, err)
+		}
+		parsedWeights[location] = weight
+	}
+
+	weights := make([]locationWeight, 0, len(regions))
+	var totalWeight uint64
+	for _, region := range regions {
+		weight, found := parsedWeights[region]
+		if !found {
+			return nil, 0, fmt.Errorf("missing weight for location %q", region)
+		}
+		if math.MaxUint64-totalWeight < weight {
+			return nil, 0, errors.New("location weight sum overflows uint64")
+		}
+		totalWeight += weight
+		weights = append(weights, locationWeight{Location: region, Weight: weight})
+	}
+	if totalWeight == 0 {
+		return nil, 0, errors.New("at least one location weight must be greater than zero")
+	}
+	return weights, totalWeight, nil
+}
+
+func normalizedWeightsForCatalog(weights []locationWeight) []string {
+	normalized := make([]string, 0, len(weights))
+	for _, weight := range weights {
+		normalized = append(normalized, fmt.Sprintf("%s=%d", weight.Location, weight.Weight))
+	}
+	return normalized
 }
 
 func (o *AcquireOptions) ResolveLeasedSlot(pool slots.Pool, resourceName string) (*slots.ExpandedSlot, error) {
@@ -269,6 +533,35 @@ func (o *AcquireOptions) ResolveLeasedSlot(pool slots.Pool, resourceName string)
 }
 
 func (o *AcquireOptions) Run(ctx context.Context) error {
+	if o.AzureGlobalLoggerCloser != nil {
+		defer o.AzureGlobalLoggerCloser.Close()
+	}
+
+	if o.AssetRegistry == nil {
+		return errors.New("asset registry is nil")
+	}
+	if err := o.AssetRegistry.ValidateRequirements(o.CandidatePools); err != nil {
+		return err
+	}
+	if _, err := o.AssetRegistry.FilterHandlers(o.DisabledAssetAdmission); err != nil {
+		return fmt.Errorf("--disable-asset-admission: %w", err)
+	}
+	stateFile, err := slots.SlotStateFile(o.SharedDir)
+	if err != nil {
+		return err
+	}
+	if _, err := os.Stat(stateFile); err == nil {
+		return errors.New("acquired state already exists; release it before acquiring again")
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	envFile, err := slots.EnvFile(o.SharedDir)
+	if err != nil {
+		return err
+	}
+	if err := os.Remove(envFile); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
 	logger := logr.FromContextOrDiscard(ctx)
 	now := o.Now
 	if now == nil {
@@ -315,7 +608,7 @@ func (o *AcquireOptions) Run(ctx context.Context) error {
 				return err
 			}
 
-			return o.finalizeAcquiredLease(ctx, logger, pool, leasedName)
+			return o.finalizeAcquiredLease(ctx, pool, leasedName)
 		}
 
 		poolFailureSummary := strings.Join(unavailablePools, ", ")
@@ -385,60 +678,109 @@ func rotatedCandidatePools(pools []slots.Pool, now time.Time) []slots.Pool {
 }
 
 func (o *AcquireOptions) runtimeRegionForPool(pool slots.Pool) string {
-	if o.RuntimeLocationOverride != "" {
-		return o.RuntimeLocationOverride
+	if o.RegionSelection.RuntimeRegion != "" {
+		return o.RegionSelection.RuntimeRegion
 	}
 	return pool.Region
 }
 
-func (o *AcquireOptions) finalizeAcquiredLease(ctx context.Context, logger logr.Logger, pool slots.Pool, leasedName string) error {
-	rollbackLease := true
+func (o *AcquireOptions) finalizeAcquiredLease(ctx context.Context, pool slots.Pool, leasedName string) (result error) {
+	if err := slots.ValidateLeasedResourceName(leasedName); err != nil {
+		return fmt.Errorf("primary lease acquisition returned an invalid name for type %q: %w", pool.ResourceType, err)
+	}
+	state := &slots.AcquiredSlotState{
+		Version:            2,
+		LeasedResourceName: leasedName,
+		Leases:             slots.LeaseSet{Primary: slots.Lease{ResourceType: pool.ResourceType, ResourceName: leasedName}},
+	}
+	writeState := o.WriteState
+	if writeState == nil {
+		writeState = slots.WriteAcquiredSlotState
+	}
+	journal := newLeaseJournal(state, o.SharedDir, o.LeaseProxyURL, o.LeaseProxyTimeout)
+	journal.Persist = func() error { return writeState(o.SharedDir, state) }
 	defer func() {
-		if !rollbackLease {
+		if result == nil {
 			return
 		}
-		if err := slots.ReleaseLease(ctx, o.LeaseProxyURL, leasedName, o.LeaseProxyTimeout); err != nil {
-			logger.Error(err, "Failed to release lease after acquire error", "name", leasedName)
+		// Acquisition's writer may have failed. Retry durable cleanup with the
+		// standard writer; never return a recorded resource without a journal.
+		journal.Persist = func() error { return slots.WriteAcquiredSlotState(o.SharedDir, state) }
+		cleanupErr := o.AssetRegistry.ReleaseLease(ctx, assets.LeaseRequest{AcquiredSlotState: state, LeaseJournal: journal})
+		if cleanupErr == nil {
+			cleanupErr = slots.RemoveStateFiles(o.SharedDir)
 		}
+		result = errors.Join(result, cleanupErr)
 	}()
-
+	// Write the primary immediately: even slot/profile resolution can fail.
+	if err := journal.Persist(); err != nil {
+		return err
+	}
+	logger := logr.FromContextOrDiscard(ctx).WithValues(
+		"slotName", leasedName,
+		"environment", o.PoolEnvironment,
+		"pool", describePool(pool),
+	)
+	logger.Info("Acquired primary slot lease")
 	slot, err := o.ResolveLeasedSlot(pool, leasedName)
 	if err != nil {
 		return err
 	}
-
-	customerSubscription, selectedClusterProfileDir, err := slots.VerifyCustomerSubscriptionName(o.ClusterProfileDirs, pool.SubscriptionName)
+	state.Slot = *slot
+	state.DeployEnvironment = pool.DeployEnv
+	state.RuntimeRegion = o.runtimeRegionForPool(pool)
+	customerSubscription, profile, err := slots.VerifyCustomerSubscriptionName(o.ClusterProfileDirs, pool.Subscriptions.E2E)
 	if err != nil {
 		return err
 	}
-
-	state := &slots.AcquiredSlotState{
-		Version:            1,
-		DeployEnvironment:  o.DeployEnvironment,
-		RuntimeRegion:      o.runtimeRegionForPool(pool),
-		Slot:               *slot,
-		LeasedResourceName: leasedName,
+	if o.DeployEnvironment != "" && o.DeployEnvironment != pool.DeployEnv {
+		return fmt.Errorf("acquired deploy environment %q does not match requested %q", pool.DeployEnv, o.DeployEnvironment)
 	}
-	// State file must be written before the env file: the release step only
-	// needs the state file to return the lease, so if we're killed between
-	// the two writes the lease can still be cleaned up. Downstream test
-	// steps depend on the env file, but those won't run if acquire didn't
-	// complete.
-	if err := slots.WriteAcquiredSlotState(o.SharedDir, state); err != nil {
+	state.Slot.Subscriptions, err = o.ResolveSubscriptions(ctx, profile, pool.DeployEnv, pool.Subscriptions.E2E, pool.InfrastructureSubscriptionName())
+	if err != nil {
 		return err
 	}
-	// The release step can now clean up this lease from the persisted state
-	// file, so subsequent failures should not try to release it again here.
-	rollbackLease = false
-	if err := slots.WriteEnvFile(o.SharedDir, state, customerSubscription, selectedClusterProfileDir); err != nil {
+	request := assets.LeaseRequest{AcquiredSlotState: state, SelectedClusterProfileDir: profile, LeaseJournal: journal}
+	if err := o.AssetRegistry.AcquireLeases(ctx, request, o.AssetInventories); err != nil {
 		return err
 	}
-
-	logger.Info(
-		"Acquired slot and wrote shared artifacts",
-		"slotName", slot.ResourceName,
-		"environment", o.PoolEnvironment,
-		"pool", describePool(pool),
+	if err := journal.Persist(); err != nil {
+		return err
+	}
+	if err := state.Validate(); err != nil {
+		return err
+	}
+	logger.Info("Starting asset admission",
+		"assetCount", len(state.Slot.AssetRequirements),
+		"runtimeRegion", state.RuntimeRegion,
+		"timeout", o.AdmissionTimeout,
+	)
+	admissionCtx, cancelAdmission := context.WithTimeout(ctx, o.AdmissionTimeout)
+	err = o.AssetRegistry.AdmitLease(admissionCtx, request, o.DisabledAssetAdmission...)
+	if err == nil {
+		err = admissionCtx.Err()
+	}
+	cancelAdmission()
+	if err != nil {
+		return err
+	}
+	contract := slots.NewRuntimeContractBuilder()
+	if err := slots.AddCoreRuntimeExports(contract, state, customerSubscription, profile); err != nil {
+		return err
+	}
+	if err := o.AssetRegistry.PublishLease(ctx, request, contract); err != nil {
+		return err
+	}
+	if err := slots.WriteRuntimeContract(o.SharedDir, contract); err != nil {
+		return err
+	}
+	logger.Info("Acquired slot and wrote shared artifacts",
+		"disabledAssetAdmission", o.DisabledAssetAdmission,
+		"regionMode", o.RegionSelection.Mode,
+		"catalogRegions", strings.Join(o.RegionSelection.CatalogRegions, ","),
+		"locationWeights", strings.Join(o.RegionSelection.NormalizedWeights, ","),
+		"locationOverrideUsed", o.RegionSelection.LocationOverrideUsed,
+		"selectionKeySource", o.RegionSelection.SelectionKeySource,
 		"runtimeRegion", state.RuntimeRegion,
 		"sharedDir", o.SharedDir,
 	)
@@ -446,10 +788,14 @@ func (o *AcquireOptions) finalizeAcquiredLease(ctx context.Context, logger logr.
 }
 
 func describePool(pool slots.Pool) string {
-	if pool.EffectiveRegionMode() == slots.RegionModeRuntimeSelected {
-		return fmt.Sprintf("subscription_name=%q, region_mode=%q, default_region=%q", pool.SubscriptionName, pool.EffectiveRegionMode(), pool.Region)
+	switch pool.EffectiveRegionMode() {
+	case slots.RegionModeRuntimeSelected:
+		return fmt.Sprintf("subscription_name=%q, region_mode=%q, default_region=%q", pool.Subscriptions.E2E, pool.EffectiveRegionMode(), pool.Region)
+	case slots.RegionModeWeighted:
+		return fmt.Sprintf("subscription_name=%q, region_mode=%q, regions=%q", pool.Subscriptions.E2E, pool.EffectiveRegionMode(), strings.Join(pool.Regions, ","))
+	default:
+		return fmt.Sprintf("subscription_name=%q, region=%q", pool.Subscriptions.E2E, pool.Region)
 	}
-	return fmt.Sprintf("subscription_name=%q, region=%q", pool.SubscriptionName, pool.Region)
 }
 
 func sleepContext(ctx context.Context, duration time.Duration) error {

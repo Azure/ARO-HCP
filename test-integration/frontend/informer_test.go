@@ -30,6 +30,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
@@ -352,7 +353,7 @@ func clusterInformerIntegrationTestCase() informerIntegrationTestCase {
 		resourceGroupName = "test-rg"
 	)
 
-	newCluster := func(t *testing.T, name string, state coreapi.ProvisioningState) *coreapi.HCPOpenShiftCluster {
+	newCluster := func(t *testing.T, name string, state coreapi.ProvisioningState) *coreapi.Cluster {
 		t.Helper()
 		clusterResourceID := mustParseResourceID(t,
 			"/subscriptions/"+subscriptionID+
@@ -360,7 +361,7 @@ func clusterInformerIntegrationTestCase() informerIntegrationTestCase {
 				"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/"+name)
 		internalID, err := metadataapi.NewInternalID("/api/clusters_mgmt/v1/clusters/" + name)
 		require.NoError(t, err)
-		return &coreapi.HCPOpenShiftCluster{
+		return &coreapi.Cluster{
 			CosmosMetadata: coreapi.CosmosMetadata{
 				ResourceID:   clusterResourceID,
 				PartitionKey: strings.ToLower(clusterResourceID.SubscriptionID),
@@ -373,7 +374,7 @@ func clusterInformerIntegrationTestCase() informerIntegrationTestCase {
 				},
 				Location: "eastus",
 			},
-			ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+			ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 				ProvisioningState: state,
 				ClusterServiceID:  &internalID,
 			},
@@ -417,7 +418,7 @@ func clusterInformerIntegrationTestCase() informerIntegrationTestCase {
 			t.Helper()
 			require.Eventually(t, func() bool {
 				for _, evt := range tracker.getUpdated() {
-					if c, ok := evt.newObj.(*coreapi.HCPOpenShiftCluster); ok {
+					if c, ok := evt.newObj.(*coreapi.Cluster); ok {
 						if c.Name == "cluster-1" && c.ServiceProviderProperties.ProvisioningState == coreapi.ProvisioningStateDeleting {
 							return true
 						}
@@ -428,7 +429,7 @@ func clusterInformerIntegrationTestCase() informerIntegrationTestCase {
 
 			require.Eventually(t, func() bool {
 				for _, obj := range tracker.getAdded() {
-					if c, ok := obj.(*coreapi.HCPOpenShiftCluster); ok {
+					if c, ok := obj.(*coreapi.Cluster); ok {
 						if c.Name == "cluster-3" {
 							return true
 						}
@@ -439,7 +440,7 @@ func clusterInformerIntegrationTestCase() informerIntegrationTestCase {
 
 			require.Eventually(t, func() bool {
 				for _, obj := range tracker.getDeleted() {
-					if c, ok := obj.(*coreapi.HCPOpenShiftCluster); ok {
+					if c, ok := obj.(*coreapi.Cluster); ok {
 						if c.Name == "cluster-2" {
 							return true
 						}
@@ -460,15 +461,15 @@ func nodePoolInformerIntegrationTestCase() informerIntegrationTestCase {
 		clusterName       = "parent-cluster"
 	)
 
-	newNodePool := func(t *testing.T, name string, replicas int32) *coreapi.HCPOpenShiftClusterNodePool {
+	newNodePool := func(t *testing.T, name string, replicas int32) *coreapi.NodePool {
 		t.Helper()
 		npResourceID := mustParseResourceID(t,
 			"/subscriptions/"+subscriptionID+
 				"/resourceGroups/"+resourceGroupName+
 				"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/"+clusterName+
 				"/nodePools/"+name)
-		internalID := metadataapi.Ptr(metadataapi.Must(metadataapi.NewInternalID("/api/aro_hcp/v1alpha1/clusters/" + clusterName + "/node_pools/" + name)))
-		return &coreapi.HCPOpenShiftClusterNodePool{
+		internalID := metadataapihelpers.Ptr(metadataapi.Must(metadataapi.NewInternalID("/api/aro_hcp/v1alpha1/clusters/" + clusterName + "/node_pools/" + name)))
+		return &coreapi.NodePool{
 			CosmosMetadata: coreapi.CosmosMetadata{ResourceID: npResourceID, PartitionKey: strings.ToLower(npResourceID.SubscriptionID)},
 			TrackedResource: coreapi.TrackedResource{
 				Resource: coreapi.Resource{
@@ -478,11 +479,11 @@ func nodePoolInformerIntegrationTestCase() informerIntegrationTestCase {
 				},
 				Location: "eastus",
 			},
-			Properties: coreapi.HCPOpenShiftClusterNodePoolProperties{
+			Properties: coreapi.NodePoolProperties{
 				ProvisioningState: coreapi.ProvisioningStateSucceeded,
 				Replicas:          replicas,
 			},
-			ServiceProviderProperties: coreapi.HCPOpenShiftClusterNodePoolServiceProviderProperties{
+			ServiceProviderProperties: coreapi.NodePoolServiceProviderProperties{
 				ClusterServiceID: internalID,
 			},
 		}
@@ -499,7 +500,7 @@ func nodePoolInformerIntegrationTestCase() informerIntegrationTestCase {
 					"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/"+clusterName)
 			internalID, err := metadataapi.NewInternalID("/api/clusters_mgmt/v1/clusters/" + clusterName)
 			require.NoError(t, err)
-			cluster := &coreapi.HCPOpenShiftCluster{
+			cluster := &coreapi.Cluster{
 				CosmosMetadata: coreapi.CosmosMetadata{
 					ResourceID:   clusterResourceID,
 					PartitionKey: strings.ToLower(clusterResourceID.SubscriptionID),
@@ -512,7 +513,7 @@ func nodePoolInformerIntegrationTestCase() informerIntegrationTestCase {
 					},
 					Location: "eastus",
 				},
-				ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+				ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 					ProvisioningState: coreapi.ProvisioningStateSucceeded,
 					ClusterServiceID:  &internalID,
 				},
@@ -554,7 +555,7 @@ func nodePoolInformerIntegrationTestCase() informerIntegrationTestCase {
 			t.Helper()
 			require.Eventually(t, func() bool {
 				for _, evt := range tracker.getUpdated() {
-					if np, ok := evt.newObj.(*coreapi.HCPOpenShiftClusterNodePool); ok {
+					if np, ok := evt.newObj.(*coreapi.NodePool); ok {
 						if np.Name == "np-1" && np.Properties.Replicas == 10 {
 							return true
 						}
@@ -565,7 +566,7 @@ func nodePoolInformerIntegrationTestCase() informerIntegrationTestCase {
 
 			require.Eventually(t, func() bool {
 				for _, obj := range tracker.getAdded() {
-					if np, ok := obj.(*coreapi.HCPOpenShiftClusterNodePool); ok {
+					if np, ok := obj.(*coreapi.NodePool); ok {
 						if np.Name == "np-3" {
 							return true
 						}
@@ -576,7 +577,7 @@ func nodePoolInformerIntegrationTestCase() informerIntegrationTestCase {
 
 			require.Eventually(t, func() bool {
 				for _, obj := range tracker.getDeleted() {
-					if np, ok := obj.(*coreapi.HCPOpenShiftClusterNodePool); ok {
+					if np, ok := obj.(*coreapi.NodePool); ok {
 						if np.Name == "np-2" {
 							return true
 						}
@@ -710,7 +711,7 @@ func testServiceProviderNodePoolLister(t *testing.T, withMock bool) {
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/"+clusterName)
 	clusterInternalID, err := metadataapi.NewInternalID("/api/clusters_mgmt/v1/clusters/" + clusterName)
 	require.NoError(t, err)
-	cluster := &coreapi.HCPOpenShiftCluster{
+	cluster := &coreapi.Cluster{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   clusterResourceID,
 			PartitionKey: strings.ToLower(clusterResourceID.SubscriptionID),
@@ -723,7 +724,7 @@ func testServiceProviderNodePoolLister(t *testing.T, withMock bool) {
 			},
 			Location: "eastus",
 		},
-		ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 			ProvisioningState: coreapi.ProvisioningStateSucceeded,
 			ClusterServiceID:  &clusterInternalID,
 		},
@@ -736,8 +737,8 @@ func testServiceProviderNodePoolLister(t *testing.T, withMock bool) {
 			"/resourceGroups/"+resourceGroupName+
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/"+clusterName+
 			"/nodePools/"+nodePoolName)
-	npInternalID := metadataapi.Ptr(metadataapi.Must(metadataapi.NewInternalID("/api/aro_hcp/v1alpha1/clusters/" + clusterName + "/node_pools/" + nodePoolName)))
-	nodePool := &coreapi.HCPOpenShiftClusterNodePool{
+	npInternalID := metadataapihelpers.Ptr(metadataapi.Must(metadataapi.NewInternalID("/api/aro_hcp/v1alpha1/clusters/" + clusterName + "/node_pools/" + nodePoolName)))
+	nodePool := &coreapi.NodePool{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   npResourceID,
 			PartitionKey: strings.ToLower(npResourceID.SubscriptionID),
@@ -750,11 +751,11 @@ func testServiceProviderNodePoolLister(t *testing.T, withMock bool) {
 			},
 			Location: "eastus",
 		},
-		Properties: coreapi.HCPOpenShiftClusterNodePoolProperties{
+		Properties: coreapi.NodePoolProperties{
 			ProvisioningState: coreapi.ProvisioningStateSucceeded,
 			Replicas:          1,
 		},
-		ServiceProviderProperties: coreapi.HCPOpenShiftClusterNodePoolServiceProviderProperties{
+		ServiceProviderProperties: coreapi.NodePoolServiceProviderProperties{
 			ClusterServiceID: npInternalID,
 		},
 	}

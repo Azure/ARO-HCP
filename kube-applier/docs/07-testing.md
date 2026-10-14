@@ -88,7 +88,7 @@ ticks are deterministic.
 
 Location: `test-integration/kube-applier/`.
 
-Pattern to follow: `test-integration/backend/controllers/do_nothing/`.
+Pattern to follow: `test-integration/backend/controllers/mismatches/`.
 Use `integrationutils.WithAndWithoutCosmos(t, fn)` if/when we want to also
 exercise real cosmos &mdash; for the initial pass, fake `KubeApplier` clients
 backed by `MockDBClient` are sufficient.

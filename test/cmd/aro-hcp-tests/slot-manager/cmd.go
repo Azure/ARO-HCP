@@ -18,7 +18,6 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
 
-	identitypool "github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/identity-pool"
 	"github.com/Azure/ARO-HCP/test/pkg/logger"
 )
 
@@ -38,7 +37,11 @@ func NewCommand() (*cobra.Command, error) {
 		cmd.SetContext(ctx)
 	}
 
-	acquireCommand, err := newAcquireCommand()
+	registry, err := newAssetRegistry()
+	if err != nil {
+		return nil, err
+	}
+	acquireCommand, err := newAcquireCommand(registry)
 	if err != nil {
 		return nil, err
 	}
@@ -54,11 +57,19 @@ func NewCommand() (*cobra.Command, error) {
 	if err != nil {
 		return nil, err
 	}
-	applyIdentityPoolCommand, err := identitypool.NewApplyCommand()
+	applyIdentityPoolCommand, err := newIdentityPoolCompatibilityCommand(registry, false)
 	if err != nil {
 		return nil, err
 	}
-	validateIdentityPoolCommand, err := identitypool.NewValidateCommand()
+	validateIdentityPoolCommand, err := newIdentityPoolCompatibilityCommand(registry, true)
+	if err != nil {
+		return nil, err
+	}
+	applyPoolAssetsCommand, err := newApplyPoolAssetsCommand(registry)
+	if err != nil {
+		return nil, err
+	}
+	validatePoolAssetsCommand, err := newValidatePoolAssetsCommand(registry)
 	if err != nil {
 		return nil, err
 	}
@@ -69,5 +80,7 @@ func NewCommand() (*cobra.Command, error) {
 	cmd.AddCommand(validateBoskosConfigCommand)
 	cmd.AddCommand(applyIdentityPoolCommand)
 	cmd.AddCommand(validateIdentityPoolCommand)
+	cmd.AddCommand(applyPoolAssetsCommand)
+	cmd.AddCommand(validatePoolAssetsCommand)
 	return cmd, nil
 }

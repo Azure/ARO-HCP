@@ -15,25 +15,14 @@
 package gatherobservability
 
 import (
-	"bytes"
-	"context"
-	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
-	"net/url"
 	"slices"
-	"strconv"
 	"strings"
 	"time"
 
 	_ "embed"
 
 	"sigs.k8s.io/yaml"
-
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/monitor/armmonitor"
 )
 
 // QueriesConfig holds panels of grouped PromQL queries to run against Azure
@@ -52,6 +41,7 @@ type PanelSpec struct {
 
 const (
 	chartTypeLine               = "line"
+	chartTypeFacetedLine        = "faceted-line"
 	chartTypeFacetedStackedArea = "faceted-stacked-area"
 )
 
@@ -138,26 +128,9 @@ type QuerySpec struct {
 	FacetBy          string            `json:"facetBy,omitempty" yaml:"facetBy,omitempty"`
 	StackBy          string            `json:"stackBy,omitempty" yaml:"stackBy,omitempty"`
 	Colors           map[string]string `json:"colors,omitempty" yaml:"colors,omitempty"`
-}
-
-// PrometheusResponse is the top-level Prometheus HTTP API response.
-type PrometheusResponse struct {
-	Status    string         `json:"status"`
-	Data      PrometheusData `json:"data"`
-	ErrorType string         `json:"errorType,omitempty"`
-	Error     string         `json:"error,omitempty"`
-}
-
-// PrometheusData holds the result set from a query_range call.
-type PrometheusData struct {
-	ResultType string             `json:"resultType"`
-	Result     []PrometheusResult `json:"result"`
-}
-
-// PrometheusResult is a single timeseries returned by query_range.
-type PrometheusResult struct {
-	Metric map[string]string `json:"metric"`
-	Values [][]any           `json:"values"` // each element is [unix_timestamp_float, "string_value"]
+	// LegendLabels keeps these labels visible even when common to every series,
+	// using the configured display names without changing the metric labels.
+	LegendLabels map[string]string `json:"legendLabels,omitempty" yaml:"legendLabels,omitempty"`
 }
 
 //go:embed queries.yaml
@@ -206,14 +179,14 @@ func parseQueriesConfig(data []byte) (*QueriesConfig, error) {
 			if q.ChartType == "" {
 				cfg.Panels[pi].Queries[qi].ChartType = chartTypeLine
 			}
-			if cfg.Panels[pi].Queries[qi].ChartType != chartTypeLine && cfg.Panels[pi].Queries[qi].ChartType != chartTypeFacetedStackedArea {
-				return nil, fmt.Errorf("panel %d (%s), query %d (%s): chartType must be %q or %q, got %q", pi, p.Title, qi, q.Title, chartTypeLine, chartTypeFacetedStackedArea, cfg.Panels[pi].Queries[qi].ChartType)
+			if cfg.Panels[pi].Queries[qi].ChartType != chartTypeLine && cfg.Panels[pi].Queries[qi].ChartType != chartTypeFacetedLine && cfg.Panels[pi].Queries[qi].ChartType != chartTypeFacetedStackedArea {
+				return nil, fmt.Errorf("panel %d (%s), query %d (%s): chartType must be %q, %q, or %q", pi, p.Title, qi, q.Title, chartTypeLine, chartTypeFacetedLine, chartTypeFacetedStackedArea)
 			}
-			if cfg.Panels[pi].Queries[qi].ChartType == chartTypeFacetedStackedArea && q.FacetBy == "" {
-				return nil, fmt.Errorf("panel %d (%s), query %d (%s): facetBy is required when chartType is %q", pi, p.Title, qi, q.Title, chartTypeFacetedStackedArea)
+			if cfg.Panels[pi].Queries[qi].ChartType != chartTypeLine && q.FacetBy == "" {
+				return nil, fmt.Errorf("panel %d (%s), query %d (%s): facetBy is required when chartType is %q", pi, p.Title, qi, q.Title, cfg.Panels[pi].Queries[qi].ChartType)
 			}
-			if cfg.Panels[pi].Queries[qi].ChartType != chartTypeFacetedStackedArea && q.FacetBy != "" {
-				return nil, fmt.Errorf("panel %d (%s), query %d (%s): facetBy is only valid with chartType %q", pi, p.Title, qi, q.Title, chartTypeFacetedStackedArea)
+			if cfg.Panels[pi].Queries[qi].ChartType == chartTypeLine && q.FacetBy != "" {
+				return nil, fmt.Errorf("panel %d (%s), query %d (%s): facetBy is only valid with chartType %q or %q", pi, p.Title, qi, q.Title, chartTypeFacetedLine, chartTypeFacetedStackedArea)
 			}
 		}
 	}
@@ -262,10 +235,33 @@ func validateAzureMonitorQuery(pi, qi int, panelTitle string, q QuerySpec) error
 			return fmt.Errorf("panel %d (%s), query %d (%s), metric %d (%s): normalizeByAutoscaleMax requires splitBy %q", pi, panelTitle, qi, q.Title, mi, m.Name, dimensionCollectionName)
 		}
 	}
-	if q.FacetBy != "" {
-		return fmt.Errorf("panel %d (%s), query %d (%s): facetBy is not supported with source %q", pi, panelTitle, qi, q.Title, sourceAzureMonitor)
+	if q.FacetBy != "" && q.FacetBy != "metric" {
+		return fmt.Errorf("panel %d (%s), query %d (%s): facetBy must be %q with source %q", pi, panelTitle, qi, q.Title, "metric", sourceAzureMonitor)
 	}
 	return nil
+}
+
+// reportRangePlaceholder is substituted, in Prometheus queries, with a
+// duration literal spanning the report's exact [start,end] window before
+// execution. Ranking queries (topk over an increase()/rate() lookback) use it
+// instead of a hardcoded duration like "[3h]": a fixed lookback shorter than
+// the report silently excludes any source whose cost was concentrated outside
+// that trailing window, even though the raw data is present and visible in an
+// un-ranked chart. See resolveReportRange.
+const reportRangePlaceholder = "__REPORT_RANGE__"
+
+// resolveReportRange replaces reportRangePlaceholder in query with a
+// Prometheus duration literal covering exactly [start,end], in milliseconds.
+// Millisecond precision (rather than rounding up to a coarser unit like a
+// minute) matters here: rounding up would push the effective lookback
+// earlier than start, letting a spike that happened just before the report
+// began enter a ranking that claims to cover only the report's own window.
+func resolveReportRange(query string, start, end time.Time) string {
+	ms := end.Sub(start).Milliseconds()
+	if ms < 1 {
+		ms = 1
+	}
+	return strings.ReplaceAll(query, reportRangePlaceholder, fmt.Sprintf("%dms", ms))
 }
 
 func sortedMetricResources() []string {
@@ -275,78 +271,4 @@ func sortedMetricResources() []string {
 	}
 	slices.Sort(out)
 	return out
-}
-
-// lookupPrometheusEndpoint retrieves the Prometheus query endpoint for an
-// Azure Monitor workspace using the ARM SDK.
-func lookupPrometheusEndpoint(ctx context.Context, cred azcore.TokenCredential, subscriptionID, resourceGroup, workspaceName string) (string, error) {
-	client, err := armmonitor.NewAzureMonitorWorkspacesClient(subscriptionID, cred, nil)
-	if err != nil {
-		return "", fmt.Errorf("failed to create monitor workspaces client: %w", err)
-	}
-	resp, err := client.Get(ctx, resourceGroup, workspaceName, nil)
-	if err != nil {
-		return "", fmt.Errorf("failed to get workspace %s: %w", workspaceName, err)
-	}
-	if resp.Properties == nil || resp.Properties.Metrics == nil || resp.Properties.Metrics.PrometheusQueryEndpoint == nil {
-		return "", fmt.Errorf("workspace %s has no Prometheus query endpoint", workspaceName)
-	}
-	return *resp.Properties.Metrics.PrometheusQueryEndpoint, nil
-}
-
-// queryRange executes a Prometheus query_range request against an Azure Monitor
-// Prometheus endpoint using bearer token authentication. The caller should pass
-// a shared *http.Client to amortize connection setup across multiple queries.
-func queryRange(ctx context.Context, httpClient *http.Client, cred azcore.TokenCredential, endpoint, query string, start, end time.Time, step string) (*PrometheusResponse, error) {
-	token, err := cred.GetToken(ctx, policy.TokenRequestOptions{
-		Scopes: []string{"https://prometheus.monitor.azure.com/.default"},
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to get Prometheus token: %w", err)
-	}
-
-	u, err := url.Parse(endpoint)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse endpoint URL %q: %w", endpoint, err)
-	}
-	u.Path = strings.TrimRight(u.Path, "/") + "/api/v1/query_range"
-
-	params := url.Values{}
-	params.Set("query", query)
-	params.Set("start", strconv.FormatInt(start.Unix(), 10))
-	params.Set("end", strconv.FormatInt(end.Unix(), 10))
-	params.Set("step", step)
-	u.RawQuery = params.Encode()
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
-	}
-	req.Header.Set("Authorization", "Bearer "+token.Token)
-
-	resp, err := httpClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("prometheus query_range request failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response body: %w", err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("prometheus query_range returned %d: %s", resp.StatusCode, string(body))
-	}
-
-	var promResp PrometheusResponse
-	dec := json.NewDecoder(bytes.NewReader(body))
-	dec.UseNumber()
-	if err := dec.Decode(&promResp); err != nil {
-		return nil, fmt.Errorf("failed to parse Prometheus response: %w", err)
-	}
-	if promResp.Status != "success" {
-		return nil, fmt.Errorf("prometheus query error (%s): %s", promResp.ErrorType, promResp.Error)
-	}
-	return &promResp, nil
 }

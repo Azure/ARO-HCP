@@ -54,6 +54,10 @@
   queryType: must-gather-internal
   database: ServiceLogs
   templatePath: templates/builtin/discovery/cluster_id.kql.gotmpl
+- name: operationIds
+  queryType: must-gather-internal
+  database: ServiceLogs
+  templatePath: templates/builtin/discovery/operation_ids.kql.gotmpl
 - name: clusterIdByName
   queryType: must-gather-internal
   database: ServiceLogs

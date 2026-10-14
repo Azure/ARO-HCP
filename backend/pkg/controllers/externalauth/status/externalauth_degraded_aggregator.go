@@ -34,7 +34,7 @@ import (
 )
 
 // externalAuthDegradedAggregator rolls per-controller Degraded conditions
-// up onto HCPOpenShiftClusterExternalAuth.Status.Conditions. See the
+// up onto ExternalAuth.Status.Conditions. See the
 // package and clusterDegradedAggregator docs for the overall design.
 type externalAuthDegradedAggregator struct {
 	externalAuthLister corelisters.ExternalAuthLister
@@ -47,6 +47,8 @@ type externalAuthDegradedAggregator struct {
 
 var _ controllerutils.ExternalAuthSyncer = (*externalAuthDegradedAggregator)(nil)
 
+const ExternalAuthDegradedAggregatorControllerName = "ExternalAuthDegradedAggregator"
+
 // externalAuthDegradedAggregatorInertia is the inertia config used by the
 // external-auth aggregator. Kept independent of the cluster / node-pool
 // variants so external-auth-specific controllers can be tuned in
@@ -57,7 +59,7 @@ func externalAuthDegradedAggregatorInertia() statusutils.Inertia {
 
 // NewExternalAuthDegradedAggregatorController creates a controller that
 // aggregates the Degraded condition from every api.Controller under a
-// given HCPOpenShiftClusterExternalAuth onto the external auth's
+// given ExternalAuth onto the external auth's
 // Status.Conditions.
 //
 // See NewClusterDegradedAggregatorController for the clock semantics —
@@ -81,7 +83,7 @@ func NewExternalAuthDegradedAggregatorController(
 		firstObservedBad:   statusutils.NewFirstObservedBadCache(clock),
 	}
 	return controllerutils.NewExternalAuthWatchingController(
-		"ExternalAuthDegradedAggregator",
+		ExternalAuthDegradedAggregatorControllerName,
 		resourcesDBClient,
 		informers,
 		1*time.Minute,

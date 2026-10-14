@@ -18,7 +18,6 @@ import (
 	"context"
 	"fmt"
 	"sync"
-	"time"
 
 	"github.com/go-logr/logr"
 
@@ -116,16 +115,8 @@ func (c *ACRClient) getAllTagsWithClient(ctx context.Context, repository string,
 				tag.Digest = *tagAttributes.Digest
 			}
 
-			tagProps, err := client.GetTagProperties(ctx, repository, *tagAttributes.Name, nil)
-			if err != nil {
-				logger.V(2).Info("could not get tag properties", "tag", *tagAttributes.Name, "error", err)
-				tag.LastModified = time.Time{}
-			} else {
-				if tagProps.Tag.CreatedOn != nil {
-					tag.LastModified = *tagProps.Tag.CreatedOn
-				} else {
-					tag.LastModified = time.Time{}
-				}
+			if tagAttributes.CreatedOn != nil {
+				tag.LastModified = *tagAttributes.CreatedOn
 			}
 
 			allTags = append(allTags, tag)
@@ -165,6 +156,25 @@ func (c *ACRClient) getClient() (*azcontainerregistry.Client, error) {
 	return c.client, c.authClientErr
 }
 
+func prepareACRTagsForArchValidation(allTags []Tag, repository, tagPattern string) ([]Tag, error) {
+	candidates := allTags
+	if tagPattern != "" {
+		filtered, err := FilterTagsByPattern(allTags, tagPattern)
+		if err != nil {
+			return nil, err
+		}
+		candidates = filtered
+	}
+	if !usesSemanticVersionOrdering(candidates, tagPattern) || hasEquivalentSemanticVersions(candidates) {
+		for _, tag := range candidates {
+			if _, err := validateCreationTimestamp(tag.Name, tag.LastModified); err != nil {
+				return nil, fmt.Errorf("candidate tag in repository %s: %w", repository, err)
+			}
+		}
+	}
+	return PrepareTagsForArchValidation(allTags, repository, tagPattern)
+}
+
 func (c *ACRClient) GetArchSpecificDigest(ctx context.Context, repository string, tagPattern string, arch string, wantMultiArch bool, versionLabel string) (*Tag, error) {
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
@@ -179,8 +189,7 @@ func (c *ACRClient) GetArchSpecificDigest(ctx context.Context, repository string
 	}
 
 	logger.V(2).Info("fetched tags from ACR", "registry", c.registryURL, "repository", repository, "totalTags", len(allTags))
-
-	tags, err := PrepareTagsForArchValidation(allTags, repository, tagPattern)
+	tags, err := prepareACRTagsForArchValidation(allTags, repository, tagPattern)
 	if err != nil {
 		logger.V(2).Error(err, "failed to prepare tags for arch validation", "registry", c.registryURL, "repository", repository, "tagPattern", tagPattern, "totalTags", len(allTags))
 		return nil, err
@@ -205,13 +214,11 @@ func (c *ACRClient) GetArchSpecificDigest(ctx context.Context, repository string
 
 		manifestProps, err := client.GetManifestProperties(ctx, repository, tag.Digest, nil)
 		if err != nil {
-			logger.V(2).Error(err, "failed to fetch manifest properties", "tag", tag.Name, "digest", tag.Digest)
-			continue
+			return nil, fmt.Errorf("failed to fetch manifest properties for candidate tag %s (digest %s): %w", tag.Name, tag.Digest, err)
 		}
 
 		if manifestProps.Manifest == nil {
-			logger.V(2).Info("manifest properties has no manifest info, skipping", "tag", tag.Name)
-			continue
+			return nil, fmt.Errorf("candidate tag %s (digest %s) has no manifest information", tag.Name, tag.Digest)
 		}
 
 		manifest := manifestProps.Manifest
@@ -228,8 +235,7 @@ func (c *ACRClient) GetArchSpecificDigest(ctx context.Context, repository string
 		}
 
 		if manifest.Architecture == nil || manifest.OperatingSystem == nil {
-			logger.V(2).Info("manifest missing architecture or OS info, skipping", "tag", tag.Name)
-			continue
+			return nil, fmt.Errorf("candidate tag %s (digest %s) is missing architecture or OS metadata", tag.Name, tag.Digest)
 		}
 
 		normalizedArch := NormalizeArchitecture(string(*manifest.Architecture))

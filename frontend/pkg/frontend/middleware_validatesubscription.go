@@ -20,6 +20,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/tracing"
@@ -50,7 +51,7 @@ func (h *middlewareValidateSubscriptionState) handleRequest(w http.ResponseWrite
 
 	subscriptionId := r.PathValue(PathSegmentSubscriptionID)
 	if subscriptionId == "" {
-		coreapi.WriteError(
+		coreapihelpers.WriteError(
 			w, http.StatusBadRequest,
 			coreapi.CloudErrorCodeInvalidParameter, "",
 			SubscriptionMissingMessage,
@@ -64,14 +65,14 @@ func (h *middlewareValidateSubscriptionState) handleRequest(w http.ResponseWrite
 
 		// subscription not found, treat as unregistered
 		if cosmosstorageutils.IsNotFoundError(err) {
-			coreapi.WriteError(
+			coreapihelpers.WriteError(
 				w, http.StatusBadRequest,
 				coreapi.CloudErrorCodeInvalidSubscriptionState, "",
 				UnregisteredSubscriptionStateMessage,
 				subscriptionId)
 			return
 		}
-		coreapi.WriteInternalServerError(w)
+		coreapihelpers.WriteInternalServerError(w)
 		return
 	}
 
@@ -103,7 +104,7 @@ func (h *middlewareValidateSubscriptionState) handleRequest(w http.ResponseWrite
 		next(w, r)
 	case coreapi.SubscriptionStateUnregistered:
 		logger.Error(nil, "subscription document indicates unregistered", "subscriptionId", subscriptionId)
-		coreapi.WriteError(
+		coreapihelpers.WriteError(
 			w, http.StatusBadRequest,
 			coreapi.CloudErrorCodeInvalidSubscriptionState, "",
 			UnregisteredSubscriptionStateMessage,
@@ -111,7 +112,7 @@ func (h *middlewareValidateSubscriptionState) handleRequest(w http.ResponseWrite
 	case coreapi.SubscriptionStateWarned, coreapi.SubscriptionStateSuspended:
 		if r.Method != http.MethodGet && r.Method != http.MethodDelete {
 			logger.Error(nil, "subscription document indicates restricted state", "subscriptionId", subscriptionId, "state", subscription.State)
-			coreapi.WriteError(w, http.StatusConflict,
+			coreapihelpers.WriteError(w, http.StatusConflict,
 				coreapi.CloudErrorCodeInvalidSubscriptionState, "",
 				InvalidSubscriptionStateMessage,
 				subscription.State)
@@ -120,13 +121,13 @@ func (h *middlewareValidateSubscriptionState) handleRequest(w http.ResponseWrite
 		next(w, r)
 	case coreapi.SubscriptionStateDeleted:
 		logger.Error(nil, "subscription document indicates deleted", "subscriptionId", subscriptionId)
-		coreapi.WriteError(
+		coreapihelpers.WriteError(
 			w, http.StatusBadRequest,
 			coreapi.CloudErrorCodeInvalidSubscriptionState, "",
 			InvalidSubscriptionStateMessage,
 			subscription.State)
 	default:
 		logger.Error(nil, "unsupported subscription state", "subscriptionState", subscription.State)
-		coreapi.WriteInternalServerError(w)
+		coreapihelpers.WriteInternalServerError(w)
 	}
 }

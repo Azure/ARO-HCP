@@ -73,8 +73,6 @@ spec:
             type: object
           status:
             type: object
-            required:
-            - hostedControlPlanes
             properties:
               conditions:
                 description: |-
@@ -202,7 +200,10 @@ spec:
                   pattern: "^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$"
                   x-kubernetes-int-or-string: true
               hostedControlPlanes:
+                description: >-
+                  Reported as a single atomic unit: the whole object is replaced on every apply, since mgmt-agent is the sole writer and there is no need to track ownership of readyResourceIDs/notReadyResourceIDs individually.
                 type: object
+                x-kubernetes-map-type: atomic
                 properties:
                   readyResourceIDs:
                     description: >-
@@ -321,12 +322,26 @@ rules:
   - monitoring.coreos.com
   resources:
   - servicemonitors
+  - podmonitors
   verbs:
   - get
   - list
   - watch
   - create
   - patch
+  - delete
+- apiGroups:
+  - azmonitoring.coreos.com
+  resources:
+  - servicemonitors
+  - podmonitors
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - patch
+  - delete
 - apiGroups:
   - mgmtagent.aro-hcp.azure.com
   resources:
@@ -342,6 +357,17 @@ rules:
   verbs:
   - get
   - patch
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - networkpolicies
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - patch
+  - delete
 - apiGroups:
   - metrics.k8s.io
   resources:
@@ -364,6 +390,34 @@ subjects:
 - kind: ServiceAccount
   name: mgmt-agent
   namespace: mgmt-agent
+---
+# Source: mgmt-agent/templates/backup-cleanup-rbac.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: mgmt-agent-backup-cleanup
+  namespace: velero
+rules:
+- apiGroups:
+  - velero.io
+  resources:
+  - backups
+  - backuprepositories
+  - datauploads
+  - datadownloads
+  - restores
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - velero.io
+  resources:
+  - deletebackuprequests
+  verbs:
+  - list
+  - create
+  - delete
 ---
 # Source: mgmt-agent/templates/leader_election_role.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -393,6 +447,21 @@ rules:
   verbs:
   - create
   - patch
+---
+# Source: mgmt-agent/templates/backup-cleanup-rbac.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: mgmt-agent-backup-cleanup
+  namespace: velero
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: mgmt-agent-backup-cleanup
+subjects:
+- kind: ServiceAccount
+  name: mgmt-agent
+  namespace: mgmt-agent
 ---
 # Source: mgmt-agent/templates/leader_election_role_binding.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -460,6 +529,7 @@ spec:
         - "--log-verbosity=2"
         - "--node-health-configmap=mgmt-agent-node-health"
         - "--node-health-config-key=config.yaml"
+        - "--monitoring-api-group=monitoring.coreos.com"
         image: "arohcpsvcdev.azurecr.io/mgmt-agent@sha256:1234567890"
         name: mgmt-agent-controller
         env:
@@ -498,14 +568,27 @@ spec:
           periodSeconds: 10
         resources:
           requests:
-            cpu: 50m
+            cpu: 350m
             memory: 768Mi
         volumeMounts: []
       volumes: []
       serviceAccountName: mgmt-agent
       priorityClassName: service-lifecycle-critical
       terminationGracePeriodSeconds: 10
-      nodeSelector:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: aro-hcp.azure.com/role
+                operator: In
+                values:
+                - "infra"
+      tolerations:
+      - key: "infra"
+        operator: Equal
+        value: "true"
+        effect: NoSchedule
 ---
 # Source: mgmt-agent/templates/servicemonitor.yaml
 apiVersion: monitoring.coreos.com/v1

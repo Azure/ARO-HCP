@@ -31,7 +31,7 @@ type ResourceReference struct {
 	// Namespace is the namespace of the target Kubernetes resource. Leave
 	// empty for cluster-scoped Kubernetes resources. Note: this is the
 	// Kubernetes scope, not the Cosmos scope — every *Desire is itself
-	// nested under an HCPOpenShiftCluster (and possibly a NodePool) on the
+	// nested under a Cluster (and possibly a NodePool) on the
 	// Cosmos side regardless of the value here.
 	Namespace string `json:"namespace,omitempty"`
 	// Name is the name of the target resource.

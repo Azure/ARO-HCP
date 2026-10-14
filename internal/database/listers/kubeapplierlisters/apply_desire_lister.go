@@ -23,6 +23,7 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/listerutils"
 )
 
@@ -32,7 +33,7 @@ type ApplyDesireLister interface {
 	List(ctx context.Context) ([]*kubeapplierapi.ApplyDesire, error)
 
 	// GetForCluster fetches a single cluster-scoped ApplyDesire by its
-	// containing HCPOpenShiftCluster identity and the desire's name.
+	// containing Cluster identity and the desire's name.
 	GetForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName, name string) (*kubeapplierapi.ApplyDesire, error)
 
 	// GetForNodePool fetches a single nodepool-scoped ApplyDesire by its
@@ -62,7 +63,7 @@ type ApplyDesireLister interface {
 	// managementClusterResourceID returns no results.
 	ListForManagementCluster(ctx context.Context, managementClusterResourceID *azcorearm.ResourceID) ([]*kubeapplierapi.ApplyDesire, error)
 
-	// ListForCluster returns every ApplyDesire under the given HCPOpenShiftCluster,
+	// ListForCluster returns every ApplyDesire under the given Cluster,
 	// covering both cluster- and node-pool-scoped desires.
 	ListForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) ([]*kubeapplierapi.ApplyDesire, error)
 
@@ -87,14 +88,14 @@ func (l *applyDesireLister) List(ctx context.Context) ([]*kubeapplierapi.ApplyDe
 func (l *applyDesireLister) GetForCluster(
 	ctx context.Context, subscriptionID, resourceGroupName, clusterName, name string,
 ) (*kubeapplierapi.ApplyDesire, error) {
-	key := kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(subscriptionID, resourceGroupName, clusterName, name)
+	key := kubeapplierapihelpers.ToClusterScopedApplyDesireResourceIDString(subscriptionID, resourceGroupName, clusterName, name)
 	return listerutils.GetByKey[kubeapplierapi.ApplyDesire](l.indexer, key)
 }
 
 func (l *applyDesireLister) GetForNodePool(
 	ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName, name string,
 ) (*kubeapplierapi.ApplyDesire, error) {
-	key := kubeapplierapi.ToNodePoolScopedApplyDesireResourceIDString(
+	key := kubeapplierapihelpers.ToNodePoolScopedApplyDesireResourceIDString(
 		subscriptionID, resourceGroupName, clusterName, nodePoolName, name,
 	)
 	return listerutils.GetByKey[kubeapplierapi.ApplyDesire](l.indexer, key)
@@ -103,7 +104,7 @@ func (l *applyDesireLister) GetForNodePool(
 func (l *applyDesireLister) GetForSystemAdminCredentialRequest(
 	ctx context.Context, subscriptionID, resourceGroupName, clusterName, credentialRequestName, name string,
 ) (*kubeapplierapi.ApplyDesire, error) {
-	key := kubeapplierapi.ToSystemAdminCredentialRequestScopedApplyDesireResourceIDString(
+	key := kubeapplierapihelpers.ToSystemAdminCredentialRequestScopedApplyDesireResourceIDString(
 		subscriptionID, resourceGroupName, clusterName, credentialRequestName, name,
 	)
 	return listerutils.GetByKey[kubeapplierapi.ApplyDesire](l.indexer, key)
@@ -112,7 +113,7 @@ func (l *applyDesireLister) GetForSystemAdminCredentialRequest(
 func (l *applyDesireLister) GetForSystemAdminCredentialRevocation(
 	ctx context.Context, subscriptionID, resourceGroupName, clusterName, revocationName, name string,
 ) (*kubeapplierapi.ApplyDesire, error) {
-	key := kubeapplierapi.ToSystemAdminCredentialRevocationScopedApplyDesireResourceIDString(
+	key := kubeapplierapihelpers.ToSystemAdminCredentialRevocationScopedApplyDesireResourceIDString(
 		subscriptionID, resourceGroupName, clusterName, revocationName, name,
 	)
 	return listerutils.GetByKey[kubeapplierapi.ApplyDesire](l.indexer, key)
@@ -121,7 +122,7 @@ func (l *applyDesireLister) GetForSystemAdminCredentialRevocation(
 func (l *applyDesireLister) GetForManagementCluster(
 	ctx context.Context, stampIdentifier, name string,
 ) (*kubeapplierapi.ApplyDesire, error) {
-	key := kubeapplierapi.ToManagementClusterScopedApplyDesireResourceIDString(stampIdentifier, name)
+	key := kubeapplierapihelpers.ToManagementClusterScopedApplyDesireResourceIDString(stampIdentifier, name)
 	return listerutils.GetByKey[kubeapplierapi.ApplyDesire](l.indexer, key)
 }
 

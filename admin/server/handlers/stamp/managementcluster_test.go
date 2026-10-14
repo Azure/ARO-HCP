@@ -33,6 +33,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/fleetcosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -60,7 +61,7 @@ func newManagementClusterWithPolicy(t *testing.T, stampIdentifier string, policy
 
 func newManagementCluster(t *testing.T, stampIdentifier string) *fleetapi.ManagementCluster {
 	t.Helper()
-	managementClusterResourceID, err := fleetapi.ToManagementClusterResourceID(stampIdentifier)
+	managementClusterResourceID, err := fleetapihelpers.ToManagementClusterResourceID(stampIdentifier)
 	require.NoError(t, err)
 	return &fleetapi.ManagementCluster{
 		CosmosMetadata: coreapi.CosmosMetadata{

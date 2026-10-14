@@ -38,6 +38,8 @@ type revocationMarkRequests struct {
 
 var _ controllerutils.SystemAdminCredentialRevocationSyncer = (*revocationMarkRequests)(nil)
 
+const SystemAdminCredentialRevocationMarkRequestsControllerName = "SystemAdminCredentialRevocationMarkRequests"
+
 // NewRevocationMarkRequestsController returns a RevocationWatchingController that
 // performs the first step of a revocation: it does a live list of every
 // SystemAdminCredentialRequest for the cluster and marks each one with a
@@ -55,7 +57,7 @@ func NewRevocationMarkRequestsController(
 	}
 
 	return controllerutils.NewSystemAdminCredentialRevocationWatchingController(
-		"SystemAdminCredentialRevocationMarkRequests",
+		SystemAdminCredentialRevocationMarkRequestsControllerName,
 		resourcesDBClient,
 		backendInformers,
 		nil,

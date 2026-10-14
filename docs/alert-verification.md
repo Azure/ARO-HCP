@@ -26,7 +26,7 @@ cd alert-tester
 make build
 ```
 
-You can now use `./atest`, e.g. for PROD (replace `grafana-url` and `datasource` as desired for [other stages](#available-grafana-instances-and-data-sources)):
+You can now use `./atest`, e.g. for PROD (replace `grafana-url` and `datasource` as desired for [other stages](#ai-access-to-grafana)):
 
 ```bash
 export ATEST_GRAFANA_BEARER_TOKEN=$(az account get-access-token \
@@ -58,7 +58,7 @@ analysis:
 - for 3m: 2 firings
 ```
 
-For available Grafana URLs and datasources, see [Available Grafana Instances and Data Sources](#available-grafana-instances-and-data-sources). For more options and a detailed description, see [README.md][alert-tester-readme].
+To discover available Grafana URLs and datasources, ask AI to list them as described in [AI access to Grafana](#ai-access-to-grafana). For more options and a detailed description, see [README.md][alert-tester-readme].
 
 ### AI-Generated Reports
 
@@ -86,7 +86,23 @@ The basic `atest` tool usage is already very helpful. But if you want to check m
 * [alert-tester][alert-tester-repo] GitHub Repo
 * [video][demo-video] and [notes][demo-notes] from alert-tester demo session
 
-## Accessing PROD data with Grafana
+
+## AI access to Grafana
+
+To get an overview of available Grafana URLs and data sources, make sure the [aro-ops](https://github.com/openshift-online/aro-ai-tools/tree/main/ops/skills/aro-ops) from [aro-ai-tools][aro-ai-tools] is installed - and ask Copilot/Claude something like
+
+```text
+List all Grafana URLs for our different stages - including a list of available datasources
+```
+
+You can ask things directly, but results will depend on whether AI can figure out the correct metrics to check. If you know what you want to look at, best make it explicit
+
+```text
+What's the current cluster count across all prod regions using acm_managed_cluster_count
+```
+
+
+## Viewing Grafana PROD data
 
 ### Explore Tab
 
@@ -102,26 +118,13 @@ To develop and test dashboards against prod data, use the Scratchpad folder in t
 Look for the Scratchpad folder under Dashboards in the PROD Grafana instance.
 
 
-## AI access
-
-To get an overview of available Grafana URLs and data sources, make sure the [aro-hcp-env-info](https://github.com/openshift-online/aro-ai-tools/blob/main/skills/aro-hcp-env-info) from [aro-ai-tools](https://github.com/openshift-online/aro-ai-tools) is installed - and ask Copilot/Claude something like
-
-```text
-List all Grafana URLs for our different stages - including a list of available datasources
-```
-
-You can ask things directly, but results will depend on whether AI can figure out the correct metrics to check. If you know what you want to look at, best make it explicit
-
-```text
-What's the current cluster count across all prod regions using acm_managed_cluster_count
-```
-
 ## Links
 
 * [alert-tester repo][alert-tester-repo]
 * [alert-tester README][alert-tester-readme]
 * [aro-hcp-test-alerts skill][aro-hcp-test-alerts-skill]
 * [aro-hcp-test-alerts report template][report-template]
+* [aro-ai-tools][aro-ai-tools]
 * [Copilot setup guide][copilot-setup]
 * [Demo video][demo-video]
 * [Demo notes][demo-notes]
@@ -130,6 +133,7 @@ What's the current cluster count across all prod regions using acm_managed_clust
 [alert-tester-readme]: https://github.com/mmazur/alert-tester/blob/main/README.md
 [aro-hcp-test-alerts-skill]: https://github.com/mmazur/alert-tester/blob/main/.claude/skills/aro-hcp-test-alerts/SKILL.md
 [report-template]: https://github.com/mmazur/alert-tester/blob/main/reports/TEMPLATE.md
+[aro-ai-tools]: https://github.com/openshift-online/aro-ai-tools
 [copilot-setup]: https://docs.google.com/document/d/1KUZSLknIkSd6usFPe_OcEYWJyW6mFeotc2lIsLgE3JA/edit?tab=t.ft6ndj5uukpn
 [demo-video]: https://drive.google.com/file/d/1jkyx4_w8yzaybqhtukHuHizh2jFCTJf7/view
 [demo-notes]: https://docs.google.com/document/d/1yvmf4MvOGpRf9VjA3Rnt30oNyfEFmE60oJeLxs0ek6w/edit?tab=t.0#heading=h.xr6j3y1ibl6b
