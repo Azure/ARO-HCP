@@ -49,7 +49,7 @@ func NewSubscriptionWatchingController(
 	informers coreinformers.BackendInformers,
 	resyncDuration time.Duration,
 	syncer SubscriptionSyncer,
-) Controller {
+) WatchingController {
 	controller := &subscriptionWatchingController{
 		name:   name,
 		syncer: syncer,

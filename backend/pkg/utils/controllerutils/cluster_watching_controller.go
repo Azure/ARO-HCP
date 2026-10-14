@@ -68,7 +68,7 @@ func NewClusterWatchingController(
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 	resyncDuration time.Duration,
 	syncer ClusterSyncer,
-) Controller {
+) WatchingController {
 
 	controller := &clusterWatchingController{
 		name:              name,

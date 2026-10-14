@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -66,6 +67,10 @@ type GenericWatchingController[T comparable] struct {
 	syncer         GenericSyncer[T]
 	reconcileTotal *prometheus.CounterVec
 
+	// interestingResources maps lowercase resource types to lowercase resource names.
+	// "*" matches every name of a registered type. An empty map accepts all events.
+	interestingResources map[string][]string
+
 	// queue is where incoming work is placed to de-dup and to allow "easy"
 	// rate limited requeues on errors
 	queue workqueue.TypedRateLimitingInterface[T]
@@ -75,10 +80,11 @@ type GenericWatchingController[T comparable] struct {
 // informers and delegates reconciliation to syncer.
 func NewGenericWatchingController[T comparable](name string, resourceType azcorearm.ResourceType, syncer GenericSyncer[T], reconcileTotal *prometheus.CounterVec) *GenericWatchingController[T] {
 	c := &GenericWatchingController[T]{
-		name:           name,
-		resourceType:   resourceType,
-		syncer:         syncer,
-		reconcileTotal: reconcileTotal,
+		name:                 name,
+		resourceType:         resourceType,
+		syncer:               syncer,
+		reconcileTotal:       reconcileTotal,
+		interestingResources: make(map[string][]string),
 		queue: workqueue.NewTypedRateLimitingQueueWithConfig(
 			workqueue.DefaultTypedControllerRateLimiter[T](),
 			workqueue.TypedRateLimitingQueueConfig[T]{
@@ -88,6 +94,15 @@ func NewGenericWatchingController[T comparable](name string, resourceType azcore
 	}
 
 	return c
+}
+
+// AddInterestingResource accepts events for a resource type and name, ignoring case.
+// The name "*" accepts every resource of that type. With no registrations all
+// events are accepted. Register interests before informers start delivering
+// resource events; registrations are not safe to mutate concurrently with events.
+func (c *GenericWatchingController[T]) AddInterestingResource(resourceType azcorearm.ResourceType, resourceName string) {
+	key := strings.ToLower(resourceType.String())
+	c.interestingResources[key] = append(c.interestingResources[key], strings.ToLower(resourceName))
 }
 
 func (c *GenericWatchingController[T]) Enqueue(keyObj any) {
@@ -221,6 +236,23 @@ func (c *GenericWatchingController[T]) EnqueueResourceIDAdd(resourceID *azcorear
 	c.EnqueueResourceIDAddWithMaxDepth(resourceID, changed, -1)
 }
 
+func (c *GenericWatchingController[T]) isResourceInteresting(resourceID *azcorearm.ResourceID) bool {
+	if len(c.interestingResources) == 0 {
+		return true
+	}
+	currResourceType := strings.ToLower(resourceID.ResourceType.String())
+	currResourceName := strings.ToLower(resourceID.Name)
+	for _, interestingResourceName := range c.interestingResources[currResourceType] {
+		if interestingResourceName == "*" {
+			return true
+		}
+		if currResourceName == interestingResourceName {
+			return true
+		}
+	}
+	return false
+}
+
 // EnqueueResourceIDAddWithMaxDepth traverses resourceID and its parents according to maxDepth until it
 // finds a resourceID that is of the resource type of c.resourceType and adds it if found. Each walk to Parent consumes one level.
 // maxDepth is the maximum number of parent hops to traverse when searching for a resourceID of type c.resourceType.
@@ -229,20 +261,27 @@ func (c *GenericWatchingController[T]) EnqueueResourceIDAdd(resourceID *azcorear
 // It is exposed so that individual controllers can add other items to requeue based on easily.
 // When there's a match of resourceType: when changed is true, the resourceID is added to the queue immediately. Otherwise, the
 // resourceID is added to the queue only if the cooldown checker allows it.
+// Interesting-resource filters apply to the original event, not the ancestors
+// visited while resolving the controller's key.
 func (c *GenericWatchingController[T]) EnqueueResourceIDAddWithMaxDepth(resourceID *azcorearm.ResourceID, changed bool, maxDepth int) {
 	if resourceID == nil {
 		return
 	}
-	if !metadataapi.ResourceTypeEqual(resourceID.ResourceType, c.resourceType) {
+	if !c.isResourceInteresting(resourceID) {
+		return
+	}
+
+	for !metadataapi.ResourceTypeEqual(resourceID.ResourceType, c.resourceType) {
 		if maxDepth == 0 {
 			return
 		}
-		nextDepth := maxDepth
 		if maxDepth > 0 {
-			nextDepth = maxDepth - 1
+			maxDepth--
 		}
-		c.EnqueueResourceIDAddWithMaxDepth(resourceID.Parent, changed, nextDepth)
-		return
+		resourceID = resourceID.Parent
+		if resourceID == nil {
+			return
+		}
 	}
 
 	key := c.syncer.MakeKey(resourceID)

@@ -55,7 +55,7 @@ func NewExternalAuthWatchingController(
 	informers coreinformers.BackendInformers,
 	resyncDuration time.Duration,
 	syncer ExternalAuthSyncer,
-) Controller {
+) WatchingController {
 
 	controller := &externalAuthWatchingController{
 		name:              name,

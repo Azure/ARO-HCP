@@ -18,6 +18,8 @@ import (
 	"context"
 	"time"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
 	"github.com/Azure/ARO-HCP/internal/controllerutils"
 )
 
@@ -26,4 +28,11 @@ type Controller interface {
 	QueueForInformers(resyncDuration time.Duration, notifiers ...controllerutils.Notifier) error
 	Run(ctx context.Context, threadiness int)
 	EnqueueAfter(keyObj any, duration time.Duration)
+}
+
+// WatchingController exposes resource-event filtering on the underlying generic
+// watching controller. With no interests registered, all events are accepted.
+type WatchingController interface {
+	Controller
+	AddInterestingResource(resourceType azcorearm.ResourceType, resourceName string)
 }
