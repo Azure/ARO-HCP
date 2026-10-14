@@ -747,6 +747,66 @@ func GetNodePool20261001(
 	return &resp.NodePool, nil
 }
 
+// CreateOrUpdateExternalAuthAndWait20261001 creates or updates an external auth and waits for completion.
+func CreateOrUpdateExternalAuthAndWait20261001(
+	ctx context.Context,
+	externalAuthClient *hcpsdk20261001.ExternalAuthsClient,
+	resourceGroupName string,
+	hcpClusterName string,
+	externalAuthName string,
+	externalAuth hcpsdk20261001.ExternalAuth,
+	timeout time.Duration,
+) (*hcpsdk20261001.ExternalAuth, error) {
+	ctx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during CreateOrUpdateExternalAuthAndWait20261001 for external auth %s in cluster %s in resource group %s", timeout.Minutes(), externalAuthName, hcpClusterName, resourceGroupName))
+	defer cancel()
+
+	createCtx, createAttempts := withRequestAttemptTracker(ctx)
+	poller, err := externalAuthClient.BeginCreateOrUpdate(createCtx, resourceGroupName, hcpClusterName, externalAuthName, externalAuth, nil)
+	if err != nil {
+		poller, err = resumeInFlightExternalAuthCreate20261001(ctx, externalAuthClient, resourceGroupName, hcpClusterName, externalAuthName, createAttempts, err)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed creating external auth %q in resourcegroup=%q for cluster=%q: %w", externalAuthName, resourceGroupName, hcpClusterName, err)
+	}
+
+	operationResult, err := poller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
+		Frequency: StandardPollInterval,
+	})
+	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return nil, fmt.Errorf("failed waiting for external auth %q in resourcegroup=%q for cluster=%q to finish creating or updating, caused by: %w, error: %w", externalAuthName, resourceGroupName, hcpClusterName, context.Cause(ctx), err)
+		}
+		return nil, fmt.Errorf("failed waiting for external auth %q in resourcegroup=%q for cluster=%q to finish creating or updating: %w", externalAuthName, resourceGroupName, hcpClusterName, err)
+	}
+
+	expect, err := GetExternalAuth20261001(ctx, externalAuthClient, resourceGroupName, hcpClusterName, externalAuthName)
+	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return nil, fmt.Errorf("failed getting external auth %q in resourcegroup=%q for cluster=%q, caused by: %w, error: %w", externalAuthName, resourceGroupName, hcpClusterName, context.Cause(ctx), err)
+		}
+		return nil, fmt.Errorf("failed getting external auth %q in resourcegroup=%q for cluster=%q: %w", externalAuthName, resourceGroupName, hcpClusterName, err)
+	}
+	if err := checkOperationResult(expect, &operationResult.ExternalAuth); err != nil {
+		return nil, err
+	}
+	return &operationResult.ExternalAuth, nil
+}
+
+// GetExternalAuth20261001 fetches an external auth resource.
+func GetExternalAuth20261001(
+	ctx context.Context,
+	externalAuthClient *hcpsdk20261001.ExternalAuthsClient,
+	resourceGroupName string,
+	hcpClusterName string,
+	externalAuthName string,
+) (*hcpsdk20261001.ExternalAuth, error) {
+	resp, err := externalAuthClient.Get(ctx, resourceGroupName, hcpClusterName, externalAuthName, nil)
+	if err != nil {
+		return nil, err
+	}
+	return &resp.ExternalAuth, nil
+}
+
 // --- Functions from per_test_framework.go ---
 
 func (tc *perItOrDescribeTestContext) Get20261001ClientFactory(ctx context.Context) (*hcpsdk20261001.ClientFactory, error) {
@@ -935,5 +995,28 @@ func resumeInFlightNodePoolCreate20261001(
 				state = provisioningStateString(resp.Properties.ProvisioningState)
 			}
 			return hcpsdk20261001.NodePoolsClientCreateOrUpdateResponse(resp), state, nil
+		})
+}
+
+func resumeInFlightExternalAuthCreate20261001(
+	ctx context.Context,
+	externalAuthClient *hcpsdk20261001.ExternalAuthsClient,
+	resourceGroupName string,
+	hcpClusterName string,
+	externalAuthName string,
+	attempts *requestAttemptTracker,
+	createErr error,
+) (*runtime.Poller[hcpsdk20261001.ExternalAuthsClientCreateOrUpdateResponse], error) {
+	return resumeInFlightCreate(ctx, createErr, attempts, fmt.Sprintf("external auth %q for cluster %q in resourcegroup=%q", externalAuthName, hcpClusterName, resourceGroupName),
+		func(ctx context.Context) (hcpsdk20261001.ExternalAuthsClientCreateOrUpdateResponse, string, error) {
+			resp, err := externalAuthClient.Get(ctx, resourceGroupName, hcpClusterName, externalAuthName, nil)
+			if err != nil {
+				return hcpsdk20261001.ExternalAuthsClientCreateOrUpdateResponse{}, "", err
+			}
+			var state string
+			if resp.Properties != nil {
+				state = provisioningStateString(resp.Properties.ProvisioningState)
+			}
+			return hcpsdk20261001.ExternalAuthsClientCreateOrUpdateResponse(resp), state, nil
 		})
 }
