@@ -51,6 +51,7 @@ func (o *completedOptions) waitForDeployment(ctx context.Context, name string) e
 		switch *result.Properties.ProvisioningState {
 		case armdeployments.ProvisioningStateFailed, armdeployments.ProvisioningStateCanceled:
 			logger.Info("recovering unsuccessful deployment", "deployment", name, "provisioningState", *result.Properties.ProvisioningState, "deploymentError", result.Properties.Error)
+			o.logDeploymentOperations(ctx, name)
 			return true, nil
 		case armdeployments.ProvisioningStateSucceeded:
 			return true, nil
