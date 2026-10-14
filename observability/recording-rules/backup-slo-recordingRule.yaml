@@ -69,6 +69,9 @@ spec:
     # other, present counters too. The per-term fallback (matches the
     # frontend SLI pattern - avoids NaN, not a silent 0) keeps every term's
     # contribution even when a sibling counter is absent.
+    # Dashboard/debugging only: error alerts intentionally compute ratios
+    # from raw counters over each full alert window, not averages of this
+    # 5m ratio, so quiet and busy intervals are weighted by outcome volume.
     - record: errors:backup:ratio:rate5m
       expr: |
         (
