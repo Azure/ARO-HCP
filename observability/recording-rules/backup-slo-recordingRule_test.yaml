@@ -6,6 +6,7 @@ tests:
 # Errors ratio: 10 failures / 100 attempts per minute = 10% error share.
 # ========================================
 - interval: 1m
+  name: errors_completed_outcome_ratio
   input_series:
   - series: 'velero_backup_attempt_total{cluster="mgmt-1", schedule="ns-a-6-hourly"}'
     values: "0+100x10"
@@ -32,10 +33,11 @@ tests:
     - labels: '{__name__="traffic:backup:attempt_rate:rate5m", cluster="mgmt-1"}'
       value: 1.6666666666666667
 # ========================================
-# Errors ratio guard: zero attempt volume must emit no sample (not NaN or 0) -
+# Errors ratio guard: zero completed volume must emit no sample (not NaN or 0) -
 # avoids a quiet/decommissioned cluster looking like a perfect-or-silent SLI.
 # ========================================
 - interval: 1m
+  name: errors_no_completed_outcomes
   input_series:
   - series: 'velero_backup_attempt_total{cluster="mgmt-quiet", schedule="ns-a-6-hourly"}'
     values: "0x10"
@@ -62,6 +64,7 @@ tests:
 # this reads as the true 10%.
 # ========================================
 - interval: 1m
+  name: errors_missing_unused_failure_counters
   input_series:
   - series: 'velero_backup_attempt_total{cluster="mgmt-masked", schedule="ns-a-6-hourly"}'
     values: "0+100x10"
@@ -80,6 +83,7 @@ tests:
 # interpolates a concrete estimate inside that finite bucket.
 # ========================================
 - interval: 1m
+  name: latency_histogram_quantile
   input_series:
   - series: 'velero_backup_duration_seconds_bucket{cluster="mgmt-1", schedule="ns-a-6-hourly", le="300"}'
     values: "0x10"
@@ -100,6 +104,7 @@ tests:
 # HostedClusters (ns-a, ns-b, ns-c), 2 with a failed last run.
 # ========================================
 - interval: 1m
+  name: storage_ratio_and_hostedcluster_count
   input_series:
   - series: 'velero_backup_last_status{cluster="mgmt-1", schedule="ns-a-6-hourly"}'
     values: "0+0x10"
@@ -129,6 +134,7 @@ tests:
 # 6-hourly, it correctly reads 3/3 = 100%.
 # ========================================
 - interval: 1m
+  name: storage_mixed_cadence_outage
   input_series:
   - series: 'velero_backup_last_status{cluster="mgmt-9", schedule="ns-a-6-hourly"}'
     values: "0+0x10"
@@ -160,6 +166,7 @@ tests:
 # schedules, so a downstream >=3 guard does not mistake it for 3 HCs.
 # ========================================
 - interval: 1m
+  name: hostedcluster_count_deduplicates_cadences
   input_series:
   - series: 'velero_backup_last_status{cluster="mgmt-3", schedule="ns-x-6-hourly"}'
     values: "1+0x10"
@@ -179,6 +186,7 @@ tests:
 # 1 Completed - Completed must not count.
 # ========================================
 - interval: 1m
+  name: saturation_counts_nonterminal_phases
   input_series:
   - series: 'velerobackup_phase{cluster="mgmt-1", schedule="ns-a-6-hourly", phase="InProgress"}'
     values: "1+0x10"
@@ -197,6 +205,7 @@ tests:
 # No non-terminal backups anywhere - absent series, not a spurious 0 (see the
 # recording rule's comment on why there is no "or vector(0)" fallback here).
 - interval: 1m
+  name: saturation_empty_backlog_has_no_series
   input_series:
   - series: 'velerobackup_phase{cluster="mgmt-2", schedule="ns-a-6-hourly", phase="Completed"}'
     values: "1+0x10"
@@ -213,6 +222,7 @@ tests:
 # 1 Completed (which must not count) = 4.
 # ========================================
 - interval: 1m
+  name: saturation_includes_queued_and_ready
   input_series:
   - series: 'velerobackup_phase{cluster="mgmt-7", schedule="ns-a-6-hourly", phase="InProgress"}'
     values: "1+0x10"
@@ -230,3 +240,22 @@ tests:
     exp_samples:
     - labels: '{__name__="backup:in_progress:count", cluster="mgmt-7"}'
       value: 4
+# Delayed outcomes must remain visible in the diagnostic SLI.
+- name: error_ratio_delayed_completions_without_recent_attempts
+  interval: 1m
+  input_series:
+  - series: velero_backup_attempt_total{cluster="delayed", schedule="ns-a-6-hourly"}
+    values: 0 50x19
+  - series: velero_backup_failure_total{cluster="delayed", schedule="ns-a-6-hourly"}
+    values: 0x9 4x10
+  - series: velero_backup_success_total{cluster="delayed", schedule="ns-a-6-hourly"}
+    values: 0x9 46x10
+  promql_expr_test:
+  - expr: round(errors:backup:ratio:rate5m{cluster="delayed"} * 100)
+    eval_time: 12m
+    exp_samples:
+    - labels: '{cluster="delayed"}'
+      value: 8
+  - expr: errors:backup:ratio:rate5m{cluster="delayed"}
+    eval_time: 18m
+    exp_samples: []
