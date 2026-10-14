@@ -30,6 +30,8 @@ import (
 	"k8s.io/client-go/tools/cache"
 	utilsclock "k8s.io/utils/clock"
 
+	kjson "sigs.k8s.io/json"
+
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
@@ -37,7 +39,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
-	"github.com/Azure/ARO-HCP/internal/jsonutil"
+
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -413,7 +415,7 @@ func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPITyp
 	}
 
 	objAsTypedDocument := &cosmosstorageutils.TypedDocument{}
-	if err := jsonutil.Unmarshal(item, objAsTypedDocument); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(item, objAsTypedDocument); err != nil {
 		return utils.TrackError(err)
 	}
 	logger = logger.WithValues(utils.LogValues{}.AddLogValuesForResourceID(objAsTypedDocument.ResourceID)...)
@@ -437,7 +439,7 @@ func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPITyp
 	}
 
 	var cosmosObj CosmosAPIType
-	if err := jsonutil.Unmarshal(item, &cosmosObj); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(item, &cosmosObj); err != nil {
 		return utils.TrackError(err)
 	}
 	var internalObj InternalAPITypePointer

@@ -17,11 +17,12 @@ package billingcosmosstorage
 import (
 	"context"
 
+	kjson "sigs.k8s.io/json"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
-	"github.com/Azure/ARO-HCP/internal/jsonutil"
 )
 
 type queryBillingIterator struct {
@@ -57,7 +58,7 @@ func (iter *queryBillingIterator) Items(ctx context.Context) cosmosstorageutils.
 			}
 			for _, itemJSON := range response.Items {
 				var doc BillingDocument
-				if err := jsonutil.Unmarshal(itemJSON, &doc); err != nil {
+				if err := kjson.UnmarshalCaseSensitivePreserveInts(itemJSON, &doc); err != nil {
 					iter.err = err
 					return
 				}

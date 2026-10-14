@@ -22,11 +22,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	kjson "sigs.k8s.io/json"
+
 	hsv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
-	"github.com/Azure/ARO-HCP/internal/jsonutil"
 )
 
 func TestTLSCertificateURLRoundTripAndDeepCopy(test *testing.T) {
@@ -114,7 +115,7 @@ func TestServiceProviderClusterImageContentSources(test *testing.T) {
 			serialized, err := json.Marshal(original)
 			require.NoError(test, err)
 			var restored coreapi.ServiceProviderClusterStatus
-			require.NoError(test, jsonutil.Unmarshal(serialized, &restored))
+			require.NoError(test, kjson.UnmarshalCaseSensitivePreserveInts(serialized, &restored))
 			assert.Equal(test, original.ImageContentSources, restored.ImageContentSources)
 			if testcase.sources == nil {
 				assert.NotContains(test, string(serialized), `"imageContentSources"`)

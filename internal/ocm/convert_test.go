@@ -30,6 +30,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 
+	kjson "sigs.k8s.io/json"
+
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
@@ -41,7 +43,6 @@ import (
 	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
 	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
 	"github.com/Azure/ARO-HCP/internal/azure"
-	"github.com/Azure/ARO-HCP/internal/jsonutil"
 )
 
 const (
@@ -249,7 +250,7 @@ func ocmCluster(t *testing.T, builders ...*arohcpv1alpha1.ClusterBuilder) *arohc
 		cluster, err := builder.Build()
 		require.NoError(t, err)
 		require.NoError(t, arohcpv1alpha1.MarshalCluster(cluster, &buffer))
-		require.NoError(t, jsonutil.Unmarshal(buffer.Bytes(), &rawCluster))
+		require.NoError(t, kjson.UnmarshalCaseSensitivePreserveInts(buffer.Bytes(), &rawCluster))
 		require.NoError(t, mergo.Merge(&mergedCluster, rawCluster, mergo.WithOverride))
 	}
 

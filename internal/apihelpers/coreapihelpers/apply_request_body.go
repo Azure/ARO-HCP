@@ -22,8 +22,10 @@ import (
 	"dario.cat/mergo"
 	jsonpatch "github.com/evanphx/json-patch"
 
+	kjson "sigs.k8s.io/json"
+
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
-	"github.com/Azure/ARO-HCP/internal/jsonutil"
+
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -52,7 +54,7 @@ func ApplyRequestBody(requestMethod string, body []byte, v any) error {
 		// Reset *v to its zero value.
 		rv.Elem().SetZero()
 
-		err = jsonutil.Unmarshal(modifiedData, v)
+		err = kjson.UnmarshalCaseSensitivePreserveInts(modifiedData, v)
 		if err != nil {
 			return coreapi.NewInvalidRequestContentError(err)
 		}
@@ -76,7 +78,7 @@ func ApplyRequestBody(requestMethod string, body []byte, v any) error {
 
 		src := reflect.New(rv.Elem().Type()).Interface()
 
-		err := jsonutil.Unmarshal(body, src)
+		err := kjson.UnmarshalCaseSensitivePreserveInts(body, src)
 		if err != nil {
 			return coreapi.NewInvalidRequestContentError(err)
 		}

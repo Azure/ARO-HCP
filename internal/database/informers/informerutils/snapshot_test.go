@@ -29,6 +29,8 @@ import (
 	"k8s.io/apimachinery/pkg/watch"
 	utilsclock "k8s.io/utils/clock"
 
+	kjson "sigs.k8s.io/json"
+
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
@@ -36,7 +38,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
-	"github.com/Azure/ARO-HCP/internal/jsonutil"
+
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -62,7 +64,7 @@ func (c *snapshotCapture) snapshots(t *testing.T) []map[string]any {
 	var result []map[string]any
 	for _, line := range c.lines {
 		var entry map[string]any
-		require.NoError(t, jsonutil.Unmarshal([]byte(line), &entry))
+		require.NoError(t, kjson.UnmarshalCaseSensitivePreserveInts([]byte(line), &entry))
 		if entry["snapshotType"] == "cosmos" {
 			result = append(result, entry)
 		}

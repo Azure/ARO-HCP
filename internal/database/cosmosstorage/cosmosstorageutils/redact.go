@@ -20,9 +20,9 @@ import (
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	kjson "sigs.k8s.io/json"
 
-	"github.com/Azure/ARO-HCP/internal/jsonutil"
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 )
 
 const RedactStr = "REDACTED"
@@ -40,7 +40,7 @@ func RedactTypedDocument(d *TypedDocument) error {
 	}
 
 	var props unstructured.Unstructured
-	if err := jsonutil.Unmarshal(d.Properties, &props.Object); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(d.Properties, &props.Object); err != nil {
 		return fmt.Errorf("failed to unmarshal typed document properties for %s: %w", resourceIDToString(d.ResourceID), err)
 	}
 

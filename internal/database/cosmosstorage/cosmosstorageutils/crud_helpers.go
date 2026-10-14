@@ -26,11 +26,13 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/utils/ptr"
 
+	kjson "sigs.k8s.io/json"
+
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
-	"github.com/Azure/ARO-HCP/internal/jsonutil"
+
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -55,7 +57,7 @@ func oldResourceIDStringToCosmosID(resourceID string) (string, error) {
 
 func responseItemToInternalObj[InternalAPIType, CosmosAPIType any](ctx context.Context, cosmosID string, responseItem azcosmos.ItemResponse) (*InternalAPIType, error) {
 	var obj CosmosAPIType
-	if err := jsonutil.Unmarshal(responseItem.Value, &obj); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(responseItem.Value, &obj); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal Resources container item for '%s': %w", cosmosID, err)
 	}
 	cosmosObj := &obj
@@ -91,7 +93,7 @@ func getByItemID[InternalAPIType, CosmosAPIType any](ctx context.Context, contai
 
 func IsSoftDeleted(data []byte) bool {
 	var doc TypedDocument
-	if err := jsonutil.Unmarshal(data, &doc); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &doc); err != nil {
 		return false
 	}
 	return doc.DeletionTimestamp != nil
@@ -430,7 +432,7 @@ func softDeleteByCosmosID(ctx context.Context, containerClient *azcosmos.Contain
 	}
 
 	var doc GenericDocument[map[string]interface{}]
-	if err := jsonutil.Unmarshal(responseItem.Value, &doc); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(responseItem.Value, &doc); err != nil {
 		return fmt.Errorf("failed to unmarshal document for soft delete: %w", err)
 	}
 

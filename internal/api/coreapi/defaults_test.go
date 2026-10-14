@@ -19,8 +19,9 @@ import (
 	"os"
 	"testing"
 
+	kjson "sigs.k8s.io/json"
+
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
-	"github.com/Azure/ARO-HCP/internal/jsonutil"
 )
 
 // TestTypeSpecDefaultsConsistency verifies that default values declared in the
@@ -43,7 +44,7 @@ func TestTypeSpecDefaultsConsistency(t *testing.T) {
 			} `json:"properties"`
 		} `json:"definitions"`
 	}
-	if err := jsonutil.Unmarshal(specData, &spec); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(specData, &spec); err != nil {
 		t.Fatalf("failed to parse OpenAPI spec: %v", err)
 	}
 

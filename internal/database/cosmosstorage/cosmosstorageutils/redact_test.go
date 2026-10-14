@@ -20,11 +20,12 @@ import (
 	"testing"
 	"time"
 
+	kjson "sigs.k8s.io/json"
+
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
-	"github.com/Azure/ARO-HCP/internal/jsonutil"
 )
 
 func TestRedactTypedDocument_RedactsSupportedResourceTypes(t *testing.T) {
@@ -129,7 +130,7 @@ func TestRedactTypedDocument_RedactsSupportedResourceTypes(t *testing.T) {
 			}
 
 			var raw map[string]any
-			if err := jsonutil.Unmarshal(doc.Properties, &raw); err != nil {
+			if err := kjson.UnmarshalCaseSensitivePreserveInts(doc.Properties, &raw); err != nil {
 				t.Fatalf("unmarshal redacted properties: %v", err)
 			}
 

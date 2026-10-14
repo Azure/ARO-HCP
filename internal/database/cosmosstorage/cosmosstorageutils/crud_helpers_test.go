@@ -21,11 +21,12 @@ import (
 	"testing"
 	"time"
 
+	kjson "sigs.k8s.io/json"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
-	"github.com/Azure/ARO-HCP/internal/jsonutil"
 )
 
 func TestSetSoftDeleteFieldsInstanceVersion(t *testing.T) {
@@ -187,14 +188,14 @@ func TestCosmosMetadataParentResourceIDJSONRoundTrip(t *testing.T) {
 				t.Fatal(err)
 			}
 			var fields map[string]json.RawMessage
-			if err := jsonutil.Unmarshal(data, &fields); err != nil {
+			if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &fields); err != nil {
 				t.Fatal(err)
 			}
 			if _, present := fields["parentResourceID"]; present != (test.parent != nil) {
 				t.Errorf("parentResourceID presence = %t, want %t: %s", present, test.parent != nil, data)
 			}
 			var roundTrip coreapi.CosmosMetadata
-			if err := jsonutil.Unmarshal(data, &roundTrip); err != nil {
+			if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &roundTrip); err != nil {
 				t.Fatal(err)
 			}
 			if test.parent == nil {
