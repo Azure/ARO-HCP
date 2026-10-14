@@ -74,7 +74,7 @@ var letsEncryptStagingCAs embed.FS
 const certManagerManifestURL = "https://github.com/cert-manager/cert-manager/releases/download/v1.20.2/cert-manager.yaml"
 
 var _ = Describe("Customer", func() {
-	DescribeTable("should be able to issue the default ingress serving certificate from Let's Encrypt using cert-manager with ACME DNS-01 challenges ",
+	DescribeTable("should be able to issue the default ingress serving certificate from Let's Encrypt using cert-manager with ACME DNS-01 challenges",
 		labels.RequireNothing,
 		labels.High,
 		labels.Positive,
