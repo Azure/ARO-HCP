@@ -117,7 +117,7 @@ func runUpdateRepositories(ctx context.Context, opts *options.RawUpdateOptions) 
 	// A repository version upgrade needs a human to confirm GA status
 	// before it is merged, so it is deliberately never automated.
 	if opts.AutomationRequested() {
-		return fmt.Errorf("--commit cannot be used with --repositories")
+		return fmt.Errorf("--commit and --materialize cannot be used with --repositories")
 	}
 
 	cfg, err := config.Load(opts.ConfigPath)

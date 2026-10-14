@@ -74,6 +74,9 @@ type Options struct {
 	// GitUser and GitEmail are the commit identity. Only used with Commit.
 	GitUser  string
 	GitEmail string
+	// Materialize regenerates the ACM helm charts and the rendered
+	// configuration after the digest update.
+	Materialize bool
 }
 
 // ImageUpdater fetches the latest digests and records what changed.
@@ -144,6 +147,14 @@ func (p *Pipeline) Run(ctx context.Context) (*Result, error) {
 			return nil, err
 		}
 		result.Outcome = OutcomeCommitted
+	}
+
+	// Render after committing the digests, so the rendered output is a
+	// separate commit from the change that caused it.
+	if p.opts.Materialize {
+		if err := p.render(ctx, result); err != nil {
+			return nil, err
+		}
 	}
 
 	return result, nil
