@@ -1165,7 +1165,7 @@ spec:
             - name: REPORT_QUEUE
               value: "/azure-watson/queue"
             - name: MDSD_ROLE_PREFIX
-              value: "/var/run/mdsd/asa/"
+              value: "/var/run/mdsd/"
             - name: WA_CORE_PATTERN
               value: "/azure-watson/cores/%e.%p.%h.%t"
             - name: AUTHENTICATION_ID
