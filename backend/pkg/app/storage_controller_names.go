@@ -23,6 +23,7 @@ import (
 	credentialrequestdeletion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/credentialrequest/deletion"
 	clusterdeletion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/deletion"
 	clusterplacement "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/placement"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/version/rollout"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/metrics"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/mismatch"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
@@ -68,6 +69,7 @@ func BackendCleanupControllerFractions(fraction float64) map[string]float64 {
 		strings.ToLower(clusterplacement.PendingCleanupControllerName):                          fraction,
 		strings.ToLower(clusterdeletion.CleanOrphanedClusterManagedResourceGroupControllerName): fraction,
 		strings.ToLower(credentialrequestdeletion.SystemAdminCredentialRevokedGCControllerName): fraction,
+		strings.ToLower(rollout.RolloutRetirementControllerName):                                fraction,
 	}
 }
 

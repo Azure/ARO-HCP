@@ -26,7 +26,6 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/listers/fleetlisters"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/fleetlistertesting"
@@ -186,10 +185,10 @@ func TestCincinnatiSeedingQueuedFloorGuard(t *testing.T) {
 
 type cincinnatiFleetClient struct {
 	fleetcosmosstorage.FleetDBClient
-	crud cosmosstorageutils.ValidatingResourceCRUD[fleetapi.ControlPlaneVersionRollout, *fleetapi.ControlPlaneVersionRollout]
+	crud fleetcosmosstorage.ControlPlaneVersionRolloutsCRUD
 }
 
-func (c cincinnatiFleetClient) ControlPlaneVersionRollouts() cosmosstorageutils.ValidatingResourceCRUD[fleetapi.ControlPlaneVersionRollout, *fleetapi.ControlPlaneVersionRollout] {
+func (c cincinnatiFleetClient) ControlPlaneVersionRollouts() fleetcosmosstorage.ControlPlaneVersionRolloutsCRUD {
 	return c.crud
 }
 
@@ -203,7 +202,7 @@ func (c cincinnatiGetHook) Get(ctx context.Context, name string) (*fleetapi.Cont
 }
 
 type cincinnatiCreateError struct {
-	cosmosstorageutils.ValidatingResourceCRUD[fleetapi.ControlPlaneVersionRollout, *fleetapi.ControlPlaneVersionRollout]
+	fleetcosmosstorage.ControlPlaneVersionRolloutsCRUD
 	err error
 }
 

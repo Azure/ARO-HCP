@@ -20,7 +20,11 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
+	"github.com/google/uuid"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
@@ -251,14 +255,61 @@ func (m *MockFleetDBClient) HCPResourceRequirements() cosmosstorageutils.Resourc
 	)
 }
 
-func (m *MockFleetDBClient) ControlPlaneVersionRollouts() cosmosstorageutils.ValidatingResourceCRUD[fleetapi.ControlPlaneVersionRollout, *fleetapi.ControlPlaneVersionRollout] {
+func (m *MockFleetDBClient) ControlPlaneVersionRollouts() fleetcosmosstorage.ControlPlaneVersionRolloutsCRUD {
 	inner := newMockFleetResourceCRUD[fleetapi.ControlPlaneVersionRollout, *fleetapi.ControlPlaneVersionRollout, cosmosstorageutils.GenericDocument[fleetapi.ControlPlaneVersionRollout]](
 		m, nil, fleetapi.ControlPlaneVersionRolloutResourceType,
 	)
-	return cosmosstorageutils.NewValidatingCRUD(inner,
-		validation.ValidateControlPlaneVersionRolloutCreate,
-		validation.ValidateControlPlaneVersionRolloutUpdate,
-	)
+	return &mockControlPlaneVersionRolloutsCRUD{
+		ValidatingResourceCRUD: cosmosstorageutils.NewValidatingCRUD(inner,
+			validation.ValidateControlPlaneVersionRolloutCreate,
+			validation.ValidateControlPlaneVersionRolloutUpdate,
+		),
+		store: m,
+	}
+}
+
+type mockControlPlaneVersionRolloutsCRUD struct {
+	cosmosstorageutils.ValidatingResourceCRUD[fleetapi.ControlPlaneVersionRollout, *fleetapi.ControlPlaneVersionRollout]
+	store *MockFleetDBClient
+}
+
+func (m *mockControlPlaneVersionRolloutsCRUD) DeleteWithETag(ctx context.Context, resourceName string, expectedETag azcore.ETag) error {
+	rid, err := fleetapihelpers.ToControlPlaneVersionRolloutResourceID(resourceName)
+	if err != nil {
+		return err
+	}
+	cosmosID, err := coreapi.ResourceIDToCosmosID(rid)
+	if err != nil {
+		return err
+	}
+	// Keep the ETag check and tombstone write atomic, as Cosmos does for If-Match.
+	m.store.mu.Lock()
+	defer m.store.mu.Unlock()
+	data, ok := m.store.documents[cosmosID]
+	if !ok {
+		return nil
+	}
+	var doc cosmosstorageutils.GenericDocument[map[string]interface{}]
+	if err := json.Unmarshal(data, &doc); err != nil {
+		return fmt.Errorf("failed to unmarshal document for soft delete: %w", err)
+	}
+	if doc.DeletionTimestamp != nil {
+		return nil
+	}
+	if doc.CosmosETag != expectedETag {
+		return corecosmosstoragetesting.NewPreconditionFailedError()
+	}
+	if err := cosmosstorageutils.SetSoftDeleteFields(&doc, time.Now()); err != nil {
+		return err
+	}
+	doc.CosmosETag = azcore.ETag(uuid.NewString())
+	modified, err := json.Marshal(doc)
+	if err != nil {
+		return fmt.Errorf("failed to marshal soft-deleted document: %w", err)
+	}
+	m.store.documents[cosmosID] = modified
+	m.store.changeFeed.Record(modified)
+	return nil
 }
 
 func (m *MockFleetDBClient) GlobalListers() fleetcosmosstorage.FleetGlobalListers {
