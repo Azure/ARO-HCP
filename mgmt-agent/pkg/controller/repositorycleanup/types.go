@@ -102,7 +102,7 @@ type BackupRepositoryCleanupStatus struct {
 
 func CleanupName(uid types.UID) string { return "repo-" + string(uid) }
 
-// Observations contains live API observations, not informer-derived evidence.
+// Observations contains informer inventories and directly read lifecycle targets.
 // DependenciesComplete is set only after all dependency lists and the HC list
 // have been read completely. Partial observations can only block or attach
 // protection, never authorize destructive actions. Swept is an in-memory receipt

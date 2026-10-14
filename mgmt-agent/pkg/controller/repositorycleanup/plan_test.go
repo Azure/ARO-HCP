@@ -179,7 +179,6 @@ func TestRepositoryProtectionGates(t *testing.T) {
 		{"unsupported repo", func(o *Observations) {
 			_ = unstructured.SetNestedField(o.Repository.Object, "restic", "spec", "repositoryType")
 		}},
-		{"foreign finalizer manager", func(o *Observations) { owned(o.Repository, "other") }},
 		{"intent target collision", func(o *Observations) {
 			now := metav1.NewTime(o.Now)
 			o.Repository.SetDeletionTimestamp(&now)
@@ -284,6 +283,45 @@ func TestCleanupConsumerGates(t *testing.T) {
 				t.Fatal("terminal transfer should allow sweep")
 			}
 		})
+	}
+}
+
+func TestPodVolumeCancellationPlans(t *testing.T) {
+	for _, resource := range []struct {
+		gvr  schema.GroupVersionResource
+		kind string
+	}{
+		{PodVolumeBackupsGVR, "PodVolumeBackup"},
+		{PodVolumeRestoresGVR, "PodVolumeRestore"},
+	} {
+		for _, phase := range []string{"Canceled", "Canceling", "", "Unknown"} {
+			t.Run(resource.kind+"/"+phase, func(t *testing.T) {
+				o := fixture(t)
+				owned(o.Repository, RepositoryFieldManager)
+				operation := object(resource.gvr, resource.kind, "operation")
+				operation.Object["spec"] = map[string]interface{}{"pod": map[string]interface{}{"namespace": testVolume}}
+				operation.Object["status"] = map[string]interface{}{"phase": phase}
+				o.Objects[resource.gvr] = []unstructured.Unstructured{*operation}
+				repositoryPlan := PlanRepository(o)
+				o.Repository = nil
+				o.Objects[BackupRepositoriesGVR] = nil
+				cleanupPlan := PlanCleanup(o)
+				if phase == "Canceled" {
+					if len(repositoryPlan.Deletes) != 1 || repositoryPlan.Deletes[0].Resource != BackupRepositoriesGVR {
+						t.Fatalf("canceled pod-volume operation must permit repository retirement: %#v", repositoryPlan)
+					}
+					if cleanupPlan.DeletePrefix == nil {
+						t.Fatalf("canceled pod-volume operation must permit storage cleanup: %#v", cleanupPlan)
+					}
+				} else {
+					noDestruction(t, repositoryPlan)
+					noDestruction(t, cleanupPlan)
+					if cleanupPlan.Condition == nil || cleanupPlan.Condition.Reason != Blocked {
+						t.Fatalf("unfinished or unknown pod-volume operation must block cleanup: %#v", cleanupPlan)
+					}
+				}
+			})
+		}
 	}
 }
 
@@ -419,10 +457,6 @@ func TestSSAFinalizerOwnership(t *testing.T) {
 			if !hasFinalizer(live) || !slices.Contains(live.GetFinalizers(), "another.example/finalizer") {
 				t.Fatalf("SSA must preserve foreign finalizers: %v", live.GetFinalizers())
 			}
-			ours, another := finalizerOwnership(live, tc.manager)
-			if !ours || another {
-				t.Fatalf("incorrect managedFields interpretation: %v", live.GetManagedFields())
-			}
 			release := finalizerApply(live, tc.gvr, tc.manager, false)
 			if err := f.Apply(release.Object, tc.manager, false); err != nil {
 				t.Fatal(err)
@@ -438,7 +472,7 @@ func TestSSAFinalizerOwnership(t *testing.T) {
 	}
 }
 
-func TestSSAAdoptedFinalizerFailsClosed(t *testing.T) {
+func TestSSASharedFinalizerRemainsAfterOmission(t *testing.T) {
 	f := testFieldManager(t, BackupRepositoriesGVR, "BackupRepository")
 	u := baseApply(BackupRepositoriesGVR, "BackupRepository", "repository")
 	u.SetFinalizers([]string{Finalizer})
@@ -449,23 +483,31 @@ func TestSSAAdoptedFinalizerFailsClosed(t *testing.T) {
 		t.Fatal(err)
 	}
 	live := f.Live().(*unstructured.Unstructured)
-	ours, other := finalizerOwnership(live, RepositoryFieldManager)
-	if !ours || !other {
-		t.Fatalf("must detect co-owned persisted finalizer: %#v", live.GetManagedFields())
-	}
-	o := fixture(t)
-	owned(o.Repository, RepositoryFieldManager)
-	o.Repository.SetManagedFields(live.GetManagedFields())
-	noDestruction(t, PlanRepository(o))
-	// A prior erroneous use of our dedicated manager must not authorize
-	// omission of another finalizer that it happens to own.
-	u.SetFinalizers([]string{Finalizer, "another.example/finalizer"})
-	if err := f.Apply(u, RepositoryFieldManager, false); err != nil {
+	release := finalizerApply(live, BackupRepositoriesGVR, RepositoryFieldManager, false)
+	if err := f.Apply(release.Object, RepositoryFieldManager, false); err != nil {
 		t.Fatal(err)
 	}
-	_, other = finalizerOwnership(f.Live().(*unstructured.Unstructured), RepositoryFieldManager)
-	if !other {
-		t.Fatal("must reject a manager that owns unrelated finalizers")
+	if !hasFinalizer(f.Live().(*unstructured.Unstructured)) {
+		t.Fatal("SSA omission must leave the other manager's finalizer in place")
+	}
+}
+
+func TestFinalizerFieldManagerDoesNotGatePlanning(t *testing.T) {
+	o := fixture(t)
+	owned(o.Repository, "another-manager")
+	if p := PlanRepository(o); len(p.Deletes) != 1 {
+		t.Fatalf("present finalizer must permit retirement regardless of manager: %#v", p)
+	}
+	now := metav1.NewTime(o.Now)
+	o.Repository.SetDeletionTimestamp(&now)
+	owned(o.Cleanup, "another-manager")
+	if p := PlanRepository(o); len(p.Applies) != 1 || hasFinalizer(p.Applies[0].Object) {
+		t.Fatalf("matching protected intent must permit repository release: %#v", p)
+	}
+	o.Repository = nil
+	o.Objects[BackupRepositoriesGVR] = nil
+	if p := PlanCleanup(o); p.DeletePrefix == nil {
+		t.Fatalf("cleanup must proceed regardless of finalizer manager: %#v", p)
 	}
 }
 

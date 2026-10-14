@@ -216,9 +216,6 @@ func testCleanupAPIFinalizers(t *testing.T, client dynamic.Interface) {
 			if got := protected.GetFinalizers(); len(got) != 2 || !slices.Contains(got, foreign) || !slices.Contains(got, Finalizer) {
 				t.Fatalf("SSA add lost finalizers: %v", got)
 			}
-			if ours, other := finalizerOwnership(protected, tc.manager); !ours || other {
-				t.Fatalf("actual managedFields do not give exclusive ownership of our finalizer: ours=%v other=%v", ours, other)
-			}
 			if err := resource.Delete(ctx, obj.GetName(), metav1.DeleteOptions{}); err != nil {
 				t.Fatal(err)
 			}
@@ -305,6 +302,17 @@ func testCleanupAPILifecycle(t *testing.T, client dynamic.Interface) {
 	}}
 	reconcile := func(gvr schema.GroupVersionResource, name string) time.Duration {
 		t.Helper()
+		// Populate synchronized informer observations for this deterministic step;
+		// production uses list/watch to share the same inventory across workers.
+		observed := Observations{Objects: map[schema.GroupVersionResource][]unstructured.Unstructured{}}
+		for _, resource := range RequiredResources() {
+			list, err := client.Resource(resource).Namespace(metav1.NamespaceAll).List(ctx, metav1.ListOptions{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			observed.Objects[resource] = list.Items
+		}
+		c.informers = observationInformers(t, observed)
 		delay, err := c.reconcile(ctx, key{Resource: gvr, Name: name})
 		if err != nil {
 			t.Fatalf("reconcile %s/%s: %v", gvr.Resource, name, err)

@@ -204,8 +204,11 @@ Backups; an annotation on a HostedCluster alone does not protect backups.
 
 The management agent's `RepositoryCleanup` controller retires recognized ARO
 Kopia repositories in `velero`, including existing ones observed at startup.
-Both cleanup controllers separate pure plans from API execution: informer caches
-only route work, live API reads authorize actions, and handlers re-read/replan
+Both cleanup controllers separate pure plans from API execution. Repository cleanup
+reads inventories from shared informer caches and indexes maintenance Jobs/Pods by
+repository, source volume and Job ownership. Lifecycle targets and handoff records
+are read directly; destructive steps additionally confirm HostedCluster absence
+and the repository's label-selected maintenance Jobs/Pods. Workers re-read/replan
 before mutations. Writes use non-forced server-side apply (SSA); Kubernetes
 deletes use UID/resourceVersion preconditions. Errors or ambiguous evidence block
 cleanup, rather than expanding its scope.
@@ -217,6 +220,8 @@ cleanup, rather than expanding its scope.
    no matching or unscoped Schedules or Backups, no potentially associated active
    uploads/downloads/restores or pod-volume operations, and no repository sharing
    or ambiguously aliasing the physical prefix. A paused Schedule still blocks.
+   `Canceled` uploads, downloads, PodVolumeBackups and PodVolumeRestores are
+   terminal; `Canceling`, missing and unknown phases continue to block retirement.
 3. The controller requests repository deletion, then applies a
    `mgmtagent.aro-hcp.azure.com/v1alpha1` `BackupRepositoryCleanup` named
    `repo-<repository-UID>` in `velero`. Its whole spec is immutable: repository
@@ -368,7 +373,10 @@ Velero authenticates to Azure Blob Storage using workload identity. The Velero s
 
 Repository cleanup uses the **mgmt-agent identity**, with Storage Blob Data
 Contributor scoped to this management cluster's backup **container**, not the
-whole storage account. Deploy the management-cluster infrastructure role
+whole storage account. The shared Azure credential requires explicit
+`AZURE_TOKEN_CREDENTIALS` configuration; the deployment selects
+`WorkloadIdentityCredential`.
+Deploy the management-cluster infrastructure role
 assignment first and allow Azure RBAC propagation before rolling out the agent.
 The cleanup CRD (including whole-spec immutability) and Kubernetes permissions
 must also be installed before the controller starts. Preserve Velero's existing
@@ -430,7 +438,7 @@ Inspect the cleanup's immutable target, finalizer and `status.conditions` of typ
 
 | Reason | Meaning |
 |---|---|
-| `Blocked` | Preservation, live consumers, ambiguous storage/identity, or finalizer ownership needs attention. |
+| `Blocked` | Preservation, live consumers, or ambiguous storage/identity needs attention. |
 | `WaitingForRepository` | The repository name still exists, including a replacement with a different UID. |
 | `DrainingMaintenance` | Maintenance is active/ambiguous or terminal Jobs/Pods are being removed. |
 | `DeletingBlobs` | The scoped Azure prefix sweep is pending/in progress. |
