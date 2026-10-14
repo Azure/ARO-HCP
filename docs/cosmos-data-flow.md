@@ -881,6 +881,16 @@ field/condition edges in the lifecycle DOT sources and PNGs below.
 revocation” in Trigger identify the resource key passed to the shared watching
 wrapper. These wrappers also map related document events onto the owning key;
 where supplied, union kube-applier informers add mirrored-resource events.
+Watching-controller constructors expose `AddInterestingResource` through their
+returned controller API; calls are handled by the underlying generic controller.
+The filter is opt-in: no production interests are registered here, so existing
+controllers continue accepting all events from their configured informers.
+Callers can later register resource types and names (case-insensitive, with `*`
+matching any name of a registered type). The filter applies once to the incoming
+event before resolving its owning key, so an accepted child event can traverse
+unregistered ancestors while respecting the maximum depth. Explicit enqueues and
+error retries bypass resource-event filtering; accepted resync events still obey
+cooldowns. This capability does not change domain writes or lifecycle diagrams.
 Controllers using the default active-operation cooldown run at most every 10s
 with an active operation and every five minutes without one; see
 [cooldown.go](../backend/pkg/utils/controllerutils/cooldown.go).

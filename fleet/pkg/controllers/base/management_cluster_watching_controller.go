@@ -91,7 +91,7 @@ func NewManagementClusterWatchingController(
 	managementClusterInformer cache.SharedIndexInformer,
 	resyncDuration time.Duration,
 	syncer ManagementClusterSyncer,
-) Controller {
+) WatchingController {
 	mcSyncer := &managementClusterWatchingController{
 		name:          name,
 		syncer:        syncer,

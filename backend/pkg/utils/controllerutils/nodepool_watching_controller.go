@@ -68,7 +68,7 @@ func NewNodePoolWatchingController(
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 	resyncDuration time.Duration,
 	syncer NodePoolSyncer,
-) Controller {
+) WatchingController {
 	controller := &nodePoolWatchingController{
 		name:              name,
 		resourcesDBClient: resourcesDBClient,
