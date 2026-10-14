@@ -698,9 +698,15 @@ deletion polling, or second inventory scan are performed. Azure authorization
 propagation can still lag behind successful deletion; checking resource absence
 would not guarantee authorization-cache convergence.
 
-All admission ARM requests run serially, finishing each container's identity
-inventory before moving to the next container. Azure SDK throttling retries
-remain enabled. A clean inventory returns without deletion calls.
+Inventory reads run serially, finishing each container's identity inventory
+before moving to the next container. Role assignment deletes run with at most
+`--admission-cleanup-workers` concurrent requests (`ARO_HCP_ADMISSION_CLEANUP_WORKERS`,
+default 1, so serial). All deletes share the admission deadline. Raise it only
+for low-concurrency environments: ARM throttles deletes per subscription and
+service principal (token bucket of 200, refilled at 10 per second), and every
+slot admitted concurrently in the same subscription adds its workers to that
+budget. Azure SDK throttling retries remain enabled. A clean inventory returns
+without deletion calls.
 
 A missing required identity, invalid principal metadata, incomplete enumeration,
 or deletion error (including exhausted SDK retries) fails acquisition before
