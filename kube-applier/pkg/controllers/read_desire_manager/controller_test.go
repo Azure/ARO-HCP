@@ -316,3 +316,7 @@ type noopStatusWriter[T any, K comparable] struct{}
 func (noopStatusWriter[T, K]) UpdateStatus(ctx context.Context, key K, mutate desirestatuswriter.MutateFunc[T]) error {
 	return nil
 }
+
+func (noopStatusWriter[T, K]) UpdateStatusFrom(context.Context, *T, desirestatuswriter.MutateFunc[T]) error {
+	panic("ReadDesireInformerManagingController must use UpdateStatus")
+}

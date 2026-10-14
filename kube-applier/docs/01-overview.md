@@ -83,8 +83,9 @@ The well-known condition types per the readme:
   target gone (`WaitingForDeletion` while finalizers run).
 - `Successful` &mdash; retained for backwards compatibility. For an ApplyDesire
   it mirrors whichever operation-specific condition applies; it is the primary
-  condition for a ReadDesire. Readers prefer the operation-specific condition and
-  fall back to `Successful` (`kubeapplierapi.IsConditionTruePreferring`).
+  condition for a ReadDesire. Apply readers prefer `SuccessfullyApplied` and
+  fall back to `Successful` only when it is absent. Delete readers must require
+  `SuccessfullyDeleted` without a legacy fallback.
 - `Degraded` &mdash; controller-level health (replaces the existing
   `Controller` resource's `Degraded`).
 

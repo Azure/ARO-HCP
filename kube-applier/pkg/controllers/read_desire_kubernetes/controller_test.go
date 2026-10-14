@@ -99,6 +99,10 @@ func (w *recordingWriter) UpdateStatus(ctx context.Context, key keys.ReadDesireK
 	return nil
 }
 
+func (*recordingWriter) UpdateStatusFrom(context.Context, *kubeapplierapi.ReadDesire, desirestatuswriter.MutateFunc[kubeapplierapi.ReadDesire]) error {
+	panic("ReadDesireKubernetesController must use UpdateStatus")
+}
+
 func configMapTarget(name string) kubeapplierapi.ResourceReference {
 	return kubeapplierapi.ResourceReference{
 		Group: "", Version: "v1", Resource: "configmaps", Namespace: testTargetNs, Name: name,

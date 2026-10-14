@@ -109,8 +109,9 @@ const (
 
     // Successful is retained for backwards compatibility. For an ApplyDesire it
     // mirrors whichever operation-specific condition applies; it is the primary
-    // condition for a ReadDesire. Readers prefer the operation-specific condition
-    // and fall back to Successful (see IsConditionTruePreferring).
+    // condition for a ReadDesire. Apply readers prefer SuccessfullyApplied and
+    // fall back to Successful only when it is absent. Delete readers must require
+    // SuccessfullyDeleted without a legacy fallback.
     ConditionSuccessful = "Successful"
 
     ConditionDegraded = "Degraded"
