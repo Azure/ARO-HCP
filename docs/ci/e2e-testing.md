@@ -61,11 +61,11 @@ The DEV `e2e-parallel` job is different. Because it provisions the DEV RP footpr
 
 ## Running Only Specific Tests
 
-When validating a single test or a small subset of tests, you can temporarily filter which tests run by modifying `test/cmd/aro-hcp-tests/main.go`.
+When validating a single test or a small subset of tests, you can temporarily filter which tests run by modifying `test/cmd/aro-hcp-tests/cli.go`.
 
 ### Example: Filter by Test Name
 
-In [`test/cmd/aro-hcp-tests/main.go`](../../test/cmd/aro-hcp-tests/main.go), uncomment and modify the `MustFilter` line to match only the tests you want:
+In [`test/cmd/aro-hcp-tests/cli.go`](../../test/cmd/aro-hcp-tests/cli.go), uncomment and modify the `MustFilter` line to match only the tests you want:
 
 ```go
 // Specs can be globally filtered...
@@ -83,7 +83,7 @@ This uses [CEL expressions](https://github.com/google/cel-spec) to filter test s
    git checkout -b test/validate-my-test
    ```
 
-2. Edit `test/cmd/aro-hcp-tests/main.go` and add a filter:
+2. Edit `test/cmd/aro-hcp-tests/cli.go` and add a filter:
 
    ```go
    specs = specs.MustFilter([]string{`name.contains("MyTestName")`})
