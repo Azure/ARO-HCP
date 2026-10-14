@@ -42,8 +42,13 @@ type FleetDBClient interface {
 	cosmosstorageutils.ChangeFeedClient
 	Stamps() StampsCRUD
 	HCPResourceRequirements() cosmosstorageutils.ResourceCRUD[fleetapi.HCPResourceRequirements, *fleetapi.HCPResourceRequirements]
-	ControlPlaneVersionRollouts() cosmosstorageutils.ValidatingResourceCRUD[fleetapi.ControlPlaneVersionRollout, *fleetapi.ControlPlaneVersionRollout]
+	ControlPlaneVersionRollouts() ControlPlaneVersionRolloutsCRUD
 	GlobalListers() FleetGlobalListers
+}
+
+type ControlPlaneVersionRolloutsCRUD interface {
+	cosmosstorageutils.ValidatingResourceCRUD[fleetapi.ControlPlaneVersionRollout, *fleetapi.ControlPlaneVersionRollout]
+	cosmosstorageutils.ConditionalDeleter
 }
 
 // StampsCRUD provides CRUD operations for stamps and access to their
@@ -116,17 +121,25 @@ func (c *cosmosFleetDBClient) HCPResourceRequirements() cosmosstorageutils.Resou
 		cosmosstorageutils.FleetPartitionKeyDeriver{}, cosmosstorageutils.FleetResourceIDBuilder{})
 }
 
-func (c *cosmosFleetDBClient) ControlPlaneVersionRollouts() cosmosstorageutils.ValidatingResourceCRUD[fleetapi.ControlPlaneVersionRollout, *fleetapi.ControlPlaneVersionRollout] {
+func (c *cosmosFleetDBClient) ControlPlaneVersionRollouts() ControlPlaneVersionRolloutsCRUD {
 	// ControlPlaneVersionRollouts share a single partition keyed by the provider
 	// namespace (there are only a handful fleet-wide, one per y-stream channel),
 	// so the whole set can be listed with a single-partition query.
 	inner := cosmosstorageutils.NewCosmosResourceCRUDWithStrategies[fleetapi.ControlPlaneVersionRollout, *fleetapi.ControlPlaneVersionRollout, cosmosstorageutils.GenericDocument[fleetapi.ControlPlaneVersionRollout]](
 		c.container, nil, fleetapi.ControlPlaneVersionRolloutResourceType,
 		cosmosstorageutils.ProviderNamespacePartitionKeyDeriver{}, cosmosstorageutils.FleetResourceIDBuilder{})
-	return cosmosstorageutils.NewValidatingCRUD(inner,
-		validation.ValidateControlPlaneVersionRolloutCreate,
-		validation.ValidateControlPlaneVersionRolloutUpdate,
-	)
+	return &cosmosControlPlaneVersionRolloutsCRUD{
+		ValidatingResourceCRUD: cosmosstorageutils.NewValidatingCRUD(inner,
+			validation.ValidateControlPlaneVersionRolloutCreate,
+			validation.ValidateControlPlaneVersionRolloutUpdate,
+		),
+		ConditionalDeleter: inner,
+	}
+}
+
+type cosmosControlPlaneVersionRolloutsCRUD struct {
+	cosmosstorageutils.ValidatingResourceCRUD[fleetapi.ControlPlaneVersionRollout, *fleetapi.ControlPlaneVersionRollout]
+	cosmosstorageutils.ConditionalDeleter
 }
 
 func (c *cosmosFleetDBClient) GlobalListers() FleetGlobalListers {

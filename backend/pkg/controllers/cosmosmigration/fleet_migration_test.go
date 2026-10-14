@@ -104,15 +104,15 @@ func TestMigrateFleetPersistsVersionAndPreservesRollout(t *testing.T) {
 
 type migrationFleetDB struct {
 	fleetcosmosstorage.FleetDBClient
-	crud cosmosstorageutils.ValidatingResourceCRUD[fleetapi.ControlPlaneVersionRollout, *fleetapi.ControlPlaneVersionRollout]
+	crud fleetcosmosstorage.ControlPlaneVersionRolloutsCRUD
 }
 
-func (db migrationFleetDB) ControlPlaneVersionRollouts() cosmosstorageutils.ValidatingResourceCRUD[fleetapi.ControlPlaneVersionRollout, *fleetapi.ControlPlaneVersionRollout] {
+func (db migrationFleetDB) ControlPlaneVersionRollouts() fleetcosmosstorage.ControlPlaneVersionRolloutsCRUD {
 	return db.crud
 }
 
 type migrationRolloutCRUD struct {
-	cosmosstorageutils.ValidatingResourceCRUD[fleetapi.ControlPlaneVersionRollout, *fleetapi.ControlPlaneVersionRollout]
+	fleetcosmosstorage.ControlPlaneVersionRolloutsCRUD
 	get     func(context.Context, string) (*fleetapi.ControlPlaneVersionRollout, error)
 	replace func(context.Context, *fleetapi.ControlPlaneVersionRollout, *fleetapi.ControlPlaneVersionRollout, *azcosmos.ItemOptions) (*fleetapi.ControlPlaneVersionRollout, error)
 }
@@ -121,7 +121,7 @@ func (c migrationRolloutCRUD) Get(ctx context.Context, name string) (*fleetapi.C
 	if c.get != nil {
 		return c.get(ctx, name)
 	}
-	return c.ValidatingResourceCRUD.Get(ctx, name)
+	return c.ControlPlaneVersionRolloutsCRUD.Get(ctx, name)
 }
 
 func (c migrationRolloutCRUD) Replace(ctx context.Context, next, old *fleetapi.ControlPlaneVersionRollout, opts *azcosmos.ItemOptions) (*fleetapi.ControlPlaneVersionRollout, error) {
@@ -135,7 +135,7 @@ func TestMigrateFleetRetriesConcurrentWrite(t *testing.T) {
 	attempts := 0
 	var concurrent *fleetapi.ControlPlaneVersionRollout
 	c := &cosmosRolloutVersionMigrationController{fleetDBClient: migrationFleetDB{crud: migrationRolloutCRUD{
-		ValidatingResourceCRUD: crud,
+		ControlPlaneVersionRolloutsCRUD: crud,
 		replace: func(ctx context.Context, next, old *fleetapi.ControlPlaneVersionRollout, opts *azcosmos.ItemOptions) (*fleetapi.ControlPlaneVersionRollout, error) {
 			attempts++
 			require.NotSame(t, old, next)
@@ -169,7 +169,7 @@ func TestMigrateFleetHandlesDeletion(t *testing.T) {
 			crud := db.ControlPlaneVersionRollouts()
 			var tombstone json.RawMessage
 			c := &cosmosRolloutVersionMigrationController{fleetDBClient: migrationFleetDB{crud: migrationRolloutCRUD{
-				ValidatingResourceCRUD: crud,
+				ControlPlaneVersionRolloutsCRUD: crud,
 				get: func(ctx context.Context, name string) (*fleetapi.ControlPlaneVersionRollout, error) {
 					switch stage {
 					case "get":
@@ -218,7 +218,7 @@ func TestMigrateRolloutCompletionIsIndependentAndSurvivesUpdates(t *testing.T) {
 	calls := map[string]int{}
 	failOther := true
 	c := &cosmosRolloutVersionMigrationController{fleetDBClient: migrationFleetDB{crud: migrationRolloutCRUD{
-		ValidatingResourceCRUD: crud,
+		ControlPlaneVersionRolloutsCRUD: crud,
 		replace: func(ctx context.Context, next, old *fleetapi.ControlPlaneVersionRollout, opts *azcosmos.ItemOptions) (*fleetapi.ControlPlaneVersionRollout, error) {
 			calls[old.ResourceID.Name]++
 			if failOther && old.ResourceID.Name == other.ResourceID.Name {

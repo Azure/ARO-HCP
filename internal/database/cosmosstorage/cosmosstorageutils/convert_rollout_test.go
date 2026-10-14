@@ -27,6 +27,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clocktesting "k8s.io/utils/clock/testing"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
@@ -153,4 +154,41 @@ func TestRolloutVersionNormalizationPersistence(t *testing.T) {
 	require.Empty(t, cmp.Diff(updated, read, cmp.AllowUnexported(azcorearm.ResourceID{}, azcorearm.ResourceType{})))
 	require.Empty(t, cmp.Diff(writer.Spec.BestExactVersion, read.Spec.BestExactVersion))
 	require.Empty(t, cmp.Diff(writer.Status, read.Status))
+}
+
+func TestMockRolloutConditionalSoftDelete(t *testing.T) {
+	t.Parallel()
+	db := fleetcosmosstoragetesting.NewMockFleetDBClient()
+	crud := db.ControlPlaneVersionRollouts()
+	rid, err := fleetapihelpers.ToControlPlaneVersionRolloutResourceID("stable-4.19")
+	require.NoError(t, err)
+	created, err := crud.Create(t.Context(), &fleetapi.ControlPlaneVersionRollout{
+		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: rid, PartitionKey: strings.ToLower(coreapi.ProviderNamespace)},
+		Spec:           fleetapi.ControlPlaneVersionRolloutSpec{Version: coreapi.VersionProfile{ID: "4.19", ChannelGroup: "stable"}},
+	}, nil)
+	require.NoError(t, err)
+	before := db.GetAllDocuments()
+	for _, etag := range []azcore.ETag{"stale", ""} {
+		err := crud.DeleteWithETag(t.Context(), rid.Name, etag)
+		require.True(t, cosmosstorageutils.IsPreconditionFailedError(err), "mismatched ETag returns 412: %v", err)
+		require.Equal(t, before, db.GetAllDocuments(), "failed precondition preserves storage")
+	}
+	require.NoError(t, crud.DeleteWithETag(t.Context(), rid.Name, created.CosmosETag))
+	_, err = crud.Get(t.Context(), rid.Name)
+	require.True(t, cosmosstorageutils.IsNotFoundError(err), "soft-deleted rollout is hidden: %v", err)
+	raw, ok := db.GetDocument(created.GetCosmosUID())
+	require.True(t, ok, "tombstone remains until TTL expiration")
+	var deleted cosmosstorageutils.GenericDocument[fleetapi.ControlPlaneVersionRollout]
+	require.NoError(t, json.Unmarshal(raw, &deleted))
+	require.NotNil(t, deleted.DeletionTimestamp)
+	require.EqualValues(t, cosmosstorageutils.SoftDeleteTTLSeconds, deleted.TimeToLive)
+	require.Equal(t, created.InstanceVersion+1, deleted.Content.InstanceVersion)
+	require.NotEqual(t, created.CosmosETag, deleted.CosmosETag)
+	require.Equal(t, created.Spec, deleted.Content.Spec)
+	before = db.GetAllDocuments()
+	require.NoError(t, crud.DeleteWithETag(t.Context(), rid.Name, created.CosmosETag), "stale ETag succeeds for tombstones")
+	require.Equal(t, before, db.GetAllDocuments(), "idempotent delete does not refresh TTL or ETag")
+	db.DeleteDocument(created.GetCosmosUID())
+	require.NoError(t, crud.DeleteWithETag(t.Context(), rid.Name, created.CosmosETag), "missing rollout succeeds")
+	require.Empty(t, db.GetAllDocuments())
 }
