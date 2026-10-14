@@ -23,6 +23,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/tooling/image-updater/internal/clients"
 	"github.com/Azure/ARO-HCP/tooling/image-updater/internal/config"
+	"github.com/Azure/ARO-HCP/tooling/image-updater/internal/pipeline"
 	"github.com/Azure/ARO-HCP/tooling/image-updater/internal/updater"
 	"github.com/Azure/ARO-HCP/tooling/image-updater/internal/yaml"
 )
@@ -39,6 +40,14 @@ type RawUpdateOptions struct {
 	OutputFormat       string
 	UpdateTags         bool
 	UpdateRepositories bool
+
+	// Automation options drive the stages that the Prow step-registry bash
+	// script used to perform around this tool. They are off by default, so
+	// a developer running the updater by hand gets only a digest update.
+	Commit   bool
+	RepoRoot string
+	GitUser  string
+	GitEmail string
 }
 
 // ValidatedUpdateOptions contains validated configuration and inputs
@@ -51,10 +60,20 @@ type validatedUpdateOptions struct {
 	Config *config.Config
 }
 
+// Defaults for the automation options, chosen to match the environment
+// contract of the Prow step-registry ref they replace.
+const (
+	DefaultGitUser  = "aro-hcp-robot[bot]"
+	DefaultGitEmail = "aro-hcp-robot[bot]@users.noreply.github.com"
+)
+
 // DefaultUpdateOptions returns a new RawUpdateOptions with defaults
 func DefaultUpdateOptions() *RawUpdateOptions {
 	return &RawUpdateOptions{
 		OutputFormat: "table",
+		RepoRoot:     ".",
+		GitUser:      DefaultGitUser,
+		GitEmail:     DefaultGitEmail,
 	}
 }
 
@@ -72,11 +91,35 @@ func BindUpdateOptions(opts *RawUpdateOptions, cmd *cobra.Command) error {
 	cmd.Flags().BoolVarP(&opts.UpdateRepositories, "repositories", "r", false, "Check and update repository version upgrades")
 	cmd.MarkFlagsMutuallyExclusive("tags", "repositories")
 
+	cmd.Flags().BoolVar(&opts.Commit, "commit", false, "Commit the changes produced by the update. Requires --tags")
+	cmd.Flags().StringVar(&opts.RepoRoot, "repo-root", ".", "Directory inside the git repository to operate on. The repository root is discovered from it")
+	cmd.Flags().StringVar(&opts.GitUser, "git-user", DefaultGitUser, "Commit author name used by --commit")
+	cmd.Flags().StringVar(&opts.GitEmail, "git-email", DefaultGitEmail, "Commit author email used by --commit")
+
+	// A dry run writes nothing, so there would be nothing to commit.
+	// Failing is clearer than silently producing an empty commit stage.
+	cmd.MarkFlagsMutuallyExclusive("dry-run", "commit")
+
 	if err := cmd.MarkFlagRequired("config"); err != nil {
 		return err
 	}
 
 	return nil
+}
+
+// AutomationRequested reports whether any stage beyond the digest update was
+// asked for. When nothing was, the tool runs exactly as it always has.
+func (o *RawUpdateOptions) AutomationRequested() bool {
+	return o.Commit
+}
+
+// PipelineOptions projects the raw flags onto the pipeline's configuration.
+func (o *RawUpdateOptions) PipelineOptions() pipeline.Options {
+	return pipeline.Options{
+		Commit:   o.Commit,
+		GitUser:  o.GitUser,
+		GitEmail: o.GitEmail,
+	}
 }
 
 // Validate validates the raw options and returns validated options

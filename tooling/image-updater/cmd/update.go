@@ -19,10 +19,14 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
 
+	"github.com/Azure/ARO-HCP/tooling/image-updater/internal/command"
 	"github.com/Azure/ARO-HCP/tooling/image-updater/internal/config"
+	"github.com/Azure/ARO-HCP/tooling/image-updater/internal/git"
 	"github.com/Azure/ARO-HCP/tooling/image-updater/internal/options"
+	"github.com/Azure/ARO-HCP/tooling/image-updater/internal/pipeline"
 	"github.com/Azure/ARO-HCP/tooling/image-updater/internal/upgrade"
 )
 
@@ -83,13 +87,37 @@ func runUpdateTags(ctx context.Context, opts *options.RawUpdateOptions) error {
 		return err
 	}
 
-	return completed.UpdateImages(ctx)
+	// Without any automation flag the tool behaves exactly as it always
+	// has: update digests on disk and report them.
+	if !opts.AutomationRequested() {
+		return completed.UpdateImages(ctx)
+	}
+
+	censor := command.NewCensor()
+	repo, err := git.Discover(ctx, opts.RepoRoot, censor)
+	if err != nil {
+		return err
+	}
+
+	result, err := pipeline.New(completed, repo, opts.PipelineOptions()).Run(ctx)
+	if err != nil {
+		return err
+	}
+
+	logr.FromContextOrDiscard(ctx).V(1).Info("run finished",
+		"outcome", result.Outcome, "commits", len(result.Commits))
+	return nil
 }
 
 func runUpdateRepositories(ctx context.Context, opts *options.RawUpdateOptions) error {
 	// These flags are only meaningful for the default tags/digests mode
 	if opts.Components != "" || opts.Groups != "" || opts.ExcludeComponents != "" {
 		return fmt.Errorf("--components, --groups, and --exclude-components cannot be used with --repositories")
+	}
+	// A repository version upgrade needs a human to confirm GA status
+	// before it is merged, so it is deliberately never automated.
+	if opts.AutomationRequested() {
+		return fmt.Errorf("--commit cannot be used with --repositories")
 	}
 
 	cfg, err := config.Load(opts.ConfigPath)
