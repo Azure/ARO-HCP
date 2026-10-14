@@ -54,7 +54,14 @@ Split into two commits (see Commit Strategy below).
 
 #### 1. TypeSpec version enum
 
-Add a new enum variant to the `Versions` enum in the main `.tsp` file, following the pattern of existing entries. The member name uses the underscore form of NEW_PKG and the value uses the dash form of NEW_VERSION — both carry the `preview` / `-preview` token only for preview versions (e.g. `v2027_03_15_preview: "2027-03-15-preview"` for preview, `v2027_03_15: "2027-03-15"` for stable). Then regenerate: `cd api && npm run compile && npm run format`. This produces the OpenAPI spec, example files, and version directory for the new version. Note: per standard Azure REST API spec layout, TypeSpec emits preview versions under a `preview/` directory tree and stable versions under a `stable/` tree — expect generated paths (and any hard-coded `preview/` path references) to use the `stable/` equivalent for a stable version.
+Add a new variant to the `Versions` enum in the main `.tsp` file, following existing entries. The member name is the underscore form, the value the dash form; both carry the `preview` suffix only for preview versions:
+
+```
+v2027_03_15_preview: "2027-03-15-preview"   // preview
+v2027_03_15:         "2027-03-15"           // stable
+```
+
+Then regenerate: `cd api && npm run compile && npm run format`. This emits the OpenAPI spec, examples, and version directory — under `preview/` for preview versions, `stable/` for stable.
 
 #### 2. API build configuration
 
