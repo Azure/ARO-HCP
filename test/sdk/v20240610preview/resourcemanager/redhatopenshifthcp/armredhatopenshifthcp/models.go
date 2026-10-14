@@ -633,7 +633,7 @@ type NodePoolAutoScaling struct {
 	Max *int32
 
 	// The minimum number of nodes in the node pool. Validation:
-	// * Minimum: 1
+	// * Minimum: 0
 	// * Maximum: 200 (only when availabilityZone is not specified)
 	// * No maximum when availabilityZone is specified
 	Min *int32
