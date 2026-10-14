@@ -762,7 +762,7 @@ func TestBackupScheduleSyncer_SyncOnce(t *testing.T) {
 			},
 		},
 		{
-			name: "cluster marked for deletion purges successful Delete-type desires",
+			name: "cluster marked for deletion purges SuccessfullyDeleted Delete-type desires",
 			seedDB: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient) {
 				t.Helper()
 				now := metav1.Now()
@@ -804,7 +804,7 @@ func TestBackupScheduleSyncer_SyncOnce(t *testing.T) {
 						Tags: map[string]string{backup.DesireTagKeySchedule: ""},
 					}
 					applyDesire.Status.Conditions = []metav1.Condition{
-						{Type: kubeapplierapi.ConditionTypeSuccessful, Status: metav1.ConditionTrue},
+						{Type: kubeapplierapi.ConditionTypeSuccessfullyDeleted, Status: metav1.ConditionTrue},
 					}
 					created, err := applyDesireCRUD.Create(ctx, applyDesire, nil)
 					require.NoError(t, err)
