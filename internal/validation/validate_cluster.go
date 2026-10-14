@@ -143,7 +143,7 @@ func validateClusterVNetIntegrationSubnetID(_ context.Context, op operation.Oper
 		}
 		// UPDATE uses the stored subnet through platform immutability validation,
 		// so legacy/non-SWIFT clusters remain updatable without the tag or AFEC.
-		if op.Type == operation.Create && metadataapi.APIVersionFromOptions(EnabledValidationOptions(op.Options)).GE(metadataapi.APIVersionV20251223Preview) && !disableSwift {
+		if op.Type == operation.Create && metadataapi.APIVersionFromOptions(op.Options).GE(metadataapi.APIVersionV20251223Preview) && !disableSwift {
 			errs = append(errs, field.Required(subnetPath, "required unless the disable-swift experimental tag is true and ExperimentalReleaseFeatures is registered"))
 		}
 	}
@@ -1140,7 +1140,7 @@ func validateKmsKey(ctx context.Context, op operation.Operation, fldPath *field.
 
 	//Version   string `json:"version"`
 	// The version field was made mutable in version 2026-06-30-preview.
-	apiVersion := metadataapi.APIVersionFromOptions(EnabledValidationOptions(op.Options))
+	apiVersion := metadataapi.APIVersionFromOptions(op.Options)
 	if len(apiVersion) > 0 && apiVersion.LT(metadataapi.APIVersionV20260630Preview) {
 		errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("version"), &newObj.Version, safe.Field(oldObj, toKmsKeyVersion))...)
 	}
