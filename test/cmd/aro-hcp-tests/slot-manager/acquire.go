@@ -42,9 +42,6 @@ const (
 	DefaultLeaseWaitInterval = 1 * time.Minute
 	DefaultMaxWaitForLease   = 30 * time.Minute
 	DefaultAdmissionTimeout  = 10 * time.Minute
-	// DefaultAdmissionCleanupWorkers keeps admission cleanup serial unless an
-	// environment opts in to more parallelism.
-	DefaultAdmissionCleanupWorkers = 1
 )
 
 func DefaultAcquireOptions() *RawAcquireOptions {
@@ -54,19 +51,19 @@ func DefaultAcquireOptions() *RawAcquireOptions {
 		admissionTimeout = DefaultAdmissionTimeout.String()
 	}
 	return &RawAcquireOptions{
-		ClusterProfileDir:       strings.TrimSpace(os.Getenv("CLUSTER_PROFILE_DIR")),
-		ClusterProfileDirs:      splitSelectorValues(os.Getenv("CLUSTER_PROFILE_DIRS")),
-		Environment:             strings.TrimSpace(os.Getenv("ARO_HCP_SLOT_ENV")),
-		DeployEnv:               strings.TrimSpace(os.Getenv("ARO_HCP_DEPLOY_ENV")),
-		AllowedSubscriptions:    allowedSubscriptions,
-		AllowedLocations:        allowedLocations,
-		SelectedLocation:        selectedLocation,
-		LocationWeights:         strings.TrimSpace(os.Getenv("LOCATION_WEIGHTS")),
-		BuildID:                 strings.TrimSpace(os.Getenv("BUILD_ID")),
-		SharedDir:               strings.TrimSpace(os.Getenv("SHARED_DIR")),
-		DisabledAssetAdmission:  splitSelectorValues(os.Getenv("ARO_HCP_DISABLE_ASSET_ADMISSION")),
-		AdmissionTimeout:        admissionTimeout,
-		AdmissionCleanupWorkers: strings.TrimSpace(os.Getenv("ARO_HCP_ADMISSION_CLEANUP_WORKERS")),
+		ClusterProfileDir:      strings.TrimSpace(os.Getenv("CLUSTER_PROFILE_DIR")),
+		ClusterProfileDirs:     splitSelectorValues(os.Getenv("CLUSTER_PROFILE_DIRS")),
+		Environment:            strings.TrimSpace(os.Getenv("ARO_HCP_SLOT_ENV")),
+		DeployEnv:              strings.TrimSpace(os.Getenv("ARO_HCP_DEPLOY_ENV")),
+		AllowedSubscriptions:   allowedSubscriptions,
+		AllowedLocations:       allowedLocations,
+		SelectedLocation:       selectedLocation,
+		LocationWeights:        strings.TrimSpace(os.Getenv("LOCATION_WEIGHTS")),
+		BuildID:                strings.TrimSpace(os.Getenv("BUILD_ID")),
+		SharedDir:              strings.TrimSpace(os.Getenv("SHARED_DIR")),
+		DisabledAssetAdmission: splitSelectorValues(os.Getenv("ARO_HCP_DISABLE_ASSET_ADMISSION")),
+		AdmissionTimeout:       admissionTimeout,
+		AssetAdmissionOptions:  splitSelectorValues(os.Getenv("ARO_HCP_ASSET_ADMISSION_OPTIONS")),
 
 		LeaseProxyServerURL: strings.TrimSpace(os.Getenv("LEASE_PROXY_SERVER_URL")),
 		LeaseProxyTimeout:   slots.DefaultLeaseProxyTimeout,
@@ -149,7 +146,13 @@ func BindAcquireOptions(opts *RawAcquireOptions, cmd *cobra.Command) error {
 	cmd.Flags().StringVar(&opts.CatalogPath, "slot-catalog", opts.CatalogPath, "Path to the canonical E2E slot catalog")
 	cmd.Flags().StringSliceVar(&opts.DisabledAssetAdmission, "disable-asset-admission", opts.DisabledAssetAdmission, "Emergency opt-out of admission for named asset kinds (repeatable or comma-separated). All other assets remain admitted. Defaults from ARO_HCP_DISABLE_ASSET_ADMISSION.")
 	cmd.Flags().StringVar(&opts.AdmissionTimeout, "admission-timeout", opts.AdmissionTimeout, "Maximum duration for the entire asset admission phase (e.g. 20m). Defaults from ARO_HCP_ADMISSION_TIMEOUT, or 10m when unset.")
-	cmd.Flags().StringVar(&opts.AdmissionCleanupWorkers, "admission-cleanup-workers", opts.AdmissionCleanupWorkers, "Maximum number of cleanup operations (such as role assignment deletes) that run concurrently during asset admission. Must be at least 1. Defaults from ARO_HCP_ADMISSION_CLEANUP_WORKERS, or 1 when unset.")
+	assetAdmissionOptionUsage := "Per-asset admission option as <kind>.<key>=<value> (repeatable or comma-separated). Defaults from ARO_HCP_ASSET_ADMISSION_OPTIONS."
+	if opts.AssetRegistry != nil {
+		if registryUsage := opts.AssetRegistry.OptionsUsage(); registryUsage != "" {
+			assetAdmissionOptionUsage += "\nAvailable options:\n" + registryUsage
+		}
+	}
+	cmd.Flags().StringSliceVar(&opts.AssetAdmissionOptions, "asset-admission-option", opts.AssetAdmissionOptions, assetAdmissionOptionUsage)
 	cmd.Flags().StringVar(&opts.LeaseProxyServerURL, "lease-proxy-server-url", opts.LeaseProxyServerURL, "Lease proxy server URL")
 	cmd.Flags().DurationVar(&opts.LeaseProxyTimeout, "lease-proxy-timeout", opts.LeaseProxyTimeout, "Maximum time to spend probing a single candidate pool, including retryable proxy/network retries.")
 	cmd.Flags().DurationVar(&opts.MaxWaitForLease, "max-wait-for-lease", opts.MaxWaitForLease, "Maximum total time to keep retrying after full candidate-pool passes yield no immediate lease. Zero waits forever.")
@@ -159,28 +162,28 @@ func BindAcquireOptions(opts *RawAcquireOptions, cmd *cobra.Command) error {
 }
 
 type RawAcquireOptions struct {
-	WriteState              func(string, *slots.AcquiredSlotState) error
-	ClusterProfileDir       string
-	ClusterProfileDirs      []string
-	Environment             string
-	DeployEnv               string
-	AllowedSubscriptions    []string
-	AllowedLocations        []string
-	SelectedLocation        string
-	LocationWeights         string
-	BuildID                 string
-	SharedDir               string
-	CatalogPath             string
-	LeaseProxyServerURL     string
-	LeaseProxyTimeout       time.Duration
-	MaxWaitForLease         time.Duration
-	LeaseWaitInterval       time.Duration
-	Now                     func() time.Time
-	AssetRegistry           *assets.Registry
-	DisabledAssetAdmission  []string
-	AdmissionTimeout        string
-	AdmissionCleanupWorkers string
-	ResolveSubscriptions    func(context.Context, string, string, string, string) (slots.ResolvedSubscriptions, error)
+	WriteState             func(string, *slots.AcquiredSlotState) error
+	ClusterProfileDir      string
+	ClusterProfileDirs     []string
+	Environment            string
+	DeployEnv              string
+	AllowedSubscriptions   []string
+	AllowedLocations       []string
+	SelectedLocation       string
+	LocationWeights        string
+	BuildID                string
+	SharedDir              string
+	CatalogPath            string
+	LeaseProxyServerURL    string
+	LeaseProxyTimeout      time.Duration
+	MaxWaitForLease        time.Duration
+	LeaseWaitInterval      time.Duration
+	Now                    func() time.Time
+	AssetRegistry          *assets.Registry
+	DisabledAssetAdmission []string
+	AdmissionTimeout       string
+	AssetAdmissionOptions  []string
+	ResolveSubscriptions   func(context.Context, string, string, string, string) (slots.ResolvedSubscriptions, error)
 	// AzureGlobalLoggerLogPath is the file the Azure SDK's global logger writes
 	// to. See DefaultAcquireOptions for how the CLI computes a default.
 	AzureGlobalLoggerLogPath string
@@ -192,8 +195,7 @@ type RawAcquireOptions struct {
 
 type validatedAcquireOptions struct {
 	*RawAcquireOptions
-	admissionTimeout        time.Duration
-	admissionCleanupWorkers int
+	admissionTimeout time.Duration
 }
 
 type ValidatedAcquireOptions struct {
@@ -201,25 +203,24 @@ type ValidatedAcquireOptions struct {
 }
 
 type completedAcquireOptions struct {
-	AssetInventories        []slots.AssetInventory
-	WriteState              func(string, *slots.AcquiredSlotState) error
-	ClusterProfileDirs      []string
-	DeployEnvironment       string
-	SharedDir               string
-	LeaseProxyURL           string
-	LeaseProxyTimeout       time.Duration
-	MaxWaitForLease         time.Duration
-	LeaseWaitInterval       time.Duration
-	RegionSelection         RegionSelection
-	CandidatePools          []slots.Pool
-	PoolEnvironment         string
-	AssetRegistry           *assets.Registry
-	DisabledAssetAdmission  []assets.Kind
-	AdmissionTimeout        time.Duration
-	AdmissionCleanupWorkers int
-	ResolveSubscriptions    func(context.Context, string, string, string, string) (slots.ResolvedSubscriptions, error)
-	Now                     func() time.Time
-	Sleep                   func(context.Context, time.Duration) error
+	AssetInventories       []slots.AssetInventory
+	WriteState             func(string, *slots.AcquiredSlotState) error
+	ClusterProfileDirs     []string
+	DeployEnvironment      string
+	SharedDir              string
+	LeaseProxyURL          string
+	LeaseProxyTimeout      time.Duration
+	MaxWaitForLease        time.Duration
+	LeaseWaitInterval      time.Duration
+	RegionSelection        RegionSelection
+	CandidatePools         []slots.Pool
+	PoolEnvironment        string
+	AssetRegistry          *assets.Registry
+	DisabledAssetAdmission []assets.Kind
+	AdmissionTimeout       time.Duration
+	ResolveSubscriptions   func(context.Context, string, string, string, string) (slots.ResolvedSubscriptions, error)
+	Now                    func() time.Time
+	Sleep                  func(context.Context, time.Duration) error
 	// AzureGlobalLoggerCloser is the open azure-global-logger log file, produced
 	// by SetupAzureGlobalLogger during Complete. Run closes it, guarding against
 	// nil since it's reachable from code that doesn't call Complete.
@@ -291,19 +292,8 @@ func (o *RawAcquireOptions) Validate() (*ValidatedAcquireOptions, error) {
 	if admissionTimeout <= 0 {
 		return nil, errors.New("--admission-timeout must be greater than zero")
 	}
-	admissionCleanupWorkers := DefaultAdmissionCleanupWorkers
-	if o.AdmissionCleanupWorkers != "" {
-		var err error
-		admissionCleanupWorkers, err = strconv.Atoi(o.AdmissionCleanupWorkers)
-		if err != nil {
-			return nil, fmt.Errorf("--admission-cleanup-workers: %w", err)
-		}
-	}
-	if admissionCleanupWorkers < 1 {
-		return nil, errors.New("--admission-cleanup-workers must be at least 1")
-	}
 	return &ValidatedAcquireOptions{
-		validatedAcquireOptions: &validatedAcquireOptions{RawAcquireOptions: o, admissionTimeout: admissionTimeout, admissionCleanupWorkers: admissionCleanupWorkers},
+		validatedAcquireOptions: &validatedAcquireOptions{RawAcquireOptions: o, admissionTimeout: admissionTimeout},
 	}, nil
 }
 
@@ -363,6 +353,9 @@ func (o *ValidatedAcquireOptions) Complete(_ context.Context) (*AcquireOptions, 
 	if err := registry.ValidateRequirements(candidatePools); err != nil {
 		return nil, err
 	}
+	if err := registry.ApplyOptions(o.AssetAdmissionOptions); err != nil {
+		return nil, fmt.Errorf("--asset-admission-option: %w", err)
+	}
 	assetInventories, err := catalog.AssetInventories()
 	if err != nil {
 		return nil, err
@@ -406,7 +399,6 @@ func (o *ValidatedAcquireOptions) Complete(_ context.Context) (*AcquireOptions, 
 			AssetRegistry:           registry,
 			DisabledAssetAdmission:  disabledAssetAdmission,
 			AdmissionTimeout:        o.admissionTimeout,
-			AdmissionCleanupWorkers: o.admissionCleanupWorkers,
 			ResolveSubscriptions:    resolveSubscriptions,
 			Now:                     o.Now,
 			Sleep:                   sleepContext,
@@ -760,7 +752,7 @@ func (o *AcquireOptions) finalizeAcquiredLease(ctx context.Context, pool slots.P
 	if err != nil {
 		return err
 	}
-	request := assets.LeaseRequest{AcquiredSlotState: state, SelectedClusterProfileDir: profile, LeaseJournal: journal, CleanupWorkers: o.AdmissionCleanupWorkers}
+	request := assets.LeaseRequest{AcquiredSlotState: state, SelectedClusterProfileDir: profile, LeaseJournal: journal}
 	if err := o.AssetRegistry.AcquireLeases(ctx, request, o.AssetInventories); err != nil {
 		return err
 	}
@@ -774,7 +766,6 @@ func (o *AcquireOptions) finalizeAcquiredLease(ctx context.Context, pool slots.P
 		"assetCount", len(state.Slot.AssetRequirements),
 		"runtimeRegion", state.RuntimeRegion,
 		"timeout", o.AdmissionTimeout,
-		"cleanupWorkers", o.AdmissionCleanupWorkers,
 	)
 	admissionCtx, cancelAdmission := context.WithTimeout(ctx, o.AdmissionTimeout)
 	err = o.AssetRegistry.AdmitLease(admissionCtx, request, o.DisabledAssetAdmission...)

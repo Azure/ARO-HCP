@@ -24,6 +24,7 @@ import (
 	"strings"
 
 	"github.com/go-logr/logr"
+	"github.com/spf13/pflag"
 
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
 )
@@ -58,9 +59,6 @@ type LeaseRequest struct {
 	AcquiredSlotState *slots.AcquiredSlotState
 	// SelectedClusterProfileDir locates the selected cluster's subscription credentials.
 	SelectedClusterProfileDir string
-	// CleanupWorkers bounds how many cleanup operations a handler may run
-	// concurrently during admission. Values below 1 mean serial.
-	CleanupWorkers int
 }
 
 // Handler implements pool management and the lease lifecycle for one asset kind.
@@ -68,6 +66,11 @@ type LeaseRequest struct {
 type Handler interface {
 	// Kind returns the unique asset kind handled by this implementation.
 	Kind() Kind
+	// AttachOptions declares the options this asset accepts through
+	// --asset-admission-option <kind>.<key>=<value>. Handlers bind each option to
+	// their own state and own its name, default, validation and help; handlers
+	// without options declare nothing.
+	AttachOptions(flags *pflag.FlagSet)
 	// Declared reports whether the handler applies to the pool.
 	// Required assets always apply; opt-in assets depend on the pool's declaration.
 	Declared(pool slots.Pool) bool
@@ -89,6 +92,7 @@ type Handler interface {
 type Registry struct {
 	handlers []Handler
 	byKind   map[Kind]Handler
+	options  map[Kind]*pflag.FlagSet
 }
 
 // NewRegistry registers handlers in the supplied order, rejecting nil handlers
@@ -97,6 +101,7 @@ func NewRegistry(handlers ...Handler) (*Registry, error) {
 	registry := &Registry{
 		handlers: make([]Handler, 0, len(handlers)),
 		byKind:   make(map[Kind]Handler, len(handlers)),
+		options:  make(map[Kind]*pflag.FlagSet, len(handlers)),
 	}
 	for _, handler := range handlers {
 		if handler == nil {
@@ -121,6 +126,9 @@ func NewRegistry(handlers ...Handler) (*Registry, error) {
 		}
 		registry.handlers = append(registry.handlers, handler)
 		registry.byKind[kind] = handler
+		flags := pflag.NewFlagSet(string(kind), pflag.ContinueOnError)
+		handler.AttachOptions(flags)
+		registry.options[kind] = flags
 	}
 	return registry, nil
 }

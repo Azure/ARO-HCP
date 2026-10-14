@@ -29,6 +29,7 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/go-logr/logr/funcr"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
@@ -82,9 +83,14 @@ type lifecycleHandler struct {
 	admit            func(context.Context) error
 	assetInventories *[]slots.AssetInventory
 	poolRequests     *[]assets.PoolRequest
+	// setting is bound to the "setting" option to observe --asset-admission-option.
+	setting int
 }
 
 func (h *lifecycleHandler) Kind() assets.Kind { return h.kind }
+func (h *lifecycleHandler) AttachOptions(flags *pflag.FlagSet) {
+	flags.IntVar(&h.setting, "setting", 0, "test option")
+}
 func (h *lifecycleHandler) Declared(pool slots.Pool) bool {
 	for _, assetRequirement := range pool.Requirements() {
 		if assetRequirement.Kind == h.kind {
@@ -170,6 +176,56 @@ func lifecycleOptions(t *testing.T, catalog, server string, registry *assets.Reg
 		// written. It only needs to satisfy Validate's non-empty requirement.
 		AzureGlobalLoggerLogPath: "azure-global-logger-test.log",
 		SetupAzureGlobalLogger:   noopSetupAzureGlobalLogger,
+	}
+}
+
+func TestAcquireAssetAdmissionOptions(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name        string
+		options     []string
+		wantSetting int
+		wantError   string
+	}{
+		{name: "none", wantSetting: 0},
+		{name: "applied to the named kind only", options: []string{"e2e_identities.setting=7"}, wantSetting: 7},
+		{name: "unknown kind", options: []string{"mock_identities.setting=1"}, wantError: "unknown asset kind"},
+		{name: "unknown key", options: []string{"e2e_identities.settin=1"}, wantError: "no option \"settin\""},
+		{name: "invalid value", options: []string{"e2e_identities.setting=many"}, wantError: "e2e_identities.setting"},
+		{name: "malformed", options: []string{"e2e_identities"}, wantError: "<kind>.<key>=<value>"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var calls []string
+			e2e := &lifecycleHandler{kind: slots.KindE2EIdentities, calls: &calls}
+			infra := &lifecycleHandler{kind: slots.KindInfrastructureIdentities, calls: &calls}
+			registry, err := assets.NewRegistry(e2e, infra)
+			if err != nil {
+				t.Fatal(err)
+			}
+			server, _, _ := newTestLeaseProxyServer(t, map[string][]leaseProxyReply{
+				"aro-hcp-dev-shard0-slot": {successAcquireReply("aro-hcp-dev-shard0-slot-00")},
+				"bundle-type":             {successAcquireReply("bundle-00"), successAcquireReply("bundle-01")},
+			})
+			defer server.Close()
+			options := lifecycleOptions(t, lifecycleCatalog, server.URL, registry)
+			options.AssetAdmissionOptions = tc.options
+			err = Acquire(t.Context(), options)
+			if tc.wantError != "" {
+				if err == nil || !strings.Contains(err.Error(), "--asset-admission-option") || !strings.Contains(err.Error(), tc.wantError) {
+					t.Fatalf("expected option error containing %q, got %v", tc.wantError, err)
+				}
+				if len(calls) != 0 {
+					t.Fatalf("invalid options must fail before leasing, got calls %v", calls)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if e2e.setting != tc.wantSetting || infra.setting != 0 {
+				t.Fatalf("expected e2e setting %d and untouched infra setting, got %d and %d", tc.wantSetting, e2e.setting, infra.setting)
+			}
+		})
 	}
 }
 

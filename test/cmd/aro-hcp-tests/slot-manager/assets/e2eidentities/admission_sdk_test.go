@@ -198,7 +198,7 @@ func TestAdmissionInventoriesOnceAndCleansOnlyLeasedPrincipals(t *testing.T) {
 				ctx := logr.NewContext(t.Context(), funcr.NewJSON(func(entry string) {
 					logEntries = append(logEntries, entry)
 				}, funcr.Options{}))
-				if err := admitIdentityLeaseWithClients(ctx, request, factory, roles); err != nil {
+				if err := admitIdentityLeaseWithClients(ctx, request, factory, roles, 1); err != nil {
 					t.Fatalf("admission failed: %v", err)
 				}
 				var reports []string
@@ -288,7 +288,7 @@ func TestAdmissionFailsClosed(t *testing.T) {
 			}}}
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 			defer cancel()
-			err := admitIdentityLeaseWithClients(ctx, request, factory, roles)
+			err := admitIdentityLeaseWithClients(ctx, request, factory, roles, 1)
 			if err == nil || !strings.Contains(err.Error(), tc.want) {
 				t.Fatalf("expected admission failure containing %q, got %v", tc.want, err)
 			}
