@@ -102,10 +102,14 @@ func (v verifySimpleWebApp) Verify(ctx context.Context, adminRESTConfig *rest.Co
 }
 
 func newRouterDiagnosticContext(ctx context.Context) (context.Context, context.CancelFunc) {
-	return context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+	return context.WithTimeout(ctx, 30*time.Second)
 }
 
 func logRouterDefaultState(ctx context.Context, adminRESTConfig *rest.Config) {
+	if err := ctx.Err(); err != nil {
+		ginkgo.GinkgoWriter.Printf("[route DNS] skipping router-default diagnostics: caller context already done: %v\n", err)
+		return
+	}
 	if adminRESTConfig == nil {
 		ginkgo.GinkgoWriter.Printf("[route DNS] skipping router-default diagnostics: admin REST config is nil\n")
 		return
