@@ -38,6 +38,24 @@ func TestBuildValidationOptions(testContext *testing.T) {
 	}{
 		{name: "empty", want: map[string]bool{}},
 		{
+			name: "duplicate feature registered then unregistered",
+			features: []coreapi.Feature{
+				{Name: ptr.To("DuplicateFeature"), State: ptr.To("Registered")},
+				{Name: ptr.To("DUPLICATEFEATURE"), State: ptr.To("Unregistered")},
+				{Name: ptr.To("UnregisteredFeature"), State: ptr.To("Unregistered")},
+			},
+			want: map[string]bool{"duplicatefeature": true, "unregisteredfeature": false},
+		},
+		{
+			name: "duplicate feature unregistered then registered",
+			features: []coreapi.Feature{
+				{Name: ptr.To("DuplicateFeature"), State: ptr.To("Unregistered")},
+				{Name: ptr.To("DUPLICATEFEATURE"), State: ptr.To("Registered")},
+				{Name: ptr.To("UnregisteredFeature"), State: ptr.To("Unregistered")},
+			},
+			want: map[string]bool{"duplicatefeature": true, "unregisteredfeature": false},
+		},
+		{
 			name: "registered and unregistered features and API version",
 			features: []coreapi.Feature{
 				{Name: ptr.To("EnabledFeature"), State: ptr.To("Registered")},

@@ -40,7 +40,8 @@ func AFECsToValidationOptions(features []coreapi.Feature) map[string]bool {
 		if curr.Name == nil || len(*curr.Name) == 0 {
 			continue
 		}
-		ret[strings.ToLower(*curr.Name)] = ptr.Deref(curr.State, "") == "Registered"
+		name := strings.ToLower(*curr.Name)
+		ret[name] = ret[name] || ptr.Deref(curr.State, "") == "Registered"
 	}
 
 	return ret
