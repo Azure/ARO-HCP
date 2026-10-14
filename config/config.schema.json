@@ -1742,19 +1742,6 @@
             "issuer",
             "contentType"
           ]
-        },
-        "alertProcessingRules": {
-          "type": "object",
-          "properties": {
-            "deploy": {
-              "type": "boolean",
-              "description": "Whether to enable the admin API alert-processing-rules feature. Off by default; enabled per environment."
-            }
-          },
-          "additionalProperties": false,
-          "required": [
-            "deploy"
-          ]
         }
       },
       "additionalProperties": false,
@@ -1763,8 +1750,7 @@
         "image",
         "k8s",
         "managedIdentityName",
-        "cert",
-        "alertProcessingRules"
+        "cert"
       ]
     },
     "frontend": {
