@@ -36,8 +36,10 @@ func Wait(ctx context.Context, interval, timeout time.Duration, requiredPolls in
 		} else {
 			var dnsErr *net.DNSError
 			var netErr net.Error
-			inconsistent := errors.Is(lastErr, ErrInconsistent) || (errors.As(lastErr, &dnsErr) && dnsErr.IsNotFound)
-			transient := errors.Is(lastErr, context.DeadlineExceeded) || (errors.As(lastErr, &netErr) && netErr.Timeout())
+			isDNSError := errors.As(lastErr, &dnsErr)
+			inconsistent := errors.Is(lastErr, ErrInconsistent) || (isDNSError && dnsErr.IsNotFound)
+			transient := errors.Is(lastErr, context.DeadlineExceeded) || (errors.As(lastErr, &netErr) && netErr.Timeout()) ||
+				(isDNSError && (dnsErr.IsTemporary || dnsErr.IsTimeout))
 			if inconsistent || !transient {
 				goodPolls = 0
 			}

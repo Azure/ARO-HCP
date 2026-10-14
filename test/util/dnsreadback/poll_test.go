@@ -32,14 +32,16 @@ func TestWait(testingT *testing.T) {
 	}{
 		{name: "successful polls", polls: []error{nil, nil, nil}},
 		{name: "timeouts preserve progress", polls: []error{nil, timeoutErr, nil, timeoutErr, nil}},
-		{name: "temporary errors without timeout reset progress", polls: []error{nil, nil, temporaryErr, nil, nil, nil}},
+		{name: "temporary DNS errors without timeout preserve progress", polls: []error{nil, nil, temporaryErr, nil}},
 		{name: "deadlines preserve progress", polls: []error{nil, fmt.Errorf("lookup: %w", context.DeadlineExceeded), nil, nil}},
 		{name: "other errors reset progress", polls: []error{nil, nil, errors.New("connection refused"), nil, nil, nil}},
 		{name: "wrong answer resets progress", polls: []error{nil, nil, fmt.Errorf("NS mismatch: %w", ErrInconsistent), nil, nil, nil}},
 		{name: "missing answer resets progress", polls: []error{nil, nil, &net.DNSError{IsNotFound: true}, nil, nil, nil}},
 		{name: "missing presentation resets progress", polls: []error{nil, nil, fmt.Errorf("%w: waiting for a presented DNS-01 challenge", ErrInconsistent), nil, nil, nil}},
 		{name: "inconsistency overrides transient error", polls: []error{nil, nil, fmt.Errorf("%w: %w", ErrInconsistent, timeoutErr), nil, nil, nil}},
+		{name: "inconsistency overrides temporary DNS error", polls: []error{nil, nil, fmt.Errorf("%w: %w", ErrInconsistent, temporaryErr), nil, nil, nil}},
 		{name: "missing answer overrides timeout", polls: []error{nil, nil, &net.DNSError{IsNotFound: true, IsTimeout: true}, nil, nil, nil}},
+		{name: "missing answer overrides temporary DNS error", polls: []error{nil, nil, &net.DNSError{IsNotFound: true, IsTemporary: true}, nil, nil, nil}},
 	} {
 		testingT.Run(testCase.name, func(testingT *testing.T) {
 			polls := 0
