@@ -248,7 +248,7 @@ func TestLogRouterDefaultStateWithClients(testContext *testing.T) {
 			if !test.operatorAbsent {
 				configObjects = append(configObjects, operator)
 			}
-			fakeConfigClient := configfake.NewSimpleClientset(configObjects...)
+			fakeConfigClient := configfake.NewClientset(configObjects...)
 			fakeConfigClient.PrependReactor("get", "clusteroperators", func(action clienttesting.Action) (bool, runtime.Object, error) {
 				if action.GetNamespace() != "" || action.(clienttesting.GetAction).GetName() != "ingress" {
 					testContext.Fatalf("unexpected ClusterOperator request: %#v", action)
