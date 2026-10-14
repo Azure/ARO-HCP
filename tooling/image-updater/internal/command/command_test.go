@@ -17,11 +17,14 @@ package command
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/go-logr/logr"
+	"github.com/go-logr/logr/funcr"
 	"github.com/google/go-cmp/cmp"
 )
 
@@ -163,6 +166,80 @@ func TestRunnerCommandLineIsCensored(t *testing.T) {
 	}
 	if strings.Contains(err.Error(), "tok123") {
 		t.Errorf("secret leaked into the error: %v", err)
+	}
+}
+
+func TestRunnerConcurrentStreams(t *testing.T) {
+	// os/exec drains stdout and stderr in separate goroutines, and only
+	// serialises them when Stdout and Stderr are the same writer compared
+	// with ==. Two distinct MultiWriters never are, so both copiers reach
+	// the shared combined buffer and censoring writer at once. Run under
+	// -race to catch a regression; the assertions below also catch the
+	// corruption that race produces.
+	const lines = 200
+	r := NewRunner("", NewCensor("hunter2"))
+	script := fmt.Sprintf(
+		`for i in $(seq 1 %d); do echo "out hunter2 $i"; echo "err hunter2 $i" >&2; done`, lines)
+
+	stdout, err := r.Output(context.Background(), "sh", "-c", script)
+	if err != nil {
+		t.Fatalf("Output returned an unexpected error: %v", err)
+	}
+
+	got := strings.Split(strings.TrimSpace(stdout), "\n")
+	if len(got) != lines {
+		t.Errorf("captured %d stdout lines, want %d", len(got), lines)
+	}
+	// Interleaved stderr must not have bled into the stdout capture.
+	for _, line := range got {
+		if !strings.HasPrefix(line, "out ") {
+			t.Fatalf("stdout capture was corrupted by stderr: %q", line)
+		}
+	}
+}
+
+func TestRunnerConcurrentStreamsCensored(t *testing.T) {
+	// The censoring writer buffers partial lines, so a concurrent write
+	// corrupting that buffer is a secret-disclosure bug, not just garbled
+	// output. Exercise it at the verbosity that enables live streaming.
+	const lines = 200
+	var live bytes.Buffer
+	restore := liveOutput
+	liveOutput = &live
+	t.Cleanup(func() { liveOutput = restore })
+
+	logger := funcr.New(func(string, string) {}, funcr.Options{Verbosity: 2})
+	ctx := logr.NewContext(context.Background(), logger)
+
+	r := NewRunner("", NewCensor("hunter2"))
+	script := fmt.Sprintf(
+		`for i in $(seq 1 %d); do echo "out hunter2 $i"; echo "err hunter2 $i" >&2; done; exit 1`, lines)
+
+	err := r.Run(ctx, "sh", "-c", script)
+	if err == nil {
+		t.Fatal("expected an error from a failing command, got nil")
+	}
+
+	// Both the captured error and the live stream must be fully redacted.
+	for name, text := range map[string]string{"error": err.Error(), "live stream": live.String()} {
+		if strings.Contains(text, "hunter2") {
+			t.Errorf("secret survived in the %s", name)
+		}
+	}
+
+	// Count only the emitted lines, not the command line, which also
+	// contains the secret twice and is censored separately.
+	var censored int
+	for _, line := range strings.Split(err.Error(), "\n") {
+		if strings.HasPrefix(line, "out ") || strings.HasPrefix(line, "err ") {
+			if !strings.Contains(line, redacted) {
+				t.Fatalf("line escaped redaction: %q", line)
+			}
+			censored++
+		}
+	}
+	if want := lines * 2; censored != want {
+		t.Errorf("captured %d censored lines, want %d", censored, want)
 	}
 }
 

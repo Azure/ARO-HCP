@@ -26,12 +26,17 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"sync"
 
 	"github.com/go-logr/logr"
 )
 
 // redacted replaces a secret value wherever it would otherwise be logged.
 const redacted = "[REDACTED]"
+
+// liveOutput is where command output is streamed at verbosity 2. A variable
+// so tests can capture it rather than flood the test log.
+var liveOutput io.Writer = os.Stderr
 
 // Censor removes secret values from text before it reaches a log line or an
 // error message. This matters because some commands must receive a credential
@@ -125,15 +130,24 @@ func (r *Runner) run(ctx context.Context, name string, args []string, captureStd
 		// Stream live so long-running targets such as `make materialize`
 		// are observable, but route through the censor so a credential can
 		// never reach the job log.
-		live := newCensoringWriter(os.Stderr, r.Censor)
+		live := newCensoringWriter(liveOutput, r.Censor)
 		defer func() {
 			_ = live.Close()
 		}()
 		stdoutWriters = append(stdoutWriters, live)
 		stderrWriters = append(stderrWriters, live)
 	}
-	cmd.Stdout = io.MultiWriter(stdoutWriters...)
-	cmd.Stderr = io.MultiWriter(stderrWriters...)
+	// Both streams feed the same combined buffer, and at verbosity 2 the
+	// same censoring writer. os/exec drains stdout and stderr in separate
+	// goroutines and only promises to serialise them when Stdout and
+	// Stderr are the same writer compared with ==, which two distinct
+	// MultiWriters never are. Neither bytes.Buffer nor censoringWriter is
+	// concurrency-safe, so a command writing to both streams would race:
+	// corrupting captured output, and -- worse -- corrupting the censor's
+	// partial-line buffer, which could let a secret through unredacted.
+	var mu sync.Mutex
+	cmd.Stdout = &serialWriter{mu: &mu, delegate: io.MultiWriter(stdoutWriters...)}
+	cmd.Stderr = &serialWriter{mu: &mu, delegate: io.MultiWriter(stderrWriters...)}
 
 	if err := cmd.Run(); err != nil {
 		output := strings.TrimSpace(r.Censor.Censor(combined.String()))
@@ -144,6 +158,20 @@ func (r *Runner) run(ctx context.Context, name string, args []string, captureStd
 	}
 
 	return stdout.String(), nil
+}
+
+// serialWriter serialises writes to its delegate. Several serialWriters
+// sharing one mutex serialise against each other, which is what lets the
+// stdout and stderr copier goroutines share a destination safely.
+type serialWriter struct {
+	mu       *sync.Mutex
+	delegate io.Writer
+}
+
+func (w *serialWriter) Write(p []byte) (int, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.delegate.Write(p)
 }
 
 // censoringWriter redacts secrets from a stream. It buffers an incomplete
