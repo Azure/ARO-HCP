@@ -20,11 +20,12 @@ import (
 	"errors"
 	"fmt"
 
+	kjson "sigs.k8s.io/json"
+
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
-	"github.com/Azure/ARO-HCP/internal/jsonutil"
 )
 
 // BillingDocCRUD provides a CRUD interface for managing billing documents
@@ -111,7 +112,7 @@ func (b *billingDocCRUD) GetByID(ctx context.Context, billingDocID string) (*Bil
 	}
 
 	var doc BillingDocument
-	err = jsonutil.Unmarshal(response.Value, &doc)
+	err = kjson.UnmarshalCaseSensitivePreserveInts(response.Value, &doc)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshal billing document: %w", err)
 	}
@@ -136,7 +137,7 @@ func (b *billingDocCRUD) ListActive(ctx context.Context) ([]*BillingDocument, er
 
 		for _, item := range queryResponse.Items {
 			var doc BillingDocument
-			err = jsonutil.Unmarshal(item, &doc)
+			err = kjson.UnmarshalCaseSensitivePreserveInts(item, &doc)
 			if err != nil {
 				return nil, fmt.Errorf("failed to unmarshal Billing container item for subscription '%s': %w", b.subscriptionID, err)
 			}
@@ -173,7 +174,7 @@ func (b *billingDocCRUD) ListActiveForCluster(ctx context.Context, resourceID *a
 
 		for _, item := range queryResponse.Items {
 			var doc BillingDocument
-			err = jsonutil.Unmarshal(item, &doc)
+			err = kjson.UnmarshalCaseSensitivePreserveInts(item, &doc)
 			if err != nil {
 				return nil, fmt.Errorf("failed to unmarshal Billing container item for '%s': %w", resourceID, err)
 			}
@@ -223,7 +224,7 @@ func (b *billingDocCRUD) PatchByClusterID(ctx context.Context, resourceID *azcor
 		for _, item := range queryResponse.Items {
 			var result map[string]string
 
-			err = jsonutil.Unmarshal(item, &result)
+			err = kjson.UnmarshalCaseSensitivePreserveInts(item, &result)
 			if err != nil {
 				return fmt.Errorf("failed to unmarshal Billing container item for '%s': %w", resourceID, err)
 			}

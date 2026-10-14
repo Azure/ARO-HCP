@@ -23,11 +23,12 @@ import (
 
 	"k8s.io/utils/ptr"
 
+	kjson "sigs.k8s.io/json"
+
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
-	"github.com/Azure/ARO-HCP/internal/jsonutil"
 )
 
 // TestNodePoolZeroValueRoundTripThroughJSON verifies that explicit zero values
@@ -231,7 +232,7 @@ func jsonRoundTripNodePool(t *testing.T, original *coreapi.NodePool) *coreapi.No
 	require.NoError(t, err)
 
 	newExt := &NodePool{}
-	require.NoError(t, jsonutil.Unmarshal(jsonBytes, newExt))
+	require.NoError(t, kjson.UnmarshalCaseSensitivePreserveInts(jsonBytes, newExt))
 	SetDefaultValuesNodePool(newExt)
 
 	result, err := newExt.ConvertToInternal(nil)
@@ -249,7 +250,7 @@ func jsonRoundTripCluster(t *testing.T, original *coreapi.Cluster) *coreapi.Clus
 	require.NoError(t, err)
 
 	newExt := &HcpOpenShiftCluster{}
-	require.NoError(t, jsonutil.Unmarshal(jsonBytes, newExt))
+	require.NoError(t, kjson.UnmarshalCaseSensitivePreserveInts(jsonBytes, newExt))
 	SetDefaultValuesCluster(newExt)
 
 	result, err := newExt.ConvertToInternal(nil)

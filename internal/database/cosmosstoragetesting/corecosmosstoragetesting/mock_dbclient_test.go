@@ -29,6 +29,8 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	kjson "sigs.k8s.io/json"
+
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
@@ -38,7 +40,6 @@ import (
 	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
-	"github.com/Azure/ARO-HCP/internal/jsonutil"
 )
 
 func TestMockResourcesDBClient_LoadContentSnapshots(t *testing.T) {
@@ -154,7 +155,7 @@ func TestMockResourcesDBClient_LoadFromDirectory(t *testing.T) {
 
 	for _, data := range allDocs {
 		var typedDoc cosmosstorageutils.TypedDocument
-		if err := jsonutil.Unmarshal(data, &typedDoc); err != nil {
+		if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &typedDoc); err != nil {
 			continue
 		}
 
@@ -719,7 +720,7 @@ func TestMockResourcesDBClient_StoreAndRetrieveRawDocument(t *testing.T) {
 	}
 
 	var result map[string]any
-	if err := jsonutil.Unmarshal(retrieved, &result); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(retrieved, &result); err != nil {
 		t.Fatalf("Failed to unmarshal retrieved data: %v", err)
 	}
 

@@ -15,10 +15,11 @@
 package v20261001
 
 import (
+	kjson "sigs.k8s.io/json"
+
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
 	"github.com/Azure/ARO-HCP/internal/azureapi/v20261001/generated"
-	"github.com/Azure/ARO-HCP/internal/jsonutil"
 )
 
 func newClusterAdminCredential(from *coreapi.ClusterAdminCredential) *generated.HcpOpenShiftClusterAdminCredential {
@@ -34,7 +35,7 @@ func (v version) MarshalClusterAdminCredential(from *coreapi.ClusterAdminCredent
 
 func (v version) UnmarshalClusterAdminCredentialRequest(data []byte) (*coreapi.ClusterAdminCredentialRequest, error) {
 	var versionedRequest generated.HcpOpenShiftClusterAdminCredentialRequest
-	if err := jsonutil.Unmarshal(data, &versionedRequest); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &versionedRequest); err != nil {
 		return nil, err
 	}
 	return &coreapi.ClusterAdminCredentialRequest{

@@ -19,6 +19,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	kjson "sigs.k8s.io/json"
+
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
@@ -28,7 +30,6 @@ import (
 	"github.com/Azure/ARO-HCP/internal/azureapi/v20260630preview"
 	"github.com/Azure/ARO-HCP/internal/azureapi/v20260901preview"
 	v20261001 "github.com/Azure/ARO-HCP/internal/azureapi/v20261001"
-	"github.com/Azure/ARO-HCP/internal/jsonutil"
 )
 
 func TestClusterVNetIntegrationSubnetConversion(t *testing.T) {
@@ -83,7 +84,7 @@ func TestClusterVNetIntegrationSubnetConversion(t *testing.T) {
 							require.NoError(t, err)
 						}
 						external := version.NewCluster(existing)
-						require.NoError(t, jsonutil.Unmarshal([]byte(tt.body), external))
+						require.NoError(t, kjson.UnmarshalCaseSensitivePreserveInts([]byte(tt.body), external))
 						cluster, err := external.ConvertToInternal(existing)
 						if tt.wantErr != "" {
 							require.ErrorContains(t, err, tt.wantErr)

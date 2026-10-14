@@ -26,11 +26,13 @@ import (
 
 	"k8s.io/client-go/tools/cache"
 
+	kjson "sigs.k8s.io/json"
+
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
-	"github.com/Azure/ARO-HCP/internal/jsonutil"
+
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -83,7 +85,7 @@ func TestPollingInformerSnapshots(t *testing.T) {
 			var entry map[string]any
 			select {
 			case line := <-snapshots:
-				require.NoError(t, jsonutil.Unmarshal([]byte(line), &entry))
+				require.NoError(t, kjson.UnmarshalCaseSensitivePreserveInts([]byte(line), &entry))
 			case <-ctx.Done():
 				t.Fatal("polling informer did not emit a Cosmos snapshot")
 			}

@@ -20,7 +20,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/Azure/ARO-HCP/internal/jsonutil"
+	kjson "sigs.k8s.io/json"
+
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -36,7 +37,7 @@ func canonicalJSONForUpdateDispatchConfig(v any) ([]byte, error) {
 	}
 
 	var payload map[string]any
-	if err := jsonutil.Unmarshal(raw, &payload); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(raw, &payload); err != nil {
 		return nil, utils.TrackError(fmt.Errorf("failed to unmarshal update dispatch config: %w", err))
 	}
 

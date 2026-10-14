@@ -26,12 +26,13 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 
+	kjson "sigs.k8s.io/json"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
-	"github.com/Azure/ARO-HCP/internal/jsonutil"
 )
 
 func mustParseRID(t *testing.T, s string) *azcorearm.ResourceID {
@@ -323,7 +324,7 @@ func TestNeedsUpdate_ManagementClusterContent_RoundTripUnchanged(t *testing.T) {
 	bytes, err := json.Marshal(desired)
 	require.NoError(t, err)
 	roundTripped := &coreapi.ManagementClusterContent{}
-	require.NoError(t, jsonutil.Unmarshal(bytes, roundTripped))
+	require.NoError(t, kjson.UnmarshalCaseSensitivePreserveInts(bytes, roundTripped))
 	roundTripped.CosmosETag = azcore.ETag("server-assigned-etag")
 	roundTripped.ExistingCosmosUID = "server-assigned-uid"
 

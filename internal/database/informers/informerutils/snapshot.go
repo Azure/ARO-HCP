@@ -22,12 +22,14 @@ import (
 
 	"github.com/go-logr/logr"
 
+	kjson "sigs.k8s.io/json"
+
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
-	"github.com/Azure/ARO-HCP/internal/jsonutil"
+
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -88,7 +90,7 @@ func LogCosmosListItem[T any](ctx context.Context, container string, obj *T) {
 		return
 	}
 	var loggedDocument cosmosstorageutils.TypedDocument
-	if err := jsonutil.Unmarshal(serialized, &loggedDocument); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(serialized, &loggedDocument); err != nil {
 		logger.Error(err, "failed to decode listed document for snapshot")
 		return
 	}
