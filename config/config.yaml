@@ -635,7 +635,7 @@ defaults:
 
     istio:
       tag: "prod-stable"
-      versions: "asm-1-29"
+      versions: "asm-1-30"
       ingressGatewayIPAddressName: "aro-hcp-istio-ingress"
       ingressGatewayIPAddressIPTags: ""
     opsIngress:
