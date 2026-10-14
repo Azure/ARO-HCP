@@ -52,6 +52,11 @@ import (
 const (
 	managedIdentityOperatorRoleID = "f1a07417-d97a-45cb-824c-7a7467783830"
 	acrPullRoleID                 = "7f951dda-4ed3-4680-a7ca-43fe172d538d"
+	// readerRoleID is the built-in Reader role. msi-scoped-assignments.bicep grants it to the
+	// service managed identity over the resource group that holds the cluster's operator
+	// identities; the ACR pull MIs here are created outside that deployment, so the equivalent
+	// grant has to be made per-MI (see the SMI grant below for why the RP needs it).
+	readerRoleID = "acdd72a7-3385-48ef-bd42-f606fba81ae7"
 	// Azure Container Registry names must be 5-50 alphanumeric characters.
 	acrNameMaxLength = 50
 
@@ -115,6 +120,33 @@ func lookupCAPZPrincipalID(
 		return "", fmt.Errorf("CAPZ MI has no principal ID")
 	}
 	return *capzMI.Properties.PrincipalID, nil
+}
+
+// lookupServiceManagedIdentityPrincipalID resolves the principal ID of the cluster's service
+// managed identity. The RP's ContainerRegistryPullCredentialsPermissionValidation performs its
+// existence check on the pull MI as the SMI, not as CAPZ, so the SMI is a second principal that
+// needs access to the pull MI.
+func lookupServiceManagedIdentityPrincipalID(
+	ctx context.Context,
+	msiClient *armmsi.UserAssignedIdentitiesClient,
+	clusterParams framework.ClusterParams20261001,
+) (string, error) {
+	if clusterParams.UserAssignedIdentitiesProfile == nil || clusterParams.UserAssignedIdentitiesProfile.ServiceManagedIdentity == nil {
+		return "", fmt.Errorf("service managed identity not found in cluster params")
+	}
+	smiResourceIDStr := *clusterParams.UserAssignedIdentitiesProfile.ServiceManagedIdentity
+	smiResourceID, err := azcorearm.ParseResourceID(smiResourceIDStr)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse service managed identity resource ID %q: %w", smiResourceIDStr, err)
+	}
+	smi, err := msiClient.Get(ctx, smiResourceID.ResourceGroupName, smiResourceID.Name, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to get service managed identity: %w", err)
+	}
+	if smi.Properties == nil || smi.Properties.PrincipalID == nil {
+		return "", fmt.Errorf("service managed identity has no principal ID")
+	}
+	return *smi.Properties.PrincipalID, nil
 }
 
 // lookupMIPrincipalID retries because these reads land in a burst of ARM traffic right after
@@ -359,7 +391,6 @@ var _ = Describe("Customer", func() {
 		labels.Positive,
 		labels.AroRpApiCompatible,
 		labels.CreateCluster,
-		labels.Slow,
 		labels.MIContainers(1),
 		func(ctx context.Context) {
 			const (
@@ -482,6 +513,14 @@ var _ = Describe("Customer", func() {
 			}).WithContext(ctx).WithTimeout(miLookupTimeout).WithPolling(15*time.Second).Should(Succeed(),
 				"failed to look up CAPZ principal ID")
 
+			var smiPrincipalID string
+			Eventually(func() error {
+				var lookupErr error
+				smiPrincipalID, lookupErr = lookupServiceManagedIdentityPrincipalID(ctx, msiClient, clusterParams)
+				return lookupErr
+			}).WithContext(ctx).WithTimeout(miLookupTimeout).WithPolling(15*time.Second).Should(Succeed(),
+				"failed to look up service managed identity principal ID")
+
 			roleAssignmentsClient := newRoleAssignmentsClient(subscriptionID, cred)
 
 			By("granting AcrPull on the ACR to both managed identities")
@@ -499,6 +538,23 @@ var _ = Describe("Customer", func() {
 			grantBuiltInRoleWithRetry(ctx, roleAssignmentsClient, subscriptionID,
 				day2MIResourceID, capzPrincipalID, managedIdentityOperatorRoleID,
 				"Managed Identity Operator role assignment on the day 2 MI", roleAssignmentTimeout)
+
+			// The RP reads the pull MI as the service managed identity before it checks CAPZ's
+			// assign/action permission, so the SMI needs read access on the pull MI too.
+			// msi-scoped-assignments.bicep already grants the SMI Reader, but only over the
+			// resource group it is deployed into: in pooled-identity mode (stage/prod CI) that is
+			// the shared identity-pool resource group, not this test's cluster resource group
+			// where the pull MIs are created. Without this grant, cluster creation fails with
+			// ManagedIdentityNotFound wrapping a 403 on userAssignedIdentities/read. Non-pooled
+			// DEV runs happen to pass because there the same bicep lands on the cluster resource
+			// group and its resource-group-wide Reader covers these MIs.
+			By("granting Reader on both managed identities to the service managed identity")
+			grantBuiltInRoleWithRetry(ctx, roleAssignmentsClient, subscriptionID,
+				day1MIResourceID, smiPrincipalID, readerRoleID,
+				"Reader role assignment on the day 1 MI for the service managed identity", roleAssignmentTimeout)
+			grantBuiltInRoleWithRetry(ctx, roleAssignmentsClient, subscriptionID,
+				day2MIResourceID, smiPrincipalID, readerRoleID,
+				"Reader role assignment on the day 2 MI for the service managed identity", roleAssignmentTimeout)
 
 			// Day 1: create with the first identity and pull.
 			By("building and creating the cluster with containerRegistry set to the day 1 MI")
