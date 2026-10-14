@@ -26,12 +26,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/onsi/ginkgo/v2"
+
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/kubernetes/fake"
+	"k8s.io/client-go/rest"
 	clienttesting "k8s.io/client-go/testing"
 
 	configv1 "github.com/openshift/api/config/v1"
@@ -39,12 +42,16 @@ import (
 	configfake "github.com/openshift/client-go/config/clientset/versioned/fake"
 )
 
-func TestNewRouterDiagnosticContext(testContext *testing.T) {
+func TestLogRouterDefaultStateContext(testContext *testing.T) {
 	tests := []struct {
 		name      string
 		newParent func(context.Context) (context.Context, context.CancelFunc)
 		wantErr   error
 	}{
+		{
+			name:      "live parent",
+			newParent: context.WithCancel,
+		},
 		{
 			name: "already canceled parent",
 			newParent: func(ctx context.Context) (context.Context, context.CancelFunc) {
@@ -71,6 +78,50 @@ func TestNewRouterDiagnosticContext(testContext *testing.T) {
 				testContext.Fatalf("parent error = %v, want %v", err, test.wantErr)
 			}
 
+			var output bytes.Buffer
+			ginkgo.GinkgoWriter.TeeTo(&output)
+			testContext.Cleanup(ginkgo.GinkgoWriter.ClearTeeWriters)
+			requests := 0
+			config := &rest.Config{
+				Host: "https://guest.example.com",
+				Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+					requests++
+					if err := request.Context().Err(); err != nil {
+						testContext.Errorf("diagnostic request context is already done: %v", err)
+					}
+					body := ""
+					switch request.URL.Path {
+					case "/api/v1/namespaces/openshift-ingress/services/router-default":
+						body = `{"kind":"Service","apiVersion":"v1","spec":{"type":"LoadBalancer"},"status":{"loadBalancer":{"ingress":[{"ip":"192.0.2.10"}]}}}`
+					case "/api/v1/namespaces/openshift-ingress/events":
+						body = `{"kind":"EventList","apiVersion":"v1","items":[]}`
+					case "/apis/config.openshift.io/v1/clusteroperators/ingress":
+						body = `{"kind":"ClusterOperator","apiVersion":"config.openshift.io/v1","status":{"conditions":[]}}`
+					default:
+						testContext.Fatalf("unexpected diagnostic request: %s", request.URL.Path)
+					}
+					return &http.Response{
+						StatusCode: http.StatusOK,
+						Header:     http.Header{"Content-Type": []string{"application/json"}},
+						Body:       io.NopCloser(strings.NewReader(body)),
+					}, nil
+				}),
+			}
+			logRouterDefaultState(parent, config)
+			if test.wantErr != nil {
+				if requests != 0 {
+					testContext.Errorf("done parent triggered %d diagnostic requests, want none", requests)
+				}
+				want := fmt.Sprintf("[route DNS] skipping router-default diagnostics: caller context already done: %v\n", test.wantErr)
+				if output.String() != want {
+					testContext.Errorf("diagnostic output = %q, want only skip note %q", output.String(), want)
+				}
+				return
+			}
+			if requests != 3 || !strings.Contains(output.String(), "192.0.2.10") || strings.Contains(output.String(), "skipping") {
+				testContext.Fatalf("live parent diagnostics: requests=%d, output=%q; want three requests and collected state without skipping", requests, output.String())
+			}
+
 			before := time.Now()
 			diagnosticCtx, cancel := newRouterDiagnosticContext(parent)
 			defer cancel()
@@ -85,9 +136,9 @@ func TestNewRouterDiagnosticContext(testContext *testing.T) {
 			if value := diagnosticCtx.Value(contextKey{}); value != "diagnostic value" {
 				testContext.Errorf("diagnostic context value = %v, want diagnostic value", value)
 			}
-			cancel()
+			cancelParent()
 			if err := diagnosticCtx.Err(); err != context.Canceled {
-				testContext.Errorf("diagnostic context error after cancel = %v, want context.Canceled", err)
+				testContext.Errorf("diagnostic context error after parent cancellation = %v, want context.Canceled", err)
 			}
 		})
 	}
