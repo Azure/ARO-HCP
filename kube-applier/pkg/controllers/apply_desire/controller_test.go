@@ -17,6 +17,8 @@ package apply_desire
 import (
 	"context"
 	"errors"
+	"net/http"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -39,6 +41,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
+	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/kube-applier/pkg/controllers/conditions"
 	"github.com/Azure/ARO-HCP/kube-applier/pkg/controllers/desirestatuswriter"
 	"github.com/Azure/ARO-HCP/kube-applier/pkg/controllers/keys"
@@ -113,6 +116,144 @@ type capturingReplacer struct{ last *kubeapplierapi.ApplyDesire }
 func (r *capturingReplacer) Replace(_ context.Context, d *kubeapplierapi.ApplyDesire) error {
 	r.last = d.DeepCopy()
 	return nil
+}
+
+type conditionalDesireStore struct {
+	current *kubeapplierapi.ApplyDesire
+	fetches int
+	writes  int
+}
+
+func (store *conditionalDesireStore) Fetch(context.Context, keys.ApplyDesireKey) (*kubeapplierapi.ApplyDesire, error) {
+	store.fetches++
+	return store.current, nil
+}
+
+func (store *conditionalDesireStore) Replace(_ context.Context, desired *kubeapplierapi.ApplyDesire) error {
+	if desired.CosmosETag != store.current.CosmosETag {
+		return &azcore.ResponseError{StatusCode: http.StatusPreconditionFailed}
+	}
+	store.current = desired.DeepCopy()
+	store.writes++
+	return nil
+}
+
+func TestUpdateStatusFrom_ConflictAndNoOp(t *testing.T) {
+	operated := withEtag(newApplyDesire(t, "stale", configMapTarget("hello"), nil), "v1")
+	conditions.SetSuccessfullyApplied(&operated.Status.Conditions, errors.New("previous failure"))
+	original := operated.DeepCopy()
+	store := &conditionalDesireStore{current: withEtag(operated.DeepCopy(), "v2")}
+	writer := desirestatuswriter.New[kubeapplierapi.ApplyDesire, keys.ApplyDesireKey, *kubeapplierapi.ApplyDesire](store, store)
+
+	err := writer.UpdateStatusFrom(t.Context(), operated, func(desired *kubeapplierapi.ApplyDesire) {
+		conditions.SetSuccessfullyApplied(&desired.Status.Conditions, nil)
+	})
+	var responseErr *azcore.ResponseError
+	if !errors.As(err, &responseErr) || responseErr.StatusCode != http.StatusPreconditionFailed {
+		t.Fatalf("UpdateStatusFrom error = %v, want PreconditionFailed (412)", err)
+	}
+	if _, ok := err.(*utils.LineTrackingError); !ok {
+		t.Fatalf("UpdateStatusFrom error type = %T, want *utils.LineTrackingError", err)
+	}
+	if errors.Unwrap(err) != responseErr {
+		t.Fatalf("UpdateStatusFrom wrapped %v, want the raw response error %v", errors.Unwrap(err), responseErr)
+	}
+	if !strings.Contains(err.Error(), "desirestatuswriter.go:") {
+		t.Fatalf("UpdateStatusFrom error = %v, want writer source location", err)
+	}
+	if !reflect.DeepEqual(operated, original) {
+		t.Fatal("UpdateStatusFrom mutated the operated document")
+	}
+	if err := writer.UpdateStatusFrom(t.Context(), operated, func(*kubeapplierapi.ApplyDesire) {}); err != nil {
+		t.Fatalf("no-op UpdateStatusFrom: %v", err)
+	}
+	if store.fetches != 0 || store.writes != 0 {
+		t.Fatalf("fetches = %d, writes = %d, want neither a re-fetch nor a stale write", store.fetches, store.writes)
+	}
+}
+
+func TestProcessNext_SpecChangeRejectsStaleAckAndRetries(t *testing.T) {
+	for _, nextType := range []kubeapplierapi.ApplyDesireType{
+		kubeapplierapi.ApplyDesireTypeServerSideApply,
+		kubeapplierapi.ApplyDesireTypeDelete,
+	} {
+		t.Run(string(nextType), func(t *testing.T) {
+			originalContent := []byte(`{"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":"hello","namespace":"default"},"data":{"value":"original"}}`)
+			updatedContent := []byte(`{"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":"hello","namespace":"default"},"data":{"value":"updated"}}`)
+			operated := withEtag(newApplyDesire(t, "race", configMapTarget("hello"), originalContent), "v1")
+			updated := withEtag(operated.DeepCopy(), "v2")
+			updated.Spec.Type = nextType
+			updated.Spec.ServerSideApply.KubeContent.Raw = updatedContent
+			store := &conditionalDesireStore{current: operated}
+			gvr := schema.GroupVersionResource{Version: "v1", Resource: "configmaps"}
+			dyn := fakeDynamic(t, map[schema.GroupVersionResource]string{gvr: "ConfigMapList"})
+			applies := 0
+			dyn.PrependReactor("patch", "configmaps", func(action clienttesting.Action) (bool, runtime.Object, error) {
+				applies++
+				applied := &unstructured.Unstructured{}
+				if err := applied.UnmarshalJSON(action.(clienttesting.PatchAction).GetPatch()); err != nil {
+					t.Fatalf("decode applied content: %v", err)
+				}
+				wantValue := "original"
+				if applies > 1 {
+					wantValue = "updated"
+				}
+				if got, _, err := unstructured.NestedString(applied.Object, "data", "value"); err != nil || got != wantValue {
+					t.Fatalf("applied value = %q, error = %v, want %q", got, err, wantValue)
+				}
+				if applies == 1 {
+					store.current = updated
+				}
+				applied.SetGeneration(int64(applies))
+				return true, applied, nil
+			})
+			controller := newCadenceController(t, Config{})
+			t.Cleanup(controller.queue.ShutDown)
+			controller.dyn = dyn
+			controller.fetcher = store
+			controller.writer = desirestatuswriter.New[kubeapplierapi.ApplyDesire, keys.ApplyDesireKey, *kubeapplierapi.ApplyDesire](store, store)
+			key := mustKey(t, operated)
+			controller.queue.Add(key)
+
+			if !controller.processNext(t.Context()) {
+				t.Fatal("worker stopped after conflict")
+			}
+			if store.fetches != 1 || store.writes != 0 || applies != 1 {
+				t.Fatalf("fetches = %d, writes = %d, applies = %d, want 1, 0, 1", store.fetches, store.writes, applies)
+			}
+			if len(store.current.Status.Conditions) != 0 || len(operated.Status.Conditions) != 0 {
+				t.Fatal("stale apply acknowledgment was published or mutated the operated document")
+			}
+			if got := controller.queue.NumRequeues(key); got != 1 {
+				t.Fatalf("NumRequeues = %d, want 1 after conflict", got)
+			}
+			deadline := time.Now().Add(10 * time.Second)
+			for controller.queue.Len() == 0 && time.Now().Before(deadline) {
+				time.Sleep(time.Millisecond)
+			}
+			if controller.queue.Len() != 1 {
+				t.Fatal("conflict did not enqueue a retry")
+			}
+			if !controller.processNext(t.Context()) {
+				t.Fatal("worker stopped on retry")
+			}
+			if store.fetches != 2 || store.writes != 1 || controller.queue.NumRequeues(key) != 0 {
+				t.Fatalf("retry: fetches = %d, writes = %d, requeues = %d, want 2, 1, 0", store.fetches, store.writes, controller.queue.NumRequeues(key))
+			}
+			conditionType := kubeapplierapi.ConditionTypeSuccessfullyApplied
+			if nextType == kubeapplierapi.ApplyDesireTypeDelete {
+				conditionType = kubeapplierapi.ConditionTypeSuccessfullyDeleted
+				if applies != 1 || findCond(store.current.Status.Conditions, kubeapplierapi.ConditionTypeSuccessfullyApplied) != nil {
+					t.Fatal("retry applied or acknowledged the obsolete apply spec instead of deleting")
+				}
+			} else if applies != 2 || store.current.Status.AppliedKubeGeneration == nil || *store.current.Status.AppliedKubeGeneration != 2 {
+				t.Fatal("retry did not reapply and acknowledge the updated spec")
+			}
+			if got := findCond(store.current.Status.Conditions, conditionType); got == nil || got.Status != metav1.ConditionTrue {
+				t.Fatalf("retry condition %s = %v, want True", conditionType, got)
+			}
+		})
+	}
 }
 
 func mustKey(t *testing.T, d *kubeapplierapi.ApplyDesire) keys.ApplyDesireKey {

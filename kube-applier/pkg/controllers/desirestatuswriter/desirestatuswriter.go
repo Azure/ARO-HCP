@@ -39,6 +39,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/equality"
 
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 // Fetcher reads the current state of a single desire by a controller-defined
@@ -53,6 +54,8 @@ type Fetcher[T any, K comparable] interface {
 // derive the partition / parent scoping from the desire itself (the
 // kube-applier controllers parse it out of the desire's resourceID), so the
 // StatusWriter does not pass a key here.
+// Implementations must conditionally replace using the supplied document's
+// etag and return PreconditionFailed (412) if that revision is no longer current.
 type Replacer[T any] interface {
 	Replace(ctx context.Context, desired *T) error
 }
@@ -71,10 +74,14 @@ type DeepCopyable[T any] interface {
 type MutateFunc[T any] func(*T)
 
 // StatusWriter computes the next desired state via mutate and writes it back
-// once. It returns nil for a no-op (status already up-to-date) and for an etag
-// conflict (the informer will requeue when the new revision lands).
+// once. It returns nil for a no-op (status already up-to-date) and surfaces
+// errors, including etag conflicts (PreconditionFailed / 412), for retry.
 type StatusWriter[T any, K comparable] interface {
 	UpdateStatus(ctx context.Context, key K, mutate MutateFunc[T]) error
+	// UpdateStatusFrom records an operation against the same document revision
+	// it used, without fetching again. On conflict, callers must repeat the
+	// operation against a fresh document before retrying the status update.
+	UpdateStatusFrom(ctx context.Context, operated *T, mutate MutateFunc[T]) error
 }
 
 // New returns a StatusWriter that fetches via fetcher and writes via replacer.
@@ -120,15 +127,22 @@ func (w *writer[T, K, PT]) UpdateStatus(ctx context.Context, key K, mutate Mutat
 		return nil
 	}
 
-	desired := PT(existing).DeepCopy()
+	if err := w.UpdateStatusFrom(ctx, existing, mutate); err != nil {
+		return fmt.Errorf("update status for %v: %w", key, err)
+	}
+	return nil
+}
+
+func (w *writer[T, K, PT]) UpdateStatusFrom(ctx context.Context, operated *T, mutate MutateFunc[T]) error {
+	desired := PT(operated).DeepCopy()
 	mutate(desired)
 
-	if equality.Semantic.DeepEqual(existing, desired) {
+	if equality.Semantic.DeepEqual(operated, desired) {
 		return nil
 	}
 
 	if err := w.replacer.Replace(ctx, desired); err != nil {
-		return fmt.Errorf("replace status for %v: %w", key, err)
+		return utils.TrackError(err)
 	}
 	return nil
 }

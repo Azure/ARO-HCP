@@ -306,14 +306,14 @@ func (c *ApplyDesireController) SyncOnce(ctx context.Context, key keys.ApplyDesi
 			appliedKubeGeneration = &gen
 		}
 
-		return c.writer.UpdateStatus(ctx, key, func(d *kubeapplierapi.ApplyDesire) {
+		return c.writer.UpdateStatusFrom(ctx, desire, func(d *kubeapplierapi.ApplyDesire) {
 			conditions.SetSuccessfullyApplied(&d.Status.Conditions, syncErr)
 			conditions.SetDegraded(&d.Status.Conditions, classifyAsDegraded(syncErr))
 			d.Status.AppliedKubeGeneration = appliedKubeGeneration
 		})
 	case kubeapplierapi.ApplyDesireTypeDelete:
 		evaluation := c.evaluateDelete(ctx, desire)
-		if err := c.writer.UpdateStatus(ctx, key, evaluation.mutate); err != nil {
+		if err := c.writer.UpdateStatusFrom(ctx, desire, evaluation.mutate); err != nil {
 			return err
 		}
 		// The status now matches the cluster, so this write changes nothing in
@@ -326,7 +326,7 @@ func (c *ApplyDesireController) SyncOnce(ctx context.Context, key keys.ApplyDesi
 		return nil
 	default:
 		syncErr := conditions.NewPreCheckError(fmt.Errorf("unknown desire type %q", desire.Spec.Type))
-		return c.writer.UpdateStatus(ctx, key, func(d *kubeapplierapi.ApplyDesire) {
+		return c.writer.UpdateStatusFrom(ctx, desire, func(d *kubeapplierapi.ApplyDesire) {
 			conditions.SetSuccessful(&d.Status.Conditions, syncErr)
 			conditions.SetDegraded(&d.Status.Conditions, classifyAsDegraded(syncErr))
 		})
