@@ -19,7 +19,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
+
+	"github.com/spf13/pflag"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 
@@ -31,10 +34,46 @@ import (
 
 type Handler struct {
 	poolDependencies func() (azcore.TokenCredential, subscriptionIDResolverFunc, error)
+	// cleanupWorkers bounds concurrent role assignment deletes during admission.
+	// Values below 1 mean serial; AttachOptions defaults it to 1.
+	cleanupWorkers int
 }
 
 func NewHandler() *Handler {
-	return &Handler{}
+	return &Handler{cleanupWorkers: defaultCleanupWorkers}
+}
+
+const defaultCleanupWorkers = 1
+
+// AttachOptions declares the e2e_identities admission options.
+func (h *Handler) AttachOptions(flags *pflag.FlagSet) {
+	flags.Var(&positiveInt{target: &h.cleanupWorkers}, "cleanup-workers",
+		"Maximum concurrent role assignment deletes during admission (at least 1). "+
+			"ARM throttles deletes per subscription and service principal, so raise it only where few slots admit concurrently.")
+}
+
+// positiveInt is a pflag.Value that rejects values below 1 when set.
+type positiveInt struct{ target *int }
+
+func (p *positiveInt) String() string {
+	if p.target == nil || *p.target < 1 {
+		return fmt.Sprint(defaultCleanupWorkers)
+	}
+	return fmt.Sprint(*p.target)
+}
+
+func (p *positiveInt) Type() string { return "int" }
+
+func (p *positiveInt) Set(value string) error {
+	parsed, err := strconv.Atoi(value)
+	if err != nil {
+		return fmt.Errorf("invalid integer %q", value)
+	}
+	if parsed < 1 {
+		return fmt.Errorf("must be at least 1, got %d", parsed)
+	}
+	*p.target = parsed
+	return nil
 }
 
 func (h *Handler) Kind() assets.Kind {
@@ -120,7 +159,7 @@ func (h *Handler) resolvePools(ctx context.Context, request assets.PoolRequest) 
 }
 
 func (h *Handler) AdmitLease(ctx context.Context, request assets.LeaseRequest) error {
-	return admitE2EIdentityLease(ctx, request)
+	return admitE2EIdentityLease(ctx, request, h.cleanupWorkers)
 }
 
 func (h *Handler) PublishLease(_ context.Context, request assets.LeaseRequest, contract *slots.RuntimeContractBuilder) error {

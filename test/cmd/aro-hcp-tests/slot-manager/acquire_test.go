@@ -112,52 +112,6 @@ func TestAcquireAdmissionTimeoutFlagAndEnvironment(t *testing.T) {
 	}
 }
 
-func TestAcquireAdmissionCleanupWorkersFlagAndEnvironment(t *testing.T) {
-	for _, tc := range []struct {
-		name, env string
-		flags     []string
-		want      int
-		wantError bool
-	}{
-		{name: "default", want: 1},
-		{name: "environment", env: " 2 ", want: 2},
-		{name: "flag", flags: []string{"--admission-cleanup-workers=4"}, want: 4},
-		{name: "flag overrides environment", env: "2", flags: []string{"--admission-cleanup-workers=3"}, want: 3},
-		{name: "flag overrides invalid environment", env: "bad", flags: []string{"--admission-cleanup-workers=3"}, want: 3},
-		{name: "empty flag resets default", env: "2", flags: []string{"--admission-cleanup-workers="}, want: 1},
-		{name: "zero", flags: []string{"--admission-cleanup-workers=0"}, wantError: true},
-		{name: "negative", flags: []string{"--admission-cleanup-workers=-1"}, wantError: true},
-		{name: "not a number", flags: []string{"--admission-cleanup-workers=two"}, wantError: true},
-		{name: "invalid environment", env: "bad", wantError: true},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Setenv("ARO_HCP_ADMISSION_CLEANUP_WORKERS", tc.env)
-			options := DefaultAcquireOptions()
-			options.ClusterProfileDir = "unused-profile"
-			options.Environment = "dev"
-			options.SharedDir = t.TempDir()
-			options.LeaseProxyServerURL = "http://unused.invalid"
-			command := &cobra.Command{}
-			if err := BindAcquireOptions(options, command); err != nil {
-				t.Fatal(err)
-			}
-			if err := command.ParseFlags(tc.flags); err != nil {
-				t.Fatal(err)
-			}
-			validated, err := options.Validate()
-			if tc.wantError {
-				if err == nil || !strings.Contains(err.Error(), "--admission-cleanup-workers") {
-					t.Fatalf("expected worker validation failure before leasing, got %v", err)
-				}
-				return
-			}
-			if err != nil || validated.admissionCleanupWorkers != tc.want {
-				t.Fatalf("expected %d workers, got options=%+v error=%v", tc.want, validated, err)
-			}
-		})
-	}
-}
-
 func TestResolveLeasedSlot(t *testing.T) {
 	t.Parallel()
 

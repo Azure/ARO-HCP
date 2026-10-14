@@ -44,7 +44,7 @@ type identityLeaseInventory struct {
 	roleAssignments []*armauthorization.RoleAssignment
 }
 
-func admitE2EIdentityLease(ctx context.Context, request assets.LeaseRequest) error {
+func admitE2EIdentityLease(ctx context.Context, request assets.LeaseRequest, cleanupWorkers int) error {
 	credential, subscriptionID, err := leaseCredential(request)
 	if err != nil {
 		return err
@@ -59,10 +59,10 @@ func admitE2EIdentityLease(ctx context.Context, request assets.LeaseRequest) err
 		return fmt.Errorf("failed creating role assignments client: %w", err)
 	}
 
-	return admitIdentityLeaseWithClients(ctx, request, msiFactory, roleAssignmentsClient)
+	return admitIdentityLeaseWithClients(ctx, request, msiFactory, roleAssignmentsClient, cleanupWorkers)
 }
 
-func admitIdentityLeaseWithClients(ctx context.Context, request assets.LeaseRequest, msiFactory *armmsi.ClientFactory, roleAssignmentsClient *armauthorization.RoleAssignmentsClient) error {
+func admitIdentityLeaseWithClients(ctx context.Context, request assets.LeaseRequest, msiFactory *armmsi.ClientFactory, roleAssignmentsClient *armauthorization.RoleAssignmentsClient, cleanupWorkers int) error {
 	logger := logr.FromContextOrDiscard(ctx)
 	logger.Info("Loading identity lease inventory", "slotName", request.AcquiredSlotState.Slot.ResourceName, "resourceGroupCount", len(request.AcquiredSlotState.Slot.IdentityContainerNames()))
 	inventory, err := loadIdentityLeaseInventory(ctx, request, msiFactory, roleAssignmentsClient)
@@ -97,7 +97,7 @@ func admitIdentityLeaseWithClients(ctx context.Context, request assets.LeaseRequ
 		})
 	}
 
-	workers := max(request.CleanupWorkers, 1)
+	workers := max(cleanupWorkers, 1)
 	logger.Info("Deleting role assignments", "count", len(deleteOperations), "workers", workers)
 	if err := runWithWorkers(ctx, deleteOperations, workers); err != nil {
 		return fmt.Errorf("failed cleaning E2E identity lease: %w", err)
