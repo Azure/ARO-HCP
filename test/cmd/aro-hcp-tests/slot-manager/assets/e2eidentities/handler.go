@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -123,8 +124,13 @@ func (h *Handler) AdmitLease(ctx context.Context, request assets.LeaseRequest) e
 	return admitE2EIdentityLease(ctx, request)
 }
 
+// PublishLease publishes resolved identity containers and their suite worker default.
 func (h *Handler) PublishLease(_ context.Context, request assets.LeaseRequest, contract *slots.RuntimeContractBuilder) error {
-	return contract.Add(string(h.Kind()), "LEASED_MSI_CONTAINERS", strings.Join(request.AcquiredSlotState.Slot.IdentityContainerNames(), " "))
+	containers := request.AcquiredSlotState.Slot.IdentityContainerNames()
+	if err := contract.Add(string(h.Kind()), "LEASED_MSI_CONTAINERS", strings.Join(containers, " ")); err != nil {
+		return err
+	}
+	return contract.AddDefault(string(h.Kind()), "ARO_HCP_SUITE_PARALLELISM", strconv.Itoa(len(containers)))
 }
 
 func azurePoolDependencies() (azcore.TokenCredential, subscriptionIDResolverFunc, error) {

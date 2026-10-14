@@ -20,8 +20,11 @@ import (
 )
 
 func main() {
-	root := setupCli()
 	if err := func() error {
+		root, err := setupCli()
+		if err != nil {
+			return err
+		}
 		return root.Execute()
 	}(); err != nil {
 		fmt.Fprintln(os.Stderr, err.Error())

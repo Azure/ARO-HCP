@@ -17,6 +17,7 @@ package e2eidentities
 import (
 	"context"
 	"errors"
+	"os/exec"
 	"strings"
 	"testing"
 
@@ -86,10 +87,12 @@ func TestPoolHandlersShareSelectionPolicy(t *testing.T) {
 
 }
 
-func TestHandlerPublishesIdentityGroups(t *testing.T) {
-	t.Parallel()
+func TestHandlerOwnsIdentityRuntimeExports(t *testing.T) {
+	t.Setenv("ARO_HCP_SUITE_PARALLELISM", "99")
 
 	request := assets.LeaseRequest{AcquiredSlotState: &slots.AcquiredSlotState{Slot: slots.ExpandedSlot{
+		DeployEnvironment:      "int",
+		IdentityContainerCount: 10,
 		Assets: slots.ResolvedAssets{E2EIdentities: &slots.ResolvedE2EIdentitiesAsset{
 			ResourceGroups: []string{"identity-rg-02", "identity-rg-01"},
 		}},
@@ -98,10 +101,34 @@ func TestHandlerPublishesIdentityGroups(t *testing.T) {
 	if err := NewHandler().PublishLease(context.Background(), request, contract); err != nil {
 		t.Fatalf("publishing identity groups: %v", err)
 	}
-	if got, want := string(contract.MarshalShell()), "export LEASED_MSI_CONTAINERS='identity-rg-02 identity-rg-01'\n"; got != want {
-		t.Fatalf("identity export = %q, want %q", got, want)
+	if err := contract.Add("other", "LEASED_MSI_CONTAINERS", ""); err == nil {
+		t.Fatal("identity export ownership must not be reassigned")
 	}
-	if err := contract.Add("other", "LEASED_MSI_CONTAINERS", ""); err == nil || !strings.Contains(err.Error(), `already owned by "e2e_identities"`) {
-		t.Fatalf("identity export must be owned by e2e_identities, got %v", err)
+	if err := contract.Add("other", "ARO_HCP_SUITE_PARALLELISM", ""); err == nil {
+		t.Fatal("suite parallelism export ownership must not be reassigned")
+	}
+	sharedDir := t.TempDir()
+	if err := slots.WriteRuntimeContract(sharedDir, contract); err != nil {
+		t.Fatal(err)
+	}
+	envFile, err := slots.EnvFile(sharedDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range []struct {
+		name, setup, want string
+	}{
+		{"acquired count", "unset ARO_HCP_SUITE_PARALLELISM", "2"},
+		{"late caller override", "ARO_HCP_SUITE_PARALLELISM=7", "7"},
+		{"explicit empty", "ARO_HCP_SUITE_PARALLELISM=''", ""},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			cmd := exec.Command("sh", "-eu", "-c", `unset ARO_HCP_SUITE_PARALLELISM; `+test.setup+`; LEASED_MSI_CONTAINERS=stale; . "$1"; sh -eu -c 'printf "%s\n%s" "$LEASED_MSI_CONTAINERS" "$ARO_HCP_SUITE_PARALLELISM"'`, "sh", envFile)
+			output, err := cmd.CombinedOutput()
+			want := "identity-rg-02 identity-rg-01\n" + test.want
+			if err != nil || string(output) != want {
+				t.Fatalf("sourced identity contract = %q, want %q: %v", output, want, err)
+			}
+		})
 	}
 }
