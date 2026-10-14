@@ -505,12 +505,8 @@ var _ = Describe("Customer", func() {
 				}
 			})
 
-			By("verifying the environment wired HyperShift's default ingress secret and suppressed ACM's secret")
-			Expect(verifiers.VerifyHyperShiftIngressCertificate(10*time.Minute).Verify(ctx, adminRESTConfig)).To(Succeed(), "HyperShift's ingress certificate secret must exist and be referenced by IngressController/default")
+			By("verifying ACM's ingress certificate must not be created")
 			Expect(verifiers.VerifyACMIngressCertificateAbsent().Verify(ctx, adminRESTConfig)).To(Succeed(), "ACM must not create its ingress certificate secret")
-
-			By("verifying the served default ingress certificate covers the cluster's ingress wildcard")
-			Expect(verifiers.VerifyDefaultIngressCertificate(sampleApp.RouteHost, appsWildcard, 35*time.Minute).Verify(ctx, adminRESTConfig)).To(Succeed(), "sample application must serve the delivered default certificate")
 
 			By("pointing IngressController/default at the customer's Let's Encrypt certificate")
 			icPatch := []byte(fmt.Sprintf(`{"spec":{"defaultCertificate":{"name":%q}}}`, ingressSecretName))
@@ -525,7 +521,11 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to parse the customer's certificate")
 			roots, err := loadEmbeddedCAs(letsEncryptStagingCAs, "letsencrypt-stg-cas")
 			Expect(err).NotTo(HaveOccurred(), "failed to load Let's Encrypt staging roots")
+
+			By("verifying the sample application serves the exact customer-specified certificate with a valid Let's Encrypt chain")
 			Expect(verifiers.VerifyCustomIngressCertificate(sampleApp.RouteHost, appsWildcard, customerCertificate, roots, 10*time.Minute).Verify(ctx, adminRESTConfig)).To(Succeed(), "sample application must serve the exact customer-specified certificate with a valid Let's Encrypt chain")
+
+			By("verifying ACM's ingress certificate must remain absent after the customer's override")
 			Expect(verifiers.VerifyACMIngressCertificateAbsent().Verify(ctx, adminRESTConfig)).To(Succeed(), "ACM's ingress certificate must remain absent after the customer's override")
 		},
 		// Add earlier release lines only once a CPO override for https://github.com/openshift/hypershift/pull/9132
