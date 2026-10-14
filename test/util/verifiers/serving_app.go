@@ -21,6 +21,7 @@ import (
 	"embed"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -36,7 +37,7 @@ import (
 	"k8s.io/client-go/rest"
 
 	configv1 "github.com/openshift/api/config/v1"
-	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
+	configclient "github.com/openshift/client-go/config/clientset/versioned"
 
 	"github.com/Azure/ARO-HCP/test/util/framework"
 )
@@ -115,9 +116,19 @@ func logRouterDefaultState(ctx context.Context, adminRESTConfig *rest.Config) {
 		ginkgo.GinkgoWriter.Printf("[route DNS] failed to create guest Kubernetes client: %v\n", err)
 		return
 	}
-	service, err := kubeClient.CoreV1().Services("openshift-ingress").Get(diagnosticCtx, "router-default", metav1.GetOptions{})
+	configClient, err := configclient.NewForConfig(config)
 	if err != nil {
-		ginkgo.GinkgoWriter.Printf("[route DNS] failed to get openshift-ingress/router-default Service: %v\n", err)
+		logRouterDefaultStateWithClients(diagnosticCtx, kubeClient, nil, ginkgo.GinkgoWriter)
+		ginkgo.GinkgoWriter.Printf("[route DNS] skipping ingress ClusterOperator diagnostics: failed to create guest config client: %v\n", err)
+		return
+	}
+	logRouterDefaultStateWithClients(diagnosticCtx, kubeClient, configClient, ginkgo.GinkgoWriter)
+}
+
+func logRouterDefaultStateWithClients(ctx context.Context, kubeClient kubernetes.Interface, configClient configclient.Interface, output io.Writer) {
+	service, err := kubeClient.CoreV1().Services("openshift-ingress").Get(ctx, "router-default", metav1.GetOptions{})
+	if err != nil {
+		fmt.Fprintf(output, "[route DNS] failed to get openshift-ingress/router-default Service: %v\n", err)
 	} else {
 		annotations := map[string]string{}
 		for key, value := range service.Annotations {
@@ -125,37 +136,35 @@ func logRouterDefaultState(ctx context.Context, adminRESTConfig *rest.Config) {
 				annotations[key] = value
 			}
 		}
-		ginkgo.GinkgoWriter.Printf("[route DNS] openshift-ingress/router-default Service: type=%s loadBalancer.ingress=%+v loadBalancerAnnotations=%v\n",
+		fmt.Fprintf(output, "[route DNS] openshift-ingress/router-default Service: type=%s loadBalancer.ingress=%+v loadBalancerAnnotations=%v\n",
 			service.Spec.Type, service.Status.LoadBalancer.Ingress, annotations,
 		)
 	}
 
-	events, err := kubeClient.CoreV1().Events("openshift-ingress").List(diagnosticCtx, metav1.ListOptions{FieldSelector: "involvedObject.name=router-default"})
+	events, err := kubeClient.CoreV1().Events("openshift-ingress").List(ctx, metav1.ListOptions{FieldSelector: "involvedObject.name=router-default"})
 	if err != nil {
-		ginkgo.GinkgoWriter.Printf("[route DNS] failed to list openshift-ingress events for router-default: %v\n", err)
+		fmt.Fprintf(output, "[route DNS] failed to list openshift-ingress events for router-default: %v\n", err)
 	} else {
-		ginkgo.GinkgoWriter.Printf("[route DNS] openshift-ingress events for router-default: count=%d\n", len(events.Items))
+		fmt.Fprintf(output, "[route DNS] openshift-ingress events for router-default: count=%d\n", len(events.Items))
 		for _, event := range events.Items {
-			ginkgo.GinkgoWriter.Printf("[route DNS] router-default event: kind=%s type=%s reason=%s source=%s reportingController=%s count=%d lastTimestamp=%s message=%s\n",
+			fmt.Fprintf(output, "[route DNS] router-default event: kind=%s type=%s reason=%s source=%s reportingController=%s count=%d lastTimestamp=%s message=%s\n",
 				event.InvolvedObject.Kind, event.Type, event.Reason, event.Source.Component, event.ReportingController, event.Count, event.LastTimestamp, event.Message,
 			)
 		}
 	}
 
-	configClient, err := configv1client.NewForConfig(config)
-	if err != nil {
-		ginkgo.GinkgoWriter.Printf("[route DNS] skipping ingress ClusterOperator diagnostics: failed to create guest config client: %v\n", err)
+	if configClient == nil {
 		return
 	}
-	operator, err := configClient.ClusterOperators().Get(diagnosticCtx, "ingress", metav1.GetOptions{})
+	operator, err := configClient.ConfigV1().ClusterOperators().Get(ctx, "ingress", metav1.GetOptions{})
 	if err != nil {
-		ginkgo.GinkgoWriter.Printf("[route DNS] failed to get ingress ClusterOperator: %v\n", err)
+		fmt.Fprintf(output, "[route DNS] failed to get ingress ClusterOperator: %v\n", err)
 		return
 	}
 	for _, condition := range operator.Status.Conditions {
 		switch condition.Type {
 		case configv1.OperatorAvailable, configv1.OperatorDegraded, configv1.OperatorProgressing:
-			ginkgo.GinkgoWriter.Printf("[route DNS] ingress ClusterOperator: condition=%s status=%s reason=%s message=%s\n",
+			fmt.Fprintf(output, "[route DNS] ingress ClusterOperator: condition=%s status=%s reason=%s message=%s\n",
 				condition.Type, condition.Status, condition.Reason, condition.Message,
 			)
 		}
