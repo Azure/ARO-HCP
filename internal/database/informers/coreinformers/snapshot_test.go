@@ -16,7 +16,6 @@ package coreinformers
 
 import (
 	"context"
-	"encoding/json"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -31,6 +30,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/jsonutil"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -83,7 +83,7 @@ func TestPollingInformerSnapshots(t *testing.T) {
 			var entry map[string]any
 			select {
 			case line := <-snapshots:
-				require.NoError(t, json.Unmarshal([]byte(line), &entry))
+				require.NoError(t, jsonutil.Unmarshal([]byte(line), &entry))
 			case <-ctx.Done():
 				t.Fatal("polling informer did not emit a Cosmos snapshot")
 			}

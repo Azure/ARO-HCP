@@ -25,6 +25,7 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/jsonutil"
 )
 
 // Canonical (lowercased) resource ID strings used by the fixtures below. These
@@ -167,7 +168,7 @@ func TestRuntimeObjectAndJSONRoundTrip(t *testing.T) {
 			case *ReadDesire:
 				roundTripped = &ReadDesire{}
 			}
-			if err := json.Unmarshal(origJSON, roundTripped); err != nil {
+			if err := jsonutil.Unmarshal(origJSON, roundTripped); err != nil {
 				t.Fatalf("unmarshal: %v", err)
 			}
 			rtJSON, err := json.Marshal(roundTripped)

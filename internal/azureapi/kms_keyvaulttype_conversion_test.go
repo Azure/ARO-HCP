@@ -15,7 +15,6 @@
 package azureapi_test
 
 import (
-	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -27,6 +26,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/azureapi/v20260630preview"
 	"github.com/Azure/ARO-HCP/internal/azureapi/v20260901preview"
 	v20261001 "github.com/Azure/ARO-HCP/internal/azureapi/v20261001"
+	"github.com/Azure/ARO-HCP/internal/jsonutil"
 )
 
 func TestClusterKeyVaultTypePreservation(t *testing.T) {
@@ -64,7 +64,7 @@ func TestClusterKeyVaultTypePreservation(t *testing.T) {
 			// Send an update through this API version that does not touch etcd.
 			external := version.NewCluster(existing)
 			body := `{"properties":{"platform":{"operatorsAuthentication":{"userAssignedIdentities":{}}}}}`
-			require.NoError(t, json.Unmarshal([]byte(body), external))
+			require.NoError(t, jsonutil.Unmarshal([]byte(body), external))
 
 			cluster, err := external.ConvertToInternal(existing)
 			require.NoError(t, err)

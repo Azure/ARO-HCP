@@ -17,7 +17,6 @@ package ocm
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"net/http"
 	"strings"
@@ -42,6 +41,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
 	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
 	"github.com/Azure/ARO-HCP/internal/azure"
+	"github.com/Azure/ARO-HCP/internal/jsonutil"
 )
 
 const (
@@ -249,7 +249,7 @@ func ocmCluster(t *testing.T, builders ...*arohcpv1alpha1.ClusterBuilder) *arohc
 		cluster, err := builder.Build()
 		require.NoError(t, err)
 		require.NoError(t, arohcpv1alpha1.MarshalCluster(cluster, &buffer))
-		require.NoError(t, json.Unmarshal(buffer.Bytes(), &rawCluster))
+		require.NoError(t, jsonutil.Unmarshal(buffer.Bytes(), &rawCluster))
 		require.NoError(t, mergo.Merge(&mergedCluster, rawCluster, mergo.WithOverride))
 	}
 

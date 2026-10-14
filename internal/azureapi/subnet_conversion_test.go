@@ -15,7 +15,6 @@
 package azureapi_test
 
 import (
-	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -29,6 +28,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/azureapi/v20260630preview"
 	"github.com/Azure/ARO-HCP/internal/azureapi/v20260901preview"
 	v20261001 "github.com/Azure/ARO-HCP/internal/azureapi/v20261001"
+	"github.com/Azure/ARO-HCP/internal/jsonutil"
 )
 
 func TestClusterVNetIntegrationSubnetConversion(t *testing.T) {
@@ -83,7 +83,7 @@ func TestClusterVNetIntegrationSubnetConversion(t *testing.T) {
 							require.NoError(t, err)
 						}
 						external := version.NewCluster(existing)
-						require.NoError(t, json.Unmarshal([]byte(tt.body), external))
+						require.NoError(t, jsonutil.Unmarshal([]byte(tt.body), external))
 						cluster, err := external.ConvertToInternal(existing)
 						if tt.wantErr != "" {
 							require.ErrorContains(t, err, tt.wantErr)

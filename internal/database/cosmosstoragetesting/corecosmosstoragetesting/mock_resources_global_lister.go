@@ -16,7 +16,6 @@ package corecosmosstoragetesting
 
 import (
 	"context"
-	"encoding/json"
 	"strings"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -24,6 +23,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/jsonutil"
 )
 
 // mockResourcesGlobalListers implements corecosmosstorage.ResourcesGlobalListers for the mock client.
@@ -138,7 +138,7 @@ func (l *mockSubscriptionGlobalLister) List(ctx context.Context, options *cosmos
 
 	for _, data := range documents {
 		var cosmosObj cosmosstorageutils.GenericDocument[coreapi.Subscription]
-		if err := json.Unmarshal(data, &cosmosObj); err != nil {
+		if err := jsonutil.Unmarshal(data, &cosmosObj); err != nil {
 			continue
 		}
 
@@ -168,7 +168,7 @@ func (l *mockActiveOperationsGlobalLister) List(ctx context.Context, options *co
 
 	for _, data := range allDocs {
 		var typedDoc cosmosstorageutils.TypedDocument
-		if err := json.Unmarshal(data, &typedDoc); err != nil {
+		if err := jsonutil.Unmarshal(data, &typedDoc); err != nil {
 			continue
 		}
 
@@ -185,7 +185,7 @@ func (l *mockActiveOperationsGlobalLister) List(ctx context.Context, options *co
 		}
 
 		var cosmosObj cosmosstorageutils.GenericDocument[coreapi.Operation]
-		if err := json.Unmarshal(data, &cosmosObj); err != nil {
+		if err := jsonutil.Unmarshal(data, &cosmosObj); err != nil {
 			continue
 		}
 
@@ -226,7 +226,7 @@ func (l *MockGlobalLister[InternalAPIType, CosmosAPIType]) List(ctx context.Cont
 
 	for _, data := range allDocs {
 		var typedDoc cosmosstorageutils.TypedDocument
-		if err := json.Unmarshal(data, &typedDoc); err != nil {
+		if err := jsonutil.Unmarshal(data, &typedDoc); err != nil {
 			continue
 		}
 
@@ -250,7 +250,7 @@ func (l *MockGlobalLister[InternalAPIType, CosmosAPIType]) List(ctx context.Cont
 		}
 
 		var cosmosObj CosmosAPIType
-		if err := json.Unmarshal(data, &cosmosObj); err != nil {
+		if err := jsonutil.Unmarshal(data, &cosmosObj); err != nil {
 			continue
 		}
 

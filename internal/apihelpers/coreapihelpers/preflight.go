@@ -15,10 +15,10 @@
 package coreapihelpers
 
 import (
-	"encoding/json"
 	"net/http"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/jsonutil"
 )
 
 // UnmarshalDeploymentPreflight unmarshals JSON-encoded data and returns
@@ -26,7 +26,7 @@ import (
 // a 200 OK HTTP status code.
 func UnmarshalDeploymentPreflight(data []byte) (*coreapi.DeploymentPreflight, error) {
 	deploymentPreflight := &coreapi.DeploymentPreflight{}
-	err := json.Unmarshal(data, deploymentPreflight)
+	err := jsonutil.Unmarshal(data, deploymentPreflight)
 	if err != nil {
 		cloudError := coreapi.NewInvalidRequestContentError(err)
 		// Status code for preflight content errors must always be OK.

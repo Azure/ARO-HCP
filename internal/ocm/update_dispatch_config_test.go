@@ -15,11 +15,12 @@
 package ocm
 
 import (
-	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/Azure/ARO-HCP/internal/jsonutil"
 )
 
 func TestUpdateDispatchConfigCanonicalJSONAndHash(t *testing.T) {
@@ -76,7 +77,7 @@ func TestUpdateDispatchConfigCanonicalJSONAndHash(t *testing.T) {
 			name: "JSON fixture loaded into struct",
 			input: func(t *testing.T) any {
 				var probe fieldOrderProbe
-				require.NoError(t, json.Unmarshal([]byte(`{"zebra":"from-json","alpha":"fixture"}`), &probe))
+				require.NoError(t, jsonutil.Unmarshal([]byte(`{"zebra":"from-json","alpha":"fixture"}`), &probe))
 				return probe
 			},
 			want: "{\n  \"alpha\": \"fixture\",\n  \"zebra\": \"from-json\"\n}",

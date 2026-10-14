@@ -31,6 +31,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
+	"github.com/Azure/ARO-HCP/internal/jsonutil"
 )
 
 // MockKubeApplierDBClient is the in-memory test double for kubeappliercosmosstorage.KubeApplierDBClient.
@@ -98,7 +99,7 @@ func (m *MockKubeApplierDBClient) ListDocuments(resourceType *azcorearm.Resource
 	var results []json.RawMessage
 	for _, data := range m.documents {
 		var td cosmosstorageutils.TypedDocument
-		if err := json.Unmarshal(data, &td); err != nil {
+		if err := jsonutil.Unmarshal(data, &td); err != nil {
 			continue
 		}
 		// Mirror the production query, which requires IS_DEFINED(c.resourceID);
@@ -373,7 +374,7 @@ func (k *mockKubeApplierUntypedCRUD) listInternal(ctx context.Context, nonRecurs
 
 	for _, data := range allDocs {
 		var typedDoc cosmosstorageutils.TypedDocument
-		if err := json.Unmarshal(data, &typedDoc); err != nil {
+		if err := jsonutil.Unmarshal(data, &typedDoc); err != nil {
 			continue
 		}
 

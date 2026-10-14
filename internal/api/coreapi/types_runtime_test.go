@@ -26,6 +26,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
+	"github.com/Azure/ARO-HCP/internal/jsonutil"
 )
 
 func TestTLSCertificateURLRoundTripAndDeepCopy(test *testing.T) {
@@ -113,7 +114,7 @@ func TestServiceProviderClusterImageContentSources(test *testing.T) {
 			serialized, err := json.Marshal(original)
 			require.NoError(test, err)
 			var restored coreapi.ServiceProviderClusterStatus
-			require.NoError(test, json.Unmarshal(serialized, &restored))
+			require.NoError(test, jsonutil.Unmarshal(serialized, &restored))
 			assert.Equal(test, original.ImageContentSources, restored.ImageContentSources)
 			if testcase.sources == nil {
 				assert.NotContains(test, string(serialized), `"imageContentSources"`)

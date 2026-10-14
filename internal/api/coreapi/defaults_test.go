@@ -15,12 +15,12 @@
 package coreapi
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"testing"
 
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/jsonutil"
 )
 
 // TestTypeSpecDefaultsConsistency verifies that default values declared in the
@@ -43,7 +43,7 @@ func TestTypeSpecDefaultsConsistency(t *testing.T) {
 			} `json:"properties"`
 		} `json:"definitions"`
 	}
-	if err := json.Unmarshal(specData, &spec); err != nil {
+	if err := jsonutil.Unmarshal(specData, &spec); err != nil {
 		t.Fatalf("failed to parse OpenAPI spec: %v", err)
 	}
 
@@ -100,12 +100,12 @@ func TestTypeSpecDefaultsConsistency(t *testing.T) {
 					t.Errorf("OpenAPI default = %q, Go constant = %q", specStr, expected)
 				}
 			case int32:
-				specNum, ok := specDefault.(float64)
+				specNum, ok := specDefault.(int64)
 				if !ok {
 					t.Fatalf("expected numeric default for %s.%s, got %T", tc.definition, tc.property, specDefault)
 				}
-				if int32(specNum) != expected {
-					t.Errorf("OpenAPI default = %v, Go constant = %v", int32(specNum), expected)
+				if specNum != int64(expected) {
+					t.Errorf("OpenAPI default = %v, Go constant = %v", specNum, expected)
 				}
 			case bool:
 				specBool, ok := specDefault.(bool)

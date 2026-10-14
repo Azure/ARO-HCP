@@ -19,6 +19,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
+	"github.com/Azure/ARO-HCP/internal/jsonutil"
 )
 
 // TagsFromBody returns the tags specified by a JSON body.
@@ -34,7 +35,7 @@ import (
 // converting to the internal type.
 func TagsFromBody(body []byte) (map[string]string, error) {
 	var patch map[string]json.RawMessage
-	if err := json.Unmarshal(body, &patch); err != nil {
+	if err := jsonutil.Unmarshal(body, &patch); err != nil {
 		return nil, coreapi.NewInvalidRequestContentError(err)
 	}
 	rawTags, ok := patch["tags"]
@@ -42,7 +43,7 @@ func TagsFromBody(body []byte) (map[string]string, error) {
 		return nil, nil
 	}
 	var tagPtrs map[string]*string
-	if err := json.Unmarshal(rawTags, &tagPtrs); err != nil {
+	if err := jsonutil.Unmarshal(rawTags, &tagPtrs); err != nil {
 		return nil, coreapi.NewInvalidRequestContentError(err)
 	}
 	if tagPtrs == nil {

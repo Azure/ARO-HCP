@@ -27,6 +27,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/jsonutil"
 )
 
 // needsUpdateEqualities is a copy of equality.Semantic with extra equality functions for types
@@ -91,10 +92,10 @@ var needsUpdateEqualities = func() conversion.Equalities {
 			// Normalize both to canonical JSON (sorted keys) so that
 			// key-ordering differences don't produce false positives.
 			var aObj, bObj any
-			if err := json.Unmarshal(aBytes, &aObj); err != nil {
+			if err := jsonutil.Unmarshal(aBytes, &aObj); err != nil {
 				return false
 			}
-			if err := json.Unmarshal(bBytes, &bObj); err != nil {
+			if err := jsonutil.Unmarshal(bBytes, &bObj); err != nil {
 				return false
 			}
 			aNorm, err := json.Marshal(aObj)

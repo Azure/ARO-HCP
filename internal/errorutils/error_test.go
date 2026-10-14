@@ -15,13 +15,14 @@
 package errorutils
 
 import (
-	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/go-logr/logr/testr"
+
+	kjson "sigs.k8s.io/json"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 
@@ -66,7 +67,7 @@ func TestWriteError_TransactionPreconditionFailedBecomes429(t *testing.T) {
 	t.Logf("response status code: %d", resp.StatusCode)
 
 	var cloudErr coreapi.CloudError
-	if err := json.NewDecoder(resp.Body).Decode(&cloudErr); err != nil {
+	if err := kjson.NewDecoderCaseSensitivePreserveInts(resp.Body).Decode(&cloudErr); err != nil {
 		t.Fatalf("failed to decode response body: %v", err)
 	}
 	t.Logf("response body code: %s, message: %s", cloudErr.Code, cloudErr.Message)
@@ -113,7 +114,7 @@ func TestWriteError_TransactionConflictBecomes409(t *testing.T) {
 	}
 
 	var cloudErr coreapi.CloudError
-	if err := json.NewDecoder(resp.Body).Decode(&cloudErr); err != nil {
+	if err := kjson.NewDecoderCaseSensitivePreserveInts(resp.Body).Decode(&cloudErr); err != nil {
 		t.Fatalf("failed to decode response body: %v", err)
 	}
 

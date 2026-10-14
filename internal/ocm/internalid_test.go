@@ -25,6 +25,7 @@ import (
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/jsonutil"
 )
 
 type FakeTransport struct{}
@@ -155,7 +156,7 @@ func TestInternalID(t *testing.T) {
 
 			bytes, err := json.Marshal(internalID)
 			if assert.NoError(t, err) {
-				err = json.Unmarshal(bytes, &internalID)
+				err = jsonutil.Unmarshal(bytes, &internalID)
 				assert.NoError(t, err)
 			}
 		})

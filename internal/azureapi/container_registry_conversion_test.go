@@ -15,7 +15,6 @@
 package azureapi_test
 
 import (
-	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -29,6 +28,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/azureapi/v20260630preview"
 	"github.com/Azure/ARO-HCP/internal/azureapi/v20260901preview"
 	v20261001 "github.com/Azure/ARO-HCP/internal/azureapi/v20261001"
+	"github.com/Azure/ARO-HCP/internal/jsonutil"
 )
 
 func TestClusterContainerRegistryPreservation(t *testing.T) {
@@ -64,7 +64,7 @@ func TestClusterContainerRegistryPreservation(t *testing.T) {
 				// Create an update request via this older API version that doesn't mention containerRegistry
 				external := version.NewCluster(existing)
 				body := `{"properties":{"platform":{"operatorsAuthentication":{"userAssignedIdentities":{}}}}}`
-				require.NoError(t, json.Unmarshal([]byte(body), external))
+				require.NoError(t, jsonutil.Unmarshal([]byte(body), external))
 
 				// Convert to internal with existing cluster
 				cluster, err := external.ConvertToInternal(existing)
@@ -102,7 +102,7 @@ func TestClusterContainerRegistryPreservation(t *testing.T) {
 							require.NoError(t, err)
 						}
 						external := version.NewCluster(existing)
-						require.NoError(t, json.Unmarshal([]byte(tt.body), external))
+						require.NoError(t, jsonutil.Unmarshal([]byte(tt.body), external))
 						cluster, err := external.ConvertToInternal(existing)
 						if tt.wantErr != "" {
 							require.ErrorContains(t, err, tt.wantErr)

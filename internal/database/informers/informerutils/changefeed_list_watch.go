@@ -16,7 +16,6 @@ package informerutils
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -38,6 +37,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/jsonutil"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -413,7 +413,7 @@ func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPITyp
 	}
 
 	objAsTypedDocument := &cosmosstorageutils.TypedDocument{}
-	if err := json.Unmarshal(item, objAsTypedDocument); err != nil {
+	if err := jsonutil.Unmarshal(item, objAsTypedDocument); err != nil {
 		return utils.TrackError(err)
 	}
 	logger = logger.WithValues(utils.LogValues{}.AddLogValuesForResourceID(objAsTypedDocument.ResourceID)...)
@@ -437,7 +437,7 @@ func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPITyp
 	}
 
 	var cosmosObj CosmosAPIType
-	if err := json.Unmarshal(item, &cosmosObj); err != nil {
+	if err := jsonutil.Unmarshal(item, &cosmosObj); err != nil {
 		return utils.TrackError(err)
 	}
 	var internalObj InternalAPITypePointer
