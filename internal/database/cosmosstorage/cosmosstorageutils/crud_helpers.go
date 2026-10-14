@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
@@ -26,6 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/utils/ptr"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
@@ -410,14 +412,14 @@ func deleteResource(ctx context.Context, containerClient *azcosmos.ContainerClie
 		return utils.TrackError(err)
 	}
 
-	return softDeleteByCosmosID(ctx, containerClient, partitionKeyString, cosmosID)
+	return softDeleteByCosmosID(ctx, containerClient, partitionKeyString, cosmosID, nil)
 }
 
 func deleteByCosmosID(ctx context.Context, containerClient *azcosmos.ContainerClient, partitionKeyString, cosmosID string) error {
-	return softDeleteByCosmosID(ctx, containerClient, partitionKeyString, cosmosID)
+	return softDeleteByCosmosID(ctx, containerClient, partitionKeyString, cosmosID, nil)
 }
 
-func softDeleteByCosmosID(ctx context.Context, containerClient *azcosmos.ContainerClient, partitionKeyString, cosmosID string) error {
+func softDeleteByCosmosID(ctx context.Context, containerClient *azcosmos.ContainerClient, partitionKeyString, cosmosID string, expectedETag *azcore.ETag) error {
 	pk := azcosmos.NewPartitionKeyString(partitionKeyString)
 
 	responseItem, err := containerClient.ReadItem(ctx, pk, cosmosID, nil)
@@ -436,6 +438,12 @@ func softDeleteByCosmosID(ctx context.Context, containerClient *azcosmos.Contain
 	if doc.DeletionTimestamp != nil {
 		return nil
 	}
+	if expectedETag != nil && *expectedETag != responseItem.ETag {
+		return utils.TrackError(&azcore.ResponseError{StatusCode: http.StatusPreconditionFailed})
+	}
+	if expectedETag == nil {
+		expectedETag = &responseItem.ETag
+	}
 
 	if err := SetSoftDeleteFields(&doc, time.Now()); err != nil {
 		return utils.TrackError(err)
@@ -447,7 +455,7 @@ func softDeleteByCosmosID(ctx context.Context, containerClient *azcosmos.Contain
 	}
 
 	opts := &azcosmos.ItemOptions{
-		IfMatchEtag: &responseItem.ETag,
+		IfMatchEtag: expectedETag,
 	}
 	_, err = containerClient.ReplaceItem(ctx, pk, cosmosID, modified, opts)
 	if err != nil {

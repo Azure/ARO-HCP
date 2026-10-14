@@ -15,6 +15,7 @@
 package kubeappliercosmosstoragetesting
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -84,6 +85,19 @@ func (m *MockKubeApplierDBClient) StoreDocument(cosmosID string, data json.RawMe
 	defer m.mu.Unlock()
 	m.documents[strings.ToLower(cosmosID)] = data
 	m.changeFeed.Record(data)
+}
+
+func (m *MockKubeApplierDBClient) MutateDocument(cosmosID string, mutate func(json.RawMessage) (json.RawMessage, error)) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	cosmosID = strings.ToLower(cosmosID)
+	data, err := mutate(bytes.Clone(m.documents[cosmosID]))
+	if err != nil || data == nil {
+		return err
+	}
+	m.documents[cosmosID] = bytes.Clone(data)
+	m.changeFeed.Record(data)
+	return nil
 }
 
 func (m *MockKubeApplierDBClient) DeleteDocument(cosmosID string) {

@@ -18,7 +18,7 @@ import (
 	"time"
 )
 
-// MinimumBackendVersion bounds prospective Cincinnati seeding.
+// MinimumBackendVersion bounds prospective seeding and obsolete rollout retirement.
 // Raise it only after the retired minor's clusters have drained.
 const MinimumBackendVersion = "4.20"
 

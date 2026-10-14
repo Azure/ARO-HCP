@@ -65,6 +65,14 @@ type ControlPlaneVersionRolloutSpec struct {
 //
 // The count maps are keyed by exact-version string (semver.Version.String()).
 type ControlPlaneVersionRolloutStatus struct {
+	// ReferencingClusterCount counts unique parent clusters referencing this channel
+	// through requested, overridden, pinned, desired, or active versions, including
+	// deleting clusters. Nil means no inventory count has been observed and published;
+	// zero means the last successfully published inventory found no references.
+	// Collection errors leave all prior rollout status unchanged for queue retry.
+	// Written by: ControlPlaneVersionStatusCollector
+	ReferencingClusterCount *int64 `json:"referencingClusterCount,omitempty"`
+
 	// LastAssignmentTime reserves an assignment batch before any cluster writes.
 	// It enforces a minimum interval between batches, including after restarts.
 	// Written by: ZStreamProgressiveDesiredVersionRollout
