@@ -16,7 +16,6 @@ package repositorycleanup
 
 import (
 	"crypto/sha3"
-	"encoding/json"
 	"fmt"
 	"reflect"
 	"regexp"
@@ -129,6 +128,9 @@ func intentApply(spec BackupRepositoryCleanupSpec) Apply {
 }
 
 func finalizerApply(obj *unstructured.Unstructured, gvr schema.GroupVersionResource, manager string, retain bool) Apply {
+	// Release by omission using the same manager that added our set entry.
+	// A successful apply is not proof of disappearance: other managers may keep
+	// the entry, and cleanup must still wait for the repository to be absent.
 	patch := baseApply(gvr, obj.GetKind(), obj.GetName())
 	patch.SetUID(obj.GetUID())
 	patch.SetResourceVersion(obj.GetResourceVersion())
@@ -140,51 +142,6 @@ func finalizerApply(obj *unstructured.Unstructured, gvr schema.GroupVersionResou
 		patch.Object["spec"] = runtime.DeepCopyJSONValue(obj.Object["spec"])
 	}
 	return Apply{Resource: gvr, Object: patch, FieldManager: manager}
-}
-
-// finalizerOwnership does not adopt another manager's ownership. Applying an
-// already-present value can co-own it, but omission cannot remove a co-owned
-// value. Lost managedFields trigger a narrow reapply; if the API attributes the
-// persisted value to before-first-apply, subsequent reconciliation blocks for
-// operator repair. There is no force or whole-finalizer-list patch fallback.
-// Dedicated managers must remain stable and must never own unrelated fields.
-func finalizerOwnership(obj *unstructured.Unstructured, manager string) (ours, other bool) {
-	for _, entry := range obj.GetManagedFields() {
-		if entry.FieldsV1 == nil || entry.Subresource != "" {
-			continue
-		}
-		var fields map[string]interface{}
-		if json.Unmarshal(entry.FieldsV1.Raw, &fields) != nil {
-			other = true
-			continue
-		}
-		finalizers, found, _ := unstructured.NestedMap(fields, "f:metadata", "f:finalizers")
-		if !found {
-			continue
-		}
-		_, owns := finalizers[`v:"`+Finalizer+`"`]
-		if entry.Manager == manager {
-			for name := range finalizers {
-				if name != "." && name != `v:"`+Finalizer+`"` {
-					// Omission would also prune another set member previously
-					// claimed by this manager, so do not attempt a release.
-					other = true
-				}
-			}
-		}
-		// Atomic/list-level ownership cannot safely be pruned as a set member.
-		if len(finalizers) == 0 {
-			other = true
-		}
-		if owns {
-			if entry.Manager == manager && entry.Operation == metav1.ManagedFieldsOperationApply {
-				ours = true
-			} else {
-				other = true
-			}
-		}
-	}
-	return
 }
 
 func blockedPlan(o Observations, reason, message string) Plan {
@@ -255,15 +212,8 @@ func PlanRepository(o Observations) (p Plan) {
 	if err != nil {
 		return blockedPlan(o, Blocked, err.Error())
 	}
-	ours, other := finalizerOwnership(r, RepositoryFieldManager)
-	if !hasFinalizer(r) || !ours {
-		if other {
-			return blockedPlan(o, Blocked, "Repository finalizer is owned by another manager")
-		}
+	if !hasFinalizer(r) {
 		return Plan{Applies: []Apply{finalizerApply(r, BackupRepositoriesGVR, RepositoryFieldManager, true)}, RequeueAfter: recheckInterval}
-	}
-	if other {
-		return blockedPlan(o, Blocked, "Repository finalizer has another owner; operator repair required")
 	}
 	if len(o.HostedClusters) > 0 {
 		return blockedPlan(o, Blocked, "HostedCluster still exists in the base namespace")
@@ -310,13 +260,6 @@ func PlanCleanup(o Observations) Plan {
 		if o.Cleanup.GetDeletionTimestamp() != nil {
 			return blockedPlan(o, Blocked, "Terminating cleanup has no protection")
 		}
-		return Plan{Applies: []Apply{finalizerApply(o.Cleanup, BackupRepositoryCleanupsGVR, CleanupFieldManager, true)}, RequeueAfter: recheckInterval}
-	}
-	ours, other := finalizerOwnership(o.Cleanup, CleanupFieldManager)
-	if other {
-		return blockedPlan(o, Blocked, "Cleanup finalizer has another owner; operator repair required")
-	}
-	if !ours {
 		return Plan{Applies: []Apply{finalizerApply(o.Cleanup, BackupRepositoryCleanupsGVR, CleanupFieldManager, true)}, RequeueAfter: recheckInterval}
 	}
 	if o.Repository != nil {
@@ -535,7 +478,7 @@ func terminalOperation(obj *unstructured.Unstructured, gvr schema.GroupVersionRe
 	if gvr == RestoresGVR {
 		return phase == "PartiallyFailed" || phase == "FailedValidation"
 	}
-	return (gvr == DataUploadsGVR || gvr == DataDownloadsGVR) && phase == "Canceled"
+	return (gvr == DataUploadsGVR || gvr == DataDownloadsGVR || gvr == PodVolumeBackupsGVR || gvr == PodVolumeRestoresGVR) && phase == "Canceled"
 }
 
 func maintenance(o Observations, spec BackupRepositoryCleanupSpec) (jobs, pods []unstructured.Unstructured, message string) {

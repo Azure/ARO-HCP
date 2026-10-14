@@ -49,6 +49,35 @@ func fakeClient(t *testing.T, o Observations) *fake.FakeDynamicClient {
 	return fake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), listKinds, objects...)
 }
 
+func observationInformers(t *testing.T, o Observations) map[schema.GroupVersionResource]cache.SharedIndexInformer {
+	t.Helper()
+	result := map[schema.GroupVersionResource]cache.SharedIndexInformer{}
+	for _, gvr := range RequiredResources() {
+		i := cache.NewSharedIndexInformer(&cache.ListWatch{}, &unstructured.Unstructured{}, 0, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
+		if gvr == JobsGVR || gvr == PodsGVR {
+			if err := i.AddIndexers(cache.Indexers{maintenanceIndex: func(obj interface{}) ([]string, error) {
+				return maintenanceRelations(obj, gvr == JobsGVR), nil
+			}}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		for _, obj := range o.Objects[gvr] {
+			if err := i.GetStore().Add(obj.DeepCopy()); err != nil {
+				t.Fatal(err)
+			}
+		}
+		for _, obj := range o.HostedClusters {
+			if gvr == HostedClustersGVR {
+				if err := i.GetStore().Add(obj.DeepCopy()); err != nil {
+					t.Fatal(err)
+				}
+			}
+		}
+		result[gvr] = i
+	}
+	return result
+}
+
 // Only status merge is emulated here; ownership semantics are covered with the
 // real field manager in plan_test.go, rather than a sprawling fake API server.
 func statusReactor(t *testing.T, client *fake.FakeDynamicClient) {
@@ -83,7 +112,7 @@ func TestAdapterSweepsAndRechecksCompletedTombstone(t *testing.T) {
 	client := fakeClient(t, o)
 	statusReactor(t, client)
 	sweeps := 0
-	c := &Controller{client: client, deletePrefix: func(_ context.Context, target storage.Target) error {
+	c := &Controller{client: client, informers: observationInformers(t, o), deletePrefix: func(_ context.Context, target storage.Target) error {
 		sweeps++
 		if target.Prefix != "base/kopia/"+testVolume+"/" {
 			t.Fatalf("unexpected target: %#v", target)
@@ -113,6 +142,9 @@ func TestAdapterSweepsAndRechecksCompletedTombstone(t *testing.T) {
 	if err := client.Tracker().Create(JobsGVR, job, Namespace); err != nil {
 		t.Fatal(err)
 	}
+	if err := c.informers[JobsGVR].GetStore().Add(job); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := c.reconcile(context.Background(), k); err != nil {
 		t.Fatal(err)
 	}
@@ -125,17 +157,12 @@ func TestAdapterFreshReplanPreventsDeletion(t *testing.T) {
 	o := retired(t)
 	client := fakeClient(t, o)
 	statusReactor(t, client)
-	lists := 0
 	client.PrependReactor("list", "hostedclusters", func(action clienttesting.Action) (bool, runtime.Object, error) {
-		lists++
-		if lists < 2 {
-			return false, nil, nil
-		}
 		hc := object(HostedClustersGVR, "HostedCluster", "replacement")
 		hc.SetNamespace(HostedClusterNamespace(testVolume))
 		return true, &unstructured.UnstructuredList{Items: []unstructured.Unstructured{*hc}}, nil
 	})
-	c := &Controller{client: client, deletePrefix: func(context.Context, storage.Target) error {
+	c := &Controller{client: client, informers: observationInformers(t, o), deletePrefix: func(context.Context, storage.Target) error {
 		t.Fatal("must not sweep after HC appeared on fresh observation")
 		return nil
 	}}
@@ -144,11 +171,68 @@ func TestAdapterFreshReplanPreventsDeletion(t *testing.T) {
 	}
 }
 
+func TestTombstoneUsesCachedInventories(t *testing.T) {
+	o := retired(t)
+	client := fakeClient(t, o)
+	statusReactor(t, client)
+	c := &Controller{client: client, informers: observationInformers(t, o), deletePrefix: func(context.Context, storage.Target) error { return nil }}
+	k := key{Resource: BackupRepositoryCleanupsGVR, Name: o.Cleanup.GetName()}
+	if _, err := c.reconcile(t.Context(), k); err != nil {
+		t.Fatal(err)
+	}
+	for _, action := range client.Actions() {
+		if action.GetVerb() == "list" {
+			if action.GetResource() == HostedClustersGVR && action.GetNamespace() == HostedClusterNamespace(testVolume) {
+				continue
+			}
+			if (action.GetResource() == JobsGVR || action.GetResource() == PodsGVR) && action.(clienttesting.ListAction).GetListRestrictions().Labels.String() == repoNameLabel+"=repository" {
+				continue
+			}
+			t.Fatalf("tombstone must only list targeted HC/maintenance resources: %#v", action)
+		}
+	}
+	backup := object(BackupsGVR, "Backup", "new-consumer")
+	backup.Object["spec"] = map[string]interface{}{"includedNamespaces": []interface{}{testVolume}}
+	if err := c.informers[BackupsGVR].GetStore().Add(backup); err != nil {
+		t.Fatal(err)
+	}
+	c.deletePrefix = func(context.Context, storage.Target) error { t.Fatal("cached consumer must block sweep"); return nil }
+	if _, err := c.reconcile(t.Context(), k); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestMaintenanceIndexesIncludeRelationsWithoutStatusFiltering(t *testing.T) {
+	o := retired(t)
+	job, pod := terminalMaintenance()
+	foreign := job.DeepCopy()
+	foreign.SetName("other-repository")
+	foreign.SetLabels(map[string]string{repoNameLabel: "different-repository"})
+	delete(foreign.Object, "status")
+	unrelated := job.DeepCopy()
+	unrelated.SetName("unrelated")
+	unrelated.SetLabels(map[string]string{repoNameLabel: "unrelated"})
+	unrelated.Object["spec"] = map[string]interface{}{}
+	pod.SetLabels(nil)
+	pod.Object["spec"] = map[string]interface{}{}
+	o.Objects[JobsGVR] = []unstructured.Unstructured{*job, *foreign, *unrelated}
+	o.Objects[PodsGVR] = []unstructured.Unstructured{*pod}
+	c := &Controller{informers: observationInformers(t, o)}
+	jobs, err := c.cachedMaintenance(JobsGVR, testVolume, "repository", nil)
+	if err != nil || len(jobs) != 2 {
+		t.Fatalf("expected own and active same-volume foreign Jobs, got %v: %v", jobs, err)
+	}
+	pods, err := c.cachedMaintenance(PodsGVR, testVolume, "repository", jobs)
+	if err != nil || len(pods) != 1 || pods[0].GetName() != pod.GetName() {
+		t.Fatalf("expected owner-associated Pod, got %v: %v", pods, err)
+	}
+}
+
 func TestAdapterSweepFailureIsNotComplete(t *testing.T) {
 	o := retired(t)
 	client := fakeClient(t, o)
 	statusReactor(t, client)
-	c := &Controller{client: client, deletePrefix: func(context.Context, storage.Target) error { return fmt.Errorf("Azure unavailable") }}
+	c := &Controller{client: client, informers: observationInformers(t, o), deletePrefix: func(context.Context, storage.Target) error { return fmt.Errorf("Azure unavailable") }}
 	if _, err := c.reconcile(context.Background(), key{Resource: BackupRepositoryCleanupsGVR, Name: o.Cleanup.GetName()}); err == nil {
 		t.Fatal("expected Azure failure")
 	}
@@ -166,7 +250,7 @@ func TestRepeatedSweepFailureDoesNotGenerateStatusEvents(t *testing.T) {
 	o := retired(t)
 	client := fakeClient(t, o)
 	statusReactor(t, client)
-	c := &Controller{client: client, deletePrefix: func(context.Context, storage.Target) error { return fmt.Errorf("Azure 403") }}
+	c := &Controller{client: client, informers: observationInformers(t, o), deletePrefix: func(context.Context, storage.Target) error { return fmt.Errorf("Azure 403") }}
 	k := key{Resource: BackupRepositoryCleanupsGVR, Name: o.Cleanup.GetName()}
 	for attempt := 0; attempt < 4; attempt++ {
 		client.ClearActions()
@@ -237,7 +321,7 @@ func TestAdapterRepoApplyAndDeleteOptions(t *testing.T) {
 				}
 				return true, nil, nil
 			})
-			c := &Controller{client: client}
+			c := &Controller{client: client, informers: observationInformers(t, o)}
 			if _, err := c.reconcile(context.Background(), key{Resource: BackupRepositoriesGVR, Name: o.Repository.GetName()}); err != nil {
 				t.Fatal(err)
 			}
@@ -362,6 +446,11 @@ func TestLivePreflightAvoidsDependencyLists(t *testing.T) {
 				k = key{Resource: BackupRepositoryCleanupsGVR, Name: o.Cleanup.GetName()}
 			}
 			o.Objects[BackupRepositoriesGVR] = []unstructured.Unstructured{*o.Repository}
+			if scenario == "live-hc" {
+				hc := object(HostedClustersGVR, "HostedCluster", "hc")
+				hc.SetNamespace(HostedClusterNamespace(testVolume))
+				o.HostedClusters = []unstructured.Unstructured{*hc}
+			}
 			client := fakeClient(t, o)
 			client.PrependReactor("list", "*", func(action clienttesting.Action) (bool, runtime.Object, error) {
 				if scenario != "live-hc" || action.GetResource() != HostedClustersGVR {
@@ -369,7 +458,7 @@ func TestLivePreflightAvoidsDependencyLists(t *testing.T) {
 				}
 				return true, &unstructured.UnstructuredList{Items: []unstructured.Unstructured{*object(HostedClustersGVR, "HostedCluster", "hc")}}, nil
 			})
-			c := &Controller{client: client}
+			c := &Controller{client: client, informers: observationInformers(t, o)}
 			observed, err := c.observe(context.Background(), k)
 			if err != nil {
 				t.Fatal(err)
@@ -410,7 +499,7 @@ func TestIntentCollisionOnFreshReadPreventsApplyAndRelease(t *testing.T) {
 		t.Fatalf("collision must prevent both intent apply and repository release: %#v", action)
 		return true, nil, nil
 	})
-	c := &Controller{client: client}
+	c := &Controller{client: client, informers: observationInformers(t, o)}
 	if _, err := c.reconcile(context.Background(), key{Resource: BackupRepositoriesGVR, Name: o.Repository.GetName()}); err != nil {
 		t.Fatal(err)
 	}
