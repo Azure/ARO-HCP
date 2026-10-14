@@ -18,11 +18,7 @@ package e2e
 
 import (
 	"context"
-	"errors"
-	"fmt"
-	"net"
 	"testing"
-	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -42,44 +38,3 @@ var _ = BeforeSuite(func() {
 var _ = AfterSuite(func() {
 	// Cleanup is done by Resource Group DeferCleanup
 })
-
-func TestWaitForIngressDNS(testingT *testing.T) {
-	timeoutErr := fmt.Errorf("NS lookup: %w", &net.DNSError{Err: "i/o timeout", IsTimeout: true})
-	temporaryErr := fmt.Errorf("NS lookup: %w", &net.DNSError{Err: "temporary failure", IsTemporary: true})
-	for _, testCase := range []struct {
-		name  string
-		polls []error
-	}{
-		{name: "successful polls", polls: []error{nil, nil, nil}},
-		{name: "timeouts preserve progress", polls: []error{nil, timeoutErr, nil, timeoutErr, nil}},
-		{name: "temporary errors preserve progress", polls: []error{nil, temporaryErr, nil, temporaryErr, nil}},
-		{name: "deadlines preserve progress", polls: []error{nil, fmt.Errorf("lookup: %w", context.DeadlineExceeded), nil, nil}},
-		{name: "unreachable resolver preserves progress", polls: []error{nil, errors.New("connection refused"), nil, nil}},
-		{name: "wrong answer resets progress", polls: []error{nil, nil, fmt.Errorf("NS mismatch: %w", errIngressDNSInconsistent), nil, nil, nil}},
-		{name: "missing answer resets progress", polls: []error{nil, nil, &net.DNSError{IsNotFound: true}, nil, nil, nil}},
-	} {
-		testingT.Run(testCase.name, func(testingT *testing.T) {
-			polls := 0
-			err := waitForIngressDNS(context.Background(), time.Microsecond, time.Second, 3, func(context.Context) error {
-				if polls >= len(testCase.polls) {
-					testingT.Fatal("readback did not converge after expected polls")
-				}
-				pollErr := testCase.polls[polls]
-				polls++
-				return pollErr
-			})
-			if err != nil || polls != len(testCase.polls) {
-				testingT.Fatalf("got %d polls and error %v; want %d polls and no error", polls, err, len(testCase.polls))
-			}
-		})
-	}
-}
-
-func TestWaitForIngressDNSTimeout(testingT *testing.T) {
-	err := waitForIngressDNS(context.Background(), time.Millisecond, 10*time.Millisecond, 3, func(context.Context) error {
-		return &net.DNSError{Err: "i/o timeout", IsTimeout: true}
-	})
-	if !errors.Is(err, context.DeadlineExceeded) {
-		testingT.Fatalf("expected deadline error for unreachable DNS, got %v", err)
-	}
-}

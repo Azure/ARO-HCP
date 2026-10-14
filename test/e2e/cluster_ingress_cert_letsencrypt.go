@@ -41,7 +41,6 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/wait"
 	utilyaml "k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/client-go/discovery"
 	memory "k8s.io/client-go/discovery/cached/memory"
@@ -56,6 +55,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dns/armdns"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/msi/armmsi"
 
+	"github.com/Azure/ARO-HCP/test/util/dnsreadback"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
@@ -391,7 +391,7 @@ var _ = Describe("Customer", func() {
 				}
 				return err
 			}
-			if err := waitForIngressDNS(ctx, 10*time.Second, 90*time.Second, 4, func(ctx context.Context) error {
+			if err := dnsreadback.Wait(ctx, 10*time.Second, 90*time.Second, 4, func(ctx context.Context) error {
 				return logDNSReadback(readbackIngressDNS(ctx, delegatedDomain, nameservers, nameserverAddresses, "", ""))
 			}); err != nil {
 				GinkgoLogr.Info("DNS readback gate incomplete; proceeding to issuance (best-effort)", "zone", delegatedDomain, "error", err)
@@ -439,10 +439,10 @@ var _ = Describe("Customer", func() {
 					}
 					return readbackIngressDNS(ctx, delegatedDomain, nameservers, nameserverAddresses, "_acme-challenge."+strings.TrimPrefix(dnsName, "*.")+".", key)
 				}
-				return fmt.Errorf("waiting for a presented DNS-01 challenge for %s", appsWildcard)
+				return fmt.Errorf("%w: waiting for a presented DNS-01 challenge for %s", dnsreadback.ErrInconsistent, appsWildcard)
 			}
 			lastDNSStatus = ""
-			if err := waitForIngressDNS(ctx, 5*time.Second, 90*time.Second, 3, func(ctx context.Context) error {
+			if err := dnsreadback.Wait(ctx, 5*time.Second, 90*time.Second, 3, func(ctx context.Context) error {
 				return logDNSReadback(readbackTXT(ctx))
 			}); err != nil {
 				GinkgoLogr.Info("DNS TXT readback incomplete; proceeding to wait for issuance (best-effort)", "zone", delegatedDomain, "error", err)
@@ -482,29 +482,6 @@ var _ = Describe("Customer", func() {
 		})
 })
 
-var errIngressDNSInconsistent = errors.New("inconsistent DNS answer")
-
-func waitForIngressDNS(ctx context.Context, interval, timeout time.Duration, requiredPolls int, readback func(context.Context) error) error {
-	goodPolls := 0
-	var lastErr error
-	err := wait.PollUntilContextTimeout(ctx, interval, timeout, true, func(ctx context.Context) (bool, error) {
-		lastErr = readback(ctx)
-		if lastErr == nil {
-			goodPolls++
-		} else {
-			var dnsErr *net.DNSError
-			if errors.Is(lastErr, errIngressDNSInconsistent) || (errors.As(lastErr, &dnsErr) && dnsErr.IsNotFound) {
-				goodPolls = 0
-			}
-		}
-		return goodPolls >= requiredPolls, nil
-	})
-	if err != nil {
-		return fmt.Errorf("%w: %d/%d successful DNS polls since last inconsistent answer; last readback error: %v", err, goodPolls, requiredPolls, lastErr)
-	}
-	return nil
-}
-
 func ingressDNSResolver(address string) *net.Resolver {
 	return &net.Resolver{
 		PreferGo: true,
@@ -528,7 +505,7 @@ func readbackIngressDNS(ctx context.Context, zone string, nameservers []string, 
 		}
 		slices.Sort(hosts)
 		if !slices.Equal(hosts, nameservers) {
-			return fmt.Errorf("%w: NS lookup for %s via %s: got %v, want %v", errIngressDNSInconsistent, zone, source, hosts, nameservers)
+			return fmt.Errorf("%w: NS lookup for %s via %s: got %v, want %v", dnsreadback.ErrInconsistent, zone, source, hosts, nameservers)
 		}
 		return nil
 	}
@@ -544,7 +521,7 @@ func readbackIngressDNS(ctx context.Context, zone string, nameservers []string, 
 				return fmt.Errorf("resolving authoritative nameserver %s via 1.1.1.1:53: %w", nameserver, err)
 			}
 			if len(addresses) == 0 {
-				return fmt.Errorf("%w: no IPv4 addresses for authoritative nameserver %s", errIngressDNSInconsistent, nameserver)
+				return fmt.Errorf("%w: no IPv4 addresses for authoritative nameserver %s", dnsreadback.ErrInconsistent, nameserver)
 			}
 			address = net.JoinHostPort(addresses[0].String(), "53")
 			nameserverAddresses[nameserver] = address
@@ -559,7 +536,7 @@ func readbackIngressDNS(ctx context.Context, zone string, nameservers []string, 
 				return fmt.Errorf("TXT lookup for %s via %s: %w", txtName, nameserver, err)
 			}
 			if !slices.Contains(records, txtValue) {
-				return fmt.Errorf("%w: TXT lookup for %s via %s: expected challenge value absent (%d records)", errIngressDNSInconsistent, txtName, nameserver, len(records))
+				return fmt.Errorf("%w: TXT lookup for %s via %s: expected challenge value absent (%d records)", dnsreadback.ErrInconsistent, txtName, nameserver, len(records))
 			}
 		}
 	}
