@@ -16,6 +16,7 @@ package cosmosstorageutils
 
 import (
 	"encoding/json"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -244,6 +245,82 @@ func TestPrepareForReplace_RequiresEtag(t *testing.T) {
 	// on the next retry.
 	if obj.InstanceVersion != 7 {
 		t.Errorf("InstanceVersion was mutated on the failure path: got %d, want 7", obj.InstanceVersion)
+	}
+}
+
+func TestCRUDConstructorsCanonicalizeParentResourceID(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		parent string
+		want   string
+	}{
+		{
+			name:   "subscription",
+			parent: "/subscriptions/SubscriptionID",
+			want:   "/subscriptions/subscriptionid",
+		},
+		{
+			name:   "cluster",
+			parent: "/subscriptions/SubscriptionID/resourceGroups/MyGroup/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/MyCluster",
+			want:   "/subscriptions/subscriptionid/resourceGroups/mygroup/providers/microsoft.redhatopenshift/hcpopenshiftclusters/mycluster",
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			parent, err := azcorearm.ParseResourceID(test.parent)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Run("untyped", func(t *testing.T) {
+				crud := NewUntypedCRUDWithPartitionKey(nil, *parent, SubscriptionPartitionKeyDeriver{}).(*untypedCRUD)
+				if got := crud.parentResourceID.String(); got != test.want {
+					t.Errorf("parentResourceID = %q, want %q", got, test.want)
+				}
+			})
+			t.Run("nested", func(t *testing.T) {
+				crud := NewCosmosResourceCRUDWithStrategies[coreapi.NodePool, *coreapi.NodePool, GenericDocument[coreapi.NodePool]](
+					nil, parent, coreapi.NodePoolResourceType, SubscriptionPartitionKeyDeriver{}, ClusterNestedResourceIDBuilder{})
+				if crud.ParentResourceID == nil {
+					t.Fatal("ParentResourceID is nil")
+				}
+				if got := crud.ParentResourceID.String(); got != test.want {
+					t.Errorf("ParentResourceID = %q, want %q", got, test.want)
+				}
+			})
+			if got := parent.String(); got != test.parent {
+				t.Errorf("original parent changed to %q, want %q", got, test.parent)
+			}
+		})
+	}
+}
+
+func TestUntypedCRUDChildCanonicalizesParentResourceID(t *testing.T) {
+	parent, err := azcorearm.ParseResourceID("/subscriptions/SubscriptionID/resourceGroups/MyGroup")
+	if err != nil {
+		t.Fatal(err)
+	}
+	crud := &untypedCRUD{parentResourceID: *parent, partitionKeyDeriver: SubscriptionPartitionKeyDeriver{}}
+	child, err := crud.Child(coreapi.ClusterResourceType, "MyCluster")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "/subscriptions/subscriptionid/resourceGroups/mygroup/providers/microsoft.redhatopenshift/hcpopenshiftclusters/mycluster"
+	if got := child.(*untypedCRUD).parentResourceID.String(); got != want {
+		t.Errorf("child parentResourceID = %q, want %q", got, want)
+	}
+}
+
+func TestCRUDConstructorsPreserveInvalidParentResourceID(t *testing.T) {
+	parent := azcorearm.ResourceID{}
+	crud := NewUntypedCRUDWithPartitionKey(nil, parent, SubscriptionPartitionKeyDeriver{}).(*untypedCRUD)
+	if !reflect.DeepEqual(crud.parentResourceID, parent) {
+		t.Errorf("invalid parentResourceID was not preserved: %+v", crud.parentResourceID)
+	}
+	for _, parentPointer := range []*azcorearm.ResourceID{nil, &parent} {
+		nested := NewCosmosResourceCRUDWithStrategies[coreapi.NodePool, *coreapi.NodePool, GenericDocument[coreapi.NodePool]](
+			nil, parentPointer, coreapi.NodePoolResourceType, SubscriptionPartitionKeyDeriver{}, ClusterNestedResourceIDBuilder{})
+		if nested.ParentResourceID != parentPointer {
+			t.Errorf("ParentResourceID = %p, want original pointer %p", nested.ParentResourceID, parentPointer)
+		}
 	}
 }
 
