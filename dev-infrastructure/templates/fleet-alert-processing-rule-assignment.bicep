@@ -9,8 +9,8 @@ param fleetMIResourceGroup string
 //
 // The fleet controller needs Microsoft.AlertsManagement/actionRules read and delete in
 // order to reap expired alert processing rules. A custom least-privilege role is not an
-// option: the MSIT and AME tenants have already reached their custom-role quota, so
-// Monitoring Contributor is the narrowest built-in role that grants actionRules access.
+// option: the platform cannot currently support an additional custom role across every
+// target environment, so Monitoring Contributor is the narrowest built-in role that grants actionRules access.
 // It is write-capable over monitoring resources, so the grant is scoped to this single
 // regional resource group to contain the blast radius. See ARO-29669 / PR #7020, which
 // made the same tradeoff for the Admin API identity in this same resource group.
