@@ -67,6 +67,9 @@ func NewUntypedCRUD(containerClient *azcosmos.ContainerClient, parentResourceID 
 // ListRecursive call PartitionKey with an empty resourceName so the same
 // deriver can return "" to opt into a cross-partition query.
 func NewUntypedCRUDWithPartitionKey(containerClient *azcosmos.ContainerClient, parentResourceID azcorearm.ResourceID, partitionKeyDeriver PartitionKeyDeriver) UntypedResourceCRUD {
+	if lowerParentResourceID, err := azcorearm.ParseResourceID(strings.ToLower(parentResourceID.String())); err == nil {
+		parentResourceID = *lowerParentResourceID
+	}
 	return &untypedCRUD{
 		containerClient:     containerClient,
 		parentResourceID:    parentResourceID,
@@ -147,7 +150,7 @@ func (d *untypedCRUD) Child(resourceType azcorearm.ResourceType, resourceName st
 	parts = append(parts, resourceType.Types[len(resourceType.Types)-1])
 	parts = append(parts, resourceName)
 
-	resourcePathString := path.Join(parts...)
+	resourcePathString := strings.ToLower(path.Join(parts...))
 	newParentResourceID, err := azcorearm.ParseResourceID(resourcePathString)
 	if err != nil {
 		return nil, utils.TrackError(err)
