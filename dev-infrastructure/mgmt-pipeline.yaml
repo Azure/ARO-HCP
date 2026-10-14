@@ -11,8 +11,7 @@ serviceGroup: Microsoft.Azure.ARO.HCP.Management.Infra
 rolloutName: Management Cluster Rollout
 # Pre-build the Go binary invoked by the cluster-create Shell step below. The EV2
 # Shell runner image has no Go toolchain, so the binary is built here and shipped
-# as part of the step's workingDir, same pattern as scripts/grafana-group-roles in
-# global-pipeline-stg.yaml.
+# as part of the step's workingDir, same pattern as scripts/grafana-group-roles.
 buildStep:
   command: bash
   args:
