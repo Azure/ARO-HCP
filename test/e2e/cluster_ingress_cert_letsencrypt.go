@@ -44,7 +44,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	utilyaml "k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/client-go/discovery"
-	memory "k8s.io/client-go/discovery/cached/memory"
+	"k8s.io/client-go/discovery/cached/memory"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -52,7 +52,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
-	armauthorization "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v3"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v3"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dns/armdns"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/msi/armmsi"
 
@@ -73,8 +73,8 @@ var letsEncryptStagingCAs embed.FS
 // Pinned upstream cert-manager release. Bump deliberately; do not float to :latest.
 const certManagerManifestURL = "https://github.com/cert-manager/cert-manager/releases/download/v1.20.2/cert-manager.yaml"
 
-var _ = Describe("ARO-HCP", func() {
-	DescribeTable("should serve the default ingress certificate and allow a customer ingress certificate",
+var _ = Describe("Customer", func() {
+	DescribeTable("should be able to issue the default ingress serving certificate from Let's Encrypt using cert-manager with ACME DNS-01 challenges ",
 		labels.RequireNothing,
 		labels.High,
 		labels.Positive,
@@ -530,7 +530,7 @@ var _ = Describe("ARO-HCP", func() {
 		},
 		// Add earlier release lines only once a CPO override for https://github.com/openshift/hypershift/pull/9132
 		// exists across all previously-released versions; start with 5.1 for early feedback.
-		Entry("for 5.1", "5.1"),
+		Entry("for cluster version 5.1", "5.1"),
 	)
 })
 

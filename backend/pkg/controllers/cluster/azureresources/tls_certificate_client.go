@@ -22,6 +22,8 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azcertificates"
+
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 // tlsCertificatesClient is the subset of the Key Vault certificates client needed to
@@ -41,7 +43,7 @@ func observeTLSCertificateDeleted(ctx context.Context, client tlsCertificatesCli
 		return true, nil
 	}
 	if err != nil {
-		return false, err
+		return false, utils.TrackError(err)
 	}
 	return false, nil
 }
@@ -54,7 +56,7 @@ func observeTLSCertificate(ctx context.Context, client tlsCertificatesClient, na
 	var responseError *azcore.ResponseError
 	certificateMissing := errors.As(err, &responseError) && responseError.StatusCode == http.StatusNotFound
 	if err != nil && !certificateMissing {
-		return false, err
+		return false, utils.TrackError(err)
 	}
 	operation, err := client.GetCertificateOperation(ctx, name, nil)
 	if errors.As(err, &responseError) && responseError.StatusCode == http.StatusNotFound {
@@ -71,7 +73,7 @@ func observeTLSCertificate(ctx context.Context, client tlsCertificatesClient, na
 		return false, err
 	}
 	if operation.Status == nil {
-		return false, fmt.Errorf("certificate %q operation has no status", name)
+		return false, utils.TrackError(fmt.Errorf("certificate %q operation has no status", name))
 	}
 	switch *operation.Status {
 	case "completed":
@@ -79,8 +81,8 @@ func observeTLSCertificate(ctx context.Context, client tlsCertificatesClient, na
 	case "inProgress":
 		return false, nil
 	case "failed", "cancelled":
-		return false, fmt.Errorf("certificate %q operation %s", name, *operation.Status)
+		return false, utils.TrackError(fmt.Errorf("certificate %q operation %s", name, *operation.Status))
 	default:
-		return false, fmt.Errorf("certificate %q has unknown operation status %q", name, *operation.Status)
+		return false, utils.TrackError(fmt.Errorf("certificate %q has unknown operation status %q", name, *operation.Status))
 	}
 }
