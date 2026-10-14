@@ -156,10 +156,10 @@ Build it first with `make -C test`, then:
 
 See `test/e2e/README.md` for full details on environment setup and available suites.
 
-### CI / PR validation: MustFilter in main.go
+### CI / PR validation: MustFilter in cli.go
 
 To run specific tests in a PR against Int, Stage, or Prod environments, use
-`specs.MustFilter()` in `test/cmd/aro-hcp-tests/main.go` with CEL expressions.
+`specs.MustFilter()` in `test/cmd/aro-hcp-tests/cli.go` with CEL expressions.
 This is the only way to select tests for CI runs in higher environments.
 
 Locate the commented line and uncomment/modify it:
