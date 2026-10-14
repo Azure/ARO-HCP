@@ -155,6 +155,84 @@ func (c *MockFirstPartyApplicationClientBuilderGenericResourcesClientCall) DoAnd
 	return c
 }
 
+// PolicyAssignmentsClient mocks base method.
+func (m *MockFirstPartyApplicationClientBuilder) PolicyAssignmentsClient(tenantID, subscriptionID string) (PolicyAssignmentsClient, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "PolicyAssignmentsClient", tenantID, subscriptionID)
+	ret0, _ := ret[0].(PolicyAssignmentsClient)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// PolicyAssignmentsClient indicates an expected call of PolicyAssignmentsClient.
+func (mr *MockFirstPartyApplicationClientBuilderMockRecorder) PolicyAssignmentsClient(tenantID, subscriptionID any) *MockFirstPartyApplicationClientBuilderPolicyAssignmentsClientCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PolicyAssignmentsClient", reflect.TypeOf((*MockFirstPartyApplicationClientBuilder)(nil).PolicyAssignmentsClient), tenantID, subscriptionID)
+	return &MockFirstPartyApplicationClientBuilderPolicyAssignmentsClientCall{Call: call}
+}
+
+// MockFirstPartyApplicationClientBuilderPolicyAssignmentsClientCall wrap *gomock.Call
+type MockFirstPartyApplicationClientBuilderPolicyAssignmentsClientCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockFirstPartyApplicationClientBuilderPolicyAssignmentsClientCall) Return(arg0 PolicyAssignmentsClient, arg1 error) *MockFirstPartyApplicationClientBuilderPolicyAssignmentsClientCall {
+	c.Call = c.Call.Return(arg0, arg1)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockFirstPartyApplicationClientBuilderPolicyAssignmentsClientCall) Do(f func(string, string) (PolicyAssignmentsClient, error)) *MockFirstPartyApplicationClientBuilderPolicyAssignmentsClientCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockFirstPartyApplicationClientBuilderPolicyAssignmentsClientCall) DoAndReturn(f func(string, string) (PolicyAssignmentsClient, error)) *MockFirstPartyApplicationClientBuilderPolicyAssignmentsClientCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// PolicyDefinitionsClient mocks base method.
+func (m *MockFirstPartyApplicationClientBuilder) PolicyDefinitionsClient(tenantID, subscriptionID string) (PolicyDefinitionsClient, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "PolicyDefinitionsClient", tenantID, subscriptionID)
+	ret0, _ := ret[0].(PolicyDefinitionsClient)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// PolicyDefinitionsClient indicates an expected call of PolicyDefinitionsClient.
+func (mr *MockFirstPartyApplicationClientBuilderMockRecorder) PolicyDefinitionsClient(tenantID, subscriptionID any) *MockFirstPartyApplicationClientBuilderPolicyDefinitionsClientCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PolicyDefinitionsClient", reflect.TypeOf((*MockFirstPartyApplicationClientBuilder)(nil).PolicyDefinitionsClient), tenantID, subscriptionID)
+	return &MockFirstPartyApplicationClientBuilderPolicyDefinitionsClientCall{Call: call}
+}
+
+// MockFirstPartyApplicationClientBuilderPolicyDefinitionsClientCall wrap *gomock.Call
+type MockFirstPartyApplicationClientBuilderPolicyDefinitionsClientCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockFirstPartyApplicationClientBuilderPolicyDefinitionsClientCall) Return(arg0 PolicyDefinitionsClient, arg1 error) *MockFirstPartyApplicationClientBuilderPolicyDefinitionsClientCall {
+	c.Call = c.Call.Return(arg0, arg1)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockFirstPartyApplicationClientBuilderPolicyDefinitionsClientCall) Do(f func(string, string) (PolicyDefinitionsClient, error)) *MockFirstPartyApplicationClientBuilderPolicyDefinitionsClientCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockFirstPartyApplicationClientBuilderPolicyDefinitionsClientCall) DoAndReturn(f func(string, string) (PolicyDefinitionsClient, error)) *MockFirstPartyApplicationClientBuilderPolicyDefinitionsClientCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
 // ResourceGroupsClient mocks base method.
 func (m *MockFirstPartyApplicationClientBuilder) ResourceGroupsClient(tenantID, subscriptionID string) (ResourceGroupsClient, error) {
 	m.ctrl.T.Helper()
