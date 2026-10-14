@@ -198,3 +198,37 @@ tests:
   - eval_time: 30m
     alertname: KubeApplierReadFailing
     exp_alerts: []
+- interval: 1m
+  name: KubeApplierApplyFailing ignores single failures and short bursts after recovery
+  input_series:
+  - series: 'kube_applier_desire_operations_total{cluster="test-cluster", group="apps", resource="deployments", operation="apply", status="False", reason="KubeAPIError"}'
+    values: "0 1x29"
+  - series: 'kube_applier_desire_operations_total{cluster="test-cluster", group="apps", resource="deployments", operation="apply", status="False", reason="PreCheckFailed"}'
+    values: "0+1x3 3x26"
+  alert_rule_test:
+  - eval_time: 8m
+    alertname: KubeApplierApplyFailing
+    exp_alerts: []
+  - eval_time: 16m
+    alertname: KubeApplierApplyFailing
+    exp_alerts: []
+  - eval_time: 30m
+    alertname: KubeApplierApplyFailing
+    exp_alerts: []
+- interval: 1m
+  name: KubeApplierReadFailing ignores single failures and short bursts after recovery
+  input_series:
+  - series: 'kube_applier_desire_operations_total{cluster="test-cluster", group="apps", resource="deployments", operation="resync", status="False", reason="KubeAPIError"}'
+    values: "0 1x29"
+  - series: 'kube_applier_desire_operations_total{cluster="test-cluster", group="apps", resource="deployments", operation="resync", status="False", reason="PreCheckFailed"}'
+    values: "0+1x3 3x26"
+  alert_rule_test:
+  - eval_time: 8m
+    alertname: KubeApplierReadFailing
+    exp_alerts: []
+  - eval_time: 16m
+    alertname: KubeApplierReadFailing
+    exp_alerts: []
+  - eval_time: 30m
+    alertname: KubeApplierReadFailing
+    exp_alerts: []

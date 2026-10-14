@@ -28,7 +28,7 @@ spec:
         title: 'kube-applier on cluster {{ $labels.cluster }} lacks kube_applier_desires metric'
     - alert: KubeApplierApplyFailing
       expr: |
-        max by (cluster, namespace, operation, group, resource, reason) (increase(kube_applier_desire_operations_total{operation="apply", status="False", reason=~"KubeAPIError|PreCheckFailed"}[15m])) > 0
+        max by (cluster, namespace, operation, group, resource, reason) (increase(kube_applier_desire_operations_total{operation="apply", status="False", reason=~"KubeAPIError|PreCheckFailed"}[5m])) > 0
       for: 15m
       labels:
         severity: warning
@@ -40,7 +40,7 @@ spec:
     - alert: KubeApplierReadFailing
       # ReadDesire operations are recorded as operation="resync".
       expr: |
-        max by (cluster, namespace, operation, group, resource, reason) (increase(kube_applier_desire_operations_total{operation="resync", status="False", reason=~"KubeAPIError|PreCheckFailed"}[15m])) > 0
+        max by (cluster, namespace, operation, group, resource, reason) (increase(kube_applier_desire_operations_total{operation="resync", status="False", reason=~"KubeAPIError|PreCheckFailed"}[5m])) > 0
       for: 15m
       labels:
         severity: warning

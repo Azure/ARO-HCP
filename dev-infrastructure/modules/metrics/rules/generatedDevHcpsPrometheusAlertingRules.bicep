@@ -304,7 +304,7 @@ resource kubeApplier 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01
           summary: 'kube-applier on cluster {{ $labels.cluster }} failed to apply {{ $labels.group }}/{{ $labels.resource }} due to {{ $labels.reason }}'
           title: 'kube-applier on cluster {{ $labels.cluster }} failed to apply {{ $labels.group }}/{{ $labels.resource }} due to {{ $labels.reason }}'
         }
-        expression: 'max by (cluster, namespace, operation, group, resource, reason, region) (increase(kube_applier_desire_operations_total{operation="apply",reason=~"KubeAPIError|PreCheckFailed",status="False"}[15m])) > 0'
+        expression: 'max by (cluster, namespace, operation, group, resource, reason, region) (increase(kube_applier_desire_operations_total{operation="apply",reason=~"KubeAPIError|PreCheckFailed",status="False"}[5m])) > 0'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -332,7 +332,7 @@ resource kubeApplier 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01
           summary: 'kube-applier on cluster {{ $labels.cluster }} failed to read {{ $labels.group }}/{{ $labels.resource }} due to {{ $labels.reason }}'
           title: 'kube-applier on cluster {{ $labels.cluster }} failed to read {{ $labels.group }}/{{ $labels.resource }} due to {{ $labels.reason }}'
         }
-        expression: 'max by (cluster, namespace, operation, group, resource, reason, region) (increase(kube_applier_desire_operations_total{operation="resync",reason=~"KubeAPIError|PreCheckFailed",status="False"}[15m])) > 0'
+        expression: 'max by (cluster, namespace, operation, group, resource, reason, region) (increase(kube_applier_desire_operations_total{operation="resync",reason=~"KubeAPIError|PreCheckFailed",status="False"}[5m])) > 0'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
