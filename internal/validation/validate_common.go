@@ -16,7 +16,6 @@ package validation
 
 import (
 	"context"
-	"slices"
 	"strings"
 	"time"
 
@@ -41,9 +40,7 @@ func AFECsToValidationOptions(features []coreapi.Feature) map[string]bool {
 		if curr.Name == nil || len(*curr.Name) == 0 {
 			continue
 		}
-		if ptr.Deref(curr.State, "") == "Registered" {
-			ret[strings.ToLower(*curr.Name)] = true
-		}
+		ret[strings.ToLower(*curr.Name)] = ptr.Deref(curr.State, "") == "Registered"
 	}
 
 	return ret
@@ -59,17 +56,6 @@ func BuildValidationOptions(features []coreapi.Feature, apiVersion metadataapi.A
 		options[metadataapi.APIVersionOption(apiVersion)] = true
 	}
 	return options
-}
-
-func EnabledValidationOptions(options map[string]bool) []string {
-	var enabledOptions []string
-	for option, enabled := range options {
-		if enabled {
-			enabledOptions = append(enabledOptions, option)
-		}
-	}
-	slices.Sort(enabledOptions)
-	return enabledOptions
 }
 
 var (

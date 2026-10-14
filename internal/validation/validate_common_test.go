@@ -17,7 +17,6 @@ package validation
 import (
 	"context"
 	"reflect"
-	"slices"
 	"testing"
 	"time"
 
@@ -39,18 +38,24 @@ func TestBuildValidationOptions(testContext *testing.T) {
 	}{
 		{name: "empty", want: map[string]bool{}},
 		{
-			name: "registered features and API version",
+			name: "registered and unregistered features and API version",
 			features: []coreapi.Feature{
 				{Name: ptr.To("EnabledFeature"), State: ptr.To("Registered")},
 				{Name: ptr.To("ENABLEDFEATURE"), State: ptr.To("Registered")},
 				{Name: ptr.To("PendingFeature"), State: ptr.To("Pending")},
-				{Name: ptr.To("UnregisteredFeature")},
+				{Name: ptr.To("UnregisteredFeature"), State: ptr.To("Unregistered")},
+				{Name: ptr.To("MissingStateFeature")},
+				{Name: ptr.To("EmptyStateFeature"), State: ptr.To("")},
 				{State: ptr.To("Registered")},
 				{Name: ptr.To(""), State: ptr.To("Registered")},
 			},
 			apiVersion: metadataapi.APIVersionV20260630Preview,
 			want: map[string]bool{
-				"enabledfeature": true,
+				"enabledfeature":      true,
+				"pendingfeature":      false,
+				"unregisteredfeature": false,
+				"missingstatefeature": false,
+				"emptystatefeature":   false,
 				metadataapi.APIVersionOption(metadataapi.APIVersionV20260630Preview): true,
 			},
 		},
@@ -59,49 +64,6 @@ func TestBuildValidationOptions(testContext *testing.T) {
 		testContext.Run(test.name, func(testContext *testing.T) {
 			if got := BuildValidationOptions(test.features, test.apiVersion); !reflect.DeepEqual(got, test.want) {
 				testContext.Errorf("BuildValidationOptions() = %v, want %v", got, test.want)
-			}
-		})
-	}
-}
-
-func TestEnabledValidationOptions(testContext *testing.T) {
-	tests := []struct {
-		name       string
-		options    map[string]bool
-		want       []string
-		apiVersion metadataapi.APIVersion
-	}{
-		{name: "nil"},
-		{name: "empty", options: map[string]bool{}},
-		{
-			name: "disabled entries are excluded",
-			options: map[string]bool{
-				"feature": false,
-				metadataapi.APIVersionOption(metadataapi.APIVersionV20240610Preview): false,
-			},
-		},
-		{
-			name: "only enabled entries are included",
-			options: map[string]bool{
-				"feature": true,
-				metadataapi.APIVersionOption(metadataapi.APIVersionV20240610Preview): false,
-				metadataapi.APIVersionOption(metadataapi.APIVersionV20260630Preview): true,
-			},
-			want: []string{
-				metadataapi.APIVersionOption(metadataapi.APIVersionV20260630Preview),
-				"feature",
-			},
-			apiVersion: metadataapi.APIVersionV20260630Preview,
-		},
-	}
-	for _, test := range tests {
-		testContext.Run(test.name, func(testContext *testing.T) {
-			got := EnabledValidationOptions(test.options)
-			if !slices.Equal(got, test.want) {
-				testContext.Errorf("EnabledValidationOptions() = %v, want %v", got, test.want)
-			}
-			if version := metadataapi.APIVersionFromOptions(got); version != test.apiVersion {
-				testContext.Errorf("APIVersionFromOptions() = %q, want %q", version, test.apiVersion)
 			}
 		})
 	}

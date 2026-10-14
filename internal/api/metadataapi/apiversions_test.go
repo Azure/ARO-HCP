@@ -19,12 +19,23 @@ import "testing"
 func TestAPIVersionFromOptions(t *testing.T) {
 	tests := []struct {
 		name    string
-		options []string
+		options map[string]bool
 		want    APIVersion
 	}{
-		{"extracts version", []string{APIVersionOption(APIVersionV20260630Preview)}, APIVersionV20260630Preview},
-		{"no version option", []string{"some-other-option"}, APIVersion("")},
-		{"empty options", []string{}, APIVersion("")},
+		{"extracts version", map[string]bool{APIVersionOption(APIVersionV20260630Preview): true}, APIVersionV20260630Preview},
+		{"disabled version", map[string]bool{APIVersionOption(APIVersionV20260630Preview): false}, APIVersion("")},
+		{"no version option", map[string]bool{"some-other-option": true}, APIVersion("")},
+		{"empty options", map[string]bool{}, APIVersion("")},
+		{"nil options", nil, APIVersion("")},
+		{
+			"only enabled version",
+			map[string]bool{
+				"feature": true,
+				APIVersionOption(APIVersionV20240610Preview): false,
+				APIVersionOption(APIVersionV20260630Preview): true,
+			},
+			APIVersionV20260630Preview,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
