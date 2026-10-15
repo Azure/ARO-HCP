@@ -226,19 +226,6 @@ func (c *clusterResourcesController) processClusterResources(ctx context.Context
 			continue
 		}
 
-		if classified.desireName == "HostedCluster" {
-			// Existing-cluster migration, not a bug: ACM uses a different secret name.
-			// Ordered PRs: this secret-syncs PR -> rename the ACM policy -> suppress ACM
-			// ingress via the flag. Apply the CPO override before re-pointing IngressController.
-			// TEMPORARY for this controller's lifetime: remove this stamp once the
-			// backend owns crafting the Desired HostedCluster CR.
-			if err := unstructured.SetNestedField(unstructuredObj.Object, controllerutils.ServiceProviderDefaultIngressWildcardServingCertName,
-				"spec", "operatorConfiguration", "ingressOperator", "defaultCertificate", "name"); err != nil {
-				errs = append(errs, utils.TrackError(fmt.Errorf("failed to set HostedCluster ingress certificate: %w", err)))
-				continue
-			}
-		}
-
 		// Unset the ManagedCluster CR and ACM-path ingress bits because HyperShift
 		// manages the ingress certificate when the subscription's experimental
 		// release-features AFEC is registered. This ugly, intentional temporal shim
@@ -303,7 +290,7 @@ func (c *clusterResourcesController) processClusterResources(ctx context.Context
 		default:
 			crud = applyDesireCRUD
 
-			// Ensure backend-managed annotations on HostedCluster before creating ApplyDesire
+			// Ensure backend-managed settings on HostedCluster before creating ApplyDesire
 			if classified.desireName == DesireNameHostedCluster {
 				if err := ensureHostedClusterAnnotations(&unstructuredObj); err != nil {
 					errs = append(errs, utils.TrackError(fmt.Errorf("failed to reconcile HostedCluster annotations for %s: %w", resourceKey, err)))
@@ -311,6 +298,11 @@ func (c *clusterResourcesController) processClusterResources(ctx context.Context
 				}
 				if err := removeNullUsernamePrefixes(&unstructuredObj); err != nil {
 					errs = append(errs, utils.TrackError(fmt.Errorf("failed to normalize HostedCluster authentication for %s: %w", resourceKey, err)))
+					continue
+				}
+				if err := unstructured.SetNestedField(unstructuredObj.Object, controllerutils.ServiceProviderDefaultIngressWildcardServingCertName,
+					"spec", "operatorConfiguration", "ingressOperator", "defaultCertificate", "name"); err != nil {
+					errs = append(errs, utils.TrackError(fmt.Errorf("failed to set HostedCluster ingress certificate: %w", err)))
 					continue
 				}
 			}
