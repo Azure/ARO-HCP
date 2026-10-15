@@ -20,6 +20,7 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v2"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armfeatures"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
 	"github.com/Azure/ARO-HCP/internal/fpa"
@@ -48,6 +49,7 @@ type FirstPartyApplicationClientBuilder interface {
 	ResourceProvidersClient(tenantID string, subscriptionID string) (ResourceProvidersClient, error)
 	ResourceSKUsClient(tenantID string, subscriptionID string) (ResourceSKUsClient, error)
 	UsageClient(tenantID string, subscriptionID string) (UsageClient, error)
+	FeaturesClient(tenantID string, subscriptionID string) (FeaturesClient, error)
 	GenericResourcesClient(tenantID string, subscriptionID string) (GenericResourcesClient, error)
 	DenyAssignmentsClient(tenantID string, subscriptionID string) (DenyAssignmentsClient, error)
 	RoleAssignmentsClient(tenantID string, subscriptionID string) (RoleAssignmentsClient, error)
@@ -105,6 +107,15 @@ func (b *firstPartyApplicationClientBuilder) UsageClient(tenantID string, subscr
 	}
 
 	return armcompute.NewUsageClient(subscriptionID, creds, b.options)
+}
+
+func (b *firstPartyApplicationClientBuilder) FeaturesClient(tenantID string, subscriptionID string) (FeaturesClient, error) {
+	creds, err := b.fpaTokenCredRetriever.RetrieveCredential(tenantID)
+	if err != nil {
+		return nil, err
+	}
+
+	return armfeatures.NewClient(subscriptionID, creds, b.options)
 }
 
 func (b *firstPartyApplicationClientBuilder) GenericResourcesClient(tenantID string, subscriptionID string) (GenericResourcesClient, error) {
