@@ -57,7 +57,7 @@ func (workers suiteConcurrency) resolve(fallback int, useAcquired bool) int {
 	return fallback
 }
 
-// Configure every selected suite's worker count independently of MI resource admission.
+// Default runner concurrency to the suite cap without overriding an explicit flag.
 func configureSuiteConcurrency(command *cobra.Command, registry *e.Registry) {
 	existingPreRunE, existingPreRun := command.PreRunE, command.PreRun
 	command.PreRunE = func(c *cobra.Command, args []string) error {
@@ -87,25 +87,11 @@ func configureSuiteConcurrency(command *cobra.Command, registry *e.Registry) {
 		if flag == nil {
 			return fmt.Errorf("run-suite is missing the expected --max-concurrency flag")
 		}
-		concurrency := suite.Parallelism
 		if flag.Changed {
-			value, err := c.Flags().GetInt("max-concurrency")
-			if err != nil {
-				return fmt.Errorf("reading run-suite --max-concurrency: %w", err)
-			}
-			// Leave explicit CLI values to the upstream flag and runner validation.
-			concurrency = value
+			return nil
 		}
-		if err := flag.Value.Set(strconv.Itoa(concurrency)); err != nil {
+		if err := flag.Value.Set(strconv.Itoa(suite.Parallelism)); err != nil {
 			return fmt.Errorf("setting run-suite --max-concurrency: %w", err)
-		}
-		// GetSuite returns a copy. Update the registered cap too, because the
-		// upstream runner takes min(flag, suite cap), but leave MI pools intact.
-		for i := range ext.Suites {
-			if ext.Suites[i].Name == suite.Name {
-				ext.Suites[i].Parallelism = concurrency
-				break
-			}
 		}
 		return nil
 	}

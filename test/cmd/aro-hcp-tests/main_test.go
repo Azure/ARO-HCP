@@ -555,26 +555,25 @@ func TestSuiteConcurrencyUsesActualRunner(t *testing.T) {
 		explicit    string
 		demand      int
 		want        int
-		wantWorkers int
 	}{
 		{name: "original integration default without pooling", suite: "integration/parallel", parallelism: 24, want: 24},
 		{name: "original stage default with pooling", suite: "stage/parallel/all", parallelism: 34, pooled: true, want: 34},
 		{name: "environment without pooling", suite: "integration/parallel/slow", parallelism: 24, env: "60", want: 60},
 		{name: "environment with pooling", suite: "stage/parallel/slow", parallelism: 34, env: "75", pooled: true, want: 75},
-		{name: "explicit exceeds environment", suite: "integration/parallel/all", parallelism: 24, env: "60", explicit: "100", want: 100},
-		{name: "explicit exceeds suite default", suite: "prod/parallel/slow", parallelism: 19, explicit: "100", want: 100},
+		{name: "explicit exceeds environment", suite: "integration/parallel/all", parallelism: 24, env: "60", explicit: "100", want: 60},
+		{name: "explicit exceeds suite default", suite: "prod/parallel/slow", parallelism: 19, explicit: "100", want: 19},
 		{name: "explicit below environment", suite: "integration/parallel", parallelism: 24, env: "75", explicit: "25", want: 25},
-		{name: "leased pool still limits demand", suite: "stage/parallel", parallelism: 34, env: "60", explicit: "100", pooled: true, demand: 1, want: 75, wantWorkers: 100},
-		{name: "upgrade explicit overrides suite cap", suite: "upgrade/in-place", parallelism: 20, explicit: "100", want: 100},
+		{name: "leased pool still limits demand", suite: "stage/parallel", parallelism: 34, env: "100", explicit: "100", pooled: true, demand: 1, want: 75},
+		{name: "upgrade explicit respects suite cap", suite: "upgrade/in-place", parallelism: 20, explicit: "100", want: 20},
 		{name: "dev CD environment override", suite: "dev-cd-check/parallel", parallelism: 20, env: "60", want: 60},
-		{name: "RP API explicit override", suite: "rp-api-compat-all/parallel/slow", parallelism: 24, env: "60", explicit: "100", want: 100},
+		{name: "RP API explicit cap", suite: "rp-api-compat-all/parallel/slow", parallelism: 24, env: "60", explicit: "100", want: 60},
 		{name: "hypershift original default", suite: "hypershift-presubmit/parallel", parallelism: 24, want: 24},
-		{name: "unlisted future suite", suite: "future/specialized", parallelism: 3, explicit: "20", want: 20},
+		{name: "unlisted future suite", suite: "future/specialized", parallelism: 3, explicit: "20", want: 3},
 		{name: "positive environment boundary", suite: "prod/parallel", parallelism: 19, env: "1", want: 1},
 		{name: "acquired ordinary workers without pooling", suite: "integration/parallel", acquired: true, env: "unset", want: 2},
 		{name: "acquired ordinary workers with pooling", suite: "stage/parallel", acquired: true, pooled: true, env: "unset", want: 2},
 		{name: "acquired explicit empty opt-out", suite: "prod/parallel", acquired: true, want: 19},
-		{name: "explicit flag beats acquired default", suite: "integration/parallel", acquired: true, env: "unset", explicit: "4", want: 4},
+		{name: "explicit flag respects acquired default", suite: "integration/parallel", acquired: true, env: "unset", explicit: "4", want: 2},
 		{name: "user override beats acquired default", suite: "integration/parallel", acquired: true, env: "4", want: 4},
 		{name: "low lease dev CD default", suite: "dev-cd-check/parallel", acquired: true, env: "unset", want: 20},
 		{name: "low lease RP API default", suite: "rp-api-compat-all/parallel", acquired: true, env: "unset", want: 24},
@@ -605,6 +604,10 @@ func TestSuiteConcurrencyUsesActualRunner(t *testing.T) {
 			registerSuites(ext, pools, 20, workers)
 			if tc.suite == "future/specialized" {
 				ext.AddSuite(e.Suite{Name: tc.suite, Parallelism: tc.parallelism})
+			}
+			registered, err := ext.GetSuite(tc.suite)
+			if err != nil {
+				t.Fatal(err)
 			}
 			// Later environment changes cannot affect the already-registered policy.
 			t.Setenv("ARO_HCP_SUITE_PARALLELISM", "invalid-after-construction")
@@ -690,17 +693,17 @@ func TestSuiteConcurrencyUsesActualRunner(t *testing.T) {
 			if err := <-done; err != nil {
 				t.Fatalf("executing real run-suite: %v", err)
 			}
-			resolved := tc.want
-			if tc.wantWorkers != 0 {
-				resolved = tc.wantWorkers
-			}
 			selected, err := ext.GetSuite(tc.suite)
 			if err != nil {
 				t.Fatal(err)
 			}
 			flagValue, err := command.Flags().GetInt("max-concurrency")
-			if err != nil || flagValue != resolved || selected.Parallelism != resolved {
-				t.Errorf("worker flag/cap = %d/%d (%v), want both %d", flagValue, selected.Parallelism, err, resolved)
+			wantFlag := fmt.Sprint(registered.Parallelism)
+			if tc.explicit != "" {
+				wantFlag = tc.explicit
+			}
+			if err != nil || fmt.Sprint(flagValue) != wantFlag || selected.Parallelism != registered.Parallelism {
+				t.Errorf("worker flag/cap = %d/%d (%v), want %s/%d", flagValue, selected.Parallelism, err, wantFlag, registered.Parallelism)
 			}
 			wantPool := 0
 			if tc.pooled {
