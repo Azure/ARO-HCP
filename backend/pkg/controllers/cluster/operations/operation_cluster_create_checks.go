@@ -345,7 +345,7 @@ func (c *clusterCreateRoleAssignmentsCheck) CalculateOperationStatus(ctx context
 		return nil, utils.TrackError(err)
 	}
 	roleAssignments := serviceProviderCluster.Status.AzureResources.RoleAssignments
-	if len(roleAssignments.AzureResources) == 0 || len(roleAssignments.PendingAzureResources) != 0 {
+	if !roleAssignments.StackReady {
 		return operationbase.NewOperationState(coreapi.ProvisioningStateProvisioning, "role assignments not yet confirmed"), nil
 	}
 	return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, ""), nil
