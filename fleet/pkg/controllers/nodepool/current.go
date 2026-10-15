@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/utils/ptr"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v8"
@@ -158,6 +159,24 @@ func unresolvedSKUSizes(current []PoolState) []string {
 		}
 	}
 	return sizes
+}
+
+// workerPoolZones returns the sorted zones of the cluster's worker pools. These
+// zones are fixed once worker pools exist: etcd runs on worker pools and its
+// zonal disks cannot move to another zone.
+func workerPoolZones(pools []armcontainerservice.AgentPool) []string {
+	zones := sets.New[string]()
+	for _, pool := range pools {
+		if !agentpools.IsWorkerPool(pool) || pool.Properties == nil {
+			continue
+		}
+		for _, zone := range pool.Properties.AvailabilityZones {
+			if zone != nil {
+				zones.Insert(*zone)
+			}
+		}
+	}
+	return sets.List(zones)
 }
 
 func hasSwiftTags(pool armcontainerservice.AgentPool) bool {

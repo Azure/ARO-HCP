@@ -19,6 +19,7 @@ import (
 
 	utilsclock "k8s.io/utils/clock"
 
+	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	clusterazureresources "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/azureresources"
 	clusterbackups "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/backups"
 	clustercreation "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/creation"
@@ -1032,6 +1033,32 @@ func instantiateFetchDataPlaneOperatorsManagedIdentitiesInfoController(controlle
 	), nil
 }
 
+func registerFetchManagedIdentitiesInfoController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{
+		Workers:     20,
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateFetchManagedIdentitiesInfoController, false),
+	}
+}
+
+func instantiateFetchManagedIdentitiesInfoController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	var fetchManagedIdentitiesInfoDataplaneBuilder azureclient.FPAMIDataplaneClientBuilder
+	// We only pass a non-nil FPAMIDataplaneClientBuilder to the controller when HardcodedIdentity is nil, which should occur we're
+	// running in an ARO-HCP environment where the Managed Identities Data Plane service is available.
+	if controllerContext.HardcodedIdentity == nil {
+		fetchManagedIdentitiesInfoDataplaneBuilder = controllerContext.FPAMIDataplaneClientBuilder
+	}
+	fetchManagedIdentitiesInfoController := clusteridentity.NewFetchManagedIdentitiesInfoController(
+		controllerContext.Clock,
+		controllerContext.ResourcesDBClient,
+		controllerContext.BackendInformers,
+		controllerContext.HardcodedIdentity,
+		fetchManagedIdentitiesInfoDataplaneBuilder,
+		controllerContext.SMIClientBuilder,
+	)
+
+	return fetchManagedIdentitiesInfoController, nil
+}
+
 func registerIdentityRoleAssignmentsController() controllerconfig.ControllerRegistration {
 	return controllerconfig.ControllerRegistration{
 		Workers:     20,
@@ -1249,6 +1276,7 @@ func Register(registry map[string]controllerconfig.ControllerRegistration) {
 	registry[strings.ToLower(clusterbackups.BackupScheduleControllerName)] = registerBackupScheduleController()
 	registry[strings.ToLower(clusteridentity.FetchMSIIdentitiesInfoControllerName)] = registerFetchMSIIdentitiesInfoController()
 	registry[strings.ToLower(clusteridentity.FetchDataPlaneOperatorsManagedIdentitiesInfoControllerName)] = registerFetchDataPlaneOperatorsManagedIdentitiesInfoController()
+	registry[strings.ToLower(clusteridentity.FetchManagedIdentitiesInfoControllerName)] = registerFetchManagedIdentitiesInfoController()
 	registry[strings.ToLower(clusterroleassignments.RoleAssignmentsControllerName)] = registerIdentityRoleAssignmentsController()
 	registry[strings.ToLower(clusterbackups.KeyRotationBackupControllerName)] = registerKeyRotationBackupController()
 }

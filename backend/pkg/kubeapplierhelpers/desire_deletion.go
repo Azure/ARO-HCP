@@ -20,8 +20,9 @@ import (
 	"fmt"
 	"strings"
 
+	"k8s.io/apimachinery/pkg/api/meta"
+
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
-	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -145,9 +146,10 @@ func EnsureApplyDesireRemoved(
 	}
 
 	// The desire is a Delete — remove the document once the delete has succeeded.
-	// Prefer the operation-specific SuccessfullyDeleted condition, falling back to
-	// the legacy Successful for documents last written by an older kube-applier.
-	if kubeapplierapihelpers.IsConditionTruePreferring(applyDesire.Status.Conditions, kubeapplierapi.ConditionTypeSuccessfullyDeleted, kubeapplierapi.ConditionTypeSuccessful) {
+	// Successful reports the outcome of the most-recently-observed apply or delete
+	// operation, but does not identify which operation succeeded. It cannot by
+	// itself confirm deletion, so require SuccessfullyDeleted.
+	if meta.IsStatusConditionTrue(applyDesire.Status.Conditions, kubeapplierapi.ConditionTypeSuccessfullyDeleted) {
 		if err := applyCRUD.Delete(ctx, strings.ToLower(desireName)); err != nil && !cosmosstorageutils.IsNotFoundError(err) {
 			return false, utils.TrackError(fmt.Errorf("delete ApplyDesire %s: %w", desireName, err))
 		}

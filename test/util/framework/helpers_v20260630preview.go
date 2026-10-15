@@ -139,6 +139,7 @@ func NewDefaultNodePoolParams20260630() NodePoolParams20260630 {
 		OSDiskSizeGiB:          int32(64),
 		DiskStorageAccountType: DefaultDiskStorageAccountType,
 		ChannelGroup:           DefaultOpenshiftNodePoolChannelGroup(),
+		AutoRepair:             true,
 		// NOTE: The E2E subscription must have the ExperimentalReleaseFeatures AFEC
 		// registered for these tags to be honored.
 		Tags: map[string]*string{

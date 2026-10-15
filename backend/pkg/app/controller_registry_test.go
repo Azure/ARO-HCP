@@ -36,6 +36,7 @@ import (
 	clocktesting "k8s.io/utils/clock/testing"
 
 	apisconfigv1 "github.com/Azure/ARO-HCP/backend/pkg/apis/config/v1"
+	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	azureconfig "github.com/Azure/ARO-HCP/backend/pkg/azure/config"
 	clusterbackups "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/backups"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/billingcosmosstoragetesting"
@@ -158,6 +159,7 @@ var expectedControllerLaunches = []struct {
 	{"backupschedule", 20},
 	{"fetchmsiidentitiesinfo", 20},
 	{"fetchdataplaneoperatorsmanagedidentitiesinfo", 20},
+	{"fetchmanagedidentitiesinfo", 20},
 	{"identityroleassignments", 20},
 	{"keyrotationbackup", 20},
 	{"clusterresources", 20},
@@ -165,7 +167,7 @@ var expectedControllerLaunches = []struct {
 
 func TestControllerRegistryManifest(t *testing.T) {
 	registry := newControllerRegistry()
-	require.Len(t, registry, 111)
+	require.Len(t, registry, 112)
 	expectedOrder := make([]string, 0, len(expectedControllerLaunches))
 	for _, expected := range expectedControllerLaunches {
 		expectedOrder = append(expectedOrder, expected.name)
@@ -207,6 +209,7 @@ func testControllerContext(t *testing.T, hasRealFPA bool) (ControllerContext, St
 			BackupConfig:      &clusterbackups.BackupConfig{},
 			CloudEnvironment:  cloudEnvironment,
 			HasRealFPA:        hasRealFPA,
+			HardcodedIdentity: &azureclient.HardcodedIdentity{},
 		},
 	}
 	controllerContext := backend.newControllerContext(t.Context())
@@ -329,7 +332,7 @@ func TestControllerContextKeepsFactoriesNotIndividualInformers(t *testing.T) {
 func TestControllerRegistryNamedZoneRegistrations(t *testing.T) {
 	files := token.NewFileSet()
 	for zone, expectedCount := range map[string]int{
-		"billing": 2, "cluster": 64, "clusterresources": 1, "cosmosmigration": 2,
+		"billing": 2, "cluster": 65, "clusterresources": 1, "cosmosmigration": 2,
 		"datadump": 1, "externalauth": 10, "metrics": 6, "mismatch": 4, "nodepool": 19,
 	} {
 		source, err := parser.ParseFile(files, "../controllers/"+zone+"/registration.go", nil, 0)
@@ -398,7 +401,7 @@ func TestControllerRegistryUnorderedConstructionAndErrors(t *testing.T) {
 	constructed = nil
 	_, err = instantiateControllers(registry, ControllerContext{}, storageFactory)
 	require.NoError(t, err)
-	require.Len(t, constructed, 110)
+	require.Len(t, constructed, 111)
 	require.NotContains(t, constructed, "clusterdenyassignment")
 	expectedErr := errors.New("constructor failed")
 	name := "union-kube-applier-informers-controller"

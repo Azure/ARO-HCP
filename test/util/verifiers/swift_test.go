@@ -159,12 +159,17 @@ func TestSwiftRouterQuery(t *testing.T) {
 		`distinct environment, region, cluster, namespace`,
 		`where timestamp >= start and objectKind in ("Pod", "Deployment")`,
 		`where timestamp >= start and container_name == "swift-recorder"`,
-		`join kind=leftsemi hcp on environment, region, cluster, namespace`,
 		"SummaryUID", "| take 101",
 	} {
 		if !strings.Contains(query, expected) {
 			t.Errorf("query missing %q", expected)
 		}
+	}
+	if got := strings.Count(query, `lookup kind=inner hcp on environment, region, cluster, namespace`); got != 2 {
+		t.Errorf("inventory and summaries must broadcast the distinct HCP mapping with lookups, got %d lookups", got)
+	}
+	if strings.Contains(query, "join kind=leftsemi hcp") {
+		t.Error("HCP filtering must not buffer the large runtime tables in a regular semi-join")
 	}
 	for _, forbidden := range []string{"clustersServiceLogs", "object.spec.infraID", "contains", "has "} {
 		if strings.Contains(query, forbidden) {

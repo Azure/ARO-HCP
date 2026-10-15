@@ -180,6 +180,12 @@ func (w *Writer) initializeKustoWithCredential(ctx context.Context, ingest bool,
 		rows, err := queryStrings(ctx, client, settings.Database, statement, "found")
 		return len(rows) > 0, err
 	}
+	// Names are a dimension: the whole table is read, not a window of it, and
+	// it holds one row per distinct test so the read stays small.
+	w.names.load = func(ctx context.Context) ([]string, error) {
+		statement := kql.New("").AddTable(settings.TestNames.Table).AddLiteral(" | distinct testId")
+		return queryStrings(ctx, client, settings.Database, statement, "testId")
+	}
 	w.discoveredExists = func(ctx context.Context, uri JobURI) (bool, error) {
 		return rowExists(ctx, settings.Discovered, "jobUri", string(uri))
 	}

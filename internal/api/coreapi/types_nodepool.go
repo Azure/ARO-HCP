@@ -125,6 +125,7 @@ type NodePoolServiceProviderProperties struct {
 	// Written by: NodePoolClusterServiceDeleteDispatch
 	ClusterServiceDeletionTimestamp *metav1.Time `json:"clusterServiceDeletionTimestamp,omitempty"`
 
+	// TODO do NOT reference this field in any new code. It is in the process of being removed
 	// Written by: Frontend DELETE NodePool
 	UsesNewNodePoolDeletionApproach bool `json:"usesNewNodePoolDeletionApproach"`
 
@@ -188,6 +189,7 @@ type OSDiskProfile struct {
 
 // NodePoolAutoScaling represents a node pool autoscaling configuration.
 // Visibility for the entire struct is "read create update".
+// Min must be >= 1. Cluster Service rejects min_replica < 1.
 // max=200 for both Min and Max when the node pool's Platform.AvailabilityZone is unset.
 type NodePoolAutoScaling struct {
 	Min int32 `json:"min,omitempty"`

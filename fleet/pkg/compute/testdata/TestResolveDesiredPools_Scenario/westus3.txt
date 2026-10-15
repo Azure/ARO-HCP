@@ -65,15 +65,17 @@ available vCPUs:
 fully allocated: false
 
 pools:
-  sys0fe1457    system  Standard_E8ds_v7   cpu=8   memory=64GiB   nics=3  zone=regional  min=1  max=3  osDisk=128GB  maxPods=100  swift=true   labels=aro-hcp.azure.com/role=system  taints=CriticalAddonsOnly=true:NoSchedule
-  inf17dc270    infra   Standard_E32ds_v6  cpu=32  memory=256GiB  nics=7  zone=1         min=1  max=3  osDisk=128GB  maxPods=225  swift=false  labels=aro-hcp.azure.com/role=infra   taints=infra=true:NoSchedule
-  inf27dc270    infra   Standard_E32ds_v6  cpu=32  memory=256GiB  nics=7  zone=2         min=1  max=3  osDisk=128GB  maxPods=225  swift=false  labels=aro-hcp.azure.com/role=infra   taints=infra=true:NoSchedule
-  wrk161690783  worker  Standard_E16ds_v6  cpu=16  memory=128GiB  nics=7  zone=1         min=5  max=9  osDisk=512GB  maxPods=225  swift=true   labels=aro-hcp.azure.com/role=worker  taints=-
-  wrk162690783  worker  Standard_E16ds_v6  cpu=16  memory=128GiB  nics=7  zone=2         min=5  max=9  osDisk=512GB  maxPods=225  swift=true   labels=aro-hcp.azure.com/role=worker  taints=-
-  wrk163690783  worker  Standard_E16ds_v6  cpu=16  memory=128GiB  nics=7  zone=3         min=5  max=9  osDisk=512GB  maxPods=225  swift=true   labels=aro-hcp.azure.com/role=worker  taints=-
-  wrk1615a648b  worker  Standard_E16ds_v5  cpu=16  memory=128GiB  nics=7  zone=1         min=1  max=1  osDisk=512GB  maxPods=225  swift=true   labels=aro-hcp.azure.com/role=worker  taints=-
-  wrk1625a648b  worker  Standard_E16ds_v5  cpu=16  memory=128GiB  nics=7  zone=2         min=1  max=1  osDisk=512GB  maxPods=225  swift=true   labels=aro-hcp.azure.com/role=worker  taints=-
-  wrk1635a648b  worker  Standard_E16ds_v5  cpu=16  memory=128GiB  nics=7  zone=3         min=1  max=1  osDisk=512GB  maxPods=225  swift=true   labels=aro-hcp.azure.com/role=worker  taints=-
+  sys0fe1457    system  Standard_E8ds_v7   cpu=8   memory=64GiB   nics=3  zone=regional  min=1  max=3   osDisk=128GB  maxPods=100  swift=true   labels=aro-hcp.azure.com/role=system  taints=CriticalAddonsOnly=true:NoSchedule
+  inf16a742c    infra   Standard_E32ds_v7  cpu=32  memory=256GiB  nics=7  zone=1         min=1  max=1   osDisk=128GB  maxPods=225  swift=false  labels=aro-hcp.azure.com/role=infra   taints=infra=true:NoSchedule
+  inf17dc270    infra   Standard_E32ds_v6  cpu=32  memory=256GiB  nics=7  zone=1         min=1  max=2   osDisk=128GB  maxPods=225  swift=false  labels=aro-hcp.azure.com/role=infra   taints=infra=true:NoSchedule
+  inf27dc270    infra   Standard_E32ds_v6  cpu=32  memory=256GiB  nics=7  zone=2         min=1  max=3   osDisk=128GB  maxPods=225  swift=false  labels=aro-hcp.azure.com/role=infra   taints=infra=true:NoSchedule
+  wrk161690783  worker  Standard_E16ds_v6  cpu=16  memory=128GiB  nics=7  zone=1         min=5  max=11  osDisk=512GB  maxPods=225  swift=true   labels=aro-hcp.azure.com/role=worker  taints=-
+  wrk162690783  worker  Standard_E16ds_v6  cpu=16  memory=128GiB  nics=7  zone=2         min=5  max=11  osDisk=512GB  maxPods=225  swift=true   labels=aro-hcp.azure.com/role=worker  taints=-
+  wrk163690783  worker  Standard_E16ds_v6  cpu=16  memory=128GiB  nics=7  zone=3         min=5  max=9   osDisk=512GB  maxPods=225  swift=true   labels=aro-hcp.azure.com/role=worker  taints=-
+  wrk1635a648b  worker  Standard_E16ds_v5  cpu=16  memory=128GiB  nics=7  zone=3         min=2  max=2   osDisk=512GB  maxPods=225  swift=true   labels=aro-hcp.azure.com/role=worker  taints=-
+  wrk3216c3e65  worker  Standard_E32ds_v5  cpu=32  memory=256GiB  nics=7  zone=1         min=1  max=1   osDisk=512GB  maxPods=225  swift=true   labels=aro-hcp.azure.com/role=worker  taints=-
+  wrk32275eaaf  worker  Standard_E32ds_v4  cpu=32  memory=256GiB  nics=7  zone=2         min=1  max=1   osDisk=512GB  maxPods=225  swift=true   labels=aro-hcp.azure.com/role=worker  taints=-
+  wrk32375eaaf  worker  Standard_E32ds_v4  cpu=32  memory=256GiB  nics=7  zone=3         min=1  max=1   osDisk=512GB  maxPods=225  swift=true   labels=aro-hcp.azure.com/role=worker  taints=-
 
 failures:
-  InsufficientQuota  required=false  tier 3 (32 cores): no family has enough quota for at least one node per zone
+  (none)
