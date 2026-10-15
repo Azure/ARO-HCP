@@ -1291,3 +1291,843 @@ resource arohcpClusterDeletionSaturationAlerts 'Microsoft.AlertsManagement/prome
     ]
   }
 }
+
+resource hypershiftJourneyMonitorRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'hypershift-journey-monitor-rules'
+  location: location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyHealthyClusters1h5m'
+        enabled: true
+        labels: {
+          component: 'slo'
+          long_window: '1h'
+          service: 'hypershift-journey'
+          severity: '3'
+          short_window: '5m'
+          slo: 'hypershift-journey-errors'
+        }
+        annotations: {
+          correlationId: 'userJourneyHealthyClusters/{{ $labels.cluster }}'
+          description: '''HostedCluster failure-condition share is burning error budget at 14.4x over 1h/5m.
+Management Cluster: {{ $labels.cluster }}
+'''
+          info: '''HostedCluster failure-condition share is burning error budget at 14.4x over 1h/5m.
+Management Cluster: {{ $labels.cluster }}
+'''
+          runbook_url: 'https://aka.ms/arohcp-runbook-hypershift'
+          summary: '{{ $labels.cluster }}: HostedCluster failure-condition share is burning error budget at 14.4x over 1h/5m'
+          title: '{{ $labels.cluster }}: HostedCluster failure-condition share is burning error budget at 14.4x over 1h/5m'
+        }
+        expression: '(avg_over_time(hypershift:hostedclusters_unhealthy:ratio[1h]) > (14.4 * (1 - 0.999)) and on (cluster) count_over_time(hypershift:hostedclusters_unhealthy:ratio[1h:1m]) > 54) and on (cluster) (avg_over_time(hypershift:hostedclusters_unhealthy:ratio[5m]) > (14.4 * (1 - 0.999)) and on (cluster) count_over_time(hypershift:hostedclusters_unhealthy:ratio[5m:1m]) > 3)'
+        for: 'PT10M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyHealthyClusters6h30m'
+        enabled: true
+        labels: {
+          component: 'slo'
+          long_window: '6h'
+          service: 'hypershift-journey'
+          severity: '3'
+          short_window: '30m'
+          slo: 'hypershift-journey-errors'
+        }
+        annotations: {
+          correlationId: 'userJourneyHealthyClusters/{{ $labels.cluster }}'
+          description: '''HostedCluster failure-condition share is burning error budget at 6x over 6h/30m.
+Management Cluster: {{ $labels.cluster }}
+'''
+          info: '''HostedCluster failure-condition share is burning error budget at 6x over 6h/30m.
+Management Cluster: {{ $labels.cluster }}
+'''
+          runbook_url: 'https://aka.ms/arohcp-runbook-hypershift'
+          summary: '{{ $labels.cluster }}: HostedCluster failure-condition share is burning error budget at 6x over 6h/30m'
+          title: '{{ $labels.cluster }}: HostedCluster failure-condition share is burning error budget at 6x over 6h/30m'
+        }
+        expression: '(avg_over_time(hypershift:hostedclusters_unhealthy:ratio[6h]) > (6 * (1 - 0.999)) and on (cluster) count_over_time(hypershift:hostedclusters_unhealthy:ratio[6h:5m]) > 64) and on (cluster) (avg_over_time(hypershift:hostedclusters_unhealthy:ratio[30m]) > (6 * (1 - 0.999)) and on (cluster) count_over_time(hypershift:hostedclusters_unhealthy:ratio[30m:1m]) > 27)'
+        for: 'PT30M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyHealthyClusters3d6h'
+        enabled: true
+        labels: {
+          component: 'slo'
+          long_window: '3d'
+          service: 'hypershift-journey'
+          severity: '3'
+          short_window: '6h'
+          slo: 'hypershift-journey-errors'
+        }
+        annotations: {
+          correlationId: 'userJourneyHealthyClusters/{{ $labels.cluster }}'
+          description: '''HostedCluster failure-condition share is burning error budget at 1x over 3d/6h.
+Management Cluster: {{ $labels.cluster }}
+'''
+          info: '''HostedCluster failure-condition share is burning error budget at 1x over 3d/6h.
+Management Cluster: {{ $labels.cluster }}
+'''
+          runbook_url: 'https://aka.ms/arohcp-runbook-hypershift'
+          summary: '{{ $labels.cluster }}: HostedCluster failure-condition share is burning error budget at 1x over 3d/6h'
+          title: '{{ $labels.cluster }}: HostedCluster failure-condition share is burning error budget at 1x over 3d/6h'
+        }
+        expression: '(avg_over_time(hypershift:hostedclusters_unhealthy:ratio[3d]) > (1 * (1 - 0.999)) and on (cluster) count_over_time(hypershift:hostedclusters_unhealthy:ratio[3d:30m]) > 130) and on (cluster) (avg_over_time(hypershift:hostedclusters_unhealthy:ratio[6h]) > (1 * (1 - 0.999)) and on (cluster) count_over_time(hypershift:hostedclusters_unhealthy:ratio[6h:5m]) > 64)'
+        for: 'PT3H'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyCreationLatencySLO'
+        enabled: true
+        labels: {
+          component: 'slo'
+          service: 'hypershift-journey'
+          severity: '3'
+          slo: 'hypershift-journey-latency'
+        }
+        annotations: {
+          correlationId: 'userJourneyCreationLatencySLO/{{ $labels.cluster }}'
+          description: '''More than 1% of HostedCluster creations over 30 days took longer than 30 minutes to reach initial availability.
+Management Cluster: {{ $labels.cluster }}
+'''
+          info: '''More than 1% of HostedCluster creations over 30 days took longer than 30 minutes to reach initial availability.
+Management Cluster: {{ $labels.cluster }}
+'''
+          runbook_url: 'https://aka.ms/arohcp-runbook-hypershift'
+          summary: '{{ $labels.cluster }}: More than 1% of HostedCluster creations over 30 days took longer than 30 minutes to reach initial availability'
+          title: '{{ $labels.cluster }}: More than 1% of HostedCluster creations over 30 days took longer than 30 minutes to reach initial availability'
+        }
+        expression: 'hypershift:hostedcluster_creation_over_30m:ratio_30d > 0.01 and on (cluster) hypershift:hostedcluster_creations:count_30d >= 10 and on (cluster) hypershift:hostedcluster_creations_over_30m:count_30d >= 2'
+        for: 'PT1H'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyClusterWaitingOver30m'
+        enabled: true
+        labels: {
+          component: 'slo'
+          service: 'hypershift-journey'
+          severity: '3'
+          slo: 'hypershift-journey-saturation'
+        }
+        annotations: {
+          correlationId: 'userJourneyClusterWaitingOver30m/{{ $labels.cluster }}/{{ $labels.namespace }}/{{ $labels.name }}'
+          description: '''HostedCluster has not reached initial availability within 30 minutes.
+Management Cluster: {{ $labels.cluster }}
+HostedCluster: {{ $labels.namespace }}/{{ $labels.name }}
+'''
+          info: '''HostedCluster has not reached initial availability within 30 minutes.
+Management Cluster: {{ $labels.cluster }}
+HostedCluster: {{ $labels.namespace }}/{{ $labels.name }}
+'''
+          runbook_url: 'https://aka.ms/arohcp-runbook-hypershift'
+          summary: '{{ $labels.cluster }}/{{ $labels.namespace }}/{{ $labels.name }}: HostedCluster has not reached initial availability within 30 minutes'
+          title: '{{ $labels.cluster }}/{{ $labels.namespace }}/{{ $labels.name }}: HostedCluster has not reached initial availability within 30 minutes'
+        }
+        expression: 'max by (cluster, namespace, name, _id, region) (label_replace(max without (prometheus_replica) (hypershift_cluster_waiting_initial_availability_duration_seconds), "namespace", "$1", "exported_namespace", "(.+)")) > 1800'
+        for: 'PT5M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyTransitionBacklog'
+        enabled: true
+        labels: {
+          component: 'slo'
+          service: 'hypershift-journey'
+          severity: '4'
+          slo: 'hypershift-journey-saturation'
+        }
+        annotations: {
+          correlationId: 'userJourneyTransitionBacklog/{{ $labels.cluster }}'
+          description: '''More than 5% of HostedClusters in initial lifecycle transition have exceeded the 30 minute limit.
+Management Cluster: {{ $labels.cluster }}
+'''
+          info: '''More than 5% of HostedClusters in initial lifecycle transition have exceeded the 30 minute limit.
+Management Cluster: {{ $labels.cluster }}
+'''
+          runbook_url: 'https://aka.ms/arohcp-runbook-hypershift'
+          summary: '{{ $labels.cluster }}: More than 5% of HostedClusters in initial lifecycle transition have exceeded the 30 minute limit'
+          title: '{{ $labels.cluster }}: More than 5% of HostedClusters in initial lifecycle transition have exceeded the 30 minute limit'
+        }
+        expression: 'hypershift:hostedclusters_waiting_over_30m:ratio > 0.05 and on (cluster) hypershift:hostedclusters_waiting_over_30m:count >= 2'
+        for: 'PT15M'
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyTrafficDrop'
+        enabled: true
+        labels: {
+          component: 'slo'
+          service: 'hypershift-journey'
+          severity: '4'
+          slo: 'hypershift-journey-traffic'
+        }
+        annotations: {
+          correlationId: 'userJourneyTrafficDrop/{{ $labels.cluster }}'
+          description: '''HostedCluster lifecycle transitions dropped below 50% of the rate 24 hours ago.
+Management Cluster: {{ $labels.cluster }}
+'''
+          info: '''HostedCluster lifecycle transitions dropped below 50% of the rate 24 hours ago.
+Management Cluster: {{ $labels.cluster }}
+'''
+          runbook_url: 'https://aka.ms/arohcp-runbook-hypershift'
+          summary: '{{ $labels.cluster }}: HostedCluster lifecycle transitions dropped below 50% of the rate 24 hours ago'
+          title: '{{ $labels.cluster }}: HostedCluster lifecycle transitions dropped below 50% of the rate 24 hours ago'
+        }
+        expression: 'hypershift:hostedcluster_transitions:increase1h < 0.5 * (hypershift:hostedcluster_transitions:increase1h offset 1d) and (hypershift:hostedcluster_transitions:increase1h offset 1d) > 0'
+        for: 'PT30M'
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyTrafficSpike'
+        enabled: true
+        labels: {
+          component: 'slo'
+          service: 'hypershift-journey'
+          severity: '4'
+          slo: 'hypershift-journey-traffic'
+        }
+        annotations: {
+          correlationId: 'userJourneyTrafficSpike/{{ $labels.cluster }}'
+          description: '''HostedCluster lifecycle transitions exceeded 3x the 7 day average.
+Management Cluster: {{ $labels.cluster }}
+'''
+          info: '''HostedCluster lifecycle transitions exceeded 3x the 7 day average.
+Management Cluster: {{ $labels.cluster }}
+'''
+          runbook_url: 'https://aka.ms/arohcp-runbook-hypershift'
+          summary: '{{ $labels.cluster }}: HostedCluster lifecycle transitions exceeded 3x the 7 day average'
+          title: '{{ $labels.cluster }}: HostedCluster lifecycle transitions exceeded 3x the 7 day average'
+        }
+        expression: 'hypershift:hostedcluster_transitions:increase1h > 3 * avg_over_time(hypershift:hostedcluster_transitions:increase1h[1w]) and hypershift:hostedcluster_transitions:increase1h > 10 and on (cluster) count_over_time(hypershift:hostedcluster_transitions:increase1h[1w:1h]) > 151'
+        for: 'PT30M'
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
+
+resource hypershiftOperatorMonitorRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'hypershift-operator-monitor-rules'
+  location: location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyAvailability1h5m'
+        enabled: true
+        labels: {
+          component: 'slo'
+          long_window: '1h'
+          service: 'hypershift-operator'
+          severity: '3'
+          short_window: '5m'
+          slo: 'hypershift-operator-availability'
+        }
+        annotations: {
+          correlationId: 'userJourneyAvailability/{{ $labels.cluster }}'
+          description: '''hypershift-operator replica availability is burning error budget at 14.4x over 1h/5m.
+Management Cluster: {{ $labels.cluster }}
+'''
+          info: '''hypershift-operator replica availability is burning error budget at 14.4x over 1h/5m.
+Management Cluster: {{ $labels.cluster }}
+'''
+          runbook_url: 'https://aka.ms/arohcp-runbook-hypershift'
+          summary: '{{ $labels.cluster }}: hypershift-operator replica availability is burning error budget at 14.4x over 1h/5m'
+          title: '{{ $labels.cluster }}: hypershift-operator replica availability is burning error budget at 14.4x over 1h/5m'
+        }
+        expression: '((1 - avg_over_time(hypershift:operator:replica_availability:ratio[1h])) > (14.4 * (1 - 0.9995)) and on (cluster) count_over_time(hypershift:operator:replica_availability:ratio[1h:1m]) > 54) and on (cluster) ((1 - avg_over_time(hypershift:operator:replica_availability:ratio[5m])) > (14.4 * (1 - 0.9995)) and on (cluster) count_over_time(hypershift:operator:replica_availability:ratio[5m:1m]) > 3)'
+        for: 'PT10M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyAvailability6h30m'
+        enabled: true
+        labels: {
+          component: 'slo'
+          long_window: '6h'
+          service: 'hypershift-operator'
+          severity: '3'
+          short_window: '30m'
+          slo: 'hypershift-operator-availability'
+        }
+        annotations: {
+          correlationId: 'userJourneyAvailability/{{ $labels.cluster }}'
+          description: '''hypershift-operator replica availability is burning error budget at 6x over 6h/30m.
+Management Cluster: {{ $labels.cluster }}
+'''
+          info: '''hypershift-operator replica availability is burning error budget at 6x over 6h/30m.
+Management Cluster: {{ $labels.cluster }}
+'''
+          runbook_url: 'https://aka.ms/arohcp-runbook-hypershift'
+          summary: '{{ $labels.cluster }}: hypershift-operator replica availability is burning error budget at 6x over 6h/30m'
+          title: '{{ $labels.cluster }}: hypershift-operator replica availability is burning error budget at 6x over 6h/30m'
+        }
+        expression: '((1 - avg_over_time(hypershift:operator:replica_availability:ratio[6h])) > (6 * (1 - 0.9995)) and on (cluster) count_over_time(hypershift:operator:replica_availability:ratio[6h:5m]) > 64) and on (cluster) ((1 - avg_over_time(hypershift:operator:replica_availability:ratio[30m])) > (6 * (1 - 0.9995)) and on (cluster) count_over_time(hypershift:operator:replica_availability:ratio[30m:1m]) > 27)'
+        for: 'PT30M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyAvailability3d6h'
+        enabled: true
+        labels: {
+          component: 'slo'
+          long_window: '3d'
+          service: 'hypershift-operator'
+          severity: '3'
+          short_window: '6h'
+          slo: 'hypershift-operator-availability'
+        }
+        annotations: {
+          correlationId: 'userJourneyAvailability/{{ $labels.cluster }}'
+          description: '''hypershift-operator replica availability is burning error budget at 1x over 3d/6h.
+Management Cluster: {{ $labels.cluster }}
+'''
+          info: '''hypershift-operator replica availability is burning error budget at 1x over 3d/6h.
+Management Cluster: {{ $labels.cluster }}
+'''
+          runbook_url: 'https://aka.ms/arohcp-runbook-hypershift'
+          summary: '{{ $labels.cluster }}: hypershift-operator replica availability is burning error budget at 1x over 3d/6h'
+          title: '{{ $labels.cluster }}: hypershift-operator replica availability is burning error budget at 1x over 3d/6h'
+        }
+        expression: '((1 - avg_over_time(hypershift:operator:replica_availability:ratio[3d])) > (1 * (1 - 0.9995)) and on (cluster) count_over_time(hypershift:operator:replica_availability:ratio[3d:30m]) > 130) and on (cluster) ((1 - avg_over_time(hypershift:operator:replica_availability:ratio[6h])) > (1 * (1 - 0.9995)) and on (cluster) count_over_time(hypershift:operator:replica_availability:ratio[6h:5m]) > 64)'
+        for: 'PT3H'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyReconcileErrors1h5m'
+        enabled: true
+        labels: {
+          component: 'slo'
+          long_window: '1h'
+          service: 'hypershift-operator'
+          severity: '3'
+          short_window: '5m'
+          slo: 'hypershift-operator-errors'
+        }
+        annotations: {
+          correlationId: 'userJourneyReconcileErrors/{{ $labels.cluster }}'
+          description: '''hypershift-operator reconcile error ratio is burning error budget at 14.4x over 1h/5m.
+Management Cluster: {{ $labels.cluster }}
+'''
+          info: '''hypershift-operator reconcile error ratio is burning error budget at 14.4x over 1h/5m.
+Management Cluster: {{ $labels.cluster }}
+'''
+          runbook_url: 'https://aka.ms/arohcp-runbook-hypershift'
+          summary: '{{ $labels.cluster }}: hypershift-operator reconcile error ratio is burning error budget at 14.4x over 1h/5m'
+          title: '{{ $labels.cluster }}: hypershift-operator reconcile error ratio is burning error budget at 14.4x over 1h/5m'
+        }
+        expression: '(hypershift:operator:reconcile_error:ratio_rate1h > (14.4 * (1 - 0.999)) and on (cluster) hypershift:operator:reconcile:rate5m > 0 and on (cluster) count_over_time(hypershift:operator:reconcile:rate5m[1h:1m]) > 54) and on (cluster) (hypershift:operator:reconcile_error:ratio_rate5m > (14.4 * (1 - 0.999)) and on (cluster) hypershift:operator:reconcile:rate5m > 0 and on (cluster) count_over_time(hypershift:operator:reconcile:rate5m[5m:1m]) > 3)'
+        for: 'PT10M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyReconcileErrors6h30m'
+        enabled: true
+        labels: {
+          component: 'slo'
+          long_window: '6h'
+          service: 'hypershift-operator'
+          severity: '3'
+          short_window: '30m'
+          slo: 'hypershift-operator-errors'
+        }
+        annotations: {
+          correlationId: 'userJourneyReconcileErrors/{{ $labels.cluster }}'
+          description: '''hypershift-operator reconcile error ratio is burning error budget at 6x over 6h/30m.
+Management Cluster: {{ $labels.cluster }}
+'''
+          info: '''hypershift-operator reconcile error ratio is burning error budget at 6x over 6h/30m.
+Management Cluster: {{ $labels.cluster }}
+'''
+          runbook_url: 'https://aka.ms/arohcp-runbook-hypershift'
+          summary: '{{ $labels.cluster }}: hypershift-operator reconcile error ratio is burning error budget at 6x over 6h/30m'
+          title: '{{ $labels.cluster }}: hypershift-operator reconcile error ratio is burning error budget at 6x over 6h/30m'
+        }
+        expression: '(hypershift:operator:reconcile_error:ratio_rate6h > (6 * (1 - 0.999)) and on (cluster) hypershift:operator:reconcile:rate5m > 0 and on (cluster) count_over_time(hypershift:operator:reconcile:rate5m[6h:5m]) > 64) and on (cluster) (hypershift:operator:reconcile_error:ratio_rate30m > (6 * (1 - 0.999)) and on (cluster) hypershift:operator:reconcile:rate5m > 0 and on (cluster) count_over_time(hypershift:operator:reconcile:rate5m[30m:1m]) > 27)'
+        for: 'PT30M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyReconcileErrors3d6h'
+        enabled: true
+        labels: {
+          component: 'slo'
+          long_window: '3d'
+          service: 'hypershift-operator'
+          severity: '3'
+          short_window: '6h'
+          slo: 'hypershift-operator-errors'
+        }
+        annotations: {
+          correlationId: 'userJourneyReconcileErrors/{{ $labels.cluster }}'
+          description: '''hypershift-operator reconcile error ratio is burning error budget at 1x over 3d/6h.
+Management Cluster: {{ $labels.cluster }}
+'''
+          info: '''hypershift-operator reconcile error ratio is burning error budget at 1x over 3d/6h.
+Management Cluster: {{ $labels.cluster }}
+'''
+          runbook_url: 'https://aka.ms/arohcp-runbook-hypershift'
+          summary: '{{ $labels.cluster }}: hypershift-operator reconcile error ratio is burning error budget at 1x over 3d/6h'
+          title: '{{ $labels.cluster }}: hypershift-operator reconcile error ratio is burning error budget at 1x over 3d/6h'
+        }
+        expression: '(hypershift:operator:reconcile_error:ratio_rate3d > (1 * (1 - 0.999)) and on (cluster) hypershift:operator:reconcile:rate5m > 0 and on (cluster) count_over_time(hypershift:operator:reconcile:rate5m[3d:30m]) > 130) and on (cluster) (hypershift:operator:reconcile_error:ratio_rate6h > (1 * (1 - 0.999)) and on (cluster) hypershift:operator:reconcile:rate5m > 0 and on (cluster) count_over_time(hypershift:operator:reconcile:rate5m[6h:5m]) > 64)'
+        for: 'PT3H'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyReconcileLatency1h5m'
+        enabled: true
+        labels: {
+          component: 'slo'
+          long_window: '1h'
+          service: 'hypershift-operator'
+          severity: '3'
+          short_window: '5m'
+          slo: 'hypershift-operator-latency'
+        }
+        annotations: {
+          correlationId: 'userJourneyReconcileLatency/{{ $labels.cluster }}'
+          description: '''hypershift-operator reconciles slower than 10s is burning error budget at 14.4x over 1h/5m.
+Management Cluster: {{ $labels.cluster }}
+'''
+          info: '''hypershift-operator reconciles slower than 10s is burning error budget at 14.4x over 1h/5m.
+Management Cluster: {{ $labels.cluster }}
+'''
+          runbook_url: 'https://aka.ms/arohcp-runbook-hypershift'
+          summary: '{{ $labels.cluster }}: hypershift-operator reconciles slower than 10s is burning error budget at 14.4x over 1h/5m'
+          title: '{{ $labels.cluster }}: hypershift-operator reconciles slower than 10s is burning error budget at 14.4x over 1h/5m'
+        }
+        expression: '(hypershift:operator:reconcile_slow:ratio_rate1h > (14.4 * 0.01) and on (cluster) hypershift:operator:reconcile:rate5m > 0 and on (cluster) count_over_time(hypershift:operator:reconcile:rate5m[1h:1m]) > 54) and on (cluster) (hypershift:operator:reconcile_slow:ratio_rate5m > (14.4 * 0.01) and on (cluster) hypershift:operator:reconcile:rate5m > 0 and on (cluster) count_over_time(hypershift:operator:reconcile:rate5m[5m:1m]) > 3)'
+        for: 'PT10M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyReconcileLatency6h30m'
+        enabled: true
+        labels: {
+          component: 'slo'
+          long_window: '6h'
+          service: 'hypershift-operator'
+          severity: '3'
+          short_window: '30m'
+          slo: 'hypershift-operator-latency'
+        }
+        annotations: {
+          correlationId: 'userJourneyReconcileLatency/{{ $labels.cluster }}'
+          description: '''hypershift-operator reconciles slower than 10s is burning error budget at 6x over 6h/30m.
+Management Cluster: {{ $labels.cluster }}
+'''
+          info: '''hypershift-operator reconciles slower than 10s is burning error budget at 6x over 6h/30m.
+Management Cluster: {{ $labels.cluster }}
+'''
+          runbook_url: 'https://aka.ms/arohcp-runbook-hypershift'
+          summary: '{{ $labels.cluster }}: hypershift-operator reconciles slower than 10s is burning error budget at 6x over 6h/30m'
+          title: '{{ $labels.cluster }}: hypershift-operator reconciles slower than 10s is burning error budget at 6x over 6h/30m'
+        }
+        expression: '(hypershift:operator:reconcile_slow:ratio_rate6h > (6 * 0.01) and on (cluster) hypershift:operator:reconcile:rate5m > 0 and on (cluster) count_over_time(hypershift:operator:reconcile:rate5m[6h:5m]) > 64) and on (cluster) (hypershift:operator:reconcile_slow:ratio_rate30m > (6 * 0.01) and on (cluster) hypershift:operator:reconcile:rate5m > 0 and on (cluster) count_over_time(hypershift:operator:reconcile:rate5m[30m:1m]) > 27)'
+        for: 'PT30M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyReconcileLatency3d6h'
+        enabled: true
+        labels: {
+          component: 'slo'
+          long_window: '3d'
+          service: 'hypershift-operator'
+          severity: '3'
+          short_window: '6h'
+          slo: 'hypershift-operator-latency'
+        }
+        annotations: {
+          correlationId: 'userJourneyReconcileLatency/{{ $labels.cluster }}'
+          description: '''hypershift-operator reconciles slower than 10s is burning error budget at 1x over 3d/6h.
+Management Cluster: {{ $labels.cluster }}
+'''
+          info: '''hypershift-operator reconciles slower than 10s is burning error budget at 1x over 3d/6h.
+Management Cluster: {{ $labels.cluster }}
+'''
+          runbook_url: 'https://aka.ms/arohcp-runbook-hypershift'
+          summary: '{{ $labels.cluster }}: hypershift-operator reconciles slower than 10s is burning error budget at 1x over 3d/6h'
+          title: '{{ $labels.cluster }}: hypershift-operator reconciles slower than 10s is burning error budget at 1x over 3d/6h'
+        }
+        expression: '(hypershift:operator:reconcile_slow:ratio_rate3d > (1 * 0.01) and on (cluster) hypershift:operator:reconcile:rate5m > 0 and on (cluster) count_over_time(hypershift:operator:reconcile:rate5m[3d:30m]) > 130) and on (cluster) (hypershift:operator:reconcile_slow:ratio_rate6h > (1 * 0.01) and on (cluster) hypershift:operator:reconcile:rate5m > 0 and on (cluster) count_over_time(hypershift:operator:reconcile:rate5m[6h:5m]) > 64)'
+        for: 'PT3H'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneySaturation1h5m'
+        enabled: true
+        labels: {
+          component: 'slo'
+          long_window: '1h'
+          service: 'hypershift-operator'
+          severity: '3'
+          short_window: '5m'
+          slo: 'hypershift-operator-saturation'
+        }
+        annotations: {
+          correlationId: 'userJourneySaturation/{{ $labels.cluster }}'
+          description: '''hypershift-operator saturated intervals is burning error budget at 14.4x over 1h/5m.
+Management Cluster: {{ $labels.cluster }}
+'''
+          info: '''hypershift-operator saturated intervals is burning error budget at 14.4x over 1h/5m.
+Management Cluster: {{ $labels.cluster }}
+'''
+          runbook_url: 'https://aka.ms/arohcp-runbook-hypershift'
+          summary: '{{ $labels.cluster }}: hypershift-operator saturated intervals is burning error budget at 14.4x over 1h/5m'
+          title: '{{ $labels.cluster }}: hypershift-operator saturated intervals is burning error budget at 14.4x over 1h/5m'
+        }
+        expression: '(avg_over_time(hypershift:operator:saturated[1h]) > (14.4 * 0.01) and on (cluster) count_over_time(hypershift:operator:saturated[1h:1m]) > 54) and on (cluster) (avg_over_time(hypershift:operator:saturated[5m]) > (14.4 * 0.01) and on (cluster) count_over_time(hypershift:operator:saturated[5m:1m]) > 3)'
+        for: 'PT10M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneySaturation6h30m'
+        enabled: true
+        labels: {
+          component: 'slo'
+          long_window: '6h'
+          service: 'hypershift-operator'
+          severity: '3'
+          short_window: '30m'
+          slo: 'hypershift-operator-saturation'
+        }
+        annotations: {
+          correlationId: 'userJourneySaturation/{{ $labels.cluster }}'
+          description: '''hypershift-operator saturated intervals is burning error budget at 6x over 6h/30m.
+Management Cluster: {{ $labels.cluster }}
+'''
+          info: '''hypershift-operator saturated intervals is burning error budget at 6x over 6h/30m.
+Management Cluster: {{ $labels.cluster }}
+'''
+          runbook_url: 'https://aka.ms/arohcp-runbook-hypershift'
+          summary: '{{ $labels.cluster }}: hypershift-operator saturated intervals is burning error budget at 6x over 6h/30m'
+          title: '{{ $labels.cluster }}: hypershift-operator saturated intervals is burning error budget at 6x over 6h/30m'
+        }
+        expression: '(avg_over_time(hypershift:operator:saturated[6h]) > (6 * 0.01) and on (cluster) count_over_time(hypershift:operator:saturated[6h:5m]) > 64) and on (cluster) (avg_over_time(hypershift:operator:saturated[30m]) > (6 * 0.01) and on (cluster) count_over_time(hypershift:operator:saturated[30m:1m]) > 27)'
+        for: 'PT30M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneySaturation3d6h'
+        enabled: true
+        labels: {
+          component: 'slo'
+          long_window: '3d'
+          service: 'hypershift-operator'
+          severity: '3'
+          short_window: '6h'
+          slo: 'hypershift-operator-saturation'
+        }
+        annotations: {
+          correlationId: 'userJourneySaturation/{{ $labels.cluster }}'
+          description: '''hypershift-operator saturated intervals is burning error budget at 1x over 3d/6h.
+Management Cluster: {{ $labels.cluster }}
+'''
+          info: '''hypershift-operator saturated intervals is burning error budget at 1x over 3d/6h.
+Management Cluster: {{ $labels.cluster }}
+'''
+          runbook_url: 'https://aka.ms/arohcp-runbook-hypershift'
+          summary: '{{ $labels.cluster }}: hypershift-operator saturated intervals is burning error budget at 1x over 3d/6h'
+          title: '{{ $labels.cluster }}: hypershift-operator saturated intervals is burning error budget at 1x over 3d/6h'
+        }
+        expression: '(avg_over_time(hypershift:operator:saturated[3d]) > (1 * 0.01) and on (cluster) count_over_time(hypershift:operator:saturated[3d:30m]) > 130) and on (cluster) (avg_over_time(hypershift:operator:saturated[6h]) > (1 * 0.01) and on (cluster) count_over_time(hypershift:operator:saturated[6h:5m]) > 64)'
+        for: 'PT3H'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneySaturationSignal'
+        enabled: true
+        labels: {
+          component: 'slo'
+          service: 'hypershift-operator'
+          severity: '4'
+          slo: 'hypershift-operator-saturation'
+        }
+        annotations: {
+          correlationId: 'userJourneySaturationSignal/{{ $labels.cluster }}/{{ $labels.signal }}'
+          description: '''hypershift-operator {{ $labels.signal }} is above its limit.
+Management Cluster: {{ $labels.cluster }}
+'''
+          info: '''hypershift-operator {{ $labels.signal }} is above its limit.
+Management Cluster: {{ $labels.cluster }}
+'''
+          runbook_url: 'https://aka.ms/arohcp-runbook-hypershift'
+          summary: '{{ $labels.cluster }}: hypershift-operator {{ $labels.signal }} is above its limit'
+          title: '{{ $labels.cluster }}: hypershift-operator {{ $labels.signal }} is above its limit'
+        }
+        expression: 'hypershift:operator:saturation_signal == 1'
+        for: 'PT15M'
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyIdle'
+        enabled: true
+        labels: {
+          component: 'slo'
+          service: 'hypershift-operator'
+          severity: '4'
+          slo: 'hypershift-operator-traffic'
+        }
+        annotations: {
+          correlationId: 'userJourneyIdle/{{ $labels.cluster }}'
+          description: '''hypershift-operator has not reconciled anything for 30 minutes.
+Management Cluster: {{ $labels.cluster }}
+'''
+          info: '''hypershift-operator has not reconciled anything for 30 minutes.
+Management Cluster: {{ $labels.cluster }}
+'''
+          runbook_url: 'https://aka.ms/arohcp-runbook-hypershift'
+          summary: '{{ $labels.cluster }}: hypershift-operator has not reconciled anything for 30 minutes'
+          title: '{{ $labels.cluster }}: hypershift-operator has not reconciled anything for 30 minutes'
+        }
+        expression: 'hypershift:operator:reconcile:rate5m == 0'
+        for: 'PT30M'
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyQueueSurge'
+        enabled: true
+        labels: {
+          component: 'slo'
+          service: 'hypershift-operator'
+          severity: '4'
+          slo: 'hypershift-operator-traffic'
+        }
+        annotations: {
+          correlationId: 'userJourneyQueueSurge/{{ $labels.cluster }}'
+          description: '''hypershift-operator workqueue adds exceed 3x the rate one hour ago.
+Management Cluster: {{ $labels.cluster }}
+'''
+          info: '''hypershift-operator workqueue adds exceed 3x the rate one hour ago.
+Management Cluster: {{ $labels.cluster }}
+'''
+          runbook_url: 'https://aka.ms/arohcp-runbook-hypershift'
+          summary: '{{ $labels.cluster }}: hypershift-operator workqueue adds exceed 3x the rate one hour ago'
+          title: '{{ $labels.cluster }}: hypershift-operator workqueue adds exceed 3x the rate one hour ago'
+        }
+        expression: 'hypershift:operator:workqueue_adds:rate5m > 3 * (hypershift:operator:workqueue_adds:rate5m offset 1h) and (hypershift:operator:workqueue_adds:rate5m offset 1h) > 0 and hypershift:operator:workqueue_adds:rate5m > 1'
+        for: 'PT15M'
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}

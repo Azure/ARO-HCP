@@ -21,108 +21,59 @@ tests:
     eval_time: 5m
     exp_samples: []
 - interval: 1m
-  name: "Journey ratios"
+  name: "Control Plane Operator ratios"
   input_series:
-  - series: 'hypershift_hostedclusters{platform="Azure", cluster="mc1", prometheus_replica="r1"}'
-    values: "4+0x100"
-  - series: 'hypershift_hostedclusters_failure_conditions{platform="Azure", condition="ValidReleaseInfo", cluster="mc1", prometheus_replica="r1"}'
-    values: "1+0x100"
-  - series: 'hypershift_cluster_waiting_initial_availability_duration_seconds{name="slow", namespace="clusters", _id="a", cluster="mc1", prometheus_replica="r1"}'
-    values: "2000+0x100"
-  - series: 'hypershift_cluster_waiting_initial_availability_duration_seconds{name="fast", namespace="clusters", _id="b", cluster="mc1", prometheus_replica="r1"}'
-    values: "600+0x100"
-  - series: 'hypershift_hosted_cluster_transition_seconds_count{condition="ValidReleaseInfo", cluster="mc1", prometheus_replica="r1"}'
-    values: "0+1x100"
-  promql_expr_test:
-  - expr: hypershift:hostedclusters_unhealthy:ratio
-    eval_time: 10m
-    exp_samples:
-    - labels: 'hypershift:hostedclusters_unhealthy:ratio{cluster="mc1"}'
-      value: 0.25
-  - expr: hypershift:hostedclusters_waiting_over_30m:ratio
-    eval_time: 10m
-    exp_samples:
-    - labels: 'hypershift:hostedclusters_waiting_over_30m:ratio{cluster="mc1"}'
-      value: 0.5
-  - expr: hypershift:hostedcluster_creation_over_30m:ratio_30d
-    eval_time: 10m
-    exp_samples:
-    - labels: 'hypershift:hostedcluster_creation_over_30m:ratio_30d{cluster="mc1"}'
-      value: 0.5
-  - expr: hypershift:hostedcluster_transitions:increase1h
-    eval_time: 70m
-    exp_samples:
-    - labels: 'hypershift:hostedcluster_transitions:increase1h{cluster="mc1"}'
-      value: 60
-- interval: 1m
-  name: "Reused namespace/name keeps separate creations by _id"
-  input_series:
-  - series: 'hypershift_cluster_waiting_initial_availability_duration_seconds{name="reused", namespace="clusters", _id="old", cluster="mc2"}'
-    values: "2000+0x20"
-  - series: 'hypershift_cluster_waiting_initial_availability_duration_seconds{name="reused", namespace="clusters", _id="new", cluster="mc2"}'
-    values: "_x30 600+0x30"
-  promql_expr_test:
-  - expr: hypershift:hostedcluster_creation_over_30m:ratio_30d
-    eval_time: 55m
-    exp_samples:
-    - labels: 'hypershift:hostedcluster_creation_over_30m:ratio_30d{cluster="mc2"}'
-      value: 0.5
-- interval: 1m
-  name: "Operator and CPO ratios"
-  input_series:
-  - series: 'kube_deployment_status_replicas_available{namespace="hypershift", deployment="operator", cluster="mc1"}'
-    values: "1+0x100"
-  - series: 'kube_deployment_spec_replicas{namespace="hypershift", deployment="operator", cluster="mc1"}'
-    values: "2+0x100"
-  - series: 'controller_runtime_reconcile_total{namespace="hypershift", pod="operator-abc", controller="hc", result="success", cluster="mc1", prometheus_replica="r1"}'
-    values: "0+9x100"
-  - series: 'controller_runtime_reconcile_total{namespace="hypershift", pod="operator-abc", controller="hc", result="error", cluster="mc1", prometheus_replica="r1"}'
-    values: "0+1x100"
-  - series: 'controller_runtime_reconcile_time_seconds_bucket{namespace="hypershift", pod="operator-abc", le="10", cluster="mc1", prometheus_replica="r1"}'
-    values: "0+9x100"
-  - series: 'controller_runtime_reconcile_time_seconds_count{namespace="hypershift", pod="operator-abc", cluster="mc1", prometheus_replica="r1"}'
-    values: "0+10x100"
-  - series: 'workqueue_depth{namespace="hypershift", pod="operator-abc", name="hc", cluster="mc1", prometheus_replica="r1"}'
-    values: "200+0x100"
-  - series: 'workqueue_adds_total{namespace="hypershift", pod="operator-abc", name="hc", cluster="mc1", prometheus_replica="r1"}'
-    values: "0+6x100"
   - series: 'controller_runtime_reconcile_total{namespace="ocm-prefix-1", pod="control-plane-operator-abc", controller="x", result="success", cluster="mc1", prometheus_replica="r1"}'
     values: "0+10x100"
   - series: 'controller_runtime_reconcile_total{namespace="ocm-prefix-1", pod="control-plane-operator-abc", controller="x", result="error", cluster="mc1", prometheus_replica="r1"}'
     values: "0+0x100"
   promql_expr_test:
-  - expr: hypershift:operator:replica_availability:ratio
-    eval_time: 10m
-    exp_samples:
-    - labels: 'hypershift:operator:replica_availability:ratio{cluster="mc1"}'
-      value: 0.5
-  - expr: hypershift:operator:reconcile_error:ratio_rate5m
-    eval_time: 30m
-    exp_samples:
-    - labels: 'hypershift:operator:reconcile_error:ratio_rate5m{cluster="mc1"}'
-      value: 0.1
-  - expr: hypershift:operator:reconcile_slow:ratio_rate5m
-    eval_time: 30m
-    exp_samples:
-    - labels: 'hypershift:operator:reconcile_slow:ratio_rate5m{cluster="mc1"}'
-      value: 0.09999999999999998
-  - expr: hypershift:operator:saturation_signal
-    eval_time: 10m
-    exp_samples:
-    - labels: 'hypershift:operator:saturation_signal{cluster="mc1", signal="workqueue_depth"}'
-      value: 1
-  - expr: hypershift:operator:saturated
-    eval_time: 10m
-    exp_samples:
-    - labels: 'hypershift:operator:saturated{cluster="mc1"}'
-      value: 1
-  - expr: hypershift:operator:workqueue_adds:rate5m
-    eval_time: 30m
-    exp_samples:
-    - labels: 'hypershift:operator:workqueue_adds:rate5m{cluster="mc1"}'
-      value: 0.1
   - expr: hypershift:cpo:reconcile_error:ratio_rate5m
     eval_time: 30m
     exp_samples:
     - labels: 'hypershift:cpo:reconcile_error:ratio_rate5m{cluster="mc1", namespace="ocm-prefix-1"}'
       value: 0
+- interval: 1m
+  name: "Zero denominators produce no sample, never NaN or +Inf"
+  # spec=0 (scaled down), idle CPO (no reconciles), and 0 resource limits.
+  input_series:
+  - series: 'kube_deployment_status_replicas_available{deployment="control-plane-operator", namespace="ocm-prefix-1", cluster="mc1", prometheus_replica="r1"}'
+    values: "0+0x100"
+  - series: 'kube_deployment_spec_replicas{deployment="control-plane-operator", namespace="ocm-prefix-1", cluster="mc1", prometheus_replica="r1"}'
+    values: "0+0x100"
+  - series: 'controller_runtime_reconcile_total{pod="control-plane-operator-abc", controller="x", result="success", namespace="ocm-prefix-1", cluster="mc1", prometheus_replica="r1"}'
+    values: "5+0x100"
+  - series: 'controller_runtime_reconcile_time_seconds_bucket{pod="control-plane-operator-abc", controller="x", le="10", namespace="ocm-prefix-1", cluster="mc1", prometheus_replica="r1"}'
+    values: "5+0x100"
+  - series: 'controller_runtime_reconcile_time_seconds_count{pod="control-plane-operator-abc", controller="x", namespace="ocm-prefix-1", cluster="mc1", prometheus_replica="r1"}'
+    values: "5+0x100"
+  - series: 'container_cpu_usage_seconds_total{pod="control-plane-operator-abc", container="control-plane-operator", namespace="ocm-prefix-1", cluster="mc1", prometheus_replica="r1"}'
+    values: "0+60x100"
+  - series: 'container_memory_working_set_bytes{pod="control-plane-operator-abc", container="control-plane-operator", namespace="ocm-prefix-1", cluster="mc1", prometheus_replica="r1"}'
+    values: "1000+0x100"
+  - series: 'kube_pod_container_resource_limits{pod="control-plane-operator-abc", container="control-plane-operator", resource="cpu", namespace="ocm-prefix-1", cluster="mc1", prometheus_replica="r1"}'
+    values: "0+0x100"
+  - series: 'kube_pod_container_resource_limits{pod="control-plane-operator-abc", container="control-plane-operator", resource="memory", namespace="ocm-prefix-1", cluster="mc1", prometheus_replica="r1"}'
+    values: "0+0x100"
+  promql_expr_test:
+  - expr: hypershift:cpo:replica_availability:ratio
+    eval_time: 30m
+    exp_samples: []
+  - expr: hypershift:cpo:reconcile_error:ratio_rate5m
+    eval_time: 30m
+    exp_samples: []
+  - expr: hypershift:cpo:reconcile_error:ratio_rate3d
+    eval_time: 30m
+    exp_samples: []
+  - expr: hypershift:cpo:reconcile_slow:ratio_rate5m
+    eval_time: 30m
+    exp_samples: []
+  - expr: hypershift:cpo:reconcile_slow:ratio_rate3d
+    eval_time: 30m
+    exp_samples: []
+  - expr: hypershift:cpo:saturation_signal
+    eval_time: 30m
+    exp_samples: []
+  - expr: hypershift:cpo:saturated
+    eval_time: 30m
+    exp_samples: []

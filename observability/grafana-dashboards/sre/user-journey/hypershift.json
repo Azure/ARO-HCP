@@ -30,7 +30,7 @@
       },
       "id": 1,
       "options": {
-        "content": "### HyperShift User Journey SLO Dashboard\n\nMonitors whether **HyperShift creates and maintains a usable hosted control plane**, covering the HyperShift Operator (`hypershift` namespace) and the Control Plane Operator (CPO, in each `ocm-*` namespace).\n\n**Proposed SLO Targets (pending baseline and stakeholder review):**\n- Journey availability: >=99.95% of eligible HostedCluster samples with the hosted API available, 30d\n- Journey errors: >=99.9% healthy HostedCluster samples (no HyperShift failure conditions), 30d\n- Journey latency: >=99% of cluster creations reach initial availability within 30m, 30d\n- Component availability: >=99.95% available/desired operator replicas, 30d\n- Component errors: >=99.9% successful reconciliations, 30d\n- Component latency: >=99% of reconciliations within 10s\n- Component saturation: >=99% of intervals within limits\n- Traffic and journey saturation are **informational** until baselined from historical data\n\n**Eligibility:** availability samples exclude HostedClusters in their first 15m and clusters no longer reporting (same pattern as KASAvailable).\n\n**Metrics Source:** `hypershift_*` metrics from the HyperShift Operator and CPO (openshift/hypershift), `controller_runtime_*`, `workqueue_*`, kube-state-metrics deployment metrics, container resource metrics. `hostedClusterAPI_kubeapiserver_available` (KASAvailable) is shown as supporting context.\n\n**Jira:** [ARO-27787](https://redhat.atlassian.net/browse/ARO-27787)",
+        "content": "### HyperShift User Journey SLO Dashboard\n\nMonitors whether **HyperShift creates and maintains a usable hosted control plane**, covering the HyperShift Operator (`hypershift` namespace) and the Control Plane Operator (CPO, in each `ocm-*` namespace).\n\n**Proposed SLO Targets (pending baseline and stakeholder review):**\n- Journey availability: >=99.95% of eligible HostedCluster samples with the hosted API available, 30d\n- Journey errors: >=99.9% healthy HostedCluster samples (no HyperShift failure conditions), 30d\n- Journey latency: >=99% of cluster creations reach initial availability within 30m, 30d\n- Component availability: >=99.95% available/desired operator replicas, 30d\n- Component errors: >=99.9% successful reconciliations, 30d\n- Component latency: >=99% of reconciliations within 10s\n- Component saturation: >=99% of intervals within limits\n- Traffic and journey saturation are **informational** until baselined from historical data\n\n**Eligibility:** availability samples exclude HostedClusters in their first 15m and clusters no longer reporting (same pattern as KASAvailable).\n\n**Metrics Source:** `hypershift_*` metrics from the HyperShift Operator and CPO (openshift/hypershift), `controller_runtime_*`, `workqueue_*`, kube-state-metrics deployment metrics, container resource metrics. `hostedClusterAPI_kubeapiserver_available` (KASAvailable) is shown as supporting context.\n\n**Workspaces:** select the services and HCP workspaces for the same region. HyperShift Operator series (`hypershift` namespace) are read from the services workspace. CPO, HCP-namespace and KASAvailable series (`ocm-*` namespaces) and the KAS recording rules are read from the HCP workspace. Panels that compare the two operators combine both.\n\n**Jira:** [ARO-27787](https://redhat.atlassian.net/browse/ARO-27787)",
         "mode": "markdown"
       },
       "title": "Dashboard Info",
@@ -50,8 +50,8 @@
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
+        "type": "datasource",
+        "uid": "-- Mixed --"
       },
       "description": "Journey availability: eligible samples where the CPO /healthz probe of the hosted API succeeded / all eligible samples (excludes first 15m and clusters no longer reporting). Proposed SLO: 99.95% over 30d.",
       "fieldConfig": {
@@ -106,7 +106,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "$datasource"
+            "uid": "$hcp_datasource"
           },
           "editorMode": "code",
           "expr": "100 * sum(sum_over_time((max without(prometheus_replica) (hypershift_kube_apiserver_available) and on (namespace) max without(prometheus_replica) (hypershift_kube_apiserver_available offset 15m))[30d:5m]) and on (namespace) max without(prometheus_replica) (hypershift_kube_apiserver_available)) / sum(count_over_time((max without(prometheus_replica) (hypershift_kube_apiserver_available) and on (namespace) max without(prometheus_replica) (hypershift_kube_apiserver_available offset 15m))[30d:5m]) and on (namespace) max without(prometheus_replica) (hypershift_kube_apiserver_available))",
@@ -120,8 +120,8 @@
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
+        "type": "datasource",
+        "uid": "-- Mixed --"
       },
       "description": "Journey errors: 1 - HostedClusters with a failure condition / HostedClusters, averaged over 30d. A cluster with several failure conditions is counted once per condition, so this is a conservative (pessimistic) estimate. Proposed SLO: 99.9%.",
       "fieldConfig": {
@@ -190,8 +190,8 @@
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
+        "type": "datasource",
+        "uid": "-- Mixed --"
       },
       "description": "Journey latency: HostedClusters seen waiting for initial availability in the last 30d whose wait never exceeded 30m / all such HostedClusters. Clusters still waiting count as good until they pass 30m. Proposed SLO: 99%.",
       "fieldConfig": {
@@ -260,8 +260,8 @@
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
+        "type": "datasource",
+        "uid": "-- Mixed --"
       },
       "description": "Journey traffic (informational): current number of HostedClusters and NodePools.",
       "fieldConfig": {
@@ -333,8 +333,8 @@
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
+        "type": "datasource",
+        "uid": "-- Mixed --"
       },
       "description": "Fraction of eligible HostedClusters whose CPO /healthz probe succeeds.",
       "fieldConfig": {
@@ -378,7 +378,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "$datasource"
+            "uid": "$hcp_datasource"
           },
           "editorMode": "code",
           "expr": "100 * avg((max without(prometheus_replica) (hypershift_kube_apiserver_available) and on (namespace) max without(prometheus_replica) (hypershift_kube_apiserver_available offset 15m)) and on (namespace) max without(prometheus_replica) (hypershift_kube_apiserver_available))",
@@ -391,8 +391,8 @@
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
+        "type": "datasource",
+        "uid": "-- Mixed --"
       },
       "description": "1 - HostedClusters with a failure condition / HostedClusters (conservative).",
       "fieldConfig": {
@@ -449,8 +449,8 @@
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
+        "type": "datasource",
+        "uid": "-- Mixed --"
       },
       "description": "Journey latency: seconds each HostedCluster has been waiting for initial availability. The metric only exists until the cluster first becomes available. SLO threshold: 30m (1800s).",
       "fieldConfig": {
@@ -506,8 +506,8 @@
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
+        "type": "datasource",
+        "uid": "-- Mixed --"
       },
       "description": "Journey traffic (informational): HostedClusters and NodePools, and conditions becoming true per hour (hypershift_hosted_cluster_transition_seconds_count by condition).",
       "fieldConfig": {
@@ -583,8 +583,8 @@
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
+        "type": "datasource",
+        "uid": "-- Mixed --"
       },
       "description": "Journey saturation (informational): HostedClusters still waiting for initial availability longer than 30m.",
       "fieldConfig": {
@@ -649,8 +649,8 @@
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
+        "type": "datasource",
+        "uid": "-- Mixed --"
       },
       "description": "Journey saturation (informational): HostedClusters currently waiting for initial availability.",
       "fieldConfig": {
@@ -711,8 +711,8 @@
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
+        "type": "datasource",
+        "uid": "-- Mixed --"
       },
       "description": "Journey saturation (informational): transitioning HostedClusters over 30m / all transitioning HostedClusters.",
       "fieldConfig": {
@@ -781,8 +781,8 @@
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
+        "type": "datasource",
+        "uid": "-- Mixed --"
       },
       "description": "Component availability: available / desired operator replicas. Proposed SLO: 99.95% over 30d.",
       "fieldConfig": {
@@ -848,7 +848,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "$datasource"
+            "uid": "$hcp_datasource"
           },
           "editorMode": "code",
           "expr": "100 * avg(avg_over_time((max without(prometheus_replica) (kube_deployment_status_replicas_available{namespace=~\"ocm-.*\", deployment=\"control-plane-operator\"}) / max without(prometheus_replica) (kube_deployment_spec_replicas{namespace=~\"ocm-.*\", deployment=\"control-plane-operator\"}))[30d:5m]))",
@@ -862,8 +862,8 @@
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
+        "type": "datasource",
+        "uid": "-- Mixed --"
       },
       "description": "Component errors: successful reconciliations / all completed reconciliations. Proposed SLO: 99.9% over 30d.",
       "fieldConfig": {
@@ -929,7 +929,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "$datasource"
+            "uid": "$hcp_datasource"
           },
           "editorMode": "code",
           "expr": "100 * (1 - sum(max without(prometheus_replica) (rate(controller_runtime_reconcile_total{namespace=~\"ocm-.*\", pod=~\"control-plane-operator-.*\", result=\"error\"}[30d]))) / sum(max without(prometheus_replica) (rate(controller_runtime_reconcile_total{namespace=~\"ocm-.*\", pod=~\"control-plane-operator-.*\"}[30d]))))",
@@ -943,8 +943,8 @@
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
+        "type": "datasource",
+        "uid": "-- Mixed --"
       },
       "description": "Component latency: reconciliations completing within 10s / all completed reconciliations. Proposed SLO: 99%.",
       "fieldConfig": {
@@ -1010,7 +1010,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "$datasource"
+            "uid": "$hcp_datasource"
           },
           "editorMode": "code",
           "expr": "100 * sum(max without(prometheus_replica) (rate(controller_runtime_reconcile_time_seconds_bucket{namespace=~\"ocm-.*\", pod=~\"control-plane-operator-.*\", le=\"10\"}[30d]))) / sum(max without(prometheus_replica) (rate(controller_runtime_reconcile_time_seconds_count{namespace=~\"ocm-.*\", pod=~\"control-plane-operator-.*\"}[30d])))",
@@ -1024,8 +1024,8 @@
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
+        "type": "datasource",
+        "uid": "-- Mixed --"
       },
       "description": "Component traffic (informational): reconciliations processed per second.",
       "fieldConfig": {
@@ -1083,7 +1083,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "$datasource"
+            "uid": "$hcp_datasource"
           },
           "editorMode": "code",
           "expr": "sum(max without(prometheus_replica) (rate(controller_runtime_reconcile_total{namespace=~\"ocm-.*\", pod=~\"control-plane-operator-.*\"}[1h])))",
@@ -1097,8 +1097,8 @@
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
+        "type": "datasource",
+        "uid": "-- Mixed --"
       },
       "description": "Component availability by operator (CPO shows the worst HCP).",
       "fieldConfig": {
@@ -1152,7 +1152,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "$datasource"
+            "uid": "$hcp_datasource"
           },
           "editorMode": "code",
           "expr": "min(max without(prometheus_replica) (kube_deployment_status_replicas_available{namespace=~\"ocm-.*\", deployment=\"control-plane-operator\"}) / max without(prometheus_replica) (kube_deployment_spec_replicas{namespace=~\"ocm-.*\", deployment=\"control-plane-operator\"}))",
@@ -1165,8 +1165,8 @@
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
+        "type": "datasource",
+        "uid": "-- Mixed --"
       },
       "description": "Component errors: successful / completed reconciliations.",
       "fieldConfig": {
@@ -1220,7 +1220,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "$datasource"
+            "uid": "$hcp_datasource"
           },
           "editorMode": "code",
           "expr": "100 * (1 - sum(max without(prometheus_replica) (rate(controller_runtime_reconcile_total{namespace=~\"ocm-.*\", pod=~\"control-plane-operator-.*\", result=\"error\"}[5m]))) / sum(max without(prometheus_replica) (rate(controller_runtime_reconcile_total{namespace=~\"ocm-.*\", pod=~\"control-plane-operator-.*\"}[5m]))))",
@@ -1233,8 +1233,8 @@
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
+        "type": "datasource",
+        "uid": "-- Mixed --"
       },
       "description": "Component latency: reconciliations completing within 10s.",
       "fieldConfig": {
@@ -1288,7 +1288,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "$datasource"
+            "uid": "$hcp_datasource"
           },
           "editorMode": "code",
           "expr": "100 * sum(max without(prometheus_replica) (rate(controller_runtime_reconcile_time_seconds_bucket{namespace=~\"ocm-.*\", pod=~\"control-plane-operator-.*\", le=\"10\"}[5m]))) / sum(max without(prometheus_replica) (rate(controller_runtime_reconcile_time_seconds_count{namespace=~\"ocm-.*\", pod=~\"control-plane-operator-.*\"}[5m])))",
@@ -1301,8 +1301,8 @@
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
+        "type": "datasource",
+        "uid": "-- Mixed --"
       },
       "description": "Component traffic (informational).",
       "fieldConfig": {
@@ -1355,7 +1355,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "$datasource"
+            "uid": "$hcp_datasource"
           },
           "editorMode": "code",
           "expr": "sum(max without(prometheus_replica) (rate(controller_runtime_reconcile_total{namespace=~\"ocm-.*\", pod=~\"control-plane-operator-.*\"}[5m])))",
@@ -1375,7 +1375,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "$datasource"
+            "uid": "$hcp_datasource"
           },
           "editorMode": "code",
           "expr": "sum(max without(prometheus_replica) (rate(workqueue_adds_total{namespace=~\"ocm-.*\", pod=~\"control-plane-operator-.*\"}[5m])))",
@@ -1388,8 +1388,8 @@
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
+        "type": "datasource",
+        "uid": "-- Mixed --"
       },
       "description": "Component saturation: controller workqueue depth (worst pod).",
       "fieldConfig": {
@@ -1442,7 +1442,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "$datasource"
+            "uid": "$hcp_datasource"
           },
           "editorMode": "code",
           "expr": "max(max without(prometheus_replica) (workqueue_depth{namespace=~\"ocm-.*\", pod=~\"control-plane-operator-.*\"}))",
@@ -1455,8 +1455,8 @@
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
+        "type": "datasource",
+        "uid": "-- Mixed --"
       },
       "description": "Component saturation: container CPU in cores.",
       "fieldConfig": {
@@ -1509,7 +1509,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "$datasource"
+            "uid": "$hcp_datasource"
           },
           "editorMode": "code",
           "expr": "max(max without(prometheus_replica) (rate(container_cpu_usage_seconds_total{namespace=~\"ocm-.*\", container=\"control-plane-operator\"}[5m])))",
@@ -1522,8 +1522,8 @@
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
+        "type": "datasource",
+        "uid": "-- Mixed --"
       },
       "description": "Component saturation: container memory working set.",
       "fieldConfig": {
@@ -1576,7 +1576,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "$datasource"
+            "uid": "$hcp_datasource"
           },
           "editorMode": "code",
           "expr": "max(max without(prometheus_replica) (container_memory_working_set_bytes{namespace=~\"ocm-.*\", container=\"control-plane-operator\"}))",
@@ -1601,8 +1601,8 @@
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
+        "type": "datasource",
+        "uid": "-- Mixed --"
       },
       "description": "Downstream evidence: existing KASAvailable journey, fleet average of per-HostedCluster 30d availability. Target 99.95%.",
       "fieldConfig": {
@@ -1657,7 +1657,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "$datasource"
+            "uid": "$hcp_datasource"
           },
           "editorMode": "code",
           "expr": "100 * avg(hostedClusterAPI_kubeapiserver_available:ratio_avg_30d)",
@@ -1671,8 +1671,8 @@
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
+        "type": "datasource",
+        "uid": "-- Mixed --"
       },
       "description": "Fleet SLO distribution: HostedClusters with 30d KAS availability >= 99.95%.",
       "fieldConfig": {
@@ -1719,7 +1719,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "$datasource"
+            "uid": "$hcp_datasource"
           },
           "editorMode": "code",
           "expr": "count(hostedClusterAPI_kubeapiserver_available:ratio_avg_30d >= 0.9995) or vector(0)",
@@ -1733,8 +1733,8 @@
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
+        "type": "datasource",
+        "uid": "-- Mixed --"
       },
       "description": "Fleet SLO distribution: HostedClusters with 30d KAS availability < 99.95%.",
       "fieldConfig": {
@@ -1785,7 +1785,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "$datasource"
+            "uid": "$hcp_datasource"
           },
           "editorMode": "code",
           "expr": "count(hostedClusterAPI_kubeapiserver_available:ratio_avg_30d < 0.9995) or vector(0)",
@@ -1799,8 +1799,8 @@
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
+        "type": "datasource",
+        "uid": "-- Mixed --"
       },
       "description": "Clusters where the CPO probe and the KSM condition disagree. The CPO metric is keyed by the control plane namespace (<HostedCluster namespace>-<name>), so KSM labels are joined into that form.",
       "fieldConfig": {
@@ -1847,7 +1847,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "$datasource"
+            "uid": "$hcp_datasource"
           },
           "editorMode": "code",
           "expr": "count(max without(prometheus_replica) (hypershift_kube_apiserver_available) == 1 unless on (namespace) (label_join(max without(prometheus_replica) (hostedClusterAPI_kubeapiserver_available{status=\"True\"}), \"namespace\", \"-\", \"namespace\", \"name\") == 1)) or vector(0)",
@@ -1858,7 +1858,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "$datasource"
+            "uid": "$hcp_datasource"
           },
           "editorMode": "code",
           "expr": "count((label_join(max without(prometheus_replica) (hostedClusterAPI_kubeapiserver_available{status=\"True\"}), \"namespace\", \"-\", \"namespace\", \"name\") == 1) unless on (namespace) (max without(prometheus_replica) (hypershift_kube_apiserver_available) == 1)) or vector(0)",
@@ -1872,8 +1872,8 @@
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
+        "type": "datasource",
+        "uid": "-- Mixed --"
       },
       "description": "Compares the CPO /healthz probe with the HostedCluster KubeAPIServerAvailable condition (Deployment Available) to see whether HyperShift failures precede or correlate with KAS failures.",
       "fieldConfig": {
@@ -1917,7 +1917,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "$datasource"
+            "uid": "$hcp_datasource"
           },
           "editorMode": "code",
           "expr": "100 * avg(max without(prometheus_replica) (hypershift_kube_apiserver_available))",
@@ -1927,7 +1927,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "$datasource"
+            "uid": "$hcp_datasource"
           },
           "editorMode": "code",
           "expr": "100 * avg(max without(prometheus_replica) (hostedClusterAPI_kubeapiserver_available{status=\"True\"}))",
@@ -1940,8 +1940,8 @@
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
+        "type": "datasource",
+        "uid": "-- Mixed --"
       },
       "description": "hypershift_kube_apiserver_request_duration_seconds: latency of the CPO /healthz probe. Additional signal not available in KASAvailable.",
       "fieldConfig": {
@@ -1984,7 +1984,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "$datasource"
+            "uid": "$hcp_datasource"
           },
           "editorMode": "code",
           "expr": "max(histogram_quantile(0.99, sum by (le, namespace) (max without(prometheus_replica) (rate(hypershift_kube_apiserver_request_duration_seconds_bucket[5m])))))",
@@ -2004,7 +2004,7 @@
       },
       "id": 33,
       "options": {
-        "content": "### Gaps and Open Questions\n\n**Verified from the openshift/hypershift source and this repository:**\n- `hypershift_hostedclusters`, `hypershift_hostedclusters_failure_conditions` (labels `platform`, `condition`) and `hypershift_nodepools` are gauges of object counts. A cluster with several failure conditions is counted once per condition.\n- `hypershift_cluster_waiting_initial_availability_duration_seconds` (labels `namespace`, `name`, `_id`) is a per-cluster gauge that disappears once the cluster first becomes available. The 30m SLI is therefore derived from the maximum wait seen per cluster over the window.\n- `hypershift_hosted_cluster_transition_seconds` is a histogram whose buckets stop at 600s and which does not cover the `Available` condition, so it is used only for the traffic panel.\n- `hypershift_kube_apiserver_available` is a CPO gauge (1 if the KAS `/healthz` probe returns 200) with no cluster labels; it is scoped by the control plane namespace. `hostedClusterAPI_kubeapiserver_available` is a kube-state-metrics StateSet of the HostedCluster `KubeAPIServerAvailable` condition (Deployment Available), keyed by the HostedCluster namespace and name. The probe also exposes a latency histogram.\n\n**Collection path (verified from source and this repository):**\n- The HyperShift Operator install always creates a ServiceMonitor (30s interval, no metric filtering) for the `operator` Deployment in the `hypershift` namespace. `--platform-monitoring=None` only skips the OpenShift platform monitoring RBAC, and `--metrics-set=SRE` does not filter operator metrics.\n- The CPO creates a PodMonitor per HCP namespace with no metric filtering (`ControlPlaneOperatorRelabelConfigs` returns nil).\n- The management cluster Prometheus selects all ServiceMonitors and PodMonitors in all namespaces (`serviceMonitorSelector: {}`, `podMonitorSelector: {}`), so both are collected.\n- Deployment and container names used in queries: `operator` (hypershift namespace) and `control-plane-operator` (HCP namespace). The control plane namespace is `<HostedCluster namespace>-<HostedCluster name>`.\n- `controller_runtime_reconcile_time_seconds` has a `le=\"10\"` bucket.\n\n**KASAvailable patterns:**\n- Reused here: good/eligible sample ratio, 15m new-cluster exclusion, current-series presence check, fleet SLO distribution.\n- Display only as context: KAS availability and its metric comparison.\n- Still to evaluate after SLO agreement: sample-count guards (HyperShift gauges update at the Prometheus scrape interval, unlike KSM), multi-window burn-rate alerting.\n- Targets are proposals and must be based on historical data and stakeholder agreement, not inherited from the KASAvailable 99.95%.",
+        "content": "### Gaps and Open Questions\n\n**Verified from the openshift/hypershift source and this repository:**\n- `hypershift_hostedclusters`, `hypershift_hostedclusters_failure_conditions` (labels `platform`, `condition`) and `hypershift_nodepools` are gauges of object counts. A cluster with several failure conditions is counted once per condition.\n- `hypershift_cluster_waiting_initial_availability_duration_seconds` (labels `namespace`, `name`, `_id`) is a per-cluster gauge that disappears once the cluster first becomes available. The 30m SLI is therefore derived from the maximum wait seen per cluster over the window.\n- `hypershift_hosted_cluster_transition_seconds` is a histogram whose buckets stop at 600s and which does not cover the `Available` condition, so it is used only for the traffic panel.\n- `hypershift_kube_apiserver_available` is a CPO gauge (1 if the KAS `/healthz` probe returns 200) with no cluster labels; it is scoped by the control plane namespace. `hostedClusterAPI_kubeapiserver_available` is a kube-state-metrics StateSet of the HostedCluster `KubeAPIServerAvailable` condition (Deployment Available), keyed by the HostedCluster namespace and name. The probe also exposes a latency histogram.\n\n**Collection path (verified from source and this repository):**\n- The HyperShift Operator install always creates a ServiceMonitor (30s interval, no metric filtering) for the `operator` Deployment in the `hypershift` namespace. `--platform-monitoring=None` only skips the OpenShift platform monitoring RBAC, and `--metrics-set=SRE` does not filter operator metrics.\n- The CPO creates a PodMonitor per HCP namespace with no metric filtering (`ControlPlaneOperatorRelabelConfigs` returns nil).\n- The management cluster Prometheus selects all ServiceMonitors and PodMonitors in all namespaces (`serviceMonitorSelector: {}`, `podMonitorSelector: {}`), so both are collected.\n- Deployment and container names used in queries: `operator` (hypershift namespace) and `control-plane-operator` (HCP namespace). The control plane namespace is `<HostedCluster namespace>-<HostedCluster name>`.\n- `controller_runtime_reconcile_time_seconds` has a `le=\"10\"` bucket.\n- Remote write sends series whose `namespace` or `hostedcontrolplane` label matches `ocm-<environment>*` only to the HCP workspace, and everything else only to the services workspace. The HyperShift Operator ServiceMonitor does not set `honorLabels`, so all operator series (including the per-cluster wait gauge) carry `namespace=\"hypershift\"` and land in the services workspace; the HostedCluster namespace moves to `exported_namespace`. CPO and KASAvailable series, and the KAS recording rules, are in the HCP workspace, so the CPO-vs-KAS comparison is evaluated entirely there.\n\n**KASAvailable patterns:**\n- Reused here: good/eligible sample ratio, 15m new-cluster exclusion, current-series presence check, fleet SLO distribution.\n- Display only as context: KAS availability and its metric comparison.\n- Still to evaluate after SLO agreement: sample-count guards (HyperShift gauges update at the Prometheus scrape interval, unlike KSM), multi-window burn-rate alerting.\n- Targets are proposals and must be based on historical data and stakeholder agreement, not inherited from the KASAvailable 99.95%.",
         "mode": "markdown"
       },
       "title": "Gaps and Open Questions",
@@ -2026,12 +2026,32 @@
           "text": "All",
           "value": "$__all"
         },
+        "hide": 0,
         "includeAll": true,
+        "label": "SVC Datasource",
         "name": "datasource",
         "options": [],
         "query": "prometheus",
         "refresh": 1,
         "regex": "^Managed_Prometheus_services-.*$",
+        "skipUrlSync": false,
+        "type": "datasource"
+      },
+      {
+        "allowCustomValue": false,
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "hide": 0,
+        "includeAll": true,
+        "label": "HCP Datasource",
+        "name": "hcp_datasource",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "regex": "^Managed_Prometheus_hcps-.*$",
+        "skipUrlSync": false,
         "type": "datasource"
       }
     ]

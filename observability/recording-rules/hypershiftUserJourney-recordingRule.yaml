@@ -1,0 +1,167 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: hypershift-user-journey-services-recording-rules
+  namespace: prometheus
+spec:
+  # ========================================
+  # HyperShift User Journey SLI Recording Rules - services workspace (ARO-27787)
+  # ========================================
+  # Inputs come from the HyperShift Operator (namespace "hypershift"), which
+  # remote-write routes to the services workspace. The ServiceMonitor does not
+  # set honorLabels, so the HostedCluster namespace is exported_namespace.
+  # Every series is aggregated to cluster = one management cluster.
+  # max without(prometheus_replica) dedupes HA scrapes before summing.
+  groups:
+  - name: hypershift-journey-recording-rules
+    rules:
+    # Share of HostedCluster failure-condition slots that are set on this MC.
+    # clamp_max(...,1): a HostedCluster can carry several failure conditions, so
+    # the raw ratio can exceed 1.
+    - record: hypershift:hostedclusters_unhealthy:ratio
+      expr: |
+        clamp_max(
+          sum by (cluster) (max without (prometheus_replica) (hypershift_hostedclusters_failure_conditions))
+          /
+          sum by (cluster) (max without (prometheus_replica) (hypershift_hostedclusters)),
+          1
+        )
+    # Fraction of creations in the last 30d that took >30m to become available.
+    # max_over_time over [30d:5m] takes each creation's peak waiting time. Grouping
+    # keeps _id so a namespace/name reused within 30d stays a separate creation
+    # (regression-tested). 5m resolution keeps the 30d query cheap; a creation
+    # that completes in <5m may be missed from the denominator, which only makes
+    # the SLI slightly pessimistic.
+    - record: hypershift:hostedcluster_creations:count_30d
+      expr: |
+        count by (cluster) (
+          max_over_time(max by (cluster, exported_namespace, name, _id) (hypershift_cluster_waiting_initial_availability_duration_seconds)[30d:5m])
+        )
+    - record: hypershift:hostedcluster_creations_over_30m:count_30d
+      expr: |
+        count by (cluster) (
+          max_over_time(max by (cluster, exported_namespace, name, _id) (hypershift_cluster_waiting_initial_availability_duration_seconds)[30d:5m]) > 1800
+        )
+        or on (cluster)
+        hypershift:hostedcluster_creations:count_30d * 0
+    # Rules in a group evaluate in order, so the ratio reads this cycle's counts.
+    # The counts are recorded separately so the alert can apply a volume guard
+    # without re-running the 30d subquery.
+    # Zero handling (both ratios): count() of an empty set returns no series,
+    # not 0, so without a fallback a cluster with no slow creations would have
+    # no ratio at all rather than 0. The over-30m counts therefore fall back to
+    # total * 0 per cluster (not vector(0), which would drop the cluster label),
+    # and the denominator is guarded with > 0 so the ratio can never be NaN.
+    - record: hypershift:hostedcluster_creation_over_30m:ratio_30d
+      expr: |
+        hypershift:hostedcluster_creations_over_30m:count_30d
+        /
+        (hypershift:hostedcluster_creations:count_30d > 0)
+    # Live backlog: of the creations waiting right now, the share waiting >30m.
+    - record: hypershift:hostedclusters_waiting:count
+      expr: |
+        count by (cluster) (max by (cluster, exported_namespace, name, _id) (hypershift_cluster_waiting_initial_availability_duration_seconds))
+    - record: hypershift:hostedclusters_waiting_over_30m:count
+      expr: |
+        count by (cluster) (max by (cluster, exported_namespace, name, _id) (hypershift_cluster_waiting_initial_availability_duration_seconds) > 1800)
+        or on (cluster)
+        hypershift:hostedclusters_waiting:count * 0
+    - record: hypershift:hostedclusters_waiting_over_30m:ratio
+      expr: |
+        hypershift:hostedclusters_waiting_over_30m:count
+        /
+        (hypershift:hostedclusters_waiting:count > 0)
+    # Traffic SLI: lifecycle transitions completed in the last hour.
+    - record: hypershift:hostedcluster_transitions:increase1h
+      expr: |
+        sum by (cluster) (max without (prometheus_replica) (increase(hypershift_hosted_cluster_transition_seconds_count[1h])))
+  # HyperShift Operator SLIs per MC. One ratio per MWMBR window (5m, 30m, 1h,
+  # 6h, 3d) for the same reason as the CPO rules: a ratio of rates must be taken
+  # over the window, not averaged from 5m ratios.
+  - name: hypershift-operator-recording-rules
+    rules:
+    # max (not sum) dedupes KSM replicas; clamp_max(...,1) for surge rollouts.
+    - record: hypershift:operator:replica_availability:ratio
+      expr: |
+        clamp_max(
+          max by (cluster) (kube_deployment_status_replicas_available{namespace="hypershift", deployment="operator"})
+          /
+          max by (cluster) (kube_deployment_spec_replicas{namespace="hypershift", deployment="operator"}),
+          1
+        )
+    # "or <total> * 0" records 0 instead of no data when no errors exist.
+    - record: hypershift:operator:reconcile_error:ratio_rate5m
+      expr: |
+        (sum by (cluster) (max without (prometheus_replica) (rate(controller_runtime_reconcile_total{namespace="hypershift", pod=~"operator-.*", result="error"}[5m]))) or sum by (cluster) (max without (prometheus_replica) (rate(controller_runtime_reconcile_total{namespace="hypershift", pod=~"operator-.*"}[5m]))) * 0)
+        /
+        sum by (cluster) (max without (prometheus_replica) (rate(controller_runtime_reconcile_total{namespace="hypershift", pod=~"operator-.*"}[5m])))
+    # clamp_min(...,0): bucket and _count are scraped non-atomically.
+    - record: hypershift:operator:reconcile_slow:ratio_rate5m
+      expr: |
+        clamp_min(1 - sum by (cluster) (max without (prometheus_replica) (rate(controller_runtime_reconcile_time_seconds_bucket{namespace="hypershift", pod=~"operator-.*", le="10"}[5m]))) / sum by (cluster) (max without (prometheus_replica) (rate(controller_runtime_reconcile_time_seconds_count{namespace="hypershift", pod=~"operator-.*"}[5m]))), 0)
+    - record: hypershift:operator:reconcile_error:ratio_rate30m
+      expr: |
+        (sum by (cluster) (max without (prometheus_replica) (rate(controller_runtime_reconcile_total{namespace="hypershift", pod=~"operator-.*", result="error"}[30m]))) or sum by (cluster) (max without (prometheus_replica) (rate(controller_runtime_reconcile_total{namespace="hypershift", pod=~"operator-.*"}[30m]))) * 0)
+        /
+        sum by (cluster) (max without (prometheus_replica) (rate(controller_runtime_reconcile_total{namespace="hypershift", pod=~"operator-.*"}[30m])))
+    - record: hypershift:operator:reconcile_slow:ratio_rate30m
+      expr: |
+        clamp_min(1 - sum by (cluster) (max without (prometheus_replica) (rate(controller_runtime_reconcile_time_seconds_bucket{namespace="hypershift", pod=~"operator-.*", le="10"}[30m]))) / sum by (cluster) (max without (prometheus_replica) (rate(controller_runtime_reconcile_time_seconds_count{namespace="hypershift", pod=~"operator-.*"}[30m]))), 0)
+    - record: hypershift:operator:reconcile_error:ratio_rate1h
+      expr: |
+        (sum by (cluster) (max without (prometheus_replica) (rate(controller_runtime_reconcile_total{namespace="hypershift", pod=~"operator-.*", result="error"}[1h]))) or sum by (cluster) (max without (prometheus_replica) (rate(controller_runtime_reconcile_total{namespace="hypershift", pod=~"operator-.*"}[1h]))) * 0)
+        /
+        sum by (cluster) (max without (prometheus_replica) (rate(controller_runtime_reconcile_total{namespace="hypershift", pod=~"operator-.*"}[1h])))
+    - record: hypershift:operator:reconcile_slow:ratio_rate1h
+      expr: |
+        clamp_min(1 - sum by (cluster) (max without (prometheus_replica) (rate(controller_runtime_reconcile_time_seconds_bucket{namespace="hypershift", pod=~"operator-.*", le="10"}[1h]))) / sum by (cluster) (max without (prometheus_replica) (rate(controller_runtime_reconcile_time_seconds_count{namespace="hypershift", pod=~"operator-.*"}[1h]))), 0)
+    - record: hypershift:operator:reconcile_error:ratio_rate6h
+      expr: |
+        (sum by (cluster) (max without (prometheus_replica) (rate(controller_runtime_reconcile_total{namespace="hypershift", pod=~"operator-.*", result="error"}[6h]))) or sum by (cluster) (max without (prometheus_replica) (rate(controller_runtime_reconcile_total{namespace="hypershift", pod=~"operator-.*"}[6h]))) * 0)
+        /
+        sum by (cluster) (max without (prometheus_replica) (rate(controller_runtime_reconcile_total{namespace="hypershift", pod=~"operator-.*"}[6h])))
+    - record: hypershift:operator:reconcile_slow:ratio_rate6h
+      expr: |
+        clamp_min(1 - sum by (cluster) (max without (prometheus_replica) (rate(controller_runtime_reconcile_time_seconds_bucket{namespace="hypershift", pod=~"operator-.*", le="10"}[6h]))) / sum by (cluster) (max without (prometheus_replica) (rate(controller_runtime_reconcile_time_seconds_count{namespace="hypershift", pod=~"operator-.*"}[6h]))), 0)
+    - record: hypershift:operator:reconcile_error:ratio_rate3d
+      expr: |
+        (sum by (cluster) (max without (prometheus_replica) (rate(controller_runtime_reconcile_total{namespace="hypershift", pod=~"operator-.*", result="error"}[3d]))) or sum by (cluster) (max without (prometheus_replica) (rate(controller_runtime_reconcile_total{namespace="hypershift", pod=~"operator-.*"}[3d]))) * 0)
+        /
+        sum by (cluster) (max without (prometheus_replica) (rate(controller_runtime_reconcile_total{namespace="hypershift", pod=~"operator-.*"}[3d])))
+    - record: hypershift:operator:reconcile_slow:ratio_rate3d
+      expr: |
+        clamp_min(1 - sum by (cluster) (max without (prometheus_replica) (rate(controller_runtime_reconcile_time_seconds_bucket{namespace="hypershift", pod=~"operator-.*", le="10"}[3d]))) / sum by (cluster) (max without (prometheus_replica) (rate(controller_runtime_reconcile_time_seconds_count{namespace="hypershift", pod=~"operator-.*"}[3d]))), 0)
+    - record: hypershift:operator:reconcile:rate5m
+      expr: |
+        sum by (cluster) (max without (prometheus_replica) (rate(controller_runtime_reconcile_total{namespace="hypershift", pod=~"operator-.*"}[5m])))
+    - record: hypershift:operator:workqueue_adds:rate5m
+      expr: |
+        sum by (cluster) (max without (prometheus_replica) (rate(workqueue_adds_total{namespace="hypershift", pod=~"operator-.*"}[5m])))
+    # 0/1 per signal; thresholds are proposed defaults (depth>100, CPU>80%,
+    # memory>85% of limit).
+    - record: hypershift:operator:saturation_signal
+      expr: |
+        label_replace(
+          max by (cluster) (max without (prometheus_replica) (workqueue_depth{namespace="hypershift", pod=~"operator-.*"})) > bool 100,
+          "signal", "workqueue_depth", "", ""
+        )
+        or
+        label_replace(
+          sum by (cluster) (max without (prometheus_replica) (rate(container_cpu_usage_seconds_total{namespace="hypershift", container="operator"}[5m])))
+          /
+          sum by (cluster) (max without (prometheus_replica) (kube_pod_container_resource_limits{namespace="hypershift", container="operator", resource="cpu"}))
+          > bool 0.8,
+          "signal", "cpu", "", ""
+        )
+        or
+        label_replace(
+          sum by (cluster) (max without (prometheus_replica) (container_memory_working_set_bytes{namespace="hypershift", container="operator"}))
+          /
+          sum by (cluster) (max without (prometheus_replica) (kube_pod_container_resource_limits{namespace="hypershift", container="operator", resource="memory"}))
+          > bool 0.85,
+          "signal", "memory", "", ""
+        )
+    # 1 if any signal is saturated; avg_over_time = fraction of minutes saturated.
+    - record: hypershift:operator:saturated
+      expr: |
+        max by (cluster) (hypershift:operator:saturation_signal)

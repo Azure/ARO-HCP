@@ -1,0 +1,689 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: hypershift-user-journey-services-alerts
+  namespace: prometheus
+spec:
+  # ========================================
+  # HyperShift User Journey SLO Alerts - services workspace (ARO-27787)
+  # ========================================
+  # Rules whose inputs are scraped from the HyperShift Operator ("hypershift"
+  # namespace). prometheus.yaml remote-write sends these to the services
+  # workspace, not HCP. HCP-namespace-backed alerts live in
+  # hypershiftUserJourney-prometheusRule.yaml.
+  #
+  # The HyperShift Operator ServiceMonitor does not set honorLabels, so the
+  # scrape overwrites the metric's own namespace with "hypershift" and moves the
+  # HostedCluster namespace to exported_namespace. Rules that need the
+  # HostedCluster identity must read exported_namespace.
+  #
+  # SLO targets are proposed defaults from the ARO-27787 spike, pending
+  # confirmation by the SLO owners; promtool tests prove the maths, not the
+  # targets.
+  #
+  # Aggregation: per management cluster (cluster). There is one HyperShift
+  # Operator per MC and the journey gauges are fleet-level per MC, except
+  # ClusterWaitingOver30m, which is per HostedCluster - see that rule.
+  groups:
+  # HostedCluster lifecycle journey, as seen by the HyperShift Operator.
+  - name: hypershift-journey-monitor-rules
+    labels:
+      component: slo
+    rules:
+    # HealthyClusters: SLO 99.9% - at most 0.1% of HostedCluster failure-condition
+    # slots on an MC may be set (hypershift_hostedclusters_failure_conditions /
+    # hypershift_hostedclusters). Fleet-level per MC: a single degraded HC on a
+    # large MC will not burn fast - this measures MC-wide health, not per-HC.
+    # Multi-window multi-burn-rate (MWMBR), per the Google SRE workbook and the
+    # existing frontend/KAS user-journey alerts. Budget = 30 days. Each tier needs
+    # BOTH the long window (is the budget really being spent?) and the short window
+    # (is it still being spent now?) to breach, so an alert resolves quickly once
+    # the problem stops instead of waiting for the long window to drain:
+    #   1h/5m   x14.4  -> 2% of the 30d budget gone in 1h   (for: 10m)
+    #   6h/30m  x6     -> 5% of the 30d budget gone in 6h   (for: 30m)
+    #   3d/6h   x1     -> 10% of the 30d budget gone in 3d  (for: 3h)
+    # All tiers are Sev 3; the window/for: pair, not severity, conveys urgency.
+    # Cold-start / onboarding guards: every tier also requires >3, >27, >54,
+    # >64, >130 subquery steps over 5m:1m, 30m:1m, 1h:1m, 6h:5m, 3d:30m
+    # (~80-90% of each window, the same steps and thresholds as the KAS
+    # availability alert). Without them a long window evaluated over a few
+    # hours of history (new MC/HCP, or after the recording rules were first
+    # deployed) reads as a full-window burn, e.g. the 3d tier could fire
+    # after ~2h. Absent series need no extra guard: "and on" with a missing
+    # side returns nothing, so the alert stays silent rather than erroring.
+    - alert: userJourneyHealthyClusters1h5m
+      expr: |
+        (
+          avg_over_time(hypershift:hostedclusters_unhealthy:ratio[1h]) > (14.4 * (1 - 0.999))
+          and on (cluster)
+          count_over_time(hypershift:hostedclusters_unhealthy:ratio[1h:1m]) > 54
+        )
+        and on (cluster)
+        (
+          avg_over_time(hypershift:hostedclusters_unhealthy:ratio[5m]) > (14.4 * (1 - 0.999))
+          and on (cluster)
+          count_over_time(hypershift:hostedclusters_unhealthy:ratio[5m:1m]) > 3
+        )
+      for: 10m
+      labels:
+        long_window: 1h
+        short_window: 5m
+        severity: "3"
+        slo: hypershift-journey-errors
+        service: hypershift-journey
+      annotations:
+        summary: "{{ $labels.cluster }}: HostedCluster failure-condition share is burning error budget at 14.4x over 1h/5m"
+        description: |
+          HostedCluster failure-condition share is burning error budget at 14.4x over 1h/5m.
+          Management Cluster: {{ $labels.cluster }}
+        runbook_url: https://aka.ms/arohcp-runbook-hypershift
+        correlationId: "userJourneyHealthyClusters/{{ $labels.cluster }}"
+    - alert: userJourneyHealthyClusters6h30m
+      expr: |
+        (
+          avg_over_time(hypershift:hostedclusters_unhealthy:ratio[6h]) > (6 * (1 - 0.999))
+          and on (cluster)
+          count_over_time(hypershift:hostedclusters_unhealthy:ratio[6h:5m]) > 64
+        )
+        and on (cluster)
+        (
+          avg_over_time(hypershift:hostedclusters_unhealthy:ratio[30m]) > (6 * (1 - 0.999))
+          and on (cluster)
+          count_over_time(hypershift:hostedclusters_unhealthy:ratio[30m:1m]) > 27
+        )
+      for: 30m
+      labels:
+        long_window: 6h
+        short_window: 30m
+        severity: "3"
+        slo: hypershift-journey-errors
+        service: hypershift-journey
+      annotations:
+        summary: "{{ $labels.cluster }}: HostedCluster failure-condition share is burning error budget at 6x over 6h/30m"
+        description: |
+          HostedCluster failure-condition share is burning error budget at 6x over 6h/30m.
+          Management Cluster: {{ $labels.cluster }}
+        runbook_url: https://aka.ms/arohcp-runbook-hypershift
+        correlationId: "userJourneyHealthyClusters/{{ $labels.cluster }}"
+    - alert: userJourneyHealthyClusters3d6h
+      expr: |
+        (
+          avg_over_time(hypershift:hostedclusters_unhealthy:ratio[3d]) > (1 * (1 - 0.999))
+          and on (cluster)
+          count_over_time(hypershift:hostedclusters_unhealthy:ratio[3d:30m]) > 130
+        )
+        and on (cluster)
+        (
+          avg_over_time(hypershift:hostedclusters_unhealthy:ratio[6h]) > (1 * (1 - 0.999))
+          and on (cluster)
+          count_over_time(hypershift:hostedclusters_unhealthy:ratio[6h:5m]) > 64
+        )
+      for: 3h
+      labels:
+        long_window: 3d
+        short_window: 6h
+        severity: "3"
+        slo: hypershift-journey-errors
+        service: hypershift-journey
+      annotations:
+        summary: "{{ $labels.cluster }}: HostedCluster failure-condition share is burning error budget at 1x over 3d/6h"
+        description: |
+          HostedCluster failure-condition share is burning error budget at 1x over 3d/6h.
+          Management Cluster: {{ $labels.cluster }}
+        runbook_url: https://aka.ms/arohcp-runbook-hypershift
+        correlationId: "userJourneyHealthyClusters/{{ $labels.cluster }}"
+    # Creation latency: SLO 99% of HostedCluster creations reach initial
+    # availability within 30 minutes, over a rolling 30 days. This is a
+    # ratio-over-window SLO, not a burn-rate one: the denominator is "creations
+    # seen in 30d", which is small and lumpy, so MWMBR tiers would be noise.
+    # Volume guard (>=10 creations, >=2 slow, same convention as
+    # userJourneyClusterProvisionErrors3d): on a new or quiet MC the first slow
+    # creation would otherwise be a 100% ratio. A single slow creation is
+    # already paged by ClusterWaitingOver30m.
+    # for: 1h because the 30d ratio only moves when a creation finishes.
+    - alert: userJourneyCreationLatencySLO
+      expr: |
+        hypershift:hostedcluster_creation_over_30m:ratio_30d > 0.01
+        and on (cluster)
+        hypershift:hostedcluster_creations:count_30d >= 10
+        and on (cluster)
+        hypershift:hostedcluster_creations_over_30m:count_30d >= 2
+      for: 1h
+      labels:
+        severity: "3"
+        slo: hypershift-journey-latency
+        service: hypershift-journey
+      annotations:
+        summary: "{{ $labels.cluster }}: More than 1% of HostedCluster creations over 30 days took longer than 30 minutes to reach initial availability"
+        description: |
+          More than 1% of HostedCluster creations over 30 days took longer than 30 minutes to reach initial availability.
+          Management Cluster: {{ $labels.cluster }}
+        runbook_url: https://aka.ms/arohcp-runbook-hypershift
+        correlationId: "userJourneyCreationLatencySLO/{{ $labels.cluster }}"
+    # Per-HostedCluster: one creation has been waiting >30m right now. Unlike
+    # every other alert in this file this is NOT fleet-aggregated - a single stuck
+    # creation is customer-visible and must not be averaged away.
+    # Aggregation: max without(prometheus_replica) dedupes the HA scrape;
+    # label_replace copies a non-empty exported_namespace into namespace (see the
+    # honorLabels note above) so the alert reports the HostedCluster namespace,
+    # and falls back to namespace if honorLabels is ever enabled. _id is kept so a
+    # deleted-and-recreated namespace/name is a separate alert.
+    - alert: userJourneyClusterWaitingOver30m
+      expr: |
+        max by (cluster, namespace, name, _id) (label_replace(max without (prometheus_replica) (hypershift_cluster_waiting_initial_availability_duration_seconds), "namespace", "$1", "exported_namespace", "(.+)")) > 1800
+      for: 5m
+      labels:
+        severity: "3"
+        slo: hypershift-journey-saturation
+        service: hypershift-journey
+      annotations:
+        summary: "{{ $labels.cluster }}/{{ $labels.namespace }}/{{ $labels.name }}: HostedCluster has not reached initial availability within 30 minutes"
+        description: |
+          HostedCluster has not reached initial availability within 30 minutes.
+          Management Cluster: {{ $labels.cluster }}
+          HostedCluster: {{ $labels.namespace }}/{{ $labels.name }}
+        runbook_url: https://aka.ms/arohcp-runbook-hypershift
+        correlationId: "userJourneyClusterWaitingOver30m/{{ $labels.cluster }}/{{ $labels.namespace }}/{{ $labels.name }}"
+    # Saturation: >5% of currently-transitioning HostedClusters on the MC have
+    # waited >30m. Ratio of live gauges, not a burn rate; Sev 4 because
+    # ClusterWaitingOver30m already pages per HC. 5% is a proposed default.
+    # Requires >=2 clusters over 30m: with one waiting HC (new or quiet MC) the
+    # ratio is 100% and would just duplicate ClusterWaitingOver30m.
+    - alert: userJourneyTransitionBacklog
+      expr: |
+        hypershift:hostedclusters_waiting_over_30m:ratio > 0.05
+        and on (cluster)
+        hypershift:hostedclusters_waiting_over_30m:count >= 2
+      for: 15m
+      labels:
+        severity: "4"
+        slo: hypershift-journey-saturation
+        service: hypershift-journey
+      annotations:
+        summary: "{{ $labels.cluster }}: More than 5% of HostedClusters in initial lifecycle transition have exceeded the 30 minute limit"
+        description: |
+          More than 5% of HostedClusters in initial lifecycle transition have exceeded the 30 minute limit.
+          Management Cluster: {{ $labels.cluster }}
+        runbook_url: https://aka.ms/arohcp-runbook-hypershift
+        correlationId: "userJourneyTransitionBacklog/{{ $labels.cluster }}"
+    # Traffic: lifecycle transitions in the last hour fell below 50% of the same
+    # hour yesterday (offset 24h compares like-for-like time of day). "offset 24h
+    # > 0" suppresses the alert when there was no baseline.
+    - alert: userJourneyTrafficDrop
+      expr: |
+        hypershift:hostedcluster_transitions:increase1h < 0.5 * (hypershift:hostedcluster_transitions:increase1h offset 24h)
+        and
+        (hypershift:hostedcluster_transitions:increase1h offset 24h) > 0
+      for: 30m
+      labels:
+        severity: "4"
+        slo: hypershift-journey-traffic
+        service: hypershift-journey
+      annotations:
+        summary: "{{ $labels.cluster }}: HostedCluster lifecycle transitions dropped below 50% of the rate 24 hours ago"
+        description: |
+          HostedCluster lifecycle transitions dropped below 50% of the rate 24 hours ago.
+          Management Cluster: {{ $labels.cluster }}
+        runbook_url: https://aka.ms/arohcp-runbook-hypershift
+        correlationId: "userJourneyTrafficDrop/{{ $labels.cluster }}"
+    # Traffic: transitions >3x the 7d average. The >10/h floor stops a quiet MC
+    # going from 1 to 4 transitions/h from alerting. Cold-start guard: >151 of
+    # 168 hourly steps (~90% of 7d) must exist, otherwise a new MC's onboarding
+    # ramp is compared against a near-empty baseline. Only the cold-start
+    # suppression has a promtool case: a full 7d at 1m exceeds promtool's
+    # sample limit, so the firing path is untested.
+    - alert: userJourneyTrafficSpike
+      expr: |
+        hypershift:hostedcluster_transitions:increase1h > 3 * avg_over_time(hypershift:hostedcluster_transitions:increase1h[7d])
+        and
+        hypershift:hostedcluster_transitions:increase1h > 10
+        and on (cluster)
+        count_over_time(hypershift:hostedcluster_transitions:increase1h[7d:1h]) > 151
+      for: 30m
+      labels:
+        severity: "4"
+        slo: hypershift-journey-traffic
+        service: hypershift-journey
+      annotations:
+        summary: "{{ $labels.cluster }}: HostedCluster lifecycle transitions exceeded 3x the 7 day average"
+        description: |
+          HostedCluster lifecycle transitions exceeded 3x the 7 day average.
+          Management Cluster: {{ $labels.cluster }}
+        runbook_url: https://aka.ms/arohcp-runbook-hypershift
+        correlationId: "userJourneyTrafficSpike/{{ $labels.cluster }}"
+  # HyperShift Operator health, one operator per management cluster.
+  # SLO targets (proposed):
+  #   Availability     99.95% of minutes with all desired replicas available
+  #                    (the operator gates every HostedCluster create/update/delete).
+  #   ReconcileErrors  99.9% of reconciles succeed.
+  #   ReconcileLatency 99% of reconciles finish within 10s (le="10" bucket);
+  #                    10s is a proposed default, upstream has no published target.
+  #   Saturation       99% of minutes not saturated (workqueue_depth>100,
+  #                    CPU>80% or memory>85% of limit - see recording rules).
+  # Multi-window multi-burn-rate (MWMBR), per the Google SRE workbook and the
+  # existing frontend/KAS user-journey alerts. Budget = 30 days. Each tier needs
+  # BOTH the long window (is the budget really being spent?) and the short window
+  # (is it still being spent now?) to breach, so an alert resolves quickly once
+  # the problem stops instead of waiting for the long window to drain:
+  #   1h/5m   x14.4  -> 2% of the 30d budget gone in 1h   (for: 10m)
+  #   6h/30m  x6     -> 5% of the 30d budget gone in 6h   (for: 30m)
+  #   3d/6h   x1     -> 10% of the 30d budget gone in 3d  (for: 3h)
+  # All tiers are Sev 3; the window/for: pair, not severity, conveys urgency.
+  # Cold-start / onboarding guards: every tier also requires >3, >27, >54,
+  # >64, >130 subquery steps over 5m:1m, 30m:1m, 1h:1m, 6h:5m, 3d:30m
+  # (~80-90% of each window, the same steps and thresholds as the KAS
+  # availability alert). Without them a long window evaluated over a few
+  # hours of history (new MC/HCP, or after the recording rules were first
+  # deployed) reads as a full-window burn, e.g. the 3d tier could fire
+  # after ~2h. Absent series need no extra guard: "and on" with a missing
+  # side returns nothing, so the alert stays silent rather than erroring.
+  # Ratio tiers are additionally gated on reconcile:rate5m > 0:
+  # a ratio with no reconciles is NaN/absent, and an operator that has stopped
+  # reconciling entirely is covered by the Idle alert instead.
+  - name: hypershift-operator-monitor-rules
+    labels:
+      component: slo
+    rules:
+    - alert: userJourneyAvailability1h5m
+      expr: |
+        (
+          (1 - avg_over_time(hypershift:operator:replica_availability:ratio[1h])) > (14.4 * (1 - 0.9995))
+          and on (cluster)
+          count_over_time(hypershift:operator:replica_availability:ratio[1h:1m]) > 54
+        )
+        and on (cluster)
+        (
+          (1 - avg_over_time(hypershift:operator:replica_availability:ratio[5m])) > (14.4 * (1 - 0.9995))
+          and on (cluster)
+          count_over_time(hypershift:operator:replica_availability:ratio[5m:1m]) > 3
+        )
+      for: 10m
+      labels:
+        long_window: 1h
+        short_window: 5m
+        severity: "3"
+        slo: hypershift-operator-availability
+        service: hypershift-operator
+      annotations:
+        summary: "{{ $labels.cluster }}: hypershift-operator replica availability is burning error budget at 14.4x over 1h/5m"
+        description: |
+          hypershift-operator replica availability is burning error budget at 14.4x over 1h/5m.
+          Management Cluster: {{ $labels.cluster }}
+        runbook_url: https://aka.ms/arohcp-runbook-hypershift
+        correlationId: "userJourneyAvailability/{{ $labels.cluster }}"
+    - alert: userJourneyAvailability6h30m
+      expr: |
+        (
+          (1 - avg_over_time(hypershift:operator:replica_availability:ratio[6h])) > (6 * (1 - 0.9995))
+          and on (cluster)
+          count_over_time(hypershift:operator:replica_availability:ratio[6h:5m]) > 64
+        )
+        and on (cluster)
+        (
+          (1 - avg_over_time(hypershift:operator:replica_availability:ratio[30m])) > (6 * (1 - 0.9995))
+          and on (cluster)
+          count_over_time(hypershift:operator:replica_availability:ratio[30m:1m]) > 27
+        )
+      for: 30m
+      labels:
+        long_window: 6h
+        short_window: 30m
+        severity: "3"
+        slo: hypershift-operator-availability
+        service: hypershift-operator
+      annotations:
+        summary: "{{ $labels.cluster }}: hypershift-operator replica availability is burning error budget at 6x over 6h/30m"
+        description: |
+          hypershift-operator replica availability is burning error budget at 6x over 6h/30m.
+          Management Cluster: {{ $labels.cluster }}
+        runbook_url: https://aka.ms/arohcp-runbook-hypershift
+        correlationId: "userJourneyAvailability/{{ $labels.cluster }}"
+    - alert: userJourneyAvailability3d6h
+      expr: |
+        (
+          (1 - avg_over_time(hypershift:operator:replica_availability:ratio[3d])) > (1 * (1 - 0.9995))
+          and on (cluster)
+          count_over_time(hypershift:operator:replica_availability:ratio[3d:30m]) > 130
+        )
+        and on (cluster)
+        (
+          (1 - avg_over_time(hypershift:operator:replica_availability:ratio[6h])) > (1 * (1 - 0.9995))
+          and on (cluster)
+          count_over_time(hypershift:operator:replica_availability:ratio[6h:5m]) > 64
+        )
+      for: 3h
+      labels:
+        long_window: 3d
+        short_window: 6h
+        severity: "3"
+        slo: hypershift-operator-availability
+        service: hypershift-operator
+      annotations:
+        summary: "{{ $labels.cluster }}: hypershift-operator replica availability is burning error budget at 1x over 3d/6h"
+        description: |
+          hypershift-operator replica availability is burning error budget at 1x over 3d/6h.
+          Management Cluster: {{ $labels.cluster }}
+        runbook_url: https://aka.ms/arohcp-runbook-hypershift
+        correlationId: "userJourneyAvailability/{{ $labels.cluster }}"
+    - alert: userJourneyReconcileErrors1h5m
+      expr: |
+        (
+          hypershift:operator:reconcile_error:ratio_rate1h > (14.4 * (1 - 0.999))
+          and on (cluster)
+          hypershift:operator:reconcile:rate5m > 0
+          and on (cluster)
+          count_over_time(hypershift:operator:reconcile:rate5m[1h:1m]) > 54
+        )
+        and on (cluster)
+        (
+          hypershift:operator:reconcile_error:ratio_rate5m > (14.4 * (1 - 0.999))
+          and on (cluster)
+          hypershift:operator:reconcile:rate5m > 0
+          and on (cluster)
+          count_over_time(hypershift:operator:reconcile:rate5m[5m:1m]) > 3
+        )
+      for: 10m
+      labels:
+        long_window: 1h
+        short_window: 5m
+        severity: "3"
+        slo: hypershift-operator-errors
+        service: hypershift-operator
+      annotations:
+        summary: "{{ $labels.cluster }}: hypershift-operator reconcile error ratio is burning error budget at 14.4x over 1h/5m"
+        description: |
+          hypershift-operator reconcile error ratio is burning error budget at 14.4x over 1h/5m.
+          Management Cluster: {{ $labels.cluster }}
+        runbook_url: https://aka.ms/arohcp-runbook-hypershift
+        correlationId: "userJourneyReconcileErrors/{{ $labels.cluster }}"
+    - alert: userJourneyReconcileErrors6h30m
+      expr: |
+        (
+          hypershift:operator:reconcile_error:ratio_rate6h > (6 * (1 - 0.999))
+          and on (cluster)
+          hypershift:operator:reconcile:rate5m > 0
+          and on (cluster)
+          count_over_time(hypershift:operator:reconcile:rate5m[6h:5m]) > 64
+        )
+        and on (cluster)
+        (
+          hypershift:operator:reconcile_error:ratio_rate30m > (6 * (1 - 0.999))
+          and on (cluster)
+          hypershift:operator:reconcile:rate5m > 0
+          and on (cluster)
+          count_over_time(hypershift:operator:reconcile:rate5m[30m:1m]) > 27
+        )
+      for: 30m
+      labels:
+        long_window: 6h
+        short_window: 30m
+        severity: "3"
+        slo: hypershift-operator-errors
+        service: hypershift-operator
+      annotations:
+        summary: "{{ $labels.cluster }}: hypershift-operator reconcile error ratio is burning error budget at 6x over 6h/30m"
+        description: |
+          hypershift-operator reconcile error ratio is burning error budget at 6x over 6h/30m.
+          Management Cluster: {{ $labels.cluster }}
+        runbook_url: https://aka.ms/arohcp-runbook-hypershift
+        correlationId: "userJourneyReconcileErrors/{{ $labels.cluster }}"
+    - alert: userJourneyReconcileErrors3d6h
+      expr: |
+        (
+          hypershift:operator:reconcile_error:ratio_rate3d > (1 * (1 - 0.999))
+          and on (cluster)
+          hypershift:operator:reconcile:rate5m > 0
+          and on (cluster)
+          count_over_time(hypershift:operator:reconcile:rate5m[3d:30m]) > 130
+        )
+        and on (cluster)
+        (
+          hypershift:operator:reconcile_error:ratio_rate6h > (1 * (1 - 0.999))
+          and on (cluster)
+          hypershift:operator:reconcile:rate5m > 0
+          and on (cluster)
+          count_over_time(hypershift:operator:reconcile:rate5m[6h:5m]) > 64
+        )
+      for: 3h
+      labels:
+        long_window: 3d
+        short_window: 6h
+        severity: "3"
+        slo: hypershift-operator-errors
+        service: hypershift-operator
+      annotations:
+        summary: "{{ $labels.cluster }}: hypershift-operator reconcile error ratio is burning error budget at 1x over 3d/6h"
+        description: |
+          hypershift-operator reconcile error ratio is burning error budget at 1x over 3d/6h.
+          Management Cluster: {{ $labels.cluster }}
+        runbook_url: https://aka.ms/arohcp-runbook-hypershift
+        correlationId: "userJourneyReconcileErrors/{{ $labels.cluster }}"
+    - alert: userJourneyReconcileLatency1h5m
+      expr: |
+        (
+          hypershift:operator:reconcile_slow:ratio_rate1h > (14.4 * 0.01)
+          and on (cluster)
+          hypershift:operator:reconcile:rate5m > 0
+          and on (cluster)
+          count_over_time(hypershift:operator:reconcile:rate5m[1h:1m]) > 54
+        )
+        and on (cluster)
+        (
+          hypershift:operator:reconcile_slow:ratio_rate5m > (14.4 * 0.01)
+          and on (cluster)
+          hypershift:operator:reconcile:rate5m > 0
+          and on (cluster)
+          count_over_time(hypershift:operator:reconcile:rate5m[5m:1m]) > 3
+        )
+      for: 10m
+      labels:
+        long_window: 1h
+        short_window: 5m
+        severity: "3"
+        slo: hypershift-operator-latency
+        service: hypershift-operator
+      annotations:
+        summary: "{{ $labels.cluster }}: hypershift-operator reconciles slower than 10s is burning error budget at 14.4x over 1h/5m"
+        description: |
+          hypershift-operator reconciles slower than 10s is burning error budget at 14.4x over 1h/5m.
+          Management Cluster: {{ $labels.cluster }}
+        runbook_url: https://aka.ms/arohcp-runbook-hypershift
+        correlationId: "userJourneyReconcileLatency/{{ $labels.cluster }}"
+    - alert: userJourneyReconcileLatency6h30m
+      expr: |
+        (
+          hypershift:operator:reconcile_slow:ratio_rate6h > (6 * 0.01)
+          and on (cluster)
+          hypershift:operator:reconcile:rate5m > 0
+          and on (cluster)
+          count_over_time(hypershift:operator:reconcile:rate5m[6h:5m]) > 64
+        )
+        and on (cluster)
+        (
+          hypershift:operator:reconcile_slow:ratio_rate30m > (6 * 0.01)
+          and on (cluster)
+          hypershift:operator:reconcile:rate5m > 0
+          and on (cluster)
+          count_over_time(hypershift:operator:reconcile:rate5m[30m:1m]) > 27
+        )
+      for: 30m
+      labels:
+        long_window: 6h
+        short_window: 30m
+        severity: "3"
+        slo: hypershift-operator-latency
+        service: hypershift-operator
+      annotations:
+        summary: "{{ $labels.cluster }}: hypershift-operator reconciles slower than 10s is burning error budget at 6x over 6h/30m"
+        description: |
+          hypershift-operator reconciles slower than 10s is burning error budget at 6x over 6h/30m.
+          Management Cluster: {{ $labels.cluster }}
+        runbook_url: https://aka.ms/arohcp-runbook-hypershift
+        correlationId: "userJourneyReconcileLatency/{{ $labels.cluster }}"
+    - alert: userJourneyReconcileLatency3d6h
+      expr: |
+        (
+          hypershift:operator:reconcile_slow:ratio_rate3d > (1 * 0.01)
+          and on (cluster)
+          hypershift:operator:reconcile:rate5m > 0
+          and on (cluster)
+          count_over_time(hypershift:operator:reconcile:rate5m[3d:30m]) > 130
+        )
+        and on (cluster)
+        (
+          hypershift:operator:reconcile_slow:ratio_rate6h > (1 * 0.01)
+          and on (cluster)
+          hypershift:operator:reconcile:rate5m > 0
+          and on (cluster)
+          count_over_time(hypershift:operator:reconcile:rate5m[6h:5m]) > 64
+        )
+      for: 3h
+      labels:
+        long_window: 3d
+        short_window: 6h
+        severity: "3"
+        slo: hypershift-operator-latency
+        service: hypershift-operator
+      annotations:
+        summary: "{{ $labels.cluster }}: hypershift-operator reconciles slower than 10s is burning error budget at 1x over 3d/6h"
+        description: |
+          hypershift-operator reconciles slower than 10s is burning error budget at 1x over 3d/6h.
+          Management Cluster: {{ $labels.cluster }}
+        runbook_url: https://aka.ms/arohcp-runbook-hypershift
+        correlationId: "userJourneyReconcileLatency/{{ $labels.cluster }}"
+    - alert: userJourneySaturation1h5m
+      expr: |
+        (
+          avg_over_time(hypershift:operator:saturated[1h]) > (14.4 * 0.01)
+          and on (cluster)
+          count_over_time(hypershift:operator:saturated[1h:1m]) > 54
+        )
+        and on (cluster)
+        (
+          avg_over_time(hypershift:operator:saturated[5m]) > (14.4 * 0.01)
+          and on (cluster)
+          count_over_time(hypershift:operator:saturated[5m:1m]) > 3
+        )
+      for: 10m
+      labels:
+        long_window: 1h
+        short_window: 5m
+        severity: "3"
+        slo: hypershift-operator-saturation
+        service: hypershift-operator
+      annotations:
+        summary: "{{ $labels.cluster }}: hypershift-operator saturated intervals is burning error budget at 14.4x over 1h/5m"
+        description: |
+          hypershift-operator saturated intervals is burning error budget at 14.4x over 1h/5m.
+          Management Cluster: {{ $labels.cluster }}
+        runbook_url: https://aka.ms/arohcp-runbook-hypershift
+        correlationId: "userJourneySaturation/{{ $labels.cluster }}"
+    - alert: userJourneySaturation6h30m
+      expr: |
+        (
+          avg_over_time(hypershift:operator:saturated[6h]) > (6 * 0.01)
+          and on (cluster)
+          count_over_time(hypershift:operator:saturated[6h:5m]) > 64
+        )
+        and on (cluster)
+        (
+          avg_over_time(hypershift:operator:saturated[30m]) > (6 * 0.01)
+          and on (cluster)
+          count_over_time(hypershift:operator:saturated[30m:1m]) > 27
+        )
+      for: 30m
+      labels:
+        long_window: 6h
+        short_window: 30m
+        severity: "3"
+        slo: hypershift-operator-saturation
+        service: hypershift-operator
+      annotations:
+        summary: "{{ $labels.cluster }}: hypershift-operator saturated intervals is burning error budget at 6x over 6h/30m"
+        description: |
+          hypershift-operator saturated intervals is burning error budget at 6x over 6h/30m.
+          Management Cluster: {{ $labels.cluster }}
+        runbook_url: https://aka.ms/arohcp-runbook-hypershift
+        correlationId: "userJourneySaturation/{{ $labels.cluster }}"
+    - alert: userJourneySaturation3d6h
+      expr: |
+        (
+          avg_over_time(hypershift:operator:saturated[3d]) > (1 * 0.01)
+          and on (cluster)
+          count_over_time(hypershift:operator:saturated[3d:30m]) > 130
+        )
+        and on (cluster)
+        (
+          avg_over_time(hypershift:operator:saturated[6h]) > (1 * 0.01)
+          and on (cluster)
+          count_over_time(hypershift:operator:saturated[6h:5m]) > 64
+        )
+      for: 3h
+      labels:
+        long_window: 3d
+        short_window: 6h
+        severity: "3"
+        slo: hypershift-operator-saturation
+        service: hypershift-operator
+      annotations:
+        summary: "{{ $labels.cluster }}: hypershift-operator saturated intervals is burning error budget at 1x over 3d/6h"
+        description: |
+          hypershift-operator saturated intervals is burning error budget at 1x over 3d/6h.
+          Management Cluster: {{ $labels.cluster }}
+        runbook_url: https://aka.ms/arohcp-runbook-hypershift
+        correlationId: "userJourneySaturation/{{ $labels.cluster }}"
+    # Non-SLO companion to the Saturation burn alerts: names WHICH signal
+    # (workqueue_depth/cpu/memory) is over its limit. Sev 4, for: 15m.
+    - alert: userJourneySaturationSignal
+      expr: |
+        hypershift:operator:saturation_signal == 1
+      for: 15m
+      labels:
+        severity: "4"
+        slo: hypershift-operator-saturation
+        service: hypershift-operator
+      annotations:
+        summary: "{{ $labels.cluster }}: hypershift-operator {{ $labels.signal }} is above its limit"
+        description: |
+          hypershift-operator {{ $labels.signal }} is above its limit.
+          Management Cluster: {{ $labels.cluster }}
+        runbook_url: https://aka.ms/arohcp-runbook-hypershift
+        correlationId: "userJourneySaturationSignal/{{ $labels.cluster }}/{{ $labels.signal }}"
+    # Zero reconciles for 30m: a live operator always requeues, so a flat zero
+    # means it is wedged. Not caught by the ratio tiers (gated on rate > 0).
+    - alert: userJourneyIdle
+      expr: |
+        hypershift:operator:reconcile:rate5m == 0
+      for: 30m
+      labels:
+        severity: "4"
+        slo: hypershift-operator-traffic
+        service: hypershift-operator
+      annotations:
+        summary: "{{ $labels.cluster }}: hypershift-operator has not reconciled anything for 30 minutes"
+        description: |
+          hypershift-operator has not reconciled anything for 30 minutes.
+          Management Cluster: {{ $labels.cluster }}
+        runbook_url: https://aka.ms/arohcp-runbook-hypershift
+        correlationId: "userJourneyIdle/{{ $labels.cluster }}"
+    # Workqueue adds >3x the rate 1h ago, with a no-baseline guard (offset 1h > 0)
+    # and a >1/s floor so low-volume noise does not alert.
+    - alert: userJourneyQueueSurge
+      expr: |
+        hypershift:operator:workqueue_adds:rate5m > 3 * (hypershift:operator:workqueue_adds:rate5m offset 1h)
+        and
+        (hypershift:operator:workqueue_adds:rate5m offset 1h) > 0
+        and
+        hypershift:operator:workqueue_adds:rate5m > 1
+      for: 15m
+      labels:
+        severity: "4"
+        slo: hypershift-operator-traffic
+        service: hypershift-operator
+      annotations:
+        summary: "{{ $labels.cluster }}: hypershift-operator workqueue adds exceed 3x the rate one hour ago"
+        description: |
+          hypershift-operator workqueue adds exceed 3x the rate one hour ago.
+          Management Cluster: {{ $labels.cluster }}
+        runbook_url: https://aka.ms/arohcp-runbook-hypershift
+        correlationId: "userJourneyQueueSurge/{{ $labels.cluster }}"
