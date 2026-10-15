@@ -30,7 +30,7 @@
       },
       "id": 1,
       "options": {
-        "content": "### HyperShift User Journey SLO Dashboard\n\nMonitors whether **HyperShift creates and maintains a usable hosted control plane**, covering the HyperShift Operator (`hypershift` namespace) and the Control Plane Operator (CPO, in each `ocm-*` namespace).\n\n**Proposed SLO Targets (pending baseline and stakeholder review):**\n- Journey availability: >=99.95% of eligible HostedCluster samples with the hosted API available, 30d\n- Journey errors: >=99.9% healthy HostedCluster samples (no HyperShift failure conditions), 30d\n- Journey latency: >=99% of cluster creations reach initial availability within 30m, 30d\n- Component availability: >=99.95% available/desired operator replicas, 30d\n- Component errors: >=99.9% successful reconciliations, 30d\n- Component latency: >=99% of reconciliations within 10s\n- Component saturation: >=99% of intervals within limits\n- Traffic and journey saturation are **informational** until baselined from historical data\n\n**Eligibility:** availability samples exclude HostedClusters in their first 15m and clusters no longer reporting (same pattern as KASAvailable).\n\n**Metrics Source:** `hypershift_*` metrics from the HyperShift Operator and CPO (openshift/hypershift), `controller_runtime_*`, `workqueue_*`, kube-state-metrics deployment metrics, container resource metrics. `hostedClusterAPI_kubeapiserver_available` (KASAvailable) is shown as supporting context.\n\n**Jira:** TODO | **TSG:** TODO",
+        "content": "### HyperShift User Journey SLO Dashboard\n\nMonitors whether **HyperShift creates and maintains a usable hosted control plane**, covering the HyperShift Operator (`hypershift` namespace) and the Control Plane Operator (CPO, in each `ocm-*` namespace).\n\n**Proposed SLO Targets (pending baseline and stakeholder review):**\n- Journey availability: >=99.95% of eligible HostedCluster samples with the hosted API available, 30d\n- Journey errors: >=99.9% healthy HostedCluster samples (no HyperShift failure conditions), 30d\n- Journey latency: >=99% of cluster creations reach initial availability within 30m, 30d\n- Component availability: >=99.95% available/desired operator replicas, 30d\n- Component errors: >=99.9% successful reconciliations, 30d\n- Component latency: >=99% of reconciliations within 10s\n- Component saturation: >=99% of intervals within limits\n- Traffic and journey saturation are **informational** until baselined from historical data\n\n**Eligibility:** availability samples exclude HostedClusters in their first 15m and clusters no longer reporting (same pattern as KASAvailable).\n\n**Metrics Source:** `hypershift_*` metrics from the HyperShift Operator and CPO (openshift/hypershift), `controller_runtime_*`, `workqueue_*`, kube-state-metrics deployment metrics, container resource metrics. `hostedClusterAPI_kubeapiserver_available` (KASAvailable) is shown as supporting context.\n\n**Jira:** [ARO-27787](https://redhat.atlassian.net/browse/ARO-27787)",
         "mode": "markdown"
       },
       "title": "Dashboard Info",
@@ -1502,7 +1502,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\"hypershift\", container=\"operator\"}[5m]))",
+          "expr": "sum(max without(prometheus_replica) (rate(container_cpu_usage_seconds_total{namespace=\"hypershift\", container=\"operator\"}[5m])))",
           "legendFormat": "HyperShift Operator",
           "refId": "A"
         },
@@ -1512,7 +1512,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "max(rate(container_cpu_usage_seconds_total{namespace=~\"ocm-.*\", container=\"control-plane-operator\"}[5m]))",
+          "expr": "max(max without(prometheus_replica) (rate(container_cpu_usage_seconds_total{namespace=~\"ocm-.*\", container=\"control-plane-operator\"}[5m])))",
           "legendFormat": "Control Plane Operator (worst HCP)",
           "refId": "B"
         }
@@ -1569,7 +1569,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "sum(container_memory_working_set_bytes{namespace=\"hypershift\", container=\"operator\"})",
+          "expr": "sum(max without(prometheus_replica) (container_memory_working_set_bytes{namespace=\"hypershift\", container=\"operator\"}))",
           "legendFormat": "HyperShift Operator",
           "refId": "A"
         },
@@ -1579,7 +1579,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "max(container_memory_working_set_bytes{namespace=~\"ocm-.*\", container=\"control-plane-operator\"})",
+          "expr": "max(max without(prometheus_replica) (container_memory_working_set_bytes{namespace=~\"ocm-.*\", container=\"control-plane-operator\"}))",
           "legendFormat": "Control Plane Operator (worst HCP)",
           "refId": "B"
         }
