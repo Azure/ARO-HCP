@@ -55,7 +55,7 @@ func seedFleetPinCluster(ctx context.Context, t *testing.T, db corecosmosstorage
 	provider, err := corecosmosstorage.GetOrCreateServiceProviderCluster(ctx, db, id)
 	require.NoError(t, err)
 	provider.Spec.ControlPlaneVersion.DesiredVersion = ptr.To(semver.MustParse(minor + ".10"))
-	provider.Status.ActualHostedCluster = hostedClusterVersionHistory(
+	provider.Status.ControlPlaneVersionHistory = controlPlaneVersionHistory(
 		hsv1beta1.ControlPlaneUpdateHistory{Version: minor + ".10", State: configv1.CompletedUpdate},
 		hsv1beta1.ControlPlaneUpdateHistory{Version: minor + ".2", State: configv1.CompletedUpdate},
 		hsv1beta1.ControlPlaneUpdateHistory{Version: minor + ".0", State: configv1.CompletedUpdate},
@@ -114,7 +114,7 @@ func TestFleetControlPlaneVersionPinHandler_SelectionAndRetry(t *testing.T) {
 	other, err := corecosmosstorage.GetOrCreateServiceProviderCluster(ctx, db, otherID)
 	require.NoError(t, err)
 	other.Spec.ControlPlaneVersion.DesiredVersion = selected[0].Spec.ControlPlaneVersion.DesiredVersion
-	other.Status.ActualHostedCluster = selected[0].Status.ActualHostedCluster.DeepCopy()
+	other.Status.ControlPlaneVersionHistory = selected[0].DeepCopy().Status.ControlPlaneVersionHistory
 	selected = append(selected, storeFleetProvider(ctx, t, db, other))
 
 	excluded := []*coreapi.ServiceProviderCluster{
@@ -168,7 +168,7 @@ func TestFleetControlPlaneVersionPinHandler_SelectionAndRetry(t *testing.T) {
 		expected.CosmosMetadata = after.CosmosMetadata
 		require.Equal(t, expected, after, "only the pin and Cosmos metadata may change")
 		// A retry after rollback completes must be a no-op, even without history.
-		after.Status.ActualHostedCluster = nil
+		after.Status.ControlPlaneVersionHistory = nil
 		selected[i] = storeFleetProvider(ctx, t, db, after)
 	}
 	for _, before := range excluded {
@@ -241,13 +241,13 @@ func TestFleetControlPlaneVersionPinHandler_PrevalidatesEntireSelection(t *testi
 			invalid := seedFleetPinCluster(ctx, t, db, "z-invalid", "stable", "4.22")
 			switch scenario {
 			case "older installed target":
-				invalid.Status.ActualHostedCluster = hostedClusterVersionHistory(
+				invalid.Status.ControlPlaneVersionHistory = controlPlaneVersionHistory(
 					hsv1beta1.ControlPlaneUpdateHistory{Version: "4.22.10", State: configv1.CompletedUpdate},
 					hsv1beta1.ControlPlaneUpdateHistory{Version: "4.22.5", State: configv1.CompletedUpdate},
 					hsv1beta1.ControlPlaneUpdateHistory{Version: "4.22.2", State: configv1.CompletedUpdate},
 				)
 			case "history build metadata":
-				invalid.Status.ActualHostedCluster = hostedClusterVersionHistory(
+				invalid.Status.ControlPlaneVersionHistory = controlPlaneVersionHistory(
 					hsv1beta1.ControlPlaneUpdateHistory{Version: "4.22.10+build", State: configv1.CompletedUpdate},
 				)
 			case "customer minor mismatch":
@@ -261,7 +261,7 @@ func TestFleetControlPlaneVersionPinHandler_PrevalidatesEntireSelection(t *testi
 			}
 			invalid = storeFleetProvider(ctx, t, db, invalid)
 			anotherInvalid := seedFleetPinCluster(ctx, t, db, "z-other-invalid", "stable", "4.22")
-			anotherInvalid.Status.ActualHostedCluster = hostedClusterVersionHistory(
+			anotherInvalid.Status.ControlPlaneVersionHistory = controlPlaneVersionHistory(
 				hsv1beta1.ControlPlaneUpdateHistory{Version: "4.22.10", State: configv1.CompletedUpdate},
 				hsv1beta1.ControlPlaneUpdateHistory{Version: "4.22.5", State: configv1.CompletedUpdate},
 			)
@@ -284,7 +284,7 @@ func TestFleetControlPlaneVersionPinHandler_MissingHistoryAllowsForwardPin(t *te
 	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
 	db := corecosmosstoragetesting.NewMockResourcesDBClient()
 	provider := seedFleetPinCluster(ctx, t, db, "no-history", "stable", "4.22")
-	provider.Status.ActualHostedCluster = nil
+	provider.Status.ControlPlaneVersionHistory = nil
 	provider = storeFleetProvider(ctx, t, db, provider)
 
 	recorder := callFleetPin(ctx, db, "stable-4.22", `{"exactVersion":"4.22.11"}`)

@@ -326,7 +326,8 @@ Implemented:
   cluster's release line can hold or advance the latest observed version.
   Rollback below that version requires the immediately previous distinct
   `Completed` entry in
-  `ServiceProviderCluster.Status.ActualHostedCluster.Status.ControlPlaneVersion.History`.
+  `ServiceProviderCluster.Status.ControlPlaneVersionHistory`, mirrored from
+  `HostedCluster.Status.ControlPlaneVersion.History`.
   Without mirrored history, the pin is accepted because its direction cannot
   be classified from observation. Partial attempts are not rollback targets.
   The control-plane history field

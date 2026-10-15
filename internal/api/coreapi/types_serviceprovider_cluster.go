@@ -234,6 +234,14 @@ type ServiceProviderClusterStatus struct {
 	// Written by: ActualHostedCluster
 	ImageContentSources *[]v1beta1.ImageContentSource `json:"imageContentSources,omitempty"`
 
+	// ControlPlaneVersionHistory mirrors HostedCluster.status.controlPlaneVersion.history
+	// verbatim, newest first. nil means not yet observed or retracted; a non-nil
+	// pointer to a possibly empty slice means the HostedCluster was observed.
+	// Empty observations use a non-nil slice to preserve that distinction in JSON.
+	// Admin version pin rollback checks use this history, not guest version history.
+	// Written by: ActualHostedCluster
+	ControlPlaneVersionHistory *[]v1beta1.ControlPlaneUpdateHistory `json:"controlPlaneVersionHistory,omitempty"`
+
 	// Validations is a list of conditions that tracks the status of each cluster validation.
 	// Each Condition Type represents a validation and it should be unique among all validations.
 	// A Condition Status of True means that the validation passed successfully, and a Condition Status of False means that the validation failed.

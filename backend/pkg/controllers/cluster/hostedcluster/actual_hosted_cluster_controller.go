@@ -62,7 +62,7 @@ type actualHostedClusterSyncer struct {
 var _ controllerutils.ClusterSyncer = (*actualHostedClusterSyncer)(nil)
 
 // NewActualHostedClusterController creates a controller that mirrors the
-// observed HostedCluster's image content sources onto ServiceProviderCluster.Status.ImageContentSources.
+// observed HostedCluster's image content sources and control-plane version history onto ServiceProviderCluster.Status.
 func NewActualHostedClusterController(
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	clusterLister corelisters.ClusterLister,
@@ -125,18 +125,25 @@ func (c *actualHostedClusterSyncer) SyncOnce(ctx context.Context, key controller
 
 	replacement := existing.DeepCopy()
 	replacement.Status.ImageContentSources = nil
+	replacement.Status.ControlPlaneVersionHistory = nil
 	if hostedCluster != nil {
 		sources := make([]hsv1beta1.ImageContentSource, len(hostedCluster.Spec.ImageContentSources))
 		for index := range hostedCluster.Spec.ImageContentSources {
 			hostedCluster.Spec.ImageContentSources[index].DeepCopyInto(&sources[index])
 		}
 		replacement.Status.ImageContentSources = &sources
+		history := make([]hsv1beta1.ControlPlaneUpdateHistory, len(hostedCluster.Status.ControlPlaneVersion.History))
+		for index := range hostedCluster.Status.ControlPlaneVersion.History {
+			hostedCluster.Status.ControlPlaneVersion.History[index].DeepCopyInto(&history[index])
+		}
+		replacement.Status.ControlPlaneVersionHistory = &history
 	}
 
 	// Every Replace costs RUs and wakes every controller watching the
-	// ServiceProviderCluster changefeed, so only write when image content sources
+	// ServiceProviderCluster changefeed, so only write when mirrored fields
 	// differ from what is already stored.
-	if equality.Semantic.DeepEqual(existing.Status.ImageContentSources, replacement.Status.ImageContentSources) {
+	if equality.Semantic.DeepEqual(existing.Status.ImageContentSources, replacement.Status.ImageContentSources) &&
+		equality.Semantic.DeepEqual(existing.Status.ControlPlaneVersionHistory, replacement.Status.ControlPlaneVersionHistory) {
 		return nil
 	}
 
@@ -151,9 +158,9 @@ func (c *actualHostedClusterSyncer) SyncOnce(ctx context.Context, key controller
 
 	logger := utils.LoggerFromContext(ctx)
 	if hostedCluster == nil {
-		logger.Info("retracted image content sources from ServiceProviderCluster; the kube-applier completed a read and found no HostedCluster on the management cluster")
+		logger.Info("retracted image content sources and control-plane version history from ServiceProviderCluster; the kube-applier completed a read and found no HostedCluster on the management cluster")
 	} else {
-		logger.Info("mirrored image content sources onto ServiceProviderCluster",
+		logger.Info("mirrored image content sources and control-plane version history onto ServiceProviderCluster",
 			"hostedClusterNamespace", hostedCluster.Namespace, "hostedClusterName", hostedCluster.Name)
 	}
 	return nil

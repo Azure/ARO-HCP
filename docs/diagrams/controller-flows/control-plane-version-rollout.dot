@@ -5,7 +5,7 @@ digraph control_plane_version_rollout {
   request [label="Cluster requested channel + minor\nSRE pin / experimental exact override / Immediate", fillcolor="#eee7fb", color="#7b59a4"];
   pin [label="Admin POST /controlplaneversionpin\nhold or advance latest observed version\nrollback: previous distinct Completed version\nmissing history: accept pin", fillcolor="#eee7fb", color="#7b59a4"];
   fleetpin [label="Admin POST /versionrollouts/{channel}/controlplaneversionpin\nregional rollout membership snapshot\nvalidate all changes before independent ETag writes\nunchanged pins: no-op; partial failures: summary", fillcolor="#eee7fb", color="#7b59a4"];
-  actual [label="ActualHostedCluster controller\n→ provider Status.ActualHostedCluster\nfull observed control-plane history"];
+  actual [label="ActualHostedCluster controller\n→ provider Status.ControlPlaneVersionHistory\nfull observed control-plane history"];
   seed [label="ControlPlaneVersionRolloutSeeding\nnon-deleting, non-nightly clusters"];
   rollout [label="Fleet rollout: channel name + Spec.Version\nabsent legacy profile filled on Cosmos reads\nconsumers still parse channel names", fillcolor="#e4f2e5", color="#4c8053"];
   migration [label="CosmosRolloutVersionMigration\nfive workers; 5m resync/cooldown\nonce per key/process after success\nno subscription dependency"];
