@@ -67,6 +67,7 @@ func init() {
 const (
 	ProviderNamespace                               = "Microsoft.RedHatOpenShift"
 	ClusterResourceTypeName                         = "hcpOpenShiftClusters"
+	StackDesireResourceTypeName                     = "stackDesires"
 	ServiceProviderClusterResourceTypeName          = "serviceProviderClusters"
 	ServiceProviderNodePoolResourceTypeName         = "serviceProviderNodePools"
 	VersionResourceTypeName                         = "hcpOpenShiftVersions"
@@ -85,6 +86,7 @@ const (
 var (
 	OperationStatusResourceType         = azcorearm.NewResourceType(ProviderNamespace, OperationStatusResourceTypeName)
 	ClusterResourceType                 = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName)
+	StackDesireResourceType             = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName+"/"+StackDesireResourceTypeName)
 	ServiceProviderClusterResourceType  = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName+"/"+ServiceProviderClusterResourceTypeName)
 	NodePoolResourceType                = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName+"/"+NodePoolResourceTypeName)
 	ServiceProviderNodePoolResourceType = azcorearm.NewResourceType(ProviderNamespace, filepath.Join(ClusterResourceTypeName, NodePoolResourceTypeName, ServiceProviderNodePoolResourceTypeName))

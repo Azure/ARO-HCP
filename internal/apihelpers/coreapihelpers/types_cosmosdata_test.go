@@ -47,6 +47,7 @@ func TestToResourceIDStringsAreCanonical(t *testing.T) {
 	}{
 		{"ResourceGroup", ToResourceGroupResourceIDString(sub, rg)},
 		{"Cluster", ToClusterResourceIDString(sub, rg, cluster)},
+		{"StackDesire", ToStackDesireResourceIDString(sub, "RG", "Cluster", "Desire")},
 		{"NodePool", ToNodePoolResourceIDString(sub, rg, cluster, np)},
 		{"ExternalAuth", ToExternalAuthResourceIDString(sub, rg, cluster, ea)},
 		{"ServiceProviderCluster", ToServiceProviderClusterResourceIDString(sub, rg, cluster)},
@@ -76,5 +77,16 @@ func TestToResourceIDStringsAreCanonical(t *testing.T) {
 				t.Fatalf("helper output is not canonical (informer cache lookups will miss):\nhelper:    %q\ncanonical: %q", tc.got, canonical)
 			}
 		})
+	}
+}
+
+func TestToStackDesireResourceID(t *testing.T) {
+	id, err := ToStackDesireResourceID("SUB", "RG", "Cluster", "Desire")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := ToStackDesireResourceIDString("sub", "rg", "cluster", "desire")
+	if strings.ToLower(id.String()) != want {
+		t.Fatalf("typed helper returned %q, want %q", id.String(), want)
 	}
 }

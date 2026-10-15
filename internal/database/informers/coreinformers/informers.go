@@ -43,6 +43,7 @@ const (
 	// Remember that these will not fire in order, so it's entirely possible to get an operation for subscription we have no observed.
 	SubscriptionRelistDuration                    = 30 * time.Minute
 	ClusterRelistDuration                         = 30 * time.Minute
+	StackDesireRelistDuration                     = 30 * time.Minute
 	NodePoolRelistDuration                        = 30 * time.Minute
 	ExternalAuthRelistDuration                    = 30 * time.Minute
 	ServiceProviderClusterRelistDuration          = 30 * time.Minute
@@ -55,6 +56,27 @@ const (
 	SystemAdminCredentialRevocationRelistDuration = 30 * time.Minute
 	BillingRelistDuration                         = 30 * time.Second
 )
+
+// NewStackDesireInformer creates an unstarted informer with a cluster index.
+func NewStackDesireInformer(lister cosmosstorageutils.GlobalLister[coreapi.StackDesire], cosmosClient cosmosstorageutils.ChangeFeedClient) cache.SharedIndexInformer {
+	return NewStackDesireInformerWithRelistDuration(lister, cosmosClient, StackDesireRelistDuration)
+}
+
+func NewStackDesireInformerWithRelistDuration(lister cosmosstorageutils.GlobalLister[coreapi.StackDesire], cosmosClient cosmosstorageutils.ChangeFeedClient, relistDuration time.Duration) cache.SharedIndexInformer {
+	lw := informerutils.NewChangeFeedListWatcher[coreapi.StackDesire, *coreapi.StackDesire, cosmosstorageutils.GenericDocument[coreapi.StackDesire]](
+		[]azcorearm.ResourceType{coreapi.StackDesireResourceType},
+		utilsclock.RealClock{}, lister, cosmosClient, relistDuration, "resources",
+	)
+	return cache.NewSharedIndexInformerWithOptions(
+		&informerutils.ListWatchWithoutWatchListSemantics{ListWatch: lw.ToListWatch(), InformerName: "StackDesires"},
+		&coreapi.StackDesire{},
+		cache.SharedIndexInformerOptions{
+			ResyncPeriod:      time.Hour,
+			Indexers:          cache.Indexers{corelisters.ByCluster: clusterResourceIDIndexFunc},
+			ObjectDescription: "StackDesire",
+		},
+	)
+}
 
 // NewSubscriptionInformer creates an unstarted SharedIndexInformer for subscriptions
 // using the default relist duration.

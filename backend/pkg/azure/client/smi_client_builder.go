@@ -24,6 +24,7 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/msi/armmsi"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v6"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeploymentstacks"
 	"github.com/Azure/msi-dataplane/pkg/dataplane"
 
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -46,6 +47,7 @@ const (
 // a cluster-scoped identity.
 type ServiceManagedIdentityClientBuilder interface {
 	BuilderType() ServiceManagedIdentityClientBuilderType
+	DeploymentStacksClient(ctx context.Context, clusterIdentityURL string, smiResourceID *azcorearm.ResourceID, subscriptionID string) (*armdeploymentstacks.Client, error)
 	// UserAssignedIdentitiesClient returns a new User Assigned Identities client.
 	UserAssignedIdentitiesClient(ctx context.Context, clusterIdentityURL string, smiResourceID *azcorearm.ResourceID, subscriptionID string) (UserAssignedIdentitiesClient, error)
 	// NetworkSecurityGroupsClient returns a new Network Security Groups client
@@ -121,4 +123,12 @@ func NewServiceManagedIdentityClientBuilder(fpaMIdataplaneClientBuilder FPAMIDat
 		fpaMIdataplaneClientBuilder: fpaMIdataplaneClientBuilder,
 		azCoreARMClientOptions:      options,
 	}
+}
+
+func (b *serviceManagedIdentityClientBuilder) DeploymentStacksClient(ctx context.Context, clusterIdentityURL string, smiResourceID *azcorearm.ResourceID, subscriptionID string) (*armdeploymentstacks.Client, error) {
+	creds, err := b.credentialsForServiceManagedIdentity(ctx, clusterIdentityURL, smiResourceID)
+	if err != nil {
+		return nil, err
+	}
+	return armdeploymentstacks.NewClient(subscriptionID, creds, b.azCoreARMClientOptions)
 }
