@@ -23,7 +23,7 @@
       "id": 1,
       "options": {
         "code": { "language": "plaintext", "showLineNumbers": false, "showMiniMap": false },
-        "content": "### Cluster Autoscaler SLO Dashboard\n\nHealth and capacity of the HyperShift per-hosted-cluster cluster-autoscaler.\n\n- **cluster** = management cluster, **namespace** = hosted control plane (`ocm-*`).\n- Series exist **only for hosted clusters with at least one autoscaling-enabled NodePool** — HyperShift scales the autoscaler to zero otherwise, so an empty dashboard for a cluster is expected, not a fault.\n\n**Metrics source:** the `nodes:/pods:/health:/errors:cluster_autoscaler:*` recording rules (the dedup across Prometheus agent replicas and the `(cluster, namespace)` aggregation are done in the rules), shared with the `UserJourneyClusterAutoscaler*` alerts. Requires the recording rules to be deployed and evaluated in the target HCP Azure Monitor Workspace.\n\n**Runbook:** https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/cluster-autoscaler.md",
+        "content": "### Cluster Autoscaler SLO Dashboard\n\nHealth and capacity of the HyperShift per-hosted-cluster cluster-autoscaler.\n\n- **cluster** = management cluster, **namespace** = hosted control plane (`ocm-*`).\n- Series exist **only for hosted clusters with at least one autoscaling-enabled NodePool** — HyperShift scales the autoscaler to zero otherwise, so an empty dashboard for a cluster is expected, not a fault.\n\n**Metrics source:** the `nodes:/pods:/health:/errors:cluster_autoscaler:*` recording rules (the dedup across Prometheus agent replicas and the `(cluster, namespace)` aggregation are done in the rules), shared with the `UserJourneyClusterAutoscaler*` alerts. Requires the recording rules to be deployed and evaluated in the target HCP Azure Monitor Workspace.\n\n**Runbook:** https://aka.ms/aro-hcp/cluster-autoscaler",
         "mode": "markdown"
       },
       "pluginVersion": "11.6.9",
@@ -320,7 +320,39 @@
     },
     {
       "datasource": { "type": "prometheus", "uid": "$datasource" },
-      "description": "Seconds since the autoscaler main loop last ran, per hosted cluster. Sustained growth indicates a stalled/absent autoscaler.",
+      "description": "Per-cluster autoscaler telemetry availability: 1 = metrics flowing for this hosted cluster, 0 = this cluster's autoscaler metrics stopped recently (pod down or telemetry path broken). Gap = no autoscaler expected or silent for over an hour.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "custom": { "drawStyle": "line", "fillOpacity": 0, "lineWidth": 2, "showPoints": "never", "spanNulls": false, "stacking": { "mode": "none" }, "thresholdsStyle": { "mode": "off" } },
+          "decimals": 0,
+          "max": 1,
+          "min": 0,
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "red" }, { "color": "green", "value": 1 } ] },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 26 },
+      "id": 15,
+      "options": { "legend": { "calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "editorMode": "code",
+          "expr": "sum by (namespace) (health:cluster_autoscaler:metrics_availability{cluster=~\"$cluster\", namespace=~\"$namespace\"})",
+          "instant": false,
+          "legendFormat": "{{namespace}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Autoscaler Metric Availability",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "$datasource" },
+      "description": "Seconds since the autoscaler main loop last ran, per hosted cluster. Sustained growth indicates a stalled (wedged-but-running) autoscaler. When the pod is down, this panel goes empty — absent-detection is a separate concern.",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -330,7 +362,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 26 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 34 },
       "id": 12,
       "options": { "legend": { "calcs": ["max"], "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
       "pluginVersion": "11.6.9",
@@ -360,7 +392,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 26 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 34 },
       "id": 13,
       "options": { "legend": { "calcs": ["max"], "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
       "pluginVersion": "11.6.9",
@@ -386,7 +418,7 @@
           { "matcher": { "id": "byName", "options": "Unschedulable" }, "properties": [ { "id": "custom.cellOptions", "value": { "type": "color-background" } }, { "id": "thresholds", "value": { "mode": "absolute", "steps": [ { "color": "green" }, { "color": "red", "value": 1 } ] } } ] }
         ]
       },
-      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 34 },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 42 },
       "id": 14,
       "options": { "cellHeight": "sm", "footer": { "countRows": false, "fields": "", "reducer": ["sum"], "show": false }, "showHeader": true },
       "pluginVersion": "11.6.9",
