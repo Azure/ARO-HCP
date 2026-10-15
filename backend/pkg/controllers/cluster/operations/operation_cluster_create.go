@@ -461,11 +461,9 @@ func (c *operationClusterCreate) servingCABundleOperationStatus(ctx context.Cont
 
 // roleAssignmentsOperationStatus blocks cluster creation until the managed
 // resource group scoped role assignments for the cluster's control-plane operator,
-// data-plane operator, and service managed identity have all been confirmed present.
-// The IdentityRoleAssignments controller creates them and reflects them onto
-// ServiceProviderCluster.Status.AzureResources.RoleAssignments; creation is
-// considered complete for this source once at least one role assignment is confirmed
-// and none remain pending.
+// data-plane operator, and service managed identity have been applied by the stack.
+// IdentityRoleAssignments mirrors success for the current desired spec; legacy
+// confirmed resource lists alone cannot satisfy this gate.
 func (c *operationClusterCreate) roleAssignmentsOperationStatus(ctx context.Context, operation *coreapi.Operation) (*operationbase.OperationState, error) {
 	serviceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Name)
 	if cosmosstorageutils.IsNotFoundError(err) {
@@ -475,7 +473,7 @@ func (c *operationClusterCreate) roleAssignmentsOperationStatus(ctx context.Cont
 		return nil, utils.TrackError(err)
 	}
 	roleAssignments := serviceProviderCluster.Status.AzureResources.RoleAssignments
-	if len(roleAssignments.AzureResources) == 0 || len(roleAssignments.PendingAzureResources) != 0 {
+	if !roleAssignments.StackReady {
 		return operationbase.NewOperationState(coreapi.ProvisioningStateProvisioning, "role assignments not yet confirmed"), nil
 	}
 	return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, ""), nil

@@ -11,8 +11,11 @@ digraph cluster_convergence {
   mirror [label="ReadDesireInformerManagingController\nReadDesireKubernetesController", fillcolor="#e6f0fa", color="#35648a"];
   props [label="ServiceProviderClusterProperties\nSync", fillcolor="#e6f0fa", color="#35648a"];
   armprops [label="ClusterPropertiesSync", fillcolor="#e6f0fa", color="#35648a"];
-  role [label="IdentityRoleAssignments", fillcolor="#e6f0fa", color="#35648a"];
-  azure [label="Azure role assignments\nconfirmed group + resolved identities", fillcolor="#fff0da", color="#b27624"];
+  role [label="IdentityRoleAssignments\npublish complete intent; mirror StackReady\n5m resync; no active-operation cooldown", fillcolor="#e6f0fa", color="#35648a"];
+  stack [label="StackDesires\nSee deployment-stack lifecycle panel", fillcolor="#e6f0fa", color="#35648a"];
+  health [label="ClusterDegradedAggregator\ndirect StackDesire watch; current-spec health\nCluster.Status.Conditions: Degraded\nIndependent of StackReady", fillcolor="#e6f0fa", color="#35648a"];
+  azure [label="Azure deployment stack\ncreates / adopts role assignments", fillcolor="#fff0da", color="#b27624"];
+  roleinputs [label="Confirmed MRG + all resolved principals\nsubscription tenant + configured roles\nALL required; independent of CS creation", fillcolor="#e4f2e5", color="#4c8053"];
   validation [label="Cluster validation controllers\nServiceProviderCluster.Status.Validations", fillcolor="#e6f0fa", color="#35648a"];
   op [label="OperationClusterCreate", fillcolor="#e6f0fa", color="#35648a"];
   done [label="ARM operation Succeeded\nActiveOperationID cleared", fillcolor="#e4f2e5", color="#4c8053"];
@@ -34,8 +37,10 @@ digraph cluster_convergence {
   mirror -> op [label="HostedCluster readiness +\nversion"];
   props -> op [label="serving CA populated"];
   armprops -> op [label="API endpoint populated"];
-  role -> azure [label="GET / create missing"];
-  role -> op [label="confirmed nonempty; none\npending"];
+  roleinputs -> role [label="complete desired set"];
+  role -> stack [label="Resources StackDesire\nApply spec"];
+  stack -> azure [label="GET / PUT stack via FPA"];
+  role -> op [label="SPC RoleAssignments.StackReady"];
   validation -> op [label="False: Provisioning + InvalidResource;\nfailure and operation each >= 5m: Failed;\nall True: ready"];
   op -> done [label="all completion checks\nsatisfied"];
   failed [label="ARM operation Failed\nselected error code", fillcolor="#fbe8e5", color="#a64f43"];
@@ -43,7 +48,9 @@ digraph cluster_convergence {
   op -> failed [label="pending past deadline: selected code + reasons;\nonly InternalServerError becomes DeadlineExceeded"];
   done -> billing [label="Succeeded; billing reference\nmissing"];
   uid -> billing [label="ClusterUID available"];
-  azure -> role [label="created stays pending until\nGET confirms", style=dashed, color="#857456", constraint=false];
+  azure -> stack [label="typed stack state + body correlation", style=dashed, color="#857456", constraint=false];
+  stack -> role [label="current-spec SuccessfullyApplied\nand typed stack Succeeded", style=dashed, color="#857456", constraint=false];
+  stack -> health [label="StackDesire outcome\nmatching hash + non-False Degraded"];
   op -> op [label="pending: observe again", style=dashed, color="#857456", constraint=false];
   kube -> resources [label="desired manifests reapplied on\nreconciliation", style=dashed, color="#857456", constraint=false];
 }
