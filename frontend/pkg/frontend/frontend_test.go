@@ -1192,63 +1192,41 @@ func TestRevokeCredentials(t *testing.T) {
 
 func TestDeleteCluster(t *testing.T) {
 	type testCase struct {
-		name                           string
-		clusterExists                  bool
-		clusterProvisioningState       coreapi.ProvisioningState
-		usesNewClusterDeletionApproach bool
-		hasDeletionTimestamp           bool
-		expectedStatusCode             int
-		expectedErrorMessage           string
-		expectDeletionTimestampSet     bool
-		expectDeadlineInFuture         bool
+		name                       string
+		clusterExists              bool
+		clusterProvisioningState   coreapi.ProvisioningState
+		hasDeletionTimestamp       bool
+		expectedStatusCode         int
+		expectedErrorMessage       string
+		expectDeletionTimestampSet bool
+		expectDeadlineInFuture     bool
 	}
 
 	tests := []testCase{
 		{
-			name:                           "Legacy cluster stuck in Deleting - no timestamp, bypass conflict check",
-			clusterExists:                  true,
-			clusterProvisioningState:       coreapi.ProvisioningStateDeleting,
-			usesNewClusterDeletionApproach: false,
-			hasDeletionTimestamp:           false, // Legacy approach doesn't set timestamp
-			expectedStatusCode:             http.StatusAccepted,
-			expectDeletionTimestampSet:     true,
-			expectDeadlineInFuture:         true,
-		},
-		{
-			name:                           "Failed backend deletion - fresh monitoring deadline",
-			clusterExists:                  true,
-			clusterProvisioningState:       coreapi.ProvisioningStateFailed,
-			usesNewClusterDeletionApproach: true,
-			hasDeletionTimestamp:           true,
-			expectedStatusCode:             http.StatusAccepted,
-			expectDeadlineInFuture:         true,
-		},
-		{
-			name:                     "Legacy deletion with timestamp - initialize backend deletion",
+			name:                     "Failed backend deletion - fresh monitoring deadline",
 			clusterExists:            true,
-			clusterProvisioningState: coreapi.ProvisioningStateDeleting,
+			clusterProvisioningState: coreapi.ProvisioningStateFailed,
 			hasDeletionTimestamp:     true,
 			expectedStatusCode:       http.StatusAccepted,
 			expectDeadlineInFuture:   true,
 		},
 		{
-			name:                           "New approach cluster already deleting - conflict",
-			clusterExists:                  true,
-			clusterProvisioningState:       coreapi.ProvisioningStateDeleting,
-			usesNewClusterDeletionApproach: true,
-			hasDeletionTimestamp:           true, // New approach sets timestamp
-			expectedStatusCode:             http.StatusConflict,
-			expectedErrorMessage:           "Resource is already deleting",
+			name:                     "cluster already deleting - conflict",
+			clusterExists:            true,
+			clusterProvisioningState: coreapi.ProvisioningStateDeleting,
+			hasDeletionTimestamp:     true,
+			expectedStatusCode:       http.StatusConflict,
+			expectedErrorMessage:     "Resource is already deleting",
 		},
 		{
-			name:                           "Succeeded cluster - normal deletion",
-			clusterExists:                  true,
-			clusterProvisioningState:       coreapi.ProvisioningStateSucceeded,
-			usesNewClusterDeletionApproach: false,
-			hasDeletionTimestamp:           false,
-			expectedStatusCode:             http.StatusAccepted,
-			expectDeletionTimestampSet:     true,
-			expectDeadlineInFuture:         true,
+			name:                       "Succeeded cluster - normal deletion",
+			clusterExists:              true,
+			clusterProvisioningState:   coreapi.ProvisioningStateSucceeded,
+			hasDeletionTimestamp:       false,
+			expectedStatusCode:         http.StatusAccepted,
+			expectDeletionTimestampSet: true,
+			expectDeadlineInFuture:     true,
 		},
 		{
 			name:               "Non-existent cluster - idempotent delete",
@@ -1301,7 +1279,7 @@ func TestDeleteCluster(t *testing.T) {
 					ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 						ProvisioningState:              test.clusterProvisioningState,
 						ClusterServiceID:               &clusterInternalID,
-						UsesNewClusterDeletionApproach: test.usesNewClusterDeletionApproach,
+						UsesNewClusterDeletionApproach: true,
 					},
 				}
 				// Set DeletionTimestamp only if test specifies it should have one
