@@ -504,6 +504,7 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 								ServingCABundle: "fake-ca-data",
 								AzureResources: coreapi.AzureResources{
 									RoleAssignments: coreapi.AzureMultiReference{
+										StackReady: true,
 										AzureResources: []*azcorearm.ResourceID{
 											metadataapi.Must(azcorearm.ParseResourceID(
 												"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/managed-rg/providers/Microsoft.Authorization/roleAssignments/11111111-1111-1111-1111-111111111111")),
@@ -1213,6 +1214,7 @@ func TestDetermineOperationState(t *testing.T) {
 								ServingCABundle: "fake-ca-data",
 								AzureResources: coreapi.AzureResources{
 									RoleAssignments: coreapi.AzureMultiReference{
+										StackReady: true,
 										AzureResources: []*azcorearm.ResourceID{
 											metadataapi.Must(azcorearm.ParseResourceID(
 												"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/managed-rg/providers/Microsoft.Authorization/roleAssignments/11111111-1111-1111-1111-111111111111")),
@@ -1346,9 +1348,25 @@ func TestRoleAssignmentsOperationStatus(t *testing.T) {
 		wantMsgSubstr   string
 	}{
 		{
-			name: "all confirmed and none pending → Succeeded",
+			name: "current stack succeeded without legacy lists",
+			roleAssignments: coreapi.AzureMultiReference{
+				StackReady: true,
+			},
+			expectedState: coreapi.ProvisioningStateSucceeded,
+		},
+		{
+			name: "legacy confirmed lists do not establish stack readiness",
 			roleAssignments: coreapi.AzureMultiReference{
 				AzureResources: []*azcorearm.ResourceID{roleAssignmentID("11111111-1111-1111-1111-111111111111")},
+			},
+			expectedState: coreapi.ProvisioningStateProvisioning,
+			wantMsgSubstr: "role assignments not yet confirmed",
+		},
+		{
+			name: "current stack success supersedes legacy pending lists",
+			roleAssignments: coreapi.AzureMultiReference{
+				StackReady:            true,
+				PendingAzureResources: []*azcorearm.ResourceID{roleAssignmentID("11111111-1111-1111-1111-111111111111")},
 			},
 			expectedState: coreapi.ProvisioningStateSucceeded,
 		},

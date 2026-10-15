@@ -13,6 +13,11 @@ digraph cluster_update {
   validation [label="Cluster validation controllers\nServiceProviderCluster.Status.Validations", fillcolor="#e6f0fa", color="#35648a"];
   op [label="OperationClusterUpdate", fillcolor="#e6f0fa", color="#35648a"];
   done [label="ARM terminal operation state\nSucceeded or Failed", fillcolor="#e4f2e5", color="#4c8053"];
+  roles [label="IdentityRoleAssignments\ncomplete intent after all principals resolve", fillcolor="#e6f0fa", color="#35648a"];
+  stacks [label="StackDesires / Azure deployment stack\nadopt desired roles; delete managed omissions\nSee deployment-stack lifecycle panel\nNot a separate update-operation gate", fillcolor="#fff0da", color="#b27624"];
+  put -> roles [label="identity intent changes"];
+  roles -> stacks [label="replace complete StackDesire spec"];
+  stacks -> roles [label="current outcome updates StackReady\npending / failed / changed: revoke", style=dashed, color="#857456", constraint=false];
   put -> dispatch [label="changed dispatchable\nconfiguration"];
   put -> desired [label="requested version / channel"];
   desired -> upgrade [label="desired exact version"];
