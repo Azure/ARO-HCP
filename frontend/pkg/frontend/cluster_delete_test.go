@@ -164,12 +164,10 @@ func TestClusterDeleteRetryPreservesTeardown(t *testing.T) {
 			lateNodePool, err = nodePools.Get(ctx, lateNodePoolID.Name)
 			require.NoError(t, err)
 			require.NotNil(t, lateNodePool.ServiceProviderProperties.DeletionTimestamp, "retry must initialize children created after the parent failed")
-			require.True(t, lateNodePool.ServiceProviderProperties.UsesNewNodePoolDeletionApproach)
 			require.NotEmpty(t, lateNodePool.ServiceProviderProperties.ActiveOperationID)
 			lateExternalAuth, err = externalAuths.Get(ctx, lateExternalAuthID.Name)
 			require.NoError(t, err)
 			require.NotNil(t, lateExternalAuth.ServiceProviderProperties.DeletionTimestamp)
-			require.True(t, lateExternalAuth.ServiceProviderProperties.UsesNewExternalAuthDeletionApproach)
 			require.NotEmpty(t, lateExternalAuth.ServiceProviderProperties.ActiveOperationID)
 		})
 	}

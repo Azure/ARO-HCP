@@ -476,15 +476,13 @@ Each child with a `DeletionTimestamp` already set is left untouched, including i
 
 | Object | Fields Written |
 |--------|---------------|
-| `Cluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` = now (if nil)</li><li>`ServiceProviderProperties.DeleteOperationCompletionDeadline` = now + configured timeout</li><li>`ServiceProviderProperties.ActiveOperationID` = new operation's `ResourceID.Name`</li><li>`ServiceProviderProperties.ProvisioningState` = `Deleting`</li><li>`ServiceProviderProperties.UsesNewClusterDeletionApproach` = `true`</li></ul> |
-| `Operation` | <ul><li>`Request` = `Delete`</li><li>`ExternalID` = cluster ARM resource ID</li><li>`InternalID` = empty</li><li>`Status` = `Deleting`</li><li>`UsesNewClusterDeletionApproach` = `true`</li><li>`TenantID`, `ClientID`, `NotificationURI` (if from user request)</li></ul> |
-| Child `NodePool`s (each) | <ul><li>`ServiceProviderProperties.DeletionTimestamp` = now (if nil)</li><li>`ServiceProviderProperties.ActiveOperationID` = new per-NP delete operation's `ResourceID.Name`</li><li>`Properties.ProvisioningState` = `Deleting`</li><li>`ServiceProviderProperties.UsesNewNodePoolDeletionApproach` = `true`</li></ul> |
-| Child `NodePool` `Operation`s (each) | <ul><li>`Request` = `Delete`, `ExternalID`, `Status` = `Deleting`</li><li>`UsesNewNodePoolDeletionApproach` = `true`</li></ul> |
-| Child `ExternalAuth`s (each) | <ul><li>`ServiceProviderProperties.DeletionTimestamp` = now (if nil)</li><li>`ServiceProviderProperties.ActiveOperationID` = new per-EA delete operation's `ResourceID.Name`</li><li>`Properties.ProvisioningState` = `Deleting`</li><li>`ServiceProviderProperties.UsesNewExternalAuthDeletionApproach` = `true`</li></ul> |
-| Child `ExternalAuth` `Operation`s (each) | <ul><li>`Request` = `Delete`, `ExternalID`, `Status` = `Deleting`</li><li>`UsesNewExternalAuthDeletionApproach` = `true`</li></ul> |
+| `Cluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` = now (if nil)</li><li>`ServiceProviderProperties.DeleteOperationCompletionDeadline` = now + configured timeout</li><li>`ServiceProviderProperties.ActiveOperationID` = new operation's `ResourceID.Name`</li><li>`ServiceProviderProperties.ProvisioningState` = `Deleting`</li></ul> |
+| `Operation` | <ul><li>`Request` = `Delete`</li><li>`ExternalID` = cluster ARM resource ID</li><li>`InternalID` = empty</li><li>`Status` = `Deleting`</li><li>`TenantID`, `ClientID`, `NotificationURI` (if from user request)</li></ul> |
+| Child `NodePool`s (each) | <ul><li>`ServiceProviderProperties.DeletionTimestamp` = now (if nil)</li><li>`ServiceProviderProperties.ActiveOperationID` = new per-NP delete operation's `ResourceID.Name`</li><li>`Properties.ProvisioningState` = `Deleting`</li></ul> |
+| Child `NodePool` `Operation`s (each) | <ul><li>`Request` = `Delete`, `ExternalID`, `Status` = `Deleting`</li></ul> |
+| Child `ExternalAuth`s (each) | <ul><li>`ServiceProviderProperties.DeletionTimestamp` = now (if nil)</li><li>`ServiceProviderProperties.ActiveOperationID` = new per-EA delete operation's `ResourceID.Name`</li><li>`Properties.ProvisioningState` = `Deleting`</li></ul> |
+| Child `ExternalAuth` `Operation`s (each) | <ul><li>`Request` = `Delete`, `ExternalID`, `Status` = `Deleting`</li></ul> |
 | Canceled `Operation`s | <ul><li>Active operations on the cluster get `Status` = `Canceled`, `LastTransitionTime` = now</li></ul> |
-
-The frontend still sets `UsesNewClusterDeletionApproach`/`UsesNewNodePoolDeletionApproach`/`UsesNewExternalAuthDeletionApproach` to `true` unconditionally on every delete (resource and operation), but these flags are now vestigial: the backend no longer reads them anywhere (see [Backend: cluster deletion and operations](#backend-cluster-deletion-and-operations) and its node-pool/external-auth equivalents) and the frontend no longer branches on them either. They are kept only so the field continues to round-trip until it is removed in a follow-up change; do not gate new logic on them.
 
 ---
 
@@ -522,8 +520,8 @@ The frontend still sets `UsesNewClusterDeletionApproach`/`UsesNewNodePoolDeletio
 
 | Object | Fields Written |
 |--------|---------------|
-| `NodePool` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` = now (if nil)</li><li>`ServiceProviderProperties.ActiveOperationID` = new operation's `ResourceID.Name`</li><li>`Properties.ProvisioningState` = `Deleting`</li><li>`ServiceProviderProperties.UsesNewNodePoolDeletionApproach` = `true`</li></ul> |
-| `Operation` | <ul><li>`Request` = `Delete`</li><li>`ExternalID`, `Status` = `Deleting`</li><li>`UsesNewNodePoolDeletionApproach` = `true`</li></ul> |
+| `NodePool` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` = now (if nil)</li><li>`ServiceProviderProperties.ActiveOperationID` = new operation's `ResourceID.Name`</li><li>`Properties.ProvisioningState` = `Deleting`</li></ul> |
+| `Operation` | <ul><li>`Request` = `Delete`</li><li>`ExternalID`, `Status` = `Deleting`</li></ul> |
 | Canceled `Operation`s | <ul><li>Active operations on the node pool get `Status` = `Canceled`, `LastTransitionTime` = now</li></ul> |
 
 ---
@@ -573,8 +571,8 @@ and completion. The operation poller locates the resource by `Operation.External
 
 | Object | Fields Written |
 |--------|---------------|
-| `ExternalAuth` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` = now (if nil)</li><li>`ServiceProviderProperties.ActiveOperationID` = new operation's `ResourceID.Name`</li><li>`Properties.ProvisioningState` = `Deleting`</li><li>`ServiceProviderProperties.UsesNewExternalAuthDeletionApproach` = `true`</li></ul> |
-| `Operation` | <ul><li>`Request` = `Delete`</li><li>`ExternalID`, `Status` = `Deleting`</li><li>`UsesNewExternalAuthDeletionApproach` = `true`</li></ul> |
+| `ExternalAuth` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` = now (if nil)</li><li>`ServiceProviderProperties.ActiveOperationID` = new operation's `ResourceID.Name`</li><li>`Properties.ProvisioningState` = `Deleting`</li></ul> |
+| `Operation` | <ul><li>`Request` = `Delete`</li><li>`ExternalID`, `Status` = `Deleting`</li></ul> |
 | Canceled `Operation`s | <ul><li>Active operations on the external auth get `Status` = `Canceled`, `LastTransitionTime` = now</li></ul> |
 
 ---
@@ -1805,14 +1803,7 @@ Multiple prerequisite arrows into a controller must all be satisfied unless mark
 conditional. Background validators, diagnostics, backups and metrics are cataloged
 above rather than repeated in every typical lifecycle.
 
-The delete views no longer branch on `UsesNewClusterDeletionApproach`,
-`UsesNewNodePoolDeletionApproach` or `UsesNewExternalAuthDeletionApproach`: the
-backend's legacy deletion/operation paths that gated on those flags were removed,
-so every delete is now handled by the controllers shown here regardless of when
-the resource's deletion was originally triggered. There shouldn't be any new or pre-existing
-resources that have the legacy deletion path. The flags themselves are still
-written by the frontend (unconditionally `true`) but are otherwise vestigial, shouldn't
-be referenced in any new code and will be deleted soon. Pending operations keep reconciling; errors retry,
+Pending operations keep reconciling; errors retry,
 and operation-specific failure checks can produce Failed instead of Succeeded.
 The 120-second missing-ID/404 creation-race wait in delete dispatchers is distinct
 from waiting for external teardown; cluster dispatch runs independently of the
@@ -1993,7 +1984,7 @@ actors and use optimistic concurrency; retries must re-read on conflict.
 | External-auth create/update `Operation.ExternalID` / `InternalID` | Frontend writes the ARM resource ID / empty ID, even for a resource with an existing Cluster Service ID. Pollers use `ExternalID` to look up the resource and its backend-owned `ServiceProviderProperties.ClusterServiceID`. The operation does not copy or clear the resource's ID. |
 | Cluster/node-pool `ServiceProviderProperties.UpdateOperationCompletionDeadline` | Frontend PUT/PATCH admission resets this to now + 60m for each update. With `ExperimentalReleaseFeatures`, the resource-specific `aro-hcp.experimental.cluster.max-update-duration` or `aro-hcp.experimental.nodepool.max-update-duration` tag overrides it (Go duration, minimum 1m). The matching update operation controller consumes it and reports pending reasons on timeout. |
 | `Operation.Status`, `Error`, `LastTransitionTime`, `NotificationURI` | Frontend initializes/cancels requests; operation controllers update status and send/clear async notifications through the shared helper. |
-| `ServiceProviderProperties.DeletionTimestamp` | Frontend stamps deletion intent; dispatch, cleanup and final deletion controllers consume it. Deletion timestamp alone does not mean external resources are gone. The `UsesNew*DeletionApproach` flags are still written alongside it (unconditionally `true`) but are no longer read by any controller or admission check; they are vestigial, pending removal. |
+| `ServiceProviderProperties.DeletionTimestamp` | Frontend stamps deletion intent; dispatch, cleanup and final deletion controllers consume it. Deletion timestamp alone does not mean external resources are gone. |
 | Cluster `PendingClusterServiceID` / `ClusterServiceID` | [Pending ID assignment](#clusterpendingclusterserviceidassign) reserves the ID. [Cluster creation](#clusterclusterservicecreate) confirms the external ID and clears pending. The [ID clearer](#clusterdeletionclusterserviceidclearer) clears confirmed ID only after external absence. Node-pool/external-auth create and clear controllers similarly share their confirmed-ID fields. |
 | `ClusterServiceDeletionTimestamp` | Each delete dispatcher stamps completion of dispatch/creation-race handling; cleanup also requires the confirmed ID cleared. It is not a timestamp of all Azure/Kubernetes deletion. |
 | Cluster `ClusterUID`, `BillingDocumentCosmosID`; Billing document `DeletionTime` | [BackfillClusterUID](#backfillclusteruid) repairs UID using billing as input. [CreateBillingDoc](#createbillingdoc) creates billing and links it. [ClusterDeletionController](#clusterdeletioncontroller) and [OrphanedBillingCleanup](#orphanedbillingcleanup) mark billing deleted. |
