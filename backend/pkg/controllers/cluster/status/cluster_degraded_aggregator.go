@@ -17,6 +17,7 @@ package status
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"k8s.io/apimachinery/pkg/api/equality"
@@ -40,8 +41,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-// clusterDegradedAggregator rolls per-controller Degraded conditions
-// (api.Controller.Status.Conditions[Degraded]) up onto
+// clusterDegradedAggregator rolls controller and desire Degraded conditions up onto
 // Cluster.Status.Conditions, using the library-go-style union
 // with configurable per-controller inertia.
 //
@@ -65,6 +65,7 @@ type clusterDegradedAggregator struct {
 	// folded into the same aggregate Degraded condition.
 	applyDesireLister kubeapplierlisters.ApplyDesireLister
 	readDesireLister  kubeapplierlisters.ReadDesireLister
+	stackDesireLister corelisters.StackDesireLister
 }
 
 var _ controllerutils.ClusterSyncer = (*clusterDegradedAggregator)(nil)
@@ -82,8 +83,8 @@ func clusterDegradedAggregatorInertia() statusutils.Inertia {
 }
 
 // NewClusterDegradedAggregatorController creates a controller that
-// aggregates the Degraded condition from every api.Controller under a
-// given Cluster onto the cluster's Status.Conditions.
+// aggregates controller, kube-applier desire, and current StackDesire Degraded
+// conditions under a given Cluster onto the cluster's Status.Conditions.
 //
 // clock is used to compute "now" for inertia evaluation; pass nil for
 // utilsclock.RealClock{}.
@@ -103,6 +104,7 @@ func NewClusterDegradedAggregatorController(
 	// wiring in the caller is needed.
 	_, applyDesireLister := kubeApplierInformers.ApplyDesires()
 	_, readDesireLister := kubeApplierInformers.ReadDesires()
+	stackInformer, stackDesireLister := informers.StackDesires()
 	syncer := &clusterDegradedAggregator{
 		clusterLister:     clusterLister,
 		controllerLister:  controllerLister,
@@ -112,6 +114,7 @@ func NewClusterDegradedAggregatorController(
 		firstObservedBad:  statusutils.NewFirstObservedBadCache(clock),
 		applyDesireLister: applyDesireLister,
 		readDesireLister:  readDesireLister,
+		stackDesireLister: stackDesireLister,
 	}
 	controller := controllerutils.NewClusterWatchingController(
 		ClusterDegradedAggregatorControllerName,
@@ -121,7 +124,7 @@ func NewClusterDegradedAggregatorController(
 		1*time.Minute,
 		syncer,
 	)
-	// Aggregate all conditions; controller and desire names are not a fixed set.
+	// Aggregate all conditions; controller, kubeapplier desire names and stack desire names are not a fixed set.
 	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
 	controller.AddInterestingResource(coreapi.ClusterControllerResourceType, "*")
 	controllerInformer, _ := informers.Controllers()
@@ -130,6 +133,11 @@ func NewClusterDegradedAggregatorController(
 	}
 	controller.AddInterestingResource(kubeapplierapi.ClusterScopedApplyDesireResourceType, "*")
 	controller.AddInterestingResource(kubeapplierapi.ClusterScopedReadDesireResourceType, "*")
+
+	if err := controller.QueueForChildInformers(1*time.Minute, stackInformer); err != nil {
+		panic(err)
+	}
+	controller.AddInterestingResource(coreapi.StackDesireResourceType, "*")
 
 	return controller
 }
@@ -157,6 +165,10 @@ func (c *clusterDegradedAggregator) SyncOnce(ctx context.Context, key controller
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to list ReadDesires from cache: %w", err))
 	}
+	stackDesires, err := c.stackDesireLister.ListForCluster(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to list StackDesires from cache: %w", err))
+	}
 
 	// ListForCluster also returns node-pool-nested desires; the cluster
 	// aggregator only folds in cluster-scoped desires (immediate parent is the
@@ -179,6 +191,25 @@ func (c *clusterDegradedAggregator) SyncOnce(ctx context.Context, key controller
 		clusterApplyDesires, statusutils.ConditionsOfKnown, statusutils.ApplyDesireSourcePrefix, c.firstObservedBad)...)
 	sources = append(sources, statusutils.CollectDegradedConditions(
 		clusterReadDesires, statusutils.ConditionsOfKnown, statusutils.ReadDesireSourcePrefix, c.firstObservedBad)...)
+	// Stack outcomes describe only their observed spec. Pending desires without
+	// a Degraded condition are not failures and must not synthesize degradation.
+	for _, desire := range stackDesires {
+		condition := apimeta.FindStatusCondition(desire.Status.Conditions, coreapi.StackDesireConditionDegraded)
+		if desire.ResourceID == nil || condition == nil || condition.Status == metav1.ConditionFalse {
+			continue
+		}
+		hash, err := coreapi.StackDesireSpecHash(desire.Spec)
+		if err != nil {
+			return utils.TrackError(fmt.Errorf("failed to hash StackDesire %s: %w", desire.ResourceID, err))
+		}
+		if desire.Status.ObservedSpecHash != hash {
+			continue
+		}
+		sources = append(sources, statusutils.SourcedCondition{
+			ControllerName: "stackdesire" + strings.ToLower(desire.ResourceID.String()),
+			Condition:      *condition,
+		})
+	}
 
 	// With report-only-degraded filtering, an all-healthy cluster produces zero
 	// sources and UnionCondition returns the good default (Degraded=False/AsExpected).
