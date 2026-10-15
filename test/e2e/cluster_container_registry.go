@@ -198,6 +198,51 @@ func grantBuiltInRoleWithRetry(
 		"%s should succeed once the principal propagates", description)
 }
 
+// waitForRoleAssignmentVisible polls until a role assignment granting roleID to principalID is
+// readable at scope.
+//
+// grantBuiltInRoleWithRetry returning means only that the Authorization RP accepted the write. The
+// read path replicates separately, and the RP evaluates these grants within seconds of the cluster
+// create that follows, so a grant can still be invisible when it is checked. That surfaces as a
+// confusing 403 attributed to the feature rather than to setup timing, so gate on visibility here.
+//
+// Reading the assignment back is a proxy, not proof: it confirms the assignment has replicated to
+// the Authorization read path, but ARM also caches authorization decisions briefly, and the test
+// cannot impersonate the principals (CAPZ and the service managed identity) to verify enforcement
+// directly. It closes the large window, not the small one.
+func waitForRoleAssignmentVisible(
+	ctx context.Context,
+	client *armauthorization.RoleAssignmentsClient,
+	scope, principalID, roleID, description string,
+	timeout time.Duration,
+) {
+	filter := fmt.Sprintf("assignedTo('%s')", principalID)
+	Eventually(func() error {
+		pager := client.NewListForScopePager(scope, &armauthorization.RoleAssignmentsClientListForScopeOptions{
+			Filter: &filter,
+		})
+		for pager.More() {
+			page, err := pager.NextPage(ctx)
+			if err != nil {
+				if isARMThrottlingError(err) {
+					return fmt.Errorf("throttled while listing role assignments at %s: %w", scope, err)
+				}
+				return StopTrying(fmt.Sprintf("failed to list role assignments at %s for principal %s", scope, principalID)).Wrap(err)
+			}
+			for _, ra := range page.Value {
+				if ra.Properties == nil || ra.Properties.RoleDefinitionID == nil {
+					continue
+				}
+				if strings.HasSuffix(strings.ToLower(*ra.Properties.RoleDefinitionID), strings.ToLower(roleID)) {
+					return nil
+				}
+			}
+		}
+		return fmt.Errorf("%s is not yet readable at scope %s", description, scope)
+	}).WithContext(ctx).WithTimeout(timeout).WithPolling(10*time.Second).Should(Succeed(),
+		"%s never became readable, so the RP would likely have evaluated it before it replicated", description)
+}
+
 // vmUserAssignedIdentityIDs lowercases IDs so they can be compared against an ARM resource ID whose casing ARM does not preserve.
 func vmUserAssignedIdentityIDs(vm *armcompute.VirtualMachine) ([]string, error) {
 	if vm == nil {
@@ -405,6 +450,10 @@ var _ = Describe("Customer", func() {
 				miLookupTimeout         = 1 * time.Minute // observed <20s, 3x safety
 				roleAssignmentTimeout   = 2 * time.Minute // observed <20s, 6x safety
 				vmIdentityAttachTimeout = 3 * time.Minute // observed <30s, 6x safety; brief because a miss here is a real error, not rollout lag
+				// No observed baseline: added after a stage/prod canary run failed on a grant the RP
+				// could not see. Generous because waiting here is far cheaper than a ~15m cluster
+				// create that fails on replication lag.
+				roleAssignmentVisibilityTimeout = 5 * time.Minute
 
 				day1PullNamespace    = "acr-pull-test-day1"
 				day2PullNamespace    = "acr-pull-test-day2"
@@ -555,6 +604,26 @@ var _ = Describe("Customer", func() {
 			grantBuiltInRoleWithRetry(ctx, roleAssignmentsClient, subscriptionID,
 				day2MIResourceID, smiPrincipalID, readerRoleID,
 				"Reader role assignment on the day 2 MI for the service managed identity", roleAssignmentTimeout)
+
+			// Both grants on the pull MIs gate cluster creation: the RP reads the MI as the service
+			// managed identity, then CheckAccesses CAPZ's assign/action on it. The create below
+			// starts seconds from here, so confirm both have replicated before handing off.
+			By("waiting for the pull MI role assignments to become readable")
+			for _, visibility := range []struct {
+				scope       string
+				principalID string
+				roleID      string
+				description string
+			}{
+				{day1MIResourceID, capzPrincipalID, managedIdentityOperatorRoleID, "Managed Identity Operator role assignment on the day 1 MI"},
+				{day2MIResourceID, capzPrincipalID, managedIdentityOperatorRoleID, "Managed Identity Operator role assignment on the day 2 MI"},
+				{day1MIResourceID, smiPrincipalID, readerRoleID, "Reader role assignment on the day 1 MI for the service managed identity"},
+				{day2MIResourceID, smiPrincipalID, readerRoleID, "Reader role assignment on the day 2 MI for the service managed identity"},
+			} {
+				waitForRoleAssignmentVisible(ctx, roleAssignmentsClient,
+					visibility.scope, visibility.principalID, visibility.roleID, visibility.description,
+					roleAssignmentVisibilityTimeout)
+			}
 
 			// Day 1: create with the first identity and pull.
 			By("building and creating the cluster with containerRegistry set to the day 1 MI")
