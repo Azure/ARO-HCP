@@ -141,7 +141,7 @@ func TestAzureFailureBundlePages(t *testing.T) {
 				network, err := armnetwork.NewClientFactory(fakeSubscriptionID, &azfake.TokenCredential{}, options)
 				require.NoError(t, err)
 				if scenario.name == "deadline before collection" {
-					time.Sleep(time.Minute)
+					<-ctx.Done()
 				}
 				items := collectAzurePages(ctx, b, "managed", "virtual-networks", "", network.NewVirtualNetworksClient().NewListPager("managed", nil), func(page armnetwork.VirtualNetworksClientListResponse) []*armnetwork.VirtualNetwork {
 					return page.Value
