@@ -66,6 +66,17 @@ import (
 type perItOrDescribeTestContext struct {
 	perBinaryInvocationTestContext *perBinaryInvocationTestContext
 
+	// miEnvAssigned is true when ASSIGNED_MI_CONTAINERS was accepted for this
+	// test. When true, leasing, release, and debug collection use
+	// miEnvAssignedContainers and do not consult the file-based pool.
+	miEnvAssigned bool
+	// miEnvAssignedContainers holds the MI container resource group names
+	// parsed from ASSIGNED_MI_CONTAINERS for this test, in lease order.
+	miEnvAssignedContainers []string
+	// miEnvAssignedIdx is the index of the next unleased container in
+	// miEnvAssignedContainers.
+	miEnvAssignedIdx int
+
 	contextLock                   sync.RWMutex
 	knownResourceGroups           []string
 	knownAppRegistrations         []graphutil.ApplicationCleanupTarget
