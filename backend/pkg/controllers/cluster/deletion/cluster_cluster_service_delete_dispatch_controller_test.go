@@ -57,7 +57,7 @@ func fakeOCMNotFoundError() error {
 	return e
 }
 
-func newTestClusterWithNewDeletionApproach(t *testing.T, opts func(*coreapi.Cluster)) *coreapi.Cluster {
+func newTestCluster(t *testing.T, opts func(*coreapi.Cluster)) *coreapi.Cluster {
 	t.Helper()
 	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + testSubscriptionID +
@@ -78,19 +78,12 @@ func newTestClusterWithNewDeletionApproach(t *testing.T, opts func(*coreapi.Clus
 			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 		},
 		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
-			ClusterServiceID:               clusterInternalID,
-			UsesNewClusterDeletionApproach: true,
+			ClusterServiceID: clusterInternalID,
 		},
 	}
 	if opts != nil {
 		opts(cluster)
 	}
-	return cluster
-}
-
-func newTestClusterWithOldDeletionApproach(t *testing.T, opts func(*coreapi.Cluster)) *coreapi.Cluster {
-	cluster := newTestClusterWithNewDeletionApproach(t, opts)
-	cluster.ServiceProviderProperties.UsesNewClusterDeletionApproach = false
 	return cluster
 }
 
@@ -130,12 +123,12 @@ func TestClusterClusterServiceDeleteDispatchSyncer_SyncOnce(t *testing.T) {
 	}{
 		{
 			name:            "when no DeletionTimestamp no-op is performed",
-			existingCluster: newTestClusterWithNewDeletionApproach(t, nil),
+			existingCluster: newTestCluster(t, nil),
 			verifyDB:        verifyClusterServiceDeletionTimestampIsNil,
 		},
 		{
 			name: "when ClusterServiceDeletionTimestamp is set no-op is performed",
-			existingCluster: newTestClusterWithNewDeletionApproach(t, func(c *coreapi.Cluster) {
+			existingCluster: newTestCluster(t, func(c *coreapi.Cluster) {
 				c.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedClockTime.Add(-time.Hour)}
 				c.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: fixedClockTime.Add(-30 * time.Minute)}
 			}),
@@ -149,7 +142,7 @@ func TestClusterClusterServiceDeleteDispatchSyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "when ClusterServiceID is not set and deletion is first observed then first seen is recorded and no-op is performed",
-			existingCluster: newTestClusterWithNewDeletionApproach(t, func(c *coreapi.Cluster) {
+			existingCluster: newTestCluster(t, func(c *coreapi.Cluster) {
 				c.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedClockTime.Add(-time.Hour)}
 				c.ServiceProviderProperties.ClusterServiceID = nil
 			}),
@@ -157,7 +150,7 @@ func TestClusterClusterServiceDeleteDispatchSyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "when ClusterServiceID is not set and first seen within timeout no-op is performed",
-			existingCluster: newTestClusterWithNewDeletionApproach(t, func(c *coreapi.Cluster) {
+			existingCluster: newTestCluster(t, func(c *coreapi.Cluster) {
 				c.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedClockTime.Add(-time.Hour)}
 				c.ServiceProviderProperties.ClusterServiceID = nil
 			}),
@@ -166,7 +159,7 @@ func TestClusterClusterServiceDeleteDispatchSyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "when ClusterServiceID is not set and first seen older than timeout then we give up and stamp",
-			existingCluster: newTestClusterWithNewDeletionApproach(t, func(c *coreapi.Cluster) {
+			existingCluster: newTestCluster(t, func(c *coreapi.Cluster) {
 				c.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedClockTime.Add(-time.Hour)}
 				c.ServiceProviderProperties.ClusterServiceID = nil
 			}),
@@ -175,7 +168,7 @@ func TestClusterClusterServiceDeleteDispatchSyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "when ClusterServiceID is set we trigger CS cluster deletion and stamp",
-			existingCluster: newTestClusterWithNewDeletionApproach(t, func(c *coreapi.Cluster) {
+			existingCluster: newTestCluster(t, func(c *coreapi.Cluster) {
 				c.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedClockTime.Add(-time.Minute)}
 			}),
 			firstSeenDeletionAt: fixedClockTime.Add(-missingClusterServiceIDTimeout / 2),
@@ -188,7 +181,7 @@ func TestClusterClusterServiceDeleteDispatchSyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "when CS cluster deletion returns 404 within timeout no-op is performed",
-			existingCluster: newTestClusterWithNewDeletionApproach(t, func(c *coreapi.Cluster) {
+			existingCluster: newTestCluster(t, func(c *coreapi.Cluster) {
 				c.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedClockTime.Add(-time.Hour)}
 			}),
 			firstSeenDeletionAt: fixedClockTime.Add(-missingClusterServiceIDTimeout / 2),
@@ -201,7 +194,7 @@ func TestClusterClusterServiceDeleteDispatchSyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "when CS cluster deletion returns 404 past timeout then we stamp",
-			existingCluster: newTestClusterWithNewDeletionApproach(t, func(c *coreapi.Cluster) {
+			existingCluster: newTestCluster(t, func(c *coreapi.Cluster) {
 				c.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedClockTime.Add(-time.Hour)}
 			}),
 			firstSeenDeletionAt: fixedClockTime.Add(-missingClusterServiceIDTimeout - time.Second),
@@ -214,7 +207,7 @@ func TestClusterClusterServiceDeleteDispatchSyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "when CS cluster deletion returns unhandled error we propagate it",
-			existingCluster: newTestClusterWithNewDeletionApproach(t, func(c *coreapi.Cluster) {
+			existingCluster: newTestCluster(t, func(c *coreapi.Cluster) {
 				c.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedClockTime.Add(-time.Minute)}
 			}),
 			firstSeenDeletionAt: fixedClockTime.Add(-missingClusterServiceIDTimeout / 2),
@@ -225,13 +218,6 @@ func TestClusterClusterServiceDeleteDispatchSyncer_SyncOnce(t *testing.T) {
 			},
 			wantErr:        true,
 			wantErrContain: "failed to delete cluster-service Cluster",
-		},
-		{
-			name: "UsesNewClusterDeletionApproach false -- no-op even when DeletionTimestamp is set",
-			existingCluster: newTestClusterWithOldDeletionApproach(t, func(c *coreapi.Cluster) {
-				c.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedClockTime.Add(-time.Minute)}
-			}),
-			verifyDB: verifyClusterServiceDeletionTimestampIsNil,
 		},
 		{
 			name: "cluster not found no-op is performed",
@@ -298,14 +284,14 @@ func TestClusterClusterServiceDeleteDispatchSyncer_SyncOnce_cacheShortCircuit(t 
 	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
 	ctrl := gomock.NewController(t)
 
-	clusterInDB := newTestClusterWithNewDeletionApproach(t, func(c *coreapi.Cluster) {
+	clusterInDB := newTestCluster(t, func(c *coreapi.Cluster) {
 		c.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedClockTime.Add(-time.Hour)}
 	})
 	mockResourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{clusterInDB})
 	require.NoError(t, err)
 
 	// Here the cached cluster does not have a DeletionTimestamp set, so the syncer will short-circuit.
-	cachedCluster := newTestClusterWithNewDeletionApproach(t, nil)
+	cachedCluster := newTestCluster(t, nil)
 
 	syncer := &clusterClusterServiceDeleteDispatchSyncer{
 		clock:                           clocktesting.NewFakePassiveClock(fixedClockTime),
@@ -333,7 +319,7 @@ func TestClusterClusterServiceDeleteDispatchSyncer_SyncOnce_firstSeenDeletionCac
 	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
 	ctrl := gomock.NewController(t)
 
-	cluster := newTestClusterWithNewDeletionApproach(t, func(c *coreapi.Cluster) {
+	cluster := newTestCluster(t, func(c *coreapi.Cluster) {
 		c.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedClockTime.Add(-time.Hour)}
 		c.ServiceProviderProperties.ClusterServiceID = nil
 	})
@@ -368,7 +354,7 @@ func TestClusterClusterServiceDeleteDispatchSyncer_SyncOnce_firstSeenDeletionCac
 	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
 	ctrl := gomock.NewController(t)
 
-	cluster := newTestClusterWithNewDeletionApproach(t, func(c *coreapi.Cluster) {
+	cluster := newTestCluster(t, func(c *coreapi.Cluster) {
 		c.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedClockTime.Add(-time.Minute)}
 	})
 	mockResourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster})
