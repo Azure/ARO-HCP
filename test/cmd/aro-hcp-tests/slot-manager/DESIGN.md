@@ -616,12 +616,15 @@ applies it when registering suites. A nonempty value must be a positive integer
 and applies globally. An explicitly empty value opts out of the acquired default.
 An absent acquired list retains suite fallbacks.
 
-The worker precedence is explicit `--max-concurrency`, then the user override,
-then the opt-in acquired count, then the suite fallback. Invalid environment
-configuration fails CLI construction. Metadata reports registered values without
-a command-time hook. The runtime hook only handles the CLI flag against the
-registered value, keeping the runner flag and selected suite cap consistent.
-Worker overrides do not change the independent leased MSI resource budget.
+Suite parallelism is resolved from the user override, then the opt-in acquired
+count, then the suite fallback. Invalid environment configuration fails CLI
+construction. Metadata reports registered values without a command-time hook.
+An explicit `--max-concurrency` limits workers without changing suite metadata.
+When omitted, the flag defaults to the selected suite's registered parallelism.
+The runner uses `min(max-concurrency, Suite.Parallelism)`; for example, a suite
+value of 75 with `--max-concurrency=100` runs at most 75 workers, while a flag
+value of 25 limits it to 25. Worker limits do not change the independent leased
+MSI resource budget.
 
 The CLI entrypoint is in `main.go`, orchestration in `cli.go`, suite definitions
 in `suites.go`, and concurrency resolution in `concurrency.go`. MI scheduling and
