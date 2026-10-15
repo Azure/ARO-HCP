@@ -120,8 +120,6 @@ Note: For HCP metrics, use dashboard folder `observability/grafana-dashboards/ka
    ```
    This runs `promtool` tests, processes all PrometheusRules, and regenerates `dev-infrastructure/modules/metrics/rules/generatedPrometheusAlertingRules.bicep`.
 
-5. For HCP-workspace rules (metrics from `ocm-*` namespaces), register in `observability/alerts-sre-hcps.yaml` instead.
-
 ### Verifying which metrics are available
 
 After deploying the SRE metric set, check what's actually being scraped:

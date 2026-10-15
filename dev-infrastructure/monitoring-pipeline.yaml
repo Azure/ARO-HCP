@@ -66,11 +66,6 @@ resourceGroups:
         resourceGroup: kusto
         step: actiongroup-lookup
         name: actionGroupSL
-    - name: actionGroupSRE
-      input:
-        resourceGroup: kusto
-        step: actiongroup-lookup
-        name: actionGroupSRE
     - name: actionGroupRP
       input:
         resourceGroup: kusto
