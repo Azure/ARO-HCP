@@ -79,6 +79,11 @@ now returns a deep copy (mutations must be written back via `set`) rather than t
 `AzureResources` pointer, fixing a review-flagged mutation hazard; wraps two previously bare Key
 Vault client errors in `utils.TrackError`; and drops two now-redundant `persistIfChanged` calls
 from error paths that could never have anything to persist. No controller behavior changed.
+Catalog-count correction baseline: `44d8bcf45`; scope: no controller behavior change, but the
+backend registry's zone/instance/launch totals in [Complete Controller Catalog](#2-complete-controller-catalog)
+had drifted stale (109/110/111/136) relative to `TestControllerRegistryManifest` and
+`TestControllerRegistryNamedZoneRegistrations`'s actual current counts; corrected to 113 zone
+instances, 114 backend instances, 115 total launches and 140 catalog entries.
 
 Update-deadline baseline: `a0f232352a2e933142f2f2dfb61f2870aed7a26f` plus working-tree changes; scope: cluster/node-pool update admission, create/update timeout error codes and diagnostics, and their lifecycle views.
 
@@ -777,7 +782,7 @@ is recomputed on each request; this creates no policy for future clusters.
 
 ## 2. Complete Controller Catalog
 
-The catalog contains **136 entries**: 110 backend instances, 12 fleet controllers,
+The catalog contains **140 entries**: 114 backend instances, 12 fleet controllers,
 three kube-applier controller types, eight management-agent controllers/watchers,
 two sessiongate controllers and one shared union-informer controller. Dynamic
 validation and metrics instances are listed individually; dynamically created
@@ -799,13 +804,13 @@ infrastructure, not additional controller catalog entries.
 | Management-agent | [options.go](../mgmt-agent/cmd/options.go) |
 | Sessiongate | [options.go](../sessiongate/cmd/options.go) |
 
-The backend registry represents **111 launches**: 109 instances in the billing,
+The backend registry represents **115 launches**: 113 instances in the billing,
 cluster, clusterresources, cosmosmigration, datadump, externalauth, metrics,
 mismatch, and nodepool zones, the Azure SKU cached-reader controller, and the
-shared union kube-applier informer controller. This matches the catalog's 110
+shared union kube-applier informer controller. This matches the catalog's 114
 backend instances plus the separately counted shared union controller.
 `ClusterDenyAssignment` is instantiated and launched only when `HasRealFPA` is
-true; otherwise 110 controllers run. The flag is also passed to cluster creation.
+true; otherwise 114 controllers run. The flag is also passed to cluster creation.
 
 Each top-level controller package owns a `registration.go` file and a `Register`
 function: [billing](../backend/pkg/controllers/billing/registration.go),
