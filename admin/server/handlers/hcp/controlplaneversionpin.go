@@ -245,10 +245,10 @@ func validateVersionPinTarget(cluster *coreapi.ServiceProviderCluster, target se
 	// The backend mirrors HostedCluster status asynchronously. Without an
 	// observed version, the pin can still hold the requested target while the
 	// controller and HostedCluster catch up.
-	if cluster.Status.ActualHostedCluster == nil {
+	if cluster.Status.ControlPlaneVersionHistory == nil {
 		return nil
 	}
-	history := cluster.Status.ActualHostedCluster.Status.ControlPlaneVersion.History
+	history := *cluster.Status.ControlPlaneVersionHistory
 	if len(history) == 0 {
 		return nil
 	}

@@ -228,42 +228,19 @@ type ServiceProviderClusterStatus struct {
 	// ImageContentSources mirrors the observed HostedCluster's
 	// spec.imageContentSources verbatim. nil means the HostedCluster has not yet
 	// been observed, or a successful read found it absent and retracted the mirror.
-	// Admission fails closed without observed state; during migration it may fall
-	// back to ActualHostedCluster when this field is nil. A non-nil pointer to a
+	// Admission fails closed without observed state. A non-nil pointer to a
 	// possibly empty slice means the HostedCluster has been observed. Empty
 	// observations use an empty, non-nil slice so JSON preserves that distinction.
 	// Written by: ActualHostedCluster
 	ImageContentSources *[]v1beta1.ImageContentSource `json:"imageContentSources,omitempty"`
 
-	// ActualHostedCluster is the HostedCluster as it currently exists on the
-	// management cluster, mirrored here from the kube-applier ReadDesire by the
-	// backend. Both spec and status are carried. Admission prefers the dedicated
-	// ImageContentSources mirror and falls back to this field during migration.
-	//
-	// The frontend is deliberately denied any path to a management cluster (no
-	// kube-applier container access, no ReadDesireLister, no Maestro), so a
-	// frontend compromise cannot create arbitrary resources on a management
-	// cluster. Anything admission needs to know about the real HostedCluster has
-	// to travel through ServiceProviderCluster; see internal/admission/CLAUDE.md.
-	//
-	// The object is mirrored verbatim, exactly as observed on the management
-	// cluster. Nothing is stripped or rewritten on the way in, so a consumer can
-	// read any field without having to know a mirroring policy.
-	//
-	// nil means there is no observed HostedCluster to report: the backend has not
-	// observed one yet (the cluster is still being created, or the first sync has
-	// not run), or a completed read found no HostedCluster on the management
-	// cluster, in which case the mirror is retracted rather than left pointing at
-	// an object that no longer exists. Consumers must treat nil as unavailable
-	// observed state. Safety-critical admission checks must fail closed while it
-	// is nil; they cannot assume a required property such as a data-plane image
-	// mirror is present.
-	//
-	// Backend controllers must NOT read this field. They have first-class access
-	// to the ReadDesire mirror and are expected to read that instead, staying as
-	// close to the source as possible rather than waiting for this copy to catch up.
+	// ControlPlaneVersionHistory mirrors HostedCluster.status.controlPlaneVersion.history
+	// verbatim, newest first. nil means not yet observed or retracted; a non-nil
+	// pointer to a possibly empty slice means the HostedCluster was observed.
+	// Empty observations use a non-nil slice to preserve that distinction in JSON.
+	// Admin version pin rollback checks use this history, not guest version history.
 	// Written by: ActualHostedCluster
-	ActualHostedCluster *v1beta1.HostedCluster `json:"actualHostedCluster,omitempty"`
+	ControlPlaneVersionHistory *[]v1beta1.ControlPlaneUpdateHistory `json:"controlPlaneVersionHistory,omitempty"`
 
 	// Validations is a list of conditions that tracks the status of each cluster validation.
 	// Each Condition Type represents a validation and it should be unique among all validations.
