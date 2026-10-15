@@ -408,7 +408,7 @@ func (b *builder) expr(node ast.Expr) *Expr {
 		for i, arg := range n.Elts {
 			key := fmt.Sprint(i)
 			if kv, ok := arg.(*ast.KeyValueExpr); ok {
-				if id, ok := kv.Key.(*ast.Ident); ok {
+				if id, ok := kv.Key.(*ast.Ident); ok && fields != nil {
 					key = id.Name
 				} else {
 					keyExpr := b.expr(kv.Key)

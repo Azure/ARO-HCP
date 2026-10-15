@@ -375,7 +375,7 @@ func (e *evaluator) eval(x *Expr, f *frame) *value {
 			}
 			return out
 		}
-		if len(v.items) > 0 {
+		if len(v.items) > 0 && !strings.HasPrefix(v.typ, "map[") {
 			return v.items[0]
 		}
 		if k.known && v.fields != nil {
@@ -572,6 +572,11 @@ func merge(a, b *value) *value {
 	}
 	if b == nil || b.nilValue || a == b {
 		return a
+	}
+	// An alternatives wrapper is already a set of concrete bindings, not an
+	// unknown value. Union it before the concrete-over-unknown preferences.
+	if len(a.alternatives) > 0 || len(b.alternatives) > 0 {
+		return alternatives(a, b)
 	}
 	if a.function != "" && b.function != "" && (a.function != b.function || a.receiver != b.receiver) {
 		return alternatives(a, b)

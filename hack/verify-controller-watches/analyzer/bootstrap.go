@@ -50,7 +50,9 @@ func (e *evaluator) instantiate(fn *value, args []*value, at Location) []*value 
 			child.gap("unresolved registered controller Run: "+instance.typ, at)
 			continue
 		}
-		child.invoke(method, []*value{{typ: "context.Context"}, {typ: "int"}}, at)
+		// Use the same boundary-aware dispatcher as every other call. In
+		// particular the generic watcher includes cooldown/event-path reads.
+		child.call(method, []*value{{typ: "context.Context"}, {typ: "int"}}, &Expr{At: at}, "")
 	}
 	child.finish()
 	// The bootstrap interpreter must not run these controllers a second time

@@ -10,6 +10,7 @@ backend/backfillclusteruid | unused-watch | github.com/Azure/ARO-HCP/internal/ap
 backend/backupschedule | missing-watch | github.com/Azure/ARO-HCP/internal/api/fleetapi.ManagementCluster
 backend/backupschedule | unused-watch | github.com/Azure/ARO-HCP/internal/api/coreapi.ManagementClusterContent
 backend/cleanorphanedclustermanagedresourcegroup | missing-watch | github.com/Azure/ARO-HCP/internal/api/coreapi.Cluster
+backend/cleanorphanedclustermanagedresourcegroup | missing-watch | github.com/Azure/ARO-HCP/internal/api/coreapi.Operation
 backend/clusterbasedomainprefixsync | unused-watch | github.com/Azure/ARO-HCP/internal/api/coreapi.ManagementClusterContent
 backend/clusterbasedomainprefixsync | unused-watch | github.com/Azure/ARO-HCP/internal/api/coreapi.ServiceProviderCluster
 backend/clusterbasedomainprefixsync | unused-watch | github.com/Azure/ARO-HCP/internal/api/kubeapplierapi.ApplyDesire

@@ -114,7 +114,7 @@ Inferring resource types from untyped queries is explicitly deferred. The separa
 incomplete fixture checks their diagnostics without pretending to resolve them.
 
 The baseline against `a7458c817` with the Fleet registration precursor discovers 124 controllers
-(112 backend, 12 Fleet), 305 findings, and 32 untyped-access sites across 11
+(112 backend, 12 Fleet), 306 findings, and 32 untyped-access sites across 11
 controllers. Representative checks were reviewed against cluster creation,
 operation controllers, deletion callback maps, metrics indexer/lister consumers,
 Fleet polling and shared informer management. The baseline records
@@ -125,7 +125,7 @@ the current analyzer's results, not a claim that every existing finding is a bug
 `TestRealLibraryRegistrationAndInjection` loads `testdata/controllers` with the
 actual registry, backend wrapper, generic watching controller, Cosmos CRUDs,
 informers, listers, and API types. No library definitions are copied into this test.
-Nine registrations pin independently written expectations:
+Fourteen registrations pin independently written expectations:
 
 - `first`: reads Cluster and Subscription, writes NodePool; watches Cluster and
   ServiceProviderCluster.
@@ -147,6 +147,21 @@ Nine registrations pin independently written expectations:
   metadata handling that does not introduce spurious resource accesses.
 - `optional-nil` / `optional-watch`: the same promoted syncer reads provider state;
   only the non-nil constructor argument installs its optional watch.
+- `three-callbacks` / `three-implementations`: all three possible concrete
+  dependencies survive accumulated alternative merges.
+- `constant-keys`: local and package-qualified constant map keys select the second
+  callback's value, with no accesses attributed to unselected callbacks.
+- `cooldown-missing` / `cooldown-watched`: the real Fleet registration-aware
+  cooldown reads ManagementCluster even though reconciliation only reads Stamp;
+  the extra watch is required and, when present, justified by that cooldown read.
+
+Controller Run dispatch applies the same endpoint models as ordinary calls,
+including generic-watcher cooldown dependencies. As with other runtime branches,
+cooldown type-switch arms are combined. In particular the reported Operation
+dependency for CleanOrphanedClusterManagedResourceGroup is an overapproximation:
+its shared cooldown contains Operation reads for cluster/node-pool/external-auth
+keys, while this controller supplies a SubscriptionKey. The analyzer does not yet
+prove type-switch-arm feasibility.
 
 The test asserts exact inventories, exact findings, evidence paths, and zero gaps.
 These expectations are not regenerated with the production baseline. Core-library

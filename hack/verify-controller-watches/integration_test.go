@@ -61,8 +61,12 @@ func TestRealLibraryRegistrationAndInjection(t *testing.T) {
 		t.Fatalf("fixture coverage must be complete: %+v", result.Gaps)
 	}
 	const core = "github.com/Azure/ARO-HCP/internal/api/coreapi."
+	const fleet = "github.com/Azure/ARO-HCP/internal/api/fleetapi."
 	want := []analyzer.Inventory{
 		{Controller: "hack/callbacks", Accessed: []string{core + "Cluster", core + "ExternalAuth", core + "NodePool", core + "ServiceProviderCluster", core + "Subscription"}, Watched: []string{}},
+		{Controller: "hack/constant-keys", Accessed: []string{core + "ExternalAuth", core + "Subscription"}, Watched: []string{}},
+		{Controller: "hack/cooldown-missing", Accessed: []string{fleet + "ManagementCluster", fleet + "Stamp"}, Watched: []string{fleet + "Stamp"}},
+		{Controller: "hack/cooldown-watched", Accessed: []string{fleet + "ManagementCluster", fleet + "Stamp"}, Watched: []string{fleet + "ManagementCluster", fleet + "Stamp"}},
 		{Controller: "hack/first", Accessed: []string{core + "Cluster", core + "NodePool", core + "Subscription"}, Watched: []string{core + "Cluster", core + "ServiceProviderCluster"}},
 		{Controller: "hack/indexed", Accessed: []string{core + "Cluster"}, Watched: []string{core + "Cluster"}},
 		{Controller: "hack/inherited", Accessed: []string{core + "Cluster", core + "ExternalAuth", core + "NodePool"}, Watched: []string{core + "Cluster", core + "ServiceProviderCluster"}},
@@ -71,7 +75,10 @@ func TestRealLibraryRegistrationAndInjection(t *testing.T) {
 		{Controller: "hack/optional-watch", Accessed: []string{core + "ServiceProviderCluster"}, Watched: []string{core + "ServiceProviderCluster"}},
 		{Controller: "hack/second", Accessed: []string{core + "Cluster", core + "ExternalAuth", core + "NodePool"}, Watched: []string{core + "Cluster", core + "ServiceProviderCluster"}},
 		{Controller: "hack/wrapped", Accessed: []string{core + "Cluster", core + "ServiceProviderCluster"}, Watched: []string{core + "Cluster", core + "ManagementClusterContent", core + "ServiceProviderCluster"}},
+		{Controller: "hack/three-callbacks", Accessed: []string{core + "Cluster", core + "ExternalAuth", core + "Subscription"}, Watched: []string{}},
+		{Controller: "hack/three-implementations", Accessed: []string{core + "Cluster", core + "ExternalAuth", core + "Subscription"}, Watched: []string{}},
 	}
+	slices.SortFunc(want, func(a, b analyzer.Inventory) int { return strings.Compare(a.Controller, b.Controller) })
 	var names []string
 	for _, inventory := range want {
 		names = append(names, inventory.Controller)
@@ -83,6 +90,15 @@ func TestRealLibraryRegistrationAndInjection(t *testing.T) {
 		t.Fatalf("controller intent changed or analysis broke:\nwant %#v\ngot  %#v", want, result.Inventories)
 	}
 	wantFindings := map[string]bool{
+		"hack/constant-keys | missing-watch | " + core + "ExternalAuth":          true,
+		"hack/constant-keys | missing-watch | " + core + "Subscription":          true,
+		"hack/cooldown-missing | missing-watch | " + fleet + "ManagementCluster": true,
+		"hack/three-callbacks | missing-watch | " + core + "Cluster":             true,
+		"hack/three-callbacks | missing-watch | " + core + "ExternalAuth":        true,
+		"hack/three-callbacks | missing-watch | " + core + "Subscription":        true,
+		"hack/three-implementations | missing-watch | " + core + "Cluster":       true,
+		"hack/three-implementations | missing-watch | " + core + "ExternalAuth":  true,
+		"hack/three-implementations | missing-watch | " + core + "Subscription":  true,
 		"hack/callbacks | missing-watch | " + core + "Cluster":                   true,
 		"hack/callbacks | missing-watch | " + core + "ExternalAuth":              true,
 		"hack/callbacks | missing-watch | " + core + "NodePool":                  true,
@@ -108,6 +124,9 @@ func TestRealLibraryRegistrationAndInjection(t *testing.T) {
 		}
 		delete(wantFindings, f.Identity())
 		text := analyzer.FormatFinding(f)
+		if f.Controller == "hack/cooldown-missing" && !strings.Contains(text, "RegistrationAwareCooldown.CanSync") {
+			t.Errorf("missing cooldown evidence: %s", text)
+		}
 		if !strings.Contains(text, "instantiateControllers") {
 			t.Errorf("missing actual injection path: %s", text)
 		}

@@ -7,6 +7,8 @@ package dispatch
 
 import "context"
 
+const SelectedCallback = "qualified-selected"
+
 type Worker interface{ Work(context.Context) }
 
 func Forward(ctx context.Context, worker Worker) { forward(ctx, worker) }

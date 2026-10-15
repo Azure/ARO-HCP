@@ -13,21 +13,37 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/informers/fleetinformers"
 )
 
 type controllerContext struct {
-	Informers     coreinformers.BackendInformers
-	Resources     corecosmosstorage.ResourcesDBClient
-	Transaction   cosmosstorageutils.DBTransaction
-	Lookup        Lookup
-	Flag          bool
-	Key, OtherKey string
+	FleetInformers fleetinformers.FleetInformers
+	OtherFlag      bool
+	Informers      coreinformers.BackendInformers
+	Resources      corecosmosstorage.ResourcesDBClient
+	Transaction    cosmosstorageutils.DBTransaction
+	Lookup         Lookup
+	Flag           bool
+	Key, OtherKey  string
 }
 
 type registration = controllerregistry.Registration[controllerContext]
 
 func newControllerRegistry() map[string]registration {
 	registry := map[string]registration{}
+	registry["three-callbacks"] = registration{Instantiate: func(c controllerContext) (controllerregistry.Runnable, error) {
+		return &threeCallbacks{context: c}, nil
+	}}
+	registry["three-implementations"] = registration{Instantiate: func(c controllerContext) (controllerregistry.Runnable, error) {
+		return &threeImplementations{worker: chooseThree(c)}, nil
+	}}
+	registry["constant-keys"] = registration{Instantiate: func(c controllerContext) (controllerregistry.Runnable, error) { return &constantKeys{context: c}, nil }}
+	registry["cooldown-missing"] = registration{Instantiate: func(c controllerContext) (controllerregistry.Runnable, error) {
+		return newCooldownController(c, false), nil
+	}}
+	registry["cooldown-watched"] = registration{Instantiate: func(c controllerContext) (controllerregistry.Runnable, error) {
+		return newCooldownController(c, true), nil
+	}}
 	registry["first"] = registration{Workers: 1, Instantiate: func(c controllerContext) (controllerregistry.Runnable, error) { return newController(c), nil }}
 	registry["inherited"] = registration{Workers: 1, Instantiate: func(c controllerContext) (controllerregistry.Runnable, error) { return newController(c), nil }}
 	registry["second"] = registration{Workers: 1, Enabled: func(controllerContext) bool { return false }, Instantiate: func(c controllerContext) (controllerregistry.Runnable, error) { return newController(c), nil }}
