@@ -363,6 +363,7 @@ func listSuites(t *testing.T) map[string]e.Suite {
 	if err != nil {
 		t.Fatalf("setting up CLI: %v", err)
 	}
+	t.Setenv("ARO_HCP_SUITE_PARALLELISM", "invalid-after-construction")
 	root.SetArgs([]string{"list", "suites", "--output", "json"})
 	originalStdout := os.Stdout
 	func() {
