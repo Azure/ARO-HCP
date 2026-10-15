@@ -202,6 +202,25 @@ func instantiateNodePoolNSGBasedRequiredConnectivityValidationController(control
 	), nil
 }
 
+func registerAzureNodePoolDiskEncryptionSetValidationController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{
+		Workers:     20,
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateAzureNodePoolDiskEncryptionSetValidationController, true),
+	}
+}
+
+func instantiateAzureNodePoolDiskEncryptionSetValidationController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	_, serviceProviderNodePoolLister := controllerContext.BackendInformers.ServiceProviderNodePools()
+	return nodepoolvalidation.NewNamedNodePoolValidationController(
+		nodepoolvalidation.NodePoolValidationAzureNodePoolDiskEncryptionSetValidationControllerName,
+		validationutils.NewAzureNodePoolDiskEncryptionSetValidation(controllerContext.SMIClientBuilder),
+		controllerContext.ResourcesDBClient,
+		serviceProviderNodePoolLister,
+		controllerContext.BackendInformers,
+		controllerContext.UnionKubeApplierInformers,
+	), nil
+}
+
 func registerNodePoolVersionController() controllerconfig.ControllerRegistration {
 	return controllerconfig.ControllerRegistration{
 		Workers:     20,
@@ -384,6 +403,7 @@ func Register(registry map[string]controllerconfig.ControllerRegistration) {
 	registry[strings.ToLower(nodepoolvalidation.NodePoolValidationAzureVMSizeSupportsEphemeralOSDiskValidationControllerName)] = registerAzureVMSizeSupportsEphemeralOSDiskValidationController()
 	registry[strings.ToLower(nodepoolvalidation.NodePoolValidationAzureNodePoolVMQuotaValidationControllerName)] = registerAzureNodePoolVMQuotaValidationController()
 	registry[strings.ToLower(nodepoolvalidation.NodePoolValidationAzureNodePoolNSGBasedRequiredConnectivityValidationControllerName)] = registerNodePoolNSGBasedRequiredConnectivityValidationController()
+	registry[strings.ToLower(nodepoolvalidation.NodePoolValidationAzureNodePoolDiskEncryptionSetValidationControllerName)] = registerAzureNodePoolDiskEncryptionSetValidationController()
 	registry[strings.ToLower(nodepoolversion.NodepoolVersionControllerName)] = registerNodePoolVersionController()
 	registry[strings.ToLower(nodepoolversion.NodePoolActiveVersionsControllerName)] = registerNodePoolActiveVersionController()
 	registry[strings.ToLower(nodepoolreaddesires.CreateNodePoolScopedReadDesiresControllerName)] = registerCreateNodePoolScopedReadDesiresController()

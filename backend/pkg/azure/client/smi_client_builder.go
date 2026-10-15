@@ -22,6 +22,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/msi/armmsi"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v6"
 	"github.com/Azure/msi-dataplane/pkg/dataplane"
@@ -54,6 +55,9 @@ type ServiceManagedIdentityClientBuilder interface {
 	// SubnetsClient returns a new Subnets client authenticated as the cluster's
 	// Service Managed Identity.
 	SubnetsClient(ctx context.Context, clusterIdentityURL string, smiResourceID *azcorearm.ResourceID, subscriptionID string) (SubnetsClient, error)
+	// DiskEncryptionSetsClient returns a new Disk Encryption Sets client
+	// authenticated as the cluster's Service Managed Identity.
+	DiskEncryptionSetsClient(ctx context.Context, clusterIdentityURL string, smiResourceID *azcorearm.ResourceID, subscriptionID string) (DiskEncryptionSetsClient, error)
 }
 
 type serviceManagedIdentityClientBuilder struct {
@@ -114,6 +118,14 @@ func (b *serviceManagedIdentityClientBuilder) NetworkSecurityGroupsClient(ctx co
 	// We instantiate the SecurityGroupsClient using the
 	// credentials we obtained from the Managed Identities Data Plane Service.
 	return armnetwork.NewSecurityGroupsClient(subscriptionID, creds, b.azCoreARMClientOptions)
+}
+
+func (b *serviceManagedIdentityClientBuilder) DiskEncryptionSetsClient(ctx context.Context, clusterIdentityURL string, smiResourceID *azcorearm.ResourceID, subscriptionID string) (DiskEncryptionSetsClient, error) {
+	creds, err := b.credentialsForServiceManagedIdentity(ctx, clusterIdentityURL, smiResourceID)
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to get credentials for service managed identity: %w", err))
+	}
+	return armcompute.NewDiskEncryptionSetsClient(subscriptionID, creds, b.azCoreARMClientOptions)
 }
 
 func NewServiceManagedIdentityClientBuilder(fpaMIdataplaneClientBuilder FPAMIDataplaneClientBuilder, options *azcorearm.ClientOptions) ServiceManagedIdentityClientBuilder {
