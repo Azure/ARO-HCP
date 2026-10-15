@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/go-logr/logr/testr"
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -106,6 +107,9 @@ func newTestCluster(t *testing.T, clusterUID string, provisioningState coreapi.P
 			ClusterUID:        clusterUID,
 			ClusterServiceID:  metadataapihelpers.Ptr(metadataapi.Must(metadataapi.NewInternalID(testClusterServiceIDStr))),
 		},
+		CustomerProperties: coreapi.ClusterCustomerProperties{
+			Platform: coreapi.CustomerPlatformProfile{ManagedResourceGroup: "managed-rg"},
+		},
 	}
 }
 
@@ -114,6 +118,43 @@ func newTestClusterKey() controllerutils.HCPClusterKey {
 		SubscriptionID:    testSubscriptionID,
 		ResourceGroupName: testResourceGroupName,
 		HCPClusterName:    testClusterName,
+	}
+}
+
+func TestCreateBillingDocManagedResourceGroup(t *testing.T) {
+	created := mustParseTime("2026-10-21T12:00:00Z")
+	for _, tc := range []struct {
+		name, configured, want string
+		wantError              string
+	}{
+		{name: "configured RG", configured: "managed-rg", want: "/subscriptions/" + testSubscriptionID + "/resourcegroups/managed-rg"},
+		{name: "unset RG prevents creation", wantError: "cluster has no configured managed resource group"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
+			cluster := newTestCluster(t, testClusterUID, coreapi.ProvisioningStateSucceeded, &created)
+			cluster.CustomerProperties.Platform.ManagedResourceGroup = tc.configured
+			resources, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, newTestSubscription()})
+			require.NoError(t, err)
+			db := billingcosmosstoragetesting.NewMockBillingDBClient()
+			controller := NewCreateBillingDocController(clocktesting.NewFakePassiveClock(created), testAzureLocation, resources, db,
+				&corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{cluster}}, &corelistertesting.SliceBillingLister{})
+			syncErr := controller.SyncOnce(ctx, newTestClusterKey())
+			if len(tc.wantError) != 0 {
+				require.ErrorContains(t, syncErr, tc.wantError)
+				require.Empty(t, db.GetBillingDocuments())
+				persistedCluster, err := resources.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
+				require.NoError(t, err)
+				require.Empty(t, persistedCluster.ServiceProviderProperties.BillingDocumentCosmosID)
+				return
+			}
+			require.NoError(t, syncErr)
+			persisted, err := db.BillingDocs(testSubscriptionID).GetByID(ctx, testClusterUID)
+			require.NoError(t, err)
+			if diff := cmp.Diff(tc.want, persisted.ManagedResourceGroup); diff != "" {
+				t.Fatalf("managed RG (-want +got):\n%s", diff)
+			}
+		})
 	}
 }
 
