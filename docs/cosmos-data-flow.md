@@ -1634,8 +1634,10 @@ including same-type spec changes, rejects a changed status write with
 PreconditionFailed (412). The controller returns that error to its rate-limited
 workqueue; the next reconcile reads the current document, repeats the operation,
 and retries its status write. No-op status mutations skip replacement.
-ReadDesire controllers retain the separate fetch-mutate-replace `UpdateStatus`
-contract.
+ReadDesire controllers also use `UpdateStatusFrom`: observations and construction
+errors are bound to the revision read before observing or building the watcher.
+Conflicts requeue reconciliation rather than publishing status onto a changed
+spec. The re-fetching `UpdateStatus` API has been removed.
 
 #### ReadDesireInformerManagingController
 
@@ -1648,6 +1650,10 @@ Starts/stops the target Kubernetes informer/controller needed by each requested 
 [Source](../kube-applier/pkg/controllers/read_desire_kubernetes/controller.go) · **Trigger:** Target Kubernetes events; 60s.
 
 Copies target content or absence/error into ReadDesire status/conditions in Cosmos; supplies feedback to backend and fleet. Instances are created dynamically for requested reads.
+
+A retargeted document is ignored by the old per-instance controller until the
+manager replaces it. This prevents an old target's cached content from being
+published against a new target, including after an ETag-conflict retry.
 
 #### union-kube-applier-informers-controller
 

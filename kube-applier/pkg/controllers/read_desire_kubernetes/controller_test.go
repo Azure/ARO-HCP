@@ -18,16 +18,21 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/util/workqueue"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/openshift/library-go/pkg/manifestclient"
@@ -37,6 +42,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/kubeappliercosmosstoragetesting"
+	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/kube-applier/pkg/controllers/conditions"
 	"github.com/Azure/ARO-HCP/kube-applier/pkg/controllers/desirestatuswriter"
 	"github.com/Azure/ARO-HCP/kube-applier/pkg/controllers/keys"
@@ -80,7 +86,7 @@ func newReadDesire(t *testing.T, target kubeapplierapi.ResourceReference) *kubea
 	}
 }
 
-// recordingWriter captures the outcome of every UpdateStatus call so tests can
+// recordingWriter captures the outcome of every UpdateStatusFrom call so tests can
 // assert on what the controller would persist. The desire pointer is shared
 // with the test so subsequent reads see prior mutations.
 type recordingWriter struct {
@@ -88,19 +94,12 @@ type recordingWriter struct {
 	desire  *kubeapplierapi.ReadDesire
 }
 
-func (w *recordingWriter) UpdateStatus(ctx context.Context, key keys.ReadDesireKey, mutate desirestatuswriter.MutateFunc[kubeapplierapi.ReadDesire]) error {
-	if w.desire == nil {
-		return nil
-	}
-	cp := *w.desire
-	mutate(&cp)
-	w.updates = append(w.updates, &cp)
-	*w.desire = cp
+func (w *recordingWriter) UpdateStatusFrom(_ context.Context, observed *kubeapplierapi.ReadDesire, mutate desirestatuswriter.MutateFunc[kubeapplierapi.ReadDesire]) error {
+	desired := observed.DeepCopy()
+	mutate(desired)
+	w.updates = append(w.updates, desired)
+	*w.desire = *desired
 	return nil
-}
-
-func (*recordingWriter) UpdateStatusFrom(context.Context, *kubeapplierapi.ReadDesire, desirestatuswriter.MutateFunc[kubeapplierapi.ReadDesire]) error {
-	panic("ReadDesireKubernetesController must use UpdateStatus")
 }
 
 func configMapTarget(name string) kubeapplierapi.ResourceReference {
@@ -198,6 +197,135 @@ type countingReplacer struct {
 func (r *countingReplacer) Replace(ctx context.Context, desired *kubeapplierapi.ReadDesire) error {
 	r.count++
 	return r.inner.Replace(ctx, desired)
+}
+
+type conditionalDesireStore struct {
+	current *kubeapplierapi.ReadDesire
+	fetches int
+	writes  int
+}
+
+func (store *conditionalDesireStore) Fetch(context.Context, keys.ReadDesireKey) (*kubeapplierapi.ReadDesire, error) {
+	store.fetches++
+	return store.current, nil
+}
+
+func (store *conditionalDesireStore) Replace(_ context.Context, desired *kubeapplierapi.ReadDesire) error {
+	if desired.CosmosETag != store.current.CosmosETag {
+		return &azcore.ResponseError{StatusCode: http.StatusPreconditionFailed}
+	}
+	store.current = desired.DeepCopy()
+	store.writes++
+	return nil
+}
+
+type retargetingInformer struct {
+	cache.SharedIndexInformer
+	cache.Store
+	afterRead func()
+}
+
+func (informer *retargetingInformer) HasSynced() bool       { return true }
+func (informer *retargetingInformer) GetStore() cache.Store { return informer }
+
+func (informer *retargetingInformer) GetByKey(key string) (interface{}, bool, error) {
+	object, exists, err := informer.Store.GetByKey(key)
+	if informer.afterRead != nil {
+		informer.afterRead()
+		informer.afterRead = nil
+	}
+	return object, exists, err
+}
+
+func TestRetargetRejectsStaleObservationAndRetries(t *testing.T) {
+	for _, worker := range []bool{false, true} {
+		name := "SyncOnce"
+		if worker {
+			name = "processNext"
+		}
+		t.Run(name, func(t *testing.T) {
+			observed := newReadDesire(t, configMapTarget("original"))
+			observed.CosmosETag = "v1"
+			original := observed.DeepCopy()
+			updated := observed.DeepCopy()
+			updated.CosmosETag = "v2"
+			updated.Spec.TargetItem = configMapTarget("updated")
+			store := &conditionalDesireStore{current: observed}
+			informer := &retargetingInformer{
+				Store:     cache.NewStore(cache.MetaNamespaceKeyFunc),
+				afterRead: func() { store.current = updated },
+			}
+			for _, target := range []kubeapplierapi.ResourceReference{observed.Spec.TargetItem, updated.Spec.TargetItem} {
+				object := &unstructured.Unstructured{Object: map[string]interface{}{
+					"apiVersion": "v1", "kind": "ConfigMap",
+					"metadata": map[string]interface{}{"name": target.Name, "namespace": target.Namespace},
+				}}
+				if err := informer.Add(object); err != nil {
+					t.Fatal(err)
+				}
+			}
+			key, err := keys.ReadDesireKeyFromResourceID(observed.GetResourceID())
+			if err != nil {
+				t.Fatal(err)
+			}
+			controller := &ReadDesireKubernetesController{
+				key: key, target: observed.Spec.TargetItem, namespaced: true,
+				fetcher: store, informer: informer,
+				writer: desirestatuswriter.New[kubeapplierapi.ReadDesire, *kubeapplierapi.ReadDesire](store),
+				queue:  workqueue.NewTypedRateLimitingQueue(workqueue.DefaultTypedControllerRateLimiter[keys.ReadDesireKey]()),
+			}
+			t.Cleanup(controller.queue.ShutDown)
+			if worker {
+				controller.queue.Add(key)
+				if !controller.processNext(t.Context()) || controller.queue.NumRequeues(key) != 1 {
+					t.Fatal("conflict did not requeue the observation")
+				}
+			} else {
+				err := controller.SyncOnce(t.Context())
+				var responseErr *azcore.ResponseError
+				if !errors.As(err, &responseErr) || responseErr.StatusCode != http.StatusPreconditionFailed {
+					t.Fatalf("SyncOnce error = %v, want PreconditionFailed (412)", err)
+				}
+				if _, ok := err.(*utils.LineTrackingError); !ok || errors.Unwrap(err) != responseErr || !strings.Contains(err.Error(), "desirestatuswriter.go:") {
+					t.Fatalf("SyncOnce error = %v (%T), want tracked conflict from status writer", err, err)
+				}
+			}
+			if store.fetches != 1 || store.writes != 0 || len(store.current.Status.Conditions) != 0 || store.current.Status.KubeContent != nil || !reflect.DeepEqual(observed, original) {
+				t.Fatalf("stale observation was published, mutated, or re-fetched: fetches=%d, writes=%d", store.fetches, store.writes)
+			}
+			if worker {
+				deadline := time.Now().Add(5 * time.Second)
+				for controller.queue.Len() == 0 && time.Now().Before(deadline) {
+					time.Sleep(time.Millisecond)
+				}
+				if controller.queue.Len() != 1 || !controller.processNext(t.Context()) || controller.queue.NumRequeues(key) != 0 {
+					t.Fatal("retry did not finish after observing the retarget")
+				}
+			} else if err := controller.SyncOnce(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			if store.fetches != 2 || store.writes != 0 {
+				t.Fatal("old per-instance controller published against the new target")
+			}
+			replacement := &ReadDesireKubernetesController{
+				key: key, target: updated.Spec.TargetItem, namespaced: true,
+				fetcher: store, informer: informer, writer: controller.writer,
+			}
+			if err := replacement.SyncOnce(t.Context()); err != nil {
+				t.Fatalf("replacement SyncOnce: %v", err)
+			}
+			if store.fetches != 3 || store.writes != 1 || store.current.Status.KubeContent == nil {
+				t.Fatalf("replacement did not re-observe and publish: fetches=%d, writes=%d", store.fetches, store.writes)
+			}
+			content := &unstructured.Unstructured{}
+			if err := content.UnmarshalJSON(store.current.Status.KubeContent.Raw); err != nil || content.GetName() != "updated" {
+				t.Fatalf("replacement published wrong target: %v, error=%v", content, err)
+			}
+			if got := store.current.Status.Conditions; len(got) != 1 || got[0].Status != metav1.ConditionTrue {
+				t.Fatalf("replacement conditions = %v, want Successful=True", got)
+			}
+		})
+	}
 }
 
 func TestSyncOnce_TargetExists_PopulatesKubeContent(t *testing.T) {
@@ -350,7 +478,12 @@ func TestSyncOnce_NoOpWhenOnlyFormattingDiffers(t *testing.T) {
 
 	desire := newReadDesire(t, target)
 	desire.Status.KubeContent = &runtime.RawExtension{Raw: reformattedBytes}
-	c, w := startSyncedController(t, ctx, target, desire, dyn)
+	conditions.SetSuccessful(&desire.Status.Conditions, nil)
+	c, _ := startSyncedControllerRaw(t, ctx, target, desire, dyn)
+	store := &conditionalDesireStore{current: desire.DeepCopy()}
+	c.fetcher = store
+	c.writer = desirestatuswriter.New[kubeapplierapi.ReadDesire, *kubeapplierapi.ReadDesire](store)
+	original := store.current.DeepCopy()
 
 	// WHEN: the controller is synced
 	if err := c.SyncOnce(ctx); err != nil {
@@ -358,16 +491,15 @@ func TestSyncOnce_NoOpWhenOnlyFormattingDiffers(t *testing.T) {
 	}
 
 	// THEN: the status update is a no-op on content: the stored (reformatted) bytes are left untouched, proving the guard did not republish the canonical newRaw.
-	if len(w.updates) == 0 {
-		t.Fatal("no status update recorded")
+	if store.fetches != 1 || store.writes != 0 {
+		t.Fatalf("formatting-only sync: fetches=%d, writes=%d, want 1, 0", store.fetches, store.writes)
 	}
-	last := w.updates[len(w.updates)-1]
-	if last.Status.KubeContent == nil {
-		t.Fatal("KubeContent unexpectedly cleared on no-op sync")
+	if !reflect.DeepEqual(store.current, original) {
+		t.Fatal("formatting-only sync mutated the observed document")
 	}
-	if !bytes.Equal(last.Status.KubeContent.Raw, reformattedBytes) {
+	if !bytes.Equal(store.current.Status.KubeContent.Raw, reformattedBytes) {
 		t.Errorf("KubeContent was rewritten on a no-op sync:\n got  %s\n want %s",
-			last.Status.KubeContent.Raw, reformattedBytes)
+			store.current.Status.KubeContent.Raw, reformattedBytes)
 	}
 }
 
@@ -386,10 +518,10 @@ func getRawKubeContentFromUpdate(ctx context.Context, t *testing.T, target kubea
 
 // TestSyncOnce_NoOpResync_NoCosmosWrite is the end-to-end guarantee that a steady-state resync
 // (observed object semantically unchanged, Successful already True) must issue ZERO Cosmos writes.
-// Unlike TestSyncOnce_NoOpWhenOnlyFormattingDiffers, which swaps in a recordingWriter
-// and only asserts the mutate callback leaves KubeContent alone, this test
-// drives the REAL desirestatuswriter (fetch -> mutate -> DeepEqual -> replace)
-// and counts how often it actually reaches the replacer.
+// Unlike TestSyncOnce_NoOpWhenOnlyFormattingDiffers, which preserves formatting
+// in an in-memory store, this test uses the mock Cosmos CRUD round-trip with the
+// real desirestatuswriter (mutate -> DeepEqual -> replace) and counts how often
+// it actually reaches the replacer.
 func TestSyncOnce_NoOpResync_NoCosmosWrite(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -415,8 +547,8 @@ func TestSyncOnce_NoOpResync_NoCosmosWrite(t *testing.T) {
 
 	// Drive the real writer, but wrap its replacer so we can count actual writes.
 	rep := &countingReplacer{inner: &readDesireReplacer{crudByParent: mock}}
-	c.writer = desirestatuswriter.New[kubeapplierapi.ReadDesire, keys.ReadDesireKey, *kubeapplierapi.ReadDesire](
-		&readDesireFetcher{crudByParent: mock}, rep,
+	c.writer = desirestatuswriter.New[kubeapplierapi.ReadDesire, *kubeapplierapi.ReadDesire](
+		rep,
 	)
 
 	// WHEN: a resync fires against unchanged state.

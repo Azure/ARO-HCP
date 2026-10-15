@@ -143,7 +143,7 @@ func TestUpdateStatusFrom_ConflictAndNoOp(t *testing.T) {
 	conditions.SetSuccessfullyApplied(&operated.Status.Conditions, errors.New("previous failure"))
 	original := operated.DeepCopy()
 	store := &conditionalDesireStore{current: withEtag(operated.DeepCopy(), "v2")}
-	writer := desirestatuswriter.New[kubeapplierapi.ApplyDesire, keys.ApplyDesireKey, *kubeapplierapi.ApplyDesire](store, store)
+	writer := desirestatuswriter.New[kubeapplierapi.ApplyDesire, *kubeapplierapi.ApplyDesire](store)
 
 	err := writer.UpdateStatusFrom(t.Context(), operated, func(desired *kubeapplierapi.ApplyDesire) {
 		conditions.SetSuccessfullyApplied(&desired.Status.Conditions, nil)
@@ -211,7 +211,7 @@ func TestProcessNext_SpecChangeRejectsStaleAckAndRetries(t *testing.T) {
 			t.Cleanup(controller.queue.ShutDown)
 			controller.dyn = dyn
 			controller.fetcher = store
-			controller.writer = desirestatuswriter.New[kubeapplierapi.ApplyDesire, keys.ApplyDesireKey, *kubeapplierapi.ApplyDesire](store, store)
+			controller.writer = desirestatuswriter.New[kubeapplierapi.ApplyDesire, *kubeapplierapi.ApplyDesire](store)
 			key := mustKey(t, operated)
 			controller.queue.Add(key)
 
@@ -587,8 +587,8 @@ func TestSyncOnce_AppliedKubeGenerationSetOnSuccess(t *testing.T) {
 	c := &ApplyDesireController{
 		dyn:     dyn,
 		fetcher: fetcher,
-		writer: desirestatuswriter.New[kubeapplierapi.ApplyDesire, keys.ApplyDesireKey, *kubeapplierapi.ApplyDesire](
-			fetcher, replacer,
+		writer: desirestatuswriter.New[kubeapplierapi.ApplyDesire, *kubeapplierapi.ApplyDesire](
+			replacer,
 		),
 	}
 	key := mustKey(t, desire)
@@ -639,8 +639,8 @@ func TestSyncOnce_AppliedKubeGenerationNilOnFailure(t *testing.T) {
 	c := &ApplyDesireController{
 		dyn:     dyn,
 		fetcher: fetcher,
-		writer: desirestatuswriter.New[kubeapplierapi.ApplyDesire, keys.ApplyDesireKey, *kubeapplierapi.ApplyDesire](
-			fetcher, replacer,
+		writer: desirestatuswriter.New[kubeapplierapi.ApplyDesire, *kubeapplierapi.ApplyDesire](
+			replacer,
 		),
 	}
 	key := mustKey(t, desire)
@@ -927,8 +927,8 @@ func TestSyncOnce_WaitingForDeletionRequeues(t *testing.T) {
 	c := &ApplyDesireController{
 		dyn:     dyn,
 		fetcher: fetcher,
-		writer: desirestatuswriter.New[kubeapplierapi.ApplyDesire, keys.ApplyDesireKey, *kubeapplierapi.ApplyDesire](
-			fetcher, replacer,
+		writer: desirestatuswriter.New[kubeapplierapi.ApplyDesire, *kubeapplierapi.ApplyDesire](
+			replacer,
 		),
 		queue: workqueue.NewTypedRateLimitingQueueWithConfig(
 			workqueue.DefaultTypedControllerRateLimiter[keys.ApplyDesireKey](),
