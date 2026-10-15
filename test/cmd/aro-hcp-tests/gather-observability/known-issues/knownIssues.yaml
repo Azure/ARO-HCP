@@ -37,7 +37,14 @@ knownIssues:
   labels:
     namespace: "ocm-.*"
     pod: "cluster-network-operator-.*"
+  maxDuration: "10m"
   reason: "cluster-network-operator pods are transiently not-ready during HCP provisioning because their availability-prober init container gates on the guest cluster kube-apiserver (https://kube-apiserver:6443/readyz) and required network.operator.openshift.io APIs before the main container starts, which routinely exceeds the 5-minute KubePodNotReady threshold. Same pattern as the hosted-cluster-config-operator entry above."
+- name: "KubePodNotReady"
+  labels:
+    namespace: "ocm-.*"
+    pod: "etcd-.*"
+  maxDuration: "10m"
+  reason: "etcd pods can be transiently not-ready during HCP provisioning. Only firings that self-resolve within 10 minutes are suppressed, so sustained or still-firing etcd outages remain failures."
 - name: "KubePodNotReady"
   labels:
     namespace: "ocm-.*"
