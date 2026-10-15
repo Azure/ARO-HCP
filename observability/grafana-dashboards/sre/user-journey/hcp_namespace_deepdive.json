@@ -2077,7 +2077,7 @@
         "type": "prometheus",
         "uid": "${datasource_hcp}"
       },
-      "description": "Largest etcd member database size (warning at 2GB, critical at 8GB near quota limit).",
+      "description": "Size of the etcd database (warning at 2GB, critical at 8GB near quota limit).",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -2136,9 +2136,9 @@
             "type": "prometheus",
             "uid": "${datasource_hcp}"
           },
-          "expr": "max(etcd_mvcc_db_total_size_in_bytes{cluster=\"$cluster\", namespace=\"$namespace\"})",
+          "expr": "etcd_mvcc_db_total_size_in_bytes{cluster=\"$cluster\", namespace=\"$namespace\"}",
           "instant": true,
-          "legendFormat": "Largest member DB size",
+          "legendFormat": "{{pod}}",
           "range": false,
           "refId": "A"
         }
@@ -2151,7 +2151,7 @@
         "type": "prometheus",
         "uid": "${datasource_hcp}"
       },
-      "description": "Highest number of leader changes observed by an etcd member in the last hour (frequent changes indicate instability).",
+      "description": "How many times the etcd leader changed in the last hour (frequent changes = instability).",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -2209,9 +2209,9 @@
             "type": "prometheus",
             "uid": "${datasource_hcp}"
           },
-          "expr": "max(increase(etcd_server_leader_changes_seen_total{cluster=\"$cluster\", namespace=\"$namespace\"}[1h]))",
+          "expr": "increase(etcd_server_leader_changes_seen_total{cluster=\"$cluster\", namespace=\"$namespace\"}[1h])",
           "instant": true,
-          "legendFormat": "Max leader changes observed",
+          "legendFormat": "{{pod}}",
           "range": false,
           "refId": "A"
         }
