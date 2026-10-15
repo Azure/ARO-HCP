@@ -47,9 +47,9 @@ const (
 	consecutiveUnknownCountsCacheCapacity = 50000
 
 	// maxConsecutiveUnknownsBeforeWrite bounds how many consecutive Unknown validation results are
-	// suppressed (i.e. the previously stored condition is kept as-is) before an Unknown condition is
-	// allowed to overwrite it. This avoids flapping a cluster's validation status to Unknown on a
-	// transient blip while still surfacing a persistent Unknown once it has been observed repeatedly.
+	// suppressed after a True or Unknown condition before an Unknown condition is allowed to
+	// overwrite it. False conditions are overwritten immediately so inconclusive results cannot
+	// preserve a failure that the operation reducer treats as a continuous denial.
 	maxConsecutiveUnknownsBeforeWrite = 10
 )
 
@@ -125,6 +125,7 @@ func NewNamedClusterValidationController(
 	return controller
 }
 
+// SyncOnce evaluates a cluster validation, persists its condition, and schedules its next evaluation.
 func (c *clusterValidationSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
 	logger := utils.LoggerFromContext(ctx)
 
@@ -175,8 +176,8 @@ func (c *clusterValidationSyncer) SyncOnce(ctx context.Context, key controllerut
 
 	replacement := existingServiceProviderCluster.DeepCopy()
 
-	// If the validation was skipped, remove its condition so it doesn't appear in status. Otherwise, reconcile the condition with consecutive-Unknown
-	// suppression to avoid flapping on transient errors.
+	// If the validation was skipped, remove its condition so it doesn't appear in status. Otherwise,
+	// suppress transient Unknown results only when they cannot preserve a stale failure.
 	if result.Outcome.Type == validationutils.OutcomeTypeSkipped {
 		meta.RemoveStatusCondition(&replacement.Status.Validations, c.validation.Name())
 	} else {
@@ -228,22 +229,12 @@ func (c *clusterValidationSyncer) handleRequeue(key controllerutils.HCPClusterKe
 	}
 }
 
-// shouldWriteCondition reports whether the newly computed validation condition should be written, versus
-// suppressed in favor of leaving previousCondition (the condition currently stored for this validation, or
-// nil if none is stored yet) untouched.
-//
-// The write is suppressed only while all of the following hold:
-//   - previousCondition is non-nil (there's something worth preserving), and
-//   - consecutiveUnknowns is non-zero (the newly computed condition is Unknown; trackConsecutiveUnknowns
-//     returns 0 for any non-Unknown result), and
-//   - consecutiveUnknowns has not yet exceeded maxConsecutiveUnknownsBeforeWrite.
-//
-// This backs a suppression policy that avoids flapping a cluster's validation status to Unknown on a
-// transient blip: a persistent Unknown streak is still allowed to overwrite the stored condition once it
-// exceeds maxConsecutiveUnknownsBeforeWrite, and a Passed/Failed result (consecutiveUnknowns == 0) always
-// overwrites immediately, resetting the streak.
+// Reports whether to write a validation condition, suppressing transient Unknown results unless
+// the stored condition is False. An inconclusive result must immediately clear a failure so the
+// operation reducer cannot treat a stale denial as continuous. Passed and Failed results always
+// write, and persistent Unknown results write once the suppression threshold is exceeded.
 func (c *clusterValidationSyncer) shouldWriteCondition(previousCondition *metav1.Condition, consecutiveUnknowns int) bool {
-	return previousCondition == nil || consecutiveUnknowns == 0 || consecutiveUnknowns > maxConsecutiveUnknownsBeforeWrite
+	return previousCondition == nil || previousCondition.Status == metav1.ConditionFalse || consecutiveUnknowns == 0 || consecutiveUnknowns > maxConsecutiveUnknownsBeforeWrite
 }
 
 // trackConsecutiveUnknowns maintains the count of consecutive Unknown validation results for the given key. When condition is Unknown it increments and returns the
