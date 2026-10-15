@@ -6,7 +6,7 @@ digraph cluster_delete {
   resources [label="ClusterResources\ndrop NodePool / configuration ApplyDesires\nthen request ordered deletion", fillcolor="#e6f0fa", color="#35648a"];
   ordered [label="Kube-applier / HyperShift / Kubernetes\nManagedCluster → shared ingress manifests\n→ HostedCluster (NodePool cleanup)\n→ PodNetworkInstance → PodNetwork\n→ cluster namespaces\nWait for deletion at each stage", fillcolor="#fff0da", color="#b27624"];
   drained [label="ClusterResources\npurge completed ApplyDesires + paired reads\nfinally sweep owned orphan ReadDesires", fillcolor="#e6f0fa", color="#35648a"];
-  dispatch [label="ClusterClusterServiceDelete\nDispatch", fillcolor="#e6f0fa", color="#35648a"];
+  dispatch [label="ClusterClusterServiceDelete\nDispatch\nrecover pending ID before CS DELETE", fillcolor="#e6f0fa", color="#35648a"];
   cs [label="Cluster Service / external cleanup\nKubernetes and Azure resources", fillcolor="#fff0da", color="#b27624"];
   clear [label="ClusterDeletionClusterServiceID\nClearer", fillcolor="#e6f0fa", color="#35648a"];
   marker [label="ClusterCredentialDeletionMarker\nController", fillcolor="#e6f0fa", color="#35648a"];
