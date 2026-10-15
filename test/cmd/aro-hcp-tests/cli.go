@@ -69,11 +69,19 @@ func isUpgradeInPlaceSuiteInvocation() bool {
 	return false
 }
 
-// Build the test CLI with runtime suite defaults and resource budgets.
+// Build the test CLI with registration-time suite defaults and independent resource budgets.
 func setupCli() (*cobra.Command, error) {
 	configureGomegaFormatting()
-
 	containerCount, containerCountSource := parseMIContainerCount()
+	acquired := 0
+	if containerCountSource == framework.LeasedMSIContainersEnvvar {
+		acquired = containerCount
+	}
+	workers, err := parseSuiteConcurrency(acquired)
+	if err != nil {
+		return nil, err
+	}
+
 	pooledIdentitiesRaw := strings.TrimSpace(os.Getenv(framework.UsePooledIdentitiesEnvvar))
 	pooledIdentitiesEnabled, err := strconv.ParseBool(pooledIdentitiesRaw)
 	if err != nil && pooledIdentitiesRaw != "" {
@@ -109,7 +117,7 @@ func setupCli() (*cobra.Command, error) {
 	// Store the count so NewUpgradeBarrier can read it at spec-run time.
 	framework.SetUpgradeInPlaceSpecCount(upgradeInPlaceCount)
 
-	registerSuites(ext, miPools, upgradeInPlaceCount)
+	registerSuites(ext, miPools, upgradeInPlaceCount, workers)
 
 	// If using Ginkgo, specs were already built above. Hooks can be added here.
 

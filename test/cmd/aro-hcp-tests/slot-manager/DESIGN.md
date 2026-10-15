@@ -37,8 +37,7 @@ migration and recovery are not supported.
   asset orchestration remain in `catalog.go` and `asset_pools.go`.
 - Runtime publication combines core exports with handler `PublishLease`
   contributions through the shared runtime contract builder. The E2E identity
-  handler exclusively owns `LEASED_MSI_CONTAINERS` and the derived
-  `ARO_HCP_SUITE_PARALLELISM` default.
+  handler exclusively owns `LEASED_MSI_CONTAINERS`.
 
 ## Implementation status
 
@@ -567,9 +566,8 @@ Core exports include:
 - `ARO_HCP_E2E_SLOT_NAME`; and
 - `ARO_HCP_E2E_SLOT_RESOURCE_TYPE`.
 
-Asset handlers contribute asset-specific exports. The E2E identity handler
-owns `LEASED_MSI_CONTAINERS` and
-`ARO_HCP_SUITE_PARALLELISM`.
+Asset handlers contribute asset-specific exports. The E2E identity handler owns
+`LEASED_MSI_CONTAINERS`; it does not assign user worker overrides.
 `INFRA_SUBSCRIPTION_ID` is exported only when the selected pool demands an
 infrastructure asset and that subscription has been resolved.
 
@@ -582,23 +580,32 @@ acquired values without re-resolving pool behavior.
 
 ### Acquired identity count and suite defaults
 
-In every deployment environment, the E2E identity handler publishes
-`ARO_HCP_SUITE_PARALLELISM` as the count of the same resolved containers
-published in `LEASED_MSI_CONTAINERS`. Physical inventory and reserve containers
-do not contribute to this count.
+In every deployment environment, the E2E identity handler publishes the resolved
+acquired container names in `LEASED_MSI_CONTAINERS`. Physical inventory and reserve
+containers do not contribute to this list.
 
-The runtime contract assigns this default only when the variable is unset at
-source time, then exports the resulting value. User and CI overrides survive
-even when assigned after contract generation. An explicitly empty value also
-survives and selects the CLI's suite fallback defaults.
+Suite registration explicitly opts the integration and Stage fast, slow, and
+combined parallel suites and PROD fast and slow parallel suites into an acquired
+worker default. The count is derived from the exported list, independently of
+pooled identity mode. Resource-pool membership does not select this policy:
+specialized suites also consume MI resources but retain their worker fallbacks.
+`upgrade/in-place` retains its participant-based default so the complete cohort
+can reach its barrier.
+Explicit worker overrides for `upgrade/in-place` must allow the complete cohort
+to start; fewer workers leave participants queued behind the barrier.
 
-One resolver applies to every registered suite, independent of pooled identity
-mode: explicit `--max-concurrency`, then `ARO_HCP_SUITE_PARALLELISM`, then the
-suite default. Nonempty environment values must be positive integers. An explicit
-CLI value takes precedence without parsing the lower-priority environment value.
-The selected runner flag and suite cap match so the upstream minimum does not
-reduce the resolved worker count. Worker overrides do not change the leased MSI
-resource budget or upgrade/in-place coordination.
+`ARO_HCP_SUITE_PARALLELISM` is an exported user or CI override; the lease contract
+does not assign it. The CLI parses and validates it once during construction and
+applies it when registering suites. A nonempty value must be a positive integer
+and applies globally. An explicitly empty value opts out of the acquired default.
+An absent acquired list retains suite fallbacks.
+
+The worker precedence is explicit `--max-concurrency`, then the user override,
+then the opt-in acquired count, then the suite fallback. Invalid environment
+configuration fails CLI construction. The runtime hook handles the CLI flag
+against the registered value, keeping the runner flag and selected suite cap
+consistent.
+Worker overrides do not change the independent leased MSI resource budget.
 
 The CLI entrypoint is in `main.go`, orchestration in `cli.go`, suite definitions
 in `suites.go`, and concurrency resolution in `concurrency.go`. MI scheduling and

@@ -296,9 +296,8 @@ func WriteRuntimeContract(sharedDir string, contract *RuntimeContractBuilder) er
 }
 
 type runtimeExport struct {
-	owner       string
-	value       string
-	defaultOnly bool
+	owner string
+	value string
 }
 
 type RuntimeContractBuilder struct {
@@ -313,16 +312,6 @@ var shellIdentifier = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
 // Add reserves an export and always replaces its value when the contract is sourced.
 func (b *RuntimeContractBuilder) Add(owner, key, value string) error {
-	return b.add(owner, key, value, false)
-}
-
-// AddDefault reserves an export, assigning its default only if unset when sourced.
-func (b *RuntimeContractBuilder) AddDefault(owner, key, value string) error {
-	return b.add(owner, key, value, true)
-}
-
-// Record validates ownership and records the source-time assignment mode.
-func (b *RuntimeContractBuilder) add(owner, key, value string, defaultOnly bool) error {
 	owner = strings.TrimSpace(owner)
 	if owner == "" {
 		return errors.New("runtime export owner is empty")
@@ -339,11 +328,11 @@ func (b *RuntimeContractBuilder) add(owner, key, value string, defaultOnly bool)
 	if existing, found := b.exports[key]; found {
 		return fmt.Errorf("runtime export %q is already owned by %q and cannot be published by %q", key, existing.owner, owner)
 	}
-	b.exports[key] = runtimeExport{owner: owner, value: value, defaultOnly: defaultOnly}
+	b.exports[key] = runtimeExport{owner: owner, value: value}
 	return nil
 }
 
-// MarshalShell emits safely quoted exports with defaults guarded at source time.
+// MarshalShell emits safely quoted exports.
 func (b *RuntimeContractBuilder) MarshalShell() []byte {
 	keys := make([]string, 0, len(b.exports))
 	for key := range b.exports {
@@ -355,11 +344,7 @@ func (b *RuntimeContractBuilder) MarshalShell() []byte {
 	for _, key := range keys {
 		export := b.exports[key]
 		value := strings.ReplaceAll(export.value, "'", "'\"'\"'")
-		if export.defaultOnly {
-			fmt.Fprintf(&builder, "if [ \"${%s+x}\" != x ]; then\n%s='%s'\nfi\nexport %s\n", key, key, value, key)
-		} else {
-			fmt.Fprintf(&builder, "export %s='%s'\n", key, value)
-		}
+		fmt.Fprintf(&builder, "export %s='%s'\n", key, value)
 	}
 	return []byte(builder.String())
 }
