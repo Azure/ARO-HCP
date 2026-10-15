@@ -177,24 +177,13 @@ func TestWriteAcquiredSlotStateAndRuntimeContract(t *testing.T) {
 func TestRuntimeContractRejectsExportCollisions(t *testing.T) {
 	t.Parallel()
 
-	for _, firstDefault := range []bool{false, true} {
-		for _, secondDefault := range []bool{false, true} {
-			for _, owner := range []string{"core", "asset"} {
-				contract := NewRuntimeContractBuilder()
-				first, second := contract.Add, contract.Add
-				if firstDefault {
-					first = contract.AddDefault
-				}
-				if secondDefault {
-					second = contract.AddDefault
-				}
-				if err := first("core", "SHARED_VALUE", "one"); err != nil {
-					t.Fatalf("expected first export to succeed: %v", err)
-				}
-				if err := second(owner, "SHARED_VALUE", "two"); err == nil || !strings.Contains(err.Error(), "already owned") {
-					t.Fatalf("expected export collision for defaults %t/%t and owner %q, got %v", firstDefault, secondDefault, owner, err)
-				}
-			}
+	for _, owner := range []string{"core", "asset"} {
+		contract := NewRuntimeContractBuilder()
+		if err := contract.Add("core", "SHARED_VALUE", "one"); err != nil {
+			t.Fatalf("expected first export to succeed: %v", err)
+		}
+		if err := contract.Add(owner, "SHARED_VALUE", "two"); err == nil || !strings.Contains(err.Error(), "already owned") {
+			t.Fatalf("expected export collision for owner %q, got %v", owner, err)
 		}
 	}
 }
@@ -225,57 +214,24 @@ func TestE2EOnlyStateAndRuntimeOmitInfrastructure(t *testing.T) {
 
 func TestRuntimeContractShellIdentifiers(t *testing.T) {
 	t.Parallel()
-	for _, defaultOnly := range []bool{false, true} {
-		add := NewRuntimeContractBuilder().Add
-		if defaultOnly {
-			add = NewRuntimeContractBuilder().AddDefault
-		}
-		for _, key := range []string{"NAME", "_name", "Name_01"} {
-			if err := add("asset", key, "value"); err != nil {
-				t.Errorf("valid identifier %q rejected: %v", key, err)
-			}
-		}
-		// Test the validator directly; never execute the rejected shell syntax.
-		for _, key := range []string{"", "0NAME", " NAME", "NAME ", "A-B", "A.B", "A;B", "A$(id)", "A`id`", "A/B", "A\\B", "A(B)", "A[0]", "A|B", "A&B", "A\nB", "é", "NAME=value"} {
-			if err := add("asset", key, "value"); err == nil {
-				t.Errorf("unsafe identifier %q accepted", key)
-			}
-		}
-		if err := add(" \t", "EMPTY_OWNER", "value"); err == nil {
-			t.Error("empty export owner accepted")
-		}
-		contract := NewRuntimeContractBuilder()
-		add = contract.Add
-		if defaultOnly {
-			add = contract.AddDefault
-		}
-		value := "one'$(printf unsafe)`printf unsafe`\nsecond line"
-		if err := add("asset", "VALUE", value); err != nil {
-			t.Fatal(err)
-		}
-		sharedDir := t.TempDir()
-		if err := WriteRuntimeContract(sharedDir, contract); err != nil {
-			t.Fatal(err)
-		}
-		envFile, err := EnvFile(sharedDir)
-		if err != nil {
-			t.Fatal(err)
-		}
-		cmd := exec.Command("sh", "-c", `unset VALUE; . "$1"; sh -c 'printf "%s" "$VALUE"'`, "sh", envFile)
-		output, err := cmd.CombinedOutput()
-		if err != nil || string(output) != value {
-			t.Fatalf("default=%t shell value was not safely exported: %q, %v", defaultOnly, output, err)
+	add := NewRuntimeContractBuilder().Add
+	for _, key := range []string{"NAME", "_name", "Name_01"} {
+		if err := add("asset", key, "value"); err != nil {
+			t.Errorf("valid identifier %q rejected: %v", key, err)
 		}
 	}
-}
-
-func TestRuntimeContractDefaultsAtSourceBoundary(t *testing.T) {
-	t.Setenv("DEFAULT_VALUE", "generator override")
+	// Test the validator directly; never execute the rejected shell syntax.
+	for _, key := range []string{"", "0NAME", " NAME", "NAME ", "A-B", "A.B", "A;B", "A$(id)", "A`id`", "A/B", "A\\B", "A(B)", "A[0]", "A|B", "A&B", "A\nB", "é", "NAME=value"} {
+		if err := add("asset", key, "value"); err == nil {
+			t.Errorf("unsafe identifier %q accepted", key)
+		}
+	}
+	if err := add(" \t", "EMPTY_OWNER", "value"); err == nil {
+		t.Error("empty export owner accepted")
+	}
 	contract := NewRuntimeContractBuilder()
-	if err := contract.AddDefault("asset", "DEFAULT_VALUE", "acquired count"); err != nil {
-		t.Fatal(err)
-	}
-	if err := contract.Add("core", "ORDINARY_VALUE", "published value"); err != nil {
+	value := "one'$(printf unsafe)`printf unsafe`\nsecond line"
+	if err := contract.Add("asset", "VALUE", value); err != nil {
 		t.Fatal(err)
 	}
 	sharedDir := t.TempDir()
@@ -286,21 +242,10 @@ func TestRuntimeContractDefaultsAtSourceBoundary(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, test := range []struct {
-		name, setup, want string
-	}{
-		{"unset", "unset DEFAULT_VALUE", "acquired count"},
-		{"exported override", "export DEFAULT_VALUE='exported override'", "exported override"},
-		{"late override", "DEFAULT_VALUE='caller override'", "caller override"},
-		{"explicit empty", "DEFAULT_VALUE=''", ""},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			cmd := exec.Command("sh", "-eu", "-c", `unset DEFAULT_VALUE; `+test.setup+`; ORDINARY_VALUE=stale; . "$1"; sh -eu -c 'printf "%s\n%s" "$DEFAULT_VALUE" "$ORDINARY_VALUE"'`, "sh", envFile)
-			output, err := cmd.CombinedOutput()
-			if err != nil || string(output) != test.want+"\npublished value" {
-				t.Fatalf("source-time default or ordinary export failed: %q, %v", output, err)
-			}
-		})
+	cmd := exec.Command("sh", "-c", `VALUE=stale; . "$1"; sh -c 'printf "%s" "$VALUE"'`, "sh", envFile)
+	output, err := cmd.CombinedOutput()
+	if err != nil || string(output) != value {
+		t.Fatalf("shell value was not safely exported: %q, %v", output, err)
 	}
 }
 

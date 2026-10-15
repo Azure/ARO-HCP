@@ -24,20 +24,37 @@ import (
 	e "github.com/openshift-eng/openshift-tests-extension/pkg/extension"
 )
 
-// Resolve suite workers in explicit CLI, environment, then suite-default order.
-func resolveSuiteConcurrency(suiteDefault int, env string, cli *int) (int, error) {
-	if cli != nil {
-		// Leave explicit CLI values to the upstream flag and runner validation.
-		return *cli, nil
+// SuiteConcurrency holds construction-time worker defaults, independently of MI admission.
+type suiteConcurrency struct {
+	override int
+	acquired int
+}
+
+// Parse suite worker settings once before registration; an explicitly empty override opts out.
+func parseSuiteConcurrency(acquired int) (suiteConcurrency, error) {
+	value, supplied := os.LookupEnv("ARO_HCP_SUITE_PARALLELISM")
+	if supplied {
+		if value == "" {
+			return suiteConcurrency{}, nil
+		}
+		override, err := strconv.Atoi(value)
+		if err != nil || override <= 0 {
+			return suiteConcurrency{}, fmt.Errorf("ARO_HCP_SUITE_PARALLELISM=%q is not a valid positive integer", value)
+		}
+		return suiteConcurrency{override: override}, nil
 	}
-	if env == "" {
-		return suiteDefault, nil
+	return suiteConcurrency{acquired: acquired}, nil
+}
+
+// Resolve a suite's workers using the user override, explicit lease opt-in, then fallback.
+func (workers suiteConcurrency) resolve(fallback int, useAcquired bool) int {
+	if workers.override > 0 {
+		return workers.override
 	}
-	concurrency, err := strconv.Atoi(env)
-	if err != nil || concurrency <= 0 {
-		return 0, fmt.Errorf("ARO_HCP_SUITE_PARALLELISM=%q is not a valid positive integer", env)
+	if useAcquired && workers.acquired > 0 {
+		return workers.acquired
 	}
-	return concurrency, nil
+	return fallback
 }
 
 // Configure every selected suite's worker count independently of MI resource admission.
@@ -70,17 +87,14 @@ func configureSuiteConcurrency(command *cobra.Command, registry *e.Registry) {
 		if flag == nil {
 			return fmt.Errorf("run-suite is missing the expected --max-concurrency flag")
 		}
-		var cli *int
+		concurrency := suite.Parallelism
 		if flag.Changed {
 			value, err := c.Flags().GetInt("max-concurrency")
 			if err != nil {
 				return fmt.Errorf("reading run-suite --max-concurrency: %w", err)
 			}
-			cli = &value
-		}
-		concurrency, err := resolveSuiteConcurrency(suite.Parallelism, os.Getenv("ARO_HCP_SUITE_PARALLELISM"), cli)
-		if err != nil {
-			return err
+			// Leave explicit CLI values to the upstream flag and runner validation.
+			concurrency = value
 		}
 		if err := flag.Value.Set(strconv.Itoa(concurrency)); err != nil {
 			return fmt.Errorf("setting run-suite --max-concurrency: %w", err)
@@ -95,6 +109,22 @@ func configureSuiteConcurrency(command *cobra.Command, registry *e.Registry) {
 		}
 		return nil
 	}
+}
+
+// Resolve suite workers in explicit CLI, environment, then suite-default order.
+func resolveSuiteConcurrency(suiteDefault int, env string, cli *int) (int, error) {
+	if cli != nil {
+		// Leave explicit CLI values to the upstream flag and runner validation.
+		return *cli, nil
+	}
+	if env == "" {
+		return suiteDefault, nil
+	}
+	concurrency, err := strconv.Atoi(env)
+	if err != nil || concurrency <= 0 {
+		return 0, fmt.Errorf("ARO_HCP_SUITE_PARALLELISM=%q is not a valid positive integer", env)
+	}
+	return concurrency, nil
 }
 
 // Apply the same environment resolution to metadata without preempting CLI overrides.

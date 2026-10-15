@@ -28,12 +28,18 @@ import (
 	"testing"
 	"time"
 
+	"github.com/spf13/cobra"
+
 	"github.com/openshift-eng/openshift-tests-extension/pkg/cmd/cmdrun"
 	e "github.com/openshift-eng/openshift-tests-extension/pkg/extension"
 	et "github.com/openshift-eng/openshift-tests-extension/pkg/extension/extensiontests"
 	"github.com/openshift-eng/openshift-tests-extension/pkg/util/sets"
 
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets"
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets/e2eidentities"
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
 	"github.com/Azure/ARO-HCP/test/util/framework"
+	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/testutil"
 )
 
@@ -345,49 +351,6 @@ func TestMainListSuitesForEachSuite(t *testing.T) {
 	}
 }
 
-func TestResolveSuiteConcurrency(t *testing.T) {
-	value := func(n int) *int { return &n }
-	for _, tc := range []struct {
-		name         string
-		suiteDefault int
-		env          string
-		cli          *int
-		want         int
-		wantError    bool
-	}{
-		{name: "suite default above upstream ten", suiteDefault: 34, want: 34},
-		{name: "suite default below upstream ten", suiteDefault: 3, want: 3},
-		{name: "zero suite default preserved", want: 0},
-		{name: "environment replaces default", suiteDefault: 24, env: "75", want: 75},
-		{name: "environment positive boundary", suiteDefault: 24, env: "1", want: 1},
-		{name: "explicit exceeds environment", suiteDefault: 24, env: "75", cli: value(100), want: 100},
-		{name: "explicit below environment", suiteDefault: 24, env: "75", cli: value(2), want: 2},
-		{name: "explicit ignores invalid environment", suiteDefault: 24, env: "invalid", cli: value(13), want: 13},
-		{name: "explicit ignores nonpositive environment", suiteDefault: 24, env: "0", cli: value(13), want: 13},
-		{name: "explicit zero left to upstream", suiteDefault: 24, env: "invalid", cli: value(0), want: 0},
-		{name: "explicit negative left to upstream", suiteDefault: 24, cli: value(-1), want: -1},
-		{name: "nonnumeric environment fails", env: "invalid", wantError: true},
-		{name: "zero environment fails", env: "0", wantError: true},
-		{name: "negative environment fails", env: "-1", wantError: true},
-		{name: "fractional environment fails", env: "1.5", wantError: true},
-		{name: "whitespace environment fails", env: " 75 ", wantError: true},
-		{name: "overflow environment fails", env: "999999999999999999999999999999999999", wantError: true},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			got, err := resolveSuiteConcurrency(tc.suiteDefault, tc.env, tc.cli)
-			if tc.wantError {
-				if err == nil || !strings.Contains(err.Error(), "ARO_HCP_SUITE_PARALLELISM") {
-					t.Fatalf("resolve error = %v, want actionable environment error", err)
-				}
-				return
-			}
-			if err != nil || got != tc.want {
-				t.Fatalf("resolved concurrency = %d, %v; want %d, nil", got, err, tc.want)
-			}
-		})
-	}
-}
-
 func listSuites(t *testing.T) map[string]e.Suite {
 	t.Helper()
 	output, err := os.CreateTemp(t.TempDir(), "suites-*.json")
@@ -428,69 +391,119 @@ func TestSuiteConcurrencyMetadata(t *testing.T) {
 	t.Setenv("ARO_HCP_SUITE_PARALLELISM", "")
 	t.Setenv(framework.UsePooledIdentitiesEnvvar, "false")
 	baseline := listSuites(t)
-	// These are the original fallback defaults, not the upstream runner's ten.
-	for name, want := range map[string]int{
-		"integration/parallel":          24,
-		"stage/parallel":                34,
-		"prod/parallel":                 19,
-		"dev-cd-check/parallel":         20,
-		"rp-api-compat-all/parallel":    24,
-		"hypershift-presubmit/parallel": 24,
-	} {
+	fallbacks := map[string]int{
+		"integration/parallel": 24, "integration/parallel/slow": 24, "integration/parallel/all": 24,
+		"stage/parallel": 34, "stage/parallel/slow": 34, "stage/parallel/all": 34,
+		"prod/parallel": 19, "prod/parallel/slow": 19,
+		"dev-cd-check/parallel": 20, "rp-api-compat-all/parallel": 24,
+		"rp-api-compat-all/parallel/slow": 24, "hypershift-presubmit/parallel": 24,
+		"upgrade/in-place": baseline["upgrade/in-place"].Parallelism,
+	}
+	for name, want := range fallbacks {
 		if got := baseline[name].Parallelism; got != want {
 			t.Errorf("%s fallback = %d, want %d", name, got, want)
 		}
 	}
-	t.Setenv(framework.LeasedMSIContainersEnvvar, strings.TrimSpace(strings.Repeat("container ", 75)))
+	acquired := sourceIdentityLease(t)
 	for _, pooled := range []string{"false", "true"} {
-		for _, override := range []string{"", "1", "60"} {
-			t.Run("pooled="+pooled+"/override="+override, func(t *testing.T) {
-				t.Setenv(framework.UsePooledIdentitiesEnvvar, pooled)
-				t.Setenv("ARO_HCP_SUITE_PARALLELISM", override)
-				suites := listSuites(t)
-				if len(suites) != len(baseline) {
-					t.Fatalf("listed %d suites, want %d", len(suites), len(baseline))
-				}
-				for name, original := range baseline {
-					suite, ok := suites[name]
-					if !ok {
-						t.Fatalf("suite %q is missing", name)
+		for _, lease := range []string{"", " \t ", acquired} {
+			for _, override := range []string{"unset", "", "1", "60"} {
+				t.Run(fmt.Sprintf("pooled=%s/lease=%q/override=%s", pooled, lease, override), func(t *testing.T) {
+					t.Setenv(framework.UsePooledIdentitiesEnvvar, pooled)
+					t.Setenv(framework.LeasedMSIContainersEnvvar, lease)
+					t.Setenv("ARO_HCP_SUITE_PARALLELISM", override)
+					if override == "unset" {
+						if err := os.Unsetenv("ARO_HCP_SUITE_PARALLELISM"); err != nil {
+							t.Fatal(err)
+						}
 					}
-					want := original.Parallelism
-					switch override {
-					case "1":
-						want = 1
-					case "60":
-						want = 60
+					suites := listSuites(t)
+					if len(suites) != len(fallbacks) {
+						t.Fatalf("listed %d suites, want %d", len(suites), len(fallbacks))
 					}
-					if suite.Parallelism != want {
-						t.Errorf("%s parallelism = %d, want %d", name, suite.Parallelism, want)
+					for name, fallback := range fallbacks {
+						want := fallback
+						if override == "1" {
+							want = 1
+						}
+						if override == "60" {
+							want = 60
+						}
+						ordinary := strings.HasPrefix(name, "integration/") || strings.HasPrefix(name, "stage/") || strings.HasPrefix(name, "prod/")
+						if override == "unset" && lease == acquired && ordinary {
+							want = 2
+						}
+						if suites[name].Parallelism != want {
+							t.Errorf("%s workers = %d, want %d", name, suites[name].Parallelism, want)
+						}
+						wantPool := 0
+						if pooled == "true" && name != "upgrade/in-place" {
+							wantPool = DefaultMIContainerCount
+							if lease == acquired {
+								wantPool = 2
+							}
+						}
+						if got := suites[name].ResourcePools["mi-containers"]; got != wantPool {
+							t.Errorf("%s MI pool = %d, want %d", name, got, wantPool)
+						}
 					}
-					wantPool := 0
-					if pooled == "true" && name != "upgrade/in-place" {
-						wantPool = 75
-					}
-					if suite.ResourcePools["mi-containers"] != wantPool {
-						t.Errorf("%s MI budget = %d, want %d", name, suite.ResourcePools["mi-containers"], wantPool)
-					}
-				}
-			})
+				})
+			}
 		}
 	}
 }
 
-func TestInvalidSuiteConcurrencyMetadata(t *testing.T) {
+// Source the actual handler's published runtime file, including the downstream export boundary.
+func sourceIdentityLease(t *testing.T) string {
+	t.Helper()
+	contract := slots.NewRuntimeContractBuilder()
+	request := assets.LeaseRequest{AcquiredSlotState: &slots.AcquiredSlotState{Slot: slots.ExpandedSlot{
+		IdentityContainerCount: 10,
+		Assets: slots.ResolvedAssets{E2EIdentities: &slots.ResolvedE2EIdentitiesAsset{
+			ResourceGroups: []string{"identity-rg-02", "identity-rg-01"},
+		}},
+	}}}
+	if err := e2eidentities.NewHandler().PublishLease(context.Background(), request, contract); err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	if err := slots.WriteRuntimeContract(dir, contract); err != nil {
+		t.Fatal(err)
+	}
+	envFile, err := slots.EnvFile(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	output, err := exec.Command("sh", "-eu", "-c", `unset ARO_HCP_SUITE_PARALLELISM; . "$1"; sh -eu -c 'env -0'`, "sh", envFile).Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var lease string
+	for _, entry := range strings.Split(string(output), "\x00") {
+		key, value, ok := strings.Cut(entry, "=")
+		if !ok {
+			continue
+		}
+		if key == "ARO_HCP_SUITE_PARALLELISM" {
+			t.Fatalf("lease unexpectedly published global user override %q", value)
+		}
+		if key == framework.LeasedMSIContainersEnvvar {
+			lease = value
+		}
+	}
+	if lease != "identity-rg-02 identity-rg-01" {
+		t.Fatalf("published lease = %q", lease)
+	}
+	return lease
+}
+
+func TestInvalidSuiteConcurrencyConstruction(t *testing.T) {
 	for _, value := range []string{"invalid", "0", "-1", "1.5", " 75 ", `{"int":75}`, "999999999999999999999999999999999999"} {
 		t.Run(value, func(t *testing.T) {
 			t.Setenv("ARO_HCP_SUITE_PARALLELISM", value)
 			root, err := setupCli()
-			if err != nil {
-				t.Fatalf("setup must defer environment resolution until command execution: %v", err)
-			}
-			root.SetArgs([]string{"list", "suites", "--output", "json"})
-			captureStderr(t, func() { err = root.Execute() })
-			if err == nil || !strings.Contains(err.Error(), "ARO_HCP_SUITE_PARALLELISM") {
-				t.Fatalf("metadata error = %v, want invalid environment error", err)
+			if err == nil || !strings.Contains(err.Error(), "ARO_HCP_SUITE_PARALLELISM") || root != nil {
+				t.Fatalf("construction = %v, %v; want nil CLI and actionable environment error before flags execute", root, err)
 			}
 		})
 	}
@@ -499,19 +512,16 @@ func TestInvalidSuiteConcurrencyMetadata(t *testing.T) {
 func TestSuiteConcurrencyRunSuiteErrors(t *testing.T) {
 	for _, tc := range []struct {
 		name        string
-		env         string
 		args        []string
 		missingFlag bool
 		wantError   string
 	}{
-		{name: "invalid environment", env: "invalid", args: []string{"specialized"}, wantError: "ARO_HCP_SUITE_PARALLELISM"},
 		{name: "missing concurrency flag", args: []string{"specialized"}, missingFlag: true, wantError: "missing the expected --max-concurrency flag"},
 		{name: "unknown component", args: []string{"specialized", "--component", "unknown"}, wantError: "component not found: unknown"},
 		{name: "unknown suite", args: []string{"unknown"}, wantError: `couldn't find suite "unknown": no such suite: unknown`},
 		{name: "missing suite", wantError: "must specify one suite name"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Setenv("ARO_HCP_SUITE_PARALLELISM", tc.env)
 			ext := e.NewExtension("aro-hcp", "payload", "errors")
 			ext.AddSuite(e.Suite{Name: "specialized", Parallelism: 24})
 			registry := e.NewRegistry()
@@ -533,12 +543,14 @@ func TestSuiteConcurrencyRunSuiteErrors(t *testing.T) {
 }
 
 func TestSuiteConcurrencyUsesActualRunner(t *testing.T) {
+	acquiredLease := sourceIdentityLease(t)
 	for _, tc := range []struct {
 		name        string
 		suite       string
 		parallelism int
 		env         string
 		pooled      bool
+		acquired    bool
 		explicit    string
 		demand      int
 		want        int
@@ -551,7 +563,6 @@ func TestSuiteConcurrencyUsesActualRunner(t *testing.T) {
 		{name: "explicit exceeds environment", suite: "integration/parallel/all", parallelism: 24, env: "60", explicit: "100", want: 100},
 		{name: "explicit exceeds suite default", suite: "prod/parallel/slow", parallelism: 19, explicit: "100", want: 100},
 		{name: "explicit below environment", suite: "integration/parallel", parallelism: 24, env: "75", explicit: "25", want: 25},
-		{name: "explicit ignores invalid environment", suite: "stage/parallel", parallelism: 34, env: "invalid", explicit: "100", want: 100},
 		{name: "leased pool still limits demand", suite: "stage/parallel", parallelism: 34, env: "60", explicit: "100", pooled: true, demand: 1, want: 75, wantWorkers: 100},
 		{name: "upgrade explicit overrides suite cap", suite: "upgrade/in-place", parallelism: 20, explicit: "100", want: 100},
 		{name: "dev CD environment override", suite: "dev-cd-check/parallel", parallelism: 20, env: "60", want: 60},
@@ -559,19 +570,53 @@ func TestSuiteConcurrencyUsesActualRunner(t *testing.T) {
 		{name: "hypershift original default", suite: "hypershift-presubmit/parallel", parallelism: 24, want: 24},
 		{name: "unlisted future suite", suite: "future/specialized", parallelism: 3, explicit: "20", want: 20},
 		{name: "positive environment boundary", suite: "prod/parallel", parallelism: 19, env: "1", want: 1},
+		{name: "acquired ordinary workers without pooling", suite: "integration/parallel", acquired: true, env: "unset", want: 2},
+		{name: "acquired ordinary workers with pooling", suite: "stage/parallel", acquired: true, pooled: true, env: "unset", want: 2},
+		{name: "acquired explicit empty opt-out", suite: "prod/parallel", acquired: true, want: 19},
+		{name: "explicit flag beats acquired default", suite: "integration/parallel", acquired: true, env: "unset", explicit: "4", want: 4},
+		{name: "user override beats acquired default", suite: "integration/parallel", acquired: true, env: "4", want: 4},
+		{name: "low lease dev CD default", suite: "dev-cd-check/parallel", acquired: true, env: "unset", want: 20},
+		{name: "low lease RP API default", suite: "rp-api-compat-all/parallel", acquired: true, env: "unset", want: 24},
+		{name: "low lease RP API slow default", suite: "rp-api-compat-all/parallel/slow", acquired: true, env: "unset", want: 24},
+		{name: "low lease hypershift default", suite: "hypershift-presubmit/parallel", acquired: true, env: "unset", want: 24},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Setenv("ARO_HCP_SUITE_PARALLELISM", tc.env)
+			if tc.env == "unset" {
+				if err := os.Unsetenv("ARO_HCP_SUITE_PARALLELISM"); err != nil {
+					t.Fatal(err)
+				}
+			}
+			t.Setenv(framework.LeasedMSIContainersEnvvar, strings.Repeat("container ", 75))
+			if tc.acquired {
+				t.Setenv(framework.LeasedMSIContainersEnvvar, acquiredLease)
+			}
+			count, _ := parseMIContainerCount()
 			var pools map[string]int
 			if tc.pooled {
-				pools = map[string]int{"mi-containers": 75}
+				pools = map[string]int{"mi-containers": count}
 			}
 			ext := e.NewExtension("aro-hcp", "payload", "concurrency-test")
-			ext.AddSuite(e.Suite{
-				Name:          tc.suite,
-				Parallelism:   tc.parallelism,
-				ResourcePools: pools,
-			})
+			workers, err := parseSuiteConcurrency(count)
+			if err != nil {
+				t.Fatal(err)
+			}
+			registerSuites(ext, pools, 20, workers)
+			if tc.suite == "future/specialized" {
+				ext.AddSuite(e.Suite{Name: tc.suite, Parallelism: tc.parallelism})
+			}
+			// Later environment changes cannot affect the already-registered policy.
+			t.Setenv("ARO_HCP_SUITE_PARALLELISM", "invalid-after-construction")
+			specLabels := sets.New[string](labels.RequireNothing[0], labels.AroRpApiCompatible[0], labels.Positive[0])
+			if strings.HasSuffix(tc.suite, "/slow") {
+				specLabels.Insert(labels.Slow[0])
+			}
+			if strings.HasPrefix(tc.suite, "hypershift-") {
+				specLabels.Insert(labels.HypershiftPresubmit[0])
+			}
+			if tc.suite == "upgrade/in-place" {
+				specLabels.Insert(labels.UpgradeInPlace[0])
+			}
 			var mu sync.Mutex
 			active, peak := 0, 0
 			started := make(chan struct{}, 110)
@@ -583,7 +628,8 @@ func TestSuiteConcurrencyUsesActualRunner(t *testing.T) {
 			}
 			for i := range 110 {
 				specs = append(specs, &et.ExtensionTestSpec{
-					Name: fmt.Sprintf("concurrency-%03d", i),
+					Name:   fmt.Sprintf("concurrency-%03d", i),
+					Labels: specLabels,
 					Resources: et.Resources{
 						ResourcePools: demands,
 					},
@@ -647,19 +693,105 @@ func TestSuiteConcurrencyUsesActualRunner(t *testing.T) {
 			if tc.wantWorkers != 0 {
 				resolved = tc.wantWorkers
 			}
+			selected, err := ext.GetSuite(tc.suite)
+			if err != nil {
+				t.Fatal(err)
+			}
 			flagValue, err := command.Flags().GetInt("max-concurrency")
-			if err != nil || flagValue != resolved || ext.Suites[0].Parallelism != resolved {
-				t.Errorf("worker flag/cap = %d/%d (%v), want both %d", flagValue, ext.Suites[0].Parallelism, err, resolved)
+			if err != nil || flagValue != resolved || selected.Parallelism != resolved {
+				t.Errorf("worker flag/cap = %d/%d (%v), want both %d", flagValue, selected.Parallelism, err, resolved)
 			}
 			wantPool := 0
 			if tc.pooled {
-				wantPool = 75
+				wantPool = count
 			}
-			if got := ext.Suites[0].ResourcePools["mi-containers"]; got != wantPool {
+			if got := selected.ResourcePools["mi-containers"]; got != wantPool {
 				t.Errorf("MI pool capacity = %d, want unchanged %d", got, wantPool)
 			}
 			if peak != tc.want {
 				t.Errorf("actual runner peak concurrency = %d, want %d", peak, tc.want)
+			}
+		})
+	}
+}
+
+func TestAcquiredLeaseUpgradeCohortUsesActualRunner(t *testing.T) {
+	const participants = 3
+	lease := sourceIdentityLease(t)
+	for _, pooled := range []bool{false, true} {
+		t.Run(fmt.Sprintf("pooled=%t", pooled), func(t *testing.T) {
+			t.Setenv("ARO_HCP_SUITE_PARALLELISM", "")
+			if err := os.Unsetenv("ARO_HCP_SUITE_PARALLELISM"); err != nil {
+				t.Fatal(err)
+			}
+			t.Setenv(framework.LeasedMSIContainersEnvvar, lease)
+			count, source := parseMIContainerCount()
+			if source != framework.LeasedMSIContainersEnvvar || count != 2 {
+				t.Fatalf("acquired count/source = %d/%s", count, source)
+			}
+			workers, err := parseSuiteConcurrency(count)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var pools map[string]int
+			if pooled {
+				pools = map[string]int{"mi-containers": count}
+			}
+			ext := e.NewExtension("aro-hcp", "payload", "upgrade-cohort")
+			registerSuites(ext, pools, participants, workers)
+			arrived := 0
+			var mu sync.Mutex
+			barrier := make(chan struct{})
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			var specs et.ExtensionTestSpecs
+			for i := range participants {
+				specs = append(specs, &et.ExtensionTestSpec{
+					Name:   fmt.Sprintf("upgrade-participant-%d", i),
+					Labels: sets.New(labels.UpgradeInPlace[0]),
+					Run: func(context.Context) *et.ExtensionTestResult {
+						mu.Lock()
+						arrived++
+						if arrived == participants {
+							close(barrier)
+						}
+						mu.Unlock()
+						select {
+						case <-barrier:
+							return &et.ExtensionTestResult{Result: et.ResultPassed}
+						case <-ctx.Done():
+							return &et.ExtensionTestResult{Result: et.ResultFailed}
+						}
+					},
+				})
+			}
+			ext.AddSpecs(specs)
+			registry := e.NewRegistry()
+			registry.Register(ext)
+			command := cmdrun.NewRunSuiteCommand(registry)
+			commandHook, rootHook := false, false
+			command.PreRun = func(*cobra.Command, []string) { commandHook = true }
+			configureSuiteConcurrency(command, registry)
+			root := &cobra.Command{PersistentPreRun: func(*cobra.Command, []string) { rootHook = true }}
+			root.AddCommand(command)
+			root.SetArgs([]string{"run-suite", "upgrade/in-place"})
+			output, err := os.CreateTemp(t.TempDir(), "upgrade-results-*.json")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer output.Close()
+			originalStdout := os.Stdout
+			os.Stdout = output
+			defer func() { os.Stdout = originalStdout }()
+			err = root.ExecuteContext(ctx)
+			if err != nil || ctx.Err() != nil {
+				t.Fatalf("complete upgrade cohort failed to cross barrier: %v, context: %v", err, ctx.Err())
+			}
+			if arrived != participants {
+				t.Fatalf("started %d participants, want %d", arrived, participants)
+			}
+			if !commandHook || !rootHook {
+				t.Fatalf("preserved hooks: command=%t root=%t", commandHook, rootHook)
 			}
 		})
 	}

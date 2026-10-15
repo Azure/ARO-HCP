@@ -104,9 +104,6 @@ func TestHandlerOwnsIdentityRuntimeExports(t *testing.T) {
 	if err := contract.Add("other", "LEASED_MSI_CONTAINERS", ""); err == nil {
 		t.Fatal("identity export ownership must not be reassigned")
 	}
-	if err := contract.Add("other", "ARO_HCP_SUITE_PARALLELISM", ""); err == nil {
-		t.Fatal("suite parallelism export ownership must not be reassigned")
-	}
 	sharedDir := t.TempDir()
 	if err := slots.WriteRuntimeContract(sharedDir, contract); err != nil {
 		t.Fatal(err)
@@ -118,12 +115,13 @@ func TestHandlerOwnsIdentityRuntimeExports(t *testing.T) {
 	for _, test := range []struct {
 		name, setup, want string
 	}{
-		{"acquired count", "unset ARO_HCP_SUITE_PARALLELISM", "2"},
-		{"late caller override", "ARO_HCP_SUITE_PARALLELISM=7", "7"},
-		{"explicit empty", "ARO_HCP_SUITE_PARALLELISM=''", ""},
+		{"unset", "unset ARO_HCP_SUITE_PARALLELISM", ":\n:"},
+		{"exported caller override", "export ARO_HCP_SUITE_PARALLELISM=7", "x:7\nx:7"},
+		{"unexported caller override", "ARO_HCP_SUITE_PARALLELISM=7", "x:7\n:"},
+		{"explicit empty", "export ARO_HCP_SUITE_PARALLELISM=''", "x:\nx:"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			cmd := exec.Command("sh", "-eu", "-c", `unset ARO_HCP_SUITE_PARALLELISM; `+test.setup+`; LEASED_MSI_CONTAINERS=stale; . "$1"; sh -eu -c 'printf "%s\n%s" "$LEASED_MSI_CONTAINERS" "$ARO_HCP_SUITE_PARALLELISM"'`, "sh", envFile)
+			cmd := exec.Command("sh", "-eu", "-c", `unset ARO_HCP_SUITE_PARALLELISM; `+test.setup+`; LEASED_MSI_CONTAINERS=stale; . "$1"; printf "%s\n%s:%s\n" "$LEASED_MSI_CONTAINERS" "${ARO_HCP_SUITE_PARALLELISM+x}" "${ARO_HCP_SUITE_PARALLELISM-}"; sh -eu -c 'printf "%s:%s" "${ARO_HCP_SUITE_PARALLELISM+x}" "${ARO_HCP_SUITE_PARALLELISM-}"'`, "sh", envFile)
 			output, err := cmd.CombinedOutput()
 			want := "identity-rg-02 identity-rg-01\n" + test.want
 			if err != nil || string(output) != want {
