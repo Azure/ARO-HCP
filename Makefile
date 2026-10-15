@@ -113,7 +113,7 @@ verify-tool-versions:
 update: deepcopy json-format
 .PHONY: update
 
-verify: verify-deepcopy verify-json-format verify-generate verify-yamlfmt verify-materialize verify-gomega-assertions verify-gomega-cmpdiff verify-mi-containers verify-schema verify-bicep-fixtures verify-tool-versions
+verify: verify-deepcopy verify-json-format verify-generate verify-yamlfmt verify-materialize verify-gomega-assertions verify-gomega-cmpdiff verify-controller-watches verify-mi-containers verify-schema verify-bicep-fixtures verify-tool-versions
 .PHONY: verify
 
 verify-schema:
@@ -127,6 +127,14 @@ verify-gomega-assertions:
 verify-gomega-cmpdiff:
 	go run ./hack/verify-gomega-cmpdiff ./test/e2e ./test/util/...
 .PHONY: verify-gomega-cmpdiff
+
+verify-controller-watches:
+	go run ./hack/verify-controller-watches
+.PHONY: verify-controller-watches
+
+update-controller-watches:
+	go run ./hack/verify-controller-watches -update
+.PHONY: update-controller-watches
 
 verify-mi-containers:
 	go run ./hack/verify-mi-containers ./test/e2e/
