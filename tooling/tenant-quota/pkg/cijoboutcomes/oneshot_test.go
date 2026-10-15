@@ -127,6 +127,12 @@ func TestOneShotDefaultChecksLiveTagsWithoutIngestors(t *testing.T) {
 				body := kustoResult("found", `[]`)
 				return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": {"application/json"}}, Body: io.NopCloser(strings.NewReader(body))}, nil
 			}
+			// The names gate reads the dimension table; it is a read, so it
+			// runs in dry-run too.
+			if strings.Contains(request.CSL, "distinct testId") {
+				body := kustoResult("testId", `[]`)
+				return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": {"application/json"}}, Body: io.NopCloser(strings.NewReader(body))}, nil
+			}
 			require.Contains(t, request.CSL, "extents where tags has")
 			queries.Add(1)
 			rows := `[]`

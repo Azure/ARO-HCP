@@ -65,7 +65,10 @@ func newTestWriter(t *testing.T) *Writer {
 	w.e2eRows = func(context.Context, *http.Client, string) ([]ciTestResult, []ciTestName, error) {
 		return []ciTestResult{{BuildID: string(testBuildID), TestID: "e2e"}}, []ciTestName{{TestID: "e2e", Name: "full name"}}, nil
 	}
-	w.observabilityRows = w.e2eRows
+	w.observabilityRows = func(context.Context, *http.Client, string) ([]ciTestResult, []ciTestName, error) {
+		return []ciTestResult{{BuildID: string(testBuildID), TestID: "observability"}},
+			[]ciTestName{{TestID: "observability", Name: "[aro-hcp-observability] full name"}}, nil
+	}
 	t.Cleanup(w.queue.ShutDown)
 	t.Cleanup(w.discoveryQueue.ShutDown)
 	return w
@@ -114,7 +117,11 @@ func TestAcceptedCacheExpiryAllowsRepair(t *testing.T) {
 	require.Equal(t, 20000, w.batches.capacity)
 	require.Equal(t, 15*time.Minute, w.batches.ttl)
 	now := time.Now()
-	w.batches.now = func() time.Time { return now }
+	// Names expire on their own cache, so repair depends on both clocks.
+	clock := func() time.Time { return now }
+	w.batches.now = clock
+	w.names.now = clock
+	w.names.claimed.now = clock
 	submissions := 0
 	w.submit = func(context.Context, batchKind, BuildID, *bytes.Buffer) error { submissions++; return nil }
 	for range 2 {
