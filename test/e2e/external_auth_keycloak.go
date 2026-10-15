@@ -271,7 +271,7 @@ var _ = Describe("Customer", func() {
 			Expect(browserLogin).NotTo(BeNil(), "browserless console login result was nil")
 			Expect(browserLogin.AuthorizationRequest).NotTo(BeNil(), "console login did not capture a Keycloak authorization request")
 			Expect(browserLogin.FinalURL).NotTo(BeNil(), "console login final URL was nil")
-			Expect(browserLogin.ConsoleCookies).NotTo(BeEmpty(), "console login did not establish a session cookie")
+			Expect(browserLogin.ConsoleSessionCookie).NotTo(BeNil(), "console login did not establish an OpenShift console session cookie")
 
 			authorizationQuery := browserLogin.AuthorizationRequest.Query()
 			Expect(authorizationQuery.Get("client_id")).To(Equal(consoleClientID), "console authorization request should use the Keycloak console client")
@@ -294,8 +294,8 @@ var _ = Describe("Customer", func() {
 			Expect(accessToken).NotTo(BeEmpty(), "Keycloak access token was empty")
 
 			By("verifying the Keycloak token username and groups through the Kubernetes API")
-oidcRESTConfig := rest.AnonymousClientConfig(adminRESTConfig)
-oidcRESTConfig.BearerToken = accessToken
+			oidcRESTConfig := rest.AnonymousClientConfig(adminRESTConfig)
+			oidcRESTConfig.BearerToken = accessToken
 			oidcClient, err := kubernetes.NewForConfig(oidcRESTConfig)
 			Expect(err).NotTo(HaveOccurred(), "failed to create Kubernetes client with Keycloak token")
 

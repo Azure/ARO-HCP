@@ -42,7 +42,10 @@ import (
 	"k8s.io/utils/ptr"
 )
 
-const keycloakTestImage = "quay.io/keycloak/keycloak@sha256:9409c59bdfb65dbffa20b11e6f18b8abb9281d480c7ca402f51ed3d5977e6007"
+const (
+	keycloakTestImage                 = "quay.io/keycloak/keycloak@sha256:9409c59bdfb65dbffa20b11e6f18b8abb9281d480c7ca402f51ed3d5977e6007"
+	openshiftConsoleSessionCookieName = "openshift-session-token"
+)
 
 type KeycloakTestProviderOptions struct {
 	Realm                  string
@@ -68,7 +71,7 @@ type KeycloakTestProvider struct {
 type BrowserLoginResult struct {
 	AuthorizationRequest *url.URL
 	FinalURL             *url.URL
-	ConsoleCookies       []*http.Cookie
+	ConsoleSessionCookie *http.Cookie
 }
 
 type keycloakRealm struct {
@@ -465,16 +468,25 @@ func CompleteKeycloakConsoleLogin(ctx context.Context, consoleLoginURL, keycloak
 	if !strings.EqualFold(resp.Request.URL.Host, consoleURL.Host) {
 		return nil, fmt.Errorf("console login ended at %q instead of console host %q", resp.Request.URL.Host, consoleURL.Host)
 	}
-	consoleCookies := jar.Cookies(consoleURL)
-	if len(consoleCookies) == 0 {
-		return nil, fmt.Errorf("console login completed without establishing a console session cookie")
+	consoleSessionCookie := findCookieWithPrefix(jar.Cookies(consoleURL), openshiftConsoleSessionCookieName)
+	if consoleSessionCookie == nil {
+		return nil, fmt.Errorf("console login completed without establishing an %q session cookie", openshiftConsoleSessionCookieName)
 	}
 
 	return &BrowserLoginResult{
 		AuthorizationRequest: authorizationRequest,
 		FinalURL:             resp.Request.URL,
-		ConsoleCookies:       consoleCookies,
+		ConsoleSessionCookie: consoleSessionCookie,
 	}, nil
+}
+
+func findCookieWithPrefix(cookies []*http.Cookie, prefix string) *http.Cookie {
+	for _, cookie := range cookies {
+		if (cookie.Name == prefix || strings.HasPrefix(cookie.Name, prefix+"-")) && cookie.Value != "" {
+			return cookie
+		}
+	}
+	return nil
 }
 
 func buildKeycloakRealm(options KeycloakTestProviderOptions) keycloakRealm {

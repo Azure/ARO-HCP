@@ -20,7 +20,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -81,7 +80,7 @@ func TestCompleteKeycloakConsoleLogin(t *testing.T) {
 			http.SetCookie(w, &http.Cookie{Name: "KEYCLOAK_SESSION", Value: "session", Path: "/"})
 			http.Redirect(w, r, server.URL+"/console/auth/callback?code=test-code", http.StatusFound)
 		case "/console/auth/callback":
-			http.SetCookie(w, &http.Cookie{Name: "console-session", Value: "session", Path: "/"})
+			http.SetCookie(w, &http.Cookie{Name: "openshift-session-token-console-1", Value: "session", Path: "/"})
 			http.Redirect(w, r, server.URL+"/console/", http.StatusFound)
 		case "/console/":
 			w.WriteHeader(http.StatusOK)
@@ -106,7 +105,43 @@ func TestCompleteKeycloakConsoleLogin(t *testing.T) {
 	assert.Equal(t, "console-client", result.AuthorizationRequest.Query().Get("client_id"))
 	require.NotNil(t, result.FinalURL)
 	assert.Equal(t, "/console/", result.FinalURL.Path)
-	assert.True(t, containsCookie(result.ConsoleCookies, "console-session"))
+	require.NotNil(t, result.ConsoleSessionCookie)
+	assert.Equal(t, "openshift-session-token-console-1", result.ConsoleSessionCookie.Name)
+}
+
+func TestCompleteKeycloakConsoleLoginRejectsKeycloakCookieAsConsoleSession(t *testing.T) {
+	var server *httptest.Server
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/console/auth/login":
+			http.Redirect(w, r, server.URL+"/realms/e2e/protocol/openid-connect/auth", http.StatusFound)
+		case "/realms/e2e/protocol/openid-connect/auth":
+			_, _ = fmt.Fprint(w, `<html><body><form id="kc-form-login" action="/realms/e2e/login-actions/authenticate" method="post"><input name="username"><input name="password"></form></body></html>`)
+		case "/realms/e2e/login-actions/authenticate":
+			http.SetCookie(w, &http.Cookie{Name: "KEYCLOAK_SESSION", Value: "session", Path: "/"})
+			http.Redirect(w, r, server.URL+"/console/auth/callback?code=test-code", http.StatusFound)
+		case "/console/auth/callback":
+			http.Redirect(w, r, server.URL+"/console/error", http.StatusFound)
+		case "/console/error":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("login failed"))
+		default:
+			http.NotFound(w, r)
+		}
+	})
+	server = httptest.NewTLSServer(handler)
+	defer server.Close()
+
+	result, err := CompleteKeycloakConsoleLogin(
+		context.Background(),
+		server.URL+"/console/auth/login",
+		server.URL+"/realms/e2e",
+		"test-user",
+		"test-password",
+	)
+
+	require.Nil(t, result)
+	require.EqualError(t, err, `console login completed without establishing an "openshift-session-token" session cookie`)
 }
 
 func TestCheckConsoleLoginRedirect(t *testing.T) {
@@ -162,13 +197,4 @@ func TestRequestKeycloakPasswordToken(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, "test-token", token)
-}
-
-func containsCookie(cookies []*http.Cookie, name string) bool {
-	for _, cookie := range cookies {
-		if strings.EqualFold(cookie.Name, name) {
-			return true
-		}
-	}
-	return false
 }
