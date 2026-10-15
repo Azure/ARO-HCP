@@ -94,6 +94,12 @@ concurrent Cluster Service delete dispatch, and the cluster-delete diagram.
 The generation instructions are maintained in [controller-data-flow.md](prompts/controller-data-flow.md).
 The historical filename is retained for existing links.
 
+Fleet registration update baseline: `42a6fcfd9` plus working-tree changes;
+scope: Fleet's twelve controller launch entries now use the shared typed
+`controllerregistry.Registration` mechanism. Constructor wiring, worker counts,
+node-pool enablement, and the leader-election/cache-sync startup barrier are
+preserved; resource effects and lifecycle diagrams are unchanged.
+
 - [Cosmos request attribution](#request-unit-ru-attribution)
 - [Endpoint writes](#1-frontend-endpoint-writes)
 - [Controller catalog](#2-complete-controller-catalog)
@@ -799,7 +805,7 @@ infrastructure, not additional controller catalog entries.
 | Service | Startup evidence |
 |---|---|
 | Backend | [backend.go](../backend/pkg/app/backend.go) launches the unordered [controller registry](../backend/pkg/app/controller_registry.go), including conditional deny-assignment registration and all validation/metrics instances; [ControllerContext](../backend/pkg/controllers/controllerconfig/context.go) owns shared dependencies |
-| Fleet | [manager.go](../fleet/pkg/manager/manager.go) |
+| Fleet | [controller_registry.go](../fleet/pkg/manager/controller_registry.go), per-package `registration.go` files under [controllers](../fleet/pkg/controllers/), and [manager.go](../fleet/pkg/manager/manager.go) for leader election |
 | Kube-applier | [kube_applier.go](../kube-applier/pkg/app/kube_applier.go); read manager creates target read controllers dynamically |
 | Management-agent | [options.go](../mgmt-agent/cmd/options.go) |
 | Sessiongate | [options.go](../sessiongate/cmd/options.go) |
@@ -2024,6 +2030,19 @@ Maintains Prometheus series for node-pool provisioning and removes stale series 
 Maintains Prometheus series for external-auth provisioning and removes stale series on deletion. No Cosmos domain write or external mutation.
 
 ### Fleet controllers
+
+Fleet uses the same generic [registration type](../internal/controllerregistry/registry.go)
+as the backend, with a Fleet-specific [controller context](../fleet/pkg/controllers/controllerconfig/context.go).
+The [registry](../fleet/pkg/manager/controller_registry.go) contains twelve entries,
+including the shared union kube-applier informer controller. The node-pool entry
+is enabled only when a profile is configured. Registration constructs controllers
+before leader election; the leader callback starts Fleet informers, waits for the
+Stamp and ManagementCluster caches, then launches registered controllers.
+Clusters Service registration, Maestro registration, and node-pool controllers
+use four workers; union informer management uses two; the other entries use one.
+HCP resource requirements and AMW scaling retain their own polling loops through
+the `SingleWorker` adapter. The union informer controller is constructed once in
+the context so its consumers and its registration share the same informer surfaces.
 
 #### ClustersServiceRegistrationController
 
