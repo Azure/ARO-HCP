@@ -30,6 +30,7 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/mismatch"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
@@ -691,6 +692,43 @@ func TestChildCleanupGateResolutionErrors(t *testing.T) {
 
 			require.ErrorIs(t, err, testCase.resolutionError)
 			require.Equal(t, testCase.wantAllowed, allowed)
+		})
+	}
+}
+
+func TestStackDesireGenericCleanup(t *testing.T) {
+	for _, orphaned := range []bool{false, true} {
+		t.Run(fmt.Sprintf("orphaned=%t", orphaned), func(t *testing.T) {
+			ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
+			cluster := newTestCluster(t, func(cluster *coreapi.Cluster) {
+				cluster.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: time.Now()}
+				cluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp = cluster.ServiceProviderProperties.DeletionTimestamp
+				cluster.ServiceProviderProperties.ClusterServiceID = nil
+			})
+			desire := &coreapi.StackDesire{CosmosMetadata: coreapi.CosmosMetadata{
+				ResourceID:   metadataapi.Must(azcorearm.ParseResourceID(cluster.ID.String() + "/" + coreapi.StackDesireResourceTypeName + "/role-assignments")),
+				PartitionKey: strings.ToLower(testSubscriptionID),
+			}}
+			resources := []any{desire}
+			if !orphaned {
+				resources = append(resources, cluster)
+			}
+			db, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, resources)
+			require.NoError(t, err)
+			if orphaned {
+				controller := mismatch.NewDeleteOrphanedCosmosResourcesController(nil, db, nil, nil, &fleetlistertesting.SliceManagementClusterLister{})
+				require.NoError(t, controller.SyncOnce(ctx, testSubscriptionID))
+			} else {
+				controller := &clusterChildResourcesCleanupController{
+					clusterLister:     &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{cluster}},
+					resourcesDBClient: db,
+				}
+				require.NoError(t, controller.SyncOnce(ctx, controllerutils.HCPClusterKey{
+					SubscriptionID: testSubscriptionID, ResourceGroupName: testResourceGroupName, HCPClusterName: testClusterName,
+				}))
+			}
+			_, err = db.StackDesires(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, "role-assignments")
+			require.True(t, cosmosstorageutils.IsNotFoundError(err), "generic Resources sweep must remove StackDesire without a type-specific hook")
 		})
 	}
 }

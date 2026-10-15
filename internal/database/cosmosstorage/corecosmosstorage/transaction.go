@@ -169,6 +169,8 @@ func (r *cosmosDBTransactionResult) GetItem(cosmosUID string) (any, error) {
 	}
 
 	switch strings.ToLower(typedDoc.ResourceType) {
+	case strings.ToLower(coreapi.StackDesireResourceType.String()):
+		return getCastResult[coreapi.StackDesire, cosmosstorageutils.GenericDocument[coreapi.StackDesire]](r, cosmosUID)
 	case strings.ToLower(coreapi.ClusterResourceType.String()):
 		return getCastResult[coreapi.Cluster, cosmosstorageutils.GenericDocument[coreapi.Cluster]](r, cosmosUID)
 	case strings.ToLower(coreapi.NodePoolResourceType.String()):

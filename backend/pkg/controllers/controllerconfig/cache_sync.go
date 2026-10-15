@@ -63,6 +63,12 @@ type trackingBackendInformers struct {
 	tracking *cacheTracking
 }
 
+func (informers *trackingBackendInformers) StackDesires() (cache.SharedIndexInformer, corelisters.StackDesireLister) {
+	informer, lister := informers.BackendInformers.StackDesires()
+	informers.tracking.add(informer.HasSynced)
+	return informer, lister
+}
+
 func (informers *trackingBackendInformers) Subscriptions() (cache.SharedIndexInformer, corelisters.SubscriptionLister) {
 	informer, lister := informers.BackendInformers.Subscriptions()
 	informers.tracking.add(informer.HasSynced)

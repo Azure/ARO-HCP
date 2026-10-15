@@ -33,6 +33,13 @@ type mockResourcesGlobalListers struct {
 
 var _ corecosmosstorage.ResourcesGlobalListers = &mockResourcesGlobalListers{}
 
+func (g *mockResourcesGlobalListers) StackDesires() cosmosstorageutils.GlobalLister[coreapi.StackDesire] {
+	return &MockGlobalLister[coreapi.StackDesire, cosmosstorageutils.GenericDocument[coreapi.StackDesire]]{
+		client:        g.client,
+		resourceTypes: []azcorearm.ResourceType{coreapi.StackDesireResourceType},
+	}
+}
+
 func (g *mockResourcesGlobalListers) Subscriptions() cosmosstorageutils.GlobalLister[coreapi.Subscription] {
 	return &mockSubscriptionGlobalLister{client: g.client}
 }

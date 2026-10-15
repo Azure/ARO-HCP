@@ -1,0 +1,192 @@
+{
+  "apiVersion": "2024-03-01",
+  "azureCLI": "2.90.0",
+  "responses": [
+    {
+      "case": "05-resource-validation/submit",
+      "method": "PUT",
+      "url": "https://management.azure.com/subscriptions/SUBSCRIPTION_ID/resourceGroups/PROBE_RESOURCE_GROUP/providers/Microsoft.Resources/deploymentStacks/resource-validation?api-version=2024-03-01",
+      "status": 201,
+      "headers": {
+        "Content-Type": "application/json; charset=utf-8",
+        "Retry-After": "17",
+        "Azure-AsyncOperation": "https://management.azure.com/subscriptions/SUBSCRIPTION_ID/providers/Microsoft.Resources/locations/westus2/deploymentStackOperationStatus/REDACTED_UUID?api-version=2024-03-01&t=REDACTED&c=REDACTED&s=REDACTED&h=REDACTED"
+      },
+      "body": {
+        "properties": {
+          "actionOnUnmanage": {
+            "resources": "delete",
+            "resourceGroups": "detach",
+            "managementGroups": "detach",
+            "resourcesWithoutDeleteSupport": "fail"
+          },
+          "denySettings": {
+            "mode": "none",
+            "applyToChildScopes": false,
+            "excludedPrincipals": [],
+            "excludedActions": []
+          },
+          "resources": [],
+          "provisioningState": "initializing",
+          "detachedResources": [],
+          "deletedResources": [],
+          "failedResources": [],
+          "correlationId": "REDACTED_UUID"
+        },
+        "systemData": {
+          "createdBy": "REDACTED_EMAIL",
+          "createdByType": "User",
+          "createdAt": "2026-10-14T23:26:58.633679Z",
+          "lastModifiedBy": "REDACTED_EMAIL",
+          "lastModifiedByType": "User",
+          "lastModifiedAt": "2026-10-14T23:26:58.633679Z"
+        },
+        "id": "/subscriptions/SUBSCRIPTION_ID/resourceGroups/PROBE_RESOURCE_GROUP/providers/Microsoft.Resources/deploymentStacks/resource-validation",
+        "type": "Microsoft.Resources/deploymentStacks",
+        "name": "resource-validation"
+      },
+      "requestBody": {
+        "properties": {
+          "template": {
+            "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+            "contentVersion": "1.0.0.0",
+            "resources": [
+              {
+                "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+                "apiVersion": "2023-01-31",
+                "name": "bad-location",
+                "location": "not-a-real-azure-region"
+              }
+            ]
+          },
+          "actionOnUnmanage": {
+            "resources": "delete"
+          },
+          "denySettings": {
+            "mode": "none"
+          }
+        }
+      },
+      "requestSHA256": "70a2bb6ac9256cdc9b4d602abd84e92884a0571f3081ce9ab51735f9674eec52"
+    },
+    {
+      "case": "05-resource-validation/get",
+      "method": "GET",
+      "url": "https://management.azure.com/subscriptions/SUBSCRIPTION_ID/resourceGroups/PROBE_RESOURCE_GROUP/providers/Microsoft.Resources/deploymentStacks/resource-validation?api-version=2024-03-01",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json; charset=utf-8"
+      },
+      "body": {
+        "properties": {
+          "actionOnUnmanage": {
+            "resources": "delete",
+            "resourceGroups": "detach",
+            "managementGroups": "detach",
+            "resourcesWithoutDeleteSupport": "fail"
+          },
+          "denySettings": {
+            "mode": "none",
+            "applyToChildScopes": false,
+            "excludedPrincipals": [],
+            "excludedActions": []
+          },
+          "resources": [],
+          "provisioningState": "initializing",
+          "detachedResources": [],
+          "deletedResources": [],
+          "failedResources": [],
+          "correlationId": "REDACTED_UUID"
+        },
+        "systemData": {
+          "createdBy": "REDACTED_EMAIL",
+          "createdByType": "User",
+          "createdAt": "2026-10-14T23:26:58.633679Z",
+          "lastModifiedBy": "REDACTED_EMAIL",
+          "lastModifiedByType": "User",
+          "lastModifiedAt": "2026-10-14T23:26:58.633679Z"
+        },
+        "id": "/subscriptions/SUBSCRIPTION_ID/resourceGroups/PROBE_RESOURCE_GROUP/providers/Microsoft.Resources/deploymentStacks/resource-validation",
+        "type": "Microsoft.Resources/deploymentStacks",
+        "name": "resource-validation"
+      }
+    },
+    {
+      "case": "05-resource-validation/get",
+      "method": "GET",
+      "url": "https://management.azure.com/subscriptions/SUBSCRIPTION_ID/resourceGroups/PROBE_RESOURCE_GROUP/providers/Microsoft.Resources/deploymentStacks/resource-validation?api-version=2024-03-01",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json; charset=utf-8"
+      },
+      "body": {
+        "properties": {
+          "actionOnUnmanage": {
+            "resources": "delete",
+            "resourceGroups": "detach",
+            "managementGroups": "detach",
+            "resourcesWithoutDeleteSupport": "fail"
+          },
+          "duration": "PT2.0836099S",
+          "denySettings": {
+            "mode": "none",
+            "applyToChildScopes": false,
+            "excludedPrincipals": [],
+            "excludedActions": []
+          },
+          "resources": [],
+          "provisioningState": "failed",
+          "detachedResources": [],
+          "deletedResources": [],
+          "failedResources": [],
+          "error": {
+            "code": "DeploymentStackDeploymentFailed",
+            "message": "One or more resources could not be deployed. Correlation id: 'REDACTED_UUID'.",
+            "details": [
+              {
+                "code": "InvalidResourceLocation",
+                "message": "The specified location 'not-a-real-azure-region' is invalid. A location must consist of characters, whitespace, digit, or following symbols '(,)'."
+              }
+            ]
+          },
+          "correlationId": "REDACTED_UUID"
+        },
+        "systemData": {
+          "createdBy": "REDACTED_EMAIL",
+          "createdByType": "User",
+          "createdAt": "2026-10-14T23:26:58.633679Z",
+          "lastModifiedBy": "REDACTED_EMAIL",
+          "lastModifiedByType": "User",
+          "lastModifiedAt": "2026-10-14T23:26:58.633679Z"
+        },
+        "id": "/subscriptions/SUBSCRIPTION_ID/resourceGroups/PROBE_RESOURCE_GROUP/providers/Microsoft.Resources/deploymentStacks/resource-validation",
+        "type": "Microsoft.Resources/deploymentStacks",
+        "name": "resource-validation"
+      }
+    },
+    {
+      "case": "05-resource-validation/async-operation-get",
+      "method": "GET",
+      "url": "https://management.azure.com/subscriptions/SUBSCRIPTION_ID/providers/Microsoft.Resources/locations/westus2/deploymentStackOperationStatus/REDACTED_UUID?api-version=2024-03-01&t=REDACTED&c=REDACTED&s=REDACTED&h=REDACTED",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json; charset=utf-8"
+      },
+      "body": {
+        "id": "/subscriptions/SUBSCRIPTION_ID/providers/Microsoft.Resources/locations/westus2/deploymentStackOperationStatus/REDACTED_UUID",
+        "name": "REDACTED_UUID",
+        "status": "failed",
+        "error": {
+          "code": "DeploymentStackDeploymentFailed",
+          "message": "One or more resources could not be deployed. Correlation id: 'REDACTED_UUID'.",
+          "details": [
+            {
+              "code": "InvalidResourceLocation",
+              "message": "The specified location 'not-a-real-azure-region' is invalid. A location must consist of characters, whitespace, digit, or following symbols '(,)'."
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

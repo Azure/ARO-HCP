@@ -32,6 +32,7 @@ import (
 )
 
 type BackendInformers interface {
+	StackDesires() (cache.SharedIndexInformer, corelisters.StackDesireLister)
 	Subscriptions() (cache.SharedIndexInformer, corelisters.SubscriptionLister)
 	ActiveOperations() (cache.SharedIndexInformer, corelisters.ActiveOperationLister)
 	AllOperations() cache.SharedIndexInformer
@@ -54,6 +55,8 @@ type BackendInformers interface {
 }
 
 type backendInformers struct {
+	stackDesireInformer  cache.SharedIndexInformer
+	stackDesireLister    corelisters.StackDesireLister
 	subscriptionInformer cache.SharedIndexInformer
 	subscriptionLister   corelisters.SubscriptionLister
 
@@ -93,6 +96,10 @@ type backendInformers struct {
 
 	billingInformer cache.SharedIndexInformer
 	billingLister   corelisters.BillingLister
+}
+
+func (b *backendInformers) StackDesires() (cache.SharedIndexInformer, corelisters.StackDesireLister) {
+	return b.stackDesireInformer, b.stackDesireLister
 }
 
 func (b *backendInformers) Subscriptions() (cache.SharedIndexInformer, corelisters.SubscriptionLister) {
@@ -153,6 +160,7 @@ func (b *backendInformers) BillingDocs() (cache.SharedIndexInformer, corelisters
 
 func (b *backendInformers) HasSynced() bool {
 	return b.subscriptionInformer.HasSynced() &&
+		b.stackDesireInformer.HasSynced() &&
 		b.activeOperationInformer.HasSynced() &&
 		b.allOperationInformer.HasSynced() &&
 		b.clusterInformer.HasSynced() &&
@@ -175,6 +183,7 @@ func NewBackendInformers(ctx context.Context, resourcesGlobalListers corecosmoss
 func NewBackendInformersWithRelistDuration(ctx context.Context, resourcesGlobalListers corecosmosstorage.ResourcesGlobalListers, resourcesDBClient corecosmosstorage.ResourcesDBClient, billingGlobalListers billingcosmosstorage.BillingGlobalListers, relistDuration *time.Duration) BackendInformers {
 	subscriptionRelistDuration := SubscriptionRelistDuration
 	clusterRelistDuration := ClusterRelistDuration
+	stackDesireRelistDuration := StackDesireRelistDuration
 	nodePoolRelistDuration := NodePoolRelistDuration
 	externalAuthRelistDuration := ExternalAuthRelistDuration
 	serviceProviderClusterRelistDuration := ServiceProviderClusterRelistDuration
@@ -190,6 +199,7 @@ func NewBackendInformersWithRelistDuration(ctx context.Context, resourcesGlobalL
 	if relistDuration != nil {
 		subscriptionRelistDuration = *relistDuration
 		clusterRelistDuration = *relistDuration
+		stackDesireRelistDuration = *relistDuration
 		nodePoolRelistDuration = *relistDuration
 		externalAuthRelistDuration = *relistDuration
 		serviceProviderClusterRelistDuration = *relistDuration
@@ -205,6 +215,8 @@ func NewBackendInformersWithRelistDuration(ctx context.Context, resourcesGlobalL
 	}
 
 	ret := &backendInformers{}
+	ret.stackDesireInformer = NewStackDesireInformerWithRelistDuration(resourcesGlobalListers.StackDesires(), resourcesDBClient, stackDesireRelistDuration)
+	ret.stackDesireLister = corelisters.NewStackDesireLister(ret.stackDesireInformer.GetIndexer())
 	ret.subscriptionInformer = NewSubscriptionInformerWithRelistDuration(resourcesGlobalListers.Subscriptions(), resourcesDBClient, subscriptionRelistDuration)
 	ret.activeOperationInformer = NewActiveOperationInformerWithRelistDuration(resourcesGlobalListers.ActiveOperations(), resourcesDBClient, activeOperationsRelistDuration)
 	ret.allOperationInformer = NewOperationInformerWithRelistDuration(resourcesGlobalListers.Operations(), resourcesDBClient, allOperationsRelistDuration)
@@ -244,6 +256,13 @@ func (b *backendInformers) RunWithContext(ctx context.Context) {
 	defer logger.Info("stopped informers")
 
 	wg := sync.WaitGroup{}
+	wg.Add(1)
+	go func() {
+		defer utilruntime.HandleCrash()
+		defer wg.Done()
+		localLogger := logger.WithValues("type", reflect.TypeOf(&coreapi.StackDesire{}).String())
+		b.stackDesireInformer.RunWithContext(utils.ContextWithLogger(ctx, localLogger))
+	}()
 
 	wg.Add(1)
 	go func() {

@@ -31,6 +31,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/metrics"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/mismatch"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/nodepool"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/stackdesires"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -78,6 +79,7 @@ func newControllerRegistry() map[string]ControllerRegistration {
 	metrics.Register(registry)
 	mismatch.Register(registry)
 	nodepool.Register(registry)
+	stackdesires.Register(registry)
 	cachedreader.Register(registry, func(context ControllerContext) *cachedreader.FPAVirtualMachineResourceSKUsCachedReaderController {
 		return context.VirtualMachineResourceSKUsCachedReaderController
 	})
