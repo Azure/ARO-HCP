@@ -15,9 +15,9 @@ require (
 	github.com/Azure/ARO-Tools/tools/prow-job-executor v0.0.0-20260917062117-27fb5fa3a294
 	github.com/Azure/ARO-Tools/tools/registration v0.0.0-20260917062117-27fb5fa3a294
 	github.com/Azure/ARO-Tools/tools/secret-sync v0.0.0-20260917062117-27fb5fa3a294
-	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.23.0
-	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.14.0
-	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v3 v3.0.0-beta.2
+	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.23.3
+	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.14.1
+	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v3 v3.0.0-beta.3
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice v1.0.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeploymentstacks v1.0.1
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources v1.2.0
@@ -54,7 +54,7 @@ require (
 	dario.cat/mergo v1.0.1 // indirect
 	github.com/Azure/ARO-Tools/tools/yamlwrap v0.0.0-20260917062117-27fb5fa3a294 // indirect
 	github.com/Azure/azure-kusto-go/azkustodata v1.2.1 // indirect
-	github.com/Azure/azure-sdk-for-go/sdk/internal v1.12.0 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/internal v1.13.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v6 v6.6.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dashboard/armdashboard/v2 v2.0.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dns/armdns v1.2.0 // indirect

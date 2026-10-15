@@ -4,15 +4,15 @@ go 1.26.0
 
 require (
 	github.com/Azure/ARO-HCP/internal v0.0.0-00010101000000-000000000000
-	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.23.0
-	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.14.0
+	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.23.3
+	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.14.1
 	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.5.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v2 v2.2.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6 v6.4.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/msi/armmsi v1.3.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v6 v6.2.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources v1.2.0
-	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.6.4
+	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.8.2
 	github.com/Azure/azure-sdk-for-go/sdk/tracing/azotel v0.4.0
 	github.com/Azure/checkaccess-v2-go-sdk v0.0.4-0.20260707173829-4b27d1696d22
 	github.com/Azure/msi-dataplane v0.4.3
@@ -46,14 +46,16 @@ require (
 
 require (
 	dario.cat/mergo v1.0.1 // indirect
-	github.com/Azure/azure-sdk-for-go/sdk/internal v1.12.0 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/internal v1.13.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/internal/v3 v3.1.1 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeployments v1.0.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources/v3 v3.0.1 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azsecrets v1.4.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/internal v1.2.0 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/storage/internal v0.1.0 // indirect
 	github.com/AzureAD/microsoft-authentication-library-for-go v1.8.0 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect
+	github.com/apache/arrow-go/v18 v18.7.0 // indirect
 	github.com/aymerick/douceur v0.2.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
@@ -81,14 +83,18 @@ require (
 	github.com/go-openapi/swag/stringutils v0.29.2 // indirect
 	github.com/go-openapi/swag/typeutils v0.29.2 // indirect
 	github.com/go-openapi/swag/yamlutils v0.29.2 // indirect
+	github.com/goccy/go-json v0.10.6 // indirect
 	github.com/golang-jwt/jwt/v4 v4.5.2 // indirect
 	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
 	github.com/golang/glog v1.2.5 // indirect
+	github.com/google/flatbuffers v25.12.19+incompatible // indirect
 	github.com/google/gnostic-models v0.7.1 // indirect
 	github.com/gorilla/css v1.0.1 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.31.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
+	github.com/klauspost/compress v1.19.2 // indirect
+	github.com/klauspost/cpuid/v2 v2.4.0 // indirect
 	github.com/kubernetes-csi/external-snapshotter/client/v8 v8.4.0 // indirect
 	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/microcosm-cc/bluemonday v1.0.27 // indirect
@@ -98,6 +104,7 @@ require (
 	github.com/openshift-online/ocm-api-model/clientapi v0.0.468 // indirect
 	github.com/openshift-online/ocm-api-model/model v0.0.468 // indirect
 	github.com/openshift/library-go v0.0.0-20260504190829-2dd4388d7b89 // indirect
+	github.com/pierrec/lz4/v4 v4.1.28 // indirect
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
@@ -110,6 +117,7 @@ require (
 	github.com/skratchdot/open-golang v0.0.0-20200116055534-eef842397966 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
+	github.com/zeebo/xxh3 v1.1.0 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/bridges/prometheus v0.72.0 // indirect
 	go.opentelemetry.io/contrib/exporters/autoexport v0.72.0 // indirect
