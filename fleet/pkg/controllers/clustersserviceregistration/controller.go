@@ -38,6 +38,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+const ClustersServiceRegistrationControllerName = "ClustersServiceRegistrationController"
+
 type ProvisionShardClient interface {
 	GetProvisionShard(ctx context.Context, internalID metadataapi.InternalID) (*arohcpv1alpha1.ProvisionShard, error)
 	ListProvisionShards() ocm.ProvisionShardListIterator
@@ -71,7 +73,7 @@ func NewClustersServiceRegistrationController(
 	}
 
 	controller := fleetcontrollers.NewStampWatchingController(
-		"ClustersServiceRegistrationController",
+		ClustersServiceRegistrationControllerName,
 		syncer,
 		cfg,
 	)

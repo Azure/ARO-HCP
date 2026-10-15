@@ -32,6 +32,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+const MaestroRegistrationControllerName = "MaestroRegistrationController"
+
 type maestroRegistrationSyncer struct {
 	fleetDBClient                fleetcosmosstorage.FleetDBClient
 	maestroConsumerClientFactory MaestroConsumerClientFactory
@@ -53,7 +55,7 @@ func NewMaestroRegistrationController(
 	}
 
 	controller := fleetcontrollers.NewStampWatchingController(
-		"MaestroRegistrationController",
+		MaestroRegistrationControllerName,
 		syncer,
 		cfg,
 	)
