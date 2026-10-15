@@ -489,7 +489,7 @@ func maintenance(o Observations, spec BackupRepositoryCleanupSpec) (jobs, pods [
 		if job.GetLabels()[repoNameLabel] != label {
 			// A running worker may still use the BSL's previous target. Current
 			// BSL configuration cannot establish disjointness for active work.
-			if maintenanceShape(&job, spec.Repository.VolumeNamespace, true) && !terminalJob(&job) {
+			if slices.Contains(maintenanceRelations(&job, true), "volume/"+spec.Repository.VolumeNamespace) && !terminalJob(&job) {
 				return nil, nil, "Active foreign maintenance Job may write this prefix"
 			}
 			// Never delete foreign Jobs. Terminal Job conditions do not excuse
@@ -513,7 +513,7 @@ func maintenance(o Observations, spec BackupRepositoryCleanupSpec) (jobs, pods [
 		}
 		if !associated {
 			phase := field(&pod, "status", "phase")
-			if maintenanceShape(&pod, spec.Repository.VolumeNamespace, false) && phase != "Succeeded" && phase != "Failed" {
+			if slices.Contains(maintenanceRelations(&pod, false), "volume/"+spec.Repository.VolumeNamespace) && phase != "Succeeded" && phase != "Failed" {
 				return nil, nil, "Active foreign maintenance Pod may write this prefix"
 			}
 			continue
