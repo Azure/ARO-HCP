@@ -420,6 +420,22 @@ asset's readiness. It does not protect against concurrent external writers.
 All asset admission handlers share a configurable time budget, defaulting to
 10 minutes, separate from the lease acquisition and release timeouts.
 
+### Asset admission options
+
+Each asset handler declares its own admission options through
+`Handler.AttachOptions(*pflag.FlagSet)`, binding each to its own state and owning
+the name, default, validation and help. The registry never interprets a key, so
+assets that need no options (for example a mock identities asset) declare none.
+`slot-manager acquire --asset-admission-option <kind>.<key>=<value>` sets them.
+The flag is repeatable and comma-separable, and `ARO_HCP_ASSET_ADMISSION_OPTIONS`
+supplies the default list for CI invocations; explicit flag values replace it.
+Later entries override earlier ones. `--help` lists every declared option with its
+default. An unknown kind, an unknown key, an asset without options, or a value the
+handler rejects fails before leasing.
+
+Options configure only the addressed kind. Shared code, such as role assignment
+cleanup, takes plain parameters from the handler that uses it.
+
 ### Emergency admission opt-out
 
 `slot-manager acquire --disable-asset-admission=e2e_identities` skips only that
@@ -698,9 +714,15 @@ deletion polling, or second inventory scan are performed. Azure authorization
 propagation can still lag behind successful deletion; checking resource absence
 would not guarantee authorization-cache convergence.
 
-All admission ARM requests run serially, finishing each container's identity
-inventory before moving to the next container. Azure SDK throttling retries
-remain enabled. A clean inventory returns without deletion calls.
+Inventory reads run serially, finishing each container's identity inventory
+before moving to the next container. Role assignment deletes run with at most
+`e2e_identities.cleanup-workers` concurrent requests (see Asset admission
+options; default 1, so serial). All deletes share the admission deadline. Raise
+it only for low-concurrency environments: ARM throttles deletes per subscription
+and service principal (token bucket of 200, refilled at 10 per second), and every
+slot admitted concurrently in the same subscription adds its workers to that
+budget. Azure SDK throttling retries remain enabled. A clean inventory returns
+without deletion calls.
 
 A missing required identity, invalid principal metadata, incomplete enumeration,
 or deletion error (including exhausted SDK retries) fails acquisition before

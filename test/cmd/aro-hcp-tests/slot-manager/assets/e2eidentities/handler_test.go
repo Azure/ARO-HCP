@@ -105,3 +105,39 @@ func TestHandlerPublishesIdentityGroups(t *testing.T) {
 		t.Fatalf("identity export must be owned by e2e_identities, got %v", err)
 	}
 }
+
+func TestHandlerCleanupWorkersOption(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name    string
+		entries []string
+		want    int
+		wantErr string
+	}{
+		{name: "default is serial", want: 1},
+		{name: "set", entries: []string{"e2e_identities.cleanup-workers=2"}, want: 2},
+		{name: "zero", entries: []string{"e2e_identities.cleanup-workers=0"}, want: 1, wantErr: "must be at least 1"},
+		{name: "negative", entries: []string{"e2e_identities.cleanup-workers=-3"}, want: 1, wantErr: "must be at least 1"},
+		{name: "not a number", entries: []string{"e2e_identities.cleanup-workers=two"}, want: 1, wantErr: "invalid integer"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			handler := NewHandler()
+			registry, err := assets.NewRegistry(handler)
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = registry.ApplyOptions(tc.entries)
+			if tc.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+					t.Fatalf("expected error containing %q, got %v", tc.wantErr, err)
+				}
+			} else if err != nil {
+				t.Fatal(err)
+			}
+			if handler.cleanupWorkers != tc.want {
+				t.Fatalf("expected %d cleanup workers, got %d", tc.want, handler.cleanupWorkers)
+			}
+		})
+	}
+}
