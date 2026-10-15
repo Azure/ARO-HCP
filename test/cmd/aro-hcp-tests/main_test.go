@@ -430,8 +430,9 @@ func TestSuiteConcurrencyMetadata(t *testing.T) {
 						if override == "60" {
 							want = 60
 						}
-						ordinary := strings.HasPrefix(name, "integration/") || strings.HasPrefix(name, "stage/") || strings.HasPrefix(name, "prod/")
-						if override == "unset" && lease == acquired && ordinary {
+						usesAcquired := strings.HasPrefix(name, "integration/") || strings.HasPrefix(name, "stage/") || strings.HasPrefix(name, "prod/") ||
+							strings.HasPrefix(name, "rp-api-compat-all/") || name == "hypershift-presubmit/parallel"
+						if override == "unset" && lease == acquired && usesAcquired {
 							want = 2
 						}
 						if suites[name].Parallelism != want {
@@ -576,9 +577,10 @@ func TestSuiteConcurrencyUsesActualRunner(t *testing.T) {
 		{name: "explicit flag respects acquired default", suite: "integration/parallel", acquired: true, env: "unset", explicit: "4", want: 2},
 		{name: "user override beats acquired default", suite: "integration/parallel", acquired: true, env: "4", want: 4},
 		{name: "low lease dev CD default", suite: "dev-cd-check/parallel", acquired: true, env: "unset", want: 20},
-		{name: "low lease RP API default", suite: "rp-api-compat-all/parallel", acquired: true, env: "unset", want: 24},
-		{name: "low lease RP API slow default", suite: "rp-api-compat-all/parallel/slow", acquired: true, env: "unset", want: 24},
-		{name: "low lease hypershift default", suite: "hypershift-presubmit/parallel", acquired: true, env: "unset", want: 24},
+		{name: "low lease RP API default", suite: "rp-api-compat-all/parallel", acquired: true, env: "unset", want: 2},
+		{name: "low lease RP API slow default", suite: "rp-api-compat-all/parallel/slow", acquired: true, env: "unset", want: 2},
+		{name: "low lease hypershift default", suite: "hypershift-presubmit/parallel", acquired: true, env: "unset", want: 2},
+		{name: "large lease RP API default", suite: "rp-api-compat-all/parallel", env: "unset", explicit: "100", want: 75},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Setenv("ARO_HCP_SUITE_PARALLELISM", tc.env)

@@ -156,8 +156,7 @@ func registerSuites(ext *e.Extension, miPools map[string]int, upgradeInPlaceCoun
 		Name:       "rp-api-compat-all/parallel",
 		Qualifiers: []string{fastTestsOnly(rpApiCompatBaseQualifier)},
 		// The resource-aware scheduler caps concurrent MI container usage via ResourcePools.
-		// Only an explicit user override replaces this specialized default.
-		Parallelism:   workers.resolve(24, false),
+		Parallelism:   workers.resolve(24, true),
 		TestTimeout:   &rpApiCompatTestTimeout,
 		ResourcePools: miPools,
 	})
@@ -165,8 +164,7 @@ func registerSuites(ext *e.Extension, miPools map[string]int, upgradeInPlaceCoun
 		Name:       "rp-api-compat-all/parallel/slow",
 		Qualifiers: []string{slowTestsOnly(rpApiCompatBaseQualifier)},
 		// The resource-aware scheduler caps concurrent MI container usage via ResourcePools.
-		// Only an explicit user override replaces this specialized default.
-		Parallelism:   workers.resolve(24, false),
+		Parallelism:   workers.resolve(24, true),
 		TestTimeout:   &rpApiCompatTestTimeout,
 		ResourcePools: miPools,
 	})
@@ -176,7 +174,7 @@ func registerSuites(ext *e.Extension, miPools map[string]int, upgradeInPlaceCoun
 	ext.AddSuite(e.Suite{
 		Name:          "hypershift-presubmit/parallel",
 		Qualifiers:    []string{hypershiftPresubmitQuery},
-		Parallelism:   workers.resolve(24, false),
+		Parallelism:   workers.resolve(24, true),
 		TestTimeout:   &hypershiftPresubmitTimeout,
 		ResourcePools: miPools,
 	})

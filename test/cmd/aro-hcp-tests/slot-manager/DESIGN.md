@@ -601,10 +601,11 @@ acquired container names in `LEASED_MSI_CONTAINERS`. Physical inventory and rese
 containers do not contribute to this list.
 
 Suite registration explicitly opts the integration and Stage fast, slow, and
-combined parallel suites and PROD fast and slow parallel suites into an acquired
-worker default. The count is derived from the exported list, independently of
-pooled identity mode. Resource-pool membership does not select this policy:
-specialized suites also consume MI resources but retain their worker fallbacks.
+combined parallel suites, PROD fast and slow parallel suites, RP API compatibility
+fast and slow parallel suites, and Hypershift presubmit parallel suite into an
+acquired worker default. The count is derived from the exported list, independently
+of pooled identity mode. Resource-pool membership does not select this policy:
+`dev-cd-check/parallel` consumes MI resources but retains its worker fallback.
 `upgrade/in-place` retains its participant-based default so the complete cohort
 can reach its barrier.
 Explicit worker overrides for `upgrade/in-place` must allow the complete cohort
