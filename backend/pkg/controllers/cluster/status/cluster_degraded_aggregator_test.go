@@ -37,6 +37,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/kubeapplierlistertesting"
 )
@@ -402,6 +403,7 @@ func TestClusterDegradedAggregator_SyncOnce(t *testing.T) {
 				firstObservedBad:  statusutils.NewFirstObservedBadCache(clock),
 				applyDesireLister: &kubeapplierlistertesting.SliceApplyDesireLister{Desires: tc.applyDesires},
 				readDesireLister:  &kubeapplierlistertesting.SliceReadDesireLister{Desires: tc.readDesires},
+				stackDesireLister: &sliceStackDesireLister{},
 			}
 
 			err = syncer.SyncOnce(ctx, controllerutils.HCPClusterKey{
@@ -465,6 +467,7 @@ func TestClusterDegradedAggregator_MissingDegradedFlipsAfterInertia(t *testing.T
 		firstObservedBad:  statusutils.NewFirstObservedBadCache(clock),
 		applyDesireLister: &kubeapplierlistertesting.SliceApplyDesireLister{},
 		readDesireLister:  &kubeapplierlistertesting.SliceReadDesireLister{},
+		stackDesireLister: &sliceStackDesireLister{},
 	}
 	key := controllerutils.HCPClusterKey{
 		SubscriptionID:    statusutils.TestSubscriptionID,
@@ -498,4 +501,108 @@ func TestClusterDegradedAggregator_MissingDegradedFlipsAfterInertia(t *testing.T
 	assert.Equal(t, metav1.ConditionTrue, secondCond.Status, "second reconcile: past inertia -> aggregate must flip")
 	assert.Equal(t, "QuietController_MissingDegradedCondition", secondCond.Reason)
 	assert.Equal(t, "QuietController: has not reported a Degraded condition", secondCond.Message)
+}
+
+type sliceStackDesireLister struct {
+	corelisters.StackDesireLister
+	desires []*coreapi.StackDesire
+}
+
+func (l *sliceStackDesireLister) ListForCluster(context.Context, string, string, string) ([]*coreapi.StackDesire, error) {
+	return l.desires, nil
+}
+
+func TestClusterDegradedAggregator_StackDesires(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		conditions []metav1.Condition
+		oldHash    bool
+		unobserved bool
+		wantStatus metav1.ConditionStatus
+	}{
+		{
+			name:       "current degradation propagates",
+			conditions: []metav1.Condition{statusutils.DegradedConditionAged(metav1.ConditionTrue, "Failed", "stack failed", time.Minute)},
+			wantStatus: metav1.ConditionTrue,
+		},
+		{
+			name:       "old hash degradation ignored",
+			conditions: []metav1.Condition{statusutils.DegradedConditionAged(metav1.ConditionTrue, "Failed", "stack failed", time.Minute)},
+			oldHash:    true,
+			wantStatus: metav1.ConditionFalse,
+		},
+		{
+			name:       "no status does not synthesize degradation",
+			unobserved: true,
+			wantStatus: metav1.ConditionFalse,
+		},
+		{
+			name:       "current outcome without conditions does not synthesize degradation",
+			wantStatus: metav1.ConditionFalse,
+		},
+		{
+			name:       "known success omitted",
+			conditions: []metav1.Condition{{Type: coreapi.StackDesireConditionSuccessfullyApplied, Status: metav1.ConditionTrue}},
+			wantStatus: metav1.ConditionFalse,
+		},
+		{
+			name:       "explicitly healthy omitted",
+			conditions: []metav1.Condition{statusutils.DegradedConditionAged(metav1.ConditionFalse, "AsExpected", "healthy", time.Minute)},
+			wantStatus: metav1.ConditionFalse,
+		},
+		{
+			name:       "explicit uncertainty propagates",
+			conditions: []metav1.Condition{statusutils.DegradedConditionAged(metav1.ConditionUnknown, "Failed", "stack failed", time.Minute)},
+			wantStatus: metav1.ConditionUnknown,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cluster := newTestClusterForAggregator()
+			desire := &coreapi.StackDesire{
+				CosmosMetadata: coreapi.CosmosMetadata{ResourceID: metadataapi.Must(azcorearm.ParseResourceID(cluster.ID.String() + "/" + coreapi.StackDesireResourceTypeName + "/any-stack"))},
+				Spec:           coreapi.StackDesireSpec{Action: coreapi.StackDesireActionApply},
+				Status:         coreapi.StackDesireStatus{Conditions: tc.conditions},
+			}
+			if !tc.unobserved {
+				var err error
+				desire.Status.ObservedSpecHash, err = coreapi.StackDesireSpecHash(desire.Spec)
+				require.NoError(t, err)
+			}
+			if tc.oldHash {
+				desire.Spec.Action = coreapi.StackDesireActionDelete
+			}
+			db, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(t.Context(), []any{cluster})
+			require.NoError(t, err)
+			clock := clocktesting.NewFakePassiveClock(statusutils.FixedNow)
+			syncer := &clusterDegradedAggregator{
+				clusterLister:     &corelistertesting.DBClusterLister{ResourcesDBClient: db},
+				controllerLister:  &corelistertesting.DBControllerLister{ResourcesDBClient: db},
+				resourcesDBClient: db,
+				inertia:           clusterDegradedAggregatorInertia(),
+				clock:             clock,
+				firstObservedBad:  statusutils.NewFirstObservedBadCache(clock),
+				applyDesireLister: &kubeapplierlistertesting.SliceApplyDesireLister{},
+				readDesireLister:  &kubeapplierlistertesting.SliceReadDesireLister{},
+				stackDesireLister: &sliceStackDesireLister{desires: []*coreapi.StackDesire{desire}},
+			}
+			key := controllerutils.HCPClusterKey{SubscriptionID: statusutils.TestSubscriptionID, ResourceGroupName: statusutils.TestResourceGroupName, HCPClusterName: statusutils.TestClusterName}
+			for range 2 {
+				require.NoError(t, syncer.SyncOnce(t.Context(), key))
+				updated, err := db.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Get(t.Context(), key.HCPClusterName)
+				require.NoError(t, err)
+				condition := apimeta.FindStatusCondition(updated.Status.Conditions, statusutils.DegradedConditionType)
+				require.NotNil(t, condition)
+				require.Equal(t, tc.wantStatus, condition.Status)
+				if tc.wantStatus == metav1.ConditionFalse {
+					require.Equal(t, "AsExpected", condition.Reason)
+					require.Equal(t, "All is well", condition.Message)
+				} else {
+					source := "stackdesire" + strings.ToLower(desire.ResourceID.String())
+					require.Equal(t, source+"_Failed", condition.Reason)
+					require.Equal(t, source+": stack failed", condition.Message)
+				}
+				clock.SetTime(statusutils.FixedNow.Add(time.Hour))
+			}
+		})
+	}
 }
