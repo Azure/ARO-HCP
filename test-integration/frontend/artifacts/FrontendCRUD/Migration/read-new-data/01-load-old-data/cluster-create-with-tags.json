@@ -102,8 +102,7 @@
 			"console": {},
 			"dns": {},
 			"platform": {},
-			"provisioningState": "Succeeded",
-			"usesNewClusterDeletionApproach": false
+			"provisioningState": "Succeeded"
 		},
 		"status": {},
 		"systemData": {

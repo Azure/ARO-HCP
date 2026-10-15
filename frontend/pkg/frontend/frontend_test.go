@@ -1277,9 +1277,8 @@ func TestDeleteCluster(t *testing.T) {
 						},
 					},
 					ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
-						ProvisioningState:              test.clusterProvisioningState,
-						ClusterServiceID:               &clusterInternalID,
-						UsesNewClusterDeletionApproach: true,
+						ProvisioningState: test.clusterProvisioningState,
+						ClusterServiceID:  &clusterInternalID,
 					},
 				}
 				// Set DeletionTimestamp only if test specifies it should have one
@@ -1329,9 +1328,6 @@ func TestDeleteCluster(t *testing.T) {
 
 				// Verify ProvisioningState is set to Deleting
 				assert.Equal(t, coreapi.ProvisioningStateDeleting, updatedCluster.ServiceProviderProperties.ProvisioningState)
-
-				// Verify UsesNewClusterDeletionApproach is set to true
-				assert.True(t, updatedCluster.ServiceProviderProperties.UsesNewClusterDeletionApproach, "UsesNewClusterDeletionApproach should be set to true after DELETE")
 
 				// Verify ActiveOperationID is set
 				assert.NotEmpty(t, updatedCluster.ServiceProviderProperties.ActiveOperationID, "ActiveOperationID should be set")
