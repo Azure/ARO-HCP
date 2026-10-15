@@ -25,6 +25,7 @@ import (
 // NewMockResourcesDBClientWithResources creates a new mockResourcesDBClient and populates it with the given resources.
 // Resources can be of the following types:
 //   - *coreapi.Cluster
+//   - *coreapi.StackDesire
 //   - *coreapi.NodePool
 //   - *coreapi.Operation
 //   - *coreapi.ExternalAuth
@@ -52,6 +53,13 @@ func NewMockResourcesDBClientWithResources(ctx context.Context, resources []any)
 // addResource adds a single resource to the mockResourcesDBClient.
 func (m *MockResourcesDBClient) addResource(ctx context.Context, resource any) error {
 	switch r := resource.(type) {
+	case *coreapi.StackDesire:
+		id := r.GetResourceID()
+		if id == nil || id.Parent == nil {
+			return fmt.Errorf("stack desire is missing resource ID or parent cluster ID")
+		}
+		_, err := m.StackDesires(id.SubscriptionID, id.ResourceGroupName, id.Parent.Name).Create(ctx, r, nil)
+		return err
 	case *coreapi.Cluster:
 		return m.addCluster(ctx, r)
 	case *coreapi.NodePool:

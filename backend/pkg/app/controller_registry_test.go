@@ -161,6 +161,7 @@ var expectedControllerLaunches = []struct {
 	{"fetchdataplaneoperatorsmanagedidentitiesinfo", 20},
 	{"fetchmanagedidentitiesinfo", 20},
 	{"identityroleassignments", 20},
+	{"stackdesires", 20},
 	{"keyrotationbackup", 20},
 	{"clusterresources", 20},
 }

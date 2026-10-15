@@ -34,6 +34,7 @@ func (i *informerWithSyncState) HasSynced() bool {
 func newBackendInformersWithSyncState(synced bool) *backendInformers {
 	informer := &informerWithSyncState{synced: synced}
 	return &backendInformers{
+		stackDesireInformer:                     informer,
 		subscriptionInformer:                    informer,
 		activeOperationInformer:                 informer,
 		allOperationInformer:                    informer,
@@ -56,6 +57,7 @@ func TestBackendInformersHasSynced(t *testing.T) {
 		name        string
 		setUnsynced func(*backendInformers)
 	}{
+		{"StackDesires", func(informers *backendInformers) { informers.stackDesireInformer = unsyncedInformer }},
 		{"Subscriptions", func(informers *backendInformers) { informers.subscriptionInformer = unsyncedInformer }},
 		{"ActiveOperations", func(informers *backendInformers) { informers.activeOperationInformer = unsyncedInformer }},
 		{"AllOperations", func(informers *backendInformers) { informers.allOperationInformer = unsyncedInformer }},
