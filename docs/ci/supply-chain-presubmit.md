@@ -4,6 +4,12 @@
 
 This page documents the threat model, the reasoning behind each rule, and the scope boundary. The rules themselves are in `hack/verify-supply-chain/main.go`; the contributor-facing summary is the "Security self-check" bullet in [CONTRIBUTING.md](../../CONTRIBUTING.md), and the reviewer-facing guidance is in `.claude/skills/pr-standards/SKILL.md`.
 
+## An interim measure
+
+This check is a stopgap, and is documented as one. It automates the highest-confidence slice of review guidance that was previously advisory only ([#5563](https://github.com/Azure/ARO-HCP/pull/5563)), and it lives in this repository because that was the only place to automate anything quickly — which is also its central weakness, since a PR can weaken its own gate. It is not intended as a long-term fixture, and it must not grow into a general-purpose security scanner.
+
+The intended replacement is off-the-shelf or platform-provided enforcement that lives outside this repository and does not ask this team to track agent-configuration attack vectors itself. When that exists, this tool should be deleted rather than brought up to meet it. Until then its maintenance cost stays deliberately bounded: a handful of filename lists, a sub-second runtime, and a test suite that fails CI the moment a rule grows too broad for this repository's own contents.
+
 ## What it blocks
 
 | Rule | Matches | Why |
@@ -108,6 +114,8 @@ The report names the path, the rule, and what to do. Two cases need different ha
 Run `make verify-supply-chain` locally before pushing; it takes well under a second.
 
 ## Extending the check
+
+First, remember what this is: an interim measure, not a product. Every addition is maintenance carried forward until the replacement lands, so add a name only when it closes a real gap in the lists below — not because a vector can be named. The scope here crept once already, during review; it should not creep again.
 
 Add the name to the existing list rather than adding a rule:
 
