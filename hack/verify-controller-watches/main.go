@@ -26,11 +26,12 @@ func main() {
 	update := flag.Bool("update", false, "replace the baseline with current finding identities")
 	all := flag.Bool("all", false, "show evidence for baseline findings as well as new findings")
 	jsonOutput := flag.Bool("json", false, "emit the full analysis report as JSON")
+	entrypoints := flag.String("entrypoints", "", "comma-separated bootstrap function IDs (defaults to backend and Fleet)")
 	flag.Parse()
 	start := time.Now()
 	patterns := flag.Args()
 	if len(patterns) == 0 {
-		patterns = []string{"./backend/pkg/...", "./fleet/pkg/...", "./admin/server/...", "./internal/..."}
+		patterns = []string{"./backend/...", "./fleet/...", "./admin/server/...", "./internal/..."}
 	}
 	pkgs, err := packages.Load(&packages.Config{Mode: packages.LoadSyntax, Tests: false}, patterns...)
 	if err != nil {
@@ -40,7 +41,11 @@ func main() {
 		fatal(fmt.Errorf("cannot analyze packages with loading/type errors"))
 	}
 	loaded := time.Now()
-	result, err := run(pkgs)
+	checker := analyzer.New()
+	if *entrypoints != "" {
+		checker = analyzer.NewWithEntrypoints(strings.Split(*entrypoints, ","))
+	}
+	result, err := runAnalyzer(pkgs, checker)
 	if err != nil {
 		fatal(err)
 	}
@@ -92,8 +97,7 @@ func fatal(err error) { fmt.Fprintln(os.Stderr, err); os.Exit(2) }
 
 // This small driver shares the same package-local Analyzer used by standard
 // analysis hosts. Dependency facts are computed once, then reused by roots.
-func run(pkgs []*packages.Package) (*analyzer.Result, error) {
-	a := analyzer.New()
+func runAnalyzer(pkgs []*packages.Package, a *analysis.Analyzer) (*analyzer.Result, error) {
 	facts := map[string]*analyzer.PackageFact{}
 	seen := map[string]bool{}
 	result := &analyzer.Result{}

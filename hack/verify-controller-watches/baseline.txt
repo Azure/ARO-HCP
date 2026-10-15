@@ -46,6 +46,7 @@ backend/clusterdeletioncontroller | missing-watch | github.com/Azure/ARO-HCP/int
 backend/clusterdeletioncontroller | missing-watch | github.com/Azure/ARO-HCP/internal/api/coreapi.SystemAdminCredentialRevocation
 backend/clusterdeletioncontroller | missing-watch | github.com/Azure/ARO-HCP/internal/api/fleetapi.ManagementCluster
 backend/clusterdeletioncontroller | missing-watch | github.com/Azure/ARO-HCP/internal/api/kubeapplierapi.ApplyDesire
+backend/clusterdeletioncontroller | missing-watch | github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage.BillingDocument
 backend/clusterdeletioncontroller | unused-watch | github.com/Azure/ARO-HCP/internal/api/coreapi.ManagementClusterContent
 backend/clusterdenyassignment | missing-watch | github.com/Azure/ARO-HCP/internal/api/coreapi.Subscription
 backend/clusterdenyassignment | unused-watch | github.com/Azure/ARO-HCP/internal/api/coreapi.ManagementClusterContent
@@ -212,6 +213,7 @@ backend/operationclusterdelete | missing-watch | github.com/Azure/ARO-HCP/intern
 backend/operationclusterdelete | missing-watch | github.com/Azure/ARO-HCP/internal/api/fleetapi.ManagementCluster
 backend/operationclusterdelete | missing-watch | github.com/Azure/ARO-HCP/internal/api/kubeapplierapi.ApplyDesire
 backend/operationclusterdelete | missing-watch | github.com/Azure/ARO-HCP/internal/api/kubeapplierapi.ReadDesire
+backend/operationclusterdelete | missing-watch | github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage.BillingDocument
 backend/operationclusterupdate | missing-watch | github.com/Azure/ARO-HCP/internal/api/coreapi.Cluster
 backend/operationclusterupdate | missing-watch | github.com/Azure/ARO-HCP/internal/api/coreapi.ExternalAuth
 backend/operationclusterupdate | missing-watch | github.com/Azure/ARO-HCP/internal/api/coreapi.NodePool

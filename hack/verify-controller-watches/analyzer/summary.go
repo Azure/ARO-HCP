@@ -11,13 +11,21 @@ import (
 	"go/format"
 	"go/types"
 	"reflect"
-	"slices"
 	"strings"
 
 	"golang.org/x/tools/go/analysis"
 )
 
 func New() *analysis.Analyzer {
+	return NewWithEntrypoints([]string{
+		repo + "backend/cmd.RunRootCmd",
+		repo + "fleet/cmd/controller.run",
+	})
+}
+
+// NewWithEntrypoints lets tests analyze a real bootstrap package with the same
+// driver as production. Entrypoints are functions, not invented client bindings.
+func NewWithEntrypoints(entrypoints []string) *analysis.Analyzer {
 	a := &analysis.Analyzer{
 		Name:       "controllerwatches",
 		Doc:        "check that registered Cosmos controllers watch exactly the document types they access",
@@ -32,14 +40,11 @@ func New() *analysis.Analyzer {
 		pass.ExportPackageFact(fact)
 		result := &Result{}
 		var roots []string
-		for id, fn := range fact.Functions {
-			if fn.Registry {
+		for _, id := range entrypoints {
+			if fact.Functions[id] != nil {
 				roots = append(roots, id)
 			}
 		}
-		// A service can have other registration maps (e.g. storage-budget
-		// exclusions). The launch registry is the explicit discovery entrypoint.
-		roots = slices.DeleteFunc(roots, func(id string) bool { return !strings.HasSuffix(id, ".newControllerRegistry") })
 		if len(roots) == 0 {
 			return result, nil
 		}
@@ -71,7 +76,7 @@ func New() *analysis.Analyzer {
 			}
 		}
 		visit(pass.Pkg)
-		result = check(program, roots, pass.Pkg.Path())
+		result = checkBootstrap(program, roots, pass.Pkg.Path())
 		// Full paths are also in Result for standalone output. Keep analyzer
 		// diagnostics usable by standard go/analysis drivers and module plugins.
 		for _, finding := range result.Findings {
@@ -98,9 +103,10 @@ func New() *analysis.Analyzer {
 }
 
 type builder struct {
-	pass     *analysis.Pass
-	fact     *PackageFact
-	function string
+	pass             *analysis.Pass
+	fact             *PackageFact
+	function         string
+	reachesEndpoints bool
 }
 
 func typeName(t types.Type) string {
@@ -131,7 +137,7 @@ func objectID(obj types.Object) string {
 
 func summarize(pass *analysis.Pass) *PackageFact {
 	f := &PackageFact{Functions: map[string]*Function{}, Types: map[string]*Type{}, Globals: map[string]*Expr{}}
-	b := &builder{pass: pass, fact: f}
+	b := &builder{pass: pass, fact: f, reachesEndpoints: reachesEndpoints(pass.Pkg, map[string]bool{})}
 	for _, name := range pass.Pkg.Scope().Names() {
 		obj, ok := pass.Pkg.Scope().Lookup(name).(*types.TypeName)
 		if !ok || obj.IsAlias() {
@@ -142,6 +148,7 @@ func summarize(pass *analysis.Pass) *PackageFact {
 			continue
 		}
 		t := &Type{Fields: map[string]string{}, Methods: map[string]string{}, MethodPaths: map[string][]string{}}
+		_, t.Interface = named.Underlying().(*types.Interface)
 		for p := range named.TypeParams().Len() {
 			t.Params = append(t.Params, named.TypeParams().At(p).Obj().Name())
 		}
@@ -208,6 +215,46 @@ func summarize(pass *analysis.Pass) *PackageFact {
 			}
 		}
 	}
+	// Keep local forwarding chains to indirect dispatch, even when the package
+	// cannot import storage (Run -> worker -> syncer.SyncOnce, for example).
+	for changed := true; changed; {
+		changed = false
+		for _, fn := range f.Functions {
+			if fn.MayDispatch {
+				continue
+			}
+			var expr func(*Expr)
+			var stmts func([]*Stmt)
+			expr = func(x *Expr) {
+				if x == nil {
+					return
+				}
+				id := x.Name
+				if x.Kind == "method" && len(x.Keys) > 0 {
+					id = x.Keys[0]
+				}
+				if target := f.Functions[id]; target != nil && target.MayDispatch {
+					fn.MayDispatch = true
+				}
+				for _, arg := range x.Args {
+					expr(arg)
+				}
+			}
+			stmts = func(body []*Stmt) {
+				for _, s := range body {
+					for _, x := range s.Right {
+						expr(x)
+					}
+					stmts(s.Body)
+					stmts(s.Else)
+				}
+			}
+			stmts(fn.Body)
+			if fn.MayDispatch {
+				changed = true
+			}
+		}
+	}
 	return f
 }
 
@@ -237,6 +284,36 @@ func (b *builder) addFunction(id string, syntax *ast.FuncType, recv *ast.FieldLi
 	b.function = id
 	defer func() { b.function = old }()
 	f := &Function{ID: id, At: location(b.pass.Fset, syntax.Pos(), id)}
+	f.ReachesEndpoints = b.reachesEndpoints
+	if body != nil {
+		ast.Inspect(body, func(node ast.Node) bool {
+			call, ok := node.(*ast.CallExpr)
+			if !ok {
+				return true
+			}
+			switch fun := call.Fun.(type) {
+			case *ast.SelectorExpr:
+				if selection := b.pass.TypesInfo.Selections[fun]; selection != nil {
+					if _, ok := selection.Recv().Underlying().(*types.Interface); ok {
+						f.MayDispatch = true
+					}
+				}
+			case *ast.Ident:
+				if obj, ok := b.pass.TypesInfo.Uses[fun].(*types.Var); ok {
+					if _, ok := obj.Type().Underlying().(*types.Signature); ok {
+						f.MayDispatch = true
+					}
+				}
+			case *ast.IndexExpr:
+				if !b.pass.TypesInfo.Types[fun.Index].IsType() {
+					f.MayDispatch = true
+				}
+			case *ast.CallExpr:
+				f.MayDispatch = true
+			}
+			return true
+		})
+	}
 	f.Variadic = sig.Variadic()
 	for _, fields := range []*ast.FieldList{recv, syntax.Params} {
 		if fields == nil {
@@ -256,11 +333,6 @@ func (b *builder) addFunction(id string, syntax *ast.FuncType, recv *ast.FieldLi
 	}
 	for i := range sig.Results().Len() {
 		f.Results = append(f.Results, typeName(sig.Results().At(i).Type()))
-	}
-	if sig.Params().Len() == 0 && sig.Recv() == nil && sig.Results().Len() == 1 {
-		if m, ok := sig.Results().At(0).Type().(*types.Map); ok {
-			f.Registry = strings.HasPrefix(typeName(m.Elem()), repo+"internal/controllerregistry.Registration[")
-		}
 	}
 	f.Body = b.block(body)
 	b.fact.Functions[id] = f
@@ -314,7 +386,9 @@ func (b *builder) expr(node ast.Expr) *Expr {
 	case *ast.CallExpr:
 		e.Kind = "call"
 		var call bytes.Buffer
-		if err := format.Node(&call, b.pass.Fset, n.Fun); err == nil {
+		if _, ok := n.Fun.(*ast.FuncLit); ok {
+			e.At.Call = "func literal(...)"
+		} else if err := format.Node(&call, b.pass.Fset, n.Fun); err == nil {
 			e.At.Call = call.String() + "(...)"
 		}
 		e.Args = append(e.Args, b.expr(n.Fun))

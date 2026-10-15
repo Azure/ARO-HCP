@@ -82,18 +82,20 @@ type Type struct {
 	Methods     map[string]string
 	MethodPaths map[string][]string
 	Document    string
+	Interface   bool
 }
 
 type Function struct {
-	ID         string
-	Params     []string
-	ParamTypes []string
-	TypeParams []string
-	Results    []string
-	Body       []*Stmt
-	Registry   bool
-	Variadic   bool
-	At         Location
+	ID               string
+	Params           []string
+	ParamTypes       []string
+	TypeParams       []string
+	Results          []string
+	Body             []*Stmt
+	Variadic         bool
+	ReachesEndpoints bool
+	MayDispatch      bool
+	At               Location
 }
 
 type Expr struct {

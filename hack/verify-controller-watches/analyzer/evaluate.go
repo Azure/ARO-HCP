@@ -25,6 +25,7 @@ type value struct {
 	known                                    bool
 	alternatives                             []*value
 	origin                                   Location
+	registration                             string
 }
 
 type evaluator struct {
@@ -38,82 +39,16 @@ type evaluator struct {
 	globals         map[string]*value
 	steps           int
 	exempt          bool
+	bootstrap       bool
+	service         string
+	discovered      map[string]bool
+	reconciling     bool
 }
 
 type frame struct {
 	vars    map[string]*value
 	types   map[string]string
 	returns []*value
-}
-
-func check(program *PackageFact, roots []string, pkg string) *Result {
-	result := &Result{}
-	slices.Sort(roots)
-	for _, root := range roots {
-		e := newEvaluator(program, result)
-		registryValues := e.invoke(&value{function: root}, nil, program.Functions[root].At)
-		if len(registryValues) == 0 || registryValues[0] == nil {
-			continue
-		}
-		registry := registryValues[0]
-		for _, name := range sortedKeys(registry.fields) {
-			entry := registry.fields[name]
-			if entry == nil || entry.fields["Instantiate"] == nil {
-				continue
-			}
-			e := newEvaluator(program, result)
-			service := strings.TrimPrefix(pkg, repo)
-			service = strings.Split(service, "/")[0]
-			e.controller = service + "/" + name
-			result.Controllers = append(result.Controllers, e.controller)
-			constructor := entry.fields["Instantiate"]
-			registration := entry.origin
-			if registration.File == "" {
-				registration = program.Functions[root].At
-			}
-			// A symbolic context has typed fields; constructor calls specialize
-			// them without constructing live clients or evaluating Enabled gates.
-			var args []*value
-			if fn := program.Functions[constructor.function]; fn != nil {
-				for _, typ := range fn.ParamTypes {
-					args = append(args, e.context(substitute(typ, constructor.typeEnv), pkg))
-				}
-			}
-			instances := e.invoke(constructor, args, registration)
-			for _, instance := range instances {
-				if instance == nil || instance.nilValue {
-					continue
-				}
-				if method := e.method(instance, "Run"); method.function != "" || len(method.alternatives) > 0 {
-					e.invoke(method, []*value{{typ: "context.Context"}, {typ: "int"}}, registration)
-				} else if instance.typ != "error" {
-					e.gap("unresolved registered controller Run: "+instance.typ, program.Functions[root].At)
-				}
-			}
-			e.finish()
-		}
-	}
-	slices.Sort(result.Controllers)
-	slices.SortFunc(result.Findings, func(a, b Finding) int { return strings.Compare(a.Identity(), b.Identity()) })
-	return result
-}
-
-// Resolve preconstructed instances from the service's context builder. This
-// keeps shared controller registration bound to the actual startup allocation.
-func (e *evaluator) context(typ, pkg string) *value {
-	for _, id := range sortedKeys(e.program.Functions) {
-		fn := e.program.Functions[id]
-		if strings.HasPrefix(id, pkg+".") && strings.HasSuffix(id, ".newControllerContext") && len(fn.Results) == 1 && fn.Results[0] == typ {
-			old := e.controller
-			e.controller = ""
-			out := e.invoke(&value{function: id}, nil, fn.At)
-			e.controller = old
-			if len(out) > 0 {
-				return out[0]
-			}
-		}
-	}
-	return &value{typ: typ}
 }
 
 func newEvaluator(p *PackageFact, r *Result) *evaluator {
@@ -257,6 +192,9 @@ func (e *evaluator) field(v *value, name, typ string) *value {
 	if v == nil {
 		return &value{typ: typ}
 	}
+	if e.bootstrap && name == "Enabled" && strings.Contains(v.typ, "controllerregistry.Registration[") {
+		return &value{nilValue: true, known: true}
+	}
 	if len(v.alternatives) > 0 {
 		var out *value
 		for _, alternative := range v.alternatives {
@@ -392,6 +330,11 @@ func (e *evaluator) eval(x *Expr, f *frame) *value {
 		return v
 	case "unary":
 		v := e.eval(x.Args[0], f)
+		if x.Name == "&" {
+			copy := *v
+			copy.typ = typ
+			return &copy
+		}
 		if x.Name == "!" && v.known {
 			return &value{typ: "bool", known: true, literal: strconv.FormatBool(v.literal != "true")}
 		}
@@ -435,6 +378,9 @@ func (e *evaluator) eval(x *Expr, f *frame) *value {
 		if len(v.items) > 0 {
 			return v.items[0]
 		}
+		if k.known && v.fields != nil {
+			return &value{typ: typ, nilValue: true, known: true}
+		}
 		return &value{typ: typ}
 	}
 	return &value{typ: typ}
@@ -451,7 +397,7 @@ func cloneEnv(env map[string]*value) map[string]*value {
 func (e *evaluator) assign(left *Expr, v *value, f *frame) {
 	switch left.Kind {
 	case "var":
-		f.vars[left.Name] = v
+		f.vars[left.Name] = e.copyValue(v)
 	case "field":
 		parent := e.eval(left.Args[0], f)
 		if parent.fields == nil {
@@ -467,6 +413,11 @@ func (e *evaluator) assign(left *Expr, v *value, f *frame) {
 		if key.known {
 			if strings.Contains(v.typ, "controllerregistry.Registration[") {
 				v.origin = left.At
+				if constructor := v.fields["Instantiate"]; constructor != nil {
+					copy := *constructor
+					copy.registration = key.literal
+					v.fields["Instantiate"] = &copy
+				}
 			}
 			parent.fields[key.literal] = v
 		} else {
@@ -478,7 +429,11 @@ func (e *evaluator) assign(left *Expr, v *value, f *frame) {
 func (e *evaluator) statements(body []*Stmt, f *frame) bool {
 	for _, s := range body {
 		e.steps++
-		if e.steps > 200000 {
+		limit := 200000
+		if e.bootstrap {
+			limit = 2000000
+		}
+		if e.steps > limit {
 			e.gap("analysis work limit reached", s.At)
 			return true
 		}
@@ -488,8 +443,17 @@ func (e *evaluator) statements(body []*Stmt, f *frame) bool {
 			for _, rhs := range s.Right {
 				vals = append(vals, e.eval(rhs, f))
 			}
-			if len(vals) == 1 && len(s.Left) > 1 && len(vals[0].items) > 0 {
+			if len(vals) == 1 && len(s.Left) > 1 && len(vals[0].items) > 0 && strings.HasPrefix(vals[0].typ, "(") {
 				vals = vals[0].items
+			}
+			if len(s.Right) == 1 && s.Right[0].Kind == "index" && len(s.Left) == 2 && len(vals) == 1 {
+				index := s.Right[0]
+				parent := e.eval(index.Args[0], f)
+				key := e.eval(index.Args[1], f)
+				if key.known && parent.fields != nil {
+					_, found := parent.fields[key.literal]
+					vals = append(vals, &value{typ: "bool", known: true, literal: strconv.FormatBool(found)})
+				}
 			}
 			for i, lhs := range s.Left {
 				v := &value{typ: substitute(lhs.Type, f.types)}
@@ -522,7 +486,7 @@ func (e *evaluator) statements(body []*Stmt, f *frame) bool {
 			// Prune constructor wiring branches only. Reconciliation reads are
 			// potential dependencies even when a helper returns a literal after
 			// examining runtime document state.
-			if cond.known && !runtimePath(e.path) {
+			if cond.known && !e.reconciling {
 				branch := s.Else
 				if cond.literal == "true" {
 					branch = s.Body
@@ -555,6 +519,14 @@ func (e *evaluator) statements(body []*Stmt, f *frame) bool {
 			}
 		case "range":
 			v := e.eval(s.Right[0], f)
+			if strings.HasPrefix(v.typ, "map[") && len(v.fields) > 0 {
+				for _, key := range sortedKeys(v.fields) {
+					e.assign(s.Left[0], &value{typ: "string", literal: key, known: true}, f)
+					e.assign(s.Left[1], v.fields[key], f)
+					e.statements(s.Body, f)
+				}
+				continue
+			}
 			items := v.items
 			if len(items) == 0 {
 				for _, key := range sortedKeys(v.fields) {
@@ -589,15 +561,6 @@ func (e *evaluator) statements(body []*Stmt, f *frame) bool {
 			if e.statements(s.Body, f) {
 				return true
 			}
-		}
-	}
-	return false
-}
-
-func runtimePath(path []Location) bool {
-	for _, at := range path {
-		if strings.HasSuffix(at.Function, ".Run") || strings.HasSuffix(at.Function, ".SyncOnce") || strings.HasSuffix(at.Function, ".SynchronizeOperation") {
-			return true
 		}
 	}
 	return false
@@ -654,6 +617,9 @@ func (e *evaluator) invoke(fn *value, args []*value, at Location) []*value {
 	if fn == nil {
 		return nil
 	}
+	if e.bootstrap && fn.registration != "" {
+		return e.instantiate(fn, args, at)
+	}
 	if len(fn.alternatives) > 0 {
 		var out []*value
 		for _, alt := range fn.alternatives {
@@ -705,7 +671,7 @@ func (e *evaluator) invoke(fn *value, args []*value, at Location) []*value {
 		v := &value{typ: substitute(f.ParamTypes[i], bindings)}
 		if i < len(args) && args[i] != nil {
 			v = args[i]
-			if v.typ == "" {
+			if v.typ == "" || v.typ == "untyped nil" {
 				copy := *v
 				copy.typ = substitute(f.ParamTypes[i], bindings)
 				v = &copy
@@ -716,7 +682,7 @@ func (e *evaluator) invoke(fn *value, args []*value, at Location) []*value {
 				v = &value{typ: substitute(f.ParamTypes[i], bindings), items: args[i:]}
 			}
 		}
-		frame.vars[p] = v
+		frame.vars[p] = e.copyValue(v)
 	}
 	// Only the framework's calls to its own status bookkeeping are exempt.
 	wasExempt := e.exempt
@@ -776,7 +742,7 @@ func (e *evaluator) call(fn *value, args []*value, x *Expr, typ string) []*value
 	if id == "strings.ToLower" && len(args) > 0 {
 		return []*value{{typ: "string", literal: strings.ToLower(args[0].literal), known: args[0].known}}
 	}
-	if strings.HasSuffix(id, ".WithCacheSyncs") && len(args) > 0 {
+	if id == repo+"backend/pkg/controllers/controllerconfig.WithCacheSyncs" && len(args) > 0 {
 		return []*value{args[0]}
 	}
 	if strings.HasPrefix(id, repo+"internal/database/informers/") && strings.Contains(id, ".New") {
@@ -786,11 +752,13 @@ func (e *evaluator) call(fn *value, args []*value, x *Expr, typ string) []*value
 		if out, ok := e.boundary(fn, args, x, typ); ok {
 			return out
 		}
+		if t := e.program.Types[baseType(fn.receiver.typ)]; t != nil && t.Interface && endpointPackage(packageOf(fn.receiver.typ)) {
+			e.gap("unresolved storage interface call "+id, x.At)
+			return unknown()
+		}
 	}
 	if f := e.program.Functions[id]; f != nil && len(f.Body) > 0 {
-		// API data/formatting helpers cannot add controller subscriptions. Avoid
-		// descending into deepcopy/serialization and external client plumbing.
-		if !strings.HasPrefix(id, repo+"internal/api/") && !strings.HasPrefix(id, repo+"internal/utils.") {
+		if f.ReachesEndpoints || f.MayDispatch || e.carriesBinding(args, map[*value]bool{}) {
 			out := e.invoke(fn, args, x.At)
 			if len(out) > 0 {
 				return out
@@ -798,21 +766,67 @@ func (e *evaluator) call(fn *value, args []*value, x *Expr, typ string) []*value
 			return unknown()
 		}
 	}
-	// Worker loops/retry helpers invoke function arguments. Follow callbacks
-	// with their captured bindings, without analyzing Kubernetes internals.
-	if strings.HasPrefix(id, "k8s.io/apimachinery/pkg/util/wait.") || strings.HasPrefix(id, "k8s.io/client-go/util/retry.") {
-		for _, arg := range args {
-			if arg.function != "" {
-				e.invoke(arg, nil, x.At)
-			}
-		}
-	}
+	// A pruned package cannot call our endpoints directly, but can invoke
+	// caller-supplied functions. Preserve those edges without walking its body.
+	e.callbacks(args, x.At, map[*value]bool{})
 	if fn.receiver != nil && strings.HasPrefix(baseType(fn.receiver.typ), repo) && id != "" && e.program.Functions[id] == nil {
 		if strings.Contains(fn.receiver.typ, "Syncer") || strings.Contains(fn.receiver.typ, "Validation") || strings.Contains(fn.receiver.typ, "Runnable") {
 			e.gap("unresolved interface call "+id, x.At)
 		}
 	}
 	return unknown()
+}
+
+func (e *evaluator) carriesBinding(values []*value, seen map[*value]bool) bool {
+	for _, v := range values {
+		if v == nil || seen[v] {
+			continue
+		}
+		seen[v] = true
+		if v.function != "" {
+			return true
+		}
+		if t := e.program.Types[baseType(v.typ)]; t != nil {
+			for _, id := range t.Methods {
+				if f := e.program.Functions[id]; f != nil && (f.ReachesEndpoints || f.MayDispatch) {
+					return true
+				}
+			}
+		}
+		if e.carriesBinding(v.items, seen) || e.carriesBinding(v.alternatives, seen) {
+			return true
+		}
+	}
+	return false
+}
+
+func packageOf(typ string) string {
+	base := baseType(typ)
+	if i := strings.LastIndexByte(base, '.'); i >= 0 {
+		return base[:i]
+	}
+	return ""
+}
+
+func (e *evaluator) callbacks(values []*value, at Location, seen map[*value]bool) {
+	for _, v := range values {
+		if v == nil || seen[v] {
+			continue
+		}
+		seen[v] = true
+		if v.function != "" {
+			e.invoke(v, nil, at)
+		}
+		e.callbacks(v.items, at, seen)
+		e.callbacks(v.alternatives, at, seen)
+		// Follow explicitly supplied callback fields, not the entire object
+		// graph of clients and controllers passed to logging functions.
+		for _, field := range v.fields {
+			if field.function != "" {
+				e.invoke(field, nil, at)
+			}
+		}
+	}
 }
 
 func (e *evaluator) doc(v *value) string {
@@ -833,11 +847,9 @@ func (e *evaluator) boundary(fn *value, args []*value, x *Expr, typ string) ([]*
 	name := fn.method
 	recv := baseType(v.typ)
 	unknown := unknownResults(typ)
-	// For is not pure client navigation: its production implementation reads
-	// ManagementCluster through a lister to resolve the physical container.
-	if recv == repo+"internal/database/cosmosstorage/kubeappliercosmosstorage.KubeApplierDBClients" && name == "For" {
-		concrete := &value{typ: "*" + repo + "internal/database/cosmosstorage/kubeappliercosmosstorage.kubeApplierDBClients"}
-		e.invoke(e.method(concrete, "For"), args, x.At)
+	// Iteration belongs to the typed List endpoint already recorded. It is
+	// trusted storage implementation plumbing, not another client factory.
+	if recv == repo+"internal/database/cosmosstorage/cosmosstorageutils.DBClientIterator" {
 		return unknown, true
 	}
 	if strings.HasPrefix(recv, repo+"internal/database/informers/") || strings.HasPrefix(recv, repo+"internal/database/unioninformers/") {
@@ -908,7 +920,12 @@ func (e *evaluator) boundary(fn *value, args []*value, x *Expr, typ string) ([]*
 		}
 	}
 	if strings.HasPrefix(recv, repo+"internal/database/cosmosstorage/") {
-		isAccess := name == "Get" || name == "GetByID" || (strings.HasPrefix(name, "List") && name != "Listers") || name == "Create" || name == "Replace" || name == "Delete" || strings.HasPrefix(name, "AddCreateToTransaction") || strings.HasPrefix(name, "AddReplaceToTransaction") || name == "DeleteByCosmosID"
+		// The typed CRUD/lister surface includes typed child accessors. Trust
+		// their result contract without attributing an access until Get/List/etc.
+		if len(unknown) > 0 && e.doc(unknown[0]) != "" && !accessMethod(name) && e.program.Functions[fn.function] == nil {
+			return unknown, true
+		}
+		isAccess := accessMethod(name)
 		if isAccess {
 			if doc := e.doc(v); doc != "" {
 				e.record(doc, recv+"."+name, x.At, false)
@@ -916,20 +933,6 @@ func (e *evaluator) boundary(fn *value, args []*value, x *Expr, typ string) ([]*
 				e.gap("untyped Cosmos access: "+recv+"."+name, x.At)
 			}
 			return unknown, true
-		}
-		// Client navigation is not a read (e.g. HCPClusters().NodePools()).
-		if strings.HasPrefix(typ, repo+"internal/database/cosmosstorage/") {
-			return unknown, true
-		}
-		if strings.HasPrefix(typ, "(") {
-			parts := splitTuple(typ)
-			if len(parts) > 0 && strings.HasPrefix(parts[0], repo+"internal/database/cosmosstorage/") {
-				var out []*value
-				for _, p := range parts {
-					out = append(out, &value{typ: p})
-				}
-				return out, true
-			}
 		}
 	}
 	return nil, false
