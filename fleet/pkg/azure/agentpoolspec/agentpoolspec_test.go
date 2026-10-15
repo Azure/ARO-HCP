@@ -248,10 +248,10 @@ func TestSecondaryNICCount(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:    "zero is rejected",
-			tags:    map[string]*string{SwiftSecondaryNICCountTag: ptr.To("0")},
-			wantOK:  true,
-			wantErr: true,
+			name:      "valid zero count",
+			tags:      map[string]*string{SwiftSecondaryNICCountTag: ptr.To("0")},
+			wantCount: 0,
+			wantOK:    true,
 		},
 		{
 			name:    "negative is rejected",

@@ -75,7 +75,7 @@ func computeMaxCapacity(report *capacityreportv1alpha1.CapacityReport, pools []a
 //     allocatable is divided by the number of ready nodes.
 //  2. Azure SKU cache + pool tags (static specs) — provides cpu and memory
 //     from the VM size's SKU capabilities, and swift-nic from the pool's
-//     aks-nic-secondary-count tag (overrides SKU-derived NIC count).
+//     aks-nic-secondary-count tag (zero when absent, never the SKU maximum).
 func perNodeAllocatable(vmSize string, nodesBySKU map[string]capacityreportv1alpha1.NodeSKUCapacity, skuMetadata map[string]*skucache.SKUMetadata, tags map[string]*string) corev1.ResourceList {
 	// Prefer live allocatable from CapacityReport — reflects actual
 	// kubelet-reported resources including system reservations.
@@ -98,12 +98,15 @@ func perNodeAllocatable(vmSize string, nodesBySKU map[string]capacityreportv1alp
 	if meta, found := skuMetadata[vmSize]; found {
 		skuRL := meta.ResourceList()
 		for _, name := range scheduling.Resources() {
+			if name == kuberesources.SwiftNICResourceName {
+				continue
+			}
 			if quantity, exists := skuRL[name]; exists {
 				result[name] = quantity
 			}
 		}
 	}
-	// Pool tag overrides SKU-derived NIC count — our bicep sets the actual
+	// Pool tag alone determines NIC count — our bicep sets the actual
 	// configured secondary NIC count which may differ from the SKU maximum.
 	if nics, present, err := agentpoolspec.SecondaryNICCount(tags); present && err == nil {
 		result[kuberesources.SwiftNICResourceName] = *resource.NewQuantity(nics, resource.DecimalSI)
