@@ -3014,7 +3014,7 @@
           "type": "prometheus",
           "uid": "${datasource_hcp}"
         },
-        "definition": "query_result(count by (namespace) (etcd_mvcc_db_total_size_in_bytes{cluster=\"$cluster\", namespace=~\"ocm-.*\"}))",
+        "definition": "label_values(etcd_mvcc_db_total_size_in_bytes{cluster=\"$cluster\", namespace=~\"ocm-.*\"}, namespace)",
         "hide": 0,
         "includeAll": false,
         "label": "Namespace (HCP)",
@@ -3022,11 +3022,11 @@
         "name": "namespace",
         "options": [],
         "query": {
-          "query": "query_result(count by (namespace) (etcd_mvcc_db_total_size_in_bytes{cluster=\"$cluster\", namespace=~\"ocm-.*\"}))",
+          "query": "label_values(etcd_mvcc_db_total_size_in_bytes{cluster=\"$cluster\", namespace=~\"ocm-.*\"}, namespace)",
           "refId": "StandardVariableQuery"
         },
         "refresh": 1,
-        "regex": "/namespace=\"([^\"]+)\"/",
+        "regex": "^ocm-.*$",
         "skipUrlSync": false,
         "sort": 1,
         "type": "query"
