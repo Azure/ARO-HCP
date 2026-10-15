@@ -393,6 +393,42 @@ func TestMaintenanceWrongShapeAndStatus(t *testing.T) {
 	}
 }
 
+func TestForeignSameVolumeWorkerWithSidecar(t *testing.T) {
+	for _, isJob := range []bool{true, false} {
+		for _, terminal := range []bool{true, false} {
+			t.Run(fmt.Sprintf("job=%v/terminal=%v", isJob, terminal), func(t *testing.T) {
+				o := retired(t)
+				job, pod := terminalMaintenance()
+				obj, gvr, path := pod, PodsGVR, []string{"spec", "containers"}
+				if isJob {
+					obj, gvr, path = job, JobsGVR, []string{"spec", "template", "spec", "containers"}
+				}
+				obj.SetLabels(map[string]string{repoNameLabel: "foreign"})
+				containers, _, _ := unstructured.NestedSlice(obj.Object, path...)
+				containers = append(containers, map[string]interface{}{"name": "sidecar"})
+				if err := unstructured.SetNestedSlice(obj.Object, containers, path...); err != nil {
+					t.Fatal(err)
+				}
+				if !terminal {
+					obj.Object["status"] = map[string]interface{}{"phase": "Running"}
+				}
+				o.Objects[gvr] = []unstructured.Unstructured{*obj}
+				p := PlanCleanup(o)
+				if terminal {
+					if len(p.Deletes) != 0 || p.DeletePrefix == nil {
+						t.Fatalf("terminal foreign worker must be untouched and not block: %#v", p)
+					}
+				} else {
+					noDestruction(t, p)
+					if p.Condition == nil || p.Condition.Reason != DrainingMaintenance {
+						t.Fatalf("active same-volume worker must block regardless of shape: %#v", p)
+					}
+				}
+			})
+		}
+	}
+}
+
 func TestExplicitTombstoneDeletionRequiresSweep(t *testing.T) {
 	o := retired(t)
 	now := metav1.NewTime(o.Now)
