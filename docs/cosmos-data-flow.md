@@ -94,7 +94,7 @@ concurrent Cluster Service delete dispatch, and the cluster-delete diagram.
 The generation instructions are maintained in [controller-data-flow.md](prompts/controller-data-flow.md).
 The historical filename is retained for existing links.
 
-Fleet registration update baseline: `42a6fcfd9` plus working-tree changes;
+Fleet registration update baseline: `a7458c817` plus working-tree changes;
 scope: Fleet's twelve controller launch entries now use the shared typed
 `controllerregistry.Registration` mechanism. Constructor wiring, worker counts,
 node-pool enablement, and the leader-election/cache-sync startup barrier are

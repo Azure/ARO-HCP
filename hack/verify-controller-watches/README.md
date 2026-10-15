@@ -79,11 +79,11 @@ or silently added to the invariant baseline. They are currently warnings while
 coverage is assessed; a passing baseline check does not assert complete coverage.
 Load/type-check failures fail the command.
 
-The initial run at the Fleet registration precursor discovers 124 controllers
+The baseline against `a7458c817` with the Fleet registration precursor discovers 124 controllers
 (112 backend, 12 Fleet), 303 findings, and 32 untyped-access sites across 11
 controllers. Representative checks were reviewed against cluster creation,
 operation controllers, deletion callback maps, metrics indexer/lister consumers,
-StackDesires, Fleet polling, and shared informer management. The baseline records
+Fleet polling and shared informer management. The baseline records
 the current analyzer's results, not a claim that every existing finding is a bug.
 
 ## Performance and lint integration

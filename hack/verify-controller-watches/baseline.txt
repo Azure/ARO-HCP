@@ -94,7 +94,6 @@ backend/cosmosmigration | missing-watch | github.com/Azure/ARO-HCP/internal/api/
 backend/cosmosmigration | missing-watch | github.com/Azure/ARO-HCP/internal/api/coreapi.Operation
 backend/cosmosmigration | missing-watch | github.com/Azure/ARO-HCP/internal/api/coreapi.ServiceProviderCluster
 backend/cosmosmigration | missing-watch | github.com/Azure/ARO-HCP/internal/api/coreapi.ServiceProviderNodePool
-backend/cosmosmigration | missing-watch | github.com/Azure/ARO-HCP/internal/api/coreapi.StackDesire
 backend/cosmosmigration | missing-watch | github.com/Azure/ARO-HCP/internal/api/fleetapi.ManagementCluster
 backend/cosmosmigration | missing-watch | github.com/Azure/ARO-HCP/internal/api/kubeapplierapi.ApplyDesire
 backend/cosmosmigration | missing-watch | github.com/Azure/ARO-HCP/internal/api/kubeapplierapi.ReadDesire
@@ -132,6 +131,7 @@ backend/ensuremanagedresourcegroup | unused-watch | github.com/Azure/ARO-HCP/int
 backend/externalauthclusterservicecreate | missing-watch | github.com/Azure/ARO-HCP/internal/api/coreapi.Cluster
 backend/externalauthdegradedaggregator | missing-watch | github.com/Azure/ARO-HCP/internal/api/coreapi.Controller
 backend/fetchdataplaneoperatorsmanagedidentitiesinfo | unused-watch | github.com/Azure/ARO-HCP/internal/api/coreapi.ManagementClusterContent
+backend/fetchmanagedidentitiesinfo | unused-watch | github.com/Azure/ARO-HCP/internal/api/coreapi.ManagementClusterContent
 backend/fetchmsiidentitiesinfo | unused-watch | github.com/Azure/ARO-HCP/internal/api/coreapi.ManagementClusterContent
 backend/forcedclusterdesiredversion | missing-watch | github.com/Azure/ARO-HCP/internal/api/fleetapi.ControlPlaneVersionRollout
 backend/forcedclusterdesiredversion | unused-watch | github.com/Azure/ARO-HCP/internal/api/coreapi.ManagementClusterContent
