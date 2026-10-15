@@ -30,6 +30,7 @@ import (
 // ResourcesGlobalListers provides access to global listers for each resource type.
 // These are intended to feed SharedInformers via ListerWatchers.
 type ResourcesGlobalListers interface {
+	StackDesires() cosmosstorageutils.GlobalLister[coreapi.StackDesire]
 	Subscriptions() cosmosstorageutils.GlobalLister[coreapi.Subscription]
 	Clusters() cosmosstorageutils.GlobalLister[coreapi.Cluster]
 	NodePools() cosmosstorageutils.GlobalLister[coreapi.NodePool]
@@ -45,6 +46,13 @@ type ResourcesGlobalListers interface {
 	SystemAdminCredentialRevocations() cosmosstorageutils.GlobalLister[coreapi.SystemAdminCredentialRevocation]
 	Operations() cosmosstorageutils.GlobalLister[coreapi.Operation]
 	ActiveOperations() cosmosstorageutils.GlobalLister[coreapi.Operation]
+}
+
+func (g *cosmosResourcesGlobalListers) StackDesires() cosmosstorageutils.GlobalLister[coreapi.StackDesire] {
+	return &cosmosstorageutils.CosmosGlobalLister[coreapi.StackDesire, cosmosstorageutils.GenericDocument[coreapi.StackDesire]]{
+		ContainerClient: g.resources,
+		ResourceTypes:   []azcorearm.ResourceType{coreapi.StackDesireResourceType},
+	}
 }
 
 // cosmosResourcesGlobalListers implements ResourcesGlobalListers using the Resources Cosmos container.
