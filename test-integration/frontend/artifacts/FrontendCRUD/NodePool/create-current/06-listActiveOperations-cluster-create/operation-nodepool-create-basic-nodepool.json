@@ -11,8 +11,5 @@
 	"resourceId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/providers/Microsoft.RedHatOpenShift/hcpOperationStatuses/7c3de93c-ff5d-4865-a177-291549ba8020",
 	"startTime": "2025-12-19T21:03:42.649357713Z",
 	"status": "Accepted",
-	"tenantId": "33333333-3333-3333-3333-333333333333",
-	"usesNewClusterDeletionApproach": false,
-	"usesNewExternalAuthDeletionApproach": false,
-	"usesNewNodePoolDeletionApproach": false
+	"tenantId": "33333333-3333-3333-3333-333333333333"
 }

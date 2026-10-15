@@ -16,8 +16,7 @@
 		"name": "some-hcp-cluster",
 		"serviceProviderProperties": {
 			"clusterServiceID": "/api/clusters_mgmt/v1/clusters/fixed-value",
-			"provisioningState": "Provisioning",
-			"usesNewClusterDeletionApproach": false
+			"provisioningState": "Provisioning"
 		},
 		"status": {},
 		"systemData": {
