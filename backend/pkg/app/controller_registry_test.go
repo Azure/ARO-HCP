@@ -53,7 +53,6 @@ var expectedControllerLaunches = []struct {
 }{
 	{"union-kube-applier-informers-controller", 1},
 	{"csstatedump", 20},
-	{"dispatchrequestcredential", 20},
 	{"systemadmincredentialdispatchrequestcredential", 20},
 	{"systemadmincredentialdispatchrevokecredentials", 20},
 	{"systemadmincredentialoperationrequestcredentialpoll", 20},
@@ -81,7 +80,6 @@ var expectedControllerLaunches = []struct {
 	{"operationexternalauthcreate", 20},
 	{"operationexternalauthupdate", 20},
 	{"operationexternalauthdelete", 20},
-	{"operationrequestcredential", 20},
 	{"clusterservicematchingclusters", 20},
 	{"clustervalidationalwayssuccessvalidation", 20},
 	{"deleteorphanedcosmosresources", 10},
@@ -340,7 +338,7 @@ func TestControllerContextKeepsFactoriesNotIndividualInformers(t *testing.T) {
 func TestControllerRegistryNamedZoneRegistrations(t *testing.T) {
 	files := token.NewFileSet()
 	for zone, expectedCount := range map[string]int{
-		"billing": 2, "cluster": 68, "clusterresources": 1, "cosmosmigration": 2,
+		"billing": 2, "cluster": 66, "clusterresources": 1, "cosmosmigration": 2,
 		"datadump": 1, "externalauth": 13, "metrics": 6, "mismatch": 4, "nodepool": 19,
 	} {
 		source, err := parser.ParseFile(files, "../controllers/"+zone+"/registration.go", nil, 0)

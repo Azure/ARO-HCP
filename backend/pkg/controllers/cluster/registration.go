@@ -34,7 +34,6 @@ import (
 	clusterhostedcluster "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/hostedcluster"
 	clusteridentity "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/identity"
 	clusterk8sresources "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/k8sresources"
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/legacycredentialrequest"
 	clusteroperations "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/operations"
 	clusterplacement "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/placement"
 	clusterproperties "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/properties"
@@ -48,23 +47,6 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerconfig"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/validationutils"
 )
-
-func registerDispatchRequestCredentialController() controllerconfig.ControllerRegistration {
-	return controllerconfig.ControllerRegistration{
-		Workers:     20,
-		Instantiate: controllerconfig.WithCacheSyncs(instantiateDispatchRequestCredentialController, false),
-	}
-}
-
-func instantiateDispatchRequestCredentialController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
-	activeOperationInformer, _ := controllerContext.BackendInformers.ActiveOperations()
-	return legacycredentialrequest.NewDispatchRequestCredentialController(
-		controllerContext.Clock,
-		controllerContext.ResourcesDBClient,
-		controllerContext.ClustersServiceClient,
-		activeOperationInformer,
-	), nil
-}
 
 func registerAdminCredentialsDispatchRequestCredentialController() controllerconfig.ControllerRegistration {
 	return controllerconfig.ControllerRegistration{
@@ -415,24 +397,6 @@ func instantiateOperationClusterDeleteController(controllerContext controllercon
 		controllerContext.KubeApplierDBClients,
 		unionReadDesireLister,
 		unionApplyDesireLister,
-		controllerContext.ClustersServiceClient,
-		controllerContext.AsyncOperationNotificationClient,
-		activeOperationInformer,
-	), nil
-}
-
-func registerOperationRequestCredentialController() controllerconfig.ControllerRegistration {
-	return controllerconfig.ControllerRegistration{
-		Workers:     20,
-		Instantiate: controllerconfig.WithCacheSyncs(instantiateOperationRequestCredentialController, false),
-	}
-}
-
-func instantiateOperationRequestCredentialController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
-	activeOperationInformer, _ := controllerContext.BackendInformers.ActiveOperations()
-	return legacycredentialrequest.NewOperationRequestCredentialController(
-		controllerContext.Clock,
-		controllerContext.ResourcesDBClient,
 		controllerContext.ClustersServiceClient,
 		controllerContext.AsyncOperationNotificationClient,
 		activeOperationInformer,
@@ -1267,7 +1231,6 @@ func Register(registry map[string]controllerconfig.ControllerRegistration) {
 	registry[strings.ToLower(rollout.ZStreamProgressiveDesiredVersionRolloutControllerName)] = registerZStreamProgressiveDesiredVersionRolloutController()
 	registry[strings.ToLower(rollout.ForcedClusterDesiredVersionControllerName)] = registerForcedClusterDesiredVersionController()
 	registry[strings.ToLower(rollout.RolloutSeedingControllerName)] = registerControlPlaneVersionRolloutSeedingController()
-	registry[strings.ToLower(legacycredentialrequest.DispatchRequestCredentialControllerName)] = registerDispatchRequestCredentialController()
 	registry[strings.ToLower(credentialrequestoperations.SystemAdminCredentialDispatchRequestCredentialControllerName)] = registerAdminCredentialsDispatchRequestCredentialController()
 	registry[strings.ToLower(credentialrevocationoperations.SystemAdminCredentialDispatchRevokeCredentialsControllerName)] = registerAdminCredentialsDispatchRevokeCredentialsController()
 	registry[strings.ToLower(credentialrequestoperations.SystemAdminCredentialOperationRequestCredentialPollControllerName)] = registerAdminCredentialsOperationRequestCredentialPollController()
@@ -1287,7 +1250,6 @@ func Register(registry map[string]controllerconfig.ControllerRegistration) {
 	registry[strings.ToLower(clusteroperations.OperationClusterCreateControllerName)] = registerOperationClusterCreateController()
 	registry[strings.ToLower(clusteroperations.OperationClusterUpdateControllerName)] = registerOperationClusterUpdateController()
 	registry[strings.ToLower(clusteroperations.OperationClusterDeleteControllerName)] = registerOperationClusterDeleteController()
-	registry[strings.ToLower(legacycredentialrequest.OperationRequestCredentialControllerName)] = registerOperationRequestCredentialController()
 	registry[strings.ToLower(clustervalidation.ClusterValidationAlwaysSuccessValidationControllerName)] = registerAlwaysSuccessClusterValidationController()
 	registry[strings.ToLower(clusterversion.ControlPlaneActiveVersionsControllerName)] = registerControlPlaneActiveVersionsController()
 

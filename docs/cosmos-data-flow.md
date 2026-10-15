@@ -91,6 +91,10 @@ Cluster teardown update baseline: `d453011603d357d8fa8938acef97eec5d00818c4`
 plus working-tree fixes; scope: ordered ApplyDesire removal, ReadDesire cleanup,
 concurrent Cluster Service delete dispatch, and the cluster-delete diagram.
 
+Legacy credential-request removal baseline: `5bfaafa51` plus working-tree changes;
+scope: removal of the two unreachable legacy credential controllers from the backend catalog.
+The CSR-based credential lifecycle and diagrams are unchanged.
+
 The generation instructions are maintained in [controller-data-flow.md](prompts/controller-data-flow.md).
 The historical filename is retained for existing links.
 
@@ -1823,18 +1827,6 @@ For deletion-marked revocations, tears down Kubernetes objects through Delete de
 [Source](../backend/pkg/controllers/cluster/credentialrevocation/operations/operation_revoke_credentials.go) · **Trigger:** Active operation; 10s.
 
 Waits for the referenced revocation document to disappear, then clears cluster `RevokeCredentialsOperationID` and completes the operation.
-
-#### DispatchRequestCredential
-
-[Source](../backend/pkg/controllers/cluster/legacycredentialrequest/dispatch_request_credential.go) · **Trigger:** Active operation; 10s; legacy.
-
-Dispatches credential issuance through Cluster Service and records `Operation.InternalID`. Still registered alongside the newer credential-document controllers.
-
-#### OperationRequestCredential
-
-[Source](../backend/pkg/controllers/cluster/legacycredentialrequest/operation_request_credential.go) · **Trigger:** Active operation; 10s; legacy.
-
-Polls the Cluster Service credential request, publishes the credential result and updates operation completion/error state.
 
 ### Backend: validation instances
 
