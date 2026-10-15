@@ -150,11 +150,10 @@ func (c *createBillingDoc) SyncOnce(ctx context.Context, keyObj controllerutils.
 		if subscription.Properties != nil {
 			doc.TenantID = ptr.Deref(subscription.Properties.TenantId, "")
 		}
-		managedRGName := existingCluster.ID.ResourceGroupName
-		if len(existingCluster.CustomerProperties.Platform.ManagedResourceGroup) != 0 {
-			managedRGName = existingCluster.CustomerProperties.Platform.ManagedResourceGroup
+		// The customer RG is not a substitute for the managed RG used to locate compute usage.
+		if managedRGName := existingCluster.CustomerProperties.Platform.ManagedResourceGroup; managedRGName != "" {
+			doc.ManagedResourceGroup = coreapihelpers.ToResourceGroupResourceIDString(existingCluster.ID.SubscriptionID, managedRGName)
 		}
-		doc.ManagedResourceGroup = coreapihelpers.ToResourceGroupResourceIDString(existingCluster.ID.SubscriptionID, managedRGName)
 
 		err = billingDocCRUD.Create(ctx, doc)
 		if err != nil {

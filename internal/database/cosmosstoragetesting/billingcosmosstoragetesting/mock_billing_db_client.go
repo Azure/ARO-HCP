@@ -232,6 +232,10 @@ func (m *mockBillingDocCRUD) PatchByID(ctx context.Context, billingDocID string,
 				return err
 			}
 			updated.DeletionTime = &cutoff
+		case "/managedResourceGroup":
+			if err := json.Unmarshal(operation.Value, &updated.ManagedResourceGroup); err != nil {
+				return err
+			}
 		default:
 			return fmt.Errorf("unsupported mock billing patch path %q", operation.Path)
 		}

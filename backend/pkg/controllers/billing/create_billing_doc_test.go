@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/go-logr/logr/testr"
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -114,6 +115,33 @@ func newTestClusterKey() controllerutils.HCPClusterKey {
 		SubscriptionID:    testSubscriptionID,
 		ResourceGroupName: testResourceGroupName,
 		HCPClusterName:    testClusterName,
+	}
+}
+
+func TestCreateBillingDocManagedResourceGroup(t *testing.T) {
+	created := mustParseTime("2026-10-21T12:00:00Z")
+	for _, tc := range []struct {
+		name, configured, want string
+	}{
+		{name: "configured RG", configured: "managed-rg", want: "/subscriptions/" + testSubscriptionID + "/resourcegroups/managed-rg"},
+		{name: "unset RG does not fall back to customer RG", want: ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
+			cluster := newTestCluster(t, testClusterUID, coreapi.ProvisioningStateSucceeded, &created)
+			cluster.CustomerProperties.Platform.ManagedResourceGroup = tc.configured
+			resources, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, newTestSubscription()})
+			require.NoError(t, err)
+			db := billingcosmosstoragetesting.NewMockBillingDBClient()
+			controller := NewCreateBillingDocController(clocktesting.NewFakePassiveClock(created), testAzureLocation, resources, db,
+				&corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{cluster}}, &corelistertesting.SliceBillingLister{})
+			require.NoError(t, controller.SyncOnce(ctx, newTestClusterKey()))
+			persisted, err := db.BillingDocs(testSubscriptionID).GetByID(ctx, testClusterUID)
+			require.NoError(t, err)
+			if diff := cmp.Diff(tc.want, persisted.ManagedResourceGroup); diff != "" {
+				t.Fatalf("managed RG (-want +got):\n%s", diff)
+			}
+		})
 	}
 }
 
