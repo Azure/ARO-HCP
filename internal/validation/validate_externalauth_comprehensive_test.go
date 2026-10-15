@@ -25,7 +25,6 @@ import (
 	"fmt"
 	"math/big"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -224,7 +223,7 @@ func TestValidateExternalAuth(t *testing.T) {
 		},
 		{
 			name: "CA PEM with private key is rejected",
-			newObj: func() *coreapi.HCPOpenShiftClusterExternalAuth {
+			newObj: func() *coreapi.ExternalAuth {
 				obj := createMinimalExternalAuth()
 				obj.Properties.Issuer.URL = "https://valid.example.com"
 				obj.Properties.Issuer.Audiences = []string{"audience1"}
@@ -238,7 +237,7 @@ func TestValidateExternalAuth(t *testing.T) {
 		},
 		{
 			name: "non-CA certificate is rejected",
-			newObj: func() *coreapi.HCPOpenShiftClusterExternalAuth {
+			newObj: func() *coreapi.ExternalAuth {
 				obj := createMinimalExternalAuth()
 				obj.Properties.Issuer.URL = "https://valid.example.com"
 				obj.Properties.Issuer.Audiences = []string{"audience1"}
@@ -252,7 +251,7 @@ func TestValidateExternalAuth(t *testing.T) {
 		},
 		{
 			name: "expired CA certificate is rejected",
-			newObj: func() *coreapi.HCPOpenShiftClusterExternalAuth {
+			newObj: func() *coreapi.ExternalAuth {
 				obj := createMinimalExternalAuth()
 				obj.Properties.Issuer.URL = "https://valid.example.com"
 				obj.Properties.Issuer.Audiences = []string{"audience1"}
@@ -266,7 +265,7 @@ func TestValidateExternalAuth(t *testing.T) {
 		},
 		{
 			name: "not-yet-valid CA certificate is accepted at admission",
-			newObj: func() *coreapi.HCPOpenShiftClusterExternalAuth {
+			newObj: func() *coreapi.ExternalAuth {
 				obj := createMinimalExternalAuth()
 				obj.Properties.Issuer.URL = "https://valid.example.com"
 				obj.Properties.Issuer.Audiences = []string{"audience1"}
@@ -305,7 +304,7 @@ func TestValidateExternalAuth(t *testing.T) {
 				obj := createMinimalExternalAuth()
 				obj.Properties.Issuer.URL = "https://valid.example.com"
 				obj.Properties.Issuer.Audiences = []string{"audience1"}
-				obj.Properties.Issuer.CA = validCertPEM()
+				obj.Properties.Issuer.CA = mustGenerateTestCACertPEM()
 				obj.Properties.Clients = []coreapi.ExternalAuthClientProfile{
 					{
 						Component: coreapi.ExternalAuthClientComponentProfile{
@@ -1232,7 +1231,7 @@ func createValidExternalAuth() *coreapi.ExternalAuth {
 			Issuer: coreapi.TokenIssuerProfile{
 				URL:       "https://issuer.example.com",
 				Audiences: []string{"audience1", "audience2"},
-				CA:        validCertPEM(),
+				CA:        mustGenerateTestCACertPEM(),
 			},
 			Clients: []coreapi.ExternalAuthClientProfile{
 				{
@@ -1266,10 +1265,6 @@ func createValidExternalAuth() *coreapi.ExternalAuth {
 			},
 		},
 	}
-}
-
-func validCertPEM() string {
-	return mustValidCAPEM()
 }
 
 func TestValidateCACertificatePEM(t *testing.T) {
@@ -1361,13 +1356,13 @@ func TestValidateCACertificatePEM(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			errs := ValidatePEM(context.Background(), operation.Operation{}, fldPath, tt.value, nil)
+			errs := validateCACertificatePEM(context.Background(), operation.Operation{}, fldPath, tt.value, nil)
 			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
 		})
 	}
 
 	t.Run("ValidatePEM uses current time", func(t *testing.T) {
-		errs := ValidatePEM(context.Background(), operation.Operation{}, fldPath, ptr.To(validCA), nil)
+		errs := validateCACertificatePEM(context.Background(), operation.Operation{}, fldPath, ptr.To(validCA), nil)
 		if len(errs) != 0 {
 			t.Fatalf("expected valid current CA to pass, got %v", errs)
 		}
@@ -1375,14 +1370,14 @@ func TestValidateCACertificatePEM(t *testing.T) {
 }
 
 func TestValidateCACertificatePEM_diagnostics(t *testing.T) {
-	now := time.Date(2026, 9, 1, 12, 0, 0, 0, time.UTC)
+	now := time.Now()
 	fldPath := field.NewPath("ca")
-	nonCA := mustGenerateTestCertPEM(t, now.Add(-time.Hour), now.Add(24*time.Hour), false)
+	nonCA := mustGenerateTestCertPEM(t, now.Add(-time.Hour), now.Add(90*24*time.Hour), false)
 	privateKey := mustGenerateTestPrivateKeyPEM(t)
-	validCA := mustGenerateTestCertPEM(t, now.Add(-time.Hour), now.Add(24*time.Hour), true)
+	validCA := mustGenerateTestCertPEM(t, now.Add(-time.Hour), now.Add(90*24*time.Hour), true)
 
 	t.Run("non-CA uses block index and subject", func(t *testing.T) {
-		errs := validateCACertificatePEM(fldPath, ptr.To(nonCA), now)
+		errs := validateCACertificatePEM(context.Background(), operation.Operation{}, fldPath, ptr.To(nonCA), nil)
 		if len(errs) != 1 {
 			t.Fatalf("expected 1 error, got %v", errs)
 		}
@@ -1395,7 +1390,7 @@ func TestValidateCACertificatePEM_diagnostics(t *testing.T) {
 	})
 
 	t.Run("non-CERTIFICATE block uses block index", func(t *testing.T) {
-		errs := validateCACertificatePEM(fldPath, ptr.To(validCA+privateKey), now)
+		errs := validateCACertificatePEM(context.Background(), operation.Operation{}, fldPath, ptr.To(validCA+privateKey), nil)
 		if len(errs) != 1 {
 			t.Fatalf("expected 1 error, got %v", errs)
 		}
@@ -1408,7 +1403,7 @@ func TestValidateCACertificatePEM_diagnostics(t *testing.T) {
 	})
 
 	t.Run("trailing garbage is a single dedicated error", func(t *testing.T) {
-		errs := validateCACertificatePEM(fldPath, ptr.To(validCA+"not-pem-data\n"), now)
+		errs := validateCACertificatePEM(context.Background(), operation.Operation{}, fldPath, ptr.To(validCA+"not-pem-data\n"), nil)
 		if len(errs) != 1 {
 			t.Fatalf("expected 1 error, got %v", errs)
 		}
@@ -1421,7 +1416,7 @@ func TestValidateCACertificatePEM_diagnostics(t *testing.T) {
 	})
 
 	t.Run("trailing whitespace after PEM is accepted", func(t *testing.T) {
-		if errs := validateCACertificatePEM(fldPath, ptr.To(validCA+"\n  \n"), now); len(errs) != 0 {
+		if errs := validateCACertificatePEM(context.Background(), operation.Operation{}, fldPath, ptr.To(validCA+"\n  \n"), nil); len(errs) != 0 {
 			t.Fatalf("expected trailing whitespace to pass, got %v", errs)
 		}
 	})
@@ -1476,41 +1471,33 @@ func generateTestCertPEM(notBefore, notAfter time.Time, isCA bool) (string, erro
 	return string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der})), nil
 }
 
-func mustValidCAPEM() string {
-	validCAPEMOnce.Do(func() {
-		pemBytes, err := generateTestCertPEM(time.Now().Add(-time.Hour), time.Now().Add(24*time.Hour), true)
-		if err != nil {
-			panic(err)
-		}
-		validCAPEMForTests = pemBytes
-	})
-	return validCAPEMForTests
+func mustGenerateTestCACertPEM() string {
+	pemBytes, err := generateTestCertPEM(time.Now().Add(-time.Hour), time.Now().Add(24*time.Hour), true)
+	if err != nil {
+		panic(err)
+	}
+	return pemBytes
 }
 
-var (
-	validCAPEMOnce     sync.Once
-	validCAPEMForTests string
-)
-
 func TestValidateCACertificatePEM_boundaryTimes(t *testing.T) {
-	now := time.Date(2026, 9, 1, 12, 0, 0, 0, time.UTC)
+	now := time.Now()
 	fldPath := field.NewPath("ca")
 
-	atNotBefore := mustGenerateTestCertPEM(t, now, now.Add(time.Hour), true)
-	atNotAfter := mustGenerateTestCertPEM(t, now.Add(-time.Hour), now, true)
+	atNotBefore := mustGenerateTestCertPEM(t, now.Add(-time.Second), now.Add(90*24*time.Hour), true)
+	atNotAfter := mustGenerateTestCertPEM(t, now.Add(-90*24*time.Hour), now.Add(time.Minute), true)
 
-	if errs := validateCACertificatePEM(fldPath, &atNotBefore, now); len(errs) != 0 {
-		t.Fatalf("certificate valid starting exactly now should pass, got %v", errs)
+	if errs := validateCACertificatePEM(context.Background(), operation.Operation{}, fldPath, &atNotBefore, nil); len(errs) != 0 {
+		t.Fatalf("certificate valid starting just before now should pass, got %v", errs)
 	}
-	if errs := validateCACertificatePEM(fldPath, &atNotAfter, now); len(errs) != 0 {
-		t.Fatalf("certificate valid until exactly now should pass, got %v", errs)
+	if errs := validateCACertificatePEM(context.Background(), operation.Operation{}, fldPath, &atNotAfter, nil); len(errs) != 0 {
+		t.Fatalf("certificate valid until just after now should pass, got %v", errs)
 	}
 }
 
 func TestValidateCACertificatePEM_doesNotEchoPrivateKey(t *testing.T) {
 	fldPath := field.NewPath("ca")
 	privateKey := mustGenerateTestPrivateKeyPEM(t)
-	errs := validateCACertificatePEM(fldPath, &privateKey, time.Now())
+	errs := validateCACertificatePEM(context.Background(), operation.Operation{}, fldPath, &privateKey, nil)
 	if len(errs) == 0 {
 		t.Fatal("expected errors for a private key PEM")
 	}
