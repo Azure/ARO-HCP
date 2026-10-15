@@ -531,7 +531,7 @@ Positivity labels:
 
 Retry labels:
 
-- `allow-retry`: marks a test as safe to auto-retry during an EV2 Stage/Prod gating run when it fails due to a known, actively tracked issue. Temporary by design (tracked in AROSLSRE-1721): every use must have an owner and a tracking issue, and must be removed once the underlying issue is fixed.
+- `allow-retry`: marks a test as safe to auto-retry during an EV2 gating run (INT, Stage or Prod) when it fails due to a known, actively tracked issue. Temporary by design (tracked in AROSLSRE-1721): every use must have an owner and a tracking issue, and must be removed once the underlying issue is fixed.
 
 ### Assertions
 
