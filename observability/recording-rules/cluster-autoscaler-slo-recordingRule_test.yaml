@@ -11,6 +11,11 @@ tests:
   input_series:
   - series: 'cluster_autoscaler_nodes_count{state="ready", cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
     values: "3x30"
+  # A non-ocm namespace must be excluded by the namespace=~"ocm-.*" selector. If
+  # filtering regressed, ready_count would emit an extra kube-system series and
+  # the assertion below (which lists only the ocm series) would fail.
+  - series: 'cluster_autoscaler_nodes_count{state="ready", cluster="mgmt-1", namespace="kube-system"}'
+    values: "99x30"
   - series: 'cluster_autoscaler_max_nodes_count{cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
     values: "6x30"
   - series: 'cluster_autoscaler_unschedulable_pods_count{cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
@@ -67,6 +72,52 @@ tests:
     - labels: 'errors:cluster_autoscaler:errors:rate15m{cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
       value: 0
 # ========================================
+# metrics_availability: 1 while telemetry flows, 0 once it stops but the
+# control plane is still up. Both control planes stay up the whole time
+# (kas:apiserver_request_total:rate5m keeps flowing -> the KAS gate stays
+# present). mgmt-1 keeps emitting autoscaler metrics; mgmt-2's autoscaler
+# stops after minute 9. Within 5m of stopping mgmt-2 still reads 1 (fresh
+# samples in the 5m window); by 20m it reads 0 because KAS is present but the
+# autoscaler is silent. The fleet-wide fleet_metrics_absent rule is covered
+# separately.
+# ========================================
+- interval: 1m
+  input_series:
+  - series: 'cluster_autoscaler_last_activity{activity="main", cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "0+60x30"
+  - series: 'cluster_autoscaler_last_activity{activity="main", cluster="mgmt-2", namespace="ocm-dev-abc-cluster22-01"}'
+    values: "0+60x9"
+  # KAS gate: both control planes stay up and scraped for the whole test.
+  - series: 'kas:apiserver_request_total:rate5m{cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "1x30"
+  - series: 'kas:apiserver_request_total:rate5m{cluster="mgmt-2", namespace="ocm-dev-abc-cluster22-01"}'
+    values: "1x30"
+  # mgmt-3: both the autoscaler AND the control plane (KAS gate) go silent after
+  # minute 9 — a deleted/offline control plane. The KAS gate must suppress any
+  # output (neither 1 nor 0) so a gone cluster is not flagged as an autoscaler
+  # failure; i.e. mgmt-3 must be absent from the 20m result below.
+  - series: 'cluster_autoscaler_last_activity{activity="main", cluster="mgmt-3", namespace="ocm-dev-abc-cluster23-01"}'
+    values: "0+60x9"
+  - series: 'kas:apiserver_request_total:rate5m{cluster="mgmt-3", namespace="ocm-dev-abc-cluster23-01"}'
+    values: "1x9"
+  promql_expr_test:
+  - expr: health:cluster_autoscaler:metrics_availability
+    eval_time: 5m
+    exp_samples:
+    - labels: 'health:cluster_autoscaler:metrics_availability{cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+      value: 1
+    - labels: 'health:cluster_autoscaler:metrics_availability{cluster="mgmt-2", namespace="ocm-dev-abc-cluster22-01"}'
+      value: 1
+    - labels: 'health:cluster_autoscaler:metrics_availability{cluster="mgmt-3", namespace="ocm-dev-abc-cluster23-01"}'
+      value: 1
+  - expr: health:cluster_autoscaler:metrics_availability
+    eval_time: 20m
+    exp_samples:
+    - labels: 'health:cluster_autoscaler:metrics_availability{cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+      value: 1
+    - labels: 'health:cluster_autoscaler:metrics_availability{cluster="mgmt-2", namespace="ocm-dev-abc-cluster22-01"}'
+      value: 0
+# ========================================
 # seconds_since_last_activity grows when the main loop stops updating
 # (last_activity constant while time advances).
 # ========================================
@@ -116,4 +167,66 @@ tests:
     eval_time: 20m
     exp_samples:
     - labels: '{cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+      value: 1
+# ========================================
+# fleet_metrics_absent: 1 when NO autoscaler reports anywhere in the fleet,
+# including the recovery transition back to resolved. Timeline: reporting
+# 0-5m, silent 6-30m, reporting again from 31m. While samples remain inside
+# the 15m subquery window the rule emits nothing; after >15m of silence it
+# fires a fleet-wide 1; once reporting resumes and refills the window it must
+# stop firing (resolve).
+# ========================================
+- interval: 1m
+  input_series:
+  - series: 'cluster_autoscaler_last_activity{activity="main", cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    # value is irrelevant here (fleet_metrics_absent only checks presence):
+    # reports 0-5m, silent 6-30m, reports again from 31m.
+    values: "1x5 _x25 1x25"
+  promql_expr_test:
+  # autoscaler still reporting -> no absence
+  - expr: health:cluster_autoscaler:fleet_metrics_absent
+    eval_time: 5m
+    exp_samples: []
+  # fleet silent well beyond the 15m window -> fires 1
+  - expr: health:cluster_autoscaler:fleet_metrics_absent
+    eval_time: 28m
+    exp_samples:
+    - labels: 'health:cluster_autoscaler:fleet_metrics_absent'
+      value: 1
+  # reporting resumed and the 15m window has refilled -> resolved (no series)
+  - expr: health:cluster_autoscaler:fleet_metrics_absent
+    eval_time: 50m
+    exp_samples: []
+# ========================================
+# metrics_availability recovery: a cluster goes silent then resumes. It must
+# transition 1 -> 0 -> 1 and NOT stay stuck at 0 after the autoscaler returns.
+# Autoscaler: up 0-9m, silent 10-19m, up again from 20m. KAS stays up the whole
+# time so the gap reads 0 (firing) rather than absent.
+# ========================================
+- interval: 1m
+  input_series:
+  - series: 'cluster_autoscaler_last_activity{activity="main", cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    # value is irrelevant here (metrics_availability only checks presence):
+    # up 0-9m, silent 10-19m, up again from 20m.
+    values: "1x9 _x10 1x11"
+  - series: 'kas:apiserver_request_total:rate5m{cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "1x31"
+  promql_expr_test:
+  # healthy -> 1
+  - expr: health:cluster_autoscaler:metrics_availability
+    eval_time: 5m
+    exp_samples:
+    - labels: 'health:cluster_autoscaler:metrics_availability{cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+      value: 1
+  # firing (autoscaler silent, KAS up) -> 0
+  - expr: health:cluster_autoscaler:metrics_availability
+    eval_time: 15m
+    exp_samples:
+    - labels: 'health:cluster_autoscaler:metrics_availability{cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+      value: 0
+  # resolved (autoscaler resumed) -> back to 1
+  - expr: health:cluster_autoscaler:metrics_availability
+    eval_time: 25m
+    exp_samples:
+    - labels: 'health:cluster_autoscaler:metrics_availability{cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
       value: 1

@@ -39,16 +39,15 @@ spec:
       expr: |
         sum by (cluster, namespace) (
           max without (prometheus_replica) (
-            cluster_autoscaler_nodes_count{state="ready"}
+            cluster_autoscaler_nodes_count{state="ready", namespace=~"ocm-.*"}
           )
         )
-    # Ceiling the autoscaler may scale to (sum of NodePool maxima, bounded by
-    # the cluster-wide maxNodesTotal).
+    # Ceiling the autoscaler may scale to (maximum number of nodes in all node groups).
     - record: nodes:cluster_autoscaler:max_count
       expr: |
         max by (cluster, namespace) (
           max without (prometheus_replica) (
-            cluster_autoscaler_max_nodes_count
+            cluster_autoscaler_max_nodes_count{namespace=~"ocm-.*"}
           )
         )
     # Fraction of the ceiling currently in use. 1.0 means the autoscaler is at
@@ -64,7 +63,7 @@ spec:
       expr: |
         sum by (cluster, namespace) (
           max without (prometheus_replica) (
-            cluster_autoscaler_unschedulable_pods_count
+            cluster_autoscaler_unschedulable_pods_count{namespace=~"ocm-.*"}
           )
         )
     # 1 while the autoscaler considers the cluster healthy enough to act; 0 when
@@ -73,18 +72,21 @@ spec:
       expr: |
         min by (cluster, namespace) (
           max without (prometheus_replica) (
-            cluster_autoscaler_cluster_safe_to_autoscale
+            cluster_autoscaler_cluster_safe_to_autoscale{namespace=~"ocm-.*"}
           )
         )
     # Seconds since the autoscaler's main loop last ran. A growing value means the
-    # control loop is wedged or the pod is not running.
+    # control loop is wedged while the pod is still running. NOTE: when the
+    # autoscaler pod is down (or scaled to zero), the upstream metric disappears
+    # and this rule produces no series — it does NOT detect a dead pod. A
+    # separate absent-detection mechanism is needed for that case (follow-up).
     - record: health:cluster_autoscaler:seconds_since_last_activity
       expr: |
         time()
         -
         max by (cluster, namespace) (
           max without (prometheus_replica) (
-            cluster_autoscaler_last_activity{activity="main"}
+            cluster_autoscaler_last_activity{activity="main", namespace=~"ocm-.*"}
           )
         )
     # Rate of failed scale-up attempts (quota, capacity, provider errors).
@@ -92,7 +94,7 @@ spec:
       expr: |
         sum by (cluster, namespace) (
           max without (prometheus_replica) (
-            rate(cluster_autoscaler_failed_scale_ups_total[15m])
+            rate(cluster_autoscaler_failed_scale_ups_total{namespace=~"ocm-.*"}[15m])
           )
         )
     # Rate of internal autoscaler errors, by type.
@@ -100,7 +102,7 @@ spec:
       expr: |
         sum by (cluster, namespace) (
           max without (prometheus_replica) (
-            rate(cluster_autoscaler_errors_total[15m])
+            rate(cluster_autoscaler_errors_total{namespace=~"ocm-.*"}[15m])
           )
         )
     # Worker nodes the autoscaler has marked for deletion but not yet removed
@@ -109,7 +111,7 @@ spec:
       expr: |
         sum by (cluster, namespace) (
           max without (prometheus_replica) (
-            cluster_autoscaler_pending_node_deletions
+            cluster_autoscaler_pending_node_deletions{namespace=~"ocm-.*"}
           )
         )
     # Rate of nodes added by scale-up.
@@ -117,7 +119,7 @@ spec:
       expr: |
         sum by (cluster, namespace) (
           max without (prometheus_replica) (
-            rate(cluster_autoscaler_scaled_up_nodes_total[15m])
+            rate(cluster_autoscaler_scaled_up_nodes_total{namespace=~"ocm-.*"}[15m])
           )
         )
     # Rate of nodes removed by scale-down.
@@ -125,6 +127,60 @@ spec:
       expr: |
         sum by (cluster, namespace) (
           max without (prometheus_replica) (
-            rate(cluster_autoscaler_scaled_down_nodes_total[15m])
+            rate(cluster_autoscaler_scaled_down_nodes_total{namespace=~"ocm-.*"}[15m])
           )
+        )
+    # Per-cluster telemetry availability: 1 = autoscaler emitted metrics for
+    # this hosted cluster within the last 1m; 0 = this cluster emitted metrics
+    # at some point but is currently silent (autoscaler pod down, or this
+    # cluster's scrape/remote-write path broken).
+    #
+    # Why not absent_over_time(): it is the right tool for fleet-wide silence
+    # (see fleet_metrics_absent below) but its output is label-less — a
+    # missing series has no cluster/namespace to attribute the absence to —
+    # so it can never be bifurcated per hosted cluster. The label-preserving
+    # equivalent is count_over_time: "any samples in the window, per group".
+    #
+    # Memory/latch: the second branch joins the rule's OWN previous output.
+    # Once a hosted cluster has produced a sample, the recorded series keeps
+    # it alive (as 0 while silent) indefinitely — the per-cluster analogue of
+    # absent_over_time firing forever. Without it, a cluster silent for longer
+    # than the window would vanish from the panel entirely. The first branch
+    # bootstraps the series from fresh raw data; the latch only forgets if
+    # rule evaluation itself stops for longer than [1d].
+    # Branch B gates on kas:apiserver_request_total:rate5m (already aggregated to
+    # one series per (cluster, namespace)) rather than raw apiserver_request_total
+    # (thousands of series per control plane) to keep this rule cheap to evaluate.
+    - record: health:cluster_autoscaler:metrics_availability
+      expr: |
+        (
+          max by (cluster, namespace) (
+            present_over_time(cluster_autoscaler_last_activity{activity="main", namespace=~"ocm-.*"}[1m])
+          )
+        )
+        or on (cluster, namespace)
+        (
+          (
+            present_over_time(kas:apiserver_request_total:rate5m{namespace=~"ocm-.*"}[1m])
+            unless on (cluster, namespace)
+            max by (cluster, namespace) (
+              present_over_time(cluster_autoscaler_last_activity{activity="main", namespace=~"ocm-.*"}[1m])
+            )
+          ) * 0
+        )
+    # Fleet-wide absence check: 1 when NO autoscaler has reported metrics
+    # in the last 5 minutes across all hosted clusters. Uses
+    # absent_over_time() to detect total loss of autoscaler telemetry —
+    # e.g. PrometheusAgent pipeline broken, remote-write down, or every
+    # autoscaler pod dead. The 5m window is short enough to surface an
+    # outage quickly while tolerating a couple of missed scrapes. The
+    # inner max-without deduplicates the two PrometheusAgent replicas
+    # (same pattern as all other rules in this file) so that stale data
+    # from one replica cannot mask a true outage.
+    - record: health:cluster_autoscaler:fleet_metrics_absent
+      expr: |
+        absent_over_time(
+          max without (prometheus_replica) (
+            cluster_autoscaler_last_activity{activity="main", namespace=~"ocm-.*"}
+          )[15m:]
         )

@@ -159,8 +159,8 @@ resource arohcpClusterAutoscalerHealthAlerts 'Microsoft.AlertsManagement/prometh
         }
         annotations: {
           correlationId: 'UserJourneyClusterAutoscalerStalled/{{ $labels.cluster }}/{{ $labels.namespace }}'
-          description: 'The cluster autoscaler for hosted cluster {{ $labels.namespace }} has not completed a main loop iteration in over 10 minutes, sustained for 15 minutes. The autoscaler is wedged or its pod is not running; no scaling is happening for this hosted cluster. This is an autoscaler malfunction, independent of the customer\'s autoscaling configuration.'
-          info: 'The cluster autoscaler for hosted cluster {{ $labels.namespace }} has not completed a main loop iteration in over 10 minutes, sustained for 15 minutes. The autoscaler is wedged or its pod is not running; no scaling is happening for this hosted cluster. This is an autoscaler malfunction, independent of the customer\'s autoscaling configuration.'
+          description: 'The cluster autoscaler for hosted cluster {{ $labels.namespace }} has not completed a main loop iteration in over 10 minutes, sustained for 15 minutes. The autoscaler pod is running but its control loop is wedged; no scaling is happening for this hosted cluster. Note: this alert only fires while the pod is running — a truly dead autoscaler pod produces no metric and requires separate absent-detection. This is an autoscaler malfunction, independent of the customer\'s autoscaling configuration.'
+          info: 'The cluster autoscaler for hosted cluster {{ $labels.namespace }} has not completed a main loop iteration in over 10 minutes, sustained for 15 minutes. The autoscaler pod is running but its control loop is wedged; no scaling is happening for this hosted cluster. Note: this alert only fires while the pod is running — a truly dead autoscaler pod produces no metric and requires separate absent-detection. This is an autoscaler malfunction, independent of the customer\'s autoscaling configuration.'
           runbook_url: 'https://aka.ms/arohcp-runbook-cluster-autoscaler'
           summary: '{{ $labels.namespace }}: cluster autoscaler main loop stalled'
           title: '{{ $labels.namespace }}: cluster autoscaler main loop stalled'
@@ -197,6 +197,35 @@ resource arohcpClusterAutoscalerHealthAlerts 'Microsoft.AlertsManagement/prometh
         expression: 'health:cluster_autoscaler:safe_to_autoscale == 0'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'UserJourneyClusterAutoscalerMetricsAbsent'
+        enabled: true
+        labels: {
+          component: 'slo'
+          severity: '3'
+          slo: 'cluster-autoscaler-health'
+        }
+        annotations: {
+          correlationId: 'UserJourneyClusterAutoscalerMetricsAbsent'
+          description: 'No cluster autoscaler metrics have been received from any hosted cluster for over 5 minutes (sustained for 5 minutes). This indicates a total loss of autoscaler telemetry — likely a PrometheusAgent or remote-write pipeline failure rather than individual autoscaler pods being down. Investigate the monitoring pipeline on the affected management cluster(s).'
+          info: 'No cluster autoscaler metrics have been received from any hosted cluster for over 5 minutes (sustained for 5 minutes). This indicates a total loss of autoscaler telemetry — likely a PrometheusAgent or remote-write pipeline failure rather than individual autoscaler pods being down. Investigate the monitoring pipeline on the affected management cluster(s).'
+          runbook_url: 'https://aka.ms/arohcp-runbook-cluster-autoscaler'
+          summary: 'Fleet-wide cluster autoscaler metrics absent'
+          title: 'Fleet-wide cluster autoscaler metrics absent'
+        }
+        expression: 'health:cluster_autoscaler:fleet_metrics_availability == 0'
+        for: 'PT5M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
         actions: [
@@ -288,13 +317,13 @@ resource arohcpClusterAutoscalerScalingAlerts 'Microsoft.AlertsManagement/promet
         }
         annotations: {
           correlationId: 'UserJourneyClusterAutoscalerScaleUpStuck/{{ $labels.cluster }}/{{ $labels.namespace }}'
-          description: 'For over 20 minutes the cluster autoscaler for hosted cluster {{ $labels.namespace }} has had unschedulable pods while still below its maximum node count (headroom available). The autoscaler is allowed to add nodes and demand exists, but the pods are not being scheduled — the scale-up operation is blocked (e.g. nodes failing to join, provisioning stuck). This is distinct from a cluster at its configured max, which is not alerted. SRE investigation needed.'
-          info: 'For over 20 minutes the cluster autoscaler for hosted cluster {{ $labels.namespace }} has had unschedulable pods while still below its maximum node count (headroom available). The autoscaler is allowed to add nodes and demand exists, but the pods are not being scheduled — the scale-up operation is blocked (e.g. nodes failing to join, provisioning stuck). This is distinct from a cluster at its configured max, which is not alerted. SRE investigation needed.'
+          description: 'For over 20 minutes the cluster autoscaler for hosted cluster {{ $labels.namespace }} has had unschedulable pods while still below its maximum node count (headroom available) and while it is safe to act (safe_to_autoscale=1). Demand exists and the autoscaler is willing to add nodes, but the pods are not being scheduled — the scale-up operation is blocked (e.g. provisioning stuck or a small number of nodes failing to join). This is distinct from a cluster at its configured max (not alerted) and from the autoscaler having disabled itself for safety (see UserJourneyClusterAutoscalerSafetyDisabled). SRE investigation needed.'
+          info: 'For over 20 minutes the cluster autoscaler for hosted cluster {{ $labels.namespace }} has had unschedulable pods while still below its maximum node count (headroom available) and while it is safe to act (safe_to_autoscale=1). Demand exists and the autoscaler is willing to add nodes, but the pods are not being scheduled — the scale-up operation is blocked (e.g. provisioning stuck or a small number of nodes failing to join). This is distinct from a cluster at its configured max (not alerted) and from the autoscaler having disabled itself for safety (see UserJourneyClusterAutoscalerSafetyDisabled). SRE investigation needed.'
           runbook_url: 'https://aka.ms/arohcp-runbook-cluster-autoscaler'
           summary: '{{ $labels.namespace }}: cluster autoscaler scale-up appears stuck (pending pods with headroom)'
           title: '{{ $labels.namespace }}: cluster autoscaler scale-up appears stuck (pending pods with headroom)'
         }
-        expression: '(pods:cluster_autoscaler:unschedulable_count > 0) and on (cluster, namespace) (nodes:cluster_autoscaler:ready_count < nodes:cluster_autoscaler:max_count)'
+        expression: '(pods:cluster_autoscaler:unschedulable_count > 0) and on (cluster, namespace) (nodes:cluster_autoscaler:ready_count < nodes:cluster_autoscaler:max_count) and on (cluster, namespace) (health:cluster_autoscaler:safe_to_autoscale == 1)'
         for: 'PT20M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }

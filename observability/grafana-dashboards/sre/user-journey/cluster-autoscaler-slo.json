@@ -370,7 +370,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "max by (namespace) (health:cluster_autoscaler:seconds_since_last_activity{cluster=~\"$cluster\", namespace=~\"$namespace\"})",
+          "expr": "health:cluster_autoscaler:seconds_since_last_activity{cluster=~\"$cluster\", namespace=~\"$namespace\"}",
           "legendFormat": "{{namespace}}",
           "refId": "A"
         }
@@ -424,7 +424,7 @@
       "pluginVersion": "11.6.9",
       "targets": [
         { "datasource": { "type": "prometheus", "uid": "$datasource" }, "editorMode": "code", "expr": "sum by (cluster, namespace) (nodes:cluster_autoscaler:ready_count{cluster=~\"$cluster\", namespace=~\"$namespace\"})", "format": "table", "instant": true, "legendFormat": "__auto", "refId": "Ready" },
-        { "datasource": { "type": "prometheus", "uid": "$datasource" }, "editorMode": "code", "expr": "max by (cluster, namespace) (nodes:cluster_autoscaler:max_count{cluster=~\"$cluster\", namespace=~\"$namespace\"})", "format": "table", "instant": true, "legendFormat": "__auto", "refId": "Max" },
+        { "datasource": { "type": "prometheus", "uid": "$datasource" }, "editorMode": "code", "expr": "nodes:cluster_autoscaler:max_count{cluster=~\"$cluster\", namespace=~\"$namespace\"}", "format": "table", "instant": true, "legendFormat": "__auto", "refId": "Max" },
         { "datasource": { "type": "prometheus", "uid": "$datasource" }, "editorMode": "code", "expr": "sum by (cluster, namespace) (pods:cluster_autoscaler:unschedulable_count{cluster=~\"$cluster\", namespace=~\"$namespace\"})", "format": "table", "instant": true, "legendFormat": "__auto", "refId": "Unschedulable" },
         { "datasource": { "type": "prometheus", "uid": "$datasource" }, "editorMode": "code", "expr": "min by (cluster, namespace) (health:cluster_autoscaler:safe_to_autoscale{cluster=~\"$cluster\", namespace=~\"$namespace\"})", "format": "table", "instant": true, "legendFormat": "__auto", "refId": "Safe" }
       ],
