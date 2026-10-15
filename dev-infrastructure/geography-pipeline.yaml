@@ -44,6 +44,7 @@ resourceGroups:
     - switzerlandnorth
     - uksouth
     - japaneast
+    - swedencentral
   steps:
   - name: subscription-lookup
     action: ARM
@@ -84,6 +85,7 @@ resourceGroups:
     - switzerlandnorth
     - uksouth
     - japaneast
+    - swedencentral
   steps:
   - name: deploy
     action: ARM

@@ -316,6 +316,11 @@ func NewCosmosResourceCRUDWithPartitionKey[InternalAPIType any, InternalAPITypeP
 func NewCosmosResourceCRUDWithStrategies[InternalAPIType any, InternalAPITypePointer coreapi.CosmosMetadataAccessorPtr[InternalAPIType], CosmosAPIType any](
 	ContainerClient *azcosmos.ContainerClient, ParentResourceID *azcorearm.ResourceID, ResourceType azcorearm.ResourceType, partitionKeyDeriver PartitionKeyDeriver, resourceIDBuilder ResourceIDBuilder) *NestedCosmosResourceCRUD[InternalAPIType, InternalAPITypePointer, CosmosAPIType] {
 
+	if ParentResourceID != nil {
+		if lowerParentResourceID, err := azcorearm.ParseResourceID(strings.ToLower(ParentResourceID.String())); err == nil {
+			ParentResourceID = lowerParentResourceID
+		}
+	}
 	return &NestedCosmosResourceCRUD[InternalAPIType, InternalAPITypePointer, CosmosAPIType]{
 		ContainerClient:     ContainerClient,
 		ParentResourceID:    ParentResourceID,

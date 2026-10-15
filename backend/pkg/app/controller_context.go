@@ -61,6 +61,7 @@ func (b *Backend) newControllerContext(ctx context.Context) ControllerContext {
 		FPAClientBuilder:                  b.options.FPAClientBuilder,
 		FPAMIDataplaneClientBuilder:       b.options.FPAMIDataplaneClientBuilder,
 		HasRealFPA:                        b.options.HasRealFPA,
+		HardcodedIdentity:                 b.options.HardcodedIdentity,
 		MIDataplaneBasedIdentityAccessTokenRetrieverBuilder: b.options.MIDataplaneBasedIdentityAccessTokenRetrieverBuilder,
 		MaestroSourceEnvironmentIdentifier:                  b.options.MaestroSourceEnvironmentIdentifier,
 		MetricsRegisterer:                                   b.options.MetricsRegisterer,

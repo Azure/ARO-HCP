@@ -916,7 +916,6 @@ defaults:
       autoApproveStamps: true
     nodePoolPlanning:
       profile: "production"
-      zones: ""
   # Admin API
   adminApi:
     audit:
@@ -940,8 +939,6 @@ defaults:
       name: admin-api-cert-{{ .ctx.environment }}-{{ .ctx.regionShort }}
       san: ''
       contentType: x-pkcs12
-    alertProcessingRules:
-      deploy: false
   # Session Gate
   sessiongate:
     image:
@@ -1161,7 +1158,7 @@ defaults:
     image:
       registry: quay.io
       repository: app-sre/aro-hcp-clusters-service
-      digest: sha256:18670fcebdc5fd1a4348cd0becb96de60d5693548f275717196662293f9900f0 # af108718005da2142be082de856dd7d79e79c5bc (2026-10-09 14:07)
+      digest: sha256:e9d0c188179de6a6eb745bf8b91e2a9cf54424a74b55ce29ef87ab06cf658ddb # 8f4d0ec8f4da019c2019ef52058bc3ddca849661 (2026-10-13 20:14)
     # controls how many HCPs can be placed on an MC, sadly not configurable per MC
     provisionShardClusterLimit: 100
     provisionShardStatus: active
@@ -1601,8 +1598,6 @@ clouds:
             regionalSubdomain: '{{ .ctx.region }}'
           # Admin API
           adminApi:
-            alertProcessingRules:
-              deploy: true
             cert:
               san: 'admin.{{ .ctx.region }}.hcpsvc.osadev.cloud'
           # Sessiongate
@@ -1700,10 +1695,6 @@ clouds:
                 privateLinkLocation: westus3
         # this is the personal DEV environment
         defaults:
-          # Admin API
-          adminApi:
-            alertProcessingRules:
-              deploy: true
           kusto:
             manageInstance: false
           # Service Key Vault
@@ -1787,10 +1778,6 @@ clouds:
               profile: "development"
       perf:
         defaults:
-          # Admin API
-          adminApi:
-            alertProcessingRules:
-              deploy: true
           kusto:
             manageInstance: false
           # Service Key Vault
@@ -1829,10 +1816,6 @@ clouds:
               profile: "ci"
       ci00:
         defaults:
-          # Admin API
-          adminApi:
-            alertProcessingRules:
-              deploy: true
           # Temporary bootstrap: the PR-built mgmt-agent image carries /swift-recorder.
           # Remove this image switch after dedicated image onboarding (stage 2).
           swiftRecorder:
@@ -1934,10 +1917,6 @@ clouds:
       ci01:
         # prow infra shard1 - deploys into "ARO HCP E2E Infrastructure" subscription
         defaults:
-          # Admin API
-          adminApi:
-            alertProcessingRules:
-              deploy: true
           # Temporary bootstrap: the PR-built mgmt-agent image carries /swift-recorder.
           # Remove this image switch after dedicated image onboarding (stage 2).
           swiftRecorder:

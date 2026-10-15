@@ -166,7 +166,7 @@ type ClusterServiceProviderProperties struct {
 	// Written by: ClusterClusterServiceDeleteDispatch
 	ClusterServiceDeletionTimestamp *metav1.Time `json:"clusterServiceDeletionTimestamp,omitempty"`
 
-	// TODO Temporary field to track whether the cluster operation is using the new deletion approach.
+	// TODO do NOT reference this field in any new code. It is in the process of being removed
 	// Written by: Frontend DELETE Cluster
 	UsesNewClusterDeletionApproach bool `json:"usesNewClusterDeletionApproach"`
 

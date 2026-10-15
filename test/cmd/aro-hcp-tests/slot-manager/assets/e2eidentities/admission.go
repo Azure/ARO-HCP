@@ -21,10 +21,12 @@ import (
 	"net/http"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-logr/logr"
 	"github.com/google/uuid"
+	"golang.org/x/sync/errgroup"
 
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/utils/ptr"
@@ -42,7 +44,7 @@ type identityLeaseInventory struct {
 	roleAssignments []*armauthorization.RoleAssignment
 }
 
-func admitE2EIdentityLease(ctx context.Context, request assets.LeaseRequest) error {
+func admitE2EIdentityLease(ctx context.Context, request assets.LeaseRequest, cleanupWorkers int) error {
 	credential, subscriptionID, err := leaseCredential(request)
 	if err != nil {
 		return err
@@ -57,10 +59,10 @@ func admitE2EIdentityLease(ctx context.Context, request assets.LeaseRequest) err
 		return fmt.Errorf("failed creating role assignments client: %w", err)
 	}
 
-	return admitIdentityLeaseWithClients(ctx, request, msiFactory, roleAssignmentsClient)
+	return admitIdentityLeaseWithClients(ctx, request, msiFactory, roleAssignmentsClient, cleanupWorkers)
 }
 
-func admitIdentityLeaseWithClients(ctx context.Context, request assets.LeaseRequest, msiFactory *armmsi.ClientFactory, roleAssignmentsClient *armauthorization.RoleAssignmentsClient) error {
+func admitIdentityLeaseWithClients(ctx context.Context, request assets.LeaseRequest, msiFactory *armmsi.ClientFactory, roleAssignmentsClient *armauthorization.RoleAssignmentsClient, cleanupWorkers int) error {
 	logger := logr.FromContextOrDiscard(ctx)
 	logger.Info("Loading identity lease inventory", "slotName", request.AcquiredSlotState.Slot.ResourceName, "resourceGroupCount", len(request.AcquiredSlotState.Slot.IdentityContainerNames()))
 	inventory, err := loadIdentityLeaseInventory(ctx, request, msiFactory, roleAssignmentsClient)
@@ -95,7 +97,9 @@ func admitIdentityLeaseWithClients(ctx context.Context, request assets.LeaseRequ
 		})
 	}
 
-	if err := runSerial(ctx, deleteOperations); err != nil {
+	workers := max(cleanupWorkers, 1)
+	logger.Info("Deleting role assignments", "count", len(deleteOperations), "workers", workers)
+	if err := runWithWorkers(ctx, deleteOperations, workers); err != nil {
 		return fmt.Errorf("failed cleaning E2E identity lease: %w", err)
 	}
 	// Exclusive ownership lets us rely on successful synchronous deletes without
@@ -233,16 +237,35 @@ func validateIdentityNames(resourceGroup string, expected map[string]struct{}, a
 	return nil
 }
 
-func runSerial(ctx context.Context, operations []func(context.Context) error) error {
-	var errs []error
+// runWithWorkers runs every operation with at most workers running at once and
+// joins their errors. Once ctx is done no further operation starts, and the
+// context error is part of the result. Joined error order is unspecified when
+// workers > 1.
+func runWithWorkers(ctx context.Context, operations []func(context.Context) error, workers int) error {
+	var (
+		group errgroup.Group
+		lock  sync.Mutex
+		errs  []error
+	)
+	group.SetLimit(max(workers, 1))
 	for _, operation := range operations {
 		if ctx.Err() != nil {
 			break
 		}
-		if err := runOperation(ctx, operation); err != nil {
-			errs = append(errs, err)
-		}
+		group.Go(func() error {
+			// Go blocks while all workers are busy, so ctx may be done by the time we run.
+			if ctx.Err() != nil {
+				return nil
+			}
+			if err := runOperation(ctx, operation); err != nil {
+				lock.Lock()
+				errs = append(errs, err)
+				lock.Unlock()
+			}
+			return nil
+		})
 	}
+	_ = group.Wait()
 	errs = append(errs, ctx.Err())
 	return errors.Join(errs...)
 }

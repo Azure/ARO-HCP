@@ -310,6 +310,7 @@ func NewRuntimeContractBuilder() *RuntimeContractBuilder {
 
 var shellIdentifier = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
+// Add reserves an export and always replaces its value when the contract is sourced.
 func (b *RuntimeContractBuilder) Add(owner, key, value string) error {
 	owner = strings.TrimSpace(owner)
 	if owner == "" {
@@ -331,6 +332,7 @@ func (b *RuntimeContractBuilder) Add(owner, key, value string) error {
 	return nil
 }
 
+// MarshalShell emits safely quoted exports.
 func (b *RuntimeContractBuilder) MarshalShell() []byte {
 	keys := make([]string, 0, len(b.exports))
 	for key := range b.exports {
@@ -340,7 +342,8 @@ func (b *RuntimeContractBuilder) MarshalShell() []byte {
 
 	var builder strings.Builder
 	for _, key := range keys {
-		value := strings.ReplaceAll(b.exports[key].value, "'", "'\"'\"'")
+		export := b.exports[key]
+		value := strings.ReplaceAll(export.value, "'", "'\"'\"'")
 		fmt.Fprintf(&builder, "export %s='%s'\n", key, value)
 	}
 	return []byte(builder.String())

@@ -472,7 +472,7 @@ transitively deletes all clusters (and their children) via transactional batches
 
 Each accepted DELETE uses the current time plus `DeleteOperationCompletionTimeout` (12 hours by default) for `ServiceProviderProperties.DeleteOperationCompletionDeadline`. Existing `DeletionTimestamp` and `ClusterServiceDeletionTimestamp` values are preserved.
 
-Each child with a `DeletionTimestamp` and its backend-deletion flag set is left untouched, including its operation. Children without those markers are initialized, including children created while the parent operation was failed. Child-list errors abort the transaction. A retry renews parent operation monitoring without redispatching an already dispatched Cluster Service deletion. An active new-style deletion still returns HTTP 409 without modifying the deadline.
+Each child with a `DeletionTimestamp` already set is left untouched, including its operation. Children without a `DeletionTimestamp` are initialized, including children created while the parent operation was failed. Child-list errors abort the transaction. A retry renews parent operation monitoring without redispatching an already dispatched Cluster Service deletion. A retried DELETE for an already-deleting cluster always returns HTTP 409 without modifying the deadline.
 
 | Object | Fields Written |
 |--------|---------------|
@@ -483,6 +483,8 @@ Each child with a `DeletionTimestamp` and its backend-deletion flag set is left 
 | Child `ExternalAuth`s (each) | <ul><li>`ServiceProviderProperties.DeletionTimestamp` = now (if nil)</li><li>`ServiceProviderProperties.ActiveOperationID` = new per-EA delete operation's `ResourceID.Name`</li><li>`Properties.ProvisioningState` = `Deleting`</li><li>`ServiceProviderProperties.UsesNewExternalAuthDeletionApproach` = `true`</li></ul> |
 | Child `ExternalAuth` `Operation`s (each) | <ul><li>`Request` = `Delete`, `ExternalID`, `Status` = `Deleting`</li><li>`UsesNewExternalAuthDeletionApproach` = `true`</li></ul> |
 | Canceled `Operation`s | <ul><li>Active operations on the cluster get `Status` = `Canceled`, `LastTransitionTime` = now</li></ul> |
+
+The frontend still sets `UsesNewClusterDeletionApproach`/`UsesNewNodePoolDeletionApproach`/`UsesNewExternalAuthDeletionApproach` to `true` unconditionally on every delete (resource and operation), but these flags are now vestigial: the backend no longer reads them anywhere (see [Backend: cluster deletion and operations](#backend-cluster-deletion-and-operations) and its node-pool/external-auth equivalents) and the frontend no longer branches on them either. They are kept only so the field continues to round-trip until it is removed in a follow-up change; do not gate new logic on them.
 
 ---
 
@@ -636,6 +638,92 @@ No writes to Cosmos Resources container.
 | Read | `ReadDesire` (kube-applier DB) | <ul><li>`Tags` (filtered to `ondemandbackup`)</li><li>`ResourceID.Name` (on-demand backup name, prefix trimmed)</li><li>`Status.KubeContent` (Velero `Backup` status: `Phase`, `StartTimestamp`, `CompletionTimestamp`; plus the `hcp-cluster-kms-key-fingerprint` annotation)</li></ul> |
 
 No writes to Cosmos Resources container.
+
+### Admin API: POST ControlPlaneVersionPin
+
+**Path:** `POST /admin/v1/hcp/subscriptions/{subscriptionId}/resourcegroups/{resourceGroupName}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{resourceName}/controlplaneversionpin`
+**Handler:** `HCPVersionPinHandler` ([controlplaneversionpin.go](../admin/server/handlers/hcp/controlplaneversionpin.go))
+
+| | Object | Fields |
+|---|--------|--------|
+| Read | `Cluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (rejects requests for deleting clusters)</li><li>`CustomerProperties.Version.ID` (cluster release line, used to reject cross-minor pins)</li><li>`CustomerProperties.Version.ChannelGroup` (used to reject an auto-release threshold for nightly clusters)</li></ul> |
+| Read | `ServiceProviderCluster` | <ul><li>`Status.ControlPlaneVersionHistory` (newest-first control-plane history; pins at or above the latest entry are allowed, while lower targets require the immediately previous distinct `Completed` version)</li><li>Full document for preservation of other fields; never created by this endpoint</li></ul> |
+
+| Object | Fields Written |
+|--------|---------------|
+| `ServiceProviderCluster` | <ul><li>**`Spec.PinnedVersion.ExactVersion`** = parsed semver from request, or nil to clear</li><li>**`Spec.PinnedVersion.UntilExactVersion`** = parsed semver from request, or nil</li></ul> |
+
+The request body must contain exactly one JSON object. Top-level `null`, other
+non-object values, unknown fields and trailing data return HTTP 400 before any
+database access. Whitespace around the object and explicit null version fields
+inside a clear request are accepted.
+
+Both setting and clearing a pin return HTTP 409 if the cluster is being deleted
+or its provider document is missing; neither operation creates that document.
+Setting a pin on a nightly cluster is allowed without `untilExactVersion`;
+nightly channels have no fleet best version to trigger auto-release, so a
+threshold returns HTTP 400 and the pin must be cleared explicitly. Setting a
+pin equal to or above the latest control-plane history version holds or
+advances the cluster. A lower target requires the immediately previous distinct
+`Completed` version and otherwise returns HTTP 400 before any write. Partial
+attempts and repeated latest-version entries are skipped when selecting that
+rollback target. Without mirrored control-plane history, the pin is accepted
+because there is no observed version against which to classify a rollback.
+The latest observed history entry and each `Completed` entry examined for a
+rollback must not contain build metadata; these entries return HTTP 400 because
+semantic-version comparisons ignore `+build`.
+Neither guest version history nor `Status.ControlPlaneVersion.ActiveVersions`
+substitutes for control-plane history. Clearing a pin does not require
+observed history. The field is present in HyperShift 4.22 and was backported to
+[release-4.20](https://github.com/openshift/hypershift/pull/9055) and
+[release-4.21](https://github.com/openshift/hypershift/pull/9054). These backports
+appear in OpenShift 4.20.33 and 4.21.28 release payloads. The field may be
+absent before observation or when the deployed management-cluster HyperShift
+operator predates support. The hosted cluster's minor version alone does not
+establish which rollback targets are safe once control-plane history is available.
+
+All other `Spec` and `Status` fields are preserved via `DeepCopy`
+before modification; replacement uses the read document's ETag. If another writer
+changes the document before replacement, the handler returns HTTP 409 `Conflict`
+with a retry message, preserving the concurrent update. Both set and clear
+requests leave retrying to the caller.
+
+### Admin API: POST FleetControlPlaneVersionPin
+
+**Path:** `POST /admin/v1/versionrollouts/{channel}/controlplaneversionpin`
+**Handler:** `FleetControlPlaneVersionPinHandler` ([fleetcontrolplaneversionpin.go](../admin/server/handlers/hcp/fleetcontrolplaneversionpin.go))
+
+| | Object | Fields |
+|---|--------|--------|
+| Read | `Cluster` (all regional partitions) | `ID`, `ServiceProviderProperties.DeletionTimestamp`, `CustomerProperties.Version.ChannelGroup` determine live channel membership; `CustomerProperties.Version.ID` validates each changed pin's requested release line. |
+| Read | `ServiceProviderCluster` (all regional partitions) | `ResourceID.Parent` joins the backing cluster; `Spec.ControlPlaneVersion.DesiredVersion`, or the oldest completed `Status.ControlPlaneVersion.ActiveVersions` entry, determines the effective minor. `Spec.PinnedVersion` identifies unchanged pins. `Status.ControlPlaneVersionHistory` validates changed rollback pins. The full document and ETag are retained for replacement. |
+
+| Object | Fields Written |
+|--------|---------------|
+| `ServiceProviderCluster` | **`Spec.PinnedVersion.ExactVersion`** and **`Spec.PinnedVersion.UntilExactVersion`** = parsed request versions, or nil to clear. Identical pins are not rewritten. No provider or fleet rollout document is created. |
+
+The handler consumes all list pages and validates every changed pin before any
+write. Invalid JSON/channel/version inputs fail with HTTP 400. Per-cluster
+validation failures return HTTP 400 with cluster resource IDs in error details
+and leave all documents unchanged. Listing failures, a provider document with
+no cluster resource ID, or a completed active-version entry without a version
+also make no writes; the malformed active-version entry returns HTTP 500.
+Deleting clusters, orphaned documents, and unknown channel groups/minors are
+excluded using the same membership rules as rollout controllers. Active versions
+are used only for membership; they do not authorize rollback targets.
+
+Changed pins use the [single-cluster version-pin rules](#admin-api-post-controlplaneversionpin).
+An already identical pin is a no-op even after rollback has completed or history
+has become unavailable. Clear operations require no observed history.
+
+Each write preserves other fields with `DeepCopy` and uses the selected ETag.
+Writes are independent, not a transaction: a failure preserves that cluster's
+concurrent update, subsequent writes continue, and the response counts successful,
+unchanged, and failed documents and lists failed cluster IDs. HTTP 409 represents
+ETag conflicts; any other write failure takes precedence with HTTP 500. No
+automatic retries or compensating writes occur. Counts describe pin persistence,
+not rollback completion. Selection covers existing regional resources only and
+is recomputed on each request; this creates no policy for future clusters.
 
 ---
 
@@ -808,38 +896,52 @@ Reads Azure identities for the service-managed and control-plane operator identi
 
 Reads the requested data-plane operator identities and writes `Status.DataPlaneOperatorsManagedIdentities.Identities` and its recheck time. No Azure mutation.
 
+#### FetchManagedIdentitiesInfo
+
+[Source](../backend/pkg/controllers/cluster/identity/fetch_managed_identities_info.go) · **Trigger:** Cluster; 1m, jittered 1h recheck.
+
+Skipped when `ServiceProviderProperties.DeletionTimestamp` is set. Honors `Spec.EarliestRecheckTimesByController["FetchManagedIdentitiesInfo"]` only while the lowercased ResourceID set on `Status.ManagedIdentityDetails` still matches the desired set from `CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities` (control-plane operators, data-plane operators, and the service managed identity). Any mismatch queries sources immediately. When the sets match, waits while that recheck time is in the future.
+
+Resolves ClientID, PrincipalID, and TenantID for every unique identity into `Status.ManagedIdentityDetails`, keyed by lowercased resource ID. Control-plane operators and the service managed identity are filled from the Managed Identities Data Plane, or from the hardcoded identity where that service is absent. Control-plane and data-plane operator identities are also read once per ResourceID through an SMI-authenticated ARM User Assigned Identities client. SMI-only identities skip ARM. A resource ID that is also an operator still uses ARM. Each applicable source starts as an empty `IdentityMetadataValue` and is filled when that source resolves it. Source failures are accumulated and processing continues so resolved sources are still persisted; the joined error is returned for workqueue retry. ARM `ResourceNotFound` stores `RetrievalError` on `MetadataFromARMUserAssignedIdentitiesAPI` and still counts as source success. Other ARM Get failures persist `RetrievalError` and are accumulated. Malformed customer identity entries (nil ResourceID or empty operator name) return before any write, so a partial collect cannot prune stored identities. Identities no longer present are pruned on a successful collect. The recheck time is set to now plus a jittered 1h interval when every applicable source succeeded, and left absent when any source error is accumulated so the next pass re-queries. Observes Azure and the Managed Identities Data Plane; does not create identities.
+
 #### ActualHostedCluster
 
 **File:** [actual_hosted_cluster_controller.go](../backend/pkg/controllers/cluster/hostedcluster/actual_hosted_cluster_controller.go)
 **Trigger:** Cluster, ServiceProviderCluster, cluster-scoped ManagementClusterContent,
 ReadDesire, and ApplyDesire informers; 5-minute resync.
 
-Mirrors the observed HostedCluster so the frontend has a source of management-cluster
+Mirrors the observed HostedCluster's image content sources and control-plane version history so API handlers have management-cluster
 state it is allowed to read (see [Why management-cluster state is mirrored onto
 ServiceProviderCluster](#why-management-cluster-state-is-mirrored-onto-serviceprovidercluster)).
-Also mirrors `spec.imageContentSources` verbatim into `Status.ImageContentSources`,
+Copies `spec.imageContentSources` verbatim into `Status.ImageContentSources`,
 a pointer to a slice. A nil pointer means unavailable observed state; a non-nil pointer,
 including an empty list, means the HostedCluster was observed. Empty lists are stored as
-non-nil slices so JSON serialization preserves the observation signal. Admission prefers
-this field and falls back to `Status.ActualHostedCluster` only when the new pointer is nil.
-A missing ServiceProviderCluster or two nil mirrors fails closed as unavailable; an observed
-list without the v5 source fails the upgrade gate as missing the required mirror, even if the
-legacy field contains it.
+non-nil slices so JSON serialization preserves the observation signal. Admission uses
+only this field, with no fallback. A missing ServiceProviderCluster or nil pointer
+fails closed as unavailable; an observed list without the v5 source fails the upgrade
+gate as missing the required mirror. The full HostedCluster is not stored on the
+ServiceProviderCluster.
 
-Leaves both fields `nil` until the HostedCluster is observed, and only writes when either
-mirror changes, including backfilling the new field on legacy records with an unchanged
-HostedCluster. A missing or unsuccessful ReadDesire observation leaves already-published
-mirrors in place — those states also cover a cold union informer, so clearing on them would wipe
+Also copies `status.controlPlaneVersion.history` verbatim, newest first, into
+`Status.ControlPlaneVersionHistory` using the same pointer-to-slice observation semantics.
+This is not guest `status.version.history`. The single-cluster and regional fleet
+admin version pin endpoints use it to validate rollback targets. As before, missing
+or empty history permits a pin because no observed version can classify a rollback.
+
+Leaves both fields `nil` until the HostedCluster is observed, and only writes when the
+image content sources or control-plane version history change. Changes to unrelated HostedCluster spec, status or metadata
+do not cause writes. A missing or unsuccessful ReadDesire observation leaves the published
+mirror in place — those states also cover a cold union informer, so clearing on them would wipe
 and rewrite every mirror on each backend restart. A successful empty observation clears the
-mirrors because it proves the HostedCluster is absent. Deletion does not gate mirroring:
-successful observations continue updating the object while the cluster is deleting, and a
-successful empty observation retracts both fields to `nil` for active and deleting clusters.
+mirror because it proves the HostedCluster is absent. Deletion does not gate mirroring:
+successful observations continue updating both fields while the cluster is deleting, and a
+successful empty observation retracts both to `nil` for active and deleting clusters.
 
 | | Object | Fields |
 |---|--------|--------|
 | Read | `HCPOpenShiftCluster` | Existence only; no deletion gate |
 | Read | ReadDesire (HostedCluster) | <ul><li>`Status.Conditions[Successful]` — gates all mirror updates, including clearing empty content</li><li>`Status.KubeContent` — the observed HostedCluster, whole object (`Spec` + `Status`)</li></ul> |
-| **Write** | **`ServiceProviderCluster`** | <ul><li>**`Status.ActualHostedCluster`** = the observed HostedCluster, mirrored verbatim (`Spec` + `Status` + `metadata`)</li><li>**`Status.ImageContentSources`** = a pointer to the observed `Spec.ImageContentSources`, preserving source and mirror entries; nil when retracted</li></ul> |
+| **Write** | **`ServiceProviderCluster`** | **`Status.ImageContentSources`** = a pointer to the observed `Spec.ImageContentSources`, preserving source and mirror entries; **`Status.ControlPlaneVersionHistory`** = a pointer to `Status.ControlPlaneVersion.History`; both nil when retracted |
 
 #### EnsureManagedResourceGroup
 
@@ -1033,7 +1135,7 @@ Requires cached cluster/provider documents and an SRE `Spec.PinnedVersion.ExactV
 
 [Source](../backend/pkg/controllers/cluster/deletion/cluster_cluster_service_delete_dispatch_controller.go) · **Trigger:** Cluster; 1m.
 
-Requires `UsesNewClusterDeletionApproach`, deletion intent and no dispatch timestamp. Calls Cluster Service DELETE and stamps `ClusterServiceDeletionTimestamp` independently of ClusterResources teardown; there is no ApplyDesire gate. A missing ID or external 404 waits up to 120s from first observed deletion to cover creation races; this is not a dispatch interval.
+Requires deletion intent and no dispatch timestamp. Calls Cluster Service DELETE and stamps `ClusterServiceDeletionTimestamp` independently of ClusterResources teardown; there is no ApplyDesire gate. A missing ID or external 404 waits up to 120s from first observed deletion to cover creation races; this is not a dispatch interval.
 
 #### ClusterDeletionClusterServiceIDClearer
 
@@ -1051,7 +1153,7 @@ Requires deletion timestamp, dispatched deletion and cleared Cluster Service ID.
 
 [Source](../backend/pkg/controllers/cluster/deletion/cluster_deletion_controller.go) · **Trigger:** Cluster; 1m.
 
-Once deletion prerequisites and child cleanup are satisfied, deletes the ARM resource document. Marks the linked billing document deleted first; requires the new deletion approach.
+Once deletion prerequisites and child cleanup are satisfied, deletes the ARM resource document. Marks the linked billing document deleted first.
 
 #### OperationClusterCreate
 
@@ -1075,7 +1177,7 @@ After determining state, a still-pending operation past `ServiceProviderProperti
 
 [Source](../backend/pkg/controllers/cluster/operations/operation_cluster_delete.go) · **Trigger:** Active operation; 10s.
 
-Under the new deletion path, waits for the resource document to disappear; retains legacy deletion handling. Timeout diagnostics combine deletion-dispatch progress, live Cluster Service state, remaining descendant resources and mirrored HostedCluster state. For the matching nonterminal operation, writes status/error/transition time and ARM provisioning state, clears the active-operation reference on terminal state, and sends the async notification.
+Waits for the resource document to disappear. Timeout diagnostics combine deletion-dispatch progress, live Cluster Service state, remaining descendant resources and mirrored HostedCluster state. For the matching nonterminal operation, writes status/error/transition time and ARM provisioning state, clears the active-operation reference on terminal state, and sends the async notification.
 
 #### ClusterDegradedAggregator
 
@@ -1137,7 +1239,7 @@ For a live resource with its Cluster Service ID, compares dispatchable customer 
 
 [Source](../backend/pkg/controllers/nodepool/deletion/node_pool_cluster_service_delete_dispatch_controller.go) · **Trigger:** NodePool; 1m.
 
-Requires `UsesNewNodePoolDeletionApproach`, deletion intent and no dispatch timestamp. Calls Cluster Service DELETE and stamps `ClusterServiceDeletionTimestamp`. A missing ID or external 404 waits up to 120s from first observed deletion to cover creation races; this is not a dispatch interval.
+Requires deletion intent and no dispatch timestamp. Calls Cluster Service DELETE and stamps `ClusterServiceDeletionTimestamp`. A missing ID or external 404 waits up to 120s from first observed deletion to cover creation races; this is not a dispatch interval.
 
 #### NodePoolDeletionClusterServiceIDClearer
 
@@ -1175,7 +1277,7 @@ After determining state, a still-pending operation past `ServiceProviderProperti
 
 [Source](../backend/pkg/controllers/nodepool/operations/operation_node_pool_delete.go) · **Trigger:** Active operation; 10s.
 
-Under the new deletion path, waits for the resource document to disappear; retains legacy deletion handling. For the matching nonterminal operation, writes operation status/error/transition time and ARM provisioning state, clears the active-operation reference on terminal state, and sends the async notification.
+Waits for the resource document to disappear. For the matching nonterminal operation, writes operation status/error/transition time and ARM provisioning state, clears the active-operation reference on terminal state, and sends the async notification.
 
 #### NodePoolDegradedAggregator
 
@@ -1207,7 +1309,7 @@ For a live resource with its Cluster Service ID, compares dispatchable customer 
 
 [Source](../backend/pkg/controllers/externalauth/deletion/external_auth_cluster_service_delete_dispatch_controller.go) · **Trigger:** ExternalAuth; 1m.
 
-Requires `UsesNewExternalAuthDeletionApproach`, deletion intent and no dispatch timestamp. Calls Cluster Service DELETE and stamps `ClusterServiceDeletionTimestamp`. A missing ID or external 404 waits up to 120s from first observed deletion to cover creation races; this is not a dispatch interval.
+Requires deletion intent and no dispatch timestamp. Calls Cluster Service DELETE and stamps `ClusterServiceDeletionTimestamp`. A missing ID or external 404 waits up to 120s from first observed deletion to cover creation races; this is not a dispatch interval.
 
 #### ExternalAuthDeletionClusterServiceIDClearer
 
@@ -1243,7 +1345,7 @@ Uses `Operation.ExternalID` to find the cached external-auth resource and waits 
 
 [Source](../backend/pkg/controllers/externalauth/operations/operation_external_auth_delete.go) · **Trigger:** Active operation; 10s.
 
-Under the new deletion path, waits for the resource document to disappear; retains legacy deletion handling. For the matching nonterminal operation, writes operation status/error/transition time and ARM provisioning state, clears the active-operation reference on terminal state, and sends the async notification.
+Waits for the resource document to disappear. For the matching nonterminal operation, writes operation status/error/transition time and ARM provisioning state, clears the active-operation reference on terminal state, and sends the async notification.
 
 #### ExternalAuthDegradedAggregator
 
@@ -1504,7 +1606,7 @@ Finds Cluster Service clusters absent from the Cosmos inventory. Requires a crea
 
 [Source](../backend/pkg/controllers/datadump/cs_state_dump.go) · **Trigger:** Cluster; 1m.
 
-Reads cluster and node-pool records from informer-backed listers to obtain their Cluster Service IDs, then fetches and logs Cluster Service state with a cluster GET and a GET for each registered node pool; no domain mutation.
+Reads cluster and node-pool records from informer-backed listers to obtain their Cluster Service IDs, then logs Cluster Service state with a cluster GET and a node pool List. No domain mutation.
 
 #### FPAVirtualMachineResourceSKUsCachedReader
 
@@ -1754,9 +1856,14 @@ Multiple prerequisite arrows into a controller must all be satisfied unless mark
 conditional. Background validators, diagnostics, backups and metrics are cataloged
 above rather than repeated in every typical lifecycle.
 
-The delete views describe resources using `UsesNewClusterDeletionApproach`,
-`UsesNewNodePoolDeletionApproach` or `UsesNewExternalAuthDeletionApproach`; legacy
-operation paths still exist. Pending operations keep reconciling; errors retry,
+The delete views no longer branch on `UsesNewClusterDeletionApproach`,
+`UsesNewNodePoolDeletionApproach` or `UsesNewExternalAuthDeletionApproach`: the
+backend's legacy deletion/operation paths that gated on those flags were removed,
+so every delete is now handled by the controllers shown here regardless of when
+the resource's deletion was originally triggered. There shouldn't be any new or pre-existing
+resources that have the legacy deletion path. The flags themselves are still
+written by the frontend (unconditionally `true`) but are otherwise vestigial, shouldn't
+be referenced in any new code and will be deleted soon. Pending operations keep reconciling; errors retry,
 and operation-specific failure checks can produce Failed instead of Succeeded.
 The 120-second missing-ID/404 creation-race wait in delete dispatchers is distinct
 from waiting for external teardown; cluster dispatch runs independently of the
@@ -1937,7 +2044,7 @@ actors and use optimistic concurrency; retries must re-read on conflict.
 | External-auth create/update `Operation.ExternalID` / `InternalID` | Frontend writes the ARM resource ID / empty ID, even for a resource with an existing Cluster Service ID. Pollers use `ExternalID` to look up the resource and its backend-owned `ServiceProviderProperties.ClusterServiceID`. The operation does not copy or clear the resource's ID. |
 | Cluster/node-pool `ServiceProviderProperties.UpdateOperationCompletionDeadline` | Frontend PUT/PATCH admission resets this to now + 60m for each update. With `ExperimentalReleaseFeatures`, the resource-specific `aro-hcp.experimental.cluster.max-update-duration` or `aro-hcp.experimental.nodepool.max-update-duration` tag overrides it (Go duration, minimum 1m). The matching update operation controller consumes it and reports pending reasons on timeout. |
 | `Operation.Status`, `Error`, `LastTransitionTime`, `NotificationURI` | Frontend initializes/cancels requests; operation controllers update status and send/clear async notifications through the shared helper. |
-| `ServiceProviderProperties.DeletionTimestamp` and deletion-approach flags | Frontend stamps deletion intent; dispatch, cleanup and final deletion controllers consume it. Deletion timestamp alone does not mean external resources are gone. |
+| `ServiceProviderProperties.DeletionTimestamp` | Frontend stamps deletion intent; dispatch, cleanup and final deletion controllers consume it. Deletion timestamp alone does not mean external resources are gone. The `UsesNew*DeletionApproach` flags are still written alongside it (unconditionally `true`) but are no longer read by any controller or admission check; they are vestigial, pending removal. |
 | Cluster `PendingClusterServiceID` / `ClusterServiceID` | [Pending ID assignment](#clusterpendingclusterserviceidassign) reserves the ID. [Cluster creation](#clusterclusterservicecreate) confirms the external ID and clears pending. The [ID clearer](#clusterdeletionclusterserviceidclearer) clears confirmed ID only after external absence. Node-pool/external-auth create and clear controllers similarly share their confirmed-ID fields. |
 | `ClusterServiceDeletionTimestamp` | Each delete dispatcher stamps completion of dispatch/creation-race handling; cleanup also requires the confirmed ID cleared. It is not a timestamp of all Azure/Kubernetes deletion. |
 | Cluster `ClusterUID`, `BillingDocumentCosmosID`; Billing document `DeletionTime` | [BackfillClusterUID](#backfillclusteruid) repairs UID using billing as input. [CreateBillingDoc](#createbillingdoc) creates billing and links it. [ClusterDeletionController](#clusterdeletioncontroller) and [OrphanedBillingCleanup](#orphanedbillingcleanup) mark billing deleted. |
@@ -1952,7 +2059,7 @@ actors and use optimistic concurrency; retries must re-read on conflict.
 |---|---|
 | Service-provider cluster `Spec.ControlPlaneVersion.DesiredVersion` / `DesiredVersionLastTransitionTime` | [Initial assignment](#initialnormalclusterdesiredversion), [minor-version assignment](#minorupgradenormalclusterdesiredversion), [normal rollout](#zstreamprogressivedesiredversionrollout) and [forced assignment](#forcedclusterdesiredversion) write the target and transition time. Initial assignment also backfills a missing/zero time without changing the target. Cluster creation, upgrade dispatch and operation completion consume desired state; it is not an observed version. |
 | Cluster `ServiceProviderProperties.ExperimentalFeatures.ZStreamUpdatePolicy` | Frontend admission projects the AFEC-gated `aro-hcp.experimental.cluster.z-stream-update-policy` tag; its only valid value is `Immediate`. Removing the tag or AFEC clears the policy. [Forced assignment](#forcedclusterdesiredversion) follows the desired channel's best z-stream without progressive gates, after pins and exact overrides. |
-| Service-provider cluster `Spec.PinnedVersion` | SRE supplies `ExactVersion` and optional `UntilExactVersion`. [Forced assignment](#forcedclusterdesiredversion) clears the pin once channel best reaches the release threshold. Pins precede experimental exact versions and normal assignment. |
+| Service-provider cluster `Spec.PinnedVersion` | [Admin API ControlPlaneVersionPin](#admin-api-post-controlplaneversionpin) and [FleetControlPlaneVersionPin](#admin-api-post-fleetcontrolplaneversionpin) set `ExactVersion` and optional `UntilExactVersion`; sending a nil `ExactVersion` clears the pin. [Forced assignment](#forcedclusterdesiredversion) also clears the pin once channel best reaches the release threshold. Pins precede experimental exact versions and normal assignment. |
 | Fleet `ControlPlaneVersionRollout.Spec.Version.{ID,ChannelGroup}` | [Seeding](#controlplaneversionrolloutseeding) sets the profile on creation. Shared Cosmos conversion fills absent/zero legacy profiles on read; [migration](#cosmosrolloutversionmigration) and ordinary rollout replacements persist them. Consumers still parse channel names. |
 | Fleet `ControlPlaneVersionRollout.Spec.BestExactVersion` | [Seeding](#controlplaneversionrolloutseeding) creates requested/pinned channel documents without a best version. [Best selection](#controlplaneversionbestversionselection) owns the target; assignment controllers consume it. |
 | Fleet rollout status count maps | [Status collector](#controlplaneversionstatuscollector) alone persists desired, mismatched, failed, achieved and successful counts. Normal assignment recomputes its own snapshot counts to avoid collector lag. |
@@ -1966,7 +2073,7 @@ actors and use optimistic concurrency; retries must re-read on conflict.
 | Scheduling observed capacity / scale ceiling; fleet HCP resource requirements | Fleet capacity and scale-ceiling controllers write observed scheduling inputs. [HCPResourceRequirementsController](#hcpresourcerequirementscontroller) aggregates per-HCP demand. Placement retains SWIFT NIC eligibility and selection, but prefers lower known CPU/memory contention against current capacity for zero-NIC demand. Aggregate HCP demand is not used for placement. |
 | `Status.AzureResources.ManagedResourceGroup` | [EnsureManagedResourceGroup](#ensuremanagedresourcegroup) writes pending/confirmed reference and clears both after observing deletion. Deletes orphaned managed resource groups when Cluster Service deletion completed but the Azure resource group still exists. Deny/role assignment controllers need the confirmed group; final provider-document cleanup needs references gone.  |
 | `Status.AzureResources.DenyAssignments` / `RoleAssignments` | Their respective controllers track `PendingAzureResources` and confirmed `AzureResources`. The role controller confirms newly created assignments in a later observation pass. |
-| `Status.MSIManagedIdentities`, `Status.DataPlaneOperatorsManagedIdentities` | Identity fetchers write resolved IDs/errors for assignment and identity-property synchronization. `Spec.EarliestRecheckTimesByController` has independently owned entries for identity and role-assignment controllers; deny assignments keep their own `EarliestRecheckTime` under `Status.AzureResources.DenyAssignments`. |
+| `Status.MSIManagedIdentities`, `Status.DataPlaneOperatorsManagedIdentities`, `Status.ManagedIdentityDetails` | [FetchMSIIdentitiesInfo](#fetchmsiidentitiesinfo) and [FetchDataPlaneOperatorsManagedIdentitiesInfo](#fetchdataplaneoperatorsmanagedidentitiesinfo) write resolved IDs and errors for deny assignments, role assignments, and identity-property synchronization. [FetchManagedIdentitiesInfo](#fetchmanagedidentitiesinfo) writes `Status.ManagedIdentityDetails` by lowercased resource ID, including per-source metadata. `Spec.EarliestRecheckTimesByController` has independently owned entries for these identity controllers and role assignments; deny assignments keep their own `EarliestRecheckTime` under `Status.AzureResources.DenyAssignments`. |
 | `Status.Validations` | Each registered validation writes its own condition in the service-provider cluster or node pool; requirements aggregators consume the set. |
 | Cluster `Status.HostedClusterNamespace`, `ControlPlaneNamespace`, `ServingCABundle` | [ServiceProviderClusterPropertiesSync](#serviceproviderclusterpropertiessync) fills these from mirrored reads. Credentials and create-operation completion wait on them. |
 | Cluster `Spec.BackupState` | Admin backup PATCH writes Enabled/Paused; [BackupSchedule](#backupschedule) reconciles Velero intent. Mirrored Kubernetes status reports results separately. |

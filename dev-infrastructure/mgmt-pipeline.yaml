@@ -11,8 +11,7 @@ serviceGroup: Microsoft.Azure.ARO.HCP.Management.Infra
 rolloutName: Management Cluster Rollout
 # Pre-build the Go binary invoked by the cluster-create Shell step below. The EV2
 # Shell runner image has no Go toolchain, so the binary is built here and shipped
-# as part of the step's workingDir, same pattern as scripts/grafana-group-roles in
-# global-pipeline-stg.yaml.
+# as part of the step's workingDir, same pattern as scripts/grafana-group-roles.
 buildStep:
   command: bash
   args:
@@ -735,6 +734,22 @@ resourceGroups:
       step: output
     - resourceGroup: management
       step: cluster-output
+  # TRANSIENT: remove after rollout to all environments (AROSLSRE-2290)
+  # Cleans up orphaned tracing pods (jaeger, otel-collector, lgtm) left behind
+  # after PR #7072 removed the observability/tracing pipeline.
+  - name: cleanup-observability-tracing
+    aksCluster: '{{ .mgmt.aks.name }}'
+    action: Shell
+    command: ./cleanup-observability-tracing.sh
+    workingDir: ./scripts
+    dependsOn:
+    - resourceGroup: management
+      step: cluster-output
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
   - name: prometheus
     aksCluster: '{{ .mgmt.aks.name }}'
     action: Helm
@@ -783,19 +798,6 @@ resourceGroups:
       - "unexpected error when reading response body"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
-  - name: cleanup-prometheus-pvc
-    aksCluster: '{{ .mgmt.aks.name }}'
-    action: Shell
-    command: ./cleanup-prometheus-pvc.sh
-    workingDir: ./scripts
-    dependsOn:
-    - resourceGroup: management
-      step: prometheus
-    shellIdentity:
-      input:
-        resourceGroup: global
-        step: output
-        name: globalMSIId
   - name: acrpull
     aksCluster: '{{ .mgmt.aks.name }}'
     action: Helm

@@ -70,7 +70,6 @@ spec:
           value: "{{ .Values.sessiongate.maxSessionTTL }}"
         - name: AZURE_TOKEN_CREDENTIALS
           value: "WorkloadIdentityCredential"
-{{- if .Values.alertProcessingRules.deploy }}
         - name: APR_SUBSCRIPTION_ID
           value: "{{ .Values.alertProcessingRules.subscriptionId }}"
         - name: APR_RESOURCE_GROUP
@@ -79,7 +78,6 @@ spec:
           value: "{{ .Values.alertProcessingRules.svcAmwName }}"
         - name: APR_HCP_AMW_NAME
           value: "{{ .Values.alertProcessingRules.hcpAmwName }}"
-{{- end }}
         ports:
         - containerPort: 8443
           name: http

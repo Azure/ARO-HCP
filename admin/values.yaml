@@ -72,7 +72,6 @@ sessiongate:
 # /admin/v1/alertprocessingrules routes against the region's resource group,
 # scoped to the region's HCP and services Azure Monitor Workspaces.
 alertProcessingRules:
-  deploy: {{ .adminApi.alertProcessingRules.deploy }}
   subscriptionId: "__subscriptionId__"
   resourceGroup: "{{ .regionRG }}"
   svcAmwName: "{{ .monitoring.svcWorkspaceName }}"

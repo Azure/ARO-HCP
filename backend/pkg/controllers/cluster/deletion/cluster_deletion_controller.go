@@ -90,10 +90,6 @@ func NewClusterDeletionController(
 // - ClusterServiceDeletionTimestamp must be set
 // - ClusterServiceID must be nil
 func (c *clusterDeletionController) NeedsWork(cluster *coreapi.Cluster) bool {
-	if !cluster.ServiceProviderProperties.UsesNewClusterDeletionApproach {
-		return false
-	}
-
 	return cluster.ServiceProviderProperties.DeletionTimestamp != nil &&
 		cluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp != nil &&
 		cluster.ServiceProviderProperties.ClusterServiceID == nil

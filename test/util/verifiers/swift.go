@@ -96,6 +96,8 @@ func swiftRouterQuery(resourceID string, start time.Time) *kql.Builder {
 	// soft-delete tombstones cannot resurrect an older HostedCluster mapping.
 	// Fleet IDs can repeat across installations in the same environment/region,
 	// so retain the source service cluster until resolving the AKS cluster name.
+	// Broadcast the small HCP mapping with lookups instead of buffering runtime
+	// tables in regular joins. Distinct HCP keys preserve semi-join semantics.
 	return kql.New("let target = ").AddString(resourceID).AddLiteral("; let start = ").AddDateTime(start).AddLiteral(`;
 let desires = cosmosResourceSnapshots
 | where resourceID startswith strcat(target, "/")
@@ -125,7 +127,7 @@ let hcp = desires
 | distinct environment, region, cluster, namespace;
 let inventory = materialize(kubernetesResourceSnapshots
 | where timestamp >= start and objectKind in ("Pod", "Deployment")
-| join kind=leftsemi hcp on environment, region, cluster, namespace
+| lookup kind=inner hcp on environment, region, cluster, namespace
 | summarize arg_max(timestamp, *) by environment, region, cluster, namespace, objectKind, name
 | where event != "Delete" and isempty(object.metadata.deletionTimestamp));
 let pods = inventory
@@ -139,7 +141,7 @@ let summaries = containerLogs
 | where timestamp >= start and container_name == "swift-recorder"
 | where log.controller_name == "swift-router-check" and log.field == "summary"
 | extend namespace = tostring(log.pod_namespace), UID = tostring(log.pod_uid)
-| join kind=leftsemi hcp on environment, region, cluster, namespace
+| lookup kind=inner hcp on environment, region, cluster, namespace
 | summarize arg_max(timestamp, *) by environment, region, cluster, namespace, UID
 | project environment, region, cluster, namespace, UID, SummaryUID = tostring(log.pod_uid),
     SummaryNode = tostring(log.node_name), Pass = tostring(log.pass_id), At = timestamp, Summary = tostring(log.record);

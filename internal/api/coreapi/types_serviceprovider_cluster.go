@@ -124,7 +124,7 @@ type ServiceProviderClusterSpec struct {
 	// dissipated. Additionally, long recheck times are recommended for resources
 	// outside of their active phases. Order of at least six hours is, with
 	// durations up to 24 hours considered normal.
-	// Written by: FetchMSIIdentitiesInfo, FetchDataPlaneOperatorsManagedIdentitiesInfoController, IdentityRoleAssignments
+	// Written by: FetchMSIIdentitiesInfo, FetchDataPlaneOperatorsManagedIdentitiesInfoController, FetchManagedIdentitiesInfo, IdentityRoleAssignments
 	EarliestRecheckTimesByController map[string]*metav1.Time `json:"earliestRecheckTimesByController,omitempty"`
 
 	// PinnedVersion, when its ExactVersion is set, is an SRE-specified
@@ -132,9 +132,8 @@ type ServiceProviderClusterSpec struct {
 	// Assignment controller holds this cluster at PinnedVersion.ExactVersion until
 	// the fleet's bestExactVersion reaches PinnedVersion.UntilExactVersion, after
 	// which the pin is cleared and normal rollout selection resumes. An empty
-	// PinnedVersion (nil ExactVersion) means no pin and serializes as {}. The
-	// Admin API setter is a follow-up; this change only implements consuming pins.
-	// Written by: Forced Cluster Desired Version Assignment (clear)
+	// PinnedVersion (nil ExactVersion) means no pin and serializes as {}.
+	// Written by: Forced Cluster Desired Version Assignment (clear), Admin API HCPVersionPinHandler (set/clear), Admin API FleetControlPlaneVersionPinHandler (set/clear)
 	PinnedVersion ServiceProviderClusterPinnedVersion `json:"pinnedVersion,omitempty"`
 }
 
@@ -161,12 +160,12 @@ type ServiceProviderClusterSpecVersion struct {
 type ServiceProviderClusterPinnedVersion struct {
 	// ExactVersion is the exact z-stream this cluster is pinned to regardless of
 	// its previous version.
-	// Written by: Forced Cluster Desired Version Assignment (clear); Admin API setter planned
+	// Written by: Forced Cluster Desired Version Assignment (clear), Admin API HCPVersionPinHandler (set/clear), Admin API FleetControlPlaneVersionPinHandler (set/clear)
 	ExactVersion *semver.Version `json:"exactVersion,omitempty"`
 
 	// UntilExactVersion is the fleet bestExactVersion at or above which the pin is
 	// released and normal upgrade selection may continue.
-	// Written by: Forced Cluster Desired Version Assignment (clear); Admin API setter planned
+	// Written by: Forced Cluster Desired Version Assignment (clear), Admin API HCPVersionPinHandler (set/clear), Admin API FleetControlPlaneVersionPinHandler (set/clear)
 	UntilExactVersion *semver.Version `json:"untilExactVersion,omitempty"`
 }
 
@@ -229,42 +228,19 @@ type ServiceProviderClusterStatus struct {
 	// ImageContentSources mirrors the observed HostedCluster's
 	// spec.imageContentSources verbatim. nil means the HostedCluster has not yet
 	// been observed, or a successful read found it absent and retracted the mirror.
-	// Admission fails closed without observed state; during migration it may fall
-	// back to ActualHostedCluster when this field is nil. A non-nil pointer to a
+	// Admission fails closed without observed state. A non-nil pointer to a
 	// possibly empty slice means the HostedCluster has been observed. Empty
 	// observations use an empty, non-nil slice so JSON preserves that distinction.
 	// Written by: ActualHostedCluster
 	ImageContentSources *[]v1beta1.ImageContentSource `json:"imageContentSources,omitempty"`
 
-	// ActualHostedCluster is the HostedCluster as it currently exists on the
-	// management cluster, mirrored here from the kube-applier ReadDesire by the
-	// backend. Both spec and status are carried. Admission prefers the dedicated
-	// ImageContentSources mirror and falls back to this field during migration.
-	//
-	// The frontend is deliberately denied any path to a management cluster (no
-	// kube-applier container access, no ReadDesireLister, no Maestro), so a
-	// frontend compromise cannot create arbitrary resources on a management
-	// cluster. Anything admission needs to know about the real HostedCluster has
-	// to travel through ServiceProviderCluster; see internal/admission/CLAUDE.md.
-	//
-	// The object is mirrored verbatim, exactly as observed on the management
-	// cluster. Nothing is stripped or rewritten on the way in, so a consumer can
-	// read any field without having to know a mirroring policy.
-	//
-	// nil means there is no observed HostedCluster to report: the backend has not
-	// observed one yet (the cluster is still being created, or the first sync has
-	// not run), or a completed read found no HostedCluster on the management
-	// cluster, in which case the mirror is retracted rather than left pointing at
-	// an object that no longer exists. Consumers must treat nil as unavailable
-	// observed state. Safety-critical admission checks must fail closed while it
-	// is nil; they cannot assume a required property such as a data-plane image
-	// mirror is present.
-	//
-	// Backend controllers must NOT read this field. They have first-class access
-	// to the ReadDesire mirror and are expected to read that instead, staying as
-	// close to the source as possible rather than waiting for this copy to catch up.
+	// ControlPlaneVersionHistory mirrors HostedCluster.status.controlPlaneVersion.history
+	// verbatim, newest first. nil means not yet observed or retracted; a non-nil
+	// pointer to a possibly empty slice means the HostedCluster was observed.
+	// Empty observations use a non-nil slice to preserve that distinction in JSON.
+	// Admin version pin rollback checks use this history, not guest version history.
 	// Written by: ActualHostedCluster
-	ActualHostedCluster *v1beta1.HostedCluster `json:"actualHostedCluster,omitempty"`
+	ControlPlaneVersionHistory *[]v1beta1.ControlPlaneUpdateHistory `json:"controlPlaneVersionHistory,omitempty"`
 
 	// Validations is a list of conditions that tracks the status of each cluster validation.
 	// Each Condition Type represents a validation and it should be unique among all validations.
@@ -370,6 +346,19 @@ type ServiceProviderClusterStatus struct {
 	// eligible for a new backup. Empty means no rotation has been handled yet.
 	// Written by: KeyRotationBackup
 	KeyRotationBackupFingerprint string `json:"keyRotationBackupFingerprint,omitempty"`
+
+	// ManagedIdentityDetails is a map containing the details for the
+	// managed identities associated with the cluster.
+	// The key is the fully lowercased Azure Resource ID of the identity.
+	// Each entry contains identity metadata retrieved from the different sources
+	// that apply to that identity as well as whether those sources can be leveraged
+	// to retrieve the identity metadata. The sources are: the ARM User Assigned Identities API, the real Managed
+	// Identities Dataplane Service, and/or the Hardcoded Identity used when the dataplane service is not available.
+	// Depending on to what cluster operators the identity is associated with, different sources apply.
+	// Written by: FetchManagedIdentitiesInfo
+	// TODO: Move the controllers to use this information. For already introduced controllers that need to support identities replacement, move them
+	// to use this at the point those are updated to support identity replacement.
+	ManagedIdentityDetails map[string]*ManagedIdentityMetadata `json:"managedIdentityDetails,omitempty"`
 }
 
 // ServiceProviderClusterPlacementStatus holds placement-specific status for a
@@ -696,3 +685,77 @@ const (
 	// the cluster-autoscaler ControlPlaneComponent on the management cluster control plane namespace.
 	ReadonlyHypershiftControlPlaneComponentClusterAutoscaler MaestroBundleInternalName = "readonlyHypershiftControlPlaneComponentClusterAutoscaler"
 )
+
+// ManagedIdentityMetadata holds the metadata retrieved for a single managed
+// identity from each source that applies to it. Sources that do not apply
+// are left as nil. Identity metadata on each source is last-pass-only: see
+// IdentityMetadataValue.
+type ManagedIdentityMetadata struct {
+	// ResourceID is the Azure Resource ID of the managed identity.
+	// Written by: FetchManagedIdentitiesInfo
+	ResourceID *azcorearm.ResourceID `json:"resourceID,omitempty"`
+
+	// MetadataFromARMUserAssignedIdentitiesAPI is the metadata for the identity retrieved from
+	// the ARM User Assigned Identities API (https://learn.microsoft.com/en-us/rest/api/managedidentity/user-assigned-identities)
+	// as the source. Nil when ARM does not apply: ARM is queried for control-plane and data-plane operator
+	// identities. It is not queried for an identity used only as the service managed identity, because
+	// end-users are not asked to grant the Service Managed Identity read on itself. If the same resource ID is also a
+	// control-plane or data-plane operator identity, ARM still applies.
+	// When this metadata source applies, a failure to retrieve this metadata using the API results in the
+	// ClientID, PrincipalID, and TenantID attributes being set to nil and RetrievalError records what went wrong. This includes the case
+	// where the identity does not exist in Azure.
+	// Written by: FetchManagedIdentitiesInfo
+	MetadataFromARMUserAssignedIdentitiesAPI *IdentityMetadataValue `json:"metadataFromARMUserAssignedIdentitiesAPI,omitempty"`
+	// MetadataFromManagedIdentitiesDataplaneService is the metadata for the identity retrieved from the **real**
+	// Managed Identities Dataplane Service as the source. Nil when:
+	// - The real Managed Identities Dataplane Service is not available in the environment
+	// - The identity is not configured as a cluster's control plane operator identity and/or as the cluster's service managed identity
+	// When this metadata source applies, if the identity does not exist the entry will be initialized with an empty ClientID, PrincipalID, and TenantID.
+	// This can also happen if there has been a transient error retrieving the identity metadata.
+	// Written by: FetchManagedIdentitiesInfo
+	MetadataFromManagedIdentitiesDataplaneService *IdentityMetadataValue `json:"metadataFromManagedIdentitiesDataplaneService,omitempty"`
+	// MetadataFromHardcodedIdentity is the metadata for the identity retrieved from the Hardcoded Identity (backend/pkg/azure/client.HardcodedIdentity) as the source.
+	// This is set only in environments where the real Managed Identities Data Plane
+	// service is not available, and only for identities that are configured as a cluster's control plane operator identity and/or as
+	// the cluster's Service Managed Identity.
+	// When this metadata source applies, a failure to set this metadata results in the ClientID, PrincipalID and TenantID being set to nil
+	// Written by: FetchManagedIdentitiesInfo
+	MetadataFromHardcodedIdentity *IdentityMetadataValue `json:"metadataFromHardcodedIdentity,omitempty"`
+}
+
+// IdentityMetadataValue is ClientID/PrincipalID/TenantID retrieved from one
+// identity metadata source, a RetrievalError from the last retrieval attempt,
+// or an empty value (all fields nil) when that source applies but has not
+// been resolved yet or could not be resolved in this pass.
+//
+// ClientID, PrincipalID, and TenantID are the result of the most recent
+// retrieval for this source. They are not sticky. A later pass that fails,
+// including an intermittent API error, persists them as nil and may set
+// RetrievalError. A later successful pass can populate them again. Readers
+// must not assume that once-resolved values remain set.
+type IdentityMetadataValue struct {
+	// ClientID is the Client ID of the managed identity as returned by the
+	// source on the most recent retrieval. It may be nil even after a previous
+	// successful retrieval. See IdentityMetadataValue.
+	// Written by: FetchManagedIdentitiesInfo
+	ClientID *string `json:"clientID,omitempty"`
+	// PrincipalID is the Principal ID of the managed identity as returned by
+	// the source on the most recent retrieval. It may be nil even after a
+	// previous successful retrieval; see IdentityMetadataValue.
+	// Written by: FetchManagedIdentitiesInfo
+	PrincipalID *string `json:"principalID,omitempty"`
+	// TenantID is the Tenant ID of the managed identity as returned by the
+	// source on the most recent retrieval. It may be nil even after a previous
+	// successful retrieval. See IdentityMetadataValue.
+	// Written by: FetchManagedIdentitiesInfo
+	TenantID *string `json:"tenantID,omitempty"`
+	// RetrievalError, when non-nil, is the error (truncated to the first 1024
+	// characters) from the most recent attempt to retrieve this identity's
+	// metadata from this source. When set, ClientID, PrincipalID, and TenantID
+	// are nil because the last retrieval attempt failed, and any previously
+	// resolved values are no longer trustworthy. It is nil when the last
+	// retrieval succeeded. A later successful pass clears this and may restore
+	// ClientID, PrincipalID, and TenantID.
+	// Written by: FetchManagedIdentitiesInfo
+	RetrievalError *string `json:"retrievalError,omitempty"`
+}

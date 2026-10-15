@@ -139,13 +139,6 @@ func (c *operationClusterDelete) SynchronizeOperation(ctx context.Context, key c
 		return fmt.Errorf("failed to get active operation: %w", err)
 	}
 
-	// TODO remove this once migration of cluster deletion from frontend to backend is fully completed.
-	if !operation.UsesNewClusterDeletionApproach {
-		return c.legacySynchronizeOperation(ctx, operation)
-	}
-
-	// From here, we know it uses the new deletion approach.
-
 	if !c.ShouldProcess(ctx, operation) {
 		return nil // no work to do
 	}

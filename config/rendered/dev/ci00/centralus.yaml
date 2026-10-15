@@ -40,8 +40,6 @@ acrPull:
     registry: mcr.microsoft.com
     repository: aks/msi-acrpull
 adminApi:
-  alertProcessingRules:
-    deploy: true
   audit:
     connectSocket: false
   cert:
@@ -202,7 +200,7 @@ clustersService:
   deployDebugJobs: false
   environment: arohcpci00
   image:
-    digest: sha256:18670fcebdc5fd1a4348cd0becb96de60d5693548f275717196662293f9900f0
+    digest: sha256:e9d0c188179de6a6eb745bf8b91e2a9cf54424a74b55ce29ef87ab06cf658ddb
     registry: quay.io
     repository: app-sre/aro-hcp-clusters-service
   k8s:
@@ -312,7 +310,6 @@ fleet:
   managedIdentityName: fleet
   nodePoolPlanning:
     profile: ci
-    zones: ""
   registration:
     autoApproveStamps: true
     stampIdentifier: "1"

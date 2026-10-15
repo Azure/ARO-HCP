@@ -4,7 +4,6 @@ filters:
       - deads2k
       - stevekuznetsov
       - geoberle
-      - bennerv
       - service-lifecycle-global-approvers
   # Intended to support autoowners generation in openshift/release; in this repo it will apply to any file paths that match the regex below.
   # See https://github.com/openshift/release/blob/main/ci-operator/config/Azure/ARO-HCP/OWNERS

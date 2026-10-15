@@ -96,7 +96,7 @@ func (b *TokenBucket) Wait(ctx context.Context) error {
 			defer finishWait()
 			waitStarted = true
 		}
-		utils.LoggerFromContext(ctx).Info("Cosmos requests are being rate limited; waiting for RU bucket to refill",
+		utils.LoggerFromContext(ctx).Info("Client-side rate limiting active; waiting for Cosmos RU token bucket to refill",
 			"rate_limiter", b.name, "available_rus", tokens, "refill_rus_per_second", b.refillPerSecond, "estimated_wait", delay.String())
 		timer := time.NewTimer(delay)
 		select {

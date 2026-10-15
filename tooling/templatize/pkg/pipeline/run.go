@@ -92,6 +92,8 @@ type BaseRunOptions struct {
 
 	SkipBicepparamValidation bool
 
+	// SubscriptionIdToAzureConfigDirectory maps a subscription ID to a logged-in Azure CLI config
+	// directory. These are read-only templates: each Shell step runs against its own private copy.
 	SubscriptionIdToAzureConfigDirectory map[string]string
 }
 
