@@ -396,7 +396,7 @@ func TestPipelineRun(t *testing.T) {
 		BaseRunOptions: BaseRunOptions{
 			BicepClient: lspClient,
 			SubscriptionIdToAzureConfigDirectory: map[string]string{
-				TEST_SUBSCRIPTION_ID: "test",
+				TEST_SUBSCRIPTION_ID: t.TempDir(),
 			},
 		},
 		Environment: "test-env",
