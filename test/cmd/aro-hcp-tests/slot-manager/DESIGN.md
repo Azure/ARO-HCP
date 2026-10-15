@@ -618,9 +618,9 @@ An absent acquired list retains suite fallbacks.
 
 The worker precedence is explicit `--max-concurrency`, then the user override,
 then the opt-in acquired count, then the suite fallback. Invalid environment
-configuration fails CLI construction. The runtime hook handles the CLI flag
-against the registered value, keeping the runner flag and selected suite cap
-consistent.
+configuration fails CLI construction. Metadata reports registered values without
+a command-time hook. The runtime hook only handles the CLI flag against the
+registered value, keeping the runner flag and selected suite cap consistent.
 Worker overrides do not change the independent leased MSI resource budget.
 
 The CLI entrypoint is in `main.go`, orchestration in `cli.go`, suite definitions

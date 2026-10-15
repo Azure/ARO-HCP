@@ -239,8 +239,6 @@ func setupCli() (*cobra.Command, error) {
 		switch c.Name() {
 		case "run-suite":
 			configureSuiteConcurrency(c, registry)
-		case "list", "info":
-			configureSuiteMetadataConcurrency(c, registry)
 		}
 	}
 	root.AddCommand(extensionCmds...)
