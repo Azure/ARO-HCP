@@ -111,6 +111,7 @@ type ExternalAuthServiceProviderProperties struct {
 	// Written by: ExternalAuthClusterServiceDeleteDispatch
 	ClusterServiceDeletionTimestamp *metav1.Time `json:"clusterServiceDeletionTimestamp,omitempty"`
 
+	// TODO do NOT reference this field in any new code. It is in the process of being removed
 	// Written by: Frontend DELETE ExternalAuth
 	UsesNewExternalAuthDeletionApproach bool `json:"usesNewExternalAuthDeletionApproach"`
 }
