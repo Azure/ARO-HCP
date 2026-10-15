@@ -162,8 +162,10 @@ func (h *Handler) AdmitLease(ctx context.Context, request assets.LeaseRequest) e
 	return admitE2EIdentityLease(ctx, request, h.cleanupWorkers)
 }
 
+// PublishLease publishes the exact resolved identity container names.
 func (h *Handler) PublishLease(_ context.Context, request assets.LeaseRequest, contract *slots.RuntimeContractBuilder) error {
-	return contract.Add(string(h.Kind()), "LEASED_MSI_CONTAINERS", strings.Join(request.AcquiredSlotState.Slot.IdentityContainerNames(), " "))
+	containers := request.AcquiredSlotState.Slot.IdentityContainerNames()
+	return contract.Add(string(h.Kind()), "LEASED_MSI_CONTAINERS", strings.Join(containers, " "))
 }
 
 func azurePoolDependencies() (azcore.TokenCredential, subscriptionIDResolverFunc, error) {

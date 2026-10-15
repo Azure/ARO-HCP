@@ -233,7 +233,7 @@ worst-case cost of `5 * (((58 - 1) * 26) + (1 * 41)) = 7615` assignments.
 Against the requested 8000-assignment quota, that leaves 385 assignments total,
 including the 100-assignment reserve and the subscription's persistent baseline.
 
-`suite-parallelism` is declared per suite in `test/cmd/aro-hcp-tests/main.go` and can be overridden at runtime by `ARO_HCP_SUITE_PARALLELISM` or the CLI `--max-concurrency` flag. Check the release-side job configuration and invocation rather than assuming the source literal applies. Neither worker override increases the `mi-containers` resource budget derived from `LEASED_MSI_CONTAINERS`.
+Every environment's E2E identity asset exports the resolved acquired names in `LEASED_MSI_CONTAINERS`. Integration, Stage, and PROD parallel suites explicitly opt in to a worker default derived from that list; specialized suites and `upgrade/in-place` retain their fallback and participant-based defaults. The lease does not assign `ARO_HCP_SUITE_PARALLELISM`, which remains an exported user or CI override parsed once during CLI construction. Worker precedence is explicit `--max-concurrency`, then the user override, then the opt-in acquired count, then the suite fallback. An explicitly empty user value opts out of acquired defaults. See [Acquired identity count and suite defaults](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#acquired-identity-count-and-suite-defaults) for suite selection and validation. Worker overrides do not increase the independent `mi-containers` resource budget.
 
 `run-cost` is the cost of a single run. To answer whether a change fits within a
 subscription's quota — the question that arises whenever role assignments are
@@ -371,20 +371,17 @@ containers, and all other pools retain their
 existing counts. This expands capacity within one suite run, not the number of
 simultaneous CI jobs.
 
-For runtime `ARO_HCP_DEPLOY_ENV=int` and `LOCATION=westus3` (both matched
-case-insensitively), `integration/parallel`, `integration/parallel/slow`, and
-`integration/parallel/all` default to 75 workers. Integration defaults remain 24
-outside that scope; Stage remains 34 and PROD remains 19. A valid positive
-`ARO_HCP_SUITE_PARALLELISM` overrides these defaults and still applies globally,
-including `upgrade/in-place`, whose default otherwise remains its dynamic spec
-count.
+For environment parallel-suite defaults and override precedence, see
+[Acquired identity count and suite defaults](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#acquired-identity-count-and-suite-defaults).
+The default follows the acquired identity-container count, not the physical
+inventory or reserve capacity.
 
-The existing CI invocation passes `--max-concurrency 100`, which overrides the
-suite worker default. The actual 75-container MI budget is enforced separately:
-the catalog exports only 75 entries in `LEASED_MSI_CONTAINERS`, and the
-resource-aware scheduler derives its `mi-containers` capacity from that list.
-It is not a guarantee or a cap of 75 concurrent specs: zero-demand specs consume
-no containers, and multi-container specs consume more than one unit of budget.
+An explicit CLI `--max-concurrency` overrides the derived suite worker default.
+The MSI resource budget is enforced separately: the resource-aware scheduler
+derives its `mi-containers` capacity from the acquired entries in
+`LEASED_MSI_CONTAINERS`. This budget is not a cap on concurrent specs:
+zero-demand specs consume no containers, and multi-container specs consume
+more than one unit of budget.
 
 The regional vCPU quota is 6,950 for the 100-physical, 75-leased trial.
 Higher throughput still requires quota-backed worker and helper SKU-family

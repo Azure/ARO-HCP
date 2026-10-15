@@ -582,8 +582,8 @@ Core exports include:
 - `ARO_HCP_E2E_SLOT_NAME`; and
 - `ARO_HCP_E2E_SLOT_RESOURCE_TYPE`.
 
-Asset handlers contribute asset-specific exports. The E2E identity handler
-owns `LEASED_MSI_CONTAINERS`.
+Asset handlers contribute asset-specific exports. The E2E identity handler owns
+`LEASED_MSI_CONTAINERS`; it does not assign user worker overrides.
 `INFRA_SUBSCRIPTION_ID` is exported only when the selected pool demands an
 infrastructure asset and that subscription has been resolved.
 
@@ -593,6 +593,43 @@ file is atomically published.
 
 The contract contains no credentials. Downstream steps source it and use the
 acquired values without re-resolving pool behavior.
+
+### Acquired identity count and suite defaults
+
+In every deployment environment, the E2E identity handler publishes the resolved
+acquired container names in `LEASED_MSI_CONTAINERS`. Physical inventory and reserve
+containers do not contribute to this list.
+
+Suite registration explicitly opts the integration and Stage fast, slow, and
+combined parallel suites, PROD fast and slow parallel suites, RP API compatibility
+fast and slow parallel suites, and Hypershift presubmit parallel suite into an
+acquired worker default. The count is derived from the exported list, independently
+of pooled identity mode. Resource-pool membership does not select this policy:
+`dev-cd-check/parallel` consumes MI resources but retains its worker fallback.
+`upgrade/in-place` retains its participant-based default so the complete cohort
+can reach its barrier.
+Explicit worker overrides for `upgrade/in-place` must allow the complete cohort
+to start; fewer workers leave participants queued behind the barrier.
+
+`ARO_HCP_SUITE_PARALLELISM` is an exported user or CI override; the lease contract
+does not assign it. The CLI parses and validates it once during construction and
+applies it when registering suites. A nonempty value must be a positive integer
+and applies globally. An explicitly empty value opts out of the acquired default.
+An absent acquired list retains suite fallbacks.
+
+Suite parallelism is resolved from the user override, then the opt-in acquired
+count, then the suite fallback. Invalid environment configuration fails CLI
+construction. Metadata reports registered values without a command-time hook.
+An explicit `--max-concurrency` limits workers without changing suite metadata.
+When omitted, the flag defaults to the selected suite's registered parallelism.
+The runner uses `min(max-concurrency, Suite.Parallelism)`; for example, a suite
+value of 75 with `--max-concurrency=100` runs at most 75 workers, while a flag
+value of 25 limits it to 25. Worker limits do not change the independent leased
+MSI resource budget.
+
+The CLI entrypoint is in `main.go`, orchestration in `cli.go`, suite definitions
+in `suites.go`, and concurrency resolution in `concurrency.go`. MI scheduling and
+EV2 result reporting are grouped in `mi_scheduler.go` and `ev2_reporting.go`.
 
 ### Pool VM family policy
 
