@@ -798,19 +798,6 @@ resourceGroups:
       - "unexpected error when reading response body"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
-  - name: cleanup-prometheus-pvc
-    aksCluster: '{{ .mgmt.aks.name }}'
-    action: Shell
-    command: ./cleanup-prometheus-pvc.sh
-    workingDir: ./scripts
-    dependsOn:
-    - resourceGroup: management
-      step: prometheus
-    shellIdentity:
-      input:
-        resourceGroup: global
-        step: output
-        name: globalMSIId
   - name: acrpull
     aksCluster: '{{ .mgmt.aks.name }}'
     action: Helm
