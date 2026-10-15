@@ -18,6 +18,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -44,6 +45,8 @@ type ControlPlaneIdentitiesPermissionsClusterValidation struct {
 	// checkAccessV2Scope is the OAuth scope (typically a "<resource>/.default" App ID URI. public, gov, and China clouds
 	// each use a different App ID URI respectively) passed to MI Dataplane when minting an access token for each control plane operator identity.
 	checkAccessV2Scope string
+	// propagationDetector, when non-nil, downgrades missing permissions that are explained by recently created role assignments from Failed to Unknown.
+	propagationDetector *RoleAssignmentPropagationDetector
 }
 
 func NewControlPlaneIdentitiesPermissionsClusterValidation(
@@ -53,6 +56,7 @@ func NewControlPlaneIdentitiesPermissionsClusterValidation(
 	checkAccessV2ClientBuilder azureclient.CheckAccessV2ClientBuilder,
 	miDataplaneBasedAccessTokenRetrieverBuilder azureclient.MIDataplaneBasedIdentityAccessTokenRetrieverBuilder,
 	checkAccessV2Scope string,
+	propagationDetector *RoleAssignmentPropagationDetector,
 ) *ControlPlaneIdentitiesPermissionsClusterValidation {
 	return &ControlPlaneIdentitiesPermissionsClusterValidation{
 		smiClientBuilder:                            smiClientBuilder,
@@ -61,6 +65,7 @@ func NewControlPlaneIdentitiesPermissionsClusterValidation(
 		checkAccessV2ClientBuilder:                  checkAccessV2ClientBuilder,
 		miDataplaneBasedAccessTokenRetrieverBuilder: miDataplaneBasedAccessTokenRetrieverBuilder,
 		checkAccessV2Scope:                          checkAccessV2Scope,
+		propagationDetector:                         propagationDetector,
 	}
 }
 
@@ -137,6 +142,9 @@ func (v *ControlPlaneIdentitiesPermissionsClusterValidation) Validate(ctx contex
 			)
 		}
 		internalAndUserMsg := fmt.Sprintf("Control plane operators missing required permissions: %s", string(jsonBytes))
+		if deferred, ok := v.deferForPropagation(ctx, clusterSubscription, cluster, missingPermissions); ok {
+			return deferred
+		}
 		return FailedValidation(
 			"MissingRequiredPermissions",
 			internalAndUserMsg,
@@ -149,6 +157,46 @@ func (v *ControlPlaneIdentitiesPermissionsClusterValidation) Validate(ctx contex
 		"Control plane operators have all required permissions.",
 		"Control plane operators have all required permissions.",
 	)
+}
+
+// deferForPropagation checks whether the missing permissions can be attributed to RBAC propagation delay. Control plane operators are checked by JWT, so their principal IDs are only resolved
+// here, on the missing-permissions path, to keep the common passing path free of extra Azure calls. Failure to resolve a principal ID never defers the validation.
+func (v *ControlPlaneIdentitiesPermissionsClusterValidation) deferForPropagation(ctx context.Context, clusterSubscription *coreapi.Subscription, cluster *coreapi.Cluster, missingPermissions []*identityResourceMissingPermissions) (ValidationResult, bool) {
+	if v.propagationDetector == nil {
+		return ValidationResult{}, false
+	}
+	principalIDs, err := v.resolvePrincipalIDs(ctx, cluster, missingPermissions)
+	if err != nil {
+		roleAssignmentPropagationLookupErrors.WithLabelValues(v.Name()).Inc()
+		utils.LoggerFromContext(ctx).Info("unable to resolve control plane identity principal IDs for RBAC propagation check; reporting missing permissions", "error", err.Error())
+		return ValidationResult{}, false
+	}
+	return deferForPropagationIfApplicable(ctx, v.propagationDetector, v.Name(), *clusterSubscription.Properties.TenantId, missingPermissions, principalIDs,
+		"Waiting for recently created role assignments for the control plane operator identities to take effect.")
+}
+
+func (v *ControlPlaneIdentitiesPermissionsClusterValidation) resolvePrincipalIDs(ctx context.Context, cluster *coreapi.Cluster, missingPermissions []*identityResourceMissingPermissions) (map[string]string, error) {
+	userAssignedIdentitiesClient, err := v.smiClientBuilder.UserAssignedIdentitiesClient(ctx, cluster.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL,
+		cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity, cluster.ID.SubscriptionID)
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to get user assigned identities client: %w", err))
+	}
+	principalIDs := map[string]string{}
+	for _, entry := range missingPermissions {
+		key := strings.ToLower(entry.Identity.String())
+		if _, ok := principalIDs[key]; ok {
+			continue
+		}
+		identity, err := userAssignedIdentitiesClient.Get(ctx, entry.Identity.ResourceGroupName, entry.Identity.Name, nil)
+		if err != nil {
+			return nil, utils.TrackError(fmt.Errorf("failed to get user assigned managed identity %q: %w", entry.Identity, err))
+		}
+		if identity.Properties == nil || identity.Properties.PrincipalID == nil {
+			return nil, utils.TrackError(fmt.Errorf("principal ID is nil for user assigned managed identity %q", entry.Identity))
+		}
+		principalIDs[key] = *identity.Properties.PrincipalID
+	}
+	return principalIDs, nil
 }
 
 func (v *ControlPlaneIdentitiesPermissionsClusterValidation) roleActionsForOperator(ctx context.Context, operatorName string) ([]string, error) {
