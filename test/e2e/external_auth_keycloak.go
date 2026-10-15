@@ -154,6 +154,7 @@ var _ = Describe("Customer", func() {
 			})
 			Expect(err).NotTo(HaveOccurred(), "failed to deploy the Keycloak test provider")
 			Expect(keycloakProvider.IssuerURL).NotTo(BeEmpty(), "Keycloak issuer URL was empty")
+			Expect(keycloakProvider.IssuerCABundle).NotTo(BeEmpty(), "Keycloak issuer CA bundle was empty")
 			Expect(keycloakProvider.AuthorizationEndpoint).NotTo(BeEmpty(), "Keycloak authorization endpoint was empty")
 			Expect(keycloakProvider.TokenEndpoint).NotTo(BeEmpty(), "Keycloak token endpoint was empty")
 
@@ -162,6 +163,7 @@ var _ = Describe("Customer", func() {
 				Properties: &hcpsdk20261001.ExternalAuthProperties{
 					Issuer: &hcpsdk20261001.TokenIssuerProfile{
 						URL: to.Ptr(keycloakProvider.IssuerURL),
+						CA:  to.Ptr(keycloakProvider.IssuerCABundle),
 						Audiences: []*string{
 							to.Ptr(consoleClientID),
 							to.Ptr(commandLineClientID),

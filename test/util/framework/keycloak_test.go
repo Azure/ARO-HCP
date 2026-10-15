@@ -16,6 +16,7 @@ package framework
 
 import (
 	"context"
+	"encoding/pem"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -24,6 +25,13 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+	dynamicfake "k8s.io/client-go/dynamic/fake"
+	kubernetesfake "k8s.io/client-go/kubernetes/fake"
 )
 
 func TestBuildKeycloakRealm(t *testing.T) {
@@ -62,6 +70,67 @@ func TestBuildKeycloakRealm(t *testing.T) {
 	require.Len(t, commandLineClient.ProtocolMappers, 2)
 	assert.Equal(t, "cli-client", commandLineClient.ProtocolMappers[0].Config["included.client.audience"])
 	assert.Equal(t, "groups", commandLineClient.ProtocolMappers[1].Config["claim.name"])
+}
+
+func TestGetDefaultIngressCertificateBundle(t *testing.T) {
+	tlsServer := httptest.NewTLSServer(http.NotFoundHandler())
+	defer tlsServer.Close()
+	certificateBundle := pem.EncodeToMemory(&pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: tlsServer.Certificate().Raw,
+	})
+
+	tests := []struct {
+		name                  string
+		defaultCertificate    string
+		certificateSecretName string
+	}{
+		{
+			name:                  "custom default certificate",
+			defaultCertificate:    "cluster-ingress-cert",
+			certificateSecretName: "cluster-ingress-cert",
+		},
+		{
+			name:                  "generated default certificate",
+			certificateSecretName: "router-certs-default",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ingressController := &unstructured.Unstructured{Object: map[string]any{
+				"apiVersion": "operator.openshift.io/v1",
+				"kind":       "IngressController",
+				"metadata": map[string]any{
+					"name":      "default",
+					"namespace": "openshift-ingress-operator",
+				},
+				"spec": map[string]any{},
+			}}
+			if tt.defaultCertificate != "" {
+				require.NoError(t, unstructured.SetNestedField(
+					ingressController.Object,
+					tt.defaultCertificate,
+					"spec",
+					"defaultCertificate",
+					"name",
+				))
+			}
+
+			kubeClient := kubernetesfake.NewSimpleClientset(&corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      tt.certificateSecretName,
+					Namespace: "openshift-ingress",
+				},
+				Data: map[string][]byte{corev1.TLSCertKey: certificateBundle},
+			})
+			dynamicClient := dynamicfake.NewSimpleDynamicClient(runtime.NewScheme(), ingressController)
+
+			got, err := getDefaultIngressCertificateBundle(context.Background(), kubeClient, dynamicClient)
+
+			require.NoError(t, err)
+			assert.Equal(t, string(certificateBundle), got)
+		})
+	}
 }
 
 func TestCompleteKeycloakConsoleLogin(t *testing.T) {

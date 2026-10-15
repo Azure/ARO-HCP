@@ -17,6 +17,7 @@ package framework
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -64,6 +65,7 @@ type KeycloakTestProviderOptions struct {
 type KeycloakTestProvider struct {
 	Namespace             string
 	IssuerURL             string
+	IssuerCABundle        string
 	AuthorizationEndpoint string
 	TokenEndpoint         string
 }
@@ -214,6 +216,11 @@ func DeployKeycloakTestProvider(ctx context.Context, adminRESTConfig *rest.Confi
 		return nil, fmt.Errorf("timed out waiting for Keycloak route host: %w", err)
 	}
 
+	issuerCABundle, err := getDefaultIngressCertificateBundle(ctx, kubeClient, dynamicClient)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get Keycloak route CA bundle: %w", err)
+	}
+
 	issuerURL := fmt.Sprintf("https://%s/realms/%s", routeHost, url.PathEscape(options.Realm))
 	realmJSON, err := json.Marshal(buildKeycloakRealm(options))
 	if err != nil {
@@ -331,9 +338,52 @@ func DeployKeycloakTestProvider(ctx context.Context, adminRESTConfig *rest.Confi
 	return &KeycloakTestProvider{
 		Namespace:             namespace.Name,
 		IssuerURL:             issuerURL,
+		IssuerCABundle:        issuerCABundle,
 		AuthorizationEndpoint: discovery.AuthorizationEndpoint,
 		TokenEndpoint:         discovery.TokenEndpoint,
 	}, nil
+}
+
+func getDefaultIngressCertificateBundle(ctx context.Context, kubeClient kubernetes.Interface, dynamicClient dynamic.Interface) (string, error) {
+	const (
+		ingressNamespace               = "openshift-ingress"
+		ingressOperatorNamespace       = "openshift-ingress-operator"
+		defaultIngressControllerName   = "default"
+		generatedCertificateSecretName = "router-certs-default"
+	)
+
+	ingressControllerGVR := schema.GroupVersionResource{
+		Group:    "operator.openshift.io",
+		Version:  "v1",
+		Resource: "ingresscontrollers",
+	}
+	ingressController, err := dynamicClient.Resource(ingressControllerGVR).
+		Namespace(ingressOperatorNamespace).
+		Get(ctx, defaultIngressControllerName, metav1.GetOptions{})
+	if err != nil {
+		return "", fmt.Errorf("failed to get default IngressController: %w", err)
+	}
+
+	secretName, _, err := unstructured.NestedString(ingressController.Object, "spec", "defaultCertificate", "name")
+	if err != nil {
+		return "", fmt.Errorf("failed to read default IngressController certificate name: %w", err)
+	}
+	if secretName == "" {
+		secretName = generatedCertificateSecretName
+	}
+
+	secret, err := kubeClient.CoreV1().Secrets(ingressNamespace).Get(ctx, secretName, metav1.GetOptions{})
+	if err != nil {
+		return "", fmt.Errorf("failed to get default ingress certificate Secret %q: %w", secretName, err)
+	}
+	certificateBundle := secret.Data[corev1.TLSCertKey]
+	if len(certificateBundle) == 0 {
+		return "", fmt.Errorf("default ingress certificate Secret %q did not contain %q", secretName, corev1.TLSCertKey)
+	}
+	if !x509.NewCertPool().AppendCertsFromPEM(certificateBundle) {
+		return "", fmt.Errorf("default ingress certificate Secret %q contained an invalid PEM certificate bundle", secretName)
+	}
+	return string(certificateBundle), nil
 }
 
 func RequestKeycloakPasswordToken(ctx context.Context, provider *KeycloakTestProvider, clientID, username, password string) (string, error) {
