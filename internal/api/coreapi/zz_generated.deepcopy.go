@@ -2511,6 +2511,17 @@ func (in *ServiceProviderClusterStatus) DeepCopyInto(out *ServiceProviderCluster
 			}
 		}
 	}
+	if in.ControlPlaneVersionHistory != nil {
+		in, out := &in.ControlPlaneVersionHistory, &out.ControlPlaneVersionHistory
+		*out = new([]v1beta1.ControlPlaneUpdateHistory)
+		if **in != nil {
+			in, out := *in, *out
+			*out = make([]v1beta1.ControlPlaneUpdateHistory, len(*in))
+			for i := range *in {
+				(*in)[i].DeepCopyInto(&(*out)[i])
+			}
+		}
+	}
 	if in.Validations != nil {
 		in, out := &in.Validations, &out.Validations
 		*out = make([]v1.Condition, len(*in))

@@ -645,7 +645,7 @@ No writes to Cosmos Resources container.
 | | Object | Fields |
 |---|--------|--------|
 | Read | `Cluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (rejects requests for deleting clusters)</li><li>`CustomerProperties.Version.ID` (cluster release line, used to reject cross-minor pins)</li><li>`CustomerProperties.Version.ChannelGroup` (used to reject an auto-release threshold for nightly clusters)</li></ul> |
-| Read | `ServiceProviderCluster` | <ul><li>`Status.ActualHostedCluster.Status.ControlPlaneVersion.History` (newest-first control-plane history; pins at or above the latest entry are allowed, while lower targets require the immediately previous distinct `Completed` version)</li><li>Full document for preservation of other fields; never created by this endpoint</li></ul> |
+| Read | `ServiceProviderCluster` | <ul><li>`Status.ControlPlaneVersionHistory` (newest-first control-plane history; pins at or above the latest entry are allowed, while lower targets require the immediately previous distinct `Completed` version)</li><li>Full document for preservation of other fields; never created by this endpoint</li></ul> |
 
 | Object | Fields Written |
 |--------|---------------|
@@ -694,7 +694,7 @@ requests leave retrying to the caller.
 | | Object | Fields |
 |---|--------|--------|
 | Read | `Cluster` (all regional partitions) | `ID`, `ServiceProviderProperties.DeletionTimestamp`, `CustomerProperties.Version.ChannelGroup` determine live channel membership; `CustomerProperties.Version.ID` validates each changed pin's requested release line. |
-| Read | `ServiceProviderCluster` (all regional partitions) | `ResourceID.Parent` joins the backing cluster; `Spec.ControlPlaneVersion.DesiredVersion`, or the oldest completed `Status.ControlPlaneVersion.ActiveVersions` entry, determines the effective minor. `Spec.PinnedVersion` identifies unchanged pins. `Status.ActualHostedCluster.Status.ControlPlaneVersion.History` validates changed rollback pins. The full document and ETag are retained for replacement. |
+| Read | `ServiceProviderCluster` (all regional partitions) | `ResourceID.Parent` joins the backing cluster; `Spec.ControlPlaneVersion.DesiredVersion`, or the oldest completed `Status.ControlPlaneVersion.ActiveVersions` entry, determines the effective minor. `Spec.PinnedVersion` identifies unchanged pins. `Status.ControlPlaneVersionHistory` validates changed rollback pins. The full document and ETag are retained for replacement. |
 
 | Object | Fields Written |
 |--------|---------------|
@@ -908,7 +908,7 @@ Resolves ClientID, PrincipalID, and TenantID for every unique identity into `Sta
 **Trigger:** Cluster, ServiceProviderCluster, cluster-scoped ManagementClusterContent,
 ReadDesire, and ApplyDesire informers; 5-minute resync.
 
-Mirrors the observed HostedCluster's image content sources so the frontend has management-cluster
+Mirrors the observed HostedCluster's image content sources and control-plane version history so API handlers have management-cluster
 state it is allowed to read (see [Why management-cluster state is mirrored onto
 ServiceProviderCluster](#why-management-cluster-state-is-mirrored-onto-serviceprovidercluster)).
 Copies `spec.imageContentSources` verbatim into `Status.ImageContentSources`,
@@ -920,20 +920,26 @@ fails closed as unavailable; an observed list without the v5 source fails the up
 gate as missing the required mirror. The full HostedCluster is not stored on the
 ServiceProviderCluster.
 
-Leaves the field `nil` until the HostedCluster is observed, and only writes when the
-image content sources change. Changes to unrelated HostedCluster spec, status or metadata
+Also copies `status.controlPlaneVersion.history` verbatim, newest first, into
+`Status.ControlPlaneVersionHistory` using the same pointer-to-slice observation semantics.
+This is not guest `status.version.history`. The single-cluster and regional fleet
+admin version pin endpoints use it to validate rollback targets. As before, missing
+or empty history permits a pin because no observed version can classify a rollback.
+
+Leaves both fields `nil` until the HostedCluster is observed, and only writes when the
+image content sources or control-plane version history change. Changes to unrelated HostedCluster spec, status or metadata
 do not cause writes. A missing or unsuccessful ReadDesire observation leaves the published
 mirror in place — those states also cover a cold union informer, so clearing on them would wipe
 and rewrite every mirror on each backend restart. A successful empty observation clears the
 mirror because it proves the HostedCluster is absent. Deletion does not gate mirroring:
-successful observations continue updating the field while the cluster is deleting, and a
-successful empty observation retracts it to `nil` for active and deleting clusters.
+successful observations continue updating both fields while the cluster is deleting, and a
+successful empty observation retracts both to `nil` for active and deleting clusters.
 
 | | Object | Fields |
 |---|--------|--------|
 | Read | `HCPOpenShiftCluster` | Existence only; no deletion gate |
 | Read | ReadDesire (HostedCluster) | <ul><li>`Status.Conditions[Successful]` — gates all mirror updates, including clearing empty content</li><li>`Status.KubeContent` — the observed HostedCluster, whole object (`Spec` + `Status`)</li></ul> |
-| **Write** | **`ServiceProviderCluster`** | **`Status.ImageContentSources`** = a pointer to the observed `Spec.ImageContentSources`, preserving source and mirror entries; nil when retracted |
+| **Write** | **`ServiceProviderCluster`** | **`Status.ImageContentSources`** = a pointer to the observed `Spec.ImageContentSources`, preserving source and mirror entries; **`Status.ControlPlaneVersionHistory`** = a pointer to `Status.ControlPlaneVersion.History`; both nil when retracted |
 
 #### EnsureManagedResourceGroup
 

@@ -30,6 +30,7 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
+	configv1 "github.com/openshift/api/config/v1"
 	hsv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
@@ -76,6 +77,68 @@ func TestActualHostedClusterSyncer_MirrorsImageContentSources(t *testing.T) {
 	stored := getServiceProviderCluster(t, ctx, mockResourcesDBClient)
 	require.NotNil(t, stored.Status.ImageContentSources)
 	assert.Equal(t, hostedCluster.Spec.ImageContentSources, *stored.Status.ImageContentSources)
+}
+
+func TestActualHostedClusterSyncer_MirrorsControlPlaneVersionHistory(t *testing.T) {
+	ctx := utils.ContextWithLogger(context.Background(), logr.Discard())
+	mockResourcesDBClient := corecosmosstoragetesting.NewMockResourcesDBClient()
+	createTestHCPCluster(t, ctx, mockResourcesDBClient)
+	hostedCluster := newHostedCluster()
+	hostedCluster.Status.ControlPlaneVersion.History = []hsv1beta1.ControlPlaneUpdateHistory{
+		{Version: "4.22.2", State: configv1.PartialUpdate, Image: "registry.example.com/release:4.22.2", StartedTime: metav1.NewTime(time.Unix(100, 0))},
+		{Version: "4.22.1", State: configv1.CompletedUpdate, CompletionTime: metav1.NewTime(time.Unix(90, 0))},
+	}
+	hostedCluster.Status.Version = &hsv1beta1.ClusterVersionStatus{History: []configv1.UpdateHistory{
+		{Version: "4.21.9", State: configv1.CompletedUpdate},
+	}}
+	syncer := newTestSyncer(t, mockResourcesDBClient, hostedCluster)
+	require.NoError(t, syncer.SyncOnce(ctx, testKey))
+	observed := getServiceProviderCluster(t, ctx, mockResourcesDBClient)
+	require.NotNil(t, observed.Status.ControlPlaneVersionHistory)
+	assert.Equal(t, hostedCluster.Status.ControlPlaneVersion.History, *observed.Status.ControlPlaneVersionHistory)
+	copied := observed.DeepCopy()
+	(*copied.Status.ControlPlaneVersionHistory)[0].Version = "4.22.3"
+	assert.Equal(t, "4.22.2", (*observed.Status.ControlPlaneVersionHistory)[0].Version)
+	require.NoError(t, syncer.SyncOnce(ctx, testKey))
+	assert.Equal(t, observed.CosmosETag, getServiceProviderCluster(t, ctx, mockResourcesDBClient).CosmosETag)
+
+	hostedCluster.Status.ControlPlaneVersion.History[0].State = configv1.CompletedUpdate
+	require.NoError(t, newTestSyncer(t, mockResourcesDBClient, hostedCluster).SyncOnce(ctx, testKey))
+	updated := getServiceProviderCluster(t, ctx, mockResourcesDBClient)
+	assert.NotEqual(t, observed.CosmosETag, updated.CosmosETag)
+	assert.Equal(t, hostedCluster.Status.ControlPlaneVersion.History, *updated.Status.ControlPlaneVersionHistory)
+	assert.Equal(t, observed.Status.ImageContentSources, updated.Status.ImageContentSources)
+
+	updated.Status.ControlPlaneVersionHistory = nil
+	legacy, err := mockResourcesDBClient.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Replace(ctx, updated, nil)
+	require.NoError(t, err)
+	require.NoError(t, newTestSyncer(t, mockResourcesDBClient, hostedCluster).SyncOnce(ctx, testKey))
+	backfilled := getServiceProviderCluster(t, ctx, mockResourcesDBClient)
+	assert.NotEqual(t, legacy.CosmosETag, backfilled.CosmosETag)
+	require.NotNil(t, backfilled.Status.ControlPlaneVersionHistory)
+	assert.Equal(t, hostedCluster.Status.ControlPlaneVersion.History, *backfilled.Status.ControlPlaneVersionHistory)
+
+	hostedCluster.Status.ControlPlaneVersion.History = nil
+	require.NoError(t, newTestSyncer(t, mockResourcesDBClient, hostedCluster).SyncOnce(ctx, testKey))
+	empty := getServiceProviderCluster(t, ctx, mockResourcesDBClient)
+	require.NotNil(t, empty.Status.ControlPlaneVersionHistory)
+	assert.Equal(t, []hsv1beta1.ControlPlaneUpdateHistory{}, *empty.Status.ControlPlaneVersionHistory)
+	serialized, err := json.Marshal(empty.Status)
+	require.NoError(t, err)
+	var restored coreapi.ServiceProviderClusterStatus
+	require.NoError(t, json.Unmarshal(serialized, &restored))
+	require.NotNil(t, restored.ControlPlaneVersionHistory)
+	assert.Empty(t, *restored.ControlPlaneVersionHistory)
+	require.NoError(t, newTestSyncer(t, mockResourcesDBClient, hostedCluster).SyncOnce(ctx, testKey))
+	assert.Equal(t, empty.CosmosETag, getServiceProviderCluster(t, ctx, mockResourcesDBClient).CosmosETag)
+
+	hostedCluster.Status.ControlPlaneVersion.History = *observed.Status.ControlPlaneVersionHistory
+	require.NoError(t, newTestSyncer(t, mockResourcesDBClient, hostedCluster).SyncOnce(ctx, testKey))
+	require.NoError(t, newTestSyncer(t, mockResourcesDBClient, nil).SyncOnce(ctx, testKey))
+	retracted := getServiceProviderCluster(t, ctx, mockResourcesDBClient)
+	assert.Nil(t, retracted.Status.ControlPlaneVersionHistory)
+	require.NoError(t, newTestSyncer(t, mockResourcesDBClient, nil).SyncOnce(ctx, testKey))
+	assert.Equal(t, retracted.CosmosETag, getServiceProviderCluster(t, ctx, mockResourcesDBClient).CosmosETag)
 }
 
 func TestActualHostedClusterSyncer_NoWriteWhenUnchanged(t *testing.T) {
@@ -166,6 +229,7 @@ func TestActualHostedClusterSyncer_LeavesMirrorNilWhenHostedClusterUnobserved(t 
 
 	stored := getServiceProviderCluster(t, ctx, mockResourcesDBClient)
 	assert.Nil(t, stored.Status.ImageContentSources)
+	assert.Nil(t, stored.Status.ControlPlaneVersionHistory)
 }
 
 func TestActualHostedClusterSyncer_ClearsMirrorAfterSuccessfulEmptyObservation(t *testing.T) {
@@ -184,6 +248,7 @@ func TestActualHostedClusterSyncer_ClearsMirrorAfterSuccessfulEmptyObservation(t
 
 	retracted := getServiceProviderCluster(t, ctx, mockResourcesDBClient)
 	assert.Nil(t, retracted.Status.ImageContentSources)
+	assert.Nil(t, retracted.Status.ControlPlaneVersionHistory)
 	require.NoError(t, syncer.SyncOnce(ctx, testKey))
 	assert.Equal(t, retracted.CosmosETag, getServiceProviderCluster(t, ctx, mockResourcesDBClient).CosmosETag)
 }
@@ -239,6 +304,7 @@ func TestActualHostedClusterSyncer_RetainsMirrorWhenUnobserved(t *testing.T) {
 
 					after := getServiceProviderCluster(t, ctx, mockResourcesDBClient)
 					assert.Equal(t, before.Status.ImageContentSources, after.Status.ImageContentSources)
+					assert.Equal(t, before.Status.ControlPlaneVersionHistory, after.Status.ControlPlaneVersionHistory)
 					assert.Equal(t, before.CosmosETag, after.CosmosETag, "an unobserved result must not rewrite the ServiceProviderCluster")
 				})
 			}
