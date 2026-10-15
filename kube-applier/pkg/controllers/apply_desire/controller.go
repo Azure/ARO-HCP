@@ -148,7 +148,7 @@ type ApplyDesireController struct {
 	applyDesireInformer cache.SharedIndexInformer
 	fetcher             desirestatuswriter.Fetcher[kubeapplierapi.ApplyDesire, keys.ApplyDesireKey]
 	dyn                 dynamic.Interface
-	writer              desirestatuswriter.StatusWriter[kubeapplierapi.ApplyDesire, keys.ApplyDesireKey]
+	writer              desirestatuswriter.StatusWriter[kubeapplierapi.ApplyDesire]
 	queue               workqueue.TypedRateLimitingInterface[keys.ApplyDesireKey]
 
 	cfg Config
@@ -177,8 +177,7 @@ func NewApplyDesireController(
 		applyDesireInformer: applyDesireInformer,
 		fetcher:             fetcher,
 		dyn:                 dyn,
-		writer: desirestatuswriter.New[kubeapplierapi.ApplyDesire, keys.ApplyDesireKey, *kubeapplierapi.ApplyDesire](
-			fetcher,
+		writer: desirestatuswriter.New[kubeapplierapi.ApplyDesire, *kubeapplierapi.ApplyDesire](
 			&applyDesireReplacer{crudByParent: crudByParent},
 		),
 		queue: workqueue.NewTypedRateLimitingQueueWithConfig(

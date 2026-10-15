@@ -94,9 +94,9 @@ type PerInstanceFactory interface {
 type ReadDesireInformerManagingController struct {
 	name               string
 	readDesireInformer cache.SharedIndexInformer
-	fetcher            *readDesireFetcher
+	fetcher            desirestatuswriter.Fetcher[kubeapplierapi.ReadDesire, keys.ReadDesireKey]
 	factory            PerInstanceFactory
-	writer             desirestatuswriter.StatusWriter[kubeapplierapi.ReadDesire, keys.ReadDesireKey]
+	writer             desirestatuswriter.StatusWriter[kubeapplierapi.ReadDesire]
 	queue              workqueue.TypedRateLimitingInterface[keys.ReadDesireKey]
 
 	cfg Config
@@ -145,8 +145,7 @@ func NewReadDesireInformerManagingController(
 			workqueue.DefaultTypedControllerRateLimiter[keys.ReadDesireKey](),
 			workqueue.TypedRateLimitingQueueConfig[keys.ReadDesireKey]{Name: ReadDesireInformerManagingControllerName},
 		),
-		writer: desirestatuswriter.New[kubeapplierapi.ReadDesire, keys.ReadDesireKey, *kubeapplierapi.ReadDesire](
-			fetcher,
+		writer: desirestatuswriter.New[kubeapplierapi.ReadDesire, *kubeapplierapi.ReadDesire](
 			&readDesireReplacer{crudByParent: crudByParent},
 		),
 		cfg:     cfg,
@@ -312,7 +311,7 @@ func (c *ReadDesireInformerManagingController) SyncOnce(ctx context.Context, key
 	if err != nil {
 		// PreCheckError or any other construction failure: record it on status,
 		// don't enter a Running state.
-		return c.writer.UpdateStatus(ctx, key, func(d *kubeapplierapi.ReadDesire) {
+		return c.writer.UpdateStatusFrom(ctx, desire, func(d *kubeapplierapi.ReadDesire) {
 			conditions.SetSuccessful(&d.Status.Conditions, err)
 		})
 	}
