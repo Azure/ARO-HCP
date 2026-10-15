@@ -313,8 +313,11 @@ func (c *ApplyDesireController) SyncOnce(ctx context.Context, key keys.ApplyDesi
 			conditions.SetDegraded(&d.Status.Conditions, classifyAsDegraded(syncErr))
 			d.Status.AppliedKubeGeneration = appliedKubeGeneration
 		})
-		if statusErr != nil || isRetryableApplyError(syncErr) {
+		if statusErr != nil && syncErr != nil {
 			return errors.Join(syncErr, statusErr)
+		}
+		if isRetryableApplyError(syncErr) {
+			return syncErr
 		}
 		return statusErr
 	case kubeapplierapi.ApplyDesireTypeDelete:
