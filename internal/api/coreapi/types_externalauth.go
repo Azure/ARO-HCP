@@ -107,9 +107,18 @@ type ExternalAuthServiceProviderProperties struct {
 	DeletionTimestamp *metav1.Time `json:"deletionTimestamp,omitempty"`
 	// ClusterServiceDeletionTimestamp is written when a dispatch of a Cluster
 	// Service Delete ExternalAuth request against Cluster Service for this
-	// external auth has been handled.
+	// external auth has been handled. That includes an accepted DELETE, a
+	// parent-cluster uninstalling 400, a timed-out missing ID, or a timed-out 404.
 	// Written by: ExternalAuthClusterServiceDeleteDispatch
 	ClusterServiceDeletionTimestamp *metav1.Time `json:"clusterServiceDeletionTimestamp,omitempty"`
+	// ClusterServiceExternalAuthDeleteAccepted is set when dispatch stamps
+	// ClusterServiceDeletionTimestamp. true means Cluster Service accepted DELETE;
+	// false means it did not (parent-cluster uninstalling 400, missing ID, or
+	// timed-out 404). nil means the document was dispatched before this field
+	// existed; the ID clearer treats Ready as terminal in that case so in-flight
+	// deletions keep the ARO-28935 unblock instead of waiting forever for 404.
+	// Written by: ExternalAuthClusterServiceDeleteDispatch
+	ClusterServiceExternalAuthDeleteAccepted *bool `json:"clusterServiceExternalAuthDeleteAccepted,omitempty"`
 
 	// Written by: Frontend DELETE ExternalAuth
 	UsesNewExternalAuthDeletionApproach bool `json:"usesNewExternalAuthDeletionApproach"`
