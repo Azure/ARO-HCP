@@ -146,8 +146,8 @@ type ApplyDesireStatus struct {
 	//                   operation-specific condition applies (SuccessfullyApplied
 	//                   for ServerSideApply, SuccessfullyDeleted for Delete) with
 	//                   the same status/reason/message. Prefer the
-	//                   operation-specific condition; see
-	//                   kubeapplierapihelpers.IsConditionTruePreferring.
+	//                   operation-specific condition. Delete completion must
+	//                   require SuccessfullyDeleted without a legacy fallback.
 	//   - "Degraded":   the controller is not making progress for an
 	//                   out-of-band reason.
 	Conditions []metav1.Condition `json:"conditions,omitempty"`

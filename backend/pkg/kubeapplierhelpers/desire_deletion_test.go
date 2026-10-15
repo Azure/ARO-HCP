@@ -22,6 +22,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -33,6 +34,69 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/kubeappliercosmosstoragetesting"
 )
+
+func TestEnsureApplyDesireRemoved(t *testing.T) {
+	for _, testCase := range []struct {
+		name        string
+		conditions  []metav1.Condition
+		wantRemoved bool
+	}{
+		{
+			name: "Successful is a liveness signal, not delete completion",
+			conditions: []metav1.Condition{
+				{Type: kubeapplierapi.ConditionTypeSuccessful, Status: metav1.ConditionTrue},
+			},
+		},
+		{
+			name: "SuccessfullyDeleted confirms delete completion",
+			conditions: []metav1.Condition{
+				{Type: kubeapplierapi.ConditionTypeSuccessfullyDeleted, Status: metav1.ConditionTrue},
+			},
+			wantRemoved: true,
+		},
+		{
+			name: "SuccessfullyDeleted false does not confirm delete completion",
+			conditions: []metav1.Condition{
+				{Type: kubeapplierapi.ConditionTypeSuccessfullyDeleted, Status: metav1.ConditionFalse},
+				{Type: kubeapplierapi.ConditionTypeSuccessful, Status: metav1.ConditionTrue},
+			},
+		},
+		{
+			name: "no conditions does not confirm delete completion",
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			ctx := context.Background()
+			mockKubeApplier := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClient()
+			crud, _ := mockKubeApplier.ApplyDesiresForCluster(testSubscriptionID, testResourceGroupName, testClusterName)
+			resourceIDStr := kubeapplierapihelpers.ToClusterScopedApplyDesireResourceIDString(testSubscriptionID, testResourceGroupName, testClusterName, "delete-desire")
+			resourceID := metadataapi.Must(azcorearm.ParseResourceID(resourceIDStr))
+			desire := &kubeapplierapi.ApplyDesire{
+				CosmosMetadata: coreapi.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(testMCResourceID.String())},
+				Spec: kubeapplierapi.ApplyDesireSpec{
+					ManagementCluster: testMCResourceID,
+					Type:              kubeapplierapi.ApplyDesireTypeDelete,
+					TargetItem:        testTarget(),
+				},
+				Status: kubeapplierapi.ApplyDesireStatus{Conditions: testCase.conditions},
+			}
+			created, err := crud.Create(ctx, desire, nil)
+			require.NoError(t, err)
+
+			removed, err := EnsureApplyDesireRemoved(ctx, resourceID.Name, crud)
+			require.NoError(t, err)
+			assert.Equal(t, testCase.wantRemoved, removed)
+
+			remaining, err := crud.Get(ctx, resourceID.Name)
+			if testCase.wantRemoved {
+				assert.True(t, cosmosstorageutils.IsNotFoundError(err), "completed delete should remove the desire document")
+			} else {
+				require.NoError(t, err, "incomplete delete should retain the desire document")
+				assert.Equal(t, created, remaining, "waiting for delete completion should not change the desire")
+			}
+		})
+	}
+}
 
 // TestPurgeApplyDesire covers the one-shot retirement path used by desires
 // whose target must outlive the desire document (on-demand backups, or a
