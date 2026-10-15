@@ -285,7 +285,7 @@ spec:
   serviceAccountName: velero
 ---
 # Source: velero-hcp-cli/templates/node-agent-podmonitor.yaml
-apiVersion: monitoring.coreos.com/v1
+apiVersion: azmonitoring.coreos.com/v1
 kind: PodMonitor
 metadata:
   name: node-agent
@@ -302,9 +302,13 @@ spec:
     port: metrics
     scheme: http
     interval: 30s
+    metricRelabelings:
+    - action: replace
+      replacement: service
+      targetLabel: microsoft_metrics_include_label
 ---
 # Source: velero-hcp-cli/templates/velero-podmonitor.yaml
-apiVersion: monitoring.coreos.com/v1
+apiVersion: azmonitoring.coreos.com/v1
 kind: PodMonitor
 metadata:
   name: velero
@@ -321,6 +325,10 @@ spec:
     port: metrics
     scheme: http
     interval: 30s
+    metricRelabelings:
+    - action: replace
+      replacement: service
+      targetLabel: microsoft_metrics_include_label
 ---
 # Source: velero-hcp-cli/templates/volumesnapshotclass.yaml
 apiVersion: snapshot.storage.k8s.io/v1

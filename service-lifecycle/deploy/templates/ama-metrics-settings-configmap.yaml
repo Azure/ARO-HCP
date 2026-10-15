@@ -8,19 +8,33 @@ data:
   prometheus-collector-settings: |-
     cluster_alias = ""
   default-scrape-settings-enabled: |-
-    kubelet = true
-    coredns = true
-    cadvisor = true
-    kubeproxy = true
-    apiserver = true
-    kubestate = false # OSS prometheus scrapes kube-state-metrics so the HCP ksm are routed to the hcp Azure Monitor Workspace
-    nodeexporter = true
+    # These default targets are disabled and re-created as custom scrape jobs in
+    # ama-metrics-prometheus-config(-node), so their samples can carry the
+    # microsoft_metrics_include_label=service routing label (default targets can't);
+    # otherwise the services DCR labelIncludeFilter drops them.
+    #   node/DaemonSet jobs: kubelet, cadvisor, nodeexporter, kappie-basic,
+    #                        networkobservability-retina/hubble/cilium
+    #   replica/cluster jobs: coredns, apiserver, kubestate (AMA mode only; legacy
+    #                         mode uses the OSS kube-state-metrics)
+    # kubeproxy stays off: ARO-HCP AKS use the Cilium dataplane (kube-proxy-less),
+    # so there is no kube-proxy endpoint to scrape.
+    # prometheuscollectorhealth and controlplane-* stay enabled as defaults: they
+    # are scraped through the add-on's in-pod/managed path (collector health on
+    # 127.0.0.1:2234; control plane via the separate CCP merger with privileged
+    # certs), so they cannot be re-created as custom jobs here and remain unrouted.
+    kubelet = false
+    coredns = false
+    cadvisor = false
+    kubeproxy = false
+    apiserver = false
+    kubestate = false
+    nodeexporter = false
     windowsexporter = false
     windowskubeproxy = false
-    kappiebasic = true
-    networkobservabilityRetina = true
-    networkobservabilityHubble = true
-    networkobservabilityCilium = true
+    kappiebasic = false
+    networkobservabilityRetina = false
+    networkobservabilityHubble = false
+    networkobservabilityCilium = false
     prometheuscollectorhealth = true
     controlplane-apiserver = true
     controlplane-cluster-autoscaler = true

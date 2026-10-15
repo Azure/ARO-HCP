@@ -3,6 +3,7 @@
 {{- $image = .mgmtAgent.image }}
 {{- end }}
 enabled: {{ .swiftRecorder.enabled }}
+monitoringApiGroup: "{{ .mgmt.monitoringApiGroup }}"
 image:
   registry: "{{ .acr.svc.name }}.{{ .acrDNSSuffix }}"
   repository: "{{ $image.repository }}"

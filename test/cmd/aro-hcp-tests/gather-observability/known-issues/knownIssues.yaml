@@ -7,10 +7,6 @@ knownIssues:
   labels:
     name: "operationclustercreate"
   reason: "fix in https://github.com/Azure/ARO-HCP/pull/5794"
-- name: "PrometheusOperatorRejectedResources"
-  labels:
-    resource: "servicemonitor"
-  reason: "https://issues.redhat.com/browse/ARO-28028"
 - name: "KubeVersionMismatch"
   labels:
     cluster: ".*-mgmt-.*"
