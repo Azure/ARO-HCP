@@ -183,6 +183,25 @@ func instantiateAzureNodePoolVMQuotaValidationController(controllerContext contr
 	), nil
 }
 
+func registerAzureNodePoolPremiumOSDiskValidationController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{
+		Workers:     20,
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateAzureNodePoolPremiumOSDiskValidationController, true),
+	}
+}
+
+func instantiateAzureNodePoolPremiumOSDiskValidationController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	_, serviceProviderNodePoolLister := controllerContext.BackendInformers.ServiceProviderNodePools()
+	return nodepoolvalidation.NewNamedNodePoolValidationController(
+		nodepoolvalidation.NodePoolValidationAzureNodePoolPremiumOSDiskValidationControllerName,
+		validationutils.NewAzureNodePoolPremiumOSDiskValidation(controllerContext.VirtualMachineResourceSKUsCachedReaderController),
+		controllerContext.ResourcesDBClient,
+		serviceProviderNodePoolLister,
+		controllerContext.BackendInformers,
+		controllerContext.UnionKubeApplierInformers,
+	), nil
+}
+
 func registerNodePoolNSGBasedRequiredConnectivityValidationController() controllerconfig.ControllerRegistration {
 	return controllerconfig.ControllerRegistration{
 		Workers:     20,
@@ -383,6 +402,7 @@ func Register(registry map[string]controllerconfig.ControllerRegistration) {
 	registry[strings.ToLower(nodepoolstatus.NodePoolRequirementsValidAggregatorControllerName)] = registerNodePoolRequirementsValidAggregatorController()
 	registry[strings.ToLower(nodepoolvalidation.NodePoolValidationAzureVMSizeSupportsEphemeralOSDiskValidationControllerName)] = registerAzureVMSizeSupportsEphemeralOSDiskValidationController()
 	registry[strings.ToLower(nodepoolvalidation.NodePoolValidationAzureNodePoolVMQuotaValidationControllerName)] = registerAzureNodePoolVMQuotaValidationController()
+	registry[strings.ToLower(nodepoolvalidation.NodePoolValidationAzureNodePoolPremiumOSDiskValidationControllerName)] = registerAzureNodePoolPremiumOSDiskValidationController()
 	registry[strings.ToLower(nodepoolvalidation.NodePoolValidationAzureNodePoolNSGBasedRequiredConnectivityValidationControllerName)] = registerNodePoolNSGBasedRequiredConnectivityValidationController()
 	registry[strings.ToLower(nodepoolversion.NodepoolVersionControllerName)] = registerNodePoolVersionController()
 	registry[strings.ToLower(nodepoolversion.NodePoolActiveVersionsControllerName)] = registerNodePoolActiveVersionController()
