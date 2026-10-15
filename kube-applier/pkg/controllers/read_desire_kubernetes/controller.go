@@ -81,8 +81,8 @@ type ReadDesireKubernetesController struct {
 
 	dyn      dynamic.Interface
 	informer cache.SharedIndexInformer
-	fetcher  *readDesireFetcher
-	writer   desirestatuswriter.StatusWriter[kubeapplierapi.ReadDesire, keys.ReadDesireKey]
+	fetcher  desirestatuswriter.Fetcher[kubeapplierapi.ReadDesire, keys.ReadDesireKey]
+	writer   desirestatuswriter.StatusWriter[kubeapplierapi.ReadDesire]
 
 	queue workqueue.TypedRateLimitingInterface[keys.ReadDesireKey]
 }
@@ -128,8 +128,7 @@ func NewReadDesireKubernetesController(
 				Name: ReadDesireKubernetesControllerName + strings.ReplaceAll(key.GetResourceID().String(), "/", "_"),
 			},
 		),
-		writer: desirestatuswriter.New[kubeapplierapi.ReadDesire, keys.ReadDesireKey, *kubeapplierapi.ReadDesire](
-			fetcher,
+		writer: desirestatuswriter.New[kubeapplierapi.ReadDesire, *kubeapplierapi.ReadDesire](
 			&readDesireReplacer{crudByParent: crudByParent},
 		),
 	}
@@ -274,6 +273,9 @@ func (c *ReadDesireKubernetesController) SyncOnce(ctx context.Context) error {
 	if desire == nil {
 		return nil
 	}
+	if desire.Spec.TargetItem != c.target {
+		return nil
+	}
 
 	// Pull the live object from the per-instance informer cache. The store key
 	// for an Unstructured is namespace/name (or just name for cluster-scoped).
@@ -281,17 +283,16 @@ func (c *ReadDesireKubernetesController) SyncOnce(ctx context.Context) error {
 	// We read from the informer cache rather than re-Getting against
 	// kube-apiserver so a noisy ReadDesire doesn't load the apiserver. The
 	// cache is fed by an informer scoped to a single (gvr, namespace, name),
-	// so it tracks at most one object. Don't change the resource pointed at
-	// by spec.targetItem out from under a running ReadDesire — but if you do,
-	// the next published .status.kubeContent will reflect what was observed
-	// for the new target.
+	// so it tracks at most one object. On retargeting, the manager replaces
+	// this controller; the target check above prevents the old instance from
+	// publishing its cache contents against the new target's revision.
 	storeKey := c.target.Name
 	if c.namespaced {
 		storeKey = c.target.Namespace + "/" + c.target.Name
 	}
 	rawObj, exists, err := c.informer.GetStore().GetByKey(storeKey)
 	if err != nil {
-		return c.writer.UpdateStatus(ctx, c.key, func(d *kubeapplierapi.ReadDesire) {
+		return c.writer.UpdateStatusFrom(ctx, desire, func(d *kubeapplierapi.ReadDesire) {
 			conditions.SetSuccessful(&d.Status.Conditions, fmt.Errorf("read cache: %w", err))
 		})
 	}
@@ -305,7 +306,7 @@ func (c *ReadDesireKubernetesController) SyncOnce(ctx context.Context) error {
 	if exists {
 		obj, ok := rawObj.(*unstructured.Unstructured)
 		if !ok {
-			return c.writer.UpdateStatus(ctx, c.key, func(d *kubeapplierapi.ReadDesire) {
+			return c.writer.UpdateStatusFrom(ctx, desire, func(d *kubeapplierapi.ReadDesire) {
 				conditions.SetSuccessful(&d.Status.Conditions, conditions.NewPreCheckError(
 					fmt.Errorf("informer cached unexpected type %T", rawObj)))
 			})
@@ -316,7 +317,7 @@ func (c *ReadDesireKubernetesController) SyncOnce(ctx context.Context) error {
 		}
 		newRaw, err = json.Marshal(obj)
 		if err != nil {
-			return c.writer.UpdateStatus(ctx, c.key, func(d *kubeapplierapi.ReadDesire) {
+			return c.writer.UpdateStatusFrom(ctx, desire, func(d *kubeapplierapi.ReadDesire) {
 				conditions.SetSuccessful(&d.Status.Conditions, fmt.Errorf("marshal observed object: %w", err))
 			})
 		}
@@ -332,12 +333,12 @@ func (c *ReadDesireKubernetesController) SyncOnce(ctx context.Context) error {
 	if !internalcontrollerutils.NeedsUpdate(desire.Status.KubeContent, newContent) {
 		// Still ensure Successful=True so a freshly-launched controller flips
 		// the condition out of Unknown into True on the first cycle.
-		return c.writer.UpdateStatus(ctx, c.key, func(d *kubeapplierapi.ReadDesire) {
+		return c.writer.UpdateStatusFrom(ctx, desire, func(d *kubeapplierapi.ReadDesire) {
 			conditions.SetSuccessful(&d.Status.Conditions, nil)
 		})
 	}
 
-	return c.writer.UpdateStatus(ctx, c.key, func(d *kubeapplierapi.ReadDesire) {
+	return c.writer.UpdateStatusFrom(ctx, desire, func(d *kubeapplierapi.ReadDesire) {
 		d.Status.KubeContent = newContent
 		conditions.SetSuccessful(&d.Status.Conditions, nil)
 	})

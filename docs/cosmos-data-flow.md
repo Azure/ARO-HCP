@@ -1712,6 +1712,19 @@ Shadow observer. Resolves the configured tier profile into a desired AKS node po
 
 Executes requested apply/delete operations against the target Kubernetes API and records ApplyDesire success/error and observed execution state in the per-management-cluster container. Removing an intent document is not equivalent to executing a Delete intent.
 
+All operation results (apply, delete, and unknown-type errors) are recorded through
+`desirestatuswriter.UpdateStatusFrom` against the same document revision used to
+perform the operation. The writer deep-copies that document without re-fetching,
+preserving its Cosmos ETag for conditional replacement. Any intervening change,
+including same-type spec changes, rejects a changed status write with
+PreconditionFailed (412). The controller returns that error to its rate-limited
+workqueue; the next reconcile reads the current document, repeats the operation,
+and retries its status write. No-op status mutations skip replacement.
+ReadDesire controllers also use `UpdateStatusFrom`: observations and construction
+errors are bound to the revision read before observing or building the watcher.
+Conflicts requeue reconciliation rather than publishing status onto a changed
+spec. The re-fetching `UpdateStatus` API has been removed.
+
 #### ReadDesireInformerManagingController
 
 [Source](../kube-applier/pkg/controllers/read_desire_manager/controller.go) · **Trigger:** ReadDesire; 10m.
@@ -1723,6 +1736,10 @@ Starts/stops the target Kubernetes informer/controller needed by each requested 
 [Source](../kube-applier/pkg/controllers/read_desire_kubernetes/controller.go) · **Trigger:** Target Kubernetes events; 60s.
 
 Copies target content or absence/error into ReadDesire status/conditions in Cosmos; supplies feedback to backend and fleet. Instances are created dynamically for requested reads.
+
+A retargeted document is ignored by the old per-instance controller until the
+manager replaces it. This prevents an old target's cached content from being
+published against a new target, including after an ETag-conflict retry.
 
 #### union-kube-applier-informers-controller
 

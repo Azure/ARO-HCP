@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package desirestatuswriter is the generic "read-mutate-replace" helper that
+// Package desirestatuswriter is the generic "mutate-replace" helper that
 // writes back the .status section of kube-applier *Desire Cosmos documents
 // (ApplyDesire and ReadDesire). It has nothing to do with the
 // .status section of the Kubernetes objects those desires target — that
@@ -24,27 +24,21 @@
 // deliberately omits the create-if-missing branch present in backend's
 // controllerutils.WriteController.
 //
-// Callers supply two collaborators as named structs implementing Fetcher
-// and Replacer; the Writer does not accept function-typed adapters. Fetcher
-// implementations MUST go to a live Cosmos client rather than a cached
-// lister: the Replacer's etag check needs the freshest revision available,
-// or a controller that updates a desire twice in a row would lose the
-// second write to a PreconditionFailed.
+// Callers supply the document revision they operated on and a named struct
+// implementing Replacer. The writer never re-fetches before writing status.
 package desirestatuswriter
 
 import (
 	"context"
-	"fmt"
 
 	"k8s.io/apimachinery/pkg/api/equality"
 
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 // Fetcher reads the current state of a single desire by a controller-defined
-// typed key. Implementations typically wrap a lister cache. The StatusWriter
-// deep-copies whatever Fetcher returns before mutating, so returning the
-// cache pointer directly is fine.
+// typed key. Implementations must use a live Cosmos client so retries observe
+// the latest revision. The StatusWriter deep-copies the document before mutating.
 type Fetcher[T any, K comparable] interface {
 	Fetch(ctx context.Context, key K) (*T, error)
 }
@@ -53,12 +47,14 @@ type Fetcher[T any, K comparable] interface {
 // derive the partition / parent scoping from the desire itself (the
 // kube-applier controllers parse it out of the desire's resourceID), so the
 // StatusWriter does not pass a key here.
+// Implementations must conditionally replace using the supplied document's
+// etag and return PreconditionFailed (412) if that revision is no longer current.
 type Replacer[T any] interface {
 	Replace(ctx context.Context, desired *T) error
 }
 
 // DeepCopyable is the constraint on the pointer-type parameter that lets the
-// StatusWriter clone the value it receives from the Fetcher without knowing
+// StatusWriter clone the value it receives from the caller without knowing
 // T's concrete shape. The kubeapplier *Desire types satisfy it via the
 // generated zz_generated.deepcopy.go.
 type DeepCopyable[T any] interface {
@@ -71,29 +67,29 @@ type DeepCopyable[T any] interface {
 type MutateFunc[T any] func(*T)
 
 // StatusWriter computes the next desired state via mutate and writes it back
-// once. It returns nil for a no-op (status already up-to-date) and for an etag
-// conflict (the informer will requeue when the new revision lands).
-type StatusWriter[T any, K comparable] interface {
-	UpdateStatus(ctx context.Context, key K, mutate MutateFunc[T]) error
+// once. It returns nil for a no-op (status already up-to-date) and surfaces
+// errors, including etag conflicts (PreconditionFailed / 412), for retry.
+type StatusWriter[T any] interface {
+	// UpdateStatusFrom records an operation against the same document revision
+	// it used, without fetching again. On conflict, callers must repeat the
+	// operation against a fresh document before retrying the status update.
+	UpdateStatusFrom(ctx context.Context, operated *T, mutate MutateFunc[T]) error
 }
 
-// New returns a StatusWriter that fetches via fetcher and writes via replacer.
-// The third type parameter is the pointer type *T; it carries the DeepCopy
+// New returns a StatusWriter that writes via replacer.
+// The second type parameter is the pointer type *T; it carries the DeepCopy
 // method the StatusWriter needs to clone the existing desire before mutating
 // it. Callers spell it out at the call site so we do not need a separate
 // "Cloner" parameter.
-func New[T any, K comparable, PT DeepCopyable[T]](
-	fetcher Fetcher[T, K], replacer Replacer[T],
-) StatusWriter[T, K] {
-	return &writer[T, K, PT]{fetcher: fetcher, replacer: replacer}
+func New[T any, PT DeepCopyable[T]](replacer Replacer[T]) StatusWriter[T] {
+	return &writer[T, PT]{replacer: replacer}
 }
 
-type writer[T any, K comparable, PT DeepCopyable[T]] struct {
-	fetcher  Fetcher[T, K]
+type writer[T any, PT DeepCopyable[T]] struct {
 	replacer Replacer[T]
 }
 
-// UpdateStatus implements the read-mutate-replace cycle. The contract:
+// UpdateStatusFrom implements the mutate-replace cycle. The contract:
 //
 //   - Skip the write entirely when mutate produces a deeply-equal copy of the
 //     existing desire — this is the steady state for healthy reconciles.
@@ -103,32 +99,20 @@ type writer[T any, K comparable, PT DeepCopyable[T]] struct {
 //     construction-failure path vs. the per-instance controller's
 //     Successful/KubeContent writes); on conflict the loser must retry.
 //
-// We DeepCopy the fetched desire before applying mutate. A naive
+// We DeepCopy the supplied desire before applying mutate. A naive
 // `desired := *existing` would share the conditions-slice backing array with
 // existing, and meta.SetStatusCondition mutates conditions in place, so the
 // comparison would always report no change and silently drop writes.
-func (w *writer[T, K, PT]) UpdateStatus(ctx context.Context, key K, mutate MutateFunc[T]) error {
-	existing, err := w.fetcher.Fetch(ctx, key)
-	if err != nil {
-		// NotFound is normal: the desire was deleted between dispatch and now.
-		if cosmosstorageutils.IsNotFoundError(err) {
-			return nil
-		}
-		return fmt.Errorf("fetch %v: %w", key, err)
-	}
-	if existing == nil {
-		return nil
-	}
-
-	desired := PT(existing).DeepCopy()
+func (w *writer[T, PT]) UpdateStatusFrom(ctx context.Context, operated *T, mutate MutateFunc[T]) error {
+	desired := PT(operated).DeepCopy()
 	mutate(desired)
 
-	if equality.Semantic.DeepEqual(existing, desired) {
+	if equality.Semantic.DeepEqual(operated, desired) {
 		return nil
 	}
 
 	if err := w.replacer.Replace(ctx, desired); err != nil {
-		return fmt.Errorf("replace status for %v: %w", key, err)
+		return utils.TrackError(err)
 	}
 	return nil
 }

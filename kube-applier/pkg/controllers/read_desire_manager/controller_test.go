@@ -16,10 +16,19 @@ package read_desire_manager
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"net/http"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/util/workqueue"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
@@ -27,6 +36,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/kubeappliercosmosstoragetesting"
+	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/kube-applier/pkg/controllers/desirestatuswriter"
 	"github.com/Azure/ARO-HCP/kube-applier/pkg/controllers/keys"
 )
@@ -127,7 +137,7 @@ func newTestController(
 		fetcher: &readDesireFetcher{crudByParent: mock},
 		factory: &recordingFakeFactory{fakes: fakes},
 		running: map[keys.ReadDesireKey]*runningInstance{},
-		writer:  noopStatusWriter[kubeapplierapi.ReadDesire, keys.ReadDesireKey]{},
+		writer:  noopStatusWriter[kubeapplierapi.ReadDesire]{},
 	}
 }
 
@@ -311,8 +321,98 @@ func TestManagerSyncOnce_StopsOnDelete(t *testing.T) {
 // noopStatusWriter discards mutations. Status conditions aren't what these
 // lifecycle tests are checking; we get full coverage of those in the
 // conditions package's own tests.
-type noopStatusWriter[T any, K comparable] struct{}
+type noopStatusWriter[T any] struct{}
 
-func (noopStatusWriter[T, K]) UpdateStatus(ctx context.Context, key K, mutate desirestatuswriter.MutateFunc[T]) error {
+func (noopStatusWriter[T]) UpdateStatusFrom(context.Context, *T, desirestatuswriter.MutateFunc[T]) error {
 	return nil
+}
+
+type retargetingFactoryStore struct {
+	current *kubeapplierapi.ReadDesire
+	updated *kubeapplierapi.ReadDesire
+	targets []kubeapplierapi.ResourceReference
+	fetches int
+	writes  int
+}
+
+func (store *retargetingFactoryStore) Fetch(context.Context, keys.ReadDesireKey) (*kubeapplierapi.ReadDesire, error) {
+	store.fetches++
+	return store.current, nil
+}
+
+func (store *retargetingFactoryStore) Replace(_ context.Context, desired *kubeapplierapi.ReadDesire) error {
+	if desired.CosmosETag != store.current.CosmosETag {
+		return &azcore.ResponseError{StatusCode: http.StatusPreconditionFailed}
+	}
+	store.current = desired.DeepCopy()
+	store.writes++
+	return nil
+}
+
+func (store *retargetingFactoryStore) Build(_ keys.ReadDesireKey, target kubeapplierapi.ResourceReference) (PerInstanceController, error) {
+	store.targets = append(store.targets, target)
+	if len(store.targets) == 1 {
+		store.current = store.updated
+	}
+	return nil, fmt.Errorf("cannot watch %s", target.Name)
+}
+
+func TestRetargetRejectsStaleConstructionErrorAndRetries(t *testing.T) {
+	for _, worker := range []bool{false, true} {
+		name := "SyncOnce"
+		if worker {
+			name = "processNext"
+		}
+		t.Run(name, func(t *testing.T) {
+			observed := newReadDesire(t, kubeapplierapi.ResourceReference{Version: "v1", Resource: "configmaps", Name: "original"})
+			observed.CosmosETag = "v1"
+			original := observed.DeepCopy()
+			updated := observed.DeepCopy()
+			updated.CosmosETag = "v2"
+			updated.Spec.TargetItem.Name = "updated"
+			store := &retargetingFactoryStore{current: observed, updated: updated}
+			controller := &ReadDesireInformerManagingController{
+				fetcher: store, factory: store,
+				writer: desirestatuswriter.New[kubeapplierapi.ReadDesire, *kubeapplierapi.ReadDesire](store),
+				queue:  workqueue.NewTypedRateLimitingQueue(workqueue.DefaultTypedControllerRateLimiter[keys.ReadDesireKey]()),
+			}
+			t.Cleanup(controller.queue.ShutDown)
+			key := keyFor(t, observed)
+			if worker {
+				controller.queue.Add(key)
+				if !controller.processNext(t.Context()) || controller.queue.NumRequeues(key) != 1 {
+					t.Fatal("conflict did not requeue construction")
+				}
+			} else {
+				err := controller.SyncOnce(t.Context(), key)
+				var responseErr *azcore.ResponseError
+				if !errors.As(err, &responseErr) || responseErr.StatusCode != http.StatusPreconditionFailed {
+					t.Fatalf("SyncOnce error = %v, want PreconditionFailed (412)", err)
+				}
+				if _, ok := err.(*utils.LineTrackingError); !ok || errors.Unwrap(err) != responseErr || !strings.Contains(err.Error(), "desirestatuswriter.go:") {
+					t.Fatalf("SyncOnce error = %v (%T), want tracked conflict from status writer", err, err)
+				}
+			}
+			if store.fetches != 1 || store.writes != 0 || len(store.current.Status.Conditions) != 0 || !reflect.DeepEqual(observed, original) {
+				t.Fatalf("stale construction error was published, mutated, or re-fetched: fetches=%d, writes=%d", store.fetches, store.writes)
+			}
+			if worker {
+				deadline := time.Now().Add(5 * time.Second)
+				for controller.queue.Len() == 0 && time.Now().Before(deadline) {
+					time.Sleep(time.Millisecond)
+				}
+				if controller.queue.Len() != 1 || !controller.processNext(t.Context()) || controller.queue.NumRequeues(key) != 0 {
+					t.Fatal("retry did not finish after observing the retarget")
+				}
+			} else if err := controller.SyncOnce(t.Context(), key); err != nil {
+				t.Fatal(err)
+			}
+			if store.fetches != 2 || store.writes != 1 || !reflect.DeepEqual(store.targets, []kubeapplierapi.ResourceReference{observed.Spec.TargetItem, updated.Spec.TargetItem}) {
+				t.Fatalf("retry did not rebuild against current target: fetches=%d, writes=%d, targets=%v", store.fetches, store.writes, store.targets)
+			}
+			if got := store.current.Status.Conditions; len(got) != 1 || got[0].Status != metav1.ConditionFalse || got[0].Message != "cannot watch updated" {
+				t.Fatalf("retry conditions = %v, want new target's construction error", got)
+			}
+		})
+	}
 }
