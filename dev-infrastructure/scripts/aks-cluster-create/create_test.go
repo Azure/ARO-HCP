@@ -45,6 +45,7 @@ func memoryBytes(value string) int64 {
 func testSystemPool() compute.Pool {
 	return compute.Pool{
 		Role:              compute.PoolRoleSystem,
+		AgentPoolMode:     armcontainerservice.AgentPoolModeSystem,
 		Name:              "s1abc1234567",
 		Spec:              compute.VMSpec{Size: "Standard_D4ds_v6", Family: "standardDDSv6Family", VCPUs: 4, MemoryBytes: memoryBytes("16Gi"), SecondaryNICs: 0},
 		AvailabilityZones: []string{"1", "2", "3"},

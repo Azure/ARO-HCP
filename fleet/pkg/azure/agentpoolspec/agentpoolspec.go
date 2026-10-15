@@ -19,6 +19,7 @@
 package agentpoolspec
 
 import (
+	"fmt"
 	"strconv"
 
 	"k8s.io/utils/ptr"
@@ -41,15 +42,31 @@ const (
 	SwiftMultiTenancyEnabledValue = "true"
 )
 
+// IsSwiftEnabled reports whether tags mark the pool as Swift-enabled.
+func IsSwiftEnabled(tags map[string]*string) bool {
+	return ptr.Deref(tags[SwiftMultiTenancyTag], "") == SwiftMultiTenancyEnabledValue
+}
+
+// SecondaryNICCount parses the configured secondary NIC count tag. ok is
+// false when the tag is absent. A present but malformed or non-positive
+// value is reported as an error so callers decide how strictly to treat it.
+func SecondaryNICCount(tags map[string]*string) (count int64, ok bool, err error) {
+	value, present := tags[SwiftSecondaryNICCountTag]
+	if !present {
+		return 0, false, nil
+	}
+	nics, err := strconv.ParseInt(ptr.Deref(value, ""), 10, 64)
+	if err != nil || nics <= 0 {
+		return 0, true, fmt.Errorf("invalid secondary NIC count %q", ptr.Deref(value, ""))
+	}
+	return nics, true, nil
+}
+
 // Build builds the AKS agent pool properties for a desired pool. Used both by
 // the controller's create action (via a live client) and by tools that create
 // pools outside the controller's reconcile loop, so pools always look the
 // same regardless of which caller created them.
 func Build(pool compute.Pool, networkConfig compute.NetworkConfig) *armcontainerservice.ManagedClusterAgentPoolProfileProperties {
-	mode := armcontainerservice.AgentPoolModeUser
-	if pool.Role == compute.PoolRoleSystem {
-		mode = armcontainerservice.AgentPoolModeSystem
-	}
 
 	labels := make(map[string]*string, len(pool.Labels))
 	for k, v := range pool.Labels {
@@ -66,10 +83,8 @@ func Build(pool compute.Pool, networkConfig compute.NetworkConfig) *armcontainer
 		tags = map[string]*string{
 			SwiftMultiTenancyTag: ptr.To(SwiftMultiTenancyEnabledValue),
 		}
-		// Only worker pools carry a secondary-NIC count; system pools are Swift
-		// (multi-tenancy) but attach no secondary NICs (matches pool.bicep).
-		if pool.Role == compute.PoolRoleWorker && pool.Spec.SecondaryNICs > 0 {
-			tags[SwiftSecondaryNICCountTag] = ptr.To(strconv.FormatInt(pool.Spec.SecondaryNICs, 10))
+		if pool.SecondaryNICs > 0 {
+			tags[SwiftSecondaryNICCountTag] = ptr.To(strconv.FormatInt(pool.SecondaryNICs, 10))
 		}
 	}
 
@@ -86,7 +101,7 @@ func Build(pool compute.Pool, networkConfig compute.NetworkConfig) *armcontainer
 		EnableAutoScaling:      ptr.To(true),
 		MinCount:               ptr.To(pool.MinCount),
 		MaxCount:               ptr.To(pool.MaxCount),
-		Mode:                   ptr.To(mode),
+		Mode:                   ptr.To(pool.AgentPoolMode),
 		Type:                   ptr.To(armcontainerservice.AgentPoolTypeVirtualMachineScaleSets),
 		OSSKU:                  ptr.To(armcontainerservice.OSSKUAzureLinux),
 		OSType:                 ptr.To(armcontainerservice.OSTypeLinux),

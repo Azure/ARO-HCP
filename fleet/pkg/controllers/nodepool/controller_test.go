@@ -90,7 +90,8 @@ func syncOnceTestManagementCluster(aksResourceID string) *fleetapi.ManagementClu
 func syncOnceTestProfile() compute.Profile {
 	return compute.Profile{
 		Tiers: []compute.TierConfig{{
-			Name: "wrk", Role: compute.PoolRoleWorker, PoolMode: compute.PoolModeRegional,
+			Name: "wrk", PoolMode: compute.PoolModeRegional,
+			Class: compute.PoolClass{Role: compute.PoolRoleWorker, AgentPoolMode: armcontainerservice.AgentPoolModeUser},
 			Cores: 4, OSDiskSizeGB: 32, MaxNodes: 2, MaxPods: 100,
 			FamilyPriority: []compute.VMFamily{syncOnceTestVMFamily},
 		}},
@@ -250,7 +251,7 @@ func TestShadowSyncOnceReadOnly(t *testing.T) {
 			profile := syncOnceTestProfile()
 			azure := &shadowAzure{cluster: armcontainerservice.ManagedCluster{Properties: &armcontainerservice.ManagedClusterProperties{ProvisioningState: ptr.To("Succeeded")}}, limit: 100}
 			syncer := newShadowTestSyncer(t, azure, profile)
-			resolved, err := compute.ResolveDesiredPools(testSyncOnceContext(), syncer.skuCache, syncOnceTestSubscriptionID, profile, syncer.zones, syncer.usageFetcher(syncOnceTestSubscriptionID))
+			resolved, err := compute.ResolveDesiredPools(testSyncOnceContext(), syncer.skuCache, syncOnceTestSubscriptionID, profile, syncer.zones, nil, syncer.usageFetcher(syncOnceTestSubscriptionID))
 			require.NoError(t, err)
 			require.Len(t, resolved.Pools, 1)
 			properties := agentpoolspec.Build(resolved.Pools[0], compute.NetworkConfig{})
@@ -303,7 +304,7 @@ func TestShadowSyncOnceRefreshesLiveCapacity(t *testing.T) {
 	profile := syncOnceTestProfile()
 	azure := &shadowAzure{cluster: armcontainerservice.ManagedCluster{Properties: &armcontainerservice.ManagedClusterProperties{ProvisioningState: ptr.To("Succeeded")}}, limit: 12}
 	syncer := newShadowTestSyncer(t, azure, profile)
-	resolved, err := compute.ResolveDesiredPools(testSyncOnceContext(), syncer.skuCache, syncOnceTestSubscriptionID, profile, syncer.zones, syncer.usageFetcher(syncOnceTestSubscriptionID))
+	resolved, err := compute.ResolveDesiredPools(testSyncOnceContext(), syncer.skuCache, syncOnceTestSubscriptionID, profile, syncer.zones, nil, syncer.usageFetcher(syncOnceTestSubscriptionID))
 	require.NoError(t, err)
 	require.Len(t, resolved.Pools, 1)
 	properties := agentpoolspec.Build(resolved.Pools[0], compute.NetworkConfig{})
@@ -335,14 +336,15 @@ func TestShadowSyncOnceOptionalTierFailureStillProjects(t *testing.T) {
 	// No 8-core SKU exists in the fake region, so this optional tier cannot
 	// allocate. The required tier above it still has a complete, usable plan.
 	profile.Tiers = append(profile.Tiers, compute.TierConfig{
-		Name: "wrk8", Role: compute.PoolRoleWorker, PoolMode: compute.PoolModeRegional,
+		Name: "wrk8", PoolMode: compute.PoolModeRegional,
+		Class: compute.PoolClass{Role: compute.PoolRoleWorker, AgentPoolMode: armcontainerservice.AgentPoolModeUser},
 		Cores: 8, OSDiskSizeGB: 32, MaxNodes: 1, MaxPods: 100,
 		FamilyPriority: []compute.VMFamily{syncOnceTestVMFamily},
 	})
 
 	azure := &shadowAzure{cluster: armcontainerservice.ManagedCluster{Properties: &armcontainerservice.ManagedClusterProperties{ProvisioningState: ptr.To("Succeeded")}}, limit: 100}
 	syncer := newShadowTestSyncer(t, azure, profile)
-	resolved, err := compute.ResolveDesiredPools(testSyncOnceContext(), syncer.skuCache, syncOnceTestSubscriptionID, profile, syncer.zones, syncer.usageFetcher(syncOnceTestSubscriptionID))
+	resolved, err := compute.ResolveDesiredPools(testSyncOnceContext(), syncer.skuCache, syncOnceTestSubscriptionID, profile, syncer.zones, nil, syncer.usageFetcher(syncOnceTestSubscriptionID))
 	require.NoError(t, err)
 	require.Len(t, resolved.Pools, 1, "the required tier must allocate")
 	require.Len(t, resolved.Failures, 1)

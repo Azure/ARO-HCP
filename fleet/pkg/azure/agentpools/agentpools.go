@@ -63,7 +63,7 @@ func RoleFromAgentPool(pool armcontainerservice.AgentPool) string {
 }
 
 // IsManagedPool returns true if the agent pool has a role label, meaning it
-// is managed by the controller (system, infra, or worker).
+// is managed by the controller.
 func IsManagedPool(pool armcontainerservice.AgentPool) bool {
 	return len(RoleFromAgentPool(pool)) > 0
 }
@@ -82,7 +82,7 @@ func RoleFromAgentPoolProfile(pool *armcontainerservice.ManagedClusterAgentPoolP
 }
 
 // IsManagedPoolProfile returns true if the inline agent pool profile has a
-// role label, meaning it is managed (system, infra, or worker).
+// role label, meaning it is managed.
 func IsManagedPoolProfile(pool *armcontainerservice.ManagedClusterAgentPoolProfile) bool {
 	return len(RoleFromAgentPoolProfile(pool)) > 0
 }

@@ -1,7 +1,7 @@
 zones: 1,2,3
 
 tiers:
-  wrk  worker  PerZone  pools=3  cores=32  maxNodes=10  initialMinNodes=0  osDisk=512GB  maxPods=225  swift=false  required=false  families=-
+  wrk  worker  PerZone  mode=User  pools=3  cores=32  maxNodes=10  initialMinNodes=0  osDisk=512GB  maxPods=225  swift=true  attachNICs=true  required=false  families=-
 
 quota limits (vCPUs):
   StandardEdsv6Family:  224
