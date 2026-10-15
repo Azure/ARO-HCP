@@ -13,6 +13,7 @@ import (
 	context "context"
 	reflect "reflect"
 
+	runtime "github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	armauthorization "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v2"
 	gomock "go.uber.org/mock/gomock"
 )
@@ -115,6 +116,44 @@ func (c *MockRoleAssignmentsClientGetByIDCall) Do(f func(context.Context, string
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
 func (c *MockRoleAssignmentsClientGetByIDCall) DoAndReturn(f func(context.Context, string, *armauthorization.RoleAssignmentsClientGetByIDOptions) (armauthorization.RoleAssignmentsClientGetByIDResponse, error)) *MockRoleAssignmentsClientGetByIDCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// NewListForScopePager mocks base method.
+func (m *MockRoleAssignmentsClient) NewListForScopePager(scope string, options *armauthorization.RoleAssignmentsClientListForScopeOptions) *runtime.Pager[armauthorization.RoleAssignmentsClientListForScopeResponse] {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "NewListForScopePager", scope, options)
+	ret0, _ := ret[0].(*runtime.Pager[armauthorization.RoleAssignmentsClientListForScopeResponse])
+	return ret0
+}
+
+// NewListForScopePager indicates an expected call of NewListForScopePager.
+func (mr *MockRoleAssignmentsClientMockRecorder) NewListForScopePager(scope, options any) *MockRoleAssignmentsClientNewListForScopePagerCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewListForScopePager", reflect.TypeOf((*MockRoleAssignmentsClient)(nil).NewListForScopePager), scope, options)
+	return &MockRoleAssignmentsClientNewListForScopePagerCall{Call: call}
+}
+
+// MockRoleAssignmentsClientNewListForScopePagerCall wrap *gomock.Call
+type MockRoleAssignmentsClientNewListForScopePagerCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockRoleAssignmentsClientNewListForScopePagerCall) Return(arg0 *runtime.Pager[armauthorization.RoleAssignmentsClientListForScopeResponse]) *MockRoleAssignmentsClientNewListForScopePagerCall {
+	c.Call = c.Call.Return(arg0)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockRoleAssignmentsClientNewListForScopePagerCall) Do(f func(string, *armauthorization.RoleAssignmentsClientListForScopeOptions) *runtime.Pager[armauthorization.RoleAssignmentsClientListForScopeResponse]) *MockRoleAssignmentsClientNewListForScopePagerCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockRoleAssignmentsClientNewListForScopePagerCall) DoAndReturn(f func(string, *armauthorization.RoleAssignmentsClientListForScopeOptions) *runtime.Pager[armauthorization.RoleAssignmentsClientListForScopeResponse]) *MockRoleAssignmentsClientNewListForScopePagerCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
