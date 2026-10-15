@@ -754,17 +754,8 @@ func (f *Frontend) DeleteCluster(writer http.ResponseWriter, request *http.Reque
 		return utils.TrackError(err)
 	}
 
-	// TODO: TEMPORARY - Allow re-submitting DELETE for clusters stuck in legacy deletion.
-	// Remove once all legacy deletion clusters are cleaned up.
-	if cluster.ServiceProviderProperties.ProvisioningState == coreapi.ProvisioningStateDeleting && !cluster.ServiceProviderProperties.UsesNewClusterDeletionApproach {
-		logger.Info("allowing repeated DELETE for cluster stuck in legacy deletion approach",
-			"cluster", cluster.ID,
-			"provisioningState", cluster.ServiceProviderProperties.ProvisioningState,
-			"usesNewClusterDeletionApproach", cluster.ServiceProviderProperties.UsesNewClusterDeletionApproach)
-	} else {
-		if err := checkForProvisioningStateConflict(ctx, f.resourcesDBClient, cosmosstorageutils.OperationRequestDelete, cluster.ID, cluster.ServiceProviderProperties.ProvisioningState); err != nil {
-			return utils.TrackError(err)
-		}
+	if err := checkForProvisioningStateConflict(ctx, f.resourcesDBClient, cosmosstorageutils.OperationRequestDelete, cluster.ID, cluster.ServiceProviderProperties.ProvisioningState); err != nil {
+		return utils.TrackError(err)
 	}
 
 	logger.Info(fmt.Sprintf("deleting resource %s", cluster.ID))
@@ -855,8 +846,7 @@ func (f *Frontend) addDeleteClusterToTransaction(ctx context.Context, writer htt
 		return utils.TrackError(err)
 	}
 	for _, nodePool := range nodePoolIterator.Items(ctx) {
-		if nodePool.ServiceProviderProperties.DeletionTimestamp != nil &&
-			nodePool.ServiceProviderProperties.UsesNewNodePoolDeletionApproach {
+		if nodePool.ServiceProviderProperties.DeletionTimestamp != nil {
 			continue
 		}
 		// don't include the writer/request so that we don't have conflicting notificationURIs
@@ -872,8 +862,7 @@ func (f *Frontend) addDeleteClusterToTransaction(ctx context.Context, writer htt
 		return utils.TrackError(err)
 	}
 	for _, externalAuth := range externalAuthIterator.Items(ctx) {
-		if externalAuth.ServiceProviderProperties.DeletionTimestamp != nil &&
-			externalAuth.ServiceProviderProperties.UsesNewExternalAuthDeletionApproach {
+		if externalAuth.ServiceProviderProperties.DeletionTimestamp != nil {
 			continue
 		}
 		// don't include the writer/request so that we don't have conflicting notificationURIs
