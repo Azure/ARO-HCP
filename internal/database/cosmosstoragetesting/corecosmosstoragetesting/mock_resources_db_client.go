@@ -141,6 +141,12 @@ func (m *MockResourcesDBClient) ServiceProviderClusters(subscriptionID, resource
 	return newMockServiceProviderClusterCRUD(m, clusterResourceID)
 }
 
+func (m *MockResourcesDBClient) StackDesires(subscriptionID, resourceGroupName, clusterName string) cosmosstorageutils.ResourceCRUD[coreapi.StackDesire, *coreapi.StackDesire] {
+	clusterResourceID := metadataapi.Must(coreapihelpers.ToClusterResourceID(subscriptionID, resourceGroupName, clusterName))
+	return NewMockResourceCRUD[coreapi.StackDesire, *coreapi.StackDesire, cosmosstorageutils.GenericDocument[coreapi.StackDesire]](
+		m, clusterResourceID, coreapi.StackDesireResourceType)
+}
+
 // ServiceProviderNodePools returns a CRUD interface for service provider node pool resources.
 func (m *MockResourcesDBClient) ServiceProviderNodePools(subscriptionID, resourceGroupName, clusterName, nodePoolName string) cosmosstorageutils.ResourceCRUD[coreapi.ServiceProviderNodePool, *coreapi.ServiceProviderNodePool] {
 	nodePoolResourceID := metadataapi.Must(coreapihelpers.ToNodePoolResourceID(subscriptionID, resourceGroupName, clusterName, nodePoolName))
@@ -427,6 +433,12 @@ func (r *mockTransactionResult) GetItem(cosmosUID string) (any, error) {
 	}
 
 	switch strings.ToLower(typedDoc.ResourceType) {
+	case strings.ToLower(coreapi.StackDesireResourceType.String()):
+		var cosmosObj cosmosstorageutils.GenericDocument[coreapi.StackDesire]
+		if err := json.Unmarshal(data, &cosmosObj); err != nil {
+			return nil, err
+		}
+		return cosmosstorageutils.CosmosGenericToInternal(&cosmosObj)
 	case strings.ToLower(coreapi.ClusterResourceType.String()):
 		var cosmosObj cosmosstorageutils.GenericDocument[coreapi.Cluster]
 		if err := json.Unmarshal(data, &cosmosObj); err != nil {

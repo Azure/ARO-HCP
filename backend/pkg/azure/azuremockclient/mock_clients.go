@@ -20,6 +20,7 @@ import (
 
 	azruntime "github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v2"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeploymentstacks"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
@@ -182,5 +183,9 @@ func (m *FirstPartyApplicationClientBuilderFunc) RoleAssignmentsClient(tenantID 
 	if m.RoleAssignmentsClientVal != nil {
 		return m.RoleAssignmentsClientVal, nil
 	}
+	return nil, fmt.Errorf("not implemented")
+}
+
+func (m *FirstPartyApplicationClientBuilderFunc) DeploymentStacksClient(tenantID, subscriptionID string) (*armdeploymentstacks.Client, error) {
 	return nil, fmt.Errorf("not implemented")
 }
