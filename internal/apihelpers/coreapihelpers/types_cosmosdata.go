@@ -49,6 +49,17 @@ func ToClusterResourceIDString(subscriptionName, resourceGroupName, clusterName 
 	))
 }
 
+func ToStackDesireResourceID(subscriptionID, resourceGroupName, clusterName, name string) (*azcorearm.ResourceID, error) {
+	return azcorearm.ParseResourceID(ToStackDesireResourceIDString(subscriptionID, resourceGroupName, clusterName, name))
+}
+
+func ToStackDesireResourceIDString(subscriptionID, resourceGroupName, clusterName, name string) string {
+	return strings.ToLower(path.Join(
+		ToClusterResourceIDString(subscriptionID, resourceGroupName, clusterName),
+		LeafTypeName(coreapi.StackDesireResourceType), name,
+	))
+}
+
 func ToNodePoolResourceID(subscriptionName, resourceGroupName, clusterName, nodePoolName string) (*azcorearm.ResourceID, error) {
 	return azcorearm.ParseResourceID(ToNodePoolResourceIDString(subscriptionName, resourceGroupName, clusterName, nodePoolName))
 }
