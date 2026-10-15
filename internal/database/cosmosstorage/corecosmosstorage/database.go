@@ -62,6 +62,7 @@ type ResourcesDBClient interface {
 	Operations(subscriptionID string) OperationCRUD
 
 	Subscriptions() cosmosstorageutils.ResourceCRUD[coreapi.Subscription, *coreapi.Subscription]
+	StackDesires(subscriptionID, resourceGroupName, clusterName string) cosmosstorageutils.ResourceCRUD[coreapi.StackDesire, *coreapi.StackDesire]
 
 	ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName string) cosmosstorageutils.ResourceCRUD[coreapi.ServiceProviderCluster, *coreapi.ServiceProviderCluster]
 
@@ -128,6 +129,12 @@ func (d *resourcesCosmosDBClient) ServiceProviderClusters(subscriptionID, resour
 	clusterResourceID := metadataapi.Must(coreapihelpers.ToClusterResourceID(subscriptionID, resourceGroupName, clusterName))
 	return cosmosstorageutils.NewCosmosResourceCRUD[coreapi.ServiceProviderCluster, *coreapi.ServiceProviderCluster, cosmosstorageutils.GenericDocument[coreapi.ServiceProviderCluster]](
 		d.resources, clusterResourceID, coreapi.ServiceProviderClusterResourceType)
+}
+
+func (d *resourcesCosmosDBClient) StackDesires(subscriptionID, resourceGroupName, clusterName string) cosmosstorageutils.ResourceCRUD[coreapi.StackDesire, *coreapi.StackDesire] {
+	clusterResourceID := metadataapi.Must(coreapihelpers.ToClusterResourceID(subscriptionID, resourceGroupName, clusterName))
+	return cosmosstorageutils.NewCosmosResourceCRUD[coreapi.StackDesire, *coreapi.StackDesire, cosmosstorageutils.GenericDocument[coreapi.StackDesire]](
+		d.resources, clusterResourceID, coreapi.StackDesireResourceType)
 }
 
 func (d *resourcesCosmosDBClient) ServiceProviderNodePools(subscriptionID, resourceGroupName, clusterName, nodePoolName string) cosmosstorageutils.ResourceCRUD[coreapi.ServiceProviderNodePool, *coreapi.ServiceProviderNodePool] {

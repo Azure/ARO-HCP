@@ -10,6 +10,8 @@ github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.5.0 h1:wtCn7MemMD9eo4/Ndp
 github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.5.0/go.mod h1:MIyTWizpwnsX4LS9/tW1II9JL+D25Ypzj6URaT9NcgQ=
 github.com/Azure/azure-sdk-for-go/sdk/internal v1.12.0 h1:fhqpLE3UEXi9lPaBRpQ6XuRW0nU7hgg4zlmZZa+a9q4=
 github.com/Azure/azure-sdk-for-go/sdk/internal v1.12.0/go.mod h1:7dCRMLwisfRH3dBupKeNCioWYUZ4SS09Z14H+7i8ZoY=
+github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeploymentstacks v1.0.1 h1:bcgO/crpp7wqI0Froi/I4C2fme7Vk/WLusbV399Do8I=
+github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeploymentstacks v1.0.1/go.mod h1:kvfPmsE8gpOwwC1qrO1FeyBDDNfnwBN5UU3MPNiWW7I=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources v1.2.0 h1:Dd+RhdJn0OTtVGaeDLZpcumkIVCtA/3/Fo42+eoYvVM=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources v1.2.0/go.mod h1:5kakwfW5CjC9KK+Q4wjXAg+ShuIm2mBMua0ZFj2C8PE=
 github.com/Azure/azure-sdk-for-go/sdk/tracing/azotel v0.4.0 h1:RTTsXUJWn0jumeX62Mb153wYXykqnrzYBYDeHp0kiuk=
