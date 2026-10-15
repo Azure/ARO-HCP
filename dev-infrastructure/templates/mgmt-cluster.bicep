@@ -387,6 +387,7 @@ resource veleroUAMI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31
 
 resource mgmtAgentUAMI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
   name: mgmtAgentMIName
+  scope: identityScope
   dependsOn: [
     managedIdentities
   ]
