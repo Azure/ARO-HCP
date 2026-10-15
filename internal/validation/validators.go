@@ -888,16 +888,6 @@ func newOr[T any](validateFns ...validate.ValidateFunc[T]) validate.ValidateFunc
 	}
 }
 
-func ValidatePEM(ctx context.Context, op operation.Operation, fldPath *field.Path, value, _ *string) field.ErrorList {
-	if value == nil {
-		return nil
-	}
-	if len(*value) == 0 {
-		return nil
-	}
-	return validateCACertificatePEM(fldPath, value, time.Now())
-}
-
 // EachMapKey validates each element of newMap with the specified validation function.
 // This is a copy from validate.EachMapKey except that the field path includes the key because its more useful for us that way.
 func EachMapKey[K ~string, T any](ctx context.Context, op operation.Operation, fldPath *field.Path, newMap, oldMap map[K]T, validator validate.ValidateFunc[*K]) field.ErrorList {
@@ -1120,7 +1110,7 @@ func pemBlockDetail(blockIndex int, subject, detail string) string {
 //   - each certificate must parse as X.509, have the CA basic constraint, and
 //     satisfy certificate is not expired
 //   - trailing non-PEM data after the last block is rejected
-func validateCACertificatePEM(fldPath *field.Path, value *string, now time.Time) field.ErrorList {
+func validateCACertificatePEM(ctx context.Context, op operation.Operation, fldPath *field.Path, value, _ *string) field.ErrorList {
 	if value == nil || len(*value) == 0 {
 		return nil
 	}
@@ -1129,6 +1119,7 @@ func validateCACertificatePEM(fldPath *field.Path, value *string, now time.Time)
 	errs := field.ErrorList{}
 	foundBlock := false
 	blockIndex := 0
+	now := time.Now()
 
 	for {
 		var block *pem.Block
