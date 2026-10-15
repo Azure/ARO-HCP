@@ -48,7 +48,7 @@ func IsSwiftEnabled(tags map[string]*string) bool {
 }
 
 // SecondaryNICCount parses the configured secondary NIC count tag. ok is
-// false when the tag is absent. A present but malformed or non-positive
+// false when the tag is absent. A present but malformed or negative
 // value is reported as an error so callers decide how strictly to treat it.
 func SecondaryNICCount(tags map[string]*string) (count int64, ok bool, err error) {
 	value, present := tags[SwiftSecondaryNICCountTag]
@@ -56,7 +56,7 @@ func SecondaryNICCount(tags map[string]*string) (count int64, ok bool, err error
 		return 0, false, nil
 	}
 	nics, err := strconv.ParseInt(ptr.Deref(value, ""), 10, 64)
-	if err != nil || nics <= 0 {
+	if err != nil || nics < 0 {
 		return 0, true, fmt.Errorf("invalid secondary NIC count %q", ptr.Deref(value, ""))
 	}
 	return nics, true, nil

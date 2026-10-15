@@ -262,7 +262,7 @@ func TestCurrentPoolStatesSwiftNICValidation(t *testing.T) {
 		{name: "present nil", present: true, swift: true, wantErr: true},
 		{name: "empty", tag: ptr.To(""), present: true, swift: true, wantErr: true},
 		{name: "malformed", tag: ptr.To("unknown"), present: true, swift: true, wantErr: true},
-		{name: "zero", tag: ptr.To("0"), present: true, swift: true, wantErr: true},
+		{name: "zero", tag: ptr.To("0"), present: true, swift: true, wantNICs: 0},
 		{name: "negative", tag: ptr.To("-1"), present: true, swift: true, wantErr: true},
 		{name: "overflow", tag: ptr.To("9223372036854775808"), present: true, swift: true, wantErr: true},
 		{name: "NICs without Swift", tag: ptr.To("3"), present: true, wantErr: true},
