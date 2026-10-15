@@ -38,6 +38,10 @@ Cluster teardown update baseline: `d453011603d357d8fa8938acef97eec5d00818c4`
 plus working-tree fixes; scope: ordered ApplyDesire removal, ReadDesire cleanup,
 concurrent Cluster Service delete dispatch, and the cluster-delete diagram.
 
+The [deployment-stack design](controllers/stack-desire-design.md) describes Resources
+`StackDesire` storage, Azure execution, role-assignment intent/readiness, repair
+scheduling and current-spec health aggregation, including rollout validation requirements.
+
 The generation instructions are maintained in [controller-data-flow.md](prompts/controller-data-flow.md).
 The historical filename is retained for existing links.
 
@@ -729,7 +733,7 @@ is recomputed on each request; this creates no policy for future clusters.
 
 ## 2. Complete Controller Catalog
 
-The catalog contains **135 entries**: 109 backend instances, 12 fleet controllers,
+The catalog contains **136 entries**: 111 backend implementations, 11 fleet controllers,
 three kube-applier controller types, eight management-agent controllers/watchers,
 two sessiongate controllers and one shared union-informer controller. Dynamic
 validation and metrics instances are listed individually; dynamically created
@@ -751,30 +755,37 @@ infrastructure, not additional controller catalog entries.
 | Management-agent | [options.go](../mgmt-agent/cmd/options.go) |
 | Sessiongate | [options.go](../sessiongate/cmd/options.go) |
 
-The backend registry represents **110 launches**: 108 instances in the billing,
+The backend registry represents **112 launches**: 109 instances in the billing,
 cluster, clusterresources, cosmosmigration, datadump, externalauth, metrics,
-mismatch, and nodepool zones, the Azure SKU cached-reader controller, and the
-shared union kube-applier informer controller. This matches the catalog's 109
+mismatch, and nodepool zones, the centrally registered StackDesires controller,
+the Azure SKU cached-reader controller, and the shared union kube-applier informer
+controller. This matches 111 registered
 backend instances plus the separately counted shared union controller.
 `ClusterDenyAssignment` is instantiated and launched only when `HasRealFPA` is
-true; otherwise 109 controllers run. The flag is also passed to cluster creation.
+true; otherwise 111 controllers run. The flag is also passed to cluster creation.
 
-Each top-level controller package owns a `registration.go` file and a `Register`
-function: [billing](../backend/pkg/controllers/billing/registration.go),
+`StackDesires` is registered unconditionally in the central registry with 20
+workers and `WithCacheSyncs(..., false)`: it waits for its accessed StackDesire
+cache, without a union kube-applier dependency. The catalog has 136 entries across
+all services.
+
+The following top-level controller packages own a `registration.go` file and a
+`Register` function: [billing](../backend/pkg/controllers/billing/registration.go),
 [cluster](../backend/pkg/controllers/cluster/registration.go),
 [clusterresources](../backend/pkg/controllers/clusterresources/registration.go),
 [cosmosmigration](../backend/pkg/controllers/cosmosmigration/registration.go),
 [datadump](../backend/pkg/controllers/datadump/registration.go),
 [externalauth](../backend/pkg/controllers/externalauth/registration.go),
 [metrics](../backend/pkg/controllers/metrics/registration.go),
-[mismatch](../backend/pkg/controllers/mismatch/registration.go), and
-[nodepool](../backend/pkg/controllers/nodepool/registration.go).
+[mismatch](../backend/pkg/controllers/mismatch/registration.go),
+[nodepool](../backend/pkg/controllers/nodepool/registration.go), and
+[stackdesires](../backend/pkg/controllers/stackdesires/registration.go).
 The [SKU](../backend/pkg/azure/cachedreader/registration.go) and
 [union](../internal/database/unioninformers/kubeapplier/registration.go) packages
-register their existing shared supporting-controller instances. The app only
-aggregates these registrations. Keys lowercase the name constants in the actual
-controller implementation packages; there are no app-owned controller constants
-or construction/launch order lists.
+register their existing shared supporting-controller instances. The app aggregates
+these registrations, including `stackdesires.Register`. Package registration
+keys lowercase implementation name constants, including `StackDesiresControllerName`.
+There are no construction/launch order lists.
 
 Controller construction precedes leader election. Once leading, backend and
 fleet informer factories, the union and SKU controllers, and all consumers launch
@@ -957,9 +968,135 @@ Requires a pending/confirmed Cluster Service ID, confirmed managed resource grou
 
 #### IdentityRoleAssignments
 
-[Source](../backend/pkg/controllers/cluster/roleassignments/role_assignments_controller.go) · **Trigger:** Cluster; 5m, jittered 6h recheck.
+[Source](../backend/pkg/controllers/cluster/roleassignments/role_assignments_controller.go) | [Startup](../backend/pkg/controllers/cluster/registration.go) | **Trigger:** Cluster wrapper plus StackDesire events mapped to the owning cluster; 5m resync, without the active-operation cooldown.
 
-Requires the confirmed managed resource group and resolved principals. Gets expected Azure role assignments, persists pending/confirmed IDs, then creates missing assignments. A successful PUT stays pending until a later GET confirms it. Previously confirmed assignments no longer expected are retained; skips deletion and relies on resource-group cleanup.
+Publishes complete intent with **no Azure calls**. Cached cluster/SPC identities,
+subscription tenant and configured roles must resolve every requested principal,
+with a confirmed managed resource group (MRG). Missing prerequisites revoke
+`Status.AzureResources.RoleAssignments.StackReady` and leave existing complete
+intent untouched; missing tenant/role configuration also returns an error.
+
+Owns `<cluster ID>/stackDesires/role-assignments` in Resources, targeting the
+`aro-hcp-role-assignments` MRG stack. The FPA Apply spec uses deterministic names,
+sorted/deduplicated assignments, `principalType=ServicePrincipal`,
+`denySettings.mode=none`, and `actionOnUnmanage` that deletes resources but detaches
+groups. Its template uses the public [ARM schema](https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#).
+`ReconcileInterval=6h` delegates repair to [StackDesires](#stackdesires). Spec-only
+replacement preserves status; unchanged intent is not rewritten. Never publish a
+partial template: omissions delete previously stack-managed assignments.
+
+Mirrors `StackReady=true` only when desired, stored-spec and `ObservedSpecHash`
+hashes match, `SuccessfullyApplied=True`, and typed `Stack` is `Succeeded`.
+Pending/failed repair, absence, changed intent or missing prerequisites revoke it;
+revocation precedes publishing changed intent. [OperationClusterCreate](#operationclustercreate)
+consumes this current outcome, not proof of continuous RBAC propagation. The cluster
+wrapper owns child `Controller` bookkeeping.
+
+All nondeleting clusters use this path. Deterministic names support adoption of the
+desired set; obsolete assignments outside that set remain undiscovered. Before
+publishing, a live parent check narrows the deletion race. Deletion purges intent
+without Azure calls or Delete intent; MRG cascade removes the stack and assignments.
+Orphan and generic child cleanup sweep remaining desires. See
+[validation limits](controllers/stack-desire-design.md#validation) before rollout.
+
+#### StackDesires
+
+[Source](../backend/pkg/controllers/stackdesires/controller.go) | [Central startup](../backend/pkg/app/controller_registry.go) | **Trigger:** Only the StackDesire informer, keyed by owning subscription/resource group/cluster/desire name; 1m resync. No cluster, subscription or kube-applier watches, and no per-role reconciliation.
+
+Registered unconditionally in central startup with 20 workers and
+`WithCacheSyncs(..., false)`; only the accessed StackDesire cache gates startup.
+
+Reads immutable informer snapshots of the cluster-rooted
+[`StackDesire`](../internal/api/coreapi/types_stack_desire.go) in its owning cluster's
+lower-cased subscription partition, not a kube-applier container. The informer uses
+Resources changefeed and 30m relists; 1m resync is not a live Cosmos refresh.
+Producers must keep `Spec.TargetResourceID` immutable and avoid competing desires
+for one target. FPA uses `Authentication.TenantID`; SMI uses `SMIResourceID` and
+`ClusterIdentityURL`, without parent-cluster reads or role-specific policy.
+
+The controller calls the generated SDK directly for resource-group, subscription
+and management-group scopes, retaining standard telemetry/client options and the
+SDK's built-in API version. There is no custom SDK adapter. `Spec.Stack` is a
+`*armdeploymentstacks.DeploymentStack` for both Apply and Delete: Apply sends it;
+Delete derives SDK options from `Spec.Stack.Properties.ActionOnUnmanage` and
+`Spec.Stack.Properties.BypassStackOutOfSyncError`. FPA/SMI client construction and
+GET are lazy and skipped during cooldown. Observation and submission construct
+clients independently, without shared closure state. Response capture is limited
+to the initial Apply response because `BeginCreateOrUpdate`'s poller cannot expose
+the initial typed stack through `Result` while the operation is nonterminal.
+Delete uses normal SDK returns without response capture and records acceptance,
+not completion. Pollers are passive and safe to discard; subsequent GETs observe
+progress without persisted pollers or resume tokens.
+
+Status contains exactly one outcome: `ObservedSpecHash`, `ObservedAt`,
+`Stack` (`*armdeploymentstacks.DeploymentStack`), `Error`
+(`*armdeploymentstacks.ErrorDetail`) and `Conditions` (`SuccessfullyApplied`,
+`SuccessfullyDeleted`, `Degraded`). The hash covers the entire canonicalized spec;
+Apply's body correlation remains in `Stack.Properties.CorrelationID`; Delete does
+not track operation correlation. No separate success history, target binding,
+correlation copy, next-reconcile deadline or local outcome cache is maintained.
+No child `Controller` document is written.
+
+`decideStackDesire` takes one immutable desire, time and a lazy GET callback,
+and chooses an explicit status update, Apply, Delete, or `NoOp` action. Zero-valued
+decisions are invalid. `NoOp` may return an error or request a pending-operation poll.
+Local target, scope, authentication, action and routing prechecks, hashing and
+cooldown precede observation, which runs at most once. Typed input does not replace
+runtime validation. The outer loop supplies direct SDK GET before explicit
+Apply/Delete execution, not a separate observation reconcile or a generic
+execution/outcome layer. Initial Apply responses and associated GETs share the same
+Apply-state interpretation, independently of any newer desired action. Delete
+acceptance remains distinct. Logs describe submission attempts and observations
+that change status, while unchanged observations and cooldown skips are silent.
+Changed observations of known outcomes get one Cosmos write and an immediate return;
+only Azure submission plus recording its result is combined. Every replacement
+CASes the original ETag, with no live-read merge or pre-submit status checkpoint.
+Unchanged GET observations cause no writes or timestamp refreshes.
+
+An absent stack submits Apply immediately without an observation checkpoint, and
+satisfies Delete. Nonterminal Azure states wait until completion. For Apply, body
+correlation associates a known operation with its recorded hash; unknown completed
+operations permit direct submission, never inferred Apply success. Apply completion
+requires associated success. Accepted Delete needs no correlation association or
+separate operation-tracking state: later GETs showing deletion in progress wait,
+and GET 404 proves success, even if submission association is lost. Purging intent
+makes no Azure deletion request. Pending/failed outcomes replace successful ones.
+
+| Outcome | Status and scheduling |
+|---|---|
+| Current-spec success | Matching hash, the requested action's success condition and `ObservedAt + ReconcileInterval` (default 6h) provide cooldown. Resync drives live GET and drift repair after expiry. |
+| Pending | Success condition False; only this path explicitly schedules polls, at a fixed 30s. Earlier events may reconcile immediately. |
+| Invalid Azure intent | Success False, `Degraded=False/InvalidIntent`. Matching current-spec outcomes use the same `ObservedAt + ReconcileInterval` cooldown, then retry on resync without fast workqueue retry. A new submission rejection refreshes `ObservedAt` even with identical diagnostics. |
+| Other submission/execution failures | Record failure, set `Degraded=True`, return an error for ordinary workqueue backoff. |
+| Local precheck failure | Write changed success False and `Degraded=False/PreCheckFailed` conditions, then return without a retry error or Azure call. Identical results do not rewrite status. |
+| Credential, GET or non-response transport/decoding failure | Return error without changing status. Azure rejection responses retain available diagnostics and HTTP classification even if the body is malformed. |
+
+Invalid intent is limited to `InvalidTemplate` and `InvalidRequestContent`, or a
+`DeploymentStackDeploymentFailed` wrapper whose nonempty direct causes all have
+those narrow codes and no nested details. Broad or nested wrappers are not
+recursively unwrapped. `InvalidTemplateDeployment` is always retryable, and HTTP
+400 alone does not establish invalid intent. The
+[recorded Azure response fixtures](../backend/pkg/controllers/stackdesires/testdata/azure-errors/README.md#classification-evidence)
+show missing permission only in an `InvalidTemplateDeployment` message and success
+with identical intent after granting permission. These sanitized fixtures support
+offline controller tests, not end-to-end cluster validation. Error details are
+typed, and meaningful equality prevents repeated observation writes.
+Only matching-hash success or `InvalidIntent` cools down. Every event, including
+self-generated status events and resyncs, follows the same decision without event
+filtering or extra retry state. Changed intent bypasses the old cooldown; unchanged
+GET observations do not write or advance `ObservedAt`. Diagnostic-only changes do
+not restart completed cooldowns. Condition transition timestamps change only when
+condition status changes. Pending polls and workqueue errors impose no global
+retry gate, and the controller does not manually interpret `Retry-After`.
+
+[ClusterDegradedAggregator](#clusterdegradedaggregator) watches these desires
+directly and consumes only current-spec health, independently of producer readiness.
+
+Execution is **at least once**. A crash after submission can lose its association;
+an A-B-A spec sequence can temporarily retain stale A success after unrecorded B.
+This bounded stale view is accepted until periodic live GET after cooldown corrects
+it. Cosmos CAS does not fence Azure requests or cancel work after purge. See the
+[design and validation limits](controllers/stack-desire-design.md) for rollout checks.
 
 #### ClusterClusterServiceCreate
 
@@ -1159,7 +1296,7 @@ Once deletion prerequisites and child cleanup are satisfied, deletes the ARM res
 
 [Source](../backend/pkg/controllers/cluster/operations/operation_cluster_create.go) · **Trigger:** Active operation; 10s.
 
-Combines cluster validations, selected placement, Cluster Service state, mirrored HostedCluster readiness/version, API endpoint, serving CA and confirmed role assignments (nonempty confirmed list, none pending). Placement is checked even before a Cluster Service ID exists. Unresolved placement remains Provisioning until `CreateOperationCompletionDeadline`; without a deadline it keeps waiting. At/after the deadline, `Status.Placement.Conditions[CapacityAvailable]=False` produces the customer-safe `AROHCPCapacityHeavyUse` error; missing/Unknown placement state produces `InternalServerError`. Assigned `Spec.ManagementClusterResourceID` satisfies this check despite a stale condition; other completion checks still apply.
+Combines cluster validations, selected placement, Cluster Service state, mirrored HostedCluster readiness/version, API endpoint, serving CA and `Status.AzureResources.RoleAssignments.StackReady=true`. Placement is checked even before a Cluster Service ID exists. Unresolved placement remains Provisioning until `CreateOperationCompletionDeadline`; without a deadline it keeps waiting. At/after the deadline, `Status.Placement.Conditions[CapacityAvailable]=False` produces the customer-safe `AROHCPCapacityHeavyUse` error; missing/Unknown placement state produces `InternalServerError`. Assigned `Spec.ManagementClusterResourceID` satisfies this check despite a stale condition; other completion checks still apply.
 
 The [validation check](../backend/pkg/controllers/cluster/operations/operation_cluster_validation.go) reads `ServiceProviderCluster.Status.Validations`. All recorded conditions True (or no recorded conditions) contributes Succeeded; any non-True condition contributes Provisioning with a sorted message containing its name, reason and message. Any False condition sets `InvalidResource`; the check contributes Failed only when both its nonzero `LastTransitionTime` and the operation's nonzero `StartTime` are at least five minutes old. Unknown conditions remain Provisioning without `InvalidResource` or a failure timeout. Recovery resets the timer through the condition transition time. These results participate in the normal worst-state selection alongside other Provisioning sources, including their messages and error codes.
 
@@ -1181,9 +1318,16 @@ Waits for the resource document to disappear. Timeout diagnostics combine deleti
 
 #### ClusterDegradedAggregator
 
-[Source](../backend/pkg/controllers/cluster/status/cluster_degraded_aggregator.go) · **Trigger:** Cluster; 1m.
+[Source](../backend/pkg/controllers/cluster/status/cluster_degraded_aggregator.go) · **Trigger:** Cluster wrapper plus StackDesire events mapped to the owning cluster; 1m.
 
-Aggregates child Controller conditions into the ARM resource `Status.Conditions` Degraded condition; no external mutation.
+Aggregates child Controller, cluster-scoped kube-applier ApplyDesire/ReadDesire and
+current-spec StackDesire health into the ARM resource `Status.Conditions` Degraded
+condition; no external mutation. StackDesires are read directly, without a child
+Controller or role-specific readiness proxy. A stack source must have a resource
+ID, a non-False `Degraded` condition and `ObservedSpecHash` matching its current
+spec hash. Stale outcomes, missing conditions and `Degraded=False` (including
+`InvalidIntent`) do not contribute degradation. The existing condition union and
+inertia govern the aggregate.
 
 #### ClusterRequirementsValidAggregator
 
@@ -1565,6 +1709,14 @@ For management clusters with pending reservations, removes entries whose service
 
 Live-reads and reserializes resources recursively, including per-management-cluster kube-applier documents, to migrate their stored representation. Skips TTL documents and retries conflicts.
 
+The cluster enumeration includes Resources `StackDesire` documents before
+resolving the kube-applier client, so stack migration does not require placement or
+a service-provider document. It uses the Get/Replace retry helper and
+preserves spec/status without submitting Azure work.
+The desire log's `seen` counts listed documents; `migrated` counts named documents
+passed to the helper, not confirmed successful replacements (errors and helper
+skips are accounted separately).
+
 #### CosmosRolloutVersionMigration
 
 [Source](../backend/pkg/controllers/cosmosmigration/rollout_version_migration.go) | [Startup](../backend/pkg/controllers/cosmosmigration/registration.go) | **Trigger:** Rollout informer via `NewControlPlaneVersionRolloutWatchingController`; channel key, five workers, 5m resync/cooldown.
@@ -1830,7 +1982,8 @@ The DataplaneController registers ready session credentials, owner and backend A
 |---|---|---|
 | Azure managed resource group | [EnsureManagedResourceGroup](#ensuremanagedresourcegroup) creates; [CleanOrphanedClusterManagedResourceGroup](#cleanorphanedclustermanagedresourcegroup) deletes confirmed orphans only in readwrite mode | Pending reference is persisted before creation; provisioning success confirms it. Normal deletion relies on external teardown; EnsureManagedResourceGroup observes absence and clears references. EnsureManagedResourceGroup also initiates Azure deletion for orphaned MRGs (where Cluster Service deletion completed, Cluster Service ID cleared, but Azure resource group still exists) |
 | Azure deny assignments | [ClusterDenyAssignment](#clusterdenyassignment) gets/creates/updates/deletes stale assignments | Tracks pending/confirmed IDs. Cluster creation requires no pending entries, a nonempty confirmed list and `EarliestRecheckTime` when enabled. Cluster deletion skips direct assignment cleanup; resource-group deletion cascades. |
-| Azure role assignments | [IdentityRoleAssignments](#identityroleassignments) gets and creates missing assignments | Persists intent before PUT; later GET confirms existence. Old confirmed assignments are retained. Cluster creation requires a nonempty confirmed list and no pending assignments. |
+| Azure deployment stacks | [StackDesires](#stackdesires) GETs and submits Apply/Delete directly through the SDK with FPA or SMI; Azure executes the stack operation | Producers own immutable targets and typed SDK stack intent in cluster-rooted Resources documents. Apply/Delete share the spec shape; Delete derives its policy from stack properties. Apply associates whole-spec hash with body correlation. Explicit Delete tracks no correlation and waits for GET-confirmed absence; purge makes no Azure deletion request. |
+| Azure role assignments | Azure deployment-stack service creates/adopts desired assignments and deletes previously managed omissions; [StackDesires](#stackdesires) submits the stack, not individual RBAC calls | [IdentityRoleAssignments](#identityroleassignments) publishes one complete MRG template and mirrors `StackReady` for create completion. Existing deterministic names support migration of every live cluster; historical obsolete assignments never adopted remain a limitation. Cluster deletion purges intent and relies on MRG cascade for stack/assignments. |
 | Azure identities, VM SKUs, quota, NSGs, container registry pull MI access and access checks | Identity/validation controllers and SKU cache **observe** | Store resolved identities, validation conditions or memory cache; these checks do not create identities, change NSGs, raise quota or modify managed identities. [ClusterValidationContainerRegistryPullCredentialsPermissionValidation](#clustervalidationcontainerregistrypullcredentialspermissionvalidation) checks CAPZ assign/action permission on pull MI using CheckAccess V2. |
 | Azure VMSS NICs / AKS pool ceilings | [SwiftNICController](#swiftniccontroller) and [ManagementClusterScaleCeilingReportingController](#managementclusterscaleceilingreportingcontroller) **observe** | The former changes Kubernetes Node capacity; the latter writes Cosmos scheduling capacity. Neither changes Azure VM/pool size. |
 | Azure Monitor metrics-container ingestion limits | [AMWIngestionScaling](#amwingestionscaling) reads utilization and updates Azure limits | Periodic fleet controller, outside any single cluster's lifecycle. |
@@ -1916,7 +2069,26 @@ confirmed resource.
 
 ![Cluster create: convergence and completion controller digraph](diagrams/controller-flows/cluster-convergence.png)
 
-The [operation poller](../backend/pkg/controllers/cluster/operations/operation_cluster_create.go) combines cluster validations, Cluster Service state, HostedCluster observations, API endpoint, serving CA and confirmed role assignments. A validation remaining False for at least five minutes fails the operation with `InvalidResource` once the operation is also at least five minutes old. UID backfill and billing are independent controllers; billing needs both a UID and Succeeded provisioning. The manifest path is collapsed around external Kubernetes/HyperShift reconciliation; a particular deployment may also involve Maestro/work-agent.
+The [operation poller](../backend/pkg/controllers/cluster/operations/operation_cluster_create.go) combines cluster validations, Cluster Service state, HostedCluster observations, API endpoint, serving CA and role-assignment `StackReady`. The role branch is independent of Cluster Service creation: its own prerequisites are the confirmed MRG, resolved requested principals and subscription tenant. A validation remaining False for at least five minutes fails the operation with `InvalidResource` once the operation is also at least five minutes old. UID backfill and billing are independent controllers; billing needs both a UID and Succeeded provisioning. The manifest path is collapsed around external Kubernetes/HyperShift reconciliation; a particular deployment may also involve Maestro/work-agent.
+
+### Deployment-stack lifecycle
+
+[Full PNG](diagrams/controller-flows/stack-desire.png) | [Graphviz source](diagrams/controller-flows/stack-desire.dot)
+
+![Deployment-stack intent, execution and repair](diagrams/controller-flows/stack-desire.png)
+
+[IdentityRoleAssignments](#identityroleassignments) supplies the concrete producer
+shown here; [StackDesires](#stackdesires) is generic across stack contents, Azure
+scopes and FPA/SMI authentication. All producer prerequisites are required before
+publishing a complete template because omission authorizes deletion of managed
+resources. The single typed outcome drives current-spec readiness, generic cluster
+health and success/invalid-intent cooldown. Unknown running operations wait;
+unknown completed operations permit direct submission, not guessed success. The
+repair loop runs for already-provisioned clusters without a new ARM operation.
+Matching invalid Azure intent retries on resync after its
+document-derived cooldown, other execution failures use queue backoff, and only
+pending work schedules polls. Explicit generic Delete
+and cluster-teardown purge are different paths.
 
 ### Cluster update
 
@@ -1927,6 +2099,11 @@ The [operation poller](../backend/pkg/controllers/cluster/operations/operation_c
 [Frontend update admission](../frontend/pkg/frontend/cluster.go) combines cached node-pool inventory and SPC/SPNP state with a live target-cluster read. Deleting cached pools remain version-skew validation inputs and require cached SPNP state until they leave the inventory. Missing required provider state produces a contextual internal error, with no GetOrCreate or live parent fallback. These [admission inputs remain best effort](#admission-caches-and-startup), not an atomic snapshot.
 
 [Desired-version assignment](#backend-fleet-control-plane-version-rollout), [upgrade dispatch](../backend/pkg/controllers/cluster/version/trigger_control_plane_upgrade_controller.go) and [operation completion](../backend/pkg/controllers/cluster/operations/operation_cluster_update.go) make separate decisions. The graph highlights version/configuration changes and validation observations. Validation failures lasting at least five minutes also fail the operation with `InvalidResource` once the operation is at least five minutes old; sizing, identities and backup maintenance continue independently.
+
+Identity/configuration changes and refreshed principal observations also drive the
+[deployment-stack lifecycle](#deployment-stack-lifecycle). A complete replacement
+template adopts the new desired set and deletes omitted stack-managed assignments.
+This role repair path is not a `StackReady` gate for OperationClusterUpdate.
 
 ### Control-plane version rollout
 
@@ -1957,6 +2134,15 @@ is not upgrade completion, and automatic z-stream rollout creates no ARM operati
 [ClusterResources](../backend/pkg/controllers/clusterresources/cluster_resources_controller.go) first drops NodePool and supporting configuration ApplyDesires, then explicitly deletes and waits for ManagedCluster, shared-namespace ingress manifests, HostedCluster, PodNetworkInstance, PodNetwork and the two cluster namespaces, in that order. Kube-applier executes Delete intents and reports completion; HyperShift and Kubernetes controllers perform finalizer and dependent-resource cleanup. Owned orphan ReadDesires are swept after the chain drains. [Delete dispatch](../backend/pkg/controllers/cluster/deletion/cluster_cluster_service_delete_dispatch_controller.go) independently calls Cluster Service DELETE, so external teardown can overlap the removal chain. [Child cleanup](../backend/pkg/controllers/cluster/deletion/cluster_child_resources_cleanup_controller.go) waits for resource and credential children, and preserves owned ApplyDesires for their controllers and removes provider state only after managed-resource-group references, Maestro readonly bundles and cluster-scoped desires clear. [Managed-resource-group reconciliation](../backend/pkg/controllers/cluster/azureresources/managed_resource_group_controller.go) observes deletion during normal flow but also initiates Azure deletion for orphaned managed resource groups (where Cluster Service deletion completed, Cluster Service ID cleared, but Azure resource group still exists). The optional orphan-group cleaner is a background repair path, not a prerequisite for typical deletion.
 
 The separate [BackupCleanup](../mgmt-agent/pkg/controller/backupcleanup/controller.go) branch starts only after live reads confirm no HC remains in the recognized backup's HC namespace, not merely a deletion timestamp. All backup/operation/opt-out gates in its [catalog entry](#backupcleanup) must also pass. It requests Velero deletion without waiting for TTL; pending work polls and processed requests with a remaining Backup are retried. [KeyRotationBackup](../backend/pkg/controllers/cluster/backups/key_rotation_controller.go) only purges its Cosmos desires during cluster deletion. Neither ARM success nor Backup absence proves Kopia GC completion; BackupRepositories remain for maintenance, and this branch does not gate the ARM result.
+
+[IdentityRoleAssignments](#identityroleassignments) independently purges its
+StackDesire on observed deletion intent, without Azure
+calls or an explicit Delete spec. Removing the desire stops future management,
+not an already-submitted Azure operation. MRG deletion removes the stack and role
+assignments; there is no separate stack-delete completion gate in this path.
+Generic child cleanup sweeps remaining StackDesires; once the parent is missing,
+the periodic orphan scraper supplies the fallback because the cluster wrapper
+skips missing parents.
 
 ### Node pool create
 
@@ -2072,8 +2258,11 @@ actors and use optimistic concurrency; retries must re-read on conflict.
 | Scheduling `Status.PendingAssignedClusters` | [Placement](#placement) reserves; [CapacityReportingController](#capacityreportingcontroller) removes observed entries; [PendingCleanup](#pendingcleanup) removes missing/misplaced entries and unresolved reservations for deleting/terminal clusters. |
 | Scheduling observed capacity / scale ceiling; fleet HCP resource requirements | Fleet capacity and scale-ceiling controllers write observed scheduling inputs. [HCPResourceRequirementsController](#hcpresourcerequirementscontroller) aggregates per-HCP demand. Placement retains SWIFT NIC eligibility and selection, but prefers lower known CPU/memory contention against current capacity for zero-NIC demand. Aggregate HCP demand is not used for placement. |
 | `Status.AzureResources.ManagedResourceGroup` | [EnsureManagedResourceGroup](#ensuremanagedresourcegroup) writes pending/confirmed reference and clears both after observing deletion. Deletes orphaned managed resource groups when Cluster Service deletion completed but the Azure resource group still exists. Deny/role assignment controllers need the confirmed group; final provider-document cleanup needs references gone.  |
-| `Status.AzureResources.DenyAssignments` / `RoleAssignments` | Their respective controllers track `PendingAzureResources` and confirmed `AzureResources`. The role controller confirms newly created assignments in a later observation pass. |
-| `Status.MSIManagedIdentities`, `Status.DataPlaneOperatorsManagedIdentities`, `Status.ManagedIdentityDetails` | [FetchMSIIdentitiesInfo](#fetchmsiidentitiesinfo) and [FetchDataPlaneOperatorsManagedIdentitiesInfo](#fetchdataplaneoperatorsmanagedidentitiesinfo) write resolved IDs and errors for deny assignments, role assignments, and identity-property synchronization. [FetchManagedIdentitiesInfo](#fetchmanagedidentitiesinfo) writes `Status.ManagedIdentityDetails` by lowercased resource ID, including per-source metadata. `Spec.EarliestRecheckTimesByController` has independently owned entries for these identity controllers and role assignments; deny assignments keep their own `EarliestRecheckTime` under `Status.AzureResources.DenyAssignments`. |
+| `Status.AzureResources.DenyAssignments` | [ClusterDenyAssignment](#clusterdenyassignment) tracks pending/confirmed references and its own `EarliestRecheckTime`. Deny readiness remains distinct from role stack readiness. |
+| `Status.AzureResources.RoleAssignments.StackReady` | [IdentityRoleAssignments](#identityroleassignments) mirrors current-spec successful application; pending/failed repair or missing prerequisites revoke it. [OperationClusterCreate](#operationclustercreate) consumes it. |
+| `StackDesire.Spec` | Producers own immutable target, authentication, action, typed SDK `Stack` and interval. Apply/Delete share the shape; Delete options come from stack properties. Spec replacement preserves executor status. Purge stops management; Delete requests external deletion. |
+| `StackDesire.Status` | [StackDesires](#stackdesires) alone writes the single typed outcome and its three conditions, using original-ETag CAS. See the controller entry for fields and scheduling. |
+| `Status.MSIManagedIdentities`, `Status.DataPlaneOperatorsManagedIdentities`, `Status.ManagedIdentityDetails` | [FetchMSIIdentitiesInfo](#fetchmsiidentitiesinfo) and [FetchDataPlaneOperatorsManagedIdentitiesInfo](#fetchdataplaneoperatorsmanagedidentitiesinfo) write resolved IDs and errors for deny assignments, role assignments, and identity-property synchronization. [FetchManagedIdentitiesInfo](#fetchmanagedidentitiesinfo) writes `Status.ManagedIdentityDetails` by lowercased resource ID, including per-source metadata. These identity controllers own independent entries in `Spec.EarliestRecheckTimesByController`. StackDesires owns role repair scheduling; deny assignments keep their own `EarliestRecheckTime` under `Status.AzureResources.DenyAssignments`. |
 | `Status.Validations` | Each registered validation writes its own condition in the service-provider cluster or node pool; requirements aggregators consume the set. |
 | Cluster `Status.HostedClusterNamespace`, `ControlPlaneNamespace`, `ServingCABundle` | [ServiceProviderClusterPropertiesSync](#serviceproviderclusterpropertiessync) fills these from mirrored reads. Credentials and create-operation completion wait on them. |
 | Cluster `Spec.BackupState` | Admin backup PATCH writes Enabled/Paused; [BackupSchedule](#backupschedule) reconciles Velero intent. Mirrored Kubernetes status reports results separately. |

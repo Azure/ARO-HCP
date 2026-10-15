@@ -496,6 +496,12 @@ type AzureResources struct {
 // PendingAzureResources holds resource IDs that have been requested but not yet confirmed;
 // AzureResources holds resource IDs that have been confirmed to exist.
 type AzureMultiReference struct {
+	// StackReady reports that the persisted and observed role assignment stack specs
+	// match current intent, SuccessfullyApplied is true, and Azure reports Succeeded.
+	// Pending or failed repairs revoke readiness even when the spec is unchanged.
+	// Legacy resource lists are retained for persisted compatibility, not readiness.
+	// Written by: IdentityRoleAssignments
+	StackReady bool `json:"stackReady,omitempty"`
 	// PendingAzureResources contains resource IDs that have been requested but
 	// not yet confirmed to exist in Azure.
 	PendingAzureResources []*azcorearm.ResourceID `json:"pendingAzureResources,omitempty"`
