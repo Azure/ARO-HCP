@@ -56,6 +56,7 @@ type BillingDocument struct {
 	// The HCP cluster ARM resource ID
 	ResourceID *azcorearm.ResourceID `json:"resourceId,omitempty"`
 	// The ARM resource ID of the managed resource group of the HCP cluster
+	// Written by: CreateBillingDoc, ReconcileBillingManagedResourceGroup
 	ManagedResourceGroup string `json:"managedResourceGroup,omitempty"`
 }
 
@@ -79,6 +80,15 @@ func (p *BillingDocumentPatchOperations) SetDeletionTime(deletionTime time.Time)
 	p.AppendSet("/deletionTime", deletionTime)
 	// The first recorded cutoff must survive concurrent cleanup and retries.
 	p.SetCondition("FROM c WHERE NOT IS_DEFINED(c.deletionTime) OR IS_NULL(c.deletionTime)")
+}
+
+// NewActiveBillingManagedResourceGroupPatch sets only the managed RG of an active
+// record, preserving concurrent billing watermarks and rejecting closed records.
+func NewActiveBillingManagedResourceGroupPatch(resourceGroupID string) BillingDocumentPatchOperations {
+	var patch BillingDocumentPatchOperations
+	patch.AppendSet("/managedResourceGroup", resourceGroupID)
+	patch.SetCondition("FROM c WHERE NOT IS_DEFINED(c.deletionTime) OR IS_NULL(c.deletionTime)")
+	return patch
 }
 
 // BillingDocumentList is a list of billing documents for use with Kubernetes informers.
