@@ -21,10 +21,10 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/azure/cachedreader"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/billing"
 	credentialrequestdeletion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/credentialrequest/deletion"
-	clusterdeletion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/deletion"
 	clusterplacement "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/placement"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/metrics"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/mismatch"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 )
 
@@ -50,7 +50,10 @@ func BackendStorageControllerNames(hasRealFPA bool) []string {
 		if _, skip := withoutStorage[name]; skip {
 			continue
 		}
-		if entry.Enabled != nil && !entry.Enabled(ControllerContext{HasRealFPA: hasRealFPA}) {
+		// AFEC ownership is configured later in the controller context. Reserve
+		// storage for the MRG watcher even when this partial context disables it.
+		if name != strings.ToLower(controllerutils.ManagedResourceGroupWatchingControllerName) &&
+			entry.Enabled != nil && !entry.Enabled(ControllerContext{HasRealFPA: hasRealFPA}) {
 			continue
 		}
 		names = append(names, name)
@@ -66,7 +69,7 @@ func BackendCleanupControllerFractions(fraction float64) map[string]float64 {
 		strings.ToLower(mismatch.DeleteOrphanedCosmosResourcesControllerName):                   fraction,
 		strings.ToLower(billing.OrphanedBillingCleanupControllerName):                           fraction,
 		strings.ToLower(clusterplacement.PendingCleanupControllerName):                          fraction,
-		strings.ToLower(clusterdeletion.CleanOrphanedClusterManagedResourceGroupControllerName): fraction,
+		strings.ToLower(controllerutils.ManagedResourceGroupWatchingControllerName):             fraction,
 		strings.ToLower(credentialrequestdeletion.SystemAdminCredentialRevokedGCControllerName): fraction,
 	}
 }

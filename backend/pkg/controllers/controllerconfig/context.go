@@ -59,6 +59,10 @@ type ControllerContext struct {
 	Clock                                               utilsclock.PassiveClock
 	AsyncOperationNotificationClient                    *http.Client
 
+	OrphanedMRGCleanupTargetSubscriptionAFECFlags   string
+	OrphanedMRGCleanupExcludedSubscriptionAFECFlags string
+	OrphanedMRGCleanupRunningMode                   string
+
 	BackendInformers                                 coreinformers.BackendInformers
 	FleetInformers                                   fleetinformers.FleetInformers
 	UnionKubeApplierInformers                        *unionkubeapplierinformers.UnionKubeApplierInformers

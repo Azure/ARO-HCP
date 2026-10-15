@@ -229,6 +229,7 @@ func TestStorageFactoryConcurrentMCContainerLookups(t *testing.T) {
 func TestBackendStorageRegistrations(t *testing.T) {
 	for _, realFPA := range []bool{false, true} {
 		names := BackendStorageControllerNames(realFPA)
+		require.Contains(t, names, "managedresourcegroupwatching", "storage must be reserved before AFEC ownership is configured")
 		options := storageTestOptions(t, func(*http.Request) (*http.Response, error) {
 			t.Fatal("startup must not contact Cosmos")
 			return nil, nil
