@@ -81,13 +81,17 @@ func TestSwiftRecorderFluentBit(t *testing.T) {
 				// Synthetic input starts after CRI/multiline assembly and Kubernetes
 				// enrichment. Exercise all remaining production filters, including re-tags.
 				if name := property(block, "Name"); name != "kubernetes" && name != "multiline" {
-					filters += "[" + block
+					filters += "\n[" + block
 				}
 			}
 			var outputMatch string
 			for _, block := range strings.Split("\n"+data["output.conf"], "\n[")[1:] {
-				if property(block, "Table_Name") == "containerLogs" && property(block, "Match") == "kubernetes.*" {
-					outputMatch = property(block, "Match")
+				if property(block, "Table_Name") == "containerLogs" && property(block, "azure_kusto_buffer_key") == "containerLogs" {
+					for _, key := range []string{"Match", "Match_Regex"} {
+						if value := property(block, key); value != "" {
+							outputMatch = key + " " + value
+						}
+					}
 				}
 			}
 			require.NotEmpty(t, outputMatch, "containerLogs must receive the recorder tag")
@@ -119,7 +123,7 @@ func TestSwiftRecorderFluentBit(t *testing.T) {
 %s
 [OUTPUT]
     Name stdout
-    Match %s
+    %s
     Format json_lines
     Json_Date_Key false
 `, dir, dir, dir, dir, strings.ReplaceAll(filters, "/forwarder/etc", dir), outputMatch))
@@ -146,7 +150,7 @@ func TestSwiftRecorderFluentBit(t *testing.T) {
 			defer cancel()
 			name := "swift-recorder-" + filepath.Base(filepath.Dir(dir))
 			cmd := exec.CommandContext(ctx, runtime, "run", "--rm", "--name", name, "--network=none",
-				"--user", "0", "-v", dir+":"+dir+":Z", "--entrypoint", "/fluent-bit/bin/fluent-bit", image,
+				"--user", "0", "-e", "NODE_NAME=test-node", "-v", dir+":"+dir+":Z", "--entrypoint", "/fluent-bit/bin/fluent-bit", image,
 				"-c", filepath.Join(dir, "fluent-bit.conf"))
 			t.Cleanup(func() { _ = exec.Command(runtime, "rm", "-f", name).Run() })
 			var stdout, stderr bytes.Buffer

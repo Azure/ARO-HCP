@@ -90,6 +90,17 @@ Fluent Bit authenticates using **Azure Workload Identity** (MSI client ID, token
 
 **Management clusters** route OCM namespace logs to `HostedControlPlaneLogs`; **service clusters** route service logs to `ServiceLogs` with table-specific routing.
 
+Tenant container logs keep their original filename-derived tag,
+`kubernetes.var.log.containers.<pod>_<namespace>_<container>-<id>.log`.
+Filters and outputs match the `ocm-` namespace segment directly instead of copying
+every tenant record through a namespace rewrite emitter. The same selector
+controls tenant resource-ID enrichment, Shoebox selection, and the
+`HostedControlPlaneLogs` output. Service-specific routers and the generic
+`ServiceLogs` output exclude those tenant tags, including when Kubernetes
+metadata is unavailable. Shoebox still emits a separate transformed copy.
+The Kusto output's existing tag-unification setting is unchanged; if disabled,
+the exported tag retains the source filename instead of `ocm.logs`.
+
 ## Querying Logs
 
 ### Azure VNet CNI Logs

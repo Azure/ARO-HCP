@@ -1,3 +1,6 @@
+{{- define "ocm_container_tag_prefix" -}}
+kubernetes\.var\.log\.containers\.[^_]+_ocm-[^_]+_
+{{- end }}
 {{- define "buffer_settings" }}
         buffering_enabled           {{ .Values.forwarder.kusto.buffering_enabled }}
         upload_timeout              {{ .Values.forwarder.kusto.upload_timeout }}
@@ -274,39 +277,30 @@ data:
         Kube_Meta_Cache_TTL 300
         Buffer_Size         64k
 
-    [FILTER]
-        # Only re-tag ocm-* namespaces (minority of traffic). Non-ocm records keep
-        # their original kubernetes.* tag and flow directly to outputs — no copy needed.
-        Name            rewrite_tag
-        Alias           filter.namespace_router
-        Match           kubernetes.var.log.containers.*
-        Rule            $kubernetes['namespace_name'] ^ocm-.* ocm.logs false
-        Emitter_Name    re_emitted_namespace_router
-        Emitter_Mem_Buf_Limit  20M
-        Emitter_Storage.type   filesystem
 {{- if eq .Values.forwarder.clusterType "mgmt" }}
-
     [FILTER]
         # Stamp the uppercased Azure ARM resource ID of the HCP cluster onto every
-        # ocm.logs record as cluster_id, plus its resource group as resource_group,
+        # tenant record as cluster_id, plus its resource group as resource_group,
         # read directly from the pod's namespace annotation
         # azure.microsoft.com/hcp-cluster-azure-resource-id (enriched by the kubernetes
         # filter's Namespace_annotations On). This is the namespace-annotation
         # alternative to resolving the ID from the ACM-managed /shoebox-config file
-        # mapping. Only mgmt clusters emit ocm.logs to the containerLogs Kusto table.
+        # mapping. Match the namespace in the original <pod>_<namespace>_<container>
+        # filename tag so tenant logs do not need a rewrite emitter queue.
         # Fail-soft: records without the annotation are left unchanged. This runs before
         # the shoebox re-tag so transform-shoebox.lua can reuse the normalized cluster_id.
         Name            lua
         Alias           lua.set_cluster_id_from_annotation
-        Match           ocm.logs
+        Match_Regex     ^{{ include "ocm_container_tag_prefix" . }}.*
         script          /forwarder/etc/set-cluster-id-from-annotation.lua
         call            set_cluster_id_from_annotation
 {{- end }}
 
     [FILTER]
+        # Tenant records retain their source tags; keep them out of service routers.
         Name            rewrite_tag
         Alias           filter.container_name_router
-        Match           kubernetes.var.log.containers.*
+        Match_Regex     ^(?!{{ include "ocm_container_tag_prefix" . }})kubernetes\.var\.log\.containers\..*
         Rule            $kubernetes['container_name'] ^aro-hcp-frontend* aro-hcp-frontend.logs false
         Rule            $kubernetes['container_name'] ^aro-hcp-backend* aro-hcp-backend.logs false
         Rule            $kubernetes['container_name'] ^clusters-service* clusters-service.logs false
@@ -400,7 +394,7 @@ data:
     [FILTER]
         Name            rewrite_tag
         Alias           filter.shoebox_router
-        Match           ocm.logs
+        Match_Regex     ^{{ include "ocm_container_tag_prefix" . }}.*
         Rule            $kubernetes['container_name'] ^(audit-logs|kube-apiserver|kube-controller-manager|kube-scheduler|cloud-controller-manager|csi-driver|snapshot-controller|cluster-autoscaler)$ shoeboxlogs true
         Rule            $kubernetes['pod_name'] ^capi-provider.* shoeboxlogs true
         Emitter_Name    re_emitted_shoebox
@@ -491,7 +485,7 @@ data:
             end
         end
 
-        -- set-cluster-id-from-annotation.lua runs on ocm.logs before the Shoebox
+        -- set-cluster-id-from-annotation.lua runs on tenant records before the Shoebox
         -- re-tag and normalizes the namespace annotation into this top-level field.
         local resourceId = record["cluster_id"]
 
@@ -649,7 +643,7 @@ data:
         Port  9090
 {{- if .Values.forwarder.clusterType | eq "mgmt" }}
     [OUTPUT]
-        Match ocm.logs
+        Match_Regex ^{{ include "ocm_container_tag_prefix" . }}.*
         Name azure_kusto
         Retry_Limit 5
         auth_type workload_identity
@@ -794,7 +788,8 @@ data:
 {{- end }}
 
     [OUTPUT]
-        Match kubernetes.*
+        # Exclude tenant source tags, but retain synthetic tags such as swift-recorder.
+        Match_Regex ^(?!{{ include "ocm_container_tag_prefix" . }})kubernetes\..*
         Name azure_kusto
         Retry_Limit 5
         auth_type workload_identity

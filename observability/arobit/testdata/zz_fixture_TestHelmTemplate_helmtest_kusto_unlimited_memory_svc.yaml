@@ -250,20 +250,10 @@ data:
         Buffer_Size         64k
 
     [FILTER]
-        # Only re-tag ocm-* namespaces (minority of traffic). Non-ocm records keep
-        # their original kubernetes.* tag and flow directly to outputs — no copy needed.
-        Name            rewrite_tag
-        Alias           filter.namespace_router
-        Match           kubernetes.var.log.containers.*
-        Rule            $kubernetes['namespace_name'] ^ocm-.* ocm.logs false
-        Emitter_Name    re_emitted_namespace_router
-        Emitter_Mem_Buf_Limit  20M
-        Emitter_Storage.type   filesystem
-
-    [FILTER]
+        # Tenant records retain their source tags; keep them out of service routers.
         Name            rewrite_tag
         Alias           filter.container_name_router
-        Match           kubernetes.var.log.containers.*
+        Match_Regex     ^(?!kubernetes\.var\.log\.containers\.[^_]+_ocm-[^_]+_)kubernetes\.var\.log\.containers\..*
         Rule            $kubernetes['container_name'] ^aro-hcp-frontend* aro-hcp-frontend.logs false
         Rule            $kubernetes['container_name'] ^aro-hcp-backend* aro-hcp-backend.logs false
         Rule            $kubernetes['container_name'] ^clusters-service* clusters-service.logs false
@@ -535,7 +525,8 @@ data:
         io_timeout                  60s
 
     [OUTPUT]
-        Match kubernetes.*
+        # Exclude tenant source tags, but retain synthetic tags such as swift-recorder.
+        Match_Regex ^(?!kubernetes\.var\.log\.containers\.[^_]+_ocm-[^_]+_)kubernetes\..*
         Name azure_kusto
         Retry_Limit 5
         auth_type workload_identity
@@ -738,7 +729,7 @@ spec:
         app: arobit-forwarder
         azure.workload.identity/use: "true"
       annotations:
-        checksum/configmap: 10f7b12a121bf06fc917758321fd12e4b1352debeafb7399e02e1c927c9883f2
+        checksum/configmap: 7899ec0ee18140b839eb105a8283ffce5ffd2bb6d0952803b7128794540aa2c4
     spec:
       priorityClassName: service-lifecycle-critical
       serviceAccountName: 'arobit-forwarder'
