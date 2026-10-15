@@ -205,6 +205,10 @@ Used for deploying Kubernetes services onto AKS clusters using [Helm](https://he
 15. `timeout`: Optional. Maximum time to wait for the Helm release to reach ready state. Uses Go duration syntax (e.g., `30s`, `5m`, `1h`). Defaults to `5m`.
 16. `rollbackOnFailure`: Optional. If `true`, rolls back to the previous release on upgrade failure, or uninstalls on install failure. Defaults to `false`.
 
+Before upgrading a release, legacy `helm` field-manager cleanup skips resources without
+a legacy entry and retries resource-version conflicts using a fresh read on each attempt.
+Other API errors and conflicts that exhaust the bounded retry budget fail the deployment.
+
 The Helm step uses a **content-addressed cache** to skip execution when the chart directory, values file, namespace files, release name, release namespace, and target cluster are all unchanged since the last successful run, enabling efficient incremental deployments.
 
 > [!NOTE]
