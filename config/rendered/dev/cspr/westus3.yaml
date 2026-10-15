@@ -200,7 +200,7 @@ clustersService:
   deployDebugJobs: false
   environment: arohcpcspr
   image:
-    digest: sha256:988eb1319979f0174229598261140f85903b04d07de346b9e54d144c0d285082
+    digest: sha256:18dfc14bab08b188eec416f6a2fc754ca1f8dcad337210c39df695ff2002d155
     registry: arohcpsvcdev.azurecr.io
     repository: zgalor/aro-hcp-clusters-service
   k8s:
