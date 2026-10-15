@@ -35,7 +35,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 
-	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	hcpsdk20260901preview "github.com/Azure/ARO-HCP/test/sdk/v20260901preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
@@ -71,13 +71,13 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for external auth cluster")
 
 			// creating cluster parameters
-			clusterParams := framework.NewDefaultClusterParams20240610()
+			clusterParams := framework.NewDefaultClusterParams20260901()
 			clusterParams.ClusterName = customerClusterName
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName
 
 			By("creating customer resources (infrastructure and managed identities) for cluster")
-			clusterParams, err = tc.CreateClusterCustomerResources20240610(ctx,
+			clusterParams, err = tc.CreateClusterCustomerResources20260901(ctx,
 				resourceGroup,
 				clusterParams,
 				map[string]interface{}{},
@@ -87,10 +87,11 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for external auth cluster")
 
 			By("creating the HCP cluster")
-			err = tc.CreateHCPClusterFromParam20240610(ctx,
+			err = tc.CreateHCPClusterFromParam20260901(ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
 				clusterParams,
+				nil,
 				framework.ClusterCreationTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster for external auth test")
@@ -110,11 +111,11 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to verify HCP cluster viability")
 
 			By("creating the node pool")
-			nodePoolParams := framework.NewDefaultNodePoolParams20240610()
+			nodePoolParams := framework.NewDefaultNodePoolParams20260901()
 			nodePoolParams.ClusterName = customerClusterName
 			nodePoolParams.NodePoolName = customerNodePoolName
 
-			err = tc.CreateNodePoolFromParam20240610(ctx,
+			err = tc.CreateNodePoolFromParam20260901(ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
 				managedResourceGroupName,
@@ -137,51 +138,51 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to add password to app registration")
 
 			By("creating an external auth config with a prefix")
-			extAuth := hcpsdk20240610preview.ExternalAuth{
-				Properties: &hcpsdk20240610preview.ExternalAuthProperties{
-					Issuer: &hcpsdk20240610preview.TokenIssuerProfile{
+			extAuth := hcpsdk20260901preview.ExternalAuth{
+				Properties: &hcpsdk20260901preview.ExternalAuthProperties{
+					Issuer: &hcpsdk20260901preview.TokenIssuerProfile{
 						URL:       to.Ptr(fmt.Sprintf("https://login.microsoftonline.com/%s/v2.0", tc.TenantID())),
 						Audiences: []*string{to.Ptr(app.AppID)},
 					},
-					Claim: &hcpsdk20240610preview.ExternalAuthClaimProfile{
-						Mappings: &hcpsdk20240610preview.TokenClaimMappingsProfile{
-							Username: &hcpsdk20240610preview.UsernameClaimProfile{
+					Claim: &hcpsdk20260901preview.ExternalAuthClaimProfile{
+						Mappings: &hcpsdk20260901preview.TokenClaimMappingsProfile{
+							Username: &hcpsdk20260901preview.UsernameClaimProfile{
 								Claim:        to.Ptr("sub"),                                                 // objectID of SP
-								PrefixPolicy: to.Ptr(hcpsdk20240610preview.UsernameClaimPrefixPolicyPrefix), // TODO: ARO-21008 preventing us setting NoPrefix
+								PrefixPolicy: to.Ptr(hcpsdk20260901preview.UsernameClaimPrefixPolicyPrefix), // TODO: ARO-21008 preventing us setting NoPrefix
 								Prefix:       to.Ptr(externalAuthSubjectPrefix),
 							},
-							Groups: &hcpsdk20240610preview.GroupClaimProfile{
+							Groups: &hcpsdk20260901preview.GroupClaimProfile{
 								Claim: to.Ptr("groups"),
 							},
 						},
 					},
-					Clients: []*hcpsdk20240610preview.ExternalAuthClientProfile{
+					Clients: []*hcpsdk20260901preview.ExternalAuthClientProfile{
 						{
 							ClientID: to.Ptr(app.AppID),
-							Component: &hcpsdk20240610preview.ExternalAuthClientComponentProfile{
+							Component: &hcpsdk20260901preview.ExternalAuthClientComponentProfile{
 								Name:                to.Ptr("console"),
 								AuthClientNamespace: to.Ptr("openshift-console"),
 							},
-							Type: to.Ptr(hcpsdk20240610preview.ExternalAuthClientTypeConfidential),
+							Type: to.Ptr(hcpsdk20260901preview.ExternalAuthClientTypeConfidential),
 						},
 						{
 							ClientID: to.Ptr(app.AppID),
-							Component: &hcpsdk20240610preview.ExternalAuthClientComponentProfile{
+							Component: &hcpsdk20260901preview.ExternalAuthClientComponentProfile{
 								Name:                to.Ptr("cli"),
 								AuthClientNamespace: to.Ptr("openshift-console"),
 							},
-							Type: to.Ptr(hcpsdk20240610preview.ExternalAuthClientTypePublic),
+							Type: to.Ptr(hcpsdk20260901preview.ExternalAuthClientTypePublic),
 						},
 					},
 				},
 			}
-			_, err = framework.CreateOrUpdateExternalAuthAndWait20240610(ctx, tc.Get20240610ClientFactoryOrDie(ctx).NewExternalAuthsClient(), *resourceGroup.Name, customerClusterName, customerExternalAuthName, extAuth, framework.ExternalAuthCreationTimeout)
+			_, err = framework.CreateOrUpdateExternalAuthAndWait20260901(ctx, tc.Get20260901ClientFactoryOrDie(ctx).NewExternalAuthsClient(), *resourceGroup.Name, customerClusterName, customerExternalAuthName, extAuth, framework.ExternalAuthCreationTimeout)
 			Expect(err).NotTo(HaveOccurred(), "failed to create external auth config %s", customerExternalAuthName)
 
 			By("verifying ExternalAuth is in a Succeeded state")
-			eaResult, err := framework.GetExternalAuth20240610(ctx, tc.Get20240610ClientFactoryOrDie(ctx).NewExternalAuthsClient(), *resourceGroup.Name, customerClusterName, customerExternalAuthName)
+			eaResult, err := tc.Get20260901ClientFactoryOrDie(ctx).NewExternalAuthsClient().Get(ctx, *resourceGroup.Name, customerClusterName, customerExternalAuthName, nil)
 			Expect(err).NotTo(HaveOccurred(), "failed to get external auth config %s", customerExternalAuthName)
-			Expect(*eaResult.Properties.ProvisioningState).To(Equal(hcpsdk20240610preview.ExternalAuthProvisioningStateSucceeded), "external auth %s provisioning state should be Succeeded", customerExternalAuthName)
+			Expect(*eaResult.Properties.ProvisioningState).To(Equal(hcpsdk20260901preview.ExternalAuthProvisioningStateSucceeded), "external auth %s provisioning state should be Succeeded", customerExternalAuthName)
 
 			By("creating a cluster role binding for the entra application")
 			err = framework.CreateClusterRoleBinding(ctx, externalAuthSubjectPrefix+sp.ID, adminRESTConfig)
@@ -253,22 +254,22 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to verify cluster operators are available after external auth config creation")
 
 			By("updating external auth to let the platform choose the username prefix")
-			extAuth.Properties.Claim.Mappings.Username.PrefixPolicy = to.Ptr(hcpsdk20240610preview.UsernameClaimPrefixPolicyNone)
+			extAuth.Properties.Claim.Mappings.Username.PrefixPolicy = to.Ptr(hcpsdk20260901preview.UsernameClaimPrefixPolicyNone)
 			extAuth.Properties.Claim.Mappings.Username.Prefix = nil
-			_, err = framework.CreateOrUpdateExternalAuthAndWait20240610(ctx,
-				tc.Get20240610ClientFactoryOrDie(ctx).NewExternalAuthsClient(),
+			_, err = framework.CreateOrUpdateExternalAuthAndWait20260901(ctx,
+				tc.Get20260901ClientFactoryOrDie(ctx).NewExternalAuthsClient(),
 				*resourceGroup.Name, customerClusterName, customerExternalAuthName,
 				extAuth, framework.ExternalAuthCreationTimeout)
 			Expect(err).NotTo(HaveOccurred(), "failed to apply external auth config with prefix policy None")
 
 			By("verifying the external auth config has no explicit username prefix")
-			eaResult, err = framework.GetExternalAuth20240610(ctx,
-				tc.Get20240610ClientFactoryOrDie(ctx).NewExternalAuthsClient(),
+			eaResult, err = framework.GetExternalAuth20260901(ctx,
+				tc.Get20260901ClientFactoryOrDie(ctx).NewExternalAuthsClient(),
 				*resourceGroup.Name, customerClusterName, customerExternalAuthName)
 			Expect(err).NotTo(HaveOccurred(), "failed to get external auth config after changing the prefix policy")
 			username := eaResult.Properties.Claim.Mappings.Username
 			Expect(username.PrefixPolicy).NotTo(BeNil(), "external auth username prefix policy was nil")
-			Expect(*username.PrefixPolicy).To(Equal(hcpsdk20240610preview.UsernameClaimPrefixPolicyNone),
+			Expect(*username.PrefixPolicy).To(Equal(hcpsdk20260901preview.UsernameClaimPrefixPolicyNone),
 				"external auth username prefix policy should be None")
 			if username.Prefix != nil {
 				Expect(*username.Prefix).To(BeEmpty(),
