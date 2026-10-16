@@ -84,6 +84,7 @@ func MIContainers(n int) ginkgo.Labels {
 
 // Environments this test can be used in.
 var (
-	RequireNothing        = ginkgo.Label("PreLaunchSetup:None")
-	RequireHappyPathInfra = ginkgo.Label("PreLaunchSetup:HappyPathInfra")
+	RequireNothing               = ginkgo.Label("PreLaunchSetup:None")
+	RequireHappyPathInfra        = ginkgo.Label("PreLaunchSetup:HappyPathInfra")
+	RequireSharedReadOnlyCluster = ginkgo.Label("PreLaunchSetup:SharedReadOnlyCluster")
 )
