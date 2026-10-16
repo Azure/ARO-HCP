@@ -3194,6 +3194,10 @@
         "applyKubeletFixes": {
           "type": "boolean"
         },
+        "swiftVnetIdentityResourceId": {
+          "type": "string",
+          "description": "Managed identity resource ID for Swift VNet creation/tagging; empty uses the global deployment identity."
+        },
         "stampIdentifier": {
           "type": "string",
           "description": "The identifier for the management cluster stamp",

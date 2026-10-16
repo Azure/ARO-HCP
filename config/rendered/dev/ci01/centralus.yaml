@@ -804,6 +804,7 @@ mgmt:
       Microsoft.Storage:
         poll: true
     usePlannedQuota: true
+  swiftVnetIdentityResourceId: ""
 mgmtAgent:
   image:
     digest: sha256:a046f8e9dc974b0b76bad0ad16ce19bba44dda5fddc48998adec64009b6dfb7b
