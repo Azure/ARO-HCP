@@ -1128,7 +1128,9 @@ func TestRevokeCredentials(t *testing.T) {
 			// Pre-populate the mock database with cluster
 			ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
 			acceptedAt := time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)
-			f.clock = clocktesting.NewFakeClock(acceptedAt)
+			f.clock = clocktesting.NewFakeClock(acceptedAt.Add(123 * time.Millisecond))
+			transactionDB := &reservationTransactionDB{ResourcesDBClient: mockResourcesDBClient, t: t}
+			f.resourcesDBClient = transactionDB
 
 			cluster := &coreapi.Cluster{
 				CosmosMetadata: coreapi.CosmosMetadata{
@@ -1197,15 +1199,24 @@ func TestRevokeCredentials(t *testing.T) {
 			require.NoError(t, err)
 			defer resp.Body.Close()
 			if resp.StatusCode == http.StatusAccepted {
+				require.True(t, transactionDB.checked, "acceptance used both transaction helpers")
 				live, err := mockResourcesDBClient.HCPClusters(clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName).Get(ctx, clusterResourceID.Name)
 				require.NoError(t, err)
-				require.Nil(t, live.ServiceProviderProperties.SystemAdminCredentialRevocationResourceID, "frontend never assigns internal ownership")
+				require.NotNil(t, live.ServiceProviderProperties.SystemAdminCredentialRevocationResourceID)
+				require.Equal(t, acceptedAt, live.ServiceProviderProperties.SystemAdminCredentialRevocationRequestedAt.UTC())
 				iter, err := mockResourcesDBClient.Operations(clusterResourceID.SubscriptionID).List(ctx, nil)
 				require.NoError(t, err)
 				for _, op := range iter.Items(ctx) {
 					if op.Request == coreapi.OperationRequestSystemAdminCredentialRevocation {
 						require.NotNil(t, op.CompletionDeadline)
 						require.Equal(t, acceptedAt.Add(30*time.Minute), *op.CompletionDeadline)
+						require.Equal(t, acceptedAt, op.StartTime)
+						require.Equal(t, op.StartTime, op.LastTransitionTime)
+						require.Equal(t, op.OperationID.Name, live.ServiceProviderProperties.RevokeCredentialsOperationID)
+						rid, err := coreapihelpers.SystemAdminCredentialRevocationID(clusterResourceID, op.OperationID.Name)
+						require.NoError(t, err)
+						require.Equal(t, rid.String(), op.SystemAdminCredentialRevocation.SystemAdminCredentialRevocationResourceID.String())
+						require.Equal(t, rid.String(), live.ServiceProviderProperties.SystemAdminCredentialRevocationResourceID.String())
 					} else {
 						require.Nil(t, op.CompletionDeadline, "existing operations must not receive backfilled deadlines")
 					}

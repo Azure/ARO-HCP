@@ -420,6 +420,10 @@ func (in *ClusterServiceProviderProperties) DeepCopyInto(out *ClusterServiceProv
 		in, out := &in.SystemAdminCredentialRevocationResourceID, &out.SystemAdminCredentialRevocationResourceID
 		*out = DeepCopyResourceID(*in)
 	}
+	if in.SystemAdminCredentialRevocationRequestedAt != nil {
+		in, out := &in.SystemAdminCredentialRevocationRequestedAt, &out.SystemAdminCredentialRevocationRequestedAt
+		*out = (*in).DeepCopy()
+	}
 	out.DNS = in.DNS
 	out.Console = in.Console
 	out.API = in.API

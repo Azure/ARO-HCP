@@ -124,11 +124,16 @@ type ClusterServiceProviderProperties struct {
 	// Written by: Frontend PUT/PATCH/DELETE Cluster, OperationClusterCreate, OperationClusterUpdate, OperationClusterDelete
 	ActiveOperationID string `json:"activeOperationId,omitempty"`
 	// Legacy compatibility mirror. Retained while old typed writers are deployed.
-	// Written by: Frontend POST RevokeCredentials (compatibility), SystemAdminCredentialRevocationMarkRequests, SystemAdminCredentialRevocationDeletion, SystemAdminCredentialRevocationLegacyReference, CosmosMigration
+	// Written by: Frontend POST RevokeCredentials (compatibility), SystemAdminCredentialRevocationDeletion, SystemAdminCredentialRevocationReservationCleanup, SystemAdminCredentialRevocationLegacyReference, CosmosMigration
 	RevokeCredentialsOperationID string `json:"revokeCredentialsOperationId,omitempty"`
 	// The internal revocation that owns credential exclusion, independent of ARM status.
-	// Written by: SystemAdminCredentialRevocationMarkRequests, SystemAdminCredentialRevocationDeletion, SystemAdminCredentialRevocationLegacyReference, CosmosMigration
+	// Reserved by acceptance; an existing internal document owns this reference until teardown.
+	// Written by: Frontend POST RevokeCredentials, SystemAdminCredentialRevocationDeletion, SystemAdminCredentialRevocationReservationCleanup, SystemAdminCredentialRevocationLegacyReference, CosmosMigration
 	SystemAdminCredentialRevocationResourceID *azcorearm.ResourceID `json:"systemAdminCredentialRevocationResourceID,omitempty"`
+	// SystemAdminCredentialRevocationRequestedAt starts the missing-document dispatch grace.
+	// Nil indicates legacy state; migration must use the original operation StartTime.
+	// Written by: Frontend POST RevokeCredentials, SystemAdminCredentialRevocationDeletion, SystemAdminCredentialRevocationReservationCleanup, SystemAdminCredentialRevocationLegacyReference, CosmosMigration
+	SystemAdminCredentialRevocationRequestedAt *metav1.Time `json:"systemAdminCredentialRevocationRequestedAt,omitempty"`
 	// Written by: ClusterPropertiesSync
 	DNS ServiceProviderDNSProfile `json:"dns,omitempty"`
 	// Written by: ClusterPropertiesSync

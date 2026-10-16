@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/go-logr/logr/testr"
 	"github.com/stretchr/testify/require"
@@ -123,6 +124,8 @@ func TestRevocationDeletionReleaseRecovery(t *testing.T) {
 			})
 			id := rev.ResourceID.Parent
 			cluster := &coreapi.Cluster{CosmosMetadata: coreapi.CosmosMetadata{ResourceID: id, PartitionKey: id.SubscriptionID}, TrackedResource: coreapi.TrackedResource{Resource: coreapi.Resource{ID: id}}, ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{SystemAdminCredentialRevocationResourceID: rev.ResourceID, RevokeCredentialsOperationID: rev.Spec.OperationID}}
+			stamp := metav1.NewTime(time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC))
+			cluster.ServiceProviderProperties.SystemAdminCredentialRevocationRequestedAt = &stamp
 			crud := db.HCPClusters(id.SubscriptionID, id.ResourceGroupName)
 			_, err := crud.Create(ctx, cluster, nil)
 			require.NoError(t, err)
@@ -138,10 +141,12 @@ func TestRevocationDeletionReleaseRecovery(t *testing.T) {
 			live, err := crud.Get(ctx, id.Name)
 			require.NoError(t, err)
 			require.Nil(t, live.ServiceProviderProperties.SystemAdminCredentialRevocationResourceID)
+			require.Nil(t, live.ServiceProviderProperties.SystemAdminCredentialRevocationRequestedAt)
 			require.Empty(t, live.ServiceProviderProperties.RevokeCredentialsOperationID)
 			if newerOwner {
 				live.ServiceProviderProperties.SystemAdminCredentialRevocationResourceID = metadataapi.Must(azcorearm.ParseResourceID(id.String() + "/systemAdminCredentialRevocations/newer"))
 				live.ServiceProviderProperties.RevokeCredentialsOperationID = "newer"
+				live.ServiceProviderProperties.SystemAdminCredentialRevocationRequestedAt = &stamp
 				_, err = crud.Replace(ctx, live, nil)
 				require.NoError(t, err)
 			}
@@ -152,6 +157,7 @@ func TestRevocationDeletionReleaseRecovery(t *testing.T) {
 			require.NoError(t, err)
 			if newerOwner {
 				require.Equal(t, "newer", live.ServiceProviderProperties.RevokeCredentialsOperationID)
+				require.True(t, stamp.Equal(live.ServiceProviderProperties.SystemAdminCredentialRevocationRequestedAt))
 			} else {
 				require.Nil(t, live.ServiceProviderProperties.SystemAdminCredentialRevocationResourceID)
 			}

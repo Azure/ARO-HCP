@@ -57,8 +57,9 @@ func TestDecideLegacyReference(t *testing.T) {
 		opErr   error
 		want    ownershipDecision
 	}{
-		{name: "no sentinel ignores irrelevant errors", cluster: cluster("", nil), listErr: failure, opErr: failure},
-		{name: "internal reference belongs to lifecycle", cluster: cluster("operation", rid), listErr: failure},
+		{name: "no sentinel ignores operation errors", cluster: cluster("", nil), opErr: failure},
+		{name: "active owner survives erasure of both references", cluster: cluster("", nil), intents: []*coreapi.SystemAdminCredentialRevocation{active}, want: ownershipDecision{Cluster: cluster("other", otherID)}},
+		{name: "legacy reference needs observations to normalize", cluster: cluster("operation", rid), listErr: failure, want: ownershipDecision{Err: failure}},
 		{name: "pending legacy operation waits", cluster: cluster("operation", nil), op: &coreapi.Operation{Status: coreapi.ProvisioningStateAccepted}},
 		{name: "reserved identity waits for dispatch", cluster: cluster("operation", nil), op: &coreapi.Operation{Status: coreapi.ProvisioningStateAccepted, SystemAdminCredentialRevocation: &coreapi.OperationSystemAdminCredentialRevocation{SystemAdminCredentialRevocationResourceID: rid}}},
 		{name: "legacy document migrates with cluster ETag", cluster: cluster("operation", nil), intents: []*coreapi.SystemAdminCredentialRevocation{intent}, want: ownershipDecision{Cluster: cluster("operation", rid)}},
@@ -68,7 +69,7 @@ func TestDecideLegacyReference(t *testing.T) {
 		{name: "never acquire on deleting cluster", cluster: deletingCluster, intents: []*coreapi.SystemAdminCredentialRevocation{intent}},
 		{name: "completed legacy operation releases sentinel", cluster: cluster("operation", nil), op: &coreapi.Operation{Status: coreapi.ProvisioningStateSucceeded}, want: ownershipDecision{Cluster: cluster("", nil)}},
 		{name: "expired before dispatch releases sentinel", cluster: cluster("operation", nil), op: &coreapi.Operation{Status: coreapi.ProvisioningStateFailed}, want: ownershipDecision{Cluster: cluster("", nil)}},
-		{name: "linked missing document releases sentinel", cluster: cluster("operation", nil), op: &coreapi.Operation{Status: coreapi.ProvisioningStateDeleting, SystemAdminCredentialRevocation: &coreapi.OperationSystemAdminCredentialRevocation{SystemAdminCredentialRevocationResourceID: rid}}, want: ownershipDecision{Cluster: cluster("", nil)}},
+		{name: "linked missing document without original time waits", cluster: cluster("operation", nil), op: &coreapi.Operation{Status: coreapi.ProvisioningStateDeleting, SystemAdminCredentialRevocation: &coreapi.OperationSystemAdminCredentialRevocation{SystemAdminCredentialRevocationResourceID: rid}}},
 		{name: "operation past retention", cluster: cluster("operation", nil), want: ownershipDecision{Cluster: cluster("", nil)}},
 		{name: "list error", cluster: cluster("operation", nil), listErr: failure, want: ownershipDecision{Err: failure}},
 		{name: "operation error", cluster: cluster("operation", nil), opErr: failure, want: ownershipDecision{Err: failure}},
@@ -94,58 +95,4 @@ func TestOwnershipDecisionValidation(t *testing.T) {
 		}
 	}()
 	ownershipDecision{Cluster: &coreapi.Cluster{}, Err: errors.New("failure")}.validate()
-}
-
-func TestDecideClaim(t *testing.T) {
-	id := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster"))
-	rid := metadataapi.Must(azcorearm.ParseResourceID(id.String() + "/systemAdminCredentialRevocations/intent"))
-	otherID := metadataapi.Must(azcorearm.ParseResourceID(id.String() + "/systemAdminCredentialRevocations/other"))
-	cluster := func(legacy string, owner *azcorearm.ResourceID) *coreapi.Cluster {
-		return &coreapi.Cluster{CosmosMetadata: coreapi.CosmosMetadata{ResourceID: id, PartitionKey: "sub", CosmosETag: "claim-etag"}, TrackedResource: coreapi.TrackedResource{Resource: coreapi.Resource{ID: id}}, ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{RevokeCredentialsOperationID: legacy, SystemAdminCredentialRevocationResourceID: owner}}
-	}
-	intent := &coreapi.SystemAdminCredentialRevocation{CosmosMetadata: coreapi.CosmosMetadata{ResourceID: rid}, Spec: coreapi.SystemAdminCredentialRevocationSpec{OperationID: "operation"}}
-	pending := &coreapi.SystemAdminCredentialRevocation{CosmosMetadata: coreapi.CosmosMetadata{ResourceID: otherID}, Spec: coreapi.SystemAdminCredentialRevocationSpec{OperationID: "other"}}
-	active := pending.DeepCopy()
-	active.Status.Conditions = []metav1.Condition{{Type: coreapi.SystemAdminCredentialRevocationConditionActive, Status: metav1.ConditionTrue}}
-	stamp := metav1.NewTime(time.Unix(100, 0))
-	deleting := intent.DeepCopy()
-	deleting.Status.DeletionTimestamp = &stamp
-	deletingCluster := cluster("", nil)
-	deletingCluster.ServiceProviderProperties.DeletionTimestamp = &stamp
-	comparison := cmp.Options{cmp.Comparer(func(a, b *azcorearm.ResourceID) bool {
-		if a == nil || b == nil {
-			return a == b
-		}
-		return a.String() == b.String()
-	}), cmp.Comparer(func(a, b metadataapi.InternalID) bool { return a.String() == b.String() })}
-	for _, tc := range []struct {
-		name    string
-		cluster *coreapi.Cluster
-		intent  *coreapi.SystemAdminCredentialRevocation
-		others  []*coreapi.SystemAdminCredentialRevocation
-		want    ownershipDecision
-	}{
-		{name: "unowned claim with ETag", cluster: cluster("", nil), intent: intent, want: ownershipDecision{Cluster: cluster("operation", rid)}},
-		{name: "pending competitors do not deadlock", cluster: cluster("", nil), intent: intent, others: []*coreapi.SystemAdminCredentialRevocation{pending}, want: ownershipDecision{Cluster: cluster("operation", rid)}},
-		{name: "other active owner blocks after field erasure", cluster: cluster("", nil), intent: intent, others: []*coreapi.SystemAdminCredentialRevocation{active}},
-		{name: "own legacy sentinel", cluster: cluster("operation", nil), intent: intent, want: ownershipDecision{Cluster: cluster("operation", rid)}},
-		{name: "other legacy sentinel waits", cluster: cluster("other", nil), intent: intent},
-		{name: "own reference resumes after interrupted status", cluster: cluster("operation", rid), intent: intent, want: ownershipDecision{Owned: true}},
-		{name: "other reference waits", cluster: cluster("other", otherID), intent: intent},
-		{name: "released deleting intent cannot reacquire", cluster: cluster("", nil), intent: deleting},
-		{name: "deleting intent cannot act even while referenced", cluster: cluster("operation", rid), intent: deleting},
-		{name: "cluster deletion stops claims", cluster: deletingCluster, intent: intent},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			before := tc.cluster.DeepCopy()
-			got := decideClaim(logr.Discard(), tc.cluster, tc.intent, tc.others)
-			got.validate()
-			if diff := cmp.Diff(tc.want, got, comparison...); diff != "" {
-				t.Fatal(diff)
-			}
-			if diff := cmp.Diff(before, tc.cluster, comparison...); diff != "" {
-				t.Fatal("mutated observation: " + diff)
-			}
-		})
-	}
 }

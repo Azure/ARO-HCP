@@ -20,6 +20,7 @@ import (
 	"net/http"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/go-logr/logr/testr"
 	"github.com/stretchr/testify/assert"
@@ -33,6 +34,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 )
@@ -68,6 +70,33 @@ func TestCredentialMigrationAndLateLegacyWrite(t *testing.T) {
 	live, err = crud.Get(ctx, id.Name)
 	require.NoError(t, err)
 	require.Equal(t, rid.String(), live.ServiceProviderProperties.SystemAdminCredentialRevocationResourceID.String())
+}
+
+func TestCredentialReservationMigrationOriginalTime(t *testing.T) {
+	ctx := t.Context()
+	id := metadataapi.Must(coreapihelpers.ToClusterResourceID("00000000-0000-0000-0000-000000000000", "rg", "cluster"))
+	cluster := &coreapi.Cluster{CosmosMetadata: coreapi.CosmosMetadata{ResourceID: id, PartitionKey: id.SubscriptionID}, TrackedResource: coreapi.TrackedResource{Resource: coreapi.Resource{ID: id}}}
+	op := cosmosstorageutils.NewOperation(coreapi.OperationRequestSystemAdminCredentialRevocation, id, metadataapi.InternalID{}, "eastus", "", "", "", nil)
+	op.StartTime = time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	cluster.ServiceProviderProperties.RevokeCredentialsOperationID = op.OperationID.Name
+	db, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, op})
+	require.NoError(t, err)
+	c := &cosmosMigrationController{resourcesDBClient: db}
+	require.NoError(t, c.migrateClusters(ctx, testr.New(t), id.SubscriptionID))
+	crud := db.HCPClusters(id.SubscriptionID, id.ResourceGroupName)
+	live, err := crud.Get(ctx, id.Name)
+	require.NoError(t, err)
+	rid := metadataapi.Must(coreapihelpers.SystemAdminCredentialRevocationID(id, op.OperationID.Name))
+	require.Equal(t, rid.String(), live.ServiceProviderProperties.SystemAdminCredentialRevocationResourceID.String())
+	require.True(t, op.StartTime.Equal(live.ServiceProviderProperties.SystemAdminCredentialRevocationRequestedAt.Time))
+	etag := live.CosmosETag
+	require.NoError(t, credentialrevocation.MigrateLegacyReference(ctx, db, live))
+	live, err = crud.Get(ctx, id.Name)
+	require.NoError(t, err)
+	require.Equal(t, etag, live.CosmosETag, "normalized reservations do not churn")
+	op, err = db.Operations(id.SubscriptionID).Get(ctx, op.OperationID.Name)
+	require.NoError(t, err)
+	require.Nil(t, op.CompletionDeadline, "migration never backfills deadlines")
 }
 
 // stubCRUD implements cosmosstorageutils.ResourceCRUD[stubDoc, *stubDoc] just enough for

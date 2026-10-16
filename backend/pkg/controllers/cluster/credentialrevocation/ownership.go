@@ -16,17 +16,18 @@ package credentialrevocation
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
 
 	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
@@ -52,21 +53,19 @@ func Owns(ctx context.Context, db corecosmosstorage.ResourcesDBClient, revocatio
 
 type ownershipDecision struct {
 	Cluster *coreapi.Cluster
-	Owned   bool
 	Err     error
 }
 
 func (d ownershipDecision) validate() {
-	if (d.Cluster != nil && (d.Err != nil || d.Owned)) || (d.Owned && d.Err != nil) {
-		panic("invalid credential ownership decision: mutation and error")
+	if d.Cluster != nil && (d.Err != nil || d.Cluster.CosmosETag == "" || d.Cluster.ID == nil) {
+		panic("invalid credential ownership decision: replacement requires identity, ETag and no error")
 	}
 }
 
-// decideLegacyReference migrates only the legacy sentinel. It is not a repair
-// mechanism for arbitrary dangling internal references. Teardown releases those.
+// decideLegacyReference normalizes persisted legacy state without restarting its grace.
 func decideLegacyReference(logger logr.Logger, cluster *coreapi.Cluster, revocations []*coreapi.SystemAdminCredentialRevocation, listErr error, operation *coreapi.Operation, operationErr error) ownershipDecision {
 	props := cluster.ServiceProviderProperties
-	if props.SystemAdminCredentialRevocationResourceID != nil || props.RevokeCredentialsOperationID == "" {
+	if props.SystemAdminCredentialRevocationResourceID != nil && (props.SystemAdminCredentialRevocationRequestedAt != nil || props.RevokeCredentialsOperationID == "") {
 		return ownershipDecision{}
 	}
 	if listErr != nil {
@@ -74,13 +73,13 @@ func decideLegacyReference(logger logr.Logger, cluster *coreapi.Cluster, revocat
 	}
 	var owner *coreapi.SystemAdminCredentialRevocation
 	for _, rev := range revocations {
-		if rev.Spec.OperationID == props.RevokeCredentialsOperationID {
+		if (props.SystemAdminCredentialRevocationResourceID != nil && strings.EqualFold(rev.ResourceID.String(), props.SystemAdminCredentialRevocationResourceID.String())) || (props.SystemAdminCredentialRevocationResourceID == nil && rev.Spec.OperationID == props.RevokeCredentialsOperationID) {
 			owner = rev
 		}
 	}
 	// An established internal owner takes precedence over a late legacy sentinel.
 	for _, rev := range revocations {
-		if meta.IsStatusConditionTrue(rev.Status.Conditions, coreapi.SystemAdminCredentialRevocationConditionActive) {
+		if props.SystemAdminCredentialRevocationResourceID == nil && meta.IsStatusConditionTrue(rev.Status.Conditions, coreapi.SystemAdminCredentialRevocationConditionActive) {
 			owner = rev
 			break
 		}
@@ -92,14 +91,40 @@ func decideLegacyReference(logger logr.Logger, cluster *coreapi.Cluster, revocat
 		replacement := cluster.DeepCopy()
 		replacement.ServiceProviderProperties.SystemAdminCredentialRevocationResourceID = owner.ResourceID
 		replacement.ServiceProviderProperties.RevokeCredentialsOperationID = owner.Spec.OperationID
+		if operation != nil && owner.Spec.OperationID == props.RevokeCredentialsOperationID && !operation.StartTime.IsZero() {
+			stamp := metav1.NewTime(operation.StartTime)
+			replacement.ServiceProviderProperties.SystemAdminCredentialRevocationRequestedAt = &stamp
+		} else if props.SystemAdminCredentialRevocationResourceID != nil {
+			return ownershipDecision{} // Live work is authoritative; do not churn unchanged legacy state.
+		}
 		logger.Info("Attempting to migrate legacy revocation reference", "revocation", owner.ResourceID.String())
 		return ownershipDecision{Cluster: replacement}
+	}
+	if props.RevokeCredentialsOperationID == "" {
+		return ownershipDecision{}
 	}
 	if operationErr != nil && !cosmosstorageutils.IsNotFoundError(operationErr) {
 		return ownershipDecision{Err: operationErr}
 	}
-	if operation != nil && !operation.Status.IsTerminal() && (operation.Status == coreapi.ProvisioningStateAccepted || operation.SystemAdminCredentialRevocation == nil || operation.SystemAdminCredentialRevocation.SystemAdminCredentialRevocationResourceID == nil) {
-		return ownershipDecision{} // DispatchRevokeCredentials has not finished dispatching its intent yet.
+	if operation != nil && !operation.StartTime.IsZero() {
+		id, err := coreapihelpers.SystemAdminCredentialRevocationID(cluster.ID, props.RevokeCredentialsOperationID)
+		if err != nil {
+			return ownershipDecision{Err: err}
+		}
+		if operation.SystemAdminCredentialRevocation != nil && operation.SystemAdminCredentialRevocation.SystemAdminCredentialRevocationResourceID != nil {
+			id = operation.SystemAdminCredentialRevocation.SystemAdminCredentialRevocationResourceID
+		}
+		if props.SystemAdminCredentialRevocationResourceID != nil && !strings.EqualFold(props.SystemAdminCredentialRevocationResourceID.String(), id.String()) {
+			return ownershipDecision{}
+		}
+		replacement := cluster.DeepCopy()
+		replacement.ServiceProviderProperties.SystemAdminCredentialRevocationResourceID = id
+		stamp := metav1.NewTime(operation.StartTime)
+		replacement.ServiceProviderProperties.SystemAdminCredentialRevocationRequestedAt = &stamp
+		return ownershipDecision{Cluster: replacement}
+	}
+	if props.SystemAdminCredentialRevocationResourceID != nil || (operation != nil && !operation.Status.IsTerminal()) {
+		return ownershipDecision{} // No original time: fail safe, never invent a new grace.
 	}
 	replacement := cluster.DeepCopy()
 	replacement.ServiceProviderProperties.RevokeCredentialsOperationID = ""
@@ -112,6 +137,10 @@ func decideLegacyReference(logger logr.Logger, cluster *coreapi.Cluster, revocat
 // Live observations plus the cluster ETag prevent a stale cache from releasing
 // a newly established sentinel. They do not fence old backend side effects.
 func MigrateLegacyReference(ctx context.Context, db corecosmosstorage.ResourcesDBClient, cluster *coreapi.Cluster) error {
+	props := cluster.ServiceProviderProperties
+	if props.SystemAdminCredentialRevocationResourceID != nil && (props.SystemAdminCredentialRevocationRequestedAt != nil || props.RevokeCredentialsOperationID == "") {
+		return nil
+	}
 	id := cluster.ID
 	crud := db.HCPClusters(id.SubscriptionID, id.ResourceGroupName)
 	var revocations []*coreapi.SystemAdminCredentialRevocation
@@ -187,76 +216,4 @@ func (c *legacyReferenceController) SyncOnce(ctx context.Context, key controller
 		return err
 	}
 	return MigrateLegacyReference(ctx, c.db, cluster)
-}
-
-// Claim uses one cluster ETag write. Active internal owners survive erasure of
-// the new cluster field; pending documents do not block each other.
-func Claim(ctx context.Context, db corecosmosstorage.ResourcesDBClient, rev *coreapi.SystemAdminCredentialRevocation) (bool, error) {
-	if rev.Status.DeletionTimestamp != nil {
-		return false, nil
-	}
-	id := rev.ResourceID.Parent
-	crud := db.HCPClusters(id.SubscriptionID, id.ResourceGroupName)
-	cluster, err := crud.Get(ctx, id.Name)
-	if err != nil {
-		return false, err
-	}
-	if cluster.ServiceProviderProperties.DeletionTimestamp != nil {
-		return false, nil
-	}
-	// Read the intent after the cluster: if teardown releases this observed
-	// cluster ETag concurrently, the claim fails rather than reacquiring it.
-	liveRev, err := crud.SystemAdminCredentialRevocations(id.Name).Get(ctx, rev.ResourceID.Name)
-	if cosmosstorageutils.IsNotFoundError(err) {
-		return false, nil
-	}
-	if err != nil {
-		return false, err
-	}
-	iter, err := crud.SystemAdminCredentialRevocations(id.Name).List(ctx, nil)
-	if err != nil {
-		return false, err
-	}
-	var others []*coreapi.SystemAdminCredentialRevocation
-	for _, other := range iter.Items(ctx) {
-		others = append(others, other)
-	}
-	if err := iter.GetError(); err != nil {
-		return false, err
-	}
-	d := decideClaim(utils.LoggerFromContext(ctx), cluster, liveRev, others)
-	d.validate()
-	if d.Cluster == nil {
-		return d.Owned, d.Err
-	}
-	if _, err := crud.Replace(ctx, d.Cluster, nil); err != nil {
-		return false, fmt.Errorf("claim revocation: %w", err)
-	}
-	return true, nil
-}
-
-func decideClaim(logger logr.Logger, cluster *coreapi.Cluster, rev *coreapi.SystemAdminCredentialRevocation, others []*coreapi.SystemAdminCredentialRevocation) ownershipDecision {
-	if rev.Status.DeletionTimestamp != nil || cluster.ServiceProviderProperties.DeletionTimestamp != nil {
-		return ownershipDecision{}
-	}
-	props := cluster.ServiceProviderProperties
-	if owner := props.SystemAdminCredentialRevocationResourceID; owner != nil {
-		return ownershipDecision{Owned: strings.EqualFold(owner.String(), rev.ResourceID.String())}
-	}
-	for _, other := range others {
-		if !strings.EqualFold(other.ResourceID.String(), rev.ResourceID.String()) && meta.IsStatusConditionTrue(other.Status.Conditions, coreapi.SystemAdminCredentialRevocationConditionActive) {
-			logger.V(2).Info("Waiting for active internal revocation", "owner", other.ResourceID.String())
-			return ownershipDecision{}
-		}
-	}
-	if props.RevokeCredentialsOperationID != "" && props.RevokeCredentialsOperationID != rev.Spec.OperationID {
-		return ownershipDecision{}
-	}
-	replacement := cluster.DeepCopy()
-	replacement.ServiceProviderProperties.SystemAdminCredentialRevocationResourceID = rev.ResourceID
-	// Old frontend writers must continue to see exclusion even if they erase the
-	// new field. Only an identity-matching teardown may remove this mirror.
-	replacement.ServiceProviderProperties.RevokeCredentialsOperationID = rev.Spec.OperationID
-	logger.Info("Attempting cluster revocation claim", "revocation", rev.ResourceID.String())
-	return ownershipDecision{Cluster: replacement}
 }

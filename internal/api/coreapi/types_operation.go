@@ -26,6 +26,10 @@ import (
 
 type OperationRequest string
 
+// SystemAdminCredentialRevocationTimeout bounds new ARM monitoring and the window
+// in which a reserved revocation may be dispatched. Existing internal work is not bounded.
+const SystemAdminCredentialRevocationTimeout = 30 * time.Minute
+
 const (
 	OperationRequestCreate OperationRequest = "Create"
 	OperationRequestUpdate OperationRequest = "Update"
@@ -87,7 +91,7 @@ type Operation struct {
 
 	// Written by: Frontend POST requestAdminCredential, SystemAdminCredentialDispatchRequestCredential
 	SystemAdminCredentialRequest *OperationSystemAdminCredentialRequest `json:"systemAdminCredentialRequest,omitempty"`
-	// Written by: SystemAdminCredentialDispatchRevokeCredentials
+	// Written by: Frontend POST RevokeCredentials, SystemAdminCredentialDispatchRevokeCredentials (legacy)
 	SystemAdminCredentialRevocation *OperationSystemAdminCredentialRevocation `json:"systemAdminCredentialRevocation,omitempty"`
 }
 
@@ -105,7 +109,7 @@ type OperationSystemAdminCredentialRequest struct {
 // revocation lifecycle on an Operation document.
 type OperationSystemAdminCredentialRevocation struct {
 	// Reserved before creating the internal revocation; Accepted does not imply it exists.
-	// Written by: SystemAdminCredentialDispatchRevokeCredentials
+	// Written by: Frontend POST RevokeCredentials, SystemAdminCredentialDispatchRevokeCredentials (legacy)
 	SystemAdminCredentialRevocationResourceID *azcorearm.ResourceID `json:"systemAdminCredentialRevocationResourceID,omitempty"`
 }
 

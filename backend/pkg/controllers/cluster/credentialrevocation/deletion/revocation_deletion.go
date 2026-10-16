@@ -132,6 +132,7 @@ func (c *revocationDeletion) SyncOnce(ctx context.Context, key controllerutils.S
 		changed := false
 		if owner := props.SystemAdminCredentialRevocationResourceID; owner != nil && strings.EqualFold(owner.String(), revocation.ResourceID.String()) {
 			props.SystemAdminCredentialRevocationResourceID = nil
+			props.SystemAdminCredentialRevocationRequestedAt = nil
 			changed = true
 		}
 		if props.RevokeCredentialsOperationID == revocation.Spec.OperationID {

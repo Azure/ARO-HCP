@@ -34,6 +34,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/api/operation"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sutilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/client-go/tools/cache"
@@ -542,10 +543,16 @@ func (f *Frontend) ArmResourceActionRevokeCredentials(writer http.ResponseWriter
 		request.Header.Get(coreapi.HeaderNameAsyncNotificationURI),
 		correlationData)
 
-	operationDoc.StartTime = f.clock.Now().UTC()
+	// metav1.Time persists seconds; use that precision for both reservation and operation.
+	operationDoc.StartTime = f.clock.Now().UTC().Truncate(time.Second)
 	operationDoc.LastTransitionTime = operationDoc.StartTime
-	deadline := operationDoc.StartTime.Add(30 * time.Minute)
+	deadline := operationDoc.StartTime.Add(coreapi.SystemAdminCredentialRevocationTimeout)
 	operationDoc.CompletionDeadline = &deadline
+	revocationID, err := coreapihelpers.SystemAdminCredentialRevocationID(clusterResourceID, operationDoc.OperationID.Name)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+	operationDoc.SystemAdminCredentialRevocation = &coreapi.OperationSystemAdminCredentialRevocation{SystemAdminCredentialRevocationResourceID: revocationID}
 	transaction.OnSuccess(addOperationResponseHeaders(writer, request, operationDoc.NotificationURI, operationDoc.OperationID))
 	_, err = f.resourcesDBClient.Operations(operationDoc.OperationID.SubscriptionID).AddCreateToTransaction(ctx, transaction, operationDoc, nil)
 	if err != nil {
@@ -553,8 +560,10 @@ func (f *Frontend) ArmResourceActionRevokeCredentials(writer http.ResponseWriter
 	}
 
 	// Retain the legacy admission/dispatch sentinel during rolling upgrades.
-	// Only the internal lifecycle assigns the new revocation reference.
 	cluster.ServiceProviderProperties.RevokeCredentialsOperationID = operationDoc.OperationID.Name
+	cluster.ServiceProviderProperties.SystemAdminCredentialRevocationResourceID = revocationID
+	requestedAt := metav1.NewTime(operationDoc.StartTime)
+	cluster.ServiceProviderProperties.SystemAdminCredentialRevocationRequestedAt = &requestedAt
 	if _, err := f.resourcesDBClient.HCPClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName).AddReplaceToTransaction(ctx, transaction, cluster, nil); err != nil {
 		return utils.TrackError(err)
 	}

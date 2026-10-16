@@ -31,6 +31,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -127,7 +128,9 @@ func TestRevocationMarkRequests_SyncOnce(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
 			db := corecosmosstoragetesting.NewMockResourcesDBClient()
-			createTestCluster(t, db)
+			createTestCluster(t, db, func(cluster *coreapi.Cluster) {
+				cluster.ServiceProviderProperties.SystemAdminCredentialRevocationResourceID = metadataapi.Must(coreapihelpers.ToSystemAdminCredentialRevocationResourceID(testSubscriptionID, testResourceGroupName, testClusterName, testRevocationName))
+			})
 			tc.setupDB(db)
 
 			syncer := &revocationMarkRequests{
@@ -149,11 +152,13 @@ func TestRevocationMarkRequests_SyncOnce(t *testing.T) {
 	}
 }
 
-func TestRevocationRepeatsSweepAndQueues(t *testing.T) {
+func TestRevocationRepeatsSweepAndChecksOwner(t *testing.T) {
 	ctx := t.Context()
 	clock := clocktesting.NewFakeClock(time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC))
 	db := corecosmosstoragetesting.NewMockResourcesDBClient()
-	createTestCluster(t, db)
+	createTestCluster(t, db, func(cluster *coreapi.Cluster) {
+		cluster.ServiceProviderProperties.SystemAdminCredentialRevocationResourceID = metadataapi.Must(coreapihelpers.ToSystemAdminCredentialRevocationResourceID(testSubscriptionID, testResourceGroupName, testClusterName, "a"))
+	})
 	a := createTestRevocation(t, db, "a")
 	op := cosmosstorageutils.NewOperation(coreapi.OperationRequestSystemAdminCredentialRevocation, a.ResourceID.Parent, metadataapi.InternalID{}, "eastus", "", "", "", nil)
 	deadline := clock.Now().Add(time.Minute)
@@ -175,19 +180,19 @@ func TestRevocationRepeatsSweepAndQueues(t *testing.T) {
 	revs := db.HCPClusters(testSubscriptionID, testResourceGroupName).SystemAdminCredentialRevocations(testClusterName)
 	b, err = revs.Get(ctx, b.ResourceID.Name)
 	require.NoError(t, err)
-	require.Equal(t, "WaitingForOtherRevocation", meta.FindStatusCondition(b.Status.Conditions, coreapi.SystemAdminCredentialRevocationConditionActive).Reason)
+	require.Nil(t, meta.FindStatusCondition(b.Status.Conditions, coreapi.SystemAdminCredentialRevocationConditionActive), "another reservation cannot be overwritten")
 	op, err = db.Operations(testSubscriptionID).Get(ctx, op.OperationID.Name)
 	require.NoError(t, err)
 	expired, err := operationutils.ExpireCredentialOperation(ctx, clock, db, op, nil)
 	require.NoError(t, err)
 	require.True(t, expired)
-	// Simulate completed teardown of the first owner. The queued document must
-	// acquire ownership and do its work despite its failed ARM operation.
+	// An existing internal document continues after ARM failure once its own
+	// reservation is established; it must never elect itself over another owner.
 	crud := db.HCPClusters(testSubscriptionID, testResourceGroupName)
 	cluster, err := crud.Get(ctx, testClusterName)
 	require.NoError(t, err)
-	cluster.ServiceProviderProperties.SystemAdminCredentialRevocationResourceID = nil
-	cluster.ServiceProviderProperties.RevokeCredentialsOperationID = ""
+	cluster.ServiceProviderProperties.SystemAdminCredentialRevocationResourceID = b.ResourceID
+	cluster.ServiceProviderProperties.RevokeCredentialsOperationID = b.Spec.OperationID
 	_, err = crud.Replace(ctx, cluster, nil)
 	require.NoError(t, err)
 	require.NoError(t, revs.Delete(ctx, a.ResourceID.Name))

@@ -1288,6 +1288,12 @@ func Register(registry map[string]controllerconfig.ControllerRegistration) {
 			return credentialrevocation.NewLegacyReferenceController(ctx.ResourcesDBClient, ctx.BackendInformers), nil
 		}, false),
 	}
+	registry[strings.ToLower(credentialrevocation.SystemAdminCredentialRevocationReservationCleanupControllerName)] = controllerconfig.ControllerRegistration{
+		Workers: 20,
+		Instantiate: controllerconfig.WithCacheSyncs(func(ctx controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+			return credentialrevocation.NewReservationCleanupController(ctx.ResourcesDBClient, ctx.BackendInformers, ctx.Clock), nil
+		}, false),
+	}
 	registry[strings.ToLower(credentialrevocationcreation.RevocationDesiresControllerName)] = registerSystemAdminCredentialRevocationDesiresController()
 	registry[strings.ToLower(credentialrevocationdeletion.SystemAdminCredentialRevocationCompletionControllerName)] = registerSystemAdminCredentialRevocationCompletionController()
 	registry[strings.ToLower(credentialrevocationdeletion.SystemAdminCredentialRevocationDeletionControllerName)] = registerSystemAdminCredentialRevocationDeletionController()
