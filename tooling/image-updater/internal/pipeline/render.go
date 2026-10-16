@@ -78,7 +78,15 @@ var materializeTarget = makeTarget{directory: "config", target: "materialize"}
 // or through the make targets it runs. Checking them up front turns a
 // mid-run failure deep inside a makefile into one clear message, which is
 // what the script's preflight loop was for.
-var RequiredTools = []string{"git", "make", "az", "bicep", "yq", "jq", "curl"}
+//
+// skopeo earns its place: `make -C acm helm-charts` copies the MCE and
+// policy operator bundles with it, and update-policy-chart.sh invokes it
+// with no guard of its own.
+//
+// git is deliberately absent. The repository root is discovered with it
+// before the pipeline is constructed, so a missing git binary has already
+// failed by the time any of this runs.
+var RequiredTools = []string{"make", "skopeo", "az", "bicep", "yq", "jq", "curl"}
 
 // render runs the post-update render sequence: regenerate the ACM helm
 // charts, commit them if they changed, then materialize the configuration.

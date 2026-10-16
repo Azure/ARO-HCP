@@ -54,7 +54,7 @@ cd %q || exit 1
 	// The render stage's preflight insists on the tools its make targets
 	// invoke. Stub the ones a developer machine may not have, so these
 	// tests exercise the stage rather than the preflight.
-	stubTools(t, binDir, "az", "bicep", "yq", "jq", "curl")
+	stubTools(t, binDir, "skopeo", "az", "bicep", "yq", "jq", "curl")
 
 	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 
@@ -255,7 +255,9 @@ func TestPreflightNamesMissingTools(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected an error when required tools are missing, got nil")
 	}
-	for _, want := range []string{"az", "bicep", "yq", "jq", "curl"} {
+	// skopeo included: `make -C acm helm-charts` copies operator bundles
+	// with it, and update-policy-chart.sh calls it unguarded.
+	for _, want := range []string{"skopeo", "az", "bicep", "yq", "jq", "curl"} {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("error does not name missing tool %q: %v", want, err)
 		}
@@ -292,7 +294,7 @@ func TestRenderRunsAtRepositoryRoot(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(binDir, "make"), []byte(shim), 0o755); err != nil {
 		t.Fatalf("failed to write make shim: %v", err)
 	}
-	stubTools(t, binDir, "az", "bicep", "yq", "jq", "curl")
+	stubTools(t, binDir, "skopeo", "az", "bicep", "yq", "jq", "curl")
 	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 
 	discovered, err := git.Discover(context.Background(), sub, nil)

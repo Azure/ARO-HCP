@@ -175,13 +175,10 @@ func (p *Pipeline) Run(ctx context.Context) (*Result, error) {
 //
 // It also refuses to commit into a working tree that was already dirty.
 func (p *Pipeline) preflight(ctx context.Context) error {
-	required := []string{"git"}
 	if p.opts.Materialize {
-		required = append(required, RequiredTools...)
-	}
-
-	if missing := command.MissingTools(required...); len(missing) > 0 {
-		return fmt.Errorf("required tools not found on PATH: %s", strings.Join(missing, ", "))
+		if missing := command.MissingTools(RequiredTools...); len(missing) > 0 {
+			return fmt.Errorf("required tools not found on PATH: %s", strings.Join(missing, ", "))
+		}
 	}
 
 	if p.opts.Commit {
