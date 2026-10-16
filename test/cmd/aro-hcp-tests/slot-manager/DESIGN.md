@@ -699,16 +699,15 @@ The optional pool-level `identity_container_provisioning_count` reserves a large
 physical inventory without increasing the runtime lease budget. It defaults to
 `resource_group_count` and cannot be smaller. Pool apply and inventory validation
 use the physical count; resolution, admission, and `LEASED_MSI_CONTAINERS` use
-`resource_group_count`. For INT West US 3 and both Stage regional pools, these
-counts are 100 physical groups and 75 leased groups per slot, with 25 physical
-groups held in reserve. Stage UK South uses `shard0` and its existing identity
-prefix/Boskos resource type; West US 3 uses `westus3-shard0` and its existing
-dedicated inventory. Both Stage pools use fixed region mode, so an explicit
-location override at acquisition selects the matching pool. Without location
-selectors both pools are eligible. Both inventories share Stage-00 and their jobs
-must not run concurrently; distinct leases do not isolate subscription-wide quotas.
-See [Stage regional capacity](../../../../docs/ci/identity-leasing.md#stage-regional-capacity-and-trial)
-for the regional trial constraints.
+`resource_group_count`. For INT and Stage West US 3, these counts are 100 physical
+groups and 75 leased groups per slot, with 25 physical groups held in reserve.
+The existing Stage UK South 25-container inventory and Boskos slot are retained
+separately, outside the active Stage catalog. Stage acquisition always leases
+the West US 3 inventory, even with a UK South runtime-region override. Both
+inventories share Stage-00 and their jobs must not run concurrently; distinct
+leases do not isolate subscription-wide quotas. See
+[Stage West US 3 capacity](../../../../docs/ci/identity-leasing.md#stage-west-us-3-capacity-and-trial)
+for the trial constraints.
 
 V2 catalog validation checks the generated names against Azure resource-group
 naming rules, including the 90-character limit with both numeric suffixes.
