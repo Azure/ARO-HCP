@@ -31,6 +31,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+const ManagementClusterLifecycleControllerName = "ManagementClusterLifecycleController"
+
 type lifecycleSyncer struct {
 	fleetDBClient fleetcosmosstorage.FleetDBClient
 }
@@ -45,7 +47,7 @@ func NewManagementClusterLifecycleController(
 	}
 
 	controller := fleetcontrollers.NewStampWatchingController(
-		"ManagementClusterLifecycleController",
+		ManagementClusterLifecycleControllerName,
 		syncer,
 		cfg,
 	)
