@@ -215,37 +215,20 @@ spec:
       expr: |
         sum by (cluster, namespace) (max without (prometheus_replica) (rate(workqueue_adds_total{namespace=~"ocm-.*", pod=~"control-plane-operator-.*"}[5m])))
     # One 0/1 series per signal ("> bool" keeps the 0s so avg_over_time
-    # downstream is a true fraction of minutes). Thresholds are proposed defaults:
-    # workqueue_depth > 100, CPU > 80% and memory > 85% of the container limit.
-    # A limit of 0 is excluded: x/0 = +Inf would read as saturated.
-    # Usage comes from the CPO's own process_* metrics, not cAdvisor: cAdvisor
-    # is collected by AMA into the services workspace (OSS Prometheus does not
-    # scrape the kubelet), while these rules run in the HCP workspace. The CPO
-    # scrape is unfiltered (HyperShift applies no metrics-set relabeling to it),
-    # so process_* lands here next to workqueue_depth and the KSM limits.
-    # process_resident_memory_bytes is RSS, which slightly under-reads the
-    # cgroup working set that the OOM killer uses.
+    # downstream is a true fraction of minutes); workqueue_depth > 100 is a
+    # proposed default.
+    # Workqueue depth is the only signal. CPU/memory are deliberately not
+    # signals: the pinned HyperShift CPO deployment asset sets requests only
+    # (10m CPU, 80Mi) and no limits, so a usage/limit ratio never has a
+    # denominator, and normal usage is far above the tiny requests, so a
+    # usage/request ratio would read as permanently saturated. CPU and memory
+    # stay on the dashboard. The signal label is kept so further signals can
+    # be added once a budget exists.
     - record: hypershift:cpo:saturation_signal
       expr: |
         label_replace(
           max by (cluster, namespace) (max without (prometheus_replica) (workqueue_depth{namespace=~"ocm-.*", pod=~"control-plane-operator-.*"})) > bool 100,
           "signal", "workqueue_depth", "", ""
-        )
-        or
-        label_replace(
-          sum by (cluster, namespace) (max without (prometheus_replica) (rate(process_cpu_seconds_total{namespace=~"ocm-.*", pod=~"control-plane-operator-.*"}[5m])))
-          /
-          (sum by (cluster, namespace) (max without (prometheus_replica) (kube_pod_container_resource_limits{namespace=~"ocm-.*", container="control-plane-operator", resource="cpu"})) > 0)
-          > bool 0.8,
-          "signal", "cpu", "", ""
-        )
-        or
-        label_replace(
-          sum by (cluster, namespace) (max without (prometheus_replica) (process_resident_memory_bytes{namespace=~"ocm-.*", pod=~"control-plane-operator-.*"}))
-          /
-          (sum by (cluster, namespace) (max without (prometheus_replica) (kube_pod_container_resource_limits{namespace=~"ocm-.*", container="control-plane-operator", resource="memory"})) > 0)
-          > bool 0.85,
-          "signal", "memory", "", ""
         )
     # 1 if ANY signal is saturated this minute. avg_over_time of this is the
     # "fraction of minutes saturated" SLI used by the Saturation burn alerts.

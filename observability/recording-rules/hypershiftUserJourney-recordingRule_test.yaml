@@ -198,3 +198,52 @@ tests:
     exp_samples:
     - labels: 'hypershift:hostedcluster_creation_over_30m:ratio_30d{cluster="mc5"}'
       value: 1
+- interval: 1m
+  name: "Operator saturation is workqueue depth only, with the deployed requests-only resources"
+  # Matches the pinned HyperShift install: requests 10m CPU / 150Mi, no
+  # limits. Usage is far above requests (0.3 cores, ~400Mi), which is normal
+  # and must not read as saturated. Depth crosses 100 only from 30m.
+  input_series:
+  - series: 'container_cpu_usage_seconds_total{namespace="hypershift", pod="operator-abc", container="operator", cluster="mc1"}'
+    values: "0+18x60"
+  - series: 'container_memory_working_set_bytes{namespace="hypershift", pod="operator-abc", container="operator", cluster="mc1"}'
+    values: "419430400+0x60"
+  - series: 'kube_pod_container_resource_requests{namespace="hypershift", pod="operator-abc", container="operator", resource="cpu", unit="core", cluster="mc1", region="westus3", prometheus_replica="r1"}'
+    values: "0.01+0x60"
+  - series: 'kube_pod_container_resource_requests{namespace="hypershift", pod="operator-abc", container="operator", resource="memory", unit="byte", cluster="mc1", region="westus3", prometheus_replica="r1"}'
+    values: "157286400+0x60"
+  - series: 'workqueue_depth{namespace="hypershift", pod="operator-abc", name="hc", cluster="mc1", region="westus3", prometheus_replica="r1"}'
+    values: "5+0x29 500+0x30"
+  promql_expr_test:
+  - expr: hypershift:operator:saturation_signal
+    eval_time: 20m
+    exp_samples:
+    - labels: 'hypershift:operator:saturation_signal{cluster="mc1", signal="workqueue_depth"}'
+      value: 0
+  - expr: hypershift:operator:saturated
+    eval_time: 20m
+    exp_samples:
+    - labels: 'hypershift:operator:saturated{cluster="mc1"}'
+      value: 0
+  - expr: hypershift:operator:saturated
+    eval_time: 40m
+    exp_samples:
+    - labels: 'hypershift:operator:saturated{cluster="mc1"}'
+      value: 1
+- interval: 1m
+  name: "Duplicate operator exporters are deduplicated, not summed"
+  # Two HO pods export MC-wide totals; mid-rollout operator-b has not yet
+  # emitted failure_conditions. Summing per pod would give 1/8 = 0.125.
+  input_series:
+  - series: 'hypershift_hostedclusters{platform="Azure", cluster="mc1", pod="operator-a", prometheus_replica="r1"}'
+    values: "4+0x20"
+  - series: 'hypershift_hostedclusters{platform="Azure", cluster="mc1", pod="operator-b", prometheus_replica="r1"}'
+    values: "4+0x20"
+  - series: 'hypershift_hostedclusters_failure_conditions{platform="Azure", condition="ValidReleaseInfo", cluster="mc1", pod="operator-a", prometheus_replica="r1"}'
+    values: "1+0x20"
+  promql_expr_test:
+  - expr: hypershift:hostedclusters_unhealthy:ratio
+    eval_time: 10m
+    exp_samples:
+    - labels: 'hypershift:hostedclusters_unhealthy:ratio{cluster="mc1"}'
+      value: 0.25

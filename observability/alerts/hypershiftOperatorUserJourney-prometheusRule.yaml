@@ -258,8 +258,8 @@ spec:
   #   ReconcileErrors  99.9% of reconciles succeed.
   #   ReconcileLatency 99% of reconciles finish within 10s (le="10" bucket);
   #                    10s is a proposed default, upstream has no published target.
-  #   Saturation       99% of minutes not saturated (workqueue_depth>100,
-  #                    CPU>80% or memory>85% of limit - see recording rules).
+  #   Saturation       99% of minutes not saturated (workqueue_depth>100; CPU
+  #                    and memory have no budget, see recording rules).
   # Multi-window multi-burn-rate (MWMBR), per the Google SRE workbook and the
   # existing frontend/KAS user-journey alerts. Budget = 30 days. Each tier needs
   # BOTH the long window (is the budget really being spent?) and the short window
@@ -633,7 +633,7 @@ spec:
         runbook_url: https://aka.ms/arohcp-runbook-hypershift
         correlationId: "userJourneySaturation/{{ $labels.cluster }}"
     # Non-SLO companion to the Saturation burn alerts: names WHICH signal
-    # (workqueue_depth/cpu/memory) is over its limit. Sev 4, for: 15m.
+    # (currently only workqueue_depth) is over its limit. Sev 4, for: 15m.
     - alert: userJourneySaturationSignal
       expr: |
         hypershift:operator:saturation_signal == 1
@@ -651,9 +651,13 @@ spec:
         correlationId: "userJourneySaturationSignal/{{ $labels.cluster }}/{{ $labels.signal }}"
     # Zero reconciles for 30m: a live operator always requeues, so a flat zero
     # means it is wedged. Not caught by the ratio tiers (gated on rate > 0).
+    # Gated on HostedClusters being present: an empty MC (last HostedCluster
+    # deleted) legitimately has nothing to reconcile.
     - alert: userJourneyIdle
       expr: |
         hypershift:operator:reconcile:rate5m == 0
+        and on (cluster)
+        sum by (cluster) (max by (cluster, platform) (hypershift_hostedclusters)) > 0
       for: 30m
       labels:
         severity: "4"

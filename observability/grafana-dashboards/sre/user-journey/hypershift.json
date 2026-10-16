@@ -179,7 +179,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "100 * (1 - avg_over_time(clamp_max(sum(max without(prometheus_replica) (hypershift_hostedclusters_failure_conditions)) / sum(max without(prometheus_replica) (hypershift_hostedclusters)), 1)[30d:1h]))",
+          "expr": "100 * (1 - avg_over_time(clamp_max(sum(max by (cluster, platform, condition) (hypershift_hostedclusters_failure_conditions)) / sum(max by (cluster, platform) (hypershift_hostedclusters)), 1)[30d:1h]))",
           "legendFormat": "Healthy",
           "refId": "A",
           "instant": true
@@ -249,7 +249,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "100 * (1 - (count(max without(prometheus_replica) (max_over_time(hypershift_cluster_waiting_initial_availability_duration_seconds[30d])) > 1800) or vector(0)) / count(max without(prometheus_replica) (max_over_time(hypershift_cluster_waiting_initial_availability_duration_seconds[30d]))))",
+          "expr": "100 * (1 - (count(max by (cluster, exported_namespace, name, _id) (max_over_time(hypershift_cluster_waiting_initial_availability_duration_seconds[30d])) > 1800) or vector(0)) / count(max by (cluster, exported_namespace, name, _id) (max_over_time(hypershift_cluster_waiting_initial_availability_duration_seconds[30d]))))",
           "legendFormat": "Within 30m",
           "refId": "A",
           "instant": true
@@ -311,7 +311,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "sum(max without(prometheus_replica) (hypershift_hostedclusters))",
+          "expr": "sum(max by (cluster, platform) (hypershift_hostedclusters))",
           "legendFormat": "HostedClusters",
           "refId": "A",
           "instant": true
@@ -322,7 +322,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "sum(max without(prometheus_replica) (hypershift_nodepools))",
+          "expr": "sum(max by (cluster, platform) (hypershift_nodepools))",
           "legendFormat": "NodePools",
           "refId": "B",
           "instant": true
@@ -439,7 +439,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "100 * (1 - clamp_max(sum(max without(prometheus_replica) (hypershift_hostedclusters_failure_conditions)) / sum(max without(prometheus_replica) (hypershift_hostedclusters)), 1))",
+          "expr": "100 * (1 - clamp_max(sum(max by (cluster, platform, condition) (hypershift_hostedclusters_failure_conditions)) / sum(max by (cluster, platform) (hypershift_hostedclusters)), 1))",
           "legendFormat": "Healthy",
           "refId": "A"
         }
@@ -553,7 +553,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "sum(max without(prometheus_replica) (hypershift_hostedclusters))",
+          "expr": "sum(max by (cluster, platform) (hypershift_hostedclusters))",
           "legendFormat": "HostedClusters",
           "refId": "A"
         },
@@ -563,7 +563,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "sum(max without(prometheus_replica) (hypershift_nodepools))",
+          "expr": "sum(max by (cluster, platform) (hypershift_nodepools))",
           "legendFormat": "NodePools",
           "refId": "B"
         },
@@ -759,7 +759,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "100 * count(max without(prometheus_replica) (hypershift_cluster_waiting_initial_availability_duration_seconds) > 1800) / count(max without(prometheus_replica) (hypershift_cluster_waiting_initial_availability_duration_seconds))",
+          "expr": "100 * (count(max without(prometheus_replica) (hypershift_cluster_waiting_initial_availability_duration_seconds) > 1800) or vector(0)) / count(max without(prometheus_replica) (hypershift_cluster_waiting_initial_availability_duration_seconds))",
           "legendFormat": "Over limit",
           "refId": "A"
         }

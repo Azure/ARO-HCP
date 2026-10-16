@@ -392,7 +392,7 @@ resource hypershiftJourneyRecordingRules 'Microsoft.AlertsManagement/prometheusR
     rules: [
       {
         record: 'hypershift:hostedclusters_unhealthy:ratio'
-        expression: 'clamp_max(sum by (cluster, region) (max without (prometheus_replica) (hypershift_hostedclusters_failure_conditions)) / (sum by (cluster, region) (max without (prometheus_replica) (hypershift_hostedclusters)) > 0), 1)'
+        expression: 'clamp_max(sum by (cluster, region) (max by (cluster, platform, condition, region) (hypershift_hostedclusters_failure_conditions)) / (sum by (cluster, region) (max by (cluster, platform, region) (hypershift_hostedclusters)) > 0), 1)'
       }
       {
         record: 'hypershift:hostedcluster_creations:count_30d'
@@ -490,7 +490,7 @@ resource hypershiftOperatorRecordingRules 'Microsoft.AlertsManagement/prometheus
       }
       {
         record: 'hypershift:operator:saturation_signal'
-        expression: 'label_replace(max by (cluster, region) (max without (prometheus_replica) (workqueue_depth{namespace="hypershift",pod=~"operator-.*"})) > bool 100, "signal", "workqueue_depth", "", "") or label_replace(sum by (cluster, region) (max without (prometheus_replica) (rate(container_cpu_usage_seconds_total{container="operator",namespace="hypershift"}[5m]))) / sum by (cluster, region) (max without (prometheus_replica) (kube_pod_container_resource_limits{container="operator",namespace="hypershift",resource="cpu"})) > bool 0.8, "signal", "cpu", "", "") or label_replace(sum by (cluster, region) (max without (prometheus_replica) (container_memory_working_set_bytes{container="operator",namespace="hypershift"})) / sum by (cluster, region) (max without (prometheus_replica) (kube_pod_container_resource_limits{container="operator",namespace="hypershift",resource="memory"})) > bool 0.85, "signal", "memory", "", "")'
+        expression: 'label_replace(max by (cluster, region) (max without (prometheus_replica) (workqueue_depth{namespace="hypershift",pod=~"operator-.*"})) > bool 100, "signal", "workqueue_depth", "", "")'
       }
       {
         record: 'hypershift:operator:saturated'

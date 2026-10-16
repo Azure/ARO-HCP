@@ -18,15 +18,17 @@ spec:
     # Share of HostedCluster failure-condition slots that are set on this MC.
     # clamp_max(...,1): a HostedCluster can carry several failure conditions, so
     # the raw ratio can exceed 1.
+    # max by (cluster, platform[, condition]) keeps one value per gauge series so
+    # multiple operator exporter pods (each reporting MC totals) are not summed.
     # "> 0" on the denominator: an empty MC reports 0/0 = NaN, which clamp_max
     # keeps and avg_over_time then spreads over every window it falls in,
     # silencing the HealthyClusters tiers for up to 3d after repopulation.
     - record: hypershift:hostedclusters_unhealthy:ratio
       expr: |
         clamp_max(
-          sum by (cluster) (max without (prometheus_replica) (hypershift_hostedclusters_failure_conditions))
+          sum by (cluster) (max by (cluster, platform, condition) (hypershift_hostedclusters_failure_conditions))
           /
-          (sum by (cluster) (max without (prometheus_replica) (hypershift_hostedclusters)) > 0),
+          (sum by (cluster) (max by (cluster, platform) (hypershift_hostedclusters)) > 0),
           1
         )
     # Fraction of creations observed in the last 30d whose wait exceeded 30m.
@@ -142,29 +144,20 @@ spec:
     - record: hypershift:operator:workqueue_adds:rate5m
       expr: |
         sum by (cluster) (max without (prometheus_replica) (rate(workqueue_adds_total{namespace="hypershift", pod=~"operator-.*"}[5m])))
-    # 0/1 per signal; thresholds are proposed defaults (depth>100, CPU>80%,
-    # memory>85% of limit).
+    # 0/1 per signal ("> bool" keeps the 0s so avg_over_time downstream is a
+    # true fraction of minutes); depth>100 is a proposed default.
+    # Workqueue depth is the only signal. CPU/memory are deliberately not
+    # signals: the pinned HyperShift install (cmd/install/assets/
+    # hypershift_operator.go) sets requests only (10m CPU, 150Mi) and no
+    # limits, so a usage/limit ratio never has a denominator, and normal usage
+    # is far above the tiny requests, so a usage/request ratio would read as
+    # permanently saturated. CPU and memory stay on the dashboard. The signal
+    # label is kept so further signals can be added once a budget exists.
     - record: hypershift:operator:saturation_signal
       expr: |
         label_replace(
           max by (cluster) (max without (prometheus_replica) (workqueue_depth{namespace="hypershift", pod=~"operator-.*"})) > bool 100,
           "signal", "workqueue_depth", "", ""
-        )
-        or
-        label_replace(
-          sum by (cluster) (max without (prometheus_replica) (rate(container_cpu_usage_seconds_total{namespace="hypershift", container="operator"}[5m])))
-          /
-          sum by (cluster) (max without (prometheus_replica) (kube_pod_container_resource_limits{namespace="hypershift", container="operator", resource="cpu"}))
-          > bool 0.8,
-          "signal", "cpu", "", ""
-        )
-        or
-        label_replace(
-          sum by (cluster) (max without (prometheus_replica) (container_memory_working_set_bytes{namespace="hypershift", container="operator"}))
-          /
-          sum by (cluster) (max without (prometheus_replica) (kube_pod_container_resource_limits{namespace="hypershift", container="operator", resource="memory"}))
-          > bool 0.85,
-          "signal", "memory", "", ""
         )
     # 1 if any signal is saturated; avg_over_time = fraction of minutes saturated.
     - record: hypershift:operator:saturated

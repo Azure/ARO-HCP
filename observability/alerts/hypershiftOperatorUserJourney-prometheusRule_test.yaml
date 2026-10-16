@@ -231,6 +231,8 @@ tests:
 - interval: 1m
   name: "HyperShift Operator idle and queue surge"
   input_series:
+  - series: 'hypershift_hostedclusters{platform="Azure", cluster="mc1"}'
+    values: "3+0x200"
   - series: 'controller_runtime_reconcile_total{namespace="hypershift", pod="operator-abc", result="success", cluster="mc1"}'
     values: "5+0x100"
   - series: 'workqueue_adds_total{namespace="hypershift", pod="operator-abc", name="hc", cluster="mc1"}'
@@ -885,3 +887,19 @@ tests:
           Management Cluster: mc1
         runbook_url: https://aka.ms/arohcp-runbook-hypershift
         correlationId: "userJourneyHealthyClusters/mc1"
+- interval: 1m
+  name: "Empty MC: idle operator with no HostedClusters does not fire userJourneyIdle"
+  # Same flat reconcile counter as the idle case, but the last HostedCluster
+  # was deleted at 10m, so there is nothing to reconcile.
+  input_series:
+  - series: 'controller_runtime_reconcile_total{namespace="hypershift", pod="operator-abc", result="success", cluster="mc1"}'
+    values: "5+0x100"
+  - series: 'hypershift_hostedclusters{platform="Azure", cluster="mc1"}'
+    values: "1+0x9 0+0x90"
+  alert_rule_test:
+  - eval_time: 60m
+    alertname: userJourneyIdle
+    exp_alerts: []
+  - eval_time: 100m
+    alertname: userJourneyIdle
+    exp_alerts: []

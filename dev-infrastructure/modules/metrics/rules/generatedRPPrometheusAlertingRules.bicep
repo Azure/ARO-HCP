@@ -2087,7 +2087,7 @@ Management Cluster: {{ $labels.cluster }}
           summary: '{{ $labels.cluster }}: hypershift-operator has not reconciled anything for 30 minutes'
           title: '{{ $labels.cluster }}: hypershift-operator has not reconciled anything for 30 minutes'
         }
-        expression: 'hypershift:operator:reconcile:rate5m == 0'
+        expression: 'hypershift:operator:reconcile:rate5m == 0 and on (cluster) sum by (cluster, region) (max by (cluster, platform, region) (hypershift_hostedclusters)) > 0'
         for: 'PT30M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }

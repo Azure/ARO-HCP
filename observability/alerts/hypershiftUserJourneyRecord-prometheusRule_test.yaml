@@ -35,7 +35,7 @@ tests:
       value: 0
 - interval: 1m
   name: "Zero denominators produce no sample, never NaN or +Inf"
-  # spec=0 (scaled down), idle CPO (no reconciles), and 0 resource limits.
+  # spec=0 (scaled down) and idle CPO (no reconciles).
   input_series:
   - series: 'kube_deployment_status_replicas_available{deployment="control-plane-operator", namespace="ocm-prefix-1", cluster="mc1", prometheus_replica="r1"}'
     values: "0+0x100"
@@ -47,14 +47,6 @@ tests:
     values: "5+0x100"
   - series: 'controller_runtime_reconcile_time_seconds_count{pod="control-plane-operator-abc", controller="x", namespace="ocm-prefix-1", cluster="mc1", prometheus_replica="r1"}'
     values: "5+0x100"
-  - series: 'process_cpu_seconds_total{pod="control-plane-operator-abc", namespace="ocm-prefix-1", cluster="mc1", prometheus_replica="r1"}'
-    values: "0+60x100"
-  - series: 'process_resident_memory_bytes{pod="control-plane-operator-abc", namespace="ocm-prefix-1", cluster="mc1", prometheus_replica="r1"}'
-    values: "1000+0x100"
-  - series: 'kube_pod_container_resource_limits{pod="control-plane-operator-abc", container="control-plane-operator", resource="cpu", namespace="ocm-prefix-1", cluster="mc1", prometheus_replica="r1"}'
-    values: "0+0x100"
-  - series: 'kube_pod_container_resource_limits{pod="control-plane-operator-abc", container="control-plane-operator", resource="memory", namespace="ocm-prefix-1", cluster="mc1", prometheus_replica="r1"}'
-    values: "0+0x100"
   promql_expr_test:
   - expr: hypershift:cpo:replica_availability:ratio
     eval_time: 30m
@@ -78,33 +70,34 @@ tests:
     eval_time: 30m
     exp_samples: []
 - interval: 1m
-  name: "CPU and memory saturation use the CPO process metrics against its KSM limits"
-  # 0.9 cores of a 1-core limit (> 0.8) and 900 of 1000 bytes RSS (> 0.85).
-  # The cAdvisor series are present but must be ignored: in production they
-  # are only in the services workspace, never next to these HCP rules.
+  name: "CPO saturation is workqueue depth only, with the deployed requests-only resources"
+  # Matches the pinned CPO deployment asset: requests 10m CPU / 80Mi, no
+  # limits. Usage is far above requests (0.2 cores, ~300Mi), which is normal
+  # and must not read as saturated. Depth crosses 100 only from 30m.
   input_series:
   - series: 'process_cpu_seconds_total{pod="control-plane-operator-abc", namespace="ocm-prefix-1", cluster="mc1", prometheus_replica="r1"}'
-    values: "0+54x60"
+    values: "0+12x60"
   - series: 'process_resident_memory_bytes{pod="control-plane-operator-abc", namespace="ocm-prefix-1", cluster="mc1", prometheus_replica="r1"}'
-    values: "900+0x60"
-  - series: 'container_cpu_usage_seconds_total{pod="control-plane-operator-abc", container="control-plane-operator", namespace="ocm-prefix-1", cluster="mc1", prometheus_replica="r1"}'
-    values: "0+0x60"
-  - series: 'container_memory_working_set_bytes{pod="control-plane-operator-abc", container="control-plane-operator", namespace="ocm-prefix-1", cluster="mc1", prometheus_replica="r1"}'
-    values: "0+0x60"
-  - series: 'kube_pod_container_resource_limits{pod="control-plane-operator-abc", resource="cpu", container="control-plane-operator", namespace="ocm-prefix-1", cluster="mc1", prometheus_replica="r1"}'
-    values: "1+0x60"
-  - series: 'kube_pod_container_resource_limits{pod="control-plane-operator-abc", resource="memory", container="control-plane-operator", namespace="ocm-prefix-1", cluster="mc1", prometheus_replica="r1"}'
-    values: "1000+0x60"
+    values: "314572800+0x60"
+  - series: 'kube_pod_container_resource_requests{resource="cpu", unit="core", pod="control-plane-operator-abc", container="control-plane-operator", namespace="ocm-prefix-1", cluster="mc1", prometheus_replica="r1"}'
+    values: "0.01+0x60"
+  - series: 'kube_pod_container_resource_requests{resource="memory", unit="byte", pod="control-plane-operator-abc", container="control-plane-operator", namespace="ocm-prefix-1", cluster="mc1", prometheus_replica="r1"}'
+    values: "83886080+0x60"
+  - series: 'workqueue_depth{name="hcp", pod="control-plane-operator-abc", namespace="ocm-prefix-1", cluster="mc1", prometheus_replica="r1"}'
+    values: "5+0x29 500+0x30"
   promql_expr_test:
   - expr: hypershift:cpo:saturation_signal
-    eval_time: 30m
+    eval_time: 20m
     exp_samples:
-    - labels: 'hypershift:cpo:saturation_signal{cluster="mc1", namespace="ocm-prefix-1", signal="cpu"}'
-      value: 1
-    - labels: 'hypershift:cpo:saturation_signal{cluster="mc1", namespace="ocm-prefix-1", signal="memory"}'
-      value: 1
+    - labels: 'hypershift:cpo:saturation_signal{cluster="mc1", namespace="ocm-prefix-1", signal="workqueue_depth"}'
+      value: 0
   - expr: hypershift:cpo:saturated
-    eval_time: 30m
+    eval_time: 20m
+    exp_samples:
+    - labels: 'hypershift:cpo:saturated{cluster="mc1", namespace="ocm-prefix-1"}'
+      value: 0
+  - expr: hypershift:cpo:saturated
+    eval_time: 40m
     exp_samples:
     - labels: 'hypershift:cpo:saturated{cluster="mc1", namespace="ocm-prefix-1"}'
       value: 1
