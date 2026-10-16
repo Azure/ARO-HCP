@@ -6,15 +6,12 @@ This document describes the high level cluster creation flow of an ARO HCP clust
 The individual components are described in the [service components overview](../service-components.md). The flowchart below shows the rough flow of the cluster creation process through the individual service components. Helpful debug commands are provided for each component in their respective sections.
 
 > [!IMPORTANT]
-> **Maestro → kube-applier migration in progress.**
-> The cross-cluster resource delivery mechanism is being migrated from Maestro to `kube-applier` as part of [ARO-27402 "Remove Maestro from the ARO HCP architecture"](https://issues.redhat.com/browse/ARO-27402). This document describes the **target** kube-applier flow, with the legacy Maestro path retained below for reference while the migration is in flight.
+> **Maestro → kube-applier migration complete.**
+> Cross-cluster resource delivery now uses `kube-applier`. The manifest-delivery migration ([ARO-27507](https://issues.redhat.com/browse/ARO-27507)) and rollout validation ([ARO-27509](https://issues.redhat.com/browse/ARO-27509)) are complete, and this document describes the **current** `kube-applier` flow.
 >
-> Current state (as of this revision):
-> - **Reads are live on kube-applier** — `ReadDesire` has replaced Maestro read-only bundles ([#5238](https://github.com/Azure/ARO-HCP/pull/5238)).
-> - **The write/apply path is still dual-run and flag-gated.** Clusters Service continues to deliver `ManifestWork` via Maestro until the manifest-delivery migration ([ARO-27507](https://issues.redhat.com/browse/ARO-27507)) and phased rollout ([ARO-27509](https://issues.redhat.com/browse/ARO-27509)) complete. During this window, both paths may be active depending on the region and per-operation feature flags.
-> - **Maestro decommissioning** (Maestro Server/Agent, EventGrid MQTT, Maestro PostgreSQL) is tracked by [ARO-27508](https://issues.redhat.com/browse/ARO-27508) and has not yet started.
+> The remaining work is cleanup only, tracked by [ARO-27508](https://issues.redhat.com/browse/ARO-27508): remove Maestro Server/Agent, EventGrid MQTT, Maestro PostgreSQL, and residual Maestro code/configuration (including [ARO-29337](https://issues.redhat.com/browse/ARO-29337)). The legacy Maestro and `ManifestWork` sections below are retained only for inspecting residual resources during that cleanup and should be removed when ARO-27508 lands.
 >
-> Maestro's responsibilities are being split across several components: `kube-applier` (cross-cluster apply/delete/read), the **fleet controller** (management cluster registration & lifecycle), and **mgmt-agent** (management-cluster-local operations). See the `kube-applier` design docs — [`kube-applier/docs/01-overview.md`](../../kube-applier/docs/01-overview.md) and [`kube-applier/docs/08-rollout.md`](../../kube-applier/docs/08-rollout.md) — for the authoritative design and the phased rollout plan.
+> Maestro's former responsibilities are split across `kube-applier` (cross-cluster apply/delete/read), the **fleet controller** (management cluster registration & lifecycle), and **mgmt-agent** (management-cluster-local operations). See the `kube-applier` design docs — [`kube-applier/docs/01-overview.md`](../../kube-applier/docs/01-overview.md) and [`kube-applier/docs/08-rollout.md`](../../kube-applier/docs/08-rollout.md) — for the design and completed rollout history.
 
 ## Cluster Creation Flow Happy Path in a Nutshell
 
@@ -37,14 +34,7 @@ The individual components are described in the [service components overview](../
 <!-- END GENERATED: happy-path -->
 
 > [!NOTE]
-> **Legacy Maestro path (dual-run).** Until [ARO-27507](https://issues.redhat.com/browse/ARO-27507)/[ARO-27509](https://issues.redhat.com/browse/ARO-27509) complete, the write path for steps 6–8 and 11–12 may still run through Maestro instead of `kube-applier`:
-> - (6) Clusters Service posts `ManifestWork` containing the Hypershift CRs and supporting resources to the Maestro Server.
-> - (7) The Maestro Server transfers the `ManifestWork` to the Maestro Agent via EventGrid Namespaces MQTT.
-> - (8) The Maestro Agent applies the `ManifestWork` on the management cluster.
-> - (11) The Maestro Agent transfers status updates back to the Maestro Server via EventGrid Namespaces MQTT.
-> - (12) CS notices the status updates and updates the cluster records.
->
-> See the [Maestro Server](#maestro-server-legacy), [Maestro Agent](#maestro-agent-legacy), and [ACM](#acm-legacy-manifestwork) sections below for debugging the legacy path.
+> **Maestro is no longer used for cluster creation.** The legacy Maestro and `ManifestWork` sections below are retained only for residual-resource cleanup under [ARO-27508](https://issues.redhat.com/browse/ARO-27508); they do not describe an active dual-run path.
 
 <!-- BEGIN GENERATED: flow-diagram (component/topology view of the cluster-creation write path; the step-numbered edges follow the same ARM->RP->CS->CosmosDB->kube-applier ordering narrated above, and complement — rather than reproduce — the controller-gating "Cluster Create Flow" digraph in ../cosmos-data-flow.md; regenerate via the "Generation Prompt" at the bottom of this file — do not hand-edit) -->
 ```mermaid
@@ -200,13 +190,13 @@ kubectl logs -n kube-applier deployment/kube-applier -c kube-applier
 ```
 
 > [!NOTE]
-> TODO: add commands for inspecting the CosmosDB desire documents (`ApplyDesire` with `Type=ServerSideApply` or `Type=Delete`, and `ReadDesire`) and their reported conditions once the write path is fully rolled out. Track under [ARO-27507](https://issues.redhat.com/browse/ARO-27507).
+> TODO: add commands for inspecting the CosmosDB desire documents (`ApplyDesire` with `Type=ServerSideApply` or `Type=Delete`, and `ReadDesire`) and their reported conditions.
 <!-- END GENERATED: kube-applier-debug -->
 
 ## Maestro Server (legacy)
 
 > [!WARNING]
-> The Maestro path is being decommissioned ([ARO-27508](https://issues.redhat.com/browse/ARO-27508)). These sections apply only while the legacy dual-run path is still active.
+> The Maestro path is no longer active. These commands are retained only for inspecting residual Maestro resources during [ARO-27508](https://issues.redhat.com/browse/ARO-27508) cleanup and will be removed when that cleanup lands.
 
 ### Port Forward to the Maestro Server
 
@@ -286,7 +276,7 @@ The `ocm-xxx-${CLUSTER_ID}-${CLUSTERNAME}` namespace contains the hosted control
 
 The regions of this document between `<!-- BEGIN GENERATED: ... -->` and
 `<!-- END GENERATED: ... -->` markers were generated by Claude Code from source.
-All other prose (the intro, the migration/legacy callouts, and the per-component
+All other prose (the intro, the cleanup/legacy callouts, and the per-component
 narrative and debug commentary) is hand-maintained and must be preserved.
 
 To regenerate, paste the prompt below into a conversation rooted in the ARO-HCP
@@ -307,10 +297,10 @@ Regenerate each region from source:
      management-cluster, status-aggregator controllers) for the async flow,
    - the kube-applier desire model and Clusters Service management-cluster content
      endpoints.
-   Keep the existing numbered narrative style (1..N). While Maestro and kube-applier
-   dual-run, keep the write-path steps describing kube-applier and leave the legacy
-   Maestro description in the [!NOTE] callout (which is hand-maintained, outside the
-   markers). Remove the legacy note only after ARO-27508 lands.
+   Keep the existing numbered narrative style (1..N). The active flow is
+   kube-applier-only; do not reintroduce Maestro into the generated write path.
+   The hand-maintained cleanup note and legacy debug sections cover residual
+   Maestro resources only.
 
 2. flow-diagram — Regenerate the mermaid graph as a component/topology view of the
    cluster-creation write path, with step-numbered edges tracing the ARM -> RP -> CS
