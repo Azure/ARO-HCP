@@ -118,11 +118,11 @@ resourceGroups:
     parameters: configurations/swift-vnet-permissions.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     variables:
-    - name: deploymentMsiId
+    - name: swiftVnetIdentityResourceId
       input:
         resourceGroup: global
         step: output
-        name: globalMSIId
+        name: swiftVnetMSIId
     dependsOn:
     - resourceGroup: management
       step: subscription-output

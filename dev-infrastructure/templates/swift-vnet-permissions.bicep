@@ -1,16 +1,12 @@
-@description('The global deployment identity resource ID, used when no Swift identity override is configured')
-param deploymentMsiId string
 
-@description('Optional Swift-registered managed identity resource ID; empty uses the global deployment identity')
-param swiftVnetIdentityResourceId string = ''
-
-var vnetIdentityResourceId = empty(swiftVnetIdentityResourceId) ? deploymentMsiId : swiftVnetIdentityResourceId
+@description('The Swift VNet identity resource ID resolved by the global output step')
+param swiftVnetIdentityResourceId string
 
 module swiftVnetRbac '../modules/network/vnet-rbac.bicep' = {
   name: 'swift-vnet-rbac'
   params: {
-    deploymentMsiId: vnetIdentityResourceId
+    deploymentMsiId: swiftVnetIdentityResourceId
   }
 }
 
-output swiftVnetMSIId string = vnetIdentityResourceId
+output swiftVnetMSIId string = swiftVnetIdentityResourceId

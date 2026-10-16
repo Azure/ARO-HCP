@@ -18,6 +18,8 @@ param azureFrontDoorProfileName string
 
 @description('The global MSI name')
 param globalMSIName string
+@description('Optional Swift VNet identity resource ID; empty selects the global deployment identity')
+param swiftVnetIdentityResourceId string = ''
 
 @description('The name of the global KV')
 param globalKVName string
@@ -88,6 +90,12 @@ resource globalMSI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31'
 
 output globalMSIId string = globalMSI.id
 
+resource swiftVnetIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = if (!empty(swiftVnetIdentityResourceId)) {
+  scope: resourceGroup(split(swiftVnetIdentityResourceId, '/')[2], split(swiftVnetIdentityResourceId, '/')[4])
+  name: split(swiftVnetIdentityResourceId, '/')[8]
+}
+
+output swiftVnetMSIId string = empty(swiftVnetIdentityResourceId) ? globalMSI.id : swiftVnetIdentity.id
 //
 //   G L O B A L   KV
 //
