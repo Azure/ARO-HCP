@@ -31,7 +31,7 @@ resource rpUserjourneyKasAvailabilityMonitorRules 'Microsoft.AlertsManagement/pr
         labels: {
           component: 'slo'
           long_window: '1h'
-          severity: '3'
+          severity: '2'
           short_window: '5m'
           slo: 'kas-availability'
         }
@@ -51,7 +51,7 @@ Namespace: {{ $labels.namespace }}
         }
         expression: '(1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_5m / hostedClusterAPI_kubeapiserver_available:sli_count_5m) > (14.4 * (1 - 0.9995)) and on (name, namespace, _id, resource_id, cluster) hostedClusterAPI_kubeapiserver_available:sli_count_5m > 3) and on (name, namespace, _id, resource_id, cluster) (1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_1h / hostedClusterAPI_kubeapiserver_available:sli_count_1h) > (14.4 * (1 - 0.9995)) and on (name, namespace, _id, resource_id, cluster) hostedClusterAPI_kubeapiserver_available:sli_count_1h > 54)'
         for: 'PT10M'
-        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+        severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }
       {
         actions: [
@@ -68,7 +68,7 @@ Namespace: {{ $labels.namespace }}
         labels: {
           component: 'slo'
           long_window: '6h'
-          severity: '3'
+          severity: '2'
           short_window: '30m'
           slo: 'kas-availability'
         }
@@ -88,7 +88,7 @@ Namespace: {{ $labels.namespace }}
         }
         expression: '(1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_30m / hostedClusterAPI_kubeapiserver_available:sli_count_30m) > (6 * (1 - 0.9995)) and on (name, namespace, _id, resource_id, cluster) hostedClusterAPI_kubeapiserver_available:sli_count_30m > 27) and on (name, namespace, _id, resource_id, cluster) (1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_6h / hostedClusterAPI_kubeapiserver_available:sli_count_6h) > (6 * (1 - 0.9995)) and on (name, namespace, _id, resource_id, cluster) hostedClusterAPI_kubeapiserver_available:sli_count_6h > 64)'
         for: 'PT30M'
-        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+        severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }
       {
         actions: [
