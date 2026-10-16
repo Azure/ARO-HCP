@@ -345,3 +345,67 @@ func TestClassifyAlerts(t *testing.T) {
 		})
 	}
 }
+
+// TestEmbeddedKnownIssuesClassification exercises the shipped knownIssues.yaml
+// rather than inline rules, because these entries decide which alerts are allowed
+// to fail CI. Each suppressing entry is asserted alongside the neighbouring pods it
+// must NOT suppress, so narrowing or widening a pattern cannot silently start
+// hiding actionable alerts. Pod names are real values observed in
+// gather-observability run artifacts.
+//
+// The kube-system cases are deliberately negative. AKS installs those pods, but
+// this repository enables and configures the add-ons that own them
+// (azureKeyvaultSecretsProvider, azureMonitorProfile.metrics and
+// securityProfile.imageCleaner in dev-infrastructure/modules/aks-cluster-base.bicep),
+// so a change here can genuinely make them unready and must keep failing CI.
+func TestEmbeddedKnownIssuesClassification(t *testing.T) {
+	t.Parallel()
+	issues, err := parseKnownIssues(defaultKnownIssuesData)
+	if err != nil {
+		t.Fatalf("embedded known issues must parse: %v", err)
+	}
+
+	for _, tt := range []struct {
+		name      string
+		alertName string
+		namespace string
+		pod       string
+		wantKnown bool
+	}{
+		// ACM addon agent, suppressed only in the addon namespace and only for workmgr.
+		{name: "addon workmgr is known", alertName: "KubePodNotReady", namespace: "open-cluster-management-agent-addon", pod: "klusterlet-addon-workmgr-54f7d49479-4gspp", wantKnown: true},
+		{name: "addon workmgr other replicaset is known", alertName: "KubePodNotReady", namespace: "open-cluster-management-agent-addon", pod: "klusterlet-addon-workmgr-749558849-6dgkt", wantKnown: true},
+
+		// Add-ons this repository enables and configures must keep failing CI.
+		{name: "aks secrets store csi driver still alerts", alertName: "KubePodNotReady", namespace: "kube-system", pod: "aks-secrets-store-csi-driver-nffxs", wantKnown: false},
+		{name: "ama metrics node still alerts", alertName: "KubePodNotReady", namespace: "kube-system", pod: "ama-metrics-node-2szd2", wantKnown: false},
+		{name: "eraser aks system still alerts", alertName: "KubePodNotReady", namespace: "kube-system", pod: "eraser-aks-system-40199610-vmss000000-j9kbh", wantKnown: false},
+
+		// Our own workloads also run in kube-system and must keep failing CI.
+		{name: "our kube-state-metrics in kube-system still alerts", alertName: "KubePodNotReady", namespace: "kube-system", pod: "arohcp-monitor-kube-state-metrics-7988dc648c-789nk", wantKnown: false},
+		{name: "cloud-node-manager in kube-system still alerts", alertName: "KubePodNotReady", namespace: "kube-system", pod: "cloud-node-manager-abcde", wantKnown: false},
+
+		// A different ACM agent in the same namespace is not covered.
+		{name: "registration agent in addon namespace still alerts", alertName: "KubePodNotReady", namespace: "open-cluster-management-agent-addon", pod: "klusterlet-registration-agent-6f7c9c9c9c-abcde", wantKnown: false},
+
+		// The entry is scoped to KubePodNotReady and must not suppress other alerts.
+		{name: "different alert for addon workmgr still alerts", alertName: "KubePodCrashLooping", namespace: "open-cluster-management-agent-addon", pod: "klusterlet-addon-workmgr-54f7d49479-4gspp", wantKnown: false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := classifyAlerts([]alert{{Alert: alertData{
+				Name:   tt.alertName,
+				Labels: map[string]string{"namespace": tt.namespace, "pod": tt.pod},
+			}}}, issues)
+			if got[0].Metadata.KnownIssue != tt.wantKnown {
+				t.Errorf("alert %s in %s/%s: known=%v, want %v", tt.alertName, tt.namespace, tt.pod, got[0].Metadata.KnownIssue, tt.wantKnown)
+			}
+			if tt.wantKnown && got[0].Metadata.KnownIssueReason == "" {
+				t.Errorf("alert %s in %s/%s was suppressed without a reason", tt.alertName, tt.namespace, tt.pod)
+			}
+			if !tt.wantKnown && got[0].Metadata.KnownIssueReason != "" {
+				t.Errorf("alert %s in %s/%s is not known but carries reason %q", tt.alertName, tt.namespace, tt.pod, got[0].Metadata.KnownIssueReason)
+			}
+		})
+	}
+}
