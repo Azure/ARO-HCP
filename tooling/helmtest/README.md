@@ -7,6 +7,22 @@ Generate/use golden test files to ensure helm charts are valid.
 
 Use `UPDATE=true go test -count=1 ./...` to update the golden test files. Note, `-count=1` is usually required.
 
+## Fluent Bit routing integration tests
+
+Set `FLUENT_BIT_IMAGE` to the pinned Arobit Fluent Bit image and
+`CONTAINER_RUNTIME` to `docker` or `podman`, then run:
+
+```bash
+go test -count=1 ./testrunner -run 'Test(ArobitTenantRouting|SwiftRecorderFluentBit)$' -v
+```
+
+The tests render the current chart and run its post-enrichment filters, Lua
+scripts, and output selectors against synthetic records. Network outputs are
+replaced with local files or stdout. Tenant-routing coverage includes a burst
+larger than the removed 20 MB namespace emitter limit, missing metadata,
+service-specific routing, snapshots, resource-ID enrichment, and Shoebox copies.
+They do not test Kubernetes metadata lookup or delivery to Kusto/MDSD.
+
 ## Default tests
 
 The test code picks up all Helm steps configured in this repo by iterating over the `../../topology.yaml` file. It then generates fixtures using the default configuration referenced in the `settings.yaml`.
