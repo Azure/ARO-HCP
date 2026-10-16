@@ -683,6 +683,31 @@ func instantiateControlPlaneIdentitiesPermissionsValidationController(controller
 	), nil
 }
 
+func registerServiceManagedIdentityPermissionsValidationController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{
+		Workers:     20,
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateServiceManagedIdentityPermissionsValidationController, false),
+	}
+}
+
+func instantiateServiceManagedIdentityPermissionsValidationController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	_, serviceProviderClusterLister := controllerContext.BackendInformers.ServiceProviderClusters()
+	return clustervalidation.NewNamedClusterValidationController(
+		clustervalidation.ClusterValidationServiceManagedIdentityPermissionsClusterValidationControllerName,
+		validationutils.NewServiceManagedIdentityPermissionsClusterValidation(
+			controllerContext.SMIClientBuilder,
+			controllerContext.ClusterScopedIdentitiesConfig,
+			controllerContext.BackendIdentityAzureCachedReaders,
+			controllerContext.CheckAccessV2ClientBuilder,
+			controllerContext.MIDataplaneBasedIdentityAccessTokenRetrieverBuilder,
+			controllerContext.CloudEnvironment.CheckAccessV2Scope(),
+		),
+		controllerContext.ResourcesDBClient,
+		serviceProviderClusterLister,
+		controllerContext.BackendInformers,
+	), nil
+}
+
 func registerDataPlaneIdentitiesPermissionsValidationController() controllerconfig.ControllerRegistration {
 	return controllerconfig.ControllerRegistration{
 		Workers:     20,
@@ -1268,6 +1293,7 @@ func Register(registry map[string]controllerconfig.ControllerRegistration) {
 	registry[strings.ToLower(clustervalidation.ClusterValidationAzureClusterResourceGroupExistenceValidationControllerName)] = registerAzureClusterResourceGroupExistenceValidationController()
 	registry[strings.ToLower(clustervalidation.ClusterValidationAzureClusterManagedIdentitiesExistenceValidationControllerName)] = registerAzureClusterManagedIdentitiesExistenceValidationController()
 	registry[strings.ToLower(clustervalidation.ClusterValidationControlPlaneIdentitiesPermissionsClusterValidationControllerName)] = registerControlPlaneIdentitiesPermissionsValidationController()
+	registry[strings.ToLower(clustervalidation.ClusterValidationServiceManagedIdentityPermissionsClusterValidationControllerName)] = registerServiceManagedIdentityPermissionsValidationController()
 	registry[strings.ToLower(clustervalidation.ClusterValidationDataPlaneIdentitiesPermissionsValidationControllerName)] = registerDataPlaneIdentitiesPermissionsValidationController()
 	registry[strings.ToLower(clustervalidation.ClusterValidationContainerRegistryPullCredentialsPermissionValidationControllerName)] = registerContainerRegistryPullCredentialsValidationController()
 	registry[strings.ToLower(clustervalidation.ClusterValidationAzureClusterVnetIntegrationSubnetSizeValidationControllerName)] = registerAzureClusterVnetIntegrationSubnetSizeValidationController()
