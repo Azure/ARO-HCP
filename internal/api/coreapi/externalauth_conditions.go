@@ -40,36 +40,69 @@ const (
 // Reasons used with the OIDCClientsDegraded condition on
 // ServiceProviderExternalAuth.
 const (
-	ExternalAuthAvailableCondition = "Available"
+	// ExternalAuthOIDCClientsDegradedReasonDegradation indicates at least
+	// one OIDC client has an issue.
+	ExternalAuthOIDCClientsDegradedReasonDegradation = "OIDCClientDegradation"
+
+	// ExternalAuthOIDCClientsDegradedReasonAsExpected indicates all OIDC
+	// clients are operational.
+	ExternalAuthOIDCClientsDegradedReasonAsExpected = "AsExpected"
+
+	// ExternalAuthOIDCClientsDegradedReasonUnsupported indicates the cluster
+	// version does not support External Auth OIDC observability.
+	ExternalAuthOIDCClientsDegradedReasonUnsupported = "ExternalAuthObservabilityUnsupported"
 )
 
-// ExternalAuth availability condition Reason values used with the
-// Available condition.
+// Reasons used with the user-facing Degraded condition on
+// ExternalAuth.Status.UserFacingConditions.
 const (
-	// ExternalAuthReasonOIDCConfigAvailable indicates the OIDC client
-	// configuration is fully operational.
-	ExternalAuthReasonOIDCConfigAvailable = "OIDCConfigAvailable"
+	// ExternalAuthUserFacingDegradedReason is the reason when the
+	// user-facing Degraded condition is True.
+	ExternalAuthUserFacingDegradedReason = "ExternalAuthDegraded"
 
-	// ExternalAuthReasonAwaitingSecret indicates the hosted cluster is
-	// waiting for the user to create the client secret in the
-	// openshift-config namespace. Applies when any confidential client
-	// is waiting for its secret.
-	ExternalAuthReasonAwaitingSecret = "AwaitingSecret"
+	// ExternalAuthUserFacingDegradedReasonAsExpected is the reason when the
+	// user-facing Degraded condition is False (all is well).
+	ExternalAuthUserFacingDegradedReasonAsExpected = "AsExpected"
 
-	// ExternalAuthReasonHostedClusterNotReady indicates the hosted cluster
-	// status has not yet been observed or does not report authentication
-	// configuration status.
-	ExternalAuthReasonHostedClusterNotReady = "HostedClusterNotReady"
+	// ExternalAuthUserFacingDegradedReasonEvaluationIncomplete is the reason
+	// when the user-facing Degraded condition is Unknown because no
+	// allowlisted internal conditions have been reported  (i.e. the
+	// internal controllers have not run or populated their conditions).
+	ExternalAuthUserFacingDegradedReasonEvaluationIncomplete = "EvaluationIncomplete"
+
+	// ExternalAuthUserFacingDegradedReasonDegradedStateUnknown is the reason
+	// when the user-facing Degraded condition is Unknown because
+	// reported internal conditions are Unknown
+	// so the degradation status cannot be determined.
+	ExternalAuthUserFacingDegradedReasonDegradedStateUnknown = "ExternalAuthDegradedStateUnknown"
 )
 
-// HostedCluster OIDCClientStatus condition reasons set by the Hypershift
-// operator at runtime. These are matched against when reading the
-// HostedCluster ReadDesire cache.
+// User-facing message constants for OIDC client degradation messages.
+// These are the messages surfaced to users in the OIDCClientsDegraded
+// condition per component, mapped from Hypershift-reported reasons.
+//
+// IMPORTANT: These messages are returned to end users through the ARM API.
+// Keep them free of internal implementation details.
 const (
-	HostedClusterOIDCConfigAvailable = "OIDCConfigAvailable"
+	// ExternalAuthMessageAwaitingSecret is the user-facing message when a
+	// confidential client's secret has not yet been created.
+	ExternalAuthMessageAwaitingSecret = "Waiting for the client secret to be created in the openshift-config namespace by user."
 
-	// HostedClusterOIDCClientSecretGet is the Hypershift Degraded condition
-	// reason when the operator cannot find/read the client secret the user
-	// must create in the openshift-config namespace.
-	HostedClusterOIDCClientSecretGet = "OIDCClientSecretGet"
+	// ExternalAuthMessageIssuerURLInvalid is the user-facing message when
+	// the issuer URL is invalid.
+	ExternalAuthMessageIssuerURLInvalid = "Invalid issuer URL provided by user."
+
+	// ExternalAuthMessageGenericNotWorking is the catch-all user-facing
+	// message for any other degradation reason. Internal details are not
+	// exposed.
+	ExternalAuthMessageGenericNotWorking = "External authentication provider is not working."
+
+	// ExternalAuthMessageAllOperational is the message when all OIDC
+	// clients are operational.
+	ExternalAuthMessageAllOperational = "All OIDC clients are operational"
+
+	// ExternalAuthMessageObservabilityUnsupported is the user-facing message
+	// when the cluster version does not support External Auth OIDC
+	// observability. The supported OCP version are release-5.0, 4.23, 4.22, 4.21, 4.20.41+
+	ExternalAuthMessageObservabilityUnsupported = "External Auth observability is not supported on this cluster version. The minimum supported OCP version is 4.20.41."
 )
