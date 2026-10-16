@@ -200,7 +200,11 @@ func (tc *perItOrDescribeTestContext) CreateBicepTemplateAndWait(
 	}()
 	tc.RecordKnownDeployment(cfg.resourceGroup, cfg.deploymentName)
 
-	deploymentsClient := tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient()
+	resourceFactory, err := tc.GetARMResourcesClientFactory(ctx)
+	if err != nil {
+		return nil, err
+	}
+	deploymentsClient := resourceFactory.NewDeploymentsClient()
 
 	bicepParameters := map[string]interface{}{}
 	for k, v := range cfg.parameters {
