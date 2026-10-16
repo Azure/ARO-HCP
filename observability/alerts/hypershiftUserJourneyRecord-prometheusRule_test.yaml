@@ -47,9 +47,9 @@ tests:
     values: "5+0x100"
   - series: 'controller_runtime_reconcile_time_seconds_count{pod="control-plane-operator-abc", controller="x", namespace="ocm-prefix-1", cluster="mc1", prometheus_replica="r1"}'
     values: "5+0x100"
-  - series: 'container_cpu_usage_seconds_total{pod="control-plane-operator-abc", container="control-plane-operator", namespace="ocm-prefix-1", cluster="mc1", prometheus_replica="r1"}'
+  - series: 'process_cpu_seconds_total{pod="control-plane-operator-abc", namespace="ocm-prefix-1", cluster="mc1", prometheus_replica="r1"}'
     values: "0+60x100"
-  - series: 'container_memory_working_set_bytes{pod="control-plane-operator-abc", container="control-plane-operator", namespace="ocm-prefix-1", cluster="mc1", prometheus_replica="r1"}'
+  - series: 'process_resident_memory_bytes{pod="control-plane-operator-abc", namespace="ocm-prefix-1", cluster="mc1", prometheus_replica="r1"}'
     values: "1000+0x100"
   - series: 'kube_pod_container_resource_limits{pod="control-plane-operator-abc", container="control-plane-operator", resource="cpu", namespace="ocm-prefix-1", cluster="mc1", prometheus_replica="r1"}'
     values: "0+0x100"
@@ -77,3 +77,34 @@ tests:
   - expr: hypershift:cpo:saturated
     eval_time: 30m
     exp_samples: []
+- interval: 1m
+  name: "CPU and memory saturation use the CPO process metrics against its KSM limits"
+  # 0.9 cores of a 1-core limit (> 0.8) and 900 of 1000 bytes RSS (> 0.85).
+  # The cAdvisor series are present but must be ignored: in production they
+  # are only in the services workspace, never next to these HCP rules.
+  input_series:
+  - series: 'process_cpu_seconds_total{pod="control-plane-operator-abc", namespace="ocm-prefix-1", cluster="mc1", prometheus_replica="r1"}'
+    values: "0+54x60"
+  - series: 'process_resident_memory_bytes{pod="control-plane-operator-abc", namespace="ocm-prefix-1", cluster="mc1", prometheus_replica="r1"}'
+    values: "900+0x60"
+  - series: 'container_cpu_usage_seconds_total{pod="control-plane-operator-abc", container="control-plane-operator", namespace="ocm-prefix-1", cluster="mc1", prometheus_replica="r1"}'
+    values: "0+0x60"
+  - series: 'container_memory_working_set_bytes{pod="control-plane-operator-abc", container="control-plane-operator", namespace="ocm-prefix-1", cluster="mc1", prometheus_replica="r1"}'
+    values: "0+0x60"
+  - series: 'kube_pod_container_resource_limits{pod="control-plane-operator-abc", resource="cpu", container="control-plane-operator", namespace="ocm-prefix-1", cluster="mc1", prometheus_replica="r1"}'
+    values: "1+0x60"
+  - series: 'kube_pod_container_resource_limits{pod="control-plane-operator-abc", resource="memory", container="control-plane-operator", namespace="ocm-prefix-1", cluster="mc1", prometheus_replica="r1"}'
+    values: "1000+0x60"
+  promql_expr_test:
+  - expr: hypershift:cpo:saturation_signal
+    eval_time: 30m
+    exp_samples:
+    - labels: 'hypershift:cpo:saturation_signal{cluster="mc1", namespace="ocm-prefix-1", signal="cpu"}'
+      value: 1
+    - labels: 'hypershift:cpo:saturation_signal{cluster="mc1", namespace="ocm-prefix-1", signal="memory"}'
+      value: 1
+  - expr: hypershift:cpo:saturated
+    eval_time: 30m
+    exp_samples:
+    - labels: 'hypershift:cpo:saturated{cluster="mc1", namespace="ocm-prefix-1"}'
+      value: 1

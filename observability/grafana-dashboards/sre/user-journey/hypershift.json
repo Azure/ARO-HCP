@@ -249,7 +249,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "100 * (1 - (count(max_over_time(max without(prometheus_replica) (hypershift_cluster_waiting_initial_availability_duration_seconds)[30d:5m]) > 1800) or vector(0)) / count(max_over_time(max without(prometheus_replica) (hypershift_cluster_waiting_initial_availability_duration_seconds)[30d:5m])))",
+          "expr": "100 * (1 - (count(max without(prometheus_replica) (max_over_time(hypershift_cluster_waiting_initial_availability_duration_seconds[30d])) > 1800) or vector(0)) / count(max without(prometheus_replica) (max_over_time(hypershift_cluster_waiting_initial_availability_duration_seconds[30d]))))",
           "legendFormat": "Within 30m",
           "refId": "A",
           "instant": true
@@ -1458,7 +1458,7 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "Component saturation: container CPU in cores.",
+      "description": "Component saturation: CPU in cores. HyperShift Operator from cAdvisor (services workspace); Control Plane Operator from its own process_cpu_seconds_total, because cAdvisor is not collected into the HCP workspace.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1512,7 +1512,7 @@
             "uid": "$hcp_datasource"
           },
           "editorMode": "code",
-          "expr": "max(max without(prometheus_replica) (rate(container_cpu_usage_seconds_total{namespace=~\"ocm-.*\", container=\"control-plane-operator\"}[5m])))",
+          "expr": "max(max without(prometheus_replica) (rate(process_cpu_seconds_total{namespace=~\"ocm-.*\", pod=~\"control-plane-operator-.*\"}[5m])))",
           "legendFormat": "Control Plane Operator (worst HCP)",
           "refId": "B"
         }
@@ -1525,7 +1525,7 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "Component saturation: container memory working set.",
+      "description": "Component saturation: memory. HyperShift Operator is the cAdvisor working set (services workspace); Control Plane Operator is its own process_resident_memory_bytes (RSS), because cAdvisor is not collected into the HCP workspace.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1579,7 +1579,7 @@
             "uid": "$hcp_datasource"
           },
           "editorMode": "code",
-          "expr": "max(max without(prometheus_replica) (container_memory_working_set_bytes{namespace=~\"ocm-.*\", container=\"control-plane-operator\"}))",
+          "expr": "max(max without(prometheus_replica) (process_resident_memory_bytes{namespace=~\"ocm-.*\", pod=~\"control-plane-operator-.*\"}))",
           "legendFormat": "Control Plane Operator (worst HCP)",
           "refId": "B"
         }

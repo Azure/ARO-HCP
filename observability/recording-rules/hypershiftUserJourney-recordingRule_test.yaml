@@ -157,3 +157,44 @@ tests:
     exp_samples:
     - labels: 'hypershift:operator:workqueue_adds:rate5m{cluster="mc1"}'
       value: 0.1
+- interval: 1m
+  name: "Empty MC: unhealthy ratio is absent (not NaN) until HostedClusters exist"
+  input_series:
+  - series: 'hypershift_hostedclusters{platform="Azure", cluster="mc1", prometheus_replica="r1"}'
+    values: "0x299 4x500"
+  - series: 'hypershift_hostedclusters_failure_conditions{platform="Azure", condition="ValidReleaseInfo", cluster="mc1", prometheus_replica="r1"}'
+    values: "0x299 1x500"
+  promql_expr_test:
+  - expr: hypershift:hostedclusters_unhealthy:ratio
+    eval_time: 100m
+    exp_samples: []
+  - expr: hypershift:hostedclusters_unhealthy:ratio
+    eval_time: 310m
+    exp_samples:
+    - labels: 'hypershift:hostedclusters_unhealthy:ratio{cluster="mc1"}'
+      value: 0.25
+- interval: 1m
+  name: "Creation going stale between 5m steps still counts as over 30m"
+  # Waits 0..1920s at 1m scrapes, completing (stale) at minute 33. The only
+  # 5m step that sees the gauge above 1800s would be minute 35, after it went
+  # stale, so a [30d:5m] subquery peaks at 1800s and counts it as fast. The raw
+  # max_over_time keeps the 1860s and 1920s scrapes.
+  input_series:
+  - series: 'hypershift_cluster_waiting_initial_availability_duration_seconds{name="slow", namespace="hypershift", exported_namespace="clusters", _id="d", cluster="mc5"}'
+    values: "0+60x32 stale"
+  promql_expr_test:
+  - expr: hypershift:hostedcluster_creations:count_30d
+    eval_time: 60m
+    exp_samples:
+    - labels: 'hypershift:hostedcluster_creations:count_30d{cluster="mc5"}'
+      value: 1
+  - expr: hypershift:hostedcluster_creations_over_30m:count_30d
+    eval_time: 60m
+    exp_samples:
+    - labels: 'hypershift:hostedcluster_creations_over_30m:count_30d{cluster="mc5"}'
+      value: 1
+  - expr: hypershift:hostedcluster_creation_over_30m:ratio_30d
+    eval_time: 60m
+    exp_samples:
+    - labels: 'hypershift:hostedcluster_creation_over_30m:ratio_30d{cluster="mc5"}'
+      value: 1

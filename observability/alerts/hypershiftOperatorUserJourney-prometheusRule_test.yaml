@@ -833,3 +833,55 @@ tests:
   - eval_time: 445m
     alertname: userJourneyClusterWaitingOver30m
     exp_alerts: []
+- interval: 1m
+  name: "Empty MC then populated: HealthyClusters tiers are not silenced by 0/0"
+  # 0 HostedClusters for 300m (0/0), then 4 with 1 failure condition (0.25).
+  # Unguarded, the empty period records NaN and avg_over_time stays NaN until
+  # those samples leave the long window (1h tier ~370m, 6h tier ~690m).
+  # Guarded, the empty period records nothing and each tier fires as soon as
+  # its sample-count guard and for: allow.
+  input_series:
+  - series: 'hypershift_hostedclusters{platform="Azure", cluster="mc1", prometheus_replica="r1"}'
+    values: "0x299 4x500"
+  - series: 'hypershift_hostedclusters_failure_conditions{platform="Azure", condition="ValidReleaseInfo", cluster="mc1", prometheus_replica="r1"}'
+    values: "0x299 1x500"
+  alert_rule_test:
+  - eval_time: 290m
+    alertname: userJourneyHealthyClusters1h5m
+    exp_alerts: []
+  - eval_time: 366m
+    alertname: userJourneyHealthyClusters1h5m
+    exp_alerts:
+    - exp_labels:
+        component: slo
+        long_window: 1h
+        short_window: 5m
+        severity: "3"
+        slo: hypershift-journey-errors
+        service: hypershift-journey
+        cluster: mc1
+      exp_annotations:
+        summary: "mc1: HostedCluster failure-condition share is burning error budget at 14.4x over 1h/5m"
+        description: |
+          HostedCluster failure-condition share is burning error budget at 14.4x over 1h/5m.
+          Management Cluster: mc1
+        runbook_url: https://aka.ms/arohcp-runbook-hypershift
+        correlationId: "userJourneyHealthyClusters/mc1"
+  - eval_time: 685m
+    alertname: userJourneyHealthyClusters6h30m
+    exp_alerts:
+    - exp_labels:
+        component: slo
+        long_window: 6h
+        short_window: 30m
+        severity: "3"
+        slo: hypershift-journey-errors
+        service: hypershift-journey
+        cluster: mc1
+      exp_annotations:
+        summary: "mc1: HostedCluster failure-condition share is burning error budget at 6x over 6h/30m"
+        description: |
+          HostedCluster failure-condition share is burning error budget at 6x over 6h/30m.
+          Management Cluster: mc1
+        runbook_url: https://aka.ms/arohcp-runbook-hypershift
+        correlationId: "userJourneyHealthyClusters/mc1"

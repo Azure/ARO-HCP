@@ -18,29 +18,34 @@ spec:
     # Share of HostedCluster failure-condition slots that are set on this MC.
     # clamp_max(...,1): a HostedCluster can carry several failure conditions, so
     # the raw ratio can exceed 1.
+    # "> 0" on the denominator: an empty MC reports 0/0 = NaN, which clamp_max
+    # keeps and avg_over_time then spreads over every window it falls in,
+    # silencing the HealthyClusters tiers for up to 3d after repopulation.
     - record: hypershift:hostedclusters_unhealthy:ratio
       expr: |
         clamp_max(
           sum by (cluster) (max without (prometheus_replica) (hypershift_hostedclusters_failure_conditions))
           /
-          sum by (cluster) (max without (prometheus_replica) (hypershift_hostedclusters)),
+          (sum by (cluster) (max without (prometheus_replica) (hypershift_hostedclusters)) > 0),
           1
         )
-    # Fraction of creations in the last 30d that took >30m to become available.
-    # max_over_time over [30d:5m] takes each creation's peak waiting time. Grouping
-    # keeps _id so a namespace/name reused within 30d stays a separate creation
-    # (regression-tested). 5m resolution keeps the 30d query cheap; a creation
-    # that completes in <5m may be missed from the denominator, which only makes
-    # the SLI slightly pessimistic.
+    # Fraction of creations observed in the last 30d whose wait exceeded 30m.
+    # max_over_time runs over raw samples before deduplicating by creation
+    # identity, so a peak scraped between subquery steps is never lost (a
+    # [30d:5m] subquery could see 1800s at minute 30, miss the >1800s scrapes
+    # before the gauge went stale at minute 32, and count the creation as fast).
+    # Both counts use the same raw [30d] observation window.
+    # Keep _id so a reused namespace/name remains a separate creation
+    # (regression-tested); max by also dedupes the HA replicas.
     - record: hypershift:hostedcluster_creations:count_30d
       expr: |
         count by (cluster) (
-          max_over_time(max by (cluster, exported_namespace, name, _id) (hypershift_cluster_waiting_initial_availability_duration_seconds)[30d:5m])
+          max by (cluster, exported_namespace, name, _id) (max_over_time(hypershift_cluster_waiting_initial_availability_duration_seconds[30d]))
         )
     - record: hypershift:hostedcluster_creations_over_30m:count_30d
       expr: |
         count by (cluster) (
-          max_over_time(max by (cluster, exported_namespace, name, _id) (hypershift_cluster_waiting_initial_availability_duration_seconds)[30d:5m]) > 1800
+          max by (cluster, exported_namespace, name, _id) (max_over_time(hypershift_cluster_waiting_initial_availability_duration_seconds[30d])) > 1800
         )
         or on (cluster)
         hypershift:hostedcluster_creations:count_30d * 0

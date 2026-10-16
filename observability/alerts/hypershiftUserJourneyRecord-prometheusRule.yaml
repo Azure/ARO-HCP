@@ -218,6 +218,13 @@ spec:
     # downstream is a true fraction of minutes). Thresholds are proposed defaults:
     # workqueue_depth > 100, CPU > 80% and memory > 85% of the container limit.
     # A limit of 0 is excluded: x/0 = +Inf would read as saturated.
+    # Usage comes from the CPO's own process_* metrics, not cAdvisor: cAdvisor
+    # is collected by AMA into the services workspace (OSS Prometheus does not
+    # scrape the kubelet), while these rules run in the HCP workspace. The CPO
+    # scrape is unfiltered (HyperShift applies no metrics-set relabeling to it),
+    # so process_* lands here next to workqueue_depth and the KSM limits.
+    # process_resident_memory_bytes is RSS, which slightly under-reads the
+    # cgroup working set that the OOM killer uses.
     - record: hypershift:cpo:saturation_signal
       expr: |
         label_replace(
@@ -226,7 +233,7 @@ spec:
         )
         or
         label_replace(
-          sum by (cluster, namespace) (max without (prometheus_replica) (rate(container_cpu_usage_seconds_total{namespace=~"ocm-.*", container="control-plane-operator"}[5m])))
+          sum by (cluster, namespace) (max without (prometheus_replica) (rate(process_cpu_seconds_total{namespace=~"ocm-.*", pod=~"control-plane-operator-.*"}[5m])))
           /
           (sum by (cluster, namespace) (max without (prometheus_replica) (kube_pod_container_resource_limits{namespace=~"ocm-.*", container="control-plane-operator", resource="cpu"})) > 0)
           > bool 0.8,
@@ -234,7 +241,7 @@ spec:
         )
         or
         label_replace(
-          sum by (cluster, namespace) (max without (prometheus_replica) (container_memory_working_set_bytes{namespace=~"ocm-.*", container="control-plane-operator"}))
+          sum by (cluster, namespace) (max without (prometheus_replica) (process_resident_memory_bytes{namespace=~"ocm-.*", pod=~"control-plane-operator-.*"}))
           /
           (sum by (cluster, namespace) (max without (prometheus_replica) (kube_pod_container_resource_limits{namespace=~"ocm-.*", container="control-plane-operator", resource="memory"})) > 0)
           > bool 0.85,

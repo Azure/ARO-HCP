@@ -17,13 +17,15 @@ resource rpUserjourneyKasAvailabilityMonitorRules 'Microsoft.AlertsManagement/pr
     interval: 'PT1M'
     rules: [
       {
-        actions: [for g in actionGroups: {
-          actionGroupId: g
-          actionProperties: {
-            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-            'IcM.CorrelationId': '#$.annotations.correlationId#'
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
           }
-        }]
+        ]
         alert: 'userJourneyKubeApiserverAvailability1h5m'
         enabled: true
         labels: {
@@ -52,13 +54,15 @@ Namespace: {{ $labels.namespace }}
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
-        actions: [for g in actionGroups: {
-          actionGroupId: g
-          actionProperties: {
-            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-            'IcM.CorrelationId': '#$.annotations.correlationId#'
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
           }
-        }]
+        ]
         alert: 'userJourneyKubeApiserverAvailability6h30m'
         enabled: true
         labels: {
@@ -87,13 +91,15 @@ Namespace: {{ $labels.namespace }}
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
-        actions: [for g in actionGroups: {
-          actionGroupId: g
-          actionProperties: {
-            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-            'IcM.CorrelationId': '#$.annotations.correlationId#'
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
           }
-        }]
+        ]
         alert: 'userJourneyKubeApiserverAvailability3d6h'
         enabled: true
         labels: {
@@ -135,13 +141,15 @@ resource hypershiftJourneyAvailabilityMonitorRules 'Microsoft.AlertsManagement/p
     interval: 'PT1M'
     rules: [
       {
-        actions: [for g in actionGroups: {
-          actionGroupId: g
-          actionProperties: {
-            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-            'IcM.CorrelationId': '#$.annotations.correlationId#'
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
           }
-        }]
+        ]
         alert: 'userJourneyAvailability1h5m'
         enabled: true
         labels: {
@@ -171,13 +179,15 @@ Control Plane Namespace: {{ $labels.namespace }}
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
-        actions: [for g in actionGroups: {
-          actionGroupId: g
-          actionProperties: {
-            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-            'IcM.CorrelationId': '#$.annotations.correlationId#'
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
           }
-        }]
+        ]
         alert: 'userJourneyAvailability6h30m'
         enabled: true
         labels: {
@@ -207,13 +217,15 @@ Control Plane Namespace: {{ $labels.namespace }}
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
-        actions: [for g in actionGroups: {
-          actionGroupId: g
-          actionProperties: {
-            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-            'IcM.CorrelationId': '#$.annotations.correlationId#'
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
           }
-        }]
+        ]
         alert: 'userJourneyAvailability3d6h'
         enabled: true
         labels: {
@@ -256,13 +268,15 @@ resource hypershiftCpoMonitorRules 'Microsoft.AlertsManagement/prometheusRuleGro
     interval: 'PT1M'
     rules: [
       {
-        actions: [for g in actionGroups: {
-          actionGroupId: g
-          actionProperties: {
-            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-            'IcM.CorrelationId': '#$.annotations.correlationId#'
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
           }
-        }]
+        ]
         alert: 'hypershiftCPOAvailability1h5m'
         enabled: true
         labels: {
@@ -292,13 +306,15 @@ Namespace: {{ $labels.namespace }}
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
-        actions: [for g in actionGroups: {
-          actionGroupId: g
-          actionProperties: {
-            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-            'IcM.CorrelationId': '#$.annotations.correlationId#'
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
           }
-        }]
+        ]
         alert: 'hypershiftCPOAvailability6h30m'
         enabled: true
         labels: {
@@ -328,13 +344,15 @@ Namespace: {{ $labels.namespace }}
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
-        actions: [for g in actionGroups: {
-          actionGroupId: g
-          actionProperties: {
-            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-            'IcM.CorrelationId': '#$.annotations.correlationId#'
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
           }
-        }]
+        ]
         alert: 'hypershiftCPOAvailability3d6h'
         enabled: true
         labels: {
@@ -364,13 +382,15 @@ Namespace: {{ $labels.namespace }}
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
-        actions: [for g in actionGroups: {
-          actionGroupId: g
-          actionProperties: {
-            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-            'IcM.CorrelationId': '#$.annotations.correlationId#'
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
           }
-        }]
+        ]
         alert: 'hypershiftCPOReconcileErrors1h5m'
         enabled: true
         labels: {
@@ -400,13 +420,15 @@ Namespace: {{ $labels.namespace }}
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
-        actions: [for g in actionGroups: {
-          actionGroupId: g
-          actionProperties: {
-            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-            'IcM.CorrelationId': '#$.annotations.correlationId#'
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
           }
-        }]
+        ]
         alert: 'hypershiftCPOReconcileErrors6h30m'
         enabled: true
         labels: {
@@ -436,13 +458,15 @@ Namespace: {{ $labels.namespace }}
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
-        actions: [for g in actionGroups: {
-          actionGroupId: g
-          actionProperties: {
-            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-            'IcM.CorrelationId': '#$.annotations.correlationId#'
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
           }
-        }]
+        ]
         alert: 'hypershiftCPOReconcileErrors3d6h'
         enabled: true
         labels: {
@@ -472,13 +496,15 @@ Namespace: {{ $labels.namespace }}
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
-        actions: [for g in actionGroups: {
-          actionGroupId: g
-          actionProperties: {
-            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-            'IcM.CorrelationId': '#$.annotations.correlationId#'
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
           }
-        }]
+        ]
         alert: 'hypershiftCPOReconcileLatency1h5m'
         enabled: true
         labels: {
@@ -508,13 +534,15 @@ Namespace: {{ $labels.namespace }}
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
-        actions: [for g in actionGroups: {
-          actionGroupId: g
-          actionProperties: {
-            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-            'IcM.CorrelationId': '#$.annotations.correlationId#'
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
           }
-        }]
+        ]
         alert: 'hypershiftCPOReconcileLatency6h30m'
         enabled: true
         labels: {
@@ -544,13 +572,15 @@ Namespace: {{ $labels.namespace }}
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
-        actions: [for g in actionGroups: {
-          actionGroupId: g
-          actionProperties: {
-            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-            'IcM.CorrelationId': '#$.annotations.correlationId#'
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
           }
-        }]
+        ]
         alert: 'hypershiftCPOReconcileLatency3d6h'
         enabled: true
         labels: {
@@ -580,13 +610,15 @@ Namespace: {{ $labels.namespace }}
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
-        actions: [for g in actionGroups: {
-          actionGroupId: g
-          actionProperties: {
-            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-            'IcM.CorrelationId': '#$.annotations.correlationId#'
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
           }
-        }]
+        ]
         alert: 'hypershiftCPOSaturation1h5m'
         enabled: true
         labels: {
@@ -616,13 +648,15 @@ Namespace: {{ $labels.namespace }}
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
-        actions: [for g in actionGroups: {
-          actionGroupId: g
-          actionProperties: {
-            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-            'IcM.CorrelationId': '#$.annotations.correlationId#'
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
           }
-        }]
+        ]
         alert: 'hypershiftCPOSaturation6h30m'
         enabled: true
         labels: {
@@ -652,13 +686,15 @@ Namespace: {{ $labels.namespace }}
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
-        actions: [for g in actionGroups: {
-          actionGroupId: g
-          actionProperties: {
-            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-            'IcM.CorrelationId': '#$.annotations.correlationId#'
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
           }
-        }]
+        ]
         alert: 'hypershiftCPOSaturation3d6h'
         enabled: true
         labels: {
@@ -688,13 +724,15 @@ Namespace: {{ $labels.namespace }}
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
-        actions: [for g in actionGroups: {
-          actionGroupId: g
-          actionProperties: {
-            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-            'IcM.CorrelationId': '#$.annotations.correlationId#'
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
           }
-        }]
+        ]
         alert: 'hypershiftCPOSaturationSignal'
         enabled: true
         labels: {
@@ -722,13 +760,15 @@ Namespace: {{ $labels.namespace }}
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
       {
-        actions: [for g in actionGroups: {
-          actionGroupId: g
-          actionProperties: {
-            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-            'IcM.CorrelationId': '#$.annotations.correlationId#'
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
           }
-        }]
+        ]
         alert: 'hypershiftCPOIdle'
         enabled: true
         labels: {
@@ -756,13 +796,15 @@ Namespace: {{ $labels.namespace }}
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
       {
-        actions: [for g in actionGroups: {
-          actionGroupId: g
-          actionProperties: {
-            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-            'IcM.CorrelationId': '#$.annotations.correlationId#'
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
           }
-        }]
+        ]
         alert: 'hypershiftCPOQueueSurge'
         enabled: true
         labels: {

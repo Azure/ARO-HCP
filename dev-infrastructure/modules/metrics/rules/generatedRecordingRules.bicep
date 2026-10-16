@@ -392,15 +392,15 @@ resource hypershiftJourneyRecordingRules 'Microsoft.AlertsManagement/prometheusR
     rules: [
       {
         record: 'hypershift:hostedclusters_unhealthy:ratio'
-        expression: 'clamp_max(sum by (cluster, region) (max without (prometheus_replica) (hypershift_hostedclusters_failure_conditions)) / sum by (cluster, region) (max without (prometheus_replica) (hypershift_hostedclusters)), 1)'
+        expression: 'clamp_max(sum by (cluster, region) (max without (prometheus_replica) (hypershift_hostedclusters_failure_conditions)) / (sum by (cluster, region) (max without (prometheus_replica) (hypershift_hostedclusters)) > 0), 1)'
       }
       {
         record: 'hypershift:hostedcluster_creations:count_30d'
-        expression: 'count by (cluster, region) (max_over_time(max by (cluster, exported_namespace, name, _id, region) (hypershift_cluster_waiting_initial_availability_duration_seconds)[30d:5m]))'
+        expression: 'count by (cluster, region) (max by (cluster, exported_namespace, name, _id, region) (max_over_time(hypershift_cluster_waiting_initial_availability_duration_seconds[30d])))'
       }
       {
         record: 'hypershift:hostedcluster_creations_over_30m:count_30d'
-        expression: 'count by (cluster, region) (max_over_time(max by (cluster, exported_namespace, name, _id, region) (hypershift_cluster_waiting_initial_availability_duration_seconds)[30d:5m]) > 1800) or on (cluster) hypershift:hostedcluster_creations:count_30d * 0'
+        expression: 'count by (cluster, region) (max by (cluster, exported_namespace, name, _id, region) (max_over_time(hypershift_cluster_waiting_initial_availability_duration_seconds[30d])) > 1800) or on (cluster) hypershift:hostedcluster_creations:count_30d * 0'
       }
       {
         record: 'hypershift:hostedcluster_creation_over_30m:ratio_30d'
