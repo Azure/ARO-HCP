@@ -277,6 +277,22 @@ ClusterServiceID *InternalID `json:"clusterServiceID,omitempty"`
 ```
 When adding or modifying a field, update this comment. When adding or modifying a controller or frontend endpoint that writes a field, update the comment on the field it writes.
 
+## HCP Cluster Creation Flow Documentation
+
+`docs/ops/hcp-cluster-creation-flow.md` documents the high-level cluster creation flow through the service components. Only the regions between `<!-- BEGIN GENERATED: ... -->` / `<!-- END GENERATED: ... -->` markers are generated from source (the happy-path steps, the mermaid flow diagram, and the kube-applier debug commands); the surrounding narrative and callouts are hand-maintained.
+
+### When to regenerate
+Regenerate the marked regions of `docs/ops/hcp-cluster-creation-flow.md` (using the generation prompt at the bottom of that file) whenever a change touches:
+- `frontend/pkg/frontend/` — the cluster creation request path
+- `backend/pkg/controllers/` — any controller in the creation/apply-desire/read-desire/management-cluster flow
+- `kube-applier/` — the cross-cluster apply/delete/read behavior
+- `internal/api/kubeapplierapi/` — desire document types, specs, or status fields used by debug commands
+- `tooling/hcpctl/` — must-gather flags, Cosmos snapshot output paths, or document serialization
+- deployment manifests / topology config (`config/`) — namespace or deployment names referenced in the debug commands
+- `docs/cosmos-data-flow.md` — changes to the [Cluster create](docs/cosmos-data-flow.md#cluster-create) or [Cluster create: convergence and completion](docs/cosmos-data-flow.md#cluster-create-convergence-and-completion) controller digraphs
+
+Keep the flow diagram consistent with those cluster-create and convergence controller digraphs.
+
 ## Subdirectory Guidance
 
 Several subdirectories have their own AI guidance files with domain-specific detail:
