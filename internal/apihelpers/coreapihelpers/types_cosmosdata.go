@@ -118,6 +118,15 @@ func ToSystemAdminCredentialRevocationResourceID(subscriptionName, resourceGroup
 	return azcorearm.ParseResourceID(ToSystemAdminCredentialRevocationResourceIDString(subscriptionName, resourceGroupName, clusterName, revocationName))
 }
 
+// SystemAdminCredentialRevocationID preserves the legacy deterministic UUID suffix.
+func SystemAdminCredentialRevocationID(clusterID *azcorearm.ResourceID, operationName string) (*azcorearm.ResourceID, error) {
+	suffix := strings.ReplaceAll(operationName, "-", "")
+	if len(suffix) > 16 {
+		suffix = suffix[:16]
+	}
+	return ToSystemAdminCredentialRevocationResourceID(clusterID.SubscriptionID, clusterID.ResourceGroupName, clusterID.Name, suffix)
+}
+
 func ToDenyAssignmentResourceID(subscriptionID, resourceGroupName, denyAssignmentName string) (*azcorearm.ResourceID, error) {
 	return azcorearm.ParseResourceID(ToDenyAssignmentResourceIDString(subscriptionID, resourceGroupName, denyAssignmentName))
 }

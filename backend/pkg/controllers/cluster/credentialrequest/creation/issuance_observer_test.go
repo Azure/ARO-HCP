@@ -38,6 +38,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/kubeapplierlistertesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -212,5 +213,39 @@ func makeReadDesireListerWithCSR(t *testing.T, credName string, csr *certificate
 				},
 			},
 		},
+	}
+}
+
+func TestIssuanceContinuesAfterTerminalOperation(t *testing.T) {
+	for _, status := range []coreapi.ProvisioningState{coreapi.ProvisioningStateFailed, coreapi.ProvisioningStateCanceled, coreapi.ProvisioningStateSucceeded} {
+		t.Run(string(status), func(t *testing.T) {
+			ctx := t.Context()
+			db := corecosmosstoragetesting.NewMockResourcesDBClient()
+			cred := createTestCredentialRequest(t, db, testCredentialName)
+			op := cosmosstorageutils.NewOperation(coreapi.OperationRequestSystemAdminCredentialRequest, cred.ResourceID.Parent, metadataapi.InternalID{}, "eastus", "", "", "", nil)
+			op.Status = status
+			op, err := db.Operations(testSubscriptionID).Create(ctx, op, nil)
+			require.NoError(t, err)
+			credCRUD := db.HCPClusters(testSubscriptionID, testResourceGroupName).SystemAdminCredentialRequests(testClusterName)
+			cred, err = credCRUD.Get(ctx, testCredentialName)
+			require.NoError(t, err)
+			cred.Spec.OperationID = op.OperationID.Name
+			_, err = credCRUD.Replace(ctx, cred, nil)
+			require.NoError(t, err)
+			c := &issuanceObserver{
+				resourcesDBClient: db,
+				readDesireLister: makeReadDesireListerWithCSR(t, testCredentialName, &certificatesv1.CertificateSigningRequest{
+					Status: certificatesv1.CertificateSigningRequestStatus{Certificate: []byte("signed-cert")},
+				}),
+			}
+			require.NoError(t, c.SyncOnce(ctx, controllerutils.SystemAdminCredentialRequestKey{SubscriptionID: testSubscriptionID, ResourceGroupName: testResourceGroupName, HCPClusterName: testClusterName, CredentialName: testCredentialName}))
+			cred, err = credCRUD.Get(ctx, testCredentialName)
+			require.NoError(t, err)
+			require.True(t, meta.IsStatusConditionTrue(cred.Status.Conditions, coreapi.SystemAdminCredentialRequestConditionIssued))
+			live, err := db.Operations(testSubscriptionID).Get(ctx, op.OperationID.Name)
+			require.NoError(t, err)
+			require.Equal(t, status, live.Status)
+			require.Nil(t, live.SystemAdminCredentialRequest, "internal reconciliation must not write operation payload or reverse links")
+		})
 	}
 }

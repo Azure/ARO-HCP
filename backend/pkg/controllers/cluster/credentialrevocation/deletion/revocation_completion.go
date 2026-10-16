@@ -23,6 +23,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilsclock "k8s.io/utils/clock"
 
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/credentialrevocation"
 	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
@@ -93,6 +94,9 @@ func (c *revocationCompletion) SyncOnce(ctx context.Context, key controllerutils
 	if revocation.Status.DeletionTimestamp != nil {
 		return nil
 	}
+	if owned, err := credentialrevocation.Owns(ctx, c.resourcesDBClient, revocation); err != nil || !owned {
+		return err
+	}
 
 	// Observe the mirrored CRR to confirm the certificates have been revoked.
 	if !meta.IsStatusConditionTrue(revocation.Status.Conditions, coreapi.SystemAdminCredentialRevocationConditionCertificatesRevoked) {
@@ -138,6 +142,18 @@ func (c *revocationCompletion) SyncOnce(ctx context.Context, key controllerutils
 	// so the deletion controller can tear the desires down and remove the doc.
 	if meta.IsStatusConditionTrue(revocation.Status.Conditions, coreapi.SystemAdminCredentialRevocationConditionCertificatesRevoked) &&
 		meta.IsStatusConditionTrue(revocation.Status.Conditions, coreapi.SystemAdminCredentialRevocationConditionCredentialsMarkedForDeletion) {
+		// Do not release exclusion while credential issuance desires are still
+		// being removed. Repeated marking handles requests arriving after a sweep.
+		iter, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).SystemAdminCredentialRequests(key.HCPClusterName).List(ctx, nil)
+		if err != nil {
+			return err
+		}
+		for range iter.Items(ctx) {
+			return nil
+		}
+		if err := iter.GetError(); err != nil {
+			return err
+		}
 		replacement := revocation.DeepCopy()
 		meta.SetStatusCondition(&replacement.Status.Conditions, metav1.Condition{
 			Type:    coreapi.SystemAdminCredentialRevocationConditionComplete,

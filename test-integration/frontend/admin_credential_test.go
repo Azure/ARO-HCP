@@ -23,6 +23,7 @@ import (
 	"encoding/pem"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -31,6 +32,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
 	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
@@ -141,4 +143,26 @@ func testRequestAdminCredentialStoresCSR(t *testing.T, withMock bool) {
 	require.NotNil(t, found, "expected a requestCredential operation in cosmos")
 	require.NotNil(t, found.SystemAdminCredentialRequest, "SystemAdminCredentialRequest should be set on the operation")
 	require.Equal(t, string(csrPEM), found.SystemAdminCredentialRequest.CertificateSigningRequest, "CertificateSigningRequest should be stored in the operation")
+	require.NotNil(t, found.CompletionDeadline, "new issuance operations have a monitoring deadline")
+	require.WithinDuration(t, found.StartTime.Add(20*time.Minute), *found.CompletionDeadline, time.Second)
+
+	// Revocation acceptance atomically reserves the same identity and time on
+	// operation and cluster, and cancels the outstanding issuance operation.
+	_, err = clustersClient.BeginRevokeCredentials(ctx, resourceGroupName, clusterName, nil)
+	require.NoError(t, err)
+	cluster, err = testInfo.ResourcesDBClient().HCPClusters(subscriptionID, resourceGroupName).Get(ctx, clusterName)
+	require.NoError(t, err)
+	require.NotEmpty(t, cluster.ServiceProviderProperties.RevokeCredentialsOperationID)
+	revoke, err := testInfo.ResourcesDBClient().Operations(subscriptionID).Get(ctx, cluster.ServiceProviderProperties.RevokeCredentialsOperationID)
+	require.NoError(t, err)
+	rid := metadataapi.Must(coreapihelpers.SystemAdminCredentialRevocationID(clusterResourceID, revoke.OperationID.Name))
+	require.Equal(t, rid.String(), revoke.SystemAdminCredentialRevocation.SystemAdminCredentialRevocationResourceID.String())
+	require.Equal(t, rid.String(), cluster.ServiceProviderProperties.SystemAdminCredentialRevocationResourceID.String())
+	require.True(t, revoke.StartTime.Equal(cluster.ServiceProviderProperties.SystemAdminCredentialRevocationRequestedAt.Time))
+	require.Equal(t, revoke.StartTime.Add(coreapi.SystemAdminCredentialRevocationTimeout), *revoke.CompletionDeadline)
+	found, err = testInfo.ResourcesDBClient().Operations(subscriptionID).Get(ctx, found.OperationID.Name)
+	require.NoError(t, err)
+	require.Equal(t, coreapi.ProvisioningStateCanceled, found.Status)
+	_, err = clustersClient.BeginRevokeCredentials(ctx, resourceGroupName, clusterName, nil)
+	require.Error(t, err, "a second accept must not replace the reservation")
 }

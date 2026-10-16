@@ -26,6 +26,10 @@ import (
 
 type OperationRequest string
 
+// SystemAdminCredentialRevocationTimeout bounds new ARM monitoring and the window
+// in which a reserved revocation may be dispatched. Existing internal work is not bounded.
+const SystemAdminCredentialRevocationTimeout = 30 * time.Minute
+
 const (
 	OperationRequestCreate OperationRequest = "Create"
 	OperationRequestUpdate OperationRequest = "Update"
@@ -64,6 +68,10 @@ type Operation struct {
 
 	// StartTime marks the start of the operation
 	StartTime time.Time `json:"startTime,omitempty"`
+	// CompletionDeadline bounds ARM monitoring, not internal credential reconciliation.
+	// Nil preserves the behavior of operations accepted before deadlines were enabled.
+	// Written by: Frontend POST requestAdminCredential, Frontend POST revokeCredentials
+	CompletionDeadline *time.Time `json:"completionDeadline,omitempty"`
 	// LastTransitionTime marks the most recent state change
 	LastTransitionTime time.Time `json:"lastTransitionTime,omitempty"`
 	// Status is the current operation status, using the same set of values
@@ -81,22 +89,27 @@ type Operation struct {
 	// TODO do NOT reference this field in any new code. It is in the process of being removed
 	UsesNewClusterDeletionApproach bool `json:"usesNewClusterDeletionApproach"`
 
-	// Written by: Frontend POST requestAdminCredential, backend systemadmincredentialcontrollers
+	// Written by: Frontend POST requestAdminCredential, SystemAdminCredentialDispatchRequestCredential
 	SystemAdminCredentialRequest *OperationSystemAdminCredentialRequest `json:"systemAdminCredentialRequest,omitempty"`
-	// Written by: Frontend POST revokeCredentials, backend systemadmincredentialcontrollers
+	// Written by: Frontend POST RevokeCredentials, SystemAdminCredentialDispatchRevokeCredentials (legacy)
 	SystemAdminCredentialRevocation *OperationSystemAdminCredentialRevocation `json:"systemAdminCredentialRevocation,omitempty"`
 }
 
 // OperationSystemAdminCredentialRequest groups state for the admin credential
 // request lifecycle on an Operation document.
 type OperationSystemAdminCredentialRequest struct {
-	CertificateSigningRequest              string                `json:"certificateSigningRequest,omitempty"`
+	// Written by: Frontend POST requestAdminCredential
+	CertificateSigningRequest string `json:"certificateSigningRequest,omitempty"`
+	// Reserved before creating the internal request; Accepted does not imply it exists.
+	// Written by: SystemAdminCredentialDispatchRequestCredential
 	SystemAdminCredentialRequestResourceID *azcorearm.ResourceID `json:"systemAdminCredentialRequestResourceID,omitempty"`
 }
 
 // OperationSystemAdminCredentialRevocation groups state for the admin credential
 // revocation lifecycle on an Operation document.
 type OperationSystemAdminCredentialRevocation struct {
+	// Reserved before creating the internal revocation; Accepted does not imply it exists.
+	// Written by: Frontend POST RevokeCredentials, SystemAdminCredentialDispatchRevokeCredentials (legacy)
 	SystemAdminCredentialRevocationResourceID *azcorearm.ResourceID `json:"systemAdminCredentialRevocationResourceID,omitempty"`
 }
 

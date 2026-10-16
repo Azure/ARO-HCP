@@ -21,7 +21,8 @@ import (
 )
 
 func IsCredentialRequestPending(cred *coreapi.SystemAdminCredentialRequest) bool {
-	return !meta.IsStatusConditionTrue(cred.Status.Conditions, coreapi.SystemAdminCredentialRequestConditionIssued) &&
+	return cred.Status.DeletionTimestamp == nil &&
+		!meta.IsStatusConditionTrue(cred.Status.Conditions, coreapi.SystemAdminCredentialRequestConditionIssued) &&
 		!meta.IsStatusConditionTrue(cred.Status.Conditions, coreapi.SystemAdminCredentialRequestConditionFailed) &&
 		!meta.IsStatusConditionTrue(cred.Status.Conditions, coreapi.SystemAdminCredentialRequestConditionAwaitingRevocation) &&
 		!meta.IsStatusConditionTrue(cred.Status.Conditions, coreapi.SystemAdminCredentialRequestConditionRevoked)

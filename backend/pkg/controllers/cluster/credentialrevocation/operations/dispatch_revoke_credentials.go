@@ -17,13 +17,16 @@ package operations
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
 	"k8s.io/client-go/tools/cache"
 	utilsclock "k8s.io/utils/clock"
 
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/credentialrevocation"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
@@ -33,19 +36,19 @@ import (
 )
 
 type dispatchRevokeCredentials struct {
-	clock             utilsclock.PassiveClock
-	resourcesDBClient corecosmosstorage.ResourcesDBClient
-	clusterLister     corelisters.ClusterLister
+	clock              utilsclock.PassiveClock
+	resourcesDBClient  corecosmosstorage.ResourcesDBClient
+	clusterLister      corelisters.ClusterLister
+	notificationClient *http.Client
 }
 
 const SystemAdminCredentialDispatchRevokeCredentialsControllerName = "SystemAdminCredentialDispatchRevokeCredentials"
 
 // NewDispatchRevokeCredentialsController returns a Controller that handles the
-// first step of a RevokeCredentials operation: it creates a single
-// SystemAdminCredentialRevocation document nested under the cluster, records its
-// resource ID on SystemAdminCredentialRevocation, and moves the operation to
-// Deleting. The actual revocation work (marking credential requests for
-// deletion, driving the CertificateRevocationRequest desires, and tearing them
+// first step of a RevokeCredentials operation: it uses the frontend reservation
+// to create or adopt that SystemAdminCredentialRevocation document
+// before moving the operation to Deleting. The actual revocation work (marking
+// credential requests for deletion, driving CertificateRevocationRequest desires, and tearing them
 // down) is performed by the dedicated SystemAdminCredentialRevocation
 // controllers. The operation completes once the revocation document is gone.
 //
@@ -54,17 +57,18 @@ const SystemAdminCredentialDispatchRevokeCredentialsControllerName = "SystemAdmi
 //	ResourceType: Microsoft.RedHatOpenShift/hcpOpenShiftClusters
 //	     Request: OperationRequestSystemAdminCredentialRevocation ("RevokeCredentials")
 //	      Status: Accepted
-//	  SystemAdminCredentialRevocation: nil
 func NewDispatchRevokeCredentialsController(
 	clock utilsclock.PassiveClock,
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	clusterLister corelisters.ClusterLister,
+	notificationClient *http.Client,
 	activeOperationInformer cache.SharedIndexInformer,
 ) controllerutils.Controller {
 	syncer := &dispatchRevokeCredentials{
-		clock:             clock,
-		resourcesDBClient: resourcesDBClient,
-		clusterLister:     clusterLister,
+		clock:              clock,
+		resourcesDBClient:  resourcesDBClient,
+		clusterLister:      clusterLister,
+		notificationClient: notificationClient,
 	}
 
 	controller := controllerutils.NewGenericOperationController(
@@ -105,41 +109,58 @@ func (c *dispatchRevokeCredentials) SynchronizeOperation(ctx context.Context, ke
 	if !c.ShouldProcess(ctx, operation) {
 		return nil
 	}
-
-	cluster, err := c.clusterLister.Get(ctx, operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Name)
-	if err != nil {
-		return utils.TrackError(err)
+	if expired, err := operationutils.ExpireCredentialOperation(ctx, c.clock, c.resourcesDBClient, operation, operationutils.PostAsyncNotificationFn(c.notificationClient)); expired || err != nil {
+		return err
 	}
 
-	// Verify the operation matches the cluster's revoke sentinel.
-	if cluster.ServiceProviderProperties.RevokeCredentialsOperationID != operation.OperationID.Name {
-		logger.Info("operation does not match cluster's RevokeCredentialsOperationID, skipping")
-		return nil
+	if operation.SystemAdminCredentialRevocation == nil || operation.SystemAdminCredentialRevocation.SystemAdminCredentialRevocationResourceID == nil {
+		// Legacy operations persisted their identity before creating work.
+		revocationResourceID, err := coreapihelpers.SystemAdminCredentialRevocationID(operation.ExternalID, operation.OperationID.Name)
+		if err != nil {
+			return utils.TrackError(fmt.Errorf("failed to build revocation resource ID: %w", err))
+		}
+		replacement := operation.DeepCopy()
+		replacement.SystemAdminCredentialRevocation = &coreapi.OperationSystemAdminCredentialRevocation{
+			SystemAdminCredentialRevocationResourceID: revocationResourceID,
+		}
+		_, err = c.resourcesDBClient.Operations(key.SubscriptionID).Replace(ctx, replacement, nil)
+		if cosmosstorageutils.IsPreconditionFailedError(err) {
+			return nil
+		}
+		return err
 	}
 
-	// A revoke operation ID is a UUID; derive a short, stable suffix used to
-	// name the revocation document and its CRR objects.
-	revokeOpSuffix := strings.ReplaceAll(operation.OperationID.Name, "-", "")
-	if len(revokeOpSuffix) > 16 {
-		revokeOpSuffix = revokeOpSuffix[:16]
-	}
-
-	revocationCRUD := c.resourcesDBClient.HCPClusters(operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName).SystemAdminCredentialRevocations(
-		operation.ExternalID.Name,
-	)
-
-	revocationResourceID, err := coreapihelpers.ToSystemAdminCredentialRevocationResourceID(
-		operation.ExternalID.SubscriptionID,
-		operation.ExternalID.ResourceGroupName,
-		operation.ExternalID.Name,
-		revokeOpSuffix,
-	)
-	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to build revocation resource ID: %w", err))
-	}
+	revocationResourceID := operation.SystemAdminCredentialRevocation.SystemAdminCredentialRevocationResourceID
+	revokeOpSuffix := revocationResourceID.Name
+	revocationCRUD := c.resourcesDBClient.HCPClusters(operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName).SystemAdminCredentialRevocations(operation.ExternalID.Name)
 
 	// Create the revocation document if it does not already exist.
-	if _, err := revocationCRUD.Get(ctx, revokeOpSuffix); cosmosstorageutils.IsNotFoundError(err) {
+	if existing, err := revocationCRUD.Get(ctx, revokeOpSuffix); cosmosstorageutils.IsNotFoundError(err) {
+		clusterCRUD := c.resourcesDBClient.HCPClusters(operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName)
+		cluster, err := clusterCRUD.Get(ctx, operation.ExternalID.Name)
+		if err != nil && !cosmosstorageutils.IsNotFoundError(err) {
+			return err
+		}
+		if cluster != nil {
+			props := cluster.ServiceProviderProperties
+			legacyReservation := props.SystemAdminCredentialRevocationResourceID == nil ||
+				(props.SystemAdminCredentialRevocationRequestedAt == nil && strings.EqualFold(props.SystemAdminCredentialRevocationResourceID.String(), revocationResourceID.String()))
+			if legacyReservation && props.RevokeCredentialsOperationID == operation.OperationID.Name && !operation.StartTime.IsZero() {
+				// Normalize a legacy ID-first attempt before dispatch; never reset its time.
+				return credentialrevocation.MigrateLegacyReference(ctx, c.resourcesDBClient, cluster)
+			}
+			ownsReservation := props.DeletionTimestamp == nil && props.SystemAdminCredentialRevocationResourceID != nil &&
+				strings.EqualFold(props.SystemAdminCredentialRevocationResourceID.String(), revocationResourceID.String())
+			if ownsReservation && props.SystemAdminCredentialRevocationRequestedAt == nil {
+				return nil // Wait for legacy normalization; unknown age permits neither creation nor expiry.
+			}
+			if !ownsReservation || !c.clock.Now().Before(props.SystemAdminCredentialRevocationRequestedAt.Add(coreapi.SystemAdminCredentialRevocationTimeout)) {
+				return operationutils.UpdateOperationStatus(ctx, c.clock, c.resourcesDBClient, operation, coreapi.ProvisioningStateFailed, &coreapi.CloudErrorBody{Code: "DeadlineExceeded", Message: "Credential revocation reservation was released or its dispatch grace expired."}, operationutils.PostAsyncNotificationFn(c.notificationClient))
+			}
+		} else {
+			return operationutils.UpdateOperationStatus(ctx, c.clock, c.resourcesDBClient, operation, coreapi.ProvisioningStateFailed, &coreapi.CloudErrorBody{Code: "DeadlineExceeded", Message: "Credential revocation reservation no longer exists."}, operationutils.PostAsyncNotificationFn(c.notificationClient))
+		}
+		// Live ownership is optimistic exclusion, not cross-document fencing.
 		newRevocation := &coreapi.SystemAdminCredentialRevocation{
 			CosmosMetadata: coreapi.CosmosMetadata{
 				ResourceID:   revocationResourceID,
@@ -150,17 +171,19 @@ func (c *dispatchRevokeCredentials) SynchronizeOperation(ctx context.Context, ke
 				RevokeOpSuffix: revokeOpSuffix,
 			},
 		}
-		if _, err := revocationCRUD.Create(ctx, newRevocation, nil); err != nil && !cosmosstorageutils.IsConflictError(err) {
+		if _, err := revocationCRUD.Create(ctx, newRevocation, nil); err != nil {
+			if cosmosstorageutils.IsConflictError(err) {
+				return nil // Re-read and verify operation identity on the next reconcile.
+			}
 			return utils.TrackError(fmt.Errorf("failed to create SystemAdminCredentialRevocation: %w", err))
 		}
 	} else if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get SystemAdminCredentialRevocation: %w", err))
+	} else if existing.Spec.OperationID != operation.OperationID.Name {
+		return fmt.Errorf("revocation name belongs to another operation")
 	}
 
 	replacement := operation.DeepCopy()
-	replacement.SystemAdminCredentialRevocation = &coreapi.OperationSystemAdminCredentialRevocation{
-		SystemAdminCredentialRevocationResourceID: revocationResourceID,
-	}
 	replacement.Status = coreapi.ProvisioningStateDeleting
 	replacement.LastTransitionTime = c.clock.Now()
 	_, err = c.resourcesDBClient.Operations(key.SubscriptionID).Replace(ctx, replacement, nil)

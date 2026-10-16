@@ -25,6 +25,7 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/credentialrevocation"
 	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
@@ -107,6 +108,9 @@ func (c *revocationDesires) SyncOnce(ctx context.Context, key controllerutils.Sy
 	// Once the revocation is marked for deletion the deletion controller owns it.
 	if revocation.Status.DeletionTimestamp != nil {
 		return nil
+	}
+	if owned, err := credentialrevocation.Owns(ctx, c.resourcesDBClient, revocation); err != nil || !owned {
+		return err
 	}
 
 	cluster, err := c.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)

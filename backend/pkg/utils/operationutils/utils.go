@@ -119,6 +119,9 @@ func UpdateOperationStatus(ctx context.Context, clock utilsclock.PassiveClock, r
 	// but the operation document is always updated via the transaction below.
 	logger.Info("Updating external ID", "externalID", existingOperation.ExternalID)
 	switch {
+	case existingOperation.Request == coreapi.OperationRequestSystemAdminCredentialRequest || existingOperation.Request == coreapi.OperationRequestSystemAdminCredentialRevocation:
+		// Credential actions never own the cluster's provisioning state. In particular,
+		// their monitoring deadline must not depend on reading the cluster.
 	case existingOperation.ExternalID == nil:
 		// No associated resource document to update.
 		logger.Info("No external ID, skipping update")

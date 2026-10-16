@@ -318,3 +318,13 @@ func TestDesiresCreator_SyncOnce(t *testing.T) {
 		})
 	}
 }
+
+func TestDeletingCredentialNeverCreatesDesires(t *testing.T) {
+	cluster := newTestCluster()
+	cred := &coreapi.SystemAdminCredentialRequest{}
+	c := &desiresCreator{}
+	require.True(t, c.needsWork(cluster, cred))
+	now := metav1.Now()
+	cred.Status.DeletionTimestamp = &now
+	require.False(t, c.needsWork(cluster, cred), "deletion must override pending conditions")
+}

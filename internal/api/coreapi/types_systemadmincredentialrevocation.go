@@ -21,8 +21,8 @@ import (
 // SystemAdminCredentialRevocation represents a single revocation of all of a
 // cluster's system admin credentials, tracked in Cosmos and nested under the
 // cluster. When a RevokeCredentials operation fires, the dispatch controller
-// creates one of these documents and records its resource ID on the operation's
-// InternalID. Dedicated controllers then drive the revocation lifecycle:
+// creates the document at the resource ID reserved by frontend acceptance on the
+// operation and cluster. Dedicated controllers then drive the revocation lifecycle:
 //
 //   - one controller live-lists every SystemAdminCredentialRequest for the
 //     cluster and marks each with a DeletionTimestamp;
@@ -59,23 +59,26 @@ type SystemAdminCredentialRevocationSpec struct {
 type SystemAdminCredentialRevocationStatus struct {
 	// Conditions tracks revocation lifecycle using standard metav1.Conditions.
 	// Known condition types:
+	//   - "Active": True after observing live cluster ownership; legacy migration
+	//     uses it to restore ownership if an old typed writer erases the reference.
 	//   - "CredentialsMarkedForDeletion": True when every SystemAdminCredentialRequest
 	//     for the cluster has been marked with a DeletionTimestamp.
 	//   - "CertificatesRevoked": True when the CRR confirms previously-issued
 	//     certificates have been revoked on the hosted cluster.
 	//   - "Complete": True when the whole revocation flow is done and this document
 	//     may be deleted.
-	// Written by: SystemAdminCredentialRevocationMarkRequests (CredentialsMarkedForDeletion), SystemAdminCredentialRevocationCompletion (CertificatesRevoked, Complete)
+	// Written by: SystemAdminCredentialRevocationMarkRequests (Active, CredentialsMarkedForDeletion), SystemAdminCredentialRevocationCompletion (CertificatesRevoked, Complete)
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 	// DeletionTimestamp is set once revocation is complete and the deletion
 	// controller should tear down the revocation's desires and remove this
 	// document.
-	// Written by: SystemAdminCredentialRevocationCompletion
+	// Written by: SystemAdminCredentialRevocationCompletion, ClusterCredentialDeletionMarkerController
 	DeletionTimestamp *metav1.Time `json:"deletionTimestamp,omitempty"`
 }
 
 // SystemAdminCredentialRevocation condition types.
 const (
+	SystemAdminCredentialRevocationConditionActive                       = "Active"
 	SystemAdminCredentialRevocationConditionCredentialsMarkedForDeletion = "CredentialsMarkedForDeletion"
 	SystemAdminCredentialRevocationConditionCertificatesRevoked          = "CertificatesRevoked"
 	SystemAdminCredentialRevocationConditionComplete                     = "Complete"

@@ -23,6 +23,7 @@ import (
 
 	"github.com/go-logr/logr"
 
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/credentialrevocation"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
@@ -207,6 +208,13 @@ func (c *cosmosMigrationController) migrateClusters(ctx context.Context, logger 
 
 		// Migrate the cluster document itself.
 		clusterCRUD := c.resourcesDBClient.HCPClusters(clusterSubID, clusterRG)
+		liveCluster, err := clusterCRUD.Get(clusterCtx, clusterName)
+		if err == nil {
+			err = credentialrevocation.MigrateLegacyReference(clusterCtx, c.resourcesDBClient, liveCluster)
+		}
+		if err != nil && !cosmosstorageutils.IsNotFoundError(err) {
+			migrationErrors = append(migrationErrors, err)
+		}
 		if err := replaceWithRetry(clusterCtx, clusterLogger, clusterCRUD, clusterName, "cluster"); err != nil {
 			migrationErrors = append(migrationErrors, err)
 		}
