@@ -21,6 +21,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Azure/ARO-HCP/test/pkg/leaseenv"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 )
 
@@ -45,7 +46,7 @@ func TestOfflineCommandsSkipSuiteSetup(t *testing.T) {
 	} {
 		t.Run(strings.Join(args, " "), func(t *testing.T) {
 			for _, key := range []string{
-				"LEASED_MSI_MOCK_SP", "LEASED_ARM_HELPER_SP", "LEASED_INFRASTRUCTURE_IDENTITY_BUNDLE",
+				leaseenv.MSIMockSP, leaseenv.ARMHelperSP, leaseenv.InfrastructureIdentityBundle,
 				"BACKEND_IMAGE", "FRONTEND_IMAGE", "ADMIN_API_IMAGE", "SESSIONGATE_IMAGE", "HCP_RECOVERY_IMAGE",
 				"FLEET_IMAGE", "MGMT_AGENT_IMAGE", "SWIFT_RECORDER_IMAGE", "KUBE_APPLIER_IMAGE", "EXPORTER_IMAGE",
 				"USE_OC_LOGIN_REGISTRIES",
@@ -55,7 +56,7 @@ func TestOfflineCommandsSkipSuiteSetup(t *testing.T) {
 			// Suite initialization would warn on the invalid pooled-identity setting.
 			t.Setenv("ARO_HCP_SUITE_PARALLELISM", "")
 			t.Setenv(framework.UsePooledIdentitiesEnvvar, "invalid")
-			t.Setenv("LEASED_MSI_CONTAINERS", "")
+			t.Setenv(leaseenv.MSIContainers, "")
 			t.Setenv("PATH", "")
 			t.Setenv("DEPLOY_ENV", "offline")
 			shared := t.TempDir()

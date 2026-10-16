@@ -25,6 +25,8 @@ import (
 	"testing"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/Azure/ARO-HCP/test/pkg/leaseenv"
 )
 
 func clearEnvironment(t *testing.T) {
@@ -40,7 +42,7 @@ func clearEnvironment(t *testing.T) {
 	}
 	for _, key := range []string{
 		"SHARED_DIR", "DEPLOY_ENV", "ARM_HELPER_POOL_CATALOG", "USE_OC_LOGIN_REGISTRIES",
-		"LEASED_MSI_MOCK_SP", "LEASED_ARM_HELPER_SP", "LEASED_MSI_CONTAINERS", "LEASED_INFRASTRUCTURE_IDENTITY_BUNDLE",
+		leaseenv.MSIMockSP, leaseenv.ARMHelperSP, leaseenv.MSIContainers, leaseenv.InfrastructureIdentityBundle,
 		"BACKEND_IMAGE", "FRONTEND_IMAGE", "ADMIN_API_IMAGE", "SESSIONGATE_IMAGE", "HCP_RECOVERY_IMAGE",
 		"FLEET_IMAGE", "MGMT_AGENT_IMAGE", "SWIFT_RECORDER_IMAGE", "KUBE_APPLIER_IMAGE", "EXPORTER_IMAGE",
 	} {
@@ -163,7 +165,7 @@ func TestSelectedSourceCatalogs(t *testing.T) {
 			if err := os.WriteFile(catalog, []byte("armHelperPool:\n  selected:\n    clientId: baseline-client\n    principalId: baseline-principal\n    certName: baseline-cert\n"), 0600); err != nil {
 				t.Fatal(err)
 			}
-			t.Setenv("LEASED_ARM_HELPER_SP", "selected")
+			t.Setenv(leaseenv.ARMHelperSP, "selected")
 			args := []string{"--source-dir", source, "--shared-dir", shared, "--deploy-env", "baseline"}
 			switch selection {
 			case "relative":
@@ -238,7 +240,7 @@ func TestFailureDoesNotPublish(t *testing.T) {
 			case "unknown-image":
 				t.Setenv("UNSUPPORTED_IMAGE", "registry.example/unsupported@sha256:1234")
 			case "missing-catalog":
-				t.Setenv("LEASED_MSI_MOCK_SP", "missing")
+				t.Setenv(leaseenv.MSIMockSP, "missing")
 				args = append(args, "--source-dir", t.TempDir())
 			case "publication":
 				args = append(args, "--output-file", shared)

@@ -34,6 +34,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
+	"github.com/Azure/ARO-HCP/test/pkg/leaseenv"
 )
 
 func TestAcquireAdmissionFlagAndEnvironment(t *testing.T) {
@@ -278,7 +279,7 @@ func TestAcquireCompleteRegionModeMatrix(t *testing.T) {
 			catalogPath := writeAcquireTestCatalog(t, tc.regionMode, fixedRegion)
 
 			t.Setenv("CLUSTER_PROFILE_DIR", clusterProfileDir)
-			t.Setenv("ARO_HCP_DEPLOY_ENV", "ci01")
+			t.Setenv(leaseenv.RuntimeDeployEnvironment, "ci01")
 			t.Setenv("SHARED_DIR", t.TempDir())
 			t.Setenv("LEASE_PROXY_SERVER_URL", "http://lease-proxy.example.com")
 			t.Setenv("ALLOWED_LOCATIONS", tc.allowedLocations)

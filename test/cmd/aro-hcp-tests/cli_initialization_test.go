@@ -17,7 +17,6 @@ package main
 import (
 	"errors"
 	"strings"
-	"sync"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -65,7 +64,7 @@ func TestExtensionInitializationPreservesExecutionHooks(t *testing.T) {
 				want, wantError = "initialize,parent,local-error", true
 			}
 			parent.AddCommand(child)
-			wrapExtensionInitialization(parent, sync.OnceFunc(func() { record("initialize") }))
+			wrapExtensionInitialization(parent, func() { record("initialize") })
 			root := &cobra.Command{Use: "root", SilenceUsage: true, SilenceErrors: true}
 			root.AddCommand(parent)
 			root.SetArgs([]string{"extension", "child"})

@@ -23,6 +23,8 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5"
+
+	"github.com/Azure/ARO-HCP/test/pkg/leaseenv"
 )
 
 func familySKU(name, family, cpus string, opts ...skuOpt) *armcompute.ResourceSKU {
@@ -90,9 +92,9 @@ func TestConfiguredFamilySelection(t *testing.T) {
 }
 
 func TestDirectFamilyPolicyRoleSizes(t *testing.T) {
-	t.Setenv("ARO_HCP_E2E_VM_FAMILY_POLICY", `{"worker_families":["standardDSv5Family"],"helper_families":["standardDDSv5Family"]}`)
-	t.Setenv("SELECTED_LOCATION", "")
-	t.Setenv("ARO_HCP_DEPLOY_ENV", "")
+	t.Setenv(leaseenv.VMFamilyPolicy, `{"worker_families":["standardDSv5Family"],"helper_families":["standardDDSv5Family"]}`)
+	t.Setenv(leaseenv.SelectedLocation, "")
+	t.Setenv(leaseenv.RuntimeDeployEnvironment, "")
 	t.Setenv("LOCATION", "")
 	for _, tt := range []struct {
 		constructor                  func() VMSizeSelector
@@ -120,8 +122,8 @@ func TestDirectFamilyPolicyRoleSizes(t *testing.T) {
 }
 
 func TestApprovedFamilyFallbacks(t *testing.T) {
-	t.Setenv("ARO_HCP_E2E_VM_FAMILY_POLICY", `{"worker_families":["StandardDsv6Family","standardDSv5Family","standardDASv5Family"],"helper_families":["StandardDdsv6Family","standardDDSv5Family","standardDADSv5Family"]}`)
-	t.Setenv("SELECTED_LOCATION", "")
+	t.Setenv(leaseenv.VMFamilyPolicy, `{"worker_families":["StandardDsv6Family","standardDSv5Family","standardDASv5Family"],"helper_families":["StandardDdsv6Family","standardDDSv5Family","standardDADSv5Family"]}`)
+	t.Setenv(leaseenv.SelectedLocation, "")
 	for _, role := range []struct {
 		name        string
 		constructor func() VMSizeSelector
@@ -189,8 +191,8 @@ func TestApprovedFamilyFallbacks(t *testing.T) {
 func TestFamilyPolicyRetainsRPAllowlist(t *testing.T) {
 	// Helper families may be configured for workers, but that cannot make
 	// their local-disk SKUs valid RP node pool sizes.
-	t.Setenv("ARO_HCP_E2E_VM_FAMILY_POLICY", `{"worker_families":["standardDDSv5Family","StandardDdsv6Family","standardDADSv5Family"],"helper_families":["standardDDSv5Family","StandardDdsv6Family","standardDADSv5Family"]}`)
-	t.Setenv("SELECTED_LOCATION", "")
+	t.Setenv(leaseenv.VMFamilyPolicy, `{"worker_families":["standardDDSv5Family","StandardDdsv6Family","standardDADSv5Family"],"helper_families":["standardDDSv5Family","StandardDdsv6Family","standardDADSv5Family"]}`)
+	t.Setenv(leaseenv.SelectedLocation, "")
 	for _, role := range []struct {
 		constructor func() VMSizeSelector
 		sizes       [3]string
@@ -216,8 +218,8 @@ func TestFamilyPolicyRetainsRPAllowlist(t *testing.T) {
 
 func unsetVMFamilyPolicy(t *testing.T) {
 	t.Helper()
-	t.Setenv("ARO_HCP_E2E_VM_FAMILY_POLICY", "")
-	if err := os.Unsetenv("ARO_HCP_E2E_VM_FAMILY_POLICY"); err != nil {
+	t.Setenv(leaseenv.VMFamilyPolicy, "")
+	if err := os.Unsetenv(leaseenv.VMFamilyPolicy); err != nil {
 		t.Fatalf("failed to unset VM family override: %v", err)
 	}
 }
@@ -226,9 +228,9 @@ func TestUnconfiguredFamilyPolicyPreservesLegacySelection(t *testing.T) {
 	for _, override := range []string{"unset", "{}"} {
 		t.Run(override, func(t *testing.T) {
 			unsetVMFamilyPolicy(t)
-			t.Setenv("SELECTED_LOCATION", "")
+			t.Setenv(leaseenv.SelectedLocation, "")
 			if override != "unset" {
-				t.Setenv("ARO_HCP_E2E_VM_FAMILY_POLICY", override)
+				t.Setenv(leaseenv.VMFamilyPolicy, override)
 			}
 			for _, tt := range []struct {
 				constructor func() VMSizeSelector
@@ -256,7 +258,7 @@ func TestUnconfiguredFamilyPolicyPreservesLegacySelection(t *testing.T) {
 }
 
 func TestFamilyPolicyOmittedRolePreservesLegacySelection(t *testing.T) {
-	t.Setenv("SELECTED_LOCATION", "")
+	t.Setenv(leaseenv.SelectedLocation, "")
 	for _, tt := range []struct {
 		policy      string
 		constructor func() VMSizeSelector
@@ -268,7 +270,7 @@ func TestFamilyPolicyOmittedRolePreservesLegacySelection(t *testing.T) {
 		{`{"worker_families":["worker"]}`, JumpboxVMSizeSelector, JumpboxVMSize, "2"},
 	} {
 		t.Run(tt.preferred, func(t *testing.T) {
-			t.Setenv("ARO_HCP_E2E_VM_FAMILY_POLICY", tt.policy)
+			t.Setenv(leaseenv.VMFamilyPolicy, tt.policy)
 			selector := tt.constructor()
 			got, _, err := selectVMSize([]*armcompute.ResourceSKU{makeSKU(tt.preferred, testLocation, withCapability(capabilityVCPUs, tt.cpus))}, testLocation, selector)
 			if err != nil || got != tt.preferred || selector.Families != nil {
@@ -279,21 +281,21 @@ func TestFamilyPolicyOmittedRolePreservesLegacySelection(t *testing.T) {
 }
 
 func TestMalformedFamilyPolicyCannotFallBack(t *testing.T) {
-	t.Setenv("SELECTED_LOCATION", "")
+	t.Setenv(leaseenv.SelectedLocation, "")
 	for _, override := range []string{"", " ", "null", "{", `{"worker_families":[]}`, `{"helper_families":null}`, `{"unknown":["family"]}`, `{} {}`} {
 		t.Run(override, func(t *testing.T) {
-			t.Setenv("ARO_HCP_E2E_VM_FAMILY_POLICY", override)
+			t.Setenv(leaseenv.VMFamilyPolicy, override)
 			for _, constructor := range []func() VMSizeSelector{DefaultWorkerVMSizeSelector, SmallWorkerVMSizeSelector, JumpboxVMSizeSelector} {
 				selector := constructor()
 				skus := []*armcompute.ResourceSKU{makeSKU(selector.Preferred[0], testLocation, withCapability(capabilityVCPUs, "8"))}
 				got, _, err := selectVMSize(skus, testLocation, selector)
-				if got != "" || err == nil || errors.Is(err, ErrNoUsableVMSize) || !strings.Contains(err.Error(), "ARO_HCP_E2E_VM_FAMILY_POLICY") {
+				if got != "" || err == nil || errors.Is(err, ErrNoUsableVMSize) || !strings.Contains(err.Error(), leaseenv.VMFamilyPolicy) {
 					t.Fatalf("expected actionable configuration error without fallback or skippable exhaustion, got SKU=%q err=%v", got, err)
 				}
 				// A nil context receiver proves validation precedes Azure access.
 				var tc *perItOrDescribeTestContext
 				got, err = tc.SelectVMSize(context.Background(), selector)
-				if got != "" || err == nil || !strings.Contains(err.Error(), "ARO_HCP_E2E_VM_FAMILY_POLICY") {
+				if got != "" || err == nil || !strings.Contains(err.Error(), leaseenv.VMFamilyPolicy) {
 					t.Fatalf("expected configuration error before Azure access, got SKU=%q err=%v", got, err)
 				}
 			}
@@ -302,8 +304,8 @@ func TestMalformedFamilyPolicyCannotFallBack(t *testing.T) {
 }
 
 func TestPinnedSelectorBypassesFamilyPolicy(t *testing.T) {
-	t.Setenv("SELECTED_LOCATION", "")
-	t.Setenv("ARO_HCP_E2E_VM_FAMILY_POLICY", `{"worker_families":["standardDSv5Family"]}`)
+	t.Setenv(leaseenv.SelectedLocation, "")
+	t.Setenv(leaseenv.VMFamilyPolicy, `{"worker_families":["standardDSv5Family"]}`)
 	selector := VMSizeSelector{Name: "explicit-pin", Preferred: []string{DefaultWorkerVMSize}}
 	got, _, err := selectVMSize([]*armcompute.ResourceSKU{makeSKU(DefaultWorkerVMSize, testLocation)}, testLocation, selector)
 	if err != nil || got != DefaultWorkerVMSize {
