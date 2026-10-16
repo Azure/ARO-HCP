@@ -50,63 +50,80 @@ type StackDesire struct {
 	// CosmosMetadata identifies the stored desire and its owning HCP cluster.
 	// PartitionKey must be set to the lowercased subscription ID of the owning
 	// HCP cluster before creation, independently of the Azure target's scope.
+	// Written by: IdentityRoleAssignments (resource identity and partition), Cosmos storage (persistence metadata)
 	CosmosMetadata `json:"cosmosMetadata"`
 	// Spec describes the Azure stack operation the producer wants reconciled.
+	// Written by: IdentityRoleAssignments
 	Spec StackDesireSpec `json:"spec"`
 	// Status records the outcome of the controller's latest observation or attempt.
+	// Written by: StackDesires
 	Status StackDesireStatus `json:"status,omitempty"`
 }
 
 type StackDesireSpec struct {
 	// TargetResourceID is the full Azure deployment stack ID, including its scope.
 	// Producers must not change it for the lifetime of this desire.
+	// Written by: IdentityRoleAssignments
 	TargetResourceID *azcorearm.ResourceID `json:"targetResourceID"`
 	// Authentication selects the identity used to manage the target stack.
+	// Written by: IdentityRoleAssignments
 	Authentication StackDesireAuthentication `json:"authentication"`
 	// Action selects Apply to create or update the stack, or Delete to remove it.
+	// Written by: IdentityRoleAssignments
 	Action string `json:"action"`
 	// Stack describes the deployment stack for both Apply and Delete. Apply sends
 	// the stack to Azure; Delete uses Properties.ActionOnUnmanage and
 	// Properties.BypassStackOutOfSyncError as its deletion policy.
+	// Written by: IdentityRoleAssignments
 	Stack *armdeploymentstacks.DeploymentStack `json:"stack"`
 	// ReconcileInterval is the cooldown before reconciling unchanged intent again
 	// after success or an invalid-intent outcome. Non-positive values select the
 	// controller's six-hour default; pending operations and transient failures use
 	// separate polling and retry delays.
+	// Written by: IdentityRoleAssignments
 	ReconcileInterval metav1.Duration `json:"reconcileInterval,omitempty"`
 }
 
 type StackDesireAuthentication struct {
 	// Type selects first-party application (FPA) or service managed identity (SMI) credentials.
+	// Written by: IdentityRoleAssignments
 	Type string `json:"type"`
 	// TenantID is the Azure tenant in which the FPA obtains credentials.
+	// Written by: IdentityRoleAssignments
 	TenantID string `json:"tenantID,omitempty"`
 	// SMIResourceID identifies the service managed identity used for SMI authentication.
+	// Written by: StackDesire producer (unused by IdentityRoleAssignments)
 	SMIResourceID *azcorearm.ResourceID `json:"smiResourceID,omitempty"`
 	// ClusterIdentityURL is the cluster identity endpoint used to obtain SMI credentials.
+	// Written by: StackDesire producer (unused by IdentityRoleAssignments)
 	ClusterIdentityURL string `json:"clusterIdentityURL,omitempty"`
 }
 
 type StackDesireStatus struct {
 	// ObservedSpecHash identifies the whole spec associated with this outcome, using
 	// StackDesireSpecHash. It is not a record of historical success.
+	// Written by: StackDesires
 	ObservedSpecHash string `json:"observedSpecHash,omitempty"`
 	// ObservedAt is the submission/outcome clock used for reconciliation cooldowns;
 	// nil means no outcome has been recorded. New submissions and changed outcomes
 	// advance it, but unchanged observations and metadata-only changes to completed
 	// outcomes do not restart the clock.
+	// Written by: StackDesires
 	ObservedAt *metav1.Time `json:"observedAt,omitempty"`
 	// Stack is the Azure stack returned for this outcome, without an SDK response
 	// envelope. It is nil when no stack was returned, including confirmed absence.
 	// Azure's operation correlation ID is available in Stack.Properties.CorrelationID.
+	// Written by: StackDesires
 	Stack *armdeploymentstacks.DeploymentStack `json:"stack,omitempty"`
 	// Error contains Azure error details for this outcome, when available; nil means
 	// no Azure error details were returned, not necessarily successful reconciliation.
+	// Written by: StackDesires
 	Error *armdeploymentstacks.ErrorDetail `json:"error,omitempty"`
 	// Conditions summarize this outcome: SuccessfullyApplied means Apply completed,
 	// SuccessfullyDeleted means Delete confirmed absence, and Degraded reports an
 	// execution failure. Invalid intent is not degraded. Consumers must also match
 	// ObservedSpecHash to their intent.
+	// Written by: StackDesires
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
 
@@ -191,9 +208,12 @@ func (o *StackDesire) GetObjectMeta() metav1.Object {
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type StackDesireList struct {
 	// TypeMeta identifies the API type of this list.
+	// Written by: StackDesire informer list/watch
 	metav1.TypeMeta `json:",inline"`
 	// ListMeta carries list resource version and pagination metadata.
+	// Written by: StackDesire informer list/watch
 	metav1.ListMeta `json:"metadata,omitempty"`
 	// Items contains the stack desires returned by the list operation.
+	// Written by: StackDesire informer list/watch
 	Items []StackDesire `json:"items"`
 }
