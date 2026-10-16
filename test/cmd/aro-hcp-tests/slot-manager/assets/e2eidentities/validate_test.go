@@ -77,7 +77,16 @@ func TestCompareIdentityPoolInventory(t *testing.T) {
 	}}
 
 	identityNames := framework.NewDefaultIdentities().ToSlice()
-	actualIdentities := append([]string{}, identityNames[:len(identityNames)-1]...)
+	// Drop framework.ServiceManagedIdentityName specifically (by name, not by
+	// position) so this test doesn't depend on it being last in ToSlice() -
+	// which stopped being true once DpAutoNodeMiName was appended after it.
+	actualIdentities := make([]string, 0, len(identityNames))
+	for _, name := range identityNames {
+		if name == framework.ServiceManagedIdentityName {
+			continue
+		}
+		actualIdentities = append(actualIdentities, name)
+	}
 	actualIdentities = append(actualIdentities, "unexpected")
 	actual := subscriptionInventory{
 		ResourceGroups: []string{

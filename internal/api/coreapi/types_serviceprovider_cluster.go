@@ -359,6 +359,112 @@ type ServiceProviderClusterStatus struct {
 	// TODO: Move the controllers to use this information. For already introduced controllers that need to support identities replacement, move them
 	// to use this at the point those are updated to support identity replacement.
 	ManagedIdentityDetails map[string]*ManagedIdentityMetadata `json:"managedIdentityDetails,omitempty"`
+
+	// AutoNode reports the observed state of the AutoNode (Karpenter)
+	// provisioner, mirrored from the management cluster's
+	// HostedCluster.status.autoNode.
+	//
+	// Karpenter-provisioned nodes are not HyperShift NodePool machines, so they
+	// are invisible to the ARM node pool list: nothing else in Cosmos tells the
+	// RP how many nodes a Karpenter-enabled cluster actually has. Mirroring the
+	// aggregate here gives service-provider-side logic (for example control
+	// plane sizing, which scales with node count) a number to work from,
+	// without exposing it on any versioned ARM API and without anything outside
+	// the backend reaching the management cluster.
+	//
+	// Nil when AutoNode is disabled or has not been observed yet; the
+	// hypershift-operator clears status.autoNode on disable, so this field
+	// follows it back to nil.
+	// Written by: AutoNodeStatus
+	AutoNode *ServiceProviderClusterAutoNodeStatus `json:"autoNode,omitempty"`
+}
+
+// ServiceProviderClusterAutoNodeStatus is the distilled form of the observed
+// HostedCluster.status.autoNode and its AutoNodeEnabled condition. It
+// deliberately re-declares the fields rather than embedding hypershift's
+// AutoNodeStatus: this is the Cosmos schema, and it should not change shape
+// just because the upstream API does.
+//
+// Product contract for a failed AutoNode delivery (see AutoNodeEnabler /
+// AutoNodeStatus in backend/pkg/controllers/cluster/autonode): it does NOT
+// fail cluster provisioning - the ARM operation completes regardless,
+// consistent with how other post-create HostedCluster config (e.g.
+// autoscaler settings) is handled - but it MUST be visible here via
+// DeliveryCondition at minimum. Whether a failed delivery should also be
+// surfaced at the ARM level (a cluster property or condition) is an open
+// follow-up product question, deliberately not decided by this type.
+type ServiceProviderClusterAutoNodeStatus struct {
+	// Enabled mirrors the observed HostedCluster's AutoNodeEnabled condition
+	// status (True/False/Unknown, as a bool - Unknown is treated as false).
+	// This is the field that distinguishes "AutoNode enabled but zero nodes
+	// currently provisioned" from "AutoNode not enabled": the node-count
+	// fields below are indistinguishable between those two states on their
+	// own, since they're all nil/zero in both. Nil means the condition has
+	// never been observed yet (e.g. the HostedCluster hasn't reconciled
+	// since AutoNode was requested).
+	// Written by: AutoNodeStatus
+	Enabled *bool `json:"enabled,omitempty"`
+
+	// Condition mirrors the observed HostedCluster's AutoNodeEnabled
+	// condition (reason/message), letting operators and e2e diagnose
+	// delivery state (e.g. "AutoNodeProgressing" vs a stuck
+	// "AutoNodeEvaluationFailed") without needing management-cluster access.
+	// Nil when the condition has never been observed yet.
+	// Written by: AutoNodeStatus
+	Condition *ServiceProviderClusterAutoNodeCondition `json:"condition,omitempty"`
+
+	// DeliveryCondition mirrors the AutoNode ApplyDesire's own
+	// SuccessfullyApplied condition, but only when it is present and not
+	// True. This catches a delivery failure that never even reaches the
+	// HostedCluster object - e.g. a management cluster whose HostedCluster
+	// CRD predates the Azure Karpenter field, which the kube-apiserver
+	// rejects outright - which Condition above cannot see, since that field
+	// is only ever populated once the HostedCluster has actually reconciled.
+	// Nil when the most recent delivery attempt succeeded (or none has been
+	// observed yet).
+	// Written by: AutoNodeStatus
+	DeliveryCondition *ServiceProviderClusterAutoNodeCondition `json:"deliveryCondition,omitempty"`
+
+	// NodeCount is the number of nodes fully provisioned by Karpenter, i.e.
+	// node objects that exist in the guest cluster and carry the
+	// karpenter.sh/nodepool label.
+	// Written by: AutoNodeStatus
+	NodeCount *int32 `json:"nodeCount,omitempty"`
+
+	// NodeClaimCount is the total number of NodeClaims managed by Karpenter:
+	// what Karpenter intends to provision, whether or not the node object
+	// exists yet. It exceeds NodeCount while provisioning is in flight.
+	// Written by: AutoNodeStatus
+	NodeClaimCount *int32 `json:"nodeClaimCount,omitempty"`
+
+	// VCPUs is the total number of virtual CPUs across all Karpenter-managed
+	// nodes that have registered and reported capacity.
+	// Written by: AutoNodeStatus
+	VCPUs *int32 `json:"vcpus,omitempty"`
+}
+
+// ServiceProviderClusterAutoNodeCondition is the distilled form of the
+// observed HostedCluster's AutoNodeEnabled condition (a
+// k8s.io/apimachinery/pkg/apis/meta/v1.Condition). Re-declared rather than
+// reusing metav1.Condition directly to keep this Cosmos schema decoupled
+// from apimachinery's condition shape (e.g. no LastTransitionTime: Cosmos
+// document mtime already tracks when this was last written).
+type ServiceProviderClusterAutoNodeCondition struct {
+	// Status is the condition's status: "True", "False", or "Unknown", as
+	// reported by hypershift.
+	// Written by: AutoNodeStatus
+	Status string `json:"status,omitempty"`
+
+	// Reason is the machine-readable reason for the condition's status, e.g.
+	// "AutoNodeProgressing", "AutoNodeNotConfigured", or
+	// "AutoNodeEvaluationFailed" (see hsv1beta1's AutoNodeEnabled condition
+	// doc for the full set hypershift may report).
+	// Written by: AutoNodeStatus
+	Reason string `json:"reason,omitempty"`
+
+	// Message is the human-readable detail for the condition's status.
+	// Written by: AutoNodeStatus
+	Message string `json:"message,omitempty"`
 }
 
 // ServiceProviderClusterPlacementStatus holds placement-specific status for a

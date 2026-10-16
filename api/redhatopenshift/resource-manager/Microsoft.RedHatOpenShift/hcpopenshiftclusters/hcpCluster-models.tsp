@@ -160,6 +160,12 @@ model HcpOpenShiftClusterProperties {
   @added(Versions.v2026_06_30_preview)
   @visibility(Lifecycle.Read, Lifecycle.Create)
   cryptoRestrictions?: CryptoRestrictions = CryptoRestrictions.None;
+
+  /** AutoNode dynamic node provisioning configuration. Enabling or disabling
+   * AutoNode on an existing cluster via update is not currently supported. */
+  @added(Versions.v2027_03_30_preview)
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
+  autoNode?: AutoNodeProfile;
 }
 
 /** The resource provisioning state. */
@@ -201,6 +207,25 @@ union CryptoRestrictions {
 
   /** Use only FIPS-validated algorithms and implementations */
   FIPS: "FIPS",
+}
+
+/** AutoNode dynamic node provisioning configuration. */
+@added(Versions.v2027_03_30_preview)
+model AutoNodeProfile {
+  /** Whether AutoNode (dynamic node provisioning via Karpenter) is enabled. */
+  mode?: AutoNodeMode;
+}
+
+/** Whether AutoNode dynamic node provisioning is enabled. */
+@added(Versions.v2027_03_30_preview)
+union AutoNodeMode {
+  string,
+
+  /** AutoNode is enabled. */
+  Enabled: "Enabled",
+
+  /** AutoNode is disabled. */
+  Disabled: "Disabled",
 }
 
 /** Versions represents an OpenShift version. */

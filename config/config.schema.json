@@ -1464,6 +1464,21 @@
         },
         "clusterScopedIdentitiesConfig": {
           "$ref": "#/definitions/clusterScopedIdentitiesConfig"
+        },
+        "autoNode": {
+          "type": "object",
+          "description": "Personal-dev-only stopgap overrides for the standalone karpenter-operator/karpenter-provider-azure images, set as HostedCluster annotations by the AutoNode backend controller when AutoNode is enabled. Must never be set outside the personal dev environment; leave both empty (or omit this object) everywhere else.",
+          "properties": {
+            "karpenterOperatorImageOverride": {
+              "type": "string",
+              "description": "Personal-dev-only override image for the standalone karpenter-operator."
+            },
+            "karpenterProviderAzureImageOverride": {
+              "type": "string",
+              "description": "Personal-dev-only override image for the karpenter-provider-azure operand."
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false,

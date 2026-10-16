@@ -13,6 +13,7 @@ type ManagedIdentities = {
   dpDiskCsiDriverMiName: string
   dpFileCsiDriverMiName: string
   dpImageRegistryMiName: string
+  dpAutoNodeMiName: string
   serviceManagedIdentityName: string
 }
 @description('Identities to assign')
@@ -39,6 +40,9 @@ param keyVaultName string
   'resourceGroup'
 ])
 param rbacScope string = 'resourceGroup'
+
+@description('If true, grant the dp-autonode managed identity the role assignments it needs and include it in dataPlaneOperators. Only tests that actually enable AutoNode should set this: Cluster Service rejects a create request whose dataPlaneOperators includes an identity without corresponding feature enablement for the target OpenShift version.')
+param enableAutoNode bool = false
 
 //
 // E X I S T I N G   R E S O U R C E S
@@ -428,6 +432,57 @@ resource dpImageRegistryOperatorRoleVnetAssignment 'Microsoft.Authorization/role
 
 // No subnet-scoped assignment: the VNet-scoped grant above already covers the subnet via RBAC scope inheritance.
 
+resource dpAutoNodeMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
+  name: identities.dpAutoNodeMiName
+  scope: resourceGroup(resourceGroupName)
+}
+
+// Network Contributor: grants Karpenter (AutoNode) the virtualNetworks/subnets/join/action it needs to attach
+// the nodes it provisions to the customer's subnet.
+// https://www.azadvertizer.net/azrolesadvertizer/4d97b98b-1d4f-4787-a291-c67834d212e7.html
+//
+// ClusterOperatorIdentifierAutoNode (internal/azure/cluster_scoped_identities_config.go) also grants Virtual
+// Machine Contributor and Managed Identity Operator, but those are scoped to the managed resource group, which
+// doesn't exist yet when this customer-resources bicep runs (it's created by the RP during cluster
+// provisioning). Those two are granted by the RP itself against the managed resource group once it exists,
+// same as other operators' MRG-scoped access -- not something the customer pre-grants here.
+var networkContributorRoleId = subscriptionResourceId(
+  'Microsoft.Authorization/roleDefinitions',
+  '4d97b98b-1d4f-4787-a291-c67834d212e7'
+)
+
+resource dpAutoNodeNetworkContributorRoleResourceGroupAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (enableAutoNode && rbacScope == 'resourceGroup') {
+  name: guid(resourceGroup().id, dpAutoNodeMi.id, networkContributorRoleId)
+  scope: resourceGroup()
+  properties: {
+    principalId: dpAutoNodeMi.properties.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: networkContributorRoleId
+  }
+}
+
+resource dpAutoNodeNetworkContributorRoleVnetAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (enableAutoNode && rbacScope == 'resource') {
+  name: guid(resourceGroup().id, dpAutoNodeMi.id, networkContributorRoleId, vnet.id)
+  scope: vnet
+  properties: {
+    principalId: dpAutoNodeMi.properties.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: networkContributorRoleId
+  }
+}
+
+// No subnet-scoped assignment: the VNet-scoped grant above already covers the subnet via RBAC scope inheritance.
+
+resource dpAutoNodeNetworkContributorRoleNsgAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (enableAutoNode && rbacScope == 'resource') {
+  name: guid(resourceGroup().id, dpAutoNodeMi.id, networkContributorRoleId, nsg.id)
+  scope: nsg
+  properties: {
+    principalId: dpAutoNodeMi.properties.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: networkContributorRoleId
+  }
+}
+
 //
 // S E R V I C E   M A N A G E D   I D E N T I T Y
 //
@@ -521,11 +576,14 @@ output userAssignedIdentitiesValue object = {
     'cloud-network-config': cloudNetworkConfigMi.id
     'kms': kmsMi.id
   }
-  dataPlaneOperators: {
-    'disk-csi-driver': dpDiskCsiDriverMi.id
-    'file-csi-driver': dpFileCsiDriverMi.id
-    'image-registry': dpImageRegistryMi.id
-  }
+  dataPlaneOperators: union(
+    {
+      'disk-csi-driver': dpDiskCsiDriverMi.id
+      'file-csi-driver': dpFileCsiDriverMi.id
+      'image-registry': dpImageRegistryMi.id
+    },
+    enableAutoNode ? { autonode: dpAutoNodeMi.id } : {}
+  )
   serviceManagedIdentity: serviceManagedIdentity.id
 }
 

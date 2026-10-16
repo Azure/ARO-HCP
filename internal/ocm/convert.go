@@ -83,6 +83,7 @@ const (
 	CSCIDRBlockAllowAccessModeAllowList string = "allow_list"
 	csOsDiskPersistencePersistent       string = "persistent"
 	csOsDiskPersistenceEphemeral        string = "ephemeral"
+	csAutoNodeModeEnabled               string = "enabled"
 	CSProvisionShardStatusActive        string = "active"
 	CSProvisionShardStatusMaintenance   string = "maintenance"
 	CSProvisionShardStatusOffline       string = "offline"
@@ -678,6 +679,16 @@ func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, clus
 		clusterBuilder.DomainPrefix(cluster.CustomerProperties.DNS.BaseDomainPrefix)
 	}
 
+	// AutoNode is create-only: it is deliberately excluded from
+	// clusterUpdateDispatchConfig (see that file's header comment), since until
+	// Cluster Service persists and returns it on GET, diffing it there would show
+	// permanent drift. mutateClusterExperimentalFeatures (internal/admission) makes
+	// ExperimentalFeatures.AutoNode sticky post-create so this create-only signal
+	// never needs a matching update path.
+	if cluster.ServiceProviderProperties.ExperimentalFeatures.AutoNode == coreapi.AutoNode {
+		clusterBuilder.AutoNode(arohcpv1alpha1.NewClusterAutoNode().Mode(csAutoNodeModeEnabled))
+	}
+
 	return clusterBuilder, azureBuilder, nil
 }
 
@@ -834,6 +845,24 @@ func CSErrorToCloudError(err error, resourceID *azcorearm.ResourceID) *coreapi.C
 	}
 
 	return coreapi.NewInternalServerError()
+}
+
+// IsOCMErrorTerminal reports whether err is a Cluster Service error that will
+// never succeed on retry: a 4xx status other than 408 Request Timeout or 429
+// Too Many Requests, both of which are worth retrying. Controllers that
+// receive a terminal error from a create/update call should stop treating it
+// as transient (e.g. log it loudly) rather than silently retrying until an
+// unrelated deadline trips.
+func IsOCMErrorTerminal(err error) bool {
+	var ocmError *ocmerrors.Error
+	if !errors.As(err, &ocmError) {
+		return false
+	}
+	status := ocmError.Status()
+	if status < http.StatusBadRequest || status >= http.StatusInternalServerError {
+		return false
+	}
+	return status != http.StatusRequestTimeout && status != http.StatusTooManyRequests
 }
 
 // ConvertCSManagementClusterToInternal converts a Cluster Service ProvisionShard

@@ -13,6 +13,7 @@ type ManagedIdentities = {
   dpDiskCsiDriverMiName: string
   dpFileCsiDriverMiName: string
   dpImageRegistryMiName: string
+  dpAutoNodeMiName: string
   serviceManagedIdentityName: string
 }
 @description('Identities to assign')
@@ -71,6 +72,10 @@ resource dpFileCsiDriverMi 'Microsoft.ManagedIdentity/userAssignedIdentities@202
 
 resource dpImageRegistryMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
   name: identities.dpImageRegistryMiName
+}
+
+resource dpAutoNodeMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
+  name: identities.dpAutoNodeMiName
 }
 
 resource serviceManagedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
@@ -235,6 +240,16 @@ resource dpFileCsiDriverMiFederatedCredentialsRoleAssignment 'Microsoft.Authoriz
 resource dpImageRegistryMiFederatedCredentialsRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (rbacScope == 'resource') {
   name: guid(dpImageRegistryMi.id, serviceManagedIdentity.id, federatedCredentialsRoleId)
   scope: dpImageRegistryMi
+  properties: {
+    principalId: serviceManagedIdentity.properties.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: federatedCredentialsRoleId
+  }
+}
+
+resource dpAutoNodeMiFederatedCredentialsRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (rbacScope == 'resource') {
+  name: guid(dpAutoNodeMi.id, serviceManagedIdentity.id, federatedCredentialsRoleId)
+  scope: dpAutoNodeMi
   properties: {
     principalId: serviceManagedIdentity.properties.principalId
     principalType: 'ServicePrincipal'

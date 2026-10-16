@@ -269,6 +269,14 @@ azureOperatorsMI:
       roleDefinitions:
       - id: c0ff367d-66d8-445e-917c-583feb0ef0d4
         name: Azure Red Hat OpenShift Hosted Control Planes Service Managed Identity
+    autonode:
+      roleDefinitions:
+      - id: 9980e02c-c2be-4d73-94e8-173b1dc7cf3c
+        name: Virtual Machine Contributor
+      - id: 4d97b98b-1d4f-4787-a291-c67834d212e7
+        name: Network Contributor
+      - id: f1a07417-d97a-45cb-824c-7a7467783830
+        name: Managed Identity Operator
   public:
     clusterApiAzure:
       roleDefinitions:
@@ -310,6 +318,14 @@ azureOperatorsMI:
       roleDefinitions:
       - id: c0ff367d-66d8-445e-917c-583feb0ef0d4
         name: Azure Red Hat OpenShift Hosted Control Planes Service Managed Identity
+    autonode:
+      roleDefinitions:
+      - id: 9980e02c-c2be-4d73-94e8-173b1dc7cf3c
+        name: Virtual Machine Contributor
+      - id: 4d97b98b-1d4f-4787-a291-c67834d212e7
+        name: Network Contributor
+      - id: f1a07417-d97a-45cb-824c-7a7467783830
+        name: Managed Identity Operator
 # Pull binding configuration for ACR Pull Operator
 pullBinding:
   registry: "{{ .acr.svc.name }}.azurecr.io"

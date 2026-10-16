@@ -128,7 +128,7 @@ var _ = Describe("ARO HCP Service", func() {
 				Expect(err).NotTo(HaveOccurred(), "failed to deploy identity-only bicep template")
 			}
 
-			uamis, msi := framework.BuildIdentityParamsFromNames(subscriptionID, msiResourceGroupName, identities)
+			uamis, msi := framework.BuildIdentityParamsFromNames(subscriptionID, msiResourceGroupName, identities, false)
 
 			By("starting HCP cluster creation (MIs exist but lack role assignments)")
 			hcpClient := tc.Get20251223ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()

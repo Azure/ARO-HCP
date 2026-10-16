@@ -23,6 +23,22 @@ spec:
       - exported_namespace
       targetLabel: namespace
     - action: replace
+      regex: karpenter_nodeclaim_status_condition_transition_time_seconds;(InstanceTerminating);True
+      replacement: "true"
+      sourceLabels:
+      - __name__
+      - condition
+      - status
+      targetLabel: __tmp_karpenter_retained_true_condition
+    - action: drop
+      regex: karpenter_(nodepool|nodeclaim|aksnodeclass)_status_condition_transition_time_seconds;True;
+      sourceLabels:
+      - __name__
+      - status
+      - __tmp_karpenter_retained_true_condition
+    - action: labeldrop
+      regex: __tmp_karpenter_retained_true_condition
+    - action: replace
       replacement: hcp
       targetLabel: microsoft_metrics_include_label
     port: http-metrics

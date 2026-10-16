@@ -31,6 +31,14 @@ import (
 
 const configMapName = resourceName + "-crs-config"
 
+const (
+	nodeClaimConditionMetricName     = "karpenter_nodeclaim_status_condition_transition_time_seconds"
+	retainedTrueConditionMarkerLabel = "__tmp_karpenter_retained_true_condition"
+	retainedTrueNodeClaimConditionRE = nodeClaimConditionMetricName + ";(InstanceTerminating);True"
+	unmarkedTrueKarpenterConditionRE = "karpenter_(nodepool|nodeclaim|aksnodeclass)_status_condition_transition_time_seconds;True;"
+	metricAllowlist                  = "kube_node_status_condition,kube_node_info,ingresscontroller_info,kube_node_spec_unschedulable,karpenter_nodepool_status_condition_transition_time_seconds,karpenter_nodepool_status_nodes,karpenter_nodeclaim_status_condition_transition_time_seconds,karpenter_aksnodeclass_status_condition_transition_time_seconds"
+)
+
 // Alerts to create based on the ingresscontroller_info metric:
 //
 //	absent(ingresscontroller_info{name="default"}) for 10m => default ingress missing
@@ -57,6 +65,69 @@ const customResourceStateConfig = `spec:
             endpoint_publishing_strategy_type: [spec, endpointPublishingStrategy, type]
             dns_management_policy: [spec, endpointPublishingStrategy, loadBalancer, dnsManagementPolicy]
             load_balancer_scope: [spec, endpointPublishingStrategy, loadBalancer, scope]
+  - groupVersionKind:
+      group: karpenter.sh
+      kind: NodePool
+      version: v1
+    metricNamePrefix: karpenter_nodepool
+    labelsFromPath:
+      name: [metadata, name]
+    metrics:
+    - name: "status_condition_transition_time_seconds"
+      help: "Unix timestamp when the Karpenter NodePool status condition last changed"
+      each:
+        type: Gauge
+        gauge:
+          path: [status, conditions]
+          labelsFromPath:
+            condition: [type]
+            status: [status]
+            reason: [reason]
+          valueFrom: [lastTransitionTime]
+    - name: "status_nodes"
+      help: "Current number of nodes managed by the Karpenter NodePool"
+      each:
+        type: Gauge
+        gauge:
+          path: [status, resources, nodes]
+  - groupVersionKind:
+      group: karpenter.sh
+      kind: NodeClaim
+      version: v1
+    metricNamePrefix: karpenter_nodeclaim
+    labelsFromPath:
+      name: [metadata, name]
+    metrics:
+    - name: "status_condition_transition_time_seconds"
+      help: "Unix timestamp when the Karpenter NodeClaim status condition last changed"
+      each:
+        type: Gauge
+        gauge:
+          path: [status, conditions]
+          labelsFromPath:
+            condition: [type]
+            status: [status]
+            reason: [reason]
+          valueFrom: [lastTransitionTime]
+  - groupVersionKind:
+      group: karpenter.azure.com
+      kind: AKSNodeClass
+      version: v1beta1
+    metricNamePrefix: karpenter_aksnodeclass
+    labelsFromPath:
+      name: [metadata, name]
+    metrics:
+    - name: "status_condition_transition_time_seconds"
+      help: "Unix timestamp when the Karpenter AKSNodeClass status condition last changed"
+      each:
+        type: Gauge
+        gauge:
+          path: [status, conditions]
+          labelsFromPath:
+            condition: [type]
+            status: [status]
+            reason: [reason]
+          valueFrom: [lastTransitionTime]
 `
 
 func buildConfigMap(namespace string, ownerRef metav1.OwnerReference) *coreac.ConfigMapApplyConfiguration {
@@ -90,11 +161,15 @@ func buildDeployment(namespace, ksmImage, kubeconfigSecretName, kubeconfigKey st
 					WithContainers(coreac.Container().
 						WithName("kube-state-metrics").
 						WithImage(ksmImage).
+						// --namespaces is intentionally unset. KSM applies it to custom-resource
+						// clients as well as native resources, which would make cluster-scoped
+						// Karpenter CRs use an invalid namespaced API path. The default all-namespace
+						// watch still finds the namespaced IngressController; --resources and the
+						// metric allowlist prevent unrelated Kubernetes metrics from being exported.
 						WithArgs(
 							"--resources=nodes",
-							"--namespaces=openshift-ingress-operator",
 							"--kubeconfig=/opt/k8s/.kube/config",
-							"--metric-allowlist=kube_node_status_condition,kube_node_info,ingresscontroller_info,kube_node_spec_unschedulable",
+							"--metric-allowlist="+metricAllowlist,
 							"--custom-resource-state-config-file=/etc/customresourcestate/config.yaml",
 						).
 						WithPorts(
@@ -225,6 +300,24 @@ func buildServiceMonitor(namespace, apiGroup string, ownerRef metav1.OwnerRefere
 							TargetLabel:  "namespace",
 							Regex:        "(.+)",
 							Action:       "replace",
+						},
+						{
+							// Add future True-valued NodeClaim conditions that require SRE attention
+							// to retainedTrueNodeClaimConditionRE and extend the retention tests.
+							SourceLabels: []monitoringv1.LabelName{"__name__", "condition", "status"},
+							TargetLabel:  retainedTrueConditionMarkerLabel,
+							Regex:        retainedTrueNodeClaimConditionRE,
+							Replacement:  ptr.To("true"),
+							Action:       "replace",
+						},
+						{
+							SourceLabels: []monitoringv1.LabelName{"__name__", "status", monitoringv1.LabelName(retainedTrueConditionMarkerLabel)},
+							Regex:        unmarkedTrueKarpenterConditionRE,
+							Action:       "drop",
+						},
+						{
+							Regex:  retainedTrueConditionMarkerLabel,
+							Action: "labeldrop",
 						},
 						{
 							TargetLabel: "microsoft_metrics_include_label",

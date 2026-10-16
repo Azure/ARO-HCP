@@ -177,7 +177,7 @@ spec:
         - "--backup-schedule-cadence"
         - "production"
         - "--backup-schedule-state"
-        - "Enabled"
+        - "Disabled"
         - "--azure-first-party-application-certificate-bundle-path"
         - "/secrets/backend-service-key-vault/fpa-cert-bundle"
         - "--azure-first-party-application-client-id"
@@ -205,6 +205,8 @@ spec:
         - "64dc69e4-d083-49fc-9569-ebece1dd1408"
         - "--azure-cluster-scoped-identities-role-set-name"
         - "public"
+        # Personal-dev-only stopgap: see clusterautonode.ImageOverrides doc comment.
+        # Never set in CSPR/int/stage/prod. Will be removed once the new OCP images are ready.
         env:
         - name: DB_NAME
           valueFrom:

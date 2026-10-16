@@ -40,6 +40,7 @@ const (
 	ClusterOperatorIdentifierImageRegistry          ClusterOperatorIdentifier = "image-registry"
 	ClusterOperatorIdentifierCloudNetworkConfig     ClusterOperatorIdentifier = "cloud-network-config"
 	ClusterOperatorIdentifierKMS                    ClusterOperatorIdentifier = "kms"
+	ClusterOperatorIdentifierAutoNode               ClusterOperatorIdentifier = "autonode"
 )
 
 // ClusterScopedIdentitiesConfig is the configuration for all cluster scoped identities.
@@ -739,6 +740,52 @@ func newClusterScopedOperatorsIdentitySpecs() map[ClusterOperatorIdentifier]*clu
 								ResourceID:      metadataapi.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/12338af0-0e69-4776-bea7-57ae8d297424")),
 							},
 						},
+					},
+				},
+			},
+		},
+		ClusterOperatorIdentifierAutoNode: {
+			DataPlane: &clusterScopedDataPlaneOperatorIdentityPlaneSpec{
+				clusterScopedOperatorIdentityPlaneSpec: clusterScopedOperatorIdentityPlaneSpec{
+					MinVersionInclusive: to.Ptr(metadataapi.Must(semver.ParseTolerant("4.22"))),
+					Requirement:         &IdentityRequirement{Type: IdentityRequirementTypeOnEnablement},
+					RoleDefinitionsConfigSets: []*clusterScopedIdentityRoleDefinitionConfigSetsSpec{
+						{
+							Dev: &ClusterScopedIdentityRoleDefinition{
+								DescriptiveName: "Virtual Machine Contributor",
+								ResourceID:      metadataapi.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/9980e02c-c2be-4d73-94e8-173b1dc7cf3c")),
+							},
+							Public: &ClusterScopedIdentityRoleDefinition{
+								DescriptiveName: "Virtual Machine Contributor",
+								ResourceID:      metadataapi.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/9980e02c-c2be-4d73-94e8-173b1dc7cf3c")),
+							},
+						},
+						{
+							Dev: &ClusterScopedIdentityRoleDefinition{
+								DescriptiveName: "Network Contributor",
+								ResourceID:      metadataapi.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/4d97b98b-1d4f-4787-a291-c67834d212e7")),
+							},
+							Public: &ClusterScopedIdentityRoleDefinition{
+								DescriptiveName: "Network Contributor",
+								ResourceID:      metadataapi.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/4d97b98b-1d4f-4787-a291-c67834d212e7")),
+							},
+						},
+						{
+							Dev: &ClusterScopedIdentityRoleDefinition{
+								DescriptiveName: "Managed Identity Operator",
+								ResourceID:      metadataapi.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/f1a07417-d97a-45cb-824c-7a7467783830")),
+							},
+							Public: &ClusterScopedIdentityRoleDefinition{
+								DescriptiveName: "Managed Identity Operator",
+								ResourceID:      metadataapi.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/f1a07417-d97a-45cb-824c-7a7467783830")),
+							},
+						},
+					},
+				},
+				KubernetesServiceAccounts: []*KubernetesServiceAccount{
+					{
+						Name:      "karpenter",
+						Namespace: "kube-system",
 					},
 				},
 			},

@@ -325,6 +325,14 @@ func (c *clusterClusterServiceCreateSyncer) createClusterServiceCluster(ctx cont
 
 	logger.Info("Creating cluster in Cluster Service", "version", serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion.String())
 	result, err := c.clustersServiceClient.PostCluster(ctx, csClusterBuilder)
+	if ocm.IsOCMErrorTerminal(err) {
+		// This request will never succeed on retry, but the generic requeue
+		// logic below still treats it as transient and keeps retrying until the
+		// ARM operation's own creation-duration deadline trips. Log loudly now
+		// so the terminal CS response is diagnosable without waiting for that
+		// deadline.
+		logger.Error(err, "PostCluster returned a terminal Cluster Service error")
+	}
 	if err != nil {
 		return nil, utils.TrackError(fmt.Errorf("PostCluster failed: %w", err))
 	}

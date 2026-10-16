@@ -67,6 +67,7 @@ const (
 	DpFileCsiDriverMiName        = "dp-file-csi-driver"
 	DpImageRegistryMiName        = "dp-image-registry"
 	ServiceManagedIdentityName   = "service"
+	DpAutoNodeMiName             = "dp-autonode"
 )
 
 type LeasedIdentityPool struct {
@@ -88,6 +89,7 @@ type Identities struct {
 	DpFileCsiDriverMiName        string `json:"dpFileCsiDriverMiName"`
 	DpImageRegistryMiName        string `json:"dpImageRegistryMiName"`
 	ServiceManagedIdentityName   string `json:"serviceManagedIdentityName"`
+	DpAutoNodeMiName             string `json:"dpAutoNodeMiName"`
 }
 
 func (i Identities) ToSlice() []string {
@@ -105,6 +107,7 @@ func (i Identities) ToSlice() []string {
 		i.DpFileCsiDriverMiName,
 		i.DpImageRegistryMiName,
 		i.ServiceManagedIdentityName,
+		i.DpAutoNodeMiName,
 	}
 }
 
@@ -123,6 +126,7 @@ func NewDefaultIdentities() Identities {
 		DpFileCsiDriverMiName:        DpFileCsiDriverMiName,
 		DpImageRegistryMiName:        DpImageRegistryMiName,
 		ServiceManagedIdentityName:   ServiceManagedIdentityName,
+		DpAutoNodeMiName:             DpAutoNodeMiName,
 	}
 }
 
@@ -141,6 +145,7 @@ func NewDefaultIdentitiesWithSuffix(suffix string) Identities {
 		DpFileCsiDriverMiName:        fmt.Sprintf("%s-%s", DpFileCsiDriverMiName, suffix),
 		DpImageRegistryMiName:        fmt.Sprintf("%s-%s", DpImageRegistryMiName, suffix),
 		ServiceManagedIdentityName:   fmt.Sprintf("%s-%s", ServiceManagedIdentityName, suffix),
+		DpAutoNodeMiName:             fmt.Sprintf("%s-%s", DpAutoNodeMiName, suffix),
 	}
 }
 
@@ -227,6 +232,13 @@ func (tc *perItOrDescribeTestContext) DeployManagedIdentities(
 		identities = NewDefaultIdentitiesWithSuffix(clusterName)
 	}
 
+	// Defaults to false (identity type assertion zero-value) when the caller
+	// doesn't pass it: only tests that actually enable AutoNode should set
+	// this, since Cluster Service rejects a create request whose
+	// dataPlaneOperators includes an identity without corresponding feature
+	// enablement for the target OpenShift version.
+	enableAutoNode, _ := cfg.parameters["enableAutoNode"].(bool)
+
 	parameters := map[string]interface{}{
 		"nsgName":                  cfg.parameters["nsgName"],
 		"vnetName":                 cfg.parameters["vnetName"],
@@ -238,6 +250,7 @@ func (tc *perItOrDescribeTestContext) DeployManagedIdentities(
 		"identities":               identities,
 		"rbacScope":                rbacScope,
 		"clusterName":              clusterName,
+		"enableAutoNode":           enableAutoNode,
 	}
 
 	deploymentResult, err := tc.CreateBicepTemplateAndWait(ctx,
