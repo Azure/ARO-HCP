@@ -17,6 +17,7 @@ package e2e
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -128,7 +129,8 @@ var _ = Describe("Customer", func() {
 			Expect(clusterResult.Properties).NotTo(BeNil(), "cluster %q Properties was nil", clusterName)
 			Expect(clusterResult.Properties.Console).NotTo(BeNil(), "cluster %q Properties.Console was nil", clusterName)
 			Expect(clusterResult.Properties.Console.URL).NotTo(BeNil(), "cluster %q Properties.Console.URL was nil", clusterName)
-			consoleCallbackURL := *clusterResult.Properties.Console.URL + "/auth/callback"
+			consoleURL := strings.TrimRight(*clusterResult.Properties.Console.URL, "/")
+			consoleCallbackURL := consoleURL + "/auth/callback"
 
 			By("creating an Entra application with console and local CLI redirect URIs")
 			app, _, err := tc.NewNamedAppRegistrationWithServicePrincipal(
@@ -277,6 +279,19 @@ var _ = Describe("Customer", func() {
 				},
 			}, metav1.CreateOptions{})
 			Expect(err).NotTo(HaveOccurred(), "failed to create console OAuth client secret %q", consoleOAuthSecretName)
+
+			By("waiting for the console authentication configuration to redirect to Entra")
+			entraAuthorizationEndpoint := fmt.Sprintf(
+				"https://login.microsoftonline.com/%s/oauth2/v2.0/authorize",
+				tc.TenantID(),
+			)
+			Eventually(func() error {
+				return framework.CheckConsoleLoginRedirect(
+					ctx,
+					consoleURL+"/auth/login",
+					entraAuthorizationEndpoint,
+				)
+			}, 10*time.Minute, 15*time.Second).Should(Succeed(), "console login should redirect to Entra after its OAuth client secret is configured")
 
 			By("granting cluster-admin to an unprefixed preferred username")
 			_, err = kubeClient.RbacV1().ClusterRoleBindings().Create(ctx, &rbacv1.ClusterRoleBinding{
