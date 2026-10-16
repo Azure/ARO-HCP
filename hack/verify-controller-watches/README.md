@@ -113,8 +113,8 @@ Load/type-check failures fail the command.
 Inferring resource types from untyped queries is explicitly deferred. The separate
 incomplete fixture checks their diagnostics without pretending to resolve them.
 
-The baseline against `a7458c817` with the Fleet registration precursor discovers 124 controllers
-(112 backend, 12 Fleet), 306 findings, and 32 untyped-access sites across 11
+The baseline against `fc2e20f9f` discovers 130 controllers
+(118 backend, 12 Fleet), 321 findings, and 32 untyped-access sites across 11
 controllers. Representative checks were reviewed against cluster creation,
 operation controllers, deletion callback maps, metrics indexer/lister consumers,
 Fleet polling and shared informer management. The baseline records
