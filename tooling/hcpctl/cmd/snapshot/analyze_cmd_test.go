@@ -21,13 +21,53 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/go-logr/logr"
+	"github.com/spf13/cobra"
 
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/agent"
 )
+
+func TestValidateClaudeCodeProvider(t *testing.T) {
+	dataDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dataDir, "manifest.json"), []byte(`{}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	opts := defaultAnalyzeOptions()
+	opts.DataDir = dataDir
+	opts.AROHCPPath = dataDir
+	opts.HypershiftPath = dataDir
+	opts.MaestroPath = dataDir
+	opts.ClustersServicePath = dataDir
+	cmd := &cobra.Command{}
+	if err := bindAnalyzeOptions(opts, cmd); err != nil {
+		t.Fatal(err)
+	}
+	if err := cmd.ParseFlags([]string{"--provider=claude-code", "--model=custom-model"}); err != nil {
+		t.Fatal(err)
+	}
+	validated, err := opts.validate()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if validated.claudeCodeConfig == nil || validated.claudeCodeConfig.Model != "custom-model" || validated.copilotConfig != nil || validated.claudeConfig != nil {
+		t.Fatal("claude-code did not select its own configuration")
+	}
+	opts.AnthropicAPIKeyFile = filepath.Join(dataDir, "missing-key")
+	if _, err := opts.validate(); err == nil || !strings.Contains(err.Error(), "--anthropic-api-key-file") {
+		t.Fatalf("missing API key file not rejected: %v", err)
+	}
+	if err := os.WriteFile(opts.AnthropicAPIKeyFile, []byte("test-key"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	validated, err = opts.validate()
+	if err != nil || validated.claudeCodeConfig.APIKeyFile != opts.AnthropicAPIKeyFile {
+		t.Fatalf("API key file not forwarded: %v", err)
+	}
+}
 
 type fakeAnalysisSession struct {
 	usage               agent.UsageReport
