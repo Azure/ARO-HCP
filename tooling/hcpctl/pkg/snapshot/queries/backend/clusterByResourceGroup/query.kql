@@ -1,0 +1,19 @@
+cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('cosmosResourceSnapshots')
+// Resolve the cluster identity across history up to the window end, not within the
+// window: cosmosResourceSnapshots is a change feed, so an idle cluster created
+// before the window with no in-window changes has no row inside it.
+| where timestamp <= {{ kqlDatetime .FullEndTime }}
+{{- if and .ServiceClusterName .ManagementClusterName }}
+| where cluster in ('{{ .ServiceClusterName }}', '{{ .ManagementClusterName }}')
+{{- end }}
+| where subscriptionID == '{{ .SubscriptionID }}'
+| where resourceGroup =~ '{{ .ResourceGroup }}'
+| where tolower(resourceType) == 'microsoft.redhatopenshift/hcpopenshiftclusters'
+// Collapse each cluster to its latest snapshot, then drop clusters whose latest
+// snapshot is soft-deleted (the producer marks deletes with content.deletionTimestamp,
+// mirroring the live "NOT IS_DEFINED(c.deletionTimestamp)" storage filter). Without
+// this an all-history scan resolves stale/deleted ids or reports them as ambiguous.
+| extend deletionTimestamp=tostring(content.deletionTimestamp)
+| summarize arg_max(tolong(content._ts), deletionTimestamp) by resourceID
+| where isempty(deletionTimestamp)
+| distinct clusterResourceID=tolower(resourceID)

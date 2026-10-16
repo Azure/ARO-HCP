@@ -5,7 +5,7 @@ cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('cosmosRes
 {{- end }}
 | where subscriptionID == '{{ .SubscriptionID }}'
 | where resourceGroup =~ '{{ .ResourceGroup }}'
-| where resourceID startswith '{{ .ClusterResourceID }}'
+| where resourceID =~ '{{ .ClusterResourceID }}' or resourceID startswith '{{ .ClusterResourceID }}/'
 | where resourceType =~ '{{ .ServiceProviderResourceType }}'
 | summarize content=take_any(content) by etag=tostring(content._etag)
 | sort by tolong(content._ts) asc
