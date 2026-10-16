@@ -206,11 +206,16 @@ and that the ARM deployment can read the identity and create the management
 resource-group role assignments. Permission on the shared identity is a separate
 prerequisite; this configuration does not grant it.
 
+The writer identity is evaluated when the VNet is created. Retagging an existing
+VNet does not repair its SWIFT registration. An affected management stamp requires
+an approved recreation that includes replacing its management VNet; recreating
+only the AKS cluster while retaining the VNet does not exercise registration.
+The identity override does not authorize or perform that destructive operation.
+
 Deploy both the `swift-vnet-permissions` and `swift-vnet` steps for each affected
-stamp. Confirm the VNet/tag activity caller matches the selected identity, then
-verify SWIFT registration and network readiness with AKS Network and a
-SWIFT-enabled E2E scenario. A successful tag write does not prove registration,
-and the override does not recreate VNets or guarantee repair of existing stamps.
+stamp as part of the recreation. Confirm the VNet creation caller matches the
+selected identity, then verify SWIFT registration and network readiness with AKS
+Network and a SWIFT-enabled E2E scenario before increasing concurrency.
 
 After AKS Network registers the intended deployment identity, remove the private
 regional override to restore the empty default, deploy both steps, and repeat
