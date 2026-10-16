@@ -16,10 +16,13 @@ package status
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -324,6 +327,10 @@ func TestExternalAuthUserFacingDegradedAggregator_SyncOnce(t *testing.T) {
 				externalAuthLister:                &corelistertesting.DBExternalAuthLister{ResourcesDBClient: mockDB},
 				serviceProviderExternalAuthLister: &corelistertesting.DBServiceProviderExternalAuthLister{ResourcesDBClient: mockDB},
 				resourcesDBClient:                 mockDB,
+				degradedGauge: prometheus.NewGaugeVec(
+					prometheus.GaugeOpts{Name: "test_backend_externalauth_degraded"},
+					[]string{"resource_id", "controller"},
+				),
 			}
 
 			err = syncer.SyncOnce(ctx, controllerutils.HCPExternalAuthKey{
@@ -350,4 +357,171 @@ func TestExternalAuthUserFacingDegradedAggregator_SyncOnce(t *testing.T) {
 			assert.Equal(t, tc.expectMessage, cond.Message, "Degraded condition message")
 		})
 	}
+}
+
+// TestExternalAuthUserFacingDegradedAggregator_SyncOnce_DegradedGauge verifies that the
+// backend_externalauth_degraded gauge reflects the user-facing Degraded condition:
+// 1 when Degraded=True, 0 otherwise.
+func TestExternalAuthUserFacingDegradedAggregator_SyncOnce_DegradedGauge(t *testing.T) {
+	parentResourceID := metadataapi.Must(azcorearm.ParseResourceID(
+		"/subscriptions/" + statusutils.TestSubscriptionID +
+			"/resourceGroups/" + statusutils.TestResourceGroupName +
+			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + statusutils.TestClusterName +
+			"/externalAuths/" + statusutils.TestExternalAuthName,
+	))
+	parentClusterID := metadataapi.Must(azcorearm.ParseResourceID(
+		"/subscriptions/" + statusutils.TestSubscriptionID +
+			"/resourceGroups/" + statusutils.TestResourceGroupName +
+			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + statusutils.TestClusterName,
+	))
+	resourceID := strings.ToLower(parentResourceID.String())
+
+	tests := []struct {
+		name                              string
+		serviceProviderExternalAuthStatus metav1.ConditionStatus
+		expectGaugeValue                  float64
+	}{
+		{
+			name:                              "OIDCClientsDegraded=True → gauge 1",
+			serviceProviderExternalAuthStatus: metav1.ConditionTrue,
+			expectGaugeValue:                  1,
+		},
+		{
+			name:                              "OIDCClientsDegraded=False → gauge 0",
+			serviceProviderExternalAuthStatus: metav1.ConditionFalse,
+			expectGaugeValue:                  0,
+		},
+		{
+			name:                              "OIDCClientsDegraded=Unknown → gauge 0",
+			serviceProviderExternalAuthStatus: metav1.ConditionUnknown,
+			expectGaugeValue:                  0,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+
+			externalAuth := newTestExternalAuthForAggregatorTests()
+			serviceProviderExternalAuth := newTestServiceProviderExternalAuth(func(spea *coreapi.ServiceProviderExternalAuth) {
+				spea.Status.Conditions = []metav1.Condition{
+					{Type: coreapi.ExternalAuthOIDCClientsDegradedCondition, Status: tc.serviceProviderExternalAuthStatus, Reason: "TestReason", Message: "test"},
+				}
+			})
+
+			parentCluster := &coreapi.Cluster{
+				CosmosMetadata: coreapi.CosmosMetadata{
+					ResourceID:   parentClusterID,
+					PartitionKey: strings.ToLower(parentClusterID.SubscriptionID),
+				},
+				TrackedResource: coreapi.TrackedResource{
+					Resource: coreapi.Resource{ID: parentClusterID, Name: statusutils.TestClusterName, Type: parentClusterID.ResourceType.String()},
+				},
+			}
+
+			seed := []any{parentCluster, externalAuth, serviceProviderExternalAuth}
+			mockDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, seed)
+			require.NoError(t, err)
+
+			reg := prometheus.NewRegistry()
+			degradedGauge := prometheus.NewGaugeVec(
+				prometheus.GaugeOpts{Name: "backend_externalauth_degraded"},
+				[]string{"resource_id", "controller"},
+			)
+			reg.MustRegister(degradedGauge)
+
+			syncer := &externalAuthUserFacingConditionsDegradedAggregator{
+				externalAuthLister:                &corelistertesting.DBExternalAuthLister{ResourcesDBClient: mockDB},
+				serviceProviderExternalAuthLister: &corelistertesting.DBServiceProviderExternalAuthLister{ResourcesDBClient: mockDB},
+				resourcesDBClient:                 mockDB,
+				degradedGauge:                     degradedGauge,
+			}
+
+			err = syncer.SyncOnce(ctx, controllerutils.HCPExternalAuthKey{
+				SubscriptionID:      statusutils.TestSubscriptionID,
+				ResourceGroupName:   statusutils.TestResourceGroupName,
+				HCPClusterName:      statusutils.TestClusterName,
+				HCPExternalAuthName: statusutils.TestExternalAuthName,
+			})
+			require.NoError(t, err)
+
+			expected := fmt.Sprintf(`# HELP backend_externalauth_degraded 
+# TYPE backend_externalauth_degraded gauge
+backend_externalauth_degraded{controller="%s",resource_id="%s"} %v
+`, ExternalAuthUserFacingConditionsDegradedAggregatorControllerName, resourceID, tc.expectGaugeValue)
+			require.NoError(t, testutil.GatherAndCompare(reg, strings.NewReader(expected), "backend_externalauth_degraded"))
+		})
+	}
+}
+
+// TestExternalAuthUserFacingDegradedAggregator_SyncOnce_NotFound_SetsGaugeToZero verifies that
+// when the ExternalAuth is NotFound, SyncOnce sets the gauge to 0 (so a stale degraded=1 doesn't linger).
+func TestExternalAuthUserFacingDegradedAggregator_SyncOnce_NotFound_SetsGaugeToZero(t *testing.T) {
+	ctx := context.Background()
+	resourceID := strings.ToLower("/subscriptions/" + statusutils.TestSubscriptionID +
+		"/resourcegroups/" + statusutils.TestResourceGroupName +
+		"/providers/microsoft.redhatopenshift/hcpopenshiftclusters/" + statusutils.TestClusterName +
+		"/externalauths/" + statusutils.TestExternalAuthName)
+
+	parentClusterID := metadataapi.Must(azcorearm.ParseResourceID(
+		"/subscriptions/" + statusutils.TestSubscriptionID +
+			"/resourceGroups/" + statusutils.TestResourceGroupName +
+			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + statusutils.TestClusterName,
+	))
+
+	reg := prometheus.NewRegistry()
+	degradedGauge := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{Name: "backend_externalauth_degraded"},
+		[]string{"resource_id", "controller"},
+	)
+	reg.MustRegister(degradedGauge)
+
+	// Seed DB with only the parent cluster (no ExternalAuth)
+	parentCluster := &coreapi.Cluster{
+		CosmosMetadata: coreapi.CosmosMetadata{
+			ResourceID:   parentClusterID,
+			PartitionKey: strings.ToLower(parentClusterID.SubscriptionID),
+		},
+		TrackedResource: coreapi.TrackedResource{
+			Resource: coreapi.Resource{ID: parentClusterID, Name: statusutils.TestClusterName, Type: parentClusterID.ResourceType.String()},
+		},
+	}
+	mockDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{parentCluster})
+	require.NoError(t, err)
+
+	syncer := &externalAuthUserFacingConditionsDegradedAggregator{
+		externalAuthLister:                &corelistertesting.DBExternalAuthLister{ResourcesDBClient: mockDB},
+		serviceProviderExternalAuthLister: &corelistertesting.DBServiceProviderExternalAuthLister{ResourcesDBClient: mockDB},
+		resourcesDBClient:                 mockDB,
+		degradedGauge:                     degradedGauge,
+	}
+
+	// Set the gauge to 1 (simulating a previously degraded ExternalAuth)
+	degradedGauge.With(prometheus.Labels{
+		"resource_id": resourceID,
+		"controller":  ExternalAuthUserFacingConditionsDegradedAggregatorControllerName,
+	}).Set(1)
+
+	// Verify gauge is set to 1
+	expected := fmt.Sprintf(`# HELP backend_externalauth_degraded 
+# TYPE backend_externalauth_degraded gauge
+backend_externalauth_degraded{controller="%s",resource_id="%s"} 1
+`, ExternalAuthUserFacingConditionsDegradedAggregatorControllerName, resourceID)
+	require.NoError(t, testutil.GatherAndCompare(reg, strings.NewReader(expected), "backend_externalauth_degraded"))
+
+	// Call SyncOnce — ExternalAuth is NotFound
+	err = syncer.SyncOnce(ctx, controllerutils.HCPExternalAuthKey{
+		SubscriptionID:      statusutils.TestSubscriptionID,
+		ResourceGroupName:   statusutils.TestResourceGroupName,
+		HCPClusterName:      statusutils.TestClusterName,
+		HCPExternalAuthName: statusutils.TestExternalAuthName,
+	})
+	require.NoError(t, err)
+
+	// Verify gauge is now 0 (not deleted, just set to 0)
+	expectedZero := fmt.Sprintf(`# HELP backend_externalauth_degraded 
+# TYPE backend_externalauth_degraded gauge
+backend_externalauth_degraded{controller="%s",resource_id="%s"} 0
+`, ExternalAuthUserFacingConditionsDegradedAggregatorControllerName, resourceID)
+	require.NoError(t, testutil.GatherAndCompare(reg, strings.NewReader(expectedZero), "backend_externalauth_degraded"))
 }

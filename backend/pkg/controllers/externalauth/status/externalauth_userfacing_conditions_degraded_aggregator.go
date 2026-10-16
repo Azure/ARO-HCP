@@ -17,11 +17,18 @@ package status
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 
 	"k8s.io/apimachinery/pkg/api/equality"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/component-base/metrics/legacyregistry"
+
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/statusutils"
@@ -77,6 +84,10 @@ type externalAuthUserFacingConditionsDegradedAggregator struct {
 	externalAuthLister                corelisters.ExternalAuthLister
 	serviceProviderExternalAuthLister corelisters.ServiceProviderExternalAuthLister
 	resourcesDBClient                 corecosmosstorage.ResourcesDBClient
+	// degradedGauge backs backend_externalauth_degraded{resource_id, controller}:
+	// set to 1 when the ExternalAuth is user-facing degraded
+	// (UserFacingConditions[Degraded]=True) and 0 otherwise.
+	degradedGauge *prometheus.GaugeVec
 }
 
 var _ controllerutils.ExternalAuthSyncer = (*externalAuthUserFacingConditionsDegradedAggregator)(nil)
@@ -95,6 +106,13 @@ func NewExternalAuthUserFacingConditionsDegradedAggregatorController(
 		externalAuthLister:                externalAuthLister,
 		serviceProviderExternalAuthLister: serviceProviderExternalAuthLister,
 		resourcesDBClient:                 resourcesDBClient,
+		degradedGauge: promauto.With(legacyregistry.Registerer()).NewGaugeVec(
+			prometheus.GaugeOpts{
+				Name: "backend_externalauth_degraded",
+				Help: "Whether an external auth is user-facing degraded (1) or not (0).",
+			},
+			[]string{"resource_id", "controller"},
+		),
 	}
 	return controllerutils.NewExternalAuthWatchingController(
 		ExternalAuthUserFacingConditionsDegradedAggregatorControllerName,
@@ -112,6 +130,8 @@ func (c *externalAuthUserFacingConditionsDegradedAggregator) needsWork(externalA
 func (c *externalAuthUserFacingConditionsDegradedAggregator) SyncOnce(ctx context.Context, key controllerutils.HCPExternalAuthKey) error {
 	existing, err := c.externalAuthLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPExternalAuthName)
 	if cosmosstorageutils.IsNotFoundError(err) {
+		// ExternalAuth deleted — set gauge to 0 so stale degraded=1 doesn't linger.
+		c.recordDegradedGaugeForKey(key, metav1.ConditionFalse)
 		return nil
 	}
 	if err != nil {
@@ -146,6 +166,10 @@ func (c *externalAuthUserFacingConditionsDegradedAggregator) SyncOnce(ctx contex
 
 	replacement := existing.DeepCopy()
 	apimeta.SetStatusCondition(&replacement.Status.UserFacingConditions, aggregated)
+
+	// Record the gauge regardless of whether we write to Cosmos
+	c.recordDegradedGauge(existing.ResourceID, aggregated.Status)
+
 	if equality.Semantic.DeepEqual(existing.Status.UserFacingConditions, replacement.Status.UserFacingConditions) {
 		return nil
 	}
@@ -159,6 +183,45 @@ func (c *externalAuthUserFacingConditionsDegradedAggregator) SyncOnce(ctx contex
 		return utils.TrackError(fmt.Errorf("failed to replace ExternalAuth: %w", err))
 	}
 	return nil
+}
+
+// recordDegradedGauge sets backend_externalauth_degraded to 1 if the
+// user-facing Degraded condition is True, 0 otherwise.
+func (c *externalAuthUserFacingConditionsDegradedAggregator) recordDegradedGauge(
+	externalAuthResourceID *azcorearm.ResourceID,
+	status metav1.ConditionStatus,
+) {
+	if externalAuthResourceID == nil {
+		return
+	}
+	resourceID := strings.ToLower(externalAuthResourceID.String())
+	c.setDegradedGauge(resourceID, status)
+}
+
+// recordDegradedGaugeForKey sets backend_externalauth_degraded using key components
+// when the ResourceID is not available (e.g., on NotFound).
+func (c *externalAuthUserFacingConditionsDegradedAggregator) recordDegradedGaugeForKey(
+	key controllerutils.HCPExternalAuthKey,
+	status metav1.ConditionStatus,
+) {
+	resourceID := strings.ToLower(fmt.Sprintf(
+		"/subscriptions/%s/resourcegroups/%s/providers/microsoft.redhatopenshift/hcpopenshiftclusters/%s/externalauths/%s",
+		key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPExternalAuthName,
+	))
+	c.setDegradedGauge(resourceID, status)
+}
+
+// setDegradedGauge sets the gauge value for the given resource ID.
+func (c *externalAuthUserFacingConditionsDegradedAggregator) setDegradedGauge(resourceID string, status metav1.ConditionStatus) {
+	value := 0.0
+	if status == metav1.ConditionTrue {
+		value = 1.0
+	}
+
+	c.degradedGauge.With(prometheus.Labels{
+		"resource_id": resourceID,
+		"controller":  ExternalAuthUserFacingConditionsDegradedAggregatorControllerName,
+	}).Set(value)
 }
 
 // hasAllowlistedCondition reports whether any condition in the slice has a
