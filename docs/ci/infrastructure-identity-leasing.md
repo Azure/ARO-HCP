@@ -52,6 +52,11 @@ explicit binary for local use.
 The root CLI still validates `ARO_HCP_SUITE_PARALLELISM` during construction;
 when supplied, it must be empty or a positive integer, even for offline commands.
 
+Commands supplied by openshift-tests-extension initialize suites before running;
+only `run-suite` and `run-test` configure the MI scheduler, and only `run-suite`
+applies suite concurrency defaults. Help and offline infrastructure commands
+skip suite initialization.
+
 `LEASED_INFRASTRUCTURE_IDENTITY_BUNDLE` supplies a JSON object with the four
 resource-group and identity-name fields above. Its management fields are objects
 keyed by stamp number and must contain the same non-empty set of stamps. A valid

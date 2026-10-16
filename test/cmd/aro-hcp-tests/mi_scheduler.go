@@ -22,8 +22,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/spf13/cobra"
-
 	et "github.com/openshift-eng/openshift-tests-extension/pkg/extension/extensiontests"
 
 	"github.com/Azure/ARO-HCP/test/pkg/leaseenv"
@@ -161,14 +159,4 @@ func ensureMISchedulerConfigured() {
 	miSchedulerConfigure.Do(func() {
 		configureMIScheduler(miSchedulerSpecs, miSchedulerSetup)
 	})
-}
-
-func wrapMISchedulerPreRun(cmd *cobra.Command) {
-	existingPreRun := cmd.PersistentPreRun
-	cmd.PersistentPreRun = func(c *cobra.Command, args []string) {
-		ensureMISchedulerConfigured()
-		if existingPreRun != nil {
-			existingPreRun(c, args)
-		}
-	}
 }
