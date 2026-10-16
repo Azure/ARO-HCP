@@ -449,7 +449,6 @@ and capability checks still apply; see
 [`vm_sku_selection.go`](../util/framework/vm_sku_selection.go) for selector
 behavior.
 
-
 Local runs can supply the same resolved override without slot-manager:
 
 ```bash
