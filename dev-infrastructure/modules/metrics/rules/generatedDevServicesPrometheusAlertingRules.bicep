@@ -671,7 +671,6 @@ resource backend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
             }
           }
         ]
-        }]
         alert: 'BackendControllerPanic'
         enabled: true
         labels: {

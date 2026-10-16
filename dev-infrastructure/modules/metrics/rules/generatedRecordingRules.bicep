@@ -222,8 +222,6 @@ resource arohcpClusterProvisionLatencyRecordingRules 'Microsoft.AlertsManagement
 
 resource arohcpClusterDeletionSloRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'arohcp_cluster_deletion_slo_recording_rules'
-resource arohcpNodepoolSloRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
-  name: 'arohcp_nodepool_slo_recording_rules'
   location: location
   properties: {
     scopes: [
@@ -239,20 +237,6 @@ resource arohcpNodepoolSloRecordingRules 'Microsoft.AlertsManagement/prometheusR
       {
         record: 'errors:backend_cluster_deletion_operation:latency_error_rate'
         expression: '(count by (cluster, region) ((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{operation_type="delete",phase="succeeded",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_start_time_seconds{operation_type="delete",phase="succeeded",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) > 1800 and max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type="delete",phase="succeeded",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1) or 0 * count by (cluster, region) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type="delete",phase="succeeded",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1)) / clamp_min(count by (cluster, region) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type="delete",phase="succeeded",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1), 1)'
-        record: 'errors:backend_nodepool_operation:succeeded_total'
-        expression: 'count by (cluster, region) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type=~"create|update|delete",phase="succeeded",resource_type=~".*nodepools"}))'
-      }
-      {
-        record: 'errors:backend_nodepool_operation:terminal_total'
-        expression: 'count by (cluster, region) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type=~"create|update|delete",phase=~"succeeded|failed",resource_type=~".*nodepools"}))'
-      }
-      {
-        record: 'errors:backend_nodepool_operation:error_rate'
-        expression: '(count by (cluster, region) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type=~"create|update|delete",phase="failed",resource_type=~".*nodepools"})) or 0 * count by (cluster, region) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type=~"create|update|delete",phase=~"succeeded|failed",resource_type=~".*nodepools"}))) / clamp_min(count by (cluster, region) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type=~"create|update|delete",phase=~"succeeded|failed",resource_type=~".*nodepools"})), 1)'
-      }
-      {
-        record: 'nodepool:provision_state:count_by_phase'
-        expression: 'count by (phase, region) (max by (phase, resource_id, subscription_id, region) (backend_nodepool_provision_state))'
       }
     ]
   }
@@ -260,8 +244,6 @@ resource arohcpNodepoolSloRecordingRules 'Microsoft.AlertsManagement/prometheusR
 
 resource arohcpClusterDeletionSloWindowedRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'arohcp_cluster_deletion_slo_windowed_recording_rules'
-resource arohcpNodepoolSloWindowedRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
-  name: 'arohcp_nodepool_slo_windowed_recording_rules'
   location: location
   properties: {
     scopes: [
@@ -403,6 +385,52 @@ resource arohcpClusterDeletionSloWindowedLatencyRecordingRules 'Microsoft.Alerts
       {
         record: 'errors:backend_cluster_deletion_operation:latency_error_rate_3d'
         expression: 'errors:backend_cluster_deletion_operation:latency_slow_3d / clamp_min(errors:backend_cluster_deletion_operation:latency_total_3d, 1)'
+      }
+    ]
+  }
+}
+
+resource arohcpNodepoolSloRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_nodepool_slo_recording_rules'
+  location: location
+  properties: {
+    scopes: [
+      azureMonitoring
+    ]
+    enabled: true
+    interval: 'PT1M'
+    rules: [
+      {
+        record: 'errors:backend_nodepool_operation:succeeded_total'
+        expression: 'count by (cluster, region) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type=~"create|update|delete",phase="succeeded",resource_type=~".*nodepools"}))'
+      }
+      {
+        record: 'errors:backend_nodepool_operation:terminal_total'
+        expression: 'count by (cluster, region) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type=~"create|update|delete",phase=~"succeeded|failed",resource_type=~".*nodepools"}))'
+      }
+      {
+        record: 'errors:backend_nodepool_operation:error_rate'
+        expression: '(count by (cluster, region) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type=~"create|update|delete",phase="failed",resource_type=~".*nodepools"})) or 0 * count by (cluster, region) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type=~"create|update|delete",phase=~"succeeded|failed",resource_type=~".*nodepools"}))) / clamp_min(count by (cluster, region) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type=~"create|update|delete",phase=~"succeeded|failed",resource_type=~".*nodepools"})), 1)'
+      }
+      {
+        record: 'nodepool:provision_state:count_by_phase'
+        expression: 'count by (phase, region) (max by (phase, resource_id, subscription_id, region) (backend_nodepool_provision_state))'
+      }
+    ]
+  }
+}
+
+resource arohcpNodepoolSloWindowedRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_nodepool_slo_windowed_recording_rules'
+  location: location
+  properties: {
+    scopes: [
+      azureMonitoring
+    ]
+    enabled: true
+    interval: 'PT1M'
+    rules: [
+      {
         record: 'errors:backend_nodepool_operation:failed_5m'
         expression: 'count by (cluster, region) ((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type=~"create|update|delete",phase="failed",resource_type=~".*nodepools"}) == 1) and ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{operation_type=~"create|update|delete",resource_type=~".*nodepools"})) < 300)) or 0 * count by (cluster, region) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type=~"create|update|delete",resource_type=~".*nodepools"}))'
       }
