@@ -63,6 +63,7 @@ func instantiateDispatchRequestCredentialController(controllerContext controller
 		controllerContext.Clock,
 		controllerContext.ResourcesDBClient,
 		controllerContext.ClustersServiceClient,
+		controllerContext.AsyncOperationNotificationClient,
 		activeOperationInformer,
 	), nil
 }
@@ -81,6 +82,7 @@ func instantiateAdminCredentialsDispatchRequestCredentialController(controllerCo
 		controllerContext.Clock,
 		controllerContext.ResourcesDBClient,
 		clusterLister,
+		controllerContext.AsyncOperationNotificationClient,
 		activeOperationInformer,
 	), nil
 }
@@ -117,6 +119,7 @@ func instantiateAdminCredentialsDispatchRevokeCredentialsController(controllerCo
 		controllerContext.Clock,
 		controllerContext.ResourcesDBClient,
 		clusterLister,
+		controllerContext.AsyncOperationNotificationClient,
 		activeOperationInformer,
 	), nil
 }

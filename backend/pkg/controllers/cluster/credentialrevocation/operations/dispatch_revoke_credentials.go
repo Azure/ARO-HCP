@@ -17,6 +17,7 @@ package operations
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
@@ -34,19 +35,19 @@ import (
 )
 
 type dispatchRevokeCredentials struct {
-	clock             utilsclock.PassiveClock
-	resourcesDBClient corecosmosstorage.ResourcesDBClient
-	clusterLister     corelisters.ClusterLister
+	clock              utilsclock.PassiveClock
+	resourcesDBClient  corecosmosstorage.ResourcesDBClient
+	clusterLister      corelisters.ClusterLister
+	notificationClient *http.Client
 }
 
 const SystemAdminCredentialDispatchRevokeCredentialsControllerName = "SystemAdminCredentialDispatchRevokeCredentials"
 
 // NewDispatchRevokeCredentialsController returns a Controller that handles the
-// first step of a RevokeCredentials operation: it creates a single
-// SystemAdminCredentialRevocation document nested under the cluster, records its
-// resource ID on SystemAdminCredentialRevocation, and moves the operation to
-// Deleting. The actual revocation work (marking credential requests for
-// deletion, driving the CertificateRevocationRequest desires, and tearing them
+// first step of a RevokeCredentials operation: it reserves the resource ID while
+// Accepted, then creates or adopts that SystemAdminCredentialRevocation document
+// before moving the operation to Deleting. The actual revocation work (marking
+// credential requests for deletion, driving CertificateRevocationRequest desires, and tearing them
 // down) is performed by the dedicated SystemAdminCredentialRevocation
 // controllers. The operation completes once the revocation document is gone.
 //
@@ -55,17 +56,18 @@ const SystemAdminCredentialDispatchRevokeCredentialsControllerName = "SystemAdmi
 //	ResourceType: Microsoft.RedHatOpenShift/hcpOpenShiftClusters
 //	     Request: OperationRequestSystemAdminCredentialRevocation ("RevokeCredentials")
 //	      Status: Accepted
-//	  SystemAdminCredentialRevocation: nil
 func NewDispatchRevokeCredentialsController(
 	clock utilsclock.PassiveClock,
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	clusterLister corelisters.ClusterLister,
+	notificationClient *http.Client,
 	activeOperationInformer cache.SharedIndexInformer,
 ) controllerutils.Controller {
 	syncer := &dispatchRevokeCredentials{
-		clock:             clock,
-		resourcesDBClient: resourcesDBClient,
-		clusterLister:     clusterLister,
+		clock:              clock,
+		resourcesDBClient:  resourcesDBClient,
+		clusterLister:      clusterLister,
+		notificationClient: notificationClient,
 	}
 
 	controller := controllerutils.NewGenericOperationController(
@@ -89,9 +91,6 @@ func (c *dispatchRevokeCredentials) ShouldProcess(ctx context.Context, operation
 	if operation.Status != coreapi.ProvisioningStateAccepted {
 		return false
 	}
-	if operation.SystemAdminCredentialRevocation != nil && operation.SystemAdminCredentialRevocation.SystemAdminCredentialRevocationResourceID != nil {
-		return false
-	}
 	return true
 }
 
@@ -109,30 +108,41 @@ func (c *dispatchRevokeCredentials) SynchronizeOperation(ctx context.Context, ke
 	if !c.ShouldProcess(ctx, operation) {
 		return nil
 	}
-	if expired, err := operationutils.ExpireCredentialOperation(ctx, c.clock, c.resourcesDBClient, operation); expired || err != nil {
+	if expired, err := operationutils.ExpireCredentialOperation(ctx, c.clock, c.resourcesDBClient, operation, operationutils.PostAsyncNotificationFn(c.notificationClient)); expired || err != nil {
 		return err
 	}
 
-	// A revoke operation ID is a UUID; derive a short, stable suffix used to
-	// name the revocation document and its CRR objects.
-	revokeOpSuffix := strings.ReplaceAll(operation.OperationID.Name, "-", "")
-	if len(revokeOpSuffix) > 16 {
-		revokeOpSuffix = revokeOpSuffix[:16]
+	if operation.SystemAdminCredentialRevocation == nil || operation.SystemAdminCredentialRevocation.SystemAdminCredentialRevocationResourceID == nil {
+		// A revoke operation ID is a UUID; derive a short, stable suffix used to
+		// name the revocation document and its CRR objects.
+		revokeOpSuffix := strings.ReplaceAll(operation.OperationID.Name, "-", "")
+		if len(revokeOpSuffix) > 16 {
+			revokeOpSuffix = revokeOpSuffix[:16]
+		}
+
+		revocationResourceID, err := coreapihelpers.ToSystemAdminCredentialRevocationResourceID(
+			operation.ExternalID.SubscriptionID,
+			operation.ExternalID.ResourceGroupName,
+			operation.ExternalID.Name,
+			revokeOpSuffix,
+		)
+		if err != nil {
+			return utils.TrackError(fmt.Errorf("failed to build revocation resource ID: %w", err))
+		}
+		replacement := operation.DeepCopy()
+		replacement.SystemAdminCredentialRevocation = &coreapi.OperationSystemAdminCredentialRevocation{
+			SystemAdminCredentialRevocationResourceID: revocationResourceID,
+		}
+		_, err = c.resourcesDBClient.Operations(key.SubscriptionID).Replace(ctx, replacement, nil)
+		if cosmosstorageutils.IsPreconditionFailedError(err) {
+			return nil
+		}
+		return err
 	}
 
-	revocationCRUD := c.resourcesDBClient.HCPClusters(operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName).SystemAdminCredentialRevocations(
-		operation.ExternalID.Name,
-	)
-
-	revocationResourceID, err := coreapihelpers.ToSystemAdminCredentialRevocationResourceID(
-		operation.ExternalID.SubscriptionID,
-		operation.ExternalID.ResourceGroupName,
-		operation.ExternalID.Name,
-		revokeOpSuffix,
-	)
-	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to build revocation resource ID: %w", err))
-	}
+	revocationResourceID := operation.SystemAdminCredentialRevocation.SystemAdminCredentialRevocationResourceID
+	revokeOpSuffix := revocationResourceID.Name
+	revocationCRUD := c.resourcesDBClient.HCPClusters(operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName).SystemAdminCredentialRevocations(operation.ExternalID.Name)
 
 	// Create the revocation document if it does not already exist.
 	if existing, err := revocationCRUD.Get(ctx, revokeOpSuffix); cosmosstorageutils.IsNotFoundError(err) {
@@ -159,9 +169,6 @@ func (c *dispatchRevokeCredentials) SynchronizeOperation(ctx context.Context, ke
 	}
 
 	replacement := operation.DeepCopy()
-	replacement.SystemAdminCredentialRevocation = &coreapi.OperationSystemAdminCredentialRevocation{
-		SystemAdminCredentialRevocationResourceID: revocationResourceID,
-	}
 	replacement.Status = coreapi.ProvisioningStateDeleting
 	replacement.LastTransitionTime = c.clock.Now()
 	_, err = c.resourcesDBClient.Operations(key.SubscriptionID).Replace(ctx, replacement, nil)

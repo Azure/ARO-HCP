@@ -16,7 +16,6 @@ package operationutils
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
@@ -50,19 +49,28 @@ func TestCredentialDeadline(t *testing.T) {
 				id := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster"))
 				op := cosmosstorageutils.NewOperation(request, id, metadataapi.InternalID{}, "eastus", "", "", "", nil)
 				op.CompletionDeadline = tc.deadline
+				op.NotificationURI = "https://notification.example/operation"
 				db, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{op})
 				require.NoError(t, err)
 				op, err = db.Operations(id.SubscriptionID).Get(ctx, op.OperationID.Name)
 				require.NoError(t, err)
-				expired, err := ExpireCredentialOperation(ctx, clock, db, op)
+				notified := false
+				expired, err := ExpireCredentialOperation(ctx, clock, db, op, func(ctx context.Context, terminal *coreapi.Operation) error {
+					notified = true
+					require.Equal(t, coreapi.ProvisioningStateFailed, terminal.Status)
+					require.Equal(t, "DeadlineExceeded", terminal.Error.Code)
+					return nil
+				})
 				require.NoError(t, err, "expiry must not depend on a cluster document")
 				require.Equal(t, tc.expire, expired)
+				require.Equal(t, tc.expire, notified, "deadline completion must notify ARM")
 				live, err := db.Operations(id.SubscriptionID).Get(ctx, op.OperationID.Name)
 				require.NoError(t, err)
 				if tc.expire {
 					require.Equal(t, coreapi.ProvisioningStateFailed, live.Status)
 					require.Equal(t, "DeadlineExceeded", live.Error.Code)
-					expired, err = ExpireCredentialOperation(ctx, clock, db, live)
+					require.Empty(t, live.NotificationURI, "successful notification clears the URI")
+					expired, err = ExpireCredentialOperation(ctx, clock, db, live, nil)
 					require.NoError(t, err)
 					require.False(t, expired, "terminal monitoring is immutable")
 				} else {
@@ -74,27 +82,3 @@ func TestCredentialDeadline(t *testing.T) {
 }
 
 func timePointer(t time.Time) *time.Time { return &t }
-
-func TestCredentialCompletionAcknowledgement(t *testing.T) {
-	for _, revocation := range []bool{false, true} {
-		t.Run(fmt.Sprint(revocation), func(t *testing.T) {
-			ctx := t.Context()
-			id := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster"))
-			request, child := coreapi.OperationRequestSystemAdminCredentialRequest, "systemAdminCredentialRequests"
-			if revocation {
-				request, child = coreapi.OperationRequestSystemAdminCredentialRevocation, "systemAdminCredentialRevocations"
-			}
-			rid := metadataapi.Must(azcorearm.ParseResourceID(id.String() + "/" + child + "/intent"))
-			op := cosmosstorageutils.NewOperation(request, id, metadataapi.InternalID{}, "eastus", "", "", "", nil)
-			op.Status = coreapi.ProvisioningStateFailed
-			db, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{op})
-			require.NoError(t, err)
-			require.NoError(t, CompleteCredentialIntent(ctx, db, rid, op.OperationID.Name, revocation))
-			require.NoError(t, CompleteCredentialIntent(ctx, db, rid, op.OperationID.Name, revocation), "retry after interrupted deletion is idempotent")
-			require.ErrorIs(t, LinkCredentialIntent(ctx, db, rid, op.OperationID.Name, revocation), ErrCredentialIntentComplete, "replayed creation must not resume side effects")
-			live, err := db.Operations(id.SubscriptionID).Get(ctx, op.OperationID.Name)
-			require.NoError(t, err)
-			require.Equal(t, coreapi.ProvisioningStateFailed, live.Status)
-		})
-	}
-}

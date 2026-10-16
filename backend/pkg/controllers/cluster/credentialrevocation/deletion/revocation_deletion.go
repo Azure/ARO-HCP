@@ -22,7 +22,6 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
-	"github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
@@ -87,9 +86,6 @@ func (c *revocationDeletion) SyncOnce(ctx context.Context, key controllerutils.S
 	// Only tear down once the revocation has been marked for deletion.
 	if revocation.Status.DeletionTimestamp == nil {
 		return nil
-	}
-	if err := operationutils.CompleteCredentialIntent(ctx, c.resourcesDBClient, revocation.ResourceID, revocation.Spec.OperationID, true); err != nil {
-		return err
 	}
 
 	serviceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)

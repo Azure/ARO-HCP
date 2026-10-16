@@ -85,33 +85,27 @@ type Operation struct {
 	// TODO do NOT reference this field in any new code. It is in the process of being removed
 	UsesNewClusterDeletionApproach bool `json:"usesNewClusterDeletionApproach"`
 
-	// Written by: Frontend POST requestAdminCredential, backend systemadmincredentialcontrollers
+	// Written by: Frontend POST requestAdminCredential, SystemAdminCredentialDispatchRequestCredential
 	SystemAdminCredentialRequest *OperationSystemAdminCredentialRequest `json:"systemAdminCredentialRequest,omitempty"`
-	// Written by: Frontend POST revokeCredentials, backend systemadmincredentialcontrollers
+	// Written by: SystemAdminCredentialDispatchRevokeCredentials
 	SystemAdminCredentialRevocation *OperationSystemAdminCredentialRevocation `json:"systemAdminCredentialRevocation,omitempty"`
 }
 
 // OperationSystemAdminCredentialRequest groups state for the admin credential
 // request lifecycle on an Operation document.
 type OperationSystemAdminCredentialRequest struct {
-	// ReconciliationComplete acknowledges teardown before the internal document
-	// disappears. A stale dispatcher cannot replay completed credential work.
-	// Written by: SystemAdminCredentialClusterDeletionCleanup, SystemAdminCredentialRevokedGC
-	ReconciliationComplete bool `json:"reconciliationComplete,omitempty"`
 	// Written by: Frontend POST requestAdminCredential
 	CertificateSigningRequest string `json:"certificateSigningRequest,omitempty"`
-	// Written by: SystemAdminCredentialDispatchRequestCredential, SystemAdminCredentialDesiresCreator, SystemAdminCredentialIssuanceObserver, SystemAdminCredentialClusterDeletionCleanup, SystemAdminCredentialRevokedGC
+	// Reserved before creating the internal request; Accepted does not imply it exists.
+	// Written by: SystemAdminCredentialDispatchRequestCredential
 	SystemAdminCredentialRequestResourceID *azcorearm.ResourceID `json:"systemAdminCredentialRequestResourceID,omitempty"`
 }
 
 // OperationSystemAdminCredentialRevocation groups state for the admin credential
 // revocation lifecycle on an Operation document.
 type OperationSystemAdminCredentialRevocation struct {
-	// ReconciliationComplete prevents replayed dispatch from starting side effects
-	// after teardown has begun, even if ARM monitoring has already timed out.
-	// Written by: SystemAdminCredentialRevocationDeletion
-	ReconciliationComplete bool `json:"reconciliationComplete,omitempty"`
-	// Written by: SystemAdminCredentialDispatchRevokeCredentials, SystemAdminCredentialRevocationMarkRequests, SystemAdminCredentialRevocationDesires, SystemAdminCredentialRevocationCompletion, SystemAdminCredentialRevocationDeletion
+	// Reserved before creating the internal revocation; Accepted does not imply it exists.
+	// Written by: SystemAdminCredentialDispatchRevokeCredentials
 	SystemAdminCredentialRevocationResourceID *azcorearm.ResourceID `json:"systemAdminCredentialRevocationResourceID,omitempty"`
 }
 

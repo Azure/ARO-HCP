@@ -178,7 +178,7 @@ func TestRevocationRepeatsSweepAndQueues(t *testing.T) {
 	require.Equal(t, "WaitingForOtherRevocation", meta.FindStatusCondition(b.Status.Conditions, coreapi.SystemAdminCredentialRevocationConditionActive).Reason)
 	op, err = db.Operations(testSubscriptionID).Get(ctx, op.OperationID.Name)
 	require.NoError(t, err)
-	expired, err := operationutils.ExpireCredentialOperation(ctx, clock, db, op)
+	expired, err := operationutils.ExpireCredentialOperation(ctx, clock, db, op, nil)
 	require.NoError(t, err)
 	require.True(t, expired)
 	// Simulate completed teardown of the first owner. The queued document must

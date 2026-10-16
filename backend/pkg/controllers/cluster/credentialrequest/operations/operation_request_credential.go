@@ -101,10 +101,10 @@ func (c *operationRequestCredentialPoll) SynchronizeOperation(ctx context.Contex
 	if !c.ShouldProcess(ctx, oldOperation) {
 		return nil
 	}
-	if expired, err := operationbase.ExpireCredentialOperation(ctx, c.clock, c.resourcesDBClient, oldOperation); expired || err != nil {
+	if expired, err := operationbase.ExpireCredentialOperation(ctx, c.clock, c.resourcesDBClient, oldOperation, operationbase.PostAsyncNotificationFn(c.notificationClient)); expired || err != nil {
 		return err
 	}
-	if oldOperation.SystemAdminCredentialRequest.SystemAdminCredentialRequestResourceID == nil {
+	if oldOperation.Status != coreapi.ProvisioningStateProvisioning || oldOperation.SystemAdminCredentialRequest.SystemAdminCredentialRequestResourceID == nil {
 		return nil
 	}
 

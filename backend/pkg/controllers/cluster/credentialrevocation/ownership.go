@@ -26,7 +26,6 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
-	"github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
@@ -38,9 +37,6 @@ import (
 // Owns checks the live cluster immediately before revocation side effects. This
 // is optimistic exclusion, not fencing of writes to the management cluster.
 func Owns(ctx context.Context, db corecosmosstorage.ResourcesDBClient, revocation *coreapi.SystemAdminCredentialRevocation) (bool, error) {
-	if err := operationutils.LinkCredentialIntent(ctx, db, revocation.ResourceID, revocation.Spec.OperationID, true); err != nil {
-		return false, err
-	}
 	id := revocation.ResourceID.Parent
 	cluster, err := db.HCPClusters(id.SubscriptionID, id.ResourceGroupName).Get(ctx, id.Name)
 	if cosmosstorageutils.IsNotFoundError(err) {
@@ -102,8 +98,8 @@ func decideLegacyReference(logger logr.Logger, cluster *coreapi.Cluster, revocat
 	if operationErr != nil && !cosmosstorageutils.IsNotFoundError(operationErr) {
 		return ownershipDecision{Err: operationErr}
 	}
-	if operation != nil && !operation.Status.IsTerminal() && (operation.SystemAdminCredentialRevocation == nil || operation.SystemAdminCredentialRevocation.SystemAdminCredentialRevocationResourceID == nil) {
-		return ownershipDecision{} // DispatchRevokeCredentials has not linked its intent yet.
+	if operation != nil && !operation.Status.IsTerminal() && (operation.Status == coreapi.ProvisioningStateAccepted || operation.SystemAdminCredentialRevocation == nil || operation.SystemAdminCredentialRevocation.SystemAdminCredentialRevocationResourceID == nil) {
+		return ownershipDecision{} // DispatchRevokeCredentials has not finished dispatching its intent yet.
 	}
 	replacement := cluster.DeepCopy()
 	replacement.ServiceProviderProperties.RevokeCredentialsOperationID = ""

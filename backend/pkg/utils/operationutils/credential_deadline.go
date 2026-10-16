@@ -25,7 +25,7 @@ import (
 
 // ExpireCredentialOperation ends monitoring without canceling internal intent.
 // Call before accessing cluster, placement, Cluster Service, or kube-applier state.
-func ExpireCredentialOperation(ctx context.Context, clock utilsclock.PassiveClock, db corecosmosstorage.ResourcesDBClient, op *coreapi.Operation) (bool, error) {
+func ExpireCredentialOperation(ctx context.Context, clock utilsclock.PassiveClock, db corecosmosstorage.ResourcesDBClient, op *coreapi.Operation, notifyFn PostAsyncNotificationFunc) (bool, error) {
 	if op.Status.IsTerminal() || op.CompletionDeadline == nil || clock.Now().Before(*op.CompletionDeadline) {
 		return false, nil
 	}
@@ -35,5 +35,5 @@ func ExpireCredentialOperation(ctx context.Context, clock utilsclock.PassiveCloc
 	return true, UpdateOperationStatus(ctx, clock, db, op, coreapi.ProvisioningStateFailed, &coreapi.CloudErrorBody{
 		Code:    "DeadlineExceeded",
 		Message: "Credential operation monitoring deadline exceeded; dispatched internal work continues independently.",
-	}, nil)
+	}, notifyFn)
 }

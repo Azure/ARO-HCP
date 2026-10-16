@@ -60,6 +60,7 @@ func TestDecideLegacyReference(t *testing.T) {
 		{name: "no sentinel ignores irrelevant errors", cluster: cluster("", nil), listErr: failure, opErr: failure},
 		{name: "internal reference belongs to lifecycle", cluster: cluster("operation", rid), listErr: failure},
 		{name: "pending legacy operation waits", cluster: cluster("operation", nil), op: &coreapi.Operation{Status: coreapi.ProvisioningStateAccepted}},
+		{name: "reserved identity waits for dispatch", cluster: cluster("operation", nil), op: &coreapi.Operation{Status: coreapi.ProvisioningStateAccepted, SystemAdminCredentialRevocation: &coreapi.OperationSystemAdminCredentialRevocation{SystemAdminCredentialRevocationResourceID: rid}}},
 		{name: "legacy document migrates with cluster ETag", cluster: cluster("operation", nil), intents: []*coreapi.SystemAdminCredentialRevocation{intent}, want: ownershipDecision{Cluster: cluster("operation", rid)}},
 		{name: "timeout does not release internal intent", cluster: cluster("operation", nil), intents: []*coreapi.SystemAdminCredentialRevocation{intent}, op: &coreapi.Operation{Status: coreapi.ProvisioningStateFailed}, want: ownershipDecision{Cluster: cluster("operation", rid)}},
 		{name: "active owner wins over pending legacy writer", cluster: cluster("operation", nil), intents: []*coreapi.SystemAdminCredentialRevocation{intent, active}, want: ownershipDecision{Cluster: cluster("other", otherID)}},

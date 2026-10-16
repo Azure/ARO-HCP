@@ -1770,11 +1770,14 @@ live claims; live checks distinguish active owners from pending intents to avoid
 mutual waiting. Side-effect controllers check the live owner. These checks are
 optimistic exclusion, not distributed fencing of management-cluster writes.
 Repeated sweeps and issuance deletion guards mitigate late credential arrivals.
-Internal controllers recover a missing operation link before deleting an intent,
-and persist `ReconciliationComplete` before teardown, without changing terminal
-ARM status. A stale dispatch replay cannot perform side effects after that
-acknowledgement. Operation TTL expiry does not prevent
-internal teardown.
+Dispatch first reserves the intended internal resource ID on the Accepted
+operation and returns. The next reconciliation creates or adopts that exact
+document before advancing to Provisioning (issuance) or Deleting (revocation).
+Pollers check expiry before prerequisites, but only monitor internal documents
+after that dispatch phase. Internal controllers do not read or update the
+originating operation; terminal status and operation TTL expiry do not prevent
+internal reconciliation or teardown. Missing documents outside normal lifecycle
+deletion are anomalies, not a generic repair protocol.
 
 ![Credential monitoring and internal reconciliation](diagrams/controller-flows/credential-operations.png)
 
@@ -1782,19 +1785,19 @@ internal teardown.
 
 [Source](../backend/pkg/controllers/cluster/credentialrequest/operations/dispatch_request_credential.go) · **Trigger:** Active operation; 10s.
 
-For an accepted RequestCredential operation without a request reference, creates a deterministically named credential request containing the caller's CSR and expiry, then separately records the operation reference with an ETag. Adopts existing legacy random-named requests by operation identity. Cancels issuance while either cluster revocation reference is set or the cluster is deleting. The service never holds the caller's private key.
+For an Accepted RequestCredential operation without a request reference, reserves a deterministic resource ID with an operation ETag and returns. Adopts existing legacy random-named requests by operation identity instead of reserving a new name. An Accepted operation with a reference creates or adopts that exact request, containing the caller's CSR and expiry, then moves to Provisioning. This also advances legacy linked Accepted requests without replacing their contents. Cancels issuance while either cluster revocation reference is set or the cluster is deleting. The service never holds the caller's private key.
 
 #### SystemAdminCredentialOperationRequestCredentialPoll
 
 [Source](../backend/pkg/controllers/cluster/credentialrequest/operations/operation_request_credential.go) · **Trigger:** Active operation; 10s.
 
-Observes the referenced request's Issued/Failed/revocation conditions and completes or fails the operation. Deletion and live revocation exclusion take precedence over Pending or Issued. The frontend also refuses credential result assembly during revocation.
+Checks expiry even while Accepted, then waits for Provisioning before observing the referenced request's Issued/Failed/revocation conditions and completing or failing the operation. Deletion and live revocation exclusion take precedence over Pending or Issued. The frontend also refuses credential result assembly during revocation.
 
 #### SystemAdminCredentialDesiresCreator
 
 [Source](../backend/pkg/controllers/cluster/credentialrequest/creation/desires_creator.go) · **Trigger:** Credential request and mirrored reads; 1m.
 
-For a pending, non-deleting request, waits for cluster ID, actual management cluster and control-plane namespace. Rechecks live exclusion and propagates operation cancellation to a deletion timestamp before creating CSR/CSRApproval ApplyDesires and a CSR ReadDesire nested under the request. Monitoring failure alone does not cancel issuance.
+For a pending, non-deleting request whose parent is not deleting, waits for cluster ID, actual management cluster and control-plane namespace before creating CSR/CSRApproval ApplyDesires and a CSR ReadDesire nested under the request. Does not consult the originating operation; terminal monitoring does not cancel issuance.
 
 #### SystemAdminCredentialIssuanceObserver
 
@@ -1824,7 +1827,7 @@ Deletes request documents at least 48h after `Spec.CreationTimestamp`, irrespect
 
 [Source](../backend/pkg/controllers/cluster/credentialrevocation/operations/dispatch_revoke_credentials.go) · **Trigger:** Active operation; 10s.
 
-For an accepted revoke operation, creates or adopts its deterministic revocation document, separately references it from the operation with an ETag and advances the operation to Deleting. Another revocation owner does not prevent durable dispatch; the internal intent queues independently of ARM monitoring.
+For an Accepted revoke operation, reserves its deterministic revocation resource ID with an operation ETag and returns. The next reconciliation creates or adopts that exact document before advancing the operation to Deleting. Another revocation owner does not prevent durable dispatch; the internal intent queues independently of ARM monitoring.
 
 #### SystemAdminCredentialRevocationMarkRequests
 
@@ -1854,7 +1857,7 @@ For deletion-marked revocations, tears down Kubernetes objects through Delete de
 
 [Source](../backend/pkg/controllers/cluster/credentialrevocation/operations/operation_revoke_credentials.go) · **Trigger:** Active operation; 10s.
 
-Waits for the referenced revocation document to disappear, then completes the operation. Never claims or clears cluster exclusion. Expiry can finish monitoring while internal work continues.
+Checks expiry even while Accepted, then waits for Deleting before interpreting disappearance of the referenced revocation document as completion. A reserved ID alone does not imply completion. Never claims or clears cluster exclusion. Expiry can finish monitoring while internal work continues.
 
 #### SystemAdminCredentialRevocationLegacyReference
 
@@ -2515,7 +2518,7 @@ actors and use optimistic concurrency; retries must re-read on conflict.
 | Cluster `RevokeCredentialsOperationID` | Frontend retains the legacy admission/dispatch sentinel. Internal claims mirror their operation identity; identity-matching teardown or legacy migration clears it. Operation monitors never clear it. |
 | Cluster `SystemAdminCredentialRevocationResourceID` | Internal claim and legacy migration set the revocation owner with a cluster ETag. Internal teardown clears only its own reference before deleting the intent. Frontend and operation monitors never assign or clear it. |
 | Credential `Operation.CompletionDeadline` | Frontend sets 20m issuance / 30m revoke deadlines; nil legacy values remain nil. Dispatch/poll controllers fail monitoring at expiry without canceling durable internal intent. |
-| Credential operation `ReconciliationComplete` | Internal deletion records teardown before the intent disappears. Internal side-effect gates reject a stale dispatch replay; terminal ARM status is not changed. |
+| Credential operation internal resource ID / dispatch state | Dispatch reserves identity while Accepted, returns, then creates or adopts that exact document before advancing to Provisioning (request) or Deleting (revocation). Internal controllers never update operation payloads or gate teardown on operation state. |
 | Credential request spec / status | [Credential dispatch](#systemadmincredentialdispatchrequestcredential) creates request material. [Issuance observation](#systemadmincredentialissuanceobserver) writes signed certificate and terminal conditions. Revocation marking and cluster deletion mark requests for cleanup; request controllers remove external artifacts and documents. |
 | Credential revocation conditions / deletion timestamp | MarkRequests reports request marking; Completion combines that with observed certificate revocation and sets deletion intent; Deletion removes artifacts/document; operation poller observes disappearance. |
 | Child `Controller` conditions and reconcile metadata | Generic wrappers persist bookkeeping; version/other syncers can set intent conditions. Degraded aggregators read them. “No domain write” in the catalog does not imply the wrapper never writes a Controller document. |

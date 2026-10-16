@@ -16,7 +16,6 @@ package creation
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
@@ -26,7 +25,6 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/credentialrevocation"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
-	"github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
@@ -88,14 +86,6 @@ func (c *revocationMarkRequests) SyncOnce(ctx context.Context, key controlleruti
 	// Once the revocation is complete/being deleted there is nothing to mark.
 	if revocation.Status.DeletionTimestamp != nil {
 		return nil
-	}
-	if err := operationutils.LinkCredentialIntent(ctx, c.resourcesDBClient, revocation.ResourceID, revocation.Spec.OperationID, true); err != nil {
-		if errors.Is(err, operationutils.ErrCredentialIntentComplete) {
-			now := metav1.NewTime(c.clock.Now())
-			revocation.Status.DeletionTimestamp = &now
-			_, err = revocationCRUD.Replace(ctx, revocation, nil)
-		}
-		return err
 	}
 	// A cached active owner avoids unnecessary live claim attempts. Pending
 	// documents never block each other; the cluster ETag decides the winner.

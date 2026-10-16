@@ -28,7 +28,6 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/credentialrequest"
 	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
-	"github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
@@ -88,19 +87,6 @@ func (c *issuanceObserver) SyncOnce(ctx context.Context, key controllerutils.Sys
 	// Only process credentials that are pending.
 	if !credentialrequest.IsCredentialRequestPending(cred) {
 		return nil
-	}
-	if err := operationutils.LinkCredentialIntent(ctx, c.resourcesDBClient, cred.ResourceID, cred.Spec.OperationID, false); err != nil {
-		return err
-	}
-	cluster, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Get(ctx, key.HCPClusterName)
-	if err != nil && !cosmosstorageutils.IsNotFoundError(err) {
-		return err
-	}
-	if err == nil && (cluster.ServiceProviderProperties.DeletionTimestamp != nil || cluster.ServiceProviderProperties.RevokeCredentialsOperationID != "" || cluster.ServiceProviderProperties.SystemAdminCredentialRevocationResourceID != nil) {
-		now := metav1.NewTime(c.clock.Now())
-		cred.Status.DeletionTimestamp = &now
-		_, err := credCRUD.Replace(ctx, cred, nil)
-		return err
 	}
 
 	return c.observeCSR(ctx, key, cred, key.CredentialName, credCRUD)

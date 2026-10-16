@@ -30,9 +30,9 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
-	"github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -65,7 +65,7 @@ func TestDispatchRequestCredential_ShouldProcess(t *testing.T) {
 			expected: false,
 		},
 		{
-			name: "already has credential resource ID should not process",
+			name: "reserved or legacy linked Accepted operation should process",
 			op: &coreapi.Operation{
 				Status:  coreapi.ProvisioningStateAccepted,
 				Request: coreapi.OperationRequestSystemAdminCredentialRequest,
@@ -74,7 +74,7 @@ func TestDispatchRequestCredential_ShouldProcess(t *testing.T) {
 						"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster/systemAdminCredentialRequests/cred")),
 				},
 			},
-			expected: false,
+			expected: true,
 		},
 		{
 			name: "nil SystemAdminCredentialRequest should not process",
@@ -131,16 +131,26 @@ func TestCredentialDispatchExpiryAndRecovery(t *testing.T) {
 			}
 			id := live.SystemAdminCredentialRequest.SystemAdminCredentialRequestResourceID
 			require.NotNil(t, id)
-			// Simulate a lost operation link, with the internal document surviving.
-			live.SystemAdminCredentialRequest.SystemAdminCredentialRequestResourceID = nil
-			_, err = db.Operations(testSubscriptionID).Replace(ctx, live, nil)
-			require.NoError(t, err)
-			clock.Step(time.Minute)
+			require.Equal(t, coreapi.ProvisioningStateAccepted, live.Status)
+			credCRUD := db.HCPClusters(testSubscriptionID, testResourceGroupName).SystemAdminCredentialRequests(testClusterName)
+			_, err = credCRUD.Get(ctx, id.Name)
+			require.True(t, cosmosstorageutils.IsNotFoundError(err), "reserve identity before creating intent")
+			poller := &operationRequestCredentialPoll{clock: clock, resourcesDBClient: db}
+			require.NoError(t, poller.SynchronizeOperation(ctx, key), "reserved identity is not yet pollable")
+			// Restart after reservation: create the exact reserved document.
+			c = &dispatchRequestCredential{clock: clock, resourcesDBClient: db, clusterLister: c.clusterLister}
 			require.NoError(t, c.SynchronizeOperation(ctx, key))
-			require.NoError(t, operationutils.LinkCredentialIntent(ctx, db, id, testOperationName, false))
+			cred, err := credCRUD.Get(ctx, id.Name)
+			require.NoError(t, err)
+			require.Equal(t, testOperationName, cred.Spec.OperationID)
 			live, err = db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 			require.NoError(t, err)
-			require.Equal(t, coreapi.ProvisioningStateFailed, live.Status, "link recovery must not resurrect monitoring")
+			require.Equal(t, coreapi.ProvisioningStateProvisioning, live.Status)
+			clock.Step(time.Minute)
+			require.NoError(t, poller.SynchronizeOperation(ctx, key))
+			live, err = db.Operations(testSubscriptionID).Get(ctx, testOperationName)
+			require.NoError(t, err)
+			require.Equal(t, coreapi.ProvisioningStateFailed, live.Status, "deadline ends monitoring only")
 			require.Equal(t, id.String(), live.SystemAdminCredentialRequest.SystemAdminCredentialRequestResourceID.String())
 			require.NoError(t, c.SynchronizeOperation(ctx, key))
 			iter, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).SystemAdminCredentialRequests(testClusterName).List(ctx, nil)
@@ -239,11 +249,48 @@ func TestDispatchRequestCredential_SynchronizeOperation(t *testing.T) {
 				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
+				require.NoError(t, syncer.SynchronizeOperation(ctx, key))
 			}
 
 			if tc.verify != nil {
 				tc.verify(t, ctx, db)
 			}
+		})
+	}
+}
+
+func TestDispatchRequestCredentialAdoptsExisting(t *testing.T) {
+	for _, linked := range []bool{false, true} {
+		t.Run(fmt.Sprintf("linked=%t", linked), func(t *testing.T) {
+			ctx := t.Context()
+			op := newTestOperation(coreapi.OperationRequestSystemAdminCredentialRequest)
+			id := metadataapi.Must(azcorearm.ParseResourceID(op.ExternalID.String() + "/systemAdminCredentialRequests/legacy-random-name"))
+			if linked {
+				op.SystemAdminCredentialRequest.SystemAdminCredentialRequestResourceID = id
+			}
+			cred := &coreapi.SystemAdminCredentialRequest{
+				CosmosMetadata: coreapi.CosmosMetadata{ResourceID: id, PartitionKey: testSubscriptionID},
+				Spec:           coreapi.SystemAdminCredentialRequestSpec{OperationID: testOperationName, CertificateSigningRequestPEM: "original CSR"},
+			}
+			cluster := newTestCluster("")
+			db, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{op, cluster, cred})
+			require.NoError(t, err)
+			c := &dispatchRequestCredential{clock: clocktesting.NewFakeClock(time.Unix(100, 0)), resourcesDBClient: db, clusterLister: &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{cluster}}}
+			key := controllerutils.OperationKey{SubscriptionID: testSubscriptionID, OperationName: testOperationName}
+			require.NoError(t, c.SynchronizeOperation(ctx, key))
+			live, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
+			require.NoError(t, err)
+			require.Equal(t, id.String(), live.SystemAdminCredentialRequest.SystemAdminCredentialRequestResourceID.String())
+			if !linked {
+				require.Equal(t, coreapi.ProvisioningStateAccepted, live.Status, "legacy adoption records identity first")
+				require.NoError(t, c.SynchronizeOperation(ctx, key))
+				live, err = db.Operations(testSubscriptionID).Get(ctx, testOperationName)
+				require.NoError(t, err)
+			}
+			require.Equal(t, coreapi.ProvisioningStateProvisioning, live.Status, "recover crash after create before phase, including legacy linked Accepted requests")
+			stored, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).SystemAdminCredentialRequests(testClusterName).Get(ctx, id.Name)
+			require.NoError(t, err)
+			require.Equal(t, "original CSR", stored.Spec.CertificateSigningRequestPEM, "adoption must not replace existing intent")
 		})
 	}
 }

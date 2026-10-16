@@ -16,6 +16,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 )
 
 func TestCredentialDeadlinePersistence(t *testing.T) {
@@ -32,4 +34,24 @@ func TestCredentialDeadlinePersistence(t *testing.T) {
 	copied := op.DeepCopy()
 	*copied.CompletionDeadline = copied.CompletionDeadline.Add(time.Minute)
 	require.Equal(t, deadline, *op.CompletionDeadline, "deepcopy must not alias the stored deadline")
+}
+
+func TestCredentialReservedIdentityPersistence(t *testing.T) {
+	id, err := azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster/systemAdminCredentialRequests/reserved")
+	require.NoError(t, err)
+	revocationID, err := azcorearm.ParseResourceID(id.Parent.String() + "/systemAdminCredentialRevocations/reserved")
+	require.NoError(t, err)
+	op := &Operation{
+		Status:                          ProvisioningStateAccepted,
+		SystemAdminCredentialRequest:    &OperationSystemAdminCredentialRequest{SystemAdminCredentialRequestResourceID: id},
+		SystemAdminCredentialRevocation: &OperationSystemAdminCredentialRevocation{SystemAdminCredentialRevocationResourceID: revocationID},
+	}
+	encoded, err := json.Marshal(op)
+	require.NoError(t, err)
+	var decoded Operation
+	require.NoError(t, json.Unmarshal(encoded, &decoded))
+	require.Equal(t, ProvisioningStateAccepted, decoded.Status)
+	require.Equal(t, id.String(), decoded.SystemAdminCredentialRequest.SystemAdminCredentialRequestResourceID.String())
+	require.Equal(t, revocationID.String(), decoded.SystemAdminCredentialRevocation.SystemAdminCredentialRevocationResourceID.String())
+	require.Nil(t, decoded.CompletionDeadline, "identity persistence must not backfill legacy deadlines")
 }

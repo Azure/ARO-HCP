@@ -22,7 +22,6 @@ import (
 	utilsclock "k8s.io/utils/clock"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
-	"github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
@@ -88,9 +87,6 @@ func (c *revokedGC) SyncOnce(ctx context.Context, key controllerutils.SystemAdmi
 	age := c.clock.Now().Sub(cred.Spec.CreationTimestamp.Time)
 	if age < revokedGCRetention {
 		return nil
-	}
-	if err := operationutils.CompleteCredentialIntent(ctx, c.resourcesDBClient, cred.ResourceID, cred.Spec.OperationID, false); err != nil {
-		return err
 	}
 
 	if err := credCRUD.Delete(ctx, key.CredentialName); err != nil && !cosmosstorageutils.IsNotFoundError(err) {

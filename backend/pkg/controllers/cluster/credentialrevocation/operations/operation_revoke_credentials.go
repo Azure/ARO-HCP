@@ -97,13 +97,12 @@ func (c *operationRevokeCredentialsPoll) SynchronizeOperation(ctx context.Contex
 	if !c.ShouldProcess(ctx, operation) {
 		return nil
 	}
-	if expired, err := operationbase.ExpireCredentialOperation(ctx, c.clock, c.resourcesDBClient, operation); expired || err != nil {
+	if expired, err := operationbase.ExpireCredentialOperation(ctx, c.clock, c.resourcesDBClient, operation, operationbase.PostAsyncNotificationFn(c.notificationClient)); expired || err != nil {
 		return err
 	}
 
-	// The dispatch controller records the revocation document's resource ID on
-	// the operation. Until it does, there is nothing to wait on yet.
-	if operation.SystemAdminCredentialRevocation == nil || operation.SystemAdminCredentialRevocation.SystemAdminCredentialRevocationResourceID == nil {
+	// A reserved ID alone is not evidence that dispatch created the document.
+	if operation.Status != coreapi.ProvisioningStateDeleting || operation.SystemAdminCredentialRevocation == nil || operation.SystemAdminCredentialRevocation.SystemAdminCredentialRevocationResourceID == nil {
 		logger.Info("waiting for revocation to be dispatched")
 		return nil
 	}

@@ -16,6 +16,7 @@ package operations
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -112,6 +113,32 @@ func TestOperationRequestCredentialPoll_ShouldProcess(t *testing.T) {
 	}
 }
 
+func TestRequestPollExpiryBeforePrerequisites(t *testing.T) {
+	for _, reserved := range []bool{false, true} {
+		t.Run(fmt.Sprintf("reserved=%t", reserved), func(t *testing.T) {
+			ctx := t.Context()
+			clock := clocktesting.NewFakeClock(time.Unix(100, 0))
+			op := newTestOperation(coreapi.OperationRequestSystemAdminCredentialRequest)
+			deadline := clock.Now().Add(time.Minute)
+			op.CompletionDeadline = &deadline
+			if reserved {
+				op.SystemAdminCredentialRequest.SystemAdminCredentialRequestResourceID = metadataapi.Must(coreapihelpers.ToSystemAdminCredentialRequestResourceID(testSubscriptionID, testResourceGroupName, testClusterName, testCredentialName))
+			}
+			db, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{op})
+			require.NoError(t, err)
+			c := &operationRequestCredentialPoll{clock: clock, resourcesDBClient: db}
+			key := controllerutils.OperationKey{SubscriptionID: testSubscriptionID, OperationName: testOperationName}
+			require.NoError(t, c.SynchronizeOperation(ctx, key), "Accepted does not require the internal document or parent to exist")
+			clock.Step(time.Minute)
+			require.NoError(t, c.SynchronizeOperation(ctx, key))
+			live, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
+			require.NoError(t, err)
+			require.Equal(t, coreapi.ProvisioningStateFailed, live.Status)
+			require.Equal(t, "DeadlineExceeded", live.Error.Code)
+		})
+	}
+}
+
 func TestOperationRequestCredentialPoll_SynchronizeOperation(t *testing.T) {
 	fixedTime := time.Date(2026, 6, 15, 10, 0, 0, 0, time.UTC)
 	fakeClock := clocktesting.NewFakeClock(fixedTime)
@@ -133,9 +160,10 @@ func TestOperationRequestCredentialPoll_SynchronizeOperation(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name: "pending credential request updates operation to Provisioning",
+			name: "pending credential request remains Provisioning",
 			resources: func() []any {
 				op := newTestOperation(coreapi.OperationRequestSystemAdminCredentialRequest)
+				op.Status = coreapi.ProvisioningStateProvisioning
 				op.SystemAdminCredentialRequest.SystemAdminCredentialRequestResourceID = credResourceID
 				return []any{op}
 			}(),
@@ -164,6 +192,7 @@ func TestOperationRequestCredentialPoll_SynchronizeOperation(t *testing.T) {
 			name: "issued credential request updates operation to Succeeded",
 			resources: func() []any {
 				op := newTestOperation(coreapi.OperationRequestSystemAdminCredentialRequest)
+				op.Status = coreapi.ProvisioningStateProvisioning
 				op.SystemAdminCredentialRequest.SystemAdminCredentialRequestResourceID = credResourceID
 				return []any{op}
 			}(),
@@ -198,6 +227,7 @@ func TestOperationRequestCredentialPoll_SynchronizeOperation(t *testing.T) {
 			name: "failed credential request updates operation to Failed",
 			resources: func() []any {
 				op := newTestOperation(coreapi.OperationRequestSystemAdminCredentialRequest)
+				op.Status = coreapi.ProvisioningStateProvisioning
 				op.SystemAdminCredentialRequest.SystemAdminCredentialRequestResourceID = credResourceID
 				return []any{op}
 			}(),

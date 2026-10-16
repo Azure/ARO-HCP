@@ -115,7 +115,7 @@ func (opsync *operationRequestCredential) SynchronizeOperation(ctx context.Conte
 	if !opsync.ShouldProcess(ctx, oldOperation) {
 		return nil // no work to do
 	}
-	if expired, err := operationbase.ExpireCredentialOperation(ctx, opsync.clock, opsync.resourcesDBClient, oldOperation); expired || err != nil {
+	if expired, err := operationbase.ExpireCredentialOperation(ctx, opsync.clock, opsync.resourcesDBClient, oldOperation, operationbase.PostAsyncNotificationFn(opsync.notificationClient)); expired || err != nil {
 		return err
 	}
 

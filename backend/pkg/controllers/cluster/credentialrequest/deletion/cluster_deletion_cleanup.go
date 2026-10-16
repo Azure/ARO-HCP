@@ -22,7 +22,6 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
-	"github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
@@ -99,9 +98,6 @@ func (c *credentialRequestDeletion) SyncOnce(ctx context.Context, key controller
 	}
 	if !c.needsWork(cred) {
 		return nil
-	}
-	if err := operationutils.CompleteCredentialIntent(ctx, c.resourcesDBClient, cred.ResourceID, cred.Spec.OperationID, false); err != nil {
-		return err
 	}
 
 	// The management cluster resource ID tells us which kube-applier partition
