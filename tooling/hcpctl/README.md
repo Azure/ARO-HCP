@@ -58,6 +58,13 @@ explicit model. `--claude-backend` and `--anthropic-model` apply only to the
 in-process `claude` provider. The existing `kusto_query` handler is available to
 Claude Code as the in-process MCP tool `mcp__hcpctl__kusto_query`.
 
+System prompts larger than 100 KiB keep the small identity/tone instructions in
+the CLI system prompt and send the complete domain instructions and reference
+material at the start of the first stdin query. If identity/tone themselves are
+too large, all instructions move to that first query under a small system
+directive. Nothing is truncated, and subsequent queries do not resend this
+content. This avoids Linux's per-argument `execve` size limit (`E2BIG`).
+
 This provider runs unattended with permission checks bypassed in the analysis
 workspace. It disables MCP discovery and SDK skills, passes empty settings
 sources, and requests exclusion of CLAUDE.md memory. This is **best-effort

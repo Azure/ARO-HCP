@@ -230,6 +230,133 @@ func TestClaudeCodeToolConversion(t *testing.T) {
 	}
 }
 
+func TestClaudeCodeLargePromptUsesStdin(t *testing.T) {
+	const maxArgumentBytes = 100 * 1024
+	const toolMapping = "\nUse mcp__hcpctl__kusto_query whenever these instructions refer to the kusto_query tool."
+	for _, test := range []struct {
+		name          string
+		mode          Mode
+		largePreamble bool
+		unicodeDomain bool
+	}{
+		{name: "test analysis", mode: ModeTest},
+		{name: "intent analysis", mode: ModeIntent},
+		{name: "oversized identity and tone", largePreamble: true},
+		{name: "UTF-8 byte limit", unicodeDomain: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			domain, err := BuildDomainPromptFor(test.mode)
+			if err != nil {
+				t.Fatal(err)
+			}
+			cfg := ProviderSessionConfig{
+				WorkingDirectory: t.TempDir(), IdentityPrompt: IdentityPromptFor(test.mode),
+				TonePrompt: TonePrompt, SystemPrompt: domain,
+				Tools: []ToolDefinition{NewKustoToolDefinition(&noopKustoClient{})},
+			}
+			if test.largePreamble {
+				cfg.IdentityPrompt = strings.Repeat("identity instruction\n", 6000)
+				cfg.TonePrompt = strings.Repeat("tone instruction\n", 6000)
+			}
+			if test.unicodeDomain {
+				cfg.SystemPrompt = strings.Repeat("界", 40000)
+			}
+			provider, err := NewClaudeCodeProvider(nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			client := &fakeClaudeCodeClient{queries: [][]claudeagent.Message{
+				{claudeagent.ResultMessage{Subtype: "success"}},
+				{claudeagent.ResultMessage{Subtype: "success"}},
+			}}
+			var options claudeagent.Options
+			provider.newClient = func(opts ...claudeagent.Option) (claudeCodeClient, error) {
+				options = claudeagent.DefaultOptions()
+				for _, opt := range opts {
+					opt(&options)
+				}
+				return client, nil
+			}
+			session, err := provider.CreateProviderSession(context.Background(), logr.Discard(), cfg)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := provider.Stop(); err != nil {
+					t.Error(err)
+				}
+			})
+			runner := claudeagent.NewMockSubprocessRunner()
+			transport := claudeagent.NewSubprocessTransportWithRunner(runner, &options)
+			if err := transport.Connect(context.Background()); err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := transport.Close(); err != nil {
+					t.Error(err)
+				}
+			})
+			maxActual := 0
+			for _, argument := range runner.StartArgs {
+				maxActual = max(maxActual, len(argument))
+				if len(argument) > maxArgumentBytes {
+					t.Fatalf("launch argument is %d bytes, exceeding %d-byte safe bound", len(argument), maxArgumentBytes)
+				}
+				if strings.Contains(argument, cfg.SystemPrompt) {
+					t.Fatal("bulk domain instructions still present in argv")
+				}
+			}
+			if _, err := session.SendAndWait(context.Background(), "first analysis request"); err != nil {
+				t.Fatal(err)
+			}
+			wantBulk := cfg.SystemPrompt + toolMapping
+			if test.largePreamble {
+				wantBulk = cfg.IdentityPrompt + "\n\n" + cfg.TonePrompt + "\n\n" + wantBulk
+			} else if !strings.HasPrefix(options.SystemPrompt, cfg.IdentityPrompt+"\n\n"+cfg.TonePrompt) {
+				t.Fatal("small identity/tone must remain system instructions")
+			}
+			wantFirst := wantBulk + "\n\n" + "first analysis request"
+			if len(client.prompts) != 1 || client.prompts[0] != wantFirst {
+				t.Fatal("first stdin query did not preserve all bulk instructions verbatim")
+			}
+			message := claudeagent.UserMessage{Type: "user", Message: claudeagent.APIUserMessage{
+				Role: "user", Content: []claudeagent.UserContentBlock{{Type: "text", Text: client.prompts[0]}},
+			}}
+			if err := transport.Write(context.Background(), message); err != nil {
+				t.Fatal(err)
+			}
+			var received claudeagent.UserMessage
+			if err := json.NewDecoder(runner.StdinPipe).Decode(&received); err != nil {
+				t.Fatal(err)
+			}
+			if len(received.Message.Content) != 1 || received.Message.Content[0].Text != wantFirst {
+				t.Fatal("SDK stream-json transport changed or truncated the instructions")
+			}
+			session.ResetHistory()
+			if _, err := session.SendAndWait(context.Background(), "second analysis request"); err != nil {
+				t.Fatal(err)
+			}
+			if len(client.prompts) != 2 || client.prompts[1] != "second analysis request" {
+				t.Fatal("bulk instructions should be sent only once per subprocess session")
+			}
+			transcriptPath := filepath.Join(t.TempDir(), "conversation.json")
+			session.SaveConversation(transcriptPath)
+			data, err := os.ReadFile(transcriptPath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var transcript []map[string]any
+			if err := json.Unmarshal(data, &transcript); err != nil {
+				t.Fatal(err)
+			}
+			if len(transcript) == 0 || transcript[0]["content"] != wantFirst {
+				t.Fatal("transcript must preserve the actual first query with its instructions")
+			}
+			t.Logf("domain=%d bytes; maximum argv=%d bytes; first stdin query=%d bytes", len(cfg.SystemPrompt), maxActual, len(wantFirst))
+		})
+	}
+}
+
 func TestClaudeCodeSendAndWait(t *testing.T) {
 	assistant := claudeagent.AssistantMessage{}
 	assistant.Message.Content = []claudeagent.ContentBlock{{Type: "text", Text: "assistant text"}}

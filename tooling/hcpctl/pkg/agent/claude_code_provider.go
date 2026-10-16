@@ -36,6 +36,11 @@ const DefaultClaudeCodeModel = "claude-sonnet-4-5-20250929"
 
 const claudeCodeMCPServerName = "hcpctl"
 
+const claudeCodeMaxPromptArgumentBytes = 100 * 1024
+
+const claudeCodeStdinInstructions = "The first user message starts with the analysis instructions and reference material. " +
+	"Apply those instructions throughout this conversation."
+
 var _ LLMProvider = (*ClaudeCodeProvider)(nil)
 var _ LLMSession = (*ClaudeCodeSession)(nil)
 
@@ -94,7 +99,7 @@ func (p *ClaudeCodeProvider) CreateProviderSession(ctx context.Context, logger l
 	if cfg.Model == "" {
 		cfg.Model = DefaultClaudeCodeModel
 	}
-	opts, err := claudeCodeSessionOptions(cfg)
+	opts, initialInstructions, err := claudeCodeSessionOptions(cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -112,34 +117,51 @@ func (p *ClaudeCodeProvider) CreateProviderSession(ctx context.Context, logger l
 		return nil, fmt.Errorf("connecting Claude Code client: %w", err)
 	}
 	session := &ClaudeCodeSession{
-		client: client,
-		logger: logger,
-		model:  cfg.Model,
-		id:     fmt.Sprintf("claude-code-%d", time.Now().UnixNano()),
+		client:              client,
+		logger:              logger,
+		model:               cfg.Model,
+		id:                  fmt.Sprintf("claude-code-%d", time.Now().UnixNano()),
+		initialInstructions: initialInstructions,
 	}
 	p.sessions = append(p.sessions, session)
 	logger.Info("Created Claude Code session.", "sessionID", session.id, "model", cfg.Model)
 	return session, nil
 }
 
-func claudeCodeSessionOptions(cfg ProviderSessionConfig) ([]claudeagent.Option, error) {
+func claudeCodeSessionOptions(cfg ProviderSessionConfig) ([]claudeagent.Option, string, error) {
 	if cfg.WorkingDirectory == "" {
-		return nil, fmt.Errorf("claude-code working directory is required")
+		return nil, "", fmt.Errorf("claude-code working directory is required")
 	}
 	info, err := os.Stat(cfg.WorkingDirectory)
 	if err != nil {
-		return nil, fmt.Errorf("checking Claude Code working directory: %w", err)
+		return nil, "", fmt.Errorf("checking Claude Code working directory: %w", err)
 	}
 	if !info.IsDir() {
-		return nil, fmt.Errorf("claude-code working directory is not a directory")
+		return nil, "", fmt.Errorf("claude-code working directory is not a directory")
 	}
 	server, err := buildClaudeCodeMCPServer(cfg.Tools)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
-	prompt := cfg.IdentityPrompt + "\n\n" + cfg.TonePrompt + "\n\n" + cfg.SystemPrompt
+	preamble := cfg.IdentityPrompt + "\n\n" + cfg.TonePrompt
+	domain := cfg.SystemPrompt
 	for _, tool := range cfg.Tools {
-		prompt += fmt.Sprintf("\nUse mcp__%s__%s whenever these instructions refer to the %s tool.", claudeCodeMCPServerName, tool.Name, tool.Name)
+		domain += fmt.Sprintf("\nUse mcp__%s__%s whenever these instructions refer to the %s tool.", claudeCodeMCPServerName, tool.Name, tool.Name)
+	}
+	prompt := preamble + "\n\n" + domain
+	var initialInstructions string
+	// SDK v1.1.0 puts WithSystemPrompt in a single argv element, subject to
+	// Linux's ~128 KiB per-argument execve limit. Keep small identity/tone as
+	// system instructions and send the complete bulk content once via Query's
+	// stdin stream-json user message instead. No instruction bytes are truncated;
+	// an oversized identity/tone also moves to stdin under a small system directive.
+	if len(prompt) > claudeCodeMaxPromptArgumentBytes {
+		initialInstructions = domain
+		prompt = preamble + "\n\n" + claudeCodeStdinInstructions
+		if len(prompt) > claudeCodeMaxPromptArgumentBytes {
+			initialInstructions = preamble + "\n\n" + domain
+			prompt = claudeCodeStdinInstructions
+		}
 	}
 	// SDK v1.1.0 ignores Options.SettingSources in its transport, so pass the
 	// empty CLI flag explicitly and disable SDK skill discovery. Memory exclusion
@@ -159,7 +181,7 @@ func claudeCodeSessionOptions(cfg ProviderSessionConfig) ([]claudeagent.Option, 
 		claudeagent.WithExtraArgs(map[string]*string{"setting-sources": &emptySources}),
 		// Keep the transcript in hcpctl's conversation.json, not in CLI history.
 		claudeagent.WithNoSessionPersistence(),
-	}, nil
+	}, initialInstructions, nil
 }
 
 func buildClaudeCodeMCPServer(tools []ToolDefinition) (*claudeagent.McpServer, error) {
@@ -209,16 +231,17 @@ func (p *ClaudeCodeProvider) Stop() error {
 }
 
 type ClaudeCodeSession struct {
-	client   claudeCodeClient
-	logger   logr.Logger
-	model    string
-	sendMu   sync.Mutex
-	mu       sync.Mutex
-	id       string
-	messages []any
-	usage    UsageReport
-	closed   bool
-	closeErr error
+	client              claudeCodeClient
+	logger              logr.Logger
+	model               string
+	sendMu              sync.Mutex
+	mu                  sync.Mutex
+	id                  string
+	messages            []any
+	usage               UsageReport
+	closed              bool
+	closeErr            error
+	initialInstructions string
 }
 
 func (s *ClaudeCodeSession) SendAndWait(ctx context.Context, prompt string) (string, error) {
@@ -228,6 +251,10 @@ func (s *ClaudeCodeSession) SendAndWait(ctx context.Context, prompt string) (str
 	if s.closed {
 		s.mu.Unlock()
 		return "", fmt.Errorf("claude-code session is closed")
+	}
+	if s.initialInstructions != "" {
+		prompt = s.initialInstructions + "\n\n" + prompt
+		s.initialInstructions = ""
 	}
 	s.messages = append(s.messages, map[string]string{"role": "user", "content": prompt})
 	s.mu.Unlock()
@@ -355,6 +382,7 @@ func (s *ClaudeCodeSession) Delete(_ context.Context) error {
 	err := s.Disconnect()
 	s.mu.Lock()
 	s.messages = nil
+	s.initialInstructions = ""
 	s.mu.Unlock()
 	return err
 }
