@@ -114,9 +114,9 @@ func TestClusterSwiftNetworking(t *testing.T) {
 				if tt.tag != nil {
 					cluster.Tags = map[string]string{key: *tt.tag}
 				}
-				op := operation.Operation{Type: operation.Create, Options: []string{metadataapi.APIVersionOption(version)}}
+				op := operation.Operation{Type: operation.Create, Options: map[string]bool{metadataapi.APIVersionOption(version): true}}
 				if tt.enrolled {
-					op.Options = append(op.Options, metadataapi.FeatureExperimentalReleaseFeatures)
+					op.Options[metadataapi.FeatureExperimentalReleaseFeatures] = true
 				}
 				var oldCluster *coreapi.Cluster
 				if tt.update {

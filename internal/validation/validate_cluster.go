@@ -115,7 +115,7 @@ func validateClusterVNetIntegrationSubnetID(_ context.Context, op operation.Oper
 	subnetPath := field.NewPath("customerProperties", "platform", "vnetIntegrationSubnetId")
 	subnet := newCluster.CustomerProperties.Platform.VnetIntegrationSubnetID
 	disableSwift := false
-	if op.HasOption(metadataapi.FeatureExperimentalReleaseFeatures) {
+	if experimentalFeaturesEnabled, _ := op.HasOption(metadataapi.FeatureExperimentalReleaseFeatures); experimentalFeaturesEnabled {
 		for key, value := range newCluster.Tags {
 			if !strings.EqualFold(key, metadataapi.TagClusterDisableSwift) {
 				continue
@@ -204,7 +204,7 @@ func validateNightlyChannelRequiresFullVersion(_ context.Context, op operation.O
 	// Nightly is only selectable with the experimental feature; without it the
 	// channelGroup enum already rejects the request, so skip here to avoid a
 	// duplicate error.
-	if !op.HasOption(metadataapi.FeatureExperimentalReleaseFeatures) {
+	if experimentalFeaturesEnabled, _ := op.HasOption(metadataapi.FeatureExperimentalReleaseFeatures); !experimentalFeaturesEnabled {
 		return nil
 	}
 	if newCluster.CustomerProperties.Version.ChannelGroup != metadataapi.ChannelGroupNightly {
@@ -447,7 +447,7 @@ func validateClusterCustomerProperties(ctx context.Context, op operation.Operati
 
 	//ImageDigestMirrors  []ImageDigestMirror `json:"imageDigestMirrors,omitempty"`
 	errs = append(errs, MaxItems(ctx, op, fldPath.Child("imageDigestMirrors"), newObj.ImageDigestMirrors, safe.Field(oldObj, toImageDigestMirrors), 240)...)
-	errs = append(errs, validate.EachSliceVal(
+	errs = append(errs, validate.EachValSliceVal(
 		ctx, op, fldPath.Child("imageDigestMirrors"),
 		newObj.ImageDigestMirrors, safe.Field(oldObj, toImageDigestMirrors),
 		nil, nil,
@@ -520,7 +520,7 @@ func validateClusterServiceProviderProperties(ctx context.Context, op operation.
 	// At the moment of introducing this field not all existing clusters have this field migrated yet, so we guard
 	// the requirement of setting it only when it's already been set beforehand.
 	if oldObj == nil || oldObj.ManagedIdentitiesDataPlaneIdentityURL != "" {
-		if !op.HasOption(ManagedIdentitiesDataPlaneIdentityURLOptionalOperationOption) {
+		if identityURLOptional, _ := op.HasOption(ManagedIdentitiesDataPlaneIdentityURLOptionalOperationOption); !identityURLOptional {
 			errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("managedIdentitiesDataPlaneIdentityURL"), &newObj.ManagedIdentitiesDataPlaneIdentityURL, nil)...)
 		}
 	}
@@ -560,7 +560,7 @@ func validateVersionProfile(ctx context.Context, op operation.Operation, fldPath
 		errs = append(errs, VersionMayNotDecrease(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toVersionID))...)
 		errs = append(errs, OpenshiftVersionAtMostOneMinorSkewWithField(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toVersionID))...)
 	}
-	if !op.HasOption(metadataapi.FeatureExperimentalReleaseFeatures) {
+	if experimentalFeaturesEnabled, _ := op.HasOption(metadataapi.FeatureExperimentalReleaseFeatures); !experimentalFeaturesEnabled {
 		// we never allow micro to any cluster that might live longer than a couple days.  We cannot allow it because it might install naughty things
 		errs = append(errs, OpenshiftVersionWithoutMicro(ctx, op, fldPath.Child("id"), &newObj.ID, nil)...)
 		// only allow OpenShift v5 and above for subscriptions that have the experimental feature registered for now
@@ -576,7 +576,7 @@ func validateVersionProfile(ctx context.Context, op operation.Operation, fldPath
 	// ChannelGroup string `json:"channelGroup,omitempty"`
 	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("channelGroup"), &newObj.ChannelGroup, nil)...)
 
-	if !op.HasOption(metadataapi.FeatureExperimentalReleaseFeatures) {
+	if experimentalFeaturesEnabled, _ := op.HasOption(metadataapi.FeatureExperimentalReleaseFeatures); !experimentalFeaturesEnabled {
 		// Without feature flag: "candidate" and "nightly" aren't allowed.
 		errs = append(errs, validate.Enum(ctx, op, fldPath.Child("channelGroup"), &newObj.ChannelGroup, nil, metadataapi.AllowedChannelGroups, nil)...)
 	} else {
@@ -712,21 +712,21 @@ func validateCustomerAPIProfile(ctx context.Context, op operation.Operation, fld
 	errs = append(errs, MaxItems(ctx, op, fldPath.Child("authorizedCidrs"), newObj.AuthorizedCIDRs, nil, 500)...)
 	errs = append(errs, MinItems(ctx, op, fldPath.Child("authorizedCidrs"), newObj.AuthorizedCIDRs, nil, 1)...)
 	errs = append(errs,
-		validate.EachSliceVal(
+		validate.EachValSliceVal(
 			ctx, op, fldPath.Child("authorizedCidrs"),
 			newObj.AuthorizedCIDRs, safe.Field(oldObj, toAPIAuthorizedCIDRs),
 			nil, nil,
 			newOr(IPv4, CIDRv4),
 		)...)
 	errs = append(errs,
-		validate.EachSliceVal(
+		validate.EachValSliceVal(
 			ctx, op, fldPath.Child("authorizedCidrs"),
 			newObj.AuthorizedCIDRs, safe.Field(oldObj, toAPIAuthorizedCIDRs),
 			nil, nil,
 			validate.RequiredValue,
 		)...)
 	errs = append(errs,
-		validate.EachSliceVal(
+		validate.EachValSliceVal(
 			ctx, op, fldPath.Child("authorizedCidrs"),
 			newObj.AuthorizedCIDRs, safe.Field(oldObj, toAPIAuthorizedCIDRs),
 			nil, nil,
@@ -1190,7 +1190,7 @@ func validateImageDigestMirror(ctx context.Context, op operation.Operation, fldP
 	//Mirrors []string `json:"mirrors,omitempty"`
 	errs = append(errs, MinItems(ctx, op, fldPath.Child("mirrors"), newObj.Mirrors, safe.Field(oldObj, toImageDigestMirrorMirrors), 1)...)
 	errs = append(errs, MaxItems(ctx, op, fldPath.Child("mirrors"), newObj.Mirrors, safe.Field(oldObj, toImageDigestMirrorMirrors), 255)...)
-	errs = append(errs, validate.EachSliceVal(
+	errs = append(errs, validate.EachValSliceVal(
 		ctx, op, fldPath.Child("mirrors"),
 		newObj.Mirrors, safe.Field(oldObj, toImageDigestMirrorMirrors),
 		nil, nil,
@@ -1200,7 +1200,7 @@ func validateImageDigestMirror(ctx context.Context, op operation.Operation, fldP
 	// This is OpenShift's regex for a mirrored image registry. Their pattern
 	// is more permissive than what we allow (e.g. casing of letters) but acts
 	// as a final check to make sure OpenShift will accept it.
-	errs = append(errs, validate.EachSliceVal(
+	errs = append(errs, validate.EachValSliceVal(
 		ctx, op, fldPath.Child("mirrors"),
 		newObj.Mirrors, safe.Field(oldObj, toImageDigestMirrorMirrors),
 		nil, nil,
