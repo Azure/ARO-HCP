@@ -24,6 +24,8 @@ import (
 	"testing"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/Azure/ARO-HCP/test/pkg/leaseenv"
 )
 
 func TestAssetRequirementsPreserveWireNames(t *testing.T) {
@@ -206,7 +208,7 @@ func TestE2EOnlyStateAndRuntimeOmitInfrastructure(t *testing.T) {
 		if err := AddCoreRuntimeExports(contract, state, "dev-e2e", "profile"); err != nil {
 			t.Fatal(err)
 		}
-		if data := contract.MarshalShell(); strings.Contains(string(data), "INFRA_SUBSCRIPTION_ID") {
+		if data := contract.MarshalShell(); strings.Contains(string(data), leaseenv.InfrastructureSubscriptionID) {
 			t.Fatalf("E2E-only runtime contract exported infrastructure: %s", data)
 		}
 	}

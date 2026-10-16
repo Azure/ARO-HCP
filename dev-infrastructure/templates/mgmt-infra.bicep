@@ -94,7 +94,10 @@ param useLeasedInfrastructureIdentities bool = false
 @description('Comma-separated explicit stamp-to-resource-group mappings in the management deployment subscription, for example 1=rg-a,2=rg-b.')
 param managementIdentityResourceGroups string = ''
 
-@description('Management stamp selecting an entry from managementIdentityResourceGroups.')
+@description('Comma-separated explicit stamp-to-AKS-identity-name mappings, for example 1=aks-identity-a,2=aks-identity-b. Required when useLeasedInfrastructureIdentities is true.')
+param managementAksIdentityNames string = ''
+
+@description('Management stamp selecting entries from managementIdentityResourceGroups and managementAksIdentityNames.')
 param stampIdentifier string
 
 var infrastructureIdentityResourceGroup = useLeasedInfrastructureIdentities
@@ -245,12 +248,16 @@ resource aksClusterUserDefinedManagedIdentity 'Microsoft.ManagedIdentity/userAss
   location: location
 }
 
+var aksClusterUserDefinedManagedIdentityName = useLeasedInfrastructureIdentities
+  ? mi.getManagementAksIdentityName(managementAksIdentityNames, stampIdentifier)
+  : '${aksClusterName}-msi'
+
 // A second resource declaration can alias the created identity when leasing is disabled.
 var leasedAksClusterUserDefinedManagedIdentityId = resourceId(
   subscription().subscriptionId,
   infrastructureIdentityResourceGroup,
   'Microsoft.ManagedIdentity/userAssignedIdentities',
-  '${aksClusterName}-msi'
+  aksClusterUserDefinedManagedIdentityName
 )
 var aksClusterUserDefinedManagedIdentityId = useLeasedInfrastructureIdentities
   ? leasedAksClusterUserDefinedManagedIdentityId

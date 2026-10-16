@@ -58,16 +58,8 @@ func (workers suiteConcurrency) resolve(fallback int, useAcquired bool) int {
 }
 
 // Default runner concurrency to the suite cap without overriding an explicit flag.
-func configureSuiteConcurrency(command *cobra.Command, registry *e.Registry) {
-	existingPreRunE, existingPreRun := command.PreRunE, command.PreRun
-	command.PreRunE = func(c *cobra.Command, args []string) error {
-		if existingPreRunE != nil {
-			if err := existingPreRunE(c, args); err != nil {
-				return err
-			}
-		} else if existingPreRun != nil {
-			existingPreRun(c, args)
-		}
+func configureSuiteConcurrency(registry *e.Registry) commandHook {
+	return func(c *cobra.Command, args []string) error {
 		component, err := c.Flags().GetString("component")
 		if err != nil {
 			return fmt.Errorf("reading run-suite --component: %w", err)

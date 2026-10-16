@@ -3964,17 +3964,30 @@
           "maxLength": 90,
           "pattern": "^$|^[A-Za-z0-9._()\\-]*[A-Za-z0-9_()\\-]$"
         },
+        "serviceAksIdentityName": {
+          "type": "string",
+          "description": "Pre-created service AKS control-plane identity name, independent of the ephemeral cluster name.",
+          "maxLength": 128,
+          "pattern": "^$|^[A-Za-z0-9][A-Za-z0-9_-]{2,127}$"
+        },
         "managementResourceGroups": {
           "type": "string",
           "description": "Comma-separated explicit stamp-to-resource-group mappings in each management deployment subscription, for example 1=rg-a,2=rg-b.",
           "pattern": "^$|^[0-9]+=[A-Za-z0-9._()\\-]{0,89}[A-Za-z0-9_()\\-](,[0-9]+=[A-Za-z0-9._()\\-]{0,89}[A-Za-z0-9_()\\-])*$"
+        },
+        "managementAksIdentityNames": {
+          "type": "string",
+          "description": "Comma-separated explicit stamp-to-AKS-identity-name mappings, for example 1=aks-control-plane,2=aks-control-plane.",
+          "pattern": "^$|^[1-9][0-9]*=[A-Za-z0-9][A-Za-z0-9_-]{2,127}(,[1-9][0-9]*=[A-Za-z0-9][A-Za-z0-9_-]{2,127})*$"
         }
       },
       "additionalProperties": false,
       "required": [
         "useLeased",
         "serviceResourceGroup",
-        "managementResourceGroups"
+        "serviceAksIdentityName",
+        "managementResourceGroups",
+        "managementAksIdentityNames"
       ]
     },
     "keyVaultDNSSuffix": {
@@ -4076,12 +4089,16 @@
   ],
   "x-cel-validations": [
     {
-      "rule": "!self.infrastructureIdentities.useLeased || (self.infrastructureIdentities.serviceResourceGroup != '' && self.infrastructureIdentities.managementResourceGroups != '')",
-      "message": "infrastructure identity reuse requires serviceResourceGroup and managementResourceGroups"
+      "rule": "!self.infrastructureIdentities.useLeased || (self.infrastructureIdentities.serviceResourceGroup != '' && self.infrastructureIdentities.serviceAksIdentityName != '' && self.infrastructureIdentities.managementResourceGroups != '' && self.infrastructureIdentities.managementAksIdentityNames != '')",
+      "message": "infrastructure identity reuse requires service and management resource groups and explicit AKS identity names"
     },
     {
       "rule": "!self.infrastructureIdentities.useLeased || (',' + self.infrastructureIdentities.managementResourceGroups + ',').contains(',' + self.mgmt.stampIdentifier + '=')",
       "message": "infrastructure identity reuse requires an explicit resource-group mapping for the current management stamp"
+    },
+    {
+      "rule": "!self.infrastructureIdentities.useLeased || (',' + self.infrastructureIdentities.managementAksIdentityNames + ',').contains(',' + self.mgmt.stampIdentifier + '=')",
+      "message": "infrastructure identity reuse requires an explicit AKS identity name for the current management stamp"
     },
     {
       "rule": "!has(self.svc.aks.systemPoolOnly) || !self.svc.aks.systemPoolOnly || self.environmentName in ['ci00', 'ci01', 'pers']",

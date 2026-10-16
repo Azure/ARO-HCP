@@ -44,6 +44,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armsubscriptions"
 
 	"github.com/Azure/ARO-HCP/internal/azsdk"
+	"github.com/Azure/ARO-HCP/test/pkg/leaseenv"
 	"github.com/Azure/ARO-HCP/test/util/config"
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/azclient"
 )
@@ -403,7 +404,7 @@ func SharedDir() string {
 // subscriptionName returns the value of CUSTOMER_SUBSCRIPTION environment variable
 func subscriptionName() string {
 	// can't use gomega in this method since it is used outside of It()
-	return os.Getenv("CUSTOMER_SUBSCRIPTION")
+	return os.Getenv(leaseenv.CustomerSubscription)
 }
 
 // location returns the Azure location to use, like "uksouth"
@@ -411,8 +412,8 @@ func location() string {
 	// Slot-manager resolved the policy for SELECTED_LOCATION. A downstream
 	// override must not apply that subscription/region policy somewhere else.
 	value := os.Getenv("LOCATION")
-	if _, supplied := os.LookupEnv("ARO_HCP_E2E_VM_FAMILY_POLICY"); supplied {
-		if selected := os.Getenv("SELECTED_LOCATION"); selected != "" && !strings.EqualFold(value, selected) {
+	if _, supplied := os.LookupEnv(leaseenv.VMFamilyPolicy); supplied {
+		if selected := os.Getenv(leaseenv.SelectedLocation); selected != "" && !strings.EqualFold(value, selected) {
 			panic(fmt.Errorf("LOCATION %q differs from slot-selected SELECTED_LOCATION %q; acquire a slot for the desired region before applying ARO_HCP_E2E_VM_FAMILY_POLICY", value, selected))
 		}
 	}
@@ -444,7 +445,7 @@ func MIMockPrincipalID() string {
 // pooled CI job (LEASED_MSI_MOCK_SP) from the in-repo pool catalog, so tests grant data-plane roles
 // to the principal the deployed operators actually authenticate as. Returns "" when not in pooled CI.
 func leasedMockPrincipalID() string {
-	leased := os.Getenv("LEASED_MSI_MOCK_SP")
+	leased := os.Getenv(leaseenv.MSIMockSP)
 	configFile := os.Getenv("ARO_HCP_CONFIG_FILE")
 	if leased == "" || configFile == "" {
 		return ""

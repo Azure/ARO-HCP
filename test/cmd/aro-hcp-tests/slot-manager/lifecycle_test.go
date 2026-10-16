@@ -33,6 +33,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
+	"github.com/Azure/ARO-HCP/test/pkg/leaseenv"
 )
 
 const lifecycleCatalog = `version: 2
@@ -713,7 +714,7 @@ func TestE2EOnlySelectedPoolNeverResolvesInfrastructure(t *testing.T) {
 			}
 			path, _ := slots.EnvFile(options.SharedDir)
 			data, err := os.ReadFile(path)
-			if err != nil || strings.Contains(string(data), "INFRA_SUBSCRIPTION_ID") || !strings.Contains(string(data), "ARO_HCP_DEPLOY_ENV='"+deploy+"'") || !strings.Contains(string(data), "FAKE_e2e_identities='ready'") {
+			if err != nil || strings.Contains(string(data), leaseenv.InfrastructureSubscriptionID) || !strings.Contains(string(data), "ARO_HCP_DEPLOY_ENV='"+deploy+"'") || !strings.Contains(string(data), "FAKE_e2e_identities='ready'") {
 				t.Fatalf("incorrect E2E-only runtime exports: %s, %v", data, err)
 			}
 			wantCalls := []string{"resolve:e2e_identities", "admit:e2e_identities", "publish:e2e_identities"}
