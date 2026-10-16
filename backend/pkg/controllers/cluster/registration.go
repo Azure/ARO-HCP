@@ -33,6 +33,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/denyassignments"
 	clusterhostedcluster "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/hostedcluster"
 	clusteridentity "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/identity"
+	clusterk8sresources "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/k8sresources"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/legacycredentialrequest"
 	clusteroperations "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/operations"
 	clusterplacement "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/placement"
@@ -983,6 +984,52 @@ func instantiatePendingCleanupController(controllerContext controllerconfig.Cont
 	), nil
 }
 
+func registerIngressCertificateController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{
+		Workers:     20,
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateIngressCertificateController, true),
+	}
+}
+
+func registerKubeAPIServerTLSCertificateController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{
+		Workers:     20,
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateKubeAPIServerTLSCertificateController, false),
+	}
+}
+
+func instantiateKubeAPIServerTLSCertificateController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	_, managementClusterLister := controllerContext.FleetInformers.ManagementClusters()
+	return clusterazureresources.NewKubeAPIServerTLSCertificateController(controllerContext.ResourcesDBClient, controllerContext.BackendInformers,
+		managementClusterLister, controllerContext.BackendIdentityAzureClients), nil
+}
+
+func registerIngressTLSCertificateController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{
+		Workers:     20,
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateIngressTLSCertificateController, false),
+	}
+}
+
+func instantiateIngressTLSCertificateController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	_, managementClusterLister := controllerContext.FleetInformers.ManagementClusters()
+	return clusterazureresources.NewIngressTLSCertificateController(controllerContext.ResourcesDBClient, controllerContext.BackendInformers,
+		managementClusterLister, controllerContext.BackendIdentityAzureClients), nil
+}
+
+func instantiateIngressCertificateController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	_, managementClusterLister := controllerContext.FleetInformers.ManagementClusters()
+	return clusterk8sresources.NewIngressCertificateController(
+		controllerContext.ResourcesDBClient,
+		controllerContext.KubeApplierDBClients,
+		controllerContext.BackendInformers,
+		controllerContext.UnionKubeApplierInformers,
+		managementClusterLister,
+		controllerContext.ServiceTenantID,
+		string(controllerContext.CloudEnvironment.Name()),
+	), nil
+}
+
 func registerBackupScheduleController() controllerconfig.ControllerRegistration {
 	return controllerconfig.ControllerRegistration{
 		Workers:     20,
@@ -1274,6 +1321,9 @@ func Register(registry map[string]controllerconfig.ControllerRegistration) {
 	registry[strings.ToLower(clusterplacement.PlacementControllerName)] = registerPlacementController()
 	registry[strings.ToLower(clusterplacement.PendingCleanupControllerName)] = registerPendingCleanupController()
 	registry[strings.ToLower(clusterbackups.BackupScheduleControllerName)] = registerBackupScheduleController()
+	registry[strings.ToLower(clusterk8sresources.IngressCertificateControllerName)] = registerIngressCertificateController()
+	registry[strings.ToLower(clusterazureresources.KubeAPIServerTLSCertificateControllerName)] = registerKubeAPIServerTLSCertificateController()
+	registry[strings.ToLower(clusterazureresources.IngressTLSCertificateControllerName)] = registerIngressTLSCertificateController()
 	registry[strings.ToLower(clusteridentity.FetchMSIIdentitiesInfoControllerName)] = registerFetchMSIIdentitiesInfoController()
 	registry[strings.ToLower(clusteridentity.FetchDataPlaneOperatorsManagedIdentitiesInfoControllerName)] = registerFetchDataPlaneOperatorsManagedIdentitiesInfoController()
 	registry[strings.ToLower(clusteridentity.FetchManagedIdentitiesInfoControllerName)] = registerFetchManagedIdentitiesInfoController()
