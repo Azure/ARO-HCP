@@ -1,3 +1,5 @@
+import * as res from '../modules/resource.bicep'
+
 @description('The name of the OCP ACR')
 param ocpAcrName string
 
@@ -88,11 +90,11 @@ resource globalMSI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31'
   name: globalMSIName
 }
 
-output globalMSIId string = globalMSI.id
+var swiftVnetIdentityRef = res.msiRefFromId(swiftVnetIdentityResourceId)
 
 resource swiftVnetIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = if (!empty(swiftVnetIdentityResourceId)) {
-  scope: resourceGroup(split(swiftVnetIdentityResourceId, '/')[2], split(swiftVnetIdentityResourceId, '/')[4])
-  name: split(swiftVnetIdentityResourceId, '/')[8]
+  scope: resourceGroup(swiftVnetIdentityRef.resourceGroup.subscriptionId, swiftVnetIdentityRef.resourceGroup.name)
+  name: swiftVnetIdentityRef.name
 }
 
 output swiftVnetMSIId string = empty(swiftVnetIdentityResourceId) ? globalMSI.id : swiftVnetIdentity.id
