@@ -244,7 +244,7 @@ func (tc *perItOrDescribeTestContext) DeployManagedIdentities(
 		WithTemplateFromBytes(cfg.template),
 		WithScope(cfg.scope),
 		WithDeploymentName(cfg.deploymentName),
-		WithLocation(invocationContext().Location()),
+		WithLocation(tc.Location()),
 		WithParameters(parameters),
 		WithTimeout(cfg.timeout),
 	)
