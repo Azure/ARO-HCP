@@ -677,6 +677,9 @@ func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, clus
 	if cluster.CustomerProperties.DNS.BaseDomainPrefix != "" {
 		clusterBuilder.DomainPrefix(cluster.CustomerProperties.DNS.BaseDomainPrefix)
 	}
+	if cluster.ServiceProviderProperties.DNS.BaseDomain != "" {
+		clusterBuilder.DNS(arohcpv1alpha1.NewDNS().BaseDomain(cluster.ServiceProviderProperties.DNS.BaseDomain))
+	}
 
 	return clusterBuilder, azureBuilder, nil
 }

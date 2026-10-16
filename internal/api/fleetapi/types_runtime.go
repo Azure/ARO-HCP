@@ -181,3 +181,12 @@ var _ runtime.Object = &ControlPlaneVersionRolloutList{}
 func (l *ControlPlaneVersionRolloutList) GetObjectKind() schema.ObjectKind {
 	return &l.TypeMeta
 }
+
+func (o *DNSClaim) GetObjectKind() schema.ObjectKind { return schema.EmptyObjectKind }
+func (o *DNSClaim) GetObjectMeta() metav1.Object {
+	om := &metav1.ObjectMeta{ResourceVersion: strconv.FormatInt(o.InstanceVersion, 10)}
+	if o.ResourceID != nil {
+		om.Name = strings.ToLower(o.ResourceID.String())
+	}
+	return om
+}

@@ -404,20 +404,20 @@ func replace[InternalAPIType, CosmosAPIType any, InternalAPITypePointer coreapi.
 	return responseItemToInternalObj[InternalAPIType, CosmosAPIType](ctx, cosmosMetadata.GetCosmosUID(), responseItem)
 }
 
-func deleteResource(ctx context.Context, containerClient *azcosmos.ContainerClient, partitionKeyString string, resourceID *azcorearm.ResourceID) error {
+func deleteResource(ctx context.Context, containerClient *azcosmos.ContainerClient, partitionKeyString string, resourceID *azcorearm.ResourceID, options ...*azcosmos.ItemOptions) error {
 	cosmosID, err := coreapi.ResourceIDToCosmosID(resourceID)
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
-	return softDeleteByCosmosID(ctx, containerClient, partitionKeyString, cosmosID)
+	return softDeleteByCosmosID(ctx, containerClient, partitionKeyString, cosmosID, options...)
 }
 
 func deleteByCosmosID(ctx context.Context, containerClient *azcosmos.ContainerClient, partitionKeyString, cosmosID string) error {
 	return softDeleteByCosmosID(ctx, containerClient, partitionKeyString, cosmosID)
 }
 
-func softDeleteByCosmosID(ctx context.Context, containerClient *azcosmos.ContainerClient, partitionKeyString, cosmosID string) error {
+func softDeleteByCosmosID(ctx context.Context, containerClient *azcosmos.ContainerClient, partitionKeyString, cosmosID string, options ...*azcosmos.ItemOptions) error {
 	pk := azcosmos.NewPartitionKeyString(partitionKeyString)
 
 	responseItem, err := containerClient.ReadItem(ctx, pk, cosmosID, nil)
@@ -448,6 +448,11 @@ func softDeleteByCosmosID(ctx context.Context, containerClient *azcosmos.Contain
 
 	opts := &azcosmos.ItemOptions{
 		IfMatchEtag: &responseItem.ETag,
+	}
+	// A caller deleting an observed owner must retain that observation's ETag,
+	// rather than silently substituting the ETag of a newer incarnation.
+	if len(options) > 0 && options[0] != nil && options[0].IfMatchEtag != nil {
+		opts.IfMatchEtag = options[0].IfMatchEtag
 	}
 	_, err = containerClient.ReplaceItem(ctx, pk, cosmosID, modified, opts)
 	if err != nil {

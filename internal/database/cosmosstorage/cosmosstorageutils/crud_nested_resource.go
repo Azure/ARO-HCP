@@ -35,7 +35,7 @@ type ResourceCRUD[InternalAPIType any, InternalAPITypePointer coreapi.CosmosMeta
 	List(ctx context.Context, opts *DBClientListResourceDocsOptions) (DBClientIterator[InternalAPIType], error)
 	Create(ctx context.Context, newObj *InternalAPIType, options *azcosmos.ItemOptions) (*InternalAPIType, error)
 	Replace(ctx context.Context, newObj *InternalAPIType, options *azcosmos.ItemOptions) (*InternalAPIType, error)
-	Delete(ctx context.Context, resourceID string) error
+	Delete(ctx context.Context, resourceID string, options ...*azcosmos.ItemOptions) error
 
 	AddCreateToTransaction(ctx context.Context, transaction DBTransaction, newObj *InternalAPIType, opts *azcosmos.TransactionalBatchItemOptions) (string, error)
 	AddReplaceToTransaction(ctx context.Context, transaction DBTransaction, newObj *InternalAPIType, opts *azcosmos.TransactionalBatchItemOptions) (string, error)
@@ -47,7 +47,7 @@ type ValidatingResourceCRUD[InternalAPIType any, InternalAPITypePointer coreapi.
 	List(ctx context.Context, opts *DBClientListResourceDocsOptions) (DBClientIterator[InternalAPIType], error)
 	Create(ctx context.Context, newObj *InternalAPIType, options *azcosmos.ItemOptions) (*InternalAPIType, error)
 	Replace(ctx context.Context, newObj *InternalAPIType, oldObj *InternalAPIType, options *azcosmos.ItemOptions) (*InternalAPIType, error)
-	Delete(ctx context.Context, resourceID string) error
+	Delete(ctx context.Context, resourceID string, options ...*azcosmos.ItemOptions) error
 }
 
 // PartitionKeyDeriver computes the Cosmos partition key for documents accessed
@@ -132,7 +132,7 @@ func (FleetPartitionKeyDeriver) PartitionKey(ParentResourceID *azcorearm.Resourc
 
 func (FleetPartitionKeyDeriver) PartitionKeyFromObject(obj any) (string, error) {
 	switch obj.(type) {
-	case *fleetapi.Stamp, *fleetapi.ManagementCluster:
+	case *fleetapi.Stamp, *fleetapi.ManagementCluster, *fleetapi.DNSClaim:
 		// only the fleet types live in the fleet container
 	default:
 		return "", fmt.Errorf("fleet partitioning does not apply to %T", obj)
@@ -396,7 +396,7 @@ func (d *NestedCosmosResourceCRUD[InternalAPIType, InternalAPITypePointer, Cosmo
 	return replace[InternalAPIType, CosmosAPIType, InternalAPITypePointer](ctx, d.ContainerClient, newObj, options)
 }
 
-func (d *NestedCosmosResourceCRUD[InternalAPIType, InternalAPITypePointer, CosmosAPIType]) Delete(ctx context.Context, resourceName string) error {
+func (d *NestedCosmosResourceCRUD[InternalAPIType, InternalAPITypePointer, CosmosAPIType]) Delete(ctx context.Context, resourceName string, options ...*azcosmos.ItemOptions) error {
 	completeResourceID, err := d.makeResourceIDPath(resourceName)
 	if err != nil {
 		return fmt.Errorf("failed to make ResourceID path for '%s': %w", resourceName, err)
@@ -406,5 +406,5 @@ func (d *NestedCosmosResourceCRUD[InternalAPIType, InternalAPITypePointer, Cosmo
 		return err
 	}
 
-	return deleteResource(ctx, d.ContainerClient, partitionKey, completeResourceID)
+	return deleteResource(ctx, d.ContainerClient, partitionKey, completeResourceID, options...)
 }

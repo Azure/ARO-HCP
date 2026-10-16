@@ -14,9 +14,12 @@ digraph cluster_delete {
   children [label="Node-pool and external-auth\ndeletion flows complete", fillcolor="#e4f2e5", color="#4c8053"];
   group [label="EnsureManagedResourceGroup", fillcolor="#e6f0fa", color="#35648a"];
   cleanup [label="ClusterChildResourcesCleanup\nController", fillcolor="#e6f0fa", color="#35648a"];
-  final [label="ClusterDeletionController", fillcolor="#e6f0fa", color="#35648a"];
+  final [label="ClusterDeletionController\nremove cluster independently of claims", fillcolor="#e6f0fa", color="#35648a"];
   op [label="OperationClusterDelete", fillcolor="#e6f0fa", color="#35648a"];
   done [label="ARM Delete Operation Succeeded", fillcolor="#e4f2e5", color="#4c8053"];
+  claims [label="DNSClaimCleanup\nwatch claims + owner clusters\nmatching deleting UID: CS cleanup gate\nmissing/different UID: claim age >= 30m", fillcolor="#e6f0fa", color="#35648a"];
+  final -> claims [label="owner removed\nclaims cleaned asynchronously", style=dashed];
+  clear -> claims [label="matching deleting owner's CS cleanup complete", style=dashed];
   backups [label="BackupCleanup (mgmt-agent)\nALL: recognized ARO Backup, terminal phase,\nno active uploads/restores/downloads, no opt-outs\nIncludes pending schedule-selected restores\nand downloads after terminal restores\nOpt-outs: wait for events, no polling\nNo Cosmos writes", fillcolor="#e6f0fa", color="#35648a"];
   velero [label="Velero (external)\nprocess DeleteBackupRequest\ndelete Backup and associated backup data", fillcolor="#fff0da", color="#b27624"];
   retained [label="Backup absent: stop reconciling\nBackupRepositories retained for Kopia maintenance\nNot proof of repository GC; not an ARM gate", fillcolor="#e4f2e5", color="#4c8053"];

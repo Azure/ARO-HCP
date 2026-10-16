@@ -31,6 +31,7 @@ import (
 	credentialrevocationoperations "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/credentialrevocation/operations"
 	clusterdeletion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/deletion"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/denyassignments"
+	clusterdns "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/dns"
 	clusterhostedcluster "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/hostedcluster"
 	clusteridentity "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/identity"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/legacycredentialrequest"
@@ -1212,7 +1213,31 @@ func instantiateControlPlaneVersionRolloutSeedingController(controllerContext co
 	), nil
 }
 
+func registerDNSClaimCleanupController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{Workers: 1, Instantiate: controllerconfig.WithCacheSyncs(instantiateDNSClaimCleanupController, false)}
+}
+
+func instantiateDNSClaimCleanupController(ctx controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	return clusterdns.NewCleanupController(ctx.FleetDBClient, ctx.FleetInformers, ctx.BackendInformers, ctx.Clock), nil
+}
+
+func registerDNSAllocationController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{Workers: 20, Instantiate: controllerconfig.WithCacheSyncs(instantiateDNSAllocationController, false)}
+}
+func instantiateDNSAllocationController(ctx controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	return clusterdns.NewDNSAllocationController(ctx.ResourcesDBClient, ctx.FleetDBClient, ctx.BackendInformers, ctx.FleetInformers, ctx.ClustersServiceClient, ctx.Clock), nil
+}
+func registerDNSBackfillController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{Workers: 20, Instantiate: controllerconfig.WithCacheSyncs(instantiateDNSBackfillController, true)}
+}
+func instantiateDNSBackfillController(ctx controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	return clusterdns.NewBackfillController(ctx.ResourcesDBClient, ctx.FleetDBClient, ctx.BackendInformers, ctx.FleetInformers, ctx.UnionKubeApplierInformers, ctx.Clock), nil
+}
+
 func Register(registry map[string]controllerconfig.ControllerRegistration) {
+	registry[strings.ToLower(clusterdns.DNSAllocationControllerName)] = registerDNSAllocationController()
+	registry[strings.ToLower(clusterdns.BackfillControllerName)] = registerDNSBackfillController()
+	registry[strings.ToLower(clusterdns.CleanupControllerName)] = registerDNSClaimCleanupController()
 	registry[strings.ToLower(rollout.BestVersionSelectionControllerName)] = registerBestVersionSelectionController()
 	registry[strings.ToLower(rollout.StatusCollectorControllerName)] = registerStatusCollectorController()
 	registry[strings.ToLower(rollout.InitialNormalClusterDesiredVersionControllerName)] = registerInitialNormalClusterDesiredVersionController()

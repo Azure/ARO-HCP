@@ -146,6 +146,12 @@ type trackingFleetInformers struct {
 	tracking *cacheTracking
 }
 
+func (informers *trackingFleetInformers) DNSClaims() (cache.SharedIndexInformer, fleetlisters.DNSClaimLister) {
+	informer, lister := informers.FleetInformers.DNSClaims()
+	informers.tracking.add(informer.HasSynced)
+	return informer, lister
+}
+
 func (informers *trackingFleetInformers) Stamps() (cache.SharedIndexInformer, fleetlisters.StampLister) {
 	informer, lister := informers.FleetInformers.Stamps()
 	informers.tracking.add(informer.HasSynced)

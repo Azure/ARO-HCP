@@ -68,7 +68,7 @@ func (f *fakeControllerCRUD) Replace(ctx context.Context, newObj *coreapi.Contro
 	return newObj, nil
 }
 
-func (f *fakeControllerCRUD) Delete(ctx context.Context, resourceID string) error {
+func (f *fakeControllerCRUD) Delete(ctx context.Context, resourceID string, options ...*azcosmos.ItemOptions) error {
 	delete(f.controllers, resourceID)
 	return nil
 }

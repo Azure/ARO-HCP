@@ -25,6 +25,13 @@ digraph cluster_create {
   ver -> create [label="desired exact version"];
   place -> create [label="Spec.ManagementClusterResourceID"];
   azure -> create [label="deny precondition if enabled"];
-  create -> cs [label="adopt or POST; persist ID"];
+  allocation [label="ClusterDNSAllocation\nwait for ARO ClusterUID\npreserve existing CS adoption", fillcolor="#e6f0fa", color="#35648a"];
+  claims [label="Fleet DNS claim\nparent zone + five-character slug\nowner = ARO ClusterUID", fillcolor="#e4f2e5", color="#4c8053"];
+  place -> allocation [label="parent DNS zone"];
+  id -> allocation [label="pending CS ID for adoption check"];
+  allocation -> claims [label="persist candidate first;\ncreate claim in separate reconcile"];
+  claims -> allocation [label="owned: commit base domain\nconflict: choose another", style=dashed];
+  allocation -> create [label="persisted prefix + claimed base domain"];
+  create -> cs [label="POST persisted prefix + base domain;\npersist CS ID in same reconcile"];
   create -> create [label="missing prerequisite: wait", style=dashed, color="#857456", constraint=false];
 }
