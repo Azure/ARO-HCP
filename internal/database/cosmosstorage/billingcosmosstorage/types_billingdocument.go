@@ -97,6 +97,9 @@ func (in *BillingDocument) GetObjectKind() schema.ObjectKind {
 func (in *BillingDocument) GetObjectMeta() metav1.Object {
 	om := &metav1.ObjectMeta{}
 	om.Name = strings.ToLower(in.ID)
+	// Informers must distinguish changed documents from unchanged relists so
+	// update handlers run even when their periodic resync is not due.
+	om.ResourceVersion = string(in.CosmosETag)
 	return om
 }
 
