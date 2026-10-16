@@ -155,6 +155,34 @@ func (c *operationClusterCreate) SynchronizeOperation(ctx context.Context, key c
 			"clusterActiveOperationID", cluster.ServiceProviderProperties.ActiveOperationID)
 		return nil
 	}
+	if deadline := cluster.ServiceProviderProperties.CreateOperationCompletionDeadline; deadline != nil && c.clock.Now().After(deadline.Time) {
+		// Cached diagnostics are best-effort; observation failures must not prevent timeout.
+		var messages []string
+		if state, err := c.clusterValidation(ctx, operation); err == nil && state.Message != "" {
+			messages = append(messages, state.Message)
+		}
+		if state, err := c.placementOperationStatus(ctx, operation, cluster); err == nil && state.Message != "" {
+			if state.Error != nil {
+				messages = append(messages, state.Error.Message)
+			} else {
+				messages = append(messages, state.Message)
+			}
+		}
+		if state, err := c.hostedClusterOperationStatus(ctx, operation); err == nil && state.Message != "" {
+			messages = append(messages, state.Message)
+		}
+		persistErr := &coreapi.CloudErrorBody{
+			Code: coreapi.CloudErrorCodeDeadlineExceeded,
+			Message: operationbase.DeadlineExceededMessage(
+				"cluster creation did not complete before the deadline", strings.Join(messages, "; ")),
+		}
+		logger.Info("create operation deadline exceeded, marking as failed", "deadline", deadline.Time, "message", persistErr.Message)
+		err = operationbase.UpdateOperationStatus(ctx, c.clock, c.resourcesDBClient, operation, coreapi.ProvisioningStateFailed, persistErr, operationbase.PostAsyncNotificationFn(c.notificationClient))
+		if cosmosstorageutils.IsPreconditionFailedError(err) {
+			return nil
+		}
+		return utils.TrackError(err)
+	}
 	if !c.shouldReconcileOperationAndResourceStatus(cluster) {
 		return nil
 	}
@@ -168,28 +196,6 @@ func (c *operationClusterCreate) SynchronizeOperation(ctx context.Context, key c
 		persistErr = &coreapi.CloudErrorBody{
 			Code:    operationalState.CloudErrorCode,
 			Message: operationalState.Message,
-		}
-	}
-
-	if !operationalState.ProvisioningState.IsTerminal() &&
-		cluster.ServiceProviderProperties.CreateOperationCompletionDeadline != nil &&
-		c.clock.Now().After(cluster.ServiceProviderProperties.CreateOperationCompletionDeadline.Time) {
-
-		message := operationbase.DeadlineExceededMessage(
-			"cluster creation did not complete before the deadline",
-			operationalState.Message,
-		)
-		logger.Info("create operation deadline exceeded, marking as failed",
-			"deadline", cluster.ServiceProviderProperties.CreateOperationCompletionDeadline.Time,
-			"message", message)
-		operationalState.ProvisioningState = coreapi.ProvisioningStateFailed
-		code := operationalState.CloudErrorCode
-		if code == coreapi.CloudErrorCodeInternalServerError {
-			code = coreapi.CloudErrorCodeDeadlineExceeded
-		}
-		persistErr = &coreapi.CloudErrorBody{
-			Code:    code,
-			Message: message,
 		}
 	}
 
@@ -340,7 +346,7 @@ func (c *operationClusterCreate) placementOperationStatus(ctx context.Context, o
 		message = "ServiceProviderCluster not cached yet"
 	}
 	deadline := cluster.ServiceProviderProperties.CreateOperationCompletionDeadline
-	if deadline == nil || c.clock.Now().Before(deadline.Time) {
+	if deadline == nil || !c.clock.Now().After(deadline.Time) {
 		return operationbase.NewOperationState(coreapi.ProvisioningStateProvisioning, message), nil
 	}
 

@@ -139,12 +139,17 @@ type NodePoolServiceProviderProperties struct {
 	CreateOperationCompletionDeadline *metav1.Time `json:"createOperationCompletionDeadline,omitempty"`
 
 	// UpdateOperationCompletionDeadline is the time by which the current node pool update must complete.
-	// Admission resets it on each update to 60 minutes from the request, unless overridden
+	// Admission resets it on each update to 90 minutes from the request, unless overridden
 	// by the experimental max-update-duration tag (requires ExperimentalReleaseFeatures).
 	// The update operation controller fails pending operations after this deadline,
 	// including the current pending reasons in the returned error.
 	// Written by: Frontend PUT/PATCH NodePool (via admission)
 	UpdateOperationCompletionDeadline *metav1.Time `json:"updateOperationCompletionDeadline,omitempty"`
+
+	// DeleteOperationCompletionDeadline is reset to 50 minutes from each accepted deletion attempt.
+	// Retries preserve deletion timestamps; a nil deadline leaves an existing operation unbounded.
+	// Written by: Frontend DELETE NodePool, Frontend DELETE Cluster/Subscription (cascade)
+	DeleteOperationCompletionDeadline *metav1.Time `json:"deleteOperationCompletionDeadline,omitempty"`
 }
 
 // NodePoolVersionProfile represents the worker node pool version.

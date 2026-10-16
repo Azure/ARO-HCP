@@ -16,7 +16,7 @@ digraph cluster_convergence {
   role [label="IdentityRoleAssignments", fillcolor="#e6f0fa", color="#35648a"];
   azure [label="Azure role assignments\nconfirmed group + resolved identities", fillcolor="#fff0da", color="#b27624"];
   validation [label="Cluster validation controllers\nServiceProviderCluster.Status.Validations", fillcolor="#e6f0fa", color="#35648a"];
-  op [label="OperationClusterCreate", fillcolor="#e6f0fa", color="#35648a"];
+  op [label="OperationClusterCreate\nmatching owner: expiry before gates / observations\nIncoming readiness checks apply when not expired", fillcolor="#e6f0fa", color="#35648a"];
   done [label="ARM operation Succeeded\nActiveOperationID cleared", fillcolor="#e4f2e5", color="#4c8053"];
   uid [label="BackfillClusterUID", fillcolor="#e6f0fa", color="#35648a"];
   billing [label="CreateBillingDoc", fillcolor="#e6f0fa", color="#35648a"];
@@ -53,7 +53,7 @@ digraph cluster_convergence {
   op -> done [label="all completion checks\nsatisfied"];
   failed [label="ARM operation Failed\nselected error code", fillcolor="#fbe8e5", color="#a64f43"];
   op -> failed [label="any validation False >= 5m\nand operation age >= 5m: InvalidResource"];
-  op -> failed [label="pending past deadline: selected code + reasons;\nonly InternalServerError becomes DeadlineExceeded"];
+  op -> failed [label="now > create deadline: DeadlineExceeded\nbest-effort cached validation / placement / HC;\nno live CS read or late success"];
   done -> billing [label="Succeeded; billing reference\nmissing"];
   uid -> billing [label="ClusterUID available"];
   azure -> role [label="created stays pending until\nGET confirms", style=dashed, color="#857456", constraint=false];

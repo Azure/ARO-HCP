@@ -155,6 +155,24 @@ func (c *operationClusterUpdate) SynchronizeOperation(ctx context.Context, key c
 		return nil
 	}
 
+	if deadline := existingCluster.ServiceProviderProperties.UpdateOperationCompletionDeadline; deadline != nil && c.clock.Now().After(deadline.Time) {
+		var message string
+		// Preserve cached validation diagnostics without requiring a successful observation.
+		if spc, err := c.serviceProviderClusterLister.Get(ctx, operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Name); err == nil {
+			message = c.clusterValidation(operation, spc).Message
+		}
+		persistErr := &coreapi.CloudErrorBody{
+			Code:    coreapi.CloudErrorCodeDeadlineExceeded,
+			Message: operationbase.DeadlineExceededMessage("cluster update did not complete before the deadline", message),
+		}
+		logger.Info("update operation deadline exceeded, marking as failed", "deadline", deadline.Time, "message", persistErr.Message)
+		err = operationbase.UpdateOperationStatus(ctx, c.clock, c.resourcesDBClient, operation, coreapi.ProvisioningStateFailed, persistErr, operationbase.PostAsyncNotificationFn(c.notificationClient))
+		if cosmosstorageutils.IsPreconditionFailedError(err) {
+			return nil
+		}
+		return utils.TrackError(err)
+	}
+
 	if !c.shouldReconcileOperationAndResourceStatus(existingCluster) {
 		return nil // no work to do
 	}
@@ -169,28 +187,6 @@ func (c *operationClusterUpdate) SynchronizeOperation(ctx context.Context, key c
 		persistErr = &coreapi.CloudErrorBody{
 			Code:    operationalState.CloudErrorCode,
 			Message: operationalState.Message,
-		}
-	}
-
-	if !operationalState.ProvisioningState.IsTerminal() &&
-		existingCluster.ServiceProviderProperties.UpdateOperationCompletionDeadline != nil &&
-		c.clock.Now().After(existingCluster.ServiceProviderProperties.UpdateOperationCompletionDeadline.Time) {
-
-		message := operationbase.DeadlineExceededMessage(
-			"cluster update did not complete before the deadline",
-			operationalState.Message,
-		)
-		logger.Info("update operation deadline exceeded, marking as failed",
-			"deadline", existingCluster.ServiceProviderProperties.UpdateOperationCompletionDeadline.Time,
-			"message", message)
-		operationalState.ProvisioningState = coreapi.ProvisioningStateFailed
-		code := operationalState.CloudErrorCode
-		if code == coreapi.CloudErrorCodeInternalServerError {
-			code = coreapi.CloudErrorCodeDeadlineExceeded
-		}
-		persistErr = &coreapi.CloudErrorBody{
-			Code:    code,
-			Message: message,
 		}
 	}
 

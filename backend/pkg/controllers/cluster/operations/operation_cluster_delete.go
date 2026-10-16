@@ -157,6 +157,11 @@ func (c *operationClusterDelete) SynchronizeOperation(ctx context.Context, key c
 		return utils.TrackError(fmt.Errorf("failed to get cluster: %w", err))
 	}
 
+	if operation.OperationID.Name != cluster.ServiceProviderProperties.ActiveOperationID {
+		logger.Info("cluster active operation id mismatch, returning early", "synchronizedActiveOperationID", operation.OperationID.Name, "clusterActiveOperationID", cluster.ServiceProviderProperties.ActiveOperationID)
+		return nil
+	}
+
 	if cluster.ServiceProviderProperties.DeleteOperationCompletionDeadline != nil &&
 		c.clock.Now().After(cluster.ServiceProviderProperties.DeleteOperationCompletionDeadline.Time) {
 

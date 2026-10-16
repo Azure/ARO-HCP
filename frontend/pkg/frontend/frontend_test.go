@@ -1350,7 +1350,7 @@ func TestDeleteCluster(t *testing.T) {
 				if test.expectDeadlineInFuture {
 					require.NotNil(t, updatedCluster.ServiceProviderProperties.DeleteOperationCompletionDeadline, "DeleteOperationCompletionDeadline should be set")
 
-					assert.WithinDuration(t, now.Add(12*time.Hour), updatedCluster.ServiceProviderProperties.DeleteOperationCompletionDeadline.Time, 0)
+					assert.WithinDuration(t, now.Add(50*time.Minute), updatedCluster.ServiceProviderProperties.DeleteOperationCompletionDeadline.Time, 0)
 				}
 			}
 		})

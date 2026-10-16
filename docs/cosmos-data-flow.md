@@ -87,6 +87,12 @@ instances, 114 backend instances, 115 total launches and 140 catalog entries.
 
 Update-deadline baseline: `a0f232352a2e933142f2f2dfb61f2870aed7a26f` plus working-tree changes; scope: cluster/node-pool update admission, create/update timeout error codes and diagnostics, and their lifecycle views.
 
+Resource-operation deadline baseline: `a3bfb7bc0e718d14b7647f58cf3705776827126a`
+plus working-tree changes; scope: frontend deadline writes, all nine cluster,
+node-pool and external-auth create/update/delete pollers, and their lifecycle and
+operation-semantics views. Credential operations and unrelated controller flows
+are unchanged; this targeted update adds no controllers or startup registrations.
+
 Cluster teardown update baseline: `d453011603d357d8fa8938acef97eec5d00818c4`
 plus working-tree fixes; scope: ordered ApplyDesire removal, ReadDesire cleanup,
 concurrent Cluster Service delete dispatch, and the cluster-delete diagram.
@@ -484,6 +490,12 @@ transitively deletes all clusters (and their children) via transactional batches
 **Handler:** `createHCPCluster` ([cluster.go](../frontend/pkg/frontend/cluster.go))
 **Write method:** Transactional batch (`AddCreateToTransaction` x2)
 
+Admission also writes `ServiceProviderProperties.CreateOperationCompletionDeadline`
+= frontend clock + 60m, with the experimental creation-duration override when
+enabled, and sets/clears `ServiceProviderProperties.DeleteOperationCompletionTimeout`
+from the experimental deletion-duration tag. Both are persisted in the same
+resource/operation transaction; see [deadline policy](#resource-operation-deadlines).
+
 | Object | Fields Written |
 |--------|---------------|
 | `Cluster` | <ul><li>`CustomerProperties.*` from request body (unmarshaled, read-only fields cleared before conversion to internal, `EnsureDefaults()` applied)</li><li>`TrackedResource.ID` (from URL resource ID)</li><li>`TrackedResource.Name` (from URL resource ID)</li><li>`TrackedResource.Type` (from URL resource ID)</li><li>`TrackedResource.Location` = `azureLocation`</li><li>`Tags`</li><li>`SystemData.CreatedAt`, `SystemData.CreatedBy`, `SystemData.CreatedByType`</li><li>`SystemData.LastModifiedAt`, `SystemData.LastModifiedBy`, `SystemData.LastModifiedByType`</li><li>`CosmosMetadata.ResourceID`, `CosmosMetadata.PartitionKey`</li><li>`ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL` (from `X-Ms-Identity-Url` header)</li><li>`Identity.UserAssignedIdentities` (cleared then rebuilt via `completeClusterIdentity` from `CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators` and `.ServiceManagedIdentity`, without supplied client/principal IDs)</li><li>`ServiceProviderProperties.ExperimentalFeatures.ZStreamUpdatePolicy` = `Immediate` when the experimental AFEC is registered and `aro-hcp.experimental.cluster.z-stream-update-policy=Immediate` is present; otherwise unset (other supplied values are rejected when gated on)</li><li>`ServiceProviderProperties.ActiveOperationID` = new operation's `ResourceID.Name`</li><li>`ServiceProviderProperties.ProvisioningState` = `Accepted`</li></ul> |
@@ -499,7 +511,7 @@ transitively deletes all clusters (and their children) via transactional batches
 
 | Object | Fields Written |
 |--------|---------------|
-| `Cluster` | <ul><li>`CustomerProperties.*` (from request body; `DNS.BaseDomainPrefix` and `Platform.ManagedResourceGroup` carried from old if empty)</li><li>`Tags` (nil in request = keep old; non-nil = replace)</li><li>`SystemData.LastModifiedAt`, `LastModifiedBy`, `LastModifiedByType`</li><li>Read-only fields copied from old via `CopyReadOnlyClusterValues`: `TrackedResource`, `CosmosMetadata`, `Identity` (PrincipalID, TenantID, non-nil UserAssignedIdentity values), `ServiceProviderProperties` (entire deep copy), `Status` (entire deep copy)</li><li>`Identity.UserAssignedIdentities` (cleared then rebuilt via `completeClusterIdentity` with old identity data)</li><li>`ServiceProviderProperties.ExperimentalFeatures.ZStreamUpdatePolicy` = `Immediate` when the experimental AFEC is registered and `aro-hcp.experimental.cluster.z-stream-update-policy=Immediate` is present; otherwise unset (other supplied values are rejected when gated on)</li><li>`ServiceProviderProperties.UpdateOperationCompletionDeadline` = admission clock + 60m (experimental `max-update-duration` override when enabled); reset for each update</li><li>`ServiceProviderProperties.ActiveOperationID` = new operation's `ResourceID.Name`</li><li>`ServiceProviderProperties.ProvisioningState` = `Accepted`</li></ul> |
+| `Cluster` | <ul><li>`CustomerProperties.*` (from request body; `DNS.BaseDomainPrefix` and `Platform.ManagedResourceGroup` carried from old if empty)</li><li>`Tags` (nil in request = keep old; non-nil = replace)</li><li>`SystemData.LastModifiedAt`, `LastModifiedBy`, `LastModifiedByType`</li><li>Read-only fields copied from old via `CopyReadOnlyClusterValues`: `TrackedResource`, `CosmosMetadata`, `Identity` (PrincipalID, TenantID, non-nil UserAssignedIdentity values), `ServiceProviderProperties` (entire deep copy), `Status` (entire deep copy)</li><li>`Identity.UserAssignedIdentities` (cleared then rebuilt via `completeClusterIdentity` with old identity data)</li><li>`ServiceProviderProperties.ExperimentalFeatures.ZStreamUpdatePolicy` = `Immediate` when the experimental AFEC is registered and `aro-hcp.experimental.cluster.z-stream-update-policy=Immediate` is present; otherwise unset (other supplied values are rejected when gated on)</li><li>`ServiceProviderProperties.UpdateOperationCompletionDeadline` = admission clock + 90m (experimental `max-update-duration` override when enabled); reset for each update</li><li>`ServiceProviderProperties.DeleteOperationCompletionTimeout` set/cleared from the experimental deletion-duration tag</li><li>`ServiceProviderProperties.ActiveOperationID` = new operation's `ResourceID.Name`</li><li>`ServiceProviderProperties.ProvisioningState` = `Accepted`</li></ul> |
 | `Operation` | <ul><li>`Request` = `Update`</li><li>`ExternalID` = cluster ARM resource ID</li><li>`InternalID` = empty</li><li>`Status` = `Accepted`</li><li>`TenantID`, `ClientID`, `NotificationURI` (from headers)</li><li>`StartTime`, `LastTransitionTime`, `OperationID`, `ResourceID`, `ClientRequestID`, `CorrelationRequestID`</li></ul> |
 
 ---
@@ -512,7 +524,7 @@ transitively deletes all clusters (and their children) via transactional batches
 
 | Object | Fields Written |
 |--------|---------------|
-| `Cluster` | <ul><li>`CustomerProperties.*` (old resource used as base, PATCH body overlaid, then converted to internal; `Platform.ContainerRegistry` dispatched to CS via `clusterUpdateDispatchConfig` for day-2 set/change/clear)</li><li>`Tags` (nil in request = keep old; non-nil = replace)</li><li>`SystemData.LastModifiedAt`, `LastModifiedBy`, `LastModifiedByType`</li><li>Read-only fields copied from old via `CopyReadOnlyClusterValues`: `TrackedResource`, `CosmosMetadata`, `Identity`, `ServiceProviderProperties`, `Status`</li><li>`Identity.UserAssignedIdentities` (cleared then rebuilt via `completeClusterIdentity` with old identity data)</li><li>`ServiceProviderProperties.ExperimentalFeatures.ZStreamUpdatePolicy` = `Immediate` when the experimental AFEC is registered and `aro-hcp.experimental.cluster.z-stream-update-policy=Immediate` is present; otherwise unset (other supplied values are rejected when gated on)</li><li>`ServiceProviderProperties.UpdateOperationCompletionDeadline` = admission clock + 60m (experimental `max-update-duration` override when enabled); reset for each update</li><li>`ServiceProviderProperties.ActiveOperationID` = new operation's `ResourceID.Name`</li><li>`ServiceProviderProperties.ProvisioningState` = `Accepted`</li></ul> |
+| `Cluster` | <ul><li>`CustomerProperties.*` (old resource used as base, PATCH body overlaid, then converted to internal; `Platform.ContainerRegistry` dispatched to CS via `clusterUpdateDispatchConfig` for day-2 set/change/clear)</li><li>`Tags` (nil in request = keep old; non-nil = replace)</li><li>`SystemData.LastModifiedAt`, `LastModifiedBy`, `LastModifiedByType`</li><li>Read-only fields copied from old via `CopyReadOnlyClusterValues`: `TrackedResource`, `CosmosMetadata`, `Identity`, `ServiceProviderProperties`, `Status`</li><li>`Identity.UserAssignedIdentities` (cleared then rebuilt via `completeClusterIdentity` with old identity data)</li><li>`ServiceProviderProperties.ExperimentalFeatures.ZStreamUpdatePolicy` = `Immediate` when the experimental AFEC is registered and `aro-hcp.experimental.cluster.z-stream-update-policy=Immediate` is present; otherwise unset (other supplied values are rejected when gated on)</li><li>`ServiceProviderProperties.UpdateOperationCompletionDeadline` = admission clock + 90m (experimental `max-update-duration` override when enabled); reset for each update</li><li>`ServiceProviderProperties.DeleteOperationCompletionTimeout` set/cleared from the experimental deletion-duration tag</li><li>`ServiceProviderProperties.ActiveOperationID` = new operation's `ResourceID.Name`</li><li>`ServiceProviderProperties.ProvisioningState` = `Accepted`</li></ul> |
 | `Operation` | <ul><li>`Request` = `Update`</li><li>`ExternalID` = cluster ARM resource ID</li><li>`InternalID` = empty</li><li>`Status` = `Accepted`</li><li>`TenantID`, `ClientID`, `NotificationURI`</li></ul> |
 
 ---
@@ -523,9 +535,15 @@ transitively deletes all clusters (and their children) via transactional batches
 **Handler:** `addDeleteClusterToTransaction` ([cluster.go](../frontend/pkg/frontend/cluster.go))
 **Write method:** Single transactional batch containing the cluster and its operation. Children without initialized backend deletion are also initialized in that batch.
 
-Each accepted DELETE uses the current time plus `DeleteOperationCompletionTimeout` (12 hours by default) for `ServiceProviderProperties.DeleteOperationCompletionDeadline`. Existing `DeletionTimestamp` and `ClusterServiceDeletionTimestamp` values are preserved.
+Each accepted DELETE uses the frontend clock plus `DeleteOperationCompletionTimeout` (50m when nil) for `ServiceProviderProperties.DeleteOperationCompletionDeadline`. Existing `DeletionTimestamp` and `ClusterServiceDeletionTimestamp` values are preserved.
 
 Each child with a `DeletionTimestamp` already set is left untouched, including its operation. Children without a `DeletionTimestamp` are initialized, including children created while the parent operation was failed. Child-list errors abort the transaction. A retry renews parent operation monitoring without redispatching an already dispatched Cluster Service deletion. A retried DELETE for an already-deleting cluster always returns HTTP 409 without modifying the deadline.
+
+Newly initialized child deletions also write their own
+`ServiceProviderProperties.DeleteOperationCompletionDeadline` in this batch:
+frontend clock + 50m for node pools, + 30m for external auth. This also applies
+when subscription deletion invokes the cluster cascade. Already-initialized
+children do not get refreshed deadlines from a parent retry.
 
 | Object | Fields Written |
 |--------|---------------|
@@ -547,6 +565,10 @@ The frontend still sets `UsesNewClusterDeletionApproach`/`UsesNewNodePoolDeletio
 **Handler:** `createNodePool` ([node_pool.go](../frontend/pkg/frontend/node_pool.go))
 **Write method:** Transactional batch (`AddCreateToTransaction` x2)
 
+Admission also writes `ServiceProviderProperties.CreateOperationCompletionDeadline`
+= frontend clock + 60m (experimental creation-duration override when enabled)
+in the resource/operation transaction.
+
 | Object | Fields Written |
 |--------|---------------|
 | `NodePool` | <ul><li>Writable `Properties.*` from request body (unmarshaled, read-only fields cleared before conversion to internal, `EnsureDefaults()` applied)</li><li>`TrackedResource.ID`, `TrackedResource.Name`, `TrackedResource.Type`, `TrackedResource.Location`</li><li>`Tags`, `SystemData`</li><li>`CosmosMetadata.ResourceID`, `CosmosMetadata.PartitionKey`</li><li>`ServiceProviderProperties.ActiveOperationID` = new operation's `ResourceID.Name`</li><li>`Properties.ProvisioningState` = `Accepted`</li></ul> |
@@ -562,7 +584,7 @@ The frontend still sets `UsesNewClusterDeletionApproach`/`UsesNewNodePoolDeletio
 
 | Object | Fields Written |
 |--------|---------------|
-| `NodePool` | <ul><li>`Properties.*` (from request; `Version.ID` carried from old if empty, `Platform.SubnetID` carried from old if nil)</li><li>`Tags` (nil in request = keep old; non-nil = replace)</li><li>`SystemData.LastModifiedAt`, `LastModifiedBy`, `LastModifiedByType`</li><li>Read-only fields copied from old via `CopyReadOnlyNodePoolValues`: `TrackedResource`, `CosmosMetadata`, `Identity`, `Properties.ProvisioningState`, `ServiceProviderProperties`, `Status`</li><li>`ServiceProviderProperties.UpdateOperationCompletionDeadline` = admission clock + 60m (experimental `max-update-duration` override when enabled); reset for each update</li><li>`ServiceProviderProperties.ActiveOperationID` = new operation's `ResourceID.Name`</li><li>`Properties.ProvisioningState` = `Accepted`</li></ul> |
+| `NodePool` | <ul><li>`Properties.*` (from request; `Version.ID` carried from old if empty, `Platform.SubnetID` carried from old if nil)</li><li>`Tags` (nil in request = keep old; non-nil = replace)</li><li>`SystemData.LastModifiedAt`, `LastModifiedBy`, `LastModifiedByType`</li><li>Read-only fields copied from old via `CopyReadOnlyNodePoolValues`: `TrackedResource`, `CosmosMetadata`, `Identity`, `Properties.ProvisioningState`, `ServiceProviderProperties`, `Status`</li><li>`ServiceProviderProperties.UpdateOperationCompletionDeadline` = admission clock + 90m (experimental `max-update-duration` override when enabled); reset for each update</li><li>`ServiceProviderProperties.ActiveOperationID` = new operation's `ResourceID.Name`</li><li>`Properties.ProvisioningState` = `Accepted`</li></ul> |
 | `Operation` | <ul><li>`Request` = `Update`</li><li>`ExternalID` = node pool ARM resource ID</li><li>`InternalID` = empty</li><li>`Status` = `Accepted`</li></ul> |
 
 ---
@@ -572,6 +594,11 @@ The frontend still sets `UsesNewClusterDeletionApproach`/`UsesNewNodePoolDeletio
 **Path:** `DELETE .../nodePools/{name}`
 **Handler:** `addDeleteNodePoolToTransaction` ([node_pool.go](../frontend/pkg/frontend/node_pool.go))
 **Write method:** Transactional batch
+
+The same batch writes `ServiceProviderProperties.DeleteOperationCompletionDeadline`
+= frontend clock + 50m for every accepted attempt, including an accepted retry
+after failure. Existing deletion and Cluster Service dispatch timestamps are
+preserved; a rejected request does not refresh the stored deadline.
 
 | Object | Fields Written |
 |--------|---------------|
@@ -586,6 +613,11 @@ The frontend still sets `UsesNewClusterDeletionApproach`/`UsesNewNodePoolDeletio
 **Path:** `PUT .../externalAuths/{name}` (resource does not exist)
 **Handler:** `createExternalAuth` ([external_auth.go](../frontend/pkg/frontend/external_auth.go))
 **Write method:** Transactional batch (`AddCreateToTransaction` x2)
+
+`newExternalAuthAdmissionContext` supplies the frontend clock and live sibling
+inventory for create admission. `MutateExternalAuth` runs before validation and
+sets `ServiceProviderProperties.CreateOperationCompletionDeadline` = clock + 30m,
+persisted only with the accepted resource/operation transaction.
 
 The frontend live-reads the parent cluster and checks provisioning-state conflicts,
 but does not require the parent's `ServiceProviderProperties.ClusterServiceID`.
@@ -606,6 +638,11 @@ and retries until it is available.
 **Handler:** `updateExternalAuthInCosmos` ([external_auth.go](../frontend/pkg/frontend/external_auth.go))
 **Write method:** Transactional batch (`AddCreateToTransaction` + `AddReplaceToTransaction`)
 
+The clock-bearing admission context does not list siblings for updates.
+Mutation before validation resets
+`ServiceProviderProperties.UpdateOperationCompletionDeadline` = clock + 30m
+for each accepted update; create/delete deadlines are preserved.
+
 The operation always has an empty `InternalID`, including updates of legacy
 resources with a stored Cluster Service ID. The resource's
 `ServiceProviderProperties.ClusterServiceID` is preserved for backend dispatch
@@ -623,6 +660,12 @@ and completion. The operation poller locates the resource by `Operation.External
 **Path:** `DELETE .../externalAuths/{name}`
 **Handler:** `addDeleteExternalAuthToTransaction` ([external_auth.go](../frontend/pkg/frontend/external_auth.go))
 **Write method:** Transactional batch
+
+The same batch writes `ServiceProviderProperties.DeleteOperationCompletionDeadline`
+= frontend clock + 30m for every accepted attempt, including an accepted retry
+after failure. Existing deletion and Cluster Service dispatch timestamps are
+preserved. Cluster/subscription cascades use this same helper for newly
+initialized child deletions.
 
 | Object | Fields Written |
 |--------|---------------|
@@ -890,8 +933,9 @@ conditions and bookkeeping, even when a syncer has **no domain writes**. Fleet
 [stamp](../fleet/pkg/controllers/base/stamp_watching_controller.go) and
 [management-cluster](../fleet/pkg/controllers/base/management_cluster_watching_controller.go)
 wrappers have the analogous role. Operation controllers watch active operations
-and require matching request/resource type and nonterminal status; create/update
-pollers also check the resource's active-operation reference. Their
+and require matching request/resource type and nonterminal status; all nine
+resource create/update/delete pollers also check an existing resource's
+active-operation reference before evaluating its deadline. Their
 [status helper](../backend/pkg/utils/operationutils/utils.go)
 updates operation/resource state transactionally and handles async notification.
 Create/update pollers select the worst provisioning state, then choose an error
@@ -899,17 +943,92 @@ code only from sources reporting that state: `Invalid*` codes take precedence,
 other codes rank next, and `InternalServerError` is the default for non-successful
 states. Successful states have no error code. Equal-priority codes keep the first
 source in the stable provisioning-state/message sort.
-The selected code is persisted in the operation error. In all cluster/node-pool
-create/update timeout paths, `OperationState.CloudErrorCode` is preserved unless
-it is `InternalServerError`; only that code is replaced with `DeadlineExceeded`.
-Timeout messages retain the merged pending reasons. Existing customer-safe error
-messages and details are retained for already-failed observations.
+The selected code is persisted in the operation error during normal state
+evaluation. Expiry bypasses that selection, as described below; an already-terminal
+operation is not reclassified.
 
 Validation instances use the [cluster wrapper](../backend/pkg/controllers/cluster/validation/cluster_validation_controller.go)
 or [node-pool wrapper](../backend/pkg/controllers/nodepool/validation/nodepool_validation_controller.go).
 They write one named condition in `Status.Validations`, respect result-specified
 `EarliestRetryAfter` with delayed enqueue/cooldown, and suppress transient Unknown
 results until repeated. The validators' Azure calls are checks, not provisioning.
+
+### Resource-operation deadlines
+
+These are persisted deadlines on the ARM resource's `ServiceProviderProperties`,
+not timeouts on the `Operation` document or cancellation of external work.
+The frontend writes the deadline and the new operation in one Resources
+transaction. Admission failures or failed transactions do not persist a refresh.
+
+| Resource | Create | Update | Delete | Frontend writer |
+|---|---|---|---|---|
+| Cluster | 60m | 90m | 50m | [PUT/PATCH admission](../internal/admission/admit_cluster.go); [DELETE helper](../frontend/pkg/frontend/cluster.go) |
+| Node pool | 60m | 90m | 50m | [PUT/PATCH admission](../internal/admission/admit_nodepool.go); [DELETE helper](../frontend/pkg/frontend/node_pool.go) |
+| External auth | 30m | 30m | 30m | [PUT/PATCH admission](../internal/admission/admit_external_auth.go); [DELETE helper](../frontend/pkg/frontend/external_auth.go) |
+
+Create admission sets `CreateOperationCompletionDeadline`; every accepted update
+resets `UpdateOperationCompletionDeadline`; every accepted deletion attempt resets
+`DeleteOperationCompletionDeadline`. Each is the frontend clock plus the applicable
+duration. Accepted retries get a new operation and fresh relevant deadline, not a
+backend reconcile-driven extension. Existing deletion/dispatch timestamps survive
+delete retries. Parent cascades skip children whose deletion timestamp is already
+set, so a parent retry does not renew those children's operations or deadlines.
+
+With the subscription's `ExperimentalReleaseFeatures` AFEC registered, cluster and
+node-pool `aro-hcp.experimental.{cluster,nodepool}.max-creation-duration` and
+`max-update-duration` tags override create/update defaults. Cluster
+`aro-hcp.experimental.cluster.max-deletion-duration` is projected on create/update
+into `DeleteOperationCompletionTimeout`; DELETE consumes that stored duration,
+falling back to 50m when nil. These overrides accept Go durations of at least 1m.
+There is no node-pool delete or external-auth duration override here.
+
+The pollers first require the appropriate nonterminal operation and load its
+resource. Create/update use cached resources; a missing resource waits. Delete
+uses a live resource read and completes successfully on document absence **before**
+any deadline check. For a present resource, an empty or mismatched
+`ActiveOperationID` skips processing. They then check only the deadline matching
+the operation's request type, using strictly `clock.Now().After(deadline.Time)`:
+equality is not expired. A nil deadline on an older stored resource remains
+unbounded by this policy; there is no backfill or synthesis from operation age,
+and existing non-nil deadlines are not recomputed when defaults change.
+
+Expiry is checked **before** `shouldReconcileOperationAndResourceStatus` and normal
+state observation. Missing Cluster Service IDs, missing delete-dispatch timestamps,
+or other reconciliation gates therefore cannot prevent timeout once the resource
+and ownership checks pass. A still-nonterminal operation expires even if normal
+observation would now discover success or a more specific failure. Before or at the
+deadline, or with nil, the existing gates, completion checks and error retries apply.
+
+| Expiring operation | Error code and diagnostic inputs |
+|---|---|
+| Cluster create | `DeadlineExceeded`; best-effort cached validation, placement and HostedCluster messages. Unresolved placement with `CapacityAvailable=False` contributes the customer-safe capacity message, not the `AROHCPCapacityHeavyUse` top-level code or internal placement diagnostics. |
+| Cluster update | `DeadlineExceeded`; best-effort cached SPC validation message only. No live Cluster Service progress/configuration read. |
+| Node-pool create | `DeadlineExceeded`; best-effort cached HyperShift NodePool operation-state message. |
+| Node-pool update | `DeadlineExceeded`; best-effort cached NodePool status mismatch messages, not spec comparison (which requires Cluster Service). |
+| Node-pool delete | `DeadlineExceeded`; resource fields distinguish waiting for document deletion, dispatch, or confirmation of Cluster Service deletion. No live Cluster Service read. |
+| External-auth create/update/delete | `DeadlineExceeded`; fixed operation-specific timeout message, with no external observation. |
+| Cluster delete | **Existing `InternalServerError` behavior retained.** Best-effort diagnostics still include live Cluster Service state and descendant queries, plus cached HostedCluster and ApplyDesire teardown state. This path is not converted to cached-only diagnostics. |
+
+Cached diagnostic failures do not block timeout. Cluster-delete diagnostic errors
+are logged and the available messages (or a generic timeout message) are retained.
+The [shared status helper](../backend/pkg/utils/operationutils/utils.go) writes
+`Operation.Status=Failed`, `Error` and `LastTransitionTime`, and, if a live reread
+still finds the same owner, the resource's provisioning state `Failed` and empty
+`ActiveOperationID` in one transaction. A changed owner or missing resource skips
+only the resource update. ETag precondition failures leave the transaction
+uncommitted and defer to a later reconciliation; other write errors retry.
+Async notification follows a successful write; clearing `NotificationURI` is a
+separate write after successful notification, not part of the state transaction.
+
+Operationally, Failed terminates monitoring of **that ARM attempt**, not external
+reconciliation: no rollback or cancellation is issued, and deletion intent remains.
+Cleanup can continue and remove the resource after a delete attempt has failed;
+the terminal failed operation is not subsequently changed to Succeeded. An accepted
+retry starts new monitoring without erasing deletion progress. Existing controller
+gates still govern any provisioning work after failure. Expiry is detected on the
+10s operation polling path, not an exact wall-clock timer; resource lookup and
+Cosmos persistence must still succeed. Credential request/revocation deadlines and
+behavior are unchanged by this resource-operation deadline policy.
 
 ### Backend: cluster provisioning and Azure resources
 
@@ -1530,11 +1649,11 @@ The `serviceProviderDefaultIngressServingCertificateStatus` check (source-labell
 
 [Source](../backend/pkg/controllers/cluster/operations/operation_cluster_create.go) · **Trigger:** Active operation; 10s.
 
-Combines cluster validations, selected placement, Cluster Service state, mirrored HostedCluster readiness/version, API endpoint, serving CA, confirmed role assignments (nonempty confirmed list, none pending), and the two TLS-certificate-related checks above. Placement is checked even before a Cluster Service ID exists. Unresolved placement remains Provisioning until `CreateOperationCompletionDeadline`; without a deadline it keeps waiting. At/after the deadline, `Status.Placement.Conditions[CapacityAvailable]=False` produces the customer-safe `AROHCPCapacityHeavyUse` error; missing/Unknown placement state produces `InternalServerError`. Assigned `Spec.ManagementClusterResourceID` satisfies this check despite a stale condition; other completion checks still apply.
+Checks the matching resource's create deadline before reconciliation gates and normal observations; expiry fails with `DeadlineExceeded` and best-effort cached validation, placement and HostedCluster diagnostics. A capacity-constrained placement contributes the customer-safe message, not its classified error code. Otherwise combines cluster validations, selected placement, Cluster Service state, mirrored HostedCluster readiness/version, API endpoint, serving CA, confirmed role assignments (nonempty confirmed list, none pending), and the two TLS-certificate-related checks above. Placement is checked even before a Cluster Service ID exists. Unresolved placement remains Provisioning at/before the deadline or indefinitely with nil. Assigned `Spec.ManagementClusterResourceID` satisfies placement despite a stale condition; other completion checks still apply. See [shared deadline semantics](#resource-operation-deadlines).
 
 The [validation check](../backend/pkg/controllers/cluster/operations/operation_cluster_validation.go) reads `ServiceProviderCluster.Status.Validations`. All recorded conditions True (or no recorded conditions) contributes Succeeded; any non-True condition contributes Provisioning with a sorted message containing its name, reason and message. Any False condition sets `InvalidResource`; the check contributes Failed only when both its nonzero `LastTransitionTime` and the operation's nonzero `StartTime` are at least five minutes old. Unknown conditions remain Provisioning without `InvalidResource` or a failure timeout. Recovery resets the timer through the condition transition time. These results participate in the normal worst-state selection alongside other Provisioning sources, including their messages and error codes.
 
-For the matching nonterminal operation, writes status/error/transition time and ARM provisioning state, clears the active-operation reference on terminal state, and sends the async notification. Classified error messages are preserved (multiple classified failures retain their original errors in `Details`, with the worst code at the top level); internal placement diagnostics are not copied into the capacity error. Pending HostedCluster version diagnostics describe incomplete history entries and their elapsed time.
+For the matching nonterminal operation, writes status/error/transition time and ARM provisioning state, clears the active-operation reference on terminal state, and sends the async notification. Outside the early-expiry path, classified error messages are preserved (multiple classified failures retain their original errors in `Details`, with the worst code at the top level). Pending HostedCluster version diagnostics describe incomplete history entries and their elapsed time.
 
 #### OperationClusterUpdate
 
@@ -1542,13 +1661,13 @@ For the matching nonterminal operation, writes status/error/transition time and 
 
 Checks resolved provider desired major/minor against the customer request, rejects incompatible SRE/exact overrides, and waits up to 129s from first observed mismatch for assignment (tracked in memory per operation). It no longer reads or creates status for the removed desired-version controller. Combines dispatched configuration, Cluster Service state, mirrored HostedCluster completion, and the same cluster validation check and five-minute failure grace period as [OperationClusterCreate](#operationclustercreate). For the matching nonterminal operation, writes operation status/error/transition time and ARM provisioning state, clears the active-operation reference on terminal state, and sends the async notification.
 
-After determining state, a still-pending operation past `ServiceProviderProperties.UpdateOperationCompletionDeadline` becomes Failed with the selected `OperationState.CloudErrorCode` (replacing only `InternalServerError` with `DeadlineExceeded`) and the merged, source-labelled pending reasons, including Cluster Service progress messages. Already successful/failed observations retain their result. A missing deadline (older stored resources) preserves the previous behavior. State-evaluation errors remain reconcile errors, as in creation.
+Before reconciliation gates or state evaluation, a matching nonterminal operation strictly past `ServiceProviderProperties.UpdateOperationCompletionDeadline` becomes Failed with `DeadlineExceeded`. Only cached SPC validation diagnostics are attempted; failures to read them do not block timeout. No late success/failure or live Cluster Service state is evaluated. Nil deadlines preserve the previous behavior; see [shared deadline semantics](#resource-operation-deadlines).
 
 #### OperationClusterDelete
 
 [Source](../backend/pkg/controllers/cluster/operations/operation_cluster_delete.go) · **Trigger:** Active operation; 10s.
 
-Waits for the resource document to disappear. Timeout diagnostics combine deletion-dispatch progress, live Cluster Service state, remaining descendant resources and mirrored HostedCluster state. For the matching nonterminal operation, writes status/error/transition time and ARM provisioning state, clears the active-operation reference on terminal state, and sends the async notification.
+Completes a nonterminal delete when the live resource document is absent. If present, requires matching `ActiveOperationID` before checking `DeleteOperationCompletionDeadline`, ahead of dispatch/ID gates. Expiry retains `InternalServerError`; best-effort diagnostics combine deletion-dispatch progress, live Cluster Service state, remaining descendant resources, mirrored HostedCluster state and ApplyDesire teardown. Writes status/error/transition time and ARM provisioning state, clears the active-operation reference on terminal state, and sends the async notification. Cleanup is not canceled; see [shared deadline semantics](#resource-operation-deadlines).
 
 #### ClusterDegradedAggregator
 
@@ -1634,7 +1753,7 @@ Once deletion prerequisites and child cleanup are satisfied, deletes the ARM res
 
 [Source](../backend/pkg/controllers/nodepool/operations/operation_node_pool_create.go) · **Trigger:** Active operation; 10s.
 
-Observes Cluster Service and resource readiness; For the matching nonterminal operation, writes operation status/error/transition time and ARM provisioning state, clears the active-operation reference on terminal state, and sends the async notification.
+Checks the matching resource's create deadline before reconciliation gates or normal observation. Expiry reports `DeadlineExceeded`, optionally with cached HyperShift NodePool diagnostics, without contacting Cluster Service. Otherwise observes Cluster Service and resource readiness. Writes operation status/error/transition time and ARM provisioning state, clears the active-operation reference on terminal state, and sends the async notification; see [shared deadline semantics](#resource-operation-deadlines).
 
 #### OperationNodePoolUpdate
 
@@ -1642,13 +1761,13 @@ Observes Cluster Service and resource readiness; For the matching nonterminal op
 
 Combines version resolution, Cluster Service state/configuration and mirrored NodePool spec/status. Requires the requested replica count (or autoscaling range), `AllNodesHealthy=True` and `AllMachinesReady=True`; skips both health conditions when replicas are zero and autoscaling is unset. Reports all failing status checks together. For the matching nonterminal operation, writes status/error/transition time and ARM provisioning state, clears the active-operation reference on terminal state, and sends the async notification.
 
-After determining state, a still-pending operation past `ServiceProviderProperties.UpdateOperationCompletionDeadline` becomes Failed with the selected `OperationState.CloudErrorCode` (replacing only `InternalServerError` with `DeadlineExceeded`) and the merged, source-labelled pending reasons, including Cluster Service progress messages. Already successful/failed observations retain their result. A missing deadline (older stored resources) preserves the previous behavior. State-evaluation errors remain reconcile errors, as in creation.
+Before reconciliation gates or state evaluation, a matching nonterminal operation strictly past `ServiceProviderProperties.UpdateOperationCompletionDeadline` becomes Failed with `DeadlineExceeded`. Best-effort cached NodePool status checks supply diagnostics; spec comparison and live Cluster Service reads are skipped. No late success/failure is evaluated. Nil deadlines preserve the previous behavior; see [shared deadline semantics](#resource-operation-deadlines).
 
 #### OperationNodePoolDelete
 
 [Source](../backend/pkg/controllers/nodepool/operations/operation_node_pool_delete.go) · **Trigger:** Active operation; 10s.
 
-Waits for the resource document to disappear. For the matching nonterminal operation, writes operation status/error/transition time and ARM provisioning state, clears the active-operation reference on terminal state, and sends the async notification.
+Completes a nonterminal delete when the live resource document is absent. If present, requires matching `ActiveOperationID`, then checks `DeleteOperationCompletionDeadline` before dispatch/ID gates. Expiry reports `DeadlineExceeded`; resource fields identify whether document removal, dispatch or Cluster Service deletion confirmation is pending. No external read is needed for timeout. Writes operation status/error/transition time and ARM provisioning state, clears the active-operation reference on terminal state, and sends the async notification; cleanup continues independently. See [shared deadline semantics](#resource-operation-deadlines).
 
 #### NodePoolDegradedAggregator
 
@@ -1704,11 +1823,15 @@ Once deletion prerequisites and child cleanup are satisfied, deletes the ARM res
 
 [Source](../backend/pkg/controllers/externalauth/operations/operation_external_auth_create.go) · **Trigger:** Active operation; 10s.
 
+After resource lookup and active-operation matching, checks `CreateOperationCompletionDeadline` before the ID/deletion gates and Cluster Service GET. Expiry reports `DeadlineExceeded` with a fixed creation-timeout message, even without a Cluster Service ID; see [shared deadline semantics](#resource-operation-deadlines).
+
 Uses `Operation.ExternalID` to find the cached external-auth resource and waits for its `ServiceProviderProperties.ClusterServiceID`; it does not use `Operation.InternalID`. A successful Cluster Service GET of external auth is the completion check; this does not wait for downstream authentication rollout readiness. For the matching nonterminal operation, writes operation status/error/transition time and ARM provisioning state, clears the active-operation reference on terminal state, and sends the async notification.
 
 #### OperationExternalAuthUpdate
 
 [Source](../backend/pkg/controllers/externalauth/operations/operation_external_auth_update.go) · **Trigger:** Active operation; 10s.
+
+After resource lookup and active-operation matching, checks `UpdateOperationCompletionDeadline` before the ID/deletion gates and configuration observations. Expiry reports `DeadlineExceeded` with a fixed update-timeout message, without external reads; see [shared deadline semantics](#resource-operation-deadlines).
 
 Uses `Operation.ExternalID` to find the cached external-auth resource and waits for its `ServiceProviderProperties.ClusterServiceID`; it does not use `Operation.InternalID`. Combines desired-versus-observed Cluster Service configuration with the parent HostedCluster spec from its ReadDesire (issuer, clients, claims and validation rules). HostedCluster authentication status is not checked. Updates operation and ARM provisioning state, clears the terminal active-operation reference and sends the notification.
 
@@ -1716,7 +1839,7 @@ Uses `Operation.ExternalID` to find the cached external-auth resource and waits 
 
 [Source](../backend/pkg/controllers/externalauth/operations/operation_external_auth_delete.go) · **Trigger:** Active operation; 10s.
 
-Waits for the resource document to disappear. For the matching nonterminal operation, writes operation status/error/transition time and ARM provisioning state, clears the active-operation reference on terminal state, and sends the async notification.
+Completes a nonterminal delete when the live resource document is absent. If present, requires matching `ActiveOperationID`, then checks `DeleteOperationCompletionDeadline` before dispatch/ID gates. Expiry reports `DeadlineExceeded` with a fixed deletion-timeout message and no external read. Writes operation status/error/transition time and ARM provisioning state, clears the active-operation reference on terminal state, and sends the async notification; cleanup continues independently. See [shared deadline semantics](#resource-operation-deadlines).
 
 #### ExternalAuthDegradedAggregator
 
@@ -2224,8 +2347,10 @@ collapsed external convergence paths, and green nodes are recorded states/result
 A node containing several names is an explicitly collapsed subflow. Solid arrows
 show a write/effect or required observation; dashed arrows show feedback/retry.
 Multiple prerequisite arrows into a controller must all be satisfied unless marked
-conditional. Background validators, diagnostics, backups and metrics are cataloged
-above rather than repeated in every typical lifecycle.
+conditional. Operation-poller readiness inputs apply only on the non-expired path;
+the early-expiry path does not require them. Red nodes mark failed ARM attempts,
+not cancellation of external work. Background validators, diagnostics, backups
+and metrics are cataloged above rather than repeated in every typical lifecycle.
 
 The delete views no longer branch on `UsesNewClusterDeletionApproach`,
 `UsesNewNodePoolDeletionApproach` or `UsesNewExternalAuthDeletionApproach`: the
@@ -2247,6 +2372,22 @@ Render all PNGs with Graphviz installed:
 bash docs/diagrams/controller-flows/render.sh
 ```
 
+### Operation deadlines and retries
+
+[Full PNG](diagrams/controller-flows/operation-deadlines.png) | [Graphviz source](diagrams/controller-flows/operation-deadlines.dot)
+
+![Resource-operation deadline and retry semantics](diagrams/controller-flows/operation-deadlines.png)
+
+The [deadline policy and diagnostic table](#resource-operation-deadlines) give the
+frontend writers, override rules and per-operation exceptions. All nine pollers
+in the catalog check ownership and expiry before normal reconciliation gates;
+delete document absence comes first. The
+[status helper](../backend/pkg/utils/operationutils/utils.go) rereads resource
+ownership before the transactional result write and sends notifications afterward.
+The external-work branch is deliberately independent: timeout does not remove
+intent, cancel work or convert later cleanup into success for the failed attempt.
+No credential operation is added to this deadline path.
+
 ### Cluster create
 
 [Full PNG](diagrams/controller-flows/cluster-create.png) · [Graphviz source](diagrams/controller-flows/cluster-create.dot)
@@ -2265,7 +2406,7 @@ Initial desired-version assignment uses the requested channel's best version; SR
 
 [Shared-ingress observation](../fleet/pkg/controllers/sharedingress/shared_ingress_reporting_controller.go) supplies the third condition required by [lifecycle readiness](../fleet/pkg/controllers/lifecycle/controller.go). Missing registration/ingress conditions preserve the previous Ready value until all exist. A missing ReadDesire also leaves ingress status unchanged; populated content, not its Successful condition, supplies IP evidence.
 
-[Placement](../backend/pkg/controllers/cluster/placement/placement_controller.go) requires schedulable policy, Ready and current capacity/scaling observations. It reserves capacity before writing Spec placement and CapacityAvailable together. No fit records False or Unknown and requeues after 29s. [OperationClusterCreate](../backend/pkg/controllers/cluster/operations/operation_cluster_create.go) uses the overall create deadline to classify unresolved placement; this is not a separate placement timeout. The False/missing/Unknown paths in the graph apply only when no Spec placement was assigned.
+[Placement](../backend/pkg/controllers/cluster/placement/placement_controller.go) requires schedulable policy, Ready and current capacity/scaling observations. It reserves capacity before writing Spec placement and CapacityAvailable together. No fit records False or Unknown and requeues after 29s. [OperationClusterCreate](../backend/pkg/controllers/cluster/operations/operation_cluster_create.go) fails an expired nonterminal create with `DeadlineExceeded` before normal observation; this is not a separate placement timeout. With no Spec placement, cached False contributes the customer-safe capacity message, while missing/Unknown contributes a generic placement timeout. Neither changes the top-level timeout code. At equality or with nil, unresolved placement keeps waiting.
 
 ### Cluster create: Azure prerequisites
 
@@ -2384,9 +2525,10 @@ resource ID before checking Cluster Service.
 
 [Frontend update](../frontend/pkg/frontend/external_auth.go) preserves any stored
 resource Cluster Service ID while writing an operation with an empty `InternalID`.
-The dispatcher and operation poller still require the resource's Cluster Service
-ID; the poller locates the resource using `Operation.ExternalID`. Frontend
-acceptance and backend completion therefore have different prerequisites.
+The dispatcher and normal operation-completion checks still require the resource's
+Cluster Service ID; the poller locates the resource using `Operation.ExternalID`.
+Early expiry does not require that ID. Frontend acceptance and backend completion
+therefore have different prerequisites.
 
 [Update completion checks](../backend/pkg/controllers/externalauth/operations/operation_external_auth_update_state_calculation.go) compare both Cluster Service configuration and the parent HostedCluster spec read through its existing ReadDesire. Authentication status is explicitly not checked. This is stricter than the create poller's existence check, but is still not end-to-end authentication validation.
 
@@ -2413,9 +2555,13 @@ actors and use optimistic concurrency; retries must re-read on conflict.
 | Cluster `ServiceProviderProperties.ProvisioningState`; node-pool/external-auth `Properties.ProvisioningState` | Frontend marks Accepted/Deleting; the matching operation controller writes progress/terminal state. This is ARM request state, not a complete inventory of external resources. |
 | `ServiceProviderProperties.ActiveOperationID` | Frontend sets the new operation reference; terminal operation updates clear it. Pollers reject superseded operation IDs. |
 | External-auth create/update `Operation.ExternalID` / `InternalID` | Frontend writes the ARM resource ID / empty ID, even for a resource with an existing Cluster Service ID. Pollers use `ExternalID` to look up the resource and its backend-owned `ServiceProviderProperties.ClusterServiceID`. The operation does not copy or clear the resource's ID. |
-| Cluster/node-pool `ServiceProviderProperties.UpdateOperationCompletionDeadline` | Frontend PUT/PATCH admission resets this to now + 60m for each update. With `ExperimentalReleaseFeatures`, the resource-specific `aro-hcp.experimental.cluster.max-update-duration` or `aro-hcp.experimental.nodepool.max-update-duration` tag overrides it (Go duration, minimum 1m). The matching update operation controller consumes it and reports pending reasons on timeout. |
+| Cluster/node-pool `ServiceProviderProperties.CreateOperationCompletionDeadline` | Frontend PUT create admission sets now + 60m; resource-specific experimental `max-creation-duration` overrides require `ExperimentalReleaseFeatures` (Go duration, minimum 1m). Matching create pollers consume it before reconciliation gates/state evaluation. |
+| Cluster/node-pool `ServiceProviderProperties.UpdateOperationCompletionDeadline` | Frontend PUT/PATCH admission resets now + 90m for each accepted update. Resource-specific experimental `max-update-duration` overrides require `ExperimentalReleaseFeatures` (Go duration, minimum 1m). Matching update pollers consume it before reconciliation gates/state evaluation. |
+| Cluster `ServiceProviderProperties.DeleteOperationCompletionTimeout` | Frontend PUT/PATCH admission projects the AFEC-gated `max-deletion-duration` tag or clears the duration to nil. DELETE uses the stored duration, or 50m when nil; it is not itself an absolute deadline. |
+| Cluster/node-pool `ServiceProviderProperties.DeleteOperationCompletionDeadline` | Frontend DELETE (including newly initialized cascade deletes) resets now + 50m, with the stored cluster-only override above. Accepted retries refresh the deadline while preserving deletion/dispatch timestamps. Matching delete pollers consume it after live document-absence and ownership checks, before dispatch/ID gates. |
+| External-auth `ServiceProviderProperties.{Create,Update,Delete}OperationCompletionDeadline` | Frontend PUT create / PUT-PATCH update admission and DELETE respectively set the relevant deadline to now + 30m; other deadlines are preserved. Newly initialized cluster/subscription cascades use the DELETE helper. No override. All three pollers use early expiry. |
 | `Operation.Status`, `Error`, `LastTransitionTime`, `NotificationURI` | Frontend initializes/cancels requests; operation controllers update status and send/clear async notifications through the shared helper. |
-| `ServiceProviderProperties.DeletionTimestamp` | Frontend stamps deletion intent; dispatch, cleanup and final deletion controllers consume it. Deletion timestamp alone does not mean external resources are gone. The `UsesNew*DeletionApproach` flags are still written alongside it (unconditionally `true`) but are no longer read by any controller or admission check; they are vestigial, pending removal. |
+| `ServiceProviderProperties.DeletionTimestamp` | Frontend stamps deletion intent; dispatch, cleanup and final deletion controllers consume it. PUT/PATCH admission rejects updates to clusters, node pools and external auths carrying deletion intent, including after a delete timeout changes provisioning state to Failed; DELETE retries remain allowed. Deletion timestamp alone does not mean external resources are gone. The `UsesNew*DeletionApproach` flags are still written alongside it (unconditionally `true`) but are no longer read by any controller or admission check; they are vestigial, pending removal. |
 | Cluster `PendingClusterServiceID` / `ClusterServiceID` | [Pending ID assignment](#clusterpendingclusterserviceidassign) reserves the ID. [Cluster creation](#clusterclusterservicecreate) confirms the external ID and clears pending. The [ID clearer](#clusterdeletionclusterserviceidclearer) clears confirmed ID only after external absence. Node-pool/external-auth create and clear controllers similarly share their confirmed-ID fields. |
 | `ClusterServiceDeletionTimestamp` | Each delete dispatcher stamps completion of dispatch/creation-race handling; cleanup also requires the confirmed ID cleared. It is not a timestamp of all Azure/Kubernetes deletion. |
 | Cluster `ClusterUID`, `BillingDocumentCosmosID`; Billing document `DeletionTime` | [BackfillClusterUID](#backfillclusteruid) repairs UID using billing as input. [CreateBillingDoc](#createbillingdoc) creates billing and links it. [ClusterDeletionController](#clusterdeletioncontroller) and [OrphanedBillingCleanup](#orphanedbillingcleanup) mark billing deleted. |

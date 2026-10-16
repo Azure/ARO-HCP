@@ -161,7 +161,7 @@ func mutateNodePoolCreateOperationCompletionDeadline(_ context.Context, admissio
 }
 
 // mutateNodePoolUpdateOperationCompletionDeadline sets the deadline by which a
-// node pool update operation must complete. On UPDATE it defaults to 60
+// node pool update operation must complete. On UPDATE it defaults to 90
 // minutes from now; when the subscription has the ExperimentalReleaseFeatures
 // AFEC registered, the caller may override the duration via the
 // TagNodePoolMaxUpdateDuration ARM resource tag.
@@ -197,6 +197,9 @@ func mutateNodePoolUpdateOperationCompletionDeadline(_ context.Context, admissio
 	return nil
 }
 
+// DefaultNodePoolDeleteOperationCompletionDeadlineDuration bounds each accepted node pool deletion attempt.
+const DefaultNodePoolDeleteOperationCompletionDeadlineDuration = 50 * time.Minute
+
 // NodePoolDeleteAdmissionContext carries dependencies that node pool deletion admission needs.
 type NodePoolDeleteAdmissionContext struct {
 	// NodePools is a list of all node pools for the cluster, including the one being deleted.
@@ -225,9 +228,17 @@ func AdmitNodePoolOnDelete(ctx context.Context, admissionContext *NodePoolDelete
 func AdmitNodePool(ctx context.Context, admissionContext *NodePoolAdmissionContext, op operation.Operation, newNodePool, oldNodePool *coreapi.NodePool) field.ErrorList {
 	errs := field.ErrorList{}
 
+	errs = append(errs, admitNodePoolNotDeleting(op, oldNodePool)...)
 	errs = append(errs, admitNodePoolProperties(ctx, admissionContext, op, field.NewPath("properties"), &newNodePool.Properties, safe.Field(oldNodePool, validation.ToNodePoolProperties))...)
 
 	return errs
+}
+
+func admitNodePoolNotDeleting(op operation.Operation, oldObj *coreapi.NodePool) field.ErrorList {
+	if op.Type == operation.Update && oldObj != nil && oldObj.ServiceProviderProperties.DeletionTimestamp != nil {
+		return field.ErrorList{field.Forbidden(field.NewPath(""), "node pool is being deleted and cannot be updated")}
+	}
+	return nil
 }
 
 func admitNodePoolProperties(ctx context.Context, admissionContext *NodePoolAdmissionContext, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.NodePoolProperties) field.ErrorList {

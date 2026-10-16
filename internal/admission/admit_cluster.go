@@ -344,13 +344,13 @@ func hasTag(tags map[string]string, key string) bool {
 const defaultCreateOperationCompletionDeadlineDuration = 60 * time.Minute
 const minCreateOperationCompletionDeadlineDuration = time.Minute
 
-const defaultUpdateOperationCompletionDeadlineDuration = 60 * time.Minute
+const defaultUpdateOperationCompletionDeadlineDuration = 90 * time.Minute
 const minUpdateOperationCompletionDeadlineDuration = time.Minute
 
 // DefaultDeleteOperationCompletionDeadlineDuration is the fallback duration
 // used by the frontend DELETE handler when DeleteOperationCompletionTimeout
 // is nil (no tag / no AFEC).
-const DefaultDeleteOperationCompletionDeadlineDuration = 12 * time.Hour
+const DefaultDeleteOperationCompletionDeadlineDuration = 50 * time.Minute
 
 // MinDeleteOperationCompletionDeadlineDuration is the minimum value accepted
 // for the TagClusterMaxDeletionDuration tag.
@@ -394,7 +394,7 @@ func mutateCreateOperationCompletionDeadline(_ context.Context, admissionContext
 }
 
 // mutateUpdateOperationCompletionDeadline sets the deadline by which a cluster
-// update operation must complete. On UPDATE it defaults to 60 minutes from
+// update operation must complete. On UPDATE it defaults to 90 minutes from
 // now; when the subscription has the ExperimentalReleaseFeatures AFEC
 // registered, the caller may override the duration via the
 // TagClusterMaxUpdateDuration ARM resource tag.
