@@ -1,0 +1,5 @@
+// deliberately not valid JSON: "command" appears only as a value, which is
+// the ordinary shape of a hook definition and must not be called malware
+{
+	"type": "command",
+}
