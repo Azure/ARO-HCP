@@ -45,6 +45,8 @@ type externalAuthChildResourcesCleanupController struct {
 
 var _ controllerutils.ExternalAuthSyncer = (*externalAuthChildResourcesCleanupController)(nil)
 
+const ExternalAuthChildResourcesCleanupControllerControllerName = "ExternalAuthChildResourcesCleanupController"
+
 func NewExternalAuthChildResourcesCleanupController(
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	informers coreinformers.BackendInformers,
@@ -56,7 +58,7 @@ func NewExternalAuthChildResourcesCleanupController(
 	}
 
 	return controllerutils.NewExternalAuthWatchingController(
-		"ExternalAuthChildResourcesCleanupController",
+		ExternalAuthChildResourcesCleanupControllerControllerName,
 		resourcesDBClient,
 		informers,
 		time.Minute,
@@ -64,14 +66,7 @@ func NewExternalAuthChildResourcesCleanupController(
 	)
 }
 
-func (c *externalAuthChildResourcesCleanupController) NeedsWork(externalAuth *coreapi.HCPOpenShiftClusterExternalAuth) bool {
-	// TODO temporary check to skip the new deletion approach for ExternalAuths that were created before the new approach was implemented.
-	// This will be removed once all externalauths whose deletion was triggered before the new approach is fully rolled out have been
-	// fully deleted in all ARO-HCP permanent environments, for all regions.
-	if !externalAuth.ServiceProviderProperties.UsesNewExternalAuthDeletionApproach {
-		return false
-	}
-
+func (c *externalAuthChildResourcesCleanupController) NeedsWork(externalAuth *coreapi.ExternalAuth) bool {
 	return externalAuth.ServiceProviderProperties.DeletionTimestamp != nil &&
 		externalAuth.ServiceProviderProperties.ClusterServiceDeletionTimestamp != nil &&
 		externalAuth.ServiceProviderProperties.ClusterServiceID == nil

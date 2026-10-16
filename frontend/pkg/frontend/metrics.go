@@ -22,8 +22,6 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 )
 
 // patternRe is used to strip the METHOD string from the [ServerMux] pattern string.
@@ -38,12 +36,7 @@ func muxPatternRoute(pattern string) string {
 	return patternRe.ReplaceAllString(pattern, "")
 }
 
-type SubscriptionStateGetter interface {
-	GetSubscriptionState(string) string
-}
-
 type MetricsMiddleware struct {
-	ssg             SubscriptionStateGetter
 	requestCounter  *prometheus.CounterVec
 	requestDuration *prometheus.HistogramVec
 }
@@ -59,15 +52,14 @@ func (lrw *logResponseWriter) WriteHeader(code int) {
 	lrw.ResponseWriter.WriteHeader(code)
 }
 
-func NewMetricsMiddleware(r prometheus.Registerer, ssg SubscriptionStateGetter) *MetricsMiddleware {
+func NewMetricsMiddleware(r prometheus.Registerer) *MetricsMiddleware {
 	mm := &MetricsMiddleware{
-		ssg: ssg,
 		requestCounter: promauto.With(r).NewCounterVec(
 			prometheus.CounterOpts{
 				Name: requestCounterName,
-				Help: "Counter for HTTP requests by api_version, method, code, route, state, and user_agent.",
+				Help: "Counter for HTTP requests by api_version, method, code, route, and user_agent.",
 			},
-			[]string{"api_version", "method", "code", "route", "state", "user_agent"},
+			[]string{"api_version", "method", "code", "route", "user_agent"},
 		),
 		requestDuration: promauto.With(r).NewHistogramVec(
 			prometheus.HistogramOpts{
@@ -114,11 +106,6 @@ func (mm MetricsMiddleware) Metrics() MiddlewareFunc {
 			apiVersion = unknownVersionLabel
 		}
 
-		var subscriptionID string
-		if resource, _ := azcorearm.ParseResourceID(r.URL.Path); resource != nil {
-			subscriptionID = resource.SubscriptionID
-		}
-
 		userAgent := userAgentMetricLabel(r.UserAgent())
 
 		mm.requestCounter.With(prometheus.Labels{
@@ -126,7 +113,6 @@ func (mm MetricsMiddleware) Metrics() MiddlewareFunc {
 			"api_version": apiVersion,
 			"code":        strconv.Itoa(lrw.statusCode),
 			"route":       route,
-			"state":       mm.ssg.GetSubscriptionState(subscriptionID),
 			"user_agent":  userAgent,
 		}).Inc()
 

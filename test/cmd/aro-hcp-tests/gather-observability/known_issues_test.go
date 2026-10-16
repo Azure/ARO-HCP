@@ -16,6 +16,11 @@ package gatherobservability
 
 import (
 	"testing"
+	"time"
+
+	"github.com/go-logr/logr"
+
+	"github.com/Azure/ARO-HCP/test/util/timing"
 )
 
 func TestParseKnownIssues(t *testing.T) {
@@ -31,6 +36,7 @@ func TestParseKnownIssues(t *testing.T) {
 			content: `knownIssues:
 - name: "BackendOperationErrorRate"
   reason: "Known during provisioning"
+  expiresAfter: "2026-10-31"
 - name: "BackendController.*"
   reason: "Controller churn known"
 `,
@@ -49,6 +55,36 @@ func TestParseKnownIssues(t *testing.T) {
 		{
 			name:    "missing reason",
 			content: "knownIssues:\n- name: \"SomeAlert\"\n",
+			wantErr: true,
+		},
+		{
+			name:    "optional expiry",
+			content: "knownIssues:\n- name: \"SomeAlert\"\n  reason: \"tracked\"\n",
+			wantLen: 1,
+		},
+		{
+			name:    "invalid expiry format",
+			content: "knownIssues:\n- name: \"SomeAlert\"\n  reason: \"tracked\"\n  expiresAfter: \"October 31, 2026\"\n",
+			wantErr: true,
+		},
+		{
+			name:    "invalid expiry date",
+			content: "knownIssues:\n- name: \"SomeAlert\"\n  reason: \"tracked\"\n  expiresAfter: \"2026-02-30\"\n",
+			wantErr: true,
+		},
+		{
+			name:    "misspelled expiry field",
+			content: "knownIssues:\n- name: \"SomeAlert\"\n  reason: \"tracked\"\n  expiresAfer: \"2026-10-31\"\n",
+			wantErr: true,
+		},
+		{
+			name:    "misspelled top-level field",
+			content: "knownIssue: []\n",
+			wantErr: true,
+		},
+		{
+			name:    "duplicate field",
+			content: "knownIssues:\n- name: \"SomeAlert\"\n  reason: \"tracked\"\n  reason: \"duplicate\"\n",
 			wantErr: true,
 		},
 		{
@@ -98,6 +134,100 @@ func TestParseKnownIssues(t *testing.T) {
 			}
 			if len(result) != tt.wantLen {
 				t.Errorf("got %d known issues, want %d", len(result), tt.wantLen)
+			}
+		})
+	}
+}
+
+func TestEmbeddedKnownIssuesParse(t *testing.T) {
+	t.Parallel()
+	if _, err := parseKnownIssues(defaultKnownIssuesData); err != nil {
+		t.Fatalf("embedded known issues must parse: %v", err)
+	}
+}
+
+func TestUndatedKnownIssueDoesNotExpire(t *testing.T) {
+	t.Parallel()
+	issues := mustParse(t, `knownIssues:
+- name: "SomeAlert"
+  reason: "existing exception"
+`)
+	got := classifyAlertsAt([]alert{{Alert: alertData{Name: "SomeAlert"}}}, issues, time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC))
+	if !got[0].Metadata.KnownIssue || got[0].Metadata.KnownIssueReason != "existing exception" {
+		t.Errorf("undated exception should still classify the firing as known: %+v", got[0].Metadata)
+	}
+}
+
+func TestClassifyAlertsExpiry(t *testing.T) {
+	t.Parallel()
+	issues := mustParse(t, `knownIssues:
+- name: "SomeAlert"
+  reason: "temporary exception"
+  expiresAfter: "2026-10-31"
+- name: "SomeAlert"
+  reason: "another active exception"
+  labels:
+    component: "fallback"
+  expiresAfter: "2026-12-31"
+`)
+	alerts := []alert{
+		{Alert: alertData{Name: "SomeAlert", Labels: map[string]string{"component": "fallback"}}},
+		{Alert: alertData{Name: "SomeAlert", Labels: map[string]string{"component": "other"}}},
+	}
+	for _, tt := range []struct {
+		name        string
+		at          time.Time
+		known       []bool
+		firstReason string
+	}{
+		{name: "before expiry", at: time.Date(2026, 10, 30, 0, 0, 0, 0, time.UTC), known: []bool{true, true}, firstReason: "temporary exception"},
+		{name: "through expiry date", at: time.Date(2026, 10, 31, 23, 59, 59, 0, time.UTC), known: []bool{true, true}, firstReason: "temporary exception"},
+		{name: "after expiry", at: time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC), known: []bool{true, false}, firstReason: "another active exception"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := classifyAlertsAt(alerts, issues, tt.at)
+			for i, want := range tt.known {
+				if got[i].Metadata.KnownIssue != want {
+					t.Errorf("alert %d known=%v, want %v", i, got[i].Metadata.KnownIssue, want)
+				}
+			}
+			if got[0].Metadata.KnownIssueReason != tt.firstReason {
+				t.Errorf("first alert reason=%q, want %q", got[0].Metadata.KnownIssueReason, tt.firstReason)
+			}
+			if got[1].Metadata.KnownIssueReason != "" && !tt.known[1] {
+				t.Errorf("expired alert retained known issue reason %q", got[1].Metadata.KnownIssueReason)
+			}
+		})
+	}
+}
+
+func TestExpiredKnownIssueFailsAlertJUnit(t *testing.T) {
+	t.Parallel()
+	issues := mustParse(t, `knownIssues:
+- name: "SomeAlert"
+  reason: "temporary exception"
+  expiresAfter: "2026-10-31"
+`)
+	for _, tt := range []struct {
+		name        string
+		at          time.Time
+		wantFailed  uint
+		wantSkipped uint
+	}{
+		{name: "before expiry", at: time.Date(2026, 10, 31, 23, 59, 59, 0, time.UTC), wantSkipped: 1},
+		{name: "after expiry", at: time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC), wantFailed: 1},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ws := &workspaceData{
+				Type:        workspaceSvc,
+				AlertRules:  []string{"SomeAlert"},
+				FiredAlerts: classifyAlertsAt([]alert{{Alert: alertData{Name: "SomeAlert"}}}, issues, tt.at),
+			}
+			suite := workspaceDataToJUnit(logr.Discard(), ws, timing.TimeWindow{})
+			if suite.NumFailed != tt.wantFailed || suite.NumSkipped != tt.wantSkipped {
+				t.Errorf("JUnit failures=%d skips=%d; want failures=%d skips=%d", suite.NumFailed, suite.NumSkipped, tt.wantFailed, tt.wantSkipped)
 			}
 		})
 	}

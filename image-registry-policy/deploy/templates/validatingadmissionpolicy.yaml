@@ -5,9 +5,6 @@
 # The allowed registry list is provided via a ConfigMap parameter so it can be
 # managed independently of the policy definition.
 #
-# CPO images (quay.io/redhat-user-workloads/crt-redhat-acm-tenant/control-plane-operator-*)
-# are temporarily excluded per-image until registryOverride + ACR pull-through
-# cache are deployed (AROSLSRE-777).
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingAdmissionPolicy
 metadata:
@@ -50,7 +47,7 @@ spec:
   - name: allowedPrefixes
     expression: "params.data.allowedRegistries.split(',')"
   - name: disallowedImages
-    expression: "variables.allImages.filter(img, !img.startsWith('quay.io/redhat-user-workloads/crt-redhat-acm-tenant/control-plane-operator-') && !variables.allowedPrefixes.exists(prefix, img.startsWith(prefix + '/') || (prefix.split('/').size() >= 2 && (img.startsWith(prefix + '@') || img.startsWith(prefix + ':')))))"
+    expression: "variables.allImages.filter(img, !variables.allowedPrefixes.exists(prefix, img.startsWith(prefix + '/') || (prefix.split('/').size() >= 2 && (img.startsWith(prefix + '@') || img.startsWith(prefix + ':')))))"
   validations:
   - expression: "variables.disallowedImages.size() == 0"
     messageExpression: "'One or more container images are not from an allowed registry. Allowed registries: ' + params.data.allowedRegistries + '. Images: ' + variables.disallowedImages.join(', ')"

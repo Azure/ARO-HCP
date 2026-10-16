@@ -1,0 +1,26 @@
+.create-merge table azureVnetLogs (
+  timestamp: datetime,
+  environment: string,
+  region: string,
+  cluster: string,
+  hostname: string,
+  sourcePath: string,
+  level: string,
+  message: string,
+  log: dynamic
+)
+
+.create-or-alter table azureVnetLogs ingestion json mapping 'ingestionMapping'
+```
+[
+  {"column":"timestamp","Properties":{"path":"$.timestamp"}},
+  {"column":"environment","Properties":{"path":"$.log.environment"}},
+  {"column":"region","Properties":{"path":"$.log.region"}},
+  {"column":"cluster","Properties":{"path":"$.log.cluster"}},
+  {"column":"hostname","Properties":{"path":"$.log.hostname"}},
+  {"column":"sourcePath","Properties":{"path":"$.log.sourcePath"}},
+  {"column":"level","Properties":{"path":"$.log.level"}},
+  {"column":"message","Properties":{"path":"$.log.msg"}},
+  {"column":"log","Properties":{"path":"$.log"}}
+]
+```

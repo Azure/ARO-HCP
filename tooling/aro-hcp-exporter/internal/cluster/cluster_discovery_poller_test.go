@@ -28,7 +28,7 @@ import (
 )
 
 type mockQuerier struct {
-	rows []clusterRow
+	rows any
 	err  error
 }
 
@@ -46,15 +46,14 @@ func TestClusterDiscoveryPoller_GetDiscoverResult_BeforePoll(t *testing.T) {
 	cancel()
 
 	result := poller.GetDiscoverResult(ctx)
-	assert.Empty(t, result.ClusterNames)
-	assert.Empty(t, result.SubscriptionIDs)
+	assert.Empty(t, result.Clusters)
 }
 
 func TestClusterDiscoveryPoller_Poll_UpdatesResults(t *testing.T) {
 	querier := &mockQuerier{
-		rows: []clusterRow{
-			{Name: "svc-1", SubscriptionId: "sub-a"},
-			{Name: "mgmt-1", SubscriptionId: "sub-b"},
+		rows: []map[string]any{
+			{"name": "svc-1", "subscriptionId": "sub-a", "clusterType": "svc-cluster"},
+			{"name": "mgmt-1", "subscriptionId": "sub-b", "clusterType": "mgmt-cluster"},
 		},
 	}
 	poller := NewClusterDiscoveryPoller(querier, "eastus", []string{"svc-cluster"}, "", 0)
@@ -65,16 +64,29 @@ func TestClusterDiscoveryPoller_Poll_UpdatesResults(t *testing.T) {
 	poller.Poll(ctx)
 
 	result := poller.GetDiscoverResult(ctx)
-	assert.ElementsMatch(t, []string{"svc-1", "mgmt-1"}, result.ClusterNames)
-	assert.ElementsMatch(t, []string{"sub-a", "sub-b"}, result.SubscriptionIDs)
+	assert.Equal(t, []ClusterInfo{
+		{Name: "svc-1", SubscriptionId: "sub-a", ClusterType: "svc-cluster"},
+		{Name: "mgmt-1", SubscriptionId: "sub-b", ClusterType: "mgmt-cluster"},
+	}, result.Clusters)
+
+	querier.rows = []map[string]any{
+		{"name": "svc-1", "subscriptionId": "sub-a", "clusterType": "SVC-CLUSTER"},
+		{"name": "untagged", "subscriptionId": "sub-a"},
+	}
+	poller.Poll(ctx)
+	result = poller.GetDiscoverResult(ctx)
+	assert.Equal(t, []ClusterInfo{
+		{Name: "svc-1", SubscriptionId: "sub-a", ClusterType: "SVC-CLUSTER"},
+		{Name: "untagged", SubscriptionId: "sub-a"},
+	}, result.Clusters)
 }
 
-func TestClusterDiscoveryPoller_Poll_DeduplicatesSubscriptionIDs(t *testing.T) {
+func TestClusterDiscoveryPoller_Poll_PreservesClusterInfo(t *testing.T) {
 	querier := &mockQuerier{
-		rows: []clusterRow{
-			{Name: "cluster-a", SubscriptionId: "sub-1"},
-			{Name: "cluster-b", SubscriptionId: "sub-2"},
-			{Name: "cluster-c", SubscriptionId: "sub-1"},
+		rows: []ClusterInfo{
+			{Name: "cluster-a", SubscriptionId: "sub-1", ClusterType: "svc-cluster"},
+			{Name: "cluster-a", SubscriptionId: "sub-2", ClusterType: "mgmt-cluster"},
+			{Name: "cluster-c", SubscriptionId: "sub-1", ClusterType: "svc-cluster"},
 		},
 	}
 	poller := NewClusterDiscoveryPoller(querier, "eastus", []string{"svc-cluster"}, "", 0)
@@ -85,13 +97,14 @@ func TestClusterDiscoveryPoller_Poll_DeduplicatesSubscriptionIDs(t *testing.T) {
 	poller.Poll(ctx)
 
 	result := poller.GetDiscoverResult(ctx)
-	assert.ElementsMatch(t, []string{"cluster-a", "cluster-b", "cluster-c"}, result.ClusterNames)
-	assert.ElementsMatch(t, []string{"sub-1", "sub-2"}, result.SubscriptionIDs)
+	assert.Equal(t, querier.rows, result.Clusters)
+	result.Clusters[0].ClusterType = "changed"
+	assert.Equal(t, querier.rows, poller.GetDiscoverResult(ctx).Clusters)
 }
 
 func TestClusterDiscoveryPoller_Poll_PreservesResultsAcrossMultiplePolls(t *testing.T) {
 	querier := &mockQuerier{
-		rows: []clusterRow{{Name: "c1", SubscriptionId: "s1"}},
+		rows: []ClusterInfo{{Name: "c1", SubscriptionId: "s1"}},
 	}
 	poller := NewClusterDiscoveryPoller(querier, "eastus", []string{"svc-cluster"}, "", 0)
 
@@ -101,14 +114,13 @@ func TestClusterDiscoveryPoller_Poll_PreservesResultsAcrossMultiplePolls(t *test
 	for i := range 3 {
 		poller.Poll(ctx)
 		result := poller.GetDiscoverResult(ctx)
-		require.Len(t, result.ClusterNames, 1, "poll %d: expected 1 cluster name", i)
-		require.Len(t, result.SubscriptionIDs, 1, "poll %d: expected 1 subscription ID", i)
+		require.Equal(t, querier.rows, result.Clusters, "poll %d", i)
 	}
 }
 
 func TestClusterDiscoveryPoller_Poll_ErrorKeepsPreviousResults(t *testing.T) {
 	querier := &mockQuerier{
-		rows: []clusterRow{{Name: "existing", SubscriptionId: "sub-1"}},
+		rows: []ClusterInfo{{Name: "existing", SubscriptionId: "sub-1"}},
 	}
 	poller := NewClusterDiscoveryPoller(querier, "eastus", []string{"svc-cluster"}, "", 0)
 
@@ -117,19 +129,18 @@ func TestClusterDiscoveryPoller_Poll_ErrorKeepsPreviousResults(t *testing.T) {
 
 	poller.Poll(ctx)
 	result := poller.GetDiscoverResult(ctx)
-	require.ElementsMatch(t, []string{"existing"}, result.ClusterNames)
+	require.Equal(t, querier.rows, result.Clusters)
 
 	querier.err = fmt.Errorf("network timeout")
 	poller.Poll(ctx)
 
 	result = poller.GetDiscoverResult(ctx)
-	assert.ElementsMatch(t, []string{"existing"}, result.ClusterNames)
-	assert.ElementsMatch(t, []string{"sub-1"}, result.SubscriptionIDs)
+	assert.Equal(t, querier.rows, result.Clusters)
 }
 
 func TestClusterDiscoveryPoller_Poll_RespectsContextCancellation(t *testing.T) {
 	querier := &mockQuerier{
-		rows: []clusterRow{{Name: "new", SubscriptionId: "sub-1"}},
+		rows: []ClusterInfo{{Name: "new", SubscriptionId: "sub-1"}},
 	}
 	poller := NewClusterDiscoveryPoller(querier, "eastus", []string{"svc-cluster"}, "", time.Hour)
 
@@ -139,8 +150,7 @@ func TestClusterDiscoveryPoller_Poll_RespectsContextCancellation(t *testing.T) {
 	poller.Poll(cancelledCtx)
 
 	result := poller.GetDiscoverResult(cancelledCtx)
-	assert.Empty(t, result.ClusterNames)
-	assert.Empty(t, result.SubscriptionIDs)
+	assert.Empty(t, result.Clusters)
 }
 
 func TestBuildClusterQuery(t *testing.T) {
@@ -204,6 +214,7 @@ func TestBuildClusterQuery(t *testing.T) {
 			query := BuildClusterQuery(tt.region, tt.clusterTypes, tt.clusterFilter)
 
 			assert.Contains(t, query, "| where type =~ 'Microsoft.ContainerService/managedClusters'")
+			assert.Contains(t, query, "| project name, subscriptionId, clusterType = tostring(tags['clusterType'])")
 			for _, want := range tt.wantContains {
 				assert.Contains(t, query, want)
 			}

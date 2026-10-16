@@ -1,4 +1,5 @@
 # ARO-HCP kube-prometheus-stack overrides, review upstream values.yaml for more options.
+schedulingRole: infra
 kube-prometheus-stack:
   ## Provide a name to substitute for the full names of resources
   ##

@@ -35,7 +35,6 @@ tenantId: ""
 fpaCertName: ""
 databaseDisableTls: "true"
 databaseAuthMethod: "postgres"
-denyAssignments: "false"
 azureArmHelperIdentityClientId: ""
 azureArmHelperIdentityCertName: ""
 azureArmHelperMockFpaPrincipalId: ""
@@ -66,8 +65,6 @@ cosmosDatabaseUrl: ""
 cosmosDatabaseName: ""
 managedIdentitiesDataPlaneAudienceResource: ""
 dataPlaneHAProxyImage: ""
-tracing:
-  address: ""
 csDeploymentStrategy:
   type: RollingUpdate
   rollingUpdate:

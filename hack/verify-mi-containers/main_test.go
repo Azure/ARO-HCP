@@ -15,6 +15,8 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -112,5 +114,185 @@ func TestCheckDir(t *testing.T) {
 	if len(violations) != 6 {
 		t.Errorf("checkDir(testdata) returned %d violations, want 6:\n%s",
 			len(violations), strings.Join(violations, "\n"))
+	}
+}
+
+func TestResourceScopedE2EInvariant(t *testing.T) {
+	t.Parallel()
+
+	specs, err := findResourceScopedSpecs(filepath.Join("..", "..", "test", "e2e"))
+	if err != nil {
+		t.Fatalf("findResourceScopedSpecs() returned error: %v", err)
+	}
+	if violations := validateResourceScopedSpecs(specs); len(violations) > 0 {
+		t.Fatalf("resource-scoped E2E invariant failed:\n%s", strings.Join(violations, "\n"))
+	}
+}
+
+func TestValidateResourceScopedSpecs(t *testing.T) {
+	t.Parallel()
+
+	valid := resourceScopedSpec{
+		file: filepath.Join("test", "e2e", resourceScopedTestFile),
+		line: 37,
+		kind: "It",
+		name: resourceScopedTestName,
+		uses: 1,
+	}
+	tests := []struct {
+		name          string
+		specs         []resourceScopedSpec
+		wantViolation string
+	}{
+		{
+			name:  "canonical test is accepted",
+			specs: []resourceScopedSpec{valid},
+		},
+		{
+			name:          "missing resource-scoped test is rejected",
+			wantViolation: "found 0",
+		},
+		{
+			name: "multiple resource-scoped tests are rejected",
+			specs: []resourceScopedSpec{
+				valid,
+				{file: "test/e2e/unrelated.go", line: 10, kind: "It", name: "unrelated", uses: 1},
+			},
+			wantViolation: "found 2",
+		},
+		{
+			name: "wrong file is rejected",
+			specs: []resourceScopedSpec{{
+				file: "test/e2e/unrelated.go",
+				line: 10,
+				kind: "It",
+				name: resourceScopedTestName,
+				uses: 1,
+			}},
+			wantViolation: "expected cluster_delete_cx_rg.go",
+		},
+		{
+			name: "wrong spec is rejected",
+			specs: []resourceScopedSpec{{
+				file: filepath.Join("test", "e2e", resourceScopedTestFile),
+				line: 10,
+				kind: "It",
+				name: "unrelated",
+				uses: 1,
+			}},
+			wantViolation: resourceScopedTestName,
+		},
+		{
+			name: "describe table is rejected",
+			specs: []resourceScopedSpec{{
+				file: filepath.Join("test", "e2e", resourceScopedTestFile),
+				line: 10,
+				kind: "DescribeTable",
+				name: resourceScopedTestName,
+				uses: 1,
+			}},
+			wantViolation: "DescribeTable",
+		},
+		{
+			name: "multiple uses in canonical spec are rejected",
+			specs: []resourceScopedSpec{{
+				file: filepath.Join("test", "e2e", resourceScopedTestFile),
+				line: 10,
+				kind: "It",
+				name: resourceScopedTestName,
+				uses: 2,
+			}},
+			wantViolation: "2 times; expected exactly once",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			violations := validateResourceScopedSpecs(tc.specs)
+			if tc.wantViolation == "" {
+				if len(violations) != 0 {
+					t.Fatalf("validateResourceScopedSpecs() returned violations:\n%s", strings.Join(violations, "\n"))
+				}
+				return
+			}
+			if len(violations) != 1 || !strings.Contains(violations[0], tc.wantViolation) {
+				t.Fatalf("validateResourceScopedSpecs() = %v, want one violation containing %q", violations, tc.wantViolation)
+			}
+		})
+	}
+}
+
+func TestCanonicalSpecWithMultipleResourceScopedUsesIsRejected(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), resourceScopedTestFile)
+	source := `package e2e
+
+func register() {
+	It("` + resourceScopedTestName + `",
+		func() {
+			use(framework.RBACScopeResource)
+			use(framework.RBACScopeResource)
+		},
+	)
+}
+`
+	if err := os.WriteFile(path, []byte(source), 0o600); err != nil {
+		t.Fatalf("failed to write test source: %v", err)
+	}
+
+	specs, err := findResourceScopedSpecsInFile(path)
+	if err != nil {
+		t.Fatalf("findResourceScopedSpecsInFile() returned error: %v", err)
+	}
+	violations := validateResourceScopedSpecs(specs)
+	if len(violations) != 1 || !strings.Contains(violations[0], "2 times; expected exactly once") {
+		t.Fatalf("validateResourceScopedSpecs() = %v, want multiple-use violation", violations)
+	}
+}
+
+func TestSameNamedResourceScopedDescribeTableIsRejected(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), resourceScopedTestFile)
+	source := `package e2e
+
+func register() {
+	DescribeTable("` + resourceScopedTestName + `",
+		func() {
+			use(framework.RBACScopeResource)
+		},
+	)
+}
+`
+	if err := os.WriteFile(path, []byte(source), 0o600); err != nil {
+		t.Fatalf("failed to write test source: %v", err)
+	}
+
+	specs, err := findResourceScopedSpecsInFile(path)
+	if err != nil {
+		t.Fatalf("findResourceScopedSpecsInFile() returned error: %v", err)
+	}
+	violations := validateResourceScopedSpecs(specs)
+	if len(violations) != 1 || !strings.Contains(violations[0], "DescribeTable") {
+		t.Fatalf("validateResourceScopedSpecs() = %v, want DescribeTable violation", violations)
+	}
+}
+
+func TestFormatViolations(t *testing.T) {
+	t.Parallel()
+
+	violations := []string{
+		`test/e2e/missing.go:10: It("missing label") is missing labels.MIContainers(N) decorator`,
+		`test/e2e/unrelated.go:20: It("unrelated") uses framework.RBACScopeResource; expected cluster_delete_cx_rg.go: It("canonical")`,
+	}
+	want := "ERROR: 2 E2E test invariant violation(s):\n" +
+		"  - " + violations[0] + "\n" +
+		"  - " + violations[1] + "\n"
+
+	if got := formatViolations(violations); got != want {
+		t.Fatalf("formatViolations() = %q, want %q", got, want)
 	}
 }

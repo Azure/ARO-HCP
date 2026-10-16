@@ -37,6 +37,7 @@ import (
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
@@ -102,13 +103,14 @@ func (c *clusterDenyAssignmentSyncer) SyncOnce(ctx context.Context, key controll
 	return c.syncDenyAssignmentUpsert(ctx, key, cluster)
 }
 
-func (c *clusterDenyAssignmentSyncer) syncDenyAssignmentNeedsWork(cluster *coreapi.HCPOpenShiftCluster, serviceProviderCluster *coreapi.ServiceProviderCluster) bool {
+func (c *clusterDenyAssignmentSyncer) syncDenyAssignmentNeedsWork(cluster *coreapi.Cluster, serviceProviderCluster *coreapi.ServiceProviderCluster) bool {
 	if len(controllerutils.ClusterServiceIDForCluster(cluster)) == 0 {
 		return false
 	}
-	// Deny assignments are scoped to the managed resource group, which is derived from the
-	// cluster's ManagedResourceGroup name. (Status.AzureResources.ManagedResourceGroup.AzureResource
-	// is not populated by any controller, so it cannot be relied on here.)
+	// Deny assignments are scoped to the managed resource group, so wait until it is confirmed.
+	if serviceProviderCluster.Status.AzureResources.ManagedResourceGroup.AzureResource == nil {
+		return false
+	}
 	if len(cluster.CustomerProperties.Platform.ManagedResourceGroup) == 0 {
 		return false
 	}
@@ -151,7 +153,7 @@ func (c *clusterDenyAssignmentSyncer) syncDenyAssignmentNeedsWork(cluster *corea
 	return true
 }
 
-func (c *clusterDenyAssignmentSyncer) syncDenyAssignmentUpsert(ctx context.Context, key controllerutils.HCPClusterKey, cluster *coreapi.HCPOpenShiftCluster) error {
+func (c *clusterDenyAssignmentSyncer) syncDenyAssignmentUpsert(ctx context.Context, key controllerutils.HCPClusterKey, cluster *coreapi.Cluster) error {
 	logger := utils.LoggerFromContext(ctx)
 
 	serviceProviderCluster, err := corecosmosstorage.GetOrCreateServiceProviderCluster(ctx, c.resourcesDBClient, cluster.ID)
@@ -177,7 +179,7 @@ func (c *clusterDenyAssignmentSyncer) syncDenyAssignmentUpsert(ctx context.Conte
 	// The managed resource group is the scope for the cluster's deny assignments. Build its resource
 	// ID from the cluster's ManagedResourceGroup name (the same source allDenyAssignmentReferences
 	// uses for the deny assignment resource IDs).
-	managedResourceGroupID, err := coreapi.ToResourceGroupResourceID(key.SubscriptionID, cluster.CustomerProperties.Platform.ManagedResourceGroup)
+	managedResourceGroupID, err := coreapihelpers.ToResourceGroupResourceID(key.SubscriptionID, cluster.CustomerProperties.Platform.ManagedResourceGroup)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to build managed resource group resource ID: %w", err))
 	}
@@ -216,6 +218,16 @@ func (c *clusterDenyAssignmentSyncer) syncDenyAssignmentUpsert(ctx context.Conte
 			}
 			logger.Info("Deleted stale deny assignment from Azure", "denyAssignmentType", existing.DenyAssignmentType)
 			replacement.Status.AzureResources.DenyAssignments.AzureResources = removeDenyAssignmentRef(replacement.Status.AzureResources.DenyAssignments.AzureResources, existing.DenyAssignmentType)
+		}
+	}
+	for _, pending := range serviceProviderCluster.Status.AzureResources.DenyAssignments.PendingAzureResources {
+		if _, isRequired := requiredDenyAssignmentReferenceByType[pending.DenyAssignmentType]; !isRequired {
+			if err := c.deleteDenyAssignment(ctx, genericResourcesClient, pending.DenyAssignmentResourceID); err != nil {
+				staleDeletionErrs = append(staleDeletionErrs, utils.TrackError(fmt.Errorf("failed to delete stale pending deny assignment %s: %w", pending.DenyAssignmentType, err)))
+				continue
+			}
+			logger.Info("Deleted stale pending deny assignment from Azure", "denyAssignmentType", pending.DenyAssignmentType)
+			replacement.Status.AzureResources.DenyAssignments.PendingAzureResources = removeDenyAssignmentRef(replacement.Status.AzureResources.DenyAssignments.PendingAzureResources, pending.DenyAssignmentType)
 		}
 	}
 	serviceProviderCluster, replacement, err = replaceServiceProviderClusterIfChanged(ctx, serviceProviderClusterCRUD, serviceProviderCluster, replacement, staleDeletionErrs)
@@ -302,7 +314,7 @@ func replaceServiceProviderClusterIfChanged(
 
 func (c *clusterDenyAssignmentSyncer) ensureDenyAssignmentReferences(
 	ctx context.Context,
-	cluster *coreapi.HCPOpenShiftCluster,
+	cluster *coreapi.Cluster,
 	serviceProviderCluster *coreapi.ServiceProviderCluster,
 	denyAssignmentsClient azureclient.DenyAssignmentsClient,
 	genericResourcesClient azureclient.GenericResourcesClient,
@@ -553,7 +565,7 @@ func generateDenyAssignmentUUID(clusterID, denyAssignmentType string) string {
 	return uuid.NewSHA1(namespace, []byte(denyAssignmentType+"$"+clusterID)).String()
 }
 
-func collectExcludedPrincipalIDs(cluster *coreapi.HCPOpenShiftCluster, definition denyAssignmentDefinition) ([]*azcorearm.ResourceID, error) {
+func collectExcludedPrincipalIDs(cluster *coreapi.Cluster, definition denyAssignmentDefinition) ([]*azcorearm.ResourceID, error) {
 	var identityResourceIDs []*azcorearm.ResourceID
 
 	identities := cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities

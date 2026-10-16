@@ -7,9 +7,6 @@ deployment:
     limits:
       memory: "{{ .maestro.server.k8s.resources.limits.memory }}"
   zoneCount: {{ .azureRegionAvailabilityZoneCount }}
-tracing:
-  address: "{{ .maestro.server.tracing.address }}"
-  exporter: "{{ .maestro.server.tracing.exporter }}"
 broker:
   host: "__brokerHost__"
   port: 8883

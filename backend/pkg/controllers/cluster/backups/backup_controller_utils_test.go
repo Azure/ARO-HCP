@@ -23,18 +23,18 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
-	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
 )
 
 func TestNeedsWork(t *testing.T) {
-	makeCluster := func() coreapi.HCPOpenShiftCluster {
+	makeCluster := func() coreapi.Cluster {
 		resourceID := metadataapi.Must(azcorearm.ParseResourceID(
 			"/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster",
 		))
-		return coreapi.HCPOpenShiftCluster{
+		return coreapi.Cluster{
 			CosmosMetadata: coreapi.CosmosMetadata{ResourceID: resourceID},
-			ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+			ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 				BillingDocumentCosmosID: "billing-doc-123",
 			},
 		}
@@ -43,7 +43,7 @@ func TestNeedsWork(t *testing.T) {
 	makeServiceProviderCluster := func() coreapi.ServiceProviderCluster {
 		return coreapi.ServiceProviderCluster{
 			Status: coreapi.ServiceProviderClusterStatus{
-				ManagementClusterResourceID: metadataapi.Must(fleetapi.ToManagementClusterResourceID("mc1")),
+				ManagementClusterResourceID: metadataapi.Must(fleetapihelpers.ToManagementClusterResourceID("mc1")),
 				ControlPlaneNamespace:       "cp-ns",
 				HostedClusterNamespace:      "hc-ns",
 			},
@@ -52,52 +52,52 @@ func TestNeedsWork(t *testing.T) {
 
 	tests := []struct {
 		name   string
-		mutate func(*coreapi.HCPOpenShiftCluster, *coreapi.ServiceProviderCluster)
+		mutate func(*coreapi.Cluster, *coreapi.ServiceProviderCluster)
 		want   bool
 	}{
 		{
 			name:   "all fields populated returns true",
-			mutate: func(_ *coreapi.HCPOpenShiftCluster, _ *coreapi.ServiceProviderCluster) {},
+			mutate: func(_ *coreapi.Cluster, _ *coreapi.ServiceProviderCluster) {},
 			want:   true,
 		},
 		{
 			name: "DeletionTimestamp set returns false",
-			mutate: func(c *coreapi.HCPOpenShiftCluster, _ *coreapi.ServiceProviderCluster) {
+			mutate: func(c *coreapi.Cluster, _ *coreapi.ServiceProviderCluster) {
 				c.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{}
 			},
 			want: false,
 		},
 		{
 			name: "empty BillingDocumentCosmosID returns false",
-			mutate: func(c *coreapi.HCPOpenShiftCluster, _ *coreapi.ServiceProviderCluster) {
+			mutate: func(c *coreapi.Cluster, _ *coreapi.ServiceProviderCluster) {
 				c.ServiceProviderProperties.BillingDocumentCosmosID = ""
 			},
 			want: false,
 		},
 		{
 			name: "nil cluster ResourceID returns false",
-			mutate: func(c *coreapi.HCPOpenShiftCluster, _ *coreapi.ServiceProviderCluster) {
+			mutate: func(c *coreapi.Cluster, _ *coreapi.ServiceProviderCluster) {
 				c.ResourceID = nil
 			},
 			want: false,
 		},
 		{
 			name: "nil ManagementClusterResourceID returns false",
-			mutate: func(_ *coreapi.HCPOpenShiftCluster, serviceProviderCluster *coreapi.ServiceProviderCluster) {
+			mutate: func(_ *coreapi.Cluster, serviceProviderCluster *coreapi.ServiceProviderCluster) {
 				serviceProviderCluster.Status.ManagementClusterResourceID = nil
 			},
 			want: false,
 		},
 		{
 			name: "empty ControlPlaneNamespace returns false",
-			mutate: func(_ *coreapi.HCPOpenShiftCluster, serviceProviderCluster *coreapi.ServiceProviderCluster) {
+			mutate: func(_ *coreapi.Cluster, serviceProviderCluster *coreapi.ServiceProviderCluster) {
 				serviceProviderCluster.Status.ControlPlaneNamespace = ""
 			},
 			want: false,
 		},
 		{
 			name: "empty HostedClusterNamespace returns false",
-			mutate: func(_ *coreapi.HCPOpenShiftCluster, serviceProviderCluster *coreapi.ServiceProviderCluster) {
+			mutate: func(_ *coreapi.Cluster, serviceProviderCluster *coreapi.ServiceProviderCluster) {
 				serviceProviderCluster.Status.HostedClusterNamespace = ""
 			},
 			want: false,

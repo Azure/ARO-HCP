@@ -32,6 +32,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -40,7 +41,7 @@ import (
 func newTestCredentialRequest(t *testing.T, credName string, opts ...func(*coreapi.SystemAdminCredentialRequest)) *coreapi.SystemAdminCredentialRequest {
 	t.Helper()
 	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
-		coreapi.ToSystemAdminCredentialRequestResourceIDString(testSubscriptionID, testResourceGroupName, testClusterName, credName),
+		coreapihelpers.ToSystemAdminCredentialRequestResourceIDString(testSubscriptionID, testResourceGroupName, testClusterName, credName),
 	))
 	cred := &coreapi.SystemAdminCredentialRequest{
 		CosmosMetadata: coreapi.CosmosMetadata{
@@ -60,7 +61,7 @@ func newTestCredentialRequest(t *testing.T, credName string, opts ...func(*corea
 func newTestCredentialRevocation(t *testing.T, revocationName string, opts ...func(*coreapi.SystemAdminCredentialRevocation)) *coreapi.SystemAdminCredentialRevocation {
 	t.Helper()
 	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
-		coreapi.ToSystemAdminCredentialRevocationResourceIDString(testSubscriptionID, testResourceGroupName, testClusterName, revocationName),
+		coreapihelpers.ToSystemAdminCredentialRevocationResourceIDString(testSubscriptionID, testResourceGroupName, testClusterName, revocationName),
 	))
 	revocation := &coreapi.SystemAdminCredentialRevocation{
 		CosmosMetadata: coreapi.CosmosMetadata{
@@ -87,37 +88,23 @@ func TestClusterCredentialDeletionMarkerController_SyncOnce(t *testing.T) {
 		HCPClusterName:    testClusterName,
 	}
 
-	readyForDeletionCluster := func(t *testing.T) *coreapi.HCPOpenShiftCluster {
-		return newTestClusterWithNewDeletionApproach(t, func(c *coreapi.HCPOpenShiftCluster) {
+	readyForDeletionCluster := func(t *testing.T) *coreapi.Cluster {
+		return newTestCluster(t, func(c *coreapi.Cluster) {
 			c.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedClockTime.Add(-time.Hour)}
 		})
 	}
 
 	testCases := []struct {
 		name            string
-		existingCluster *coreapi.HCPOpenShiftCluster
+		existingCluster *coreapi.Cluster
 		extraResources  []any
 		wantErr         bool
 		verifyDB        func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient)
 	}{
 		{
 			name:            "no DeletionTimestamp -- no-op",
-			existingCluster: newTestClusterWithNewDeletionApproach(t, nil),
+			existingCluster: newTestCluster(t, nil),
 			extraResources:  []any{newTestCredentialRequest(t, "cred-1")},
-			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
-				cred, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).SystemAdminCredentialRequests(testClusterName).Get(ctx, "cred-1")
-				require.NoError(t, err)
-				assert.Nil(t, cred.Status.DeletionTimestamp)
-			},
-		},
-		{
-			name: "feature flag false -- no-op",
-			existingCluster: newTestClusterWithOldDeletionApproach(t, func(c *coreapi.HCPOpenShiftCluster) {
-				c.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedClockTime.Add(-time.Hour)}
-				c.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: fixedClockTime.Add(-30 * time.Minute)}
-				c.ServiceProviderProperties.ClusterServiceID = nil
-			}),
-			extraResources: []any{newTestCredentialRequest(t, "cred-1")},
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				cred, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).SystemAdminCredentialRequests(testClusterName).Get(ctx, "cred-1")
 				require.NoError(t, err)
@@ -235,7 +222,7 @@ func TestClusterCredentialDeletionMarkerController_SyncOnce(t *testing.T) {
 			mockResourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, resources)
 			require.NoError(t, err)
 
-			clustersForLister := []*coreapi.HCPOpenShiftCluster{}
+			clustersForLister := []*coreapi.Cluster{}
 			if tc.existingCluster != nil {
 				clustersForLister = append(clustersForLister, tc.existingCluster)
 			}
@@ -278,22 +265,17 @@ func TestClusterCredentialDeletionMarkerController_NeedsWork(t *testing.T) {
 
 	testCases := []struct {
 		name    string
-		cluster *coreapi.HCPOpenShiftCluster
+		cluster *coreapi.Cluster
 		want    bool
 	}{
 		{
-			name:    "feature flag false",
-			cluster: newTestClusterWithOldDeletionApproach(t, nil),
-			want:    false,
-		},
-		{
 			name:    "no DeletionTimestamp",
-			cluster: newTestClusterWithNewDeletionApproach(t, nil),
+			cluster: newTestCluster(t, nil),
 			want:    false,
 		},
 		{
 			name: "DeletionTimestamp set",
-			cluster: newTestClusterWithNewDeletionApproach(t, func(c *coreapi.HCPOpenShiftCluster) {
+			cluster: newTestCluster(t, func(c *coreapi.Cluster) {
 				c.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedClockTime}
 			}),
 			want: true,
@@ -334,7 +316,7 @@ func TestDeletePreconditionAllCredentialRequestsDeleted(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
-			cluster := newTestClusterWithNewDeletionApproach(t, nil)
+			cluster := newTestCluster(t, nil)
 			resources := append([]any{cluster}, tc.resources...)
 			mockDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, resources)
 			require.NoError(t, err)
@@ -372,7 +354,7 @@ func TestDeletePreconditionAllCredentialRevocationsDeleted(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
-			cluster := newTestClusterWithNewDeletionApproach(t, nil)
+			cluster := newTestCluster(t, nil)
 			resources := append([]any{cluster}, tc.resources...)
 			mockDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, resources)
 			require.NoError(t, err)

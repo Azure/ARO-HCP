@@ -56,6 +56,12 @@ type signatureDetector struct {
 	// load-bearing discriminator between a hard-wedge (zero successes, VF gone)
 	// and a flap (some successes, VF present).
 	requireZeroSuccess bool
+	// successScope narrows which pods may serve as success evidence. A nil scope
+	// counts every pod, which is right for a fault that breaks a node's only pod
+	// network. A fault that breaks one of several networking paths needs the
+	// scope, because pods that never travel the broken path keep starting
+	// normally and would otherwise mask it forever. See swiftVFTeardown.
+	successScope func(*corev1.Pod) bool
 }
 
 // Name returns the detector's stable identifier.
@@ -80,7 +86,7 @@ func (d signatureDetector) Applies(node *corev1.Node) bool {
 // function of what a LIST returns and nothing has to be remembered between calls.
 func (d signatureDetector) Evaluate(events []*corev1.Event, pods []*corev1.Pod, now time.Time) Snapshot {
 	windowStart := now.Add(-d.window)
-	snap := Snapshot{DetectorName: d.name, Window: d.window}
+	snap := Snapshot{DetectorName: d.name, Window: d.window, Pods: &PodEvidence{}}
 
 	// A pod is "failing" for this detector when it is the subject of a matching
 	// failure Event seen within the window. Correlation is by the Event's
@@ -125,8 +131,15 @@ func (d signatureDetector) Evaluate(events []*corev1.Event, pods []*corev1.Pod, 
 		// Success is read from every pod the LIST returns, including one that is
 		// terminating: a pod that got a sandbox proves the node could build one,
 		// and that stays true while it is being torn down.
-		if at, ok := SuccessAt(p); ok && now.Sub(at).Abs() < d.window {
-			snap.RecentSuccess = true
+		//
+		// When the detector sets a successScope, only pods inside it are read.
+		// A success proves the node can build the kind of sandbox that pod
+		// needed, and nothing more, so a pod that never exercises the broken
+		// path is not evidence the path works.
+		if d.inSuccessScope(p) {
+			if at, ok := SuccessAt(p); ok && now.Sub(at).Abs() < d.window {
+				snap.Pods.RecentSuccess = true
+			}
 		}
 		if p.DeletionTimestamp != nil {
 			continue
@@ -140,13 +153,13 @@ func (d signatureDetector) Evaluate(events []*corev1.Event, pods []*corev1.Pod, 
 		// one long-stuck pod from firing alone.
 		if idx, ok := failing[p.UID]; ok {
 			if since, stuck := stuckSince(p); stuck {
-				snap.FailureCount++
+				snap.Pods.FailureCount++
 				sigCounts[idx]++
 				if snap.StuckSince.IsZero() || since.Before(snap.StuckSince) {
 					snap.StuckSince = since
 				}
 				if now.Sub(since) >= d.dwell {
-					snap.SustainedCount++
+					snap.Pods.SustainedCount++
 				}
 			}
 		}
@@ -176,13 +189,22 @@ func (d signatureDetector) MeetsThreshold(snap Snapshot, now time.Time) bool {
 	// The floor counts pods each sustained past the dwell (computed in Evaluate),
 	// so meeting it already proves the storm held continuously; there is no
 	// separate oldest-pod dwell check.
-	if snap.SustainedCount < d.failuresFloor {
+	if snap.Pods == nil {
 		return false
 	}
-	if d.requireZeroSuccess && snap.RecentSuccess {
+	if snap.Pods.SustainedCount < d.failuresFloor {
+		return false
+	}
+	if d.requireZeroSuccess && snap.Pods.RecentSuccess {
 		return false
 	}
 	return true
+}
+
+// inSuccessScope reports whether a pod may serve as success evidence for this
+// detector. A detector with no scope accepts every pod.
+func (d signatureDetector) inSuccessScope(p *corev1.Pod) bool {
+	return d.successScope == nil || d.successScope(p)
 }
 
 // matchSignature returns the index of the first of the detector's signature

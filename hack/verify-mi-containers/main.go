@@ -17,7 +17,9 @@
 // e2e_test.go) and reports any It() or DescribeTable() blocks that are
 // missing a labels.MIContainers(N) decorator. It also verifies that the
 // declared container count matches the integer literal passed to
-// AssignIdentityContainers inside the test function body.
+// AssignIdentityContainers inside the test function body. It also enforces
+// that the one intentional resource-scoped RBAC test remains the complete
+// customer-resource-group deletion lifecycle test.
 //
 // Exit code is 1 if any violations are found.
 package main
@@ -39,6 +41,19 @@ var skipFiles = map[string]bool{
 	"e2e_suite.go": true,
 }
 
+const (
+	resourceScopedTestFile = "cluster_delete_cx_rg.go"
+	resourceScopedTestName = "should be able to create an HCP cluster then delete it by deleting the customer resource group"
+)
+
+type resourceScopedSpec struct {
+	file string
+	line int
+	kind string
+	name string
+	uses int
+}
+
 func main() {
 	dirs := os.Args[1:]
 	if len(dirs) == 0 {
@@ -47,6 +62,7 @@ func main() {
 	}
 
 	var violations []string
+	var resourceScopedSpecs []resourceScopedSpec
 	for _, dir := range dirs {
 		v, err := checkDir(dir)
 		if err != nil {
@@ -54,25 +70,149 @@ func main() {
 			os.Exit(2)
 		}
 		violations = append(violations, v...)
+
+		specs, err := findResourceScopedSpecs(dir)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error processing resource-scoped specs in %s: %v\n", dir, err)
+			os.Exit(2)
+		}
+		resourceScopedSpecs = append(resourceScopedSpecs, specs...)
 	}
+	violations = append(violations, validateResourceScopedSpecs(resourceScopedSpecs)...)
 
 	if len(violations) > 0 {
-		fmt.Fprintln(os.Stderr, "ERROR: The following test specs have MIContainers label issues.")
-		fmt.Fprintln(os.Stderr, "       Every It() and DescribeTable() must include labels.MIContainers(N)")
-		fmt.Fprintln(os.Stderr, "       where N matches the count passed to AssignIdentityContainers.")
-		fmt.Fprintln(os.Stderr)
-		fmt.Fprintln(os.Stderr, "       Examples:")
-		fmt.Fprintln(os.Stderr, `         It("should create cluster", labels.MIContainers(1), func(ctx context.Context) {`)
-		fmt.Fprintln(os.Stderr, `         DescribeTable("upgrades", labels.MIContainers(1), func(ctx context.Context, ...) {`)
-		fmt.Fprintln(os.Stderr)
-		for _, v := range violations {
-			fmt.Fprintln(os.Stderr, "  "+v)
-		}
-		fmt.Fprintln(os.Stderr)
-		fmt.Fprintln(os.Stderr, "Fix the labels listed above. Use labels.MIContainers(0) for tests")
-		fmt.Fprintln(os.Stderr, "that do not call AssignIdentityContainers.")
+		fmt.Fprint(os.Stderr, formatViolations(violations))
 		os.Exit(1)
 	}
+}
+
+func formatViolations(violations []string) string {
+	var output strings.Builder
+	fmt.Fprintf(&output, "ERROR: %d E2E test invariant violation(s):\n", len(violations))
+	for _, violation := range violations {
+		fmt.Fprintf(&output, "  - %s\n", violation)
+	}
+	return output.String()
+}
+
+func findResourceScopedSpecs(dir string) ([]resourceScopedSpec, error) {
+	var specs []resourceScopedSpec
+	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() || !strings.HasSuffix(path, ".go") {
+			return nil
+		}
+		base := filepath.Base(path)
+		if skipFiles[base] || strings.HasSuffix(base, "_test.go") {
+			return nil
+		}
+
+		found, err := findResourceScopedSpecsInFile(path)
+		if err != nil {
+			return fmt.Errorf("parsing %s: %w", path, err)
+		}
+		specs = append(specs, found...)
+		return nil
+	})
+	return specs, err
+}
+
+func findResourceScopedSpecsInFile(path string) ([]resourceScopedSpec, error) {
+	fset := token.NewFileSet()
+	f, err := parser.ParseFile(fset, path, nil, 0)
+	if err != nil {
+		return nil, err
+	}
+
+	var specs []resourceScopedSpec
+	ast.Inspect(f, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		kind := identifySpecCall(call)
+		uses := countResourceScopedRBACUses(call)
+		if kind == "" || uses == 0 {
+			return true
+		}
+		specs = append(specs, resourceScopedSpec{
+			file: path,
+			line: fset.Position(call.Pos()).Line,
+			kind: kind,
+			name: extractSpecName(call),
+			uses: uses,
+		})
+		return true
+	})
+	return specs, nil
+}
+
+func countResourceScopedRBACUses(specCall *ast.CallExpr) int {
+	count := 0
+	for _, arg := range specCall.Args {
+		funcLit, ok := arg.(*ast.FuncLit)
+		if !ok {
+			continue
+		}
+		ast.Inspect(funcLit, func(n ast.Node) bool {
+			sel, ok := n.(*ast.SelectorExpr)
+			if !ok || sel.Sel.Name != "RBACScopeResource" {
+				return true
+			}
+			pkg, ok := sel.X.(*ast.Ident)
+			if ok && pkg.Name == "framework" {
+				count++
+			}
+			return true
+		})
+	}
+	return count
+}
+
+func validateResourceScopedSpecs(specs []resourceScopedSpec) []string {
+	if len(specs) != 1 {
+		var locations []string
+		for _, spec := range specs {
+			locations = append(locations, fmt.Sprintf("%s:%d: %s(%q)", spec.file, spec.line, spec.kind, spec.name))
+		}
+		foundLocations := ""
+		if len(locations) > 0 {
+			foundLocations = ": " + strings.Join(locations, ", ")
+		}
+		return []string{fmt.Sprintf(
+			"expected exactly one framework.RBACScopeResource spec (%s: It(%q)); found %d%s",
+			resourceScopedTestFile,
+			resourceScopedTestName,
+			len(specs),
+			foundLocations,
+		)}
+	}
+
+	spec := specs[0]
+	if filepath.Base(spec.file) != resourceScopedTestFile || spec.kind != "It" || spec.name != resourceScopedTestName {
+		return []string{fmt.Sprintf(
+			"%s:%d: %s(%q) uses framework.RBACScopeResource; expected %s: It(%q)",
+			spec.file,
+			spec.line,
+			spec.kind,
+			spec.name,
+			resourceScopedTestFile,
+			resourceScopedTestName,
+		)}
+	}
+	if spec.uses != 1 {
+		return []string{fmt.Sprintf(
+			"%s:%d: %s(%q) uses framework.RBACScopeResource %d times; expected exactly once",
+			spec.file,
+			spec.line,
+			spec.kind,
+			spec.name,
+			spec.uses,
+		)}
+	}
+	return nil
 }
 
 func checkDir(dir string) ([]string, error) {

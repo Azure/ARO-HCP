@@ -9,6 +9,7 @@ Grafana dashboards for ARO-HCP SRE oncall and fleet health monitoring.
 | `resource-state.json` | Fleet-wide cluster provisioning state, clusters per region, nodepool health |
 | `operations-overview.json` | Fleet-wide in-flight operations, stuck/failed ops, duration distribution |
 | `per-cluster-drill-in.json` | Single-cluster oncall triage: KAS, etcd, provisioning state, nodepools |
+| `cluster-autoscaler-staleness.json` | Customer HCPs whose cluster-autoscaler main activity has been stale for at least five minutes |
 
 ## Datasource Model
 
@@ -36,12 +37,11 @@ Regex patterns exclude obsolete datasources that end with 2-3 letter shortcodes 
 
 Valid datasources end with full Azure region names (4+ chars), so this pattern safely excludes all legacy short suffixes. See [docs/ai/grafana-debugging.md](../../../../docs/ai/grafana-debugging.md) for details.
 
-## Extending
+## Add or Edit Dashboards
 
-1. Add or edit dashboard JSON in this folder.
-2. The folder is registered in [`observability/observability.yaml`](../../../observability.yaml) as `SRE Cluster Health`.
-3. The `GrafanaDashboards` EV2 step deploys all JSON files in this folder to the `SRE Cluster Health` Grafana folder in INT, STG, and PROD.
-4. No manual upload is needed — merge to `main` and the pipeline handles deployment.
+See [docs/grafana-dashboards.md](../../../../docs/grafana-dashboards.md).
+
+Note: The SRE folder is registered in [`observability/observability.yaml`](../../../observability.yaml) as `SRE Cluster Health`. The `GrafanaDashboards` EV2 step deploys all JSON files in `observability/grafana-dashboards/sre/cluster-health/` to the `SRE Cluster Health` Grafana folder in INT, STG, and PROD. Merging to `main` kicks off the pipeline that handles the deployment.
 
 ## Kusto / ADX Integration (Planned)
 

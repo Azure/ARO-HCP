@@ -39,15 +39,15 @@ import (
 )
 
 // newTestExternalAuthForAggregator builds a minimal
-// HCPOpenShiftClusterExternalAuth suitable for the aggregator tests.
-func newTestExternalAuthForAggregator(opts ...func(*coreapi.HCPOpenShiftClusterExternalAuth)) *coreapi.HCPOpenShiftClusterExternalAuth {
+// ExternalAuth suitable for the aggregator tests.
+func newTestExternalAuthForAggregator(opts ...func(*coreapi.ExternalAuth)) *coreapi.ExternalAuth {
 	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + statusutils.TestSubscriptionID +
 			"/resourceGroups/" + statusutils.TestResourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + statusutils.TestClusterName +
 			"/externalAuths/" + statusutils.TestExternalAuthName,
 	))
-	ea := &coreapi.HCPOpenShiftClusterExternalAuth{
+	ea := &coreapi.ExternalAuth{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   resourceID,
 			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
@@ -99,22 +99,24 @@ func TestExternalAuthDegradedAggregator_SyncOnce(t *testing.T) {
 		expectMessage string
 	}{
 		{
-			name:          "no controllers under the external auth -> Unknown/NoData",
+			name:          "no controllers under the external auth -> False/AsExpected (all healthy)",
 			controllers:   nil,
-			inertia:       thirtySecondInertia,
-			expectStatus:  metav1.ConditionUnknown,
-			expectReason:  "NoData",
-			expectMessage: "",
-		},
-		{
-			name: "all-good aggregate",
-			controllers: []*coreapi.Controller{
-				statusutils.ControllerUnder(parentResourceID, "AController", metav1.ConditionFalse, "NoErrors", "fine", 1*time.Minute),
-			},
 			inertia:       thirtySecondInertia,
 			expectStatus:  metav1.ConditionFalse,
 			expectReason:  "AsExpected",
-			expectMessage: "AController: fine",
+			expectMessage: "All is well",
+		},
+		{
+			name: "all controllers healthy -> no degraded sources -> False/AsExpected",
+			controllers: []*coreapi.Controller{
+				statusutils.ControllerUnder(parentResourceID, "AController", metav1.ConditionFalse, "NoErrors", "fine", 1*time.Minute),
+			},
+			inertia: thirtySecondInertia,
+			// Healthy controllers are not emitted as sources, so UnionCondition
+			// sees zero sources and reports the good default (False/AsExpected).
+			expectStatus:  metav1.ConditionFalse,
+			expectReason:  "AsExpected",
+			expectMessage: "All is well",
 		},
 		{
 			name: "bad controller within 30s inertia stays hidden",
@@ -172,17 +174,19 @@ func TestExternalAuthDegradedAggregator_SyncOnce(t *testing.T) {
 				statusutils.ControllerUnder(parentResourceID, "AController", metav1.ConditionFalse, "NoErrors", "fine", 1*time.Minute),
 			},
 			inertia: thirtySecondInertia,
+			// The single healthy controller yields zero sources -> False/AsExpected;
+			// pre-seeding that exercises the no-op (skip Replace) path.
 			initialConditions: []metav1.Condition{
 				{
 					Type:    statusutils.DegradedConditionType,
 					Status:  metav1.ConditionFalse,
 					Reason:  "AsExpected",
-					Message: "AController: fine",
+					Message: "All is well",
 				},
 			},
 			expectStatus:  metav1.ConditionFalse,
 			expectReason:  "AsExpected",
-			expectMessage: "AController: fine",
+			expectMessage: "All is well",
 		},
 	}
 
@@ -190,12 +194,12 @@ func TestExternalAuthDegradedAggregator_SyncOnce(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := context.Background()
 
-			existing := newTestExternalAuthForAggregator(func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
+			existing := newTestExternalAuthForAggregator(func(ea *coreapi.ExternalAuth) {
 				if len(tc.initialConditions) > 0 {
 					ea.Status.Conditions = append([]metav1.Condition{}, tc.initialConditions...)
 				}
 			})
-			parentCluster := &coreapi.HCPOpenShiftCluster{
+			parentCluster := &coreapi.Cluster{
 				CosmosMetadata: coreapi.CosmosMetadata{
 					ResourceID:   parentClusterID,
 					PartitionKey: strings.ToLower(parentClusterID.SubscriptionID),

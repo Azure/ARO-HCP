@@ -82,6 +82,34 @@ func canonicalizeVersion(tag string) string {
 	return tag
 }
 
+func usesSemanticVersionOrdering(tags []Tag, tagPattern string) bool {
+	if tagPattern == "" || !strings.Contains(tagPattern, `\d+\.\d+\.\d+`) {
+		return false
+	}
+	for _, tag := range tags {
+		if !semver.IsValid(canonicalizeVersion(tag.Name)) {
+			return false
+		}
+	}
+	return true
+}
+
+func hasEquivalentSemanticVersions(tags []Tag) bool {
+	versions := make([]string, len(tags))
+	for i, tag := range tags {
+		versions[i] = canonicalizeVersion(tag.Name)
+	}
+	sort.Slice(versions, func(i, j int) bool {
+		return semver.Compare(versions[i], versions[j]) < 0
+	})
+	for i := 1; i < len(versions); i++ {
+		if semver.Compare(versions[i-1], versions[i]) == 0 {
+			return true
+		}
+	}
+	return false
+}
+
 // PrepareTagsForArchValidation filters and sorts tags for architecture validation
 func PrepareTagsForArchValidation(tags []Tag, repository string, tagPattern string) ([]Tag, error) {
 	if len(tags) == 0 {
@@ -114,21 +142,7 @@ func PrepareTagsForArchValidation(tags []Tag, repository string, tagPattern stri
 		return nil, fmt.Errorf("no valid tags found for repository %s", repository)
 	}
 
-	// Detect if we should use semantic version sorting based on the pattern and actual tags
-	// Only use semver sorting if the pattern looks like a semver pattern (contains version numbers)
-	// and all filtered tags are valid semantic versions
-	useSemverSort := false
-	if tagPattern != "" && strings.Contains(tagPattern, `\d+\.\d+\.\d+`) {
-		// Check if all tags are valid semantic versions
-		allSemver := true
-		for _, tag := range tags {
-			if !semver.IsValid(canonicalizeVersion(tag.Name)) {
-				allSemver = false
-				break
-			}
-		}
-		useSemverSort = allSemver
-	}
+	useSemverSort := usesSemanticVersionOrdering(tags, tagPattern)
 
 	// Sort tags based on the tag pattern and type
 	sort.Slice(tags, func(i, j int) bool {

@@ -34,11 +34,9 @@ pullBinding:
 clustersService:
   namespace: "{{ .clustersService.k8s.namespace }}"
   serviceAccount: "{{ .clustersService.k8s.serviceAccountName }}"
-tracing:
-  address: "{{ .frontend.tracing.address }}"
-  exporter: "{{ .frontend.tracing.exporter }}"
 audit:
   connectSocket: {{ .frontend.audit.connectSocket }}
+  serviceTreeId: "{{ .serviceTreeId }}"
 adminApi:
   namespace: "{{ .adminApi.k8s.namespace }}"
   serviceAccount: "{{ .adminApi.k8s.serviceAccountName }}"
@@ -49,3 +47,5 @@ virtualService:
 adminApiHost: "admin.{{ .dns.regionalSubdomain }}.{{ .dns.svcParentZoneName }}"
 exitOnPanic: {{ .frontend.exitOnPanic }}
 logVerbosity: {{ .frontend.logVerbosity }}
+clusterScopedIdentitiesConfig:
+  roleSetName: "{{ .frontend.clusterScopedIdentitiesConfig.roleSetName }}"

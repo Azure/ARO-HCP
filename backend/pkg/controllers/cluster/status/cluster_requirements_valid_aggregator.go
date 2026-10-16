@@ -33,13 +33,13 @@ import (
 )
 
 const (
-	// clusterRequirementsValidAggregatorControllerName is the controller name used for
+	// ClusterRequirementsValidAggregatorControllerName is the controller name used for
 	// metrics labels, ctx values, log fields, and the Controller document name.
-	clusterRequirementsValidAggregatorControllerName = "ClusterRequirementsValidAggregator"
+	ClusterRequirementsValidAggregatorControllerName = "ClusterRequirementsValidAggregator"
 )
 
 // clusterRequirementsValidAggregator surfaces ServiceProviderCluster.Status.Validations
-// up onto HCPOpenShiftCluster.Status.UserFacingConditions as a single
+// up onto Cluster.Status.UserFacingConditions as a single
 // RequirementsValid condition.
 //
 // Failed or Unknown validations drive RequirementsValid=False/Degraded, with
@@ -68,7 +68,7 @@ func NewClusterRequirementsValidAggregatorController(
 		resourcesDBClient:            resourcesDBClient,
 	}
 	return controllerutils.NewClusterWatchingController(
-		clusterRequirementsValidAggregatorControllerName,
+		ClusterRequirementsValidAggregatorControllerName,
 		resourcesDBClient,
 		informers,
 		nil,
@@ -119,6 +119,6 @@ func (c *clusterRequirementsValidAggregator) SyncOnce(ctx context.Context, key c
 
 // needsWork reports whether this aggregator should update UserFacingConditions
 // for the given cluster. Deleting clusters are skipped.
-func (c *clusterRequirementsValidAggregator) needsWork(cluster *coreapi.HCPOpenShiftCluster) bool {
+func (c *clusterRequirementsValidAggregator) needsWork(cluster *coreapi.Cluster) bool {
 	return cluster.ServiceProviderProperties.DeletionTimestamp == nil
 }

@@ -15,21 +15,37 @@ LOCAL_FRONTEND_PORT ?= 8443
 LOCAL_ADMIN_API_PORT ?= 8444
 AROHCP_ENV ?= development
 CUSTOMER_SUBSCRIPTION ?= $$(az account show --output tsv --query 'name')
+AZURE_HOME_TENANT_ID ?= $$(az account show --output tsv --query 'homeTenantId')
+EMPTY_TENANT_ID := 00000000-0000-0000-0000-000000000000
 ifndef E2E_ARTIFACT_DIR
   E2E_ARTIFACT_DIR := $(shell mktemp -d)
 endif
 SNAPSHOT_RENDERED_CONFIG := $(shell mktemp)
 
-e2e-local/run-test: $(ARO_HCP_TESTS)
+MI_MOCK_RENDERED_CONFIG := $(shell mktemp)
+
+e2e-local/run-test: $(ARO_HCP_TESTS) $(TEMPLATIZE)
 	$(MAKE) -C $(DIR) -f $(THIS) .e2e-local/setup
+	$(TEMPLATIZE) configuration render \
+	  --service-config-file $(CONFIG_FILE) \
+	  --skip-schema-validation \
+	  --cloud $(ARO_HCP_CLOUD) \
+	  --environment $(DEPLOY_ENV) \
+	  --dev-settings-file $(DEV_SETTINGS_FILE) \
+	  --output "$(MI_MOCK_RENDERED_CONFIG)"
 	export LOCATION="$${LOCATION:-${REGION}}"; \
 	export AROHCP_ENV="development"; \
 	export CUSTOMER_SUBSCRIPTION="$$(az account show --output tsv --query 'name')"; \
-	export AZURE_TENANT_ID="$$(az account show --output tsv --query 'tenantId')"; \
+	export AZURE_TENANT_ID="$(AZURE_HOME_TENANT_ID)"; \
 	export SKIP_CERT_VERIFICATION=$${SKIP_CERT_VERIFICATION:-false}; \
 	export FRONTEND_ADDRESS=$${FRONTEND_ADDRESS:-http://localhost:8443}; \
 	export ADMIN_API_ADDRESS=$${ADMIN_API_ADDRESS:-http://localhost:8444}; \
 	export ARTIFACT_DIR="$(E2E_ARTIFACT_DIR)"; \
+	export ARO_HCP_CONFIG_FILE="$(CONFIG_FILE)"; \
+	export CLOUD="$(ARO_HCP_CLOUD)"; \
+	export DEPLOY_ENV="$(DEPLOY_ENV)"; \
+	export REGION="$${LOCATION:-${REGION}}"; \
+	export MI_MOCK_PRINCIPAL_ID="$${MI_MOCK_PRINCIPAL_ID:-$$(grep '^miMockPrincipalId:' "$(MI_MOCK_RENDERED_CONFIG)" | awk '{print $$2}')}"; \
 	$(ARO_HCP_TESTS) run-test "$$TEST_NAME"
 .PHONY: e2e-local/run-test
 
@@ -79,7 +95,11 @@ e2e-local/gather-observability: $(ARO_HCP_TESTS) $(TEMPLATIZE)
 
 .e2e-local/setup:
 	SUBSCRIPTION_ID="$$(az account show --query id --output tsv)"; \
-	TENANT_ID="$$(az account show --query tenantId --output tsv)"; \
+	TENANT_ID="$(AZURE_HOME_TENANT_ID)"; \
+	if [[ -z "$${TENANT_ID}" || "$${TENANT_ID}" == "$(EMPTY_TENANT_ID)" ]]; then \
+		echo "Azure subscription home tenant ID is missing or invalid; refusing to overwrite the local RP subscription registration."; \
+		exit 1; \
+	fi; \
 	curl --silent --show-error --include \
 		--insecure \
 		--request PUT \

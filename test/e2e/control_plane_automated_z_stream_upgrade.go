@@ -29,8 +29,9 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
 	clusterversion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/version"
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controlplaneversion"
-	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
@@ -62,12 +63,13 @@ var _ = Describe("Service Provider", func() {
 			// channel has no release at that offset (err) or none is resolved (nil), there is no
 			// automated z-stream upgrade to exercise, so skip.
 			normalOffset := clusterversion.GetZStreamOffset(channelGroup)
-			desiredVersion, err := controlplaneversion.SelectControlPlaneVersion(ctx, http.DefaultTransport.RoundTrip, nil, fmt.Sprintf("%s-%s", channelGroup, minorVersion), normalOffset+1)
+			desiredVersion, err := framework.SelectControlPlaneVersion(ctx, http.DefaultTransport.RoundTrip, nil, fmt.Sprintf("%s-%s", channelGroup, minorVersion), normalOffset+1)
 			if err != nil {
 				Skip(fmt.Sprintf("no version resolved for channel %s-%s at offset %d: %v", channelGroup, minorVersion, normalOffset+1, err))
 			}
 			if desiredVersion == nil {
 				Skip(fmt.Sprintf("no version resolved for channel %s-%s at offset %d", channelGroup, minorVersion, normalOffset+1))
+				return
 			}
 			installVersion := desiredVersion.Version
 
@@ -135,8 +137,18 @@ var _ = Describe("Service Provider", func() {
 			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred(), "failed to verify HCP cluster %q is viable", clusterName)
 
-			By(fmt.Sprintf("pinning the cluster to minor version %s to trigger an automated z-stream upgrade", minorVersion))
+			By(fmt.Sprintf("removing the exact version pin and enabling immediate z-stream updates for %s", minorVersion))
+			// The install version was pinned through version.id, so sending a bare
+			// minor clears that internal pin without an exact-version tag to remove.
+			// Retain Immediate from the progressive rollout test: production fleet
+			// canary readiness can outlast this test's upgrade timeout.
 			update := hcpsdk20240610preview.HcpOpenShiftClusterUpdate{
+				// Per RPC-Patch-V1-04 these tags replace every tag on the cluster, so the
+				// policy tag has to ride along with the tags the cluster was created with
+				// rather than be sent on its own.
+				Tags: framework.TagsForPatch(clusterParams.Tags, map[string]*string{
+					metadataapi.TagClusterZStreamUpdatePolicy: to.Ptr(string(coreapi.ImmediateZStreamUpdatePolicy)),
+				}),
 				Properties: &hcpsdk20240610preview.HcpOpenShiftClusterPropertiesUpdate{
 					Version: &hcpsdk20240610preview.VersionProfile{
 						ID:           to.Ptr(minorVersion),
@@ -145,12 +157,12 @@ var _ = Describe("Service Provider", func() {
 				},
 			}
 			_, err = framework.UpdateHCPCluster20240610(ctx, hcpClient, *resourceGroup.Name, clusterName, update, framework.HCPClusterVersionUpgradeTimeout)
-			Expect(err).NotTo(HaveOccurred(), "failed to pin cluster %q to minor version %s", clusterName, minorVersion)
+			Expect(err).NotTo(HaveOccurred(), "failed to enable immediate z-stream updates for cluster %q on minor version %s", clusterName, minorVersion)
 
 			By("verifying that only a z-stream upgrade was performed")
 			Eventually(func() error {
 				return verifiers.VerifyHCPCluster(ctx, adminRESTConfig, verifiers.VerifyHostedControlPlaneZStreamUpgradeOnly(installVersion))
-			}, framework.HCPClusterVersionUpgradeTimeout, 2*time.Minute).Should(Succeed())
+			}, framework.HCPClusterVersionUpgradeTimeout, 2*time.Minute).Should(Succeed(), "cluster %q did not automatically advance beyond %s with the Immediate policy", clusterName, installVersion)
 			GinkgoLogr.Info("z-stream upgrade verification passed", "installVersion", installVersion)
 		},
 

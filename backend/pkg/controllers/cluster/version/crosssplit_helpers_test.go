@@ -27,18 +27,18 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"k8s.io/utils/ptr"
-
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	configv1 "github.com/openshift/api/config/v1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 )
 
 const (
@@ -48,32 +48,12 @@ const (
 	testCSClusterIDStr    = "/api/aro_hcp/v1alpha1/clusters/" + testClusterName
 )
 
-// createTestSubscription creates a subscription in the mock database.
-func createTestSubscription(t *testing.T, ctx context.Context, mockResourcesDBClient *corecosmosstoragetesting.MockResourcesDBClient) {
-	t.Helper()
-
-	subResourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID))
-	subscription := &coreapi.Subscription{
-		CosmosMetadata: coreapi.CosmosMetadata{
-			ResourceID:   subResourceID,
-			PartitionKey: strings.ToLower(subResourceID.SubscriptionID),
-		},
-		ResourceID: subResourceID,
-		State:      coreapi.SubscriptionStateRegistered,
-		Properties: &coreapi.SubscriptionProperties{
-			TenantId: ptr.To("test-tenant-id"),
-		},
-	}
-	_, err := mockResourcesDBClient.Subscriptions().Create(ctx, subscription, nil)
-	require.NoError(t, err)
-}
-
 // hostedClusterReadDesireResourceID returns the resource ID for the readonly
 // HostedCluster ReadDesire associated with the test cluster.
 func hostedClusterReadDesireResourceID(t *testing.T) *azcorearm.ResourceID {
 	t.Helper()
 	return metadataapi.Must(azcorearm.ParseResourceID(
-		kubeapplierapi.ToClusterScopedReadDesireResourceIDString(
+		kubeapplierapihelpers.ToClusterScopedReadDesireResourceIDString(
 			testSubscriptionID, testResourceGroupName, testClusterName, kubeapplierhelpers.ReadDesireNameReadonlyHostedCluster)))
 }
 
@@ -105,7 +85,7 @@ func createServiceProviderClusterWithVersion(t *testing.T, ctx context.Context, 
 	existing, getErr := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
 	if getErr == nil {
 		replacement := existing.DeepCopy()
-		replacement.Status.ControlPlaneVersion.ActiveVersions = []coreapi.HCPClusterActiveVersion{
+		replacement.Status.ControlPlaneVersion.ActiveVersions = []coreapi.ServiceProviderClusterActiveVersion{
 			{Version: &cpVersion, State: configv1.CompletedUpdate},
 		}
 		_, err := spcCRUD.Replace(ctx, replacement, nil)
@@ -121,12 +101,52 @@ func createServiceProviderClusterWithVersion(t *testing.T, ctx context.Context, 
 		},
 		Status: coreapi.ServiceProviderClusterStatus{
 			ControlPlaneVersion: coreapi.ServiceProviderClusterStatusVersion{
-				ActiveVersions: []coreapi.HCPClusterActiveVersion{
+				ActiveVersions: []coreapi.ServiceProviderClusterActiveVersion{
 					{Version: &cpVersion, State: configv1.CompletedUpdate},
 				},
 			},
 		},
 	}
 	_, err := spcCRUD.Create(ctx, spCluster, nil)
+	require.NoError(t, err)
+}
+
+// boomActiveOperationLister is a test double that returns the configured
+// error from ListActiveOperationsForCluster. It exists so gating helpers can
+// exercise their error-propagation branch without a misbehaving mock DB.
+type boomActiveOperationLister struct {
+	corelisters.ActiveOperationLister
+	err error
+}
+
+func (b *boomActiveOperationLister) Get(_ context.Context, _, _ string) (*coreapi.Operation, error) {
+	return nil, b.err
+}
+
+func (b *boomActiveOperationLister) ListActiveOperationsForCluster(_ context.Context, _, _, _ string) ([]*coreapi.Operation, error) {
+	return nil, b.err
+}
+
+// seedClusterCreateOperation seeds an active Create operation rooted at the
+// given ExternalID into the mock DB so the DB-backed active operation lister
+// can find it.
+func seedClusterCreateOperation(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient, externalID *azcorearm.ResourceID, opName string) {
+	t.Helper()
+	opResourceID := metadataapi.Must(azcorearm.ParseResourceID(coreapihelpers.ToOperationResourceIDString(externalID.SubscriptionID, opName)))
+	operationID := metadataapi.Must(azcorearm.ParseResourceID(
+		"/subscriptions/" + externalID.SubscriptionID +
+			"/providers/Microsoft.RedHatOpenShift/locations/eastus/hcpOperationStatuses/" + opName,
+	))
+	op := &coreapi.Operation{
+		CosmosMetadata: coreapi.CosmosMetadata{
+			ResourceID:   opResourceID,
+			PartitionKey: strings.ToLower(externalID.SubscriptionID),
+		},
+		Status:      coreapi.ProvisioningStateAccepted,
+		Request:     cosmosstorageutils.OperationRequestCreate,
+		ExternalID:  externalID,
+		OperationID: operationID,
+	}
+	_, err := mockDB.Operations(externalID.SubscriptionID).Create(ctx, op, nil)
 	require.NoError(t, err)
 }

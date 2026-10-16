@@ -29,8 +29,11 @@ import (
 )
 
 const (
-	StampRelistDuration             = 2 * time.Minute
-	ManagementClusterRelistDuration = 2 * time.Minute
+	StampRelistDuration                       = 2 * time.Minute
+	ManagementClusterRelistDuration           = 2 * time.Minute
+	ManagementClusterSchedulingRelistDuration = 2 * time.Minute
+	ControlPlaneVersionRolloutRelistDuration  = 2 * time.Minute
+	HCPResourceRequirementsRelistDuration     = 2 * time.Minute
 )
 
 // NewStampInformer creates an unstarted SharedIndexInformer for stamps
@@ -52,7 +55,7 @@ func NewStampInformerWithRelistDuration(lister cosmosstorageutils.GlobalLister[f
 	)
 
 	return cache.NewSharedIndexInformerWithOptions(
-		&informerutils.ListWatchWithoutWatchListSemantics{ListWatch: lw.ToListWatch()},
+		&informerutils.ListWatchWithoutWatchListSemantics{ListWatch: lw.ToListWatch(), InformerName: "Stamps"},
 		&fleetapi.Stamp{},
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod:      1 * time.Hour,
@@ -80,7 +83,7 @@ func NewManagementClusterInformerWithRelistDuration(lister cosmosstorageutils.Gl
 	)
 
 	return cache.NewSharedIndexInformerWithOptions(
-		&informerutils.ListWatchWithoutWatchListSemantics{ListWatch: lw.ToListWatch()},
+		&informerutils.ListWatchWithoutWatchListSemantics{ListWatch: lw.ToListWatch(), InformerName: "ManagementClusters"},
 		&fleetapi.ManagementCluster{},
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod: 1 * time.Hour,
@@ -88,6 +91,91 @@ func NewManagementClusterInformerWithRelistDuration(lister cosmosstorageutils.Gl
 				fleetlisters.ByCSProvisionShard: managementClusterProvisionShardIDIndexFunc,
 			},
 			ObjectDescription: "ManagementCluster",
+		},
+	)
+}
+
+// NewManagementClusterSchedulingInformer creates an unstarted SharedIndexInformer
+// for management cluster scheduling documents with the default relist duration.
+func NewManagementClusterSchedulingInformer(lister cosmosstorageutils.GlobalLister[fleetapi.ManagementClusterScheduling], cosmosClient cosmosstorageutils.ChangeFeedClient) cache.SharedIndexInformer {
+	return NewManagementClusterSchedulingInformerWithRelistDuration(lister, cosmosClient, ManagementClusterSchedulingRelistDuration)
+}
+
+// NewManagementClusterSchedulingInformerWithRelistDuration creates an unstarted
+// SharedIndexInformer for management cluster scheduling documents with a
+// configurable relist duration.
+func NewManagementClusterSchedulingInformerWithRelistDuration(lister cosmosstorageutils.GlobalLister[fleetapi.ManagementClusterScheduling], cosmosClient cosmosstorageutils.ChangeFeedClient, relistDuration time.Duration) cache.SharedIndexInformer {
+	lw := informerutils.NewChangeFeedListWatcher[fleetapi.ManagementClusterScheduling, *fleetapi.ManagementClusterScheduling, cosmosstorageutils.GenericDocument[fleetapi.ManagementClusterScheduling]](
+		[]azcorearm.ResourceType{fleetapi.ManagementClusterSchedulingResourceType},
+		utilsclock.RealClock{},
+		lister,
+		cosmosClient,
+		relistDuration,
+		"fleet",
+	)
+
+	return cache.NewSharedIndexInformerWithOptions(
+		&informerutils.ListWatchWithoutWatchListSemantics{ListWatch: lw.ToListWatch(), InformerName: "ManagementClusterSchedulings"},
+		&fleetapi.ManagementClusterScheduling{},
+		cache.SharedIndexInformerOptions{
+			ResyncPeriod:      1 * time.Hour,
+			ObjectDescription: "ManagementClusterScheduling",
+		},
+	)
+}
+
+// NewControlPlaneVersionRolloutInformer creates an unstarted SharedIndexInformer
+// for control-plane version rollouts with the default relist duration.
+func NewControlPlaneVersionRolloutInformer(lister cosmosstorageutils.GlobalLister[fleetapi.ControlPlaneVersionRollout], cosmosClient cosmosstorageutils.ChangeFeedClient) cache.SharedIndexInformer {
+	return NewControlPlaneVersionRolloutInformerWithRelistDuration(lister, cosmosClient, ControlPlaneVersionRolloutRelistDuration)
+}
+
+// NewControlPlaneVersionRolloutInformerWithRelistDuration creates an unstarted
+// SharedIndexInformer for control-plane version rollouts with a configurable relist duration.
+func NewControlPlaneVersionRolloutInformerWithRelistDuration(lister cosmosstorageutils.GlobalLister[fleetapi.ControlPlaneVersionRollout], cosmosClient cosmosstorageutils.ChangeFeedClient, relistDuration time.Duration) cache.SharedIndexInformer {
+	lw := informerutils.NewChangeFeedListWatcher[fleetapi.ControlPlaneVersionRollout, *fleetapi.ControlPlaneVersionRollout, cosmosstorageutils.GenericDocument[fleetapi.ControlPlaneVersionRollout]](
+		[]azcorearm.ResourceType{fleetapi.ControlPlaneVersionRolloutResourceType},
+		utilsclock.RealClock{},
+		lister,
+		cosmosClient,
+		relistDuration,
+		"fleet",
+	)
+
+	return cache.NewSharedIndexInformerWithOptions(
+		&informerutils.ListWatchWithoutWatchListSemantics{ListWatch: lw.ToListWatch(), InformerName: "ControlPlaneVersionRollouts"},
+		&fleetapi.ControlPlaneVersionRollout{},
+		cache.SharedIndexInformerOptions{
+			ResyncPeriod:      1 * time.Hour,
+			ObjectDescription: "ControlPlaneVersionRollout",
+		},
+	)
+}
+
+// NewHCPResourceRequirementsInformer creates an unstarted SharedIndexInformer
+// for HCP resource requirements with the default relist duration.
+func NewHCPResourceRequirementsInformer(lister cosmosstorageutils.GlobalLister[fleetapi.HCPResourceRequirements], cosmosClient cosmosstorageutils.ChangeFeedClient) cache.SharedIndexInformer {
+	return NewHCPResourceRequirementsInformerWithRelistDuration(lister, cosmosClient, HCPResourceRequirementsRelistDuration)
+}
+
+// NewHCPResourceRequirementsInformerWithRelistDuration creates an unstarted
+// SharedIndexInformer for HCP resource requirements with a configurable relist duration.
+func NewHCPResourceRequirementsInformerWithRelistDuration(lister cosmosstorageutils.GlobalLister[fleetapi.HCPResourceRequirements], cosmosClient cosmosstorageutils.ChangeFeedClient, relistDuration time.Duration) cache.SharedIndexInformer {
+	lw := informerutils.NewChangeFeedListWatcher[fleetapi.HCPResourceRequirements, *fleetapi.HCPResourceRequirements, cosmosstorageutils.GenericDocument[fleetapi.HCPResourceRequirements]](
+		[]azcorearm.ResourceType{fleetapi.HCPResourceRequirementsResourceType},
+		utilsclock.RealClock{},
+		lister,
+		cosmosClient,
+		relistDuration,
+		"fleet",
+	)
+
+	return cache.NewSharedIndexInformerWithOptions(
+		&informerutils.ListWatchWithoutWatchListSemantics{ListWatch: lw.ToListWatch(), InformerName: "HCPResourceRequirements"},
+		&fleetapi.HCPResourceRequirements{},
+		cache.SharedIndexInformerOptions{
+			ResyncPeriod:      1 * time.Hour,
+			ObjectDescription: "HCPResourceRequirements",
 		},
 	)
 }

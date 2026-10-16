@@ -206,24 +206,11 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "round(sum(max without(prometheus_replica) (increase(velero_csi_snapshot_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[$__range]))))",
+          "expr": "round(sum(max without(prometheus_replica) (increase(podvolume_data_upload_success_total{cluster=~\"$cluster\"}[$__range]))) + sum(max without(prometheus_replica) (increase(podvolume_data_upload_failure_total{cluster=~\"$cluster\"}[$__range]))))",
+          "format": "time_series",
           "instant": true,
-          "legendFormat": "CSI Snapshots",
-          "range": false,
+          "legendFormat": "Data Uploads (all schedules)",
           "refId": "B"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "editorMode": "code",
-          "exemplar": false,
-          "expr": "round(sum(max without(prometheus_replica) (increase(velero_volume_snapshot_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[$__range]))))",
-          "instant": true,
-          "legendFormat": "Volume Snapshots",
-          "range": false,
-          "refId": "C"
         }
       ],
       "title": "Attempts",
@@ -745,7 +732,7 @@
               "type": "special"
             }
           ],
-          "noValue": "no deletions",
+          "noValue": "no data",
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -763,7 +750,9 @@
               }
             ]
           },
-          "unit": "percentunit"
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1
         },
         "overrides": []
       },
@@ -812,24 +801,12 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "sum(max without(prometheus_replica) (increase(velero_csi_snapshot_success_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[$__range]))) / (sum(max without(prometheus_replica) (increase(velero_csi_snapshot_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[$__range]))) > 0)",
+          "expr": "sum(max without(prometheus_replica) (increase(podvolume_data_upload_success_total{cluster=~\"$cluster\"}[$__range]))) / ((sum(max without(prometheus_replica) (increase(podvolume_data_upload_success_total{cluster=~\"$cluster\"}[$__range]))) + sum(max without(prometheus_replica) (increase(podvolume_data_upload_failure_total{cluster=~\"$cluster\"}[$__range])))) > 0)",
+          "format": "time_series",
           "instant": true,
-          "legendFormat": "CSI Snapshot",
+          "legendFormat": "Data Upload (all schedules)",
           "range": false,
           "refId": "B"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "editorMode": "code",
-          "exemplar": false,
-          "expr": "sum(max without(prometheus_replica) (increase(velero_volume_snapshot_success_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[$__range]))) / (sum(max without(prometheus_replica) (increase(velero_volume_snapshot_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[$__range]))) > 0)",
-          "instant": true,
-          "legendFormat": "Volume Snapshot",
-          "range": false,
-          "refId": "C"
         }
       ],
       "title": "Success Rates",
@@ -1301,27 +1278,12 @@
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "exemplar": false,
-          "expr": "sum(max without(prometheus_replica) (increase(velero_csi_snapshot_failure_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[$__range]))) / (sum(max without(prometheus_replica) (increase(velero_csi_snapshot_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[$__range]))) > 0)",
+          "expr": "sum(max without(prometheus_replica) (increase(podvolume_data_upload_failure_total{cluster=~\"$cluster\"}[$__range]))) / ((sum(max without(prometheus_replica) (increase(podvolume_data_upload_success_total{cluster=~\"$cluster\"}[$__range]))) + sum(max without(prometheus_replica) (increase(podvolume_data_upload_failure_total{cluster=~\"$cluster\"}[$__range])))) > 0)",
           "format": "time_series",
           "instant": true,
-          "legendFormat": "CSI Snapshot",
+          "legendFormat": "Data Upload (all schedules)",
           "range": false,
           "refId": "B"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "editorMode": "code",
-          "exemplar": false,
-          "expr": "sum(max without(prometheus_replica) (increase(velero_volume_snapshot_failure_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[$__range]))) / (sum(max without(prometheus_replica) (increase(velero_volume_snapshot_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[$__range]))) > 0)",
-          "format": "time_series",
-          "instant": true,
-          "legendFormat": "Volume Snapshot",
-          "range": false,
-          "refId": "C"
         }
       ],
       "title": "Failure Rates",
@@ -3409,403 +3371,6 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 25
-      },
-      "id": 138,
-      "panels": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "thresholds"
-              },
-              "custom": {
-                "align": "auto",
-                "cellOptions": {
-                  "mode": "basic",
-                  "type": "color-background"
-                },
-                "footer": {
-                  "reducers": []
-                },
-                "inspect": false
-              },
-              "decimals": 1,
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "dark-green",
-                    "value": 0
-                  },
-                  {
-                    "color": "dark-orange",
-                    "value": 0.01
-                  },
-                  {
-                    "color": "dark-red",
-                    "value": 0.05
-                  }
-                ]
-              },
-              "unit": "percentunit"
-            },
-            "overrides": [
-              {
-                "matcher": {
-                  "id": "byName",
-                  "options": "Cluster"
-                },
-                "properties": [
-                  {
-                    "id": "custom.cellOptions",
-                    "value": {
-                      "type": "auto"
-                    }
-                  },
-                  {
-                    "id": "unit",
-                    "value": "string"
-                  }
-                ]
-              }
-            ]
-          },
-          "gridPos": {
-            "h": 8,
-            "w": 12,
-            "x": 0,
-            "y": 1744
-          },
-          "id": 139,
-          "options": {
-            "cellHeight": "sm",
-            "filterable": true,
-            "showHeader": true
-          },
-          "pluginVersion": "12.4.6",
-          "targets": [
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "${datasource}"
-              },
-              "editorMode": "code",
-              "exemplar": false,
-              "expr": "sum by (cluster) (max without(prometheus_replica) (increase(velero_csi_snapshot_failure_total{schedule!=\"\"}[$__range]))) / (sum by (cluster) (max without(prometheus_replica) (increase(velero_csi_snapshot_attempt_total{schedule!=\"\"}[$__range]))) > 0)",
-              "format": "time_series",
-              "instant": true,
-              "legendFormat": "{{cluster}}",
-              "refId": "A"
-            }
-          ],
-          "title": "Clusters by CSI Snapshot Failure Rate",
-          "transformations": [
-            {
-              "id": "reduce",
-              "options": {
-                "includeTimeField": false,
-                "labelsToFields": false,
-                "reducers": [
-                  "lastNotNull"
-                ]
-              }
-            },
-            {
-              "id": "organize",
-              "options": {
-                "excludeByName": {},
-                "indexByName": {},
-                "renameByName": {
-                  "Field": "Cluster",
-                  "Last *": "Failure Rate"
-                }
-              }
-            },
-            {
-              "id": "sortBy",
-              "options": {
-                "fields": {},
-                "sort": [
-                  {
-                    "desc": true,
-                    "field": "Failure Rate"
-                  }
-                ]
-              }
-            }
-          ],
-          "type": "table"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "thresholds"
-              },
-              "custom": {
-                "align": "auto",
-                "cellOptions": {
-                  "mode": "basic",
-                  "type": "color-background"
-                },
-                "footer": {
-                  "reducers": []
-                },
-                "inspect": false
-              },
-              "decimals": 1,
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "dark-green",
-                    "value": 0
-                  },
-                  {
-                    "color": "dark-orange",
-                    "value": 0.01
-                  },
-                  {
-                    "color": "dark-red",
-                    "value": 0.05
-                  }
-                ]
-              },
-              "unit": "percentunit"
-            },
-            "overrides": [
-              {
-                "matcher": {
-                  "id": "byName",
-                  "options": "Schedule"
-                },
-                "properties": [
-                  {
-                    "id": "custom.cellOptions",
-                    "value": {
-                      "type": "auto"
-                    }
-                  },
-                  {
-                    "id": "unit",
-                    "value": "string"
-                  }
-                ]
-              }
-            ]
-          },
-          "gridPos": {
-            "h": 8,
-            "w": 12,
-            "x": 12,
-            "y": 1744
-          },
-          "id": 140,
-          "options": {
-            "cellHeight": "sm",
-            "filterable": true,
-            "showHeader": true
-          },
-          "pluginVersion": "12.4.6",
-          "targets": [
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "${datasource}"
-              },
-              "editorMode": "code",
-              "exemplar": false,
-              "expr": "sum by (schedule) (max without(prometheus_replica) (increase(velero_csi_snapshot_failure_total{cluster=~\"$cluster\", schedule=~\"$schedule\", schedule!=\"\"}[$__range]))) / (sum by (schedule) (max without(prometheus_replica) (increase(velero_csi_snapshot_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\", schedule!=\"\"}[$__range]))) > 0)",
-              "format": "time_series",
-              "instant": true,
-              "legendFormat": "{{schedule}}",
-              "refId": "A"
-            }
-          ],
-          "title": "Schedules by CSI Snapshot Failure Rate (Selected Cluster)",
-          "transformations": [
-            {
-              "id": "reduce",
-              "options": {
-                "includeTimeField": false,
-                "labelsToFields": false,
-                "reducers": [
-                  "lastNotNull"
-                ]
-              }
-            },
-            {
-              "id": "organize",
-              "options": {
-                "excludeByName": {},
-                "indexByName": {},
-                "renameByName": {
-                  "Field": "Schedule",
-                  "Last *": "Failure Rate"
-                }
-              }
-            },
-            {
-              "id": "sortBy",
-              "options": {
-                "fields": {},
-                "sort": [
-                  {
-                    "desc": true,
-                    "field": "Failure Rate"
-                  }
-                ]
-              }
-            }
-          ],
-          "type": "table"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "palette-classic"
-              },
-              "custom": {
-                "axisBorderShow": false,
-                "axisCenteredZero": false,
-                "axisColorMode": "text",
-                "axisLabel": "",
-                "axisPlacement": "auto",
-                "barAlignment": 0,
-                "barWidthFactor": 0.6,
-                "drawStyle": "line",
-                "fillOpacity": 100,
-                "gradientMode": "none",
-                "hideFrom": {
-                  "legend": false,
-                  "tooltip": false,
-                  "viz": false
-                },
-                "insertNulls": false,
-                "lineInterpolation": "stepAfter",
-                "lineWidth": 1,
-                "pointSize": 5,
-                "scaleDistribution": {
-                  "type": "linear"
-                },
-                "showPoints": "never",
-                "showValues": false,
-                "spanNulls": false,
-                "stacking": {
-                  "group": "A",
-                  "mode": "normal"
-                },
-                "thresholdsStyle": {
-                  "mode": "off"
-                }
-              },
-              "decimals": 0,
-              "links": [],
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": 0
-                  },
-                  {
-                    "color": "red",
-                    "value": 80
-                  }
-                ]
-              },
-              "unit": "short"
-            },
-            "overrides": []
-          },
-          "gridPos": {
-            "h": 8,
-            "w": 24,
-            "x": 0,
-            "y": 1818
-          },
-          "id": 141,
-          "options": {
-            "legend": {
-              "calcs": [
-                "mean",
-                "max",
-                "lastNotNull"
-              ],
-              "displayMode": "table",
-              "placement": "right",
-              "showLegend": true
-            },
-            "tooltip": {
-              "hideZeros": false,
-              "mode": "multi",
-              "sort": "none"
-            }
-          },
-          "pluginVersion": "12.4.6",
-          "targets": [
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "${datasource}"
-              },
-              "editorMode": "code",
-              "exemplar": false,
-              "expr": "round(sum(max without(prometheus_replica) (increase(velero_csi_snapshot_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\", backupName=~\"$csi_backup_name\"}[1h]))))",
-              "legendFormat": "CSI Snapshot attempt",
-              "refId": "A"
-            },
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "${datasource}"
-              },
-              "exemplar": false,
-              "expr": "round(sum(max without(prometheus_replica) (increase(velero_csi_snapshot_success_total{cluster=~\"$cluster\", schedule=~\"$schedule\", backupName=~\"$csi_backup_name\"}[1h]))))",
-              "legendFormat": "CSI Snapshot success",
-              "refId": "B"
-            },
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "${datasource}"
-              },
-              "exemplar": false,
-              "expr": "round(sum(max without(prometheus_replica) (increase(velero_csi_snapshot_failure_total{cluster=~\"$cluster\", schedule=~\"$schedule\", backupName=~\"$csi_backup_name\"}[1h]))))",
-              "legendFormat": "CSI Snapshot failure",
-              "refId": "C"
-            }
-          ],
-          "title": "CSI Snapshots per Hour",
-          "type": "timeseries"
-        }
-      ],
-      "title": "CSI Snapshot Operations",
-      "type": "row"
-    },
-    {
-      "collapsed": true,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
         "y": 26
       },
       "id": 142,
@@ -4272,7 +3837,7 @@
                 "uid": "${datasource}"
               },
               "exemplar": false,
-              "expr": "max without(prometheus_replica) (velero_restore_total{cluster=~\"$cluster\"})",
+              "expr": "sum(max without(prometheus_replica) (velero_restore_total{cluster=~\"$cluster\"}))",
               "format": "time_series",
               "instant": true,
               "legendFormat": "",
@@ -5078,6 +4643,239 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
+          "description": "Total number of data upload operations (success, failure, cancelled)",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "mappings": [
+                {
+                  "options": {
+                    "match": "null",
+                    "result": {
+                      "text": "N/A"
+                    }
+                  },
+                  "type": "special"
+                }
+              ],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 6,
+            "w": 24,
+            "x": 0,
+            "y": 1
+          },
+          "id": 156,
+          "options": {
+            "colorMode": "value",
+            "graphMode": "area",
+            "justifyMode": "auto",
+            "orientation": "vertical",
+            "percentChangeColorMode": "standard",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "showPercentChange": false,
+            "textMode": "auto",
+            "wideLayout": true
+          },
+          "pluginVersion": "12.4.6",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "exemplar": false,
+              "expr": "round(sum(max without(prometheus_replica) (increase(podvolume_data_upload_success_total{cluster=~\"$cluster\"}[$__range]))))",
+              "format": "time_series",
+              "instant": true,
+              "legendFormat": "Success",
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "exemplar": false,
+              "expr": "round(sum(max without(prometheus_replica) (increase(podvolume_data_upload_failure_total{cluster=~\"$cluster\"}[$__range]))))",
+              "format": "time_series",
+              "instant": true,
+              "legendFormat": "Failure",
+              "refId": "B"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "exemplar": false,
+              "expr": "round(sum(max without(prometheus_replica) (increase(podvolume_data_upload_cancel_total{cluster=~\"$cluster\"}[$__range]))))",
+              "format": "time_series",
+              "instant": true,
+              "legendFormat": "Cancelled",
+              "refId": "C"
+            }
+          ],
+          "title": "Data Upload Totals",
+          "type": "stat"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "custom": {
+                "align": "auto",
+                "cellOptions": {
+                  "mode": "basic",
+                  "type": "color-background"
+                },
+                "footer": {
+                  "reducers": []
+                },
+                "inspect": false
+              },
+              "decimals": 1,
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "dark-green",
+                    "value": 0
+                  },
+                  {
+                    "color": "dark-orange",
+                    "value": 0.01
+                  },
+                  {
+                    "color": "dark-red",
+                    "value": 0.05
+                  }
+                ]
+              },
+              "unit": "percentunit"
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Cluster"
+                },
+                "properties": [
+                  {
+                    "id": "custom.cellOptions",
+                    "value": {
+                      "type": "auto"
+                    }
+                  },
+                  {
+                    "id": "unit",
+                    "value": "string"
+                  }
+                ]
+              }
+            ]
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 7
+          },
+          "id": 158,
+          "options": {
+            "cellHeight": "sm",
+            "filterable": true,
+            "showHeader": true
+          },
+          "pluginVersion": "12.4.6",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "exemplar": false,
+              "expr": "sum by (cluster) (max without(prometheus_replica) (increase(podvolume_data_upload_failure_total[$__range]))) / ((sum by (cluster) (max without(prometheus_replica) (increase(podvolume_data_upload_success_total[$__range]))) + sum by (cluster) (max without(prometheus_replica) (increase(podvolume_data_upload_failure_total[$__range])))) > 0)",
+              "format": "time_series",
+              "instant": true,
+              "legendFormat": "",
+              "refId": "A"
+            }
+          ],
+          "title": "Clusters by Data Upload Failure Rate",
+          "transformations": [
+            {
+              "id": "reduce",
+              "options": {
+                "includeTimeField": false,
+                "labelsToFields": false,
+                "reducers": [
+                  "lastNotNull"
+                ]
+              }
+            },
+            {
+              "id": "organize",
+              "options": {
+                "excludeByName": {},
+                "indexByName": {},
+                "renameByName": {
+                  "Field": "Cluster",
+                  "Last *": "Failure Rate"
+                }
+              }
+            },
+            {
+              "id": "sortBy",
+              "options": {
+                "fields": {},
+                "sort": [
+                  {
+                    "desc": true,
+                    "field": "Failure Rate"
+                  }
+                ]
+              }
+            }
+          ],
+          "type": "table"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
           "description": "Tracks OADP node-agent uploads of CSI volume snapshot data to the backup storage location (e.g. object store). Success, failure, and cancellation rates.",
           "fieldConfig": {
             "defaults": {
@@ -5140,9 +4938,9 @@
           },
           "gridPos": {
             "h": 8,
-            "w": 24,
-            "x": 0,
-            "y": 1747
+            "w": 12,
+            "x": 12,
+            "y": 7
           },
           "id": 155,
           "options": {
@@ -5195,7 +4993,7 @@
               "refId": "C"
             }
           ],
-          "title": "Volume Snapshot Uploads per Hour",
+          "title": "Data Upload Operations per Hour",
           "type": "timeseries"
         }
       ],
@@ -5270,32 +5068,6 @@
         "options": [],
         "query": {
           "query": "label_values(velero_backup_attempt_total{cluster=~\"$cluster\"},schedule)",
-          "refId": "PrometheusVariableQueryEditor-VariableQuery"
-        },
-        "refresh": 1,
-        "regex": "",
-        "regexApplyTo": "value",
-        "sort": 1,
-        "type": "query"
-      },
-      {
-        "allValue": ".*",
-        "current": {
-          "text": "All",
-          "value": "$__all"
-        },
-        "datasource": {
-          "type": "prometheus",
-          "uid": "${datasource}"
-        },
-        "definition": "label_values(velero_csi_snapshot_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\"},backupName)",
-        "includeAll": true,
-        "label": "CSI Backup Name",
-        "multi": true,
-        "name": "csi_backup_name",
-        "options": [],
-        "query": {
-          "query": "label_values(velero_csi_snapshot_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\"},backupName)",
           "refId": "PrometheusVariableQueryEditor-VariableQuery"
         },
         "refresh": 1,

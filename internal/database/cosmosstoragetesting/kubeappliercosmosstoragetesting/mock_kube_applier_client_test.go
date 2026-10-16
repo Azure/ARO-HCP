@@ -27,6 +27,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 )
@@ -61,7 +62,7 @@ func newClusterApplyDesire(t *testing.T) *kubeapplierapi.ApplyDesire {
 	return &kubeapplierapi.ApplyDesire{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID: mustParse(t,
-				kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(testSub, testRG, testCluster, testDesireName)),
+				kubeapplierapihelpers.ToClusterScopedApplyDesireResourceIDString(testSub, testRG, testCluster, testDesireName)),
 			PartitionKey: strings.ToLower(testMgmtID.String()),
 		},
 		Spec: kubeapplierapi.ApplyDesireSpec{
@@ -81,7 +82,7 @@ func newNodePoolReadDesire(t *testing.T) *kubeapplierapi.ReadDesire {
 	return &kubeapplierapi.ReadDesire{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID: mustParse(t,
-				kubeapplierapi.ToNodePoolScopedReadDesireResourceIDString(
+				kubeapplierapihelpers.ToNodePoolScopedReadDesireResourceIDString(
 					testSub, testRG, testCluster, testNodePool, testDesireName)),
 			PartitionKey: strings.ToLower(testMgmtID.String()),
 		},
@@ -180,7 +181,7 @@ func TestMockKubeApplierGlobalLister_UnionsClusterAndNodePoolScopes(t *testing.T
 		&kubeapplierapi.ApplyDesire{
 			CosmosMetadata: coreapi.CosmosMetadata{
 				ResourceID: mustParse(t,
-					kubeapplierapi.ToNodePoolScopedApplyDesireResourceIDString(
+					kubeapplierapihelpers.ToNodePoolScopedApplyDesireResourceIDString(
 						testSub, testRG, testCluster, testNodePool, "other")),
 				PartitionKey: strings.ToLower(testMgmtID.String()),
 			},

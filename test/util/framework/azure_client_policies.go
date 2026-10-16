@@ -24,6 +24,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -162,109 +163,6 @@ func (p *requestIDPolicy) Do(req *policy.Request) (*http.Response, error) {
 	return req.Next()
 }
 
-// lroPollerRetryDeploymentNotFoundPolicy is a pipeline policy that retries transient
-// 404 DeploymentNotFound errors during ARM deployment LRO polling.
-//
-// This addresses Azure Resource Manager's eventual consistency behavior where
-// the operationStatuses endpoint may return 404 immediately after a deployment
-// is created, even though the deployment will eventually succeed.
-//
-// The policy only activates for GET requests to URLs matching:
-//
-//	/providers/Microsoft.Resources/deployments/{name}/operationStatuses/{id}
-//
-// All other requests pass through unmodified.
-type lroPollerRetryDeploymentNotFoundPolicy struct {
-	MaxRetries     int
-	BaseBackoff    time.Duration
-	MaxBackoff     time.Duration
-	MaxRetryWindow time.Duration
-}
-
-func NewLROPollerRetryDeploymentNotFoundPolicy() *lroPollerRetryDeploymentNotFoundPolicy {
-	return &lroPollerRetryDeploymentNotFoundPolicy{
-		MaxRetries:     5,
-		BaseBackoff:    2 * time.Second,
-		MaxBackoff:     10 * time.Second,
-		MaxRetryWindow: 90 * time.Second,
-	}
-}
-
-func (p *lroPollerRetryDeploymentNotFoundPolicy) Do(req *policy.Request) (*http.Response, error) {
-	if !strings.EqualFold(req.Raw().Method, http.MethodGet) {
-		return req.Next()
-	}
-	path := req.Raw().URL.Path
-	if !strings.Contains(path, "/providers/Microsoft.Resources/deployments/") || !strings.Contains(path, "/operationStatuses/") {
-		return req.Next()
-	}
-
-	start := time.Now()
-	attempt := 0
-
-	for {
-
-		resp, err, retry := func(req *policy.Request) (resp *http.Response, err error, retry bool) {
-			retryReq := req.Clone(req.Raw().Context())
-			if err := retryReq.RewindBody(); err != nil {
-				return nil, err, false
-			}
-
-			resp, err = retryReq.Next()
-			if err == nil {
-				return resp, nil, false
-			}
-			defer func(resp *http.Response) {
-				if resp != nil {
-					if err := resp.Body.Close(); err != nil {
-						ginkgo.GinkgoLogr.Error(err, "failed to close response body")
-					}
-				}
-			}(resp)
-
-			var respErr *azcore.ResponseError
-			if errors.As(err, &respErr) &&
-				respErr.StatusCode == http.StatusNotFound &&
-				strings.EqualFold(respErr.ErrorCode, "DeploymentNotFound") {
-				return nil, err, true
-			}
-			// don't retry on any other error
-			return nil, err, false
-		}(req)
-
-		if !retry {
-			return resp, err
-		}
-
-		if attempt >= p.MaxRetries || time.Since(start) >= p.MaxRetryWindow {
-			err := fmt.Errorf("max retries or max retry window reached: %w", err)
-			return resp, err
-		}
-
-		sleep := p.backoff(attempt)
-
-		ginkgo.GinkgoLogr.Info("transient 404 DeploymentNotFound on operationStatuses",
-			"attempt", attempt+1,
-			"sleep", sleep.String(),
-			"url", req.Raw().URL.String())
-
-		select {
-		case <-time.After(sleep):
-			// retry
-		case <-req.Raw().Context().Done():
-			return nil, req.Raw().Context().Err()
-		}
-
-		attempt++
-	}
-}
-
-func (p *lroPollerRetryDeploymentNotFoundPolicy) backoff(attempt int) time.Duration {
-	sleep := min(p.BaseBackoff<<attempt, p.MaxBackoff)
-	jitter := time.Duration(rand.Int63n(int64(max(p.BaseBackoff/2, time.Millisecond))))
-	return sleep + jitter
-}
-
 // sanitizeAuthHeaderPolicy is a pipeline policy that redacts the Authorization
 // header in the *http.Request stored on the *http.Response after each call.
 //
@@ -282,6 +180,63 @@ func (p *sanitizeAuthHeaderPolicy) Do(req *policy.Request) (*http.Response, erro
 	resp, err := req.Next()
 	if resp != nil && resp.Request != nil {
 		resp.Request.Header["Authorization"] = []string{"redacted"}
+	}
+	return resp, err
+}
+
+type requestAttemptTrackerKey struct{}
+
+// requestAttemptTracker records how the Azure SDK sent a single request,
+// including the SDK's own retries.
+type requestAttemptTracker struct {
+	attempts atomic.Int32
+	// outcomeUnknown is set when an attempt ended without a definitive answer
+	// from the service (a transport error, 408, or 5xx), so the service may have
+	// applied it even though the client saw a failure.
+	outcomeUnknown atomic.Bool
+}
+
+// Attempts returns how many times the request was sent.
+func (t *requestAttemptTracker) Attempts() int32 {
+	return t.attempts.Load()
+}
+
+// RetriedAfterUnknownOutcome reports whether the request was sent again after
+// an attempt that the service may have applied.
+func (t *requestAttemptTracker) RetriedAfterUnknownOutcome() bool {
+	return t.attempts.Load() > 1 && t.outcomeUnknown.Load()
+}
+
+// withRequestAttemptTracker returns a context that tracks every attempt the
+// Azure SDK makes to send a request issued with it. Tracking requires the client
+// to have requestAttemptTrackerPolicy installed, which getClientFactoryOptions
+// and getHCPClientFactoryOptions do.
+func withRequestAttemptTracker(ctx context.Context) (context.Context, *requestAttemptTracker) {
+	tracker := &requestAttemptTracker{}
+	return context.WithValue(ctx, requestAttemptTrackerKey{}, tracker), tracker
+}
+
+// requestAttemptTrackerPolicy is a per-retry policy that updates the tracker
+// installed in the request context by withRequestAttemptTracker, if any.
+type requestAttemptTrackerPolicy struct{}
+
+func (p *requestAttemptTrackerPolicy) Do(req *policy.Request) (*http.Response, error) {
+	tracker, ok := req.Raw().Context().Value(requestAttemptTrackerKey{}).(*requestAttemptTracker)
+	if !ok {
+		return req.Next()
+	}
+	tracker.attempts.Add(1)
+	resp, err := req.Next()
+	status := 0
+	if resp != nil {
+		status = resp.StatusCode
+	}
+	var respErr *azcore.ResponseError
+	if err != nil && errors.As(err, &respErr) {
+		status = respErr.StatusCode
+	}
+	if status == 0 || status == http.StatusRequestTimeout || status >= http.StatusInternalServerError {
+		tracker.outcomeUnknown.Store(true)
 	}
 	return resp, err
 }

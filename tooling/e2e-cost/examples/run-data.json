@@ -1,0 +1,120 @@
+{
+  "version": 1,
+  "collectedAt": "2026-09-03T12:00:00Z",
+  "currency": "USD",
+  "costBasis": "AmortizedCost",
+  "queryStart": "2026-09-01",
+  "queryEnd": "2026-09-03",
+  "job": {
+    "url": "https://example.invalid/job/123",
+    "name": "Synthetic example / illustrative costs only",
+    "buildID": "123",
+    "result": "success",
+    "startedAt": "2026-09-01T10:00:00Z",
+    "finishedAt": "2026-09-01T11:00:00Z",
+    "infraStartedAt": "2026-09-01T09:30:00Z",
+    "infraEndedAt": "2026-09-01T11:30:00Z"
+  },
+  "groups": [
+    {
+      "subscriptionID": "11111111-1111-1111-1111-111111111111",
+      "name": "example-service-nodes",
+      "category": "Infra",
+      "owner": "Service Cluster",
+      "kind": "aks-managed",
+      "billingStatus": "complete",
+      "resources": [
+        {
+          "id": "/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/example-service-nodes/providers/Microsoft.Compute/virtualMachineScaleSets/example-service-vmss",
+          "name": "example-service-vmss",
+          "type": "Microsoft.Compute/virtualMachineScaleSets",
+          "source": "both",
+          "charges": [
+            {"day": "2026-09-01", "meterName": "Illustrative compute", "meterCategory": "Virtual Machines", "costUSD": 6}
+          ]
+        }
+      ]
+    },
+    {
+      "subscriptionID": "11111111-1111-1111-1111-111111111111",
+      "name": "example-management-nodes",
+      "category": "Infra",
+      "owner": "Management Cluster 1",
+      "kind": "aks-managed",
+      "billingStatus": "complete",
+      "resources": [
+        {
+          "id": "/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/example-management-nodes/providers/Microsoft.Compute/virtualMachineScaleSets/example-management-vmss",
+          "name": "example-management-vmss",
+          "type": "Microsoft.Compute/virtualMachineScaleSets",
+          "source": "both",
+          "charges": [
+            {"day": "2026-09-01", "meterName": "Illustrative compute", "meterCategory": "Virtual Machines", "costUSD": 5}
+          ]
+        }
+      ]
+    },
+    {
+      "subscriptionID": "11111111-1111-1111-1111-111111111111",
+      "name": "example-regional",
+      "category": "Infra",
+      "owner": "Regional",
+      "kind": "primary",
+      "billingStatus": "complete",
+      "resources": [
+        {
+          "id": "/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/example-regional/providers/Microsoft.Storage/storageAccounts/exampleregional",
+          "name": "exampleregional",
+          "type": "Microsoft.Storage/storageAccounts",
+          "source": "both",
+          "charges": [
+            {"day": "2026-09-01", "meterName": "Illustrative storage", "meterCategory": "Storage", "costUSD": 1}
+          ]
+        }
+      ]
+    },
+    {
+      "subscriptionID": "11111111-1111-1111-1111-111111111111",
+      "name": "example-test-customer",
+      "category": "Tests",
+      "owner": "Creates a hosted cluster",
+      "kind": "customer",
+      "attempts": 1,
+      "outcomes": ["passed"],
+      "billingStatus": "complete",
+      "resources": [
+        {
+          "id": "/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/example-test-customer/providers/Microsoft.Storage/storageAccounts/examplecustomer",
+          "name": "examplecustomer",
+          "type": "Microsoft.Storage/storageAccounts",
+          "source": "both",
+          "charges": [
+            {"day": "2026-09-01", "meterName": "Illustrative storage", "meterCategory": "Storage", "costUSD": 1}
+          ]
+        }
+      ]
+    },
+    {
+      "subscriptionID": "11111111-1111-1111-1111-111111111111",
+      "name": "example-test-managed",
+      "category": "Tests",
+      "owner": "Creates a hosted cluster",
+      "kind": "hcp-managed",
+      "attempts": 1,
+      "outcomes": ["passed"],
+      "billingStatus": "complete",
+      "resources": [
+        {
+          "id": "/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/example-test-managed/providers/Microsoft.Compute/virtualMachineScaleSets/example-worker-vmss",
+          "name": "example-worker-vmss",
+          "type": "Microsoft.Compute/virtualMachineScaleSets",
+          "source": "both",
+          "charges": [
+            {"day": "2026-09-01", "meterName": "Illustrative compute", "meterCategory": "Virtual Machines", "costUSD": 2}
+          ]
+        }
+      ]
+    }
+  ],
+  "diagnostics": []
+}

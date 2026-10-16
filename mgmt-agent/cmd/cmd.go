@@ -58,6 +58,10 @@ mgmt-agent runs the following controllers under a single leader election:
    via Server-Side Apply so fleet-level tooling can observe per-cluster
    capacity without direct management-cluster access.
 
+5. Backup cleanup controller: requests Velero-managed deletion of ARO-HCP
+   backups when their HostedCluster is absent, unless the backup or repository
+   opts out. Repositories remain available for Kopia garbage collection.
+
 It also runs log-only watchers for Pod (when KSM is enabled) and selected CRD
 and core resources to aid operational troubleshooting.`,
 	}

@@ -29,6 +29,7 @@ import (
 	"k8s.io/utils/ptr"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	internalcontrollerutils "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -40,6 +41,7 @@ type OperationSynchronizer interface {
 }
 
 type genericOperation struct {
+	internalcontrollerutils.CacheSyncWaiter
 	name string
 
 	synchronizer      OperationSynchronizer
@@ -140,10 +142,14 @@ func (c *genericOperation) SyncOnce(ctx context.Context, keyObj any) error {
 	return errors.Join(syncErr, controllerWriteErr)
 }
 
-// Run check do_nothing.go for basic doc details.
+// Run starts the controller's worker goroutines and blocks until the context is cancelled.
 func (c *genericOperation) Run(ctx context.Context, threadiness int) {
 	defer utilruntime.HandleCrash()
 	defer c.queue.ShutDown()
+
+	if !c.WaitForCacheSync(ctx) {
+		return
+	}
 
 	ctx = utils.ContextWithControllerName(ctx, c.name)
 	logger := utils.LoggerFromContext(ctx)
@@ -161,13 +167,13 @@ func (c *genericOperation) Run(ctx context.Context, threadiness int) {
 	logger.Info("Shutting down")
 }
 
-// runWorker check do_nothing.go for doc details.
+// runWorker is the hot loop that processes work items until shutdown.
 func (c *genericOperation) runWorker(ctx context.Context) {
 	for c.processNextWorkItem(ctx) {
 	}
 }
 
-// processNextWorkItem check do_nothing.go for doc details.
+// processNextWorkItem deals with one item off the queue. It returns false when it's time to quit.
 func (c *genericOperation) processNextWorkItem(ctx context.Context) bool {
 	ref, shutdown := c.queue.Get()
 	if shutdown {

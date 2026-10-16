@@ -32,6 +32,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/kubeappliercosmosstoragetesting"
@@ -97,7 +98,7 @@ func TestNodePoolChildResourcesCleanupController_SyncOnce(t *testing.T) {
 	}
 	newTestNodePoolScopedReadDesire := func(name string) *kubeapplierapi.ReadDesire {
 		resourceID := metadataapi.Must(azcorearm.ParseResourceID(
-			kubeapplierapi.ToNodePoolScopedReadDesireResourceIDString(
+			kubeapplierapihelpers.ToNodePoolScopedReadDesireResourceIDString(
 				testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName, name)))
 		return &kubeapplierapi.ReadDesire{
 			CosmosMetadata: coreapi.CosmosMetadata{
@@ -111,7 +112,7 @@ func TestNodePoolChildResourcesCleanupController_SyncOnce(t *testing.T) {
 	}
 	newTestClusterScopedReadDesire := func(name string) *kubeapplierapi.ReadDesire {
 		resourceID := metadataapi.Must(azcorearm.ParseResourceID(
-			kubeapplierapi.ToClusterScopedReadDesireResourceIDString(
+			kubeapplierapihelpers.ToClusterScopedReadDesireResourceIDString(
 				testSubscriptionID, testResourceGroupName, testClusterName, name)))
 		return &kubeapplierapi.ReadDesire{
 			CosmosMetadata: coreapi.CosmosMetadata{
@@ -125,7 +126,7 @@ func TestNodePoolChildResourcesCleanupController_SyncOnce(t *testing.T) {
 	}
 	newTestClusterScopedApplyDesire := func(name string) *kubeapplierapi.ApplyDesire {
 		resourceID := metadataapi.Must(azcorearm.ParseResourceID(
-			kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(
+			kubeapplierapihelpers.ToClusterScopedApplyDesireResourceIDString(
 				testSubscriptionID, testResourceGroupName, testClusterName, name)))
 		return &kubeapplierapi.ApplyDesire{
 			CosmosMetadata: coreapi.CosmosMetadata{
@@ -139,7 +140,7 @@ func TestNodePoolChildResourcesCleanupController_SyncOnce(t *testing.T) {
 	}
 	newTestNodePoolScopedApplyDesire := func(name string) *kubeapplierapi.ApplyDesire {
 		resourceID := metadataapi.Must(azcorearm.ParseResourceID(
-			kubeapplierapi.ToNodePoolScopedApplyDesireResourceIDString(
+			kubeapplierapihelpers.ToNodePoolScopedApplyDesireResourceIDString(
 				testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName, name)))
 		return &kubeapplierapi.ApplyDesire{
 			CosmosMetadata: coreapi.CosmosMetadata{
@@ -150,6 +151,37 @@ func TestNodePoolChildResourcesCleanupController_SyncOnce(t *testing.T) {
 				ManagementCluster: managementClusterResourceID,
 			},
 		}
+	}
+	// newTestOwnedNodePoolScopedApplyDesire builds a nodepool-scoped ApplyDesire
+	// that names an owning controller, the way every controller that persists a
+	// desire through the kubeapplierhelpers ensure helpers does.
+	newTestOwnedNodePoolScopedApplyDesire := func(name, owningController string) *kubeapplierapi.ApplyDesire {
+		desire := newTestNodePoolScopedApplyDesire(name)
+		desire.Tags = map[string]string{kubeapplierapi.TagControllerName: owningController}
+		return desire
+	}
+	assertNodePoolScopedKubeApplierResourceExists := func(
+		t *testing.T,
+		ctx context.Context,
+		kubeApplierDBClients *kubeappliercosmosstoragetesting.MockKubeApplierDBClients,
+		resourceIDString string,
+	) {
+		t.Helper()
+		client := kubeApplierDBClients.For(ctx, managementClusterResourceID)
+		require.NotNil(t, client)
+		resourceID := metadataapi.Must(azcorearm.ParseResourceID(resourceIDString))
+		untypedCRUD, err := client.UntypedCRUD(*resourceID.Parent)
+		require.NoError(t, err)
+		iter, err := untypedCRUD.List(ctx, nil)
+		require.NoError(t, err)
+		for _, resource := range iter.Items(ctx) {
+			if resource.ResourceID != nil && strings.EqualFold(resource.ResourceID.String(), resourceIDString) {
+				require.NoError(t, iter.GetError())
+				return
+			}
+		}
+		require.NoError(t, iter.GetError())
+		t.Fatalf("expected nodepool-scoped kube-applier resource %q to still exist", resourceIDString)
 	}
 	assertNoNodePoolScopedKubeApplierResources := func(
 		t *testing.T,
@@ -200,7 +232,7 @@ func TestNodePoolChildResourcesCleanupController_SyncOnce(t *testing.T) {
 	}
 
 	fixedNow := time.Date(2026, 5, 6, 12, 0, 0, 0, time.UTC)
-	readyToDeleteNodePoolOptsFunc := func(np *coreapi.HCPOpenShiftClusterNodePool) {
+	readyToDeleteNodePoolOptsFunc := func(np *coreapi.NodePool) {
 		np.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-time.Hour)}
 		np.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-30 * time.Minute)}
 		np.ServiceProviderProperties.ClusterServiceID = nil
@@ -215,7 +247,7 @@ func TestNodePoolChildResourcesCleanupController_SyncOnce(t *testing.T) {
 
 	testCases := []struct {
 		name               string
-		existingNodePool   *coreapi.HCPOpenShiftClusterNodePool
+		existingNodePool   *coreapi.NodePool
 		childResources     []any
 		kubeApplierDesires []any
 		wantErr            bool
@@ -223,7 +255,7 @@ func TestNodePoolChildResourcesCleanupController_SyncOnce(t *testing.T) {
 	}{
 		{
 			name:             "when no DeletionTimestamp, no ClusterServiceDeletionTimestamp are set and ClusterServiceID is set performs a no-op",
-			existingNodePool: newTestNodePoolWithNewDeletionApproach(t, nil),
+			existingNodePool: newTestNodePool(t, nil),
 			childResources:   []any{newTestManagementClusterContent(t, "untouched-mcc")},
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, _ *kubeappliercosmosstoragetesting.MockKubeApplierDBClients) {
 				mccCRUD := db.HCPClusters(testSubscriptionID, testResourceGroupName).
@@ -234,7 +266,7 @@ func TestNodePoolChildResourcesCleanupController_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "when no ClusterServiceDeletionTimestamp is set performs a no-op",
-			existingNodePool: newTestNodePoolWithNewDeletionApproach(t, func(np *coreapi.HCPOpenShiftClusterNodePool) {
+			existingNodePool: newTestNodePool(t, func(np *coreapi.NodePool) {
 				np.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-time.Hour)}
 				np.ServiceProviderProperties.ClusterServiceDeletionTimestamp = nil
 				np.ServiceProviderProperties.ClusterServiceID = nil
@@ -249,7 +281,7 @@ func TestNodePoolChildResourcesCleanupController_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "when ClusterServiceID is set performs a no-op",
-			existingNodePool: newTestNodePoolWithNewDeletionApproach(t, func(np *coreapi.HCPOpenShiftClusterNodePool) {
+			existingNodePool: newTestNodePool(t, func(np *coreapi.NodePool) {
 				np.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-time.Hour)}
 				np.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-30 * time.Minute)}
 			}),
@@ -263,11 +295,11 @@ func TestNodePoolChildResourcesCleanupController_SyncOnce(t *testing.T) {
 		},
 		{
 			name:             "when all conditions met and there are no children performs a no-op",
-			existingNodePool: newTestNodePoolWithNewDeletionApproach(t, readyToDeleteNodePoolOptsFunc),
+			existingNodePool: newTestNodePool(t, readyToDeleteNodePoolOptsFunc),
 		},
 		{
 			name:             "when there is a children resource it deletes it",
-			existingNodePool: newTestNodePoolWithNewDeletionApproach(t, readyToDeleteNodePoolOptsFunc),
+			existingNodePool: newTestNodePool(t, readyToDeleteNodePoolOptsFunc),
 			childResources:   []any{newTestManagementClusterContent(t, "test-mcc")},
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, _ *kubeappliercosmosstoragetesting.MockKubeApplierDBClients) {
 				nodePoolResourceID := testKey.GetResourceID()
@@ -286,7 +318,7 @@ func TestNodePoolChildResourcesCleanupController_SyncOnce(t *testing.T) {
 		},
 		{
 			name:             "deletion of node pool controllers is skipped",
-			existingNodePool: newTestNodePoolWithNewDeletionApproach(t, readyToDeleteNodePoolOptsFunc),
+			existingNodePool: newTestNodePool(t, readyToDeleteNodePoolOptsFunc),
 			childResources:   []any{newTestNodePoolController(t, "test-controller")},
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, _ *kubeappliercosmosstoragetesting.MockKubeApplierDBClients) {
 				nodePoolResourceID := testKey.GetResourceID()
@@ -307,7 +339,7 @@ func TestNodePoolChildResourcesCleanupController_SyncOnce(t *testing.T) {
 		},
 		{
 			name:             "when there are nodepool controller and non nodepool controller children it deletes the non nodepool controller children",
-			existingNodePool: newTestNodePoolWithNewDeletionApproach(t, readyToDeleteNodePoolOptsFunc),
+			existingNodePool: newTestNodePool(t, readyToDeleteNodePoolOptsFunc),
 			childResources:   []any{newTestManagementClusterContent(t, "test-mcc"), newTestNodePoolController(t, "test-controller")},
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, _ *kubeappliercosmosstoragetesting.MockKubeApplierDBClients) {
 				nodePoolResourceID := testKey.GetResourceID()
@@ -334,7 +366,7 @@ func TestNodePoolChildResourcesCleanupController_SyncOnce(t *testing.T) {
 		},
 		{
 			name:             "when there is a child ServiceProviderNodePool and ServiceProviderCluster is missing it deletes SPNP best-effort",
-			existingNodePool: newTestNodePoolWithNewDeletionApproach(t, readyToDeleteNodePoolOptsFunc),
+			existingNodePool: newTestNodePool(t, readyToDeleteNodePoolOptsFunc),
 			childResources:   []any{newTestSPNP(t, nil)},
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, _ *kubeappliercosmosstoragetesting.MockKubeApplierDBClients) {
 				spnpCRUD := db.ServiceProviderNodePools(
@@ -345,7 +377,7 @@ func TestNodePoolChildResourcesCleanupController_SyncOnce(t *testing.T) {
 		},
 		{
 			name:             "when there is a child ServiceProviderNodePool and it does not have Maestro bundle references it deletes it",
-			existingNodePool: newTestNodePoolWithNewDeletionApproach(t, readyToDeleteNodePoolOptsFunc),
+			existingNodePool: newTestNodePool(t, readyToDeleteNodePoolOptsFunc),
 			childResources: []any{
 				newTestSPCWithManagementCluster(nil),
 				newTestSPNP(t, nil),
@@ -359,7 +391,7 @@ func TestNodePoolChildResourcesCleanupController_SyncOnce(t *testing.T) {
 		},
 		{
 			name:             "when there is a child ServiceProviderNodePool and it has Maestro bundle references it does not delete it",
-			existingNodePool: newTestNodePoolWithNewDeletionApproach(t, readyToDeleteNodePoolOptsFunc),
+			existingNodePool: newTestNodePool(t, readyToDeleteNodePoolOptsFunc),
 			childResources: []any{newTestSPNP(t, coreapi.MaestroBundleReferenceList{
 				{Name: "bundle-a", MaestroAPIMaestroBundleName: "name-a", MaestroAPIMaestroBundleID: "id-a"},
 			})},
@@ -372,7 +404,7 @@ func TestNodePoolChildResourcesCleanupController_SyncOnce(t *testing.T) {
 		},
 		{
 			name:             "when there are child resources including a ServiceProviderNodePool with Maestro bundle references it deletes them excluding it",
-			existingNodePool: newTestNodePoolWithNewDeletionApproach(t, readyToDeleteNodePoolOptsFunc),
+			existingNodePool: newTestNodePool(t, readyToDeleteNodePoolOptsFunc),
 			childResources: []any{
 				newTestManagementClusterContent(t, "gate-mcc"),
 				newTestSPNP(t, coreapi.MaestroBundleReferenceList{
@@ -392,24 +424,8 @@ func TestNodePoolChildResourcesCleanupController_SyncOnce(t *testing.T) {
 			},
 		},
 		{
-			name:             "UsesNewNodePoolDeletionApproach false -- no-op even when all cleanup conditions met and children exist",
-			existingNodePool: newTestNodePoolWithOldDeletionApproach(t, readyToDeleteNodePoolOptsFunc),
-			childResources:   []any{newTestManagementClusterContent(t, "untouched-mcc"), newTestSPNP(t, nil)},
-			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, _ *kubeappliercosmosstoragetesting.MockKubeApplierDBClients) {
-				mccCRUD := db.HCPClusters(testSubscriptionID, testResourceGroupName).
-					NodePools(testClusterName).ManagementClusterContents(testNodePoolName)
-				_, err := mccCRUD.Get(ctx, "untouched-mcc")
-				require.NoError(t, err, "expected child resource to still exist")
-
-				spnpCRUD := db.ServiceProviderNodePools(
-					testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName)
-				_, err = spnpCRUD.Get(ctx, coreapi.ServiceProviderNodePoolResourceName)
-				require.NoError(t, err, "expected SPNP to still exist")
-			},
-		},
-		{
 			name:             "when nodepool has nodepool-scoped kube-applier desires it deletes them",
-			existingNodePool: newTestNodePoolWithNewDeletionApproach(t, readyToDeleteNodePoolOptsFunc),
+			existingNodePool: newTestNodePool(t, readyToDeleteNodePoolOptsFunc),
 			childResources: []any{
 				newTestSPCWithManagementCluster(managementClusterResourceID),
 			},
@@ -420,7 +436,7 @@ func TestNodePoolChildResourcesCleanupController_SyncOnce(t *testing.T) {
 		},
 		{
 			name:             "when SPNP has nodepool-scoped kube-applier desires but no kube-applier client it deletes SPNP best-effort",
-			existingNodePool: newTestNodePoolWithNewDeletionApproach(t, readyToDeleteNodePoolOptsFunc),
+			existingNodePool: newTestNodePool(t, readyToDeleteNodePoolOptsFunc),
 			childResources: []any{
 				newTestSPCWithManagementCluster(unregisteredManagementClusterResourceID),
 				newTestSPNP(t, nil),
@@ -436,7 +452,7 @@ func TestNodePoolChildResourcesCleanupController_SyncOnce(t *testing.T) {
 		},
 		{
 			name:             "when SPNP has nodepool-scoped kube-applier desires it deletes desires then SPNP",
-			existingNodePool: newTestNodePoolWithNewDeletionApproach(t, readyToDeleteNodePoolOptsFunc),
+			existingNodePool: newTestNodePool(t, readyToDeleteNodePoolOptsFunc),
 			childResources: []any{
 				newTestSPCWithManagementCluster(managementClusterResourceID),
 				newTestSPNP(t, nil),
@@ -453,7 +469,7 @@ func TestNodePoolChildResourcesCleanupController_SyncOnce(t *testing.T) {
 		},
 		{
 			name:             "when nodepool has cluster and nodepool scoped kube-applier resources it deletes only nodepool scoped ones",
-			existingNodePool: newTestNodePoolWithNewDeletionApproach(t, readyToDeleteNodePoolOptsFunc),
+			existingNodePool: newTestNodePool(t, readyToDeleteNodePoolOptsFunc),
 			childResources: []any{
 				newTestSPCWithManagementCluster(managementClusterResourceID),
 			},
@@ -466,11 +482,58 @@ func TestNodePoolChildResourcesCleanupController_SyncOnce(t *testing.T) {
 			verifyDB: func(t *testing.T, ctx context.Context, _ *corecosmosstoragetesting.MockResourcesDBClient, kubeApplierDBClients *kubeappliercosmosstoragetesting.MockKubeApplierDBClients) {
 				assertNoNodePoolScopedKubeApplierResources(t, ctx, kubeApplierDBClients)
 				assertClusterScopedKubeApplierResourceExists(t, ctx, kubeApplierDBClients,
-					kubeapplierapi.ToClusterScopedReadDesireResourceIDString(
+					kubeapplierapihelpers.ToClusterScopedReadDesireResourceIDString(
 						testSubscriptionID, testResourceGroupName, testClusterName, "readonly-hostedcluster"))
 				assertClusterScopedKubeApplierResourceExists(t, ctx, kubeApplierDBClients,
-					kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(
+					kubeapplierapihelpers.ToClusterScopedApplyDesireResourceIDString(
 						testSubscriptionID, testResourceGroupName, testClusterName, "apply-example"))
+			},
+		},
+		{
+			// An ApplyDesire naming an owning controller is that controller's to
+			// tear down: it flips the desire to Type=Delete and purges the document
+			// only once the kube-applier confirms the object is gone from the
+			// management cluster. Deleting the document here would strand the
+			// object, so the desire - and with it the SPNP - has to survive this
+			// pass. ReadDesires have no cluster-side effect and are still removed.
+			name:             "when a nodepool-scoped ApplyDesire names an owning controller it is left for that controller",
+			existingNodePool: newTestNodePool(t, readyToDeleteNodePoolOptsFunc),
+			childResources: []any{
+				newTestSPCWithManagementCluster(managementClusterResourceID),
+				newTestSPNP(t, nil),
+			},
+			kubeApplierDesires: []any{
+				newTestOwnedNodePoolScopedApplyDesire("apply-nodepool", "ClusterResources"),
+				newTestNodePoolScopedReadDesire("readonly-nodepool"),
+			},
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, kubeApplierDBClients *kubeappliercosmosstoragetesting.MockKubeApplierDBClients) {
+				assertNodePoolScopedKubeApplierResourceExists(t, ctx, kubeApplierDBClients,
+					kubeapplierapihelpers.ToNodePoolScopedApplyDesireResourceIDString(
+						testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName, "apply-nodepool"))
+
+				spnpCRUD := db.ServiceProviderNodePools(
+					testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName)
+				_, err := spnpCRUD.Get(ctx, coreapi.ServiceProviderNodePoolResourceName)
+				require.NoError(t, err, "expected SPNP to be held back while an owned ApplyDesire remains")
+			},
+		},
+		{
+			// No owning controller is recorded, so nothing else will ever reap it.
+			// Removing the document here is the backstop that keeps deletion moving.
+			name:             "when a nodepool-scoped ApplyDesire names no owning controller it is deleted",
+			existingNodePool: newTestNodePool(t, readyToDeleteNodePoolOptsFunc),
+			childResources: []any{
+				newTestSPCWithManagementCluster(managementClusterResourceID),
+				newTestSPNP(t, nil),
+			},
+			kubeApplierDesires: []any{newTestNodePoolScopedApplyDesire("orphaned-apply-nodepool")},
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, kubeApplierDBClients *kubeappliercosmosstoragetesting.MockKubeApplierDBClients) {
+				assertNoNodePoolScopedKubeApplierResources(t, ctx, kubeApplierDBClients)
+
+				spnpCRUD := db.ServiceProviderNodePools(
+					testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName)
+				_, err := spnpCRUD.Get(ctx, coreapi.ServiceProviderNodePoolResourceName)
+				require.True(t, cosmosstorageutils.IsNotFoundError(err), "expected SPNP to be deleted")
 			},
 		},
 	}
@@ -492,7 +555,7 @@ func TestNodePoolChildResourcesCleanupController_SyncOnce(t *testing.T) {
 			require.NoError(t, err)
 			mockKubeApplierDBClients.Register(managementClusterResourceID, mockKubeApplierClient)
 
-			nodePoolsForLister := []*coreapi.HCPOpenShiftClusterNodePool{}
+			nodePoolsForLister := []*coreapi.NodePool{}
 			if tc.existingNodePool != nil {
 				nodePoolsForLister = append(nodePoolsForLister, tc.existingNodePool)
 			}

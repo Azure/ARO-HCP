@@ -9,7 +9,7 @@ tests:
     values: '0+60x70'
   - series: 'frontend_http_requests_duration_seconds_bucket{le="0.5", route="/api/clusters", method="GET"}'
     values: '0+60x90'
-  - series: 'frontend_http_requests_duration_seconds_bucket{le="1", route="/api/clusters", method="GET"}'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="1.0", route="/api/clusters", method="GET"}'
     values: '0+60x100'
   - series: 'frontend_http_requests_duration_seconds_bucket{le="5", route="/api/clusters", method="GET"}'
     values: '0+60x100'

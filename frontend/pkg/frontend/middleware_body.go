@@ -20,6 +20,7 @@ import (
 	"strings"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 )
 
 const megabyte int64 = (1 << 20)
@@ -32,7 +33,7 @@ func MiddlewareBody(w http.ResponseWriter, r *http.Request, next http.HandlerFun
 		// See https://github.com/Azure/azure-resource-manager-rpc/blob/master/v1.0/common-api-details.md#max-request-body-size
 		body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 4*megabyte))
 		if err != nil {
-			coreapi.WriteError(
+			coreapihelpers.WriteError(
 				w, http.StatusBadRequest,
 				coreapi.CloudErrorCodeInvalidResource, "",
 				"The resource definition is invalid.")
@@ -42,7 +43,7 @@ func MiddlewareBody(w http.ResponseWriter, r *http.Request, next http.HandlerFun
 		contentType := strings.SplitN(r.Header.Get("Content-Type"), ";", 2)[0]
 
 		if !strings.EqualFold(contentType, "application/json") && (len(body) > 0 || contentType != "") {
-			coreapi.WriteError(
+			coreapihelpers.WriteError(
 				w, http.StatusUnsupportedMediaType,
 				coreapi.CloudErrorCodeUnsupportedMediaType, "",
 				"The content media type '%s' is not supported. Only 'application/json' is supported.",

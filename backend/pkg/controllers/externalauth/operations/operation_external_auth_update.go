@@ -48,6 +48,8 @@ type operationExternalAuthUpdate struct {
 	notificationClient     *http.Client
 }
 
+const OperationExternalAuthUpdateControllerName = "OperationExternalAuthUpdate"
+
 // NewOperationExternalAuthUpdateController returns a new Controller instance that
 // follows an asynchronous external auth update operation to completion and updates
 // the corresponding operation document in Cosmos DB.
@@ -85,7 +87,7 @@ func NewOperationExternalAuthUpdateController(
 	}
 
 	controller := controllerutils.NewGenericOperationController(
-		"OperationExternalAuthUpdate",
+		OperationExternalAuthUpdateControllerName,
 		syncer,
 		10*time.Second,
 		activeOperationInformer,
@@ -108,7 +110,7 @@ func (c *operationExternalAuthUpdate) ShouldProcess(ctx context.Context, operati
 	return true
 }
 
-func (c *operationExternalAuthUpdate) shouldReconcileOperationAndResourceStatus(ea *coreapi.HCPOpenShiftClusterExternalAuth) bool {
+func (c *operationExternalAuthUpdate) shouldReconcileOperationAndResourceStatus(ea *coreapi.ExternalAuth) bool {
 	return ea.ServiceProviderProperties.DeletionTimestamp == nil &&
 		ea.ServiceProviderProperties.ClusterServiceID != nil
 }
@@ -154,7 +156,7 @@ func (c *operationExternalAuthUpdate) SynchronizeOperation(ctx context.Context, 
 	var persistErr *coreapi.CloudErrorBody
 	if operationalState.ProvisioningState == coreapi.ProvisioningStateFailed {
 		persistErr = &coreapi.CloudErrorBody{
-			Code:    coreapi.CloudErrorCodeInvalidRequestContent,
+			Code:    operationalState.CloudErrorCode,
 			Message: operationalState.Message,
 		}
 	}
@@ -171,7 +173,7 @@ func (c *operationExternalAuthUpdate) SynchronizeOperation(ctx context.Context, 
 	return nil
 }
 
-func (c *operationExternalAuthUpdate) determineOperationState(ctx context.Context, existingExternalAuth *coreapi.HCPOpenShiftClusterExternalAuth) (*operationbase.OperationState, error) {
+func (c *operationExternalAuthUpdate) determineOperationState(ctx context.Context, existingExternalAuth *coreapi.ExternalAuth) (*operationbase.OperationState, error) {
 	logger := utils.LoggerFromContext(ctx)
 
 	externalAuthCSID := existingExternalAuth.ServiceProviderProperties.ClusterServiceID

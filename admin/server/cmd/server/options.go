@@ -23,7 +23,8 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
-	"github.com/microsoft/go-otel-audit/audit/base"
+	"github.com/google/uuid"
+	otelaudit "github.com/microsoft/go-otel-audit/audit"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/spf13/cobra"
@@ -34,16 +35,23 @@ import (
 	"k8s.io/utils/set"
 
 	"github.com/Azure/azure-kusto-go/kusto"
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/alertprocessingrules/armalertprocessingrules"
 
 	sdk "github.com/openshift-online/ocm-sdk-go"
 
 	"github.com/Azure/ARO-HCP/admin/server/server"
 	"github.com/Azure/ARO-HCP/internal/audit"
+	auditclient "github.com/Azure/ARO-HCP/internal/audit/otelaudit"
 	"github.com/Azure/ARO-HCP/internal/azsdk"
 	"github.com/Azure/ARO-HCP/internal/certificate"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosclient"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosmetrics"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosratelimit"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/fpa"
@@ -64,9 +72,14 @@ func DefaultOptions() *RawOptions {
 		CosmosURL:               os.Getenv("COSMOS_URL"),
 		CosmosName:              os.Getenv("COSMOS_NAME"),
 		KustoEndpoint:           os.Getenv("KUSTO_ENDPOINT"),
+		AprSubscriptionID:       os.Getenv("APR_SUBSCRIPTION_ID"),
+		AprResourceGroup:        os.Getenv("APR_RESOURCE_GROUP"),
+		AprSvcAmwName:           os.Getenv("APR_SVC_AMW_NAME"),
+		AprHcpAmwName:           os.Getenv("APR_HCP_AMW_NAME"),
 		FpaCertBundlePath:       os.Getenv("FPA_CERT_BUNDLE_PATH"),
 		FpaClientID:             os.Getenv("FPA_CLIENT_ID"),
 		AuditConnectSocket:      os.Getenv("AUDIT_CONNECT_SOCKET") == "true",
+		AuditServiceTreeID:      os.Getenv("AUDIT_SERVICE_TREE_ID"),
 		Kubeconfig:              os.Getenv("KUBECONFIG"),
 		SessiongateNamespace:    os.Getenv("SESSIONGATE_NAMESPACE"),
 		MinSessionTTL:           getEnvDuration("MIN_SESSION_TTL", 10*time.Minute),
@@ -85,10 +98,15 @@ type RawOptions struct {
 	CosmosURL               string
 	CosmosName              string
 	KustoEndpoint           string
+	AprSubscriptionID       string
+	AprResourceGroup        string
+	AprSvcAmwName           string
+	AprHcpAmwName           string
 	FpaCertBundlePath       string
 	FpaClientID             string
 	AuditLogQueueSize       int
 	AuditConnectSocket      bool
+	AuditServiceTreeID      string
 	Kubeconfig              string
 	SessiongateNamespace    string
 	MinSessionTTL           time.Duration
@@ -104,16 +122,40 @@ func (opts *RawOptions) BindOptions(cmd *cobra.Command) error {
 	cmd.Flags().StringVar(&opts.CosmosURL, "cosmos-url", opts.CosmosURL, "URL of the Cosmos DB.")
 	cmd.Flags().StringVar(&opts.CosmosName, "cosmos-name", opts.CosmosName, "Name of the Cosmos DB.")
 	cmd.Flags().StringVar(&opts.KustoEndpoint, "kusto-endpoint", opts.KustoEndpoint, "Endpoint of the Kusto cluster.")
+	cmd.Flags().StringVar(&opts.AprSubscriptionID, "apr-subscription-id", opts.AprSubscriptionID, "Azure subscription ID hosting the Azure Monitor Workspaces that scope alert processing rules.")
+	cmd.Flags().StringVar(&opts.AprResourceGroup, "apr-resource-group", opts.AprResourceGroup, "Azure resource group in which to manage alert processing rules.")
+	cmd.Flags().StringVar(&opts.AprSvcAmwName, "apr-svc-amw-name", opts.AprSvcAmwName, "Name of the services Azure Monitor Workspace used as a scope for alert processing rules.")
+	cmd.Flags().StringVar(&opts.AprHcpAmwName, "apr-hcp-amw-name", opts.AprHcpAmwName, "Name of the HCP Azure Monitor Workspace used as a scope for alert processing rules.")
 	cmd.Flags().StringVar(&opts.FpaClientID, "fpa-client-id", opts.FpaClientID, "Client ID of the FPA application.")
 	cmd.Flags().StringVar(&opts.FpaCertBundlePath, "fpa-cert-bundle-path", opts.FpaCertBundlePath, "Path to the FPA certificate bundle.")
 	cmd.Flags().IntVar(&opts.AuditLogQueueSize, "audit-log-queue-size", opts.AuditLogQueueSize, "Log queue size for audit logging client.")
 	cmd.Flags().BoolVar(&opts.AuditConnectSocket, "audit-connect-socket", opts.AuditConnectSocket, "Connect to mdsd audit socket.")
+	cmd.Flags().StringVar(&opts.AuditServiceTreeID, "audit-service-tree-id", opts.AuditServiceTreeID, "Service Tree UUID for audit logging; zero UUID is allowed only when forwarding is disabled")
 	cmd.Flags().StringVar(&opts.Kubeconfig, "kubeconfig", opts.Kubeconfig, "Path to kubeconfig file.")
 	cmd.Flags().StringVar(&opts.SessiongateNamespace, "sessiongate-namespace", opts.SessiongateNamespace, "Namespace for Sessiongate CRs.")
 	cmd.Flags().DurationVar(&opts.MinSessionTTL, "min-session-ttl", opts.MinSessionTTL, "Minimum breakglass session TTL.")
 	cmd.Flags().DurationVar(&opts.MaxSessionTTL, "max-session-ttl", opts.MaxSessionTTL, "Maximum breakglass session TTL.")
 	cmd.Flags().StringSliceVar(&opts.AllowedBreakglassGroups, "allowed-breakglass-groups", opts.AllowedBreakglassGroups, "Allowed breakglass groups.")
 	return nil
+}
+
+// alertProcessingRuleAMWResourceIDs builds the fully-qualified Azure Monitor
+// Workspace resource IDs that scope alert processing rules from the subscription,
+// regional resource group, and workspace names. Each ID is round-tripped through
+// azcorearm so it is validated and emitted in canonical ARM form, keeping it
+// byte-for-byte comparable with the scopes clients supply on PUT.
+func alertProcessingRuleAMWResourceIDs(subscriptionID, resourceGroup string, workspaceNames ...string) ([]string, error) {
+	ids := make([]string, 0, len(workspaceNames))
+	for _, name := range workspaceNames {
+		raw := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Monitor/accounts/%s",
+			subscriptionID, resourceGroup, name)
+		parsed, err := azcorearm.ParseResourceID(raw)
+		if err != nil {
+			return nil, utils.TrackError(fmt.Errorf("failed to build AMW resource ID for workspace %q: %w", name, err))
+		}
+		ids = append(ids, parsed.String())
+	}
+	return ids, nil
 }
 
 func getEnvDuration(key string, defaultDuration time.Duration) time.Duration {
@@ -128,6 +170,7 @@ func getEnvDuration(key string, defaultDuration time.Duration) time.Duration {
 // validatedOptions is a private wrapper that enforces a call of Validate() before Complete() can be invoked.
 type validatedOptions struct {
 	*RawOptions
+	AuditServiceTreeID uuid.UUID
 }
 
 type ValidatedOptions struct {
@@ -154,6 +197,10 @@ type completedOptions struct {
 	AllowedBreakglassGroups set.Set[string]
 	Registry                *prometheus.Registry
 	KubeApplierDBClients    kubeappliercosmosstorage.KubeApplierDBClients
+
+	AprClient         *armalertprocessingrules.Client
+	AprResourceGroup  string
+	AprAmwResourceIDs []string
 }
 
 type Options struct {
@@ -183,9 +230,31 @@ func (o *RawOptions) Validate() (*ValidatedOptions, error) {
 	if o.MaxSessionTTL < o.MinSessionTTL {
 		return nil, fmt.Errorf("max-session-ttl must be greater than min-session-ttl")
 	}
+	if o.AprSubscriptionID != "" {
+		if o.AprResourceGroup == "" {
+			return nil, fmt.Errorf("apr-resource-group is required when alert processing rules are configured")
+		}
+		if o.AprSvcAmwName == "" {
+			return nil, fmt.Errorf("apr-svc-amw-name is required when alert processing rules are configured")
+		}
+		if o.AprHcpAmwName == "" {
+			return nil, fmt.Errorf("apr-hcp-amw-name is required when alert processing rules are configured")
+		}
+		if _, err := alertProcessingRuleAMWResourceIDs(o.AprSubscriptionID, o.AprResourceGroup, o.AprSvcAmwName, o.AprHcpAmwName); err != nil {
+			return nil, err
+		}
+	}
+	serviceTreeID, err := uuid.Parse(o.AuditServiceTreeID)
+	if err != nil {
+		return nil, fmt.Errorf("audit-service-tree-id must be a UUID: %w", err)
+	}
+	if o.AuditConnectSocket && serviceTreeID == uuid.Nil {
+		return nil, fmt.Errorf("audit-service-tree-id must be nonzero when audit forwarding is enabled")
+	}
 	return &ValidatedOptions{
 		validatedOptions: &validatedOptions{
-			RawOptions: o,
+			RawOptions:         o,
+			AuditServiceTreeID: serviceTreeID,
 		},
 	}, nil
 }
@@ -194,6 +263,13 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 	registry := prometheus.NewRegistry()
 	registry.MustRegister(collectors.NewGoCollector())
 	registry.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
+	if err := cosmosmetrics.RegisterMetrics(registry); err != nil {
+		return nil, fmt.Errorf("failed to register Cosmos DB metrics: %w", err)
+	}
+
+	if err := cosmosratelimit.RegisterMetrics(registry); err != nil {
+		return nil, fmt.Errorf("failed to register Cosmos DB rate limiter metrics: %w", err)
+	}
 
 	// Create CS client
 	csConnection, err := sdk.NewUnauthenticatedConnectionBuilder().
@@ -211,23 +287,17 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 	clientOpts := azsdk.NewClientOptions(azsdk.ComponentAdmin)
 	// FIXME Cloud should be determined by other means.
 	clientOpts.Cloud = cloud.AzurePublic
-	cosmosDatabaseClient, err := corecosmosstorage.NewCosmosDatabaseClient(
-		o.CosmosURL,
-		o.CosmosName,
-		clientOpts,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create the CosmosDB client: %w", err)
-	}
-	resourcesDBClient, err := corecosmosstorage.NewResourcesDBClient(cosmosDatabaseClient)
+	storageOptions := cosmosclient.Options{ClientOptions: clientOpts}
+	bucket := cosmosratelimit.NewUnlimitedTokenBucket("admin")
+	resourcesDBClient, err := corecosmosstorage.NewResourcesDBClient(o.CosmosURL, o.CosmosName, storageOptions, bucket)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create the resources DB client: %w", err)
 	}
-	billingDBClient, err := billingcosmosstorage.NewBillingDBClient(cosmosDatabaseClient)
+	billingDBClient, err := billingcosmosstorage.NewBillingDBClient(o.CosmosURL, o.CosmosName, storageOptions, bucket)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create the billing database client: %w", err)
 	}
-	fleetDBClient, err := fleetcosmosstorage.NewFleetDBClient(cosmosDatabaseClient)
+	fleetDBClient, err := fleetcosmosstorage.NewFleetDBClient(o.CosmosURL, o.CosmosName, storageOptions, bucket)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create the fleet database client: %w", err)
 	}
@@ -260,14 +330,13 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 	// Create audit log client.
 	logger := utils.LoggerFromContext(ctx)
 	slogLogger := slog.New(logr.ToSlogHandler(logger))
-	auditClient, err := audit.NewOtelAuditClient(
+	auditClient, err := auditclient.NewOtelAuditClient(
 		ctx,
-		audit.CreateConn(o.AuditConnectSocket),
+		o.AuditConnectSocket,
+		o.AuditServiceTreeID,
 		registry,
-		base.WithLogger(slogLogger),
-		base.WithSettings(base.Settings{
-			QueueSize: o.AuditLogQueueSize,
-		}),
+		otelaudit.WithLogger(slogLogger),
+		otelaudit.WithQueueSize(o.AuditLogQueueSize),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create audit client: %w", err)
@@ -294,7 +363,32 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 	sessionClient := sessiongateClientset.SessiongateV1alpha1().Sessions(o.SessiongateNamespace)
 
 	mcLister := kubeappliercosmosstorage.NewDBBackedManagementClusterLister(fleetDBClient)
-	kubeApplierDBClients := kubeappliercosmosstorage.NewKubeApplierDBClients(cosmosDatabaseClient, mcLister)
+	kubeApplierDBClients := kubeappliercosmosstorage.NewKubeApplierDBClients(o.CosmosURL, o.CosmosName, storageOptions, func(string) (*cosmosratelimit.TokenBucket, error) { return bucket, nil }, mcLister)
+
+	// Create the alert processing rules client when the feature is configured.
+	var alertProcessingRulesClient *armalertprocessingrules.Client
+	var aprAmwResourceIDs []string
+	if o.AprSubscriptionID != "" {
+		aprAmwResourceIDs, err = alertProcessingRuleAMWResourceIDs(o.AprSubscriptionID, o.AprResourceGroup, o.AprSvcAmwName, o.AprHcpAmwName)
+		if err != nil {
+			return nil, err
+		}
+		azureCredential, err := azidentity.NewDefaultAzureCredential(&azidentity.DefaultAzureCredentialOptions{
+			ClientOptions:                clientOpts,
+			RequireAzureTokenCredentials: true,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to create Azure credential: %w", err)
+		}
+		alertProcessingRulesClient, err = armalertprocessingrules.NewClient(
+			o.AprSubscriptionID,
+			azureCredential,
+			&azcorearm.ClientOptions{ClientOptions: clientOpts},
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create the alert processing rules client: %w", err)
+		}
+	}
 
 	return &Options{
 		completedOptions: &completedOptions{
@@ -315,6 +409,9 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 			AllowedBreakglassGroups: set.New[string](o.AllowedBreakglassGroups...),
 			Registry:                registry,
 			KubeApplierDBClients:    kubeApplierDBClients,
+			AprClient:               alertProcessingRulesClient,
+			AprResourceGroup:        o.AprResourceGroup,
+			AprAmwResourceIDs:       aprAmwResourceIDs,
 		},
 	}, nil
 }
@@ -371,7 +468,11 @@ func (opts *Options) Run(ctx context.Context) error {
 		opts.MaxSessionTTL,
 		opts.AllowedBreakglassGroups,
 		opts.Registry,
+		opts.Registry,
 		opts.KubeApplierDBClients,
+		opts.AprClient,
+		opts.AprResourceGroup,
+		opts.AprAmwResourceIDs,
 	)
 
 	runErrCh := make(chan error, 1)

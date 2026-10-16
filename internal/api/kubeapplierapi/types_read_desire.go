@@ -26,7 +26,7 @@ import (
 // ReadDesire indicates a kube item in .spec.targetItem to issue a list/watch+informer for.
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type ReadDesire struct {
-	// CosmosMetadata.ResourceID is nested under an HCPOpenShiftCluster (and
+	// CosmosMetadata.ResourceID is nested under a Cluster (and
 	// optionally a NodePool) so that listing the partition by parent prefix
 	// naturally returns the desires associated with that resource — and so
 	// that cluster/nodepool deletion can sweep them.

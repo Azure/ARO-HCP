@@ -17,8 +17,6 @@ package fleetapi
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 )
 
@@ -56,13 +54,6 @@ type Stamp struct {
 	// this stamp (the top-level resource name in CosmosMetadata.ResourceID).
 	// Every fleet document for one stamp shares this partition key.
 	coreapi.CosmosMetadata `json:"cosmosMetadata"`
-
-	// ResourceID exists to match cosmosMetadata.resourceID until we're able to transition all types to use cosmosMetadata,
-	// at which point we will stop using properties.resourceId in our queries.
-	// Example: "/providers/microsoft.redhatopenshift/stamps/1"
-	//
-	// +required, immutable once set.
-	ResourceID *azcorearm.ResourceID `json:"resourceId,omitempty"`
 
 	Spec   StampSpec   `json:"spec"`
 	Status StampStatus `json:"status"`

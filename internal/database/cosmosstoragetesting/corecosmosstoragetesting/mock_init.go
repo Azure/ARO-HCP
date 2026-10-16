@@ -24,12 +24,13 @@ import (
 
 // NewMockResourcesDBClientWithResources creates a new mockResourcesDBClient and populates it with the given resources.
 // Resources can be of the following types:
-//   - *coreapi.HCPOpenShiftCluster
-//   - *coreapi.HCPOpenShiftClusterNodePool
+//   - *coreapi.Cluster
+//   - *coreapi.NodePool
 //   - *coreapi.Operation
-//   - *coreapi.HCPOpenShiftClusterExternalAuth
+//   - *coreapi.ExternalAuth
 //   - *coreapi.ServiceProviderCluster
 //   - *coreapi.ServiceProviderNodePool
+//   - *coreapi.ServiceProviderExternalAuth
 //   - *coreapi.Subscription
 //   - *coreapi.Controller
 //   - *coreapi.ManagementClusterContent
@@ -52,18 +53,20 @@ func NewMockResourcesDBClientWithResources(ctx context.Context, resources []any)
 // addResource adds a single resource to the mockResourcesDBClient.
 func (m *MockResourcesDBClient) addResource(ctx context.Context, resource any) error {
 	switch r := resource.(type) {
-	case *coreapi.HCPOpenShiftCluster:
+	case *coreapi.Cluster:
 		return m.addCluster(ctx, r)
-	case *coreapi.HCPOpenShiftClusterNodePool:
+	case *coreapi.NodePool:
 		return m.addNodePool(ctx, r)
 	case *coreapi.Operation:
 		return m.addOperation(ctx, r)
-	case *coreapi.HCPOpenShiftClusterExternalAuth:
+	case *coreapi.ExternalAuth:
 		return m.addExternalAuth(ctx, r)
 	case *coreapi.ServiceProviderCluster:
 		return m.addServiceProviderCluster(ctx, r)
 	case *coreapi.ServiceProviderNodePool:
 		return m.addServiceProviderNodePool(ctx, r)
+	case *coreapi.ServiceProviderExternalAuth:
+		return m.addServiceProviderExternalAuth(ctx, r)
 	case *coreapi.Subscription:
 		return m.addSubscription(ctx, r)
 	case *coreapi.Controller:
@@ -79,7 +82,7 @@ func (m *MockResourcesDBClient) addResource(ctx context.Context, resource any) e
 	}
 }
 
-func (m *MockResourcesDBClient) addCluster(ctx context.Context, cluster *coreapi.HCPOpenShiftCluster) error {
+func (m *MockResourcesDBClient) addCluster(ctx context.Context, cluster *coreapi.Cluster) error {
 	if cluster.ID == nil {
 		return fmt.Errorf("cluster is missing resource ID")
 	}
@@ -88,7 +91,7 @@ func (m *MockResourcesDBClient) addCluster(ctx context.Context, cluster *coreapi
 	return err
 }
 
-func (m *MockResourcesDBClient) addNodePool(ctx context.Context, nodePool *coreapi.HCPOpenShiftClusterNodePool) error {
+func (m *MockResourcesDBClient) addNodePool(ctx context.Context, nodePool *coreapi.NodePool) error {
 	if nodePool.ID == nil {
 		return fmt.Errorf("node pool is missing resource ID")
 	}
@@ -110,7 +113,7 @@ func (m *MockResourcesDBClient) addOperation(ctx context.Context, operation *cor
 	return err
 }
 
-func (m *MockResourcesDBClient) addExternalAuth(ctx context.Context, externalAuth *coreapi.HCPOpenShiftClusterExternalAuth) error {
+func (m *MockResourcesDBClient) addExternalAuth(ctx context.Context, externalAuth *coreapi.ExternalAuth) error {
 	if externalAuth.ID == nil {
 		return fmt.Errorf("external auth is missing resource ID")
 	}
@@ -152,6 +155,24 @@ func (m *MockResourcesDBClient) addServiceProviderNodePool(ctx context.Context, 
 	nodePoolName := resourceID.Parent.Name
 	serviceProviderNodePoolCRUD := m.ServiceProviderNodePools(resourceID.SubscriptionID, resourceID.ResourceGroupName, clusterName, nodePoolName)
 	_, err := serviceProviderNodePoolCRUD.Create(ctx, spnp, nil)
+	return err
+}
+
+func (m *MockResourcesDBClient) addServiceProviderExternalAuth(ctx context.Context, spea *coreapi.ServiceProviderExternalAuth) error {
+	resourceID := spea.GetResourceID()
+	if resourceID == nil {
+		return fmt.Errorf("service provider external auth is missing resource ID")
+	}
+	if resourceID.Parent == nil {
+		return fmt.Errorf("service provider external auth is missing parent external auth ID")
+	}
+	if resourceID.Parent.Parent == nil {
+		return fmt.Errorf("service provider external auth is missing grandparent cluster ID")
+	}
+	clusterName := resourceID.Parent.Parent.Name
+	externalAuthName := resourceID.Parent.Name
+	serviceProviderExternalAuthCRUD := m.ServiceProviderExternalAuths(resourceID.SubscriptionID, resourceID.ResourceGroupName, clusterName, externalAuthName)
+	_, err := serviceProviderExternalAuthCRUD.Create(ctx, spea, nil)
 	return err
 }
 

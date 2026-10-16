@@ -86,12 +86,12 @@ func (b *fakeFPAMIDataplaneClientBuilder) ManagedIdentitiesDataplane(identityURL
 
 // newTestClusterForFetch builds a stored-in-Cosmos cluster shape carrying the
 // CustomerProperties MSI identities that the fetch controller reads.
-func newTestClusterForFetch(opts ...func(*coreapi.HCPOpenShiftCluster)) *coreapi.HCPOpenShiftCluster {
+func newTestClusterForFetch(opts ...func(*coreapi.Cluster)) *coreapi.Cluster {
 	cluster := newTestClusterForClusterIdentitySync()
 	cluster.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL = testMIDataplaneURL
 	cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities = coreapi.UserAssignedIdentitiesProfile{
 		ControlPlaneOperators: map[string]*azcorearm.ResourceID{
-			testOperatorName: metadataapi.Must(azcorearm.ParseResourceID(testOperatorIdentityResourceID)),
+			testControlPlaneOperatorName: metadataapi.Must(azcorearm.ParseResourceID(testControlPlaneOperatorIdentityResourceID)),
 		},
 		ServiceManagedIdentity: metadataapi.Must(azcorearm.ParseResourceID(testServiceManagedIdentityID)),
 	}
@@ -103,14 +103,18 @@ func newTestClusterForFetch(opts ...func(*coreapi.HCPOpenShiftCluster)) *coreapi
 
 // newTestServiceProviderClusterWithMatchingMSIIdentities returns a ServiceProviderCluster whose
 // stored MSI identity set matches newTestClusterForFetch, so
-// desiredMSIResourceIDsMatchServiceProviderCluster is true. recheck controls
-// Status.MSIManagedIdentities.EarliestRecheckTime.
+// desiredMSIResourceIDsMatchServiceProviderCluster is true. recheck controls this
+// controller's entry in Spec.EarliestRecheckTimesByController.
 func newTestServiceProviderClusterWithMatchingMSIIdentities(recheck *metav1.Time) *coreapi.ServiceProviderCluster {
 	serviceProviderCluster := newTestServiceProviderCluster()
-	lowerOperator := strings.ToLower(testOperatorIdentityResourceID)
+	lowerOperator := strings.ToLower(testControlPlaneOperatorIdentityResourceID)
 	lowerSMI := strings.ToLower(testServiceManagedIdentityID)
+	if recheck != nil {
+		serviceProviderCluster.Spec.EarliestRecheckTimesByController = map[string]*metav1.Time{
+			FetchMSIIdentitiesInfoControllerName: recheck,
+		}
+	}
 	serviceProviderCluster.Status.MSIManagedIdentities = coreapi.ServiceProviderClusterMSIManagedIdentities{
-		EarliestRecheckTime: recheck,
 		ControlPlaneOperatorsIdentities: map[string]*coreapi.ServiceProviderClusterControlPlaneOperatorIdentity{
 			lowerOperator: {
 				ResourceID:  metadataapi.Must(azcorearm.ParseResourceID(lowerOperator)),
@@ -141,11 +145,11 @@ func TestFetchMSIIdentitiesInfoSyncer_SyncOnce(t *testing.T) {
 	futureRecheck := metav1.NewTime(now.Add(6 * time.Hour))
 	pastRecheck := metav1.NewTime(now.Add(-time.Hour))
 
-	lowerOperator := strings.ToLower(testOperatorIdentityResourceID)
+	lowerOperator := strings.ToLower(testControlPlaneOperatorIdentityResourceID)
 
 	testCases := []struct {
 		name                   string
-		cluster                *coreapi.HCPOpenShiftCluster    // exposed via the cluster lister; nil = not present
+		cluster                *coreapi.Cluster                // exposed via the cluster lister; nil = not present
 		serviceProviderCluster *coreapi.ServiceProviderCluster // seeded in cosmos + lister; nil = not present
 		dataplaneCreds         *dataplane.ManagedIdentityCredentials
 		dataplaneErr           error
@@ -162,7 +166,7 @@ func TestFetchMSIIdentitiesInfoSyncer_SyncOnce(t *testing.T) {
 				// order to exercise case-insensitive, order-independent matching.
 				ExplicitIdentities: []dataplane.UserAssignedIdentityCredentials{
 					uaCred(strings.ToUpper(testServiceManagedIdentityID), ptr.To("smi-client"), ptr.To("smi-principal")),
-					uaCred(strings.ToUpper(testOperatorIdentityResourceID), ptr.To("op-client"), ptr.To("op-principal")),
+					uaCred(strings.ToUpper(testControlPlaneOperatorIdentityResourceID), ptr.To("op-client"), ptr.To("op-principal")),
 				},
 			},
 			expectDataplaneCalls: 1,
@@ -184,8 +188,9 @@ func TestFetchMSIIdentitiesInfoSyncer_SyncOnce(t *testing.T) {
 				require.NotNil(t, msi.ServiceManagedIdentity.PrincipalID, "service managed identity principal ID should be set")
 				assert.Equal(t, "smi-principal", *msi.ServiceManagedIdentity.PrincipalID)
 
-				require.NotNil(t, msi.EarliestRecheckTime, "earliest recheck time should be set after a successful fetch")
-				assert.True(t, msi.EarliestRecheckTime.After(now), "earliest recheck time should be in the future")
+				recheck := serviceProviderCluster.Spec.EarliestRecheckTimesByController[FetchMSIIdentitiesInfoControllerName]
+				require.NotNil(t, recheck, "earliest recheck time should be set after a successful fetch")
+				assert.True(t, recheck.After(now), "earliest recheck time should be in the future")
 			},
 		},
 		{
@@ -194,7 +199,7 @@ func TestFetchMSIIdentitiesInfoSyncer_SyncOnce(t *testing.T) {
 			serviceProviderCluster: newTestServiceProviderCluster(),
 			dataplaneCreds: &dataplane.ManagedIdentityCredentials{
 				ExplicitIdentities: []dataplane.UserAssignedIdentityCredentials{
-					uaCred(testOperatorIdentityResourceID, nil, nil),
+					uaCred(testControlPlaneOperatorIdentityResourceID, nil, nil),
 					uaCred(testServiceManagedIdentityID, nil, nil),
 				},
 			},
@@ -208,22 +213,22 @@ func TestFetchMSIIdentitiesInfoSyncer_SyncOnce(t *testing.T) {
 				require.NotNil(t, msi.ServiceManagedIdentity, "service managed identity should still be recorded")
 				assert.Nil(t, msi.ServiceManagedIdentity.ClientID, "service managed identity client ID should be nil")
 				assert.Nil(t, msi.ServiceManagedIdentity.PrincipalID, "service managed identity principal ID should be nil")
-				require.NotNil(t, msi.EarliestRecheckTime, "recheck time should still be set")
+				require.NotNil(t, serviceProviderCluster.Spec.EarliestRecheckTimesByController[FetchMSIIdentitiesInfoControllerName], "recheck time should still be set")
 			},
 		},
 		{
 			name: "deduplicates control plane operators sharing an identity",
-			cluster: newTestClusterForFetch(func(c *coreapi.HCPOpenShiftCluster) {
+			cluster: newTestClusterForFetch(func(c *coreapi.Cluster) {
 				// A second operator references the SAME identity as testOperatorName.
 				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators["second-operator"] =
-					metadataapi.Must(azcorearm.ParseResourceID(testOperatorIdentityResourceID))
+					metadataapi.Must(azcorearm.ParseResourceID(testControlPlaneOperatorIdentityResourceID))
 			}),
 			serviceProviderCluster: newTestServiceProviderCluster(),
 			dataplaneCreds: &dataplane.ManagedIdentityCredentials{
 				// Only two identities are requested (the shared operator identity
 				// and the service managed identity), so only two are returned.
 				ExplicitIdentities: []dataplane.UserAssignedIdentityCredentials{
-					uaCred(testOperatorIdentityResourceID, ptr.To("op-client"), ptr.To("op-principal")),
+					uaCred(testControlPlaneOperatorIdentityResourceID, ptr.To("op-client"), ptr.To("op-principal")),
 					uaCred(testServiceManagedIdentityID, ptr.To("smi-client"), ptr.To("smi-principal")),
 				},
 			},
@@ -239,7 +244,7 @@ func TestFetchMSIIdentitiesInfoSyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "deleting cluster does no work",
-			cluster: newTestClusterForFetch(func(c *coreapi.HCPOpenShiftCluster) {
+			cluster: newTestClusterForFetch(func(c *coreapi.Cluster) {
 				c.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: now}
 			}),
 			serviceProviderCluster: newTestServiceProviderCluster(),
@@ -251,7 +256,7 @@ func TestFetchMSIIdentitiesInfoSyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "empty managed identities data plane url does no work",
-			cluster: newTestClusterForFetch(func(c *coreapi.HCPOpenShiftCluster) {
+			cluster: newTestClusterForFetch(func(c *coreapi.Cluster) {
 				c.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL = ""
 			}),
 			serviceProviderCluster: newTestServiceProviderCluster(),
@@ -271,8 +276,9 @@ func TestFetchMSIIdentitiesInfoSyncer_SyncOnce(t *testing.T) {
 				require.NotNil(t, op, "existing control plane operator identity should be preserved")
 				require.NotNil(t, op.ClientID, "existing control plane operator client ID should be preserved")
 				assert.Equal(t, "existing-op-client", *op.ClientID, "existing values should be untouched while recheck is in the future")
-				require.NotNil(t, serviceProviderCluster.Status.MSIManagedIdentities.EarliestRecheckTime, "recheck time should be preserved")
-				assert.True(t, serviceProviderCluster.Status.MSIManagedIdentities.EarliestRecheckTime.After(now), "recheck time should still be in the future when work is skipped")
+				recheck := serviceProviderCluster.Spec.EarliestRecheckTimesByController[FetchMSIIdentitiesInfoControllerName]
+				require.NotNil(t, recheck, "recheck time should be preserved")
+				assert.True(t, recheck.After(now), "recheck time should still be in the future when work is skipped")
 			},
 		},
 		{
@@ -281,7 +287,7 @@ func TestFetchMSIIdentitiesInfoSyncer_SyncOnce(t *testing.T) {
 			serviceProviderCluster: newTestServiceProviderClusterWithMatchingMSIIdentities(&pastRecheck),
 			dataplaneCreds: &dataplane.ManagedIdentityCredentials{
 				ExplicitIdentities: []dataplane.UserAssignedIdentityCredentials{
-					uaCred(testOperatorIdentityResourceID, ptr.To("new-op-client"), ptr.To("new-op-principal")),
+					uaCred(testControlPlaneOperatorIdentityResourceID, ptr.To("new-op-client"), ptr.To("new-op-principal")),
 					uaCred(testServiceManagedIdentityID, ptr.To("new-smi-client"), ptr.To("new-smi-principal")),
 				},
 			},
@@ -291,8 +297,9 @@ func TestFetchMSIIdentitiesInfoSyncer_SyncOnce(t *testing.T) {
 				require.NotNil(t, op, "control plane operator identity should be present")
 				require.NotNil(t, op.ClientID, "control plane operator client ID should be updated")
 				assert.Equal(t, "new-op-client", *op.ClientID, "stale value should be replaced with the freshly fetched one")
-				require.NotNil(t, serviceProviderCluster.Status.MSIManagedIdentities.EarliestRecheckTime, "recheck time should be set")
-				assert.True(t, serviceProviderCluster.Status.MSIManagedIdentities.EarliestRecheckTime.After(now), "recheck time should be pushed into the future after a refetch")
+				recheck := serviceProviderCluster.Spec.EarliestRecheckTimesByController[FetchMSIIdentitiesInfoControllerName]
+				require.NotNil(t, recheck, "recheck time should be set")
+				assert.True(t, recheck.After(now), "recheck time should be pushed into the future after a refetch")
 			},
 		},
 		{
@@ -301,7 +308,7 @@ func TestFetchMSIIdentitiesInfoSyncer_SyncOnce(t *testing.T) {
 			serviceProviderCluster: newTestServiceProviderCluster(),
 			dataplaneCreds: &dataplane.ManagedIdentityCredentials{
 				ExplicitIdentities: []dataplane.UserAssignedIdentityCredentials{
-					uaCred(testOperatorIdentityResourceID, ptr.To("op-client"), ptr.To("op-principal")),
+					uaCred(testControlPlaneOperatorIdentityResourceID, ptr.To("op-client"), ptr.To("op-principal")),
 				},
 			},
 			expectError:          true,
@@ -316,7 +323,7 @@ func TestFetchMSIIdentitiesInfoSyncer_SyncOnce(t *testing.T) {
 			serviceProviderCluster: newTestServiceProviderCluster(),
 			dataplaneCreds: &dataplane.ManagedIdentityCredentials{
 				ExplicitIdentities: []dataplane.UserAssignedIdentityCredentials{
-					uaCred(testOperatorIdentityResourceID, ptr.To("op-client"), ptr.To("op-principal")),
+					uaCred(testControlPlaneOperatorIdentityResourceID, ptr.To("op-client"), ptr.To("op-principal")),
 					{ResourceID: nil, ClientID: ptr.To("smi-client"), ObjectID: ptr.To("smi-principal")},
 				},
 			},
@@ -367,7 +374,7 @@ func TestFetchMSIIdentitiesInfoSyncer_SyncOnce(t *testing.T) {
 			mockDB := corecosmosstoragetesting.NewMockResourcesDBClient()
 			serviceProviderClusterCRUD := mockDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName)
 
-			var clusterListerItems []*coreapi.HCPOpenShiftCluster
+			var clusterListerItems []*coreapi.Cluster
 			if tc.cluster != nil {
 				clusterListerItems = append(clusterListerItems, tc.cluster)
 			}
@@ -440,7 +447,7 @@ func TestCollectMSIBasedIdentitiesToFetch(t *testing.T) {
 	t.Run("returns error when a control plane operator identity is nil", func(t *testing.T) {
 		t.Parallel()
 		cluster, _ := newMatchingClusterAndServiceProviderCluster()
-		cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators[testOperatorName] = nil
+		cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators[testControlPlaneOperatorName] = nil
 		_, err := syncer.collectMSIBasedIdentitiesToFetch(cluster)
 		require.Error(t, err, "a nil control plane operator identity should be rejected")
 	})
@@ -459,7 +466,7 @@ func TestCollectMSIBasedIdentitiesToFetch(t *testing.T) {
 		t.Parallel()
 		cluster, _ := newMatchingClusterAndServiceProviderCluster()
 		cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators["second-operator"] =
-			metadataapi.Must(azcorearm.ParseResourceID(strings.ToUpper(testOperatorIdentityResourceID)))
+			metadataapi.Must(azcorearm.ParseResourceID(strings.ToUpper(testControlPlaneOperatorIdentityResourceID)))
 		got, err := syncer.collectMSIBasedIdentitiesToFetch(cluster)
 		require.NoError(t, err, "sharing an identity should not error")
 		require.Len(t, got.controlPlaneOperators, 1, "operators sharing one identity should be de-duplicated")

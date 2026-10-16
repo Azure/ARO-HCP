@@ -2,3 +2,5 @@ approvers:
 - geoberle
 - tony-schndr
 - janboll
+labels:
+- area/mgmt-fixes

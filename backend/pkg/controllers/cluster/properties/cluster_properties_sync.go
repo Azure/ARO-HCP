@@ -49,6 +49,8 @@ type clusterPropertiesSyncer struct {
 
 var _ controllerutils.ClusterSyncer = (*clusterPropertiesSyncer)(nil)
 
+const ClusterPropertiesSyncControllerName = "ClusterPropertiesSync"
+
 // NewClusterPropertiesSyncController creates a controller that synchronizes
 // cluster properties from the HostedCluster ReadDesire mirror to Cosmos DB.
 func NewClusterPropertiesSyncController(
@@ -66,7 +68,7 @@ func NewClusterPropertiesSyncController(
 	}
 
 	return controllerutils.NewClusterWatchingController(
-		"ClusterPropertiesSync",
+		ClusterPropertiesSyncControllerName,
 		resourcesDBClient,
 		informers,
 		kubeApplierInformers,
@@ -89,7 +91,7 @@ func (c *clusterPropertiesSyncer) SyncOnce(ctx context.Context, key controllerut
 		return nil
 	}
 
-	hostedCluster, err := kubeapplierhelpers.GetCachedHostedClusterForCluster(ctx, c.readDesireLister, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	hostedCluster, _, err := kubeapplierhelpers.GetCachedHostedClusterForCluster(ctx, c.readDesireLister, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get HostedCluster from ReadDesire: %w", err))
 	}

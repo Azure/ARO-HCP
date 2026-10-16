@@ -64,6 +64,7 @@ type ClusterParams20260901 struct {
 	EncryptionKeyManagementMode   string
 	EncryptionType                string
 	VnetIntegrationSubnetID       string
+	DisableSwift                  bool // Test-only networking choice, independent of visibility.
 	KeyVaultVisibility            string
 	IngressType                   string
 	Network                       NetworkConfig
@@ -95,12 +96,14 @@ type NodePoolParams20260901 struct {
 	AvailabilityZone string
 	AutoRepair       bool
 	Tags             map[string]*string
+	EncryptionSetID  string
 }
 
 // --- Functions from deployment_params.go ---
 
 func NewDefaultClusterParams20260901() ClusterParams20260901 {
 	params := ClusterParams20260901{
+		DisableSwift:       true,
 		OpenshiftVersionId: DefaultOpenshiftControlPlaneVersionId(),
 		Network: NetworkConfig{
 			NetworkType: "OVNKubernetes",
@@ -139,6 +142,7 @@ func NewDefaultNodePoolParams20260901() NodePoolParams20260901 {
 		OSDiskSizeGiB:          int32(64),
 		DiskStorageAccountType: DefaultDiskStorageAccountType,
 		ChannelGroup:           DefaultOpenshiftNodePoolChannelGroup(),
+		AutoRepair:             true,
 		// NOTE: The E2E subscription must have the ExperimentalReleaseFeatures AFEC
 		// registered for these tags to be honored.
 		Tags: map[string]*string{
@@ -413,28 +417,7 @@ func (tc *perItOrDescribeTestContext) CreateNodePoolFromParam20260901(
 		nodePool,
 		timeout,
 	); err != nil {
-		// a separate context for console log download with its own timeout,
-		// to make sure logs are fetched even when the node pool deployment
-		// context is cancelled due to timeout
-		downloadTimeout := 5 * time.Minute
-		downloadCtx, downloadCancel := context.WithTimeoutCause(
-			ctx,
-			downloadTimeout,
-			fmt.Errorf("timeout '%f' minutes exceeded during DownloadAllVirtualMachineConsoleLogs for VMs in managed resource group %s", downloadTimeout.Minutes(), managedResourceGroupName))
-		defer downloadCancel()
-		computeFactory, clientErr := tc.GetARMComputeClientFactory(downloadCtx)
-		if clientErr == nil {
-			consoleLogErr := DownloadAllVirtualMachineConsoleLogs(
-				downloadCtx,
-				computeFactory,
-				managedResourceGroupName,
-				tc.LogDirPath)
-			if consoleLogErr != nil {
-				logger.Error(consoleLogErr, "failed to download VM console logs")
-			}
-		} else {
-			logger.Error(clientErr, "failed to get ARM compute client to download VM console logs")
-		}
+		tc.collectNodePoolFailureArtifacts(nodePoolCtx, logger, resourceGroupName, managedResourceGroupName, hcpClusterName, nodePoolName)
 
 		if errors.Is(err, context.DeadlineExceeded) {
 			return fmt.Errorf("failed to create NodePool %s, caused by: %w, error: %w", nodePoolName, context.Cause(nodePoolCtx), err)
@@ -446,6 +429,25 @@ func (tc *perItOrDescribeTestContext) CreateNodePoolFromParam20260901(
 }
 
 // --- Functions from hcp_helper.go ---
+
+// ClearUserAssignedIdentityValues20260901 resets every value in a
+// ManagedServiceIdentity's UserAssignedIdentities map to an empty struct,
+// preserving only the map keys (identity resource IDs).
+//
+// ARM requires that on a PUT of an existing resource, UserAssignedIdentities
+// map values for identities that should be kept unchanged are sent back as
+// empty objects ({}); the client/PrincipalID values a prior GET populated
+// must not be echoed back. Callers that Get a cluster, mutate an unrelated
+// field, and then BeginCreateOrUpdate the full object must call this first
+// or ARM rejects the request with error code InvalidIdentityValues.
+func ClearUserAssignedIdentityValues20260901(identity *hcpsdk20260901preview.ManagedServiceIdentity) {
+	if identity == nil {
+		return
+	}
+	for id := range identity.UserAssignedIdentities {
+		identity.UserAssignedIdentities[id] = &hcpsdk20260901preview.UserAssignedIdentity{}
+	}
+}
 
 func BuildHCPClusterFromParams20260901(
 	parameters ClusterParams20260901,
@@ -471,10 +473,11 @@ func BuildHCPClusterFromParams20260901(
 		}
 	}
 
+	tags, vnetIntegrationSubnetID := buildClusterNetworking(parameters.DisableSwift, parameters.Tags, parameters.VnetIntegrationSubnetID)
 	return hcpsdk20260901preview.HcpOpenShiftCluster{
 		Location: to.Ptr(location),
 		Identity: identity,
-		Tags:     parameters.Tags,
+		Tags:     tags,
 		Properties: &hcpsdk20260901preview.HcpOpenShiftClusterProperties{
 			Version: &hcpsdk20260901preview.VersionProfile{
 				ID:           to.Ptr(parameters.OpenshiftVersionId),
@@ -484,7 +487,7 @@ func BuildHCPClusterFromParams20260901(
 				ManagedResourceGroup:    to.Ptr(parameters.ManagedResourceGroupName),
 				NetworkSecurityGroupID:  to.Ptr(parameters.NsgResourceID),
 				SubnetID:                to.Ptr(parameters.SubnetResourceID),
-				VnetIntegrationSubnetID: to.Ptr(parameters.VnetIntegrationSubnetID),
+				VnetIntegrationSubnetID: vnetIntegrationSubnetID,
 				OperatorsAuthentication: &hcpsdk20260901preview.OperatorsAuthenticationProfile{
 					UserAssignedIdentities: uamis,
 				},
@@ -543,8 +546,12 @@ func CreateHCPClusterAndWait20260901(
 		defer cancel()
 	}
 
-	logger.Info("Starting HCP cluster creation (v20260901preview)", "clusterName", hcpClusterName, "resourceGroup", resourceGroupName)
-	poller, err := hcpClient.BeginCreateOrUpdate(ctx, resourceGroupName, hcpClusterName, cluster, nil)
+	logger.Info("Starting HCP cluster creation (v20260901preview)", "clusterName", hcpClusterName, "resourceGroup", resourceGroupName, "version", cluster.Properties.Version.ID, "channelGroup", cluster.Properties.Version.ChannelGroup)
+	createCtx, createAttempts := withRequestAttemptTracker(ctx)
+	poller, err := hcpClient.BeginCreateOrUpdate(createCtx, resourceGroupName, hcpClusterName, cluster, nil)
+	if err != nil {
+		poller, err = resumeInFlightHCPClusterCreate20260901(ctx, hcpClient, resourceGroupName, hcpClusterName, createAttempts, err)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("failed starting cluster creation %q in resourcegroup=%q: %w", hcpClusterName, resourceGroupName, err)
 	}
@@ -588,6 +595,16 @@ func UpdateHCPCluster20260901(
 ) (*hcpsdk20260901preview.HcpOpenShiftCluster, error) {
 	ctx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during UpdateHCPCluster20260901 for cluster %s in resource group %s", timeout.Minutes(), hcpClusterName, resourceGroupName))
 	defer cancel()
+
+	// A nil tag map means preserve existing tags, even when adding our deadline.
+	if update.Tags == nil {
+		current, err := hcpClient.Get(ctx, resourceGroupName, hcpClusterName, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed reading tags before updating cluster %q in resource group %q: %w", hcpClusterName, resourceGroupName, err)
+		}
+		update.Tags = current.Tags
+	}
+	update.Tags = updateTimeoutTags(update.Tags, metadataapi.TagClusterMaxUpdateDuration, timeout)
 
 	var hcpOpenShiftCluster *hcpsdk20260901preview.HcpOpenShiftCluster
 	var lastTransientErr error
@@ -662,6 +679,10 @@ func BuildNodePoolFromParams20260901(
 		},
 	}
 
+	if parameters.EncryptionSetID != "" {
+		nodePool.Properties.Platform.OSDisk.EncryptionSetID = to.Ptr(parameters.EncryptionSetID)
+	}
+
 	if parameters.AutoScaling != nil {
 		nodePool.Properties.AutoScaling = &hcpsdk20260901preview.NodePoolAutoScaling{
 			Min: to.Ptr(parameters.AutoScaling.Min),
@@ -685,7 +706,11 @@ func CreateNodePoolAndWait20260901(
 ) (*hcpsdk20260901preview.NodePool, error) {
 	ctx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during CreateNodePoolAndWait20260901 for nodepool %s in cluster %s in resource group %s", timeout.Minutes(), nodePoolName, hcpClusterName, resourceGroupName))
 	defer cancel()
-	poller, err := nodePoolsClient.BeginCreateOrUpdate(ctx, resourceGroupName, hcpClusterName, nodePoolName, nodePool, nil)
+	createCtx, createAttempts := withRequestAttemptTracker(ctx)
+	poller, err := nodePoolsClient.BeginCreateOrUpdate(createCtx, resourceGroupName, hcpClusterName, nodePoolName, nodePool, nil)
+	if err != nil {
+		poller, err = resumeInFlightNodePoolCreate20260901(ctx, nodePoolsClient, resourceGroupName, hcpClusterName, nodePoolName, createAttempts, err)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("failed starting nodepool creation %q for cluster %q in resourcegroup=%q: %w", nodePoolName, hcpClusterName, resourceGroupName, err)
 	}
@@ -765,6 +790,30 @@ func (tc *perItOrDescribeTestContext) get20260901ClientFactoryUnlocked(ctx conte
 	tc.clientFactory20260901 = clientFactory
 
 	return tc.clientFactory20260901, nil
+}
+
+// fallbackAdminRESTConfigTo20260901 re-requests admin credentials via the
+// CSR-based 2026-09-01-preview API version. Used when the legacy 20240610
+// admin credential path fails, so tests keep working once break-glass
+// issuance is no longer served for the stable 20240610 API version. Both the
+// originating 20240610 error and any 2026-09-01-preview error are wrapped so a
+// failure on either path stays diagnosable.
+func (tc *perItOrDescribeTestContext) fallbackAdminRESTConfigTo20260901(
+	ctx context.Context,
+	resourceGroupName string,
+	hcpClusterName string,
+	timeout time.Duration,
+	causeErr error,
+) (*rest.Config, error) {
+	fallbackFactory, fallbackErr := tc.Get20260901ClientFactory(ctx)
+	if fallbackErr != nil {
+		return nil, fmt.Errorf("20240610 credential request failed: %w; fallback client factory error: %w", causeErr, fallbackErr)
+	}
+	restConfig, fallbackErr := tc.GetAdminRESTConfigForHCPCluster20260901(ctx, fallbackFactory.NewHcpOpenShiftClustersClient(), resourceGroupName, hcpClusterName, timeout)
+	if fallbackErr != nil {
+		return nil, fmt.Errorf("20240610 credential request failed: %w; 2026-09-01-preview fallback failed: %w", causeErr, fallbackErr)
+	}
+	return restConfig, nil
 }
 
 func (tc *perItOrDescribeTestContext) GetAdminRESTConfigForHCPCluster20260901(
@@ -849,4 +898,55 @@ func (tc *perItOrDescribeTestContext) GetAdminRESTConfigForHCPCluster20260901(
 	tc.contextLock.Unlock()
 
 	return restConfig, nil
+}
+
+// resumeInFlightHCPClusterCreate20260901 returns a poller for a cluster create that
+// is already in flight when the create request was rejected with 409 Conflict.
+// See resumeInFlightCreate.
+func resumeInFlightHCPClusterCreate20260901(
+	ctx context.Context,
+	hcpClient *hcpsdk20260901preview.HcpOpenShiftClustersClient,
+	resourceGroupName string,
+	hcpClusterName string,
+	attempts *requestAttemptTracker,
+	createErr error,
+) (*runtime.Poller[hcpsdk20260901preview.HcpOpenShiftClustersClientCreateOrUpdateResponse], error) {
+	return resumeInFlightCreate(ctx, createErr, attempts, fmt.Sprintf("cluster %q in resourcegroup=%q", hcpClusterName, resourceGroupName),
+		func(ctx context.Context) (hcpsdk20260901preview.HcpOpenShiftClustersClientCreateOrUpdateResponse, string, error) {
+			resp, err := hcpClient.Get(ctx, resourceGroupName, hcpClusterName, nil)
+			if err != nil {
+				return hcpsdk20260901preview.HcpOpenShiftClustersClientCreateOrUpdateResponse{}, "", err
+			}
+			var state string
+			if resp.Properties != nil {
+				state = provisioningStateString(resp.Properties.ProvisioningState)
+			}
+			return hcpsdk20260901preview.HcpOpenShiftClustersClientCreateOrUpdateResponse(resp), state, nil
+		})
+}
+
+// resumeInFlightNodePoolCreate20260901 returns a poller for a node pool create that
+// is already in flight when the create request was rejected with 409 Conflict.
+// See resumeInFlightCreate.
+func resumeInFlightNodePoolCreate20260901(
+	ctx context.Context,
+	nodePoolsClient *hcpsdk20260901preview.NodePoolsClient,
+	resourceGroupName string,
+	hcpClusterName string,
+	nodePoolName string,
+	attempts *requestAttemptTracker,
+	createErr error,
+) (*runtime.Poller[hcpsdk20260901preview.NodePoolsClientCreateOrUpdateResponse], error) {
+	return resumeInFlightCreate(ctx, createErr, attempts, fmt.Sprintf("nodepool %q for cluster %q in resourcegroup=%q", nodePoolName, hcpClusterName, resourceGroupName),
+		func(ctx context.Context) (hcpsdk20260901preview.NodePoolsClientCreateOrUpdateResponse, string, error) {
+			resp, err := nodePoolsClient.Get(ctx, resourceGroupName, hcpClusterName, nodePoolName, nil)
+			if err != nil {
+				return hcpsdk20260901preview.NodePoolsClientCreateOrUpdateResponse{}, "", err
+			}
+			var state string
+			if resp.Properties != nil {
+				state = provisioningStateString(resp.Properties.ProvisioningState)
+			}
+			return hcpsdk20260901preview.NodePoolsClientCreateOrUpdateResponse(resp), state, nil
+		})
 }

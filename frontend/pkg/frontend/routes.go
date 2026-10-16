@@ -73,13 +73,23 @@ const (
 // https://github.com/cloud-and-ai-microsoft/resource-provider-contract/blob/master/v1.0/proxy-api-reference.md#exposing-available-operations
 var AvailableOperations = []coreapi.NamespaceOperation{
 	{
-		// This is a required operation that is not specific to ARO-HCP.
+		// Per the RPC, this is a required operation. It is not specific to ARO-HCP.
 		Name: path.Join(coreapi.ProviderNamespace, "register", coreapi.NamespaceOperationAction),
 		Display: coreapi.NamespaceOperationDisplay{
 			Provider:    ProviderDisplay,
 			Resource:    ProviderDisplay,
 			Operation:   "Register the Azure Red Hat OpenShift (ARO) Resource Provider",
 			Description: "Register the subscription for the Azure Red Hat OpenShift (ARO) resource provider and enable the creation of OpenShift clusters",
+		},
+	},
+	{
+		// Another required operation not mentioned in the RPC. It is not specific to ARO-HCP.
+		Name: path.Join(coreapi.ProviderNamespace, "unregister", coreapi.NamespaceOperationAction),
+		Display: coreapi.NamespaceOperationDisplay{
+			Provider:    ProviderDisplay,
+			Resource:    ProviderDisplay,
+			Operation:   "Unregister the Azure Red Hat OpenShift (ARO) Resource Provider",
+			Description: "Unregister the subscription from the Azure Red Hat OpenShift (ARO) resource provider",
 		},
 	},
 	{
@@ -330,7 +340,7 @@ func MuxPattern(method string, segments ...string) string {
 
 func (f *Frontend) routes(r prometheus.Registerer) http.Handler {
 	// Setup metrics middleware
-	metricsMiddleware := NewMetricsMiddleware(r, f.collector)
+	metricsMiddleware := NewMetricsMiddleware(r)
 
 	middlewareMux := NewMiddlewareMux(
 		MiddlewarePanic,
@@ -489,6 +499,7 @@ func (f *Frontend) routes(r prometheus.Registerer) http.Handler {
 	// These endpoints do not use middleware. They are only called
 	// from within the service cluster or via kubectl port forwarding.
 	mux.HandleFunc(MuxPattern(http.MethodGet, "healthz"), f.Healthz)
+	mux.HandleFunc(MuxPattern(http.MethodGet, "startupz"), f.Startupz)
 	mux.HandleFunc(MuxPattern(http.MethodGet, "location"), f.Location)
 
 	return mux

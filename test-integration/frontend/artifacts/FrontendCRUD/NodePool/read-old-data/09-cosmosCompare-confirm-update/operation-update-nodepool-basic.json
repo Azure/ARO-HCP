@@ -15,7 +15,7 @@
 		"resourceId": null,
 		"startTime": "2026-01-08T20:09:32.571015378Z",
 		"status": "Accepted",
-		"tenantId": "00000000-0000-0000-0000-000000000000",
+		"tenantId": "33333333-3333-3333-3333-333333333333",
 		"usesNewClusterDeletionApproach": false,
 		"usesNewExternalAuthDeletionApproach": false,
 		"usesNewNodePoolDeletionApproach": false

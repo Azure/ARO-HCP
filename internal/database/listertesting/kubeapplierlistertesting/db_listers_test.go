@@ -27,6 +27,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/kubeappliercosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/fleetlistertesting"
@@ -65,7 +66,7 @@ func TestDBApplyDesireLister_RoundTripViaMock(t *testing.T) {
 
 	clusterScoped := &kubeapplierapi.ApplyDesire{
 		CosmosMetadata: coreapi.CosmosMetadata{
-			ResourceID: mustParseID(t, kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(
+			ResourceID: mustParseID(t, kubeapplierapihelpers.ToClusterScopedApplyDesireResourceIDString(
 				testSub, testRG, testCluster, "cluster-d")),
 			PartitionKey: strings.ToLower(testMgmtID.String()),
 		},
@@ -77,7 +78,7 @@ func TestDBApplyDesireLister_RoundTripViaMock(t *testing.T) {
 	}
 	nodePoolScoped := &kubeapplierapi.ApplyDesire{
 		CosmosMetadata: coreapi.CosmosMetadata{
-			ResourceID: mustParseID(t, kubeapplierapi.ToNodePoolScopedApplyDesireResourceIDString(
+			ResourceID: mustParseID(t, kubeapplierapihelpers.ToNodePoolScopedApplyDesireResourceIDString(
 				testSub, testRG, testCluster, testNodePool, "np-d")),
 			PartitionKey: strings.ToLower(testMgmtID.String()),
 		},
@@ -99,7 +100,7 @@ func TestDBApplyDesireLister_RoundTripViaMock(t *testing.T) {
 	clients.Register(testMgmtID, mock)
 	lister := &fleetlistertesting.SliceManagementClusterLister{
 		ManagementClusters: []*fleetapi.ManagementCluster{
-			{CosmosMetadata: coreapi.CosmosMetadata{ResourceID: testMgmtID}, ResourceID: testMgmtID},
+			{CosmosMetadata: coreapi.CosmosMetadata{ResourceID: testMgmtID}},
 		},
 	}
 	l := &kubeapplierlistertesting.DBApplyDesireLister{Clients: clients, Lister: lister}

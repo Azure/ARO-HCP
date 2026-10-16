@@ -42,7 +42,7 @@ func TestServiceProviderClusterPropertiesSyncer_SyncOnce(t *testing.T) {
 
 	testCases := []struct {
 		name                           string
-		existingCluster                *coreapi.HCPOpenShiftCluster
+		existingCluster                *coreapi.Cluster
 		existingSPC                    *coreapi.ServiceProviderCluster
 		readDesires                    []*kubeapplierapi.ReadDesire
 		wantErr                        bool

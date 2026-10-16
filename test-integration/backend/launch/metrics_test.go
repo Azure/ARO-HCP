@@ -28,6 +28,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -40,10 +41,16 @@ import (
 
 	apisconfigv1 "github.com/Azure/ARO-HCP/backend/pkg/apis/config/v1"
 	"github.com/Azure/ARO-HCP/backend/pkg/app"
+	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	azureconfig "github.com/Azure/ARO-HCP/backend/pkg/azure/config"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/backups"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/fleetcosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -75,6 +82,7 @@ func TestBackendExposesMetrics(t *testing.T) {
 			metadataapi.Must(arohcpv1alpha1.NewCluster().ID("test-cluster").HREF(internalClusterID.String()).Build()),
 		}
 		clusterServiceMock.MockClusterServiceClient.EXPECT().ListProvisionShards().Return(ocm.NewSimpleProvisionShardListIterator(nil, nil)).AnyTimes()
+		clusterServiceMock.MockClusterServiceClient.EXPECT().GetClusterResources(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
 		cleanupCtx := utils.ContextWithLogger(context.Background(), integrationutils.DefaultLogger(t))
 		defer storageIntegrationTestInfo.Cleanup(cleanupCtx)
 		defer clusterServiceMock.Cleanup(cleanupCtx)
@@ -101,16 +109,27 @@ func TestBackendExposesMetrics(t *testing.T) {
 		cloudEnvironment, err := azureconfig.NewAzureCloudEnvironment(apisconfigv1.AzurePublicCloud, nil)
 		require.NoError(t, err)
 
+		// fake hardcoded identity for metrics test, so controllers that panic when neither hardcoded identity nor
+		// managed identities dataplane client builder are not set do not panic.
+		hardcodedIdentity := &azureclient.HardcodedIdentity{
+			ClientID:     "test-client-id",
+			ClientSecret: "test-client-secret",
+			PrincipalID:  "test-principal-id",
+			TenantID:     "test-tenant-id",
+		}
+
 		metricsListener := newMetricsTestListener(t)
 		metricsAddress := metricsListener.Addr().String()
 		backendOptions := &app.BackendOptions{
-			AppShortDescriptionName:            "backend",
-			AppVersion:                         "test",
-			AzureLocation:                      "fake-location",
-			LeaderElectionLock:                 newFakeLeaderElectionLock("metrics-test"),
-			ResourcesDBClient:                  resourcesDBClient,
-			BillingDBClient:                    billingDBClient,
-			FleetDBClient:                      fleetcosmosstoragetesting.NewMockFleetDBClient(),
+			AppShortDescriptionName: "backend",
+			AppVersion:              "test",
+			AzureLocation:           "fake-location",
+			LeaderElectionLock:      newFakeLeaderElectionLock("metrics-test"),
+			StorageFactory: &metricsTestStorageFactory{
+				resources: resourcesDBClient,
+				billing:   billingDBClient,
+				fleet:     fleetcosmosstoragetesting.NewMockFleetDBClient(),
+			},
 			ClustersServiceClient:              clusterServiceMock.MockClusterServiceClient,
 			MetricsRegisterer:                  registry,
 			MetricsGatherer:                    registry,
@@ -125,6 +144,7 @@ func TestBackendExposesMetrics(t *testing.T) {
 				BackupScheduleState:  coreapi.BackupScheduleStateEnabled,
 				BackupCadenceProfile: backups.BackupCadenceProduction,
 			},
+			HardcodedIdentity: hardcodedIdentity,
 		}
 
 		backendErrCh := make(chan error, 1)
@@ -161,8 +181,8 @@ func TestBackendExposesMetrics(t *testing.T) {
 	})
 }
 
-func newMetricsTestCluster(resourceID *azcorearm.ResourceID, provisioningState coreapi.ProvisioningState, createdAt *time.Time) *coreapi.HCPOpenShiftCluster {
-	return &coreapi.HCPOpenShiftCluster{
+func newMetricsTestCluster(resourceID *azcorearm.ResourceID, provisioningState coreapi.ProvisioningState, createdAt *time.Time) *coreapi.Cluster {
+	return &coreapi.Cluster{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   resourceID,
 			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
@@ -173,9 +193,9 @@ func newMetricsTestCluster(resourceID *azcorearm.ResourceID, provisioningState c
 				SystemData: &coreapi.SystemData{CreatedAt: createdAt},
 			},
 		},
-		ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 			ProvisioningState: provisioningState,
-			ClusterServiceID:  metadataapi.Ptr(metadataapi.Must(metadataapi.NewInternalID("/api/clusters_mgmt/v1/clusters/test-cluster"))),
+			ClusterServiceID:  metadataapihelpers.Ptr(metadataapi.Must(metadataapi.NewInternalID("/api/clusters_mgmt/v1/clusters/test-cluster"))),
 		},
 	}
 }
@@ -298,5 +318,25 @@ func (l *fakeLeaderElectionLock) store(record resourcelock.LeaderElectionRecord)
 		PreferredHolder:      record.PreferredHolder,
 	}
 	l.rawRecord = rawRecord
+	return nil
+}
+
+// The metrics smoke test shares its in-memory fixtures between all controllers.
+type metricsTestStorageFactory struct {
+	resources corecosmosstorage.ResourcesDBClient
+	billing   billingcosmosstorage.BillingDBClient
+	fleet     fleetcosmosstorage.FleetDBClient
+}
+
+func (f *metricsTestStorageFactory) ResourcesStorageClient(string) corecosmosstorage.ResourcesDBClient {
+	return f.resources
+}
+func (f *metricsTestStorageFactory) BillingStorageClient(string) billingcosmosstorage.BillingDBClient {
+	return f.billing
+}
+func (f *metricsTestStorageFactory) FleetStorageClient(string) fleetcosmosstorage.FleetDBClient {
+	return f.fleet
+}
+func (f *metricsTestStorageFactory) KubeApplierStorageClients(string) kubeappliercosmosstorage.KubeApplierDBClients {
 	return nil
 }

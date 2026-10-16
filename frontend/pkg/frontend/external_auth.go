@@ -32,6 +32,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/admission"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/conversion"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
@@ -55,11 +56,11 @@ func (f *Frontend) GetExternalAuth(writer http.ResponseWriter, request *http.Req
 	if err != nil {
 		return utils.TrackError(err)
 	}
-	responseBytes, err := coreapi.MarshalJSON(versionedInterface.NewHCPOpenShiftClusterExternalAuth(resultingInternalExternalAuth))
+	responseBytes, err := coreapi.MarshalJSON(versionedInterface.NewExternalAuth(resultingInternalExternalAuth))
 	if err != nil {
 		return utils.TrackError(err)
 	}
-	_, err = coreapi.WriteJSONResponse(writer, http.StatusOK, responseBytes)
+	_, err = coreapihelpers.WriteJSONResponse(writer, http.StatusOK, responseBytes)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -92,7 +93,7 @@ func (f *Frontend) ArmResourceListExternalAuths(writer http.ResponseWriter, requ
 		return utils.TrackError(err)
 	}
 	for _, externalAuth := range internalExternalAuthIterator.Items(ctx) {
-		resultingExternalExternalAuth := versionedInterface.NewHCPOpenShiftClusterExternalAuth(externalAuth)
+		resultingExternalExternalAuth := versionedInterface.NewExternalAuth(externalAuth)
 		jsonBytes, err := coreapi.MarshalJSON(resultingExternalExternalAuth)
 		if err != nil {
 			return utils.TrackError(err)
@@ -110,7 +111,7 @@ func (f *Frontend) ArmResourceListExternalAuths(writer http.ResponseWriter, requ
 		return utils.TrackError(err)
 	}
 
-	_, err = coreapi.WriteJSONResponse(writer, http.StatusOK, pagedResponse)
+	_, err = coreapihelpers.WriteJSONResponse(writer, http.StatusOK, pagedResponse)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -170,7 +171,7 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 	}
 }
 
-func decodeDesiredExternalAuthCreate(ctx context.Context) (*coreapi.HCPOpenShiftClusterExternalAuth, error) {
+func decodeDesiredExternalAuthCreate(ctx context.Context) (*coreapi.ExternalAuth, error) {
 	versionedInterface, err := VersionFromContext(ctx)
 	if err != nil {
 		return nil, utils.TrackError(err)
@@ -192,10 +193,11 @@ func decodeDesiredExternalAuthCreate(ctx context.Context) (*coreapi.HCPOpenShift
 		systemData.CreatedAt = ptr.To(time.Now().UTC())
 	}
 
-	externalExternalAuthFromRequest := versionedInterface.NewHCPOpenShiftClusterExternalAuth(nil)
+	externalExternalAuthFromRequest := versionedInterface.NewExternalAuth(nil)
 	if err := json.Unmarshal(body, &externalExternalAuthFromRequest); err != nil {
 		return nil, utils.TrackError(coreapi.NewInvalidRequestContentError(err))
 	}
+	externalExternalAuthFromRequest.ClearReadOnlyFields()
 	newInternalExternalAuth, err := externalExternalAuthFromRequest.ConvertToInternal(nil)
 	if err != nil {
 		return nil, utils.TrackError(err)
@@ -246,9 +248,9 @@ func (f *Frontend) createExternalAuth(writer http.ResponseWriter, request *http.
 	if err != nil {
 		return utils.TrackError(err)
 	}
-	clusterExternalAuths := make([]*coreapi.HCPOpenShiftClusterExternalAuth, 0)
-	for _, clusterExternalAuth := range externalAuthIterator.Items(ctx) {
-		clusterExternalAuths = append(clusterExternalAuths, clusterExternalAuth)
+	externalAuths := make([]*coreapi.ExternalAuth, 0)
+	for _, externalAuth := range externalAuthIterator.Items(ctx) {
+		externalAuths = append(externalAuths, externalAuth)
 	}
 	if err := externalAuthIterator.GetError(); err != nil {
 		return utils.TrackError(err)
@@ -259,7 +261,7 @@ func (f *Frontend) createExternalAuth(writer http.ResponseWriter, request *http.
 		// TODO set operations when a need appears for it.
 	}
 	externalAuthAdmissionContext := &admission.ExternalAuthAdmissionContext{
-		ClusterExternalAuths: clusterExternalAuths,
+		ExternalAuths: externalAuths,
 	}
 
 	validationErrs := validation.ValidateExternalAuthCreate(ctx, newInternalExternalAuth)
@@ -269,15 +271,11 @@ func (f *Frontend) createExternalAuth(writer http.ResponseWriter, request *http.
 	}
 
 	logger.Info(fmt.Sprintf("creating resource %s", resourceID))
-	cluster, err := f.getInternalClusterFromStorage(ctx, resourceID.Parent)
-	if err != nil {
+	if _, err := f.getInternalClusterFromStorage(ctx, resourceID.Parent); err != nil {
 		return utils.TrackError(err)
 	}
 	if err := checkForProvisioningStateConflict(ctx, f.resourcesDBClient, cosmosstorageutils.OperationRequestCreate, newInternalExternalAuth.ID, newInternalExternalAuth.Properties.ProvisioningState); err != nil {
 		return utils.TrackError(err)
-	}
-	if cluster.ServiceProviderProperties.ClusterServiceID == nil {
-		return utils.TrackError(fmt.Errorf("cluster %s has no ClusterServiceID", cluster.ID))
 	}
 
 	operationRequest := cosmosstorageutils.OperationRequestCreate
@@ -322,23 +320,23 @@ func (f *Frontend) createExternalAuth(writer http.ResponseWriter, request *http.
 	if err != nil {
 		return utils.TrackError(err)
 	}
-	resultingInternalExternalAuth, ok := resultingUncastInternalExternalAuth.(*coreapi.HCPOpenShiftClusterExternalAuth)
+	resultingInternalExternalAuth, ok := resultingUncastInternalExternalAuth.(*coreapi.ExternalAuth)
 	if !ok {
 		return fmt.Errorf("unexpected type %T", resultingUncastInternalExternalAuth)
 	}
-	responseBytes, err := coreapi.MarshalJSON(versionedInterface.NewHCPOpenShiftClusterExternalAuth(resultingInternalExternalAuth))
+	responseBytes, err := coreapi.MarshalJSON(versionedInterface.NewExternalAuth(resultingInternalExternalAuth))
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
-	_, err = coreapi.WriteJSONResponse(writer, http.StatusCreated, responseBytes)
+	_, err = coreapihelpers.WriteJSONResponse(writer, http.StatusCreated, responseBytes)
 	if err != nil {
 		return utils.TrackError(err)
 	}
 	return nil
 }
 
-func decodeDesiredExternalAuthReplace(ctx context.Context, oldInternalExternalAuth *coreapi.HCPOpenShiftClusterExternalAuth) (*coreapi.HCPOpenShiftClusterExternalAuth, error) {
+func decodeDesiredExternalAuthReplace(ctx context.Context, oldInternalExternalAuth *coreapi.ExternalAuth) (*coreapi.ExternalAuth, error) {
 	versionedInterface, err := VersionFromContext(ctx)
 	if err != nil {
 		return nil, utils.TrackError(err)
@@ -367,7 +365,7 @@ func decodeDesiredExternalAuthReplace(ctx context.Context, oldInternalExternalAu
 	// Initialize versionedRequestExternalAuth to include both
 	// non-zero default values and current read-only values.
 	// Exact user request
-	externalExternalAuthFromRequest := versionedInterface.NewHCPOpenShiftClusterExternalAuth(nil)
+	externalExternalAuthFromRequest := versionedInterface.NewExternalAuth(nil)
 	if err := json.Unmarshal(body, &externalExternalAuthFromRequest); err != nil {
 		return nil, utils.TrackError(coreapi.NewInvalidRequestContentError(err))
 	}
@@ -397,7 +395,7 @@ func decodeDesiredExternalAuthReplace(ctx context.Context, oldInternalExternalAu
 	return newInternalExternalAuth, nil
 }
 
-func (f *Frontend) updateExternalAuth(writer http.ResponseWriter, request *http.Request, oldInternalExternalAuth *coreapi.HCPOpenShiftClusterExternalAuth) error {
+func (f *Frontend) updateExternalAuth(writer http.ResponseWriter, request *http.Request, oldInternalExternalAuth *coreapi.ExternalAuth) error {
 	ctx := request.Context()
 
 	newInternalExternalAuth, err := decodeDesiredExternalAuthReplace(ctx, oldInternalExternalAuth)
@@ -408,7 +406,7 @@ func (f *Frontend) updateExternalAuth(writer http.ResponseWriter, request *http.
 	return f.updateExternalAuthInCosmos(ctx, writer, request, http.StatusOK, newInternalExternalAuth, oldInternalExternalAuth)
 }
 
-func decodeDesiredExternalAuthPatch(ctx context.Context, oldInternalExternalAuth *coreapi.HCPOpenShiftClusterExternalAuth) (*coreapi.HCPOpenShiftClusterExternalAuth, error) {
+func decodeDesiredExternalAuthPatch(ctx context.Context, oldInternalExternalAuth *coreapi.ExternalAuth) (*coreapi.ExternalAuth, error) {
 	versionedInterface, err := VersionFromContext(ctx)
 	if err != nil {
 		return nil, utils.TrackError(err)
@@ -428,8 +426,8 @@ func decodeDesiredExternalAuthPatch(ctx context.Context, oldInternalExternalAuth
 
 	// TODO find a way to represent the desired change without starting from internal state here (very confusing)
 	// TODO we appear to lack a test, but this seems to take an original, apply the patch and unmarshal the result, meaning the above patch step is just incorrect.
-	newExternalExternalAuth := versionedInterface.NewHCPOpenShiftClusterExternalAuth(oldInternalExternalAuth)
-	if err := coreapi.ApplyRequestBody(http.MethodPatch, body, newExternalExternalAuth); err != nil {
+	newExternalExternalAuth := versionedInterface.NewExternalAuth(oldInternalExternalAuth)
+	if err := coreapihelpers.ApplyRequestBody(http.MethodPatch, body, newExternalExternalAuth); err != nil {
 		return nil, utils.TrackError(err)
 	}
 	newInternalExternalAuth, err := newExternalExternalAuth.ConvertToInternal(oldInternalExternalAuth)
@@ -450,7 +448,7 @@ func decodeDesiredExternalAuthPatch(ctx context.Context, oldInternalExternalAuth
 	return newInternalExternalAuth, nil
 }
 
-func (f *Frontend) patchExternalAuth(writer http.ResponseWriter, request *http.Request, oldInternalExternalAuth *coreapi.HCPOpenShiftClusterExternalAuth) error {
+func (f *Frontend) patchExternalAuth(writer http.ResponseWriter, request *http.Request, oldInternalExternalAuth *coreapi.ExternalAuth) error {
 	// PATCH requests overlay the request body onto a resource struct
 	// that represents an existing resource to be updated.
 	ctx := request.Context()
@@ -463,7 +461,7 @@ func (f *Frontend) patchExternalAuth(writer http.ResponseWriter, request *http.R
 	return f.updateExternalAuthInCosmos(ctx, writer, request, http.StatusAccepted, newInternalExternalAuth, oldInternalExternalAuth)
 }
 
-func (f *Frontend) updateExternalAuthInCosmos(ctx context.Context, writer http.ResponseWriter, request *http.Request, httpStatusCode int, newInternalExternalAuth, oldInternalExternalAuth *coreapi.HCPOpenShiftClusterExternalAuth) error {
+func (f *Frontend) updateExternalAuthInCosmos(ctx context.Context, writer http.ResponseWriter, request *http.Request, httpStatusCode int, newInternalExternalAuth, oldInternalExternalAuth *coreapi.ExternalAuth) error {
 	logger := utils.LoggerFromContext(ctx)
 
 	versionedInterface, err := VersionFromContext(ctx)
@@ -487,7 +485,7 @@ func (f *Frontend) updateExternalAuthInCosmos(ctx context.Context, writer http.R
 	externalAuthUpdateOperation := cosmosstorageutils.NewOperation(
 		cosmosstorageutils.OperationRequestUpdate,
 		newInternalExternalAuth.ID,
-		ptr.Deref(newInternalExternalAuth.ServiceProviderProperties.ClusterServiceID, metadataapi.InternalID{}),
+		metadataapi.InternalID{}, // InternalID is no longer used by externalAuth operations
 		f.azureLocation,
 		request.Header.Get(coreapi.HeaderNameHomeTenantID),
 		request.Header.Get(coreapi.HeaderNameClientObjectID),
@@ -523,16 +521,16 @@ func (f *Frontend) updateExternalAuthInCosmos(ctx context.Context, writer http.R
 	if err != nil {
 		return utils.TrackError(err)
 	}
-	resultingInternalExternalAuth, ok := resultingUncastInternalExternalAuth.(*coreapi.HCPOpenShiftClusterExternalAuth)
+	resultingInternalExternalAuth, ok := resultingUncastInternalExternalAuth.(*coreapi.ExternalAuth)
 	if !ok {
 		return fmt.Errorf("unexpected type %T", resultingUncastInternalExternalAuth)
 	}
-	responseBytes, err := coreapi.MarshalJSON(versionedInterface.NewHCPOpenShiftClusterExternalAuth(resultingInternalExternalAuth))
+	responseBytes, err := coreapi.MarshalJSON(versionedInterface.NewExternalAuth(resultingInternalExternalAuth))
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
-	_, err = coreapi.WriteJSONResponse(writer, httpStatusCode, responseBytes)
+	_, err = coreapihelpers.WriteJSONResponse(writer, httpStatusCode, responseBytes)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -581,7 +579,7 @@ func (f *Frontend) DeleteExternalAuth(writer http.ResponseWriter, request *http.
 	return nil
 }
 
-func (f *Frontend) addDeleteExternalAuthToTransaction(ctx context.Context, writer http.ResponseWriter, request *http.Request, transaction cosmosstorageutils.DBTransaction, externalAuth *coreapi.HCPOpenShiftClusterExternalAuth) error {
+func (f *Frontend) addDeleteExternalAuthToTransaction(ctx context.Context, writer http.ResponseWriter, request *http.Request, transaction cosmosstorageutils.DBTransaction, externalAuth *coreapi.ExternalAuth) error {
 	correlationData, err := CorrelationDataFromContext(ctx)
 	if err != nil {
 		return utils.TrackError(err)
@@ -640,7 +638,7 @@ func (f *Frontend) addDeleteExternalAuthToTransaction(ctx context.Context, write
 	return nil
 }
 
-func (f *Frontend) getInternalExternalAuthFromStorage(ctx context.Context, resourceID *azcorearm.ResourceID) (*coreapi.HCPOpenShiftClusterExternalAuth, error) {
+func (f *Frontend) getInternalExternalAuthFromStorage(ctx context.Context, resourceID *azcorearm.ResourceID) (*coreapi.ExternalAuth, error) {
 	internalExternalAuth, err := f.resourcesDBClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).ExternalAuth(resourceID.Parent.Name).Get(ctx, resourceID.Name)
 	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil, coreapi.NewResourceNotFoundError(resourceID)

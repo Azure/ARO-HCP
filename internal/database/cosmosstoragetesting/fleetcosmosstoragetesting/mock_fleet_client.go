@@ -26,6 +26,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
@@ -58,6 +59,7 @@ func NewMockFleetDBClient() *MockFleetDBClient {
 //   - *fleetapi.ManagementCluster
 //   - *fleetapi.ManagementClusterScheduling
 //   - *fleetapi.HCPResourceRequirements
+//   - *fleetapi.ControlPlaneVersionRollout
 func NewMockFleetDBClientWithResources(ctx context.Context, resources []any) (*MockFleetDBClient, error) {
 	mock := NewMockFleetDBClient()
 	for i, r := range resources {
@@ -78,6 +80,8 @@ func (m *MockFleetDBClient) addResource(ctx context.Context, resource any) error
 		return m.addManagementClusterScheduling(ctx, r)
 	case *fleetapi.HCPResourceRequirements:
 		return m.addHCPResourceRequirements(ctx, r)
+	case *fleetapi.ControlPlaneVersionRollout:
+		return m.addControlPlaneVersionRollout(ctx, r)
 	default:
 		return fmt.Errorf("unsupported resource type for MockFleetDBClient: %T", resource)
 	}
@@ -119,6 +123,16 @@ func (m *MockFleetDBClient) addHCPResourceRequirements(ctx context.Context, requ
 	return err
 }
 
+func (m *MockFleetDBClient) addControlPlaneVersionRollout(ctx context.Context, rollout *fleetapi.ControlPlaneVersionRollout) error {
+	ystreamChannel := rollout.GetStampIdentifier()
+	if len(ystreamChannel) == 0 {
+		return fmt.Errorf("control plane version rollout has empty y-stream channel identifier")
+	}
+	crud := m.ControlPlaneVersionRollouts()
+	_, err := crud.Create(ctx, rollout, nil)
+	return err
+}
+
 // --- corecosmosstoragetesting.MockDocumentStore implementation ---
 
 func (m *MockFleetDBClient) GetDocument(cosmosID string) (json.RawMessage, bool) {
@@ -136,11 +150,7 @@ func (m *MockFleetDBClient) StoreDocument(cosmosID string, data json.RawMessage)
 }
 
 func (m *MockFleetDBClient) ReadChangeFeed(ctx context.Context, options *azcosmos.ChangeFeedOptions) (azcosmos.ChangeFeedResponse, error) {
-	var continuation string
-	if options != nil && options.Continuation != nil {
-		continuation = *options.Continuation
-	}
-	items, nextToken, hasNew := m.changeFeed.Read(continuation)
+	items, nextToken, hasNew := m.changeFeed.Read(options)
 	return corecosmosstoragetesting.BuildMockChangeFeedResponse(items, nextToken, hasNew), nil
 }
 
@@ -241,6 +251,16 @@ func (m *MockFleetDBClient) HCPResourceRequirements() cosmosstorageutils.Resourc
 	)
 }
 
+func (m *MockFleetDBClient) ControlPlaneVersionRollouts() cosmosstorageutils.ValidatingResourceCRUD[fleetapi.ControlPlaneVersionRollout, *fleetapi.ControlPlaneVersionRollout] {
+	inner := newMockFleetResourceCRUD[fleetapi.ControlPlaneVersionRollout, *fleetapi.ControlPlaneVersionRollout, cosmosstorageutils.GenericDocument[fleetapi.ControlPlaneVersionRollout]](
+		m, nil, fleetapi.ControlPlaneVersionRolloutResourceType,
+	)
+	return cosmosstorageutils.NewValidatingCRUD(inner,
+		validation.ValidateControlPlaneVersionRolloutCreate,
+		validation.ValidateControlPlaneVersionRolloutUpdate,
+	)
+}
+
 func (m *MockFleetDBClient) GlobalListers() fleetcosmosstorage.FleetGlobalListers {
 	return &mockFleetGlobalListers{client: m}
 }
@@ -253,7 +273,7 @@ type mockStampsCRUD struct {
 }
 
 func (s *mockStampsCRUD) ManagementClusters(stampIdentifier string) fleetcosmosstorage.ManagementClustersCRUD {
-	parentResourceID, err := fleetapi.ToStampResourceID(stampIdentifier)
+	parentResourceID, err := fleetapihelpers.ToStampResourceID(stampIdentifier)
 	if err != nil {
 		panic(fmt.Sprintf("invalid stamp identifier %q: %v", stampIdentifier, err))
 	}
@@ -279,7 +299,7 @@ type mockManagementClustersCRUD struct {
 }
 
 func (m *mockManagementClustersCRUD) Controllers() cosmosstorageutils.ResourceCRUD[coreapi.Controller, *coreapi.Controller] {
-	managementClusterResourceID, err := fleetapi.ToManagementClusterResourceID(m.stampIdentifier)
+	managementClusterResourceID, err := fleetapihelpers.ToManagementClusterResourceID(m.stampIdentifier)
 	if err != nil {
 		panic(fmt.Sprintf("invalid stamp identifier %q: %v", m.stampIdentifier, err))
 	}
@@ -289,7 +309,7 @@ func (m *mockManagementClustersCRUD) Controllers() cosmosstorageutils.ResourceCR
 }
 
 func (m *mockManagementClustersCRUD) Scheduling() cosmosstorageutils.ResourceCRUD[fleetapi.ManagementClusterScheduling, *fleetapi.ManagementClusterScheduling] {
-	managementClusterResourceID, err := fleetapi.ToManagementClusterResourceID(m.stampIdentifier)
+	managementClusterResourceID, err := fleetapihelpers.ToManagementClusterResourceID(m.stampIdentifier)
 	if err != nil {
 		panic(fmt.Sprintf("invalid stamp identifier %q: %v", m.stampIdentifier, err))
 	}
@@ -317,5 +337,26 @@ func (g *mockFleetGlobalListers) ManagementClusters() cosmosstorageutils.GlobalL
 	return corecosmosstoragetesting.NewMockGlobalLister[fleetapi.ManagementCluster, cosmosstorageutils.GenericDocument[fleetapi.ManagementCluster]](
 		g.client,
 		[]azcorearm.ResourceType{fleetapi.ManagementClusterResourceType},
+	)
+}
+
+func (g *mockFleetGlobalListers) ManagementClusterSchedulings() cosmosstorageutils.GlobalLister[fleetapi.ManagementClusterScheduling] {
+	return corecosmosstoragetesting.NewMockGlobalLister[fleetapi.ManagementClusterScheduling, cosmosstorageutils.GenericDocument[fleetapi.ManagementClusterScheduling]](
+		g.client,
+		[]azcorearm.ResourceType{fleetapi.ManagementClusterSchedulingResourceType},
+	)
+}
+
+func (g *mockFleetGlobalListers) ControlPlaneVersionRollouts() cosmosstorageutils.GlobalLister[fleetapi.ControlPlaneVersionRollout] {
+	return corecosmosstoragetesting.NewMockGlobalLister[fleetapi.ControlPlaneVersionRollout, cosmosstorageutils.GenericDocument[fleetapi.ControlPlaneVersionRollout]](
+		g.client,
+		[]azcorearm.ResourceType{fleetapi.ControlPlaneVersionRolloutResourceType},
+	)
+}
+
+func (g *mockFleetGlobalListers) HCPResourceRequirements() cosmosstorageutils.GlobalLister[fleetapi.HCPResourceRequirements] {
+	return corecosmosstoragetesting.NewMockGlobalLister[fleetapi.HCPResourceRequirements, cosmosstorageutils.GenericDocument[fleetapi.HCPResourceRequirements]](
+		g.client,
+		[]azcorearm.ResourceType{fleetapi.HCPResourceRequirementsResourceType},
 	)
 }

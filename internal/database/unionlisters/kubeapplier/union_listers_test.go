@@ -26,6 +26,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/kubeapplierlistertesting"
@@ -74,17 +75,17 @@ func applySublisters(t *testing.T) (a, b *kubeapplierlistertesting.SliceApplyDes
 	a = &kubeapplierlistertesting.SliceApplyDesireLister{
 		Desires: []*kubeapplierapi.ApplyDesire{
 			newApplyDesire(t,
-				kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(testSub, testRG, testCluster, "a1"),
+				kubeapplierapihelpers.ToClusterScopedApplyDesireResourceIDString(testSub, testRG, testCluster, "a1"),
 				mgmtAID),
 			newApplyDesire(t,
-				kubeapplierapi.ToNodePoolScopedApplyDesireResourceIDString(testSub, testRG, testCluster, testNodePool, "a2"),
+				kubeapplierapihelpers.ToNodePoolScopedApplyDesireResourceIDString(testSub, testRG, testCluster, testNodePool, "a2"),
 				mgmtAID),
 		},
 	}
 	b = &kubeapplierlistertesting.SliceApplyDesireLister{
 		Desires: []*kubeapplierapi.ApplyDesire{
 			newApplyDesire(t,
-				kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(testSub, testRG, "other-cluster", "b1"),
+				kubeapplierapihelpers.ToClusterScopedApplyDesireResourceIDString(testSub, testRG, "other-cluster", "b1"),
 				mgmtBID),
 		},
 	}
@@ -106,17 +107,17 @@ func readSublisters(t *testing.T) (a, b *kubeapplierlistertesting.SliceReadDesir
 	a = &kubeapplierlistertesting.SliceReadDesireLister{
 		Desires: []*kubeapplierapi.ReadDesire{
 			newReadDesire(t,
-				kubeapplierapi.ToClusterScopedReadDesireResourceIDString(testSub, testRG, testCluster, "a1"),
+				kubeapplierapihelpers.ToClusterScopedReadDesireResourceIDString(testSub, testRG, testCluster, "a1"),
 				mgmtAID),
 			newReadDesire(t,
-				kubeapplierapi.ToNodePoolScopedReadDesireResourceIDString(testSub, testRG, testCluster, testNodePool, "a2"),
+				kubeapplierapihelpers.ToNodePoolScopedReadDesireResourceIDString(testSub, testRG, testCluster, testNodePool, "a2"),
 				mgmtAID),
 		},
 	}
 	b = &kubeapplierlistertesting.SliceReadDesireLister{
 		Desires: []*kubeapplierapi.ReadDesire{
 			newReadDesire(t,
-				kubeapplierapi.ToClusterScopedReadDesireResourceIDString(testSub, testRG, "other-cluster", "b1"),
+				kubeapplierapihelpers.ToClusterScopedReadDesireResourceIDString(testSub, testRG, "other-cluster", "b1"),
 				mgmtBID),
 		},
 	}
@@ -293,7 +294,7 @@ func TestUnionApplyDesireLister_AddReplaces(t *testing.T) {
 	a2 := &kubeapplierlistertesting.SliceApplyDesireLister{
 		Desires: []*kubeapplierapi.ApplyDesire{
 			newApplyDesire(t,
-				kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(testSub, testRG, testCluster, "replacement"),
+				kubeapplierapihelpers.ToClusterScopedApplyDesireResourceIDString(testSub, testRG, testCluster, "replacement"),
 				mgmtAID),
 		},
 	}

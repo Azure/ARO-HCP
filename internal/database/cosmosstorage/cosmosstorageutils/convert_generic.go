@@ -19,6 +19,8 @@ import (
 	"strings"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
 )
 
 const operationTimeToLive = 604800 // 7 days
@@ -125,11 +127,8 @@ func CosmosGenericToInternal[InternalAPIType any](cosmosObj *GenericDocument[Int
 	// this isn't pretty, but on balance it's a better choice so that we can share all the rest.
 	switch castObj := any(ret).(type) {
 	case *coreapi.Subscription:
-		if castObj.CosmosMetadata.ResourceID == nil && castObj.ResourceID != nil {
-			castObj.CosmosMetadata.ResourceID = castObj.ResourceID
-		}
-		if castObj.CosmosMetadata.ResourceID == nil && cosmosObj.ResourceID != nil {
-			castObj.CosmosMetadata.ResourceID = cosmosObj.ResourceID
+		if castObj.ResourceID == nil && cosmosObj.ResourceID != nil {
+			castObj.ResourceID = cosmosObj.ResourceID
 		}
 		castObj.LastUpdated = cosmosObj.CosmosTimestamp
 	case coreapi.Subscription:
@@ -141,6 +140,16 @@ func CosmosGenericToInternal[InternalAPIType any](cosmosObj *GenericDocument[Int
 			ret.SetResourceID(cosmosObj.ResourceID)
 		} else {
 			return nil, fmt.Errorf("internalObj is missing a resourceID: %T: %q", cosmosObj, cosmosObj.ID)
+		}
+	}
+
+	if rollout, ok := any(ret).(*fleetapi.ControlPlaneVersionRollout); ok {
+		// Legacy documents encode the profile in their name. CosmosRolloutVersionMigration
+		// persists the converted identity through a read/write cycle.
+		if rollout.Spec.Version == (coreapi.VersionProfile{}) {
+			if profile, err := fleetapihelpers.RolloutVersionFromName(rollout.ResourceID.Name); err == nil {
+				rollout.Spec.Version = profile
+			}
 		}
 	}
 
@@ -159,6 +168,7 @@ type Defaulter interface {
 // the iteration falls through to the next candidate.
 var objectPartitionKeyDerivers = []PartitionKeyDeriver{
 	KubeApplierPartitionKeyDeriver{},
+	ProviderNamespacePartitionKeyDeriver{},
 	FleetPartitionKeyDeriver{},
 	SubscriptionPartitionKeyDeriver{},
 }

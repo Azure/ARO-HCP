@@ -1,0 +1,34 @@
+database: ServiceLogs
+kql: |
+  let _startTime = datetime(2025-01-01T00:00:00.0000000Z);
+  let _endTime = datetime(2025-01-02T00:00:00.0000000Z);
+  // Extract cluster resource ID from frontend logs
+  let cluster_resource_id = (
+      database('ServiceLogs').table('frontendLogs')
+      | where timestamp between (_startTime .. _endTime)
+      | where resource_group == 'test-rg'
+      | where msg has 'creating resource'
+      | extend resource_id = extract(@"creating resource ([A-Za-z0-9\-\.\/]+)", 1, tostring(log))
+      | distinct tostring(resource_id)
+      | limit 1
+  );
+  // API Layer Logs - Frontend and Backend services
+  union
+      (
+          // Frontend logs: ARO HCP frontend API operations for this resource group
+          database('ServiceLogs').table('frontendLogs')
+          | where timestamp between (_startTime .. _endTime)
+          | where resource_group == 'test-rg'
+              or resource_name in~ ('773f5d4a-cd7a-4e25-ac56-58130cbed2d2', 'operation''quoted')
+          | project timestamp, container_name, msg, log
+      ),
+      (
+          // Backend logs: ARO HCP backend service operations for this cluster
+          database('ServiceLogs').table('backendLogs')
+          | where timestamp between (_startTime .. _endTime)
+          | where resource_group == 'test-rg'
+          | project timestamp, container_name, msg, log
+      )
+  | order by timestamp asc
+name: detailedApiLayerLogs
+unlimited: false

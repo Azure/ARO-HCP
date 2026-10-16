@@ -57,6 +57,9 @@ type ClusterServiceClientSpec interface {
 	// GetClusterHypershiftDetails sends a GET request to fetch a cluster's hypershift details from Cluster Service.
 	GetClusterHypershiftDetails(ctx context.Context, internalID InternalID) (*cmv1.HypershiftConfig, error)
 
+	// GetClusterResources sends a GET request to fetch cluster resources from Cluster Service.
+	GetClusterResources(ctx context.Context, internalID InternalID) (*arohcpv1alpha1.ClusterResources, error)
+
 	// PostCluster sends a POST request to create a cluster in Cluster Service.
 	PostCluster(ctx context.Context, clusterBuilder *arohcpv1alpha1.ClusterBuilder) (*arohcpv1alpha1.Cluster, error)
 
@@ -176,7 +179,7 @@ func NewClusterServiceClient(conn *sdk.Connection) ClusterServiceClientSpec {
 }
 
 // resolveClusterLinks replaces link objects with full objects that are
-// necessary to fully construct an HCPOpenShiftCluster model.
+// necessary to fully construct a Cluster model.
 func resolveClusterLinks(ctx context.Context, conn *sdk.Connection, cluster *arohcpv1alpha1.Cluster) (*arohcpv1alpha1.Cluster, error) {
 	builder := arohcpv1alpha1.NewCluster().Copy(cluster)
 
@@ -200,7 +203,7 @@ func resolveClusterLinks(ctx context.Context, conn *sdk.Connection, cluster *aro
 }
 
 // resolveNodePoolLinks replaces link objects with full objects that are
-// necessary to fully construct an HCPOpenShiftClusterNodePool model.
+// necessary to fully construct a NodePool model.
 func resolveNodePoolLinks(ctx context.Context, conn *sdk.Connection, nodePool *arohcpv1alpha1.NodePool) (*arohcpv1alpha1.NodePool, error) {
 	builder := arohcpv1alpha1.NewNodePool().Copy(nodePool)
 
@@ -370,6 +373,20 @@ func (csc *clusterServiceClient) GetClusterHypershiftDetails(ctx context.Context
 		return nil, fmt.Errorf("empty response body")
 	}
 	return hypershiftConfig, nil
+}
+
+func (csc *clusterServiceClient) GetClusterResources(ctx context.Context,
+	internalID InternalID) (*arohcpv1alpha1.ClusterResources, error) {
+	client, ok := getAroHCPClusterClient(internalID, csc.conn)
+	if !ok {
+		return nil, fmt.Errorf("OCM path is not a cluster: %s", internalID)
+	}
+
+	resp, err := client.Resources().Get().SendContext(ctx)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+	return resp.Body(), nil
 }
 
 func (csc *clusterServiceClient) PostCluster(ctx context.Context, clusterBuilder *arohcpv1alpha1.ClusterBuilder) (*arohcpv1alpha1.Cluster, error) {

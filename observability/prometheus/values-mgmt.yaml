@@ -1,3 +1,4 @@
+schedulingRole: "infra"
 kube-prometheus-stack:
   fullnameOverride: "prometheus"
   crds:
@@ -74,6 +75,8 @@ kube-prometheus-stack:
   cleanPrometheusOperatorObjectNames: true
   # config for kube-state-metrics subchart that is imported by the kube-prometheus-stack chart conditionally
   kube-state-metrics:
+    metricLabelsAllowlist:
+    - nodes=[node.kubernetes.io/instance-type,kubernetes.azure.com/agentpool]
     image:
       registry: "{{ .mgmt.prometheus.kubeStateMetrics.image.registry }}"
       repository: "{{ .mgmt.prometheus.kubeStateMetrics.image.repository }}"

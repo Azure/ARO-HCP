@@ -31,6 +31,7 @@ import (
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/cmd/kubelogin"
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/cmd/mc"
 	mustgather "github.com/Azure/ARO-HCP/tooling/hcpctl/cmd/must-gather"
+	ocadminspectcmd "github.com/Azure/ARO-HCP/tooling/hcpctl/cmd/oc-adm-inspect"
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/cmd/sc"
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/cmd/snapshot"
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/cmd/version"
@@ -95,6 +96,7 @@ and hosted control plane services for operational and emergency scenarios.`,
 		sc.NewCommand,
 		hcp.NewCommand,
 		mustgather.NewCommand,
+		ocadminspectcmd.NewCommand,
 		datadumptogit.NewCommand,
 		snapshot.NewCommand,
 	}

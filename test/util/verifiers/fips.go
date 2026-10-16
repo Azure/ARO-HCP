@@ -28,6 +28,8 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/util/retry"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 )
 
 type verifyFIPSEnabledImpl struct{}
@@ -108,6 +110,19 @@ func checkNodeFIPSMode(ctx context.Context, kubeClient *kubernetes.Clientset, no
 					Name:    "fips-check",
 					Image:   "mcr.microsoft.com/azurelinux/distroless/debug:3.0",
 					Command: []string{"busybox", "cat", "/proc/sys/crypto/fips_enabled"},
+					Env: []corev1.EnvVar{
+						{Name: "HOME", Value: "/tmp"},
+					},
+					SecurityContext: &corev1.SecurityContext{
+						RunAsNonRoot:             to.Ptr(true),
+						AllowPrivilegeEscalation: to.Ptr(false),
+						Capabilities: &corev1.Capabilities{
+							Drop: []corev1.Capability{"ALL"},
+						},
+						SeccompProfile: &corev1.SeccompProfile{
+							Type: corev1.SeccompProfileTypeRuntimeDefault,
+						},
+					},
 				},
 			},
 		},
@@ -164,14 +179,13 @@ func checkNodeFIPSMode(ctx context.Context, kubeClient *kubernetes.Clientset, no
 	}
 
 	// Read pod logs. The pod already reached PodSucceeded, so any GetLogs
-	// failure is transient and worth retrying. ~2s, 4s, 8s, 16s between
-	// attempts (capped at 30s), about a minute total. Retries stop early
+	// failure is transient and worth retrying. 2s, 4s, 8s, 16s, 32s between
+	// six attempts, about a minute total. Retries stop early
 	// if the test context is cancelled.
 	logBackoff := wait.Backoff{
 		Duration: 2 * time.Second,
 		Factor:   2.0,
-		Steps:    5,
-		Cap:      30 * time.Second,
+		Steps:    6,
 	}
 	var logs []byte
 	logAttempt := 0

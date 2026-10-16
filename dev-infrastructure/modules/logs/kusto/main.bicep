@@ -2,7 +2,7 @@
 param location string = resourceGroup().location
 
 @description('The SKU of the cluster')
-param sku string = 'Standard_D12_v2'
+param sku string
 
 @description('Tier used')
 param tier string = 'Basic'
@@ -28,8 +28,26 @@ param viewerGroups string
 @description('CSV separated list of identities (apps/managed identities) to assign viewer in the Kusto cluster')
 param viewerIdentities string = ''
 
+@description('Name of the global rollout MSI granted AllDatabasesAdmin so the KustoEntityGroups pipeline step (kustoctl) can sync entity groups. Empty disables the grant.')
+param globalMSIName string = ''
+
+@description('Resource group of the global rollout MSI (same subscription as this deployment). Required when globalMSIName is set.')
+param globalMSIResourceGroup string = ''
+
+@description('ARO-HCP environment (int, stg, prod) tagged on the Kusto cluster so kustoctl can scope entity-group discovery per environment.')
+param environment string = ''
+
 @description('Name of the Kusto cluster to create')
 param kustoName string
+
+@description('ARO-HCP geography short ID used for global resource discovery')
+param geoShortId string
+
+@description('Whether to grant the global Grafana identity Viewer access to ServiceLogs')
+param enableGrafanaIntegration bool = false
+
+@description('Global Azure Managed Grafana principal ID')
+param grafanaPrincipalId string = ''
 
 @description('Minimum number of nodes for autoscale')
 param autoScaleMin int
@@ -47,6 +65,7 @@ var db = {
 }
 
 var databases = [db.serviceLogs, db.hostedControlPlaneLogs, db.monitoringEvents]
+var hasGrafana = enableGrafanaIntegration && grafanaPrincipalId != '' && grafanaPrincipalId != '__grafanaPrincipalId__'
 
 var dummyScript = '.create-or-alter function with (docstring = \'dummy function to run last and to remove permission\') dummyFunction() {print \'dummy\'}'
 
@@ -60,8 +79,15 @@ var allServiceLogsTablesKQL = {
   kubernetesEvents: loadTextContent('tables/kubernetesEvents.kql')
   aksEvents: loadTextContent('tables/aksEvents.kql')
   systemdLogs: loadTextContent('tables/systemdLogs.kql')
+  azureVnetLogs: loadTextContent('tables/azureVnetLogs.kql')
   resourceSnapshots: loadTextContent('tables/kubernetesResourceSnapshots.kql')
   cosmosResourceSnapshots: loadTextContent('tables/cosmosResourceSnapshots.kql')
+  ciJobOutcomes: loadTextContent('tables/ciJobOutcomes.kql')
+  ciDiscoveredJobs: loadTextContent('tables/ciDiscoveredJobs.kql')
+  ciProcessedJobs: loadTextContent('tables/ciProcessedJobs.kql')
+  ciTestNames: loadTextContent('tables/ciTestNames.kql')
+  ciTestResults: loadTextContent('tables/ciTestResults.kql')
+  maestroMqttConnections: loadTextContent('tables/maestroMqttConnections.kql')
 }
 
 var allCustomerLogsTablesKQL = {
@@ -79,11 +105,15 @@ module cluster 'cluster.bicep' = {
   params: {
     location: location
     kustoName: kustoName
+    geoShortId: geoShortId
     sku: sku
     tier: tier
     adminGroups: adminGroups
     viewerGroups: viewerGroups
     viewerIdentities: viewerIdentities
+    globalMSIName: globalMSIName
+    globalMSIResourceGroup: globalMSIResourceGroup
+    environment: environment
     autoScaleMin: autoScaleMin
     autoScaleMax: autoScaleMax
     enableAutoScale: enableAutoScale
@@ -189,8 +219,29 @@ module databaseUserScripts 'database-users.bicep' = [
   }
 ]
 
-// 5. Remove the caller principal
+// 5. Grafana ServiceLogs access
+module grafanaServiceLogsAccess 'grant-access.bicep' = if (hasGrafana) {
+  name: 'grafana-serviceLogs-viewer'
+  params: {
+    kustoName: kustoName
+    databaseName: db.serviceLogs
+    readAccessPrincipalIds: [grafanaPrincipalId]
+  }
+  dependsOn: [serviceLogsTables]
+}
+
+// 6. Remove the caller principal
 // THIS MUST BE THE LAST SCRIPT TO RUN
+// The table scripts above use RetainPermissionOnScriptCompletion, so the
+// principal that runs them keeps database Admin on each logs database after
+// they finish. This dummy script runs LAST with RemovePermissionOnScriptCompletion
+// to strip that retained, per-database Admin so no standing admin accumulates on
+// the Kusto databases.
+// The strip is database-scoped and only affects that deployment principal; it
+// does not touch the cluster-scoped AllDatabasesAdmin principalAssignment that
+// cluster.bicep grants the global rollout MSI, which is what lets the
+// KustoEntityGroups pipeline step (kustoctl) sync entity groups on all three
+// databases (including MonitoringEvents) after deployment.
 module removePermission 'script.bicep' = [
   for (database, i) in databases: {
     name: '${database}-removePermission-${i}'
@@ -207,6 +258,7 @@ module removePermission 'script.bicep' = [
       serviceLogsTables
       hostedControlPlaneLogsTables
       monitoringEventsTables
+      grafanaServiceLogsAccess
     ]
   }
 ]

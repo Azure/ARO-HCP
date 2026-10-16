@@ -31,11 +31,12 @@ import (
 // These are intended to feed SharedInformers via ListerWatchers.
 type ResourcesGlobalListers interface {
 	Subscriptions() cosmosstorageutils.GlobalLister[coreapi.Subscription]
-	Clusters() cosmosstorageutils.GlobalLister[coreapi.HCPOpenShiftCluster]
-	NodePools() cosmosstorageutils.GlobalLister[coreapi.HCPOpenShiftClusterNodePool]
-	ExternalAuths() cosmosstorageutils.GlobalLister[coreapi.HCPOpenShiftClusterExternalAuth]
+	Clusters() cosmosstorageutils.GlobalLister[coreapi.Cluster]
+	NodePools() cosmosstorageutils.GlobalLister[coreapi.NodePool]
+	ExternalAuths() cosmosstorageutils.GlobalLister[coreapi.ExternalAuth]
 	ServiceProviderClusters() cosmosstorageutils.GlobalLister[coreapi.ServiceProviderCluster]
 	ServiceProviderNodePools() cosmosstorageutils.GlobalLister[coreapi.ServiceProviderNodePool]
+	ServiceProviderExternalAuths() cosmosstorageutils.GlobalLister[coreapi.ServiceProviderExternalAuth]
 	Controllers() cosmosstorageutils.GlobalLister[coreapi.Controller]
 	// ManagementClusterContents lists ManagementClusterContent documents across
 	// partitions for every Cosmos resource type where managementClusterContents
@@ -67,22 +68,22 @@ func (g *cosmosResourcesGlobalListers) Subscriptions() cosmosstorageutils.Global
 	}
 }
 
-func (g *cosmosResourcesGlobalListers) Clusters() cosmosstorageutils.GlobalLister[coreapi.HCPOpenShiftCluster] {
-	return &cosmosstorageutils.CosmosGlobalLister[coreapi.HCPOpenShiftCluster, cosmosstorageutils.GenericDocument[coreapi.HCPOpenShiftCluster]]{
+func (g *cosmosResourcesGlobalListers) Clusters() cosmosstorageutils.GlobalLister[coreapi.Cluster] {
+	return &cosmosstorageutils.CosmosGlobalLister[coreapi.Cluster, cosmosstorageutils.GenericDocument[coreapi.Cluster]]{
 		ContainerClient: g.resources,
 		ResourceTypes:   []azcorearm.ResourceType{coreapi.ClusterResourceType},
 	}
 }
 
-func (g *cosmosResourcesGlobalListers) NodePools() cosmosstorageutils.GlobalLister[coreapi.HCPOpenShiftClusterNodePool] {
-	return &cosmosstorageutils.CosmosGlobalLister[coreapi.HCPOpenShiftClusterNodePool, cosmosstorageutils.GenericDocument[coreapi.HCPOpenShiftClusterNodePool]]{
+func (g *cosmosResourcesGlobalListers) NodePools() cosmosstorageutils.GlobalLister[coreapi.NodePool] {
+	return &cosmosstorageutils.CosmosGlobalLister[coreapi.NodePool, cosmosstorageutils.GenericDocument[coreapi.NodePool]]{
 		ContainerClient: g.resources,
 		ResourceTypes:   []azcorearm.ResourceType{coreapi.NodePoolResourceType},
 	}
 }
 
-func (g *cosmosResourcesGlobalListers) ExternalAuths() cosmosstorageutils.GlobalLister[coreapi.HCPOpenShiftClusterExternalAuth] {
-	return &cosmosstorageutils.CosmosGlobalLister[coreapi.HCPOpenShiftClusterExternalAuth, cosmosstorageutils.GenericDocument[coreapi.HCPOpenShiftClusterExternalAuth]]{
+func (g *cosmosResourcesGlobalListers) ExternalAuths() cosmosstorageutils.GlobalLister[coreapi.ExternalAuth] {
+	return &cosmosstorageutils.CosmosGlobalLister[coreapi.ExternalAuth, cosmosstorageutils.GenericDocument[coreapi.ExternalAuth]]{
 		ContainerClient: g.resources,
 		ResourceTypes:   []azcorearm.ResourceType{coreapi.ExternalAuthResourceType},
 	}
@@ -99,6 +100,13 @@ func (g *cosmosResourcesGlobalListers) ServiceProviderNodePools() cosmosstorageu
 	return &cosmosstorageutils.CosmosGlobalLister[coreapi.ServiceProviderNodePool, cosmosstorageutils.GenericDocument[coreapi.ServiceProviderNodePool]]{
 		ContainerClient: g.resources,
 		ResourceTypes:   []azcorearm.ResourceType{coreapi.ServiceProviderNodePoolResourceType},
+	}
+}
+
+func (g *cosmosResourcesGlobalListers) ServiceProviderExternalAuths() cosmosstorageutils.GlobalLister[coreapi.ServiceProviderExternalAuth] {
+	return &cosmosstorageutils.CosmosGlobalLister[coreapi.ServiceProviderExternalAuth, cosmosstorageutils.GenericDocument[coreapi.ServiceProviderExternalAuth]]{
+		ContainerClient: g.resources,
+		ResourceTypes:   []azcorearm.ResourceType{coreapi.ServiceProviderExternalAuthResourceType},
 	}
 }
 

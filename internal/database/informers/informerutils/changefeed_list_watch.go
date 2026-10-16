@@ -36,6 +36,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -53,7 +54,7 @@ func changeFeedItemObjectMetadata(cosmosContainerName string, internalObj any, r
 		objectMetadata := cosmosstorageutils.ObjectMetadataForOperation(operation)
 		return objectMetadata
 	}
-	return metadataapi.ObjectMetadataForResourceID(cosmosContainerName, resourceID)
+	return metadataapihelpers.ObjectMetadataForResourceID(cosmosContainerName, resourceID)
 }
 
 const feedRangePollInterval = 1 * time.Second
@@ -168,6 +169,7 @@ func (c *ChangeFeedListWatcher[InternalAPIType, InternalAPITypePointer, CosmosAP
 	}
 	for _, currItemObj := range iter.Items(ctx) {
 		currObj := InternalAPITypePointer(currItemObj)
+		LogCosmosListItem(ctx, c.cosmosContainerName, currItemObj)
 		resourceIDToInstanceVersion.Store(strings.ToLower(currObj.GetResourceID().String()), currObj.GetInstanceVersion())
 
 		list.Items = append(list.Items,
@@ -419,7 +421,7 @@ func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPITyp
 
 	matchesDesiredType := false
 	for _, desiredResourceType := range c.desiredResourceTypes {
-		if metadataapi.ResourceTypeStringEqual(objAsTypedDocument.ResourceType, desiredResourceType) {
+		if metadataapihelpers.ResourceTypeStringEqual(objAsTypedDocument.ResourceType, desiredResourceType) {
 			matchesDesiredType = true
 			break
 		}
@@ -445,19 +447,8 @@ func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPITyp
 		return utils.TrackError(err)
 	}
 
-	// When a Cosmos container is configured, emit objectMetadata so this item is ingested into
-	// cosmosResourceSnapshots with full resource identity, and derive the HCP cluster name for
-	// documents (e.g. operations) whose own ResourceID can't provide it. See
-	// changeFeedItemObjectMetadata for the details. This mirrors dump_data.go so change-feed-
-	// sourced snapshots carry the same metadata columns as request-triggered dumps.
-	if len(c.cosmosContainerName) > 0 {
-		objectMetadata := changeFeedItemObjectMetadata(c.cosmosContainerName, any(internalObj), internalObj.GetResourceID())
-		if objectMetadata.ClusterResourceID != "" {
-			logger = logger.WithValues(utils.LogValues{}.AddHCPClusterName(objectMetadata.ClusterResourceID)...)
-		}
-		logger = logger.WithValues("objectMetadata", objectMetadata)
-		ctx = utils.ContextWithLogger(ctx, logger)
-	}
+	logger = CosmosSnapshotLogger(ctx, c.cosmosContainerName, internalObj, internalObj.GetResourceID())
+	ctx = utils.ContextWithLogger(ctx, logger)
 
 	canonicalResourceID := strings.ToLower(internalObj.GetResourceID().String())
 	initialInstanceVersion, objPreviouslySeen := c.resourceIDToInstanceVersion.Load(canonicalResourceID)
@@ -588,15 +579,15 @@ func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPITyp
 
 	for changeFeedStatus != http.StatusNotModified {
 		options := &azcosmos.ChangeFeedOptions{
-			StartFrom: metadataapi.Ptr(c.startFrom),
+			StartFrom: metadataapihelpers.Ptr(c.startFrom),
 		}
 
 		if continuation, ok := c.continuationTokens.Load(feedRange); ok {
 			// Continue from a previous read of this feed range.
-			options.Continuation = metadataapi.Ptr(continuation.(string))
+			options.Continuation = metadataapihelpers.Ptr(continuation.(string))
 		} else {
 			// First read for this feed range.
-			options.FeedRange = metadataapi.Ptr(feedRange)
+			options.FeedRange = metadataapihelpers.Ptr(feedRange)
 		}
 
 		logger.V(4).Info("reading feed range", "options", options)

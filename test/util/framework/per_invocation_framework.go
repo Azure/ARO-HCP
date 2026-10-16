@@ -32,7 +32,8 @@ import (
 	_ "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm/runtime" // contains init() function which populates ARM cloud services
 
 	"github.com/onsi/ginkgo/v2/types"
-	"golang.org/x/net/http2"
+
+	"sigs.k8s.io/yaml"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -43,6 +44,9 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armsubscriptions"
 
 	"github.com/Azure/ARO-HCP/internal/azsdk"
+	"github.com/Azure/ARO-HCP/test/pkg/leaseenv"
+	"github.com/Azure/ARO-HCP/test/util/config"
+	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/azclient"
 )
 
 type perBinaryInvocationTestContext struct {
@@ -96,7 +100,7 @@ const (
 // requests with Retry-After values of 60+ seconds.
 var azureRetryOptions = policy.RetryOptions{
 	MaxRetries:    6,
-	MaxRetryDelay: 5 * time.Minute,
+	MaxRetryDelay: 10 * time.Minute,
 }
 
 // InvocationContext requires the following env vars
@@ -106,6 +110,9 @@ var azureRetryOptions = policy.RetryOptions{
 // AZURE_CLIENT_SECRET
 func invocationContext() *perBinaryInvocationTestContext {
 	initializeOnce.Do(func() {
+		if _, err := vmFamilyPolicyFromEnv(); err != nil {
+			panic(err)
+		}
 		invocationContextInstance = &perBinaryInvocationTestContext{
 			artifactDir:                          artifactDir(),
 			sharedDir:                            SharedDir(),
@@ -186,8 +193,9 @@ func (tc *perBinaryInvocationTestContext) getAzureCredentials() (azcore.TokenCre
 func (tc *perBinaryInvocationTestContext) getClientFactoryOptions() *azcorearm.ClientOptions {
 	clientOpts := azsdk.NewClientOptions(azsdk.ComponentE2E)
 	clientOpts.Retry = azureRetryOptions
+	clientOpts.PerRetryPolicies = []policy.Policy{&requestAttemptTrackerPolicy{}}
 	clientOpts.PerCallPolicies = []policy.Policy{
-		NewLROPollerRetryDeploymentNotFoundPolicy(),
+		azclient.NewLROPollerRetryPolicy(nil),
 		&sanitizeAuthHeaderPolicy{},
 	}
 	if tc.isDevelopmentEnvironment {
@@ -217,6 +225,7 @@ func (tc *perBinaryInvocationTestContext) getClientFactoryOptions() *azcorearm.C
 func (tc *perBinaryInvocationTestContext) getHCPClientFactoryOptions() *azcorearm.ClientOptions {
 	clientOpts := azsdk.NewClientOptions(azsdk.ComponentE2E)
 	clientOpts.Retry = azureRetryOptions
+	clientOpts.PerRetryPolicies = []policy.Policy{&requestAttemptTrackerPolicy{}}
 	if tc.resourceManagerEndpoint != "" {
 		clientOpts.Cloud = cloud.Configuration{
 			ActiveDirectoryAuthorityHost: cloud.AzurePublic.ActiveDirectoryAuthorityHost,
@@ -285,13 +294,12 @@ func defaultHTTPTransport() *http.Transport {
 			MinVersion:    tls.VersionTLS12,
 			Renegotiation: tls.RenegotiateFreelyAsClient,
 		},
-	}
-	// TODO: evaluate removing this once https://github.com/golang/go/issues/59690 has been fixed
-	if http2Transport, err := http2.ConfigureTransports(defaultTransport); err == nil {
-		// if the connection has been idle for 10 seconds, send a ping frame for a health check
-		http2Transport.ReadIdleTimeout = 10 * time.Second
+		// if the connection has been idle for 10 seconds, send a ping frame for a health check;
 		// if there's no response to the ping within the timeout, the connection will be closed
-		http2Transport.PingTimeout = 5 * time.Second
+		HTTP2: &http.HTTP2Config{
+			SendPingTimeout: 10 * time.Second,
+			PingTimeout:     5 * time.Second,
+		},
 	}
 	return defaultTransport
 }
@@ -396,13 +404,67 @@ func SharedDir() string {
 // subscriptionName returns the value of CUSTOMER_SUBSCRIPTION environment variable
 func subscriptionName() string {
 	// can't use gomega in this method since it is used outside of It()
-	return os.Getenv("CUSTOMER_SUBSCRIPTION")
+	return os.Getenv(leaseenv.CustomerSubscription)
 }
 
 // location returns the Azure location to use, like "uksouth"
 func location() string {
-	// can't use gomega in this method since it is used outside of It()
-	return os.Getenv("LOCATION")
+	// Slot-manager resolved the policy for SELECTED_LOCATION. A downstream
+	// override must not apply that subscription/region policy somewhere else.
+	value := os.Getenv("LOCATION")
+	if _, supplied := os.LookupEnv(leaseenv.VMFamilyPolicy); supplied {
+		if selected := os.Getenv(leaseenv.SelectedLocation); selected != "" && !strings.EqualFold(value, selected) {
+			panic(fmt.Errorf("LOCATION %q differs from slot-selected SELECTED_LOCATION %q; acquire a slot for the desired region before applying ARO_HCP_E2E_VM_FAMILY_POLICY", value, selected))
+		}
+	}
+	return value
+}
+
+// MIMockPrincipalID returns the object ID of the mocked managed-identity service principal that
+// per-cluster operators authenticate as in environments where the Managed Identities Data Plane is
+// mocked (dev/CI). Return nothing if no mock exists to avoid spurious role assignments in e2e.
+func MIMockPrincipalID() string {
+	if fromEnv := os.Getenv("MI_MOCK_PRINCIPAL_ID"); fromEnv != "" {
+		return fromEnv
+	}
+	if fromLease := leasedMockPrincipalID(); fromLease != "" {
+		return fromLease
+	}
+	cfg, err := config.GetServiceConfig()
+	if err != nil {
+		return ""
+	}
+	fromConfig, err := config.GetStringByPath(cfg, "miMockPrincipalId")
+	if err != nil {
+		return ""
+	}
+	return fromConfig
+}
+
+// leasedMockPrincipalID resolves the principalId of the single mock service principal leased to this
+// pooled CI job (LEASED_MSI_MOCK_SP) from the in-repo pool catalog, so tests grant data-plane roles
+// to the principal the deployed operators actually authenticate as. Returns "" when not in pooled CI.
+func leasedMockPrincipalID() string {
+	leased := os.Getenv(leaseenv.MSIMockSP)
+	configFile := os.Getenv("ARO_HCP_CONFIG_FILE")
+	if leased == "" || configFile == "" {
+		return ""
+	}
+	repoRoot := filepath.Dir(filepath.Dir(configFile))
+	catalogPath := filepath.Join(repoRoot, "dev-infrastructure", "openshift-ci", "msi-mock-pool.yaml")
+	data, err := os.ReadFile(catalogPath)
+	if err != nil {
+		return ""
+	}
+	var catalog struct {
+		MiMockPool map[string]struct {
+			PrincipalID string `json:"principalId"`
+		} `json:"miMockPool"`
+	}
+	if err := yaml.Unmarshal(data, &catalog); err != nil {
+		return ""
+	}
+	return catalog.MiMockPool[leased].PrincipalID
 }
 
 // testUserClientID returns the value of AZURE_CLIENT_ID environment variable

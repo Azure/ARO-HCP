@@ -43,6 +43,8 @@ type operationNodePoolDelete struct {
 	notificationClient   *http.Client
 }
 
+const OperationNodePoolDeleteControllerName = "OperationNodePoolDelete"
+
 // NewOperationNodePoolDeleteController returns a new Controller instance that
 // follows an asynchronous node pool deletion operation to completion and updates
 // the corresponding operation document in Cosmos DB.
@@ -81,7 +83,7 @@ func NewOperationNodePoolDeleteController(
 	}
 
 	controller := controllerutils.NewGenericOperationController(
-		"OperationNodePoolDelete",
+		OperationNodePoolDeleteControllerName,
 		syncer,
 		10*time.Second,
 		activeOperationInformer,
@@ -104,54 +106,6 @@ func (c *operationNodePoolDelete) ShouldProcess(ctx context.Context, operation *
 	return true
 }
 
-func (c *operationNodePoolDelete) legacyShouldProcess(ctx context.Context, operation *coreapi.Operation) bool {
-	if operation.Status.IsTerminal() {
-		return false
-	}
-	if operation.Request != cosmosstorageutils.OperationRequestDelete {
-		return false
-	}
-	if operation.ExternalID == nil || !strings.EqualFold(operation.ExternalID.ResourceType.String(), coreapi.NodePoolResourceType.String()) {
-		return false
-	}
-	return true
-}
-
-func (c *operationNodePoolDelete) legacySynchronizeOperation(ctx context.Context, operation *coreapi.Operation) error {
-	logger := utils.LoggerFromContext(ctx)
-
-	if !c.legacyShouldProcess(ctx, operation) {
-		return nil // no work to do
-	}
-
-	nodePoolStatus, err := c.clusterServiceClient.GetNodePoolStatus(ctx, operation.InternalID)
-	var ocmGetNodePoolError *ocmerrors.Error
-	if err != nil && errors.As(err, &ocmGetNodePoolError) && ocmGetNodePoolError.Status() == http.StatusNotFound {
-		logger.Info("node pool was deleted")
-
-		err = operationbase.SetDeleteOperationAsCompleted(ctx, c.clock, c.resourcesDBClient, operation, operationbase.PostAsyncNotificationFn(c.notificationClient))
-		if err != nil {
-			return utils.TrackError(err)
-		}
-		return nil
-	}
-	if err != nil {
-		return utils.TrackError(err)
-	}
-
-	newOperationStatus, newOperationError, err := operationbase.ConvertNodePoolStatus(operation, nodePoolStatus)
-	if err != nil {
-		return utils.TrackError(err)
-	}
-
-	err = operationbase.UpdateOperationStatus(ctx, c.clock, c.resourcesDBClient, operation, newOperationStatus, newOperationError, operationbase.PostAsyncNotificationFn(c.notificationClient))
-	if err != nil {
-		return utils.TrackError(err)
-	}
-
-	return nil
-}
-
 func (c *operationNodePoolDelete) SynchronizeOperation(ctx context.Context, key controllerutils.OperationKey) error {
 	logger := utils.LoggerFromContext(ctx)
 	logger.Info("checking operation")
@@ -163,13 +117,6 @@ func (c *operationNodePoolDelete) SynchronizeOperation(ctx context.Context, key 
 	if err != nil {
 		return fmt.Errorf("failed to get active operation: %w", err)
 	}
-
-	// TODO remove this once migration of node pool deletion from frontend to backend is fully completed.
-	if !operation.UsesNewNodePoolDeletionApproach {
-		return c.legacySynchronizeOperation(ctx, operation)
-	}
-
-	// From here, we know it uses the new deletion approach.
 
 	if !c.ShouldProcess(ctx, operation) {
 		return nil // no work to do
@@ -200,13 +147,13 @@ func (c *operationNodePoolDelete) SynchronizeOperation(ctx context.Context, key 
 	return nil
 }
 
-func (c *operationNodePoolDelete) shouldReconcileOperationAndResourceStatus(nodePool *coreapi.HCPOpenShiftClusterNodePool) bool {
+func (c *operationNodePoolDelete) shouldReconcileOperationAndResourceStatus(nodePool *coreapi.NodePool) bool {
 	return nodePool.ServiceProviderProperties.DeletionTimestamp != nil &&
 		nodePool.ServiceProviderProperties.ClusterServiceDeletionTimestamp != nil &&
 		nodePool.ServiceProviderProperties.ClusterServiceID != nil
 }
 
-func (c *operationNodePoolDelete) reconcileOperationAndResourceStatus(ctx context.Context, operation *coreapi.Operation, nodePool *coreapi.HCPOpenShiftClusterNodePool) error {
+func (c *operationNodePoolDelete) reconcileOperationAndResourceStatus(ctx context.Context, operation *coreapi.Operation, nodePool *coreapi.NodePool) error {
 	logger := utils.LoggerFromContext(ctx)
 
 	nodePoolCSID := nodePool.ServiceProviderProperties.ClusterServiceID

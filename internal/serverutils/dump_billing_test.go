@@ -16,6 +16,7 @@ package serverutils
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -27,11 +28,52 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/billingcosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
+
+func TestBillingDocumentWatermarks(t *testing.T) {
+	t.Run("preserved in snapshots and independent in deep copies", func(t *testing.T) {
+		const persisted = `{"lastBillingTimeOfVMEvent":"2026-10-09T10:00:00Z","lastBillingTimeOfMngtEvent":"2026-10-09T11:00:00Z"}`
+		var doc billingcosmosstorage.BillingDocument
+		require.NoError(t, json.Unmarshal([]byte(persisted), &doc))
+		require.NotNil(t, doc.LastBillingTimeOfVMEvent)
+		require.NotNil(t, doc.LastBillingTimeOfMngtEvent)
+		require.Equal(t, time.Date(2026, 10, 9, 10, 0, 0, 0, time.UTC), *doc.LastBillingTimeOfVMEvent)
+		require.Equal(t, time.Date(2026, 10, 9, 11, 0, 0, 0, time.UTC), *doc.LastBillingTimeOfMngtEvent)
+
+		// Diagnostic snapshots serialize the typed billing document back to JSON.
+		snapshot, err := json.Marshal(&doc)
+		require.NoError(t, err)
+		var fields map[string]json.RawMessage
+		require.NoError(t, json.Unmarshal(snapshot, &fields))
+		require.JSONEq(t, `"2026-10-09T10:00:00Z"`, string(fields["lastBillingTimeOfVMEvent"]))
+		require.JSONEq(t, `"2026-10-09T11:00:00Z"`, string(fields["lastBillingTimeOfMngtEvent"]))
+
+		copied := doc.DeepCopy()
+		*copied.LastBillingTimeOfVMEvent = copied.LastBillingTimeOfVMEvent.Add(time.Hour)
+		*copied.LastBillingTimeOfMngtEvent = copied.LastBillingTimeOfMngtEvent.Add(time.Hour)
+		require.Equal(t, time.Date(2026, 10, 9, 10, 0, 0, 0, time.UTC), *doc.LastBillingTimeOfVMEvent)
+		require.Equal(t, time.Date(2026, 10, 9, 11, 0, 0, 0, time.UTC), *doc.LastBillingTimeOfMngtEvent)
+	})
+
+	for _, persisted := range []string{`{}`, `{"lastBillingTimeOfVMEvent":null,"lastBillingTimeOfMngtEvent":null}`} {
+		t.Run(persisted, func(t *testing.T) {
+			var doc billingcosmosstorage.BillingDocument
+			require.NoError(t, json.Unmarshal([]byte(persisted), &doc))
+			copied := doc.DeepCopy()
+			require.Nil(t, copied.LastBillingTimeOfVMEvent)
+			require.Nil(t, copied.LastBillingTimeOfMngtEvent)
+			snapshot, err := json.Marshal(copied)
+			require.NoError(t, err)
+			require.NotContains(t, string(snapshot), "lastBillingTimeOfVMEvent")
+			require.NotContains(t, string(snapshot), "lastBillingTimeOfMngtEvent")
+		})
+	}
+}
 
 func TestDumpBillingToLogger(t *testing.T) {
 	ctx := context.Background()
@@ -44,7 +86,7 @@ func TestDumpBillingToLogger(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create HCP clusters
-	cluster1 := &coreapi.HCPOpenShiftCluster{
+	cluster1 := &coreapi.Cluster{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   cluster1ResourceID,
 			PartitionKey: strings.ToLower(cluster1ResourceID.SubscriptionID),
@@ -56,13 +98,13 @@ func TestDumpBillingToLogger(t *testing.T) {
 				Type: "Microsoft.RedHatOpenShift/hcpOpenShiftClusters",
 			},
 		},
-		ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 			ClusterUID:       "billing-doc-1",
-			ClusterServiceID: metadataapi.Ptr(metadataapi.Must(metadataapi.NewInternalID("/api/clusters_mgmt/v1/clusters/test-cluster-1"))),
+			ClusterServiceID: metadataapihelpers.Ptr(metadataapi.Must(metadataapi.NewInternalID("/api/clusters_mgmt/v1/clusters/test-cluster-1"))),
 		},
 	}
 
-	cluster2 := &coreapi.HCPOpenShiftCluster{
+	cluster2 := &coreapi.Cluster{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   cluster2ResourceID,
 			PartitionKey: strings.ToLower(cluster2ResourceID.SubscriptionID),
@@ -74,9 +116,9 @@ func TestDumpBillingToLogger(t *testing.T) {
 				Type: "Microsoft.RedHatOpenShift/hcpOpenShiftClusters",
 			},
 		},
-		ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 			ClusterUID:       "billing-doc-2",
-			ClusterServiceID: metadataapi.Ptr(metadataapi.Must(metadataapi.NewInternalID("/api/clusters_mgmt/v1/clusters/test-cluster-2"))),
+			ClusterServiceID: metadataapihelpers.Ptr(metadataapi.Must(metadataapi.NewInternalID("/api/clusters_mgmt/v1/clusters/test-cluster-2"))),
 		},
 	}
 
@@ -129,7 +171,7 @@ func TestDumpBillingToLogger_PartitionScoping(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create HCP clusters with ClusterUIDs
-	cluster1 := &coreapi.HCPOpenShiftCluster{
+	cluster1 := &coreapi.Cluster{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   cluster1ResourceID,
 			PartitionKey: strings.ToLower(cluster1ResourceID.SubscriptionID),
@@ -141,13 +183,13 @@ func TestDumpBillingToLogger_PartitionScoping(t *testing.T) {
 				Type: "Microsoft.RedHatOpenShift/hcpOpenShiftClusters",
 			},
 		},
-		ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 			ClusterUID:       "cluster-1-billing-1",
-			ClusterServiceID: metadataapi.Ptr(metadataapi.Must(metadataapi.NewInternalID("/api/clusters_mgmt/v1/clusters/test-cluster-1"))),
+			ClusterServiceID: metadataapihelpers.Ptr(metadataapi.Must(metadataapi.NewInternalID("/api/clusters_mgmt/v1/clusters/test-cluster-1"))),
 		},
 	}
 
-	cluster2 := &coreapi.HCPOpenShiftCluster{
+	cluster2 := &coreapi.Cluster{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   cluster2ResourceID,
 			PartitionKey: strings.ToLower(cluster2ResourceID.SubscriptionID),
@@ -159,13 +201,13 @@ func TestDumpBillingToLogger_PartitionScoping(t *testing.T) {
 				Type: "Microsoft.RedHatOpenShift/hcpOpenShiftClusters",
 			},
 		},
-		ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 			ClusterUID:       "cluster-2-billing-2",
-			ClusterServiceID: metadataapi.Ptr(metadataapi.Must(metadataapi.NewInternalID("/api/clusters_mgmt/v1/clusters/test-cluster-2"))),
+			ClusterServiceID: metadataapihelpers.Ptr(metadataapi.Must(metadataapi.NewInternalID("/api/clusters_mgmt/v1/clusters/test-cluster-2"))),
 		},
 	}
 
-	cluster3 := &coreapi.HCPOpenShiftCluster{
+	cluster3 := &coreapi.Cluster{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   cluster3ResourceID,
 			PartitionKey: strings.ToLower(cluster3ResourceID.SubscriptionID),
@@ -177,9 +219,9 @@ func TestDumpBillingToLogger_PartitionScoping(t *testing.T) {
 				Type: "Microsoft.RedHatOpenShift/hcpOpenShiftClusters",
 			},
 		},
-		ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 			ClusterUID:       "cluster-3-billing-3",
-			ClusterServiceID: metadataapi.Ptr(metadataapi.Must(metadataapi.NewInternalID("/api/clusters_mgmt/v1/clusters/test-cluster-3"))),
+			ClusterServiceID: metadataapihelpers.Ptr(metadataapi.Must(metadataapi.NewInternalID("/api/clusters_mgmt/v1/clusters/test-cluster-3"))),
 		},
 	}
 

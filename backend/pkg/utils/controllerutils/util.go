@@ -31,10 +31,16 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
+
+// ServiceProviderDefaultIngressWildcardServingCertName is the Kubernetes Secret and
+// SecretProviderClass name used for the default ingress wildcard serving certificate
+// referenced by HostedCluster.Spec.OperatorConfiguration.IngressOperator.DefaultCertificate.
+const ServiceProviderDefaultIngressWildcardServingCertName = "service-provider-default-ingress-wildcard-serving-cert"
 
 type Controller interface {
 	QueueForInformers(resyncDuration time.Duration, notifiers ...Notifier) error
@@ -85,7 +91,7 @@ type HCPClusterKey struct {
 }
 
 func (k HCPClusterKey) GetResourceID() *azcorearm.ResourceID {
-	return metadataapi.Must(coreapi.ToClusterResourceID(k.SubscriptionID, k.ResourceGroupName, k.HCPClusterName))
+	return metadataapi.Must(coreapihelpers.ToClusterResourceID(k.SubscriptionID, k.ResourceGroupName, k.HCPClusterName))
 }
 
 func (k HCPClusterKey) AddLoggerValues(logger logr.Logger) logr.Logger {
@@ -117,7 +123,7 @@ type HCPNodePoolKey struct {
 }
 
 func (k HCPNodePoolKey) GetResourceID() *azcorearm.ResourceID {
-	return metadataapi.Must(coreapi.ToNodePoolResourceID(k.SubscriptionID, k.ResourceGroupName, k.HCPClusterName, k.HCPNodePoolName))
+	return metadataapi.Must(coreapihelpers.ToNodePoolResourceID(k.SubscriptionID, k.ResourceGroupName, k.HCPClusterName, k.HCPNodePoolName))
 }
 
 func (k HCPNodePoolKey) AddLoggerValues(logger logr.Logger) logr.Logger {
@@ -145,7 +151,7 @@ type SubscriptionKey struct {
 }
 
 func (k SubscriptionKey) GetResourceID() *azcorearm.ResourceID {
-	return metadataapi.Must(coreapi.ToSubscriptionResourceID(k.SubscriptionID))
+	return metadataapi.Must(coreapihelpers.ToSubscriptionResourceID(k.SubscriptionID))
 }
 
 func (k SubscriptionKey) AddLoggerValues(logger logr.Logger) logr.Logger {
@@ -162,7 +168,7 @@ type HCPExternalAuthKey struct {
 }
 
 func (k *HCPExternalAuthKey) GetResourceID() *azcorearm.ResourceID {
-	return metadataapi.Must(coreapi.ToExternalAuthResourceID(k.SubscriptionID, k.ResourceGroupName, k.HCPClusterName, k.HCPExternalAuthName))
+	return metadataapi.Must(coreapihelpers.ToExternalAuthResourceID(k.SubscriptionID, k.ResourceGroupName, k.HCPClusterName, k.HCPExternalAuthName))
 }
 
 func (k *HCPExternalAuthKey) AddLoggerValues(logger logr.Logger) logr.Logger {
@@ -192,11 +198,11 @@ type SystemAdminCredentialRequestKey struct {
 }
 
 func (k SystemAdminCredentialRequestKey) GetResourceID() *azcorearm.ResourceID {
-	return metadataapi.Must(coreapi.ToSystemAdminCredentialRequestResourceID(k.SubscriptionID, k.ResourceGroupName, k.HCPClusterName, k.CredentialName))
+	return metadataapi.Must(coreapihelpers.ToSystemAdminCredentialRequestResourceID(k.SubscriptionID, k.ResourceGroupName, k.HCPClusterName, k.CredentialName))
 }
 
 func (k SystemAdminCredentialRequestKey) GetClusterResourceID() *azcorearm.ResourceID {
-	return metadataapi.Must(coreapi.ToClusterResourceID(k.SubscriptionID, k.ResourceGroupName, k.HCPClusterName))
+	return metadataapi.Must(coreapihelpers.ToClusterResourceID(k.SubscriptionID, k.ResourceGroupName, k.HCPClusterName))
 }
 
 func (k SystemAdminCredentialRequestKey) AddLoggerValues(logger logr.Logger) logr.Logger {
@@ -228,11 +234,11 @@ type SystemAdminCredentialRevocationKey struct {
 }
 
 func (k SystemAdminCredentialRevocationKey) GetResourceID() *azcorearm.ResourceID {
-	return metadataapi.Must(coreapi.ToSystemAdminCredentialRevocationResourceID(k.SubscriptionID, k.ResourceGroupName, k.HCPClusterName, k.RevocationName))
+	return metadataapi.Must(coreapihelpers.ToSystemAdminCredentialRevocationResourceID(k.SubscriptionID, k.ResourceGroupName, k.HCPClusterName, k.RevocationName))
 }
 
 func (k SystemAdminCredentialRevocationKey) GetClusterResourceID() *azcorearm.ResourceID {
-	return metadataapi.Must(coreapi.ToClusterResourceID(k.SubscriptionID, k.ResourceGroupName, k.HCPClusterName))
+	return metadataapi.Must(coreapihelpers.ToClusterResourceID(k.SubscriptionID, k.ResourceGroupName, k.HCPClusterName))
 }
 
 func (k SystemAdminCredentialRevocationKey) AddLoggerValues(logger logr.Logger) logr.Logger {
@@ -429,7 +435,7 @@ func WriteController(ctx context.Context, controllerCRUD cosmosstorageutils.Reso
 	return nil
 }
 
-func ClusterServiceIDForCluster(cluster *coreapi.HCPOpenShiftCluster) string {
+func ClusterServiceIDForCluster(cluster *coreapi.Cluster) string {
 	if cluster.ServiceProviderProperties.PendingClusterServiceID != nil {
 		return cluster.ServiceProviderProperties.PendingClusterServiceID.ClusterID()
 	}

@@ -17,12 +17,16 @@ package fleetcosmosstorage
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosclient"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosratelimit"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/internal/validation"
@@ -38,6 +42,7 @@ type FleetDBClient interface {
 	cosmosstorageutils.ChangeFeedClient
 	Stamps() StampsCRUD
 	HCPResourceRequirements() cosmosstorageutils.ResourceCRUD[fleetapi.HCPResourceRequirements, *fleetapi.HCPResourceRequirements]
+	ControlPlaneVersionRollouts() cosmosstorageutils.ValidatingResourceCRUD[fleetapi.ControlPlaneVersionRollout, *fleetapi.ControlPlaneVersionRollout]
 	GlobalListers() FleetGlobalListers
 }
 
@@ -60,6 +65,9 @@ type ManagementClustersCRUD interface {
 type FleetGlobalListers interface {
 	Stamps() cosmosstorageutils.GlobalLister[fleetapi.Stamp]
 	ManagementClusters() cosmosstorageutils.GlobalLister[fleetapi.ManagementCluster]
+	ManagementClusterSchedulings() cosmosstorageutils.GlobalLister[fleetapi.ManagementClusterScheduling]
+	ControlPlaneVersionRollouts() cosmosstorageutils.GlobalLister[fleetapi.ControlPlaneVersionRollout]
+	HCPResourceRequirements() cosmosstorageutils.GlobalLister[fleetapi.HCPResourceRequirements]
 }
 
 type cosmosFleetDBClient struct {
@@ -68,18 +76,17 @@ type cosmosFleetDBClient struct {
 
 var _ FleetDBClient = &cosmosFleetDBClient{}
 
-// NewFleetDBClient instantiates a FleetDBClient from a Cosmos DatabaseClient.
-func NewFleetDBClient(database *azcosmos.DatabaseClient) (FleetDBClient, error) {
+// NewFleetDBClient creates a Fleet client with its own Cosmos pipeline bound to bucket.
+func NewFleetDBClient(url, databaseName string, options cosmosclient.Options, bucket *cosmosratelimit.TokenBucket) (FleetDBClient, error) {
+	database, err := cosmosclient.NewCosmosDatabaseClient(url, databaseName, options, bucket)
+	if err != nil {
+		return nil, err
+	}
 	container, err := database.NewContainer(fleetContainer)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
 	return &cosmosFleetDBClient{container: container}, nil
-}
-
-// NewFleetDBClientFromContainer wraps an already-opened container client.
-func NewFleetDBClientFromContainer(container *azcosmos.ContainerClient) FleetDBClient {
-	return &cosmosFleetDBClient{container: container}
 }
 
 func (c *cosmosFleetDBClient) ReadChangeFeed(ctx context.Context, options *azcosmos.ChangeFeedOptions) (azcosmos.ChangeFeedResponse, error) {
@@ -109,6 +116,19 @@ func (c *cosmosFleetDBClient) HCPResourceRequirements() cosmosstorageutils.Resou
 		cosmosstorageutils.FleetPartitionKeyDeriver{}, cosmosstorageutils.FleetResourceIDBuilder{})
 }
 
+func (c *cosmosFleetDBClient) ControlPlaneVersionRollouts() cosmosstorageutils.ValidatingResourceCRUD[fleetapi.ControlPlaneVersionRollout, *fleetapi.ControlPlaneVersionRollout] {
+	// ControlPlaneVersionRollouts share a single partition keyed by the provider
+	// namespace (there are only a handful fleet-wide, one per y-stream channel),
+	// so the whole set can be listed with a single-partition query.
+	inner := cosmosstorageutils.NewCosmosResourceCRUDWithStrategies[fleetapi.ControlPlaneVersionRollout, *fleetapi.ControlPlaneVersionRollout, cosmosstorageutils.GenericDocument[fleetapi.ControlPlaneVersionRollout]](
+		c.container, nil, fleetapi.ControlPlaneVersionRolloutResourceType,
+		cosmosstorageutils.ProviderNamespacePartitionKeyDeriver{}, cosmosstorageutils.FleetResourceIDBuilder{})
+	return cosmosstorageutils.NewValidatingCRUD(inner,
+		validation.ValidateControlPlaneVersionRolloutCreate,
+		validation.ValidateControlPlaneVersionRolloutUpdate,
+	)
+}
+
 func (c *cosmosFleetDBClient) GlobalListers() FleetGlobalListers {
 	return &cosmosFleetGlobalListers{container: c.container}
 }
@@ -119,7 +139,7 @@ type cosmosStampsCRUD struct {
 }
 
 func (s *cosmosStampsCRUD) ManagementClusters(stampIdentifier string) ManagementClustersCRUD {
-	stampResourceID, err := fleetapi.ToStampResourceID(stampIdentifier)
+	stampResourceID, err := fleetapihelpers.ToStampResourceID(stampIdentifier)
 	if err != nil {
 		panic(fmt.Sprintf("invalid stamp identifier %q: %v", stampIdentifier, err))
 	}
@@ -143,7 +163,7 @@ type cosmosManagementClustersCRUD struct {
 }
 
 func (m *cosmosManagementClustersCRUD) Controllers() cosmosstorageutils.ResourceCRUD[coreapi.Controller, *coreapi.Controller] {
-	managementClusterResourceID, err := fleetapi.ToManagementClusterResourceID(m.stampIdentifier)
+	managementClusterResourceID, err := fleetapihelpers.ToManagementClusterResourceID(m.stampIdentifier)
 	if err != nil {
 		panic(fmt.Sprintf("invalid stamp identifier %q: %v", m.stampIdentifier, err))
 	}
@@ -153,7 +173,7 @@ func (m *cosmosManagementClustersCRUD) Controllers() cosmosstorageutils.Resource
 }
 
 func (m *cosmosManagementClustersCRUD) Scheduling() cosmosstorageutils.ResourceCRUD[fleetapi.ManagementClusterScheduling, *fleetapi.ManagementClusterScheduling] {
-	managementClusterResourceID, err := fleetapi.ToManagementClusterResourceID(m.stampIdentifier)
+	managementClusterResourceID, err := fleetapihelpers.ToManagementClusterResourceID(m.stampIdentifier)
 	if err != nil {
 		panic(fmt.Sprintf("invalid stamp identifier %q: %v", m.stampIdentifier, err))
 	}
@@ -179,5 +199,27 @@ func (g *cosmosFleetGlobalListers) ManagementClusters() cosmosstorageutils.Globa
 	return &cosmosstorageutils.CosmosGlobalLister[fleetapi.ManagementCluster, cosmosstorageutils.GenericDocument[fleetapi.ManagementCluster]]{
 		ContainerClient: g.container,
 		ResourceTypes:   []azcorearm.ResourceType{fleetapi.ManagementClusterResourceType},
+	}
+}
+
+func (g *cosmosFleetGlobalListers) ManagementClusterSchedulings() cosmosstorageutils.GlobalLister[fleetapi.ManagementClusterScheduling] {
+	return &cosmosstorageutils.CosmosGlobalLister[fleetapi.ManagementClusterScheduling, cosmosstorageutils.GenericDocument[fleetapi.ManagementClusterScheduling]]{
+		ContainerClient: g.container,
+		ResourceTypes:   []azcorearm.ResourceType{fleetapi.ManagementClusterSchedulingResourceType},
+	}
+}
+
+func (g *cosmosFleetGlobalListers) ControlPlaneVersionRollouts() cosmosstorageutils.GlobalLister[fleetapi.ControlPlaneVersionRollout] {
+	return &cosmosstorageutils.CosmosGlobalLister[fleetapi.ControlPlaneVersionRollout, cosmosstorageutils.GenericDocument[fleetapi.ControlPlaneVersionRollout]]{
+		ContainerClient: g.container,
+		PartitionKey:    strings.ToLower(coreapi.ProviderNamespace),
+		ResourceTypes:   []azcorearm.ResourceType{fleetapi.ControlPlaneVersionRolloutResourceType},
+	}
+}
+
+func (g *cosmosFleetGlobalListers) HCPResourceRequirements() cosmosstorageutils.GlobalLister[fleetapi.HCPResourceRequirements] {
+	return &cosmosstorageutils.CosmosGlobalLister[fleetapi.HCPResourceRequirements, cosmosstorageutils.GenericDocument[fleetapi.HCPResourceRequirements]]{
+		ContainerClient: g.container,
+		ResourceTypes:   []azcorearm.ResourceType{fleetapi.HCPResourceRequirementsResourceType},
 	}
 }

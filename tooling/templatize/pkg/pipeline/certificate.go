@@ -21,6 +21,8 @@ import (
 	"fmt"
 	"maps"
 	"net/http"
+	"net/url"
+	"regexp"
 	"slices"
 	"strings"
 	"time"
@@ -44,6 +46,8 @@ const (
 )
 
 var validContentTypes = []string{"x-pkcs12"}
+
+var jobOwnedCertificateName = regexp.MustCompile(`^(?:(?:frontend|admin-api|sessiongate)-cert-(ci00|ci01)|maestro-server)-j[0-9]{7}$`)
 
 // certificatePolicy builds a Key Vault certificate policy matching the sdp-pipelines wire format.
 func certificatePolicy(commonName, contentType, san, issuer string) azcertificates.CertificatePolicy {
@@ -75,6 +79,28 @@ func certificatePolicy(commonName, contentType, san, issuer string) azcertificat
 			Name: to.Ptr(issuer),
 		},
 	}
+}
+
+// effectiveCertificatePolicy also reports whether the certificate is transient CI-owned.
+func effectiveCertificatePolicy(options *StepRunOptions, vaultBaseURL, certificateName, commonName, contentType, san, issuer string) (azcertificates.CertificatePolicy, bool) {
+	policy := certificatePolicy(commonName, contentType, san, issuer)
+	if options.Cloud != "dev" || (options.Environment != "ci00" && options.Environment != "ci01") {
+		return policy, false
+	}
+	match := jobOwnedCertificateName.FindStringSubmatch(certificateName)
+	if match == nil || (match[1] != "" && match[1] != options.Environment) {
+		return policy, false
+	}
+	vault, err := url.Parse(vaultBaseURL)
+	if err != nil || vault.Scheme != "https" || vault.Host != "aro-hcp-dev-svc-kv.vault.azure.net" ||
+		vault.User != nil || (vault.Path != "" && vault.Path != "/") || vault.RawPath != "" ||
+		vault.RawQuery != "" || vault.ForceQuery || vault.Fragment != "" {
+		return policy, false
+	}
+	// Transient CI naming is a templatize-only rule, not an EV2 schema setting.
+	// Explicitly replace AutoRenew: omitting lifetime actions may leave it enabled.
+	policy.LifetimeActions[0].Action.ActionType = to.Ptr(azcertificates.CertificatePolicyActionEmailContacts)
+	return policy, true
 }
 
 // runCreateCertificateStep creates or updates a certificate in Azure Key Vault.
@@ -155,8 +181,11 @@ func runCreateCertificateStep(ctx context.Context, step *types.CreateCertificate
 		return fmt.Errorf("failed to create certificate client: %w", err)
 	}
 
-	desiredPolicy := certificatePolicy(commonName, contentType, san, issuer)
+	desiredPolicy, transient := effectiveCertificatePolicy(options, vaultBaseUrl, certificateName, commonName, contentType, san, issuer)
+	return reconcileCertificate(ctx, logger, client, vaultBaseUrl, certificateName, desiredPolicy, transient)
+}
 
+func reconcileCertificate(ctx context.Context, logger logr.Logger, client *azcertificates.Client, vaultBaseUrl, certificateName string, desiredPolicy azcertificates.CertificatePolicy, transient bool) error {
 	existing, err := client.GetCertificate(ctx, certificateName, "", nil)
 	if err != nil {
 		var respErr *azcore.ResponseError
@@ -164,9 +193,23 @@ func runCreateCertificateStep(ctx context.Context, step *types.CreateCertificate
 			return fmt.Errorf("failed to get existing certificate %q in vault %q: %w", certificateName, vaultBaseUrl, err)
 		}
 	}
-	if err == nil && existing.Policy != nil && policyMatches(existing.Policy, &desiredPolicy) {
-		logger.Info("Certificate already exists with matching policy, skipping creation", "certificateName", certificateName)
-		return storeCertificateThumbprintTag(ctx, logger, client, certificateName, vaultBaseUrl)
+	if err == nil && existing.Policy != nil {
+		// Lifetime actions affect future renewal, not the issued certificate. Avoid
+		// creating a paid new version for transient CI certificates when only these
+		// settings differ. Keep the existing recreation behavior everywhere else.
+		withoutRenewalDifference := *existing.Policy
+		if transient {
+			withoutRenewalDifference.LifetimeActions = desiredPolicy.LifetimeActions
+		}
+		if policyMatches(&withoutRenewalDifference, &desiredPolicy) {
+			if !lifetimeActionsMatch(existing.Policy.LifetimeActions, desiredPolicy.LifetimeActions) {
+				if _, err := client.UpdateCertificatePolicy(ctx, certificateName, desiredPolicy, nil); err != nil {
+					return fmt.Errorf("failed to update certificate policy %q in vault %q: %w", certificateName, vaultBaseUrl, err)
+				}
+			}
+			logger.Info("Certificate already exists with matching policy, skipping creation", "certificateName", certificateName)
+			return storeCertificateThumbprintTag(ctx, logger, client, certificateName, vaultBaseUrl)
+		}
 	}
 	if err == nil {
 		logger.Info("Certificate exists but policy differs, recreating", "certificateName", certificateName)
@@ -299,15 +342,17 @@ func policyMatches(existing, desired *azcertificates.CertificatePolicy) bool {
 	}
 
 	if existing.X509CertificateProperties.SubjectAlternativeNames == nil || desired.X509CertificateProperties.SubjectAlternativeNames == nil {
-		return existing.X509CertificateProperties.SubjectAlternativeNames == desired.X509CertificateProperties.SubjectAlternativeNames
-	}
-
-	existingSANs := ptrSliceToStrings(existing.X509CertificateProperties.SubjectAlternativeNames.DNSNames)
-	desiredSANs := ptrSliceToStrings(desired.X509CertificateProperties.SubjectAlternativeNames.DNSNames)
-	slices.Sort(existingSANs)
-	slices.Sort(desiredSANs)
-	if !slices.Equal(existingSANs, desiredSANs) {
-		return false
+		if existing.X509CertificateProperties.SubjectAlternativeNames != desired.X509CertificateProperties.SubjectAlternativeNames {
+			return false
+		}
+	} else {
+		existingSANs := ptrSliceToStrings(existing.X509CertificateProperties.SubjectAlternativeNames.DNSNames)
+		desiredSANs := ptrSliceToStrings(desired.X509CertificateProperties.SubjectAlternativeNames.DNSNames)
+		slices.Sort(existingSANs)
+		slices.Sort(desiredSANs)
+		if !slices.Equal(existingSANs, desiredSANs) {
+			return false
+		}
 	}
 
 	if existing.SecretProperties == nil || desired.SecretProperties == nil ||

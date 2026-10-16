@@ -1,0 +1,367 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "definitions": {
+    "ManagedIdentities": {
+      "properties": {
+        "cloudControllerManagerMiName": {
+          "type": "string"
+        },
+        "cloudNetworkConfigMiName": {
+          "type": "string"
+        },
+        "clusterApiAzureMiName": {
+          "type": "string"
+        },
+        "controlPlaneMiName": {
+          "type": "string"
+        },
+        "diskCsiDriverMiName": {
+          "type": "string"
+        },
+        "dpDiskCsiDriverMiName": {
+          "type": "string"
+        },
+        "dpFileCsiDriverMiName": {
+          "type": "string"
+        },
+        "dpImageRegistryMiName": {
+          "type": "string"
+        },
+        "fileCsiDriverMiName": {
+          "type": "string"
+        },
+        "imageRegistryMiName": {
+          "type": "string"
+        },
+        "ingressMiName": {
+          "type": "string"
+        },
+        "kmsMiName": {
+          "type": "string"
+        },
+        "serviceManagedIdentityName": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    }
+  },
+  "languageVersion": "2.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep"
+    }
+  },
+  "parameters": {
+    "identities": {
+      "$ref": "#/definitions/ManagedIdentities",
+      "metadata": {
+        "description": "Identities to assign"
+      }
+    },
+    "rbacScope": {
+      "allowedValues": [
+        "resource",
+        "resourceGroup"
+      ],
+      "defaultValue": "resourceGroup",
+      "metadata": {
+        "description": "RBAC scope to use for role assignments: resourceGroup or resource"
+      },
+      "type": "string"
+    }
+  },
+  "resources": {
+    "cloudControllerManagerMi": {
+      "apiVersion": "2023-01-31",
+      "existing": true,
+      "name": "[parameters('identities').cloudControllerManagerMiName]",
+      "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
+    },
+    "cloudNetworkConfigMi": {
+      "apiVersion": "2023-01-31",
+      "existing": true,
+      "name": "[parameters('identities').cloudNetworkConfigMiName]",
+      "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
+    },
+    "clusterApiAzureMi": {
+      "apiVersion": "2023-01-31",
+      "existing": true,
+      "name": "[parameters('identities').clusterApiAzureMiName]",
+      "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
+    },
+    "controlPlaneMi": {
+      "apiVersion": "2023-01-31",
+      "existing": true,
+      "name": "[parameters('identities').controlPlaneMiName]",
+      "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
+    },
+    "diskCsiDriverMi": {
+      "apiVersion": "2023-01-31",
+      "existing": true,
+      "name": "[parameters('identities').diskCsiDriverMiName]",
+      "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
+    },
+    "dpDiskCsiDriverMi": {
+      "apiVersion": "2023-01-31",
+      "existing": true,
+      "name": "[parameters('identities').dpDiskCsiDriverMiName]",
+      "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
+    },
+    "dpDiskCsiDriverMiFederatedCredentialsRoleAssignment": {
+      "apiVersion": "2022-04-01",
+      "condition": "[equals(parameters('rbacScope'), 'resource')]",
+      "dependsOn": [
+        "serviceManagedIdentity"
+      ],
+      "name": "[guid(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identities').dpDiskCsiDriverMiName), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identities').serviceManagedIdentityName), variables('federatedCredentialsRoleId'))]",
+      "properties": {
+        "principalId": "[reference('serviceManagedIdentity').principalId]",
+        "principalType": "ServicePrincipal",
+        "roleDefinitionId": "[variables('federatedCredentialsRoleId')]"
+      },
+      "scope": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identities').dpDiskCsiDriverMiName)]",
+      "type": "Microsoft.Authorization/roleAssignments"
+    },
+    "dpFileCsiDriverMi": {
+      "apiVersion": "2023-01-31",
+      "existing": true,
+      "name": "[parameters('identities').dpFileCsiDriverMiName]",
+      "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
+    },
+    "dpFileCsiDriverMiFederatedCredentialsRoleAssignment": {
+      "apiVersion": "2022-04-01",
+      "condition": "[equals(parameters('rbacScope'), 'resource')]",
+      "dependsOn": [
+        "serviceManagedIdentity"
+      ],
+      "name": "[guid(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identities').dpFileCsiDriverMiName), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identities').serviceManagedIdentityName), variables('federatedCredentialsRoleId'))]",
+      "properties": {
+        "principalId": "[reference('serviceManagedIdentity').principalId]",
+        "principalType": "ServicePrincipal",
+        "roleDefinitionId": "[variables('federatedCredentialsRoleId')]"
+      },
+      "scope": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identities').dpFileCsiDriverMiName)]",
+      "type": "Microsoft.Authorization/roleAssignments"
+    },
+    "dpImageRegistryMi": {
+      "apiVersion": "2023-01-31",
+      "existing": true,
+      "name": "[parameters('identities').dpImageRegistryMiName]",
+      "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
+    },
+    "dpImageRegistryMiFederatedCredentialsRoleAssignment": {
+      "apiVersion": "2022-04-01",
+      "condition": "[equals(parameters('rbacScope'), 'resource')]",
+      "dependsOn": [
+        "serviceManagedIdentity"
+      ],
+      "name": "[guid(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identities').dpImageRegistryMiName), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identities').serviceManagedIdentityName), variables('federatedCredentialsRoleId'))]",
+      "properties": {
+        "principalId": "[reference('serviceManagedIdentity').principalId]",
+        "principalType": "ServicePrincipal",
+        "roleDefinitionId": "[variables('federatedCredentialsRoleId')]"
+      },
+      "scope": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identities').dpImageRegistryMiName)]",
+      "type": "Microsoft.Authorization/roleAssignments"
+    },
+    "fileCsiDriverMi": {
+      "apiVersion": "2023-01-31",
+      "existing": true,
+      "name": "[parameters('identities').fileCsiDriverMiName]",
+      "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
+    },
+    "imageRegistryMi": {
+      "apiVersion": "2023-01-31",
+      "existing": true,
+      "name": "[parameters('identities').imageRegistryMiName]",
+      "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
+    },
+    "ingressMi": {
+      "apiVersion": "2023-01-31",
+      "existing": true,
+      "name": "[parameters('identities').ingressMiName]",
+      "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
+    },
+    "kmsMi": {
+      "apiVersion": "2023-01-31",
+      "existing": true,
+      "name": "[parameters('identities').kmsMiName]",
+      "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
+    },
+    "serviceManagedIdentity": {
+      "apiVersion": "2023-01-31",
+      "existing": true,
+      "name": "[parameters('identities').serviceManagedIdentityName]",
+      "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
+    },
+    "serviceMiFederatedCredentialsOnIdentitiesResourceGroup": {
+      "apiVersion": "2022-04-01",
+      "condition": "[equals(parameters('rbacScope'), 'resourceGroup')]",
+      "dependsOn": [
+        "serviceManagedIdentity"
+      ],
+      "name": "[guid(resourceGroup().id, resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identities').serviceManagedIdentityName), variables('federatedCredentialsRoleId'))]",
+      "properties": {
+        "principalId": "[reference('serviceManagedIdentity').principalId]",
+        "principalType": "ServicePrincipal",
+        "roleDefinitionId": "[variables('federatedCredentialsRoleId')]"
+      },
+      "type": "Microsoft.Authorization/roleAssignments"
+    },
+    "serviceMiReaderOnCloudControllerManager": {
+      "apiVersion": "2022-04-01",
+      "condition": "[equals(parameters('rbacScope'), 'resource')]",
+      "dependsOn": [
+        "serviceManagedIdentity"
+      ],
+      "name": "[guid(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identities').cloudControllerManagerMiName), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identities').serviceManagedIdentityName), variables('readerRoleId'))]",
+      "properties": {
+        "principalId": "[reference('serviceManagedIdentity').principalId]",
+        "principalType": "ServicePrincipal",
+        "roleDefinitionId": "[variables('readerRoleId')]"
+      },
+      "scope": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identities').cloudControllerManagerMiName)]",
+      "type": "Microsoft.Authorization/roleAssignments"
+    },
+    "serviceMiReaderOnCloudNetworkConfig": {
+      "apiVersion": "2022-04-01",
+      "condition": "[equals(parameters('rbacScope'), 'resource')]",
+      "dependsOn": [
+        "serviceManagedIdentity"
+      ],
+      "name": "[guid(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identities').cloudNetworkConfigMiName), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identities').serviceManagedIdentityName), variables('readerRoleId'))]",
+      "properties": {
+        "principalId": "[reference('serviceManagedIdentity').principalId]",
+        "principalType": "ServicePrincipal",
+        "roleDefinitionId": "[variables('readerRoleId')]"
+      },
+      "scope": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identities').cloudNetworkConfigMiName)]",
+      "type": "Microsoft.Authorization/roleAssignments"
+    },
+    "serviceMiReaderOnClusterApi": {
+      "apiVersion": "2022-04-01",
+      "condition": "[equals(parameters('rbacScope'), 'resource')]",
+      "dependsOn": [
+        "serviceManagedIdentity"
+      ],
+      "name": "[guid(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identities').clusterApiAzureMiName), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identities').serviceManagedIdentityName), variables('readerRoleId'))]",
+      "properties": {
+        "principalId": "[reference('serviceManagedIdentity').principalId]",
+        "principalType": "ServicePrincipal",
+        "roleDefinitionId": "[variables('readerRoleId')]"
+      },
+      "scope": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identities').clusterApiAzureMiName)]",
+      "type": "Microsoft.Authorization/roleAssignments"
+    },
+    "serviceMiReaderOnControlPlane": {
+      "apiVersion": "2022-04-01",
+      "condition": "[equals(parameters('rbacScope'), 'resource')]",
+      "dependsOn": [
+        "serviceManagedIdentity"
+      ],
+      "name": "[guid(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identities').controlPlaneMiName), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identities').serviceManagedIdentityName), variables('readerRoleId'))]",
+      "properties": {
+        "principalId": "[reference('serviceManagedIdentity').principalId]",
+        "principalType": "ServicePrincipal",
+        "roleDefinitionId": "[variables('readerRoleId')]"
+      },
+      "scope": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identities').controlPlaneMiName)]",
+      "type": "Microsoft.Authorization/roleAssignments"
+    },
+    "serviceMiReaderOnDiskCsiDriver": {
+      "apiVersion": "2022-04-01",
+      "condition": "[equals(parameters('rbacScope'), 'resource')]",
+      "dependsOn": [
+        "serviceManagedIdentity"
+      ],
+      "name": "[guid(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identities').diskCsiDriverMiName), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identities').serviceManagedIdentityName), variables('readerRoleId'))]",
+      "properties": {
+        "principalId": "[reference('serviceManagedIdentity').principalId]",
+        "principalType": "ServicePrincipal",
+        "roleDefinitionId": "[variables('readerRoleId')]"
+      },
+      "scope": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identities').diskCsiDriverMiName)]",
+      "type": "Microsoft.Authorization/roleAssignments"
+    },
+    "serviceMiReaderOnFileCsiDriver": {
+      "apiVersion": "2022-04-01",
+      "condition": "[equals(parameters('rbacScope'), 'resource')]",
+      "dependsOn": [
+        "serviceManagedIdentity"
+      ],
+      "name": "[guid(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identities').fileCsiDriverMiName), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identities').serviceManagedIdentityName), variables('readerRoleId'))]",
+      "properties": {
+        "principalId": "[reference('serviceManagedIdentity').principalId]",
+        "principalType": "ServicePrincipal",
+        "roleDefinitionId": "[variables('readerRoleId')]"
+      },
+      "scope": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identities').fileCsiDriverMiName)]",
+      "type": "Microsoft.Authorization/roleAssignments"
+    },
+    "serviceMiReaderOnIdentitiesResourceGroup": {
+      "apiVersion": "2022-04-01",
+      "condition": "[equals(parameters('rbacScope'), 'resourceGroup')]",
+      "dependsOn": [
+        "serviceManagedIdentity"
+      ],
+      "name": "[guid(resourceGroup().id, resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identities').serviceManagedIdentityName), variables('readerRoleId'))]",
+      "properties": {
+        "principalId": "[reference('serviceManagedIdentity').principalId]",
+        "principalType": "ServicePrincipal",
+        "roleDefinitionId": "[variables('readerRoleId')]"
+      },
+      "type": "Microsoft.Authorization/roleAssignments"
+    },
+    "serviceMiReaderOnImageRegistry": {
+      "apiVersion": "2022-04-01",
+      "condition": "[equals(parameters('rbacScope'), 'resource')]",
+      "dependsOn": [
+        "serviceManagedIdentity"
+      ],
+      "name": "[guid(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identities').imageRegistryMiName), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identities').serviceManagedIdentityName), variables('readerRoleId'))]",
+      "properties": {
+        "principalId": "[reference('serviceManagedIdentity').principalId]",
+        "principalType": "ServicePrincipal",
+        "roleDefinitionId": "[variables('readerRoleId')]"
+      },
+      "scope": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identities').imageRegistryMiName)]",
+      "type": "Microsoft.Authorization/roleAssignments"
+    },
+    "serviceMiReaderOnIngress": {
+      "apiVersion": "2022-04-01",
+      "condition": "[equals(parameters('rbacScope'), 'resource')]",
+      "dependsOn": [
+        "serviceManagedIdentity"
+      ],
+      "name": "[guid(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identities').ingressMiName), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identities').serviceManagedIdentityName), variables('readerRoleId'))]",
+      "properties": {
+        "principalId": "[reference('serviceManagedIdentity').principalId]",
+        "principalType": "ServicePrincipal",
+        "roleDefinitionId": "[variables('readerRoleId')]"
+      },
+      "scope": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identities').ingressMiName)]",
+      "type": "Microsoft.Authorization/roleAssignments"
+    },
+    "serviceMiReaderOnKms": {
+      "apiVersion": "2022-04-01",
+      "condition": "[equals(parameters('rbacScope'), 'resource')]",
+      "dependsOn": [
+        "serviceManagedIdentity"
+      ],
+      "name": "[guid(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identities').kmsMiName), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identities').serviceManagedIdentityName), variables('readerRoleId'))]",
+      "properties": {
+        "principalId": "[reference('serviceManagedIdentity').principalId]",
+        "principalType": "ServicePrincipal",
+        "roleDefinitionId": "[variables('readerRoleId')]"
+      },
+      "scope": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identities').kmsMiName)]",
+      "type": "Microsoft.Authorization/roleAssignments"
+    }
+  },
+  "variables": {
+    "federatedCredentialsRoleId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'ef318e2a-8334-4a05-9e4a-295a196c6a6e')]",
+    "readerRoleId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'acdd72a7-3385-48ef-bd42-f606fba81ae7')]"
+  }
+}

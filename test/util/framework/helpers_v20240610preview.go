@@ -42,7 +42,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
-	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 )
 
 // ========================================================================
@@ -93,6 +93,7 @@ type NodePoolParams20240610 struct {
 	AutoScaling      *NodePoolAutoScalingParams
 	AvailabilityZone string
 	Tags             map[string]*string
+	EncryptionSetID  string
 }
 
 // ========================================================================
@@ -430,28 +431,7 @@ func (tc *perItOrDescribeTestContext) CreateNodePoolFromParam20240610(
 		nodePool,
 		timeout,
 	); err != nil {
-		// a separate context for console log download with its own timeout,
-		// to make sure logs are fetched even when the node pool deployment
-		// context is cancelled due to timeout
-		downloadTimeout := 5 * time.Minute
-		downloadCtx, downloadCancel := context.WithTimeoutCause(
-			ctx,
-			downloadTimeout,
-			fmt.Errorf("timeout '%f' minutes exceeded during DownloadAllVirtualMachineConsoleLogs for VMs in managed resource group %s", downloadTimeout.Minutes(), managedResourceGroupName))
-		defer downloadCancel()
-		computeFactory, clientErr := tc.GetARMComputeClientFactory(downloadCtx)
-		if clientErr == nil {
-			consoleLogErr := DownloadAllVirtualMachineConsoleLogs(
-				downloadCtx,
-				computeFactory,
-				managedResourceGroupName,
-				tc.LogDirPath)
-			if consoleLogErr != nil {
-				logger.Error(consoleLogErr, "failed to download VM console logs")
-			}
-		} else {
-			logger.Error(clientErr, "failed to get ARM compute client to download VM console logs")
-		}
+		tc.collectNodePoolFailureArtifacts(nodePoolCtx, logger, resourceGroupName, managedResourceGroupName, hcpClusterName, nodePoolName)
 
 		if errors.Is(err, context.DeadlineExceeded) {
 			return fmt.Errorf("failed to create NodePool %s, caused by: %w, error: %w", nodePoolName, context.Cause(nodePoolCtx), err)
@@ -489,7 +469,9 @@ func (tc *perItOrDescribeTestContext) GetAdminRESTConfigForHCPCluster20240610(
 		nil,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to start credential request: %w", err)
+		// Fall back to the CSR-based 2026-09-01-preview mechanism when the
+		// legacy break-glass credential request cannot be started.
+		return tc.fallbackAdminRESTConfigTo20260901(ctx, resourceGroupName, hcpClusterName, timeout, fmt.Errorf("failed to start credential request: %w", err))
 	}
 
 	operationResult, err := adminCredentialRequestPoller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
@@ -499,7 +481,9 @@ func (tc *perItOrDescribeTestContext) GetAdminRESTConfigForHCPCluster20240610(
 		if errors.Is(err, context.DeadlineExceeded) {
 			return nil, fmt.Errorf("failed waiting for hcpCluster=%q in resourcegroup=%q to finish getting creds, caused by: %w, error: %w", hcpClusterName, resourceGroupName, context.Cause(ctx), err)
 		}
-		return nil, fmt.Errorf("failed waiting for hcpCluster=%q in resourcegroup=%q to finish getting creds: %w", hcpClusterName, resourceGroupName, err)
+		// Fall back to the CSR-based 2026-09-01-preview mechanism when the
+		// legacy break-glass credential request fails after it started.
+		return tc.fallbackAdminRESTConfigTo20260901(ctx, resourceGroupName, hcpClusterName, timeout, fmt.Errorf("failed waiting for hcpCluster=%q in resourcegroup=%q to finish getting creds: %w", hcpClusterName, resourceGroupName, err))
 	}
 
 	switch m := any(operationResult).(type) {
@@ -684,6 +668,16 @@ func UpdateHCPCluster20240610(
 ) (*hcpsdk20240610preview.HcpOpenShiftCluster, error) {
 	ctx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during UpdateHCPCluster for cluster %s in resource group %s", timeout.Minutes(), hcpClusterName, resourceGroupName))
 	defer cancel()
+
+	// A nil tag map means preserve existing tags, even when adding our deadline.
+	if update.Tags == nil {
+		current, err := hcpClient.Get(ctx, resourceGroupName, hcpClusterName, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed reading tags before updating cluster %q in resource group %q: %w", hcpClusterName, resourceGroupName, err)
+		}
+		update.Tags = current.Tags
+	}
+	update.Tags = updateTimeoutTags(update.Tags, metadataapi.TagClusterMaxUpdateDuration, timeout)
 
 	var hcpOpenShiftCluster *hcpsdk20240610preview.HcpOpenShiftCluster
 	var lastTransientErr error
@@ -915,6 +909,16 @@ func UpdateNodePoolAndWait20240610(
 	ctx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during UpdateNodePoolAndWait for nodepool %s in cluster %s in resource group %s", timeout.Minutes(), nodePoolName, hcpClusterName, resourceGroupName))
 	defer cancel()
 
+	// A nil tag map means preserve existing tags, even when adding our deadline.
+	if update.Tags == nil {
+		current, err := nodePoolsClient.Get(ctx, resourceGroupName, hcpClusterName, nodePoolName, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed reading tags before updating node pool %q in cluster %q resource group %q: %w", nodePoolName, hcpClusterName, resourceGroupName, err)
+		}
+		update.Tags = current.Tags
+	}
+	update.Tags = updateTimeoutTags(update.Tags, metadataapi.TagNodePoolMaxUpdateDuration, timeout)
+
 	poller, err := nodePoolsClient.BeginUpdate(ctx, resourceGroupName, hcpClusterName, nodePoolName, update, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to start nodepool %q update in cluster %q resourcegroup=%q: %w", nodePoolName, hcpClusterName, resourceGroupName, err)
@@ -962,14 +966,18 @@ func CreateOrUpdateExternalAuthAndWait20240610(
 	ctx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during CreateOrUpdateExternalAuthAndWait for external auth %s in cluster %s in resource group %s", timeout.Minutes(), externalAuthName, hcpClusterName, resourceGroupName))
 	defer cancel()
 
+	createCtx, createAttempts := withRequestAttemptTracker(ctx)
 	pollerResp, err := externalAuthClient.BeginCreateOrUpdate(
-		ctx,
+		createCtx,
 		resourceGroupName,
 		hcpClusterName,
 		externalAuthName,
 		externalAuth,
 		nil,
 	)
+	if err != nil {
+		pollerResp, err = resumeInFlightExternalAuthCreate20240610(ctx, externalAuthClient, resourceGroupName, hcpClusterName, externalAuthName, createAttempts, err)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("failed creating external auth %q in resourcegroup=%q for cluster=%q: %w", externalAuthName, resourceGroupName, hcpClusterName, err)
 	}
@@ -1076,8 +1084,12 @@ func BeginCreateHCPCluster20240610(
 	location string,
 ) (*runtime.Poller[hcpsdk20240610preview.HcpOpenShiftClustersClientCreateOrUpdateResponse], error) {
 	cluster := BuildHCPClusterFromParams20240610(clusterParams, location)
-	logger.Info("Starting HCP cluster creation", "clusterName", hcpClusterName, "resourceGroup", resourceGroupName)
-	poller, err := hcpClient.BeginCreateOrUpdate(ctx, resourceGroupName, hcpClusterName, cluster, nil)
+	logger.Info("Starting HCP cluster creation", "clusterName", hcpClusterName, "resourceGroup", resourceGroupName, "version", cluster.Properties.Version.ID, "channelGroup", cluster.Properties.Version.ChannelGroup)
+	createCtx, createAttempts := withRequestAttemptTracker(ctx)
+	poller, err := hcpClient.BeginCreateOrUpdate(createCtx, resourceGroupName, hcpClusterName, cluster, nil)
+	if err != nil {
+		poller, err = resumeInFlightHCPClusterCreate20240610(ctx, hcpClient, resourceGroupName, hcpClusterName, createAttempts, err)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("failed starting cluster creation %q in resourcegroup=%q: %w", hcpClusterName, resourceGroupName, err)
 	}
@@ -1102,7 +1114,11 @@ func CreateHCPClusterAndWait20240610(
 	}
 
 	logger.Info("Starting HCP cluster creation", "clusterName", hcpClusterName, "resourceGroup", resourceGroupName, "version", cluster.Properties.Version.ID, "channelGroup", cluster.Properties.Version.ChannelGroup)
-	poller, err := hcpClient.BeginCreateOrUpdate(ctx, resourceGroupName, hcpClusterName, cluster, nil)
+	createCtx, createAttempts := withRequestAttemptTracker(ctx)
+	poller, err := hcpClient.BeginCreateOrUpdate(createCtx, resourceGroupName, hcpClusterName, cluster, nil)
+	if err != nil {
+		poller, err = resumeInFlightHCPClusterCreate20240610(ctx, hcpClient, resourceGroupName, hcpClusterName, createAttempts, err)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("failed starting cluster creation %q in resourcegroup=%q: %w", hcpClusterName, resourceGroupName, err)
 	}
@@ -1219,7 +1235,11 @@ func CreateNodePoolAndWait20240610(
 ) (*hcpsdk20240610preview.NodePool, error) {
 	ctx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during CreateNodePoolAndWait for nodepool %s in cluster %s in resource group %s", timeout.Minutes(), nodePoolName, hcpClusterName, resourceGroupName))
 	defer cancel()
-	poller, err := nodePoolsClient.BeginCreateOrUpdate(ctx, resourceGroupName, hcpClusterName, nodePoolName, nodePool, nil)
+	createCtx, createAttempts := withRequestAttemptTracker(ctx)
+	poller, err := nodePoolsClient.BeginCreateOrUpdate(createCtx, resourceGroupName, hcpClusterName, nodePoolName, nodePool, nil)
+	if err != nil {
+		poller, err = resumeInFlightNodePoolCreate20240610(ctx, nodePoolsClient, resourceGroupName, hcpClusterName, nodePoolName, createAttempts, err)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("failed starting nodepool creation %q for cluster %q in resourcegroup=%q: %w", nodePoolName, hcpClusterName, resourceGroupName, err)
 	}
@@ -1278,6 +1298,10 @@ func BuildNodePoolFromParams20240610(
 				AvailabilityZone: to.Ptr(parameters.AvailabilityZone),
 			},
 		},
+	}
+
+	if parameters.EncryptionSetID != "" {
+		nodePool.Properties.Platform.OSDisk.EncryptionSetID = to.Ptr(parameters.EncryptionSetID)
 	}
 
 	if parameters.AutoScaling != nil {
@@ -1378,4 +1402,81 @@ func (tc *perItOrDescribeTestContext) get20240610ClientFactoryUnlocked(ctx conte
 	tc.clientFactory20240610 = clientFactory
 
 	return tc.clientFactory20240610, nil
+}
+
+// resumeInFlightHCPClusterCreate20240610 returns a poller for a cluster create that
+// is already in flight when the create request was rejected with 409 Conflict.
+// See resumeInFlightCreate.
+func resumeInFlightHCPClusterCreate20240610(
+	ctx context.Context,
+	hcpClient *hcpsdk20240610preview.HcpOpenShiftClustersClient,
+	resourceGroupName string,
+	hcpClusterName string,
+	attempts *requestAttemptTracker,
+	createErr error,
+) (*runtime.Poller[hcpsdk20240610preview.HcpOpenShiftClustersClientCreateOrUpdateResponse], error) {
+	return resumeInFlightCreate(ctx, createErr, attempts, fmt.Sprintf("cluster %q in resourcegroup=%q", hcpClusterName, resourceGroupName),
+		func(ctx context.Context) (hcpsdk20240610preview.HcpOpenShiftClustersClientCreateOrUpdateResponse, string, error) {
+			resp, err := hcpClient.Get(ctx, resourceGroupName, hcpClusterName, nil)
+			if err != nil {
+				return hcpsdk20240610preview.HcpOpenShiftClustersClientCreateOrUpdateResponse{}, "", err
+			}
+			var state string
+			if resp.Properties != nil {
+				state = provisioningStateString(resp.Properties.ProvisioningState)
+			}
+			return hcpsdk20240610preview.HcpOpenShiftClustersClientCreateOrUpdateResponse(resp), state, nil
+		})
+}
+
+// resumeInFlightNodePoolCreate20240610 returns a poller for a node pool create that
+// is already in flight when the create request was rejected with 409 Conflict.
+// See resumeInFlightCreate.
+func resumeInFlightNodePoolCreate20240610(
+	ctx context.Context,
+	nodePoolsClient *hcpsdk20240610preview.NodePoolsClient,
+	resourceGroupName string,
+	hcpClusterName string,
+	nodePoolName string,
+	attempts *requestAttemptTracker,
+	createErr error,
+) (*runtime.Poller[hcpsdk20240610preview.NodePoolsClientCreateOrUpdateResponse], error) {
+	return resumeInFlightCreate(ctx, createErr, attempts, fmt.Sprintf("nodepool %q for cluster %q in resourcegroup=%q", nodePoolName, hcpClusterName, resourceGroupName),
+		func(ctx context.Context) (hcpsdk20240610preview.NodePoolsClientCreateOrUpdateResponse, string, error) {
+			resp, err := nodePoolsClient.Get(ctx, resourceGroupName, hcpClusterName, nodePoolName, nil)
+			if err != nil {
+				return hcpsdk20240610preview.NodePoolsClientCreateOrUpdateResponse{}, "", err
+			}
+			var state string
+			if resp.Properties != nil {
+				state = provisioningStateString(resp.Properties.ProvisioningState)
+			}
+			return hcpsdk20240610preview.NodePoolsClientCreateOrUpdateResponse(resp), state, nil
+		})
+}
+
+// resumeInFlightExternalAuthCreate20240610 returns a poller for an external auth
+// create or update that is already in flight when the request was rejected
+// with 409 Conflict. See resumeInFlightCreate.
+func resumeInFlightExternalAuthCreate20240610(
+	ctx context.Context,
+	externalAuthClient *hcpsdk20240610preview.ExternalAuthsClient,
+	resourceGroupName string,
+	hcpClusterName string,
+	externalAuthName string,
+	attempts *requestAttemptTracker,
+	createErr error,
+) (*runtime.Poller[hcpsdk20240610preview.ExternalAuthsClientCreateOrUpdateResponse], error) {
+	return resumeInFlightCreate(ctx, createErr, attempts, fmt.Sprintf("external auth %q for cluster %q in resourcegroup=%q", externalAuthName, hcpClusterName, resourceGroupName),
+		func(ctx context.Context) (hcpsdk20240610preview.ExternalAuthsClientCreateOrUpdateResponse, string, error) {
+			resp, err := externalAuthClient.Get(ctx, resourceGroupName, hcpClusterName, externalAuthName, nil)
+			if err != nil {
+				return hcpsdk20240610preview.ExternalAuthsClientCreateOrUpdateResponse{}, "", err
+			}
+			var state string
+			if resp.Properties != nil {
+				state = provisioningStateString(resp.Properties.ProvisioningState)
+			}
+			return hcpsdk20240610preview.ExternalAuthsClientCreateOrUpdateResponse(resp), state, nil
+		})
 }

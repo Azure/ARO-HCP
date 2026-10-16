@@ -18,7 +18,9 @@ import "k8s.io/apimachinery/pkg/util/sets"
 
 // Represents to support the ManagedServiceIdentity ARM resource.
 type ManagedServiceIdentity struct {
-	PrincipalID            string                           `json:"principalId,omitempty"`
+	// Written by: Frontend PUT/PATCH Cluster/NodePool (Update: preserves stored values; cleared from Create input)
+	PrincipalID string `json:"principalId,omitempty"`
+	// Written by: Frontend PUT/PATCH Cluster/NodePool (Update: preserves stored values; cleared from Create input)
 	TenantID               string                           `json:"tenantId,omitempty"`
 	Type                   ManagedServiceIdentityType       `json:"type"`
 	UserAssignedIdentities map[string]*UserAssignedIdentity `json:"userAssignedIdentities,omitempty"`
@@ -26,7 +28,9 @@ type ManagedServiceIdentity struct {
 
 // UserAssignedIdentity - User assigned identity properties https://azure.github.io/typespec-azure/docs/libraries/azure-resource-manager/reference/data-types/#Azure.ResourceManager.CommonTypes.UserAssignedIdentity
 type UserAssignedIdentity struct {
-	ClientID    *string `json:"clientId,omitempty"`
+	// Written by: ClusterIdentitySync (resolved values), Frontend PUT/PATCH Cluster/NodePool (Update: preserves stored values)
+	ClientID *string `json:"clientId,omitempty"`
+	// Written by: ClusterIdentitySync (resolved values), Frontend PUT/PATCH Cluster/NodePool (Update: preserves stored values)
 	PrincipalID *string `json:"principalId,omitempty"`
 }
 

@@ -34,6 +34,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
@@ -110,13 +112,13 @@ func TestUnionKubeApplierInformersController_E2E(t *testing.T) {
 		// --- step 1: pre-load *Desires for the test stamp --------------------
 		// Stamp identifiers are constrained to [0-9a-z]{1,3} by validation.
 		stampIdentifier := "s1"
-		managementClusterResourceID := metadataapi.Must(fleetapi.ToManagementClusterResourceID(stampIdentifier))
+		managementClusterResourceID := metadataapi.Must(fleetapihelpers.ToManagementClusterResourceID(stampIdentifier))
 
 		initialClusterScopedApply := newApplyDesire(t,
-			kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(testSubscriptionID, testResourceGroup, testClusterName, "initial-a"),
+			kubeapplierapihelpers.ToClusterScopedApplyDesireResourceIDString(testSubscriptionID, testResourceGroup, testClusterName, "initial-a"),
 			managementClusterResourceID)
 		initialNodePoolScopedApply := newApplyDesire(t,
-			kubeapplierapi.ToNodePoolScopedApplyDesireResourceIDString(testSubscriptionID, testResourceGroup, testClusterName, testNodePoolName, "initial-b"),
+			kubeapplierapihelpers.ToNodePoolScopedApplyDesireResourceIDString(testSubscriptionID, testResourceGroup, testClusterName, testNodePoolName, "initial-b"),
 			managementClusterResourceID)
 
 		mockKubeApplierClient, err := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClientWithResources(ctx, []any{
@@ -188,7 +190,7 @@ func TestUnionKubeApplierInformersController_E2E(t *testing.T) {
 
 		// --- step 5: add another *Desire and watch it propagate -------------
 		secondClusterScopedApply := newApplyDesire(t,
-			kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(testSubscriptionID, testResourceGroup, "cluster-2", "initial-c"),
+			kubeapplierapihelpers.ToClusterScopedApplyDesireResourceIDString(testSubscriptionID, testResourceGroup, "cluster-2", "initial-c"),
 			managementClusterResourceID)
 		require.NoError(t, createApplyDesire(ctx, mockKubeApplierClient, secondClusterScopedApply))
 
@@ -284,17 +286,16 @@ func newApplyDesire(t *testing.T, resourceIDString string, managementClusterReso
 }
 
 func createStamp(ctx context.Context, fleetClient fleetcosmosstorage.FleetDBClient, stampIdentifier string) error {
-	stampResourceID := metadataapi.Must(fleetapi.ToStampResourceID(stampIdentifier))
+	stampResourceID := metadataapi.Must(fleetapihelpers.ToStampResourceID(stampIdentifier))
 	stamp := &fleetapi.Stamp{
 		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: stampResourceID, PartitionKey: strings.ToLower(stampIdentifier)},
-		ResourceID:     stampResourceID,
 	}
 	_, err := fleetClient.Stamps().Create(ctx, stamp, nil)
 	return err
 }
 
 func createManagementCluster(ctx context.Context, fleetClient fleetcosmosstorage.FleetDBClient, stampIdentifier string) error {
-	managementClusterResourceID := metadataapi.Must(fleetapi.ToManagementClusterResourceID(stampIdentifier))
+	managementClusterResourceID := metadataapi.Must(fleetapihelpers.ToManagementClusterResourceID(stampIdentifier))
 	aksResourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		fmt.Sprintf("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/aks-%s", stampIdentifier)))
 	dnsZoneResourceID := metadataapi.Must(azcorearm.ParseResourceID(
@@ -303,7 +304,6 @@ func createManagementCluster(ctx context.Context, fleetClient fleetcosmosstorage
 		fmt.Sprintf("/api/aro_hcp/v1alpha1/provision_shards/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeee%s", stampIdentifier))))
 	managementCluster := &fleetapi.ManagementCluster{
 		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: managementClusterResourceID, PartitionKey: strings.ToLower(stampIdentifier)},
-		ResourceID:     managementClusterResourceID,
 		Spec: fleetapi.ManagementClusterSpec{
 			SchedulingPolicy: fleetapi.ManagementClusterSchedulingPolicySchedulable,
 		},

@@ -29,9 +29,10 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
-	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
 	"github.com/Azure/ARO-HCP/internal/backup"
 )
 
@@ -43,7 +44,7 @@ func TestBuildApplyDesiresFromSchedules(t *testing.T) {
 	clusterID := "11111111111111111111111111111111"
 	hostedClusterNamespace := controllerutils.HostedClusterNamespace("testenv", clusterID)
 	controlPlaneNamespace := hostedClusterNamespace + "-test-domprefix"
-	managementClusterResourceID := metadataapi.Must(fleetapi.ToManagementClusterResourceID("mc1"))
+	managementClusterResourceID := metadataapi.Must(fleetapihelpers.ToManagementClusterResourceID("mc1"))
 	backupConfig := BackupConfig{
 		BackupScheduleState:  coreapi.BackupScheduleStateEnabled,
 		BackupCadenceProfile: BackupCadenceProduction,
@@ -52,7 +53,7 @@ func TestBuildApplyDesiresFromSchedules(t *testing.T) {
 
 	veleroSchedules := []*velerov1api.Schedule{}
 	for _, schedule := range schedules {
-		veleroSchedules = append(veleroSchedules, NewScheduledBackup(clusterID, hostedClusterNamespace, controlPlaneNamespace, schedule, false))
+		veleroSchedules = append(veleroSchedules, NewScheduledBackup(clusterID, "", hostedClusterNamespace, controlPlaneNamespace, schedule, false))
 	}
 	desires, err := buildApplyDesiresFromSchedules("test-sub", "test-rg", "test-cluster", managementClusterResourceID, veleroSchedules)
 	require.NoError(t, err)
@@ -84,10 +85,10 @@ func TestBuildApplyDesiresFromSchedules(t *testing.T) {
 // apply/read pair stays in lockstep, and it carries the cluster-scoped ReadDesire
 // resource ID.
 func TestBuildReadDesireFromApplyDesire(t *testing.T) {
-	managementClusterResourceID := metadataapi.Must(fleetapi.ToManagementClusterResourceID("mc1"))
+	managementClusterResourceID := metadataapi.Must(fleetapihelpers.ToManagementClusterResourceID("mc1"))
 
 	makeApplyDesire := func(name string) *kubeapplierapi.ApplyDesire {
-		resourceIDStr := kubeapplierapi.ToClusterScopedApplyDesireResourceIDString("test-sub", "test-rg", "test-cluster", name)
+		resourceIDStr := kubeapplierapihelpers.ToClusterScopedApplyDesireResourceIDString("test-sub", "test-rg", "test-cluster", name)
 		resourceID := metadataapi.Must(azcorearm.ParseResourceID(resourceIDStr))
 		return &kubeapplierapi.ApplyDesire{
 			CosmosMetadata: coreapi.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(managementClusterResourceID.String())},
@@ -123,7 +124,7 @@ func TestBuildReadDesireFromApplyDesire(t *testing.T) {
 
 	// The ReadDesire carries the cluster-scoped ReadDesire resource ID (not the
 	// ApplyDesire resource type).
-	wantReadDesireID := kubeapplierapi.ToClusterScopedReadDesireResourceIDString("test-sub", "test-rg", "test-cluster", name)
+	wantReadDesireID := kubeapplierapihelpers.ToClusterScopedReadDesireResourceIDString("test-sub", "test-rg", "test-cluster", name)
 	assert.True(t, strings.EqualFold(wantReadDesireID, readDesire.ResourceID.String()),
 		"expected ReadDesire resource ID %q, got %q", wantReadDesireID, readDesire.ResourceID.String())
 }

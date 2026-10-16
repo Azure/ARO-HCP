@@ -175,37 +175,12 @@ func (o *RawUpdateOptions) Validate(ctx context.Context) (*ValidatedUpdateOption
 }
 
 // Complete creates all necessary clients and resources for execution and returns a ready-to-execute Updater
-func (v *ValidatedUpdateOptions) Complete(ctx context.Context) (*updater.Updater, error) {
-	// Collect unique Key Vault configurations from all images
-	// Use a map to deduplicate (same vault+secret combination)
-	kvConfigs := make(map[string]clients.KeyVaultConfig)
-	for _, imageConfig := range v.Config.Images {
-		if imageConfig.Source.KeyVault != nil &&
-			imageConfig.Source.KeyVault.URL != "" &&
-			imageConfig.Source.KeyVault.SecretName != "" {
-			key := imageConfig.Source.KeyVault.URL + "|" + imageConfig.Source.KeyVault.SecretName
-			kvConfigs[key] = clients.KeyVaultConfig{
-				VaultURL:   imageConfig.Source.KeyVault.URL,
-				SecretName: imageConfig.Source.KeyVault.SecretName,
-			}
-		}
-	}
-
-	// Fetch all unique pull secrets from Key Vault
-	for _, kvConfig := range kvConfigs {
-		if err := clients.FetchAndMergeKeyVaultPullSecret(ctx, kvConfig); err != nil {
-			return nil, fmt.Errorf("failed to fetch pull secret %s from Key Vault %s: %w",
-				kvConfig.SecretName, kvConfig.VaultURL, err)
-		}
-	}
+func (v *ValidatedUpdateOptions) Complete(_ context.Context) (*updater.Updater, error) {
 
 	// Create registry clients - one client per registry+auth combination
 	// Key format: "registry:useAuth" (e.g., "quay.io:true", "quay.io:false")
 	registryClients := make(map[string]clients.RegistryClient)
 	for _, imageConfig := range v.Config.Images {
-		if imageConfig.Source.GitHubLatestRelease != "" {
-			continue
-		}
 		registry, _, err := imageConfig.Source.ParseImageReference()
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse image reference: %w", err)
@@ -252,8 +227,8 @@ func validateConfig(cfg *config.Config) error {
 	}
 
 	for name, img := range cfg.Images {
-		if img.Source.Image == "" && img.Source.GitHubLatestRelease == "" {
-			return fmt.Errorf("image %s: source image or githubLatestRelease is required", name)
+		if img.Source.Image == "" {
+			return fmt.Errorf("image %s: source image is required", name)
 		}
 
 		if len(img.Targets) == 0 {

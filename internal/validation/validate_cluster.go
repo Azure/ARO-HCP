@@ -27,12 +27,14 @@ import (
 	"k8s.io/apimachinery/pkg/api/operation"
 	"k8s.io/apimachinery/pkg/api/safe"
 	"k8s.io/apimachinery/pkg/api/validate"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/utils/apihelpers"
 )
 
 const (
@@ -44,28 +46,28 @@ const (
 
 // ToClusterTrackedResource returns a pointer to the TrackedResource field of
 // a cluster. Exported so admission can traverse the same field path.
-func ToClusterTrackedResource(oldObj *coreapi.HCPOpenShiftCluster) *coreapi.TrackedResource {
+func ToClusterTrackedResource(oldObj *coreapi.Cluster) *coreapi.TrackedResource {
 	return &oldObj.TrackedResource
 }
 
 // ToClusterCustomerProperties returns a pointer to the CustomerProperties
 // field of a cluster. Exported so admission can traverse the same field path.
-func ToClusterCustomerProperties(oldObj *coreapi.HCPOpenShiftCluster) *coreapi.HCPOpenShiftClusterCustomerProperties {
+func ToClusterCustomerProperties(oldObj *coreapi.Cluster) *coreapi.ClusterCustomerProperties {
 	return &oldObj.CustomerProperties
 }
 
 // ToClusterServiceProviderProperties returns a pointer to the
 // ServiceProviderProperties field of a cluster. Exported so admission can
 // traverse the same field path.
-func ToClusterServiceProviderProperties(oldObj *coreapi.HCPOpenShiftCluster) *coreapi.HCPOpenShiftClusterServiceProviderProperties {
+func ToClusterServiceProviderProperties(oldObj *coreapi.Cluster) *coreapi.ClusterServiceProviderProperties {
 	return &oldObj.ServiceProviderProperties
 }
 
 var (
-	toClusterIdentity = func(oldObj *coreapi.HCPOpenShiftCluster) *coreapi.ManagedServiceIdentity { return oldObj.Identity }
+	toClusterIdentity = func(oldObj *coreapi.Cluster) *coreapi.ManagedServiceIdentity { return oldObj.Identity }
 )
 
-func ValidateCluster(ctx context.Context, op operation.Operation, newCluster, oldCluster *coreapi.HCPOpenShiftCluster, validationPathMapper coreapi.ValidationPathMapperFunc) field.ErrorList {
+func ValidateCluster(ctx context.Context, op operation.Operation, newCluster, oldCluster *coreapi.Cluster, validationPathMapper coreapi.ValidationPathMapperFunc) field.ErrorList {
 	errs := field.ErrorList{}
 
 	//coreapi.TrackedResource
@@ -76,10 +78,10 @@ func ValidateCluster(ctx context.Context, op operation.Operation, newCluster, ol
 		errs = append(errs, MatchesRegex(ctx, op, field.NewPath("id"), &newCluster.ID.Name, nil, clusterResourceNameRegex, clusterResourceNameErrorString)...)
 	}
 
-	// Properties HCPOpenShiftClusterCustomerProperties `json:"properties,omitempty"`
+	// Properties ClusterCustomerProperties `json:"properties,omitempty"`
 	errs = append(errs, validateClusterCustomerProperties(ctx, op, field.NewPath("customerProperties"), &newCluster.CustomerProperties, safe.Field(oldCluster, ToClusterCustomerProperties))...)
 
-	// Properties HCPOpenShiftClusterCustomerProperties `json:"properties,omitempty"`
+	// Properties ClusterCustomerProperties `json:"properties,omitempty"`
 	errs = append(errs, validateClusterServiceProviderProperties(ctx, op, field.NewPath("serviceProviderProperties"), &newCluster.ServiceProviderProperties, safe.Field(oldCluster, ToClusterServiceProviderProperties))...)
 
 	// Identity   *coreapi.ManagedServiceIdentity   `json:"identity,omitempty"`
@@ -88,14 +90,17 @@ func ValidateCluster(ctx context.Context, op operation.Operation, newCluster, ol
 	// there several resourceIDs that must be verified with respect to this ID.  This is the only level of validation with access to both
 	errs = append(errs, validateResourceIDsAgainstClusterID(ctx, op, newCluster, oldCluster)...)
 
-	// Private KAS requires vnetIntegrationSubnetId to be set.
-	// For API versions v20251223preview and later, vnetIntegrationSubnetId is already
-	// enforced as required during conversion, so this check only has practical effect
-	// for v20240610preview.
-	errs = append(errs, validatePrivateKASRequiresVNetIntegrationSubnetID(ctx, op, newCluster, oldCluster)...)
+	// Subnet requiredness depends on the API version, feature opt-in and visibility.
+	errs = append(errs, validateClusterVNetIntegrationSubnetID(ctx, op, newCluster, oldCluster)...)
 
 	// Private KAS requires OpenShift >= 4.22 (HyperShift gained private API server support in 4.22).
 	errs = append(errs, validatePrivateKASRequiresMinimumVersion(ctx, op, newCluster, oldCluster)...)
+
+	// Nightly installs must resolve to a full version; this needs both the customer
+	// version profile and the service-provider exact pin, so it lives at cluster level.
+	errs = append(errs, validateNightlyChannelRequiresFullVersion(ctx, op, newCluster, oldCluster)...)
+
+	errs = append(errs, validateManagedHSMRequiresMinimumVersion(ctx, op, newCluster, oldCluster)...)
 
 	// there are pieces of clusterProperties that are dependent upon values in .identity
 	errs = append(errs, validateOperatorAuthenticationAgainstIdentities(ctx, op, newCluster, oldCluster)...)
@@ -105,15 +110,42 @@ func ValidateCluster(ctx context.Context, op operation.Operation, newCluster, ol
 	return errs
 }
 
-func validatePrivateKASRequiresVNetIntegrationSubnetID(_ context.Context, _ operation.Operation, newCluster, _ *coreapi.HCPOpenShiftCluster) field.ErrorList {
+func validateClusterVNetIntegrationSubnetID(_ context.Context, op operation.Operation, newCluster, _ *coreapi.Cluster) field.ErrorList {
 	errs := field.ErrorList{}
+	subnetPath := field.NewPath("customerProperties", "platform", "vnetIntegrationSubnetId")
+	subnet := newCluster.CustomerProperties.Platform.VnetIntegrationSubnetID
+	disableSwift := false
+	if op.HasOption(metadataapi.FeatureExperimentalReleaseFeatures) {
+		for key, value := range newCluster.Tags {
+			if !strings.EqualFold(key, metadataapi.TagClusterDisableSwift) {
+				continue
+			}
+			switch value {
+			case "true":
+				disableSwift = true
+				if subnet != nil {
+					errs = append(errs, field.Invalid(field.NewPath("tags").Key(key), value, "cannot disable SWIFT when customerProperties.platform.vnetIntegrationSubnetId is set"))
+				}
+			case "false":
+			default:
+				errs = append(errs, field.Invalid(field.NewPath("tags").Key(key), value, "must be exactly \"true\" or \"false\""))
+			}
+		}
+	}
 
-	if newCluster.CustomerProperties.API.Visibility == metadataapi.VisibilityPrivate &&
-		newCluster.CustomerProperties.Platform.VnetIntegrationSubnetID == nil {
-		errs = append(errs, field.Required(
-			field.NewPath("customerProperties", "platform", "vnetIntegrationSubnetId"),
-			"required when customerProperties.api.visibility is Private",
-		))
+	if subnet == nil {
+		if newCluster.CustomerProperties.API.Visibility == metadataapi.VisibilityPrivate {
+			errs = append(errs, field.Required(subnetPath, "required when customerProperties.api.visibility is Private"))
+		}
+		customerManaged := newCluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged
+		if customerManaged != nil && customerManaged.Kms != nil && customerManaged.Kms.Visibility == metadataapi.KeyVaultVisibilityPrivate {
+			errs = append(errs, field.Required(subnetPath, "required when customerProperties.etcd.dataEncryption.customerManaged.kms.visibility is Private"))
+		}
+		// UPDATE uses the stored subnet through platform immutability validation,
+		// so legacy/non-SWIFT clusters remain updatable without the tag or AFEC.
+		if op.Type == operation.Create && metadataapi.APIVersionFromOptions(op.Options).GE(metadataapi.APIVersionV20251223Preview) && !disableSwift {
+			errs = append(errs, field.Required(subnetPath, "required unless the disable-swift experimental tag is true and ExperimentalReleaseFeatures is registered"))
+		}
 	}
 
 	return errs
@@ -125,7 +157,7 @@ var minPrivateKASOpenShiftVersion = semver.Version{Major: 4, Minor: 22}
 
 // validatePrivateKASRequiresMinimumVersion rejects Private API visibility when
 // the requested OpenShift version is below 4.22.
-func validatePrivateKASRequiresMinimumVersion(_ context.Context, _ operation.Operation, newCluster, _ *coreapi.HCPOpenShiftCluster) field.ErrorList {
+func validatePrivateKASRequiresMinimumVersion(_ context.Context, _ operation.Operation, newCluster, _ *coreapi.Cluster) field.ErrorList {
 	if newCluster.CustomerProperties.API.Visibility != metadataapi.VisibilityPrivate {
 		return nil
 	}
@@ -154,7 +186,85 @@ func validatePrivateKASRequiresMinimumVersion(_ context.Context, _ operation.Ope
 	return nil
 }
 
-func validateOperatorAuthenticationAgainstIdentities(ctx context.Context, op operation.Operation, newCluster, _ *coreapi.HCPOpenShiftCluster) field.ErrorList {
+// validateNightlyChannelRequiresFullVersion enforces that a cluster in the
+// "nightly" channel group resolves to a full "<major>.<minor>.<patch>" version.
+// Nightly builds are published to the CI releasestream API rather than the
+// Cincinnati graph the control plane desired version controller resolves
+// against, so the controller cannot derive a nightly build from a bare
+// "<major>.<minor>" and would leave the cluster wedged in provisioning.
+//
+// Admission mutation runs before validation: for a full version.id (or an
+// exact-version tag) it moves the exact version onto
+// ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion and
+// reduces version.id to its "<major>.<minor>" release line. This validator
+// therefore maps that internal exact pin back to the external version.id it
+// represents and validates the mapped value, so a nightly install is accepted
+// only when the effective version.id is a full version.
+func validateNightlyChannelRequiresFullVersion(_ context.Context, op operation.Operation, newCluster, _ *coreapi.Cluster) field.ErrorList {
+	// Nightly is only selectable with the experimental feature; without it the
+	// channelGroup enum already rejects the request, so skip here to avoid a
+	// duplicate error.
+	if !op.HasOption(metadataapi.FeatureExperimentalReleaseFeatures) {
+		return nil
+	}
+	if newCluster.CustomerProperties.Version.ChannelGroup != metadataapi.ChannelGroupNightly {
+		return nil
+	}
+
+	// Map the internal exact pin back to the external version.id it represents:
+	// when a full version was supplied, mutation moved it to
+	// ControlPlaneExactVersion and reduced version.id to its release line.
+	effectiveVersionID := newCluster.CustomerProperties.Version.ID
+	if exact := newCluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion; exact != nil {
+		effectiveVersionID = exact.String()
+	}
+	if len(effectiveVersionID) == 0 {
+		// A missing version.id is reported by the required-value check.
+		return nil
+	}
+
+	// Strict semver parsing accepts a full "<major>.<minor>.<patch>" (optionally
+	// with a pre-release such as the nightly build suffix) while rejecting a bare
+	// "<major>.<minor>".
+	if _, err := semver.Parse(effectiveVersionID); err != nil {
+		return field.ErrorList{field.Invalid(
+			field.NewPath("customerProperties", "version", "id"), effectiveVersionID,
+			"must be specified as MAJOR.MINOR.PATCH (optionally with a pre-release, e.g. a nightly build suffix) when channelGroup is \"nightly\"",
+		)}
+	}
+	return nil
+}
+
+var minManagedHSMOpenShiftVersion = semver.Version{Major: 4, Minor: 22}
+
+func validateManagedHSMRequiresMinimumVersion(_ context.Context, _ operation.Operation, newCluster, _ *coreapi.Cluster) field.ErrorList {
+	cm := newCluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged
+	if cm == nil || cm.Kms == nil || cm.Kms.KeyVaultType != coreapi.KmsKeyVaultTypeManagedHSM {
+		return nil
+	}
+
+	versionID := newCluster.CustomerProperties.Version.ID
+	if len(versionID) == 0 {
+		return nil
+	}
+
+	requestedVersion, err := semver.ParseTolerant(versionID)
+	if err != nil {
+		return nil
+	}
+
+	clusterVersion := semver.Version{Major: requestedVersion.Major, Minor: requestedVersion.Minor}
+	if clusterVersion.LT(minManagedHSMOpenShiftVersion) {
+		return field.ErrorList{field.Forbidden(
+			field.NewPath("customerProperties", "etcd", "dataEncryption", "customerManaged", "kms", "keyVaultType"),
+			fmt.Sprintf("Managed HSM KMS requires OpenShift version %d.%d or later", minManagedHSMOpenShiftVersion.Major, minManagedHSMOpenShiftVersion.Minor),
+		)}
+	}
+
+	return nil
+}
+
+func validateOperatorAuthenticationAgainstIdentities(ctx context.Context, op operation.Operation, newCluster, _ *coreapi.Cluster) field.ErrorList {
 	errs := field.ErrorList{}
 
 	// Verify that every key in Identity.UserAssignedIdentities is referenced
@@ -224,7 +334,7 @@ func validateOperatorAuthenticationAgainstIdentities(ctx context.Context, op ope
 	return errs
 }
 
-func validateResourceIDsAgainstClusterID(ctx context.Context, op operation.Operation, newCluster, _ *coreapi.HCPOpenShiftCluster) field.ErrorList {
+func validateResourceIDsAgainstClusterID(ctx context.Context, op operation.Operation, newCluster, _ *coreapi.Cluster) field.ErrorList {
 	if newCluster.ID == nil {
 		return nil
 	}
@@ -240,6 +350,7 @@ func validateResourceIDsAgainstClusterID(ctx context.Context, op operation.Opera
 	errs = append(errs, SameSubscription(ctx, op, field.NewPath("customerProperties", "platform", "networkSecurityGroupId"), newCluster.CustomerProperties.Platform.NetworkSecurityGroupID, nil, newCluster.ID.SubscriptionID)...)
 	errs = append(errs, DifferentResourceGroupNameFromResourceID(ctx, op, field.NewPath("customerProperties", "platform", "networkSecurityGroupId"), newCluster.CustomerProperties.Platform.NetworkSecurityGroupID, nil, newCluster.CustomerProperties.Platform.ManagedResourceGroup)...)
 	errs = append(errs, SameSubscription(ctx, op, field.NewPath("customerProperties", "platform", "vnetIntegrationSubnetId"), newCluster.CustomerProperties.Platform.VnetIntegrationSubnetID, nil, newCluster.ID.SubscriptionID)...)
+	errs = append(errs, SameSubscription(ctx, op, field.NewPath("customerProperties", "platform", "containerRegistry", "managedIdentity"), newCluster.CustomerProperties.Platform.ContainerRegistry.PullManagedIdentity, nil, newCluster.ID.SubscriptionID)...)
 
 	for operatorName, operatorIdentity := range newCluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators {
 		fldPath := field.NewPath("customerProperties", "platform", "operatorsAuthentication", "userAssignedIdentities", "controlPlaneOperators").Key(operatorName)
@@ -260,45 +371,45 @@ func validateResourceIDsAgainstClusterID(ctx context.Context, op operation.Opera
 // ToClusterCustomerPropertiesVersion returns a pointer to the Version field
 // of cluster customer properties. Exported so admission can traverse the same
 // field path.
-func ToClusterCustomerPropertiesVersion(oldObj *coreapi.HCPOpenShiftClusterCustomerProperties) *coreapi.VersionProfile {
+func ToClusterCustomerPropertiesVersion(oldObj *coreapi.ClusterCustomerProperties) *coreapi.VersionProfile {
 	return &oldObj.Version
 }
 
 var (
-	toCustomerDNS = func(oldObj *coreapi.HCPOpenShiftClusterCustomerProperties) *coreapi.CustomerDNSProfile {
+	toCustomerDNS = func(oldObj *coreapi.ClusterCustomerProperties) *coreapi.CustomerDNSProfile {
 		return &oldObj.DNS
 	}
-	toNetwork = func(oldObj *coreapi.HCPOpenShiftClusterCustomerProperties) *coreapi.NetworkProfile {
+	toNetwork = func(oldObj *coreapi.ClusterCustomerProperties) *coreapi.NetworkProfile {
 		return &oldObj.Network
 	}
-	toCustomerAPI = func(oldObj *coreapi.HCPOpenShiftClusterCustomerProperties) *coreapi.CustomerAPIProfile {
+	toCustomerAPI = func(oldObj *coreapi.ClusterCustomerProperties) *coreapi.CustomerAPIProfile {
 		return &oldObj.API
 	}
-	toCustomerIngress = func(oldObj *coreapi.HCPOpenShiftClusterCustomerProperties) *coreapi.CustomerIngressProfile {
+	toCustomerIngress = func(oldObj *coreapi.ClusterCustomerProperties) *coreapi.CustomerIngressProfile {
 		return &oldObj.Ingress
 	}
-	toCustomerPlatform = func(oldObj *coreapi.HCPOpenShiftClusterCustomerProperties) *coreapi.CustomerPlatformProfile {
+	toCustomerPlatform = func(oldObj *coreapi.ClusterCustomerProperties) *coreapi.CustomerPlatformProfile {
 		return &oldObj.Platform
 	}
-	toClusterAutoscaling = func(oldObj *coreapi.HCPOpenShiftClusterCustomerProperties) *coreapi.ClusterAutoscalingProfile {
+	toClusterAutoscaling = func(oldObj *coreapi.ClusterCustomerProperties) *coreapi.ClusterAutoscalingProfile {
 		return &oldObj.Autoscaling
 	}
-	toNodeDrainTimeoutMinutes = func(oldObj *coreapi.HCPOpenShiftClusterCustomerProperties) *int32 {
+	toNodeDrainTimeoutMinutes = func(oldObj *coreapi.ClusterCustomerProperties) *int32 {
 		return &oldObj.NodeDrainTimeoutMinutes
 	}
-	toEtcd                 = func(oldObj *coreapi.HCPOpenShiftClusterCustomerProperties) *coreapi.EtcdProfile { return &oldObj.Etcd }
-	toClusterImageRegistry = func(oldObj *coreapi.HCPOpenShiftClusterCustomerProperties) *coreapi.ClusterImageRegistryProfile {
+	toEtcd                 = func(oldObj *coreapi.ClusterCustomerProperties) *coreapi.EtcdProfile { return &oldObj.Etcd }
+	toClusterImageRegistry = func(oldObj *coreapi.ClusterCustomerProperties) *coreapi.ClusterImageRegistryProfile {
 		return &oldObj.ClusterImageRegistry
 	}
-	toImageDigestMirrors = func(oldObj *coreapi.HCPOpenShiftClusterCustomerProperties) []coreapi.ImageDigestMirror {
+	toImageDigestMirrors = func(oldObj *coreapi.ClusterCustomerProperties) []coreapi.ImageDigestMirror {
 		return oldObj.ImageDigestMirrors
 	}
-	toCryptoRestrictions = func(oldObj *coreapi.HCPOpenShiftClusterCustomerProperties) *metadataapi.CryptoRestrictions {
+	toCryptoRestrictions = func(oldObj *coreapi.ClusterCustomerProperties) *metadataapi.CryptoRestrictions {
 		return &oldObj.CryptoRestrictions
 	}
 )
 
-func validateClusterCustomerProperties(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.HCPOpenShiftClusterCustomerProperties) field.ErrorList {
+func validateClusterCustomerProperties(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.ClusterCustomerProperties) field.ErrorList {
 	errs := field.ErrorList{}
 
 	// Version                 VersionProfile              `json:"version,omitempty"`
@@ -318,7 +429,6 @@ func validateClusterCustomerProperties(ctx context.Context, op operation.Operati
 	errs = append(errs, validateCustomerIngressProfile(ctx, op, fldPath.Child("ingress"), &newObj.Ingress, safe.Field(oldObj, toCustomerIngress))...)
 
 	// Platform                CustomerPlatformProfile             `json:"platform,omitempty"`
-	errs = append(errs, immutableByReflect(ctx, op, fldPath.Child("platform"), &newObj.Platform, safe.Field(oldObj, toCustomerPlatform))...)
 	errs = append(errs, validateCustomerPlatformProfile(ctx, op, fldPath.Child("platform"), &newObj.Platform, safe.Field(oldObj, toCustomerPlatform))...)
 
 	//Autoscaling             ClusterAutoscalingProfile   `json:"autoscaling,omitempty"`
@@ -352,25 +462,25 @@ func validateClusterCustomerProperties(ctx context.Context, op operation.Operati
 }
 
 var (
-	toHCPOpenShiftClusterServiceProviderPropertiesProvisioningState = func(oldObj *coreapi.HCPOpenShiftClusterServiceProviderProperties) *coreapi.ProvisioningState {
+	toClusterServiceProviderPropertiesProvisioningState = func(oldObj *coreapi.ClusterServiceProviderProperties) *coreapi.ProvisioningState {
 		return &oldObj.ProvisioningState
 	}
-	toServiceProviderDNS = func(oldObj *coreapi.HCPOpenShiftClusterServiceProviderProperties) *coreapi.ServiceProviderDNSProfile {
+	toServiceProviderDNS = func(oldObj *coreapi.ClusterServiceProviderProperties) *coreapi.ServiceProviderDNSProfile {
 		return &oldObj.DNS
 	}
-	toServiceProviderClusterServiceID = func(oldObj *coreapi.HCPOpenShiftClusterServiceProviderProperties) *metadataapi.InternalID {
+	toServiceProviderClusterServiceID = func(oldObj *coreapi.ClusterServiceProviderProperties) *metadataapi.InternalID {
 		return oldObj.ClusterServiceID
 	}
-	toServiceProviderConsole = func(oldObj *coreapi.HCPOpenShiftClusterServiceProviderProperties) *coreapi.ServiceProviderConsoleProfile {
+	toServiceProviderConsole = func(oldObj *coreapi.ClusterServiceProviderProperties) *coreapi.ServiceProviderConsoleProfile {
 		return &oldObj.Console
 	}
-	toServiceProviderAPI = func(oldObj *coreapi.HCPOpenShiftClusterServiceProviderProperties) *coreapi.ServiceProviderAPIProfile {
+	toServiceProviderAPI = func(oldObj *coreapi.ClusterServiceProviderProperties) *coreapi.ServiceProviderAPIProfile {
 		return &oldObj.API
 	}
-	toServiceProviderPlatform = func(oldObj *coreapi.HCPOpenShiftClusterServiceProviderProperties) *coreapi.ServiceProviderPlatformProfile {
+	toServiceProviderPlatform = func(oldObj *coreapi.ClusterServiceProviderProperties) *coreapi.ServiceProviderPlatformProfile {
 		return &oldObj.Platform
 	}
-	toServiceProviderManagedIdentitiesDataPlaneIdentityURL = func(oldObj *coreapi.HCPOpenShiftClusterServiceProviderProperties) *string {
+	toServiceProviderManagedIdentitiesDataPlaneIdentityURL = func(oldObj *coreapi.ClusterServiceProviderProperties) *string {
 		return &oldObj.ManagedIdentitiesDataPlaneIdentityURL
 	}
 )
@@ -378,15 +488,15 @@ var (
 // ToClusterServiceProviderPropertiesClusterUID returns a pointer to the
 // ClusterUID field of cluster service provider properties. Exported so
 // admission can traverse the same field path.
-func ToClusterServiceProviderPropertiesClusterUID(oldObj *coreapi.HCPOpenShiftClusterServiceProviderProperties) *string {
+func ToClusterServiceProviderPropertiesClusterUID(oldObj *coreapi.ClusterServiceProviderProperties) *string {
 	return &oldObj.ClusterUID
 }
 
-func validateClusterServiceProviderProperties(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.HCPOpenShiftClusterServiceProviderProperties) field.ErrorList {
+func validateClusterServiceProviderProperties(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.ClusterServiceProviderProperties) field.ErrorList {
 	errs := field.ErrorList{}
 
 	// ProvisioningState       coreapi.ProvisioningState       `json:"provisioningState,omitempty"`
-	errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("provisioningState"), &newObj.ProvisioningState, safe.Field(oldObj, toHCPOpenShiftClusterServiceProviderPropertiesProvisioningState))...)
+	errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("provisioningState"), &newObj.ProvisioningState, safe.Field(oldObj, toClusterServiceProviderPropertiesProvisioningState))...)
 
 	//ClusterServiceID  *InternalID                    `json:"clusterServiceID,omitempty"`
 	errs = append(errs, immutableByReflect(ctx, op, fldPath.Child("clusterServiceID"), newObj.ClusterServiceID, safe.Field(oldObj, toServiceProviderClusterServiceID))...)
@@ -429,8 +539,8 @@ func validateClusterServiceProviderProperties(ctx context.Context, op operation.
 }
 
 var (
-	toVersionID = func(oldObj *coreapi.VersionProfile) *string { return &oldObj.ID }
-	//	toChannelGroup = func(oldObj *coreapi.VersionProfile) *string { return &oldObj.ChannelGroup }
+	toVersionID           = func(oldObj *coreapi.VersionProfile) *string { return &oldObj.ID }
+	toVersionChannelGroup = func(oldObj *coreapi.VersionProfile) *string { return &oldObj.ChannelGroup }
 )
 
 // Version                 VersionProfile              `json:"version,omitempty"`
@@ -443,7 +553,9 @@ func validateVersionProfile(ctx context.Context, op operation.Operation, fldPath
 	if oldObj == nil || len(oldObj.ID) > 0 {
 		errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("id"), &newObj.ID, nil)...)
 
-		errs = append(errs, VersionMustBeAtLeast(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toVersionID), "4.20")...)
+		// Only the major.minor version can be specified for the control plane version
+		// so we only need to check if it meets the minimum required major.minor version
+		errs = append(errs, VersionMustBeAtLeastMajorMinor(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toVersionID), "4.20")...)
 
 		errs = append(errs, VersionMayNotDecrease(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toVersionID))...)
 		errs = append(errs, OpenshiftVersionAtMostOneMinorSkewWithField(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toVersionID))...)
@@ -471,6 +583,7 @@ func validateVersionProfile(ctx context.Context, op operation.Operation, fldPath
 		// TODO I think everyone should be able to do this, but we'll need to notify first
 		errs = append(errs, validate.Enum(ctx, op, fldPath.Child("channelGroup"), &newObj.ChannelGroup, nil, metadataapi.AllowedChannelGroupsWithExperimentalFlag, nil)...)
 	}
+	errs = append(errs, rejectUnsupportedChannelGroupUpdate(op, fldPath, newObj.ChannelGroup, safe.Field(oldObj, toVersionChannelGroup))...)
 
 	return errs
 }
@@ -684,9 +797,7 @@ func validateCustomerPlatformProfile(ctx context.Context, op operation.Operation
 	// here would emit the same error twice for the same input.
 
 	// VnetIntegrationSubnetID *azcorearm.ResourceID `json:"vnetIntegrationSubnetId,omitempty"`
-	// vnetIntegrationSubnetId was added in v20251223preview, so it's optional for backwards compatibility
-	// TODO: When we remove the v20240610preview API we should remove the nil check here and add validate.RequiredValue
-	// for vnetIntegrationSubnetId
+	// Requiredness is checked at cluster level; networking is immutable even when nil.
 	errs = append(errs, immutableByReflect(ctx, op, fldPath.Child("vnetIntegrationSubnetId"), newObj.VnetIntegrationSubnetID, safe.Field(oldObj, toPlatformVnetIntegrationSubnetID))...)
 	if newObj.VnetIntegrationSubnetID != nil {
 		errs = append(errs, RestrictedResourceIDWithResourceGroup(ctx, op, fldPath.Child("vnetIntegrationSubnetId"), newObj.VnetIntegrationSubnetID, safe.Field(oldObj, toPlatformVnetIntegrationSubnetID), "Microsoft.Network/virtualNetworks/subnets")...)
@@ -712,8 +823,27 @@ func validateCustomerPlatformProfile(ctx context.Context, op operation.Operation
 	errs = append(errs, immutableByReflect(ctx, op, fldPath.Child("operatorsAuthentication"), &newObj.OperatorsAuthentication, safe.Field(oldObj, toPlatformOperatorsAuthentication))...)
 	errs = append(errs, validateOperatorsAuthenticationProfile(ctx, op, fldPath.Child("operatorsAuthentication"), &newObj.OperatorsAuthentication, safe.Field(oldObj, toPlatformOperatorsAuthentication))...)
 
+	//ContainerRegistry       ContainerRegistryProfile             `json:"containerRegistry,omitzero"`
+	errs = append(errs, validateContainerRegistryPullCredentials(ctx, op, fldPath.Child("containerRegistry", "managedIdentity"), newObj.ContainerRegistry.PullManagedIdentity, safe.Field(oldObj, toPlatformContainerRegistryPullMI), newObj.ManagedResourceGroup)...)
+
 	return errs
 }
+
+func validateContainerRegistryPullCredentials(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj *azcorearm.ResourceID, oldObj *azcorearm.ResourceID, managedResourceGroup string) field.ErrorList {
+	errs := field.ErrorList{}
+	if newObj == nil {
+		return errs
+	}
+	errs = append(errs, RestrictedResourceIDWithResourceGroup(ctx, op, fldPath, newObj, oldObj, "Microsoft.ManagedIdentity/userAssignedIdentities")...)
+	errs = append(errs, DifferentResourceGroupNameFromResourceID(ctx, op, fldPath, newObj, oldObj, managedResourceGroup)...)
+	return errs
+}
+
+var (
+	toPlatformContainerRegistryPullMI = func(oldObj *coreapi.CustomerPlatformProfile) *azcorearm.ResourceID {
+		return oldObj.ContainerRegistry.PullManagedIdentity
+	}
+)
 
 var (
 	toServiceProviderPlatformProfileIssuerURL = func(oldObj *coreapi.ServiceProviderPlatformProfile) *string { return &oldObj.IssuerURL }
@@ -960,8 +1090,11 @@ func validateCustomerManagedEncryptionProfile(ctx context.Context, op operation.
 }
 
 var (
-	toKmsEncryptionProfileVisibility = func(oldObj *coreapi.KmsEncryptionProfile) *metadataapi.KeyVaultVisibility { return &oldObj.Visibility }
-	toKmsEncryptionProfileActiveKey  = func(oldObj *coreapi.KmsEncryptionProfile) *coreapi.KmsKey { return &oldObj.ActiveKey }
+	toKmsEncryptionProfileVisibility   = func(oldObj *coreapi.KmsEncryptionProfile) *metadataapi.KeyVaultVisibility { return &oldObj.Visibility }
+	toKmsEncryptionProfileActiveKey    = func(oldObj *coreapi.KmsEncryptionProfile) *coreapi.KmsKey { return &oldObj.ActiveKey }
+	toKmsEncryptionProfileKeyVaultType = func(oldObj *coreapi.KmsEncryptionProfile) *string { return &oldObj.KeyVaultType }
+
+	validKmsKeyVaultTypes = sets.New(coreapi.KmsKeyVaultTypeKeyVault, coreapi.KmsKeyVaultTypeManagedHSM)
 )
 
 func validateKmsEncryptionProfile(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.KmsEncryptionProfile) field.ErrorList {
@@ -978,6 +1111,10 @@ func validateKmsEncryptionProfile(ctx context.Context, op operation.Operation, f
 
 	//ActiveKey KmsKey `json:"activeKey,omitempty"`
 	errs = append(errs, validateKmsKey(ctx, op, fldPath.Child("activeKey"), &newObj.ActiveKey, safe.Field(oldObj, toKmsEncryptionProfileActiveKey))...)
+
+	//KeyVaultType string `json:"keyVaultType,omitempty"`
+	errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("keyVaultType"), &newObj.KeyVaultType, safe.Field(oldObj, toKmsEncryptionProfileKeyVaultType))...)
+	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("keyVaultType"), &newObj.KeyVaultType, safe.Field(oldObj, toKmsEncryptionProfileKeyVaultType), validKmsKeyVaultTypes, nil)...)
 
 	return errs
 }
@@ -1046,6 +1183,9 @@ func validateImageDigestMirror(ctx context.Context, op operation.Operation, fldP
 	// is more permissive than what we allow (e.g. casing of letters) but acts
 	// as a final check to make sure OpenShift will accept it.
 	errs = append(errs, MatchesRegex(ctx, op, fldPath.Child("source"), &newObj.Source, safe.Field(oldObj, toImageDigestMirrorSource), imageDigestSourceRegistryRegex, imageDigestSourceRegistryErrorString)...)
+	if apihelpers.IsPlatformImageContentSource(newObj.Source) {
+		errs = append(errs, field.Invalid(fldPath.Child("source"), newObj.Source, "source registry is managed by the platform and cannot be used as an image digest mirror source"))
+	}
 
 	//Mirrors []string `json:"mirrors,omitempty"`
 	errs = append(errs, MinItems(ctx, op, fldPath.Child("mirrors"), newObj.Mirrors, safe.Field(oldObj, toImageDigestMirrorMirrors), 1)...)

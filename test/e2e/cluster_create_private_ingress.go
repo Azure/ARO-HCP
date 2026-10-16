@@ -25,18 +25,18 @@ import (
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 
-	hcpsdk20260630preview "github.com/Azure/ARO-HCP/test/sdk/v20260630preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	hcpsdk20260901preview "github.com/Azure/ARO-HCP/test/sdk/v20260901preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
 )
 
-// This test creates a cluster with private ingress using the v2026-06-30-preview
+// This test creates a cluster with private ingress using the v2026-09-01-preview
 // API and verifies the ingress is internal. It also serves as the basic
-// v2026-06-30-preview API version smoke test — verifying cluster creation,
+// v2026-09-01-preview API version smoke test — verifying cluster creation,
 // credentials, and cluster health — to avoid creating multiple clusters in CI.
 var _ = Describe("Customer", func() {
-	It("should create a cluster with private ingress using v20260630preview and verify the ingress is internal",
+	It("should create a cluster with private ingress using v20260901preview and verify the ingress is internal",
 		labels.RequireNothing,
 		labels.Critical,
 		labels.Positive,
@@ -51,18 +51,8 @@ var _ = Describe("Customer", func() {
 
 			tc := framework.NewTestContext()
 
-			By("checking API version availability")
-			apiAvailable, err := tc.IsHCPAPIVersionAvailable(ctx, "2026-06-30-preview")
-			Expect(err).NotTo(HaveOccurred(), "failed to check API version availability")
-			if !apiAvailable {
-				if time.Now().After(framework.V20260630PreviewDeploymentDeadline) {
-					Fail(fmt.Sprintf("API version 2026-06-30-preview should be fully available by %s", framework.V20260630PreviewDeploymentDeadline.Format(time.RFC3339)))
-				}
-				Skip("API version 2026-06-30-preview is not fully available in this environment")
-			}
-
 			if tc.UsePooledIdentities() {
-				err = tc.AssignIdentityContainers(ctx, 1, framework.IdentityContainerAssignmentRetryInterval)
+				err := tc.AssignIdentityContainers(ctx, 1, framework.IdentityContainerAssignmentRetryInterval)
 				Expect(err).NotTo(HaveOccurred(), "failed to assign pooled identity containers")
 			}
 
@@ -71,13 +61,13 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for private ingress test")
 
 			By("creating cluster parameters with private ingress")
-			clusterParams := framework.NewDefaultClusterParams20260630()
+			clusterParams := framework.NewDefaultClusterParams20260901()
 			clusterParams.ClusterName = customerClusterName
 			clusterParams.ManagedResourceGroupName = framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			clusterParams.IngressType = "Private"
 
 			By("creating customer resources (infrastructure and managed identities)")
-			clusterParams, err = tc.CreateClusterCustomerResources20260630(ctx,
+			clusterParams, err = tc.CreateClusterCustomerResources20260901(ctx,
 				resourceGroup,
 				clusterParams,
 				map[string]interface{}{},
@@ -86,24 +76,18 @@ var _ = Describe("Customer", func() {
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for private ingress cluster")
 
-			By("creating the HCP cluster with private ingress via v20260630preview")
-			err = tc.CreateHCPClusterFromParam20260630(ctx,
+			By("creating the HCP cluster with private ingress via v20260901preview")
+			err = tc.CreateHCPClusterFromParam20260901(ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
 				clusterParams,
 				nil,
 				framework.ClusterCreationTimeout,
 			)
-			if isAPINotDeployedError(err) {
-				if time.Now().Before(framework.V20260630PreviewDeploymentDeadline) {
-					Skip(fmt.Sprintf("v20260630preview API not yet deployed; skipping until %s", framework.V20260630PreviewDeploymentDeadline.Format(time.RFC3339)))
-				}
-				Fail(fmt.Sprintf("v20260630preview API still not deployed as of %s deadline", framework.V20260630PreviewDeploymentDeadline.Format(time.RFC3339)))
-			}
 			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %q with private ingress", customerClusterName)
 
 			By("verifying cluster was created with private ingress type via ARM GET")
-			clientFactory := tc.Get20260630ClientFactoryOrDie(ctx)
+			clientFactory := tc.Get20260901ClientFactoryOrDie(ctx)
 			cluster, err := clientFactory.NewHcpOpenShiftClustersClient().Get(
 				ctx,
 				*resourceGroup.Name,
@@ -114,7 +98,7 @@ var _ = Describe("Customer", func() {
 			Expect(cluster.Properties).ToNot(BeNil(), "cluster %q Properties was nil", customerClusterName)
 			Expect(cluster.Properties.Ingress).ToNot(BeNil(), "cluster %q Properties.Ingress was nil", customerClusterName)
 			Expect(cluster.Properties.Ingress.Type).ToNot(BeNil(), "cluster %q Properties.Ingress.Type was nil", customerClusterName)
-			Expect(*cluster.Properties.Ingress.Type).To(Equal(hcpsdk20260630preview.IngressTypePrivate),
+			Expect(*cluster.Properties.Ingress.Type).To(Equal(hcpsdk20260901preview.IngressTypePrivate),
 				"cluster %q ingress type should be Private", customerClusterName)
 			GinkgoLogr.Info("Cluster created with private ingress", "clusterName", customerClusterName)
 
@@ -123,12 +107,12 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to deploy test VM for private ingress verification")
 
 			By("creating the node pool")
-			nodePoolParams := framework.NewDefaultNodePoolParams20260630()
+			nodePoolParams := framework.NewDefaultNodePoolParams20260901()
 			nodePoolParams.ClusterName = customerClusterName
 			nodePoolParams.NodePoolName = customerNodePoolName
 			nodePoolParams.Replicas = int32(2)
 
-			err = tc.CreateNodePoolFromParam20260630(ctx,
+			err = tc.CreateNodePoolFromParam20260901(ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
 				clusterParams.ManagedResourceGroupName,

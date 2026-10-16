@@ -33,6 +33,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -42,9 +43,12 @@ type operationNodePoolCreate struct {
 	resourcesDBClient      corecosmosstorage.ResourcesDBClient
 	activeOperationsLister corelisters.ActiveOperationLister
 	nodePoolLister         corelisters.NodePoolLister
+	readDesireLister       kubeapplierlisters.ReadDesireLister
 	clusterServiceClient   ocm.ClusterServiceClientSpec
 	notificationClient     *http.Client
 }
+
+const OperationNodePoolCreateControllerName = "OperationNodePoolCreate"
 
 // NewOperationNodePoolCreateController returns a new Controller instance that
 // follows an asynchronous node pool creation operation to completion and updates
@@ -64,6 +68,7 @@ func NewOperationNodePoolCreateController(
 	clock utilsclock.PassiveClock,
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
+	readDesireLister kubeapplierlisters.ReadDesireLister,
 	notificationClient *http.Client,
 	activeOperationInformer cache.SharedIndexInformer,
 	backendInformers coreinformers.BackendInformers,
@@ -75,13 +80,14 @@ func NewOperationNodePoolCreateController(
 		clock:                  clock,
 		resourcesDBClient:      resourcesDBClient,
 		nodePoolLister:         nodePoolLister,
+		readDesireLister:       readDesireLister,
 		activeOperationsLister: activeOperationsLister,
 		clusterServiceClient:   clusterServiceClient,
 		notificationClient:     notificationClient,
 	}
 
 	controller := controllerutils.NewGenericOperationController(
-		"OperationNodePoolCreate",
+		OperationNodePoolCreateControllerName,
 		syncer,
 		10*time.Second,
 		activeOperationInformer,
@@ -147,10 +153,7 @@ func (c *operationNodePoolCreate) SynchronizeOperation(ctx context.Context, key 
 	var persistErr *coreapi.CloudErrorBody
 	if operationalState.ProvisioningState == coreapi.ProvisioningStateFailed {
 		persistErr = &coreapi.CloudErrorBody{
-			// TODO for now we always set the error code to InternalServerError, but we should improve to be able
-			// to be more specific than that when we calculate operationalState. When work is done to improve on this, we
-			// should design it in a way where no internal details are exposed to the operation's error.
-			Code:    coreapi.CloudErrorCodeInternalServerError,
+			Code:    operationalState.CloudErrorCode,
 			Message: operationalState.Message,
 		}
 	}
@@ -158,16 +161,20 @@ func (c *operationNodePoolCreate) SynchronizeOperation(ctx context.Context, key 
 	if !operationalState.ProvisioningState.IsTerminal() &&
 		nodePool.ServiceProviderProperties.CreateOperationCompletionDeadline != nil &&
 		c.clock.Now().After(nodePool.ServiceProviderProperties.CreateOperationCompletionDeadline.Time) {
-		message := "node pool creation did not complete before the deadline"
-		if len(operationalState.Message) > 0 {
-			message = operationalState.Message
-		}
+		message := operationbase.DeadlineExceededMessage(
+			"node pool creation did not complete before the deadline",
+			operationalState.Message,
+		)
 		logger.Info("create operation deadline exceeded, marking as failed",
 			"deadline", nodePool.ServiceProviderProperties.CreateOperationCompletionDeadline.Time,
 			"message", message)
 		operationalState.ProvisioningState = coreapi.ProvisioningStateFailed
+		code := operationalState.CloudErrorCode
+		if code == coreapi.CloudErrorCodeInternalServerError {
+			code = coreapi.CloudErrorCodeDeadlineExceeded
+		}
 		persistErr = &coreapi.CloudErrorBody{
-			Code:    coreapi.CloudErrorCodeInternalServerError,
+			Code:    code,
 			Message: message,
 		}
 	}
@@ -185,11 +192,11 @@ func (c *operationNodePoolCreate) SynchronizeOperation(ctx context.Context, key 
 	return nil
 }
 
-func (c *operationNodePoolCreate) shouldReconcileOperationAndResourceStatus(nodePool *coreapi.HCPOpenShiftClusterNodePool) bool {
+func (c *operationNodePoolCreate) shouldReconcileOperationAndResourceStatus(nodePool *coreapi.NodePool) bool {
 	return nodePool.ServiceProviderProperties.DeletionTimestamp == nil && nodePool.ServiceProviderProperties.ClusterServiceID != nil
 }
 
-func (c *operationNodePoolCreate) determineOperationState(ctx context.Context, operation *coreapi.Operation, nodePool *coreapi.HCPOpenShiftClusterNodePool) (*operationbase.OperationState, error) {
+func (c *operationNodePoolCreate) determineOperationState(ctx context.Context, operation *coreapi.Operation, nodePool *coreapi.NodePool) (*operationbase.OperationState, error) {
 	logger := utils.LoggerFromContext(ctx)
 
 	var errs []error
@@ -199,6 +206,11 @@ func (c *operationNodePoolCreate) determineOperationState(ctx context.Context, o
 		errs = append(errs, utils.TrackError(err))
 	} else {
 		operationStates = append(operationStates, state.WithSource("clusterServiceNodePoolStatus"))
+	}
+	if state, err := c.hypershiftNodePoolOperationState(ctx, nodePool); err != nil {
+		errs = append(errs, utils.TrackError(err))
+	} else {
+		operationStates = append(operationStates, state.WithSource("hypershiftNodePool"))
 	}
 
 	if err := errors.Join(errs...); err != nil {
@@ -220,7 +232,7 @@ func (c *operationNodePoolCreate) determineOperationState(ctx context.Context, o
 	return picked, nil
 }
 
-func (c *operationNodePoolCreate) nodePoolServiceCreateOperationState(ctx context.Context, operation *coreapi.Operation, nodePool *coreapi.HCPOpenShiftClusterNodePool) (*operationbase.OperationState, error) {
+func (c *operationNodePoolCreate) nodePoolServiceCreateOperationState(ctx context.Context, operation *coreapi.Operation, nodePool *coreapi.NodePool) (*operationbase.OperationState, error) {
 	logger := utils.LoggerFromContext(ctx)
 	csNodePoolStatus, err := c.clusterServiceClient.GetNodePoolStatus(ctx, *nodePool.ServiceProviderProperties.ClusterServiceID)
 	if err != nil {
@@ -232,9 +244,9 @@ func (c *operationNodePoolCreate) nodePoolServiceCreateOperationState(ctx contex
 		return nil, utils.TrackError(err)
 	}
 	logger.Info("new status via cluster-service", "newStatus", newOperationStatus, "newOperationError", newOperationError)
-	msg := ""
+	state := operationbase.NewOperationState(newOperationStatus, operationbase.NodePoolServiceOperationMessage(csNodePoolStatus, newOperationError))
 	if newOperationError != nil {
-		msg = newOperationError.Message
+		state.WithCloudErrorCode(newOperationError.Code)
 	}
-	return operationbase.NewOperationState(newOperationStatus, msg), nil
+	return state, nil
 }

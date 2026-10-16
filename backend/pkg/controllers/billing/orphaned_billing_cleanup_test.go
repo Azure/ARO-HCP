@@ -31,6 +31,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/billingcosmosstoragetesting"
@@ -65,7 +66,7 @@ func TestOrphanedBillingCleanup_SyncOnce(t *testing.T) {
 	tests := []struct {
 		name             string
 		billingDocuments []*billingcosmosstorage.BillingDocument
-		clusters         []*coreapi.HCPOpenShiftCluster
+		clusters         []*coreapi.Cluster
 		expectError      bool
 		verify           func(t *testing.T, billingDBClient *billingcosmosstoragetesting.MockBillingDBClient)
 	}{
@@ -74,7 +75,7 @@ func TestOrphanedBillingCleanup_SyncOnce(t *testing.T) {
 			billingDocuments: []*billingcosmosstorage.BillingDocument{
 				newTestBillingDocument("billing-doc-1", testSubscriptionID, testResourceGroupName, testClusterName, nil),
 			},
-			clusters:    []*coreapi.HCPOpenShiftCluster{}, // No clusters
+			clusters:    []*coreapi.Cluster{}, // No clusters
 			expectError: false,
 			verify: func(t *testing.T, billingDBClient *billingcosmosstoragetesting.MockBillingDBClient) {
 				billingDocs := billingDBClient.GetBillingDocuments()
@@ -89,7 +90,7 @@ func TestOrphanedBillingCleanup_SyncOnce(t *testing.T) {
 			billingDocuments: []*billingcosmosstorage.BillingDocument{
 				newTestBillingDocument("billing-doc-1", testSubscriptionID, testResourceGroupName, testClusterName, nil),
 			},
-			clusters: []*coreapi.HCPOpenShiftCluster{
+			clusters: []*coreapi.Cluster{
 				newTestCluster(t, "billing-doc-1", coreapi.ProvisioningStateSucceeded, &createdAt),
 			},
 			expectError: false,
@@ -106,7 +107,7 @@ func TestOrphanedBillingCleanup_SyncOnce(t *testing.T) {
 			billingDocuments: []*billingcosmosstorage.BillingDocument{
 				newTestBillingDocument("billing-doc-1", testSubscriptionID, testResourceGroupName, "cluster-1", ptr.To(mustParseTime("2025-01-19T10:30:00Z"))),
 			},
-			clusters:    []*coreapi.HCPOpenShiftCluster{}, // No clusters
+			clusters:    []*coreapi.Cluster{}, // No clusters
 			expectError: false,
 			verify: func(t *testing.T, billingDBClient *billingcosmosstoragetesting.MockBillingDBClient) {
 				billingDocs := billingDBClient.GetBillingDocuments()
@@ -126,7 +127,7 @@ func TestOrphanedBillingCleanup_SyncOnce(t *testing.T) {
 				newTestBillingDocument("billing-doc-2", testSubscriptionID, testResourceGroupName, "cluster-2", nil),
 				newTestBillingDocument("billing-doc-3", testSubscriptionID, testResourceGroupName, "cluster-3", nil),
 			},
-			clusters: []*coreapi.HCPOpenShiftCluster{
+			clusters: []*coreapi.Cluster{
 				// Only cluster-2 exists
 				{
 					CosmosMetadata: coreapi.CosmosMetadata{
@@ -143,10 +144,10 @@ func TestOrphanedBillingCleanup_SyncOnce(t *testing.T) {
 							},
 						},
 					},
-					ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+					ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 						ProvisioningState: coreapi.ProvisioningStateSucceeded,
 						ClusterUID:        "billing-doc-2",
-						ClusterServiceID:  metadataapi.Ptr(metadataapi.Must(metadataapi.NewInternalID(testClusterServiceIDStr))),
+						ClusterServiceID:  metadataapihelpers.Ptr(metadataapi.Must(metadataapi.NewInternalID(testClusterServiceIDStr))),
 					},
 				},
 			},

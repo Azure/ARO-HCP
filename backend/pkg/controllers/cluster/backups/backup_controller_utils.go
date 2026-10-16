@@ -18,7 +18,7 @@ import "github.com/Azure/ARO-HCP/internal/api/coreapi"
 
 // needsWork returns true when backup desires should be reconciled for the cluster.
 // Clusters being deleted or that have never reached Succeeded state are skipped.
-func needsWork(existingCluster coreapi.HCPOpenShiftCluster, serviceProviderCluster coreapi.ServiceProviderCluster) bool {
+func needsWork(existingCluster coreapi.Cluster, serviceProviderCluster coreapi.ServiceProviderCluster) bool {
 	if existingCluster.ServiceProviderProperties.DeletionTimestamp != nil {
 		return false
 	}

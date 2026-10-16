@@ -34,6 +34,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/fleetcosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -42,10 +43,9 @@ import (
 const testAKSResourceID = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/mc"
 
 func testStamp(identifier string, approved bool) *fleetapi.Stamp {
-	resourceID := metadataapi.Must(fleetapi.ToStampResourceID(identifier))
+	resourceID := metadataapi.Must(fleetapihelpers.ToStampResourceID(identifier))
 	stamp := &fleetapi.Stamp{
 		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(identifier)},
-		ResourceID:     resourceID,
 	}
 	if approved {
 		apimeta.SetStatusCondition(&stamp.Status.Conditions, metav1.Condition{
@@ -58,13 +58,12 @@ func testStamp(identifier string, approved bool) *fleetapi.Stamp {
 }
 
 func testManagementCluster(stampIdentifier string) *fleetapi.ManagementCluster {
-	resourceID := metadataapi.Must(fleetapi.ToManagementClusterResourceID(stampIdentifier))
+	resourceID := metadataapi.Must(fleetapihelpers.ToManagementClusterResourceID(stampIdentifier))
 	aksResourceID := metadataapi.Must(azcorearm.ParseResourceID(testAKSResourceID))
 	dnsZoneResourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dns-rg/providers/Microsoft.Network/dnszones/example.com"))
 	placeholderShardID := metadataapi.Must(metadataapi.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/placeholder"))
 	return &fleetapi.ManagementCluster{
 		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(stampIdentifier)},
-		ResourceID:     resourceID,
 		Spec: fleetapi.ManagementClusterSpec{
 			SchedulingPolicy: fleetapi.ManagementClusterSchedulingPolicySchedulable,
 		},

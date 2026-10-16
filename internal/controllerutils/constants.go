@@ -15,5 +15,8 @@
 package controllerutils
 
 const (
-	HcpClusterAzureResourceIdAnnotation = "azure.microsoft.com/hcp-cluster-azure-resource-id"
+	// Fingerprint for direct comparison with HyperShift's SecretEncryption History fingerprints
+	// and to avoid leaking sensitive information such as the KMS key version in logs or metrics.
+	HcpClusterKmsKeyFingerprintAnnotation = "azure.microsoft.com/hcp-cluster-kms-key-fingerprint"
+	HcpClusterAzureResourceIdAnnotation   = "azure.microsoft.com/hcp-cluster-azure-resource-id"
 )

@@ -15,34 +15,18 @@
 package coreapi
 
 import (
-	"iter"
-	"path"
-	"slices"
 	"strings"
 
 	"k8s.io/apimachinery/pkg/util/sets"
-
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 )
 
 // SubscriptionAPIVersion is the system API version for the subscription endpoint.
 const SubscriptionAPIVersion = "2.0"
 
-func ToSubscriptionResourceID(subscriptionName string) (*azcorearm.ResourceID, error) {
-	return azcorearm.ParseResourceID(ToSubscriptionResourceIDString(subscriptionName))
-}
-
-func ToSubscriptionResourceIDString(subscriptionName string) string {
-	return strings.ToLower(path.Join("/subscriptions", subscriptionName))
-}
-
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type Subscription struct {
 	// PartitionKey holds the lowercased subscriptionID.
 	CosmosMetadata `json:"cosmosMetadata"`
-
-	// kept so untyped client can function
-	ResourceID *azcorearm.ResourceID `json:"resourceId,omitempty"`
 
 	// The resource provider contract gives an example RegistrationDate
 	// in RFC1123 format but does not explicitly state a required format
@@ -116,18 +100,6 @@ var (
 		SubscriptionStateSuspended,
 	)
 )
-
-// ListSubscriptionStates returns an iterator that yields all recognized
-// SubscriptionState values. This function is intended as a test aid.
-func ListSubscriptionStates() iter.Seq[SubscriptionState] {
-	return slices.Values([]SubscriptionState{
-		SubscriptionStateRegistered,
-		SubscriptionStateUnregistered,
-		SubscriptionStateWarned,
-		SubscriptionStateDeleted,
-		SubscriptionStateSuspended,
-	})
-}
 
 // HasRegisteredFeature checks if a subscription has a specific feature registered.
 // The feature name should be in the format "Microsoft.Provider/FeatureName".

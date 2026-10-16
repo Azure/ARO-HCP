@@ -61,6 +61,8 @@ type operationClusterCreate struct {
 	notificationClient                    *http.Client
 }
 
+const OperationClusterCreateControllerName = "OperationClusterCreate"
+
 // NewOperationClusterCreateController returns a new Controller instance that
 // follows an asynchronous cluster creation operation to completion and updates
 // the corresponding operation document in Cosmos DB.
@@ -101,7 +103,7 @@ func NewOperationClusterCreateController(
 	}
 
 	controller := controllerutils.NewGenericOperationController(
-		"OperationClusterCreate",
+		OperationClusterCreateControllerName,
 		syncer,
 		10*time.Second,
 		activeOperationInformer,
@@ -161,13 +163,10 @@ func (c *operationClusterCreate) SynchronizeOperation(ctx context.Context, key c
 		return utils.TrackError(err)
 	}
 
-	var persistErr *coreapi.CloudErrorBody
-	if operationalState.ProvisioningState == coreapi.ProvisioningStateFailed {
+	persistErr := operationalState.Error
+	if operationalState.ProvisioningState == coreapi.ProvisioningStateFailed && persistErr == nil {
 		persistErr = &coreapi.CloudErrorBody{
-			// TODO for now we always set the error code to InternalServerError, but we should improve to be able
-			// to be more specific than that when we calculate operationalState. When work is done to improve on this, we
-			// should design it in a way where no internal details are exposed to the operation's error.
-			Code:    coreapi.CloudErrorCodeInternalServerError,
+			Code:    operationalState.CloudErrorCode,
 			Message: operationalState.Message,
 		}
 	}
@@ -176,16 +175,20 @@ func (c *operationClusterCreate) SynchronizeOperation(ctx context.Context, key c
 		cluster.ServiceProviderProperties.CreateOperationCompletionDeadline != nil &&
 		c.clock.Now().After(cluster.ServiceProviderProperties.CreateOperationCompletionDeadline.Time) {
 
-		message := "cluster creation did not complete before the deadline"
-		if len(operationalState.Message) > 0 {
-			message = operationalState.Message
-		}
+		message := operationbase.DeadlineExceededMessage(
+			"cluster creation did not complete before the deadline",
+			operationalState.Message,
+		)
 		logger.Info("create operation deadline exceeded, marking as failed",
 			"deadline", cluster.ServiceProviderProperties.CreateOperationCompletionDeadline.Time,
 			"message", message)
 		operationalState.ProvisioningState = coreapi.ProvisioningStateFailed
+		code := operationalState.CloudErrorCode
+		if code == coreapi.CloudErrorCodeInternalServerError {
+			code = coreapi.CloudErrorCodeDeadlineExceeded
+		}
 		persistErr = &coreapi.CloudErrorBody{
-			Code:    coreapi.CloudErrorCodeInternalServerError,
+			Code:    code,
 			Message: message,
 		}
 	}
@@ -202,12 +205,17 @@ func (c *operationClusterCreate) SynchronizeOperation(ctx context.Context, key c
 	return nil
 }
 
-func (c *operationClusterCreate) determineOperationState(ctx context.Context, operation *coreapi.Operation, cluster *coreapi.HCPOpenShiftCluster) (*operationbase.OperationState, error) {
+func (c *operationClusterCreate) determineOperationState(ctx context.Context, operation *coreapi.Operation, cluster *coreapi.Cluster) (*operationbase.OperationState, error) {
 	logger := utils.LoggerFromContext(ctx)
 
 	errs := []error{}
 	operationStates := []*operationbase.OperationState{}
 
+	if currState, err := c.clusterValidation(ctx, operation); err != nil {
+		errs = append(errs, utils.TrackError(err))
+	} else {
+		operationStates = append(operationStates, currState.WithSource("clusterValidation"))
+	}
 	if currState, err := c.hostedClusterOperationStatus(ctx, operation); err != nil {
 		errs = append(errs, utils.TrackError(err))
 	} else {
@@ -223,15 +231,30 @@ func (c *operationClusterCreate) determineOperationState(ctx context.Context, op
 	} else {
 		operationStates = append(operationStates, currState.WithSource("clusterServiceClusterStatus"))
 	}
+	if currState, err := c.placementOperationStatus(ctx, operation, cluster); err != nil {
+		errs = append(errs, utils.TrackError(err))
+	} else {
+		operationStates = append(operationStates, currState.WithSource("placement"))
+	}
 	if currState, err := c.servingCABundleOperationStatus(ctx, operation); err != nil {
 		errs = append(errs, utils.TrackError(err))
 	} else {
 		operationStates = append(operationStates, currState.WithSource("servingCABundle"))
 	}
+	if currState, err := c.serviceProviderDefaultIngressServingCertificateStatus(ctx, operation); err != nil {
+		errs = append(errs, utils.TrackError(err))
+	} else {
+		operationStates = append(operationStates, currState.WithSource("defaultIngressServingCertificate"))
+	}
 	if currState, err := c.roleAssignmentsOperationStatus(ctx, operation); err != nil {
 		errs = append(errs, utils.TrackError(err))
 	} else {
 		operationStates = append(operationStates, currState.WithSource("roleAssignments"))
+	}
+	if currState, err := c.tlsCertificatesOperationStatus(ctx, operation); err != nil {
+		errs = append(errs, utils.TrackError(err))
+	} else {
+		operationStates = append(operationStates, currState.WithSource("tlsCertificates"))
 	}
 
 	if err := errors.Join(errs...); err != nil {
@@ -255,8 +278,16 @@ func (c *operationClusterCreate) determineOperationState(ctx context.Context, op
 	return picked, nil
 }
 
-func (c *operationClusterCreate) clusterServiceCreateOperationState(ctx context.Context, operation *coreapi.Operation, cluster *coreapi.HCPOpenShiftCluster) (*operationbase.OperationState, error) {
+func (c *operationClusterCreate) clusterServiceCreateOperationState(ctx context.Context, operation *coreapi.Operation, cluster *coreapi.Cluster) (*operationbase.OperationState, error) {
 	logger := utils.LoggerFromContext(ctx)
+
+	// The Cluster Service resource is created asynchronously; until its ID is
+	// populated there is nothing to query, so report the operation as still
+	// provisioning rather than dereferencing a nil ClusterServiceID.
+	if cluster.ServiceProviderProperties.ClusterServiceID == nil || len(cluster.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
+		return operationbase.NewOperationState(coreapi.ProvisioningStateProvisioning, "cluster service has not been successfully created"), nil
+	}
+
 	clusterServiceID := *cluster.ServiceProviderProperties.ClusterServiceID
 
 	clusterStatus, err := c.clusterServiceClient.GetClusterStatus(ctx, clusterServiceID)
@@ -269,11 +300,11 @@ func (c *operationClusterCreate) clusterServiceCreateOperationState(ctx context.
 		return nil, utils.TrackError(err)
 	}
 	logger.Info("new status via cluster-service", "newStatus", newOperationStatus, "newOperationError", opError)
-	msg := ""
+	state := operationbase.NewOperationState(newOperationStatus, operationbase.ClusterServiceOperationMessage(clusterStatus, opError))
 	if opError != nil {
-		msg = opError.Message
+		state.WithCloudErrorCode(opError.Code)
 	}
-	return operationbase.NewOperationState(newOperationStatus, msg), nil
+	return state, nil
 }
 
 func (c *operationClusterCreate) clusterOperationStatus(ctx context.Context, operation *coreapi.Operation) (*operationbase.OperationState, error) {
@@ -293,6 +324,39 @@ func (c *operationClusterCreate) clusterOperationStatus(ctx context.Context, ope
 	}
 
 	return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, ""), nil
+}
+
+func (c *operationClusterCreate) placementOperationStatus(ctx context.Context, operation *coreapi.Operation, cluster *coreapi.Cluster) (*operationbase.OperationState, error) {
+	serviceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Name)
+	if err != nil && !cosmosstorageutils.IsNotFoundError(err) {
+		return nil, utils.TrackError(err)
+	}
+	if serviceProviderCluster != nil && serviceProviderCluster.Spec.ManagementClusterResourceID != nil {
+		return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, ""), nil
+	}
+
+	message := "waiting for management cluster placement"
+	if serviceProviderCluster == nil {
+		message = "ServiceProviderCluster not cached yet"
+	}
+	deadline := cluster.ServiceProviderProperties.CreateOperationCompletionDeadline
+	if deadline == nil || c.clock.Now().Before(deadline.Time) {
+		return operationbase.NewOperationState(coreapi.ProvisioningStateProvisioning, message), nil
+	}
+
+	message = "cluster placement did not complete before the deadline"
+	operationError := &coreapi.CloudErrorBody{
+		Code:    coreapi.CloudErrorCodeInternalServerError,
+		Message: message,
+	}
+	if serviceProviderCluster != nil && serviceProviderCluster.Status.Placement != nil {
+		if meta.IsStatusConditionFalse(serviceProviderCluster.Status.Placement.Conditions, coreapi.CapacityAvailableConditionType) {
+			operationError.Code = coreapi.CloudErrorCodeCapacityHeavyUse
+			// Placement diagnostics contain internal information; do not expose them.
+			operationError.Message = "ARO HCP is currently experiencing capacity constraints. Try again later."
+		}
+	}
+	return operationbase.NewFailedOperationState(operationError.Code, message, operationError), nil
 }
 
 // minVersionsWithValidSuccessCondition maps from <major>.<micro> to the first z-stream version that includes the fix for
@@ -367,8 +431,9 @@ func (c *operationClusterCreate) hostedClusterOperationStatus(ctx context.Contex
 
 		if !anyVersionInstalled {
 			// can only check this when the success condition works, because this is unreliable otherwise
-			logger.Info("hosted cluster has no installed version", "hostedCluster.Status.ControlPlaneVersion.History", hostedCluster.Status.ControlPlaneVersion.History)
-			return operationbase.NewOperationState(coreapi.ProvisioningStateProvisioning, withDegradedSuffix("hosted cluster has no installed version", hostedCluster)), nil
+			message := describeVersionHistory(hostedCluster.Status.ControlPlaneVersion.History)
+			logger.Info("hosted cluster control plane version not yet completed", "message", message, "hostedCluster.Status.ControlPlaneVersion.History", hostedCluster.Status.ControlPlaneVersion.History)
+			return operationbase.NewOperationState(coreapi.ProvisioningStateProvisioning, withDegradedSuffix(message, hostedCluster)), nil
 		}
 	}
 
@@ -404,10 +469,62 @@ func (c *operationClusterCreate) servingCABundleOperationStatus(ctx context.Cont
 	return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, ""), nil
 }
 
+// serviceProviderDefaultIngressServingCertificateStatus blocks cluster creation until
+// the ingress wildcard certificate's SecretSync has synced the TLS Secret at least once
+// (a True "SecretCreated" condition). "SecretCreated" is the condition type
+// secrets-store-sync-controller sets on SecretSync.Status.Conditions once it has synced
+// the Secret:
+// https://github.com/kubernetes-sigs/secrets-store-sync-controller/blob/v0.0.5/internal/controller/conditions.go#L30.
+// As an example, an observed SecretSync.Status once synced looks like:
+//
+//	{
+//		"conditions": [
+//			{
+//				"lastTransitionTime": "2026-10-09T18:04:41.0000000Z",
+//				"message": "Secret created successfully.",
+//				"reason": "CreateSuccessful",
+//				"status": "True",
+//				"type": "SecretCreated"
+//			},
+//			{
+//				"lastTransitionTime": "2026-10-09T18:04:41.0000000Z",
+//				"message": "Secret contains last observed values.",
+//				"reason": "SecretUpToDate",
+//				"status": "True",
+//				"type": "SecretUpdated"
+//			}
+//		],
+//		"lastSuccessfulSyncTime": "2026-10-09T18:04:41.0000000Z",
+//		"syncHash": "v1:9965d9a30245cf20e300a5417c01268bb5557980f10e2c51de479a09b3cd7584"
+//	}
+func (c *operationClusterCreate) serviceProviderDefaultIngressServingCertificateStatus(ctx context.Context, operation *coreapi.Operation) (*operationbase.OperationState, error) {
+	logger := utils.LoggerFromContext(ctx)
+
+	secretSync, observed, err := kubeapplierhelpers.GetCachedIngressSecretSyncForCluster(
+		ctx, c.readDesireLister, operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Name)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+	if !observed {
+		return operationbase.NewOperationState(coreapi.ProvisioningStateProvisioning, "default ingress certificate not yet observed"), nil
+	}
+	if secretSync == nil {
+		return operationbase.NewOperationState(coreapi.ProvisioningStateProvisioning, "default ingress certificate not yet observed"), nil
+	}
+
+	if meta.IsStatusConditionTrue(secretSync.Status.Conditions, "SecretCreated") {
+		return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, ""), nil
+	}
+	// Don't expose the SecretSync's own condition details on the operation; just log
+	// them for diagnostics.
+	logger.Info("ingress SecretSync is not synced", "secretSync.Status.Conditions", secretSync.Status.Conditions)
+	return operationbase.NewOperationState(coreapi.ProvisioningStateProvisioning, "default ingress certificate not yet synced"), nil
+}
+
 // roleAssignmentsOperationStatus blocks cluster creation until the managed
-// resource group scoped role assignments that Cluster Service creates for the
-// cluster's control-plane and data-plane operator managed identities have all been
-// observed as present. The ObserveRoleAssignments controller reflects them onto
+// resource group scoped role assignments for the cluster's control-plane operator,
+// data-plane operator, and service managed identity have all been confirmed present.
+// The IdentityRoleAssignments controller creates them and reflects them onto
 // ServiceProviderCluster.Status.AzureResources.RoleAssignments; creation is
 // considered complete for this source once at least one role assignment is confirmed
 // and none remain pending.
@@ -426,9 +543,27 @@ func (c *operationClusterCreate) roleAssignmentsOperationStatus(ctx context.Cont
 	return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, ""), nil
 }
 
-func (c *operationClusterCreate) shouldReconcileOperationAndResourceStatus(cluster *coreapi.HCPOpenShiftCluster) bool {
-	return cluster.ServiceProviderProperties.DeletionTimestamp == nil &&
-		cluster.ServiceProviderProperties.ClusterServiceID != nil
+func (c *operationClusterCreate) tlsCertificatesOperationStatus(ctx context.Context, operation *coreapi.Operation) (*operationbase.OperationState, error) {
+	serviceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Name)
+	if cosmosstorageutils.IsNotFoundError(err) {
+		return operationbase.NewOperationState(coreapi.ProvisioningStateProvisioning, "ServiceProviderCluster not cached yet"), nil
+	}
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+	for _, certificate := range []*coreapi.TLSCertificate{
+		serviceProviderCluster.Status.AzureResources.KubeAPIServerCertificate,
+		serviceProviderCluster.Status.AzureResources.IngressCertificate,
+	} {
+		if certificate == nil || certificate.AzureReference == nil {
+			return operationbase.NewOperationState(coreapi.ProvisioningStateProvisioning, "TLS certificates not yet confirmed"), nil
+		}
+	}
+	return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, ""), nil
+}
+
+func (c *operationClusterCreate) shouldReconcileOperationAndResourceStatus(cluster *coreapi.Cluster) bool {
+	return cluster.ServiceProviderProperties.DeletionTimestamp == nil
 }
 
 // withDegradedSuffix appends the HostedCluster Degraded condition's reason and
@@ -441,4 +576,34 @@ func withDegradedSuffix(message string, hostedCluster *v1beta1.HostedCluster) st
 		return message
 	}
 	return fmt.Sprintf("%s; hosted cluster degraded: %s: %s", message, degraded.Reason, degraded.Message)
+}
+
+// describeVersionHistory produces a human-readable message explaining why no
+// version in the HostedCluster's control plane version history has reached
+// CompletedUpdate. It lists each version entry with its current state so that
+// operators and agents can understand what the control plane is doing without
+// reading backend source code.
+func describeVersionHistory(history []v1beta1.ControlPlaneUpdateHistory) string {
+	if len(history) == 0 {
+		return "hosted cluster has no version history entries"
+	}
+	descriptions := make([]string, 0, len(history))
+	for _, entry := range history {
+		if entry.State == configv1.CompletedUpdate {
+			continue // only describe versions still in flight
+		}
+		desc := fmt.Sprintf("version %s is %s (want %s)", entry.Version, entry.State, configv1.CompletedUpdate)
+		if !entry.StartedTime.IsZero() {
+			elapsed := time.Since(entry.StartedTime.Time).Truncate(time.Second)
+			if elapsed < 0 {
+				elapsed = 0
+			}
+			desc += fmt.Sprintf(", started %s ago", elapsed)
+		}
+		descriptions = append(descriptions, desc)
+	}
+	if len(descriptions) == 0 {
+		return "hosted cluster control plane version history has no in-flight entries"
+	}
+	return fmt.Sprintf("hosted cluster control plane version not yet completed: %s", strings.Join(descriptions, "; "))
 }

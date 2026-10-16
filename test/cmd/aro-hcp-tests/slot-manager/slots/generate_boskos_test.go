@@ -27,44 +27,44 @@ func TestRewriteGenerateBoskosAndValidateBoskosConfig(t *testing.T) {
 	t.Parallel()
 
 	catalog := &Catalog{
-		Version: 1,
+		Version: 2,
 		Environments: map[string]Environment{
 			"dev": {
-				DeployEnvs: []string{"ci00", "ci01"},
+				DeploymentEnvironment: DeploymentEnvironment{Name: "ci01"},
 				Pools: []Pool{
 					{
-						SubscriptionName:        "dev",
-						Region:                  "westus3",
-						ResourceType:            "aro-hcp-dev-westus3-slot",
-						SlotCount:               1,
-						IdentityContainerPrefix: "aro-hcp-msi-container-dev",
-						IdentityContainerCount:  20,
+						Name:          "dev",
+						Subscriptions: PoolSubscriptions{E2E: "dev"},
+						Region:        "westus3",
+						ResourceType:  "aro-hcp-dev-westus3-slot",
+						SlotCount:     1,
+						SlotAssets:    SlotAssets{E2EIdentities: &E2EIdentitiesAsset{Allocation: AllocationDedicated, ResourceGroupPrefix: "aro-hcp-msi-container-dev", ResourceGroupCount: 20}},
 					},
 				},
 			},
 			"int": {
-				DeployEnvs: []string{"int"},
+				DeploymentEnvironment: DeploymentEnvironment{Name: "int"},
 				Pools: []Pool{
 					{
-						SubscriptionName:        "int",
-						Region:                  "uksouth",
-						ResourceType:            "aro-hcp-int-uksouth-slot",
-						SlotCount:               1,
-						IdentityContainerPrefix: "aro-hcp-msi-container-int",
-						IdentityContainerCount:  20,
+						Name:          "int",
+						Subscriptions: PoolSubscriptions{E2E: "int"},
+						Region:        "uksouth",
+						ResourceType:  "aro-hcp-int-uksouth-slot",
+						SlotCount:     1,
+						SlotAssets:    SlotAssets{E2EIdentities: &E2EIdentitiesAsset{Allocation: AllocationDedicated, ResourceGroupPrefix: "aro-hcp-msi-container-int", ResourceGroupCount: 20}},
 					},
 				},
 			},
 			"prod": {
-				DeployEnvs: []string{"prod"},
+				DeploymentEnvironment: DeploymentEnvironment{Name: "prod"},
 				Pools: []Pool{
 					{
-						SubscriptionName:        "prod",
-						Region:                  "uksouth",
-						ResourceType:            "aro-hcp-prod-uksouth-slot",
-						SlotCount:               2,
-						IdentityContainerPrefix: "aro-hcp-msi-container-prod",
-						IdentityContainerCount:  15,
+						Name:          "prod",
+						Subscriptions: PoolSubscriptions{E2E: "prod"},
+						Region:        "uksouth",
+						ResourceType:  "aro-hcp-prod-uksouth-slot",
+						SlotCount:     2,
+						SlotAssets:    SlotAssets{E2EIdentities: &E2EIdentitiesAsset{Allocation: AllocationDedicated, ResourceGroupPrefix: "aro-hcp-msi-container-prod", ResourceGroupCount: 15}},
 					},
 				},
 			},
@@ -150,4 +150,41 @@ func TestRewriteGenerateBoskosAndValidateBoskosConfig(t *testing.T) {
 
 func intPtr(v int) *int {
 	return &v
+}
+
+func TestInvalidInventoryDoesNotRenderOrRewriteBoskos(t *testing.T) {
+	t.Parallel()
+	catalog := loadCatalogFromYAML(t, independentCatalog)
+	catalog.AssetPools = nil
+
+	rendered, err := RenderBoskosResourcesBlock(catalog)
+	if err == nil || !strings.Contains(err.Error(), `missing asset pool "bundles"`) {
+		t.Fatalf("expected missing inventory error, got %v", err)
+	}
+	if rendered != "" {
+		t.Fatalf("failed render returned partial generator: %q", rendered)
+	}
+
+	repo := t.TempDir()
+	path := GenerateBoskosPythonPath(repo)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	original := strings.Join([]string{
+		BoskosTypesBeginMarker, "    'old-type': {},", BoskosTypesEndMarker,
+		BoskosResourcesBeginMarker, "print('old resources')", BoskosResourcesEndMarker,
+	}, "\n")
+	if err := os.WriteFile(path, []byte(original), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := RewriteGenerateBoskos(repo, catalog); err == nil {
+		t.Fatal("invalid inventory was accepted for rewrite")
+	}
+	after, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(after) != original {
+		t.Fatalf("failed rewrite mutated the generator: %q", after)
+	}
 }

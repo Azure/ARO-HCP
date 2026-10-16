@@ -31,13 +31,14 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/fleetcosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 func newManagementClusterScheduling(t *testing.T, stampIdentifier string) *fleetapi.ManagementClusterScheduling {
 	t.Helper()
-	schedulingResourceID, err := fleetapi.ToManagementClusterSchedulingResourceID(stampIdentifier)
+	schedulingResourceID, err := fleetapihelpers.ToManagementClusterSchedulingResourceID(stampIdentifier)
 	require.NoError(t, err)
 	return &fleetapi.ManagementClusterScheduling{
 		CosmosMetadata: coreapi.CosmosMetadata{

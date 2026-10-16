@@ -41,7 +41,11 @@ All E2E tests run through Prow. For manual triggers or reruns, use PR comments o
 
 The `ocp-fast`, `ocp-stable`, and `ocp-nightly` variants run the same E2E suite but against different OCP update channels to catch compatibility issues with newer OCP versions early. For more information on OCP update channels, see [What are the differences between each of the update channels?](https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/updating_clusters/understanding-openshift-updates-1#update-availability_understanding-openshift-updates)
 
-This guide intentionally does not hard-code the current runtime region for these jobs. Inspect the live `openshift/release` ci-operator config if you need the current `LOCATION` or `MULTISTAGE_PARAM_OVERRIDE_LOCATION` for a specific job.
+DEV `e2e-parallel` selects a runtime region for each run according to the
+`LOCATION_WEIGHTS` in the live `openshift/release` ci-operator config. Other
+jobs may use an explicit `LOCATION` or
+`MULTISTAGE_PARAM_OVERRIDE_LOCATION`. Inspect the live config when the current
+weights or pinned region matter.
 
 To rerun all failed jobs:
 
@@ -57,11 +61,11 @@ The DEV `e2e-parallel` job is different. Because it provisions the DEV RP footpr
 
 ## Running Only Specific Tests
 
-When validating a single test or a small subset of tests, you can temporarily filter which tests run by modifying `test/cmd/aro-hcp-tests/main.go`.
+When validating a single test or a small subset of tests, you can temporarily filter which tests run by modifying `test/cmd/aro-hcp-tests/cli.go`.
 
 ### Example: Filter by Test Name
 
-In [`test/cmd/aro-hcp-tests/main.go`](../../test/cmd/aro-hcp-tests/main.go), uncomment and modify the `MustFilter` line to match only the tests you want:
+In [`test/cmd/aro-hcp-tests/cli.go`](../../test/cmd/aro-hcp-tests/cli.go), uncomment and modify the `MustFilter` line to match only the tests you want:
 
 ```go
 // Specs can be globally filtered...
@@ -79,7 +83,7 @@ This uses [CEL expressions](https://github.com/google/cel-spec) to filter test s
    git checkout -b test/validate-my-test
    ```
 
-2. Edit `test/cmd/aro-hcp-tests/main.go` and add a filter:
+2. Edit `test/cmd/aro-hcp-tests/cli.go` and add a filter:
 
    ```go
    specs = specs.MustFilter([]string{`name.contains("MyTestName")`})

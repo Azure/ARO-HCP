@@ -66,12 +66,76 @@ Captured resources include:
 - HyperShift resources: `hostedcluster`, `nodepool`, `hostedcontrolplane`
 - Cluster API resources: `cluster`, `machinedeployment`, `machineset`, `machine`, `clusterdeployment`
 - Azure-specific resources: `azurecluster`, `azuremachine`, `azuremachinetemplate`
-- Standard workload resources: `deployments`, `statefulsets`, `configmap`, `secrets`, `services`, `sa`, `role`, `rolebinding`, `secretproviderclass`, `route`
+- Standard workload resources: `deployments`, `statefulsets`, `pods`, `configmap`, `secrets`, `services`, `sa`, `role`, `rolebinding`, `secretproviderclass`, `route`
+  - `pods` must be included for the [etcd snapshot hooks](#etcd-snapshot-hooks) to fire — Velero only runs exec hooks against pods that are part of the backup.
 - Policy resources: `priorityclasses`, `pdb`
 - Storage resources: `pvc`, `pv`
 - Swift Networking resources: `multitenantpodnetworkconfigs`, `podnetworks`,
 
 Volume snapshots are enabled. Snapshot data is moved to the backup storage location so it is durable outside of the originating Azure region.
+
+### Snapshot instant access
+
+`velero.enableInstantAccess` controls whether `azure-disk-snapclass` requests
+60 minutes of Azure instant access. It defaults to `true`, but is `false` for
+the dev `ci00` and `ci01` e2e environments. When disabled, the snapshot class
+omits `instantAccessDurationMinutes`; it does not set a zero duration.
+
+Velero's CSI data mover restores snapshots into temporary PVCs before uploading
+their data. Azure charges a one-time, provisioned-capacity-based fee for each
+instant-access disk restore, even when that temporary disk is short-lived.
+Disabling instant access avoids opting into that restore path, but normal snapshot
+copy completion must precede restore, so backups may take longer. See
+[Azure instant-access snapshot billing](https://learn.microsoft.com/en-us/azure/virtual-machines/disks-instant-access-snapshots#billing-for-ultra-disk-and-premium-ssd-v2-instant-access-snapshots).
+
+This e2e opt-out leaves backup schedules, CSI snapshots, snapshot data movement,
+timeouts, and existing e2e tests unchanged. The current tests check scheduling and
+backup creation, not completed data uploads or full restores, so those outcomes
+must also be inspected when validating the slower path against existing timeouts.
+The setting does not disable backup coverage. Other environments retain instant access.
+
+### etcd snapshot hooks
+
+A raw block-level snapshot of etcd PVCs does not provide a method to reset informer/kubelet caches on the dataplane, therefore backup hooks
+are used to capture an etcd snapshot. Each backup carries a Velero exec hook (`etcd-snapshot`), scoped to the control-plane namespace and
+selecting pods labeled `app=etcd`, with both a pre-backup and a post-backup phase that run inside the `etcd` container.
+
+**Pre-backup hook** (`onError: Fail`, 10-minute timeout) — takes the logical snapshot and flushes it to the underlying block device:
+
+```sh
+ETCDCTL_API=3 etcdctl \
+  --endpoints=https://etcd-client.<control-plane-ns>.svc:2379 \
+  --cacert /etc/etcd/tls/etcd-ca/ca.crt \
+  --cert /etc/etcd/tls/client/etcd-client.crt \
+  --key /etc/etcd/tls/client/etcd-client.key \
+  snapshot save /var/lib/backup.db \
+  && sync -f /var/lib/backup.db
+```
+
+The trailing `sync -f` is required for restore correctness. `etcdctl snapshot save` writes to `<path>.part`, fsyncs that file, then atomically renames it to `<path>` — but it does **not** fsync the parent directory. Because the CSI snapshot captures block-device state, the rename (a directory metadata operation still sitting in page cache / the filesystem journal) can be missing from the snapshot, leaving only `backup.db.part` on the restored PVC. `sync -f <path>` issues `syncfs()` on the data PVC, committing the file data **and** the rename to the block device before Velero snapshots the volume. Velero runs the pre-hook to completion before snapshotting the pod's volumes, so the flush is guaranteed to land first.
+
+**Post-backup hook** (`onError: Continue`, 2-minute timeout) — deletes the snapshot to reclaim space on the data PVC once Velero has finished snapshotting the pod's volumes:
+
+```sh
+rm -f /var/lib/backup.db /var/lib/backup.db.part
+```
+
+The post-hook uses `onError: Continue` because the snapshot has already been captured by the time it runs; a failed cleanup should not fail the backup. (This replaces the previous behavior of leaving `/var/lib/backup.db` in place to be overwritten on the next run.)
+
+The pre-backup hook plays two independent roles:
+
+- **Where the snapshot data comes from** — the `--endpoints` value is the `etcd-client` ClusterIP Service, not a pod or the headless discovery service. `etcd-client` leaves `publishNotReadyAddresses` unset (false), so it routes only to Ready endpoints; the etcd `readinessProbe` (`readyz` on port 9980) reflects serving health, so the Service load-balances to a healthy member. `etcdctl snapshot save` opens a single gRPC connection, so the snapshot is pulled from exactly one healthy member — the readiness semantics do the "pick a healthy member" for us. The headless `etcd-discovery` service must **not** be used here: it sets `publishNotReadyAddresses: true` and could hand back a crash-looping member.
+- **Which pods Velero execs into** — the hook selects all etcd members via the `app=etcd` label. Velero runs the exec once per matched pod, so every running member writes a `backup.db` to its own PVC. This is deliberately independent of any single pod's health: the backup does not hinge on `etcd-0` being up. The snapshot *data* in every case still comes from a healthy member via the Service, so each member's `backup.db` is equally consistent.
+
+`/var/lib/backup.db` sits on the member's data PVC (mounted at `/var/lib`) but outside etcd's live data directory (`/var/lib/data`, set via `ETCD_DATA_DIR`), so live etcd ignores the file while the CSI snapshot of that PVC still captures it. Velero runs the pod pre-hook before snapshotting that pod's volumes, so the clean snapshot is present when the volume snapshot is taken. The post-hook removes the file after the volume snapshot completes, so it does not accumulate on the data PVC between runs.
+
+The pre-hook uses `onError: Fail`. If a member's exec fails, Velero records the error, skips that pod, and continues — the other members' snapshots and all CSI volume snapshots are still taken, and the backup is marked **PartiallyFailed** (it does *not* abort the whole backup). This makes a failing member visible rather than letting a total failure (e.g. a bad cert path on every member) silently pass as it would with `onError: Continue`.
+
+### Restoring from the etcd snapshot
+
+All etcd PVCs (`data-etcd-0/1/2`) are CSI-snapshotted, and each running member's snapshot contains its own `backup.db`. Because the pre-hook fires per-pod at slightly different instants, those files are individually consistent but usually captured at different revisions, so there is no single designated "primary" snapshot.
+
+The full restore procedure — selecting a backup, picking the freshest snapshot, and rebuilding a 3-member etcd cluster from it — is documented in [etcd-restore.md](etcd-restore.md).
 
 ## Components
 
@@ -93,6 +157,55 @@ When a cluster is marked for deletion (its `DeletionTimestamp` is set) and its m
 2. Once the Delete-type desire reports success (and its observed status is cleared), the ApplyDesire is purged from Cosmos.
 3. After all ApplyDesires are gone, the corresponding backup schedule ReadDesires are deleted from Cosmos.
 
+### Orphaned Backup Cleanup
+
+The management agent's `BackupCleanup` controller requests deletion of ARO-HCP
+backups after their HostedCluster is absent. It also reconciles existing backups
+at startup, so it can clean up backups left by clusters deleted before the
+controller was deployed. A HostedCluster that is still terminating is preserved.
+
+The controller recognizes backups in `velero` by their HCP ARM-resource-ID
+annotation and explicit HostedCluster/control-plane namespace pair. Legacy
+association uses the Cluster Service naming contract
+`ocm-<environment-identifier>-<32-character-cluster-id>` and its control-plane
+namespace suffix. It never reconstructs a HostedCluster name from that suffix:
+any HostedCluster in the source HostedCluster namespace protects the backup.
+Unrecognized or ambiguous backup shapes are left untouched.
+
+Cleanup uses Velero `DeleteBackupRequest` objects, not direct deletion of Backup
+CRs. The controller waits for terminal backup phases and for associated uploads,
+restores and downloads to finish. It rechecks the backup, repository opt-outs, and
+HostedCluster absence through the Kubernetes API before submitting a request;
+API errors do not authorize deletion. Failed processed requests are retried while
+the backup remains. Backend schedule teardown is still responsible for stopping
+new scheduled backups.
+
+To opt out of this controller's cleanup, add this annotation to a Backup or its
+BackupRepository **before the HostedCluster disappears**, including before making
+backups visible on a recovery management cluster:
+
+```yaml
+metadata:
+  annotations:
+    mgmt-agent.aro-hcp.azure.com/preserve-backup: ""
+```
+
+Presence of the annotation is sufficient, regardless of its value. On a
+BackupRepository it also protects backups that include the repository's volume
+namespace and use the same backup storage location. The opt-out does not change
+Velero's TTL expiration and cannot cancel a deletion request already submitted
+to Velero. Schedule annotations propagate to newly scheduled Backups; an
+annotation on a HostedCluster alone does not protect backups.
+
+**Repository retirement is not implemented by this controller.** Deleting a
+Backup through Velero forgets its Kopia snapshots, but physical data reclamation
+requires subsequent repository maintenance. Deleting a BackupRepository CR does
+not erase its blob prefix and would stop that maintenance. Repositories and
+their maintenance Jobs/pods therefore remain, including when no backups remain;
+this change does not resolve the maintenance-pod count by itself. Full repository
+retirement needs a separately verified cleanup mechanism, not a time-based guess
+that garbage collection has completed. No direct blob deletion is performed.
+
 ### Admin API
 
 The admin API exposes HTTP endpoints for operators to inspect and control backup behavior per cluster. It reads schedule state from Cosmos DB and surfaces per-schedule status from ReadDesires.
@@ -110,7 +223,7 @@ Velero runs on each management cluster and performs the actual backup and restor
 Two cadence tiers are available, selected at backend deployment time:
 
 - **production** — Three overlapping schedules with progressively longer retention:
-  - `hourly` — cron `0 */1 * * *`, TTL 168 hours (7 days)
+  - `6-hourly` — cron `0 */6 * * *`, TTL 48 hours (2 days)
   - `daily` — cron `0 2 * * *`, TTL 720 hours (30 days)
   - `weekly` — cron `0 3 * * 0`, TTL 2160 hours (90 days)
 - **testing** — A single accelerated schedule suitable for CI and development environments:
@@ -165,7 +278,7 @@ GET .../backupschedules
 {
   "state": "Enabled",
   "schedules": [
-    {"name": "...-hourly", "lastBackupTime": "2026-05-27T02:00:15Z", "phase": "Enabled", "backupExecutionState": "Active"},
+    {"name": "...-6-hourly", "lastBackupTime": "2026-05-27T00:00:15Z", "phase": "Enabled", "backupExecutionState": "Active"},
     {"name": "...-daily",  "lastBackupTime": "2026-05-27T02:00:00Z", "phase": "Enabled", "backupExecutionState": "Active"},
     {"name": "...-weekly", "lastBackupTime": "2026-05-25T03:00:00Z", "phase": "Enabled", "backupExecutionState": "Active"}
   ]

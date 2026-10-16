@@ -2,3 +2,5 @@ approvers:
 - geoberle
 - stevekuznetsov
 - miguelsorianod
+labels:
+- area/ci

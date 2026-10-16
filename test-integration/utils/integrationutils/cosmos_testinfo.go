@@ -33,12 +33,14 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
-	"github.com/Azure/ARO-HCP/frontend/cmd"
+	"github.com/Azure/ARO-HCP/frontend/pkg/frontend"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
-	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
 	"github.com/Azure/ARO-HCP/internal/azsdk"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosclient"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosratelimit"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -63,15 +65,20 @@ func NewCosmosFromTestingEnv(ctx context.Context, t *testing.T) (StorageIntegrat
 	if err != nil {
 		return nil, fmt.Errorf("failed to Initialize Cosmos DB: %w", err)
 	}
-	resourcesDBClient, err := corecosmosstorage.NewResourcesDBClient(cosmosDatabaseClient)
+	endpoint, storageOptions, err := cosmosClientOptionsFromEnv()
+	if err != nil {
+		return nil, err
+	}
+	bucket := cosmosratelimit.NewUnlimitedTokenBucket("integration-test")
+	resourcesDBClient, err := corecosmosstorage.NewResourcesDBClient(endpoint, integrationTestCosmosDatabaseName, storageOptions, bucket)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create the resources database client: %w", err)
 	}
-	billingDBClient, err := billingcosmosstorage.NewBillingDBClient(cosmosDatabaseClient)
+	billingDBClient, err := billingcosmosstorage.NewBillingDBClient(endpoint, integrationTestCosmosDatabaseName, storageOptions, bucket)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create the billing database client: %w", err)
 	}
-	fleetDBClient, err := fleetcosmosstorage.NewFleetDBClient(cosmosDatabaseClient)
+	fleetDBClient, err := fleetcosmosstorage.NewFleetDBClient(endpoint, integrationTestCosmosDatabaseName, storageOptions, bucket)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create the fleet database client: %w", err)
 	}
@@ -137,19 +144,19 @@ func LoadCosmosContent(ctx context.Context, cosmosContainer *azcosmos.ContainerC
 
 	var err error
 	switch {
-	case metadataapi.ResourceTypeStringEqual(contentMap["resourceType"].(string), coreapi.OperationStatusResourceType),
-		metadataapi.ResourceTypeStringEqual(contentMap["resourceType"].(string), coreapi.ClusterResourceType),
-		metadataapi.ResourceTypeStringEqual(contentMap["resourceType"].(string), coreapi.NodePoolResourceType),
-		metadataapi.ResourceTypeStringEqual(contentMap["resourceType"].(string), coreapi.ExternalAuthResourceType),
-		metadataapi.ResourceTypeStringEqual(contentMap["resourceType"].(string), coreapi.ClusterControllerResourceType),
-		metadataapi.ResourceTypeStringEqual(contentMap["resourceType"].(string), coreapi.NodePoolControllerResourceType),
-		metadataapi.ResourceTypeStringEqual(contentMap["resourceType"].(string), coreapi.ExternalAuthControllerResourceType),
-		metadataapi.ResourceTypeStringEqual(contentMap["resourceType"].(string), coreapi.ServiceProviderClusterResourceType),
-		metadataapi.ResourceTypeStringEqual(contentMap["resourceType"].(string), coreapi.ServiceProviderNodePoolResourceType):
+	case metadataapihelpers.ResourceTypeStringEqual(contentMap["resourceType"].(string), coreapi.OperationStatusResourceType),
+		metadataapihelpers.ResourceTypeStringEqual(contentMap["resourceType"].(string), coreapi.ClusterResourceType),
+		metadataapihelpers.ResourceTypeStringEqual(contentMap["resourceType"].(string), coreapi.NodePoolResourceType),
+		metadataapihelpers.ResourceTypeStringEqual(contentMap["resourceType"].(string), coreapi.ExternalAuthResourceType),
+		metadataapihelpers.ResourceTypeStringEqual(contentMap["resourceType"].(string), coreapi.ClusterControllerResourceType),
+		metadataapihelpers.ResourceTypeStringEqual(contentMap["resourceType"].(string), coreapi.NodePoolControllerResourceType),
+		metadataapihelpers.ResourceTypeStringEqual(contentMap["resourceType"].(string), coreapi.ExternalAuthControllerResourceType),
+		metadataapihelpers.ResourceTypeStringEqual(contentMap["resourceType"].(string), coreapi.ServiceProviderClusterResourceType),
+		metadataapihelpers.ResourceTypeStringEqual(contentMap["resourceType"].(string), coreapi.ServiceProviderNodePoolResourceType):
 		partitionKey := azcosmos.NewPartitionKeyString(contentMap["partitionKey"].(string))
 		_, err = cosmosContainer.CreateItem(ctx, partitionKey, content, nil)
 
-	case metadataapi.ResourceTypeStringEqual(contentMap["resourceType"].(string), azcorearm.SubscriptionResourceType):
+	case metadataapihelpers.ResourceTypeStringEqual(contentMap["resourceType"].(string), azcorearm.SubscriptionResourceType):
 		partitionKey := azcosmos.NewPartitionKeyString(contentMap["partitionKey"].(string))
 		_, err = cosmosContainer.CreateItem(ctx, partitionKey, content, nil)
 
@@ -304,12 +311,12 @@ func saveContainerContent(ctx context.Context, documentLister DocumentLister, ou
 				armResourceID.Name+".json",
 			)
 
-		case metadataapi.ResourceTypeStringEqual(resourceType.(string), azcorearm.SubscriptionResourceType):
+		case metadataapihelpers.ResourceTypeStringEqual(resourceType.(string), azcorearm.SubscriptionResourceType):
 			filename = filepath.Join(
 				"subscriptions",
 				fmt.Sprintf("subscription_%s.json", docMap["id"].(string)))
 
-		case metadataapi.ResourceTypeStringEqual(resourceType.(string), coreapi.OperationStatusResourceType):
+		case metadataapihelpers.ResourceTypeStringEqual(resourceType.(string), coreapi.OperationStatusResourceType):
 			externalID := properties["externalId"].(string)
 			if clusterResourceID, _ := azcorearm.ParseResourceID(externalID); clusterResourceID != nil {
 				clusterDir := resourceIDToDir(clusterResourceID)
@@ -384,7 +391,7 @@ func (s *CosmosIntegrationTestInfo) LoadContent(ctx context.Context, content []b
 	return LoadCosmosContent(ctx, s.CosmosResourcesContainer(), content)
 }
 
-func createCosmosClientFromEnv() (*azcosmos.Client, error) {
+func cosmosClientOptionsFromEnv() (string, cosmosclient.Options, error) {
 	// Emulator endpoint and key
 	emulatorEndpoint := os.Getenv("FRONTEND_COSMOS_ENDPOINT")
 	emulatorKey := os.Getenv("FRONTEND_COSMOS_KEY")
@@ -406,23 +413,23 @@ func createCosmosClientFromEnv() (*azcosmos.Client, error) {
 	// Create a custom pipeline option for the client
 	cosmosClientOpts := azsdk.NewClientOptions(azsdk.ComponentE2E)
 	cosmosClientOpts.Transport = httpClient
-	cosmosClientOpts.PerCallPolicies = []policy.Policy{cmd.PolicyFunc(cmd.CorrelationIDPolicy)}
-	clientOptions := &azcosmos.ClientOptions{
-		ClientOptions: cosmosClientOpts,
-	}
+	cosmosClientOpts.PerCallPolicies = []policy.Policy{frontend.PolicyFunc(frontend.CorrelationIDPolicy)}
 
 	// Create key credential
 	keyCredential, err := azcosmos.NewKeyCredential(emulatorKey)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create key credential: %w", err)
+		return "", cosmosclient.Options{}, fmt.Errorf("failed to create key credential: %w", err)
 	}
 
-	// Create Cosmos DB client
-	cosmosClient, err := azcosmos.NewClientWithKey(emulatorEndpoint, keyCredential, clientOptions)
+	return emulatorEndpoint, cosmosclient.Options{ClientOptions: cosmosClientOpts, KeyCredential: &keyCredential}, nil
+}
+
+func createCosmosClientFromEnv() (*azcosmos.Client, error) {
+	endpoint, options, err := cosmosClientOptionsFromEnv()
 	if err != nil {
-		return nil, fmt.Errorf("failed to create Cosmos DB client: %w", err)
+		return nil, err
 	}
-	return cosmosClient, nil
+	return azcosmos.NewClientWithKey(endpoint, *options.KeyCredential, &azcosmos.ClientOptions{ClientOptions: options.ClientOptions})
 }
 
 const (

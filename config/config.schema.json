@@ -342,24 +342,6 @@
         "connectSocket"
       ]
     },
-    "tracing": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "address": {
-          "type": "string",
-          "description": "Defines exporter address"
-        },
-        "exporter": {
-          "type": "string",
-          "description": "Defines which exporter the SDK should use"
-        }
-      },
-      "required": [
-        "address",
-        "exporter"
-      ]
-    },
     "acr": {
       "type": "object",
       "properties": {
@@ -624,6 +606,10 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
+        "systemPoolOnly": {
+          "type": "boolean",
+          "description": "CI and personal DEV service clusters only: omit worker and infra pools and allow all workloads on the system pool. Does not delete existing pools."
+        },
         "name": {
           "type": "string",
           "minLength": 3,
@@ -1140,13 +1126,19 @@
   },
   "properties": {
     "environmentName": {
-      "type": "string"
+      "type": "string",
+      "pattern": "^[A-Za-z0-9-]+$"
     },
     "azureGeoShortId": {
       "type": "string"
     },
     "tenantId": {
       "type": "string"
+    },
+    "serviceTreeId": {
+      "type": "string",
+      "description": "Official Service Tree for ARO",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
     },
     "cloud": {
       "type": "string"
@@ -1266,18 +1258,8 @@
           "minLength": 1,
           "maxLength": 10
         },
-        "denyAssignments": {
-          "type": "string",
-          "enum": [
-            "enabled",
-            "disabled"
-          ]
-        },
         "image": {
           "$ref": "#/definitions/containerImage"
-        },
-        "tracing": {
-          "$ref": "#/definitions/tracing"
         },
         "managedIdentityName": {
           "type": "string",
@@ -1340,20 +1322,17 @@
           ]
         },
         "dataPlaneHAProxyImage": {
-          "type": "string",
-          "description": "A valid image reference used for overriding the HAProxy image of the worker node API server proxy. If set to an empty string, either the environment variable IMAGE_SHARED_INGRESS_HAPROXY or the default shared ingress image will be used."
+          "$ref": "#/definitions/containerImage"
         }
       },
       "additionalProperties": false,
       "required": [
         "environment",
-        "denyAssignments",
         "image",
         "managedIdentityName",
         "k8s",
         "azureOperatorsManagedIdentities",
         "postgres",
-        "tracing",
         "azureRuntimeConfig"
       ]
     },
@@ -1409,6 +1388,14 @@
     "miMockCertName": {
       "type": "string"
     },
+    "miMockClientIdSecretName": {
+      "type": "string",
+      "description": "Name of a Key Vault secret holding the mock identity's client id. When set, backend mounts and reads this instead of the static miMockClientId value."
+    },
+    "miMockPrincipalIdSecretName": {
+      "type": "string",
+      "description": "Name of a Key Vault secret holding the mock identity's principal id. When set, backend mounts and reads this instead of the static miMockPrincipalId value."
+    },
     "armHelperClientId": {
       "type": "string"
     },
@@ -1433,9 +1420,7 @@
         "image": {
           "$ref": "#/definitions/containerImage"
         },
-        "tracing": {
-          "$ref": "#/definitions/tracing"
-        },
+
         "k8s": {
           "$ref": "#/definitions/k8sDeployment"
         },
@@ -1484,7 +1469,6 @@
       "additionalProperties": false,
       "required": [
         "image",
-        "tracing",
         "k8s",
         "managedIdentityName",
         "azureRuntimeConfig",
@@ -1594,6 +1578,31 @@
         "nodeHealth"
       ]
     },
+    "swiftRecorder": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enabled by default in every environment. Disabled pipelines skip image mirroring and deployment, but do not uninstall an existing release."
+        },
+        "useMgmtAgentImage": {
+          "type": "boolean",
+          "description": "Temporary ci00/ci01 bootstrap: use the resolved mgmt-agent image containing /swift-recorder. Remove after dedicated image onboarding."
+        },
+        "captureMode": {
+          "type": "string",
+          "enum": ["slow", "all"]
+        },
+        "image": {
+          "$ref": "#/definitions/containerImage"
+        },
+        "k8s": {
+          "$ref": "#/definitions/k8sDeployment"
+        }
+      },
+      "additionalProperties": false,
+      "required": ["enabled", "useMgmtAgentImage", "captureMode", "image", "k8s"]
+    },
     "kubeApplier": {
       "type": "object",
       "properties": {
@@ -1661,6 +1670,21 @@
             "stampIdentifier",
             "autoApproveStamps"
           ]
+        },
+        "nodePoolPlanning": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Shadow-only nodepool planning. Reports projected pool changes without changing pools or transferring ownership from aks-cluster-create.",
+          "properties": {
+            "profile": {
+              "type": "string",
+              "enum": ["", "ci", "development", "production"],
+              "description": "Nodepool tier profile. Empty means disabled. Tier definitions (VM cores, disk sizes, nodes per zone, family priorities) are defined in code."
+            }
+          },
+          "required": [
+            "profile"
+          ]
         }
       },
       "additionalProperties": false,
@@ -1668,7 +1692,8 @@
         "image",
         "managedIdentityName",
         "k8s",
-        "registration"
+        "registration",
+        "nodePoolPlanning"
       ]
     },
     "adminApi": {
@@ -1733,9 +1758,7 @@
         "image": {
           "$ref": "#/definitions/containerImage"
         },
-        "tracing": {
-          "$ref": "#/definitions/tracing"
-        },
+
         "k8s": {
           "$ref": "#/definitions/k8sDeployment"
         },
@@ -1754,6 +1777,10 @@
             },
             "private": {
               "type": "boolean"
+            },
+            "enableBurstCapacity": {
+              "type": "boolean",
+              "description": "Enables Cosmos DB burst capacity, letting the account use banked unused throughput to absorb short RU spikes at no extra cost"
             },
             "resourceContainerMaxScale": {
               "type": "integer"
@@ -1813,6 +1840,9 @@
           "type": "integer",
           "minimum": 0,
           "description": "Log verbosity level for the frontend, specified as a go-logr/logr log level. 0 is the default (INFO). Must be >= 0, where higher values produce more verbose output."
+        },
+        "clusterScopedIdentitiesConfig": {
+          "$ref": "#/definitions/clusterScopedIdentitiesConfig"
         }
       },
       "additionalProperties": false,
@@ -1820,11 +1850,11 @@
         "image",
         "cosmosDB",
         "cert",
-        "tracing",
         "k8s",
         "managedIdentityName",
         "exitOnPanic",
-        "logVerbosity"
+        "logVerbosity",
+        "clusterScopedIdentitiesConfig"
       ]
     },
     "billing": {
@@ -2359,6 +2389,35 @@
         "kustoDataConnectionName"
       ]
     },
+    "maestroMqttEventHub": {
+      "type": "object",
+      "description": "Event Hub for Maestro Event Grid MQTT connection diagnostics",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Name of the Event Hub for Maestro MQTT connection diagnostics"
+        },
+        "kustoConsumerGroupName": {
+          "type": "string",
+          "description": "Name of the consumer group for the Kusto data connection"
+        },
+        "kustoDataConnectionName": {
+          "type": "string",
+          "description": "Name of the Kusto data connection for Maestro MQTT diagnostics"
+        },
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable Maestro MQTT connection diagnostics resources"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "kustoConsumerGroupName",
+        "kustoDataConnectionName",
+        "enabled"
+      ]
+    },
     "mise": {
       "type": "object",
       "additionalProperties": false,
@@ -2466,10 +2525,6 @@
         },
         "imageV2": {
           "$ref": "#/definitions/containerImage"
-        },
-        "tracing": {
-          "$ref": "#/definitions/tracing",
-          "description": "Tracing configuration for OTLP traces."
         }
       },
       "required": [
@@ -2480,7 +2535,6 @@
         "arm",
         "genevaActions",
         "sessiongate",
-        "tracing",
         "applicationName"
       ]
     },
@@ -2773,6 +2827,48 @@
             "image"
           ]
         },
+        "watson": {
+          "type": "object",
+          "properties": {
+            "image": {
+              "$ref": "#/definitions/containerImage"
+            },
+            "securityContext": {
+              "type": "object",
+              "properties": {
+                "privileged": {
+                  "type": "boolean"
+                }
+              },
+              "additionalProperties": false,
+              "required": [
+                "privileged"
+              ]
+            },
+            "resources": {
+              "$ref": "#/definitions/containerResources"
+            },
+            "volumes": {
+              "type": "object",
+              "properties": {
+                "crashdumpHostPath": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false,
+              "required": [
+                "crashdumpHostPath"
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "image",
+            "securityContext",
+            "resources",
+            "volumes"
+          ]
+        },
         "kusto": {
           "type": "object",
           "properties": {
@@ -2954,9 +3050,6 @@
             "loglevel": {
               "type": "integer"
             },
-            "tracing": {
-              "$ref": "#/definitions/tracing"
-            },
             "k8s": {
               "$ref": "#/definitions/k8sDeployment"
             }
@@ -3077,6 +3170,24 @@
     "mgmt": {
       "type": "object",
       "properties": {
+        "scheduling": {
+          "description": "Node scheduling for mgmt-agent and kube-applier on management clusters. Does not change node pools or scheduling of other components.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "role": {
+              "type": "string",
+              "enum": [
+                "infra",
+                "system"
+              ],
+              "default": "infra"
+            }
+          },
+          "required": [
+            "role"
+          ]
+        },
         "aks": {
           "$ref": "#/definitions/aksConfig"
         },
@@ -3120,8 +3231,9 @@
         "subscription": {
           "$ref": "#/definitions/subscriptionMetadata"
         },
-        "jaeger": {
-          "deploy": "boolean"
+        "monitoringApiGroup": {
+          "type": "string",
+          "description": "The Kubernetes API group used for ServiceMonitor and PodMonitor CRDs on management clusters"
         },
         "prometheus": {
           "description": "Prometheus deployment configuration",
@@ -3132,7 +3244,9 @@
       "required": [
         "aks",
         "applyKubeletFixes",
+        "monitoringApiGroup",
         "rg",
+        "scheduling",
         "stamps",
         "subscription",
         "prometheus"
@@ -3150,6 +3264,27 @@
         "grafanaSku": {
           "type": "string",
           "description": "The SKU of the Azure Managed Grafana instance (e.g. Standard, Essential)."
+        },
+        "adxKustoAccessEnabled": {
+          "type": "boolean",
+          "description": "Whether Kusto deployment grants the global Grafana identity Viewer access to ServiceLogs."
+        },
+        "adxIntegrationEnabled": {
+          "type": "boolean",
+          "description": "Whether the global Grafana reconciliation manages ADX integration-fabric child resources."
+        },
+        "adxIntegrationGeographies": {
+          "type": "string",
+          "pattern": "^$|^\\s*[A-Za-z0-9-]+\\s*(,\\s*[A-Za-z0-9-]+\\s*)*$",
+          "description": "Complete comma-separated geography short ID set for ADX integration fabrics. Required when integration reconciliation is enabled."
+        },
+        "adxIntegrationScenario": {
+          "type": "string",
+          "description": "Optional Managed Grafana integration-fabric scenario supplied to the Dashboard resource provider."
+        },
+        "adxIntegrationTargetResourceId": {
+          "type": "string",
+          "description": "Optional target resource ID supplied to each Managed Grafana ADX integration fabric."
         },
         "grafanaMajorVersion": {
           "type": "string"
@@ -3272,6 +3407,11 @@
       "required": [
         "grafanaName",
         "grafanaSku",
+        "adxKustoAccessEnabled",
+        "adxIntegrationEnabled",
+        "adxIntegrationGeographies",
+        "adxIntegrationScenario",
+        "adxIntegrationTargetResourceId",
         "grafanaRoles",
         "grafanaMajorVersion",
         "crossTenantSecurityGroup",
@@ -3411,6 +3551,10 @@
       "type": "object",
       "description": "Velero configuration",
       "properties": {
+        "enableInstantAccess": {
+          "type": "boolean",
+          "description": "Enable 60-minute instant access for Azure disk snapshots. Disabling this omits the parameter and requires normal snapshot copy completion before restore."
+        },
         "server": {
           "$ref": "#/definitions/containerImage"
         },
@@ -3425,7 +3569,8 @@
       "required": [
         "server",
         "azurePlugin",
-        "hypershiftPlugin"
+        "hypershiftPlugin",
+        "enableInstantAccess"
       ]
     },
     "logs": {
@@ -3617,36 +3762,18 @@
         "nsp": {
           "$ref": "#/definitions/nsp"
         },
-        "jaeger": {
-          "deploy": "boolean"
-        },
         "istio": {
-          "description": "Consumed by the IstioUpgrade pipeline step, not by bicep — passing revisions through ARM would overwrite upgrades the pipeline step had already applied. istioctlVersion, targetVersion, and their CEL validations will be removed in a future cleanup.",
+          "description": "Consumed by the IstioUpgrade pipeline step, not by bicep — passing revisions through ARM would overwrite upgrades the pipeline step had already applied.",
           "type": "object",
           "properties": {
-            "istioctlVersion": {
-              "description": "Latest version of istioctl. This is used to download the istioctl. Will be removed in a future cleanup.",
-              "type": "string"
-            },
             "tag": {
-              "description": "The revision tag used in istioctl",
+              "description": "Stable revision tag alias reconciled by the IstioUpgrade pipeline step (e.g. prod-stable).",
               "type": "string"
             },
             "versions": {
-              "description": "Desired Istio revision for the IstioUpgrade pipeline step to reconcile (e.g. asm-1-29). Not an observed cluster field. CSV form retained for compatibility; will move to a single value/array once tooling is ready.",
+              "description": "Single target Istio revision for the IstioUpgrade pipeline step to reconcile (e.g. asm-1-29). Not an observed cluster field.",
               "type": "string",
-              "pattern": "^[a-zA-Z0-9-]+(,[a-zA-Z0-9-]+)*$"
-            },
-            "targetVersion": {
-              "description": "Must be included in the comma-separated versions list (may be one of several during upgrades). The versions field drives the upgrade; this field is required by schema today but will be removed in a future cleanup.",
-              "type": "string",
-              "enum": [
-                "asm-1-26",
-                "asm-1-27",
-                "asm-1-28",
-                "asm-1-29",
-                "asm-1-30"
-              ]
+              "pattern": "^asm-\\d+-\\d+$"
             },
             "ingressGatewayIPAddressName": {
               "type": "string"
@@ -3655,16 +3782,9 @@
               "$ref": "#/definitions/keyColonValueCSV"
             }
           },
-          "x-cel-validations": [
-            {
-              "rule": "self.versions.split(',').exists(v, v == self.targetVersion)",
-              "message": "targetVersion must be included in the versions list"
-            }
-          ],
           "additionalProperties": false,
           "required": [
             "ingressGatewayIPAddressName",
-            "targetVersion",
             "versions"
           ]
         },
@@ -3701,28 +3821,6 @@
           "$ref": "#/definitions/prometheus"
         }
       },
-      "x-cel-validations": [
-        {
-          "rule": "self.istio.targetVersion == 'asm-1-26' ? semver(self.aks.kubernetesVersion) >= semver('1.29.0') && semver(self.aks.kubernetesVersion) < semver('1.35.0') : true",
-          "message": "asm-1-26 requires AKS Kubernetes version between 1.29.0 (inclusive) and 1.35.0 (exclusive)"
-        },
-        {
-          "rule": "self.istio.targetVersion == 'asm-1-27' ? semver(self.aks.kubernetesVersion) >= semver('1.29.0') && semver(self.aks.kubernetesVersion) < semver('1.36.0') : true",
-          "message": "asm-1-27 requires AKS Kubernetes version between 1.29.0 (inclusive) and 1.36.0 (exclusive)"
-        },
-        {
-          "rule": "self.istio.targetVersion == 'asm-1-28' ? semver(self.aks.kubernetesVersion) >= semver('1.30.0') && semver(self.aks.kubernetesVersion) < semver('1.36.0') : true",
-          "message": "asm-1-28 requires AKS Kubernetes version between 1.30.0 (inclusive) and 1.36.0 (exclusive)"
-        },
-        {
-          "rule": "self.istio.targetVersion == 'asm-1-29' ? semver(self.aks.kubernetesVersion) >= semver('1.31.0') && semver(self.aks.kubernetesVersion) < semver('1.36.0') : true",
-          "message": "asm-1-29 requires AKS Kubernetes version between 1.31.0 (inclusive) and 1.36.0 (exclusive)"
-        },
-        {
-          "rule": "self.istio.targetVersion == 'asm-1-30' ? semver(self.aks.kubernetesVersion) >= semver('1.32.0') && semver(self.aks.kubernetesVersion) < semver('1.37.0') : true",
-          "message": "asm-1-30 requires AKS Kubernetes version between 1.32.0 (inclusive) and 1.37.0 (exclusive)"
-        }
-      ],
       "additionalProperties": false,
       "required": [
         "rg",
@@ -3852,6 +3950,46 @@
         "sreServiceTag"
       ]
     },
+    "infrastructureIdentities": {
+      "type": "object",
+      "description": "Opt-in references to leased, pre-created infrastructure managed identities.",
+      "properties": {
+        "useLeased": {
+          "type": "boolean",
+          "description": "Use pre-created infrastructure identities instead of creating identities in ephemeral cluster resource groups."
+        },
+        "serviceResourceGroup": {
+          "type": "string",
+          "description": "Persistent resource group containing the service-cluster identity bundle in the service deployment subscription.",
+          "maxLength": 90,
+          "pattern": "^$|^[A-Za-z0-9._()\\-]*[A-Za-z0-9_()\\-]$"
+        },
+        "serviceAksIdentityName": {
+          "type": "string",
+          "description": "Pre-created service AKS control-plane identity name, independent of the ephemeral cluster name.",
+          "maxLength": 128,
+          "pattern": "^$|^[A-Za-z0-9][A-Za-z0-9_-]{2,127}$"
+        },
+        "managementResourceGroups": {
+          "type": "string",
+          "description": "Comma-separated explicit stamp-to-resource-group mappings in each management deployment subscription, for example 1=rg-a,2=rg-b.",
+          "pattern": "^$|^[0-9]+=[A-Za-z0-9._()\\-]{0,89}[A-Za-z0-9_()\\-](,[0-9]+=[A-Za-z0-9._()\\-]{0,89}[A-Za-z0-9_()\\-])*$"
+        },
+        "managementAksIdentityNames": {
+          "type": "string",
+          "description": "Comma-separated explicit stamp-to-AKS-identity-name mappings, for example 1=aks-control-plane,2=aks-control-plane.",
+          "pattern": "^$|^[1-9][0-9]*=[A-Za-z0-9][A-Za-z0-9_-]{2,127}(,[1-9][0-9]*=[A-Za-z0-9][A-Za-z0-9_-]{2,127})*$"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "useLeased",
+        "serviceResourceGroup",
+        "serviceAksIdentityName",
+        "managementResourceGroups",
+        "managementAksIdentityNames"
+      ]
+    },
     "keyVaultDNSSuffix": {
       "type": "string"
     },
@@ -3910,6 +4048,7 @@
   "additionalProperties": false,
   "required": [
     "administration",
+    "infrastructureIdentities",
     "azureGeoShortId",
     "cloudEnvironmentName",
     "kvCertOfficerPrincipalId",
@@ -3927,6 +4066,7 @@
     "maestro",
     "mgmt",
     "mgmtAgent",
+    "swiftRecorder",
     "fleet",
     "kubeApplier",
     "mgmtKeyVault",
@@ -3936,6 +4076,7 @@
     "region",
     "regionRG",
     "serviceKeyVault",
+    "serviceTreeId",
     "sessiongate",
     "svc",
     "msiRp",
@@ -3947,6 +4088,34 @@
     "genevaHealthFunction"
   ],
   "x-cel-validations": [
+    {
+      "rule": "!self.infrastructureIdentities.useLeased || (self.infrastructureIdentities.serviceResourceGroup != '' && self.infrastructureIdentities.serviceAksIdentityName != '' && self.infrastructureIdentities.managementResourceGroups != '' && self.infrastructureIdentities.managementAksIdentityNames != '')",
+      "message": "infrastructure identity reuse requires service and management resource groups and explicit AKS identity names"
+    },
+    {
+      "rule": "!self.infrastructureIdentities.useLeased || (',' + self.infrastructureIdentities.managementResourceGroups + ',').contains(',' + self.mgmt.stampIdentifier + '=')",
+      "message": "infrastructure identity reuse requires an explicit resource-group mapping for the current management stamp"
+    },
+    {
+      "rule": "!self.infrastructureIdentities.useLeased || (',' + self.infrastructureIdentities.managementAksIdentityNames + ',').contains(',' + self.mgmt.stampIdentifier + '=')",
+      "message": "infrastructure identity reuse requires an explicit AKS identity name for the current management stamp"
+    },
+    {
+      "rule": "!has(self.svc.aks.systemPoolOnly) || !self.svc.aks.systemPoolOnly || self.environmentName in ['ci00', 'ci01', 'pers']",
+      "message": "svc.aks.systemPoolOnly is supported only in ci00, ci01 and pers"
+    },
+    {
+      "rule": "!has(self.mgmt.aks.systemPoolOnly) || !self.mgmt.aks.systemPoolOnly",
+      "message": "systemPoolOnly is not supported for management clusters"
+    },
+    {
+      "rule": "!self.monitoring.adxIntegrationEnabled || self.monitoring.adxIntegrationGeographies != ''",
+      "message": "monitoring.adxIntegrationGeographies must be non-empty when monitoring.adxIntegrationEnabled is true"
+    },
+    {
+      "rule": "!self.monitoring.adxIntegrationEnabled || self.monitoring.adxKustoAccessEnabled",
+      "message": "monitoring.adxKustoAccessEnabled must be true when monitoring.adxIntegrationEnabled is true"
+    },
     {
       "rule": "self.frontend.cert.san == 'rp.' + self.dns.regionalSubdomain + '.' + self.dns.svcParentZoneName",
       "message": "frontend.cert.san must equal 'rp.' + dns.regionalSubdomain + '.' + dns.svcParentZoneName"

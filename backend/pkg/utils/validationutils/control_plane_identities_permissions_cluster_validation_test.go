@@ -1333,14 +1333,14 @@ func TestValidate(t *testing.T) {
 		},
 	}
 
-	cluster := &coreapi.HCPOpenShiftCluster{
+	cluster := &coreapi.Cluster{
 		TrackedResource: coreapi.TrackedResource{
 			Resource: coreapi.Resource{ID: clusterResourceID},
 		},
-		ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 			ManagedIdentitiesDataPlaneIdentityURL: testIdentityURL,
 		},
-		CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+		CustomerProperties: coreapi.ClusterCustomerProperties{
 			Platform: coreapi.CustomerPlatformProfile{
 				SubnetID:               subnetResourceID,
 				NetworkSecurityGroupID: nsgResourceID,

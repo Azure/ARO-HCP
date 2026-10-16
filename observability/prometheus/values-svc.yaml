@@ -1,3 +1,4 @@
+schedulingRole: '{{ if eq (printf "%v" .svc.aks.systemPoolOnly) "true" }}system{{ else }}infra{{ end }}'
 kube-prometheus-stack:
   fullnameOverride: "prometheus"
   crds:
@@ -57,7 +58,7 @@ kube-prometheus-stack:
             - key: aro-hcp.azure.com/role
               operator: In
               values:
-              - "infra"
+              - '{{ if eq (printf "%v" .svc.aks.systemPoolOnly) "true" }}system{{ else }}infra{{ end }}'
     tolerations:
     - key: "infra"
       operator: "Equal"
@@ -74,6 +75,8 @@ kube-prometheus-stack:
   cleanPrometheusOperatorObjectNames: true
   # config for kube-state-metrics subchart that is imported by the kube-prometheus-stack chart conditionally
   kube-state-metrics:
+    metricLabelsAllowlist:
+    - nodes=[node.kubernetes.io/instance-type,kubernetes.azure.com/agentpool]
     image:
       registry: "{{ .svc.prometheus.kubeStateMetrics.image.registry }}"
       repository: "{{ .svc.prometheus.kubeStateMetrics.image.repository }}"

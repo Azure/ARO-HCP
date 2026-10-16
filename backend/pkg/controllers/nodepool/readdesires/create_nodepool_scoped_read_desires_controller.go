@@ -28,6 +28,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
@@ -142,7 +143,10 @@ func (c *createNodePoolScopedReadDesiresSyncer) SyncOnce(ctx context.Context, ke
 	}
 	csClusterID := existingNodePool.ServiceProviderProperties.ClusterServiceID.ClusterID()
 
-	target := nodePoolTarget(c.hostedClusterNamespaceEnvIdentifier, csClusterID, csClusterDomainPrefix, existingNodePool.ID.Name)
+	// CS lowercases the ARM node pool name for both its internal node pool ID and the
+	// AzureNodePool.ResourceName it derives the Hypershift NodePool object's name from
+	// (see internal/ocm/convert.go's BuildCSNodePool), so the target name here must match.
+	target := nodePoolTarget(c.hostedClusterNamespaceEnvIdentifier, csClusterID, csClusterDomainPrefix, strings.ToLower(existingNodePool.ID.Name))
 
 	kaClient := c.kubeApplierDBClients.For(ctx, mcResourceID)
 	if kaClient == nil {
@@ -170,7 +174,7 @@ func buildNodePoolReadDesire(
 	managementCluster *azcorearm.ResourceID,
 	target kubeapplierapi.ResourceReference,
 ) (*kubeapplierapi.ReadDesire, error) {
-	resourceIDStr := kubeapplierapi.ToNodePoolScopedReadDesireResourceIDString(
+	resourceIDStr := kubeapplierapihelpers.ToNodePoolScopedReadDesireResourceIDString(
 		subscriptionID, resourceGroupName, clusterName, nodePoolName, desireName,
 	)
 	resourceID, err := azcorearm.ParseResourceID(resourceIDStr)

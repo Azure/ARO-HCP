@@ -43,16 +43,14 @@ type operationExternalAuthDelete struct {
 	notificationClient   *http.Client
 }
 
+const OperationExternalAuthDeleteControllerName = "OperationExternalAuthDelete"
+
 // NewOperationExternalAuthDeleteController returns a new Controller instance that
 // follows an asynchronous external auth deletion operation to completion and updates
 // the corresponding operation document in Cosmos DB.
 //
 // The controller has the following responsibilities:
-//   - For legacy operations (UsesNewExternalAuthDeletionApproach == false):
-//     it polls Cluster Service until the external auth is gone (404), then
-//     marks the operation as Succeeded and cleans up the Cosmos document.
-//   - For new-approach operations (UsesNewExternalAuthDeletionApproach == true):
-//     while the ExternalAuth Cosmos document is present, it reconciles the
+//   - while the ExternalAuth Cosmos document is present, it reconciles the
 //     operation status. When the ExternalAuth Cosmos document is deleted
 //     (by the externalAuthDeletionController), it marks the operation as
 //     Succeeded.
@@ -82,7 +80,7 @@ func NewOperationExternalAuthDeleteController(
 	}
 
 	controller := controllerutils.NewGenericOperationController(
-		"OperationExternalAuthDelete",
+		OperationExternalAuthDeleteControllerName,
 		syncer,
 		10*time.Second,
 		activeOperationInformer,
@@ -117,13 +115,6 @@ func (c *operationExternalAuthDelete) SynchronizeOperation(ctx context.Context, 
 		return fmt.Errorf("failed to get active operation: %w", err)
 	}
 
-	// TODO remove this once migration of external auth deletion from frontend to backend is fully completed.
-	if !operation.UsesNewExternalAuthDeletionApproach {
-		return c.legacySynchronizeOperation(ctx, operation)
-	}
-
-	// From here, we know it uses the new deletion approach.
-
 	if !c.ShouldProcess(ctx, operation) {
 		return nil // no work to do
 	}
@@ -153,13 +144,13 @@ func (c *operationExternalAuthDelete) SynchronizeOperation(ctx context.Context, 
 	return nil
 }
 
-func (c *operationExternalAuthDelete) shouldReconcileOperationAndResourceStatus(externalAuth *coreapi.HCPOpenShiftClusterExternalAuth) bool {
+func (c *operationExternalAuthDelete) shouldReconcileOperationAndResourceStatus(externalAuth *coreapi.ExternalAuth) bool {
 	return externalAuth.ServiceProviderProperties.DeletionTimestamp != nil &&
 		externalAuth.ServiceProviderProperties.ClusterServiceDeletionTimestamp != nil &&
 		externalAuth.ServiceProviderProperties.ClusterServiceID != nil
 }
 
-func (c *operationExternalAuthDelete) reconcileOperationAndResourceStatus(ctx context.Context, operation *coreapi.Operation, externalAuth *coreapi.HCPOpenShiftClusterExternalAuth) error {
+func (c *operationExternalAuthDelete) reconcileOperationAndResourceStatus(ctx context.Context, operation *coreapi.Operation, externalAuth *coreapi.ExternalAuth) error {
 	logger := utils.LoggerFromContext(ctx)
 
 	csID := externalAuth.ServiceProviderProperties.ClusterServiceID

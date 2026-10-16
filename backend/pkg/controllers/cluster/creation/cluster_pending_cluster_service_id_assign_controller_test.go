@@ -38,13 +38,16 @@ func TestClusterPendingClusterServiceIDAssign_SyncOnce(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		listCluster *coreapi.HCPOpenShiftCluster
-		dbCluster   *coreapi.HCPOpenShiftCluster
+		listCluster *coreapi.Cluster
+		dbCluster   *coreapi.Cluster
 		expectError bool
 		verifyDB    func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient)
 	}{
 		{
-			name:        "assigns PendingClusterServiceID when both IDs are nil",
+			// Behavior: PendingClusterServiceID assignment is NOT gated on placement.
+			// No ServiceProviderCluster is involved at all; assignment happens as soon
+			// as the cluster exists and has neither a pending nor a resolved CS ID.
+			name:        "assigns PendingClusterServiceID when both IDs nil (not gated on placement)",
 			listCluster: newTestCluster(),
 			dbCluster:   newTestCluster(),
 			expectError: false,
@@ -58,10 +61,10 @@ func TestClusterPendingClusterServiceIDAssign_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "skip when PendingClusterServiceID already set",
-			listCluster: newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
+			listCluster: newTestCluster(func(c *coreapi.Cluster) {
 				c.ServiceProviderProperties.PendingClusterServiceID = &clusterInternalID
 			}),
-			dbCluster: newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
+			dbCluster: newTestCluster(func(c *coreapi.Cluster) {
 				c.ServiceProviderProperties.PendingClusterServiceID = &clusterInternalID
 			}),
 			expectError: false,
@@ -74,10 +77,10 @@ func TestClusterPendingClusterServiceIDAssign_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "skip when ClusterServiceID already set",
-			listCluster: newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
+			listCluster: newTestCluster(func(c *coreapi.Cluster) {
 				c.ServiceProviderProperties.ClusterServiceID = &clusterInternalID
 			}),
-			dbCluster: newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
+			dbCluster: newTestCluster(func(c *coreapi.Cluster) {
 				c.ServiceProviderProperties.ClusterServiceID = &clusterInternalID
 			}),
 			expectError: false,
@@ -89,11 +92,11 @@ func TestClusterPendingClusterServiceIDAssign_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "skip when cluster is being deleted",
-			listCluster: newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
+			listCluster: newTestCluster(func(c *coreapi.Cluster) {
 				now := metav1.Now()
 				c.ServiceProviderProperties.DeletionTimestamp = &now
 			}),
-			dbCluster: newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
+			dbCluster: newTestCluster(func(c *coreapi.Cluster) {
 				now := metav1.Now()
 				c.ServiceProviderProperties.DeletionTimestamp = &now
 			}),
@@ -125,9 +128,9 @@ func TestClusterPendingClusterServiceIDAssign_SyncOnce(t *testing.T) {
 			mockDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{newTestSubscription(), tt.dbCluster})
 			require.NoError(t, err)
 
-			var listerClusters []*coreapi.HCPOpenShiftCluster
+			var listerClusters []*coreapi.Cluster
 			if tt.listCluster != nil {
-				listerClusters = []*coreapi.HCPOpenShiftCluster{tt.listCluster}
+				listerClusters = []*coreapi.Cluster{tt.listCluster}
 			}
 			syncer := &clusterPendingClusterServiceIDAssignSyncer{
 				resourcesDBClient: mockDB,

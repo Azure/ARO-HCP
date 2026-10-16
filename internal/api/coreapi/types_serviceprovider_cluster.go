@@ -58,19 +58,6 @@ const (
 	HostedClusterControlPlaneSizeXXlarge HostedClusterControlPlaneSize = "XXlarge"
 )
 
-// IsValidHostedClusterControlPlaneSize reports whether s names a known tier.
-func IsValidHostedClusterControlPlaneSize(s string) bool {
-	switch HostedClusterControlPlaneSize(s) {
-	case HostedClusterControlPlaneSizeSmall,
-		HostedClusterControlPlaneSizeMedium,
-		HostedClusterControlPlaneSizeLarge,
-		HostedClusterControlPlaneSizeXlarge,
-		HostedClusterControlPlaneSizeXXlarge:
-		return true
-	}
-	return false
-}
-
 // ServiceProviderCluster is used internally by controllers to track and pass information between them.
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type ServiceProviderCluster struct {
@@ -102,6 +89,7 @@ type ServiceProviderClusterSpec struct {
 	// We will only explicitly set the fields we care about, but serialization may store additional empty fields.
 	// Once this contains the critical values, we will create it on management clusters.
 	// We may or may not choose to store the actual state in status.  We may choose to store the actual state independently.
+	// Written by: IngressCertificate
 	DesiredHostedCluster *v1beta1.HostedCluster `json:"desiredHostedCluster,omitempty"`
 
 	// DesiredHostedClusterControlPlaneSize is the SRE-selected control plane
@@ -114,13 +102,72 @@ type ServiceProviderClusterSpec struct {
 	// BackupScheduleState is the desired backup scheduling state: Enabled or Disabled.
 	// Default is Enabled. Set to Disabled via Admin API to pause scheduled backups.
 	BackupScheduleState BackupScheduleState `json:"backupScheduleState,omitempty"`
+
+	// ManagementClusterResourceID is the resource ID of the management cluster the
+	// scheduler has selected for this HCP. This is the scheduler's intent (desired
+	// placement): nil means placement has not been resolved yet. Downstream
+	// controllers (cluster creation gating and Cluster Service provision-shard
+	// pinning) rely on it once set.
+	//
+	// It is set once by the PlacementController and is not otherwise mutated.
+	// Written by: PlacementController
+	ManagementClusterResourceID *azcorearm.ResourceID `json:"managementClusterResourceID,omitempty"`
+
+	// EarliestRecheckTimesByController records, per controller, the earliest time
+	// at which that controller should next re-query Azure (or another external
+	// system) for the state it maintains. The map key is the controller's
+	// ControllerName constant; a nil or absent entry means recheck immediately.
+	// Centralizing these per-controller recheck times here lets each controller
+	// avoid repeatedly hitting an external API to confirm the desired state is
+	// still true, without every tracked struct carrying its own recheck field.
+	// Controllers should set their entry with substantial jitter: without another
+	// concern, jitter of 50% is considered normal so that any storms are quickly
+	// dissipated. Additionally, long recheck times are recommended for resources
+	// outside of their active phases. Order of at least six hours is, with
+	// durations up to 24 hours considered normal.
+	// Written by: FetchMSIIdentitiesInfo, FetchDataPlaneOperatorsManagedIdentitiesInfoController, FetchManagedIdentitiesInfo, IdentityRoleAssignments
+	EarliestRecheckTimesByController map[string]*metav1.Time `json:"earliestRecheckTimesByController,omitempty"`
+
+	// PinnedVersion, when its ExactVersion is set, is an SRE-specified
+	// cluster-specific exact-version override. The Forced Cluster Desired Version
+	// Assignment controller holds this cluster at PinnedVersion.ExactVersion until
+	// the fleet's bestExactVersion reaches PinnedVersion.UntilExactVersion, after
+	// which the pin is cleared and normal rollout selection resumes. An empty
+	// PinnedVersion (nil ExactVersion) means no pin and serializes as {}.
+	// Written by: Forced Cluster Desired Version Assignment (clear), Admin API HCPVersionPinHandler (set/clear), Admin API FleetControlPlaneVersionPinHandler (set/clear)
+	PinnedVersion ServiceProviderClusterPinnedVersion `json:"pinnedVersion,omitempty"`
 }
 
 // ServiceProviderClusterSpecVersion contains the desired version information.
 type ServiceProviderClusterSpecVersion struct {
 	// DesiredVersion is the full version the controller has resolved and wants to upgrade to (format: x.y.z)
 	// This is compared on each sync to detect when a new upgrade should be triggered.
+	// Written by: Forced Cluster Desired Version Assignment, Z-stream Progressive Desired Version Rollout, InitialNormalClusterDesiredVersion, MinorUpgradeNormalClusterDesiredVersion
 	DesiredVersion *semver.Version `json:"desired_version,omitempty"`
+
+	// DesiredVersionLastTransitionTime is when DesiredVersion last changed. It is
+	// used to decide when a cluster has been mismatched (desired set but not yet
+	// achieved) for longer than the allowed upgrade duration.
+	// Legacy missing/zero timestamps are initialized at first observation by
+	// InitialNormalClusterDesiredVersion without changing the desired version.
+	// TODO: align DesiredVersion with its transition time into a better structure
+	// (mirroring ServiceProviderClusterActiveVersion), instead of two loosely-coupled fields.
+	// Written by: Forced Cluster Desired Version Assignment, Z-stream Progressive Desired Version Rollout, InitialNormalClusterDesiredVersion, MinorUpgradeNormalClusterDesiredVersion
+	DesiredVersionLastTransitionTime *metav1.Time `json:"desired_version_last_transition_time,omitempty"`
+}
+
+// ServiceProviderClusterPinnedVersion is an SRE-specified exact-version pin for a
+// single cluster, held until the fleet's best version reaches UntilExactVersion.
+type ServiceProviderClusterPinnedVersion struct {
+	// ExactVersion is the exact z-stream this cluster is pinned to regardless of
+	// its previous version.
+	// Written by: Forced Cluster Desired Version Assignment (clear), Admin API HCPVersionPinHandler (set/clear), Admin API FleetControlPlaneVersionPinHandler (set/clear)
+	ExactVersion *semver.Version `json:"exactVersion,omitempty"`
+
+	// UntilExactVersion is the fleet bestExactVersion at or above which the pin is
+	// released and normal upgrade selection may continue.
+	// Written by: Forced Cluster Desired Version Assignment (clear), Admin API HCPVersionPinHandler (set/clear), Admin API FleetControlPlaneVersionPinHandler (set/clear)
+	UntilExactVersion *semver.Version `json:"untilExactVersion,omitempty"`
 }
 
 // ServiceProviderClusterStatus contains the observed state of the cluster.
@@ -179,12 +226,30 @@ type ServiceProviderClusterStatus struct {
 	// Written by: ControlPlaneActiveVersions
 	DesiredVersionChannels []string `json:"desiredVersionChannels,omitempty"`
 
+	// ImageContentSources mirrors the observed HostedCluster's
+	// spec.imageContentSources verbatim. nil means the HostedCluster has not yet
+	// been observed, or a successful read found it absent and retracted the mirror.
+	// Admission fails closed without observed state. A non-nil pointer to a
+	// possibly empty slice means the HostedCluster has been observed. Empty
+	// observations use an empty, non-nil slice so JSON preserves that distinction.
+	// Written by: ActualHostedCluster
+	ImageContentSources *[]v1beta1.ImageContentSource `json:"imageContentSources,omitempty"`
+
+	// ControlPlaneVersionHistory mirrors HostedCluster.status.controlPlaneVersion.history
+	// verbatim, newest first. nil means not yet observed or retracted; a non-nil
+	// pointer to a possibly empty slice means the HostedCluster was observed.
+	// Empty observations use a non-nil slice to preserve that distinction in JSON.
+	// Admin version pin rollback checks use this history, not guest version history.
+	// Written by: ActualHostedCluster
+	ControlPlaneVersionHistory *[]v1beta1.ControlPlaneUpdateHistory `json:"controlPlaneVersionHistory,omitempty"`
+
 	// Validations is a list of conditions that tracks the status of each cluster validation.
 	// Each Condition Type represents a validation and it should be unique among all validations.
 	// A Condition Status of True means that the validation passed successfully, and a Condition Status of False means that the validation failed.
 	// The Condition Reason and Message are used to provide more details about the validation status.
 	// The Condition LastTransitionTime is used to track the last time the validation transitioned from one status to another.
 	Validations []metav1.Condition `json:"validations,omitempty"`
+
 	// MaestroReadonlyBundles contains a list of Maestro readonly bundles references.
 	// These bundles are used to retrieve particular K8s resources from the Management Cluster.
 	// The reference contains a mapping between the logical name we give to the Maestro bundle internally
@@ -194,6 +259,12 @@ type ServiceProviderClusterStatus struct {
 	// this HCP is placed on. Nil means placement has not been resolved yet.
 	// Once set, this field is immutable.
 	ManagementClusterResourceID *azcorearm.ResourceID `json:"managementClusterResourceID,omitempty"`
+
+	// Placement holds capacity availability for the HCP's placement attempt.
+	// CapacityAvailable=True is recorded on the same Replace that sets
+	// Spec.ManagementClusterResourceID.
+	// Written by: PlacementController
+	Placement *ServiceProviderClusterPlacementStatus `json:"placement,omitempty"`
 
 	// DesiredHostedClusterControlPlaneSize mirrors the value of
 	// Spec.DesiredHostedClusterControlPlaneSize once cluster-service reflects
@@ -268,27 +339,52 @@ type ServiceProviderClusterStatus struct {
 	// contains the set of required data plane operators associated with a Cluster.
 	// Written by: FetchDataPlaneOperatorsManagedIdentitiesInfoController
 	DataPlaneOperatorsManagedIdentities ServiceProviderClusterDataPlaneOperatorsManagedIdentities `json:"dataPlaneOperatorsManagedIdentities,omitempty"`
+
+	// KeyRotationBackupFingerprint identifies the active-key fingerprint of the
+	// most recent KMS rotation whose on-demand backup outcome (completed or
+	// skipped because backups were paused) has been durably recorded, so it's
+	// never acted on again. Only a later rotation with a new fingerprint is
+	// eligible for a new backup. Empty means no rotation has been handled yet.
+	// Written by: KeyRotationBackup
+	KeyRotationBackupFingerprint string `json:"keyRotationBackupFingerprint,omitempty"`
+
+	// ManagedIdentityDetails is a map containing the details for the
+	// managed identities associated with the cluster.
+	// The key is the fully lowercased Azure Resource ID of the identity.
+	// Each entry contains identity metadata retrieved from the different sources
+	// that apply to that identity as well as whether those sources can be leveraged
+	// to retrieve the identity metadata. The sources are: the ARM User Assigned Identities API, the real Managed
+	// Identities Dataplane Service, and/or the Hardcoded Identity used when the dataplane service is not available.
+	// Depending on to what cluster operators the identity is associated with, different sources apply.
+	// Written by: FetchManagedIdentitiesInfo
+	// TODO: Move the controllers to use this information. For already introduced controllers that need to support identities replacement, move them
+	// to use this at the point those are updated to support identity replacement.
+	ManagedIdentityDetails map[string]*ManagedIdentityMetadata `json:"managedIdentityDetails,omitempty"`
+}
+
+// ServiceProviderClusterPlacementStatus holds placement-specific status for a
+// ServiceProviderCluster. It is kept off the top-level Status.Conditions per the
+// minimalism guidance there ("conditions at other levels can be specified within
+// ServiceProviderClusterStatus too").
+type ServiceProviderClusterPlacementStatus struct {
+	// Conditions holds placement conditions. Known types:
+	//   - "CapacityAvailable": True when suitable placement capacity was found;
+	//     False when no usable capacity exists; Unknown when required observations or
+	//     configuration are unavailable. Placement itself is recorded in
+	//     Spec.ManagementClusterResourceID.
+	// Written by: PlacementController
+	// +optional
+	// +patchMergeKey=type
+	// +patchStrategy=merge
+	// +listType=map
+	// +listMapKey=type
+	Conditions []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type"`
 }
 
 // ServiceProviderClusterMSIManagedIdentities holds Managed Service Identity (MSI)
 // based identity metadata resolved by FetchMSIIdentitiesInfo and consumed by ClusterIdentitySync to
-// populate HCPOpenShiftCluster.Identity.UserAssignedIdentities.
+// populate Cluster.Identity.UserAssignedIdentities.
 type ServiceProviderClusterMSIManagedIdentities struct {
-	// EarliestRecheckTime is the earliest time at which the controller
-	// should re-query Azure for ClientID/PrincipalID of ControlPlaneOperatorsIdentities
-	// and ServiceManagedIdentity.
-	// Nil means recheck immediately.
-	// The same recheck time applies across all entries in ControlPlaneOperatorsIdentities
-	// and ServiceManagedIdentity.
-	// This allows the controller to avoid repeatedly hitting an Azure API to
-	// recheck that the desired state is true.
-	// Controllers should set this field with substantial jitter: without another
-	// concern, jitter of 50% is considered normal so that any storms are quickly
-	// dissipated. Additionally, long recheck times are recommended for resources
-	// outside of their active phases. Order of at least six hours is, with
-	// durations up to 24 hours considered normal.
-	// Written by: FetchMSIIdentitiesInfo
-	EarliestRecheckTime *metav1.Time `json:"earliestRecheckTime,omitempty"`
 	// ControlPlaneOperatorsIdentities is a map containing resolved ClientID/PrincipalID
 	// for Managed Service Identity (MSI) based Azure User-Assigned Managed Identities
 	// used by the cluster's control plane operators. The key is the fully lowercased
@@ -341,8 +437,7 @@ type ServiceProviderClusterServiceManagedIdentity struct {
 }
 
 // ServiceProviderClusterDataPlaneOperatorsManagedIdentities holds the resolved
-// managed-identity metadata for all data plane operators on a cluster, together
-// with a single EarliestRecheckTime that applies to every entry in Identities.
+// managed-identity metadata for all data plane operators on a cluster.
 type ServiceProviderClusterDataPlaneOperatorsManagedIdentities struct {
 	// Identities is a map containing resolved ClientID/PrincipalID for the Azure
 	// User Assigned Managed Identities associated with the cluster's data plane
@@ -352,18 +447,6 @@ type ServiceProviderClusterDataPlaneOperatorsManagedIdentities struct {
 	// identity entry.
 	// Written by: FetchDataPlaneOperatorsManagedIdentitiesInfoController
 	Identities map[string]*ServiceProviderClusterDataPlaneOperatorManagedIdentity `json:"identities,omitempty"`
-	// EarliestRecheckTime is the earliest time at which the controller should
-	// re-query Azure for ClientID/PrincipalID of Identities. Nil means recheck
-	// immediately. The same recheck time applies across all elements of Identities.
-	// This allows the controller to avoid repeatedly hitting an Azure API to
-	// recheck that the desired state is true.
-	// Controllers should set this field with substantial jitter: without another
-	// concern, jitter of 50% is considered normal so that any storms are quickly
-	// dissipated. Additionally, long recheck times are recommended for resources
-	// outside of their active phases. Order of at least six hours is, with
-	// durations up to 24 hours considered normal.
-	// Written by: FetchDataPlaneOperatorsManagedIdentitiesInfoController
-	EarliestRecheckTime *metav1.Time `json:"earliestRecheckTime,omitempty"`
 }
 
 // ServiceProviderClusterDataPlaneOperatorManagedIdentity contains resolved
@@ -400,12 +483,19 @@ type ServiceProviderClusterDataPlaneOperatorManagedIdentity struct {
 type AzureResources struct {
 	// DenyAssignments tracks the deny assignments applied to the cluster's resources.
 	DenyAssignments DenyAssignmentReferences `json:"denyAssignments,omitempty"`
+	// KubeAPIServerCertificate tracks the TLS certificate created for the kube-apiserver.
+	// Written by: KubeAPIServerTLSCertificate
+	KubeAPIServerCertificate *TLSCertificate `json:"kubeAPIServerCertificate,omitempty"`
+	// IngressCertificate tracks the TLS certificate created for ingress.
+	// Written by: IngressTLSCertificate
+	IngressCertificate *TLSCertificate `json:"ingressCertificate,omitempty"`
 	// ManagedResourceGroup tracks the managed resource group for the cluster.
-	// Written by: ObserveManagedResourceGroup
+	// Written by: EnsureManagedResourceGroup
 	ManagedResourceGroup AzureReference `json:"managedResourceGroup,omitempty"`
 	// RoleAssignments tracks the role assignments created on the managed resource group
-	// for the cluster's control-plane and data-plane managed identities.
-	// Written by: ObserveRoleAssignments
+	// for the cluster's control-plane and data-plane operator identities and its service
+	// managed identity.
+	// Written by: IdentityRoleAssignments
 	RoleAssignments AzureMultiReference `json:"roleAssignments,omitempty"`
 }
 
@@ -418,14 +508,6 @@ type AzureMultiReference struct {
 	PendingAzureResources []*azcorearm.ResourceID `json:"pendingAzureResources,omitempty"`
 	// AzureResources contains resource IDs that have been confirmed to exist in Azure.
 	AzureResources []*azcorearm.ResourceID `json:"azureResources,omitempty"`
-	// EarliestRecheckTime is the earliest time at which the controller should
-	// re-check the pending resources. Nil means recheck immediately.
-	// This allows for controllers to avoid repeatedly hitting an Azure API to recheck that the desired state is true.
-	// Controllers should set this field with substantial jitter: without another concern, jitter of 50% is considered normal
-	// so that any storms are quickly dissipated.
-	// Additionally, long recheck times are recommended for resources outside of their active phases. Order of at least
-	// six hours is, with durations up to 24 hours considered normal.
-	EarliestRecheckTime *metav1.Time `json:"earliestRecheckTime,omitempty"`
 }
 
 // AzureReference tracks a single Azure resource through its creation lifecycle.
@@ -437,14 +519,6 @@ type AzureReference struct {
 	PendingAzureResource *azcorearm.ResourceID `json:"pendingAzureResource,omitempty"`
 	// AzureResource is the resource ID that has been confirmed to exist in Azure.
 	AzureResource *azcorearm.ResourceID `json:"azureResource,omitempty"`
-	// EarliestRecheckTime is the earliest time at which the controller should
-	// re-check the pending resources. Nil means recheck immediately.
-	// This allows for controllers to avoid repeatedly hitting an Azure API to recheck that the desired state is true.
-	// Controllers should set this field with substantial jitter: without another concern, jitter of 50% is considered normal
-	// so that any storms are quickly dissipated.
-	// Additionally, long recheck times are recommended for resources outside of their active phases. Order of at least
-	// six hours is, with durations up to 24 hours considered normal.
-	EarliestRecheckTime *metav1.Time `json:"earliestRecheckTime,omitempty"`
 }
 
 type DenyAssignmentReferences struct {
@@ -479,19 +553,48 @@ type DenyAssignmentReference struct {
 	DenyAssignmentResourceID *azcorearm.ResourceID `json:"denyAssignmentResourceID"`
 }
 
+// TLSCertificate tracks a single TLS certificate through its provisioning lifecycle.
+type TLSCertificate struct {
+	// PendingReference identifies a certificate not yet confirmed to be provisioned in Azure.
+	// Written by: KubeAPIServerTLSCertificate, IngressTLSCertificate
+	PendingReference *AzureTLSCertificateReference `json:"pendingReference,omitempty"`
+	// AzureReference identifies a certificate confirmed to be provisioned in Azure.
+	// Written by: KubeAPIServerTLSCertificate, IngressTLSCertificate
+	AzureReference *AzureTLSCertificateReference `json:"azureReference,omitempty"`
+}
+
+// AzureTLSCertificateReference identifies a single Azure Key Vault TLS certificate.
+// +k8s:deepcopy-gen=true
+type AzureTLSCertificateReference struct {
+	// KeyVaultURL mirrors the hosted-cluster secrets Key Vault URL of the management cluster.
+	// Written by: KubeAPIServerTLSCertificate, IngressTLSCertificate
+	KeyVaultURL string `json:"keyVaultURL,omitempty"`
+	// CertificateName is the name of the certificate created in that vault.
+	// Written by: KubeAPIServerTLSCertificate, IngressTLSCertificate
+	CertificateName string `json:"certificateName"`
+}
+
 // ServiceProviderClusterStatusVersion contains the actual version information.
 type ServiceProviderClusterStatusVersion struct {
 	// ActiveVersions is an array of versions currently active in the control plane, ordered with the most recent first.
 	// During upgrades, multiple versions can be active simultaneously.
-	ActiveVersions []HCPClusterActiveVersion `json:"active_versions,omitempty"`
+	// Written by: ControlPlaneActiveVersions
+	ActiveVersions []ServiceProviderClusterActiveVersion `json:"active_versions,omitempty"`
 }
 
-// HCPClusterActiveVersion represents a single version active in the control plane.
-type HCPClusterActiveVersion struct {
+// ServiceProviderClusterActiveVersion represents a single version active in the control plane.
+type ServiceProviderClusterActiveVersion struct {
 	// Version is the full version in x.y.z format (e.g., "4.19.2")
+	// Written by: ControlPlaneActiveVersions
 	Version *semver.Version `json:"version,omitempty"`
 	// State is the update state from OpenShift (e.g. configv1.CompletedUpdate or configv1.PartialUpdate).
+	// Written by: ControlPlaneActiveVersions
 	State configv1.UpdateState `json:"state,omitempty"`
+	// LastTransitionTime is when we last observed this version enter its current
+	// State. It is used to decide when a cluster has held an achieved version
+	// long enough to be considered successfully upgraded.
+	// Written by: ControlPlaneActiveVersions
+	LastTransitionTime metav1.Time `json:"lastTransitionTime,omitempty"`
 }
 
 type MaestroBundleReference struct {
@@ -610,3 +713,77 @@ const (
 	// the cluster-autoscaler ControlPlaneComponent on the management cluster control plane namespace.
 	ReadonlyHypershiftControlPlaneComponentClusterAutoscaler MaestroBundleInternalName = "readonlyHypershiftControlPlaneComponentClusterAutoscaler"
 )
+
+// ManagedIdentityMetadata holds the metadata retrieved for a single managed
+// identity from each source that applies to it. Sources that do not apply
+// are left as nil. Identity metadata on each source is last-pass-only: see
+// IdentityMetadataValue.
+type ManagedIdentityMetadata struct {
+	// ResourceID is the Azure Resource ID of the managed identity.
+	// Written by: FetchManagedIdentitiesInfo
+	ResourceID *azcorearm.ResourceID `json:"resourceID,omitempty"`
+
+	// MetadataFromARMUserAssignedIdentitiesAPI is the metadata for the identity retrieved from
+	// the ARM User Assigned Identities API (https://learn.microsoft.com/en-us/rest/api/managedidentity/user-assigned-identities)
+	// as the source. Nil when ARM does not apply: ARM is queried for control-plane and data-plane operator
+	// identities. It is not queried for an identity used only as the service managed identity, because
+	// end-users are not asked to grant the Service Managed Identity read on itself. If the same resource ID is also a
+	// control-plane or data-plane operator identity, ARM still applies.
+	// When this metadata source applies, a failure to retrieve this metadata using the API results in the
+	// ClientID, PrincipalID, and TenantID attributes being set to nil and RetrievalError records what went wrong. This includes the case
+	// where the identity does not exist in Azure.
+	// Written by: FetchManagedIdentitiesInfo
+	MetadataFromARMUserAssignedIdentitiesAPI *IdentityMetadataValue `json:"metadataFromARMUserAssignedIdentitiesAPI,omitempty"`
+	// MetadataFromManagedIdentitiesDataplaneService is the metadata for the identity retrieved from the **real**
+	// Managed Identities Dataplane Service as the source. Nil when:
+	// - The real Managed Identities Dataplane Service is not available in the environment
+	// - The identity is not configured as a cluster's control plane operator identity and/or as the cluster's service managed identity
+	// When this metadata source applies, if the identity does not exist the entry will be initialized with an empty ClientID, PrincipalID, and TenantID.
+	// This can also happen if there has been a transient error retrieving the identity metadata.
+	// Written by: FetchManagedIdentitiesInfo
+	MetadataFromManagedIdentitiesDataplaneService *IdentityMetadataValue `json:"metadataFromManagedIdentitiesDataplaneService,omitempty"`
+	// MetadataFromHardcodedIdentity is the metadata for the identity retrieved from the Hardcoded Identity (backend/pkg/azure/client.HardcodedIdentity) as the source.
+	// This is set only in environments where the real Managed Identities Data Plane
+	// service is not available, and only for identities that are configured as a cluster's control plane operator identity and/or as
+	// the cluster's Service Managed Identity.
+	// When this metadata source applies, a failure to set this metadata results in the ClientID, PrincipalID and TenantID being set to nil
+	// Written by: FetchManagedIdentitiesInfo
+	MetadataFromHardcodedIdentity *IdentityMetadataValue `json:"metadataFromHardcodedIdentity,omitempty"`
+}
+
+// IdentityMetadataValue is ClientID/PrincipalID/TenantID retrieved from one
+// identity metadata source, a RetrievalError from the last retrieval attempt,
+// or an empty value (all fields nil) when that source applies but has not
+// been resolved yet or could not be resolved in this pass.
+//
+// ClientID, PrincipalID, and TenantID are the result of the most recent
+// retrieval for this source. They are not sticky. A later pass that fails,
+// including an intermittent API error, persists them as nil and may set
+// RetrievalError. A later successful pass can populate them again. Readers
+// must not assume that once-resolved values remain set.
+type IdentityMetadataValue struct {
+	// ClientID is the Client ID of the managed identity as returned by the
+	// source on the most recent retrieval. It may be nil even after a previous
+	// successful retrieval. See IdentityMetadataValue.
+	// Written by: FetchManagedIdentitiesInfo
+	ClientID *string `json:"clientID,omitempty"`
+	// PrincipalID is the Principal ID of the managed identity as returned by
+	// the source on the most recent retrieval. It may be nil even after a
+	// previous successful retrieval; see IdentityMetadataValue.
+	// Written by: FetchManagedIdentitiesInfo
+	PrincipalID *string `json:"principalID,omitempty"`
+	// TenantID is the Tenant ID of the managed identity as returned by the
+	// source on the most recent retrieval. It may be nil even after a previous
+	// successful retrieval. See IdentityMetadataValue.
+	// Written by: FetchManagedIdentitiesInfo
+	TenantID *string `json:"tenantID,omitempty"`
+	// RetrievalError, when non-nil, is the error (truncated to the first 1024
+	// characters) from the most recent attempt to retrieve this identity's
+	// metadata from this source. When set, ClientID, PrincipalID, and TenantID
+	// are nil because the last retrieval attempt failed, and any previously
+	// resolved values are no longer trustworthy. It is nil when the last
+	// retrieval succeeded. A later successful pass clears this and may restore
+	// ClientID, PrincipalID, and TenantID.
+	// Written by: FetchManagedIdentitiesInfo
+	RetrievalError *string `json:"retrievalError,omitempty"`
+}

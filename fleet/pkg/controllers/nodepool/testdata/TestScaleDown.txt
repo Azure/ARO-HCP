@@ -1,0 +1,43 @@
+conditional projection: proposed changes are assumed to succeed; no ARM writes are performed.
+Observed transitions and failed-pool reconciliation require a new observation; workload/autoscaler activity and external quota changes are not predicted.
+
+initial:
+  w1abc  worker  Standard_E32ds_v6  zone=1  max=10  count=3  autoscaled
+  w2abc  worker  Standard_E32ds_v6  zone=2  max=10  count=3  autoscaled
+  w3abc  worker  Standard_E32ds_v6  zone=3  max=10  count=3  autoscaled
+
+desired:
+  w1abc  worker  Standard_E32ds_v6  zone=1  max=6
+  w2abc  worker  Standard_E32ds_v6  zone=2  max=6
+  w3abc  worker  Standard_E32ds_v6  zone=3  max=6
+
+budget (vCPUs):
+  StandardEdsv6Family:  960
+
+initial headroom (vCPUs):
+  StandardEdsv6Family:  288
+
+fully allocated: true
+
+initial capacity:
+  system:  cpu=0    memory=0GiB     swiftNICs=0
+  infra:   cpu=0    memory=0GiB     swiftNICs=0
+  worker:  cpu=960  memory=7680GiB  swiftNICs=210
+
+role floor:
+  system:  cpu=0    memory=0GiB     swiftNICs=0
+  infra:   cpu=0    memory=0GiB     swiftNICs=0
+  worker:  cpu=576  memory=4608GiB  swiftNICs=126
+
+actions:
+  margins above floor after each action (c = vCPU, G = memory GiB, n = Swift NICs)
+
+     #  action            role    pool   vm size   change         role margin            quota left
+     1  SetScalingBounds  worker  w1abc  E32ds_v6  min=1   max=6   +256c  +2048G   +56n  Edsv6 416c
+     2  SetScalingBounds  worker  w2abc  E32ds_v6  min=1   max=6   +128c  +1024G   +28n  Edsv6 544c
+     3  SetScalingBounds  worker  w3abc  E32ds_v6  min=1   max=6     +0c     +0G    +0n  Edsv6 672c
+
+steps:      3
+converged:  true
+outcome:    converged
+reason:     pool configuration matches desired

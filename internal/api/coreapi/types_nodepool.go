@@ -26,26 +26,26 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 )
 
-// HCPOpenShiftClusterNodePool represents a node pool resource for ARO HCP
+// NodePool represents a node pool resource for ARO HCP
 // OpenShift clusters.
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-type HCPOpenShiftClusterNodePool struct {
+type NodePool struct {
 	// PartitionKey holds the lowercased subscriptionID.
 	CosmosMetadata `json:"cosmosMetadata"`
 
 	TrackedResource
 	// Written by: Frontend PUT/PATCH NodePool, OperationNodePoolCreate, OperationNodePoolUpdate, OperationNodePoolDelete
-	Properties HCPOpenShiftClusterNodePoolProperties `json:"properties,omitempty"`
+	Properties NodePoolProperties `json:"properties,omitempty"`
 	// Written by: Frontend PUT/PATCH/DELETE NodePool, OperationNodePool* controllers, NodePoolClusterServiceCreate, NodePoolDeletion* controllers
-	ServiceProviderProperties HCPOpenShiftClusterNodePoolServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
-	Identity                  *ManagedServiceIdentity                              `json:"identity,omitempty"`
+	ServiceProviderProperties NodePoolServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
+	Identity                  *ManagedServiceIdentity           `json:"identity,omitempty"`
 	// Written by: NodePoolDegradedAggregator, NodePoolRequirementsValidAggregator
-	Status HCPOpenShiftClusterNodePoolStatus `json:"status"`
+	Status NodePoolStatus `json:"status"`
 }
 
-// HCPOpenShiftClusterNodePoolStatus contains the observed state of the node pool.
-type HCPOpenShiftClusterNodePoolStatus struct {
-	// Conditions are the top-level HCPOpenShiftClusterNodePool status conditions.
+// NodePoolStatus contains the observed state of the node pool.
+type NodePoolStatus struct {
+	// Conditions are the top-level NodePool status conditions.
 	// Each Condition Type represents a condition and it should be unique among all conditions.
 	// Written by: NodePoolDegradedAggregator
 	// +optional
@@ -70,13 +70,25 @@ type HCPOpenShiftClusterNodePoolStatus struct {
 	// +listType=map
 	// +listMapKey=type
 	UserFacingConditions []metav1.Condition `json:"userFacingConditions,omitempty" patchStrategy:"merge" patchMergeKey:"type"`
+
+	// ActiveVersions are the active versions of the node pool, ordered newest first.
+	// Written by: NodePoolActiveVersions
+	// +optional
+	// +listType=set
+	ActiveVersions []HCPNodePoolActiveVersion `json:"activeVersions,omitempty"`
 }
 
-var _ CosmosPersistable = &HCPOpenShiftClusterNodePool{}
+type HCPNodePoolActiveVersion struct {
+	// Version is the user-facing version in x.y.z format (e.g., "4.20.8")
+	// Written by: NodePoolActiveVersions
+	Version string `json:"version,omitempty"`
+}
 
-// HCPOpenShiftClusterNodePoolProperties represents the property bag of a
-// HCPOpenShiftClusterNodePool resource.
-type HCPOpenShiftClusterNodePoolProperties struct {
+var _ CosmosPersistable = &NodePool{}
+
+// NodePoolProperties represents the property bag of a
+// NodePool resource.
+type NodePoolProperties struct {
 	// Written by: Frontend PUT/PATCH/DELETE NodePool, OperationNodePoolCreate, OperationNodePoolUpdate, OperationNodePoolDelete
 	ProvisioningState ProvisioningState `json:"provisioningState,omitempty"`
 	// Written by: Frontend PUT/PATCH NodePool
@@ -97,7 +109,7 @@ type HCPOpenShiftClusterNodePoolProperties struct {
 	NodeDrainTimeoutMinutes *int32 `json:"nodeDrainTimeoutMinutes,omitempty"`
 }
 
-type HCPOpenShiftClusterNodePoolServiceProviderProperties struct {
+type NodePoolServiceProviderProperties struct {
 	// Written by: Frontend PUT NodePool (Create), NodePoolClusterServiceCreate, NodePoolDeletionClusterServiceIDClearer
 	ClusterServiceID *metadataapi.InternalID `json:"clusterServiceID,omitempty"`
 	// Written by: Frontend PUT/PATCH/DELETE NodePool, OperationNodePoolCreate, OperationNodePoolUpdate, OperationNodePoolDelete
@@ -113,6 +125,7 @@ type HCPOpenShiftClusterNodePoolServiceProviderProperties struct {
 	// Written by: NodePoolClusterServiceDeleteDispatch
 	ClusterServiceDeletionTimestamp *metav1.Time `json:"clusterServiceDeletionTimestamp,omitempty"`
 
+	// TODO do NOT reference this field in any new code. It is in the process of being removed
 	// Written by: Frontend DELETE NodePool
 	UsesNewNodePoolDeletionApproach bool `json:"usesNewNodePoolDeletionApproach"`
 
@@ -124,6 +137,14 @@ type HCPOpenShiftClusterNodePoolServiceProviderProperties struct {
 	// The operation node pool create controller uses this value to decide about marking the install as failed.
 	// The e2e tests set this value to one minute less than the default timeout.
 	CreateOperationCompletionDeadline *metav1.Time `json:"createOperationCompletionDeadline,omitempty"`
+
+	// UpdateOperationCompletionDeadline is the time by which the current node pool update must complete.
+	// Admission resets it on each update to 60 minutes from the request, unless overridden
+	// by the experimental max-update-duration tag (requires ExperimentalReleaseFeatures).
+	// The update operation controller fails pending operations after this deadline,
+	// including the current pending reasons in the returned error.
+	// Written by: Frontend PUT/PATCH NodePool (via admission)
+	UpdateOperationCompletionDeadline *metav1.Time `json:"updateOperationCompletionDeadline,omitempty"`
 }
 
 // NodePoolVersionProfile represents the worker node pool version.
@@ -161,12 +182,14 @@ type NodePoolPlatformProfile struct {
 type OSDiskProfile struct {
 	SizeGiB                *int32                             `json:"sizeGiB,omitempty"`
 	DiskStorageAccountType metadataapi.DiskStorageAccountType `json:"diskStorageAccountType,omitempty"`
-	EncryptionSetID        *azcorearm.ResourceID              `json:"encryptionSetId,omitempty"`
-	DiskType               metadataapi.OsDiskType             `json:"diskType,omitempty"`
+	// EncryptionSetID is the resource ID of the DiskEncryptionSet to use to encrypt the OS disk. It is optional.
+	EncryptionSetID *azcorearm.ResourceID  `json:"encryptionSetId,omitempty"`
+	DiskType        metadataapi.OsDiskType `json:"diskType,omitempty"`
 }
 
 // NodePoolAutoScaling represents a node pool autoscaling configuration.
 // Visibility for the entire struct is "read create update".
+// Min must be >= 1. Cluster Service rejects min_replica < 1.
 // max=200 for both Min and Max when the node pool's Platform.AvailabilityZone is unset.
 type NodePoolAutoScaling struct {
 	Min int32 `json:"min,omitempty"`
@@ -181,10 +204,10 @@ type Taint struct {
 	Value  string             `json:"value,omitempty"`
 }
 
-func NewDefaultHCPOpenShiftClusterNodePool(resourceID *azcorearm.ResourceID, azureLocation string) *HCPOpenShiftClusterNodePool {
-	return &HCPOpenShiftClusterNodePool{
+func NewDefaultNodePool(resourceID *azcorearm.ResourceID, azureLocation string) *NodePool {
+	return &NodePool{
 		TrackedResource: NewTrackedResource(resourceID, azureLocation),
-		Properties: HCPOpenShiftClusterNodePoolProperties{
+		Properties: NodePoolProperties{
 			Version: NodePoolVersionProfile{
 				ChannelGroup: DefaultNodePoolVersionChannelGroup,
 			},
@@ -208,7 +231,7 @@ func NewDefaultHCPOpenShiftClusterNodePool(resourceID *azcorearm.ResourceID, azu
 //
 // This method should be treated as append-only. Avoid removing defaulting
 // rules until all Cosmos documents have been verified to contain the field.
-func (np *HCPOpenShiftClusterNodePool) EnsureDefaults() {
+func (np *NodePool) EnsureDefaults() {
 	if len(np.Properties.Platform.OSDisk.DiskStorageAccountType) == 0 {
 		np.Properties.Platform.OSDisk.DiskStorageAccountType = metadataapi.DiskStorageAccountTypePremium_LRS
 	}
@@ -217,7 +240,7 @@ func (np *HCPOpenShiftClusterNodePool) EnsureDefaults() {
 	}
 }
 
-func (nodePool *HCPOpenShiftClusterNodePool) validateSubnetID(cluster *HCPOpenShiftCluster) []CloudErrorBody {
+func (nodePool *NodePool) validateSubnetID(cluster *Cluster) []CloudErrorBody {
 	var errorDetails []CloudErrorBody
 
 	if nodePool.Properties.Platform.SubnetID == nil {
@@ -241,7 +264,7 @@ func (nodePool *HCPOpenShiftClusterNodePool) validateSubnetID(cluster *HCPOpenSh
 	return errorDetails
 }
 
-func (nodePool *HCPOpenShiftClusterNodePool) Validate(cluster *HCPOpenShiftCluster) []CloudErrorBody {
+func (nodePool *NodePool) Validate(cluster *Cluster) []CloudErrorBody {
 	var errorDetails []CloudErrorBody
 
 	if cluster != nil {

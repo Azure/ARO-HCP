@@ -15,22 +15,115 @@
 package corecosmosstoragetesting
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 )
+
+func TestMockResourcesDBClient_LoadContentSnapshots(t *testing.T) {
+	ctx := t.Context()
+	mock := NewMockResourcesDBClient()
+	content := []byte(`{ "id": "MiXeD", "_etag": "fixture-etag", "_ts": 123, "properties": {"cosmosMetadata": {"instanceVersion": 7}}, "unknown": true }`)
+	expected := bytes.Clone(content)
+	require.NoError(t, mock.LoadContent(ctx, content))
+	content[0] = '!'
+	stored, ok := mock.GetDocument("MIXED")
+	require.True(t, ok)
+	require.Equal(t, expected, []byte(stored))
+	stored[0] = '!'
+	all := mock.GetAllDocuments()
+	all["mixed"][0] = '!'
+	response, err := mock.ReadChangeFeed(ctx, nil)
+	require.NoError(t, err)
+	require.Equal(t, [][]byte{expected}, response.Items)
+	response.Items[0][0] = '!'
+	response, err = mock.ReadChangeFeed(ctx, nil)
+	require.NoError(t, err)
+	require.Equal(t, [][]byte{expected}, response.Items)
+	stored, _ = mock.GetDocument("mixed")
+	require.Equal(t, expected, []byte(stored))
+
+	token, err := response.GetCompositeContinuationToken()
+	require.NoError(t, err)
+	require.NoError(t, mock.LoadContent(ctx, []byte(`{"id":"MiXeD","_etag":"updated-etag"}`)))
+	response, err = mock.ReadChangeFeed(ctx, &azcosmos.ChangeFeedOptions{Continuation: &token})
+	require.NoError(t, err)
+	require.Equal(t, [][]byte{[]byte(`{"id":"MiXeD","_etag":"updated-etag"}`)}, response.Items)
+	token, err = response.GetCompositeContinuationToken()
+	require.NoError(t, err)
+	require.Error(t, mock.LoadContent(ctx, []byte(`invalid JSON`)))
+	require.Error(t, mock.LoadContent(ctx, []byte(`{"properties":{}}`)))
+	response, err = mock.ReadChangeFeed(ctx, &azcosmos.ChangeFeedOptions{Continuation: &token})
+	require.NoError(t, err)
+	require.Empty(t, response.Items, "invalid loads must not emit events")
+}
+
+func TestMockResourcesDBClient_ConcurrentLoads(t *testing.T) {
+	ctx := t.Context()
+	mock := NewMockResourcesDBClient()
+	var workers sync.WaitGroup
+	for worker := range 8 {
+		workers.Go(func() {
+			for iteration := range 25 {
+				content := []byte(fmt.Sprintf(`{"id":"shared","resourceID":"/subscriptions/sub-a","resourceType":"Microsoft.Resources/subscriptions","writer":%d,"iteration":%d}`, worker, iteration))
+				if err := mock.LoadContent(ctx, content); err != nil {
+					t.Error(err)
+					return
+				}
+				// Mutating caller-owned inputs and outputs must not race cache readers.
+				content[0] = '!'
+				stored, _ := mock.GetDocument("shared")
+				stored[0] = '!'
+				all := mock.GetAllDocuments()
+				all["shared"][0] = '!'
+				listed := mock.ListDocuments(nil, "")
+				if len(listed) != 1 {
+					t.Errorf("expected one document, got %d", len(listed))
+					return
+				}
+				listed[0][0] = '!'
+				response, err := mock.ReadChangeFeed(ctx, nil)
+				if err != nil {
+					t.Error(err)
+					return
+				}
+				response.Items[0][0] = '!'
+				mock.SetResourcesGlobalListers(nil)
+				_, err = mock.ResourcesGlobalListers().Subscriptions().List(ctx, nil)
+				if err != nil {
+					t.Error(err)
+					return
+				}
+			}
+		})
+	}
+	workers.Wait()
+	response, err := mock.ReadChangeFeed(ctx, nil)
+	require.NoError(t, err)
+	require.Len(t, response.Items, 200)
+	stored, _ := mock.GetDocument("shared")
+	require.Equal(t, []byte(stored), response.Items[len(response.Items)-1], "feed order must agree with the final stored value")
+}
 
 func TestMockResourcesDBClient_LoadFromDirectory(t *testing.T) {
 	// Find a test directory with cosmos-record context data
@@ -65,13 +158,13 @@ func TestMockResourcesDBClient_LoadFromDirectory(t *testing.T) {
 		}
 
 		switch {
-		case metadataapi.ResourceTypeStringEqual(typedDoc.ResourceType, coreapi.ClusterResourceType):
+		case metadataapihelpers.ResourceTypeStringEqual(typedDoc.ResourceType, coreapi.ClusterResourceType):
 			foundCluster = true
-		case metadataapi.ResourceTypeStringEqual(typedDoc.ResourceType, coreapi.NodePoolResourceType):
+		case metadataapihelpers.ResourceTypeStringEqual(typedDoc.ResourceType, coreapi.NodePoolResourceType):
 			foundNodePool = true
-		case metadataapi.ResourceTypeStringEqual(typedDoc.ResourceType, azcorearm.SubscriptionResourceType):
+		case metadataapihelpers.ResourceTypeStringEqual(typedDoc.ResourceType, azcorearm.SubscriptionResourceType):
 			foundSubscription = true
-		case metadataapi.ResourceTypeStringEqual(typedDoc.ResourceType, coreapi.OperationStatusResourceType):
+		case metadataapihelpers.ResourceTypeStringEqual(typedDoc.ResourceType, coreapi.OperationStatusResourceType):
 			foundOperation = true
 		}
 	}
@@ -149,7 +242,7 @@ func TestMockResourcesDBClient_CRUD_Cluster(t *testing.T) {
 		t.Fatalf("Failed to create internal ID: %v", err)
 	}
 
-	cluster := &coreapi.HCPOpenShiftCluster{
+	cluster := &coreapi.Cluster{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   clusterResourceID,
 			PartitionKey: strings.ToLower(subscriptionID),
@@ -162,7 +255,7 @@ func TestMockResourcesDBClient_CRUD_Cluster(t *testing.T) {
 			},
 			Location: "eastus",
 		},
-		ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 			ProvisioningState: coreapi.ProvisioningStateSucceeded,
 			ClusterServiceID:  &internalID,
 		},
@@ -411,7 +504,7 @@ func TestMockResourcesDBClient_CRUD_Subscription(t *testing.T) {
 	ctx := context.Background()
 
 	subscriptionID := "6b690bec-0c16-4ecb-8f67-781caf40bba7"
-	subscriptionResourceID := metadataapi.Must(coreapi.ToSubscriptionResourceID(subscriptionID))
+	subscriptionResourceID := metadataapi.Must(coreapihelpers.ToSubscriptionResourceID(subscriptionID))
 
 	registrationDate := "2025-01-01T00:00:00Z"
 	subscription := &coreapi.Subscription{
@@ -419,7 +512,6 @@ func TestMockResourcesDBClient_CRUD_Subscription(t *testing.T) {
 			ResourceID:   subscriptionResourceID,
 			PartitionKey: strings.ToLower(subscriptionResourceID.SubscriptionID),
 		},
-		ResourceID:       subscriptionResourceID,
 		State:            coreapi.SubscriptionStateRegistered,
 		RegistrationDate: &registrationDate,
 	}
@@ -490,7 +582,7 @@ func TestMockResourcesDBClient_Transaction(t *testing.T) {
 		t.Fatalf("Failed to create internal ID: %v", err)
 	}
 
-	cluster := &coreapi.HCPOpenShiftCluster{
+	cluster := &coreapi.Cluster{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   clusterResourceID,
 			PartitionKey: strings.ToLower(clusterResourceID.SubscriptionID),
@@ -503,7 +595,7 @@ func TestMockResourcesDBClient_Transaction(t *testing.T) {
 			},
 			Location: "eastus",
 		},
-		ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 			ProvisioningState: coreapi.ProvisioningStateSucceeded,
 			ClusterServiceID:  &internalID,
 		},
@@ -552,7 +644,7 @@ func TestMockResourcesDBClient_UntypedCRUD(t *testing.T) {
 		t.Fatalf("Failed to create internal ID: %v", err)
 	}
 
-	cluster := &coreapi.HCPOpenShiftCluster{
+	cluster := &coreapi.Cluster{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   clusterResourceID,
 			PartitionKey: strings.ToLower(clusterResourceID.SubscriptionID),
@@ -565,7 +657,7 @@ func TestMockResourcesDBClient_UntypedCRUD(t *testing.T) {
 			},
 			Location: "eastus",
 		},
-		ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 			ProvisioningState: coreapi.ProvisioningStateSucceeded,
 			ClusterServiceID:  &internalID,
 		},
@@ -593,7 +685,7 @@ func TestMockResourcesDBClient_UntypedCRUD(t *testing.T) {
 		t.Fatalf("Failed to get cluster via untyped CRUD: %v", err)
 	}
 
-	if !metadataapi.ResourceTypeStringEqual(retrieved.ResourceType, coreapi.ClusterResourceType) {
+	if !metadataapihelpers.ResourceTypeStringEqual(retrieved.ResourceType, coreapi.ClusterResourceType) {
 		t.Errorf("Expected resource type %s, got %s", coreapi.ClusterResourceType.String(), retrieved.ResourceType)
 	}
 }
@@ -876,7 +968,7 @@ func TestMockResourcesDBClient_addResource(t *testing.T) {
 		t.Fatalf("Failed to create internal ID: %v", err)
 	}
 
-	cluster := &coreapi.HCPOpenShiftCluster{
+	cluster := &coreapi.Cluster{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   clusterResourceID,
 			PartitionKey: strings.ToLower(clusterResourceID.SubscriptionID),
@@ -889,7 +981,7 @@ func TestMockResourcesDBClient_addResource(t *testing.T) {
 			},
 			Location: "eastus",
 		},
-		ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 			ProvisioningState: coreapi.ProvisioningStateSucceeded,
 			ClusterServiceID:  &internalID,
 		},
@@ -911,14 +1003,13 @@ func TestMockResourcesDBClient_addResource(t *testing.T) {
 	}
 
 	// Test adding a subscription
-	subscriptionResourceID := metadataapi.Must(coreapi.ToSubscriptionResourceID(subscriptionID))
+	subscriptionResourceID := metadataapi.Must(coreapihelpers.ToSubscriptionResourceID(subscriptionID))
 	subscription := &coreapi.Subscription{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   subscriptionResourceID,
 			PartitionKey: strings.ToLower(subscriptionResourceID.SubscriptionID),
 		},
-		ResourceID: subscriptionResourceID,
-		State:      coreapi.SubscriptionStateRegistered,
+		State: coreapi.SubscriptionStateRegistered,
 	}
 
 	err = mock.addResource(ctx, subscription)
@@ -962,7 +1053,7 @@ func TestNewMockResourcesDBClientWithResources(t *testing.T) {
 		t.Fatalf("Failed to create internal ID: %v", err)
 	}
 
-	cluster := &coreapi.HCPOpenShiftCluster{
+	cluster := &coreapi.Cluster{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   clusterResourceID,
 			PartitionKey: strings.ToLower(clusterResourceID.SubscriptionID),
@@ -975,7 +1066,7 @@ func TestNewMockResourcesDBClientWithResources(t *testing.T) {
 			},
 			Location: "eastus",
 		},
-		ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 			ProvisioningState: coreapi.ProvisioningStateSucceeded,
 			ClusterServiceID:  &internalID,
 		},
@@ -988,7 +1079,7 @@ func TestNewMockResourcesDBClientWithResources(t *testing.T) {
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + clusterName +
 			"/nodePools/" + nodePoolName))
 
-	nodePool := &coreapi.HCPOpenShiftClusterNodePool{
+	nodePool := &coreapi.NodePool{
 		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: nodePoolResourceID, PartitionKey: strings.ToLower(nodePoolResourceID.SubscriptionID)},
 		TrackedResource: coreapi.TrackedResource{
 			Resource: coreapi.Resource{
@@ -1001,14 +1092,13 @@ func TestNewMockResourcesDBClientWithResources(t *testing.T) {
 	}
 
 	// Create subscription
-	subscriptionResourceID := metadataapi.Must(coreapi.ToSubscriptionResourceID(subscriptionID))
+	subscriptionResourceID := metadataapi.Must(coreapihelpers.ToSubscriptionResourceID(subscriptionID))
 	subscription := &coreapi.Subscription{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   subscriptionResourceID,
 			PartitionKey: strings.ToLower(subscriptionResourceID.SubscriptionID),
 		},
-		ResourceID: subscriptionResourceID,
-		State:      coreapi.SubscriptionStateRegistered,
+		State: coreapi.SubscriptionStateRegistered,
 	}
 
 	// Create mockResourcesDBClient with all resources
@@ -1058,7 +1148,7 @@ func TestNewMockResourcesDBClientWithResources_Error(t *testing.T) {
 	}
 
 	// Test with nil resource ID
-	clusterWithNilID := &coreapi.HCPOpenShiftCluster{}
+	clusterWithNilID := &coreapi.Cluster{}
 	_, err = NewMockResourcesDBClientWithResources(ctx, []any{clusterWithNilID})
 	if err == nil {
 		t.Error("Expected error for cluster with nil resource ID")

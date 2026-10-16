@@ -1,0 +1,275 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2018-05-01/subscriptionDeploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep"
+    }
+  },
+  "outputs": {
+    "resourceGroups": {
+      "copy": {
+        "count": "[length(range(0, parameters('poolSize')))]",
+        "input": {
+          "location": "[reference(subscriptionResourceId('Microsoft.Resources/resourceGroups', format('{0}-{1}', parameters('resourceGroupBaseName'), padLeft(string(range(0, parameters('poolSize'))[range(0, parameters('poolSize'))[copyIndex()]]), 2, '0'))), '2021-04-01', 'full').location]",
+          "name": "[format('{0}-{1}', parameters('resourceGroupBaseName'), padLeft(string(range(0, parameters('poolSize'))[range(0, parameters('poolSize'))[copyIndex()]]), 2, '0'))]"
+        }
+      },
+      "type": "array"
+    }
+  },
+  "parameters": {
+    "commonTags": {
+      "defaultValue": {
+        "persist": "true",
+        "purpose": "aro-hcp-e2e-msi-pool"
+      },
+      "metadata": {
+        "description": "Tags to apply to all resources"
+      },
+      "type": "object"
+    },
+    "location": {
+      "defaultValue": "[deployment().location]",
+      "metadata": {
+        "description": "Location for all resources"
+      },
+      "type": "string"
+    },
+    "poolSize": {
+      "defaultValue": 10,
+      "metadata": {
+        "description": "Number of resource groups to create (pool size)"
+      },
+      "type": "int"
+    },
+    "resourceGroupBaseName": {
+      "defaultValue": "e2e-msi-container",
+      "metadata": {
+        "description": "Base name for resource groups"
+      },
+      "type": "string"
+    }
+  },
+  "resources": [
+    {
+      "apiVersion": "2021-04-01",
+      "copy": {
+        "count": "[length(range(0, parameters('poolSize')))]",
+        "name": "resourceGroups"
+      },
+      "location": "[parameters('location')]",
+      "name": "[format('{0}-{1}', parameters('resourceGroupBaseName'), padLeft(string(range(0, parameters('poolSize'))[copyIndex()]), 2, '0'))]",
+      "tags": "[union(parameters('commonTags'), createObject('pool-index', string(range(0, parameters('poolSize'))[copyIndex()])))]",
+      "type": "Microsoft.Resources/resourceGroups"
+    },
+    {
+      "apiVersion": "2025-04-01",
+      "copy": {
+        "count": "[length(range(0, parameters('poolSize')))]",
+        "name": "msis"
+      },
+      "dependsOn": [
+        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', format('{0}-{1}', parameters('resourceGroupBaseName'), padLeft(string(range(0, parameters('poolSize'))[range(0, parameters('poolSize'))[copyIndex()]]), 2, '0')))]"
+      ],
+      "name": "[format('msi-deployment-{0}', range(0, parameters('poolSize'))[copyIndex()])]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "identities": {
+            "value": "[variables('identities')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "definitions": {
+            "ManagedIdentities": {
+              "properties": {
+                "cloudControllerManagerMiName": {
+                  "type": "string"
+                },
+                "cloudNetworkConfigMiName": {
+                  "type": "string"
+                },
+                "clusterApiAzureMiName": {
+                  "type": "string"
+                },
+                "controlPlaneMiName": {
+                  "type": "string"
+                },
+                "diskCsiDriverMiName": {
+                  "type": "string"
+                },
+                "dpDiskCsiDriverMiName": {
+                  "type": "string"
+                },
+                "dpFileCsiDriverMiName": {
+                  "type": "string"
+                },
+                "dpImageRegistryMiName": {
+                  "type": "string"
+                },
+                "fileCsiDriverMiName": {
+                  "type": "string"
+                },
+                "imageRegistryMiName": {
+                  "type": "string"
+                },
+                "ingressMiName": {
+                  "type": "string"
+                },
+                "kmsMiName": {
+                  "type": "string"
+                },
+                "serviceManagedIdentityName": {
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            }
+          },
+          "languageVersion": "2.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep"
+            }
+          },
+          "outputs": {
+            "msiIdentities": {
+              "$ref": "#/definitions/ManagedIdentities",
+              "metadata": {
+                "description": "Managed identities created in the target resource group"
+              },
+              "value": {
+                "cloudControllerManagerMiName": "[parameters('identities').cloudControllerManagerMiName]",
+                "cloudNetworkConfigMiName": "[parameters('identities').cloudNetworkConfigMiName]",
+                "clusterApiAzureMiName": "[parameters('identities').clusterApiAzureMiName]",
+                "controlPlaneMiName": "[parameters('identities').controlPlaneMiName]",
+                "diskCsiDriverMiName": "[parameters('identities').diskCsiDriverMiName]",
+                "dpDiskCsiDriverMiName": "[parameters('identities').dpDiskCsiDriverMiName]",
+                "dpFileCsiDriverMiName": "[parameters('identities').dpFileCsiDriverMiName]",
+                "dpImageRegistryMiName": "[parameters('identities').dpImageRegistryMiName]",
+                "fileCsiDriverMiName": "[parameters('identities').fileCsiDriverMiName]",
+                "imageRegistryMiName": "[parameters('identities').imageRegistryMiName]",
+                "ingressMiName": "[parameters('identities').ingressMiName]",
+                "kmsMiName": "[parameters('identities').kmsMiName]",
+                "serviceManagedIdentityName": "[parameters('identities').serviceManagedIdentityName]"
+              }
+            }
+          },
+          "parameters": {
+            "identities": {
+              "$ref": "#/definitions/ManagedIdentities",
+              "metadata": {
+                "description": "MSI identities in the pool"
+              }
+            }
+          },
+          "resources": {
+            "cloudControllerManagerMi": {
+              "apiVersion": "2023-01-31",
+              "location": "[resourceGroup().location]",
+              "name": "[parameters('identities').cloudControllerManagerMiName]",
+              "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
+            },
+            "cloudNetworkConfigMi": {
+              "apiVersion": "2023-01-31",
+              "location": "[resourceGroup().location]",
+              "name": "[parameters('identities').cloudNetworkConfigMiName]",
+              "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
+            },
+            "clusterApiAzureMi": {
+              "apiVersion": "2023-01-31",
+              "location": "[resourceGroup().location]",
+              "name": "[parameters('identities').clusterApiAzureMiName]",
+              "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
+            },
+            "controlPlaneMi": {
+              "apiVersion": "2023-01-31",
+              "location": "[resourceGroup().location]",
+              "name": "[parameters('identities').controlPlaneMiName]",
+              "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
+            },
+            "diskCsiDriverMi": {
+              "apiVersion": "2023-01-31",
+              "location": "[resourceGroup().location]",
+              "name": "[parameters('identities').diskCsiDriverMiName]",
+              "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
+            },
+            "dpDiskCsiDriverMi": {
+              "apiVersion": "2023-01-31",
+              "location": "[resourceGroup().location]",
+              "name": "[parameters('identities').dpDiskCsiDriverMiName]",
+              "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
+            },
+            "dpFileCsiDriverMi": {
+              "apiVersion": "2023-01-31",
+              "location": "[resourceGroup().location]",
+              "name": "[parameters('identities').dpFileCsiDriverMiName]",
+              "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
+            },
+            "dpImageRegistryMi": {
+              "apiVersion": "2023-01-31",
+              "location": "[resourceGroup().location]",
+              "name": "[parameters('identities').dpImageRegistryMiName]",
+              "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
+            },
+            "fileCsiDriverMi": {
+              "apiVersion": "2023-01-31",
+              "location": "[resourceGroup().location]",
+              "name": "[parameters('identities').fileCsiDriverMiName]",
+              "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
+            },
+            "imageRegistryMi": {
+              "apiVersion": "2023-01-31",
+              "location": "[resourceGroup().location]",
+              "name": "[parameters('identities').imageRegistryMiName]",
+              "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
+            },
+            "ingressMi": {
+              "apiVersion": "2023-01-31",
+              "location": "[resourceGroup().location]",
+              "name": "[parameters('identities').ingressMiName]",
+              "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
+            },
+            "kmsMi": {
+              "apiVersion": "2023-01-31",
+              "location": "[resourceGroup().location]",
+              "name": "[parameters('identities').kmsMiName]",
+              "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
+            },
+            "serviceManagedIdentity": {
+              "apiVersion": "2023-01-31",
+              "location": "[resourceGroup().location]",
+              "name": "[parameters('identities').serviceManagedIdentityName]",
+              "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
+            }
+          }
+        }
+      },
+      "resourceGroup": "[format('{0}-{1}', parameters('resourceGroupBaseName'), padLeft(string(range(0, parameters('poolSize'))[range(0, parameters('poolSize'))[copyIndex()]]), 2, '0'))]",
+      "type": "Microsoft.Resources/deployments"
+    }
+  ],
+  "variables": {
+    "identities": {
+      "cloudControllerManagerMiName": "cloud-controller-manager",
+      "cloudNetworkConfigMiName": "cloud-network-config",
+      "clusterApiAzureMiName": "cluster-api-azure",
+      "controlPlaneMiName": "control-plane",
+      "diskCsiDriverMiName": "disk-csi-driver",
+      "dpDiskCsiDriverMiName": "dp-disk-csi-driver",
+      "dpFileCsiDriverMiName": "dp-file-csi-driver",
+      "dpImageRegistryMiName": "dp-image-registry",
+      "fileCsiDriverMiName": "file-csi-driver",
+      "imageRegistryMiName": "image-registry",
+      "ingressMiName": "ingress",
+      "kmsMiName": "kms",
+      "serviceManagedIdentityName": "service"
+    }
+  }
+}

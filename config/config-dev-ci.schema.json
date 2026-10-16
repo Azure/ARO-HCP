@@ -272,8 +272,10 @@
               "type": "object",
               "description": "Tenant quota collector configuration",
               "properties": {
+                "exitOnPanic": { "type": "boolean", "default": false, "description": "Exit on a recovered controller panic instead of logging it and continuing" },
                 "image": { "$ref": "#/$defs/Image" },
                 "prow": { "$ref": "#/$defs/ProwMetricsConfig" },
+                "ciJobOutcomes": { "$ref": "#/$defs/CIJobOutcomesConfig" },
                 "tenants": {
                   "type": "array",
                   "description": "List of Azure AD tenants to monitor for directory and subscription quota",
@@ -386,6 +388,13 @@
     "CI": {
       "type": "object",
       "description": "Per-environment CI bot identity and subscription inventory",
+      "properties": {
+        "e2eSubscriptionProviders": {
+          "type": "array",
+          "description": "Azure resource provider namespaces to register on every ARO-HCP-managed E2E subscription",
+          "items": { "type": "string" }
+        }
+      },
       "additionalProperties": {
         "$ref": "#/$defs/CIEnvironment"
       }
@@ -411,11 +420,18 @@
             "$ref": "#/$defs/InfraSubscriptionReference"
           }
         },
+        "dashboardRegions": {
+          "type": "array",
+          "description": "Azure regions charted on this environment's DEV CI quota dashboard (see tooling/tenant-quota/dashboards.bicep); shared by every subscription in e2eSubscriptions/infrastructureSubscriptions for this environment",
+          "items": {
+            "type": "string"
+          }
+        },
         "mockIdentities": {
           "$ref": "#/$defs/MockIdentities"
         }
       },
-      "required": ["bot", "e2eSubscriptions"]
+      "required": ["bot", "e2eSubscriptions", "dashboardRegions"]
     },
     "CIBot": {
       "type": "object",
@@ -435,7 +451,11 @@
         "id": { "type": "string" },
         "isGlobalSubscription": {
           "type": "boolean",
-          "description": "Marks where shared infra lives; the bot gets extra data-plane roles (Key Vault Admin, Grafana Admin) here"
+          "description": "Marks where shared infra lives; the bot gets extra global-only data-plane roles (Grafana Admin) here"
+        },
+        "costTagInheritance": {
+          "type": "boolean",
+          "description": "Enable Cost Management tag inheritance on this DEV E2E infrastructure subscription"
         }
       },
       "required": ["name", "id"]
@@ -558,6 +578,48 @@
         }
       },
       "required": ["tenantId", "tenantName", "servicePrincipalClientId", "keyVaultSecretName"]
+    },
+    "CIJobOutcomesConfig": {
+      "type": "object",
+      "description": "Configuration for recording CI job outcomes in Kusto, so that the alerts and logs already held there can be attributed to the run that produced them",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "kustoName": { "type": "string", "description": "Name of the Kusto cluster holding the table" },
+        "kustoResourceGroup": { "type": "string", "description": "Resource group of the Kusto cluster" },
+        "clusterURI": { "type": "string", "format": "uri", "description": "Kusto cluster URI, used to read discovery cursors and pending runs" },
+        "ingestionURI": { "type": "string", "format": "uri", "description": "Kusto ingestion URI, used to write rows" },
+        "database": { "type": "string" },
+        "outcomes": { "$ref": "#/$defs/KustoTableConfig", "description": "Table holding one row per CI job run" },
+        "testNames": { "$ref": "#/$defs/KustoTableConfig", "description": "Dimension table holding one row per distinct test name" },
+        "testResults": { "$ref": "#/$defs/KustoTableConfig", "description": "Join table holding one row per test executed in a run" },
+        "discovered": { "$ref": "#/$defs/KustoTableConfig", "description": "Table holding discovered CI jobs" },
+        "processed": { "$ref": "#/$defs/KustoTableConfig", "description": "Table holding processed CI build IDs" },
+        "gcsBucket": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]*$", "default": "test-platform-results-public", "description": "Public GCS bucket name, not a URL or path" },
+        "jobFilter": { "type": "string", "description": "Substring a job name must contain to be recorded" },
+        "interval": { "type": "string", "default": "15m", "description": "Processing interval, as a positive Go duration" },
+        "discoveryInterval": { "type": "string", "default": "30m", "description": "GCS discovery interval, as a positive Go duration" },
+        "completionDelay": { "type": "string", "default": "15m", "description": "Delay after run completion before processing artifacts, as a positive Go duration" },
+        "window": { "type": "string", "default": "24h", "description": "Minimum lookback on startup and repair polls, as a positive Go duration" },
+        "startupSince": { "type": "string", "default": "", "anyOf": [{ "const": "" }, { "format": "date-time" }], "description": "Optional explicit RFC3339 startup boundary; bootstrap is separate" },
+        "repairInterval": { "type": "string", "default": "12h", "description": "Interval between repair polls, as a positive Go duration" },
+        "overlap": { "type": "string", "default": "10m", "description": "Lookback before each job's discovery cursor, as a positive Go duration" },
+        "workers": { "type": "integer", "minimum": 1, "default": 10, "description": "Number of concurrent CI outcome workers" },
+        "discoveryWorkers": { "type": "integer", "minimum": 1, "default": 2, "description": "Number of concurrent GCS discovery workers" },
+        "cacheSize": { "type": "integer", "minimum": 1, "default": 20000, "description": "Maximum entries in each recent-submission cache" },
+        "cacheTTL": { "type": "string", "default": "15m", "description": "Lifetime of recent-submission cache entries, as a positive Go duration" }
+      },
+      "required": ["enabled"]
+    },
+    "KustoTableConfig": {
+      "type": "object",
+      "description": "A destination Kusto table and the ingestion mapping declared alongside it",
+      "additionalProperties": false,
+      "properties": {
+        "table": { "type": "string" },
+        "ingestionMapping": { "type": "string", "description": "Ingestion mapping declared on the table" }
+      },
+      "required": ["table", "ingestionMapping"]
     },
     "ProwMetricsConfig": {
       "type": "object",

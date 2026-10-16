@@ -336,3 +336,47 @@ func TestConvertClusterStatus(t *testing.T) {
 		})
 	}
 }
+
+func TestClusterServiceInProgressMessage(t *testing.T) {
+	assert.Equal(t, "cluster service is installing", ClusterServiceInProgressMessage(arohcpv1alpha1.ClusterStateInstalling))
+	assert.Equal(t, "cluster service is pending", ClusterServiceInProgressMessage(arohcpv1alpha1.ClusterStatePending))
+	assert.Equal(t, "cluster service is validating", ClusterServiceInProgressMessage(arohcpv1alpha1.ClusterStateValidating))
+	assert.Equal(t, "", ClusterServiceInProgressMessage(arohcpv1alpha1.ClusterStateReady))
+	assert.Equal(t, "", ClusterServiceInProgressMessage(arohcpv1alpha1.ClusterStateError))
+}
+
+func TestClusterServiceOperationMessage(t *testing.T) {
+	assert.Equal(t, "provision failed", ClusterServiceOperationMessage(nil, &coreapi.CloudErrorBody{Message: "provision failed"}))
+	assert.Equal(t, "", ClusterServiceOperationMessage(nil, nil))
+
+	clusterStatus, err := arohcpv1alpha1.NewClusterStatus().
+		State(arohcpv1alpha1.ClusterStateInstalling).
+		Build()
+	assert.NoError(t, err)
+	assert.Equal(t, "cluster service is installing", ClusterServiceOperationMessage(clusterStatus, nil))
+}
+
+func TestNodePoolServiceInProgressMessage(t *testing.T) {
+	assert.Equal(t, "cluster service node pool is installing", NodePoolServiceInProgressMessage(NodePoolStateInstalling))
+	assert.Equal(t, "cluster service node pool is pending", NodePoolServiceInProgressMessage(NodePoolStatePending))
+	assert.Equal(t, "", NodePoolServiceInProgressMessage(NodePoolStateReady))
+	assert.Equal(t, "", NodePoolServiceInProgressMessage(NodePoolStateError))
+}
+
+func TestNodePoolServiceOperationMessage(t *testing.T) {
+	assert.Equal(t, "provision failed", NodePoolServiceOperationMessage(nil, &coreapi.CloudErrorBody{Message: "provision failed"}))
+	assert.Equal(t, "", NodePoolServiceOperationMessage(nil, nil))
+
+	installing, err := arohcpv1alpha1.NewNodePoolStatus().
+		State(arohcpv1alpha1.NewNodePoolState().NodePoolStateValue(string(NodePoolStateInstalling))).
+		Build()
+	assert.NoError(t, err)
+	assert.Equal(t, "cluster service node pool is installing", NodePoolServiceOperationMessage(installing, nil))
+
+	withMessage, err := arohcpv1alpha1.NewNodePoolStatus().
+		State(arohcpv1alpha1.NewNodePoolState().NodePoolStateValue(string(NodePoolStateInstalling))).
+		Message("waiting for subnet").
+		Build()
+	assert.NoError(t, err)
+	assert.Equal(t, "waiting for subnet", NodePoolServiceOperationMessage(withMessage, nil))
+}

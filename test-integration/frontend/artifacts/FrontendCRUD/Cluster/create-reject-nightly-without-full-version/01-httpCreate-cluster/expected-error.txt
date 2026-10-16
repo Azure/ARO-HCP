@@ -1,0 +1,5 @@
+{
+    "code": "InvalidRequestContent",
+    "message": "Invalid value: \"4.20\": must be specified as MAJOR.MINOR.PATCH (optionally with a pre-release, e.g. a nightly build suffix) when channelGroup is \"nightly\"",
+    "target": "properties.version.id"
+  }

@@ -2,6 +2,7 @@
 <html>
 <head>
     <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Observability</title>
     <style>
         html, body { margin: 0; padding: 0; background-color: #000; color: #fff; font-family: 'Roboto', sans-serif; }
@@ -42,14 +43,31 @@
         }
         const frames = {};
         let active = -1;
+        let resizePending = false;
 
-        function resize(i) {
-            const f = frames[i];
-            if (!f || !f.contentDocument) return;
-            try {
-                const h = f.contentDocument.documentElement.scrollHeight;
-                f.style.height = (h + 24) + 'px';
-            } catch (e) { /* cross-origin: leave default height */ }
+        function resize() {
+            if (resizePending) return;
+            resizePending = true;
+            requestAnimationFrame(function() {
+                resizePending = false;
+                const f = frames[active];
+                if (!f || !f.getClientRects().length) return;
+                try {
+                    const body = f.contentDocument.body;
+                    if (!body) return;
+                    // MDL gives Alerts a viewport-sized min-height. Embedded
+                    // sections must size to content, not the height we assign.
+                    if (body.style.minHeight !== '0px') body.style.minHeight = '0px';
+                    // scrollHeight is at least the iframe viewport height, so
+                    // adding clearance to it feeds growth back into the next
+                    // measurement and prevents shrinking. Measure content instead,
+                    // including the body's margins and the section's own spacer.
+                    const bottom = body.getBoundingClientRect().bottom + f.contentWindow.scrollY;
+                    const margin = parseFloat(f.contentWindow.getComputedStyle(body).marginBottom) || 0;
+                    const height = Math.ceil(bottom + margin + 24) + 'px';
+                    if (f.style.height !== height) f.style.height = height;
+                } catch (e) { /* cross-origin: leave default height */ }
+            });
         }
 
         function activate(i) {
@@ -61,10 +79,10 @@
                 const f = document.createElement('iframe');
                 f.className = 'tabframe';
                 f.addEventListener('load', function() {
-                    resize(i);
+                    if (i === active) resize();
                     // Sections resize their own charts after load (e.g. the
                     // peak-threshold slider); keep the iframe tall enough to show them.
-                    try { new ResizeObserver(function() { resize(i); }).observe(f.contentDocument.body); } catch (e) {}
+                    try { new ResizeObserver(function() { if (i === active) resize(); }).observe(f.contentDocument.body); } catch (e) {}
                 });
                 f.srcdoc = TABS[i].html;
                 host.appendChild(f);
@@ -72,7 +90,7 @@
             }
             frames[i].style.display = 'block';
             active = i;
-            resize(i);
+            resize();
         }
 
         TABS.forEach(function(t, i) {

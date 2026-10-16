@@ -40,29 +40,29 @@ import (
 )
 
 func TestOperationExternalAuthCreate_SynchronizeOperation(t *testing.T) {
-	defaultExternalAuth := func(fixture *operationtesting.ExternalAuthTestFixture) *coreapi.HCPOpenShiftClusterExternalAuth {
+	defaultExternalAuth := func(fixture *operationtesting.ExternalAuthTestFixture) *coreapi.ExternalAuth {
 		return fixture.NewExternalAuth()
 	}
 
-	externalAuthWithoutCSID := func(fixture *operationtesting.ExternalAuthTestFixture) *coreapi.HCPOpenShiftClusterExternalAuth {
+	externalAuthWithoutCSID := func(fixture *operationtesting.ExternalAuthTestFixture) *coreapi.ExternalAuth {
 		ea := fixture.NewExternalAuth()
 		ea.ServiceProviderProperties.ClusterServiceID = nil
 		return ea
 	}
 
-	externalAuthWithDeletionTimestamp := func(fixture *operationtesting.ExternalAuthTestFixture) *coreapi.HCPOpenShiftClusterExternalAuth {
+	externalAuthWithDeletionTimestamp := func(fixture *operationtesting.ExternalAuthTestFixture) *coreapi.ExternalAuth {
 		ea := fixture.NewExternalAuth()
 		ea.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: time.Now()}
 		return ea
 	}
 
-	externalAuthWithMismatchedActiveOperationID := func(fixture *operationtesting.ExternalAuthTestFixture) *coreapi.HCPOpenShiftClusterExternalAuth {
+	externalAuthWithMismatchedActiveOperationID := func(fixture *operationtesting.ExternalAuthTestFixture) *coreapi.ExternalAuth {
 		ea := fixture.NewExternalAuth()
 		ea.ServiceProviderProperties.ActiveOperationID = "other-operation"
 		return ea
 	}
 
-	externalAuthWithEmptyActiveOperationID := func(fixture *operationtesting.ExternalAuthTestFixture) *coreapi.HCPOpenShiftClusterExternalAuth {
+	externalAuthWithEmptyActiveOperationID := func(fixture *operationtesting.ExternalAuthTestFixture) *coreapi.ExternalAuth {
 		ea := fixture.NewExternalAuth()
 		ea.ServiceProviderProperties.ActiveOperationID = ""
 		return ea
@@ -70,7 +70,7 @@ func TestOperationExternalAuthCreate_SynchronizeOperation(t *testing.T) {
 
 	tests := []struct {
 		name         string
-		externalAuth func(fixture *operationtesting.ExternalAuthTestFixture) *coreapi.HCPOpenShiftClusterExternalAuth
+		externalAuth func(fixture *operationtesting.ExternalAuthTestFixture) *coreapi.ExternalAuth
 		setupCSMock  func(ctrl *gomock.Controller, fixture *operationtesting.ExternalAuthTestFixture) ocm.ClusterServiceClientSpec
 		expectError  bool
 		verify       func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, fixture *operationtesting.ExternalAuthTestFixture)

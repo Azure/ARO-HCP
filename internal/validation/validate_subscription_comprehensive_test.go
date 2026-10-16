@@ -54,6 +54,32 @@ func TestValidateSubscriptionCreate(t *testing.T) {
 			expectErrors: []utils.ExpectedError{},
 		},
 		{
+			name: "empty tenant ID",
+			subscription: func() *coreapi.Subscription {
+				s := createValidSubscription()
+				s.Properties = &coreapi.SubscriptionProperties{
+					TenantId: ptr.To(""),
+				}
+				return s
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "Required value", FieldPath: "properties.tenantId"},
+			},
+		},
+		{
+			name: "all-zero tenant ID",
+			subscription: func() *coreapi.Subscription {
+				s := createValidSubscription()
+				s.Properties = &coreapi.SubscriptionProperties{
+					TenantId: ptr.To(emptyTenantID),
+				}
+				return s
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "must not be the all-zero tenant ID", FieldPath: "properties.tenantId"},
+			},
+		},
+		{
 			name: "valid subscription - all valid states",
 			subscription: func() *coreapi.Subscription {
 				s := createValidSubscription()
@@ -273,7 +299,7 @@ func TestValidateSubscriptionCreate(t *testing.T) {
 
 func createValidSubscription() *coreapi.Subscription {
 	return &coreapi.Subscription{
-		ResourceID:       metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/12345678-1234-1234-1234-123456789012")),
+		CosmosMetadata:   coreapi.CosmosMetadata{ResourceID: metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/12345678-1234-1234-1234-123456789012"))},
 		State:            coreapi.SubscriptionStateRegistered,
 		RegistrationDate: ptr.To("2023-01-01T00:00:00Z"),
 		Properties:       nil, // Properties are optional

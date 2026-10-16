@@ -23,6 +23,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 )
 
@@ -68,7 +70,7 @@ func (s DesireScope) ResourceIDBuilder() cosmosstorageutils.ResourceIDBuilder {
 
 // ClusterScope returns a DesireScope for a cluster parent.
 func ClusterScope(subscriptionID, resourceGroupName, clusterName string) (DesireScope, error) {
-	id, err := coreapi.ToClusterResourceID(subscriptionID, resourceGroupName, clusterName)
+	id, err := coreapihelpers.ToClusterResourceID(subscriptionID, resourceGroupName, clusterName)
 	if err != nil {
 		return DesireScope{}, err
 	}
@@ -77,7 +79,7 @@ func ClusterScope(subscriptionID, resourceGroupName, clusterName string) (Desire
 
 // NodePoolScope returns a DesireScope for a node pool parent.
 func NodePoolScope(subscriptionID, resourceGroupName, clusterName, nodePoolName string) (DesireScope, error) {
-	id, err := coreapi.ToNodePoolResourceID(subscriptionID, resourceGroupName, clusterName, nodePoolName)
+	id, err := coreapihelpers.ToNodePoolResourceID(subscriptionID, resourceGroupName, clusterName, nodePoolName)
 	if err != nil {
 		return DesireScope{}, err
 	}
@@ -86,7 +88,7 @@ func NodePoolScope(subscriptionID, resourceGroupName, clusterName, nodePoolName 
 
 // CredentialRequestScope returns a DesireScope for a SystemAdminCredentialRequest parent.
 func CredentialRequestScope(subscriptionID, resourceGroupName, clusterName, credentialRequestName string) (DesireScope, error) {
-	id, err := coreapi.ToSystemAdminCredentialRequestResourceID(subscriptionID, resourceGroupName, clusterName, credentialRequestName)
+	id, err := coreapihelpers.ToSystemAdminCredentialRequestResourceID(subscriptionID, resourceGroupName, clusterName, credentialRequestName)
 	if err != nil {
 		return DesireScope{}, err
 	}
@@ -95,7 +97,7 @@ func CredentialRequestScope(subscriptionID, resourceGroupName, clusterName, cred
 
 // CredentialRevocationScope returns a DesireScope for a SystemAdminCredentialRevocation parent.
 func CredentialRevocationScope(subscriptionID, resourceGroupName, clusterName, revocationName string) (DesireScope, error) {
-	id, err := coreapi.ToSystemAdminCredentialRevocationResourceID(subscriptionID, resourceGroupName, clusterName, revocationName)
+	id, err := coreapihelpers.ToSystemAdminCredentialRevocationResourceID(subscriptionID, resourceGroupName, clusterName, revocationName)
 	if err != nil {
 		return DesireScope{}, err
 	}
@@ -104,7 +106,7 @@ func CredentialRevocationScope(subscriptionID, resourceGroupName, clusterName, r
 
 // ManagementClusterScope returns a DesireScope for a management cluster parent.
 func ManagementClusterScope(stampIdentifier string) (DesireScope, error) {
-	id, err := fleetapi.ToManagementClusterResourceID(stampIdentifier)
+	id, err := fleetapihelpers.ToManagementClusterResourceID(stampIdentifier)
 	if err != nil {
 		return DesireScope{}, err
 	}

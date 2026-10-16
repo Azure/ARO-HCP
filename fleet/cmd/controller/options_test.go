@@ -16,7 +16,11 @@ package controller
 
 import (
 	"context"
+	"slices"
+	"strings"
 	"testing"
+
+	"github.com/Azure/ARO-HCP/fleet/pkg/compute"
 )
 
 func TestValidate(t *testing.T) {
@@ -89,6 +93,66 @@ func TestValidate(t *testing.T) {
 				if err != nil {
 					t.Fatalf("unexpected error: %v", err)
 				}
+			}
+		})
+	}
+}
+
+func TestResolveNodePoolProfile(t *testing.T) {
+	tests := []struct {
+		name        string
+		profile     string
+		zoneCount   int
+		wantZones   []string
+		wantErr     bool
+		errContains string
+	}{
+		{
+			name:      "valid profile derives every zone of the region",
+			profile:   compute.ProfileProduction,
+			zoneCount: 4,
+			wantZones: []string{"1", "2", "3", "4"},
+		},
+		{
+			name:        "zero zone count is rejected",
+			profile:     compute.ProfileProduction,
+			zoneCount:   0,
+			wantErr:     true,
+			errContains: "region has 0 availability zones, fewer than the 3 required",
+		},
+		{
+			name:        "invalid profile name",
+			profile:     "not-a-real-profile",
+			wantErr:     true,
+			errContains: "not-a-real-profile",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			opts := &RawControllerOptions{
+				NodePoolProfile:                  tt.profile,
+				AzureRegionAvailabilityZoneCount: tt.zoneCount,
+			}
+
+			profile, zones, err := resolveNodePoolProfile(opts)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+				if len(tt.errContains) > 0 && !strings.Contains(err.Error(), tt.errContains) {
+					t.Fatalf("expected error to contain %q, got: %v", tt.errContains, err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if profile == nil {
+				t.Fatal("expected non-nil profile")
+			}
+			if !slices.Equal(zones, tt.wantZones) {
+				t.Fatalf("zones = %v, want %v", zones, tt.wantZones)
 			}
 		})
 	}

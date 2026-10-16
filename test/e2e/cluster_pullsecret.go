@@ -29,6 +29,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/util/retry"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
@@ -111,20 +112,6 @@ var _ = Describe("Customer", func() {
 				framework.ClusterCreationTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster for pull secret test")
-			By("Creating the node pool")
-			nodePoolParams := framework.NewDefaultNodePoolParams20240610()
-			nodePoolParams.NodePoolName = "np-1"
-			nodePoolParams.ClusterName = customerClusterName
-			nodePoolParams.Replicas = int32(2)
-			err = tc.CreateNodePoolFromParam20240610(ctx,
-				GinkgoLogr,
-				*resourceGroup.Name,
-				managedResourceGroupName,
-				customerClusterName,
-				nodePoolParams,
-				framework.NodePoolCreationTimeout,
-			)
-			Expect(err).NotTo(HaveOccurred(), "failed to create node pool np-1 for pull secret cluster")
 
 			By("getting credentials")
 			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20260901(
@@ -165,12 +152,6 @@ var _ = Describe("Customer", func() {
 				Verify(ctx, adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred(), "failed to wait for additional pull secret to be merged into global-pull-secret by HCCO")
 
-			// The merged secret doesn't reach nodes until global-pull-secret-syncer syncs it to /var/lib/kubelet/config.json
-			By("verifying the DaemonSet for global pull secret synchronization is created")
-			err = verifiers.VerifyGlobalPullSecretSyncer(daemonSetSyncTimeout).
-				Verify(ctx, adminRESTConfig)
-			Expect(err).NotTo(HaveOccurred(), "failed to wait for global-pull-secret-syncer DaemonSet to be created and ready")
-
 			By("verifying the pull secret was merged into the global pull secret")
 			err = verifiers.VerifyPullSecretAuthData(
 				"global-pull-secret",
@@ -180,6 +161,27 @@ var _ = Describe("Customer", func() {
 				testRegistryAuth.Email,
 			).Verify(ctx, adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred(), "failed to verify pull secret auth data for host.example.com in global-pull-secret")
+
+			By("Creating the node pool")
+			nodePoolParams := framework.NewDefaultNodePoolParams20240610()
+			nodePoolParams.NodePoolName = "np-1"
+			nodePoolParams.ClusterName = customerClusterName
+			nodePoolParams.Replicas = int32(2)
+			err = tc.CreateNodePoolFromParam20240610(ctx,
+				GinkgoLogr,
+				*resourceGroup.Name,
+				managedResourceGroupName,
+				customerClusterName,
+				nodePoolParams,
+				framework.NodePoolCreationTimeout,
+			)
+			Expect(err).NotTo(HaveOccurred(), "failed to create node pool np-1 for pull secret cluster")
+
+			// The merged secret doesn't reach nodes until global-pull-secret-syncer syncs it to /var/lib/kubelet/config.json
+			By("verifying the global-pull-secret-syncer DaemonSet is ready on all nodes")
+			err = verifiers.VerifyGlobalPullSecretSyncer(daemonSetSyncTimeout).
+				Verify(ctx, adminRESTConfig)
+			Expect(err).NotTo(HaveOccurred(), "failed to wait for global-pull-secret-syncer DaemonSet to be ready on nodepool nodes")
 
 			By("reading pull-secret file from aro-hcp-qe-pull-secret directory")
 			pullSecretFileData, err := os.ReadFile(pullSecretFilePath)
@@ -195,13 +197,22 @@ var _ = Describe("Customer", func() {
 			Expect(ok).To(BeTrue(), "registry.redhat.io credentials not found in pull-secret file")
 
 			By("updating additional-pull-secret to add registry.redhat.io credentials")
-			currentSecret, err := kubeClient.CoreV1().Secrets(pullSecretNamespace).Get(ctx, pullSecretName, metav1.GetOptions{})
-			Expect(err).NotTo(HaveOccurred(), "failed to get existing additional-pull-secret")
-
-			err = framework.AddRegistryAuthToSecret(currentSecret, redhatRegistryHost, redhatRegistryAuth)
-			Expect(err).NotTo(HaveOccurred(), "failed to add registry.redhat.io credentials to additional-pull-secret")
-
-			_, err = kubeClient.CoreV1().Secrets(pullSecretNamespace).Update(ctx, currentSecret, metav1.UpdateOptions{})
+			// A single Get/Update fails with 409 Conflict if anything else writes
+			// the Secret between the two calls. The new content is derived from
+			// the current content (the registry is merged into the existing
+			// auths), so on conflict re-read and re-merge rather than overwrite
+			// with a server-side apply.
+			err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
+				currentSecret, err := kubeClient.CoreV1().Secrets(pullSecretNamespace).Get(ctx, pullSecretName, metav1.GetOptions{})
+				if err != nil {
+					return fmt.Errorf("failed to get existing additional-pull-secret: %w", err)
+				}
+				if err := framework.AddRegistryAuthToSecret(currentSecret, redhatRegistryHost, redhatRegistryAuth); err != nil {
+					return fmt.Errorf("failed to add registry.redhat.io credentials to additional-pull-secret: %w", err)
+				}
+				_, err = kubeClient.CoreV1().Secrets(pullSecretNamespace).Update(ctx, currentSecret, metav1.UpdateOptions{})
+				return err
+			})
 			Expect(err).NotTo(HaveOccurred(), "failed to update additional-pull-secret with registry.redhat.io credentials")
 
 			By("waiting for HCCO to merge the updated pull secret (with registry.redhat.io) into global pull secret")

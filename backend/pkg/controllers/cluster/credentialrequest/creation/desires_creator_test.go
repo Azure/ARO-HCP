@@ -45,7 +45,7 @@ const (
 
 var testManagementClusterResourceID = metadataapi.Must(azcorearm.ParseResourceID(testManagementClusterResourceIDStr))
 
-func newTestCluster() *coreapi.HCPOpenShiftCluster {
+func newTestCluster() *coreapi.Cluster {
 	clusterResourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + testSubscriptionID +
 			"/resourceGroups/" + testResourceGroupName +
@@ -53,7 +53,7 @@ func newTestCluster() *coreapi.HCPOpenShiftCluster {
 	))
 
 	csID := metadataapi.Must(metadataapi.NewInternalID("/api/clusters_mgmt/v1/clusters/abc123"))
-	return &coreapi.HCPOpenShiftCluster{
+	return &coreapi.Cluster{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   clusterResourceID,
 			PartitionKey: strings.ToLower(clusterResourceID.SubscriptionID),
@@ -64,7 +64,7 @@ func newTestCluster() *coreapi.HCPOpenShiftCluster {
 				Name: testClusterName,
 			},
 		},
-		ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 			ProvisioningState: coreapi.ProvisioningStateSucceeded,
 			ClusterServiceID:  &csID,
 		},
@@ -291,7 +291,7 @@ func TestDesiresCreator_SyncOnce(t *testing.T) {
 				kubeApplierClients.Register(testManagementClusterResourceID, mockKubeApplierClient)
 			}
 
-			var clusters []*coreapi.HCPOpenShiftCluster
+			var clusters []*coreapi.Cluster
 			if c, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName); err == nil {
 				clusters = append(clusters, c)
 			}

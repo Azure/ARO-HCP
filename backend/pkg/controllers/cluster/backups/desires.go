@@ -20,12 +20,14 @@ import (
 
 	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
 	"github.com/Azure/ARO-HCP/internal/backup"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -62,7 +64,7 @@ func buildApplyDesiresFromSchedules(
 	desires := make([]*kubeapplierapi.ApplyDesire, 0, len(schedules))
 	for _, schedule := range schedules {
 		desireName := backupApplyDesireName(schedule.Name)
-		resourceIDStr := kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(
+		resourceIDStr := kubeapplierapihelpers.ToClusterScopedApplyDesireResourceIDString(
 			subscriptionID, resourceGroupName, clusterName, desireName,
 		)
 		resourceID, err := azcorearm.ParseResourceID(resourceIDStr)
@@ -103,7 +105,7 @@ func buildReadDesireFromApplyDesire(
 	applyDesire *kubeapplierapi.ApplyDesire,
 ) (*kubeapplierapi.ReadDesire, error) {
 	desireName := applyDesire.ResourceID.Name
-	resourceIDStr := kubeapplierapi.ToClusterScopedReadDesireResourceIDString(
+	resourceIDStr := kubeapplierapihelpers.ToClusterScopedReadDesireResourceIDString(
 		subscriptionID, resourceGroupName, clusterName, desireName,
 	)
 	resourceID, err := azcorearm.ParseResourceID(resourceIDStr)
@@ -119,4 +121,15 @@ func buildReadDesireFromApplyDesire(
 		},
 		Tags: applyDesire.Tags,
 	}, nil
+}
+
+// isDesireSuccessful reports whether the given desire conditions include a
+// successful reconciliation.
+func isDesireSuccessful(conditions []metav1.Condition) bool {
+	for _, condition := range conditions {
+		if condition.Type == kubeapplierapi.ConditionTypeSuccessful && condition.Status == metav1.ConditionTrue {
+			return true
+		}
+	}
+	return false
 }

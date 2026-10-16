@@ -36,8 +36,9 @@ import (
 )
 
 // NodePoolAdmissionContext carries dependencies that node pool mutation/admission needs
-// beyond the node pool object itself. It includes the parent cluster and optionally
-// the service provider cluster and nodepool (for update-specific validations like version upgrades).
+// beyond the node pool object itself. It includes the parent cluster and the service
+// provider cluster (required for version skew validation at CREATE and UPDATE time).
+// ServiceProviderNodePool is required for UPDATE only.
 type NodePoolAdmissionContext struct {
 	Clock        utilsclock.PassiveClock
 	Subscription *coreapi.Subscription
@@ -46,8 +47,8 @@ type NodePoolAdmissionContext struct {
 	// of truth for fields (like tags) that are *consumed* during mutation but
 	// whose new-object value may already have been overwritten by the time the
 	// mutation actually runs.
-	OriginalNodePool        *coreapi.HCPOpenShiftClusterNodePool
-	Cluster                 *coreapi.HCPOpenShiftCluster
+	OriginalNodePool        *coreapi.NodePool
+	Cluster                 *coreapi.Cluster
 	ServiceProviderNodePool *coreapi.ServiceProviderNodePool
 	ServiceProviderCluster  *coreapi.ServiceProviderCluster
 }
@@ -55,10 +56,10 @@ type NodePoolAdmissionContext struct {
 // MutateNodePool applies admission-time mutations to a node pool (e.g. defaulting
 // the subnet from the parent cluster on CREATE). It returns any field errors
 // produced by the mutation step.
-func MutateNodePool(ctx context.Context, admissionContext *NodePoolAdmissionContext, op operation.Operation, newObj, oldObj *coreapi.HCPOpenShiftClusterNodePool) field.ErrorList {
+func MutateNodePool(ctx context.Context, admissionContext *NodePoolAdmissionContext, op operation.Operation, newObj, oldObj *coreapi.NodePool) field.ErrorList {
 	errs := field.ErrorList{}
 
-	//Properties HCPOpenShiftClusterNodePoolProperties `json:"properties"`
+	//Properties NodePoolProperties `json:"properties"`
 	errs = append(errs, mutateNodePoolProperties(ctx, admissionContext, op, field.NewPath("properties"), &newObj.Properties, safe.Field(oldObj, validation.ToNodePoolProperties))...)
 
 	errs = append(errs, mutateNodePoolServiceProviderProperties(ctx, admissionContext, op, field.NewPath("serviceProviderProperties"), &newObj.ServiceProviderProperties)...)
@@ -66,7 +67,7 @@ func MutateNodePool(ctx context.Context, admissionContext *NodePoolAdmissionCont
 	return errs
 }
 
-func mutateNodePoolProperties(ctx context.Context, admissionContext *NodePoolAdmissionContext, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.HCPOpenShiftClusterNodePoolProperties) field.ErrorList {
+func mutateNodePoolProperties(ctx context.Context, admissionContext *NodePoolAdmissionContext, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.NodePoolProperties) field.ErrorList {
 	errs := field.ErrorList{}
 
 	errs = append(errs, mutateNodePoolPlatform(ctx, admissionContext, op, fldPath.Child("platform"), &newObj.Platform, safe.Field(oldObj, validation.ToNodePoolPropertiesPlatform))...)
@@ -86,11 +87,12 @@ func mutateNodePoolPlatform(ctx context.Context, admissionContext *NodePoolAdmis
 	return errs
 }
 
-func mutateNodePoolServiceProviderProperties(ctx context.Context, admissionContext *NodePoolAdmissionContext, op operation.Operation, fldPath *field.Path, newObj *coreapi.HCPOpenShiftClusterNodePoolServiceProviderProperties) field.ErrorList {
+func mutateNodePoolServiceProviderProperties(ctx context.Context, admissionContext *NodePoolAdmissionContext, op operation.Operation, fldPath *field.Path, newObj *coreapi.NodePoolServiceProviderProperties) field.ErrorList {
 	errs := field.ErrorList{}
 
 	errs = append(errs, mutateNodePoolExperimentalTags(ctx, admissionContext, op)...)
 	errs = append(errs, mutateNodePoolCreateOperationCompletionDeadline(ctx, admissionContext, op, fldPath.Child("createOperationCompletionDeadline"), &newObj.CreateOperationCompletionDeadline)...)
+	errs = append(errs, mutateNodePoolUpdateOperationCompletionDeadline(ctx, admissionContext, op, fldPath.Child("updateOperationCompletionDeadline"), &newObj.UpdateOperationCompletionDeadline)...)
 
 	return errs
 }
@@ -110,7 +112,7 @@ func mutateNodePoolExperimentalTags(_ context.Context, admissionContext *NodePoo
 	tagsPath := field.NewPath("tags")
 	var errs field.ErrorList
 
-	knownTags := sets.New(metadataapi.TagNodePoolMaxCreationDuration)
+	knownTags := sets.New(metadataapi.TagNodePoolMaxCreationDuration, metadataapi.TagNodePoolMaxUpdateDuration)
 	for k := range tags {
 		if strings.HasPrefix(strings.ToLower(k), metadataapi.ExperimentalNodePoolTagPrefix) && !knownTags.Has(strings.ToLower(k)) {
 			errs = append(errs, field.Invalid(tagsPath.Key(k), k, "unrecognized experimental tag"))
@@ -158,14 +160,51 @@ func mutateNodePoolCreateOperationCompletionDeadline(_ context.Context, admissio
 	return nil
 }
 
+// mutateNodePoolUpdateOperationCompletionDeadline sets the deadline by which a
+// node pool update operation must complete. On UPDATE it defaults to 60
+// minutes from now; when the subscription has the ExperimentalReleaseFeatures
+// AFEC registered, the caller may override the duration via the
+// TagNodePoolMaxUpdateDuration ARM resource tag.
+func mutateNodePoolUpdateOperationCompletionDeadline(_ context.Context, admissionContext *NodePoolAdmissionContext, op operation.Operation, _ *field.Path, newObj **metav1.Time) field.ErrorList {
+	if op.Type != operation.Update {
+		return nil
+	}
+
+	duration := defaultUpdateOperationCompletionDeadlineDuration
+
+	subscription := admissionContext.Subscription
+	if subscription != nil && subscription.HasRegisteredFeature(metadataapi.FeatureExperimentalReleaseFeatures) {
+		var tags map[string]string
+		if admissionContext.OriginalNodePool != nil {
+			tags = admissionContext.OriginalNodePool.Tags
+		}
+		if tagValue := lookupTag(tags, metadataapi.TagNodePoolMaxUpdateDuration); len(tagValue) > 0 {
+			parsed, err := time.ParseDuration(tagValue)
+			if err != nil {
+				tagsPath := field.NewPath("tags")
+				return field.ErrorList{field.Invalid(tagsPath.Key(metadataapi.TagNodePoolMaxUpdateDuration), tagValue, "must be a valid Go duration string (e.g. \"19m\", \"30m\")")}
+			}
+			if parsed < minUpdateOperationCompletionDeadlineDuration {
+				tagsPath := field.NewPath("tags")
+				return field.ErrorList{field.Invalid(tagsPath.Key(metadataapi.TagNodePoolMaxUpdateDuration), tagValue, fmt.Sprintf("must be at least %s", minUpdateOperationCompletionDeadlineDuration))}
+			}
+			duration = parsed
+		}
+	}
+
+	deadline := metav1.NewTime(admissionContext.Clock.Now().Add(duration))
+	*newObj = &deadline
+	return nil
+}
+
 // NodePoolDeleteAdmissionContext carries dependencies that node pool deletion admission needs.
 type NodePoolDeleteAdmissionContext struct {
-	// ClusterNodePools is a list of all node pools for the cluster, including the one being deleted.
-	ClusterNodePools []*coreapi.HCPOpenShiftClusterNodePool
+	// NodePools is a list of all node pools for the cluster, including the one being deleted.
+	NodePools []*coreapi.NodePool
 }
 
 // AdmitNodePoolOnDelete performs non-static checks before deleting a node pool.
-func AdmitNodePoolOnDelete(ctx context.Context, admissionContext *NodePoolDeleteAdmissionContext, _ *coreapi.HCPOpenShiftClusterNodePool) field.ErrorList {
+func AdmitNodePoolOnDelete(ctx context.Context, admissionContext *NodePoolDeleteAdmissionContext, _ *coreapi.NodePool) field.ErrorList {
 	errs := field.ErrorList{}
 
 	// We do a *best-effort* to check to see if we are the last node pool on the cluster and prevent deletion
@@ -173,7 +212,7 @@ func AdmitNodePoolOnDelete(ctx context.Context, admissionContext *NodePoolDelete
 	// OCPBUGS-86702. This check won't fully prevent the last node pool deletion in all cases as there are edge cases
 	// where race conditions can occur, but it should be good enough to prevent the last node pool deletion in most cases.
 	// TODO once OCPBUGS-86702 is fixed, we should remove this check.
-	if len(admissionContext.ClusterNodePools) <= 1 {
+	if len(admissionContext.NodePools) <= 1 {
 		errs = append(errs, field.Forbidden(field.NewPath("name"), "The last node pool can not be deleted from a cluster."))
 	}
 
@@ -181,9 +220,9 @@ func AdmitNodePoolOnDelete(ctx context.Context, admissionContext *NodePoolDelete
 }
 
 // AdmitNodePool performs non-static checks of nodepool. Checks that require more information than is contained inside of
-// the nodepool instance itself. For update operations with version changes, include ServiceProviderNodePool and
-// ServiceProviderCluster in the admissionContext to enable version upgrade validation.
-func AdmitNodePool(ctx context.Context, admissionContext *NodePoolAdmissionContext, op operation.Operation, newNodePool, oldNodePool *coreapi.HCPOpenShiftClusterNodePool) field.ErrorList {
+// the nodepool instance itself. ServiceProviderCluster must be specified in the admissionContext (version skew validation).
+// For update operations, ServiceProviderNodePool must also be specified.
+func AdmitNodePool(ctx context.Context, admissionContext *NodePoolAdmissionContext, op operation.Operation, newNodePool, oldNodePool *coreapi.NodePool) field.ErrorList {
 	errs := field.ErrorList{}
 
 	errs = append(errs, admitNodePoolProperties(ctx, admissionContext, op, field.NewPath("properties"), &newNodePool.Properties, safe.Field(oldNodePool, validation.ToNodePoolProperties))...)
@@ -191,7 +230,7 @@ func AdmitNodePool(ctx context.Context, admissionContext *NodePoolAdmissionConte
 	return errs
 }
 
-func admitNodePoolProperties(ctx context.Context, admissionContext *NodePoolAdmissionContext, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.HCPOpenShiftClusterNodePoolProperties) field.ErrorList {
+func admitNodePoolProperties(ctx context.Context, admissionContext *NodePoolAdmissionContext, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.NodePoolProperties) field.ErrorList {
 	errs := field.ErrorList{}
 
 	errs = append(errs, admitNodePoolVersion(ctx, admissionContext, op, fldPath.Child("version"), &newObj.Version, safe.Field(oldObj, validation.ToNodePoolPropertiesVersion))...)
@@ -203,10 +242,7 @@ func admitNodePoolProperties(ctx context.Context, admissionContext *NodePoolAdmi
 func admitNodePoolVersion(ctx context.Context, admissionContext *NodePoolAdmissionContext, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.NodePoolVersionProfile) field.ErrorList {
 	errs := field.ErrorList{}
 
-	// Perform update-specific version upgrade validation
-	if op.Type == operation.Update {
-		errs = append(errs, validateNodePoolVersionChange(ctx, admissionContext, op, fldPath.Child("id"), newObj, oldObj)...)
-	}
+	errs = append(errs, validateNodePoolVersionChange(ctx, admissionContext, op, fldPath.Child("id"), newObj, oldObj)...)
 
 	return errs
 }
@@ -238,10 +274,31 @@ func admitNodePoolPlatform(ctx context.Context, admissionContext *NodePoolAdmiss
 		}
 	}
 
+	errs = append(errs, admitNodePoolOSDisk(ctx, admissionContext, op, fldPath.Child("osDisk"), &newObj.OSDisk)...)
+
 	return errs
 }
 
-// validateNodePoolVersionChange validates that a node pool version change is valid.
+func admitNodePoolOSDisk(ctx context.Context, admissionContext *NodePoolAdmissionContext, op operation.Operation, fldPath *field.Path, newObj *coreapi.OSDiskProfile) field.ErrorList {
+	errs := field.ErrorList{}
+
+	errs = append(errs, admitNodePoolOSDiskEncryptionSet(ctx, admissionContext, op, fldPath, newObj)...)
+
+	return errs
+}
+
+// admitNodePoolOSDiskEncryptionSet ensures the OS disk's encryption set isn't
+// in the cluster's managed resource group.
+func admitNodePoolOSDiskEncryptionSet(ctx context.Context, admissionContext *NodePoolAdmissionContext, op operation.Operation, fldPath *field.Path, newObj *coreapi.OSDiskProfile) field.ErrorList {
+	if newObj.EncryptionSetID == nil {
+		return nil
+	}
+
+	clusterManagedResourceGroupName := admissionContext.Cluster.CustomerProperties.Platform.ManagedResourceGroup
+	return validation.DifferentResourceGroupNameFromResourceID(ctx, op, fldPath.Child("encryptionSetId"), newObj.EncryptionSetID, nil, clusterManagedResourceGroupName)
+}
+
+// validateNodePoolVersionChange validates that a node pool version change is valid, at both CREATE and UPDATE time.
 // It checks:
 //   - Upgrade: at most +2 minor versions from current, and cannot exceed lowest control plane version
 //   - Downgrade: at most -2 minor versions from the highest control plane version
@@ -250,7 +307,7 @@ func admitNodePoolPlatform(ctx context.Context, admissionContext *NodePoolAdmiss
 func validateNodePoolVersionChange(ctx context.Context, admissionContext *NodePoolAdmissionContext, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.NodePoolVersionProfile) field.ErrorList {
 	spNodePool, spCluster := admissionContext.ServiceProviderNodePool, admissionContext.ServiceProviderCluster
 	// Skip validation if no version is specified or version didn't change
-	if len(newObj.ID) == 0 || newObj.ID == oldObj.ID {
+	if len(newObj.ID) == 0 || (oldObj != nil && newObj.ID == oldObj.ID) {
 		return nil
 	}
 
@@ -262,14 +319,20 @@ func validateNodePoolVersionChange(ctx context.Context, admissionContext *NodePo
 		// Return early, it cannot validate an unparseable version
 		return errs
 	}
-	// Skip validation if the newVersion hasn't changed from the desired Version
-	if spNodePool.Spec.NodePoolVersion.DesiredVersion != nil &&
-		newVersion.EQ(*spNodePool.Spec.NodePoolVersion.DesiredVersion) {
-		return nil
+
+	var activeVersions []coreapi.ServiceProviderNodePoolActiveVersion
+	if spNodePool != nil {
+		// Skip validation if the newVersion hasn't changed from the desired Version
+		if spNodePool.Spec.NodePoolVersion.DesiredVersion != nil &&
+			newVersion.EQ(*spNodePool.Spec.NodePoolVersion.DesiredVersion) {
+			return nil
+		}
+		activeVersions = spNodePool.Status.NodePoolVersion.ActiveVersions
 	}
 
 	lowestCPVersion, highestCPVersion := apihelpers.FindLowestAndHighestClusterVersion(spCluster.Status.ControlPlaneVersion.ActiveVersions)
-	if err := validation.ValidateNodePoolVersionChange(newVersion, spNodePool.Status.NodePoolVersion.ActiveVersions, lowestCPVersion, highestCPVersion, op.HasOption(metadataapi.FeatureExperimentalReleaseFeatures)); err != nil {
+
+	if err := validation.ValidateNodePoolVersionChange(newVersion, activeVersions, lowestCPVersion, highestCPVersion, op.HasOption(metadataapi.FeatureExperimentalReleaseFeatures)); err != nil {
 		errs = append(errs, field.Invalid(fldPath, newObj.ID, err.Error()))
 	}
 

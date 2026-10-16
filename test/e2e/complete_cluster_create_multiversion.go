@@ -34,7 +34,6 @@ import (
 	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 
 	clusterversion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/version"
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controlplaneversion"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
@@ -49,6 +48,7 @@ var _ = Describe("ARO-HCP", func() {
 		labels.MIContainers(1),
 		func(ctx context.Context, version string) {
 			clusterParams := framework.NewDefaultClusterParams20251223()
+			clusterParams.DisableSwift = false
 
 			customerNetworkSecurityGroupName := "customer-nsg-" + clusterParams.ChannelGroup + "-"
 			customerVnetName := "customer-vnet-" + clusterParams.ChannelGroup + "-"
@@ -69,13 +69,13 @@ var _ = Describe("ARO-HCP", func() {
 			clusterParams.OpenshiftVersionId = version
 			if channelGroup == "nightly" {
 				resolved, err := framework.GetLatestNightlyInstallVersion(ctx, channelGroup, version)
-				if framework.IsVersionNotFoundError(err) {
-					Skip(fmt.Sprintf("no nightly version for %s in %s channel: %v", version, channelGroup, err))
+				if framework.IsVersionNotFoundError(err) || framework.IsIncompatibleNightlyVersionError(err) {
+					Skip(fmt.Sprintf("no usable nightly version for %s in %s channel: %v", version, channelGroup, err))
 				}
 				Expect(err).NotTo(HaveOccurred(), "failed to resolve nightly install version for %s", version)
 				clusterParams.OpenshiftVersionId = resolved
 			} else {
-				desiredVersion, err := controlplaneversion.SelectControlPlaneVersion(ctx, http.DefaultTransport.RoundTrip, nil, fmt.Sprintf("%s-%s", channelGroup, version), clusterversion.GetZStreamOffset(channelGroup))
+				desiredVersion, err := framework.SelectControlPlaneVersion(ctx, http.DefaultTransport.RoundTrip, nil, fmt.Sprintf("%s-%s", channelGroup, version), clusterversion.GetZStreamOffset(channelGroup))
 				if err != nil {
 					Skip(fmt.Sprintf("failed to resolve a version for channel %s-%s: %v", channelGroup, version, err))
 				}

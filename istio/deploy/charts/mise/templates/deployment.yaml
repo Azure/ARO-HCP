@@ -50,11 +50,6 @@ spec:
         - name: mdsd-asa-run-vol
           mountPath: /var/run/mdsd
         {{- end }}
-        env:
-        - name: OTEL_EXPORTER_OTLP_ENDPOINT
-          value: "{{ .Values.tracing.address }}"
-        - name: OTEL_TRACES_EXPORTER
-          value: "{{ .Values.tracing.exporter }}"
       volumes:
       - name: mise-config
         configMap:

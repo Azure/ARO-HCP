@@ -2,11 +2,14 @@
 {{end -}}
 {{.Table}}
 | where timestamp between({{ .TimestampMin }} .. {{ .TimestampMax }})
-{{- if .ClusterIds }}
+{{- if and (or (eq .Table "containerLogs") (eq .Table "clustersServiceLogs")) .ClusterIds }}
 | where column_ifexists("cid", "") in ({{.ClusterIds}})
     or (log has '{{.SubResourceGroupId}}' and log has_any ({{.ClusterIds}}))
 {{- else}}
 | where log has '{{.SubResourceGroupId}}'
+{{- end}}
+{{- if and (eq .Table "frontendLogs") .OperationIds }}
+    or resource_name in~ ({{.OperationIds}})
 {{- end}}
 {{- if .SplitByPod}}
 | extend pod_name = column_ifexists("pod_name", "")

@@ -50,7 +50,7 @@ const (
 //
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type ApplyDesire struct {
-	// CosmosMetadata.ResourceID is nested under an HCPOpenShiftCluster (and
+	// CosmosMetadata.ResourceID is nested under a Cluster (and
 	// optionally a NodePool) so that listing the partition by parent prefix
 	// naturally returns the desires associated with that resource — and so
 	// that cluster/nodepool deletion can sweep them.
@@ -146,8 +146,8 @@ type ApplyDesireStatus struct {
 	//                   operation-specific condition applies (SuccessfullyApplied
 	//                   for ServerSideApply, SuccessfullyDeleted for Delete) with
 	//                   the same status/reason/message. Prefer the
-	//                   operation-specific condition; see
-	//                   kubeapplierapihelpers.IsConditionTruePreferring.
+	//                   operation-specific condition. Delete completion must
+	//                   require SuccessfullyDeleted without a legacy fallback.
 	//   - "Degraded":   the controller is not making progress for an
 	//                   out-of-band reason.
 	Conditions []metav1.Condition `json:"conditions,omitempty"`

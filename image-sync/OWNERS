@@ -2,3 +2,5 @@ approvers:
 - janboll
 - geoberle
 - stevekuznetsov
+labels:
+- area/image-sync

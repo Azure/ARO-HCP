@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AMW</title>
+<style>
+:root{color-scheme:dark}*{box-sizing:border-box}body{margin:16px;background:#000;color:#ddd;font:14px/1.5 system-ui,sans-serif}main{max-width:1400px;margin:auto}header{display:flex;justify-content:space-between;gap:16px;color:#888;font-size:12px;margin-bottom:20px}a{color:#80baff}summary{cursor:pointer;overflow-wrap:anywhere}.resource{border-top:1px solid #333;padding:12px 0}.resource>summary{font-size:16px;font-weight:500}.resource>summary small{color:#888;font-size:11px;margin-right:8px}.plots{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px;margin:20px 0}figure{margin:0;min-width:0}figcaption{font-weight:500}svg{display:block;width:100%;height:auto}svg text{fill:#888;font:13px monospace}.legend{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:11px;color:#aaa;margin:4px 0 10px}.legend span{border-left:12px solid;padding-left:5px;overflow-wrap:anywhere}.detail{font-size:12px;color:#888;margin:10px 0}.scroll{overflow:auto}table{border-collapse:collapse;width:100%;font-size:11px;text-align:left}th,td{padding:6px 10px;border-bottom:1px solid #292929;white-space:nowrap}td:first-child{white-space:normal;min-width:100px;overflow-wrap:anywhere}p{margin:8px 0}.warning{color:#d6ab63;overflow-wrap:anywhere}pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.5 monospace}@media(max-width:700px){body{margin:12px}.plots{grid-template-columns:minmax(0,1fr);gap:20px}header{flex-wrap:wrap}}
+.amw-chart{height:300px;width:100%;min-width:0}
+</style></head><body><main>
+<header><span>{{.Start}} &ndash; {{.End}} UTC</span><a href="{{.EvidenceURL}}">JSON</a></header>
+{{range .Resources}}
+<details class="resource"{{if .Open}} open{{end}}>
+<summary><small>{{if eq .Kind "workspace"}}AMW{{else}}DCR{{end}}</small>{{.Name}}{{if .Warnings}} <small class="warning">partial data</small>{{end}}</summary>
+<div class="plots">{{range .Charts}}{{template "plot" .}}{{end}}</div>
+{{if .Drops}}<details class="detail"><summary>Dropped events &amp; samples</summary><div class="plots">{{range .Drops}}{{template "plot" .}}{{end}}</div></details>{{end}}
+{{if .Warnings}}<details class="detail warning"><summary>Diagnostics ({{len .Warnings}})</summary>{{range .Warnings}}<p>{{.}}</p>{{end}}</details>{{end}}
+</details>
+{{else}}<p>No workspace data.</p>{{end}}
+{{if .Warnings}}<details class="detail warning"><summary>Collection diagnostics ({{len .Warnings}})</summary>{{range .Warnings}}<p>{{.}}</p>{{end}}</details>{{end}}
+</main>
+<script>
+function drawAMWCharts() {
+  if (!window.echarts) return;
+  document.querySelectorAll('.amw-chart').forEach(host => {
+    if (host.closest('details:not([open])') || !host.clientWidth || !host.clientHeight) return;
+    let chart = echarts.getInstanceByDom(host);
+    if (!chart) {
+      const options = JSON.parse(host.nextElementSibling.textContent);
+      options.tooltip.renderMode = 'richText';
+      options.tooltip.confine = true;
+      options.tooltip.formatter = points => {
+        if (!points.length) return '';
+        return new Date(points[0].value[0]).toISOString().replace('.000Z', ' UTC') + '\n' +
+          points.map(p => p.seriesName + ': ' + (p.value[1] == null ? 'unknown' : Number(p.value[1]).toLocaleString('en-US'))).join('\n');
+      };
+      chart = echarts.init(host, 'dark', {renderer: 'svg'});
+      chart.setOption(options);
+      host.querySelector('.chart-status')?.remove();
+    }
+    chart.resize();
+  });
+}
+document.addEventListener('toggle', () => requestAnimationFrame(drawAMWCharts), true);
+window.addEventListener('resize', drawAMWCharts);
+</script>
+<script defer src="https://go-echarts.github.io/go-echarts-assets/assets/echarts.min.js" onload="drawAMWCharts()" onerror="document.querySelectorAll('.chart-status').forEach(el => el.textContent = 'Charts unavailable. Expand Values below.')"></script>
+</body></html>
+
+{{define "plot"}}<figure>
+<figcaption title="{{.Unit}}">{{.Title}}</figcaption>
+{{if .Options}}<div class="amw-chart" role="img" aria-label="{{.Title}}"><p class="chart-status detail">Loading chart. Values available below.</p></div><script type="application/json">{{.Options}}</script>
+{{else}}<p class="detail">Chart unavailable</p>{{end}}
+<details class="detail"><summary>Values{{if .Warnings}} <span class="warning">(limited)</span>{{end}}</summary>
+<p>{{.Unit}}. Gaps are unknown.</p>{{range .Warnings}}<p class="warning">{{.}}</p>{{end}}
+<div class="scroll"><table><thead><tr><th scope="col">Series</th><th scope="col">Latest</th>{{if .Capacity}}<th scope="col">Limit</th><th scope="col">Utilization</th><th scope="col">Headroom</th>{{end}}<th scope="col">UTC</th></tr></thead>
+<tbody>{{range .Rows}}<tr><td>{{.Label}}</td><td>{{.Usage}}</td>{{if .Limit}}<td>{{.Limit}}</td><td>{{.Utilization}}</td><td>{{.Headroom}}</td>{{end}}<td>{{.At}}</td></tr>{{end}}</tbody></table></div>
+</details></figure>{{end}}

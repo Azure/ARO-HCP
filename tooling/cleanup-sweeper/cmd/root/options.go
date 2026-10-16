@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"runtime/debug"
 	"strings"
 	"time"
 
@@ -25,10 +26,12 @@ import (
 	"github.com/spf13/cobra"
 
 	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/apimachinery/pkg/util/uuid"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 
+	"github.com/Azure/ARO-HCP/internal/version"
 	resourcegroupworkflow "github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/cmd/workflow/resourcegroup"
 	sharedworkflow "github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/cmd/workflow/shared"
 	cleanuprunner "github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/pkg/engine/runner"
@@ -216,11 +219,25 @@ func (o *Options) Run(ctx context.Context) error {
 		panic(err)
 	}
 	logger = logger.WithValues(
+		"runID", string(uuid.NewUUID()),
+		"commitSHA", version.CommitSHA,
+		"prowJob", os.Getenv("JOB_NAME"),
+		"prowBuildID", os.Getenv("BUILD_ID"),
+		"prowJobID", os.Getenv("PROW_JOB_ID"),
 		"workflow", o.Workflow,
 		"dryRun", o.DryRun,
 		"subscriptionID", o.SubscriptionID,
 		"policy", o.PolicyFile,
 	)
+	if info, ok := debug.ReadBuildInfo(); ok {
+		for _, setting := range info.Settings {
+			switch setting.Key {
+			case "vcs.revision", "vcs.modified":
+				logger = logger.WithValues(setting.Key, setting.Value)
+			}
+		}
+	}
+	ctx = logr.NewContext(ctx, logger)
 	logger.Info("Starting cleanup-sweeper")
 
 	switch o.Workflow {
@@ -258,7 +275,7 @@ func (o *Options) Run(ctx context.Context) error {
 	return nil
 }
 
-// newGraphCredential returns the credential used for Microsoft Graph directory
+// Returns the credential used for Microsoft Graph directory
 // reads. When the GRAPH_AZURE_TENANT_ID, GRAPH_AZURE_CLIENT_ID and
 // GRAPH_AZURE_CLIENT_SECRET environment variables are all set, a dedicated
 // client-secret credential is built for that identity (allowing directory read
@@ -283,6 +300,7 @@ func newGraphCredential(fallback azcore.TokenCredential) (azcore.TokenCredential
 	return cred, nil
 }
 
+// Parses a supported cleanup workflow.
 func parseWorkflowMode(raw string) (WorkflowMode, error) {
 	switch WorkflowMode(raw) {
 	case WorkflowRGOrdered:
@@ -294,6 +312,7 @@ func parseWorkflowMode(raw string) (WorkflowMode, error) {
 	}
 }
 
+// Collects nonempty, trimmed selectors.
 func setFromTrimmed(values []string) sets.Set[string] {
 	result := sets.New[string]()
 	for _, value := range values {

@@ -29,15 +29,18 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/database/listers/fleetlisters"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 type clusterClusterServiceCreateSyncer struct {
-	resourcesDBClient     corecosmosstorage.ResourcesDBClient
-	clusterLister         corelisters.ClusterLister
-	subscriptionLister    corelisters.SubscriptionLister
-	clustersServiceClient ocm.ClusterServiceClientSpec
+	resourcesDBClient            corecosmosstorage.ResourcesDBClient
+	clusterLister                corelisters.ClusterLister
+	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
+	subscriptionLister           corelisters.SubscriptionLister
+	managementClusterLister      fleetlisters.ManagementClusterLister
+	clustersServiceClient        ocm.ClusterServiceClientSpec
 	// denyAssignmentsEnabled mirrors whether the ClusterDenyAssignment controller runs (i.e. a real
 	// FPA is available). When false, cluster creation must not wait for deny assignments to be
 	// created, because nothing creates them.
@@ -46,24 +49,30 @@ type clusterClusterServiceCreateSyncer struct {
 
 var _ controllerutils.ClusterSyncer = (*clusterClusterServiceCreateSyncer)(nil)
 
+const ClusterClusterServiceCreateControllerName = "ClusterClusterServiceCreate"
+
 func NewClusterClusterServiceCreateController(
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	clustersServiceClient ocm.ClusterServiceClientSpec,
+	managementClusterLister fleetlisters.ManagementClusterLister,
 	backendInformers coreinformers.BackendInformers,
 	denyAssignmentsEnabled bool,
 ) controllerutils.Controller {
 	_, clusterLister := backendInformers.Clusters()
+	_, serviceProviderClusterLister := backendInformers.ServiceProviderClusters()
 	_, subscriptionLister := backendInformers.Subscriptions()
 	syncer := &clusterClusterServiceCreateSyncer{
-		resourcesDBClient:      resourcesDBClient,
-		clusterLister:          clusterLister,
-		subscriptionLister:     subscriptionLister,
-		clustersServiceClient:  clustersServiceClient,
-		denyAssignmentsEnabled: denyAssignmentsEnabled,
+		resourcesDBClient:            resourcesDBClient,
+		clusterLister:                clusterLister,
+		serviceProviderClusterLister: serviceProviderClusterLister,
+		subscriptionLister:           subscriptionLister,
+		managementClusterLister:      managementClusterLister,
+		clustersServiceClient:        clustersServiceClient,
+		denyAssignmentsEnabled:       denyAssignmentsEnabled,
 	}
 
 	return controllerutils.NewClusterWatchingController(
-		"ClusterClusterServiceCreate",
+		ClusterClusterServiceCreateControllerName,
 		resourcesDBClient,
 		backendInformers,
 		nil,
@@ -72,11 +81,33 @@ func NewClusterClusterServiceCreateController(
 	)
 }
 
-func (c *clusterClusterServiceCreateSyncer) needsWork(cluster *coreapi.HCPOpenShiftCluster) bool {
-	return cluster.ServiceProviderProperties.DeletionTimestamp == nil &&
-		cluster.ServiceProviderProperties.PendingClusterServiceID != nil &&
-		(cluster.ServiceProviderProperties.ClusterServiceID == nil ||
-			len(cluster.ServiceProviderProperties.ClusterServiceID.String()) == 0)
+func (c *clusterClusterServiceCreateSyncer) needsWork(ctx context.Context, cluster *coreapi.Cluster) bool {
+	if cluster.ServiceProviderProperties.DeletionTimestamp != nil ||
+		cluster.ServiceProviderProperties.PendingClusterServiceID == nil ||
+		(cluster.ServiceProviderProperties.ClusterServiceID != nil &&
+			len(cluster.ServiceProviderProperties.ClusterServiceID.String()) > 0) {
+		return false
+	}
+
+	// Placement gate: creating the Cluster Service cluster needs the scheduler's
+	// chosen management cluster (ServiceProviderCluster.Spec.ManagementClusterResourceID)
+	// to pin the Cluster Service provision shard. Reading it from the
+	// ServiceProviderCluster informer cache here keeps the Cluster Service
+	// ListClusters lookup in SyncOnce from running until placement is resolved; the
+	// ServiceProviderCluster update the PlacementController makes then re-triggers
+	// this cluster.
+	serviceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName, cluster.ID.Name)
+	if err != nil {
+		// A missing ServiceProviderCluster just means placement is not resolved yet;
+		// stay quiet and let the PlacementController's write re-trigger us. Any other
+		// cache error is unexpected and would otherwise silently skip creation, so log
+		// it while still holding the placement gate.
+		if !cosmosstorageutils.IsNotFoundError(err) {
+			utils.LoggerFromContext(ctx).Error(err, "failed to get ServiceProviderCluster from cache; treating placement as unresolved")
+		}
+		return false
+	}
+	return serviceProviderCluster.Spec.ManagementClusterResourceID != nil
 }
 
 func (c *clusterClusterServiceCreateSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
@@ -91,7 +122,7 @@ func (c *clusterClusterServiceCreateSyncer) SyncOnce(ctx context.Context, key co
 		return utils.TrackError(err)
 	}
 
-	if !c.needsWork(cluster) {
+	if !c.needsWork(ctx, cluster) {
 		return nil
 	}
 
@@ -104,7 +135,7 @@ func (c *clusterClusterServiceCreateSyncer) SyncOnce(ctx context.Context, key co
 		return utils.TrackError(err)
 	}
 
-	if !c.needsWork(cluster) {
+	if !c.needsWork(ctx, cluster) {
 		return nil
 	}
 
@@ -170,16 +201,17 @@ func (c *clusterClusterServiceCreateSyncer) SyncOnce(ctx context.Context, key co
 	return nil
 }
 
-// createPreconditionDesiredVersionResolved reports whether the ControlPlaneDesiredVersion
-// controller has written the Cincinnati-resolved desired version to the ServiceProviderCluster.
-// Returns (false, nil) when this controller should wait and retry.
+// createPreconditionDesiredVersionResolved reports whether the fleet version
+// rollout controllers have written the resolved desired version to the
+// ServiceProviderCluster. Returns (false, nil) when this controller should wait
+// and retry.
 func (c *clusterClusterServiceCreateSyncer) createPreconditionDesiredVersionResolved(ctx context.Context, serviceProviderCluster *coreapi.ServiceProviderCluster) (bool, error) {
 	logger := utils.LoggerFromContext(ctx)
 
 	if serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion != nil {
 		return true, nil
 	}
-	logger.Info("DesiredVersion not yet set, waiting for ControlPlaneDesiredVersion controller")
+	logger.Info("DesiredVersion not yet set, waiting for the fleet version rollout controllers")
 	return false, nil
 }
 
@@ -196,11 +228,14 @@ func (c *clusterClusterServiceCreateSyncer) createPreconditionDenyAssignmentsCre
 		return true, nil
 	}
 
-	if len(serviceProviderCluster.Status.AzureResources.DenyAssignments.PendingAzureResources) == 0 && len(serviceProviderCluster.Status.AzureResources.DenyAssignments.AzureResources) > 0 {
+	denyAssignments := serviceProviderCluster.Status.AzureResources.DenyAssignments
+	if len(denyAssignments.PendingAzureResources) == 0 &&
+		len(denyAssignments.AzureResources) > 0 &&
+		denyAssignments.EarliestRecheckTime != nil {
 		return true, nil
 	}
-	pendingTypes := make([]string, 0, len(serviceProviderCluster.Status.AzureResources.DenyAssignments.PendingAzureResources))
-	for _, denyAssignmentReference := range serviceProviderCluster.Status.AzureResources.DenyAssignments.PendingAzureResources {
+	pendingTypes := make([]string, 0, len(denyAssignments.PendingAzureResources))
+	for _, denyAssignmentReference := range denyAssignments.PendingAzureResources {
 		pendingTypes = append(pendingTypes, denyAssignmentReference.DenyAssignmentType)
 	}
 	logger.Info("Deny assignments not yet created, waiting for ClusterDenyAssignment controller",
@@ -271,13 +306,21 @@ func (c *clusterClusterServiceCreateSyncer) csClustersMatchingClusterByAzureInfo
 	return res, nil
 }
 
-func (c *clusterClusterServiceCreateSyncer) createClusterServiceCluster(ctx context.Context, cluster *coreapi.HCPOpenShiftCluster, serviceProviderCluster *coreapi.ServiceProviderCluster, tenantID string) (*arohcpv1alpha1.Cluster, error) {
+func (c *clusterClusterServiceCreateSyncer) createClusterServiceCluster(ctx context.Context, cluster *coreapi.Cluster, serviceProviderCluster *coreapi.ServiceProviderCluster, tenantID string) (*arohcpv1alpha1.Cluster, error) {
 	logger := utils.LoggerFromContext(ctx)
+
+	provisionShardID, err := c.provisionShardID(ctx, serviceProviderCluster)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
 
 	csClusterBuilder, err := ocm.BuildCSCluster(cluster.ID, tenantID, cluster, nil, nil, serviceProviderCluster)
 	if err != nil {
 		return nil, utils.TrackError(fmt.Errorf("failed to build CS cluster: %w", err))
 	}
+	// Pin the CS provision shard for the scheduler-selected management cluster via
+	// the SDK builder method.
+	csClusterBuilder.ProvisionShardID(provisionShardID)
 	clusterServiceUID := cluster.ServiceProviderProperties.PendingClusterServiceID.ClusterID()
 
 	logger.Info("Creating cluster in Cluster Service", "version", serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion.String())
@@ -291,4 +334,37 @@ func (c *clusterClusterServiceCreateSyncer) createClusterServiceCluster(ctx cont
 	}
 
 	return result, nil
+}
+
+// provisionShardID resolves the Cluster Service provision shard ID for the
+// management cluster the scheduler pinned on
+// ServiceProviderCluster.Spec.ManagementClusterResourceID. The caller sets it on
+// the CS cluster via ClusterBuilder.ProvisionShardID so the new CS cluster is
+// created on the correct provision shard.
+func (c *clusterClusterServiceCreateSyncer) provisionShardID(ctx context.Context, serviceProviderCluster *coreapi.ServiceProviderCluster) (string, error) {
+	managementClusterResourceID := serviceProviderCluster.Spec.ManagementClusterResourceID
+	if managementClusterResourceID == nil {
+		return "", utils.TrackError(fmt.Errorf("ServiceProviderCluster has no Spec.ManagementClusterResourceID; placement is not resolved"))
+	}
+	// A management cluster is a singleton within a stamp, so its resource ID is
+	// .../stamps/<stampIdentifier>/managementClusters/default and the lister is
+	// keyed by the stamp identifier (the parent segment's name).
+	if managementClusterResourceID.Parent == nil {
+		return "", utils.TrackError(fmt.Errorf("management cluster resource ID %q has no parent stamp", managementClusterResourceID.String()))
+	}
+	stampIdentifier := managementClusterResourceID.Parent.Name
+
+	managementCluster, err := c.managementClusterLister.Get(ctx, stampIdentifier)
+	if cosmosstorageutils.IsNotFoundError(err) {
+		return "", utils.TrackError(fmt.Errorf("management cluster %q not found", managementClusterResourceID.String()))
+	}
+	if err != nil {
+		return "", utils.TrackError(fmt.Errorf("failed to get management cluster %q: %w", managementClusterResourceID.String(), err))
+	}
+
+	if managementCluster.Status.ClusterServiceProvisionShardID == nil {
+		return "", utils.TrackError(fmt.Errorf("management cluster %q has no ClusterServiceProvisionShardID", managementClusterResourceID.String()))
+	}
+
+	return managementCluster.Status.ClusterServiceProvisionShardID.ID(), nil
 }

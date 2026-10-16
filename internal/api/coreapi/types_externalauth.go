@@ -22,25 +22,25 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 )
 
-// HCPOpenShiftClusterExternalAuth represents the external auth config resource for ARO HCP
+// ExternalAuth represents the external auth config resource for ARO HCP
 // OpenShift clusters.
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-type HCPOpenShiftClusterExternalAuth struct {
+type ExternalAuth struct {
 	// PartitionKey holds the lowercased subscriptionID.
 	CosmosMetadata `json:"cosmosMetadata"`
 
 	ProxyResource
 	// Written by: Frontend PUT/PATCH ExternalAuth, OperationExternalAuth* controllers
-	Properties HCPOpenShiftClusterExternalAuthProperties `json:"properties"`
+	Properties ExternalAuthProperties `json:"properties"`
 	// Written by: Frontend PUT/PATCH/DELETE ExternalAuth, OperationExternalAuth* controllers, ExternalAuthClusterServiceCreate, ExternalAuthDeletion* controllers
-	ServiceProviderProperties HCPOpenShiftClusterExternalAuthServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
+	ServiceProviderProperties ExternalAuthServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
 	// Written by: ExternalAuthDegradedAggregator
-	Status HCPOpenShiftClusterExternalAuthStatus `json:"status"`
+	Status ExternalAuthStatus `json:"status"`
 }
 
-// HCPOpenShiftClusterExternalAuthStatus contains the observed state of the external auth.
-type HCPOpenShiftClusterExternalAuthStatus struct {
-	// Conditions are the top-level HCPOpenShiftClusterExternalAuth status conditions.
+// ExternalAuthStatus contains the observed state of the external auth.
+type ExternalAuthStatus struct {
+	// Conditions are the top-level ExternalAuth status conditions.
 	// Each Condition Type represents a condition and it should be unique among all conditions.
 	// Written by: ExternalAuthDegradedAggregator
 	// +optional
@@ -52,12 +52,18 @@ type HCPOpenShiftClusterExternalAuthStatus struct {
 
 	// UserFacingConditions is a list of conditions that tracks user-facing external auth
 	// conditions. Each Condition Type should be unique among all conditions.
+	// Known condition types are:
+	// - "Degraded": True when at least one external auth subsystem has an issue.
+	//   Messages are prefixed with the source condition type (e.g. "OIDCClientsDegraded: ...").
+	//   False when all subsystems are operational. Unknown when internal conditions
+	//   have not been reported yet.
 	// The conditions here are exposed to the ARM API. This means that UserFacingConditions
 	// must not contain any internal details. This also means the Type and Reason
 	// values become part of the public API.
 	// Addition of new conditions here should be done only when strictly necessary, sparingly and only done
 	// when there is a clear benefit to doing so. We expect the number of conditions at this
 	// level to be kept to a minimum.
+	// Written by: ExternalAuthUserFacingDegradedAggregator
 	// +optional
 	// +patchMergeKey=type
 	// +patchStrategy=merge
@@ -74,17 +80,17 @@ type HCPOpenShiftClusterExternalAuthStatus struct {
 //
 // This method should be treated as append-only. Avoid removing defaulting
 // rules until all Cosmos documents have been verified to contain the field.
-func (ea *HCPOpenShiftClusterExternalAuth) EnsureDefaults() {
+func (ea *ExternalAuth) EnsureDefaults() {
 	if len(ea.Properties.Claim.Mappings.Username.PrefixPolicy) == 0 {
 		ea.Properties.Claim.Mappings.Username.PrefixPolicy = metadataapi.UsernameClaimPrefixPolicyNone
 	}
 }
 
-var _ CosmosPersistable = &HCPOpenShiftClusterExternalAuth{}
+var _ CosmosPersistable = &ExternalAuth{}
 
-// HCPOpenShiftClusterNodePoolProperties represents the property bag of a
-// HCPOpenShiftClusterNodePool resource.
-type HCPOpenShiftClusterExternalAuthProperties struct {
+// ExternalAuthProperties represents the property bag of a
+// ExternalAuth resource.
+type ExternalAuthProperties struct {
 	// Written by: Frontend PUT/PATCH/DELETE ExternalAuth, OperationExternalAuthCreate, OperationExternalAuthUpdate, OperationExternalAuthDelete
 	ProvisioningState ProvisioningState `json:"provisioningState"`
 	// Written by: Frontend PUT/PATCH ExternalAuth
@@ -95,7 +101,7 @@ type HCPOpenShiftClusterExternalAuthProperties struct {
 	Claim ExternalAuthClaimProfile `json:"claim"`
 }
 
-type HCPOpenShiftClusterExternalAuthServiceProviderProperties struct {
+type ExternalAuthServiceProviderProperties struct {
 	// Written by: Frontend PUT ExternalAuth (Create), ExternalAuthClusterServiceCreate, ExternalAuthDeletionClusterServiceIDClearer
 	ClusterServiceID *metadataapi.InternalID `json:"clusterServiceID,omitempty"`
 	// Written by: Frontend PUT/PATCH/DELETE ExternalAuth, OperationExternalAuthCreate, OperationExternalAuthUpdate, OperationExternalAuthDelete
@@ -111,6 +117,7 @@ type HCPOpenShiftClusterExternalAuthServiceProviderProperties struct {
 	// Written by: ExternalAuthClusterServiceDeleteDispatch
 	ClusterServiceDeletionTimestamp *metav1.Time `json:"clusterServiceDeletionTimestamp,omitempty"`
 
+	// TODO do NOT reference this field in any new code. It is in the process of being removed
 	// Written by: Frontend DELETE ExternalAuth
 	UsesNewExternalAuthDeletionApproach bool `json:"usesNewExternalAuthDeletionApproach"`
 }
@@ -203,10 +210,10 @@ type TokenRequiredClaim struct {
 	RequiredValue string `json:"requiredValue"`
 }
 
-func NewDefaultHCPOpenShiftClusterExternalAuth(resourceID *azcorearm.ResourceID) *HCPOpenShiftClusterExternalAuth {
-	return &HCPOpenShiftClusterExternalAuth{
+func NewDefaultExternalAuth(resourceID *azcorearm.ResourceID) *ExternalAuth {
+	return &ExternalAuth{
 		ProxyResource: NewProxyResource(resourceID),
-		Properties: HCPOpenShiftClusterExternalAuthProperties{
+		Properties: ExternalAuthProperties{
 			Claim: ExternalAuthClaimProfile{
 				Mappings: TokenClaimMappingsProfile{
 					Username: UsernameClaimProfile{
@@ -218,6 +225,6 @@ func NewDefaultHCPOpenShiftClusterExternalAuth(resourceID *azcorearm.ResourceID)
 	}
 }
 
-func (o *HCPOpenShiftClusterExternalAuth) Validate() []CloudErrorBody {
+func (o *ExternalAuth) Validate() []CloudErrorBody {
 	return nil
 }

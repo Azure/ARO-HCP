@@ -20,6 +20,7 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 )
@@ -57,10 +58,14 @@ func testNode(swift, ready bool) *corev1.Node {
 // node and whose involved object is the named pod (correlated by UID), matching
 // the SWIFT signature.
 func failEventFor(pod string, last time.Time, msg string) *corev1.Event {
+	return eventFor(pod, last, reasonFailedCreatePodSandBox, msg)
+}
+
+func eventFor(pod string, last time.Time, reason, msg string) *corev1.Event {
 	return &corev1.Event{
 		InvolvedObject: corev1.ObjectReference{Kind: "Pod", Namespace: "ns", Name: pod, UID: podUID(pod)},
 		Source:         corev1.EventSource{Host: nodeName, Component: "kubelet"},
-		Reason:         reasonFailedCreatePodSandBox,
+		Reason:         reason,
 		Message:        msg,
 		LastTimestamp:  metav1.NewTime(last),
 		FirstTimestamp: metav1.NewTime(last),
@@ -83,6 +88,20 @@ func stuckPod(pod string, since time.Time) *corev1.Pod {
 			}},
 		},
 	}
+}
+
+// withSwiftNIC marks a pod as one that asked for a SWIFT v2 delegated NIC, which
+// is what makes its start evidence about the delegated-NIC path. Success
+// fixtures that stand for "the node can still attach a NIC" must carry it;
+// fixtures that stand for ordinary overlay traffic must not.
+func withSwiftNIC(p *corev1.Pod) *corev1.Pod {
+	p.Spec.Containers = append(p.Spec.Containers, corev1.Container{
+		Name: "nic",
+		Resources: corev1.ResourceRequirements{
+			Limits: corev1.ResourceList{swiftNICResourceName: resource.MustParse("1")},
+		},
+	})
+	return p
 }
 
 // startedPod is a pod whose PodReadyToStartContainers condition transitioned to
@@ -147,7 +166,7 @@ func TestDecide(t *testing.T) {
 			}(),
 			pods: func() []*corev1.Pod {
 				_, p := stuckFailing(3, ago(15*time.Minute))
-				return append(p, startedPod("ok", ago(2*time.Minute), false))
+				return append(p, withSwiftNIC(startedPod("ok", ago(2*time.Minute), false)))
 			}(),
 			want: DecisionHealthy,
 		},
@@ -155,11 +174,11 @@ func TestDecide(t *testing.T) {
 			name: "below the stuck-pod floor is not wedged",
 			node: testNode(true, true),
 			events: func() []*corev1.Event {
-				e, _ := stuckFailing(2, ago(15*time.Minute))
+				e, _ := stuckFailing(1, ago(15*time.Minute))
 				return e
 			}(),
 			pods: func() []*corev1.Pod {
-				_, p := stuckFailing(2, ago(15*time.Minute))
+				_, p := stuckFailing(1, ago(15*time.Minute))
 				return p
 			}(),
 			want: DecisionUnknown,
@@ -226,7 +245,7 @@ func TestDecide(t *testing.T) {
 		{
 			name: "recovery: a started pod, no stuck pods",
 			node: testNode(true, true),
-			pods: []*corev1.Pod{startedPod("ok", ago(1*time.Minute), false)},
+			pods: []*corev1.Pod{withSwiftNIC(startedPod("ok", ago(1*time.Minute), false))},
 			want: DecisionHealthy,
 		},
 		{
@@ -283,7 +302,7 @@ func TestDecide(t *testing.T) {
 			}(),
 			pods: func() []*corev1.Pod {
 				_, p := stuckFailing(3, ago(15*time.Minute))
-				return append(p, startedPod("stale", ago(30*time.Minute), false))
+				return append(p, withSwiftNIC(startedPod("stale", ago(30*time.Minute), false)))
 			}(),
 			want: DecisionWedged,
 		},
@@ -371,14 +390,14 @@ func TestDecideSnapshotOnWedge(t *testing.T) {
 	if snap.DetectorName != swiftVFTeardown.name {
 		t.Errorf("snapshot detector = %q, want %q", snap.DetectorName, swiftVFTeardown.name)
 	}
-	if snap.FailureCount != 3 {
-		t.Errorf("snapshot FailureCount = %d, want 3", snap.FailureCount)
+	if snap.Pods.FailureCount != 3 {
+		t.Errorf("snapshot FailureCount = %d, want 3", snap.Pods.FailureCount)
 	}
-	if snap.SustainedCount != 3 {
-		t.Errorf("snapshot SustainedCount = %d, want 3", snap.SustainedCount)
+	if snap.Pods.SustainedCount != 3 {
+		t.Errorf("snapshot SustainedCount = %d, want 3", snap.Pods.SustainedCount)
 	}
-	if snap.RecentSuccess {
-		t.Errorf("snapshot RecentSuccess = %v, want false", snap.RecentSuccess)
+	if snap.Pods.RecentSuccess {
+		t.Errorf("snapshot RecentSuccess = %v, want false", snap.Pods.RecentSuccess)
 	}
 	if !snap.StuckSince.Equal(ago(15 * time.Minute)) {
 		t.Errorf("snapshot StuckSince = %v, want %v", snap.StuckSince, ago(15*time.Minute))
@@ -438,6 +457,47 @@ func TestSignatureVariantsMatch(t *testing.T) {
 	}
 }
 
+func TestCNIPluginNotInitialized(t *testing.T) {
+	const message = "network is not ready: container runtime network not ready: NetworkReady=false reason:NetworkPluginNotReady message:Network plugin returns error: cni plugin not initialized"
+
+	events := []*corev1.Event{
+		eventFor("p0", ago(20*time.Second), reasonNetworkNotReady, message),
+		eventFor("p1", ago(20*time.Second), reasonNetworkNotReady, message),
+		eventFor("p2", ago(20*time.Second), reasonNetworkNotReady, message),
+	}
+	pods := []*corev1.Pod{
+		stuckPod("p0", ago(25*time.Minute)),
+		stuckPod("p1", ago(25*time.Minute)),
+		stuckPod("p2", ago(25*time.Minute)),
+	}
+
+	t.Run("persistent failure wedges a Ready SWIFT node", func(t *testing.T) {
+		got, snap := Decide(testNode(true, true), events, pods, testNow)
+		if got != DecisionWedged {
+			t.Fatalf("Decide() = %v, want Wedged", got)
+		}
+		if snap.DetectorName != cniPluginNotInitialized.name {
+			t.Errorf("snapshot detector = %q, want %q", snap.DetectorName, cniPluginNotInitialized.name)
+		}
+		if snap.MatchedSignature != cniPluginNotInitialized.signatures[0].String() {
+			t.Errorf("matched signature = %q, want %q", snap.MatchedSignature, cniPluginNotInitialized.signatures[0].String())
+		}
+	})
+
+	t.Run("recent sandbox success suppresses the wedge", func(t *testing.T) {
+		withSuccess := append(append([]*corev1.Pod{}, pods...), startedPod("ok", ago(2*time.Minute), false))
+		if got, _ := Decide(testNode(true, true), events, withSuccess, testNow); got != DecisionHealthy {
+			t.Errorf("Decide() = %v, want Healthy", got)
+		}
+	})
+
+	t.Run("non-SWIFT node is outside the observed failure scope", func(t *testing.T) {
+		if got, _ := Decide(testNode(false, true), events, pods, testNow); got != DecisionNotApplicable {
+			t.Errorf("Decide() = %v, want NotApplicable", got)
+		}
+	})
+}
+
 func TestMatchedSignatureReportsDominantFailureMode(t *testing.T) {
 	const (
 		sigNoSuchIface = `no such network interface`
@@ -495,8 +555,8 @@ func TestMatchedSignatureReportsDominantFailureMode(t *testing.T) {
 			failEventFor("p0", ago(10*time.Second), msgNoSuchIface),
 		}
 		snap := swiftVFTeardown.Evaluate(events, pods, testNow)
-		if snap.FailureCount != 1 {
-			t.Errorf("FailureCount = %d, want 1 (one pod, two Events)", snap.FailureCount)
+		if snap.Pods.FailureCount != 1 {
+			t.Errorf("FailureCount = %d, want 1 (one pod, two Events)", snap.Pods.FailureCount)
 		}
 		if snap.MatchedSignature != sigNoSuchIface {
 			t.Errorf("MatchedSignature = %q, want %q", snap.MatchedSignature, sigNoSuchIface)
@@ -518,8 +578,8 @@ func TestMatchedSignatureReportsDominantFailureMode(t *testing.T) {
 			failEventFor("p2", ago(20*time.Second), msgNoSuchIface),
 		}
 		snap := swiftVFTeardown.Evaluate(events, pods, testNow)
-		if snap.FailureCount != 1 {
-			t.Errorf("FailureCount = %d, want 1", snap.FailureCount)
+		if snap.Pods.FailureCount != 1 {
+			t.Errorf("FailureCount = %d, want 1", snap.Pods.FailureCount)
 		}
 		if snap.MatchedSignature != sigMtpnc {
 			t.Errorf("MatchedSignature = %q, want %q", snap.MatchedSignature, sigMtpnc)
@@ -678,15 +738,19 @@ func TestRestartedContainerDoesNotSuppressAWedge(t *testing.T) {
 	if got != DecisionWedged {
 		t.Errorf("Decide(with a restarting container) = %v, want Wedged", got)
 	}
-	if snap.RecentSuccess {
+	if snap.Pods.RecentSuccess {
 		t.Error("RecentSuccess = true for a container restarting in an existing sandbox, want false")
 	}
 }
 
 // TestFinishedPodInWindowPreventsAFalseWedge is the reason the finished-pod path
-// exists: on a low-churn node the only thing that started recently may be a
-// CronJob pod that has already completed. It is still real proof the node can
-// build a sandbox, so it must suppress the wedge exactly as a running pod does.
+// exists: on a low-churn node the only thing that started recently may be a pod
+// that has already completed. It is still real proof the node can build a
+// sandbox, so it must suppress the wedge exactly as a running pod does.
+//
+// The pod has to be one that asked for a delegated NIC. A completed pod that
+// only ever used the overlay proves nothing about the path this detector
+// watches; see TestOverlaySuccessDoesNotSuppressASwiftWedge.
 func TestFinishedPodInWindowPreventsAFalseWedge(t *testing.T) {
 	events, pods := stuckFailing(3, ago(15*time.Minute))
 
@@ -694,7 +758,7 @@ func TestFinishedPodInWindowPreventsAFalseWedge(t *testing.T) {
 		t.Fatalf("precondition: Decide() = %v, want Wedged", got)
 	}
 
-	withJob := append(pods, completedPod("cronjob", ago(3*time.Minute), false))
+	withJob := append(pods, withSwiftNIC(completedPod("router-job", ago(3*time.Minute), false)))
 	if got, _ := Decide(testNode(true, true), events, withJob, testNow); got != DecisionHealthy {
 		t.Errorf("a finished pod inside the window must rule out a wedge: Decide() = %v, want Healthy", got)
 	}
@@ -703,5 +767,119 @@ func TestFinishedPodInWindowPreventsAFalseWedge(t *testing.T) {
 	withOldJob := append(pods, completedPod("old-cronjob", ago(45*time.Minute), false))
 	if got, _ := Decide(testNode(true, true), events, withOldJob, testNow); got != DecisionWedged {
 		t.Errorf("a finished pod outside the window must not rule out a wedge: Decide() = %v, want Wedged", got)
+	}
+}
+
+// TestPodRequestsSwiftNIC pins how a pod is recognised as needing a delegated
+// NIC. Extended resources are schedulable only as a limit and the kubelet mirrors
+// the limit into requests, so both fields have to be read, on init containers as
+// well as regular ones.
+func TestPodRequestsSwiftNIC(t *testing.T) {
+	nic := corev1.ResourceList{swiftNICResourceName: resource.MustParse("1")}
+	cpu := corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("100m")}
+
+	tests := []struct {
+		name string
+		pod  *corev1.Pod
+		want bool
+	}{
+		{name: "nil pod", pod: nil, want: false},
+		{name: "no containers", pod: &corev1.Pod{}, want: false},
+		{
+			name: "limit on a regular container",
+			pod: &corev1.Pod{Spec: corev1.PodSpec{Containers: []corev1.Container{
+				{Name: "c", Resources: corev1.ResourceRequirements{Limits: nic}},
+			}}},
+			want: true,
+		},
+		{
+			name: "request on a regular container",
+			pod: &corev1.Pod{Spec: corev1.PodSpec{Containers: []corev1.Container{
+				{Name: "c", Resources: corev1.ResourceRequirements{Requests: nic}},
+			}}},
+			want: true,
+		},
+		{
+			name: "limit on an init container",
+			pod: &corev1.Pod{Spec: corev1.PodSpec{InitContainers: []corev1.Container{
+				{Name: "i", Resources: corev1.ResourceRequirements{Limits: nic}},
+			}}},
+			want: true,
+		},
+		{
+			name: "only unrelated resources",
+			pod: &corev1.Pod{Spec: corev1.PodSpec{Containers: []corev1.Container{
+				{Name: "c", Resources: corev1.ResourceRequirements{Limits: cpu, Requests: cpu}},
+			}}},
+			want: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := podRequestsSwiftNIC(tc.pod); got != tc.want {
+				t.Errorf("podRequestsSwiftNIC() = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+// TestOverlaySuccessDoesNotSuppressASwiftWedge is the partial-wedge case, and the
+// reason successScope exists.
+//
+// A mgmt node runs almost all of its pods on the ordinary overlay, which keeps
+// working while the delegated-NIC path is dead. Counting those starts as success
+// lets a node that cannot attach a single NIC look healthy for as long as it
+// keeps scheduling ordinary pods, which on a busy mgmt node is forever.
+//
+// Pinned to CI node aks-userswft2-17575576-vmss000003 on 2026-09-01, where 8
+// router pods across 7 hosted control planes hung for 16 minutes on
+// dhcp-discover timeouts while the node created 110 other pods and brought 107
+// of them to Running.
+func TestOverlaySuccessDoesNotSuppressASwiftWedge(t *testing.T) {
+	events, pods := stuckFailing(3, ago(15*time.Minute))
+
+	if got, _ := Decide(testNode(true, true), events, pods, testNow); got != DecisionWedged {
+		t.Fatalf("precondition: Decide() = %v, want Wedged", got)
+	}
+
+	// The overlay is healthy throughout: a steady stream of ordinary pods reaches
+	// a fresh sandbox well inside the window. None of them asked for a NIC.
+	overlay := pods
+	for i := 0; i < 20; i++ {
+		overlay = append(overlay, startedPod(fmt.Sprintf("overlay%d", i), ago(1*time.Minute), false))
+	}
+	// A completed overlay pod is the same story on a low-churn node.
+	overlay = append(overlay, completedPod("cronjob", ago(3*time.Minute), false))
+
+	got, snap := Decide(testNode(true, true), events, overlay, testNow)
+	if got != DecisionWedged {
+		t.Errorf("overlay-only successes suppressed a real delegated-NIC wedge: Decide() = %v, want Wedged", got)
+	}
+	if snap.Pods.RecentSuccess {
+		t.Error("RecentSuccess = true from pods that never asked for a NIC, want false")
+	}
+
+	// One pod that did ask for a NIC and got one is real proof the path works, and
+	// must still rule the wedge out.
+	recovered := append(overlay, withSwiftNIC(startedPod("router", ago(1*time.Minute), false)))
+	if got, _ := Decide(testNode(true, true), events, recovered, testNow); got != DecisionHealthy {
+		t.Errorf("a delegated-NIC success must rule out the wedge: Decide() = %v, want Healthy", got)
+	}
+}
+
+// TestSuccessScopeDefaultsToEveryPod pins the zero value: a detector that does
+// not set a scope keeps counting every pod, so adding the field cannot silently
+// change a detector that did not opt in.
+func TestSuccessScopeDefaultsToEveryPod(t *testing.T) {
+	unscoped := swiftVFTeardown
+	unscoped.successScope = nil
+
+	_, pods := stuckFailing(3, ago(15*time.Minute))
+	pods = append(pods, startedPod("plain", ago(1*time.Minute), false))
+	events, _ := stuckFailing(3, ago(15*time.Minute))
+
+	if snap := unscoped.Evaluate(events, pods, testNow); !snap.Pods.RecentSuccess {
+		t.Error("RecentSuccess = false with a nil successScope, want true")
 	}
 }

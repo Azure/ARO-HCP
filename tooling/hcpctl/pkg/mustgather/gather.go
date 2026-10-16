@@ -398,8 +398,34 @@ func (g *Gatherer) GatherLogs(ctx context.Context) error {
 		return fmt.Errorf("no valid cluster IDs found for resource group %q", g.opts.QueryOptions.ResourceGroupName)
 	}
 
+	// Operation status/result requests have no resource group in their URL. Discover
+	// their IDs from snapshot metadata so frontend queries also include these requests.
+	operationIdsDef, err := queryFactory.GetBuiltinQueryDefinition("operationIds")
+	if err != nil {
+		return fmt.Errorf("failed to get operation IDs query definition: %w", err)
+	}
+	operationData := kusto.NewTemplateDataFromOptions(g.GetQueryOptions())
+	if len(g.opts.QueryOptions.ClusterIds) > 0 || len(g.opts.QueryOptions.ClusterNames) > 0 {
+		kusto.WithClusterIds(clusterIds)(&operationData)
+	}
+	operationQueries, err := queryFactory.Build(*operationIdsDef, operationData)
+	if err != nil {
+		return fmt.Errorf("failed to build operation IDs query: %w", err)
+	}
+	operationRows, err := executeQueryAndConvert[OperationIdRow](ctx, g, operationQueries[0])
+	if err != nil {
+		gatherErrors = errors.Join(gatherErrors, fmt.Errorf("failed to discover operation IDs: %w", err))
+	}
+	var operationIds []string
+	for _, row := range operationRows {
+		if row.OperationId != "" {
+			operationIds = append(operationIds, row.OperationId)
+		}
+	}
+	logger.V(1).Info("Discovered operation IDs", "operationIds", operationIds)
+
 	// Gather service logs
-	servicesQueries, err := serviceLogs(queryFactory, "serviceLogs", g.GetQueryOptions(), clusterIds)
+	servicesQueries, err := serviceLogs(queryFactory, "serviceLogs", g.GetQueryOptions(), clusterIds, operationIds)
 	if err != nil {
 		return fmt.Errorf("failed to build services queries: %w", err)
 	}
@@ -455,7 +481,15 @@ func (g *Gatherer) GatherLogs(ctx context.Context) error {
 		customQueryDefinitions := queryFactory.GetAllCustomQueryDefinitions()
 		for _, def := range customQueryDefinitions {
 			if def.IncludeInMustGather {
-				q, err := queryFactory.Build(def, kusto.NewTemplateDataFromOptions(g.GetQueryOptions(), kusto.WithClusterNames(clusterNames)))
+				data := kusto.NewTemplateDataFromOptions(g.GetQueryOptions(), kusto.WithClusterNames(clusterNames), kusto.WithOperationIds(operationIds))
+				var q []kusto.Query
+				if def.Name == "backendControllerConditions" {
+					// Expanding every controller condition repeats large snapshots;
+					// bound each response while retaining the entire requested range.
+					q, err = queryFactory.BuildTimeWindows(def, data, g.opts.QueryOptions.TimestampMin, g.opts.QueryOptions.TimestampMax, 5*time.Minute)
+				} else {
+					q, err = queryFactory.Build(def, data)
+				}
 				if err != nil {
 					return fmt.Errorf("failed to build custom query %q: %w", def.Name, err)
 				}
@@ -470,7 +504,7 @@ func (g *Gatherer) GatherLogs(ctx context.Context) error {
 
 	if g.opts.SkipKubernetesEventsLogs && !g.opts.CollectSystemdLogs {
 		logger.V(1).Info("Skipping Kubernetes events and Systemd logs")
-		return nil
+		return gatherErrors
 	}
 
 	if !g.opts.SkipKubernetesEventsLogs {
@@ -554,7 +588,7 @@ func (g *Gatherer) gatherInfraLogs(ctx context.Context) error {
 		return fmt.Errorf("failed to execute systemd logs query: %w", err)
 	}
 
-	queries, err = serviceLogs(queryFactory, "infraServiceLogs", g.GetQueryOptions(), []string{})
+	queries, err = serviceLogs(queryFactory, "infraServiceLogs", g.GetQueryOptions(), nil, nil)
 	if err != nil {
 		return fmt.Errorf("failed to build services queries: %w", err)
 	}

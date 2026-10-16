@@ -232,7 +232,11 @@ func TestFetchDataPlaneOperatorsManagedIdentitiesInfoNeedsWork(t *testing.T) {
 			}
 			serviceProviderCluster := &coreapi.ServiceProviderCluster{}
 			serviceProviderCluster.Status.DataPlaneOperatorsManagedIdentities.Identities = tc.serviceProviderClusterIdentities
-			serviceProviderCluster.Status.DataPlaneOperatorsManagedIdentities.EarliestRecheckTime = tc.earliestRecheckTime
+			if tc.earliestRecheckTime != nil {
+				serviceProviderCluster.Spec.EarliestRecheckTimesByController = map[string]*metav1.Time{
+					FetchDataPlaneOperatorsManagedIdentitiesInfoControllerName: tc.earliestRecheckTime,
+				}
+			}
 
 			require.Equal(t, tc.expectedNeedsWork, syncer.needsWork(serviceProviderCluster, tc.desiredResourceIDs))
 		})
@@ -262,10 +266,10 @@ func (f *fakeUserAssignedIdentitiesClient) Delete(_ context.Context, _ string, _
 	panic("Delete not implemented in fakeUserAssignedIdentitiesClient")
 }
 
-// newTestClusterWithIdentities builds an HCPOpenShiftCluster addressable by the mock
+// newTestClusterWithIdentities builds a Cluster addressable by the mock
 // ResourcesDBClient with the supplied ServiceManagedIdentity and data plane operator
 // identities on its CustomerProperties.
-func newTestClusterWithIdentities(t *testing.T, clusterName string, serviceManagedIdentity *azcorearm.ResourceID, dataPlaneOperators map[string]*azcorearm.ResourceID) *coreapi.HCPOpenShiftCluster {
+func newTestClusterWithIdentities(t *testing.T, clusterName string, serviceManagedIdentity *azcorearm.ResourceID, dataPlaneOperators map[string]*azcorearm.ResourceID) *coreapi.Cluster {
 	t.Helper()
 
 	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
@@ -274,7 +278,7 @@ func newTestClusterWithIdentities(t *testing.T, clusterName string, serviceManag
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + clusterName,
 	))
 
-	cluster := &coreapi.HCPOpenShiftCluster{
+	cluster := &coreapi.Cluster{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   resourceID,
 			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
@@ -311,7 +315,11 @@ func newTestServiceProviderClusterWithIdentities(clusterName string, identities 
 		},
 	}
 	serviceProviderCluster.Status.DataPlaneOperatorsManagedIdentities.Identities = identities
-	serviceProviderCluster.Status.DataPlaneOperatorsManagedIdentities.EarliestRecheckTime = earliestRecheckTime
+	if earliestRecheckTime != nil {
+		serviceProviderCluster.Spec.EarliestRecheckTimesByController = map[string]*metav1.Time{
+			FetchDataPlaneOperatorsManagedIdentitiesInfoControllerName: earliestRecheckTime,
+		}
+	}
 
 	return serviceProviderCluster
 }
@@ -422,10 +430,10 @@ func TestFetchDataPlaneOperatorsManagedIdentitiesInfoSyncOnceClearsEarliestReche
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "simulated azure Get failure")
 
-	// ...and must clear EarliestRecheckTime so needsWork returns true on the workqueue retry.
+	// ...and must clear this controller's recheck time so needsWork returns true on the workqueue retry.
 	updatedServiceProviderCluster, err := mockResourcesDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
 	require.NoError(t, err)
-	assert.Nil(t, updatedServiceProviderCluster.Status.DataPlaneOperatorsManagedIdentities.EarliestRecheckTime)
+	assert.Nil(t, updatedServiceProviderCluster.Spec.EarliestRecheckTimesByController[FetchDataPlaneOperatorsManagedIdentitiesInfoControllerName])
 
 	// The desired identity (B) should be persisted; the stale one (A) pruned.
 	assert.Contains(t, updatedServiceProviderCluster.Status.DataPlaneOperatorsManagedIdentities.Identities, strings.ToLower(identityB.String()))
@@ -510,8 +518,8 @@ func TestFetchDataPlaneOperatorsManagedIdentitiesInfoSyncOnceClearsResolvedValue
 	require.NotNil(t, entry.RetrievalError)
 	assert.Contains(t, *entry.RetrievalError, "simulated azure Get failure")
 
-	// A Get failure also clears EarliestRecheckTime so needsWork retries immediately.
-	assert.Nil(t, updatedServiceProviderCluster.Status.DataPlaneOperatorsManagedIdentities.EarliestRecheckTime)
+	// A Get failure also clears this controller's recheck time so needsWork retries immediately.
+	assert.Nil(t, updatedServiceProviderCluster.Spec.EarliestRecheckTimesByController[FetchDataPlaneOperatorsManagedIdentitiesInfoControllerName])
 }
 
 // TestFetchDataPlaneOperatorsManagedIdentitiesInfoSyncOnceResourceNotFoundSetsRetrievalError
@@ -574,9 +582,10 @@ func TestFetchDataPlaneOperatorsManagedIdentitiesInfoSyncOnceResourceNotFoundSet
 	require.NotNil(t, entry.RetrievalError)
 	assert.Contains(t, *entry.RetrievalError, "ResourceNotFound")
 
-	// A non-failing sync sets a future EarliestRecheckTime.
-	require.NotNil(t, updatedServiceProviderCluster.Status.DataPlaneOperatorsManagedIdentities.EarliestRecheckTime)
-	assert.True(t, updatedServiceProviderCluster.Status.DataPlaneOperatorsManagedIdentities.EarliestRecheckTime.After(now))
+	// A non-failing sync sets a future recheck time for this controller.
+	recheck := updatedServiceProviderCluster.Spec.EarliestRecheckTimesByController[FetchDataPlaneOperatorsManagedIdentitiesInfoControllerName]
+	require.NotNil(t, recheck)
+	assert.True(t, recheck.After(now))
 }
 
 // resourceNotFoundResponseError returns an *azcore.ResponseError that

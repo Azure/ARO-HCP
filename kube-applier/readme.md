@@ -78,7 +78,7 @@ or
 The per-container layout means an escape from one management cluster's pod cannot read
 or write another management cluster's *Desires — there is no shared container to leak
 through. Item IDs still nest cleanly into our existing resourceID structure, so
-queries like "every *Desire under this HCPOpenShiftCluster" remain a prefix scan.
+queries like "every *Desire under this Cluster" remain a prefix scan.
 
 ### Golang type details for Database
 The golang types live in `internal/database`.
@@ -150,6 +150,13 @@ It handles both `Type=ServerSideApply` and `Type=Delete` via the discriminated u
 When the sync loop runs for `Type=ServerSideApply`, it will
 1. issue a server-side apply with force for `.spec.serverSideApply.kubeContent`
 2. it will use the standard rules for `.status.conditions["Successful"]`
+
+After persisting the apply result, transient server-side apply failures are returned
+to the controller's rate-limited queue. Missing dependencies (404), conflicts (409),
+throttling (429), server failures, and network failures therefore retry without
+waiting for the ten-minute drift resync or a desire update. Permanent input and
+other client errors remain recorded in status without a rate-limited retry.
+A status-write failure also triggers a retry and preserves any accompanying apply error.
 
 When the sync loop runs for `Type=Delete`, it will
 1. issue a get for the `.spec.targetItem`

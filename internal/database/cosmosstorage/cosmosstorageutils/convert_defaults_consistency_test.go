@@ -26,11 +26,13 @@ import (
 	v20240610preview "github.com/Azure/ARO-HCP/internal/azureapi/v20240610preview"
 	v20251223preview "github.com/Azure/ARO-HCP/internal/azureapi/v20251223preview"
 	v20260630preview "github.com/Azure/ARO-HCP/internal/azureapi/v20260630preview"
+	v20260901preview "github.com/Azure/ARO-HCP/internal/azureapi/v20260901preview"
+	v20261001 "github.com/Azure/ARO-HCP/internal/azureapi/v20261001"
 )
 
 // TestEnsureDefaultsConsistencyNodePool verifies that the defaults applied by
 // EnsureDefaults match the corresponding defaults in
-// NewDefaultHCPOpenShiftClusterNodePool and the versioned constructors.
+// NewDefaultNodePool and the versioned constructors.
 // This catches drift between the defaulting layers described in
 // docs/api-version-defaults-and-storage.md.
 func TestEnsureDefaultsConsistencyNodePool(t *testing.T) {
@@ -38,10 +40,10 @@ func TestEnsureDefaultsConsistencyNodePool(t *testing.T) {
 	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster/nodePools/np",
 	))
-	internalDefault := coreapi.NewDefaultHCPOpenShiftClusterNodePool(resourceID, "eastus")
+	internalDefault := coreapi.NewDefaultNodePool(resourceID, "eastus")
 
 	// 3. EnsureDefaults
-	ensuredDefault := &coreapi.HCPOpenShiftClusterNodePool{}
+	ensuredDefault := &coreapi.NodePool{}
 	ensuredDefault.EnsureDefaults()
 
 	// Verify DiskStorageAccountType against internal constructor
@@ -100,20 +102,50 @@ func TestEnsureDefaultsConsistencyNodePool(t *testing.T) {
 				ptr.Deref(externalDefault.Properties.Platform.OSDisk.DiskType, ""))
 		}
 	})
+	t.Run("v20260901preview", func(t *testing.T) {
+		externalDefault := &v20260901preview.NodePool{}
+		v20260901preview.SetDefaultValuesNodePool(externalDefault)
+
+		if string(ensuredDefault.Properties.Platform.OSDisk.DiskStorageAccountType) != string(ptr.Deref(externalDefault.Properties.Platform.OSDisk.DiskStorageAccountType, "")) {
+			t.Errorf("ensured default DiskStorageAccountType = %q, versioned default = %q",
+				ensuredDefault.Properties.Platform.OSDisk.DiskStorageAccountType,
+				ptr.Deref(externalDefault.Properties.Platform.OSDisk.DiskStorageAccountType, ""))
+		}
+		if string(ensuredDefault.Properties.Platform.OSDisk.DiskType) != string(ptr.Deref(externalDefault.Properties.Platform.OSDisk.DiskType, "")) {
+			t.Errorf("ensured default DiskType = %q, versioned default = %q",
+				ensuredDefault.Properties.Platform.OSDisk.DiskType,
+				ptr.Deref(externalDefault.Properties.Platform.OSDisk.DiskType, ""))
+		}
+	})
+	t.Run("v20261001", func(t *testing.T) {
+		externalDefault := &v20261001.NodePool{}
+		v20261001.SetDefaultValuesNodePool(externalDefault)
+
+		if string(ensuredDefault.Properties.Platform.OSDisk.DiskStorageAccountType) != string(ptr.Deref(externalDefault.Properties.Platform.OSDisk.DiskStorageAccountType, "")) {
+			t.Errorf("ensured default DiskStorageAccountType = %q, versioned default = %q",
+				ensuredDefault.Properties.Platform.OSDisk.DiskStorageAccountType,
+				ptr.Deref(externalDefault.Properties.Platform.OSDisk.DiskStorageAccountType, ""))
+		}
+		if string(ensuredDefault.Properties.Platform.OSDisk.DiskType) != string(ptr.Deref(externalDefault.Properties.Platform.OSDisk.DiskType, "")) {
+			t.Errorf("ensured default DiskType = %q, versioned default = %q",
+				ensuredDefault.Properties.Platform.OSDisk.DiskType,
+				ptr.Deref(externalDefault.Properties.Platform.OSDisk.DiskType, ""))
+		}
+	})
 }
 
 // TestEnsureDefaultsConsistencyCluster verifies that the defaults applied by
 // EnsureDefaults match the corresponding defaults in
-// NewDefaultHCPOpenShiftCluster and the versioned constructors.
+// NewDefaultCluster and the versioned constructors.
 func TestEnsureDefaultsConsistencyCluster(t *testing.T) {
 	// 1. Internal API constructor defaults
 	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster",
 	))
-	internalDefault := coreapi.NewDefaultHCPOpenShiftCluster(resourceID, "eastus")
+	internalDefault := coreapi.NewDefaultCluster(resourceID, "eastus")
 
 	// 3. EnsureDefaults
-	ensuredDefault := &coreapi.HCPOpenShiftCluster{}
+	ensuredDefault := &coreapi.Cluster{}
 	ensuredDefault.EnsureDefaults()
 
 	// Each canonically-defaulted field must match the internal constructor default.
@@ -231,6 +263,56 @@ func TestEnsureDefaultsConsistencyCluster(t *testing.T) {
 			})
 		}
 	})
+	t.Run("v20260901preview", func(t *testing.T) {
+		externalDefault := &v20260901preview.HcpOpenShiftCluster{}
+		v20260901preview.SetDefaultValuesCluster(externalDefault)
+
+		checks := []struct {
+			name           string
+			canonicalVal   string
+			externalPtrVal *string
+		}{
+			{"NetworkType", string(ensuredDefault.CustomerProperties.Network.NetworkType), stringPtrFromGenerated(externalDefault.Properties.Network.NetworkType)},
+			{"Visibility", string(ensuredDefault.CustomerProperties.API.Visibility), stringPtrFromGenerated(externalDefault.Properties.API.Visibility)},
+			{"OutboundType", string(ensuredDefault.CustomerProperties.Platform.OutboundType), stringPtrFromGenerated(externalDefault.Properties.Platform.OutboundType)},
+			{"ClusterImageRegistry.State", string(ensuredDefault.CustomerProperties.ClusterImageRegistry.State), stringPtrFromGenerated(externalDefault.Properties.ClusterImageRegistry.State)},
+			{"Ingress.Type", string(ensuredDefault.CustomerProperties.Ingress.Type), stringPtrFromGenerated(externalDefault.Properties.Ingress.Type)},
+		}
+		for _, c := range checks {
+			t.Run(c.name, func(t *testing.T) {
+				if c.externalPtrVal == nil {
+					t.Errorf("versioned default is nil, expected %q", c.canonicalVal)
+				} else if c.canonicalVal != *c.externalPtrVal {
+					t.Errorf("ensured default = %q, versioned default = %q", c.canonicalVal, *c.externalPtrVal)
+				}
+			})
+		}
+	})
+	t.Run("v20261001", func(t *testing.T) {
+		externalDefault := &v20261001.HcpOpenShiftCluster{}
+		v20261001.SetDefaultValuesCluster(externalDefault)
+
+		checks := []struct {
+			name           string
+			canonicalVal   string
+			externalPtrVal *string
+		}{
+			{"NetworkType", string(ensuredDefault.CustomerProperties.Network.NetworkType), stringPtrFromGenerated(externalDefault.Properties.Network.NetworkType)},
+			{"Visibility", string(ensuredDefault.CustomerProperties.API.Visibility), stringPtrFromGenerated(externalDefault.Properties.API.Visibility)},
+			{"OutboundType", string(ensuredDefault.CustomerProperties.Platform.OutboundType), stringPtrFromGenerated(externalDefault.Properties.Platform.OutboundType)},
+			{"ClusterImageRegistry.State", string(ensuredDefault.CustomerProperties.ClusterImageRegistry.State), stringPtrFromGenerated(externalDefault.Properties.ClusterImageRegistry.State)},
+			{"Ingress.Type", string(ensuredDefault.CustomerProperties.Ingress.Type), stringPtrFromGenerated(externalDefault.Properties.Ingress.Type)},
+		}
+		for _, c := range checks {
+			t.Run(c.name, func(t *testing.T) {
+				if c.externalPtrVal == nil {
+					t.Errorf("versioned default is nil, expected %q", c.canonicalVal)
+				} else if c.canonicalVal != *c.externalPtrVal {
+					t.Errorf("ensured default = %q, versioned default = %q", c.canonicalVal, *c.externalPtrVal)
+				}
+			})
+		}
+	})
 }
 
 // TestPreExistingDataCluster verifies that CosmosToInternalCluster applies
@@ -244,19 +326,19 @@ func TestPreExistingDataCluster(t *testing.T) {
 	// Simulate a pre-existing Cosmos document: all canonically-defaulted fields
 	// are zero-valued (empty strings), as if the document was created before
 	// these fields were added to the API.
-	preExistingDoc := &GenericDocument[coreapi.HCPOpenShiftCluster]{
+	preExistingDoc := &GenericDocument[coreapi.Cluster]{
 		TypedDocument: TypedDocument{
 			BaseDocument: BaseDocument{ID: "test-doc-id"},
 			ResourceID:   resourceID,
 		},
-		Content: coreapi.HCPOpenShiftCluster{
+		Content: coreapi.Cluster{
 			// All canonically-defaulted fields are intentionally zero-valued:
 			// NetworkType, Visibility, OutboundType,
 			// ClusterImageRegistry.State, Etcd.DataEncryption.KeyManagementMode
 			CosmosMetadata: coreapi.CosmosMetadata{
 				ResourceID: resourceID,
 			},
-			ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+			ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 				ClusterServiceID:  ptr.To(metadataapi.Must(metadataapi.NewInternalID("/api/aro_hcp/v1alpha1/clusters/test-cluster"))),
 				ProvisioningState: coreapi.ProvisioningStateSucceeded,
 			},
@@ -300,16 +382,16 @@ func TestKMSVisibilityDefaultsToPublic(t *testing.T) {
 
 	// Simulate a cluster created via v2024_06_10_preview with KMS encryption
 	// but no visibility field (since that version doesn't have it).
-	preExistingDoc := &GenericDocument[coreapi.HCPOpenShiftCluster]{
+	preExistingDoc := &GenericDocument[coreapi.Cluster]{
 		TypedDocument: TypedDocument{
 			BaseDocument: BaseDocument{ID: "test-doc-id"},
 			ResourceID:   resourceID,
 		},
-		Content: coreapi.HCPOpenShiftCluster{
+		Content: coreapi.Cluster{
 			CosmosMetadata: coreapi.CosmosMetadata{
 				ResourceID: resourceID,
 			},
-			CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+			CustomerProperties: coreapi.ClusterCustomerProperties{
 				Etcd: coreapi.EtcdProfile{
 					DataEncryption: coreapi.EtcdDataEncryptionProfile{
 						KeyManagementMode: metadataapi.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
@@ -328,7 +410,7 @@ func TestKMSVisibilityDefaultsToPublic(t *testing.T) {
 					},
 				},
 			},
-			ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+			ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 				ClusterServiceID:  ptr.To(metadataapi.Must(metadataapi.NewInternalID("/api/aro_hcp/v1alpha1/clusters/test-cluster"))),
 				ProvisioningState: coreapi.ProvisioningStateSucceeded,
 			},
@@ -352,6 +434,13 @@ func TestKMSVisibilityDefaultsToPublic(t *testing.T) {
 			internalCluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.Visibility,
 			metadataapi.KeyVaultVisibilityPublic)
 	}
+
+	// Verify KMS KeyVaultType was defaulted to KeyVault
+	if internalCluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.KeyVaultType != coreapi.KmsKeyVaultTypeKeyVault {
+		t.Errorf("got KeyVaultType = %q, want %q",
+			internalCluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.KeyVaultType,
+			coreapi.KmsKeyVaultTypeKeyVault)
+	}
 }
 
 // TestPreExistingDataNodePool verifies that CosmosGenericToInternal applies
@@ -363,17 +452,17 @@ func TestPreExistingDataNodePool(t *testing.T) {
 	))
 
 	// Simulate a pre-existing Cosmos document missing DiskStorageAccountType.
-	preExistingDoc := &GenericDocument[coreapi.HCPOpenShiftClusterNodePool]{
+	preExistingDoc := &GenericDocument[coreapi.NodePool]{
 		TypedDocument: TypedDocument{
 			BaseDocument: BaseDocument{ID: "test-doc-id"},
 			ResourceID:   resourceID,
 		},
-		Content: coreapi.HCPOpenShiftClusterNodePool{
+		Content: coreapi.NodePool{
 			// DiskStorageAccountType is intentionally zero-valued
 			CosmosMetadata: coreapi.CosmosMetadata{
 				ResourceID: resourceID,
 			},
-			Properties: coreapi.HCPOpenShiftClusterNodePoolProperties{
+			Properties: coreapi.NodePoolProperties{
 				ProvisioningState: coreapi.ProvisioningStateSucceeded,
 				Platform: coreapi.NodePoolPlatformProfile{
 					OSDisk: coreapi.OSDiskProfile{
@@ -381,7 +470,7 @@ func TestPreExistingDataNodePool(t *testing.T) {
 					},
 				},
 			},
-			ServiceProviderProperties: coreapi.HCPOpenShiftClusterNodePoolServiceProviderProperties{
+			ServiceProviderProperties: coreapi.NodePoolServiceProviderProperties{
 				ClusterServiceID: ptr.To(metadataapi.Must(metadataapi.NewInternalID("/api/aro_hcp/v1alpha1/clusters/test-cluster/node_pools/test-np"))),
 			},
 		},
@@ -411,7 +500,7 @@ func TestCanonicalDefaultsConsistencyCluster(t *testing.T) {
 	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster",
 	))
-	internalDefault := coreapi.NewDefaultHCPOpenShiftCluster(resourceID, "eastus")
+	internalDefault := coreapi.NewDefaultCluster(resourceID, "eastus")
 
 	// Non-enum defaults (from defaults.go)
 	if internalDefault.CustomerProperties.Version.ChannelGroup != coreapi.DefaultClusterVersionChannelGroup {
@@ -463,7 +552,7 @@ func TestCanonicalDefaultsConsistencyNodePool(t *testing.T) {
 	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster/nodePools/np",
 	))
-	internalDefault := coreapi.NewDefaultHCPOpenShiftClusterNodePool(resourceID, "eastus")
+	internalDefault := coreapi.NewDefaultNodePool(resourceID, "eastus")
 
 	if internalDefault.Properties.Version.ChannelGroup != coreapi.DefaultNodePoolVersionChannelGroup {
 		t.Errorf("ChannelGroup = %q, want %q", internalDefault.Properties.Version.ChannelGroup, coreapi.DefaultNodePoolVersionChannelGroup)
@@ -487,7 +576,7 @@ func TestCanonicalDefaultsConsistencyNodePool(t *testing.T) {
 // versioned constructors. This catches drift between the defaulting layers
 // described in docs/api-version-defaults-and-storage.md.
 func TestEnsureDefaultsConsistencyExternalAuth(t *testing.T) {
-	ensuredDefault := &coreapi.HCPOpenShiftClusterExternalAuth{}
+	ensuredDefault := &coreapi.ExternalAuth{}
 	ensuredDefault.EnsureDefaults()
 
 	// Verify against each versioned API's SetDefaultValues
@@ -527,6 +616,30 @@ func TestEnsureDefaultsConsistencyExternalAuth(t *testing.T) {
 				*stringPtrFromGenerated(externalDefault.Properties.Claim.Mappings.Username.PrefixPolicy))
 		}
 	})
+	t.Run("v20260901preview", func(t *testing.T) {
+		externalDefault := &v20260901preview.ExternalAuth{}
+		v20260901preview.SetDefaultValuesExternalAuth(externalDefault)
+
+		if stringPtrFromGenerated(externalDefault.Properties.Claim.Mappings.Username.PrefixPolicy) == nil {
+			t.Errorf("versioned default PrefixPolicy is nil, expected %q", ensuredDefault.Properties.Claim.Mappings.Username.PrefixPolicy)
+		} else if string(ensuredDefault.Properties.Claim.Mappings.Username.PrefixPolicy) != *stringPtrFromGenerated(externalDefault.Properties.Claim.Mappings.Username.PrefixPolicy) {
+			t.Errorf("ensured default PrefixPolicy = %q, versioned default = %q",
+				ensuredDefault.Properties.Claim.Mappings.Username.PrefixPolicy,
+				*stringPtrFromGenerated(externalDefault.Properties.Claim.Mappings.Username.PrefixPolicy))
+		}
+	})
+	t.Run("v20261001", func(t *testing.T) {
+		externalDefault := &v20261001.ExternalAuth{}
+		v20261001.SetDefaultValuesExternalAuth(externalDefault)
+
+		if stringPtrFromGenerated(externalDefault.Properties.Claim.Mappings.Username.PrefixPolicy) == nil {
+			t.Errorf("versioned default PrefixPolicy is nil, expected %q", ensuredDefault.Properties.Claim.Mappings.Username.PrefixPolicy)
+		} else if string(ensuredDefault.Properties.Claim.Mappings.Username.PrefixPolicy) != *stringPtrFromGenerated(externalDefault.Properties.Claim.Mappings.Username.PrefixPolicy) {
+			t.Errorf("ensured default PrefixPolicy = %q, versioned default = %q",
+				ensuredDefault.Properties.Claim.Mappings.Username.PrefixPolicy,
+				*stringPtrFromGenerated(externalDefault.Properties.Claim.Mappings.Username.PrefixPolicy))
+		}
+	})
 }
 
 // TestPreExistingDataExternalAuth verifies that CosmosGenericToInternal
@@ -538,21 +651,21 @@ func TestPreExistingDataExternalAuth(t *testing.T) {
 	))
 
 	internalID := metadataapi.Must(metadataapi.NewInternalID("/api/aro_hcp/v1alpha1/clusters/test-cluster/external_auth_config/external_auths/default"))
-	preExistingDoc := &GenericDocument[coreapi.HCPOpenShiftClusterExternalAuth]{
+	preExistingDoc := &GenericDocument[coreapi.ExternalAuth]{
 		TypedDocument: TypedDocument{
 			BaseDocument: BaseDocument{ID: "test-doc-id"},
 			ResourceID:   resourceID,
 		},
-		Content: coreapi.HCPOpenShiftClusterExternalAuth{
+		Content: coreapi.ExternalAuth{
 			// PrefixPolicy is intentionally zero-valued to simulate
 			// a pre-existing document that predates the field.
 			CosmosMetadata: coreapi.CosmosMetadata{
 				ResourceID: resourceID,
 			},
-			Properties: coreapi.HCPOpenShiftClusterExternalAuthProperties{
+			Properties: coreapi.ExternalAuthProperties{
 				ProvisioningState: coreapi.ProvisioningStateSucceeded,
 			},
-			ServiceProviderProperties: coreapi.HCPOpenShiftClusterExternalAuthServiceProviderProperties{
+			ServiceProviderProperties: coreapi.ExternalAuthServiceProviderProperties{
 				ClusterServiceID: &internalID,
 			},
 		},

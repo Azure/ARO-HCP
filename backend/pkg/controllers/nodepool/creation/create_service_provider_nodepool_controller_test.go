@@ -31,6 +31,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
@@ -55,10 +56,10 @@ func newCreatorTestNodePoolKey() controllerutils.HCPNodePoolKey {
 	}
 }
 
-func newCreatorTestNodePool(t *testing.T) *coreapi.HCPOpenShiftClusterNodePool {
+func newCreatorTestNodePool(t *testing.T) *coreapi.NodePool {
 	t.Helper()
-	resourceID := metadataapi.Must(coreapi.ToNodePoolResourceID(creatorTestSubscriptionID, creatorTestResourceGroup, creatorTestClusterName, creatorTestNodePoolName))
-	return &coreapi.HCPOpenShiftClusterNodePool{
+	resourceID := metadataapi.Must(coreapihelpers.ToNodePoolResourceID(creatorTestSubscriptionID, creatorTestResourceGroup, creatorTestClusterName, creatorTestNodePoolName))
+	return &coreapi.NodePool{
 		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: resourceID},
 		TrackedResource: coreapi.TrackedResource{
 			Resource: coreapi.Resource{
@@ -77,7 +78,7 @@ type boomNodePoolLister struct {
 	err error
 }
 
-func (b *boomNodePoolLister) Get(_ context.Context, _, _, _, _ string) (*coreapi.HCPOpenShiftClusterNodePool, error) {
+func (b *boomNodePoolLister) Get(_ context.Context, _, _, _, _ string) (*coreapi.NodePool, error) {
 	return nil, b.err
 }
 
@@ -93,7 +94,7 @@ func (b *boomServiceProviderNodePoolLister) Get(_ context.Context, _, _, _, _ st
 }
 
 func TestCreateServiceProviderNodePoolSyncer_SyncOnce(t *testing.T) {
-	nodePoolResourceID := metadataapi.Must(coreapi.ToNodePoolResourceID(creatorTestSubscriptionID, creatorTestResourceGroup, creatorTestClusterName, creatorTestNodePoolName))
+	nodePoolResourceID := metadataapi.Must(coreapihelpers.ToNodePoolResourceID(creatorTestSubscriptionID, creatorTestResourceGroup, creatorTestClusterName, creatorTestNodePoolName))
 	listerBoom := errors.New("lister exploded")
 
 	tests := []struct {
@@ -135,7 +136,7 @@ func TestCreateServiceProviderNodePoolSyncer_SyncOnce(t *testing.T) {
 				return &createServiceProviderNodePoolSyncer{
 					resourcesDBClient: mockDB,
 					nodePoolLister: &corelistertesting.SliceNodePoolLister{
-						NodePools: []*coreapi.HCPOpenShiftClusterNodePool{newCreatorTestNodePool(t)},
+						NodePools: []*coreapi.NodePool{newCreatorTestNodePool(t)},
 					},
 					serviceProviderNodePoolLister: &corelistertesting.SliceServiceProviderNodePoolLister{
 						ServiceProviderNodePools: []*coreapi.ServiceProviderNodePool{{
@@ -152,7 +153,7 @@ func TestCreateServiceProviderNodePoolSyncer_SyncOnce(t *testing.T) {
 				return &createServiceProviderNodePoolSyncer{
 					resourcesDBClient: mockDB,
 					nodePoolLister: &corelistertesting.SliceNodePoolLister{
-						NodePools: []*coreapi.HCPOpenShiftClusterNodePool{newCreatorTestNodePool(t)},
+						NodePools: []*coreapi.NodePool{newCreatorTestNodePool(t)},
 					},
 					serviceProviderNodePoolLister: &boomServiceProviderNodePoolLister{err: listerBoom},
 				}
@@ -168,7 +169,7 @@ func TestCreateServiceProviderNodePoolSyncer_SyncOnce(t *testing.T) {
 				return &createServiceProviderNodePoolSyncer{
 					resourcesDBClient: mockDB,
 					nodePoolLister: &corelistertesting.SliceNodePoolLister{
-						NodePools: []*coreapi.HCPOpenShiftClusterNodePool{deletingNodePool},
+						NodePools: []*coreapi.NodePool{deletingNodePool},
 					},
 					serviceProviderNodePoolLister: &corelistertesting.SliceServiceProviderNodePoolLister{},
 				}
@@ -181,7 +182,7 @@ func TestCreateServiceProviderNodePoolSyncer_SyncOnce(t *testing.T) {
 				return &createServiceProviderNodePoolSyncer{
 					resourcesDBClient: mockDB,
 					nodePoolLister: &corelistertesting.SliceNodePoolLister{
-						NodePools: []*coreapi.HCPOpenShiftClusterNodePool{newCreatorTestNodePool(t)},
+						NodePools: []*coreapi.NodePool{newCreatorTestNodePool(t)},
 					},
 					serviceProviderNodePoolLister: &corelistertesting.SliceServiceProviderNodePoolLister{},
 				}
@@ -194,7 +195,7 @@ func TestCreateServiceProviderNodePoolSyncer_SyncOnce(t *testing.T) {
 				return &createServiceProviderNodePoolSyncer{
 					resourcesDBClient: mockDB,
 					nodePoolLister: &corelistertesting.SliceNodePoolLister{
-						NodePools: []*coreapi.HCPOpenShiftClusterNodePool{newCreatorTestNodePool(t)},
+						NodePools: []*coreapi.NodePool{newCreatorTestNodePool(t)},
 					},
 					serviceProviderNodePoolLister: &corelistertesting.SliceServiceProviderNodePoolLister{},
 				}

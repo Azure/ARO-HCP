@@ -18,19 +18,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
-	"sync/atomic"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
-
-	"k8s.io/apimachinery/pkg/util/wait"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/test-integration/utils/databasemutationhelpers"
 	"github.com/Azure/ARO-HCP/test-integration/utils/integrationutils"
@@ -53,6 +49,7 @@ const (
 	v20251223 = "2025-12-23-preview"
 	v20260630 = "2026-06-30-preview"
 	v20260901 = "2026-09-01-preview"
+	v20261001 = "2026-10-01"
 )
 
 // crossVersionTestEntry pairs a subtest name with its runner function.
@@ -90,6 +87,10 @@ func clusterPUTRoundTripTests() []crossVersionTestEntry {
 		{"Cluster/PUT/v20260901-create-v20240610-put-v20260901-verify", v20260901, v20240610, "xvrt-put-v20260901v20240610"},
 		{"Cluster/PUT/v20260901-create-v20251223-put-v20260901-verify", v20260901, v20251223, "xvrt-put-v20260901v20251223"},
 		{"Cluster/PUT/v20260901-create-v20260630-put-v20260901-verify", v20260901, v20260630, "xvrt-put-v20260901v20260630"},
+		{"Cluster/PUT/v20261001-create-v20261001-put-v20261001-verify", v20261001, v20261001, "xvrt-put-v20261001same"},
+		{"Cluster/PUT/v20261001-create-v20240610-put-v20261001-verify", v20261001, v20240610, "xvrt-put-v20261001v20240610"},
+		{"Cluster/PUT/v20261001-create-v20251223-put-v20261001-verify", v20261001, v20251223, "xvrt-put-v20261001v20251223"},
+		{"Cluster/PUT/v20261001-create-v20260901-put-v20261001-verify", v20261001, v20260901, "xvrt-put-v20261001v20260901"},
 	}
 	var tests []crossVersionTestEntry
 	for _, tc := range tcs {
@@ -117,6 +118,10 @@ func clusterPATCHRoundTripTests() []crossVersionTestEntry {
 		{"Cluster/PATCH/v20260901-create-v20240610-patch-v20260901-verify", v20260901, v20240610, "xvrt-patch-v20260901v20240610"},
 		{"Cluster/PATCH/v20260901-create-v20251223-patch-v20260901-verify", v20260901, v20251223, "xvrt-patch-v20260901v20251223"},
 		{"Cluster/PATCH/v20260901-create-v20260630-patch-v20260901-verify", v20260901, v20260630, "xvrt-patch-v20260901v20260630"},
+		{"Cluster/PATCH/v20261001-create-v20261001-patch-v20261001-verify", v20261001, v20261001, "xvrt-patch-v20261001same"},
+		{"Cluster/PATCH/v20261001-create-v20240610-patch-v20261001-verify", v20261001, v20240610, "xvrt-patch-v20261001v20240610"},
+		{"Cluster/PATCH/v20261001-create-v20251223-patch-v20261001-verify", v20261001, v20251223, "xvrt-patch-v20261001v20251223"},
+		{"Cluster/PATCH/v20261001-create-v20260901-patch-v20261001-verify", v20261001, v20260901, "xvrt-patch-v20261001v20260901"},
 	}
 	var tests []crossVersionTestEntry
 	for _, tc := range tcs {
@@ -163,8 +168,8 @@ func testCrossVersionRoundTrip(t *testing.T, withMock bool) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
 			ctx = utils.ContextWithLogger(ctx, integrationutils.DefaultLogger(t))
-			logger := utils.LoggerFromContext(ctx)
 
 			testInfo, err := integrationutils.NewIntegrationTestInfoFromEnv(ctx, t, withMock)
 			require.NoError(t, err)
@@ -172,47 +177,27 @@ func testCrossVersionRoundTrip(t *testing.T, withMock bool) {
 			cleanupCtx = utils.ContextWithLogger(cleanupCtx, integrationutils.DefaultLogger(t))
 			defer testInfo.Cleanup(cleanupCtx)
 
-			frontendStarted := atomic.Bool{}
 			frontendErrCh := make(chan error, 1)
-			defer func() {
-				if frontendStarted.Load() {
-					require.NoError(t, <-frontendErrCh)
-				}
-			}()
-			adminAPIStarted := atomic.Bool{}
 			adminAPIErrCh := make(chan error, 1)
 			defer func() {
-				if adminAPIStarted.Load() {
-					require.NoError(t, <-adminAPIErrCh)
-				}
+				cancel()
+				frontendErr, adminErr := <-frontendErrCh, <-adminAPIErrCh
+				require.NoError(t, frontendErr)
+				require.NoError(t, adminErr)
 			}()
-			defer cancel()
 			go func() {
-				frontendStarted.Store(true)
 				frontendErrCh <- testInfo.Frontend.Run(ctx)
 			}()
 			go func() {
-				adminAPIStarted.Store(true)
 				adminAPIErrCh <- testInfo.AdminAPI.Run(ctx)
 			}()
 
-			err = wait.PollUntilContextCancel(ctx, 100*time.Millisecond, true, func(ctx context.Context) (bool, error) {
-				for _, url := range []string{testInfo.FrontendURL, testInfo.AdminURL} {
-					resp, err := http.Get(url)
-					if err != nil {
-						return false, nil
-					}
-					if closeErr := resp.Body.Close(); closeErr != nil {
-						logger.Error(closeErr, "failed to close response body")
-					}
-				}
-				return true, nil
-			})
+			err = integrationutils.WaitForHTTPReady(ctx, testInfo.FrontendURL+"/healthz", testInfo.AdminURL+"/healthz/ready")
 			require.NoError(t, err)
 
 			// Register subscription
 			subscriptionID := "6b690bec-0c16-4ecb-8f67-781caf40bba7"
-			subscriptionResourceID := metadataapi.Must(coreapi.ToSubscriptionResourceID(subscriptionID))
+			subscriptionResourceID := metadataapi.Must(coreapihelpers.ToSubscriptionResourceID(subscriptionID))
 			subscriptionJSON := []byte(`{
 				"resourceId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7",
 				"state": "Registered",
@@ -227,7 +212,102 @@ func testCrossVersionRoundTrip(t *testing.T, withMock bool) {
 	}
 }
 
+// alwaysRequiredControlPlaneOperators and alwaysRequiredDataPlaneOperators mirror the identity
+// config's Always requirements. They are spelled out rather than derived so that a change to the
+// config shows up here as a deliberate edit.
+var (
+	alwaysRequiredControlPlaneOperators = []string{
+		"cloud-controller-manager", "cloud-network-config", "cluster-api-azure",
+		"control-plane", "disk-csi-driver", "file-csi-driver", "image-registry", "ingress",
+	}
+	alwaysRequiredDataPlaneOperators = []string{"disk-csi-driver", "file-csi-driver", "image-registry"}
+)
+
+// withRequiredOperatorIdentities fills in the operator identities a create requires, so the
+// inline payloads below only have to spell out the fields each round-trip case is about.
+// Control plane identities are also assigned under .identity; data plane identities must not be.
+// kms is added only when the payload enables customer-managed etcd encryption, mirroring the
+// OnEnablement requirement rather than the Always ones.
+func withRequiredOperatorIdentities(payload []byte, subscriptionID string) []byte {
+	identityResourceID := func(name string) string {
+		return fmt.Sprintf("/subscriptions/%s/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/%s", subscriptionID, name)
+	}
+
+	var doc map[string]any
+	if err := json.Unmarshal(payload, &doc); err != nil {
+		panic(err)
+	}
+
+	identity := doc["identity"].(map[string]any)
+	assigned := identity["userAssignedIdentities"].(map[string]any)
+	properties := doc["properties"].(map[string]any)
+	platform := properties["platform"].(map[string]any)
+	operatorsAuthentication, ok := platform["operatorsAuthentication"].(map[string]any)
+	if !ok {
+		operatorsAuthentication = map[string]any{}
+		platform["operatorsAuthentication"] = operatorsAuthentication
+	}
+	userAssignedIdentities, ok := operatorsAuthentication["userAssignedIdentities"].(map[string]any)
+	if !ok {
+		userAssignedIdentities = map[string]any{}
+		operatorsAuthentication["userAssignedIdentities"] = userAssignedIdentities
+	}
+	controlPlaneOperators, ok := userAssignedIdentities["controlPlaneOperators"].(map[string]any)
+	if !ok {
+		controlPlaneOperators = map[string]any{}
+		userAssignedIdentities["controlPlaneOperators"] = controlPlaneOperators
+	}
+
+	controlPlaneOperatorNames := append([]string{}, alwaysRequiredControlPlaneOperators...)
+	if etcdUsesCustomerManagedKeys(properties) {
+		controlPlaneOperatorNames = append(controlPlaneOperatorNames, "kms")
+	}
+	for _, operatorName := range controlPlaneOperatorNames {
+		if _, ok := controlPlaneOperators[operatorName]; ok {
+			continue
+		}
+		resourceID := identityResourceID(operatorName + "-identity")
+		controlPlaneOperators[operatorName] = resourceID
+		assigned[resourceID] = map[string]any{}
+	}
+
+	dataPlaneOperators, ok := userAssignedIdentities["dataPlaneOperators"].(map[string]any)
+	if !ok {
+		dataPlaneOperators = map[string]any{}
+		userAssignedIdentities["dataPlaneOperators"] = dataPlaneOperators
+	}
+	for _, operatorName := range alwaysRequiredDataPlaneOperators {
+		if _, ok := dataPlaneOperators[operatorName]; ok {
+			continue
+		}
+		dataPlaneOperators[operatorName] = identityResourceID(operatorName + "-dataplane-identity")
+	}
+
+	out, err := json.Marshal(doc)
+	if err != nil {
+		panic(err)
+	}
+	return out
+}
+
+func etcdUsesCustomerManagedKeys(properties map[string]any) bool {
+	etcd, ok := properties["etcd"].(map[string]any)
+	if !ok {
+		return false
+	}
+	dataEncryption, ok := etcd["dataEncryption"].(map[string]any)
+	if !ok {
+		return false
+	}
+	return dataEncryption["keyManagementMode"] == "CustomerManaged"
+}
+
 func clusterCreatePayload(clusterName, apiVersion string) []byte {
+	const subscriptionID = "6b690bec-0c16-4ecb-8f67-781caf40bba7"
+	return withRequiredOperatorIdentities(clusterCreatePayloadTemplate(clusterName, apiVersion), subscriptionID)
+}
+
+func clusterCreatePayloadTemplate(clusterName, apiVersion string) []byte {
 	subscriptionID := "6b690bec-0c16-4ecb-8f67-781caf40bba7"
 
 	switch apiVersion {
@@ -414,8 +494,8 @@ func clusterCreatePayload(clusterName, apiVersion string) []byte {
   "type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
 }`, clusterName, subscriptionID, subscriptionID, subscriptionID))
 
-	case v20260901:
-		// v20260901 payload
+	case v20260901, v20261001:
+		// v20260901 / v20261001 payload (v20261001 is an identical copy of v20260901)
 		return []byte(fmt.Sprintf(`{
   "identity": {
     "type": "UserAssigned",
@@ -507,6 +587,7 @@ func createClusterAndComplete(
 	require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, testInfo.ResourcesDBClient(), subscriptionID, parsedID.Name))
 
 	createServiceProviderClusterForTesting(t, ctx, testInfo, clusterName, "4.20.8")
+	require.NoError(t, testInfo.WaitForFrontendCaches(ctx))
 
 	// Deliberately not stamping a ClusterServiceID on the cluster here (unlike
 	// createNodePoolAndComplete): cluster updates still synchronously call out to
@@ -744,6 +825,7 @@ func createNodePoolAndComplete(
 		testInfo.ResourcesDBClient(),
 		clusterResourceID(clusterName),
 	))
+	require.NoError(t, testInfo.WaitForFrontendCaches(ctx))
 	accessor := databasemutationhelpers.NewVersionedHTTPTestAccessor(testInfo.FrontendURL, apiVersion)
 	require.NoError(t, accessor.CreateOrUpdate(ctx, resourceID, nodePoolCreatePayload(nodePoolName, apiVersion)))
 
@@ -754,6 +836,14 @@ func createNodePoolAndComplete(
 	csID, err := integrationutils.CalculateClusterServiceIDFromNodePoolResourceID(ctx, testInfo.ResourcesDBClient(), resourceID)
 	require.NoError(t, err)
 	require.NoError(t, integrationutils.SetClusterServiceID(ctx, testInfo.ResourcesDBClient(), resourceID, csID))
+	_, err = testInfo.ResourcesDBClient().ServiceProviderNodePools(subscriptionID, parsedID.ResourceGroupName, clusterName, nodePoolName).Create(ctx, &coreapi.ServiceProviderNodePool{
+		CosmosMetadata: coreapi.CosmosMetadata{
+			ResourceID:   metadataapi.Must(azcorearm.ParseResourceID(resourceID + "/serviceProviderNodePools/default")),
+			PartitionKey: subscriptionID,
+		},
+	}, nil)
+	require.NoError(t, err)
+	require.NoError(t, testInfo.WaitForFrontendCaches(ctx))
 }
 
 // externalAuthCreatePayload returns the ExternalAuth creation payload.
@@ -838,10 +928,12 @@ func getResourceResponse(
 	t.Helper()
 
 	accessor := databasemutationhelpers.NewVersionedHTTPTestAccessor(testInfo.FrontendURL, apiVersion)
-	result, err := accessor.Get(ctx, resourceID)
+	resp, err := accessor.Get(ctx, resourceID)
 	require.NoError(t, err)
 
-	resultMap, ok := result.(map[string]any)
+	body, err := databasemutationhelpers.DecodeResponseBody(resp)
+	require.NoError(t, err)
+	resultMap, ok := body.(map[string]any)
 	require.True(t, ok, "GET response should be a map")
 
 	resultBytes, err := json.Marshal(resultMap)

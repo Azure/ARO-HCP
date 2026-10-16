@@ -19,20 +19,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/fs"
-	"net/http"
 	"strings"
-	"sync/atomic"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 
-	"k8s.io/apimachinery/pkg/util/wait"
-
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/test-integration/utils/databasemutationhelpers"
 	"github.com/Azure/ARO-HCP/test-integration/utils/integrationutils"
@@ -63,8 +58,8 @@ func testVersionCompliance(t *testing.T, withMock bool) {
 	for _, scenario := range scenarios {
 		t.Run(scenario.name, func(t *testing.T) {
 			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
 			ctx = utils.ContextWithLogger(ctx, integrationutils.DefaultLogger(t))
-			logger := utils.LoggerFromContext(ctx)
 
 			// Spin up fresh mock cosmos + frontend
 			testInfo, err := integrationutils.NewIntegrationTestInfoFromEnv(ctx, t, withMock)
@@ -73,51 +68,28 @@ func testVersionCompliance(t *testing.T, withMock bool) {
 			cleanupCtx = utils.ContextWithLogger(cleanupCtx, integrationutils.DefaultLogger(t))
 			defer testInfo.Cleanup(cleanupCtx)
 
-			frontendStarted := atomic.Bool{}
 			frontendErrCh := make(chan error, 1)
-			defer func() {
-				if frontendStarted.Load() {
-					require.NoError(t, <-frontendErrCh)
-				}
-			}()
-			adminAPIStarted := atomic.Bool{}
 			adminAPIErrCh := make(chan error, 1)
 			defer func() {
-				if adminAPIStarted.Load() {
-					require.NoError(t, <-adminAPIErrCh)
-				}
+				cancel()
+				frontendErr, adminErr := <-frontendErrCh, <-adminAPIErrCh
+				require.NoError(t, frontendErr)
+				require.NoError(t, adminErr)
 			}()
-			// cancel() must be deferred after the error channel reads above
-			// so it runs first (LIFO), stopping the servers before we wait
-			// for them to finish.
-			defer cancel()
 			go func() {
-				frontendStarted.Store(true)
 				frontendErrCh <- testInfo.Frontend.Run(ctx)
 			}()
 			go func() {
-				adminAPIStarted.Store(true)
 				adminAPIErrCh <- testInfo.AdminAPI.Run(ctx)
 			}()
 
 			// Wait for servers to be ready
-			err = wait.PollUntilContextCancel(ctx, 100*time.Millisecond, true, func(ctx context.Context) (bool, error) {
-				for _, url := range []string{testInfo.FrontendURL, testInfo.AdminURL} {
-					resp, err := http.Get(url)
-					if err != nil {
-						return false, nil
-					}
-					if closeErr := resp.Body.Close(); closeErr != nil {
-						logger.Error(closeErr, "failed to close response body")
-					}
-				}
-				return true, nil
-			})
+			err = integrationutils.WaitForHTTPReady(ctx, testInfo.FrontendURL+"/healthz", testInfo.AdminURL+"/healthz/ready")
 			require.NoError(t, err)
 
 			// Register subscription
 			subscriptionID := metadataapi.Must(azcorearm.ParseResourceID(scenario.ResourceID)).SubscriptionID
-			subscriptionResourceID := metadataapi.Must(coreapi.ToSubscriptionResourceID(subscriptionID))
+			subscriptionResourceID := metadataapi.Must(coreapihelpers.ToSubscriptionResourceID(subscriptionID))
 			subscriptionJSON := metadataapi.Must(artifacts.ReadFile("artifacts/VersionCompliance/subscription.json"))
 			subscriptionAccessor := databasemutationhelpers.NewVersionedHTTPTestAccessor(testInfo.FrontendURL, scenario.CreateVersion)
 			require.NoError(t, subscriptionAccessor.CreateOrUpdate(ctx, subscriptionResourceID.String(), subscriptionJSON))
@@ -147,6 +119,7 @@ func testVersionCompliance(t *testing.T, withMock bool) {
 			// Create the resource under test using the scenario's createVersion
 			requestJSON := metadataapi.Must(artifacts.ReadFile(scenario.dir + "/request.json"))
 			createAccessor := databasemutationhelpers.NewVersionedHTTPTestAccessor(testInfo.FrontendURL, scenario.CreateVersion)
+			require.NoError(t, testInfo.WaitForFrontendCaches(ctx))
 			require.NoError(t, createAccessor.CreateOrUpdate(ctx, scenario.ResourceID, requestJSON))
 
 			// Complete the creation operation
@@ -157,7 +130,9 @@ func testVersionCompliance(t *testing.T, withMock bool) {
 			for _, v := range allVersions {
 				t.Run("GET/"+v, func(t *testing.T) {
 					getter := databasemutationhelpers.NewVersionedHTTPTestAccessor(testInfo.FrontendURL, v)
-					actual, err := getter.Get(ctx, scenario.ResourceID)
+					resp, err := getter.Get(ctx, scenario.ResourceID)
+					require.NoError(t, err)
+					actual, err := databasemutationhelpers.DecodeResponseBody(resp)
 					require.NoError(t, err)
 
 					expected := loadExpectedResponse(t, artifacts, scenario.dir, "get", v)

@@ -63,14 +63,14 @@ func newTestOperation(request coreapi.OperationRequest) *coreapi.Operation {
 	return op
 }
 
-func newTestCluster(revokeOpID string) *coreapi.HCPOpenShiftCluster {
+func newTestCluster(revokeOpID string) *coreapi.Cluster {
 	clusterResourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + testSubscriptionID +
 			"/resourceGroups/" + testResourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName,
 	))
 
-	return &coreapi.HCPOpenShiftCluster{
+	return &coreapi.Cluster{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   clusterResourceID,
 			PartitionKey: strings.ToLower(clusterResourceID.SubscriptionID),
@@ -82,7 +82,7 @@ func newTestCluster(revokeOpID string) *coreapi.HCPOpenShiftCluster {
 			},
 			Location: testAzureLocation,
 		},
-		ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 			ProvisioningState:            coreapi.ProvisioningStateSucceeded,
 			RevokeCredentialsOperationID: revokeOpID,
 		},

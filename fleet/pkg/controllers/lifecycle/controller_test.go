@@ -28,17 +28,17 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/fleetcosmosstoragetesting"
 )
 
 func testManagementCluster(stampIdentifier string, conditions ...metav1.Condition) *fleetapi.ManagementCluster {
-	resourceID := metadataapi.Must(fleetapi.ToManagementClusterResourceID(stampIdentifier))
+	resourceID := metadataapi.Must(fleetapihelpers.ToManagementClusterResourceID(stampIdentifier))
 	aksResourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/mc"))
 	dnsResourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dns-rg/providers/Microsoft.Network/dnszones/example.com"))
 	placeholderShardID := metadataapi.Must(metadataapi.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/placeholder"))
 	managementCluster := &fleetapi.ManagementCluster{
 		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(stampIdentifier)},
-		ResourceID:     resourceID,
 		Spec: fleetapi.ManagementClusterSpec{
 			SchedulingPolicy: fleetapi.ManagementClusterSchedulingPolicySchedulable,
 		},
@@ -60,10 +60,9 @@ func testManagementCluster(stampIdentifier string, conditions ...metav1.Conditio
 }
 
 func testStamp(identifier string) *fleetapi.Stamp {
-	resourceID := metadataapi.Must(fleetapi.ToStampResourceID(identifier))
+	resourceID := metadataapi.Must(fleetapihelpers.ToStampResourceID(identifier))
 	return &fleetapi.Stamp{
 		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(identifier)},
-		ResourceID:     resourceID,
 	}
 }
 
@@ -88,6 +87,7 @@ func TestSyncOnce(t *testing.T) {
 
 	csRegistered := string(fleetapi.ManagementClusterConditionClustersServiceRegistered)
 	maestroRegistered := string(fleetapi.ManagementClusterConditionMaestroRegistered)
+	sharedIngress := string(fleetapi.ManagementClusterConditionSharedIngressAvailable)
 	ready := string(fleetapi.ManagementClusterConditionReady)
 
 	tests := []struct {
@@ -102,12 +102,13 @@ func TestSyncOnce(t *testing.T) {
 			resources: []any{testStamp(stampID)},
 		},
 		{
-			name: "both True: Ready=True/AllRegistered",
+			name: "all three True: Ready=True/AllRegistered",
 			resources: []any{
 				testStamp(stampID),
 				testManagementCluster(stampID,
 					conditionTrue(csRegistered),
 					conditionTrue(maestroRegistered),
+					conditionTrue(sharedIngress),
 				),
 			},
 			wantCondStatus: conditionStatusPtr(metav1.ConditionTrue),
@@ -120,6 +121,7 @@ func TestSyncOnce(t *testing.T) {
 				testManagementCluster(stampID,
 					conditionFalse(csRegistered),
 					conditionTrue(maestroRegistered),
+					conditionTrue(sharedIngress),
 				),
 			},
 			wantCondStatus: conditionStatusPtr(metav1.ConditionFalse),
@@ -132,6 +134,7 @@ func TestSyncOnce(t *testing.T) {
 				testManagementCluster(stampID,
 					conditionTrue(csRegistered),
 					conditionFalse(maestroRegistered),
+					conditionTrue(sharedIngress),
 				),
 			},
 			wantCondStatus: conditionStatusPtr(metav1.ConditionFalse),
@@ -144,10 +147,52 @@ func TestSyncOnce(t *testing.T) {
 				testManagementCluster(stampID,
 					conditionFalse(csRegistered),
 					conditionFalse(maestroRegistered),
+					conditionTrue(sharedIngress),
 				),
 			},
 			wantCondStatus: conditionStatusPtr(metav1.ConditionFalse),
 			wantCondReason: string(fleetapi.ManagementClusterConditionReasonRegistrationIncomplete),
+		},
+		{
+			name: "SharedIngress False, others True: Ready=False/RegistrationIncomplete",
+			resources: []any{
+				testStamp(stampID),
+				testManagementCluster(stampID,
+					conditionTrue(csRegistered),
+					conditionTrue(maestroRegistered),
+					conditionFalse(sharedIngress),
+				),
+			},
+			wantCondStatus: conditionStatusPtr(metav1.ConditionFalse),
+			wantCondReason: string(fleetapi.ManagementClusterConditionReasonRegistrationIncomplete),
+		},
+		{
+			name: "SharedIngress absent, others True: preserve existing Ready=True (migration safety)",
+			resources: []any{
+				testStamp(stampID),
+				testManagementCluster(stampID,
+					conditionTrue(csRegistered),
+					conditionTrue(maestroRegistered),
+					metav1.Condition{
+						Type:   ready,
+						Status: metav1.ConditionTrue,
+						Reason: string(fleetapi.ManagementClusterConditionReasonAllRegistered),
+					},
+				),
+			},
+			wantCondStatus: conditionStatusPtr(metav1.ConditionTrue),
+			wantCondReason: string(fleetapi.ManagementClusterConditionReasonAllRegistered),
+			wantNoWrite:    true,
+		},
+		{
+			name: "SharedIngress absent, others True, no existing Ready: no Ready condition set",
+			resources: []any{
+				testStamp(stampID),
+				testManagementCluster(stampID,
+					conditionTrue(csRegistered),
+					conditionTrue(maestroRegistered),
+				),
+			},
 		},
 		{
 			name: "CS absent, Maestro present: preserve existing Ready=True (migration safety)",
@@ -190,12 +235,13 @@ func TestSyncOnce(t *testing.T) {
 			},
 		},
 		{
-			name: "both True, Ready already True/AllRegistered: skip write",
+			name: "all three True, Ready already True/AllRegistered: skip write",
 			resources: []any{
 				testStamp(stampID),
 				testManagementCluster(stampID,
 					conditionTrue(csRegistered),
 					conditionTrue(maestroRegistered),
+					conditionTrue(sharedIngress),
 					metav1.Condition{
 						Type:   ready,
 						Status: metav1.ConditionTrue,

@@ -40,7 +40,7 @@ import (
 
 func TestNodePoolClusterServiceIDClearer_SyncOnce(t *testing.T) {
 	fixedNow := time.Now().UTC().Truncate(time.Second)
-	withDeletionStampsNodePoolOptsFunc := func(np *coreapi.HCPOpenShiftClusterNodePool) {
+	withDeletionStampsNodePoolOptsFunc := func(np *coreapi.NodePool) {
 		np.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-time.Hour)}
 		np.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-30 * time.Minute)}
 	}
@@ -57,7 +57,7 @@ func TestNodePoolClusterServiceIDClearer_SyncOnce(t *testing.T) {
 
 	testCases := []struct {
 		name              string
-		existingNodePool  *coreapi.HCPOpenShiftClusterNodePool
+		existingNodePool  *coreapi.NodePool
 		setupMockCSClient func(mock *ocm.MockClusterServiceClientSpec)
 		wantErr           bool
 		wantErrContain    string
@@ -65,19 +65,19 @@ func TestNodePoolClusterServiceIDClearer_SyncOnce(t *testing.T) {
 	}{
 		{
 			name:             "no DeletionTimestamp -- no-op",
-			existingNodePool: newTestNodePoolWithNewDeletionApproach(t, nil),
+			existingNodePool: newTestNodePool(t, nil),
 			verifyDB:         verifyClusterServiceIDUnchanged,
 		},
 		{
 			name: "DeletionTimestamp set but ClusterServiceDeletionTimestamp not yet -- no-op",
-			existingNodePool: newTestNodePoolWithNewDeletionApproach(t, func(np *coreapi.HCPOpenShiftClusterNodePool) {
+			existingNodePool: newTestNodePool(t, func(np *coreapi.NodePool) {
 				np.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-time.Hour)}
 			}),
 			verifyDB: verifyClusterServiceIDUnchanged,
 		},
 		{
 			name: "ClusterServiceID already cleared -- no-op",
-			existingNodePool: newTestNodePoolWithNewDeletionApproach(t, func(np *coreapi.HCPOpenShiftClusterNodePool) {
+			existingNodePool: newTestNodePool(t, func(np *coreapi.NodePool) {
 				withDeletionStampsNodePoolOptsFunc(np)
 				np.ServiceProviderProperties.ClusterServiceID = nil
 			}),
@@ -91,7 +91,7 @@ func TestNodePoolClusterServiceIDClearer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "CS NodePool still present -- wait",
-			existingNodePool: newTestNodePoolWithNewDeletionApproach(t, func(np *coreapi.HCPOpenShiftClusterNodePool) {
+			existingNodePool: newTestNodePool(t, func(np *coreapi.NodePool) {
 				withDeletionStampsNodePoolOptsFunc(np)
 			}),
 			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
@@ -103,7 +103,7 @@ func TestNodePoolClusterServiceIDClearer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "CS returns 404 -- clear ClusterServiceID",
-			existingNodePool: newTestNodePoolWithNewDeletionApproach(t, func(np *coreapi.HCPOpenShiftClusterNodePool) {
+			existingNodePool: newTestNodePool(t, func(np *coreapi.NodePool) {
 				withDeletionStampsNodePoolOptsFunc(np)
 			}),
 			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
@@ -121,7 +121,7 @@ func TestNodePoolClusterServiceIDClearer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "CS returns one of the not handled errors -- propagated, no clear",
-			existingNodePool: newTestNodePoolWithNewDeletionApproach(t, func(np *coreapi.HCPOpenShiftClusterNodePool) {
+			existingNodePool: newTestNodePool(t, func(np *coreapi.NodePool) {
 				withDeletionStampsNodePoolOptsFunc(np)
 			}),
 			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
@@ -131,13 +131,6 @@ func TestNodePoolClusterServiceIDClearer_SyncOnce(t *testing.T) {
 			},
 			wantErr:        true,
 			wantErrContain: "failed to get cluster-service NodePool",
-		},
-		{
-			name: "UsesNewNodePoolDeletionApproach false -- no-op even when all clear conditions met",
-			existingNodePool: newTestNodePoolWithOldDeletionApproach(t, func(np *coreapi.HCPOpenShiftClusterNodePool) {
-				withDeletionStampsNodePoolOptsFunc(np)
-			}),
-			verifyDB: verifyClusterServiceIDUnchanged,
 		},
 		{
 			name: "node pool not found",
@@ -161,7 +154,7 @@ func TestNodePoolClusterServiceIDClearer_SyncOnce(t *testing.T) {
 				tc.setupMockCSClient(mockCSClient)
 			}
 
-			nodePoolsForLister := []*coreapi.HCPOpenShiftClusterNodePool{}
+			nodePoolsForLister := []*coreapi.NodePool{}
 			if tc.existingNodePool != nil {
 				nodePoolsForLister = append(nodePoolsForLister, tc.existingNodePool)
 			}

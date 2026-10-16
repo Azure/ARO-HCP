@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -37,10 +38,12 @@ import (
 	maestroopenapi "github.com/openshift-online/maestro/pkg/api/openapi"
 	ocmsdk "github.com/openshift-online/ocm-sdk-go"
 
+	"github.com/Azure/ARO-HCP/fleet/pkg/compute"
 	"github.com/Azure/ARO-HCP/fleet/pkg/controllers/maestroregistration"
 	"github.com/Azure/ARO-HCP/fleet/pkg/manager"
 	"github.com/Azure/ARO-HCP/internal/azsdk"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosclient"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosratelimit"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -72,6 +75,10 @@ type RawControllerOptions struct {
 
 	AMWWorkspaceResourceIDs []string
 	AMWScalingPollInterval  time.Duration
+
+	NodePoolProfile string
+
+	AzureRegionAvailabilityZoneCount int
 }
 
 func DefaultControllerOptions() *RawControllerOptions {
@@ -97,7 +104,8 @@ func BindControllerOptions(opts *RawControllerOptions, cmd *cobra.Command) error
 	cmd.Flags().StringVar(&opts.MetricsListenAddress, "metrics-listen-address", opts.MetricsListenAddress, "listen address for metrics server")
 	cmd.Flags().StringArrayVar(&opts.AMWWorkspaceResourceIDs, "amw-workspace-resource-id", opts.AMWWorkspaceResourceIDs, "Azure Monitor Workspace resource ID to manage ingestion limits for. Can be specified multiple times.")
 	cmd.Flags().DurationVar(&opts.AMWScalingPollInterval, "amw-scaling-poll-interval", opts.AMWScalingPollInterval, "Interval at which the AMW ingestion limits scaling controller checks utilization and scales limits.")
-
+	cmd.Flags().StringVar(&opts.NodePoolProfile, "nodepool-profile", opts.NodePoolProfile, "Shadow-only node pool tier profile (ci, development, production); empty disables reporting. Never mutates pools.")
+	cmd.Flags().IntVar(&opts.AzureRegionAvailabilityZoneCount, "azure-region-availability-zone-count", opts.AzureRegionAvailabilityZoneCount, fmt.Sprintf("Number of availability zones the region offers. Node pool planning fails if this is below %d.", compute.RequiredAvailabilityZones))
 	for _, flag := range []string{
 		"cloud-environment",
 		"region",
@@ -117,6 +125,8 @@ func BindControllerOptions(opts *RawControllerOptions, cmd *cobra.Command) error
 type validatedControllerOptions struct {
 	*RawControllerOptions
 	cloudConfiguration cloud.Configuration
+	nodePoolProfile    *compute.Profile
+	nodePoolZones      []string
 }
 
 type ValidatedControllerOptions struct {
@@ -156,10 +166,21 @@ func (o *RawControllerOptions) Validate(ctx context.Context) (*ValidatedControll
 		return nil, utils.TrackError(fmt.Errorf("--amw-scaling-poll-interval must be positive when AMW workspaces are configured"))
 	}
 
+	var nodePoolProfile *compute.Profile
+	var nodePoolZones []string
+	if len(o.NodePoolProfile) > 0 {
+		nodePoolProfile, nodePoolZones, err = resolveNodePoolProfile(o)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	return &ValidatedControllerOptions{
 		validatedControllerOptions: &validatedControllerOptions{
 			RawControllerOptions: o,
 			cloudConfiguration:   cloudConfig,
+			nodePoolProfile:      nodePoolProfile,
+			nodePoolZones:        nodePoolZones,
 		},
 	}, nil
 }
@@ -177,6 +198,8 @@ type controllerOptions struct {
 	amwScalingPollInterval       time.Duration
 	azureCredential              azcore.TokenCredential
 	azureClientOptions           *policy.ClientOptions
+	nodePoolProfile              *compute.Profile
+	nodePoolZones                []string
 }
 
 type ControllerOptions struct {
@@ -187,12 +210,9 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 	clientOpts := azsdk.NewClientOptions(azsdk.ComponentFleet)
 	clientOpts.Cloud = o.cloudConfiguration
 
-	dbClient, err := corecosmosstorage.NewCosmosDatabaseClient(o.CosmosURL, o.CosmosName, clientOpts)
-	if err != nil {
-		return nil, err
-	}
-
-	fleetDBClient, err := fleetcosmosstorage.NewFleetDBClient(dbClient)
+	storageOptions := cosmosclient.Options{ClientOptions: clientOpts}
+	bucket := cosmosratelimit.NewUnlimitedTokenBucket("fleet")
+	fleetDBClient, err := fleetcosmosstorage.NewFleetDBClient(o.CosmosURL, o.CosmosName, storageOptions, bucket)
 	if err != nil {
 		return nil, err
 	}
@@ -231,7 +251,7 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 	}
 
 	kubeApplierDBClients := kubeappliercosmosstorage.NewKubeApplierDBClients(
-		dbClient,
+		o.CosmosURL, o.CosmosName, storageOptions, func(string) (*cosmosratelimit.TokenBucket, error) { return bucket, nil },
 		kubeappliercosmosstorage.NewDBBackedManagementClusterLister(fleetDBClient),
 	)
 
@@ -249,8 +269,26 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 			amwScalingPollInterval:       o.AMWScalingPollInterval,
 			azureCredential:              azureCredential,
 			azureClientOptions:           azureClientOptions,
+			nodePoolProfile:              o.nodePoolProfile,
+			nodePoolZones:                o.nodePoolZones,
 		},
 	}, nil
+}
+
+func resolveNodePoolProfile(o *RawControllerOptions) (*compute.Profile, []string, error) {
+	profile, ok := compute.LookupProfile(o.NodePoolProfile)
+	if !ok {
+		return nil, nil, fmt.Errorf("--nodepool-profile %q is not a valid profile (valid: %s)",
+			o.NodePoolProfile, strings.Join(compute.ValidProfileNames(), ", "))
+	}
+	if err := compute.ValidateProfile(profile); err != nil {
+		return nil, nil, fmt.Errorf("--nodepool-profile %q is invalid: %w", o.NodePoolProfile, err)
+	}
+	zones, err := compute.ResolvePlanningZones(o.AzureRegionAvailabilityZoneCount)
+	if err != nil {
+		return nil, nil, fmt.Errorf("--azure-region-availability-zone-count: %w", err)
+	}
+	return &profile, zones, nil
 }
 
 func (o *ControllerOptions) Run(ctx context.Context) error {
@@ -267,6 +305,8 @@ func (o *ControllerOptions) Run(ctx context.Context) error {
 		AMWScalingPollInterval:       o.amwScalingPollInterval,
 		AzureCredential:              o.azureCredential,
 		AzureClientOptions:           o.azureClientOptions,
+		NodePoolProfile:              o.nodePoolProfile,
+		NodePoolZones:                o.nodePoolZones,
 	}
 	return mgr.Run(ctx)
 }

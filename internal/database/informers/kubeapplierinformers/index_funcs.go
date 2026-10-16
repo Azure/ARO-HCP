@@ -56,7 +56,7 @@ func managementClusterIndexFunc(obj any) ([]string, error) {
 }
 
 // clusterResourceIDIndexFunc walks a *Desire's resource-ID parent chain to find
-// the containing HCPOpenShiftCluster and returns its lower-cased resource ID.
+// the containing Cluster and returns its lower-cased resource ID.
 // Both cluster- and node-pool-scoped *Desires produce a key here.
 func clusterResourceIDIndexFunc(obj any) ([]string, error) {
 	d, err := asDesire(obj)

@@ -40,9 +40,6 @@ func managementClusterResourceIDs(ctx context.Context, lister kubeappliercosmoss
 	for _, mc := range mcs {
 		rid := mc.ResourceID
 		if rid == nil {
-			rid = mc.CosmosMetadata.ResourceID
-		}
-		if rid == nil {
 			continue
 		}
 		out = append(out, rid)

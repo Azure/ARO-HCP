@@ -17,6 +17,7 @@ package gatherobservability
 import (
 	"fmt"
 	"regexp"
+	"time"
 
 	_ "embed"
 
@@ -26,11 +27,12 @@ import (
 //go:embed known-issues/knownIssues.yaml
 var defaultKnownIssuesData []byte
 
-// knownIssue holds a compiled known issue pattern with name and label regexes.
+// knownIssue holds a compiled known issue pattern and its optional UTC expiry date.
 type knownIssue struct {
-	pattern *regexp.Regexp
-	labels  map[string]*regexp.Regexp
-	reason  string
+	pattern      *regexp.Regexp
+	labels       map[string]*regexp.Regexp
+	reason       string
+	expiresAfter time.Time
 }
 
 // parseKnownIssues parses known issues YAML data, validates required fields,
@@ -39,12 +41,13 @@ type knownIssue struct {
 func parseKnownIssues(data []byte) ([]knownIssue, error) {
 	var cfg struct {
 		KnownIssues []struct {
-			Name   string            `yaml:"name"`
-			Reason string            `yaml:"reason"`
-			Labels map[string]string `yaml:"labels,omitempty"`
+			Name         string            `yaml:"name"`
+			Reason       string            `yaml:"reason"`
+			Labels       map[string]string `yaml:"labels,omitempty"`
+			ExpiresAfter string            `yaml:"expiresAfter,omitempty"`
 		} `yaml:"knownIssues"`
 	}
-	if err := yaml.Unmarshal(data, &cfg); err != nil {
+	if err := yaml.UnmarshalStrict(data, &cfg); err != nil {
 		return nil, fmt.Errorf("failed to parse known issues config: %w", err)
 	}
 	result := make([]knownIssue, len(cfg.KnownIssues))
@@ -54,6 +57,14 @@ func parseKnownIssues(data []byte) ([]knownIssue, error) {
 		}
 		if ki.Reason == "" {
 			return nil, fmt.Errorf("knownIssue %d (%s): reason is required", i, ki.Name)
+		}
+		var expiresAfter time.Time
+		if ki.ExpiresAfter != "" {
+			var err error
+			expiresAfter, err = time.Parse("2006-01-02", ki.ExpiresAfter)
+			if err != nil {
+				return nil, fmt.Errorf("knownIssue %d (%s): invalid expiresAfter date %q (expected YYYY-MM-DD): %w", i, ki.Name, ki.ExpiresAfter, err)
+			}
 		}
 		re, err := regexp.Compile("^(?:" + ki.Name + ")$")
 		if err != nil {
@@ -70,7 +81,7 @@ func parseKnownIssues(data []byte) ([]knownIssue, error) {
 				labelPatterns[k] = lre
 			}
 		}
-		result[i] = knownIssue{pattern: re, labels: labelPatterns, reason: ki.Reason}
+		result[i] = knownIssue{pattern: re, labels: labelPatterns, reason: ki.Reason, expiresAfter: expiresAfter}
 	}
 	return result, nil
 }
@@ -80,10 +91,20 @@ func parseKnownIssues(data []byte) ([]knownIssue, error) {
 // The first matching pattern wins.
 // When a known issue has label patterns, all specified labels must also match.
 func classifyAlerts(alerts []alert, issues []knownIssue) []alert {
+	return classifyAlertsAt(alerts, issues, time.Now().UTC())
+}
+
+// classifyAlertsAt applies known-issue patterns at the given time. An entry
+// without expiresAfter remains active. A dated exception remains active through
+// its expiresAfter date in UTC and stops suppressing failures the following day.
+func classifyAlertsAt(alerts []alert, issues []knownIssue, now time.Time) []alert {
 	result := make([]alert, len(alerts))
 	copy(result, alerts)
 	for i := range result {
 		for _, ki := range issues {
+			if !ki.expiresAfter.IsZero() && !now.Before(ki.expiresAfter.AddDate(0, 0, 1)) {
+				continue
+			}
 			if !ki.pattern.MatchString(result[i].Alert.Name) {
 				continue
 			}

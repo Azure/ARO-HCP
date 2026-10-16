@@ -37,16 +37,24 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+// clusterCreateGracePeriod is how long after a cluster's CreatedAt we suppress
+// automatic upgrade triggering while an active Create operation is still in
+// flight. After this window the create is expected to have finished, so resuming
+// upgrade triggering is safe.
+const clusterCreateGracePeriod = 2 * time.Hour
+
 // triggerControlPlaneUpgradeSyncer is a Cluster syncer that triggers control plane upgrades
 type triggerControlPlaneUpgradeSyncer struct {
 	clock                        utilsclock.PassiveClock
-	resourcesDBClient            corecosmosstorage.ResourcesDBClient
+	clusterLister                corelisters.ClusterLister
 	clusterServiceClient         ocm.ClusterServiceClientSpec
 	activeOperationLister        corelisters.ActiveOperationLister
 	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
 }
 
 var _ controllerutils.ClusterSyncer = (*triggerControlPlaneUpgradeSyncer)(nil)
+
+const TriggerControlPlaneUpgradeControllerName = "TriggerControlPlaneUpgrade"
 
 // NewTriggerControlPlaneUpgradeController creates a new controller that triggers control plane upgrades.
 // It monitors clusters where the desired version differs from the actual version and calls
@@ -58,6 +66,7 @@ var _ controllerutils.ClusterSyncer = (*triggerControlPlaneUpgradeSyncer)(nil)
 func NewTriggerControlPlaneUpgradeController(
 	clock utilsclock.PassiveClock,
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
+	clusterLister corelisters.ClusterLister,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
 	activeOperationLister corelisters.ActiveOperationLister,
 	serviceProviderClusterLister corelisters.ServiceProviderClusterLister,
@@ -66,14 +75,14 @@ func NewTriggerControlPlaneUpgradeController(
 ) controllerutils.Controller {
 	syncer := &triggerControlPlaneUpgradeSyncer{
 		clock:                        clock,
-		resourcesDBClient:            resourcesDBClient,
+		clusterLister:                clusterLister,
 		clusterServiceClient:         clusterServiceClient,
 		activeOperationLister:        activeOperationLister,
 		serviceProviderClusterLister: serviceProviderClusterLister,
 	}
 
 	controller := controllerutils.NewClusterWatchingController(
-		"TriggerControlPlaneUpgrade",
+		TriggerControlPlaneUpgradeControllerName,
 		resourcesDBClient,
 		informers,
 		kubeApplierInformers,
@@ -93,7 +102,7 @@ func NewTriggerControlPlaneUpgradeController(
 //  4. The version service API is idempotent and handles the actual upgrade orchestration
 func (c *triggerControlPlaneUpgradeSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
 	logger := utils.LoggerFromContext(ctx)
-	existingCluster, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Get(ctx, key.HCPClusterName)
+	existingCluster, err := c.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil // cluster doesn't exist, no work to do
 	}
@@ -202,7 +211,7 @@ func (c *triggerControlPlaneUpgradeSyncer) createUpgradePolicyIfNeeded(ctx conte
 // Otherwise (cluster still young, Create in flight) we skip so a freshly
 // created cluster doesn't have a control plane upgrade policy posted while
 // creation is still in progress.
-func (c *triggerControlPlaneUpgradeSyncer) shouldTriggerUpgrade(ctx context.Context, cluster *coreapi.HCPOpenShiftCluster) (bool, error) {
+func (c *triggerControlPlaneUpgradeSyncer) shouldTriggerUpgrade(ctx context.Context, cluster *coreapi.Cluster) (bool, error) {
 	logger := utils.LoggerFromContext(ctx)
 	if c.clusterOlderThanGracePeriod(cluster) {
 		logger.Info("Cluster is older than grace period, skipping upgrade trigger", "cluster", cluster.Name)
@@ -224,7 +233,7 @@ func (c *triggerControlPlaneUpgradeSyncer) shouldTriggerUpgrade(ctx context.Cont
 // is more than clusterCreateGracePeriod in the past. A missing CreatedAt is
 // treated as "old enough" so a malformed document does not pin the controller
 // in skip-forever mode.
-func (c *triggerControlPlaneUpgradeSyncer) clusterOlderThanGracePeriod(cluster *coreapi.HCPOpenShiftCluster) bool {
+func (c *triggerControlPlaneUpgradeSyncer) clusterOlderThanGracePeriod(cluster *coreapi.Cluster) bool {
 	if cluster.SystemData == nil || cluster.SystemData.CreatedAt == nil {
 		return true
 	}
@@ -235,7 +244,7 @@ func (c *triggerControlPlaneUpgradeSyncer) clusterOlderThanGracePeriod(cluster *
 // Create operation whose ExternalID is the cluster itself. Operations on
 // child resources (node pools, external auths) under the cluster are
 // ignored on purpose: they don't gate control-plane upgrade triggering.
-func (c *triggerControlPlaneUpgradeSyncer) clusterHasActiveCreateOperation(ctx context.Context, cluster *coreapi.HCPOpenShiftCluster) (bool, error) {
+func (c *triggerControlPlaneUpgradeSyncer) clusterHasActiveCreateOperation(ctx context.Context, cluster *coreapi.Cluster) (bool, error) {
 	logger := utils.LoggerFromContext(ctx)
 	if len(cluster.ServiceProviderProperties.ActiveOperationID) == 0 {
 		logger.Info("Cluster has no active create operation", "cluster", cluster.Name)

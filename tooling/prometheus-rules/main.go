@@ -17,6 +17,7 @@ package main
 import (
 	"flag"
 	"os"
+	"strings"
 
 	"github.com/sirupsen/logrus"
 
@@ -32,10 +33,12 @@ func main() {
 	var configFilePath string
 	var promtoolPath string
 	var correlationMap bool
+	var preserveAggregationLabels string
 
 	flag.CommandLine.StringVar(&configFilePath, "config-file", "", "Path to configuration")
 	flag.CommandLine.StringVar(&promtoolPath, "promtool-path", "promtool", "Path to promtool binary ")
 	flag.CommandLine.BoolVar(&correlationMap, "correlation-map", false, "Output a YAML correlation map instead of generating Bicep")
+	flag.CommandLine.StringVar(&preserveAggregationLabels, "preserve-aggregation-labels", "region", "Comma-separated labels that must survive every aggregation in a rule's PromQL")
 	flag.Parse()
 
 	if correlationMap {
@@ -62,7 +65,18 @@ func main() {
 		logrus.WithError(err).Fatal("invalid options")
 	}
 
-	if err := prometheusrules.GenerateFromConfig(configFilePath, false, promtoolPath); err != nil {
+	if err := prometheusrules.GenerateFromConfig(configFilePath, false, promtoolPath, splitAndTrim(preserveAggregationLabels)); err != nil {
 		logrus.WithError(err).Fatal("error running generator")
 	}
+}
+
+// splitAndTrim splits a comma-separated list, trimming whitespace and dropping empties.
+func splitAndTrim(csv string) []string {
+	var out []string
+	for _, part := range strings.Split(csv, ",") {
+		if trimmed := strings.TrimSpace(part); trimmed != "" {
+			out = append(out, trimmed)
+		}
+	}
+	return out
 }

@@ -21,7 +21,6 @@ resourceGroups:
     environments:
     - int
     regions:
-    - uksouth
     - westus3
   - clouds:
     - public
@@ -35,15 +34,17 @@ resourceGroups:
     environments:
     - prod
     regions:
-    - australiaeast
-    - brazilsouth
-    - canadacentral
-    - centralindia
-    - eastus2
     - eastus2euap
-    - westeurope
-    - switzerlandnorth
     - uksouth
+    - switzerlandnorth
+    - canadacentral
+    - australiaeast
+    - westeurope
+    - centralindia
+    - brazilsouth
+    - eastus2
+    - japaneast
+    - swedencentral
   steps:
   - name: subscription-lookup
     action: ARM
@@ -60,7 +61,6 @@ resourceGroups:
     environments:
     - int
     regions:
-    - uksouth
     - westus3
   - clouds:
     - public
@@ -74,21 +74,32 @@ resourceGroups:
     environments:
     - prod
     regions:
-    - australiaeast
-    - brazilsouth
-    - canadacentral
-    - centralindia
-    - eastus2
     - eastus2euap
-    - westeurope
-    - switzerlandnorth
     - uksouth
+    - switzerlandnorth
+    - canadacentral
+    - australiaeast
+    - westeurope
+    - centralindia
+    - brazilsouth
+    - eastus2
+    - japaneast
+    - swedencentral
   steps:
   - name: deploy
     action: ARM
     template: templates/kusto.bicep
     parameters: configurations/kusto.tmpl.bicepparam
     deploymentLevel: ResourceGroup
+    variables:
+    - name: grafanaPrincipalId
+      input:
+        resourceGroup: global
+        step: output
+        name: grafanaPrincipalId
+    dependsOn:
+    - resourceGroup: global
+      step: output
     automatedRetry:
       errorContainsAny:
       - "InternalServerError"
@@ -125,23 +136,6 @@ resourceGroups:
       step: kusto-lookup
     - resourceGroup: svc
       step: subscription-lookup
-  - name: detach-legacy-monitoring-stack
-    action: Shell
-    command: ./detach-legacy-monitoring-stack.sh
-    workingDir: ./scripts
-    variables:
-    - name: KUSTO_RESOURCE_GROUP
-      configRef: kusto.rg
-    shellIdentity:
-      input:
-        resourceGroup: global
-        step: output
-        name: globalMSIId
-    dependsOn:
-    - resourceGroup: kusto-infra
-      step: deploy
-    - resourceGroup: global
-      step: output
   - name: kusto-monitoring
     action: ARMStack
     template: templates/kusto-monitoring.bicep
@@ -180,5 +174,28 @@ resourceGroups:
       step: kusto-lookup
     - resourceGroup: kusto-infra
       step: action-groups
+  - name: entity-groups
+    action: KustoEntityGroups
+    entityGroups:
+    - "AllServiceLogs:ServiceLogs"
+    - "AllHostedControlPlaneLogs:HostedControlPlaneLogs"
+    - "AllMonitoringEvents:MonitoringEvents"
+    environment: '{{ .environmentName }}'
+    timeout: "10m"
+    identityFrom:
+      resourceGroup: global
+      step: output
+      name: globalMSIId
+    automatedRetry:
+      errorContainsAny:
+      - "InternalServerError"
+      - "Internal server error"
+      - "connection refused"
+      - "context deadline exceeded"
+      - "missing a valid aroHCPEnvironment tag"
+      - "Client.Timeout exceeded while awaiting headers"
+      maximumRetryCount: 3
+      durationBetweenRetries: 2m
+    dependsOn:
     - resourceGroup: kusto-infra
-      step: detach-legacy-monitoring-stack
+      step: deploy

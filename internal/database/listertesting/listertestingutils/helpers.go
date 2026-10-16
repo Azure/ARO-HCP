@@ -25,7 +25,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 )
 
-// UnderCluster reports whether desireID is nested under the given HCPOpenShiftCluster.
+// UnderCluster reports whether desireID is nested under the given Cluster.
 // This covers both cluster-scoped desires (.../clusters/<c>/<desireType>/<n>) and
 // node-pool-scoped desires (.../clusters/<c>/nodePools/<np>/<desireType>/<n>).
 func UnderCluster(desireID *azcorearm.ResourceID, subscriptionID, resourceGroupName, clusterName string) bool {

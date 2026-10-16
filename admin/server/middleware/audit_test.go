@@ -22,7 +22,6 @@ import (
 	"testing"
 
 	"github.com/go-logr/logr/testr"
-	"github.com/microsoft/go-otel-audit/audit/base"
 	"github.com/microsoft/go-otel-audit/audit/msgs"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -34,7 +33,7 @@ type testAuditClient struct {
 	messages []msgs.Msg
 }
 
-func (t *testAuditClient) Send(ctx context.Context, msg msgs.Msg, options ...base.SendOption) error {
+func (t *testAuditClient) Send(ctx context.Context, msg msgs.Msg) error {
 	t.messages = append(t.messages, msg)
 	return nil
 }
@@ -89,7 +88,7 @@ func TestWithAudit(t *testing.T) {
 			client := &testAuditClient{messages: []msgs.Msg{}}
 
 			writer := httptest.NewRecorder()
-			request, err := http.NewRequest("GET", "/admin/helloworld", nil)
+			request, err := http.NewRequest("GET", "/admin/v1/stamps", nil)
 			require.NoError(t, err)
 			request.RemoteAddr = "10.1.2.3:18586"
 			request.Header = tc.headers
@@ -107,7 +106,7 @@ func TestWithAudit(t *testing.T) {
 			record := client.messages[0].Record
 			assert.Equal(t, "10.1.2.3", record.CallerIpAddress.String())
 			assert.Equal(t, tc.expectedResult, record.OperationResult)
-			assert.Equal(t, "GET /admin/helloworld", record.OperationName)
+			assert.Equal(t, "GET /admin/v1/stamps", record.OperationName)
 			assert.Equal(t, operationCategoryDescription, record.OperationCategoryDescription)
 			assert.Equal(t, operationAccessLevel, record.OperationAccessLevel)
 

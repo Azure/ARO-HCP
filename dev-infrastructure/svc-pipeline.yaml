@@ -73,6 +73,20 @@ resourceGroups:
     dependsOn:
     - resourceGroup: service
       step: cluster
+  - name: adminapi-apr-assignment
+    action: ARM
+    template: templates/adminapi-alert-processing-rule-assignment.bicep
+    parameters: configurations/adminapi-alert-processing-rule-assignment.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    variables:
+    - name: adminApiPrincipalId
+      input:
+        resourceGroup: service
+        step: cluster-output
+        name: adminApiPrincipalId
+    dependsOn:
+    - resourceGroup: service
+      step: cluster-output
 - name: auditLogs
   resourceGroup: '{{ .auditLogsEventHub.rg }}'
   subscription: '{{ .svc.subscription.key }}'
@@ -484,6 +498,9 @@ resourceGroups:
       # deployment identity's Key Vault role assignment (needed to create the
       # aks-etcd-encryption key) may not have propagated yet. Retry once it lands.
       - "ForbiddenByRbac"
+      # The AKS RP can validate KMS access before the cluster identity's
+      # Key Vault Crypto User role assignment has propagated.
+      - "AzureKeyVaultKmsValidateIdentityPermissionCustomerError"
       maximumRetryCount: 3
       durationBetweenRetries: 2m
   - name: upgrade-aks-cluster
@@ -523,7 +540,10 @@ resourceGroups:
     - name: RESOURCE_GROUP
       configRef: regionRG
     - name: MI_RESOURCE_GROUP
-      configRef: svc.rg
+      input:
+        resourceGroup: service
+        step: cluster-output
+        name: identityResourceGroup
     - name: PG_SERVER_NAME
       configRef: clustersService.postgres.name
     - name: DATABASE_NAME
@@ -536,7 +556,7 @@ resourceGroups:
       configRef: clustersService.postgres.deploy
     dependsOn:
     - resourceGroup: service
-      step: cluster
+      step: cluster-output
     - resourceGroup: service
       step: subscription-output
   - name: maestro-postgres-access
@@ -557,7 +577,10 @@ resourceGroups:
     - name: RESOURCE_GROUP
       configRef: regionRG
     - name: MI_RESOURCE_GROUP
-      configRef: svc.rg
+      input:
+        resourceGroup: service
+        step: cluster-output
+        name: identityResourceGroup
     - name: PG_SERVER_NAME
       configRef: maestro.postgres.name
     - name: DATABASE_NAME
@@ -570,7 +593,7 @@ resourceGroups:
       configRef: maestro.postgres.deploy
     dependsOn:
     - resourceGroup: service
-      step: cluster
+      step: cluster-output
     - resourceGroup: service
       step: subscription-output
   - name: oidc-storage-setup
@@ -637,6 +660,22 @@ resourceGroups:
       step: output
     - resourceGroup: service
       step: cluster-output
+  # TRANSIENT: remove after rollout to all environments (AROSLSRE-2290)
+  # Cleans up orphaned tracing pods (jaeger, otel-collector, lgtm) left behind
+  # after PR #7072 removed the observability/tracing pipeline.
+  - name: cleanup-observability-tracing
+    aksCluster: '{{ .svc.aks.name }}'
+    action: Shell
+    command: ./cleanup-observability-tracing.sh
+    workingDir: ./scripts
+    dependsOn:
+    - resourceGroup: service
+      step: cluster-output
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
   - name: prometheus
     # Deploy prometheus first since istio depends on it's CRDs
     aksCluster: '{{ .svc.aks.name }}'
@@ -680,21 +719,14 @@ resourceGroups:
       errorContainsAny:
       - "500 Internal Server Error"
       - "Internal error occurred"
+      - "not ready. status: Unknown"
+      # Transient AKS API server connection loss (no HTTP status, 5xx patterns miss). AROSLSRE-2130.
+      - "client connection lost"
+      - "unexpected error when reading response body"
+      # ACI can fail before Helm runs with no execution log; retry its waiting-to-run signature.
+      - '"DetailStatus": "Waiting to run"'
       maximumRetryCount: 3
       durationBetweenRetries: 1m
-  - name: cleanup-prometheus-pvc
-    aksCluster: '{{ .svc.aks.name }}'
-    action: Shell
-    command: ./cleanup-prometheus-pvc.sh
-    workingDir: ./scripts
-    dependsOn:
-    - resourceGroup: service
-      step: prometheus
-    shellIdentity:
-      input:
-        resourceGroup: global
-        step: output
-        name: globalMSIId
   - name: istio-upgrade
     aksCluster:
       configRef: svc.aks.name
@@ -753,6 +785,9 @@ resourceGroups:
       errorContainsAny:
       - "500 Internal Server Error"
       - "Internal error occurred"
+      # Transient AKS API server connection loss (no HTTP status, 5xx patterns miss). AROSLSRE-2130.
+      - "client connection lost"
+      - "unexpected error when reading response body"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
   - name: acrpull
@@ -770,7 +805,9 @@ resourceGroups:
     kustoTable: 'containerLogs'
     dependsOn:
     - resourceGroup: service
-      step: prometheus
+      step: arobit
+    - resourceGroup: service
+      step: kube-events
     identityFrom:
       resourceGroup: global
       step: output
@@ -779,6 +816,9 @@ resourceGroups:
       errorContainsAny:
       - "500 Internal Server Error"
       - "Internal error occurred"
+      # Transient AKS API server connection loss (no HTTP status, 5xx patterns miss). AROSLSRE-2130.
+      - "client connection lost"
+      - "unexpected error when reading response body"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
   - name: service-lifecycle
@@ -805,6 +845,9 @@ resourceGroups:
       errorContainsAny:
       - "500 Internal Server Error"
       - "Internal error occurred"
+      # Transient AKS API server connection loss (no HTTP status, 5xx patterns miss). AROSLSRE-2130.
+      - "client connection lost"
+      - "unexpected error when reading response body"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
   - name: image-registry-policy
@@ -833,6 +876,9 @@ resourceGroups:
       errorContainsAny:
       - "500 Internal Server Error"
       - "Internal error occurred"
+      # Transient AKS API server connection loss (no HTTP status, 5xx patterns miss). AROSLSRE-2130.
+      - "client connection lost"
+      - "unexpected error when reading response body"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
   - name: arobit-output
@@ -883,6 +929,9 @@ resourceGroups:
       - "500 Internal Server Error"
       - "Internal error occurred"
       - "arobit-forwarder not ready. status: InProgress"
+      # Transient AKS API server connection loss (no HTTP status, 5xx patterns miss). AROSLSRE-2130.
+      - "client connection lost"
+      - "unexpected error when reading response body"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
   - name: kube-events
@@ -911,6 +960,9 @@ resourceGroups:
       errorContainsAny:
       - "500 Internal Server Error"
       - "Internal error occurred"
+      # Transient AKS API server connection loss (no HTTP status, 5xx patterns miss). AROSLSRE-2130.
+      - "client connection lost"
+      - "unexpected error when reading response body"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
   - name: mirror-exporter-image
@@ -940,6 +992,9 @@ resourceGroups:
       # Transient ACR pull/push failures during image mirroring (docker registry RegistryErrorResponse, "Please retry later").
       - "RegistryErrorResponse"
       - "Please retry later"
+      # Network-level failure reaching the registry (no registry response to match). AROSLSRE-2070.
+      - "connection refused"
+      - "i/o timeout"
       maximumRetryCount: 5
       durationBetweenRetries: 1m
   - name: exporter-output
@@ -953,8 +1008,8 @@ resourceGroups:
       step: upgrade-aks-cluster
   - name: exporter-permissions
     action: ARM
-    template: templates/exporter-permissions.bicep
-    parameters: configurations/exporter-permissions.tmpl.bicepparam
+    template: templates/svc-exporter-permissions.bicep
+    parameters: configurations/svc-exporter-permissions.tmpl.bicepparam
     deploymentLevel: Subscription
     variables:
     - name: exporterPrincipalId
@@ -962,9 +1017,16 @@ resourceGroups:
         resourceGroup: service
         step: exporter-output
         name: exporterPrincipalId
+    - name: serviceKeyVaultSubscription
+      input:
+        resourceGroup: svcKV
+        step: output
+        name: subscriptionId
     dependsOn:
     - resourceGroup: service
       step: exporter-output
+    - resourceGroup: service
+      step: infra
   - name: aro-hcp-exporter
     aksCluster: '{{ .svc.aks.name }}'
     action: Helm

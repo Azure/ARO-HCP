@@ -31,6 +31,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/kubeappliercosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/informers/kubeapplierinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/fleetlistertesting"
@@ -49,7 +51,10 @@ type fakeMCInformer struct {
 	handlers map[*fakeMCRegistration]cache.ResourceEventHandler
 }
 
-type fakeMCRegistration struct{ owner *fakeMCInformer }
+type fakeMCRegistration struct {
+	cache.ResourceEventHandlerRegistration
+	owner *fakeMCInformer
+}
 
 func (r *fakeMCRegistration) HasSynced() bool { return true }
 
@@ -103,12 +108,6 @@ func (f *fakeMCInformer) emitAdd(obj any) {
 func (f *fakeMCInformer) emitDelete(obj any) {
 	for _, h := range f.snapshotHandlers() {
 		h.OnDelete(obj)
-	}
-}
-
-func (f *fakeMCInformer) emitUpdate(oldObj, newObj any) {
-	for _, h := range f.snapshotHandlers() {
-		h.OnUpdate(oldObj, newObj)
 	}
 }
 
@@ -173,13 +172,13 @@ func (s *stubFactory) runs() []*stubFactoryRun {
 // --- fixtures -------------------------------------------------------------
 
 // stamp identifiers and canonical management-cluster resourceIDs. The
-// SliceManagementClusterLister.Get uses fleetapi.ToManagementClusterResourceIDString,
+// SliceManagementClusterLister.Get uses fleetapihelpers.ToManagementClusterResourceIDString,
 // so MCs registered with the lister must carry the matching canonical form.
 var (
 	ctlMgmtAStamp = "1"
 	ctlMgmtBStamp = "2"
-	ctlMgmtAID    = metadataapi.Must(fleetapi.ToManagementClusterResourceID(ctlMgmtAStamp))
-	ctlMgmtBID    = metadataapi.Must(fleetapi.ToManagementClusterResourceID(ctlMgmtBStamp))
+	ctlMgmtAID    = metadataapi.Must(fleetapihelpers.ToManagementClusterResourceID(ctlMgmtAStamp))
+	ctlMgmtBID    = metadataapi.Must(fleetapihelpers.ToManagementClusterResourceID(ctlMgmtBStamp))
 )
 
 const (
@@ -208,7 +207,6 @@ func ctlNewApplyDesire(t *testing.T, idStr string, mgmt *azcorearm.ResourceID) *
 func ctlMC(rid *azcorearm.ResourceID) *fleetapi.ManagementCluster {
 	return &fleetapi.ManagementCluster{
 		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: rid, PartitionKey: strings.ToLower(rid.Name)},
-		ResourceID:     rid,
 	}
 }
 
@@ -233,10 +231,10 @@ func TestController_AddRegistersSubInformer(t *testing.T) {
 
 	mockA, err := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClientWithResources(ctx, []any{
 		ctlNewApplyDesire(t,
-			kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(ctlSub, ctlRG, ctlCluster, "a1"),
+			kubeapplierapihelpers.ToClusterScopedApplyDesireResourceIDString(ctlSub, ctlRG, ctlCluster, "a1"),
 			ctlMgmtAID),
 		ctlNewApplyDesire(t,
-			kubeapplierapi.ToNodePoolScopedApplyDesireResourceIDString(ctlSub, ctlRG, ctlCluster, ctlNodePool, "a2"),
+			kubeapplierapihelpers.ToNodePoolScopedApplyDesireResourceIDString(ctlSub, ctlRG, ctlCluster, ctlNodePool, "a2"),
 			ctlMgmtAID),
 	})
 	if err != nil {
@@ -282,10 +280,10 @@ func TestController_RemoveDropsSubInformer(t *testing.T) {
 
 	mockA, err := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClientWithResources(ctx, []any{
 		ctlNewApplyDesire(t,
-			kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(ctlSub, ctlRG, ctlCluster, "a1"),
+			kubeapplierapihelpers.ToClusterScopedApplyDesireResourceIDString(ctlSub, ctlRG, ctlCluster, "a1"),
 			ctlMgmtAID),
 		ctlNewApplyDesire(t,
-			kubeapplierapi.ToNodePoolScopedApplyDesireResourceIDString(ctlSub, ctlRG, ctlCluster, ctlNodePool, "a2"),
+			kubeapplierapihelpers.ToNodePoolScopedApplyDesireResourceIDString(ctlSub, ctlRG, ctlCluster, ctlNodePool, "a2"),
 			ctlMgmtAID),
 	})
 	if err != nil {
@@ -295,7 +293,7 @@ func TestController_RemoveDropsSubInformer(t *testing.T) {
 
 	mockB, err := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClientWithResources(ctx, []any{
 		ctlNewApplyDesire(t,
-			kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(ctlSub, ctlRG, "other-cluster", "b1"),
+			kubeapplierapihelpers.ToClusterScopedApplyDesireResourceIDString(ctlSub, ctlRG, "other-cluster", "b1"),
 			ctlMgmtBID),
 	})
 	if err != nil {
@@ -344,9 +342,9 @@ func TestController_RemoveDropsSubInformer(t *testing.T) {
 //     factory returns nil even though the lister knows about mgmt-a).
 //  2. Run the controller.
 //  3. Emit an Add for mgmt-a; SyncOnce sees the MC, calls factory, gets
-//     nil — silently skips. Assert no union registration happened and the
+//     nil — retried by the queue. Assert no union registration happened and the
 //     factory recorded a miss.
-//  4. Register the factory entry and emit an Update for mgmt-a.
+//  4. Register the factory entry without emitting another MC event.
 //  5. Wait for the union to pick up the sub.
 //  6. Cancel and join.
 func TestController_FactoryNilSkipsRegistrationAndRetries(t *testing.T) {
@@ -368,21 +366,20 @@ func TestController_FactoryNilSkipsRegistrationAndRetries(t *testing.T) {
 	waitUntil(t, ctx, "factory miss recorded", func() bool {
 		return factory.misses() >= 1
 	})
-	if !ctl.Union().HasSynced() {
-		t.Errorf("empty union: HasSynced = false, want true (no sub registered)")
+	if ctl.Union().HasSynced() {
+		t.Errorf("union with an unavailable expected management cluster must not be synced")
 	}
 
-	// Wire up the factory and emit Update so the controller retries.
+	// Wire up the factory; the controller retries without another event.
 	mockA, err := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClientWithResources(ctx, []any{
 		ctlNewApplyDesire(t,
-			kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(ctlSub, ctlRG, ctlCluster, "a1"),
+			kubeapplierapihelpers.ToClusterScopedApplyDesireResourceIDString(ctlSub, ctlRG, ctlCluster, "a1"),
 			ctlMgmtAID),
 	})
 	if err != nil {
 		t.Fatalf("mock A: %v", err)
 	}
 	factory.register(ctlMgmtAID, mockA)
-	mcInformer.emitUpdate(ctlMC(ctlMgmtAID), ctlMC(ctlMgmtAID))
 
 	_, applyLister := ctl.Union().ApplyDesires()
 	waitUntil(t, ctx, "lister sees mgmt-a after retry", func() bool {

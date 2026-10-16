@@ -96,11 +96,17 @@ var _ = Describe("Customer", func() {
 				framework.GetAdminRESTConfigTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to get admin REST config for cluster %q", customerClusterName)
+			adminRESTConfig.QPS = 50
+			adminRESTConfig.Burst = 100
 			Expect(verifiers.VerifyHCPCluster(ctx, adminRESTConfig)).To(Succeed(), "failed to verify HCP cluster %q is available", customerClusterName)
 
 			By("getting kubeconfig content for Helm")
 			kubeconfigContent, err := framework.GenerateKubeconfig(adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred(), "failed to generate kubeconfig for cluster %q", customerClusterName)
+
+			By("providing a Multus-compatible custom CNI conflist for Cilium")
+			err = framework.EnsureCiliumCNIConfigMap(ctx, adminRESTConfig, ciliumNamespace, framework.CiliumCNIConfigMapName, framework.CiliumConflistPortmap)
+			Expect(err).NotTo(HaveOccurred(), "failed to create Cilium CNI conflist ConfigMap")
 
 			By("installing Cilium via Helm")
 			ciliumValues := map[string]any{
@@ -136,6 +142,7 @@ var _ = Describe("Customer", func() {
 					"binPath":      "/var/lib/cni/bin",
 					"confPath":     "/var/run/multus/cni/net.d",
 					"chainingMode": "portmap",
+					"configMap":    framework.CiliumCNIConfigMapName,
 				},
 				"prometheus": map[string]any{
 					"serviceMonitor": map[string]any{
@@ -165,6 +172,10 @@ var _ = Describe("Customer", func() {
 			)
 			// We delay checking the error on purpose to get more details
 			// about the issue by running the verifiers.
+
+			By("allowing DNS pods to reach the kube-apiserver-proxy via CiliumNetworkPolicy (OCP >= 4.22 only)")
+			err = framework.EnsureDNSAllowHostAPIServerCiliumNetworkPolicy(ctx, adminRESTConfig, framework.NodePoolCreationTimeout)
+			Expect(err).NotTo(HaveOccurred(), "failed to create CiliumNetworkPolicy allowing DNS pods to reach the kube-apiserver-proxy")
 
 			By("checking that cilium is running and nodes are in Ready state")
 			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig, verifiers.VerifyNodesReady(), verifiers.VerifyCiliumOperational(ciliumNamespace, "k8s-app=cilium"))

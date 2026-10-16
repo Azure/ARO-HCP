@@ -25,6 +25,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 )
 
@@ -40,7 +41,7 @@ func createTestRevocation(t *testing.T, db *corecosmosstoragetesting.MockResourc
 	t.Helper()
 
 	revocationResourceID := metadataapi.Must(azcorearm.ParseResourceID(
-		coreapi.ToSystemAdminCredentialRevocationResourceIDString(testSubscriptionID, testResourceGroupName, testClusterName, revocationName),
+		coreapihelpers.ToSystemAdminCredentialRevocationResourceIDString(testSubscriptionID, testResourceGroupName, testClusterName, revocationName),
 	))
 
 	revocation := &coreapi.SystemAdminCredentialRevocation{

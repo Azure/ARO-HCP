@@ -136,8 +136,6 @@ spec:
         image: '{{ .Values.imageRegistry }}/{{ .Values.imageRepository }}@{{ .Values.imageDigest }}'
         imagePullPolicy: IfNotPresent
         env:
-        - name: DENYASSIGNMENTS
-          value: {{ .Values.denyAssignments }}
         # We set AZURE_TOKEN_CREDENTIALS to WorkloadIdentityCredential to force workload identity because this pod uses
         # Azure Workload Identity (azure.workload.identity/use); that effectively restricts other credential chains from being tried.
         - name: AZURE_TOKEN_CREDENTIALS
@@ -240,9 +238,6 @@ spec:
         {{- end }}
         # Baggage items are populated by the RP frontend and defined in internal/tracing/attributes.go.
         - --log-fields-from-baggage=aro.correlation_id=correlation_id,aro.client.request_id=client_request_id
-        {{ if .Values.tracing.address }}
-        - --tracing-otlp-url={{ .Values.tracing.address }}
-        {{- end }}
         {{ if .Values.dataPlaneHAProxyImage }}
         - --data-plane-ha-proxy-image={{ .Values.dataPlaneHAProxyImage }}
         {{- end }}

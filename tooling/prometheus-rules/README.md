@@ -107,7 +107,7 @@ Use the IcM severity number as the `severity` label: `2`, `2.5`, `3`, or `4`. Th
 | `3` (or `warning`)   | 3            | Needs prompt investigation.                   |
 | `4` (or `info`)      | 4            | Can wait; no immediate action required.       |
 
-Severity validation runs over every input rule, including upstream-managed `untestedRules` such as `kubernetesControlPlane-prometheusRule.yaml` (refreshed by `make -C observability sync-upstream`). A future upstream resync that introduces an unmapped severity will fail generation by design; if that happens, extend the mapping in `severityFor` when the new value is legitimate rather than disabling the check.
+Severity validation runs over every input rule, including upstream-managed `untestedRules` such as `kubernetesControlPlane-prometheusRule.yaml` (refreshed by `make -B -C observability alerts/kubernetesControlPlane-prometheusRule.yaml`). A future upstream resync that introduces an unmapped severity will fail generation by design; if that happens, extend the mapping in `severityFor` when the new value is legitimate rather than disabling the check.
 
 See: [IcM best practices - Severity levels](https://msazure.visualstudio.com/AzureRedHatOpenShift/_wiki/wikis/ARO.wiki/838022/IcM-best-practices?anchor=severity-levels)
 

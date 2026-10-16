@@ -18,12 +18,16 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/blang/semver/v4"
 
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	"github.com/openshift/hypershift/api/hypershift/v1beta1"
@@ -41,8 +45,8 @@ import (
 
 // hypershiftHostedClusterOperationState contains the cluster update operation state calculation comparing desired state
 // against Hypershift's HostedCluster in the management cluster.
-func (c *operationClusterUpdate) hypershiftHostedClusterOperationState(ctx context.Context, cluster *coreapi.HCPOpenShiftCluster, spc *coreapi.ServiceProviderCluster) (*operationbase.OperationState, error) {
-	hostedCluster, err := kubeapplierhelpers.GetCachedHostedClusterForCluster(
+func (c *operationClusterUpdate) hypershiftHostedClusterOperationState(ctx context.Context, cluster *coreapi.Cluster, spc *coreapi.ServiceProviderCluster) (*operationbase.OperationState, error) {
+	hostedCluster, _, err := kubeapplierhelpers.GetCachedHostedClusterForCluster(
 		ctx,
 		c.readDesireLister,
 		cluster.ID.SubscriptionID,
@@ -68,7 +72,7 @@ func (c *operationClusterUpdate) hypershiftHostedClusterOperationState(ctx conte
 // hypershiftHostedClusterSpecMatchesDesired reports whether Hypershift HostedCluster .Spec fields
 // and other non status configuration matches desired state. Returns false and a diagnostic message
 // when any leaf check fails. HostedCluster .status is not checked here.
-func (c *operationClusterUpdate) hypershiftHostedClusterSpecMatchesDesired(cluster *coreapi.HCPOpenShiftCluster, spc *coreapi.ServiceProviderCluster, hostedCluster *v1beta1.HostedCluster) (bool, string) {
+func (c *operationClusterUpdate) hypershiftHostedClusterSpecMatchesDesired(cluster *coreapi.Cluster, spc *coreapi.ServiceProviderCluster, hostedCluster *v1beta1.HostedCluster) (bool, string) {
 	if matches, message := c.hypershiftHostedClusterAllowedCIDRBlocksSpecMatchesDesired(cluster.CustomerProperties.API.AuthorizedCIDRs, &hostedCluster.Spec); !matches {
 		return false, message
 	}
@@ -88,6 +92,9 @@ func (c *operationClusterUpdate) hypershiftHostedClusterSpecMatchesDesired(clust
 		return false, message
 	}
 	if matches, message := c.hypershiftHostedClusterEtcdSecretEncryptionSpecMatchesDesired(cluster.CustomerProperties.Etcd.DataEncryption, hostedCluster.Spec.SecretEncryption); !matches {
+		return false, message
+	}
+	if matches, message := c.hypershiftHostedClusterContainerRegistrySpecMatchesDesired(cluster.CustomerProperties.Platform.ContainerRegistry.PullManagedIdentity, hostedCluster); !matches {
 		return false, message
 	}
 	return true, ""
@@ -290,21 +297,6 @@ func (c *operationClusterUpdate) hypershiftHostedClusterAutoscalingSpecMatchesDe
 	return true, ""
 }
 
-// platformImageContentSources lists HostedCluster imageContentSources managed internally by the
-// service. These are ignored when comparing customer imageDigestMirrors propagation.
-var platformImageContentSources = map[string]struct{}{
-	"quay.io/openshift-release-dev/ocp-v4.0-art-dev":    {},
-	"quay.io/openshift-release-dev/ocp-v5.0-art-dev":    {},
-	"quay.io/openshift-release-dev/ocp-release":         {},
-	"quay.io/openshift-release-dev/ocp-release-nightly": {},
-}
-
-// isPlatformImageContentSource reports whether source is a service-managed platform image source.
-func isPlatformImageContentSource(source string) bool {
-	_, ok := platformImageContentSources[source]
-	return ok
-}
-
 // hypershiftHostedClusterImageContentSourcesSpecMatchesDesired reports whether HostedCluster
 // imageContentSources spec matches desired state's imageDigestMirrors. Platform-managed sources may be
 // present on the HostedCluster without matching a customer desired entry.
@@ -335,7 +327,7 @@ func (c *operationClusterUpdate) hypershiftHostedClusterImageContentSourcesSpecM
 		if _, ok := desiredBySource[source]; ok {
 			continue
 		}
-		if isPlatformImageContentSource(source) {
+		if apihelpers.IsPlatformImageContentSource(source) {
 			continue
 		}
 		return false, fmt.Sprintf("hypershift HostedCluster has unexpected imageContentSource %q", source)
@@ -390,7 +382,7 @@ func (c *operationClusterUpdate) hypershiftHostedClusterCustomerManagedSecretEnc
 // directly can be added here
 // Add checks against the management cluster state when possible instead of here, to reduce the number of checks against Cluster Service, as
 // CS will be removed in the future.
-func (c *operationClusterUpdate) clusterServiceClusterSpecOperationState(cluster *coreapi.HCPOpenShiftCluster, csCluster *arohcpv1alpha1.Cluster) (*operationbase.OperationState, error) {
+func (c *operationClusterUpdate) clusterServiceClusterSpecOperationState(cluster *coreapi.Cluster, csCluster *arohcpv1alpha1.Cluster) (*operationbase.OperationState, error) {
 	if matches, message := c.clusterServiceClusterSpecMatchesDesired(cluster, csCluster); !matches {
 		return operationbase.NewOperationState(coreapi.ProvisioningStateUpdating, message), nil
 	}
@@ -400,7 +392,7 @@ func (c *operationClusterUpdate) clusterServiceClusterSpecOperationState(cluster
 // clusterServiceClusterSpecMatchesDesired reports whether Cluster Service cluster spec fields
 // relevant to the cluster update operation match desired state. Returns false and a diagnostic
 // message when any leaf check fails.
-func (c *operationClusterUpdate) clusterServiceClusterSpecMatchesDesired(cluster *coreapi.HCPOpenShiftCluster, csCluster *arohcpv1alpha1.Cluster) (bool, string) {
+func (c *operationClusterUpdate) clusterServiceClusterSpecMatchesDesired(cluster *coreapi.Cluster, csCluster *arohcpv1alpha1.Cluster) (bool, string) {
 	// TODO for now we calculate authorized CIDR against CS because we cannot calculate the difference on
 	// the Hypershift HostedCluster because there are internal IPs associated to the Node Pools egress LB that we
 	// do not track on the RP side yet. Once that is tracked we should remove this and update the logic that calculates
@@ -409,6 +401,9 @@ func (c *operationClusterUpdate) clusterServiceClusterSpecMatchesDesired(cluster
 		return false, message
 	}
 	if matches, message := c.clusterServiceClusterNodeDrainTimeoutSpecMatchesDesired(cluster.CustomerProperties.NodeDrainTimeoutMinutes, csCluster); !matches {
+		return false, message
+	}
+	if matches, message := c.clusterServiceClusterContainerRegistryPullMISpecMatchesDesired(cluster.CustomerProperties.Platform.ContainerRegistry.PullManagedIdentity, csCluster); !matches {
 		return false, message
 	}
 	return true, ""
@@ -485,11 +480,34 @@ func (c *operationClusterUpdate) clusterServiceClusterNodeDrainTimeoutSpecMatche
 	return true, ""
 }
 
+// clusterServiceClusterContainerRegistryPullMISpecMatchesDesired reports whether
+// Cluster Service container registry pull managed identity matches desired state.
+func (c *operationClusterUpdate) clusterServiceClusterContainerRegistryPullMISpecMatchesDesired(desired *azcorearm.ResourceID, csCluster *arohcpv1alpha1.Cluster) (bool, string) {
+	var desiredStr *string
+	if desired != nil {
+		desiredStr = to.Ptr(desired.String())
+	}
+
+	got := ocm.ClusterUpdateDispatchConfigContainerRegistryPullMIFromCS(csCluster.Azure())
+
+	if (desiredStr == nil) != (got == nil) || (desiredStr != nil && !strings.EqualFold(*desiredStr, *got)) {
+		var desiredDisplay, gotDisplay string
+		if desiredStr != nil {
+			desiredDisplay = *desiredStr
+		}
+		if got != nil {
+			gotDisplay = *got
+		}
+		return false, fmt.Sprintf("Cluster Service containerRegistryPullManagedIdentity is %q, want %q", gotDisplay, desiredDisplay)
+	}
+	return true, ""
+}
+
 // hypershiftControlPlaneClusterAutoscalerState gates on the
 // cluster-autoscaler ControlPlaneComponent status (Available + RolloutComplete)
 // when the active control plane is 4.20+. HostedCluster autoscaling Spec matching
 // is owned by hypershiftHostedClusterOperationState.
-func (c *operationClusterUpdate) hypershiftControlPlaneClusterAutoscalerState(ctx context.Context, existingCluster *coreapi.HCPOpenShiftCluster, spc *coreapi.ServiceProviderCluster) (*operationbase.OperationState, error) {
+func (c *operationClusterUpdate) hypershiftControlPlaneClusterAutoscalerState(ctx context.Context, existingCluster *coreapi.Cluster, spc *coreapi.ServiceProviderCluster) (*operationbase.OperationState, error) {
 	logger := utils.LoggerFromContext(ctx)
 
 	lowest, _ := apihelpers.FindLowestAndHighestClusterVersion(spc.Status.ControlPlaneVersion.ActiveVersions)
@@ -552,4 +570,24 @@ func (c *operationClusterUpdate) controlPlaneClusterAutoscalerNotReadyMessage(co
 		return clusterAutoscalerRolloutNotCompleteMsg
 	}
 	return clusterAutoscalerNotReadyMsg
+}
+
+func (c *operationClusterUpdate) hypershiftHostedClusterContainerRegistrySpecMatchesDesired(
+	desired *azcorearm.ResourceID,
+	hostedCluster *v1beta1.HostedCluster,
+) (bool, string) {
+	var observedResourceID string
+	if azure := hostedCluster.Spec.Platform.Azure; azure != nil {
+		observedResourceID = string(azure.ContainerRegistry.Credentials.ManagedIdentity.ResourceID)
+	}
+
+	var desiredStr string
+	if desired != nil {
+		desiredStr = desired.String()
+	}
+
+	if !strings.EqualFold(desiredStr, observedResourceID) {
+		return false, fmt.Sprintf("HostedCluster containerRegistry managed identity is %q, want %q", observedResourceID, desiredStr)
+	}
+	return true, ""
 }

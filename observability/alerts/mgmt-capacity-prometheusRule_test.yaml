@@ -21,7 +21,7 @@ tests:
       exp_annotations:
         summary: Node user-pool-node-1 on management cluster mgmt-nic-zero has zero SWIFT NIC capacity
         description: Node user-pool-node-1 on management cluster mgmt-nic-zero has zero SWIFT NIC capacity. No HCPs can be scheduled on this node until NIC capacity is restored.
-        runbook_url: https://portal.microsofticm.com/imp/v5/incidents/details/802529667
+        runbook_url: https://aka.ms/arohcp-runbook/zero-swift-nic-capacity
         owning_team: hcp-sl
 # Test SWIFT NIC capacity zero - no alert when user node has NIC capacity > 0
 - interval: 1m

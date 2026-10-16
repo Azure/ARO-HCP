@@ -1,0 +1,38 @@
+database: ServiceLogs
+kql: |
+  // Velero VolumeSnapshotLocations: snapshot history of the VSL CRs on the management cluster(s)
+  // hosting the target HCP, for backup-failure debugging (ARO-28989). Like BackupStorageLocations,
+  // VSLs are shared, cluster-scoped Velero config and carry NO per-HCP ARM resource-id annotation, so
+  // they cannot be pinned to a single HCP. The result is scoped to the mgmt cluster(s) hosting the
+  // target HCP: resolve the cluster set from the target HCP's watcher-captured Backup CRs (matched by
+  // the resource-id annotation), then filter VSLs to those clusters. A misconfigured or unavailable
+  // VSL breaks the CSI-snapshot / data-mover path that DataUploads depend on. One row per captured
+  // snapshot event, time-ordered. mgmtCluster is renamed off the reserved `cluster` column so it
+  // survives into the output. isHealthy flags the Available phase.
+  let hcpClusters = (
+      kubernetesResourceSnapshots
+      | where timestamp between (datetime(2025-01-01T00:00:00.0000000Z) .. datetime(2025-01-02T00:00:00.0000000Z))
+      | where cluster has_any ('mgmt-cluster-1', 'mgmt-cluster-2')
+      | where objectKind == "Backup"
+      | where namespace == "velero"
+      | where tostring(object.metadata.annotations["azure.microsoft.com/hcp-cluster-azure-resource-id"]) has '/subscriptions/test-sub/resourceGroups/test-rg'
+      | distinct cluster
+  );
+  kubernetesResourceSnapshots
+  | where timestamp between (datetime(2025-01-01T00:00:00.0000000Z) .. datetime(2025-01-02T00:00:00.0000000Z))
+  | where cluster in (hcpClusters)
+  | where objectKind == "VolumeSnapshotLocation"
+  | where namespace == "velero"
+  | extend
+      capturedAt = timestamp,
+      mgmtCluster = cluster,
+      location = name,
+      provider = tostring(object.spec.provider),
+      config = object.spec.config,
+      phase = tostring(object.status.phase)
+  | extend isHealthy = phase == "Available"
+  | project timestamp, capturedAt, event, mgmtCluster, location, provider, config, phase, isHealthy
+  | order by timestamp asc
+  | limit 100
+name: veleroVolumeSnapshotLocations
+unlimited: false

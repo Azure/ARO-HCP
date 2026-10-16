@@ -26,7 +26,7 @@ import (
 // Conversion functions project external state into this form and back out when dispatching to
 // Cluster Service.
 //
-// The same struct is built from either RP desired state (from HCPOpenShiftClusterNodePool) or
+// The same struct is built from either RP desired state (from NodePool) or
 // from the live Cluster Service NodePool. This applies only to NodePool CS updates. Cluster and
 // external auth updates use separate dispatch paths and update dispatch config structs. Drift
 // between the two projections may trigger the node pool cluster service update dispatch controller
@@ -70,7 +70,7 @@ import (
 //
 //   - Confirm this is a node-pool-level Cluster Service update (not cluster or external auth).
 //   - Confirm Cluster Service supports updating the field on an existing node pool.
-//   - Identify where RP desired state lives (HCPOpenShiftClusterNodePool.Properties, etc.).
+//   - Identify where RP desired state lives (NodePool.Properties, etc.).
 //
 // 1. Dispatch wiring (this file)
 //
@@ -113,7 +113,7 @@ import (
 //     dispatch controller PATCHes an existing one). Verify the new field is present on create.
 //   - Desired state must exist in Cosmos before dispatch can sync it. If customers set this
 //     field via ARM, also wire the full ingest path: ARM API, frontend validation/conversion,
-//     and persistence onto HCPOpenShiftClusterNodePool. Internal-only fields still need whatever
+//     and persistence onto NodePool. Internal-only fields still need whatever
 //     backend path writes the value Cosmos holds.
 type nodePoolUpdateDispatchConfig struct {
 	Labels                  map[string]string                        `json:"labels,omitempty"`
@@ -140,7 +140,7 @@ type NodePoolUpdateDispatchConfigTaint struct {
 
 // NodePoolUpdateDispatchConfigDiffJSON returns canonical JSON for both sides of the
 // dispatch diff comparison, including drain-timeout normalization when RP has no override.
-func NodePoolUpdateDispatchConfigDiffJSON(nodePool *coreapi.HCPOpenShiftClusterNodePool, csNodePool *arohcpv1alpha1.NodePool) (string, string, error) {
+func NodePoolUpdateDispatchConfigDiffJSON(nodePool *coreapi.NodePool, csNodePool *arohcpv1alpha1.NodePool) (string, string, error) {
 	desiredConfig, actualConfig := nodePoolUpdateDispatchConfigsForDiff(nodePool, csNodePool)
 
 	desiredRaw, err := desiredConfig.canonicalJSON()
@@ -158,7 +158,7 @@ func NodePoolUpdateDispatchConfigDiffJSON(nodePool *coreapi.HCPOpenShiftClusterN
 // nodePoolUpdateDispatchConfigsForDiff builds RP and CS projections for diff comparison.
 // When RP has no drain-timeout override, the CS value is cleared from the actual side so
 // dispatch does not endlessly PATCH fields CS cannot change via omit/null.
-func nodePoolUpdateDispatchConfigsForDiff(nodePool *coreapi.HCPOpenShiftClusterNodePool, csNodePool *arohcpv1alpha1.NodePool) (*nodePoolUpdateDispatchConfig, *nodePoolUpdateDispatchConfig) {
+func nodePoolUpdateDispatchConfigsForDiff(nodePool *coreapi.NodePool, csNodePool *arohcpv1alpha1.NodePool) (*nodePoolUpdateDispatchConfig, *nodePoolUpdateDispatchConfig) {
 	desiredConfig := nodePoolUpdateDispatchConfigFromRP(nodePool)
 	actualConfig := nodePoolUpdateDispatchConfigFromCS(csNodePool)
 	// When RP has no drain-timeout override, CS PATCH cannot clear or re-inherit via omit/null.
@@ -171,7 +171,7 @@ func nodePoolUpdateDispatchConfigsForDiff(nodePool *coreapi.HCPOpenShiftClusterN
 
 // NodePoolUpdateDispatchConfigJSONFromRP returns the canonical JSON of the dispatch config
 // projected from RP desired state.
-func NodePoolUpdateDispatchConfigJSONFromRP(nodePool *coreapi.HCPOpenShiftClusterNodePool) (string, error) {
+func NodePoolUpdateDispatchConfigJSONFromRP(nodePool *coreapi.NodePool) (string, error) {
 	raw, err := nodePoolUpdateDispatchConfigFromRP(nodePool).canonicalJSON()
 	if err != nil {
 		return "", err
@@ -190,7 +190,7 @@ func NodePoolUpdateDispatchConfigJSONFromCS(csNodePool *arohcpv1alpha1.NodePool)
 }
 
 // nodePoolUpdateDispatchConfigFromRP projects RP desired state into the dispatch canonical form.
-func nodePoolUpdateDispatchConfigFromRP(nodePool *coreapi.HCPOpenShiftClusterNodePool) *nodePoolUpdateDispatchConfig {
+func nodePoolUpdateDispatchConfigFromRP(nodePool *coreapi.NodePool) *nodePoolUpdateDispatchConfig {
 	config := &nodePoolUpdateDispatchConfig{
 		Labels:                  nodePool.Properties.Labels,
 		Taints:                  NodePoolUpdateDispatchConfigTaintsFromRP(nodePool.Properties.Taints),
@@ -252,7 +252,7 @@ func nodePoolUpdateDispatchConfigFromCS(csNodePool *arohcpv1alpha1.NodePool) *no
 // Hypershift reconciliation should expect. When RP stores an explicit override, that
 // value is returned. When RP stores nil (no override), the live Cluster Service node pool
 // value is returned because CS PATCH omit/null cannot clear or re-inherit cluster default.
-func NodePoolUpdateDispatchConfigEffectiveNodeDrainTimeoutMinutes(nodePool *coreapi.HCPOpenShiftClusterNodePool, csNodePool *arohcpv1alpha1.NodePool) *int32 {
+func NodePoolUpdateDispatchConfigEffectiveNodeDrainTimeoutMinutes(nodePool *coreapi.NodePool, csNodePool *arohcpv1alpha1.NodePool) *int32 {
 	if nodePool.Properties.NodeDrainTimeoutMinutes != nil {
 		return nodePool.Properties.NodeDrainTimeoutMinutes
 	}
@@ -301,7 +301,7 @@ func NodePoolUpdateDispatchConfigTaintsFromCS(csNodePool *arohcpv1alpha1.NodePoo
 // nodePoolUpdateDispatchConfigHash returns a SHA-256 hex digest of the dispatch config
 // projected from RP desired state. The digest is computed from canonical JSON (sorted object
 // keys at every level), not from a raw json.Marshal of the struct.
-func nodePoolUpdateDispatchConfigHash(nodePool *coreapi.HCPOpenShiftClusterNodePool) (string, error) {
+func nodePoolUpdateDispatchConfigHash(nodePool *coreapi.NodePool) (string, error) {
 	return nodePoolUpdateDispatchConfigFromRP(nodePool).hash()
 }
 

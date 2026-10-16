@@ -39,6 +39,41 @@ resourceGroups:
       # Transient ACR pull/push failures during image mirroring (docker registry RegistryErrorResponse, "Please retry later").
       - "RegistryErrorResponse"
       - "Please retry later"
+      # Network-level failure reaching the registry (no registry response to match). AROSLSRE-2070.
+      - "connection refused"
+      - "i/o timeout"
+      maximumRetryCount: 5
+      durationBetweenRetries: 1m
+  - name: mirror-data-plane-haproxy-image
+    action: ImageMirror
+    targetACR:
+      configRef: 'acr.ocp.name'
+    sourceRegistry:
+      configRef: clustersService.dataPlaneHAProxyImage.registry
+    repository:
+      configRef: clustersService.dataPlaneHAProxyImage.repository
+    digest:
+      configRef: clustersService.dataPlaneHAProxyImage.digest
+    pullSecretKeyVault:
+      configRef: global.keyVault.name
+    pullSecretName:
+      configRef: imageSync.ondemandSync.pullSecretName
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
+    automatedRetry:
+      errorContainsAny:
+      - "unknown_storage_failure"
+      - "unexpected EOF"
+      - "unauthorized: authentication required"
+      # Transient ACR pull/push failures during image mirroring (docker registry RegistryErrorResponse, "Please retry later").
+      - "RegistryErrorResponse"
+      - "Please retry later"
+      # Network-level failure reaching the registry (no registry response to match). AROSLSRE-2070.
+      - "connection refused"
+      - "i/o timeout"
       maximumRetryCount: 5
       durationBetweenRetries: 1m
 - name: kusto
@@ -142,6 +177,8 @@ resourceGroups:
       step: output
     - resourceGroup: global
       step: mirror-image
+    - resourceGroup: global
+      step: mirror-data-plane-haproxy-image
     automatedRetry:
       errorContainsAny:
       - "500 Internal Server Error"

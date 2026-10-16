@@ -13,6 +13,10 @@ Do not duplicate the rules here. Always read CONTRIBUTING.md before creating or 
 
 The PR checklist is built into `.github/PULL_REQUEST_TEMPLATE.md` — it appears automatically on every new PR.
 
+Automated PR policy is maintained in
+[CONTRIBUTING.md — Pull Request Standards](../../../CONTRIBUTING.md#pull-request-standards).
+Follow it without duplicating it here.
+
 ## Workflow — Creating a PR
 
 When the user asks to create a PR:
@@ -21,10 +25,10 @@ When the user asks to create a PR:
 2. **Pre-flight**: Run `git diff` and review changes. Flag anything that violates the rules.
 3. **Security scan**: Run the security checks from the "Reviewing a PR" section below against the local diff before publishing.
 4. **Scope check**: If the diff touches unrelated concerns, recommend splitting into separate PRs.
-5. **Generate description**: Write a summary following the rules, include ticket links. The checklist is auto-populated by the PR template.
+5. **Generate description**: Follow the evergreen-description policy in `CONTRIBUTING.md`; include ticket links, or the documented no-ticket explanation when no ticket exists. The checklist is auto-populated by the PR template.
 6. **Title**: Use Conventional Commits format (`feat:`, `fix:`, `docs:`, etc.).
 7. **CI check**: Run available tests/linting and report status. Ignore Tide — it is not a CI check.
-8. **Draft vs. Ready**: Ask whether to open as Draft if work appears incomplete.
+8. **Create Draft PR**: Follow the automated PR policy in `CONTRIBUTING.md`.
 9. **Reviewers**: Suggest specific reviewers based on file ownership (CODEOWNERS, git blame).
 
 ## Workflow — Reviewing a PR

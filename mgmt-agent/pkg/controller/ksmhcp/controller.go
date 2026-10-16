@@ -57,10 +57,37 @@ const (
 	serviceNetworkKubeconfigKey    = "kubeconfig"
 )
 
-var ServiceMonitorGVR = schema.GroupVersionResource{
-	Group:    "monitoring.coreos.com",
-	Version:  "v1",
-	Resource: "servicemonitors",
+// DefaultMonitoringAPIGroup is the ServiceMonitor API group used when none is
+// configured (the OSS Prometheus operator group).
+const DefaultMonitoringAPIGroup = "monitoring.coreos.com"
+
+// AMAMonitoringAPIGroup is the ServiceMonitor API group Azure Monitor (AMA)
+// discovers.
+const AMAMonitoringAPIGroup = "azmonitoring.coreos.com"
+
+// otherMonitoringGroup returns the monitoring API group that is not the given
+// one, used to locate and clean up the ServiceMonitor left behind after a
+// monitoringApiGroup switch.
+func otherMonitoringGroup(group string) string {
+	if group == AMAMonitoringAPIGroup {
+		return DefaultMonitoringAPIGroup
+	}
+	return AMAMonitoringAPIGroup
+}
+
+// ServiceMonitorGVRForGroup returns the ServiceMonitor GroupVersionResource for
+// the given monitoring API group, defaulting to monitoring.coreos.com. In AMA
+// mode the group is azmonitoring.coreos.com so the KSM monitor is created as the
+// type AMA discovers directly, without going through the monitor translator.
+func ServiceMonitorGVRForGroup(group string) schema.GroupVersionResource {
+	if group == "" {
+		group = DefaultMonitoringAPIGroup
+	}
+	return schema.GroupVersionResource{
+		Group:    group,
+		Version:  "v1",
+		Resource: "servicemonitors",
+	}
 }
 
 // KSMHCPController watches HostedControlPlane objects and ensures a
@@ -73,6 +100,9 @@ type KSMHCPController struct {
 	hasSynced     []cache.InformerSynced
 	workqueue     workqueue.TypedRateLimitingInterface[string]
 	ksmImage      string
+	// monitoringAPIGroup is the API group of the ServiceMonitor the controller
+	// creates (monitoring.coreos.com by default, azmonitoring.coreos.com in AMA mode).
+	monitoringAPIGroup string
 }
 
 // NewKSMHCPController creates a new KSMHCPController.
@@ -85,11 +115,16 @@ func NewKSMHCPController(
 	configMapInformer cache.SharedIndexInformer,
 	serviceMonitorInformer cache.SharedIndexInformer,
 	ksmImage string,
+	monitoringAPIGroup string,
 ) (*KSMHCPController, error) {
+	if monitoringAPIGroup == "" {
+		monitoringAPIGroup = DefaultMonitoringAPIGroup
+	}
 	c := &KSMHCPController{
-		kubeClientset: kubeClientset,
-		dynamicClient: dynamicClient,
-		hcpLister:     hcpInformer.Lister(),
+		kubeClientset:      kubeClientset,
+		dynamicClient:      dynamicClient,
+		hcpLister:          hcpInformer.Lister(),
+		monitoringAPIGroup: monitoringAPIGroup,
 		hasSynced: []cache.InformerSynced{
 			hcpInformer.Informer().HasSynced,
 			deploymentInformer.HasSynced,
@@ -276,7 +311,7 @@ func (c *KSMHCPController) reconcile(ctx context.Context, hcp *hypershiftv1beta1
 		return fmt.Errorf("failed to apply service in %s: %w", ns, err)
 	}
 
-	serviceMonitor, err := buildServiceMonitor(ns, ownerRef)
+	serviceMonitor, err := buildServiceMonitor(ns, c.monitoringAPIGroup, ownerRef)
 	if err != nil {
 		return fmt.Errorf("failed to build servicemonitor in %s: %w", ns, err)
 	}
@@ -284,8 +319,36 @@ func (c *KSMHCPController) reconcile(ctx context.Context, hcp *hypershiftv1beta1
 		return fmt.Errorf("failed to apply servicemonitor in %s: %w", ns, err)
 	}
 
+	if err := c.deleteStaleServiceMonitor(ctx, ns); err != nil {
+		return fmt.Errorf("failed to delete stale servicemonitor in %s: %w", ns, err)
+	}
+
 	logger.Info("Reconciled KSM resources for HostedControlPlane")
 	return nil
+}
+
+// deleteStaleServiceMonitor removes the kube-state-metrics ServiceMonitor from
+// the *other* monitoring API group. When monitoringApiGroup is switched (e.g.
+// OSS monitoring.coreos.com -> AMA azmonitoring.coreos.com), the monitor
+// previously created in the old group is HCP-owned and would otherwise linger
+// until the HCP is deleted. Leaving it in place would also let the monitor
+// translator pick it up and translate it into the AMA group, colliding on the
+// same name/namespace with the monitor this controller now creates directly.
+// Deleting it keeps a single active ServiceMonitor per HCP.
+func (c *KSMHCPController) deleteStaleServiceMonitor(ctx context.Context, namespace string) error {
+	staleGVR := ServiceMonitorGVRForGroup(otherMonitoringGroup(c.monitoringAPIGroup))
+	err := c.dynamicClient.Resource(staleGVR).Namespace(namespace).Delete(ctx, resourceName, metav1.DeleteOptions{})
+	switch {
+	case err == nil:
+		klog.FromContext(ctx).V(4).Info("Deleted stale ServiceMonitor from previous monitoring API group", "group", staleGVR.Group)
+		return nil
+	case apierrors.IsNotFound(err), meta.IsNoMatchError(err):
+		// Nothing to clean up, or the other group's CRD is not installed on this
+		// cluster (e.g. azmonitoring is absent on a pure-OSS management cluster).
+		return nil
+	default:
+		return err
+	}
 }
 
 func (c *KSMHCPController) applyDeployment(ctx context.Context, desired *appsac.DeploymentApplyConfiguration) error {
@@ -314,7 +377,7 @@ func (c *KSMHCPController) applyServiceMonitor(ctx context.Context, desired *uns
 	if err != nil {
 		return fmt.Errorf("failed to marshal servicemonitor: %w", err)
 	}
-	_, err = c.dynamicClient.Resource(ServiceMonitorGVR).Namespace(desired.GetNamespace()).Patch(
+	_, err = c.dynamicClient.Resource(ServiceMonitorGVRForGroup(c.monitoringAPIGroup)).Namespace(desired.GetNamespace()).Patch(
 		ctx, desired.GetName(), types.ApplyPatchType, data,
 		metav1.PatchOptions{FieldManager: fieldManager, Force: ptr.To(true)},
 	)

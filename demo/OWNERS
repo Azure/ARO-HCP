@@ -2,3 +2,5 @@ approvers:
 - geoberle
 - mbarnes
 - miguelsorianod
+labels:
+- area/demo

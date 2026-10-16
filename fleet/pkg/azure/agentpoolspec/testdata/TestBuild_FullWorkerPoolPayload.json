@@ -1,0 +1,40 @@
+{
+  "availabilityZones": [
+    "1"
+  ],
+  "enableAutoScaling": true,
+  "enableEncryptionAtHost": true,
+  "enableFIPS": true,
+  "enableNodePublicIP": false,
+  "kubeletDiskType": "OS",
+  "maxCount": 10,
+  "maxPods": 225,
+  "minCount": 2,
+  "mode": "User",
+  "nodeLabels": {
+    "aro-hcp.azure.com/role": "worker",
+    "workload": "general"
+  },
+  "nodeTaints": [
+    "dedicated=worker:NoSchedule"
+  ],
+  "osDiskSizeGB": 256,
+  "osDiskType": "Ephemeral",
+  "osSKU": "AzureLinux",
+  "osType": "Linux",
+  "podSubnetID": "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.Network/virtualNetworks/vnet/subnets/pod",
+  "securityProfile": {
+    "enableSecureBoot": false,
+    "enableVTPM": false
+  },
+  "tags": {
+    "aks-nic-enable-multi-tenancy": "true",
+    "aks-nic-secondary-count": "7"
+  },
+  "type": "VirtualMachineScaleSets",
+  "upgradeSettings": {
+    "maxSurge": "10%"
+  },
+  "vmSize": "Standard_E16ds_v6",
+  "vnetSubnetID": "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.Network/virtualNetworks/vnet/subnets/node"
+}

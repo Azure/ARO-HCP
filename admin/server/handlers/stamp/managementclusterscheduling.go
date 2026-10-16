@@ -19,6 +19,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -64,6 +65,6 @@ func (h *ManagementClusterSchedulingGetHandler) ServeHTTP(w http.ResponseWriter,
 		return utils.TrackError(err)
 	}
 
-	_, err = coreapi.WriteJSONResponse(w, http.StatusOK, scheduling.Status)
+	_, err = coreapihelpers.WriteJSONResponse(w, http.StatusOK, scheduling.Status)
 	return utils.TrackError(err)
 }

@@ -52,11 +52,15 @@ type clusterWatchingController struct {
 // This does NOT prevent us from re-executing on errors, so errors will continue to trigger fast checks as expected.
 //
 // kubeApplierInformers is optional: when non-nil, the controller also enqueues
-// on ReadDesire events from the union kube-applier informer surface. The
-// status that the kube-applier writes back lives on the ReadDesire, so a
-// ReadDesire update is how this controller learns "the kube-applier
-// reported something new about a cluster". Apply/Delete desires are not
-// wired in because their status doesn't carry cluster-state signal.
+// on cluster-scoped ReadDesire and ApplyDesire events from the union
+// kube-applier informer surface. The kube-applier writes per-desire status
+// (including a Degraded condition) back onto these desires, so a desire update
+// is how this controller learns "the kube-applier reported something new about
+// a cluster" — the cluster Degraded aggregator folds cluster-scoped
+// ApplyDesire/ReadDesire Degraded status into the cluster's Degraded condition.
+// Only cluster-scoped desires are watched (node-pool-nested ones are ignored,
+// see below). Delete desires are not wired in because their status does not
+// carry cluster-state signal.
 func NewClusterWatchingController(
 	name string,
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
@@ -89,13 +93,20 @@ func NewClusterWatchingController(
 	}
 
 	if kubeApplierInformers != nil {
-		// Cluster-scoped ReadDesires sit one level below the cluster
-		// (.../hcpOpenShiftClusters/<cluster>/readDesires/<name>), so a
-		// maxDepth of 1 reaches the cluster and stops there. Node-pool-scoped
-		// ReadDesires live one level deeper and are ignored on purpose —
-		// this controller is "cluster-scoped only".
+		// Cluster-scoped ReadDesires/ApplyDesires sit one level below the
+		// cluster (.../hcpOpenShiftClusters/<cluster>/{read,apply}Desires/<name>),
+		// so a maxDepth of 1 reaches the cluster and stops there.
+		// Node-pool-scoped desires live one level deeper and are ignored on
+		// purpose — this controller is "cluster-scoped only". ApplyDesire is
+		// wired in alongside ReadDesire because the cluster Degraded aggregator
+		// now folds cluster-scoped ApplyDesire Degraded status into the cluster
+		// condition; Delete desires are still not wired in.
 		readDesireInformer, _ := kubeApplierInformers.ReadDesires()
 		if err := clusterController.QueueForInformersWithMaxDepth(resyncDuration, 1, readDesireInformer); err != nil {
+			panic(err) // coding error
+		}
+		applyDesireInformer, _ := kubeApplierInformers.ApplyDesires()
+		if err := clusterController.QueueForInformersWithMaxDepth(resyncDuration, 1, applyDesireInformer); err != nil {
 			panic(err) // coding error
 		}
 	}

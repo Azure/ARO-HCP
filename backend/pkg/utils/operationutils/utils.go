@@ -180,7 +180,7 @@ func UpdateOperationStatus(ctx context.Context, clock utilsclock.PassiveClock, r
 
 // getClusterForUpdate returns a deep copy of the cluster with updated provisioning
 // state, or nil if the resource update should be skipped.
-func getClusterForUpdate(ctx context.Context, logger logr.Logger, dbClient corecosmosstorage.HCPClusterCRUD, existingOperation *coreapi.Operation, newOperationStatus coreapi.ProvisioningState) (*coreapi.HCPOpenShiftCluster, error) {
+func getClusterForUpdate(ctx context.Context, logger logr.Logger, dbClient corecosmosstorage.HCPClusterCRUD, existingOperation *coreapi.Operation, newOperationStatus coreapi.ProvisioningState) (*coreapi.Cluster, error) {
 	curr, err := dbClient.Get(ctx, existingOperation.ExternalID.Name)
 	var responseErr *azcore.ResponseError
 	if errors.As(err, &responseErr) && responseErr.StatusCode == http.StatusNotFound {
@@ -214,7 +214,7 @@ func getClusterForUpdate(ctx context.Context, logger logr.Logger, dbClient corec
 
 // getNodePoolForUpdate returns a deep copy of the node pool with updated provisioning
 // state, or nil if the resource update should be skipped.
-func getNodePoolForUpdate(ctx context.Context, logger logr.Logger, dbClient corecosmosstorage.NodePoolsCRUD, existingOperation *coreapi.Operation, newOperationStatus coreapi.ProvisioningState) (*coreapi.HCPOpenShiftClusterNodePool, error) {
+func getNodePoolForUpdate(ctx context.Context, logger logr.Logger, dbClient corecosmosstorage.NodePoolsCRUD, existingOperation *coreapi.Operation, newOperationStatus coreapi.ProvisioningState) (*coreapi.NodePool, error) {
 	curr, err := dbClient.Get(ctx, existingOperation.ExternalID.Name)
 	var responseErr *azcore.ResponseError
 	if errors.As(err, &responseErr) && responseErr.StatusCode == http.StatusNotFound {
@@ -248,7 +248,7 @@ func getNodePoolForUpdate(ctx context.Context, logger logr.Logger, dbClient core
 
 // getExternalAuthForUpdate returns a deep copy of the external auth with updated
 // provisioning state, or nil if the resource update should be skipped.
-func getExternalAuthForUpdate(ctx context.Context, logger logr.Logger, dbClient corecosmosstorage.ExternalAuthsCRUD, existingOperation *coreapi.Operation, newOperationStatus coreapi.ProvisioningState) (*coreapi.HCPOpenShiftClusterExternalAuth, error) {
+func getExternalAuthForUpdate(ctx context.Context, logger logr.Logger, dbClient corecosmosstorage.ExternalAuthsCRUD, existingOperation *coreapi.Operation, newOperationStatus coreapi.ProvisioningState) (*coreapi.ExternalAuth, error) {
 	curr, err := dbClient.Get(ctx, existingOperation.ExternalID.Name)
 	var responseErr *azcore.ResponseError
 	if errors.As(err, &responseErr) && responseErr.StatusCode == http.StatusNotFound {
@@ -503,6 +503,33 @@ func ConvertClusterStatus(ctx context.Context, clusterServiceClient ocm.ClusterS
 	return newOperationStatus, opError, err
 }
 
+// ClusterServiceInProgressMessage returns a short description of a non-terminal
+// Cluster Service cluster state, or empty for terminal states.
+func ClusterServiceInProgressMessage(state arohcpv1alpha1.ClusterState) string {
+	switch state {
+	case arohcpv1alpha1.ClusterStateInstalling,
+		arohcpv1alpha1.ClusterStatePending,
+		arohcpv1alpha1.ClusterStateValidating,
+		arohcpv1alpha1.ClusterStateUpdating,
+		arohcpv1alpha1.ClusterStateUninstalling:
+		return fmt.Sprintf("cluster service is %s", state)
+	default:
+		return ""
+	}
+}
+
+// ClusterServiceOperationMessage is the OperationState message for a converted
+// ClusterStatus: opError.Message if set, otherwise the in-progress CS state.
+func ClusterServiceOperationMessage(clusterStatus *arohcpv1alpha1.ClusterStatus, opError *coreapi.CloudErrorBody) string {
+	if opError != nil && opError.Message != "" {
+		return opError.Message
+	}
+	if clusterStatus == nil {
+		return ""
+	}
+	return ClusterServiceInProgressMessage(clusterStatus.State())
+}
+
 // ConvertNodePoolStatus attempts to translate a NodePoolStatus object
 // from Cluster Service into an ARM provisioning state and, if necessary,
 // a structured OData error.
@@ -549,6 +576,34 @@ func ConvertNodePoolStatus(operation *coreapi.Operation, nodePoolStatus *arohcpv
 	}
 
 	return newOperationStatus, opError, err
+}
+
+// NodePoolServiceInProgressMessage returns a short description of a non-terminal
+// Cluster Service node pool state, or empty for terminal states.
+func NodePoolServiceInProgressMessage(state NodePoolStateValue) string {
+	switch state {
+	case NodePoolStateValidating, NodePoolStatePending, NodePoolStateInstalling,
+		NodePoolStateUpdating, NodePoolStateValidatingUpdate, NodePoolStatePendingUpdate,
+		NodePoolStateUninstalling:
+		return fmt.Sprintf("cluster service node pool is %s", state)
+	default:
+		return ""
+	}
+}
+
+// NodePoolServiceOperationMessage is the OperationState message for a converted
+// NodePoolStatus: opError.Message if set, else the CS message, else the in-progress state.
+func NodePoolServiceOperationMessage(nodePoolStatus *arohcpv1alpha1.NodePoolStatus, opError *coreapi.CloudErrorBody) string {
+	if opError != nil && opError.Message != "" {
+		return opError.Message
+	}
+	if nodePoolStatus == nil {
+		return ""
+	}
+	if msg, ok := nodePoolStatus.GetMessage(); ok && msg != "" {
+		return msg
+	}
+	return NodePoolServiceInProgressMessage(NodePoolStateValue(nodePoolStatus.State().NodePoolStateValue()))
 }
 
 func ConvertExternalAuthStatus(operation *coreapi.Operation, externalAuthStatus *arohcpv1alpha1.ExternalAuthStatus) (coreapi.ProvisioningState, *coreapi.CloudErrorBody, error) {

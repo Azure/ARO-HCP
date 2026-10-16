@@ -53,6 +53,7 @@ const missingClusterServiceIDTimeout = 120 * time.Second
 // waiting for a ClusterServiceID), it stamps ClusterServiceDeletionTimestamp
 // on the NodePool to record that this step is complete and avoid re-issuing
 // the delete on subsequent syncs.
+//
 // The controller also caches the time the controller has first seen the
 // serviceProviderProperties.deletionTimestamp being set for a nodepool. This
 // is used to avoid immediately triggering deletion in scenarios where the
@@ -72,6 +73,8 @@ type nodePoolClusterServiceDeleteDispatchSyncer struct {
 
 var _ controllerutils.NodePoolSyncer = (*nodePoolClusterServiceDeleteDispatchSyncer)(nil)
 
+const NodePoolClusterServiceDeleteDispatchControllerName = "NodePoolClusterServiceDeleteDispatch"
+
 func NewNodePoolClusterServiceDeleteDispatchController(
 	clock utilsclock.PassiveClock,
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
@@ -89,7 +92,7 @@ func NewNodePoolClusterServiceDeleteDispatchController(
 	}
 
 	return controllerutils.NewNodePoolWatchingController(
-		"NodePoolClusterServiceDeleteDispatch",
+		NodePoolClusterServiceDeleteDispatchControllerName,
 		resourcesDBClient,
 		informers,
 		kubeApplierInformers,
@@ -101,14 +104,7 @@ func NewNodePoolClusterServiceDeleteDispatchController(
 // NeedsWork reports whether the deleter has unfinished business for the given
 // NodePool: DeletionTimestamp must be set and ClusterServiceDeletionTimestamp
 // must not yet be set.
-func (c *nodePoolClusterServiceDeleteDispatchSyncer) NeedsWork(nodePool *coreapi.HCPOpenShiftClusterNodePool) bool {
-	// TODO temporary check to skip the new deletion approach for NodePools that were created before the new approach was implemented.
-	// This will be removed once all nodepools whose deletion was triggered before the new approach is fully rolled out have been
-	// fully deleted in all ARO-HCP permanent environments, for all regions.
-	if !nodePool.ServiceProviderProperties.UsesNewNodePoolDeletionApproach {
-		return false
-	}
-
+func (c *nodePoolClusterServiceDeleteDispatchSyncer) NeedsWork(nodePool *coreapi.NodePool) bool {
 	return nodePool.ServiceProviderProperties.DeletionTimestamp != nil &&
 		nodePool.ServiceProviderProperties.ClusterServiceDeletionTimestamp == nil
 }

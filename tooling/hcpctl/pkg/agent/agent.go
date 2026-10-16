@@ -165,8 +165,7 @@ type Session struct {
 	seenUsageKeys   map[string]struct{}
 }
 
-// CreateSession creates a new Copilot session for an analysis run.
-func (c *CopilotClient) CreateSession(ctx context.Context, logger logr.Logger, cfg SessionConfig) (*Session, error) {
+func (c *CopilotClient) buildSessionConfig(ctx context.Context, cfg SessionConfig) (*copilot.SessionConfig, error) {
 	sessionCfg := &copilot.SessionConfig{
 		Model:               cfg.Model,
 		SystemMessage:       cfg.SystemMessage,
@@ -191,14 +190,26 @@ func (c *CopilotClient) CreateSession(ctx context.Context, logger logr.Logger, c
 		if err != nil {
 			return nil, fmt.Errorf("acquiring Entra token for BYOK copilot session: %w", err)
 		}
+		// Reasoning with function tools requires Responses on newer models.
 		sessionCfg.Provider = &copilot.ProviderConfig{
 			Type:        "azure",
+			WireAPI:     "responses",
 			BaseURL:     c.cfg.ModelEndpoint,
 			BearerToken: token.Token,
 		}
 		if sessionCfg.Model == "" {
 			sessionCfg.Model = c.cfg.ModelDeployment
 		}
+	}
+
+	return sessionCfg, nil
+}
+
+// CreateSession creates a new Copilot session for an analysis run.
+func (c *CopilotClient) CreateSession(ctx context.Context, logger logr.Logger, cfg SessionConfig) (*Session, error) {
+	sessionCfg, err := c.buildSessionConfig(ctx, cfg)
+	if err != nil {
+		return nil, err
 	}
 
 	session, err := c.inner.CreateSession(ctx, sessionCfg)
@@ -338,6 +349,10 @@ func (s *Session) Usage() UsageReport {
 func (s *Session) SendAndWait(ctx context.Context, prompt string) (string, error) {
 	s.logger.V(1).Info("Sending message to Copilot session.", "promptLength", len(prompt))
 
+	errorCapture := &copilotSessionErrorCapture{provider: s.usageProvider}
+	unsubscribe := s.inner.On(errorCapture.record)
+	defer unsubscribe()
+
 	// The SDK applies a 60s default timeout when the context has no deadline.
 	// Analysis turns routinely take 10+ minutes, so set a generous deadline
 	// to prevent the SDK from timing out prematurely. The caller's context
@@ -376,7 +391,7 @@ func (s *Session) SendAndWait(ctx context.Context, prompt string) (string, error
 		return "", ctx.Err()
 	case r := <-ch:
 		if r.err != nil {
-			return "", fmt.Errorf("copilot session failed: %w", r.err)
+			return "", wrapCopilotSessionError(errorCapture, r.err)
 		}
 		if r.event == nil {
 			return "", fmt.Errorf("copilot session returned no response")

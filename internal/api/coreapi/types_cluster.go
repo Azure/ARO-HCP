@@ -24,27 +24,27 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 )
 
-// HCPOpenShiftCluster represents an ARO HCP OpenShift cluster resource.
+// Cluster represents an ARO HCP OpenShift cluster resource.
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-type HCPOpenShiftCluster struct {
+type Cluster struct {
 	// PartitionKey holds the lowercased subscriptionID.
 	CosmosMetadata `json:"cosmosMetadata"`
 
 	TrackedResource
 
 	// Written by: Frontend PUT/PATCH Cluster, ClusterBaseDomainPrefixSync
-	CustomerProperties HCPOpenShiftClusterCustomerProperties `json:"customerProperties,omitempty"`
+	CustomerProperties ClusterCustomerProperties `json:"customerProperties,omitempty"`
 	// Written by: Frontend PUT/PATCH/DELETE Cluster, all Operation*Cluster controllers, ClusterPropertiesSync, ClusterClusterServiceCreate, ClusterDeletion* controllers, CreateBillingDoc
-	ServiceProviderProperties HCPOpenShiftClusterServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
+	ServiceProviderProperties ClusterServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
 	// Written by: Frontend PUT/PATCH Cluster (Create/Update), ClusterIdentitySync
 	Identity *ManagedServiceIdentity `json:"identity,omitempty"`
 	// Written by: ClusterDegradedAggregator, ClusterRequirementsValidAggregator
-	Status HCPOpenShiftClusterStatus `json:"status"`
+	Status ClusterStatus `json:"status"`
 }
 
-// HCPOpenShiftClusterStatus contains the observed state of the cluster.
-type HCPOpenShiftClusterStatus struct {
-	// Conditions are the top-level HCPOpenShiftCluster status conditions.
+// ClusterStatus contains the observed state of the cluster.
+type ClusterStatus struct {
+	// Conditions are the top-level Cluster status conditions.
 	// Each Condition Type represents a condition and it should be unique among all conditions.
 	// Written by: ClusterDegradedAggregator
 	// +optional
@@ -69,12 +69,24 @@ type HCPOpenShiftClusterStatus struct {
 	// +listType=map
 	// +listMapKey=type
 	UserFacingConditions []metav1.Condition `json:"userFacingConditions,omitempty" patchStrategy:"merge" patchMergeKey:"type"`
+
+	// ActiveVersions are the active versions of the cluster control plane, ordered newest first.
+	// Written by: ControlPlaneActiveVersions
+	// +optional
+	// +listType=set
+	ActiveVersions []HCPClusterActiveVersion `json:"activeVersions,omitempty"`
 }
 
-var _ CosmosPersistable = &HCPOpenShiftCluster{}
+type HCPClusterActiveVersion struct {
+	// Version is the user-facing version in x.y format (e.g., "4.20")
+	// Written by: ControlPlaneActiveVersions
+	Version string `json:"version,omitempty"`
+}
 
-// HCPOpenShiftClusterCustomerProperties represents the property bag of a HCPOpenShiftCluster resource.
-type HCPOpenShiftClusterCustomerProperties struct {
+var _ CosmosPersistable = &Cluster{}
+
+// ClusterCustomerProperties represents the property bag of a Cluster resource.
+type ClusterCustomerProperties struct {
 	// Written by: Frontend PUT/PATCH Cluster
 	Version VersionProfile `json:"version,omitempty"`
 	// Written by: Frontend PUT/PATCH Cluster, ClusterBaseDomainPrefixSync (BaseDomainPrefix only)
@@ -101,8 +113,8 @@ type HCPOpenShiftClusterCustomerProperties struct {
 	CryptoRestrictions metadataapi.CryptoRestrictions `json:"cryptoRestrictions,omitempty"`
 }
 
-// HCPOpenShiftClusterServiceProviderProperties represents the service-provider-managed property bag of a HCPOpenShiftCluster resource.
-type HCPOpenShiftClusterServiceProviderProperties struct {
+// ClusterServiceProviderProperties represents the service-provider-managed property bag of a Cluster resource.
+type ClusterServiceProviderProperties struct {
 	// Written by: Frontend PUT/PATCH/DELETE Cluster, OperationClusterCreate, OperationClusterUpdate, OperationClusterDelete
 	ProvisioningState ProvisioningState `json:"provisioningState,omitempty"`
 	// Written by: ClusterPendingClusterServiceIDAssign
@@ -154,7 +166,7 @@ type HCPOpenShiftClusterServiceProviderProperties struct {
 	// Written by: ClusterClusterServiceDeleteDispatch
 	ClusterServiceDeletionTimestamp *metav1.Time `json:"clusterServiceDeletionTimestamp,omitempty"`
 
-	// TODO Temporary field to track whether the cluster operation is using the new deletion approach.
+	// TODO do NOT reference this field in any new code. It is in the process of being removed
 	// Written by: Frontend DELETE Cluster
 	UsesNewClusterDeletionApproach bool `json:"usesNewClusterDeletionApproach"`
 
@@ -167,17 +179,25 @@ type HCPOpenShiftClusterServiceProviderProperties struct {
 	// The e2e tests set this value to one minute less than the default timeout.
 	CreateOperationCompletionDeadline *metav1.Time `json:"createOperationCompletionDeadline,omitempty"`
 
+	// UpdateOperationCompletionDeadline is the time by which the current cluster update must complete.
+	// Admission resets it on each update to 60 minutes from the request, unless overridden
+	// by the experimental max-update-duration tag (requires ExperimentalReleaseFeatures).
+	// The update operation controller fails pending operations after this deadline,
+	// including the current pending reasons in the returned error.
+	// Written by: Frontend PUT/PATCH Cluster (via admission)
+	UpdateOperationCompletionDeadline *metav1.Time `json:"updateOperationCompletionDeadline,omitempty"`
+
 	// DeleteOperationCompletionTimeout is the duration after which a cluster deletion operation will be
 	// marked as failed with a message listing the remaining cosmos resources preventing deletion.
 	// Set by admission on CREATE and UPDATE from the TagClusterMaxDeletionDuration tag.
 	// Nil when the tag is absent or the ExperimentalReleaseFeatures AFEC is not registered.
-	// The frontend DELETE handler computes the deadline as DeletionTimestamp + this duration.
+	// The frontend DELETE handler adds this duration to the accepted attempt time, defaulting to 12 hours when nil.
 	// Written by: Frontend PUT/PATCH Cluster (via admission)
 	DeleteOperationCompletionTimeout *time.Duration `json:"deleteOperationCompletionTimeout,omitempty"`
 
 	// DeleteOperationCompletionDeadline is the absolute time by which the cluster deletion operation
-	// must complete. Computed by the frontend DELETE handler as DeletionTimestamp + DeleteOperationCompletionTimeout
-	// (or DeletionTimestamp + 12h when DeleteOperationCompletionTimeout is nil).
+	// must complete. Computed by the frontend DELETE handler as the accepted attempt time plus
+	// DeleteOperationCompletionTimeout (or 12 hours when nil), preserving the original DeletionTimestamp.
 	// Written by: Frontend DELETE Cluster
 	DeleteOperationCompletionDeadline *metav1.Time `json:"deleteOperationCompletionDeadline,omitempty"`
 }
@@ -195,6 +215,7 @@ type CustomerDNSProfile struct {
 
 // ServiceProviderDNSProfile represents the DNS configuration of the cluster.
 type ServiceProviderDNSProfile struct {
+	// Written by: ClusterPropertiesSync
 	BaseDomain string `json:"baseDomain,omitempty"`
 }
 
@@ -211,6 +232,7 @@ type NetworkProfile struct {
 // ServiceProviderConsoleProfile represents a cluster web console configuration.
 // Visibility for the entire struct is "read".
 type ServiceProviderConsoleProfile struct {
+	// Written by: ClusterPropertiesSync
 	URL string `json:"url,omitempty"`
 }
 
@@ -221,6 +243,7 @@ type CustomerAPIProfile struct {
 }
 
 type ServiceProviderAPIProfile struct {
+	// Written by: ClusterPropertiesSync
 	URL string `json:"url,omitempty"`
 }
 
@@ -230,7 +253,9 @@ type CustomerIngressProfile struct {
 }
 
 // CustomerPlatformProfile represents the Azure platform configuration.
-// Visibility for (almost) the entire struct is "read create".
+// Most fields are "read create" (set at creation, immutable afterwards).
+// The exception is ContainerRegistry, which is day-2 mutable (Read/Create/Update)
+// and written by both PUT and PATCH.
 type CustomerPlatformProfile struct {
 	ManagedResourceGroup    string                         `json:"managedResourceGroup,omitempty"`
 	SubnetID                *azcorearm.ResourceID          `json:"subnetId,omitempty"`
@@ -238,9 +263,19 @@ type CustomerPlatformProfile struct {
 	OutboundType            metadataapi.OutboundType       `json:"outboundType,omitempty"`
 	NetworkSecurityGroupID  *azcorearm.ResourceID          `json:"networkSecurityGroupId,omitempty"`
 	OperatorsAuthentication OperatorsAuthenticationProfile `json:"operatorsAuthentication,omitempty"`
+	// Written by: Frontend PUT/PATCH Cluster
+	ContainerRegistry ContainerRegistryProfile `json:"containerRegistry,omitzero"`
+}
+
+// ContainerRegistryProfile represents Azure Container Registry pull
+// configuration for the cluster.
+type ContainerRegistryProfile struct {
+	// Written by: Frontend PUT Cluster (Create), Frontend PATCH Cluster (Update)
+	PullManagedIdentity *azcorearm.ResourceID `json:"pullManagedIdentity,omitempty"`
 }
 
 type ServiceProviderPlatformProfile struct {
+	// Written by: ClusterPropertiesSync
 	IssuerURL string `json:"issuerUrl,omitempty"`
 }
 
@@ -275,12 +310,19 @@ type CustomerManagedEncryptionProfile struct {
 	Kms            *KmsEncryptionProfile                     `json:"kms,omitempty"`
 }
 
+const (
+	KmsKeyVaultTypeKeyVault   = "KeyVault"
+	KmsKeyVaultTypeManagedHSM = "ManagedHSM"
+)
+
 // KmsEncryptionProfile represents a data encryption configuration for ETCD using
 // customer-managed Key Management Service (KMS) keys.
 // Visibility for the entire struct is "read create".
 type KmsEncryptionProfile struct {
 	Visibility metadataapi.KeyVaultVisibility `json:"visibility,omitempty"`
 	ActiveKey  KmsKey                         `json:"activeKey,omitempty"`
+	// Written by: Frontend PUT Cluster (Create)
+	KeyVaultType string `json:"keyVaultType,omitempty"`
 }
 
 // KmsKey represents an Azure KeyVault secret.
@@ -329,11 +371,11 @@ type ImageDigestMirror struct {
 	MirrorSourcePolicy metadataapi.MirrorSourcePolicy `json:"mirrorSourcePolicy,omitempty"`
 }
 
-// Creates an HCPOpenShiftCluster with any non-zero default values.
-func NewDefaultHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, azureLocation string) *HCPOpenShiftCluster {
-	return &HCPOpenShiftCluster{
+// NewDefaultCluster creates a Cluster with any non-zero default values.
+func NewDefaultCluster(resourceID *azcorearm.ResourceID, azureLocation string) *Cluster {
+	return &Cluster{
 		TrackedResource: NewTrackedResource(resourceID, azureLocation),
-		CustomerProperties: HCPOpenShiftClusterCustomerProperties{
+		CustomerProperties: ClusterCustomerProperties{
 			Version: VersionProfile{
 				ChannelGroup: DefaultClusterVersionChannelGroup,
 			},
@@ -374,7 +416,7 @@ func NewDefaultHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, azureLocati
 //
 // This method should be treated as append-only. Avoid removing defaulting
 // rules until all Cosmos documents have been verified to contain the field.
-func (cluster *HCPOpenShiftCluster) EnsureDefaults() {
+func (cluster *Cluster) EnsureDefaults() {
 	if len(cluster.CustomerProperties.Network.NetworkType) == 0 {
 		cluster.CustomerProperties.Network.NetworkType = metadataapi.NetworkTypeOVNKubernetes
 	}
@@ -400,13 +442,16 @@ func (cluster *HCPOpenShiftCluster) EnsureDefaults() {
 	}
 	// Default KMS Visibility to Public for clusters created via v2024_06_10_preview
 	// (which doesn't expose the visibility field and assumes public KeyVaults).
-	if cluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged != nil &&
-		cluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms != nil &&
-		len(cluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.Visibility) == 0 {
-		cluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.Visibility = metadataapi.KeyVaultVisibilityPublic
+	if cm := cluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged; cm != nil && cm.Kms != nil {
+		if len(cm.Kms.Visibility) == 0 {
+			cm.Kms.Visibility = metadataapi.KeyVaultVisibilityPublic
+		}
+		if len(cm.Kms.KeyVaultType) == 0 {
+			cm.Kms.KeyVaultType = KmsKeyVaultTypeKeyVault
+		}
 	}
 }
 
-func (o *HCPOpenShiftCluster) Validate() []CloudErrorBody {
+func (o *Cluster) Validate() []CloudErrorBody {
 	return nil
 }

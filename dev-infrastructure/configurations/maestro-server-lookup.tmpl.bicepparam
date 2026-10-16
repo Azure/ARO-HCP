@@ -1,5 +1,8 @@
 using '../modules/maestro/maestro-server-lookup.bicep'
 
+param useLeasedInfrastructureIdentities = {{ .infrastructureIdentities.useLeased }}
+param infrastructureIdentityResourceGroup = '{{ .infrastructureIdentities.serviceResourceGroup }}'
+
 param maestroMsiName = '{{ .maestro.server.managedIdentityName }}'
 param imagePullerMsiName = 'image-puller'
 param useAzureDB = {{ .maestro.postgres.deploy }}
