@@ -284,6 +284,8 @@ github.com/prometheus/common v0.72.0 h1:tAYsE+sPJxIncDAobm4H5aQjmox9ZxEIIqPbiffa
 github.com/prometheus/common v0.72.0/go.mod h1:77NWqAQ2tXT7BIK40qjJdw5Acrsrg1TlHAnsQi3i6mk=
 github.com/prometheus/procfs v0.22.0 h1:6q9+/JL9IKAPbCmBrv9n5O5Ty3NKnciV5X7YGw0oics=
 github.com/prometheus/procfs v0.22.0/go.mod h1:CvmFr/GVhIjIvWJZW3tgkODBQMRIf0EyWMQLHCHab58=
+github.com/roasbeef/claude-agent-sdk-go v1.1.0 h1:jqcaNiofZ8nP35zoJXYLPMI3/bH4L0BDrxnbJ6vVaRU=
+github.com/roasbeef/claude-agent-sdk-go v1.1.0/go.mod h1:2xaYqcd5d5zyiQZKUWuPn5Ahczy6LsIT4aVU5SWX3ms=
 github.com/rogpeppe/go-internal v1.14.1 h1:UQB4HGPB6osV0SQTLymcB4TgvyWu6ZyliaW0tI/otEQ=
 github.com/rogpeppe/go-internal v1.14.1/go.mod h1:MaRKkUm5W0goXpeCfT7UZI6fk/L7L7so1lCWt35ZSgc=
 github.com/russross/blackfriday/v2 v2.1.0 h1:JIOH55/0cWyOuilr9/qlrm0BSXldqnqwMsf35Ld67mk=
@@ -487,6 +489,8 @@ k8s.io/streaming v0.36.2 h1:NSKthPPg9UFSKsRauVJUVGH2Dvn8fhKmY4qrMkw/p98=
 k8s.io/streaming v0.36.2/go.mod h1:z6fV3D+NVkoeqRMtWwlUZK6U17SY/LqNzOxWL6GyR/s=
 k8s.io/utils v0.0.0-20260617174310-a95e086a2553 h1:hmGqDecjc8d7HVzWzRFl0QD9bYuYKbBEG7t8xwnVxfI=
 k8s.io/utils v0.0.0-20260617174310-a95e086a2553/go.mod h1:xDxuJ0whA3d0I4mf/C4ppKHxXynQ+fxnkmQH0vTHnuk=
+pgregory.net/rapid v1.2.0 h1:keKAYRcjm+e1F0oAuU5F5+YPAWcyxNNRK2wud503Gnk=
+pgregory.net/rapid v1.2.0/go.mod h1:PY5XlDGj0+V1FCq0o192FdRhpKHGTRIWBgqjDBTrq04=
 sigs.k8s.io/controller-runtime v0.24.1 h1:miPEwrmirImAvgME1L9qebGHrOnGJoVmVdtOU9fRfo4=
 sigs.k8s.io/controller-runtime v0.24.1/go.mod h1:vFkfY5fGt5xAC/sKb8IBFKgWPNKG9OUG29dR8Y2wImw=
 sigs.k8s.io/json v0.0.0-20250730193827-2d320260d730 h1:IpInykpT6ceI+QxKBbEflcR5EXP7sU1kvOlxwZh5txg=

@@ -40,6 +40,43 @@ The tool will be available on SAW devices similar to how the `oc` utility is acc
 
 ## Example Usage
 
+### Snapshot Analysis with Claude Code
+
+`hcpctl snapshot analyze` supports `--provider claude-code` in addition to the
+existing `copilot` (default) and in-process `claude` providers. Install the Claude
+Code CLI on `PATH` and authenticate it, or set `ANTHROPIC_API_KEY` /
+`CLAUDE_CODE_OAUTH_TOKEN`. Alternatively, supply `--anthropic-api-key-file`.
+
+```bash
+hcpctl snapshot analyze /path/to/snapshot --provider claude-code \
+  --aro-hcp /path/to/ARO-HCP --hypershift /path/to/hypershift \
+  --maestro /path/to/maestro --clusters-service /path/to/clusters-service
+```
+
+Use `--model` to override `claude-sonnet-4-5-20250929`; the CLI SDK requires an
+explicit model. `--claude-backend` and `--anthropic-model` apply only to the
+in-process `claude` provider. The existing `kusto_query` handler is available to
+Claude Code as the in-process MCP tool `mcp__hcpctl__kusto_query`.
+
+System prompts larger than 100 KiB keep the small identity/tone instructions in
+the CLI system prompt and send the complete domain instructions and reference
+material at the start of the first stdin query. If identity/tone themselves are
+too large, all instructions move to that first query under a small system
+directive. Nothing is truncated, and subsequent queries do not resend this
+content. This avoids Linux's per-argument `execve` size limit (`E2BIG`).
+
+This provider runs unattended with permission checks bypassed in the analysis
+workspace. It disables MCP discovery and SDK skills, passes empty settings
+sources, and requests exclusion of CLAUDE.md memory. This is **best-effort
+configuration isolation, not a sandbox**: managed instructions and explicit file
+reads (including CLAUDE.md or AGENTS.md) may still be possible. Run it only with
+trusted inputs and the filesystem permissions you intend it to have.
+
+The CLI's session persistence is disabled; hcpctl saves `conversation.json` and
+`usage.json` in the analysis output directory. Usage is based on cumulative result
+snapshots, with per-model tokens/cost where available; API request counts, cache
+TTLs, and service tiers are not available at the in-process provider's granularity.
+
 ### List Service Clusters
 
 ```bash
