@@ -300,7 +300,7 @@ func (m *MockResourceCRUD[InternalAPIType, InternalAPITypePointer, CosmosAPIType
 	return m.Get(ctx, resourceName)
 }
 
-func (m *MockResourceCRUD[InternalAPIType, InternalAPITypePointer, CosmosAPIType]) Delete(ctx context.Context, resourceID string) error {
+func (m *MockResourceCRUD[InternalAPIType, InternalAPITypePointer, CosmosAPIType]) Delete(ctx context.Context, resourceID string, options ...*azcosmos.ItemOptions) error {
 	completeResourceID, err := m.MakeResourceIDPath(resourceID)
 	if err != nil {
 		return fmt.Errorf("failed to make ResourceID path for '%s': %w", resourceID, err)
@@ -311,10 +311,10 @@ func (m *MockResourceCRUD[InternalAPIType, InternalAPITypePointer, CosmosAPIType
 		return err
 	}
 
-	return mockSoftDelete(m.client, cosmosUID)
+	return mockSoftDelete(m.client, cosmosUID, options...)
 }
 
-func mockSoftDelete(store MockDocumentStore, cosmosID string) error {
+func mockSoftDelete(store MockDocumentStore, cosmosID string, options ...*azcosmos.ItemOptions) error {
 	data, ok := store.GetDocument(cosmosID)
 	if !ok {
 		return nil
@@ -327,6 +327,9 @@ func mockSoftDelete(store MockDocumentStore, cosmosID string) error {
 
 	if doc.DeletionTimestamp != nil {
 		return nil
+	}
+	if len(options) > 0 && options[0] != nil && options[0].IfMatchEtag != nil && *options[0].IfMatchEtag != doc.CosmosETag {
+		return NewPreconditionFailedError()
 	}
 
 	if err := cosmosstorageutils.SetSoftDeleteFields(&doc, time.Now()); err != nil {

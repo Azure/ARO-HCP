@@ -79,7 +79,10 @@ func (c *recordingCRUD) Replace(ctx context.Context, obj *coreapi.Subscription, 
 	c.options = opts
 	return c.record(ctx)
 }
-func (c *recordingCRUD) Delete(ctx context.Context, id string) error {
+func (c *recordingCRUD) Delete(ctx context.Context, id string, options ...*azcosmos.ItemOptions) error {
+	if len(options) > 0 {
+		c.options = options[0]
+	}
 	c.lastID = id
 	_, err := c.record(ctx)
 	return err

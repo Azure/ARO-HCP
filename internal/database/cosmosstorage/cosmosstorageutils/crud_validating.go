@@ -72,6 +72,6 @@ func (v *validatingCRUD[InternalAPIType, InternalAPITypePointer]) Replace(ctx co
 	return v.inner.Replace(ctx, newObj, options)
 }
 
-func (v *validatingCRUD[InternalAPIType, InternalAPITypePointer]) Delete(ctx context.Context, resourceID string) error {
-	return v.inner.Delete(ctx, resourceID)
+func (v *validatingCRUD[InternalAPIType, InternalAPITypePointer]) Delete(ctx context.Context, resourceID string, options ...*azcosmos.ItemOptions) error {
+	return v.inner.Delete(ctx, resourceID, options...)
 }

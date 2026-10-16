@@ -69,7 +69,7 @@ func (s *stubCRUD) Create(context.Context, *stubDoc, *azcosmos.ItemOptions) (*st
 	panic("not implemented")
 }
 
-func (s *stubCRUD) Delete(context.Context, string) error {
+func (s *stubCRUD) Delete(context.Context, string, ...*azcosmos.ItemOptions) error {
 	panic("not implemented")
 }
 
@@ -258,7 +258,7 @@ func (s *opStubCRUD) Create(context.Context, *coreapi.Operation, *azcosmos.ItemO
 	panic("not implemented")
 }
 
-func (s *opStubCRUD) Delete(context.Context, string) error {
+func (s *opStubCRUD) Delete(context.Context, string, ...*azcosmos.ItemOptions) error {
 	panic("not implemented")
 }
 
@@ -396,7 +396,7 @@ func (e *errorSubscriptionCRUD) Replace(context.Context, *coreapi.Subscription, 
 	panic("not implemented")
 }
 
-func (e *errorSubscriptionCRUD) Delete(context.Context, string) error {
+func (e *errorSubscriptionCRUD) Delete(context.Context, string, ...*azcosmos.ItemOptions) error {
 	panic("not implemented")
 }
 

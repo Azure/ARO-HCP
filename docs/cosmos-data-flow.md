@@ -965,7 +965,19 @@ Requires the confirmed managed resource group and resolved principals. Gets expe
 
 [Source](../backend/pkg/controllers/cluster/creation/cluster_cluster_service_create_controller.go) · **Trigger:** Cluster; 1m.
 
-Live-rechecks a nondeleting cluster with a pending ID and no confirmed ID. Requires desired version, selected management cluster/provision shard and deny-assignment precondition when enabled. Adopts by Azure identity metadata or POSTs to Cluster Service; confirms `ClusterServiceID` and clears `PendingClusterServiceID`.
+Live-rechecks a nondeleting cluster with a pending ID and no confirmed ID. Requires desired version, selected management cluster/provision shard and deny-assignment precondition when enabled. Adopts an existing CS cluster by Azure identity; for new POSTs, waits for the standalone DNS allocation controller's persisted prefix and base domain. Sends `domain_prefix`, `dns.base_domain`, and shard, then persists `ClusterServiceID` and clears `PendingClusterServiceID` in the same reconcile. Naming verification belongs to ClusterDNSBackfill.
+
+#### ClusterDNSAllocation
+
+[Source](../backend/pkg/controllers/cluster/dns/allocation_controller.go) · **Trigger:** Cluster/provider and claim-owner events; cluster key, 1m resync.
+
+Waits for the ARO ClusterUID, pending CS ID, and selected management cluster. Checks the shared CS adoption lookup before generating names. New clusters persist a five-character candidate and default omitted prefix to `cluster`, create a Fleet claim owned by the ARO UID, then commit the base domain after observing ownership. Each reconcile performs one mutation. Claim changes enqueue owner clusters; conditional writes retry stale observations. See [DNS allocation](controllers/dns-allocation.md).
+
+#### ClusterDNSBackfill
+
+[Source](../backend/pkg/controllers/cluster/dns/backfill.go) · **Trigger:** Cluster, mirrored HyperShift resources, and claim-owner events; cluster key, 1m resync.
+
+For established nondeleting clusters with ARO UIDs, fills missing legacy base domains and establishes claims with a fresh claim creation timestamp. Verifies API, base domain, ingress, and reservation ownership. Mismatches use the standard controller wrapper's Degraded condition and retries. Existing prefix backfill retains the CS-generated prefix. Mutation payloads and meaningful logs are produced by the decision function.
 
 #### ManagementClusterPlacementSync
 
@@ -1003,13 +1015,19 @@ Reads mirrored Kubernetes content and updates service-provider cluster `Status.H
 
 [Source](../backend/pkg/controllers/cluster/properties/cluster_properties_sync.go) · **Trigger:** Cluster; 5m.
 
-Reads mirrored HostedCluster state and synchronizes cluster service-provider API/console URLs, DNS base domain and issuer URL. These values are not taken from create request bodies. Does not submit a Cluster Service configuration change.
+Reads mirrored HostedCluster state and synchronizes cluster service-provider API/console URLs and issuer URL. DNS backfill, verification, and claims are handled by ClusterDNSBackfill. Skips deleting clusters. Does not submit a Cluster Service configuration change.
+
+#### DNSClaimCleanup
+
+[Source](../backend/pkg/controllers/cluster/dns/cleanup.go) · **Trigger:** Fleet DNSClaim informer; claim key, 1m resync.
+
+Watches claims and owner cluster changes, enqueueing the committed and pending domain keys directly from old/new cluster event objects. Claims no longer referenced by an event still reconcile through their own events and resync. A matching active UID retains the claim; a matching deleting UID permits release only after existing CS cleanup signals complete. Missing or different-UID parents require a claim at least 30 minutes old; younger claims requeue at the cutoff. Unknown UIDs and observation errors retain claims. This accepts bounded cache skew rather than proving cross-container ordering. Performs one ordinary CRUD soft delete with the observed claim ETag, without copying the target. No release acknowledgement or cluster-deletion gate. No Azure or CS effects.
 
 #### ClusterBaseDomainPrefixSync
 
 [Source](../backend/pkg/controllers/cluster/properties/cluster_base_domain_prefix_sync.go) · **Trigger:** Cluster; 5m.
 
-Copies the Cluster Service DNS base-domain prefix into customer `DNS.BaseDomainPrefix` when it must be filled in.
+Copies the Cluster Service DNS base-domain prefix into customer `DNS.BaseDomainPrefix` when it must be filled in for a nondeleting legacy cluster. New backend-created clusters already have their explicit or default `cluster` prefix persisted before CS POST.
 
 #### ClusterIdentitySync
 
@@ -1153,7 +1171,7 @@ Requires deletion timestamp, dispatched deletion and cleared Cluster Service ID.
 
 [Source](../backend/pkg/controllers/cluster/deletion/cluster_deletion_controller.go) · **Trigger:** Cluster; 1m.
 
-Once deletion prerequisites and child cleanup are satisfied, deletes the ARM resource document. Marks the linked billing document deleted first.
+Once deletion prerequisites and child cleanup are satisfied, marks the linked billing document deleted and deletes the ARM resource document. DNSClaimCleanup releases claims independently, with no release acknowledgement on the cluster.
 
 #### OperationClusterCreate
 
@@ -2048,7 +2066,8 @@ actors and use optimistic concurrency; retries must re-read on conflict.
 | Cluster `PendingClusterServiceID` / `ClusterServiceID` | [Pending ID assignment](#clusterpendingclusterserviceidassign) reserves the ID. [Cluster creation](#clusterclusterservicecreate) confirms the external ID and clears pending. The [ID clearer](#clusterdeletionclusterserviceidclearer) clears confirmed ID only after external absence. Node-pool/external-auth create and clear controllers similarly share their confirmed-ID fields. |
 | `ClusterServiceDeletionTimestamp` | Each delete dispatcher stamps completion of dispatch/creation-race handling; cleanup also requires the confirmed ID cleared. It is not a timestamp of all Azure/Kubernetes deletion. |
 | Cluster `ClusterUID`, `BillingDocumentCosmosID`; Billing document `DeletionTime` | [BackfillClusterUID](#backfillclusteruid) repairs UID using billing as input. [CreateBillingDoc](#createbillingdoc) creates billing and links it. [ClusterDeletionController](#clusterdeletioncontroller) and [OrphanedBillingCleanup](#orphanedbillingcleanup) mark billing deleted. |
-| Cluster `ServiceProviderProperties.API.URL`, `.Console.URL`, `.DNS.BaseDomain`, `.Platform.IssuerURL` | [ClusterPropertiesSync](#clusterpropertiessync) writes observed values. Frontend clears supplied values on create rather than persisting them; updates preserve stored values. |
+| Cluster `ServiceProviderProperties.API.URL`, `.Console.URL`, `.DNS.BaseDomain`, `.Platform.IssuerURL` | ClusterPropertiesSync writes observed URLs. ClusterDNSAllocation commits claimed names before CS POST; ClusterDNSBackfill fills missing legacy base domains and reports discrepancies. Frontend preserves service-provider values on updates. |
+| Fleet DNS claims; Cluster `DNS.PendingBaseDomain` | ClusterDNSAllocation persists intent and acquires one claim per parent-zone/slug owned by ARO ClusterUID. ClusterDNSBackfill establishes legacy claims. DNSClaimCleanup releases asynchronously; tombstones block reuse until TTL expiration. |
 | Cluster `Identity.UserAssignedIdentities` | Frontend supplies identity intent without create-body client/principal IDs; [ClusterIdentitySync](#clusteridentitysync) fills resolved identity fields. Updates preserve stored resolved values. Azure identities themselves are not created by that syncer. |
 | Cluster/node-pool `Status.ActiveVersions` | [ControlPlaneActiveVersions](#controlplaneactiveversions) writes distinct major.minor cluster versions; [NodePoolActiveVersions](#nodepoolactiveversions) writes full node-pool versions. The 2026-10-01 API returns these stored observations through `properties.status.activeVersions`; customer configuration remains separately owned. |
 | ARM Degraded / RequirementsValid conditions | Resource-specific aggregators combine Controller or service-provider validation conditions. A validation failure and a reconcile error are separate signals. |

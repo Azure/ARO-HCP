@@ -118,8 +118,8 @@ func (c *layeredResourceCRUD[T, PT]) Replace(ctx context.Context, newObj *T, opt
 	})
 }
 
-func (c *layeredResourceCRUD[T, PT]) Delete(ctx context.Context, resourceID string) error {
-	return c.layer.Do(ctx, func(ctx context.Context) error { return c.ResourceCRUD.Delete(ctx, resourceID) })
+func (c *layeredResourceCRUD[T, PT]) Delete(ctx context.Context, resourceID string, options ...*azcosmos.ItemOptions) error {
+	return c.layer.Do(ctx, func(ctx context.Context) error { return c.ResourceCRUD.Delete(ctx, resourceID, options...) })
 }
 
 func (c *layeredResourceCRUD[T, PT]) List(ctx context.Context, options *DBClientListResourceDocsOptions) (DBClientIterator[T], error) {
@@ -156,8 +156,8 @@ func (c *layeredValidatingResourceCRUD[T, PT]) Replace(ctx context.Context, newO
 	})
 }
 
-func (c *layeredValidatingResourceCRUD[T, PT]) Delete(ctx context.Context, resourceID string) error {
-	return c.layer.Do(ctx, func(ctx context.Context) error { return c.ValidatingResourceCRUD.Delete(ctx, resourceID) })
+func (c *layeredValidatingResourceCRUD[T, PT]) Delete(ctx context.Context, resourceID string, options ...*azcosmos.ItemOptions) error {
+	return c.layer.Do(ctx, func(ctx context.Context) error { return c.ValidatingResourceCRUD.Delete(ctx, resourceID, options...) })
 }
 
 func (c *layeredValidatingResourceCRUD[T, PT]) List(ctx context.Context, options *DBClientListResourceDocsOptions) (DBClientIterator[T], error) {
