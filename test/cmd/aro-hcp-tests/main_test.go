@@ -534,7 +534,7 @@ func TestSuiteConcurrencyRunSuiteErrors(t *testing.T) {
 				command.ResetFlags()
 				command.Flags().String("component", e.DefaultExtension, "")
 			}
-			configureSuiteConcurrency(command, registry)
+			wrapCommandHooks(command, commandHooks{AfterPreRun: []commandHook{configureSuiteConcurrency(registry)}})
 			command.SetArgs(tc.args)
 			var err error
 			captureStderr(t, func() { err = command.Execute() })
@@ -663,7 +663,7 @@ func TestSuiteConcurrencyUsesActualRunner(t *testing.T) {
 			registry.Register(e.NewExtension("other", "payload", "default"))
 			registry.Register(ext)
 			command := cmdrun.NewRunSuiteCommand(registry)
-			configureSuiteConcurrency(command, registry)
+			wrapCommandHooks(command, commandHooks{AfterPreRun: []commandHook{configureSuiteConcurrency(registry)}})
 			args := []string{tc.suite, "--component", ext.Component.Identifier()}
 			if tc.explicit != "" {
 				args = append(args, "--max-concurrency", tc.explicit)
@@ -776,9 +776,9 @@ func TestAcquiredLeaseUpgradeCohortUsesActualRunner(t *testing.T) {
 			registry := e.NewRegistry()
 			registry.Register(ext)
 			command := cmdrun.NewRunSuiteCommand(registry)
-			commandHook, rootHook := false, false
-			command.PreRun = func(*cobra.Command, []string) { commandHook = true }
-			configureSuiteConcurrency(command, registry)
+			commandHookRan, rootHook := false, false
+			command.PreRun = func(*cobra.Command, []string) { commandHookRan = true }
+			wrapCommandHooks(command, commandHooks{AfterPreRun: []commandHook{configureSuiteConcurrency(registry)}})
 			root := &cobra.Command{PersistentPreRun: func(*cobra.Command, []string) { rootHook = true }}
 			root.AddCommand(command)
 			root.SetArgs([]string{"run-suite", "upgrade/in-place"})
@@ -797,8 +797,8 @@ func TestAcquiredLeaseUpgradeCohortUsesActualRunner(t *testing.T) {
 			if arrived != participants {
 				t.Fatalf("started %d participants, want %d", arrived, participants)
 			}
-			if !commandHook || !rootHook {
-				t.Fatalf("preserved hooks: command=%t root=%t", commandHook, rootHook)
+			if !commandHookRan || !rootHook {
+				t.Fatalf("preserved hooks: command=%t root=%t", commandHookRan, rootHook)
 			}
 		})
 	}

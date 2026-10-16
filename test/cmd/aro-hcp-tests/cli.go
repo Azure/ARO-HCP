@@ -86,7 +86,7 @@ func setupCli() (*cobra.Command, error) {
 	// Extension registry
 	registry := e.NewRegistry()
 
-	initialize := func() {
+	initializeSuites := func(*cobra.Command, []string) error {
 		configureGomegaFormatting()
 		pooledIdentitiesRaw := strings.TrimSpace(os.Getenv(framework.UsePooledIdentitiesEnvvar))
 		pooledIdentitiesEnabled, err := strconv.ParseBool(pooledIdentitiesRaw)
@@ -228,6 +228,11 @@ func setupCli() (*cobra.Command, error) {
 			containerCount:          containerCount,
 			containerCountSource:    containerCountSource,
 		})
+		return nil
+	}
+	configureScheduler := func(*cobra.Command, []string) error {
+		ensureMISchedulerConfigured()
+		return nil
 	}
 
 	root := &cobra.Command{
@@ -236,15 +241,19 @@ func setupCli() (*cobra.Command, error) {
 
 	extensionCmds := cmd.DefaultExtensionCommands(registry)
 	for _, c := range extensionCmds {
-		switch c.Name() {
-		case "run-suite", "run-test":
-			wrapMISchedulerPreRun(c)
-		}
+		hooks := commandHooks{}
 		switch c.Name() {
 		case "run-suite":
-			configureSuiteConcurrency(c, registry)
+			hooks.BeforePersistent = []commandHook{initializeSuites}
+			hooks.BeforePersistentLocal = []commandHook{configureScheduler}
+			hooks.AfterPreRun = []commandHook{configureSuiteConcurrency(registry)}
+		case "run-test":
+			hooks.BeforePersistent = []commandHook{initializeSuites}
+			hooks.BeforePersistentLocal = []commandHook{configureScheduler}
+		default:
+			hooks.BeforePersistent = []commandHook{initializeSuites}
 		}
-		wrapExtensionInitialization(c, initialize)
+		wrapCommandHooks(c, hooks)
 	}
 	root.AddCommand(extensionCmds...)
 	root.AddCommand(cleanup.NewCommand())
@@ -256,30 +265,4 @@ func setupCli() (*cobra.Command, error) {
 	root.AddCommand(metadataapi.Must(slotmanager.NewCommand()))
 	root.AddCommand(infra.NewCommand())
 	return root, nil
-}
-
-// wrapExtensionInitialization preserves Cobra's persistent-hook inheritance:
-// descendants without a hook inherit this one, while descendants overriding it
-// initialize before their own hook. Local pre-run and execution hooks are untouched.
-func wrapExtensionInitialization(command *cobra.Command, initialize func()) {
-	var walk func(*cobra.Command)
-	walk = func(c *cobra.Command) {
-		if c == command || c.PersistentPreRunE != nil || c.PersistentPreRun != nil {
-			preRunE, preRun := c.PersistentPreRunE, c.PersistentPreRun
-			c.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
-				initialize()
-				if preRunE != nil {
-					return preRunE(cmd, args)
-				}
-				if preRun != nil {
-					preRun(cmd, args)
-				}
-				return nil
-			}
-		}
-		for _, child := range c.Commands() {
-			walk(child)
-		}
-	}
-	walk(command)
 }
