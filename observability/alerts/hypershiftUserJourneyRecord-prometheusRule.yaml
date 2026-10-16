@@ -1,0 +1,237 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: hypershift-user-journey-hcp-recording-rules
+  namespace: prometheus
+spec:
+  # ========================================
+  # HyperShift User Journey SLI Recording Rules - HCP workspace (ARO-27787)
+  # ========================================
+  # Inputs are in HCP namespaces (ocm-<env>*), which remote-write routes to the
+  # HCP workspace; see hypershiftUserJourney-prometheusRule.yaml for the alerts
+  # and recording-rules/hypershiftUserJourney-recordingRule.yaml for the
+  # services-workspace (HyperShift Operator) half.
+  # Every series is aggregated to (cluster, namespace) = one hosted control plane.
+  groups:
+  # API availability SLI, mirroring the hostedClusterAPI_kubeapiserver_available
+  # recordings used by the existing KAS availability alert so both SLIs agree:
+  #   - sum_over_time / count_over_time over a subquery give "available minutes"
+  #     / "observed minutes"; the alert computes 1 - sum/count.
+  #   - "and ... offset 15m" drops the first 15m of a series' life so a control
+  #     plane that is still coming up does not count as unavailable.
+  #   - "and on (namespace, cluster) count(...)" only emits while the raw metric
+  #     is still reported, so deleted HCPs stop producing stale SLI values.
+  #   - max by (namespace, cluster) dedupes the HA Prometheus replicas.
+  #   - Subquery steps widen with the window (1m up to 1h, 5m for 6h, 30m for 3d)
+  #     to keep the long-window queries cheap (same steps as the KAS SLI).
+  - name: hypershift-journey-availability-recording-rules
+    rules:
+    - record: hypershift_kube_apiserver_available:sli_sum_5m
+      expr: |
+        sum by (namespace, cluster) (
+          sum_over_time((
+          max by (namespace, cluster) (hypershift_kube_apiserver_available)
+          and on (namespace, cluster)
+          max by (namespace, cluster) (hypershift_kube_apiserver_available offset 15m)
+        )[5m:1m])
+        )
+        and on (namespace, cluster)
+        count by (namespace, cluster) (hypershift_kube_apiserver_available)
+    - record: hypershift_kube_apiserver_available:sli_count_5m
+      expr: |
+        sum by (namespace, cluster) (
+          count_over_time((
+          max by (namespace, cluster) (hypershift_kube_apiserver_available)
+          and on (namespace, cluster)
+          max by (namespace, cluster) (hypershift_kube_apiserver_available offset 15m)
+        )[5m:1m])
+        )
+        and on (namespace, cluster)
+        count by (namespace, cluster) (hypershift_kube_apiserver_available)
+    - record: hypershift_kube_apiserver_available:sli_sum_30m
+      expr: |
+        sum by (namespace, cluster) (
+          sum_over_time((
+          max by (namespace, cluster) (hypershift_kube_apiserver_available)
+          and on (namespace, cluster)
+          max by (namespace, cluster) (hypershift_kube_apiserver_available offset 15m)
+        )[30m:1m])
+        )
+        and on (namespace, cluster)
+        count by (namespace, cluster) (hypershift_kube_apiserver_available)
+    - record: hypershift_kube_apiserver_available:sli_count_30m
+      expr: |
+        sum by (namespace, cluster) (
+          count_over_time((
+          max by (namespace, cluster) (hypershift_kube_apiserver_available)
+          and on (namespace, cluster)
+          max by (namespace, cluster) (hypershift_kube_apiserver_available offset 15m)
+        )[30m:1m])
+        )
+        and on (namespace, cluster)
+        count by (namespace, cluster) (hypershift_kube_apiserver_available)
+    - record: hypershift_kube_apiserver_available:sli_sum_1h
+      expr: |
+        sum by (namespace, cluster) (
+          sum_over_time((
+          max by (namespace, cluster) (hypershift_kube_apiserver_available)
+          and on (namespace, cluster)
+          max by (namespace, cluster) (hypershift_kube_apiserver_available offset 15m)
+        )[1h:1m])
+        )
+        and on (namespace, cluster)
+        count by (namespace, cluster) (hypershift_kube_apiserver_available)
+    - record: hypershift_kube_apiserver_available:sli_count_1h
+      expr: |
+        sum by (namespace, cluster) (
+          count_over_time((
+          max by (namespace, cluster) (hypershift_kube_apiserver_available)
+          and on (namespace, cluster)
+          max by (namespace, cluster) (hypershift_kube_apiserver_available offset 15m)
+        )[1h:1m])
+        )
+        and on (namespace, cluster)
+        count by (namespace, cluster) (hypershift_kube_apiserver_available)
+    - record: hypershift_kube_apiserver_available:sli_sum_6h
+      expr: |
+        sum by (namespace, cluster) (
+          sum_over_time((
+          max by (namespace, cluster) (hypershift_kube_apiserver_available)
+          and on (namespace, cluster)
+          max by (namespace, cluster) (hypershift_kube_apiserver_available offset 15m)
+        )[6h:5m])
+        )
+        and on (namespace, cluster)
+        count by (namespace, cluster) (hypershift_kube_apiserver_available)
+    - record: hypershift_kube_apiserver_available:sli_count_6h
+      expr: |
+        sum by (namespace, cluster) (
+          count_over_time((
+          max by (namespace, cluster) (hypershift_kube_apiserver_available)
+          and on (namespace, cluster)
+          max by (namespace, cluster) (hypershift_kube_apiserver_available offset 15m)
+        )[6h:5m])
+        )
+        and on (namespace, cluster)
+        count by (namespace, cluster) (hypershift_kube_apiserver_available)
+    - record: hypershift_kube_apiserver_available:sli_sum_3d
+      expr: |
+        sum by (namespace, cluster) (
+          sum_over_time((
+          max by (namespace, cluster) (hypershift_kube_apiserver_available)
+          and on (namespace, cluster)
+          max by (namespace, cluster) (hypershift_kube_apiserver_available offset 15m)
+        )[3d:30m])
+        )
+        and on (namespace, cluster)
+        count by (namespace, cluster) (hypershift_kube_apiserver_available)
+    - record: hypershift_kube_apiserver_available:sli_count_3d
+      expr: |
+        sum by (namespace, cluster) (
+          count_over_time((
+          max by (namespace, cluster) (hypershift_kube_apiserver_available)
+          and on (namespace, cluster)
+          max by (namespace, cluster) (hypershift_kube_apiserver_available offset 15m)
+        )[3d:30m])
+        )
+        and on (namespace, cluster)
+        count by (namespace, cluster) (hypershift_kube_apiserver_available)
+  # control-plane-operator SLIs per hosted control plane (cluster, namespace).
+  # max without(prometheus_replica) dedupes HA scrapes before sum by, so rates
+  # are not multiplied by the replica count.
+  # One ratio is recorded per MWMBR window (5m, 30m, 1h, 6h, 3d) because a ratio
+  # of rates must be computed over the window itself; averaging 5m ratios would
+  # weight quiet and busy periods equally.
+  # Every denominator is guarded with "> 0": 0/0 is NaN in PromQL, and a single
+  # NaN sample makes avg_over_time NaN for the whole window, so every
+  # comparison is false and the alert is silenced for up to 3d. With the guard a
+  # zero denominator gives "no sample" for that minute, which the alerts'
+  # coverage guards already handle. (clamp_min/clamp_max do not help: they
+  # return NaN for NaN input.)
+  - name: hypershift-cpo-recording-rules
+    rules:
+    # max (not sum) because KSM may be scraped by multiple replicas reporting the
+    # same value. clamp_max(...,1): during a surge rollout available can briefly
+    # exceed spec, which would otherwise read as >100% available. spec=0
+    # (scaled down / deleting) is not an availability sample.
+    - record: hypershift:cpo:replica_availability:ratio
+      expr: |
+        clamp_max(
+          max by (cluster, namespace) (kube_deployment_status_replicas_available{namespace=~"ocm-.*", deployment="control-plane-operator"})
+          /
+          (max by (cluster, namespace) (kube_deployment_spec_replicas{namespace=~"ocm-.*", deployment="control-plane-operator"}) > 0),
+          1
+        )
+    # "or <total> * 0" makes the numerator 0 (not absent) when no
+    # result="error" series exists yet, so a healthy CPO records 0 rather than
+    # no data - otherwise the long windows have gaps and the alerts never resolve.
+    - record: hypershift:cpo:reconcile_error:ratio_rate5m
+      expr: |
+        (sum by (cluster, namespace) (max without (prometheus_replica) (rate(controller_runtime_reconcile_total{namespace=~"ocm-.*", pod=~"control-plane-operator-.*", result="error"}[5m]))) or sum by (cluster, namespace) (max without (prometheus_replica) (rate(controller_runtime_reconcile_total{namespace=~"ocm-.*", pod=~"control-plane-operator-.*"}[5m]))) * 0)
+        /
+        (sum by (cluster, namespace) (max without (prometheus_replica) (rate(controller_runtime_reconcile_total{namespace=~"ocm-.*", pod=~"control-plane-operator-.*"}[5m]))) > 0)
+    # Slow = 1 - (reconciles under 10s / all reconciles). clamp_min(...,0):
+    # the bucket and _count are scraped non-atomically, so the ratio can dip a
+    # hair below zero.
+    - record: hypershift:cpo:reconcile_slow:ratio_rate5m
+      expr: |
+        clamp_min(1 - sum by (cluster, namespace) (max without (prometheus_replica) (rate(controller_runtime_reconcile_time_seconds_bucket{namespace=~"ocm-.*", pod=~"control-plane-operator-.*", le="10"}[5m]))) / (sum by (cluster, namespace) (max without (prometheus_replica) (rate(controller_runtime_reconcile_time_seconds_count{namespace=~"ocm-.*", pod=~"control-plane-operator-.*"}[5m]))) > 0), 0)
+    - record: hypershift:cpo:reconcile_error:ratio_rate30m
+      expr: |
+        (sum by (cluster, namespace) (max without (prometheus_replica) (rate(controller_runtime_reconcile_total{namespace=~"ocm-.*", pod=~"control-plane-operator-.*", result="error"}[30m]))) or sum by (cluster, namespace) (max without (prometheus_replica) (rate(controller_runtime_reconcile_total{namespace=~"ocm-.*", pod=~"control-plane-operator-.*"}[30m]))) * 0)
+        /
+        (sum by (cluster, namespace) (max without (prometheus_replica) (rate(controller_runtime_reconcile_total{namespace=~"ocm-.*", pod=~"control-plane-operator-.*"}[30m]))) > 0)
+    - record: hypershift:cpo:reconcile_slow:ratio_rate30m
+      expr: |
+        clamp_min(1 - sum by (cluster, namespace) (max without (prometheus_replica) (rate(controller_runtime_reconcile_time_seconds_bucket{namespace=~"ocm-.*", pod=~"control-plane-operator-.*", le="10"}[30m]))) / (sum by (cluster, namespace) (max without (prometheus_replica) (rate(controller_runtime_reconcile_time_seconds_count{namespace=~"ocm-.*", pod=~"control-plane-operator-.*"}[30m]))) > 0), 0)
+    - record: hypershift:cpo:reconcile_error:ratio_rate1h
+      expr: |
+        (sum by (cluster, namespace) (max without (prometheus_replica) (rate(controller_runtime_reconcile_total{namespace=~"ocm-.*", pod=~"control-plane-operator-.*", result="error"}[1h]))) or sum by (cluster, namespace) (max without (prometheus_replica) (rate(controller_runtime_reconcile_total{namespace=~"ocm-.*", pod=~"control-plane-operator-.*"}[1h]))) * 0)
+        /
+        (sum by (cluster, namespace) (max without (prometheus_replica) (rate(controller_runtime_reconcile_total{namespace=~"ocm-.*", pod=~"control-plane-operator-.*"}[1h]))) > 0)
+    - record: hypershift:cpo:reconcile_slow:ratio_rate1h
+      expr: |
+        clamp_min(1 - sum by (cluster, namespace) (max without (prometheus_replica) (rate(controller_runtime_reconcile_time_seconds_bucket{namespace=~"ocm-.*", pod=~"control-plane-operator-.*", le="10"}[1h]))) / (sum by (cluster, namespace) (max without (prometheus_replica) (rate(controller_runtime_reconcile_time_seconds_count{namespace=~"ocm-.*", pod=~"control-plane-operator-.*"}[1h]))) > 0), 0)
+    - record: hypershift:cpo:reconcile_error:ratio_rate6h
+      expr: |
+        (sum by (cluster, namespace) (max without (prometheus_replica) (rate(controller_runtime_reconcile_total{namespace=~"ocm-.*", pod=~"control-plane-operator-.*", result="error"}[6h]))) or sum by (cluster, namespace) (max without (prometheus_replica) (rate(controller_runtime_reconcile_total{namespace=~"ocm-.*", pod=~"control-plane-operator-.*"}[6h]))) * 0)
+        /
+        (sum by (cluster, namespace) (max without (prometheus_replica) (rate(controller_runtime_reconcile_total{namespace=~"ocm-.*", pod=~"control-plane-operator-.*"}[6h]))) > 0)
+    - record: hypershift:cpo:reconcile_slow:ratio_rate6h
+      expr: |
+        clamp_min(1 - sum by (cluster, namespace) (max without (prometheus_replica) (rate(controller_runtime_reconcile_time_seconds_bucket{namespace=~"ocm-.*", pod=~"control-plane-operator-.*", le="10"}[6h]))) / (sum by (cluster, namespace) (max without (prometheus_replica) (rate(controller_runtime_reconcile_time_seconds_count{namespace=~"ocm-.*", pod=~"control-plane-operator-.*"}[6h]))) > 0), 0)
+    - record: hypershift:cpo:reconcile_error:ratio_rate3d
+      expr: |
+        (sum by (cluster, namespace) (max without (prometheus_replica) (rate(controller_runtime_reconcile_total{namespace=~"ocm-.*", pod=~"control-plane-operator-.*", result="error"}[3d]))) or sum by (cluster, namespace) (max without (prometheus_replica) (rate(controller_runtime_reconcile_total{namespace=~"ocm-.*", pod=~"control-plane-operator-.*"}[3d]))) * 0)
+        /
+        (sum by (cluster, namespace) (max without (prometheus_replica) (rate(controller_runtime_reconcile_total{namespace=~"ocm-.*", pod=~"control-plane-operator-.*"}[3d]))) > 0)
+    - record: hypershift:cpo:reconcile_slow:ratio_rate3d
+      expr: |
+        clamp_min(1 - sum by (cluster, namespace) (max without (prometheus_replica) (rate(controller_runtime_reconcile_time_seconds_bucket{namespace=~"ocm-.*", pod=~"control-plane-operator-.*", le="10"}[3d]))) / (sum by (cluster, namespace) (max without (prometheus_replica) (rate(controller_runtime_reconcile_time_seconds_count{namespace=~"ocm-.*", pod=~"control-plane-operator-.*"}[3d]))) > 0), 0)
+    - record: hypershift:cpo:reconcile:rate5m
+      expr: |
+        sum by (cluster, namespace) (max without (prometheus_replica) (rate(controller_runtime_reconcile_total{namespace=~"ocm-.*", pod=~"control-plane-operator-.*"}[5m])))
+    - record: hypershift:cpo:workqueue_adds:rate5m
+      expr: |
+        sum by (cluster, namespace) (max without (prometheus_replica) (rate(workqueue_adds_total{namespace=~"ocm-.*", pod=~"control-plane-operator-.*"}[5m])))
+    # One 0/1 series per signal ("> bool" keeps the 0s so avg_over_time
+    # downstream is a true fraction of minutes); workqueue_depth > 100 is a
+    # proposed default.
+    # Workqueue depth is the only signal. CPU/memory are deliberately not
+    # signals: the pinned HyperShift CPO deployment asset sets requests only
+    # (10m CPU, 80Mi) and no limits, so a usage/limit ratio never has a
+    # denominator, and normal usage is far above the tiny requests, so a
+    # usage/request ratio would read as permanently saturated. CPU and memory
+    # stay on the dashboard. The signal label is kept so further signals can
+    # be added once a budget exists.
+    - record: hypershift:cpo:saturation_signal
+      expr: |
+        label_replace(
+          max by (cluster, namespace) (max without (prometheus_replica) (workqueue_depth{namespace=~"ocm-.*", pod=~"control-plane-operator-.*"})) > bool 100,
+          "signal", "workqueue_depth", "", ""
+        )
+    # 1 if ANY signal is saturated this minute. avg_over_time of this is the
+    # "fraction of minutes saturated" SLI used by the Saturation burn alerts.
+    - record: hypershift:cpo:saturated
+      expr: |
+        max by (cluster, namespace) (hypershift:cpo:saturation_signal)

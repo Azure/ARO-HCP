@@ -379,3 +379,123 @@ resource arohcpFrontendSloRecordingRules 'Microsoft.AlertsManagement/prometheusR
     ]
   }
 }
+
+resource hypershiftJourneyRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'hypershift-journey-recording-rules'
+  location: location
+  properties: {
+    scopes: [
+      azureMonitoring
+    ]
+    enabled: true
+    interval: 'PT1M'
+    rules: [
+      {
+        record: 'hypershift:hostedclusters_unhealthy:ratio'
+        expression: 'clamp_max(sum by (cluster, region) (max by (cluster, platform, condition, region) (hypershift_hostedclusters_failure_conditions)) / (sum by (cluster, region) (max by (cluster, platform, region) (hypershift_hostedclusters)) > 0), 1)'
+      }
+      {
+        record: 'hypershift:hostedcluster_creations:count_30d'
+        expression: 'count by (cluster, region) (max by (cluster, exported_namespace, name, _id, region) (max_over_time(hypershift_cluster_waiting_initial_availability_duration_seconds[30d])))'
+      }
+      {
+        record: 'hypershift:hostedcluster_creations_over_30m:count_30d'
+        expression: 'count by (cluster, region) (max by (cluster, exported_namespace, name, _id, region) (max_over_time(hypershift_cluster_waiting_initial_availability_duration_seconds[30d])) > 1800) or on (cluster) hypershift:hostedcluster_creations:count_30d * 0'
+      }
+      {
+        record: 'hypershift:hostedcluster_creation_over_30m:ratio_30d'
+        expression: 'hypershift:hostedcluster_creations_over_30m:count_30d / (hypershift:hostedcluster_creations:count_30d > 0)'
+      }
+      {
+        record: 'hypershift:hostedclusters_waiting:count'
+        expression: 'count by (cluster, region) (max by (cluster, exported_namespace, name, _id, region) (hypershift_cluster_waiting_initial_availability_duration_seconds))'
+      }
+      {
+        record: 'hypershift:hostedclusters_waiting_over_30m:count'
+        expression: 'count by (cluster, region) (max by (cluster, exported_namespace, name, _id, region) (hypershift_cluster_waiting_initial_availability_duration_seconds) > 1800) or on (cluster) hypershift:hostedclusters_waiting:count * 0'
+      }
+      {
+        record: 'hypershift:hostedclusters_waiting_over_30m:ratio'
+        expression: 'hypershift:hostedclusters_waiting_over_30m:count / (hypershift:hostedclusters_waiting:count > 0)'
+      }
+      {
+        record: 'hypershift:hostedcluster_transitions:increase1h'
+        expression: 'sum by (cluster, region) (max without (prometheus_replica) (increase(hypershift_hosted_cluster_transition_seconds_count[1h])))'
+      }
+    ]
+  }
+}
+
+resource hypershiftOperatorRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'hypershift-operator-recording-rules'
+  location: location
+  properties: {
+    scopes: [
+      azureMonitoring
+    ]
+    enabled: true
+    interval: 'PT1M'
+    rules: [
+      {
+        record: 'hypershift:operator:replica_availability:ratio'
+        expression: 'clamp_max(max by (cluster, region) (kube_deployment_status_replicas_available{deployment="operator",namespace="hypershift"}) / max by (cluster, region) (kube_deployment_spec_replicas{deployment="operator",namespace="hypershift"}), 1)'
+      }
+      {
+        record: 'hypershift:operator:reconcile_error:ratio_rate5m'
+        expression: '(sum by (cluster, region) (max without (prometheus_replica) (rate(controller_runtime_reconcile_total{namespace="hypershift",pod=~"operator-.*",result="error"}[5m]))) or sum by (cluster, region) (max without (prometheus_replica) (rate(controller_runtime_reconcile_total{namespace="hypershift",pod=~"operator-.*"}[5m]))) * 0) / sum by (cluster, region) (max without (prometheus_replica) (rate(controller_runtime_reconcile_total{namespace="hypershift",pod=~"operator-.*"}[5m])))'
+      }
+      {
+        record: 'hypershift:operator:reconcile_slow:ratio_rate5m'
+        expression: 'clamp_min(1 - sum by (cluster, region) (max without (prometheus_replica) (rate(controller_runtime_reconcile_time_seconds_bucket{le="10",namespace="hypershift",pod=~"operator-.*"}[5m]))) / sum by (cluster, region) (max without (prometheus_replica) (rate(controller_runtime_reconcile_time_seconds_count{namespace="hypershift",pod=~"operator-.*"}[5m]))), 0)'
+      }
+      {
+        record: 'hypershift:operator:reconcile_error:ratio_rate30m'
+        expression: '(sum by (cluster, region) (max without (prometheus_replica) (rate(controller_runtime_reconcile_total{namespace="hypershift",pod=~"operator-.*",result="error"}[30m]))) or sum by (cluster, region) (max without (prometheus_replica) (rate(controller_runtime_reconcile_total{namespace="hypershift",pod=~"operator-.*"}[30m]))) * 0) / sum by (cluster, region) (max without (prometheus_replica) (rate(controller_runtime_reconcile_total{namespace="hypershift",pod=~"operator-.*"}[30m])))'
+      }
+      {
+        record: 'hypershift:operator:reconcile_slow:ratio_rate30m'
+        expression: 'clamp_min(1 - sum by (cluster, region) (max without (prometheus_replica) (rate(controller_runtime_reconcile_time_seconds_bucket{le="10",namespace="hypershift",pod=~"operator-.*"}[30m]))) / sum by (cluster, region) (max without (prometheus_replica) (rate(controller_runtime_reconcile_time_seconds_count{namespace="hypershift",pod=~"operator-.*"}[30m]))), 0)'
+      }
+      {
+        record: 'hypershift:operator:reconcile_error:ratio_rate1h'
+        expression: '(sum by (cluster, region) (max without (prometheus_replica) (rate(controller_runtime_reconcile_total{namespace="hypershift",pod=~"operator-.*",result="error"}[1h]))) or sum by (cluster, region) (max without (prometheus_replica) (rate(controller_runtime_reconcile_total{namespace="hypershift",pod=~"operator-.*"}[1h]))) * 0) / sum by (cluster, region) (max without (prometheus_replica) (rate(controller_runtime_reconcile_total{namespace="hypershift",pod=~"operator-.*"}[1h])))'
+      }
+      {
+        record: 'hypershift:operator:reconcile_slow:ratio_rate1h'
+        expression: 'clamp_min(1 - sum by (cluster, region) (max without (prometheus_replica) (rate(controller_runtime_reconcile_time_seconds_bucket{le="10",namespace="hypershift",pod=~"operator-.*"}[1h]))) / sum by (cluster, region) (max without (prometheus_replica) (rate(controller_runtime_reconcile_time_seconds_count{namespace="hypershift",pod=~"operator-.*"}[1h]))), 0)'
+      }
+      {
+        record: 'hypershift:operator:reconcile_error:ratio_rate6h'
+        expression: '(sum by (cluster, region) (max without (prometheus_replica) (rate(controller_runtime_reconcile_total{namespace="hypershift",pod=~"operator-.*",result="error"}[6h]))) or sum by (cluster, region) (max without (prometheus_replica) (rate(controller_runtime_reconcile_total{namespace="hypershift",pod=~"operator-.*"}[6h]))) * 0) / sum by (cluster, region) (max without (prometheus_replica) (rate(controller_runtime_reconcile_total{namespace="hypershift",pod=~"operator-.*"}[6h])))'
+      }
+      {
+        record: 'hypershift:operator:reconcile_slow:ratio_rate6h'
+        expression: 'clamp_min(1 - sum by (cluster, region) (max without (prometheus_replica) (rate(controller_runtime_reconcile_time_seconds_bucket{le="10",namespace="hypershift",pod=~"operator-.*"}[6h]))) / sum by (cluster, region) (max without (prometheus_replica) (rate(controller_runtime_reconcile_time_seconds_count{namespace="hypershift",pod=~"operator-.*"}[6h]))), 0)'
+      }
+      {
+        record: 'hypershift:operator:reconcile_error:ratio_rate3d'
+        expression: '(sum by (cluster, region) (max without (prometheus_replica) (rate(controller_runtime_reconcile_total{namespace="hypershift",pod=~"operator-.*",result="error"}[3d]))) or sum by (cluster, region) (max without (prometheus_replica) (rate(controller_runtime_reconcile_total{namespace="hypershift",pod=~"operator-.*"}[3d]))) * 0) / sum by (cluster, region) (max without (prometheus_replica) (rate(controller_runtime_reconcile_total{namespace="hypershift",pod=~"operator-.*"}[3d])))'
+      }
+      {
+        record: 'hypershift:operator:reconcile_slow:ratio_rate3d'
+        expression: 'clamp_min(1 - sum by (cluster, region) (max without (prometheus_replica) (rate(controller_runtime_reconcile_time_seconds_bucket{le="10",namespace="hypershift",pod=~"operator-.*"}[3d]))) / sum by (cluster, region) (max without (prometheus_replica) (rate(controller_runtime_reconcile_time_seconds_count{namespace="hypershift",pod=~"operator-.*"}[3d]))), 0)'
+      }
+      {
+        record: 'hypershift:operator:reconcile:rate5m'
+        expression: 'sum by (cluster, region) (max without (prometheus_replica) (rate(controller_runtime_reconcile_total{namespace="hypershift",pod=~"operator-.*"}[5m])))'
+      }
+      {
+        record: 'hypershift:operator:workqueue_adds:rate5m'
+        expression: 'sum by (cluster, region) (max without (prometheus_replica) (rate(workqueue_adds_total{namespace="hypershift",pod=~"operator-.*"}[5m])))'
+      }
+      {
+        record: 'hypershift:operator:saturation_signal'
+        expression: 'label_replace(max by (cluster, region) (max without (prometheus_replica) (workqueue_depth{namespace="hypershift",pod=~"operator-.*"})) > bool 100, "signal", "workqueue_depth", "", "")'
+      }
+      {
+        record: 'hypershift:operator:saturated'
+        expression: 'max by (cluster, region) (hypershift:operator:saturation_signal)'
+      }
+    ]
+  }
+}
