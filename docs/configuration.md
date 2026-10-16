@@ -193,13 +193,12 @@ Contributor and Tag Contributor on the management resource group and exports its
 resource ID to the `swift-vnet` container. Other deployment steps and the
 container launcher retain their existing identities.
 
-Stage West US 3 overrides this setting with the shared-global identity recognized
-by Network RP, as a temporary mitigation for
-[AROSLSRE-2459](https://redhat.atlassian.net/browse/AROSLSRE-2459). UK South, INT,
-and PROD keep the default selection. The shared-global identity also serves PROD;
-the override does not change global subscription selection. The temporary
-container runs with that identity's existing privileges, including any PROD
-access, so keep the override limited to this mitigation.
+Environment-specific identity selections belong in the private
+`sdp-pipelines/hcp/config.msft.sensitive.clouds-overlay.yaml` overlay.
+Keep the ARO-HCP default empty so the override is opt-in. If an override selects
+an identity shared with PROD, the temporary container runs with that identity's
+existing privileges, including any PROD access. Limit that selection to the
+required deployment environment and region.
 
 Before deployment, verify that the launcher can assign the selected identity to
 the container group (`Microsoft.ManagedIdentity/userAssignedIdentities/assign/action`)
@@ -213,9 +212,9 @@ verify SWIFT registration and network readiness with AKS Network and a
 SWIFT-enabled E2E scenario. A successful tag write does not prove registration,
 and the override does not recreate VNets or guarantee repair of existing stamps.
 
-After AKS Network registers the Stage-global identity, remove the West US 3
-override to restore the empty default, deploy both steps, and repeat verification.
-Remove the temporary shared-identity role assignments after successful cutback.
+After AKS Network registers the intended deployment identity, remove the private
+regional override to restore the empty default, deploy both steps, and repeat
+verification. Remove the temporary identity's role assignments after successful cutback.
 Incremental ARM deployments do not automatically remove superseded role assignments.
 
 ## Schema
