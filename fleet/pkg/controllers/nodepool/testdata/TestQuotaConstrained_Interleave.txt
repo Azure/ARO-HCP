@@ -23,50 +23,48 @@ initial headroom (vCPUs):
 fully allocated: true
 
 initial capacity:
-  system:  cpu=0    memory=0GiB     swiftNICs=0
-  infra:   cpu=0    memory=0GiB     swiftNICs=0
   worker:  cpu=288  memory=2304GiB  swiftNICs=126
 
-role floor:
-  system:  cpu=0    memory=0GiB     swiftNICs=0
-  infra:   cpu=0    memory=0GiB     swiftNICs=0
-  worker:  cpu=288  memory=2304GiB  swiftNICs=63
+role-zone floor:
+  worker zone 1:  cpu=96  memory=768GiB  swiftNICs=21
+  worker zone 2:  cpu=96  memory=768GiB  swiftNICs=21
+  worker zone 3:  cpu=96  memory=768GiB  swiftNICs=21
 
 actions:
   margins above floor after each action (c = vCPU, G = memory GiB, n = Swift NICs)
 
-     #  action            role    pool    vm size   change         role margin            quota left
-     1  Create            worker  e32z1   E32ds_v6  min=1   max=3    +96c   +768G   +84n  Edsv6 0c
-     2  SetScalingBounds  worker  e16az1  E16ds_v6  min=1   max=1    +64c   +512G   +70n  Edsv6 32c
-     3  Create            worker  e32z2   E32ds_v6  min=1   max=1    +96c   +768G   +77n  Edsv6 0c
-     4  SetScalingBounds  worker  e16az2  E16ds_v6  min=1   max=1    +64c   +512G   +63n  Edsv6 32c
-     5  Create            worker  e32z3   E32ds_v6  min=1   max=1    +96c   +768G   +70n  Edsv6 0c
-     6  SetScalingBounds  worker  e16az3  E16ds_v6  min=1   max=1    +64c   +512G   +56n  Edsv6 32c
-     7  SetScalingBounds  worker  e32z2   E32ds_v6  min=1   max=2    +96c   +768G   +63n  Edsv6 0c
-     8  SetScalingBounds  worker  e16bz1  E16ds_v6  min=1   max=1    +64c   +512G   +49n  Edsv6 32c
-     9  SetScalingBounds  worker  e32z2   E32ds_v6  min=1   max=3    +96c   +768G   +56n  Edsv6 0c
-    10  SetScalingBounds  worker  e16bz2  E16ds_v6  min=1   max=1    +64c   +512G   +42n  Edsv6 32c
-    11  SetScalingBounds  worker  e32z3   E32ds_v6  min=1   max=2    +96c   +768G   +49n  Edsv6 0c
-    12  SetScalingBounds  worker  e16bz3  E16ds_v6  min=1   max=1    +64c   +512G   +35n  Edsv6 32c
-    13  SetScalingBounds  worker  e32z3   E32ds_v6  min=1   max=3    +96c   +768G   +42n  Edsv6 0c
-    14  Freeze            worker  e16az1  E16ds_v6  count=1          +96c   +768G   +42n
-    15  Freeze            worker  e16az2  E16ds_v6  count=1          +96c   +768G   +42n
-    16  Freeze            worker  e16az3  E16ds_v6  count=1          +96c   +768G   +42n
-    17  Freeze            worker  e16bz1  E16ds_v6  count=1          +96c   +768G   +42n
-    18  Freeze            worker  e16bz2  E16ds_v6  count=1          +96c   +768G   +42n
-    19  Freeze            worker  e16bz3  E16ds_v6  count=1          +96c   +768G   +42n
-    20  Reduce            worker  e16az1  E16ds_v6  count=0          +80c   +640G   +35n  Edsv6 16c
-    21  Reduce            worker  e16az2  E16ds_v6  count=0          +64c   +512G   +28n  Edsv6 32c
-    22  Reduce            worker  e16az3  E16ds_v6  count=0          +48c   +384G   +21n  Edsv6 48c
-    23  Reduce            worker  e16bz1  E16ds_v6  count=0          +32c   +256G   +14n  Edsv6 64c
-    24  Reduce            worker  e16bz2  E16ds_v6  count=0          +16c   +128G    +7n  Edsv6 80c
-    25  Reduce            worker  e16bz3  E16ds_v6  count=0           +0c     +0G    +0n  Edsv6 96c
-    26  Delete            worker  e16az1  E16ds_v6                    +0c     +0G    +0n
-    27  Delete            worker  e16az2  E16ds_v6                    +0c     +0G    +0n
-    28  Delete            worker  e16az3  E16ds_v6                    +0c     +0G    +0n
-    29  Delete            worker  e16bz1  E16ds_v6                    +0c     +0G    +0n
-    30  Delete            worker  e16bz2  E16ds_v6                    +0c     +0G    +0n
-    31  Delete            worker  e16bz3  E16ds_v6                    +0c     +0G    +0n
+     #  action            role    pool    vm size   zone  change         margin                 quota left
+     1  Create            worker  e32z1   E32ds_v6  1     min=1   max=3    +96c   +768G   +42n  Edsv6 0c
+     2  SetScalingBounds  worker  e16az1  E16ds_v6  1     min=1   max=1    +64c   +512G   +28n  Edsv6 32c
+     3  Create            worker  e32z2   E32ds_v6  2     min=1   max=1    +32c   +256G   +28n  Edsv6 0c
+     4  SetScalingBounds  worker  e16az2  E16ds_v6  2     min=1   max=1     +0c     +0G   +14n  Edsv6 32c
+     5  Create            worker  e32z3   E32ds_v6  3     min=1   max=1    +32c   +256G   +28n  Edsv6 0c
+     6  SetScalingBounds  worker  e16az3  E16ds_v6  3     min=1   max=1     +0c     +0G   +14n  Edsv6 32c
+     7  SetScalingBounds  worker  e32z2   E32ds_v6  2     min=1   max=2    +32c   +256G   +21n  Edsv6 0c
+     8  SetScalingBounds  worker  e16bz1  E16ds_v6  1     min=1   max=1    +32c   +256G   +14n  Edsv6 32c
+     9  SetScalingBounds  worker  e32z2   E32ds_v6  2     min=1   max=3    +64c   +512G   +28n  Edsv6 0c
+    10  SetScalingBounds  worker  e16bz2  E16ds_v6  2     min=1   max=1    +32c   +256G   +14n  Edsv6 32c
+    11  SetScalingBounds  worker  e32z3   E32ds_v6  3     min=1   max=2    +32c   +256G   +21n  Edsv6 0c
+    12  SetScalingBounds  worker  e16bz3  E16ds_v6  3     min=1   max=1     +0c     +0G    +7n  Edsv6 32c
+    13  SetScalingBounds  worker  e32z3   E32ds_v6  3     min=1   max=3    +32c   +256G   +14n  Edsv6 0c
+    14  Freeze            worker  e16az1  E16ds_v6  1     count=1          +32c   +256G   +14n
+    15  Freeze            worker  e16az2  E16ds_v6  2     count=1          +32c   +256G   +14n
+    16  Freeze            worker  e16az3  E16ds_v6  3     count=1          +32c   +256G   +14n
+    17  Freeze            worker  e16bz1  E16ds_v6  1     count=1          +32c   +256G   +14n
+    18  Freeze            worker  e16bz2  E16ds_v6  2     count=1          +32c   +256G   +14n
+    19  Freeze            worker  e16bz3  E16ds_v6  3     count=1          +32c   +256G   +14n
+    20  Reduce            worker  e16az1  E16ds_v6  1     count=0          +16c   +128G    +7n  Edsv6 16c
+    21  Reduce            worker  e16az2  E16ds_v6  2     count=0          +16c   +128G    +7n  Edsv6 32c
+    22  Reduce            worker  e16az3  E16ds_v6  3     count=0          +16c   +128G    +7n  Edsv6 48c
+    23  Reduce            worker  e16bz1  E16ds_v6  1     count=0           +0c     +0G    +0n  Edsv6 64c
+    24  Reduce            worker  e16bz2  E16ds_v6  2     count=0           +0c     +0G    +0n  Edsv6 80c
+    25  Reduce            worker  e16bz3  E16ds_v6  3     count=0           +0c     +0G    +0n  Edsv6 96c
+    26  Delete            worker  e16az1  E16ds_v6  1                       +0c     +0G    +0n
+    27  Delete            worker  e16az2  E16ds_v6  2                       +0c     +0G    +0n
+    28  Delete            worker  e16az3  E16ds_v6  3                       +0c     +0G    +0n
+    29  Delete            worker  e16bz1  E16ds_v6  1                       +0c     +0G    +0n
+    30  Delete            worker  e16bz2  E16ds_v6  2                       +0c     +0G    +0n
+    31  Delete            worker  e16bz3  E16ds_v6  3                       +0c     +0G    +0n
 
 steps:      31
 converged:  true

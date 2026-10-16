@@ -46,8 +46,8 @@ type DesiredPoolsResult struct {
 
 // ResolveDesiredPools computes the desired node pool set for a profile: SKU
 // metadata lookup, per-family vCPU budgets, SKU eligibility indexing, and
-// desired-pool allocation. workerZones are the zones of the cluster's existing
-// worker pools, which per-zone worker tiers keep (see ComputeDesiredPools).
+// desired-pool allocation. existingZones groups the cluster's existing zones by
+// role, which per-zone tiers preserve (see ComputeDesiredPools).
 // The shadow nodepool controller uses this path; aks-cluster-create continues
 // provisioning and reconciling its static config.
 func ResolveDesiredPools(
@@ -56,7 +56,7 @@ func ResolveDesiredPools(
 	subscriptionID string,
 	profile Profile,
 	zones []string,
-	workerZones []string,
+	existingZones map[PoolRole][]string,
 	fetchQuotaUsage FetchQuotaUsageFunc,
 ) (DesiredPoolsResult, error) {
 	logger := utils.LoggerFromContext(ctx)
@@ -79,7 +79,7 @@ func ResolveDesiredPools(
 	}
 
 	skuIndex := BuildEligibleSKUIndex(skuMetadata)
-	pools, failures, fullyAllocated := ComputeDesiredPools(logger, profile.Tiers, zones, workerZones, familyLimits, skuIndex)
+	pools, failures, fullyAllocated := ComputeDesiredPools(logger, profile.Tiers, zones, existingZones, familyLimits, skuIndex)
 	return DesiredPoolsResult{
 		Pools:          pools,
 		Failures:       failures,

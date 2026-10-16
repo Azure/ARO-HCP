@@ -23,6 +23,36 @@ import (
 	"github.com/Azure/ARO-HCP/fleet/pkg/compute"
 )
 
+func TestSimulationRejectsInvalidDesiredCapacity(t *testing.T) {
+	desired := []compute.Pool{pool("worker", specE32v6, "1", 2, 512)}
+	desired[0].Spec.VCPUs = 0
+	require.NotPanics(t, func() {
+		tr, err := simulateAndTrace(desired, nil, nil, true, 10)
+		require.EqualError(t, err, `desired role-zone capacity: cannot determine capacity of pool "worker"`)
+		require.Empty(t, tr.Steps)
+	})
+}
+
+func TestSimulationPreservesEmptyProtectedBucket(t *testing.T) {
+	desired := []compute.Pool{pool("replacement", specE32v6, "1", 1, 512)}
+	current := []PoolState{poolState("old", specE32v6, "1", 0, 512, false, 0)}
+	t.Run("quota blocked replacement", func(t *testing.T) {
+		tr := requireSimulation(t, desired, current, map[compute.VMFamily]int64{specE32v6.Family: 0}, true, 10)
+		require.Equal(t, "blocked", tr.Outcome)
+		require.NoError(t, tr.RejectedPlan)
+		require.Empty(t, tr.Steps)
+		require.Equal(t, current, tr.finalState())
+	})
+	t.Run("delete after replacement occupies bucket", func(t *testing.T) {
+		tr := requireSimulation(t, desired, current, map[compute.VMFamily]int64{specE32v6.Family: specE32v6.VCPUs}, true, 10)
+		require.Equal(t, "converged", tr.Outcome)
+		require.Len(t, tr.Steps, 2)
+		require.Equal(t, actionCreate, tr.Steps[0].Action.kind())
+		require.Equal(t, actionDelete, tr.Steps[1].Action.kind())
+		assertConverged(t, desired, tr.finalState())
+	})
+}
+
 func TestSimulationTerminalOutcomes(t *testing.T) {
 	desired := []compute.Pool{pool("worker", specE32v6, "1", 2, 512)}
 	current := []PoolState{poolState("worker", specE32v6, "1", 2, 512, true, 1)}
@@ -115,7 +145,7 @@ func TestSimulationRunningAboveCeilingDoesNotReleaseQuota(t *testing.T) {
 	// The undesired pool is shrunk only after growth is considered, so its
 	// lowered ceiling is visible to the create decision. All 20 vCPUs are still
 	// running after an external maximum reduction.
-	desired := []compute.Pool{pool("new", specD4v3, "2", 1, 32)}
+	desired := []compute.Pool{pool("new", specD4v3, "1", 1, 32)}
 	current := []PoolState{poolState("old", specD4v3, "1", 2, 32, true, 5)}
 	budgets := map[compute.VMFamily]int64{specD4v3.Family: 0}
 	drained := requireSimulation(t, desired, current, budgets, true, 20)

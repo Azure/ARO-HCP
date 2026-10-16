@@ -26,7 +26,7 @@ import (
 	"github.com/Azure/ARO-HCP/fleet/pkg/azure/skucache"
 )
 
-// PoolRole identifies the operational role of a node pool tier.
+// PoolRole is an opaque, nonempty grouping key and node label for a tier.
 type PoolRole string
 
 const (
