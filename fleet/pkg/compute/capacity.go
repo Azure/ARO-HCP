@@ -38,14 +38,11 @@ type CapacityByRole map[PoolRole]RoleCapacity
 // CapacityAtCount computes a pool's configured resources for a node count.
 // Callers validate the pool's SKU data before using it for capacity protection.
 func (p Pool) CapacityAtCount(count int64) RoleCapacity {
-	capacity := RoleCapacity{
+	return RoleCapacity{
 		VCPUs:       count * p.Spec.VCPUs,
 		MemoryBytes: count * p.Spec.MemoryBytes,
+		SwiftNICs:   count * p.SecondaryNICs,
 	}
-	if p.Role == PoolRoleWorker && p.EnableSwift {
-		capacity.SwiftNICs = count * p.Spec.SecondaryNICs
-	}
-	return capacity
 }
 
 // PoolCapacities sums the ceilings of a complete desired or observed pool set.
@@ -58,8 +55,8 @@ func PoolCapacities(pools []Pool) (CapacityByRole, error) {
 		if !known || pool.Spec.VCPUs <= 0 || pool.Spec.MemoryBytes <= 0 || pool.MaxCount < 0 {
 			return nil, fmt.Errorf("cannot determine capacity of pool %q", pool.Name)
 		}
-		if pool.Role == PoolRoleWorker && pool.EnableSwift && pool.Spec.SecondaryNICs <= 0 {
-			return nil, fmt.Errorf("cannot determine Swift NIC capacity of pool %q", pool.Name)
+		if pool.SecondaryNICs < 0 || (pool.SecondaryNICs > 0 && !pool.EnableSwift) {
+			return nil, fmt.Errorf("invalid configured Swift NIC capacity of pool %q", pool.Name)
 		}
 		poolCapacity := pool.CapacityAtCount(int64(pool.MaxCount))
 		capacity.VCPUs += poolCapacity.VCPUs

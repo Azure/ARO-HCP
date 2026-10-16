@@ -19,6 +19,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v8"
+
 	"github.com/Azure/ARO-HCP/fleet/pkg/compute"
 )
 
@@ -43,7 +45,12 @@ func TestConfigurationConverged(t *testing.T) {
 		{name: "zone drift", change: func(p []PoolState) []PoolState { p[0].AvailabilityZones = []string{"2"}; return p }},
 		{name: "disk drift", change: func(p []PoolState) []PoolState { p[0].OSDiskSizeGB = 64; return p }},
 		{name: "node count exceeds target", change: func(p []PoolState) []PoolState { p[0].Count = 4; return p }},
-		{name: "operator-configured NIC count below the SKU ceiling", change: func(p []PoolState) []PoolState { p[0].Spec.SecondaryNICs = 2; return p }, want: true},
+		{name: "SKU NIC maximum is not configured capacity", change: func(p []PoolState) []PoolState { p[0].Spec.SecondaryNICs = 2; return p }, want: true},
+		{name: "configured NIC drift", change: func(p []PoolState) []PoolState { p[0].SecondaryNICs = 2; return p }},
+		{name: "provider mode drift", change: func(p []PoolState) []PoolState {
+			p[0].AgentPoolMode = armcontainerservice.AgentPoolModeSystem
+			return p
+		}},
 		{name: "vm size drift", change: func(p []PoolState) []PoolState { p[0].Spec.Size = "other"; return p }},
 	}
 	for _, test := range tests {
@@ -79,9 +86,9 @@ func TestAllowsCapacityReduction(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			current := []PoolState{{Pool: compute.Pool{Name: "old", Role: compute.PoolRoleWorker, Spec: compute.VMSpec{VCPUs: 4, MemoryBytes: memoryBytes("16Gi"), SecondaryNICs: 2}, MaxCount: test.ceiling, EnableSwift: true}, Count: test.count, AutoScalingEnabled: true}}
+			current := []PoolState{{Pool: compute.Pool{Name: "old", Role: compute.PoolRoleWorker, SecondaryNICs: 2, Spec: compute.VMSpec{VCPUs: 4, MemoryBytes: memoryBytes("16Gi"), SecondaryNICs: 2}, MaxCount: test.ceiling, EnableSwift: true}, Count: test.count, AutoScalingEnabled: true}}
 			if test.overlap {
-				current = append(current, PoolState{Pool: compute.Pool{Name: "new", Role: compute.PoolRoleWorker, Spec: compute.VMSpec{VCPUs: 4, MemoryBytes: memoryBytes("16Gi"), SecondaryNICs: 2}, MaxCount: 5, EnableSwift: true}, Count: 1, AutoScalingEnabled: true})
+				current = append(current, PoolState{Pool: compute.Pool{Name: "new", Role: compute.PoolRoleWorker, SecondaryNICs: 2, Spec: compute.VMSpec{VCPUs: 4, MemoryBytes: memoryBytes("16Gi"), SecondaryNICs: 2}, MaxCount: 5, EnableSwift: true}, Count: 1, AutoScalingEnabled: true})
 			}
 			baseline := compute.CapacityByRole{compute.PoolRoleSystem: {}, compute.PoolRoleInfra: {}, compute.PoolRoleWorker: test.floor}
 			require.Equal(t, test.want, allowsCapacityReduction(current, current[0], test.next, baseline))
@@ -147,7 +154,7 @@ func TestProtectedReplacement(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			desired := []compute.Pool{{Name: "new", Role: compute.PoolRoleWorker, Spec: compute.VMSpec{Size: "sku", Family: "family", VCPUs: 4, MemoryBytes: memoryBytes("16Gi"), SecondaryNICs: 2}, MaxCount: test.desiredMax, EnableSwift: true}}
+			desired := []compute.Pool{{Name: "new", Role: compute.PoolRoleWorker, SecondaryNICs: 2, Spec: compute.VMSpec{Size: "sku", Family: "family", VCPUs: 4, MemoryBytes: memoryBytes("16Gi"), SecondaryNICs: 2}, MaxCount: test.desiredMax, EnableSwift: true}}
 			old := desired[0]
 			old.Name = "old"
 			old.MaxCount = 10
@@ -230,12 +237,12 @@ func TestFindNextActionSkipsUnsafeShrinks(t *testing.T) {
 		{
 			name: "blocked system deletion permits worker squeeze",
 			desired: []compute.Pool{
-				{Name: "keep-system", Role: compute.PoolRoleSystem, Spec: compute.VMSpec{Family: "systemFamily", VCPUs: 4, MemoryBytes: memoryBytes("16Gi")}, MaxCount: 3},
+				{Name: "keep-system", Role: compute.PoolRoleSystem, AgentPoolMode: armcontainerservice.AgentPoolModeSystem, Spec: compute.VMSpec{Family: "systemFamily", VCPUs: 4, MemoryBytes: memoryBytes("16Gi")}, MaxCount: 3},
 				{Name: "new-worker", Role: compute.PoolRoleWorker, Spec: compute.VMSpec{Family: "workerFamily", VCPUs: 4, MemoryBytes: memoryBytes("16Gi")}, MaxCount: 1},
 			},
 			current: []PoolState{
-				{Pool: compute.Pool{Name: "keep-system", Role: compute.PoolRoleSystem, Spec: compute.VMSpec{Family: "systemFamily", VCPUs: 4, MemoryBytes: memoryBytes("16Gi")}, MaxCount: 1}, Count: 1, AutoScalingEnabled: true},
-				{Pool: compute.Pool{Name: "old-system", Role: compute.PoolRoleSystem, Spec: compute.VMSpec{Family: "systemFamily", VCPUs: 4, MemoryBytes: memoryBytes("16Gi")}, MaxCount: 3}, Count: 3, AutoScalingEnabled: true},
+				{Pool: compute.Pool{Name: "keep-system", Role: compute.PoolRoleSystem, AgentPoolMode: armcontainerservice.AgentPoolModeSystem, Spec: compute.VMSpec{Family: "systemFamily", VCPUs: 4, MemoryBytes: memoryBytes("16Gi")}, MaxCount: 1}, Count: 1, AutoScalingEnabled: true},
+				{Pool: compute.Pool{Name: "old-system", Role: compute.PoolRoleSystem, AgentPoolMode: armcontainerservice.AgentPoolModeSystem, Spec: compute.VMSpec{Family: "systemFamily", VCPUs: 4, MemoryBytes: memoryBytes("16Gi")}, MaxCount: 3}, Count: 3, AutoScalingEnabled: true},
 				{Pool: compute.Pool{Name: "old-worker", Role: compute.PoolRoleWorker, Spec: compute.VMSpec{Family: "workerFamily", VCPUs: 4, MemoryBytes: memoryBytes("16Gi")}, MaxCount: 5}, Count: 1, AutoScalingEnabled: true},
 			},
 			baseline: compute.CapacityByRole{compute.PoolRoleSystem: {VCPUs: 12, MemoryBytes: memoryBytes("48Gi")}, compute.PoolRoleInfra: {}, compute.PoolRoleWorker: {VCPUs: 4, MemoryBytes: memoryBytes("16Gi")}},
@@ -281,8 +288,8 @@ func TestFindNextActionDrainUsesBaseline(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			desired := []compute.Pool{
-				{Name: "new-a", Role: compute.PoolRoleWorker, Spec: compute.VMSpec{Size: "sku-a", Family: "family-a", VCPUs: 4, MemoryBytes: memoryBytes("16Gi"), SecondaryNICs: 2}, MaxCount: 10, EnableSwift: true},
-				{Name: "new-b", Role: compute.PoolRoleWorker, Spec: compute.VMSpec{Size: "sku-b", Family: "family-b", VCPUs: 4, MemoryBytes: memoryBytes("16Gi"), SecondaryNICs: 2}, MaxCount: 10, EnableSwift: true},
+				{Name: "new-a", Role: compute.PoolRoleWorker, SecondaryNICs: 2, Spec: compute.VMSpec{Size: "sku-a", Family: "family-a", VCPUs: 4, MemoryBytes: memoryBytes("16Gi"), SecondaryNICs: 2}, MaxCount: 10, EnableSwift: true},
+				{Name: "new-b", Role: compute.PoolRoleWorker, SecondaryNICs: 2, Spec: compute.VMSpec{Size: "sku-b", Family: "family-b", VCPUs: 4, MemoryBytes: memoryBytes("16Gi"), SecondaryNICs: 2}, MaxCount: 10, EnableSwift: true},
 			}
 			old := desired[0]
 			old.Name = "old-a"

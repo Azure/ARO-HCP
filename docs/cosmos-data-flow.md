@@ -1700,7 +1700,7 @@ Reads mirrored router Service content and the cached management cluster. A missi
 
 [Source](../fleet/pkg/controllers/capacityreporting/scale_ceiling_controller.go) · **Trigger:** Management cluster; 5m.
 
-Reads Azure AKS worker-pool limits and mirrored CapacityReport samples. Prefers live per-node allocatable values when ready nodes exist; otherwise uses cached SKU metadata and the pool's `aks-nic-secondary-count` tag. Uses autoscaling MaxCount when enabled, otherwise Count, to write scheduling `Status.ScaleCeiling.Capacity`, `LastReportedAt` and conditions. New pool-spec/compute helpers do not add a provisioning controller; this controller does not scale AKS.
+Reads Azure AKS worker-pool limits and mirrored CapacityReport samples. Prefers live per-node allocatable values when ready nodes exist; otherwise uses cached SKU metadata for CPU/memory and only the pool's `aks-nic-secondary-count` tag for secondary NICs. An absent tag or a valid `0` tag contributes zero secondary NICs, never the SKU NIC maximum. Uses autoscaling MaxCount when enabled, otherwise Count, to write scheduling `Status.ScaleCeiling.Capacity`, `LastReportedAt` and conditions. New pool-spec/compute helpers do not add a provisioning controller; this controller does not scale AKS.
 
 #### HCPResourceRequirementsController
 

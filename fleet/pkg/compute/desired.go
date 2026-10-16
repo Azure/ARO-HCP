@@ -150,7 +150,7 @@ func ComputeDesiredPools(
 		}
 
 		var requiredZones []string
-		if tier.Role == PoolRoleWorker {
+		if tier.Class.Role == PoolRoleWorker {
 			requiredZones = workerZones
 		}
 		tierPools, tierFullyAllocated := allocateTier(logger, tier, zones, requiredZones, available, skuIndex)
@@ -176,10 +176,10 @@ func ComputeDesiredPools(
 }
 
 // tierLabels returns the node labels for a tier's pools: the role label derived
-// from tier.Role, plus any extra labels the tier declares.
+// from tier.Class.Role, plus any extra labels the class declares.
 func tierLabels(tier TierConfig) map[string]string {
-	labels := map[string]string{RoleLabel: string(tier.Role)}
-	maps.Copy(labels, tier.Labels)
+	labels := map[string]string{RoleLabel: string(tier.Class.Role)}
+	maps.Copy(labels, tier.Class.Labels)
 	return labels
 }
 
@@ -262,9 +262,15 @@ func allocateRegionalTier(
 		if maxCount < 1 {
 			continue
 		}
+		var secondaryNICs int64
+		if tier.Class.AttachSecondaryNICs {
+			secondaryNICs = meta.SecondaryNICs
+		}
 		pools = append(pools, Pool{
-			Role:              tier.Role,
-			Name:              poolName(tier.Name, tier.Role, "0", meta.Name, tier.OSDiskSizeGB, tier.MaxPods, tier.EnableSwift),
+			Role:              tier.Class.Role,
+			Name:              tier.poolName(meta.Name, "0"),
+			AgentPoolMode:     tier.Class.AgentPoolMode,
+			SecondaryNICs:     secondaryNICs,
 			Spec:              NewVMSpecFromSKU(meta),
 			AvailabilityZones: nil,
 			MaxCount:          int32(maxCount),
@@ -272,8 +278,8 @@ func allocateRegionalTier(
 			OSDiskSizeGB:      tier.OSDiskSizeGB,
 			MaxPods:           tier.MaxPods,
 			Labels:            tierLabels(tier),
-			Taints:            slices.Clone(tier.Taints),
-			EnableSwift:       tier.EnableSwift,
+			Taints:            slices.Clone(tier.Class.Taints),
+			EnableSwift:       tier.Class.EnableSwift,
 		})
 		allocatedNodes += maxCount
 		if allocatedNodes >= tier.MaxNodes {
@@ -337,9 +343,15 @@ func allocatePerZoneTier(
 			}
 			family.quotaNodes -= poolNodes
 			zoneNodesNeeded[zone] -= poolNodes
+			var secondaryNICs int64
+			if tier.Class.AttachSecondaryNICs {
+				secondaryNICs = family.meta.SecondaryNICs
+			}
 			pools = append(pools, Pool{
-				Role:              tier.Role,
-				Name:              poolName(tier.Name, tier.Role, zone, family.meta.Name, tier.OSDiskSizeGB, tier.MaxPods, tier.EnableSwift),
+				Role:              tier.Class.Role,
+				Name:              tier.poolName(family.meta.Name, zone),
+				AgentPoolMode:     tier.Class.AgentPoolMode,
+				SecondaryNICs:     secondaryNICs,
 				Spec:              NewVMSpecFromSKU(family.meta),
 				AvailabilityZones: []string{zone},
 				MaxCount:          int32(poolNodes),
@@ -347,8 +359,8 @@ func allocatePerZoneTier(
 				OSDiskSizeGB:      tier.OSDiskSizeGB,
 				MaxPods:           tier.MaxPods,
 				Labels:            tierLabels(tier),
-				Taints:            slices.Clone(tier.Taints),
-				EnableSwift:       tier.EnableSwift,
+				Taints:            slices.Clone(tier.Class.Taints),
+				EnableSwift:       tier.Class.EnableSwift,
 			})
 		}
 	}
@@ -487,6 +499,10 @@ func tierSKU(logger logr.Logger, tier TierConfig, family VMFamily, skuIndex Elig
 			"osDiskSizeGB", tier.OSDiskSizeGB)
 		return nil, false
 	}
+	if tier.Class.AttachSecondaryNICs && meta.SecondaryNICs <= 0 {
+		logger.Info("SKU secondary NIC capacity unavailable, skipping", "family", family, "vmSize", vmSize)
+		return nil, false
+	}
 	return meta, true
 }
 
@@ -510,7 +526,7 @@ func tierExhaustedFailure(tierIndex int, tier TierConfig, zones []string, requir
 		offeredZones := make(map[string]bool)
 		for _, family := range tier.FamilyPriority {
 			_, meta, found := skuIndex.Lookup(family, tier.Cores)
-			if !found || meta.EphemeralDiskSizeGB < int64(tier.OSDiskSizeGB) {
+			if !found || meta.EphemeralDiskSizeGB < int64(tier.OSDiskSizeGB) || (tier.Class.AttachSecondaryNICs && meta.SecondaryNICs <= 0) {
 				continue
 			}
 			hasEligible = true
@@ -531,6 +547,9 @@ func tierExhaustedFailure(tierIndex int, tier TierConfig, zones []string, requir
 		case !hasEligible:
 			reason = "NoEligibleSKU"
 			message = fmt.Sprintf("tier %d (%d cores): no family has an eligible SKU with exactly %d vCPUs (unrestricted in region, unconstrained vCPUs, ephemeral OS disk of at least %d GB)", tierIndex, tier.Cores, tier.Cores, tier.OSDiskSizeGB)
+			if tier.Class.AttachSecondaryNICs {
+				message += "; a positive secondary NIC capacity is also required"
+			}
 		case tier.PoolMode == PoolModePerZone && len(uncoveredRequiredZones) > 0:
 			reason = "NoZoneCoverage"
 			message = fmt.Sprintf("tier %d (%d cores): the eligible families' SKUs are not offered in existing worker zones %s", tierIndex, tier.Cores, strings.Join(uncoveredRequiredZones, ","))
@@ -549,21 +568,22 @@ func tierExhaustedFailure(tierIndex int, tier TierConfig, zones []string, requir
 	}
 }
 
-// poolName generates a deterministic pool name. Format:
+// poolName generates a deterministic pool name for this tier and resolved VM size. Format:
 // <symbolicName><zone><hash> where symbolicName is the tier's stable identifier
 // (1-5 chars), zone is the availability zone digit, and hash is a 6-character
 // hex prefix of the SHA-256 of the pool's identity fields (Role, VMSize,
-// OSDiskSizeGB, MaxPods, EnableSwift). Role changes require replacement rather
-// than relabeling an existing pool. Changing any of those fields changes the
-// hash, renaming the pool so the reconciler replaces it — the only correct
-// response to an immutable-field change. Zone is excluded from the hash so
-// per-zone pools of the same spec share the same hash suffix. Name uniqueness
+// OSDiskSizeGB, MaxPods, EnableSwift, AgentPoolMode, AttachSecondaryNICs).
+// Role changes require replacement rather than relabeling an existing pool.
+// Changing any identity field changes the hash, renaming the pool so the
+// reconciler replaces it — the only correct response to an immutable-field
+// change. Zone is excluded from the hash so per-zone pools of the same spec
+// share the same hash suffix. Name uniqueness
 // within a cluster is guaranteed structurally by (symbolicName, zone), not by
 // the hash, so a 24-bit truncation is safe; it only guards change detection.
-func poolName(symbolicName string, role PoolRole, zone string, vmSize string, osDiskSizeGB int32, maxPods int32, enableSwift bool) string {
-	input := fmt.Sprintf("%s|%s|%d|%d|%t", role, vmSize, osDiskSizeGB, maxPods, enableSwift)
+func (tier TierConfig) poolName(vmSize, zone string) string {
+	input := fmt.Sprintf("%s|%s|%d|%d|%t|%s|%t", tier.Class.Role, vmSize, tier.OSDiskSizeGB, tier.MaxPods, tier.Class.EnableSwift, tier.Class.AgentPoolMode, tier.Class.AttachSecondaryNICs)
 	sum := sha256.Sum256([]byte(input))
-	return fmt.Sprintf("%s%s%s", symbolicName, zone, hex.EncodeToString(sum[:])[:6])
+	return fmt.Sprintf("%s%s%s", tier.Name, zone, hex.EncodeToString(sum[:])[:6])
 }
 
 // RequiredTierFailed returns true if any allocation failure is for a required tier.

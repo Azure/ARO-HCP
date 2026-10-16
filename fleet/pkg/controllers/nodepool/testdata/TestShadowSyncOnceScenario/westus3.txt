@@ -10,17 +10,17 @@ initial:
   userswft3  worker  Standard_E16ds_v6  zone=3      max=14  count=6  autoscaled
 
 desired:
-  sys0fe1457    system  Standard_E8ds_v7   zone=   max=3
-  inf16a742c    infra   Standard_E32ds_v7  zone=1  max=1
-  inf17dc270    infra   Standard_E32ds_v6  zone=1  max=2
-  inf27dc270    infra   Standard_E32ds_v6  zone=2  max=3
-  wrk161690783  worker  Standard_E16ds_v6  zone=1  max=11
-  wrk162690783  worker  Standard_E16ds_v6  zone=2  max=11
-  wrk163690783  worker  Standard_E16ds_v6  zone=3  max=9
-  wrk1635a648b  worker  Standard_E16ds_v5  zone=3  max=2
-  wrk3216c3e65  worker  Standard_E32ds_v5  zone=1  max=1
-  wrk32275eaaf  worker  Standard_E32ds_v4  zone=2  max=1
-  wrk32375eaaf  worker  Standard_E32ds_v4  zone=3  max=1
+  sys0656b38    system  Standard_E8ds_v7   zone=   max=3
+  inf15d1796    infra   Standard_E32ds_v7  zone=1  max=1
+  inf1777514    infra   Standard_E32ds_v6  zone=1  max=2
+  inf2777514    infra   Standard_E32ds_v6  zone=2  max=3
+  wrk161ac54ea  worker  Standard_E16ds_v6  zone=1  max=11
+  wrk162ac54ea  worker  Standard_E16ds_v6  zone=2  max=11
+  wrk163ac54ea  worker  Standard_E16ds_v6  zone=3  max=9
+  wrk163b88d57  worker  Standard_E16ds_v5  zone=3  max=2
+  wrk3214cde3c  worker  Standard_E32ds_v5  zone=1  max=1
+  wrk322d06804  worker  Standard_E32ds_v4  zone=2  max=1
+  wrk323d06804  worker  Standard_E32ds_v4  zone=3  max=1
 
 budget (vCPUs):
   StandardEdsv6Family:  392

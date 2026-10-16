@@ -80,6 +80,7 @@ func resolveTestSKU(name, family string, vcpus int64) *armcompute.ResourceSKU {
 		},
 		Capabilities: []*armcompute.ResourceSKUCapabilities{
 			{Name: ptr.To("vCPUs"), Value: ptr.To(strconv.FormatInt(vcpus, 10))},
+			{Name: ptr.To("MaxNetworkInterfaces"), Value: ptr.To("4")},
 			{Name: ptr.To("MemoryGB"), Value: ptr.To("64")},
 			{Name: ptr.To("EphemeralOSDiskSupported"), Value: ptr.To("True")},
 			{Name: ptr.To("CachedDiskBytes"), Value: ptr.To(strconv.FormatInt(200*1024*1024*1024, 10))},
@@ -92,7 +93,7 @@ func testProfile() Profile {
 		Tiers: []TierConfig{
 			{
 				Name:           "wrk",
-				Role:           PoolRoleWorker,
+				Class:          WorkerPools,
 				PoolMode:       PoolModePerZone,
 				Cores:          16,
 				OSDiskSizeGB:   100,
@@ -301,7 +302,7 @@ func TestResolveDesiredPools_UsageDoesNotChangeDesiredPools(t *testing.T) {
 				Tiers: []TierConfig{
 					{
 						Name:           "wrk",
-						Role:           PoolRoleWorker,
+						Class:          WorkerPools,
 						PoolMode:       PoolModeRegional,
 						PoolCount:      1,
 						Cores:          16,

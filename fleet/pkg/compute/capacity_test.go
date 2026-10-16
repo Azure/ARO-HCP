@@ -40,13 +40,13 @@ func TestPoolCapacities(t *testing.T) {
 		{name: "roles", pools: []Pool{
 			{Name: "sys", Role: PoolRoleSystem, Spec: VMSpec{VCPUs: 4, MemoryBytes: memoryBytes("16Gi"), SecondaryNICs: 3}, MaxCount: 3, EnableSwift: true},
 			{Name: "infra", Role: PoolRoleInfra, Spec: VMSpec{VCPUs: 8, MemoryBytes: memoryBytes("32Gi")}, MaxCount: 2},
-			{Name: "old", Role: PoolRoleWorker, Spec: VMSpec{VCPUs: 16, MemoryBytes: memoryBytes("128Gi"), SecondaryNICs: 7}, MaxCount: 5, EnableSwift: true},
-			{Name: "new", Role: PoolRoleWorker, Spec: VMSpec{VCPUs: 32, MemoryBytes: memoryBytes("256Gi"), SecondaryNICs: 7}, MaxCount: 2, EnableSwift: true},
+			{Name: "old", Role: PoolRoleWorker, Spec: VMSpec{VCPUs: 16, MemoryBytes: memoryBytes("128Gi"), SecondaryNICs: 7}, MaxCount: 5, EnableSwift: true, SecondaryNICs: 7},
+			{Name: "new", Role: PoolRoleWorker, Spec: VMSpec{VCPUs: 32, MemoryBytes: memoryBytes("256Gi"), SecondaryNICs: 7}, MaxCount: 2, EnableSwift: true, SecondaryNICs: 7},
 			{Name: "plain", Role: PoolRoleWorker, Spec: VMSpec{VCPUs: 4, MemoryBytes: memoryBytes("16Gi"), SecondaryNICs: 3}, MaxCount: 1},
 		}},
 		{name: "unknown SKU", pools: []Pool{{Name: "unknown", Role: PoolRoleWorker, MaxCount: 3}}, wantErr: "cannot determine capacity"},
 		{name: "unknown role", pools: []Pool{{Name: "unknown", Role: "other", Spec: VMSpec{VCPUs: 4, MemoryBytes: memoryBytes("16Gi")}}}, wantErr: "cannot determine capacity"},
-		{name: "unknown Swift capacity", pools: []Pool{{Name: "unknown", Role: PoolRoleWorker, Spec: VMSpec{VCPUs: 4, MemoryBytes: memoryBytes("16Gi")}, EnableSwift: true}}, wantErr: "cannot determine Swift"},
+		{name: "unknown Swift capacity", pools: []Pool{{Name: "unknown", Role: PoolRoleWorker, Spec: VMSpec{VCPUs: 4, MemoryBytes: memoryBytes("16Gi")}, EnableSwift: true, SecondaryNICs: -1}}, wantErr: "invalid configured Swift"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

@@ -1,7 +1,7 @@
 zones: 1,2,3
 
 tiers:
-  sys  system  Regional  pools=1  cores=8  maxNodes=3  initialMinNodes=0  osDisk=128GB  maxPods=100  swift=false  required=false  families=StandardEdsv6Family
+  sys  system  Regional  mode=System  pools=1  cores=8  maxNodes=3  initialMinNodes=0  osDisk=128GB  maxPods=100  swift=true  attachNICs=false  required=false  families=StandardEdsv6Family
 
 quota limits (vCPUs):
   StandardEdsv6Family:  10000
