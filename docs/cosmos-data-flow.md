@@ -1491,6 +1491,13 @@ Reads requested managed identities and reports missing/unavailable identities. W
 
 Reads the vnet-integration subnet via the cluster's Service Managed Identity and validates it has at least 6 usable IPs (Azure reserves 5 per subnet). Writes the corresponding service-provider `Status.Validations` condition; no Azure mutation.
 
+#### ClusterValidationAzureClusterSubnetValidation
+
+[Source](../backend/pkg/utils/validationutils/azure_cluster_subnet_validation.go) · **Trigger:** Cluster; 1m; result-based retry.
+
+Reads the cluster's virtual network via the cluster's Service Managed Identity and validates that the cluster's subnet exists on it, that the subnet's region is in the same region as the cluster, and that the subnet has the cluster's `NetworkSecurityGroupID` attached.
+Writes the corresponding service-provider `Status.Validations` condition; no Azure mutation.
+
 #### ClusterValidationControlPlaneIdentitiesPermissionsClusterValidation
 
 [Source](../backend/pkg/utils/validationutils/control_plane_identities_permissions_cluster_validation.go) · **Trigger:** Cluster; 1m; result-based retry.

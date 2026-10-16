@@ -54,6 +54,9 @@ type ServiceManagedIdentityClientBuilder interface {
 	// SubnetsClient returns a new Subnets client authenticated as the cluster's
 	// Service Managed Identity.
 	SubnetsClient(ctx context.Context, clusterIdentityURL string, smiResourceID *azcorearm.ResourceID, subscriptionID string) (SubnetsClient, error)
+	// VirtualNetworksClient returns a new Virtual Networks client authenticated as the
+	// cluster's Service Managed Identity.
+	VirtualNetworksClient(ctx context.Context, clusterIdentityURL string, smiResourceID *azcorearm.ResourceID, subscriptionID string) (VirtualNetworksClient, error)
 }
 
 type serviceManagedIdentityClientBuilder struct {
@@ -103,6 +106,14 @@ func (b *serviceManagedIdentityClientBuilder) SubnetsClient(ctx context.Context,
 		return nil, err
 	}
 	return armnetwork.NewSubnetsClient(subscriptionID, creds, b.azCoreARMClientOptions)
+}
+
+func (b *serviceManagedIdentityClientBuilder) VirtualNetworksClient(ctx context.Context, clusterIdentityURL string, smiResourceID *azcorearm.ResourceID, subscriptionID string) (VirtualNetworksClient, error) {
+	creds, err := b.credentialsForServiceManagedIdentity(ctx, clusterIdentityURL, smiResourceID)
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to get credentials for service managed identity: %w", err))
+	}
+	return armnetwork.NewVirtualNetworksClient(subscriptionID, creds, b.azCoreARMClientOptions)
 }
 
 func (b *serviceManagedIdentityClientBuilder) NetworkSecurityGroupsClient(ctx context.Context, clusterIdentityURL string, smiResourceID *azcorearm.ResourceID, subscriptionID string) (NetworkSecurityGroupsClient, error) {

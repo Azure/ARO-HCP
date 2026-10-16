@@ -101,6 +101,25 @@ func instantiateAzureClusterVnetIntegrationSubnetSizeValidationController(contro
 	), nil
 }
 
+func registerAzureClusterSubnetValidationController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{
+		Workers:     20,
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateAzureClusterSubnetValidationController, false),
+	}
+}
+
+func instantiateAzureClusterSubnetValidationController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	_, serviceProviderClusterLister := controllerContext.BackendInformers.ServiceProviderClusters()
+
+	return clustervalidation.NewNamedClusterValidationController(
+		clustervalidation.ClusterValidationAzureClusterSubnetValidationControllerName,
+		validationutils.NewAzureClusterSubnetValidation(controllerContext.SMIClientBuilder),
+		controllerContext.ResourcesDBClient,
+		serviceProviderClusterLister,
+		controllerContext.BackendInformers,
+	), nil
+}
+
 func registerAdminCredentialsDispatchRevokeCredentialsController() controllerconfig.ControllerRegistration {
 	return controllerconfig.ControllerRegistration{
 		Workers:     20,
@@ -1260,6 +1279,7 @@ func Register(registry map[string]controllerconfig.ControllerRegistration) {
 	registry[strings.ToLower(clustervalidation.ClusterValidationDataPlaneIdentitiesPermissionsValidationControllerName)] = registerDataPlaneIdentitiesPermissionsValidationController()
 	registry[strings.ToLower(clustervalidation.ClusterValidationContainerRegistryPullCredentialsPermissionValidationControllerName)] = registerContainerRegistryPullCredentialsValidationController()
 	registry[strings.ToLower(clustervalidation.ClusterValidationAzureClusterVnetIntegrationSubnetSizeValidationControllerName)] = registerAzureClusterVnetIntegrationSubnetSizeValidationController()
+	registry[strings.ToLower(clustervalidation.ClusterValidationAzureClusterSubnetValidationControllerName)] = registerAzureClusterSubnetValidationController()
 	registry[strings.ToLower(clusterreaddesires.CreateClusterScopedReadDesiresControllerName)] = registerCreateClusterScopedReadDesiresController()
 	registry[strings.ToLower(clustercreation.CreateServiceProviderClusterControllerName)] = registerCreateServiceProviderClusterController()
 	registry[strings.ToLower(clusterdeletion.CleanOrphanedClusterManagedResourceGroupControllerName)] = registerCleanOrphanedClusterManagedResourceGroupController()
