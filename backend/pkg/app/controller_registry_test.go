@@ -173,7 +173,7 @@ var expectedControllerLaunches = []struct {
 
 func TestControllerRegistryManifest(t *testing.T) {
 	registry := newControllerRegistry()
-	require.Len(t, registry, 118)
+	require.Len(t, registry, len(expectedControllerLaunches))
 	expectedOrder := make([]string, 0, len(expectedControllerLaunches))
 	for _, expected := range expectedControllerLaunches {
 		expectedOrder = append(expectedOrder, expected.name)
@@ -409,7 +409,7 @@ func TestControllerRegistryUnorderedConstructionAndErrors(t *testing.T) {
 	constructed = nil
 	_, err = instantiateControllers(registry, ControllerContext{}, storageFactory)
 	require.NoError(t, err)
-	require.Len(t, constructed, 117)
+	require.Len(t, constructed, len(expectedControllerLaunches)-1) // clusterdenyassignment is disabled in non-FPA mode
 	require.NotContains(t, constructed, "clusterdenyassignment")
 	expectedErr := errors.New("constructor failed")
 	name := "union-kube-applier-informers-controller"
