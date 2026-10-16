@@ -206,16 +206,19 @@ and that the ARM deployment can read the identity and create the management
 resource-group role assignments. Permission on the shared identity is a separate
 prerequisite; this configuration does not grant it.
 
-The writer identity is evaluated when the VNet is created. Retagging an existing
-VNet does not repair its SWIFT registration. An affected management stamp requires
-an approved recreation that includes replacing its management VNet; recreating
-only the AKS cluster while retaining the VNet does not exercise registration.
-The identity override does not authorize or perform that destructive operation.
+SWIFTv2 uses the onboarded writer identity to stamp `CreatorServiceName` on the
+management VNet. DNC validates that value against the customer subnet's SAL
+ownership. The [ARO SWIFT architecture reference](https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/components-and-architecture/swift-networking-information)
+documents support for adding the security tag day-2.
 
 Deploy both the `swift-vnet-permissions` and `swift-vnet` steps for each affected
-stamp as part of the recreation. Confirm the VNet creation caller matches the
-selected identity, then verify SWIFT registration and network readiness with AKS
-Network and a SWIFT-enabled E2E scenario before increasing concurrency.
+stamp, record the selected identity's VNet write, and verify effective ownership
+and SWIFT network readiness. A successful write alone does not prove that an
+existing AKS stamp is repaired. Confirm the supported remediation with AKS Network:
+day-2 stamping may not be sufficient for an already affected stamp, but recreation
+is not a universal prerequisite. Any destructive stamp or VNet recreation requires
+a separate approved operation. Verify a SWIFT-enabled E2E scenario before
+increasing concurrency.
 
 After AKS Network registers the intended deployment identity, remove the private
 regional override to restore the empty default, deploy both steps, and repeat
