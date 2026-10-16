@@ -1,3 +1,5 @@
+Customer should get an existing HCP cluster and report a missing cluster through the RP
+Immutable cluster configuration rejects an immutable cluster DNS prefix PATCH without changing the shared cluster
 Customer should be able to list available HCP OpenShift versions and validate response content
 Customer should be able to test admin credentials before cluster ready, then full admin credential lifecycle
 Customer should be able to create node pools with ARM64-based VMs
@@ -73,6 +75,7 @@ Customer should be able to successfully upgrade control plane minor version from
 Customer should be able to successfully upgrade control plane minor version from 5.11 minor to 5.12 minor
 ARO-HCP should serve the default ingress certificate for 5.1
 Customer should be able to create a cluster with an external auth config and get the external auth config
+External auth issuer validation rejects an invalid external auth issuer URL without leaving a child or changing the shared cluster
 Customer should be able to lifecycle and confirm external auth on a cluster
 Customer should be able to create an HCP cluster and manage ImageDigestMirrors
 Customer should be able to create an HCP cluster with Image Registry not present
@@ -83,6 +86,7 @@ Customer should be able to delete a nodepool
 Nodepool Ephemeral OS Disk should create a nodepool with ephemeral OS disk when autoRepair is enabled
 Customer should be able to update node pool labels and taints
 Nodepool OS Disk Encryption should create a nodepool with customer-managed disk encryption via DES
+Immutable node pool configuration rejects an immutable node pool OS disk size PATCH without changing the shared node pool
 Customer should upgrade and update a nodepool from 4.20.z to 4.21.zLatest
 Customer should upgrade and update a nodepool from 4.21.z to 4.21.zLatest
 Customer should upgrade and update a nodepool from 4.20.z to 4.20.zLatest

@@ -62,6 +62,7 @@ func CreateResourceGroup(
 	location string,
 	resourceGroupTTL time.Duration,
 	timeout time.Duration,
+	additionalTags ...map[string]*string,
 ) (*armresources.ResourceGroup, error) {
 	ctx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during CreateResourceGroup for resource group %s in location %s", timeout.Minutes(), resourceGroupName, location))
 	defer cancel()
@@ -76,6 +77,11 @@ func CreateResourceGroup(
 	}
 	if jobID := os.Getenv("BUILD_ID"); strings.TrimSpace(jobID) != "" {
 		tags[ProwJobIDTag] = to.Ptr(jobID)
+	}
+	for _, extra := range additionalTags {
+		for name, value := range extra {
+			tags[name] = value
+		}
 	}
 	resourceGroup, err := resourceGroupsClient.CreateOrUpdate(ctx, resourceGroupName, armresources.ResourceGroup{
 		Location: to.Ptr(location),

@@ -231,10 +231,12 @@ func setupCli() (*cobra.Command, error) {
 	}
 
 	extensionCmds := cmd.DefaultExtensionCommands(registry)
+	fixtureRunner := newSharedFixtureRunner(ext.GetSpecs(), newFixtureResources)
 	for _, c := range extensionCmds {
 		switch c.Name() {
 		case "run-suite", "run-test":
 			wrapMISchedulerPreRun(c)
+			fixtureRunner.wrapRun(c)
 		}
 		switch c.Name() {
 		case "run-suite":
