@@ -22,6 +22,8 @@ import (
 	"testing"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/Azure/ARO-HCP/test/pkg/leaseenv"
 )
 
 func fixture(t *testing.T, name, content string) string {
@@ -69,7 +71,7 @@ func TestImageMappingsAndLoginOrder(t *testing.T) {
 	}
 	for _, existing := range []string{"", "existing.registry", " existing.registry  another.registry "} {
 		t.Run("existing="+existing, func(t *testing.T) {
-			environment := map[string]string{"DEPLOY_ENV": "ci01", "LEASED_MSI_CONTAINERS": "leased", "USE_OC_LOGIN_REGISTRIES": existing}
+			environment := map[string]string{"DEPLOY_ENV": "ci01", leaseenv.MSIContainers: "leased", "USE_OC_LOGIN_REGISTRIES": existing}
 			wantDefaults := map[string]interface{}{}
 			wantLogin := existing
 			for i, component := range components {

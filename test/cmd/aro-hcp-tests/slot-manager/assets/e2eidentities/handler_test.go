@@ -25,6 +25,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
+	"github.com/Azure/ARO-HCP/test/pkg/leaseenv"
 )
 
 func TestPoolHandlersShareSelectionPolicy(t *testing.T) {
@@ -101,7 +102,7 @@ func TestHandlerOwnsIdentityRuntimeExports(t *testing.T) {
 	if err := NewHandler().PublishLease(context.Background(), request, contract); err != nil {
 		t.Fatalf("publishing identity groups: %v", err)
 	}
-	if err := contract.Add("other", "LEASED_MSI_CONTAINERS", ""); err == nil {
+	if err := contract.Add("other", leaseenv.MSIContainers, ""); err == nil {
 		t.Fatal("identity export ownership must not be reassigned")
 	}
 	sharedDir := t.TempDir()

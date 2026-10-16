@@ -20,6 +20,13 @@ const (
 	// RuntimeDeployEnvironment, which is published by slot acquisition.
 	DeployEnvironment            = "DEPLOY_ENV"
 	RuntimeDeployEnvironment     = "ARO_HCP_DEPLOY_ENV"
+	SlotName                     = "ARO_HCP_E2E_SLOT_NAME"
+	SlotResourceType             = "ARO_HCP_E2E_SLOT_RESOURCE_TYPE"
+	CustomerSubscription         = "CUSTOMER_SUBSCRIPTION"
+	SelectedClusterProfileDir    = "SELECTED_CLUSTER_PROFILE_DIR"
+	SelectedLocation             = "SELECTED_LOCATION"
+	VMFamilyPolicy               = "ARO_HCP_E2E_VM_FAMILY_POLICY"
+	InfrastructureSubscriptionID = "INFRA_SUBSCRIPTION_ID"
 	MSIMockSP                    = "LEASED_MSI_MOCK_SP"
 	ARMHelperSP                  = "LEASED_ARM_HELPER_SP"
 	MSIContainers                = "LEASED_MSI_CONTAINERS"

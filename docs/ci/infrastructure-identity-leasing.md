@@ -62,7 +62,8 @@ Hypershift overrides last, and publishes `config-override.yaml` in the shared
 directory only after all inputs pass validation. Unrecognized `*_IMAGE`
 environment variables fail generation rather than silently ignoring new or
 misspelled image overrides. Go lease publishers and consumers share the
-environment contract in `test/pkg/leaseenv`.
+environment contract in `test/pkg/leaseenv`, including core slot metadata,
+subscription and region selection, VM family policy, and asset-specific leases.
 
 CI image overrides also supply their source registries to
 `USE_OC_LOGIN_REGISTRIES`. The sourced adapter exports the resulting list so

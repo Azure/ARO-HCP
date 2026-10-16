@@ -21,7 +21,6 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"sync"
 
 	_ "github.com/Azure/ARO-HCP/test/e2e"
 
@@ -87,7 +86,7 @@ func setupCli() (*cobra.Command, error) {
 	// Extension registry
 	registry := e.NewRegistry()
 
-	initialize := sync.OnceFunc(func() {
+	initialize := func() {
 		configureGomegaFormatting()
 		pooledIdentitiesRaw := strings.TrimSpace(os.Getenv(framework.UsePooledIdentitiesEnvvar))
 		pooledIdentitiesEnabled, err := strconv.ParseBool(pooledIdentitiesRaw)
@@ -229,7 +228,7 @@ func setupCli() (*cobra.Command, error) {
 			containerCount:          containerCount,
 			containerCountSource:    containerCountSource,
 		})
-	})
+	}
 
 	root := &cobra.Command{
 		Long: "ARO-HCP E2E Tests",

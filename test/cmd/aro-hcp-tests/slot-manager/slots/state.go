@@ -258,19 +258,19 @@ func AddCoreRuntimeExports(contract *RuntimeContractBuilder, state *AcquiredSlot
 		return fmt.Errorf("failed to encode runtime VM family policy: %w", err)
 	}
 	coreExports := map[string]string{
-		"ARO_HCP_E2E_SLOT_NAME":          state.Slot.ResourceName,
-		"ARO_HCP_E2E_SLOT_RESOURCE_TYPE": state.Slot.ResourceType,
-		"CUSTOMER_SUBSCRIPTION":          customerSubscription,
-		"SELECTED_CLUSTER_PROFILE_DIR":   selectedClusterProfileDir,
-		"SELECTED_LOCATION":              state.RuntimeRegion,
-		"ARO_HCP_E2E_VM_FAMILY_POLICY":   string(policyJSON),
+		leaseenv.SlotName:                  state.Slot.ResourceName,
+		leaseenv.SlotResourceType:          state.Slot.ResourceType,
+		leaseenv.CustomerSubscription:      customerSubscription,
+		leaseenv.SelectedClusterProfileDir: selectedClusterProfileDir,
+		leaseenv.SelectedLocation:          state.RuntimeRegion,
+		leaseenv.VMFamilyPolicy:            string(policyJSON),
 	}
 	if customerSubscription != state.Slot.Subscriptions.E2E.Name {
 		return errors.New("customer subscription does not match resolved slot")
 	}
 	coreExports[leaseenv.RuntimeDeployEnvironment] = state.Slot.DeployEnvironment
 	if state.Slot.RequiresInfrastructureSubscription() {
-		coreExports["INFRA_SUBSCRIPTION_ID"] = state.Slot.Subscriptions.Infrastructure.ID
+		coreExports[leaseenv.InfrastructureSubscriptionID] = state.Slot.Subscriptions.Infrastructure.ID
 	}
 	for key, value := range coreExports {
 		if err := contract.Add("core", key, value); err != nil {

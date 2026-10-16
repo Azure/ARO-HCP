@@ -31,6 +31,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5"
 
 	"github.com/Azure/ARO-HCP/internal/validation"
+	"github.com/Azure/ARO-HCP/test/pkg/leaseenv"
 	"github.com/Azure/ARO-HCP/test/pkg/vmfamily"
 )
 
@@ -617,7 +618,7 @@ func withVMFamilyPolicy(selector VMSizeSelector, helper bool) VMSizeSelector {
 }
 
 func vmFamilyPolicyFromEnv() (vmfamily.VMFamilyPolicy, error) {
-	value, configured := os.LookupEnv("ARO_HCP_E2E_VM_FAMILY_POLICY")
+	value, configured := os.LookupEnv(leaseenv.VMFamilyPolicy)
 	if !configured {
 		return vmfamily.VMFamilyPolicy{}, nil
 	}
