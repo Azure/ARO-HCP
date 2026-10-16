@@ -47,7 +47,7 @@ const SystemAdminCredentialOperationRevokeCredentialsPollControllerName = "Syste
 // SystemAdminCredentialRevocation, and moves the operation to Deleting. The dedicated revocation
 // controllers then drive the revocation and delete that document when finished.
 // This poll controller simply waits for the document to disappear; once it is
-// gone it clears the cluster's revoke sentinel and marks the operation Succeeded.
+// gone it marks the operation Succeeded. Only internal controllers own exclusion.
 func NewOperationRevokeCredentialsPollController(
 	clock utilsclock.PassiveClock,
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
@@ -80,9 +80,6 @@ func (c *operationRevokeCredentialsPoll) ShouldProcess(ctx context.Context, oper
 	if operation.Request != coreapi.OperationRequestSystemAdminCredentialRevocation {
 		return false
 	}
-	if operation.Status != coreapi.ProvisioningStateDeleting {
-		return false
-	}
 	return true
 }
 
@@ -99,6 +96,9 @@ func (c *operationRevokeCredentialsPoll) SynchronizeOperation(ctx context.Contex
 	}
 	if !c.ShouldProcess(ctx, operation) {
 		return nil
+	}
+	if expired, err := operationbase.ExpireCredentialOperation(ctx, c.clock, c.resourcesDBClient, operation); expired || err != nil {
+		return err
 	}
 
 	// The dispatch controller records the revocation document's resource ID on
@@ -119,28 +119,6 @@ func (c *operationRevokeCredentialsPoll) SynchronizeOperation(ctx context.Contex
 	}
 	if !cosmosstorageutils.IsNotFoundError(err) {
 		return utils.TrackError(fmt.Errorf("failed to get SystemAdminCredentialRevocation: %w", err))
-	}
-
-	// The revocation document is gone: revocation is complete. Clear the cluster
-	// sentinel and mark the operation Succeeded.
-	cachedCluster, err := c.clusterLister.Get(ctx, operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Name)
-	if err != nil && !cosmosstorageutils.IsNotFoundError(err) {
-		return utils.TrackError(err)
-	}
-	if err == nil && cachedCluster.ServiceProviderProperties.RevokeCredentialsOperationID == operation.OperationID.Name {
-		cluster, err := c.resourcesDBClient.HCPClusters(operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName).Get(ctx, operation.ExternalID.Name)
-		if err != nil {
-			return utils.TrackError(err)
-		}
-		clusterReplacement := cluster.DeepCopy()
-		clusterReplacement.ServiceProviderProperties.RevokeCredentialsOperationID = ""
-		_, err = c.resourcesDBClient.HCPClusters(operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName).Replace(ctx, clusterReplacement, nil)
-		if cosmosstorageutils.IsPreconditionFailedError(err) {
-			return nil
-		}
-		if err != nil {
-			return utils.TrackError(fmt.Errorf("failed to clear RevokeCredentialsOperationID: %w", err))
-		}
 	}
 
 	var notifyFn operationbase.PostAsyncNotificationFunc

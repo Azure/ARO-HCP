@@ -113,7 +113,9 @@ func ResourceInstanceEquals(t *testing.T, expected, actual any) (string, bool) {
 		for _, possiblePrepend := range []string{"", "properties"} {
 			unstructured.RemoveNestedField(currMap, prepend(possiblePrepend, "lastTransitionTime")...) // operations
 			unstructured.RemoveNestedField(currMap, prepend(possiblePrepend, "startTime")...)          // operations
-			unstructured.RemoveNestedField(currMap, prepend(possiblePrepend, "operationId")...)        // operations
+			// The deadline value is checked by credential fake-clock and HTTP tests.
+			unstructured.RemoveNestedField(currMap, prepend(possiblePrepend, "completionDeadline")...)
+			unstructured.RemoveNestedField(currMap, prepend(possiblePrepend, "operationId")...) // operations
 			unstructured.RemoveNestedField(currMap, prepend(possiblePrepend, "cosmosMetadata", "etag")...)
 
 			// inline serialization (cluster, nodepool, externalauth) also exposes these UUID-generated / variable fields directly under properties

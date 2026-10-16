@@ -123,8 +123,12 @@ type ClusterServiceProviderProperties struct {
 	ClusterServiceID *metadataapi.InternalID `json:"clusterServiceID,omitempty"`
 	// Written by: Frontend PUT/PATCH/DELETE Cluster, OperationClusterCreate, OperationClusterUpdate, OperationClusterDelete
 	ActiveOperationID string `json:"activeOperationId,omitempty"`
-	// Written by: Frontend POST RevokeCredentials, SystemAdminCredentialOperationRevokeCredentialsPoll
+	// Legacy compatibility mirror. Retained while old typed writers are deployed.
+	// Written by: Frontend POST RevokeCredentials (compatibility), SystemAdminCredentialRevocationMarkRequests, SystemAdminCredentialRevocationDeletion, SystemAdminCredentialRevocationLegacyReference, CosmosMigration
 	RevokeCredentialsOperationID string `json:"revokeCredentialsOperationId,omitempty"`
+	// The internal revocation that owns credential exclusion, independent of ARM status.
+	// Written by: SystemAdminCredentialRevocationMarkRequests, SystemAdminCredentialRevocationDeletion, SystemAdminCredentialRevocationLegacyReference, CosmosMigration
+	SystemAdminCredentialRevocationResourceID *azcorearm.ResourceID `json:"systemAdminCredentialRevocationResourceID,omitempty"`
 	// Written by: ClusterPropertiesSync
 	DNS ServiceProviderDNSProfile `json:"dns,omitempty"`
 	// Written by: ClusterPropertiesSync

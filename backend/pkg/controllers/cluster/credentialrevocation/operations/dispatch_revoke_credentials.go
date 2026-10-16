@@ -24,6 +24,7 @@ import (
 	utilsclock "k8s.io/utils/clock"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
@@ -88,6 +89,9 @@ func (c *dispatchRevokeCredentials) ShouldProcess(ctx context.Context, operation
 	if operation.Status != coreapi.ProvisioningStateAccepted {
 		return false
 	}
+	if operation.SystemAdminCredentialRevocation != nil && operation.SystemAdminCredentialRevocation.SystemAdminCredentialRevocationResourceID != nil {
+		return false
+	}
 	return true
 }
 
@@ -105,16 +109,8 @@ func (c *dispatchRevokeCredentials) SynchronizeOperation(ctx context.Context, ke
 	if !c.ShouldProcess(ctx, operation) {
 		return nil
 	}
-
-	cluster, err := c.clusterLister.Get(ctx, operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Name)
-	if err != nil {
-		return utils.TrackError(err)
-	}
-
-	// Verify the operation matches the cluster's revoke sentinel.
-	if cluster.ServiceProviderProperties.RevokeCredentialsOperationID != operation.OperationID.Name {
-		logger.Info("operation does not match cluster's RevokeCredentialsOperationID, skipping")
-		return nil
+	if expired, err := operationutils.ExpireCredentialOperation(ctx, c.clock, c.resourcesDBClient, operation); expired || err != nil {
+		return err
 	}
 
 	// A revoke operation ID is a UUID; derive a short, stable suffix used to
@@ -139,7 +135,7 @@ func (c *dispatchRevokeCredentials) SynchronizeOperation(ctx context.Context, ke
 	}
 
 	// Create the revocation document if it does not already exist.
-	if _, err := revocationCRUD.Get(ctx, revokeOpSuffix); cosmosstorageutils.IsNotFoundError(err) {
+	if existing, err := revocationCRUD.Get(ctx, revokeOpSuffix); cosmosstorageutils.IsNotFoundError(err) {
 		newRevocation := &coreapi.SystemAdminCredentialRevocation{
 			CosmosMetadata: coreapi.CosmosMetadata{
 				ResourceID:   revocationResourceID,
@@ -150,11 +146,16 @@ func (c *dispatchRevokeCredentials) SynchronizeOperation(ctx context.Context, ke
 				RevokeOpSuffix: revokeOpSuffix,
 			},
 		}
-		if _, err := revocationCRUD.Create(ctx, newRevocation, nil); err != nil && !cosmosstorageutils.IsConflictError(err) {
+		if _, err := revocationCRUD.Create(ctx, newRevocation, nil); err != nil {
+			if cosmosstorageutils.IsConflictError(err) {
+				return nil // Re-read and verify operation identity on the next reconcile.
+			}
 			return utils.TrackError(fmt.Errorf("failed to create SystemAdminCredentialRevocation: %w", err))
 		}
 	} else if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get SystemAdminCredentialRevocation: %w", err))
+	} else if existing.Spec.OperationID != operation.OperationID.Name {
+		return fmt.Errorf("revocation name belongs to another operation")
 	}
 
 	replacement := operation.DeepCopy()

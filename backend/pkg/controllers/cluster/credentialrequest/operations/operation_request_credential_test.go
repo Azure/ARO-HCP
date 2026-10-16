@@ -81,7 +81,7 @@ func TestOperationRequestCredentialPoll_ShouldProcess(t *testing.T) {
 			expected: false,
 		},
 		{
-			name: "nil SystemAdminCredentialRequestResourceID should not process",
+			name: "undispatched credential is monitored for expiry",
 			op: &coreapi.Operation{
 				Status:  coreapi.ProvisioningStateAccepted,
 				Request: coreapi.OperationRequestSystemAdminCredentialRequest,
@@ -89,7 +89,7 @@ func TestOperationRequestCredentialPoll_ShouldProcess(t *testing.T) {
 					CertificateSigningRequest: "test-csr",
 				},
 			},
-			expected: false,
+			expected: true,
 		},
 		{
 			name: "valid operation with credential resource ID should process",
@@ -237,6 +237,8 @@ func TestOperationRequestCredentialPoll_SynchronizeOperation(t *testing.T) {
 			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
 
 			db, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, tc.resources)
+			require.NoError(t, err)
+			_, err = db.HCPClusters(testSubscriptionID, testResourceGroupName).Create(ctx, newTestCluster(""), nil)
 			require.NoError(t, err)
 
 			if tc.setupDB != nil {

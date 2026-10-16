@@ -59,23 +59,26 @@ type SystemAdminCredentialRevocationSpec struct {
 type SystemAdminCredentialRevocationStatus struct {
 	// Conditions tracks revocation lifecycle using standard metav1.Conditions.
 	// Known condition types:
+	//   - "Active": True after claiming cluster exclusion; other intents wait on
+	//     this owner even if an old typed writer erases the cluster reference.
 	//   - "CredentialsMarkedForDeletion": True when every SystemAdminCredentialRequest
 	//     for the cluster has been marked with a DeletionTimestamp.
 	//   - "CertificatesRevoked": True when the CRR confirms previously-issued
 	//     certificates have been revoked on the hosted cluster.
 	//   - "Complete": True when the whole revocation flow is done and this document
 	//     may be deleted.
-	// Written by: SystemAdminCredentialRevocationMarkRequests (CredentialsMarkedForDeletion), SystemAdminCredentialRevocationCompletion (CertificatesRevoked, Complete)
+	// Written by: SystemAdminCredentialRevocationMarkRequests (Active, CredentialsMarkedForDeletion), SystemAdminCredentialRevocationCompletion (CertificatesRevoked, Complete)
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 	// DeletionTimestamp is set once revocation is complete and the deletion
 	// controller should tear down the revocation's desires and remove this
 	// document.
-	// Written by: SystemAdminCredentialRevocationCompletion
+	// Written by: SystemAdminCredentialRevocationCompletion, ClusterCredentialDeletionMarkerController
 	DeletionTimestamp *metav1.Time `json:"deletionTimestamp,omitempty"`
 }
 
 // SystemAdminCredentialRevocation condition types.
 const (
+	SystemAdminCredentialRevocationConditionActive                       = "Active"
 	SystemAdminCredentialRevocationConditionCredentialsMarkedForDeletion = "CredentialsMarkedForDeletion"
 	SystemAdminCredentialRevocationConditionCertificatesRevoked          = "CertificatesRevoked"
 	SystemAdminCredentialRevocationConditionComplete                     = "Complete"

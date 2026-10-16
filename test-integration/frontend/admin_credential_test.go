@@ -23,6 +23,7 @@ import (
 	"encoding/pem"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -141,4 +142,6 @@ func testRequestAdminCredentialStoresCSR(t *testing.T, withMock bool) {
 	require.NotNil(t, found, "expected a requestCredential operation in cosmos")
 	require.NotNil(t, found.SystemAdminCredentialRequest, "SystemAdminCredentialRequest should be set on the operation")
 	require.Equal(t, string(csrPEM), found.SystemAdminCredentialRequest.CertificateSigningRequest, "CertificateSigningRequest should be stored in the operation")
+	require.NotNil(t, found.CompletionDeadline, "new issuance operations have a monitoring deadline")
+	require.WithinDuration(t, found.StartTime.Add(20*time.Minute), *found.CompletionDeadline, time.Second)
 }

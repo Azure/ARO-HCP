@@ -439,7 +439,7 @@ func (f *Frontend) ArmResourceActionRequestAdminCredential(writer http.ResponseW
 	}
 
 	// New credential cannot be requested while credentials are being revoked.
-	if len(cluster.ServiceProviderProperties.RevokeCredentialsOperationID) > 0 {
+	if len(cluster.ServiceProviderProperties.RevokeCredentialsOperationID) > 0 || cluster.ServiceProviderProperties.SystemAdminCredentialRevocationResourceID != nil {
 		writer.Header().Set("Retry-After", strconv.Itoa(10))
 		return coreapi.NewConflictError(clusterResourceID, "Cannot request credential while credentials are being revoked")
 	}
@@ -460,6 +460,10 @@ func (f *Frontend) ArmResourceActionRequestAdminCredential(writer http.ResponseW
 			CertificateSigningRequest: certificateSigningRequest,
 		}
 	}
+	operationDoc.StartTime = f.clock.Now().UTC()
+	operationDoc.LastTransitionTime = operationDoc.StartTime
+	deadline := operationDoc.StartTime.Add(20 * time.Minute)
+	operationDoc.CompletionDeadline = &deadline
 	transaction.OnSuccess(addOperationResponseHeaders(writer, request, operationDoc.NotificationURI, operationDoc.OperationID))
 	_, err = f.resourcesDBClient.Operations(clusterResourceID.SubscriptionID).AddCreateToTransaction(ctx, transaction, operationDoc, nil)
 	if err != nil {
@@ -508,7 +512,7 @@ func (f *Frontend) ArmResourceActionRevokeCredentials(writer http.ResponseWriter
 	}
 
 	// Credential revocation cannot be requested while another revocation is in progress.
-	if len(cluster.ServiceProviderProperties.RevokeCredentialsOperationID) > 0 {
+	if len(cluster.ServiceProviderProperties.RevokeCredentialsOperationID) > 0 || cluster.ServiceProviderProperties.SystemAdminCredentialRevocationResourceID != nil {
 		writer.Header().Set("Retry-After", strconv.Itoa(10))
 		return coreapi.NewConflictError(clusterResourceID, "Credentials are already being revoked")
 	}
@@ -538,18 +542,20 @@ func (f *Frontend) ArmResourceActionRevokeCredentials(writer http.ResponseWriter
 		request.Header.Get(coreapi.HeaderNameAsyncNotificationURI),
 		correlationData)
 
+	operationDoc.StartTime = f.clock.Now().UTC()
+	operationDoc.LastTransitionTime = operationDoc.StartTime
+	deadline := operationDoc.StartTime.Add(30 * time.Minute)
+	operationDoc.CompletionDeadline = &deadline
 	transaction.OnSuccess(addOperationResponseHeaders(writer, request, operationDoc.NotificationURI, operationDoc.OperationID))
 	_, err = f.resourcesDBClient.Operations(operationDoc.OperationID.SubscriptionID).AddCreateToTransaction(ctx, transaction, operationDoc, nil)
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
-	// Setting this field effectively blocks further credential
-	// requests or revocations until the backend clears the field.
+	// Retain the legacy admission/dispatch sentinel during rolling upgrades.
+	// Only the internal lifecycle assigns the new revocation reference.
 	cluster.ServiceProviderProperties.RevokeCredentialsOperationID = operationDoc.OperationID.Name
-
-	_, err = f.resourcesDBClient.HCPClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName).AddReplaceToTransaction(ctx, transaction, cluster, nil)
-	if err != nil {
+	if _, err := f.resourcesDBClient.HCPClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName).AddReplaceToTransaction(ctx, transaction, cluster, nil); err != nil {
 		return utils.TrackError(err)
 	}
 
@@ -1195,7 +1201,7 @@ func (f *Frontend) assembleAdminCredentialFromCosmos(ctx context.Context, op *co
 		return nil, fmt.Errorf("failed to get SystemAdminCredentialRequest: %w", err)
 	}
 
-	if !meta.IsStatusConditionTrue(cred.Status.Conditions, coreapi.SystemAdminCredentialRequestConditionIssued) {
+	if cred.Status.DeletionTimestamp != nil || !meta.IsStatusConditionTrue(cred.Status.Conditions, coreapi.SystemAdminCredentialRequestConditionIssued) {
 		return nil, fmt.Errorf("credential request is not in Issued state")
 	}
 
@@ -1204,6 +1210,9 @@ func (f *Frontend) assembleAdminCredentialFromCosmos(ctx context.Context, op *co
 		return nil, fmt.Errorf("failed to get cluster: %w", err)
 	}
 	apiURL := cluster.ServiceProviderProperties.API.URL
+	if cluster.ServiceProviderProperties.DeletionTimestamp != nil || cluster.ServiceProviderProperties.RevokeCredentialsOperationID != "" || cluster.ServiceProviderProperties.SystemAdminCredentialRevocationResourceID != nil {
+		return nil, coreapi.NewConflictError(cluster.ID, "Cannot return credential while credentials are being revoked")
+	}
 
 	serviceProviderCluster, err := f.resourcesDBClient.ServiceProviderClusters(
 		op.ExternalID.SubscriptionID, op.ExternalID.ResourceGroupName, op.ExternalID.Name).Get(ctx, coreapi.ServiceProviderClusterResourceName)

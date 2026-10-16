@@ -26,6 +26,7 @@ import (
 	credentialrequestcreation "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/credentialrequest/creation"
 	credentialrequestdeletion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/credentialrequest/deletion"
 	credentialrequestoperations "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/credentialrequest/operations"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/credentialrevocation"
 	credentialrevocationcreation "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/credentialrevocation/creation"
 	credentialrevocationdeletion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/credentialrevocation/deletion"
 	credentialrevocationoperations "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/credentialrevocation/operations"
@@ -1278,6 +1279,12 @@ func Register(registry map[string]controllerconfig.ControllerRegistration) {
 	registry[strings.ToLower(credentialrequestdeletion.SystemAdminCredentialRevokedGCControllerName)] = registerAdminCredentialsRevokedGCController()
 	registry[strings.ToLower(credentialrequestdeletion.SystemAdminCredentialClusterDeletionCleanupControllerName)] = registerAdminCredentialsClusterDeletionCleanupController()
 	registry[strings.ToLower(credentialrevocationcreation.SystemAdminCredentialRevocationMarkRequestsControllerName)] = registerSystemAdminCredentialRevocationMarkRequestsController()
+	registry[strings.ToLower(credentialrevocation.SystemAdminCredentialRevocationLegacyReferenceControllerName)] = controllerconfig.ControllerRegistration{
+		Workers: 20,
+		Instantiate: controllerconfig.WithCacheSyncs(func(ctx controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+			return credentialrevocation.NewLegacyReferenceController(ctx.ResourcesDBClient, ctx.BackendInformers), nil
+		}, false),
+	}
 	registry[strings.ToLower(credentialrevocationcreation.RevocationDesiresControllerName)] = registerSystemAdminCredentialRevocationDesiresController()
 	registry[strings.ToLower(credentialrevocationdeletion.SystemAdminCredentialRevocationCompletionControllerName)] = registerSystemAdminCredentialRevocationCompletionController()
 	registry[strings.ToLower(credentialrevocationdeletion.SystemAdminCredentialRevocationDeletionControllerName)] = registerSystemAdminCredentialRevocationDeletionController()

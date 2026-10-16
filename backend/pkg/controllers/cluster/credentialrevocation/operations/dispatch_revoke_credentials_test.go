@@ -27,11 +27,44 @@ import (
 	clocktesting "k8s.io/utils/clock/testing"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
+
+func TestRevokeDispatchCompletionRecovery(t *testing.T) {
+	ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
+	clock := clocktesting.NewFakeClock(time.Unix(100, 0))
+	op := newTestOperation(coreapi.OperationRequestSystemAdminCredentialRevocation)
+	deadline := clock.Now().Add(time.Minute)
+	op.CompletionDeadline = &deadline
+	db, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{op})
+	require.NoError(t, err)
+	c := &dispatchRevokeCredentials{clock: clock, resourcesDBClient: db}
+	key := controllerutils.OperationKey{SubscriptionID: testSubscriptionID, OperationName: testOperationName}
+	require.NoError(t, c.SynchronizeOperation(ctx, key), "dispatch does not depend on cluster availability")
+	live, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
+	require.NoError(t, err)
+	rid := live.SystemAdminCredentialRevocation.SystemAdminCredentialRevocationResourceID
+	// Model interruption before the link persisted. Teardown must recover it
+	// before the internal document disappears, without reviving ARM monitoring.
+	live.Status = coreapi.ProvisioningStateAccepted
+	live.SystemAdminCredentialRevocation = nil
+	_, err = db.Operations(testSubscriptionID).Replace(ctx, live, nil)
+	require.NoError(t, err)
+	clock.Step(time.Minute)
+	require.NoError(t, c.SynchronizeOperation(ctx, key))
+	require.NoError(t, operationutils.CompleteCredentialIntent(ctx, db, rid, testOperationName, true))
+	require.NoError(t, db.HCPClusters(testSubscriptionID, testResourceGroupName).SystemAdminCredentialRevocations(testClusterName).Delete(ctx, rid.Name))
+	require.NoError(t, c.SynchronizeOperation(ctx, key))
+	live, err = db.Operations(testSubscriptionID).Get(ctx, testOperationName)
+	require.NoError(t, err)
+	require.Equal(t, coreapi.ProvisioningStateFailed, live.Status)
+	require.True(t, live.SystemAdminCredentialRevocation.ReconciliationComplete)
+	require.Equal(t, rid.String(), live.SystemAdminCredentialRevocation.SystemAdminCredentialRevocationResourceID.String())
+}
 
 func TestDispatchRevokeCredentials_ShouldProcess(t *testing.T) {
 	syncer := &dispatchRevokeCredentials{
@@ -101,7 +134,7 @@ func TestDispatchRevokeCredentials_SynchronizeOperation(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name: "operation ID does not match cluster revoke sentinel skips",
+			name: "operation queues internal intent behind another sentinel",
 			resources: []any{
 				newTestCluster("different-op-id"),
 				newTestOperation(coreapi.OperationRequestSystemAdminCredentialRevocation),
@@ -110,8 +143,8 @@ func TestDispatchRevokeCredentials_SynchronizeOperation(t *testing.T) {
 			verify: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, coreapi.ProvisioningStateAccepted, op.Status, "operation should remain Accepted")
-				assert.Nil(t, op.SystemAdminCredentialRevocation, "SystemAdminCredentialRevocation should not be set")
+				assert.Equal(t, coreapi.ProvisioningStateDeleting, op.Status, "queued operation must be dispatched")
+				assert.NotNil(t, op.SystemAdminCredentialRevocation, "internal intent must survive operation expiry")
 			},
 		},
 		{

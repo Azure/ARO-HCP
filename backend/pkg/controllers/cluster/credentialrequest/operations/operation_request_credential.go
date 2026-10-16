@@ -81,7 +81,7 @@ func (c *operationRequestCredentialPoll) ShouldProcess(ctx context.Context, oper
 	if operation.Request != coreapi.OperationRequestSystemAdminCredentialRequest {
 		return false
 	}
-	if operation.SystemAdminCredentialRequest == nil || operation.SystemAdminCredentialRequest.SystemAdminCredentialRequestResourceID == nil {
+	if operation.SystemAdminCredentialRequest == nil {
 		return false
 	}
 	return true
@@ -101,6 +101,12 @@ func (c *operationRequestCredentialPoll) SynchronizeOperation(ctx context.Contex
 	if !c.ShouldProcess(ctx, oldOperation) {
 		return nil
 	}
+	if expired, err := operationbase.ExpireCredentialOperation(ctx, c.clock, c.resourcesDBClient, oldOperation); expired || err != nil {
+		return err
+	}
+	if oldOperation.SystemAdminCredentialRequest.SystemAdminCredentialRequestResourceID == nil {
+		return nil
+	}
 
 	credResourceID := oldOperation.SystemAdminCredentialRequest.SystemAdminCredentialRequestResourceID
 	credName := credResourceID.Name
@@ -112,12 +118,19 @@ func (c *operationRequestCredentialPoll) SynchronizeOperation(ctx context.Contex
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get SystemAdminCredentialRequest: %w", err))
 	}
+	cluster, err := c.resourcesDBClient.HCPClusters(oldOperation.ExternalID.SubscriptionID, oldOperation.ExternalID.ResourceGroupName).Get(ctx, oldOperation.ExternalID.Name)
+	if err != nil && !cosmosstorageutils.IsNotFoundError(err) {
+		return err
+	}
+	blocked := cosmosstorageutils.IsNotFoundError(err) || cluster.ServiceProviderProperties.DeletionTimestamp != nil || cluster.ServiceProviderProperties.RevokeCredentialsOperationID != "" || cluster.ServiceProviderProperties.SystemAdminCredentialRevocationResourceID != nil
 
 	// Map conditions to ARM provisioning state.
 	var newOperationStatus coreapi.ProvisioningState
 	var newOperationError *coreapi.CloudErrorBody
 
 	switch {
+	case blocked || cred.Status.DeletionTimestamp != nil:
+		newOperationStatus = coreapi.ProvisioningStateCanceled
 	case credentialrequest.IsCredentialRequestPending(cred):
 		newOperationStatus = coreapi.ProvisioningStateProvisioning
 	case meta.IsStatusConditionTrue(cred.Status.Conditions, coreapi.SystemAdminCredentialRequestConditionIssued):

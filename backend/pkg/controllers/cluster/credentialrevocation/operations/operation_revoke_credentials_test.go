@@ -63,12 +63,12 @@ func TestOperationRevokeCredentialsPoll_ShouldProcess(t *testing.T) {
 			expected: false,
 		},
 		{
-			name: "Accepted status should not process (must be Deleting)",
+			name: "Accepted status is monitored for expiry",
 			op: &coreapi.Operation{
 				Status:  coreapi.ProvisioningStateAccepted,
 				Request: coreapi.OperationRequestSystemAdminCredentialRevocation,
 			},
-			expected: false,
+			expected: true,
 		},
 		{
 			name: "valid RevokeCredentials operation in Deleting should process",
@@ -164,7 +164,7 @@ func TestOperationRevokeCredentialsPoll_SynchronizeOperation(t *testing.T) {
 			},
 		},
 		{
-			name: "revocation doc gone marks operation Succeeded and clears cluster sentinel",
+			name: "revocation doc gone marks operation Succeeded without owning cluster sentinel",
 			setupDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op := newTestOperation(coreapi.OperationRequestSystemAdminCredentialRevocation)
 				op.Status = coreapi.ProvisioningStateDeleting
@@ -187,7 +187,7 @@ func TestOperationRevokeCredentialsPoll_SynchronizeOperation(t *testing.T) {
 
 				cluster, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
 				require.NoError(t, err)
-				assert.Empty(t, cluster.ServiceProviderProperties.RevokeCredentialsOperationID, "cluster sentinel should be cleared")
+				assert.Equal(t, testOperationName, cluster.ServiceProviderProperties.RevokeCredentialsOperationID, "operation polling must never clear the cluster sentinel")
 			},
 		},
 	}

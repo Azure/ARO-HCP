@@ -16,17 +16,17 @@ package operations
 
 import (
 	"context"
+	"crypto/sha256"
 	"fmt"
 	"strings"
 	"time"
-
-	"github.com/google/uuid"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
 	utilsclock "k8s.io/utils/clock"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
@@ -45,8 +45,8 @@ type dispatchRequestCredential struct {
 const SystemAdminCredentialDispatchRequestCredentialControllerName = "SystemAdminCredentialDispatchRequestCredential"
 
 // NewDispatchRequestCredentialController returns a Controller that creates a
-// SystemAdminCredential Cosmos document when a RequestCredential operation is
-// first dispatched. It generates the RSA keypair in-process, writes the
+// SystemAdminCredentialRequest Cosmos document when a RequestCredential operation is
+// first dispatched. It persists the caller's CSR, writes the
 // credential document, and stamps SystemAdminCredentialRequest.SystemAdminCredentialRequestResourceID
 // so downstream controllers can find it.
 //
@@ -109,6 +109,9 @@ func (c *dispatchRequestCredential) SynchronizeOperation(ctx context.Context, ke
 	if !c.ShouldProcess(ctx, operation) {
 		return nil
 	}
+	if expired, err := operationutils.ExpireCredentialOperation(ctx, c.clock, c.resourcesDBClient, operation); expired || err != nil {
+		return err
+	}
 
 	cluster, err := c.clusterLister.Get(ctx, operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Name)
 	if err != nil {
@@ -116,7 +119,7 @@ func (c *dispatchRequestCredential) SynchronizeOperation(ctx context.Context, ke
 	}
 
 	// Cancel the operation if a revocation is in progress.
-	if len(cluster.ServiceProviderProperties.RevokeCredentialsOperationID) > 0 {
+	if cluster.ServiceProviderProperties.DeletionTimestamp != nil || len(cluster.ServiceProviderProperties.RevokeCredentialsOperationID) > 0 || cluster.ServiceProviderProperties.SystemAdminCredentialRevocationResourceID != nil {
 		logger.Info("revocation in progress, canceling operation",
 			"revoke_credentials_operation_id", cluster.ServiceProviderProperties.RevokeCredentialsOperationID)
 
@@ -170,10 +173,9 @@ func (c *dispatchRequestCredential) SynchronizeOperation(ctx context.Context, ke
 		return fmt.Errorf("operation %s has no CertificateSigningRequest", operation.OperationID.Name)
 	}
 
-	// Generate a credential name: first 16 hex chars of a new UUID, shortened
-	// to stay within Kubernetes name length limits (the credential name is
-	// embedded in CSR and CertificateSigningRequestApproval object names).
-	credName := strings.ReplaceAll(uuid.New().String(), "-", "")[:16]
+	// Stable across retries and concurrent dispatchers. The list above adopts
+	// credentials created with random names by older backends.
+	credName := fmt.Sprintf("%x", sha256.Sum256([]byte(operationIDStr)))[:16]
 
 	// Build the credential resource ID.
 	credResourceID, err := coreapihelpers.ToSystemAdminCredentialRequestResourceID(
@@ -202,7 +204,16 @@ func (c *dispatchRequestCredential) SynchronizeOperation(ctx context.Context, ke
 	}
 
 	_, err = credCRUD.Create(ctx, newCred, nil)
-	if err != nil {
+	if cosmosstorageutils.IsConflictError(err) {
+		// Adopt only a document belonging to this operation, never a name collision.
+		existing, getErr := credCRUD.Get(ctx, credName)
+		if getErr != nil {
+			return getErr
+		}
+		if existing.Spec.OperationID != operationIDStr {
+			return fmt.Errorf("credential name belongs to another operation")
+		}
+	} else if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to create SystemAdminCredentialRequest: %w", err))
 	}
 

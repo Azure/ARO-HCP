@@ -17,11 +17,13 @@ package creation
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
 
 	certificatesv1 "k8s.io/api/certificates/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -29,6 +31,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/credentialrequest"
 	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
@@ -132,6 +135,31 @@ func (c *desiresCreator) SyncOnce(ctx context.Context, key controllerutils.Syste
 
 	if !c.needsWork(existingCluster, cred) {
 		return nil
+	}
+	if err := operationutils.LinkCredentialIntent(ctx, c.resourcesDBClient, cred.ResourceID, cred.Spec.OperationID, false); err != nil {
+		if errors.Is(err, operationutils.ErrCredentialIntentComplete) {
+			now := metav1.Now()
+			cred.Status.DeletionTimestamp = &now
+			_, err = credCRUD.Replace(ctx, cred, nil)
+		}
+		return err
+	}
+	// Recheck live state before creating issuance desires. Cancellation is
+	// propagated even if the originating operation is no longer active.
+	liveCluster, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Get(ctx, key.HCPClusterName)
+	if err != nil {
+		return err
+	}
+	op, err := c.resourcesDBClient.Operations(key.SubscriptionID).Get(ctx, cred.Spec.OperationID)
+	if err != nil && !cosmosstorageutils.IsNotFoundError(err) {
+		return err
+	}
+	canceled := err == nil && op.Status == coreapi.ProvisioningStateCanceled
+	if canceled || liveCluster.ServiceProviderProperties.DeletionTimestamp != nil || liveCluster.ServiceProviderProperties.RevokeCredentialsOperationID != "" || liveCluster.ServiceProviderProperties.SystemAdminCredentialRevocationResourceID != nil {
+		now := metav1.Now()
+		cred.Status.DeletionTimestamp = &now
+		_, err := credCRUD.Replace(ctx, cred, nil)
+		return err
 	}
 
 	// Preconditions satisfied — resolve the management cluster and kube-applier

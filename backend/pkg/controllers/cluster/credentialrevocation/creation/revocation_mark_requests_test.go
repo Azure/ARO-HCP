@@ -28,7 +28,10 @@ import (
 	clocktesting "k8s.io/utils/clock/testing"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -66,7 +69,7 @@ func TestRevocationMarkRequests_SyncOnce(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name: "revocation with CredentialsMarkedForDeletion=True is no-op",
+			name: "revocation with CredentialsMarkedForDeletion=True repeats sweep",
 			setupDB: func(db *corecosmosstoragetesting.MockResourcesDBClient) {
 				createTestRevocation(t, db, testRevocationName, func(r *coreapi.SystemAdminCredentialRevocation) {
 					meta.SetStatusCondition(&r.Status.Conditions, metav1.Condition{
@@ -124,6 +127,7 @@ func TestRevocationMarkRequests_SyncOnce(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
 			db := corecosmosstoragetesting.NewMockResourcesDBClient()
+			createTestCluster(t, db)
 			tc.setupDB(db)
 
 			syncer := &revocationMarkRequests{
@@ -143,4 +147,55 @@ func TestRevocationMarkRequests_SyncOnce(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRevocationRepeatsSweepAndQueues(t *testing.T) {
+	ctx := t.Context()
+	clock := clocktesting.NewFakeClock(time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC))
+	db := corecosmosstoragetesting.NewMockResourcesDBClient()
+	createTestCluster(t, db)
+	a := createTestRevocation(t, db, "a")
+	op := cosmosstorageutils.NewOperation(coreapi.OperationRequestSystemAdminCredentialRevocation, a.ResourceID.Parent, metadataapi.InternalID{}, "eastus", "", "", "", nil)
+	deadline := clock.Now().Add(time.Minute)
+	op.CompletionDeadline = &deadline
+	op, err := db.Operations(testSubscriptionID).Create(ctx, op, nil)
+	require.NoError(t, err)
+	b := createTestRevocation(t, db, "b", func(r *coreapi.SystemAdminCredentialRevocation) { r.Spec.OperationID = op.OperationID.Name })
+	c := &revocationMarkRequests{clock: clock, resourcesDBClient: db}
+	key := controllerutils.SystemAdminCredentialRevocationKey{SubscriptionID: testSubscriptionID, ResourceGroupName: testResourceGroupName, HCPClusterName: testClusterName, RevocationName: "a"}
+	require.NoError(t, c.SyncOnce(ctx, key))
+	createTestCredentialRequest(t, db, "late")
+	clock.Step(time.Minute)
+	require.NoError(t, c.SyncOnce(ctx, key))
+	cred, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).SystemAdminCredentialRequests(testClusterName).Get(ctx, "late")
+	require.NoError(t, err)
+	require.WithinDuration(t, clock.Now(), cred.Status.DeletionTimestamp.Time, 0, "a second sweep catches late arrivals")
+	key.RevocationName = "b"
+	require.NoError(t, c.SyncOnce(ctx, key))
+	revs := db.HCPClusters(testSubscriptionID, testResourceGroupName).SystemAdminCredentialRevocations(testClusterName)
+	b, err = revs.Get(ctx, b.ResourceID.Name)
+	require.NoError(t, err)
+	require.Equal(t, "WaitingForOtherRevocation", meta.FindStatusCondition(b.Status.Conditions, coreapi.SystemAdminCredentialRevocationConditionActive).Reason)
+	op, err = db.Operations(testSubscriptionID).Get(ctx, op.OperationID.Name)
+	require.NoError(t, err)
+	expired, err := operationutils.ExpireCredentialOperation(ctx, clock, db, op)
+	require.NoError(t, err)
+	require.True(t, expired)
+	// Simulate completed teardown of the first owner. The queued document must
+	// acquire ownership and do its work despite its failed ARM operation.
+	crud := db.HCPClusters(testSubscriptionID, testResourceGroupName)
+	cluster, err := crud.Get(ctx, testClusterName)
+	require.NoError(t, err)
+	cluster.ServiceProviderProperties.SystemAdminCredentialRevocationResourceID = nil
+	cluster.ServiceProviderProperties.RevokeCredentialsOperationID = ""
+	_, err = crud.Replace(ctx, cluster, nil)
+	require.NoError(t, err)
+	require.NoError(t, revs.Delete(ctx, a.ResourceID.Name))
+	require.NoError(t, c.SyncOnce(ctx, key))
+	b, err = revs.Get(ctx, b.ResourceID.Name)
+	require.NoError(t, err)
+	require.True(t, meta.IsStatusConditionTrue(b.Status.Conditions, coreapi.SystemAdminCredentialRevocationConditionActive))
+	op, err = db.Operations(testSubscriptionID).Get(ctx, op.OperationID.Name)
+	require.NoError(t, err)
+	require.Equal(t, coreapi.ProvisioningStateFailed, op.Status)
 }

@@ -64,6 +64,10 @@ type Operation struct {
 
 	// StartTime marks the start of the operation
 	StartTime time.Time `json:"startTime,omitempty"`
+	// CompletionDeadline bounds ARM monitoring, not internal credential reconciliation.
+	// Nil preserves the behavior of operations accepted before deadlines were enabled.
+	// Written by: Frontend POST requestAdminCredential, Frontend POST revokeCredentials
+	CompletionDeadline *time.Time `json:"completionDeadline,omitempty"`
 	// LastTransitionTime marks the most recent state change
 	LastTransitionTime time.Time `json:"lastTransitionTime,omitempty"`
 	// Status is the current operation status, using the same set of values
@@ -90,13 +94,24 @@ type Operation struct {
 // OperationSystemAdminCredentialRequest groups state for the admin credential
 // request lifecycle on an Operation document.
 type OperationSystemAdminCredentialRequest struct {
-	CertificateSigningRequest              string                `json:"certificateSigningRequest,omitempty"`
+	// ReconciliationComplete acknowledges teardown before the internal document
+	// disappears. A stale dispatcher cannot replay completed credential work.
+	// Written by: SystemAdminCredentialClusterDeletionCleanup, SystemAdminCredentialRevokedGC
+	ReconciliationComplete bool `json:"reconciliationComplete,omitempty"`
+	// Written by: Frontend POST requestAdminCredential
+	CertificateSigningRequest string `json:"certificateSigningRequest,omitempty"`
+	// Written by: SystemAdminCredentialDispatchRequestCredential, SystemAdminCredentialDesiresCreator, SystemAdminCredentialIssuanceObserver, SystemAdminCredentialClusterDeletionCleanup, SystemAdminCredentialRevokedGC
 	SystemAdminCredentialRequestResourceID *azcorearm.ResourceID `json:"systemAdminCredentialRequestResourceID,omitempty"`
 }
 
 // OperationSystemAdminCredentialRevocation groups state for the admin credential
 // revocation lifecycle on an Operation document.
 type OperationSystemAdminCredentialRevocation struct {
+	// ReconciliationComplete prevents replayed dispatch from starting side effects
+	// after teardown has begun, even if ARM monitoring has already timed out.
+	// Written by: SystemAdminCredentialRevocationDeletion
+	ReconciliationComplete bool `json:"reconciliationComplete,omitempty"`
+	// Written by: SystemAdminCredentialDispatchRevokeCredentials, SystemAdminCredentialRevocationMarkRequests, SystemAdminCredentialRevocationDesires, SystemAdminCredentialRevocationCompletion, SystemAdminCredentialRevocationDeletion
 	SystemAdminCredentialRevocationResourceID *azcorearm.ResourceID `json:"systemAdminCredentialRevocationResourceID,omitempty"`
 }
 
