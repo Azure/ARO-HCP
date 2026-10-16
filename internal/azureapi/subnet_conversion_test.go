@@ -15,10 +15,11 @@
 package azureapi_test
 
 import (
-	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	kjson "sigs.k8s.io/json"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -83,7 +84,7 @@ func TestClusterVNetIntegrationSubnetConversion(t *testing.T) {
 							require.NoError(t, err)
 						}
 						external := version.NewCluster(existing)
-						require.NoError(t, json.Unmarshal([]byte(tt.body), external))
+						require.NoError(t, kjson.UnmarshalCaseSensitivePreserveInts([]byte(tt.body), external))
 						cluster, err := external.ConvertToInternal(existing)
 						if tt.wantErr != "" {
 							require.ErrorContains(t, err, tt.wantErr)

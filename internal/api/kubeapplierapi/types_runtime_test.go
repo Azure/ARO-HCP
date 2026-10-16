@@ -22,6 +22,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
+	kjson "sigs.k8s.io/json"
+
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
@@ -167,7 +169,7 @@ func TestRuntimeObjectAndJSONRoundTrip(t *testing.T) {
 			case *ReadDesire:
 				roundTripped = &ReadDesire{}
 			}
-			if err := json.Unmarshal(origJSON, roundTripped); err != nil {
+			if err := kjson.UnmarshalCaseSensitivePreserveInts(origJSON, roundTripped); err != nil {
 				t.Fatalf("unmarshal: %v", err)
 			}
 			rtJSON, err := json.Marshal(roundTripped)

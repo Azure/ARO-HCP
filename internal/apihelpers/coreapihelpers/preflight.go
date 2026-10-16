@@ -15,8 +15,9 @@
 package coreapihelpers
 
 import (
-	"encoding/json"
 	"net/http"
+
+	kjson "sigs.k8s.io/json"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 )
@@ -26,7 +27,7 @@ import (
 // a 200 OK HTTP status code.
 func UnmarshalDeploymentPreflight(data []byte) (*coreapi.DeploymentPreflight, error) {
 	deploymentPreflight := &coreapi.DeploymentPreflight{}
-	err := json.Unmarshal(data, deploymentPreflight)
+	err := kjson.UnmarshalCaseSensitivePreserveInts(data, deploymentPreflight)
 	if err != nil {
 		cloudError := coreapi.NewInvalidRequestContentError(err)
 		// Status code for preflight content errors must always be OK.

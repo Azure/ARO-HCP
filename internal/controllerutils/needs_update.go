@@ -23,6 +23,8 @@ import (
 	"k8s.io/apimachinery/pkg/conversion"
 	"k8s.io/apimachinery/pkg/runtime"
 
+	kjson "sigs.k8s.io/json"
+
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
@@ -91,10 +93,10 @@ var needsUpdateEqualities = func() conversion.Equalities {
 			// Normalize both to canonical JSON (sorted keys) so that
 			// key-ordering differences don't produce false positives.
 			var aObj, bObj any
-			if err := json.Unmarshal(aBytes, &aObj); err != nil {
+			if err := kjson.UnmarshalCaseSensitivePreserveInts(aBytes, &aObj); err != nil {
 				return false
 			}
-			if err := json.Unmarshal(bBytes, &bObj); err != nil {
+			if err := kjson.UnmarshalCaseSensitivePreserveInts(bBytes, &bObj); err != nil {
 				return false
 			}
 			aNorm, err := json.Marshal(aObj)

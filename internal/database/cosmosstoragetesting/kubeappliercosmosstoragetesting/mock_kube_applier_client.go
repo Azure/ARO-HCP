@@ -23,6 +23,8 @@ import (
 	"strings"
 	"sync"
 
+	kjson "sigs.k8s.io/json"
+
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
@@ -98,7 +100,7 @@ func (m *MockKubeApplierDBClient) ListDocuments(resourceType *azcorearm.Resource
 	var results []json.RawMessage
 	for _, data := range m.documents {
 		var td cosmosstorageutils.TypedDocument
-		if err := json.Unmarshal(data, &td); err != nil {
+		if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &td); err != nil {
 			continue
 		}
 		// Mirror the production query, which requires IS_DEFINED(c.resourceID);
@@ -373,7 +375,7 @@ func (k *mockKubeApplierUntypedCRUD) listInternal(ctx context.Context, nonRecurs
 
 	for _, data := range allDocs {
 		var typedDoc cosmosstorageutils.TypedDocument
-		if err := json.Unmarshal(data, &typedDoc); err != nil {
+		if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &typedDoc); err != nil {
 			continue
 		}
 

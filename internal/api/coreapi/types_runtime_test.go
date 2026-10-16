@@ -22,6 +22,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	kjson "sigs.k8s.io/json"
+
 	hsv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
@@ -46,7 +48,7 @@ func TestTLSCertificateURLRoundTripAndDeepCopy(test *testing.T) {
 		serialized, err := json.Marshal(original)
 		require.NoError(test, err)
 		var decoded coreapi.ServiceProviderCluster
-		require.NoError(test, json.Unmarshal(serialized, &decoded))
+		require.NoError(test, kjson.UnmarshalCaseSensitivePreserveInts(serialized, &decoded))
 		require.Equal(test, original, &decoded)
 		copied := original.DeepCopy()
 		require.Equal(test, original, copied)
@@ -67,7 +69,7 @@ func TestTLSCertificateURLRoundTripAndDeepCopy(test *testing.T) {
 func TestTLSCertificateUnsetReferences(test *testing.T) {
 	for _, input := range []string{"{}", `{"pendingReference":null,"azureReference":null}`} {
 		var certificate coreapi.TLSCertificate
-		require.NoError(test, json.Unmarshal([]byte(input), &certificate))
+		require.NoError(test, kjson.UnmarshalCaseSensitivePreserveInts([]byte(input), &certificate))
 		require.Nil(test, certificate.PendingReference)
 		require.Nil(test, certificate.AzureReference)
 		copied := certificate.DeepCopy()
@@ -113,7 +115,7 @@ func TestServiceProviderClusterImageContentSources(test *testing.T) {
 			serialized, err := json.Marshal(original)
 			require.NoError(test, err)
 			var restored coreapi.ServiceProviderClusterStatus
-			require.NoError(test, json.Unmarshal(serialized, &restored))
+			require.NoError(test, kjson.UnmarshalCaseSensitivePreserveInts(serialized, &restored))
 			assert.Equal(test, original.ImageContentSources, restored.ImageContentSources)
 			if testcase.sources == nil {
 				assert.NotContains(test, string(serialized), `"imageContentSources"`)

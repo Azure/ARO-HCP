@@ -17,7 +17,6 @@ package ocm
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"net/http"
 	"strings"
@@ -30,6 +29,8 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
+
+	kjson "sigs.k8s.io/json"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -249,7 +250,7 @@ func ocmCluster(t *testing.T, builders ...*arohcpv1alpha1.ClusterBuilder) *arohc
 		cluster, err := builder.Build()
 		require.NoError(t, err)
 		require.NoError(t, arohcpv1alpha1.MarshalCluster(cluster, &buffer))
-		require.NoError(t, json.Unmarshal(buffer.Bytes(), &rawCluster))
+		require.NoError(t, kjson.UnmarshalCaseSensitivePreserveInts(buffer.Bytes(), &rawCluster))
 		require.NoError(t, mergo.Merge(&mergedCluster, rawCluster, mergo.WithOverride))
 	}
 

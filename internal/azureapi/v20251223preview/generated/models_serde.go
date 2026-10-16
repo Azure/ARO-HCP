@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"reflect"
 
+	kjson "sigs.k8s.io/json"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 )
 
@@ -24,7 +26,7 @@ func (a APIProfile) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the json.Unmarshaller interface for type APIProfile.
 func (a *APIProfile) UnmarshalJSON(data []byte) error {
 	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &rawMsg); err != nil {
 		return fmt.Errorf("unmarshalling type %T: %v", a, err)
 	}
 	for key, val := range rawMsg {
@@ -60,7 +62,7 @@ func (a AzureResourceManagerCommonTypesManagedServiceIdentityUpdate) MarshalJSON
 // UnmarshalJSON implements the json.Unmarshaller interface for type AzureResourceManagerCommonTypesManagedServiceIdentityUpdate.
 func (a *AzureResourceManagerCommonTypesManagedServiceIdentityUpdate) UnmarshalJSON(data []byte) error {
 	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &rawMsg); err != nil {
 		return fmt.Errorf("unmarshalling type %T: %v", a, err)
 	}
 	for key, val := range rawMsg {
@@ -95,7 +97,7 @@ func (c ClusterAutoscalingProfile) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the json.Unmarshaller interface for type ClusterAutoscalingProfile.
 func (c *ClusterAutoscalingProfile) UnmarshalJSON(data []byte) error {
 	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &rawMsg); err != nil {
 		return fmt.Errorf("unmarshalling type %T: %v", c, err)
 	}
 	for key, val := range rawMsg {
@@ -133,7 +135,7 @@ func (c ClusterImageRegistryProfile) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the json.Unmarshaller interface for type ClusterImageRegistryProfile.
 func (c *ClusterImageRegistryProfile) UnmarshalJSON(data []byte) error {
 	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &rawMsg); err != nil {
 		return fmt.Errorf("unmarshalling type %T: %v", c, err)
 	}
 	for key, val := range rawMsg {
@@ -162,7 +164,7 @@ func (c ConsoleProfile) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the json.Unmarshaller interface for type ConsoleProfile.
 func (c *ConsoleProfile) UnmarshalJSON(data []byte) error {
 	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &rawMsg); err != nil {
 		return fmt.Errorf("unmarshalling type %T: %v", c, err)
 	}
 	for key, val := range rawMsg {
@@ -192,7 +194,7 @@ func (c CustomerManagedEncryptionProfile) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the json.Unmarshaller interface for type CustomerManagedEncryptionProfile.
 func (c *CustomerManagedEncryptionProfile) UnmarshalJSON(data []byte) error {
 	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &rawMsg); err != nil {
 		return fmt.Errorf("unmarshalling type %T: %v", c, err)
 	}
 	for key, val := range rawMsg {
@@ -225,7 +227,7 @@ func (d DNSProfile) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the json.Unmarshaller interface for type DNSProfile.
 func (d *DNSProfile) UnmarshalJSON(data []byte) error {
 	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &rawMsg); err != nil {
 		return fmt.Errorf("unmarshalling type %T: %v", d, err)
 	}
 	for key, val := range rawMsg {
@@ -258,7 +260,7 @@ func (e EtcdDataEncryptionProfile) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the json.Unmarshaller interface for type EtcdDataEncryptionProfile.
 func (e *EtcdDataEncryptionProfile) UnmarshalJSON(data []byte) error {
 	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &rawMsg); err != nil {
 		return fmt.Errorf("unmarshalling type %T: %v", e, err)
 	}
 	for key, val := range rawMsg {
@@ -290,7 +292,7 @@ func (e EtcdProfile) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the json.Unmarshaller interface for type EtcdProfile.
 func (e *EtcdProfile) UnmarshalJSON(data []byte) error {
 	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &rawMsg); err != nil {
 		return fmt.Errorf("unmarshalling type %T: %v", e, err)
 	}
 	for key, val := range rawMsg {
@@ -323,7 +325,7 @@ func (e ExternalAuth) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the json.Unmarshaller interface for type ExternalAuth.
 func (e *ExternalAuth) UnmarshalJSON(data []byte) error {
 	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &rawMsg); err != nil {
 		return fmt.Errorf("unmarshalling type %T: %v", e, err)
 	}
 	for key, val := range rawMsg {
@@ -365,7 +367,7 @@ func (e ExternalAuthClaimProfile) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the json.Unmarshaller interface for type ExternalAuthClaimProfile.
 func (e *ExternalAuthClaimProfile) UnmarshalJSON(data []byte) error {
 	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &rawMsg); err != nil {
 		return fmt.Errorf("unmarshalling type %T: %v", e, err)
 	}
 	for key, val := range rawMsg {
@@ -398,7 +400,7 @@ func (e ExternalAuthClaimProfileUpdate) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the json.Unmarshaller interface for type ExternalAuthClaimProfileUpdate.
 func (e *ExternalAuthClaimProfileUpdate) UnmarshalJSON(data []byte) error {
 	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &rawMsg); err != nil {
 		return fmt.Errorf("unmarshalling type %T: %v", e, err)
 	}
 	for key, val := range rawMsg {
@@ -431,7 +433,7 @@ func (e ExternalAuthClientComponentProfile) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the json.Unmarshaller interface for type ExternalAuthClientComponentProfile.
 func (e *ExternalAuthClientComponentProfile) UnmarshalJSON(data []byte) error {
 	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &rawMsg); err != nil {
 		return fmt.Errorf("unmarshalling type %T: %v", e, err)
 	}
 	for key, val := range rawMsg {
@@ -466,7 +468,7 @@ func (e ExternalAuthClientProfile) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the json.Unmarshaller interface for type ExternalAuthClientProfile.
 func (e *ExternalAuthClientProfile) UnmarshalJSON(data []byte) error {
 	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &rawMsg); err != nil {
 		return fmt.Errorf("unmarshalling type %T: %v", e, err)
 	}
 	for key, val := range rawMsg {
@@ -508,7 +510,7 @@ func (e ExternalAuthCondition) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the json.Unmarshaller interface for type ExternalAuthCondition.
 func (e *ExternalAuthCondition) UnmarshalJSON(data []byte) error {
 	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &rawMsg); err != nil {
 		return fmt.Errorf("unmarshalling type %T: %v", e, err)
 	}
 	for key, val := range rawMsg {
@@ -550,7 +552,7 @@ func (e ExternalAuthListResult) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the json.Unmarshaller interface for type ExternalAuthListResult.
 func (e *ExternalAuthListResult) UnmarshalJSON(data []byte) error {
 	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &rawMsg); err != nil {
 		return fmt.Errorf("unmarshalling type %T: %v", e, err)
 	}
 	for key, val := range rawMsg {
@@ -586,7 +588,7 @@ func (e ExternalAuthProperties) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the json.Unmarshaller interface for type ExternalAuthProperties.
 func (e *ExternalAuthProperties) UnmarshalJSON(data []byte) error {
 	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &rawMsg); err != nil {
 		return fmt.Errorf("unmarshalling type %T: %v", e, err)
 	}
 	for key, val := range rawMsg {
@@ -629,7 +631,7 @@ func (e ExternalAuthPropertiesUpdate) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the json.Unmarshaller interface for type ExternalAuthPropertiesUpdate.
 func (e *ExternalAuthPropertiesUpdate) UnmarshalJSON(data []byte) error {
 	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &rawMsg); err != nil {
 		return fmt.Errorf("unmarshalling type %T: %v", e, err)
 	}
 	for key, val := range rawMsg {
@@ -668,7 +670,7 @@ func (e ExternalAuthUpdate) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the json.Unmarshaller interface for type ExternalAuthUpdate.
 func (e *ExternalAuthUpdate) UnmarshalJSON(data []byte) error {
 	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &rawMsg); err != nil {
 		return fmt.Errorf("unmarshalling type %T: %v", e, err)
 	}
 	for key, val := range rawMsg {
@@ -710,7 +712,7 @@ func (g GroupClaimProfile) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the json.Unmarshaller interface for type GroupClaimProfile.
 func (g *GroupClaimProfile) UnmarshalJSON(data []byte) error {
 	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &rawMsg); err != nil {
 		return fmt.Errorf("unmarshalling type %T: %v", g, err)
 	}
 	for key, val := range rawMsg {
@@ -743,7 +745,7 @@ func (g GroupClaimProfileUpdate) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the json.Unmarshaller interface for type GroupClaimProfileUpdate.
 func (g *GroupClaimProfileUpdate) UnmarshalJSON(data []byte) error {
 	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &rawMsg); err != nil {
 		return fmt.Errorf("unmarshalling type %T: %v", g, err)
 	}
 	for key, val := range rawMsg {
@@ -782,7 +784,7 @@ func (h HcpOpenShiftCluster) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the json.Unmarshaller interface for type HcpOpenShiftCluster.
 func (h *HcpOpenShiftCluster) UnmarshalJSON(data []byte) error {
 	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &rawMsg); err != nil {
 		return fmt.Errorf("unmarshalling type %T: %v", h, err)
 	}
 	for key, val := range rawMsg {
@@ -833,7 +835,7 @@ func (h HcpOpenShiftClusterAdminCredential) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the json.Unmarshaller interface for type HcpOpenShiftClusterAdminCredential.
 func (h *HcpOpenShiftClusterAdminCredential) UnmarshalJSON(data []byte) error {
 	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &rawMsg); err != nil {
 		return fmt.Errorf("unmarshalling type %T: %v", h, err)
 	}
 	for key, val := range rawMsg {
@@ -866,7 +868,7 @@ func (h HcpOpenShiftClusterListResult) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the json.Unmarshaller interface for type HcpOpenShiftClusterListResult.
 func (h *HcpOpenShiftClusterListResult) UnmarshalJSON(data []byte) error {
 	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &rawMsg); err != nil {
 		return fmt.Errorf("unmarshalling type %T: %v", h, err)
 	}
 	for key, val := range rawMsg {
@@ -909,7 +911,7 @@ func (h HcpOpenShiftClusterProperties) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the json.Unmarshaller interface for type HcpOpenShiftClusterProperties.
 func (h *HcpOpenShiftClusterProperties) UnmarshalJSON(data []byte) error {
 	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &rawMsg); err != nil {
 		return fmt.Errorf("unmarshalling type %T: %v", h, err)
 	}
 	for key, val := range rawMsg {
@@ -975,7 +977,7 @@ func (h HcpOpenShiftClusterPropertiesUpdate) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the json.Unmarshaller interface for type HcpOpenShiftClusterPropertiesUpdate.
 func (h *HcpOpenShiftClusterPropertiesUpdate) UnmarshalJSON(data []byte) error {
 	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &rawMsg); err != nil {
 		return fmt.Errorf("unmarshalling type %T: %v", h, err)
 	}
 	for key, val := range rawMsg {
@@ -1022,7 +1024,7 @@ func (h HcpOpenShiftClusterUpdate) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the json.Unmarshaller interface for type HcpOpenShiftClusterUpdate.
 func (h *HcpOpenShiftClusterUpdate) UnmarshalJSON(data []byte) error {
 	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &rawMsg); err != nil {
 		return fmt.Errorf("unmarshalling type %T: %v", h, err)
 	}
 	for key, val := range rawMsg {
@@ -1073,7 +1075,7 @@ func (h HcpOpenShiftVersion) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the json.Unmarshaller interface for type HcpOpenShiftVersion.
 func (h *HcpOpenShiftVersion) UnmarshalJSON(data []byte) error {
 	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &rawMsg); err != nil {
 		return fmt.Errorf("unmarshalling type %T: %v", h, err)
 	}
 	for key, val := range rawMsg {
@@ -1115,7 +1117,7 @@ func (h HcpOpenShiftVersionListResult) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the json.Unmarshaller interface for type HcpOpenShiftVersionListResult.
 func (h *HcpOpenShiftVersionListResult) UnmarshalJSON(data []byte) error {
 	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &rawMsg); err != nil {
 		return fmt.Errorf("unmarshalling type %T: %v", h, err)
 	}
 	for key, val := range rawMsg {
@@ -1149,7 +1151,7 @@ func (h HcpOpenShiftVersionProperties) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the json.Unmarshaller interface for type HcpOpenShiftVersionProperties.
 func (h *HcpOpenShiftVersionProperties) UnmarshalJSON(data []byte) error {
 	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &rawMsg); err != nil {
 		return fmt.Errorf("unmarshalling type %T: %v", h, err)
 	}
 	for key, val := range rawMsg {
@@ -1188,7 +1190,7 @@ func (h HcpOperatorIdentityRoleSet) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the json.Unmarshaller interface for type HcpOperatorIdentityRoleSet.
 func (h *HcpOperatorIdentityRoleSet) UnmarshalJSON(data []byte) error {
 	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &rawMsg); err != nil {
 		return fmt.Errorf("unmarshalling type %T: %v", h, err)
 	}
 	for key, val := range rawMsg {
@@ -1230,7 +1232,7 @@ func (h HcpOperatorIdentityRoleSetListResult) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the json.Unmarshaller interface for type HcpOperatorIdentityRoleSetListResult.
 func (h *HcpOperatorIdentityRoleSetListResult) UnmarshalJSON(data []byte) error {
 	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &rawMsg); err != nil {
 		return fmt.Errorf("unmarshalling type %T: %v", h, err)
 	}
 	for key, val := range rawMsg {
@@ -1263,7 +1265,7 @@ func (h HcpOperatorIdentityRoleSetProperties) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the json.Unmarshaller interface for type HcpOperatorIdentityRoleSetProperties.
 func (h *HcpOperatorIdentityRoleSetProperties) UnmarshalJSON(data []byte) error {
 	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &rawMsg); err != nil {
 		return fmt.Errorf("unmarshalling type %T: %v", h, err)
 	}
 	for key, val := range rawMsg {
@@ -1296,7 +1298,7 @@ func (i ImageDigestMirror) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the json.Unmarshaller interface for type ImageDigestMirror.
 func (i *ImageDigestMirror) UnmarshalJSON(data []byte) error {
 	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &rawMsg); err != nil {
 		return fmt.Errorf("unmarshalling type %T: %v", i, err)
 	}
 	for key, val := range rawMsg {
@@ -1330,7 +1332,7 @@ func (k KmsEncryptionProfile) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the json.Unmarshaller interface for type KmsEncryptionProfile.
 func (k *KmsEncryptionProfile) UnmarshalJSON(data []byte) error {
 	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &rawMsg); err != nil {
 		return fmt.Errorf("unmarshalling type %T: %v", k, err)
 	}
 	for key, val := range rawMsg {
@@ -1366,7 +1368,7 @@ func (k KmsKey) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the json.Unmarshaller interface for type KmsKey.
 func (k *KmsKey) UnmarshalJSON(data []byte) error {
 	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &rawMsg); err != nil {
 		return fmt.Errorf("unmarshalling type %T: %v", k, err)
 	}
 	for key, val := range rawMsg {
@@ -1399,7 +1401,7 @@ func (l Label) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the json.Unmarshaller interface for type Label.
 func (l *Label) UnmarshalJSON(data []byte) error {
 	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &rawMsg); err != nil {
 		return fmt.Errorf("unmarshalling type %T: %v", l, err)
 	}
 	for key, val := range rawMsg {
@@ -1434,7 +1436,7 @@ func (m ManagedServiceIdentity) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the json.Unmarshaller interface for type ManagedServiceIdentity.
 func (m *ManagedServiceIdentity) UnmarshalJSON(data []byte) error {
 	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &rawMsg); err != nil {
 		return fmt.Errorf("unmarshalling type %T: %v", m, err)
 	}
 	for key, val := range rawMsg {
@@ -1476,7 +1478,7 @@ func (n NetworkProfile) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the json.Unmarshaller interface for type NetworkProfile.
 func (n *NetworkProfile) UnmarshalJSON(data []byte) error {
 	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &rawMsg); err != nil {
 		return fmt.Errorf("unmarshalling type %T: %v", n, err)
 	}
 	for key, val := range rawMsg {
@@ -1524,7 +1526,7 @@ func (n NodePool) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the json.Unmarshaller interface for type NodePool.
 func (n *NodePool) UnmarshalJSON(data []byte) error {
 	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &rawMsg); err != nil {
 		return fmt.Errorf("unmarshalling type %T: %v", n, err)
 	}
 	for key, val := range rawMsg {
@@ -1575,7 +1577,7 @@ func (n NodePoolAutoScaling) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the json.Unmarshaller interface for type NodePoolAutoScaling.
 func (n *NodePoolAutoScaling) UnmarshalJSON(data []byte) error {
 	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &rawMsg); err != nil {
 		return fmt.Errorf("unmarshalling type %T: %v", n, err)
 	}
 	for key, val := range rawMsg {
@@ -1608,7 +1610,7 @@ func (n NodePoolListResult) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the json.Unmarshaller interface for type NodePoolListResult.
 func (n *NodePoolListResult) UnmarshalJSON(data []byte) error {
 	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &rawMsg); err != nil {
 		return fmt.Errorf("unmarshalling type %T: %v", n, err)
 	}
 	for key, val := range rawMsg {
@@ -1644,7 +1646,7 @@ func (n NodePoolPlatformProfile) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the json.Unmarshaller interface for type NodePoolPlatformProfile.
 func (n *NodePoolPlatformProfile) UnmarshalJSON(data []byte) error {
 	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &rawMsg); err != nil {
 		return fmt.Errorf("unmarshalling type %T: %v", n, err)
 	}
 	for key, val := range rawMsg {
@@ -1693,7 +1695,7 @@ func (n NodePoolProperties) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the json.Unmarshaller interface for type NodePoolProperties.
 func (n *NodePoolProperties) UnmarshalJSON(data []byte) error {
 	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &rawMsg); err != nil {
 		return fmt.Errorf("unmarshalling type %T: %v", n, err)
 	}
 	for key, val := range rawMsg {
@@ -1751,7 +1753,7 @@ func (n NodePoolPropertiesUpdate) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the json.Unmarshaller interface for type NodePoolPropertiesUpdate.
 func (n *NodePoolPropertiesUpdate) UnmarshalJSON(data []byte) error {
 	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &rawMsg); err != nil {
 		return fmt.Errorf("unmarshalling type %T: %v", n, err)
 	}
 	for key, val := range rawMsg {
@@ -1801,7 +1803,7 @@ func (n NodePoolUpdate) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the json.Unmarshaller interface for type NodePoolUpdate.
 func (n *NodePoolUpdate) UnmarshalJSON(data []byte) error {
 	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &rawMsg); err != nil {
 		return fmt.Errorf("unmarshalling type %T: %v", n, err)
 	}
 	for key, val := range rawMsg {
@@ -1849,7 +1851,7 @@ func (n NodePoolVersionProfile) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the json.Unmarshaller interface for type NodePoolVersionProfile.
 func (n *NodePoolVersionProfile) UnmarshalJSON(data []byte) error {
 	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &rawMsg); err != nil {
 		return fmt.Errorf("unmarshalling type %T: %v", n, err)
 	}
 	for key, val := range rawMsg {
@@ -1882,7 +1884,7 @@ func (n NodePoolVersionProfileUpdate) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the json.Unmarshaller interface for type NodePoolVersionProfileUpdate.
 func (n *NodePoolVersionProfileUpdate) UnmarshalJSON(data []byte) error {
 	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &rawMsg); err != nil {
 		return fmt.Errorf("unmarshalling type %T: %v", n, err)
 	}
 	for key, val := range rawMsg {
@@ -1918,7 +1920,7 @@ func (o Operation) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the json.Unmarshaller interface for type Operation.
 func (o *Operation) UnmarshalJSON(data []byte) error {
 	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &rawMsg); err != nil {
 		return fmt.Errorf("unmarshalling type %T: %v", o, err)
 	}
 	for key, val := range rawMsg {
@@ -1962,7 +1964,7 @@ func (o OperationDisplay) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the json.Unmarshaller interface for type OperationDisplay.
 func (o *OperationDisplay) UnmarshalJSON(data []byte) error {
 	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &rawMsg); err != nil {
 		return fmt.Errorf("unmarshalling type %T: %v", o, err)
 	}
 	for key, val := range rawMsg {
@@ -2001,7 +2003,7 @@ func (o OperationListResult) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the json.Unmarshaller interface for type OperationListResult.
 func (o *OperationListResult) UnmarshalJSON(data []byte) error {
 	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &rawMsg); err != nil {
 		return fmt.Errorf("unmarshalling type %T: %v", o, err)
 	}
 	for key, val := range rawMsg {
@@ -2035,7 +2037,7 @@ func (o OperatorIdentityRoles) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the json.Unmarshaller interface for type OperatorIdentityRoles.
 func (o *OperatorIdentityRoles) UnmarshalJSON(data []byte) error {
 	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &rawMsg); err != nil {
 		return fmt.Errorf("unmarshalling type %T: %v", o, err)
 	}
 	for key, val := range rawMsg {
@@ -2070,7 +2072,7 @@ func (o OperatorsAuthenticationProfile) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the json.Unmarshaller interface for type OperatorsAuthenticationProfile.
 func (o *OperatorsAuthenticationProfile) UnmarshalJSON(data []byte) error {
 	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &rawMsg); err != nil {
 		return fmt.Errorf("unmarshalling type %T: %v", o, err)
 	}
 	for key, val := range rawMsg {
@@ -2099,7 +2101,7 @@ func (o OperatorsAuthenticationProfileUpdate) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the json.Unmarshaller interface for type OperatorsAuthenticationProfileUpdate.
 func (o *OperatorsAuthenticationProfileUpdate) UnmarshalJSON(data []byte) error {
 	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &rawMsg); err != nil {
 		return fmt.Errorf("unmarshalling type %T: %v", o, err)
 	}
 	for key, val := range rawMsg {
@@ -2131,7 +2133,7 @@ func (o OsDiskProfile) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the json.Unmarshaller interface for type OsDiskProfile.
 func (o *OsDiskProfile) UnmarshalJSON(data []byte) error {
 	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &rawMsg); err != nil {
 		return fmt.Errorf("unmarshalling type %T: %v", o, err)
 	}
 	for key, val := range rawMsg {
@@ -2175,7 +2177,7 @@ func (p PlatformProfile) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the json.Unmarshaller interface for type PlatformProfile.
 func (p *PlatformProfile) UnmarshalJSON(data []byte) error {
 	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &rawMsg); err != nil {
 		return fmt.Errorf("unmarshalling type %T: %v", p, err)
 	}
 	for key, val := range rawMsg {
@@ -2222,7 +2224,7 @@ func (p PlatformProfileUpdate) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the json.Unmarshaller interface for type PlatformProfileUpdate.
 func (p *PlatformProfileUpdate) UnmarshalJSON(data []byte) error {
 	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &rawMsg); err != nil {
 		return fmt.Errorf("unmarshalling type %T: %v", p, err)
 	}
 	for key, val := range rawMsg {
@@ -2252,7 +2254,7 @@ func (r RoleDefinition) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the json.Unmarshaller interface for type RoleDefinition.
 func (r *RoleDefinition) UnmarshalJSON(data []byte) error {
 	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &rawMsg); err != nil {
 		return fmt.Errorf("unmarshalling type %T: %v", r, err)
 	}
 	for key, val := range rawMsg {
@@ -2289,7 +2291,7 @@ func (s SystemData) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the json.Unmarshaller interface for type SystemData.
 func (s *SystemData) UnmarshalJSON(data []byte) error {
 	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &rawMsg); err != nil {
 		return fmt.Errorf("unmarshalling type %T: %v", s, err)
 	}
 	for key, val := range rawMsg {
@@ -2335,7 +2337,7 @@ func (t Taint) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the json.Unmarshaller interface for type Taint.
 func (t *Taint) UnmarshalJSON(data []byte) error {
 	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &rawMsg); err != nil {
 		return fmt.Errorf("unmarshalling type %T: %v", t, err)
 	}
 	for key, val := range rawMsg {
@@ -2371,7 +2373,7 @@ func (t TokenClaimMappingsProfile) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the json.Unmarshaller interface for type TokenClaimMappingsProfile.
 func (t *TokenClaimMappingsProfile) UnmarshalJSON(data []byte) error {
 	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &rawMsg); err != nil {
 		return fmt.Errorf("unmarshalling type %T: %v", t, err)
 	}
 	for key, val := range rawMsg {
@@ -2404,7 +2406,7 @@ func (t TokenClaimMappingsProfileUpdate) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the json.Unmarshaller interface for type TokenClaimMappingsProfileUpdate.
 func (t *TokenClaimMappingsProfileUpdate) UnmarshalJSON(data []byte) error {
 	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &rawMsg); err != nil {
 		return fmt.Errorf("unmarshalling type %T: %v", t, err)
 	}
 	for key, val := range rawMsg {
@@ -2437,7 +2439,7 @@ func (t TokenClaimValidationRule) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the json.Unmarshaller interface for type TokenClaimValidationRule.
 func (t *TokenClaimValidationRule) UnmarshalJSON(data []byte) error {
 	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &rawMsg); err != nil {
 		return fmt.Errorf("unmarshalling type %T: %v", t, err)
 	}
 	for key, val := range rawMsg {
@@ -2471,7 +2473,7 @@ func (t TokenIssuerProfile) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the json.Unmarshaller interface for type TokenIssuerProfile.
 func (t *TokenIssuerProfile) UnmarshalJSON(data []byte) error {
 	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &rawMsg); err != nil {
 		return fmt.Errorf("unmarshalling type %T: %v", t, err)
 	}
 	for key, val := range rawMsg {
@@ -2508,7 +2510,7 @@ func (t TokenIssuerProfileUpdate) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the json.Unmarshaller interface for type TokenIssuerProfileUpdate.
 func (t *TokenIssuerProfileUpdate) UnmarshalJSON(data []byte) error {
 	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &rawMsg); err != nil {
 		return fmt.Errorf("unmarshalling type %T: %v", t, err)
 	}
 	for key, val := range rawMsg {
@@ -2544,7 +2546,7 @@ func (t TokenRequiredClaim) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the json.Unmarshaller interface for type TokenRequiredClaim.
 func (t *TokenRequiredClaim) UnmarshalJSON(data []byte) error {
 	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &rawMsg); err != nil {
 		return fmt.Errorf("unmarshalling type %T: %v", t, err)
 	}
 	for key, val := range rawMsg {
@@ -2578,7 +2580,7 @@ func (u UserAssignedIdentitiesProfile) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the json.Unmarshaller interface for type UserAssignedIdentitiesProfile.
 func (u *UserAssignedIdentitiesProfile) UnmarshalJSON(data []byte) error {
 	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &rawMsg); err != nil {
 		return fmt.Errorf("unmarshalling type %T: %v", u, err)
 	}
 	for key, val := range rawMsg {
@@ -2615,7 +2617,7 @@ func (u UserAssignedIdentitiesProfileUpdate) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the json.Unmarshaller interface for type UserAssignedIdentitiesProfileUpdate.
 func (u *UserAssignedIdentitiesProfileUpdate) UnmarshalJSON(data []byte) error {
 	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &rawMsg); err != nil {
 		return fmt.Errorf("unmarshalling type %T: %v", u, err)
 	}
 	for key, val := range rawMsg {
@@ -2651,7 +2653,7 @@ func (u UserAssignedIdentity) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the json.Unmarshaller interface for type UserAssignedIdentity.
 func (u *UserAssignedIdentity) UnmarshalJSON(data []byte) error {
 	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &rawMsg); err != nil {
 		return fmt.Errorf("unmarshalling type %T: %v", u, err)
 	}
 	for key, val := range rawMsg {
@@ -2685,7 +2687,7 @@ func (u UsernameClaimProfile) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the json.Unmarshaller interface for type UsernameClaimProfile.
 func (u *UsernameClaimProfile) UnmarshalJSON(data []byte) error {
 	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &rawMsg); err != nil {
 		return fmt.Errorf("unmarshalling type %T: %v", u, err)
 	}
 	for key, val := range rawMsg {
@@ -2722,7 +2724,7 @@ func (u UsernameClaimProfileUpdate) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the json.Unmarshaller interface for type UsernameClaimProfileUpdate.
 func (u *UsernameClaimProfileUpdate) UnmarshalJSON(data []byte) error {
 	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &rawMsg); err != nil {
 		return fmt.Errorf("unmarshalling type %T: %v", u, err)
 	}
 	for key, val := range rawMsg {
@@ -2758,7 +2760,7 @@ func (v VersionProfile) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the json.Unmarshaller interface for type VersionProfile.
 func (v *VersionProfile) UnmarshalJSON(data []byte) error {
 	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &rawMsg); err != nil {
 		return fmt.Errorf("unmarshalling type %T: %v", v, err)
 	}
 	for key, val := range rawMsg {
@@ -2791,7 +2793,7 @@ func (v VersionProfileUpdate) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the json.Unmarshaller interface for type VersionProfileUpdate.
 func (v *VersionProfileUpdate) UnmarshalJSON(data []byte) error {
 	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &rawMsg); err != nil {
 		return fmt.Errorf("unmarshalling type %T: %v", v, err)
 	}
 	for key, val := range rawMsg {
@@ -2827,7 +2829,7 @@ func unpopulate(data json.RawMessage, fn string, v any) error {
 	if data == nil || string(data) == "null" {
 		return nil
 	}
-	if err := json.Unmarshal(data, v); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(data, v); err != nil {
 		return fmt.Errorf("struct field %s: %v", fn, err)
 	}
 	return nil

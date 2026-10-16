@@ -16,7 +16,6 @@ package coreinformers
 
 import (
 	"context"
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -29,6 +28,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/watchlist"
+
+	kjson "sigs.k8s.io/json"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -127,7 +128,7 @@ func TestFixtureLoadsReachSyncedInformers(t *testing.T) {
 				content, err := os.ReadFile(filepath.Join("testdata", "fixture-load", name))
 				require.NoError(t, err)
 				var doc cosmosstorageutils.TypedDocument
-				require.NoError(t, json.Unmarshal(content, &doc))
+				require.NoError(t, kjson.UnmarshalCaseSensitivePreserveInts(content, &doc))
 				stored, ok := db.GetDocument(doc.ID)
 				require.True(t, ok)
 				require.Equal(t, content, []byte(stored), "loading must preserve the raw fixture, including unknown fields and metadata")

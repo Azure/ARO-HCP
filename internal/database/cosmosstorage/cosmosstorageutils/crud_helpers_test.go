@@ -19,12 +19,46 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
+
+	kjson "sigs.k8s.io/json"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 )
+
+func TestSetSoftDeleteFieldsInstanceVersion(t *testing.T) {
+	for _, testCase := range []struct {
+		name    string
+		version any
+		want    int64
+	}{
+		{name: "preserved integer", version: int64(8), want: 9},
+		{name: "large preserved integer", version: int64(9007199254740993), want: 9007199254740994},
+		{name: "legacy float", version: float64(8), want: 9},
+		{name: "zero", version: int64(0), want: 2},
+		{name: "negative", version: int64(-1), want: 2},
+		{name: "invalid", version: "invalid", want: 2},
+		{name: "null", want: 2},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			doc := GenericDocument[map[string]interface{}]{
+				Content: map[string]interface{}{
+					"cosmosMetadata": map[string]interface{}{"instanceVersion": testCase.version},
+				},
+			}
+			if err := SetSoftDeleteFields(&doc, time.Now()); err != nil {
+				t.Fatal(err)
+			}
+			got := doc.Content["cosmosMetadata"].(map[string]interface{})["instanceVersion"]
+			if got != testCase.want {
+				t.Fatalf("instanceVersion = %v (%T), want %d (int64)", got, got, testCase.want)
+			}
+		})
+	}
+}
 
 func TestPrepareParentResourceID(t *testing.T) {
 	nestedResourceID, err := azcorearm.ParseResourceID("/subscriptions/SubscriptionID/resourceGroups/MyGroup/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/MyCluster/nodePools/MyPool")
@@ -154,14 +188,14 @@ func TestCosmosMetadataParentResourceIDJSONRoundTrip(t *testing.T) {
 				t.Fatal(err)
 			}
 			var fields map[string]json.RawMessage
-			if err := json.Unmarshal(data, &fields); err != nil {
+			if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &fields); err != nil {
 				t.Fatal(err)
 			}
 			if _, present := fields["parentResourceID"]; present != (test.parent != nil) {
 				t.Errorf("parentResourceID presence = %t, want %t: %s", present, test.parent != nil, data)
 			}
 			var roundTrip coreapi.CosmosMetadata
-			if err := json.Unmarshal(data, &roundTrip); err != nil {
+			if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &roundTrip); err != nil {
 				t.Fatal(err)
 			}
 			if test.parent == nil {

@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 
+	kjson "sigs.k8s.io/json"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 )
 
@@ -102,7 +104,7 @@ func unpopulateDateTimeRFC3339(data json.RawMessage, fn string, t **time.Time) e
 		return nil
 	}
 	var aux dateTimeRFC3339
-	if err := json.Unmarshal(data, &aux); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &aux); err != nil {
 		return fmt.Errorf("struct field %s: %v", fn, err)
 	}
 	*t = (*time.Time)(&aux)

@@ -15,7 +15,7 @@
 package v20261001
 
 import (
-	"encoding/json"
+	kjson "sigs.k8s.io/json"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
@@ -35,7 +35,7 @@ func (v version) MarshalClusterAdminCredential(from *coreapi.ClusterAdminCredent
 
 func (v version) UnmarshalClusterAdminCredentialRequest(data []byte) (*coreapi.ClusterAdminCredentialRequest, error) {
 	var versionedRequest generated.HcpOpenShiftClusterAdminCredentialRequest
-	if err := json.Unmarshal(data, &versionedRequest); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &versionedRequest); err != nil {
 		return nil, err
 	}
 	return &coreapi.ClusterAdminCredentialRequest{

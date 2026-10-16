@@ -16,7 +16,8 @@ package billingcosmosstorage
 
 import (
 	"context"
-	"encoding/json"
+
+	kjson "sigs.k8s.io/json"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
@@ -57,7 +58,7 @@ func (iter *queryBillingIterator) Items(ctx context.Context) cosmosstorageutils.
 			}
 			for _, itemJSON := range response.Items {
 				var doc BillingDocument
-				if err := json.Unmarshal(itemJSON, &doc); err != nil {
+				if err := kjson.UnmarshalCaseSensitivePreserveInts(itemJSON, &doc); err != nil {
 					iter.err = err
 					return
 				}

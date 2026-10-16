@@ -25,6 +25,8 @@ import (
 
 	"github.com/google/uuid"
 
+	kjson "sigs.k8s.io/json"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
@@ -129,7 +131,7 @@ func generateETag() azcore.ETag {
 // injectETag injects a new etag into the document JSON
 func injectETag(data json.RawMessage) (json.RawMessage, azcore.ETag, error) {
 	var doc map[string]any
-	if err := json.Unmarshal(data, &doc); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &doc); err != nil {
 		return nil, "", err
 	}
 	newETag := generateETag()
@@ -143,7 +145,7 @@ func injectETag(data json.RawMessage) (json.RawMessage, azcore.ETag, error) {
 
 func injectID(data json.RawMessage, id string) (json.RawMessage, error) {
 	var doc map[string]any
-	if err := json.Unmarshal(data, &doc); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &doc); err != nil {
 		return nil, err
 	}
 	doc["id"] = id
@@ -157,7 +159,7 @@ func injectID(data json.RawMessage, id string) (json.RawMessage, error) {
 // getStoredETag extracts the etag from a stored document
 func getStoredETag(data json.RawMessage) azcore.ETag {
 	var doc map[string]any
-	if err := json.Unmarshal(data, &doc); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &doc); err != nil {
 		return ""
 	}
 	if etag, ok := doc["_etag"].(string); ok {
@@ -181,7 +183,7 @@ func (m *MockResourceCRUD[InternalAPIType, InternalAPITypePointer, CosmosAPIType
 	}
 
 	var cosmosObj CosmosAPIType
-	if err := json.Unmarshal(data, &cosmosObj); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &cosmosObj); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal document: %w", err)
 	}
 
@@ -215,7 +217,7 @@ func (m *MockResourceCRUD[InternalAPIType, InternalAPITypePointer, CosmosAPIType
 
 	for _, data := range documents {
 		var cosmosObj CosmosAPIType
-		if err := json.Unmarshal(data, &cosmosObj); err != nil {
+		if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &cosmosObj); err != nil {
 			continue
 		}
 
@@ -226,7 +228,7 @@ func (m *MockResourceCRUD[InternalAPIType, InternalAPITypePointer, CosmosAPIType
 
 		// Get the ID from the typed document
 		var typedDoc cosmosstorageutils.TypedDocument
-		if err := json.Unmarshal(data, &typedDoc); err != nil {
+		if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &typedDoc); err != nil {
 			continue
 		}
 
@@ -321,7 +323,7 @@ func mockSoftDelete(store MockDocumentStore, cosmosID string) error {
 	}
 
 	var doc cosmosstorageutils.GenericDocument[map[string]interface{}]
-	if err := json.Unmarshal(data, &doc); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &doc); err != nil {
 		return fmt.Errorf("failed to unmarshal document for soft delete: %w", err)
 	}
 
@@ -629,7 +631,7 @@ func (m *mockOperationCRUD) ListActiveOperations(options *corecosmosstorage.Reso
 
 	for _, data := range allDocs {
 		var typedDoc cosmosstorageutils.TypedDocument
-		if err := json.Unmarshal(data, &typedDoc); err != nil {
+		if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &typedDoc); err != nil {
 			continue
 		}
 
@@ -647,7 +649,7 @@ func (m *mockOperationCRUD) ListActiveOperations(options *corecosmosstorage.Reso
 		}
 
 		var cosmosObj cosmosstorageutils.GenericDocument[coreapi.Operation]
-		if err := json.Unmarshal(data, &cosmosObj); err != nil {
+		if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &cosmosObj); err != nil {
 			continue
 		}
 
@@ -812,7 +814,7 @@ func (m *mockUntypedCRUD) Get(ctx context.Context, resourceID *azcorearm.Resourc
 			return nil, cosmosstorageutils.NewNotFoundError()
 		}
 		var typedDoc cosmosstorageutils.TypedDocument
-		if err := json.Unmarshal(data, &typedDoc); err != nil {
+		if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &typedDoc); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal document: %w", err)
 		}
 		return cosmosstorageutils.CosmosToInternal[cosmosstorageutils.TypedDocument, cosmosstorageutils.TypedDocument](&typedDoc)
@@ -843,7 +845,7 @@ func (m *mockUntypedCRUD) listInternal(ctx context.Context, opts *cosmosstorageu
 
 	for _, data := range allDocs {
 		var typedDoc cosmosstorageutils.TypedDocument
-		if err := json.Unmarshal(data, &typedDoc); err != nil {
+		if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &typedDoc); err != nil {
 			continue
 		}
 

@@ -24,6 +24,8 @@ import (
 	"github.com/go-logr/logr/testr"
 	"github.com/stretchr/testify/require"
 
+	kjson "sigs.k8s.io/json"
+
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
@@ -39,7 +41,7 @@ func TestBillingDocumentWatermarks(t *testing.T) {
 	t.Run("preserved in snapshots and independent in deep copies", func(t *testing.T) {
 		const persisted = `{"lastBillingTimeOfVMEvent":"2026-10-09T10:00:00Z","lastBillingTimeOfMngtEvent":"2026-10-09T11:00:00Z"}`
 		var doc billingcosmosstorage.BillingDocument
-		require.NoError(t, json.Unmarshal([]byte(persisted), &doc))
+		require.NoError(t, kjson.UnmarshalCaseSensitivePreserveInts([]byte(persisted), &doc))
 		require.NotNil(t, doc.LastBillingTimeOfVMEvent)
 		require.NotNil(t, doc.LastBillingTimeOfMngtEvent)
 		require.Equal(t, time.Date(2026, 10, 9, 10, 0, 0, 0, time.UTC), *doc.LastBillingTimeOfVMEvent)
@@ -49,7 +51,7 @@ func TestBillingDocumentWatermarks(t *testing.T) {
 		snapshot, err := json.Marshal(&doc)
 		require.NoError(t, err)
 		var fields map[string]json.RawMessage
-		require.NoError(t, json.Unmarshal(snapshot, &fields))
+		require.NoError(t, kjson.UnmarshalCaseSensitivePreserveInts(snapshot, &fields))
 		require.JSONEq(t, `"2026-10-09T10:00:00Z"`, string(fields["lastBillingTimeOfVMEvent"]))
 		require.JSONEq(t, `"2026-10-09T11:00:00Z"`, string(fields["lastBillingTimeOfMngtEvent"]))
 
@@ -63,7 +65,7 @@ func TestBillingDocumentWatermarks(t *testing.T) {
 	for _, persisted := range []string{`{}`, `{"lastBillingTimeOfVMEvent":null,"lastBillingTimeOfMngtEvent":null}`} {
 		t.Run(persisted, func(t *testing.T) {
 			var doc billingcosmosstorage.BillingDocument
-			require.NoError(t, json.Unmarshal([]byte(persisted), &doc))
+			require.NoError(t, kjson.UnmarshalCaseSensitivePreserveInts([]byte(persisted), &doc))
 			copied := doc.DeepCopy()
 			require.Nil(t, copied.LastBillingTimeOfVMEvent)
 			require.Nil(t, copied.LastBillingTimeOfMngtEvent)

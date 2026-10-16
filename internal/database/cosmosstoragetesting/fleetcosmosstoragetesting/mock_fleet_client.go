@@ -21,6 +21,8 @@ import (
 	"strings"
 	"sync"
 
+	kjson "sigs.k8s.io/json"
+
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
@@ -170,7 +172,7 @@ func (m *MockFleetDBClient) ListDocuments(resourceType *azcorearm.ResourceType, 
 	var results []json.RawMessage
 	for _, data := range m.documents {
 		var td cosmosstorageutils.TypedDocument
-		if err := json.Unmarshal(data, &td); err != nil {
+		if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &td); err != nil {
 			continue
 		}
 		// Mirror the production query, which requires IS_DEFINED(c.resourceID);

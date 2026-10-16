@@ -16,7 +16,6 @@ package coreinformers
 
 import (
 	"context"
-	"encoding/json"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -26,6 +25,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"k8s.io/client-go/tools/cache"
+
+	kjson "sigs.k8s.io/json"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
@@ -83,7 +84,7 @@ func TestPollingInformerSnapshots(t *testing.T) {
 			var entry map[string]any
 			select {
 			case line := <-snapshots:
-				require.NoError(t, json.Unmarshal([]byte(line), &entry))
+				require.NoError(t, kjson.UnmarshalCaseSensitivePreserveInts([]byte(line), &entry))
 			case <-ctx.Done():
 				t.Fatal("polling informer did not emit a Cosmos snapshot")
 			}

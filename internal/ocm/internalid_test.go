@@ -21,6 +21,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	kjson "sigs.k8s.io/json"
+
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 
@@ -155,7 +157,7 @@ func TestInternalID(t *testing.T) {
 
 			bytes, err := json.Marshal(internalID)
 			if assert.NoError(t, err) {
-				err = json.Unmarshal(bytes, &internalID)
+				err = kjson.UnmarshalCaseSensitivePreserveInts(bytes, &internalID)
 				assert.NoError(t, err)
 			}
 		})

@@ -16,11 +16,12 @@ package corecosmosstoragetesting
 
 import (
 	"bytes"
-	"encoding/json"
 	"net/http"
 	"strconv"
 	"sync"
 	"time"
+
+	kjson "sigs.k8s.io/json"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
@@ -117,7 +118,7 @@ func decodeMockChangeFeedPosition(s string) int {
 			ContinuationToken string `json:"continuationToken"`
 		} `json:"continuation"`
 	}
-	if err := json.Unmarshal([]byte(s), &composite); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts([]byte(s), &composite); err != nil {
 		return 0
 	}
 	if len(composite.Continuation) == 0 {

@@ -16,8 +16,9 @@ package corecosmosstoragetesting
 
 import (
 	"context"
-	"encoding/json"
 	"strings"
+
+	kjson "sigs.k8s.io/json"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -138,7 +139,7 @@ func (l *mockSubscriptionGlobalLister) List(ctx context.Context, options *cosmos
 
 	for _, data := range documents {
 		var cosmosObj cosmosstorageutils.GenericDocument[coreapi.Subscription]
-		if err := json.Unmarshal(data, &cosmosObj); err != nil {
+		if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &cosmosObj); err != nil {
 			continue
 		}
 
@@ -168,7 +169,7 @@ func (l *mockActiveOperationsGlobalLister) List(ctx context.Context, options *co
 
 	for _, data := range allDocs {
 		var typedDoc cosmosstorageutils.TypedDocument
-		if err := json.Unmarshal(data, &typedDoc); err != nil {
+		if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &typedDoc); err != nil {
 			continue
 		}
 
@@ -185,7 +186,7 @@ func (l *mockActiveOperationsGlobalLister) List(ctx context.Context, options *co
 		}
 
 		var cosmosObj cosmosstorageutils.GenericDocument[coreapi.Operation]
-		if err := json.Unmarshal(data, &cosmosObj); err != nil {
+		if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &cosmosObj); err != nil {
 			continue
 		}
 
@@ -226,7 +227,7 @@ func (l *MockGlobalLister[InternalAPIType, CosmosAPIType]) List(ctx context.Cont
 
 	for _, data := range allDocs {
 		var typedDoc cosmosstorageutils.TypedDocument
-		if err := json.Unmarshal(data, &typedDoc); err != nil {
+		if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &typedDoc); err != nil {
 			continue
 		}
 
@@ -250,7 +251,7 @@ func (l *MockGlobalLister[InternalAPIType, CosmosAPIType]) List(ctx context.Cont
 		}
 
 		var cosmosObj CosmosAPIType
-		if err := json.Unmarshal(data, &cosmosObj); err != nil {
+		if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &cosmosObj); err != nil {
 			continue
 		}
 

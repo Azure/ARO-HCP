@@ -16,8 +16,9 @@ package cosmosstorageutils
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
+
+	kjson "sigs.k8s.io/json"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
@@ -57,14 +58,14 @@ func (iter *queryResourcesIterator[InternalAPIType, CosmosAPIType]) Items(ctx co
 			}
 			for _, itemJSON := range response.Items {
 				var obj CosmosAPIType
-				if err := json.Unmarshal(itemJSON, &obj); err != nil {
+				if err := kjson.UnmarshalCaseSensitivePreserveInts(itemJSON, &obj); err != nil {
 					iter.err = err
 					return
 				}
 				decodedItem := &obj
 
 				var baseDocument BaseDocument
-				if err := json.Unmarshal(itemJSON, &baseDocument); err != nil {
+				if err := kjson.UnmarshalCaseSensitivePreserveInts(itemJSON, &baseDocument); err != nil {
 					iter.err = err
 					return
 				}
@@ -127,7 +128,7 @@ func (iter *queryTypedDocumentIterator) Items(ctx context.Context) DBClientItera
 			}
 			for _, itemJSON := range response.Items {
 				var doc TypedDocument
-				if err := json.Unmarshal(itemJSON, &doc); err != nil {
+				if err := kjson.UnmarshalCaseSensitivePreserveInts(itemJSON, &doc); err != nil {
 					iter.err = err
 					return
 				}

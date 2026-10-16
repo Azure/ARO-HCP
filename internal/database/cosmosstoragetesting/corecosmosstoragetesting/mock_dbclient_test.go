@@ -29,6 +29,8 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	kjson "sigs.k8s.io/json"
+
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
@@ -153,7 +155,7 @@ func TestMockResourcesDBClient_LoadFromDirectory(t *testing.T) {
 
 	for _, data := range allDocs {
 		var typedDoc cosmosstorageutils.TypedDocument
-		if err := json.Unmarshal(data, &typedDoc); err != nil {
+		if err := kjson.UnmarshalCaseSensitivePreserveInts(data, &typedDoc); err != nil {
 			continue
 		}
 
@@ -718,7 +720,7 @@ func TestMockResourcesDBClient_StoreAndRetrieveRawDocument(t *testing.T) {
 	}
 
 	var result map[string]any
-	if err := json.Unmarshal(retrieved, &result); err != nil {
+	if err := kjson.UnmarshalCaseSensitivePreserveInts(retrieved, &result); err != nil {
 		t.Fatalf("Failed to unmarshal retrieved data: %v", err)
 	}
 

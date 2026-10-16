@@ -15,10 +15,11 @@
 package azureapi_test
 
 import (
-	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	kjson "sigs.k8s.io/json"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -64,7 +65,7 @@ func TestClusterContainerRegistryPreservation(t *testing.T) {
 				// Create an update request via this older API version that doesn't mention containerRegistry
 				external := version.NewCluster(existing)
 				body := `{"properties":{"platform":{"operatorsAuthentication":{"userAssignedIdentities":{}}}}}`
-				require.NoError(t, json.Unmarshal([]byte(body), external))
+				require.NoError(t, kjson.UnmarshalCaseSensitivePreserveInts([]byte(body), external))
 
 				// Convert to internal with existing cluster
 				cluster, err := external.ConvertToInternal(existing)
@@ -102,7 +103,7 @@ func TestClusterContainerRegistryPreservation(t *testing.T) {
 							require.NoError(t, err)
 						}
 						external := version.NewCluster(existing)
-						require.NoError(t, json.Unmarshal([]byte(tt.body), external))
+						require.NoError(t, kjson.UnmarshalCaseSensitivePreserveInts([]byte(tt.body), external))
 						cluster, err := external.ConvertToInternal(existing)
 						if tt.wantErr != "" {
 							require.ErrorContains(t, err, tt.wantErr)

@@ -16,11 +16,12 @@ package kubeappliercosmosstoragetesting
 
 import (
 	"context"
-	"encoding/json"
 	"strings"
 	"testing"
 
 	"k8s.io/apimachinery/pkg/runtime"
+
+	kjson "sigs.k8s.io/json"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -161,7 +162,7 @@ func TestMockKubeApplier_PartitionKeyEnvelope(t *testing.T) {
 	}
 	for _, raw := range allDocs {
 		var td cosmosstorageutils.TypedDocument
-		if err := json.Unmarshal(raw, &td); err != nil {
+		if err := kjson.UnmarshalCaseSensitivePreserveInts(raw, &td); err != nil {
 			t.Fatalf("unmarshal typed doc: %v", err)
 		}
 		if td.PartitionKey != strings.ToLower(testMgmt) {

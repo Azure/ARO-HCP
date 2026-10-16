@@ -16,7 +16,6 @@ package fleetinformers
 
 import (
 	"context"
-	"encoding/json"
 	"strings"
 	"sync"
 	"testing"
@@ -26,6 +25,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"k8s.io/client-go/tools/cache"
+
+	kjson "sigs.k8s.io/json"
 
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
@@ -134,7 +135,7 @@ func TestFleetInformersHCPResourceRequirements(t *testing.T) {
 	var snapshots []map[string]any
 	for _, line := range capturedLines {
 		var entry map[string]any
-		require.NoError(t, json.Unmarshal([]byte(line), &entry))
+		require.NoError(t, kjson.UnmarshalCaseSensitivePreserveInts([]byte(line), &entry))
 		if entry["snapshotType"] == "cosmos" {
 			snapshots = append(snapshots, entry)
 		}

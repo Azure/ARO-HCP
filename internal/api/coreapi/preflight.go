@@ -18,6 +18,8 @@ import (
 	"encoding/json"
 	"path"
 	"strings"
+
+	kjson "sigs.k8s.io/json"
 )
 
 // See https://learn.microsoft.com/en-us/rest/api/datareplication/deployment-preflight/deployment-preflight?view=rest-datareplication-2021-02-16-preview&tabs=Go
@@ -57,7 +59,7 @@ func (r *DeploymentPreflightResource) Convert(v any) error {
 	if err != nil {
 		return err
 	}
-	return json.Unmarshal(data, v)
+	return kjson.UnmarshalCaseSensitivePreserveInts(data, v)
 }
 
 // ResourceID returns a resource ID string for the resource.
@@ -109,7 +111,7 @@ func recurseDetectTLE(v any) bool {
 func DetectTLE(data []byte) (bool, error) {
 	var v any
 
-	err := json.Unmarshal(data, &v)
+	err := kjson.UnmarshalCaseSensitivePreserveInts(data, &v)
 	if err != nil {
 		return false, err
 	}
