@@ -49,6 +49,22 @@ type transitionFloor struct {
 	zones compute.CapacityByRoleZone
 }
 
+func allowsPoolDeletion(current []PoolState, pool PoolState, floor transitionFloor) bool {
+	if !allowsCapacityReduction(current, pool, 0, floor) {
+		return false
+	}
+	key := pool.RoleZoneKey()
+	if _, protected := floor.zones[key]; !protected {
+		return true
+	}
+	for _, other := range current {
+		if other.Name != pool.Name && other.RoleZoneKey() == key {
+			return true
+		}
+	}
+	return false
+}
+
 // allowsCapacityReduction protects the accepted floor of the affected role-zone
 // bucket. A rejected candidate does not prevent the planner from considering
 // other pools or growing replacement capacity.

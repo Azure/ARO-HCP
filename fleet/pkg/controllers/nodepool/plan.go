@@ -255,7 +255,7 @@ func findShrinkAction(current []PoolState, desiredByName map[string]compute.Pool
 				break
 			}
 		}
-		if !survivorRemains || !allowsCapacityReduction(current, cur, 0, capacityFloor) {
+		if !survivorRemains || !allowsPoolDeletion(current, cur, capacityFloor) {
 			continue
 		}
 		return newDeleteAction(cur.Name, cur.Spec.Size, cur.ZoneString(), cur.ETag), true
@@ -309,7 +309,7 @@ func findShrinkAction(current []PoolState, desiredByName map[string]compute.Pool
 
 	// Delete: remove frozen pools with zero nodes.
 	for _, cur := range undesired {
-		if !cur.AutoScalingEnabled && cur.Count == 0 {
+		if !cur.AutoScalingEnabled && cur.Count == 0 && allowsPoolDeletion(current, cur, capacityFloor) {
 			return newDeleteAction(cur.Name, cur.Spec.Size, cur.ZoneString(), cur.ETag), true
 		}
 	}
