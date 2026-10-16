@@ -60,7 +60,11 @@ mgmt-agent runs the following controllers under a single leader election:
 
 5. Backup cleanup controller: requests Velero-managed deletion of ARO-HCP
    backups when their HostedCluster is absent, unless the backup or repository
-   opts out. Repositories remain available for Kopia garbage collection.
+   opts out.
+
+6. Repository cleanup controller: records durable cleanup intents before retiring
+   orphaned BackupRepositories, drains maintenance workloads, and deletes their
+   Azure blob prefixes. Completed intents remain to handle late maintenance Jobs.
 
 It also runs log-only watchers for Pod (when KSM is enabled) and selected CRD
 and core resources to aid operational troubleshooting.`,
