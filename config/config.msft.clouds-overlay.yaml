@@ -49,10 +49,6 @@ clouds:
           # westus3: second STG region, born on the dedicated hcp-stg-global sub with
           # its "…2" global names (AROSLSRE-1657). uksouth stays on hcp-global.
           westus3:
-            mgmt:
-              # AROSLSRE-2459: use the Network RP-recognized identity for Swift stamp registration.
-              # Remove this override after the Stage-global identity is registered and verified.
-              swiftVnetIdentityResourceId: /subscriptions/9a53d80e-dae0-4c8a-af90-30575d253127/resourceGroups/global-shared-resources/providers/Microsoft.ManagedIdentity/userAssignedIdentities/global-ev2-identity
             global:
               subscription:
                 key: hcp-stg-global
