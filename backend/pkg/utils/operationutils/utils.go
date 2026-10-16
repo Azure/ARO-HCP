@@ -660,7 +660,16 @@ func convertInflightChecks(ctx context.Context, clusterServiceClient ocm.Cluster
 		}, nil
 	}
 
-	return coreapi.NewCloudErrorBodyFromSlice(cloudErrors, "Cluster provisioning failed due to multiple errors"), nil
+	operationError := coreapi.NewCloudErrorBodyFromSlice(cloudErrors, "Cluster provisioning failed due to multiple errors")
+	if len(cloudErrors) > 1 {
+		for _, detail := range operationError.Details {
+			if detail.Code != coreapi.CloudErrorCodeQuotaExceeded {
+				return operationError, nil
+			}
+		}
+		operationError.Code = coreapi.CloudErrorCodeQuotaExceeded
+	}
+	return operationError, nil
 }
 
 func convertInflightCheck(inflightCheck *arohcpv1alpha1.InflightCheck, logger logr.Logger) coreapi.CloudErrorBody {
@@ -669,8 +678,10 @@ func convertInflightCheck(inflightCheck *arohcpv1alpha1.InflightCheck, logger lo
 		logger.Error(nil, "error converting inflight check details", "name", inflightCheck.Name())
 	}
 
+	code := coreapi.CloudErrorCodeForMessage(message, coreapi.CloudErrorCodeInternalServerError)
+
 	return coreapi.CloudErrorBody{
-		Code:    coreapi.CloudErrorCodeInternalServerError,
+		Code:    code,
 		Message: message,
 	}
 }

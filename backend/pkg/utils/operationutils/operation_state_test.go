@@ -38,15 +38,140 @@ func TestNewOperationStateCloudErrorCode(t *testing.T) {
 	} {
 		t.Run(string(state), func(t *testing.T) {
 			t.Parallel()
-			wantCode := coreapi.CloudErrorCodeInternalServerError
-			if state == coreapi.ProvisioningStateSucceeded {
-				wantCode = ""
+			for _, tt := range []struct {
+				name     string
+				message  string
+				wantCode string
+			}{
+				{
+					name:     "non-quota message",
+					message:  "diagnostic",
+					wantCode: coreapi.CloudErrorCodeInternalServerError,
+				},
+				{
+					name:     "quota message",
+					message:  "insufficient public IP address quota",
+					wantCode: coreapi.CloudErrorCodeQuotaExceeded,
+				},
+			} {
+				t.Run(tt.name, func(t *testing.T) {
+					t.Parallel()
+					wantCode := tt.wantCode
+					if state == coreapi.ProvisioningStateSucceeded {
+						wantCode = ""
+					}
+					got := NewOperationState(state, tt.message)
+					assert.Equal(t, state, got.ProvisioningState)
+					assert.Equal(t, tt.message, got.Message)
+					assert.Equal(t, wantCode, got.CloudErrorCode)
+					picked, err := PickWorstOperationState([]*OperationState{got})
+					assert.NoError(t, err)
+					assert.Equal(t, wantCode, picked.CloudErrorCode)
+				})
 			}
-			got := NewOperationState(state, "diagnostic")
-			assert.Equal(t, wantCode, got.CloudErrorCode)
-			picked, err := PickWorstOperationState([]*OperationState{got})
-			assert.NoError(t, err)
-			assert.Equal(t, wantCode, picked.CloudErrorCode)
+		})
+	}
+}
+
+func TestWithCloudErrorCode(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		message     string
+		initialCode string
+		code        string
+		wantCode    string
+	}{
+		{
+			name:        "generic code upgrades for quota message",
+			message:     "insufficient public IP address quota",
+			initialCode: coreapi.CloudErrorCodeInternalServerError,
+			code:        coreapi.CloudErrorCodeInternalServerError,
+			wantCode:    coreapi.CloudErrorCodeQuotaExceeded,
+		},
+		{
+			name:        "structured quota code normalizes without quota message",
+			message:     "diagnostic",
+			initialCode: coreapi.CloudErrorCodeInternalServerError,
+			code:        "PublicIPCountLimitReached",
+			wantCode:    coreapi.CloudErrorCodeQuotaExceeded,
+		},
+		{
+			name:        "OperationNotAllowed upgrades for quota message",
+			message:     "The quota has been reached.",
+			initialCode: coreapi.CloudErrorCodeInternalServerError,
+			code:        "OperationNotAllowed",
+			wantCode:    coreapi.CloudErrorCodeQuotaExceeded,
+		},
+		{
+			name:        "OperationNotAllowed is preserved for non-quota message",
+			message:     "The resource provider is not registered for this subscription",
+			initialCode: coreapi.CloudErrorCodeInternalServerError,
+			code:        "OperationNotAllowed",
+			wantCode:    "OperationNotAllowed",
+		},
+		{
+			name:        "generic code preserves quota classification",
+			message:     "insufficient public IP address quota",
+			initialCode: coreapi.CloudErrorCodeQuotaExceeded,
+			code:        coreapi.CloudErrorCodeInternalServerError,
+			wantCode:    coreapi.CloudErrorCodeQuotaExceeded,
+		},
+		{
+			name:        "generic code stays generic for non-quota message",
+			message:     "diagnostic",
+			initialCode: coreapi.CloudErrorCodeInternalServerError,
+			code:        coreapi.CloudErrorCodeInternalServerError,
+			wantCode:    coreapi.CloudErrorCodeInternalServerError,
+		},
+		{
+			name:        "invalid parameter takes precedence over quota",
+			message:     "insufficient public IP address quota",
+			initialCode: coreapi.CloudErrorCodeQuotaExceeded,
+			code:        coreapi.CloudErrorCodeInvalidParameter,
+			wantCode:    coreapi.CloudErrorCodeInvalidParameter,
+		},
+		{
+			name:        "deadline exceeded takes precedence over quota",
+			message:     "insufficient public IP address quota",
+			initialCode: coreapi.CloudErrorCodeQuotaExceeded,
+			code:        coreapi.CloudErrorCodeDeadlineExceeded,
+			wantCode:    coreapi.CloudErrorCodeDeadlineExceeded,
+		},
+		{
+			name:        "capacity heavy use takes precedence over quota",
+			message:     "insufficient public IP address quota",
+			initialCode: coreapi.CloudErrorCodeQuotaExceeded,
+			code:        coreapi.CloudErrorCodeCapacityHeavyUse,
+			wantCode:    coreapi.CloudErrorCodeCapacityHeavyUse,
+		},
+		{
+			name:        "empty code preserves quota classification",
+			message:     "insufficient public IP address quota",
+			initialCode: coreapi.CloudErrorCodeQuotaExceeded,
+			wantCode:    coreapi.CloudErrorCodeQuotaExceeded,
+		},
+		{
+			name:        "empty code preserves explicit classification",
+			message:     "insufficient public IP address quota",
+			initialCode: coreapi.CloudErrorCodeDeadlineExceeded,
+			wantCode:    coreapi.CloudErrorCodeDeadlineExceeded,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			state := &OperationState{
+				ProvisioningState: coreapi.ProvisioningStateFailed,
+				Message:           tt.message,
+				CloudErrorCode:    tt.initialCode,
+			}
+			got := state.WithCloudErrorCode(tt.code)
+			assert.Same(t, state, got)
+			assert.Equal(t, tt.wantCode, got.CloudErrorCode)
+			assert.Equal(t, tt.message, got.Message)
+			assert.Equal(t, coreapi.ProvisioningStateFailed, got.ProvisioningState)
 		})
 	}
 }

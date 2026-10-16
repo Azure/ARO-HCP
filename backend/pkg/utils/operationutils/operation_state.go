@@ -44,7 +44,7 @@ func (s *OperationState) WithSource(source string) *OperationState {
 // WithCloudErrorCode sets the error code when a more specific classification is available.
 func (s *OperationState) WithCloudErrorCode(code string) *OperationState {
 	if code != "" {
-		s.CloudErrorCode = code
+		s.CloudErrorCode = coreapi.NormalizeQuotaCloudErrorCode(code, s.Message)
 	}
 	return s
 }
@@ -53,7 +53,7 @@ func (s *OperationState) WithCloudErrorCode(code string) *OperationState {
 func NewOperationState(provisioningState coreapi.ProvisioningState, message string) *OperationState {
 	code := ""
 	if provisioningState != coreapi.ProvisioningStateSucceeded {
-		code = coreapi.CloudErrorCodeInternalServerError
+		code = coreapi.CloudErrorCodeForMessage(message, coreapi.CloudErrorCodeInternalServerError)
 	}
 	return &OperationState{
 		ProvisioningState: provisioningState,
