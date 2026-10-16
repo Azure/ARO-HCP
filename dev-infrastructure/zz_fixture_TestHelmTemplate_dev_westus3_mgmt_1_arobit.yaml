@@ -268,7 +268,7 @@ data:
         Match           kubernetes.var.log.containers.*
         Rule            $kubernetes['namespace_name'] ^ocm-.* ocm.logs false
         Emitter_Name    re_emitted_namespace_router
-        Emitter_Mem_Buf_Limit  20M
+        Emitter_Mem_Buf_Limit  40M
         Emitter_Storage.type   filesystem
 
     [FILTER]
@@ -300,7 +300,7 @@ data:
         Rule            $kubernetes['container_name'] ^mgmt-agent-controller* mgmt-agent.logs true
         Rule            $kubernetes['container_name'] ^swift-recorder$ kubernetes.swift-recorder.logs false
         Emitter_Name    re_emitted_container_name_router
-        Emitter_Mem_Buf_Limit  20M
+        Emitter_Mem_Buf_Limit  40M
         Emitter_Storage.type   filesystem
 
     [FILTER]
@@ -330,7 +330,7 @@ data:
         Match           mgmt-agent.logs
         Rule            $snapshotType ^kubernetes$ resource-snapshots.logs false
         Emitter_Name    re_emitted_resource_snapshot_router
-        Emitter_Mem_Buf_Limit  20M
+        Emitter_Mem_Buf_Limit  40M
         Emitter_Storage.type   filesystem
 
     [FILTER]
@@ -353,7 +353,7 @@ data:
         Match           aro-hcp-backend.logs
         Rule            $snapshotType ^cosmos$ cosmos-snapshots.logs false
         Emitter_Name    re_emitted_cosmos_snapshot_router
-        Emitter_Mem_Buf_Limit  20M
+        Emitter_Mem_Buf_Limit  40M
         Emitter_Storage.type   filesystem
 
     [FILTER]
@@ -364,7 +364,7 @@ data:
         Match           aro-hcp-frontend.logs
         Rule            $snapshotType ^cosmos$ cosmos-snapshots.logs false
         Emitter_Name    re_emitted_cosmos_snapshot_router_frontend
-        Emitter_Mem_Buf_Limit  20M
+        Emitter_Mem_Buf_Limit  40M
         Emitter_Storage.type   filesystem
 
     [FILTER]
@@ -376,7 +376,7 @@ data:
         Match           fleet-controller.logs
         Rule            $snapshotType ^cosmos$ cosmos-snapshots.logs true
         Emitter_Name    re_emitted_cosmos_snapshot_router_fleet
-        Emitter_Mem_Buf_Limit  20M
+        Emitter_Mem_Buf_Limit  40M
         Emitter_Storage.type   filesystem
   set-cluster-id-from-annotation.lua: |
     -- Lua script for stamping the HCP cluster's Azure ARM resource ID onto
@@ -904,7 +904,7 @@ spec:
         app: arobit-forwarder
         azure.workload.identity/use: "true"
       annotations:
-        checksum/configmap: c8326a992a4c2112cb57bf78ea98e6f33084c9f61ff3c8e726e935c0dc55c97e
+        checksum/configmap: abaa31e38b1b37c2a488f5d6af9b51400073ab2aac84183130a89ab5e3975fc2
     spec:
       priorityClassName: service-lifecycle-critical
       serviceAccountName: 'arobit-forwarder'
