@@ -188,7 +188,7 @@ When writing E2E test cases that use a **per-run cluster** (i.e., the cluster is
 - **Setup Requirement (Test Case Structure):** These tests require the e2esetup models to be populated. This can be achieved by either:
   - Setting the `FALLBACK_TO_BICEP` environment variable to the name of a Bicep file to be used for populating e2esetup models, **or**
   - Setting the `SETUP_FILEPATH` environment variable to the path of a valid `e2e-setup.json` file describing your cluster and environment.
-- **Label Recommendation:** You **SHOULD NOT** add the `RequireNothing` label to these test cases; instead of `RequireNothing` use `RequireHappyPath`, or other labels that indicate the test's requirements (e.g. `Create-Cluster`, `Setup-Validation`, `Teardown Validation`, etc.) so the test runner can select appropriate tests based on the environment and setup.
+- **Label Recommendation:** You **SHOULD NOT** add the `RequireNothing` label to these test cases; instead of `RequireNothing` use `RequireHappyPathInfra`, or other labels that indicate the test's requirements (e.g. `Create-Cluster`, `Setup-Validation`, `Teardown Validation`, etc.) so the test runner can select appropriate tests based on the environment and setup.
 
 For more details on the setup file and fallback logic, see the [Setup File](#setup-file) and [Fallback to Bicep Setup](#fallback-to-bicep-setup) sections below.
 
@@ -532,7 +532,9 @@ Labels are located in file [`test/util/labels/labels.go`](https://github.com/Azu
 Test case environments labels:
 
 - `RequireNothing`: This test case creates its own cluster (per-test cluster)
-- `RequireHappyPath`: This test case expects populated e2esetup models (per-run cluster)
+- `RequireHappyPathInfra`: This test case expects populated e2esetup models (per-run cluster)
+- `RequireSharedReadOnlyCluster`: GET/LIST or guarded-negative PATCH tests borrowing the runner-owned cluster and node pool; the runner, not the borrower, owns provisioning and cleanup. Rejected writes must use the guarded helper and leave the target unchanged.
+- `UpgradeInPlace`: In-place upgrade tests selected exclusively by the `upgrade/in-place` suite.
 
 Importance labels include four levels:
 

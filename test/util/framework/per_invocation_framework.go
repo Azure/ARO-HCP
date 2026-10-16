@@ -109,30 +109,34 @@ var azureRetryOptions = policy.RetryOptions{
 // AZURE_CLIENT_SECRET
 func invocationContext() *perBinaryInvocationTestContext {
 	initializeOnce.Do(func() {
-		if _, err := vmFamilyPolicyFromEnv(); err != nil {
-			panic(err)
-		}
-		invocationContextInstance = &perBinaryInvocationTestContext{
-			artifactDir:                          artifactDir(),
-			sharedDir:                            SharedDir(),
-			subscriptionName:                     subscriptionName(),
-			tenantID:                             tenantID(),
-			testUserClientID:                     testUserClientID(),
-			location:                             location(),
-			pullSecretPath:                       pullSecretPath(),
-			frontendAddress:                      frontendAddress(),
-			adminAPIAddress:                      adminAPIAddress(),
-			resourceManagerEndpoint:              resourceManagerEndpoint(),
-			skipCertVerification:                 skipCertVerification(),
-			isDevelopmentEnvironment:             IsDevelopmentEnvironment(),
-			skipCleanup:                          skipCleanup(),
-			pooledIdentities:                     pooledIdentities(),
-			compressTimingMetadata:               compressTimingMetadata(),
-			defaultTransport:                     defaultHTTPTransport(),
-			virtualMachineResourceSKUsByLocation: make(map[string][]*armcompute.ResourceSKU),
-		}
+		invocationContextInstance = Must(newInvocationContext())
 	})
 	return invocationContextInstance
+}
+
+func newInvocationContext() (*perBinaryInvocationTestContext, error) {
+	if _, err := vmFamilyPolicyFromEnv(); err != nil {
+		return nil, err
+	}
+	return &perBinaryInvocationTestContext{
+		artifactDir:                          artifactDir(),
+		sharedDir:                            SharedDir(),
+		subscriptionName:                     subscriptionName(),
+		tenantID:                             tenantID(),
+		testUserClientID:                     testUserClientID(),
+		location:                             location(),
+		pullSecretPath:                       pullSecretPath(),
+		frontendAddress:                      frontendAddress(),
+		adminAPIAddress:                      adminAPIAddress(),
+		resourceManagerEndpoint:              resourceManagerEndpoint(),
+		skipCertVerification:                 skipCertVerification(),
+		isDevelopmentEnvironment:             IsDevelopmentEnvironment(),
+		skipCleanup:                          skipCleanup(),
+		pooledIdentities:                     pooledIdentities(),
+		compressTimingMetadata:               compressTimingMetadata(),
+		defaultTransport:                     defaultHTTPTransport(),
+		virtualMachineResourceSKUsByLocation: make(map[string][]*armcompute.ResourceSKU),
+	}, nil
 }
 
 func (tc *perBinaryInvocationTestContext) getAzureCredentials() (azcore.TokenCredential, error) {

@@ -1,3 +1,5 @@
+Customer should get an existing HCP cluster and report a missing cluster through the RP
+Immutable cluster configuration rejects an immutable cluster DNS prefix PATCH without changing the shared cluster
 Customer should be able to list available HCP OpenShift versions and validate response content
 SRE should be able to log into a cluster via a breakglass session
 SRE should be able to retrieve serial console logs for a VM
@@ -98,6 +100,7 @@ Customer should be able to delete a nodepool
 Nodepool Ephemeral OS Disk should create a nodepool with ephemeral OS disk when autoRepair is enabled
 Customer should be able to update node pool labels and taints
 Nodepool OS Disk Encryption should create a nodepool with customer-managed disk encryption via DES
+Immutable node pool configuration rejects an immutable node pool OS disk size PATCH without changing the shared node pool
 Customer should upgrade and update a nodepool from 4.20.z to 4.21.zLatest
 Customer should upgrade and update a nodepool from 4.21.z to 4.21.zLatest
 Customer should upgrade and update a nodepool from 4.20.z to 4.20.zLatest

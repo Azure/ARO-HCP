@@ -217,7 +217,7 @@ ARM API versions live under `internal/api/v<YYYYMMDD>preview/` (e.g. `v20240610p
 E2E tests live in `test/e2e/` and use Ginkgo/Gomega. Key conventions:
 - E2E test files must **not** use the `_test.go` suffix (except `e2e_test.go` entry point) — the Ginkgo OpenShift extension excludes `_test.go` files during imports.
 - Every `It()` block must accept `context.Context` as its first parameter.
-- Every test must have labels: environment (`labels.RequireNothing` or `labels.RequireHappyPathInfra`), importance (`labels.Critical`/`High`/`Medium`/`Low`), and positivity (`labels.Positive`/`labels.Negative`).
+- Every test must have labels: exactly one environment (`labels.RequireNothing`, `labels.RequireHappyPathInfra`, `labels.RequireSharedReadOnlyCluster`, or `labels.UpgradeInPlace`), importance (`labels.Critical`/`High`/`Medium`/`Low`), and positivity (`labels.Positive`/`labels.Negative`). Use `labels.RequireSharedReadOnlyCluster` for GET/LIST or serialized guarded-negative PATCH tests borrowing the runner-owned fixture without owning its cleanup; rejected writes must use `framework.SharedGuardedNegativeCluster`.
 - Framework helpers use explicit API version suffixes: `CreateHCPClusterFromParam20240610`, `GetHCPCluster20251223`, etc.
 - See `test/AGENTS.md` for the full E2E design guide and code review standards.
 
