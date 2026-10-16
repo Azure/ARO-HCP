@@ -776,6 +776,8 @@ defaults:
           poll: true
     rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.region }}-mgmt-{{ .ctx.stamp }}"
     applyKubeletFixes: true
+    # Empty selects the global deployment identity for Swift VNet creation/tagging.
+    swiftVnetIdentityResourceId: ""
     nsp:
       name: nsp-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}
     aks:
