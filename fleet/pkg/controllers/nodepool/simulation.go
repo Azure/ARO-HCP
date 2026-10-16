@@ -15,7 +15,6 @@
 package nodepool
 
 import (
-	"errors"
 	"fmt"
 	"maps"
 	"slices"
@@ -106,7 +105,10 @@ func simulateAndTrace(desired []compute.Pool, initial []PoolState, familyBudgets
 	// re-deriving it from a partially migrated state would raise it and strand
 	// the migration.
 	desiredZoneCapacity, desiredZoneErr := compute.PoolZoneCapacities(desired)
-	floorErr := errors.Join(initialZoneErr, desiredZoneErr)
+	if desiredZoneErr != nil {
+		return tr, fmt.Errorf("desired role-zone capacity: %w", desiredZoneErr)
+	}
+	floorErr := initialZoneErr
 	var zoneFloor compute.CapacityByRoleZone
 	if floorErr == nil {
 		zoneFloor, floorErr = desiredZoneCapacity.ResolveEffectiveFloor(zoneCapacity, fullyAllocated)

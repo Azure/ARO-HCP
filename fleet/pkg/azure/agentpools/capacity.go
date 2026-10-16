@@ -15,9 +15,7 @@
 package agentpools
 
 import (
-	"encoding/json"
 	"fmt"
-	"strings"
 
 	"k8s.io/utils/ptr"
 
@@ -27,37 +25,6 @@ import (
 	"github.com/Azure/ARO-HCP/fleet/pkg/azure/skucache"
 	"github.com/Azure/ARO-HCP/fleet/pkg/compute"
 )
-
-const CapacityTagPrefix = "arohcp-capacity-"
-
-// ParseCapacityTags allows missing roles for initial adoption, but rejects
-// malformed values, including omitted dimensions. Azure tag keys ignore case.
-func ParseCapacityTags(tags map[string]*string) (compute.CapacityByRole, error) {
-	result := compute.CapacityByRole{}
-	for key, value := range tags {
-		if !strings.HasPrefix(strings.ToLower(key), CapacityTagPrefix) {
-			continue
-		}
-		role := compute.PoolRole(strings.ToLower(key[len(CapacityTagPrefix):]))
-		if len(role) == 0 {
-			return nil, fmt.Errorf("capacity tag %q has no role", key)
-		}
-		if _, duplicate := result[role]; duplicate {
-			return nil, fmt.Errorf("duplicate capacity tag for %s", role)
-		}
-		var fields map[string]*int64
-		if value == nil || len(*value) > 256 || json.Unmarshal([]byte(ptr.Deref(value, "")), &fields) != nil || len(fields) != 3 ||
-			fields["vcpus"] == nil || fields["memoryGiB"] == nil || fields["swiftNICs"] == nil {
-			return nil, fmt.Errorf("invalid capacity tag %q", key)
-		}
-		capacity := compute.RoleCapacity{VCPUs: *fields["vcpus"], MemoryBytes: *fields["memoryGiB"] << 30, SwiftNICs: *fields["swiftNICs"]}
-		if capacity.VCPUs < 0 || capacity.MemoryBytes < 0 || capacity.SwiftNICs < 0 {
-			return nil, fmt.Errorf("negative capacity in tag %q", key)
-		}
-		result[role] = capacity
-	}
-	return result, nil
-}
 
 // ObservedPoolCapacities derives capacity from inline agent pool profiles
 // embedded in the ManagedCluster response. It rejects incomplete ARM/SKU data
