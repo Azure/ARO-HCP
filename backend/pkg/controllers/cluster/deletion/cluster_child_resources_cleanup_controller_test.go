@@ -640,7 +640,7 @@ func TestStackDesireGenericCleanup(t *testing.T) {
 	for _, orphaned := range []bool{false, true} {
 		t.Run(fmt.Sprintf("orphaned=%t", orphaned), func(t *testing.T) {
 			ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
-			cluster := newTestClusterWithNewDeletionApproach(t, func(cluster *coreapi.Cluster) {
+			cluster := newTestCluster(t, func(cluster *coreapi.Cluster) {
 				cluster.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: time.Now()}
 				cluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp = cluster.ServiceProviderProperties.DeletionTimestamp
 				cluster.ServiceProviderProperties.ClusterServiceID = nil
