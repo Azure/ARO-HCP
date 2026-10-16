@@ -375,7 +375,8 @@ Instead, resolve VM sizes at runtime through the restriction-aware selector in
   8 vCPUs for default workers, 4 for small workers, and 2 for helpers, preventing
   discovery from selecting oversized SKUs such as D128. Exhausting configured
   families returns `ErrNoUsableVMSize` without falling through to other families.
-- The catalog configures **only `int` / `westus3-shard0`**:
+- The catalog configures `int` / `westus3-shard0` and the West US 3 runtime
+  region of `stg` / `westus3-shard0`:
   workers search Dsv6 → Dsv5 → Dasv5, and helpers search Ddsv6 → Ddsv5 → Dadsv5.
   The exact Azure family identifiers are `StandardDsv6Family`,
   `standardDSv5Family`, `standardDASv5Family` for workers and
@@ -383,7 +384,9 @@ Instead, resolve VM sizes at runtime through the restriction-aware selector in
   The first choices are `Standard_D8s_v6`, `Standard_D4s_v6`, and
   `Standard_D2ds_v6`; later families are considered only when no eligible size
   in an earlier family is available.
-  INT UK South and all other pools retain historical behavior.
+  INT UK South, other Stage runtime regions, and all other pools retain
+  historical behavior. A Stage runtime-region override does not switch from the
+  West US 3 identity inventory to the separately retained UK South inventory.
   Ephemeral OS disk, GPU, Arm64 selectors and explicit pins bypass family
   selection policy; malformed configuration still fails suite initialization.
 
