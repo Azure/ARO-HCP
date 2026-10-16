@@ -195,3 +195,42 @@ func (c *MockServiceManagedIdentityClientBuilderUserAssignedIdentitiesClientCall
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
+
+// VirtualNetworksClient mocks base method.
+func (m *MockServiceManagedIdentityClientBuilder) VirtualNetworksClient(ctx context.Context, clusterIdentityURL string, smiResourceID *arm.ResourceID, subscriptionID string) (VirtualNetworksClient, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "VirtualNetworksClient", ctx, clusterIdentityURL, smiResourceID, subscriptionID)
+	ret0, _ := ret[0].(VirtualNetworksClient)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// VirtualNetworksClient indicates an expected call of VirtualNetworksClient.
+func (mr *MockServiceManagedIdentityClientBuilderMockRecorder) VirtualNetworksClient(ctx, clusterIdentityURL, smiResourceID, subscriptionID any) *MockServiceManagedIdentityClientBuilderVirtualNetworksClientCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "VirtualNetworksClient", reflect.TypeOf((*MockServiceManagedIdentityClientBuilder)(nil).VirtualNetworksClient), ctx, clusterIdentityURL, smiResourceID, subscriptionID)
+	return &MockServiceManagedIdentityClientBuilderVirtualNetworksClientCall{Call: call}
+}
+
+// MockServiceManagedIdentityClientBuilderVirtualNetworksClientCall wrap *gomock.Call
+type MockServiceManagedIdentityClientBuilderVirtualNetworksClientCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockServiceManagedIdentityClientBuilderVirtualNetworksClientCall) Return(arg0 VirtualNetworksClient, arg1 error) *MockServiceManagedIdentityClientBuilderVirtualNetworksClientCall {
+	c.Call = c.Call.Return(arg0, arg1)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockServiceManagedIdentityClientBuilderVirtualNetworksClientCall) Do(f func(context.Context, string, *arm.ResourceID, string) (VirtualNetworksClient, error)) *MockServiceManagedIdentityClientBuilderVirtualNetworksClientCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockServiceManagedIdentityClientBuilderVirtualNetworksClientCall) DoAndReturn(f func(context.Context, string, *arm.ResourceID, string) (VirtualNetworksClient, error)) *MockServiceManagedIdentityClientBuilderVirtualNetworksClientCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}

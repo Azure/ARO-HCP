@@ -110,6 +110,7 @@ var expectedControllerLaunches = []struct {
 	{"desiredcontrolplanesize", 20},
 	{"serviceproviderclusterpropertiessync", 20},
 	{"clustervalidationazureclustervnetintegrationsubnetsizevalidation", 20},
+	{"clustervalidationazureclustersubnetvalidation", 20},
 	{"clustervalidationazureresourceprovidersregistrationvalidation", 20},
 	{"clustervalidationazureclusterresourcegroupexistencevalidation", 20},
 	{"clustervalidationazureclustermanagedidentitiesexistencevalidation", 20},
@@ -167,7 +168,7 @@ var expectedControllerLaunches = []struct {
 
 func TestControllerRegistryManifest(t *testing.T) {
 	registry := newControllerRegistry()
-	require.Len(t, registry, 112)
+	require.Len(t, registry, 113)
 	expectedOrder := make([]string, 0, len(expectedControllerLaunches))
 	for _, expected := range expectedControllerLaunches {
 		expectedOrder = append(expectedOrder, expected.name)
@@ -332,7 +333,7 @@ func TestControllerContextKeepsFactoriesNotIndividualInformers(t *testing.T) {
 func TestControllerRegistryNamedZoneRegistrations(t *testing.T) {
 	files := token.NewFileSet()
 	for zone, expectedCount := range map[string]int{
-		"billing": 2, "cluster": 65, "clusterresources": 1, "cosmosmigration": 2,
+		"billing": 2, "cluster": 66, "clusterresources": 1, "cosmosmigration": 2,
 		"datadump": 1, "externalauth": 10, "metrics": 6, "mismatch": 4, "nodepool": 19,
 	} {
 		source, err := parser.ParseFile(files, "../controllers/"+zone+"/registration.go", nil, 0)
@@ -401,7 +402,7 @@ func TestControllerRegistryUnorderedConstructionAndErrors(t *testing.T) {
 	constructed = nil
 	_, err = instantiateControllers(registry, ControllerContext{}, storageFactory)
 	require.NoError(t, err)
-	require.Len(t, constructed, 111)
+	require.Len(t, constructed, 112)
 	require.NotContains(t, constructed, "clusterdenyassignment")
 	expectedErr := errors.New("constructor failed")
 	name := "union-kube-applier-informers-controller"

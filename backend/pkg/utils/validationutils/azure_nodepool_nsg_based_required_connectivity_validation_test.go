@@ -63,6 +63,10 @@ func (f *fakeSMIClientBuilder) SubnetsClient(context.Context, string, *azcorearm
 	return f.subnetsClient, nil
 }
 
+func (f *fakeSMIClientBuilder) VirtualNetworksClient(context.Context, string, *azcorearm.ResourceID, string) (azureclient.VirtualNetworksClient, error) {
+	return nil, nil
+}
+
 func testCluster() *coreapi.Cluster {
 	cluster := coreapitesting.MinimumValidClusterTestCase()
 	cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity = metadataapi.Must(azcorearm.ParseResourceID(
