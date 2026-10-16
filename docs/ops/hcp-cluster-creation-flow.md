@@ -200,7 +200,7 @@ kubectl logs -n kube-applier deployment/kube-applier -c kube-applier
 ```
 
 > [!NOTE]
-> TODO: confirm the exact namespace/deployment/container names and add commands for inspecting the CosmosDB desire documents (`ApplyDesire` with `Type=ServerSideApply` or `Type=Delete`, and `ReadDesire`) and their reported conditions once the write path is fully rolled out. Track under [ARO-27507](https://issues.redhat.com/browse/ARO-27507).
+> TODO: add commands for inspecting the CosmosDB desire documents (`ApplyDesire` with `Type=ServerSideApply` or `Type=Delete`, and `ReadDesire`) and their reported conditions once the write path is fully rolled out. Track under [ARO-27507](https://issues.redhat.com/browse/ARO-27507).
 <!-- END GENERATED: kube-applier-debug -->
 
 ## Maestro Server (legacy)
@@ -325,7 +325,8 @@ Regenerate each region from source:
    (search config/ and the kube-applier component dir), not from memory. Document
    desire document types as `ApplyDesire` (with Type=ServerSideApply or Type=Delete)
    and `ReadDesire`, not `DeleteDesire` (which doesn't exist as a separate type).
-   Replace the TODO note with real inspection commands once the names are confirmed.
+   Replace the TODO note with real CosmosDB desire-document inspection commands once
+   they are available.
 
 Preserve this Generation Prompt section at the bottom of the file so it can be
 edited and re-run.

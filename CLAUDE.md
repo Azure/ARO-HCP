@@ -284,6 +284,7 @@ Regenerate the marked regions of `docs/ops/hcp-cluster-creation-flow.md` (using 
 - `backend/pkg/controllers/` — any controller in the creation/apply-desire/read-desire/management-cluster flow
 - `kube-applier/` — the cross-cluster apply/delete/read behavior
 - deployment manifests / topology config (`config/`) — namespace or deployment names referenced in the debug commands
+- `docs/cosmos-data-flow.md` — changes to the "Cluster Create Flow" digraph
 
 Keep the flow diagram consistent with the "Cluster Create Flow" digraph in `docs/cosmos-data-flow.md`.
 
