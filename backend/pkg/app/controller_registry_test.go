@@ -110,6 +110,7 @@ var expectedControllerLaunches = []struct {
 	{"desiredcontrolplanesize", 20},
 	{"serviceproviderclusterpropertiessync", 20},
 	{"clustervalidationazureclustervnetintegrationsubnetsizevalidation", 20},
+	{"clustervalidationstorageaccountnetworkaccessvalidation", 20},
 	{"clustervalidationazureresourceprovidersregistrationvalidation", 20},
 	{"clustervalidationazureclusterresourcegroupexistencevalidation", 20},
 	{"clustervalidationazureclustermanagedidentitiesexistencevalidation", 20},
