@@ -1,21 +1,24 @@
 let _startTime = {{.TimestampMin }};
 let _endTime = {{.TimestampMax }};
-// Extract cluster ID from CS logs using cid field
-let _cs_cluster_id = toscalar(
+// Discover all cluster and bundle IDs over the full range, not each output window.
+let _cs_cluster_ids = (
     database('ServiceLogs').table('clustersServiceLogs')
-    | where timestamp between (_startTime .. _endTime)
-    | where resource_id has '{{.ResourceGroupName}}'
-    | where isnotempty(log.cid)
-    | distinct tostring(log.cid)
-    | limit 1
+    | where timestamp between ({{.DiscoveryTimestampMin}} .. {{.DiscoveryTimestampMax}})
+{{- if .SubscriptionId}}
+    | where resource_id startswith '{{.SubResourceGroupId}}/'
+{{- else}}
+    | where resource_id contains '/resourceGroups/{{.ResourceGroupName}}/'
+{{- end}}
+    | where isnotempty(cid)
+    | distinct cid
 );
-// Find all Maestro resource IDs for this cluster
+// Find all Maestro resource IDs for these clusters.
 let maestro_resource_ids = (
     database('ServiceLogs').table('containerLogs')
-    | where timestamp between (_startTime .. _endTime)
+    | where timestamp between ({{.DiscoveryTimestampMin}} .. {{.DiscoveryTimestampMax}})
     | where namespace_name has "maestro"
     | extend logStr = tostring(log)
-    | where logStr has _cs_cluster_id
+    | where logStr has_any (_cs_cluster_ids)
     | extend resourceId = extract(@'resourceid[=:"]+([a-f0-9\-]+)', 1, logStr)
     | where isnotempty(resourceId)
     | distinct resourceId
@@ -29,8 +32,8 @@ union
         | where timestamp between (_startTime .. _endTime)
         | where namespace_name has "maestro"
         | extend logStr = tostring(log)
-        | where logStr has _cs_cluster_id or logStr has_any (maestro_resource_ids)
-        | project timestamp, container_name, msg = logStr, log
+        | where logStr has_any (_cs_cluster_ids) or logStr has_any (maestro_resource_ids)
+        | project source = "maestro", timestamp, container_name, msg = logStr, log
     ),
     (
         // Hypershift logs: Hypershift operator reconciliation of HostedCluster and NodePool CRs
@@ -39,8 +42,8 @@ union
         | where timestamp between (_startTime .. _endTime)
         | where namespace_name has "hypershift"
         | extend logStr = tostring(log)
-        | where logStr has _cs_cluster_id
-        | project timestamp, container_name, msg = logStr, log
+        | where logStr has_any (_cs_cluster_ids)
+        | project source = "hypershift", timestamp, container_name, msg = logStr, log
     ),
     (
         // ACM Agent logs: ManifestWork reconciliation on the managed cluster
@@ -49,7 +52,11 @@ union
         | where timestamp between (_startTime .. _endTime)
         | where namespace_name has "open-cluster-management-agent"
         | extend logStr = tostring(log)
-        | where logStr has _cs_cluster_id
-        | project timestamp, container_name, msg = logStr, log
+        | where logStr has_any (_cs_cluster_ids)
+        | project source = "acm-agent", timestamp, container_name, msg = logStr, log
     )
+{{if .Summarize -}}
+| summarize rows = count(), estimatedBytes = sum(estimate_data_size(*)), firstSeen = min(timestamp), lastSeen = max(timestamp) by source
+{{else -}}
 | order by timestamp {{.OrderBy}}
+{{end -}}
