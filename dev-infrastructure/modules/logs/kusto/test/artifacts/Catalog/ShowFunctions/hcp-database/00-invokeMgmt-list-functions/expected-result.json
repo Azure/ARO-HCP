@@ -1,0 +1,10 @@
+[
+	{
+		"Description": "Fetches HCP component container logs for a resource within a time window. Optional filters by pod and container name terms (pass empty string to match all pods or containers)",
+		"Example": "HCPComponentLogs(\"uksouth\", \"/subscriptions/.../hcpOpenShiftClusters/foo\", \"kube-apiserver\", \"kube-apiserver\", ago(10m), now())",
+		"Folder": "Triage\\HCP",
+		"Name": "HCPComponentLogs",
+		"Parameters": "(p_ResourceRegion:string, p_ResourceId:string, p_PodHas:string, p_ContainerHas:string, p_StartTime:datetime, p_EndTime:datetime)",
+		"Returns": "timestamped container logs with management cluster context"
+	}
+]

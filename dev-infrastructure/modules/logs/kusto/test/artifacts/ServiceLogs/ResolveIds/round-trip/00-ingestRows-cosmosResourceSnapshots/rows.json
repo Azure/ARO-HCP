@@ -1,0 +1,42 @@
+[
+	{
+		"cluster": "svc-cluster-01",
+		"cluster_id": "",
+		"content": {
+			"properties": {
+				"serviceProviderProperties": {
+					"clusterServiceID": "/api/clusters_mgmt/v1/clusters/abc-123-def"
+				}
+			}
+		},
+		"cosmosContainer": "resources",
+		"environment": "dev",
+		"region": "eastus",
+		"resourceGroup": "my-rg",
+		"resourceID": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/my-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/my-cluster",
+		"resourceName": "my-cluster",
+		"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters",
+		"subscriptionID": "00000000-0000-0000-0000-000000000001",
+		"timestamp": "2026-09-30T12:00:00Z"
+	},
+	{
+		"cluster": "svc-cluster-01",
+		"cluster_id": "",
+		"content": {
+			"properties": {
+				"serviceProviderProperties": {
+					"clusterServiceID": "/api/clusters_mgmt/v1/clusters/xyz-789-ghi"
+				}
+			}
+		},
+		"cosmosContainer": "resources",
+		"environment": "dev",
+		"region": "eastus",
+		"resourceGroup": "other-rg",
+		"resourceID": "/subscriptions/00000000-0000-0000-0000-000000000002/resourceGroups/other-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/other-cluster",
+		"resourceName": "other-cluster",
+		"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters",
+		"subscriptionID": "00000000-0000-0000-0000-000000000002",
+		"timestamp": "2026-09-30T11:00:00Z"
+	}
+]

@@ -1,0 +1,9 @@
+{
+	"args": [
+		"abc-123-def",
+		"datetime(2020-01-01)",
+		"datetime(2099-01-01)"
+	],
+	"database": "ServiceLogs",
+	"function": "ResolveResourceId"
+}

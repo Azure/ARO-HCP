@@ -1,0 +1,31 @@
+// @owner: sre-team
+// @domain: Triage/HCP
+// @depends: containerLogs
+// @params: p_ResourceRegion=Azure region, p_ResourceId=ARM resource ID, p_PodHas=pod name term (empty matches all), p_ContainerHas=container name term (empty matches all), p_StartTime=window start, p_EndTime=window end
+// @returns: rows with timestamp, environment, region, cluster, host, cluster_id, namespace_name, pod_name, container_name, log
+.create-or-alter function
+with (
+  docstring = 'Fetches HCP component container logs for a resource within a time window. Optional filters by pod and container name terms (pass empty string to match all pods or containers) | Returns: timestamped container logs with management cluster context | Example: HCPComponentLogs("uksouth", "/subscriptions/.../hcpOpenShiftClusters/foo", "kube-apiserver", "kube-apiserver", ago(10m), now())',
+  folder = 'Triage\\HCP'
+)
+HCPComponentLogs(p_ResourceRegion: string, p_ResourceId: string, p_PodHas: string, p_ContainerHas: string, p_StartTime: datetime, p_EndTime: datetime)
+{
+    containerLogs
+    | where timestamp between (p_StartTime .. p_EndTime)
+    | where region == p_ResourceRegion
+    | where cluster_id == toupper(p_ResourceId)
+    | where isempty(p_PodHas) or pod_name has p_PodHas
+    | where isempty(p_ContainerHas) or container_name has p_ContainerHas
+    | order by timestamp asc
+    | project
+        timestamp,
+        environment,
+        region,
+        cluster,
+        host,
+        cluster_id,
+        namespace_name,
+        pod_name,
+        container_name,
+        log
+}

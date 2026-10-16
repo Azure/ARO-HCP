@@ -20,7 +20,7 @@ set -o pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-KQL_DIR="${REPO_ROOT}/dev-infrastructure/modules/logs/kusto/tables"
+KQL_DIR="${REPO_ROOT}/dev-infrastructure/modules/logs/kusto"
 CONTAINER_NAME="kusto-emulator-$$"
 EMULATOR_IMAGE="${KUSTO_EMULATOR_IMAGE:-mcr.microsoft.com/azuredataexplorer/kustainer-linux:latest}"
 ENDPOINT="${KUSTO_ENDPOINT:-}"

@@ -1,0 +1,22 @@
+[
+	{
+		"cluster": "mgmt-cluster-01",
+		"cluster_id": "/SUBSCRIPTIONS/00000000-0000-0000-0000-000000000001/RESOURCEGROUPS/MY-RG/PROVIDERS/MICROSOFT.REDHATOPENSHIFT/HCPOPENSHIFTCLUSTERS/MY-CLUSTER",
+		"container_name": "kube-apiserver",
+		"environment": "prod",
+		"host": "node-1",
+		"namespace_name": "ocm-abc123",
+		"pod_name": "kube-apiserver-7f8b9c6d4-x2k9m",
+		"region": "uksouth"
+	},
+	{
+		"cluster": "mgmt-cluster-01",
+		"cluster_id": "/SUBSCRIPTIONS/00000000-0000-0000-0000-000000000001/RESOURCEGROUPS/MY-RG/PROVIDERS/MICROSOFT.REDHATOPENSHIFT/HCPOPENSHIFTCLUSTERS/MY-CLUSTER",
+		"container_name": "kube-apiserver",
+		"environment": "prod",
+		"host": "node-1",
+		"namespace_name": "ocm-abc123",
+		"pod_name": "kube-apiserver-7f8b9c6d4-x2k9m",
+		"region": "uksouth"
+	}
+]
