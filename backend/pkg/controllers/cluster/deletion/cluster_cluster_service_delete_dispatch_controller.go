@@ -153,6 +153,14 @@ func (c *clusterClusterServiceDeleteDispatchSyncer) SyncOnce(ctx context.Context
 	}
 
 	csID := cluster.ServiceProviderProperties.ClusterServiceID
+	// CS may have accepted POST while the response or the subsequent Cosmos
+	// replacement was lost. Creation stops reconciling once deletion begins, so
+	// recover its persisted target here instead of timing out and abandoning CS.
+	if replacement := recoverPendingDeletionTarget(cluster); replacement != nil {
+		logger.Info("Recovering pending CS creation as deletion target", "clusterServiceID", replacement.ServiceProviderProperties.ClusterServiceID.String())
+		_, err := clusterCRUD.Replace(ctx, replacement, nil)
+		return err
+	}
 	if csID == nil || len(csID.String()) == 0 {
 		elapsed := c.clock.Since(firstSeenClusterDeletionTimestamp)
 		if elapsed < missingClusterServiceIDTimeout {
@@ -194,4 +202,23 @@ func (c *clusterClusterServiceDeleteDispatchSyncer) SyncOnce(ctx context.Context
 	c.firstSeenDeletionTimestampCache.Remove(cacheKey)
 
 	return nil
+}
+
+// recoverPendingDeletionTarget produces only the replacement needed to route
+// deletion and its absence observer through the ordinary CS lifecycle.
+func recoverPendingDeletionTarget(cluster *coreapi.Cluster) *coreapi.Cluster {
+	properties := cluster.ServiceProviderProperties
+	if properties.DeletionTimestamp == nil || properties.ClusterServiceDeletionTimestamp != nil {
+		return nil
+	}
+	if properties.ClusterServiceID != nil && properties.ClusterServiceID.String() != "" {
+		return nil
+	}
+	if properties.PendingClusterServiceID == nil || properties.PendingClusterServiceID.String() == "" {
+		return nil
+	}
+	updated := cluster.DeepCopy()
+	updated.ServiceProviderProperties.ClusterServiceID = properties.PendingClusterServiceID
+	updated.ServiceProviderProperties.PendingClusterServiceID = nil
+	return updated
 }
