@@ -384,9 +384,9 @@ Instead, resolve VM sizes at runtime through the restriction-aware selector in
   The first choices are `Standard_D8s_v6`, `Standard_D4s_v6`, and
   `Standard_D2ds_v6`; later families are considered only when no eligible size
   in an earlier family is available.
-  INT UK South, other Stage runtime regions, and all other pools retain
-  historical behavior. A Stage runtime-region override does not switch from the
-  West US 3 identity inventory to the separately retained UK South inventory.
+  INT UK South, the Stage UK South pool, and all other pools retain historical
+  behavior. Stage pools use fixed region mode: an explicit region override at
+  acquisition selects the matching UK South or West US 3 identity inventory.
   Ephemeral OS disk, GPU, Arm64 selectors and explicit pins bypass family
   selection policy; malformed configuration still fails suite initialization.
 

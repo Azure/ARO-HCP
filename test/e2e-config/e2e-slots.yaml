@@ -133,14 +133,28 @@ environments:
     deployment_environment:
       name: stg
     pools:
-    # This catalog selects the West US 3 identity inventory in Stage-00.
-    # Retain the separate UK South inventory and its existing Boskos slot externally.
-    # They share subscription limits: do not run their jobs concurrently.
+    # Both regional inventories lease 75 of 100 physical containers in Stage-00.
+    # Select the region during acquisition; the matching fixed pool owns its inventory.
+    # Do not run their jobs concurrently: subscription-wide quotas are shared.
+    - name: shard0
+      subscriptions:
+        e2e: "ARO HCP E2E Hosted Clusters - Stage - 00"
+      region: uksouth
+      region_mode: fixed
+      resource_type: aro-hcp-stg-shard0-slot
+      slot_count: 1
+      identity_container_provisioning_count: 100
+      slot_assets:
+        e2e_identities:
+          allocation: dedicated
+          provisioning_region: uksouth
+          resource_group_prefix: aro-hcp-msi-container-stg-shard0
+          resource_group_count: 75
     - name: westus3-shard0
       subscriptions:
         e2e: "ARO HCP E2E Hosted Clusters - Stage - 00"
       region: westus3
-      region_mode: runtime-selected
+      region_mode: fixed
       resource_type: aro-hcp-stg-westus3-shard0-slot
       slot_count: 1
       identity_container_provisioning_count: 100
