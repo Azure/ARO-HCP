@@ -77,6 +77,7 @@ SRE starts a control plane z-stream upgrade with an SRE pin
 ARO-HCP should serve the default ingress certificate for 5.1
 Engineering should be able to retrieve expected metrics from the /metrics endpoint
 Customer should be able to create a cluster with an external auth config and get the external auth config
+Customer should be able to configure a cluster for Entra console authentication
 Customer should be able to lifecycle and confirm external auth on a cluster
 Fleet should have registered stamps with ready management clusters
 Fleet should have HCP resource requirements data
