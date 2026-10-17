@@ -381,6 +381,29 @@ func TestValidateNodePoolVersionChange(t *testing.T) {
 			allowMajor:     true,
 			expectError:    false,
 		},
+		{
+			// Cross-major downgrade without the flag is rejected.
+			name:           "cross-major downgrade requires major upgrade flag",
+			desiredVersion: "4.22.0",
+			activeVersions: []string{"5.0.0"},
+			lowestCP:       "5.0.0",
+			highestCP:      "5.0.0",
+			allowMajor:     false,
+			expectError:    true,
+			errContains:    "node pool version changes are not supported while the control plane is on a different major version (node pool major version 4 vs control plane major version 5)",
+		},
+		{
+			// 4.20 is not in AllowControlPlaneNodePoolMajorVersionSkew, so it
+			// cannot downgrade across majors.
+			name:           "cross-major downgrade with unsupported node pool version is rejected",
+			desiredVersion: "4.20.0",
+			activeVersions: []string{"5.0.0"},
+			lowestCP:       "5.0.0",
+			highestCP:      "5.0.0",
+			allowMajor:     true,
+			expectError:    true,
+			errContains:    "node pool version 4.20.0 is not allowed to coexist with a different-major control plane",
+		},
 
 		// --- Minor skip (N-2 upgrade) policy ---
 		{
