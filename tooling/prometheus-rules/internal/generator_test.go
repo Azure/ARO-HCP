@@ -846,7 +846,7 @@ func TestOptionsGenerate(t *testing.T) {
 											},
 											Annotations: map[string]string{
 												"summary":     "Pod {{ $labels.namespace }}/{{ $labels.pod }} is unhealthy",
-												"description": "Pod {{ $labels.namespace }}/{{ $labels.pod }} has issues",
+												"description": "Pod {{ $labels.namespace }}/{{ $labels.pod }} on {{ $labels.cluster }} has issues",
 											},
 										},
 									},
@@ -868,6 +868,7 @@ func TestOptionsGenerate(t *testing.T) {
 		assert.Contains(t, generated, "correlationId: 'EnrichedAlert/{{ $labels.cluster }}/{{ $labels.namespace }}/{{ $labels.pod }}'")
 		assert.NotContains(t, generated, "{{ $labels.cluster }}/{{ $labels.cluster }}")
 		assert.Contains(t, generated, "title: 'Pod {{ $labels.namespace }}/{{ $labels.pod }} is unhealthy'")
+		assert.Contains(t, generated, "'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'")
 	})
 
 	t.Run("labelsToExtract orders labels but auto-extraction still captures unlisted ones", func(t *testing.T) {

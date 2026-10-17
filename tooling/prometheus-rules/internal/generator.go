@@ -546,6 +546,11 @@ func (o *Options) Generate() error {
 					annotations["title"] = ptr.To(title)
 					var missing []string
 					for _, label := range extractedLabels {
+						// writeAlertGroups prefixes IcM.Title with the cluster label.
+						// Requiring it in summary too would duplicate it in the title.
+						if label == "cluster" {
+							continue
+						}
 						if !strings.Contains(title, labelTemplateToken(label)) {
 							missing = append(missing, label)
 						}
