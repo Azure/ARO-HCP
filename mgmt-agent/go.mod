@@ -10,6 +10,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6 v6.4.0
 	github.com/go-logr/logr v1.4.4
 	github.com/google/go-cmp v0.7.0
+	github.com/kubernetes-csi/external-snapshotter/client/v8 v8.4.0
 	github.com/openshift/hypershift v0.1.76
 	github.com/openshift/hypershift/api v0.0.0-20260911144647-689ab808b174
 	github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring v0.88.0
