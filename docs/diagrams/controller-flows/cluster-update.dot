@@ -16,7 +16,7 @@ digraph cluster_update {
   put -> dispatch [label="changed dispatchable\nconfiguration"];
   put -> desired [label="requested version / channel"];
   desired -> upgrade [label="desired exact version"];
-  desired -> op [label="resolved major.minor\nversus requested version"];
+  desired -> op [label="pin: resolved = exact pin\nno pin: major.minor = Version.ID"];
   dispatch -> cs [label="PATCH"];
   upgrade -> cs [label="submit upgrade policy"];
   cs -> kube [label="desired manifests"];
