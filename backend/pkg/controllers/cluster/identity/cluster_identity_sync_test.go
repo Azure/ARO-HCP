@@ -50,15 +50,16 @@ func TestClusterIdentitySyncer_SyncOnce(t *testing.T) {
 	mixedCaseIdentityResourceID := "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/Test-RG/providers/Microsoft.ManagedIdentity/userAssignedIdentities/Test-Identity"
 
 	testCases := []struct {
-		name                           string
-		existingCluster                *coreapi.Cluster // cluster in cosmos + cache
-		existingServiceProviderCluster *coreapi.ServiceProviderCluster
-		expectError                    bool
-		expectedHasIdentity            bool
-		expectedIdentityCount          int
-		expectedIdentityResourceIDs    []string
-		expectedClientID               *string
-		expectedPrincipalID            *string
+		name                                       string
+		existingCluster                            *coreapi.Cluster // cluster in cosmos + cache
+		existingServiceProviderCluster             *coreapi.ServiceProviderCluster
+		managedIdentitiesDataPlaneServiceAvailable bool
+		expectError                                bool
+		expectedHasIdentity                        bool
+		expectedIdentityCount                      int
+		expectedIdentityResourceIDs                []string
+		expectedClientID                           *string
+		expectedPrincipalID                        *string
 	}{
 		{
 			name: "no work to do - identity already matches ServiceProviderCluster",
@@ -72,13 +73,14 @@ func TestClusterIdentitySyncer_SyncOnce(t *testing.T) {
 					},
 				}
 			}),
-			existingServiceProviderCluster: newTestServiceProviderClusterWithMSIIdentity(testIdentityResourceID, testClientID, testPrincipalID),
-			expectError:                    false,
-			expectedHasIdentity:            true,
-			expectedIdentityCount:          1,
-			expectedIdentityResourceIDs:    []string{testIdentityResourceID},
-			expectedClientID:               ptr.To(testClientID),
-			expectedPrincipalID:            ptr.To(testPrincipalID),
+			existingServiceProviderCluster:             newTestServiceProviderClusterWithManagedIdentitiesDataplaneIdentityMetadata(testIdentityResourceID, testClientID, testPrincipalID),
+			managedIdentitiesDataPlaneServiceAvailable: true,
+			expectError:                 false,
+			expectedHasIdentity:         true,
+			expectedIdentityCount:       1,
+			expectedIdentityResourceIDs: []string{testIdentityResourceID},
+			expectedClientID:            ptr.To(testClientID),
+			expectedPrincipalID:         ptr.To(testPrincipalID),
 		},
 		{
 			name: "no work to do - nil ClientID/PrincipalID already match ServiceProviderCluster not-found values",
@@ -89,13 +91,14 @@ func TestClusterIdentitySyncer_SyncOnce(t *testing.T) {
 					},
 				}
 			}),
-			existingServiceProviderCluster: newTestServiceProviderClusterWithMSIIdentityPtrs(testIdentityResourceID, nil, nil),
-			expectError:                    false,
-			expectedHasIdentity:            true,
-			expectedIdentityCount:          1,
-			expectedIdentityResourceIDs:    []string{testIdentityResourceID},
-			expectedClientID:               nil,
-			expectedPrincipalID:            nil,
+			existingServiceProviderCluster:             newTestServiceProviderClusterWithManagedIdentitiesDataplaneIdentityMetadataPtrs(testIdentityResourceID, nil, nil),
+			managedIdentitiesDataPlaneServiceAvailable: true,
+			expectError:                 false,
+			expectedHasIdentity:         true,
+			expectedIdentityCount:       1,
+			expectedIdentityResourceIDs: []string{testIdentityResourceID},
+			expectedClientID:            nil,
+			expectedPrincipalID:         nil,
 		},
 		{
 			name: "success - update ClientID/PrincipalID when ServiceProviderCluster values change",
@@ -109,13 +112,14 @@ func TestClusterIdentitySyncer_SyncOnce(t *testing.T) {
 					},
 				}
 			}),
-			existingServiceProviderCluster: newTestServiceProviderClusterWithMSIIdentity(testIdentityResourceID, testClientID, testPrincipalID),
-			expectError:                    false,
-			expectedHasIdentity:            true,
-			expectedIdentityCount:          1,
-			expectedIdentityResourceIDs:    []string{testIdentityResourceID},
-			expectedClientID:               ptr.To(testClientID),
-			expectedPrincipalID:            ptr.To(testPrincipalID),
+			existingServiceProviderCluster:             newTestServiceProviderClusterWithManagedIdentitiesDataplaneIdentityMetadata(testIdentityResourceID, testClientID, testPrincipalID),
+			managedIdentitiesDataPlaneServiceAvailable: true,
+			expectError:                 false,
+			expectedHasIdentity:         true,
+			expectedIdentityCount:       1,
+			expectedIdentityResourceIDs: []string{testIdentityResourceID},
+			expectedClientID:            ptr.To(testClientID),
+			expectedPrincipalID:         ptr.To(testPrincipalID),
 		},
 		{
 			name: "no work to do - deleting cluster",
@@ -127,21 +131,23 @@ func TestClusterIdentitySyncer_SyncOnce(t *testing.T) {
 					},
 				}
 			}),
-			existingServiceProviderCluster: newTestServiceProviderClusterWithMSIIdentity(testIdentityResourceID, testClientID, testPrincipalID),
-			expectError:                    false,
-			expectedHasIdentity:            true,
-			expectedIdentityCount:          1,
-			expectedIdentityResourceIDs:    []string{testIdentityResourceID},
-			expectedClientID:               nil,
-			expectedPrincipalID:            nil,
+			existingServiceProviderCluster:             newTestServiceProviderClusterWithManagedIdentitiesDataplaneIdentityMetadata(testIdentityResourceID, testClientID, testPrincipalID),
+			managedIdentitiesDataPlaneServiceAvailable: true,
+			expectError:                 false,
+			expectedHasIdentity:         true,
+			expectedIdentityCount:       1,
+			expectedIdentityResourceIDs: []string{testIdentityResourceID},
+			expectedClientID:            nil,
+			expectedPrincipalID:         nil,
 		},
 		{
 			name:                           "no work to do - identity is nil",
 			existingCluster:                newTestClusterForClusterIdentitySync(),
-			existingServiceProviderCluster: newTestServiceProviderClusterWithMSIIdentity(testIdentityResourceID, testClientID, testPrincipalID),
-			expectError:                    false,
-			expectedHasIdentity:            false,
-			expectedIdentityCount:          0,
+			existingServiceProviderCluster: newTestServiceProviderClusterWithManagedIdentitiesDataplaneIdentityMetadata(testIdentityResourceID, testClientID, testPrincipalID),
+			managedIdentitiesDataPlaneServiceAvailable: true,
+			expectError:           false,
+			expectedHasIdentity:   false,
+			expectedIdentityCount: 0,
 		},
 		{
 			name: "success - fill ClientID/PrincipalID from ServiceProviderCluster",
@@ -152,13 +158,14 @@ func TestClusterIdentitySyncer_SyncOnce(t *testing.T) {
 					},
 				}
 			}),
-			existingServiceProviderCluster: newTestServiceProviderClusterWithMSIIdentity(testIdentityResourceID, testClientID, testPrincipalID),
-			expectError:                    false,
-			expectedHasIdentity:            true,
-			expectedIdentityCount:          1,
-			expectedIdentityResourceIDs:    []string{testIdentityResourceID},
-			expectedClientID:               ptr.To(testClientID),
-			expectedPrincipalID:            ptr.To(testPrincipalID),
+			existingServiceProviderCluster:             newTestServiceProviderClusterWithManagedIdentitiesDataplaneIdentityMetadata(testIdentityResourceID, testClientID, testPrincipalID),
+			managedIdentitiesDataPlaneServiceAvailable: true,
+			expectError:                 false,
+			expectedHasIdentity:         true,
+			expectedIdentityCount:       1,
+			expectedIdentityResourceIDs: []string{testIdentityResourceID},
+			expectedClientID:            ptr.To(testClientID),
+			expectedPrincipalID:         ptr.To(testPrincipalID),
 		},
 		{
 			name: "success - fill nil identity map entry from ServiceProviderCluster",
@@ -169,13 +176,14 @@ func TestClusterIdentitySyncer_SyncOnce(t *testing.T) {
 					},
 				}
 			}),
-			existingServiceProviderCluster: newTestServiceProviderClusterWithMSIIdentity(testIdentityResourceID, testClientID, testPrincipalID),
-			expectError:                    false,
-			expectedHasIdentity:            true,
-			expectedIdentityCount:          1,
-			expectedIdentityResourceIDs:    []string{testIdentityResourceID},
-			expectedClientID:               ptr.To(testClientID),
-			expectedPrincipalID:            ptr.To(testPrincipalID),
+			existingServiceProviderCluster:             newTestServiceProviderClusterWithManagedIdentitiesDataplaneIdentityMetadata(testIdentityResourceID, testClientID, testPrincipalID),
+			managedIdentitiesDataPlaneServiceAvailable: true,
+			expectError:                 false,
+			expectedHasIdentity:         true,
+			expectedIdentityCount:       1,
+			expectedIdentityResourceIDs: []string{testIdentityResourceID},
+			expectedClientID:            ptr.To(testClientID),
+			expectedPrincipalID:         ptr.To(testPrincipalID),
 		},
 		{
 			name: "preserves mixed-case identity keys and looks up ServiceProviderCluster by lowercase",
@@ -186,13 +194,14 @@ func TestClusterIdentitySyncer_SyncOnce(t *testing.T) {
 					},
 				}
 			}),
-			existingServiceProviderCluster: newTestServiceProviderClusterWithMSIIdentity(mixedCaseIdentityResourceID, testClientID, testPrincipalID),
-			expectError:                    false,
-			expectedHasIdentity:            true,
-			expectedIdentityCount:          1,
-			expectedIdentityResourceIDs:    []string{mixedCaseIdentityResourceID},
-			expectedClientID:               ptr.To(testClientID),
-			expectedPrincipalID:            ptr.To(testPrincipalID),
+			existingServiceProviderCluster:             newTestServiceProviderClusterWithManagedIdentitiesDataplaneIdentityMetadata(mixedCaseIdentityResourceID, testClientID, testPrincipalID),
+			managedIdentitiesDataPlaneServiceAvailable: true,
+			expectError:                 false,
+			expectedHasIdentity:         true,
+			expectedIdentityCount:       1,
+			expectedIdentityResourceIDs: []string{mixedCaseIdentityResourceID},
+			expectedClientID:            ptr.To(testClientID),
+			expectedPrincipalID:         ptr.To(testPrincipalID),
 		},
 		{
 			name: "sets empty identity when ServiceProviderCluster has no matching entry",
@@ -203,13 +212,14 @@ func TestClusterIdentitySyncer_SyncOnce(t *testing.T) {
 					},
 				}
 			}),
-			existingServiceProviderCluster: newTestServiceProviderCluster(),
-			expectError:                    false,
-			expectedHasIdentity:            true,
-			expectedIdentityCount:          1,
-			expectedIdentityResourceIDs:    []string{testIdentityResourceID},
-			expectedClientID:               nil,
-			expectedPrincipalID:            nil,
+			existingServiceProviderCluster:             newTestServiceProviderCluster(),
+			managedIdentitiesDataPlaneServiceAvailable: true,
+			expectError:                 false,
+			expectedHasIdentity:         true,
+			expectedIdentityCount:       1,
+			expectedIdentityResourceIDs: []string{testIdentityResourceID},
+			expectedClientID:            nil,
+			expectedPrincipalID:         nil,
 		},
 		{
 			name: "clears stale identity values when ServiceProviderCluster has no matching entry",
@@ -223,13 +233,14 @@ func TestClusterIdentitySyncer_SyncOnce(t *testing.T) {
 					},
 				}
 			}),
-			existingServiceProviderCluster: newTestServiceProviderCluster(),
-			expectError:                    false,
-			expectedHasIdentity:            true,
-			expectedIdentityCount:          1,
-			expectedIdentityResourceIDs:    []string{testIdentityResourceID},
-			expectedClientID:               nil,
-			expectedPrincipalID:            nil,
+			existingServiceProviderCluster:             newTestServiceProviderCluster(),
+			managedIdentitiesDataPlaneServiceAvailable: true,
+			expectError:                 false,
+			expectedHasIdentity:         true,
+			expectedIdentityCount:       1,
+			expectedIdentityResourceIDs: []string{testIdentityResourceID},
+			expectedClientID:            nil,
+			expectedPrincipalID:         nil,
 		},
 		{
 			name: "keeps identity keys unchanged when ServiceProviderCluster is missing",
@@ -240,13 +251,53 @@ func TestClusterIdentitySyncer_SyncOnce(t *testing.T) {
 					},
 				}
 			}),
-			existingServiceProviderCluster: nil,
-			expectError:                    false,
-			expectedHasIdentity:            true,
-			expectedIdentityCount:          1,
-			expectedIdentityResourceIDs:    []string{testIdentityResourceID},
-			expectedClientID:               nil,
-			expectedPrincipalID:            nil,
+			existingServiceProviderCluster:             nil,
+			managedIdentitiesDataPlaneServiceAvailable: true,
+			expectError:                 false,
+			expectedHasIdentity:         true,
+			expectedIdentityCount:       1,
+			expectedIdentityResourceIDs: []string{testIdentityResourceID},
+			expectedClientID:            nil,
+			expectedPrincipalID:         nil,
+		},
+		{
+			name: "success - fill ClientID/PrincipalID from hardcoded identity when managed identities data plane service unavailable",
+			existingCluster: newTestClusterForClusterIdentitySync(func(c *coreapi.Cluster) {
+				c.Identity = &coreapi.ManagedServiceIdentity{
+					UserAssignedIdentities: map[string]*coreapi.UserAssignedIdentity{
+						testIdentityResourceID: {},
+					},
+				}
+			}),
+			existingServiceProviderCluster:             newTestServiceProviderClusterWithHardcodedIdentityMetadata(testIdentityResourceID, testClientID, testPrincipalID),
+			managedIdentitiesDataPlaneServiceAvailable: false,
+			expectError:                 false,
+			expectedHasIdentity:         true,
+			expectedIdentityCount:       1,
+			expectedIdentityResourceIDs: []string{testIdentityResourceID},
+			expectedClientID:            ptr.To(testClientID),
+			expectedPrincipalID:         ptr.To(testPrincipalID),
+		},
+		{
+			name: "sets empty identity when managed identities data plane service is unavailable and only managed identities dataplane metadata source is present",
+			existingCluster: newTestClusterForClusterIdentitySync(func(c *coreapi.Cluster) {
+				c.Identity = &coreapi.ManagedServiceIdentity{
+					UserAssignedIdentities: map[string]*coreapi.UserAssignedIdentity{
+						testIdentityResourceID: {
+							ClientID:    ptr.To("stale-client-id"),
+							PrincipalID: ptr.To("stale-principal-id"),
+						},
+					},
+				}
+			}),
+			existingServiceProviderCluster:             newTestServiceProviderClusterWithManagedIdentitiesDataplaneIdentityMetadata(testIdentityResourceID, testClientID, testPrincipalID),
+			managedIdentitiesDataPlaneServiceAvailable: false,
+			expectError:                 false,
+			expectedHasIdentity:         true,
+			expectedIdentityCount:       1,
+			expectedIdentityResourceIDs: []string{testIdentityResourceID},
+			expectedClientID:            nil,
+			expectedPrincipalID:         nil,
 		},
 	}
 
@@ -277,9 +328,10 @@ func TestClusterIdentitySyncer_SyncOnce(t *testing.T) {
 			}
 
 			syncer := &clusterIdentitySyncer{
-				clusterLister:                sliceClusterLister,
-				serviceProviderClusterLister: sliceServiceProviderClusterLister,
-				resourcesDBClient:            mockResourcesDBClient,
+				clusterLister:                              sliceClusterLister,
+				serviceProviderClusterLister:               sliceServiceProviderClusterLister,
+				resourcesDBClient:                          mockResourcesDBClient,
+				managedIdentitiesDataPlaneServiceAvailable: tc.managedIdentitiesDataPlaneServiceAvailable,
 			}
 
 			key := controllerutils.HCPClusterKey{
@@ -379,21 +431,39 @@ func newTestServiceProviderCluster() *coreapi.ServiceProviderCluster {
 	}
 }
 
-func newTestServiceProviderClusterWithMSIIdentity(identityResourceID, clientID, principalID string) *coreapi.ServiceProviderCluster {
-	return newTestServiceProviderClusterWithMSIIdentityPtrs(identityResourceID, ptr.To(clientID), ptr.To(principalID))
-}
-
-func newTestServiceProviderClusterWithMSIIdentityPtrs(identityResourceID string, clientID, principalID *string) *coreapi.ServiceProviderCluster {
+// newTestServiceProviderClusterWithManagedIdentityDetails returns a ServiceProviderCluster whose
+// Status.ManagedIdentityDetails has a single entry, keyed by the lowercased identityResourceID.
+func newTestServiceProviderClusterWithManagedIdentityDetails(identityResourceID string, metadata *coreapi.ManagedIdentityMetadata) *coreapi.ServiceProviderCluster {
 	serviceProviderCluster := newTestServiceProviderCluster()
 	lowerResourceIDStr := strings.ToLower(identityResourceID)
-	serviceProviderCluster.Status.MSIManagedIdentities = coreapi.ServiceProviderClusterMSIManagedIdentities{
-		ControlPlaneOperatorsIdentities: map[string]*coreapi.ServiceProviderClusterControlPlaneOperatorIdentity{
-			lowerResourceIDStr: {
-				ResourceID:  metadataapi.Must(azcorearm.ParseResourceID(lowerResourceIDStr)),
-				ClientID:    clientID,
-				PrincipalID: principalID,
-			},
-		},
+	serviceProviderCluster.Status.ManagedIdentityDetails = map[string]*coreapi.ManagedIdentityMetadata{
+		lowerResourceIDStr: metadata,
 	}
 	return serviceProviderCluster
+}
+
+func newTestServiceProviderClusterWithManagedIdentitiesDataplaneIdentityMetadata(identityResourceID, clientID, principalID string) *coreapi.ServiceProviderCluster {
+	return newTestServiceProviderClusterWithManagedIdentitiesDataplaneIdentityMetadataPtrs(identityResourceID, ptr.To(clientID), ptr.To(principalID))
+}
+
+func newTestServiceProviderClusterWithManagedIdentitiesDataplaneIdentityMetadataPtrs(identityResourceID string, clientID, principalID *string) *coreapi.ServiceProviderCluster {
+	lowerResourceIDStr := strings.ToLower(identityResourceID)
+	return newTestServiceProviderClusterWithManagedIdentityDetails(identityResourceID, &coreapi.ManagedIdentityMetadata{
+		ResourceID: metadataapi.Must(azcorearm.ParseResourceID(lowerResourceIDStr)),
+		MetadataFromManagedIdentitiesDataplaneService: &coreapi.IdentityMetadataValue{
+			ClientID:    clientID,
+			PrincipalID: principalID,
+		},
+	})
+}
+
+func newTestServiceProviderClusterWithHardcodedIdentityMetadata(identityResourceID, clientID, principalID string) *coreapi.ServiceProviderCluster {
+	lowerResourceIDStr := strings.ToLower(identityResourceID)
+	return newTestServiceProviderClusterWithManagedIdentityDetails(identityResourceID, &coreapi.ManagedIdentityMetadata{
+		ResourceID: metadataapi.Must(azcorearm.ParseResourceID(lowerResourceIDStr)),
+		MetadataFromHardcodedIdentity: &coreapi.IdentityMetadataValue{
+			ClientID:    ptr.To(clientID),
+			PrincipalID: ptr.To(principalID),
+		},
+	})
 }
