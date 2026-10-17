@@ -712,6 +712,7 @@ func instantiateControlPlaneIdentitiesPermissionsValidationController(controller
 			controllerContext.CheckAccessV2ClientBuilder,
 			controllerContext.MIDataplaneBasedIdentityAccessTokenRetrieverBuilder,
 			controllerContext.CloudEnvironment.CheckAccessV2Scope(),
+			newRoleAssignmentPropagationDetector(controllerContext),
 		),
 		controllerContext.ResourcesDBClient,
 		serviceProviderClusterLister,
@@ -735,11 +736,20 @@ func instantiateDataPlaneIdentitiesPermissionsValidationController(controllerCon
 			controllerContext.ClusterScopedIdentitiesConfig,
 			controllerContext.BackendIdentityAzureCachedReaders,
 			controllerContext.CheckAccessV2ClientBuilder,
+			newRoleAssignmentPropagationDetector(controllerContext),
 		),
 		controllerContext.ResourcesDBClient,
 		serviceProviderClusterLister,
 		controllerContext.BackendInformers,
 	), nil
+}
+
+func newRoleAssignmentPropagationDetector(controllerContext controllerconfig.ControllerContext) *validationutils.RoleAssignmentPropagationDetector {
+	return validationutils.NewRoleAssignmentPropagationDetector(
+		controllerContext.FPAClientBuilder,
+		validationutils.DefaultRoleAssignmentPropagationWindow,
+		controllerContext.Clock,
+	)
 }
 
 func registerContainerRegistryPullCredentialsValidationController() controllerconfig.ControllerRegistration {

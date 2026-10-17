@@ -1468,6 +1468,7 @@ func TestValidate(t *testing.T) {
 				mockCheckAccessBuilder,
 				mockTokenBuilder,
 				testCheckAccessScope,
+				nil,
 			)
 
 			result := v.Validate(context.Background(), clusterSubscription, cluster)
