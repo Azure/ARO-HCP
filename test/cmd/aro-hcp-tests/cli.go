@@ -215,6 +215,13 @@ func setupCli() (*cobra.Command, error) {
 		// })
 
 		registerEV2RetryCatcher(specs)
+		if isRunSuiteProcess() {
+			specs.AddAfterAll(func() {
+				if err := framework.CollectRPResourcesAtEndOfRun(context.Background()); err != nil {
+					fmt.Fprintf(os.Stderr, "WARNING: RP resource collection was incomplete: %v\n", err)
+				}
+			})
+		}
 
 		ext.AddSpecs(specs)
 		registry.Register(ext)

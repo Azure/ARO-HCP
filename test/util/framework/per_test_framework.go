@@ -216,6 +216,7 @@ func (tc *perItOrDescribeTestContext) BeforeEach(ctx context.Context) {
 
 	// Registered later and thus runs before deleting namespaces.
 	ginkgo.DeferCleanup(tc.collectDebugInfo, AnnotatedLocation("dump debug info"), ginkgo.NodeTimeout(45*time.Minute))
+	ginkgo.DeferCleanup(tc.captureRPResources, AnnotatedLocation("capture RP resources before cleanup"), ginkgo.NodeTimeout(6*time.Minute))
 
 	ginkgo.DeferCleanup(tc.commitTimingMetadata, AnnotatedLocation("dump timing info"), ginkgo.NodeTimeout(45*time.Minute))
 

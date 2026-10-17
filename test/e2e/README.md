@@ -249,6 +249,26 @@ Set the **CUSTOMER_SUBSCRIPTION** environment variable to the **name** of the Az
 ### Artifact Directory (ARTIFACT_DIR)
 Set the **ARTIFACT_DIR** environment variable to specify the directory where test artifacts and logs will be saved. This is especially useful in CI environments to collect and persist test outputs.
 
+During per-test cleanup, before debug collection or resource deletion, the
+framework saves RP snapshots under
+`rp-resources/<resource-group>/{clusters,nodepools,externalauths}.json`. Each
+snapshot is scoped to resource groups created by that test context; shared
+identity containers and unrelated subscription resources are not included.
+Collection is best-effort with a five-minute budget per test context and cannot
+fail the suite. Resources explicitly deleted by the test before debug collection
+cannot be recovered. Unexpected list errors, including API-version 404s, are
+reported as warnings.
+
+The cleanup hook writes its resource-group collection message or one explicit
+skip reason to Ginkgo's captured output, so `run-suite` includes it in test
+results and build logs. Worker stderr alone is not retained by the parallel
+runner. Per-test collection does not require `SHARED_DIR` or marker files.
+
+The parent `run-suite` process also writes `rp-resources/{clusters,nodepools,externalauths}.json`
+for surviving resources in `SHARED_DIR`'s tracked resource groups. These final
+inventories can be empty after successful cleanup; they do not overwrite the
+per-resource-group snapshots captured before deletion.
+
 When a versioned `CreateNodePoolFromParam` helper fails during bringup, it gathers
 an Azure failure bundle before returning the original error. Each failure gets
 its own `azure-failure-<nodepool>-<timestamp>-<suffix>/` directory beneath the
