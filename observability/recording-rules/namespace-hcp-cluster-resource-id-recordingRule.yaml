@@ -1,0 +1,66 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    app.kubernetes.io/name: kube-prometheus
+    app.kubernetes.io/part-of: kube-prometheus
+    prometheus: k8s
+    role: recording-rules
+  name: namespace-hcp-cluster-resource-id-recording-rules
+  namespace: monitoring
+spec:
+  groups:
+  # ========================================
+  # Namespace "hcp-cluster-azure-resource-id" annotation recording rule
+  # ========================================
+  # Surfaces the azure.microsoft.com/hcp-cluster-azure-resource-id namespace
+  # annotation as its own metric so it can be joined onto other series by
+  # namespace (e.g. `* on (namespace) group_left (hcp_cluster_resource_id)
+  # info:kube_namespace:hcp_cluster_resource_id`) without every consumer
+  # needing to know kube-state-metrics' annotation label normalization.
+  #
+  # Requires kube-state-metrics to allow-list the annotation so it appears on
+  # kube_namespace_annotations in the first place (not on by default):
+  #   --metric-annotations-allowlist=namespaces=[azure.microsoft.com/hcp-cluster-azure-resource-id]
+  #
+  # `max without (prometheus_replica, instance, pod, container, endpoint,
+  # service)` collapses the HA scrape-identity dimensions (each namespace's
+  # annotations are scraped by every Prometheus agent replica, and could be
+  # scraped by multiple kube-state-metrics pods) down to one series per
+  # namespace. Without this, joining on (namespace, cluster) elsewhere fails
+  # with "many-to-many matching not allowed" once more than one of those
+  # scrape-identity series exists for the same namespace.
+  - name: arohcp_namespace_hcp_cluster_resource_id_recording_rules
+    interval: 1m
+    rules:
+    - record: info:kube_namespace:hcp_cluster_resource_id
+      expr: |
+        label_replace(
+          max without (prometheus_replica, instance, pod, container, endpoint, service) (
+            kube_namespace_annotations{
+              annotation_azure_microsoft_com_hcp_cluster_azure_resource_id!="",
+              job="kube-state-metrics"
+            }
+          ),
+          "hcp_cluster_resource_id", "$1",
+          "annotation_azure_microsoft_com_hcp_cluster_azure_resource_id", "(.*)"
+        )
+    # Parses the subscription ID out of the same annotation. `(?i)` guards
+    # against provider/type segments being lowercased (observed in production
+    # annotation values, e.g. "resourcegroups"/"microsoft.redhatopenshift"),
+    # since ARM resource ID casing isn't guaranteed by whatever wrote the
+    # annotation. `label_replace` requires a full-string match, so a regex
+    # that doesn't match (e.g. an unexpected format) leaves this label unset
+    # rather than erroring.
+    - record: info:kube_namespace:hcp_cluster_subscription_id
+      expr: |
+        label_replace(
+          max without (prometheus_replica, instance, pod, container, endpoint, service) (
+            kube_namespace_annotations{
+              annotation_azure_microsoft_com_hcp_cluster_azure_resource_id!="",
+              job="kube-state-metrics"
+            }
+          ),
+          "hcp_cluster_subscription_id", "$1",
+          "annotation_azure_microsoft_com_hcp_cluster_azure_resource_id", "(?i)/subscriptions/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})/resourcegroups/.*"
+        )
