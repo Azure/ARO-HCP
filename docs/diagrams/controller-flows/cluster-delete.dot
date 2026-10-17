@@ -2,7 +2,7 @@ digraph cluster_delete {
   graph [rankdir=TB, bgcolor="white", pad="0.3", nodesep="0.4", ranksep="0.55", fontname="DejaVu Sans", fontsize=18, labelloc=t, label="Cluster delete · stop publishing, external teardown and record cleanup", dpi=110];
   node [shape=box, style="rounded,filled", fillcolor="#e6f0fa", color="#35648a", fontname="DejaVu Sans", fontsize=12, margin="0.16,0.10"];
   edge [color="#536577", fontname="DejaVu Sans", fontsize=10, arrowsize=0.7];
-  delete [label="Frontend DELETE cluster\ndeletion timestamp + Delete Operation\nchild node-pool / external-auth deletes", fillcolor="#eee7fb", color="#7b59a4"];
+  delete [label="Frontend DELETE cluster\ndeletion timestamp + Delete Operation\nrefresh deadline (default 50m)\ninitialize child deletes: NP 50m / EA 30m\nalready-initialized children unchanged", fillcolor="#eee7fb", color="#7b59a4"];
   resources [label="ClusterResources\nordered applyDesireRemovalChain\ndrop cascade-covered desire documents\nset selected desires to Type=Delete and wait\nManagedCluster / ingress / HostedCluster\nthen SWIFT resources, namespaces last", fillcolor="#e6f0fa", color="#35648a"];
   ingress [label="IngressCertificate\ndelete known ApplyDesire/ReadDesire names\nno Kubernetes deletes", fillcolor="#e6f0fa", color="#35648a"];
   ordered [label="Kube-applier / HyperShift / Kubernetes\nManagedCluster → shared ingress manifests\n→ HostedCluster (NodePool cleanup)\n→ PodNetworkInstance → PodNetwork\n→ cluster namespaces\nWait for deletion at each stage", fillcolor="#fff0da", color="#b27624"];
@@ -17,7 +17,10 @@ digraph cluster_delete {
   certificates [label="KubeAPIServerTLSCertificate +\nIngressTLSCertificate\neach: GET its own vault ref;\n404 clears that reference\nread-only, no Key Vault deletes", fillcolor="#e6f0fa", color="#35648a"];
   cleanup [label="ClusterChildResourcesCleanup\nController", fillcolor="#e6f0fa", color="#35648a"];
   final [label="ClusterDeletionController", fillcolor="#e6f0fa", color="#35648a"];
-  op [label="OperationClusterDelete", fillcolor="#e6f0fa", color="#35648a"];
+  op [label="OperationClusterDelete\nabsence first; otherwise matching owner\nexpiry before dispatch / ID gates", fillcolor="#e6f0fa", color="#35648a"];
+  failed [label="ARM attempt Failed: InternalServerError\nExisting live + cached diagnostics retained\nDeletion intent / cleanup not canceled", fillcolor="#fbe8e5", color="#a64f43"];
+  delete -> op [label="DeleteOperationCompletionDeadline\nindependent of cleanup progress"];
+  op -> failed [label="document present + now > deadline"];
   done [label="ARM Delete Operation Succeeded", fillcolor="#e4f2e5", color="#4c8053"];
   backups [label="BackupCleanup (mgmt-agent)\nALL: recognized ARO Backup, terminal phase,\nno active uploads/restores/downloads, no opt-outs\nIncludes pending schedule-selected restores\nand downloads after terminal restores\nOpt-outs: wait for events, no polling\nNo Cosmos writes", fillcolor="#e6f0fa", color="#35648a"];
   velero [label="Velero (external)\nprocess DeleteBackupRequest\ndelete Backup and associated backup data", fillcolor="#fff0da", color="#b27624"];
@@ -45,7 +48,7 @@ digraph cluster_delete {
   group -> cleanup [label="group references cleared\n(required before removing\nprovider doc)"];
   cleanup -> final [label="nested resources and intents\ngone"];
   final -> op [label="billing DeletionTime; cluster\ndoc deleted"];
-  op -> done [label="document absence observed"];
+  op -> done [label="document absence observed\nwhile operation nonterminal"];
   clear -> clear [label="external deletion pending", style=dashed, color="#857456", constraint=false];
   group -> group [label="group still exists: observe again\n(or delete if orphaned)", style=dashed, color="#857456", constraint=false];
 }

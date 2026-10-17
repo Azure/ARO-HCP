@@ -34,6 +34,7 @@ import (
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
 	nodepoolversion "github.com/Azure/ARO-HCP/backend/pkg/controllers/nodepool/version"
+	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	operationbase "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
@@ -152,6 +153,24 @@ func (c *operationNodePoolUpdate) SynchronizeOperation(ctx context.Context, key 
 		return nil
 	}
 
+	if deadline := existingNodePool.ServiceProviderProperties.UpdateOperationCompletionDeadline; deadline != nil && c.clock.Now().After(deadline.Time) {
+		var message string
+		// Read cached status only; spec comparison also requires a live Cluster Service read.
+		if observed, err := kubeapplierhelpers.GetCachedNodePoolForNodePool(ctx, c.readDesireLister, operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Parent.Name, operation.ExternalID.Name); err == nil && observed != nil {
+			_, message = c.hypershiftNodePoolStatusMatchesDesired(existingNodePool, observed.Status)
+		}
+		persistErr := &coreapi.CloudErrorBody{
+			Code:    coreapi.CloudErrorCodeDeadlineExceeded,
+			Message: operationbase.DeadlineExceededMessage("node pool update did not complete before the deadline", message),
+		}
+		logger.Info("update operation deadline exceeded, marking as failed", "deadline", deadline.Time, "message", persistErr.Message)
+		err = operationbase.UpdateOperationStatus(ctx, c.clock, c.resourcesDBClient, operation, coreapi.ProvisioningStateFailed, persistErr, operationbase.PostAsyncNotificationFn(c.notificationClient))
+		if cosmosstorageutils.IsPreconditionFailedError(err) {
+			return nil
+		}
+		return utils.TrackError(err)
+	}
+
 	if !c.shouldReconcileOperationAndResourceStatus(existingNodePool) {
 		return nil // no work to do
 	}
@@ -166,27 +185,6 @@ func (c *operationNodePoolUpdate) SynchronizeOperation(ctx context.Context, key 
 		persistErr = &coreapi.CloudErrorBody{
 			Code:    operationalState.CloudErrorCode,
 			Message: operationalState.Message,
-		}
-	}
-
-	if !operationalState.ProvisioningState.IsTerminal() &&
-		existingNodePool.ServiceProviderProperties.UpdateOperationCompletionDeadline != nil &&
-		c.clock.Now().After(existingNodePool.ServiceProviderProperties.UpdateOperationCompletionDeadline.Time) {
-		message := operationbase.DeadlineExceededMessage(
-			"node pool update did not complete before the deadline",
-			operationalState.Message,
-		)
-		logger.Info("update operation deadline exceeded, marking as failed",
-			"deadline", existingNodePool.ServiceProviderProperties.UpdateOperationCompletionDeadline.Time,
-			"message", message)
-		operationalState.ProvisioningState = coreapi.ProvisioningStateFailed
-		code := operationalState.CloudErrorCode
-		if code == coreapi.CloudErrorCodeInternalServerError {
-			code = coreapi.CloudErrorCodeDeadlineExceeded
-		}
-		persistErr = &coreapi.CloudErrorBody{
-			Code:    code,
-			Message: message,
 		}
 	}
 

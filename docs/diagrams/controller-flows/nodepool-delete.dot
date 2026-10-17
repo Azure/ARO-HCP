@@ -2,14 +2,17 @@ digraph nodepool_delete {
   graph [rankdir=TB, bgcolor="white", pad="0.3", nodesep="0.4", ranksep="0.55", fontname="DejaVu Sans", fontsize=18, labelloc=t, label="Node pool delete · controller flow", dpi=110];
   node [shape=box, style="rounded,filled", fillcolor="#e6f0fa", color="#35648a", fontname="DejaVu Sans", fontsize=12, margin="0.16,0.10"];
   edge [color="#536577", fontname="DejaVu Sans", fontsize=10, arrowsize=0.7];
-  api [label="Frontend DELETE node pool\nbest-effort last-pool check: cached siblings\nthen deletion timestamp + Delete Operation", fillcolor="#eee7fb", color="#7b59a4"];
+  api [label="Frontend DELETE node pool\nbest-effort last-pool check: cached siblings\nthen deletion timestamp + Delete Operation\nrefresh delete deadline = clock + 50m\naccepted retry preserves deletion progress", fillcolor="#eee7fb", color="#7b59a4"];
   dispatch [label="NodePoolClusterServiceDelete\nDispatch", fillcolor="#e6f0fa", color="#35648a"];
   cs [label="Cluster Service / external \ncleanup", fillcolor="#fff0da", color="#b27624"];
   clear [label="NodePoolDeletionClusterServiceID\nClearer", fillcolor="#e6f0fa", color="#35648a"];
   resources [label="ClusterResources", fillcolor="#e6f0fa", color="#35648a"];
   cleanup [label="NodePoolChildResourcesCleanup\nController", fillcolor="#e6f0fa", color="#35648a"];
   final [label="NodePoolDeletionController", fillcolor="#e6f0fa", color="#35648a"];
-  op [label="OperationNodePoolDelete", fillcolor="#e6f0fa", color="#35648a"];
+  op [label="OperationNodePoolDelete\nabsence first; otherwise matching owner\nexpiry before dispatch / ID gates", fillcolor="#e6f0fa", color="#35648a"];
+  failed [label="ARM attempt Failed: DeadlineExceeded\nResource-field diagnostics only\nDeletion intent / cleanup not canceled", fillcolor="#fbe8e5", color="#a64f43"];
+  api -> op [label="DeleteOperationCompletionDeadline"];
+  op -> failed [label="document present + now > deadline"];
   done [label="ARM Delete Operation Succeeded", fillcolor="#e4f2e5", color="#4c8053"];
   api -> dispatch [label="deletion requested"];
   api -> resources [label="skip deleting node pool; reap\nintents"];
@@ -18,6 +21,6 @@ digraph nodepool_delete {
   clear -> cleanup [label="ClusterServiceID cleared"];
   cleanup -> final [label="nested docs / desires removed"];
   final -> op [label="node-pool document deleted"];
-  op -> done [label="absence observed"];
+  op -> done [label="absence observed\nwhile operation nonterminal"];
   clear -> clear [label="external deletion pending", style=dashed, color="#857456", constraint=false];
 }

@@ -135,6 +135,22 @@ func (c *operationExternalAuthCreate) SynchronizeOperation(ctx context.Context, 
 		return nil
 	}
 
+	if deadline := externalAuth.ServiceProviderProperties.CreateOperationCompletionDeadline; deadline != nil && c.clock.Now().After(deadline.Time) {
+		logger.Info("external auth create operation deadline exceeded", "deadline", deadline.Time)
+		persistErr := &coreapi.CloudErrorBody{
+			Code:    coreapi.CloudErrorCodeDeadlineExceeded,
+			Message: "External auth creation did not complete within the allowed time.",
+		}
+		err = operationbase.UpdateOperationStatus(ctx, c.clock, c.resourcesDBClient, operation, coreapi.ProvisioningStateFailed, persistErr, operationbase.PostAsyncNotificationFn(c.notificationClient))
+		if cosmosstorageutils.IsPreconditionFailedError(err) {
+			return nil
+		}
+		if err != nil {
+			return utils.TrackError(err)
+		}
+		return nil
+	}
+
 	if !c.shouldReconcileOperationAndResourceStatus(externalAuth) {
 		return nil
 	}

@@ -183,7 +183,7 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 			},
 		},
 		{
-			name:  "deadline exceeded preserves pending validation error code",
+			name:  "deadline exceeded preserves pending validation diagnostics",
 			clock: clocktesting.NewFakePassiveClock(createdAt),
 			existingCluster: func() *coreapi.Cluster {
 				cluster := newClusterWithAPIURL("https://api.example.com", &createdAt)
@@ -204,9 +204,6 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 			}},
 			setupCSMock: func(ctrl *gomock.Controller, fixture *operationtesting.ClusterTestFixture) ocm.ClusterServiceClientSpec {
 				mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
-				clusterStatus, err := arohcpv1alpha1.NewClusterStatus().State(arohcpv1alpha1.ClusterStateReady).Build()
-				require.NoError(t, err)
-				mockCSClient.EXPECT().GetClusterStatus(gomock.Any(), fixture.ClusterInternalID).Return(clusterStatus, nil)
 				return mockCSClient
 			},
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
@@ -214,7 +211,7 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 				require.NoError(t, err)
 				assert.Equal(t, coreapi.ProvisioningStateFailed, op.Status)
 				require.NotNil(t, op.Error)
-				assert.Equal(t, coreapi.CloudErrorCodeInvalidResource, op.Error.Code)
+				assert.Equal(t, coreapi.CloudErrorCodeDeadlineExceeded, op.Error.Code)
 				assert.Contains(t, op.Error.Message, "cluster creation did not complete before the deadline")
 				assert.Contains(t, op.Error.Message, "SubnetValidation: InvalidSubnet: subnet is unavailable")
 				cluster, err := db.HCPClusters(operationtesting.TestSubscriptionID, operationtesting.TestResourceGroupName).Get(ctx, operationtesting.TestClusterName)
@@ -378,15 +375,7 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 			}(),
 			existingOperation: fixture.NewOperation(cosmosstorageutils.OperationRequestCreate),
 			setupCSMock: func(ctrl *gomock.Controller, fixture *operationtesting.ClusterTestFixture) ocm.ClusterServiceClientSpec {
-				mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
-				clusterStatus, err := arohcpv1alpha1.NewClusterStatus().
-					State(arohcpv1alpha1.ClusterStateInstalling).
-					Build()
-				require.NoError(t, err)
-				mockCSClient.EXPECT().
-					GetClusterStatus(gomock.Any(), fixture.ClusterInternalID).
-					Return(clusterStatus, nil)
-				return mockCSClient
+				return ocm.NewMockClusterServiceClientSpec(ctrl)
 			},
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
@@ -395,7 +384,6 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 				require.NotNil(t, op.Error)
 				assert.Equal(t, coreapi.CloudErrorCodeDeadlineExceeded, op.Error.Code)
 				assert.Contains(t, op.Error.Message, "cluster creation did not complete before the deadline")
-				assert.Contains(t, op.Error.Message, "cluster service is installing")
 			},
 		},
 		{
@@ -410,15 +398,7 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 			existingOperation: fixture.NewOperation(cosmosstorageutils.OperationRequestCreate),
 			readDesireLister:  &kubeapplierlistertesting.SliceReadDesireLister{},
 			setupCSMock: func(ctrl *gomock.Controller, fixture *operationtesting.ClusterTestFixture) ocm.ClusterServiceClientSpec {
-				mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
-				clusterStatus, err := arohcpv1alpha1.NewClusterStatus().
-					State(arohcpv1alpha1.ClusterStateReady).
-					Build()
-				require.NoError(t, err)
-				mockCSClient.EXPECT().
-					GetClusterStatus(gomock.Any(), fixture.ClusterInternalID).
-					Return(clusterStatus, nil)
-				return mockCSClient
+				return ocm.NewMockClusterServiceClientSpec(ctrl)
 			},
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
@@ -573,8 +553,15 @@ func TestOperationClusterCreate_PlacementDeadline(t *testing.T) {
 			wantOperationState:      coreapi.ProvisioningStateProvisioning,
 		},
 		{
-			name:                    "overall deadline fails placement with capacity shortage",
+			name:                    "capacity shortage still waits at overall deadline",
 			timeSinceOperationStart: time.Hour,
+			overallTimeout:          time.Hour,
+			placementCondition:      insufficientCapacity,
+			wantOperationState:      coreapi.ProvisioningStateProvisioning,
+		},
+		{
+			name:                    "overall deadline fails placement with capacity shortage",
+			timeSinceOperationStart: time.Hour + time.Second,
 			overallTimeout:          time.Hour,
 			placementCondition:      insufficientCapacity,
 			wantOperationState:      coreapi.ProvisioningStateFailed,
@@ -582,7 +569,7 @@ func TestOperationClusterCreate_PlacementDeadline(t *testing.T) {
 		},
 		{
 			name:                    "overall deadline fails placement without eligible cluster",
-			timeSinceOperationStart: 10 * time.Minute,
+			timeSinceOperationStart: 10*time.Minute + time.Second,
 			overallTimeout:          10 * time.Minute,
 			placementCondition:      noEligibleCluster,
 			wantOperationState:      coreapi.ProvisioningStateFailed,
@@ -596,7 +583,7 @@ func TestOperationClusterCreate_PlacementDeadline(t *testing.T) {
 		},
 		{
 			name:                            "uncached service provider cluster times out with internal error",
-			timeSinceOperationStart:         time.Hour,
+			timeSinceOperationStart:         time.Hour + time.Second,
 			overallTimeout:                  time.Hour,
 			serviceProviderClusterNotCached: true,
 			wantOperationState:              coreapi.ProvisioningStateFailed,
@@ -604,14 +591,14 @@ func TestOperationClusterCreate_PlacementDeadline(t *testing.T) {
 		},
 		{
 			name:                    "missing placement status times out with internal error",
-			timeSinceOperationStart: time.Hour,
+			timeSinceOperationStart: time.Hour + time.Second,
 			overallTimeout:          time.Hour,
 			wantOperationState:      coreapi.ProvisioningStateFailed,
 			wantErrorCode:           coreapi.CloudErrorCodeInternalServerError,
 		},
 		{
 			name:                    "unknown capacity times out with internal error",
-			timeSinceOperationStart: time.Hour,
+			timeSinceOperationStart: time.Hour + time.Second,
 			overallTimeout:          time.Hour,
 			placementCondition: &metav1.Condition{
 				Type:   coreapi.CapacityAvailableConditionType,
@@ -623,7 +610,7 @@ func TestOperationClusterCreate_PlacementDeadline(t *testing.T) {
 		},
 		{
 			name:                    "available capacity without assignment times out with internal error",
-			timeSinceOperationStart: time.Hour,
+			timeSinceOperationStart: time.Hour + time.Second,
 			overallTimeout:          time.Hour,
 			placementCondition: &metav1.Condition{
 				Type:   coreapi.CapacityAvailableConditionType,
@@ -635,7 +622,7 @@ func TestOperationClusterCreate_PlacementDeadline(t *testing.T) {
 		},
 		{
 			name:                    "unrelated false condition is not capacity exhaustion",
-			timeSinceOperationStart: time.Hour,
+			timeSinceOperationStart: time.Hour + time.Second,
 			overallTimeout:          time.Hour,
 			placementCondition: &metav1.Condition{
 				Type:   "OtherCondition",
@@ -738,7 +725,7 @@ func TestOperationClusterCreate_PlacementDeadline(t *testing.T) {
 			assert.Equal(t, tc.wantOperationState, persisted.Status)
 			if tc.wantOperationState == coreapi.ProvisioningStateFailed {
 				require.NotNil(t, persisted.Error)
-				assert.Equal(t, tc.wantErrorCode, persisted.Error.Code)
+				assert.Equal(t, coreapi.CloudErrorCodeDeadlineExceeded, persisted.Error.Code)
 				assert.NotContains(t, persisted.Error.Message, "internal-management-cluster-id")
 				persistedCluster, err := db.HCPClusters(operationtesting.TestSubscriptionID, fixture.ClusterResourceID.ResourceGroupName).Get(ctx, fixture.ClusterResourceID.Name)
 				require.NoError(t, err)

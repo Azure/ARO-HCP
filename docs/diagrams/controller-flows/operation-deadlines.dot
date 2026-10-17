@@ -1,0 +1,31 @@
+digraph operation_deadlines {
+  graph [rankdir=TB, bgcolor="white", pad="0.3", nodesep="0.45", ranksep="0.55", fontname="DejaVu Sans", fontsize=18, labelloc=t, label="Resource-operation deadlines: ARM monitoring, not external cancellation", dpi=110];
+  node [shape=box, style="rounded,filled", fillcolor="#e6f0fa", color="#35648a", fontname="DejaVu Sans", fontsize=12, margin="0.16,0.10"];
+  edge [color="#536577", fontname="DejaVu Sans", fontsize=10, arrowsize=0.7];
+  api [label="Frontend accepts create / update / delete\natomic resource + new Operation write\nmatching deadline = clock + duration\nDefaults: Cluster / NP 60m create, 90m update, 50m delete\nExternal auth: 30m each; credentials unchanged", fillcolor="#eee7fb", color="#7b59a4"];
+  poll [label="OperationCluster* / OperationNodePool* /\nOperationExternalAuth* (nine pollers, 10s)\nmatching request / resource type; nonterminal only"];
+  absent [label="Resource lookup\nCreate / update: cache; missing waits\nDelete: live read; absent completes first"];
+  owner [label="Present resource: ActiveOperationID matches?\nEmpty / mismatched owner: skip"];
+  expiry [label="Matching request deadline is non-nil\nand clock.Now() strictly after deadline?\nNo legacy backfill; equality is not expired"];
+  normal [label="Existing reconciliation gates\nthen normal state observation / completion\nObservation errors retry"];
+  timeout [label="Early expiry: no normal state evaluation\nFailed / DeadlineExceeded + best-effort diagnostics\nEXCEPTION: cluster delete retains InternalServerError\nand live + cached timeout diagnostics"];
+  persist [label="UpdateOperationStatus\ntransaction: Operation status / error / transition time\n+ live resource state and terminal owner clearing\nResource missing / owner changed: operation-only write\nETag conflict: no commit; reconcile again"];
+  terminal [label="ARM attempt terminal; notification after commit\nFailed attempt stays Failed even if cleanup finishes\nNo rollback or external cancellation", fillcolor="#e4f2e5", color="#4c8053"];
+  external [label="Independent provisioning / deletion controllers\nCluster Service / Azure / Kubernetes\nExisting controller gates still apply\nDeletion intent and dispatch timestamps retained", fillcolor="#fff0da", color="#b27624"];
+  retry [label="New accepted customer retry\nrefresh only relevant deadline; preserve delete progress\nParent cascade skips already-initialized child deletes\nRejected requests do not refresh", fillcolor="#eee7fb", color="#7b59a4"];
+  api -> poll [label="Operation + resource deadline"];
+  api -> external [label="desired state / deletion intent"];
+  poll -> absent [label="eligible attempt"];
+  absent -> terminal [label="DELETE document absent:\nSetDeleteOperationAsCompleted / Succeeded"];
+  absent -> owner [label="resource present"];
+  owner -> expiry [label="owner matches"];
+  expiry -> timeout [label="expired"];
+  expiry -> normal [label="nil or now <= deadline"];
+  timeout -> persist [label="fixed timeout result; diagnostic errors ignored"];
+  normal -> persist [label="observed state"];
+  persist -> terminal [label="terminal write committed"];
+  persist -> poll [label="pending / conflict: next reconcile", style=dashed, color="#857456", constraint=false];
+  normal -> poll [label="gate / read error: wait or retry", style=dashed, color="#857456", constraint=false];
+  terminal -> retry [label="optional new request after failure", style=dashed, color="#857456"];
+  retry -> api [label="passes admission + transaction", style=dashed, color="#857456", constraint=false];
+}

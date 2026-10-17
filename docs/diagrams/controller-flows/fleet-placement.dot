@@ -15,8 +15,8 @@ digraph fleet_placement {
   selected [label="Pending reservation, then Spec placement\nCapacityAvailable = True", fillcolor="#e4f2e5", color="#4c8053"];
   deferred [label="No fit: CapacityAvailable\nFalse (known blockers) or Unknown", fillcolor="#e4f2e5", color="#4c8053"];
   create [label="ClusterClusterServiceCreate"];
-  operation [label="OperationClusterCreate\nchecks placement before CS ID exists"];
-  failed [label="At overall deadline: Failed\nFalse → AROHCPCapacityHeavyUse\nmissing / Unknown → InternalServerError", fillcolor="#e4f2e5", color="#4c8053"];
+  operation [label="OperationClusterCreate\nmatching owner: expiry before normal observation\nDoes not require CS ID"];
+  failed [label="Past overall deadline: Failed / DeadlineExceeded\nNo Spec placement: best-effort cached diagnostic\nFalse: customer-safe capacity message\nmissing / Unknown: generic placement timeout", fillcolor="#fbe8e5", color="#a64f43"];
   ensure -> mirror [label="sharedingress ReadDesire"];
   service -> mirror [label="observed Service content"];
   mirror -> ingress [label="KubeContent"];
@@ -30,7 +30,7 @@ digraph fleet_placement {
   selected -> create [label="selected provision shard"];
   selected -> operation [label="placement check satisfied;\nother checks still required"];
   deferred -> operation [label="unresolved placement"];
-  operation -> failed [label="still unresolved at deadline"];
+  operation -> failed [label="now > create deadline\n(nonterminal operation)"];
   deferred -> placement [label="enqueue after 29s", style=dashed, color="#857456", constraint=false];
-  operation -> operation [label="before deadline / no deadline:\nkeep waiting", style=dashed, color="#857456", constraint=false];
+  operation -> operation [label="at / before deadline or nil:\nunresolved placement keeps waiting", style=dashed, color="#857456", constraint=false];
 }

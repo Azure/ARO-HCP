@@ -169,11 +169,10 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 	}
 
 	testCases := []struct {
-		checkDeadline    bool
-		timeoutReason    string
-		timeoutErrorCode string
-		name             string
-		existingCluster  *coreapi.Cluster
+		checkDeadline   bool
+		timeoutReason   string
+		name            string
+		existingCluster *coreapi.Cluster
 		// When not set, the controller uses a cluster lister that contains the existingCluster
 		clusterLister     corelisters.ClusterLister
 		existingOperation *coreapi.Operation
@@ -226,10 +225,9 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 			},
 		},
 		{
-			name:             "old validation failure keeps a new update operation provisioning",
-			checkDeadline:    true,
-			timeoutReason:    "SubnetValidation: InvalidSubnet: subnet is unavailable",
-			timeoutErrorCode: coreapi.CloudErrorCodeInvalidResource,
+			name:          "old validation failure keeps a new update operation provisioning",
+			checkDeadline: true,
+			timeoutReason: "SubnetValidation: InvalidSubnet: subnet is unavailable",
 			existingCluster: newClusterWithCustomerVersion("4.19", func(cluster *coreapi.Cluster) {
 				cluster.ServiceProviderProperties.ProvisioningState = coreapi.ProvisioningStateAccepted
 			}),
@@ -326,7 +324,6 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 		{
 			name:                           "cs cluster updating transitions operation to updating",
 			checkDeadline:                  true,
-			timeoutReason:                  "[clusterServiceClusterStatus] cluster service is updating",
 			existingCluster:                newClusterWithCustomerVersion("4.19"),
 			existingOperation:              newOperationAccepted(),
 			existingServiceProviderCluster: newServiceProviderClusterWithSpecControlPlaneVersion("4.19"),
@@ -563,7 +560,6 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 		{
 			name:          "cs cluster ready with node drain spec mismatch keeps operation updating",
 			checkDeadline: true,
-			timeoutReason: "[clusterServiceClusterSpec] Cluster Service nodeDrainGracePeriod is 30 minutes, want 60",
 			existingCluster: newClusterWithCustomerVersion("4.19", func(cluster *coreapi.Cluster) {
 				cluster.CustomerProperties.NodeDrainTimeoutMinutes = 60
 			}),
@@ -771,8 +767,7 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 	}
 
 	// Exercise the same observations before, at, and after the update deadline.
-	// Successful and failed observations must retain their original result even
-	// after the deadline; pending operations preserve specific error codes on timeout.
+	// Once expired, a nonterminal operation fails without discovering late success or failure.
 	for _, base := range testCases {
 		if !base.checkDeadline {
 			continue
@@ -784,17 +779,14 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 			tc.existingOperation = base.existingOperation.DeepCopy()
 			tc.existingServiceProviderCluster = base.existingServiceProviderCluster.DeepCopy()
 			tc.existingCluster.ServiceProviderProperties.UpdateOperationCompletionDeadline = ptr.To(metav1.NewTime(testClockNow.Add(offset)))
-			if offset < 0 && base.timeoutReason != "" {
+			if offset < 0 {
+				tc.setupMockCSClient = nil
 				tc.verifyDB = func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 					op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 					require.NoError(t, err)
 					assert.Equal(t, coreapi.ProvisioningStateFailed, op.Status)
 					require.NotNil(t, op.Error)
-					wantCode := base.timeoutErrorCode
-					if wantCode == "" {
-						wantCode = coreapi.CloudErrorCodeDeadlineExceeded
-					}
-					assert.Equal(t, wantCode, op.Error.Code)
+					assert.Equal(t, coreapi.CloudErrorCodeDeadlineExceeded, op.Error.Code)
 					assert.Contains(t, op.Error.Message, "cluster update did not complete before the deadline")
 					assert.Contains(t, op.Error.Message, base.timeoutReason)
 					resource, err := db.HCPClusters(operationtesting.TestSubscriptionID, operationtesting.TestResourceGroupName).Get(ctx, operationtesting.TestClusterName)

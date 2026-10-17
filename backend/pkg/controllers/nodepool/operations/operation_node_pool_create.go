@@ -141,6 +141,24 @@ func (c *operationNodePoolCreate) SynchronizeOperation(ctx context.Context, key 
 		return nil
 	}
 
+	if deadline := nodePool.ServiceProviderProperties.CreateOperationCompletionDeadline; deadline != nil && c.clock.Now().After(deadline.Time) {
+		var message string
+		// The cached mirror can explain machine failures, but is not required to time out.
+		if state, err := c.hypershiftNodePoolOperationState(ctx, nodePool); err == nil {
+			message = state.Message
+		}
+		persistErr := &coreapi.CloudErrorBody{
+			Code:    coreapi.CloudErrorCodeDeadlineExceeded,
+			Message: operationbase.DeadlineExceededMessage("node pool creation did not complete before the deadline", message),
+		}
+		logger.Info("create operation deadline exceeded, marking as failed", "deadline", deadline.Time, "message", persistErr.Message)
+		err = operationbase.UpdateOperationStatus(ctx, c.clock, c.resourcesDBClient, operation, coreapi.ProvisioningStateFailed, persistErr, operationbase.PostAsyncNotificationFn(c.notificationClient))
+		if cosmosstorageutils.IsPreconditionFailedError(err) {
+			return nil
+		}
+		return utils.TrackError(err)
+	}
+
 	if !c.shouldReconcileOperationAndResourceStatus(nodePool) {
 		return nil
 	}
@@ -155,27 +173,6 @@ func (c *operationNodePoolCreate) SynchronizeOperation(ctx context.Context, key 
 		persistErr = &coreapi.CloudErrorBody{
 			Code:    operationalState.CloudErrorCode,
 			Message: operationalState.Message,
-		}
-	}
-
-	if !operationalState.ProvisioningState.IsTerminal() &&
-		nodePool.ServiceProviderProperties.CreateOperationCompletionDeadline != nil &&
-		c.clock.Now().After(nodePool.ServiceProviderProperties.CreateOperationCompletionDeadline.Time) {
-		message := operationbase.DeadlineExceededMessage(
-			"node pool creation did not complete before the deadline",
-			operationalState.Message,
-		)
-		logger.Info("create operation deadline exceeded, marking as failed",
-			"deadline", nodePool.ServiceProviderProperties.CreateOperationCompletionDeadline.Time,
-			"message", message)
-		operationalState.ProvisioningState = coreapi.ProvisioningStateFailed
-		code := operationalState.CloudErrorCode
-		if code == coreapi.CloudErrorCodeInternalServerError {
-			code = coreapi.CloudErrorCodeDeadlineExceeded
-		}
-		persistErr = &coreapi.CloudErrorBody{
-			Code:    code,
-			Message: message,
 		}
 	}
 

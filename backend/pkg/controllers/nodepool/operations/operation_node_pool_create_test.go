@@ -297,9 +297,6 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 				return np
 			},
 			existingOperation: fixture.NewOperation(cosmosstorageutils.OperationRequestCreate),
-			setupCSMock: func(t *testing.T, mock *ocm.MockClusterServiceClientSpec, fixture *operationtesting.NodePoolTestFixture) {
-				setupCSNodePoolStatus(t, mock, fixture, string(operationbase.NodePoolStateInstalling), "")
-			},
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
@@ -307,12 +304,10 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 				require.NotNil(t, op.Error)
 				assert.Equal(t, coreapi.CloudErrorCodeDeadlineExceeded, op.Error.Code)
 				assert.Contains(t, op.Error.Message, "node pool creation did not complete before the deadline")
-				assert.Contains(t, op.Error.Message, "cluster service node pool is installing")
 			},
 		},
 		{
-			// Cluster Service reports no message. Once the deadline is exceeded, the error keeps
-			// the deadline sentence and appends the Hypershift NodePool AllMachinesReady message.
+			// Timeout diagnostics use the cached Hypershift NodePool without contacting Cluster Service.
 			name:  "deadline exceeded surfaces hypershift AllMachinesReady message",
 			clock: clocktesting.NewFakePassiveClock(operationtesting.MustParseTime("2025-01-15T12:00:00Z")),
 			nodePool: func(fixture *operationtesting.NodePoolTestFixture) *coreapi.NodePool {
@@ -323,9 +318,6 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 			},
 			existingOperation:        fixture.NewOperation(cosmosstorageutils.OperationRequestCreate),
 			cachedNodePoolReadDesire: newHypershiftNodePoolReadDesire(nodePoolWithTwoReplicas(fixture), "1 of 1 machines are not ready\nMachine test-nodepool-abcde: Failed: virtualmachine failed to create or update. ERROR CODE: RequestDisallowedByPolicy"),
-			setupCSMock: func(t *testing.T, mock *ocm.MockClusterServiceClientSpec, fixture *operationtesting.NodePoolTestFixture) {
-				setupCSNodePoolStatus(t, mock, fixture, string(operationbase.NodePoolStateInstalling), "")
-			},
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)

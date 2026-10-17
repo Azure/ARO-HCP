@@ -752,9 +752,11 @@ func (f *Frontend) addDeleteNodePoolToTransaction(ctx context.Context, writer ht
 		return utils.TrackError(err)
 	}
 
+	now := f.clock.Now().UTC()
 	if nodePool.ServiceProviderProperties.DeletionTimestamp == nil {
-		nodePool.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: time.Now().UTC()}
+		nodePool.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: now}
 	}
+	nodePool.ServiceProviderProperties.DeleteOperationCompletionDeadline = &metav1.Time{Time: now.Add(admission.DefaultNodePoolDeleteOperationCompletionDeadlineDuration)}
 	nodePool.ServiceProviderProperties.ActiveOperationID = operationDoc.ResourceID.Name
 	nodePool.Properties.ProvisioningState = operationDoc.Status
 	// TODO remove this once migration of the new node pool deletion from frontend to backend approach is fully completed in all ARO-HCP
