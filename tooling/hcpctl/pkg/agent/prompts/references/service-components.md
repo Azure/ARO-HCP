@@ -128,3 +128,14 @@ can finish detaching. Until all addons are cleaned up, the destruct chain is blo
   the node condition (e.g. `"The node was low on resource: memory"`).
 - Destruct chain: `clustersServiceLogs` — filter for `log has '<cluster-id>'` and
   `log has 'destructor'` to see which destructor is blocking and how many iterations.
+
+## Etcd Services
+
+Each hosted control plane runs an etcd StatefulSet (created by HyperShift) fronted by two Services. In the default **HighlyAvailable** control-plane mode the StatefulSet has **3 members**; the experimental **SingleReplica** availability mode runs a **single** etcd member.
+
+- **`etcd-client`** — a normal `ClusterIP` Service on port `2379`, with the default `publishNotReadyAddresses: false`. kube-apiserver connects to etcd through this Service (`--etcd-servers`), so client traffic routes only to members currently in the Service's ready endpoints (`subsets[].addresses`).
+- **`etcd-discovery`** — a *headless* Service (`clusterIP: None`, `publishNotReadyAddresses: true`) on the peer port `2380`, used for etcd member peer discovery and as the StatefulSet's governing Service. Because it publishes not-ready addresses, members stay in its endpoints through a readiness blip.
+
+**Failure modes (HighlyAvailable mode):**
+
+- A single member's readiness drop is a *per-member* endpoint change on `etcd-client`, not a quorum loss. When a member fails its readiness probe (for example a Raft heartbeat / receive timeout, or its node going `NotReady`), the endpoints controller moves that member into `notReadyAddresses` on `etcd-client`; new connections stop routing to it and a `clientv3` connection already pinned to it can break, so kube-apiserver `/readyz` (which includes an etcd health check) can fail — surfacing as `kube-apiserver deployment has N unavailable replicas` even while etcd keeps quorum (`EtcdAvailable=True`). Inspect `etcd-client` `Endpoints` membership over time to see this, not just the `EtcdAvailable` condition. (In `SingleReplica` mode there is no quorum to preserve — a single etcd member going not-ready takes etcd down outright.)
