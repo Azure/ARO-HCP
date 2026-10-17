@@ -160,11 +160,6 @@ clouds:
             validationActions: Deny
         regions:
           eastus2euap:
-            e2e:
-              regionTest:
-                # Canary: eastus2euap is pinned to the Test-Tenant sub, the only
-                # PROD sub onboarded into the canary program.
-                allowedSubscriptions: "ARO HCP E2E"
             kusto:
               location: "eastus2"
             # Canary/EUAP replica: keep its regional data endpoint disabled so it
