@@ -40,6 +40,7 @@ func TestSetSuccessful_NilErrIsTrueWithNoErrors(t *testing.T) {
 	c := findCondition(conds, kubeapplierapi.ConditionTypeSuccessful)
 	if c == nil {
 		t.Fatal("Successful condition not set")
+		return
 	}
 	if c.Status != metav1.ConditionTrue {
 		t.Errorf("Status = %v, want True", c.Status)
@@ -55,6 +56,7 @@ func TestSetSuccessful_PreCheckErrorReason(t *testing.T) {
 	c := findCondition(conds, kubeapplierapi.ConditionTypeSuccessful)
 	if c == nil {
 		t.Fatal("Successful condition not set")
+		return
 	}
 	if c.Status != metav1.ConditionFalse {
 		t.Errorf("Status = %v, want False", c.Status)
@@ -73,6 +75,7 @@ func TestSetSuccessful_RegularErrorIsKubeAPIError(t *testing.T) {
 	c := findCondition(conds, kubeapplierapi.ConditionTypeSuccessful)
 	if c == nil {
 		t.Fatal("Successful condition not set")
+		return
 	}
 	if c.Reason != kubeapplierapi.ConditionReasonKubeAPIError {
 		t.Errorf("Reason = %q, want %q", c.Reason, kubeapplierapi.ConditionReasonKubeAPIError)
@@ -99,6 +102,7 @@ func TestSetSuccessfullyApplied_WritesBothConditions(t *testing.T) {
 				c := findCondition(conds, condType)
 				if c == nil {
 					t.Fatalf("%s condition not set", condType)
+					return
 				}
 				if c.Status != tc.wantStatus {
 					t.Errorf("%s Status = %v, want %v", condType, c.Status, tc.wantStatus)
@@ -123,6 +127,7 @@ func TestSetSuccessfullyDeleted_WritesBothConditions(t *testing.T) {
 		c := findCondition(conds, condType)
 		if c == nil {
 			t.Fatalf("%s condition not set", condType)
+			return
 		}
 		if c.Status != metav1.ConditionTrue {
 			t.Errorf("%s Status = %v, want True", condType, c.Status)
@@ -142,6 +147,7 @@ func TestSetWaitingForDeletion_WritesBothConditions(t *testing.T) {
 		c := findCondition(conds, condType)
 		if c == nil {
 			t.Fatalf("%s condition not set", condType)
+			return
 		}
 		if c.Status != metav1.ConditionFalse {
 			t.Errorf("%s Status = %v, want False", condType, c.Status)
@@ -164,6 +170,7 @@ func TestSetDegraded(t *testing.T) {
 	c := findCondition(conds, kubeapplierapi.ConditionTypeDegraded)
 	if c == nil {
 		t.Fatal("Degraded not set")
+		return
 	}
 	if c.Status != metav1.ConditionTrue {
 		t.Errorf("Status = %v, want True", c.Status)

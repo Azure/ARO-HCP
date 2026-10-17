@@ -60,7 +60,7 @@ func TestRepositoryCorpus(t *testing.T) {
 		name := d.Name()
 		if d.IsDir() {
 			switch name {
-			case ".git", "vendor", "node_modules", "testdata", "rendered":
+			case ".git", ".claude", ".agents", ".work", "vendor", "node_modules", "testdata", "rendered":
 				return filepath.SkipDir
 			}
 			return nil

@@ -25,6 +25,7 @@ import (
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
+	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
@@ -32,6 +33,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -50,6 +52,7 @@ type triggerControlPlaneUpgradeSyncer struct {
 	clusterServiceClient         ocm.ClusterServiceClientSpec
 	activeOperationLister        corelisters.ActiveOperationLister
 	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
+	readDesireLister             kubeapplierlisters.ReadDesireLister
 }
 
 var _ controllerutils.ClusterSyncer = (*triggerControlPlaneUpgradeSyncer)(nil)
@@ -57,12 +60,8 @@ var _ controllerutils.ClusterSyncer = (*triggerControlPlaneUpgradeSyncer)(nil)
 const TriggerControlPlaneUpgradeControllerName = "TriggerControlPlaneUpgrade"
 
 // NewTriggerControlPlaneUpgradeController creates a new controller that triggers control plane upgrades.
-// It monitors clusters where the desired version differs from the actual version and calls
-// the version service API to initiate the upgrade.
-//
-// The version service API is idempotent:
-//   - If desiredVersion == current cluster version: NOOP
-//   - Otherwise: Initiate the upgrade to desiredVersion
+// It gates new upgrade policies on the mirrored HostedCluster conditions, after
+// checking whether the latest policy already targets the desired version.
 func NewTriggerControlPlaneUpgradeController(
 	clock utilsclock.PassiveClock,
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
@@ -72,6 +71,7 @@ func NewTriggerControlPlaneUpgradeController(
 	serviceProviderClusterLister corelisters.ServiceProviderClusterLister,
 	informers coreinformers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
+	readDesireLister kubeapplierlisters.ReadDesireLister,
 ) controllerutils.Controller {
 	syncer := &triggerControlPlaneUpgradeSyncer{
 		clock:                        clock,
@@ -79,6 +79,7 @@ func NewTriggerControlPlaneUpgradeController(
 		clusterServiceClient:         clusterServiceClient,
 		activeOperationLister:        activeOperationLister,
 		serviceProviderClusterLister: serviceProviderClusterLister,
+		readDesireLister:             readDesireLister,
 	}
 
 	controller := controllerutils.NewClusterWatchingController(
@@ -98,8 +99,8 @@ func NewTriggerControlPlaneUpgradeController(
 // High-level flow:
 //  1. Fetch the customer's desired cluster configuration and service provider state
 //  2. Check if desiredVersion differs from latest actual version
-//  3. If different, call version service API to trigger upgrade
-//  4. The version service API is idempotent and handles the actual upgrade orchestration
+//  3. If different, check the latest policy and evaluate upgrade conditions
+//  4. Submit an eligible target to Cluster Service for upgrade orchestration
 func (c *triggerControlPlaneUpgradeSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
 	logger := utils.LoggerFromContext(ctx)
 	existingCluster, err := c.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
@@ -155,7 +156,7 @@ func (c *triggerControlPlaneUpgradeSyncer) SyncOnce(ctx context.Context, key con
 		return nil
 	}
 
-	return c.createUpgradePolicyIfNeeded(ctx, desiredVersion, *existingCluster.ServiceProviderProperties.ClusterServiceID)
+	return c.createUpgradePolicyIfNeeded(ctx, key, desiredVersion, *existingCluster.ServiceProviderProperties.ClusterServiceID)
 }
 
 // createUpgradePolicyIfNeeded ensures a control plane upgrade policy exists for the desired version.
@@ -164,8 +165,8 @@ func (c *triggerControlPlaneUpgradeSyncer) SyncOnce(ctx context.Context, key con
 // The method:
 //  1. Queries existing upgrade policies from Cluster Service (sorted by creation_timestamp desc)
 //  2. Checks if the latest policy matches the desired version - returns nil if it does
-//  3. Otherwise, creates a new upgrade policy with the desired version
-func (c *triggerControlPlaneUpgradeSyncer) createUpgradePolicyIfNeeded(ctx context.Context, desiredVersion *semver.Version, clusterServiceID metadataapi.InternalID) error {
+//  3. Otherwise, evaluates upgrade conditions before creating a new policy
+func (c *triggerControlPlaneUpgradeSyncer) createUpgradePolicyIfNeeded(ctx context.Context, key controllerutils.HCPClusterKey, desiredVersion *semver.Version, clusterServiceID metadataapi.InternalID) error {
 	logger := utils.LoggerFromContext(ctx)
 
 	// Query existing control plane upgrade policies from Cluster Service
@@ -186,6 +187,10 @@ func (c *triggerControlPlaneUpgradeSyncer) createUpgradePolicyIfNeeded(ctx conte
 		return utils.TrackError(fmt.Errorf("failed to list control plane upgrade policies: %w", err))
 	}
 
+	if err := c.checkUpgradeConditions(ctx, key, desiredVersion, clusterServiceID); err != nil {
+		return utils.TrackError(err)
+	}
+
 	// Create a new control plane upgrade policy for the desired version
 	logger.Info("Creating control plane upgrade policy", "desiredVersion", desiredVersion)
 
@@ -196,6 +201,44 @@ func (c *triggerControlPlaneUpgradeSyncer) createUpgradePolicyIfNeeded(ctx conte
 
 	logger.Info("Successfully created control plane upgrade policy", "desiredVersion", desiredVersion)
 
+	return nil
+}
+
+// checkUpgradeConditions evaluates the dispatch snapshot. It deliberately uses
+// CS's raw version for classification: the backend's active version can already
+// reflect an in-progress target. GetCluster also resolves a linked autoscaler;
+// failures of that read are retryable rather than falling back to another source.
+func (c *triggerControlPlaneUpgradeSyncer) checkUpgradeConditions(ctx context.Context, key controllerutils.HCPClusterKey, desiredVersion *semver.Version, clusterServiceID metadataapi.InternalID) error {
+	cluster, err := c.clusterServiceClient.GetCluster(ctx, clusterServiceID)
+	if err != nil {
+		return fmt.Errorf("failed to get CS source version for control plane upgrade to %s: %w", desiredVersion, err)
+	}
+	if cluster == nil || cluster.Version() == nil {
+		return fmt.Errorf("missing CS source version for control plane upgrade to %s", desiredVersion)
+	}
+	sourceVersion := cluster.Version().RawID()
+	minorUpgrade, err := isControlPlaneMinorUpgrade(sourceVersion, desiredVersion)
+	if err != nil {
+		return fmt.Errorf("failed to classify control plane upgrade from %q to %s: %w", sourceVersion, desiredVersion, err)
+	}
+
+	// Preserve CS's cached-content semantics even if the latest read failed.
+	hostedCluster, _, err := kubeapplierhelpers.GetCachedHostedClusterForCluster(ctx, c.readDesireLister, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	if err != nil {
+		return fmt.Errorf("failed to observe HostedCluster for control plane upgrade from %q to %s: %w", sourceVersion, desiredVersion, err)
+	}
+	if hostedCluster == nil {
+		return fmt.Errorf("missing HostedCluster observation for control plane upgrade from %q to %s", sourceVersion, desiredVersion)
+	}
+	decision, err := controlPlaneUpgradeConditions(hostedCluster.Status.Conditions, minorUpgrade)
+	if err != nil {
+		return fmt.Errorf("cannot evaluate control plane upgrade from %q to %s: %w", sourceVersion, desiredVersion, err)
+	}
+	if !decision.eligible {
+		// An expected eligibility wait intentionally uses the existing error path:
+		// rate-limited retry and controller Degraded until reconciliation succeeds.
+		return fmt.Errorf("control plane upgrade from %q to %s blocked by %s: reason=%q, message=%q", sourceVersion, desiredVersion, decision.conditionType, decision.reason, decision.message)
+	}
 	return nil
 }
 

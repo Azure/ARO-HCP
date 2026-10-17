@@ -81,6 +81,7 @@ func TestNewConfigMapWatcher(t *testing.T) {
 	}
 	if w == nil {
 		t.Fatal("NewConfigMapWatcher() returned nil")
+		return
 	}
 	if w.cmSynced == nil {
 		t.Fatal("NewConfigMapWatcher() did not set cmSynced")
