@@ -120,7 +120,8 @@ type queryData struct {
 
 	// ServiceClusterName and ManagementClusterName are AKS cluster names
 	// used to filter queries for PR jobs. When both are non-empty, queries
-	// include a "| where cluster in (...)" filter.
+	// include a "| where cluster in (...)" filter. Resource discovery replaces
+	// ManagementClusterName with the hosted cluster's observed placement.
 	ServiceClusterName    string
 	ManagementClusterName string
 
@@ -413,6 +414,25 @@ var allQueries = []querySpec{
 			}
 			d.HostedClusterNamespace = rows[0].values[0]
 			d.HostedControlPlaneNamespace = rows[0].values[0] + "-" + rows[0].values[1]
+			return nil
+		},
+	},
+	{
+		component:    "hypershift",
+		queryName:    "managementCluster",
+		templatePath: "queries/hypershift/managementCluster/query.kql",
+		database:     "service",
+		category:     categoryResourceDiscovery,
+		ready: func(d queryData) bool {
+			return d.HostedClusterNamespace != "" && d.HostedControlPlaneNamespace != ""
+		},
+		prerequisites: "HostedClusterNamespace, HostedControlPlaneNamespace",
+		requiredWhen:  func(d queryData) bool { return d.HostedClusterNamespace != "" },
+		storeResult: func(d *queryData, rows []resultRow) error {
+			if len(rows) != 1 {
+				return fmt.Errorf("query returned %d distinct management clusters, expected 1", len(rows))
+			}
+			d.ManagementClusterName = rows[0].values[0]
 			return nil
 		},
 	},

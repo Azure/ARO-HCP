@@ -122,6 +122,9 @@ type ResourceEntry struct {
 	// ClusterID is the Clusters Service identifier for this cluster.
 	ClusterID string `json:"cluster_id,omitempty"`
 
+	// ManagementClusterName is the AKS cluster used to scope this resource's queries.
+	ManagementClusterName string `json:"management_cluster_name,omitempty"`
+
 	// HostedClusterNamespace is the management cluster namespace for the hosted cluster.
 	HostedClusterNamespace string `json:"hosted_cluster_namespace,omitempty"`
 
