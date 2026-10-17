@@ -22,10 +22,20 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
+	clustervalidation "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/validation"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	operationtesting "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils/operationtesting"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/billingcosmosstoragetesting"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 )
 
@@ -189,4 +199,125 @@ func TestOperationClusterCreate_ClusterValidationNotCached(t *testing.T) {
 	assert.Equal(t, coreapi.ProvisioningStateAccepted, got.ProvisioningState)
 	assert.Equal(t, coreapi.CloudErrorCodeInternalServerError, got.CloudErrorCode)
 	assert.Equal(t, "ServiceProviderCluster not cached yet", got.Message)
+}
+
+func TestClusterValidationRefreshOperationState(t *testing.T) {
+	for _, reportError := range []bool{true, false} {
+		name := "log only"
+		if reportError {
+			name = "report error"
+		}
+		t.Run(name, func(t *testing.T) {
+			ctx := t.Context()
+			fixture := operationtesting.NewClusterTestFixture()
+			cluster := fixture.NewCluster(nil)
+			subscriptionID := cluster.ID.SubscriptionID
+			resourceGroup := cluster.ID.ResourceGroupName
+			clusterName := cluster.ID.Name
+			subscription := &coreapi.Subscription{
+				CosmosMetadata: coreapi.CosmosMetadata{
+					ResourceID:   metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + subscriptionID)),
+					PartitionKey: subscriptionID,
+				},
+				State: coreapi.SubscriptionStateRegistered,
+			}
+			db, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, subscription})
+			require.NoError(t, err)
+			_, err = corecosmosstorage.GetOrCreateServiceProviderCluster(ctx, db, cluster.ID)
+			require.NoError(t, err)
+			billing := billingcosmosstoragetesting.NewMockBillingDBClient()
+			informers := coreinformers.NewBackendInformers(ctx, db.ResourcesGlobalListers(), db, billing.BillingGlobalListers())
+			clusterInformer, _ := informers.Clusters()
+			require.NoError(t, clusterInformer.GetStore().Add(cluster))
+
+			const validationName = "DataPlaneIdentitiesPermissionsValidation"
+			validation := clustervalidation.NewMockClusterValidation(validationName)
+			controller := clustervalidation.NewClusterValidationController(
+				validation, db, &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: db}, informers,
+			)
+			key := controllerutils.HCPClusterKey{
+				SubscriptionID: subscriptionID, ResourceGroupName: resourceGroup, HCPClusterName: clusterName,
+			}
+			spcCRUD := db.ServiceProviderClusters(subscriptionID, resourceGroup, clusterName)
+			refresh := func(wantErr bool) *coreapi.ServiceProviderCluster {
+				t.Helper()
+				validation.WithEarliestRetryAfter(nil)
+				err := controller.SyncOnce(ctx, key)
+				if wantErr {
+					require.Error(t, err)
+				} else {
+					require.NoError(t, err)
+				}
+				spc, err := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
+				require.NoError(t, err)
+				return spc
+			}
+
+			validation.WithFailed("MissingRequiredPermissions", "CheckAccess denied", "Missing required permissions.")
+			spc := refresh(false)
+			denial := meta.FindStatusCondition(spc.Status.Validations, validationName)
+			require.NotNil(t, denial)
+			require.Equal(t, metav1.ConditionFalse, denial.Status)
+			// Seed an aged denial without waiting for wall-clock time to pass.
+			denial.LastTransitionTime = metav1.NewTime(operationtesting.MustParseTime("2026-01-01T00:00:00Z"))
+			deniedAt := denial.LastTransitionTime.Time
+			operationStart := deniedAt.Add(-time.Minute)
+			_, err = spcCRUD.Replace(ctx, spc, nil)
+			require.NoError(t, err)
+
+			// Each reporting policy must clear False on its first inconclusive refresh.
+			if reportError {
+				validation.WithUnknownReportError("InternalError", "CheckAccess returned HTTP 429", "Unable to verify permissions.")
+			} else {
+				validation.WithUnknownLogOnly("InternalError", "CheckAccess returned HTTP 429", "Unable to verify permissions.")
+			}
+			spc = refresh(reportError)
+			unknown := meta.FindStatusCondition(spc.Status.Validations, validationName)
+			require.NotNil(t, unknown)
+			require.Equal(t, metav1.ConditionUnknown, unknown.Status)
+			require.True(t, unknown.LastTransitionTime.After(deniedAt))
+			state := clusterValidationOperationState(spc, operationStart, unknown.LastTransitionTime.Add(11*time.Minute))
+			require.Equal(t, coreapi.ProvisioningStateProvisioning, state.ProvisioningState)
+			require.Equal(t, coreapi.CloudErrorCodeInternalServerError, state.CloudErrorCode)
+			require.Nil(t, state.Error)
+
+			// Suppressed repeat Unknowns cannot resurrect the original denial.
+			spc = refresh(reportError)
+			require.Equal(t, unknown, meta.FindStatusCondition(spc.Status.Validations, validationName))
+			state = clusterValidationOperationState(spc, operationStart, unknown.LastTransitionTime.Add(time.Hour))
+			require.Equal(t, coreapi.ProvisioningStateProvisioning, state.ProvisioningState)
+			require.Nil(t, state.Error)
+
+			validation.WithPassed()
+			spc = refresh(false)
+			passed := meta.FindStatusCondition(spc.Status.Validations, validationName)
+			require.NotNil(t, passed)
+			require.Equal(t, metav1.ConditionTrue, passed.Status)
+			state = clusterValidationOperationState(spc, operationStart, passed.LastTransitionTime.Time)
+			require.Equal(t, coreapi.ProvisioningStateSucceeded, state.ProvisioningState)
+			require.Empty(t, state.CloudErrorCode)
+			require.Nil(t, state.Error)
+
+			// A fresh denial after recovery receives its own full grace period.
+			validation.WithFailed("MissingRequiredPermissions", "CheckAccess denied", "Missing required permissions.")
+			spc = refresh(false)
+			denial = meta.FindStatusCondition(spc.Status.Validations, validationName)
+			require.NotNil(t, denial)
+			require.Equal(t, metav1.ConditionFalse, denial.Status)
+			require.True(t, denial.LastTransitionTime.After(deniedAt))
+			state = clusterValidationOperationState(spc, operationStart, denial.LastTransitionTime.Add(9*time.Minute))
+			require.Equal(t, coreapi.ProvisioningStateProvisioning, state.ProvisioningState)
+			require.Equal(t, coreapi.CloudErrorCodeInvalidResource, state.CloudErrorCode)
+			require.Nil(t, state.Error)
+
+			// A repeated definitive denial retains its age and fails at the grace boundary.
+			spc = refresh(false)
+			require.Equal(t, denial, meta.FindStatusCondition(spc.Status.Validations, validationName))
+			state = clusterValidationOperationState(spc, operationStart, denial.LastTransitionTime.Add(10*time.Minute))
+			require.Equal(t, coreapi.ProvisioningStateFailed, state.ProvisioningState)
+			require.Equal(t, coreapi.CloudErrorCodeInvalidResource, state.CloudErrorCode)
+			require.NotNil(t, state.Error)
+			require.Equal(t, coreapi.CloudErrorCodeInvalidResource, state.Error.Code)
+		})
+	}
 }

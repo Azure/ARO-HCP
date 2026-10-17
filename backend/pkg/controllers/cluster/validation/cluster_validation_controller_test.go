@@ -332,19 +332,19 @@ func TestClusterValidationSyncer_ShouldWriteCondition(t *testing.T) {
 		assert.True(t, syncer.shouldWriteCondition(nil, 5))
 	})
 
-	// shouldWriteCondition only checks previousCondition's nilness, not its Status. Vary Status here to
-	// lock that contract: suppression depends solely on consecutiveUnknowns.
 	previousConditionFixtures := []struct {
-		name      string
-		condition *metav1.Condition
+		name            string
+		condition       *metav1.Condition
+		writeUnknownNow bool
 	}{
 		{
 			name:      "Unknown",
 			condition: &metav1.Condition{Type: testValidationName, Status: metav1.ConditionUnknown},
 		},
 		{
-			name:      "Failed",
-			condition: &metav1.Condition{Type: testValidationName, Status: metav1.ConditionFalse, Reason: "PreviouslyFailed"},
+			name:            "Failed",
+			condition:       &metav1.Condition{Type: testValidationName, Status: metav1.ConditionFalse, Reason: "PreviouslyFailed"},
+			writeUnknownNow: true,
 		},
 		{
 			name:      "Passed",
@@ -382,7 +382,7 @@ func TestClusterValidationSyncer_ShouldWriteCondition(t *testing.T) {
 	for _, fixture := range previousConditionFixtures {
 		for _, scenario := range scenarios {
 			t.Run(fixture.name+" prior, "+scenario.name, func(t *testing.T) {
-				assert.Equal(t, scenario.want, syncer.shouldWriteCondition(fixture.condition, scenario.consecutiveUnknowns))
+				assert.Equal(t, scenario.want || fixture.writeUnknownNow, syncer.shouldWriteCondition(fixture.condition, scenario.consecutiveUnknowns))
 			})
 		}
 	}
@@ -464,78 +464,70 @@ func TestClusterValidationSyncer_TrackConsecutiveUnknowns(t *testing.T) {
 	}
 }
 
-// TestClusterValidationSyncer_ConsecutiveUnknownSuppression exercises the consecutive-Unknown suppression
-// policy end-to-end across repeated SyncOnce calls: a previously stored Failed condition should survive the
-// first maxConsecutiveUnknownsBeforeWrite consecutive Unknown results untouched (and skip the Cosmos write
-// each time, per the equality.Semantic.DeepEqual guard), then get overwritten with Unknown once the streak
-// persists past the threshold.
+// TestClusterValidationSyncer_ConsecutiveUnknownSuppression verifies that stored True and Unknown
+// conditions survive transient Unknown results, while persistent Unknown results replace them.
 func TestClusterValidationSyncer_ConsecutiveUnknownSuppression(t *testing.T) {
-	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+	for _, priorStatus := range []metav1.ConditionStatus{metav1.ConditionTrue, metav1.ConditionUnknown} {
+		t.Run(string(priorStatus), func(t *testing.T) {
+			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
 
-	mockDB := corecosmosstoragetesting.NewMockResourcesDBClient()
-	cluster := newTestCluster(t)
-	_, err := mockDB.HCPClusters(testSubscriptionID, testResourceGroup).Create(ctx, cluster, nil)
-	require.NoError(t, err)
-	_, err = mockDB.Subscriptions().Create(ctx, newTestSubscription(), nil)
-	require.NoError(t, err)
-	_, err = corecosmosstorage.GetOrCreateServiceProviderCluster(ctx, mockDB, cluster.ID)
-	require.NoError(t, err)
+			mockDB := corecosmosstoragetesting.NewMockResourcesDBClient()
+			cluster := newTestCluster(t)
+			_, err := mockDB.HCPClusters(testSubscriptionID, testResourceGroup).Create(ctx, cluster, nil)
+			require.NoError(t, err)
+			_, err = mockDB.Subscriptions().Create(ctx, newTestSubscription(), nil)
+			require.NoError(t, err)
+			_, err = corecosmosstorage.GetOrCreateServiceProviderCluster(ctx, mockDB, cluster.ID)
+			require.NoError(t, err)
 
-	spcCRUD := mockDB.ServiceProviderClusters(testSubscriptionID, testResourceGroup, testClusterName)
-	spc, err := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
-	require.NoError(t, err)
-	spc.Status.Validations = []metav1.Condition{
-		{
-			Type:    testValidationName,
-			Status:  metav1.ConditionFalse,
-			Reason:  "PreviouslyFailed",
-			Message: "previously failed",
-		},
+			spcCRUD := mockDB.ServiceProviderClusters(testSubscriptionID, testResourceGroup, testClusterName)
+			spc, err := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
+			require.NoError(t, err)
+			previous := metav1.Condition{
+				Type: testValidationName, Status: priorStatus, Reason: "PreviousResult",
+				Message: "Previously observed result.", LastTransitionTime: metav1.NewTime(fixedNow),
+			}
+			spc.Status.Validations = []metav1.Condition{previous}
+			_, err = spcCRUD.Replace(ctx, spc, nil)
+			require.NoError(t, err)
+
+			validation := NewMockClusterValidation(testValidationName).WithUnknownLogOnly(
+				"InternalError", "CheckAccess returned HTTP 429", "Unable to verify.",
+			)
+			fakeClock := clocktesting.NewFakePassiveClock(fixedNow)
+			syncer, _ := newTestSyncer(mockDB, validation, fakeClock)
+
+			for i := 1; i <= maxConsecutiveUnknownsBeforeWrite; i++ {
+				fakeClock.SetTime(fakeClock.Now().Add(time.Hour))
+				before, err := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
+				require.NoError(t, err)
+				require.NoError(t, syncer.SyncOnce(ctx, newTestClusterKey()))
+				after, err := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
+				require.NoError(t, err)
+
+				cond := meta.FindStatusCondition(after.Status.Validations, testValidationName)
+				require.NotNil(t, cond)
+				assert.Equalf(t, previous.Status, cond.Status, "attempt %d: previous status should be preserved", i)
+				assert.Equalf(t, previous.Reason, cond.Reason, "attempt %d: previous reason should be preserved", i)
+				assert.Truef(t, previous.LastTransitionTime.Equal(&cond.LastTransitionTime), "attempt %d: previous transition instant should be preserved", i)
+				assert.Equalf(t, before.CosmosETag, after.CosmosETag, "attempt %d: Cosmos write should have been skipped", i)
+			}
+
+			// The next attempt exceeds the threshold and persists the latest Unknown details.
+			fakeClock.SetTime(fakeClock.Now().Add(time.Hour))
+			before, err := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
+			require.NoError(t, err)
+			require.NoError(t, syncer.SyncOnce(ctx, newTestClusterKey()))
+			after, err := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
+			require.NoError(t, err)
+
+			cond := meta.FindStatusCondition(after.Status.Validations, testValidationName)
+			require.NotNil(t, cond)
+			assert.Equal(t, metav1.ConditionUnknown, cond.Status)
+			assert.Equal(t, "InternalError", cond.Reason)
+			assert.NotEqual(t, before.CosmosETag, after.CosmosETag, "expected a Cosmos write once the suppression threshold was exceeded")
+		})
 	}
-	_, err = spcCRUD.Replace(ctx, spc, nil)
-	require.NoError(t, err)
-
-	validation := NewMockClusterValidation(testValidationName).WithUnknownLogOnly(
-		"InternalError", "failed to reach Azure", "Unable to verify.",
-	)
-
-	fakeClock := clocktesting.NewFakePassiveClock(fixedNow)
-	syncer, _ := newTestSyncer(mockDB, validation, fakeClock)
-
-	for i := 1; i <= maxConsecutiveUnknownsBeforeWrite; i++ {
-		fakeClock.SetTime(fakeClock.Now().Add(time.Hour))
-
-		before, err := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
-		require.NoError(t, err)
-
-		require.NoError(t, syncer.SyncOnce(ctx, newTestClusterKey()))
-
-		after, err := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
-		require.NoError(t, err)
-
-		cond := meta.FindStatusCondition(after.Status.Validations, testValidationName)
-		require.NotNil(t, cond)
-		assert.Equalf(t, metav1.ConditionFalse, cond.Status, "attempt %d: previous condition should be preserved", i)
-		assert.Equalf(t, "PreviouslyFailed", cond.Reason, "attempt %d: previous condition should be preserved", i)
-		assert.Equalf(t, before.CosmosETag, after.CosmosETag, "attempt %d: Cosmos write should have been skipped", i)
-	}
-
-	// The next attempt exceeds the threshold, so the Unknown condition finally overwrites the stored one.
-	fakeClock.SetTime(fakeClock.Now().Add(time.Hour))
-
-	before, err := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
-	require.NoError(t, err)
-
-	require.NoError(t, syncer.SyncOnce(ctx, newTestClusterKey()))
-
-	after, err := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
-	require.NoError(t, err)
-
-	cond := meta.FindStatusCondition(after.Status.Validations, testValidationName)
-	require.NotNil(t, cond)
-	assert.Equal(t, metav1.ConditionUnknown, cond.Status)
-	assert.Equal(t, "InternalError", cond.Reason)
-	assert.NotEqual(t, before.CosmosETag, after.CosmosETag, "expected a Cosmos write once the suppression threshold was exceeded")
 }
 
 // TestClusterValidationSyncer_CooldownSuppression verifies that when the

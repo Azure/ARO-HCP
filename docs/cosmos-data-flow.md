@@ -913,9 +913,12 @@ messages and details are retained for already-failed observations.
 
 Validation instances use the [cluster wrapper](../backend/pkg/controllers/cluster/validation/cluster_validation_controller.go)
 or [node-pool wrapper](../backend/pkg/controllers/nodepool/validation/nodepool_validation_controller.go).
-They write one named condition in `Status.Validations`, respect result-specified
-`EarliestRetryAfter` with delayed enqueue/cooldown, and suppress transient Unknown
-results until repeated. The validators' Azure calls are checks, not provisioning.
+They write one named condition in `Status.Validations` and respect result-specified
+`EarliestRetryAfter` with delayed enqueue/cooldown. Cluster validation immediately
+persists Unknown over a False condition so an inconclusive refresh interrupts the
+continuous-denial grace period. Transient Unknown results over True or Unknown
+remain suppressed until repeated. Node-pool validation retains its existing
+Unknown suppression policy. The validators' Azure calls are checks, not provisioning.
 
 ### Backend: cluster provisioning and Azure resources
 
