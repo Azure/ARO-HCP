@@ -30,7 +30,49 @@ const (
 	passedRetryBase = 12 * time.Hour
 	// jitterFactor is the maxFactor passed to wait.Jitter; 0.5 means up to +50% of the base.
 	jitterFactor = 0.5
+	// maxNonPassedRetryDelay is the longest delay FailedValidation, UnknownValidation, and
+	// SkippedValidation schedule before the next run (nonpassedRetryBase plus maximum jitter).
+	maxNonPassedRetryDelay = time.Duration(float64(nonpassedRetryBase) * (1 + jitterFactor))
 )
+
+const (
+	// ValidationRunTimeout bounds a single validation run. Without it a hung Azure call blocks the
+	// worker indefinitely and the validation silently stops producing fresh results. It also keeps a
+	// recorded probe time (the run's start) close to when Azure was actually observed.
+	ValidationRunTimeout = 2 * time.Minute
+
+	// ValidationProbeFreshnessWindow bounds how old a validation's recorded probe (the start time of
+	// its most recent conclusive Failed run, stored in ServiceProviderCluster.Status.ValidationProbeTimes)
+	// may be while its False condition still counts toward terminally failing a create or update
+	// operation. A probe older than this means the check has not actually run recently (stalled
+	// controller, workqueue backlog, or runs that keep timing out), so the stored failure is stale
+	// evidence rather than a freshly confirmed one.
+	ValidationProbeFreshnessWindow = 5 * time.Minute
+
+	// validationProbeLagSlack absorbs workqueue and Cosmos write latency that the probe lag budget
+	// below does not model explicitly.
+	validationProbeLagSlack = 30 * time.Second
+
+	// ValidationProbeRewriteInterval throttles how often a still-failing validation rewrites its probe
+	// time, so a continuously failing validation does not turn every retry into a Cosmos write.
+	//
+	// While a validation keeps re-checking, the stored probe can lag real time by up to this interval
+	// plus one retry delay plus one full run. That sum must stay inside ValidationProbeFreshnessWindow,
+	// otherwise a live, re-confirmed failure would look stale and never fail the operation, so the
+	// interval is derived from the other bounds rather than chosen independently.
+	//
+	// With the default retry delays (nonpassedRetryBase plus non-negative jitter, measured from the
+	// end of the previous run) consecutive failing runs already start more than this interval apart,
+	// so today the throttle rarely suppresses a write and write volume is bounded by the retry cadence.
+	// It still caps writes when a run happens sooner than that: a validation that overrides
+	// EarliestRetryAfter with a shorter delay, or an immediate re-run after a backend restart or
+	// leader change drops the in-memory retry cooldown.
+	ValidationProbeRewriteInterval = ValidationProbeFreshnessWindow - ValidationRunTimeout - maxNonPassedRetryDelay - validationProbeLagSlack
+)
+
+// Fails to compile if the bounds above leave no room for a positive rewrite interval: a zero or
+// negative interval makes the operand negative, which cannot be converted to an unsigned constant.
+const _ uint64 = uint64(ValidationProbeRewriteInterval - 1)
 
 // OutcomeType discriminates which validation outcome payload is populated.
 type OutcomeType string

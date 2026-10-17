@@ -21,15 +21,45 @@ import (
 	"strings"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/component-base/metrics/legacyregistry"
 
 	operationbase "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/validationutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 const clusterValidationFailureTimeout = 10 * time.Minute
+
+var (
+	// validationStaleProbeDeferrals counts operation evaluations in which a
+	// failed validation was old enough to fail the operation terminally but was
+	// not, because its last conclusive run was outside the freshness window. A
+	// sustained non-zero rate points at a validation controller that has
+	// stopped producing fresh results.
+	validationStaleProbeDeferrals = promauto.With(legacyregistry.Registerer()).NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "backend_cluster_validation_stale_probe_deferrals_total",
+			Help: "Total number of cluster operation evaluations where a failed validation did not fail the operation because its last probe was stale.",
+		},
+		[]string{"validation"},
+	)
+
+	// validationTerminalFailures counts operation evaluations in which a failed
+	// validation caused the operation to fail terminally.
+	validationTerminalFailures = promauto.With(legacyregistry.Registerer()).NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "backend_cluster_validation_terminal_failures_total",
+			Help: "Total number of cluster operation evaluations where a failed validation failed the operation terminally.",
+		},
+		[]string{"validation"},
+	)
+)
 
 func (c *operationClusterCreate) clusterValidation(ctx context.Context, operation *coreapi.Operation) (*operationbase.OperationState, error) {
 	serviceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Name)
@@ -49,6 +79,14 @@ func (c *operationClusterUpdate) clusterValidation(operation *coreapi.Operation,
 // clusterValidationOperationState waits for validations to pass, allowing each
 // failed validation and the operation itself at least ten minutes before failing.
 // Unknown conditions remain pending and do not imply an invalid resource.
+// A failed validation only fails the operation terminally when its last
+// conclusive check is fresh: the conditions' LastTransitionTime only advances
+// when the outcome changes, so a condition can look old simply because the
+// validation controller has not re-checked it lately (stalled requeue,
+// workqueue backlog, or runs that keep timing out). When the probe is stale
+// the operation stays Provisioning and the validation controllers' retry
+// cadence gets another chance, with the create and update operation
+// completion deadlines as the backstop.
 func clusterValidationOperationState(serviceProviderCluster *coreapi.ServiceProviderCluster, operationStartTime, now time.Time) *operationbase.OperationState {
 	state := operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, "")
 	operationOldEnough := !operationStartTime.IsZero() && now.Sub(operationStartTime) >= clusterValidationFailureTimeout
@@ -67,8 +105,20 @@ func clusterValidationOperationState(serviceProviderCluster *coreapi.ServiceProv
 		messages = append(messages, message)
 		if validation.Status == metav1.ConditionFalse {
 			state.WithCloudErrorCode(coreapi.CloudErrorCodeInvalidResource)
-			if operationOldEnough && !validation.LastTransitionTime.IsZero() && now.Sub(validation.LastTransitionTime.Time) >= clusterValidationFailureTimeout {
+			// When no probe time was recorded (e.g. the condition predates
+			// probe recording), fall back to the age-only check so the
+			// terminal-failure behavior is unchanged during rollout.
+			probeIsFresh := true
+			if probeTime, ok := serviceProviderCluster.Status.ValidationProbeTimes[validation.Type]; ok {
+				probeIsFresh = !probeTime.IsZero() && now.Sub(probeTime.Time) <= validationutils.ValidationProbeFreshnessWindow
+			}
+			failureOldEnough := operationOldEnough && !validation.LastTransitionTime.IsZero() && now.Sub(validation.LastTransitionTime.Time) >= clusterValidationFailureTimeout
+			switch {
+			case failureOldEnough && probeIsFresh:
 				state.ProvisioningState = coreapi.ProvisioningStateFailed
+				validationTerminalFailures.WithLabelValues(validation.Type).Inc()
+			case failureOldEnough:
+				validationStaleProbeDeferrals.WithLabelValues(validation.Type).Inc()
 			}
 		}
 	}
