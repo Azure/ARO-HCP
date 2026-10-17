@@ -88,15 +88,20 @@ func (c *externalAuthWatchingController) SyncOnce(ctx context.Context, key HCPEx
 		key.InitialController))
 
 	_, err := c.externalAuthLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPExternalAuthName)
-	switch {
-	case cosmosstorageutils.IsNotFoundError(err):
-		logger.Info("external auth not found, skipping sync")
-		return nil
-	case err != nil:
-		// do nothing, let the controller decide what it wants to do.
+	externalAuthNotFound := cosmosstorageutils.IsNotFoundError(err)
+	if externalAuthNotFound {
+		logger.Info("external auth not found")
 	}
 
-	syncErr := c.syncer.SyncOnce(ctx, key) // we'll handle this is a moment.
+	// Always call syncer.SyncOnce so syncers can handle NotFound themselves
+	// (e.g., to set Prometheus gauge to 0 for deleted resources).
+	syncErr := c.syncer.SyncOnce(ctx, key)
+
+	// Skip Controller document write if the ExternalAuth is deleted —
+	// there's no parent resource to attach the Controller document to.
+	if externalAuthNotFound {
+		return syncErr
+	}
 
 	controllerWriteErr := WriteController(
 		ctx,
