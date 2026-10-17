@@ -5616,6 +5616,285 @@
             value: 0
         unsupported: ""
 - source: dev-infrastructure/modules/metrics/rules/generatedRPHCPPrometheusAlertingRules.bicep
+  group: arohcp_ingress_availability_slo_alerts
+  alert: userJourneyIngressAvailabilityErrors1h5m
+  occurrence: 1
+  input: (errors:ingress_canary:total_5m >= 3 and errors:ingress_canary:error_rate_5m > 0.072) and (errors:ingress_canary:total_1h >= 10 and errors:ingress_canary:error_rate_1h > 0.072)
+  plan:
+    expression: (errors:ingress_canary:total_5m >= 3 and errors:ingress_canary:error_rate_5m > 0.072) and (errors:ingress_canary:total_1h >= 10 and errors:ingress_canary:error_rate_1h > 0.072)
+    conditions:
+      - expression: errors:ingress_canary:total_5m >= 3
+        path: root/and:left/and:left
+        queries:
+          - expression: errors:ingress_canary:total_5m
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 3
+        unsupported: ""
+      - expression: errors:ingress_canary:error_rate_5m > 0.072
+        path: root/and:left/and:right
+        queries:
+          - expression: errors:ingress_canary:error_rate_5m
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.072
+        unsupported: ""
+      - expression: errors:ingress_canary:total_1h >= 10
+        path: root/and:right/and:left
+        queries:
+          - expression: errors:ingress_canary:total_1h
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 10
+        unsupported: ""
+      - expression: errors:ingress_canary:error_rate_1h > 0.072
+        path: root/and:right/and:right
+        queries:
+          - expression: errors:ingress_canary:error_rate_1h
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.072
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPHCPPrometheusAlertingRules.bicep
+  group: arohcp_ingress_availability_slo_alerts
+  alert: userJourneyIngressAvailabilityErrors3d6h
+  occurrence: 1
+  input: (errors:ingress_canary:total_6h >= 30 and errors:ingress_canary:error_rate_6h > 0.005) and (errors:ingress_canary:total_3d >= 60 and errors:ingress_canary:error_rate_3d > 0.005)
+  plan:
+    expression: (errors:ingress_canary:total_6h >= 30 and errors:ingress_canary:error_rate_6h > 0.005) and (errors:ingress_canary:total_3d >= 60 and errors:ingress_canary:error_rate_3d > 0.005)
+    conditions:
+      - expression: errors:ingress_canary:total_6h >= 30
+        path: root/and:left/and:left
+        queries:
+          - expression: errors:ingress_canary:total_6h
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 30
+        unsupported: ""
+      - expression: errors:ingress_canary:error_rate_6h > 0.005
+        path: root/and:left/and:right
+        queries:
+          - expression: errors:ingress_canary:error_rate_6h
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.005
+        unsupported: ""
+      - expression: errors:ingress_canary:total_3d >= 60
+        path: root/and:right/and:left
+        queries:
+          - expression: errors:ingress_canary:total_3d
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 60
+        unsupported: ""
+      - expression: errors:ingress_canary:error_rate_3d > 0.005
+        path: root/and:right/and:right
+        queries:
+          - expression: errors:ingress_canary:error_rate_3d
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.005
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPHCPPrometheusAlertingRules.bicep
+  group: arohcp_ingress_availability_slo_alerts
+  alert: userJourneyIngressAvailabilityErrors6h30m
+  occurrence: 1
+  input: (errors:ingress_canary:total_30m >= 15 and errors:ingress_canary:error_rate_30m > 0.03) and (errors:ingress_canary:total_6h >= 30 and errors:ingress_canary:error_rate_6h > 0.03)
+  plan:
+    expression: (errors:ingress_canary:total_30m >= 15 and errors:ingress_canary:error_rate_30m > 0.03) and (errors:ingress_canary:total_6h >= 30 and errors:ingress_canary:error_rate_6h > 0.03)
+    conditions:
+      - expression: errors:ingress_canary:total_30m >= 15
+        path: root/and:left/and:left
+        queries:
+          - expression: errors:ingress_canary:total_30m
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 15
+        unsupported: ""
+      - expression: errors:ingress_canary:error_rate_30m > 0.03
+        path: root/and:left/and:right
+        queries:
+          - expression: errors:ingress_canary:error_rate_30m
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.03
+        unsupported: ""
+      - expression: errors:ingress_canary:total_6h >= 30
+        path: root/and:right/and:left
+        queries:
+          - expression: errors:ingress_canary:total_6h
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 30
+        unsupported: ""
+      - expression: errors:ingress_canary:error_rate_6h > 0.03
+        path: root/and:right/and:right
+        queries:
+          - expression: errors:ingress_canary:error_rate_6h
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.03
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPHCPPrometheusAlertingRules.bicep
+  group: arohcp_ingress_canary_liveness_alerts
+  alert: userJourneyIngressCanaryAbsent
+  occurrence: 1
+  input: count by (_id, cluster, region) (max_over_time(ingress_canary_route_reachable[1d])) unless count by (_id, cluster, region) (max_over_time(ingress_canary_route_reachable[10m]))
+  plan:
+    expression: count by (_id, cluster, region) (max_over_time(ingress_canary_route_reachable[1d])) unless count by (_id, cluster, region) (max_over_time(ingress_canary_route_reachable[10m]))
+    conditions:
+      - expression: (count by (_id, cluster, region) (max_over_time(ingress_canary_route_reachable[1d]))) unless (count by (_id, cluster, region) (max_over_time(ingress_canary_route_reachable[10m])))
+        path: root/unless:left
+        queries:
+          - expression: (count by (_id, cluster, region) (max_over_time(ingress_canary_route_reachable[1d]))) unless (count by (_id, cluster, region) (max_over_time(ingress_canary_route_reachable[10m])))
+            role: signal
+        thresholds: []
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPHCPPrometheusAlertingRules.bicep
+  group: arohcp_ingress_latency_slo_alerts
+  alert: userJourneyIngressLatencyP99Errors1h5m
+  occurrence: 1
+  input: (errors:ingress_canary_latency:total_5m >= 3 and errors:ingress_canary_latency:error_rate_5m > 0.072) and (errors:ingress_canary_latency:total_1h >= 10 and errors:ingress_canary_latency:error_rate_1h > 0.072)
+  plan:
+    expression: (errors:ingress_canary_latency:total_5m >= 3 and errors:ingress_canary_latency:error_rate_5m > 0.072) and (errors:ingress_canary_latency:total_1h >= 10 and errors:ingress_canary_latency:error_rate_1h > 0.072)
+    conditions:
+      - expression: errors:ingress_canary_latency:total_5m >= 3
+        path: root/and:left/and:left
+        queries:
+          - expression: errors:ingress_canary_latency:total_5m
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 3
+        unsupported: ""
+      - expression: errors:ingress_canary_latency:error_rate_5m > 0.072
+        path: root/and:left/and:right
+        queries:
+          - expression: errors:ingress_canary_latency:error_rate_5m
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.072
+        unsupported: ""
+      - expression: errors:ingress_canary_latency:total_1h >= 10
+        path: root/and:right/and:left
+        queries:
+          - expression: errors:ingress_canary_latency:total_1h
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 10
+        unsupported: ""
+      - expression: errors:ingress_canary_latency:error_rate_1h > 0.072
+        path: root/and:right/and:right
+        queries:
+          - expression: errors:ingress_canary_latency:error_rate_1h
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.072
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPHCPPrometheusAlertingRules.bicep
+  group: arohcp_ingress_latency_slo_alerts
+  alert: userJourneyIngressLatencyP99Errors3d6h
+  occurrence: 1
+  input: (errors:ingress_canary_latency:total_6h >= 30 and errors:ingress_canary_latency:error_rate_6h > 0.005) and (errors:ingress_canary_latency:total_3d >= 60 and errors:ingress_canary_latency:error_rate_3d > 0.005)
+  plan:
+    expression: (errors:ingress_canary_latency:total_6h >= 30 and errors:ingress_canary_latency:error_rate_6h > 0.005) and (errors:ingress_canary_latency:total_3d >= 60 and errors:ingress_canary_latency:error_rate_3d > 0.005)
+    conditions:
+      - expression: errors:ingress_canary_latency:total_6h >= 30
+        path: root/and:left/and:left
+        queries:
+          - expression: errors:ingress_canary_latency:total_6h
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 30
+        unsupported: ""
+      - expression: errors:ingress_canary_latency:error_rate_6h > 0.005
+        path: root/and:left/and:right
+        queries:
+          - expression: errors:ingress_canary_latency:error_rate_6h
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.005
+        unsupported: ""
+      - expression: errors:ingress_canary_latency:total_3d >= 60
+        path: root/and:right/and:left
+        queries:
+          - expression: errors:ingress_canary_latency:total_3d
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 60
+        unsupported: ""
+      - expression: errors:ingress_canary_latency:error_rate_3d > 0.005
+        path: root/and:right/and:right
+        queries:
+          - expression: errors:ingress_canary_latency:error_rate_3d
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.005
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPHCPPrometheusAlertingRules.bicep
+  group: arohcp_ingress_latency_slo_alerts
+  alert: userJourneyIngressLatencyP99Errors6h30m
+  occurrence: 1
+  input: (errors:ingress_canary_latency:total_30m >= 15 and errors:ingress_canary_latency:error_rate_30m > 0.03) and (errors:ingress_canary_latency:total_6h >= 30 and errors:ingress_canary_latency:error_rate_6h > 0.03)
+  plan:
+    expression: (errors:ingress_canary_latency:total_30m >= 15 and errors:ingress_canary_latency:error_rate_30m > 0.03) and (errors:ingress_canary_latency:total_6h >= 30 and errors:ingress_canary_latency:error_rate_6h > 0.03)
+    conditions:
+      - expression: errors:ingress_canary_latency:total_30m >= 15
+        path: root/and:left/and:left
+        queries:
+          - expression: errors:ingress_canary_latency:total_30m
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 15
+        unsupported: ""
+      - expression: errors:ingress_canary_latency:error_rate_30m > 0.03
+        path: root/and:left/and:right
+        queries:
+          - expression: errors:ingress_canary_latency:error_rate_30m
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.03
+        unsupported: ""
+      - expression: errors:ingress_canary_latency:total_6h >= 30
+        path: root/and:right/and:left
+        queries:
+          - expression: errors:ingress_canary_latency:total_6h
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 30
+        unsupported: ""
+      - expression: errors:ingress_canary_latency:error_rate_6h > 0.03
+        path: root/and:right/and:right
+        queries:
+          - expression: errors:ingress_canary_latency:error_rate_6h
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.03
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPHCPPrometheusAlertingRules.bicep
   group: rp-userjourney-kas-availability-monitor-rules
   alert: userJourneyKubeApiserverAvailability1h5m
   occurrence: 1
@@ -8803,6 +9082,354 @@
         thresholds:
           - operator: '>'
             value: 0
+        unsupported: ""
+- source: observability/alerts/ingress-availability-slo-prometheusRule.yaml
+  group: arohcp_ingress_availability_slo_alerts
+  alert: userJourneyIngressAvailabilityErrors1h5m
+  occurrence: 1
+  input: |
+    (
+      errors:ingress_canary:total_5m >= 3
+      and
+      errors:ingress_canary:error_rate_5m > 0.072
+    )
+    and
+    (
+      errors:ingress_canary:total_1h >= 10
+      and
+      errors:ingress_canary:error_rate_1h > 0.072
+    )
+  plan:
+    expression: (errors:ingress_canary:total_5m >= 3 and errors:ingress_canary:error_rate_5m > 0.072) and (errors:ingress_canary:total_1h >= 10 and errors:ingress_canary:error_rate_1h > 0.072)
+    conditions:
+      - expression: errors:ingress_canary:total_5m >= 3
+        path: root/and:left/and:left
+        queries:
+          - expression: errors:ingress_canary:total_5m
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 3
+        unsupported: ""
+      - expression: errors:ingress_canary:error_rate_5m > 0.072
+        path: root/and:left/and:right
+        queries:
+          - expression: errors:ingress_canary:error_rate_5m
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.072
+        unsupported: ""
+      - expression: errors:ingress_canary:total_1h >= 10
+        path: root/and:right/and:left
+        queries:
+          - expression: errors:ingress_canary:total_1h
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 10
+        unsupported: ""
+      - expression: errors:ingress_canary:error_rate_1h > 0.072
+        path: root/and:right/and:right
+        queries:
+          - expression: errors:ingress_canary:error_rate_1h
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.072
+        unsupported: ""
+- source: observability/alerts/ingress-availability-slo-prometheusRule.yaml
+  group: arohcp_ingress_availability_slo_alerts
+  alert: userJourneyIngressAvailabilityErrors3d6h
+  occurrence: 1
+  input: |
+    (
+      errors:ingress_canary:total_6h >= 30
+      and
+      errors:ingress_canary:error_rate_6h > 0.005
+    )
+    and
+    (
+      errors:ingress_canary:total_3d >= 60
+      and
+      errors:ingress_canary:error_rate_3d > 0.005
+    )
+  plan:
+    expression: (errors:ingress_canary:total_6h >= 30 and errors:ingress_canary:error_rate_6h > 0.005) and (errors:ingress_canary:total_3d >= 60 and errors:ingress_canary:error_rate_3d > 0.005)
+    conditions:
+      - expression: errors:ingress_canary:total_6h >= 30
+        path: root/and:left/and:left
+        queries:
+          - expression: errors:ingress_canary:total_6h
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 30
+        unsupported: ""
+      - expression: errors:ingress_canary:error_rate_6h > 0.005
+        path: root/and:left/and:right
+        queries:
+          - expression: errors:ingress_canary:error_rate_6h
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.005
+        unsupported: ""
+      - expression: errors:ingress_canary:total_3d >= 60
+        path: root/and:right/and:left
+        queries:
+          - expression: errors:ingress_canary:total_3d
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 60
+        unsupported: ""
+      - expression: errors:ingress_canary:error_rate_3d > 0.005
+        path: root/and:right/and:right
+        queries:
+          - expression: errors:ingress_canary:error_rate_3d
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.005
+        unsupported: ""
+- source: observability/alerts/ingress-availability-slo-prometheusRule.yaml
+  group: arohcp_ingress_availability_slo_alerts
+  alert: userJourneyIngressAvailabilityErrors6h30m
+  occurrence: 1
+  input: |
+    (
+      errors:ingress_canary:total_30m >= 15
+      and
+      errors:ingress_canary:error_rate_30m > 0.030
+    )
+    and
+    (
+      errors:ingress_canary:total_6h >= 30
+      and
+      errors:ingress_canary:error_rate_6h > 0.030
+    )
+  plan:
+    expression: (errors:ingress_canary:total_30m >= 15 and errors:ingress_canary:error_rate_30m > 0.03) and (errors:ingress_canary:total_6h >= 30 and errors:ingress_canary:error_rate_6h > 0.03)
+    conditions:
+      - expression: errors:ingress_canary:total_30m >= 15
+        path: root/and:left/and:left
+        queries:
+          - expression: errors:ingress_canary:total_30m
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 15
+        unsupported: ""
+      - expression: errors:ingress_canary:error_rate_30m > 0.03
+        path: root/and:left/and:right
+        queries:
+          - expression: errors:ingress_canary:error_rate_30m
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.03
+        unsupported: ""
+      - expression: errors:ingress_canary:total_6h >= 30
+        path: root/and:right/and:left
+        queries:
+          - expression: errors:ingress_canary:total_6h
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 30
+        unsupported: ""
+      - expression: errors:ingress_canary:error_rate_6h > 0.03
+        path: root/and:right/and:right
+        queries:
+          - expression: errors:ingress_canary:error_rate_6h
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.03
+        unsupported: ""
+- source: observability/alerts/ingress-availability-slo-prometheusRule.yaml
+  group: arohcp_ingress_canary_liveness_alerts
+  alert: userJourneyIngressCanaryAbsent
+  occurrence: 1
+  input: |
+    count by (_id, cluster, region) (max_over_time(ingress_canary_route_reachable[24h]))
+    unless
+    count by (_id, cluster, region) (max_over_time(ingress_canary_route_reachable[10m]))
+  plan:
+    expression: count by (_id, cluster, region) (max_over_time(ingress_canary_route_reachable[1d])) unless count by (_id, cluster, region) (max_over_time(ingress_canary_route_reachable[10m]))
+    conditions:
+      - expression: (count by (_id, cluster, region) (max_over_time(ingress_canary_route_reachable[1d]))) unless (count by (_id, cluster, region) (max_over_time(ingress_canary_route_reachable[10m])))
+        path: root/unless:left
+        queries:
+          - expression: (count by (_id, cluster, region) (max_over_time(ingress_canary_route_reachable[1d]))) unless (count by (_id, cluster, region) (max_over_time(ingress_canary_route_reachable[10m])))
+            role: signal
+        thresholds: []
+        unsupported: ""
+- source: observability/alerts/ingress-availability-slo-prometheusRule.yaml
+  group: arohcp_ingress_latency_slo_alerts
+  alert: userJourneyIngressLatencyP99Errors1h5m
+  occurrence: 1
+  input: |
+    (
+      errors:ingress_canary_latency:total_5m >= 3
+      and
+      errors:ingress_canary_latency:error_rate_5m > 0.072
+    )
+    and
+    (
+      errors:ingress_canary_latency:total_1h >= 10
+      and
+      errors:ingress_canary_latency:error_rate_1h > 0.072
+    )
+  plan:
+    expression: (errors:ingress_canary_latency:total_5m >= 3 and errors:ingress_canary_latency:error_rate_5m > 0.072) and (errors:ingress_canary_latency:total_1h >= 10 and errors:ingress_canary_latency:error_rate_1h > 0.072)
+    conditions:
+      - expression: errors:ingress_canary_latency:total_5m >= 3
+        path: root/and:left/and:left
+        queries:
+          - expression: errors:ingress_canary_latency:total_5m
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 3
+        unsupported: ""
+      - expression: errors:ingress_canary_latency:error_rate_5m > 0.072
+        path: root/and:left/and:right
+        queries:
+          - expression: errors:ingress_canary_latency:error_rate_5m
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.072
+        unsupported: ""
+      - expression: errors:ingress_canary_latency:total_1h >= 10
+        path: root/and:right/and:left
+        queries:
+          - expression: errors:ingress_canary_latency:total_1h
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 10
+        unsupported: ""
+      - expression: errors:ingress_canary_latency:error_rate_1h > 0.072
+        path: root/and:right/and:right
+        queries:
+          - expression: errors:ingress_canary_latency:error_rate_1h
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.072
+        unsupported: ""
+- source: observability/alerts/ingress-availability-slo-prometheusRule.yaml
+  group: arohcp_ingress_latency_slo_alerts
+  alert: userJourneyIngressLatencyP99Errors3d6h
+  occurrence: 1
+  input: |
+    (
+      errors:ingress_canary_latency:total_6h >= 30
+      and
+      errors:ingress_canary_latency:error_rate_6h > 0.005
+    )
+    and
+    (
+      errors:ingress_canary_latency:total_3d >= 60
+      and
+      errors:ingress_canary_latency:error_rate_3d > 0.005
+    )
+  plan:
+    expression: (errors:ingress_canary_latency:total_6h >= 30 and errors:ingress_canary_latency:error_rate_6h > 0.005) and (errors:ingress_canary_latency:total_3d >= 60 and errors:ingress_canary_latency:error_rate_3d > 0.005)
+    conditions:
+      - expression: errors:ingress_canary_latency:total_6h >= 30
+        path: root/and:left/and:left
+        queries:
+          - expression: errors:ingress_canary_latency:total_6h
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 30
+        unsupported: ""
+      - expression: errors:ingress_canary_latency:error_rate_6h > 0.005
+        path: root/and:left/and:right
+        queries:
+          - expression: errors:ingress_canary_latency:error_rate_6h
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.005
+        unsupported: ""
+      - expression: errors:ingress_canary_latency:total_3d >= 60
+        path: root/and:right/and:left
+        queries:
+          - expression: errors:ingress_canary_latency:total_3d
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 60
+        unsupported: ""
+      - expression: errors:ingress_canary_latency:error_rate_3d > 0.005
+        path: root/and:right/and:right
+        queries:
+          - expression: errors:ingress_canary_latency:error_rate_3d
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.005
+        unsupported: ""
+- source: observability/alerts/ingress-availability-slo-prometheusRule.yaml
+  group: arohcp_ingress_latency_slo_alerts
+  alert: userJourneyIngressLatencyP99Errors6h30m
+  occurrence: 1
+  input: |
+    (
+      errors:ingress_canary_latency:total_30m >= 15
+      and
+      errors:ingress_canary_latency:error_rate_30m > 0.030
+    )
+    and
+    (
+      errors:ingress_canary_latency:total_6h >= 30
+      and
+      errors:ingress_canary_latency:error_rate_6h > 0.030
+    )
+  plan:
+    expression: (errors:ingress_canary_latency:total_30m >= 15 and errors:ingress_canary_latency:error_rate_30m > 0.03) and (errors:ingress_canary_latency:total_6h >= 30 and errors:ingress_canary_latency:error_rate_6h > 0.03)
+    conditions:
+      - expression: errors:ingress_canary_latency:total_30m >= 15
+        path: root/and:left/and:left
+        queries:
+          - expression: errors:ingress_canary_latency:total_30m
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 15
+        unsupported: ""
+      - expression: errors:ingress_canary_latency:error_rate_30m > 0.03
+        path: root/and:left/and:right
+        queries:
+          - expression: errors:ingress_canary_latency:error_rate_30m
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.03
+        unsupported: ""
+      - expression: errors:ingress_canary_latency:total_6h >= 30
+        path: root/and:right/and:left
+        queries:
+          - expression: errors:ingress_canary_latency:total_6h
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 30
+        unsupported: ""
+      - expression: errors:ingress_canary_latency:error_rate_6h > 0.03
+        path: root/and:right/and:right
+        queries:
+          - expression: errors:ingress_canary_latency:error_rate_6h
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.03
         unsupported: ""
 - source: observability/alerts/kubeContainerOOM-prometheusRule.yaml
   group: kube-container-oom-rules
