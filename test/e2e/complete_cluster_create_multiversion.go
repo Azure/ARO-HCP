@@ -185,6 +185,14 @@ var _ = Describe("ARO-HCP", func() {
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to validate DiskStorageAccountType for node pool %q in cluster %q", nodePoolName, clusterName)
 
+			By("verifying worker nodes are Ready (proves kubelet-to-KAS Swift path)")
+			err = verifiers.VerifyNodesReady().Verify(ctx, adminRESTConfig)
+			Expect(err).NotTo(HaveOccurred(), "all nodes should be Ready in cluster %q", clusterName)
+
+			By("verifying pod log access via API server (proves bidirectional KAS-to-kubelet Swift path)")
+			err = verifiers.VerifyDeploymentLogsReachable("openshift-ingress", "router-default", "router", 10*time.Minute).Verify(ctx, adminRESTConfig)
+			Expect(err).NotTo(HaveOccurred(), "fetching router-default logs should succeed in cluster %q, proving bidirectional Swift connectivity", clusterName)
+
 			By("verifying a simple web app can run")
 			err = verifiers.VerifySimpleWebApp().Verify(ctx, adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred(), "failed to verify simple web app runs on cluster %q", clusterName)
