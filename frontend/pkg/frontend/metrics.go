@@ -18,11 +18,43 @@ import (
 	"net/http"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+
+	"k8s.io/component-base/metrics/legacyregistry"
+
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 )
+
+var (
+	// externalAuthStateTransitionsTotal counts provisioning state transitions
+	// for ExternalAuth resources initiated by the frontend (e.g. Succeeded → Accepted
+	// on update/delete requests). The backend emits a corresponding
+	// backend_externalauth_state_transitions_total counter for async transitions.
+	// Labels: from_state, to_state, resource_type.
+	externalAuthStateTransitionsTotal = promauto.With(legacyregistry.Registerer()).NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "frontend_externalauth_state_transitions_total",
+			Help: "Total number of provisioning state transitions for ExternalAuth resources initiated by the frontend.",
+		},
+		[]string{"from_state", "to_state", "resource_type"},
+	)
+)
+
+// emitExternalAuthStateTransition increments the state transition counter
+// when the resource's provisioning state actually changes.
+func emitExternalAuthStateTransition(oldState, newState coreapi.ProvisioningState, resourceType string) {
+	if oldState != "" && oldState != newState {
+		externalAuthStateTransitionsTotal.WithLabelValues(
+			strings.ToLower(string(oldState)),
+			strings.ToLower(string(newState)),
+			strings.ToLower(resourceType),
+		).Inc()
+	}
+}
 
 // patternRe is used to strip the METHOD string from the [ServerMux] pattern string.
 var patternRe = regexp.MustCompile(`^[^\s]*\s+`)

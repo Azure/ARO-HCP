@@ -17,13 +17,22 @@ package operationutils
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/go-logr/logr/testr"
+	"github.com/prometheus/client_golang/prometheus/testutil"
+	"github.com/stretchr/testify/require"
 	"github.com/tj/assert"
+
+	utilsclock "k8s.io/utils/clock"
+	clocktesting "k8s.io/utils/clock/testing"
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
+	operationtesting "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils/operationtesting"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -379,4 +388,184 @@ func TestNodePoolServiceOperationMessage(t *testing.T) {
 		Build()
 	assert.NoError(t, err)
 	assert.Equal(t, "waiting for subnet", NodePoolServiceOperationMessage(withMessage, nil))
+}
+
+func TestExternalAuthStateTransitionsTotal(t *testing.T) {
+	fixture := operationtesting.NewExternalAuthTestFixture()
+	testTime := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	fakeClock := clocktesting.NewFakeClock(testTime)
+
+	tests := []struct {
+		name                 string
+		existingExternalAuth *coreapi.ExternalAuth
+		existingOperation    *coreapi.Operation
+		newOperationStatus   coreapi.ProvisioningState
+		expectCounter        int
+		expectFromState      string
+		expectToState        string
+	}{
+		{
+			name: "create: Accepted to Succeeded",
+			existingExternalAuth: func() *coreapi.ExternalAuth {
+				ea := fixture.NewExternalAuth()
+				ea.Properties.ProvisioningState = coreapi.ProvisioningStateAccepted
+				return ea
+			}(),
+			existingOperation: func() *coreapi.Operation {
+				op := fixture.NewOperation(cosmosstorageutils.OperationRequestCreate)
+				op.Status = coreapi.ProvisioningStateAccepted
+				return op
+			}(),
+			newOperationStatus: coreapi.ProvisioningStateSucceeded,
+			expectCounter:      1,
+			expectFromState:    "accepted",
+			expectToState:      "succeeded",
+		},
+		{
+			name: "update: Accepted to Updating",
+			existingExternalAuth: func() *coreapi.ExternalAuth {
+				ea := fixture.NewExternalAuth()
+				ea.Properties.ProvisioningState = coreapi.ProvisioningStateAccepted
+				return ea
+			}(),
+			existingOperation: func() *coreapi.Operation {
+				op := fixture.NewOperation(cosmosstorageutils.OperationRequestUpdate)
+				op.Status = coreapi.ProvisioningStateAccepted
+				return op
+			}(),
+			newOperationStatus: coreapi.ProvisioningStateUpdating,
+			expectCounter:      1,
+			expectFromState:    "accepted",
+			expectToState:      "updating",
+		},
+		{
+			name: "update: Updating to Succeeded",
+			existingExternalAuth: func() *coreapi.ExternalAuth {
+				ea := fixture.NewExternalAuth()
+				ea.Properties.ProvisioningState = coreapi.ProvisioningStateUpdating
+				return ea
+			}(),
+			existingOperation: func() *coreapi.Operation {
+				op := fixture.NewOperation(cosmosstorageutils.OperationRequestUpdate)
+				op.Status = coreapi.ProvisioningStateUpdating
+				return op
+			}(),
+			newOperationStatus: coreapi.ProvisioningStateSucceeded,
+			expectCounter:      1,
+			expectFromState:    "updating",
+			expectToState:      "succeeded",
+		},
+		{
+			name: "delete unhappy path: Accepted to Deleting via CS Uninstalling",
+			existingExternalAuth: func() *coreapi.ExternalAuth {
+				ea := fixture.NewExternalAuth()
+				ea.Properties.ProvisioningState = coreapi.ProvisioningStateAccepted
+				return ea
+			}(),
+			existingOperation: func() *coreapi.Operation {
+				op := fixture.NewOperation(cosmosstorageutils.OperationRequestDelete)
+				op.Status = coreapi.ProvisioningStateAccepted
+				return op
+			}(),
+			newOperationStatus: coreapi.ProvisioningStateDeleting,
+			expectCounter:      1,
+			expectFromState:    "accepted",
+			expectToState:      "deleting",
+		},
+		{
+			name: "resource already at same non-terminal state — no update, no counter",
+			existingExternalAuth: func() *coreapi.ExternalAuth {
+				ea := fixture.NewExternalAuth()
+				ea.Properties.ProvisioningState = coreapi.ProvisioningStateProvisioning
+				return ea
+			}(),
+			existingOperation: func() *coreapi.Operation {
+				op := fixture.NewOperation(cosmosstorageutils.OperationRequestCreate)
+				op.Status = coreapi.ProvisioningStateAccepted
+				return op
+			}(),
+			newOperationStatus: coreapi.ProvisioningStateProvisioning,
+			expectCounter:      0,
+		},
+		{
+			name: "different active operation owns resource — no update, no counter",
+			existingExternalAuth: func() *coreapi.ExternalAuth {
+				ea := fixture.NewExternalAuth()
+				ea.Properties.ProvisioningState = coreapi.ProvisioningStateProvisioning
+				ea.ServiceProviderProperties.ActiveOperationID = "other-operation"
+				return ea
+			}(),
+			existingOperation: func() *coreapi.Operation {
+				op := fixture.NewOperation(cosmosstorageutils.OperationRequestCreate)
+				op.Status = coreapi.ProvisioningStateProvisioning
+				return op
+			}(),
+			newOperationStatus: coreapi.ProvisioningStateSucceeded,
+			expectCounter:      0,
+		},
+		{
+			name: "nil ExternalID — no counter",
+			existingExternalAuth: func() *coreapi.ExternalAuth {
+				ea := fixture.NewExternalAuth()
+				ea.Properties.ProvisioningState = coreapi.ProvisioningStateProvisioning
+				return ea
+			}(),
+			existingOperation: func() *coreapi.Operation {
+				op := fixture.NewOperation(cosmosstorageutils.OperationRequestCreate)
+				op.Status = coreapi.ProvisioningStateProvisioning
+				op.ExternalID = nil
+				return op
+			}(),
+			newOperationStatus: coreapi.ProvisioningStateSucceeded,
+			expectCounter:      0,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ExternalAuthStateTransitionsTotal.Reset()
+
+			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+
+			resources := []any{fixture.NewCluster()}
+			if tc.existingExternalAuth != nil {
+				resources = append(resources, tc.existingExternalAuth)
+			}
+			resources = append(resources, tc.existingOperation)
+
+			mockDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, resources)
+			require.NoError(t, err)
+
+			// Re-read the operation from the mock DB so it has the
+			// CosmosETag assigned by Create — UpdateOperationStatus
+			// uses a transactional replace that requires a non-empty etag.
+			storedOp, err := mockDB.Operations(tc.existingOperation.OperationID.SubscriptionID).Get(ctx, tc.existingOperation.OperationID.Name)
+			require.NoError(t, err)
+
+			err = UpdateOperationStatus(
+				ctx,
+				utilsclock.PassiveClock(fakeClock),
+				mockDB,
+				storedOp,
+				tc.newOperationStatus,
+				nil,
+				nil,
+			)
+			require.NoError(t, err)
+
+			seriesCount := testutil.CollectAndCount(ExternalAuthStateTransitionsTotal)
+			if tc.expectCounter == 0 {
+				assert.Equal(t, 0, seriesCount, "expected no counter series")
+			} else {
+				count := testutil.ToFloat64(ExternalAuthStateTransitionsTotal.WithLabelValues(
+					tc.expectFromState,
+					tc.expectToState,
+					"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths",
+				))
+				assert.Equal(t, float64(tc.expectCounter), count,
+					"expected counter=%d for from_state=%s, to_state=%s",
+					tc.expectCounter, tc.expectFromState, tc.expectToState)
+			}
+		})
+	}
 }
