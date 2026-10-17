@@ -16,7 +16,6 @@ package e2e
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -71,10 +70,7 @@ var _ = Describe("Customer", func() {
 			}
 
 			// Resolve the install (previous minor) and upgrade (target minor) version strings up front
-			// so a missing version skips before we burn resources on cluster creation. For nightly,
-			// each resolves to its exact build tag (the RP cannot resolve major.minor to a nightly
-			// build). For other channel groups, each is the bare major.minor string, verified
-			// resolvable via the OpenShift update service at the channel's z-stream offset.
+			// so a missing version is skipped immediately. For nightly, each resolves to its exact build tag.
 			installVersionId := fmt.Sprintf("%d.%d", installVersion.Major, installVersion.Minor)
 			upgradeVersionId := fmt.Sprintf("%d.%d", upgradeVersion.Major, upgradeVersion.Minor)
 			// Node pools require a concrete Major.Minor.Patch (the RP does not resolve a
@@ -215,7 +211,7 @@ var _ = Describe("Customer", func() {
 			}).WithContext(ctx).WithTimeout(2*time.Minute).WithPolling(framework.StandardPollInterval).Should(Succeed(), "probe pod CREATE was not denied by ValidatingAdmissionPolicy on cluster %q", clusterName)
 
 			Expect(ctx.Err()).NotTo(HaveOccurred(), "test context expired before triggering upgrade for cluster %q", clusterName)
-			preUpgradeKubeAPIServerVersion, err := kubeClient.Discovery().ServerVersion()
+			preUpgradeKubeAPIServerVersion, err := framework.GetKubeAPIServerVersion(ctx, kubeClient.Discovery())
 			Expect(err).NotTo(HaveOccurred(), "failed to get pre-upgrade kube-apiserver version for cluster %q", clusterName)
 
 			By(fmt.Sprintf("triggering control plane y-stream upgrade to %s (target minor %s)", upgradeVersionId,
@@ -231,13 +227,27 @@ var _ = Describe("Customer", func() {
 			_, err = framework.UpdateHCPCluster20260901(ctx, hcpClient, *resourceGroup.Name, clusterName, update, framework.HCPClusterVersionUpgradeTimeout)
 			Expect(err).NotTo(HaveOccurred(), "failed to trigger y-stream upgrade of cluster %q to %s", clusterName, upgradeVersionId)
 
+			// Phased rather than fanned out, and sharing one budget, as in
+			// control_plane_minor_upgrade.go: the kube-apiserver check confirms a rollout the
+			// control plane has already reported rather than waiting on a second upgrade, so it
+			// gets whatever is left of the budget, floored at minimumUpgradeConfirmationTimeout.
+			upgradeDeadline := time.Now().Add(framework.HCPClusterVersionUpgradeTimeout)
+
 			By("verifying control plane reached the target minor")
-			Eventually(func() error {
-				return errors.Join(
-					verifiers.VerifyKubeAPIServerServerVersionUpgraded(preUpgradeKubeAPIServerVersion).Verify(ctx, adminRESTConfig),
-					verifiers.VerifyHostedControlPlaneYStreamUpgrade(installVersionId, upgradeVersionId).Verify(ctx, adminRESTConfig),
-				)
-			}).WithContext(ctx).WithTimeout(framework.HCPClusterVersionUpgradeTimeout).WithPolling(2*time.Minute).Should(Succeed(), "control plane did not reach %s on cluster %q with deny-pod ValidatingAdmissionPolicy", upgradeVersionId, clusterName)
+			Expect(verifiers.VerifyHostedControlPlaneYStreamUpgrade(
+				installVersionId,
+				upgradeVersionId,
+				framework.HCPClusterVersionUpgradeTimeout,
+			).Verify(ctx, adminRESTConfig)).NotTo(HaveOccurred(),
+				"control plane did not reach %s on cluster %q with deny-pod ValidatingAdmissionPolicy", upgradeVersionId, clusterName)
+
+			By("verifying the kube-apiserver reports the upgraded version")
+			Expect(verifiers.VerifyKubeAPIServerServerVersionUpgraded(
+				preUpgradeKubeAPIServerVersion,
+				max(time.Until(upgradeDeadline), minimumUpgradeConfirmationTimeout),
+			).Verify(ctx, adminRESTConfig)).NotTo(HaveOccurred(),
+				"kube-apiserver of cluster %q still reported the pre-upgrade version after the control plane reached %s",
+				clusterName, upgradeVersionId)
 
 			By("verifying cluster API remains reachable after control plane upgrade")
 			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig)

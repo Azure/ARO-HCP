@@ -30,6 +30,10 @@ const (
 	DefaultPollInterval = 15 * time.Second
 	// DefaultDiagnoseTimeout is the timeout for collecting failure diagnostics after a poll times out.
 	DefaultDiagnoseTimeout = 30 * time.Second
+	// finalCheckTimeout bounds the one last check made after the poll deadline expires. It is
+	// therefore also the amount by which reaching a verdict may overshoot the advertised timeout,
+	// so it is kept well below any caller's budget rather than reusing DefaultDiagnoseTimeout.
+	finalCheckTimeout = 5 * time.Second
 )
 
 type diagnoseFunc func(ctx context.Context, restConfig *rest.Config) string
@@ -49,6 +53,20 @@ func logVerifierTiming(name, outcome string, elapsed time.Duration) {
 // only when the error message changes between polls (delta-only logging). Actual elapsed
 // wall-clock time is logged on both success and failure. If diagnose is set, its output is
 // logged and appended when the poll times out.
+//
+// Budget contract, in two parts.
+//
+// Reaching a verdict takes at most timeout plus finalCheckTimeout: the polling loop stops at
+// timeout, but one further check is then made so that a condition met between the last poll and
+// the deadline is not misreported as a timeout. That overshoot is bounded, paid only on the path
+// that was already going to fail, and included in the elapsed duration logged and reported in the
+// returned error.
+//
+// Reporting the failure can take a further diagnoseTimeout on top, on the failure path only and
+// only when diagnose is set. The verdict has already been reached by the time diagnostics are
+// gathered, so the reported elapsed deliberately excludes them: it measures how long the condition
+// was waited on, not how long the report took to assemble. A caller that must bound its total wall
+// clock has to allow for both parts.
 func pollUntilReady(
 	ctx context.Context,
 	name string,
@@ -98,8 +116,31 @@ func pollUntilReady(
 		return fmt.Errorf("%s cancelled after %s: %w", name, elapsed.Round(time.Millisecond), ctx.Err())
 	}
 
+	// The loop stops looking at the deadline, so a condition that became true between the last
+	// check and the deadline reads as a timeout even though it was met within the budget. Look
+	// once more before failing. It costs at most finalCheckTimeout of wall clock, only on the
+	// path that was going to fail anyway, and it is the difference between a real timeout and a
+	// near-miss: ARO-26775 failed on a control plane upgrade that landed 22s inside a 45m
+	// budget, missed because the preceding poll had fired 2m earlier.
+	finalCtx, cancelFinal := context.WithTimeout(ctx, finalCheckTimeout)
+	finalErr := check(finalCtx)
+	cancelFinal()
+
+	// Recompute rather than reusing the pre-check value: the final check runs after the deadline,
+	// so reporting the loop's elapsed time would understate how long the verifier actually took.
+	elapsed = time.Since(startTime)
+
+	if finalErr == nil {
+		logVerifierTiming(name, "succeeded on the final check after the deadline", elapsed)
+		return nil
+	}
+	lastErr = finalErr
+
 	logVerifierTiming(name, "timed out", elapsed)
 	if diagnose != nil {
+		// Detached from ctx deliberately: the verdict is already in, and the diagnostics are the
+		// reason the failure is attributable at all, so a caller deadline that has just expired
+		// must not take them away. diagnoseTimeout is what bounds this extra wall clock.
 		diagCtx, cancel := context.WithTimeout(context.Background(), diagnoseTimeout)
 		defer cancel()
 		if details := diagnose(diagCtx, restConfig); details != "" {

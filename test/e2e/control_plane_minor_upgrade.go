@@ -39,6 +39,11 @@ import (
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
 )
 
+// minimumUpgradeConfirmationTimeout floors the budget handed to the confirmation verifier, so an
+// upgrade landing right on the deadline still has room to be confirmed rather than failing on a
+// non-positive timeout.
+const minimumUpgradeConfirmationTimeout = 1 * time.Minute
+
 var _ = Describe("Customer", func() {
 	DescribeTable("should be able to successfully upgrade control plane minor version",
 		labels.MIContainers(1),
@@ -53,11 +58,9 @@ var _ = Describe("Customer", func() {
 				installVersion = semver.Version{Major: upgradeVersion.Major, Minor: upgradeVersion.Minor - 1}
 			}
 
-			// Resolve the install (previous minor) and upgrade (target minor) version strings up front
-			// so a missing version skips before we burn resources on cluster creation. For nightly,
-			// each resolves to its exact build tag (the RP cannot resolve major.minor to a nightly
-			// build). For other channel groups, each is the bare major.minor string, verified
-			// resolvable via the OpenShift update service at the channel's z-stream offset.
+			// Resolve the install (previous minor) and upgrade (target minor) version strings up
+			// front, so a missing version skips before we burn resources on cluster creation.
+			// For nightly, each resolves to its exact build tag.
 			installVersionId := fmt.Sprintf("%d.%d", installVersion.Major, installVersion.Minor)
 			upgradeVersionId := fmt.Sprintf("%d.%d", upgradeVersion.Major, upgradeVersion.Minor)
 			if channelGroup == "nightly" {
@@ -150,7 +153,7 @@ var _ = Describe("Customer", func() {
 			Expect(ctx.Err()).NotTo(HaveOccurred(), "test context expired before triggering upgrade for cluster %q", clusterName)
 			kubeClient, err := kubernetes.NewForConfig(adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred(), "failed to create Kubernetes client for cluster %q", clusterName)
-			preUpgradeKubeAPIServerVersion, err := kubeClient.Discovery().ServerVersion()
+			preUpgradeKubeAPIServerVersion, err := framework.GetKubeAPIServerVersion(ctx, kubeClient.Discovery())
 			Expect(err).NotTo(HaveOccurred(), "failed to get pre-upgrade kube-apiserver version for cluster %q", clusterName)
 
 			By(fmt.Sprintf("triggering control plane y-stream upgrade to %s (target minor %s)", upgradeVersionId,
@@ -166,14 +169,33 @@ var _ = Describe("Customer", func() {
 			_, err = framework.UpdateHCPCluster20240610(ctx, hcpClient, *resourceGroup.Name, clusterName, update, framework.HCPClusterVersionUpgradeTimeout)
 			Expect(err).NotTo(HaveOccurred(), "failed to trigger y-stream upgrade of cluster %q to %s", clusterName, upgradeVersionId)
 
-			By("verifying control plane reached desired version and cluster remains viable")
-			Eventually(func() error {
-				return verifiers.VerifyHCPCluster(ctx, adminRESTConfig,
-					verifiers.VerifyKubeAPIServerServerVersionUpgraded(preUpgradeKubeAPIServerVersion),
-					verifiers.VerifyHostedControlPlaneYStreamUpgrade(
-						installVersionId,
-						upgradeVersionId))
-			}, framework.HCPClusterVersionUpgradeTimeout, 2*time.Minute).Should(Succeed())
+			// Phased rather than fanned out through VerifyHCPCluster, since the viability verifiers
+			// do not poll for the length of an upgrade. The kube-apiserver check reuses the time
+			// left in HCPClusterVersionUpgradeTimeout (floored at
+			// minimumUpgradeConfirmationTimeout), so this phase may overrun the budget by that floor.
+			upgradeDeadline := time.Now().Add(framework.HCPClusterVersionUpgradeTimeout)
+
+			By("verifying the control plane reached the desired version")
+			Expect(verifiers.VerifyHostedControlPlaneYStreamUpgrade(
+				installVersionId,
+				upgradeVersionId,
+				framework.HCPClusterVersionUpgradeTimeout,
+			).Verify(ctx, adminRESTConfig)).NotTo(HaveOccurred(),
+				"control plane of cluster %q did not reach %s within %s", clusterName, upgradeVersionId,
+				framework.HCPClusterVersionUpgradeTimeout)
+
+			By("verifying the kube-apiserver reports the upgraded version")
+			Expect(verifiers.VerifyKubeAPIServerServerVersionUpgraded(
+				preUpgradeKubeAPIServerVersion,
+				max(time.Until(upgradeDeadline), minimumUpgradeConfirmationTimeout),
+			).Verify(ctx, adminRESTConfig)).NotTo(HaveOccurred(),
+				"kube-apiserver of cluster %q still reported the pre-upgrade version after the control plane reached %s",
+				clusterName, upgradeVersionId)
+
+			By("verifying the cluster is viable after upgrade")
+			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig)
+			Expect(err).NotTo(HaveOccurred(),
+				"cluster %q was not viable after upgrading to %s", clusterName, upgradeVersionId)
 		},
 		Entry("from 4.20 minor to 4.21 minor", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "4.21"),
 		Entry("from 4.21 minor to 4.22 minor", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "4.22"),
