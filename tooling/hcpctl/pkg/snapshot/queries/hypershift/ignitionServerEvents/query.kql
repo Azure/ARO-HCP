@@ -1,0 +1,15 @@
+cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('kubernetesEvents')
+| where timestamp between ({{ kqlDatetime .PhaseStartTime }} .. {{ kqlDatetime .PhaseEndTime }})
+{{- if and .ServiceClusterName .ManagementClusterName }}
+| where cluster in ('{{ .ServiceClusterName }}', '{{ .ManagementClusterName }}')
+{{- end }}
+| where eventNamespace in ('{{ .HostedClusterNamespace }}'{{ if .HostedControlPlaneNamespace }}, '{{ .HostedControlPlaneNamespace }}'{{ end }})
+| where sourceComponent == 'ignition-server'
+| where reason == 'GetPayloadFailed'
+| summarize
+    firstObserved = min(timestamp),
+    lastObserved = max(timestamp),
+    observedRecords = count(),
+    maxRecordedEventCount = max(tolong(count))
+  by cluster, eventNamespace, objectKind, objectName, reason, message
+| order by firstObserved asc, cluster asc, eventNamespace asc, objectName asc

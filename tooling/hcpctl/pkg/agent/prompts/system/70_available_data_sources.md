@@ -24,6 +24,13 @@ resource. Review the manifest's `directory_layout` for the full structure. Key l
   transport/auth errors.
 - `discovery/` — resource IDs, cluster associations, request mappings
 - `<phase>/resources/<type>/<name>/` — state, conditions, logs, events per resource
+- Within each cluster or node-pool resource, `logs/hypershift/ignitionServerLogs.md`
+  contains per-minute, per-replica ignition diagnostics and
+  `events/hypershift/ignitionServerEvents.md` attributes payload failures to token
+  Secret objects. Check both when workers remain unready, including while
+  machines are still `Creating`, before treating timeout or deletion as the cause.
+  The log counters cover all pools in the cluster; event counts are cumulative,
+  and neither source alone establishes an individual VM's boot outcome.
 - `<phase>/events/` — service-level Kubernetes events
 
 ### Kusto (via kusto_query tool)
@@ -131,4 +138,3 @@ Review ingest mappings and schemas at `dev-infrastructure/modules/logs/kusto/tab
 
 Repository checkouts are listed in the initial prompt. Use `code` proofs to cite
 specific files and line ranges.
-

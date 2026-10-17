@@ -1,0 +1,23 @@
+cluster('{{ .ClusterURI }}').database('{{ .HCPDatabase }}').table('containerLogs')
+| where timestamp between ({{ kqlDatetime .PhaseStartTime }} .. {{ kqlDatetime .PhaseEndTime }})
+{{- if and .ServiceClusterName .ManagementClusterName }}
+| where cluster in ('{{ .ServiceClusterName }}', '{{ .ManagementClusterName }}')
+{{- end }}
+| where namespace_name in ('{{ .HostedClusterNamespace }}'{{ if .HostedControlPlaneNamespace }}, '{{ .HostedControlPlaneNamespace }}'{{ end }})
+| where container_name == 'ignition-server'
+| extend text = tostring(log)
+| extend
+    requestLines = countof(text, 'Requested: /ignition'),
+    tokenMissLines = countof(text, 'Token not found'),
+    cachedPayloadLines = countof(text, 'Payload found in cache'),
+    authorizationFailureLines = countof(text, 'Invalid Authorization header value prefix') + countof(text, 'Invalid token value'),
+    invalidPayloadLines = countof(text, 'Invalid ignition payload')
+| summarize
+    logRecords = count(),
+    ignitionRequests = sum(requestLines),
+    tokenLookupFailures = sum(tokenMissLines),
+    payloadCacheHits = sum(cachedPayloadLines),
+    authorizationFailures = sum(authorizationFailureLines),
+    invalidPayloads = sum(invalidPayloadLines)
+  by minute = bin(timestamp, 1m), cluster, namespace_name, pod_name
+| order by minute asc, cluster asc, namespace_name asc, pod_name asc

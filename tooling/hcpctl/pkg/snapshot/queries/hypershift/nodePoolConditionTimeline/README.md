@@ -24,6 +24,8 @@ are expected directly after creation, but the steady state should look like:
 
 ## Where to Go Next
 
-If ignition is failing, check the ignition server logs in the hosted control plane's namespace.
+If workers remain unready, check `logs/hypershift/ignitionServerLogs.md` and
+`events/hypershift/ignitionServerEvents.md` for bootstrap failures in either the
+HostedCluster or hosted control plane namespace.
 If nodes are failing to ignite, check their boot logs.
 If machines are failing to be created, check the `logs/hypershift/clusterAPILogs.md` and `logs/hypershift/clusterAPIProviderLogs.md` controller logs.
