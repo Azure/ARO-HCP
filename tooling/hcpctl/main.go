@@ -27,6 +27,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/cmd/ci"
 	datadumptogit "github.com/Azure/ARO-HCP/tooling/hcpctl/cmd/datadump-to-git"
+	getcmd "github.com/Azure/ARO-HCP/tooling/hcpctl/cmd/get"
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/cmd/hcp"
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/cmd/kubelogin"
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/cmd/mc"
@@ -92,6 +93,7 @@ and hosted control plane services for operational and emergency scenarios.`,
 
 	// Add main subcommands
 	mainCommands := []func(string) (*cobra.Command, error){
+		getcmd.NewCommand,
 		mc.NewCommand,
 		sc.NewCommand,
 		hcp.NewCommand,
