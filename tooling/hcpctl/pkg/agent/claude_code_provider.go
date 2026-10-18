@@ -45,8 +45,11 @@ var _ LLMProvider = (*ClaudeCodeProvider)(nil)
 var _ LLMSession = (*ClaudeCodeSession)(nil)
 
 type ClaudeCodeConfig struct {
-	Model      string
-	APIKeyFile string
+	Model         string
+	APIKeyFile    string
+	Backend       string
+	VertexProject string
+	VertexRegion  string
 }
 
 type claudeCodeClient interface {
@@ -73,16 +76,33 @@ func NewClaudeCodeProvider(cfg *ClaudeCodeConfig) (*ClaudeCodeProvider, error) {
 	if cfg != nil {
 		provider.cfg = *cfg
 	}
-	if provider.cfg.APIKeyFile != "" {
-		data, err := os.ReadFile(provider.cfg.APIKeyFile)
-		if err != nil {
-			return nil, fmt.Errorf("reading Anthropic API key: %w", err)
+	switch provider.cfg.Backend {
+	case ClaudeBackendAPI, "":
+		if provider.cfg.APIKeyFile != "" {
+			data, err := os.ReadFile(provider.cfg.APIKeyFile)
+			if err != nil {
+				return nil, fmt.Errorf("reading Anthropic API key: %w", err)
+			}
+			key := strings.TrimSpace(string(data))
+			if key == "" {
+				return nil, fmt.Errorf("anthropic API key file is empty")
+			}
+			provider.env = map[string]string{"ANTHROPIC_API_KEY": key}
 		}
-		key := strings.TrimSpace(string(data))
-		if key == "" {
-			return nil, fmt.Errorf("anthropic API key file is empty")
+	case ClaudeBackendVertex:
+		if provider.cfg.VertexProject == "" {
+			return nil, fmt.Errorf("vertex project is required when Claude backend is %q", ClaudeBackendVertex)
 		}
-		provider.env = map[string]string{"ANTHROPIC_API_KEY": key}
+		if provider.cfg.VertexRegion == "" {
+			return nil, fmt.Errorf("vertex region is required when Claude backend is %q", ClaudeBackendVertex)
+		}
+		provider.env = map[string]string{
+			"CLAUDE_CODE_USE_VERTEX":      "1",
+			"ANTHROPIC_VERTEX_PROJECT_ID": provider.cfg.VertexProject,
+			"CLOUD_ML_REGION":             provider.cfg.VertexRegion,
+		}
+	default:
+		return nil, fmt.Errorf("unknown Claude backend %q, must be one of: api, vertex", provider.cfg.Backend)
 	}
 	return provider, nil
 }

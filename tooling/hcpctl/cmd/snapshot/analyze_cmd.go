@@ -122,9 +122,9 @@ func bindAnalyzeOptions(opts *RawAnalyzeOptions, cmd *cobra.Command) error {
 	// Claude-specific flags.
 	cmd.Flags().StringVar(&opts.AnthropicAPIKeyFile, "anthropic-api-key-file", opts.AnthropicAPIKeyFile, "Path to file containing the Anthropic API key (claude or claude-code; otherwise use environment/CLI authentication)")
 	cmd.Flags().StringVar(&opts.AnthropicModel, "anthropic-model", opts.AnthropicModel, "Anthropic model name (defaults to "+agent.DefaultClaudeModel+")")
-	cmd.Flags().StringVar(&opts.ClaudeBackend, "claude-backend", agent.ClaudeBackendAPI, "Claude API backend: api (direct Anthropic API, default) or vertex (Google Vertex AI)")
-	cmd.Flags().StringVar(&opts.VertexProject, "vertex-project", opts.VertexProject, "GCP project ID for Vertex AI (env: GOOGLE_VERTEX_PROJECT_ID)")
-	cmd.Flags().StringVar(&opts.VertexRegion, "vertex-region", opts.VertexRegion, "GCP region for Vertex AI (env: GOOGLE_VERTEX_REGION)")
+	cmd.Flags().StringVar(&opts.ClaudeBackend, "claude-backend", agent.ClaudeBackendAPI, "Backend for claude or claude-code: api (direct Anthropic API, default) or vertex (Google Vertex AI)")
+	cmd.Flags().StringVar(&opts.VertexProject, "vertex-project", opts.VertexProject, "GCP project ID for claude or claude-code Vertex AI (env: GOOGLE_VERTEX_PROJECT_ID)")
+	cmd.Flags().StringVar(&opts.VertexRegion, "vertex-region", opts.VertexRegion, "GCP region for claude or claude-code Vertex AI (env: GOOGLE_VERTEX_REGION)")
 
 	for _, flag := range []string{"aro-hcp", "hypershift", "maestro", "clusters-service"} {
 		if err := cmd.MarkFlagRequired(flag); err != nil {
@@ -273,18 +273,7 @@ func (o *RawAnalyzeOptions) validate() (*validatedAnalyzeOptions, error) {
 		}
 		validated.copilotConfig = agentCfg
 
-	case providerClaudeCode:
-		if o.AnthropicAPIKeyFile != "" {
-			if _, err := os.Stat(o.AnthropicAPIKeyFile); err != nil {
-				return nil, fmt.Errorf("--anthropic-api-key-file %q: %w", o.AnthropicAPIKeyFile, err)
-			}
-		}
-		validated.claudeCodeConfig = &agent.ClaudeCodeConfig{
-			Model:      o.Model,
-			APIKeyFile: o.AnthropicAPIKeyFile,
-		}
-
-	case providerClaude:
+	case providerClaude, providerClaudeCode:
 		claudeCfg := &agent.ClaudeConfig{
 			APIKeyFile: o.AnthropicAPIKeyFile,
 			Model:      o.AnthropicModel,
@@ -298,7 +287,7 @@ func (o *RawAnalyzeOptions) validate() (*validatedAnalyzeOptions, error) {
 				if _, err := os.Stat(claudeCfg.APIKeyFile); err != nil {
 					return nil, fmt.Errorf("--anthropic-api-key-file %q: %w", claudeCfg.APIKeyFile, err)
 				}
-			} else if os.Getenv("ANTHROPIC_API_KEY") == "" {
+			} else if o.Provider == providerClaude && os.Getenv("ANTHROPIC_API_KEY") == "" {
 				return nil, fmt.Errorf("--anthropic-api-key-file or ANTHROPIC_API_KEY environment variable is required when --claude-backend is %q", claudeCfg.Backend)
 			}
 		case agent.ClaudeBackendVertex:
@@ -322,7 +311,17 @@ func (o *RawAnalyzeOptions) validate() (*validatedAnalyzeOptions, error) {
 			return nil, fmt.Errorf("unknown --claude-backend %q, must be one of: api, vertex", o.ClaudeBackend)
 		}
 
-		validated.claudeConfig = claudeCfg
+		if o.Provider == providerClaudeCode {
+			validated.claudeCodeConfig = &agent.ClaudeCodeConfig{
+				Model:         o.Model,
+				APIKeyFile:    claudeCfg.APIKeyFile,
+				Backend:       claudeCfg.Backend,
+				VertexProject: claudeCfg.VertexProject,
+				VertexRegion:  claudeCfg.VertexRegion,
+			}
+		} else {
+			validated.claudeConfig = claudeCfg
+		}
 
 	default:
 		return nil, fmt.Errorf("unknown --provider %q, must be one of: copilot, claude, claude-code", o.Provider)
@@ -678,8 +677,10 @@ Supported LLM providers (--provider flag):
                     (ADC) for keyless auth. Requires --vertex-project and
                     --vertex-region (or their env var equivalents).
   claude-code  Claude Code CLI via an in-process MCP bridge. Requires the claude
-               binary on PATH and CLI authentication, ANTHROPIC_API_KEY,
-               CLAUDE_CODE_OAUTH_TOKEN, or --anthropic-api-key-file.
+               binary on PATH. Supports the same --claude-backend api/vertex
+               selection and Vertex ADC options as claude. The api backend uses
+               CLI authentication, ANTHROPIC_API_KEY, CLAUDE_CODE_OAUTH_TOKEN,
+               or --anthropic-api-key-file.
                Uses --model (default: claude-sonnet-4-5-20250929).
                Runs with permissions bypassed and best-effort settings/memory
                isolation; this is not a filesystem sandbox.

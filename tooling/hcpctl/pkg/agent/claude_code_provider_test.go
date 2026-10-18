@@ -493,7 +493,7 @@ func TestClaudeCodeAPIKeyFile(t *testing.T) {
 	if err := os.WriteFile(path, []byte(" test-key \n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	provider, err := NewClaudeCodeProvider(&ClaudeCodeConfig{APIKeyFile: path})
+	provider, err := NewClaudeCodeProvider(&ClaudeCodeConfig{Backend: ClaudeBackendAPI, APIKeyFile: path})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -515,6 +515,81 @@ func TestClaudeCodeAPIKeyFile(t *testing.T) {
 	}
 	if err := provider.Stop(); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestClaudeCodeBackendEnvironment(t *testing.T) {
+	t.Setenv("ANTHROPIC_API_KEY", "ambient-test-key")
+	for _, test := range []struct {
+		name    string
+		config  ClaudeCodeConfig
+		wantEnv map[string]string
+		wantErr string
+	}{
+		{name: "default API without key file"},
+		{name: "explicit API without key file", config: ClaudeCodeConfig{Backend: ClaudeBackendAPI}},
+		{
+			name: "vertex",
+			config: ClaudeCodeConfig{
+				Backend: ClaudeBackendVertex, VertexProject: "test-project", VertexRegion: "us-east5",
+				APIKeyFile: filepath.Join(t.TempDir(), "unused-key"),
+			},
+			wantEnv: map[string]string{
+				"CLAUDE_CODE_USE_VERTEX": "1", "ANTHROPIC_VERTEX_PROJECT_ID": "test-project", "CLOUD_ML_REGION": "us-east5",
+			},
+		},
+		{
+			name: "vertex missing project", config: ClaudeCodeConfig{Backend: ClaudeBackendVertex, VertexRegion: "us-east5"},
+			wantErr: "vertex project is required",
+		},
+		{
+			name: "vertex missing region", config: ClaudeCodeConfig{Backend: ClaudeBackendVertex, VertexProject: "test-project"},
+			wantErr: "vertex region is required",
+		},
+		{
+			name: "unknown backend", config: ClaudeCodeConfig{Backend: "unsupported"},
+			wantErr: "unknown Claude backend",
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			provider, err := NewClaudeCodeProvider(&test.config)
+			if test.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), test.wantErr) {
+					t.Fatalf("expected error containing %q, got %v", test.wantErr, err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(provider.env, test.wantEnv) {
+				t.Fatalf("provider environment = %v, want %v", provider.env, test.wantEnv)
+			}
+			provider.newClient = func(opts ...claudeagent.Option) (claudeCodeClient, error) {
+				options := claudeagent.DefaultOptions()
+				for _, opt := range opts {
+					opt(&options)
+				}
+				if len(options.Env) != len(test.wantEnv) {
+					t.Errorf("SDK environment has %d entries, want %d", len(options.Env), len(test.wantEnv))
+				}
+				for key, want := range test.wantEnv {
+					if options.Env[key] != want {
+						t.Errorf("SDK environment %s = %q, want %q", key, options.Env[key], want)
+					}
+				}
+				return &fakeClaudeCodeClient{}, nil
+			}
+			if _, err := provider.CreateProviderSession(context.Background(), logr.Discard(), ProviderSessionConfig{WorkingDirectory: t.TempDir()}); err != nil {
+				t.Fatal(err)
+			}
+			if err := provider.Stop(); err != nil {
+				t.Fatal(err)
+			}
+			if os.Getenv("ANTHROPIC_API_KEY") != "ambient-test-key" {
+				t.Fatal("ambient API key changed")
+			}
+		})
 	}
 }
 
