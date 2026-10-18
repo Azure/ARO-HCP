@@ -44,8 +44,9 @@ The tool will be available on SAW devices similar to how the `oc` utility is acc
 
 `hcpctl snapshot analyze` supports `--provider claude-code` in addition to the
 existing `copilot` (default) and in-process `claude` providers. Install the Claude
-Code CLI on `PATH` and authenticate it, or set `ANTHROPIC_API_KEY` /
-`CLAUDE_CODE_OAUTH_TOKEN`. Alternatively, supply `--anthropic-api-key-file`.
+Code CLI on `PATH`. With the default `--claude-backend api`, authenticate the CLI,
+set `ANTHROPIC_API_KEY` / `CLAUDE_CODE_OAUTH_TOKEN`, or supply
+`--anthropic-api-key-file`.
 
 ```bash
 hcpctl snapshot analyze /path/to/snapshot --provider claude-code \
@@ -53,9 +54,18 @@ hcpctl snapshot analyze /path/to/snapshot --provider claude-code \
   --maestro /path/to/maestro --clusters-service /path/to/clusters-service
 ```
 
+Both Claude providers support `--claude-backend vertex` with Google Application
+Default Credentials (ADC). Set `--vertex-project` and `--vertex-region`, or their
+environment fallbacks `GOOGLE_VERTEX_PROJECT_ID` and `GOOGLE_VERTEX_REGION`.
+The Claude Code provider translates these into the CLI's documented environment
+variables: `CLAUDE_CODE_USE_VERTEX=1`, `ANTHROPIC_VERTEX_PROJECT_ID`, and
+`CLOUD_ML_REGION`. It does not read the Anthropic API key file for Vertex or pass
+Google key material. See the [Claude Code Vertex setup guide](https://code.claude.com/docs/en/google-vertex-ai)
+for ADC setup and model availability.
+
 Use `--model` to override `claude-sonnet-4-5-20250929`; the CLI SDK requires an
-explicit model. `--claude-backend` and `--anthropic-model` apply only to the
-in-process `claude` provider. The existing `kusto_query` handler is available to
+explicit model. `--anthropic-model` applies only to the in-process `claude`
+provider. The existing `kusto_query` handler is available to
 Claude Code as the in-process MCP tool `mcp__hcpctl__kusto_query`.
 
 System prompts larger than 100 KiB keep the small identity/tone instructions in
