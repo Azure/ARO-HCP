@@ -63,6 +63,13 @@ variables: `CLAUDE_CODE_USE_VERTEX=1`, `ANTHROPIC_VERTEX_PROJECT_ID`, and
 Google key material. See the [Claude Code Vertex setup guide](https://code.claude.com/docs/en/google-vertex-ai)
 for ADC setup and model availability.
 
+Backend selection overrides inherited CLI backend switches: `api` forces
+`CLAUDE_CODE_USE_VERTEX=0` and `CLAUDE_CODE_USE_BEDROCK=0`, while `vertex` forces
+Vertex on and Bedrock off. The SDK overlays these values onto the parent
+environment, preserving the ambient API key when no key file is supplied.
+Claude Code documents `0` as the off value for these switches in its
+[environment variable reference](https://code.claude.com/docs/en/env-vars#variables).
+
 Use `--model` to override `claude-sonnet-4-5-20250929`; the CLI SDK requires an
 explicit model. `--anthropic-model` applies only to the in-process `claude`
 provider. The existing `kusto_query` handler is available to

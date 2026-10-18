@@ -520,14 +520,34 @@ func TestClaudeCodeAPIKeyFile(t *testing.T) {
 
 func TestClaudeCodeBackendEnvironment(t *testing.T) {
 	t.Setenv("ANTHROPIC_API_KEY", "ambient-test-key")
+	t.Setenv("CLAUDE_CODE_USE_VERTEX", "1")
+	t.Setenv("CLAUDE_CODE_USE_BEDROCK", "1")
+	keyFile := filepath.Join(t.TempDir(), "key")
+	if err := os.WriteFile(keyFile, []byte(" file-test-key \n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	for _, test := range []struct {
 		name    string
 		config  ClaudeCodeConfig
 		wantEnv map[string]string
 		wantErr string
 	}{
-		{name: "default API without key file"},
-		{name: "explicit API without key file", config: ClaudeCodeConfig{Backend: ClaudeBackendAPI}},
+		{
+			name:    "default API without key file",
+			wantEnv: map[string]string{"CLAUDE_CODE_USE_VERTEX": "0", "CLAUDE_CODE_USE_BEDROCK": "0"},
+		},
+		{
+			name: "explicit API without key file", config: ClaudeCodeConfig{Backend: ClaudeBackendAPI},
+			wantEnv: map[string]string{"CLAUDE_CODE_USE_VERTEX": "0", "CLAUDE_CODE_USE_BEDROCK": "0"},
+		},
+		{
+			name: "default API with key file", config: ClaudeCodeConfig{APIKeyFile: keyFile},
+			wantEnv: map[string]string{"CLAUDE_CODE_USE_VERTEX": "0", "CLAUDE_CODE_USE_BEDROCK": "0", "ANTHROPIC_API_KEY": "file-test-key"},
+		},
+		{
+			name: "explicit API with key file", config: ClaudeCodeConfig{Backend: ClaudeBackendAPI, APIKeyFile: keyFile},
+			wantEnv: map[string]string{"CLAUDE_CODE_USE_VERTEX": "0", "CLAUDE_CODE_USE_BEDROCK": "0", "ANTHROPIC_API_KEY": "file-test-key"},
+		},
 		{
 			name: "vertex",
 			config: ClaudeCodeConfig{
@@ -535,7 +555,7 @@ func TestClaudeCodeBackendEnvironment(t *testing.T) {
 				APIKeyFile: filepath.Join(t.TempDir(), "unused-key"),
 			},
 			wantEnv: map[string]string{
-				"CLAUDE_CODE_USE_VERTEX": "1", "ANTHROPIC_VERTEX_PROJECT_ID": "test-project", "CLOUD_ML_REGION": "us-east5",
+				"CLAUDE_CODE_USE_VERTEX": "1", "CLAUDE_CODE_USE_BEDROCK": "0", "ANTHROPIC_VERTEX_PROJECT_ID": "test-project", "CLOUD_ML_REGION": "us-east5",
 			},
 		},
 		{
@@ -578,6 +598,35 @@ func TestClaudeCodeBackendEnvironment(t *testing.T) {
 						t.Errorf("SDK environment %s = %q, want %q", key, options.Env[key], want)
 					}
 				}
+				runner := claudeagent.NewMockSubprocessRunner()
+				transport := claudeagent.NewSubprocessTransportWithRunner(runner, &options)
+				if err := transport.Connect(context.Background()); err != nil {
+					t.Fatal(err)
+				}
+				defer func() {
+					if err := transport.Close(); err != nil {
+						t.Error(err)
+					}
+				}()
+				effectiveEnv := make(map[string]string)
+				for _, entry := range runner.StartEnv {
+					key, value, found := strings.Cut(entry, "=")
+					if found {
+						effectiveEnv[key] = value
+					}
+				}
+				for key, want := range test.wantEnv {
+					if effectiveEnv[key] != want {
+						t.Errorf("subprocess environment %s = %q, want %q", key, effectiveEnv[key], want)
+					}
+				}
+				wantKey := test.wantEnv["ANTHROPIC_API_KEY"]
+				if wantKey == "" {
+					wantKey = "ambient-test-key"
+				}
+				if effectiveEnv["ANTHROPIC_API_KEY"] != wantKey {
+					t.Error("subprocess API key did not honor explicit-file or ambient fallback")
+				}
 				return &fakeClaudeCodeClient{}, nil
 			}
 			if _, err := provider.CreateProviderSession(context.Background(), logr.Discard(), ProviderSessionConfig{WorkingDirectory: t.TempDir()}); err != nil {
@@ -588,6 +637,9 @@ func TestClaudeCodeBackendEnvironment(t *testing.T) {
 			}
 			if os.Getenv("ANTHROPIC_API_KEY") != "ambient-test-key" {
 				t.Fatal("ambient API key changed")
+			}
+			if os.Getenv("CLAUDE_CODE_USE_VERTEX") != "1" || os.Getenv("CLAUDE_CODE_USE_BEDROCK") != "1" {
+				t.Fatal("parent backend switches changed")
 			}
 		})
 	}

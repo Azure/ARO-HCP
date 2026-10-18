@@ -78,6 +78,10 @@ func NewClaudeCodeProvider(cfg *ClaudeCodeConfig) (*ClaudeCodeProvider, error) {
 	}
 	switch provider.cfg.Backend {
 	case ClaudeBackendAPI, "":
+		provider.env = map[string]string{
+			"CLAUDE_CODE_USE_VERTEX":  "0",
+			"CLAUDE_CODE_USE_BEDROCK": "0",
+		}
 		if provider.cfg.APIKeyFile != "" {
 			data, err := os.ReadFile(provider.cfg.APIKeyFile)
 			if err != nil {
@@ -87,7 +91,7 @@ func NewClaudeCodeProvider(cfg *ClaudeCodeConfig) (*ClaudeCodeProvider, error) {
 			if key == "" {
 				return nil, fmt.Errorf("anthropic API key file is empty")
 			}
-			provider.env = map[string]string{"ANTHROPIC_API_KEY": key}
+			provider.env["ANTHROPIC_API_KEY"] = key
 		}
 	case ClaudeBackendVertex:
 		if provider.cfg.VertexProject == "" {
@@ -98,6 +102,7 @@ func NewClaudeCodeProvider(cfg *ClaudeCodeConfig) (*ClaudeCodeProvider, error) {
 		}
 		provider.env = map[string]string{
 			"CLAUDE_CODE_USE_VERTEX":      "1",
+			"CLAUDE_CODE_USE_BEDROCK":     "0",
 			"ANTHROPIC_VERTEX_PROJECT_ID": provider.cfg.VertexProject,
 			"CLOUD_ML_REGION":             provider.cfg.VertexRegion,
 		}
