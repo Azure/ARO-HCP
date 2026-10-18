@@ -303,7 +303,14 @@ func (s *ClaudeCodeSession) SendAndWait(ctx context.Context, prompt string) (str
 				status = message.Status
 			}
 			if message.IsError || status != "success" {
-				return "", fmt.Errorf("claude-code query failed (%s): %s", status, strings.Join(message.Errors, "; "))
+				detail := strings.Join(message.Errors, "; ")
+				if detail == "" {
+					detail = message.Result
+				}
+				if detail == "" {
+					detail = lastAssistantText
+				}
+				return "", fmt.Errorf("claude-code query failed (%s): %s", status, detail)
 			}
 			if message.Result != "" {
 				return message.Result, nil
