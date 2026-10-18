@@ -25,6 +25,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/go-logr/logr"
 	claudeagent "github.com/roasbeef/claude-agent-sdk-go"
@@ -353,6 +354,67 @@ func TestClaudeCodeLargePromptUsesStdin(t *testing.T) {
 				t.Fatal("transcript must preserve the actual first query with its instructions")
 			}
 			t.Logf("domain=%d bytes; maximum argv=%d bytes; first stdin query=%d bytes", len(cfg.SystemPrompt), maxActual, len(wantFirst))
+		})
+	}
+}
+
+func TestClaudeCodeErrorDiagnostics(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		errors []string
+		result string
+		want   string
+	}{
+		{name: "errors take precedence", errors: []string{"first error", "second error"}, result: "result diagnostic", want: "first error; second error"},
+		{name: "result fallback", result: "authentication failed", want: "authentication failed"},
+		{name: "empty error detail", errors: []string{""}, result: "authentication failed", want: "authentication failed"},
+		{name: "last assistant fallback", want: "last assistant diagnostic"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			runner := claudeagent.NewMockSubprocessRunner()
+			options := claudeagent.DefaultOptions()
+			transport := claudeagent.NewSubprocessTransportWithRunner(runner, &options)
+			if err := transport.Connect(ctx); err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := transport.Close(); err != nil {
+					t.Error(err)
+				}
+			})
+			encoder := json.NewEncoder(runner.StdoutPipe)
+			for _, text := range []string{"earlier assistant text", "last assistant diagnostic"} {
+				assistant := claudeagent.AssistantMessage{Type: "assistant"}
+				assistant.Message.Content = []claudeagent.ContentBlock{{Type: "text", Text: text}}
+				if err := encoder.Encode(assistant); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := encoder.Encode(claudeagent.ResultMessage{
+				Type: "result", Subtype: "success", IsError: true,
+				Errors: test.errors, Result: test.result,
+			}); err != nil {
+				t.Fatal(err)
+			}
+			var messages []claudeagent.Message
+			for message, err := range transport.ReadMessages(ctx) {
+				if err != nil {
+					t.Fatal(err)
+				}
+				messages = append(messages, message)
+				if _, ok := message.(claudeagent.ResultMessage); ok {
+					break
+				}
+			}
+			client := &fakeClaudeCodeClient{queries: [][]claudeagent.Message{messages}}
+			_, session := newTestClaudeCodeSession(t, client)
+			got, err := session.SendAndWait(ctx, "investigate")
+			wantErr := "claude-code query failed (success): " + test.want
+			if err == nil || err.Error() != wantErr || got != "" {
+				t.Fatalf("got %q, %v; want empty response and error %q", got, err, wantErr)
+			}
 		})
 	}
 }
