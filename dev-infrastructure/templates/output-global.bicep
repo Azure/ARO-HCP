@@ -89,6 +89,7 @@ output azureFrontDoorResourceId string = empty(azureFrontDoorProfileName) ? '' :
 resource globalMSI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
   name: globalMSIName
 }
+output globalMSIId string = globalMSI.id
 
 var swiftVnetIdentityRef = res.msiRefFromId(swiftVnetIdentityResourceId)
 
