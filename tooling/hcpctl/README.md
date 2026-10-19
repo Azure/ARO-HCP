@@ -40,6 +40,60 @@ The tool will be available on SAW devices similar to how the `oc` utility is acc
 
 ## Example Usage
 
+### Snapshot Analysis with Claude Code
+
+`hcpctl snapshot analyze` supports `--provider claude-code` in addition to the
+existing `copilot` (default) and in-process `claude` providers. Install the Claude
+Code CLI on `PATH`. With the default `--claude-backend api`, authenticate the CLI,
+set `ANTHROPIC_API_KEY` / `CLAUDE_CODE_OAUTH_TOKEN`, or supply
+`--anthropic-api-key-file`.
+
+```bash
+hcpctl snapshot analyze /path/to/snapshot --provider claude-code \
+  --aro-hcp /path/to/ARO-HCP --hypershift /path/to/hypershift \
+  --maestro /path/to/maestro --clusters-service /path/to/clusters-service
+```
+
+Both Claude providers support `--claude-backend vertex` with Google Application
+Default Credentials (ADC). Set `--vertex-project` and `--vertex-region`, or their
+environment fallbacks `GOOGLE_VERTEX_PROJECT_ID` and `GOOGLE_VERTEX_REGION`.
+The Claude Code provider translates these into the CLI's documented environment
+variables: `CLAUDE_CODE_USE_VERTEX=1`, `ANTHROPIC_VERTEX_PROJECT_ID`, and
+`CLOUD_ML_REGION`. It does not read the Anthropic API key file for Vertex or pass
+Google key material. See the [Claude Code Vertex setup guide](https://code.claude.com/docs/en/google-vertex-ai)
+for ADC setup and model availability.
+
+Backend selection overrides inherited CLI backend switches: `api` forces
+`CLAUDE_CODE_USE_VERTEX=0` and `CLAUDE_CODE_USE_BEDROCK=0`, while `vertex` forces
+Vertex on and Bedrock off. The SDK overlays these values onto the parent
+environment, preserving the ambient API key when no key file is supplied.
+Claude Code documents `0` as the off value for these switches in its
+[environment variable reference](https://code.claude.com/docs/en/env-vars#variables).
+
+Use `--model` to override `claude-sonnet-4-5-20250929`; the CLI SDK requires an
+explicit model. `--anthropic-model` applies only to the in-process `claude`
+provider. The existing `kusto_query` handler is available to
+Claude Code as the in-process MCP tool `mcp__hcpctl__kusto_query`.
+
+System prompts larger than 100 KiB keep the small identity/tone instructions in
+the CLI system prompt and send the complete domain instructions and reference
+material at the start of the first stdin query. If identity/tone themselves are
+too large, all instructions move to that first query under a small system
+directive. Nothing is truncated, and subsequent queries do not resend this
+content. This avoids Linux's per-argument `execve` size limit (`E2BIG`).
+
+This provider runs unattended with permission checks bypassed in the analysis
+workspace. It disables MCP discovery and SDK skills, passes empty settings
+sources, and requests exclusion of CLAUDE.md memory. This is **best-effort
+configuration isolation, not a sandbox**: managed instructions and explicit file
+reads (including CLAUDE.md or AGENTS.md) may still be possible. Run it only with
+trusted inputs and the filesystem permissions you intend it to have.
+
+The CLI's session persistence is disabled; hcpctl saves `conversation.json` and
+`usage.json` in the analysis output directory. Usage is based on cumulative result
+snapshots, with per-model tokens/cost where available; API request counts, cache
+TTLs, and service tiers are not available at the in-process provider's granularity.
+
 ### List Service Clusters
 
 ```bash
