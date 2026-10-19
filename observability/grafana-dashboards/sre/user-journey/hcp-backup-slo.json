@@ -1649,7 +1649,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "(time() - max without (prometheus_replica) (velero_backup_last_successful_timestamp{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\", schedule!=\"\"}))/3600",
+          "expr": "(\n  time()\n  -\n  (\n    max by (cluster, schedule) (\n      max without (prometheus_replica) (\n        velero_backup_last_successful_timestamp{\n          cluster=\"$cluster\",\n          schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"\n        }\n      )\n    )\n    or\n    max by (cluster, schedule) (\n      max without (prometheus_replica) (\n        velero_backup_last_status{\n          cluster=\"$cluster\",\n          schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"\n        }\n      ) * 0\n    )\n  )\n) / 3600",
           "legendFormat": "{{schedule}}",
           "refId": "A",
           "instant": true,
