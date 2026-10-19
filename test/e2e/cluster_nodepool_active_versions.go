@@ -17,7 +17,6 @@ package e2e
 import (
 	"context"
 	"fmt"
-	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -30,8 +29,6 @@ import (
 )
 
 var _ = Describe("Customer", func() {
-	timeBombDeadline := framework.V20261001DeploymentDeadline
-
 	It("should be able to retrieve cluster and nodepool status active versions",
 		labels.RequireNothing,
 		labels.Critical,
@@ -80,12 +77,6 @@ var _ = Describe("Customer", func() {
 				nil,
 				framework.ClusterCreationTimeout,
 			)
-			if framework.IsAPINotDeployedError(err) {
-				if time.Now().Before(timeBombDeadline) {
-					Skip(fmt.Sprintf("v20261001 API not yet deployed; skipping until %s", timeBombDeadline.Format(time.RFC3339)))
-				}
-				Fail(fmt.Sprintf("v20261001 API still not deployed as of %s deadline", timeBombDeadline.Format(time.RFC3339)))
-			}
 			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %q via v20261001", customerClusterName)
 
 			By("creating the node pool")
