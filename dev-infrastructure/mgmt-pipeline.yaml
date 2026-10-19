@@ -889,6 +889,13 @@ resourceGroups:
       # Transient AKS API server connection loss (no HTTP status, 5xx patterns miss). AROSLSRE-2130.
       - "client connection lost"
       - "unexpected error when reading response body"
+      # On fresh mgmt clusters the unannotate-default-sc post-install hook Job
+      # fails before its container starts: a kube-root-ca.crt not-registered race
+      # in the just-created default-sc namespace, or a transient ImagePullBackOff.
+      # Both clear on a retry once the namespace cert is published / registry
+      # recovers; the Job's before-hook-creation delete policy lets it recreate.
+      - "failed post-install"
+      - "Job Failed"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
   - name: mitigations
