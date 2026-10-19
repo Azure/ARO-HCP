@@ -88,12 +88,14 @@ spec:
   - name: hypershift-operator-recording-rules
     rules:
     # max (not sum) dedupes KSM replicas; clamp_max(...,1) for surge rollouts.
+    # "> 0" on the denominator: scaled to zero records nothing instead of NaN,
+    # which avg_over_time would carry through the availability windows (up to 3d).
     - record: hypershift:operator:replica_availability:ratio
       expr: |
         clamp_max(
           max by (cluster) (kube_deployment_status_replicas_available{namespace="hypershift", deployment="operator"})
           /
-          max by (cluster) (kube_deployment_spec_replicas{namespace="hypershift", deployment="operator"}),
+          (max by (cluster) (kube_deployment_spec_replicas{namespace="hypershift", deployment="operator"}) > 0),
           1
         )
     # "or <total> * 0" records 0 instead of no data when no errors exist.

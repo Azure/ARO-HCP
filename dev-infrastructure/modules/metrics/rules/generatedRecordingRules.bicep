@@ -438,7 +438,7 @@ resource hypershiftOperatorRecordingRules 'Microsoft.AlertsManagement/prometheus
     rules: [
       {
         record: 'hypershift:operator:replica_availability:ratio'
-        expression: 'clamp_max(max by (cluster, region) (kube_deployment_status_replicas_available{deployment="operator",namespace="hypershift"}) / max by (cluster, region) (kube_deployment_spec_replicas{deployment="operator",namespace="hypershift"}), 1)'
+        expression: 'clamp_max(max by (cluster, region) (kube_deployment_status_replicas_available{deployment="operator",namespace="hypershift"}) / (max by (cluster, region) (kube_deployment_spec_replicas{deployment="operator",namespace="hypershift"}) > 0), 1)'
       }
       {
         record: 'hypershift:operator:reconcile_error:ratio_rate5m'
