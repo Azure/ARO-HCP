@@ -68,7 +68,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "(\n  (count(max without (prometheus_replica) (backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"update\", phase=\"succeeded\"})) or vector(0))\n  /\n  (count(max without (prometheus_replica) (backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"update\", phase=~\"succeeded|failed\"})) > 0 or vector(1))\n) * 100",
+          "expr": "(\n  (count(max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"update\", phase=\"succeeded\"})) or vector(0))\n  /\n  clamp_min(count(max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"update\", phase=~\"succeeded|failed\"})) or vector(0), 1)\n) * 100",
           "instant": true,
           "legendFormat": "Success Rate",
           "refId": "A"
@@ -114,7 +114,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "count(max without (prometheus_replica) (backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"update\", phase=\"failed\"})) or vector(0)",
+          "expr": "count(max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"update\", phase=\"failed\"})) or vector(0)",
           "instant": true,
           "legendFormat": "Failed Operations",
           "refId": "A"
@@ -159,7 +159,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "count((time() - max without (prometheus_replica) (backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"update\", phase=~\"accepted|updating\"})) > 2700) or vector(0)",
+          "expr": "count((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"update\", phase=~\"accepted|updating\"})) > 2700) or vector(0)",
           "instant": true,
           "legendFormat": "Stuck Operations",
           "refId": "A"
@@ -209,7 +209,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "clamp(\n  (1 - (\n    (count(max without (prometheus_replica) (backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"update\", phase=\"failed\"})) or vector(0))\n    /\n    (count(max without (prometheus_replica) (backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"update\", phase=~\"succeeded|failed\"})) > 0 or vector(1))\n  ) / 0.05) * 100,\n  0,\n  100\n)",
+          "expr": "clamp(\n  (0.05 - (\n    (count(max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"update\", phase=\"failed\"})) or vector(0))\n    /\n    clamp_min(count(max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"update\", phase=~\"succeeded|failed\"})) or vector(0), 1)\n  )) / 0.05 * 100,\n  0,\n  100\n)",
           "instant": true,
           "legendFormat": "Error Budget Remaining",
           "refId": "A"
@@ -267,7 +267,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "(\n  (count(max without (prometheus_replica) (backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"update\", phase=\"succeeded\"})) or vector(0))\n  /\n  (count(max without (prometheus_replica) (backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"update\", phase=~\"succeeded|failed\"})) > 0 or vector(1))\n) * 100",
+          "expr": "(\n  (count(max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"update\", phase=\"succeeded\"})) or vector(0))\n  /\n  clamp_min(count(max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"update\", phase=~\"succeeded|failed\"})) or vector(0), 1)\n) * 100",
           "legendFormat": "Success Rate",
           "refId": "A"
         }
@@ -309,7 +309,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "count by (phase) (max without (prometheus_replica) (backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"update\"}))",
+          "expr": "count by (phase) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"update\"}))",
           "legendFormat": "{{ phase }}",
           "refId": "A"
         }
@@ -361,21 +361,21 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "quantile(0.5, time() - max without (prometheus_replica) (backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"update\", phase=~\"accepted|updating\"}))",
+          "expr": "quantile(0.5, time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"update\", phase=~\"accepted|updating\"}))",
           "legendFormat": "p50",
           "refId": "A"
         },
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "quantile(0.95, time() - max without (prometheus_replica) (backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"update\", phase=~\"accepted|updating\"}))",
+          "expr": "quantile(0.95, time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"update\", phase=~\"accepted|updating\"}))",
           "legendFormat": "p95",
           "refId": "B"
         },
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "quantile(0.99, time() - max without (prometheus_replica) (backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"update\", phase=~\"accepted|updating\"}))",
+          "expr": "quantile(0.99, time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"update\", phase=~\"accepted|updating\"}))",
           "legendFormat": "p99",
           "refId": "C"
         }
@@ -427,7 +427,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "max without (prometheus_replica) (backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"update\", phase=~\"succeeded|failed|canceled\"}) - max without (prometheus_replica) (backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"update\", phase=~\"succeeded|failed|canceled\"})",
+          "expr": "max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"update\", phase=~\"succeeded|failed|canceled\"}) - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"update\", phase=~\"succeeded|failed|canceled\"})",
           "legendFormat": "{{ resource_id }}",
           "refId": "A"
         }
@@ -470,7 +470,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "count(max without (prometheus_replica) (backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"update\", phase=~\"accepted|updating\"})) or vector(0)",
+          "expr": "count(max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"update\", phase=~\"accepted|updating\"})) or vector(0)",
           "legendFormat": "In-Flight Updates",
           "refId": "A"
         }
@@ -496,7 +496,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "max without (prometheus_replica) (backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"update\", phase=\"failed\"}) == 1",
+          "expr": "max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"update\", phase=\"failed\"}) == 1",
           "format": "table",
           "instant": true,
           "legendFormat": "",
