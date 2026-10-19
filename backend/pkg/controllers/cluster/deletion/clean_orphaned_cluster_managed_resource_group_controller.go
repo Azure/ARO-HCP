@@ -89,12 +89,16 @@ func NewCleanOrphanedClusterManagedResourceGroupController(
 		azureFPAClientBuilder: azureFPAClientBuilder,
 	}
 
-	return controllerutils.NewSubscriptionWatchingController(
+	controller := controllerutils.NewSubscriptionWatchingController(
 		CleanOrphanedClusterManagedResourceGroupControllerName,
 		backendInformers,
 		10*time.Minute,
 		syncer,
 	)
+	controller.AddInterestingResource(azcorearm.SubscriptionResourceType, "*")
+	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
+
+	return controller
 }
 
 // listManagedResourceGroupsForSubscription lists all HCP-managed resource groups in the controller's location

@@ -63,7 +63,7 @@ func NewNodePoolClusterServiceIDClearerController(
 		clusterServiceClient: clusterServiceClient,
 	}
 
-	return controllerutils.NewNodePoolWatchingController(
+	controller := controllerutils.NewNodePoolWatchingController(
 		NodePoolDeletionClusterServiceIDClearerControllerName,
 		resourcesDBClient,
 		informers,
@@ -71,6 +71,9 @@ func NewNodePoolClusterServiceIDClearerController(
 		time.Minute,
 		syncer,
 	)
+	controller.AddInterestingResource(coreapi.NodePoolResourceType, "*")
+
+	return controller
 }
 
 // NeedsWork reports whether this controller has unfinished business for the

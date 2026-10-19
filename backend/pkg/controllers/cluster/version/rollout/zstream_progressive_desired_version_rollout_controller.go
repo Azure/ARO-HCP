@@ -99,6 +99,10 @@ func NewZStreamProgressiveDesiredVersionRolloutController(clock utilsclock.Passi
 	}
 	controller := controllerutils.NewControlPlaneVersionRolloutWatchingController(
 		ZStreamProgressiveDesiredVersionRolloutControllerName, fleetInformers, 5*time.Minute, syncer)
+	controller.AddInterestingResource(fleetapi.ControlPlaneVersionRolloutResourceType, "*")
+	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
+	controller.AddInterestingResource(coreapi.ServiceProviderClusterResourceType, coreapi.ServiceProviderClusterResourceName)
+
 	syncer.enqueueAfter = controller
 	if err := syncer.watchVersionCandidates(clusterInformer, serviceProviderClusterInformer, controller); err != nil {
 		panic(err) // coding error

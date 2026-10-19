@@ -20,6 +20,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerconfig"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 )
 
 func registerClusterServiceMatchingClusterController() controllerconfig.ControllerRegistration {
@@ -67,9 +68,12 @@ func registerBackfillClusterUIDController() controllerconfig.ControllerRegistrat
 
 func instantiateBackfillClusterUIDController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
 	_, clusterLister := controllerContext.BackendInformers.Clusters()
-	return controllerutils.NewClusterWatchingController(
+	controller := controllerutils.NewClusterWatchingController(
 		BackfillClusterUIDControllerName, controllerContext.ResourcesDBClient, controllerContext.BackendInformers, controllerContext.UnionKubeApplierInformers, 60*time.Minute,
-		NewBackfillClusterUIDController(controllerContext.Clock, controllerContext.ResourcesDBClient, controllerContext.BillingDBClient, clusterLister)), nil
+		NewBackfillClusterUIDController(controllerContext.Clock, controllerContext.ResourcesDBClient, controllerContext.BillingDBClient, clusterLister))
+	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
+
+	return controller, nil
 }
 
 func Register(registry map[string]controllerconfig.ControllerRegistration) {

@@ -67,7 +67,7 @@ func NewNodePoolRequirementsValidAggregatorController(
 		serviceProviderNodePoolLister: serviceProviderNodePoolLister,
 		resourcesDBClient:             resourcesDBClient,
 	}
-	return controllerutils.NewNodePoolWatchingController(
+	controller := controllerutils.NewNodePoolWatchingController(
 		NodePoolRequirementsValidAggregatorControllerName,
 		resourcesDBClient,
 		informers,
@@ -75,6 +75,10 @@ func NewNodePoolRequirementsValidAggregatorController(
 		1*time.Minute,
 		syncer,
 	)
+	controller.AddInterestingResource(coreapi.NodePoolResourceType, "*")
+	controller.AddInterestingResource(coreapi.ServiceProviderNodePoolResourceType, coreapi.ServiceProviderNodePoolResourceName)
+
+	return controller
 }
 
 func (c *nodePoolRequirementsValidAggregator) SyncOnce(ctx context.Context, key controllerutils.HCPNodePoolKey) error {

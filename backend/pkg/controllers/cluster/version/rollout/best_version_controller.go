@@ -22,6 +22,7 @@ import (
 	"github.com/blang/semver/v4"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
@@ -54,8 +55,11 @@ func NewBestVersionSelectionController(fleetDBClient fleetcosmosstorage.FleetDBC
 		selector:      selector,
 		config:        config,
 	}
-	return controllerutils.NewControlPlaneVersionRolloutWatchingController(
+	controller := controllerutils.NewControlPlaneVersionRolloutWatchingController(
 		BestVersionSelectionControllerName, fleetInformers, 5*time.Minute, syncer)
+	controller.AddInterestingResource(fleetapi.ControlPlaneVersionRolloutResourceType, "*")
+
+	return controller
 }
 
 // CooldownChecker returns nil: the resync interval drives periodic reselection.

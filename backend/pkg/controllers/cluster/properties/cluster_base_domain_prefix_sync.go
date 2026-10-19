@@ -60,7 +60,7 @@ func NewClusterBaseDomainPrefixSyncController(
 		clusterServiceClient: clusterServiceClient,
 	}
 
-	return controllerutils.NewClusterWatchingController(
+	controller := controllerutils.NewClusterWatchingController(
 		ClusterBaseDomainPrefixSyncControllerName,
 		resourcesDBClient,
 		informers,
@@ -68,6 +68,9 @@ func NewClusterBaseDomainPrefixSyncController(
 		5*time.Minute,
 		syncer,
 	)
+	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
+
+	return controller
 }
 
 func (c *clusterBaseDomainPrefixSyncer) needsWork(existingCluster *coreapi.Cluster) bool {

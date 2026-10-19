@@ -114,6 +114,11 @@ func NewKeyRotationBackupController(
 		5*time.Minute,
 		syncer,
 	)
+	// Backup desire names include runtime namespace/configuration or key fingerprints.
+	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
+	controller.AddInterestingResource(coreapi.ServiceProviderClusterResourceType, coreapi.ServiceProviderClusterResourceName)
+	controller.AddInterestingResource(kubeapplierapi.ClusterScopedApplyDesireResourceType, "*")
+	controller.AddInterestingResource(kubeapplierapi.ClusterScopedReadDesireResourceType, "*")
 
 	if kubeApplierInformers != nil {
 		if err := controller.QueueForInformers(5*time.Minute, applyDesireInformer); err != nil {

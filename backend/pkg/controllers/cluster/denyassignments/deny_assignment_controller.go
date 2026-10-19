@@ -73,7 +73,7 @@ func NewClusterDenyAssignmentController(
 		azureFPAClientBuilder: azureFPAClientBuilder,
 	}
 
-	return controllerutils.NewClusterWatchingController(
+	controller := controllerutils.NewClusterWatchingController(
 		ClusterDenyAssignmentControllerName,
 		resourcesDBClient,
 		backendInformers,
@@ -81,6 +81,11 @@ func NewClusterDenyAssignmentController(
 		time.Minute,
 		syncer,
 	)
+	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
+	controller.AddInterestingResource(coreapi.ServiceProviderClusterResourceType, coreapi.ServiceProviderClusterResourceName)
+	controller.AddInterestingResource(azcorearm.SubscriptionResourceType, "*")
+
+	return controller
 }
 
 func (c *clusterDenyAssignmentSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {

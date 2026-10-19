@@ -26,6 +26,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/statusutils"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
@@ -82,13 +83,18 @@ func NewExternalAuthDegradedAggregatorController(
 		clock:              clock,
 		firstObservedBad:   statusutils.NewFirstObservedBadCache(clock),
 	}
-	return controllerutils.NewExternalAuthWatchingController(
+	controller := controllerutils.NewExternalAuthWatchingController(
 		ExternalAuthDegradedAggregatorControllerName,
 		resourcesDBClient,
 		informers,
 		1*time.Minute,
 		syncer,
 	)
+	// Aggregate all conditions; controller and desire names are not a fixed set.
+	controller.AddInterestingResource(coreapi.ExternalAuthResourceType, "*")
+	controller.AddInterestingResource(coreapi.ExternalAuthControllerResourceType, "*")
+
+	return controller
 }
 
 func (c *externalAuthDegradedAggregator) SyncOnce(ctx context.Context, key controllerutils.HCPExternalAuthKey) error {
