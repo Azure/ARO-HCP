@@ -51,11 +51,14 @@ var (
 	)
 
 	// validationTerminalFailures counts operation evaluations in which a failed
-	// validation caused the operation to fail terminally.
+	// validation decided that the operation fails terminally. It counts
+	// decisions, not persisted operation transitions: it is incremented before
+	// the operation is written, so an evaluation whose write fails and is
+	// retried is counted again.
 	validationTerminalFailures = promauto.With(legacyregistry.Registerer()).NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "backend_cluster_validation_terminal_failures_total",
-			Help: "Total number of cluster operation evaluations where a failed validation failed the operation terminally.",
+			Help: "Total number of cluster operation evaluations where a failed validation decided a terminal operation failure. Counts decisions, which may exceed persisted failures when the operation write is retried.",
 		},
 		[]string{"validation"},
 	)

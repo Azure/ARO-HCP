@@ -248,10 +248,7 @@ func (c *clusterValidationSyncer) SyncOnce(ctx context.Context, key controllerut
 		serviceProviderClustersCosmosClient := c.resourcesDBClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 		_, err = serviceProviderClustersCosmosClient.Replace(ctx, replacement, nil)
 		if cosmosstorageutils.IsPreconditionFailedError(err) {
-			// A concurrent writer updated the document and the informer will re-trigger this key. Keep the
-			// normal retry cadence anyway: without the cooldown that re-trigger would immediately re-run the
-			// validation and its Azure calls, and this run's result and probe time would be lost.
-			c.handleRequeue(key, result)
+			c.handleConflictRequeue(key, result)
 			return nil
 		}
 		if err != nil {
@@ -293,6 +290,28 @@ func (c *clusterValidationSyncer) runValidation(ctx context.Context, subscriptio
 		return validationutils.UnknownValidation("Timeout", "Validation is taking longer than expected; it will be retried.", message, validationutils.ControllerReportingPolicyTypeError)
 	}
 	return result
+}
+
+// handleConflictRequeue schedules the next run after this run's result was lost to a concurrent
+// ServiceProviderCluster write. The informer re-triggers the key after such a conflict; a cooldown
+// keeps that re-trigger from immediately repeating the validation's Azure calls. The cooldown is
+// capped at the non-passed retry delay because the result was not persisted: applying a Passed
+// result's long cooldown here would leave a recovered validation reporting False, and its operation
+// Provisioning, for up to passedRetryBase plus jitter. A delayed requeue is always scheduled so the
+// lost result is recomputed even if the informer event was already consumed.
+func (c *clusterValidationSyncer) handleConflictRequeue(key controllerutils.HCPClusterKey, result validationutils.ValidationResult) {
+	if result.EarliestRetryAfter == nil {
+		return
+	}
+
+	retryAfter := validationutils.NonPassedRetryDelay()
+	if *result.EarliestRetryAfter < retryAfter {
+		retryAfter = *result.EarliestRetryAfter
+	}
+	c.retryCooldownChecker.SetCooldown(key, retryAfter)
+	if c.enqueueAfter != nil {
+		c.enqueueAfter.EnqueueAfter(key, retryAfter+time.Second)
+	}
 }
 
 // handleRequeue sets the earliest-retry gate and, for Failed/Unknown outcomes, schedules a

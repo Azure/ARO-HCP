@@ -35,6 +35,12 @@ const (
 	maxNonPassedRetryDelay = time.Duration(float64(nonpassedRetryBase) * (1 + jitterFactor))
 )
 
+// NonPassedRetryDelay returns the jittered retry delay FailedValidation, UnknownValidation, and
+// SkippedValidation use, in [nonpassedRetryBase, maxNonPassedRetryDelay]. Jitter avoids retry storms.
+func NonPassedRetryDelay() time.Duration {
+	return wait.Jitter(nonpassedRetryBase, jitterFactor)
+}
+
 const (
 	// ValidationRunTimeout bounds a single validation run. Without it a hung Azure call blocks the
 	// worker indefinitely and the validation silently stops producing fresh results. It also keeps a

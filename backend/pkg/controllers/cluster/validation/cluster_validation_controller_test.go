@@ -594,6 +594,47 @@ func TestClusterValidationSyncer_ProbeTimes(t *testing.T) {
 		_, ok := spc.Status.ValidationProbeTimes[testValidationName]
 		assert.False(t, ok, "the conflicted write must not have persisted a probe time")
 	})
+
+	t.Run("passed write conflict retries on the non-passed cadence", func(t *testing.T) {
+		t.Parallel()
+		ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+		mockDB := corecosmosstoragetesting.NewMockResourcesDBClient()
+		_, err := mockDB.HCPClusters(testSubscriptionID, testResourceGroup).Create(ctx, newTestCluster(t), nil)
+		require.NoError(t, err)
+		_, err = mockDB.Subscriptions().Create(ctx, newTestSubscription(), nil)
+		require.NoError(t, err)
+		_, err = corecosmosstorage.GetOrCreateServiceProviderCluster(ctx, mockDB, newTestCluster(t).ID)
+		require.NoError(t, err)
+
+		spcCRUD := mockDB.ServiceProviderClusters(testSubscriptionID, testResourceGroup, testClusterName)
+		spc, err := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
+		require.NoError(t, err)
+		spc.Status.Validations = []metav1.Condition{{
+			Type: testValidationName, Status: metav1.ConditionFalse, Reason: "QuotaExceeded",
+			LastTransitionTime: metav1.NewTime(fixedNow.Add(-10 * time.Minute)),
+		}}
+		_, err = spcCRUD.Replace(ctx, spc, nil)
+		require.NoError(t, err)
+
+		fakeClock := clocktesting.NewFakePassiveClock(fixedNow)
+		syncer, enqueuer := newTestSyncer(mockDB, NewMockClusterValidation(testValidationName).WithPassed(), fakeClock)
+		syncer.serviceProviderClusterLister = &concurrentWriterServiceProviderClusterLister{
+			ServiceProviderClusterLister: syncer.serviceProviderClusterLister,
+			resourcesDBClient:            mockDB,
+			conflictOnGet:                2,
+		}
+		require.NoError(t, syncer.SyncOnce(ctx, newTestClusterKey()), "a write conflict must not surface as a sync error")
+
+		maxDelay := 90*time.Second + time.Second
+		assert.LessOrEqual(t, syncer.retryCooldownChecker.TimeUntilReady(newTestClusterKey()), maxDelay,
+			"a lost Passed result must not apply the long passed-retry cooldown")
+		require.NotEmpty(t, enqueuer.enqueuedKeys, "a delayed requeue must be scheduled so the lost Passed result is recomputed")
+		assert.LessOrEqual(t, enqueuer.enqueuedDurations[0], maxDelay, "the requeue must use the non-passed retry cadence")
+
+		cond := meta.FindStatusCondition(getSPC(t, ctx, mockDB).Status.Validations, testValidationName)
+		require.NotNil(t, cond, "expected the stored condition to remain")
+		assert.Equal(t, metav1.ConditionFalse, cond.Status, "the conflicted write must not have persisted the Passed result")
+	})
 }
 
 // concurrentWriterServiceProviderClusterLister simulates a concurrent writer: on the conflictOnGet-th
