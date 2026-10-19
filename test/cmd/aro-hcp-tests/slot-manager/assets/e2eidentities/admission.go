@@ -69,26 +69,7 @@ func leaseCredential(request assets.LeaseRequest) (azcore.TokenCredential, strin
 	return credential, subscriptionID, nil
 }
 
-func admitE2EIdentityLease(ctx context.Context, request assets.LeaseRequest, cleanupWorkers int) error {
-	credential, subscriptionID, err := leaseCredential(request)
-	if err != nil {
-		return err
-	}
-	clients, err := azureAdmitClients(subscriptionID, credential)
-	if err != nil {
-		return err
-	}
-	return admitIdentityLease(ctx, request, clients, cleanupWorkers)
-}
-
-func admitIdentityLeaseWithClients(ctx context.Context, request assets.LeaseRequest, msiFactory *armmsi.ClientFactory, roleAssignmentsClient *armauthorization.RoleAssignmentsClient, cleanupWorkers int) error {
-	return admitIdentityLease(ctx, request, &admitClients{
-		identities: msiFactory.NewUserAssignedIdentitiesClient(),
-		roles:      roleAssignmentsClient,
-	}, cleanupWorkers)
-}
-
-func admitIdentityLease(ctx context.Context, request assets.LeaseRequest, clients *admitClients, cleanupWorkers int) error {
+func admitIdentityLeaseWithClients(ctx context.Context, request assets.LeaseRequest, clients *admitClients, cleanupWorkers int) error {
 	logger := logr.FromContextOrDiscard(ctx)
 	if request.AcquiredSlotState == nil || len(request.AcquiredSlotState.Slot.IdentityContainerNames()) == 0 {
 		return errors.New("resolved E2E identity inventory is empty")

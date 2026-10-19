@@ -125,7 +125,7 @@ func TestCompareIdentityPoolInventory(t *testing.T) {
 	}
 }
 
-func TestValidateOptionsRun(t *testing.T) {
+func TestValidatePools(t *testing.T) {
 	t.Parallel()
 
 	pool := identityPool{
@@ -146,24 +146,18 @@ func TestValidateOptionsRun(t *testing.T) {
 		t.Parallel()
 
 		var output bytes.Buffer
-		opts := &ValidateOptions{
-			IdentityPools: []identityPool{pool},
-			LoadInventory: func(context.Context, string) (subscriptionInventory, error) {
-				identityNames := framework.NewDefaultIdentities().ToSlice()
-				for i := range identityNames {
-					identityNames[i] = strings.ToUpper(identityNames[i])
-				}
-				return subscriptionInventory{
-					ResourceGroups: []string{strings.ToUpper(resourceGroup)},
-					Identities: map[string][]string{
-						strings.ToUpper(resourceGroup): identityNames,
-					},
-				}, nil
-			},
-			Out: &output,
-		}
-
-		if err := opts.Run(context.Background()); err != nil {
+		if err := validatePools(context.Background(), []identityPool{pool}, func(context.Context, string) (subscriptionInventory, error) {
+			identityNames := framework.NewDefaultIdentities().ToSlice()
+			for i := range identityNames {
+				identityNames[i] = strings.ToUpper(identityNames[i])
+			}
+			return subscriptionInventory{
+				ResourceGroups: []string{strings.ToUpper(resourceGroup)},
+				Identities: map[string][]string{
+					strings.ToUpper(resourceGroup): identityNames,
+				},
+			}, nil
+		}, &output); err != nil {
 			t.Fatalf("expected validation to succeed: %v", err)
 		}
 		if !strings.Contains(output.String(), "result: valid") {
@@ -175,15 +169,9 @@ func TestValidateOptionsRun(t *testing.T) {
 		t.Parallel()
 
 		var output bytes.Buffer
-		opts := &ValidateOptions{
-			IdentityPools: []identityPool{pool},
-			LoadInventory: func(context.Context, string) (subscriptionInventory, error) {
-				return subscriptionInventory{}, nil
-			},
-			Out: &output,
-		}
-
-		err := opts.Run(context.Background())
+		err := validatePools(context.Background(), []identityPool{pool}, func(context.Context, string) (subscriptionInventory, error) {
+			return subscriptionInventory{}, nil
+		}, &output)
 		if err == nil {
 			t.Fatal("expected validation to fail")
 		}

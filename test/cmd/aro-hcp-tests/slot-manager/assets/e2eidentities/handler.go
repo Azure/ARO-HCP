@@ -24,6 +24,7 @@ import (
 	"github.com/spf13/pflag"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeploymentstacks"
 
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets/azureutil"
@@ -35,18 +36,40 @@ import (
 
 type Handler struct {
 	poolDependencies func() (azcore.TokenCredential, subscriptionIDResolverFunc, error)
-	// cleanupWorkers bounds concurrent role assignment deletes during admission.
-	// Values below 1 mean serial; AttachOptions defaults it to 1.
-	cleanupWorkers int
+	newPoolClients   func(subscriptionID string, credential azcore.TokenCredential) (poolClients, error)
+	newAdmitClients  func(subscriptionID string, credential azcore.TokenCredential) (*admitClients, error)
+	cleanupWorkers   int
 }
 
-func NewHandler() *Handler {
-	return &Handler{cleanupWorkers: defaultCleanupWorkers}
-}
+type Option func(*Handler)
 
 const defaultCleanupWorkers = 1
 
-// AttachOptions declares the e2e_identities admission options.
+func NewHandler(opts ...Option) *Handler {
+	handler := &Handler{
+		cleanupWorkers:   defaultCleanupWorkers,
+		poolDependencies: azurePoolDependencies,
+		newPoolClients:   azurePoolClients,
+		newAdmitClients:  azureAdmitClients,
+	}
+	for _, opt := range opts {
+		opt(handler)
+	}
+	return handler
+}
+
+func WithPoolDependencies(fn func() (azcore.TokenCredential, subscriptionIDResolverFunc, error)) Option {
+	return func(h *Handler) { h.poolDependencies = fn }
+}
+
+func WithPoolClients(fn func(string, azcore.TokenCredential) (poolClients, error)) Option {
+	return func(h *Handler) { h.newPoolClients = fn }
+}
+
+func WithAdmitClients(fn func(string, azcore.TokenCredential) (*admitClients, error)) Option {
+	return func(h *Handler) { h.newAdmitClients = fn }
+}
+
 func (h *Handler) AttachOptions(flags *pflag.FlagSet) {
 	flags.Var(&azureutil.PositiveInt{Target: &h.cleanupWorkers, Default: defaultCleanupWorkers}, "cleanup-workers",
 		"Maximum concurrent role assignment deletes during admission (at least 1). "+
@@ -81,7 +104,6 @@ func (h *Handler) ApplyPools(ctx context.Context, request assets.PoolRequest) er
 	if err != nil {
 		return err
 	}
-
 	template, err := e2e.TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/msi-pools.json")
 	if err != nil {
 		return fmt.Errorf("failed reading template file: %w", err)
@@ -90,12 +112,7 @@ func (h *Handler) ApplyPools(ctx context.Context, request assets.PoolRequest) er
 	if err := json.Unmarshal(template, &bicepTemplateMap); err != nil {
 		return fmt.Errorf("failed to unmarshal Bicep template JSON: %w", err)
 	}
-
-	return (&ApplyOptions{
-		Template:        bicepTemplateMap,
-		IdentityPools:   pools,
-		AzureCredential: credential,
-	}).Run(ctx)
+	return applyPools(ctx, credential, pools, bicepTemplateMap, h.newPoolClients)
 }
 
 func (h *Handler) ValidatePools(ctx context.Context, request assets.PoolRequest) error {
@@ -107,21 +124,13 @@ func (h *Handler) ValidatePools(ctx context.Context, request assets.PoolRequest)
 	if out == nil {
 		out = io.Discard
 	}
-	return (&ValidateOptions{
-		IdentityPools: pools,
-		LoadInventory: func(ctx context.Context, subscriptionID string) (subscriptionInventory, error) {
-			return loadSubscriptionInventory(ctx, subscriptionID, credential)
-		},
-		Out: out,
-	}).Run(ctx)
+	return validatePools(ctx, pools, func(ctx context.Context, subscriptionID string) (subscriptionInventory, error) {
+		return loadSubscriptionInventory(ctx, subscriptionID, credential)
+	}, out)
 }
 
 func (h *Handler) resolvePools(ctx context.Context, request assets.PoolRequest) (azcore.TokenCredential, []identityPool, error) {
-	dependencies := h.poolDependencies
-	if dependencies == nil {
-		dependencies = azurePoolDependencies
-	}
-	credential, resolveSubscriptionID, err := dependencies()
+	credential, resolveSubscriptionID, err := h.poolDependencies()
 	if err != nil {
 		return nil, nil, err
 	}
@@ -136,10 +145,17 @@ func (h *Handler) resolvePools(ctx context.Context, request assets.PoolRequest) 
 }
 
 func (h *Handler) AdmitLease(ctx context.Context, request assets.LeaseRequest) error {
-	return admitE2EIdentityLease(ctx, request, h.cleanupWorkers)
+	credential, subscriptionID, err := leaseCredential(request)
+	if err != nil {
+		return err
+	}
+	clients, err := h.newAdmitClients(subscriptionID, credential)
+	if err != nil {
+		return fmt.Errorf("failed creating E2E identity admission clients: %w", err)
+	}
+	return admitIdentityLeaseWithClients(ctx, request, clients, h.cleanupWorkers)
 }
 
-// PublishLease publishes the exact resolved identity container names.
 func (h *Handler) PublishLease(_ context.Context, request assets.LeaseRequest, contract *slots.RuntimeContractBuilder) error {
 	containers := request.AcquiredSlotState.Slot.IdentityContainerNames()
 	return contract.Add(string(h.Kind()), leaseenv.MSIContainers, strings.Join(containers, " "))
@@ -159,6 +175,14 @@ func azurePoolDependencies() (azcore.TokenCredential, subscriptionIDResolverFunc
 	return credential, func(ctx context.Context, name string) (string, error) {
 		return framework.GetSubscriptionID(ctx, subscriptionClient, name)
 	}, nil
+}
+
+func azurePoolClients(subscriptionID string, credential azcore.TokenCredential) (poolClients, error) {
+	client, err := armdeploymentstacks.NewClient(subscriptionID, credential, nil)
+	if err != nil {
+		return poolClients{}, fmt.Errorf("failed creating deployment stack client: %w", err)
+	}
+	return poolClients{stacks: client}, nil
 }
 
 func unmanagedFilter(request assets.PoolRequest) []string {
