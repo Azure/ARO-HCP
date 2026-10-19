@@ -734,10 +734,10 @@ func registerCreateClusterScopedReadDesiresController() controllerconfig.Control
 func instantiateCreateClusterScopedReadDesiresController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
 	_, activeOperationLister := controllerContext.BackendInformers.ActiveOperations()
 	_, serviceProviderClusterLister := controllerContext.BackendInformers.ServiceProviderClusters()
-	_, unionReadDesireLister := controllerContext.UnionKubeApplierInformers.ReadDesires()
+	unionReadDesireInformer, unionReadDesireLister := controllerContext.UnionKubeApplierInformers.ReadDesires()
 	return clusterreaddesires.NewCreateClusterScopedReadDesiresController(
 		activeOperationLister, controllerContext.ResourcesDBClient, controllerContext.KubeApplierDBClients,
-		serviceProviderClusterLister, unionReadDesireLister,
+		serviceProviderClusterLister, unionReadDesireLister, unionReadDesireInformer,
 		controllerContext.BackendInformers, controllerContext.MaestroSourceEnvironmentIdentifier,
 	), nil
 }
@@ -848,32 +848,37 @@ func instantiateClusterCredentialDeletionMarkerController(controllerContext cont
 func registerClusterChildResourcesCleanupController() controllerconfig.ControllerRegistration {
 	return controllerconfig.ControllerRegistration{
 		Workers:     20,
-		Instantiate: controllerconfig.WithCacheSyncs(instantiateClusterChildResourcesCleanupController, false),
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateClusterChildResourcesCleanupController, true),
 	}
 }
 
 func instantiateClusterChildResourcesCleanupController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	applyInformer, _ := controllerContext.UnionKubeApplierInformers.ApplyDesires()
+	readInformer, _ := controllerContext.UnionKubeApplierInformers.ReadDesires()
 	return clusterdeletion.NewClusterChildResourcesCleanupController(
 		controllerContext.ResourcesDBClient,
 		controllerContext.KubeApplierDBClients,
 		controllerContext.BackendInformers,
+		applyInformer, readInformer,
 	), nil
 }
 
 func registerClusterDeletionController() controllerconfig.ControllerRegistration {
 	return controllerconfig.ControllerRegistration{
 		Workers:     20,
-		Instantiate: controllerconfig.WithCacheSyncs(instantiateClusterDeletionController, false),
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateClusterDeletionController, true),
 	}
 }
 
 func instantiateClusterDeletionController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	applyInformer, _ := controllerContext.UnionKubeApplierInformers.ApplyDesires()
 	return clusterdeletion.NewClusterDeletionController(
 		utilsclock.RealClock{},
 		controllerContext.ResourcesDBClient,
 		controllerContext.BillingDBClient,
 		controllerContext.BackendInformers,
 		controllerContext.KubeApplierDBClients,
+		applyInformer,
 	), nil
 }
 
