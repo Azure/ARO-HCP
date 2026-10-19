@@ -501,6 +501,10 @@ resourceGroups:
       # The AKS RP can validate KMS access before the cluster identity's
       # Key Vault Crypto User role assignment has propagated.
       - "AzureKeyVaultKmsValidateIdentityPermissionCustomerError"
+      # Every managed-cluster write reconciles the aks-managed-azure-monitor-metrics
+      # core extension, which fails while another AKS operation (e.g. a node-image
+      # auto-upgrade) holds the cluster. AKS documents this as wait-and-retry.
+      - "conflicting operation in progress"
       maximumRetryCount: 3
       durationBetweenRetries: 2m
   - name: upgrade-aks-cluster
