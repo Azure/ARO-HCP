@@ -110,7 +110,7 @@ data:
         Alias             tail.container
         Tag               kubernetes.*
         Path              /var/log/containers/*.log
-        Exclude_Path      /var/log/containers/*log-tailer*,/var/log/containers/*geneva-logger*,/var/log/containers/*arobit*
+        Exclude_Path      /var/log/containers/*log-tailer*,/var/log/containers/*geneva-logger*
         multiline.parser  cri
         # Docker_Mode       On
         # Parser            none
@@ -738,7 +738,7 @@ spec:
         app: arobit-forwarder
         azure.workload.identity/use: "true"
       annotations:
-        checksum/configmap: 8ea7f1f2c0e3158881a92b1f1d0e8e379c3ade4bdddda5453d6d978b887749c4
+        checksum/configmap: 7e7825287ddb3c75da21ea264c1208f8afa3daa417de5fe7a4f1eb575eaa7ea2
     spec:
       priorityClassName: service-lifecycle-critical
       serviceAccountName: 'arobit-forwarder'
