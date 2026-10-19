@@ -80,3 +80,36 @@ func TestIsNotFound(t *testing.T) {
 		t.Fatal("403 must not match")
 	}
 }
+
+func TestIdentityNameDiff(t *testing.T) {
+	t.Parallel()
+	expected := NormalizedNameSet([]string{"Admin-API", "frontend"})
+	missing, unexpected := IdentityNameDiff(expected, map[string]string{"admin-api": "Admin-API", "extra": "Extra"})
+	if len(missing) != 1 || missing[0] != "frontend" {
+		t.Fatalf("expected missing frontend, got %v", missing)
+	}
+	if len(unexpected) != 1 || unexpected[0] != "Extra" {
+		t.Fatalf("expected unexpected Extra, got %v", unexpected)
+	}
+}
+
+func TestUniqueReportedNames(t *testing.T) {
+	t.Parallel()
+	reported, err := UniqueReportedNames("rg", []string{"Admin-API", "frontend"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reported["admin-api"] != "Admin-API" {
+		t.Fatalf("unexpected reported names %v", reported)
+	}
+	if _, err := UniqueReportedNames("rg", []string{"admin-api", "Admin-API"}); err == nil || !strings.Contains(err.Error(), "duplicate identity") {
+		t.Fatalf("expected duplicate identity, got %v", err)
+	}
+}
+
+func TestClusterProfileCredentialRequiresProfileDir(t *testing.T) {
+	t.Parallel()
+	if _, err := ClusterProfileCredential(" "); err == nil || !strings.Contains(err.Error(), "selected cluster profile dir is empty") {
+		t.Fatalf("expected empty profile dir error, got %v", err)
+	}
+}

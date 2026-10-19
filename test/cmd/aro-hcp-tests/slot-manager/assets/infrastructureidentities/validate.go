@@ -19,9 +19,6 @@ import (
 	"fmt"
 	"io"
 	"sort"
-	"strings"
-
-	"k8s.io/apimachinery/pkg/util/sets"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 
@@ -102,31 +99,18 @@ func compareResourceGroup(ctx context.Context, clients *poolClients, group azure
 	}
 	result.ActualResourceGroups++
 	result.ActualIdentities += len(actual)
-	reported, err := uniqueReportedNames(group.Name, actual)
+	reported, err := azureutil.UniqueReportedNames(group.Name, actual)
 	if err != nil {
 		return err
 	}
-	expected := azureutil.NormalizedNameSet(group.IdentityNames)
-	actualSet := sets.KeySet(reported)
-	for _, name := range sets.List(expected.Difference(actualSet)) {
+	missing, unexpected := azureutil.IdentityNameDiff(azureutil.NormalizedNameSet(group.IdentityNames), reported)
+	for _, name := range missing {
 		result.MissingIdentities = append(result.MissingIdentities, group.Name+"/"+name)
 	}
-	for _, normalized := range sets.List(actualSet.Difference(expected)) {
-		result.UnexpectedIdentities = append(result.UnexpectedIdentities, group.Name+"/"+reported[normalized])
+	for _, name := range unexpected {
+		result.UnexpectedIdentities = append(result.UnexpectedIdentities, group.Name+"/"+name)
 	}
 	return nil
-}
-
-func uniqueReportedNames(resourceGroup string, actual []string) (map[string]string, error) {
-	reported := map[string]string{}
-	for _, name := range actual {
-		normalized := strings.ToLower(name)
-		if _, found := reported[normalized]; found {
-			return nil, fmt.Errorf("identity list for resource group %q returned duplicate identity %q", resourceGroup, name)
-		}
-		reported[normalized] = name
-	}
-	return reported, nil
 }
 
 func loadResourceGroupIdentities(ctx context.Context, clients *poolClients, resourceGroup string) ([]string, bool, error) {
@@ -145,7 +129,7 @@ func loadResourceGroupIdentities(ctx context.Context, clients *poolClients, reso
 			return nil, false, fmt.Errorf("failed listing identities in resource group %q: %w", resourceGroup, err)
 		}
 		for _, identity := range page.Value {
-			name, err := listedIdentityName(identity, resourceGroup)
+			name, err := azureutil.ListedIdentityName(identity, resourceGroup)
 			if err != nil {
 				return nil, false, err
 			}
