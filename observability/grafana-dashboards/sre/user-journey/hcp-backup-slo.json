@@ -449,7 +449,7 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "Failed completed outcomes / all completed outcomes over 5m. Red SLO line at 0.5%.",
+      "description": "Failed completed outcomes / all completed outcomes over the adaptive rate interval. Red SLO line at 0.5%.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -547,7 +547,7 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "Current p99 completed-backup duration. SLO target: <20 minutes.",
+      "description": "p99 completed-backup duration over the selected dashboard range. SLO target: <20 minutes.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1160,7 +1160,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "(count by (cluster) (\n  max without (prometheus_replica) (\n    velerobackup_phase{cluster=\"$cluster\", phase=~\"New|Queued|ReadyToStart|InProgress|WaitingForPluginOperations|WaitingForPluginOperationsPartiallyFailed|Finalizing|FinalizingPartiallyFailed\"}\n  ) == 1\n) or on() label_replace(vector(0), \"cluster\", \"$cluster\", \"\", \"\"))",
+          "expr": "sum by (cluster) (\n  max without (prometheus_replica) (\n    velerobackup_phase{cluster=\"$cluster\", phase=~\"New|Queued|ReadyToStart|InProgress|WaitingForPluginOperations|WaitingForPluginOperationsPartiallyFailed|Finalizing|FinalizingPartiallyFailed\"}\n  )\n)",
           "legendFormat": "Backlog",
           "refId": "A",
           "instant": true,
@@ -1388,7 +1388,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "(count by (cluster) (\n  max without (prometheus_replica) (\n    velerobackup_phase{cluster=\"$cluster\", phase=~\"New|Queued|ReadyToStart|InProgress|WaitingForPluginOperations|WaitingForPluginOperationsPartiallyFailed|Finalizing|FinalizingPartiallyFailed\"}\n  ) == 1\n) or on() label_replace(vector(0), \"cluster\", \"$cluster\", \"\", \"\"))",
+          "expr": "sum by (cluster) (\n  max without (prometheus_replica) (\n    velerobackup_phase{cluster=\"$cluster\", phase=~\"New|Queued|ReadyToStart|InProgress|WaitingForPluginOperations|WaitingForPluginOperationsPartiallyFailed|Finalizing|FinalizingPartiallyFailed\"}\n  )\n)",
           "legendFormat": "{{cluster}}",
           "refId": "A"
         }
