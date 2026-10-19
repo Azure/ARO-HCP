@@ -82,7 +82,7 @@ func NewClusterDeletionCleanupController(
 	controller.AddInterestingResource(coreapi.SystemAdminCredentialRequestResourceType, "*")
 	controller.AddInterestingResource(coreapi.ServiceProviderClusterResourceType, coreapi.ServiceProviderClusterResourceName)
 	providerInformer, _ := backendInformers.ServiceProviderClusters()
-	if err := controllerutils.WatchClusterParents(controller, backendInformers, coreapi.SystemAdminCredentialRequestResourceType, providerInformer); err != nil {
+	if err := controllerutils.WatchClusterParentsForCredentialRequests(controller, backendInformers, providerInformer); err != nil {
 		panic(err)
 	}
 	controller.AddInterestingResource(kubeapplierapi.SystemAdminCredentialRequestScopedApplyDesireResourceType, "*")

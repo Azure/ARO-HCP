@@ -5,7 +5,6 @@ package controllerutils
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"k8s.io/client-go/tools/cache"
@@ -39,73 +38,78 @@ func WatchSubscriptionsForClusters(controller WatchingController, informers core
 	}, clusters.HasSynced)
 }
 
-// WatchClusterParents maps Cluster and/or ServiceProviderCluster events to a
-// chosen child collection. A provider document belongs to the same cluster as
-// the children, so its immediate parent supplies the indexed lookup scope.
-// Sources are explicit: callers subscribe only to the parent state they read.
-func WatchClusterParents(controller WatchingController, informers coreinformers.BackendInformers, childType azcorearm.ResourceType, sources ...cache.SharedIndexInformer) error {
-	var mapper controllerutil.ResourceMapper
-	var synced cache.InformerSynced
-	switch {
-	case metadataapi.ResourceTypeEqual(childType, coreapi.NodePoolResourceType):
-		informer, lister := informers.NodePools()
-		synced = informer.HasSynced
-		mapper = func(ctx context.Context, id *azcorearm.ResourceID) ([]*azcorearm.ResourceID, error) {
-			items, err := lister.ListForCluster(ctx, id.SubscriptionID, id.ResourceGroupName, id.Name)
-			if err != nil {
-				return nil, err
-			}
-			var ids []*azcorearm.ResourceID
-			for _, item := range items {
-				ids = append(ids, item.GetResourceID())
-			}
-			return ids, nil
+// WatchClusterParentsForNodePools subscribes to explicit Cluster/provider sources
+// and maps them through the node-pool lister's cluster index.
+func WatchClusterParentsForNodePools(controller WatchingController, informers coreinformers.BackendInformers, sources ...cache.SharedIndexInformer) error {
+	informer, lister := informers.NodePools()
+	mapper := func(ctx context.Context, id *azcorearm.ResourceID) ([]*azcorearm.ResourceID, error) {
+		items, err := lister.ListForCluster(ctx, id.SubscriptionID, id.ResourceGroupName, id.Name)
+		if err != nil {
+			return nil, err
 		}
-	case metadataapi.ResourceTypeEqual(childType, coreapi.ExternalAuthResourceType):
-		informer, lister := informers.ExternalAuths()
-		synced = informer.HasSynced
-		mapper = func(ctx context.Context, id *azcorearm.ResourceID) ([]*azcorearm.ResourceID, error) {
-			items, err := lister.ListForCluster(ctx, id.SubscriptionID, id.ResourceGroupName, id.Name)
-			if err != nil {
-				return nil, err
-			}
-			var ids []*azcorearm.ResourceID
-			for _, item := range items {
-				ids = append(ids, item.GetResourceID())
-			}
-			return ids, nil
+		var ids []*azcorearm.ResourceID
+		for _, item := range items {
+			ids = append(ids, item.GetResourceID())
 		}
-	case metadataapi.ResourceTypeEqual(childType, coreapi.SystemAdminCredentialRequestResourceType):
-		informer, lister := informers.SystemAdminCredentialRequests()
-		synced = informer.HasSynced
-		mapper = func(ctx context.Context, id *azcorearm.ResourceID) ([]*azcorearm.ResourceID, error) {
-			items, err := lister.ListForCluster(ctx, id.SubscriptionID, id.ResourceGroupName, id.Name)
-			if err != nil {
-				return nil, err
-			}
-			var ids []*azcorearm.ResourceID
-			for _, item := range items {
-				ids = append(ids, item.GetResourceID())
-			}
-			return ids, nil
-		}
-	case metadataapi.ResourceTypeEqual(childType, coreapi.SystemAdminCredentialRevocationResourceType):
-		informer, lister := informers.SystemAdminCredentialRevocations()
-		synced = informer.HasSynced
-		mapper = func(ctx context.Context, id *azcorearm.ResourceID) ([]*azcorearm.ResourceID, error) {
-			items, err := lister.ListForCluster(ctx, id.SubscriptionID, id.ResourceGroupName, id.Name)
-			if err != nil {
-				return nil, err
-			}
-			var ids []*azcorearm.ResourceID
-			for _, item := range items {
-				ids = append(ids, item.GetResourceID())
-			}
-			return ids, nil
-		}
-	default:
-		return fmt.Errorf("unsupported cluster child type %s", childType)
+		return ids, nil
 	}
+	return watchClusterParents(controller, mapper, informer.HasSynced, sources...)
+}
+
+// WatchClusterParentsForExternalAuths maps parent changes to cached external auths.
+func WatchClusterParentsForExternalAuths(controller WatchingController, informers coreinformers.BackendInformers, sources ...cache.SharedIndexInformer) error {
+	informer, lister := informers.ExternalAuths()
+	mapper := func(ctx context.Context, id *azcorearm.ResourceID) ([]*azcorearm.ResourceID, error) {
+		items, err := lister.ListForCluster(ctx, id.SubscriptionID, id.ResourceGroupName, id.Name)
+		if err != nil {
+			return nil, err
+		}
+		var ids []*azcorearm.ResourceID
+		for _, item := range items {
+			ids = append(ids, item.GetResourceID())
+		}
+		return ids, nil
+	}
+	return watchClusterParents(controller, mapper, informer.HasSynced, sources...)
+}
+
+// WatchClusterParentsForCredentialRequests maps parent changes to cached requests.
+func WatchClusterParentsForCredentialRequests(controller WatchingController, informers coreinformers.BackendInformers, sources ...cache.SharedIndexInformer) error {
+	informer, lister := informers.SystemAdminCredentialRequests()
+	mapper := func(ctx context.Context, id *azcorearm.ResourceID) ([]*azcorearm.ResourceID, error) {
+		items, err := lister.ListForCluster(ctx, id.SubscriptionID, id.ResourceGroupName, id.Name)
+		if err != nil {
+			return nil, err
+		}
+		var ids []*azcorearm.ResourceID
+		for _, item := range items {
+			ids = append(ids, item.GetResourceID())
+		}
+		return ids, nil
+	}
+	return watchClusterParents(controller, mapper, informer.HasSynced, sources...)
+}
+
+// WatchClusterParentsForCredentialRevocations maps parent changes to cached revocations.
+func WatchClusterParentsForCredentialRevocations(controller WatchingController, informers coreinformers.BackendInformers, sources ...cache.SharedIndexInformer) error {
+	informer, lister := informers.SystemAdminCredentialRevocations()
+	mapper := func(ctx context.Context, id *azcorearm.ResourceID) ([]*azcorearm.ResourceID, error) {
+		items, err := lister.ListForCluster(ctx, id.SubscriptionID, id.ResourceGroupName, id.Name)
+		if err != nil {
+			return nil, err
+		}
+		var ids []*azcorearm.ResourceID
+		for _, item := range items {
+			ids = append(ids, item.GetResourceID())
+		}
+		return ids, nil
+	}
+	return watchClusterParents(controller, mapper, informer.HasSynced, sources...)
+}
+
+// Share only normalization and registration; each exported helper has one
+// statically known lister dependency and its own cache-readiness requirement.
+func watchClusterParents(controller WatchingController, mapper controllerutil.ResourceMapper, synced cache.InformerSynced, sources ...cache.SharedIndexInformer) error {
 	for _, source := range sources {
 		err := controller.QueueForMappedInformer(time.Minute, source, func(ctx context.Context, id *azcorearm.ResourceID) ([]*azcorearm.ResourceID, error) {
 			if metadataapi.ResourceTypeEqual(id.ResourceType, coreapi.ServiceProviderClusterResourceType) {

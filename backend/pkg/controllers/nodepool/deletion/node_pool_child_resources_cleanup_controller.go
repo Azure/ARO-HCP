@@ -80,7 +80,7 @@ func NewNodePoolChildResourcesCleanupController(
 	controller.AddInterestingResource(coreapi.ServiceProviderNodePoolResourceType, coreapi.ServiceProviderNodePoolResourceName)
 	controller.AddInterestingResource(coreapi.ServiceProviderClusterResourceType, coreapi.ServiceProviderClusterResourceName)
 	providerInformer, _ := informers.ServiceProviderClusters()
-	if err := controllerutils.WatchClusterParents(controller, informers, coreapi.NodePoolResourceType, providerInformer); err != nil {
+	if err := controllerutils.WatchClusterParentsForNodePools(controller, informers, providerInformer); err != nil {
 		panic(err)
 	}
 	controller.AddInterestingResource(coreapi.NodePoolScopedManagementClusterContentResourceType, "*")

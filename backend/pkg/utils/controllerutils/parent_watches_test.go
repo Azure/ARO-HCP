@@ -54,25 +54,26 @@ func TestParentMappingsUseScopedCaches(t *testing.T) {
 		typ    azcorearm.ResourceType
 		source func() cache.SharedIndexInformer
 		object func(*azcorearm.ResourceID) any
+		watch  func(WatchingController, coreinformers.BackendInformers, ...cache.SharedIndexInformer) error
 	}{
 		{coreapi.NodePoolResourceType, func() cache.SharedIndexInformer { i, _ := inf.NodePools(); return i }, func(id *azcorearm.ResourceID) any {
 			o := &coreapi.NodePool{}
 			o.ResourceID = id
 			o.ID = id
 			return o
-		}},
+		}, WatchClusterParentsForNodePools},
 		{coreapi.ExternalAuthResourceType, func() cache.SharedIndexInformer { i, _ := inf.ExternalAuths(); return i }, func(id *azcorearm.ResourceID) any {
 			o := &coreapi.ExternalAuth{}
 			o.ResourceID = id
 			o.ID = id
 			return o
-		}},
+		}, WatchClusterParentsForExternalAuths},
 		{coreapi.SystemAdminCredentialRequestResourceType, func() cache.SharedIndexInformer { i, _ := inf.SystemAdminCredentialRequests(); return i }, func(id *azcorearm.ResourceID) any {
 			return &coreapi.SystemAdminCredentialRequest{CosmosMetadata: coreapi.CosmosMetadata{ResourceID: id}}
-		}},
+		}, WatchClusterParentsForCredentialRequests},
 		{coreapi.SystemAdminCredentialRevocationResourceType, func() cache.SharedIndexInformer { i, _ := inf.SystemAdminCredentialRevocations(); return i }, func(id *azcorearm.ResourceID) any {
 			return &coreapi.SystemAdminCredentialRevocation{CosmosMetadata: coreapi.CosmosMetadata{ResourceID: id}}
-		}},
+		}, WatchClusterParentsForCredentialRevocations},
 	} {
 		t.Run(tc.typ.String(), func(t *testing.T) {
 			leaf := tc.typ.Types[len(tc.typ.Types)-1]
@@ -89,7 +90,7 @@ func TestParentMappingsUseScopedCaches(t *testing.T) {
 			}
 			providerInformer, _ := inf.ServiceProviderClusters()
 			controller := &mappingController{}
-			require.NoError(t, WatchClusterParents(controller, inf, tc.typ, clusterInformer, providerInformer))
+			require.NoError(t, tc.watch(controller, inf, clusterInformer, providerInformer))
 			require.Len(t, controller.watches, 2)
 			for i, suffix := range []string{"", "/serviceProviderClusters/default"} {
 				ids, err := controller.watches[i].mapper(t.Context(), metadataapi.Must(azcorearm.ParseResourceID(prefix+suffix)))
@@ -126,5 +127,4 @@ func TestParentMappingsUseScopedCaches(t *testing.T) {
 		require.NoError(t, err)
 		require.Empty(t, ids)
 	})
-	require.Error(t, WatchClusterParents(&mappingController{}, inf, coreapi.ClusterResourceType), "unsupported child type")
 }

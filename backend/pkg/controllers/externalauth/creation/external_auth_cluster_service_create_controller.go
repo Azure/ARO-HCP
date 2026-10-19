@@ -69,7 +69,7 @@ func NewExternalAuthClusterServiceCreateController(
 	controller.AddInterestingResource(coreapi.ExternalAuthResourceType, "*")
 	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
 	clusterInformer, _ := informers.Clusters()
-	if err := controllerutils.WatchClusterParents(controller, informers, coreapi.ExternalAuthResourceType, clusterInformer); err != nil {
+	if err := controllerutils.WatchClusterParentsForExternalAuths(controller, informers, clusterInformer); err != nil {
 		panic(err)
 	}
 

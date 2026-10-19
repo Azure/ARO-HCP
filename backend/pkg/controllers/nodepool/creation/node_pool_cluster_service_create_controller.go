@@ -72,7 +72,7 @@ func NewNodePoolClusterServiceCreateController(
 	controller.AddInterestingResource(coreapi.NodePoolResourceType, "*")
 	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
 	clusterInformer, _ := informers.Clusters()
-	if err := controllerutils.WatchClusterParents(controller, informers, coreapi.NodePoolResourceType, clusterInformer); err != nil {
+	if err := controllerutils.WatchClusterParentsForNodePools(controller, informers, clusterInformer); err != nil {
 		panic(err)
 	}
 

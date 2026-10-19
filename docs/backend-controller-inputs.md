@@ -66,6 +66,11 @@ bypass child ETag/cooldown checks and retain ordinary workqueue deduplication.
 
 The helpers use existing indexes, not live Cosmos calls or global scans:
 
+Each child kind has an explicit helper (`WatchClusterParentsForNodePools`,
+`WatchClusterParentsForExternalAuths`, `WatchClusterParentsForCredentialRequests`,
+or `WatchClusterParentsForCredentialRevocations`). Only parent normalization and
+watch registration are shared; there is no runtime switch selecting listers.
+
 - Subscription -> clusters: `ClusterLister.ListForSubscription`.
 - Subscription -> node pools: indexed subscription clusters, then each cluster's
   `NodePoolLister.ListForCluster`.
