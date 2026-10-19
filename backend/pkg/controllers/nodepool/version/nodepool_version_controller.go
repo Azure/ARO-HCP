@@ -221,8 +221,9 @@ func (c *nodePoolVersionSyncer) SyncOnce(ctx context.Context, key controllerutil
 	}
 
 	// Validate the customer's desired version before setting it
+	experimentalFeaturesEnabled, _ := op.HasOption(metadataapi.FeatureExperimentalReleaseFeatures)
 	err = c.validateDesiredNodePoolVersion(ctx, &customerDesiredVersion, cachedServiceProviderNodePool, cachedServiceProviderCluster, cachedNodePool.Properties.Version.ChannelGroup, clusterUUID,
-		op.HasOption(metadataapi.FeatureExperimentalReleaseFeatures))
+		experimentalFeaturesEnabled)
 	if err != nil {
 		// Persist IntentFailed on the controller document for Cincinnati VersionNotFound or any non-Cincinnati resolution error.
 		// Other Cincinnati errors are treated as transient graph or transport issues.
