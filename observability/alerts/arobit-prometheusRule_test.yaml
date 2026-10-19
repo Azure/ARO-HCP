@@ -163,3 +163,204 @@ tests:
   - eval_time: 10m
     alertname: FluentBitOutputRetriesExhausted
     exp_alerts: []
+# FluentBitMultilineTruncated - isolated loss fires immediately, then clears
+- interval: 1m
+  input_series:
+  - series: fluentbit_filter_emit_truncated_total{pod="arobit-loss",cluster="test",name="filter.multiline_klog"}
+    values: 0 0 1+0x8
+  alert_rule_test:
+  - eval_time: 2m
+    alertname: FluentBitMultilineTruncated
+    exp_alerts:
+    - exp_labels:
+        alertname: FluentBitMultilineTruncated
+        cluster: test
+        pod: arobit-loss
+        name: filter.multiline_klog
+        component: monitoring-infrastructure
+        severity: warning
+      exp_annotations:
+        runbook_url: https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/arobit.html
+        description: 'Fluent Bit filter filter.multiline_klog in pod arobit-loss on cluster test has truncated multiline log records.
+
+          The multiline assembly buffer reached its per-message limit, so partial records were emitted and message content may be missing.
+
+          Inspect multiline_truncated metadata and review the message size and multiline_buffer_limit setting.
+
+'
+        summary: Fluent Bit filter.multiline_klog in arobit-loss on test truncated multiline records
+  - eval_time: 8m
+    alertname: FluentBitMultilineTruncated
+    exp_alerts: []
+# FluentBitMultilineTruncated - first observed sample is already nonzero
+- interval: 1m
+  input_series:
+  - series: fluentbit_filter_emit_truncated_total{pod="arobit-loss",cluster="test",name="filter.multiline_klog"}
+    values: 1+0x10
+  alert_rule_test:
+  - eval_time: 1m
+    alertname: FluentBitMultilineTruncated
+    exp_alerts:
+    - exp_labels:
+        alertname: FluentBitMultilineTruncated
+        cluster: test
+        pod: arobit-loss
+        name: filter.multiline_klog
+        component: monitoring-infrastructure
+        severity: warning
+      exp_annotations:
+        runbook_url: https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/arobit.html
+        description: 'Fluent Bit filter filter.multiline_klog in pod arobit-loss on cluster test has truncated multiline log records.
+
+          The multiline assembly buffer reached its per-message limit, so partial records were emitted and message content may be missing.
+
+          Inspect multiline_truncated metadata and review the message size and multiline_buffer_limit setting.
+
+'
+        summary: Fluent Bit filter.multiline_klog in arobit-loss on test truncated multiline records
+  - eval_time: 7m
+    alertname: FluentBitMultilineTruncated
+    exp_alerts: []
+# FluentBitMultilineTruncated - healthy counter stays zero
+- interval: 1m
+  input_series:
+  - series: fluentbit_filter_emit_truncated_total{pod="arobit-loss",cluster="test",name="filter.multiline_klog"}
+    values: 0+0x10
+  alert_rule_test:
+  - eval_time: 5m
+    alertname: FluentBitMultilineTruncated
+    exp_alerts: []
+# FluentBitMultilineTruncated - counter reset followed by loss still fires
+- interval: 1m
+  input_series:
+  - series: fluentbit_filter_emit_truncated_total{pod="arobit-loss",cluster="test",name="filter.multiline_klog"}
+    values: 2 2 0 1+0x8
+  alert_rule_test:
+  - eval_time: 3m
+    alertname: FluentBitMultilineTruncated
+    exp_alerts:
+    - exp_labels:
+        alertname: FluentBitMultilineTruncated
+        cluster: test
+        pod: arobit-loss
+        name: filter.multiline_klog
+        component: monitoring-infrastructure
+        severity: warning
+      exp_annotations:
+        runbook_url: https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/arobit.html
+        description: 'Fluent Bit filter filter.multiline_klog in pod arobit-loss on cluster test has truncated multiline log records.
+
+          The multiline assembly buffer reached its per-message limit, so partial records were emitted and message content may be missing.
+
+          Inspect multiline_truncated metadata and review the message size and multiline_buffer_limit setting.
+
+'
+        summary: Fluent Bit filter.multiline_klog in arobit-loss on test truncated multiline records
+  - eval_time: 9m
+    alertname: FluentBitMultilineTruncated
+    exp_alerts: []
+# FluentBitTailRingBufferDropped - isolated loss fires immediately, then clears
+- interval: 1m
+  input_series:
+  - series: fluentbit_input_ring_buffer_retry_failures_total{pod="arobit-loss",cluster="test",name="tail.container"}
+    values: 0 0 1+0x8
+  alert_rule_test:
+  - eval_time: 2m
+    alertname: FluentBitTailRingBufferDropped
+    exp_alerts:
+    - exp_labels:
+        alertname: FluentBitTailRingBufferDropped
+        cluster: test
+        pod: arobit-loss
+        name: tail.container
+        component: monitoring-infrastructure
+        severity: warning
+      exp_annotations:
+        runbook_url: https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/arobit.html
+        description: 'Fluent Bit input tail.container in pod arobit-loss on cluster test has discarded log batches after exhausting ring-buffer enqueue retries.
+
+          These batches were lost before filesystem buffering or Kusto output retries could protect them; the counter counts batches, not records.
+
+          Investigate collector saturation and backpressure in the multiline and rewrite-tag emitters.
+
+'
+        summary: Fluent Bit tail.container in arobit-loss on test dropped container log batches
+  - eval_time: 8m
+    alertname: FluentBitTailRingBufferDropped
+    exp_alerts: []
+# FluentBitTailRingBufferDropped - first observed sample is already nonzero
+- interval: 1m
+  input_series:
+  - series: fluentbit_input_ring_buffer_retry_failures_total{pod="arobit-loss",cluster="test",name="tail.container"}
+    values: 1+0x10
+  alert_rule_test:
+  - eval_time: 1m
+    alertname: FluentBitTailRingBufferDropped
+    exp_alerts:
+    - exp_labels:
+        alertname: FluentBitTailRingBufferDropped
+        cluster: test
+        pod: arobit-loss
+        name: tail.container
+        component: monitoring-infrastructure
+        severity: warning
+      exp_annotations:
+        runbook_url: https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/arobit.html
+        description: 'Fluent Bit input tail.container in pod arobit-loss on cluster test has discarded log batches after exhausting ring-buffer enqueue retries.
+
+          These batches were lost before filesystem buffering or Kusto output retries could protect them; the counter counts batches, not records.
+
+          Investigate collector saturation and backpressure in the multiline and rewrite-tag emitters.
+
+'
+        summary: Fluent Bit tail.container in arobit-loss on test dropped container log batches
+  - eval_time: 7m
+    alertname: FluentBitTailRingBufferDropped
+    exp_alerts: []
+# FluentBitTailRingBufferDropped - healthy counter stays zero
+- interval: 1m
+  input_series:
+  - series: fluentbit_input_ring_buffer_retry_failures_total{pod="arobit-loss",cluster="test",name="tail.container"}
+    values: 0+0x10
+  alert_rule_test:
+  - eval_time: 5m
+    alertname: FluentBitTailRingBufferDropped
+    exp_alerts: []
+# FluentBitTailRingBufferDropped - counter reset followed by loss still fires
+- interval: 1m
+  input_series:
+  - series: fluentbit_input_ring_buffer_retry_failures_total{pod="arobit-loss",cluster="test",name="tail.container"}
+    values: 2 2 0 1+0x8
+  alert_rule_test:
+  - eval_time: 3m
+    alertname: FluentBitTailRingBufferDropped
+    exp_alerts:
+    - exp_labels:
+        alertname: FluentBitTailRingBufferDropped
+        cluster: test
+        pod: arobit-loss
+        name: tail.container
+        component: monitoring-infrastructure
+        severity: warning
+      exp_annotations:
+        runbook_url: https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/arobit.html
+        description: 'Fluent Bit input tail.container in pod arobit-loss on cluster test has discarded log batches after exhausting ring-buffer enqueue retries.
+
+          These batches were lost before filesystem buffering or Kusto output retries could protect them; the counter counts batches, not records.
+
+          Investigate collector saturation and backpressure in the multiline and rewrite-tag emitters.
+
+'
+        summary: Fluent Bit tail.container in arobit-loss on test dropped container log batches
+  - eval_time: 9m
+    alertname: FluentBitTailRingBufferDropped
+    exp_alerts: []
+# FluentBitTailRingBufferDropped - another input does not trigger a container-tail alert
+- interval: 1m
+  input_series:
+  - series: fluentbit_input_ring_buffer_retry_failures_total{pod="arobit-loss",cluster="test",name="input.forward"}
+    values: 0 0 1+0x8
+  alert_rule_test:
+  - eval_time: 2m
+    alertname: FluentBitTailRingBufferDropped
+    exp_alerts: []

@@ -222,6 +222,14 @@ disabled, and add no per-record or customer labels. The metrics emitter is
 itself buffered, so these are operational measurements rather than a durable
 record-by-record accounting ledger.
 
+The Dev queue in `observability/alerts-dev-services.yaml` includes
+`FluentBitMultilineTruncated` for multiline truncation events and
+`FluentBitTailRingBufferDropped` for exhausted container-tail enqueue retries.
+Both alert on a single counter increase without a sustained-pause requirement.
+They also detect a first observed nonzero counter, since some counters do not
+publish a zero series before the first failure. The ring-buffer counter counts
+discarded batches, not the number of log records inside those batches.
+
 To exercise the production routing filters and counters with Fluent Bit,
 including emitter rejection for exclusive and copy routes, run:
 
