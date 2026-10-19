@@ -21,20 +21,17 @@ spec:
     # HyperShift CP metrics-proxy (guest CMO metrics-forwarding in ocm-*
     # namespaces) is not deployed by ARO-HCP today; do not page on its absence.
     #
-    # Pattern matches MiseEnvoyScrapeDown: kube-state-metrics up series exists
-    # for the management cluster (existence signal; value 0 still counts), but
-    # the maestro-agent metrics scrape is not up==1. Catches both up=0 and a
-    # missing target. Svc clusters do not run maestro-agent, so the existence
-    # signal is scoped to *-mgmt-*.
+    # Use declared inventory so missing cluster telemetry cannot hide an outage.
+    # Service clusters do not run maestro-agent.
     - alert: MaestroAgentMetricsProxyDown
       expr: |
-        group by (cluster) (up{job="kube-state-metrics", cluster=~".*-mgmt(-[0-9]+)?$"})
+        group by (cluster) (underlay_clusters{cluster=~".*-mgmt(-[0-9]+)?$"})
         unless on (cluster)
-        group by (cluster) (up{namespace="maestro", endpoint="metrics", pod=~"maestro-agent-.*"} == 1)
+        group by (cluster) (kube_pod_status_ready{namespace="maestro", pod=~"maestro-agent-.*", condition="true"} == 1)
       for: 10m
       labels:
         severity: "3"
       annotations:
-        summary: "Maestro agent metrics-proxy scrape is down"
-        description: "Prometheus has not scraped maestro-agent /metrics through the metrics-proxy sidecar (namespace=maestro, endpoint=metrics) for 10 minutes, while a kube-state-metrics scrape series still exists for this management cluster. Maestro agent metrics and any alerts that depend on them may be missing."
+        summary: "Maestro agent pod is not ready"
+        description: "No maestro-agent pod is Ready in namespace maestro on this declared management cluster, or its readiness metrics are missing. Maestro agent metrics and any alerts that depend on them may be missing."
         runbook_url: "https://aka.ms/arohcp-runbook-cluster-monitoring"
