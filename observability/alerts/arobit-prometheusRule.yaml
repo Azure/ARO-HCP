@@ -103,3 +103,57 @@ spec:
           These batches were lost before filesystem buffering or Kusto output retries could protect them; the counter counts batches, not records.
           Investigate collector saturation and backpressure in the multiline and rewrite-tag emitters.
         summary: Fluent Bit {{ $labels.name }} in {{ $labels.pod }} on {{ $labels.cluster }} dropped container log batches
+    # Compare cumulative totals so an isolated failed emission remains visible.
+    # Allow publication skew; missing native success counters mean zero emissions.
+    - alert: FluentBitRoutingEmissionFailed
+      expr: |
+        (sum by (cluster, pod, router, routing_type) (
+          label_replace(
+            label_replace(
+              label_replace(
+                label_replace(
+                  max by (cluster, pod, __name__) ({__name__=~"arobit_routing_(reroute|copy)_.+_matched_total"}),
+                  "routing_type", "$1", "__name__", "arobit_routing_(reroute|copy)_.+_matched_total"
+                ),
+                "router", "$2", "__name__", "arobit_routing_(reroute|copy)_(.+)_matched_total"
+              ),
+              "router", "shoebox_router", "router", "shoebox_router_(container|pod)"
+            ),
+            "routing_type", "mixed", "router", "container_name_router"
+          )
+        ) > 0)
+        unless on (cluster, pod, router)
+        (
+          max by (cluster, pod, router) (
+            label_replace(
+              fluentbit_filter_emit_records_total{name=~"filter\\..+_router(_frontend|_fleet)?"},
+              "router", "$1", "name", "filter\\.(.+)"
+            )
+          )
+          >= on (cluster, pod, router) group_right
+          sum by (cluster, pod, router, routing_type) (
+            label_replace(
+              label_replace(
+                label_replace(
+                  label_replace(
+                    max by (cluster, pod, __name__) ({__name__=~"arobit_routing_(reroute|copy)_.+_matched_total"}),
+                    "routing_type", "$1", "__name__", "arobit_routing_(reroute|copy)_.+_matched_total"
+                  ),
+                  "router", "$2", "__name__", "arobit_routing_(reroute|copy)_(.+)_matched_total"
+                ),
+                "router", "shoebox_router", "router", "shoebox_router_(container|pod)"
+              ),
+              "routing_type", "mixed", "router", "container_name_router"
+            )
+          )
+        )
+      for: 2m
+      labels:
+        severity: warning
+      annotations:
+        runbook_url: https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/arobit.html
+        description: |
+          Fluent Bit router {{ $labels.router }} ({{ $labels.routing_type }}) in pod {{ $labels.pod }} on cluster {{ $labels.cluster }} has more matched records than successful rewrite emissions for at least two minutes.
+          A failed reroute can leave the original tag and use a fallback destination; a failed copy omits the additional destination. The mixed container-name router combines both operations.
+          Inspect rewrite-tag emitter backpressure. These counters measure emission failures, not confirmed Kusto loss.
+        summary: Fluent Bit {{ $labels.router }} ({{ $labels.routing_type }}) in {{ $labels.pod }} on {{ $labels.cluster }} has failed routing emissions

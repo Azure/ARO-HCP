@@ -364,3 +364,276 @@ tests:
   - eval_time: 2m
     alertname: FluentBitTailRingBufferDropped
     exp_alerts: []
+# Routing emission failures, operation grouping, publication skew and resets
+- interval: 30s
+  input_series:
+  - series: arobit_routing_reroute_resource_snapshot_router_matched_total{cluster="test",pod="arobit-routing"}
+    values: 1+0x10
+  alert_rule_test:
+  - eval_time: 1m
+    alertname: FluentBitRoutingEmissionFailed
+    exp_alerts: []
+  - eval_time: 2m
+    alertname: FluentBitRoutingEmissionFailed
+    exp_alerts:
+    - exp_labels:
+        alertname: FluentBitRoutingEmissionFailed
+        cluster: test
+        pod: arobit-routing
+        router: resource_snapshot_router
+        routing_type: reroute
+        component: monitoring-infrastructure
+        severity: warning
+      exp_annotations:
+        runbook_url: https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/arobit.html
+        description: 'Fluent Bit router resource_snapshot_router (reroute) in pod arobit-routing on cluster test has more matched records than successful rewrite emissions for at least two minutes.
+
+          A failed reroute can leave the original tag and use a fallback destination; a failed copy omits the additional destination. The mixed container-name router combines both operations.
+
+          Inspect rewrite-tag emitter backpressure. These counters measure emission failures, not confirmed Kusto loss.
+
+'
+        summary: Fluent Bit resource_snapshot_router (reroute) in arobit-routing on test has failed routing emissions
+- interval: 30s
+  input_series:
+  - series: arobit_routing_copy_cosmos_snapshot_router_fleet_matched_total{cluster="test",pod="arobit-routing"}
+    values: 1+0x10
+  alert_rule_test:
+  - eval_time: 1m
+    alertname: FluentBitRoutingEmissionFailed
+    exp_alerts: []
+  - eval_time: 2m
+    alertname: FluentBitRoutingEmissionFailed
+    exp_alerts:
+    - exp_labels:
+        alertname: FluentBitRoutingEmissionFailed
+        cluster: test
+        pod: arobit-routing
+        router: cosmos_snapshot_router_fleet
+        routing_type: copy
+        component: monitoring-infrastructure
+        severity: warning
+      exp_annotations:
+        runbook_url: https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/arobit.html
+        description: 'Fluent Bit router cosmos_snapshot_router_fleet (copy) in pod arobit-routing on cluster test has more matched records than successful rewrite emissions for at least two minutes.
+
+          A failed reroute can leave the original tag and use a fallback destination; a failed copy omits the additional destination. The mixed container-name router combines both operations.
+
+          Inspect rewrite-tag emitter backpressure. These counters measure emission failures, not confirmed Kusto loss.
+
+'
+        summary: Fluent Bit cosmos_snapshot_router_fleet (copy) in arobit-routing on test has failed routing emissions
+- interval: 30s
+  input_series:
+  - series: arobit_routing_reroute_namespace_router_matched_total{cluster="test",pod="arobit-routing"}
+    values: 0 2+1x10
+  - series: fluentbit_filter_emit_records_total{cluster="test",pod="arobit-routing",name="filter.namespace_router"}
+    values: 0 1+1x10
+  alert_rule_test:
+  - eval_time: 30s
+    alertname: FluentBitRoutingEmissionFailed
+    exp_alerts: []
+  - eval_time: 3m
+    alertname: FluentBitRoutingEmissionFailed
+    exp_alerts:
+    - exp_labels:
+        alertname: FluentBitRoutingEmissionFailed
+        cluster: test
+        pod: arobit-routing
+        router: namespace_router
+        routing_type: reroute
+        component: monitoring-infrastructure
+        severity: warning
+      exp_annotations:
+        runbook_url: https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/arobit.html
+        description: 'Fluent Bit router namespace_router (reroute) in pod arobit-routing on cluster test has more matched records than successful rewrite emissions for at least two minutes.
+
+          A failed reroute can leave the original tag and use a fallback destination; a failed copy omits the additional destination. The mixed container-name router combines both operations.
+
+          Inspect rewrite-tag emitter backpressure. These counters measure emission failures, not confirmed Kusto loss.
+
+'
+        summary: Fluent Bit namespace_router (reroute) in arobit-routing on test has failed routing emissions
+- interval: 30s
+  input_series:
+  - series: arobit_routing_reroute_namespace_router_matched_total{cluster="test",pod="arobit-routing"}
+    values: 1+0x10
+  - series: fluentbit_filter_emit_records_total{cluster="test",pod="arobit-routing",name="filter.namespace_router"}
+    values: 0 0 1+0x8
+  alert_rule_test:
+  - eval_time: 30s
+    alertname: FluentBitRoutingEmissionFailed
+    exp_alerts: []
+  - eval_time: 2m
+    alertname: FluentBitRoutingEmissionFailed
+    exp_alerts: []
+  - eval_time: 5m
+    alertname: FluentBitRoutingEmissionFailed
+    exp_alerts: []
+- interval: 30s
+  input_series:
+  - series: arobit_routing_reroute_container_name_router_matched_total{cluster="test",pod="arobit-routing"}
+    values: 7+0x12
+  - series: arobit_routing_copy_container_name_router_matched_total{cluster="test",pod="arobit-routing"}
+    values: 1+0x12
+  - series: fluentbit_filter_emit_records_total{cluster="test",pod="arobit-routing",name="filter.container_name_router"}
+    values: 7 7 7 7 7 8+0x7
+  alert_rule_test:
+  - eval_time: 2m
+    alertname: FluentBitRoutingEmissionFailed
+    exp_alerts:
+    - exp_labels:
+        alertname: FluentBitRoutingEmissionFailed
+        cluster: test
+        pod: arobit-routing
+        router: container_name_router
+        routing_type: mixed
+        component: monitoring-infrastructure
+        severity: warning
+      exp_annotations:
+        runbook_url: https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/arobit.html
+        description: 'Fluent Bit router container_name_router (mixed) in pod arobit-routing on cluster test has more matched records than successful rewrite emissions for at least two minutes.
+
+          A failed reroute can leave the original tag and use a fallback destination; a failed copy omits the additional destination. The mixed container-name router combines both operations.
+
+          Inspect rewrite-tag emitter backpressure. These counters measure emission failures, not confirmed Kusto loss.
+
+'
+        summary: Fluent Bit container_name_router (mixed) in arobit-routing on test has failed routing emissions
+  - eval_time: 3m
+    alertname: FluentBitRoutingEmissionFailed
+    exp_alerts: []
+- interval: 30s
+  input_series:
+  - series: arobit_routing_reroute_container_name_router_matched_total{cluster="test",pod="arobit-routing"}
+    values: 7+0x10
+  - series: arobit_routing_copy_container_name_router_matched_total{cluster="test",pod="arobit-routing"}
+    values: 1+0x10
+  - series: fluentbit_filter_emit_records_total{cluster="test",pod="arobit-routing",name="filter.container_name_router"}
+    values: 8+0x10
+  - series: arobit_routing_copy_shoebox_router_container_matched_total{cluster="test",pod="arobit-routing"}
+    values: 2+0x10
+  - series: arobit_routing_copy_shoebox_router_pod_matched_total{cluster="test",pod="arobit-routing"}
+    values: 1+0x10
+  - series: fluentbit_filter_emit_records_total{cluster="test",pod="arobit-routing",name="filter.shoebox_router"}
+    values: 3+0x10
+  alert_rule_test:
+  - eval_time: 2m
+    alertname: FluentBitRoutingEmissionFailed
+    exp_alerts: []
+  - eval_time: 5m
+    alertname: FluentBitRoutingEmissionFailed
+    exp_alerts: []
+- interval: 30s
+  input_series:
+  - series: arobit_routing_copy_shoebox_router_container_matched_total{cluster="test",pod="arobit-routing"}
+    values: 2+0x10
+  - series: arobit_routing_copy_shoebox_router_pod_matched_total{cluster="test",pod="arobit-routing"}
+    values: 1+0x10
+  - series: fluentbit_filter_emit_records_total{cluster="test",pod="arobit-routing",name="filter.shoebox_router"}
+    values: 2+0x10
+  alert_rule_test:
+  - eval_time: 2m
+    alertname: FluentBitRoutingEmissionFailed
+    exp_alerts:
+    - exp_labels:
+        alertname: FluentBitRoutingEmissionFailed
+        cluster: test
+        pod: arobit-routing
+        router: shoebox_router
+        routing_type: copy
+        component: monitoring-infrastructure
+        severity: warning
+      exp_annotations:
+        runbook_url: https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/arobit.html
+        description: 'Fluent Bit router shoebox_router (copy) in pod arobit-routing on cluster test has more matched records than successful rewrite emissions for at least two minutes.
+
+          A failed reroute can leave the original tag and use a fallback destination; a failed copy omits the additional destination. The mixed container-name router combines both operations.
+
+          Inspect rewrite-tag emitter backpressure. These counters measure emission failures, not confirmed Kusto loss.
+
+'
+        summary: Fluent Bit shoebox_router (copy) in arobit-routing on test has failed routing emissions
+- interval: 30s
+  input_series:
+  - series: arobit_routing_reroute_namespace_router_matched_total{cluster="test",pod="arobit-routing"}
+    values: 1+0x10
+  - series: fluentbit_filter_emit_records_total{cluster="test",pod="arobit-routing",name="filter.namespace_router"}
+    values: 2+0x10
+  - series: arobit_routing_copy_cosmos_snapshot_router_fleet_matched_total{cluster="test",pod="arobit-routing"}
+    values: 0+0x10
+  alert_rule_test:
+  - eval_time: 2m
+    alertname: FluentBitRoutingEmissionFailed
+    exp_alerts: []
+- interval: 30s
+  input_series:
+  - series: arobit_routing_reroute_resource_snapshot_router_matched_total{cluster="test",pod="arobit-routing"}
+    values: 1+0x10
+  - series: fluentbit_filter_emit_records_total{cluster="test",pod="arobit-other",name="filter.resource_snapshot_router"}
+    values: 100+0x10
+  alert_rule_test:
+  - eval_time: 2m
+    alertname: FluentBitRoutingEmissionFailed
+    exp_alerts:
+    - exp_labels:
+        alertname: FluentBitRoutingEmissionFailed
+        cluster: test
+        pod: arobit-routing
+        router: resource_snapshot_router
+        routing_type: reroute
+        component: monitoring-infrastructure
+        severity: warning
+      exp_annotations:
+        runbook_url: https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/arobit.html
+        description: 'Fluent Bit router resource_snapshot_router (reroute) in pod arobit-routing on cluster test has more matched records than successful rewrite emissions for at least two minutes.
+
+          A failed reroute can leave the original tag and use a fallback destination; a failed copy omits the additional destination. The mixed container-name router combines both operations.
+
+          Inspect rewrite-tag emitter backpressure. These counters measure emission failures, not confirmed Kusto loss.
+
+'
+        summary: Fluent Bit resource_snapshot_router (reroute) in arobit-routing on test has failed routing emissions
+- interval: 30s
+  input_series:
+  - series: arobit_routing_reroute_namespace_router_matched_total{cluster="test",pod="arobit-routing"}
+    values: 2 2 2 2 2 0+0x7
+  - series: fluentbit_filter_emit_records_total{cluster="test",pod="arobit-routing",name="filter.namespace_router"}
+    values: 1 1 1 1 1 0+0x7
+  alert_rule_test:
+  - eval_time: 2m
+    alertname: FluentBitRoutingEmissionFailed
+    exp_alerts:
+    - exp_labels:
+        alertname: FluentBitRoutingEmissionFailed
+        cluster: test
+        pod: arobit-routing
+        router: namespace_router
+        routing_type: reroute
+        component: monitoring-infrastructure
+        severity: warning
+      exp_annotations:
+        runbook_url: https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/arobit.html
+        description: 'Fluent Bit router namespace_router (reroute) in pod arobit-routing on cluster test has more matched records than successful rewrite emissions for at least two minutes.
+
+          A failed reroute can leave the original tag and use a fallback destination; a failed copy omits the additional destination. The mixed container-name router combines both operations.
+
+          Inspect rewrite-tag emitter backpressure. These counters measure emission failures, not confirmed Kusto loss.
+
+'
+        summary: Fluent Bit namespace_router (reroute) in arobit-routing on test has failed routing emissions
+  - eval_time: 3m
+    alertname: FluentBitRoutingEmissionFailed
+    exp_alerts: []
+- interval: 30s
+  input_series:
+  - series: arobit_routing_reroute_namespace_router_matched_total{cluster="test",pod="arobit-routing",job="one"}
+    values: 1+0x10
+  - series: arobit_routing_reroute_namespace_router_matched_total{cluster="test",pod="arobit-routing",job="two"}
+    values: 1+0x10
+  - series: fluentbit_filter_emit_records_total{cluster="test",pod="arobit-routing",name="filter.namespace_router"}
+    values: 1+0x10
+  alert_rule_test:
+  - eval_time: 2m
+    alertname: FluentBitRoutingEmissionFailed
+    exp_alerts: []

@@ -222,6 +222,17 @@ disabled, and add no per-record or customer labels. The metrics emitter is
 itself buffered, so these are operational measurements rather than a durable
 record-by-record accounting ledger.
 
+`FluentBitRoutingEmissionFailed` alerts in the Dev queue at Sev3 when matched
+records exceed successful emissions for two minutes. It treats an absent native
+emission counter as zero and allows the short publication skew described above.
+The alert identifies the cluster, pod, router, and `routing_type` (`reroute`,
+`copy`, or `mixed` for the container-name router). It combines both Shoebox
+predicates and both container-name operation types before comparing totals.
+An isolated failed emission leaves a cumulative deficit, so the alert can remain
+active until the counters reset when the forwarder restarts. This is evidence
+of failed emission, rather than an exact count of lost or misrouted records;
+metric loss or persistent publication delays can also affect the comparison.
+
 The Dev queue in `observability/alerts-dev-services.yaml` includes
 `FluentBitMultilineTruncated` for multiline truncation events and
 `FluentBitTailRingBufferDropped` for exhausted container-tail enqueue retries.
@@ -231,7 +242,11 @@ publish a zero series before the first failure. The ring-buffer counter counts
 discarded batches, not the number of log records inside those batches.
 
 To exercise the production routing filters and counters with Fluent Bit,
-including emitter rejection for exclusive and copy routes, run:
+including emitter rejection for exclusive and copy routes, run the following
+with `promtool` installed. The test replays captured Fluent Bit counter values
+through the production alert rule: both rejection cases must fire, while the
+healthy case must stay quiet. Promtool advances the two-minute grace period
+without waiting in real time.
 
 ```bash
 FLUENT_BIT_IMAGE=mcr.microsoft.com/oss/v2/fluent/fluent-bit@sha256:70dea5e158860b7b59a9e9aae0e79fc5ab51f2c356fcc14aef38ce1ff6d7d577 \

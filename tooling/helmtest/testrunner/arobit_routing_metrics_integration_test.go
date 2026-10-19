@@ -42,6 +42,27 @@ func TestArobitRoutingMetricsFluentBit(t *testing.T) {
 	if image == "" {
 		t.Skip("set FLUENT_BIT_IMAGE to execute Fluent Bit")
 	}
+	promtool, err := exec.LookPath("promtool")
+	require.NoError(t, err, "promtool is required to evaluate routing alerts against Fluent Bit metrics")
+	alertFile, err := os.ReadFile("../../../observability/alerts/arobit-prometheusRule.yaml")
+	require.NoError(t, err)
+	var alertResource struct {
+		Spec struct {
+			Groups []struct {
+				Rules []map[string]any
+			}
+		}
+	}
+	require.NoError(t, yaml.Unmarshal(alertFile, &alertResource))
+	var routingAlert map[string]any
+	for _, group := range alertResource.Spec.Groups {
+		for _, rule := range group.Rules {
+			if rule["alert"] == "FluentBitRoutingEmissionFailed" {
+				routingAlert = rule
+			}
+		}
+	}
+	require.NotEmpty(t, routingAlert)
 	runtime := os.Getenv("CONTAINER_RUNTIME")
 	if runtime == "" {
 		runtime = "podman"
@@ -244,6 +265,56 @@ func TestArobitRoutingMetricsFluentBit(t *testing.T) {
 			require.NoError(t, readErr)
 			require.NoError(t, err, "Fluent Bit diagnostics:\n%s", logs)
 			require.True(t, ready, "candidate and emitted counters must match expectations\nexported:\n%s\nnative:\n%s\ndiagnostics:\n%s", exported, native, logs)
+			// Replay the real counter snapshots through the production alert rule.
+			// Promtool advances evaluation time without a two-minute wall-clock wait.
+			var series []map[string]string
+			for route := range tc.matched {
+				name := "arobit_routing_" + route + "_matched_total"
+				series = append(series, map[string]string{
+					"series": name + `{cluster="test",pod="arobit-routing"}`,
+					"values": fmt.Sprintf("%d+0x6", metric(exported, name, "")),
+				})
+			}
+			for route := range tc.emitted {
+				label := `name="filter.` + route + `"`
+				if strings.Contains(native, label) {
+					series = append(series, map[string]string{
+						"series": `fluentbit_filter_emit_records_total{cluster="test",pod="arobit-routing",` + label + `}`,
+						"values": fmt.Sprintf("%d+0x6", metric(native, "fluentbit_filter_emit_records_total", label)),
+					})
+				}
+			}
+			var samples []map[string]any
+			if tc.failRouter != "" {
+				kind := "reroute"
+				if tc.failRouter == "cosmos_snapshot_router_fleet" {
+					kind = "copy"
+				}
+				samples = append(samples, map[string]any{
+					"labels": fmt.Sprintf(`ALERTS{alertname="FluentBitRoutingEmissionFailed",alertstate="firing",cluster="test",pod="arobit-routing",router="%s",routing_type="%s",severity="warning",component="monitoring-infrastructure"}`, tc.failRouter, kind),
+					"value":  1,
+				})
+			} else {
+				samples = []map[string]any{}
+			}
+			ruleBytes, err := yaml.Marshal(map[string]any{"groups": []any{map[string]any{
+				"name": "routing", "labels": map[string]string{"component": "monitoring-infrastructure"}, "rules": []any{routingAlert},
+			}}})
+			require.NoError(t, err)
+			write("alert-rules.yaml", string(ruleBytes))
+			testBytes, err := yaml.Marshal(map[string]any{
+				"rule_files": []string{filepath.Join(dir, "alert-rules.yaml")}, "evaluation_interval": "30s",
+				"tests": []any{map[string]any{"interval": "30s", "input_series": series,
+					"promql_expr_test": []any{map[string]any{
+						"expr": `ALERTS{alertname="FluentBitRoutingEmissionFailed",alertstate="firing"}`, "eval_time": "3m", "exp_samples": samples,
+					}},
+				}},
+			})
+			require.NoError(t, err)
+			write("alert-test.yaml", string(testBytes))
+			alertOutput, err := exec.CommandContext(t.Context(), promtool, "test", "rules", filepath.Join(dir, "alert-test.yaml")).CombinedOutput()
+			require.NoError(t, err, "routing alert must fire only for the rejected emissions:\n%s", alertOutput)
+			t.Logf("Production routing alert evaluated against Fluent Bit counters: %d firing alerts", len(samples))
 			output, err := os.ReadFile(stdout.Name())
 			require.NoError(t, err)
 			lines := strings.Split(strings.TrimSpace(string(output)), "\n")
