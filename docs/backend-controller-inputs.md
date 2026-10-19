@@ -84,6 +84,11 @@ subscribe to subscriptions. Cluster watches fan out to node-pool creation,
 ReadDesire creation, validation, external-auth creation, and credential desire
 creation. Provider-state watches fan out to node-pool version/ReadDesire/cleanup
 controllers and credential desire/cleanup controllers.
+ClusterResources also subscribes to subscription changes. NodePoolVersion watches
+clusters as well as provider state because its subscription mapper reads the
+cluster inventory. External-auth OIDC status watches cluster provider state.
+Credential-request events map to sibling revocations using the revocation lister's
+cluster index, allowing marking to react to new or changed requests.
 
 The source informer, handler registration, and child lookup caches participate in
 startup synchronization. Mapping failures are logged and retried by the positive

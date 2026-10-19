@@ -107,7 +107,9 @@ func NewNodePoolVersionController(
 		panic(err)
 	}
 	providerInformer, _ := informers.ServiceProviderClusters()
-	if err := controllerutils.WatchClusterParentsForNodePools(controller, informers, providerInformer); err != nil {
+	clusterInformer, _ := informers.Clusters()
+	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
+	if err := controllerutils.WatchClusterParentsForNodePools(controller, informers, clusterInformer, providerInformer); err != nil {
 		panic(err)
 	}
 	controller.AddInterestingResource(kubeapplierapi.ClusterScopedReadDesireResourceType, kubeapplierapi.ReadDesireNameReadonlyHostedCluster)
