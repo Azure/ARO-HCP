@@ -36,13 +36,12 @@ type CapacityReportStatusApplyConfiguration struct {
 	// nodes reports per-SKU node counts and allocatable resources for worker nodes.
 	// Only nodes labeled aro-hcp.azure.com/role=worker are included.
 	Nodes []NodeSKUCapacityApplyConfiguration `json:"nodes,omitempty"`
-	// usage reports actual resource consumption across HCP workloads in ocm-*
-	// namespaces, sourced from metrics-server PodMetrics.
+	// usage reports consumption across HCP namespaces from PodMetrics, except
+	// aro.openshift.io/swift-nic usage, which equals its requested allocation.
 	Usage *corev1.ResourceList `json:"usage,omitempty"`
-	// requested reports the sum of resource requests across regular (non-init)
-	// containers of non-terminal pods (phase is not Succeeded or Failed) in ocm-*
-	// namespaces. This approximates steady-state reservation and may differ from
-	// actual usage.
+	// requested sums regular-container requests for Pending and Running pods in
+	// HCP namespaces, excluding init containers and pod overhead. This approximates
+	// steady-state reservation and may differ from actual usage.
 	Requested *corev1.ResourceList `json:"requested,omitempty"`
 	// hostedControlPlanes reports the state of HostedControlPlane resources on
 	// the management cluster. An HCP is "ready" when its Available condition is True.
