@@ -19,6 +19,23 @@ multiple other alerts lose their desired-cluster source of truth and may stop
 detecting cluster-specific failures. Treat these alerts as requiring immediate
 attention.
 
+## Inventory-driven discovery
+
+`ArobitForwarderJobUp`, `MiseEnvoyScrapeDown`, and
+`MaestroAgentMetricsProxyDown` enumerate expected clusters from this inventory.
+MISE is restricted to service clusters; Maestro agent is restricted to management
+clusters. Their health checks use workload readiness rather than `up` scrape
+metrics. These checks detect missing readiness telemetry as well as unready
+workloads; a Ready workload does not prove that its metrics endpoint is healthy.
+
+The shared `KubeAPIDown`, `KubeletDown`, `KubeSchedulerDown`, and
+`KubeControllerManagerDown` definitions use `kube_node_info` for hosted-cluster
+discovery. `observability/alerts-kusto-services.yaml` replaces only their
+discovery operand with `underlay_clusters` when generating services rules.
+Hosted-control-plane rules retain `kube_node_info`: underlay inventory does not
+describe customer clusters. Both variants use component metrics, not `up`, on
+the right-hand side of `unless`.
+
 ## Alerts
 
 ### UnderlayClusterInventoryEntryMissing

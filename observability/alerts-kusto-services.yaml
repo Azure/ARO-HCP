@@ -7,6 +7,10 @@ prometheusRules:
   outputBicep: ../dev-infrastructure/modules/metrics/rules/generatedKustoOnlyServicePrometheusAlertingRules.bicep
   groupNamePrefix: "svc-"
   outputReplacements:
+  # Shared Kubernetes Down rules use hosted-cluster discovery by default.
+  # Only the services workspace can enumerate clusters from underlay inventory.
+  - from: '(kube_node_info) unless on (cluster)'
+    to: '(underlay_clusters) unless on (cluster)'
   - from: 'job="kube-scheduler"'
     to: 'job="controlplane-kube-scheduler"'
   - from: 'job="apiserver"'
