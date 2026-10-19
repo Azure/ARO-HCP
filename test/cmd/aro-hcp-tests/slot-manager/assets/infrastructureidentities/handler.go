@@ -86,7 +86,8 @@ func (h *Handler) Kind() assets.Kind {
 }
 
 func (h *Handler) Declared(pool slots.Pool) bool {
-	return pool.SlotAssets.InfrastructureIdentities != nil
+	asset := pool.SlotAssets.InfrastructureIdentities
+	return asset != nil && (asset.UnitsPerSlot == 0 || asset.UnitsPerSlot == 1)
 }
 
 func (h *Handler) AcquireLease(_ context.Context, request assets.LeaseRequest) error {

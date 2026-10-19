@@ -72,7 +72,10 @@ func validatePools(ctx context.Context, pools []identityPool, loadInventory inve
 		if err != nil {
 			return fmt.Errorf("failed loading Azure identity-pool inventory for subscription %q: %w", grouped[0].SubscriptionName, err)
 		}
-		result := compareIdentityPoolInventory(grouped, inventory)
+		result, err := compareIdentityPoolInventory(grouped, inventory)
+		if err != nil {
+			return fmt.Errorf("failed validating Azure identity-pool inventory for subscription %q: %w", grouped[0].SubscriptionName, err)
+		}
 		writeValidationResult(out, result)
 		if result.valid() {
 			continue
@@ -132,7 +135,7 @@ func loadSubscriptionInventory(ctx context.Context, subscriptionID string, cred 
 	}, nil
 }
 
-func compareIdentityPoolInventory(pools []identityPool, actual subscriptionInventory) validationResult {
+func compareIdentityPoolInventory(pools []identityPool, actual subscriptionInventory) (validationResult, error) {
 	expectedResourceGroups := map[string]string{}
 	prefixes := sets.New[string]()
 	for _, pool := range pools {
@@ -146,7 +149,8 @@ func compareIdentityPoolInventory(pools []identityPool, actual subscriptionInven
 	actualResourceGroups := map[string]string{}
 	identitiesByGroup := map[string][]string{}
 	for resourceGroup, names := range actual.Identities {
-		identitiesByGroup[strings.ToLower(resourceGroup)] = names
+		normalized := strings.ToLower(resourceGroup)
+		identitiesByGroup[normalized] = append(identitiesByGroup[normalized], names...)
 	}
 	for _, resourceGroup := range actual.ResourceGroups {
 		if hasAnyPrefix(resourceGroup, prefixes) {
@@ -164,7 +168,7 @@ func compareIdentityPoolInventory(pools []identityPool, actual subscriptionInven
 		}
 		reported, err := azureutil.UniqueReportedNames(resourceGroup, identitiesByGroup[normalized])
 		if err != nil {
-			return validationResult{SubscriptionName: pools[0].SubscriptionName}
+			return validationResult{}, err
 		}
 		actualIdentities += len(reported)
 		missing, unexpected := azureutil.IdentityNameDiff(azureutil.NormalizedNameSet(expectedIdentityNames), reported)
@@ -196,7 +200,7 @@ func compareIdentityPoolInventory(pools []identityPool, actual subscriptionInven
 		UnexpectedResourceGroups: differenceNamedStrings(actualResourceGroups, expectedResourceGroups),
 		MissingIdentities:        missingIdentities,
 		UnexpectedIdentities:     unexpectedIdentities,
-	}
+	}, nil
 }
 
 func (r validationResult) valid() bool {

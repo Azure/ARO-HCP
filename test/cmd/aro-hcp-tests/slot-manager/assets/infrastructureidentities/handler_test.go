@@ -41,6 +41,17 @@ func TestHandlerIsOptIn(t *testing.T) {
 	if !handler.Declared(slots.Pool{SlotAssets: slots.SlotAssets{InfrastructureIdentities: &slots.LeasedAsset{}}}) {
 		t.Fatal("declared pools must activate the handler")
 	}
+	if handler.Declared(slots.Pool{SlotAssets: slots.SlotAssets{InfrastructureIdentities: &slots.LeasedAsset{UnitsPerSlot: 2}}}) {
+		t.Fatal("two leased bundles per slot must be rejected before acquisition")
+	}
+	registry, err := assets.NewRegistry(handler)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pool := slots.Pool{SlotAssets: slots.SlotAssets{InfrastructureIdentities: &slots.LeasedAsset{UnitsPerSlot: 2}}}
+	if err := registry.ValidateRequirements([]slots.Pool{pool}); err == nil || !strings.Contains(err.Error(), "does not accept demanded asset") {
+		t.Fatalf("registry accepted unsupported bundle count: %v", err)
+	}
 }
 
 func TestAcquireLeaseResolvesOneBundle(t *testing.T) {
