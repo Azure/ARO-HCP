@@ -2964,20 +2964,5 @@ func createValidCluster() *coreapi.Cluster {
 
 	cluster.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL = coreapitesting.TestManagedIdentitiesDataPlaneIdentityURL
 
-	// PlatformManaged etcd encryption is not currently supported; require CustomerManaged for a valid cluster.
-	cluster.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = metadataapi.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged
-	cluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{
-		EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
-		Kms: &coreapi.KmsEncryptionProfile{
-			Visibility:   metadataapi.KeyVaultVisibilityPublic,
-			KeyVaultType: coreapi.KmsKeyVaultTypeKeyVault,
-			ActiveKey: coreapi.KmsKey{
-				Name:      "test-key",
-				VaultName: "test-vault",
-				Version:   "4e832b5c8f1e4e3d9c6b2a1f3e7d9c5b",
-			},
-		},
-	}
-
 	return cluster
 }
