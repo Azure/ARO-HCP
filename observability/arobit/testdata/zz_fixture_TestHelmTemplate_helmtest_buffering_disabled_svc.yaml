@@ -257,7 +257,7 @@ data:
         Match           kubernetes.var.log.containers.*
         Rule            $kubernetes['namespace_name'] ^ocm-.* ocm.logs false
         Emitter_Name    re_emitted_namespace_router
-        Emitter_Mem_Buf_Limit  40M
+        Emitter_Mem_Buf_Limit  10M
         Emitter_Storage.type   filesystem
 
     [FILTER]
@@ -273,7 +273,7 @@ data:
         Rule            $kubernetes['container_name'] ^mgmt-agent-controller* mgmt-agent.logs true
         Rule            $kubernetes['container_name'] ^swift-recorder$ kubernetes.swift-recorder.logs false
         Emitter_Name    re_emitted_container_name_router
-        Emitter_Mem_Buf_Limit  40M
+        Emitter_Mem_Buf_Limit  10M
         Emitter_Storage.type   filesystem
 
     [FILTER]
@@ -303,7 +303,7 @@ data:
         Match           mgmt-agent.logs
         Rule            $snapshotType ^kubernetes$ resource-snapshots.logs false
         Emitter_Name    re_emitted_resource_snapshot_router
-        Emitter_Mem_Buf_Limit  40M
+        Emitter_Mem_Buf_Limit  10M
         Emitter_Storage.type   filesystem
 
     [FILTER]
@@ -326,7 +326,7 @@ data:
         Match           aro-hcp-backend.logs
         Rule            $snapshotType ^cosmos$ cosmos-snapshots.logs false
         Emitter_Name    re_emitted_cosmos_snapshot_router
-        Emitter_Mem_Buf_Limit  40M
+        Emitter_Mem_Buf_Limit  10M
         Emitter_Storage.type   filesystem
 
     [FILTER]
@@ -337,7 +337,7 @@ data:
         Match           aro-hcp-frontend.logs
         Rule            $snapshotType ^cosmos$ cosmos-snapshots.logs false
         Emitter_Name    re_emitted_cosmos_snapshot_router_frontend
-        Emitter_Mem_Buf_Limit  40M
+        Emitter_Mem_Buf_Limit  10M
         Emitter_Storage.type   filesystem
 
     [FILTER]
@@ -349,7 +349,7 @@ data:
         Match           fleet-controller.logs
         Rule            $snapshotType ^cosmos$ cosmos-snapshots.logs true
         Emitter_Name    re_emitted_cosmos_snapshot_router_fleet
-        Emitter_Mem_Buf_Limit  40M
+        Emitter_Mem_Buf_Limit  10M
         Emitter_Storage.type   filesystem
   output.conf: |
     [OUTPUT]
@@ -627,7 +627,7 @@ spec:
         app: arobit-forwarder
         azure.workload.identity/use: "true"
       annotations:
-        checksum/configmap: e332b008c957798e4d4222f477878d178fcb1050f749231fa20e5926056614c2
+        checksum/configmap: 1ad000c467052bde035ef95e3cc62e6f765f4312f7682ebaa79966334e49d901
     spec:
       priorityClassName: service-lifecycle-critical
       serviceAccountName: 'arobit-forwarder'
