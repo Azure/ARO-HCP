@@ -1,0 +1,1777 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "HCP Backup and Restore user-journey SLO dashboard (ARO-29950).",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "gridPos": {
+        "h": 7,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "code": {
+          "language": "plaintext",
+          "showLineNumbers": false,
+          "showMiniMap": false
+        },
+        "content": "### HCP Backup & Restore SLO Dashboard\n\nUser-journey dashboard for Velero-managed HCP backups on management clusters. Baseline panels follow **ARO-29950** and mirror the current SLO/alert thresholds from **ARO-29948 / ARO-26261**.\n\n| SLI | Dashboard interpretation | Objective / threshold |\n|-----|---------------------------|-----------------------|\n| **Availability** | 6-hourly backup freshness per HostedCluster | every selected HC fresh within **12h** (24h/72h escalation) |\n| **Errors** | failed completed outcomes / all completed outcomes | **< 0.5%** failures / **99.5%** success over 30d |\n| **Latency** | completed backup duration p50/p95/p99 | **p99 < 20m** |\n| **Traffic** | backup attempt rate vs 1d baseline | no sustained drop below **10%** of baseline |\n| **Saturation** | non-terminal backup backlog + data-upload health | backlog should not stay **>10** for 3.5h |\n\n**Scope:** Prometheus service datasources and management clusters. Selecting an HCP Namespace scopes Availability / Errors / Latency / Traffic. Storage Availability and Saturation stay management-cluster-wide because those are fleet proxy signals.\n\n**Known gaps:** Storage Availability and repo-maintenance Saturation are proxy signals pending ARO-29949. Snapshot-specific panels wait for ARO-29444. Restore SLIs are deferred until restore activity is exercised and instrumented.\n\n**Drilldown:** use the HCP Namespace selector and the per-HCP tables at the bottom. Component-level details remain in the existing Velero dashboard (`ozk-vlr-mon`).",
+        "mode": "markdown"
+      },
+      "pluginVersion": "11.6.9",
+      "title": "Dashboard Info",
+      "type": "text"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 7
+      },
+      "id": 10,
+      "panels": [],
+      "title": "Availability & Error Budget",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "datasource",
+        "uid": "-- Mixed --"
+      },
+      "description": "Percent of selected 6-hourly HCP schedules whose last successful backup is no more than 12 hours old. Operational target: 100%.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red"
+              },
+              {
+                "color": "yellow",
+                "value": 99
+              },
+              {
+                "color": "green",
+                "value": 100
+              }
+            ]
+          },
+          "unit": "percent",
+          "min": 0,
+          "max": 100
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 0,
+        "y": 8
+      },
+      "id": 2,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "avg((time() - max by (cluster, hosted_cluster_namespace) (\n  label_replace(\n    max without (prometheus_replica) (\n      velero_backup_last_successful_timestamp{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-6-hourly\"}\n    ),\n    \"hosted_cluster_namespace\", \"$1\", \"schedule\", \"(.+)-6-hourly\"\n  )\n)) <= bool 12 * 3600) * 100",
+          "legendFormat": "Fresh HCs",
+          "refId": "A",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "title": "Freshness Coverage (≤12h)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "datasource",
+        "uid": "-- Mixed --"
+      },
+      "description": "Maximum age of the last successful 6-hourly backup among selected HCPs. Thresholds mirror the 12h / 24h / 72h escalation.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "yellow",
+                "value": 12
+              },
+              {
+                "color": "orange",
+                "value": 24
+              },
+              {
+                "color": "red",
+                "value": 72
+              }
+            ]
+          },
+          "unit": "h",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 6,
+        "y": 8
+      },
+      "id": 3,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "max((time() - max by (cluster, hosted_cluster_namespace) (\n  label_replace(\n    max without (prometheus_replica) (\n      velero_backup_last_successful_timestamp{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-6-hourly\"}\n    ),\n    \"hosted_cluster_namespace\", \"$1\", \"schedule\", \"(.+)-6-hourly\"\n  )\n)) / 3600)",
+          "legendFormat": "Worst age",
+          "refId": "A",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "title": "Worst Backup Age",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "datasource",
+        "uid": "-- Mixed --"
+      },
+      "description": "Completed-outcome success rate over the last 30 days. SLO target: ≥99.5%.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red"
+              },
+              {
+                "color": "yellow",
+                "value": 99
+              },
+              {
+                "color": "green",
+                "value": 99.5
+              }
+            ]
+          },
+          "unit": "percent",
+          "min": 0,
+          "max": 100
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 12,
+        "y": 8
+      },
+      "id": 4,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "(1-(((sum(max without (prometheus_replica) (increase(velero_backup_failure_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[30d]))) or vector(0))+(sum(max without (prometheus_replica) (increase(velero_backup_partial_failure_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[30d]))) or vector(0))+(sum(max without (prometheus_replica) (increase(velero_backup_validation_failure_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[30d]))) or vector(0)))/((sum(max without (prometheus_replica) (increase(velero_backup_success_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[30d]))) or vector(0))+(sum(max without (prometheus_replica) (increase(velero_backup_failure_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[30d]))) or vector(0))+(sum(max without (prometheus_replica) (increase(velero_backup_partial_failure_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[30d]))) or vector(0))+(sum(max without (prometheus_replica) (increase(velero_backup_validation_failure_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[30d]))) or vector(0)))))*100",
+          "legendFormat": "Success %",
+          "refId": "A",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "title": "30d Backup Success Rate",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "datasource",
+        "uid": "-- Mixed --"
+      },
+      "description": "Remaining 0.5% failure budget over 30 days. 100% means no budget consumed; 0% means exhausted.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red"
+              },
+              {
+                "color": "yellow",
+                "value": 25
+              },
+              {
+                "color": "green",
+                "value": 50
+              }
+            ]
+          },
+          "unit": "percent",
+          "min": 0,
+          "max": 100
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 18,
+        "y": 8
+      },
+      "id": 5,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "clamp_max(clamp_min((0.005-(((sum(max without (prometheus_replica) (increase(velero_backup_failure_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[30d]))) or vector(0))+(sum(max without (prometheus_replica) (increase(velero_backup_partial_failure_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[30d]))) or vector(0))+(sum(max without (prometheus_replica) (increase(velero_backup_validation_failure_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[30d]))) or vector(0)))/((sum(max without (prometheus_replica) (increase(velero_backup_success_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[30d]))) or vector(0))+(sum(max without (prometheus_replica) (increase(velero_backup_failure_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[30d]))) or vector(0))+(sum(max without (prometheus_replica) (increase(velero_backup_partial_failure_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[30d]))) or vector(0))+(sum(max without (prometheus_replica) (increase(velero_backup_validation_failure_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[30d]))) or vector(0)))))/0.005*100,0),100)",
+          "legendFormat": "Budget %",
+          "refId": "A",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "title": "Error Budget Remaining (30d)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "datasource",
+        "uid": "-- Mixed --"
+      },
+      "description": "Age since last successful 6-hourly backup per selected HostedCluster. Red target line at 12 hours.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 4,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "line"
+            }
+          },
+          "decimals": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "red",
+                "value": 12
+              }
+            ]
+          },
+          "unit": "h",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 13
+      },
+      "id": 6,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "(time() - max by (cluster, hosted_cluster_namespace) (\n  label_replace(\n    max without (prometheus_replica) (\n      velero_backup_last_successful_timestamp{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-6-hourly\"}\n    ),\n    \"hosted_cluster_namespace\", \"$1\", \"schedule\", \"(.+)-6-hourly\"\n  )\n))/3600",
+          "legendFormat": "{{hosted_cluster_namespace}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Backup Freshness Age (12h target)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "datasource",
+        "uid": "-- Mixed --"
+      },
+      "description": "Failed completed outcomes / all completed outcomes over 5m. Red SLO line at 0.5%.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 4,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "line"
+            }
+          },
+          "decimals": 3,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "red",
+                "value": 0.5
+              }
+            ]
+          },
+          "unit": "percent",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 13
+      },
+      "id": 7,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "100*(((sum by (cluster) (max without (prometheus_replica) (rate(velero_backup_failure_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[5m]))) or 0 * sum by (cluster) (max without (prometheus_replica) (rate(velero_backup_attempt_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[5m]))))+(sum by (cluster) (max without (prometheus_replica) (rate(velero_backup_partial_failure_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[5m]))) or 0 * sum by (cluster) (max without (prometheus_replica) (rate(velero_backup_attempt_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[5m]))))+(sum by (cluster) (max without (prometheus_replica) (rate(velero_backup_validation_failure_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[5m]))) or 0 * sum by (cluster) (max without (prometheus_replica) (rate(velero_backup_attempt_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[5m])))))/((sum by (cluster) (max without (prometheus_replica) (rate(velero_backup_success_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[5m]))) or 0 * sum by (cluster) (max without (prometheus_replica) (rate(velero_backup_attempt_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[5m]))))+(sum by (cluster) (max without (prometheus_replica) (rate(velero_backup_failure_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[5m]))) or 0 * sum by (cluster) (max without (prometheus_replica) (rate(velero_backup_attempt_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[5m]))))+(sum by (cluster) (max without (prometheus_replica) (rate(velero_backup_partial_failure_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[5m]))) or 0 * sum by (cluster) (max without (prometheus_replica) (rate(velero_backup_attempt_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[5m]))))+(sum by (cluster) (max without (prometheus_replica) (rate(velero_backup_validation_failure_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[5m]))) or 0 * sum by (cluster) (max without (prometheus_replica) (rate(velero_backup_attempt_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[5m]))))))",
+          "legendFormat": "{{cluster}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Backup Error Rate (0.5% SLO)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 21
+      },
+      "id": 20,
+      "panels": [],
+      "title": "Latency & Traffic",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "datasource",
+        "uid": "-- Mixed --"
+      },
+      "description": "Current p99 completed-backup duration. SLO target: <20 minutes.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "yellow",
+                "value": 900
+              },
+              {
+                "color": "red",
+                "value": 1200
+              }
+            ]
+          },
+          "unit": "s",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 0,
+        "y": 22
+      },
+      "id": 8,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.99, sum by (cluster, le) (max without (prometheus_replica) (rate(velero_backup_duration_seconds_bucket{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[$__rate_interval]))))",
+          "legendFormat": "p99",
+          "refId": "A",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "title": "Backup Latency p99",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "datasource",
+        "uid": "-- Mixed --"
+      },
+      "description": "Current attempt rate. Six-hourly schedules are synchronized, so zero between cadence bursts is normal.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 4,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue"
+              }
+            ]
+          },
+          "unit": "ops",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 6,
+        "y": 22
+      },
+      "id": 9,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "sum by (cluster) (max without (prometheus_replica) (rate(velero_backup_attempt_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[5m])))",
+          "legendFormat": "attempts/s",
+          "refId": "A",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "title": "Backup Attempt Rate (5m)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "datasource",
+        "uid": "-- Mixed --"
+      },
+      "description": "12h average attempt rate as a percentage of the 1-day average. Alert threshold is <10% sustained for 1h.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red"
+              },
+              {
+                "color": "yellow",
+                "value": 10
+              },
+              {
+                "color": "green",
+                "value": 50
+              }
+            ]
+          },
+          "unit": "percent",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 12,
+        "y": 22
+      },
+      "id": 11,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "100 * avg_over_time((sum by (cluster) (max without (prometheus_replica) (rate(velero_backup_attempt_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[5m]))))[12h:5m]) / avg_over_time((sum by (cluster) (max without (prometheus_replica) (rate(velero_backup_attempt_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[5m]))))[1d:5m])",
+          "legendFormat": "Baseline %",
+          "refId": "A",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "title": "Traffic vs 1d Baseline",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "datasource",
+        "uid": "-- Mixed --"
+      },
+      "description": "Successful + failed + partial-failed + validation-failed backups in the selected time range.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue"
+              }
+            ]
+          },
+          "unit": "short",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 18,
+        "y": 22
+      },
+      "id": 12,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "round((sum(max without (prometheus_replica) (increase(velero_backup_success_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[$__range]))) or vector(0))+(sum(max without (prometheus_replica) (increase(velero_backup_failure_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[$__range]))) or vector(0))+(sum(max without (prometheus_replica) (increase(velero_backup_partial_failure_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[$__range]))) or vector(0))+(sum(max without (prometheus_replica) (increase(velero_backup_validation_failure_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[$__range]))) or vector(0)))",
+          "legendFormat": "Completed",
+          "refId": "A",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "title": "Completed Outcomes",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "datasource",
+        "uid": "-- Mixed --"
+      },
+      "description": "Completed backup duration percentiles. Red target line at 1200s (20m).",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 4,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "line"
+            }
+          },
+          "decimals": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "red",
+                "value": 1200
+              }
+            ]
+          },
+          "unit": "s",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 27
+      },
+      "id": 13,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.50, sum by (cluster, le) (max without (prometheus_replica) (rate(velero_backup_duration_seconds_bucket{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[$__rate_interval]))))",
+          "legendFormat": "p50",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.95, sum by (cluster, le) (max without (prometheus_replica) (rate(velero_backup_duration_seconds_bucket{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[$__rate_interval]))))",
+          "legendFormat": "p95",
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.99, sum by (cluster, le) (max without (prometheus_replica) (rate(velero_backup_duration_seconds_bucket{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[$__rate_interval]))))",
+          "legendFormat": "p99",
+          "refId": "C"
+        }
+      ],
+      "title": "Backup Latency p50 / p95 / p99 (20m SLO)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "datasource",
+        "uid": "-- Mixed --"
+      },
+      "description": "Backup attempt rate over time. Expect synchronized bursts near each six-hourly cadence tick.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 4,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "line"
+            }
+          },
+          "decimals": 4,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue"
+              }
+            ]
+          },
+          "unit": "ops",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 27
+      },
+      "id": 14,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "sum by (cluster) (max without (prometheus_replica) (rate(velero_backup_attempt_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[5m])))",
+          "legendFormat": "{{cluster}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Backup Attempt Rate",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 35
+      },
+      "id": 30,
+      "panels": [],
+      "title": "Storage Availability & Saturation",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "datasource",
+        "uid": "-- Mixed --"
+      },
+      "description": "Percent of 6-hourly schedules whose most recent run failed. Proxy threshold: >80%; check pause state and fleet-wide causes.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "yellow",
+                "value": 50
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "percent",
+          "min": 0,
+          "max": 100
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 0,
+        "y": 36
+      },
+      "id": 15,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "100*((count by (cluster) (max without (prometheus_replica) (velero_backup_last_status{cluster=\"$cluster\", schedule=~\".+-6-hourly\"}) == 0) or 0 * count by (cluster) (max without (prometheus_replica) (velero_backup_last_status{cluster=\"$cluster\", schedule=~\".+-6-hourly\"})))/count by (cluster) (max without (prometheus_replica) (velero_backup_last_status{cluster=\"$cluster\", schedule=~\".+-6-hourly\"})))",
+          "legendFormat": "Failure %",
+          "refId": "A",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "title": "Storage Failure Proxy",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "datasource",
+        "uid": "-- Mixed --"
+      },
+      "description": "Current count of backups in non-terminal phases. Proxy alert threshold: >10 sustained for 3h30m.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "yellow",
+                "value": 8
+              },
+              {
+                "color": "red",
+                "value": 10
+              }
+            ]
+          },
+          "unit": "short",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 6,
+        "y": 36
+      },
+      "id": 16,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "count by (cluster) (\n  max without (prometheus_replica) (\n    velerobackup_phase{cluster=\"$cluster\", phase=~\"New|Queued|ReadyToStart|InProgress|WaitingForPluginOperations|WaitingForPluginOperationsPartiallyFailed|Finalizing|FinalizingPartiallyFailed\"}\n  ) == 1\n)",
+          "legendFormat": "Backlog",
+          "refId": "A",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "title": "Non-terminal Backup Backlog",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "datasource",
+        "uid": "-- Mixed --"
+      },
+      "description": "PodVolume data-upload failure share in the selected dashboard time range.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "yellow",
+                "value": 5
+              },
+              {
+                "color": "red",
+                "value": 20
+              }
+            ]
+          },
+          "unit": "percent",
+          "min": 0,
+          "max": 100
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 12,
+        "y": 36
+      },
+      "id": 17,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "100*((sum(max without (prometheus_replica) (increase(podvolume_data_upload_failure_total{cluster=\"$cluster\"}[$__range]))))/((sum(max without (prometheus_replica) (increase(podvolume_data_upload_success_total{cluster=\"$cluster\"}[$__range]))))+(sum(max without (prometheus_replica) (increase(podvolume_data_upload_failure_total{cluster=\"$cluster\"}[$__range]))))))",
+          "legendFormat": "Failure %",
+          "refId": "A",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "title": "Data Upload Failure Rate",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "datasource",
+        "uid": "-- Mixed --"
+      },
+      "description": "Total successful, failed and cancelled PodVolume data-upload operations in the selected time range.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue"
+              }
+            ]
+          },
+          "unit": "short",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 18,
+        "y": 36
+      },
+      "id": 18,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "round((sum(max without (prometheus_replica) (increase(podvolume_data_upload_success_total{cluster=\"$cluster\"}[$__range]))))+(sum(max without (prometheus_replica) (increase(podvolume_data_upload_failure_total{cluster=\"$cluster\"}[$__range]))))+(sum(max without (prometheus_replica) (increase(podvolume_data_upload_cancel_total{cluster=\"$cluster\"}[$__range])))))",
+          "legendFormat": "Uploads",
+          "refId": "A",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "title": "Data Upload Operations",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "datasource",
+        "uid": "-- Mixed --"
+      },
+      "description": "Management-cluster backlog of queued/in-progress/finalizing backups. Red line at 10.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 4,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "line"
+            }
+          },
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "red",
+                "value": 10
+              }
+            ]
+          },
+          "unit": "short",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 41
+      },
+      "id": 19,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "count by (cluster) (\n  max without (prometheus_replica) (\n    velerobackup_phase{cluster=\"$cluster\", phase=~\"New|Queued|ReadyToStart|InProgress|WaitingForPluginOperations|WaitingForPluginOperationsPartiallyFailed|Finalizing|FinalizingPartiallyFailed\"}\n  ) == 1\n)",
+          "legendFormat": "{{cluster}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Non-terminal Backup Backlog Over Time",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "datasource",
+        "uid": "-- Mixed --"
+      },
+      "description": "Node-agent PodVolume upload outcomes per hour. Use with backlog to distinguish data-movement pressure from ordinary backup failures.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 4,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "line"
+            }
+          },
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              }
+            ]
+          },
+          "unit": "short",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 41
+      },
+      "id": 21,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "sum by (cluster) (max without (prometheus_replica) (increase(podvolume_data_upload_success_total{cluster=\"$cluster\"}[1h])))",
+          "legendFormat": "Success",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "sum by (cluster) (max without (prometheus_replica) (increase(podvolume_data_upload_failure_total{cluster=\"$cluster\"}[1h])))",
+          "legendFormat": "Failure",
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "sum by (cluster) (max without (prometheus_replica) (increase(podvolume_data_upload_cancel_total{cluster=\"$cluster\"}[1h])))",
+          "legendFormat": "Cancelled",
+          "refId": "C"
+        }
+      ],
+      "title": "Data Upload Operations per Hour",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 49
+      },
+      "id": 40,
+      "panels": [],
+      "title": "Per-HCP Drilldown",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "datasource",
+        "uid": "-- Mixed --"
+      },
+      "description": "Hours since the last successful backup for schedules belonging to the selected HCP namespace.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "decimals": 1,
+          "unit": "h"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 0,
+        "y": 50
+      },
+      "id": 22,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "(time() - max without (prometheus_replica) (velero_backup_last_successful_timestamp{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\", schedule!=\"\"}))/3600",
+          "legendFormat": "{{schedule}}",
+          "refId": "A",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "title": "Hours Since Last Successful Backup",
+      "type": "table",
+      "transformations": [
+        {
+          "id": "reduce",
+          "options": {
+            "includeTimeField": false,
+            "labelsToFields": false,
+            "reducers": [
+              "lastNotNull"
+            ]
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {},
+            "indexByName": {},
+            "renameByName": {
+              "Field": "Schedule",
+              "Last *": "Hours"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "datasource",
+        "uid": "-- Mixed --"
+      },
+      "description": "Latest Velero backup status for schedules belonging to the selected HCP namespace (1=Success, 0=Failure).",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "color-background"
+            },
+            "footer": {
+              "reducers": []
+            },
+            "inspect": false
+          },
+          "mappings": [
+            {
+              "options": {
+                "0": {
+                  "color": "dark-red",
+                  "text": "FAILED"
+                },
+                "1": {
+                  "color": "dark-green",
+                  "text": "SUCCESS"
+                }
+              },
+              "type": "value"
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "dark-green"
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 12,
+        "y": 50
+      },
+      "id": 23,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "max without (prometheus_replica) (velero_backup_last_status{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\", schedule!=\"\"})",
+          "legendFormat": "{{schedule}}",
+          "refId": "A",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "title": "Backup Schedule Last Status",
+      "type": "table",
+      "transformations": [
+        {
+          "id": "reduce",
+          "options": {
+            "includeTimeField": false,
+            "labelsToFields": false,
+            "reducers": [
+              "lastNotNull"
+            ]
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {},
+            "indexByName": {},
+            "renameByName": {
+              "Field": "Schedule",
+              "Last *": "Status"
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": {},
+            "sort": [
+              {
+                "field": "Status"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "refresh": "5m",
+  "schemaVersion": 39,
+  "tags": [
+    "aro-hcp",
+    "backup",
+    "velero",
+    "slo",
+    "user-journey"
+  ],
+  "templating": {
+    "list": [
+      {
+        "allowCustomValue": false,
+        "current": {},
+        "includeAll": false,
+        "label": "Data Source",
+        "multi": false,
+        "name": "datasource",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "regex": "^Managed_Prometheus_services-.*$",
+        "type": "datasource"
+      },
+      {
+        "current": {},
+        "datasource": {
+          "type": "prometheus",
+          "uid": "$datasource"
+        },
+        "definition": "label_values(velero_backup_attempt_total, cluster)",
+        "includeAll": false,
+        "label": "Management Cluster",
+        "multi": false,
+        "name": "cluster",
+        "options": [],
+        "query": {
+          "query": "label_values(velero_backup_attempt_total, cluster)",
+          "refId": "StandardVariableQuery"
+        },
+        "refresh": 2,
+        "regex": "^.*-mgmt-\\d+$",
+        "regexApplyTo": "value",
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "allValue": ".*",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "$datasource"
+        },
+        "definition": "query_result(count by (hosted_cluster_namespace) (label_replace(max without(prometheus_replica) (velero_backup_last_status{cluster=\"$cluster\", schedule=~\".+-(6-hourly|daily|weekly)\"}), \"hosted_cluster_namespace\", \"$1\", \"schedule\", \"(.+)-(6-hourly|daily|weekly)\")))",
+        "includeAll": true,
+        "label": "HCP Namespace",
+        "multi": true,
+        "name": "hcp_namespace",
+        "options": [],
+        "query": {
+          "query": "query_result(count by (hosted_cluster_namespace) (label_replace(max without(prometheus_replica) (velero_backup_last_status{cluster=\"$cluster\", schedule=~\".+-(6-hourly|daily|weekly)\"}), \"hosted_cluster_namespace\", \"$1\", \"schedule\", \"(.+)-(6-hourly|daily|weekly)\")))",
+          "refId": "StandardVariableQuery"
+        },
+        "refresh": 1,
+        "regex": "/hosted_cluster_namespace=\"([^\"]+)\"/",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-7d",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "HCP Backup & Restore SLO",
+  "uid": "hcp-backup-slo",
+  "version": 1
+}
