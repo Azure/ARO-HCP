@@ -130,6 +130,7 @@ spec:
         severity: "4"
         slo: idms-mirror-errors
         long_window: 3d
+        short_window: 6h
       annotations:
         summary: "{{ $labels.cluster }}: Cluster update failures persistent (>5% over 3d)"
         description: "More than 5% of clusters on {{ $labels.cluster }} whose latest update completed in the last 3 days have it in failed state (at least 10 completions and 2 failures), a 1x burn threshold. Only each cluster's latest update is counted, so a failure overwritten by a successful retry is missed."

@@ -295,6 +295,7 @@ tests:
         component: slo
         severity: "4"
         long_window: 3d
+        short_window: 6h
         slo: idms-mirror-errors
       exp_annotations:
         summary: "mgmt-1: Cluster update failures persistent (>5% over 3d)"

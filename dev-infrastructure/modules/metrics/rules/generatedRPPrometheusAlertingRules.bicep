@@ -501,6 +501,7 @@ resource arohcpIdmsMirrorSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRu
           component: 'slo'
           long_window: '3d'
           severity: '4'
+          short_window: '6h'
           slo: 'idms-mirror-errors'
         }
         annotations: {
