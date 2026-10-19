@@ -34,6 +34,7 @@ rules:
   verbs:
   - get
   - patch
+  - watch
 ---
 # Source: ARO HCP MC Mitigations/templates/azure-cns-cpu-limits.yaml
 apiVersion: rbac.authorization.k8s.io/v1
