@@ -225,7 +225,7 @@ func (c *Catalog) validateAssetPools(resourceTypes map[string]string) error {
 			if !inventoryName.MatchString(pool.ResourceType) {
 				return fmt.Errorf("invalid resource type %q", pool.ResourceType)
 			}
-			prefixes[pool.ResourceType] = environment + "/" + pool.Name
+			prefixes[strings.ToLower(pool.ResourceType)] = environment + "/" + pool.Name
 			if err := pool.validateE2EIdentityResourceGroups(environment, dedicatedGroups); err != nil {
 				return err
 			}
@@ -249,10 +249,11 @@ func (c *Catalog) validateAssetPools(resourceTypes map[string]string) error {
 			return fmt.Errorf("resource type %q is declared by both %s and asset pool %s", pool.ResourceType, previous, pool.Name)
 		}
 		resourceTypes[pool.ResourceType] = pool.Name
-		if previous, found := prefixes[pool.ResourceNamePrefix]; found {
+		normalizedPrefix := strings.ToLower(pool.ResourceNamePrefix)
+		if previous, found := prefixes[normalizedPrefix]; found {
 			return fmt.Errorf("duplicate resource names: prefix %q used by %s and asset pool %s", pool.ResourceNamePrefix, previous, pool.Name)
 		}
-		prefixes[pool.ResourceNamePrefix] = pool.Name
+		prefixes[normalizedPrefix] = pool.Name
 	}
 	_, err := c.AssetInventories()
 	return err

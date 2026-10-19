@@ -156,6 +156,28 @@ func TestRejectsObsoleteAndInvalidCatalogs(t *testing.T) {
 	}
 }
 
+func TestRejectsCaseInsensitiveAssetPoolResourceNameCollision(t *testing.T) {
+	t.Parallel()
+
+	input := strings.Replace(
+		independentCatalog,
+		"- name: bundles\n  kind: infrastructure_identities\n  boskos_resource_type: infra-bundles\n  resource_name_prefix: bundle\n",
+		"- name: bundles\n  kind: infrastructure_identities\n  boskos_resource_type: infra-bundles\n  resource_name_prefix: bundle\n"+
+			"- name: bundles-case\n  kind: infrastructure_identities\n  boskos_resource_type: infra-bundles-case\n  resource_name_prefix: Bundle\n",
+		1,
+	)
+	input = strings.Replace(
+		input,
+		"          asset_pool: bundles\n          units_per_slot: 2",
+		"          asset_pool: bundles-case\n          units_per_slot: 2",
+		1,
+	)
+	_, err := loadCatalogFromYAMLWithError(t, input)
+	if err == nil || !strings.Contains(err.Error(), "duplicate resource names") {
+		t.Fatalf("expected case-insensitive resource-name collision rejection, got %v", err)
+	}
+}
+
 func TestMixedPoolsRequireInfrastructureOnlyForConsumers(t *testing.T) {
 	t.Parallel()
 	input := strings.Replace(independentCatalog, "    pools:\n", `    pools:
