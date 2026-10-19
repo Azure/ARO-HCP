@@ -307,6 +307,61 @@ tests:
     exp_samples:
     - labels: 'errors:backend_cluster_update:error_rate_1h{cluster="mgmt-1"}'
       value: 0.5
+# Backend targets disagreeing on phase are reduced to one current state. During
+# failover the former leader keeps its last snapshot while the new leader reports
+# the operation's later state. backend-0 is the stale former leader. /a: stale
+# failed (transition 0s) vs current succeeded (transition 300s). /b: stale
+# succeeded (0s) vs current failed (300s). The later transition wins, so each
+# cluster is counted once with its current phase.
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_phase_info{resource_id="/a", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1", pod="backend-0"}'
+    values: "1x30"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/a", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1", pod="backend-0"}'
+    values: "0x30"
+  - series: 'backend_resource_operation_phase_info{resource_id="/a", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1", pod="backend-1"}'
+    values: "1x30"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/a", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1", pod="backend-1"}'
+    values: "300x30"
+  - series: 'backend_resource_operation_phase_info{resource_id="/b", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1", pod="backend-0"}'
+    values: "1x30"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/b", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1", pod="backend-0"}'
+    values: "0x30"
+  - series: 'backend_resource_operation_phase_info{resource_id="/b", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1", pod="backend-1"}'
+    values: "1x30"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/b", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1", pod="backend-1"}'
+    values: "300x30"
+  promql_expr_test:
+  - expr: errors:backend_cluster_update:succeeded_total
+    eval_time: 10m
+    exp_samples:
+    - labels: 'errors:backend_cluster_update:succeeded_total{cluster="mgmt-1"}'
+      value: 1
+  - expr: errors:backend_cluster_update:terminal_total
+    eval_time: 10m
+    exp_samples:
+    - labels: 'errors:backend_cluster_update:terminal_total{cluster="mgmt-1"}'
+      value: 2
+  - expr: errors:backend_cluster_update:error_rate
+    eval_time: 10m
+    exp_samples:
+    - labels: 'errors:backend_cluster_update:error_rate{cluster="mgmt-1"}'
+      value: 0.5
+  - expr: errors:backend_cluster_update:failed_1h
+    eval_time: 10m
+    exp_samples:
+    - labels: 'errors:backend_cluster_update:failed_1h{cluster="mgmt-1"}'
+      value: 1
+  - expr: errors:backend_cluster_update:total_1h
+    eval_time: 10m
+    exp_samples:
+    - labels: 'errors:backend_cluster_update:total_1h{cluster="mgmt-1"}'
+      value: 2
+  - expr: errors:backend_cluster_update:error_rate_1h
+    eval_time: 10m
+    exp_samples:
+    - labels: 'errors:backend_cluster_update:error_rate_1h{cluster="mgmt-1"}'
+      value: 0.5
 # Known limitation: a failed update overwritten by a successful retry is not
 # counted. /a fails at 0m and is retried successfully at 10m; the Backend replaces
 # the failed series, so at 20m the 1h window sees one success and no failure.
