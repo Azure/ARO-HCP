@@ -56,7 +56,7 @@ func TestClusterKeyVaultTypePreservation(t *testing.T) {
 				EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
 				Kms: &coreapi.KmsEncryptionProfile{
 					Visibility:   metadataapi.KeyVaultVisibilityPublic,
-					ActiveKey:    coreapi.KmsKey{Name: "test-key", VaultName: "test-vault", Version: "test-version"},
+					ActiveKey:    coreapi.KmsKey{Name: "test-key", VaultName: "test-vault", Version: "4e832b5c8f1e4e3d9c6b2a1f3e7d9c5b"},
 					KeyVaultType: coreapi.KmsKeyVaultTypeManagedHSM,
 				},
 			}
