@@ -75,17 +75,18 @@ spec:
   # current:backend_cluster_update:last_transition_time_seconds, which holds exactly
   # one series per (cluster, resource, operation_type) with the current phase as a
   # label and the last transition time as its value. Two sources can otherwise
-  # report the same operation: HA Prometheus replicas (prometheus_replica), and
+  # report the same resource: HA Prometheus replicas (prometheus_replica), and
   # Backend targets (pod/instance), because a former leader keeps exporting its
-  # last snapshot after losing leadership. The two Backend targets may disagree on
-  # phase (for example a stale "failed" next to the new leader's "succeeded"), so
-  # deduplicating per phase is not enough. The record first collapses identical
-  # series with max by (..., phase), then keeps only the phase with the latest
-  # transition per operation via topk(1): a stale snapshot cannot be newer than the
-  # current leader's view of the same operation. Series without a transition-time
-  # gauge fall back to time 0, so they still count in the instantaneous records
-  # but never inside a window. An exact tie on transition time (sub-second phase
-  # changes across a failover) keeps one arbitrary phase.
+  # last snapshot after losing leadership. Two Backend targets may disagree on the
+  # phase of an operation, or even retain different operations, so deduplicating
+  # per phase is not enough. The record collapses replicas only, then selects one
+  # target snapshot per resource using the emitter's own rule: the operation with
+  # the newest start time wins, and for the same operation the latest transition
+  # wins. A stale snapshot can therefore neither replace a newer operation nor a
+  # later phase of the same operation. Missing start or transition gauges count
+  # as time 0, so such series still count in the instantaneous records but never
+  # inside a window. An exact tie on both start and transition time keeps one
+  # arbitrary target.
   #
   # The windowed group reads the record from the instantaneous group, so a phase
   # change can reach the windowed records up to one evaluation interval later.
@@ -100,22 +101,52 @@ spec:
     rules:
     # Current state of each cluster update operation: one series per operation,
     # labelled with its current phase, valued with its last transition time.
+    # Each Backend target exposes one retained operation per resource. Across
+    # targets, the operation with the newest start time wins (the emitter's own
+    # selection rule); for the same operation reported by several targets, the
+    # latest transition wins. Missing start or transition gauges count as 0.
     - record: current:backend_cluster_update:last_transition_time_seconds
       expr: |
-        topk by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type) (
-          1,
-          max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (
-            backend_resource_operation_last_transition_time_seconds{
-              resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
-              operation_type="update"
-            }
-          )
-          or
-          0 * max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (
-            backend_resource_operation_phase_info{
-              resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
-              operation_type="update"
-            }
+        max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (
+          topk by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type) (
+            1,
+            (
+              max without (prometheus_replica) (backend_resource_operation_last_transition_time_seconds{
+                resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
+                operation_type="update"
+              })
+              or
+              0 * max without (prometheus_replica) (backend_resource_operation_phase_info{
+                resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
+                operation_type="update"
+              })
+            )
+            and
+            (
+              (
+                max without (prometheus_replica) (backend_resource_operation_start_time_seconds{
+                  resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
+                  operation_type="update"
+                })
+                or
+                0 * max without (prometheus_replica) (backend_resource_operation_phase_info{
+                  resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
+                  operation_type="update"
+                })
+              )
+              == on (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type) group_left
+              max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type) (
+                max without (prometheus_replica) (backend_resource_operation_start_time_seconds{
+                  resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
+                  operation_type="update"
+                })
+                or
+                0 * max without (prometheus_replica) (backend_resource_operation_phase_info{
+                  resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
+                  operation_type="update"
+                })
+              )
+            )
           )
         )
     # Instantaneous count of clusters whose latest update succeeded
