@@ -72,27 +72,27 @@ graph TB
 
 Istio is installed and configured through a three-part process involving infrastructure provisioning and in-cluster setup:
 
-* **AKS service mesh add-on installation:** The AKS-managed Istio plugin is enabled via Bicep within the AKS deployment process. The specific Istio versions to be installed are defined in the [configuration management](configuration.md) under `svc.istio.versions`. This setup allows for multiple Istio versions to coexist to enable upgrade scenarios.
+* **AKS service mesh add-on installation:** The AKS-managed Istio plugin is enabled via Bicep within the AKS deployment process. Bicep enables the mesh add-on but does not manage revision lists after initial cluster bootstrap — passing revisions through ARM would overwrite upgrades the pipeline step had already applied. The desired active revision is defined in [configuration management](configuration.md) under `svc.istio.versions` and reconciled by the `IstioUpgrade` pipeline step.
 
 * **In-cluster configuration via Helm:** Post-installation configuration is handled through a Helm chart maintained under the `istio` folder repository. This chart sets up mesh-wide strict mTLS and configures Istio’s external authorization feature.
 
-* **Revision management**: Post-installation script to manage Istio revision tags and workload transition between Istio versions. This is done via the `istio.sh` script located in the `dev-infrastructure/scripts` directory. The script uses `istioctl tag` to manage Istio revision tags and orchestrate workload migrations. See the [Mesh Management with Revisions](#mesh-management-with-revisions) section for more details.
+* **Revision management:** The service cluster pipeline runs an `IstioUpgrade` step (`dev-infrastructure/svc-pipeline.yaml`) that reconciles mesh revisions from configuration. It uses the `istio-upgrade` tool (from ARO-Tools) to install revisions, move the stable revision tag, restart workloads, and verify mesh health. See [Mesh Management with Revisions](#mesh-management-with-revisions) for more details.
 
 ## Mesh Management with Revisions
 
 We use Istio revision tags to manage mesh versions in a safe and upgradeable manner. This approach enables parallel installation of multiple Istio versions and controlled migration of workloads between them.
 
-Istio revisions follow the AKS plugin naming convention (e.g. `asm-1-23`). These are installed declaratively through Bicep using the `svc.istio.versions` value from the configuration, which allows the cluster to host multiple Istio revisions simultaneously. The `svc.istio.targetVersion` field specifies which revision should be used for active workloads. This version is aliased to a stable tag (e.g., `prod-stable`) using `istioctl tag` via the `istio.sh` script.
+Istio revisions follow the AKS plugin naming convention (e.g. `asm-1-23`). During upgrades the cluster may temporarily host two revisions (stable plus canary), but `svc.istio.versions` holds a single target revision at a time. The `IstioUpgrade` pipeline step installs or upgrades to that target via the `istio-upgrade` tool (from ARO-Tools), aliases the active revision to the stable tag in `svc.istio.tag` (e.g., `prod-stable`), restarts workloads, and retires obsolete revisions when the upgrade completes.
 
 Namespaces opt into a specific mesh by setting the `istio.io/rev` label to the stable alias (e.g., `prod-stable`). This decouples workload configuration from specific version identifiers and simplifies transitions during upgrades.
 
 The typical upgrade process consists of the following steps:
 
-1. **Prepare Configuration:** A PR is opened to update `svc.istio.versions` with the new Istio version and to set `svc.istio.targetVersion` to that version. The AKS cluster version must support the targeted Istio version.
-2. **Rollout Execution:** After merging the PR, the rollout pipeline installs the new revision and invokes `dev-infrastructure/scripts/istio.sh`. This script updates the alias tag and gracefully restarts all workloads linked to the previous mesh version.
-3. **Cleanup:** Once the new version is verified, a follow-up PR removes the old revision from `svc.istio.versions`. The next pipeline run removes the obsolete revision from the cluster.
+1. **Prepare configuration:** Open a PR that sets `svc.istio.versions` to the new target revision (e.g. `asm-1-30`). Before attempting an upgrade, `istio-upgrade` queries AKS mesh upgrade profiles and skips if the target is not listed in `AvailableUpgrades` for the cluster's Kubernetes version.
+2. **Rollout execution:** After merging the PR, the service cluster pipeline runs the `istio-upgrade` step. The `istio-upgrade` tool in ARO-Tools validates the target revision against AKS `AvailableUpgrades`, installs it as a canary alongside the current one, verifies control plane and ingress gateway health, moves the `svc.istio.tag` alias to the target revision, gracefully restarts workloads, and retires the previous revision from the cluster.
+3. **Optional standalone check:** `hack/istio-verify-state.sh` can be run independently after a deploy to snapshot and inspect mesh state (e.g. during personal dev testing or troubleshooting). It is not invoked by the pipeline and does not drive upgrades — version validation and in-rollout health checks are handled entirely by `istio-upgrade` in ARO-Tools. No follow-up config change is needed to remove the old revision; cleanup is handled by the upgrade step.
 
-Before any revision alias is moved or workloads are restarted, `istio.sh` verifies the health and readiness of the target mesh defined by `svc.istio.targetVersion`. This ensures a safe transition and reduces the risk of service disruption during upgrades. If issues arise during an upgrade, the `svc.istio.targetVersion` can be reverted. This causes the revision tag to point back to the previous revision, allowing workloads to seamlessly revert to the old mesh while retaining the new version on-cluster for analysis.
+The upgrade step verifies control plane and ingress gateway health before moving the revision tag or restarting workloads. Downgrades are not supported via configuration: if `svc.istio.versions` is set lower than the highest installed revision, the step reconciles in-cluster resources against the installed revision instead of rolling workloads back. Use operational runbooks for rollback scenarios.
 
 This upgrade mechanism is tightly integrated with the cluster management pipeline [svc-pipeline.yaml](../dev-infrastructure/svc-pipeline.yaml). All operations, including tagging and workload restarts, are idempotent and safe to re-run, ensuring consistent and predictable mesh transitions.
 

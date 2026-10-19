@@ -21,6 +21,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/blang/semver/v4"
 	"github.com/go-logr/logr/testr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -29,10 +30,12 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
+	"github.com/openshift/hypershift/api/hypershift/v1beta1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
@@ -174,6 +177,102 @@ func TestNeedsWork(t *testing.T) {
 	}
 }
 
+func TestIngressDesireSuppression(test *testing.T) {
+	for _, scenario := range []struct {
+		name            string
+		customerVersion string
+		desiredVersion  string
+		featureName     string
+		featureState    string
+		missing         bool
+		suppressed      bool
+	}{
+		{name: "flag off below version threshold", customerVersion: "4.20", desiredVersion: "4.20.42"},
+		{name: "flag on above version threshold", customerVersion: "5.1", desiredVersion: "5.1.0-rc.1", featureName: metadataapi.FeatureExperimentalReleaseFeatures, featureState: "Registered", suppressed: true},
+		{name: "flag off above version threshold due to missing experimental feature", customerVersion: "5.1", desiredVersion: "5.1.0-rc.1"},
+		{name: "version missing flag off", featureName: metadataapi.FeatureExperimentalReleaseFeatures, featureState: "Registered", suppressed: false},
+		{name: "unregistered flag", customerVersion: "5.1", desiredVersion: "5.1.0", featureName: metadataapi.FeatureExperimentalReleaseFeatures, featureState: "NotRegistered"},
+		{name: "flag on due to case insensitive experimental feature name", featureName: "Microsoft.RedHatOpenShift/ExperimentalReleaseFeatures", featureState: "Registered", suppressed: true, desiredVersion: "5.1.0-0.nightly-2026-10-08-211923"},
+		{name: "flag off due to missing subscription", customerVersion: "5.1", desiredVersion: "5.1.0", missing: true},
+	} {
+		test.Run(scenario.name, func(test *testing.T) {
+			ctx := utils.ContextWithLogger(test.Context(), testr.New(test))
+			clients := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClients()
+			client := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClient()
+			clients.Register(testManagementClusterResourceID, client)
+			managementClusters := &fleetlistertesting.SliceManagementClusterLister{ManagementClusters: []*fleetapi.ManagementCluster{{CosmosMetadata: coreapi.CosmosMetadata{ResourceID: testManagementClusterResourceID}}}}
+			cluster := newCluster()
+			cluster.CustomerProperties.Version.ID = scenario.customerVersion
+			serviceProviderCluster := newSPC(testManagementClusterResourceID)
+			subscriptionLister := &corelistertesting.SliceSubscriptionLister{}
+			if !scenario.missing {
+				subscription := &coreapi.Subscription{
+					CosmosMetadata: coreapi.CosmosMetadata{ResourceID: metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID))},
+					Properties:     &coreapi.SubscriptionProperties{},
+				}
+				if scenario.featureName != "" {
+					subscription.Properties.RegisteredFeatures = &[]coreapi.Feature{{Name: ptr.To(scenario.featureName), State: ptr.To(scenario.featureState)}}
+				}
+				subscriptionLister.Subscriptions = append(subscriptionLister.Subscriptions, subscription)
+			}
+			if scenario.desiredVersion != "" {
+				desiredVersion := semver.MustParse(scenario.desiredVersion)
+				serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion = &desiredVersion
+			}
+			csClient := ocm.NewMockClusterServiceClientSpec(gomock.NewController(test))
+			resources := buildClusterResources(map[string]string{
+				"hosted":   `{"apiVersion":"hypershift.openshift.io/v1beta1","kind":"HostedCluster","metadata":{"name":"test-cluster","namespace":"hc"}}`,
+				"managed":  `{"apiVersion":"cluster.open-cluster-management.io/v1","kind":"ManagedCluster","metadata":{"name":"test-cluster"}}`,
+				"config":   `{"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":"default-ingress","namespace":"open-cluster-management-policies"}}`,
+				"sync":     `{"apiVersion":"secret-sync.x-k8s.io/v1alpha1","kind":"SecretSync","metadata":{"name":"default-ingress-tls-cert-test","namespace":"open-cluster-management-policies"}}`,
+				"provider": `{"apiVersion":"secrets-store.csi.x-k8s.io/v1","kind":"SecretProviderClass","metadata":{"name":"default-ingress-tls-cert-test","namespace":"open-cluster-management-policies"}}`,
+				"kas":      `{"apiVersion":"secret-sync.x-k8s.io/v1alpha1","kind":"SecretSync","metadata":{"name":"kube-apiserver-tls-cert-test","namespace":"hc"}}`,
+				"signing":  `{"apiVersion":"secrets-store.csi.x-k8s.io/v1","kind":"SecretProviderClass","metadata":{"name":"signing-key-test","namespace":"hc"}}`,
+			})
+			csClient.EXPECT().GetClusterResources(gomock.Any(), gomock.Any()).Return(resources, nil)
+			syncer := &clusterResourcesController{
+				subscriptionLister:           subscriptionLister,
+				clusterLister:                &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{cluster}},
+				serviceProviderClusterLister: &corelistertesting.SliceServiceProviderClusterLister{ServiceProviderClusters: []*coreapi.ServiceProviderCluster{serviceProviderCluster}},
+				clustersServiceClient:        csClient, kubeApplierDBClients: clients,
+				applyDesireLister: &kubeapplierlistertesting.DBApplyDesireLister{Clients: clients, Lister: managementClusters},
+				readDesireLister:  &kubeapplierlistertesting.DBReadDesireLister{Clients: clients, Lister: managementClusters},
+			}
+			require.NoError(test, syncer.SyncOnce(ctx, testKey()))
+			desires, err := syncer.applyDesireLister.ListForCluster(ctx, testSubscriptionID, testResourceGroupName, testClusterName)
+			require.NoError(test, err)
+			expected := 7
+			if scenario.suppressed {
+				expected = 3
+			}
+			require.Len(test, desires, expected)
+			desireNames := make([]string, 0, len(desires))
+			for _, desire := range desires {
+				desireNames = append(desireNames, desire.ResourceID.Name)
+				if desire.ResourceID.Name == strings.ToLower("HostedCluster") {
+					var hostedCluster unstructured.Unstructured
+					require.NoError(test, json.Unmarshal(desire.Spec.ServerSideApply.KubeContent.Raw, &hostedCluster))
+					name, found, err := unstructured.NestedString(hostedCluster.Object, "spec", "operatorConfiguration", "ingressOperator", "defaultCertificate", "name")
+					require.NoError(test, err)
+					require.True(test, found)
+					require.Equal(test, controllerutils.ServiceProviderDefaultIngressWildcardServingCertName, name)
+				}
+				if scenario.suppressed {
+					require.Contains(test, []string{strings.ToLower("HostedCluster"), strings.ToLower("KubeAPIServerServingCertSecretSync"), strings.ToLower("BoundServiceAccountSigningKeySecretProviderClass")}, desire.ResourceID.Name)
+				}
+			}
+			for _, desireName := range []string{"ManagedCluster", "DefaultIngressConfigMap", "DefaultIngressWildcardCertSecretSync", "DefaultIngressWildcardCertSecretProviderClass"} {
+				if scenario.suppressed {
+					require.NotContains(test, desireNames, strings.ToLower(desireName))
+				} else {
+					require.Contains(test, desireNames, strings.ToLower(desireName))
+				}
+			}
+			require.Contains(test, desireNames, strings.ToLower("HostedCluster"))
+		})
+	}
+}
+
 func TestSyncOnce(t *testing.T) {
 	t.Parallel()
 
@@ -310,8 +409,10 @@ func TestSyncOnce(t *testing.T) {
 				mock.EXPECT().
 					GetClusterResources(gomock.Any(), gomock.Any()).
 					Return(buildClusterResources(map[string]string{
-						"pull-secret":       `{"apiVersion":"v1","kind":"Secret","metadata":{"name":"pull-secret","namespace":"ocm-env-abc"}}`,
-						"ingress-configmap": `{"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":"default-ingress","namespace":"ocm-env-abc"}}`,
+						"pull-secret":          `{"apiVersion":"v1","kind":"Secret","metadata":{"name":"pull-secret","namespace":"ocm-env-abc"}}`,
+						"external-auth-secret": `{"apiVersion":"v1","kind":"Secret","metadata":{"name":"external-auth-console-openshift-console","namespace":"ocm-env-abc","labels":{"api.openshift.com/type":"ext-auth"},"annotations":{"hypershift.openshift.io/hosted-cluster-sourced":"true"}}}`,
+						"ingress-configmap":    `{"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":"default-ingress","namespace":"ocm-env-abc"}}`,
+						"external-auth-ca":     `{"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":"external-auth-ca","namespace":"ocm-env-abc","labels":{"api.openshift.com/type":"ext-auth"}},"data":{"ca-bundle.crt":"test-ca"}}`,
 					}), nil)
 				return mock
 			},
@@ -326,10 +427,133 @@ func TestSyncOnce(t *testing.T) {
 				assert.Equal(t, "pull-secret", desireA.Spec.TargetItem.Name, "secret target name should match")
 				assert.Equal(t, "secrets", desireA.Spec.TargetItem.Resource, "secret target resource should match")
 
+				externalAuthDesire, err := crud.Get(ctx, "externalauthclientsecret")
+				require.NoError(t, err, "ApplyDesire for ExternalAuthClientSecret should exist")
+				assert.Equal(t, "external-auth-console-openshift-console", externalAuthDesire.Spec.TargetItem.Name, "external auth secret target name should match")
+				assert.Equal(t, "secrets", externalAuthDesire.Spec.TargetItem.Resource, "external auth secret target resource should match")
+
 				desireB, err := crud.Get(ctx, "defaultingressconfigmap")
 				require.NoError(t, err, "ApplyDesire for DefaultIngressConfigMap should exist")
 				assert.Equal(t, "default-ingress", desireB.Spec.TargetItem.Name, "configmap target name should match")
 				assert.Equal(t, "configmaps", desireB.Spec.TargetItem.Resource, "configmap target resource should match")
+
+				externalAuthCA, err := crud.Get(ctx, "externalauthcaconfigmap")
+				require.NoError(t, err, "ApplyDesire for ExternalAuthCAConfigMap should exist")
+				assert.Equal(t, "external-auth-ca", externalAuthCA.Spec.TargetItem.Name, "external auth CA target name should match")
+				assert.Equal(t, "configmaps", externalAuthCA.Spec.TargetItem.Resource, "external auth CA target resource should match")
+			},
+		},
+		{
+			name:    "sets backend-managed annotations only on HostedCluster",
+			cluster: newCluster(),
+			dbResources: []any{
+				newSPC(testManagementClusterResourceID),
+			},
+			setupCSMock: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
+				mock := ocm.NewMockClusterServiceClientSpec(ctrl)
+				mock.EXPECT().
+					GetClusterResources(gomock.Any(), gomock.Any()).
+					Return(buildClusterResources(map[string]string{
+						"hostedcluster":     `{"apiVersion":"hypershift.openshift.io/v1beta1","kind":"HostedCluster","metadata":{"name":"test-cluster","namespace":"ocm-env-abc"}}`,
+						"pull-secret":       `{"apiVersion":"v1","kind":"Secret","metadata":{"name":"pull-secret","namespace":"ocm-env-abc"}}`,
+						"ingress-configmap": `{"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":"default-ingress","namespace":"ocm-env-abc"}}`,
+					}), nil)
+				return mock
+			},
+			wantErr: false,
+			verifyDB: func(t *testing.T, ctx context.Context, kaClient *kubeappliercosmosstoragetesting.MockKubeApplierDBClient) {
+				t.Helper()
+				crud, err := kaClient.ApplyDesiresForCluster(testSubscriptionID, testResourceGroupName, testClusterName)
+				require.NoError(t, err, "failed to get ApplyDesires CRUD")
+
+				// Verify HostedCluster has the annotation
+				hcDesire, err := crud.Get(ctx, "hostedcluster")
+				require.NoError(t, err, "ApplyDesire for HostedCluster should exist")
+
+				var hcContent map[string]interface{}
+				err = json.Unmarshal(hcDesire.Spec.ServerSideApply.KubeContent.Raw, &hcContent)
+				require.NoError(t, err, "should unmarshal HostedCluster KubeContent")
+
+				metadata, ok := hcContent["metadata"].(map[string]interface{})
+				require.True(t, ok, "metadata field should be a map")
+
+				annotations, ok := metadata["annotations"].(map[string]interface{})
+				require.True(t, ok, "annotations field should be a map")
+
+				assert.Equal(t, "10m", annotations["hypershift.openshift.io/machine-health-check-node-startup-timeout"],
+					"HostedCluster should have the MHC annotation")
+
+				// Verify Secret does NOT have the annotation
+				secretDesire, err := crud.Get(ctx, "ocppullsecret")
+				require.NoError(t, err, "ApplyDesire for Secret should exist")
+
+				var secretContent map[string]interface{}
+				err = json.Unmarshal(secretDesire.Spec.ServerSideApply.KubeContent.Raw, &secretContent)
+				require.NoError(t, err, "should unmarshal Secret KubeContent")
+
+				secretMetadata, ok := secretContent["metadata"].(map[string]interface{})
+				require.True(t, ok, "secret metadata field should be a map")
+
+				secretAnnotations, _ := secretMetadata["annotations"].(map[string]interface{})
+				if secretAnnotations != nil {
+					assert.NotContains(t, secretAnnotations, "hypershift.openshift.io/machine-health-check-node-startup-timeout",
+						"Secret should NOT have the MHC annotation")
+				}
+
+				// Verify ConfigMap does NOT have the annotation
+				cmDesire, err := crud.Get(ctx, "defaultingressconfigmap")
+				require.NoError(t, err, "ApplyDesire for ConfigMap should exist")
+
+				var cmContent map[string]interface{}
+				err = json.Unmarshal(cmDesire.Spec.ServerSideApply.KubeContent.Raw, &cmContent)
+				require.NoError(t, err, "should unmarshal ConfigMap KubeContent")
+
+				cmMetadata, ok := cmContent["metadata"].(map[string]interface{})
+				require.True(t, ok, "configmap metadata field should be a map")
+
+				cmAnnotations, _ := cmMetadata["annotations"].(map[string]interface{})
+				if cmAnnotations != nil {
+					assert.NotContains(t, cmAnnotations, "hypershift.openshift.io/machine-health-check-node-startup-timeout",
+						"ConfigMap should NOT have the MHC annotation")
+				}
+			},
+		},
+		{
+			name:    "removes null username prefix from HostedCluster ApplyDesire",
+			cluster: newCluster(),
+			dbResources: []any{
+				newSPC(testManagementClusterResourceID),
+			},
+			setupCSMock: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
+				mock := ocm.NewMockClusterServiceClientSpec(ctrl)
+				mock.EXPECT().
+					GetClusterResources(gomock.Any(), gomock.Any()).
+					Return(buildClusterResources(map[string]string{
+						"hostedcluster": `{"apiVersion":"hypershift.openshift.io/v1beta1","kind":"HostedCluster","metadata":{"name":"test-cluster","namespace":"ocm-env-abc"},"spec":{"configuration":{"authentication":{"oidcProviders":[{"name":"no-opinion","claimMappings":{"username":{"claim":"sub","prefixPolicy":"","prefix":null}}},{"name":"explicit","claimMappings":{"username":{"claim":"email","prefixPolicy":"Prefix","prefix":{"prefixString":"custom:"}}}}]}}}}`,
+					}), nil)
+				return mock
+			},
+			verifyDB: func(t *testing.T, ctx context.Context, kaClient *kubeappliercosmosstoragetesting.MockKubeApplierDBClient) {
+				t.Helper()
+				crud, err := kaClient.ApplyDesiresForCluster(testSubscriptionID, testResourceGroupName, testClusterName)
+				require.NoError(t, err)
+				desire, err := crud.Get(ctx, "hostedcluster")
+				require.NoError(t, err)
+
+				var content map[string]interface{}
+				require.NoError(t, json.Unmarshal(desire.Spec.ServerSideApply.KubeContent.Raw, &content))
+				providers, found, err := unstructured.NestedSlice(content,
+					"spec", "configuration", "authentication", "oidcProviders")
+				require.NoError(t, err)
+				require.True(t, found)
+				require.Len(t, providers, 2)
+
+				first := providers[0].(map[string]interface{})["claimMappings"].(map[string]interface{})["username"].(map[string]interface{})
+				assert.NotContains(t, first, "prefix")
+				assert.Equal(t, "", first["prefixPolicy"])
+
+				second := providers[1].(map[string]interface{})["claimMappings"].(map[string]interface{})["username"].(map[string]interface{})
+				assert.Equal(t, map[string]interface{}{"prefixString": "custom:"}, second["prefix"])
 			},
 		},
 		{
@@ -412,11 +636,13 @@ func TestSyncOnce(t *testing.T) {
 			}
 
 			syncer := &clusterResourcesController{
+				subscriptionLister:           &corelistertesting.SliceSubscriptionLister{},
 				clusterLister:                clusterLister,
 				serviceProviderClusterLister: spcLister,
 				clustersServiceClient:        tt.setupCSMock(ctrl),
 				kubeApplierDBClients:         mockKubeApplierDBClients,
 				applyDesireLister:            &kubeapplierlistertesting.DBApplyDesireLister{Clients: mockKubeApplierDBClients, Lister: mcLister},
+				readDesireLister:             &kubeapplierlistertesting.DBReadDesireLister{Clients: mockKubeApplierDBClients, Lister: mcLister},
 			}
 
 			err := syncer.SyncOnce(ctx, testKey())
@@ -489,6 +715,7 @@ func TestDeleteStaleApplyDesires(t *testing.T) {
 		syncer := &clusterResourcesController{
 			kubeApplierDBClients: mockClients,
 			applyDesireLister:    &kubeapplierlistertesting.DBApplyDesireLister{Clients: mockClients, Lister: mcLister},
+			readDesireLister:     &kubeapplierlistertesting.DBReadDesireLister{Clients: mockClients, Lister: mcLister},
 		}
 
 		currentResourceID := kubeapplierapihelpers.ToClusterScopedApplyDesireResourceIDString(
@@ -531,6 +758,7 @@ func TestDeleteStaleApplyDesires(t *testing.T) {
 		syncer := &clusterResourcesController{
 			kubeApplierDBClients: mockClients,
 			applyDesireLister:    &kubeapplierlistertesting.DBApplyDesireLister{Clients: mockClients, Lister: mcLister},
+			readDesireLister:     &kubeapplierlistertesting.DBReadDesireLister{Clients: mockClients, Lister: mcLister},
 		}
 
 		err := syncer.deleteStaleApplyDesires(ctx, testKey(), testManagementClusterResourceID, map[string]bool{})
@@ -568,6 +796,7 @@ func TestDeleteStaleApplyDesires(t *testing.T) {
 		syncer := &clusterResourcesController{
 			kubeApplierDBClients: mockClients,
 			applyDesireLister:    &kubeapplierlistertesting.DBApplyDesireLister{Clients: mockClients, Lister: mcLister},
+			readDesireLister:     &kubeapplierlistertesting.DBReadDesireLister{Clients: mockClients, Lister: mcLister},
 		}
 
 		err := syncer.deleteStaleApplyDesires(ctx, testKey(), testManagementClusterResourceID, map[string]bool{})
@@ -607,6 +836,7 @@ func TestDeleteStaleApplyDesires(t *testing.T) {
 		syncer := &clusterResourcesController{
 			kubeApplierDBClients: mockClients,
 			applyDesireLister:    &kubeapplierlistertesting.DBApplyDesireLister{Clients: mockClients, Lister: mcLister},
+			readDesireLister:     &kubeapplierlistertesting.DBReadDesireLister{Clients: mockClients, Lister: mcLister},
 		}
 
 		err := syncer.deleteStaleApplyDesires(ctx, testKey(), testManagementClusterResourceID, map[string]bool{})
@@ -660,9 +890,19 @@ func TestClassifyClusterResource(t *testing.T) {
 			wantDesire: "DefaultIngressConfigMap",
 		},
 		{
+			name:       "ext-auth labeled ConfigMap → ExternalAuthCAConfigMap",
+			resource:   `{"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":"external-auth-ca","namespace":"ocm-env-abc","labels":{"api.openshift.com/type":"ext-auth"}}}`,
+			wantDesire: "ExternalAuthCAConfigMap",
+		},
+		{
 			name:       "Secret → OCPPullSecret",
 			resource:   `{"apiVersion":"v1","kind":"Secret","metadata":{"name":"pull-secret","namespace":"ocm-env-abc"}}`,
 			wantDesire: "OCPPullSecret",
+		},
+		{
+			name:       "ext-auth labeled Secret → ExternalAuthClientSecret",
+			resource:   `{"apiVersion":"v1","kind":"Secret","metadata":{"name":"external-auth-console-openshift-console","namespace":"ocm-env-abc","labels":{"api.openshift.com/type":"ext-auth"}}}`,
+			wantDesire: "ExternalAuthClientSecret",
 		},
 		{
 			name:       "PodNetwork",
@@ -832,9 +1072,11 @@ func TestProcessClusterResourcesNodePoolPath(t *testing.T) {
 				},
 			}
 			syncer := &clusterResourcesController{
+				subscriptionLister:   &corelistertesting.SliceSubscriptionLister{},
 				nodePoolLister:       &corelistertesting.SliceNodePoolLister{NodePools: []*coreapi.NodePool{tt.nodePool}},
 				kubeApplierDBClients: mockClients,
 				applyDesireLister:    &kubeapplierlistertesting.DBApplyDesireLister{Clients: mockClients, Lister: mcLister},
+				readDesireLister:     &kubeapplierlistertesting.DBReadDesireLister{Clients: mockClients, Lister: mcLister},
 			}
 
 			// Seed the desire with a pass over a healthy NodePool, so the deletion
@@ -844,7 +1086,7 @@ func TestProcessClusterResourcesNodePoolPath(t *testing.T) {
 				NodePools: []*coreapi.NodePool{newNodePool(false)},
 			}
 			require.NoError(t, seedSyncer.processClusterResources(ctx, testKey(), testManagementClusterResourceID,
-				buildClusterResources(map[string]string{"node-pool": nodePoolCR})),
+				buildClusterResources(map[string]string{"node-pool": nodePoolCR}), "abc123", nil),
 				"seeding the NodePool ApplyDesire should succeed")
 			_, err = npCRUD.Get(ctx, "nodepool")
 			require.NoError(t, err, "seed pass should have created the NodePool ApplyDesire")
@@ -852,12 +1094,79 @@ func TestProcessClusterResourcesNodePoolPath(t *testing.T) {
 			// Cluster Service still reports the CR, as it does until it removes the
 			// ManifestWork.
 			require.NoError(t, syncer.processClusterResources(ctx, testKey(), testManagementClusterResourceID,
-				buildClusterResources(map[string]string{"node-pool": nodePoolCR})),
+				buildClusterResources(map[string]string{"node-pool": nodePoolCR}), "abc123", nil),
 				"processClusterResources should succeed")
 
 			desire, err := npCRUD.Get(ctx, "nodepool")
 			require.NoError(t, err, "NodePool ApplyDesire should still exist: %s", tt.reason)
 			assert.Equal(t, tt.wantDesireType, desire.Spec.Type, "unexpected desire type: %s", tt.reason)
+		})
+	}
+}
+
+func TestEnsureHostedClusterAnnotations(t *testing.T) {
+	tests := []struct {
+		name                string
+		inputAnnotations    map[string]string
+		expectedAnnotations map[string]string
+	}{
+		{
+			name:             "sets mhc node startup timeout annotation to 10m",
+			inputAnnotations: nil,
+			expectedAnnotations: map[string]string{
+				v1beta1.MachineHealthCheckNodeStartupTimeoutAnnotation: "10m",
+			},
+		},
+		{
+			name: "preserves other annotations when setting mhc node startup timeout annotation",
+			inputAnnotations: map[string]string{
+				"other-annotation":                          "other-value",
+				v1beta1.ClusterSizeOverrideAnnotation:       "e2e_minimal",
+				v1beta1.ControlPlaneOperatorImageAnnotation: "quay.io/example/cpo:test",
+			},
+			expectedAnnotations: map[string]string{
+				"other-annotation":                                     "other-value",
+				v1beta1.ClusterSizeOverrideAnnotation:                  "e2e_minimal",
+				v1beta1.ControlPlaneOperatorImageAnnotation:            "quay.io/example/cpo:test",
+				v1beta1.MachineHealthCheckNodeStartupTimeoutAnnotation: "10m",
+			},
+		},
+		{
+			name: "overwrites existing mhc node startup timeout annotation with 10m",
+			inputAnnotations: map[string]string{
+				v1beta1.MachineHealthCheckNodeStartupTimeoutAnnotation: "20m",
+				"other-annotation": "other-value",
+			},
+			expectedAnnotations: map[string]string{
+				v1beta1.MachineHealthCheckNodeStartupTimeoutAnnotation: "10m",
+				"other-annotation": "other-value",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			hostedCluster := &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"apiVersion": "hypershift.openshift.io/v1beta1",
+					"kind":       "HostedCluster",
+					"metadata": map[string]interface{}{
+						"name":      testClusterName,
+						"namespace": "test-namespace",
+					},
+				},
+			}
+
+			if tt.inputAnnotations != nil {
+				hostedCluster.SetAnnotations(tt.inputAnnotations)
+			}
+
+			err := ensureHostedClusterAnnotations(hostedCluster)
+			require.NoError(t, err)
+
+			actualAnnotations := hostedCluster.GetAnnotations()
+			assert.Equal(t, tt.expectedAnnotations, actualAnnotations,
+				"annotations should match expected")
 		})
 	}
 }

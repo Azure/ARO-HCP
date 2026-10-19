@@ -1084,15 +1084,15 @@ func admitClusterVersionID(_ context.Context, admissionContext *ClusterAdmission
 // Cluster Service-side concern; this check only prevents the cluster from
 // entering that state in the first place.
 //
-// The fact is read from the mirrored HostedCluster rather than from any desired
+// The fact is read from the mirrored image content sources rather than from any desired
 // state: what matters is what actually exists on the management cluster today,
 // not what we intend to be true. Admission reaches neither the management
 // cluster nor the DB for it — the backend's ActualHostedCluster controller
-// observes the HostedCluster and copies it onto
-// ServiceProviderCluster.Status.ActualHostedCluster, which the frontend
+// observes the HostedCluster and copies its image content sources onto
+// ServiceProviderCluster.Status.ImageContentSources, which the frontend
 // prefetches into the admission context. See internal/admission/CLAUDE.md.
 //
-// Fail closed until synced: ActualHostedCluster is populated asynchronously and
+// Fail closed until synced: the mirror is populated asynchronously and
 // is nil on freshly created clusters and until the first sync completes. A v5
 // upgrade must not start while the required mirror cannot be proven present.
 // Once the HostedCluster has been observed, an empty spec.imageContentSources
@@ -1121,15 +1121,10 @@ func admitClusterV5DataPlaneMirror(_ context.Context, admissionContext *ClusterA
 
 	// Not observed yet: fail closed (see the doc comment above). Admission must
 	// have an observed HostedCluster before allowing a 4.y -> 5.y upgrade.
-	if admissionContext.ServiceProviderCluster == nil {
+	if admissionContext.ServiceProviderCluster == nil || admissionContext.ServiceProviderCluster.Status.ImageContentSources == nil {
 		return unavailableV5DataPlaneMirrorError(fldPath, newObj.ID)
 	}
-	actualHostedCluster := admissionContext.ServiceProviderCluster.Status.ActualHostedCluster
-	if actualHostedCluster == nil {
-		return unavailableV5DataPlaneMirrorError(fldPath, newObj.ID)
-	}
-
-	if apihelpers.HostedClusterHasImageContentSource(actualHostedCluster, apihelpers.OcpV5ArtDevMirrorSource) {
+	if apihelpers.ImageContentSourcesHaveSource(*admissionContext.ServiceProviderCluster.Status.ImageContentSources, apihelpers.OcpV5ArtDevMirrorSource) {
 		return nil
 	}
 

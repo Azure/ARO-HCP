@@ -19,6 +19,7 @@ import (
 
 	utilsclock "k8s.io/utils/clock"
 
+	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	clusterazureresources "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/azureresources"
 	clusterbackups "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/backups"
 	clustercreation "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/creation"
@@ -32,6 +33,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/denyassignments"
 	clusterhostedcluster "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/hostedcluster"
 	clusteridentity "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/identity"
+	clusterk8sresources "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/k8sresources"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/legacycredentialrequest"
 	clusteroperations "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/operations"
 	clusterplacement "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/placement"
@@ -79,6 +81,24 @@ func instantiateAdminCredentialsDispatchRequestCredentialController(controllerCo
 		controllerContext.ResourcesDBClient,
 		clusterLister,
 		activeOperationInformer,
+	), nil
+}
+
+func registerAzureClusterVnetIntegrationSubnetSizeValidationController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{
+		Workers:     20,
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateAzureClusterVnetIntegrationSubnetSizeValidationController, false),
+	}
+}
+
+func instantiateAzureClusterVnetIntegrationSubnetSizeValidationController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	_, serviceProviderClusterLister := controllerContext.BackendInformers.ServiceProviderClusters()
+
+	return clustervalidation.NewClusterValidationController(
+		validationutils.NewAzureClusterVnetIntegrationSubnetSizeValidation(controllerContext.SMIClientBuilder),
+		controllerContext.ResourcesDBClient,
+		serviceProviderClusterLister,
+		controllerContext.BackendInformers,
 	), nil
 }
 
@@ -387,12 +407,14 @@ func registerOperationClusterDeleteController() controllerconfig.ControllerRegis
 func instantiateOperationClusterDeleteController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
 	activeOperationInformer, _ := controllerContext.BackendInformers.ActiveOperations()
 	_, unionReadDesireLister := controllerContext.UnionKubeApplierInformers.ReadDesires()
+	_, unionApplyDesireLister := controllerContext.UnionKubeApplierInformers.ApplyDesires()
 	return clusteroperations.NewOperationClusterDeleteController(
 		controllerContext.Clock,
 		controllerContext.ResourcesDBClient,
 		controllerContext.BillingDBClient,
 		controllerContext.KubeApplierDBClients,
 		unionReadDesireLister,
+		unionApplyDesireLister,
 		controllerContext.ClustersServiceClient,
 		controllerContext.AsyncOperationNotificationClient,
 		activeOperationInformer,
@@ -962,6 +984,52 @@ func instantiatePendingCleanupController(controllerContext controllerconfig.Cont
 	), nil
 }
 
+func registerIngressCertificateController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{
+		Workers:     20,
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateIngressCertificateController, true),
+	}
+}
+
+func registerKubeAPIServerTLSCertificateController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{
+		Workers:     20,
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateKubeAPIServerTLSCertificateController, false),
+	}
+}
+
+func instantiateKubeAPIServerTLSCertificateController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	_, managementClusterLister := controllerContext.FleetInformers.ManagementClusters()
+	return clusterazureresources.NewKubeAPIServerTLSCertificateController(controllerContext.ResourcesDBClient, controllerContext.BackendInformers,
+		managementClusterLister, controllerContext.BackendIdentityAzureClients), nil
+}
+
+func registerIngressTLSCertificateController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{
+		Workers:     20,
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateIngressTLSCertificateController, false),
+	}
+}
+
+func instantiateIngressTLSCertificateController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	_, managementClusterLister := controllerContext.FleetInformers.ManagementClusters()
+	return clusterazureresources.NewIngressTLSCertificateController(controllerContext.ResourcesDBClient, controllerContext.BackendInformers,
+		managementClusterLister, controllerContext.BackendIdentityAzureClients), nil
+}
+
+func instantiateIngressCertificateController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	_, managementClusterLister := controllerContext.FleetInformers.ManagementClusters()
+	return clusterk8sresources.NewIngressCertificateController(
+		controllerContext.ResourcesDBClient,
+		controllerContext.KubeApplierDBClients,
+		controllerContext.BackendInformers,
+		controllerContext.UnionKubeApplierInformers,
+		managementClusterLister,
+		controllerContext.ServiceTenantID,
+		string(controllerContext.CloudEnvironment.Name()),
+	), nil
+}
+
 func registerBackupScheduleController() controllerconfig.ControllerRegistration {
 	return controllerconfig.ControllerRegistration{
 		Workers:     20,
@@ -1010,6 +1078,32 @@ func instantiateFetchDataPlaneOperatorsManagedIdentitiesInfoController(controlle
 		controllerContext.BackendInformers,
 		controllerContext.SMIClientBuilder,
 	), nil
+}
+
+func registerFetchManagedIdentitiesInfoController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{
+		Workers:     20,
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateFetchManagedIdentitiesInfoController, false),
+	}
+}
+
+func instantiateFetchManagedIdentitiesInfoController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	var fetchManagedIdentitiesInfoDataplaneBuilder azureclient.FPAMIDataplaneClientBuilder
+	// We only pass a non-nil FPAMIDataplaneClientBuilder to the controller when HardcodedIdentity is nil, which should occur we're
+	// running in an ARO-HCP environment where the Managed Identities Data Plane service is available.
+	if controllerContext.HardcodedIdentity == nil {
+		fetchManagedIdentitiesInfoDataplaneBuilder = controllerContext.FPAMIDataplaneClientBuilder
+	}
+	fetchManagedIdentitiesInfoController := clusteridentity.NewFetchManagedIdentitiesInfoController(
+		controllerContext.Clock,
+		controllerContext.ResourcesDBClient,
+		controllerContext.BackendInformers,
+		controllerContext.HardcodedIdentity,
+		fetchManagedIdentitiesInfoDataplaneBuilder,
+		controllerContext.SMIClientBuilder,
+	)
+
+	return fetchManagedIdentitiesInfoController, nil
 }
 
 func registerIdentityRoleAssignmentsController() controllerconfig.ControllerRegistration {
@@ -1212,6 +1306,7 @@ func Register(registry map[string]controllerconfig.ControllerRegistration) {
 	registry[strings.ToLower(clustervalidation.ClusterValidationControlPlaneIdentitiesPermissionsClusterValidationControllerName)] = registerControlPlaneIdentitiesPermissionsValidationController()
 	registry[strings.ToLower(clustervalidation.ClusterValidationDataPlaneIdentitiesPermissionsValidationControllerName)] = registerDataPlaneIdentitiesPermissionsValidationController()
 	registry[strings.ToLower(clustervalidation.ClusterValidationContainerRegistryPullCredentialsPermissionValidationControllerName)] = registerContainerRegistryPullCredentialsValidationController()
+	registry[strings.ToLower(clustervalidation.ClusterValidationAzureClusterVnetIntegrationSubnetSizeValidationControllerName)] = registerAzureClusterVnetIntegrationSubnetSizeValidationController()
 	registry[strings.ToLower(clusterreaddesires.CreateClusterScopedReadDesiresControllerName)] = registerCreateClusterScopedReadDesiresController()
 	registry[strings.ToLower(clustercreation.CreateServiceProviderClusterControllerName)] = registerCreateServiceProviderClusterController()
 	registry[strings.ToLower(clusterdeletion.CleanOrphanedClusterManagedResourceGroupControllerName)] = registerCleanOrphanedClusterManagedResourceGroupController()
@@ -1226,8 +1321,12 @@ func Register(registry map[string]controllerconfig.ControllerRegistration) {
 	registry[strings.ToLower(clusterplacement.PlacementControllerName)] = registerPlacementController()
 	registry[strings.ToLower(clusterplacement.PendingCleanupControllerName)] = registerPendingCleanupController()
 	registry[strings.ToLower(clusterbackups.BackupScheduleControllerName)] = registerBackupScheduleController()
+	registry[strings.ToLower(clusterk8sresources.IngressCertificateControllerName)] = registerIngressCertificateController()
+	registry[strings.ToLower(clusterazureresources.KubeAPIServerTLSCertificateControllerName)] = registerKubeAPIServerTLSCertificateController()
+	registry[strings.ToLower(clusterazureresources.IngressTLSCertificateControllerName)] = registerIngressTLSCertificateController()
 	registry[strings.ToLower(clusteridentity.FetchMSIIdentitiesInfoControllerName)] = registerFetchMSIIdentitiesInfoController()
 	registry[strings.ToLower(clusteridentity.FetchDataPlaneOperatorsManagedIdentitiesInfoControllerName)] = registerFetchDataPlaneOperatorsManagedIdentitiesInfoController()
+	registry[strings.ToLower(clusteridentity.FetchManagedIdentitiesInfoControllerName)] = registerFetchManagedIdentitiesInfoController()
 	registry[strings.ToLower(clusterroleassignments.RoleAssignmentsControllerName)] = registerIdentityRoleAssignmentsController()
 	registry[strings.ToLower(clusterbackups.KeyRotationBackupControllerName)] = registerKeyRotationBackupController()
 }

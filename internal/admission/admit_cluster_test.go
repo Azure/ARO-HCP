@@ -765,20 +765,12 @@ func TestAdmitCluster_Update(t *testing.T) {
 
 	serviceProviderResourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		clusterResourceID.String() + "/serviceProviderClusters/default"))
-	observedHostedClusterWithV5Mirror := func() *hsv1beta1.HostedCluster {
-		return &hsv1beta1.HostedCluster{
-			Spec: hsv1beta1.HostedClusterSpec{
-				ImageContentSources: []hsv1beta1.ImageContentSource{{Source: apihelpers.OcpV5ArtDevMirrorSource}},
-			},
-		}
-	}
-
 	serviceProviderClusterStatusWithActiveControlPlaneVersion := func(fullVersion string) coreapi.ServiceProviderClusterStatus {
 		return coreapi.ServiceProviderClusterStatus{
 			ControlPlaneVersion: coreapi.ServiceProviderClusterStatusVersion{
 				ActiveVersions: []coreapi.ServiceProviderClusterActiveVersion{{Version: ptr.To(metadataapi.Must(semver.ParseTolerant(fullVersion)))}},
 			},
-			ActualHostedCluster: observedHostedClusterWithV5Mirror(),
+			ImageContentSources: ptr.To([]hsv1beta1.ImageContentSource{{Source: apihelpers.OcpV5ArtDevMirrorSource}}),
 		}
 	}
 
@@ -789,7 +781,7 @@ func TestAdmitCluster_Update(t *testing.T) {
 		}
 		return coreapi.ServiceProviderClusterStatus{
 			ControlPlaneVersion: coreapi.ServiceProviderClusterStatusVersion{ActiveVersions: active},
-			ActualHostedCluster: observedHostedClusterWithV5Mirror(),
+			ImageContentSources: ptr.To([]hsv1beta1.ImageContentSource{{Source: apihelpers.OcpV5ArtDevMirrorSource}}),
 		}
 	}
 
@@ -1841,16 +1833,15 @@ func TestAdmitClusterV5DataPlaneMirror(t *testing.T) {
 	// (field.NewPath("properties").Child("version")).
 	fldPath := field.NewPath("properties", "version")
 
-	// spcWithMirrors models a ServiceProviderCluster whose ActualHostedCluster has
-	// been mirrored by the backend, carrying the given image content sources.
+	// spcWithMirrors models a ServiceProviderCluster whose image content sources
+	// have been mirrored by the backend.
 	spcWithMirrors := func(sources ...string) *coreapi.ServiceProviderCluster {
-		hostedCluster := &hsv1beta1.HostedCluster{}
-		for _, source := range sources {
-			hostedCluster.Spec.ImageContentSources = append(hostedCluster.Spec.ImageContentSources,
-				hsv1beta1.ImageContentSource{Source: source})
+		imageContentSources := make([]hsv1beta1.ImageContentSource, len(sources))
+		for index, source := range sources {
+			imageContentSources[index] = hsv1beta1.ImageContentSource{Source: source}
 		}
 		return &coreapi.ServiceProviderCluster{
-			Status: coreapi.ServiceProviderClusterStatus{ActualHostedCluster: hostedCluster},
+			Status: coreapi.ServiceProviderClusterStatus{ImageContentSources: &imageContentSources},
 		}
 	}
 	// spcUnmirrored models a ServiceProviderCluster the backend has not yet
@@ -1874,6 +1865,16 @@ func TestAdmitClusterV5DataPlaneMirror(t *testing.T) {
 		spc          *coreapi.ServiceProviderCluster // nil models a missing ServiceProviderCluster prefetch
 		expectErrors []utils.ExpectedError
 	}{
+		{
+			name:       "non-nil pointer to a nil slice reports missing not unavailable",
+			op:         operation.Operation{Type: operation.Update},
+			oldVersion: &coreapi.VersionProfile{ID: "4.22"},
+			newVersion: &coreapi.VersionProfile{ID: "5.0"},
+			spc: &coreapi.ServiceProviderCluster{
+				Status: coreapi.ServiceProviderClusterStatus{ImageContentSources: ptr.To([]hsv1beta1.ImageContentSource(nil))},
+			},
+			expectErrors: missingMirror,
+		},
 		{
 			name:         "4->5 upgrade with the v5 mirror present passes",
 			op:           operation.Operation{Type: operation.Update},
@@ -1921,7 +1922,7 @@ func TestAdmitClusterV5DataPlaneMirror(t *testing.T) {
 			expectErrors: missingMirror,
 		},
 		{
-			// Fail closed: nil ActualHostedCluster means the required mirror has not
+			// Fail closed: nil ImageContentSources means the required mirror has not
 			// been proven present yet.
 			name:         "4->5 upgrade with an unmirrored hosted cluster is rejected until synced",
 			op:           operation.Operation{Type: operation.Update},

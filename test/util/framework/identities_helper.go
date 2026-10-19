@@ -33,17 +33,18 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	armauthorization "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v3"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/msi/armmsi"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
 	"github.com/Azure/ARO-HCP/test/pkg/filelock"
+	"github.com/Azure/ARO-HCP/test/pkg/leaseenv"
 )
 
 const (
 	UsePooledIdentitiesEnvvar = "POOLED_IDENTITIES"
-	LeasedMSIContainersEnvvar = "LEASED_MSI_CONTAINERS"
 	E2ECustomRolePrefix       = "E2E-Test-CustomRole-"
 )
 
@@ -353,9 +354,9 @@ func (tc *perItOrDescribeTestContext) DeleteUserAssignedIdentities(ctx context.C
 	// The env var lists every container in the pool, so this also rejects containers
 	// leased by another spec, which tc.leasedIdentityContainers() would not catch. It is
 	// unset in non-pooled mode, where the loop is a no-op.
-	for _, pooledResourceGroup := range strings.Fields(os.Getenv(LeasedMSIContainersEnvvar)) {
+	for _, pooledResourceGroup := range strings.Fields(os.Getenv(leaseenv.MSIContainers)) {
 		if strings.EqualFold(pooledResourceGroup, resourceGroup) {
-			return fmt.Errorf("refusing to delete user-assigned identities in resource group %q: it is a shared identity container listed in %s; this helper may only be used on dedicated identities the test created itself (useMsiPool=false)", resourceGroup, LeasedMSIContainersEnvvar)
+			return fmt.Errorf("refusing to delete user-assigned identities in resource group %q: it is a shared identity container listed in %s; this helper may only be used on dedicated identities the test created itself (useMsiPool=false)", resourceGroup, leaseenv.MSIContainers)
 		}
 	}
 
@@ -591,6 +592,7 @@ func (tc *perItOrDescribeTestContext) cleanupRoleAssignments(ctx context.Context
 
 	// Delete only the role assignments we created
 	var errs []error
+	deleted := make(map[string]bool, len(assignmentIDsToDelete))
 	for _, assignmentID := range assignmentIDsToDelete {
 		ginkgo.GinkgoLogr.Info("Deleting role assignment created by this test",
 			"assignmentID", assignmentID)
@@ -600,13 +602,21 @@ func (tc *perItOrDescribeTestContext) cleanupRoleAssignments(ctx context.Context
 			var respErr *azcore.ResponseError
 			if errors.As(err, &respErr) && respErr.StatusCode == http.StatusNotFound {
 				ginkgo.GinkgoLogr.Info("Role assignment already deleted", "assignmentID", assignmentID)
+				deleted[assignmentID] = true
 				continue
 			}
 			errs = append(errs, fmt.Errorf("failed to delete role assignment %s: %w", assignmentID, err))
 		} else {
 			ginkgo.GinkgoLogr.Info("Successfully deleted role assignment", "assignmentID", assignmentID)
+			deleted[assignmentID] = true
 		}
 	}
+
+	// Drop already-deleted assignments so a later cleanup pass (the deferred
+	// releaseLeasedIdentities) does not re-delete them and generate spurious 404s.
+	tc.contextLock.Lock()
+	tc.createdRoleAssignmentIDs = slices.DeleteFunc(tc.createdRoleAssignmentIDs, func(id string) bool { return deleted[id] })
+	tc.contextLock.Unlock()
 
 	if len(errs) > 0 {
 		return fmt.Errorf("failed to delete some role assignments: %w", errors.Join(errs...))
@@ -926,9 +936,9 @@ func newLeasedIdentityPoolState(path string) (*leasedIdentityPoolState, error) {
 		return &state, nil
 	}
 
-	leasedRGs := strings.Fields(strings.TrimSpace(os.Getenv(LeasedMSIContainersEnvvar)))
+	leasedRGs := strings.Fields(strings.TrimSpace(os.Getenv(leaseenv.MSIContainers)))
 	if len(leasedRGs) == 0 {
-		return &leasedIdentityPoolState{}, fmt.Errorf("expected envvar %s to not be empty", LeasedMSIContainersEnvvar)
+		return &leasedIdentityPoolState{}, fmt.Errorf("expected envvar %s to not be empty", leaseenv.MSIContainers)
 	}
 
 	if err := state.initializeUnlocked(leasedRGs); err != nil {
@@ -1468,6 +1478,37 @@ func (tc *perItOrDescribeTestContext) assignRoleToIdentity(
 		"assignmentID", *result.ID)
 
 	return nil
+}
+
+// GetUserAssignedIdentityPrincipalID returns the principal (object) ID of the
+// user-assigned managed identity identified by its ARM resource ID. Tests use it
+// to grant data-plane roles (e.g. Managed HSM Crypto User) to a cluster's
+// control-plane operator identity, whose resource ID is exposed on the cluster
+// params via UserAssignedIdentitiesProfile.ControlPlaneOperators.
+func (tc *perItOrDescribeTestContext) GetUserAssignedIdentityPrincipalID(ctx context.Context, identityResourceID string) (string, error) {
+	resourceID, err := azcorearm.ParseResourceID(identityResourceID)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse identity resource ID %q: %w", identityResourceID, err)
+	}
+
+	creds, err := tc.perBinaryInvocationTestContext.getAzureCredentials()
+	if err != nil {
+		return "", fmt.Errorf("failed to get Azure credentials: %w", err)
+	}
+
+	msiClientFactory, err := armmsi.NewClientFactory(resourceID.SubscriptionID, creds, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to create MSI client factory: %w", err)
+	}
+
+	identity, err := msiClientFactory.NewUserAssignedIdentitiesClient().Get(ctx, resourceID.ResourceGroupName, resourceID.Name, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to get managed identity %q: %w", identityResourceID, err)
+	}
+	if identity.Properties == nil || identity.Properties.PrincipalID == nil {
+		return "", fmt.Errorf("managed identity %q has no principal ID", identityResourceID)
+	}
+	return *identity.Properties.PrincipalID, nil
 }
 
 // guid generates a deterministic UUID for Azure resource names.

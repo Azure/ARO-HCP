@@ -29,28 +29,19 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/leaderelection"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 	"k8s.io/component-base/metrics/legacyregistry"
+	"k8s.io/utils/ptr"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 
 	"github.com/Azure/ARO-HCP/fleet/pkg/compute"
-	"github.com/Azure/ARO-HCP/fleet/pkg/controllers/amwscaling"
-	"github.com/Azure/ARO-HCP/fleet/pkg/controllers/base"
-	"github.com/Azure/ARO-HCP/fleet/pkg/controllers/capacityreporting"
-	"github.com/Azure/ARO-HCP/fleet/pkg/controllers/clustersserviceregistration"
-	"github.com/Azure/ARO-HCP/fleet/pkg/controllers/hcpresourcerequirements"
-	"github.com/Azure/ARO-HCP/fleet/pkg/controllers/lifecycle"
 	"github.com/Azure/ARO-HCP/fleet/pkg/controllers/maestroregistration"
-	"github.com/Azure/ARO-HCP/fleet/pkg/controllers/nodepool"
-	"github.com/Azure/ARO-HCP/fleet/pkg/controllers/sharedingress"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
-	"github.com/Azure/ARO-HCP/internal/database/informers/fleetinformers"
-	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	sharedleaderelection "github.com/Azure/ARO-HCP/internal/leaderelection"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -83,7 +74,7 @@ type Manager struct {
 	NodePoolZones                []string
 }
 
-// Run starts the fleet controller manager. It serves /healthz and /metrics,
+// Run starts the fleet controller manager. It serves /healthz, /startupz and /metrics,
 // then runs the controllers under a leader-election lease.
 func (m *Manager) Run(ctx context.Context) error {
 	logger := utils.LoggerFromContext(ctx)
@@ -101,21 +92,7 @@ func (m *Manager) Run(ctx context.Context) error {
 	)
 
 	if len(m.HealthzListenAddr) > 0 {
-		healthGauge := promauto.With(legacyregistry.Registerer()).NewGauge(prometheus.GaugeOpts{
-			Name: "fleet_controller_health", Help: "fleet_controller_health is 1 when healthy",
-		})
-		mux := http.NewServeMux()
-		mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
-			if err := electionChecker.Check(r); err != nil {
-				logger.V(1).Info("readiness probe failed", "error", err)
-				http.Error(w, "lease not renewed", http.StatusServiceUnavailable)
-				healthGauge.Set(0)
-				return
-			}
-			w.WriteHeader(http.StatusOK)
-			healthGauge.Set(1)
-		})
-		server := &http.Server{Addr: m.HealthzListenAddr, Handler: mux}
+		server := &http.Server{Addr: m.HealthzListenAddr, Handler: m.healthHandler(ctx, electionChecker, legacyregistry.Registerer())}
 		wg.Add(1)
 		go func() {
 			defer cancel(fmt.Errorf("healthz server exited"))
@@ -166,114 +143,53 @@ func (m *Manager) Run(ctx context.Context) error {
 	return errors.Join(errs...)
 }
 
+func (m *Manager) healthHandler(ctx context.Context, electionChecker *leaderelection.HealthzAdaptor, registerer prometheus.Registerer) http.Handler {
+	logger := utils.LoggerFromContext(ctx)
+	healthGauge := promauto.With(registerer).NewGauge(prometheus.GaugeOpts{
+		Name: "fleet_controller_health", Help: "fleet_controller_health is 1 when healthy",
+	})
+	mux := http.NewServeMux()
+	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+		if err := electionChecker.Check(r); err != nil {
+			logger.V(1).Info("readiness probe failed", "error", err)
+			http.Error(w, "lease not renewed", http.StatusServiceUnavailable)
+			healthGauge.Set(0)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		healthGauge.Set(1)
+	})
+	mux.HandleFunc("/startupz", func(w http.ResponseWriter, r *http.Request) {
+		queryCtx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+		defer cancel()
+		iterator, err := m.FleetDBClient.GlobalListers().Stamps().List(queryCtx, &cosmosstorageutils.DBClientListResourceDocsOptions{
+			PageSizeHint: ptr.To(int32(1)),
+		})
+		if err == nil {
+			for range iterator.Items(queryCtx) {
+				break
+			}
+			err = iterator.GetError()
+		}
+		if err != nil {
+			logger.Error(err, "Startup probe failed")
+			http.Error(w, "Cosmos DB query failed", http.StatusServiceUnavailable)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	})
+
+	return mux
+}
+
 func (m *Manager) runControllersUnderLeaderElection(
 	ctx context.Context, electionChecker *leaderelection.HealthzAdaptor,
 ) error {
 	logger := utils.LoggerFromContext(ctx)
-
-	fleetInformers := fleetinformers.NewFleetInformers(ctx, m.FleetDBClient.GlobalListers(), m.FleetDBClient)
-
-	stampInformer, stampLister := fleetInformers.Stamps()
-	managementClusterInformer, managementClusterLister := fleetInformers.ManagementClusters()
-
-	csRegistrationController := clustersserviceregistration.NewClustersServiceRegistrationController(
-		managementClusterInformer,
-		stampInformer,
-		m.FleetDBClient,
-		m.ClustersServiceClient,
-		stampLister,
-		m.Region,
-		base.StampWatchingControllerConfig{Cooldown: base.DefaultRegistrationAwareCooldown(managementClusterLister)},
-	)
-
-	maestroRegistrationController := maestroregistration.NewMaestroRegistrationController(
-		managementClusterInformer,
-		stampInformer,
-		m.FleetDBClient,
-		m.MaestroConsumerClientFactory,
-		stampLister,
-		base.StampWatchingControllerConfig{Cooldown: base.DefaultRegistrationAwareCooldown(managementClusterLister)},
-	)
-
-	lifecycleController := lifecycle.NewManagementClusterLifecycleController(
-		managementClusterInformer,
-		m.FleetDBClient,
-		base.StampWatchingControllerConfig{Cooldown: base.DefaultRegistrationAwareCooldown(managementClusterLister)},
-	)
-
-	unionKubeApplierInformersController := unionkubeapplierinformers.NewUnionKubeApplierInformersController(
-		managementClusterInformer,
-		managementClusterLister,
-		unionkubeapplierinformers.NewKubeApplierInformerFactory(m.KubeApplierDBClients, nil),
-	)
-	readDesireInformer, readDesireLister := unionKubeApplierInformersController.Union().ReadDesires()
-
-	ensureCapacityReadDesireController := capacityreporting.NewEnsureCapacityReadDesireController(
-		managementClusterInformer,
-		m.KubeApplierDBClients,
-		base.StampWatchingControllerConfig{CooldownPeriod: 5 * time.Minute},
-	)
-
-	capacityReportingController := capacityreporting.NewCapacityReportingController(
-		readDesireInformer,
-		managementClusterInformer,
-		m.FleetDBClient,
-		readDesireLister,
-		base.StampWatchingControllerConfig{CooldownPeriod: 5 * time.Minute},
-	)
-
-	ensureSharedIngressReadDesireController := sharedingress.NewEnsureSharedIngressReadDesireController(
-		managementClusterInformer,
-		m.KubeApplierDBClients,
-		readDesireLister,
-		base.StampWatchingControllerConfig{CooldownPeriod: 5 * time.Minute},
-	)
-
-	sharedIngressReportingController := sharedingress.NewSharedIngressReportingController(
-		readDesireInformer,
-		managementClusterInformer,
-		m.FleetDBClient,
-		readDesireLister,
-		managementClusterLister,
-		base.StampWatchingControllerConfig{CooldownPeriod: 5 * time.Minute},
-	)
-
-	scaleCeilingReportingController := capacityreporting.NewManagementClusterScaleCeilingReportingController(
-		managementClusterInformer,
-		m.FleetDBClient,
-		readDesireLister,
-		m.Region,
-		m.AzureCredential,
-		m.AzureClientOptions,
-		base.StampWatchingControllerConfig{CooldownPeriod: 10 * time.Minute},
-	)
-
-	hcpResourceRequirementsController := hcpresourcerequirements.NewController(
-		5*time.Minute,
-		m.FleetDBClient,
-		readDesireLister,
-		stampLister,
-	)
-
-	amwScalingController := amwscaling.NewController(
-		m.AMWScalingPollInterval,
-		m.AMWWorkspaceResourceIDs,
-		m.AzureCredential,
-		m.AzureClientOptions,
-	)
-
-	var nodePoolController base.Controller
-	if m.NodePoolProfile != nil {
-		nodePoolController = nodepool.NewNodePoolController(
-			managementClusterInformer,
-			managementClusterLister,
-			m.FleetDBClient,
-			*m.NodePoolProfile,
-			m.NodePoolZones,
-			m.Region,
-			m.AzureCredential,
-			m.AzureClientOptions,
-		)
+	controllerContext := m.newControllerContext(ctx)
+	controllers, err := instantiateControllers(newControllerRegistry(), controllerContext)
+	if err != nil {
+		return err
 	}
 
 	leaderElectionConfig := leaderelection.LeaderElectionConfig{
@@ -283,30 +199,7 @@ func (m *Manager) runControllersUnderLeaderElection(
 		RetryPeriod:   sharedleaderelection.RecommendedRetryPeriod,
 		Callbacks: leaderelection.LeaderCallbacks{
 			OnStartedLeading: func(ctx context.Context) {
-				logger.Info("acquired leader election lease; starting informers")
-
-				go fleetInformers.RunWithContext(ctx)
-
-				if !cache.WaitForCacheSync(ctx.Done(), stampInformer.HasSynced, managementClusterInformer.HasSynced) {
-					logger.Info("informer caches did not sync; aborting controller startup")
-					return
-				}
-
-				logger.Info("informer caches synced; starting controllers")
-				go unionKubeApplierInformersController.Run(ctx, 2)
-				go csRegistrationController.Run(ctx, 4)
-				go maestroRegistrationController.Run(ctx, 4)
-				go lifecycleController.Run(ctx, 1)
-				go ensureCapacityReadDesireController.Run(ctx, 1)
-				go capacityReportingController.Run(ctx, 1)
-				go ensureSharedIngressReadDesireController.Run(ctx, 1)
-				go sharedIngressReportingController.Run(ctx, 1)
-				go scaleCeilingReportingController.Run(ctx, 1)
-				go hcpResourceRequirementsController.Run(ctx)
-				go amwScalingController.Run(ctx)
-				if nodePoolController != nil {
-					go nodePoolController.Run(ctx, 4)
-				}
+				startControllers(ctx, controllers, controllerContext.FleetInformers)
 			},
 			OnStoppedLeading: func() {
 				logger.Info("lost leader election lease")

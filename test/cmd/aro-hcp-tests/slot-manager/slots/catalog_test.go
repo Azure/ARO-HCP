@@ -64,6 +64,49 @@ environments:
             resource_group_count: 15
 `
 
+func TestIdentityContainerProvisioningCount(t *testing.T) {
+	t.Parallel()
+	for _, test := range []struct {
+		name      string
+		field     string
+		physical  int
+		wantError bool
+	}{
+		{name: "omitted", physical: 70},
+		{name: "zero defaults", field: "        identity_container_provisioning_count: 0\n", physical: 70},
+		{name: "reserve", field: "        identity_container_provisioning_count: 100\n", physical: 100},
+		{name: "less than leased", field: "        identity_container_provisioning_count: 69\n", wantError: true},
+		{name: "negative", field: "        identity_container_provisioning_count: -1\n", wantError: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			input := strings.Replace(syntheticCatalogYAML, "resource_group_count: 20", "resource_group_count: 70", 1)
+			input = strings.Replace(input, "        slot_count: 2\n", "        slot_count: 2\n"+test.field, 1)
+			catalog, err := loadCatalogFromYAMLWithError(t, input)
+			if test.wantError {
+				if err == nil || !strings.Contains(err.Error(), "identity_container_provisioning_count") {
+					t.Fatalf("expected provisioning count error, got %v", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("loading catalog: %v", err)
+			}
+			pool := catalog.Environments["dev"].Pools[0]
+			if got := pool.EffectiveIdentityContainerProvisioningCount(); got != test.physical {
+				t.Fatalf("physical pool count = %d, want %d", got, test.physical)
+			}
+			for _, slot := range ExpandSlotsForPool("dev", pool) {
+				if slot.IdentityContainerCount != 70 || len(slot.IdentityContainerNames()) != 70 {
+					t.Fatalf("runtime lease budget changed: %+v", slot)
+				}
+				if got := len(slot.ProvisionedIdentityContainerNames()); got != test.physical {
+					t.Fatalf("physical inventory count = %d, want %d", got, test.physical)
+				}
+			}
+		})
+	}
+}
+
 func loadCatalogFromYAML(t *testing.T, catalogYAML string) *Catalog {
 	t.Helper()
 	catalog, err := loadCatalogFromYAMLWithError(t, catalogYAML)

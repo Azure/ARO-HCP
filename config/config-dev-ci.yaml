@@ -131,7 +131,7 @@ clouds:
           image:
             registry: "quay.io"
             repository: "roivaz/cihealth"
-            digest: sha256:95a79e4c72249144eda18f1ec196f21b240151ae01aa73947a25366dc39eeb3b # 5dea9d3 (2026-09-21 10:14)
+            digest: sha256:99aedf8ac3cb660bd5c6daff45aa14e3d3d0eb808952e8298439f4dd67120cbf # e2b6196 (2026-10-09 09:49)
           disableRuntimeWorkloads: false
           app:
             replicas: 2
@@ -159,10 +159,11 @@ clouds:
           email: "aro-hcp-service-lifecycle-team@redhat.com"
           enabled: true
         tenantQuota:
+          exitOnPanic: false
           image:
             registry: "arohcpsvcdev.azurecr.io"
             repository: "tenant-quota-collector"
-            digest: sha256:8c01f8e63df19e7658cad0ed3c6ddf14ba9796d617abd5de678dbb06b45a94da # 014015ee1bfd6c177eece47b4ea575d02bd04198 (2026-10-01 06:36)
+            digest: sha256:232985de4255e3db9308b348768ab289b0550923a17d46d85d8b55d11fa45f42 # 9489a7e (2026-10-10 04:39)
           ciJobOutcomes:
             # Records the outcome of each CI job run so the alerts and logs in
             # the dev Kusto can be attributed to the run that produced them.
@@ -181,22 +182,30 @@ clouds:
             testResults:
               table: "ciTestResults"
               ingestionMapping: "ciTestResultsMapping"
-            sippyURI: "https://sippy.dptools.openshift.org"
+            discovered:
+              table: "ciDiscoveredJobs"
+              ingestionMapping: "ciDiscoveredJobsMapping"
+            processed:
+              table: "ciProcessedJobs"
+              ingestionMapping: "ciProcessedJobsMapping"
+            gcsBucket: "test-platform-results-public"
             jobFilter: "e2e-parallel"
-            interval: "5m"
-            # Bounds a single pass, so a stuck read cannot stall collection.
-            # Longer than the collector-wide timeout because a pass reads one
-            # set of artifacts per run it has not seen.
-            timeout: "10m"
-            # How much recent history each pass reads. Runs already stored are
-            # subtracted, so this only has to cover a slow run completing after
-            # faster ones started later.
+            # Process discovered jobs independently of GCS discovery.
+            interval: "15m"
+            discoveryInterval: "30m"
+            completionDelay: "15m"
+            # Minimum lookback on startup and periodic repair polls.
             window: "24h"
-            releases:
-            - "Presubmits"
-            - "aro-integration"
-            - "aro-stage"
-            - "aro-production"
+            # Optional explicit RFC3339 startup boundary; bootstrap is separate.
+            startupSince: ""
+            repairInterval: "12h"
+            # Re-read before each job's discovery cursor to cover late results.
+            overlap: "10m"
+            workers: 10
+            discoveryWorkers: 2
+            # Bounds recent-submission caches.
+            cacheSize: 20000
+            cacheTTL: "15m"
           prow:
             enabled: true
             baseURL: "https://prow.ci.openshift.org"
@@ -300,6 +309,18 @@ clouds:
               - brazilsouth
               - eastus2
       ci:
+        # Required Azure resource providers for ARO-HCP-managed E2E subscriptions.
+        # This is the single source of truth for provider registration; add new
+        # dependencies here and re-run make dev-ci-privileged-local-run.
+        e2eSubscriptionProviders:
+        - "Microsoft.Compute"
+        - "Microsoft.Insights"
+        - "Microsoft.KeyVault"
+        - "Microsoft.ManagedIdentity"
+        - "Microsoft.Network"
+        - "Microsoft.Quota"
+        - "Microsoft.RedHatOpenShift"
+        - "Microsoft.Storage"
         dev:
           bot:
             applicationName: "OpenShift Release Bot"
@@ -324,6 +345,7 @@ clouds:
             isGlobalSubscription: true
           - name: "ARO HCP E2E Infrastructure (EA Subscription)"
             id: "0ef1ad54-9296-44cd-9600-5dc8e9a74034"
+            costTagInheritance: true
           mockIdentities:
             vaultUrl: "https://aro-hcp-dev-svc-kv.vault.azure.net"
             firstParty:

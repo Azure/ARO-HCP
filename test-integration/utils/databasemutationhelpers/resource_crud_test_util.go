@@ -32,6 +32,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/test-integration/utils/integrationutils"
 )
@@ -479,6 +480,7 @@ type StepInput struct {
 	ContentLoader          integrationutils.ContentLoader
 	DocumentLister         integrationutils.DocumentLister
 	ResourcesDBClient      corecosmosstorage.ResourcesDBClient
+	FleetDBClient          fleetcosmosstorage.FleetDBClient
 	FrontendURL            string
 	AdminURL               string
 	APIVersion             string
@@ -522,5 +524,6 @@ func NewCosmosStepInput(storageInfo integrationutils.StorageIntegrationTestInfo)
 		ContentLoader:     storageInfo,
 		DocumentLister:    storageInfo,
 		ResourcesDBClient: storageInfo.ResourcesDBClient(),
+		FleetDBClient:     storageInfo.FleetDBClient(),
 	}
 }

@@ -48,6 +48,16 @@ swagger: fmt
 
 .PHONY: models
 models: $(GOIMPORTS)
+	@# Seed a placeholder go.mod so the emitter discovers the intended module
+	@# identity directly instead of walking up to a parent go.mod (e.g.
+	@# ../internal/go.mod), which would otherwise rename the generated
+	@# package from "generated" to the parent module's base name. Cleanup
+	@# must happen even if compilation fails, so create and compile in one
+	@# shell with an EXIT trap.
+	set -e; \
+	trap 'rm $(RM_FORCE) $(TYPESPEC_GO_OUTPUT_DIR)/go.mod' EXIT; \
+	mkdir -p $(TYPESPEC_GO_OUTPUT_DIR); \
+	printf 'module github.com/Azure/ARO-HCP/internal/azureapi/$(VERSION)/generated\n\ngo 1.26.0\n' > $(TYPESPEC_GO_OUTPUT_DIR)/go.mod; \
 	npx tsp compile $(SPEC_BASE_DIR) \
 		--warn-as-error \
 		--emit @azure-tools/typespec-go \
@@ -68,7 +78,6 @@ models: $(GOIMPORTS)
 	rm $(RM_FORCE) ${TYPESPEC_GO_OUTPUT_DIR}/*_client.go
 	rm $(RM_FORCE) ${TYPESPEC_GO_OUTPUT_DIR}/options.go
 	rm $(RM_FORCE) ${TYPESPEC_GO_OUTPUT_DIR}/responses.go
-	rm $(RM_FORCE) ${TYPESPEC_GO_OUTPUT_DIR}/go.mod
 	rm $(RM_FORCE) ${TYPESPEC_GO_OUTPUT_DIR}/go.sum
 	rm $(RM_FORCE) ${TYPESPEC_GO_OUTPUT_DIR}/LICENSE.txt
 	rm $(RM_FORCE) ${TYPESPEC_GO_OUTPUT_DIR}/version.go

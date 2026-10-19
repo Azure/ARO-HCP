@@ -17,6 +17,7 @@ package cluster
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -32,13 +33,13 @@ import (
 // querying Azure Resource Graph for AKS clusters tagged with the
 // requested clusterType values.
 type DiscoverResult struct {
-	ClusterNames    []string
-	SubscriptionIDs []string
+	Clusters []ClusterInfo
 }
 
-type clusterRow struct {
+type ClusterInfo struct {
 	Name           string `mapstructure:"name"`
 	SubscriptionId string `mapstructure:"subscriptionId"`
+	ClusterType    string `mapstructure:"clusterType"`
 }
 
 type ClusterDiscoveryPoller struct {
@@ -47,7 +48,7 @@ type ClusterDiscoveryPoller struct {
 	resultMutex  sync.Mutex
 	discovered   bool
 	discoveredCh chan struct{}
-	rows         []clusterRow
+	rows         []ClusterInfo
 	sleepTime    time.Duration
 }
 
@@ -68,7 +69,7 @@ func (c *ClusterDiscoveryPoller) Poll(ctx context.Context) {
 		return
 	default:
 		logger := logr.FromContextOrDiscard(ctx)
-		var newRows []clusterRow
+		var newRows []ClusterInfo
 		err := c.client.ExecuteConvertRequest(ctx, graphquery.ResourceGraphRequest{
 			Query:  &c.query,
 			Output: &newRows,
@@ -112,22 +113,11 @@ func (c *ClusterDiscoveryPoller) GetDiscoverResult(ctx context.Context) Discover
 	}
 
 	c.resultMutex.Lock()
-	rows := c.rows
-	c.resultMutex.Unlock()
-
-	var result DiscoverResult
-	seenSubs := sets.New[string]()
-	seenClusterNames := sets.New[string]()
-	for _, row := range rows {
-		seenClusterNames.Insert(row.Name)
-		seenSubs.Insert(row.SubscriptionId)
-	}
-	result.ClusterNames = seenClusterNames.UnsortedList()
-	result.SubscriptionIDs = seenSubs.UnsortedList()
-	return result
+	defer c.resultMutex.Unlock()
+	return DiscoverResult{Clusters: slices.Clone(c.rows)}
 }
 
-func clusterNames(rows []clusterRow) sets.Set[string] {
+func clusterNames(rows []ClusterInfo) sets.Set[string] {
 	s := sets.New[string]()
 	for _, r := range rows {
 		s.Insert(r.Name)
@@ -155,6 +145,6 @@ func BuildClusterQuery(region string, clusterTypes []string, clusterNameFilter s
 	if clusterNameFilter != "" {
 		query += fmt.Sprintf("\n| where name contains '%s'", graphquery.EscapeKQL(clusterNameFilter))
 	}
-	query += "\n| project name, subscriptionId"
+	query += "\n| project name, subscriptionId, clusterType = tostring(tags['clusterType'])"
 	return query
 }

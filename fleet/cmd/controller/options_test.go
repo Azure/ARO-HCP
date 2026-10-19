@@ -102,38 +102,20 @@ func TestResolveNodePoolProfile(t *testing.T) {
 	tests := []struct {
 		name        string
 		profile     string
-		zones       string
 		zoneCount   int
 		wantZones   []string
 		wantErr     bool
 		errContains string
 	}{
 		{
-			name:      "valid profile with explicit zones",
-			profile:   compute.ProfileCI,
-			zones:     "1,2,3",
-			zoneCount: 3,
-			wantZones: []string{"1", "2", "3"},
-		},
-		{
-			name:      "valid profile with no zones derives the region's zones",
+			name:      "valid profile derives every zone of the region",
 			profile:   compute.ProfileProduction,
-			zones:     "",
-			zoneCount: 3,
-			wantZones: []string{"1", "2", "3"},
-		},
-		{
-			name:        "explicit zone outside the region range is rejected",
-			profile:     compute.ProfileProduction,
-			zones:       "1,3,4",
-			zoneCount:   3,
-			wantErr:     true,
-			errContains: "outside the region's availability zones",
+			zoneCount: 4,
+			wantZones: []string{"1", "2", "3", "4"},
 		},
 		{
 			name:        "zero zone count is rejected",
 			profile:     compute.ProfileProduction,
-			zones:       "",
 			zoneCount:   0,
 			wantErr:     true,
 			errContains: "region has 0 availability zones, fewer than the 3 required",
@@ -150,7 +132,6 @@ func TestResolveNodePoolProfile(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			opts := &RawControllerOptions{
 				NodePoolProfile:                  tt.profile,
-				NodePoolZones:                    tt.zones,
 				AzureRegionAvailabilityZoneCount: tt.zoneCount,
 			}
 

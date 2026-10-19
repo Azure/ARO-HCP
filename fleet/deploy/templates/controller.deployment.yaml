@@ -65,8 +65,6 @@ spec:
         - "{{ .Values.nodePoolPlanning.profile }}"
         - "--azure-region-availability-zone-count"
         - "{{ .Values.azureRegionAvailabilityZoneCount }}"
-        - "--nodepool-zones"
-        - "{{ .Values.nodePoolPlanning.zones }}"
         ports:
         - name: healthz
           containerPort: 8080
@@ -74,6 +72,19 @@ spec:
         - name: metrics
           containerPort: 8081
           protocol: TCP
+        startupProbe:
+          httpGet:
+            path: /startupz
+            port: healthz
+          timeoutSeconds: 6
+          periodSeconds: 10
+          failureThreshold: 30
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: healthz
+          periodSeconds: 20
+          failureThreshold: 3
         readinessProbe:
           httpGet:
             path: /healthz

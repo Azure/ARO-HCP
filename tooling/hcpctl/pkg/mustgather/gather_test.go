@@ -244,6 +244,127 @@ func TestGatherer_GatherLogs_OperationIds(t *testing.T) {
 	}
 }
 
+func TestGatherer_GatherLogs_CustomQueryWindows(t *testing.T) {
+	for _, summarize := range []bool{false, true} {
+		name := "raw"
+		if summarize {
+			name = "summarized orchestration"
+		}
+		t.Run(name, func(t *testing.T) {
+			queryClient := &MockQueryClient{}
+			opts := testQueryOptions("test-sub", "test-rg", "")
+			opts.ClusterIds = []string{"cluster-id"}
+			opts.TimestampMin = time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+			opts.TimestampMax = opts.TimestampMin.Add(12 * time.Minute)
+			opts.Limit = -1
+			var output []*NormalizedLogLine
+			outputFunc := func(ctx context.Context, logLineChan chan *NormalizedLogLine, options RowOutputOptions) error {
+				for line := range logLineChan {
+					output = append(output, line)
+				}
+				return nil
+			}
+			gatherer := NewGatherer(queryClient, outputFunc, nil, GathererOptions{
+				SkipKubernetesEventsLogs:   true,
+				SkipHostedControlPlaneLogs: true,
+				SummarizeOrchestrationLogs: summarize,
+				QueryOptions:               opts,
+			})
+			queryClient.On("ExecutePreconfiguredQuery", mock.Anything, mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
+				if args.Get(1).(kusto.Query).GetName() == "clusterNamesSvc" {
+					row := makeTestRow(t, []struct {
+						name string
+						typ  types.Column
+					}{{"cluster", types.String}}, value.Values{value.NewString("svc-cluster")})
+					args.Get(2).(chan<- kusto.TaggedRow) <- row
+				}
+			}).Return(&kusto.QueryResult{}, nil)
+			customQueries := map[string]kusto.Query{}
+			queryClient.On("ConcurrentQueries", mock.Anything, mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
+				for _, q := range args.Get(1).([]kusto.Query) {
+					if q.GetQueryType() == kusto.QueryTypeCustomLogs {
+						assert.NotContains(t, customQueries, q.GetName(), "each custom query should retain one logical output")
+						customQueries[q.GetName()] = q
+					}
+					if summarize && q.GetName() == "detailedInfraOrchestrationLogs" {
+						row := makeTestRow(t, []struct {
+							name string
+							typ  types.Column
+						}{{"source", types.String}, {"rows", types.Long}}, value.Values{value.NewString("maestro"), value.NewLong(1599)})
+						row.QueryName = q.GetName()
+						row.QueryType = q.GetQueryType()
+						args.Get(2).(chan<- kusto.TaggedRow) <- row
+					}
+				}
+			}).Return(nil)
+			require.NoError(t, gatherer.GatherLogs(t.Context()))
+			queryClient.AssertExpectations(t)
+			if summarize {
+				require.Len(t, output, 1)
+				assert.Equal(t, "detailedInfraOrchestrationLogs", output[0].QueryName)
+				assert.Equal(t, kusto.QueryTypeCustomLogs, output[0].QueryType)
+				assert.Equal(t, "maestro", output[0].Log["source"])
+				assert.Equal(t, "1599", output[0].Log["rows"])
+			} else {
+				assert.Empty(t, output)
+			}
+
+			factory, err := kusto.NewQueryFactory()
+			require.NoError(t, err)
+			data := kusto.NewTemplateDataFromOptions(*opts, kusto.WithClusterNames([]string{"svc-cluster"}))
+			for _, name := range []string{"detailedServiceLogs", "backendControllerConditions"} {
+				def, err := factory.GetCustomQueryDefinition(name)
+				require.NoError(t, err)
+				expected, err := factory.Build(*def, data)
+				require.NoError(t, err)
+				for _, fullRange := range expected {
+					q, found := customQueries[fullRange.GetName()]
+					require.True(t, found, "missing custom query %s", fullRange.GetName())
+					assert.Equal(t, fullRange.GetDatabase(), q.GetDatabase())
+					assert.Equal(t, fullRange.GetQueryType(), q.GetQueryType())
+					assert.True(t, q.IsUnlimited())
+					sequence, windowed := q.(*kusto.TimeWindowQuery)
+					if summarize && q.GetName() == "detailedInfraOrchestrationLogs" {
+						assert.False(t, windowed, "orchestration summary must cover the full interval in one query")
+						text := q.GetQuery().String()
+						assert.Contains(t, text, "| summarize rows = count()")
+						assert.NotContains(t, text, "| order by")
+						assert.Equal(t, strings.Split(fullRange.GetQuery().String(), "| order by")[0], strings.Split(text, "| summarize")[0], "summary must retain full-range selection")
+						continue
+					}
+					assert.Equal(t, fullRange.GetQuery().String(), q.GetQuery().String(), "%s must retain its normal query", q.GetName())
+					if q.GetName() != "detailedInfraOrchestrationLogs" && q.GetName() != "backendControllerConditions" {
+						assert.False(t, windowed, "%s must retain full-range aggregation", q.GetName())
+						continue
+					}
+					require.True(t, windowed, "%s should be windowed", q.GetName())
+					require.Len(t, sequence.Windows, 3)
+					for i, window := range sequence.Windows {
+						windowData := data
+						kusto.WithTimestampMin(opts.TimestampMin.Add(time.Duration(i) * 5 * time.Minute))(&windowData)
+						end := opts.TimestampMin.Add(time.Duration(i+1)*5*time.Minute - 100*time.Nanosecond)
+						if end.After(opts.TimestampMax) {
+							end = opts.TimestampMax
+						}
+						kusto.WithTimestampMax(end)(&windowData)
+						expectedWindows, err := factory.Build(*def, windowData)
+						require.NoError(t, err)
+						for _, expectedWindow := range expectedWindows {
+							if expectedWindow.GetName() == q.GetName() {
+								assert.Equal(t, expectedWindow.GetQuery().String(), window.GetQuery().String())
+							}
+						}
+						assert.Equal(t, q.GetName(), window.GetName())
+						assert.Equal(t, q.GetDatabase(), window.GetDatabase())
+						assert.Equal(t, q.GetQueryType(), window.GetQueryType())
+						assert.True(t, window.IsUnlimited())
+					}
+				}
+			}
+		})
+	}
+}
+
 func TestGatherer_GatherLogs_WithKubernetesEventsAndSystemdLogs(t *testing.T) {
 	mockQueryClient := &MockQueryClient{}
 	gatherer := &Gatherer{

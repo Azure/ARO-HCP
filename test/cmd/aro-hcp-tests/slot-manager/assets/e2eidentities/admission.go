@@ -21,12 +21,15 @@ import (
 	"net/http"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-logr/logr"
 	"github.com/google/uuid"
+	"golang.org/x/sync/errgroup"
 
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/utils/ptr"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v3"
@@ -37,23 +40,11 @@ import (
 	"github.com/Azure/ARO-HCP/test/util/framework"
 )
 
-const admissionPhaseTimeout = 10 * time.Minute
-
 type identityLeaseInventory struct {
-	federatedCredentials []federatedCredentialReference
-	roleAssignments      []*armauthorization.RoleAssignment
+	roleAssignments []*armauthorization.RoleAssignment
 }
 
-type federatedCredentialReference struct {
-	resourceGroup string
-	identityName  string
-	name          string
-}
-
-func admitE2EIdentityLease(ctx context.Context, request assets.LeaseRequest) error {
-	ctx, cancel := context.WithTimeout(ctx, admissionPhaseTimeout)
-	defer cancel()
-
+func admitE2EIdentityLease(ctx context.Context, request assets.LeaseRequest, cleanupWorkers int) error {
 	credential, subscriptionID, err := leaseCredential(request)
 	if err != nil {
 		return err
@@ -68,46 +59,47 @@ func admitE2EIdentityLease(ctx context.Context, request assets.LeaseRequest) err
 		return fmt.Errorf("failed creating role assignments client: %w", err)
 	}
 
-	return admitIdentityLeaseWithClients(ctx, request, msiFactory, roleAssignmentsClient)
+	return admitIdentityLeaseWithClients(ctx, request, msiFactory, roleAssignmentsClient, cleanupWorkers)
 }
 
-func admitIdentityLeaseWithClients(ctx context.Context, request assets.LeaseRequest, msiFactory *armmsi.ClientFactory, roleAssignmentsClient *armauthorization.RoleAssignmentsClient) error {
+func admitIdentityLeaseWithClients(ctx context.Context, request assets.LeaseRequest, msiFactory *armmsi.ClientFactory, roleAssignmentsClient *armauthorization.RoleAssignmentsClient, cleanupWorkers int) error {
+	logger := logr.FromContextOrDiscard(ctx)
+	logger.Info("Loading identity lease inventory", "slotName", request.AcquiredSlotState.Slot.ResourceName, "resourceGroupCount", len(request.AcquiredSlotState.Slot.IdentityContainerNames()))
 	inventory, err := loadIdentityLeaseInventory(ctx, request, msiFactory, roleAssignmentsClient)
 	if err != nil {
 		return err
 	}
+	logger.Info(fmt.Sprintf("Loaded identity lease inventory with %d role assignments", len(inventory.roleAssignments)))
 
-	federatedCredentialsClient := msiFactory.NewFederatedIdentityCredentialsClient()
-	deleteOperations := make([]func(context.Context) error, 0, len(inventory.federatedCredentials)+len(inventory.roleAssignments))
-	for _, reference := range inventory.federatedCredentials {
-		deleteOperations = append(deleteOperations, func(ctx context.Context) error {
-			_, err := federatedCredentialsClient.Delete(ctx, reference.resourceGroup, reference.identityName, reference.name, nil)
-			if isNotFound(err) {
-				return nil
-			}
-			if err != nil {
-				return fmt.Errorf("failed deleting FIC %q from identity %q in resource group %q: %w", reference.name, reference.identityName, reference.resourceGroup, err)
-			}
-			return nil
-		})
-	}
+	deleteOperations := make([]func(context.Context) error, 0, len(inventory.roleAssignments))
 	for _, assignment := range inventory.roleAssignments {
 		deleteOperations = append(deleteOperations, func(ctx context.Context) error {
 			if assignment.ID == nil {
 				return errors.New("role assignment has no ID")
 			}
+			logger.Info("Attempting to delete role assignment", "roleAssignmentResourceID", *assignment.ID)
 			_, err := roleAssignmentsClient.DeleteByID(ctx, *assignment.ID, nil)
 			if isNotFound(err) {
+				logger.Info("Role assignment not found. Nothing to delete", "roleAssignmentResourceID", *assignment.ID)
 				return nil
 			}
 			if err != nil {
 				return fmt.Errorf("failed deleting role assignment %q: %w", *assignment.ID, err)
 			}
+			logger.Info("Deleted role assignment",
+				"roleAssignmentResourceID", *assignment.ID, "roleAssignmentPrincipalID", *assignment.Properties.PrincipalID,
+				"roleAssignmentRoleDefinitionResourceID", assignment.Properties.RoleDefinitionID,
+				"roleAssignmentScope", ptr.Deref(assignment.Properties.Scope, "<nil>"),
+				"roleAssignmentCreatedBy", ptr.Deref(assignment.Properties.CreatedBy, "<nil>"),
+				"roleAssignmentCreatedOn", ptr.Deref(assignment.Properties.CreatedOn, time.Time{}),
+			)
 			return nil
 		})
 	}
 
-	if err := runSerial(ctx, deleteOperations); err != nil {
+	workers := max(cleanupWorkers, 1)
+	logger.Info("Deleting role assignments", "count", len(deleteOperations), "workers", workers)
+	if err := runWithWorkers(ctx, deleteOperations, workers); err != nil {
 		return fmt.Errorf("failed cleaning E2E identity lease: %w", err)
 	}
 	// Exclusive ownership lets us rely on successful synchronous deletes without
@@ -152,7 +144,6 @@ func loadIdentityLeaseInventory(
 
 	inventory := &identityLeaseInventory{}
 	principalIDs := map[uuid.UUID]struct{}{}
-	federatedCredentialsClient := msiFactory.NewFederatedIdentityCredentialsClient()
 	identitiesClient := msiFactory.NewUserAssignedIdentitiesClient()
 
 	for _, resourceGroup := range request.AcquiredSlotState.Slot.IdentityContainerNames() {
@@ -196,26 +187,6 @@ func loadIdentityLeaseInventory(
 		}
 		if err := validateIdentityNames(resourceGroup, expectedIdentities, actualIdentities); err != nil {
 			return nil, err
-		}
-
-		for _, identityName := range expectedIdentityNames {
-			ficPager := federatedCredentialsClient.NewListPager(resourceGroup, identityName, nil)
-			for ficPager.More() {
-				page, err := ficPager.NextPage(ctx)
-				if err != nil {
-					return nil, fmt.Errorf("failed listing FICs for identity %q in resource group %q: %w", identityName, resourceGroup, err)
-				}
-				for _, credential := range page.Value {
-					if credential == nil || credential.Name == nil || strings.TrimSpace(*credential.Name) == "" {
-						return nil, fmt.Errorf("FIC list for identity %q in resource group %q returned an entry without a name", identityName, resourceGroup)
-					}
-					inventory.federatedCredentials = append(inventory.federatedCredentials, federatedCredentialReference{
-						resourceGroup: resourceGroup,
-						identityName:  identityName,
-						name:          *credential.Name,
-					})
-				}
-			}
 		}
 	}
 
@@ -266,16 +237,35 @@ func validateIdentityNames(resourceGroup string, expected map[string]struct{}, a
 	return nil
 }
 
-func runSerial(ctx context.Context, operations []func(context.Context) error) error {
-	var errs []error
+// runWithWorkers runs every operation with at most workers running at once and
+// joins their errors. Once ctx is done no further operation starts, and the
+// context error is part of the result. Joined error order is unspecified when
+// workers > 1.
+func runWithWorkers(ctx context.Context, operations []func(context.Context) error, workers int) error {
+	var (
+		group errgroup.Group
+		lock  sync.Mutex
+		errs  []error
+	)
+	group.SetLimit(max(workers, 1))
 	for _, operation := range operations {
 		if ctx.Err() != nil {
 			break
 		}
-		if err := runOperation(ctx, operation); err != nil {
-			errs = append(errs, err)
-		}
+		group.Go(func() error {
+			// Go blocks while all workers are busy, so ctx may be done by the time we run.
+			if ctx.Err() != nil {
+				return nil
+			}
+			if err := runOperation(ctx, operation); err != nil {
+				lock.Lock()
+				errs = append(errs, err)
+				lock.Unlock()
+			}
+			return nil
+		})
 	}
+	_ = group.Wait()
 	errs = append(errs, ctx.Err())
 	return errors.Join(errs...)
 }

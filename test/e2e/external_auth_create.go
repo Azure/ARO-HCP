@@ -23,10 +23,13 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	authenticationv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	"k8s.io/utils/ptr"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
@@ -34,6 +37,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	hcpsdk20260901preview "github.com/Azure/ARO-HCP/test/sdk/v20260901preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
@@ -249,5 +253,93 @@ var _ = Describe("Customer", func() {
 			By("verifying cluster operators are available after external auth config creation")
 			err = verifiers.VerifyAllClusterOperatorsAvailable().Verify(ctx, adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred(), "failed to verify cluster operators are available after external auth config creation")
+
+			By("updating external auth to let the platform choose the username prefix")
+			extAuth.Properties.Claim.Mappings.Username.PrefixPolicy = to.Ptr(hcpsdk20240610preview.UsernameClaimPrefixPolicyNone)
+			extAuth.Properties.Claim.Mappings.Username.Prefix = nil
+			_, err = framework.CreateOrUpdateExternalAuthAndWait20240610(ctx,
+				tc.Get20240610ClientFactoryOrDie(ctx).NewExternalAuthsClient(),
+				*resourceGroup.Name, customerClusterName, customerExternalAuthName,
+				extAuth, framework.ExternalAuthCreationTimeout)
+			Expect(err).NotTo(HaveOccurred(), "failed to apply external auth config with prefix policy None")
+
+			By("verifying the external auth config has no explicit username prefix")
+			eaResult, err = framework.GetExternalAuth20240610(ctx,
+				tc.Get20240610ClientFactoryOrDie(ctx).NewExternalAuthsClient(),
+				*resourceGroup.Name, customerClusterName, customerExternalAuthName)
+			Expect(err).NotTo(HaveOccurred(), "failed to get external auth config after changing the prefix policy")
+			username := eaResult.Properties.Claim.Mappings.Username
+			Expect(username.PrefixPolicy).NotTo(BeNil(), "external auth username prefix policy was nil")
+			Expect(*username.PrefixPolicy).To(Equal(hcpsdk20240610preview.UsernameClaimPrefixPolicyNone),
+				"external auth username prefix policy should be None")
+			if username.Prefix != nil {
+				Expect(*username.Prefix).To(BeEmpty(),
+					"external auth username prefix should be empty with prefix policy None")
+			}
+
+			By("verifying the OIDC username changed from the explicit prefix")
+			previousUsername := externalAuthSubjectPrefix + sp.ID
+			var platformUsername string
+			Eventually(func() (string, error) {
+				review, err := client.AuthenticationV1().SelfSubjectReviews().Create(ctx,
+					&authenticationv1.SelfSubjectReview{}, metav1.CreateOptions{})
+				if err != nil {
+					return "", err
+				}
+				platformUsername = review.Status.UserInfo.Username
+				return platformUsername, nil
+			}, 5*time.Minute, 10*time.Second).Should(And(Not(BeEmpty()), Not(Equal(previousUsername))),
+				"OIDC username should use the platform-selected prefix after the policy update")
+
+			By("verifying the OIDC identity can still access the cluster")
+			_, err = adminClient.RbacV1().ClusterRoleBindings().Create(ctx, &rbacv1.ClusterRoleBinding{
+				ObjectMeta: metav1.ObjectMeta{Name: "entra-admins-platform-prefix"},
+				RoleRef: rbacv1.RoleRef{
+					APIGroup: "rbac.authorization.k8s.io",
+					Kind:     "ClusterRole",
+					Name:     "cluster-admin",
+				},
+				Subjects: []rbacv1.Subject{{
+					APIGroup: "rbac.authorization.k8s.io",
+					Kind:     "User",
+					Name:     platformUsername,
+				}},
+			}, metav1.CreateOptions{})
+			Expect(err).NotTo(HaveOccurred(), "failed to bind the platform-prefixed OIDC username to cluster-admin")
+			Eventually(func() error {
+				_, err := client.CoreV1().Namespaces().List(ctx, metav1.ListOptions{})
+				return err
+			}, 5*time.Minute, 10*time.Second).Should(Succeed(),
+				"OIDC identity should list namespaces after the prefix policy update")
+
+			By("verifying Degraded condition via v20260901preview API")
+			eaClient20260901 := tc.Get20260901ClientFactoryOrDie(ctx).NewExternalAuthsClient()
+			Eventually(func(g Gomega) {
+				resp, err := eaClient20260901.Get(ctx, *resourceGroup.Name, customerClusterName, customerExternalAuthName, nil)
+				g.Expect(err).NotTo(HaveOccurred(), "failed to get external auth via v20260901preview API")
+
+				g.Expect(resp.Properties).NotTo(BeNil(), "external auth Properties was nil")
+
+				g.Expect(resp.Properties.Status).NotTo(BeNil(), "external auth Properties.Status was nil")
+				g.Expect(resp.Properties.Status.Conditions).NotTo(BeEmpty(), "external auth Properties.Status.Conditions was empty")
+
+				condByType := make(map[string]*hcpsdk20260901preview.Condition)
+				for _, c := range resp.Properties.Status.Conditions {
+					if c != nil && c.Type != nil {
+						condByType[string(*c.Type)] = c
+					}
+				}
+
+				degraded := condByType["Degraded"]
+				g.Expect(degraded).NotTo(BeNil(), "Degraded condition not found")
+
+				g.Expect(degraded.Status).NotTo(BeNil(), "Degraded Status was nil")
+
+				g.Expect(string(*degraded.Status)).To(Equal("False"),
+					fmt.Sprintf("Degraded status should be False after secret creation, got %s (reason: %s, message: %s)",
+						ptr.Deref((*string)(degraded.Status), "<nil>"),
+						ptr.Deref(degraded.Reason, "<nil>"),
+						ptr.Deref(degraded.Message, "<nil>")))
+			}, 5*time.Minute, 15*time.Second).Should(Succeed(), "Degraded condition did not converge to False")
 		})
 })

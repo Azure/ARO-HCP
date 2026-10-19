@@ -24,6 +24,8 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/prometheus/client_golang/prometheus"
 
+	"k8s.io/apimachinery/pkg/util/sets"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
@@ -121,9 +123,13 @@ func (c *ServiceTagUsageCollector) CollectMetricValues(ctx context.Context) {
 	logger := logr.FromContextOrDiscard(ctx)
 
 	discoverResult := c.clusterClient.GetDiscoverResult(ctx)
-	subscriptionIDsPtrs := make([]*string, 0, len(discoverResult.SubscriptionIDs))
-	for _, id := range discoverResult.SubscriptionIDs {
-		subscriptionIDsPtrs = append(subscriptionIDsPtrs, to.Ptr(id))
+	subscriptionIDs := sets.New[string]()
+	for _, clusterInfo := range discoverResult.Clusters {
+		subscriptionIDs.Insert(clusterInfo.SubscriptionId)
+	}
+	subscriptionIDsPtrs := make([]*string, 0, subscriptionIDs.Len())
+	for subscriptionID := range subscriptionIDs {
+		subscriptionIDsPtrs = append(subscriptionIDsPtrs, to.Ptr(subscriptionID))
 	}
 	if len(subscriptionIDsPtrs) == 0 {
 		logger.Info("No subscriptions discovered, skipping service tag usage collection")

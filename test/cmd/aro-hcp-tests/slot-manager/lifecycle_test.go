@@ -29,9 +29,11 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/go-logr/logr/funcr"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
+	"github.com/Azure/ARO-HCP/test/pkg/leaseenv"
 )
 
 const lifecycleCatalog = `version: 2
@@ -79,11 +81,17 @@ type lifecycleHandler struct {
 	calls            *[]string
 	fail             string
 	before           func(string, assets.LeaseRequest)
+	admit            func(context.Context) error
 	assetInventories *[]slots.AssetInventory
 	poolRequests     *[]assets.PoolRequest
+	// setting is bound to the "setting" option to observe --asset-admission-option.
+	setting int
 }
 
 func (h *lifecycleHandler) Kind() assets.Kind { return h.kind }
+func (h *lifecycleHandler) AttachOptions(flags *pflag.FlagSet) {
+	flags.IntVar(&h.setting, "setting", 0, "test option")
+}
 func (h *lifecycleHandler) Declared(pool slots.Pool) bool {
 	for _, assetRequirement := range pool.Requirements() {
 		if assetRequirement.Kind == h.kind {
@@ -132,7 +140,12 @@ func (h *lifecycleHandler) ApplyPools(_ context.Context, request assets.PoolRequ
 func (h *lifecycleHandler) ValidatePools(ctx context.Context, request assets.PoolRequest) error {
 	return h.ApplyPools(ctx, request)
 }
-func (h *lifecycleHandler) AdmitLease(_ context.Context, request assets.LeaseRequest) error {
+func (h *lifecycleHandler) AdmitLease(ctx context.Context, request assets.LeaseRequest) error {
+	if h.admit != nil {
+		if err := h.admit(ctx); err != nil {
+			return err
+		}
+	}
 	return h.call("admit", request)
 }
 func (h *lifecycleHandler) PublishLease(_ context.Context, request assets.LeaseRequest, contract *slots.RuntimeContractBuilder) error {
@@ -160,6 +173,139 @@ func lifecycleOptions(t *testing.T, catalog, server string, registry *assets.Reg
 				Infrastructure: slots.ResolvedSubscription{Name: "dev-infra", ID: "infra-id"},
 			}, nil
 		},
+		// SetupAzureGlobalLogger is a no-op in tests, so the path is never read or
+		// written. It only needs to satisfy Validate's non-empty requirement.
+		AzureGlobalLoggerLogPath: "azure-global-logger-test.log",
+		SetupAzureGlobalLogger:   noopSetupAzureGlobalLogger,
+	}
+}
+
+func TestAcquireAssetAdmissionOptions(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name        string
+		options     []string
+		wantSetting int
+		wantError   string
+	}{
+		{name: "none", wantSetting: 0},
+		{name: "applied to the named kind only", options: []string{"e2e_identities.setting=7"}, wantSetting: 7},
+		{name: "unknown kind", options: []string{"mock_identities.setting=1"}, wantError: "unknown asset kind"},
+		{name: "unknown key", options: []string{"e2e_identities.settin=1"}, wantError: "no option \"settin\""},
+		{name: "invalid value", options: []string{"e2e_identities.setting=many"}, wantError: "e2e_identities.setting"},
+		{name: "malformed", options: []string{"e2e_identities"}, wantError: "<kind>.<key>=<value>"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var calls []string
+			e2e := &lifecycleHandler{kind: slots.KindE2EIdentities, calls: &calls}
+			infra := &lifecycleHandler{kind: slots.KindInfrastructureIdentities, calls: &calls}
+			registry, err := assets.NewRegistry(e2e, infra)
+			if err != nil {
+				t.Fatal(err)
+			}
+			server, _, _ := newTestLeaseProxyServer(t, map[string][]leaseProxyReply{
+				"aro-hcp-dev-shard0-slot": {successAcquireReply("aro-hcp-dev-shard0-slot-00")},
+				"bundle-type":             {successAcquireReply("bundle-00"), successAcquireReply("bundle-01")},
+			})
+			defer server.Close()
+			options := lifecycleOptions(t, lifecycleCatalog, server.URL, registry)
+			options.AssetAdmissionOptions = tc.options
+			err = Acquire(t.Context(), options)
+			if tc.wantError != "" {
+				if err == nil || !strings.Contains(err.Error(), "--asset-admission-option") || !strings.Contains(err.Error(), tc.wantError) {
+					t.Fatalf("expected option error containing %q, got %v", tc.wantError, err)
+				}
+				if len(calls) != 0 {
+					t.Fatalf("invalid options must fail before leasing, got calls %v", calls)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if e2e.setting != tc.wantSetting || infra.setting != 0 {
+				t.Fatalf("expected e2e setting %d and untouched infra setting, got %d and %d", tc.wantSetting, e2e.setting, infra.setting)
+			}
+		})
+	}
+}
+
+func TestAcquireAdmissionDeadlineAndRollback(t *testing.T) {
+	t.Parallel()
+	for _, scenario := range []string{"default", "extended", "expired", "expired without handler error"} {
+		t.Run(scenario, func(t *testing.T) {
+			var calls []string
+			var firstDeadline time.Time
+			wantTimeout := DefaultAdmissionTimeout
+			if scenario == "extended" {
+				wantTimeout = 30 * time.Minute
+			}
+			expires := strings.HasPrefix(scenario, "expired")
+			if expires {
+				wantTimeout = 20 * time.Millisecond
+			}
+			e2e := &lifecycleHandler{kind: slots.KindE2EIdentities, calls: &calls}
+			infra := &lifecycleHandler{kind: slots.KindInfrastructureIdentities, calls: &calls}
+			e2e.admit = func(ctx context.Context) error {
+				deadline, ok := ctx.Deadline()
+				if !ok || time.Until(deadline) > wantTimeout || (!expires && time.Until(deadline) < wantTimeout-time.Second) {
+					t.Fatalf("handler received incorrect deadline: %v, expected budget %v", deadline, wantTimeout)
+				}
+				firstDeadline = deadline
+				return nil
+			}
+			infra.admit = func(ctx context.Context) error {
+				deadline, ok := ctx.Deadline()
+				if !ok || !deadline.Equal(firstDeadline) {
+					t.Fatal("all handlers must share one admission deadline")
+				}
+				if expires {
+					<-ctx.Done()
+					if scenario == "expired" {
+						return ctx.Err()
+					}
+				}
+				return nil
+			}
+			registry, err := assets.NewRegistry(e2e, infra)
+			if err != nil {
+				t.Fatal(err)
+			}
+			server, _, released := newTestLeaseProxyServer(t, map[string][]leaseProxyReply{
+				"aro-hcp-dev-shard0-slot": {successAcquireReply("aro-hcp-dev-shard0-slot-00")},
+				"bundle-type":             {successAcquireReply("bundle-00"), successAcquireReply("bundle-01")},
+			})
+			defer server.Close()
+			options := lifecycleOptions(t, lifecycleCatalog, server.URL, registry)
+			if scenario != "default" {
+				options.AdmissionTimeout = wantTimeout.String()
+			}
+			err = Acquire(t.Context(), options)
+			if expires {
+				if !errors.Is(err, context.DeadlineExceeded) {
+					t.Fatalf("expected admission deadline failure, got %v", err)
+				}
+				for _, call := range calls {
+					if strings.HasPrefix(call, "publish:") {
+						t.Fatalf("published after expired admission: %v", calls)
+					}
+				}
+				env, _ := slots.EnvFile(options.SharedDir)
+				if _, err := os.Stat(env); !errors.Is(err, os.ErrNotExist) {
+					t.Fatalf("runtime exports exist after timeout: %v", err)
+				}
+			} else {
+				if err != nil {
+					t.Fatalf("successful admission must still publish after cancelling its own context: %v", err)
+				}
+				if err := Release(t.Context(), &RawReleaseOptions{SharedDir: options.SharedDir, LeaseProxyServerURL: server.URL, LeaseProxyTimeout: time.Second}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if t.Context().Err() != nil || len(*released) != 3 || (*released)[2] != "aro-hcp-dev-shard0-slot-00" {
+				t.Fatalf("admission must not cancel its parent or prevent lease return: %v, %v", t.Context().Err(), *released)
+			}
+		})
 	}
 }
 
@@ -408,10 +554,10 @@ func TestPoolCommandsPreserveWholeCatalogInventory(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, validate := range []bool{false, true} {
-		err := runPoolAssetsCommand(context.Background(), registry, &assetCommandOptions{
+		err := runPoolAssetsCommand(context.Background(), registry, assetCommandOptionsForTest(assetCommandOptions{
 			Environment: "dev", SlotCatalog: path, Pools: []string{"shard0"}, Subscriptions: []string{"dev-e2e"},
 			AssetKinds: []string{string(slots.KindInfrastructureIdentities)},
-		}, validate)
+		}), validate)
 		if err != nil || len(assetInventories) != 1 || assetInventories[0].Capacity != 5 {
 			t.Fatalf("filtered command shrank full demand: %+v, %v", assetInventories, err)
 		}
@@ -420,7 +566,7 @@ func TestPoolCommandsPreserveWholeCatalogInventory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := runPoolAssetsCommand(context.Background(), builtIn, &assetCommandOptions{Environment: "dev", SlotCatalog: path}, true); err == nil || !strings.Contains(err.Error(), "without an implemented handler") {
+	if err := runPoolAssetsCommand(context.Background(), builtIn, assetCommandOptionsForTest(assetCommandOptions{Environment: "dev", SlotCatalog: path}), true); err == nil || !strings.Contains(err.Error(), "without an implemented handler") {
 		t.Fatalf("unsupported asset management must fail before Azure access: %v", err)
 	}
 }
@@ -568,7 +714,7 @@ func TestE2EOnlySelectedPoolNeverResolvesInfrastructure(t *testing.T) {
 			}
 			path, _ := slots.EnvFile(options.SharedDir)
 			data, err := os.ReadFile(path)
-			if err != nil || strings.Contains(string(data), "INFRA_SUBSCRIPTION_ID") || !strings.Contains(string(data), "ARO_HCP_DEPLOY_ENV='"+deploy+"'") || !strings.Contains(string(data), "FAKE_e2e_identities='ready'") {
+			if err != nil || strings.Contains(string(data), leaseenv.InfrastructureSubscriptionID) || !strings.Contains(string(data), "ARO_HCP_DEPLOY_ENV='"+deploy+"'") || !strings.Contains(string(data), "FAKE_e2e_identities='ready'") {
 				t.Fatalf("incorrect E2E-only runtime exports: %s, %v", data, err)
 			}
 			wantCalls := []string{"resolve:e2e_identities", "admit:e2e_identities", "publish:e2e_identities"}

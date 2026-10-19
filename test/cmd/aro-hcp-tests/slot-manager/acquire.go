@@ -19,8 +19,11 @@ import (
 	"errors"
 	"fmt"
 	"hash/fnv"
+	"io"
+	"log/slog"
 	"math"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -32,20 +35,27 @@ import (
 
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
+	"github.com/Azure/ARO-HCP/test/pkg/leaseenv"
+	testutilframework "github.com/Azure/ARO-HCP/test/util/framework"
 )
 
 const (
 	DefaultLeaseWaitInterval = 1 * time.Minute
 	DefaultMaxWaitForLease   = 30 * time.Minute
+	DefaultAdmissionTimeout  = 10 * time.Minute
 )
 
 func DefaultAcquireOptions() *RawAcquireOptions {
 	allowedSubscriptions, allowedLocations, selectedLocation := defaultAcquireSelectors()
+	admissionTimeout := strings.TrimSpace(os.Getenv("ARO_HCP_ADMISSION_TIMEOUT"))
+	if admissionTimeout == "" {
+		admissionTimeout = DefaultAdmissionTimeout.String()
+	}
 	return &RawAcquireOptions{
 		ClusterProfileDir:      strings.TrimSpace(os.Getenv("CLUSTER_PROFILE_DIR")),
 		ClusterProfileDirs:     splitSelectorValues(os.Getenv("CLUSTER_PROFILE_DIRS")),
 		Environment:            strings.TrimSpace(os.Getenv("ARO_HCP_SLOT_ENV")),
-		DeployEnv:              strings.TrimSpace(os.Getenv("ARO_HCP_DEPLOY_ENV")),
+		DeployEnv:              strings.TrimSpace(os.Getenv(leaseenv.RuntimeDeployEnvironment)),
 		AllowedSubscriptions:   allowedSubscriptions,
 		AllowedLocations:       allowedLocations,
 		SelectedLocation:       selectedLocation,
@@ -53,12 +63,39 @@ func DefaultAcquireOptions() *RawAcquireOptions {
 		BuildID:                strings.TrimSpace(os.Getenv("BUILD_ID")),
 		SharedDir:              strings.TrimSpace(os.Getenv("SHARED_DIR")),
 		DisabledAssetAdmission: splitSelectorValues(os.Getenv("ARO_HCP_DISABLE_ASSET_ADMISSION")),
+		AdmissionTimeout:       admissionTimeout,
+		AssetAdmissionOptions:  splitSelectorValues(os.Getenv("ARO_HCP_ASSET_ADMISSION_OPTIONS")),
 
 		LeaseProxyServerURL: strings.TrimSpace(os.Getenv("LEASE_PROXY_SERVER_URL")),
 		LeaseProxyTimeout:   slots.DefaultLeaseProxyTimeout,
 		MaxWaitForLease:     DefaultMaxWaitForLease,
 		LeaseWaitInterval:   DefaultLeaseWaitInterval,
+		// AzureGlobalLoggerLogPath has a default of ${ARTIFACT_DIR}/azure-global-logger.log if ARTIFACT_DIR is non empty. Otherwise
+		// it is azure-global-logger.log, relative to the current working directory.
+		AzureGlobalLoggerLogPath: filepath.Join(os.Getenv("ARTIFACT_DIR"), "azure-global-logger.log"),
 	}
+}
+
+// defaultSetupAzureGlobalLogger is the real implementation behind
+// RawAcquireOptions.SetupAzureGlobalLogger: it creates path (and its parent
+// directory or directories if they don't exist) and points the Azure Go SDK's global logger
+// at it via testutilframework.SetupAzureGlobalLoggerWithLogrLogger. The returned io.Closer
+// is the open log file. Callers must close it once logging is done.
+func defaultSetupAzureGlobalLogger(path string) (io.Closer, error) {
+	pathDir := filepath.Dir(path)
+	if err := os.MkdirAll(pathDir, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create directory %q for azure global logger log file %q: %w", pathDir, path, err)
+	}
+
+	azureGlobalLoggerLogFile, err := os.Create(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create azure global logger log file: %w", err)
+	}
+
+	logger := logr.FromSlogHandler(slog.NewJSONHandler(azureGlobalLoggerLogFile, &slog.HandlerOptions{}))
+	testutilframework.SetupAzureGlobalLoggerWithLogrLogger(logger)
+
+	return azureGlobalLoggerLogFile, nil
 }
 
 func defaultAcquireSelectors() ([]string, []string, string) {
@@ -109,10 +146,19 @@ func BindAcquireOptions(opts *RawAcquireOptions, cmd *cobra.Command) error {
 	cmd.Flags().StringVar(&opts.SharedDir, "shared-dir", opts.SharedDir, "Path to SHARED_DIR")
 	cmd.Flags().StringVar(&opts.CatalogPath, "slot-catalog", opts.CatalogPath, "Path to the canonical E2E slot catalog")
 	cmd.Flags().StringSliceVar(&opts.DisabledAssetAdmission, "disable-asset-admission", opts.DisabledAssetAdmission, "Emergency opt-out of admission for named asset kinds (repeatable or comma-separated). All other assets remain admitted. Defaults from ARO_HCP_DISABLE_ASSET_ADMISSION.")
+	cmd.Flags().StringVar(&opts.AdmissionTimeout, "admission-timeout", opts.AdmissionTimeout, "Maximum duration for the entire asset admission phase (e.g. 20m). Defaults from ARO_HCP_ADMISSION_TIMEOUT, or 10m when unset.")
+	assetAdmissionOptionUsage := "Per-asset admission option as <kind>.<key>=<value> (repeatable or comma-separated). Defaults from ARO_HCP_ASSET_ADMISSION_OPTIONS."
+	if opts.AssetRegistry != nil {
+		if registryUsage := opts.AssetRegistry.OptionsUsage(); registryUsage != "" {
+			assetAdmissionOptionUsage += "\nAvailable options:\n" + registryUsage
+		}
+	}
+	cmd.Flags().StringSliceVar(&opts.AssetAdmissionOptions, "asset-admission-option", opts.AssetAdmissionOptions, assetAdmissionOptionUsage)
 	cmd.Flags().StringVar(&opts.LeaseProxyServerURL, "lease-proxy-server-url", opts.LeaseProxyServerURL, "Lease proxy server URL")
 	cmd.Flags().DurationVar(&opts.LeaseProxyTimeout, "lease-proxy-timeout", opts.LeaseProxyTimeout, "Maximum time to spend probing a single candidate pool, including retryable proxy/network retries.")
 	cmd.Flags().DurationVar(&opts.MaxWaitForLease, "max-wait-for-lease", opts.MaxWaitForLease, "Maximum total time to keep retrying after full candidate-pool passes yield no immediate lease. Zero waits forever.")
 	cmd.Flags().DurationVar(&opts.LeaseWaitInterval, "lease-wait-interval", opts.LeaseWaitInterval, "Wait between retries after a full candidate-pool pass yields no immediate lease.")
+	cmd.Flags().StringVar(&opts.AzureGlobalLoggerLogPath, "azure-global-logger-log-path", opts.AzureGlobalLoggerLogPath, "Path to the file where the Azure global logger writes logs to. Defaults to ${ARTIFACT_DIR}/azure-global-logger.log if ARTIFACT_DIR is non empty. Otherwise it defaults to azure-global-logger.log, relative to the current working directory. It cannot be empty.")
 	return nil
 }
 
@@ -136,11 +182,21 @@ type RawAcquireOptions struct {
 	Now                    func() time.Time
 	AssetRegistry          *assets.Registry
 	DisabledAssetAdmission []string
+	AdmissionTimeout       string
+	AssetAdmissionOptions  []string
 	ResolveSubscriptions   func(context.Context, string, string, string, string) (slots.ResolvedSubscriptions, error)
+	// AzureGlobalLoggerLogPath is the file the Azure SDK's global logger writes
+	// to. See DefaultAcquireOptions for how the CLI computes a default.
+	AzureGlobalLoggerLogPath string
+	// SetupAzureGlobalLogger wires Azure Go SDK's global log listener log output to the given path.
+	// Introduced so tests can override it with a no-op so they never touch the filesystem or that global Azure Go SDK logger.
+	// When not specified, defaultSetupAzureGlobalLogger is used as the SetupAzureGlobalLogger function.
+	SetupAzureGlobalLogger func(path string) (io.Closer, error)
 }
 
 type validatedAcquireOptions struct {
 	*RawAcquireOptions
+	admissionTimeout time.Duration
 }
 
 type ValidatedAcquireOptions struct {
@@ -162,9 +218,14 @@ type completedAcquireOptions struct {
 	PoolEnvironment        string
 	AssetRegistry          *assets.Registry
 	DisabledAssetAdmission []assets.Kind
+	AdmissionTimeout       time.Duration
 	ResolveSubscriptions   func(context.Context, string, string, string, string) (slots.ResolvedSubscriptions, error)
 	Now                    func() time.Time
 	Sleep                  func(context.Context, time.Duration) error
+	// AzureGlobalLoggerCloser is the open azure-global-logger log file, produced
+	// by SetupAzureGlobalLogger during Complete. Run closes it, guarding against
+	// nil since it's reachable from code that doesn't call Complete.
+	AzureGlobalLoggerCloser io.Closer
 }
 
 type AcquireOptions struct {
@@ -217,10 +278,23 @@ func (o *RawAcquireOptions) Validate() (*ValidatedAcquireOptions, error) {
 		return nil, fmt.Errorf("--max-wait-for-lease must not be negative")
 	case o.LeaseWaitInterval <= 0:
 		return nil, fmt.Errorf("--lease-wait-interval must be greater than zero")
+	case o.AzureGlobalLoggerLogPath == "":
+		return nil, fmt.Errorf("--azure-global-logger-log-path must not be empty")
 	}
 
+	admissionTimeout := DefaultAdmissionTimeout
+	if o.AdmissionTimeout != "" {
+		var err error
+		admissionTimeout, err = time.ParseDuration(o.AdmissionTimeout)
+		if err != nil {
+			return nil, fmt.Errorf("--admission-timeout: %w", err)
+		}
+	}
+	if admissionTimeout <= 0 {
+		return nil, errors.New("--admission-timeout must be greater than zero")
+	}
 	return &ValidatedAcquireOptions{
-		validatedAcquireOptions: &validatedAcquireOptions{RawAcquireOptions: o},
+		validatedAcquireOptions: &validatedAcquireOptions{RawAcquireOptions: o, admissionTimeout: admissionTimeout},
 	}, nil
 }
 
@@ -280,6 +354,9 @@ func (o *ValidatedAcquireOptions) Complete(_ context.Context) (*AcquireOptions, 
 	if err := registry.ValidateRequirements(candidatePools); err != nil {
 		return nil, err
 	}
+	if err := registry.ApplyOptions(o.AssetAdmissionOptions); err != nil {
+		return nil, fmt.Errorf("--asset-admission-option: %w", err)
+	}
 	assetInventories, err := catalog.AssetInventories()
 	if err != nil {
 		return nil, err
@@ -297,25 +374,36 @@ func (o *ValidatedAcquireOptions) Complete(_ context.Context) (*AcquireOptions, 
 		disabledAssetAdmission = append(disabledAssetAdmission, assets.Kind(strings.TrimSpace(kind)))
 	}
 
+	setupAzureGlobalLoggerFn := o.SetupAzureGlobalLogger
+	if setupAzureGlobalLoggerFn == nil {
+		setupAzureGlobalLoggerFn = defaultSetupAzureGlobalLogger
+	}
+	azureGlobalLoggerCloser, err := setupAzureGlobalLoggerFn(o.AzureGlobalLoggerLogPath)
+	if err != nil {
+		return nil, err
+	}
+
 	return &AcquireOptions{
 		completedAcquireOptions: &completedAcquireOptions{
-			AssetInventories:       assetInventories,
-			WriteState:             o.WriteState,
-			ClusterProfileDirs:     o.effectiveClusterProfileDirs(),
-			DeployEnvironment:      o.DeployEnv,
-			SharedDir:              o.SharedDir,
-			LeaseProxyURL:          o.LeaseProxyServerURL,
-			LeaseProxyTimeout:      o.LeaseProxyTimeout,
-			MaxWaitForLease:        o.MaxWaitForLease,
-			LeaseWaitInterval:      o.LeaseWaitInterval,
-			RegionSelection:        regionSelection,
-			CandidatePools:         candidatePools,
-			PoolEnvironment:        environment,
-			AssetRegistry:          registry,
-			DisabledAssetAdmission: disabledAssetAdmission,
-			ResolveSubscriptions:   resolveSubscriptions,
-			Now:                    o.Now,
-			Sleep:                  sleepContext,
+			AssetInventories:        assetInventories,
+			WriteState:              o.WriteState,
+			ClusterProfileDirs:      o.effectiveClusterProfileDirs(),
+			DeployEnvironment:       o.DeployEnv,
+			SharedDir:               o.SharedDir,
+			LeaseProxyURL:           o.LeaseProxyServerURL,
+			LeaseProxyTimeout:       o.LeaseProxyTimeout,
+			MaxWaitForLease:         o.MaxWaitForLease,
+			LeaseWaitInterval:       o.LeaseWaitInterval,
+			RegionSelection:         regionSelection,
+			CandidatePools:          candidatePools,
+			PoolEnvironment:         environment,
+			AssetRegistry:           registry,
+			DisabledAssetAdmission:  disabledAssetAdmission,
+			AdmissionTimeout:        o.admissionTimeout,
+			ResolveSubscriptions:    resolveSubscriptions,
+			Now:                     o.Now,
+			Sleep:                   sleepContext,
+			AzureGlobalLoggerCloser: azureGlobalLoggerCloser,
 		},
 	}, nil
 }
@@ -458,6 +546,10 @@ func (o *AcquireOptions) ResolveLeasedSlot(pool slots.Pool, resourceName string)
 }
 
 func (o *AcquireOptions) Run(ctx context.Context) error {
+	if o.AzureGlobalLoggerCloser != nil {
+		defer o.AzureGlobalLoggerCloser.Close()
+	}
+
 	if o.AssetRegistry == nil {
 		return errors.New("asset registry is nil")
 	}
@@ -674,8 +766,15 @@ func (o *AcquireOptions) finalizeAcquiredLease(ctx context.Context, pool slots.P
 	logger.Info("Starting asset admission",
 		"assetCount", len(state.Slot.AssetRequirements),
 		"runtimeRegion", state.RuntimeRegion,
+		"timeout", o.AdmissionTimeout,
 	)
-	if err := o.AssetRegistry.AdmitLease(ctx, request, o.DisabledAssetAdmission...); err != nil {
+	admissionCtx, cancelAdmission := context.WithTimeout(ctx, o.AdmissionTimeout)
+	err = o.AssetRegistry.AdmitLease(admissionCtx, request, o.DisabledAssetAdmission...)
+	if err == nil {
+		err = admissionCtx.Err()
+	}
+	cancelAdmission()
+	if err != nil {
 		return err
 	}
 	contract := slots.NewRuntimeContractBuilder()

@@ -1,3 +1,4 @@
+schedulingRole: "{{ .mgmt.scheduling.role }}"
 pullBinding:
   registry: "{{ .acr.svc.name }}.azurecr.io"
   scope: "repository:{{ .kubeApplier.image.repository }}:pull"

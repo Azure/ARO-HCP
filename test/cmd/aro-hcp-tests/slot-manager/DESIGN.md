@@ -210,7 +210,7 @@ credentials, or exported `AZURE_*` variables.
 
 The acquire step must mount the same applicable profile credentials used by the
 test step. The selected identity needs permission to enumerate the E2E identity
-inventory and role assignments, and delete leased principals' FICs and role
+inventory and role assignments, and delete leased principals' role
 assignments. Missing credential files or insufficient permissions fail admission.
 No credentials are written to shared runtime state.
 
@@ -415,6 +415,27 @@ Admission assumes exclusive ownership of the allocated assets: previous
 consumers must no longer modify them, and handlers must not invalidate another
 asset's readiness. It does not protect against concurrent external writers.
 
+### Admission timeout
+
+All asset admission handlers share a configurable time budget, defaulting to
+10 minutes, separate from the lease acquisition and release timeouts.
+
+### Asset admission options
+
+Each asset handler declares its own admission options through
+`Handler.AttachOptions(*pflag.FlagSet)`, binding each to its own state and owning
+the name, default, validation and help. The registry never interprets a key, so
+assets that need no options (for example a mock identities asset) declare none.
+`slot-manager acquire --asset-admission-option <kind>.<key>=<value>` sets them.
+The flag is repeatable and comma-separable, and `ARO_HCP_ASSET_ADMISSION_OPTIONS`
+supplies the default list for CI invocations; explicit flag values replace it.
+Later entries override earlier ones. `--help` lists every declared option with its
+default. An unknown kind, an unknown key, an asset without options, or a value the
+handler rejects fails before leasing.
+
+Options configure only the addressed kind. Shared code, such as role assignment
+cleanup, takes plain parameters from the handler that uses it.
+
 ### Emergency admission opt-out
 
 `slot-manager acquire --disable-asset-admission=e2e_identities` skips only that
@@ -434,7 +455,7 @@ and does not bypass catalog validation or provisioning checks.
 
 Use this only as a temporary mitigation, for example during ARM throttling.
 For E2E identities it skips identity/principal verification and cleanup of stale
-FICs and role assignments, so the identities are not guaranteed clean for reuse.
+role assignments, so the identities are not guaranteed clean for reuse.
 Remove the opt-out after mitigation; it applies only to that acquisition and is
 not a persistent catalog or release setting.
 
@@ -557,11 +578,12 @@ Core exports include:
 - `CUSTOMER_SUBSCRIPTION`;
 - `SELECTED_CLUSTER_PROFILE_DIR`;
 - `SELECTED_LOCATION`;
+- `ARO_HCP_E2E_VM_FAMILY_POLICY`;
 - `ARO_HCP_E2E_SLOT_NAME`; and
 - `ARO_HCP_E2E_SLOT_RESOURCE_TYPE`.
 
-Asset handlers contribute asset-specific exports. The E2E identity handler
-owns `LEASED_MSI_CONTAINERS`.
+Asset handlers contribute asset-specific exports. The E2E identity handler owns
+`LEASED_MSI_CONTAINERS`; it does not assign user worker overrides.
 `INFRA_SUBSCRIPTION_ID` is exported only when the selected pool demands an
 infrastructure asset and that subscription has been resolved.
 
@@ -571,6 +593,86 @@ file is atomically published.
 
 The contract contains no credentials. Downstream steps source it and use the
 acquired values without re-resolving pool behavior.
+
+### Acquired identity count and suite defaults
+
+In every deployment environment, the E2E identity handler publishes the resolved
+acquired container names in `LEASED_MSI_CONTAINERS`. Physical inventory and reserve
+containers do not contribute to this list.
+
+Suite registration explicitly opts the integration and Stage fast, slow, and
+combined parallel suites, PROD fast and slow parallel suites, RP API compatibility
+fast and slow parallel suites, and Hypershift presubmit parallel suite into an
+acquired worker default. The count is derived from the exported list, independently
+of pooled identity mode. Resource-pool membership does not select this policy:
+`dev-cd-check/parallel` consumes MI resources but retains its worker fallback.
+`upgrade/in-place` retains its participant-based default so the complete cohort
+can reach its barrier.
+Explicit worker overrides for `upgrade/in-place` must allow the complete cohort
+to start; fewer workers leave participants queued behind the barrier.
+
+`ARO_HCP_SUITE_PARALLELISM` is an exported user or CI override; the lease contract
+does not assign it. The CLI parses and validates it once during construction and
+applies it when registering suites. A nonempty value must be a positive integer
+and applies globally. An explicitly empty value opts out of the acquired default.
+An absent acquired list retains suite fallbacks.
+
+Suite parallelism is resolved from the user override, then the opt-in acquired
+count, then the suite fallback. Invalid environment configuration fails CLI
+construction. Metadata reports registered values without a command-time hook.
+An explicit `--max-concurrency` limits workers without changing suite metadata.
+When omitted, the flag defaults to the selected suite's registered parallelism.
+The runner uses `min(max-concurrency, Suite.Parallelism)`; for example, a suite
+value of 75 with `--max-concurrency=100` runs at most 75 workers, while a flag
+value of 25 limits it to 25. Worker limits do not change the independent leased
+MSI resource budget.
+
+The CLI entrypoint is in `main.go`, orchestration in `cli.go`, suite definitions
+in `suites.go`, and concurrency resolution in `concurrency.go`. MI scheduling and
+EV2 result reporting are grouped in `mi_scheduler.go` and `ev2_reporting.go`.
+
+### Pool VM family policy
+
+An optional `vm_family_policy` on a catalog pool keeps quota-related selection
+constraints beside the customer subscription binding. There is no separate
+policy file, schema version, or embedded environment resolver. For example:
+
+```yaml
+vm_family_policy:
+  worker_families: [standardDSv5Family]
+  helper_families: [standardDDSv5Family]
+  regions:
+    centralus:
+      worker_families: [standardDASv5Family]
+```
+
+The top-level role lists are pool defaults. Each regional list replaces only
+that role; an omitted role inherits the pool default. Region keys are lowercase
+Azure region names. Resolution matches `AcquiredSlotState.RuntimeRegion`
+case-insensitively, never the identity asset's provisioning region. This also
+applies to weighted and runtime-selected pools.
+
+The unresolved pool policy is carried in the expanded slot and acquired state.
+`AddCoreRuntimeExports` validates it and publishes only the resolved
+`worker_families`/`helper_families` JSON object. An unconfigured pool exports `{}`
+to overwrite any inherited policy. Omitted roles preserve historical selector
+behavior; supplied empty/null role lists, duplicate or unknown fields, and
+invalid region mappings are rejected. An omitted or null whole catalog policy
+means no policy.
+The shared resolved policy type and strict JSON parser live in
+`test/pkg/vmfamily`; the pool-specific YAML and regional resolution code stays
+with slot-manager. `test/e2e-config` contains only configuration data.
+
+Consumers already source the contract. The suite parses
+`ARO_HCP_E2E_VM_FAMILY_POLICY` without environment or region lookup and rejects a
+downstream `LOCATION` differing from `SELECTED_LOCATION`. Region overrides must
+therefore be supplied at acquisition, before policy resolution. Local runs can
+provide the JSON variable directly without a slot contract.
+
+Only the `int` pool `westus3-shard0` currently declares policy. The UK South pool
+is unchanged. See [VM selection](../../../e2e/README.md#selecting-vm-sizes-skus)
+for ordered family search, exact role-size bounds, and specialized-selector
+exceptions.
 
 ## E2E identity asset
 
@@ -591,6 +693,13 @@ For slot index `N`, the handler expands the configured prefix and count into:
 ```
 
 where `M` ranges from zero to `resource_group_count - 1`.
+
+The optional pool-level `identity_container_provisioning_count` reserves a larger
+physical inventory without increasing the runtime lease budget. It defaults to
+`resource_group_count` and cannot be smaller. Pool apply and inventory validation
+use the physical count; resolution, admission, and `LEASED_MSI_CONTAINERS` use
+`resource_group_count`. For INT West US 3, these counts are 100 physical groups
+and 75 leased groups per slot.
 
 V2 catalog validation checks the generated names against Azure resource-group
 naming rules, including the 90-character limit with both numeric suffixes.
@@ -628,10 +737,12 @@ For every resolved resource group, the handler:
 1. enumerates all user-assigned managed identities;
 2. selects the 13 standard identities and requires valid principal IDs,
    reporting unexpected names without inspecting or cleaning those identities;
-3. enumerates every federated identity credential on those standard identities;
-4. enumerates role assignments for their principal IDs across the E2E
+3. enumerates role assignments for their principal IDs across the E2E
    subscription, including child scopes;
-5. deletes all discovered federated identity credentials and role assignments.
+4. deletes all discovered role assignments for those principals.
+
+Federated identity credential (FIC) cleanup is not part of admission: it is
+expensive in time and ARM calls and does not affect test correctness.
 
 Discovery lists role assignments once for the E2E subscription and matches them
 against the expected identities' principal IDs. Each synchronous deletion must
@@ -640,10 +751,15 @@ deletion polling, or second inventory scan are performed. Azure authorization
 propagation can still lag behind successful deletion; checking resource absence
 would not guarantee authorization-cache convergence.
 
-All admission ARM requests run serially, finishing each container's identity
-and credential inventory before moving to the next container. Azure SDK
-throttling retries remain enabled. The single admission phase has a ten-minute
-budget. A clean inventory returns without deletion calls.
+Inventory reads run serially, finishing each container's identity inventory
+before moving to the next container. Role assignment deletes run with at most
+`e2e_identities.cleanup-workers` concurrent requests (see Asset admission
+options; default 1, so serial). All deletes share the admission deadline. Raise
+it only for low-concurrency environments: ARM throttles deletes per subscription
+and service principal (token bucket of 200, refilled at 10 per second), and every
+slot admitted concurrently in the same subscription adds its workers to that
+budget. Azure SDK throttling retries remain enabled. A clean inventory returns
+without deletion calls.
 
 A missing required identity, invalid principal metadata, incomplete enumeration,
 or deletion error (including exhausted SDK retries) fails acquisition before
@@ -658,9 +774,8 @@ per affected resource group, listing the group and unexpected identity names.
 This reporting adds no ARM requests and does not block admission, including for
 unmanaged pools.
 
-The normal E2E framework cleanup remains the fast path after each test. Asset
-admission is authoritative because it also handles interrupted jobs and
-best-effort cleanup failures.
+The E2E framework cleans FICs and role assignments after each test. Admission
+repairs RBAC residue from interrupted jobs or failed teardown.
 
 ## Inventory maintenance
 

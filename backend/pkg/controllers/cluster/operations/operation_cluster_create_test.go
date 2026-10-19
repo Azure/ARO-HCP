@@ -503,6 +503,8 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 								Validations:     tc.validations,
 								ServingCABundle: "fake-ca-data",
 								AzureResources: coreapi.AzureResources{
+									KubeAPIServerCertificate: confirmedTLSCertificate("kas"),
+									IngressCertificate:       confirmedTLSCertificate("ingress"),
 									RoleAssignments: coreapi.AzureMultiReference{
 										AzureResources: []*azcorearm.ResourceID{
 											metadataapi.Must(azcorearm.ParseResourceID(
@@ -519,7 +521,7 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 						return tc.readDesireLister
 					}
 					return &kubeapplierlistertesting.SliceReadDesireLister{
-						Desires: []*kubeapplierapi.ReadDesire{succeededDesire(t)},
+						Desires: []*kubeapplierapi.ReadDesire{succeededDesire(t), operationtesting.NewIngressSecretSyncReadDesire(t)},
 					}
 				}(),
 			}
@@ -862,6 +864,7 @@ func TestDetermineOperationState(t *testing.T) {
 							},
 						},
 					}),
+					operationtesting.NewIngressSecretSyncReadDesire(t),
 				},
 			},
 			expectedState:     coreapi.ProvisioningStateSucceeded,
@@ -1212,6 +1215,8 @@ func TestDetermineOperationState(t *testing.T) {
 							Status: coreapi.ServiceProviderClusterStatus{
 								ServingCABundle: "fake-ca-data",
 								AzureResources: coreapi.AzureResources{
+									KubeAPIServerCertificate: confirmedTLSCertificate("kas"),
+									IngressCertificate:       confirmedTLSCertificate("ingress"),
 									RoleAssignments: coreapi.AzureMultiReference{
 										AzureResources: []*azcorearm.ResourceID{
 											metadataapi.Must(azcorearm.ParseResourceID(
@@ -1230,6 +1235,23 @@ func TestDetermineOperationState(t *testing.T) {
 				clusterArg = tt.clusterOverride
 			}
 			result, err := controller.determineOperationState(ctx, operation, clusterArg)
+			if !tt.expectError && tt.expectedState == coreapi.ProvisioningStateSucceeded {
+				serviceProvider := controller.serviceProviderClusterLister.(*corelistertesting.SliceServiceProviderClusterLister).ServiceProviderClusters[0]
+				for _, certificate := range []*coreapi.TLSCertificate{
+					serviceProvider.Status.AzureResources.KubeAPIServerCertificate,
+					serviceProvider.Status.AzureResources.IngressCertificate,
+				} {
+					reference := certificate.AzureReference
+					certificate.PendingReference = reference
+					certificate.AzureReference = nil
+					waiting, waitErr := controller.determineOperationState(ctx, operation, clusterArg)
+					require.NoError(t, waitErr)
+					assert.Equal(t, coreapi.ProvisioningStateProvisioning, waiting.ProvisioningState)
+					assert.Contains(t, waiting.Message, "TLS certificates not yet confirmed")
+					certificate.AzureReference = reference
+					certificate.PendingReference = nil
+				}
+			}
 
 			if tt.expectError {
 				require.Error(t, err)
@@ -1308,6 +1330,68 @@ func TestServingCABundleOperationStatus(t *testing.T) {
 			}
 		})
 	}
+}
+
+func confirmedTLSCertificate(name string) *coreapi.TLSCertificate {
+	return &coreapi.TLSCertificate{AzureReference: &coreapi.AzureTLSCertificateReference{
+		KeyVaultURL:     "https://certificates.vault.azure.net/",
+		CertificateName: name,
+	}}
+}
+
+func TestTLSCertificatesOperationStatus(test *testing.T) {
+	fixture := operationtesting.NewClusterTestFixture()
+	operation := fixture.NewOperation(cosmosstorageutils.OperationRequestCreate)
+	pending := &coreapi.TLSCertificate{PendingReference: confirmedTLSCertificate("pending").AzureReference}
+	confirmedAndPending := confirmedTLSCertificate("confirmed")
+	confirmedAndPending.PendingReference = pending.PendingReference
+	tests := []struct {
+		name         string
+		kas, ingress *coreapi.TLSCertificate
+		succeeded    bool
+	}{
+		{name: "neither observed"},
+		{name: "empty observations", kas: &coreapi.TLSCertificate{}, ingress: &coreapi.TLSCertificate{}},
+		{name: "only KAS confirmed", kas: confirmedTLSCertificate("kas")},
+		{name: "only ingress confirmed", ingress: confirmedTLSCertificate("ingress")},
+		{name: "both pending", kas: pending, ingress: pending},
+		{name: "KAS pending", kas: pending, ingress: confirmedTLSCertificate("ingress")},
+		{name: "ingress pending", kas: confirmedTLSCertificate("kas"), ingress: pending},
+		{name: "KAS confirmed with pending reference", kas: confirmedAndPending, ingress: confirmedTLSCertificate("ingress"), succeeded: true},
+		{name: "ingress confirmed with pending reference", kas: confirmedTLSCertificate("kas"), ingress: confirmedAndPending, succeeded: true},
+		{name: "missing vault", kas: &coreapi.TLSCertificate{AzureReference: &coreapi.AzureTLSCertificateReference{CertificateName: "kas"}}, ingress: confirmedTLSCertificate("ingress"), succeeded: true},
+		{name: "missing certificate name", kas: confirmedTLSCertificate("kas"), ingress: confirmedTLSCertificate(""), succeeded: true},
+		{name: "invalid vault", kas: &coreapi.TLSCertificate{AzureReference: &coreapi.AzureTLSCertificateReference{KeyVaultURL: "not-a-url"}}, ingress: confirmedTLSCertificate("ingress"), succeeded: true},
+		{name: "empty references", kas: &coreapi.TLSCertificate{AzureReference: &coreapi.AzureTLSCertificateReference{}}, ingress: &coreapi.TLSCertificate{AzureReference: &coreapi.AzureTLSCertificateReference{}}, succeeded: true},
+		{name: "both confirmed", kas: confirmedTLSCertificate("kas"), ingress: confirmedTLSCertificate("ingress"), succeeded: true},
+	}
+	for _, entry := range tests {
+		test.Run(entry.name, func(test *testing.T) {
+			controller := &operationClusterCreate{
+				serviceProviderClusterLister: &corelistertesting.SliceServiceProviderClusterLister{
+					ServiceProviderClusters: []*coreapi.ServiceProviderCluster{{
+						CosmosMetadata: coreapi.CosmosMetadata{ResourceID: metadataapi.Must(azcorearm.ParseResourceID(fixture.ClusterResourceID.String() + "/" + coreapi.ServiceProviderClusterResourceTypeName + "/" + coreapi.ServiceProviderClusterResourceName))},
+						Status:         coreapi.ServiceProviderClusterStatus{AzureResources: coreapi.AzureResources{KubeAPIServerCertificate: entry.kas, IngressCertificate: entry.ingress}},
+					}},
+				},
+			}
+			state, err := controller.tlsCertificatesOperationStatus(test.Context(), operation)
+			require.NoError(test, err)
+			if entry.succeeded {
+				require.Equal(test, coreapi.ProvisioningStateSucceeded, state.ProvisioningState)
+			} else {
+				require.Equal(test, coreapi.ProvisioningStateProvisioning, state.ProvisioningState)
+				require.Contains(test, state.Message, "TLS certificates not yet confirmed")
+			}
+		})
+	}
+	test.Run("not cached", func(test *testing.T) {
+		controller := &operationClusterCreate{serviceProviderClusterLister: &corelistertesting.SliceServiceProviderClusterLister{}}
+		state, err := controller.tlsCertificatesOperationStatus(test.Context(), operation)
+		require.NoError(test, err)
+		require.Equal(test, coreapi.ProvisioningStateProvisioning, state.ProvisioningState)
+		require.Equal(test, "ServiceProviderCluster not cached yet", state.Message)
+	})
 }
 
 func TestRoleAssignmentsOperationStatus(t *testing.T) {

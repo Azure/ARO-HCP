@@ -102,6 +102,24 @@ func validateNodePool(ctx context.Context, op operation.Operation, newObj, oldOb
 	//ServiceProviderProperties NodePoolServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
 	errs = append(errs, validateNodePoolServiceProviderProperties(ctx, op, field.NewPath("serviceProviderProperties"), &newObj.ServiceProviderProperties, safe.Field(oldObj, toNodePoolServiceProviderProperties))...)
 
+	// there are resourceIDs that must be verified with respect to this ID. This is the only level of validation with access to both.
+	errs = append(errs, validateResourceIDsAgainstNodePoolID(ctx, op, newObj, oldObj)...)
+
+	return errs
+}
+
+// validateResourceIDsAgainstNodePoolID validates node pool resource ID fields against the
+// node pool's own ID. A node pool is a child resource of its cluster, so newObj.ID.SubscriptionID
+// is guaranteed to be the same as the parent cluster's subscription ID.
+func validateResourceIDsAgainstNodePoolID(ctx context.Context, op operation.Operation, newObj, _ *coreapi.NodePool) field.ErrorList {
+	if newObj.ID == nil {
+		return nil
+	}
+
+	errs := field.ErrorList{}
+
+	errs = append(errs, SameSubscription(ctx, op, field.NewPath("properties", "platform", "osDisk", "encryptionSetId"), newObj.Properties.Platform.OSDisk.EncryptionSetID, nil, newObj.ID.SubscriptionID)...)
+
 	return errs
 }
 
@@ -391,8 +409,10 @@ func validateNodePoolAutoScaling(ctx context.Context, op operation.Operation, fl
 
 	errs := field.ErrorList{}
 
-	//Min int32 `json:"min,omitempty"`
-	errs = append(errs, validate.Minimum(ctx, op, fldPath.Child("min"), &newObj.Min, safe.Field(oldObj, toNodePoolAutoScalingMin), 0)...)
+	// Min int32 `json:"min,omitempty"`
+	// Cluster Service requires min_replica >= 1. Reject smaller values here so they
+	// are never dispatched; CS would reject them and the node pool would stay Updating.
+	errs = append(errs, validate.Minimum(ctx, op, fldPath.Child("min"), &newObj.Min, safe.Field(oldObj, toNodePoolAutoScalingMin), 1)...)
 	errs = append(errs, MaximumIfNoAZ(ctx, op, fldPath.Child("min"), &newObj.Min, safe.Field(oldObj, toNodePoolAutoScalingMin), MaxNodePoolNodes, availabilityZone)...)
 
 	//Max int32 `json:"max,omitempty"`

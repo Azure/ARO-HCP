@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -33,6 +34,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
+	"github.com/Azure/ARO-HCP/test/pkg/leaseenv"
 )
 
 func TestAcquireAdmissionFlagAndEnvironment(t *testing.T) {
@@ -60,6 +62,52 @@ func TestAcquireAdmissionFlagAndEnvironment(t *testing.T) {
 			}
 			if !slices.Equal(options.DisabledAssetAdmission, test.want) {
 				t.Fatalf("unexpected admission opt-out: got %v want %v", options.DisabledAssetAdmission, test.want)
+			}
+		})
+	}
+}
+
+func TestAcquireAdmissionTimeoutFlagAndEnvironment(t *testing.T) {
+	for _, tc := range []struct {
+		name, env string
+		flags     []string
+		want      time.Duration
+		wantError bool
+	}{
+		{name: "default", want: 10 * time.Minute},
+		{name: "environment", env: " 25m ", want: 25 * time.Minute},
+		{name: "flag", flags: []string{"--admission-timeout=30m"}, want: 30 * time.Minute},
+		{name: "flag overrides environment", env: "25m", flags: []string{"--admission-timeout=12m"}, want: 12 * time.Minute},
+		{name: "flag overrides invalid environment", env: "bad", flags: []string{"--admission-timeout=12m"}, want: 12 * time.Minute},
+		{name: "empty flag resets default", env: "25m", flags: []string{"--admission-timeout="}, want: 10 * time.Minute},
+		{name: "zero", flags: []string{"--admission-timeout=0s"}, wantError: true},
+		{name: "negative", flags: []string{"--admission-timeout=-1m"}, wantError: true},
+		{name: "missing unit", flags: []string{"--admission-timeout=20"}, wantError: true},
+		{name: "invalid environment", env: "bad", wantError: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("ARO_HCP_ADMISSION_TIMEOUT", tc.env)
+			options := DefaultAcquireOptions()
+			options.ClusterProfileDir = "unused-profile"
+			options.Environment = "dev"
+			options.SharedDir = t.TempDir()
+			options.LeaseProxyServerURL = "http://unused.invalid"
+			command := &cobra.Command{}
+			if err := BindAcquireOptions(options, command); err != nil {
+				t.Fatal(err)
+			}
+			if err := command.ParseFlags(tc.flags); err != nil {
+				t.Fatal(err)
+			}
+			validated, err := options.Validate()
+			if tc.wantError {
+				if err == nil || !strings.Contains(err.Error(), "--admission-timeout") {
+					t.Fatalf("expected timeout validation failure before leasing, got %v", err)
+				}
+				return
+			}
+			if err != nil || validated.admissionTimeout != tc.want {
+				t.Fatalf("expected timeout %v, got options=%+v error=%v", tc.want, validated, err)
 			}
 		})
 	}
@@ -231,7 +279,7 @@ func TestAcquireCompleteRegionModeMatrix(t *testing.T) {
 			catalogPath := writeAcquireTestCatalog(t, tc.regionMode, fixedRegion)
 
 			t.Setenv("CLUSTER_PROFILE_DIR", clusterProfileDir)
-			t.Setenv("ARO_HCP_DEPLOY_ENV", "ci01")
+			t.Setenv(leaseenv.RuntimeDeployEnvironment, "ci01")
 			t.Setenv("SHARED_DIR", t.TempDir())
 			t.Setenv("LEASE_PROXY_SERVER_URL", "http://lease-proxy.example.com")
 			t.Setenv("ALLOWED_LOCATIONS", tc.allowedLocations)
@@ -239,6 +287,7 @@ func TestAcquireCompleteRegionModeMatrix(t *testing.T) {
 
 			opts := DefaultAcquireOptions()
 			opts.CatalogPath = catalogPath
+			opts.SetupAzureGlobalLogger = noopSetupAzureGlobalLogger
 
 			validated, err := opts.Validate()
 			if err != nil {
@@ -1535,6 +1584,20 @@ func completeAcquireForTest(t *testing.T, raw *RawAcquireOptions) *AcquireOption
 	return completed
 }
 
+// noopCloser is a no-op io.Closer, so test doubles can return a real,
+// closeable value instead of a nil interface.
+type noopCloser struct{}
+
+func (noopCloser) Close() error { return nil }
+
+// noopSetupAzureGlobalLogger stands in for setupAzureGlobalLogger in tests so they
+// never touch the filesystem or the Azure SDK's process-wide, non-goroutine-safe
+// log.SetListener - both of which would otherwise be hit on every test that
+// completes RawAcquireOptions, including ones running under t.Parallel.
+func noopSetupAzureGlobalLogger(string) (io.Closer, error) {
+	return noopCloser{}, nil
+}
+
 func completeAcquireOptions(raw *RawAcquireOptions) (*AcquireOptions, error) {
 	calls := []string{}
 	registry, err := assets.NewRegistry(&lifecycleHandler{kind: slots.KindE2EIdentities, calls: &calls})
@@ -1545,6 +1608,12 @@ func completeAcquireOptions(raw *RawAcquireOptions) (*AcquireOptions, error) {
 	raw.ResolveSubscriptions = func(_ context.Context, _, _, e2e, _ string) (slots.ResolvedSubscriptions, error) {
 		return slots.ResolvedSubscriptions{E2E: slots.ResolvedSubscription{Name: e2e, ID: "e2e-id"}}, nil
 	}
+	// SetupAzureGlobalLogger is a no-op in tests, so the path is never read or
+	// written. It only needs to satisfy Validate's non-empty requirement.
+	if raw.AzureGlobalLoggerLogPath == "" {
+		raw.AzureGlobalLoggerLogPath = "azure-global-logger-test.log"
+	}
+	raw.SetupAzureGlobalLogger = noopSetupAzureGlobalLogger
 	validated, err := raw.Validate()
 	if err != nil {
 		return nil, err

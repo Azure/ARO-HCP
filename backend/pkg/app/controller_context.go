@@ -52,7 +52,9 @@ func (b *Backend) newControllerContext(ctx context.Context) ControllerContext {
 
 	return ControllerContext{
 		AzureLocation:                     b.options.AzureLocation,
+		ServiceTenantID:                   b.options.ServiceTenantID,
 		BackendIdentityAzureCachedReaders: b.options.BackendIdentityAzureCachedReaders,
+		BackendIdentityAzureClients:       b.options.BackendIdentityAzureClients,
 		BackupConfig:                      b.options.BackupConfig,
 		CheckAccessV2ClientBuilder:        b.options.CheckAccessV2ClientBuilder,
 		CloudEnvironment:                  b.options.CloudEnvironment,
@@ -61,6 +63,7 @@ func (b *Backend) newControllerContext(ctx context.Context) ControllerContext {
 		FPAClientBuilder:                  b.options.FPAClientBuilder,
 		FPAMIDataplaneClientBuilder:       b.options.FPAMIDataplaneClientBuilder,
 		HasRealFPA:                        b.options.HasRealFPA,
+		HardcodedIdentity:                 b.options.HardcodedIdentity,
 		MIDataplaneBasedIdentityAccessTokenRetrieverBuilder: b.options.MIDataplaneBasedIdentityAccessTokenRetrieverBuilder,
 		MaestroSourceEnvironmentIdentifier:                  b.options.MaestroSourceEnvironmentIdentifier,
 		MetricsRegisterer:                                   b.options.MetricsRegisterer,

@@ -1,9 +1,11 @@
-@description('The resource ID of the user-assigned managed identity that manages the Swift VNet')
-param deploymentMsiId string
+@description('The Swift VNet identity resource ID resolved by the global output step')
+param swiftVnetIdentityResourceId string
 
 module swiftVnetRbac '../modules/network/vnet-rbac.bicep' = {
   name: 'swift-vnet-rbac'
   params: {
-    deploymentMsiId: deploymentMsiId
+    deploymentMsiId: swiftVnetIdentityResourceId
   }
 }
+
+output swiftVnetMSIId string = swiftVnetIdentityResourceId

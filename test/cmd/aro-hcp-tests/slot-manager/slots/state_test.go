@@ -18,11 +18,14 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"os/exec"
 	"reflect"
 	"strings"
 	"testing"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/Azure/ARO-HCP/test/pkg/leaseenv"
 )
 
 func TestAssetRequirementsPreserveWireNames(t *testing.T) {
@@ -176,14 +179,14 @@ func TestWriteAcquiredSlotStateAndRuntimeContract(t *testing.T) {
 func TestRuntimeContractRejectsExportCollisions(t *testing.T) {
 	t.Parallel()
 
-	contract := NewRuntimeContractBuilder()
-	if err := contract.Add("core", "SHARED_VALUE", "one"); err != nil {
-		t.Fatalf("expected first export to succeed: %v", err)
-	}
-
-	err := contract.Add("asset", "SHARED_VALUE", "two")
-	if err == nil || !strings.Contains(err.Error(), "already owned") {
-		t.Fatalf("expected export collision error, got %v", err)
+	for _, owner := range []string{"core", "asset"} {
+		contract := NewRuntimeContractBuilder()
+		if err := contract.Add("core", "SHARED_VALUE", "one"); err != nil {
+			t.Fatalf("expected first export to succeed: %v", err)
+		}
+		if err := contract.Add(owner, "SHARED_VALUE", "two"); err == nil || !strings.Contains(err.Error(), "already owned") {
+			t.Fatalf("expected export collision for owner %q, got %v", owner, err)
+		}
 	}
 }
 
@@ -205,7 +208,7 @@ func TestE2EOnlyStateAndRuntimeOmitInfrastructure(t *testing.T) {
 		if err := AddCoreRuntimeExports(contract, state, "dev-e2e", "profile"); err != nil {
 			t.Fatal(err)
 		}
-		if data := contract.MarshalShell(); strings.Contains(string(data), "INFRA_SUBSCRIPTION_ID") {
+		if data := contract.MarshalShell(); strings.Contains(string(data), leaseenv.InfrastructureSubscriptionID) {
 			t.Fatalf("E2E-only runtime contract exported infrastructure: %s", data)
 		}
 	}
@@ -213,23 +216,38 @@ func TestE2EOnlyStateAndRuntimeOmitInfrastructure(t *testing.T) {
 
 func TestRuntimeContractShellIdentifiers(t *testing.T) {
 	t.Parallel()
+	add := NewRuntimeContractBuilder().Add
 	for _, key := range []string{"NAME", "_name", "Name_01"} {
-		if err := NewRuntimeContractBuilder().Add("asset", key, "value"); err != nil {
+		if err := add("asset", key, "value"); err != nil {
 			t.Errorf("valid identifier %q rejected: %v", key, err)
 		}
 	}
 	// Test the validator directly; never execute the rejected shell syntax.
 	for _, key := range []string{"", "0NAME", " NAME", "NAME ", "A-B", "A.B", "A;B", "A$(id)", "A`id`", "A/B", "A\\B", "A(B)", "A[0]", "A|B", "A&B", "A\nB", "é", "NAME=value"} {
-		if err := NewRuntimeContractBuilder().Add("asset", key, "value"); err == nil {
+		if err := add("asset", key, "value"); err == nil {
 			t.Errorf("unsafe identifier %q accepted", key)
 		}
 	}
+	if err := add(" \t", "EMPTY_OWNER", "value"); err == nil {
+		t.Error("empty export owner accepted")
+	}
 	contract := NewRuntimeContractBuilder()
-	if err := contract.Add("asset", "VALUE", "one'$(not-executed)"); err != nil {
+	value := "one'$(printf unsafe)`printf unsafe`\nsecond line"
+	if err := contract.Add("asset", "VALUE", value); err != nil {
 		t.Fatal(err)
 	}
-	if data := contract.MarshalShell(); string(data) != "export VALUE='one'\"'\"'$(not-executed)'\n" {
-		t.Fatalf("value was not shell escaped: %q", data)
+	sharedDir := t.TempDir()
+	if err := WriteRuntimeContract(sharedDir, contract); err != nil {
+		t.Fatal(err)
+	}
+	envFile, err := EnvFile(sharedDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command("sh", "-c", `VALUE=stale; . "$1"; sh -c 'printf "%s" "$VALUE"'`, "sh", envFile)
+	output, err := cmd.CombinedOutput()
+	if err != nil || string(output) != value {
+		t.Fatalf("shell value was not safely exported: %q, %v", output, err)
 	}
 }
 

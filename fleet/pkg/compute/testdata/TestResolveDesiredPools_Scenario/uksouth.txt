@@ -1,0 +1,81 @@
+zones: 1,2,3
+
+tiers:
+  sys    system  Regional  mode=System  pools=1  cores=4   maxNodes=2   initialMinNodes=0  osDisk=128GB  maxPods=100  swift=true   attachNICs=false  required=true   families=StandardEdsv7Family,StandardEdsv6Family,standardEDSv5Family,standardEDSv4Family,standardESv3Family
+  inf    infra   PerZone   mode=User    pools=2  cores=4   maxNodes=2   initialMinNodes=0  osDisk=128GB  maxPods=225  swift=false  attachNICs=false  required=true   families=StandardEdsv7Family,StandardEdsv6Family,standardEDSv5Family,standardEDSv4Family,standardESv3Family
+  wrk16  worker  PerZone   mode=User    pools=3  cores=16  maxNodes=20  initialMinNodes=5  osDisk=400GB  maxPods=225  swift=true   attachNICs=true   required=false  families=StandardEdsv7Family,StandardEdsv6Family,standardEDSv5Family,standardEDSv4Family,standardESv3Family
+  wrk32  worker  PerZone   mode=User    pools=3  cores=32  maxNodes=3   initialMinNodes=1  osDisk=512GB  maxPods=225  swift=true   attachNICs=true   required=false  families=StandardEdsv7Family,StandardEdsv6Family,standardEDSv5Family,standardEDSv4Family,standardESv3Family
+
+quota limits (vCPUs):
+  StandardEdsv6Family:  100
+  StandardEdsv7Family:  100
+  standardEDSv4Family:  192
+  standardEDSv5Family:  1440
+  standardESv3Family:   100
+
+skus:
+  Standard_D16ds_v4  standardDDSv4Family  cpu=16  memory=64GiB   nics=7  ephemeralOSDisk=true  ephemeralDisk=400GB   zones=1,2,3
+  Standard_D16ds_v5  standardDDSv5Family  cpu=16  memory=64GiB   nics=7  ephemeralOSDisk=true  ephemeralDisk=600GB   zones=1,2,3
+  Standard_D16ds_v6  StandardDdsv6Family  cpu=16  memory=64GiB   nics=7  ephemeralOSDisk=true  ephemeralDisk=880GB   zones=1,2,3
+  Standard_D16ds_v7  StandardDdsv7Family  cpu=16  memory=64GiB   nics=7  ephemeralOSDisk=true  ephemeralDisk=880GB   zones=1
+  Standard_D16s_v3   standardDSv3Family   cpu=16  memory=64GiB   nics=7  ephemeralOSDisk=true  ephemeralDisk=400GB   zones=1,2,3
+  Standard_D32ds_v4  standardDDSv4Family  cpu=32  memory=128GiB  nics=7  ephemeralOSDisk=true  ephemeralDisk=800GB   zones=1,2,3
+  Standard_D32ds_v5  standardDDSv5Family  cpu=32  memory=128GiB  nics=7  ephemeralOSDisk=true  ephemeralDisk=1200GB  zones=1,2,3
+  Standard_D32ds_v6  StandardDdsv6Family  cpu=32  memory=128GiB  nics=7  ephemeralOSDisk=true  ephemeralDisk=1760GB  zones=1,2,3
+  Standard_D32ds_v7  StandardDdsv7Family  cpu=32  memory=128GiB  nics=7  ephemeralOSDisk=true  ephemeralDisk=1760GB  zones=1
+  Standard_D32s_v3   standardDSv3Family   cpu=32  memory=128GiB  nics=7  ephemeralOSDisk=true  ephemeralDisk=800GB   zones=1,2,3
+  Standard_D4ds_v4   standardDDSv4Family  cpu=4   memory=16GiB   nics=1  ephemeralOSDisk=true  ephemeralDisk=100GB   zones=1,2,3
+  Standard_D4ds_v5   standardDDSv5Family  cpu=4   memory=16GiB   nics=1  ephemeralOSDisk=true  ephemeralDisk=150GB   zones=1,2,3
+  Standard_D4ds_v6   StandardDdsv6Family  cpu=4   memory=16GiB   nics=1  ephemeralOSDisk=true  ephemeralDisk=220GB   zones=1,2,3
+  Standard_D4ds_v7   StandardDdsv7Family  cpu=4   memory=16GiB   nics=3  ephemeralOSDisk=true  ephemeralDisk=220GB   zones=1
+  Standard_D4s_v3    standardDSv3Family   cpu=4   memory=16GiB   nics=1  ephemeralOSDisk=true  ephemeralDisk=100GB   zones=1,2,3
+  Standard_D8ds_v4   standardDDSv4Family  cpu=8   memory=32GiB   nics=3  ephemeralOSDisk=true  ephemeralDisk=200GB   zones=1,2,3
+  Standard_D8ds_v5   standardDDSv5Family  cpu=8   memory=32GiB   nics=3  ephemeralOSDisk=true  ephemeralDisk=300GB   zones=1,2,3
+  Standard_D8ds_v6   StandardDdsv6Family  cpu=8   memory=32GiB   nics=3  ephemeralOSDisk=true  ephemeralDisk=440GB   zones=1,2,3
+  Standard_D8ds_v7   StandardDdsv7Family  cpu=8   memory=32GiB   nics=3  ephemeralOSDisk=true  ephemeralDisk=440GB   zones=1
+  Standard_D8s_v3    standardDSv3Family   cpu=8   memory=32GiB   nics=3  ephemeralOSDisk=true  ephemeralDisk=200GB   zones=1,2,3
+  Standard_E16ds_v4  standardEDSv4Family  cpu=16  memory=128GiB  nics=7  ephemeralOSDisk=true  ephemeralDisk=400GB   zones=1,2,3
+  Standard_E16ds_v5  standardEDSv5Family  cpu=16  memory=128GiB  nics=7  ephemeralOSDisk=true  ephemeralDisk=600GB   zones=1,2,3
+  Standard_E16ds_v6  StandardEdsv6Family  cpu=16  memory=128GiB  nics=7  ephemeralOSDisk=true  ephemeralDisk=880GB   zones=1,2,3
+  Standard_E16ds_v7  StandardEdsv7Family  cpu=16  memory=128GiB  nics=7  ephemeralOSDisk=true  ephemeralDisk=880GB   zones=1
+  Standard_E16s_v3   standardESv3Family   cpu=16  memory=128GiB  nics=7  ephemeralOSDisk=true  ephemeralDisk=400GB   zones=1,2,3
+  Standard_E32ds_v4  standardEDSv4Family  cpu=32  memory=256GiB  nics=7  ephemeralOSDisk=true  ephemeralDisk=800GB   zones=1,2,3
+  Standard_E32ds_v5  standardEDSv5Family  cpu=32  memory=256GiB  nics=7  ephemeralOSDisk=true  ephemeralDisk=1200GB  zones=1,2,3
+  Standard_E32ds_v6  StandardEdsv6Family  cpu=32  memory=256GiB  nics=7  ephemeralOSDisk=true  ephemeralDisk=1760GB  zones=1,2,3
+  Standard_E32ds_v7  StandardEdsv7Family  cpu=32  memory=256GiB  nics=7  ephemeralOSDisk=true  ephemeralDisk=1760GB  zones=1
+  Standard_E32s_v3   standardESv3Family   cpu=32  memory=256GiB  nics=7  ephemeralOSDisk=true  ephemeralDisk=800GB   zones=1,2,3
+  Standard_E4ds_v4   standardEDSv4Family  cpu=4   memory=32GiB   nics=1  ephemeralOSDisk=true  ephemeralDisk=100GB   zones=1,2,3
+  Standard_E4ds_v5   standardEDSv5Family  cpu=4   memory=32GiB   nics=1  ephemeralOSDisk=true  ephemeralDisk=150GB   zones=1,2,3
+  Standard_E4ds_v6   StandardEdsv6Family  cpu=4   memory=32GiB   nics=1  ephemeralOSDisk=true  ephemeralDisk=220GB   zones=1,2,3
+  Standard_E4ds_v7   StandardEdsv7Family  cpu=4   memory=32GiB   nics=3  ephemeralOSDisk=true  ephemeralDisk=220GB   zones=1
+  Standard_E4s_v3    standardESv3Family   cpu=4   memory=32GiB   nics=1  ephemeralOSDisk=true  ephemeralDisk=100GB   zones=1,2,3
+  Standard_E8ds_v4   standardEDSv4Family  cpu=8   memory=64GiB   nics=3  ephemeralOSDisk=true  ephemeralDisk=200GB   zones=1,2,3
+  Standard_E8ds_v5   standardEDSv5Family  cpu=8   memory=64GiB   nics=3  ephemeralOSDisk=true  ephemeralDisk=300GB   zones=1,2,3
+  Standard_E8ds_v6   StandardEdsv6Family  cpu=8   memory=64GiB   nics=3  ephemeralOSDisk=true  ephemeralDisk=440GB   zones=1,2,3
+  Standard_E8ds_v7   StandardEdsv7Family  cpu=8   memory=64GiB   nics=3  ephemeralOSDisk=true  ephemeralDisk=440GB   zones=1
+  Standard_E8s_v3    standardESv3Family   cpu=8   memory=64GiB   nics=3  ephemeralOSDisk=true  ephemeralDisk=200GB   zones=1,2,3
+
+available vCPUs:
+  StandardEdsv6Family:  100
+  StandardEdsv7Family:  100
+  standardEDSv4Family:  128
+  standardEDSv5Family:  856
+  standardESv3Family:   100
+
+fully allocated: true
+
+pools:
+  sys07f2007    system  Standard_E4ds_v7   mode=System  cpu=4   memory=32GiB   nics=0  zone=regional  min=1  max=2   osDisk=128GB  maxPods=100  swift=true   labels=aro-hcp.azure.com/role=system  taints=CriticalAddonsOnly=true:NoSchedule
+  inf1ffd86f    infra   Standard_E4ds_v7   mode=User    cpu=4   memory=32GiB   nics=0  zone=1         min=1  max=2   osDisk=128GB  maxPods=225  swift=false  labels=aro-hcp.azure.com/role=infra   taints=infra=true:NoSchedule
+  inf2f13c80    infra   Standard_E4ds_v6   mode=User    cpu=4   memory=32GiB   nics=0  zone=2         min=1  max=2   osDisk=128GB  maxPods=225  swift=false  labels=aro-hcp.azure.com/role=infra   taints=infra=true:NoSchedule
+  wrk1616be3e6  worker  Standard_E16ds_v7  mode=User    cpu=16  memory=128GiB  nics=7  zone=1         min=4  max=4   osDisk=400GB  maxPods=225  swift=true   labels=aro-hcp.azure.com/role=worker  taints=-
+  wrk16101f738  worker  Standard_E16ds_v6  mode=User    cpu=16  memory=128GiB  nics=7  zone=1         min=4  max=4   osDisk=400GB  maxPods=225  swift=true   labels=aro-hcp.azure.com/role=worker  taints=-
+  wrk161c0b180  worker  Standard_E16ds_v5  mode=User    cpu=16  memory=128GiB  nics=7  zone=1         min=5  max=12  osDisk=400GB  maxPods=225  swift=true   labels=aro-hcp.azure.com/role=worker  taints=-
+  wrk162c0b180  worker  Standard_E16ds_v5  mode=User    cpu=16  memory=128GiB  nics=7  zone=2         min=5  max=20  osDisk=400GB  maxPods=225  swift=true   labels=aro-hcp.azure.com/role=worker  taints=-
+  wrk163c0b180  worker  Standard_E16ds_v5  mode=User    cpu=16  memory=128GiB  nics=7  zone=3         min=5  max=20  osDisk=400GB  maxPods=225  swift=true   labels=aro-hcp.azure.com/role=worker  taints=-
+  wrk3214cde3c  worker  Standard_E32ds_v5  mode=User    cpu=32  memory=256GiB  nics=7  zone=1         min=1  max=3   osDisk=512GB  maxPods=225  swift=true   labels=aro-hcp.azure.com/role=worker  taints=-
+  wrk3224cde3c  worker  Standard_E32ds_v5  mode=User    cpu=32  memory=256GiB  nics=7  zone=2         min=1  max=3   osDisk=512GB  maxPods=225  swift=true   labels=aro-hcp.azure.com/role=worker  taints=-
+  wrk3234cde3c  worker  Standard_E32ds_v5  mode=User    cpu=32  memory=256GiB  nics=7  zone=3         min=1  max=3   osDisk=512GB  maxPods=225  swift=true   labels=aro-hcp.azure.com/role=worker  taints=-
+
+failures:
+  (none)

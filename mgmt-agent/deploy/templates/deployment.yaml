@@ -74,15 +74,17 @@ spec:
       serviceAccountName: {{ .Values.serviceAccount.name }}
       priorityClassName: service-lifecycle-critical
       terminationGracePeriodSeconds: 10
-      nodeSelector:
-      {{- with .Values.nodeSelector }}
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
-      {{- with .Values.affinity }}
       affinity:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
-      {{- with .Values.tolerations }}
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: aro-hcp.azure.com/role
+                operator: In
+                values:
+                - {{ .Values.schedulingRole | quote }}
       tolerations:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
+      - key: {{ ternary "CriticalAddonsOnly" "infra" (eq .Values.schedulingRole "system") | quote }}
+        operator: Equal
+        value: "true"
+        effect: NoSchedule

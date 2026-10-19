@@ -68,10 +68,11 @@ func (o *ApplyOptions) Run(ctx context.Context) error {
 	return nil
 }
 
+// Apply the complete physical identity inventory, including containers reserved from runtime leasing.
 func (o *ApplyOptions) applySlot(ctx context.Context, logger logr.Logger, stackClient *armdeploymentstacks.Client, pool identityPool, slot slots.ExpandedSlot) error {
 	parameters := map[string]*armdeploymentstacks.DeploymentParameter{
 		"poolSize": {
-			Value: slot.IdentityContainerCount,
+			Value: slot.EffectiveIdentityContainerProvisioningCount(),
 		},
 		"resourceGroupBaseName": {
 			Value: slot.IdentityContainerPrefix,
@@ -106,6 +107,7 @@ func (o *ApplyOptions) applySlot(ctx context.Context, logger logr.Logger, stackC
 		"provisioningRegion", pool.ProvisioningRegion,
 		"slotName", slot.ResourceName,
 		"identityContainerCount", slot.IdentityContainerCount,
+		"identityContainerProvisioningCount", slot.EffectiveIdentityContainerProvisioningCount(),
 	)
 
 	poller, err := stackClient.BeginCreateOrUpdateAtSubscription(

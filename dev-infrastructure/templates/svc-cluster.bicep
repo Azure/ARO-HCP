@@ -453,6 +453,15 @@ param sessiongateIngressCertName string
 @description('The SAN and CN for the sessiongate ingress certificate')
 param sessiongateIngressCertSAN string
 
+@description('Reference pre-created infrastructure identities instead of creating identities in the service resource group.')
+param useLeasedInfrastructureIdentities bool = false
+
+@description('Resource group containing the pre-created service infrastructure identities in the service deployment subscription.')
+param infrastructureIdentityResourceGroup string = ''
+
+@description('Name of the pre-created service AKS control-plane identity. Required when useLeasedInfrastructureIdentities is true.')
+param leasedAksIdentityName string = ''
+
 resource serviceKeyVault 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing = {
   name: serviceKeyVaultName
   scope: resourceGroup(serviceKeyVaultSubscription, serviceKeyVaultResourceGroup)
@@ -530,6 +539,8 @@ module managedIdentities '../modules/managed-identities.bicep' = {
   params: {
     location: location
     manageIdentityNames: [for wi in workloadIdentities: wi.value.uamiName]
+    useLeasedIdentities: useLeasedInfrastructureIdentities
+    identityResourceGroupName: infrastructureIdentityResourceGroup
   }
 }
 
@@ -537,10 +548,25 @@ module managedIdentities '../modules/managed-identities.bicep' = {
 //   A K S
 //
 
-resource aksClusterUserDefinedManagedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+resource aksClusterUserDefinedManagedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = if (!useLeasedInfrastructureIdentities) {
   name: '${aksClusterName}-msi'
   location: location
 }
+
+var aksClusterUserDefinedManagedIdentityName = useLeasedInfrastructureIdentities
+  ? leasedAksIdentityName
+  : aksClusterUserDefinedManagedIdentity.name
+
+// A second resource declaration can alias the created identity when leasing is disabled.
+var leasedAksClusterUserDefinedManagedIdentityId = resourceId(
+  subscription().subscriptionId,
+  infrastructureIdentityResourceGroup,
+  'Microsoft.ManagedIdentity/userAssignedIdentities',
+  aksClusterUserDefinedManagedIdentityName
+)
+var aksClusterUserDefinedManagedIdentityPrincipalId = useLeasedInfrastructureIdentities
+  ? reference(leasedAksClusterUserDefinedManagedIdentityId, '2023-01-31').principalId
+  : aksClusterUserDefinedManagedIdentity!.properties.principalId
 
 module istioIngressGatewayIPAddress '../modules/network/publicipaddress.bicep' = {
   name: istioIngressGatewayIPAddressName
@@ -552,7 +578,7 @@ module istioIngressGatewayIPAddress '../modules/network/publicipaddress.bicep' =
     zones: locationAvailabilityZoneList
     // Role Assignment needed for the public IP address to be used on the Load Balancer
     roleAssignmentProperties: {
-      principalId: aksClusterUserDefinedManagedIdentity.properties.principalId
+      principalId: aksClusterUserDefinedManagedIdentityPrincipalId
       principalType: 'ServicePrincipal'
       // Network Contributor Role
       // https://www.azadvertizer.net/azrolesadvertizer/4d97b98b-1d4f-4787-a291-c67834d212e7.html
@@ -692,6 +718,8 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
     networkDataplane: aksNetworkDataplane
     networkPolicy: aksNetworkPolicy
     workloadIdentities: workloadIdentities
+    useLeasedInfrastructureIdentities: useLeasedInfrastructureIdentities
+    infrastructureIdentityResourceGroup: infrastructureIdentityResourceGroup
     aksKeyVaultName: aksKeyVaultName
     aksKeyVaultTagName: aksKeyVaultTagName
     aksKeyVaultTagValue: aksKeyVaultTagValue
@@ -700,7 +728,7 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
     enableSwiftV2Nodepools: false
     upgradeSettingsMaxSurge: aksUpgradeSettingsMaxSurge
     upgradeSettingsMaxUnavailable: aksUpgradeSettingsMaxUnavailable
-    aksClusterUserDefinedManagedIdentityName: aksClusterUserDefinedManagedIdentity.name
+    aksClusterUserDefinedManagedIdentityName: aksClusterUserDefinedManagedIdentityName
   }
   dependsOn: [
     managedIdentities
@@ -723,7 +751,7 @@ module opsIngressGatewayIPAddress '../modules/network/publicipaddress.bicep' = i
     zones: length(locationAvailabilityZoneList) > 0 ? locationAvailabilityZoneList : null
     // Role Assignment needed for the public IP address to be used on the Load Balancer
     roleAssignmentProperties: {
-      principalId: aksClusterUserDefinedManagedIdentity.properties.principalId
+      principalId: aksClusterUserDefinedManagedIdentityPrincipalId
       principalType: 'ServicePrincipal'
       // Network Contributor Role - needed for the AKS managed identity to use the public IP on the LoadBalancer
       // https://www.azadvertizer.net/azrolesadvertizer/4d97b98b-1d4f-4787-a291-c67834d212e7.html

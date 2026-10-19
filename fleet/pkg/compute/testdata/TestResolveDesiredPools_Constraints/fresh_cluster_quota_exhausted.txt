@@ -1,0 +1,57 @@
+zones: 1,2,3
+
+tiers:
+  sys    system  Regional  mode=System  pools=1  cores=4   maxNodes=2   initialMinNodes=0  osDisk=128GB  maxPods=100  swift=true   attachNICs=false  required=true   families=StandardEdsv7Family,StandardEdsv6Family,standardEDSv5Family,standardEDSv4Family,standardESv3Family
+  inf    infra   PerZone   mode=User    pools=2  cores=4   maxNodes=2   initialMinNodes=0  osDisk=128GB  maxPods=225  swift=false  attachNICs=false  required=true   families=StandardEdsv7Family,StandardEdsv6Family,standardEDSv5Family,standardEDSv4Family,standardESv3Family
+  wrk16  worker  PerZone   mode=User    pools=3  cores=16  maxNodes=20  initialMinNodes=5  osDisk=400GB  maxPods=225  swift=true   attachNICs=true   required=false  families=StandardEdsv7Family,StandardEdsv6Family,standardEDSv5Family,standardEDSv4Family,standardESv3Family
+  wrk32  worker  PerZone   mode=User    pools=3  cores=32  maxNodes=3   initialMinNodes=1  osDisk=512GB  maxPods=225  swift=true   attachNICs=true   required=false  families=StandardEdsv7Family,StandardEdsv6Family,standardEDSv5Family,standardEDSv4Family,standardESv3Family
+
+quota limits (vCPUs):
+  StandardEdsv6Family:  1640
+  StandardEdsv7Family:  100
+  standardEDSv4Family:  100
+  standardEDSv5Family:  100
+  standardESv3Family:   100
+
+skus:
+  Standard_E16ds_v4  standardEDSv4Family  cpu=16  memory=128GiB  nics=7  ephemeralOSDisk=true  ephemeralDisk=400GB   zones=1,2,3
+  Standard_E16ds_v5  standardEDSv5Family  cpu=16  memory=128GiB  nics=7  ephemeralOSDisk=true  ephemeralDisk=600GB   zones=-
+  Standard_E16ds_v6  StandardEdsv6Family  cpu=16  memory=128GiB  nics=7  ephemeralOSDisk=true  ephemeralDisk=880GB   zones=-
+  Standard_E16ds_v7  StandardEdsv7Family  cpu=16  memory=128GiB  nics=7  ephemeralOSDisk=true  ephemeralDisk=880GB   zones=1,2,3
+  Standard_E16s_v3   standardESv3Family   cpu=16  memory=128GiB  nics=7  ephemeralOSDisk=true  ephemeralDisk=400GB   zones=-
+  Standard_E32ds_v4  standardEDSv4Family  cpu=32  memory=256GiB  nics=7  ephemeralOSDisk=true  ephemeralDisk=800GB   zones=1,2,3
+  Standard_E32ds_v5  standardEDSv5Family  cpu=32  memory=256GiB  nics=7  ephemeralOSDisk=true  ephemeralDisk=1200GB  zones=-
+  Standard_E32ds_v6  StandardEdsv6Family  cpu=32  memory=256GiB  nics=7  ephemeralOSDisk=true  ephemeralDisk=1760GB  zones=-
+  Standard_E32ds_v7  StandardEdsv7Family  cpu=32  memory=256GiB  nics=7  ephemeralOSDisk=true  ephemeralDisk=1760GB  zones=1,2,3
+  Standard_E32s_v3   standardESv3Family   cpu=32  memory=256GiB  nics=7  ephemeralOSDisk=true  ephemeralDisk=800GB   zones=-
+  Standard_E4ds_v4   standardEDSv4Family  cpu=4   memory=32GiB   nics=1  ephemeralOSDisk=true  ephemeralDisk=100GB   zones=1,2,3
+  Standard_E4ds_v5   standardEDSv5Family  cpu=4   memory=32GiB   nics=1  ephemeralOSDisk=true  ephemeralDisk=150GB   zones=-
+  Standard_E4ds_v6   StandardEdsv6Family  cpu=4   memory=32GiB   nics=1  ephemeralOSDisk=true  ephemeralDisk=220GB   zones=-
+  Standard_E4ds_v7   StandardEdsv7Family  cpu=4   memory=32GiB   nics=3  ephemeralOSDisk=true  ephemeralDisk=220GB   zones=1,2,3
+  Standard_E4s_v3    standardESv3Family   cpu=4   memory=32GiB   nics=1  ephemeralOSDisk=true  ephemeralDisk=100GB   zones=-
+  Standard_E8ds_v4   standardEDSv4Family  cpu=8   memory=64GiB   nics=3  ephemeralOSDisk=true  ephemeralDisk=200GB   zones=1,2,3
+  Standard_E8ds_v5   standardEDSv5Family  cpu=8   memory=64GiB   nics=3  ephemeralOSDisk=true  ephemeralDisk=300GB   zones=-
+  Standard_E8ds_v6   StandardEdsv6Family  cpu=8   memory=64GiB   nics=3  ephemeralOSDisk=true  ephemeralDisk=440GB   zones=-
+  Standard_E8ds_v7   StandardEdsv7Family  cpu=8   memory=64GiB   nics=3  ephemeralOSDisk=true  ephemeralDisk=440GB   zones=1,2,3
+  Standard_E8s_v3    standardESv3Family   cpu=8   memory=64GiB   nics=3  ephemeralOSDisk=true  ephemeralDisk=200GB   zones=-
+
+available vCPUs:
+  StandardEdsv6Family:  1640
+  StandardEdsv7Family:  100
+  standardEDSv4Family:  100
+  standardEDSv5Family:  100
+  standardESv3Family:   100
+
+fully allocated: false
+
+pools:
+  sys07f2007    system  Standard_E4ds_v7   mode=System  cpu=4   memory=32GiB   nics=0  zone=regional  min=1  max=2  osDisk=128GB  maxPods=100  swift=true   labels=aro-hcp.azure.com/role=system  taints=CriticalAddonsOnly=true:NoSchedule
+  inf1ffd86f    infra   Standard_E4ds_v7   mode=User    cpu=4   memory=32GiB   nics=0  zone=1         min=1  max=2  osDisk=128GB  maxPods=225  swift=false  labels=aro-hcp.azure.com/role=infra   taints=infra=true:NoSchedule
+  inf2ffd86f    infra   Standard_E4ds_v7   mode=User    cpu=4   memory=32GiB   nics=0  zone=2         min=1  max=2  osDisk=128GB  maxPods=225  swift=false  labels=aro-hcp.azure.com/role=infra   taints=infra=true:NoSchedule
+  wrk1616be3e6  worker  Standard_E16ds_v7  mode=User    cpu=16  memory=128GiB  nics=7  zone=1         min=2  max=2  osDisk=400GB  maxPods=225  swift=true   labels=aro-hcp.azure.com/role=worker  taints=-
+  wrk1626be3e6  worker  Standard_E16ds_v7  mode=User    cpu=16  memory=128GiB  nics=7  zone=2         min=1  max=1  osDisk=400GB  maxPods=225  swift=true   labels=aro-hcp.azure.com/role=worker  taints=-
+  wrk1624cff74  worker  Standard_E16ds_v4  mode=User    cpu=16  memory=128GiB  nics=7  zone=2         min=1  max=1  osDisk=400GB  maxPods=225  swift=true   labels=aro-hcp.azure.com/role=worker  taints=-
+  wrk1634cff74  worker  Standard_E16ds_v4  mode=User    cpu=16  memory=128GiB  nics=7  zone=3         min=2  max=2  osDisk=400GB  maxPods=225  swift=true   labels=aro-hcp.azure.com/role=worker  taints=-
+
+failures:
+  InsufficientQuota  required=false  tier 3 (32 cores): the families' quota does not cover at least one node per zone

@@ -5,9 +5,10 @@ This plan maps the fleet rollout design originally authored on the
 identifies what already exists, what is net-new, and the concrete controllers,
 types, config, wiring, and tests required.
 
-> Status: the seven controllers, Cosmos storage, informers, and backend wiring
-> are implemented. They run unconditionally. Production policy is hardcoded;
-> risk filtering, environment configuration, and the Admin API pin setter remain follow-ups.
+> Status: the seven rollout controllers, Cosmos storage, informers, backend wiring,
+> and Admin API pin setter (PR #7162) are implemented. The rollout controllers
+> run unconditionally. Production policy is hardcoded; risk filtering and
+> environment configuration remain follow-ups.
 
 ## 1. Background: the pipeline before this change
 
@@ -73,6 +74,8 @@ type ControlPlaneVersionRollout struct {
 }
 
 type ControlPlaneVersionRolloutSpec struct {
+    // Canonical major.minor ID and channel group matching the resource name.
+    Version coreapi.VersionProfile `json:"version"`
     // BestExactVersion uses recency and the channel offset, subject to the SRE
     // minimum-version floor. Conditional-update risk filtering is a follow-up.
     BestExactVersion *semver.Version `json:"bestExactVersion,omitempty"`
@@ -97,6 +100,17 @@ constants), `partition.go` (resource-id builders), `ProviderNamespacePartitionKe
 `fleetcosmosstoragetesting` mock, validation, `fleetinformers` +
 `fleetlisters`.
 
+`Spec.Version` is populated on creation: `stable-4.21` has `ID: "4.21"` and
+`ChannelGroup: "stable"`. Create/update validation requires agreement with the
+name. Existing consumers continue parsing channel names; this storage migration
+does not switch consumers to the profile or add discovery, new floor policy, or
+catalog retirement.
+
+Shared Cosmos conversion fills absent/zero legacy profiles from valid names
+before Get/List results reach callers or informer caches, without a storage write.
+Partial or mismatched profiles are left for validation to reject. Ordinary rollout
+replacements persist the normalized profile alongside their existing changes.
+
 ### 3.2 `ServiceProviderCluster.Spec.PinnedVersion`
 
 ```go
@@ -115,11 +129,10 @@ type ServiceProviderClusterPinnedVersion struct {
 ```
 
 An unset pin is a value with nil `ExactVersion` and serializes as `{}`. This is
-intentional. Consuming and clearing pins is implemented; the Admin API setter is
-not yet available and remains a follow-up.
-
-Update the `// Written by:` field annotations (see CLAUDE.md cosmos-data-flow
-rule) and run `make deepcopy`.
+intentional. Consuming and clearing pins is implemented; the Admin API setter
+is implemented via the single-cluster `POST /controlplaneversionpin` and regional
+`POST /admin/v1/versionrollouts/{channel}/controlplaneversionpin` endpoints (see
+`admin/server/handlers/hcp/controlplaneversionpin.go` and `fleetcontrolplaneversionpin.go`).
 
 ## 4. Rollout policy
 
@@ -147,7 +160,7 @@ they neither seed rollouts nor query Cincinnati.
 
 ## 5. Controllers
 
-All seven run in the `backend` binary. Four are per-cluster (use
+All seven rollout controllers run in the `backend` binary. Four are per-cluster (use
 `controllerutils.NewClusterWatchingController` + `HCPClusterKey`); three are
 per-`ControlPlaneVersionRollout` (use a new fleet watching controller keyed by
 the rollout channel name, or `genericWatchingController[T]` on the rollout
@@ -222,9 +235,10 @@ controller** — the plan reuses the existing path. Input
 
 ### 5.6 Rollout Seeding (per-cluster)
 
-Creates a rollout for the customer's requested channel and, when pinned, the
-pinned minor's channel. Existing rollout contents are preserved. Nightly and
-deleting clusters are skipped.
+Creates a rollout with `Spec.Version` populated for the customer's requested
+channel and, when pinned, the pinned minor's channel. Best version and status
+start unset. Existing rollout contents are preserved. Nightly and deleting
+clusters are skipped.
 
 ### 5.7 Initial Normal Desired Version (per-cluster)
 
@@ -241,6 +255,21 @@ minor-skew rules. Missing provider state or incompatible pools block assignment,
 including pools still being deleted. Pins and experimental exact overrides are
 owned exclusively by forced assignment. Both initial and minor assignment retry missing rollout/best data
 after ten seconds and bypass progressive z-stream gates.
+
+### 5.9 Rollout Version Migration (per-rollout)
+
+The separate backend `CosmosRolloutVersionMigration` controller uses
+`NewControlPlaneVersionRolloutWatchingController`, five workers and a 5m
+resync/cooldown. It has no subscription dependency; the subscription-scoped
+`CosmosMigration` remains unchanged. It live-reads and replaces each rollout,
+including already-structured documents, to persist the normalized profile.
+ETag conflicts/precondition failures re-read and retry within three attempts per
+reconcile, preserving selection and status; not-found is a no-op. Only a
+successful replacement marks that key complete in memory for the process.
+
+An older writer can subsequently drop the unknown field. Read compatibility
+still works, but migration does not rewrite a completed key again in that
+process; an ordinary replacement or process restart can persist it again.
 
 ## 6. Ownership and cutover
 
@@ -287,21 +316,39 @@ Implemented:
 - Fleet API, validation of supported channel groups and major/minor names,
   Cosmos CRUD, partition-scoped listing, informers, listers, and mocks.
 - Seven controllers, backend registration under leader election, and unit tests.
+- Structured rollout version profiles, shared read compatibility, and the separate
+  `CosmosRolloutVersionMigration` controller for persisted backfill.
 - Shared Cincinnati selection with the existing per-channel offset policy.
 - Persisted transition ages and assignment cooldown reservations.
 - Forced-version precedence, pinned-channel seeding, and completed-only progress.
 - Cosmos field ownership and data-flow documentation.
+- Admin API `POST /controlplaneversionpin` setter/clearer. Setting a pin in the
+  cluster's release line can hold or advance the latest observed version.
+  Rollback below that version requires the immediately previous distinct
+  `Completed` entry in
+  `ServiceProviderCluster.Status.ControlPlaneVersionHistory`, mirrored from
+  `HostedCluster.Status.ControlPlaneVersion.History`.
+  Without mirrored history, the pin is accepted because its direction cannot
+  be classified from observation. Partial attempts are not rollback targets.
+  The control-plane history field
+  is present in 4.22 and was backported to
+  [release-4.20](https://github.com/openshift/hypershift/pull/9055) and
+  [release-4.21](https://github.com/openshift/hypershift/pull/9054); older
+  deployed operator builds may lack it. Guest version history is not a
+  substitute for rollback validation. The handler checks available observed
+  history rather than enforcing a minimum hosted-cluster version.
+
+- Regional Admin API `POST /admin/v1/versionrollouts/{channel}/controlplaneversionpin`
+  sets/clears existing per-cluster pins using rollout channel membership. All pin
+  changes are validated before writes; identical pins are no-ops. Independent
+  ETag writes return counts and per-cluster failures on partial success. This
+  endpoint creates no persistent policy for future clusters.
 
 Follow-ups:
 
 - Filter platform/control-plane risks from Cincinnati conditional updates. The
   current graph helper selects by recency, so selected versions are not
   guaranteed to be free of conditional-update risks.
-- Validate rollback targets against previously installed versions in the admin
-  API. This protection is deferred; SRE pins remain immediate and bypass
-  progressive rollout gates.
-- Admin API contract for setting and releasing SRE pins. The consumer exists,
-  but this change does not provide an operational pin-setting endpoint.
 - Environment-specific configuration for rollout policy and per-channel minimum
   versions. Production values currently come from `NewDefaultRolloutConfig`.
   Experimental exact-version installs intentionally remain allowed below the

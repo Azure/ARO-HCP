@@ -1,0 +1,40 @@
+# Collector-only runtime config. No tenant credentials or Key Vault access needed.
+# Keep Kusto settings even for --inspect-artifacts; they are validated, not used.
+# Migration: deploy the Kusto schema scripts (including ciDiscoveredJobs,
+# ciProcessedJobs and the updated ciJobOutcomes mapping) before the collector.
+# Historical sippyRelease/testFailures values remain; new rows leave them empty/null.
+exitOnPanic: false
+ciJobOutcomes:
+  enabled: false
+  clusterURI: https://hcp-dev-us-2.eastus2.kusto.windows.net
+  ingestionURI: https://ingest-hcp-dev-us-2.eastus2.kusto.windows.net
+  database: ServiceLogs
+  outcomes:
+    table: ciJobOutcomes
+    ingestionMapping: ciJobOutcomesMapping
+  testNames:
+    table: ciTestNames
+    ingestionMapping: ciTestNamesMapping
+  testResults:
+    table: ciTestResults
+    ingestionMapping: ciTestResultsMapping
+  discovered:
+    table: ciDiscoveredJobs
+    ingestionMapping: ciDiscoveredJobsMapping
+  processed:
+    table: ciProcessedJobs
+    ingestionMapping: ciProcessedJobsMapping
+  gcsBucket: test-platform-results-public
+  jobFilter: e2e-parallel
+  interval: 15m
+  discoveryInterval: 30m
+  completionDelay: 15m
+  window: 24h
+  # Optional explicit RFC3339 startup boundary; bootstrap is separate.
+  startupSince: ""
+  repairInterval: 12h
+  overlap: 10m
+  workers: 10
+  discoveryWorkers: 2
+  cacheSize: 20000
+  cacheTTL: 15m
