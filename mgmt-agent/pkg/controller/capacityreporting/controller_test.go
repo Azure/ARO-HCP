@@ -535,7 +535,7 @@ func TestCollectHostedControlPlanes(t *testing.T) {
 	}
 }
 
-func TestBuildReport(t *testing.T) {
+func TestCapacityReportCollection(t *testing.T) {
 	t.Parallel()
 	fixedTime := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 	condition := buildReportCurrentCondition(nil, metav1.ConditionTrue, capacityreportv1alpha1.ReasonDataCollected, "", fixedTime)
@@ -578,7 +578,7 @@ func TestBuildReport(t *testing.T) {
 			},
 		},
 		{
-			name: "no_ready_hcps",
+			name: "no_ready_population",
 			nodes: []capacityreportv1alpha1.NodeSKUCapacity{
 				{
 					SKU:   "Standard_D32s_v3",
