@@ -23,6 +23,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilsclock "k8s.io/utils/clock"
 
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/credentialrevocation"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
@@ -79,8 +80,19 @@ func (c *revocationMarkRequests) SyncOnce(ctx context.Context, key controlleruti
 	}
 
 	// Once the revocation is complete/being deleted there is nothing to mark.
-	if revocation.Status.DeletionTimestamp != nil || meta.IsStatusConditionTrue(revocation.Status.Conditions, coreapi.SystemAdminCredentialRevocationConditionCredentialsMarkedForDeletion) {
+	if revocation.Status.DeletionTimestamp != nil {
 		return nil
+	}
+	claimed, err := credentialrevocation.Owns(ctx, c.resourcesDBClient, revocation)
+	if err != nil || !claimed {
+		return err
+	}
+	active := metav1.Condition{Type: coreapi.SystemAdminCredentialRevocationConditionActive, Status: metav1.ConditionTrue, Reason: "Claimed", Message: "Owns cluster credential revocation", LastTransitionTime: metav1.NewTime(c.clock.Now())}
+	if meta.SetStatusCondition(&revocation.Status.Conditions, active) {
+		revocation, err = revocationCRUD.Replace(ctx, revocation, nil)
+		if err != nil {
+			return err
+		}
 	}
 
 	// Live list every credential request for the cluster and mark those that are
@@ -91,6 +103,9 @@ func (c *revocationMarkRequests) SyncOnce(ctx context.Context, key controlleruti
 		return utils.TrackError(fmt.Errorf("failed to list SystemAdminCredentialRequests: %w", err))
 	}
 	for _, cred := range iter.Items(ctx) {
+		if owned, err := credentialrevocation.Owns(ctx, c.resourcesDBClient, revocation); err != nil || !owned {
+			return err
+		}
 		if cred.Status.DeletionTimestamp != nil {
 			continue
 		}
@@ -112,12 +127,16 @@ func (c *revocationMarkRequests) SyncOnce(ctx context.Context, key controlleruti
 	// Every credential request now carries a DeletionTimestamp; record that on the
 	// revocation so the desires controller can proceed to completion.
 	replacement := revocation.DeepCopy()
-	meta.SetStatusCondition(&replacement.Status.Conditions, metav1.Condition{
-		Type:    coreapi.SystemAdminCredentialRevocationConditionCredentialsMarkedForDeletion,
-		Status:  metav1.ConditionTrue,
-		Reason:  "CredentialsMarked",
-		Message: "All credential requests have been marked for deletion",
+	changed := meta.SetStatusCondition(&replacement.Status.Conditions, metav1.Condition{
+		Type:               coreapi.SystemAdminCredentialRevocationConditionCredentialsMarkedForDeletion,
+		Status:             metav1.ConditionTrue,
+		Reason:             "CredentialsMarked",
+		Message:            "All credential requests have been marked for deletion",
+		LastTransitionTime: metav1.NewTime(c.clock.Now()),
 	})
+	if !changed {
+		return nil
+	}
 	if _, err := revocationCRUD.Replace(ctx, replacement, nil); err != nil {
 		if cosmosstorageutils.IsPreconditionFailedError(err) {
 			// Will be retriggered by the informer.

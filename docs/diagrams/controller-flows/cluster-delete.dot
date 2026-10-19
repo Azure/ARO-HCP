@@ -11,7 +11,7 @@ digraph cluster_delete {
   cs [label="Cluster Service / external cleanup\nKubernetes and Azure resources", fillcolor="#fff0da", color="#b27624"];
   clear [label="ClusterDeletionClusterServiceID\nClearer", fillcolor="#e6f0fa", color="#35648a"];
   marker [label="ClusterCredentialDeletionMarker\nController", fillcolor="#e6f0fa", color="#35648a"];
-  credentials [label="Credential request / revocation\ndeletion controllers", fillcolor="#e6f0fa", color="#35648a"];
+  credentials [label="Credential request / revocation\ndeletion controllers\ntear down desires; no operation dependency\nclear only own revocation reference (ETag)\nthen delete internal document\nindependent of ARM timeout; no claim", fillcolor="#e6f0fa", color="#35648a"];
   children [label="Node-pool and external-auth\ndeletion flows complete", fillcolor="#e4f2e5", color="#4c8053"];
   group [label="EnsureManagedResourceGroup", fillcolor="#e6f0fa", color="#35648a"];
   certificates [label="KubeAPIServerTLSCertificate +\nIngressTLSCertificate\neach: GET its own vault ref;\n404 clears that reference\nread-only, no Key Vault deletes", fillcolor="#e6f0fa", color="#35648a"];

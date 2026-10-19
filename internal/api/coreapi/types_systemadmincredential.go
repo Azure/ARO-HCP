@@ -77,7 +77,7 @@ type SystemAdminCredentialRequestStatus struct {
 	// DeletionTimestamp is set when deletion has been requested for this credential
 	// request. Controllers use this to drive teardown of associated kube-applier
 	// desires before removing the credential request document itself.
-	// Written by: SystemAdminCredentialRevocationMarkRequests
+	// Written by: SystemAdminCredentialRevocationMarkRequests, ClusterCredentialDeletionMarkerController
 	DeletionTimestamp *metav1.Time `json:"deletionTimestamp,omitempty"`
 }
 

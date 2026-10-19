@@ -416,6 +416,14 @@ func (in *ClusterServiceProviderProperties) DeepCopyInto(out *ClusterServiceProv
 		*out = new(metadataapi.InternalID)
 		**out = **in
 	}
+	if in.SystemAdminCredentialRevocationResourceID != nil {
+		in, out := &in.SystemAdminCredentialRevocationResourceID, &out.SystemAdminCredentialRevocationResourceID
+		*out = DeepCopyResourceID(*in)
+	}
+	if in.SystemAdminCredentialRevocationRequestedAt != nil {
+		in, out := &in.SystemAdminCredentialRevocationRequestedAt, &out.SystemAdminCredentialRevocationRequestedAt
+		*out = (*in).DeepCopy()
+	}
 	out.DNS = in.DNS
 	out.Console = in.Console
 	out.API = in.API
@@ -1883,6 +1891,11 @@ func (in *Operation) DeepCopyInto(out *Operation) {
 		*out = DeepCopyResourceID(*in)
 	}
 	out.StartTime = in.StartTime
+	if in.CompletionDeadline != nil {
+		in, out := &in.CompletionDeadline, &out.CompletionDeadline
+		*out = new(time.Time)
+		**out = **in
+	}
 	out.LastTransitionTime = in.LastTransitionTime
 	if in.Error != nil {
 		in, out := &in.Error, &out.Error

@@ -20,16 +20,21 @@ import (
 	"net/http"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/go-logr/logr/testr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/credentialrevocation"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 )
@@ -39,6 +44,59 @@ import (
 type stubDoc struct {
 	coreapi.CosmosMetadata
 	Name string
+}
+
+func TestCredentialMigrationAndLateLegacyWrite(t *testing.T) {
+	ctx := t.Context()
+	logger := testr.New(t)
+	id := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster"))
+	rid := metadataapi.Must(azcorearm.ParseResourceID(id.String() + "/systemAdminCredentialRevocations/intent"))
+	cluster := &coreapi.Cluster{CosmosMetadata: coreapi.CosmosMetadata{ResourceID: id, PartitionKey: id.SubscriptionID}, TrackedResource: coreapi.TrackedResource{Resource: coreapi.Resource{ID: id}}, ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{RevokeCredentialsOperationID: "operation"}}
+	rev := &coreapi.SystemAdminCredentialRevocation{CosmosMetadata: coreapi.CosmosMetadata{ResourceID: rid, PartitionKey: id.SubscriptionID}, Spec: coreapi.SystemAdminCredentialRevocationSpec{OperationID: "operation"}}
+	db, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, rev})
+	require.NoError(t, err)
+	c := &cosmosMigrationController{resourcesDBClient: db}
+	require.NoError(t, c.migrateClusters(ctx, logger, id.SubscriptionID))
+	crud := db.HCPClusters(id.SubscriptionID, id.ResourceGroupName)
+	live, err := crud.Get(ctx, id.Name)
+	require.NoError(t, err)
+	require.Equal(t, rid.String(), live.ServiceProviderProperties.SystemAdminCredentialRevocationResourceID.String())
+	// Migration is not a permanent cutover. Legacy-reference reconciliation handles an old
+	// typed writer erasing the new reference.
+	live.ServiceProviderProperties.SystemAdminCredentialRevocationResourceID = nil
+	live, err = crud.Replace(ctx, live, nil)
+	require.NoError(t, err)
+	require.NoError(t, credentialrevocation.MigrateLegacyReference(ctx, db, live))
+	live, err = crud.Get(ctx, id.Name)
+	require.NoError(t, err)
+	require.Equal(t, rid.String(), live.ServiceProviderProperties.SystemAdminCredentialRevocationResourceID.String())
+}
+
+func TestCredentialReservationMigrationOriginalTime(t *testing.T) {
+	ctx := t.Context()
+	id := metadataapi.Must(coreapihelpers.ToClusterResourceID("00000000-0000-0000-0000-000000000000", "rg", "cluster"))
+	cluster := &coreapi.Cluster{CosmosMetadata: coreapi.CosmosMetadata{ResourceID: id, PartitionKey: id.SubscriptionID}, TrackedResource: coreapi.TrackedResource{Resource: coreapi.Resource{ID: id}}}
+	op := cosmosstorageutils.NewOperation(coreapi.OperationRequestSystemAdminCredentialRevocation, id, metadataapi.InternalID{}, "eastus", "", "", "", nil)
+	op.StartTime = time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	cluster.ServiceProviderProperties.RevokeCredentialsOperationID = op.OperationID.Name
+	db, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, op})
+	require.NoError(t, err)
+	c := &cosmosMigrationController{resourcesDBClient: db}
+	require.NoError(t, c.migrateClusters(ctx, testr.New(t), id.SubscriptionID))
+	crud := db.HCPClusters(id.SubscriptionID, id.ResourceGroupName)
+	live, err := crud.Get(ctx, id.Name)
+	require.NoError(t, err)
+	rid := metadataapi.Must(coreapihelpers.SystemAdminCredentialRevocationID(id, op.OperationID.Name))
+	require.Equal(t, rid.String(), live.ServiceProviderProperties.SystemAdminCredentialRevocationResourceID.String())
+	require.True(t, op.StartTime.Equal(live.ServiceProviderProperties.SystemAdminCredentialRevocationRequestedAt.Time))
+	etag := live.CosmosETag
+	require.NoError(t, credentialrevocation.MigrateLegacyReference(ctx, db, live))
+	live, err = crud.Get(ctx, id.Name)
+	require.NoError(t, err)
+	require.Equal(t, etag, live.CosmosETag, "normalized reservations do not churn")
+	op, err = db.Operations(id.SubscriptionID).Get(ctx, op.OperationID.Name)
+	require.NoError(t, err)
+	require.Nil(t, op.CompletionDeadline, "migration never backfills deadlines")
 }
 
 // stubCRUD implements cosmosstorageutils.ResourceCRUD[stubDoc, *stubDoc] just enough for

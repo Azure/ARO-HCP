@@ -17,12 +17,14 @@ package legacycredentialrequest
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"time"
 
 	"k8s.io/client-go/tools/cache"
 	utilsclock "k8s.io/utils/clock"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
@@ -36,6 +38,7 @@ type dispatchRequestCredential struct {
 	clock                 utilsclock.PassiveClock
 	resourcesDBClient     corecosmosstorage.ResourcesDBClient
 	clustersServiceClient ocm.ClusterServiceClientSpec
+	notificationClient    *http.Client
 }
 
 const DispatchRequestCredentialControllerName = "DispatchRequestCredential"
@@ -53,12 +56,14 @@ func NewDispatchRequestCredentialController(
 	clock utilsclock.PassiveClock,
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	clustersServiceClient ocm.ClusterServiceClientSpec,
+	notificationClient *http.Client,
 	activeOperationInformer cache.SharedIndexInformer,
 ) controllerutils.Controller {
 	syncer := &dispatchRequestCredential{
 		clock:                 clock,
 		resourcesDBClient:     resourcesDBClient,
 		clustersServiceClient: clustersServiceClient,
+		notificationClient:    notificationClient,
 	}
 
 	controller := controllerutils.NewGenericOperationController(
@@ -102,6 +107,9 @@ func (c *dispatchRequestCredential) SynchronizeOperation(ctx context.Context, ke
 	if !c.ShouldProcess(ctx, operation) {
 		return nil // no work to do
 	}
+	if expired, err := operationutils.ExpireCredentialOperation(ctx, c.clock, c.resourcesDBClient, operation, operationutils.PostAsyncNotificationFn(c.notificationClient)); expired || err != nil {
+		return err
+	}
 
 	cluster, err := c.resourcesDBClient.HCPClusters(operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName).Get(ctx, operation.ExternalID.Name)
 	if err != nil {
@@ -120,7 +128,7 @@ func (c *dispatchRequestCredential) SynchronizeOperation(ctx context.Context, ke
 	// there is a slim chance of a straggler slipping through. This is a
 	// second line of defense.
 
-	if len(cluster.ServiceProviderProperties.RevokeCredentialsOperationID) > 0 {
+	if cluster.ServiceProviderProperties.DeletionTimestamp != nil || len(cluster.ServiceProviderProperties.RevokeCredentialsOperationID) > 0 || cluster.ServiceProviderProperties.SystemAdminCredentialRevocationResourceID != nil {
 		logger.Info("revocation in progress, canceling operation",
 			"revoke_credentials_operation_id", cluster.ServiceProviderProperties.RevokeCredentialsOperationID)
 

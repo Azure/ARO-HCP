@@ -660,9 +660,16 @@ No resource document is modified.
 
 | Object | Fields Written |
 |--------|---------------|
-| `Cluster` | <ul><li>`ServiceProviderProperties.RevokeCredentialsOperationID` = new operation's `OperationID.Name`</li></ul> |
-| `Operation` | <ul><li>`Request` = `RevokeCredentials`</li><li>`ExternalID` = parent cluster ARM resource ID</li><li>`InternalID` = `*cluster.ServiceProviderProperties.ClusterServiceID`</li><li>`Status` = `Accepted`</li></ul> |
+| `Cluster` | <ul><li>`ServiceProviderProperties.SystemAdminCredentialRevocationResourceID` = deterministic internal revocation ID</li><li>`SystemAdminCredentialRevocationRequestedAt` = acceptance time</li><li>Rolling compatibility only: `RevokeCredentialsOperationID` = new operation's `OperationID.Name`</li></ul> |
+| `Operation` | <ul><li>`Request` = `RevokeCredentials`</li><li>`ExternalID` = parent cluster ARM resource ID</li><li>`InternalID` = `*cluster.ServiceProviderProperties.ClusterServiceID`</li><li>`Status` = `Accepted`</li><li>`SystemAdminCredentialRevocation.SystemAdminCredentialRevocationResourceID` = same reserved ID as cluster</li><li>`StartTime` and `LastTransitionTime` = same acceptance clock reading; `CompletionDeadline` = acceptance + 30 minutes</li></ul> |
 | Canceled `Operation`s | <ul><li>Active `RequestCredential` operations get `Status` = `Canceled`, `LastTransitionTime` = now</li></ul> |
+
+Both reservations are written in the existing acceptance transaction, together
+with cancellation of active credential requests. The cluster's observed ETag
+prevents two accepts from committing against the same cluster version. Acceptance
+does not create the internal revocation document.
+The shared acceptance clock reading is stored at whole-second precision, matching
+`metav1.Time` serialization, so both persisted timestamps and their deadlines agree.
 
 ### Admin API: GET BackupSchedule
 
@@ -1746,23 +1753,70 @@ Lists regional Azure managed resource groups and live HCP resource references; c
 
 ### Backend: system-admin credentials
 
+Newly accepted issuance and revocation operations persist nullable
+`Operation.CompletionDeadline` using the frontend clock: 20 minutes for issuance,
+30 minutes for revocation (twice the corresponding E2E budgets). Existing nil
+deadlines are never backfilled. Dispatch and poll controllers check expiry before
+cluster, placement, Cluster Service or kube-applier dependencies and persist ARM
+`Failed` / `DeadlineExceeded` through the existing operation helper. Credential
+operations never write the cluster provisioning state. Timeout does not revoke
+all credentials or stop an existing internal intent.
+Late issuance cannot change an already Failed ARM result.
+
+**Rolling transition:** retain the frontend legacy admission/dispatch sentinel
+required by old backends; no new subscription feature or cutover protocol is
+introduced. The internal owner keeps an identity-matching legacy mirror for old
+frontend readers. Old typed writers do not preserve unknown fields, including
+the new reference and operation deadline. `CosmosMigration` migrates existing
+legacy references and `SystemAdminCredentialRevocationLegacyReference` handles subsequent
+legacy writes using the same decision.
+Migration copies the original operation StartTime into the cluster reservation,
+never the migration time, and never backfills deadlines. A live internal document
+is authoritative even when its operation is terminal or missing. If neither
+document nor operation exists, legacy-only sentinels can be released after the
+live list; a new reference without an original timestamp is retained fail-safe.
+Do not roll back to old backend controllers while independent intents exist:
+old controllers do not implement ownership checks. Deadline and independent
+ownership guarantees require upgraded backend controllers and typed writers;
+the legacy mirror is compatibility, not fencing of old binaries. Leader election
+alone is not a mixed-version safety guarantee. Roll out backends before relying
+on frontend deadlines. Removal of legacy compatibility is deferred.
+
+The existing frontend transaction serializes revocation reservations through the
+cluster ETag. There is no backend owner election or pending-intent queue.
+Side-effect controllers check the live owner. These checks are
+optimistic exclusion, not distributed fencing of management-cluster writes.
+Repeated sweeps and issuance deletion guards mitigate late credential arrivals.
+Issuance dispatch first reserves the intended resource ID on the Accepted
+operation and returns. Revocation acceptance reserves the ID on both operation and
+cluster with a cluster acceptance timestamp. Dispatch creates or adopts that exact
+document before advancing to Provisioning (issuance) or Deleting (revocation).
+Pollers check expiry before prerequisites, but only monitor internal documents
+after that dispatch phase. Internal controllers do not read or update the
+originating operation; terminal status and operation TTL expiry do not prevent
+internal reconciliation or teardown. For revocations only, missing documents have
+a 30-minute dispatch grace measured from the cluster acceptance timestamp. An
+existing internal document never loses its reservation due to age or ARM timeout.
+
+![Credential monitoring and internal reconciliation](diagrams/controller-flows/credential-operations.png)
+
 #### SystemAdminCredentialDispatchRequestCredential
 
 [Source](../backend/pkg/controllers/cluster/credentialrequest/operations/dispatch_request_credential.go) · **Trigger:** Active operation; 10s.
 
-For an accepted RequestCredential operation without a request reference, creates an idempotent credential request containing key/CSR and expiry, then records the operation reference. Cancels issuance while the cluster revoke sentinel is set.
+For an Accepted RequestCredential operation without a request reference, reserves a deterministic resource ID with an operation ETag and returns. Adopts existing legacy random-named requests by operation identity instead of reserving a new name. An Accepted operation with a reference creates or adopts that exact request, containing the caller's CSR and expiry, then moves to Provisioning. This also advances legacy linked Accepted requests without replacing their contents. Cancels issuance while either cluster revocation reference is set or the cluster is deleting. The service never holds the caller's private key.
 
 #### SystemAdminCredentialOperationRequestCredentialPoll
 
 [Source](../backend/pkg/controllers/cluster/credentialrequest/operations/operation_request_credential.go) · **Trigger:** Active operation; 10s.
 
-Observes the referenced request's Issued/Failed/revocation conditions, constructs the credential response and completes or fails the operation.
+Checks expiry even while Accepted, then waits for Provisioning before observing the referenced request's Issued/Failed/revocation conditions and completing or failing the operation. Deletion and live revocation exclusion take precedence over Pending or Issued. The frontend also refuses credential result assembly during revocation.
 
 #### SystemAdminCredentialDesiresCreator
 
 [Source](../backend/pkg/controllers/cluster/credentialrequest/creation/desires_creator.go) · **Trigger:** Credential request and mirrored reads; 1m.
 
-For a pending request, waits for cluster ID, actual management cluster and control-plane namespace. Creates CSR/CSRApproval ApplyDesires and a CSR ReadDesire nested under the request.
+For a pending, non-deleting request whose parent is not deleting, waits for cluster ID, actual management cluster and control-plane namespace before creating CSR/CSRApproval ApplyDesires and a CSR ReadDesire nested under the request. Does not consult the originating operation; terminal monitoring does not cancel issuance.
 
 #### SystemAdminCredentialIssuanceObserver
 
@@ -1792,37 +1846,67 @@ Deletes request documents at least 48h after `Spec.CreationTimestamp`, irrespect
 
 [Source](../backend/pkg/controllers/cluster/credentialrevocation/operations/dispatch_revoke_credentials.go) · **Trigger:** Active operation; 10s.
 
-For the accepted revoke operation matching the cluster sentinel, creates a revocation document, references it from the operation and advances the operation to Deleting.
+For an Accepted revoke operation, uses the frontend-reserved ID to create or adopt that exact document before advancing to Deleting. Before creating work, requires a live matching cluster reservation within its shared 30-minute dispatch grace and checks the ARM deadline. Reservation loss or grace expiry fails monitoring with DeadlineExceeded without creating work. Legacy operations lacking a reserved ID retain the ID-first operation write, then normalize their cluster reservation from original StartTime. A matching reservation with no recoverable timestamp waits for migration without creating work or inventing DeadlineExceeded. Nil operation deadlines are never backfilled. Existing documents can be adopted after an interrupted create regardless of reservation age, without replaying their contents; ARM expiry ends monitoring but never alters that work.
 
 #### SystemAdminCredentialRevocationMarkRequests
 
 [Source](../backend/pkg/controllers/cluster/credentialrevocation/creation/revocation_mark_requests.go) · **Trigger:** Credential revocation; 1m.
 
-For a live revocation not yet marked, live-lists credential requests and stamps deletion timestamps. Sets CredentialsMarkedForDeletion only after the marking succeeds.
+Requires live ownership of cluster `SystemAdminCredentialRevocationResourceID`, then publishes Active. Only the owner repeatedly live-lists credential requests and stamps deletion timestamps, even after CredentialsMarkedForDeletion is true. Does not claim or overwrite reservations; legacy reference recovery belongs to CosmosMigration/LegacyReference.
 
 #### SystemAdminCredentialRevocationDesires
 
 [Source](../backend/pkg/controllers/cluster/credentialrevocation/creation/revocation_desires.go) · **Trigger:** Credential revocation; 1m.
 
-Waits for parent placement/namespace and creates CertificateRevocationRequest ApplyDesire and ReadDesire using the revoke-operation suffix.
+Requires live ownership, waits for parent placement/namespace and creates CertificateRevocationRequest ApplyDesire and ReadDesire using the revoke-operation suffix.
 
 #### SystemAdminCredentialRevocationCompletion
 
 [Source](../backend/pkg/controllers/cluster/credentialrevocation/deletion/revocation_completion.go) · **Trigger:** Credential revocation and mirrored reads; 1m.
 
-Observes the Kubernetes revocation result, records CertificatesRevoked and combines it with CredentialsMarkedForDeletion to set Complete and the deletion timestamp.
+Requires live ownership, observes the Kubernetes revocation result and records CertificatesRevoked. Requires CredentialsMarkedForDeletion and an empty live credential-request list before setting Complete and the deletion timestamp, so issuance teardown precedes release.
 
 #### SystemAdminCredentialRevocationDeletion
 
 [Source](../backend/pkg/controllers/cluster/credentialrevocation/deletion/revocation_deletion.go) · **Trigger:** Credential revocation; 1m.
 
-For deletion-marked revocations, tears down Kubernetes objects through Delete desires, removes the intents and deletes the revocation document.
+For deletion-marked revocations, tears down Kubernetes objects through Delete desires, clears only its own live cluster reference and acceptance timestamp plus identity-matching legacy mirror with an ETag, then deletes the revocation document. Release is immediate after teardown, regardless of ARM deadline. Teardown never claims ownership. A crash after release cannot reacquire or clear a newer owner; there is no acknowledgement or replay gate.
 
 #### SystemAdminCredentialOperationRevokeCredentialsPoll
 
 [Source](../backend/pkg/controllers/cluster/credentialrevocation/operations/operation_revoke_credentials.go) · **Trigger:** Active operation; 10s.
 
-Waits for the referenced revocation document to disappear, then clears cluster `RevokeCredentialsOperationID` and completes the operation.
+Checks expiry even while Accepted, then waits for Deleting before interpreting disappearance of the referenced revocation document as completion. A reserved ID alone does not imply completion. Never claims or clears cluster exclusion. Expiry can finish monitoring while internal work continues.
+
+#### SystemAdminCredentialRevocationLegacyReference
+
+[Source](../backend/pkg/controllers/cluster/credentialrevocation/ownership.go) · **Trigger:** Cluster, revocation and all-operation events; 1m cluster resync.
+
+Migrates or releases only legacy state with live reads and a cluster ETag.
+Restores an erased new reference from a verified legacy internal document,
+preferring the durable Active owner over late old frontend writes. Never
+reacquires a deleting intent's released reference. Copies the original operation
+StartTime when available, including legacy ID-first reservations before document
+creation. Never invents a timestamp or modifies an operation deadline. Missing
+operations with no document allow release of legacy-only sentinels; timestamp-less
+internal references are retained fail-safe. A pure
+decision returns a complete replacement with its observed ETag or no mutation;
+the shell performs at most one domain write. Uses the same decision as
+CosmosMigration, which runs only once per subscription per process.
+
+#### SystemAdminCredentialRevocationReservationCleanup
+
+[Source](../backend/pkg/controllers/cluster/credentialrevocation/reservation_cleanup.go) · **Trigger:** Cluster and revocation events; 1m cluster resync.
+
+Looks up the cluster's reserved document in cache first and confirms cache misses
+live. Existing documents always retain ownership, even overdue. Missing documents
+wait until `SystemAdminCredentialRevocationRequestedAt + 30m` (the same constant as
+the frontend revoke budget). At or after that boundary, a live absence and fresh
+matching cluster identity, reservation and timestamp select one cluster replacement
+with the fresh ETag, clearing the reference/timestamp and only a matching legacy
+sentinel. Errors never imply absence. Timestamp-less legacy state waits for legacy
+normalization. New-reservation decisions never read the ARM operation. This is
+ordinary independently persisted state, not cross-document fencing.
 
 #### DispatchRequestCredential
 
@@ -1941,6 +2025,11 @@ For management clusters with pending reservations, removes entries whose service
 [Source](../backend/pkg/controllers/cosmosmigration/cosmos_migration.go) · **Trigger:** Subscription; once per process/key.
 
 Live-reads and reserializes resources recursively, including per-management-cluster kube-applier documents, to migrate their stored representation. Skips TTL documents and retries conflicts.
+Before replacing each cluster, invokes the legacy credential-reference decision
+to migrate a verified legacy intent or deterministic reservation with the original
+operation StartTime, or safely release a legacy-only completed sentinel. It never
+backfills operation deadlines; the ordinary LegacyReference controller handles
+later legacy writes.
 
 #### CosmosRolloutVersionMigration
 
@@ -2482,7 +2571,10 @@ actors and use optimistic concurrency; retries must re-read on conflict.
 
 | Field / object | Writers and downstream meaning |
 |---|---|
-| Cluster `RevokeCredentialsOperationID` | Frontend sets the revoke sentinel; modern revoke-operation completion clears it. New issuance checks it before dispatch. |
+| Cluster `RevokeCredentialsOperationID` | Frontend retains the rolling-compatibility sentinel; legacy migration restores it from verified live work. Matching teardown, reservation cleanup or safe legacy reconciliation clears it. Operation monitors never clear it. |
+| Cluster `SystemAdminCredentialRevocationResourceID` / `SystemAdminCredentialRevocationRequestedAt` | Frontend transactionally reserves ID and acceptance time alongside the operation. Legacy migration copies original StartTime. Internal teardown clears its own reference/time immediately before deletion; ReservationCleanup releases only missing documents beyond grace after live confirmation and fresh identity/time checks. |
+| Credential `Operation.CompletionDeadline` | Frontend sets 20m issuance / 30m revoke deadlines; nil legacy values remain nil. Dispatch/poll controllers fail monitoring at expiry without canceling durable internal intent. |
+| Credential operation internal resource ID / dispatch state | Frontend reserves revoke identity at acceptance; issuance and legacy revoke dispatch reserve identity while Accepted and return. Dispatch creates/adopts the exact document before advancing to Provisioning (request) or Deleting (revocation). Internal controllers never update operation payloads or gate teardown on operation state. |
 | Credential request spec / status | [Credential dispatch](#systemadmincredentialdispatchrequestcredential) creates request material. [Issuance observation](#systemadmincredentialissuanceobserver) writes signed certificate and terminal conditions. Revocation marking and cluster deletion mark requests for cleanup; request controllers remove external artifacts and documents. |
 | Credential revocation conditions / deletion timestamp | MarkRequests reports request marking; Completion combines that with observed certificate revocation and sets deletion intent; Deletion removes artifacts/document; operation poller observes disappearance. |
 | Child `Controller` conditions and reconcile metadata | Generic wrappers persist bookkeeping; version/other syncers can set intent conditions. Degraded aggregators read them. “No domain write” in the catalog does not imply the wrapper never writes a Controller document. |

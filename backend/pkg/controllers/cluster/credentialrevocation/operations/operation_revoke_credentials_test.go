@@ -16,6 +16,7 @@ package operations
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -63,12 +64,12 @@ func TestOperationRevokeCredentialsPoll_ShouldProcess(t *testing.T) {
 			expected: false,
 		},
 		{
-			name: "Accepted status should not process (must be Deleting)",
+			name: "Accepted status is monitored for expiry",
 			op: &coreapi.Operation{
 				Status:  coreapi.ProvisioningStateAccepted,
 				Request: coreapi.OperationRequestSystemAdminCredentialRevocation,
 			},
-			expected: false,
+			expected: true,
 		},
 		{
 			name: "valid RevokeCredentials operation in Deleting should process",
@@ -84,6 +85,37 @@ func TestOperationRevokeCredentialsPoll_ShouldProcess(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			result := syncer.ShouldProcess(context.Background(), tc.op)
 			assert.Equal(t, tc.expected, result)
+		})
+	}
+}
+
+func TestRevokePollExpiryBeforePrerequisites(t *testing.T) {
+	for _, reserved := range []bool{false, true} {
+		t.Run(fmt.Sprintf("reserved=%t", reserved), func(t *testing.T) {
+			ctx := t.Context()
+			clock := clocktesting.NewFakeClock(time.Unix(100, 0))
+			op := newTestOperation(coreapi.OperationRequestSystemAdminCredentialRevocation)
+			deadline := clock.Now().Add(time.Minute)
+			op.CompletionDeadline = &deadline
+			if reserved {
+				op.SystemAdminCredentialRevocation = &coreapi.OperationSystemAdminCredentialRevocation{
+					SystemAdminCredentialRevocationResourceID: metadataapi.Must(coreapihelpers.ToSystemAdminCredentialRevocationResourceID(testSubscriptionID, testResourceGroupName, testClusterName, "reserved")),
+				}
+			}
+			db, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{op})
+			require.NoError(t, err)
+			c := &operationRevokeCredentialsPoll{clock: clock, resourcesDBClient: db}
+			key := controllerutils.OperationKey{SubscriptionID: testSubscriptionID, OperationName: testOperationName}
+			require.NoError(t, c.SynchronizeOperation(ctx, key))
+			live, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
+			require.NoError(t, err)
+			require.Equal(t, coreapi.ProvisioningStateAccepted, live.Status, "absence before dispatch is not completion")
+			clock.Step(time.Minute)
+			require.NoError(t, c.SynchronizeOperation(ctx, key))
+			live, err = db.Operations(testSubscriptionID).Get(ctx, testOperationName)
+			require.NoError(t, err)
+			require.Equal(t, coreapi.ProvisioningStateFailed, live.Status)
+			require.Equal(t, "DeadlineExceeded", live.Error.Code)
 		})
 	}
 }
@@ -164,7 +196,7 @@ func TestOperationRevokeCredentialsPoll_SynchronizeOperation(t *testing.T) {
 			},
 		},
 		{
-			name: "revocation doc gone marks operation Succeeded and clears cluster sentinel",
+			name: "revocation doc gone marks operation Succeeded without owning cluster sentinel",
 			setupDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op := newTestOperation(coreapi.OperationRequestSystemAdminCredentialRevocation)
 				op.Status = coreapi.ProvisioningStateDeleting
@@ -187,7 +219,7 @@ func TestOperationRevokeCredentialsPoll_SynchronizeOperation(t *testing.T) {
 
 				cluster, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
 				require.NoError(t, err)
-				assert.Empty(t, cluster.ServiceProviderProperties.RevokeCredentialsOperationID, "cluster sentinel should be cleared")
+				assert.Equal(t, testOperationName, cluster.ServiceProviderProperties.RevokeCredentialsOperationID, "operation polling must never clear the cluster sentinel")
 			},
 		},
 	}

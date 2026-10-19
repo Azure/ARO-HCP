@@ -120,8 +120,31 @@ func (c *revocationDeletion) SyncOnce(ctx context.Context, key controllerutils.S
 		return nil
 	}
 
-	// All revocation desires are gone — delete the revocation document. Its
-	// disappearance completes the operation.
+	// Release only our live reference, before deleting the intent. A retry after
+	// release remains in deletion and cannot reacquire or clear a newer owner.
+	clusterCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName)
+	cluster, err := clusterCRUD.Get(ctx, key.HCPClusterName)
+	if err != nil && !cosmosstorageutils.IsNotFoundError(err) {
+		return err
+	}
+	if err == nil {
+		props := &cluster.ServiceProviderProperties
+		changed := false
+		if owner := props.SystemAdminCredentialRevocationResourceID; owner != nil && strings.EqualFold(owner.String(), revocation.ResourceID.String()) {
+			props.SystemAdminCredentialRevocationResourceID = nil
+			props.SystemAdminCredentialRevocationRequestedAt = nil
+			changed = true
+		}
+		if props.RevokeCredentialsOperationID == revocation.Spec.OperationID {
+			props.RevokeCredentialsOperationID = ""
+			changed = true
+		}
+		if changed {
+			if _, err := clusterCRUD.Replace(ctx, cluster, nil); err != nil {
+				return err
+			}
+		}
+	}
 	if err := revocationCRUD.Delete(ctx, key.RevocationName); err != nil && !cosmosstorageutils.IsNotFoundError(err) {
 		return utils.TrackError(fmt.Errorf("failed to delete SystemAdminCredentialRevocation: %w", err))
 	}
