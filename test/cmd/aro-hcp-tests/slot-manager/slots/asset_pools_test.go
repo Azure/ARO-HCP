@@ -140,6 +140,7 @@ func TestRejectsObsoleteAndInvalidCatalogs(t *testing.T) {
 		{"unknown demand config", "units_per_slot: 2", "units_per_slot: 2\n          subscription: foreign", "subscription"},
 		{"inventory capacity forbidden", "  resource_name_prefix: bundle", "  resource_name_prefix: bundle\n  capacity: 3", "capacity"},
 		{"inventory subscription forbidden", "  resource_name_prefix: bundle", "  resource_name_prefix: bundle\n  subscription: infra", "subscription"},
+		{"catalog identity names", "  resource_name_prefix: bundle", "  resource_name_prefix: bundle\n  infrastructure_identities:\n    identity_names: [frontend]", "identity_names"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

@@ -23,6 +23,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets/e2eidentities"
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
 )
 
 // assetCommandOptionsForTest fills in AzureGlobalLoggerLogPath and
@@ -126,6 +127,35 @@ environments:
 					t.Fatalf("incorrect selection policy passed to handler: %+v", request)
 				}
 			})
+		}
+	}
+}
+
+func TestBuiltInRegistryIncludesInfrastructureIdentities(t *testing.T) {
+	t.Parallel()
+	registry, err := newAssetRegistry()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, found := registry.GetHandler(assets.KindInfrastructureIdentities); !found {
+		t.Fatal("built-in registry must include the infrastructure identities handler")
+	}
+}
+
+func TestLiveCatalogDoesNotDemandInfrastructureIdentities(t *testing.T) {
+	t.Parallel()
+	catalog, err := slots.LoadCatalog("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(catalog.AssetPools) != 0 {
+		t.Fatalf("live catalog must not activate independent asset pools yet, got %d", len(catalog.AssetPools))
+	}
+	for environmentName, environment := range catalog.Environments {
+		for _, pool := range environment.Pools {
+			if pool.SlotAssets.InfrastructureIdentities != nil {
+				t.Fatalf("live catalog environment %q pool %q must not demand infrastructure identities", environmentName, pool.Name)
+			}
 		}
 	}
 }

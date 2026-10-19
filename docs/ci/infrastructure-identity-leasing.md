@@ -2,8 +2,9 @@
 
 Infrastructure identity leasing lets CI deployments reuse persistent Azure
 managed identities instead of creating new identities for every run. The
-implemented deployment support is opt-in; pool provisioning, slot-manager
-bundle publication, and live CI activation are separate work.
+implemented deployment support is opt-in. Slot-manager can acquire, admit,
+provision, and publish a leased bundle when a catalog declares the asset.
+Live catalog demand, pool creation, and CI activation are separate work.
 
 ## Deployment behavior
 

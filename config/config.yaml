@@ -36,9 +36,9 @@ defaults:
     releaseManagementGroupId: ""
     sreServiceTag: "CorpNetSaw"
   infrastructureIdentities:
-    # Persistent infrastructure identity reuse is opt-in. The future slot-manager
-    # handler will populate these resource groups and stable AKS identity names.
-    # Each deployment resolves identities in its own subscription.
+    # Persistent infrastructure identity reuse is opt-in. Slot-manager publishes
+    # these resource groups and stable AKS identity names when a catalog demands
+    # the asset. Each deployment resolves identities in its own subscription.
     useLeased: false
     serviceResourceGroup: ""
     serviceAksIdentityName: ""

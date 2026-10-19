@@ -26,6 +26,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets/e2eidentities"
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets/infrastructureidentities"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
 )
 
@@ -46,7 +47,7 @@ type assetCommandOptions struct {
 }
 
 func newAssetRegistry() (*assets.Registry, error) {
-	return assets.NewRegistry(e2eidentities.NewHandler())
+	return assets.NewRegistry(e2eidentities.NewHandler(), infrastructureidentities.NewHandler())
 }
 
 func newApplyPoolAssetsCommand(registry *assets.Registry) (*cobra.Command, error) {

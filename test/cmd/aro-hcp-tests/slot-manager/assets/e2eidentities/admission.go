@@ -18,17 +18,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/http"
 	"sort"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/go-logr/logr"
 	"github.com/google/uuid"
-	"golang.org/x/sync/errgroup"
 
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/utils/ptr"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -36,6 +33,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/msi/armmsi"
 
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets"
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets/azureutil"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 )
@@ -79,7 +77,7 @@ func admitIdentityLeaseWithClients(ctx context.Context, request assets.LeaseRequ
 			}
 			logger.Info("Attempting to delete role assignment", "roleAssignmentResourceID", *assignment.ID)
 			_, err := roleAssignmentsClient.DeleteByID(ctx, *assignment.ID, nil)
-			if isNotFound(err) {
+			if azureutil.IsNotFound(err) {
 				logger.Info("Role assignment not found. Nothing to delete", "roleAssignmentResourceID", *assignment.ID)
 				return nil
 			}
@@ -99,7 +97,7 @@ func admitIdentityLeaseWithClients(ctx context.Context, request assets.LeaseRequ
 
 	workers := max(cleanupWorkers, 1)
 	logger.Info("Deleting role assignments", "count", len(deleteOperations), "workers", workers)
-	if err := runWithWorkers(ctx, deleteOperations, workers); err != nil {
+	if err := azureutil.RunWithWorkers(ctx, deleteOperations, workers); err != nil {
 		return fmt.Errorf("failed cleaning E2E identity lease: %w", err)
 	}
 	// Exclusive ownership lets us rely on successful synchronous deletes without
@@ -122,7 +120,7 @@ func leaseCredential(request assets.LeaseRequest) (azcore.TokenCredential, strin
 
 	credential, err := slots.NewClusterProfileCredential(profileDir, nil)
 	if err != nil {
-		return nil, "", err
+		return nil, "", fmt.Errorf("failed constructing cluster profile credential: %w", err)
 	}
 	return credential, subscriptionID, nil
 }
@@ -136,14 +134,9 @@ func loadIdentityLeaseInventory(
 	if request.AcquiredSlotState == nil || len(request.AcquiredSlotState.Slot.IdentityContainerNames()) == 0 {
 		return nil, errors.New("resolved E2E identity inventory is empty")
 	}
-	expectedIdentityNames := framework.NewDefaultIdentities().ToSlice()
-	expectedIdentities := make(map[string]struct{}, len(expectedIdentityNames))
-	for _, identityName := range expectedIdentityNames {
-		expectedIdentities[strings.ToLower(identityName)] = struct{}{}
-	}
-
+	expectedIdentities := azureutil.NormalizedNameSet(framework.NewDefaultIdentities().ToSlice())
 	inventory := &identityLeaseInventory{}
-	principalIDs := map[uuid.UUID]struct{}{}
+	principalIDs := sets.New[uuid.UUID]()
 	identitiesClient := msiFactory.NewUserAssignedIdentitiesClient()
 
 	for _, resourceGroup := range request.AcquiredSlotState.Slot.IdentityContainerNames() {
@@ -160,14 +153,14 @@ func loadIdentityLeaseInventory(
 					return nil, fmt.Errorf("identity list for resource group %q returned an entry without a name", resourceGroup)
 				}
 				normalizedName := strings.ToLower(*identity.Name)
-				if _, expected := expectedIdentities[normalizedName]; !expected {
+				if !expectedIdentities.Has(normalizedName) {
 					unexpectedIdentities = append(unexpectedIdentities, *identity.Name)
 					continue
 				}
 				if identity.Properties == nil || identity.Properties.PrincipalID == nil || strings.TrimSpace(*identity.Properties.PrincipalID) == "" {
 					return nil, fmt.Errorf("identity %q in resource group %q has no principal ID", *identity.Name, resourceGroup)
 				}
-				principalID, err := parsePrincipalID(*identity.Properties.PrincipalID)
+				principalID, err := azureutil.ParsePrincipalID(*identity.Properties.PrincipalID)
 				if err != nil {
 					return nil, fmt.Errorf("identity %q has invalid principal ID: %w", *identity.Name, err)
 				}
@@ -175,7 +168,7 @@ func loadIdentityLeaseInventory(
 					return nil, fmt.Errorf("identity list for resource group %q returned duplicate identity %q", resourceGroup, *identity.Name)
 				}
 				actualIdentities[normalizedName] = *identity.Name
-				principalIDs[principalID] = struct{}{}
+				principalIDs.Insert(principalID)
 			}
 		}
 		if len(unexpectedIdentities) > 0 {
@@ -185,7 +178,7 @@ func loadIdentityLeaseInventory(
 				"identityNames", unexpectedIdentities,
 			)
 		}
-		if err := validateIdentityNames(resourceGroup, expectedIdentities, actualIdentities); err != nil {
+		if err := azureutil.RequireIdentities(resourceGroup, expectedIdentities, actualIdentities); err != nil {
 			return nil, err
 		}
 	}
@@ -200,89 +193,14 @@ func loadIdentityLeaseInventory(
 			if assignment == nil || assignment.Properties == nil || assignment.Properties.PrincipalID == nil || strings.TrimSpace(*assignment.Properties.PrincipalID) == "" {
 				return nil, errors.New("role assignment list returned an entry without a principal ID")
 			}
-			principalID, err := parsePrincipalID(*assignment.Properties.PrincipalID)
+			principalID, err := azureutil.ParsePrincipalID(*assignment.Properties.PrincipalID)
 			if err != nil {
 				return nil, fmt.Errorf("role assignment list returned invalid principal ID %q: %w", *assignment.Properties.PrincipalID, err)
 			}
-			if _, found := principalIDs[principalID]; found {
+			if principalIDs.Has(principalID) {
 				inventory.roleAssignments = append(inventory.roleAssignments, assignment)
 			}
 		}
 	}
 	return inventory, nil
-}
-
-func parsePrincipalID(value string) (uuid.UUID, error) {
-	id, err := uuid.Parse(value)
-	if err != nil {
-		return uuid.Nil, err
-	}
-	if !strings.EqualFold(value, id.String()) {
-		return uuid.Nil, errors.New("principal ID must be a hyphenated UUID without surrounding whitespace")
-	}
-	return id, nil
-}
-
-func validateIdentityNames(resourceGroup string, expected map[string]struct{}, actual map[string]string) error {
-	var missing []string
-	for name := range expected {
-		if _, found := actual[name]; !found {
-			missing = append(missing, name)
-		}
-	}
-	sort.Strings(missing)
-	if len(missing) > 0 {
-		return fmt.Errorf("identity inventory drift in resource group %q: missing=%v", resourceGroup, missing)
-	}
-	return nil
-}
-
-// runWithWorkers runs every operation with at most workers running at once and
-// joins their errors. Once ctx is done no further operation starts, and the
-// context error is part of the result. Joined error order is unspecified when
-// workers > 1.
-func runWithWorkers(ctx context.Context, operations []func(context.Context) error, workers int) error {
-	var (
-		group errgroup.Group
-		lock  sync.Mutex
-		errs  []error
-	)
-	group.SetLimit(max(workers, 1))
-	for _, operation := range operations {
-		if ctx.Err() != nil {
-			break
-		}
-		group.Go(func() error {
-			// Go blocks while all workers are busy, so ctx may be done by the time we run.
-			if ctx.Err() != nil {
-				return nil
-			}
-			if err := runOperation(ctx, operation); err != nil {
-				lock.Lock()
-				errs = append(errs, err)
-				lock.Unlock()
-			}
-			return nil
-		})
-	}
-	_ = group.Wait()
-	errs = append(errs, ctx.Err())
-	return errors.Join(errs...)
-}
-
-func runOperation(ctx context.Context, operation func(context.Context) error) (err error) {
-	// Preserve fail-closed errors when ReallyCrash is false without bypassing
-	// the process crash policy when it is true.
-	defer utilruntime.HandleCrash(func(value interface{}) {
-		err = fmt.Errorf("identity admission operation panicked: %v", value)
-	})
-	return operation(ctx)
-}
-
-func isNotFound(err error) bool {
-	if err == nil {
-		return false
-	}
-	var responseError *azcore.ResponseError
-	return errors.As(err, &responseError) && responseError.StatusCode == http.StatusNotFound
 }
