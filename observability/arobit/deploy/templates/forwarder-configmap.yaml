@@ -27,6 +27,8 @@ data:
 
     @INCLUDE /forwarder/etc/filter.conf
 
+    @INCLUDE /forwarder/etc/output-metrics.conf
+
 {{- if and .Values.forwarder.mdsd.enabled (eq .Values.forwarder.clusterType "mgmt") }}
     @INCLUDE /forwarder/etc/filter-shoebox.conf
     @INCLUDE /forwarder/etc/output-shoebox.conf
@@ -274,6 +276,8 @@ data:
         Kube_Meta_Cache_TTL 300
         Buffer_Size         64k
 
+{{ include "arobit.routingMetrics" (dict "type" "reroute" "name" "namespace_router" "match" "kubernetes.var.log.containers.*" "regex" "$kubernetes['namespace_name'] ^ocm-.*") | indent 4 }}
+
     [FILTER]
         # Only re-tag ocm-* namespaces (minority of traffic). Non-ocm records keep
         # their original kubernetes.* tag and flow directly to outputs — no copy needed.
@@ -302,6 +306,10 @@ data:
         script          /forwarder/etc/set-cluster-id-from-annotation.lua
         call            set_cluster_id_from_annotation
 {{- end }}
+
+{{ include "arobit.routingMetrics" (dict "type" "reroute" "name" "container_name_router" "match" "kubernetes.var.log.containers.*" "regex" "$kubernetes['container_name'] ^(aro-hcp-frontend*|aro-hcp-backend*|clusters-service*|fleet-controller*|kube-applier*|kube-events*|swift-recorder$)") | indent 4 }}
+
+{{ include "arobit.routingMetrics" (dict "type" "copy" "name" "container_name_router" "match" "kubernetes.var.log.containers.*" "regex" "$kubernetes['container_name'] ^mgmt-agent-controller*") | indent 4 }}
 
     [FILTER]
         Name            rewrite_tag
@@ -338,6 +346,8 @@ data:
         Preserve_Key Off
         Reserve_Data On
 
+{{ include "arobit.routingMetrics" (dict "type" "reroute" "name" "resource_snapshot_router" "match" "mgmt-agent.logs" "regex" "$snapshotType ^kubernetes$") | indent 4 }}
+
     [FILTER]
         # Route mgmt-agent logs with snapshotType=kubernetes
         # to a dedicated tag for the kubernetesResourceSnapshots Kusto table.
@@ -361,6 +371,8 @@ data:
         Match   kube-applier.logs
         Exclude snapshotType ^(kubernetes|cosmos)$
 
+{{ include "arobit.routingMetrics" (dict "type" "reroute" "name" "cosmos_snapshot_router" "match" "aro-hcp-backend.logs" "regex" "$snapshotType ^cosmos$") | indent 4 }}
+
     [FILTER]
         # Route backend logs with snapshotType=cosmos
         # to a dedicated tag for the cosmosResourceSnapshots Kusto table.
@@ -372,6 +384,8 @@ data:
         Emitter_Mem_Buf_Limit  40M
         Emitter_Storage.type   filesystem
 
+{{ include "arobit.routingMetrics" (dict "type" "reroute" "name" "cosmos_snapshot_router_frontend" "match" "aro-hcp-frontend.logs" "regex" "$snapshotType ^cosmos$") | indent 4 }}
+
     [FILTER]
         # Route frontend logs with snapshotType=cosmos
         # to the same cosmosResourceSnapshots Kusto table.
@@ -382,6 +396,8 @@ data:
         Emitter_Name    re_emitted_cosmos_snapshot_router_frontend
         Emitter_Mem_Buf_Limit  40M
         Emitter_Storage.type   filesystem
+
+{{ include "arobit.routingMetrics" (dict "type" "copy" "name" "cosmos_snapshot_router_fleet" "match" "fleet-controller.logs" "regex" "$snapshotType ^cosmos$") | indent 4 }}
 
     [FILTER]
         # Route fleet controller logs with snapshotType=cosmos
@@ -397,6 +413,10 @@ data:
 {{- if and .Values.forwarder.mdsd.enabled (eq .Values.forwarder.clusterType "mgmt") }}
   filter-shoebox.conf: |
     # Route control plane logs from OCM namespaces for Shoebox transformation
+{{ include "arobit.routingMetrics" (dict "type" "copy" "name" "shoebox_router_container" "match" "ocm.logs" "regex" "$kubernetes['container_name'] ^(audit-logs|kube-apiserver|kube-controller-manager|kube-scheduler|cloud-controller-manager|csi-driver|snapshot-controller|cluster-autoscaler)$") | indent 4 }}
+
+{{ include "arobit.routingMetrics" (dict "type" "copy" "name" "shoebox_router_pod" "match" "ocm.logs" "exclude" "$kubernetes['container_name'] ^(audit-logs|kube-apiserver|kube-controller-manager|kube-scheduler|cloud-controller-manager|csi-driver|snapshot-controller|cluster-autoscaler)$" "regex" "$kubernetes['pod_name'] ^capi-provider.*") | indent 4 }}
+
     [FILTER]
         Name            rewrite_tag
         Alias           filter.shoebox_router
@@ -640,13 +660,15 @@ data:
         return 1, timestamp, record
     end
 {{- end }}
-  output.conf: |
+  output-metrics.conf: |
     [OUTPUT]
         Name  prometheus_exporter
         Alias exporter.fluentbit
         Match metrics.fluentbit
         Host  0.0.0.0
         Port  9090
+
+  output.conf: |
 {{- if .Values.forwarder.clusterType | eq "mgmt" }}
     [OUTPUT]
         Match ocm.logs
