@@ -16,6 +16,7 @@ package client
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"k8s.io/utils/ptr"
@@ -35,11 +36,8 @@ import (
 type HardcodedIdentity struct {
 	// ClientID is the Client ID of a valid identity.
 	ClientID string
-	// ClientSecret is The base64 encoded bundle
-	// certificate (public + private key) of the identity.
-	// The identity is a valid identity credential associated to the identity
-	// identified by ClientID.
-	ClientSecret string
+	// Certificate generations are shared by retained mock token consumers.
+	certificate *mockIdentityCertificate
 	// PrincipalID is the Principal ID of the identity identified by ClientID.
 	// For User-Assigned Managed identities this is the Object (principal) ID
 	// of the Managed Identity. This is, the Object ID of the service principal
@@ -70,10 +68,12 @@ type hardcodedIdentityManagedIdentitiesDataplaneClient struct {
 
 var _ ManagedIdentitiesDataplaneClient = (*hardcodedIdentityManagedIdentitiesDataplaneClient)(nil)
 
-// GetUserAssignedIdentities returns the User Assigned Managed Identities associated
-// The returned results will have the stubbed data provided during construction of the client
-// for the client id, client secret and principal id attributes.
+// GetUserAssignedIdentitiesCredentials returns metadata and the current mock certificate bundle.
 func (c *hardcodedIdentityManagedIdentitiesDataplaneClient) GetUserAssignedIdentitiesCredentials(ctx context.Context, request dataplane.UserAssignedIdentitiesRequest) (*dataplane.ManagedIdentityCredentials, error) {
+	if c.hardcodedIdentity.certificate == nil {
+		return nil, fmt.Errorf("mock MSI certificate is not initialized")
+	}
+	bundle := c.hardcodedIdentity.certificate.generation.Load().bundle
 	now := time.Now().UTC()
 	aHundredYearsFromNow := now.AddDate(100, 0, 0).Format(time.RFC3339)
 	aDayAgo := now.AddDate(0, 0, -1).Format(time.RFC3339)
@@ -90,7 +90,7 @@ func (c *hardcodedIdentityManagedIdentitiesDataplaneClient) GetUserAssignedIdent
 	for i, miResourceID := range request.IdentityIDs {
 		identity := dataplane.UserAssignedIdentityCredentials{
 			ClientID:                   ptr.To(c.hardcodedIdentity.ClientID),
-			ClientSecret:               ptr.To(c.hardcodedIdentity.ClientSecret),
+			ClientSecret:               &bundle,
 			TenantID:                   ptr.To(c.hardcodedIdentity.TenantID),
 			ResourceID:                 ptr.To(miResourceID),
 			AuthenticationEndpoint:     ptr.To(c.cloudConfiguration.ActiveDirectoryAuthorityHost),

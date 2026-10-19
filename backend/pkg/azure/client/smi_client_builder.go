@@ -67,12 +67,14 @@ func (b *serviceManagedIdentityClientBuilder) BuilderType() ServiceManagedIdenti
 	return ServiceManagedIdentityClientBuilderTypeValue
 }
 
-// credentialsForServiceManagedIdentity acquires an azcore.TokenCredential for the cluster's
-// Service Managed Identity by going through the Managed Identities Data Plane.
+// Resolves a live mock credential or obtains credentials from the real MI dataplane.
 func (b *serviceManagedIdentityClientBuilder) credentialsForServiceManagedIdentity(ctx context.Context, clusterIdentityURL string, smiResourceID *azcorearm.ResourceID) (azcore.TokenCredential, error) {
 	miDataplaneClient, err := b.fpaMIdataplaneClientBuilder.ManagedIdentitiesDataplane(clusterIdentityURL)
 	if err != nil {
 		return nil, err
+	}
+	if source, ok := miDataplaneClient.(rotatingTokenCredentialSource); ok {
+		return source.tokenCredential()
 	}
 
 	dataplaneRequest := dataplane.UserAssignedIdentitiesRequest{

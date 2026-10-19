@@ -391,6 +391,7 @@ func readTrimmedFile(path string) (string, error) {
 	return value, nil
 }
 
+// ToBackendOptions constructs backend dependencies and their context-scoped identity sources.
 func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.Command) (*app.BackendOptions, error) {
 	logger := utils.LoggerFromContext(ctx)
 
@@ -494,8 +495,10 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 
 		// In ARO-HCP environments where we don't have a real FPA, we load the hardcoded identity
 		// and use it both as the mock MI dataplane source and as the identity metadata source.
-		hardcodedIdentity, err = newHardcodedIdentity(
-			f.InsecureAzureManagedIdentityMockCertificateBundlePath, f.InsecureAzureManagedIdentityMockClientID, f.InsecureAzureManagedIdentityMockServicePrincipalID, f.InsecureAzureManagedIdentityMockTenantID,
+		hardcodedIdentity, err = azureclient.NewHardcodedIdentity(
+			ctx, f.InsecureAzureManagedIdentityMockCertificateBundlePath, f.InsecureAzureManagedIdentityMockClientID,
+			f.InsecureAzureManagedIdentityMockServicePrincipalID, f.InsecureAzureManagedIdentityMockTenantID,
+			*azureConfig.CloudEnvironment.AZCoreClientOptions(),
 		)
 		if err != nil {
 			return nil, utils.TrackError(fmt.Errorf("error loading hardcoded identity: %w", err))

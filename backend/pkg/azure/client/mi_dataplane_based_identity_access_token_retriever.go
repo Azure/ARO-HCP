@@ -33,8 +33,8 @@ import (
 //
 // GetToken uses the same signature as azcore.TokenCredential, so implementations can also satisfy that interface for Azure SDK clients that need it.
 //
-// Each call to GetToken fetches fresh credentials for the bound identity from the
-// MI Dataplane service and exchanges them for an access token.
+// Each call uses the current mock certificate generation or fetches fresh credentials
+// for the bound identity from the real MI Dataplane service.
 //
 // Note: when the service is configured with a hardcoded Managed Identities Data Plane client
 // (e.g. in local development), GetToken always returns a token for the Azure Managed Identity Mock
@@ -63,7 +63,7 @@ type MIDataplaneBasedIdentityAccessTokenRetrieverBuilder interface {
 	Build(clusterIdentityURL string, identityResourceID *azcorearm.ResourceID) (MIDataplaneBasedIdentityAccessTokenRetriever, error)
 }
 
-// miDataplaneBasedIdentityAccessTokenRetriever performs a full MI Dataplane round-trip on every GetToken call to acquire the freshest possible credentials.
+// Reads current mock credentials or performs a real MI dataplane round-trip for token acquisition.
 type miDataplaneBasedIdentityAccessTokenRetriever struct {
 	miDataplaneClient  ManagedIdentitiesDataplaneClient
 	clientOptions      *azcore.ClientOptions
@@ -74,11 +74,15 @@ type miDataplaneBasedIdentityAccessTokenRetriever struct {
 var _ MIDataplaneBasedIdentityAccessTokenRetriever = (*miDataplaneBasedIdentityAccessTokenRetriever)(nil)
 var _ azcore.TokenCredential = (*miDataplaneBasedIdentityAccessTokenRetriever)(nil)
 
-// GetToken acquires an access token for the bound identity by:
-//  1. Fetching credentials for the identity via GetUserAssignedIdentitiesCredentials.
-//  2. Building an azcore.TokenCredential from the returned credentials.
-//  3. Calling GetToken on that credential with the provided token request options.
+// GetToken uses the rotating mock credential or obtains credentials from the real MI dataplane.
 func (r *miDataplaneBasedIdentityAccessTokenRetriever) GetToken(ctx context.Context, options policy.TokenRequestOptions) (azcore.AccessToken, error) {
+	if source, ok := r.miDataplaneClient.(rotatingTokenCredentialSource); ok {
+		credential, err := source.tokenCredential()
+		if err != nil {
+			return azcore.AccessToken{}, err
+		}
+		return credential.GetToken(ctx, options)
+	}
 	resp, err := r.miDataplaneClient.GetUserAssignedIdentitiesCredentials(ctx, dataplane.UserAssignedIdentitiesRequest{
 		IdentityIDs: []string{r.identityResourceID.String()},
 	})

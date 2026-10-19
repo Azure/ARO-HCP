@@ -22,3 +22,9 @@ The local code can also be deployed directly into a personal DEV environment by 
 ## Deployment
 
 The [pipeline.yaml](pipeline.yaml) file in this directory contains the pipeline definition for the Backend. It is integrated into the [topology.yaml](../topology.yaml) file and runs as part of the service cluster deployment.
+
+### MSI mock certificate rotation
+
+When the insecure managed-identity mock is enabled, the backend polls the configured certificate bundle every minute. Retained SMI Azure SDK clients and MI-dataplane access-token retrievers share the current credential generation, so CSI certificate rotation does not require a backend restart. Already-issued access tokens remain usable until the SDK refreshes them.
+
+The initial bundle must be readable and parseable. An invalid replacement is logged and the last successfully loaded credential remains available; a later corrected bundle is loaded on the next change check. Client ID, principal ID and tenant ID remain startup configuration and require a rollout when changed. Real managed-identity dataplane and workload-identity behavior are unchanged.
