@@ -138,7 +138,10 @@ func (c *managementClusterPlacementSyncer) SyncOnce(ctx context.Context, key con
 	}
 
 	// Get the provision shard from Cluster Service via the dedicated endpoint.
-	csShard, err := c.clusterServiceClient.GetClusterProvisionShard(ctx, *cachedCluster.ServiceProviderProperties.ClusterServiceID)
+	csCtx, cancel := context.WithTimeout(ctx, controllerutils.CSReadTimeout)
+	defer cancel()
+
+	csShard, err := c.clusterServiceClient.GetClusterProvisionShard(csCtx, *cachedCluster.ServiceProviderProperties.ClusterServiceID)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get provision shard from Cluster Service: %w", err))
 	}

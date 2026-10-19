@@ -179,13 +179,16 @@ func (c *clusterClusterServiceCreateSyncer) SyncOnce(ctx context.Context, key co
 	tenantID := *subscription.Properties.TenantId
 	mrg := cluster.CustomerProperties.Platform.ManagedResourceGroup
 
-	csCluster, err := c.findAROHCPClusterByAzureInfo(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, tenantID, mrg)
+	csCtx, cancel := context.WithTimeout(ctx, controllerutils.CSWriteTimeout)
+	defer cancel()
+
+	csCluster, err := c.findAROHCPClusterByAzureInfo(csCtx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, tenantID, mrg)
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
 	if csCluster == nil {
-		csCluster, err = c.createClusterServiceCluster(ctx, cluster, existingServiceProviderCluster, tenantID)
+		csCluster, err = c.createClusterServiceCluster(csCtx, cluster, existingServiceProviderCluster, tenantID)
 		if err != nil {
 			return utils.TrackError(fmt.Errorf("failed to create cluster in CS: %w", err))
 		}

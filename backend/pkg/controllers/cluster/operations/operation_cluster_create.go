@@ -290,12 +290,15 @@ func (c *operationClusterCreate) clusterServiceCreateOperationState(ctx context.
 
 	clusterServiceID := *cluster.ServiceProviderProperties.ClusterServiceID
 
-	clusterStatus, err := c.clusterServiceClient.GetClusterStatus(ctx, clusterServiceID)
+	csCtx, cancel := context.WithTimeout(ctx, controllerutils.CSReadTimeout)
+	defer cancel()
+
+	clusterStatus, err := c.clusterServiceClient.GetClusterStatus(csCtx, clusterServiceID)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
 
-	newOperationStatus, opError, err := operationbase.ConvertClusterStatus(ctx, c.clusterServiceClient, operation, clusterStatus, clusterServiceID)
+	newOperationStatus, opError, err := operationbase.ConvertClusterStatus(csCtx, c.clusterServiceClient, operation, clusterStatus, clusterServiceID)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}

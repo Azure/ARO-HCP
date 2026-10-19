@@ -126,7 +126,10 @@ func (c *externalAuthClusterServiceCreateSyncer) SyncOnce(ctx context.Context, k
 		return utils.TrackError(fmt.Errorf("build external auth internal ID for adoption lookup: %w", err))
 	}
 
-	existing, err := c.findCSExternalAuth(ctx, externalAuthCSInternalID)
+	csCtx, cancel := context.WithTimeout(ctx, controllerutils.CSWriteTimeout)
+	defer cancel()
+
+	existing, err := c.findCSExternalAuth(csCtx, externalAuthCSInternalID)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -137,7 +140,7 @@ func (c *externalAuthClusterServiceCreateSyncer) SyncOnce(ctx context.Context, k
 			return utils.TrackError(err)
 		}
 		logger.Info("performing POST external auth to Cluster Service", "cs_external_auth_href", csExternalAuthHREF, "external_auth_resource_id", externalAuth.ID.String())
-		_, err = c.clustersServiceClient.PostExternalAuth(ctx, clusterCSInternalID, csExternalAuthBuilder)
+		_, err = c.clustersServiceClient.PostExternalAuth(csCtx, clusterCSInternalID, csExternalAuthBuilder)
 		if c.isOCMErrorBadRequest(err) {
 			logger.Error(err, "CS external auth POST returned OCM error with HTTP 400 status code", "cs_external_auth_href", csExternalAuthHREF, "external_auth_resource_id", externalAuth.ID.String())
 		}

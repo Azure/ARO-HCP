@@ -155,7 +155,10 @@ func (c *operationExternalAuthDelete) reconcileOperationAndResourceStatus(ctx co
 
 	csID := externalAuth.ServiceProviderProperties.ClusterServiceID
 
-	csExternalAuth, err := c.clusterServiceClient.GetExternalAuth(ctx, *csID)
+	csCtx, cancel := context.WithTimeout(ctx, controllerutils.CSReadTimeout)
+	defer cancel()
+
+	csExternalAuth, err := c.clusterServiceClient.GetExternalAuth(csCtx, *csID)
 	if err != nil {
 		var ocmError *ocmerrors.Error
 		if !errors.As(err, &ocmError) || ocmError.Status() != http.StatusNotFound {

@@ -153,6 +153,9 @@ func (c *externalAuthClusterServiceDeleteDispatchSyncer) SyncOnce(ctx context.Co
 	}
 
 	csID := externalAuth.ServiceProviderProperties.ClusterServiceID
+	csCtx, cancel := context.WithTimeout(ctx, controllerutils.CSWriteTimeout)
+	defer cancel()
+
 	if csID == nil || len(csID.String()) == 0 {
 		elapsed := c.clock.Since(firstSeenExternalAuthDeletionTimestamp)
 		if elapsed < missingClusterServiceIDTimeout {
@@ -163,7 +166,7 @@ func (c *externalAuthClusterServiceDeleteDispatchSyncer) SyncOnce(ctx context.Co
 		}
 		logger.Info("giving up on cluster-service ExternalAuth delete - ClusterServiceID never appeared",
 			"externalAuthDeletionTimestamp", externalAuthDeletionTimestamp, "externalAuthFirstSeenDeletionTimestamp", firstSeenExternalAuthDeletionTimestamp)
-	} else if err := c.clusterServiceClient.DeleteExternalAuth(ctx, *csID); err != nil {
+	} else if err := c.clusterServiceClient.DeleteExternalAuth(csCtx, *csID); err != nil {
 		var ocmError *ocmerrors.Error
 
 		switch {
