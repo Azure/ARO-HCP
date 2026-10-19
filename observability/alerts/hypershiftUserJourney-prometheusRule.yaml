@@ -35,11 +35,12 @@ spec:
   #   6h/30m  x6     -> 5% of the 30d budget gone in 6h   (for: 30m)
   #   3d/6h   x1     -> 10% of the 30d budget gone in 3d  (for: 3h)
   # All tiers are Sev 3; the window/for: pair, not severity, conveys urgency.
-  # Minimum-sample guards (>3, >27, >54, >64, >130) are copied from
-  # UserJourneyKubeApiserverAvailabilityMonitor-prometheusRule-KSM.yaml and
-  # require ~80-90% of each window's subquery steps to be present
-  # (5m:1m=5, 30m:1m=30, 1h:1m=60, 6h:5m=72, 3d:30m=144) so a freshly created
-  # or partially scraped control plane cannot fire on a handful of samples.
+  # Minimum-sample guards (>3, >27, >54, >320, >3900) require ~80-90% of each
+  # window's per-minute observations to be present (5m=5, 30m=30, 1h=60,
+  # 6h=360, 3d=4320) so a freshly created or partially scraped control plane
+  # cannot fire on a handful of samples. 6h/3d count every minute (see the
+  # :eligible recording), so 320/360 and 3900/4320 keep the same coverage
+  # fraction as the KAS alert's >64 of 72 and >130 of 144 coarse steps.
   - name: hypershift-journey-availability-monitor-rules
     labels:
       component: slo
@@ -77,7 +78,7 @@ spec:
         (
           (1 - (hypershift_kube_apiserver_available:sli_sum_6h / hypershift_kube_apiserver_available:sli_count_6h)) > (6 * (1 - 0.9995))
           and on (namespace, cluster)
-          hypershift_kube_apiserver_available:sli_count_6h > 64
+          hypershift_kube_apiserver_available:sli_count_6h > 320
         )
         and on (namespace, cluster)
         (
@@ -105,13 +106,13 @@ spec:
         (
           (1 - (hypershift_kube_apiserver_available:sli_sum_3d / hypershift_kube_apiserver_available:sli_count_3d)) > (1 * (1 - 0.9995))
           and on (namespace, cluster)
-          hypershift_kube_apiserver_available:sli_count_3d > 130
+          hypershift_kube_apiserver_available:sli_count_3d > 3900
         )
         and on (namespace, cluster)
         (
           (1 - (hypershift_kube_apiserver_available:sli_sum_6h / hypershift_kube_apiserver_available:sli_count_6h)) > (1 * (1 - 0.9995))
           and on (namespace, cluster)
-          hypershift_kube_apiserver_available:sli_count_6h > 64
+          hypershift_kube_apiserver_available:sli_count_6h > 320
         )
       for: 3h
       labels:

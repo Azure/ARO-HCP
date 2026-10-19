@@ -212,7 +212,7 @@ Control Plane Namespace: {{ $labels.namespace }}
           summary: '{{ $labels.cluster }}/{{ $labels.namespace }}: Hosted control plane API availability is burning error budget at 6x over 6h/30m'
           title: '{{ $labels.cluster }}/{{ $labels.namespace }}: Hosted control plane API availability is burning error budget at 6x over 6h/30m'
         }
-        expression: '((1 - (hypershift_kube_apiserver_available:sli_sum_6h / hypershift_kube_apiserver_available:sli_count_6h)) > (6 * (1 - 0.9995)) and on (namespace, cluster) hypershift_kube_apiserver_available:sli_count_6h > 64) and on (namespace, cluster) ((1 - (hypershift_kube_apiserver_available:sli_sum_30m / hypershift_kube_apiserver_available:sli_count_30m)) > (6 * (1 - 0.9995)) and on (namespace, cluster) hypershift_kube_apiserver_available:sli_count_30m > 27)'
+        expression: '((1 - (hypershift_kube_apiserver_available:sli_sum_6h / hypershift_kube_apiserver_available:sli_count_6h)) > (6 * (1 - 0.9995)) and on (namespace, cluster) hypershift_kube_apiserver_available:sli_count_6h > 320) and on (namespace, cluster) ((1 - (hypershift_kube_apiserver_available:sli_sum_30m / hypershift_kube_apiserver_available:sli_count_30m)) > (6 * (1 - 0.9995)) and on (namespace, cluster) hypershift_kube_apiserver_available:sli_count_30m > 27)'
         for: 'PT30M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -250,7 +250,7 @@ Control Plane Namespace: {{ $labels.namespace }}
           summary: '{{ $labels.cluster }}/{{ $labels.namespace }}: Hosted control plane API availability is burning error budget at 1x over 3d/6h'
           title: '{{ $labels.cluster }}/{{ $labels.namespace }}: Hosted control plane API availability is burning error budget at 1x over 3d/6h'
         }
-        expression: '((1 - (hypershift_kube_apiserver_available:sli_sum_3d / hypershift_kube_apiserver_available:sli_count_3d)) > (1 * (1 - 0.9995)) and on (namespace, cluster) hypershift_kube_apiserver_available:sli_count_3d > 130) and on (namespace, cluster) ((1 - (hypershift_kube_apiserver_available:sli_sum_6h / hypershift_kube_apiserver_available:sli_count_6h)) > (1 * (1 - 0.9995)) and on (namespace, cluster) hypershift_kube_apiserver_available:sli_count_6h > 64)'
+        expression: '((1 - (hypershift_kube_apiserver_available:sli_sum_3d / hypershift_kube_apiserver_available:sli_count_3d)) > (1 * (1 - 0.9995)) and on (namespace, cluster) hypershift_kube_apiserver_available:sli_count_3d > 3900) and on (namespace, cluster) ((1 - (hypershift_kube_apiserver_available:sli_sum_6h / hypershift_kube_apiserver_available:sli_count_6h)) > (1 * (1 - 0.9995)) and on (namespace, cluster) hypershift_kube_apiserver_available:sli_count_6h > 320)'
         for: 'PT3H'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
