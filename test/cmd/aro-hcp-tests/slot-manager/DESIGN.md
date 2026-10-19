@@ -25,7 +25,8 @@ migration and recovery are not supported.
 - The root `slotmanager` package owns CLI flags, compatibility command aliases,
   and acquisition/release orchestration. `assets_cmd.go` constructs the registry
   explicitly with `e2eidentities.NewHandler()` and
-  `infrastructureidentities.NewHandler()`.
+  `infrastructureidentities.NewHandler()`. Both constructors accept optional
+  functional options for tests; production uses the no-argument call.
 - `assets` defines the handler contract and deterministic registry lifecycle.
   It depends on `slots`, never on concrete handler packages.
 - `assets/azureutil` holds shared Azure identity helpers used by both identity
