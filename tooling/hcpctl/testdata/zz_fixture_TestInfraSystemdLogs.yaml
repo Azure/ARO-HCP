@@ -1,4 +1,4 @@
-database: ServiceLogs
+database: AllAroHcpLogs
 kql: |-
   systemdLogs
   | extend log=bag_pack_columns(timestamp,hostname,systemd_unit,message)

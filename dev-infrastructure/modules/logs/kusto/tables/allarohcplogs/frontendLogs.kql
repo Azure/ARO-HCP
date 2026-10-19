@@ -1,0 +1,83 @@
+// ARO-HCP frontend (RP) logs: container_name startswith "aro-hcp-frontend".
+// Schema identical to the legacy ServiceLogs.frontendLogs table (spec R7).
+.create-merge table frontendLogs (
+  timestamp: datetime,
+  log: dynamic,
+  environment: string,
+  cluster: string,
+  namespace_name: string,
+  container_name: string,
+  container_image: string,           // fluentbit: kubernetes.container_image
+  host: string,
+  labels: string,
+  pod_name: string,
+  region: string,
+  level: string,
+  msg: string,
+  request_id: string,
+  client_request_id: string,
+  correlation_request_id: string,
+  subscription_id: string,
+  resource_group: string,
+  cluster_name: string,
+  resource_id: string,
+  resource_name: string,
+  request_method: string,
+  request_path: string,
+  request_proto: string,
+  request_query: string,
+  request_referer: string,
+  request_remote_addr: string,
+  request_user_agent: string,
+  body_read_bytes: int,
+  body_written_bytes: int,
+  response_status_code: string,
+  duration: int,
+  tag: string,                       // fluentbit: tag routing identifier
+  container_status_image_id: string  // fluentbit: kubernetes.container_hash (k8s status.containerStatuses.imageID)
+)
+
+.create-or-alter function with (skipvalidation = "true", docstring = "Route aro-hcp-frontend container logs to frontendLogs")
+rawToFrontendLogs() {
+    rawLogs
+    | where tostring(log.kubernetes.namespace_name) !startswith "ocm-"
+    | where isempty(tostring(log.snapshotType))
+    | where tostring(log.kubernetes.container_name) startswith "aro-hcp-frontend"
+    | project
+        timestamp,
+        log = log.log,
+        environment = tostring(log.environment),
+        cluster = tostring(log.cluster),
+        namespace_name = tostring(log.kubernetes.namespace_name),
+        container_name = tostring(log.kubernetes.container_name),
+        container_image = tostring(log.kubernetes.container_image),
+        host = tostring(log.kubernetes.host),
+        labels = tostring(log.kubernetes.labels),
+        pod_name = tostring(log.kubernetes.pod_name),
+        region = tostring(log.region),
+        level = tostring(log.level),
+        msg = tostring(log.msg),
+        request_id = tostring(log.request_id),
+        client_request_id = tostring(log.client_request_id),
+        correlation_request_id = tostring(log.correlation_request_id),
+        subscription_id = tostring(log.subscription_id),
+        resource_group = tostring(log.resource_group),
+        cluster_name = tostring(log.hcp_cluster_name),
+        resource_id = tostring(log.resource_id),
+        resource_name = tostring(log.resource_name),
+        request_method = tostring(log.method),
+        request_path = tostring(log.path),
+        request_proto = tostring(log.request_proto),
+        request_query = tostring(log.request_query),
+        request_referer = tostring(log.request_referer),
+        request_remote_addr = tostring(log.request_remote_addr),
+        request_user_agent = tostring(log.request_user_agent),
+        body_read_bytes = toint(log.body_read_bytes),
+        body_written_bytes = toint(log.body_written_bytes),
+        response_status_code = tostring(log.response_status_code),
+        duration = toint(log.duration),
+        tag,
+        container_status_image_id = tostring(log.kubernetes.container_hash)
+}
+
+.alter table frontendLogs policy update @'[{"IsEnabled": true, "Source": "rawLogs", "Query": "rawToFrontendLogs()", "IsTransactional": true, "PropagateIngestionProperties": false}]'

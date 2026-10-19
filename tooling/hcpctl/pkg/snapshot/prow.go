@@ -686,11 +686,10 @@ type sourceConfig struct {
 }
 
 type sourceKusto struct {
-	KustoName                      string `json:"kustoName"`
-	Location                       string `json:"location"`
-	HostedControlPlaneLogsDatabase string `json:"hostedControlPlaneLogsDatabase"`
-	ServiceLogsDatabase            string `json:"serviceLogsDatabase"`
-	MonitoringEventsDatabase       string `json:"monitoringEventsDatabase"`
+	KustoName                string `json:"kustoName"`
+	Location                 string `json:"location"`
+	AllAroHcpLogsDatabase    string `json:"allAroHcpLogsDatabase"`
+	MonitoringEventsDatabase string `json:"monitoringEventsDatabase"`
 }
 
 type sourceAKS struct {
@@ -715,8 +714,11 @@ func ParseConfig(data []byte) (*ProwJobConfig, error) {
 	return &ProwJobConfig{
 		Region:                   src.Kusto.Location,
 		KustoName:                src.Kusto.KustoName,
-		HCPDatabase:              src.Kusto.HostedControlPlaneLogsDatabase,
-		ServiceDatabase:          src.Kusto.ServiceLogsDatabase,
+		// All logs now live in the single AllAroHcpLogs database; both the
+		// service-side and HCP-side readers point at it (HCP container logs are
+		// in the hcpContainerLogs table within that same database).
+		HCPDatabase:              src.Kusto.AllAroHcpLogsDatabase,
+		ServiceDatabase:          src.Kusto.AllAroHcpLogsDatabase,
 		MonitoringEventsDatabase: src.Kusto.MonitoringEventsDatabase,
 		ServiceClusterName:       src.Svc.AKS.Name,
 		ManagementClusterName:    src.Mgmt.AKS.Name,

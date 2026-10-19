@@ -1,4 +1,4 @@
-database: ServiceLogs
+database: AllAroHcpLogs
 kql: |
   // Velero shared-infra error/warning logs: the velero server and node-agent are SHARED per
   // management cluster (one velero Deployment, one node-agent DaemonSet, one cluster-wide

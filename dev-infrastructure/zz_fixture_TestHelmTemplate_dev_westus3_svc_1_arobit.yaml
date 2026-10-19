@@ -634,6 +634,40 @@ data:
         delete_on_max_upload_error  true
         io_timeout                  60s
 
+    # AllAroHcpLogs single landing table (spec docs/logging.md). Dual-write: this
+    # ships every Kusto-destined record to AllAroHcpLogs.rawLogs ALONGSIDE the
+    # legacy per-table outputs above, where transactional ADX update policies fan
+    # it out to the typed tables. Routing/transform now lives in KQL, so this one
+    # output replaces the ~12 above once the legacy outputs are removed (spec
+    # Phase 3). Match_regex captures all current Kusto tags (the container-name /
+    # snapshot re-tagged *.logs, ocm.logs, raw kubernetes.*, systemd.*, and
+    # azure-vnet.logs) while deliberately NOT matching shoeboxlogs,
+    # metrics.fluentbit, or mdsd-other.logs.
+    [OUTPUT]
+        Match_regex ^(ocm\.logs|aro-hcp-frontend\.logs|aro-hcp-backend\.logs|clusters-service\.logs|fleet-controller\.logs|kube-applier\.logs|kube-events\.logs|resource-snapshots\.logs|cosmos-snapshots\.logs|kubernetes\..*|systemd\..*|azure-vnet\.logs)$
+        Name azure_kusto
+        Retry_Limit 5
+        auth_type workload_identity
+        tenant_id __tenantId__
+        client_id __msiClientId__
+        workload_identity_token_file ${AZURE_FEDERATED_TOKEN_FILE}
+        Ingestion_Endpoint __kustoDataIngestionUri__
+        Database_Name AllAroHcpLogs
+        Table_Name rawLogs
+        ingestion_mapping_reference rawMapping
+        azure_kusto_buffer_key rawLogs
+        buffer_dir "/var/kusto"
+        buffering_enabled           true
+        upload_timeout              1m
+        upload_file_size            16M
+        buffer_file_delete_early    false
+        unify_tag                   true
+        store_dir_limit_size        1.8GB
+        blob_uri_length             128
+        scheduler_max_retries       9
+        delete_on_max_upload_error  true
+        io_timeout                  60s
+
   output-mdsd.conf: |
     # Forward logs to mdsd instance (default port)
     [OUTPUT]
@@ -738,7 +772,7 @@ spec:
         app: arobit-forwarder
         azure.workload.identity/use: "true"
       annotations:
-        checksum/configmap: 8ea7f1f2c0e3158881a92b1f1d0e8e379c3ade4bdddda5453d6d978b887749c4
+        checksum/configmap: 8043d0c592b1c6d633b5f004081661c4b254d01bc3b368110350d77ab2a4132d
     spec:
       priorityClassName: service-lifecycle-critical
       serviceAccountName: 'arobit-forwarder'

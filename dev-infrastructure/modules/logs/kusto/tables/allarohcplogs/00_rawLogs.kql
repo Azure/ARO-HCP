@@ -1,0 +1,27 @@
+// Single raw landing table for the AllAroHcpLogs database.
+//
+// Fluent Bit (the arobit forwarder) ships every enriched record here via one
+// azure_kusto output using the 'rawMapping' ingestion mapping. The azure_kusto
+// plugin wraps each record as {timestamp, tag, log:{<the whole record>}}, so the
+// entire Fluent Bit record (kubernetes metadata, msg, environment, snapshotType,
+// cluster_id, ...) lands inside the dynamic `log` column. Transactional update
+// policies on the target tables (see the sibling .kql files) read from here.
+//
+// This table is ephemeral: it is never queried directly and its rows exist only
+// long enough for the update policies to fan them out. softdelete is kept at 1h
+// during bake-in so a bad policy function is recoverable and visible via
+// `.show ingestion failures | where OriginatesFromUpdatePolicy == true`; tighten
+// to 0s once routing is verified in dev (spec Phase 3, step 13).
+.create-merge table rawLogs (timestamp: datetime, tag: string, log: dynamic)
+with (docstring = "Ephemeral landing table; update policies fan rows out to typed tables")
+
+.alter-merge table rawLogs policy retention softdelete = 1h recoverability = disabled
+
+.create-or-alter table rawLogs ingestion json mapping 'rawMapping'
+```
+[
+  {"column":"timestamp","Properties":{"path":"$.timestamp"}},
+  {"column":"tag","Properties":{"path":"$.tag"}},
+  {"column":"log","Properties":{"path":"$.log"}}
+]
+```

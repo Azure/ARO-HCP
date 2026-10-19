@@ -3,7 +3,7 @@
 // and should be investigated. Today, some of the provisioning for the clusters is done by clusters-service, so
 // if no controllers in the backend are having issues, check the clusters-service logs to see if there's an issue
 // at a deeper layer of the stack.
-database('ServiceLogs').table('backendLogs')
+database('AllAroHcpLogs').table('backendLogs')
 | where timestamp between ({{.TimestampMin }} .. {{.TimestampMax }})
 | where cluster == '{{.ClusterName}}'
 | where container_name == 'aro-hcp-backend'

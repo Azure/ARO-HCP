@@ -1,0 +1,55 @@
+// Catch-all container logs: non-ocm, non-snapshot, non-host, non-service.
+//
+// This is the negative-filter counterpart to the per-service tables: it excludes
+// ocm-* namespaces (-> hcpContainerLogs), snapshot payloads (-> *ResourceSnapshots),
+// host-file logs (systemd.* / azure-vnet.logs), and any container whose name
+// matches a known service prefix (-> the dedicated service tables). Using
+// KnownServiceContainerPrefixRegex() as the single source of truth guarantees a
+// log never lands in both a service table and here (spec R6).
+//
+// Schema identical to the legacy ServiceLogs.containerLogs table (spec R7).
+.create-merge table containerLogs (
+  timestamp: datetime,
+  log: dynamic,
+  environment: string,
+  cluster: string,
+  namespace_name: string,
+  container_name: string,
+  container_image: string,           // fluentbit: kubernetes.container_image
+  host: string,
+  labels: string,
+  pod_name: string,
+  region: string,
+  tag: string,                       // fluentbit: tag routing identifier
+  container_status_image_id: string, // fluentbit: kubernetes.container_hash (k8s status.containerStatuses.imageID)
+  cluster_id: string,                // fluentbit: cluster_id (empty for non-ocm records)
+  resource_group: string             // fluentbit: resource_group (empty for non-ocm records)
+)
+
+.create-or-alter function with (skipvalidation = "true", docstring = "Catch-all: container logs that match no dedicated table")
+rawToContainerLogs() {
+    let knownRegex = KnownServiceContainerPrefixRegex();
+    rawLogs
+    | where tag != "azure-vnet.logs" and tag !startswith "systemd"
+    | where isempty(tostring(log.snapshotType))
+    | where tostring(log.kubernetes.namespace_name) !startswith "ocm-"
+    | where not(tostring(log.kubernetes.container_name) matches regex knownRegex)
+    | project
+        timestamp,
+        log = log.log,
+        environment = tostring(log.environment),
+        cluster = tostring(log.cluster),
+        namespace_name = tostring(log.kubernetes.namespace_name),
+        container_name = tostring(log.kubernetes.container_name),
+        container_image = tostring(log.kubernetes.container_image),
+        host = tostring(log.kubernetes.host),
+        labels = tostring(log.kubernetes.labels),
+        pod_name = tostring(log.kubernetes.pod_name),
+        region = tostring(log.region),
+        tag,
+        container_status_image_id = tostring(log.kubernetes.container_hash),
+        cluster_id = tostring(log.cluster_id),
+        resource_group = tostring(log.resource_group)
+}
+
+.alter table containerLogs policy update @'[{"IsEnabled": true, "Source": "rawLogs", "Query": "rawToContainerLogs()", "IsTransactional": true, "PropagateIngestionProperties": false}]'

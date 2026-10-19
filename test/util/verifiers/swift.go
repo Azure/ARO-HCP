@@ -40,7 +40,7 @@ func VerifySwiftRouterChecks(ctx context.Context, credential azcore.TokenCredent
 		return err
 	}
 	var settings [3]string
-	for i, path := range []string{"kusto.kustoName", "kusto.location", "kusto.serviceLogsDatabase"} {
+	for i, path := range []string{"kusto.kustoName", "kusto.location", "kusto.allAroHcpLogsDatabase"} {
 		settings[i], err = config.GetStringByPath(cfg, path)
 		if err != nil {
 			return err

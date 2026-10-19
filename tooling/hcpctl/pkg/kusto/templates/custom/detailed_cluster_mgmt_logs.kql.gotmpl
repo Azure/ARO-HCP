@@ -4,7 +4,7 @@ let _endTime = {{.TimestampMax }};
 union
     (
         // Clusters Service logs: OCM cluster management operations for this resource group
-        database('ServiceLogs').table('clustersServiceLogs')
+        database('AllAroHcpLogs').table('clustersServiceLogs')
         | where timestamp between (_startTime .. _endTime)
         | where resource_id has '{{.ResourceGroupName}}'
         | project timestamp, container_name, msg, log
@@ -12,7 +12,7 @@ union
     (
         // HostedCluster conditions: Cluster status conditions as seen by Clusters Service
         // Shows conditions like Available, Degraded, Progressing, ReconciliationSucceeded, etc.
-        database('ServiceLogs').table('clustersServiceLogs')
+        database('AllAroHcpLogs').table('clustersServiceLogs')
         | where timestamp between (_startTime .. _endTime)
         | where resource_id has '{{.ResourceGroupName}}'
         | extend extracted=extract_all(@'{"name":"([A-Za-z0-9]+)-Message","fieldValue":{"type":"String","string":"([^"]+)"}}', dynamic([1,2]), tostring(msg))

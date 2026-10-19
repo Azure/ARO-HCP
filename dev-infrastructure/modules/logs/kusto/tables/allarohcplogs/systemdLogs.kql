@@ -1,0 +1,32 @@
+// Host systemd/journald logs, routed by the Fluent Bit tag (systemd.*).
+// Host-file logs use `hostname` for the node and carry no collector-Pod metadata.
+// Schema identical to the legacy ServiceLogs.systemdLogs table (spec R7).
+.create-merge table systemdLogs (
+  timestamp: datetime,
+  cluster: string,
+  hostname: string,
+  region: string,
+  environment: string,
+  log: dynamic,
+  systemd_unit: string,
+  message: string,
+  tag: string
+)
+
+.create-or-alter function with (skipvalidation = "true", docstring = "Route systemd.* host logs to systemdLogs")
+rawToSystemdLogs() {
+    rawLogs
+    | where tag startswith "systemd"
+    | project
+        timestamp,
+        cluster = tostring(log.cluster),
+        hostname = tostring(log.HOSTNAME),
+        region = tostring(log.region),
+        environment = tostring(log.environment),
+        log,
+        systemd_unit = tostring(log.SYSTEMD_UNIT),
+        message = tostring(log.MESSAGE),
+        tag
+}
+
+.alter table systemdLogs policy update @'[{"IsEnabled": true, "Source": "rawLogs", "Query": "rawToSystemdLogs()", "IsTransactional": true, "PropagateIngestionProperties": false}]'

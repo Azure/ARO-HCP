@@ -1,10 +1,10 @@
-database: ServiceLogs
+database: AllAroHcpLogs
 kql: |
   let _startTime = datetime(2025-01-01T00:00:00.0000000Z);
   let _endTime = datetime(2025-01-02T00:00:00.0000000Z);
   // Extract cluster resource ID from frontend logs
   let cluster_resource_id = (
-      database('ServiceLogs').table('frontendLogs')
+      database('AllAroHcpLogs').table('frontendLogs')
       | where timestamp between (_startTime .. _endTime)
       | where resource_group == 'test-rg'
       | where msg has 'creating resource'
@@ -16,14 +16,14 @@ kql: |
   union
       (
           // Frontend logs: ARO HCP frontend API operations for this resource group
-          database('ServiceLogs').table('frontendLogs')
+          database('AllAroHcpLogs').table('frontendLogs')
           | where timestamp between (_startTime .. _endTime)
           | where resource_group == 'test-rg'
           | project timestamp, container_name, msg, log
       ),
       (
           // Backend logs: ARO HCP backend service operations for this cluster
-          database('ServiceLogs').table('backendLogs')
+          database('AllAroHcpLogs').table('backendLogs')
           | where timestamp between (_startTime .. _endTime)
           | where resource_group == 'test-rg'
           | project timestamp, container_name, msg, log
@@ -37,7 +37,7 @@ kql: |
   union
       (
           // Clusters Service logs: OCM cluster management operations for this resource group
-          database('ServiceLogs').table('clustersServiceLogs')
+          database('AllAroHcpLogs').table('clustersServiceLogs')
           | where timestamp between (_startTime .. _endTime)
           | where resource_id has 'test-rg'
           | project timestamp, container_name, msg, log
@@ -45,7 +45,7 @@ kql: |
       (
           // HostedCluster conditions: Cluster status conditions as seen by Clusters Service
           // Shows conditions like Available, Degraded, Progressing, ReconciliationSucceeded, etc.
-          database('ServiceLogs').table('clustersServiceLogs')
+          database('AllAroHcpLogs').table('clustersServiceLogs')
           | where timestamp between (_startTime .. _endTime)
           | where resource_id has 'test-rg'
           | extend extracted=extract_all(@'{"name":"([A-Za-z0-9]+)-Message","fieldValue":{"type":"String","string":"([^"]+)"}}', dynamic([1,2]), tostring(msg))
@@ -62,7 +62,7 @@ kql: |
   let _endTime = datetime(2025-01-02T00:00:00.0000000Z);
   // Discover all cluster and bundle IDs over the full range, not each output window.
   let _cs_cluster_ids = (
-      database('ServiceLogs').table('clustersServiceLogs')
+      database('AllAroHcpLogs').table('clustersServiceLogs')
       | where timestamp between (datetime(2025-01-01T00:00:00.0000000Z) .. datetime(2025-01-02T00:00:00.0000000Z))
       | where resource_id contains '/resourceGroups/test-rg/'
       | where isnotempty(cid)
@@ -70,7 +70,7 @@ kql: |
   );
   // Find all Maestro resource IDs for these clusters.
   let maestro_resource_ids = (
-      database('ServiceLogs').table('containerLogs')
+      database('AllAroHcpLogs').table('containerLogs')
       | where timestamp between (datetime(2025-01-01T00:00:00.0000000Z) .. datetime(2025-01-02T00:00:00.0000000Z))
       | where namespace_name has "maestro"
       | extend logStr = tostring(log)
@@ -84,7 +84,7 @@ kql: |
       (
           // Maestro logs: Resource bundle operations for this cluster and its associated resources
           // Includes: resource creation, updates, deletions, status events, gRPC communications
-          database('ServiceLogs').table('containerLogs')
+          database('AllAroHcpLogs').table('containerLogs')
           | where timestamp between (_startTime .. _endTime)
           | where namespace_name has "maestro"
           | extend logStr = tostring(log)
@@ -94,7 +94,7 @@ kql: |
       (
           // Hypershift logs: Hypershift operator reconciliation of HostedCluster and NodePool CRs
           // Includes the CR reconciliation logs
-          database('ServiceLogs').table('containerLogs')
+          database('AllAroHcpLogs').table('containerLogs')
           | where timestamp between (_startTime .. _endTime)
           | where namespace_name has "hypershift"
           | extend logStr = tostring(log)
@@ -104,7 +104,7 @@ kql: |
       (
           // ACM Agent logs: ManifestWork reconciliation on the managed cluster
           // Includes: work agent operations, manifest application, status feedback
-          database('ServiceLogs').table('containerLogs')
+          database('AllAroHcpLogs').table('containerLogs')
           | where timestamp between (_startTime .. _endTime)
           | where namespace_name has "open-cluster-management-agent"
           | extend logStr = tostring(log)

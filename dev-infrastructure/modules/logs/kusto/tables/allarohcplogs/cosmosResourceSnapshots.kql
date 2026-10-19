@@ -1,0 +1,39 @@
+// Cosmos resource snapshots (emitted by frontend/backend/fleet with
+// snapshotType=cosmos). Routing by snapshotType collapses the legacy trio of
+// per-container rewrite_tag filters into a single update policy (spec §4).
+// Schema identical to the legacy ServiceLogs.cosmosResourceSnapshots table.
+.create-merge table cosmosResourceSnapshots (
+  timestamp: datetime,
+  environment: string,
+  region: string,
+  cluster: string,
+  cluster_id: string,
+  cosmosContainer: string,
+  subscriptionID: string,
+  resourceGroup: string,
+  resourceType: string,
+  resourceName: string,
+  resourceID: string,
+  content: dynamic
+)
+
+.create-or-alter function with (skipvalidation = "true", docstring = "Route snapshotType=cosmos records to cosmosResourceSnapshots")
+rawToCosmosResourceSnapshots() {
+    rawLogs
+    | where tostring(log.snapshotType) == "cosmos"
+    | project
+        timestamp,
+        environment = tostring(log.environment),
+        region = tostring(log.region),
+        cluster = tostring(log.cluster),
+        cluster_id = tostring(log.cluster_id),
+        cosmosContainer = tostring(log.objectMetadata.cosmosContainer),
+        subscriptionID = tostring(log.objectMetadata.subscriptionID),
+        resourceGroup = tostring(log.objectMetadata.resourceGroup),
+        resourceType = tostring(log.objectMetadata.resourceType),
+        resourceName = tostring(log.objectMetadata.resourceName),
+        resourceID = tostring(log.objectMetadata.resourceID),
+        content = log.content
+}
+
+.alter table cosmosResourceSnapshots policy update @'[{"IsEnabled": true, "Source": "rawLogs", "Query": "rawToCosmosResourceSnapshots()", "IsTransactional": true, "PropagateIngestionProperties": false}]'

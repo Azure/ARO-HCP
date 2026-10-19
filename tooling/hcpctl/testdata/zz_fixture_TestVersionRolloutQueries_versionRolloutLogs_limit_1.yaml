@@ -1,4 +1,4 @@
-database: ServiceLogs
+database: AllAroHcpLogs
 kql: |
   // Channel-wide rollout decisions do not carry an HCP resource group or OCM ID,
   // so the per-HCP service log query excludes them. Collect all seven rollout
