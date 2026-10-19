@@ -110,6 +110,10 @@ func NewNodePoolDegradedAggregatorController(
 	// Aggregate all conditions; controller and desire names are not a fixed set.
 	controller.AddInterestingResource(coreapi.NodePoolResourceType, "*")
 	controller.AddInterestingResource(coreapi.NodePoolControllerResourceType, "*")
+	controllerInformer, _ := informers.Controllers()
+	if err := controller.QueueForChildInformers(time.Minute, controllerInformer); err != nil {
+		panic(err)
+	}
 	controller.AddInterestingResource(kubeapplierapi.NodePoolScopedApplyDesireResourceType, "*")
 	controller.AddInterestingResource(kubeapplierapi.NodePoolScopedReadDesireResourceType, "*")
 

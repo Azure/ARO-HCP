@@ -56,6 +56,7 @@ func NewClusterChildResourcesCleanupController(
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	kubeApplierDBClients kubeappliercosmosstorage.KubeApplierDBClients,
 	informers coreinformers.BackendInformers,
+	applyDesireInformer, readDesireInformer controllerutils.Notifier,
 ) controllerutils.Controller {
 	_, clusterLister := informers.Clusters()
 	syncer := &clusterChildResourcesCleanupController{
@@ -82,6 +83,13 @@ func NewClusterChildResourcesCleanupController(
 	controller.AddInterestingResource(coreapi.ClusterScopedManagementClusterContentResourceType, "*")
 	controller.AddInterestingResource(kubeapplierapi.ClusterScopedApplyDesireResourceType, "*")
 	controller.AddInterestingResource(kubeapplierapi.ClusterScopedReadDesireResourceType, "*")
+	nodePoolInformer, _ := informers.NodePools()
+	externalAuthInformer, _ := informers.ExternalAuths()
+	requestInformer, _ := informers.SystemAdminCredentialRequests()
+	revocationInformer, _ := informers.SystemAdminCredentialRevocations()
+	if err := controller.QueueForChildInformers(time.Minute, nodePoolInformer, externalAuthInformer, requestInformer, revocationInformer, applyDesireInformer, readDesireInformer); err != nil {
+		panic(err)
+	}
 
 	return controller
 }

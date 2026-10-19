@@ -99,6 +99,10 @@ func NewDesiresCreatorController(
 	controller.AddInterestingResource(kubeapplierapi.SystemAdminCredentialRequestScopedApplyDesireResourceType, kubeapplierapi.SystemAdminCredentialCSRDesireName)
 	controller.AddInterestingResource(kubeapplierapi.SystemAdminCredentialRequestScopedApplyDesireResourceType, kubeapplierapi.SystemAdminCredentialCSRApprovalDesireName)
 	controller.AddInterestingResource(kubeapplierapi.SystemAdminCredentialRequestScopedReadDesireResourceType, kubeapplierapi.SystemAdminCredentialCSRDesireName)
+	applyInformer, _ := kubeApplierInformers.ApplyDesires()
+	if err := controller.QueueForChildInformers(time.Minute, applyInformer); err != nil {
+		panic(err)
+	}
 
 	return controller
 }

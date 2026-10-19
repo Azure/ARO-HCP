@@ -76,6 +76,10 @@ func NewPostIssuanceCleanupController(
 	controller.AddInterestingResource(coreapi.ServiceProviderClusterResourceType, coreapi.ServiceProviderClusterResourceName)
 	controller.AddInterestingResource(kubeapplierapi.SystemAdminCredentialRequestScopedApplyDesireResourceType, "*")
 	controller.AddInterestingResource(kubeapplierapi.SystemAdminCredentialRequestScopedReadDesireResourceType, "*")
+	applyInformer, _ := kubeApplierInformers.ApplyDesires()
+	if err := controller.QueueForChildInformers(time.Minute, applyInformer); err != nil {
+		panic(err)
+	}
 
 	return controller
 }
