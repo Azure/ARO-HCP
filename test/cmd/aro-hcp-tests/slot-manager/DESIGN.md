@@ -29,9 +29,12 @@ migration and recovery are not supported.
 - `assets` defines the handler contract and deterministic registry lifecycle.
   It depends on `slots`, never on concrete handler packages.
 - `assets/azureutil` holds shared Azure identity helpers used by both identity
-  handlers: principal-ID parsing, identity-name inventory checks, worker-bounded
-  admission deletes, and the `--cleanup-workers` flag type. It does not own a
-  lifecycle.
+  handlers: cluster-profile credentials, identity-name inventory checks,
+  subscription role-assignment collection and delete operations, federated
+  credential list/delete operations, worker-bounded admission deletes, and the
+  `--cleanup-workers` flag type. It does not own a lifecycle. E2E admission
+  uses the shared RBAC helpers only; infrastructure admission also uses the
+  federated-credential helpers.
 - `assets/e2eidentities` implements the E2E identity lifecycle: Azure provisioning
   (`apply.go`), pool resolution, inventory validation, admission, and runtime
   publication, with their tests alongside the implementation.
@@ -840,9 +843,16 @@ Managed pools declare `infrastructure_identities.provisioning_region` for
 ### Pool management
 
 `ApplyPools` creates or updates the three Azure resource groups and the
-complete identity set for every derived bundle. `ValidatePools` is read-only
-and reports missing groups, missing identities, and unexpected identities.
-Live pool creation and catalog activation remain separate rollout work.
+complete identity set for every derived bundle with direct ARM
+`CreateOrUpdate` calls. Infrastructure pools are a small, persistent topology
+owned in Go (one service group plus management stamps with different identity
+lists). They do not use Bicep deployment stacks: E2E stacks exist for a
+homogeneous container loop and `ActionOnUnmanage: delete` pool reductions,
+which would be unsafe for identities that admission and release must keep.
+Apply is idempotent and does not prune extra groups or identities.
+`ValidatePools` is read-only and reports missing groups, missing identities,
+and unexpected identities. Live pool creation and catalog activation remain
+separate rollout work.
 
 ### Admission
 

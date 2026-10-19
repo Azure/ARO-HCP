@@ -24,6 +24,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets"
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets/azureutil"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
 )
 
@@ -50,17 +51,24 @@ func TestLeaseCredentialUsesSelectedProfileWithoutAzureLogin(t *testing.T) {
 			Subscriptions: slots.ResolvedSubscriptions{E2E: slots.ResolvedSubscription{ID: "customer-subscription"}},
 		}},
 	}
-	credential, subscription, err := leaseCredential(request)
+	credential, err := azureutil.ClusterProfileCredential(profile)
 	if err != nil {
 		t.Fatalf("mounted profile must supply credentials without Azure CLI or environment credentials: %v", err)
 	}
-	if _, ok := credential.(*azidentity.ClientSecretCredential); !ok || subscription != "customer-subscription" {
-		t.Fatalf("expected explicit selected-profile credential and E2E subscription, got %T, %q", credential, subscription)
+	if _, ok := credential.(*azidentity.ClientSecretCredential); !ok {
+		t.Fatalf("expected explicit selected-profile credential, got %T", credential)
+	}
+	gotCredential, subscription, err := leaseCredential(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := gotCredential.(*azidentity.ClientSecretCredential); !ok || subscription != "customer-subscription" {
+		t.Fatalf("expected explicit selected-profile credential and E2E subscription, got %T, %q", gotCredential, subscription)
 	}
 	if err := os.Remove(filepath.Join(profile, "client-secret")); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := leaseCredential(request); !errors.Is(err, os.ErrNotExist) || !strings.Contains(err.Error(), "client-secret") {
+	if _, err := azureutil.ClusterProfileCredential(profile); !errors.Is(err, os.ErrNotExist) || !strings.Contains(err.Error(), "client-secret") {
 		t.Fatalf("missing mounted credential must fail explicitly, got %v", err)
 	}
 }
