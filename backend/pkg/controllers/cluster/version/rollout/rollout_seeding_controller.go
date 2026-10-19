@@ -74,7 +74,7 @@ func NewControlPlaneVersionRolloutSeedingController(
 	}
 	// kubeApplierInformers is intentionally omitted: seeding depends only on the
 	// cluster's channel group and version, not on any management-cluster state.
-	return controllerutils.NewClusterWatchingController(
+	controller := controllerutils.NewClusterWatchingController(
 		RolloutSeedingControllerName,
 		resourcesDBClient,
 		informers,
@@ -82,6 +82,11 @@ func NewControlPlaneVersionRolloutSeedingController(
 		5*time.Minute,
 		syncer,
 	)
+	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
+	controller.AddInterestingResource(coreapi.ServiceProviderClusterResourceType, coreapi.ServiceProviderClusterResourceName)
+	controller.AddInterestingResource(fleetapi.ControlPlaneVersionRolloutResourceType, "*")
+
+	return controller
 }
 
 // SyncOnce ensures the rollout for the triggering cluster's y-stream channel exists.

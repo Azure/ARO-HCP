@@ -89,6 +89,9 @@ func NewTriggerControlPlaneUpgradeController(
 		1*time.Minute,
 		syncer,
 	)
+	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
+	controller.AddInterestingResource(coreapi.ServiceProviderClusterResourceType, coreapi.ServiceProviderClusterResourceName)
+	controller.AddInterestingResource(coreapi.OperationStatusResourceType, "*")
 
 	return controller
 }

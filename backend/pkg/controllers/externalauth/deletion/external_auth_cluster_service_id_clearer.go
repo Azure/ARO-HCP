@@ -61,13 +61,16 @@ func NewExternalAuthClusterServiceIDClearerController(
 		clusterServiceClient: clusterServiceClient,
 	}
 
-	return controllerutils.NewExternalAuthWatchingController(
+	controller := controllerutils.NewExternalAuthWatchingController(
 		ExternalAuthDeletionClusterServiceIDClearerControllerName,
 		resourcesDBClient,
 		informers,
 		time.Minute,
 		syncer,
 	)
+	controller.AddInterestingResource(coreapi.ExternalAuthResourceType, "*")
+
+	return controller
 }
 
 // NeedsWork reports whether this controller has unfinished business for the

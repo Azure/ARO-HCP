@@ -25,6 +25,8 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
@@ -79,7 +81,7 @@ func NewClusterClusterServiceUpdateDispatchController(
 		subscriptionLister,
 	)
 
-	return controllerutils.NewClusterWatchingController(
+	controller := controllerutils.NewClusterWatchingController(
 		ClusterClusterServiceUpdateDispatchControllerName,
 		resourcesDBClient,
 		informers,
@@ -87,6 +89,11 @@ func NewClusterClusterServiceUpdateDispatchController(
 		time.Minute,
 		syncer,
 	)
+	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
+	controller.AddInterestingResource(coreapi.ServiceProviderClusterResourceType, coreapi.ServiceProviderClusterResourceName)
+	controller.AddInterestingResource(azcorearm.SubscriptionResourceType, "*")
+
+	return controller
 }
 
 func NewClusterClusterServiceUpdateDispatchSyncer(

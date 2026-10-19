@@ -90,6 +90,11 @@ func NewBackupScheduleController(
 		5*time.Minute,
 		syncer,
 	)
+	// Backup desire names include runtime namespace/configuration or key fingerprints.
+	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
+	controller.AddInterestingResource(coreapi.ServiceProviderClusterResourceType, coreapi.ServiceProviderClusterResourceName)
+	controller.AddInterestingResource(kubeapplierapi.ClusterScopedApplyDesireResourceType, "*")
+	controller.AddInterestingResource(kubeapplierapi.ClusterScopedReadDesireResourceType, "*")
 
 	if kubeApplierInformers != nil {
 		// React to ApplyDesire creation so that a missing ReadDesire can be

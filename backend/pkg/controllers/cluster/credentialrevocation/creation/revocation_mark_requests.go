@@ -56,7 +56,7 @@ func NewRevocationMarkRequestsController(
 		resourcesDBClient: resourcesDBClient,
 	}
 
-	return controllerutils.NewSystemAdminCredentialRevocationWatchingController(
+	controller := controllerutils.NewSystemAdminCredentialRevocationWatchingController(
 		SystemAdminCredentialRevocationMarkRequestsControllerName,
 		resourcesDBClient,
 		backendInformers,
@@ -64,6 +64,10 @@ func NewRevocationMarkRequestsController(
 		1*time.Minute,
 		syncer,
 	)
+	controller.AddInterestingResource(coreapi.SystemAdminCredentialRevocationResourceType, "*")
+	controller.AddInterestingResource(coreapi.SystemAdminCredentialRequestResourceType, "*")
+
+	return controller
 }
 
 func (c *revocationMarkRequests) SyncOnce(ctx context.Context, key controllerutils.SystemAdminCredentialRevocationKey) error {

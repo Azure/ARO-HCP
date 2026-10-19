@@ -20,10 +20,13 @@ import (
 	"strings"
 	"time"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
@@ -71,7 +74,7 @@ func NewClusterClusterServiceCreateController(
 		denyAssignmentsEnabled:       denyAssignmentsEnabled,
 	}
 
-	return controllerutils.NewClusterWatchingController(
+	controller := controllerutils.NewClusterWatchingController(
 		ClusterClusterServiceCreateControllerName,
 		resourcesDBClient,
 		backendInformers,
@@ -79,6 +82,12 @@ func NewClusterClusterServiceCreateController(
 		time.Minute,
 		syncer,
 	)
+	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
+	controller.AddInterestingResource(coreapi.ServiceProviderClusterResourceType, coreapi.ServiceProviderClusterResourceName)
+	controller.AddInterestingResource(azcorearm.SubscriptionResourceType, "*")
+	controller.AddInterestingResource(fleetapi.ManagementClusterResourceType, fleetapi.ManagementClusterResourceName)
+
+	return controller
 }
 
 func (c *clusterClusterServiceCreateSyncer) needsWork(ctx context.Context, cluster *coreapi.Cluster) bool {

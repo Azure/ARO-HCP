@@ -76,7 +76,7 @@ func NewNodePoolClusterServiceUpdateDispatchController(
 		nodePoolLister,
 	)
 
-	return controllerutils.NewNodePoolWatchingController(
+	controller := controllerutils.NewNodePoolWatchingController(
 		NodePoolClusterServiceUpdateDispatchControllerName,
 		resourcesDBClient,
 		informers,
@@ -84,6 +84,9 @@ func NewNodePoolClusterServiceUpdateDispatchController(
 		time.Minute,
 		syncer,
 	)
+	controller.AddInterestingResource(coreapi.NodePoolResourceType, "*")
+
+	return controller
 }
 
 func NewNodePoolClusterServiceUpdateDispatchSyncer(

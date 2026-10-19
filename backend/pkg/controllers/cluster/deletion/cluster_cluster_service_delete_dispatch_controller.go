@@ -88,7 +88,7 @@ func NewClusterClusterServiceDeleteDispatchController(
 		firstSeenDeletionTimestampCache: lru.New(50000),
 	}
 
-	return controllerutils.NewClusterWatchingController(
+	controller := controllerutils.NewClusterWatchingController(
 		ClusterClusterServiceDeleteDispatchControllerName,
 		resourcesDBClient,
 		informers,
@@ -96,6 +96,9 @@ func NewClusterClusterServiceDeleteDispatchController(
 		time.Minute,
 		syncer,
 	)
+	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
+
+	return controller
 }
 
 // NeedsWork reports whether the deleter has unfinished business for the given

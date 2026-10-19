@@ -26,6 +26,7 @@ import (
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
@@ -66,7 +67,7 @@ func NewCSStateDumpController(
 	// cluster and node pool state, so cluster-scoped ReadDesire and ApplyDesire updates
 	// must not requeue it. Those updates are management-cluster observations and apply
 	// status, not a change to the Cluster Service documents this controller dumps.
-	return controllerutils.NewClusterWatchingController(
+	controller := controllerutils.NewClusterWatchingController(
 		CSStateDumpControllerName,
 		resourcesDBClient,
 		backendInformers,
@@ -74,6 +75,10 @@ func NewCSStateDumpController(
 		1*time.Minute,
 		syncer,
 	)
+	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
+	controller.AddInterestingResource(coreapi.NodePoolResourceType, "*")
+
+	return controller
 }
 
 func (c *csStateDump) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
