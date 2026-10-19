@@ -68,8 +68,7 @@ type AssetRequirement struct {
 }
 
 type InfrastructureIdentitiesConfig struct {
-	ProvisioningRegion string   `yaml:"provisioning_region,omitempty"`
-	IdentityNames      []string `yaml:"identity_names,omitempty"`
+	ProvisioningRegion string `yaml:"provisioning_region,omitempty"`
 }
 
 type AssetPool struct {
@@ -239,16 +238,6 @@ func (c *Catalog) validateAssetPools(resourceTypes map[string]string) error {
 		}
 		if pool.Kind != KindInfrastructureIdentities {
 			return fmt.Errorf("asset pool %q has unknown or unsupported leased kind %q", pool.Name, pool.Kind)
-		}
-		if config := pool.InfrastructureIdentities; config != nil {
-			names := map[string]bool{}
-			for _, name := range config.IdentityNames {
-				key := strings.ToLower(name)
-				if !inventoryName.MatchString(name) || names[key] {
-					return fmt.Errorf("asset pool %q has invalid or duplicate identity name %q", pool.Name, name)
-				}
-				names[key] = true
-			}
 		}
 		if pool.Provisioning == "" {
 			pool.Provisioning = AssetProvisioningManaged

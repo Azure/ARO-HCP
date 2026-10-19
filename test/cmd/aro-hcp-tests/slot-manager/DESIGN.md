@@ -24,12 +24,21 @@ migration and recovery are not supported.
 
 - The root `slotmanager` package owns CLI flags, compatibility command aliases,
   and acquisition/release orchestration. `assets_cmd.go` constructs the registry
-  explicitly with `e2eidentities.NewHandler()`.
+  explicitly with `e2eidentities.NewHandler()` and
+  `infrastructureidentities.NewHandler()`.
 - `assets` defines the handler contract and deterministic registry lifecycle.
   It depends on `slots`, never on concrete handler packages.
+- `assets/azureutil` holds shared Azure identity helpers used by both identity
+  handlers: principal-ID parsing, identity-name inventory checks, worker-bounded
+  admission deletes, and the `--cleanup-workers` flag type. It does not own a
+  lifecycle.
 - `assets/e2eidentities` implements the E2E identity lifecycle: Azure provisioning
   (`apply.go`), pool resolution, inventory validation, admission, and runtime
   publication, with their tests alongside the implementation.
+- `assets/infrastructureidentities` implements the infrastructure identity
+  lifecycle for independently leased bundles: Azure provisioning, inventory
+  validation, admission (including federated-credential cleanup), and runtime
+  publication of `LEASED_INFRASTRUCTURE_IDENTITY_BUNDLE`.
 - `slots` owns catalog and acquired-state types, wire keys, structural validation,
   inventory derivation, and lease journaling. `slots/e2e_identities.go` groups the
   E2E identity model types, normalization, deterministic naming, and structural
@@ -37,7 +46,8 @@ migration and recovery are not supported.
   asset orchestration remain in `catalog.go` and `asset_pools.go`.
 - Runtime publication combines core exports with handler `PublishLease`
   contributions through the shared runtime contract builder. The E2E identity
-  handler exclusively owns `LEASED_MSI_CONTAINERS`.
+  handler exclusively owns `LEASED_MSI_CONTAINERS`. The infrastructure identity
+  handler exclusively owns `LEASED_INFRASTRUCTURE_IDENTITY_BUNDLE`.
 
 ## Implementation status
 
@@ -49,18 +59,16 @@ assets. It preserves the existing Boskos resources, identity-container names,
 capacity, subscription ownership, and region policies. Acquisition now runs
 credential-backed identity admission and uses the v2 release journal.
 
-The live catalog declares no infrastructure subscription, infrastructure asset
-demand, or independent asset pool. Slot-manager therefore does not resolve or
-access an infrastructure subscription. Existing `--deploy-env` callers remain
-supported; switching to `--environment` is not a rollout prerequisite.
+The live catalog still declares no infrastructure subscription, infrastructure
+asset demand, or independent asset pool, so current jobs do not resolve or
+access an infrastructure subscription. The infrastructure identity handler is
+registered: catalogs that declare that demand acquire, admit, provision, and
+publish a bundle. Live pool creation, catalog activation, and rollout remain
+separate work. Generating Boskos inventory does not prove backing Azure
+resources exist. Existing `--deploy-env` callers remain supported; switching to
+`--environment` is not a rollout prerequisite.
 
-Infrastructure identities below describe the forward product contract, not a
-working Azure provisioner. Their typed demand and inventory can be validated
-and rendered to Boskos, but acquisition and pool management reject that demand
-before any network operation because no production handler is registered.
-An infrastructure identity handler, its product Bicep consumers, rollout, and
-mock identity assets are future work. Generating Boskos inventory does not
-prove backing Azure resources exist or admit a lease.
+Mock identity assets are future work.
 
 ## Design goals
 
@@ -91,6 +99,8 @@ asset_pools:
   provisioning: managed
   boskos_resource_type: aro-hcp-dev-infrastructure-identities
   resource_name_prefix: aro-hcp-dev-infrastructure-identities
+  infrastructure_identities:
+    provisioning_region: westus3
 
 environments:
   dev:
@@ -211,8 +221,11 @@ credentials, or exported `AZURE_*` variables.
 The acquire step must mount the same applicable profile credentials used by the
 test step. The selected identity needs permission to enumerate the E2E identity
 inventory and role assignments, and delete leased principals' role
-assignments. Missing credential files or insufficient permissions fail admission.
-No credentials are written to shared runtime state.
+assignments. When a pool demands infrastructure identities, those credentials
+must also enumerate the leased bundle identities and federated credentials in
+the infrastructure subscription and delete those federated credentials and the
+principals' role assignments there. Missing credential files or insufficient
+permissions fail admission. No credentials are written to shared runtime state.
 
 ### Region selection
 
@@ -526,8 +539,8 @@ slot:
       resource_groups:
       - aro-hcp-dev-infrastructure-identities-03
       identities:
-      - service-cluster-...
-      - management-cluster-...
+      - service-control-plane
+      - management-control-plane
 ```
 
 The state file is `${SHARED_DIR}/aro-hcp-slot-state.yaml`.
@@ -584,8 +597,10 @@ Core exports include:
 
 Asset handlers contribute asset-specific exports. The E2E identity handler owns
 `LEASED_MSI_CONTAINERS`; it does not assign user worker overrides.
-`INFRA_SUBSCRIPTION_ID` is exported only when the selected pool demands an
-infrastructure asset and that subscription has been resolved.
+The infrastructure identity handler owns `LEASED_INFRASTRUCTURE_IDENTITY_BUNDLE`,
+a JSON object with service and management resource groups and AKS identity
+names. `INFRA_SUBSCRIPTION_ID` is exported only when the selected pool demands
+an infrastructure asset and that subscription has been resolved.
 
 Every export has one owner. Duplicate names fail contract construction. Export
 names must be valid shell identifiers, and values are shell-escaped before the
@@ -797,23 +812,12 @@ Operational onboarding, capacity calculations, and recovery procedures live in
 [`docs/ci/identity-leasing.md`](../../../../docs/ci/identity-leasing.md) and
 [`docs/ci/e2e-subscription-onboarding.md`](../../../../docs/ci/e2e-subscription-onboarding.md).
 
-## Future assets
-
-The registry allows future assets to be added independently.
-
-### Mock identities
-
-A slot may own an MSI mock service principal, backend ARM helper, and
-clusters-service ARM helper. Names derive from environment, pool, and slot.
-Their persistent credentials and baseline RBAC require an asset-specific
-preparation policy.
-
-### Infrastructure identities
+## Infrastructure identity asset
 
 Infrastructure identities use `allocation: leased` and come from a dedicated
 top-level asset pool. A lease resolves one complete identity bundle containing
-the explicit UAMIs required by one ephemeral service and management
-environment.
+the explicit UAMIs required by one ephemeral service cluster and two management
+stamps. The consumer contract is exactly one bundle per slot.
 
 There is no value in pinning an empty identity bundle to one primary slot.
 Before use, the identities have no per-run RBAC or federated credentials, so any
@@ -825,6 +829,60 @@ Its required bundle count is derived from the total slot count of every
 consumer. Slot-manager generates the corresponding Boskos resources and, when
 managed provisioning is enabled, creates or reconciles every identity bundle.
 
-The handler validates the persistent identity set and removes per-run
-federated credentials and role assignments during admission. AKS-created
-kubelet and Key Vault provider identities remain outside this asset.
+The Boskos resource name is the journal identity of the bundle. Azure resource
+groups are derived from that name (`<bundle>-svc`, `<bundle>-mgmt-1`,
+`<bundle>-mgmt-2`). Workload and AKS control-plane identity names are an
+intrinsic handler topology matching the product service and management
+templates; they are not cluster-name derived and are not catalog fields.
+Managed pools declare `infrastructure_identities.provisioning_region` for
+`apply-pool-assets`.
+
+### Pool management
+
+`ApplyPools` creates or updates the three Azure resource groups and the
+complete identity set for every derived bundle. `ValidatePools` is read-only
+and reports missing groups, missing identities, and unexpected identities.
+Live pool creation and catalog activation remain separate rollout work.
+
+### Admission
+
+Admission inspects those Azure groups, requires the complete identity set with
+valid principal IDs, and deletes every federated credential on those identities
+plus every role assignment granted to their principals in the infrastructure
+subscription. Extra identities are logged and excluded from cleanup.
+
+Discovery lists identities and federated credentials once per expected
+identity, then lists role assignments once for the infrastructure
+subscription. Each synchronous deletion must complete successfully or return
+`404` (already absent). No confirmation reads, deletion polling, or second
+inventory scan are performed. Azure authorization propagation can still lag
+behind successful deletion; checking resource absence would not guarantee
+authorization-cache convergence.
+
+Inventory and federated-credential reads run serially. Deletes run with at most
+`infrastructure_identities.cleanup-workers` concurrent requests (see Asset
+admission options; default 1, so serial). All deletes share the admission
+deadline. Raise it only for low-concurrency environments: ARM throttles deletes
+per subscription and service principal, and every slot admitted concurrently
+in the same subscription adds its workers to that budget.
+
+Missing required identities, incomplete enumeration, or a delete error fails
+closed before publication. Release returns the Boskos lease without deleting
+the persistent identities or their resource groups.
+
+`PublishLease` writes `LEASED_INFRASTRUCTURE_IDENTITY_BUNDLE` after admission.
+The JSON object contains `serviceResourceGroup`, `serviceAksIdentityName`,
+`managementResourceGroups`, and `managementAksIdentityNames`. Client and
+principal identifiers are resolved by deployment from those names.
+AKS-created kubelet and Key Vault provider identities remain outside this asset.
+
+## Future assets
+
+The registry allows future assets to be added independently.
+
+### Mock identities
+
+A slot may own an MSI mock service principal, backend ARM helper, and
+clusters-service ARM helper. Names derive from environment, pool, and slot.
+Their persistent credentials and baseline RBAC require an asset-specific
+preparation policy.
