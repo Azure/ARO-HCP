@@ -61,8 +61,11 @@ spec:
   #
   # WHAT IS COUNTED: the phase gauge holds at most one series per
   # (resource, operation_type), because the Backend replaces the previous series
-  # on every transition. Every count below is therefore a count of CLUSTERS by
-  # the outcome of their latest update, not a count of LROs. A failed update
+  # with the newest retained operation by start time (Cosmos document key breaks
+  # ties). Informer resync order does not affect selection. When that document
+  # expires, the newest remaining operation is selected. Every count below is
+  # therefore a count of CLUSTERS by the outcome of their latest retained
+  # update, not a count of LROs. A failed update
   # that is later retried successfully is overwritten and never counted, so
   # these series under-report LRO failures. A true per-LRO rate needs a counter
   # incremented once per terminal transition (ARO-25923).
