@@ -506,8 +506,8 @@ resource arohcpIdmsMirrorSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRu
         }
         annotations: {
           correlationId: 'userJourneyIDMSMirrorErrors3d/{{ $labels.cluster }}'
-          description: 'More than 5% of clusters on {{ $labels.cluster }} whose latest update completed in the last 3 days have it in failed state (at least 10 completions and 2 failures), a 1x burn threshold. Only each cluster\'s latest update is counted, so a failure overwritten by a successful retry is missed.'
-          info: 'More than 5% of clusters on {{ $labels.cluster }} whose latest update completed in the last 3 days have it in failed state (at least 10 completions and 2 failures), a 1x burn threshold. Only each cluster\'s latest update is counted, so a failure overwritten by a successful retry is missed.'
+          description: 'More than 5% of clusters on {{ $labels.cluster }} whose latest update completed in the last 3 days have it in failed state (at least 10 completions and 2 failures), a 1x burn threshold. Only each cluster\'s latest update is counted, so a failure overwritten by a successful retry is missed. Confirm whether the affected operations carried an imageDigestMirrors change before triaging as an IDMS issue.'
+          info: 'More than 5% of clusters on {{ $labels.cluster }} whose latest update completed in the last 3 days have it in failed state (at least 10 completions and 2 failures), a 1x burn threshold. Only each cluster\'s latest update is counted, so a failure overwritten by a successful retry is missed. Confirm whether the affected operations carried an imageDigestMirrors change before triaging as an IDMS issue.'
           runbook_url: 'https://aka.ms/arohcp-runbook-idms'
           summary: '{{ $labels.cluster }}: Cluster update failures persistent (>5% over 3d)'
           title: '{{ $labels.cluster }}: Cluster update failures persistent (>5% over 3d)'

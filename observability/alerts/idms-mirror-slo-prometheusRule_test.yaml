@@ -299,7 +299,7 @@ tests:
         slo: idms-mirror-errors
       exp_annotations:
         summary: "mgmt-1: Cluster update failures persistent (>5% over 3d)"
-        description: "More than 5% of clusters on mgmt-1 whose latest update completed in the last 3 days have it in failed state (at least 10 completions and 2 failures), a 1x burn threshold. Only each cluster's latest update is counted, so a failure overwritten by a successful retry is missed."
+        description: "More than 5% of clusters on mgmt-1 whose latest update completed in the last 3 days have it in failed state (at least 10 completions and 2 failures), a 1x burn threshold. Only each cluster's latest update is counted, so a failure overwritten by a successful retry is missed. Confirm whether the affected operations carried an imageDigestMirrors change before triaging as an IDMS issue."
         runbook_url: "https://aka.ms/arohcp-runbook-idms"
   - eval_time: 6h5m
     alertname: userJourneyIDMSMirrorErrors1h5m
