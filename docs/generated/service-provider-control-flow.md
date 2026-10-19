@@ -949,11 +949,13 @@ ServiceProviderCluster only after the run returns, and records the start time of
 conclusive Failed runs in `Status.ValidationProbeTimes` so the operation controllers
 can distinguish a freshly re-confirmed failure from one whose re-check has stalled.
 A still-failing validation rewrites its probe at most once per
-`ValidationProbeRewriteInterval` (derived so the stored probe stays inside the 5m
-freshness window while re-checks continue); Passed and Skipped runs remove the
+`ValidationProbeRewriteInterval` (2m, equal to the run timeout). The 6m freshness
+window is derived from the run timeout, the maximum retry delay and the rewrite
+interval so the stored probe stays fresh while re-checks continue; Passed and Skipped runs remove the
 entry, and Unknown runs leave it untouched. A write conflict on the
-ServiceProviderCluster still schedules the result's retry cooldown, so the informer
-re-trigger does not immediately repeat the validation's Azure calls; the node-pool wrapper does
+ServiceProviderCluster schedules a retry capped at the non-passed retry delay (a lost
+Passed result does not apply its long cooldown), so the result is recomputed without the
+informer re-trigger immediately repeating the validation's Azure calls; the node-pool wrapper does
 not, since node-pool operations have no validation failure timeout. The validators' Azure calls are checks, not provisioning.
 
 ### Backend: cluster provisioning and Azure resources

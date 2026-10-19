@@ -26,6 +26,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	operationtesting "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils/operationtesting"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/validationutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 )
@@ -232,13 +233,13 @@ func TestClusterValidationProbeFreshness(t *testing.T) {
 		{
 			name:       "probe exactly at the freshness window boundary still fails",
 			validation: failedFor(10 * time.Minute),
-			probeAge:   ptrTo(5 * time.Minute),
+			probeAge:   ptrTo(validationutils.ValidationProbeFreshnessWindow),
 			wantState:  coreapi.ProvisioningStateFailed,
 		},
 		{
 			name:       "probe just beyond the freshness window stays provisioning",
 			validation: failedFor(10 * time.Minute),
-			probeAge:   ptrTo(5*time.Minute + time.Second),
+			probeAge:   ptrTo(validationutils.ValidationProbeFreshnessWindow + time.Second),
 			wantState:  coreapi.ProvisioningStateProvisioning,
 		},
 		{
