@@ -114,7 +114,10 @@ func (c *externalAuthClusterServiceIDClearer) SyncOnce(ctx context.Context, key 
 	}
 
 	csID := externalAuth.ServiceProviderProperties.ClusterServiceID
-	_, err = c.clusterServiceClient.GetExternalAuth(ctx, *csID)
+	csCtx, cancel := context.WithTimeout(ctx, controllerutils.CSReadTimeout)
+	defer cancel()
+
+	_, err = c.clusterServiceClient.GetExternalAuth(csCtx, *csID)
 	if err != nil {
 		var ocmError *ocmerrors.Error
 		if !errors.As(err, &ocmError) || ocmError.Status() != http.StatusNotFound {

@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/blang/semver/v4"
 	"github.com/go-logr/logr/testr"
@@ -229,7 +230,11 @@ func TestIngressDesireSuppression(test *testing.T) {
 				"kas":      `{"apiVersion":"secret-sync.x-k8s.io/v1alpha1","kind":"SecretSync","metadata":{"name":"kube-apiserver-tls-cert-test","namespace":"hc"}}`,
 				"signing":  `{"apiVersion":"secrets-store.csi.x-k8s.io/v1","kind":"SecretProviderClass","metadata":{"name":"signing-key-test","namespace":"hc"}}`,
 			})
-			csClient.EXPECT().GetClusterResources(gomock.Any(), gomock.Any()).Return(resources, nil)
+			csClient.EXPECT().GetClusterResources(gomock.Cond[context.Context](func(ctx context.Context) bool {
+				deadline, ok := ctx.Deadline()
+				remaining := time.Until(deadline)
+				return ok && remaining > clusterResourcesFetchTimeout-time.Second && remaining <= clusterResourcesFetchTimeout
+			}), gomock.Any()).Return(resources, nil)
 			syncer := &clusterResourcesController{
 				subscriptionLister:           subscriptionLister,
 				clusterLister:                &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{cluster}},

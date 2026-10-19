@@ -210,7 +210,10 @@ func (c *operationClusterUpdate) determineOperationState(ctx context.Context, op
 	logger := utils.LoggerFromContext(ctx)
 
 	clusterCSID := existingCluster.ServiceProviderProperties.ClusterServiceID
-	existingCSCluster, err := c.clusterServiceClient.GetCluster(ctx, *clusterCSID)
+	csCtx, cancel := context.WithTimeout(ctx, controllerutils.CSReadTimeout)
+	defer cancel()
+
+	existingCSCluster, err := c.clusterServiceClient.GetCluster(csCtx, *clusterCSID)
 	if err != nil {
 		return nil, utils.TrackError(fmt.Errorf("failed to get cluster from cluster service: %w", err))
 	}
@@ -229,7 +232,7 @@ func (c *operationClusterUpdate) determineOperationState(ctx context.Context, op
 	} else {
 		operationStates = append(operationStates, operationState.WithSource("controlPlaneDesiredVersionResolution"))
 	}
-	if operationState, csErr := c.clusterServiceClusterStatusOperationState(ctx, operation, existingCSCluster.Status(), *clusterCSID); csErr != nil {
+	if operationState, csErr := c.clusterServiceClusterStatusOperationState(csCtx, operation, existingCSCluster.Status(), *clusterCSID); csErr != nil {
 		errs = append(errs, utils.TrackError(csErr))
 	} else {
 		operationStates = append(operationStates, operationState.WithSource("clusterServiceClusterStatus"))

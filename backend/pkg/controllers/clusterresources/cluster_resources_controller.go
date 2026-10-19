@@ -54,6 +54,10 @@ import (
 
 const (
 	ClusterResourcesControllerName = "ClusterResources"
+
+	// Fetches may make synchronous upstream calls; round 5x the observed
+	// p99.9 of 3500ms up to 20s.
+	clusterResourcesFetchTimeout = 20 * time.Second
 )
 
 // clusterResourcesController polls the Cluster Service SDK endpoint for cluster resources information
@@ -184,7 +188,10 @@ func (c *clusterResourcesController) SyncOnce(ctx context.Context, key controlle
 func (c *clusterResourcesController) fetchAndProcessClusterResources(ctx context.Context,
 	key controllerutils.HCPClusterKey, managementCluster *azcorearm.ResourceID, clusterServiceID metadataapi.InternalID, version *semver.Version) error {
 	// Get cluster resources from the Cluster Service SDK
-	resources, err := c.clustersServiceClient.GetClusterResources(ctx, clusterServiceID)
+	csCtx, cancel := context.WithTimeout(ctx, clusterResourcesFetchTimeout)
+	defer cancel()
+
+	resources, err := c.clustersServiceClient.GetClusterResources(csCtx, clusterServiceID)
 	if err != nil {
 		return utils.TrackError(err)
 	}

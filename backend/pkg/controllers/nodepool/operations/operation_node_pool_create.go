@@ -234,7 +234,10 @@ func (c *operationNodePoolCreate) determineOperationState(ctx context.Context, o
 
 func (c *operationNodePoolCreate) nodePoolServiceCreateOperationState(ctx context.Context, operation *coreapi.Operation, nodePool *coreapi.NodePool) (*operationbase.OperationState, error) {
 	logger := utils.LoggerFromContext(ctx)
-	csNodePoolStatus, err := c.clusterServiceClient.GetNodePoolStatus(ctx, *nodePool.ServiceProviderProperties.ClusterServiceID)
+	csCtx, cancel := context.WithTimeout(ctx, controllerutils.CSReadTimeout)
+	defer cancel()
+
+	csNodePoolStatus, err := c.clusterServiceClient.GetNodePoolStatus(csCtx, *nodePool.ServiceProviderProperties.ClusterServiceID)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
