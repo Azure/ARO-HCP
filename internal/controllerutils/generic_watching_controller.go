@@ -218,6 +218,16 @@ func (c *GenericWatchingController[T]) QueueForChildInformers(resyncDuration tim
 	return c.queueForInformers(resyncDuration, 1, true, notifiers...)
 }
 
+// QueueForDescendantInformers extends child mapping to an explicit depth, for
+// controllers consuming both direct children and node-pool-nested documents.
+// It uses resource IDs already carried by the event; no lookup is required.
+func (c *GenericWatchingController[T]) QueueForDescendantInformers(resyncDuration time.Duration, maxDepth int, notifiers ...Notifier) error {
+	if maxDepth < 1 {
+		return fmt.Errorf("descendant watches require a positive maximum depth")
+	}
+	return c.queueForInformers(resyncDuration, maxDepth, true, notifiers...)
+}
+
 func (c *GenericWatchingController[T]) queueForInformers(resyncDuration time.Duration, maxDepth int, includeDeletes bool, notifiers ...Notifier) error {
 	errs := []error{}
 
