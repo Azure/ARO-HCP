@@ -36,17 +36,18 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-logr/logr"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
-	"github.com/go-logr/logr"
 )
 
 type mockCertificateTransport struct{ certificates []*x509.Certificate }
 
 func (s mockCertificateTransport) Do(r *http.Request) (*http.Response, error) {
-	body := map[string]any{}
+	var body map[string]any
 	if strings.Contains(r.URL.Path, ".well-known") {
 		body = map[string]any{"authorization_endpoint": "https://login.microsoftonline.com/tenant/oauth2/v2.0/authorize", "token_endpoint": "https://login.microsoftonline.com/tenant/oauth2/v2.0/token", "issuer": "https://login.microsoftonline.com/tenant/v2.0"}
 	} else if strings.Contains(r.URL.Path, "discovery/instance") {

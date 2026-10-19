@@ -24,10 +24,11 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 type mockIdentityCertificateGeneration struct {
@@ -63,14 +64,20 @@ func newMockIdentityCertificate(ctx context.Context, path, clientID, tenantID st
 		return nil, err
 	}
 	watchCtx, cancel := context.WithCancel(ctx)
+	initialized := false
+	defer func() {
+		// Successful watches live until the parent context is canceled.
+		if !initialized {
+			cancel()
+		}
+	}()
 	if err = watcher.Start(watchCtx); err != nil {
-		cancel()
 		return nil, err
 	}
 	if err = certificate.reload(watchCtx); err != nil {
-		cancel()
 		return nil, err
 	}
+	initialized = true
 	return certificate, nil
 }
 

@@ -112,10 +112,9 @@ func TestBackendExposesMetrics(t *testing.T) {
 		// fake hardcoded identity for metrics test, so controllers that panic when neither hardcoded identity nor
 		// managed identities dataplane client builder are not set do not panic.
 		hardcodedIdentity := &azureclient.HardcodedIdentity{
-			ClientID:     "test-client-id",
-			ClientSecret: "test-client-secret",
-			PrincipalID:  "test-principal-id",
-			TenantID:     "test-tenant-id",
+			ClientID:    "test-client-id",
+			PrincipalID: "test-principal-id",
+			TenantID:    "test-tenant-id",
 		}
 
 		metricsListener := newMetricsTestListener(t)
