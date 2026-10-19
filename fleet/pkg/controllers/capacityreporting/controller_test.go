@@ -267,8 +267,14 @@ func TestSyncOnce_MirrorsReadyAndNotReadyResourceIDs(t *testing.T) {
 	wantNotReady := []*azcorearm.ResourceID{
 		metadataapi.Must(azcorearm.ParseResourceID(notReadyIDs[0])),
 	}
-	assert.Equal(t, wantReady, scheduling.Status.ReadyResourceIDs, "Status.ReadyResourceIDs must mirror the CapacityReport (parsed to ResourceIDs)")
-	assert.Equal(t, wantNotReady, scheduling.Status.NotReadyResourceIDs, "Status.NotReadyResourceIDs must mirror the CapacityReport (parsed to ResourceIDs)")
+	require.Len(t, scheduling.Status.ReadyResourceIDs, len(wantReady))
+	require.Len(t, scheduling.Status.NotReadyResourceIDs, len(wantNotReady))
+	for i, id := range wantReady {
+		require.True(t, controllerutil.ResourceIDsEqual(id, scheduling.Status.ReadyResourceIDs[i]), "ready resource IDs must mirror membership")
+	}
+	for i, id := range wantNotReady {
+		require.True(t, controllerutil.ResourceIDsEqual(id, scheduling.Status.NotReadyResourceIDs[i]), "not-ready resource IDs must mirror membership")
+	}
 }
 
 func TestDropObservedPendingAssignments(t *testing.T) {
