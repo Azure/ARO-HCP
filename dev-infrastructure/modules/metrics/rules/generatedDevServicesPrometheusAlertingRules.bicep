@@ -46,7 +46,7 @@ Check the status of the Prometheus pods, service endpoints, and network connecti
           summary: 'Prometheus is unreachable for 10 minutes.'
           title: 'Prometheus is unreachable for 10 minutes.'
         }
-        expression: 'group by (cluster, region) (up{job="kubelet"}) unless on (cluster) group by (cluster, region) (up{job="prometheus/prometheus",namespace="prometheus"} == 1)'
+        expression: 'group by (cluster, region) (underlay_clusters) unless on (cluster) group by (cluster, region) (up{job="prometheus/prometheus",namespace="prometheus"} == 1)'
         for: 'PT10M'
         severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }
@@ -140,11 +140,11 @@ Check the PrometheusAgent pod status, remote write pipeline, and PodMonitor conf
         }
         annotations: {
           correlationId: 'PrometheusMetricsAbsentPerCluster/{{ $labels.cluster }}'
-          description: '''Prometheus on cluster {{ $labels.cluster }} has not reported any up metrics in the last 10 minutes, but was reporting within the last 7 days.
+          description: '''Prometheus on cluster {{ $labels.cluster }} has not reported any up metrics in the last 10 minutes, but is declared in the underlay cluster inventory.
 This indicates the Prometheus agent on this specific cluster is dead or its remote write pipeline is broken.
 Check the PrometheusAgent pod status and remote write configuration on the affected cluster.
 '''
-          info: '''Prometheus on cluster {{ $labels.cluster }} has not reported any up metrics in the last 10 minutes, but was reporting within the last 7 days.
+          info: '''Prometheus on cluster {{ $labels.cluster }} has not reported any up metrics in the last 10 minutes, but is declared in the underlay cluster inventory.
 This indicates the Prometheus agent on this specific cluster is dead or its remote write pipeline is broken.
 Check the PrometheusAgent pod status and remote write configuration on the affected cluster.
 '''
@@ -152,9 +152,77 @@ Check the PrometheusAgent pod status and remote write configuration on the affec
           summary: 'Prometheus metrics absent for cluster {{ $labels.cluster }}.'
           title: 'Prometheus metrics absent for cluster {{ $labels.cluster }}.'
         }
-        expression: 'count by (cluster, region) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1w])) unless count by (cluster, region) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[10m]))'
+        expression: 'group by (cluster, region) (underlay_clusters) unless on (cluster) count by (cluster, region) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[10m]))'
         for: 'PT10M'
         severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'UnderlayClusterInventoryEntryMissing'
+        enabled: true
+        labels: {
+          component: 'monitoring-infrastructure'
+          severity: 'warning'
+        }
+        annotations: {
+          correlationId: 'UnderlayClusterInventoryEntryMissing/{{ $labels.cluster }}'
+          description: '''Underlay cluster {{ $labels.cluster }} was present in the underlay cluster inventory within the last 7 days, but is no longer present.
+The underlay cluster inventory is static deployment-time data and entries should not disappear while their service or management clusters still exist.
+Investigate the underlay_clusters recording rule and the cluster\'s deployment state.
+'''
+          info: '''Underlay cluster {{ $labels.cluster }} was present in the underlay cluster inventory within the last 7 days, but is no longer present.
+The underlay cluster inventory is static deployment-time data and entries should not disappear while their service or management clusters still exist.
+Investigate the underlay_clusters recording rule and the cluster\'s deployment state.
+'''
+          runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/underlay_clusters.md'
+          summary: 'Underlay cluster inventory entry disappeared for {{ $labels.cluster }}.'
+          title: 'Underlay cluster inventory entry disappeared for {{ $labels.cluster }}.'
+        }
+        expression: 'group by (cluster, region) (count_over_time(underlay_clusters[1w])) unless on (cluster) group by (cluster, region) (underlay_clusters)'
+        for: 'PT10M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'UnderlayClusterInventoryTooSmall'
+        enabled: true
+        labels: {
+          component: 'monitoring-infrastructure'
+          severity: 'warning'
+        }
+        annotations: {
+          correlationId: 'UnderlayClusterInventoryTooSmall/{{ $labels.cluster }}'
+          description: '''The underlay cluster inventory has two or fewer cluster labels, or the underlay_clusters metric is completely absent.
+The inventory should include all service and management clusters and should never be this small.
+Investigate the underlay_clusters recording rules before dependent alerts lose their source of truth.
+'''
+          info: '''The underlay cluster inventory has two or fewer cluster labels, or the underlay_clusters metric is completely absent.
+The inventory should include all service and management clusters and should never be this small.
+Investigate the underlay_clusters recording rules before dependent alerts lose their source of truth.
+'''
+          runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/underlay_clusters.md'
+          summary: 'Underlay cluster inventory has too few entries.'
+          title: 'Underlay cluster inventory has too few entries.'
+        }
+        expression: 'count by (region) (count by (cluster, region) (underlay_clusters)) <= 2 or absent(underlay_clusters)'
+        for: 'PT10M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
         actions: [
@@ -457,13 +525,13 @@ resource metricsProxy 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-0
         }
         annotations: {
           correlationId: 'MaestroAgentMetricsProxyDown/{{ $labels.cluster }}'
-          description: 'Prometheus has not scraped maestro-agent /metrics through the metrics-proxy sidecar (namespace=maestro, endpoint=metrics) for 10 minutes, while a kube-state-metrics scrape series still exists for this management cluster. Maestro agent metrics and any alerts that depend on them may be missing.'
-          info: 'Prometheus has not scraped maestro-agent /metrics through the metrics-proxy sidecar (namespace=maestro, endpoint=metrics) for 10 minutes, while a kube-state-metrics scrape series still exists for this management cluster. Maestro agent metrics and any alerts that depend on them may be missing.'
+          description: 'No maestro-agent pod is Ready in namespace maestro on this declared management cluster, or its readiness metrics are missing. Maestro agent metrics and any alerts that depend on them may be missing.'
+          info: 'No maestro-agent pod is Ready in namespace maestro on this declared management cluster, or its readiness metrics are missing. Maestro agent metrics and any alerts that depend on them may be missing.'
           runbook_url: 'https://aka.ms/arohcp-runbook-cluster-monitoring'
-          summary: 'Maestro agent metrics-proxy scrape is down'
-          title: 'Maestro agent metrics-proxy scrape is down'
+          summary: 'Maestro agent pod is not ready'
+          title: 'Maestro agent pod is not ready'
         }
-        expression: 'group by (cluster, region) (up{cluster=~".*-mgmt(-[0-9]+)?$",job="kube-state-metrics"}) unless on (cluster) group by (cluster, region) (up{endpoint="metrics",namespace="maestro",pod=~"maestro-agent-.*"} == 1)'
+        expression: 'group by (cluster, region) (underlay_clusters{cluster=~".*-mgmt(-[0-9]+)?$"}) unless on (cluster) group by (cluster, region) (kube_pod_status_ready{condition="true",namespace="maestro",pod=~"maestro-agent-.*"} == 1)'
         for: 'PT10M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -1545,15 +1613,15 @@ resource arobitRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01
         }
         annotations: {
           correlationId: 'ArobitForwarderJobUp/{{ $labels.cluster }}'
-          description: '''The Arobit forwarder metrics endpoint on cluster {{ $labels.cluster }} has been unreachable for 15 minutes.
+          description: '''The Arobit forwarder DaemonSet on cluster {{ $labels.cluster }} has had no Ready pods for 15 minutes, or its readiness metrics are missing.
 '''
-          info: '''The Arobit forwarder metrics endpoint on cluster {{ $labels.cluster }} has been unreachable for 15 minutes.
+          info: '''The Arobit forwarder DaemonSet on cluster {{ $labels.cluster }} has had no Ready pods for 15 minutes, or its readiness metrics are missing.
 '''
           runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/arobit.html'
-          summary: 'Arobit forwarder metrics endpoint is unreachable on cluster {{ $labels.cluster }}.'
-          title: 'Arobit forwarder metrics endpoint is unreachable on cluster {{ $labels.cluster }}.'
+          summary: 'Arobit forwarder has no Ready pods on cluster {{ $labels.cluster }}.'
+          title: 'Arobit forwarder has no Ready pods on cluster {{ $labels.cluster }}.'
         }
-        expression: 'group by (cluster, region) (up{job="kube-state-metrics"}) unless on (cluster) group by (cluster, region) (up{job="arobit-forwarder",namespace="arobit"} == 1)'
+        expression: 'group by (cluster, region) (underlay_clusters) unless on (cluster) group by (cluster, region) (kube_daemonset_status_number_ready{daemonset="arobit-forwarder",namespace="arobit"} > 0)'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }

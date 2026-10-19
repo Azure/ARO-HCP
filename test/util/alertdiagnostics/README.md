@@ -83,9 +83,9 @@ go test ./util/alertdiagnostics -run TestRepositoryCorpus -v
 ```
 
 The corpus test logs counts and every unsupported reason. After semantic review:
-465 alert occurrences from 41 files (185 YAML, 280 Bicep), 58 inputs containing
-`unless`, including 15 generated subscription exclusions; 677 conditions,
-718 diagnostic queries, no parse/type errors, and five fallback conditions.
+487 alert occurrences from 42 files (196 YAML, 291 Bicep), 73 inputs containing
+`unless`, including 16 generated subscription exclusions; 728 conditions,
+767 diagnostic queries, no parse/type errors, and seven fallback conditions.
 All 29 formerly unsupported set/comparison cases are extracted: 12 backend
 async-operation source alerts and their 12 generated variants, two access-cluster
 stuck-operation variants, and three `KubeNodeUnreachable` variants. Elapsed-time
@@ -95,6 +95,8 @@ scoping individually; the full plan retains the alert's relationship. Node-taint
 and injected subscription exclusions remain on diagnostic queries.
 Nested vector comparisons, ambiguous filtered `or`, and zero-fill fallbacks are
 covered by focused tests but do not occur at the extracted boundary in this corpus.
-The five absence fallbacks are tenant-quota telemetry-presence alerts: `TenantQuotaCollectorUp`,
+Five absence fallbacks are tenant-quota telemetry-presence alerts: `TenantQuotaCollectorUp`,
 `TenantQuotaMetricsStale`, `AzureQuotaMetricsStale`,
 `AzureQuotaLimitMetricsStale`, and `E2EResourceGroupMetricsStale`.
+The other two are the authored and generated `UnderlayClusterInventoryTooSmall`
+alerts, whose `absent(underlay_clusters)` branch has no numeric pre-absence signal.
