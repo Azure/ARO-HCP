@@ -114,3 +114,17 @@ func TestChildWatchCacheReadiness(t *testing.T) {
 		require.ErrorIs(t, c.QueueForChildInformers(time.Minute, &childTestNotifier{err: failure}), failure)
 	})
 }
+
+func TestDescendantWatchExplicitDepth(t *testing.T) {
+	c, _, _ := newTestWatchingController()
+	defer c.queue.ShutDown()
+	n := &childTestNotifier{}
+	require.Error(t, c.QueueForDescendantInformers(time.Minute, 0, n))
+	require.NoError(t, c.QueueForDescendantInformers(time.Minute, 2, n))
+	id := metadataapi.Must(azcorearm.ParseResourceID(testNodePoolARMID + "/readDesires/r"))
+	n.handler.OnDelete(&coreapi.CosmosMetadata{ResourceID: id})
+	require.Equal(t, []string{testClusterARMID}, popAllQueue(c))
+	id = metadataapi.Must(azcorearm.ParseResourceID(testNodePoolARMID + "/nested/n/readDesires/r"))
+	n.handler.OnDelete(&coreapi.CosmosMetadata{ResourceID: id})
+	require.Empty(t, popAllQueue(c))
+}

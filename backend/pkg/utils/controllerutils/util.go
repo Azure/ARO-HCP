@@ -56,6 +56,7 @@ type WatchingController interface {
 	// QueueForChildInformers maps direct child events (including deletion) to
 	// this controller's owner key, respecting its resource-interest filter.
 	QueueForChildInformers(resyncDuration time.Duration, notifiers ...Notifier) error
+	QueueForDescendantInformers(time.Duration, int, ...Notifier) error
 }
 
 // OperationKey is for driving workqueues keyed for operations

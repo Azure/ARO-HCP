@@ -71,6 +71,10 @@ Union consumers also retain their aggregate discovery barrier.
 - Cluster child cleanup and final deletion watch node pools, external auths,
   requests/revocations, and direct cluster desires (ApplyDesire only for final
   deletion; ApplyDesire and ReadDesire for child cleanup).
+- ClusterResources watches node pools and cluster/node-pool desires with an
+  explicit two-hop limit; minor-upgrade reconciliation watches node pools and
+  their provider-state documents with the same limit. Keys come directly from
+  event resource-ID ancestors, without live reads or cache scans.
 
 These subscriptions promptly observe existing dependencies; parent/sibling and
 Fleet dependencies still require reverse lookup/fan-out. Other generic watches

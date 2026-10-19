@@ -31,6 +31,8 @@ import (
 	clusterproperties "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/properties"
 	clusterreaddesires "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/readdesires"
 	clusterstatus "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/status"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/version/rollout"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/clusterresources"
 	nodepoolreaddesires "github.com/Azure/ARO-HCP/backend/pkg/controllers/nodepool/readdesires"
 	nodepoolstatus "github.com/Azure/ARO-HCP/backend/pkg/controllers/nodepool/status"
 	nodepoolversion "github.com/Azure/ARO-HCP/backend/pkg/controllers/nodepool/version"
@@ -296,6 +298,20 @@ func TestControllerResourceInterests(t *testing.T) {
 				{"request", "/systemAdminCredentialRequests/cred", true}, {"revocation", "/systemAdminCredentialRevocations/revoke", true},
 				{"apply", "/applyDesires/legacy", true}, {"apply", "/nodePools/np/applyDesires/legacy", false},
 			},
+		},
+		{
+			name: "cluster resources observes direct and node pool desires",
+			newController: func(db corecosmosstorage.ResourcesDBClient, inf coreinformers.BackendInformers, u *unionkubeapplierinformers.UnionKubeApplierInformers) controllerutils.Controller {
+				return clusterresources.NewClusterResourcesController(db, nil, nil, inf, u, nil)
+			},
+			events: []event{{"nodepool", "/nodePools/np", true}, {"apply", "/applyDesires/a", true}, {"apply", "/nodePools/np/applyDesires/a", true}, {"read", "/readDesires/r", true}, {"read", "/nodePools/np/readDesires/r", true}, {"read", "/systemAdminCredentialRequests/c/readDesires/r", false}},
+		},
+		{
+			name: "minor upgrade observes node pool provider state",
+			newController: func(db corecosmosstorage.ResourcesDBClient, inf coreinformers.BackendInformers, _ *unionkubeapplierinformers.UnionKubeApplierInformers) controllerutils.Controller {
+				return rollout.NewMinorUpgradeNormalClusterDesiredVersionController(nil, db, inf, nil)
+			},
+			events: []event{{"nodepool", "/nodePools/np", true}, {"spnp", "/nodePools/np/serviceProviderNodePools/default", true}, {"spnp", "/nodePools/np/serviceProviderNodePools/other", false}, {"spnp", "/nodePools/np/nested/n/serviceProviderNodePools/default", false}},
 		},
 	}
 	for _, tc := range cases {
