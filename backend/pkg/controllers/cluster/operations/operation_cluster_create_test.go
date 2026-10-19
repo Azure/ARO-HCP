@@ -57,6 +57,7 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 		return operationtesting.NewHostedClusterReadDesire(t, &v1beta1.HostedCluster{
 			Status: v1beta1.HostedClusterStatus{
 				Conditions: []metav1.Condition{
+					{Type: string(v1beta1.IngressDefaultCertificateSynced), Status: metav1.ConditionTrue},
 					{Type: string(v1beta1.HostedClusterAvailable), Status: metav1.ConditionTrue},
 				},
 				ControlPlaneVersion: v1beta1.ControlPlaneVersionStatus{
@@ -851,6 +852,7 @@ func TestDetermineOperationState(t *testing.T) {
 					operationtesting.NewHostedClusterReadDesire(t, &v1beta1.HostedCluster{
 						Status: v1beta1.HostedClusterStatus{
 							Conditions: []metav1.Condition{
+								{Type: string(v1beta1.IngressDefaultCertificateSynced), Status: metav1.ConditionTrue},
 								{Type: string(v1beta1.HostedClusterAvailable), Status: metav1.ConditionTrue},
 							},
 							ControlPlaneVersion: v1beta1.ControlPlaneVersionStatus{
@@ -969,6 +971,65 @@ func TestDetermineOperationState(t *testing.T) {
 			wantMessageSubstr: "ReadDesire is not successful: KubeAPIError: boom",
 		},
 		{
+			name: "ingress default certificate not synced, condition missing → Provisioning",
+			clusterLister: &corelistertesting.SliceClusterLister{
+				Clusters: []*coreapi.Cluster{newClusterWithAPIURL("https://api.example.com", nil)},
+			},
+			setupCSMock: readyClusterServiceMock,
+			readDesireLister: &kubeapplierlistertesting.SliceReadDesireLister{
+				Desires: []*kubeapplierapi.ReadDesire{
+					operationtesting.NewHostedClusterReadDesire(t, &v1beta1.HostedCluster{
+						Status: v1beta1.HostedClusterStatus{
+							Conditions: []metav1.Condition{
+								{Type: string(v1beta1.HostedClusterAvailable), Status: metav1.ConditionTrue},
+							},
+							ControlPlaneVersion: v1beta1.ControlPlaneVersionStatus{
+								History: []v1beta1.ControlPlaneUpdateHistory{
+									{Version: "4.17.3", State: configv1.CompletedUpdate},
+								},
+							},
+							ControlPlaneEndpoint: v1beta1.APIEndpoint{
+								Host: "api.example.com",
+								Port: 6443,
+							},
+						},
+					}),
+				},
+			},
+			expectedState:     coreapi.ProvisioningStateProvisioning,
+			wantMessageSubstr: "ingress default certificate is not synced, condition missing",
+		},
+		{
+			name: "ingress default certificate not synced, condition false → Provisioning",
+			clusterLister: &corelistertesting.SliceClusterLister{
+				Clusters: []*coreapi.Cluster{newClusterWithAPIURL("https://api.example.com", nil)},
+			},
+			setupCSMock: readyClusterServiceMock,
+			readDesireLister: &kubeapplierlistertesting.SliceReadDesireLister{
+				Desires: []*kubeapplierapi.ReadDesire{
+					operationtesting.NewHostedClusterReadDesire(t, &v1beta1.HostedCluster{
+						Status: v1beta1.HostedClusterStatus{
+							Conditions: []metav1.Condition{
+								{Type: string(v1beta1.IngressDefaultCertificateSynced), Status: metav1.ConditionFalse, Reason: "SecretSyncFailed", Message: "secret sync has not completed"},
+								{Type: string(v1beta1.HostedClusterAvailable), Status: metav1.ConditionTrue},
+							},
+							ControlPlaneVersion: v1beta1.ControlPlaneVersionStatus{
+								History: []v1beta1.ControlPlaneUpdateHistory{
+									{Version: "4.17.3", State: configv1.CompletedUpdate},
+								},
+							},
+							ControlPlaneEndpoint: v1beta1.APIEndpoint{
+								Host: "api.example.com",
+								Port: 6443,
+							},
+						},
+					}),
+				},
+			},
+			expectedState:     coreapi.ProvisioningStateProvisioning,
+			wantMessageSubstr: "ingress default certificate is not synced: SecretSyncFailed: secret sync has not completed",
+		},
+		{
 			name: "hosted cluster not available → Provisioning",
 			clusterLister: &corelistertesting.SliceClusterLister{
 				Clusters: []*coreapi.Cluster{newClusterWithAPIURL("https://api.example.com", nil)},
@@ -979,6 +1040,7 @@ func TestDetermineOperationState(t *testing.T) {
 					operationtesting.NewHostedClusterReadDesire(t, &v1beta1.HostedCluster{
 						Status: v1beta1.HostedClusterStatus{
 							Conditions: []metav1.Condition{
+								{Type: string(v1beta1.IngressDefaultCertificateSynced), Status: metav1.ConditionTrue},
 								{Type: string(v1beta1.HostedClusterAvailable), Status: metav1.ConditionFalse, Reason: "NotReady", Message: "cluster is not ready"},
 							},
 							ControlPlaneVersion: v1beta1.ControlPlaneVersionStatus{
@@ -1004,6 +1066,7 @@ func TestDetermineOperationState(t *testing.T) {
 					operationtesting.NewHostedClusterReadDesire(t, &v1beta1.HostedCluster{
 						Status: v1beta1.HostedClusterStatus{
 							Conditions: []metav1.Condition{
+								{Type: string(v1beta1.IngressDefaultCertificateSynced), Status: metav1.ConditionTrue},
 								{Type: string(v1beta1.HostedClusterAvailable), Status: metav1.ConditionTrue},
 							},
 							ControlPlaneVersion: v1beta1.ControlPlaneVersionStatus{
@@ -1029,6 +1092,7 @@ func TestDetermineOperationState(t *testing.T) {
 					operationtesting.NewHostedClusterReadDesire(t, &v1beta1.HostedCluster{
 						Status: v1beta1.HostedClusterStatus{
 							Conditions: []metav1.Condition{
+								{Type: string(v1beta1.IngressDefaultCertificateSynced), Status: metav1.ConditionTrue},
 								{Type: string(v1beta1.HostedClusterAvailable), Status: metav1.ConditionTrue},
 							},
 							ControlPlaneVersion: v1beta1.ControlPlaneVersionStatus{
@@ -1057,6 +1121,7 @@ func TestDetermineOperationState(t *testing.T) {
 					operationtesting.NewHostedClusterReadDesire(t, &v1beta1.HostedCluster{
 						Status: v1beta1.HostedClusterStatus{
 							Conditions: []metav1.Condition{
+								{Type: string(v1beta1.IngressDefaultCertificateSynced), Status: metav1.ConditionTrue},
 								{Type: string(v1beta1.HostedClusterAvailable), Status: metav1.ConditionTrue},
 							},
 							ControlPlaneVersion: v1beta1.ControlPlaneVersionStatus{

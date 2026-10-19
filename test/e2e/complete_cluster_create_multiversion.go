@@ -19,6 +19,7 @@ import (
 	"embed"
 	"fmt"
 	"net/http"
+	"net/url"
 	"sort"
 	"strings"
 	"time"
@@ -42,6 +43,13 @@ import (
 
 //go:embed test-artifacts
 var TestArtifactsFS embed.FS
+
+// defaultIngressCertificateHyperShiftMinVersion mirrors minVersionForLegacyIngressDesire in
+// backend/pkg/controllers/clusterresources/ingress_default_certificate.go: the version at and
+// above which the backend suppresses the legacy ACM-managed ingress desires (ManagedCluster,
+// DefaultIngressConfigMap, and the default-ingress SecretSync/SecretProviderClass) so HyperShift
+// delivers the default ingress certificate directly instead.
+var defaultIngressCertificateHyperShiftMinVersion = semver.MustParse("5.1.0")
 
 var _ = Describe("ARO-HCP", func() {
 
@@ -123,10 +131,12 @@ var _ = Describe("ARO-HCP", func() {
 			)
 			Expect(err).NotTo(HaveOccurred(), "HCP cluster %s/%s should provision", *resourceGroup.Name, clusterName)
 
+			hcpClient := tc.Get20260901ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
+
 			By("verifying the cluster is viable")
 			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20260901(
 				ctx,
-				tc.Get20260901ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
+				hcpClient,
 				*resourceGroup.Name,
 				clusterName,
 				framework.GetAdminRESTConfigTimeout,
@@ -196,6 +206,30 @@ var _ = Describe("ARO-HCP", func() {
 			By("verifying Console login and access to a namespaced marker")
 			err = verifiers.VerifyConsoleLogin(consoleFixture, 15*time.Minute).Verify(ctx, adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred(), "failed to verify Console login for cluster %q", clusterName)
+
+			By("fetching the cluster's DNS domain for default ingress certificate verification")
+			clusterResp, err := hcpClient.Get(ctx, *resourceGroup.Name, clusterName, nil)
+			Expect(err).NotTo(HaveOccurred(), "failed to get HCP cluster %q", clusterName)
+			Expect(clusterResp.Properties).NotTo(BeNil(), "cluster %q Properties was nil", clusterName)
+			Expect(clusterResp.Properties.DNS).NotTo(BeNil(), "cluster %q Properties.DNS was nil", clusterName)
+			Expect(clusterResp.Properties.DNS.BaseDomain).NotTo(BeNil(), "cluster %q DNS.BaseDomain was nil", clusterName)
+			Expect(clusterResp.Properties.DNS.BaseDomainPrefix).NotTo(BeNil(), "cluster %q DNS.BaseDomainPrefix was nil", clusterName)
+			appsWildcard := fmt.Sprintf("*.apps.aro.%s.%s", *clusterResp.Properties.DNS.BaseDomainPrefix, *clusterResp.Properties.DNS.BaseDomain)
+
+			By("verifying the console serves the default ingress certificate")
+			consoleHostURL, err := url.Parse(consoleFixture.ConsoleURL)
+			Expect(err).NotTo(HaveOccurred(), "failed to parse console URL %q for cluster %q", consoleFixture.ConsoleURL, clusterName)
+			Expect(verifiers.VerifyDefaultIngressCertificate(consoleHostURL.Host, appsWildcard, 5*time.Minute).Verify(ctx, adminRESTConfig)).To(Succeed(), "console must serve the delivered default ingress certificate for cluster %q", clusterName)
+			Expect(verifiers.VerifyDefaultIngressServingCertificateSecretWiring(10*time.Minute).Verify(ctx, adminRESTConfig)).To(Succeed(), "default-ingress-cert must exist and be referenced by IngressController/default for cluster %q", clusterName)
+
+			parsedVersion, err := semver.ParseTolerant(version)
+			Expect(err).NotTo(HaveOccurred(), "failed to parse version %q", version)
+			// Compare major.minor only: these are channel version lines, not patch builds.
+			majorMinorVersion := semver.Version{Major: parsedVersion.Major, Minor: parsedVersion.Minor}
+			if majorMinorVersion.GTE(defaultIngressCertificateHyperShiftMinVersion) {
+				By("verifying ACM's ingress certificate secret is absent, as HyperShift delivers it directly from 5.1+")
+				Expect(verifiers.VerifyACMIngressCertificateAbsent().Verify(ctx, adminRESTConfig)).To(Succeed(), "ACM must not create its ingress certificate secret for cluster %q", clusterName)
+			}
 		},
 		Entry("for 4.20", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible,
 			labels.AllowRetry, // owner: @raelga, tracking: AROSLSRE-1747. Known-issue test, retriable during EV2 gating. Remove this label when the issue is fixed.
