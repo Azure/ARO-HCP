@@ -36,6 +36,13 @@ func IsResourceNotFoundErr(err error) bool {
 	return errors.As(err, &azErr) && azErr.ErrorCode == "ResourceNotFound"
 }
 
+// IsForbiddenErr reports whether an Azure API call was rejected because the caller is not
+// authorized to perform it.
+func IsForbiddenErr(err error) bool {
+	var azErr *azcore.ResponseError
+	return errors.As(err, &azErr) && azErr.StatusCode == http.StatusForbidden
+}
+
 // IsRoleAssignmentNotFoundErr is used to determine if we are failing to find a role assignment
 // within azure. The role assignments API returns the more specific `RoleAssignmentNotFound`
 // error code (not `ResourceNotFound`) when a role assignment does not exist.

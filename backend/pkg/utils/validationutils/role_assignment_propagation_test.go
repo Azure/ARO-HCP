@@ -17,6 +17,7 @@ package validationutils
 import (
 	"context"
 	"errors"
+	"net/http"
 	"strings"
 	"testing"
 	"time"
@@ -29,6 +30,7 @@ import (
 	clocktesting "k8s.io/utils/clock/testing"
 	"k8s.io/utils/ptr"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v2"
@@ -149,8 +151,11 @@ func TestDeferForPropagationIfApplicable(t *testing.T) {
 	notAllowed := []*checkaccessv2AuthorizationDecisionData{{ActionID: "Microsoft.Network/networkSecurityGroups/read", AccessDecision: azurecheckaccessv2client.NotAllowed}}
 	denied := []*checkaccessv2AuthorizationDecisionData{{ActionID: "Microsoft.Network/networkSecurityGroups/read", AccessDecision: azurecheckaccessv2client.Denied}}
 	recentRGAssignment := newTestRoleAssignment("recent-rg", "/subscriptions/"+propagationTestSubscriptionID+"/resourceGroups/rg", propagationTestPrincipalID, now.Add(-2*time.Minute))
-	oldRGAssignment := newTestRoleAssignment("old-rg", "/subscriptions/"+propagationTestSubscriptionID+"/resourceGroups/rg", propagationTestPrincipalID, now.Add(-2*time.Hour))
+	oldRGAssignment := newTestRoleAssignment("old-rg", "/subscriptions/"+propagationTestSubscriptionID+"/resourceGroups/rg", propagationTestPrincipalID, now.Add(-3*time.Hour))
+	expiredRGAssignment := newTestRoleAssignment("expired-rg", "/subscriptions/"+propagationTestSubscriptionID+"/resourceGroups/rg", propagationTestPrincipalID, now.Add(-90*time.Minute))
+	forbidden := &azcore.ResponseError{StatusCode: http.StatusForbidden, ErrorCode: "AuthorizationFailed"}
 	recentNSGAssignment := newTestRoleAssignment("recent-nsg", nsgID.String(), propagationTestPrincipalID, now.Add(-1*time.Minute))
+	slowNSGAssignment := newTestRoleAssignment("slow-nsg", nsgID.String(), propagationTestPrincipalID, now.Add(-50*time.Minute))
 
 	tests := []struct {
 		name               string
@@ -159,7 +164,10 @@ func TestDeferForPropagationIfApplicable(t *testing.T) {
 		principalIDs       map[string]string
 		setupMocks         func(*azureclient.MockFirstPartyApplicationClientBuilder, *azureclient.MockRoleAssignmentsClient)
 		wantDeferred       bool
+		wantCheckFailed    bool
 		wantLookupErrors   float64
+		wantForbidden      float64
+		wantWindowExpired  float64
 		wantInternalSubstr string
 	}{
 		{
@@ -191,12 +199,65 @@ func TestDeferForPropagationIfApplicable(t *testing.T) {
 			wantInternalSubstr: "recent-nsg",
 		},
 		{
+			name:    "assignment within the observed propagation tail defers",
+			missing: []*identityResourceMissingPermissions{{Resource: nsgID, Identity: identityID, Decisions: notAllowed}},
+			setupMocks: func(builder *azureclient.MockFirstPartyApplicationClientBuilder, client *azureclient.MockRoleAssignmentsClient) {
+				builder.EXPECT().RoleAssignmentsClient(propagationTestTenantID, propagationTestSubscriptionID).Return(client, nil)
+				client.EXPECT().NewListForScopePager(nsgID.String(), gomock.Any()).Return(newRoleAssignmentsPager(nil, []*armauthorization.RoleAssignment{slowNSGAssignment}))
+			},
+			wantDeferred:       true,
+			wantInternalSubstr: "slow-nsg",
+		},
+		{
 			name:    "only old assignments do not defer",
 			missing: []*identityResourceMissingPermissions{{Resource: nsgID, Identity: identityID, Decisions: notAllowed}},
 			setupMocks: func(builder *azureclient.MockFirstPartyApplicationClientBuilder, client *azureclient.MockRoleAssignmentsClient) {
 				builder.EXPECT().RoleAssignmentsClient(propagationTestTenantID, propagationTestSubscriptionID).Return(client, nil)
 				client.EXPECT().NewListForScopePager(nsgID.String(), gomock.Any()).Return(newRoleAssignmentsPager(nil, []*armauthorization.RoleAssignment{oldRGAssignment}))
 			},
+		},
+		{
+			name:    "assignment just past the window fails and counts window expiry",
+			missing: []*identityResourceMissingPermissions{{Resource: nsgID, Identity: identityID, Decisions: notAllowed}},
+			setupMocks: func(builder *azureclient.MockFirstPartyApplicationClientBuilder, client *azureclient.MockRoleAssignmentsClient) {
+				builder.EXPECT().RoleAssignmentsClient(propagationTestTenantID, propagationTestSubscriptionID).Return(client, nil)
+				client.EXPECT().NewListForScopePager(nsgID.String(), gomock.Any()).Return(newRoleAssignmentsPager(nil, []*armauthorization.RoleAssignment{oldRGAssignment, expiredRGAssignment}))
+			},
+			wantWindowExpired: 1,
+		},
+		{
+			name: "window expiry counts when other resources have recent assignments",
+			missing: []*identityResourceMissingPermissions{
+				{Resource: nsgID, Identity: identityID, Decisions: notAllowed},
+				{Resource: subnetID, Identity: identityID, Decisions: notAllowed},
+			},
+			setupMocks: func(builder *azureclient.MockFirstPartyApplicationClientBuilder, client *azureclient.MockRoleAssignmentsClient) {
+				builder.EXPECT().RoleAssignmentsClient(propagationTestTenantID, propagationTestSubscriptionID).Return(client, nil).Times(1)
+				client.EXPECT().NewListForScopePager(nsgID.String(), gomock.Any()).Return(newRoleAssignmentsPager(nil, []*armauthorization.RoleAssignment{recentNSGAssignment}))
+				client.EXPECT().NewListForScopePager(subnetID.String(), gomock.Any()).Return(newRoleAssignmentsPager(nil, []*armauthorization.RoleAssignment{expiredRGAssignment}))
+			},
+			wantWindowExpired: 1,
+		},
+		{
+			name: "window expiry is not counted when a resource has no covering assignment",
+			missing: []*identityResourceMissingPermissions{
+				{Resource: nsgID, Identity: identityID, Decisions: notAllowed},
+				{Resource: subnetID, Identity: identityID, Decisions: notAllowed},
+			},
+			setupMocks: func(builder *azureclient.MockFirstPartyApplicationClientBuilder, client *azureclient.MockRoleAssignmentsClient) {
+				builder.EXPECT().RoleAssignmentsClient(propagationTestTenantID, propagationTestSubscriptionID).Return(client, nil).Times(1)
+				client.EXPECT().NewListForScopePager(nsgID.String(), gomock.Any()).Return(newRoleAssignmentsPager(nil, []*armauthorization.RoleAssignment{expiredRGAssignment}))
+				client.EXPECT().NewListForScopePager(subnetID.String(), gomock.Any()).Return(newRoleAssignmentsPager(nil, []*armauthorization.RoleAssignment{oldRGAssignment}))
+			},
+		},
+		{
+			name:    "unauthorized list keeps the failure and is counted",
+			missing: []*identityResourceMissingPermissions{{Resource: nsgID, Identity: identityID, Decisions: notAllowed}},
+			setupMocks: func(builder *azureclient.MockFirstPartyApplicationClientBuilder, client *azureclient.MockRoleAssignmentsClient) {
+				builder.EXPECT().RoleAssignmentsClient(propagationTestTenantID, propagationTestSubscriptionID).Return(client, nil)
+				client.EXPECT().NewListForScopePager(nsgID.String(), gomock.Any()).Return(newRoleAssignmentsPager(forbidden, nil))
+			},
+			wantForbidden: 1,
 		},
 		{
 			name: "every missing resource must be covered",
@@ -211,21 +272,27 @@ func TestDeferForPropagationIfApplicable(t *testing.T) {
 			},
 		},
 		{
-			name:    "client build failure does not defer and is counted",
+			name:    "client build failure reports unknown and is counted",
 			missing: []*identityResourceMissingPermissions{{Resource: nsgID, Identity: identityID, Decisions: notAllowed}},
 			setupMocks: func(builder *azureclient.MockFirstPartyApplicationClientBuilder, _ *azureclient.MockRoleAssignmentsClient) {
 				builder.EXPECT().RoleAssignmentsClient(propagationTestTenantID, propagationTestSubscriptionID).Return(nil, errors.New("no credential"))
 			},
-			wantLookupErrors: 1,
+			wantDeferred:       true,
+			wantCheckFailed:    true,
+			wantLookupErrors:   1,
+			wantInternalSubstr: "no credential",
 		},
 		{
-			name:    "list failure does not defer and is counted",
+			name:    "list failure reports unknown and is counted",
 			missing: []*identityResourceMissingPermissions{{Resource: nsgID, Identity: identityID, Decisions: notAllowed}},
 			setupMocks: func(builder *azureclient.MockFirstPartyApplicationClientBuilder, client *azureclient.MockRoleAssignmentsClient) {
 				builder.EXPECT().RoleAssignmentsClient(propagationTestTenantID, propagationTestSubscriptionID).Return(client, nil)
-				client.EXPECT().NewListForScopePager(nsgID.String(), gomock.Any()).Return(newRoleAssignmentsPager(errors.New("forbidden"), nil))
+				client.EXPECT().NewListForScopePager(nsgID.String(), gomock.Any()).Return(newRoleAssignmentsPager(errors.New("connection reset"), nil))
 			},
-			wantLookupErrors: 1,
+			wantDeferred:       true,
+			wantCheckFailed:    true,
+			wantLookupErrors:   1,
+			wantInternalSubstr: "connection reset",
 		},
 	}
 
@@ -248,21 +315,35 @@ func TestDeferForPropagationIfApplicable(t *testing.T) {
 			validationName := "Test" + strings.ReplaceAll(tt.name, " ", "")
 
 			deferralsBefore := testutil.ToFloat64(roleAssignmentPropagationDeferrals.WithLabelValues(validationName))
+			lookupErrorsBefore := testutil.ToFloat64(roleAssignmentPropagationLookupErrors.WithLabelValues(validationName))
+			lookupForbiddenBefore := testutil.ToFloat64(roleAssignmentPropagationLookupForbidden.WithLabelValues(validationName))
+			windowExpiredBefore := testutil.ToFloat64(roleAssignmentPropagationWindowExpired.WithLabelValues(validationName))
 			result, deferred := deferForPropagationIfApplicable(context.Background(), detector, validationName, propagationTestTenantID, tt.missing, ids, "waiting")
 
 			assert.Equal(t, tt.wantDeferred, deferred)
-			assert.Equal(t, tt.wantLookupErrors, testutil.ToFloat64(roleAssignmentPropagationLookupErrors.WithLabelValues(validationName)))
+			assert.Equal(t, lookupErrorsBefore+tt.wantLookupErrors, testutil.ToFloat64(roleAssignmentPropagationLookupErrors.WithLabelValues(validationName)))
+			assert.Equal(t, lookupForbiddenBefore+tt.wantForbidden, testutil.ToFloat64(roleAssignmentPropagationLookupForbidden.WithLabelValues(validationName)))
+			assert.Equal(t, windowExpiredBefore+tt.wantWindowExpired, testutil.ToFloat64(roleAssignmentPropagationWindowExpired.WithLabelValues(validationName)))
 			if !tt.wantDeferred {
 				assert.Equal(t, deferralsBefore, testutil.ToFloat64(roleAssignmentPropagationDeferrals.WithLabelValues(validationName)))
 				return
 			}
 			require.NoError(t, result.Validate())
 			assert.Equal(t, OutcomeTypeUnknown, result.Outcome.Type)
+			assert.Contains(t, result.InternalMessage(), tt.wantInternalSubstr)
+			if tt.wantCheckFailed {
+				assert.Equal(t, roleAssignmentPropagationCheckFailedReason, result.Reason())
+				assert.Equal(t, ControllerReportingPolicyTypeError, result.Outcome.Unknown.ControllerReportingPolicy)
+				if result.EarliestRetryAfter != nil {
+					assert.NotEqual(t, roleAssignmentPropagationRetryAfter, *result.EarliestRetryAfter)
+				}
+				assert.Equal(t, deferralsBefore, testutil.ToFloat64(roleAssignmentPropagationDeferrals.WithLabelValues(validationName)))
+				return
+			}
 			assert.Equal(t, roleAssignmentPropagationPendingReason, result.Reason())
 			assert.Equal(t, ControllerReportingPolicyTypeLogOnly, result.Outcome.Unknown.ControllerReportingPolicy)
 			require.NotNil(t, result.EarliestRetryAfter)
 			assert.Equal(t, roleAssignmentPropagationRetryAfter, *result.EarliestRetryAfter)
-			assert.Contains(t, result.InternalMessage(), tt.wantInternalSubstr)
 			assert.Equal(t, deferralsBefore+1, testutil.ToFloat64(roleAssignmentPropagationDeferrals.WithLabelValues(validationName)))
 		})
 	}

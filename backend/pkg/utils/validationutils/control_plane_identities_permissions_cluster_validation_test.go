@@ -17,17 +17,22 @@ package validationutils
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	clocktesting "k8s.io/utils/clock/testing"
 	"k8s.io/utils/ptr"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v2"
+	armmsi "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/msi/armmsi"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v6"
 	azurecheckaccessv2client "github.com/Azure/checkaccess-v2-go-sdk/client"
 
@@ -1477,6 +1482,173 @@ func TestValidate(t *testing.T) {
 			if tt.wantInternalMessage != "" {
 				assert.Contains(t, result.InternalMessage(), tt.wantInternalMessage)
 			}
+		})
+	}
+}
+
+func TestControlPlaneDeferForPropagation(t *testing.T) {
+	const (
+		testTenantID       = "11111111-1111-1111-1111-111111111111"
+		testSubscriptionID = "00000000-0000-0000-0000-000000000000"
+		testIdentityURL    = "https://identity.example.com"
+		testPrincipalID    = "22222222-2222-2222-2222-222222222222"
+	)
+	now := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+
+	clusterResourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID + "/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster"))
+	nsgResourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID + "/resourceGroups/test-rg/providers/Microsoft.Network/networkSecurityGroups/test-nsg"))
+	subnetResourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID + "/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/test-subnet"))
+	operatorIdentityResourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID + "/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-operator-identity"))
+	smiResourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID + "/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-smi"))
+
+	clusterSubscription := &coreapi.Subscription{
+		Properties: &coreapi.SubscriptionProperties{TenantId: ptr.To(testTenantID)},
+	}
+	cluster := &coreapi.Cluster{
+		TrackedResource: coreapi.TrackedResource{
+			Resource: coreapi.Resource{ID: clusterResourceID},
+		},
+		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
+			ManagedIdentitiesDataPlaneIdentityURL: testIdentityURL,
+		},
+		CustomerProperties: coreapi.ClusterCustomerProperties{
+			Platform: coreapi.CustomerPlatformProfile{
+				OperatorsAuthentication: coreapi.OperatorsAuthenticationProfile{
+					UserAssignedIdentities: coreapi.UserAssignedIdentitiesProfile{
+						ServiceManagedIdentity: smiResourceID,
+					},
+				},
+			},
+		},
+	}
+
+	notAllowed := []*checkaccessv2AuthorizationDecisionData{{ActionID: "Microsoft.Network/networkSecurityGroups/read", AccessDecision: azurecheckaccessv2client.NotAllowed}}
+	denied := []*checkaccessv2AuthorizationDecisionData{{ActionID: "Microsoft.Network/networkSecurityGroups/read", AccessDecision: azurecheckaccessv2client.Denied}}
+	notAllowedOnTwoResources := []*identityResourceMissingPermissions{
+		{Resource: nsgResourceID, Identity: operatorIdentityResourceID, Decisions: notAllowed},
+		{Resource: subnetResourceID, Identity: operatorIdentityResourceID, Decisions: notAllowed},
+	}
+	recentAssignment := newTestRoleAssignment("recent-rg", "/subscriptions/"+testSubscriptionID+"/resourceGroups/test-rg", testPrincipalID, now.Add(-5*time.Minute))
+	identityResponse := armmsi.UserAssignedIdentitiesClientGetResponse{
+		Identity: armmsi.Identity{Properties: &armmsi.UserAssignedIdentityProperties{PrincipalID: ptr.To(testPrincipalID)}},
+	}
+
+	type mocks struct {
+		smiBuilder  *azureclient.MockServiceManagedIdentityClientBuilder
+		uamiClient  *azureclient.MockUserAssignedIdentitiesClient
+		fpaBuilder  *azureclient.MockFirstPartyApplicationClientBuilder
+		raClient    *azureclient.MockRoleAssignmentsClient
+		expectUAMIs func()
+	}
+
+	tests := []struct {
+		name               string
+		nilDetector        bool
+		missing            []*identityResourceMissingPermissions
+		setupMocks         func(m mocks)
+		wantDeferred       bool
+		wantReason         string
+		wantInternalSubstr string
+	}{
+		{
+			name:    "nil detector never defers",
+			missing: notAllowedOnTwoResources, nilDetector: true,
+		},
+		{
+			name:    "explicit deny fails without resolving principals",
+			missing: []*identityResourceMissingPermissions{{Resource: nsgResourceID, Identity: operatorIdentityResourceID, Decisions: denied}},
+		},
+		{
+			name:    "resolved principal with recent assignment defers",
+			missing: notAllowedOnTwoResources,
+			setupMocks: func(m mocks) {
+				m.expectUAMIs()
+				m.uamiClient.EXPECT().Get(gomock.Any(), operatorIdentityResourceID.ResourceGroupName, operatorIdentityResourceID.Name, nil).Return(identityResponse, nil).Times(1)
+				m.fpaBuilder.EXPECT().RoleAssignmentsClient(testTenantID, testSubscriptionID).Return(m.raClient, nil).Times(1)
+				m.raClient.EXPECT().NewListForScopePager(nsgResourceID.String(), gomock.Any()).DoAndReturn(
+					func(_ string, options *armauthorization.RoleAssignmentsClientListForScopeOptions) *runtime.Pager[armauthorization.RoleAssignmentsClientListForScopeResponse] {
+						assert.Equal(t, "principalId eq '"+testPrincipalID+"'", ptr.Deref(options.Filter, ""))
+						return newRoleAssignmentsPager(nil, []*armauthorization.RoleAssignment{recentAssignment})
+					})
+				m.raClient.EXPECT().NewListForScopePager(subnetResourceID.String(), gomock.Any()).Return(newRoleAssignmentsPager(nil, []*armauthorization.RoleAssignment{recentAssignment}))
+			},
+			wantDeferred:       true,
+			wantReason:         roleAssignmentPropagationPendingReason,
+			wantInternalSubstr: "recent-rg",
+		},
+		{
+			name:    "user assigned identities client failure reports unknown",
+			missing: notAllowedOnTwoResources,
+			setupMocks: func(m mocks) {
+				m.smiBuilder.EXPECT().UserAssignedIdentitiesClient(gomock.Any(), testIdentityURL, smiResourceID, testSubscriptionID).Return(nil, fmt.Errorf("no token"))
+			},
+			wantDeferred:       true,
+			wantReason:         roleAssignmentPropagationCheckFailedReason,
+			wantInternalSubstr: "no token",
+		},
+		{
+			name:    "identity lookup failure reports unknown",
+			missing: notAllowedOnTwoResources,
+			setupMocks: func(m mocks) {
+				m.expectUAMIs()
+				m.uamiClient.EXPECT().Get(gomock.Any(), operatorIdentityResourceID.ResourceGroupName, operatorIdentityResourceID.Name, nil).Return(armmsi.UserAssignedIdentitiesClientGetResponse{}, fmt.Errorf("throttled"))
+			},
+			wantDeferred:       true,
+			wantReason:         roleAssignmentPropagationCheckFailedReason,
+			wantInternalSubstr: "throttled",
+		},
+		{
+			name:    "unauthorized identity lookup keeps the failure",
+			missing: notAllowedOnTwoResources,
+			setupMocks: func(m mocks) {
+				m.expectUAMIs()
+				m.uamiClient.EXPECT().Get(gomock.Any(), operatorIdentityResourceID.ResourceGroupName, operatorIdentityResourceID.Name, nil).Return(armmsi.UserAssignedIdentitiesClientGetResponse{}, &azcore.ResponseError{StatusCode: http.StatusForbidden, ErrorCode: "AuthorizationFailed"})
+			},
+		},
+		{
+			name:    "identity without principal ID reports unknown",
+			missing: notAllowedOnTwoResources,
+			setupMocks: func(m mocks) {
+				m.expectUAMIs()
+				m.uamiClient.EXPECT().Get(gomock.Any(), operatorIdentityResourceID.ResourceGroupName, operatorIdentityResourceID.Name, nil).Return(armmsi.UserAssignedIdentitiesClientGetResponse{}, nil)
+			},
+			wantDeferred:       true,
+			wantReason:         roleAssignmentPropagationCheckFailedReason,
+			wantInternalSubstr: "principal ID is nil",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			m := mocks{
+				smiBuilder: azureclient.NewMockServiceManagedIdentityClientBuilder(ctrl),
+				uamiClient: azureclient.NewMockUserAssignedIdentitiesClient(ctrl),
+				fpaBuilder: azureclient.NewMockFirstPartyApplicationClientBuilder(ctrl),
+				raClient:   azureclient.NewMockRoleAssignmentsClient(ctrl),
+			}
+			m.expectUAMIs = func() {
+				m.smiBuilder.EXPECT().UserAssignedIdentitiesClient(gomock.Any(), testIdentityURL, smiResourceID, testSubscriptionID).Return(m.uamiClient, nil)
+			}
+			if tt.setupMocks != nil {
+				tt.setupMocks(m)
+			}
+			var detector *RoleAssignmentPropagationDetector
+			if !tt.nilDetector {
+				detector = NewRoleAssignmentPropagationDetector(m.fpaBuilder, DefaultRoleAssignmentPropagationWindow, clocktesting.NewFakePassiveClock(now))
+			}
+			v := NewControlPlaneIdentitiesPermissionsClusterValidation(m.smiBuilder, nil, nil, nil, nil, "", detector)
+
+			result, deferred := v.deferForPropagation(context.Background(), clusterSubscription, cluster, tt.missing)
+
+			assert.Equal(t, tt.wantDeferred, deferred)
+			if !tt.wantDeferred {
+				return
+			}
+			require.NoError(t, result.Validate())
+			assert.Equal(t, OutcomeTypeUnknown, result.Outcome.Type)
+			assert.Equal(t, tt.wantReason, result.Reason())
+			assert.Contains(t, result.InternalMessage(), tt.wantInternalSubstr)
 		})
 	}
 }

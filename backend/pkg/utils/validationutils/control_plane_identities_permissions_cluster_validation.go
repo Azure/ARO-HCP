@@ -160,16 +160,18 @@ func (v *ControlPlaneIdentitiesPermissionsClusterValidation) Validate(ctx contex
 }
 
 // deferForPropagation checks whether the missing permissions can be attributed to RBAC propagation delay. Control plane operators are checked by JWT, so their principal IDs are only resolved
-// here, on the missing-permissions path, to keep the common passing path free of extra Azure calls. Failure to resolve a principal ID never defers the validation.
+// here, on the missing-permissions path, to keep the common passing path free of extra Azure calls. Failure to resolve a principal ID is treated like a failed role
+// assignment lookup; see propagationCheckFailed.
 func (v *ControlPlaneIdentitiesPermissionsClusterValidation) deferForPropagation(ctx context.Context, clusterSubscription *coreapi.Subscription, cluster *coreapi.Cluster, missingPermissions []*identityResourceMissingPermissions) (ValidationResult, bool) {
 	if v.propagationDetector == nil {
 		return ValidationResult{}, false
 	}
+	if !onlyNotAllowedMissingPermissions(missingPermissions) {
+		return ValidationResult{}, false
+	}
 	principalIDs, err := v.resolvePrincipalIDs(ctx, cluster, missingPermissions)
 	if err != nil {
-		roleAssignmentPropagationLookupErrors.WithLabelValues(v.Name()).Inc()
-		utils.LoggerFromContext(ctx).Info("unable to resolve control plane identity principal IDs for RBAC propagation check; reporting missing permissions", "error", err.Error())
-		return ValidationResult{}, false
+		return propagationCheckFailed(ctx, v.Name(), err)
 	}
 	return deferForPropagationIfApplicable(ctx, v.propagationDetector, v.Name(), *clusterSubscription.Properties.TenantId, missingPermissions, principalIDs,
 		"Waiting for recently created role assignments for the control plane operator identities to take effect.")

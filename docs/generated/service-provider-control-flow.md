@@ -1888,7 +1888,7 @@ Reads the vnet-integration subnet via the cluster's Service Managed Identity and
 
 [Source](../../backend/pkg/utils/validationutils/control_plane_identities_permissions_cluster_validation.go) · **Trigger:** Cluster; 1m; result-based retry.
 
-Checks control-plane identities against required actions/data actions and network scopes using Azure access-check APIs. When permissions are missing (NotAllowed only, never Denied), lists the identities' role assignments with the first-party application; if every missing permission is covered by an assignment at or above the resource created within the last 30 minutes, reports Unknown `RoleAssignmentPropagationPending` (30s retry) instead of Failed. Writes the corresponding service-provider `Status.Validations` condition; no Azure mutation.
+Checks control-plane identities against required actions/data actions and network scopes using Azure access-check APIs. When permissions are missing (NotAllowed only, never Denied), lists the identities' role assignments with the first-party application; if every missing permission is covered by an assignment at or above the resource created within the last 60 minutes, reports Unknown `RoleAssignmentPropagationPending` (30s retry) instead of Failed; if the principal-ID or role-assignment lookup fails, reports Unknown `RoleAssignmentPropagationCheckFailed` instead of Failed, except that an authorization (403) error keeps the original Failed result. Writes the corresponding service-provider `Status.Validations` condition; no Azure mutation.
 
 #### ClusterValidationDataPlaneIdentitiesPermissionsValidation
 
