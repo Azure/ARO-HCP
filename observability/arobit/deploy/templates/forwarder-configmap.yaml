@@ -121,7 +121,7 @@ data:
         Alias             tail.container
         Tag               kubernetes.*
         Path              /var/log/containers/*.log
-        Exclude_Path      /var/log/containers/*log-tailer*,/var/log/containers/*geneva-logger*,/var/log/containers/*arobit*
+        Exclude_Path      /var/log/containers/*log-tailer*,/var/log/containers/*geneva-logger*
         multiline.parser  cri
         # Docker_Mode       On
         # Parser            none
@@ -211,7 +211,7 @@ data:
         Match                 kubernetes.*
         multiline.parser      klog
         multiline.key_content log
-        Emitter_Mem_Buf_Limit 50M
+        Emitter_Mem_Buf_Limit 10M
 
     [FILTER]
         # Drop noisy kube-proxy topology.go INFO messages that generate 10x log volume
@@ -286,7 +286,7 @@ data:
         Match           kubernetes.var.log.containers.*
         Rule            $kubernetes['namespace_name'] ^ocm-.* ocm.logs false
         Emitter_Name    re_emitted_namespace_router
-        Emitter_Mem_Buf_Limit  40M
+        Emitter_Mem_Buf_Limit  10M
         Emitter_Storage.type   filesystem
 {{- if eq .Values.forwarder.clusterType "mgmt" }}
 
@@ -324,7 +324,7 @@ data:
         Rule            $kubernetes['container_name'] ^mgmt-agent-controller* mgmt-agent.logs true
         Rule            $kubernetes['container_name'] ^swift-recorder$ kubernetes.swift-recorder.logs false
         Emitter_Name    re_emitted_container_name_router
-        Emitter_Mem_Buf_Limit  40M
+        Emitter_Mem_Buf_Limit  10M
         Emitter_Storage.type   filesystem
 
     [FILTER]
@@ -356,7 +356,7 @@ data:
         Match           mgmt-agent.logs
         Rule            $snapshotType ^kubernetes$ resource-snapshots.logs false
         Emitter_Name    re_emitted_resource_snapshot_router
-        Emitter_Mem_Buf_Limit  40M
+        Emitter_Mem_Buf_Limit  10M
         Emitter_Storage.type   filesystem
 
     [FILTER]
@@ -381,7 +381,7 @@ data:
         Match           aro-hcp-backend.logs
         Rule            $snapshotType ^cosmos$ cosmos-snapshots.logs false
         Emitter_Name    re_emitted_cosmos_snapshot_router
-        Emitter_Mem_Buf_Limit  40M
+        Emitter_Mem_Buf_Limit  10M
         Emitter_Storage.type   filesystem
 
 {{ include "arobit.routingMetrics" (dict "type" "reroute" "name" "cosmos_snapshot_router_frontend" "match" "aro-hcp-frontend.logs" "regex" "$snapshotType ^cosmos$") | indent 4 }}
@@ -394,7 +394,7 @@ data:
         Match           aro-hcp-frontend.logs
         Rule            $snapshotType ^cosmos$ cosmos-snapshots.logs false
         Emitter_Name    re_emitted_cosmos_snapshot_router_frontend
-        Emitter_Mem_Buf_Limit  40M
+        Emitter_Mem_Buf_Limit  10M
         Emitter_Storage.type   filesystem
 
 {{ include "arobit.routingMetrics" (dict "type" "copy" "name" "cosmos_snapshot_router_fleet" "match" "fleet-controller.logs" "regex" "$snapshotType ^cosmos$") | indent 4 }}
@@ -408,7 +408,7 @@ data:
         Match           fleet-controller.logs
         Rule            $snapshotType ^cosmos$ cosmos-snapshots.logs true
         Emitter_Name    re_emitted_cosmos_snapshot_router_fleet
-        Emitter_Mem_Buf_Limit  40M
+        Emitter_Mem_Buf_Limit  10M
         Emitter_Storage.type   filesystem
 {{- if and .Values.forwarder.mdsd.enabled (eq .Values.forwarder.clusterType "mgmt") }}
   filter-shoebox.conf: |
@@ -424,7 +424,7 @@ data:
         Rule            $kubernetes['container_name'] ^(audit-logs|kube-apiserver|kube-controller-manager|kube-scheduler|cloud-controller-manager|csi-driver|snapshot-controller|cluster-autoscaler)$ shoeboxlogs true
         Rule            $kubernetes['pod_name'] ^capi-provider.* shoeboxlogs true
         Emitter_Name    re_emitted_shoebox
-        Emitter_Mem_Buf_Limit  40M
+        Emitter_Mem_Buf_Limit  10M
         Emitter_Storage.type   filesystem
 
     # Transform to Shoebox format using Lua script

@@ -112,7 +112,7 @@ data:
         Alias             tail.container
         Tag               kubernetes.*
         Path              /var/log/containers/*.log
-        Exclude_Path      /var/log/containers/*log-tailer*,/var/log/containers/*geneva-logger*,/var/log/containers/*arobit*
+        Exclude_Path      /var/log/containers/*log-tailer*,/var/log/containers/*geneva-logger*
         multiline.parser  cri
         # Docker_Mode       On
         # Parser            none
@@ -199,7 +199,7 @@ data:
         Match                 kubernetes.*
         multiline.parser      klog
         multiline.key_content log
-        Emitter_Mem_Buf_Limit 50M
+        Emitter_Mem_Buf_Limit 10M
 
     [FILTER]
         # Drop noisy kube-proxy topology.go INFO messages that generate 10x log volume
@@ -273,7 +273,7 @@ data:
         Match           kubernetes.var.log.containers.*
         Rule            $kubernetes['namespace_name'] ^ocm-.* ocm.logs false
         Emitter_Name    re_emitted_namespace_router
-        Emitter_Mem_Buf_Limit  40M
+        Emitter_Mem_Buf_Limit  10M
         Emitter_Storage.type   filesystem
 
     [FILTER]
@@ -317,7 +317,7 @@ data:
         Rule            $kubernetes['container_name'] ^mgmt-agent-controller* mgmt-agent.logs true
         Rule            $kubernetes['container_name'] ^swift-recorder$ kubernetes.swift-recorder.logs false
         Emitter_Name    re_emitted_container_name_router
-        Emitter_Mem_Buf_Limit  40M
+        Emitter_Mem_Buf_Limit  10M
         Emitter_Storage.type   filesystem
 
     [FILTER]
@@ -361,7 +361,7 @@ data:
         Match           mgmt-agent.logs
         Rule            $snapshotType ^kubernetes$ resource-snapshots.logs false
         Emitter_Name    re_emitted_resource_snapshot_router
-        Emitter_Mem_Buf_Limit  40M
+        Emitter_Mem_Buf_Limit  10M
         Emitter_Storage.type   filesystem
 
     [FILTER]
@@ -398,7 +398,7 @@ data:
         Match           aro-hcp-backend.logs
         Rule            $snapshotType ^cosmos$ cosmos-snapshots.logs false
         Emitter_Name    re_emitted_cosmos_snapshot_router
-        Emitter_Mem_Buf_Limit  40M
+        Emitter_Mem_Buf_Limit  10M
         Emitter_Storage.type   filesystem
 
     [FILTER]
@@ -423,7 +423,7 @@ data:
         Match           aro-hcp-frontend.logs
         Rule            $snapshotType ^cosmos$ cosmos-snapshots.logs false
         Emitter_Name    re_emitted_cosmos_snapshot_router_frontend
-        Emitter_Mem_Buf_Limit  40M
+        Emitter_Mem_Buf_Limit  10M
         Emitter_Storage.type   filesystem
 
     [FILTER]
@@ -449,7 +449,7 @@ data:
         Match           fleet-controller.logs
         Rule            $snapshotType ^cosmos$ cosmos-snapshots.logs true
         Emitter_Name    re_emitted_cosmos_snapshot_router_fleet
-        Emitter_Mem_Buf_Limit  40M
+        Emitter_Mem_Buf_Limit  10M
         Emitter_Storage.type   filesystem
   output-metrics.conf: |
     [OUTPUT]
@@ -840,7 +840,7 @@ spec:
         app: arobit-forwarder
         azure.workload.identity/use: "true"
       annotations:
-        checksum/configmap: 953e3efe5b6b2a116c755edaf2ac646307300876a909ee438f691b873b64d702
+        checksum/configmap: 28b67fa4ac8be29c009f726935ed4b6bd0c99b1b2a58f957b17f9da44a66f7e5
     spec:
       priorityClassName: service-lifecycle-critical
       serviceAccountName: 'arobit-forwarder'
