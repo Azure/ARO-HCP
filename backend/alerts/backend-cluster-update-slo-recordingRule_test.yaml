@@ -91,7 +91,7 @@ tests:
     - labels: 'errors:backend_cluster_update:error_rate{cluster="mgmt-1"}'
       value: 0.5
 # HA scrapes are deduplicated. The same 3 operations (2 succeeded, 1 failed) are
-# reported by two Prometheus replicas. Without max without (prometheus_replica)
+# reported by two Prometheus replicas. Without the explicit max by (...) dedupe
 # the counts would be 4 and 6 rather than 2 and 3, because count() counts series.
 - interval: 1m
   input_series:
@@ -239,6 +239,59 @@ tests:
   - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/s1", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1", prometheus_replica="prometheus-k8s-1"}'
     values: "0x30"
   promql_expr_test:
+  - expr: errors:backend_cluster_update:failed_1h
+    eval_time: 10m
+    exp_samples:
+    - labels: 'errors:backend_cluster_update:failed_1h{cluster="mgmt-1"}'
+      value: 1
+  - expr: errors:backend_cluster_update:total_1h
+    eval_time: 10m
+    exp_samples:
+    - labels: 'errors:backend_cluster_update:total_1h{cluster="mgmt-1"}'
+      value: 2
+  - expr: errors:backend_cluster_update:error_rate_1h
+    eval_time: 10m
+    exp_samples:
+    - labels: 'errors:backend_cluster_update:error_rate_1h{cluster="mgmt-1"}'
+      value: 0.5
+# Backend targets are deduplicated. A former leader keeps exporting its gauges
+# after losing leadership, so two Backend pods can report the same operation with
+# different pod/instance target labels. /f1 (failed) and /s1 (succeeded) are each
+# reported by both pods and both Prometheus replicas, but are counted once.
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_phase_info{resource_id="/f1", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1", pod="backend-0", instance="10.0.0.1:8081", prometheus_replica="prometheus-k8s-0"}'
+    values: "1x30"
+  - series: 'backend_resource_operation_phase_info{resource_id="/f1", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1", pod="backend-1", instance="10.0.0.2:8081", prometheus_replica="prometheus-k8s-1"}'
+    values: "1x30"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/f1", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1", pod="backend-0", instance="10.0.0.1:8081", prometheus_replica="prometheus-k8s-0"}'
+    values: "0x30"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/f1", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1", pod="backend-1", instance="10.0.0.2:8081", prometheus_replica="prometheus-k8s-1"}'
+    values: "0x30"
+  - series: 'backend_resource_operation_phase_info{resource_id="/s1", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1", pod="backend-0", instance="10.0.0.1:8081", prometheus_replica="prometheus-k8s-0"}'
+    values: "1x30"
+  - series: 'backend_resource_operation_phase_info{resource_id="/s1", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1", pod="backend-1", instance="10.0.0.2:8081", prometheus_replica="prometheus-k8s-1"}'
+    values: "1x30"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/s1", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1", pod="backend-0", instance="10.0.0.1:8081", prometheus_replica="prometheus-k8s-0"}'
+    values: "0x30"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/s1", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1", pod="backend-1", instance="10.0.0.2:8081", prometheus_replica="prometheus-k8s-1"}'
+    values: "0x30"
+  promql_expr_test:
+  - expr: errors:backend_cluster_update:succeeded_total
+    eval_time: 10m
+    exp_samples:
+    - labels: 'errors:backend_cluster_update:succeeded_total{cluster="mgmt-1"}'
+      value: 1
+  - expr: errors:backend_cluster_update:terminal_total
+    eval_time: 10m
+    exp_samples:
+    - labels: 'errors:backend_cluster_update:terminal_total{cluster="mgmt-1"}'
+      value: 2
+  - expr: errors:backend_cluster_update:error_rate
+    eval_time: 10m
+    exp_samples:
+    - labels: 'errors:backend_cluster_update:error_rate{cluster="mgmt-1"}'
+      value: 0.5
   - expr: errors:backend_cluster_update:failed_1h
     eval_time: 10m
     exp_samples:
