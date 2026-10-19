@@ -53,6 +53,9 @@ func instantiateCreateBillingDocController(controllerContext controllerconfig.Co
 		NewCreateBillingDocController(controllerContext.Clock, controllerContext.AzureLocation, controllerContext.ResourcesDBClient, controllerContext.BillingDBClient, clusterLister, billingLister))
 	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
 	controller.AddInterestingResource(azcorearm.SubscriptionResourceType, "*")
+	if err := controllerutils.WatchSubscriptionsForClusters(controller, controllerContext.BackendInformers); err != nil {
+		return nil, err
+	}
 
 	return controller, nil
 }

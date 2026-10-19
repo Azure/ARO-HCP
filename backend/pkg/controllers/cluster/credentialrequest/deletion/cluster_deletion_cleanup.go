@@ -81,6 +81,10 @@ func NewClusterDeletionCleanupController(
 	// Cleanup must include every remaining child, including legacy desire names.
 	controller.AddInterestingResource(coreapi.SystemAdminCredentialRequestResourceType, "*")
 	controller.AddInterestingResource(coreapi.ServiceProviderClusterResourceType, coreapi.ServiceProviderClusterResourceName)
+	providerInformer, _ := backendInformers.ServiceProviderClusters()
+	if err := controllerutils.WatchClusterParents(controller, backendInformers, coreapi.SystemAdminCredentialRequestResourceType, providerInformer); err != nil {
+		panic(err)
+	}
 	controller.AddInterestingResource(kubeapplierapi.SystemAdminCredentialRequestScopedApplyDesireResourceType, "*")
 	controller.AddInterestingResource(kubeapplierapi.SystemAdminCredentialRequestScopedReadDesireResourceType, "*")
 

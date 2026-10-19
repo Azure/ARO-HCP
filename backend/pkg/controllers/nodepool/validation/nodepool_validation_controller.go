@@ -118,6 +118,13 @@ func NewNamedNodePoolValidationController(
 	controller.AddInterestingResource(coreapi.ServiceProviderNodePoolResourceType, coreapi.ServiceProviderNodePoolResourceName)
 	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
 	controller.AddInterestingResource(azcorearm.SubscriptionResourceType, "*")
+	if err := controllerutils.WatchSubscriptionsForNodePools(controller, informers); err != nil {
+		panic(err)
+	}
+	clusterInformer, _ := informers.Clusters()
+	if err := controllerutils.WatchClusterParents(controller, informers, coreapi.NodePoolResourceType, clusterInformer); err != nil {
+		panic(err)
+	}
 
 	// Assert that genericWatchingController implements AfterEnqueuer, which lets the syncer explicitly schedule retries via EnqueueAfter rather than
 	// relying on error-based rate-limited requeue. Panics at startup if the interface is not satisfied.

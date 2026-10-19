@@ -119,6 +119,9 @@ func NewNamedClusterValidationController(
 	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
 	controller.AddInterestingResource(coreapi.ServiceProviderClusterResourceType, coreapi.ServiceProviderClusterResourceName)
 	controller.AddInterestingResource(azcorearm.SubscriptionResourceType, "*")
+	if err := controllerutils.WatchSubscriptionsForClusters(controller, informers); err != nil {
+		panic(err)
+	}
 
 	// Assert that genericWatchingController implements AfterEnqueuer, which lets the syncer explicitly schedule retries via EnqueueAfter rather than
 	// relying on error-based rate-limited requeue. Panics at startup if the interface is not satisfied.

@@ -26,12 +26,14 @@ import (
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/tools/cache"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -53,6 +55,7 @@ type Controller interface {
 type WatchingController interface {
 	Controller
 	AddInterestingResource(resourceType azcorearm.ResourceType, resourceName string)
+	QueueForMappedInformer(time.Duration, cache.SharedIndexInformer, controllerutil.ResourceMapper, ...cache.InformerSynced) error
 }
 
 // OperationKey is for driving workqueues keyed for operations

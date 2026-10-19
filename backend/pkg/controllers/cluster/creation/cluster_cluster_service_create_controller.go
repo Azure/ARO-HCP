@@ -85,6 +85,9 @@ func NewClusterClusterServiceCreateController(
 	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
 	controller.AddInterestingResource(coreapi.ServiceProviderClusterResourceType, coreapi.ServiceProviderClusterResourceName)
 	controller.AddInterestingResource(azcorearm.SubscriptionResourceType, "*")
+	if err := controllerutils.WatchSubscriptionsForClusters(controller, backendInformers); err != nil {
+		panic(err)
+	}
 	controller.AddInterestingResource(fleetapi.ManagementClusterResourceType, fleetapi.ManagementClusterResourceName)
 
 	return controller
