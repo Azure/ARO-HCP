@@ -344,48 +344,19 @@ Instead, resolve VM sizes at runtime through the restriction-aware selector in
   storage account type comes from the shared `DefaultDiskStorageAccountType`
   constant. Set `VMSize` explicitly only to pin a specific size (for example
   negative tests that assert on a specific SKU).
-- General-purpose family policy is an optional `vm_family_policy` field on each
-  pool in [`test/e2e-config/e2e-slots.yaml`](../e2e-config/e2e-slots.yaml). It is
-  scoped to the pool's customer subscription, not just the deployment environment.
-  `worker_families` and `helper_families` are ordered lists of Azure
-  `ResourceSKU.Family` identifiers, not VM names or name patterns.
-  Optional `regions` entries replace the supplied role's pool default; omitted
-  roles inherit it. A role absent from both uses the historical selector.
-- Slot-manager resolves regional overrides against the acquired slot's **runtime
-  region**, including weighted and runtime-selected pools, not the identity
-  provisioning region. It exports the resolved JSON object as
-  `ARO_HCP_E2E_VM_FAMILY_POLICY` in `${SHARED_DIR}/aro-hcp-slot.env`.
-  The suite only parses and applies that object; it does not resolve policy from
-  `ARO_HCP_DEPLOY_ENV` or load another configuration file.
-  The shared policy type/parser and its tests live in
-  [`test/pkg/vmfamily`](../pkg/vmfamily); `e2e-config` contains configuration only.
-- Unconfigured pools export `{}` to clear inherited policy. Explicit empty/null
-  role lists, unknown or duplicate fields, and malformed JSON fail rather than
-  falling back. An explicitly empty environment variable is invalid; unset it
-  or use `{}` for historical behavior.
-- Local, persistent, and upgrade steps already source the runtime contract.
-  With a supplied policy, the suite rejects `LOCATION` when it differs from
-  `SELECTED_LOCATION` (case-insensitive). Choose the desired region at slot
-  acquisition; do not change it after policy resolution.
-- Configured selectors search families in declared order using actual Azure
-  SKU family metadata. Within each family, usable preferred sizes win, then
-  discovery chooses a deterministic sorted size. Workers must remain in the
-  RP allowlist; helpers use Compute directly. Azure location/zone restrictions
-  and capability checks still apply. Configured sizes require x64 and exactly
-  8 vCPUs for default workers, 4 for small workers, and 2 for helpers, preventing
-  discovery from selecting oversized SKUs such as D128. Exhausting configured
-  families returns `ErrNoUsableVMSize` without falling through to other families.
-- The catalog configures **only `int` / `westus3-shard0`**:
-  workers search Dsv6 → Dsv5 → Dasv5, and helpers search Ddsv6 → Ddsv5 → Dadsv5.
-  The exact Azure family identifiers are `StandardDsv6Family`,
-  `standardDSv5Family`, `standardDASv5Family` for workers and
-  `StandardDdsv6Family`, `standardDDSv5Family`, `standardDADSv5Family` for helpers.
-  The first choices are `Standard_D8s_v6`, `Standard_D4s_v6`, and
-  `Standard_D2ds_v6`; later families are considered only when no eligible size
-  in an earlier family is available.
-  INT UK South and all other pools retain historical behavior.
-  Ephemeral OS disk, GPU, Arm64 selectors and explicit pins bypass family
-  selection policy; malformed configuration still fails suite initialization.
+
+The optional `vm_family_policy` is resolved by slot-manager against the acquired
+runtime region and exported as `ARO_HCP_E2E_VM_FAMILY_POLICY`. The suite consumes
+that resolved policy; it does not select a region or load catalog configuration.
+See the [slot-manager design](../cmd/aro-hcp-tests/slot-manager/DESIGN.md#vm--worker-sku-policy)
+for the catalog and runtime contract.
+
+Configured selectors search supplied families in order, then choose a usable
+preferred size or deterministic discovery result within a family. Restriction
+and capability checks still apply; see
+[`vm_sku_selection.go`](../util/framework/vm_sku_selection.go) for selector
+behavior.
+
 
 Local runs can supply the same resolved override without slot-manager:
 
