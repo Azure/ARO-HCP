@@ -14,7 +14,8 @@ spec:
   # Cluster Update SLO Recording Rules
   # ========================================
   # Backend-owned SLIs for cluster update (PUT/PATCH) operations on
-  # hcpOpenShiftClusters, derived from backend_resource_operation_phase_info.
+  # hcpOpenShiftClusters, derived from backend_resource_operation_last_transition_time_seconds
+  # and backend_resource_operation_phase_info.
   #
   # These live here rather than under observability/recording-rules/ because
   # they measure a backend operation type, not a single user journey. They are
@@ -44,7 +45,7 @@ spec:
   # When an alert built on these series fires, confirm what the affected
   # operation actually changed before attributing it to a specific journey.
   #
-  # Relationship to other alerts on the same series:
+  # Relationship to other alerts on the same operation metrics:
   #   - Stuck (non-terminal) update operations are covered by
   #     BackendAsyncOperationClusterUpdateStuck in
   #     backend-async-operations-prometheusRule.yaml (same directory).

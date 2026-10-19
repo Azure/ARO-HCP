@@ -91,8 +91,8 @@ tests:
     - labels: 'errors:backend_cluster_update:error_rate{cluster="mgmt-1"}'
       value: 0.5
 # HA scrapes are deduplicated. The same 3 operations (2 succeeded, 1 failed) are
-# reported by two Prometheus replicas. Without the explicit max by (...) dedupe
-# the counts would be 4 and 6 rather than 2 and 3, because count() counts series.
+# reported by two Prometheus replicas. Without deduplication the counts would be
+# 4 and 6 rather than 2 and 3, because count() counts series.
 - interval: 1m
   input_series:
   - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/a", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1", prometheus_replica="prometheus-k8s-0"}'

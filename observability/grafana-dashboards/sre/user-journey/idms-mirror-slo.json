@@ -129,7 +129,7 @@
     },
     {
       "datasource": { "type": "datasource", "uid": "-- Mixed --" },
-      "description": "Cluster update operations in accepted or updating for over 45 minutes. This is the exact condition behind BackendAsyncOperationClusterUpdateStuck.",
+      "description": "Cluster update operations whose current phase is accepted or updating and that started over 45 minutes ago. Uses the same 2700s threshold as BackendAsyncOperationClusterUpdateStuck, but reads the current state per operation, so a former Backend leader's stale in-flight snapshot is not counted.",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },

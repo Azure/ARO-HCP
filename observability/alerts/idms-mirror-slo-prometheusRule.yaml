@@ -37,8 +37,8 @@ spec:
   # Coverage boundaries — this file deliberately contains ONLY error alerts:
   #   - Stuck (non-terminal) update operations:
   #     BackendAsyncOperationClusterUpdateStuck in
-  #     backend/alerts/backend-async-operations-prometheusRule.yaml, on exactly
-  #     the same series. It fires only on phase=~"accepted|updating" and so is
+  #     backend/alerts/backend-async-operations-prometheusRule.yaml, on the same
+  #     operation metrics. It fires only on phase=~"accepted|updating" and so is
   #     disjoint from the terminal-"failed" condition alerted on here.
   #   - Controller saturation (queue depth, retry hot loop):
   #     BackendControllerQueueDepthHigh in backend/alerts/backend-prometheusRule.yaml
