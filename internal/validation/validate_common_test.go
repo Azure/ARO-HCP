@@ -88,7 +88,7 @@ func TestBuildValidationOptions(testContext *testing.T) {
 }
 
 func TestValidateVersionProfileDisabledOption(testContext *testing.T) {
-	profile := &coreapi.VersionProfile{ID: "4.20.1", ChannelGroup: metadataapi.ChannelGroupNightly}
+	profile := &coreapi.VersionProfile{ID: "4.20", ChannelGroup: metadataapi.ChannelGroupNightly}
 	path := field.NewPath("version")
 	missing := validateVersionProfile(testContext.Context(), operation.Operation{Type: operation.Create}, path, profile, nil)
 	disabled := validateVersionProfile(testContext.Context(), operation.Operation{
@@ -103,7 +103,7 @@ func TestValidateVersionProfileDisabledOption(testContext *testing.T) {
 		Options: map[string]bool{metadataapi.FeatureExperimentalReleaseFeatures: true},
 	}, path, profile, nil)
 	if len(enabled) != 0 {
-		testContext.Errorf("enabled experimental features must allow full nightly versions: %v", enabled)
+		testContext.Errorf("enabled experimental features must allow the nightly channel group: %v", enabled)
 	}
 }
 
