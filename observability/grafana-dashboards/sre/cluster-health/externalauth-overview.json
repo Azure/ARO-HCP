@@ -46,12 +46,41 @@
   ],
   "panels": [
     {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "code": {
+          "language": "plaintext",
+          "showLineNumbers": false,
+          "showMiniMap": false
+        },
+        "content": "### ExternalAuth Lifecycle Overview\n\nFleet-wide and per-resource view of ExternalAuth provisioning health.\nUse the **Subscription** and **Resource ID** dropdowns above to drill into specific resources.\n\n**User Journey**: `PUT ExternalAuth \u2192 Accepted \u2192 AwaitingSecret \u2192 Provisioning \u2192 Succeeded`\n\n**SLO targets** (PROPOSED \u2014 pending formal review via ARO-25935)\n- **Availability**: 99% of ExternalAuths in Succeeded state\n- **Timeliness**: 95% of creates completing within 15 minutes\n- **Error Rate**: <1% of operations ending in Failed\n\n**Runbook**: [ExternalAuth UJ Runbook](TBD)",
+        "mode": "markdown"
+      },
+      "pluginVersion": "11.6.0",
+      "title": "Dashboard Info",
+      "type": "text"
+    },
+    {
       "collapsed": false,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 0
+        "y": 7
       },
       "id": 100,
       "panels": [],
@@ -60,15 +89,11 @@
     },
     {
       "datasource": {
-        "type": "datasource",
-        "uid": "-- Mixed --"
+        "type": "prometheus",
+        "uid": "$datasource"
       },
-      "description": "Total number of ExternalAuth resources across all clusters in the fleet",
       "fieldConfig": {
         "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -77,7 +102,13 @@
                 "value": null
               }
             ]
-          }
+          },
+          "unit": "none",
+          "mappings": [],
+          "color": {
+            "mode": "thresholds"
+          },
+          "noValue": "0"
         },
         "overrides": []
       },
@@ -85,15 +116,10 @@
         "h": 8,
         "w": 5,
         "x": 0,
-        "y": 1
+        "y": 8
       },
       "id": 2,
       "options": {
-        "colorMode": "value",
-        "graphMode": "none",
-        "justifyMode": "center",
-        "orientation": "auto",
-        "percentChangeColorMode": "standard",
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
@@ -101,11 +127,15 @@
           "fields": "",
           "values": false
         },
-        "showPercentChange": false,
-        "textMode": "value_and_name",
-        "wideLayout": true
+        "orientation": "auto",
+        "textMode": "auto",
+        "wideLayout": true,
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "showPercentChange": false
       },
-      "pluginVersion": "11.6.3",
+      "pluginVersion": "11.6.0",
       "targets": [
         {
           "datasource": {
@@ -113,39 +143,27 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "exemplar": false,
-          "expr": "count(backend_externalauth_provision_state) or vector(0)",
-          "instant": true,
-          "legendFormat": "across fleet",
-          "range": false,
+          "expr": "count(backend_externalauth_provision_state{subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\"}) or vector(0)",
+          "legendFormat": "__auto",
+          "range": true,
           "refId": "A"
         }
       ],
       "title": "Total ExternalAuths",
-      "transformations": [
-        {
-          "id": "calculateField",
-          "options": {
-            "mode": "reduceRow",
-            "reduce": {
-              "reducer": "sum"
-            },
-            "replaceFields": true
-          }
-        }
-      ],
-      "type": "stat"
+      "type": "stat",
+      "description": "Total number of ExternalAuth resources across the fleet (or filtered by subscription/resource)."
     },
     {
       "datasource": {
-        "type": "datasource",
-        "uid": "-- Mixed --"
+        "type": "prometheus",
+        "uid": "$datasource"
       },
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "palette-classic"
           },
+          "mappings": [],
           "custom": {
             "hideFrom": {
               "legend": false,
@@ -154,128 +172,18 @@
             }
           }
         },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "succeeded"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "fixedColor": "green",
-                  "mode": "fixed"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "accepted"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "fixedColor": "blue",
-                  "mode": "fixed"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "provisioning"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "fixedColor": "light-blue",
-                  "mode": "fixed"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "updating"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "fixedColor": "yellow",
-                  "mode": "fixed"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "deleting"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "fixedColor": "orange",
-                  "mode": "fixed"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "failed"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "fixedColor": "red",
-                  "mode": "fixed"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "awaitingsecret"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "fixedColor": "purple",
-                  "mode": "fixed"
-                }
-              }
-            ]
-          }
-        ]
+        "overrides": []
       },
       "gridPos": {
         "h": 8,
         "w": 10,
         "x": 5,
-        "y": 1
+        "y": 8
       },
       "id": 5,
       "options": {
-        "displayLabels": [
-          "name",
-          "value"
-        ],
         "legend": {
-          "displayMode": "table",
+          "displayMode": "list",
           "placement": "right",
           "showLegend": true,
           "values": [
@@ -295,7 +203,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "11.6.3",
+      "pluginVersion": "11.6.0",
       "targets": [
         {
           "datasource": {
@@ -303,28 +211,23 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "exemplar": false,
-          "expr": "count by (phase) (backend_externalauth_provision_state)",
-          "instant": true,
-          "legendFormat": "{{phase}}",
-          "range": false,
+          "expr": "count by (phase) (backend_externalauth_provision_state{subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\"})",
+          "legendFormat": "{{ phase }}",
+          "range": true,
           "refId": "A"
         }
       ],
       "title": "Provisioning State Distribution",
-      "type": "piechart"
+      "type": "piechart",
+      "description": "Distribution of ExternalAuth resources by provisioning state."
     },
     {
       "datasource": {
-        "type": "datasource",
-        "uid": "-- Mixed --"
+        "type": "prometheus",
+        "uid": "$datasource"
       },
-      "description": "ExternalAuth create operations stuck for more than 15 minutes",
       "fieldConfig": {
         "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -333,11 +236,17 @@
                 "value": null
               },
               {
-                "color": "orange",
+                "color": "red",
                 "value": 1
               }
             ]
-          }
+          },
+          "unit": "none",
+          "mappings": [],
+          "color": {
+            "mode": "thresholds"
+          },
+          "noValue": "0"
         },
         "overrides": []
       },
@@ -345,15 +254,10 @@
         "h": 8,
         "w": 3,
         "x": 15,
-        "y": 1
+        "y": 8
       },
       "id": 8,
       "options": {
-        "colorMode": "value",
-        "graphMode": "none",
-        "justifyMode": "center",
-        "orientation": "auto",
-        "percentChangeColorMode": "standard",
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
@@ -361,11 +265,15 @@
           "fields": "",
           "values": false
         },
-        "showPercentChange": false,
+        "orientation": "auto",
         "textMode": "auto",
-        "wideLayout": true
+        "wideLayout": true,
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "showPercentChange": false
       },
-      "pluginVersion": "11.6.3",
+      "pluginVersion": "11.6.0",
       "targets": [
         {
           "datasource": {
@@ -373,40 +281,23 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "exemplar": false,
-          "expr": "count((time() - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", phase=~\"accepted|awaitingsecret|provisioning\"}) > 900) or vector(0)",
-          "instant": true,
+          "expr": "count((time() - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\", phase=~\"accepted|awaitingsecret|provisioning\"}) > 900) or vector(0)",
           "legendFormat": "__auto",
-          "range": false,
+          "range": true,
           "refId": "A"
         }
       ],
       "title": "Create >15m",
-      "transformations": [
-        {
-          "id": "calculateField",
-          "options": {
-            "mode": "reduceRow",
-            "reduce": {
-              "reducer": "sum"
-            },
-            "replaceFields": true
-          }
-        }
-      ],
-      "type": "stat"
+      "type": "stat",
+      "description": "Number of ExternalAuth create operations running longer than 15 minutes."
     },
     {
       "datasource": {
-        "type": "datasource",
-        "uid": "-- Mixed --"
+        "type": "prometheus",
+        "uid": "$datasource"
       },
-      "description": "ExternalAuth update operations stuck for more than 15 minutes",
       "fieldConfig": {
         "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -415,11 +306,17 @@
                 "value": null
               },
               {
-                "color": "orange",
+                "color": "red",
                 "value": 1
               }
             ]
-          }
+          },
+          "unit": "none",
+          "mappings": [],
+          "color": {
+            "mode": "thresholds"
+          },
+          "noValue": "0"
         },
         "overrides": []
       },
@@ -427,15 +324,10 @@
         "h": 8,
         "w": 3,
         "x": 18,
-        "y": 1
+        "y": 8
       },
       "id": 9,
       "options": {
-        "colorMode": "value",
-        "graphMode": "none",
-        "justifyMode": "center",
-        "orientation": "auto",
-        "percentChangeColorMode": "standard",
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
@@ -443,11 +335,15 @@
           "fields": "",
           "values": false
         },
-        "showPercentChange": false,
+        "orientation": "auto",
         "textMode": "auto",
-        "wideLayout": true
+        "wideLayout": true,
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "showPercentChange": false
       },
-      "pluginVersion": "11.6.3",
+      "pluginVersion": "11.6.0",
       "targets": [
         {
           "datasource": {
@@ -455,40 +351,23 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "exemplar": false,
-          "expr": "count((time() - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", phase=~\"accepted|updating\"}) > 900) or vector(0)",
-          "instant": true,
+          "expr": "count((time() - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\", phase=~\"accepted|updating\"}) > 900) or vector(0)",
           "legendFormat": "__auto",
-          "range": false,
+          "range": true,
           "refId": "A"
         }
       ],
       "title": "Update >15m",
-      "transformations": [
-        {
-          "id": "calculateField",
-          "options": {
-            "mode": "reduceRow",
-            "reduce": {
-              "reducer": "sum"
-            },
-            "replaceFields": true
-          }
-        }
-      ],
-      "type": "stat"
+      "type": "stat",
+      "description": "Number of ExternalAuth update operations running longer than 15 minutes."
     },
     {
       "datasource": {
-        "type": "datasource",
-        "uid": "-- Mixed --"
+        "type": "prometheus",
+        "uid": "$datasource"
       },
-      "description": "ExternalAuth delete operations stuck for more than 15 minutes",
       "fieldConfig": {
         "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -497,11 +376,17 @@
                 "value": null
               },
               {
-                "color": "orange",
+                "color": "red",
                 "value": 1
               }
             ]
-          }
+          },
+          "unit": "none",
+          "mappings": [],
+          "color": {
+            "mode": "thresholds"
+          },
+          "noValue": "0"
         },
         "overrides": []
       },
@@ -509,15 +394,10 @@
         "h": 8,
         "w": 3,
         "x": 21,
-        "y": 1
+        "y": 8
       },
       "id": 10,
       "options": {
-        "colorMode": "value",
-        "graphMode": "none",
-        "justifyMode": "center",
-        "orientation": "auto",
-        "percentChangeColorMode": "standard",
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
@@ -525,11 +405,15 @@
           "fields": "",
           "values": false
         },
-        "showPercentChange": false,
+        "orientation": "auto",
         "textMode": "auto",
-        "wideLayout": true
+        "wideLayout": true,
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "showPercentChange": false
       },
-      "pluginVersion": "11.6.3",
+      "pluginVersion": "11.6.0",
       "targets": [
         {
           "datasource": {
@@ -537,28 +421,15 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "exemplar": false,
-          "expr": "count((time() - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", phase=\"deleting\"}) > 900) or vector(0)",
-          "instant": true,
+          "expr": "count((time() - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\", phase=\"deleting\"}) > 900) or vector(0)",
           "legendFormat": "__auto",
-          "range": false,
+          "range": true,
           "refId": "A"
         }
       ],
       "title": "Delete >15m",
-      "transformations": [
-        {
-          "id": "calculateField",
-          "options": {
-            "mode": "reduceRow",
-            "reduce": {
-              "reducer": "sum"
-            },
-            "replaceFields": true
-          }
-        }
-      ],
-      "type": "stat"
+      "type": "stat",
+      "description": "Number of ExternalAuth delete operations running longer than 15 minutes."
     },
     {
       "collapsed": false,
@@ -566,7 +437,335 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 9
+        "y": 16
+      },
+      "id": 150,
+      "panels": [],
+      "title": "Frontend API Performance",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 17
+      },
+      "id": 50,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.6.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "sum by (method) (rate(frontend_http_requests_total{route=~\".*externalauths.*\"}[5m]))",
+          "legendFormat": "{{ method }}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "ExternalAuth Request Rate",
+      "type": "timeseries",
+      "description": "Rate of HTTP requests to ExternalAuth ARM endpoints (PUT, PATCH, DELETE, GET), per second."
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 17
+      },
+      "id": 51,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.6.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.5, sum by (le) (rate(frontend_http_requests_duration_seconds_bucket{route=~\".*externalauths.*\"}[5m])))",
+          "legendFormat": "p50",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(frontend_http_requests_duration_seconds_bucket{route=~\".*externalauths.*\"}[5m])))",
+          "legendFormat": "p95",
+          "range": true,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(frontend_http_requests_duration_seconds_bucket{route=~\".*externalauths.*\"}[5m])))",
+          "legendFormat": "p99",
+          "range": true,
+          "refId": "C"
+        }
+      ],
+      "title": "ExternalAuth Latency (p50 / p95 / p99)",
+      "type": "timeseries",
+      "description": "Frontend HTTP response latency for ExternalAuth endpoints. This is the time from ARM request receipt to synchronous response (not the full async operation duration)."
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 17
+      },
+      "id": 52,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.6.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "sum by (code) (rate(frontend_http_requests_total{route=~\".*externalauths.*\", code=~\"4..\"}[5m]))",
+          "legendFormat": "{{ code }}",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "sum by (code) (rate(frontend_http_requests_total{route=~\".*externalauths.*\", code=~\"5..\"}[5m]))",
+          "legendFormat": "{{ code }}",
+          "range": true,
+          "refId": "B"
+        }
+      ],
+      "title": "ExternalAuth Error Rate by Code",
+      "type": "timeseries",
+      "description": "Rate of 4xx and 5xx responses for ExternalAuth endpoints. Spikes here indicate validation failures (4xx) or server errors (5xx) at the ARM API layer."
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 25
       },
       "id": 200,
       "panels": [],
@@ -575,10 +774,9 @@
     },
     {
       "datasource": {
-        "type": "datasource",
-        "uid": "-- Mixed --"
+        "type": "prometheus",
+        "uid": "$datasource"
       },
-      "description": "All active (non-terminal) ExternalAuth operations with current duration. Sorted by duration descending to surface stuck operations.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -606,9 +804,17 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Duration"
+              "options": "Duration (s)"
             },
             "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              },
+              {
+                "id": "custom.displayMode",
+                "value": "color-background"
+              },
               {
                 "id": "thresholds",
                 "value": {
@@ -620,146 +826,14 @@
                     },
                     {
                       "color": "yellow",
-                      "value": 5
-                    },
-                    {
-                      "color": "orange",
-                      "value": 10
+                      "value": 300
                     },
                     {
                       "color": "red",
-                      "value": 15
+                      "value": 900
                     }
                   ]
                 }
-              },
-              {
-                "id": "custom.cellOptions",
-                "value": {
-                  "mode": "gradient",
-                  "type": "color-background"
-                }
-              },
-              {
-                "id": "decimals",
-                "value": 1
-              },
-              {
-                "id": "unit",
-                "value": "m"
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Operation"
-            },
-            "properties": [
-              {
-                "id": "custom.cellOptions",
-                "value": {
-                  "type": "color-text"
-                }
-              },
-              {
-                "id": "mappings",
-                "value": [
-                  {
-                    "options": {
-                      "create": {
-                        "color": "green",
-                        "index": 0,
-                        "text": "Create"
-                      }
-                    },
-                    "type": "value"
-                  },
-                  {
-                    "options": {
-                      "update": {
-                        "color": "blue",
-                        "index": 1,
-                        "text": "Update"
-                      }
-                    },
-                    "type": "value"
-                  },
-                  {
-                    "options": {
-                      "delete": {
-                        "color": "red",
-                        "index": 2,
-                        "text": "Delete"
-                      }
-                    },
-                    "type": "value"
-                  }
-                ]
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Phase"
-            },
-            "properties": [
-              {
-                "id": "custom.cellOptions",
-                "value": {
-                  "type": "color-text"
-                }
-              },
-              {
-                "id": "mappings",
-                "value": [
-                  {
-                    "options": {
-                      "accepted": {
-                        "color": "blue",
-                        "index": 0
-                      }
-                    },
-                    "type": "value"
-                  },
-                  {
-                    "options": {
-                      "provisioning": {
-                        "color": "light-blue",
-                        "index": 1
-                      }
-                    },
-                    "type": "value"
-                  },
-                  {
-                    "options": {
-                      "updating": {
-                        "color": "yellow",
-                        "index": 2
-                      }
-                    },
-                    "type": "value"
-                  },
-                  {
-                    "options": {
-                      "deleting": {
-                        "color": "orange",
-                        "index": 3
-                      }
-                    },
-                    "type": "value"
-                  },
-                  {
-                    "options": {
-                      "awaitingsecret": {
-                        "color": "purple",
-                        "index": 4
-                      }
-                    },
-                    "type": "value"
-                  }
-                ]
               }
             ]
           }
@@ -769,7 +843,7 @@
         "h": 9,
         "w": 12,
         "x": 0,
-        "y": 10
+        "y": 26
       },
       "id": 11,
       "options": {
@@ -783,14 +857,9 @@
           "show": false
         },
         "showHeader": true,
-        "sortBy": [
-          {
-            "desc": true,
-            "displayName": "Duration"
-          }
-        ]
+        "sortBy": []
       },
-      "pluginVersion": "11.6.3",
+      "pluginVersion": "11.6.0",
       "targets": [
         {
           "datasource": {
@@ -798,16 +867,15 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "exemplar": false,
-          "expr": "(time() - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", phase=~\"accepted|awaitingsecret|provisioning|updating|deleting\"}) / 60",
+          "expr": "(time() - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\", phase=~\"accepted|awaitingsecret|provisioning|updating|deleting\"}) * on(resource_id, subscription_id, resource_type, operation_type, phase) group_left() backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\", phase=~\"accepted|awaitingsecret|provisioning|updating|deleting\"}",
           "format": "table",
           "instant": true,
-          "legendFormat": "__auto",
-          "range": false,
+          "legendFormat": "",
           "refId": "A"
         }
       ],
       "title": "Active Operations",
+      "type": "table",
       "transformations": [
         {
           "id": "organize",
@@ -815,32 +883,25 @@
             "excludeByName": {
               "Time": true,
               "__name__": true,
-              "resource_type": true,
-              "subscription_id": true
-            },
-            "indexByName": {
-              "resource_id": 0,
-              "operation_type": 1,
-              "phase": 2,
-              "Value": 3
+              "resource_type": true
             },
             "renameByName": {
-              "Value": "Duration",
+              "Value": "Duration (s)",
+              "resource_id": "Resource ID",
+              "subscription_id": "Subscription",
               "operation_type": "Operation",
-              "phase": "Phase",
-              "resource_id": "Resource ID"
+              "phase": "Phase"
             }
           }
         }
       ],
-      "type": "table"
+      "description": "All currently in-flight ExternalAuth operations with their elapsed duration. Color indicates severity: green (<5m), yellow (5-15m), red (>15m)."
     },
     {
       "datasource": {
-        "type": "datasource",
-        "uid": "-- Mixed --"
+        "type": "prometheus",
+        "uid": "$datasource"
       },
-      "description": "Duration of currently active ExternalAuth operations over time, showing how long each operation has been running.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -850,7 +911,7 @@
             "axisBorderShow": false,
             "axisCenteredZero": false,
             "axisColorMode": "text",
-            "axisLabel": "Duration (minutes)",
+            "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
             "barWidthFactor": 0.6,
@@ -863,24 +924,93 @@
               "viz": false
             },
             "insertNulls": false,
-            "lineInterpolation": "smooth",
-            "lineWidth": 2,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
             "pointSize": 5,
             "scaleDistribution": {
               "type": "linear"
             },
-            "showPoints": "never",
+            "showPoints": "auto",
             "spanNulls": false,
             "stacking": {
               "group": "A",
               "mode": "none"
             },
             "thresholdsStyle": {
-              "mode": "dashed"
+              "mode": "off"
             }
           },
           "mappings": [],
-          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 26
+      },
+      "id": 12,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.6.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "(time() - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\", phase=~\"accepted|awaitingsecret|provisioning|updating|deleting\"})",
+          "legendFormat": "{{ operation_type }}: {{ resource_id }}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "In-Flight Operation Duration",
+      "type": "timeseries",
+      "description": "Real-time elapsed duration of each in-flight ExternalAuth operation. Rising lines indicate stuck operations."
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 35
+      },
+      "id": 400,
+      "panels": [],
+      "title": "Operation Duration & Performance",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -889,37 +1019,48 @@
                 "value": null
               },
               {
+                "color": "yellow",
+                "value": 300
+              },
+              {
                 "color": "red",
-                "value": 15
+                "value": 900
               }
             ]
           },
-          "unit": "m"
+          "unit": "s",
+          "mappings": [],
+          "color": {
+            "mode": "thresholds"
+          },
+          "noValue": "0"
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 9,
-        "w": 12,
-        "x": 12,
-        "y": 10
+        "h": 5,
+        "w": 4,
+        "x": 0,
+        "y": 36
       },
-      "id": 12,
+      "id": 16,
       "options": {
-        "legend": {
+        "reduceOptions": {
           "calcs": [
             "lastNotNull"
           ],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
+          "fields": "",
+          "values": false
         },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
+        "orientation": "auto",
+        "textMode": "auto",
+        "wideLayout": true,
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "showPercentChange": false
       },
-      "pluginVersion": "11.6.3",
+      "pluginVersion": "11.6.0",
       "targets": [
         {
           "datasource": {
@@ -927,203 +1068,1595 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "(time() - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", phase=~\"accepted|awaitingsecret|provisioning|updating|deleting\"}) / 60",
-          "legendFormat": "{{operation_type}}: {{resource_id}}",
+          "expr": "quantile(0.5, (backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\", operation_type=\"create\", phase=~\"succeeded|failed|canceled\"} - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\", operation_type=\"create\", phase=~\"succeeded|failed|canceled\"}))",
+          "legendFormat": "__auto",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "In-Flight Operation Duration",
-      "type": "timeseries"
+      "title": "Create Duration p50",
+      "type": "stat",
+      "description": "Median duration of completed ExternalAuth create operations."
     },
     {
-      "id": 300,
-      "type": "row",
-      "title": "State Transitions",
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 19
-      },
-      "collapsed": false
-    },
-    {
-      "id": 13,
-      "title": "Backend Transition Distribution",
-      "type": "piechart",
-      "gridPos": {
-        "h": 9,
-        "w": 12,
-        "x": 0,
-        "y": 20
-      },
       "datasource": {
         "type": "prometheus",
         "uid": "$datasource"
       },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 600
+              },
+              {
+                "color": "red",
+                "value": 900
+              }
+            ]
+          },
+          "unit": "s",
+          "mappings": [],
+          "color": {
+            "mode": "thresholds"
+          },
+          "noValue": "0"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 4,
+        "y": 36
+      },
+      "id": 17,
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "wideLayout": true,
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "showPercentChange": false
+      },
+      "pluginVersion": "11.6.0",
       "targets": [
         {
-          "refId": "A",
           "datasource": {
             "type": "prometheus",
             "uid": "$datasource"
           },
-          "expr": "backend_externalauth_state_transitions_total",
-          "instant": true,
-          "legendFormat": "{{from_state}} \u2192 {{to_state}}"
+          "editorMode": "code",
+          "expr": "quantile(0.95, (backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\", operation_type=\"create\", phase=~\"succeeded|failed|canceled\"} - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\", operation_type=\"create\", phase=~\"succeeded|failed|canceled\"}))",
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "A"
         }
       ],
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "right",
-          "values": [
-            "value",
-            "percent"
-          ]
-        },
-        "pieType": "donut",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ]
-        },
-        "tooltip": {
-          "mode": "single"
-        }
+      "title": "Create Duration p95",
+      "type": "stat",
+      "description": "95th percentile duration of completed ExternalAuth create operations."
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
       },
       "fieldConfig": {
         "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 600
+              },
+              {
+                "color": "red",
+                "value": 900
+              }
+            ]
+          },
+          "unit": "s",
+          "mappings": [],
           "color": {
-            "mode": "palette-classic"
-          }
+            "mode": "thresholds"
+          },
+          "noValue": "0"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 8,
+        "y": 36
+      },
+      "id": 18,
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "wideLayout": true,
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "showPercentChange": false
+      },
+      "pluginVersion": "11.6.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "quantile(0.99, (backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\", operation_type=\"create\", phase=~\"succeeded|failed|canceled\"} - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\", operation_type=\"create\", phase=~\"succeeded|failed|canceled\"}))",
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "A"
         }
-      }
+      ],
+      "title": "Create Duration p99",
+      "type": "stat",
+      "description": "99th percentile duration of completed ExternalAuth create operations."
     },
     {
-      "id": 14,
-      "title": "Frontend Transition Distribution",
-      "type": "piechart",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 600
+              },
+              {
+                "color": "red",
+                "value": 900
+              }
+            ]
+          },
+          "unit": "s",
+          "mappings": [],
+          "color": {
+            "mode": "thresholds"
+          },
+          "noValue": "0"
+        },
+        "overrides": []
+      },
       "gridPos": {
-        "h": 9,
-        "w": 12,
+        "h": 5,
+        "w": 4,
         "x": 12,
-        "y": 20
+        "y": 36
       },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "$datasource"
-          },
-          "expr": "frontend_externalauth_state_transitions_total",
-          "instant": true,
-          "legendFormat": "{{from_state}} \u2192 {{to_state}}"
-        }
-      ],
+      "id": 19,
       "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "right",
-          "values": [
-            "value",
-            "percent"
-          ]
-        },
-        "pieType": "donut",
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
-          ]
+          ],
+          "fields": "",
+          "values": false
         },
-        "tooltip": {
-          "mode": "single"
-        }
+        "orientation": "auto",
+        "textMode": "auto",
+        "wideLayout": true,
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "showPercentChange": false
       },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          }
+      "pluginVersion": "11.6.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "max(time() - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\", phase=~\"accepted|awaitingsecret|provisioning|updating|deleting\"})",
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "A"
         }
-      }
+      ],
+      "title": "Longest In-Flight Op",
+      "type": "stat",
+      "description": "Duration of the longest currently in-flight ExternalAuth operation."
     },
     {
-      "id": 15,
-      "title": "State Transition Rate (5m)",
-      "type": "timeseries",
-      "gridPos": {
-        "h": 9,
-        "w": 24,
-        "x": 0,
-        "y": 29
-      },
       "datasource": {
         "type": "prometheus",
         "uid": "$datasource"
       },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "unit": "none",
+          "mappings": [],
+          "color": {
+            "mode": "thresholds"
+          },
+          "noValue": "0"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 16,
+        "y": 36
+      },
+      "id": 20,
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "wideLayout": true,
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "showPercentChange": false
+      },
+      "pluginVersion": "11.6.0",
       "targets": [
         {
-          "refId": "A",
           "datasource": {
             "type": "prometheus",
             "uid": "$datasource"
           },
-          "expr": "rate(backend_externalauth_state_transitions_total[5m])",
-          "legendFormat": "backend: {{from_state}} \u2192 {{to_state}}"
-        },
-        {
-          "refId": "B",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "$datasource"
-          },
-          "expr": "rate(frontend_externalauth_state_transitions_total[5m])",
-          "legendFormat": "frontend: {{from_state}} \u2192 {{to_state}}"
+          "editorMode": "code",
+          "expr": "count(backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\", phase=~\"succeeded|failed|canceled\"})",
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "A"
         }
       ],
+      "title": "Completed Ops (7d TTL)",
+      "type": "stat",
+      "description": "Total completed ExternalAuth operations within the 7-day Cosmos TTL window."
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 95
+              },
+              {
+                "color": "green",
+                "value": 99
+              }
+            ]
+          },
+          "unit": "percent",
+          "mappings": [],
+          "color": {
+            "mode": "thresholds"
+          },
+          "noValue": "0"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 20,
+        "y": 36
+      },
+      "id": 21,
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "wideLayout": true,
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "showPercentChange": false
+      },
+      "pluginVersion": "11.6.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "count(backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\", phase=\"succeeded\"}) / count(backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\", phase=~\"succeeded|failed|canceled\"}) * 100",
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Success Rate",
+      "type": "stat",
+      "description": "Percentage of completed ExternalAuth operations that succeeded."
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "palette-classic"
           },
           "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
             "drawStyle": "line",
-            "lineWidth": 2,
-            "fillOpacity": 15,
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
             "pointSize": 5,
-            "showPoints": "auto"
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
           },
-          "unit": "ops"
-        }
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
       },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 41
+      },
+      "id": 22,
       "options": {
         "legend": {
-          "displayMode": "table",
+          "calcs": [],
+          "displayMode": "list",
           "placement": "bottom",
-          "calcs": [
-            "sum",
-            "max"
-          ]
+          "showLegend": true
         },
         "tooltip": {
-          "mode": "multi"
+          "mode": "single",
+          "sort": "none"
         }
-      }
+      },
+      "pluginVersion": "11.6.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\", operation_type=\"create\", phase=~\"succeeded|failed|canceled\"} - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\", operation_type=\"create\", phase=~\"succeeded|failed|canceled\"}",
+          "legendFormat": "create: {{ resource_id }}",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\", operation_type=\"update\", phase=~\"succeeded|failed|canceled\"} - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\", operation_type=\"update\", phase=~\"succeeded|failed|canceled\"}",
+          "legendFormat": "update: {{ resource_id }}",
+          "range": true,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\", operation_type=\"delete\", phase=~\"succeeded|failed|canceled\"} - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\", operation_type=\"delete\", phase=~\"succeeded|failed|canceled\"}",
+          "legendFormat": "delete: {{ resource_id }}",
+          "range": true,
+          "refId": "C"
+        }
+      ],
+      "title": "Operation Duration by Type (Completed)",
+      "type": "timeseries",
+      "description": "Duration of completed ExternalAuth operations (last_transition_time - start_time). Only visible within the 7-day Cosmos TTL window."
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 49
+      },
+      "id": 500,
+      "panels": [],
+      "title": "SLO Compliance",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 95
+              },
+              {
+                "color": "green",
+                "value": 99
+              }
+            ]
+          },
+          "unit": "percent",
+          "mappings": [],
+          "color": {
+            "mode": "thresholds"
+          },
+          "noValue": "0"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 0,
+        "y": 50
+      },
+      "id": 23,
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "wideLayout": true,
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "showPercentChange": false
+      },
+      "pluginVersion": "11.6.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "count(backend_externalauth_provision_state{subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\", phase=\"succeeded\"}) / count(backend_externalauth_provision_state{subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\"}) * 100",
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Fleet Availability",
+      "type": "stat",
+      "description": "Percentage of ExternalAuth resources currently in Succeeded provisioning state."
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 95
+              },
+              {
+                "color": "green",
+                "value": 99
+              }
+            ]
+          },
+          "unit": "percent",
+          "mappings": [],
+          "color": {
+            "mode": "thresholds"
+          },
+          "noValue": "0"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 6,
+        "y": 50
+      },
+      "id": 24,
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "wideLayout": true,
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "showPercentChange": false
+      },
+      "pluginVersion": "11.6.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "count((backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\", operation_type=\"create\", phase=~\"succeeded|failed|canceled\"} - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\", operation_type=\"create\", phase=~\"succeeded|failed|canceled\"}) < 900) / count((backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\", operation_type=\"create\", phase=~\"succeeded|failed|canceled\"} - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\", operation_type=\"create\", phase=~\"succeeded|failed|canceled\"})) * 100",
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Timeliness SLO (Create <15m)",
+      "type": "stat",
+      "description": "Percentage of completed ExternalAuth create operations that finished within 15 minutes."
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 5
+              }
+            ]
+          },
+          "unit": "percent",
+          "mappings": [],
+          "color": {
+            "mode": "thresholds"
+          },
+          "noValue": "0"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 12,
+        "y": 50
+      },
+      "id": 25,
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "wideLayout": true,
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "showPercentChange": false
+      },
+      "pluginVersion": "11.6.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "count(backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\", phase=\"failed\"}) / count(backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\", phase=~\"succeeded|failed|canceled\"}) * 100",
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Operation Error Rate",
+      "type": "stat",
+      "description": "Percentage of completed ExternalAuth operations that ended in Failed state."
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 10
+              },
+              {
+                "color": "red",
+                "value": 50
+              }
+            ]
+          },
+          "unit": "none",
+          "mappings": [],
+          "color": {
+            "mode": "thresholds"
+          },
+          "noValue": "0"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 18,
+        "y": 50
+      },
+      "id": 26,
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "wideLayout": true,
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "showPercentChange": false
+      },
+      "pluginVersion": "11.6.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "count(backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\", phase=~\"accepted|awaitingsecret|provisioning|updating|deleting\"})",
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "In-Flight Operations",
+      "type": "stat",
+      "description": "Number of ExternalAuth operations currently in non-terminal phases."
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 55
+      },
+      "id": 27,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.6.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "count(backend_externalauth_provision_state{subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\", phase=\"succeeded\"}) / count(backend_externalauth_provision_state{subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\"}) * 100",
+          "legendFormat": "Availability %",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Fleet Availability Over Time",
+      "type": "timeseries",
+      "description": "Fleet-wide ExternalAuth availability over time."
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "normal"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 55
+      },
+      "id": 28,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.6.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "count(backend_externalauth_provision_state{subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\", phase=\"succeeded\"})",
+          "legendFormat": "Succeeded",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "count(backend_externalauth_provision_state{subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\", phase=\"failed\"})",
+          "legendFormat": "Failed",
+          "range": true,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "count(backend_externalauth_provision_state{subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\", phase=~\"provisioning|accepted|awaitingsecret\"})",
+          "legendFormat": "In Progress",
+          "range": true,
+          "refId": "C"
+        }
+      ],
+      "title": "Provisioning State Over Time",
+      "type": "timeseries",
+      "description": "ExternalAuth count by provisioning state over time."
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 63
+      },
+      "id": 550,
+      "panels": [],
+      "title": "Parent Cluster Health",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "custom": {
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            }
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 64
+      },
+      "id": 40,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "right",
+          "showLegend": true,
+          "values": [
+            "value"
+          ]
+        },
+        "pieType": "donut",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.6.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "count by (phase) (backend_cluster_provision_state{subscription_id=~\"$subscription_id\"})",
+          "legendFormat": "{{ phase }}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Parent Cluster State Distribution",
+      "type": "piechart",
+      "description": "Provisioning state of parent HCP clusters in the selected subscription(s). ExternalAuth can only succeed if the parent cluster is in Succeeded state."
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 16,
+        "x": 8,
+        "y": 64
+      },
+      "id": 41,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true,
+        "sortBy": []
+      },
+      "pluginVersion": "11.6.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "backend_cluster_provision_state{subscription_id=~\"$subscription_id\", phase!=\"succeeded\"}",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "title": "Clusters Not in Succeeded State",
+      "type": "table",
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true,
+              "Value": true
+            },
+            "renameByName": {
+              "resource_id": "Cluster Resource ID",
+              "subscription_id": "Subscription",
+              "phase": "State"
+            }
+          }
+        }
+      ],
+      "description": "HCP clusters NOT in Succeeded state. ExternalAuth operations on these clusters will fail or remain stuck. Check cluster health first before investigating ExternalAuth issues."
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 72
+      },
+      "id": 600,
+      "panels": [],
+      "title": "Failure Analysis",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "fillOpacity": 80,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineWidth": 1,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 73
+      },
+      "id": 29,
+      "options": {
+        "barRadius": 0,
+        "barWidth": 0.97,
+        "fullHighlight": false,
+        "groupWidth": 0.7,
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "orientation": "auto",
+        "showValue": "auto",
+        "stacking": "none",
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        },
+        "xTickLabelRotation": 0
+      },
+      "pluginVersion": "11.6.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "count by (operation_type) (backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\", phase=\"failed\"})",
+          "legendFormat": "{{ operation_type }}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Failed Operations by Type",
+      "type": "barchart",
+      "description": "Count of failed ExternalAuth operations grouped by operation type (create/update/delete)."
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "fillOpacity": 80,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineWidth": 1,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 73
+      },
+      "id": 30,
+      "options": {
+        "barRadius": 0,
+        "barWidth": 0.97,
+        "fullHighlight": false,
+        "groupWidth": 0.7,
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "orientation": "auto",
+        "showValue": "auto",
+        "stacking": "none",
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        },
+        "xTickLabelRotation": 0
+      },
+      "pluginVersion": "11.6.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "count by (subscription_id) (backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\", phase=\"failed\"})",
+          "legendFormat": "{{ subscription_id }}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Failed Operations by Subscription",
+      "type": "barchart",
+      "description": "Count of failed ExternalAuth operations grouped by subscription."
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "fillOpacity": 80,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineWidth": 1,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 73
+      },
+      "id": 31,
+      "options": {
+        "barRadius": 0,
+        "barWidth": 0.97,
+        "fullHighlight": false,
+        "groupWidth": 0.7,
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "orientation": "auto",
+        "showValue": "auto",
+        "stacking": "none",
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        },
+        "xTickLabelRotation": 0
+      },
+      "pluginVersion": "11.6.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "count by (subscription_id) (backend_externalauth_provision_state{subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\", phase=\"failed\"})",
+          "legendFormat": "{{ subscription_id }}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Failed ExternalAuths by Subscription",
+      "type": "barchart",
+      "description": "Count of ExternalAuth resources currently in Failed provisioning state, grouped by subscription."
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Duration (s)"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              },
+              {
+                "id": "custom.displayMode",
+                "value": "color-background"
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 300
+                    },
+                    {
+                      "color": "red",
+                      "value": 900
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 81
+      },
+      "id": 32,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true,
+        "sortBy": []
+      },
+      "pluginVersion": "11.6.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\", phase=\"failed\"} - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\", phase=\"failed\"}",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "title": "Failed Operations Detail",
+      "type": "table",
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true,
+              "resource_type": true
+            },
+            "renameByName": {
+              "Value": "Duration (s)",
+              "resource_id": "Resource ID",
+              "subscription_id": "Subscription",
+              "operation_type": "Operation Type",
+              "phase": "Phase"
+            }
+          }
+        }
+      ],
+      "description": "Detail table of all ExternalAuth operations in Failed state with their duration."
     }
   ],
   "preload": false,
   "schemaVersion": 41,
   "tags": [
-    "external-auth",
-    "sre",
-    "ARO-25936"
+    "externalauth",
+    "health",
+    "backend",
+    "user-journey",
+    "slo",
+    "frontend"
   ],
   "templating": {
     "list": [
@@ -1139,6 +2672,62 @@
         "refresh": 1,
         "regex": "^Managed_Prometheus_services-.*$",
         "type": "datasource"
+      },
+      {
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "$datasource"
+        },
+        "definition": "label_values(backend_externalauth_provision_state, subscription_id)",
+        "description": "Filter by Azure subscription ID",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Subscription",
+        "multi": true,
+        "name": "subscription_id",
+        "options": [],
+        "query": {
+          "qryType": 1,
+          "query": "label_values(backend_externalauth_provision_state, subscription_id)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "refresh": 2,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "$datasource"
+        },
+        "definition": "label_values(backend_externalauth_provision_state{subscription_id=~\"$subscription_id\"}, resource_id)",
+        "description": "Filter by ExternalAuth ARM resource ID",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Resource ID",
+        "multi": true,
+        "name": "resource_id",
+        "options": [],
+        "query": {
+          "qryType": 1,
+          "query": "label_values(backend_externalauth_provision_state{subscription_id=~\"$subscription_id\"}, resource_id)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "refresh": 2,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
       }
     ]
   },
@@ -1150,5 +2739,6 @@
   "timezone": "browser",
   "title": "ExternalAuth Lifecycle Overview",
   "uid": "sre-externalauth-overview",
-  "version": 1
+  "version": 1,
+  "description": "ExternalAuth lifecycle monitoring: frontend API, fleet state, active operations, duration/performance, SLO compliance, cluster health, and failure analysis."
 }
