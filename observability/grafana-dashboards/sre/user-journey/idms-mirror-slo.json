@@ -174,7 +174,7 @@
     },
     {
       "datasource": { "type": "datasource", "uid": "-- Mixed --" },
-      "description": "Indicative only. Derived from the current-state success rate rather than from every LRO, so it understates budget consumption when failed updates are retried successfully. The burn-rate alerts use the windowed series instead.",
+      "description": "Indicative only. Derived from the current-state success rate rather than from every LRO, so it understates budget consumption when failed updates are retried successfully. The burn-rate alerts use the windowed series instead. The displayed value is clamped to 0-100%.",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
@@ -209,7 +209,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "clamp_min(\n  (1 - (\n    (count(max without (prometheus_replica) (backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"update\", phase=\"failed\"})) or vector(0))\n    /\n    (count(max without (prometheus_replica) (backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"update\", phase=~\"succeeded|failed\"})) > 0 or vector(1))\n  ) / 0.05) * 100,\n  0\n)",
+          "expr": "clamp(\n  (1 - (\n    (count(max without (prometheus_replica) (backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"update\", phase=\"failed\"})) or vector(0))\n    /\n    (count(max without (prometheus_replica) (backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"update\", phase=~\"succeeded|failed\"})) > 0 or vector(1))\n  ) / 0.05) * 100,\n  0,\n  100\n)",
           "instant": true,
           "legendFormat": "Error Budget Remaining",
           "refId": "A"
