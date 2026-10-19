@@ -1,10 +1,21 @@
-cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('kubernetesEvents')
+let observations = cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('kubernetesEvents')
 | where timestamp between ({{ kqlDatetime .PhaseStartTime }} .. {{ kqlDatetime .PhaseEndTime }})
 {{- if and .ServiceClusterName .ManagementClusterName }}
 | where cluster in ('{{ .ServiceClusterName }}', '{{ .ManagementClusterName }}')
 {{- end }}
 | where eventNamespace == strcat('klusterlet-', '{{ .ClusterID }}')
-| extend firstSeen = coalesce(firstSeen, todatetime(log.event_time)), lastSeen = coalesce(lastSeen, todatetime(log.event_time))
-| summarize arg_max(count, firstSeen, lastSeen) by objectKind, objectName, reason, message
-| project objectKind, objectName, reason, message, firstSeen, lastSeen, count
-| order by firstSeen asc
+| extend firstSeen = coalesce(firstSeen, todatetime(log.event_time)), lastSeen = coalesce(lastSeen, todatetime(log.event_time)),
+    eventUID = tostring(log.metadata.uid)
+| extend identityComplete = isnotempty(cluster) and isnotempty(objectUID) and isnotempty(eventUID);
+observations
+| where identityComplete
+| summarize count = max(count), firstSeen = min(firstSeen), lastSeen = max(lastSeen),
+    firstObserved = min(timestamp), lastObserved = max(timestamp),
+    arg_max(timestamp, eventNamespace, objectKind, objectName, reason, message) by cluster, objectUID, eventUID
+| extend countSemantics = 'max-cumulative-per-event'
+| union (observations
+    | where not(identityComplete)
+    | extend firstObserved = timestamp, lastObserved = timestamp, countSemantics = 'undeduplicated-cumulative-observation')
+| project cluster, eventNamespace, objectKind, objectName, objectUID, eventUID, reason, message,
+    firstSeen, lastSeen, firstObserved, lastObserved, count, countSemantics
+| order by firstSeen asc, cluster asc, objectUID asc, eventUID asc, firstObserved asc, lastObserved asc, count asc
