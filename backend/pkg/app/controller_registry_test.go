@@ -122,6 +122,7 @@ var expectedControllerLaunches = []struct {
 	{"nodepoolvalidationazurenodepoolnsgbasedrequiredconnectivityvalidation", 20},
 	{"clustervalidationdataplaneidentitiespermissionsvalidation", 20},
 	{"clustervalidationcontainerregistrypullcredentialspermissionvalidation", 20},
+	{"nodepoolvalidationazurenodepoolavailabilityzonevalidation", 20},
 	{"nodepoolversion", 20},
 	{"nodepoolactiveversions", 20},
 	{"createclusterscopedreaddesires", 20},
@@ -341,7 +342,7 @@ func TestControllerRegistryNamedZoneRegistrations(t *testing.T) {
 	files := token.NewFileSet()
 	for zone, expectedCount := range map[string]int{
 		"billing": 2, "cluster": 68, "clusterresources": 1, "cosmosmigration": 2,
-		"datadump": 1, "externalauth": 13, "metrics": 6, "mismatch": 4, "nodepool": 19,
+		"datadump": 1, "externalauth": 13, "metrics": 6, "mismatch": 4, "nodepool": 20,
 	} {
 		source, err := parser.ParseFile(files, "../controllers/"+zone+"/registration.go", nil, 0)
 		require.NoError(t, err)
