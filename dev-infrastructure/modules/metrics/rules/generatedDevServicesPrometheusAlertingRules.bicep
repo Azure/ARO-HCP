@@ -457,13 +457,13 @@ resource metricsProxy 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-0
         }
         annotations: {
           correlationId: 'MaestroAgentMetricsProxyDown/{{ $labels.cluster }}'
-          description: 'Prometheus has not scraped maestro-agent /metrics through the metrics-proxy sidecar (namespace=maestro, endpoint=metrics) for 10 minutes, while a kube-state-metrics scrape series still exists for this management cluster. Maestro agent metrics and any alerts that depend on them may be missing.'
-          info: 'Prometheus has not scraped maestro-agent /metrics through the metrics-proxy sidecar (namespace=maestro, endpoint=metrics) for 10 minutes, while a kube-state-metrics scrape series still exists for this management cluster. Maestro agent metrics and any alerts that depend on them may be missing.'
+          description: 'The maestro-agent pod (namespace=maestro) has not been Ready for 10 minutes on this management cluster, so maestro-agent /metrics are not being served through the metrics-proxy sidecar. Maestro agent metrics and any alerts that depend on them may be missing.'
+          info: 'The maestro-agent pod (namespace=maestro) has not been Ready for 10 minutes on this management cluster, so maestro-agent /metrics are not being served through the metrics-proxy sidecar. Maestro agent metrics and any alerts that depend on them may be missing.'
           runbook_url: 'https://aka.ms/arohcp-runbook-cluster-monitoring'
-          summary: 'Maestro agent metrics-proxy scrape is down'
-          title: 'Maestro agent metrics-proxy scrape is down'
+          summary: 'Maestro agent pod is not ready'
+          title: 'Maestro agent pod is not ready'
         }
-        expression: 'group by (cluster, region) (up{cluster=~".*-mgmt(-[0-9]+)?$",job="kube-state-metrics"}) unless on (cluster) group by (cluster, region) (up{endpoint="metrics",namespace="maestro",pod=~"maestro-agent-.*"} == 1)'
+        expression: 'group by (cluster, region) (kube_node_info{cluster=~".*-mgmt(-[0-9]+)?$"}) unless on (cluster) group by (cluster, region) (kube_pod_status_ready{condition="true",namespace="maestro",pod=~"maestro-agent-.*"} == 1)'
         for: 'PT10M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -1553,7 +1553,7 @@ resource arobitRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01
           summary: 'Arobit forwarder metrics endpoint is unreachable on cluster {{ $labels.cluster }}.'
           title: 'Arobit forwarder metrics endpoint is unreachable on cluster {{ $labels.cluster }}.'
         }
-        expression: 'group by (cluster, region) (up{job="kube-state-metrics"}) unless on (cluster) group by (cluster, region) (up{job="arobit-forwarder",namespace="arobit"} == 1)'
+        expression: 'group by (cluster, region) (kube_node_info) unless on (cluster) group by (cluster, region) (kube_daemonset_status_number_ready{daemonset="arobit-forwarder",namespace="arobit"} > 0)'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }

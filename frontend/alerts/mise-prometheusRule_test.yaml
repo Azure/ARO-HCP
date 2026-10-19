@@ -2,10 +2,10 @@ rule_files:
 - mise-prometheusRule.yaml
 evaluation_interval: 1s
 tests:
-# Test: Service cluster exists but mise metric is missing - alert should fire
+# Test: Service cluster exists but mise pod is missing - alert should fire
 - interval: 1s
   input_series:
-  - series: 'up{job="kube-state-metrics", cluster="test-svc-1"}'
+  - series: 'kube_node_info{cluster="test-svc-1"}'
     values: '1x600'
   alert_rule_test:
   - eval_time: 301s # alert should fire after 5m
@@ -17,29 +17,29 @@ tests:
         component: frontend
         severity: info
       exp_annotations:
-        summary: "Envoy scrape target down for namespace=mise"
-        description: "Prometheus scrape for envoy-stats job in namespace mise is failing or missing."
+        summary: "Mise pod not ready for namespace=mise"
+        description: "No mise pod is Ready in namespace mise on this svc cluster, so the envoy-stats scrape target is unavailable."
         runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/mise-tsg.html'
-# Test: Service cluster exists and mise metric is present - no alert
+# Test: Service cluster exists and mise pod is Ready - no alert
 - interval: 1s
   input_series:
-  - series: 'up{job="kube-state-metrics", cluster="test-svc-1"}'
+  - series: 'kube_node_info{cluster="test-svc-1"}'
     values: '1x600'
-  - series: 'up{endpoint="http-envoy-prom", container="istio-proxy", namespace="mise", cluster="test-svc-1"}'
+  - series: 'kube_pod_status_ready{namespace="mise", pod="mise-abc123", condition="true", cluster="test-svc-1"}'
     values: '1x600'
   alert_rule_test:
   - eval_time: 600s
     alertname: MiseEnvoyScrapeDown
     exp_alerts: []
-# Test: Service cluster exists, mise metric was present but goes down - alert should fire
+# Test: Service cluster exists, mise pod was Ready but goes not-ready - alert should fire
 - interval: 1s
   input_series:
-  - series: 'up{job="kube-state-metrics", cluster="test-svc-2"}'
+  - series: 'kube_node_info{cluster="test-svc-2"}'
     values: '1x600'
-  - series: 'up{endpoint="http-envoy-prom", container="istio-proxy", namespace="mise", cluster="test-svc-2"}'
-    values: '1x100 0x500' # 100s healthy, then down
+  - series: 'kube_pod_status_ready{namespace="mise", pod="mise-abc123", condition="true", cluster="test-svc-2"}'
+    values: '1x100 0x500' # 100s ready, then not ready
   alert_rule_test:
-  - eval_time: 401s # alert should fire after 5m of metric being down
+  - eval_time: 401s # alert should fire after 5m of pod being not ready
     alertname: MiseEnvoyScrapeDown
     exp_alerts:
     - exp_labels:
@@ -48,6 +48,6 @@ tests:
         component: frontend
         severity: info
       exp_annotations:
-        summary: "Envoy scrape target down for namespace=mise"
-        description: "Prometheus scrape for envoy-stats job in namespace mise is failing or missing."
+        summary: "Mise pod not ready for namespace=mise"
+        description: "No mise pod is Ready in namespace mise on this svc cluster, so the envoy-stats scrape target is unavailable."
         runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/mise-tsg.html'

@@ -2,12 +2,12 @@ rule_files:
 - arobit-prometheusRule.yaml
 evaluation_interval: 1m
 tests:
-# ArobitForwarderJobUp - alert fires
+# ArobitForwarderJobUp - alert fires when no forwarder pod is ready
 - interval: 1m
   input_series:
-  - series: 'up{job="kube-state-metrics",cluster="test"}'
+  - series: 'kube_node_info{cluster="test"}'
     values: "1+0x15"
-  - series: 'up{job="arobit-forwarder",namespace="arobit",cluster="test"}'
+  - series: 'kube_daemonset_status_number_ready{namespace="arobit",daemonset="arobit-forwarder",cluster="test"}'
     values: "0+0x15"
   alert_rule_test:
   - eval_time: 15m
@@ -23,6 +23,17 @@ tests:
           The Arobit forwarder metrics endpoint on cluster test has been unreachable for 15 minutes.
         runbook_url: https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/arobit.html
         summary: Arobit forwarder metrics endpoint is unreachable on cluster test.
+# ArobitForwarderJobUp - no alert when forwarder pods are ready
+- interval: 1m
+  input_series:
+  - series: 'kube_node_info{cluster="test"}'
+    values: "1+0x15"
+  - series: 'kube_daemonset_status_number_ready{namespace="arobit",daemonset="arobit-forwarder",cluster="test"}'
+    values: "3+0x15"
+  alert_rule_test:
+  - eval_time: 15m
+    alertname: ArobitForwarderJobUp
+    exp_alerts: []
 # FluentBitIngestionPaused - alert fires
 - interval: 1m
   input_series:

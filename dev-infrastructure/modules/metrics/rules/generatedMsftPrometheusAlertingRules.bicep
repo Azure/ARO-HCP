@@ -744,13 +744,13 @@ resource msftMise 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
         }
         annotations: {
           correlationId: 'MiseEnvoyScrapeDown/{{ $labels.cluster }}'
-          description: 'Prometheus scrape for envoy-stats job in namespace mise is failing or missing.'
-          info: 'Prometheus scrape for envoy-stats job in namespace mise is failing or missing.'
+          description: 'No mise pod is Ready in namespace mise on this svc cluster, so the envoy-stats scrape target is unavailable.'
+          info: 'No mise pod is Ready in namespace mise on this svc cluster, so the envoy-stats scrape target is unavailable.'
           runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/mise-tsg.html'
-          summary: 'Envoy scrape target down for namespace=mise'
-          title: 'Envoy scrape target down for namespace=mise'
+          summary: 'Mise pod not ready for namespace=mise'
+          title: 'Mise pod not ready for namespace=mise'
         }
-        expression: 'group by (cluster, region) (up{cluster=~".*-svc(-[0-9]+)?$",job="kube-state-metrics"}) unless on (cluster) group by (cluster, region) (up{container="istio-proxy",endpoint="http-envoy-prom",namespace="mise"} == 1)'
+        expression: 'group by (cluster, region) (kube_node_info{cluster=~".*-svc(-[0-9]+)?$"}) unless on (cluster) group by (cluster, region) (kube_pod_status_ready{condition="true",namespace="mise",pod=~"mise-.*"} == 1)'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }

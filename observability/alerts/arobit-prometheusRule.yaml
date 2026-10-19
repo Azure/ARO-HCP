@@ -10,7 +10,7 @@ spec:
       component: monitoring-infrastructure
     rules:
     - alert: ArobitForwarderJobUp
-      expr: group by (cluster) (up{job="kube-state-metrics"}) unless on(cluster) group by (cluster) (up{job="arobit-forwarder",namespace="arobit"} == 1)
+      expr: group by (cluster) (kube_node_info) unless on(cluster) group by (cluster) (kube_daemonset_status_number_ready{namespace="arobit", daemonset="arobit-forwarder"} > 0)
       for: 15m
       labels:
         severity: warning

@@ -1131,14 +1131,14 @@
   group: arobit-rules
   alert: ArobitForwarderJobUp
   occurrence: 1
-  input: group by (cluster, region) (up{job="kube-state-metrics"}) unless on (cluster) group by (cluster, region) (up{job="arobit-forwarder",namespace="arobit"} == 1)
+  input: group by (cluster, region) (kube_node_info) unless on (cluster) group by (cluster, region) (kube_daemonset_status_number_ready{daemonset="arobit-forwarder",namespace="arobit"} > 0)
   plan:
-    expression: group by (cluster, region) (up{job="kube-state-metrics"}) unless on (cluster) group by (cluster, region) (up{job="arobit-forwarder",namespace="arobit"} == 1)
+    expression: group by (cluster, region) (kube_node_info) unless on (cluster) group by (cluster, region) (kube_daemonset_status_number_ready{daemonset="arobit-forwarder",namespace="arobit"} > 0)
     conditions:
-      - expression: (group by (cluster, region) (up{job="kube-state-metrics"})) unless on (cluster) (group by (cluster, region) (up{job="arobit-forwarder",namespace="arobit"} == 1))
+      - expression: (group by (cluster, region) (kube_node_info)) unless on (cluster) (group by (cluster, region) (kube_daemonset_status_number_ready{daemonset="arobit-forwarder",namespace="arobit"} > 0))
         path: root/unless:left
         queries:
-          - expression: (group by (cluster, region) (up{job="kube-state-metrics"})) unless on (cluster) (group by (cluster, region) (up{job="arobit-forwarder",namespace="arobit"} == 1))
+          - expression: (group by (cluster, region) (kube_node_info)) unless on (cluster) (group by (cluster, region) (kube_daemonset_status_number_ready{daemonset="arobit-forwarder",namespace="arobit"} > 0))
             role: signal
         thresholds: []
         unsupported: ""
@@ -2132,14 +2132,14 @@
   group: metrics-proxy
   alert: MaestroAgentMetricsProxyDown
   occurrence: 1
-  input: group by (cluster, region) (up{cluster=~".*-mgmt(-[0-9]+)?$",job="kube-state-metrics"}) unless on (cluster) group by (cluster, region) (up{endpoint="metrics",namespace="maestro",pod=~"maestro-agent-.*"} == 1)
+  input: group by (cluster, region) (kube_node_info{cluster=~".*-mgmt(-[0-9]+)?$"}) unless on (cluster) group by (cluster, region) (kube_pod_status_ready{condition="true",namespace="maestro",pod=~"maestro-agent-.*"} == 1)
   plan:
-    expression: group by (cluster, region) (up{cluster=~".*-mgmt(-[0-9]+)?$",job="kube-state-metrics"}) unless on (cluster) group by (cluster, region) (up{endpoint="metrics",namespace="maestro",pod=~"maestro-agent-.*"} == 1)
+    expression: group by (cluster, region) (kube_node_info{cluster=~".*-mgmt(-[0-9]+)?$"}) unless on (cluster) group by (cluster, region) (kube_pod_status_ready{condition="true",namespace="maestro",pod=~"maestro-agent-.*"} == 1)
     conditions:
-      - expression: (group by (cluster, region) (up{cluster=~".*-mgmt(-[0-9]+)?$",job="kube-state-metrics"})) unless on (cluster) (group by (cluster, region) (up{endpoint="metrics",namespace="maestro",pod=~"maestro-agent-.*"} == 1))
+      - expression: (group by (cluster, region) (kube_node_info{cluster=~".*-mgmt(-[0-9]+)?$"})) unless on (cluster) (group by (cluster, region) (kube_pod_status_ready{condition="true",namespace="maestro",pod=~"maestro-agent-.*"} == 1))
         path: root/unless:left
         queries:
-          - expression: (group by (cluster, region) (up{cluster=~".*-mgmt(-[0-9]+)?$",job="kube-state-metrics"})) unless on (cluster) (group by (cluster, region) (up{endpoint="metrics",namespace="maestro",pod=~"maestro-agent-.*"} == 1))
+          - expression: (group by (cluster, region) (kube_node_info{cluster=~".*-mgmt(-[0-9]+)?$"})) unless on (cluster) (group by (cluster, region) (kube_pod_status_ready{condition="true",namespace="maestro",pod=~"maestro-agent-.*"} == 1))
             role: signal
         thresholds: []
         unsupported: ""
@@ -3328,18 +3328,16 @@
   group: kubernetes-system-apiserver
   alert: KubeAPIDown
   occurrence: 1
-  input: count by (cluster, region) (up{job="controlplane-apiserver"} == 1) == 0
+  input: group by (cluster, region) (kube_node_info) unless on (cluster) group by (cluster, region) (apiserver_request_total{job="controlplane-apiserver"})
   plan:
-    expression: count by (cluster, region) (up{job="controlplane-apiserver"} == 1) == 0
+    expression: group by (cluster, region) (kube_node_info) unless on (cluster) group by (cluster, region) (apiserver_request_total{job="controlplane-apiserver"})
     conditions:
-      - expression: count by (cluster, region) (up{job="controlplane-apiserver"} == 1) == 0
-        path: root
+      - expression: (group by (cluster, region) (kube_node_info)) unless on (cluster) (group by (cluster, region) (apiserver_request_total{job="controlplane-apiserver"}))
+        path: root/unless:left
         queries:
-          - expression: count by (cluster, region) (up{job="controlplane-apiserver"} == 1)
+          - expression: (group by (cluster, region) (kube_node_info)) unless on (cluster) (group by (cluster, region) (apiserver_request_total{job="controlplane-apiserver"}))
             role: signal
-        thresholds:
-          - operator: ==
-            value: 0
+        thresholds: []
         unsupported: ""
 - source: dev-infrastructure/modules/metrics/rules/generatedKustoOnlyHCPPrometheusAlertingRules.bicep
   group: kubernetes-system-apiserver
@@ -3448,18 +3446,16 @@
   group: kubernetes-system-controller-manager
   alert: KubeControllerManagerDown
   occurrence: 1
-  input: count by (cluster, region) (up{job="controlplane-kube-controller-manager"} == 1) == 0
+  input: group by (cluster, region) (kube_node_info) unless on (cluster) group by (cluster, region) (workqueue_adds_total{job="controlplane-kube-controller-manager"})
   plan:
-    expression: count by (cluster, region) (up{job="controlplane-kube-controller-manager"} == 1) == 0
+    expression: group by (cluster, region) (kube_node_info) unless on (cluster) group by (cluster, region) (workqueue_adds_total{job="controlplane-kube-controller-manager"})
     conditions:
-      - expression: count by (cluster, region) (up{job="controlplane-kube-controller-manager"} == 1) == 0
-        path: root
+      - expression: (group by (cluster, region) (kube_node_info)) unless on (cluster) (group by (cluster, region) (workqueue_adds_total{job="controlplane-kube-controller-manager"}))
+        path: root/unless:left
         queries:
-          - expression: count by (cluster, region) (up{job="controlplane-kube-controller-manager"} == 1)
+          - expression: (group by (cluster, region) (kube_node_info)) unless on (cluster) (group by (cluster, region) (workqueue_adds_total{job="controlplane-kube-controller-manager"}))
             role: signal
-        thresholds:
-          - operator: ==
-            value: 0
+        thresholds: []
         unsupported: ""
 - source: dev-infrastructure/modules/metrics/rules/generatedKustoOnlyHCPPrometheusAlertingRules.bicep
   group: kubernetes-system-kubelet
@@ -3567,18 +3563,16 @@
   group: kubernetes-system-kubelet
   alert: KubeletDown
   occurrence: 1
-  input: count by (cluster, region) (up{job="kubelet",metrics_path="/metrics"} == 1) == 0
+  input: group by (cluster, region) (kube_node_info) unless on (cluster) group by (cluster, region) (kubelet_node_name{job="kubelet",metrics_path="/metrics"})
   plan:
-    expression: count by (cluster, region) (up{job="kubelet",metrics_path="/metrics"} == 1) == 0
+    expression: group by (cluster, region) (kube_node_info) unless on (cluster) group by (cluster, region) (kubelet_node_name{job="kubelet",metrics_path="/metrics"})
     conditions:
-      - expression: count by (cluster, region) (up{job="kubelet",metrics_path="/metrics"} == 1) == 0
-        path: root
+      - expression: (group by (cluster, region) (kube_node_info)) unless on (cluster) (group by (cluster, region) (kubelet_node_name{job="kubelet",metrics_path="/metrics"}))
+        path: root/unless:left
         queries:
-          - expression: count by (cluster, region) (up{job="kubelet",metrics_path="/metrics"} == 1)
+          - expression: (group by (cluster, region) (kube_node_info)) unless on (cluster) (group by (cluster, region) (kubelet_node_name{job="kubelet",metrics_path="/metrics"}))
             role: signal
-        thresholds:
-          - operator: ==
-            value: 0
+        thresholds: []
         unsupported: ""
 - source: dev-infrastructure/modules/metrics/rules/generatedKustoOnlyHCPPrometheusAlertingRules.bicep
   group: kubernetes-system-kubelet
@@ -3686,18 +3680,16 @@
   group: kubernetes-system-scheduler
   alert: KubeSchedulerDown
   occurrence: 1
-  input: count by (cluster, region) (up{job="controlplane-kube-scheduler"} == 1) == 0
+  input: group by (cluster, region) (kube_node_info) unless on (cluster) group by (cluster, region) (rest_client_requests_total{job="controlplane-kube-scheduler"})
   plan:
-    expression: count by (cluster, region) (up{job="controlplane-kube-scheduler"} == 1) == 0
+    expression: group by (cluster, region) (kube_node_info) unless on (cluster) group by (cluster, region) (rest_client_requests_total{job="controlplane-kube-scheduler"})
     conditions:
-      - expression: count by (cluster, region) (up{job="controlplane-kube-scheduler"} == 1) == 0
-        path: root
+      - expression: (group by (cluster, region) (kube_node_info)) unless on (cluster) (group by (cluster, region) (rest_client_requests_total{job="controlplane-kube-scheduler"}))
+        path: root/unless:left
         queries:
-          - expression: count by (cluster, region) (up{job="controlplane-kube-scheduler"} == 1)
+          - expression: (group by (cluster, region) (kube_node_info)) unless on (cluster) (group by (cluster, region) (rest_client_requests_total{job="controlplane-kube-scheduler"}))
             role: signal
-        thresholds:
-          - operator: ==
-            value: 0
+        thresholds: []
         unsupported: ""
 - source: dev-infrastructure/modules/metrics/rules/generatedKustoOnlyServicePrometheusAlertingRules.bicep
   group: svc-frontend-path-latency
@@ -4557,18 +4549,16 @@
   group: svc-kubernetes-system-apiserver
   alert: KubeAPIDown
   occurrence: 1
-  input: count by (cluster, region) (up{job="controlplane-apiserver"} == 1) == 0
+  input: group by (cluster, region) (kube_node_info) unless on (cluster) group by (cluster, region) (apiserver_request_total{job="controlplane-apiserver"})
   plan:
-    expression: count by (cluster, region) (up{job="controlplane-apiserver"} == 1) == 0
+    expression: group by (cluster, region) (kube_node_info) unless on (cluster) group by (cluster, region) (apiserver_request_total{job="controlplane-apiserver"})
     conditions:
-      - expression: count by (cluster, region) (up{job="controlplane-apiserver"} == 1) == 0
-        path: root
+      - expression: (group by (cluster, region) (kube_node_info)) unless on (cluster) (group by (cluster, region) (apiserver_request_total{job="controlplane-apiserver"}))
+        path: root/unless:left
         queries:
-          - expression: count by (cluster, region) (up{job="controlplane-apiserver"} == 1)
+          - expression: (group by (cluster, region) (kube_node_info)) unless on (cluster) (group by (cluster, region) (apiserver_request_total{job="controlplane-apiserver"}))
             role: signal
-        thresholds:
-          - operator: ==
-            value: 0
+        thresholds: []
         unsupported: ""
 - source: dev-infrastructure/modules/metrics/rules/generatedKustoOnlyServicePrometheusAlertingRules.bicep
   group: svc-kubernetes-system-apiserver
@@ -4677,18 +4667,16 @@
   group: svc-kubernetes-system-controller-manager
   alert: KubeControllerManagerDown
   occurrence: 1
-  input: count by (cluster, region) (up{job="controlplane-kube-controller-manager"} == 1) == 0
+  input: group by (cluster, region) (kube_node_info) unless on (cluster) group by (cluster, region) (workqueue_adds_total{job="controlplane-kube-controller-manager"})
   plan:
-    expression: count by (cluster, region) (up{job="controlplane-kube-controller-manager"} == 1) == 0
+    expression: group by (cluster, region) (kube_node_info) unless on (cluster) group by (cluster, region) (workqueue_adds_total{job="controlplane-kube-controller-manager"})
     conditions:
-      - expression: count by (cluster, region) (up{job="controlplane-kube-controller-manager"} == 1) == 0
-        path: root
+      - expression: (group by (cluster, region) (kube_node_info)) unless on (cluster) (group by (cluster, region) (workqueue_adds_total{job="controlplane-kube-controller-manager"}))
+        path: root/unless:left
         queries:
-          - expression: count by (cluster, region) (up{job="controlplane-kube-controller-manager"} == 1)
+          - expression: (group by (cluster, region) (kube_node_info)) unless on (cluster) (group by (cluster, region) (workqueue_adds_total{job="controlplane-kube-controller-manager"}))
             role: signal
-        thresholds:
-          - operator: ==
-            value: 0
+        thresholds: []
         unsupported: ""
 - source: dev-infrastructure/modules/metrics/rules/generatedKustoOnlyServicePrometheusAlertingRules.bicep
   group: svc-kubernetes-system-kubelet
@@ -4796,18 +4784,16 @@
   group: svc-kubernetes-system-kubelet
   alert: KubeletDown
   occurrence: 1
-  input: count by (cluster, region) (up{job="kubelet",metrics_path="/metrics"} == 1) == 0
+  input: group by (cluster, region) (kube_node_info) unless on (cluster) group by (cluster, region) (kubelet_node_name{job="kubelet",metrics_path="/metrics"})
   plan:
-    expression: count by (cluster, region) (up{job="kubelet",metrics_path="/metrics"} == 1) == 0
+    expression: group by (cluster, region) (kube_node_info) unless on (cluster) group by (cluster, region) (kubelet_node_name{job="kubelet",metrics_path="/metrics"})
     conditions:
-      - expression: count by (cluster, region) (up{job="kubelet",metrics_path="/metrics"} == 1) == 0
-        path: root
+      - expression: (group by (cluster, region) (kube_node_info)) unless on (cluster) (group by (cluster, region) (kubelet_node_name{job="kubelet",metrics_path="/metrics"}))
+        path: root/unless:left
         queries:
-          - expression: count by (cluster, region) (up{job="kubelet",metrics_path="/metrics"} == 1)
+          - expression: (group by (cluster, region) (kube_node_info)) unless on (cluster) (group by (cluster, region) (kubelet_node_name{job="kubelet",metrics_path="/metrics"}))
             role: signal
-        thresholds:
-          - operator: ==
-            value: 0
+        thresholds: []
         unsupported: ""
 - source: dev-infrastructure/modules/metrics/rules/generatedKustoOnlyServicePrometheusAlertingRules.bicep
   group: svc-kubernetes-system-kubelet
@@ -4915,18 +4901,16 @@
   group: svc-kubernetes-system-scheduler
   alert: KubeSchedulerDown
   occurrence: 1
-  input: count by (cluster, region) (up{job="controlplane-kube-scheduler"} == 1) == 0
+  input: group by (cluster, region) (kube_node_info) unless on (cluster) group by (cluster, region) (rest_client_requests_total{job="controlplane-kube-scheduler"})
   plan:
-    expression: count by (cluster, region) (up{job="controlplane-kube-scheduler"} == 1) == 0
+    expression: group by (cluster, region) (kube_node_info) unless on (cluster) group by (cluster, region) (rest_client_requests_total{job="controlplane-kube-scheduler"})
     conditions:
-      - expression: count by (cluster, region) (up{job="controlplane-kube-scheduler"} == 1) == 0
-        path: root
+      - expression: (group by (cluster, region) (kube_node_info)) unless on (cluster) (group by (cluster, region) (rest_client_requests_total{job="controlplane-kube-scheduler"}))
+        path: root/unless:left
         queries:
-          - expression: count by (cluster, region) (up{job="controlplane-kube-scheduler"} == 1)
+          - expression: (group by (cluster, region) (kube_node_info)) unless on (cluster) (group by (cluster, region) (rest_client_requests_total{job="controlplane-kube-scheduler"}))
             role: signal
-        thresholds:
-          - operator: ==
-            value: 0
+        thresholds: []
         unsupported: ""
 - source: dev-infrastructure/modules/metrics/rules/generatedKustoOnlyServicePrometheusAlertingRules.bicep
   group: svc-service-memory-resources-rules
@@ -5553,14 +5537,14 @@
   group: msft-mise
   alert: MiseEnvoyScrapeDown
   occurrence: 1
-  input: group by (cluster, region) (up{cluster=~".*-svc(-[0-9]+)?$",job="kube-state-metrics"}) unless on (cluster) group by (cluster, region) (up{container="istio-proxy",endpoint="http-envoy-prom",namespace="mise"} == 1)
+  input: group by (cluster, region) (kube_node_info{cluster=~".*-svc(-[0-9]+)?$"}) unless on (cluster) group by (cluster, region) (kube_pod_status_ready{condition="true",namespace="mise",pod=~"mise-.*"} == 1)
   plan:
-    expression: group by (cluster, region) (up{cluster=~".*-svc(-[0-9]+)?$",job="kube-state-metrics"}) unless on (cluster) group by (cluster, region) (up{container="istio-proxy",endpoint="http-envoy-prom",namespace="mise"} == 1)
+    expression: group by (cluster, region) (kube_node_info{cluster=~".*-svc(-[0-9]+)?$"}) unless on (cluster) group by (cluster, region) (kube_pod_status_ready{condition="true",namespace="mise",pod=~"mise-.*"} == 1)
     conditions:
-      - expression: (group by (cluster, region) (up{cluster=~".*-svc(-[0-9]+)?$",job="kube-state-metrics"})) unless on (cluster) (group by (cluster, region) (up{container="istio-proxy",endpoint="http-envoy-prom",namespace="mise"} == 1))
+      - expression: (group by (cluster, region) (kube_node_info{cluster=~".*-svc(-[0-9]+)?$"})) unless on (cluster) (group by (cluster, region) (kube_pod_status_ready{condition="true",namespace="mise",pod=~"mise-.*"} == 1))
         path: root/unless:left
         queries:
-          - expression: (group by (cluster, region) (up{cluster=~".*-svc(-[0-9]+)?$",job="kube-state-metrics"})) unless on (cluster) (group by (cluster, region) (up{container="istio-proxy",endpoint="http-envoy-prom",namespace="mise"} == 1))
+          - expression: (group by (cluster, region) (kube_node_info{cluster=~".*-svc(-[0-9]+)?$"})) unless on (cluster) (group by (cluster, region) (kube_pod_status_ready{condition="true",namespace="mise",pod=~"mise-.*"} == 1))
             role: signal
         thresholds: []
         unsupported: ""
@@ -6924,16 +6908,16 @@
   alert: MiseEnvoyScrapeDown
   occurrence: 1
   input: |
-    group by (cluster) (up{job="kube-state-metrics", cluster=~".*-svc(-[0-9]+)?$"})
+    group by (cluster) (kube_node_info{cluster=~".*-svc(-[0-9]+)?$"})
     unless on(cluster)
-    group by (cluster) (up{endpoint="http-envoy-prom", container="istio-proxy", namespace="mise"} == 1)
+    group by (cluster) (kube_pod_status_ready{namespace="mise", pod=~"mise-.*", condition="true"} == 1)
   plan:
-    expression: group by (cluster) (up{cluster=~".*-svc(-[0-9]+)?$",job="kube-state-metrics"}) unless on (cluster) group by (cluster) (up{container="istio-proxy",endpoint="http-envoy-prom",namespace="mise"} == 1)
+    expression: group by (cluster) (kube_node_info{cluster=~".*-svc(-[0-9]+)?$"}) unless on (cluster) group by (cluster) (kube_pod_status_ready{condition="true",namespace="mise",pod=~"mise-.*"} == 1)
     conditions:
-      - expression: (group by (cluster) (up{cluster=~".*-svc(-[0-9]+)?$",job="kube-state-metrics"})) unless on (cluster) (group by (cluster) (up{container="istio-proxy",endpoint="http-envoy-prom",namespace="mise"} == 1))
+      - expression: (group by (cluster) (kube_node_info{cluster=~".*-svc(-[0-9]+)?$"})) unless on (cluster) (group by (cluster) (kube_pod_status_ready{condition="true",namespace="mise",pod=~"mise-.*"} == 1))
         path: root/unless:left
         queries:
-          - expression: (group by (cluster) (up{cluster=~".*-svc(-[0-9]+)?$",job="kube-state-metrics"})) unless on (cluster) (group by (cluster) (up{container="istio-proxy",endpoint="http-envoy-prom",namespace="mise"} == 1))
+          - expression: (group by (cluster) (kube_node_info{cluster=~".*-svc(-[0-9]+)?$"})) unless on (cluster) (group by (cluster) (kube_pod_status_ready{condition="true",namespace="mise",pod=~"mise-.*"} == 1))
             role: signal
         thresholds: []
         unsupported: ""
@@ -7587,14 +7571,14 @@
   group: arobit-rules
   alert: ArobitForwarderJobUp
   occurrence: 1
-  input: group by (cluster) (up{job="kube-state-metrics"}) unless on(cluster) group by (cluster) (up{job="arobit-forwarder",namespace="arobit"} == 1)
+  input: group by (cluster) (kube_node_info) unless on(cluster) group by (cluster) (kube_daemonset_status_number_ready{namespace="arobit", daemonset="arobit-forwarder"} > 0)
   plan:
-    expression: group by (cluster) (up{job="kube-state-metrics"}) unless on (cluster) group by (cluster) (up{job="arobit-forwarder",namespace="arobit"} == 1)
+    expression: group by (cluster) (kube_node_info) unless on (cluster) group by (cluster) (kube_daemonset_status_number_ready{daemonset="arobit-forwarder",namespace="arobit"} > 0)
     conditions:
-      - expression: (group by (cluster) (up{job="kube-state-metrics"})) unless on (cluster) (group by (cluster) (up{job="arobit-forwarder",namespace="arobit"} == 1))
+      - expression: (group by (cluster) (kube_node_info)) unless on (cluster) (group by (cluster) (kube_daemonset_status_number_ready{daemonset="arobit-forwarder",namespace="arobit"} > 0))
         path: root/unless:left
         queries:
-          - expression: (group by (cluster) (up{job="kube-state-metrics"})) unless on (cluster) (group by (cluster) (up{job="arobit-forwarder",namespace="arobit"} == 1))
+          - expression: (group by (cluster) (kube_node_info)) unless on (cluster) (group by (cluster) (kube_daemonset_status_number_ready{daemonset="arobit-forwarder",namespace="arobit"} > 0))
             role: signal
         thresholds: []
         unsupported: ""
@@ -9852,18 +9836,18 @@
   alert: KubeAPIDown
   occurrence: 1
   input: |
-    count by (cluster) (up{job="apiserver"} == 1) == 0
+    group by (cluster) (kube_node_info)
+    unless on (cluster)
+    group by (cluster) (apiserver_request_total{job="apiserver"})
   plan:
-    expression: count by (cluster) (up{job="apiserver"} == 1) == 0
+    expression: group by (cluster) (kube_node_info) unless on (cluster) group by (cluster) (apiserver_request_total{job="apiserver"})
     conditions:
-      - expression: count by (cluster) (up{job="apiserver"} == 1) == 0
-        path: root
+      - expression: (group by (cluster) (kube_node_info)) unless on (cluster) (group by (cluster) (apiserver_request_total{job="apiserver"}))
+        path: root/unless:left
         queries:
-          - expression: count by (cluster) (up{job="apiserver"} == 1)
+          - expression: (group by (cluster) (kube_node_info)) unless on (cluster) (group by (cluster) (apiserver_request_total{job="apiserver"}))
             role: signal
-        thresholds:
-          - operator: ==
-            value: 0
+        thresholds: []
         unsupported: ""
 - source: observability/alerts/kubernetesControlPlane-prometheusRule.yaml
   group: kubernetes-system-apiserver
@@ -9978,18 +9962,18 @@
   alert: KubeControllerManagerDown
   occurrence: 1
   input: |
-    count by (cluster) (up{job="kube-controller-manager"} == 1) == 0
+    group by (cluster) (kube_node_info)
+    unless on (cluster)
+    group by (cluster) (workqueue_adds_total{job="kube-controller-manager"})
   plan:
-    expression: count by (cluster) (up{job="kube-controller-manager"} == 1) == 0
+    expression: group by (cluster) (kube_node_info) unless on (cluster) group by (cluster) (workqueue_adds_total{job="kube-controller-manager"})
     conditions:
-      - expression: count by (cluster) (up{job="kube-controller-manager"} == 1) == 0
-        path: root
+      - expression: (group by (cluster) (kube_node_info)) unless on (cluster) (group by (cluster) (workqueue_adds_total{job="kube-controller-manager"}))
+        path: root/unless:left
         queries:
-          - expression: count by (cluster) (up{job="kube-controller-manager"} == 1)
+          - expression: (group by (cluster) (kube_node_info)) unless on (cluster) (group by (cluster) (workqueue_adds_total{job="kube-controller-manager"}))
             role: signal
-        thresholds:
-          - operator: ==
-            value: 0
+        thresholds: []
         unsupported: ""
 - source: observability/alerts/kubernetesControlPlane-prometheusRule.yaml
   group: kubernetes-system-kubelet
@@ -10104,18 +10088,18 @@
   alert: KubeletDown
   occurrence: 1
   input: |
-    count by (cluster) (up{job="kubelet", metrics_path="/metrics"} == 1) == 0
+    group by (cluster) (kube_node_info)
+    unless on (cluster)
+    group by (cluster) (kubelet_node_name{job="kubelet", metrics_path="/metrics"})
   plan:
-    expression: count by (cluster) (up{job="kubelet",metrics_path="/metrics"} == 1) == 0
+    expression: group by (cluster) (kube_node_info) unless on (cluster) group by (cluster) (kubelet_node_name{job="kubelet",metrics_path="/metrics"})
     conditions:
-      - expression: count by (cluster) (up{job="kubelet",metrics_path="/metrics"} == 1) == 0
-        path: root
+      - expression: (group by (cluster) (kube_node_info)) unless on (cluster) (group by (cluster) (kubelet_node_name{job="kubelet",metrics_path="/metrics"}))
+        path: root/unless:left
         queries:
-          - expression: count by (cluster) (up{job="kubelet",metrics_path="/metrics"} == 1)
+          - expression: (group by (cluster) (kube_node_info)) unless on (cluster) (group by (cluster) (kubelet_node_name{job="kubelet",metrics_path="/metrics"}))
             role: signal
-        thresholds:
-          - operator: ==
-            value: 0
+        thresholds: []
         unsupported: ""
 - source: observability/alerts/kubernetesControlPlane-prometheusRule.yaml
   group: kubernetes-system-kubelet
@@ -10236,18 +10220,18 @@
   alert: KubeSchedulerDown
   occurrence: 1
   input: |
-    count by (cluster) (up{job="kube-scheduler"} == 1) == 0
+    group by (cluster) (kube_node_info)
+    unless on (cluster)
+    group by (cluster) (rest_client_requests_total{job="kube-scheduler"})
   plan:
-    expression: count by (cluster) (up{job="kube-scheduler"} == 1) == 0
+    expression: group by (cluster) (kube_node_info) unless on (cluster) group by (cluster) (rest_client_requests_total{job="kube-scheduler"})
     conditions:
-      - expression: count by (cluster) (up{job="kube-scheduler"} == 1) == 0
-        path: root
+      - expression: (group by (cluster) (kube_node_info)) unless on (cluster) (group by (cluster) (rest_client_requests_total{job="kube-scheduler"}))
+        path: root/unless:left
         queries:
-          - expression: count by (cluster) (up{job="kube-scheduler"} == 1)
+          - expression: (group by (cluster) (kube_node_info)) unless on (cluster) (group by (cluster) (rest_client_requests_total{job="kube-scheduler"}))
             role: signal
-        thresholds:
-          - operator: ==
-            value: 0
+        thresholds: []
         unsupported: ""
 - source: observability/alerts/kusto-logs-age-prometheusRule.yaml
   group: kusto-logs-age-rules
@@ -10339,16 +10323,16 @@
   alert: MaestroAgentMetricsProxyDown
   occurrence: 1
   input: |
-    group by (cluster) (up{job="kube-state-metrics", cluster=~".*-mgmt(-[0-9]+)?$"})
+    group by (cluster) (kube_node_info{cluster=~".*-mgmt(-[0-9]+)?$"})
     unless on (cluster)
-    group by (cluster) (up{namespace="maestro", endpoint="metrics", pod=~"maestro-agent-.*"} == 1)
+    group by (cluster) (kube_pod_status_ready{namespace="maestro", pod=~"maestro-agent-.*", condition="true"} == 1)
   plan:
-    expression: group by (cluster) (up{cluster=~".*-mgmt(-[0-9]+)?$",job="kube-state-metrics"}) unless on (cluster) group by (cluster) (up{endpoint="metrics",namespace="maestro",pod=~"maestro-agent-.*"} == 1)
+    expression: group by (cluster) (kube_node_info{cluster=~".*-mgmt(-[0-9]+)?$"}) unless on (cluster) group by (cluster) (kube_pod_status_ready{condition="true",namespace="maestro",pod=~"maestro-agent-.*"} == 1)
     conditions:
-      - expression: (group by (cluster) (up{cluster=~".*-mgmt(-[0-9]+)?$",job="kube-state-metrics"})) unless on (cluster) (group by (cluster) (up{endpoint="metrics",namespace="maestro",pod=~"maestro-agent-.*"} == 1))
+      - expression: (group by (cluster) (kube_node_info{cluster=~".*-mgmt(-[0-9]+)?$"})) unless on (cluster) (group by (cluster) (kube_pod_status_ready{condition="true",namespace="maestro",pod=~"maestro-agent-.*"} == 1))
         path: root/unless:left
         queries:
-          - expression: (group by (cluster) (up{cluster=~".*-mgmt(-[0-9]+)?$",job="kube-state-metrics"})) unless on (cluster) (group by (cluster) (up{endpoint="metrics",namespace="maestro",pod=~"maestro-agent-.*"} == 1))
+          - expression: (group by (cluster) (kube_node_info{cluster=~".*-mgmt(-[0-9]+)?$"})) unless on (cluster) (group by (cluster) (kube_pod_status_ready{condition="true",namespace="maestro",pod=~"maestro-agent-.*"} == 1))
             role: signal
         thresholds: []
         unsupported: ""
@@ -11493,19 +11477,6 @@
           - operator: <=
             value: 0.95
         unsupported: ""
-- source: tooling/tenant-quota/alerting.bicep
-  group: tenant-quota-alerts
-  alert: TenantQuotaCollectorUp
-  occurrence: 1
-  input: absent(up{job="tenant-quota-collector",namespace="tenant-quota"} == 1)
-  plan:
-    expression: absent(up{job="tenant-quota-collector",namespace="tenant-quota"} == 1)
-    conditions:
-      - expression: absent(up{job="tenant-quota-collector",namespace="tenant-quota"} == 1)
-        path: root
-        queries: []
-        thresholds: []
-        unsupported: absence construct has no numeric pre-absence signal without rewriting internal semantics
 - source: tooling/tenant-quota/alerting.bicep
   group: tenant-quota-alerts
   alert: TenantQuotaCritical

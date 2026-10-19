@@ -1203,7 +1203,7 @@ resource svcKubernetesSystemApiserver 'Microsoft.AlertsManagement/prometheusRule
           summary: 'Target disappeared from Prometheus target discovery.'
           title: 'Target disappeared from Prometheus target discovery.'
         }
-        expression: 'count by (cluster, region) (up{job="controlplane-apiserver"} == 1) == 0'
+        expression: 'group by (cluster, region) (kube_node_info) unless on (cluster) group by (cluster, region) (apiserver_request_total{job="controlplane-apiserver"})'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }
@@ -1604,7 +1604,7 @@ resource svcKubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGr
           summary: 'Target disappeared from Prometheus target discovery.'
           title: 'Target disappeared from Prometheus target discovery.'
         }
-        expression: 'count by (cluster, region) (up{job="kubelet",metrics_path="/metrics"} == 1) == 0'
+        expression: 'group by (cluster, region) (kube_node_info) unless on (cluster) group by (cluster, region) (kubelet_node_name{job="kubelet",metrics_path="/metrics"})'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }
@@ -1645,7 +1645,7 @@ resource svcKubernetesSystemScheduler 'Microsoft.AlertsManagement/prometheusRule
           summary: 'Target disappeared from Prometheus target discovery.'
           title: 'Target disappeared from Prometheus target discovery.'
         }
-        expression: 'count by (cluster, region) (up{job="controlplane-kube-scheduler"} == 1) == 0'
+        expression: 'group by (cluster, region) (kube_node_info) unless on (cluster) group by (cluster, region) (rest_client_requests_total{job="controlplane-kube-scheduler"})'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }
@@ -1686,7 +1686,7 @@ resource svcKubernetesSystemControllerManager 'Microsoft.AlertsManagement/promet
           summary: 'Target disappeared from Prometheus target discovery.'
           title: 'Target disappeared from Prometheus target discovery.'
         }
-        expression: 'count by (cluster, region) (up{job="controlplane-kube-controller-manager"} == 1) == 0'
+        expression: 'group by (cluster, region) (kube_node_info) unless on (cluster) group by (cluster, region) (workqueue_adds_total{job="controlplane-kube-controller-manager"})'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }

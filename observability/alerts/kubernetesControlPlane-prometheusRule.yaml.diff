@@ -35,8 +35,8 @@
 +            1, max by(namespace, pod, owner_kind, cluster) (kube_pod_owner{prometheus="prometheus/prometheus", owner_kind!="Job"})
            )
          ) > 0
-+        unless on(namespace, pod, cluster) kube_pod_deletion_timestamp
 -      for: 15m
++        unless on(namespace, pod, cluster) kube_pod_deletion_timestamp
 +      for: 5m
        labels:
          severity: warning
@@ -49,7 +49,7 @@
        expr: |
          kube_deployment_status_observed_generation{job="kube-state-metrics"}
            !=
-@@ -52,9 +54,9 @@
+@@ -52,9 +55,9 @@
          severity: warning
      - alert: KubeDeploymentReplicasMismatch
        annotations:
@@ -61,7 +61,7 @@
        expr: |
          (
            kube_deployment_spec_replicas{job="kube-state-metrics"}
-@@ -65,25 +67,25 @@
+@@ -65,25 +68,25 @@
              ==
            0
          )
@@ -92,7 +92,7 @@
        expr: |
          (
            kube_statefulset_status_replicas_ready{job="kube-state-metrics"}
-@@ -101,7 +103,7 @@
+@@ -101,7 +104,7 @@
        annotations:
          description: StatefulSet generation for {{ $labels.namespace }}/{{ $labels.statefulset }} does not match, this indicates that the StatefulSet has failed but has not been rolled back.
          runbook_url: https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubestatefulsetgenerationmismatch
@@ -101,7 +101,7 @@
        expr: |
          kube_statefulset_status_observed_generation{job="kube-state-metrics"}
            !=
-@@ -113,7 +115,7 @@
+@@ -113,7 +116,7 @@
        annotations:
          description: StatefulSet {{ $labels.namespace }}/{{ $labels.statefulset }} update has not been rolled out.
          runbook_url: https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubestatefulsetupdatenotrolledout
@@ -110,7 +110,7 @@
        expr: |
          (
            max by(namespace, statefulset, job, cluster) (
-@@ -139,7 +141,7 @@
+@@ -139,7 +142,7 @@
        annotations:
          description: DaemonSet {{ $labels.namespace }}/{{ $labels.daemonset }} has not finished or progressed for at least 15 minutes.
          runbook_url: https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubedaemonsetrolloutstuck
@@ -119,7 +119,7 @@
        expr: |
          (
            (
-@@ -171,7 +173,7 @@
+@@ -171,7 +174,7 @@
        annotations:
          description: pod/{{ $labels.pod }} in namespace {{ $labels.namespace }} on container {{ $labels.container}} has been in waiting state for longer than 1 hour.
          runbook_url: https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubecontainerwaiting
@@ -128,7 +128,7 @@
        expr: |
          sum by (namespace, pod, container, cluster) (kube_pod_container_status_waiting_reason{job="kube-state-metrics"}) > 0
        for: 1h
-@@ -181,7 +183,7 @@
+@@ -181,7 +184,7 @@
        annotations:
          description: '{{ $value }} Pods of DaemonSet {{ $labels.namespace }}/{{ $labels.daemonset }} are not scheduled.'
          runbook_url: https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubedaemonsetnotscheduled
@@ -137,7 +137,7 @@
        expr: |
          kube_daemonset_status_desired_number_scheduled{job="kube-state-metrics"}
            -
-@@ -193,7 +195,7 @@
+@@ -193,7 +196,7 @@
        annotations:
          description: '{{ $value }} Pods of DaemonSet {{ $labels.namespace }}/{{ $labels.daemonset }} are running where they are not supposed to run.'
          runbook_url: https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubedaemonsetmisscheduled
@@ -146,7 +146,7 @@
        expr: |
          kube_daemonset_status_number_misscheduled{job="kube-state-metrics"} > 0
        for: 15m
-@@ -203,7 +205,7 @@
+@@ -203,7 +206,7 @@
        annotations:
          description: Job {{ $labels.namespace }}/{{ $labels.job_name }} is taking more than {{ "43200" | humanizeDuration }} to complete.
          runbook_url: https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubejobnotcompleted
@@ -155,7 +155,7 @@
        expr: |
          time() - max by(namespace, job_name, cluster) (kube_job_status_start_time{job="kube-state-metrics"}
            and
-@@ -214,7 +216,7 @@
+@@ -214,7 +217,7 @@
        annotations:
          description: Job {{ $labels.namespace }}/{{ $labels.job_name }} failed to complete. Removing failed job after investigation should clear this alert.
          runbook_url: https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubejobfailed
@@ -164,7 +164,7 @@
        expr: |
          kube_job_failed{job="kube-state-metrics"}  > 0
        for: 15m
-@@ -224,7 +226,7 @@
+@@ -224,7 +227,7 @@
        annotations:
          description: HPA {{ $labels.namespace }}/{{ $labels.horizontalpodautoscaler  }} has not matched the desired number of replicas for longer than 15 minutes.
          runbook_url: https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubehpareplicasmismatch
@@ -173,7 +173,7 @@
        expr: |
          (kube_horizontalpodautoscaler_status_desired_replicas{job="kube-state-metrics"}
            !=
-@@ -246,7 +248,7 @@
+@@ -246,7 +249,7 @@
        annotations:
          description: HPA {{ $labels.namespace }}/{{ $labels.horizontalpodautoscaler  }} has been running at max replicas for longer than 15 minutes.
          runbook_url: https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubehpamaxedout
@@ -182,7 +182,7 @@
        expr: |
          kube_horizontalpodautoscaler_status_current_replicas{job="kube-state-metrics"}
            ==
-@@ -255,12 +257,14 @@
+@@ -255,12 +258,14 @@
        labels:
          severity: warning
    - name: kubernetes-resources
@@ -198,7 +198,7 @@
        expr: |
          sum(namespace_cpu:kube_pod_container_resource_requests:sum{}) by (cluster) - (sum(kube_node_status_allocatable{job="kube-state-metrics",resource="cpu"}) by (cluster) - max(kube_node_status_allocatable{job="kube-state-metrics",resource="cpu"}) by (cluster)) > 0
          and
-@@ -272,7 +276,7 @@
+@@ -272,7 +277,7 @@
        annotations:
          description: Cluster {{ $labels.cluster }} has overcommitted memory resource requests for Pods by {{ $value | humanize }} bytes and cannot tolerate node failure.
          runbook_url: https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubememoryovercommit
@@ -207,7 +207,7 @@
        expr: |
          sum(namespace_memory:kube_pod_container_resource_requests:sum{}) by (cluster) - (sum(kube_node_status_allocatable{resource="memory", job="kube-state-metrics"}) by (cluster) - max(kube_node_status_allocatable{resource="memory", job="kube-state-metrics"}) by (cluster)) > 0
          and
-@@ -284,7 +288,7 @@
+@@ -284,7 +289,7 @@
        annotations:
          description: Cluster {{ $labels.cluster }}  has overcommitted CPU resource requests for Namespaces.
          runbook_url: https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubecpuquotaovercommit
@@ -216,7 +216,7 @@
        expr: |
          sum(min without(resource) (kube_resourcequota{job="kube-state-metrics", type="hard", resource=~"(cpu|requests.cpu)"})) by (cluster)
            /
-@@ -297,7 +301,7 @@
+@@ -297,7 +302,7 @@
        annotations:
          description: Cluster {{ $labels.cluster }}  has overcommitted memory resource requests for Namespaces.
          runbook_url: https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubememoryquotaovercommit
@@ -225,7 +225,7 @@
        expr: |
          sum(min without(resource) (kube_resourcequota{job="kube-state-metrics", type="hard", resource=~"(memory|requests.memory)"})) by (cluster)
            /
-@@ -310,7 +314,7 @@
+@@ -310,7 +315,7 @@
        annotations:
          description: Namespace {{ $labels.namespace }} is using {{ $value | humanizePercentage }} of its {{ $labels.resource }} quota.
          runbook_url: https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubequotaalmostfull
@@ -234,7 +234,7 @@
        expr: |
          kube_resourcequota{job="kube-state-metrics", type="used"}
            / ignoring(instance, job, type)
-@@ -323,7 +327,7 @@
+@@ -323,7 +328,7 @@
        annotations:
          description: Namespace {{ $labels.namespace }} is using {{ $value | humanizePercentage }} of its {{ $labels.resource }} quota.
          runbook_url: https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubequotafullyused
@@ -243,7 +243,7 @@
        expr: |
          kube_resourcequota{job="kube-state-metrics", type="used"}
            / ignoring(instance, job, type)
-@@ -336,7 +340,7 @@
+@@ -336,7 +341,7 @@
        annotations:
          description: Namespace {{ $labels.namespace }} is using {{ $value | humanizePercentage }} of its {{ $labels.resource }} quota.
          runbook_url: https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubequotaexceeded
@@ -252,7 +252,7 @@
        expr: |
          kube_resourcequota{job="kube-state-metrics", type="used"}
            / ignoring(instance, job, type)
-@@ -349,7 +353,7 @@
+@@ -349,7 +354,7 @@
        annotations:
          description: '{{ $value | humanizePercentage }} throttling of CPU in namespace {{ $labels.namespace }} for container {{ $labels.container }} in pod {{ $labels.pod }}.'
          runbook_url: https://runbooks.prometheus-operator.dev/runbooks/kubernetes/cputhrottlinghigh
@@ -261,7 +261,7 @@
        expr: |
          sum(increase(container_cpu_cfs_throttled_periods_total{container!="", }[5m])) by (cluster, container, pod, namespace)
            /
-@@ -359,12 +363,14 @@
+@@ -359,12 +364,14 @@
        labels:
          severity: info
    - name: kubernetes-storage
@@ -277,7 +277,7 @@
        expr: |
          (
            kubelet_volume_stats_available_bytes{job="kubelet", metrics_path="/metrics"}
-@@ -384,7 +390,7 @@
+@@ -384,7 +391,7 @@
        annotations:
          description: Based on recent sampling, the PersistentVolume claimed by {{ $labels.persistentvolumeclaim }} in Namespace {{ $labels.namespace }} {{ with $labels.cluster -}} on Cluster {{ . }} {{- end }} is expected to fill up within four days. Currently {{ $value | humanizePercentage }} is available.
          runbook_url: https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubepersistentvolumefillingup
@@ -286,7 +286,7 @@
        expr: |
          (
            kubelet_volume_stats_available_bytes{job="kubelet", metrics_path="/metrics"}
-@@ -406,7 +412,7 @@
+@@ -406,7 +413,7 @@
        annotations:
          description: The PersistentVolume claimed by {{ $labels.persistentvolumeclaim }} in Namespace {{ $labels.namespace }} {{ with $labels.cluster -}} on Cluster {{ . }} {{- end }} only has {{ $value | humanizePercentage }} free inodes.
          runbook_url: https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubepersistentvolumeinodesfillingup
@@ -295,7 +295,7 @@
        expr: |
          (
            kubelet_volume_stats_inodes_free{job="kubelet", metrics_path="/metrics"}
-@@ -426,7 +432,7 @@
+@@ -426,7 +433,7 @@
        annotations:
          description: Based on recent sampling, the PersistentVolume claimed by {{ $labels.persistentvolumeclaim }} in Namespace {{ $labels.namespace }} {{ with $labels.cluster -}} on Cluster {{ . }} {{- end }} is expected to run out of inodes within four days. Currently {{ $value | humanizePercentage }} of its inodes are free.
          runbook_url: https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubepersistentvolumeinodesfillingup
@@ -304,7 +304,7 @@
        expr: |
          (
            kubelet_volume_stats_inodes_free{job="kubelet", metrics_path="/metrics"}
-@@ -448,13 +454,15 @@
+@@ -448,13 +455,15 @@
        annotations:
          description: The persistent volume {{ $labels.persistentvolume }} {{ with $labels.cluster -}} on Cluster {{ . }} {{- end }} has status {{ $labels.phase }}.
          runbook_url: https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubepersistentvolumeerrors
@@ -321,7 +321,7 @@
      rules:
      - alert: KubeVersionMismatch
        annotations:
-@@ -463,14 +471,14 @@
+@@ -463,14 +472,14 @@
          summary: Different semantic versions of Kubernetes components running.
        expr: |
          count by (cluster) (count by (git_version, cluster) (label_replace(kubernetes_build_info{job!~"kube-dns|coredns"},"git_version","$1","git_version","(v[0-9]*.[0-9]*).*"))) > 1
@@ -338,7 +338,7 @@
        expr: |
          (sum(rate(rest_client_requests_total{job="apiserver",code=~"5.."}[5m])) by (cluster, instance, job, namespace)
            /
-@@ -480,6 +488,8 @@
+@@ -480,6 +489,8 @@
        labels:
          severity: warning
    - name: kube-apiserver-slos
@@ -347,7 +347,7 @@
      rules:
      - alert: KubeAPIErrorBudgetBurn
        annotations:
-@@ -538,6 +548,8 @@
+@@ -538,6 +549,8 @@
          severity: warning
          short: 6h
    - name: kubernetes-system-apiserver
@@ -356,7 +356,7 @@
      rules:
      - alert: KubeClientCertificateExpiration
        annotations:
-@@ -563,7 +575,7 @@
+@@ -563,7 +576,7 @@
        annotations:
          description: Kubernetes aggregated API {{ $labels.name }}/{{ $labels.namespace }} has reported errors. It has appeared unavailable {{ $value | humanize }} times averaged over the past 10m.
          runbook_url: https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubeaggregatedapierrors
@@ -365,7 +365,7 @@
        expr: |
          sum by(name, namespace, cluster)(increase(aggregator_unavailable_apiservice_total{job="apiserver"}[10m])) > 4
        labels:
-@@ -572,7 +584,7 @@
+@@ -572,7 +585,7 @@
        annotations:
          description: Kubernetes aggregated API {{ $labels.name }}/{{ $labels.namespace }} has been only {{ $value | humanize }}% available over the last 10m.
          runbook_url: https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubeaggregatedapidown
@@ -374,16 +374,18 @@
        expr: |
          (1 - max by(name, namespace, cluster)(avg_over_time(aggregator_unavailable_apiservice{job="apiserver"}[10m]))) * 100 < 85
        for: 5m
-@@ -584,7 +596,7 @@
+@@ -584,7 +597,9 @@
          runbook_url: https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubeapidown
          summary: Target disappeared from Prometheus target discovery.
        expr: |
 -        absent(up{job="apiserver"} == 1)
-+        count by (cluster) (up{job="apiserver"} == 1) == 0
++        group by (cluster) (kube_node_info)
++        unless on (cluster)
++        group by (cluster) (apiserver_request_total{job="apiserver"})
        for: 15m
        labels:
          severity: critical
-@@ -599,22 +611,24 @@
+@@ -599,22 +614,24 @@
        labels:
          severity: warning
    - name: kubernetes-system-kubelet
@@ -412,7 +414,7 @@
        expr: |
          (kube_node_spec_taint{job="kube-state-metrics",key="node.kubernetes.io/unreachable",effect="NoSchedule"} unless ignoring(key,value) kube_node_spec_taint{job="kube-state-metrics",key=~"ToBeDeletedByClusterAutoscaler|cloud.google.com/impending-node-termination|aws-node-termination-handler/spot-itn"}) == 1
        for: 15m
-@@ -624,7 +638,7 @@
+@@ -624,7 +641,7 @@
        annotations:
          description: Kubelet '{{ $labels.node }}' is running at {{ $value | humanizePercentage }} of its Pod capacity.
          runbook_url: https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubelettoomanypods
@@ -421,7 +423,7 @@
        expr: |
          count by(cluster, node) (
            (kube_pod_status_phase{job="kube-state-metrics",phase="Running"} == 1) * on(instance,pod,namespace,cluster) group_left(node) topk by(instance,pod,namespace,cluster) (1, kube_pod_info{job="kube-state-metrics"})
-@@ -640,7 +654,7 @@
+@@ -640,7 +657,7 @@
        annotations:
          description: The readiness status of node {{ $labels.node }} has changed {{ $value }} times in the last 15 minutes.
          runbook_url: https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubenodereadinessflapping
@@ -430,7 +432,7 @@
        expr: |
          sum(changes(kube_node_status_condition{job="kube-state-metrics",status="true",condition="Ready"}[15m])) by (cluster, node) > 2
        for: 15m
-@@ -650,7 +664,7 @@
+@@ -650,7 +667,7 @@
        annotations:
          description: The Kubelet Pod Lifecycle Event Generator has a 99th percentile duration of {{ $value }} seconds on node {{ $labels.node }}.
          runbook_url: https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubeletplegdurationhigh
@@ -439,7 +441,7 @@
        expr: |
          node_quantile:kubelet_pleg_relist_duration_seconds:histogram_quantile{quantile="0.99"} >= 10
        for: 5m
-@@ -660,7 +674,7 @@
+@@ -660,7 +677,7 @@
        annotations:
          description: Kubelet Pod startup 99th percentile latency is {{ $value }} seconds on node {{ $labels.node }}.
          runbook_url: https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubeletpodstartuplatencyhigh
@@ -448,7 +450,7 @@
        expr: |
          histogram_quantile(0.99, sum(rate(kubelet_pod_worker_duration_seconds_bucket{job="kubelet", metrics_path="/metrics"}[5m])) by (cluster, instance, le)) * on(cluster, instance) group_left(node) kubelet_node_name{job="kubelet", metrics_path="/metrics"} > 60
        for: 15m
-@@ -670,7 +684,7 @@
+@@ -670,7 +687,7 @@
        annotations:
          description: Client certificate for Kubelet on node {{ $labels.node }} expires in {{ $value | humanizeDuration }}.
          runbook_url: https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubeletclientcertificateexpiration
@@ -457,7 +459,7 @@
        expr: |
          kubelet_certificate_manager_client_ttl_seconds < 604800
        labels:
-@@ -679,7 +693,7 @@
+@@ -679,7 +696,7 @@
        annotations:
          description: Client certificate for Kubelet on node {{ $labels.node }} expires in {{ $value | humanizeDuration }}.
          runbook_url: https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubeletclientcertificateexpiration
@@ -466,7 +468,7 @@
        expr: |
          kubelet_certificate_manager_client_ttl_seconds < 86400
        labels:
-@@ -688,7 +702,7 @@
+@@ -688,7 +705,7 @@
        annotations:
          description: Server certificate for Kubelet on node {{ $labels.node }} expires in {{ $value | humanizeDuration }}.
          runbook_url: https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubeletservercertificateexpiration
@@ -475,7 +477,7 @@
        expr: |
          kubelet_certificate_manager_server_ttl_seconds < 604800
        labels:
-@@ -697,7 +711,7 @@
+@@ -697,7 +714,7 @@
        annotations:
          description: Server certificate for Kubelet on node {{ $labels.node }} expires in {{ $value | humanizeDuration }}.
          runbook_url: https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubeletservercertificateexpiration
@@ -484,7 +486,7 @@
        expr: |
          kubelet_certificate_manager_server_ttl_seconds < 86400
        labels:
-@@ -706,7 +720,7 @@
+@@ -706,7 +723,7 @@
        annotations:
          description: Kubelet on node {{ $labels.node }} has failed to renew its client certificate ({{ $value | humanize }} errors in the last 5 minutes).
          runbook_url: https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubeletclientcertificaterenewalerrors
@@ -493,7 +495,7 @@
        expr: |
          increase(kubelet_certificate_manager_client_expiration_renew_errors[5m]) > 0
        for: 15m
-@@ -716,7 +730,7 @@
+@@ -716,7 +733,7 @@
        annotations:
          description: Kubelet on node {{ $labels.node }} has failed to renew its server certificate ({{ $value | humanize }} errors in the last 5 minutes).
          runbook_url: https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubeletservercertificaterenewalerrors
@@ -502,12 +504,14 @@
        expr: |
          increase(kubelet_server_expiration_renew_errors[5m]) > 0
        for: 15m
-@@ -728,11 +742,13 @@
+@@ -728,11 +745,15 @@
          runbook_url: https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubeletdown
          summary: Target disappeared from Prometheus target discovery.
        expr: |
 -        absent(up{job="kubelet", metrics_path="/metrics"} == 1)
-+        count by (cluster) (up{job="kubelet", metrics_path="/metrics"} == 1) == 0
++        group by (cluster) (kube_node_info)
++        unless on (cluster)
++        group by (cluster) (kubelet_node_name{job="kubelet", metrics_path="/metrics"})
        for: 15m
        labels:
          severity: critical
@@ -517,12 +521,14 @@
      rules:
      - alert: KubeSchedulerDown
        annotations:
-@@ -740,11 +756,13 @@
+@@ -740,11 +761,15 @@
          runbook_url: https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubeschedulerdown
          summary: Target disappeared from Prometheus target discovery.
        expr: |
 -        absent(up{job="kube-scheduler"} == 1)
-+        count by (cluster) (up{job="kube-scheduler"} == 1) == 0
++        group by (cluster) (kube_node_info)
++        unless on (cluster)
++        group by (cluster) (rest_client_requests_total{job="kube-scheduler"})
        for: 15m
        labels:
          severity: critical
@@ -532,12 +538,14 @@
      rules:
      - alert: KubeControllerManagerDown
        annotations:
-@@ -752,7 +770,7 @@
+@@ -752,7 +777,9 @@
          runbook_url: https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubecontrollermanagerdown
          summary: Target disappeared from Prometheus target discovery.
        expr: |
 -        absent(up{job="kube-controller-manager"} == 1)
-+        count by (cluster) (up{job="kube-controller-manager"} == 1) == 0
++        group by (cluster) (kube_node_info)
++        unless on (cluster)
++        group by (cluster) (workqueue_adds_total{job="kube-controller-manager"})
        for: 15m
        labels:
          severity: critical

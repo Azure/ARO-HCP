@@ -118,30 +118,6 @@ resource tenantQuotaAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         }
       }
       {
-        alert: 'TenantQuotaCollectorUp'
-        enabled: true
-        expression: 'absent(up{job="tenant-quota-collector",namespace="tenant-quota"} == 1)'
-        for: 'PT30M'
-        severity: 3
-        labels: {
-          severity: 'warning'
-        }
-        annotations: {
-          summary: 'Tenant quota collector is unreachable'
-          description: 'tenant-quota-collector has not been reachable for 30 minutes. Check the pod status, service endpoints, and Prometheus scrape target health in the tenant-quota namespace.'
-          runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/ci/dev-ci-monitoring.md#exporter-health-checks'
-        }
-        actions: [
-          {
-            actionGroupId: sharedActionGroupId
-          }
-        ]
-        resolveConfiguration: {
-          autoResolved: true
-          timeToResolve: 'PT10M'
-        }
-      }
-      {
         alert: 'TenantQuotaMetricsStale'
         enabled: true
         expression: 'absent(tenant_quota_usage_percentage)'

@@ -21,20 +21,21 @@ spec:
     # HyperShift CP metrics-proxy (guest CMO metrics-forwarding in ocm-*
     # namespaces) is not deployed by ARO-HCP today; do not page on its absence.
     #
-    # Pattern matches MiseEnvoyScrapeDown: kube-state-metrics up series exists
-    # for the management cluster (existence signal; value 0 still counts), but
-    # the maestro-agent metrics scrape is not up==1. Catches both up=0 and a
-    # missing target. Svc clusters do not run maestro-agent, so the existence
-    # signal is scoped to *-mgmt-*.
+    # Pattern matches MiseEnvoyScrapeDown: enumerate management clusters via a
+    # guaranteed-present kube-state-metrics series (kube_node_info), then remove
+    # the clusters where the maestro-agent pod is Ready. The `up` scrape-health
+    # series is dropped under AMA, so health is derived from KSM pod readiness
+    # instead of scrape state. Svc clusters do not run maestro-agent, so the
+    # existence signal is scoped to *-mgmt-*.
     - alert: MaestroAgentMetricsProxyDown
       expr: |
-        group by (cluster) (up{job="kube-state-metrics", cluster=~".*-mgmt(-[0-9]+)?$"})
+        group by (cluster) (kube_node_info{cluster=~".*-mgmt(-[0-9]+)?$"})
         unless on (cluster)
-        group by (cluster) (up{namespace="maestro", endpoint="metrics", pod=~"maestro-agent-.*"} == 1)
+        group by (cluster) (kube_pod_status_ready{namespace="maestro", pod=~"maestro-agent-.*", condition="true"} == 1)
       for: 10m
       labels:
         severity: "3"
       annotations:
-        summary: "Maestro agent metrics-proxy scrape is down"
-        description: "Prometheus has not scraped maestro-agent /metrics through the metrics-proxy sidecar (namespace=maestro, endpoint=metrics) for 10 minutes, while a kube-state-metrics scrape series still exists for this management cluster. Maestro agent metrics and any alerts that depend on them may be missing."
+        summary: "Maestro agent pod is not ready"
+        description: "The maestro-agent pod (namespace=maestro) has not been Ready for 10 minutes on this management cluster, so maestro-agent /metrics are not being served through the metrics-proxy sidecar. Maestro agent metrics and any alerts that depend on them may be missing."
         runbook_url: "https://aka.ms/arohcp-runbook-cluster-monitoring"
