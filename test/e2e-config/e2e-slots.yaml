@@ -1,8 +1,17 @@
 version: 2
+asset_pools:
+- name: dev-infrastructure-identities
+  kind: infrastructure_identities
+  provisioning: managed
+  boskos_resource_type: aro-hcp-dev-infrastructure-identities
+  resource_name_prefix: aro-hcp-dev-infrastructure-identities
+  infrastructure_identities:
+    provisioning_region: westus3
 environments:
   dev:
     deployment_environment:
       name: ci01
+      infrastructure_subscription: "ARO HCP E2E Infrastructure (EA Subscription)"
     pools:
     # Jobs select the runtime region from these weighted pools. Existing jobs
     # with an explicit location override remain pinned during rollout.
@@ -26,6 +35,9 @@ environments:
           provisioning_region: westus3
           resource_group_prefix: aro-hcp-msi-container-dev-shard0
           resource_group_count: 58
+        infrastructure_identities:
+          allocation: leased
+          asset_pool: dev-infrastructure-identities
     - name: shard1
       subscriptions:
         e2e: "ARO HCP E2E Hosted Clusters 2 (EA Subscription)"
@@ -42,6 +54,9 @@ environments:
           provisioning_region: westus3
           resource_group_prefix: aro-hcp-msi-container-dev-shard1
           resource_group_count: 58
+        infrastructure_identities:
+          allocation: leased
+          asset_pool: dev-infrastructure-identities
     - name: shard2
       subscriptions:
         e2e: "ARO HCP E2E Hosted Clusters - Dev - 02"
@@ -58,6 +73,9 @@ environments:
           provisioning_region: westus3
           resource_group_prefix: aro-hcp-msi-container-dev-shard2
           resource_group_count: 58
+        infrastructure_identities:
+          allocation: leased
+          asset_pool: dev-infrastructure-identities
     - name: shard3
       subscriptions:
         e2e: "ARO HCP E2E Hosted Clusters - Dev - 03"
@@ -74,6 +92,9 @@ environments:
           provisioning_region: westus3
           resource_group_prefix: aro-hcp-msi-container-dev-shard3
           resource_group_count: 58
+        infrastructure_identities:
+          allocation: leased
+          asset_pool: dev-infrastructure-identities
     - name: hypershift
       subscriptions:
         e2e: "Hypershift Managed Azure"
@@ -91,6 +112,9 @@ environments:
           provisioning_region: westus3
           resource_group_prefix: aro-hcp-msi-container-dev
           resource_group_count: 20
+        infrastructure_identities:
+          allocation: leased
+          asset_pool: dev-infrastructure-identities
   int:
     deployment_environment:
       name: int
