@@ -16,11 +16,14 @@ package billingcosmosstoragetesting
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/google/uuid"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -123,7 +126,9 @@ func (m *mockBillingDocCRUD) Create(ctx context.Context, doc *billingcosmosstora
 		return &azcore.ResponseError{StatusCode: http.StatusConflict}
 	}
 
-	m.store.docs[doc.ID] = doc
+	created := doc.DeepCopy()
+	created.CosmosETag = azcore.ETag(uuid.NewString())
+	m.store.docs[doc.ID] = created
 	return nil
 }
 
@@ -136,7 +141,7 @@ func (m *mockBillingDocCRUD) GetByID(ctx context.Context, billingDocID string) (
 		return nil, &azcore.ResponseError{StatusCode: http.StatusNotFound}
 	}
 
-	return doc, nil
+	return doc.DeepCopy(), nil
 }
 
 func (m *mockBillingDocCRUD) List(ctx context.Context) (cosmosstorageutils.DBClientIterator[billingcosmosstorage.BillingDocument], error) {
@@ -163,7 +168,7 @@ func (m *mockBillingDocCRUD) ListActive(ctx context.Context) ([]*billingcosmosst
 	var docs []*billingcosmosstorage.BillingDocument
 	for _, doc := range m.store.docs {
 		if strings.EqualFold(doc.SubscriptionID, m.subscriptionID) && doc.DeletionTime == nil {
-			docs = append(docs, doc)
+			docs = append(docs, doc.DeepCopy())
 		}
 	}
 
@@ -176,8 +181,8 @@ func (m *mockBillingDocCRUD) ListActiveForCluster(ctx context.Context, resourceI
 
 	var docs []*billingcosmosstorage.BillingDocument
 	for _, doc := range m.store.docs {
-		if strings.EqualFold(doc.ResourceID.String(), resourceID.String()) && doc.DeletionTime == nil {
-			docs = append(docs, doc)
+		if strings.EqualFold(doc.SubscriptionID, m.subscriptionID) && doc.ResourceID != nil && strings.EqualFold(doc.ResourceID.String(), resourceID.String()) && doc.DeletionTime == nil {
+			docs = append(docs, doc.DeepCopy())
 		}
 	}
 
@@ -193,22 +198,53 @@ func (m *mockBillingDocCRUD) PatchByID(ctx context.Context, billingDocID string,
 		return &azcore.ResponseError{StatusCode: http.StatusNotFound}
 	}
 
-	if doc.DeletionTime == nil {
-		now := time.Now()
-		doc.DeletionTime = &now
+	data, err := json.Marshal(ops)
+	if err != nil {
+		return err
 	}
+	var patch struct {
+		Condition  string `json:"condition"`
+		Operations []struct {
+			Op, Path string
+			Value    json.RawMessage
+		}
+	}
+	if err := json.Unmarshal(data, &patch); err != nil {
+		return err
+	}
+	if patch.Condition != "" {
+		if patch.Condition != "FROM c WHERE NOT IS_DEFINED(c.deletionTime) OR IS_NULL(c.deletionTime)" {
+			return fmt.Errorf("unsupported mock billing patch condition %q", patch.Condition)
+		}
+		if doc.DeletionTime != nil {
+			return &azcore.ResponseError{StatusCode: http.StatusPreconditionFailed}
+		}
+	}
+	updated := doc.DeepCopy()
+	for _, operation := range patch.Operations {
+		if operation.Op != "set" {
+			return fmt.Errorf("unsupported mock billing patch operation %q", operation.Op)
+		}
+		switch operation.Path {
+		case "/deletionTime":
+			var cutoff time.Time
+			if err := json.Unmarshal(operation.Value, &cutoff); err != nil {
+				return err
+			}
+			updated.DeletionTime = &cutoff
+		default:
+			return fmt.Errorf("unsupported mock billing patch path %q", operation.Path)
+		}
+	}
+	updated.CosmosETag = azcore.ETag(uuid.NewString())
+	m.store.docs[billingDocID] = updated
 	return nil
 }
 
 func (m *mockBillingDocCRUD) PatchByClusterID(ctx context.Context, resourceID *azcorearm.ResourceID, ops billingcosmosstorage.BillingDocumentPatchOperations) error {
-	m.store.mu.Lock()
-	defer m.store.mu.Unlock()
-
-	var foundDocs []*billingcosmosstorage.BillingDocument
-	for _, doc := range m.store.docs {
-		if strings.EqualFold(doc.ResourceID.String(), resourceID.String()) && doc.DeletionTime == nil {
-			foundDocs = append(foundDocs, doc)
-		}
+	foundDocs, err := m.ListActiveForCluster(ctx, resourceID)
+	if err != nil {
+		return err
 	}
 
 	if len(foundDocs) == 0 {
@@ -217,10 +253,12 @@ func (m *mockBillingDocCRUD) PatchByClusterID(ctx context.Context, resourceID *a
 		}
 	}
 
-	now := time.Now()
 	for _, doc := range foundDocs {
-		if doc.DeletionTime == nil {
-			doc.DeletionTime = &now
+		if err := m.PatchByID(ctx, doc.ID, ops); err != nil {
+			if cosmosstorageutils.IsNotFoundError(err) {
+				continue
+			}
+			return err
 		}
 	}
 	return nil

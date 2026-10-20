@@ -40,6 +40,38 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+func TestBillingCutoffConditionPreservesExistingCutoff(t *testing.T) {
+	first := mustParseTime("2026-10-01T00:00:00Z")
+	later := first.Add(time.Hour)
+	for _, tc := range []struct {
+		name         string
+		existing     *time.Time
+		want         time.Time
+		wantConflict bool
+	}{
+		{name: "unset cutoff", want: later},
+		{name: "existing cutoff", existing: &first, want: first, wantConflict: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			db := billingcosmosstoragetesting.NewMockBillingDBClient()
+			crud := db.BillingDocs(testSubscriptionID)
+			doc := newTestBillingDocument("doc", testSubscriptionID, testResourceGroupName, testClusterName, tc.existing)
+			require.NoError(t, crud.Create(t.Context(), doc))
+			var patch billingcosmosstorage.BillingDocumentPatchOperations
+			patch.SetDeletionTime(later)
+			err := crud.PatchByID(t.Context(), doc.ID, patch)
+			if tc.wantConflict {
+				require.True(t, cosmosstorageutils.IsPreconditionFailedError(err), "%v", err)
+			} else {
+				require.NoError(t, err)
+			}
+			persisted, err := crud.GetByID(t.Context(), doc.ID)
+			require.NoError(t, err)
+			require.Equal(t, &tc.want, persisted.DeletionTime)
+		})
+	}
+}
+
 func newTestBillingDocument(billingDocID, subscriptionID, resourceGroupName, clusterName string, deletedAt *time.Time) *billingcosmosstorage.BillingDocument {
 	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + subscriptionID +
