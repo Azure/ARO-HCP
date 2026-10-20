@@ -108,7 +108,7 @@ scope: management-agent snapshot PVC finalizer cleanup, external ownership and
 the conditional control-plane namespace teardown path in the cluster-delete view.
 
 The generation instructions are maintained in [controller-data-flow.md](../prompts/controller-data-flow.md).
-The historical filename is retained for existing links.
+The generated reference lives at `docs/generated/service-provider-control-flow.md`.
 
 Fleet registration update baseline: `42a6fcfd9` plus working-tree changes;
 scope: Fleet's twelve controller launch entries now use the shared typed

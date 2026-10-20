@@ -5,7 +5,7 @@ This inventory covers all **75 constructor sites** in `backend/pkg/controllers`
 that wrap a watching controller, including the named validation factories.
 Operation controllers and the custom orphan/mismatch sweep loops do not expose
 `AddInterestingResource` and are outside this filter inventory; their behavior
-remains in [the controller catalog](cosmos-data-flow.md#2-complete-controller-catalog).
+remains in [the controller catalog](generated/service-provider-control-flow.md#2-complete-controller-catalog).
 
 Each concrete constructor explicitly registers its Cosmos resource inputs.
 The shared wrappers still impose no default interests. Inputs include existence
@@ -50,7 +50,7 @@ primary-resource resync or existing explicit callbacks:
   or retry behavior. Registering an interest does not provide child fan-out.
 
 Lifecycle effects, fields written and completion gates are unchanged, so the
-existing [lifecycle DOT/PNG diagrams](cosmos-data-flow.md#3-resource-lifecycle-digraphs)
+existing [lifecycle DOT/PNG diagrams](generated/service-provider-control-flow.md#3-resource-lifecycle-digraphs)
 retain the same causal edges. Filtering removes unrelated wake-ups, not reads or
 reconciliation steps.
 

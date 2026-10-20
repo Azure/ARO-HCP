@@ -507,7 +507,7 @@ kubectl exec -n maestro deployment/maestro -c maestro-server -- sh -c \
 - `deployments` with `hypershift.openshift.io/component-finalizer`
 - Deleting PVCs with `snapshot.storage.kubernetes.io/pvc-as-source-protection`
 
-**Fix**: Check `kubectl get namespace <ns> -o json | jq '.status.conditions'` to identify blocking resources. If deleting PVCs are held by the snapshot source-protection finalizer, check for VolumeSnapshots still referencing each PVC and for errors from the management-agent's [SnapshotPVCFinalizerCleanupController](../cosmos-data-flow.md#snapshotpvcfinalizercleanupcontroller). It removes only that finalizer after the PVC has been deleting for at least one minute and no cached or live VolumeSnapshot references it; a remaining snapshot must not be bypassed. The controller runs in all namespaces, not just the control-plane namespace. Allow it to reconcile before considering manual finalizer removal (Strategy 4) for other blockers.
+**Fix**: Check `kubectl get namespace <ns> -o json | jq '.status.conditions'` to identify blocking resources. If deleting PVCs are held by the snapshot source-protection finalizer, check for VolumeSnapshots still referencing each PVC and for errors from the management-agent's [SnapshotPVCFinalizerCleanupController](../generated/service-provider-control-flow.md#snapshotpvcfinalizercleanupcontroller). It removes only that finalizer after the PVC has been deleting for at least one minute and no cached or live VolumeSnapshot references it; a remaining snapshot must not be bypassed. The controller runs in all namespaces, not just the control-plane namespace. Allow it to reconcile before considering manual finalizer removal (Strategy 4) for other blockers.
 
 ### Scenario 5: CAPI Machine Deletion Cannot Finish
 
