@@ -119,7 +119,7 @@ environments:
   # and CAPZ on-demand testing. It uses deploy_env ci02 so upgrade jobs and
   # e2e-parallel jobs (ci00/ci01) never compete for the same Boskos pools.
   # ci02 maps to a dedicated templatize environment with cluster sizing tuned
-  # for upgrade workloads (10 concurrent HCPs vs 50 in e2e-parallel).
+  # for upgrade workloads.
   dev-upgrade:
     deployment_environment:
       name: ci02
@@ -127,8 +127,8 @@ environments:
     pools:
     # Dedicated subscription for upgrade and CAPZ on-demand testing.
     # 30 slots support peak concurrent PR activity + merge pool.
-    # Each slot supports up to 10 concurrent HCPs (matching ci02 MGMT sizing).
-    # After the 10th spec is merged, no additional specs can be added without
+    # Each slot supports up to 6 concurrent HCPs (matching ci02 MGMT sizing).
+    # After the 6th spec is merged, no additional specs can be added without
     # first increasing identity_container_count here (and resyncing the boskos
     # config) — otherwise excess specs block waiting for a free identity
     # container and the suite eventually times out.
@@ -147,7 +147,7 @@ environments:
           allocation: dedicated
           provisioning_region: westus3
           resource_group_prefix: aro-hcp-msi-container-dev-shard4
-          resource_group_count: 10
+          resource_group_count: 6
         infrastructure_identities:
           allocation: leased
           asset_pool: dev-infrastructure-identities
