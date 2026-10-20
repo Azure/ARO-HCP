@@ -1957,7 +1957,7 @@ clouds:
               profile: "ci"
       ci02:
         # prow upgrade infra - deploys into "ARO HCP E2E Infrastructure" subscription
-        # Sized for 10 concurrent HCPs (1/5 of ci01)
+        # Sized for 6 concurrent HCPs
         defaults:
           swiftRecorder:
             captureMode: all
@@ -2015,7 +2015,7 @@ clouds:
               private: false
               enableBurstCapacity: true
               zoneRedundantMode: 'Disabled'
-          # MC - sized for 10 concurrent HCPs (1/5 of ci01)
+          # MC - sized for 6 concurrent HCPs
           mgmt:
             subscription:
               key: ARO HCP E2E Infrastructure (EA Subscription)
@@ -2025,10 +2025,10 @@ clouds:
               systemAgentPool:
                 maxCount: 4
                 osDiskSizeGB: 32
-                vmSize: Standard_D8ds_v6
+                vmSize: Standard_D4ds_v6
               userAgentPool:
                 maxCount: 9
-                minCount: 5
+                minCount: 4
                 osDiskSizeGB: 100
                 vmSize: Standard_D16ds_v6
                 poolCount: 1
