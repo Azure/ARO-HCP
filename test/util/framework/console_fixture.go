@@ -55,7 +55,7 @@ import (
 	routev1 "github.com/openshift/api/route/v1"
 	routev1client "github.com/openshift/client-go/route/clientset/versioned/typed/route/v1"
 
-	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	hcpsdk20260901preview "github.com/Azure/ARO-HCP/test/sdk/v20260901preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 )
 
 // Dex v2.43.1, verified by tag and digest against GHCR. Invoke dex directly to
@@ -69,11 +69,11 @@ type ConsoleFixture struct {
 	ConsoleCA, IssuerCA                                                         []byte
 }
 
-// SetupConsoleFixture20240610 installs an ephemeral issuer and configures Console
+// SetupConsoleFixture20260901 installs an ephemeral issuer and configures Console
 // through the RP. It requires a cluster in a TestContext-owned resource group:
 // all resources (including partial setup) survive diagnostics and are destroyed
 // by the already-registered cluster teardown, not an earlier DeferCleanup.
-func (tc *perItOrDescribeTestContext) SetupConsoleFixture20240610(ctx context.Context, resourceGroup, clusterName string, adminConfig *rest.Config, timeout time.Duration) (fixture ConsoleFixture, setupErr error) {
+func (tc *perItOrDescribeTestContext) SetupConsoleFixture20260901(ctx context.Context, resourceGroup, clusterName string, adminConfig *rest.Config, timeout time.Duration) (fixture ConsoleFixture, setupErr error) {
 	if timeout <= 0 || adminConfig == nil {
 		return fixture, fmt.Errorf("console fixture requires a positive setup timeout and admin REST config")
 	}
@@ -83,7 +83,7 @@ func (tc *perItOrDescribeTestContext) SetupConsoleFixture20240610(ctx context.Co
 	if !owned {
 		return fixture, fmt.Errorf("console fixture requires a TestContext-owned resource group for cleanup")
 	}
-	factory := tc.Get20240610ClientFactoryOrDie(ctx)
+	factory := tc.Get20260901ClientFactoryOrDie(ctx)
 	parentCtx := ctx
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
@@ -100,7 +100,8 @@ func (tc *perItOrDescribeTestContext) SetupConsoleFixture20240610(ctx context.Co
 	err = waitConsoleFixture(ctx, "ARM-published Console URL", func(ctx context.Context) error {
 		requestCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 		defer cancel()
-		cluster, err := GetHCPCluster20240610(requestCtx, factory.NewHcpOpenShiftClustersClient(), resourceGroup, clusterName)
+		client := tc.Get20260901ClientFactoryOrDie(requestCtx).NewHcpOpenShiftClustersClient()
+		cluster, err := client.Get(ctx, resourceGroup, clusterName, nil)
 		if err != nil {
 			return consoleFixtureAPIError("get ARM cluster", err)
 		}
@@ -214,7 +215,7 @@ func (tc *perItOrDescribeTestContext) SetupConsoleFixture20240610(ctx context.Co
 		return fixture, err
 	}
 	ginkgo.GinkgoLogr.Info("Configuring fixture ExternalAuth", "name", fixture.Namespace)
-	_, err = CreateOrUpdateExternalAuthAndWait20240610(ctx, factory.NewExternalAuthsClient(), resourceGroup, clusterName, fixture.Namespace, objects.externalAuth, timeout)
+	_, err = CreateOrUpdateExternalAuthAndWait20260901(ctx, factory.NewExternalAuthsClient(), resourceGroup, clusterName, fixture.Namespace, objects.externalAuth, timeout)
 	if err != nil {
 		return fixture, consoleFixtureAPIError("configure Console ExternalAuth through RP", err)
 	}
@@ -371,7 +372,7 @@ type consoleFixtureObjects struct {
 	marker                   *corev1.ConfigMap
 	role                     *rbacv1.Role
 	binding                  *rbacv1.RoleBinding
-	externalAuth             hcpsdk20240610preview.ExternalAuth
+	externalAuth             hcpsdk20260901preview.ExternalAuth
 }
 
 func newConsoleFixtureObjects(f ConsoleFixture, clientSecret string, cert, key []byte) (*consoleFixtureObjects, error) {
@@ -423,13 +424,13 @@ func newConsoleFixtureObjects(f ConsoleFixture, clientSecret string, cert, key [
 			}},
 		},
 	}
-	o.externalAuth = hcpsdk20240610preview.ExternalAuth{Properties: &hcpsdk20240610preview.ExternalAuthProperties{
-		Issuer: &hcpsdk20240610preview.TokenIssuerProfile{URL: ptr.To(f.IssuerURL), CA: ptr.To(string(f.IssuerCA)), Audiences: []*string{ptr.To(f.Namespace)}},
-		Claim: &hcpsdk20240610preview.ExternalAuthClaimProfile{Mappings: &hcpsdk20240610preview.TokenClaimMappingsProfile{
-			Username: &hcpsdk20240610preview.UsernameClaimProfile{Claim: ptr.To("email"), PrefixPolicy: ptr.To(hcpsdk20240610preview.UsernameClaimPrefixPolicyPrefix), Prefix: ptr.To(f.Namespace + ":")},
-			Groups:   &hcpsdk20240610preview.GroupClaimProfile{Claim: ptr.To("groups")},
+	o.externalAuth = hcpsdk20260901preview.ExternalAuth{Properties: &hcpsdk20260901preview.ExternalAuthProperties{
+		Issuer: &hcpsdk20260901preview.TokenIssuerProfile{URL: ptr.To(f.IssuerURL), CA: ptr.To(string(f.IssuerCA)), Audiences: []*string{ptr.To(f.Namespace)}},
+		Claim: &hcpsdk20260901preview.ExternalAuthClaimProfile{Mappings: &hcpsdk20260901preview.TokenClaimMappingsProfile{
+			Username: &hcpsdk20260901preview.UsernameClaimProfile{Claim: ptr.To("email"), PrefixPolicy: ptr.To(hcpsdk20260901preview.UsernameClaimPrefixPolicyPrefix), Prefix: ptr.To(f.Namespace + ":")},
+			Groups:   &hcpsdk20260901preview.GroupClaimProfile{Claim: ptr.To("groups")},
 		}},
-		Clients: []*hcpsdk20240610preview.ExternalAuthClientProfile{{ClientID: ptr.To(f.Namespace), Type: ptr.To(hcpsdk20240610preview.ExternalAuthClientTypeConfidential), ExtraScopes: []*string{ptr.To("email")}, Component: &hcpsdk20240610preview.ExternalAuthClientComponentProfile{Name: ptr.To("console"), AuthClientNamespace: ptr.To("openshift-console")}}},
+		Clients: []*hcpsdk20260901preview.ExternalAuthClientProfile{{ClientID: ptr.To(f.Namespace), Type: ptr.To(hcpsdk20260901preview.ExternalAuthClientTypeConfidential), ExtraScopes: []*string{ptr.To("email")}, Component: &hcpsdk20260901preview.ExternalAuthClientComponentProfile{Name: ptr.To("console"), AuthClientNamespace: ptr.To("openshift-console")}}},
 	}}
 	return o, nil
 }
