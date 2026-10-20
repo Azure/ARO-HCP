@@ -32,40 +32,49 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
-func CaptureImagePullFailureDiagnostics(ctx context.Context, verificationErr error, client kubernetes.Interface, namespace, podName, artifactDir string) {
-	if verificationErr == nil {
+// CapturePodFailureDiagnostics collects restricted Pod YAML and associated events for
+// one named pod when failureErr is non-nil; nil is a no-op. Call it before cleanup
+// and assert the original failure afterward. Collection is best effort and uses an
+// independent DefaultDiagnoseTimeout budget even if ctx has been canceled.
+// Artifacts are written under artifactDir/pod-diagnostics/<namespace>/<podName>,
+// falling back to GinkgoWriter when artifactDir is empty or writing fails. Pod spec
+// and metadata are restricted to diagnostic fields; status and events are retained.
+// Secret resources and pod logs are not fetched. Callers should use test workloads
+// that do not expose credentials in status or event messages.
+func CapturePodFailureDiagnostics(ctx context.Context, failureErr error, client kubernetes.Interface, namespace, podName, artifactDir string) {
+	if failureErr == nil {
 		return
 	}
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), DefaultDiagnoseTimeout)
 	defer cancel()
-	captureImagePullDiagnostics(ctx, client, namespace, podName, artifactDir)
+	capturePodDiagnostics(ctx, client, namespace, podName, artifactDir)
 }
 
-func captureImagePullDiagnostics(ctx context.Context, client kubernetes.Interface, namespace, podName, artifactDir string) {
+func capturePodDiagnostics(ctx context.Context, client kubernetes.Interface, namespace, podName, artifactDir string) {
 	selector := fields.Set{"involvedObject.kind": "Pod", "involvedObject.name": podName}
 	pod, err := client.CoreV1().Pods(namespace).Get(ctx, podName, metav1.GetOptions{})
 	if err != nil {
-		ginkgo.GinkgoWriter.Printf("[image-pull diagnostics] pod %s/%s unavailable: %s\n", namespace, podName, imagePullDiagnosticError(err))
+		ginkgo.GinkgoWriter.Printf("[pod diagnostics] pod %s/%s unavailable: %s\n", namespace, podName, podDiagnosticError(err))
 	} else {
 		if pod.UID != "" {
 			selector["involvedObject.uid"] = string(pod.UID)
 		}
-		writeImagePullDiagnostic(artifactDir, namespace, podName, "pod.yaml", imagePullDiagnosticPod(pod))
+		writePodDiagnostic(artifactDir, namespace, podName, "pod.yaml", podDiagnosticPod(pod))
 	}
 
 	events, err := client.CoreV1().Events(namespace).List(ctx, metav1.ListOptions{FieldSelector: selector.String()})
 	if err != nil {
-		ginkgo.GinkgoWriter.Printf("[image-pull diagnostics] events for %s/%s unavailable: %s\n", namespace, podName, imagePullDiagnosticError(err))
+		ginkgo.GinkgoWriter.Printf("[pod diagnostics] events for %s/%s unavailable: %s\n", namespace, podName, podDiagnosticError(err))
 		return
 	}
 	events.TypeMeta = metav1.TypeMeta{APIVersion: "v1", Kind: "EventList"}
 	for index := range events.Items {
-		events.Items[index].ObjectMeta = imagePullDiagnosticMetadata(events.Items[index].ObjectMeta)
+		events.Items[index].ObjectMeta = podDiagnosticMetadata(events.Items[index].ObjectMeta)
 	}
-	writeImagePullDiagnostic(artifactDir, namespace, podName, "events.yaml", events)
+	writePodDiagnostic(artifactDir, namespace, podName, "events.yaml", events)
 }
 
-func imagePullDiagnosticError(err error) string {
+func podDiagnosticError(err error) string {
 	for _, contextErr := range []error{context.Canceled, context.DeadlineExceeded} {
 		if errors.Is(err, contextErr) {
 			return contextErr.Error()
@@ -77,17 +86,17 @@ func imagePullDiagnosticError(err error) string {
 	return "request failed"
 }
 
-func imagePullDiagnosticMetadata(metadata metav1.ObjectMeta) metav1.ObjectMeta {
+func podDiagnosticMetadata(metadata metav1.ObjectMeta) metav1.ObjectMeta {
 	return metav1.ObjectMeta{
 		Name: metadata.Name, Namespace: metadata.Namespace, UID: metadata.UID,
 		CreationTimestamp: metadata.CreationTimestamp,
 	}
 }
 
-func imagePullDiagnosticPod(pod *corev1.Pod) *corev1.Pod {
+func podDiagnosticPod(pod *corev1.Pod) *corev1.Pod {
 	result := &corev1.Pod{
 		TypeMeta:   metav1.TypeMeta{APIVersion: "v1", Kind: "Pod"},
-		ObjectMeta: imagePullDiagnosticMetadata(pod.ObjectMeta),
+		ObjectMeta: podDiagnosticMetadata(pod.ObjectMeta),
 		Spec: corev1.PodSpec{
 			NodeName:           pod.Spec.NodeName,
 			ServiceAccountName: pod.Spec.ServiceAccountName,
@@ -109,22 +118,22 @@ func imagePullDiagnosticPod(pod *corev1.Pod) *corev1.Pod {
 	return result
 }
 
-func writeImagePullDiagnostic(artifactDir, namespace, podName, name string, object interface{}) {
+func writePodDiagnostic(artifactDir, namespace, podName, name string, object interface{}) {
 	data, err := yaml.Marshal(object)
 	if err != nil {
-		ginkgo.GinkgoWriter.Printf("[image-pull diagnostics] could not encode %s\n", name)
+		ginkgo.GinkgoWriter.Printf("[pod diagnostics] could not encode %s\n", name)
 		return
 	}
 	if artifactDir != "" {
-		directory := filepath.Join(artifactDir, "image-pull-test", namespace, podName)
+		directory := filepath.Join(artifactDir, "pod-diagnostics", namespace, podName)
 		if err := os.MkdirAll(directory, 0700); err == nil {
 			path := filepath.Join(directory, name)
 			if err := os.WriteFile(path, data, 0600); err == nil {
-				ginkgo.GinkgoWriter.Printf("[image-pull diagnostics] wrote %s (pod spec and metadata restricted to diagnostic fields)\n", path)
+				ginkgo.GinkgoWriter.Printf("[pod diagnostics] wrote %s (pod spec and metadata restricted to diagnostic fields)\n", path)
 				return
 			}
 		}
-		ginkgo.GinkgoWriter.Printf("[image-pull diagnostics] could not write %s; logging instead\n", name)
+		ginkgo.GinkgoWriter.Printf("[pod diagnostics] could not write %s; logging instead\n", name)
 	}
-	fmt.Fprintf(ginkgo.GinkgoWriter, "[image-pull diagnostics] %s/%s/%s (pod spec and metadata restricted to diagnostic fields)\n%s\n", namespace, podName, name, data)
+	fmt.Fprintf(ginkgo.GinkgoWriter, "[pod diagnostics] %s/%s/%s (pod spec and metadata restricted to diagnostic fields)\n%s\n", namespace, podName, name, data)
 }
