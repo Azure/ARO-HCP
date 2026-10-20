@@ -25,6 +25,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	operationtesting "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils/operationtesting"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/validationutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 )
@@ -122,6 +123,29 @@ func TestClusterValidationOperationState(t *testing.T) {
 			validations: []metav1.Condition{{Type: "Subnet", Status: metav1.ConditionUnknown, Reason: "InternalError"}},
 			wantState:   coreapi.ProvisioningStateProvisioning, wantCode: coreapi.CloudErrorCodeInvalidResource,
 			wantMessage: "Subnet: InternalError",
+		},
+		{
+			name: "SMI permissions validation failure alone is excluded from gating",
+			validations: []metav1.Condition{
+				condition(validationutils.ServiceManagedIdentityPermissionsClusterValidationName, metav1.ConditionFalse, time.Hour),
+			},
+			wantState: coreapi.ProvisioningStateSucceeded,
+		},
+		{
+			name: "old SMI permissions validation failure does not fail the operation",
+			validations: []metav1.Condition{
+				condition(validationutils.ServiceManagedIdentityPermissionsClusterValidationName, metav1.ConditionFalse, 11*time.Minute),
+			},
+			wantState: coreapi.ProvisioningStateSucceeded,
+		},
+		{
+			name: "SMI permissions validation failure does not mask or gate other failures",
+			validations: []metav1.Condition{
+				condition(validationutils.ServiceManagedIdentityPermissionsClusterValidationName, metav1.ConditionFalse, time.Hour),
+				condition("Subnet", metav1.ConditionFalse, 4*time.Minute),
+			},
+			wantState: coreapi.ProvisioningStateProvisioning, wantCode: coreapi.CloudErrorCodeInvalidResource,
+			wantMessage: "Subnet: ValidationResult: Subnet details",
 		},
 	}
 	for _, tt := range tests {
