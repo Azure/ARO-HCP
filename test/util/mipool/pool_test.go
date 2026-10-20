@@ -54,6 +54,16 @@ func TestNew(t *testing.T) {
 			containers: "   ",
 			wantErr:    true,
 		},
+		{
+			name:       "duplicate container",
+			containers: "rg-00 rg-01 rg-00",
+			wantErr:    true,
+		},
+		{
+			name:       "duplicate container different case",
+			containers: "rg-00 RG-00",
+			wantErr:    true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -346,8 +356,14 @@ func TestReleaseWithCleanupError(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error from cleanup failure, got nil")
 	}
-	if p.Free() != 2 {
-		t.Fatalf("Free() = %d, want 2 (containers returned despite cleanup error)", p.Free())
+	if p.Free() != 1 {
+		t.Fatalf("Free() = %d, want 1 (only the successfully cleaned container returned)", p.Free())
+	}
+	if got := p.Quarantined(); len(got) != 1 || got[0] != "rg-00" {
+		t.Fatalf("Quarantined() = %v, want [rg-00]", got)
+	}
+	if p.Size() != 2 {
+		t.Fatalf("Size() = %d, want 2 (quarantined container still counted)", p.Size())
 	}
 }
 

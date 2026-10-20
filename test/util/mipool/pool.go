@@ -43,20 +43,31 @@ const AssignedMIContainersEnvvar = "ASSIGNED_MI_CONTAINERS"
 // mutex protects the free/assigned bookkeeping but is never held during
 // network calls — callers must perform Azure cleanup outside of Allocate/Release.
 type Pool struct {
-	mu        sync.Mutex
-	free      []string
-	assigned  map[string][]string // testName -> container RG names
-	releasing map[int][]string    // in-flight ReleaseWithCleanup ownership
-	nextRel   int
+	mu          sync.Mutex
+	free        []string
+	assigned    map[string][]string // testName -> container RG names
+	releasing   map[int][]string    // in-flight ReleaseWithCleanup ownership
+	quarantined []string            // cleanup failed; held out of Allocate until resolved
+	nextRel     int
 }
 
 // New creates a pool from the space-separated container resource group names
-// in the LEASED_MSI_CONTAINERS environment variable value. Returns an error
-// if containers is empty.
+// in containers. Returns an error if containers is empty or contains
+// duplicate resource group names — checked case-insensitively, since Azure
+// resource group names are case-insensitive, so a duplicate would otherwise
+// let two tests be handed the same underlying container.
 func New(containers string) (*Pool, error) {
 	names := strings.Fields(containers)
 	if len(names) == 0 {
 		return nil, fmt.Errorf("no MI containers provided")
+	}
+	seen := make(map[string]string, len(names))
+	for _, name := range names {
+		key := strings.ToLower(name)
+		if dup, ok := seen[key]; ok {
+			return nil, fmt.Errorf("duplicate MI container %q (also given as %q)", name, dup)
+		}
+		seen[key] = name
 	}
 	free := make([]string, len(names))
 	copy(free, names)
@@ -114,12 +125,13 @@ func (p *Pool) Release(testName string) error {
 	return nil
 }
 
-// ReleaseWithCleanup runs cleanupFn on each container assigned to testName,
-// then returns all containers to the free pool. Cleanup errors are collected
-// but do not prevent the containers from being returned — a best-effort
-// approach that avoids permanently leaking pool capacity. The next startup
-// sweep (CleanupAllContainers) will catch any residual state left by a
-// failed cleanup.
+// ReleaseWithCleanup runs cleanupFn on each container assigned to testName.
+// Containers for which cleanupFn succeeds are returned to the free pool;
+// containers for which it fails are quarantined (held out of Allocate)
+// instead, since they may still carry residual FICs or role assignments —
+// handing one to the next test immediately could leak that state into it,
+// and CleanupAllContainers only sweeps at process startup. Quarantined
+// containers are visible via Quarantined() so a caller can retry or alert.
 func (p *Pool) ReleaseWithCleanup(testName string, cleanupFn func(resourceGroup string) error) error {
 	p.mu.Lock()
 	containers, exists := p.assigned[testName]
@@ -136,9 +148,11 @@ func (p *Pool) ReleaseWithCleanup(testName string, cleanupFn func(resourceGroup 
 	p.releasing[id] = copied
 	p.mu.Unlock()
 
+	var cleaned, failed []string
 	defer func() {
 		p.mu.Lock()
-		p.free = append(p.free, copied...)
+		p.free = append(p.free, cleaned...)
+		p.quarantined = append(p.quarantined, failed...)
 		delete(p.releasing, id)
 		p.mu.Unlock()
 	}()
@@ -147,7 +161,10 @@ func (p *Pool) ReleaseWithCleanup(testName string, cleanupFn func(resourceGroup 
 	for _, rg := range copied {
 		if err := cleanupFn(rg); err != nil {
 			errs = append(errs, fmt.Errorf("cleanup %s: %w", rg, err))
+			failed = append(failed, rg)
+			continue
 		}
+		cleaned = append(cleaned, rg)
 	}
 
 	if len(errs) > 0 {
@@ -167,7 +184,7 @@ func (p *Pool) Free() int {
 func (p *Pool) Size() int {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	return len(p.free) + p.assignedCount() + p.releasingCount()
+	return len(p.free) + p.assignedCount() + p.releasingCount() + len(p.quarantined)
 }
 
 func (p *Pool) assignedCount() int {
@@ -194,12 +211,20 @@ func (p *Pool) Allocated(testName string) []string {
 	return slices.Clone(p.assigned[testName])
 }
 
+// Quarantined returns the containers currently held out of the free pool
+// because a previous ReleaseWithCleanup cleanup attempt failed for them.
+func (p *Pool) Quarantined() []string {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return slices.Clone(p.quarantined)
+}
+
 // AllContainers returns every container resource group name in the pool,
 // regardless of assignment state.
 func (p *Pool) AllContainers() []string {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	all := make([]string, 0, len(p.free)+p.assignedCount()+p.releasingCount())
+	all := make([]string, 0, len(p.free)+p.assignedCount()+p.releasingCount()+len(p.quarantined))
 	all = append(all, p.free...)
 	for _, v := range p.assigned {
 		all = append(all, v...)
@@ -207,6 +232,7 @@ func (p *Pool) AllContainers() []string {
 	for _, v := range p.releasing {
 		all = append(all, v...)
 	}
+	all = append(all, p.quarantined...)
 	return all
 }
 
