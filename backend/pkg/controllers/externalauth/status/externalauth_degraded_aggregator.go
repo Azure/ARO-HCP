@@ -93,6 +93,10 @@ func NewExternalAuthDegradedAggregatorController(
 	// Aggregate all conditions; controller and desire names are not a fixed set.
 	controller.AddInterestingResource(coreapi.ExternalAuthResourceType, "*")
 	controller.AddInterestingResource(coreapi.ExternalAuthControllerResourceType, "*")
+	controllerInformer, _ := informers.Controllers()
+	if err := controller.QueueForChildInformers(0, controllerInformer); err != nil {
+		panic(err)
+	}
 
 	return controller
 }

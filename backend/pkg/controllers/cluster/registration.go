@@ -737,7 +737,7 @@ func instantiateCreateClusterScopedReadDesiresController(controllerContext contr
 	_, unionReadDesireLister := controllerContext.UnionKubeApplierInformers.ReadDesires()
 	return clusterreaddesires.NewCreateClusterScopedReadDesiresController(
 		activeOperationLister, controllerContext.ResourcesDBClient, controllerContext.KubeApplierDBClients,
-		serviceProviderClusterLister, unionReadDesireLister,
+		serviceProviderClusterLister, unionReadDesireLister, controllerContext.UnionKubeApplierInformers,
 		controllerContext.BackendInformers, controllerContext.MaestroSourceEnvironmentIdentifier,
 	), nil
 }
@@ -848,7 +848,7 @@ func instantiateClusterCredentialDeletionMarkerController(controllerContext cont
 func registerClusterChildResourcesCleanupController() controllerconfig.ControllerRegistration {
 	return controllerconfig.ControllerRegistration{
 		Workers:     20,
-		Instantiate: controllerconfig.WithCacheSyncs(instantiateClusterChildResourcesCleanupController, false),
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateClusterChildResourcesCleanupController, true),
 	}
 }
 
@@ -857,13 +857,14 @@ func instantiateClusterChildResourcesCleanupController(controllerContext control
 		controllerContext.ResourcesDBClient,
 		controllerContext.KubeApplierDBClients,
 		controllerContext.BackendInformers,
+		controllerContext.UnionKubeApplierInformers,
 	), nil
 }
 
 func registerClusterDeletionController() controllerconfig.ControllerRegistration {
 	return controllerconfig.ControllerRegistration{
 		Workers:     20,
-		Instantiate: controllerconfig.WithCacheSyncs(instantiateClusterDeletionController, false),
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateClusterDeletionController, true),
 	}
 }
 
@@ -874,6 +875,7 @@ func instantiateClusterDeletionController(controllerContext controllerconfig.Con
 		controllerContext.BillingDBClient,
 		controllerContext.BackendInformers,
 		controllerContext.KubeApplierDBClients,
+		controllerContext.UnionKubeApplierInformers,
 	), nil
 }
 

@@ -36,6 +36,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
+	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -79,6 +80,7 @@ func NewCreateClusterScopedReadDesiresController(
 	kubeApplierDBClients kubeappliercosmosstorage.KubeApplierDBClients,
 	serviceProviderClusterLister corelisters.ServiceProviderClusterLister,
 	readDesireLister kubeapplierlisters.ReadDesireLister,
+	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 	informers coreinformers.BackendInformers,
 	hostedClusterNamespaceEnvIdentifier string,
 ) controllerutils.Controller {
@@ -95,7 +97,7 @@ func NewCreateClusterScopedReadDesiresController(
 		CreateClusterScopedReadDesiresControllerName,
 		resourcesDBClient,
 		informers,
-		nil,
+		kubeApplierInformers,
 		1*time.Minute,
 		syncer,
 	)

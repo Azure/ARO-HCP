@@ -69,6 +69,11 @@ func NewMinorUpgradeNormalClusterDesiredVersionController(clock utilsclock.Passi
 	controller.AddInterestingResource(fleetapi.ControlPlaneVersionRolloutResourceType, "*")
 	controller.AddInterestingResource(coreapi.NodePoolResourceType, "*")
 	controller.AddInterestingResource(coreapi.ServiceProviderNodePoolResourceType, coreapi.ServiceProviderNodePoolResourceName)
+	nodePoolInformer, _ := informers.NodePools()
+	serviceProviderNodePoolInformer, _ := informers.ServiceProviderNodePools()
+	if err := controller.QueueForDescendantInformers(0, 2, nodePoolInformer, serviceProviderNodePoolInformer); err != nil {
+		panic(err)
+	}
 
 	if enqueuer, ok := controller.(controllerutils.AfterEnqueuer); ok {
 		syncer.enqueueAfter = enqueuer

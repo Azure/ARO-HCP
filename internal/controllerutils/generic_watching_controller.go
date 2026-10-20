@@ -207,6 +207,28 @@ func (c *GenericWatchingController[T]) QueueForInformers(resyncDuration time.Dur
 // maxDepth -1 (or any negative value) means no limit. The parent walk continues until a match or nil parent is reached.
 // It is exposed so that individual controllers can add other items to requeue based on easily.
 func (c *GenericWatchingController[T]) QueueForInformersWithMaxDepth(resyncDuration time.Duration, maxDepth int, notifiers ...Notifier) error {
+	return c.queueForInformers(resyncDuration, maxDepth, notifiers...)
+}
+
+// QueueForChildInformers subscribes to direct children of the controller's key
+// resource. Like all generic watches, it observes deletions:
+// removing a child can unblock teardown or change a status aggregate. Resource
+// interests still filter the original child before the one-hop owner mapping.
+func (c *GenericWatchingController[T]) QueueForChildInformers(resyncDuration time.Duration, notifiers ...Notifier) error {
+	return c.queueForInformers(resyncDuration, 1, notifiers...)
+}
+
+// QueueForDescendantInformers extends child mapping to an explicit depth, for
+// controllers consuming both direct children and node-pool-nested documents.
+// It uses resource IDs already carried by the event; no lookup is required.
+func (c *GenericWatchingController[T]) QueueForDescendantInformers(resyncDuration time.Duration, maxDepth int, notifiers ...Notifier) error {
+	if maxDepth < 1 {
+		return fmt.Errorf("descendant watches require a positive maximum depth")
+	}
+	return c.queueForInformers(resyncDuration, maxDepth, notifiers...)
+}
+
+func (c *GenericWatchingController[T]) queueForInformers(resyncDuration time.Duration, maxDepth int, notifiers ...Notifier) error {
 	errs := []error{}
 
 	logger := utils.DefaultLogger()
@@ -215,16 +237,41 @@ func (c *GenericWatchingController[T]) QueueForInformersWithMaxDepth(resyncDurat
 	)
 
 	for _, notifier := range notifiers {
-		_, err := notifier.AddEventHandlerWithOptions(
-			cache.ResourceEventHandlerFuncs{
-				AddFunc:    c.enqueueCosmosAddFunc(maxDepth),
-				UpdateFunc: c.enqueueCosmosUpdateFunc(maxDepth),
-			},
+		handler := cache.ResourceEventHandlerFuncs{
+			AddFunc:    c.enqueueCosmosAddFunc(maxDepth),
+			UpdateFunc: c.enqueueCosmosUpdateFunc(maxDepth),
+		}
+		handler.DeleteFunc = func(obj any) {
+			switch tombstone := obj.(type) {
+			case cache.DeletedFinalStateUnknown:
+				obj = tombstone.Obj
+			case *cache.DeletedFinalStateUnknown:
+				if tombstone == nil {
+					return
+				}
+				obj = tombstone.Obj
+			}
+			if resource, ok := obj.(coreapi.CosmosPersistable); ok && resource.GetCosmosData() != nil {
+				c.EnqueueResourceIDAddWithMaxDepth(resource.GetCosmosData().GetResourceID(), true, maxDepth)
+			}
+		}
+		registration, err := notifier.AddEventHandlerWithOptions(
+			handler,
 			cache.HandlerOptions{
 				Logger:       &logger,
 				ResyncPeriod: ptr.To(resyncDuration),
 			})
 		errs = append(errs, err)
+		if err == nil {
+			// Sources can be ordinary informers or a union notifier. The union's
+			// aggregate discovery barrier remains supplied by WithCacheSyncs.
+			if source, ok := notifier.(interface{ HasSynced() bool }); ok {
+				c.AddCacheSyncs(source.HasSynced)
+			}
+			if registration != nil {
+				c.AddCacheSyncs(registration.HasSynced)
+			}
+		}
 	}
 	return errors.Join(errs...)
 }

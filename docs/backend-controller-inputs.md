@@ -35,10 +35,10 @@ primary-resource resync or existing explicit callbacks:
 - Cluster wrappers receive Cluster, ServiceProviderCluster, direct cluster
   ManagementClusterContent, and optional direct cluster ApplyDesire/ReadDesire
   events. Node-pool wrappers receive the analogous node-pool events. Status
-  aggregators' Controller-document lists are still polled.
+  aggregators explicitly subscribe to their direct Controller-document children.
 - External-auth wrappers receive ExternalAuth events. Credential wrappers receive
-  their request/revocation and optional direct ReadDesire events; ApplyDesire
-  cleanup progress is still polled.
+  their request/revocation and optional direct ReadDesire and ApplyDesire events;
+  concrete controllers select relevant desire types/names through interests.
 - Subscription wrappers receive Subscription events; management-cluster wrappers
   receive ManagementCluster events. Their descendant collections are polled.
 - Rollout wrappers receive ControlPlaneVersionRollout events. StatusCollector and
@@ -55,6 +55,33 @@ retain the same causal edges. Filtering removes unrelated wake-ups, not reads or
 reconciliation steps.
 
 ## Cluster and credential controllers
+
+### Direct child subscriptions
+
+`QueueForChildInformers` subscribes to child events with a one-hop owner mapping
+and the existing type/name interest filter. All generic watches handle add/update and
+delete/tombstone events, and wait for source and handler cache synchronization.
+Union consumers also retain their aggregate discovery barrier.
+Supplementary subscriptions use zero resync: only the primary watch retains its
+existing periodic reconciliation cadence. Source cache events still enqueue immediately.
+
+- The three degraded aggregators watch their scoped Controller documents.
+- Cluster/node-pool ReadDesire creators watch their named mirrors.
+- Credential request/revocation desire creators and cleanup controllers watch
+  their direct ApplyDesires.
+- Cluster credential marking watches request/revocation children.
+- Cluster child cleanup and final deletion watch node pools, external auths,
+  requests/revocations, and direct cluster desires (ApplyDesire only for final
+  deletion; ApplyDesire and ReadDesire for child cleanup).
+- ClusterResources watches node pools only. Desire changes remain observed on
+  its existing primary-resource cadence to avoid amplifying live Cluster Service
+  resource fetches. Minor-upgrade reconciliation watches node pools and
+  their provider-state documents with a two-hop limit. Keys come directly from
+  event resource-ID ancestors, without live reads or cache scans.
+
+These subscriptions promptly observe existing dependencies; parent/sibling and
+Fleet dependencies still require reverse lookup/fan-out. Delete/tombstone handling
+and source/handler readiness are standard across all generic watch APIs.
 
 | Constructor source | Explicit resource inputs | Collection rationale and additional inputs |
 |---|---|---|

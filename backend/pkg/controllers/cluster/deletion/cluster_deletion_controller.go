@@ -35,6 +35,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -62,6 +63,7 @@ func NewClusterDeletionController(
 	billingDBClient billingcosmosstorage.BillingDBClient,
 	informers coreinformers.BackendInformers,
 	kubeApplierDBClients kubeappliercosmosstorage.KubeApplierDBClients,
+	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 ) controllerutils.Controller {
 	_, clusterLister := informers.Clusters()
 	_, serviceProviderClusterLister := informers.ServiceProviderClusters()
@@ -78,7 +80,7 @@ func NewClusterDeletionController(
 		ClusterDeletionControllerControllerName,
 		resourcesDBClient,
 		informers,
-		nil,
+		kubeApplierInformers,
 		time.Minute,
 		syncer,
 	)
@@ -91,6 +93,13 @@ func NewClusterDeletionController(
 	controller.AddInterestingResource(coreapi.SystemAdminCredentialRevocationResourceType, "*")
 	controller.AddInterestingResource(coreapi.ClusterScopedManagementClusterContentResourceType, "*")
 	controller.AddInterestingResource(kubeapplierapi.ClusterScopedApplyDesireResourceType, "*")
+	nodePoolInformer, _ := informers.NodePools()
+	externalAuthInformer, _ := informers.ExternalAuths()
+	requestInformer, _ := informers.SystemAdminCredentialRequests()
+	revocationInformer, _ := informers.SystemAdminCredentialRevocations()
+	if err := controller.QueueForChildInformers(0, nodePoolInformer, externalAuthInformer, requestInformer, revocationInformer); err != nil {
+		panic(err)
+	}
 
 	return controller
 }
