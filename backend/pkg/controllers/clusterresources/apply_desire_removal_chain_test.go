@@ -46,7 +46,7 @@ import (
 )
 
 // classifiableResources is one kube object per desire name classifyClusterResource
-// can produce. It is the input to the coverage test below, which is the only
+// can recognize (including names handed off to dedicated controllers). It is the input to the coverage test below, which is the only
 // thing keeping the destruct chain's claim sets honest: a new resource type
 // added to classifyClusterResource but not assigned to a step would otherwise
 // only surface as a log line on a cluster that is already deleting.
@@ -109,6 +109,9 @@ func TestApplyDesireDestructChainCoversEveryDesireName(t *testing.T) {
 
 		result, err := classifyClusterResource(&obj)
 		require.NoError(t, err, "fixture should classify: %s", resource)
+		if managedByKubeAPIServerServingCertificate(result.desireName) {
+			continue
+		}
 		classified[strings.ToLower(result.desireName)] = result.desireName
 	}
 	claimed := claimedDesireNames()
@@ -759,4 +762,55 @@ func TestDeleteAllOwnedApplyDesires(t *testing.T) {
 		_, err = readDesireCRUD.Get(ctx, DesireNamePodNetwork)
 		assert.Error(t, err, "orphaned PodNetwork ReadDesire should be swept")
 	})
+}
+
+// An older owner tag must not let stale cleanup or cluster deletion race with
+// adoption by the dedicated kube-apiserver serving certificate controller.
+func TestKubeAPIServerServingCertificateDesiresAreIgnored(t *testing.T) {
+	for _, owner := range []string{ClusterResourcesControllerName, "KubeAPIServerServingCertificate"} {
+		t.Run(owner, func(t *testing.T) {
+			ctx := t.Context()
+			names := []string{DesireNameKubeAPIServerServingCertSecretSync, DesireNameKubeAPIServerServingCertSecretProviderClass}
+			desires := []*kubeapplierapi.ApplyDesire{newOwnedClusterDesire(names[0]), newOwnedClusterDesire(names[1])}
+			for _, desire := range desires {
+				desire.Tags[kubeapplierapi.TagControllerName] = owner
+			}
+			fixture := newDestructFixture(t, ctx, "nodepool", desires...)
+			readCRUD, err := fixture.mockKubeApplierClient.ReadDesiresForCluster(testSubscriptionID, testResourceGroupName, testClusterName)
+			require.NoError(t, err)
+			for _, name := range names {
+				read := &kubeapplierapi.ReadDesire{
+					CosmosMetadata: coreapi.CosmosMetadata{
+						ResourceID:   metadataapi.Must(azcorearm.ParseResourceID(kubeapplierapihelpers.ToClusterScopedReadDesireResourceIDString(testSubscriptionID, testResourceGroupName, testClusterName, name))),
+						PartitionKey: strings.ToLower(testManagementClusterResourceID.String()),
+					},
+					Spec: kubeapplierapi.ReadDesireSpec{ManagementCluster: testManagementClusterResourceID},
+					Tags: map[string]string{kubeapplierapi.TagControllerName: owner},
+				}
+				_, err := readCRUD.Create(ctx, read, nil)
+				require.NoError(t, err)
+			}
+			require.NoError(t, fixture.controller.deleteStaleApplyDesires(ctx, testKey(), testManagementClusterResourceID, map[string]bool{}))
+			require.NoError(t, fixture.controller.deleteAllOwnedApplyDesires(ctx, testKey(), testManagementClusterResourceID))
+			for _, name := range names {
+				actual, err := fixture.clusterCRUD.Get(ctx, name)
+				require.NoError(t, err)
+				require.Equal(t, kubeapplierapi.ApplyDesireTypeServerSideApply, actual.Spec.Type)
+				require.Equal(t, owner, actual.Tags[kubeapplierapi.TagControllerName])
+				_, err = readCRUD.Get(ctx, name)
+				require.NoError(t, err)
+			}
+			// Even an orphan read desire is left to its dedicated controller.
+			applyCRUD, err := fixture.mockKubeApplierClient.ApplyDesiresForCluster(testSubscriptionID, testResourceGroupName, testClusterName)
+			require.NoError(t, err)
+			for _, name := range names {
+				require.NoError(t, applyCRUD.Delete(ctx, name))
+			}
+			require.NoError(t, fixture.controller.deleteAllOwnedApplyDesires(ctx, testKey(), testManagementClusterResourceID))
+			for _, name := range names {
+				_, err = readCRUD.Get(ctx, name)
+				require.NoError(t, err)
+			}
+		})
+	}
 }

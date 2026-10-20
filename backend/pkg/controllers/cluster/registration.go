@@ -957,6 +957,13 @@ func registerIngressCertificateController() controllerconfig.ControllerRegistrat
 	}
 }
 
+func registerKubeAPIServerServingCertificateController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{
+		Workers:     20,
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateKubeAPIServerServingCertificateController, true),
+	}
+}
+
 func registerKubeAPIServerTLSCertificateController() controllerconfig.ControllerRegistration {
 	return controllerconfig.ControllerRegistration{
 		Workers:     20,
@@ -986,6 +993,19 @@ func instantiateIngressTLSCertificateController(controllerContext controllerconf
 func instantiateIngressCertificateController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
 	_, managementClusterLister := controllerContext.FleetInformers.ManagementClusters()
 	return clusterk8sresources.NewIngressCertificateController(
+		controllerContext.ResourcesDBClient,
+		controllerContext.KubeApplierDBClients,
+		controllerContext.BackendInformers,
+		controllerContext.UnionKubeApplierInformers,
+		managementClusterLister,
+		controllerContext.ServiceTenantID,
+		string(controllerContext.CloudEnvironment.Name()),
+	), nil
+}
+
+func instantiateKubeAPIServerServingCertificateController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	_, managementClusterLister := controllerContext.FleetInformers.ManagementClusters()
+	return clusterk8sresources.NewKubeAPIServerServingCertificateController(
 		controllerContext.ResourcesDBClient,
 		controllerContext.KubeApplierDBClients,
 		controllerContext.BackendInformers,
@@ -1286,6 +1306,7 @@ func Register(registry map[string]controllerconfig.ControllerRegistration) {
 	registry[strings.ToLower(clusterplacement.PendingCleanupControllerName)] = registerPendingCleanupController()
 	registry[strings.ToLower(clusterbackups.BackupScheduleControllerName)] = registerBackupScheduleController()
 	registry[strings.ToLower(clusterk8sresources.IngressCertificateControllerName)] = registerIngressCertificateController()
+	registry[strings.ToLower(clusterk8sresources.KubeAPIServerServingCertificateControllerName)] = registerKubeAPIServerServingCertificateController()
 	registry[strings.ToLower(clusterazureresources.KubeAPIServerTLSCertificateControllerName)] = registerKubeAPIServerTLSCertificateController()
 	registry[strings.ToLower(clusterazureresources.IngressTLSCertificateControllerName)] = registerIngressTLSCertificateController()
 	registry[strings.ToLower(clusteridentity.FetchMSIIdentitiesInfoControllerName)] = registerFetchMSIIdentitiesInfoController()
