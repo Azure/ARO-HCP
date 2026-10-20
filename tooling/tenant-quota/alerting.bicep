@@ -23,7 +23,7 @@ var prowHighFrequencyMinRuns = 5
 var prowScheduledMinRuns = 3
 var prowHealthcheckMaxConsecutiveFailures = 6 // 6 runs × 2h interval = 12h sustained failure
 var prowE2EParallelMinSuccessfulRuns = 20
-var prowE2EParallelP95MaxSeconds = 9000 // 2h30m
+var prowE2EParallelP95MaxSeconds = 10800 // 3h
 var prowCollectionMaxAgeSeconds = 900 // 15 minutes
 var prowBatchMaxConsecutiveFailures = 4
 var prowInvalidJobsMaxPercentage = '0.10'
@@ -481,7 +481,7 @@ resource prowCIAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-0
           severity: 'warning'
         }
         annotations: {
-          summary: 'Prow e2e-parallel P95 duration exceeds 2h30m'
+          summary: 'Prow e2e-parallel P95 duration exceeds 3h'
           description: '{{ $labels.job_name }} successful-run P95 duration is {{ $value | humanizeDuration }} over the 24-hour window.'
           runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/ci/operations.md'
         }
