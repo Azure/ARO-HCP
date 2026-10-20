@@ -29,6 +29,10 @@ import (
 )
 
 func TestRenderPanelBrowserSelection(t *testing.T) {
+	assetPath := os.Getenv("ECHARTS_JS_PATH")
+	if assetPath == "" {
+		t.Skip("set ECHARTS_JS_PATH for real chart selection regression")
+	}
 	browser, err := exec.LookPath("google-chrome")
 	if err != nil {
 		t.Skip("google-chrome unavailable; skipping optional browser test")
@@ -37,21 +41,7 @@ func TestRenderPanelBrowserSelection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var asset []byte
-	if assetPath := os.Getenv("ECHARTS_JS_PATH"); assetPath != "" {
-		asset, err = os.ReadFile(assetPath)
-	} else {
-		client := &http.Client{Timeout: 30 * time.Second}
-		var response *http.Response
-		response, err = client.Get("https://go-echarts.github.io/go-echarts-assets/assets/echarts.min.js")
-		if err == nil {
-			defer response.Body.Close()
-			if response.StatusCode != http.StatusOK {
-				t.Fatalf("fetch ECharts: %s", response.Status)
-			}
-			asset, err = io.ReadAll(response.Body)
-		}
-	}
+	asset, err := os.ReadFile(assetPath)
 	if err != nil {
 		t.Fatalf("load ECharts for browser test: %v", err)
 	}
