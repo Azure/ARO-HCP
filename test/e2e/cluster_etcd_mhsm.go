@@ -48,6 +48,18 @@ var _ = Describe("Cluster Etcd Managed HSM Encryption", func() {
 		labels.CreateCluster,
 		labels.MIContainers(1),
 		func(ctx context.Context) {
+			// Timebomb: INT deploys a mocked Managed Identities Data Plane, so the KMS plugin
+			// authenticates as the mock MSI service principal, which must be granted the Managed HSM
+			// Crypto User role on the key. The CI step that exports MI_MOCK_PRINCIPAL_ID is not yet
+			// merged (openshift/release#87335); without it the mock-principal grant below is skipped,
+			// the etcd KMS encrypt call gets 403, and kube-apiserver never starts (DeadlineExceeded).
+			// Temporarily skip until the CI fix lands; after this date the test runs again and will
+			// fail loudly if #87335 still isn't in. Remove this guard once that PR has merged.
+			etcdMHSMTimeBombDeadline := framework.Must(time.Parse(time.RFC3339, "2026-10-27T00:00:00Z"))
+			if time.Now().Before(etcdMHSMTimeBombDeadline) {
+				Skip(fmt.Sprintf("etcd mHSM test temporarily disabled until %s pending openshift/release#87335 (MI_MOCK_PRINCIPAL_ID wiring)", etcdMHSMTimeBombDeadline.Format(time.RFC3339)))
+			}
+
 			const customerClusterName = "etcd-mhsm"
 
 			tc := framework.NewTestContext()
