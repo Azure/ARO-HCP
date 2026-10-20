@@ -363,15 +363,13 @@ type ServiceProviderClusterStatus struct {
 	// to use this at the point those are updated to support identity replacement.
 	ManagedIdentityDetails map[string]*ManagedIdentityMetadata `json:"managedIdentityDetails,omitempty"`
 
-	// RoleAssignmentsOverManagedResourceGroup tracks the desired and observed managed-resource-group
+	// RoleAssignmentsOverManagedResourceGroup tracks the desired managed-resource-group
 	// scoped role assignments for each control-plane operator, data-plane
 	// operator, and service managed identity role definition. The map key is
-	// PrincipalID and RoleDefinitionResourceID. That matches the Azure role
-	// assignment name, which is a UUIDv5 of scope, principal, and role
-	// definition. The identity resource ID lives on TargetIdentity. A resource
-	// path change for the same principal and role definition overwrites
-	// TargetIdentity and does not start a deconfigure. A PrincipalID change is
-	// a new key.
+	// PrincipalID and RoleDefinitionResourceID. The identity resource ID lives on
+	// TargetIdentity. A resource path change for the same principal and role
+	// definition overwrites TargetIdentity and does not start a deconfigure. A
+	// PrincipalID change is a new key.
 	// ClusterRoleAssignmentIntent adds desired keys once
 	// Status.ManagedIdentityDetails has a fully resolved source for that use:
 	// control-plane operators and the service managed identity use Managed
@@ -382,18 +380,17 @@ type ServiceProviderClusterStatus struct {
 	// Never ARM. Data-plane operators use ARM User Assigned Identities only.
 	// The same UAMI used as both a control-plane operator and a data-plane
 	// operator can therefore have two PrincipalIDs. TargetIdentity is copied
-	// from that source. Leftovers that still have a tracked Azure ID are stamped
-	// DeconfigureTimestamp. A resource path, ClientID, or TenantID change on the
-	// same key updates TargetIdentity; it does not deconfigure. A row that was
-	// never ensured is dropped instead of stamped. Unresolved ResourceIDs are
-	// not deconfigured.
-	// ClusterRoleAssignments creates, repairs drift, and deletes Azure role
-	// assignments after the 24h wait, then removes the map entry on a successful
-	// delete. Other controllers use the coreapihelpers.RoleAssignmentStatusConfigured,
-	// ServiceProviderClusterStatusRoleAssignmentConfigured,
-	// ServiceProviderClusterStatusIdentityRoleAssignmentsConfigured, and
-	// ServiceProviderClusterStatusDesiredRoleAssignmentsConfigured helpers, to
-	// know whether a principal's assignments exist in Azure. Cluster deletion is a no-op: role
+	// from that source. Leftovers are stamped DeconfigureTimestamp. A resource
+	// path, ClientID, or TenantID change on the same key updates TargetIdentity;
+	// it does not deconfigure. Unresolved ResourceIDs are not deconfigured.
+	// ClusterRoleAssignments renders every key still in this map (including
+	// draining ones inside their 24h wait) into one StackDesire ARM template, and
+	// drops a draining key from this map once that wait elapses, which removes it
+	// from the next template and lets the stack desires controller delete it from
+	// Azure. Other controllers use the
+	// coreapihelpers.ServiceProviderClusterStatusIdentityRoleAssignmentsConfigured
+	// helper, passing the published StackDesire, to know whether a principal's
+	// assignments are live in Azure. Cluster deletion is a no-op: role
 	// assignments are scoped to the managed resource group, so Azure deletes them
 	// in cascade when that resource group is removed.
 	// Written by: ClusterRoleAssignmentIntent, ClusterRoleAssignments
@@ -681,16 +678,20 @@ func (k *RoleAssignmentKey) UnmarshalText(text []byte) error {
 
 // RoleAssignmentStatus is the reconciliation state of one managed-resource-group
 // scoped role assignment on RoleAssignments. Each key maps to a single Azure
-// role assignment. Configure vs deconfigure is derived from DeconfigureTimestamp
-// and AzureResource; there is no stored phase.
+// role assignment. Configure vs deconfigure is derived from DeconfigureTimestamp;
+// there is no stored phase. Whether the assignment is actually live in Azure is
+// not stored here: it is read on demand from the StackDesire that
+// ClusterRoleAssignments publishes for the whole set, keyed by ReservedAzureResourceID.
 type RoleAssignmentStatus struct {
 	// DeconfigureTimestamp is when deconfigure of this role assignment was
 	// requested. Nil means the assignment is still desired. ClusterRoleAssignments
-	// waits 24 hours from this timestamp before deleting the Azure role assignment
-	// on a live cluster. Cleared when the key is required again. Successful
-	// deconfigure removes this key from RoleAssignments rather than clearing
-	// this field in place. Cluster deletion skips Azure deletes because the
-	// managed resource group cascade removes the role assignments.
+	// keeps rendering this key into the published StackDesire template for 24
+	// hours from this timestamp before dropping it from RoleAssignments on a live
+	// cluster, which removes it from the template and lets the stack desires
+	// controller delete it from Azure. Cleared when the key is required again.
+	// Dropping the key removes it from RoleAssignments rather than clearing this
+	// field in place. Cluster deletion skips this wait because the managed
+	// resource group cascade removes the role assignments.
 	// Written by: ClusterRoleAssignmentIntent
 	DeconfigureTimestamp *metav1.Time `json:"deconfigureTimestamp,omitempty"`
 	// TargetIdentity is the resource ID, ClientID, TenantID, and PrincipalID that
@@ -704,20 +705,15 @@ type RoleAssignmentStatus struct {
 	// the key left.
 	// Written by: ClusterRoleAssignmentIntent
 	TargetIdentity *RoleAssignmentTargetIdentity `json:"targetIdentity,omitempty"`
-	// PendingAzureResource is the role assignment resource ID that has been
-	// requested but not yet confirmed to exist in Azure. ClusterRoleAssignments
-	// persists this ID before Create, so a crash or replace failure cannot lose
-	// the tracked ID. Deconfigure also deletes a leftover ID here from a
-	// previous incomplete configure.
+	// ReservedAzureResourceID is the role assignment resource ID reserved for
+	// this key. ClusterRoleAssignments assigns it exactly once, the first time
+	// the key has none, and every later use (rendering the key into the
+	// StackDesire template, looking the key up in that StackDesire's observed
+	// Azure state) reads this persisted value rather than recomputing it. This
+	// is what lets the naming scheme change later without orphaning or
+	// duplicating an already-reserved assignment.
 	// Written by: ClusterRoleAssignments
-	PendingAzureResource *azcorearm.ResourceID `json:"pendingAzureResource,omitempty"`
-	// AzureResource is the role assignment resource ID that has been confirmed
-	// to exist in Azure. It moves from PendingAzureResource when the object
-	// exists with the expected principal and role definition. Successful
-	// deconfigure removes this key from RoleAssignments rather than clearing
-	// this field in place.
-	// Written by: ClusterRoleAssignments
-	AzureResource *azcorearm.ResourceID `json:"azureResource,omitempty"`
+	ReservedAzureResourceID *azcorearm.ResourceID `json:"reservedAzureResourceID,omitempty"`
 }
 
 // RoleAssignmentTargetIdentity is the identity generation ClusterRoleAssignmentIntent

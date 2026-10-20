@@ -44,6 +44,37 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+// newTestCluster builds a minimal Cluster addressable by the mock
+// ResourcesDBClient under testSubscriptionID/testResourceGroupName/testClusterName,
+// with opts applied afterward to customize it for a specific test.
+func newTestCluster(t *testing.T, opts func(*coreapi.Cluster)) *coreapi.Cluster {
+	t.Helper()
+	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
+		"/subscriptions/" + testSubscriptionID +
+			"/resourceGroups/" + testResourceGroupName +
+			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName))
+	cluster := &coreapi.Cluster{
+		TrackedResource: coreapi.TrackedResource{
+			Resource: coreapi.Resource{
+				ID:   resourceID,
+				Name: testClusterName,
+				Type: coreapi.ClusterResourceType.String(),
+			},
+		},
+		CosmosMetadata: coreapi.CosmosMetadata{
+			ResourceID:   resourceID,
+			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
+		},
+		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
+			UsesNewClusterDeletionApproach: true,
+		},
+	}
+	if opts != nil {
+		opts(cluster)
+	}
+	return cluster
+}
+
 func TestClusterChildResourcesCleanupController_SyncOnce(t *testing.T) {
 	managementClusterResourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/providers/microsoft.redhatopenshift/stamps/1/managementclusters/default"))

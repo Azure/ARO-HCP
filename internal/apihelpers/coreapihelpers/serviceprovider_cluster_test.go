@@ -15,14 +15,15 @@
 package coreapihelpers
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeploymentstacks"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
@@ -45,95 +46,76 @@ func testAzureResource(t *testing.T) *azcorearm.ResourceID {
 	return metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-managed-rg/providers/Microsoft.Authorization/roleAssignments/11111111-1111-1111-1111-111111111111"))
 }
 
-func TestRoleAssignmentStatusConfigured(t *testing.T) {
-	tests := []struct {
-		name     string
-		status   *coreapi.RoleAssignmentStatus
-		expected bool
-	}{
-		{
-			name:     "no azure resource and no deconfigure timestamp, considered as not configured",
-			status:   &coreapi.RoleAssignmentStatus{},
-			expected: false,
-		},
-		{
-			name: "azure resource present and not draining, considered as configured",
-			status: &coreapi.RoleAssignmentStatus{
-				AzureResource: testAzureResource(t),
-			},
-			expected: true,
-		},
-		{
-			name: "no azure resource yet, considered as not configured",
-			status: &coreapi.RoleAssignmentStatus{
-				PendingAzureResource: testAzureResource(t),
-			},
-			expected: false,
-		},
-		{
-			name: "azure resource present but draining, considered as not configured",
-			status: &coreapi.RoleAssignmentStatus{
-				AzureResource:        testAzureResource(t),
-				DeconfigureTimestamp: ptrTime(metav1.Now()),
-			},
-			expected: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expected, RoleAssignmentStatusConfigured(tt.status))
+// testManagedStackDesire builds a StackDesire whose last-observed Azure state
+// reports each of managedIDs as "managed".
+func testManagedStackDesire(managedIDs ...*azcorearm.ResourceID) *coreapi.StackDesire {
+	resources := make([]*armdeploymentstacks.ManagedResourceReference, 0, len(managedIDs))
+	for _, id := range managedIDs {
+		resources = append(resources, &armdeploymentstacks.ManagedResourceReference{
+			ID:     ptr.To(id.String()),
+			Status: ptr.To(armdeploymentstacks.ResourceStatusModeManaged),
 		})
+	}
+	return &coreapi.StackDesire{
+		Status: coreapi.StackDesireStatus{
+			Stack: &armdeploymentstacks.DeploymentStack{
+				Properties: &armdeploymentstacks.DeploymentStackProperties{
+					Resources: resources,
+				},
+			},
+		},
 	}
 }
 
-func TestServiceProviderClusterStatusRoleAssignmentConfigured(t *testing.T) {
+func TestRoleAssignmentStatusManaged(t *testing.T) {
 	tests := []struct {
 		name     string
-		status   *coreapi.ServiceProviderClusterStatus
+		status   *coreapi.RoleAssignmentStatus
+		desire   *coreapi.StackDesire
 		expected bool
 	}{
 		{
-			name:     "key not present considered as not configured",
-			status:   &coreapi.ServiceProviderClusterStatus{},
+			name:     "no reserved resource ID and no deconfigure timestamp, considered as not managed",
+			status:   &coreapi.RoleAssignmentStatus{},
+			desire:   testManagedStackDesire(testAzureResource(t)),
 			expected: false,
 		},
 		{
-			name: "ensured azure resource with matching resource ID, considered as configured",
-			status: &coreapi.ServiceProviderClusterStatus{
-				RoleAssignmentsOverManagedResourceGroup: map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus{
-					{PrincipalID: testPrincipalID, RoleDefinitionResourceID: testRoleDefinitionResourceID}: {
-						AzureResource: testAzureResource(t),
-						TargetIdentity: &coreapi.RoleAssignmentTargetIdentity{
-							ResourceID: testIdentityResourceID(t),
-						},
-					},
-				},
+			name: "reserved resource ID present and managed by desire, considered as managed",
+			status: &coreapi.RoleAssignmentStatus{
+				ReservedAzureResourceID: testAzureResource(t),
 			},
+			desire:   testManagedStackDesire(testAzureResource(t)),
 			expected: true,
 		},
 		{
-			name: "case-insensitive resource ID match, considered as configured",
-			status: &coreapi.ServiceProviderClusterStatus{
-				RoleAssignmentsOverManagedResourceGroup: map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus{
-					{PrincipalID: testPrincipalID, RoleDefinitionResourceID: testRoleDefinitionResourceID}: {
-						AzureResource: testAzureResource(t),
-						TargetIdentity: &coreapi.RoleAssignmentTargetIdentity{
-							ResourceID: metadataapi.Must(azcorearm.ParseResourceID(strings.ToUpper(testIdentityResourceIDString))),
-						},
-					},
-				},
+			name: "reserved resource ID present but not yet observed in desire, considered as not managed",
+			status: &coreapi.RoleAssignmentStatus{
+				ReservedAzureResourceID: testAzureResource(t),
 			},
-			expected: true,
+			desire:   testManagedStackDesire(),
+			expected: false,
 		},
 		{
-			name: "mismatched resource ID, considered as not configured",
-			status: &coreapi.ServiceProviderClusterStatus{
-				RoleAssignmentsOverManagedResourceGroup: map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus{
-					{PrincipalID: testPrincipalID, RoleDefinitionResourceID: testRoleDefinitionResourceID}: {
-						AzureResource: testAzureResource(t),
-						TargetIdentity: &coreapi.RoleAssignmentTargetIdentity{
-							ResourceID: metadataapi.Must(azcorearm.ParseResourceID(testOtherIdentityResourceIDString)),
+			name: "nil desire, considered as not managed",
+			status: &coreapi.RoleAssignmentStatus{
+				ReservedAzureResourceID: testAzureResource(t),
+			},
+			desire:   nil,
+			expected: false,
+		},
+		{
+			name: "desire reports the resource as failed rather than managed, considered as not managed",
+			status: &coreapi.RoleAssignmentStatus{
+				ReservedAzureResourceID: testAzureResource(t),
+			},
+			desire: &coreapi.StackDesire{
+				Status: coreapi.StackDesireStatus{
+					Stack: &armdeploymentstacks.DeploymentStack{
+						Properties: &armdeploymentstacks.DeploymentStackProperties{
+							FailedResources: []*armdeploymentstacks.ResourceReferenceExtended{
+								{ID: ptr.To(testAzureResource(t).String())},
+							},
 						},
 					},
 				},
@@ -141,39 +123,19 @@ func TestServiceProviderClusterStatusRoleAssignmentConfigured(t *testing.T) {
 			expected: false,
 		},
 		{
-			name: "missing azure resource, considered as not configured",
-			status: &coreapi.ServiceProviderClusterStatus{
-				RoleAssignmentsOverManagedResourceGroup: map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus{
-					{PrincipalID: testPrincipalID, RoleDefinitionResourceID: testRoleDefinitionResourceID}: {
-						TargetIdentity: &coreapi.RoleAssignmentTargetIdentity{
-							ResourceID: testIdentityResourceID(t),
-						},
-					},
-				},
+			name: "resource ID present but draining, considered as not managed",
+			status: &coreapi.RoleAssignmentStatus{
+				ReservedAzureResourceID: testAzureResource(t),
+				DeconfigureTimestamp:    ptrTime(metav1.Now()),
 			},
-			expected: false,
-		},
-		{
-			name: "draining key, considered as not configured",
-			status: &coreapi.ServiceProviderClusterStatus{
-				RoleAssignmentsOverManagedResourceGroup: map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus{
-					{PrincipalID: testPrincipalID, RoleDefinitionResourceID: testRoleDefinitionResourceID}: {
-						AzureResource:        testAzureResource(t),
-						DeconfigureTimestamp: ptrTime(metav1.Now()),
-						TargetIdentity: &coreapi.RoleAssignmentTargetIdentity{
-							ResourceID: testIdentityResourceID(t),
-						},
-					},
-				},
-			},
+			desire:   testManagedStackDesire(testAzureResource(t)),
 			expected: false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := ServiceProviderClusterStatusRoleAssignmentConfigured(tt.status, testIdentityResourceID(t), testPrincipalID, testRoleDefinitionResourceID)
-			assert.Equal(t, tt.expected, got)
+			assert.Equal(t, tt.expected, RoleAssignmentStatusManaged(tt.status, tt.desire))
 		})
 	}
 }
@@ -182,11 +144,13 @@ func TestServiceProviderClusterStatusIdentityRoleAssignmentsConfigured(t *testin
 	tests := []struct {
 		name     string
 		status   *coreapi.ServiceProviderClusterStatus
+		desire   *coreapi.StackDesire
 		expected bool
 	}{
 		{
 			name:     "no entries, considered as not configured",
 			status:   &coreapi.ServiceProviderClusterStatus{},
+			desire:   testManagedStackDesire(testAzureResource(t)),
 			expected: false,
 		},
 		{
@@ -194,13 +158,14 @@ func TestServiceProviderClusterStatusIdentityRoleAssignmentsConfigured(t *testin
 			status: &coreapi.ServiceProviderClusterStatus{
 				RoleAssignmentsOverManagedResourceGroup: map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus{
 					{PrincipalID: testPrincipalID, RoleDefinitionResourceID: testRoleDefinitionResourceID}: {
-						AzureResource: testAzureResource(t),
+						ReservedAzureResourceID: testAzureResource(t),
 						TargetIdentity: &coreapi.RoleAssignmentTargetIdentity{
 							ResourceID: metadataapi.Must(azcorearm.ParseResourceID(testOtherIdentityResourceIDString)),
 						},
 					},
 				},
 			},
+			desire:   testManagedStackDesire(testAzureResource(t)),
 			expected: false,
 		},
 		{
@@ -208,40 +173,44 @@ func TestServiceProviderClusterStatusIdentityRoleAssignmentsConfigured(t *testin
 			status: &coreapi.ServiceProviderClusterStatus{
 				RoleAssignmentsOverManagedResourceGroup: map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus{
 					{PrincipalID: "other-principal", RoleDefinitionResourceID: testRoleDefinitionResourceID}: {
-						AzureResource: testAzureResource(t),
+						ReservedAzureResourceID: testAzureResource(t),
 						TargetIdentity: &coreapi.RoleAssignmentTargetIdentity{
 							ResourceID: testIdentityResourceID(t),
 						},
 					},
 				},
 			},
+			desire:   testManagedStackDesire(testAzureResource(t)),
 			expected: false,
 		},
 		{
-			name: "single desired key that is configured, considered as configured",
+			name: "single desired key that is managed, considered as configured",
 			status: &coreapi.ServiceProviderClusterStatus{
 				RoleAssignmentsOverManagedResourceGroup: map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus{
 					{PrincipalID: testPrincipalID, RoleDefinitionResourceID: testRoleDefinitionResourceID}: {
-						AzureResource: testAzureResource(t),
+						ReservedAzureResourceID: testAzureResource(t),
 						TargetIdentity: &coreapi.RoleAssignmentTargetIdentity{
 							ResourceID: testIdentityResourceID(t),
 						},
 					},
 				},
 			},
+			desire:   testManagedStackDesire(testAzureResource(t)),
 			expected: true,
 		},
 		{
-			name: "single desired key that is not yet configured, considered as not configured",
+			name: "single desired key that is not yet managed, considered as not configured",
 			status: &coreapi.ServiceProviderClusterStatus{
 				RoleAssignmentsOverManagedResourceGroup: map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus{
 					{PrincipalID: testPrincipalID, RoleDefinitionResourceID: testRoleDefinitionResourceID}: {
+						ReservedAzureResourceID: testAzureResource(t),
 						TargetIdentity: &coreapi.RoleAssignmentTargetIdentity{
 							ResourceID: testIdentityResourceID(t),
 						},
 					},
 				},
 			},
+			desire:   testManagedStackDesire(),
 			expected: false,
 		},
 		{
@@ -249,42 +218,44 @@ func TestServiceProviderClusterStatusIdentityRoleAssignmentsConfigured(t *testin
 			status: &coreapi.ServiceProviderClusterStatus{
 				RoleAssignmentsOverManagedResourceGroup: map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus{
 					{PrincipalID: testPrincipalID, RoleDefinitionResourceID: testRoleDefinitionResourceID}: {
-						AzureResource:        testAzureResource(t),
-						DeconfigureTimestamp: ptrTime(metav1.Now()),
+						ReservedAzureResourceID: testAzureResource(t),
+						DeconfigureTimestamp:    ptrTime(metav1.Now()),
 						TargetIdentity: &coreapi.RoleAssignmentTargetIdentity{
 							ResourceID: testIdentityResourceID(t),
 						},
 					},
 				},
 			},
+			desire:   testManagedStackDesire(testAzureResource(t)),
 			expected: false,
 		},
 		{
-			name: "multiple desired keys all configured, considered as configured",
+			name: "multiple desired keys all managed, considered as configured",
 			status: &coreapi.ServiceProviderClusterStatus{
 				RoleAssignmentsOverManagedResourceGroup: map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus{
 					{PrincipalID: testPrincipalID, RoleDefinitionResourceID: testRoleDefinitionResourceID}: {
-						AzureResource: testAzureResource(t),
+						ReservedAzureResourceID: testAzureResource(t),
 						TargetIdentity: &coreapi.RoleAssignmentTargetIdentity{
 							ResourceID: testIdentityResourceID(t),
 						},
 					},
 					{PrincipalID: testPrincipalID, RoleDefinitionResourceID: testRoleDefinitionResourceID + "-2"}: {
-						AzureResource: testAzureResource(t),
+						ReservedAzureResourceID: testAzureResource(t),
 						TargetIdentity: &coreapi.RoleAssignmentTargetIdentity{
 							ResourceID: testIdentityResourceID(t),
 						},
 					},
 				},
 			},
+			desire:   testManagedStackDesire(testAzureResource(t)),
 			expected: true,
 		},
 		{
-			name: "multiple desired keys with one not configured, considered as not configured",
+			name: "multiple desired keys with one not managed, considered as not configured",
 			status: &coreapi.ServiceProviderClusterStatus{
 				RoleAssignmentsOverManagedResourceGroup: map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus{
 					{PrincipalID: testPrincipalID, RoleDefinitionResourceID: testRoleDefinitionResourceID}: {
-						AzureResource: testAzureResource(t),
+						ReservedAzureResourceID: testAzureResource(t),
 						TargetIdentity: &coreapi.RoleAssignmentTargetIdentity{
 							ResourceID: testIdentityResourceID(t),
 						},
@@ -296,87 +267,14 @@ func TestServiceProviderClusterStatusIdentityRoleAssignmentsConfigured(t *testin
 					},
 				},
 			},
+			desire:   testManagedStackDesire(testAzureResource(t)),
 			expected: false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := ServiceProviderClusterStatusIdentityRoleAssignmentsConfigured(tt.status, testIdentityResourceID(t), testPrincipalID)
-			assert.Equal(t, tt.expected, got)
-		})
-	}
-}
-
-func TestServiceProviderClusterStatusDesiredRoleAssignmentsConfigured(t *testing.T) {
-	tests := []struct {
-		name     string
-		status   *coreapi.ServiceProviderClusterStatus
-		expected bool
-	}{
-		{
-			name:     "no entries, considered as not configured",
-			status:   &coreapi.ServiceProviderClusterStatus{},
-			expected: false,
-		},
-		{
-			name: "all entries draining, considered as not configured",
-			status: &coreapi.ServiceProviderClusterStatus{
-				RoleAssignmentsOverManagedResourceGroup: map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus{
-					{PrincipalID: testPrincipalID, RoleDefinitionResourceID: testRoleDefinitionResourceID}: {
-						AzureResource:        testAzureResource(t),
-						DeconfigureTimestamp: ptrTime(metav1.Now()),
-					},
-				},
-			},
-			expected: false,
-		},
-		{
-			name: "all desired keys configured, considered as configured",
-			status: &coreapi.ServiceProviderClusterStatus{
-				RoleAssignmentsOverManagedResourceGroup: map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus{
-					{PrincipalID: testPrincipalID, RoleDefinitionResourceID: testRoleDefinitionResourceID}: {
-						AzureResource: testAzureResource(t),
-					},
-					{PrincipalID: testPrincipalID, RoleDefinitionResourceID: testRoleDefinitionResourceID + "-2"}: {
-						AzureResource: testAzureResource(t),
-					},
-				},
-			},
-			expected: true,
-		},
-		{
-			name: "one desired key not configured, considered as not configured",
-			status: &coreapi.ServiceProviderClusterStatus{
-				RoleAssignmentsOverManagedResourceGroup: map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus{
-					{PrincipalID: testPrincipalID, RoleDefinitionResourceID: testRoleDefinitionResourceID}: {
-						AzureResource: testAzureResource(t),
-					},
-					{PrincipalID: testPrincipalID, RoleDefinitionResourceID: testRoleDefinitionResourceID + "-2"}: {},
-				},
-			},
-			expected: false,
-		},
-		{
-			name: "draining entries alongside a configured desired entry, considered as configured",
-			status: &coreapi.ServiceProviderClusterStatus{
-				RoleAssignmentsOverManagedResourceGroup: map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus{
-					{PrincipalID: testPrincipalID, RoleDefinitionResourceID: testRoleDefinitionResourceID}: {
-						AzureResource: testAzureResource(t),
-					},
-					{PrincipalID: "stale-principal", RoleDefinitionResourceID: testRoleDefinitionResourceID}: {
-						AzureResource:        testAzureResource(t),
-						DeconfigureTimestamp: ptrTime(metav1.Now()),
-					},
-				},
-			},
-			expected: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := ServiceProviderClusterStatusDesiredRoleAssignmentsConfigured(tt.status)
+			got := ServiceProviderClusterStatusIdentityRoleAssignmentsConfigured(tt.status, tt.desire, testIdentityResourceID(t), testPrincipalID)
 			assert.Equal(t, tt.expected, got)
 		})
 	}

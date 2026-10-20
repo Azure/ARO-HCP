@@ -2153,12 +2153,8 @@ func (in *RoleAssignmentStatus) DeepCopyInto(out *RoleAssignmentStatus) {
 		*out = new(RoleAssignmentTargetIdentity)
 		(*in).DeepCopyInto(*out)
 	}
-	if in.PendingAzureResource != nil {
-		in, out := &in.PendingAzureResource, &out.PendingAzureResource
-		*out = DeepCopyResourceID(*in)
-	}
-	if in.AzureResource != nil {
-		in, out := &in.AzureResource, &out.AzureResource
+	if in.ReservedAzureResourceID != nil {
+		in, out := &in.ReservedAzureResourceID, &out.ReservedAzureResourceID
 		*out = DeepCopyResourceID(*in)
 	}
 	return

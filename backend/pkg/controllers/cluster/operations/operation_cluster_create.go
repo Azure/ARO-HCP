@@ -36,6 +36,7 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/hypershift/api/hypershift/v1beta1"
 
+	clusterroleassignments "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/roleassignments"
 	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	operationbase "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
@@ -58,6 +59,7 @@ type operationClusterCreate struct {
 	clusterLister                         corelisters.ClusterLister
 	serviceProviderClusterLister          corelisters.ServiceProviderClusterLister
 	clusterManagementClusterContentLister corelisters.ManagementClusterContentLister
+	stackDesireLister                     corelisters.StackDesireLister
 	readDesireLister                      kubeapplierlisters.ReadDesireLister
 	resourcesDBClient                     corecosmosstorage.ResourcesDBClient
 	clusterServiceClient                  ocm.ClusterServiceClientSpec
@@ -102,12 +104,14 @@ func NewOperationClusterCreateController(
 	_, clusterLister := informers.Clusters()
 	_, serviceProviderClusterLister := informers.ServiceProviderClusters()
 	_, clusterManagementClusterContentLister := informers.ManagementClusterContents()
+	_, stackDesireLister := informers.StackDesires()
 	syncer := &operationClusterCreate{
 		clock:                                      clock,
 		activeOperationLister:                      activeOperationLister,
 		clusterLister:                              clusterLister,
 		serviceProviderClusterLister:               serviceProviderClusterLister,
 		clusterManagementClusterContentLister:      clusterManagementClusterContentLister,
+		stackDesireLister:                          stackDesireLister,
 		readDesireLister:                           readDesireLister,
 		resourcesDBClient:                          resourcesDBClient,
 		clusterServiceClient:                       clusterServiceClient,
@@ -566,8 +570,13 @@ func (c *operationClusterCreate) roleAssignmentsOperationStatus(ctx context.Cont
 		return nil, utils.TrackError(err)
 	}
 
+	desire, err := c.stackDesireLister.Get(ctx, operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Name, clusterroleassignments.RoleAssignmentsDesireName)
+	if err != nil && !cosmosstorageutils.IsNotFoundError(err) {
+		return nil, utils.TrackError(err)
+	}
+
 	identityConfigured := func(identityResourceID *azcorearm.ResourceID, target *coreapi.RoleAssignmentTargetIdentity, resolved bool) bool {
-		return resolved && coreapihelpers.ServiceProviderClusterStatusIdentityRoleAssignmentsConfigured(&serviceProviderCluster.Status, identityResourceID, target.PrincipalID)
+		return resolved && coreapihelpers.ServiceProviderClusterStatusIdentityRoleAssignmentsConfigured(&serviceProviderCluster.Status, desire, identityResourceID, target.PrincipalID)
 	}
 
 	var pending []string

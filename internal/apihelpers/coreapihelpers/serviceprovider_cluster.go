@@ -15,7 +15,10 @@
 package coreapihelpers
 
 import (
+	"strings"
+
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeploymentstacks"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/controllerutils"
@@ -34,42 +37,36 @@ func IsValidHostedClusterControlPlaneSize(s string) bool {
 	return false
 }
 
-// RoleAssignmentStatusConfigured reports whether this role assignment exists
-// on the managed resource group. A draining assignment is not configured.
-func RoleAssignmentStatusConfigured(status *coreapi.RoleAssignmentStatus) bool {
-	return status.DeconfigureTimestamp == nil && status.AzureResource != nil
-}
-
-// ServiceProviderClusterStatusRoleAssignmentConfigured reports whether the
-// given identity and role definition have an ensured managed-resource-group
-// role assignment on status. A draining row is not configured. No matching
-// key at all is also considered not configured.
-//
-// roleDefinitionResourceID is matched exactly, not case-insensitively like
-// resourceID: it must match RoleAssignmentKey.RoleDefinitionResourceID
-// byte-for-byte, since that value seeds the deterministic Azure role
-// assignment name (see RoleAssignmentKey.RoleDefinitionResourceID).
-func ServiceProviderClusterStatusRoleAssignmentConfigured(status *coreapi.ServiceProviderClusterStatus, resourceID *azcorearm.ResourceID, principalID string, roleDefinitionResourceID string) bool {
-	assignment, ok := status.RoleAssignmentsOverManagedResourceGroup[coreapi.RoleAssignmentKey{
-		PrincipalID:              principalID,
-		RoleDefinitionResourceID: roleDefinitionResourceID,
-	}]
-	if !ok {
+// RoleAssignmentStatusManaged reports whether status's reserved
+// ReservedAzureResourceID is currently present and "managed" per desire's
+// last-observed Azure state. A draining assignment (DeconfigureTimestamp set)
+// is not managed for this purpose even if Azure still has it, a nil
+// ReservedAzureResourceID (never reserved yet) is not managed, and a nil desire or
+// desire.Status.Stack (never published or never observed) is not managed.
+func RoleAssignmentStatusManaged(status *coreapi.RoleAssignmentStatus, desire *coreapi.StackDesire) bool {
+	if status.DeconfigureTimestamp != nil || status.ReservedAzureResourceID == nil {
 		return false
 	}
-
-	if !controllerutils.ResourceIDsEqual(assignment.TargetIdentity.ResourceID, resourceID) {
+	if desire == nil || desire.Status.Stack == nil || desire.Status.Stack.Properties == nil {
 		return false
 	}
-	return RoleAssignmentStatusConfigured(assignment)
+	for _, resource := range desire.Status.Stack.Properties.Resources {
+		if resource == nil || resource.ID == nil || resource.Status == nil {
+			continue
+		}
+		if strings.EqualFold(*resource.ID, status.ReservedAzureResourceID.String()) {
+			return *resource.Status == armdeploymentstacks.ResourceStatusModeManaged
+		}
+	}
+	return false
 }
 
 // ServiceProviderClusterStatusIdentityRoleAssignmentsConfigured reports
-// whether every currently desired role assignment on status for identity
-// resourceID's principalID is configured. Keys with DeconfigureTimestamp set
-// are ignored. False when no key currently desires the principal, or when
-// any desired key has not yet been applied.
-func ServiceProviderClusterStatusIdentityRoleAssignmentsConfigured(status *coreapi.ServiceProviderClusterStatus, identityResourceID *azcorearm.ResourceID, principalID string) bool {
+// whether every currently desired (non-draining) role assignment on status
+// for identity resourceID's principalID is RoleAssignmentStatusManaged
+// against desire. False when no key currently desires the principal, or when
+// any desired key is not yet managed.
+func ServiceProviderClusterStatusIdentityRoleAssignmentsConfigured(status *coreapi.ServiceProviderClusterStatus, desire *coreapi.StackDesire, identityResourceID *azcorearm.ResourceID, principalID string) bool {
 	foundDesired := false
 	for key, assignment := range status.RoleAssignmentsOverManagedResourceGroup {
 		if !controllerutils.ResourceIDsEqual(assignment.TargetIdentity.ResourceID, identityResourceID) || key.PrincipalID != principalID {
@@ -79,26 +76,7 @@ func ServiceProviderClusterStatusIdentityRoleAssignmentsConfigured(status *corea
 			continue
 		}
 		foundDesired = true
-		if !RoleAssignmentStatusConfigured(assignment) {
-			return false
-		}
-	}
-	return foundDesired
-}
-
-// ServiceProviderClusterStatusDesiredRoleAssignmentsConfigured reports
-// whether every currently desired role assignment on status.RoleAssignmentsOverManagedResourceGroup is configured.
-// Keys with DeconfigureTimestamp set are ignored. False when no key
-// currently desires an assignment, or when any desired key has not yet been
-// applied.
-func ServiceProviderClusterStatusDesiredRoleAssignmentsConfigured(status *coreapi.ServiceProviderClusterStatus) bool {
-	foundDesired := false
-	for _, assignment := range status.RoleAssignmentsOverManagedResourceGroup {
-		if assignment.DeconfigureTimestamp != nil {
-			continue
-		}
-		foundDesired = true
-		if !RoleAssignmentStatusConfigured(assignment) {
+		if !RoleAssignmentStatusManaged(assignment, desire) {
 			return false
 		}
 	}

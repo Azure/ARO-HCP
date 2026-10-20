@@ -249,6 +249,42 @@ func TestSliceServiceProviderClusterLister(t *testing.T) {
 	})
 }
 
+func TestSliceStackDesireLister(t *testing.T) {
+	desire1 := newTestStackDesire(testSubscriptionID, testResourceGroupName, testClusterName, "role-assignments")
+	desire2 := newTestStackDesire(testSubscriptionID, testResourceGroupName, testClusterName2, "role-assignments")
+
+	lister := &SliceStackDesireLister{
+		StackDesires: []*coreapi.StackDesire{desire1, desire2},
+	}
+
+	ctx := context.Background()
+
+	t.Run("List returns all stack desires", func(t *testing.T) {
+		result, err := lister.List(ctx)
+		require.NoError(t, err)
+		assert.Len(t, result, 2)
+	})
+
+	t.Run("Get returns matching stack desire", func(t *testing.T) {
+		result, err := lister.Get(ctx, testSubscriptionID, testResourceGroupName, testClusterName, "role-assignments")
+		require.NoError(t, err)
+		require.NotNil(t, result.GetResourceID())
+		assert.Equal(t, testClusterName, result.GetResourceID().Parent.Name)
+	})
+
+	t.Run("Get returns not found for non-existent stack desire", func(t *testing.T) {
+		_, err := lister.Get(ctx, testSubscriptionID, testResourceGroupName, testClusterName, "non-existent")
+		require.Error(t, err)
+		assert.True(t, cosmosstorageutils.IsNotFoundError(err))
+	})
+
+	t.Run("ListForCluster returns stack desires for cluster", func(t *testing.T) {
+		result, err := lister.ListForCluster(ctx, testSubscriptionID, testResourceGroupName, testClusterName)
+		require.NoError(t, err)
+		assert.Len(t, result, 1)
+	})
+}
+
 func TestSliceSubscriptionLister(t *testing.T) {
 	sub1 := newTestSubscription(testSubscriptionID)
 	sub2 := newTestSubscription(testSubscriptionID2)
@@ -461,6 +497,21 @@ func newTestServiceProviderCluster(subscriptionID, resourceGroupName, clusterNam
 			"/serviceProviderClusters/default",
 	))
 	return &coreapi.ServiceProviderCluster{
+		CosmosMetadata: coreapi.CosmosMetadata{
+			ResourceID:   resourceID,
+			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
+		},
+	}
+}
+
+func newTestStackDesire(subscriptionID, resourceGroupName, clusterName, name string) *coreapi.StackDesire {
+	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
+		"/subscriptions/" + subscriptionID +
+			"/resourceGroups/" + resourceGroupName +
+			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + clusterName +
+			"/stackDesires/" + name,
+	))
+	return &coreapi.StackDesire{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   resourceID,
 			PartitionKey: strings.ToLower(resourceID.SubscriptionID),

@@ -280,6 +280,49 @@ func (l *SliceServiceProviderClusterLister) ListForCluster(ctx context.Context, 
 	return result, nil
 }
 
+// SliceStackDesireLister implements corelisters.StackDesireLister backed by a slice.
+type SliceStackDesireLister struct {
+	StackDesires []*coreapi.StackDesire
+}
+
+var _ corelisters.StackDesireLister = &SliceStackDesireLister{}
+
+func (l *SliceStackDesireLister) List(ctx context.Context) ([]*coreapi.StackDesire, error) {
+	return l.StackDesires, nil
+}
+
+func (l *SliceStackDesireLister) Get(ctx context.Context, subscriptionID, resourceGroupName, clusterName, name string) (*coreapi.StackDesire, error) {
+	for _, desire := range l.StackDesires {
+		resourceID := desire.GetResourceID()
+		if resourceID == nil {
+			continue
+		}
+		if strings.EqualFold(resourceID.SubscriptionID, subscriptionID) &&
+			strings.EqualFold(resourceID.ResourceGroupName, resourceGroupName) &&
+			stackDesireMatchesCluster(resourceID, clusterName) &&
+			strings.EqualFold(resourceID.Name, name) {
+			return desire, nil
+		}
+	}
+	return nil, cosmosstorageutils.NewNotFoundError()
+}
+
+func (l *SliceStackDesireLister) ListForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) ([]*coreapi.StackDesire, error) {
+	var result []*coreapi.StackDesire
+	for _, desire := range l.StackDesires {
+		resourceID := desire.GetResourceID()
+		if resourceID == nil {
+			continue
+		}
+		if strings.EqualFold(resourceID.SubscriptionID, subscriptionID) &&
+			strings.EqualFold(resourceID.ResourceGroupName, resourceGroupName) &&
+			stackDesireMatchesCluster(resourceID, clusterName) {
+			result = append(result, desire)
+		}
+	}
+	return result, nil
+}
+
 // SliceServiceProviderNodePoolLister implements corelisters.ServiceProviderNodePoolLister backed by a slice.
 type SliceServiceProviderNodePoolLister struct {
 	ServiceProviderNodePools []*coreapi.ServiceProviderNodePool

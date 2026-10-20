@@ -36,23 +36,8 @@ func IsResourceNotFoundErr(err error) bool {
 	return errors.As(err, &azErr) && azErr.ErrorCode == "ResourceNotFound"
 }
 
-// IsRoleAssignmentNotFoundErr is used to determine if we are failing to find a role assignment
-// within azure. The role assignments API returns the more specific `RoleAssignmentNotFound`
-// error code (not `ResourceNotFound`) when a role assignment does not exist.
-func IsRoleAssignmentNotFoundErr(err error) bool {
-	var azErr *azcore.ResponseError
-	return errors.As(err, &azErr) && azErr.ErrorCode == "RoleAssignmentNotFound"
-}
-
 // IsAzureCoreResponseErrorHTTP404 returns true if the error is an azcore.ResponseError with http status code 404.
 func IsAzureCoreResponseErrorHTTP404(err error) bool {
 	var azErr *azcore.ResponseError
 	return errors.As(err, &azErr) && azErr.StatusCode == http.StatusNotFound
-}
-
-// IsRoleAssignmentExistsErr is used during creation of a role assignment to determine if the creation error
-// occurred because the role assignment already existing.
-func IsRoleAssignmentExistsErr(err error) bool {
-	var azErr *azcore.ResponseError
-	return errors.As(err, &azErr) && azErr.ErrorCode == "RoleAssignmentExists"
 }

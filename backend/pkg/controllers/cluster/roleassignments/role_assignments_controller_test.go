@@ -16,9 +16,6 @@ package roleassignments
 
 import (
 	"context"
-	"io"
-	"net/http"
-	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -28,19 +25,17 @@ import (
 	"github.com/stretchr/testify/require"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	clocktesting "k8s.io/utils/clock/testing"
 	"k8s.io/utils/ptr"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v2"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeploymentstacks"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/azure/azuremockclient"
+	"github.com/Azure/ARO-HCP/backend/pkg/azure/roleassignment"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/azure"
-	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -76,351 +71,106 @@ const (
 	testServiceManagedIdentityPrincipalID = "smi-principal-44444444-4444-4444-4444-444444444444"
 )
 
-func TestClusterRoleAssignmentsNeedsWork(t *testing.T) {
-	t.Parallel()
+// testDeterministicResourceID returns the same deterministic role assignment
+// resource ID ClusterRoleAssignments' reservation pass computes for key, so
+// tests can assert on the exact value without depending on internals.
+func testDeterministicResourceID(t *testing.T, key coreapi.RoleAssignmentKey) *azcorearm.ResourceID {
+	t.Helper()
+	id, err := azcorearm.ParseResourceID(roleassignment.ManagedResourceGroupScopedRoleAssignmentResourceID(testManagedResourceGroupID(t).String(), key.PrincipalID, key.RoleDefinitionResourceID))
+	require.NoError(t, err)
+	return id
+}
 
-	now := time.Date(2026, 9, 5, 12, 0, 0, 0, time.UTC)
-	future := metav1.NewTime(now.Add(time.Hour))
-	past := metav1.NewTime(now.Add(-time.Hour))
-	waitElapsed := metav1.NewTime(now.Add(-25 * time.Hour))
-	syncer := &clusterRoleAssignmentsSyncer{clock: clocktesting.NewFakePassiveClock(now)}
-	key := testDesiredRoleAssignmentKeys(t)[0]
-	azureResource := testRoleAssignmentAzureResource(t)
-
-	testCases := []struct {
-		name              string
-		cluster           *coreapi.Cluster
-		mrgConfirmed      bool
-		roleAssignments   map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus
-		recheckTime       *metav1.Time
-		expectedNeedsWork bool
-	}{
-		{
-			name:              "empty map does not need work",
-			mrgConfirmed:      true,
-			expectedNeedsWork: false,
-		},
-		{
-			name:         "desired key without AzureResource needs work when MRG is confirmed",
-			mrgConfirmed: true,
-			roleAssignments: map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus{
-				key: {},
-			},
-			expectedNeedsWork: true,
-		},
-		{
-			name:         "desired key does not need work when MRG is not confirmed",
-			mrgConfirmed: false,
-			roleAssignments: map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus{
-				key: {},
-			},
-			expectedNeedsWork: false,
-		},
-		{
-			name:         "draining key needs work when the 24h wait has elapsed",
-			mrgConfirmed: true,
-			roleAssignments: map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus{
-				key: {
-					DeconfigureTimestamp: &waitElapsed,
-					AzureResource:        azureResource,
-				},
-			},
-			recheckTime:       &future,
-			expectedNeedsWork: true,
-		},
-		{
-			name:         "draining key does not need work inside the 24h wait with future recheck",
-			mrgConfirmed: true,
-			roleAssignments: map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus{
-				key: {
-					DeconfigureTimestamp: &past,
-					AzureResource:        azureResource,
-				},
-			},
-			recheckTime:       &future,
-			expectedNeedsWork: false,
-		},
-		{
-			name:         "ensured key with nil controller recheck needs work",
-			mrgConfirmed: true,
-			roleAssignments: map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus{
-				key: {AzureResource: azureResource},
-			},
-			expectedNeedsWork: true,
-		},
-		{
-			name:         "ensured key with future controller recheck does not need work",
-			mrgConfirmed: true,
-			roleAssignments: map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus{
-				key: {AzureResource: azureResource},
-			},
-			recheckTime:       &future,
-			expectedNeedsWork: false,
-		},
-		{
-			name:         "ensured key with past controller recheck needs work",
-			mrgConfirmed: true,
-			roleAssignments: map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus{
-				key: {AzureResource: azureResource},
-			},
-			recheckTime:       &past,
-			expectedNeedsWork: true,
-		},
-		{
-			name:         "desired key does not need work when the cluster is being deleted",
-			cluster:      newTestCluster(true),
-			mrgConfirmed: true,
-			roleAssignments: map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus{
-				key: {},
-			},
-			expectedNeedsWork: false,
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			cluster := tc.cluster
-			if cluster == nil {
-				cluster = newTestCluster(false)
-			}
-			spc := newTestServiceProviderCluster(t, tc.mrgConfirmed, true, true, tc.roleAssignments)
-			if tc.recheckTime != nil {
-				spc.Spec.EarliestRecheckTimesByController = map[string]*metav1.Time{
-					ClusterRoleAssignmentsControllerName: tc.recheckTime,
-				}
-			}
-			assert.Equal(t, tc.expectedNeedsWork, syncer.needsWork(cluster, spc))
-		})
+func newTestRoleAssignmentsSyncer(resourcesDB *corecosmosstoragetesting.MockResourcesDBClient) *clusterRoleAssignmentsSyncer {
+	return &clusterRoleAssignmentsSyncer{
+		clusterLister:                &corelistertesting.DBClusterLister{ResourcesDBClient: resourcesDB},
+		serviceProviderClusterLister: &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: resourcesDB},
+		subscriptionLister:           &corelistertesting.DBSubscriptionLister{ResourcesDBClient: resourcesDB},
+		stackDesireLister:            &corelistertesting.DBStackDesireLister{ResourcesDBClient: resourcesDB},
+		resourcesDBClient:            resourcesDB,
 	}
 }
 
-func TestClusterRoleAssignmentV2SyncOncePersistsPendingBeforeAzure(t *testing.T) {
-	t.Parallel()
-
-	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
-	cluster := newTestCluster(false)
-	keys := testDesiredRoleAssignmentKeys(t)
-	desiredID := testDesiredRoleAssignmentResourceID(t, keys[0])
-
-	serviceProviderCluster := newTestServiceProviderCluster(t, true, true, true, map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus{
-		keys[0]: {},
-	})
-
-	mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, serviceProviderCluster, newTestSubscription(ptr.To(testTenantID))})
-	require.NoError(t, err)
-
-	mockRA := &azuremockclient.RoleAssignmentsClientFunc{
-		GetByIDFunc: func(ctx context.Context, roleAssignmentID string, options *armauthorization.RoleAssignmentsClientGetByIDOptions) (armauthorization.RoleAssignmentsClientGetByIDResponse, error) {
-			return armauthorization.RoleAssignmentsClientGetByIDResponse{}, roleAssignmentNotFoundError()
-		},
-		CreateFunc: func(ctx context.Context, scope, roleAssignmentName string, parameters armauthorization.RoleAssignmentCreateParameters, options *armauthorization.RoleAssignmentsClientCreateOptions) (armauthorization.RoleAssignmentsClientCreateResponse, error) {
-			return armauthorization.RoleAssignmentsClientCreateResponse{}, &azcore.ResponseError{StatusCode: http.StatusInternalServerError, ErrorCode: "InternalServerError"}
-		},
+func getRoleAssignmentsStackDesire(t *testing.T, ctx context.Context, resourcesDB *corecosmosstoragetesting.MockResourcesDBClient) *coreapi.StackDesire {
+	t.Helper()
+	desire, err := resourcesDB.StackDesires(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, RoleAssignmentsDesireName)
+	if cosmosstorageutils.IsNotFoundError(err) {
+		return nil
 	}
-	syncer := newTestRoleAssignmentV2Syncer(t, mockResourcesDB, mockRA)
-
-	err = syncer.SyncOnce(ctx, testHCPClusterKey)
-	require.Error(t, err)
-
-	updated, err := mockResourcesDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
 	require.NoError(t, err)
-	status := updated.Status.RoleAssignmentsOverManagedResourceGroup[keys[0]]
-	require.NotNil(t, status)
-	assert.False(t, coreapihelpers.RoleAssignmentStatusConfigured(status))
-	require.NotNil(t, status.PendingAzureResource)
-	assert.True(t, controllerutil.ResourceIDsEqual(desiredID, status.PendingAzureResource))
-	assert.Nil(t, status.AzureResource)
-	require.NotEmpty(t, mockRA.CreateCalls)
+	return desire
 }
 
-func TestClusterRoleAssignmentSyncOnceConfiguresWhenAzureAlreadyMatches(t *testing.T) {
-	t.Parallel()
-
-	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
-	cluster := newTestCluster(false)
-	keys := testDesiredRoleAssignmentKeys(t)
-	desiredID := testDesiredRoleAssignmentResourceID(t, keys[0])
-
-	serviceProviderCluster := newTestServiceProviderCluster(t, true, true, true, map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus{
-		keys[0]: {},
-	})
-
-	mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, serviceProviderCluster, newTestSubscription(ptr.To(testTenantID))})
-	require.NoError(t, err)
-
-	mockRA := &azuremockclient.RoleAssignmentsClientFunc{
-		GetByIDFunc: matchingRoleAssignmentGet(keys[0], desiredID),
-		CreateFunc: func(ctx context.Context, scope, roleAssignmentName string, parameters armauthorization.RoleAssignmentCreateParameters, options *armauthorization.RoleAssignmentsClientCreateOptions) (armauthorization.RoleAssignmentsClientCreateResponse, error) {
-			t.Fatal("Create should not run when Azure already matches")
-			return armauthorization.RoleAssignmentsClientCreateResponse{}, nil
-		},
+// templateResources extracts the "resources" array from a StackDesire's ARM
+// template as []map[string]any. A document round-tripped through Cosmos JSON
+// storage decodes Template's nested array as []any of map[string]any, rather
+// than the []map[string]any a producer builds it as in memory, so this
+// normalizes either representation for assertions.
+func templateResources(t *testing.T, template any) []map[string]any {
+	t.Helper()
+	asMap, ok := template.(map[string]any)
+	require.True(t, ok, "template must decode to map[string]any, got %T", template)
+	raw := asMap["resources"]
+	switch typed := raw.(type) {
+	case []map[string]any:
+		return typed
+	case []any:
+		result := make([]map[string]any, 0, len(typed))
+		for _, item := range typed {
+			resource, ok := item.(map[string]any)
+			require.True(t, ok, "template resource must decode to map[string]any, got %T", item)
+			result = append(result, resource)
+		}
+		return result
+	default:
+		require.Failf(t, "unexpected resources type", "%T", raw)
+		return nil
 	}
-	syncer := newTestRoleAssignmentV2Syncer(t, mockResourcesDB, mockRA)
-
-	err = syncer.SyncOnce(ctx, testHCPClusterKey)
-	require.NoError(t, err)
-
-	updated, err := mockResourcesDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
-	require.NoError(t, err)
-	status := updated.Status.RoleAssignmentsOverManagedResourceGroup[keys[0]]
-	require.NotNil(t, status)
-	assert.True(t, coreapihelpers.RoleAssignmentStatusConfigured(status))
-	require.NotNil(t, status.AzureResource)
-	assert.True(t, controllerutil.ResourceIDsEqual(desiredID, status.AzureResource))
-	assert.Nil(t, status.PendingAzureResource)
-	assert.NotNil(t, updated.Spec.EarliestRecheckTimesByController[ClusterRoleAssignmentsControllerName])
-	assert.Empty(t, mockRA.CreateCalls)
 }
 
-func TestClusterRoleAssignmentV2SyncOnceCreatesWhenMissing(t *testing.T) {
-	t.Parallel()
-
-	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
-	cluster := newTestCluster(false)
-	keys := testDesiredRoleAssignmentKeys(t)
-	desiredID := testDesiredRoleAssignmentResourceID(t, keys[0])
-
-	serviceProviderCluster := newTestServiceProviderCluster(t, true, true, true, map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus{
-		keys[0]: {},
-	})
-
-	mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, serviceProviderCluster, newTestSubscription(ptr.To(testTenantID))})
+func getUpdatedServiceProviderCluster(t *testing.T, ctx context.Context, resourcesDB *corecosmosstoragetesting.MockResourcesDBClient) *coreapi.ServiceProviderCluster {
+	t.Helper()
+	updated, err := resourcesDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
 	require.NoError(t, err)
-
-	mockRA := &azuremockclient.RoleAssignmentsClientFunc{
-		GetByIDFunc: func(ctx context.Context, roleAssignmentID string, options *armauthorization.RoleAssignmentsClientGetByIDOptions) (armauthorization.RoleAssignmentsClientGetByIDResponse, error) {
-			return armauthorization.RoleAssignmentsClientGetByIDResponse{}, roleAssignmentNotFoundError()
-		},
-		CreateFunc: func(ctx context.Context, scope, roleAssignmentName string, parameters armauthorization.RoleAssignmentCreateParameters, options *armauthorization.RoleAssignmentsClientCreateOptions) (armauthorization.RoleAssignmentsClientCreateResponse, error) {
-			return armauthorization.RoleAssignmentsClientCreateResponse{}, nil
-		},
-	}
-	syncer := newTestRoleAssignmentV2Syncer(t, mockResourcesDB, mockRA)
-
-	err = syncer.SyncOnce(ctx, testHCPClusterKey)
-	require.NoError(t, err)
-
-	updated, err := mockResourcesDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
-	require.NoError(t, err)
-	status := updated.Status.RoleAssignmentsOverManagedResourceGroup[keys[0]]
-	require.NotNil(t, status)
-	assert.True(t, coreapihelpers.RoleAssignmentStatusConfigured(status))
-	require.NotNil(t, status.AzureResource)
-	assert.True(t, controllerutil.ResourceIDsEqual(desiredID, status.AzureResource))
-	assert.Nil(t, status.PendingAzureResource)
-	require.Len(t, mockRA.CreateCalls, 1)
-	assert.Equal(t, desiredID.Name, mockRA.CreateCalls[0].RoleAssignmentName)
-	require.NotNil(t, mockRA.CreateCalls[0].Parameters.Properties)
-	assert.Equal(t, keys[0].PrincipalID, ptr.Deref(mockRA.CreateCalls[0].Parameters.Properties.PrincipalID, ""))
-	assert.Equal(t, keys[0].RoleDefinitionResourceID, ptr.Deref(mockRA.CreateCalls[0].Parameters.Properties.RoleDefinitionID, ""))
+	return updated
 }
 
-func TestClusterRoleAssignmentV2SyncOnceWaitsBeforeDeconfigure(t *testing.T) {
-	t.Parallel()
-
-	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
-	now := time.Date(2026, 9, 5, 12, 0, 0, 0, time.UTC)
-	cluster := newTestCluster(false)
-	keys := testDesiredRoleAssignmentKeys(t)
-	desiredID := testDesiredRoleAssignmentResourceID(t, keys[0])
-	requestedAt := metav1.NewTime(now.Add(-time.Hour))
-
-	serviceProviderCluster := newTestServiceProviderCluster(t, true, true, true, map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus{
-		keys[0]: {
-			DeconfigureTimestamp: &requestedAt,
-			AzureResource:        desiredID,
-		},
-	})
-
-	mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, serviceProviderCluster, newTestSubscription(ptr.To(testTenantID))})
-	require.NoError(t, err)
-
-	mockRA := &azuremockclient.RoleAssignmentsClientFunc{
-		DeleteByIDFunc: func(ctx context.Context, roleAssignmentID string, options *armauthorization.RoleAssignmentsClientDeleteByIDOptions) (armauthorization.RoleAssignmentsClientDeleteByIDResponse, error) {
-			t.Fatal("Delete should not run before the 24h wait elapses")
-			return armauthorization.RoleAssignmentsClientDeleteByIDResponse{}, nil
-		},
-	}
-	syncer := newTestRoleAssignmentV2Syncer(t, mockResourcesDB, mockRA)
-
-	err = syncer.SyncOnce(ctx, testHCPClusterKey)
-	require.NoError(t, err)
-	assert.Empty(t, mockRA.DeleteByIDCalls)
-
-	updated, err := mockResourcesDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
-	require.NoError(t, err)
-	status := updated.Status.RoleAssignmentsOverManagedResourceGroup[keys[0]]
-	require.NotNil(t, status)
-	assert.NotNil(t, status.DeconfigureTimestamp)
-	require.NotNil(t, status.AzureResource)
-}
-
-func TestClusterRoleAssignmentSyncOnceDeconfiguresAfterWait(t *testing.T) {
-	t.Parallel()
-
-	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
-	now := time.Date(2026, 9, 5, 12, 0, 0, 0, time.UTC)
-	cluster := newTestCluster(false)
-	keys := testDesiredRoleAssignmentKeys(t)
-	desiredID := testDesiredRoleAssignmentResourceID(t, keys[0])
-	requestedAt := metav1.NewTime(now.Add(-25 * time.Hour))
-
-	serviceProviderCluster := newTestServiceProviderCluster(t, true, true, true, map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus{
-		keys[0]: {
-			DeconfigureTimestamp: &requestedAt,
-			AzureResource:        desiredID,
-		},
-	})
-
-	mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, serviceProviderCluster, newTestSubscription(ptr.To(testTenantID))})
-	require.NoError(t, err)
-
-	mockRA := &azuremockclient.RoleAssignmentsClientFunc{
-		DeleteByIDFunc: func(ctx context.Context, roleAssignmentID string, options *armauthorization.RoleAssignmentsClientDeleteByIDOptions) (armauthorization.RoleAssignmentsClientDeleteByIDResponse, error) {
-			return armauthorization.RoleAssignmentsClientDeleteByIDResponse{}, roleAssignmentNotFoundError()
-		},
-	}
-	syncer := newTestRoleAssignmentV2Syncer(t, mockResourcesDB, mockRA)
-
-	err = syncer.SyncOnce(ctx, testHCPClusterKey)
-	require.NoError(t, err)
-	require.Equal(t, []string{desiredID.String()}, mockRA.DeleteByIDCalls)
-
-	updated, err := mockResourcesDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
-	require.NoError(t, err)
-	assert.Empty(t, updated.Status.RoleAssignmentsOverManagedResourceGroup)
-	assert.Nil(t, updated.Spec.EarliestRecheckTimesByController[ClusterRoleAssignmentsControllerName])
-}
-
-func TestClusterRoleAssignmentV2SyncOnceSkipsClusterDeletion(t *testing.T) {
+func TestClusterRoleAssignmentsSyncOnceSkipsClusterDeletion(t *testing.T) {
 	t.Parallel()
 
 	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
 	cluster := newTestCluster(true)
 	keys := testDesiredRoleAssignmentKeys(t)
 	serviceProviderCluster := newTestServiceProviderCluster(t, true, true, true, map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus{
-		keys[0]: {},
+		keys[0]: {ReservedAzureResourceID: testDeterministicResourceID(t, keys[0])},
 	})
+	existingDesire := newTestStackDesireForCluster(t, coreapi.StackDesireActionApply)
 
-	mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, serviceProviderCluster, newTestSubscription(ptr.To(testTenantID))})
+	mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, serviceProviderCluster, existingDesire, newTestSubscription(ptr.To(testTenantID))})
 	require.NoError(t, err)
 
-	mockRA := &azuremockclient.RoleAssignmentsClientFunc{
-		GetByIDFunc: func(ctx context.Context, roleAssignmentID string, options *armauthorization.RoleAssignmentsClientGetByIDOptions) (armauthorization.RoleAssignmentsClientGetByIDResponse, error) {
-			t.Fatal("Azure Get should not run during cluster deletion")
-			return armauthorization.RoleAssignmentsClientGetByIDResponse{}, nil
-		},
-	}
-	syncer := newTestRoleAssignmentV2Syncer(t, mockResourcesDB, mockRA)
+	syncer := newTestRoleAssignmentsSyncer(mockResourcesDB)
+	require.NoError(t, syncer.SyncOnce(ctx, testHCPClusterKey))
 
-	err = syncer.SyncOnce(ctx, testHCPClusterKey)
-	require.NoError(t, err)
-	assert.Empty(t, mockRA.GetByIDCalls)
-	assert.Empty(t, mockRA.CreateCalls)
+	assert.Nil(t, getRoleAssignmentsStackDesire(t, ctx, mockResourcesDB), "StackDesire document must be removed on cluster deletion")
 }
 
-func TestClusterRoleAssignmentV2SyncOnceSkipsUntilManagedResourceGroupConfirmed(t *testing.T) {
+func TestClusterRoleAssignmentsSyncOnceClusterNotFound(t *testing.T) {
+	t.Parallel()
+
+	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+	existingDesire := newTestStackDesireForCluster(t, coreapi.StackDesireActionApply)
+
+	mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{existingDesire})
+	require.NoError(t, err)
+
+	syncer := newTestRoleAssignmentsSyncer(mockResourcesDB)
+	require.NoError(t, syncer.SyncOnce(ctx, testHCPClusterKey))
+
+	assert.Nil(t, getRoleAssignmentsStackDesire(t, ctx, mockResourcesDB), "StackDesire document must be removed when the cluster no longer exists")
+}
+
+func TestClusterRoleAssignmentsSyncOnceSkipsUntilManagedResourceGroupConfirmed(t *testing.T) {
 	t.Parallel()
 
 	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
@@ -433,59 +183,265 @@ func TestClusterRoleAssignmentV2SyncOnceSkipsUntilManagedResourceGroupConfirmed(
 	mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, serviceProviderCluster, newTestSubscription(ptr.To(testTenantID))})
 	require.NoError(t, err)
 
-	mockRA := &azuremockclient.RoleAssignmentsClientFunc{
-		GetByIDFunc: func(ctx context.Context, roleAssignmentID string, options *armauthorization.RoleAssignmentsClientGetByIDOptions) (armauthorization.RoleAssignmentsClientGetByIDResponse, error) {
-			t.Fatal("Azure Get should not run before the managed resource group is confirmed")
-			return armauthorization.RoleAssignmentsClientGetByIDResponse{}, nil
+	syncer := newTestRoleAssignmentsSyncer(mockResourcesDB)
+	require.NoError(t, syncer.SyncOnce(ctx, testHCPClusterKey))
+
+	assert.Nil(t, getRoleAssignmentsStackDesire(t, ctx, mockResourcesDB))
+	updated := getUpdatedServiceProviderCluster(t, ctx, mockResourcesDB)
+	assert.Nil(t, updated.Status.RoleAssignmentsOverManagedResourceGroup[keys[0]].ReservedAzureResourceID)
+}
+
+func TestClusterRoleAssignmentsSyncOnceReservesIDsAndCreatesStackDesire(t *testing.T) {
+	t.Parallel()
+
+	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+	cluster := newTestCluster(false)
+	keys := testDesiredRoleAssignmentKeys(t)
+	serviceProviderCluster := newTestServiceProviderCluster(t, true, true, true, map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus{
+		keys[0]: {},
+		keys[1]: {},
+	})
+
+	mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, serviceProviderCluster, newTestSubscription(ptr.To(testTenantID))})
+	require.NoError(t, err)
+
+	syncer := newTestRoleAssignmentsSyncer(mockResourcesDB)
+	require.NoError(t, syncer.SyncOnce(ctx, testHCPClusterKey))
+
+	updated := getUpdatedServiceProviderCluster(t, ctx, mockResourcesDB)
+	id0 := updated.Status.RoleAssignmentsOverManagedResourceGroup[keys[0]].ReservedAzureResourceID
+	id1 := updated.Status.RoleAssignmentsOverManagedResourceGroup[keys[1]].ReservedAzureResourceID
+	require.NotNil(t, id0)
+	require.NotNil(t, id1)
+	assert.Equal(t, testDeterministicResourceID(t, keys[0]).String(), id0.String())
+	assert.Equal(t, testDeterministicResourceID(t, keys[1]).String(), id1.String())
+
+	desire := getRoleAssignmentsStackDesire(t, ctx, mockResourcesDB)
+	require.NotNil(t, desire)
+	assert.Equal(t, coreapi.StackDesireActionApply, desire.Spec.Action)
+	assert.Equal(t, coreapi.StackDesireAuthenticationTypeFPA, desire.Spec.Authentication.Type)
+	assert.Equal(t, testTenantID, desire.Spec.Authentication.TenantID)
+	require.NotNil(t, desire.Spec.TargetResourceID)
+	assert.Equal(t, testManagedResourceGroupID(t).String()+"/providers/Microsoft.Resources/deploymentStacks/"+RoleAssignmentsStackName, desire.Spec.TargetResourceID.String())
+
+	require.NotNil(t, desire.Spec.Stack)
+	require.NotNil(t, desire.Spec.Stack.Properties)
+	require.NotNil(t, desire.Spec.Stack.Properties.ActionOnUnmanage)
+	assert.Equal(t, armdeploymentstacks.DeploymentStacksDeleteDetachEnumDelete, ptr.Deref(desire.Spec.Stack.Properties.ActionOnUnmanage.Resources, ""))
+	assert.Equal(t, armdeploymentstacks.DeploymentStacksDeleteDetachEnumDetach, ptr.Deref(desire.Spec.Stack.Properties.ActionOnUnmanage.ResourceGroups, ""))
+	assert.Equal(t, armdeploymentstacks.DeploymentStacksDeleteDetachEnumDetach, ptr.Deref(desire.Spec.Stack.Properties.ActionOnUnmanage.ManagementGroups, ""))
+	require.NotNil(t, desire.Spec.Stack.Properties.DenySettings)
+	assert.Equal(t, armdeploymentstacks.DenySettingsModeNone, ptr.Deref(desire.Spec.Stack.Properties.DenySettings.Mode, ""))
+
+	resources := templateResources(t, desire.Spec.Stack.Properties.Template)
+	require.Len(t, resources, 2)
+
+	// Keys are sorted by (PrincipalID, RoleDefinitionResourceID), independent
+	// of map iteration order, so the template (and its spec hash) is stable
+	// across syncs when nothing changed.
+	sortedKeys := []coreapi.RoleAssignmentKey{keys[0], keys[1]}
+	if sortedKeys[1].PrincipalID < sortedKeys[0].PrincipalID {
+		sortedKeys[0], sortedKeys[1] = sortedKeys[1], sortedKeys[0]
+	}
+	for i, key := range sortedKeys {
+		resource := resources[i]
+		assert.Equal(t, "Microsoft.Authorization/roleAssignments", resource["type"])
+		assert.Equal(t, testDeterministicResourceID(t, key).Name, resource["name"])
+		properties, ok := resource["properties"].(map[string]any)
+		require.True(t, ok)
+		assert.Equal(t, key.PrincipalID, properties["principalId"])
+		assert.Equal(t, key.RoleDefinitionResourceID, properties["roleDefinitionId"])
+		assert.Equal(t, "ServicePrincipal", properties["principalType"])
+	}
+}
+
+func TestClusterRoleAssignmentsSyncOnceNoOpWhenSpecUnchanged(t *testing.T) {
+	t.Parallel()
+
+	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+	cluster := newTestCluster(false)
+	keys := testDesiredRoleAssignmentKeys(t)
+	serviceProviderCluster := newTestServiceProviderCluster(t, true, true, true, map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus{
+		keys[0]: {ReservedAzureResourceID: testDeterministicResourceID(t, keys[0])},
+	})
+
+	mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, serviceProviderCluster, newTestSubscription(ptr.To(testTenantID))})
+	require.NoError(t, err)
+
+	syncer := newTestRoleAssignmentsSyncer(mockResourcesDB)
+	require.NoError(t, syncer.SyncOnce(ctx, testHCPClusterKey))
+
+	spcBefore := getUpdatedServiceProviderCluster(t, ctx, mockResourcesDB)
+	desireBefore := getRoleAssignmentsStackDesire(t, ctx, mockResourcesDB)
+	require.NotNil(t, desireBefore)
+
+	require.NoError(t, syncer.SyncOnce(ctx, testHCPClusterKey))
+
+	spcAfter := getUpdatedServiceProviderCluster(t, ctx, mockResourcesDB)
+	desireAfter := getRoleAssignmentsStackDesire(t, ctx, mockResourcesDB)
+	require.NotNil(t, desireAfter)
+	assert.Equal(t, spcBefore.InstanceVersion, spcAfter.InstanceVersion, "no new reservation should be made once a key has a ReservedAzureResourceID")
+	assert.Equal(t, desireBefore.InstanceVersion, desireAfter.InstanceVersion, "an unchanged spec must not be replaced")
+}
+
+func TestClusterRoleAssignmentsSyncOnceReplacesWhenSpecChanged(t *testing.T) {
+	t.Parallel()
+
+	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+	cluster := newTestCluster(false)
+	keys := testDesiredRoleAssignmentKeys(t)
+	serviceProviderCluster := newTestServiceProviderCluster(t, true, true, true, map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus{
+		keys[0]: {ReservedAzureResourceID: testDeterministicResourceID(t, keys[0])},
+	})
+	existingDesire := newTestStackDesireForCluster(t, coreapi.StackDesireActionApply)
+	existingDesire.Spec.Stack.Properties.Template = map[string]any{
+		"$schema":        "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+		"contentVersion": "1.0.0.0",
+		"resources":      []map[string]any{},
+	}
+
+	mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, serviceProviderCluster, existingDesire, newTestSubscription(ptr.To(testTenantID))})
+	require.NoError(t, err)
+
+	before := getRoleAssignmentsStackDesire(t, ctx, mockResourcesDB)
+	require.NotNil(t, before)
+
+	syncer := newTestRoleAssignmentsSyncer(mockResourcesDB)
+	require.NoError(t, syncer.SyncOnce(ctx, testHCPClusterKey))
+
+	after := getRoleAssignmentsStackDesire(t, ctx, mockResourcesDB)
+	require.NotNil(t, after)
+	assert.NotEqual(t, before.InstanceVersion, after.InstanceVersion)
+	resources := templateResources(t, after.Spec.Stack.Properties.Template)
+	require.Len(t, resources, 1)
+}
+
+func TestClusterRoleAssignmentsSyncOnceIncludesDrainingKeyWithinWindow(t *testing.T) {
+	t.Parallel()
+
+	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+	cluster := newTestCluster(false)
+	keys := testDesiredRoleAssignmentKeys(t)
+	recentlyStamped := metav1.NewTime(time.Now().Add(-time.Hour))
+	serviceProviderCluster := newTestServiceProviderCluster(t, true, true, true, map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus{
+		keys[0]: {
+			ReservedAzureResourceID: testDeterministicResourceID(t, keys[0]),
+			DeconfigureTimestamp:    &recentlyStamped,
+		},
+	})
+
+	mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, serviceProviderCluster, newTestSubscription(ptr.To(testTenantID))})
+	require.NoError(t, err)
+
+	syncer := newTestRoleAssignmentsSyncer(mockResourcesDB)
+	require.NoError(t, syncer.SyncOnce(ctx, testHCPClusterKey))
+
+	desire := getRoleAssignmentsStackDesire(t, ctx, mockResourcesDB)
+	require.NotNil(t, desire)
+	resources := templateResources(t, desire.Spec.Stack.Properties.Template)
+	require.Len(t, resources, 1, "a draining key still inside its deconfigure wait must keep being granted")
+	assert.Equal(t, testDeterministicResourceID(t, keys[0]).Name, resources[0]["name"])
+}
+
+func TestClusterRoleAssignmentsSyncOnceEmptyDesiredSet(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		existingAction string
+		wantDesire     bool
+		wantAction     string
+	}{
+		{
+			name:       "no existing desire stays absent",
+			wantDesire: false,
+		},
+		{
+			name:           "existing applied desire is asked to delete",
+			existingAction: coreapi.StackDesireActionApply,
+			wantDesire:     true,
+			wantAction:     coreapi.StackDesireActionDelete,
+		},
+		{
+			name:           "existing delete request is left alone",
+			existingAction: coreapi.StackDesireActionDelete,
+			wantDesire:     true,
+			wantAction:     coreapi.StackDesireActionDelete,
 		},
 	}
-	syncer := newTestRoleAssignmentV2Syncer(t, mockResourcesDB, mockRA)
 
-	err = syncer.SyncOnce(ctx, testHCPClusterKey)
-	require.NoError(t, err)
-	assert.Empty(t, mockRA.GetByIDCalls)
-	assert.Empty(t, mockRA.CreateCalls)
-}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-func newTestRoleAssignmentV2Syncer(
-	t *testing.T,
-	resourcesDB *corecosmosstoragetesting.MockResourcesDBClient,
-	roleAssignmentsClient *azuremockclient.RoleAssignmentsClientFunc,
-) *clusterRoleAssignmentsSyncer {
-	t.Helper()
-	return &clusterRoleAssignmentsSyncer{
-		clock:                        clocktesting.NewFakePassiveClock(time.Date(2026, 9, 5, 12, 0, 0, 0, time.UTC)),
-		clusterLister:                &corelistertesting.DBClusterLister{ResourcesDBClient: resourcesDB},
-		serviceProviderClusterLister: &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: resourcesDB},
-		subscriptionLister:           &corelistertesting.DBSubscriptionLister{ResourcesDBClient: resourcesDB},
-		resourcesDBClient:            resourcesDB,
-		azureFPAClientBuilder: &azuremockclient.FirstPartyApplicationClientBuilderFunc{
-			RoleAssignmentsClientVal: roleAssignmentsClient,
-		},
+			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+			cluster := newTestCluster(false)
+			serviceProviderCluster := newTestServiceProviderCluster(t, true, true, true, nil)
+
+			resources := []any{cluster, serviceProviderCluster, newTestSubscription(ptr.To(testTenantID))}
+			var before *coreapi.StackDesire
+			if tt.existingAction != "" {
+				before = newTestStackDesireForCluster(t, tt.existingAction)
+				resources = append(resources, before)
+			}
+
+			mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, resources)
+			require.NoError(t, err)
+
+			syncer := newTestRoleAssignmentsSyncer(mockResourcesDB)
+			require.NoError(t, syncer.SyncOnce(ctx, testHCPClusterKey))
+
+			after := getRoleAssignmentsStackDesire(t, ctx, mockResourcesDB)
+			if !tt.wantDesire {
+				assert.Nil(t, after)
+				return
+			}
+			require.NotNil(t, after)
+			assert.Equal(t, tt.wantAction, after.Spec.Action)
+			if before != nil && tt.existingAction == tt.wantAction {
+				assert.Equal(t, before.InstanceVersion, after.InstanceVersion, "an already-requested deletion must not be replaced again")
+			}
+		})
 	}
 }
 
-func testDesiredRoleAssignmentResourceID(t *testing.T, key coreapi.RoleAssignmentKey) *azcorearm.ResourceID {
+// newTestStackDesireForCluster builds the role-assignments StackDesire for
+// the test cluster/managed resource group, with the given spec action.
+func newTestStackDesireForCluster(t *testing.T, action string) *coreapi.StackDesire {
 	t.Helper()
-	syncer := &clusterRoleAssignmentsSyncer{}
-	id, err := syncer.desiredRoleAssignmentResourceID(newTestServiceProviderCluster(t, true, true, true, nil), key)
-	require.NoError(t, err)
-	require.NotNil(t, id)
-	return id
-}
-
-func matchingRoleAssignmentGet(key coreapi.RoleAssignmentKey, desiredID *azcorearm.ResourceID) func(ctx context.Context, roleAssignmentID string, options *armauthorization.RoleAssignmentsClientGetByIDOptions) (armauthorization.RoleAssignmentsClientGetByIDResponse, error) {
-	return func(ctx context.Context, roleAssignmentID string, options *armauthorization.RoleAssignmentsClientGetByIDOptions) (armauthorization.RoleAssignmentsClientGetByIDResponse, error) {
-		return armauthorization.RoleAssignmentsClientGetByIDResponse{
-			RoleAssignment: armauthorization.RoleAssignment{
-				ID: ptr.To(desiredID.String()),
-				Properties: &armauthorization.RoleAssignmentProperties{
-					PrincipalID:      ptr.To(key.PrincipalID),
-					RoleDefinitionID: ptr.To(key.RoleDefinitionResourceID),
-					PrincipalType:    ptr.To(armauthorization.PrincipalTypeServicePrincipal),
+	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
+		"/subscriptions/" + testSubscriptionID +
+			"/resourceGroups/" + testResourceGroupName +
+			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
+			"/stackDesires/" + RoleAssignmentsDesireName,
+	))
+	target := metadataapi.Must(azcorearm.ParseResourceID(testManagedResourceGroupID(t).String() + "/providers/Microsoft.Resources/deploymentStacks/" + RoleAssignmentsStackName))
+	return &coreapi.StackDesire{
+		CosmosMetadata: coreapi.CosmosMetadata{
+			ResourceID:   resourceID,
+			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
+		},
+		Spec: coreapi.StackDesireSpec{
+			TargetResourceID: target,
+			Authentication: coreapi.StackDesireAuthentication{
+				Type:     coreapi.StackDesireAuthenticationTypeFPA,
+				TenantID: testTenantID,
+			},
+			Action: action,
+			Stack: &armdeploymentstacks.DeploymentStack{
+				Properties: &armdeploymentstacks.DeploymentStackProperties{
+					Template: map[string]any{
+						"$schema":        "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+						"contentVersion": "1.0.0.0",
+						"resources":      []map[string]any{},
+					},
+					ActionOnUnmanage: roleAssignmentsActionOnUnmanage(),
+					DenySettings: &armdeploymentstacks.DenySettings{
+						Mode: ptr.To(armdeploymentstacks.DenySettingsModeNone),
+					},
 				},
 			},
-		}, nil
+		},
 	}
 }
 
@@ -580,24 +536,6 @@ func newTestSubscription(tenantID *string) *coreapi.Subscription {
 		},
 		Properties: &coreapi.SubscriptionProperties{
 			TenantId: tenantID,
-		},
-	}
-}
-
-// roleAssignmentNotFoundError returns an *azcore.ResponseError that
-// azureclient.IsRoleAssignmentNotFoundErr recognizes as a missing role assignment.
-func roleAssignmentNotFoundError() *azcore.ResponseError {
-	return &azcore.ResponseError{
-		ErrorCode:  "RoleAssignmentNotFound",
-		StatusCode: http.StatusNotFound,
-		RawResponse: &http.Response{
-			Status:     "404 Not Found",
-			StatusCode: http.StatusNotFound,
-			Body:       io.NopCloser(strings.NewReader(`{"error":{"code":"RoleAssignmentNotFound","message":"Role assignment not found."}}`)),
-			Request: &http.Request{
-				Method: http.MethodGet,
-				URL:    &url.URL{Scheme: "https", Host: "management.azure.com", Path: "/ra"},
-			},
 		},
 	}
 }

@@ -1099,9 +1099,7 @@ func registerIdentityRoleAssignmentsController() controllerconfig.ControllerRegi
 
 func instantiateIdentityRoleAssignmentsController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
 	return clusterroleassignments.NewClusterRoleAssignmentsController(
-		controllerContext.Clock,
 		controllerContext.ResourcesDBClient,
-		controllerContext.FPAClientBuilder,
 		controllerContext.BackendInformers,
 	), nil
 }

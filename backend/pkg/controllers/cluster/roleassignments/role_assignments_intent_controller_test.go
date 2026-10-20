@@ -72,7 +72,7 @@ func TestDesiredRoleAssignments(t *testing.T) {
 			require.Contains(t, got, key)
 			require.NotNil(t, got[key])
 			assert.Nil(t, got[key].DeconfigureTimestamp)
-			assert.Nil(t, got[key].AzureResource)
+			assert.Nil(t, got[key].ReservedAzureResourceID)
 			require.NotNil(t, got[key].TargetIdentity)
 			assert.Equal(t, key.PrincipalID, got[key].TargetIdentity.PrincipalID)
 			assert.NotEmpty(t, got[key].TargetIdentity.ClientID)
@@ -228,7 +228,7 @@ func TestDesiredRoleAssignments(t *testing.T) {
 		t.Parallel()
 		current := map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus{
 			desiredKeys[0]: {
-				AzureResource: testRoleAssignmentAzureResource(t),
+				ReservedAzureResourceID: testRoleAssignmentAzureResource(t),
 				TargetIdentity: &coreapi.RoleAssignmentTargetIdentity{
 					ResourceID:  mustParseResourceID(testControlPlaneIdentityID),
 					PrincipalID: desiredKeys[0].PrincipalID,
@@ -238,21 +238,23 @@ func TestDesiredRoleAssignments(t *testing.T) {
 		got, err := syncer.desiredRoleAssignmentsV2(cluster, unreadySPC, current)
 		require.NoError(t, err)
 		require.Contains(t, got, desiredKeys[0])
-		assert.True(t, coreapihelpers.RoleAssignmentStatusConfigured(got[desiredKeys[0]]))
+		assert.NotNil(t, got[desiredKeys[0]].ReservedAzureResourceID)
+		assert.Nil(t, got[desiredKeys[0]].DeconfigureTimestamp)
 	})
 
 	t.Run("ensured key that is still required stays configured", func(t *testing.T) {
 		t.Parallel()
 		current := map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus{
 			desiredKeys[0]: {
-				AzureResource:  testRoleAssignmentAzureResource(t),
-				TargetIdentity: mustResolveControlPlaneRoleAssignmentTargetIdentity(t, syncer, readySPC, mustParseResourceID(testControlPlaneIdentityID)),
+				ReservedAzureResourceID: testRoleAssignmentAzureResource(t),
+				TargetIdentity:          mustResolveControlPlaneRoleAssignmentTargetIdentity(t, syncer, readySPC, mustParseResourceID(testControlPlaneIdentityID)),
 			},
 		}
 		got, err := syncer.desiredRoleAssignmentsV2(cluster, readySPC, current)
 		require.NoError(t, err)
-		assert.True(t, coreapihelpers.RoleAssignmentStatusConfigured(got[desiredKeys[0]]))
-		assert.False(t, coreapihelpers.RoleAssignmentStatusConfigured(got[desiredKeys[1]]))
+		assert.NotNil(t, got[desiredKeys[0]].ReservedAzureResourceID)
+		assert.Nil(t, got[desiredKeys[0]].DeconfigureTimestamp)
+		assert.Nil(t, got[desiredKeys[1]].ReservedAzureResourceID)
 		assert.Nil(t, got[desiredKeys[1]].DeconfigureTimestamp)
 	})
 
@@ -261,14 +263,14 @@ func TestDesiredRoleAssignments(t *testing.T) {
 		stamped := metav1.NewTime(time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC))
 		current := map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus{
 			desiredKeys[0]: {
-				DeconfigureTimestamp: &stamped,
-				AzureResource:        testRoleAssignmentAzureResource(t),
+				DeconfigureTimestamp:    &stamped,
+				ReservedAzureResourceID: testRoleAssignmentAzureResource(t),
 			},
 		}
 		got, err := syncer.desiredRoleAssignmentsV2(cluster, readySPC, current)
 		require.NoError(t, err)
 		assert.Nil(t, got[desiredKeys[0]].DeconfigureTimestamp)
-		assert.True(t, coreapihelpers.RoleAssignmentStatusConfigured(got[desiredKeys[0]]))
+		assert.NotNil(t, got[desiredKeys[0]].ReservedAzureResourceID)
 	})
 
 	t.Run("key that left the desired set is stamped for deconfigure", func(t *testing.T) {
@@ -279,7 +281,7 @@ func TestDesiredRoleAssignments(t *testing.T) {
 		}
 		current := map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus{
 			stale: {
-				AzureResource: testRoleAssignmentAzureResource(t),
+				ReservedAzureResourceID: testRoleAssignmentAzureResource(t),
 				TargetIdentity: &coreapi.RoleAssignmentTargetIdentity{
 					ResourceID:  mustParseResourceID("/subscriptions/" + testSubscriptionID + "/resourceGroups/" + testResourceGroupName + "/providers/Microsoft.ManagedIdentity/userAssignedIdentities/stale-identity"),
 					PrincipalID: stale.PrincipalID,
@@ -289,20 +291,20 @@ func TestDesiredRoleAssignments(t *testing.T) {
 		got, err := syncer.desiredRoleAssignmentsV2(cluster, readySPC, current)
 		require.NoError(t, err)
 		require.NotNil(t, got[stale].DeconfigureTimestamp)
-		assert.False(t, coreapihelpers.RoleAssignmentStatusConfigured(got[stale]))
+		assert.NotNil(t, got[stale].ReservedAzureResourceID)
 	})
 
-	t.Run("already draining leftover keeps its DeconfigureTimestamp", func(t *testing.T) {
+	t.Run("already draining leftover inside the 24h wait keeps its DeconfigureTimestamp", func(t *testing.T) {
 		t.Parallel()
 		stale := coreapi.RoleAssignmentKey{
 			PrincipalID:              "stale-principal",
 			RoleDefinitionResourceID: "/providers/Microsoft.Authorization/roleDefinitions/00000000-0000-0000-0000-000000000000",
 		}
-		stamp := metav1.NewTime(time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC))
+		stamp := metav1.NewTime(syncer.clock.Now().Add(-time.Hour))
 		current := map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus{
 			stale: {
-				DeconfigureTimestamp: &stamp,
-				AzureResource:        testRoleAssignmentAzureResource(t),
+				DeconfigureTimestamp:    &stamp,
+				ReservedAzureResourceID: testRoleAssignmentAzureResource(t),
 				TargetIdentity: &coreapi.RoleAssignmentTargetIdentity{
 					ResourceID:  mustParseResourceID("/subscriptions/" + testSubscriptionID + "/resourceGroups/" + testResourceGroupName + "/providers/Microsoft.ManagedIdentity/userAssignedIdentities/stale-identity"),
 					PrincipalID: stale.PrincipalID,
@@ -315,7 +317,29 @@ func TestDesiredRoleAssignments(t *testing.T) {
 		assert.True(t, got[stale].DeconfigureTimestamp.Equal(&stamp))
 	})
 
-	t.Run("never-ensured leftover is dropped", func(t *testing.T) {
+	t.Run("draining leftover is dropped once the 24h wait has elapsed", func(t *testing.T) {
+		t.Parallel()
+		stale := coreapi.RoleAssignmentKey{
+			PrincipalID:              "stale-principal",
+			RoleDefinitionResourceID: "/providers/Microsoft.Authorization/roleDefinitions/00000000-0000-0000-0000-000000000000",
+		}
+		stamp := metav1.NewTime(syncer.clock.Now().Add(-25 * time.Hour))
+		current := map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus{
+			stale: {
+				DeconfigureTimestamp:    &stamp,
+				ReservedAzureResourceID: testRoleAssignmentAzureResource(t),
+				TargetIdentity: &coreapi.RoleAssignmentTargetIdentity{
+					ResourceID:  mustParseResourceID("/subscriptions/" + testSubscriptionID + "/resourceGroups/" + testResourceGroupName + "/providers/Microsoft.ManagedIdentity/userAssignedIdentities/stale-identity"),
+					PrincipalID: stale.PrincipalID,
+				},
+			},
+		}
+		got, err := syncer.desiredRoleAssignmentsV2(cluster, readySPC, current)
+		require.NoError(t, err)
+		assert.NotContains(t, got, stale)
+	})
+
+	t.Run("never-ensured leftover is stamped like any other leftover, not dropped immediately", func(t *testing.T) {
 		t.Parallel()
 		stale := coreapi.RoleAssignmentKey{
 			PrincipalID:              "stale-principal",
@@ -331,7 +355,9 @@ func TestDesiredRoleAssignments(t *testing.T) {
 		}
 		got, err := syncer.desiredRoleAssignmentsV2(cluster, readySPC, current)
 		require.NoError(t, err)
-		assert.NotContains(t, got, stale)
+		require.Contains(t, got, stale)
+		assert.NotNil(t, got[stale].DeconfigureTimestamp)
+		assert.Nil(t, got[stale].ReservedAzureResourceID)
 	})
 
 	t.Run("nil existing status is an error", func(t *testing.T) {
@@ -349,7 +375,7 @@ func TestDesiredRoleAssignments(t *testing.T) {
 		oldKey.PrincipalID = "old-principal"
 		current := map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus{
 			oldKey: {
-				AzureResource: testRoleAssignmentAzureResource(t),
+				ReservedAzureResourceID: testRoleAssignmentAzureResource(t),
 				TargetIdentity: &coreapi.RoleAssignmentTargetIdentity{
 					ResourceID:  mustParseResourceID(testControlPlaneIdentityID),
 					ClientID:    "old-client",
@@ -369,7 +395,7 @@ func TestDesiredRoleAssignments(t *testing.T) {
 		newStatus := got[desiredKeys[0]]
 		require.NotNil(t, newStatus)
 		assert.Nil(t, newStatus.DeconfigureTimestamp)
-		assert.False(t, coreapihelpers.RoleAssignmentStatusConfigured(newStatus))
+		assert.Nil(t, newStatus.ReservedAzureResourceID)
 		require.NotNil(t, newStatus.TargetIdentity)
 		assert.Equal(t, desiredKeys[0].PrincipalID, newStatus.TargetIdentity.PrincipalID)
 	})
@@ -379,7 +405,7 @@ func TestDesiredRoleAssignments(t *testing.T) {
 		key := desiredKeys[0]
 		current := map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus{
 			key: {
-				AzureResource: testRoleAssignmentAzureResource(t),
+				ReservedAzureResourceID: testRoleAssignmentAzureResource(t),
 				TargetIdentity: &coreapi.RoleAssignmentTargetIdentity{
 					ClientID:    "old-client",
 					TenantID:    "arm-tenant-cp",
@@ -391,7 +417,7 @@ func TestDesiredRoleAssignments(t *testing.T) {
 		require.NoError(t, err)
 		require.Contains(t, got, key)
 		assert.Nil(t, got[key].DeconfigureTimestamp)
-		assert.True(t, coreapihelpers.RoleAssignmentStatusConfigured(got[key]))
+		assert.NotNil(t, got[key].ReservedAzureResourceID)
 		require.NotNil(t, got[key].TargetIdentity)
 		assert.Equal(t, "dp-client-cp", got[key].TargetIdentity.ClientID)
 		assert.Equal(t, key.PrincipalID, got[key].TargetIdentity.PrincipalID)
@@ -402,7 +428,7 @@ func TestDesiredRoleAssignments(t *testing.T) {
 		key := desiredKeys[0]
 		current := map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus{
 			key: {
-				AzureResource: testRoleAssignmentAzureResource(t),
+				ReservedAzureResourceID: testRoleAssignmentAzureResource(t),
 				TargetIdentity: &coreapi.RoleAssignmentTargetIdentity{
 					ResourceID:  mustParseResourceID("/subscriptions/sub/resourcegroups/old/providers/microsoft.managedidentity/userassignedidentities/cp"),
 					ClientID:    "dp-client-cp",
@@ -415,7 +441,7 @@ func TestDesiredRoleAssignments(t *testing.T) {
 		require.NoError(t, err)
 		require.Contains(t, got, key)
 		assert.Nil(t, got[key].DeconfigureTimestamp)
-		assert.True(t, coreapihelpers.RoleAssignmentStatusConfigured(got[key]))
+		assert.NotNil(t, got[key].ReservedAzureResourceID)
 		require.NotNil(t, got[key].TargetIdentity)
 		assert.True(t, controllerutil.ResourceIDsEqual(mustParseResourceID(testControlPlaneIdentityID), got[key].TargetIdentity.ResourceID))
 		assert.Equal(t, key.PrincipalID, got[key].TargetIdentity.PrincipalID)
@@ -442,7 +468,7 @@ func TestRoleAssignmentIntentSyncOncePersistsDesiredKeys(t *testing.T) {
 	for _, key := range testDesiredRoleAssignmentKeys(t) {
 		require.Contains(t, updated.Status.RoleAssignmentsOverManagedResourceGroup, key)
 		assert.Nil(t, updated.Status.RoleAssignmentsOverManagedResourceGroup[key].DeconfigureTimestamp)
-		assert.False(t, coreapihelpers.RoleAssignmentStatusConfigured(updated.Status.RoleAssignmentsOverManagedResourceGroup[key]))
+		assert.Nil(t, updated.Status.RoleAssignmentsOverManagedResourceGroup[key].ReservedAzureResourceID)
 	}
 }
 

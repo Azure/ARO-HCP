@@ -272,6 +272,33 @@ func (l *DBServiceProviderClusterLister) ListForCluster(ctx context.Context, sub
 	return listertestingutils.CollectFromIterator(ctx, iter)
 }
 
+// DBStackDesireLister implements corelisters.StackDesireLister backed by a corecosmosstorage.ResourcesDBClient.
+type DBStackDesireLister struct {
+	ResourcesDBClient corecosmosstorage.ResourcesDBClient
+}
+
+var _ corelisters.StackDesireLister = &DBStackDesireLister{}
+
+func (l *DBStackDesireLister) List(ctx context.Context) ([]*coreapi.StackDesire, error) {
+	iter, err := l.ResourcesDBClient.ResourcesGlobalListers().StackDesires().List(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	return listertestingutils.CollectFromIterator(ctx, iter)
+}
+
+func (l *DBStackDesireLister) Get(ctx context.Context, subscriptionID, resourceGroupName, clusterName, name string) (*coreapi.StackDesire, error) {
+	return l.ResourcesDBClient.StackDesires(subscriptionID, resourceGroupName, clusterName).Get(ctx, name)
+}
+
+func (l *DBStackDesireLister) ListForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) ([]*coreapi.StackDesire, error) {
+	iter, err := l.ResourcesDBClient.StackDesires(subscriptionID, resourceGroupName, clusterName).List(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	return listertestingutils.CollectFromIterator(ctx, iter)
+}
+
 // DBControllerLister implements corelisters.ControllerLister backed by a corecosmosstorage.ResourcesDBClient.
 type DBControllerLister struct {
 	ResourcesDBClient corecosmosstorage.ResourcesDBClient

@@ -16,22 +16,21 @@ package roleassignments
 
 import (
 	"context"
-	"errors"
 	"fmt"
+	"sort"
 	"time"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/wait"
-	utilsclock "k8s.io/utils/clock"
+	"github.com/go-logr/logr"
+
 	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v2"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeploymentstacks"
 
-	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	"github.com/Azure/ARO-HCP/backend/pkg/azure/roleassignment"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
@@ -46,67 +45,67 @@ import (
 const ClusterRoleAssignmentsControllerName = "ClusterRoleAssignments"
 
 const (
-	// clusterRoleAssignmentsRecheckInterval is the base interval before
-	// re-querying Azure for role assignments that are already ensured.
-	// Combined with clusterRoleAssignmentsRecheckJitter via wait.Jitter. The
-	// resulting time is stored on
-	// Spec.EarliestRecheckTimesByController[ClusterRoleAssignmentsControllerName].
-	clusterRoleAssignmentsRecheckInterval = 1 * time.Hour
-	// clusterRoleAssignmentsRecheckJitter is the wait.Jitter factor applied to
-	// clusterRoleAssignmentsRecheckInterval when setting this controller's
-	// Spec.EarliestRecheckTimesByController entry.
-	clusterRoleAssignmentsRecheckJitter = 0.5
-
-	// roleAssignmentDeconfigureDelay is how long a live cluster waits after
-	// DeconfigureTimestamp before deleting a draining role assignment.
-	roleAssignmentDeconfigureDelay = 24 * time.Hour
+	// RoleAssignmentsDesireName identifies the cluster's complete role
+	// assignment intent as a StackDesire.
+	RoleAssignmentsDesireName = "role-assignments"
+	// RoleAssignmentsStackName is the deployment stack name, stable within
+	// each cluster's managed resource group.
+	RoleAssignmentsStackName = "aro-hcp-role-assignments"
+	// roleAssignmentAPIVersion is the ARM API version embedded in each
+	// Microsoft.Authorization/roleAssignments template resource. It matches
+	// the version armauthorization/v2 uses for direct role assignment calls
+	// elsewhere in this repo.
+	roleAssignmentAPIVersion = "2022-04-01"
 )
 
-// clusterRoleAssignmentsSyncer creates, repairs, and deletes Azure role
-// assignments for entries in ServiceProviderCluster.Status.RoleAssignmentsV2.
+// clusterRoleAssignmentsSyncer publishes the role assignments the cluster
+// currently needs over its managed resource group as a single StackDesire, so
+// the stack desires controller can apply or delete the whole set in Azure
+// through one deployment stack.
 //
-// Desired keys persist the role assignment resource ID as PendingAzureResource
-// before Create ("set pending before Azure"). Ensured keys are rechecked on
-// Spec.EarliestRecheckTimesByController[ClusterRoleAssignmentV2], or
-// immediately when AzureResource is missing. Get the role assignment and
-// Create only if it is missing.
-// Keys with DeconfigureTimestamp set delete the resource IDs already tracked
-// on AzureResource and PendingAzureResource after the 24h wait, then drop the
-// key. Azure work is skipped until the managed resource group is confirmed.
-// Cluster deletion (DeletionTimestamp set) skips all work: role assignments
-// are scoped to the managed resource group, so Azure deletes them in cascade
-// when that resource group is removed.
+// It does not call Azure itself. The only Azure-shape decision it makes is
+// reserving a role assignment resource ID for a key that does not have one
+// yet (RoleAssignmentStatus.ReservedAzureResourceID), which it persists before the ID
+// is ever used so a later naming-strategy change cannot orphan or duplicate
+// an already-reserved assignment. Everything else — applying the stack,
+// deleting resources that drop out of the template, retrying failures — is
+// the stack desires controller's job.
+//
+// Cluster deletion and cluster-not-found are no-ops beyond removing the
+// bookkeeping StackDesire document: role assignments are scoped to the
+// managed resource group, so Azure deletes them in cascade when that
+// resource group is removed. A live cluster whose desired set becomes empty
+// is different — nothing else will tear down an already-applied deployment
+// stack, so this controller asks for it to be deleted instead of abandoning
+// the StackDesire document.
 type clusterRoleAssignmentsSyncer struct {
-	clock                        utilsclock.PassiveClock
 	clusterLister                corelisters.ClusterLister
 	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
 	subscriptionLister           corelisters.SubscriptionLister
+	stackDesireLister            corelisters.StackDesireLister
 	resourcesDBClient            corecosmosstorage.ResourcesDBClient
-	azureFPAClientBuilder        azureclient.FirstPartyApplicationClientBuilder
 }
 
 var _ controllerutils.ClusterSyncer = (*clusterRoleAssignmentsSyncer)(nil)
 
 // NewClusterRoleAssignmentsController creates a cluster-watching controller
-// that creates, repairs, and deletes Azure role assignments using
-// ServiceProviderCluster.Status.RoleAssignmentsV2.
+// that publishes ServiceProviderCluster.Status.RoleAssignmentsOverManagedResourceGroup
+// as a StackDesire for the stack desires controller to reconcile against Azure.
 func NewClusterRoleAssignmentsController(
-	clock utilsclock.PassiveClock,
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
-	azureFPAClientBuilder azureclient.FirstPartyApplicationClientBuilder,
 	backendInformers coreinformers.BackendInformers,
 ) controllerutils.Controller {
 	_, clusterLister := backendInformers.Clusters()
 	_, serviceProviderClusterLister := backendInformers.ServiceProviderClusters()
 	_, subscriptionLister := backendInformers.Subscriptions()
+	_, stackDesireLister := backendInformers.StackDesires()
 
 	syncer := &clusterRoleAssignmentsSyncer{
-		clock:                        clock,
 		clusterLister:                clusterLister,
 		serviceProviderClusterLister: serviceProviderClusterLister,
 		subscriptionLister:           subscriptionLister,
+		stackDesireLister:            stackDesireLister,
 		resourcesDBClient:            resourcesDBClient,
-		azureFPAClientBuilder:        azureFPAClientBuilder,
 	}
 
 	controller := controllerutils.NewClusterWatchingController(
@@ -124,349 +123,294 @@ func NewClusterRoleAssignmentsController(
 	return controller
 }
 
-func (s *clusterRoleAssignmentsSyncer) needsWork(cluster *coreapi.Cluster, serviceProviderCluster *coreapi.ServiceProviderCluster) bool {
-	// If the cluster is being deleted, we skip the role assignment work. Because the role assignments are scoped to the managed resource group, when
-	// the managed resource group is deleted, the role assignments are also deleted so no need to do anything in this controller in that case.
-	if cluster.ServiceProviderProperties.DeletionTimestamp != nil {
-		return false
-	}
-
-	// If the managed resource group is not yet created, we skip the role assignment work, as we can't create role assignments
-	// over the Managed Resource Group if it doesn't exist.
-	if serviceProviderCluster.Status.AzureResources.ManagedResourceGroup.AzureResource == nil {
-		return false
-	}
-
-	now := s.clock.Now()
-	earliestRecheckTime := serviceProviderCluster.Spec.EarliestRecheckTimesByController[ClusterRoleAssignmentsControllerName]
-
-	// If there are no role assignments to process, we consider there's no need to work.
-	if len(serviceProviderCluster.Status.RoleAssignmentsOverManagedResourceGroup) == 0 {
-		return false
-	}
-
-	// If there are role assignments to process, we need to check if there's any immediate work to do. If there is at
-	// least one assignment that needs immediate work, we return true.
-	for _, status := range serviceProviderCluster.Status.RoleAssignmentsOverManagedResourceGroup {
-		if s.roleAssignmentNeedsImmediateWork(status, now) {
-			return true
-		}
-	}
-
-	// If there is no immediate work to do, we check if we need to recheck the role assignments based on the earliest recheck time.
-	return earliestRecheckTime == nil || now.Compare(earliestRecheckTime.Time) >= 0
-}
-
-func (s *clusterRoleAssignmentsSyncer) roleAssignmentNeedsImmediateWork(status *coreapi.RoleAssignmentStatus, now time.Time) bool {
-	if status.DeconfigureTimestamp != nil {
-		return s.deconfigureCanStartForRoleAssignment(status, now)
-	}
-	return status.AzureResource == nil
-}
-
-// deconfigureCanStartForRoleAssignment reports whether a draining role
-// assignment may be deleted. The 24h wait is measured from DeconfigureTimestamp.
-func (s *clusterRoleAssignmentsSyncer) deconfigureCanStartForRoleAssignment(status *coreapi.RoleAssignmentStatus, now time.Time) bool {
-	return !s.clock.Now().Before(status.DeconfigureTimestamp.Add(roleAssignmentDeconfigureDelay))
-}
-
 func (s *clusterRoleAssignmentsSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
 	logger := utils.LoggerFromContext(ctx)
+
 	existingCluster, err := s.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if cosmosstorageutils.IsNotFoundError(err) {
-		return nil
+		return s.deleteStackDesire(ctx, key)
 	}
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get Cluster from cache: %w", err))
 	}
 
+	// Role assignments are scoped to the managed resource group, so Azure
+	// deletes them in cascade when that resource group is removed during
+	// cluster teardown. Only the bookkeeping StackDesire document needs
+	// cleaning up here.
+	if existingCluster.ServiceProviderProperties.DeletionTimestamp != nil {
+		return s.deleteStackDesire(ctx, key)
+	}
+
 	existingServiceProviderCluster, err := s.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if cosmosstorageutils.IsNotFoundError(err) {
-		return nil
+		return s.deleteStackDesire(ctx, key)
 	}
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster: %w", err))
 	}
 
-	if !s.needsWork(existingCluster, existingServiceProviderCluster) {
+	scope := existingServiceProviderCluster.Status.AzureResources.ManagedResourceGroup.AzureResource
+	if scope == nil {
+		// Role assignment names and the stack target are both scoped to the
+		// managed resource group. Nothing can be published yet.
 		return nil
 	}
 
+	if len(existingServiceProviderCluster.Status.RoleAssignmentsOverManagedResourceGroup) == 0 {
+		return s.requestStackDeletion(ctx, key)
+	}
+
+	reservedServiceProviderCluster, err := s.reserveAzureResourceIDs(ctx, existingCluster, existingServiceProviderCluster, scope)
+	if err != nil {
+		return err
+	}
+
+	subscription, err := s.subscriptionLister.Get(ctx, key.SubscriptionID)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to get Subscription from cache: %w", err))
+	}
+	if subscription.Properties == nil || subscription.Properties.TenantId == nil {
+		return utils.TrackError(fmt.Errorf("subscription %s has no tenantId", key.SubscriptionID))
+	}
+
+	desiredSpec, err := s.desiredStackDesireSpec(reservedServiceProviderCluster, scope, *subscription.Properties.TenantId)
+	if err != nil {
+		return err
+	}
+
+	return s.publishStackDesire(ctx, key, desiredSpec, logger)
+}
+
+// reserveAzureResourceIDs assigns ReservedAzureResourceID to every key in
+// RoleAssignmentsOverManagedResourceGroup that does not have one yet, and
+// persists the result before returning, so the reserved ID is never lost to
+// a crash between being chosen and being used. Keys that already have a
+// ReservedAzureResourceID are left untouched: naming is a one-time reservation, never
+// recomputed.
+func (s *clusterRoleAssignmentsSyncer) reserveAzureResourceIDs(
+	ctx context.Context,
+	existingCluster *coreapi.Cluster,
+	existingServiceProviderCluster *coreapi.ServiceProviderCluster,
+	scope *azcorearm.ResourceID,
+) (*coreapi.ServiceProviderCluster, error) {
 	replacement := existingServiceProviderCluster.DeepCopy()
-	timeNow := s.clock.Now()
-	var errs []error
 
-	// Loop 1: persist role assignment resource IDs that are not yet on the
-	// document before any Azure Create. Desired keys record the ID when it is
-	// not already AzureResource. Draining keys are skipped: their IDs are
-	// already on AzureResource or leftover PendingAzureResource.
-	// Cluster deletion is handled by needsWork and never reaches here.
-	for assignmentKey, status := range replacement.Status.RoleAssignmentsOverManagedResourceGroup {
-		if status.DeconfigureTimestamp != nil {
-			// If the role assignment is marked for deconfiguration, we skip it, as we will handle it in the next loop.
+	for key, status := range replacement.Status.RoleAssignmentsOverManagedResourceGroup {
+		if status.ReservedAzureResourceID != nil {
 			continue
 		}
-
-		desiredResourceID, err := s.desiredRoleAssignmentResourceID(existingServiceProviderCluster, assignmentKey)
+		reservedID, err := azcorearm.ParseResourceID(roleassignment.ManagedResourceGroupScopedRoleAssignmentResourceID(scope.String(), key.PrincipalID, key.RoleDefinitionResourceID))
 		if err != nil {
-			errs = append(errs, err)
-			continue
+			return nil, utils.TrackError(fmt.Errorf("failed to parse reserved role assignment resource ID: %w", err))
 		}
-		if controllerutil.ResourceIDsEqual(status.AzureResource, desiredResourceID) {
-			// Already confirmed at this ID. PendingAzureResource means an
-			// unconfirmed Create. Leaving it set would restamp pending on
-			// every recheck. Clear a leftover that duplicates AzureResource.
-			status.PendingAzureResource = nil
-			continue
-		}
-		status.PendingAzureResource = desiredResourceID
+		status.ReservedAzureResourceID = reservedID
 	}
 
-	if controllerutil.NeedsUpdate(existingServiceProviderCluster, replacement) {
-		logger.Info("persisting pending role assignments onto ServiceProviderCluster")
-
-		persistedServiceProviderCluster, err := s.resourcesDBClient.ServiceProviderClusters(existingCluster.ID.SubscriptionID, existingCluster.ID.ResourceGroupName, existingCluster.ID.Name).Replace(ctx, replacement, nil)
-		if err != nil {
-			return utils.TrackError(fmt.Errorf("failed to replace ServiceProviderCluster: %w", err))
-		}
-		existingServiceProviderCluster = persistedServiceProviderCluster
-		replacement = existingServiceProviderCluster.DeepCopy()
+	if !controllerutil.NeedsUpdate(existingServiceProviderCluster, replacement) {
+		return existingServiceProviderCluster, nil
 	}
 
-	roleAssignmentsClientGetter := s.newRoleAssignmentsClientGetter(ctx, key)
-	// Loop 2: create, repair, or delete role assignments in Azure, then update
-	// each entry in memory. Azure errors on one key do not skip the rest:
-	// remaining keys still run so a partial update can be persisted.
-	// AzureResource is written only when the Azure call for that key succeeds.
-	// Successful key deconfigure removes the map entry. Draining keys wait
-	// 24h (deconfigureCanStartForRoleAssignment) before Delete.
-	for assignmentKey := range replacement.Status.RoleAssignmentsOverManagedResourceGroup {
-		status := replacement.Status.RoleAssignmentsOverManagedResourceGroup[assignmentKey]
-		if status == nil {
-			errs = append(errs, utils.TrackError(fmt.Errorf("RoleAssignmentsV2 has a nil status for principal ID %s role definition resource ID %s", assignmentKey.PrincipalID, assignmentKey.RoleDefinitionResourceID)))
-			continue
-		}
-
-		if status.DeconfigureTimestamp != nil {
-			if !s.deconfigureCanStartForRoleAssignment(status, timeNow) {
-				continue
-			}
-			client, err := roleAssignmentsClientGetter()
-			if err != nil {
-				errs = append(errs, err)
-				continue
-			}
-			err = s.deconfigureRoleAssignment(ctx, status, client)
-			if err != nil {
-				errs = append(errs, err)
-				continue
-			}
-			delete(replacement.Status.RoleAssignmentsOverManagedResourceGroup, assignmentKey)
-			continue
-		}
-
-		client, err := roleAssignmentsClientGetter()
-		if err != nil {
-			errs = append(errs, err)
-			continue
-		}
-		err = s.ensureRoleAssignment(ctx, existingServiceProviderCluster, assignmentKey, status, client)
-		if err != nil {
-			errs = append(errs, err)
-		}
-	}
-
-	if len(replacement.Status.RoleAssignmentsOverManagedResourceGroup) == 0 {
-		replacement.Status.RoleAssignmentsOverManagedResourceGroup = nil
-	}
-
-	if len(errs) == 0 {
-		s.syncRoleAssignmentRecheckTime(replacement)
-	}
-
-	if controllerutil.NeedsUpdate(existingServiceProviderCluster, replacement) {
-		logger.Info("persisting role assignment configure/deconfigure result onto ServiceProviderCluster")
-
-		_, err := s.resourcesDBClient.ServiceProviderClusters(existingCluster.ID.SubscriptionID, existingCluster.ID.ResourceGroupName, existingCluster.ID.Name).Replace(ctx, replacement, nil)
-		if err != nil {
-			return utils.TrackError(fmt.Errorf("failed to replace ServiceProviderCluster: %w", err))
-		}
-	}
-
-	return errors.Join(errs...)
-}
-
-func (s *clusterRoleAssignmentsSyncer) newRoleAssignmentsClientGetter(ctx context.Context, key controllerutils.HCPClusterKey) func() (azureclient.RoleAssignmentsClient, error) {
-	var client azureclient.RoleAssignmentsClient
-	return func() (azureclient.RoleAssignmentsClient, error) {
-		if client != nil {
-			return client, nil
-		}
-
-		subscription, err := s.subscriptionLister.Get(ctx, key.SubscriptionID)
-		if err != nil {
-			return nil, utils.TrackError(err)
-		}
-		if subscription.Properties == nil || subscription.Properties.TenantId == nil {
-			return nil, utils.TrackError(fmt.Errorf("subscription %s has no tenantId", key.SubscriptionID))
-		}
-
-		built, err := s.azureFPAClientBuilder.RoleAssignmentsClient(*subscription.Properties.TenantId, key.SubscriptionID)
-		if err != nil {
-			return nil, utils.TrackError(fmt.Errorf("failed to create role assignments client: %w", err))
-		}
-		client = built
-		return client, nil
-	}
-}
-
-// desiredRoleAssignmentResourceID builds the deterministic managed-resource-group
-// scoped role assignment resource ID. The scope is
-// Status.AzureResources.ManagedResourceGroup.AzureResource. Callers run after
-// needsWork, which already requires that field.
-func (s *clusterRoleAssignmentsSyncer) desiredRoleAssignmentResourceID(serviceProviderCluster *coreapi.ServiceProviderCluster, key coreapi.RoleAssignmentKey) (*azcorearm.ResourceID, error) {
-	scopeID := serviceProviderCluster.Status.AzureResources.ManagedResourceGroup.AzureResource
-	generatedRoleAssignmentResourceIDStr := roleassignment.ManagedResourceGroupScopedRoleAssignmentResourceID(scopeID.String(), key.PrincipalID, key.RoleDefinitionResourceID)
-	parsedRoleAssignmentResourceID, err := azcorearm.ParseResourceID(generatedRoleAssignmentResourceIDStr)
+	utils.LoggerFromContext(ctx).Info("reserving role assignment resource IDs onto ServiceProviderCluster")
+	persisted, err := s.resourcesDBClient.ServiceProviderClusters(existingCluster.ID.SubscriptionID, existingCluster.ID.ResourceGroupName, existingCluster.ID.Name).Replace(ctx, replacement, nil)
 	if err != nil {
-		return nil, utils.TrackError(fmt.Errorf("failed to parse role assignment resource ID %q: %w", generatedRoleAssignmentResourceIDStr, err))
+		return nil, utils.TrackError(fmt.Errorf("failed to replace ServiceProviderCluster: %w", err))
 	}
-	return parsedRoleAssignmentResourceID, nil
+	return persisted, nil
 }
 
-func (s *clusterRoleAssignmentsSyncer) ensureRoleAssignment(
-	ctx context.Context,
+// desiredStackDesireSpec builds the StackDesire spec that applies every key
+// currently in RoleAssignmentsOverManagedResourceGroup (including draining
+// keys still inside their deconfigure wait) as one ARM template.
+func (s *clusterRoleAssignmentsSyncer) desiredStackDesireSpec(
 	serviceProviderCluster *coreapi.ServiceProviderCluster,
-	key coreapi.RoleAssignmentKey,
-	status *coreapi.RoleAssignmentStatus,
-	client azureclient.RoleAssignmentsClient,
-) error {
-	desiredResourceID, err := s.desiredRoleAssignmentResourceID(serviceProviderCluster, key)
+	scope *azcorearm.ResourceID,
+	tenantID string,
+) (coreapi.StackDesireSpec, error) {
+	target, err := azcorearm.ParseResourceID(scope.String() + "/providers/Microsoft.Resources/deploymentStacks/" + RoleAssignmentsStackName)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to calculate desired role assignment resource ID: %w", err))
+		return coreapi.StackDesireSpec{}, utils.TrackError(fmt.Errorf("failed to parse role assignments stack resource ID: %w", err))
 	}
 
-	scopeID := serviceProviderCluster.Status.AzureResources.ManagedResourceGroup.AzureResource
-
-	_, getErr := client.GetByID(ctx, desiredResourceID.String(), nil)
-
-	if getErr != nil && !azureclient.IsRoleAssignmentNotFoundErr(getErr) {
-		return utils.TrackError(fmt.Errorf("failed to get role assignment %s: %w", desiredResourceID.String(), getErr))
+	resources, err := roleAssignmentTemplateResources(serviceProviderCluster.Status.RoleAssignmentsOverManagedResourceGroup)
+	if err != nil {
+		return coreapi.StackDesireSpec{}, err
 	}
 
-	if getErr != nil && azureclient.IsRoleAssignmentNotFoundErr(getErr) {
-		if err := s.createRoleAssignment(ctx, client, scopeID.String(), desiredResourceID.Name, key); err != nil {
-			return err
-		}
-	}
-
-	status.AzureResource = desiredResourceID
-	status.PendingAzureResource = nil
-	utils.LoggerFromContext(ctx).Info("Ensured role assignment", "resourceID", desiredResourceID.String(), "principalID", key.PrincipalID, "roleDefinitionResourceID", key.RoleDefinitionResourceID)
-
-	return nil
-}
-
-func (s *clusterRoleAssignmentsSyncer) createRoleAssignment(
-	ctx context.Context,
-	client azureclient.RoleAssignmentsClient,
-	scope string,
-	roleAssignmentName string,
-	key coreapi.RoleAssignmentKey,
-) error {
-	parameters := armauthorization.RoleAssignmentCreateParameters{
-		Properties: &armauthorization.RoleAssignmentProperties{
-			PrincipalID:      ptr.To(key.PrincipalID),
-			RoleDefinitionID: ptr.To(key.RoleDefinitionResourceID),
-			PrincipalType:    ptr.To(armauthorization.PrincipalTypeServicePrincipal),
+	return coreapi.StackDesireSpec{
+		TargetResourceID: target,
+		Authentication: coreapi.StackDesireAuthentication{
+			Type:     coreapi.StackDesireAuthenticationTypeFPA,
+			TenantID: tenantID,
 		},
-	}
-	_, err := client.Create(ctx, scope, roleAssignmentName, parameters, nil)
-	if azureclient.IsRoleAssignmentExistsErr(err) {
-		return nil
-	}
-	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to create role assignment %s: %w", roleAssignmentName, err))
-	}
-	return nil
+		Action: coreapi.StackDesireActionApply,
+		Stack: &armdeploymentstacks.DeploymentStack{
+			Properties: &armdeploymentstacks.DeploymentStackProperties{
+				Template: map[string]any{
+					"$schema":        "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+					"contentVersion": "1.0.0.0",
+					"resources":      resources,
+				},
+				ActionOnUnmanage: roleAssignmentsActionOnUnmanage(),
+				DenySettings: &armdeploymentstacks.DenySettings{
+					// Deny assignments are managed by the separate deny
+					// assignment controller, not by this stack.
+					Mode: ptr.To(armdeploymentstacks.DenySettingsModeNone),
+				},
+			},
+		},
+	}, nil
 }
 
-func (s *clusterRoleAssignmentsSyncer) deleteRoleAssignment(ctx context.Context, client azureclient.RoleAssignmentsClient, resourceID *azcorearm.ResourceID) error {
-	_, err := client.DeleteByID(ctx, resourceID.String(), nil)
-	if azureclient.IsRoleAssignmentNotFoundErr(err) {
-		return nil
+// roleAssignmentsActionOnUnmanage deletes a role assignment from Azure once it
+// drops out of the published template, and never touches resource groups or
+// management groups — this stack only ever contains role assignments.
+func roleAssignmentsActionOnUnmanage() *armdeploymentstacks.ActionOnUnmanage {
+	return &armdeploymentstacks.ActionOnUnmanage{
+		Resources:        ptr.To(armdeploymentstacks.DeploymentStacksDeleteDetachEnumDelete),
+		ResourceGroups:   ptr.To(armdeploymentstacks.DeploymentStacksDeleteDetachEnumDetach),
+		ManagementGroups: ptr.To(armdeploymentstacks.DeploymentStacksDeleteDetachEnumDetach),
 	}
-	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to delete role assignment %s: %w", resourceID.String(), err))
-	}
-	return nil
 }
 
-func (s *clusterRoleAssignmentsSyncer) deconfigureRoleAssignment(
-	ctx context.Context,
-	status *coreapi.RoleAssignmentStatus,
-	client azureclient.RoleAssignmentsClient,
-) error {
-	var errs []error
+// roleAssignmentTemplateResources renders one Microsoft.Authorization/roleAssignments
+// template resource per key, named with that key's ReservedAzureResourceID. Keys
+// are sorted so the generated template (and therefore its spec hash) does not
+// change from one sync to the next unless the desired set actually changed:
+// StackDesireSpecHash retains array order, but Go map iteration order does not.
+func roleAssignmentTemplateResources(assignments map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus) ([]map[string]any, error) {
+	keys := make([]coreapi.RoleAssignmentKey, 0, len(assignments))
+	for key := range assignments {
+		keys = append(keys, key)
+	}
+	sort.Slice(keys, func(i, j int) bool {
+		if keys[i].PrincipalID != keys[j].PrincipalID {
+			return keys[i].PrincipalID < keys[j].PrincipalID
+		}
+		return keys[i].RoleDefinitionResourceID < keys[j].RoleDefinitionResourceID
+	})
 
-	remainingPendingAzureResource := status.PendingAzureResource
-	remainingAzureResource := status.AzureResource
+	resources := make([]map[string]any, 0, len(keys))
+	for _, key := range keys {
+		status := assignments[key]
+		if status.ReservedAzureResourceID == nil {
+			return nil, utils.TrackError(fmt.Errorf("role assignment for principal ID %s role definition resource ID %s has no reserved AzureResourceID", key.PrincipalID, key.RoleDefinitionResourceID))
+		}
+		resources = append(resources, map[string]any{
+			"type":       "Microsoft.Authorization/roleAssignments",
+			"apiVersion": roleAssignmentAPIVersion,
+			"name":       status.ReservedAzureResourceID.Name,
+			"properties": map[string]any{
+				"principalId":      key.PrincipalID,
+				"roleDefinitionId": key.RoleDefinitionResourceID,
+				"principalType":    "ServicePrincipal",
+			},
+		})
+	}
+	return resources, nil
+}
 
-	if status.PendingAzureResource != nil {
-		err := s.deleteRoleAssignment(ctx, client, status.PendingAzureResource)
+// publishStackDesire creates the role-assignments StackDesire if it does not
+// exist yet, or replaces it only when desiredSpec actually differs from what
+// is already published.
+func (s *clusterRoleAssignmentsSyncer) publishStackDesire(ctx context.Context, key controllerutils.HCPClusterKey, desiredSpec coreapi.StackDesireSpec, logger logr.Logger) error {
+	existing, err := s.stackDesireLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, RoleAssignmentsDesireName)
+	if cosmosstorageutils.IsNotFoundError(err) {
+		resourceID, err := coreapihelpers.ToStackDesireResourceID(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, RoleAssignmentsDesireName)
 		if err != nil {
-			errs = append(errs, err)
-		} else {
-			remainingPendingAzureResource = nil
+			return utils.TrackError(fmt.Errorf("failed to build role assignments StackDesire resource ID: %w", err))
 		}
-	}
-
-	if status.AzureResource != nil && !controllerutil.ResourceIDsEqual(status.AzureResource, status.PendingAzureResource) {
-		if err := s.deleteRoleAssignment(ctx, client, status.AzureResource); err != nil {
-			errs = append(errs, err)
-		} else {
-			remainingAzureResource = nil
+		newDesire := &coreapi.StackDesire{
+			CosmosMetadata: coreapi.CosmosMetadata{
+				ResourceID:   resourceID,
+				PartitionKey: key.SubscriptionID,
+			},
+			Spec: desiredSpec,
 		}
+		logger.Info("creating role assignments StackDesire")
+		_, err = s.resourcesDBClient.StackDesires(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName).Create(ctx, newDesire, nil)
+		if cosmosstorageutils.IsConflictError(err) {
+			return nil
+		}
+		if err != nil {
+			return utils.TrackError(fmt.Errorf("failed to create role assignments StackDesire: %w", err))
+		}
+		return nil
+	}
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to get role assignments StackDesire: %w", err))
 	}
 
-	status.PendingAzureResource = remainingPendingAzureResource
-	status.AzureResource = remainingAzureResource
-	if len(errs) > 0 {
-		return errors.Join(errs...)
+	existingHash, err := coreapi.StackDesireSpecHash(existing.Spec)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to hash existing role assignments StackDesire spec: %w", err))
+	}
+	desiredHash, err := coreapi.StackDesireSpecHash(desiredSpec)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to hash desired role assignments StackDesire spec: %w", err))
+	}
+	if existingHash == desiredHash {
+		// A document round-tripped through Cosmos JSON storage decodes
+		// Template's nested values differently (e.g. []any instead of the
+		// []map[string]any a producer builds in memory) than a freshly
+		// computed spec, even when semantically identical, so a generic
+		// reflect-based comparison would see a spurious difference on every
+		// sync. StackDesireSpecHash canonicalizes through JSON for exactly
+		// this reason.
+		return nil
 	}
 
+	replacement := existing.DeepCopy()
+	replacement.Spec = desiredSpec
+	logger.Info("updating role assignments StackDesire")
+	_, err = s.resourcesDBClient.StackDesires(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName).Replace(ctx, replacement, nil)
+	if cosmosstorageutils.IsPreconditionFailedError(err) {
+		return nil
+	}
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to replace role assignments StackDesire: %w", err))
+	}
 	return nil
 }
 
-// syncRoleAssignmentRecheckTime sets Spec.EarliestRecheckTimesByController[ClusterRoleAssignments]
-// when remaining keys are idle (desired keys have AzureResource set, and
-// draining keys are still inside the 24h wait). An empty role assignment map
-// deletes the entry: there is nothing to re-query. Immediate work remaining
-// leaves any existing time in place so needsWork stays true until that work
-// finishes.
-func (s *clusterRoleAssignmentsSyncer) syncRoleAssignmentRecheckTime(replacement *coreapi.ServiceProviderCluster) {
-	if len(replacement.Status.RoleAssignmentsOverManagedResourceGroup) == 0 {
-		delete(replacement.Spec.EarliestRecheckTimesByController, ClusterRoleAssignmentsControllerName)
-		return
+// requestStackDeletion asks the stack desires controller to delete the Azure
+// deployment stack when the desired role assignment set has gone from
+// non-empty to empty on a live cluster. It never removes the StackDesire
+// document itself here: unlike cluster teardown, nothing else will delete the
+// already-applied stack, so abandoning the document would orphan it.
+func (s *clusterRoleAssignmentsSyncer) requestStackDeletion(ctx context.Context, key controllerutils.HCPClusterKey) error {
+	existing, err := s.stackDesireLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, RoleAssignmentsDesireName)
+	if cosmosstorageutils.IsNotFoundError(err) {
+		// Never published, so there is nothing to delete.
+		return nil
+	}
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to get role assignments StackDesire: %w", err))
+	}
+	if existing.Spec.Action == coreapi.StackDesireActionDelete {
+		return nil
 	}
 
-	if !s.roleAssignmentsAzureIdle(replacement) {
-		return
+	replacement := existing.DeepCopy()
+	replacement.Spec.Action = coreapi.StackDesireActionDelete
+	utils.LoggerFromContext(ctx).Info("requesting deletion of role assignments StackDesire")
+	_, err = s.resourcesDBClient.StackDesires(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName).Replace(ctx, replacement, nil)
+	if cosmosstorageutils.IsPreconditionFailedError(err) {
+		return nil
 	}
-
-	recheckAt := metav1.NewTime(s.clock.Now().Add(wait.Jitter(clusterRoleAssignmentsRecheckInterval, clusterRoleAssignmentsRecheckJitter)))
-	if replacement.Spec.EarliestRecheckTimesByController == nil {
-		replacement.Spec.EarliestRecheckTimesByController = map[string]*metav1.Time{}
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to replace role assignments StackDesire: %w", err))
 	}
-	replacement.Spec.EarliestRecheckTimesByController[ClusterRoleAssignmentsControllerName] = &recheckAt
+	return nil
 }
 
-func (s *clusterRoleAssignmentsSyncer) roleAssignmentsAzureIdle(serviceProviderCluster *coreapi.ServiceProviderCluster) bool {
-	now := s.clock.Now()
-	for _, status := range serviceProviderCluster.Status.RoleAssignmentsOverManagedResourceGroup {
-		if s.roleAssignmentNeedsImmediateWork(status, now) {
-			return false
-		}
+func (s *clusterRoleAssignmentsSyncer) deleteStackDesire(ctx context.Context, key controllerutils.HCPClusterKey) error {
+	err := s.resourcesDBClient.StackDesires(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName).Delete(ctx, RoleAssignmentsDesireName)
+	if cosmosstorageutils.IsNotFoundError(err) {
+		return nil
 	}
-	return true
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to delete role assignments StackDesire: %w", err))
+	}
+	return nil
 }

@@ -42,6 +42,12 @@ import (
 // label), context/logger controller name, and log fields.
 const ClusterRoleAssignmentIntentControllerName = "ClusterRoleAssignmentIntent"
 
+// roleAssignmentDeconfigureDelay is how long a leftover key is kept in
+// RoleAssignmentsOverManagedResourceGroup (and therefore in the StackDesire
+// template ClusterRoleAssignments publishes) after DeconfigureTimestamp is
+// stamped, before ClusterRoleAssignmentIntent drops it from the map.
+const roleAssignmentDeconfigureDelay = 24 * time.Hour
+
 // clusterRoleAssignmentIntentSyncer keeps
 // ServiceProviderCluster.Status.RoleAssignmentsV2 in sync with the
 // control-plane operator, data-plane operator, and service managed identity
@@ -60,16 +66,16 @@ const ClusterRoleAssignmentIntentControllerName = "ClusterRoleAssignmentIntent"
 //     Assigned Identities only. The same UAMI used as both a control-plane
 //     operator and a data-plane operator can therefore produce two
 //     principals.
-//     TargetIdentity is copied from that source. AzureResource stays nil until
-//     ClusterRoleAssignmentV2 writes it after a successful ensure. Keys
-//     whose identities are not yet resolved are not added.
+//     TargetIdentity is copied from that source. Keys whose identities are not
+//     yet resolved are not added.
 //   - A ClientID or TenantID change on the same key updates TargetIdentity;
 //     it does not deconfigure.
 //   - Keys present in RoleAssignmentsV2 but no longer desired keep their row
-//     when AzureResource or PendingAzureResource is set. The first transition
-//     stamps DeconfigureTimestamp. A row that was never ensured is dropped.
-//     If the key is desired again before the wait ends, the timestamp is
-//     cleared.
+//     for roleAssignmentDeconfigureDelay (24h) from the first transition,
+//     which stamps DeconfigureTimestamp, so ClusterRoleAssignments keeps
+//     rendering them into the published StackDesire template during that
+//     window. Once the wait elapses the row is dropped. If the key is desired
+//     again before the wait ends, the timestamp is cleared.
 //   - ResourceIDs that are still required but whose principal IDs are
 //     temporarily unresolved are left as-is so a transient fetch error does
 //     not deconfigure them.
@@ -313,10 +319,13 @@ func (s *clusterRoleAssignmentIntentSyncer) desiredRoleAssignmentIdentities(
 //
 // Keys that left the desired set are handled in the second loop. A key whose
 // TargetIdentity.ResourceID is still unresolved is copied unchanged so a
-// missing source does not deconfigure. A key that already has DeconfigureTimestamp keeps that
-// stamp. A key with no AzureResource or PendingAzureResource is dropped. Any
-// other leftover key is stamped with DeconfigureTimestamp from the controller
-// clock for the executor to delete.
+// missing source does not deconfigure. A key that already has
+// DeconfigureTimestamp keeps that stamp until roleAssignmentDeconfigureDelay
+// has elapsed, at which point it is dropped. Any other leftover key is
+// stamped with DeconfigureTimestamp from the controller clock, which keeps it
+// in the map (and therefore in the StackDesire template ClusterRoleAssignments
+// publishes) for roleAssignmentDeconfigureDelay before it is dropped in a
+// later sync.
 func (s *clusterRoleAssignmentIntentSyncer) mergeRoleAssignments(
 	existing map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus,
 	desiredIdentities map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentTargetIdentity,
@@ -365,17 +374,17 @@ func (s *clusterRoleAssignmentIntentSyncer) mergeRoleAssignments(
 			continue
 		}
 
-		// Already stamped: keep the timestamp so the 24h wait is not reset.
+		// Already stamped: keep the timestamp so the 24h wait is not reset,
+		// unless it has elapsed, in which case the key is dropped.
 		if existingStatus.DeconfigureTimestamp != nil {
+			if !s.clock.Now().Before(existingStatus.DeconfigureTimestamp.Add(roleAssignmentDeconfigureDelay)) {
+				continue
+			}
 			desiredRoleAssignments[key] = existingStatus.DeepCopy()
 			continue
 		}
-		// Never ensured in Azure: drop instead of stamping deconfigure.
-		if existingStatus.AzureResource == nil && existingStatus.PendingAzureResource == nil {
-			continue
-		}
 
-		// Stamped: request deconfigure.
+		// Not yet stamped: request deconfigure.
 		status := existingStatus.DeepCopy()
 		stamp := deconfigureRequestedAt
 		status.DeconfigureTimestamp = &stamp
