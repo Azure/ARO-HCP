@@ -53,12 +53,15 @@ spec:
     # the ingress route as reachable, aggregated per HCP cluster.
     # Ratio format per ADR: good events / total events
     # Uses sum/count (not min) so that a single failed observation in a redundant
-    # setup does not report the entire cluster as unavailable.
+    # setup does not report the entire cluster as unavailable. Deduped with max
+    # without (prometheus_replica) before the per-HCP aggregation, same as the
+    # windowed group below -- otherwise a replica that misses a scrape the other
+    # catches can skew this ratio instead of just doubling a volume floor.
     - record: availability:ingress_canary:ratio
       expr: |
-        sum by (_id, cluster, region) (ingress_canary_route_reachable)
+        sum by (_id, cluster, region) (max without (prometheus_replica) (ingress_canary_route_reachable))
         /
-        count by (_id, cluster, region) (ingress_canary_route_reachable)
+        count by (_id, cluster, region) (max without (prometheus_replica) (ingress_canary_route_reachable))
     # Error rate derived from the availability SLI.
     # Instantaneous (last-scrape) value only -- kept for dashboards / SLI
     # reporting. NOT used for alerting: see the windowed group below.
@@ -190,12 +193,14 @@ spec:
     # Latency SLI: fraction of synthetic canary route checks completing within
     # 200ms, aggregated per HCP cluster.
     # Ratio format per ADR: good events / total events
-    # Uses rate() over 5m to smooth out per-scrape noise.
+    # Uses rate() over 5m to smooth out per-scrape noise. Deduped with max
+    # without (prometheus_replica), same reasoning as the availability ratio
+    # above.
     - record: latency:ingress_canary:ratio
       expr: |
-        sum by (_id, cluster, region) (rate(ingress_canary_check_duration_bucket{le="200"}[5m]))
+        sum by (_id, cluster, region) (max without (prometheus_replica) (rate(ingress_canary_check_duration_bucket{le="200"}[5m])))
         /
-        sum by (_id, cluster, region) (rate(ingress_canary_check_duration_bucket{le="+Inf"}[5m]))
+        sum by (_id, cluster, region) (max without (prometheus_replica) (rate(ingress_canary_check_duration_bucket{le="+Inf"}[5m])))
     # Error rate derived from the latency SLI.
     # Instantaneous (5m rate) value only -- kept for dashboards / SLI
     # reporting. NOT used for alerting: see the windowed group below.
