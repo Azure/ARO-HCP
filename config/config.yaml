@@ -1159,7 +1159,7 @@ defaults:
     image:
       registry: arohcpsvcdev.azurecr.io
       repository: zgalor/aro-hcp-clusters-service
-      digest: sha256:19f8122ae3675d0d73bf4df1957981e05d91b0e26c2f17d4b63849ccf901f50b
+      digest: sha256:55a938ecc99c1c3a89a669f747d91ff6c2e023ca4cf602fdd8ff1143354249dc
     # controls how many HCPs can be placed on an MC, sadly not configurable per MC
     provisionShardClusterLimit: 100
     provisionShardStatus: active
