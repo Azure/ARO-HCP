@@ -70,8 +70,8 @@ func NewMinorUpgradeNormalClusterDesiredVersionController(clock utilsclock.Passi
 	controller.AddInterestingResource(coreapi.NodePoolResourceType, "*")
 	controller.AddInterestingResource(coreapi.ServiceProviderNodePoolResourceType, coreapi.ServiceProviderNodePoolResourceName)
 	nodePoolInformer, _ := informers.NodePools()
-	providerNodePoolInformer, _ := informers.ServiceProviderNodePools()
-	if err := controller.QueueForDescendantInformers(time.Minute, 2, nodePoolInformer, providerNodePoolInformer); err != nil {
+	serviceProviderNodePoolInformer, _ := informers.ServiceProviderNodePools()
+	if err := controller.QueueForDescendantInformers(0, 2, nodePoolInformer, serviceProviderNodePoolInformer); err != nil {
 		panic(err)
 	}
 

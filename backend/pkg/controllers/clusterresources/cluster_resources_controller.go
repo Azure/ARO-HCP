@@ -112,9 +112,10 @@ func NewClusterResourcesController(
 	controller.AddInterestingResource(kubeapplierapi.ClusterScopedReadDesireResourceType, "*")
 	controller.AddInterestingResource(kubeapplierapi.NodePoolScopedReadDesireResourceType, "*")
 	nodePoolInformer, _ := informers.NodePools()
-	applyInformer, _ := kubeApplierInformers.ApplyDesires()
-	readInformer, _ := kubeApplierInformers.ReadDesires()
-	if err := controller.QueueForDescendantInformers(30*time.Second, 2, nodePoolInformer, applyInformer, readInformer); err != nil {
+	// Desire changes are observed on the primary-resource resync for now:
+	// live reconciliation fetches the full Cluster Service resource set, so
+	// subscribing to high-frequency desire status updates would amplify calls.
+	if err := controller.QueueForChildInformers(0, nodePoolInformer); err != nil {
 		panic(err)
 	}
 

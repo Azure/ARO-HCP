@@ -111,7 +111,7 @@ func NewNodePoolDegradedAggregatorController(
 	controller.AddInterestingResource(coreapi.NodePoolResourceType, "*")
 	controller.AddInterestingResource(coreapi.NodePoolControllerResourceType, "*")
 	controllerInformer, _ := informers.Controllers()
-	if err := controller.QueueForChildInformers(time.Minute, controllerInformer); err != nil {
+	if err := controller.QueueForChildInformers(0, controllerInformer); err != nil {
 		panic(err)
 	}
 	controller.AddInterestingResource(kubeapplierapi.NodePoolScopedApplyDesireResourceType, "*")

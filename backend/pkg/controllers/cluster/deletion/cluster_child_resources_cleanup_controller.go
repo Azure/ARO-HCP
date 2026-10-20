@@ -32,6 +32,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -56,7 +57,7 @@ func NewClusterChildResourcesCleanupController(
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	kubeApplierDBClients kubeappliercosmosstorage.KubeApplierDBClients,
 	informers coreinformers.BackendInformers,
-	applyDesireInformer, readDesireInformer controllerutils.Notifier,
+	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 ) controllerutils.Controller {
 	_, clusterLister := informers.Clusters()
 	syncer := &clusterChildResourcesCleanupController{
@@ -69,7 +70,7 @@ func NewClusterChildResourcesCleanupController(
 		ClusterChildResourcesCleanupControllerControllerName,
 		resourcesDBClient,
 		informers,
-		nil,
+		kubeApplierInformers,
 		time.Minute,
 		syncer,
 	)
@@ -87,7 +88,7 @@ func NewClusterChildResourcesCleanupController(
 	externalAuthInformer, _ := informers.ExternalAuths()
 	requestInformer, _ := informers.SystemAdminCredentialRequests()
 	revocationInformer, _ := informers.SystemAdminCredentialRevocations()
-	if err := controller.QueueForChildInformers(time.Minute, nodePoolInformer, externalAuthInformer, requestInformer, revocationInformer, applyDesireInformer, readDesireInformer); err != nil {
+	if err := controller.QueueForChildInformers(0, nodePoolInformer, externalAuthInformer, requestInformer, revocationInformer); err != nil {
 		panic(err)
 	}
 

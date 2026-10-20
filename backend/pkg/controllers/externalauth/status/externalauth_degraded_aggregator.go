@@ -94,7 +94,7 @@ func NewExternalAuthDegradedAggregatorController(
 	controller.AddInterestingResource(coreapi.ExternalAuthResourceType, "*")
 	controller.AddInterestingResource(coreapi.ExternalAuthControllerResourceType, "*")
 	controllerInformer, _ := informers.Controllers()
-	if err := controller.QueueForChildInformers(time.Minute, controllerInformer); err != nil {
+	if err := controller.QueueForChildInformers(0, controllerInformer); err != nil {
 		panic(err)
 	}
 
