@@ -103,14 +103,16 @@ func NewNodePoolVersionController(
 	controller.AddInterestingResource(coreapi.ServiceProviderNodePoolResourceType, coreapi.ServiceProviderNodePoolResourceName)
 	controller.AddInterestingResource(coreapi.ServiceProviderClusterResourceType, coreapi.ServiceProviderClusterResourceName)
 	controller.AddInterestingResource(azcorearm.SubscriptionResourceType, "*")
-	controller.AddInterestingResource(kubeapplierapi.ClusterScopedReadDesireResourceType, kubeapplierapi.ReadDesireNameReadonlyHostedCluster)
-
-	// we need to trigger on serviceProviderCluster changes because we rely on a version field there to make decisions
-	serviceProviderClusterInformer, _ := informers.ServiceProviderClusters()
-	err := controller.QueueForInformers(resyncDuration, serviceProviderClusterInformer)
-	if err != nil {
-		panic(err) // coding error
+	if err := controllerutils.WatchSubscriptionsForNodePools(controller, informers); err != nil {
+		panic(err)
 	}
+	providerInformer, _ := informers.ServiceProviderClusters()
+	clusterInformer, _ := informers.Clusters()
+	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
+	if err := controllerutils.WatchClusterParentsForNodePools(controller, informers, clusterInformer, providerInformer); err != nil {
+		panic(err)
+	}
+	controller.AddInterestingResource(kubeapplierapi.ClusterScopedReadDesireResourceType, kubeapplierapi.ReadDesireNameReadonlyHostedCluster)
 
 	return controller
 }
