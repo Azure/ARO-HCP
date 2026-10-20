@@ -92,17 +92,21 @@ spec:
   # sum_over_time/count_over_time (the metric is a gauge sampled on scrape,
   # not a counter, so rate()/increase() do not apply). The alert layer
   # additionally requires a volume floor on *_total_W for each window in the
-  # pair, so a sparse or freshly-started window cannot page.
+  # pair, so a sparse or freshly-started window cannot page. Each window is
+  # deduped with max without (prometheus_replica) before the per-HCP sum,
+  # since the managed Prometheus HA replicas both scrape the same canary
+  # targets -- without it, every window's observation count (and therefore
+  # its volume floor) would double, same as the frontend SLO rules.
   - name: arohcp_ingress_availability_slo_windowed_recording_rules
     interval: 1m
     rules:
     # --- 5m window (fast burn, short) ---
     - record: errors:ingress_canary:succeeded_5m
       expr: |
-        sum by (_id, cluster, region) (sum_over_time(ingress_canary_route_reachable[5m]))
+        sum by (_id, cluster, region) (max without (prometheus_replica) (sum_over_time(ingress_canary_route_reachable[5m])))
     - record: errors:ingress_canary:total_5m
       expr: |
-        sum by (_id, cluster, region) (count_over_time(ingress_canary_route_reachable[5m]))
+        sum by (_id, cluster, region) (max without (prometheus_replica) (count_over_time(ingress_canary_route_reachable[5m])))
     - record: errors:ingress_canary:failed_5m
       expr: |
         errors:ingress_canary:total_5m - errors:ingress_canary:succeeded_5m
@@ -112,10 +116,10 @@ spec:
     # --- 30m window (medium burn, short) ---
     - record: errors:ingress_canary:succeeded_30m
       expr: |
-        sum by (_id, cluster, region) (sum_over_time(ingress_canary_route_reachable[30m]))
+        sum by (_id, cluster, region) (max without (prometheus_replica) (sum_over_time(ingress_canary_route_reachable[30m])))
     - record: errors:ingress_canary:total_30m
       expr: |
-        sum by (_id, cluster, region) (count_over_time(ingress_canary_route_reachable[30m]))
+        sum by (_id, cluster, region) (max without (prometheus_replica) (count_over_time(ingress_canary_route_reachable[30m])))
     - record: errors:ingress_canary:failed_30m
       expr: |
         errors:ingress_canary:total_30m - errors:ingress_canary:succeeded_30m
@@ -125,10 +129,10 @@ spec:
     # --- 1h window (fast burn, long) ---
     - record: errors:ingress_canary:succeeded_1h
       expr: |
-        sum by (_id, cluster, region) (sum_over_time(ingress_canary_route_reachable[1h]))
+        sum by (_id, cluster, region) (max without (prometheus_replica) (sum_over_time(ingress_canary_route_reachable[1h])))
     - record: errors:ingress_canary:total_1h
       expr: |
-        sum by (_id, cluster, region) (count_over_time(ingress_canary_route_reachable[1h]))
+        sum by (_id, cluster, region) (max without (prometheus_replica) (count_over_time(ingress_canary_route_reachable[1h])))
     - record: errors:ingress_canary:failed_1h
       expr: |
         errors:ingress_canary:total_1h - errors:ingress_canary:succeeded_1h
@@ -138,10 +142,10 @@ spec:
     # --- 6h window (medium burn long / slow burn short) ---
     - record: errors:ingress_canary:succeeded_6h
       expr: |
-        sum by (_id, cluster, region) (sum_over_time(ingress_canary_route_reachable[6h]))
+        sum by (_id, cluster, region) (max without (prometheus_replica) (sum_over_time(ingress_canary_route_reachable[6h])))
     - record: errors:ingress_canary:total_6h
       expr: |
-        sum by (_id, cluster, region) (count_over_time(ingress_canary_route_reachable[6h]))
+        sum by (_id, cluster, region) (max without (prometheus_replica) (count_over_time(ingress_canary_route_reachable[6h])))
     - record: errors:ingress_canary:failed_6h
       expr: |
         errors:ingress_canary:total_6h - errors:ingress_canary:succeeded_6h
@@ -151,10 +155,10 @@ spec:
     # --- 3d window (slow burn, long) ---
     - record: errors:ingress_canary:succeeded_3d
       expr: |
-        sum by (_id, cluster, region) (sum_over_time(ingress_canary_route_reachable[3d]))
+        sum by (_id, cluster, region) (max without (prometheus_replica) (sum_over_time(ingress_canary_route_reachable[3d])))
     - record: errors:ingress_canary:total_3d
       expr: |
-        sum by (_id, cluster, region) (count_over_time(ingress_canary_route_reachable[3d]))
+        sum by (_id, cluster, region) (max without (prometheus_replica) (count_over_time(ingress_canary_route_reachable[3d])))
     - record: errors:ingress_canary:failed_3d
       expr: |
         errors:ingress_canary:total_3d - errors:ingress_canary:succeeded_3d
@@ -205,17 +209,19 @@ spec:
   # above. ingress_canary_check_duration_bucket is a cumulative histogram
   # counter, so increase() over each window is used directly (no rate()
   # normalization needed, unlike the instantaneous 5m SLI). Same window/tier
-  # pairing as availability: fast=1h/5m, medium=6h/30m, slow=3d/6h.
+  # pairing as availability: fast=1h/5m, medium=6h/30m, slow=3d/6h. Same
+  # max without (prometheus_replica) dedup as the availability windowed
+  # group, for the same HA-replica-double-counting reason.
   - name: arohcp_ingress_latency_slo_windowed_recording_rules
     interval: 1m
     rules:
     # --- 5m window (fast burn, short) ---
     - record: errors:ingress_canary_latency:total_5m
       expr: |
-        sum by (_id, cluster, region) (increase(ingress_canary_check_duration_bucket{le="+Inf"}[5m]))
+        sum by (_id, cluster, region) (max without (prometheus_replica) (increase(ingress_canary_check_duration_bucket{le="+Inf"}[5m])))
     - record: errors:ingress_canary_latency:fast_5m
       expr: |
-        sum by (_id, cluster, region) (increase(ingress_canary_check_duration_bucket{le="200"}[5m]))
+        sum by (_id, cluster, region) (max without (prometheus_replica) (increase(ingress_canary_check_duration_bucket{le="200"}[5m])))
     - record: errors:ingress_canary_latency:slow_5m
       expr: |
         errors:ingress_canary_latency:total_5m - errors:ingress_canary_latency:fast_5m
@@ -225,10 +231,10 @@ spec:
     # --- 30m window (medium burn, short) ---
     - record: errors:ingress_canary_latency:total_30m
       expr: |
-        sum by (_id, cluster, region) (increase(ingress_canary_check_duration_bucket{le="+Inf"}[30m]))
+        sum by (_id, cluster, region) (max without (prometheus_replica) (increase(ingress_canary_check_duration_bucket{le="+Inf"}[30m])))
     - record: errors:ingress_canary_latency:fast_30m
       expr: |
-        sum by (_id, cluster, region) (increase(ingress_canary_check_duration_bucket{le="200"}[30m]))
+        sum by (_id, cluster, region) (max without (prometheus_replica) (increase(ingress_canary_check_duration_bucket{le="200"}[30m])))
     - record: errors:ingress_canary_latency:slow_30m
       expr: |
         errors:ingress_canary_latency:total_30m - errors:ingress_canary_latency:fast_30m
@@ -238,10 +244,10 @@ spec:
     # --- 1h window (fast burn, long) ---
     - record: errors:ingress_canary_latency:total_1h
       expr: |
-        sum by (_id, cluster, region) (increase(ingress_canary_check_duration_bucket{le="+Inf"}[1h]))
+        sum by (_id, cluster, region) (max without (prometheus_replica) (increase(ingress_canary_check_duration_bucket{le="+Inf"}[1h])))
     - record: errors:ingress_canary_latency:fast_1h
       expr: |
-        sum by (_id, cluster, region) (increase(ingress_canary_check_duration_bucket{le="200"}[1h]))
+        sum by (_id, cluster, region) (max without (prometheus_replica) (increase(ingress_canary_check_duration_bucket{le="200"}[1h])))
     - record: errors:ingress_canary_latency:slow_1h
       expr: |
         errors:ingress_canary_latency:total_1h - errors:ingress_canary_latency:fast_1h
@@ -251,10 +257,10 @@ spec:
     # --- 6h window (medium burn long / slow burn short) ---
     - record: errors:ingress_canary_latency:total_6h
       expr: |
-        sum by (_id, cluster, region) (increase(ingress_canary_check_duration_bucket{le="+Inf"}[6h]))
+        sum by (_id, cluster, region) (max without (prometheus_replica) (increase(ingress_canary_check_duration_bucket{le="+Inf"}[6h])))
     - record: errors:ingress_canary_latency:fast_6h
       expr: |
-        sum by (_id, cluster, region) (increase(ingress_canary_check_duration_bucket{le="200"}[6h]))
+        sum by (_id, cluster, region) (max without (prometheus_replica) (increase(ingress_canary_check_duration_bucket{le="200"}[6h])))
     - record: errors:ingress_canary_latency:slow_6h
       expr: |
         errors:ingress_canary_latency:total_6h - errors:ingress_canary_latency:fast_6h
@@ -264,10 +270,10 @@ spec:
     # --- 3d window (slow burn, long) ---
     - record: errors:ingress_canary_latency:total_3d
       expr: |
-        sum by (_id, cluster, region) (increase(ingress_canary_check_duration_bucket{le="+Inf"}[3d]))
+        sum by (_id, cluster, region) (max without (prometheus_replica) (increase(ingress_canary_check_duration_bucket{le="+Inf"}[3d])))
     - record: errors:ingress_canary_latency:fast_3d
       expr: |
-        sum by (_id, cluster, region) (increase(ingress_canary_check_duration_bucket{le="200"}[3d]))
+        sum by (_id, cluster, region) (max without (prometheus_replica) (increase(ingress_canary_check_duration_bucket{le="200"}[3d])))
     - record: errors:ingress_canary_latency:slow_3d
       expr: |
         errors:ingress_canary_latency:total_3d - errors:ingress_canary_latency:fast_3d
