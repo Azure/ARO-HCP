@@ -33,11 +33,40 @@ type childTestNotifier struct {
 	registration childTestRegistration
 	ready        atomic.Bool
 	err          error
+	options      cache.HandlerOptions
 }
 
-func (n *childTestNotifier) AddEventHandlerWithOptions(h cache.ResourceEventHandler, _ cache.HandlerOptions) (cache.ResourceEventHandlerRegistration, error) {
+func (n *childTestNotifier) AddEventHandlerWithOptions(h cache.ResourceEventHandler, options cache.HandlerOptions) (cache.ResourceEventHandlerRegistration, error) {
 	n.handler = h
+	n.options = options
 	return &n.registration, n.err
+}
+
+func TestEveryGenericWatchHandlesDeletion(t *testing.T) {
+	for _, api := range []string{"ordinary", "depth-limited", "child", "descendant"} {
+		t.Run(api, func(t *testing.T) {
+			c, cluster, _ := newTestWatchingController()
+			t.Cleanup(c.queue.ShutDown)
+			n := &childTestNotifier{}
+			var err error
+			switch api {
+			case "ordinary":
+				err = c.QueueForInformers(0, n)
+			case "depth-limited":
+				err = c.QueueForInformersWithMaxDepth(0, 1, n)
+			case "child":
+				err = c.QueueForChildInformers(0, n)
+			case "descendant":
+				err = c.QueueForDescendantInformers(0, 2, n)
+			}
+			require.NoError(t, err)
+			require.NotNil(t, n.options.ResyncPeriod)
+			require.Zero(t, *n.options.ResyncPeriod, "zero must disable synthetic resync")
+			id := metadataapi.Must(azcorearm.ParseResourceID(testClusterARMID + "/applyDesires/a"))
+			n.handler.OnDelete(cache.DeletedFinalStateUnknown{Obj: &coreapi.CosmosMetadata{ResourceID: id}})
+			require.Equal(t, []string{cluster.String()}, popAllQueue(c), "all APIs must deliver tombstone deletes")
+		})
+	}
 }
 func (n *childTestNotifier) HasSynced() bool { return n.ready.Load() }
 

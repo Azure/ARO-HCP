@@ -56,10 +56,12 @@ import (
 type interestInformer struct {
 	cache.SharedIndexInformer
 	handlers []cache.ResourceEventHandler
+	options  []cache.HandlerOptions
 }
 
-func (i *interestInformer) AddEventHandlerWithOptions(h cache.ResourceEventHandler, _ cache.HandlerOptions) (cache.ResourceEventHandlerRegistration, error) {
+func (i *interestInformer) AddEventHandlerWithOptions(h cache.ResourceEventHandler, options cache.HandlerOptions) (cache.ResourceEventHandlerRegistration, error) {
 	i.handlers = append(i.handlers, h)
+	i.options = append(i.options, options)
 	return interestRegistration{}, nil
 }
 
@@ -239,8 +241,8 @@ func TestControllerResourceInterests(t *testing.T) {
 		{
 			name: "cluster read desire creator observes its own mirrors",
 			newController: func(db corecosmosstorage.ResourcesDBClient, inf coreinformers.BackendInformers, union *unionkubeapplierinformers.UnionKubeApplierInformers) controllerutils.Controller {
-				readInformer, readLister := union.ReadDesires()
-				return clusterreaddesires.NewCreateClusterScopedReadDesiresController(nil, db, nil, nil, readLister, readInformer, inf, "test")
+				_, readLister := union.ReadDesires()
+				return clusterreaddesires.NewCreateClusterScopedReadDesiresController(nil, db, nil, nil, readLister, union, inf, "test")
 			},
 			events: []event{
 				{"read", "/readDesires/" + kubeapplierapi.ReadDesireNameReadonlyHostedCluster, true},
@@ -253,8 +255,8 @@ func TestControllerResourceInterests(t *testing.T) {
 		{
 			name: "node pool read desire creator observes its own mirror", nodePool: true,
 			newController: func(db corecosmosstorage.ResourcesDBClient, inf coreinformers.BackendInformers, union *unionkubeapplierinformers.UnionKubeApplierInformers) controllerutils.Controller {
-				readInformer, readLister := union.ReadDesires()
-				return nodepoolreaddesires.NewCreateNodePoolScopedReadDesiresController(nil, db, nil, nil, readLister, readInformer, inf, "test")
+				_, readLister := union.ReadDesires()
+				return nodepoolreaddesires.NewCreateNodePoolScopedReadDesiresController(nil, db, nil, nil, readLister, union, inf, "test")
 			},
 			events: []event{
 				{"read", "/nodePools/np/readDesires/" + kubeapplierapi.ReadDesireNameReadonlyNodePool, true},
@@ -265,9 +267,7 @@ func TestControllerResourceInterests(t *testing.T) {
 		{
 			name: "cluster child cleanup observes deletion gates",
 			newController: func(db corecosmosstorage.ResourcesDBClient, inf coreinformers.BackendInformers, union *unionkubeapplierinformers.UnionKubeApplierInformers) controllerutils.Controller {
-				applyInformer, _ := union.ApplyDesires()
-				readInformer, _ := union.ReadDesires()
-				return clusterdeletion.NewClusterChildResourcesCleanupController(db, nil, inf, applyInformer, readInformer)
+				return clusterdeletion.NewClusterChildResourcesCleanupController(db, nil, inf, union)
 			},
 			events: []event{
 				{"nodepool", "/nodePools/np", true}, {"externalauth", "/externalAuths/auth", true},
@@ -290,8 +290,7 @@ func TestControllerResourceInterests(t *testing.T) {
 		{
 			name: "cluster final deletion observes deletion gates",
 			newController: func(db corecosmosstorage.ResourcesDBClient, inf coreinformers.BackendInformers, union *unionkubeapplierinformers.UnionKubeApplierInformers) controllerutils.Controller {
-				applyInformer, _ := union.ApplyDesires()
-				return clusterdeletion.NewClusterDeletionController(nil, db, nil, inf, nil, applyInformer)
+				return clusterdeletion.NewClusterDeletionController(nil, db, nil, inf, nil, union)
 			},
 			events: []event{
 				{"nodepool", "/nodePools/np", true}, {"externalauth", "/externalAuths/auth", true},
@@ -300,11 +299,11 @@ func TestControllerResourceInterests(t *testing.T) {
 			},
 		},
 		{
-			name: "cluster resources observes direct and node pool desires",
+			name: "cluster resources observes node pools",
 			newController: func(db corecosmosstorage.ResourcesDBClient, inf coreinformers.BackendInformers, u *unionkubeapplierinformers.UnionKubeApplierInformers) controllerutils.Controller {
 				return clusterresources.NewClusterResourcesController(db, nil, nil, inf, u, nil)
 			},
-			events: []event{{"nodepool", "/nodePools/np", true}, {"apply", "/applyDesires/a", true}, {"apply", "/nodePools/np/applyDesires/a", true}, {"read", "/readDesires/r", true}, {"read", "/nodePools/np/readDesires/r", true}, {"read", "/systemAdminCredentialRequests/c/readDesires/r", false}},
+			events: []event{{"nodepool", "/nodePools/np", true}},
 		},
 		{
 			name: "minor upgrade observes node pool provider state",
@@ -331,6 +330,19 @@ func TestControllerResourceInterests(t *testing.T) {
 				mcID := metadataapi.Must(azcorearm.ParseResourceID("/providers/Microsoft.RedHatOpenShift/stamps/1/managementClusters/default"))
 				require.NoError(t, union.Add(mcID, &interestDesireInformers{sources: sources}))
 				controller := tc.newController(corecosmosstoragetesting.NewMockResourcesDBClient(), backend, union)
+				primarySource := "cluster"
+				if tc.nodePool {
+					primarySource = "nodepool"
+				}
+				for name, source := range sources {
+					if name == primarySource {
+						continue
+					}
+					for _, options := range source.options {
+						require.NotNil(t, options.ResyncPeriod)
+						require.Zero(t, *options.ResyncPeriod, "supplementary %s must use cache events, not synthetic resync", name)
+					}
+				}
 
 				// Queue the entire batch before starting one worker. A final accepted
 				// primary-resource event proves that all preceding events were processed,
@@ -343,21 +355,6 @@ func TestControllerResourceInterests(t *testing.T) {
 				events = append(events, primary)
 				var want []string
 				for i, e := range events {
-					// Existing watch registrations intentionally retain add/update
-					// semantics. Only new child subscriptions handle hard deletion.
-					if mode == "delete" || mode == "tombstone" {
-						if i < len(events)-1 {
-							handlesDelete := false
-							for _, handler := range sources[e.source].handlers {
-								if h, ok := handler.(cache.ResourceEventHandlerFuncs); ok && h.DeleteFunc != nil {
-									handlesDelete = true
-								}
-							}
-							if !handlesDelete {
-								continue
-							}
-						}
-					}
 					key := fmt.Sprintf("event-%d", i)
 					id := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + key + e.suffix))
 					old := &coreapi.CosmosMetadata{ResourceID: id}

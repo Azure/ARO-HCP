@@ -95,10 +95,6 @@ func NewRevocationDesiresController(
 	controller.AddInterestingResource(coreapi.ServiceProviderClusterResourceType, coreapi.ServiceProviderClusterResourceName)
 	controller.AddInterestingResource(kubeapplierapi.SystemAdminCredentialRevocationScopedApplyDesireResourceType, kubeapplierapi.SystemAdminCredentialRevocationDesireName)
 	controller.AddInterestingResource(kubeapplierapi.SystemAdminCredentialRevocationScopedReadDesireResourceType, kubeapplierapi.SystemAdminCredentialRevocationDesireName)
-	applyInformer, _ := kubeApplierInformers.ApplyDesires()
-	if err := controller.QueueForChildInformers(time.Minute, applyInformer); err != nil {
-		panic(err)
-	}
 
 	return controller
 }

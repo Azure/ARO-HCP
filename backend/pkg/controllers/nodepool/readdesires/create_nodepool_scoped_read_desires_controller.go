@@ -35,6 +35,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
+	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -68,7 +69,7 @@ func NewCreateNodePoolScopedReadDesiresController(
 	kubeApplierDBClients kubeappliercosmosstorage.KubeApplierDBClients,
 	serviceProviderClusterLister corelisters.ServiceProviderClusterLister,
 	readDesireLister kubeapplierlisters.ReadDesireLister,
-	readDesireInformer controllerutils.Notifier,
+	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 	informers coreinformers.BackendInformers,
 	hostedClusterNamespaceEnvIdentifier string,
 ) controllerutils.Controller {
@@ -85,7 +86,7 @@ func NewCreateNodePoolScopedReadDesiresController(
 		CreateNodePoolScopedReadDesiresControllerName,
 		resourcesDBClient,
 		informers,
-		nil, // register only the ReadDesire source below
+		kubeApplierInformers,
 		1*time.Minute,
 		syncer,
 	)
@@ -93,9 +94,6 @@ func NewCreateNodePoolScopedReadDesiresController(
 	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
 	controller.AddInterestingResource(coreapi.ServiceProviderClusterResourceType, coreapi.ServiceProviderClusterResourceName)
 	controller.AddInterestingResource(kubeapplierapi.NodePoolScopedReadDesireResourceType, kubeapplierapi.ReadDesireNameReadonlyNodePool)
-	if err := controller.QueueForChildInformers(time.Minute, readDesireInformer); err != nil {
-		panic(err)
-	}
 
 	return controller
 }

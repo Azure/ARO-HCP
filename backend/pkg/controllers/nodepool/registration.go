@@ -248,10 +248,10 @@ func registerCreateNodePoolScopedReadDesiresController() controllerconfig.Contro
 func instantiateCreateNodePoolScopedReadDesiresController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
 	_, activeOperationLister := controllerContext.BackendInformers.ActiveOperations()
 	_, serviceProviderClusterLister := controllerContext.BackendInformers.ServiceProviderClusters()
-	unionReadDesireInformer, unionReadDesireLister := controllerContext.UnionKubeApplierInformers.ReadDesires()
+	_, unionReadDesireLister := controllerContext.UnionKubeApplierInformers.ReadDesires()
 	return nodepoolreaddesires.NewCreateNodePoolScopedReadDesiresController(
 		activeOperationLister, controllerContext.ResourcesDBClient, controllerContext.KubeApplierDBClients,
-		serviceProviderClusterLister, unionReadDesireLister, unionReadDesireInformer,
+		serviceProviderClusterLister, unionReadDesireLister, controllerContext.UnionKubeApplierInformers,
 		controllerContext.BackendInformers, controllerContext.MaestroSourceEnvironmentIdentifier,
 	), nil
 }

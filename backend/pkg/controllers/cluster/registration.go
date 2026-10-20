@@ -734,10 +734,10 @@ func registerCreateClusterScopedReadDesiresController() controllerconfig.Control
 func instantiateCreateClusterScopedReadDesiresController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
 	_, activeOperationLister := controllerContext.BackendInformers.ActiveOperations()
 	_, serviceProviderClusterLister := controllerContext.BackendInformers.ServiceProviderClusters()
-	unionReadDesireInformer, unionReadDesireLister := controllerContext.UnionKubeApplierInformers.ReadDesires()
+	_, unionReadDesireLister := controllerContext.UnionKubeApplierInformers.ReadDesires()
 	return clusterreaddesires.NewCreateClusterScopedReadDesiresController(
 		activeOperationLister, controllerContext.ResourcesDBClient, controllerContext.KubeApplierDBClients,
-		serviceProviderClusterLister, unionReadDesireLister, unionReadDesireInformer,
+		serviceProviderClusterLister, unionReadDesireLister, controllerContext.UnionKubeApplierInformers,
 		controllerContext.BackendInformers, controllerContext.MaestroSourceEnvironmentIdentifier,
 	), nil
 }
@@ -853,13 +853,11 @@ func registerClusterChildResourcesCleanupController() controllerconfig.Controlle
 }
 
 func instantiateClusterChildResourcesCleanupController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
-	applyInformer, _ := controllerContext.UnionKubeApplierInformers.ApplyDesires()
-	readInformer, _ := controllerContext.UnionKubeApplierInformers.ReadDesires()
 	return clusterdeletion.NewClusterChildResourcesCleanupController(
 		controllerContext.ResourcesDBClient,
 		controllerContext.KubeApplierDBClients,
 		controllerContext.BackendInformers,
-		applyInformer, readInformer,
+		controllerContext.UnionKubeApplierInformers,
 	), nil
 }
 
@@ -871,14 +869,13 @@ func registerClusterDeletionController() controllerconfig.ControllerRegistration
 }
 
 func instantiateClusterDeletionController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
-	applyInformer, _ := controllerContext.UnionKubeApplierInformers.ApplyDesires()
 	return clusterdeletion.NewClusterDeletionController(
 		utilsclock.RealClock{},
 		controllerContext.ResourcesDBClient,
 		controllerContext.BillingDBClient,
 		controllerContext.BackendInformers,
 		controllerContext.KubeApplierDBClients,
-		applyInformer,
+		controllerContext.UnionKubeApplierInformers,
 	), nil
 }
 
