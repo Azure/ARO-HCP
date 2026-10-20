@@ -11343,18 +11343,18 @@
   group: prow-ci-alerts
   alert: ProwCIE2EParallelDurationP95High
   occurrence: 1
-  input: histogram_quantile(0.95, sum by (job_name, le) (prow_ci_job_duration_window_runs{job_name="pull-ci-Azure-ARO-HCP-main-e2e-parallel",result="success"})) > 9000 and on (job_name) sum by (job_name) (prow_ci_job_duration_window_runs{job_name="pull-ci-Azure-ARO-HCP-main-e2e-parallel",result="success",le="+Inf"}) >= 20
+  input: histogram_quantile(0.95, sum by (job_name, le) (prow_ci_job_duration_window_runs{job_name="pull-ci-Azure-ARO-HCP-main-e2e-parallel",result="success"})) > 10800 and on (job_name) sum by (job_name) (prow_ci_job_duration_window_runs{job_name="pull-ci-Azure-ARO-HCP-main-e2e-parallel",result="success",le="+Inf"}) >= 20
   plan:
-    expression: histogram_quantile(0.95, sum by (job_name, le) (prow_ci_job_duration_window_runs{job_name="pull-ci-Azure-ARO-HCP-main-e2e-parallel",result="success"})) > 9000 and on (job_name) sum by (job_name) (prow_ci_job_duration_window_runs{job_name="pull-ci-Azure-ARO-HCP-main-e2e-parallel",le="+Inf",result="success"}) >= 20
+    expression: histogram_quantile(0.95, sum by (job_name, le) (prow_ci_job_duration_window_runs{job_name="pull-ci-Azure-ARO-HCP-main-e2e-parallel",result="success"})) > 10800 and on (job_name) sum by (job_name) (prow_ci_job_duration_window_runs{job_name="pull-ci-Azure-ARO-HCP-main-e2e-parallel",le="+Inf",result="success"}) >= 20
     conditions:
-      - expression: histogram_quantile(0.95, sum by (job_name, le) (prow_ci_job_duration_window_runs{job_name="pull-ci-Azure-ARO-HCP-main-e2e-parallel",result="success"})) > 9000
+      - expression: histogram_quantile(0.95, sum by (job_name, le) (prow_ci_job_duration_window_runs{job_name="pull-ci-Azure-ARO-HCP-main-e2e-parallel",result="success"})) > 10800
         path: root/and:left
         queries:
           - expression: histogram_quantile(0.95, sum by (job_name, le) (prow_ci_job_duration_window_runs{job_name="pull-ci-Azure-ARO-HCP-main-e2e-parallel",result="success"}))
             role: signal
         thresholds:
           - operator: '>'
-            value: 9000
+            value: 10800
         unsupported: ""
       - expression: sum by (job_name) (prow_ci_job_duration_window_runs{job_name="pull-ci-Azure-ARO-HCP-main-e2e-parallel",le="+Inf",result="success"}) >= 20
         path: root/and:right
