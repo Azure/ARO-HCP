@@ -53,6 +53,10 @@ const maxToolResultRows = 100
 // used by both the Copilot-specific and provider-neutral factories.
 const kustoToolDescription = `Execute a KQL query against Azure Data Explorer. Use this when the pre-gathered diagnostic data is insufficient and you need to investigate further. The query runs against the ARO-HCP logging cluster. Results are returned as a markdown table. Write queries that are self-contained and tell a story — they will be rendered verbatim in the final analysis.`
 
+// dynamicKustoToolDescription is the kusto_query tool description used in
+// dynamic mode, where no diagnostic data has been gathered in advance.
+const dynamicKustoToolDescription = `Execute a concrete KQL query against Azure Data Explorer. This is the only source of runtime evidence in this investigation: use it to discover identifiers and to run queries rendered from the query library templates (substitute every {{ ... }} placeholder first). The query runs against the ARO-HCP logging cluster. Results are returned as a markdown table. Write queries that are self-contained and tell a story — they will be rendered verbatim in the final analysis.`
+
 // kustoToolParamSchema is the JSON Schema for the kusto_query tool's
 // input parameters, shared between all providers.
 var kustoToolParamSchema = json.RawMessage(`{
@@ -70,9 +74,19 @@ var kustoToolParamSchema = json.RawMessage(`{
 // kusto_query tool. This is the preferred factory for use with LLMProvider
 // implementations; each provider converts it to its native tool format.
 func NewKustoToolDefinition(client KustoClient) ToolDefinition {
+	return NewKustoToolDefinitionFor(ModeTest, client)
+}
+
+// NewKustoToolDefinitionFor creates the kusto_query ToolDefinition with the
+// description appropriate for the given analysis mode.
+func NewKustoToolDefinitionFor(mode Mode, client KustoClient) ToolDefinition {
+	description := kustoToolDescription
+	if mode == ModeDynamic {
+		description = dynamicKustoToolDescription
+	}
 	return ToolDefinition{
 		Name:        "kusto_query",
-		Description: kustoToolDescription,
+		Description: description,
 		ParamSchema: kustoToolParamSchema,
 		Handler: func(ctx context.Context, params json.RawMessage) (string, error) {
 			var p kustoQueryParams

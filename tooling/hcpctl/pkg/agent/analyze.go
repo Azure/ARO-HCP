@@ -42,6 +42,13 @@ type AnalyzeOptions struct {
 	// analysis runs in the original failed-test mode.
 	Intent string
 
+	// Dynamic, when set, runs a dynamic investigation: there is no snapshot, so
+	// Manifest, TestName, TestError, TestOutput, SiblingTests, DataDir, and the
+	// node console logs are unused. Intent must hold the investigation
+	// objective; the intent-mode validation and rendering rules apply, and log
+	// proofs are rejected.
+	Dynamic *DynamicContext
+
 	// TestError is the content of test_logs/error.log, or empty.
 	TestError string
 
@@ -131,10 +138,16 @@ func Analyze(ctx context.Context, logger logr.Logger, session LLMSession, kustoC
 		reviewRounds = 3
 	}
 
+	if opts.Dynamic != nil && opts.Intent == "" {
+		return nil, fmt.Errorf("a dynamic investigation requires an objective")
+	}
+
 	// Phase 1: Send initial prompt.
 	logger.Info("Sending initial analysis prompt.")
 	var prompt string
-	if opts.Intent != "" {
+	if opts.Dynamic != nil {
+		prompt = BuildDynamicInitialPrompt(opts.Intent, *opts.Dynamic, opts.WorktreePaths)
+	} else if opts.Intent != "" {
 		prompt = BuildIntentInitialPrompt(opts.Intent, string(opts.Manifest), opts.TestError, opts.TestOutput, opts.SiblingTests, opts.DataDir, opts.WorktreePaths)
 	} else {
 		prompt = BuildInitialPrompt(string(opts.Manifest), opts.TestError, opts.TestOutput, opts.SiblingTests, opts.DataDir, opts.WorktreePaths)
@@ -157,6 +170,7 @@ func Analyze(ctx context.Context, logger logr.Logger, session LLMSession, kustoC
 		TestOutput:      opts.TestOutput,
 		NodeConsoleLogs: opts.NodeConsoleLogs,
 		Intent:          opts.Intent,
+		Dynamic:         opts.Dynamic != nil,
 	}
 
 	// Phase 2: Validate draft loop.

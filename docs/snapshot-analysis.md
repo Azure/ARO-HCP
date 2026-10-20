@@ -10,6 +10,10 @@ The workflow has two steps:
 2. **Analyze** — send the gathered data to a Copilot agent that produces a
    structured causal chain explaining why the test failed.
 
+`hcpctl snapshot analyze` can also skip the gather step and investigate a
+free-form objective directly against Kusto; see
+[Dynamic investigations](#dynamic-investigations-no-snapshot).
+
 ## Prerequisites
 
 - Azure CLI logged in (`az login`) — needed for Kusto queries.
@@ -109,6 +113,58 @@ price book.
 The aggregate token categories, additional units, and provider-reported costs
 are also logged in the `Analysis complete` message at the default verbosity
 level.
+
+## Dynamic investigations (no snapshot)
+
+`--dynamic <objective>` (or `--dynamic-file <path>`) runs an investigation
+driven entirely by a free-form objective, without gathering anything first.
+There is no data directory: the command takes no positional argument and never
+reads a snapshot, manifest, test logs, or other gathered artifacts. Instead, the
+agent queries Kusto directly through the `kusto_query` tool.
+
+```bash
+hcpctl snapshot analyze \
+  --dynamic "Why is nodepool np-1 of cluster my-cluster in subscription <sub-id> stuck scaling since 2025-01-01T10:00Z?" \
+  --kusto my-adx-cluster --region eastus \
+  --aro-hcp ~/code/ARO-HCP \
+  --hypershift ~/code/hypershift \
+  --maestro ~/code/maestro \
+  --clusters-service ~/code/clusters-service \
+  --output ./results
+```
+
+- `--kusto` and `--region` select the Azure Data Explorer cluster to query.
+  `--service-database`, `--hcp-database`, and `--monitoring-events-database`
+  override the database names (defaults: `ServiceLogs`,
+  `HostedControlPlaneLogs`, `MonitoringEvents`). These flags are only valid in
+  dynamic mode; snapshot analysis takes its Kusto settings from the manifest.
+  `--via-kusto`/`--via-region` route the connection as in snapshot modes.
+- `--output` is required because there is no data directory to default to.
+- The repository, provider, model, `--max-rounds`, and `--review-rounds`
+  options behave as in snapshot modes.
+- `--intent`, `--intent-file`, `--dynamic`, and `--dynamic-file` are mutually
+  exclusive.
+
+The objective should name the resources and time window to investigate (for
+example, a subscription, cluster or node pool name, and a timestamp); the agent
+discovers the remaining identifiers itself.
+
+Instead of gathered results, the agent gets the complete snapshot query library
+in its workspace (`queries/`): every query directory's `README.md` and KQL
+template, the shared partials, and a generated `INDEX.md`. The index lists each
+query with its target database and required identifiers, documents every
+template variable and where its value comes from, and explains how to render a
+template by hand. The agent consults the READMEs, discovers the identifiers it
+needs with its own queries, substitutes the template variables, adapts the
+queries to the objective, and runs the resulting concrete KQL with
+`kusto_query`.
+
+The prompts use a dedicated dynamic mode: they frame the work around the
+supplied objective, never assume a snapshot or a failed test, and omit the
+exemplar analyses. The validation, hydration, review, and output pipeline is
+unchanged, except that log proofs are rejected (there are no gathered logs, so
+log lines must be cited through Kusto proofs) and the rendered heading is the
+model-authored title.
 
 ## Debugging with conversation.json
 

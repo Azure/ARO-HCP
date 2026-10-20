@@ -40,6 +40,24 @@ The tool will be available on SAW devices similar to how the `oc` utility is acc
 
 ## Example Usage
 
+### Dynamic Snapshot Analysis
+
+`hcpctl snapshot analyze --dynamic <objective>` (or `--dynamic-file <path>`)
+investigates a free-form objective without a gathered snapshot. It takes no
+data directory; the agent queries the Kusto cluster selected by `--kusto` and
+`--region` (databases overridable with `--service-database`, `--hcp-database`,
+and `--monitoring-events-database`), guided by the snapshot query library that
+is written into its workspace. `--output` is required. `--intent`,
+`--intent-file`, `--dynamic`, and `--dynamic-file` are mutually exclusive. See
+[docs/snapshot-analysis.md](../../docs/snapshot-analysis.md#dynamic-investigations-no-snapshot).
+
+```bash
+hcpctl snapshot analyze --dynamic "Why is nodepool np-1 stuck scaling since 2025-01-01T10:00Z?" \
+  --kusto my-adx-cluster --region eastus --output ./results \
+  --aro-hcp /path/to/ARO-HCP --hypershift /path/to/hypershift \
+  --maestro /path/to/maestro --clusters-service /path/to/clusters-service
+```
+
 ### Snapshot Analysis with Claude Code
 
 `hcpctl snapshot analyze` supports `--provider claude-code` in addition to the

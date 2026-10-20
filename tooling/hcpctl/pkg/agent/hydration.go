@@ -226,6 +226,11 @@ func (h *Hydrator) hydrateDiscoveryKQL(ctx context.Context, item DiscoveryItem) 
 // This ensures all pre-gathered discovery data is included in the final output
 // deterministically, without requiring the agent to reference paths.
 func (h *Hydrator) backfillAllDiscovery(ctx context.Context) []HydratedDiscovery {
+	// Dynamic investigations have no data directory to backfill from.
+	if h.dataDir == "" {
+		return nil
+	}
+
 	var result []HydratedDiscovery
 
 	_ = filepath.WalkDir(h.dataDir, func(p string, d os.DirEntry, err error) error {

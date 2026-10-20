@@ -56,6 +56,16 @@ type ValidationContext struct {
 	// FirstChainQuestion, no error-log anchor is required, and a non-empty Title
 	// is required. When empty, the strict test-mode rules apply.
 	Intent string
+	// Dynamic marks a dynamic investigation, which has no snapshot and
+	// therefore no logs: log proofs are rejected. Dynamic investigations also
+	// set Intent to their objective, so the intent-mode rules apply as well.
+	Dynamic bool
+}
+
+// dynamicMode reports whether the validation context is for a dynamic
+// investigation with no gathered snapshot.
+func (vc *ValidationContext) dynamicMode() bool {
+	return vc != nil && vc.Dynamic
 }
 
 // intentMode reports whether the validation context is for a free-form
@@ -301,7 +311,17 @@ func ValidateDraft(ctx context.Context, client KustoClient, draft *DraftChain, v
 					}
 				}
 			case "log":
-				if proof.Source != "error" && proof.Source != "output" && proof.Source != "node_console_log" {
+				if vc.dynamicMode() {
+					problems = append(problems, ValidationProblem{
+						Category: "log_unavailable",
+						Chain:    i,
+						Proof:    j,
+						Detail: fmt.Sprintf(
+							"- Chain link %d (%q), proof #%d: log proofs are not available in this investigation because no logs were gathered. Query the log lines from Kusto and use a \"kusto\" proof instead.",
+							i, link.Question, j+1,
+						),
+					})
+				} else if proof.Source != "error" && proof.Source != "output" && proof.Source != "node_console_log" {
 					problems = append(problems, ValidationProblem{
 						Category: "log_invalid_source",
 						Chain:    i,
