@@ -125,7 +125,8 @@ tests:
       value: 0.3333333333333333
 # Windowed records count only operations whose terminal transition landed inside
 # the window. At 100m (6000s): /veryold transitioned 36000s ago (3d only), /old
-# 6000s ago (6h and 3d), /f1 and /s1 600s ago (all windows).
+# 6000s ago (6h and 3d), /f1 and /s1 600s ago (30m, 1h, 6h and 3d, but not 5m).
+# At 92m (5520s) /f1 and /s1 transitioned 120s ago, inside the 5m window too.
 - interval: 1m
   input_series:
   - series: 'backend_resource_operation_phase_info{resource_id="/veryold", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
@@ -190,6 +191,96 @@ tests:
     exp_samples:
     - labels: 'errors:backend_cluster_update:error_rate_3d{cluster="mgmt-1"}'
       value: 0.75
+  - expr: errors:backend_cluster_update:failed_30m
+    eval_time: 100m
+    exp_samples:
+    - labels: 'errors:backend_cluster_update:failed_30m{cluster="mgmt-1"}'
+      value: 1
+  - expr: errors:backend_cluster_update:total_30m
+    eval_time: 100m
+    exp_samples:
+    - labels: 'errors:backend_cluster_update:total_30m{cluster="mgmt-1"}'
+      value: 2
+  - expr: errors:backend_cluster_update:error_rate_30m
+    eval_time: 100m
+    exp_samples:
+    - labels: 'errors:backend_cluster_update:error_rate_30m{cluster="mgmt-1"}'
+      value: 0.5
+  - expr: errors:backend_cluster_update:failed_5m
+    eval_time: 100m
+    exp_samples:
+    - labels: 'errors:backend_cluster_update:failed_5m{cluster="mgmt-1"}'
+      value: 0
+  - expr: errors:backend_cluster_update:total_5m
+    eval_time: 100m
+    exp_samples: []
+  - expr: errors:backend_cluster_update:failed_5m
+    eval_time: 92m
+    exp_samples:
+    - labels: 'errors:backend_cluster_update:failed_5m{cluster="mgmt-1"}'
+      value: 1
+  - expr: errors:backend_cluster_update:total_5m
+    eval_time: 92m
+    exp_samples:
+    - labels: 'errors:backend_cluster_update:total_5m{cluster="mgmt-1"}'
+      value: 2
+  - expr: errors:backend_cluster_update:error_rate_5m
+    eval_time: 92m
+    exp_samples:
+    - labels: 'errors:backend_cluster_update:error_rate_5m{cluster="mgmt-1"}'
+      value: 0.5
+# Internal subscriptions listed in internal_subscription:info are excluded from
+# every errors:* record before aggregation by cluster, while the per-operation
+# current-state record keeps them for dashboards. /int (internal, failed) is
+# dropped, leaving /ext (customer, succeeded).
+- interval: 1m
+  input_series:
+  - series: 'internal_subscription:info{subscription_id="internal-sub"}'
+    values: "1x20"
+  - series: 'backend_resource_operation_phase_info{resource_id="/int", subscription_id="internal-sub", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "1x20"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/int", subscription_id="internal-sub", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "400x20"
+  - series: 'backend_resource_operation_phase_info{resource_id="/ext", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
+    values: "1x20"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/ext", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
+    values: "400x20"
+  promql_expr_test:
+  - expr: count(current:backend_cluster_update:last_transition_time_seconds)
+    eval_time: 10m
+    exp_samples:
+    - labels: '{}'
+      value: 2
+  - expr: errors:backend_cluster_update:terminal_total
+    eval_time: 10m
+    exp_samples:
+    - labels: 'errors:backend_cluster_update:terminal_total{cluster="mgmt-1"}'
+      value: 1
+  - expr: errors:backend_cluster_update:error_rate
+    eval_time: 10m
+    exp_samples:
+    - labels: 'errors:backend_cluster_update:error_rate{cluster="mgmt-1"}'
+      value: 0
+  - expr: errors:backend_cluster_update:failed_5m
+    eval_time: 10m
+    exp_samples:
+    - labels: 'errors:backend_cluster_update:failed_5m{cluster="mgmt-1"}'
+      value: 0
+  - expr: errors:backend_cluster_update:total_5m
+    eval_time: 10m
+    exp_samples:
+    - labels: 'errors:backend_cluster_update:total_5m{cluster="mgmt-1"}'
+      value: 1
+  - expr: errors:backend_cluster_update:failed_1h
+    eval_time: 10m
+    exp_samples:
+    - labels: 'errors:backend_cluster_update:failed_1h{cluster="mgmt-1"}'
+      value: 0
+  - expr: errors:backend_cluster_update:total_3d
+    eval_time: 10m
+    exp_samples:
+    - labels: 'errors:backend_cluster_update:total_3d{cluster="mgmt-1"}'
+      value: 1
 # Windowed failure count is pinned to 0 (not absent) when there are no in-window
 # failures, and canceled operations stay out of the windowed denominator.
 - interval: 1m

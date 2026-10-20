@@ -56,10 +56,61 @@ tests:
   - eval_time: 6h5m
     alertname: userJourneyIDMSMirrorErrors3d
 # ========================================
-# Test 2: Fast burn — 1 succeeded, 4 failed in the last hour
+# Test 2: Fast burn — 1 succeeded, 4 failed in the last hour and last 5m
 # ========================================
-# error_rate_1h = 0.8 > 0.72 with 4 failures >= 3. Errors6h30m is still pending
-# (30m 'for'), and Errors3d needs at least 10 completions.
+# error_rate_1h = error_rate_5m = 0.8 > 0.72 with 4 failures >= 3. The
+# transitions are at 400s, so at every evaluation up to 10m (600s) they sit
+# inside the 5m short window, standing in for failures that keep landing for
+# the whole 'for' duration. Errors6h30m is still pending (30m 'for'), and
+# Errors3d needs at least 10 completions.
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_phase_info{resource_id="/s0", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
+    values: "1x400"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/s0", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
+    values: "400x400"
+  - series: 'backend_resource_operation_phase_info{resource_id="/f0", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "1x400"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/f0", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "400x400"
+  - series: 'backend_resource_operation_phase_info{resource_id="/f1", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "1x400"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/f1", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "400x400"
+  - series: 'backend_resource_operation_phase_info{resource_id="/f2", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "1x400"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/f2", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "400x400"
+  - series: 'backend_resource_operation_phase_info{resource_id="/f3", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "1x400"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/f3", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "400x400"
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: userJourneyIDMSMirrorErrors1h5m
+    exp_alerts:
+    - exp_labels:
+        cluster: "mgmt-1"
+        component: slo
+        severity: "3"
+        long_window: 1h
+        short_window: 5m
+        slo: idms-mirror-errors
+      exp_annotations:
+        summary: "Cluster updates failing fast (>72% over 1h)"
+        description: "More than 72% of clusters on this service cluster whose latest update completed in the last hour have it in failed state (at least 3 failures), and the failures are still occurring over the last 5 minutes, a 14.4x burn threshold. Internal subscriptions are excluded. Only each cluster's latest update is counted, so a failure overwritten by a successful retry is missed. Confirm whether the affected operations carried an imageDigestMirrors change before triaging as an IDMS issue."
+        runbook_url: "https://aka.ms/arohcp-runbook-idms"
+        correlationId: "userJourneyIDMSMirrorErrors/mgmt-1"
+  - eval_time: 10m
+    alertname: userJourneyIDMSMirrorErrors6h30m
+  - eval_time: 10m
+    alertname: userJourneyIDMSMirrorErrors3d
+# ========================================
+# Test 2b: Short window — a fast burn that has already stopped does not page
+# ========================================
+# Same outcomes as Test 2, but every transition is at 0s. At 10m the 1h window
+# still holds 4 failures out of 5 (error_rate_1h = 0.8), but nothing landed in
+# the last 5 minutes, so the 5m short window no longer confirms the burn.
 - interval: 1m
   input_series:
   - series: 'backend_resource_operation_phase_info{resource_id="/s0", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
@@ -82,25 +133,53 @@ tests:
     values: "1x400"
   - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/f3", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
     values: "0x400"
+  promql_expr_test:
+  - expr: errors:backend_cluster_update:error_rate_1h
+    eval_time: 10m
+    exp_samples:
+    - labels: 'errors:backend_cluster_update:error_rate_1h{cluster="mgmt-1"}'
+      value: 0.8
+  - expr: errors:backend_cluster_update:failed_5m
+    eval_time: 10m
+    exp_samples:
+    - labels: 'errors:backend_cluster_update:failed_5m{cluster="mgmt-1"}'
+      value: 0
   alert_rule_test:
-  - eval_time: 7m
+  - eval_time: 10m
     alertname: userJourneyIDMSMirrorErrors1h5m
-    exp_alerts:
-    - exp_labels:
-        cluster: "mgmt-1"
-        component: slo
-        severity: "3"
-        long_window: 1h
-        short_window: 5m
-        slo: idms-mirror-errors
-      exp_annotations:
-        summary: "mgmt-1: Cluster updates failing fast (>72% over 1h)"
-        description: "More than 72% of clusters on mgmt-1 whose latest update completed in the last hour have it in failed state (at least 3 failures), a 14.4x burn threshold. Only each cluster's latest update is counted, so a failure overwritten by a successful retry is missed. Confirm whether the affected operations carried an imageDigestMirrors change before triaging as an IDMS issue."
-        runbook_url: "https://aka.ms/arohcp-runbook-idms"
-  - eval_time: 7m
-    alertname: userJourneyIDMSMirrorErrors6h30m
-  - eval_time: 7m
-    alertname: userJourneyIDMSMirrorErrors3d
+# ========================================
+# Test 2c: Internal subscriptions do not page
+# ========================================
+# Same burst as Test 2, but the 4 failures belong to an internal subscription
+# listed in internal_subscription:info. They are excluded before aggregation by
+# cluster, leaving 1 succeeded update and no failures.
+- interval: 1m
+  input_series:
+  - series: 'internal_subscription:info{subscription_id="internal-sub"}'
+    values: "1x400"
+  - series: 'backend_resource_operation_phase_info{resource_id="/s0", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
+    values: "1x400"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/s0", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
+    values: "400x400"
+  - series: 'backend_resource_operation_phase_info{resource_id="/f0", subscription_id="internal-sub", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "1x400"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/f0", subscription_id="internal-sub", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "400x400"
+  - series: 'backend_resource_operation_phase_info{resource_id="/f1", subscription_id="internal-sub", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "1x400"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/f1", subscription_id="internal-sub", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "400x400"
+  - series: 'backend_resource_operation_phase_info{resource_id="/f2", subscription_id="internal-sub", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "1x400"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/f2", subscription_id="internal-sub", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "400x400"
+  - series: 'backend_resource_operation_phase_info{resource_id="/f3", subscription_id="internal-sub", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "1x400"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/f3", subscription_id="internal-sub", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "400x400"
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: userJourneyIDMSMirrorErrors1h5m
 # ========================================
 # Test 3: Volume floor — 100% failure rate, only 2 failures
 # ========================================
@@ -129,34 +208,37 @@ tests:
 # ========================================
 # Test 4: Medium burn — 3 succeeded, 3 failed in the last 6h
 # ========================================
-# error_rate_6h = 0.5 > 0.30 with 6 completions >= 5. error_rate_1h = 0.5 is
-# below the 0.72 fast threshold, so Errors1h5m does not fire.
+# error_rate_6h = error_rate_30m = 0.5 > 0.30 with 6 completions >= 5. The
+# transitions are at 1500s, so up to 55m (3300s) they sit inside the 30m short
+# window, standing in for failures that keep landing for the whole 'for'
+# duration. error_rate_1h = 0.5 is below the 0.72 fast threshold, so Errors1h5m
+# does not fire.
 - interval: 1m
   input_series:
   - series: 'backend_resource_operation_phase_info{resource_id="/s0", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
     values: "1x400"
   - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/s0", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
-    values: "0x400"
+    values: "1500x400"
   - series: 'backend_resource_operation_phase_info{resource_id="/s1", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
     values: "1x400"
   - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/s1", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
-    values: "0x400"
+    values: "1500x400"
   - series: 'backend_resource_operation_phase_info{resource_id="/s2", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
     values: "1x400"
   - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/s2", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
-    values: "0x400"
+    values: "1500x400"
   - series: 'backend_resource_operation_phase_info{resource_id="/f0", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
     values: "1x400"
   - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/f0", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
-    values: "0x400"
+    values: "1500x400"
   - series: 'backend_resource_operation_phase_info{resource_id="/f1", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
     values: "1x400"
   - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/f1", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
-    values: "0x400"
+    values: "1500x400"
   - series: 'backend_resource_operation_phase_info{resource_id="/f2", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
     values: "1x400"
   - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/f2", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
-    values: "0x400"
+    values: "1500x400"
   alert_rule_test:
   - eval_time: 35m
     alertname: userJourneyIDMSMirrorErrors6h30m
@@ -169,9 +251,10 @@ tests:
         short_window: 30m
         slo: idms-mirror-errors
       exp_annotations:
-        summary: "mgmt-1: Cluster update error rate elevated (>30% over 6h)"
-        description: "More than 30% of clusters on mgmt-1 whose latest update completed in the last 6 hours have it in failed state (at least 5 completions), a 6x burn threshold. Only each cluster's latest update is counted, so a failure overwritten by a successful retry is missed. Confirm whether the affected operations carried an imageDigestMirrors change before triaging as an IDMS issue."
+        summary: "Cluster update error rate elevated (>30% over 6h)"
+        description: "More than 30% of clusters on this service cluster whose latest update completed in the last 6 hours have it in failed state (at least 5 completions), and the failures are still occurring over the last 30 minutes, a 6x burn threshold. Internal subscriptions are excluded. Only each cluster's latest update is counted, so a failure overwritten by a successful retry is missed. Confirm whether the affected operations carried an imageDigestMirrors change before triaging as an IDMS issue."
         runbook_url: "https://aka.ms/arohcp-runbook-idms"
+        correlationId: "userJourneyIDMSMirrorErrors/mgmt-1"
   - eval_time: 35m
     alertname: userJourneyIDMSMirrorErrors1h5m
 # ========================================
@@ -295,12 +378,12 @@ tests:
         component: slo
         severity: "4"
         long_window: 3d
-        short_window: 6h
         slo: idms-mirror-errors
       exp_annotations:
-        summary: "mgmt-1: Cluster update failures persistent (>5% over 3d)"
-        description: "More than 5% of clusters on mgmt-1 whose latest update completed in the last 3 days have it in failed state (at least 10 completions and 2 failures), a 1x burn threshold. Only each cluster's latest update is counted, so a failure overwritten by a successful retry is missed. Confirm whether the affected operations carried an imageDigestMirrors change before triaging as an IDMS issue."
+        summary: "Cluster update failures persistent (>5% over 3d)"
+        description: "More than 5% of clusters on this service cluster whose latest update completed in the last 3 days have it in failed state (at least 10 completions and 2 failures), a 1x burn threshold. Internal subscriptions are excluded. Only each cluster's latest update is counted, so a failure overwritten by a successful retry is missed. Confirm whether the affected operations carried an imageDigestMirrors change before triaging as an IDMS issue."
         runbook_url: "https://aka.ms/arohcp-runbook-idms"
+        correlationId: "userJourneyIDMSMirrorErrors/mgmt-1"
   - eval_time: 6h5m
     alertname: userJourneyIDMSMirrorErrors1h5m
   - eval_time: 6h5m

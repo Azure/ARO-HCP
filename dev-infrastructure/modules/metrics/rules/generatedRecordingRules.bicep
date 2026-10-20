@@ -308,15 +308,15 @@ resource arohcpClusterUpdateSloRecordingRules 'Microsoft.AlertsManagement/promet
       }
       {
         record: 'errors:backend_cluster_update:succeeded_total'
-        expression: 'count by (cluster, region) (current:backend_cluster_update:last_transition_time_seconds{phase="succeeded"})'
+        expression: 'count by (cluster, region) (current:backend_cluster_update:last_transition_time_seconds{phase="succeeded"} unless on (subscription_id) internal_subscription:info)'
       }
       {
         record: 'errors:backend_cluster_update:terminal_total'
-        expression: 'count by (cluster, region) (current:backend_cluster_update:last_transition_time_seconds{phase=~"succeeded|failed"})'
+        expression: 'count by (cluster, region) (current:backend_cluster_update:last_transition_time_seconds{phase=~"succeeded|failed"} unless on (subscription_id) internal_subscription:info)'
       }
       {
         record: 'errors:backend_cluster_update:error_rate'
-        expression: '(count by (cluster, region) (current:backend_cluster_update:last_transition_time_seconds{phase="failed"}) or 0 * count by (cluster, region) (current:backend_cluster_update:last_transition_time_seconds{phase=~"succeeded|failed"})) / clamp_min(count by (cluster, region) (current:backend_cluster_update:last_transition_time_seconds{phase=~"succeeded|failed"}), 1)'
+        expression: '(count by (cluster, region) (current:backend_cluster_update:last_transition_time_seconds{phase="failed"} unless on (subscription_id) internal_subscription:info) or 0 * count by (cluster, region) (current:backend_cluster_update:last_transition_time_seconds{phase=~"succeeded|failed"} unless on (subscription_id) internal_subscription:info)) / clamp_min(count by (cluster, region) (current:backend_cluster_update:last_transition_time_seconds{phase=~"succeeded|failed"} unless on (subscription_id) internal_subscription:info), 1)'
       }
     ]
   }
@@ -333,12 +333,36 @@ resource arohcpClusterUpdateSloWindowedRecordingRules 'Microsoft.AlertsManagemen
     interval: 'PT1M'
     rules: [
       {
+        record: 'errors:backend_cluster_update:failed_5m'
+        expression: 'count by (cluster, region) ((time() - current:backend_cluster_update:last_transition_time_seconds{phase="failed"}) < 300 unless on (subscription_id) internal_subscription:info) or 0 * count by (cluster, region) (current:backend_cluster_update:last_transition_time_seconds unless on (subscription_id) internal_subscription:info)'
+      }
+      {
+        record: 'errors:backend_cluster_update:total_5m'
+        expression: 'count by (cluster, region) ((time() - current:backend_cluster_update:last_transition_time_seconds{phase=~"succeeded|failed"}) < 300 unless on (subscription_id) internal_subscription:info)'
+      }
+      {
+        record: 'errors:backend_cluster_update:error_rate_5m'
+        expression: 'errors:backend_cluster_update:failed_5m / clamp_min(errors:backend_cluster_update:total_5m, 1)'
+      }
+      {
+        record: 'errors:backend_cluster_update:failed_30m'
+        expression: 'count by (cluster, region) ((time() - current:backend_cluster_update:last_transition_time_seconds{phase="failed"}) < 1800 unless on (subscription_id) internal_subscription:info) or 0 * count by (cluster, region) (current:backend_cluster_update:last_transition_time_seconds unless on (subscription_id) internal_subscription:info)'
+      }
+      {
+        record: 'errors:backend_cluster_update:total_30m'
+        expression: 'count by (cluster, region) ((time() - current:backend_cluster_update:last_transition_time_seconds{phase=~"succeeded|failed"}) < 1800 unless on (subscription_id) internal_subscription:info)'
+      }
+      {
+        record: 'errors:backend_cluster_update:error_rate_30m'
+        expression: 'errors:backend_cluster_update:failed_30m / clamp_min(errors:backend_cluster_update:total_30m, 1)'
+      }
+      {
         record: 'errors:backend_cluster_update:failed_1h'
-        expression: 'count by (cluster, region) ((time() - current:backend_cluster_update:last_transition_time_seconds{phase="failed"}) < 3600) or 0 * count by (cluster, region) (current:backend_cluster_update:last_transition_time_seconds)'
+        expression: 'count by (cluster, region) ((time() - current:backend_cluster_update:last_transition_time_seconds{phase="failed"}) < 3600 unless on (subscription_id) internal_subscription:info) or 0 * count by (cluster, region) (current:backend_cluster_update:last_transition_time_seconds unless on (subscription_id) internal_subscription:info)'
       }
       {
         record: 'errors:backend_cluster_update:total_1h'
-        expression: 'count by (cluster, region) ((time() - current:backend_cluster_update:last_transition_time_seconds{phase=~"succeeded|failed"}) < 3600)'
+        expression: 'count by (cluster, region) ((time() - current:backend_cluster_update:last_transition_time_seconds{phase=~"succeeded|failed"}) < 3600 unless on (subscription_id) internal_subscription:info)'
       }
       {
         record: 'errors:backend_cluster_update:error_rate_1h'
@@ -346,11 +370,11 @@ resource arohcpClusterUpdateSloWindowedRecordingRules 'Microsoft.AlertsManagemen
       }
       {
         record: 'errors:backend_cluster_update:failed_6h'
-        expression: 'count by (cluster, region) ((time() - current:backend_cluster_update:last_transition_time_seconds{phase="failed"}) < 21600) or 0 * count by (cluster, region) (current:backend_cluster_update:last_transition_time_seconds)'
+        expression: 'count by (cluster, region) ((time() - current:backend_cluster_update:last_transition_time_seconds{phase="failed"}) < 21600 unless on (subscription_id) internal_subscription:info) or 0 * count by (cluster, region) (current:backend_cluster_update:last_transition_time_seconds unless on (subscription_id) internal_subscription:info)'
       }
       {
         record: 'errors:backend_cluster_update:total_6h'
-        expression: 'count by (cluster, region) ((time() - current:backend_cluster_update:last_transition_time_seconds{phase=~"succeeded|failed"}) < 21600)'
+        expression: 'count by (cluster, region) ((time() - current:backend_cluster_update:last_transition_time_seconds{phase=~"succeeded|failed"}) < 21600 unless on (subscription_id) internal_subscription:info)'
       }
       {
         record: 'errors:backend_cluster_update:error_rate_6h'
@@ -358,11 +382,11 @@ resource arohcpClusterUpdateSloWindowedRecordingRules 'Microsoft.AlertsManagemen
       }
       {
         record: 'errors:backend_cluster_update:failed_3d'
-        expression: 'count by (cluster, region) ((time() - current:backend_cluster_update:last_transition_time_seconds{phase="failed"}) < 259200) or 0 * count by (cluster, region) (current:backend_cluster_update:last_transition_time_seconds)'
+        expression: 'count by (cluster, region) ((time() - current:backend_cluster_update:last_transition_time_seconds{phase="failed"}) < 259200 unless on (subscription_id) internal_subscription:info) or 0 * count by (cluster, region) (current:backend_cluster_update:last_transition_time_seconds unless on (subscription_id) internal_subscription:info)'
       }
       {
         record: 'errors:backend_cluster_update:total_3d'
-        expression: 'count by (cluster, region) ((time() - current:backend_cluster_update:last_transition_time_seconds{phase=~"succeeded|failed"}) < 259200)'
+        expression: 'count by (cluster, region) ((time() - current:backend_cluster_update:last_transition_time_seconds{phase=~"succeeded|failed"}) < 259200 unless on (subscription_id) internal_subscription:info)'
       }
       {
         record: 'errors:backend_cluster_update:error_rate_3d'

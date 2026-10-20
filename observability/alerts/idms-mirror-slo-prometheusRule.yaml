@@ -48,15 +48,30 @@ spec:
   #     already cover OperationClusterUpdate at the same thresholds.
   #   Duplicating either here would double-page on a single condition.
   #
-  # Windowed burn-rate alerting, following the cluster provisioning SLO.
+  # Windowed burn-rate alerting, following the cluster deletion SLO.
   # Naming convention: {Scope}{Subject}{Metric}{BurnRateTier} per ADR-001.
   #
   # These read the windowed recording rules
-  # (errors:backend_cluster_update:{failed,total,error_rate}_{1h,6h,3d}), which
+  # (errors:backend_cluster_update:{failed,total,error_rate}_{5m,30m,1h,6h,3d}), which
   # count only clusters whose latest update's terminal transition landed inside
   # the window. Each tier therefore evaluates a real event window rather than the
   # trailing 7-day gauge ratio, so a stale failure ages out instead of paging for
   # the full Cosmos TTL.
+  #
+  # Multiwindow pairs: the fast (1h) and medium (6h) tiers also require the
+  # matching short window (5m / 30m) to exceed the same burn threshold, so the
+  # page only fires while failures are still landing and resets soon after they
+  # stop. The slow 3d tier is a budget ticket and, like the cluster provisioning
+  # and deletion SLOs, has no short window.
+  #
+  # Internal (e2e/dev/test) subscriptions are excluded inside the recording
+  # rules, before aggregation by cluster. These alerts deliberately do not carry
+  # exclude_internal_subscriptions: their input has no subscription_id label, so
+  # the generated `unless on(subscription_id)` would be a no-op.
+  #
+  # All tiers share one correlationId per service cluster, so concurrent tiers
+  # for the same condition update a single IcM incident. The IcM title already
+  # prefixes the cluster, so the summaries do not repeat it.
   #
   # These are counts of clusters by the outcome of their latest update, not
   # counts of LROs: a failed update later retried successfully is overwritten
@@ -64,13 +79,13 @@ spec:
   # recording rules file for the instrumentation a per-LRO rate would need.
   #
   # Burn rate thresholds calculated from 95% SLO (5% error budget):
-  #   Fast (14.4x): 14.4 * 0.05 = 0.72 → 72% error rate over 1h
-  #   Medium (6x):  6 * 0.05 = 0.30 → 30% error rate over 6h
+  #   Fast (14.4x): 14.4 * 0.05 = 0.72 → 72% error rate over 1h and 5m
+  #   Medium (6x):  6 * 0.05 = 0.30 → 30% error rate over 6h and 30m
   #   Slow (1x):    1 * 0.05 = 0.05 → 5% error rate over 3d
   #
   # Volume guard: each tier requires an absolute floor of completions/failures
-  # in the window so a single failure on a quiet window cannot page. The floors
-  # match the cluster provisioning SLO.
+  # in the long window so a single failure on a quiet window cannot page. The
+  # floors match the cluster provisioning and deletion SLOs.
   - name: arohcp_idms_mirror_slo_error_alerts
     labels:
       component: slo
@@ -78,12 +93,14 @@ spec:
     # ----------------------------------------
     # Fast Burn Alert (IcM Sev 3 — RP lane / customer-facing UJ)
     # ----------------------------------------
-    # 14.4x burn: >72% failures over 1h, at least 3 failures.
+    # 14.4x burn: >72% failures over 1h and 5m, at least 3 failures in 1h.
     - alert: userJourneyIDMSMirrorErrors1h5m
       expr: |
         errors:backend_cluster_update:failed_1h >= 3
         and
         errors:backend_cluster_update:error_rate_1h > 0.72
+        and
+        errors:backend_cluster_update:error_rate_5m > 0.72
       for: 5m
       labels:
         severity: "3"
@@ -91,18 +108,21 @@ spec:
         long_window: 1h
         short_window: 5m
       annotations:
-        summary: "{{ $labels.cluster }}: Cluster updates failing fast (>72% over 1h)"
-        description: "More than 72% of clusters on {{ $labels.cluster }} whose latest update completed in the last hour have it in failed state (at least 3 failures), a 14.4x burn threshold. Only each cluster's latest update is counted, so a failure overwritten by a successful retry is missed. Confirm whether the affected operations carried an imageDigestMirrors change before triaging as an IDMS issue."
+        summary: "Cluster updates failing fast (>72% over 1h)"
+        description: "More than 72% of clusters on this service cluster whose latest update completed in the last hour have it in failed state (at least 3 failures), and the failures are still occurring over the last 5 minutes, a 14.4x burn threshold. Internal subscriptions are excluded. Only each cluster's latest update is counted, so a failure overwritten by a successful retry is missed. Confirm whether the affected operations carried an imageDigestMirrors change before triaging as an IDMS issue."
         runbook_url: "https://aka.ms/arohcp-runbook-idms"
+        correlationId: "userJourneyIDMSMirrorErrors/{{ $labels.cluster }}"
     # ----------------------------------------
     # Medium Burn Alert (IcM Sev 3)
     # ----------------------------------------
-    # 6x burn: >30% failures over 6h, at least 5 completions.
+    # 6x burn: >30% failures over 6h and 30m, at least 5 completions in 6h.
     - alert: userJourneyIDMSMirrorErrors6h30m
       expr: |
         errors:backend_cluster_update:total_6h >= 5
         and
         errors:backend_cluster_update:error_rate_6h > 0.30
+        and
+        errors:backend_cluster_update:error_rate_30m > 0.30
       for: 30m
       labels:
         severity: "3"
@@ -110,9 +130,10 @@ spec:
         long_window: 6h
         short_window: 30m
       annotations:
-        summary: "{{ $labels.cluster }}: Cluster update error rate elevated (>30% over 6h)"
-        description: "More than 30% of clusters on {{ $labels.cluster }} whose latest update completed in the last 6 hours have it in failed state (at least 5 completions), a 6x burn threshold. Only each cluster's latest update is counted, so a failure overwritten by a successful retry is missed. Confirm whether the affected operations carried an imageDigestMirrors change before triaging as an IDMS issue."
+        summary: "Cluster update error rate elevated (>30% over 6h)"
+        description: "More than 30% of clusters on this service cluster whose latest update completed in the last 6 hours have it in failed state (at least 5 completions), and the failures are still occurring over the last 30 minutes, a 6x burn threshold. Internal subscriptions are excluded. Only each cluster's latest update is counted, so a failure overwritten by a successful retry is missed. Confirm whether the affected operations carried an imageDigestMirrors change before triaging as an IDMS issue."
         runbook_url: "https://aka.ms/arohcp-runbook-idms"
+        correlationId: "userJourneyIDMSMirrorErrors/{{ $labels.cluster }}"
     # ----------------------------------------
     # Slow Burn Alert (IcM Sev 4 — ticket)
     # ----------------------------------------
@@ -130,11 +151,11 @@ spec:
         severity: "4"
         slo: idms-mirror-errors
         long_window: 3d
-        short_window: 6h
       annotations:
-        summary: "{{ $labels.cluster }}: Cluster update failures persistent (>5% over 3d)"
-        description: "More than 5% of clusters on {{ $labels.cluster }} whose latest update completed in the last 3 days have it in failed state (at least 10 completions and 2 failures), a 1x burn threshold. Only each cluster's latest update is counted, so a failure overwritten by a successful retry is missed. Confirm whether the affected operations carried an imageDigestMirrors change before triaging as an IDMS issue."
+        summary: "Cluster update failures persistent (>5% over 3d)"
+        description: "More than 5% of clusters on this service cluster whose latest update completed in the last 3 days have it in failed state (at least 10 completions and 2 failures), a 1x burn threshold. Internal subscriptions are excluded. Only each cluster's latest update is counted, so a failure overwritten by a successful retry is missed. Confirm whether the affected operations carried an imageDigestMirrors change before triaging as an IDMS issue."
         runbook_url: "https://aka.ms/arohcp-runbook-idms"
+        correlationId: "userJourneyIDMSMirrorErrors/{{ $labels.cluster }}"
     # ----------------------------------------
     # Note: there is deliberately no separate "degradation" precursor alert.
     # A >15% / 30m precursor was considered and rejected: above 30% it fires at

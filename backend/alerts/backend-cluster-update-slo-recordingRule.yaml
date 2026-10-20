@@ -60,6 +60,15 @@ spec:
   # neither counts as a failure nor dilutes the rate — the same convention as the
   # cluster provisioning SLO.
   #
+  # INTERNAL SUBSCRIPTIONS: every errors:* record drops operations whose
+  # subscription_id is listed in internal_subscription:info (e2e/dev/test
+  # subscriptions) BEFORE aggregating by cluster. The filter must run here, not
+  # on the alerts: once the counts are aggregated by cluster the subscription_id
+  # label is gone, so an `unless on (subscription_id)` on the alert would be a
+  # no-op. current:backend_cluster_update:last_transition_time_seconds itself is
+  # left unfiltered so dashboards can still inspect internal traffic. If
+  # internal_subscription:info is absent, nothing is excluded.
+  #
   # WHAT IS COUNTED: the phase gauge holds at most one series per
   # (resource, operation_type), because the Backend replaces the previous series
   # with the newest retained operation by start time (Cosmos document key breaks
@@ -152,21 +161,39 @@ spec:
     # Instantaneous count of clusters whose latest update succeeded
     - record: errors:backend_cluster_update:succeeded_total
       expr: |
-        count by (cluster) (current:backend_cluster_update:last_transition_time_seconds{phase="succeeded"})
+        count by (cluster) (
+          current:backend_cluster_update:last_transition_time_seconds{phase="succeeded"}
+          unless on (subscription_id) internal_subscription:info
+        )
     # Instantaneous count of clusters whose latest update succeeded or failed
     - record: errors:backend_cluster_update:terminal_total
       expr: |
-        count by (cluster) (current:backend_cluster_update:last_transition_time_seconds{phase=~"succeeded|failed"})
+        count by (cluster) (
+          current:backend_cluster_update:last_transition_time_seconds{phase=~"succeeded|failed"}
+          unless on (subscription_id) internal_subscription:info
+        )
     # Instantaneous fraction of those clusters whose latest update failed
     - record: errors:backend_cluster_update:error_rate
       expr: |
         (
-          count by (cluster) (current:backend_cluster_update:last_transition_time_seconds{phase="failed"})
+          count by (cluster) (
+            current:backend_cluster_update:last_transition_time_seconds{phase="failed"}
+            unless on (subscription_id) internal_subscription:info
+          )
           or
-          0 * count by (cluster) (current:backend_cluster_update:last_transition_time_seconds{phase=~"succeeded|failed"})
+          0 * count by (cluster) (
+            current:backend_cluster_update:last_transition_time_seconds{phase=~"succeeded|failed"}
+            unless on (subscription_id) internal_subscription:info
+          )
         )
         /
-        clamp_min(count by (cluster) (current:backend_cluster_update:last_transition_time_seconds{phase=~"succeeded|failed"}), 1)
+        clamp_min(
+          count by (cluster) (
+            current:backend_cluster_update:last_transition_time_seconds{phase=~"succeeded|failed"}
+            unless on (subscription_id) internal_subscription:info
+          ),
+          1
+        )
   # ========================================
   # Cluster Update SLO Recording Rules: Windowed Errors (stateless)
   # ========================================
@@ -176,23 +203,78 @@ spec:
   # so a stale failure ages out of the window instead of smearing for the full
   # Cosmos 7-day TTL. No new metric and no backend change.
   #
+  # Long windows (1h / 6h / 3d) measure the burn; the 5m and 30m short windows
+  # confirm the 1h and 6h burns are still happening, completing the multiwindow
+  # pairs so an alert resets soon after the failures stop.
+  #
   # The `or 0 * ...` term pins the failure count to 0 (not absent) when a
   # cluster has update operations but none failed in-window.
   - name: arohcp_cluster_update_slo_windowed_recording_rules
     interval: 1m
     rules:
+    # --- 5m window (fast burn short window): terminal transition within 300s ---
+    - record: errors:backend_cluster_update:failed_5m
+      expr: |
+        count by (cluster) (
+          (time() - current:backend_cluster_update:last_transition_time_seconds{phase="failed"}) < 300
+          unless on (subscription_id) internal_subscription:info
+        )
+        or
+        0 * count by (cluster) (
+          current:backend_cluster_update:last_transition_time_seconds
+          unless on (subscription_id) internal_subscription:info
+        )
+    - record: errors:backend_cluster_update:total_5m
+      expr: |
+        count by (cluster) (
+          (time() - current:backend_cluster_update:last_transition_time_seconds{phase=~"succeeded|failed"}) < 300
+          unless on (subscription_id) internal_subscription:info
+        )
+    - record: errors:backend_cluster_update:error_rate_5m
+      expr: |
+        errors:backend_cluster_update:failed_5m
+        /
+        clamp_min(errors:backend_cluster_update:total_5m, 1)
+    # --- 30m window (medium burn short window): terminal transition within 1800s ---
+    - record: errors:backend_cluster_update:failed_30m
+      expr: |
+        count by (cluster) (
+          (time() - current:backend_cluster_update:last_transition_time_seconds{phase="failed"}) < 1800
+          unless on (subscription_id) internal_subscription:info
+        )
+        or
+        0 * count by (cluster) (
+          current:backend_cluster_update:last_transition_time_seconds
+          unless on (subscription_id) internal_subscription:info
+        )
+    - record: errors:backend_cluster_update:total_30m
+      expr: |
+        count by (cluster) (
+          (time() - current:backend_cluster_update:last_transition_time_seconds{phase=~"succeeded|failed"}) < 1800
+          unless on (subscription_id) internal_subscription:info
+        )
+    - record: errors:backend_cluster_update:error_rate_30m
+      expr: |
+        errors:backend_cluster_update:failed_30m
+        /
+        clamp_min(errors:backend_cluster_update:total_30m, 1)
     # --- 1h window (fast burn): terminal transition within 3600s ---
     - record: errors:backend_cluster_update:failed_1h
       expr: |
         count by (cluster) (
           (time() - current:backend_cluster_update:last_transition_time_seconds{phase="failed"}) < 3600
+          unless on (subscription_id) internal_subscription:info
         )
         or
-        0 * count by (cluster) (current:backend_cluster_update:last_transition_time_seconds)
+        0 * count by (cluster) (
+          current:backend_cluster_update:last_transition_time_seconds
+          unless on (subscription_id) internal_subscription:info
+        )
     - record: errors:backend_cluster_update:total_1h
       expr: |
         count by (cluster) (
           (time() - current:backend_cluster_update:last_transition_time_seconds{phase=~"succeeded|failed"}) < 3600
+          unless on (subscription_id) internal_subscription:info
         )
     - record: errors:backend_cluster_update:error_rate_1h
       expr: |
@@ -204,13 +286,18 @@ spec:
       expr: |
         count by (cluster) (
           (time() - current:backend_cluster_update:last_transition_time_seconds{phase="failed"}) < 21600
+          unless on (subscription_id) internal_subscription:info
         )
         or
-        0 * count by (cluster) (current:backend_cluster_update:last_transition_time_seconds)
+        0 * count by (cluster) (
+          current:backend_cluster_update:last_transition_time_seconds
+          unless on (subscription_id) internal_subscription:info
+        )
     - record: errors:backend_cluster_update:total_6h
       expr: |
         count by (cluster) (
           (time() - current:backend_cluster_update:last_transition_time_seconds{phase=~"succeeded|failed"}) < 21600
+          unless on (subscription_id) internal_subscription:info
         )
     - record: errors:backend_cluster_update:error_rate_6h
       expr: |
@@ -222,13 +309,18 @@ spec:
       expr: |
         count by (cluster) (
           (time() - current:backend_cluster_update:last_transition_time_seconds{phase="failed"}) < 259200
+          unless on (subscription_id) internal_subscription:info
         )
         or
-        0 * count by (cluster) (current:backend_cluster_update:last_transition_time_seconds)
+        0 * count by (cluster) (
+          current:backend_cluster_update:last_transition_time_seconds
+          unless on (subscription_id) internal_subscription:info
+        )
     - record: errors:backend_cluster_update:total_3d
       expr: |
         count by (cluster) (
           (time() - current:backend_cluster_update:last_transition_time_seconds{phase=~"succeeded|failed"}) < 259200
+          unless on (subscription_id) internal_subscription:info
         )
     - record: errors:backend_cluster_update:error_rate_3d
       expr: |

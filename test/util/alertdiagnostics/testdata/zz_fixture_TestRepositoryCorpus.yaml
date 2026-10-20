@@ -6517,12 +6517,12 @@
   group: arohcp_idms_mirror_slo_error_alerts
   alert: userJourneyIDMSMirrorErrors1h5m
   occurrence: 1
-  input: errors:backend_cluster_update:failed_1h >= 3 and errors:backend_cluster_update:error_rate_1h > 0.72
+  input: errors:backend_cluster_update:failed_1h >= 3 and errors:backend_cluster_update:error_rate_1h > 0.72 and errors:backend_cluster_update:error_rate_5m > 0.72
   plan:
-    expression: errors:backend_cluster_update:failed_1h >= 3 and errors:backend_cluster_update:error_rate_1h > 0.72
+    expression: errors:backend_cluster_update:failed_1h >= 3 and errors:backend_cluster_update:error_rate_1h > 0.72 and errors:backend_cluster_update:error_rate_5m > 0.72
     conditions:
       - expression: errors:backend_cluster_update:failed_1h >= 3
-        path: root/and:left
+        path: root/and:left/and:left
         queries:
           - expression: errors:backend_cluster_update:failed_1h
             role: signal
@@ -6531,9 +6531,18 @@
             value: 3
         unsupported: ""
       - expression: errors:backend_cluster_update:error_rate_1h > 0.72
-        path: root/and:right
+        path: root/and:left/and:right
         queries:
           - expression: errors:backend_cluster_update:error_rate_1h
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.72
+        unsupported: ""
+      - expression: errors:backend_cluster_update:error_rate_5m > 0.72
+        path: root/and:right
+        queries:
+          - expression: errors:backend_cluster_update:error_rate_5m
             role: signal
         thresholds:
           - operator: '>'
@@ -6578,12 +6587,12 @@
   group: arohcp_idms_mirror_slo_error_alerts
   alert: userJourneyIDMSMirrorErrors6h30m
   occurrence: 1
-  input: errors:backend_cluster_update:total_6h >= 5 and errors:backend_cluster_update:error_rate_6h > 0.3
+  input: errors:backend_cluster_update:total_6h >= 5 and errors:backend_cluster_update:error_rate_6h > 0.3 and errors:backend_cluster_update:error_rate_30m > 0.3
   plan:
-    expression: errors:backend_cluster_update:total_6h >= 5 and errors:backend_cluster_update:error_rate_6h > 0.3
+    expression: errors:backend_cluster_update:total_6h >= 5 and errors:backend_cluster_update:error_rate_6h > 0.3 and errors:backend_cluster_update:error_rate_30m > 0.3
     conditions:
       - expression: errors:backend_cluster_update:total_6h >= 5
-        path: root/and:left
+        path: root/and:left/and:left
         queries:
           - expression: errors:backend_cluster_update:total_6h
             role: signal
@@ -6592,9 +6601,18 @@
             value: 5
         unsupported: ""
       - expression: errors:backend_cluster_update:error_rate_6h > 0.3
-        path: root/and:right
+        path: root/and:left/and:right
         queries:
           - expression: errors:backend_cluster_update:error_rate_6h
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.3
+        unsupported: ""
+      - expression: errors:backend_cluster_update:error_rate_30m > 0.3
+        path: root/and:right
+        queries:
+          - expression: errors:backend_cluster_update:error_rate_30m
             role: signal
         thresholds:
           - operator: '>'
@@ -8851,11 +8869,13 @@
     errors:backend_cluster_update:failed_1h >= 3
     and
     errors:backend_cluster_update:error_rate_1h > 0.72
+    and
+    errors:backend_cluster_update:error_rate_5m > 0.72
   plan:
-    expression: errors:backend_cluster_update:failed_1h >= 3 and errors:backend_cluster_update:error_rate_1h > 0.72
+    expression: errors:backend_cluster_update:failed_1h >= 3 and errors:backend_cluster_update:error_rate_1h > 0.72 and errors:backend_cluster_update:error_rate_5m > 0.72
     conditions:
       - expression: errors:backend_cluster_update:failed_1h >= 3
-        path: root/and:left
+        path: root/and:left/and:left
         queries:
           - expression: errors:backend_cluster_update:failed_1h
             role: signal
@@ -8864,9 +8884,18 @@
             value: 3
         unsupported: ""
       - expression: errors:backend_cluster_update:error_rate_1h > 0.72
-        path: root/and:right
+        path: root/and:left/and:right
         queries:
           - expression: errors:backend_cluster_update:error_rate_1h
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.72
+        unsupported: ""
+      - expression: errors:backend_cluster_update:error_rate_5m > 0.72
+        path: root/and:right
+        queries:
+          - expression: errors:backend_cluster_update:error_rate_5m
             role: signal
         thresholds:
           - operator: '>'
@@ -8920,11 +8949,13 @@
     errors:backend_cluster_update:total_6h >= 5
     and
     errors:backend_cluster_update:error_rate_6h > 0.30
+    and
+    errors:backend_cluster_update:error_rate_30m > 0.30
   plan:
-    expression: errors:backend_cluster_update:total_6h >= 5 and errors:backend_cluster_update:error_rate_6h > 0.3
+    expression: errors:backend_cluster_update:total_6h >= 5 and errors:backend_cluster_update:error_rate_6h > 0.3 and errors:backend_cluster_update:error_rate_30m > 0.3
     conditions:
       - expression: errors:backend_cluster_update:total_6h >= 5
-        path: root/and:left
+        path: root/and:left/and:left
         queries:
           - expression: errors:backend_cluster_update:total_6h
             role: signal
@@ -8933,9 +8964,18 @@
             value: 5
         unsupported: ""
       - expression: errors:backend_cluster_update:error_rate_6h > 0.3
-        path: root/and:right
+        path: root/and:left/and:right
         queries:
           - expression: errors:backend_cluster_update:error_rate_6h
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.3
+        unsupported: ""
+      - expression: errors:backend_cluster_update:error_rate_30m > 0.3
+        path: root/and:right
+        queries:
+          - expression: errors:backend_cluster_update:error_rate_30m
             role: signal
         thresholds:
           - operator: '>'

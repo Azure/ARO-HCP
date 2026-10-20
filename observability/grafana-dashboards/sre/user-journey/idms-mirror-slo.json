@@ -26,7 +26,7 @@
       "id": 1,
       "options": {
         "code": { "language": "plaintext", "showLineNumbers": false, "showMiniMap": false },
-        "content": "### IDMS Image Registry Mirror SLO Dashboard\n\nMonitors the health of the IDMS (`imageDigestMirrors`) user journey — a customer PUT/PATCH that configures image registry mirrors, delivered to the guest cluster as `ImageDigestMirrorSet` objects.\n\n> **Scope caveat:** there is **no IDMS-specific metric today.** An `imageDigestMirrors` change is carried by the generic cluster **update** LRO, so every panel here is scoped to `operation_type=\"update\"` on `hcpopenshiftclusters` and includes authorized-CIDR changes, version upgrades, and every other cluster update. Treat these panels as the enclosing signal, not as proof an IDMS change specifically succeeded or failed. Confirm the operation is a mirror change from the Backend logs.\n\n> **Current-state caveat:** the Backend keeps only the most recent update per cluster, so a failed update followed by a successful retry is overwritten. The success-rate, failed-count and error-budget panels therefore show the phase of each cluster's *latest* update over the ~7-day retention \u2014 a current-state view, not a count of every LRO. The burn-rate alerts are driven by the windowed series in `backend-cluster-update-slo-recordingRule.yaml`.\n\n**SLO Targets (Proposed — pending baseline):**\n- Success rate: 95%, alerted on 1h / 6h / 3d windows of terminal transitions\n- Operation latency: complete within 2700s (45m), matching `BackendAsyncOperationClusterUpdateStuck`\n\n**Metrics Source:** `current:backend_cluster_update:last_transition_time_seconds` (one current state per cluster update operation, recorded in `backend-cluster-update-slo-recordingRule.yaml` so a former Backend leader's stale snapshot is not double counted) and `backend_resource_operation_start_time_seconds` (Cosmos DB-backed), plus `workqueue_*` for the `OperationClusterUpdate` controller.\n\n**Jira:** [ARO-25924](https://redhat.atlassian.net/browse/ARO-25924) | **User Journey:** [IDMS Image Registry Mirror Configuration](https://aka.ms/arohcp-runbook-idms)",
+        "content": "### IDMS Image Registry Mirror SLO Dashboard\n\nMonitors the health of the IDMS (`imageDigestMirrors`) user journey — a customer PUT/PATCH that configures image registry mirrors, delivered to the guest cluster as `ImageDigestMirrorSet` objects.\n\n> **Scope caveat:** there is **no IDMS-specific metric today.** An `imageDigestMirrors` change is carried by the generic cluster **update** LRO, so every panel here is scoped to `operation_type=\"update\"` on `hcpopenshiftclusters` and includes authorized-CIDR changes, version upgrades, and every other cluster update. Treat these panels as the enclosing signal, not as proof an IDMS change specifically succeeded or failed. Confirm the operation is a mirror change from the Backend logs.\n\n> **Current-state caveat:** the Backend keeps only the most recent update per cluster, so a failed update followed by a successful retry is overwritten. The success-rate, failed-count and error-budget panels therefore show the phase of each cluster's *latest* update over the ~7-day retention \u2014 a current-state view, not a count of every LRO. The burn-rate alerts are driven by the windowed series in `backend-cluster-update-slo-recordingRule.yaml`.\n\n**SLO Target (Proposed — pending baseline):**\n- Success rate: 95%, alerted on 1h/5m, 6h/30m and 3d windows of terminal transitions. The alerts exclude internal subscriptions listed in `internal_subscription:info`; use **Exclude Subscriptions** to do the same on this dashboard.\n\n> **No latency SLO:** the 45m (2700s) threshold on the *Stuck Operations* and duration panels mirrors `BackendAsyncOperationClusterUpdateStuck`, which alerts on individual stuck update operations. It is a reference line, not a latency SLI, and has no burn-rate alert.\n\n**Metrics Source:** `current:backend_cluster_update:last_transition_time_seconds` (one current state per cluster update operation, recorded in `backend-cluster-update-slo-recordingRule.yaml` so a former Backend leader's stale snapshot is not double counted) and `backend_resource_operation_start_time_seconds` (Cosmos DB-backed), plus `workqueue_*` for the `OperationClusterUpdate` controller.\n\n**Jira:** [ARO-25924](https://redhat.atlassian.net/browse/ARO-25924) | **User Journey:** [IDMS Image Registry Mirror Configuration](https://aka.ms/arohcp-runbook-idms)",
         "mode": "markdown"
       },
       "pluginVersion": "11.6.9",
@@ -68,7 +68,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "(\n  (count(current:backend_cluster_update:last_transition_time_seconds{phase=\"succeeded\"}) or vector(0))\n  /\n  clamp_min(count(current:backend_cluster_update:last_transition_time_seconds{phase=~\"succeeded|failed\"}) or vector(0), 1)\n) * 100",
+          "expr": "(\n  (count(current:backend_cluster_update:last_transition_time_seconds{cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\", phase=\"succeeded\"}) or vector(0))\n  /\n  clamp_min(count(current:backend_cluster_update:last_transition_time_seconds{cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\", phase=~\"succeeded|failed\"}) or vector(0), 1)\n) * 100",
           "instant": true,
           "legendFormat": "Success Rate",
           "refId": "A"
@@ -114,7 +114,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "count(current:backend_cluster_update:last_transition_time_seconds{phase=\"failed\"}) or vector(0)",
+          "expr": "count(current:backend_cluster_update:last_transition_time_seconds{cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\", phase=\"failed\"}) or vector(0)",
           "instant": true,
           "legendFormat": "Failed Operations",
           "refId": "A"
@@ -159,7 +159,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "count((time() - (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"update\"}) and on (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) current:backend_cluster_update:last_transition_time_seconds{phase=~\"accepted|updating\"})) > 2700) or vector(0)",
+          "expr": "count((time() - (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_start_time_seconds{cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\", resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"update\"}) and on (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) current:backend_cluster_update:last_transition_time_seconds{cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\", phase=~\"accepted|updating\"})) > 2700) or vector(0)",
           "instant": true,
           "legendFormat": "Stuck Operations",
           "refId": "A"
@@ -209,7 +209,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "clamp(\n  (0.05 - (\n    (count(current:backend_cluster_update:last_transition_time_seconds{phase=\"failed\"}) or vector(0))\n    /\n    clamp_min(count(current:backend_cluster_update:last_transition_time_seconds{phase=~\"succeeded|failed\"}) or vector(0), 1)\n  )) / 0.05 * 100,\n  0,\n  100\n)",
+          "expr": "clamp(\n  (0.05 - (\n    (count(current:backend_cluster_update:last_transition_time_seconds{cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\", phase=\"failed\"}) or vector(0))\n    /\n    clamp_min(count(current:backend_cluster_update:last_transition_time_seconds{cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\", phase=~\"succeeded|failed\"}) or vector(0), 1)\n  )) / 0.05 * 100,\n  0,\n  100\n)",
           "instant": true,
           "legendFormat": "Error Budget Remaining",
           "refId": "A"
@@ -267,7 +267,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "(\n  (count(current:backend_cluster_update:last_transition_time_seconds{phase=\"succeeded\"}) or vector(0))\n  /\n  clamp_min(count(current:backend_cluster_update:last_transition_time_seconds{phase=~\"succeeded|failed\"}) or vector(0), 1)\n) * 100",
+          "expr": "(\n  (count(current:backend_cluster_update:last_transition_time_seconds{cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\", phase=\"succeeded\"}) or vector(0))\n  /\n  clamp_min(count(current:backend_cluster_update:last_transition_time_seconds{cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\", phase=~\"succeeded|failed\"}) or vector(0), 1)\n) * 100",
           "legendFormat": "Success Rate",
           "refId": "A"
         }
@@ -309,7 +309,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "count by (phase) (current:backend_cluster_update:last_transition_time_seconds)",
+          "expr": "count by (phase) (current:backend_cluster_update:last_transition_time_seconds{cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"})",
           "legendFormat": "{{ phase }}",
           "refId": "A"
         }
@@ -319,7 +319,7 @@
     },
     {
       "datasource": { "type": "datasource", "uid": "-- Mixed --" },
-      "description": "Latency. Age of in-flight cluster update operations at p50/p95/p99, against the 2700s (45m) stuck threshold.",
+      "description": "Age of in-flight cluster update operations at p50/p95/p99. The 2700s (45m) line is the BackendAsyncOperationClusterUpdateStuck threshold, for reference; there is no latency SLO.",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -361,21 +361,21 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "quantile(0.5, time() - (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"update\"}) and on (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) current:backend_cluster_update:last_transition_time_seconds{phase=~\"accepted|updating\"}))",
+          "expr": "quantile(0.5, time() - (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_start_time_seconds{cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\", resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"update\"}) and on (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) current:backend_cluster_update:last_transition_time_seconds{cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\", phase=~\"accepted|updating\"}))",
           "legendFormat": "p50",
           "refId": "A"
         },
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "quantile(0.95, time() - (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"update\"}) and on (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) current:backend_cluster_update:last_transition_time_seconds{phase=~\"accepted|updating\"}))",
+          "expr": "quantile(0.95, time() - (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_start_time_seconds{cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\", resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"update\"}) and on (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) current:backend_cluster_update:last_transition_time_seconds{cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\", phase=~\"accepted|updating\"}))",
           "legendFormat": "p95",
           "refId": "B"
         },
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "quantile(0.99, time() - (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"update\"}) and on (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) current:backend_cluster_update:last_transition_time_seconds{phase=~\"accepted|updating\"}))",
+          "expr": "quantile(0.99, time() - (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_start_time_seconds{cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\", resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"update\"}) and on (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) current:backend_cluster_update:last_transition_time_seconds{cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\", phase=~\"accepted|updating\"}))",
           "legendFormat": "p99",
           "refId": "C"
         }
@@ -385,7 +385,7 @@
     },
     {
       "datasource": { "type": "datasource", "uid": "-- Mixed --" },
-      "description": "End-to-end duration of cluster update operations that reached a terminal phase.",
+      "description": "End-to-end duration of cluster update operations that reached a terminal phase. The 2700s (45m) line is the BackendAsyncOperationClusterUpdateStuck threshold, for reference; there is no latency SLO.",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -427,7 +427,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "(current:backend_cluster_update:last_transition_time_seconds{phase=~\"succeeded|failed|canceled\"} > 0) - on (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"update\"})",
+          "expr": "(current:backend_cluster_update:last_transition_time_seconds{cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\", phase=~\"succeeded|failed|canceled\"} > 0) - on (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_start_time_seconds{cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\", resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"update\"})",
           "legendFormat": "{{ resource_id }}",
           "refId": "A"
         }
@@ -470,7 +470,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "count(current:backend_cluster_update:last_transition_time_seconds{phase=~\"accepted|updating\"}) or vector(0)",
+          "expr": "count(current:backend_cluster_update:last_transition_time_seconds{cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\", phase=~\"accepted|updating\"}) or vector(0)",
           "legendFormat": "In-Flight Updates",
           "refId": "A"
         }
@@ -496,7 +496,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "count by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (current:backend_cluster_update:last_transition_time_seconds{phase=\"failed\"})",
+          "expr": "count by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (current:backend_cluster_update:last_transition_time_seconds{cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\", phase=\"failed\"})",
           "format": "table",
           "instant": true,
           "legendFormat": "",
@@ -573,7 +573,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "max by (name, cluster) (max without(prometheus_replica) (workqueue_depth{namespace=\"aro-hcp\", name=\"OperationClusterUpdate\"}))",
+          "expr": "max by (name, cluster) (max without(prometheus_replica) (workqueue_depth{namespace=\"aro-hcp\", name=\"OperationClusterUpdate\", cluster=~\"$cluster\"}))",
           "legendFormat": "{{ name }} ({{ cluster }})",
           "refId": "A"
         }
@@ -626,7 +626,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "sum by (name, cluster) (max without(prometheus_replica) (rate(workqueue_retries_total{namespace=\"aro-hcp\", name=\"OperationClusterUpdate\"}[10m]))) / sum by (name, cluster) (max without(prometheus_replica) (rate(workqueue_adds_total{namespace=\"aro-hcp\", name=\"OperationClusterUpdate\"}[10m])))",
+          "expr": "sum by (name, cluster) (max without(prometheus_replica) (rate(workqueue_retries_total{namespace=\"aro-hcp\", name=\"OperationClusterUpdate\", cluster=~\"$cluster\"}[10m]))) / sum by (name, cluster) (max without(prometheus_replica) (rate(workqueue_adds_total{namespace=\"aro-hcp\", name=\"OperationClusterUpdate\", cluster=~\"$cluster\"}[10m])))",
           "legendFormat": "{{ name }} ({{ cluster }})",
           "refId": "A"
         }
@@ -668,7 +668,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "sum by (name, cluster) (max without(prometheus_replica) (rate(workqueue_adds_total{namespace=\"aro-hcp\", name=\"OperationClusterUpdate\"}[5m])))",
+          "expr": "sum by (name, cluster) (max without(prometheus_replica) (rate(workqueue_adds_total{namespace=\"aro-hcp\", name=\"OperationClusterUpdate\", cluster=~\"$cluster\"}[5m])))",
           "legendFormat": "{{ name }} ({{ cluster }})",
           "refId": "A"
         }
@@ -694,6 +694,44 @@
         "refresh": 1,
         "regex": "^Managed_Prometheus_services-.*$",
         "type": "datasource"
+      },
+      {
+        "allValue": ".*",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "definition": "label_values(up,cluster)",
+        "includeAll": true,
+        "label": "Cluster",
+        "multi": true,
+        "name": "cluster",
+        "options": [],
+        "query": {
+          "qryType": 1,
+          "query": "label_values(up,cluster)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "refresh": 1,
+        "regex": "^.*-svc-\\d+$",
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": {
+          "text": "",
+          "value": ""
+        },
+        "description": "Pipe-separated subscription IDs to exclude from SLO calculations (e.g. internal/test subs)",
+        "label": "Exclude Subscriptions",
+        "name": "exclude_subs",
+        "options": [],
+        "query": "",
+        "type": "textbox"
       }
     ]
   },
