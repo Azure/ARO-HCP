@@ -860,6 +860,21 @@ resourceGroups:
       - '"DetailStatus": "Waiting to run"'
       maximumRetryCount: 3
       durationBetweenRetries: 1m
+  - name: storageclass-namespace
+    aksCluster: '{{ .mgmt.aks.name }}'
+    action: Shell
+    command: ./wait-default-sc-namespace.sh
+    workingDir: ./scripts
+    dependsOn:
+    - resourceGroup: management
+      step: upgrade-aks-cluster
+    - resourceGroup: management
+      step: image-registry-policy
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
   - name: storageclass
     aksCluster: '{{ .mgmt.aks.name }}'
     action: Helm
@@ -875,9 +890,7 @@ resourceGroups:
     kustoTable: 'containerLogs'
     dependsOn:
     - resourceGroup: management
-      step: upgrade-aks-cluster
-    - resourceGroup: management
-      step: image-registry-policy
+      step: storageclass-namespace
     identityFrom:
       resourceGroup: global
       step: output
