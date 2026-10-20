@@ -74,7 +74,7 @@ func NewIngressCertificateController(
 	_, serviceProviderClusterLister := informers.ServiceProviderClusters()
 	_, applyDesireLister := kubeApplierInformers.ApplyDesires()
 	_, readDesireLister := kubeApplierInformers.ReadDesires()
-	return controllerutils.NewClusterWatchingController(
+	controller := controllerutils.NewClusterWatchingController(
 		IngressCertificateControllerName, resourcesDBClient, informers, kubeApplierInformers, 30*time.Second,
 		&ingressCertificateSyncer{
 			resourcesDBClient:            resourcesDBClient,
@@ -88,6 +88,14 @@ func NewIngressCertificateController(
 			cloudName:                    cloudName,
 		},
 	)
+	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
+	controller.AddInterestingResource(coreapi.ServiceProviderClusterResourceType, coreapi.ServiceProviderClusterResourceName)
+	controller.AddInterestingResource(kubeapplierapi.ClusterScopedApplyDesireResourceType, ingressSecretProviderClassDesireName)
+	controller.AddInterestingResource(kubeapplierapi.ClusterScopedApplyDesireResourceType, kubeapplierhelpers.IngressSecretSyncDesireName)
+	controller.AddInterestingResource(kubeapplierapi.ClusterScopedReadDesireResourceType, ingressSecretProviderClassDesireName)
+	controller.AddInterestingResource(kubeapplierapi.ClusterScopedReadDesireResourceType, kubeapplierhelpers.IngressSecretSyncDesireName)
+
+	return controller
 }
 
 func (syncer *ingressCertificateSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
