@@ -230,3 +230,62 @@ tests:
   - expr: errors:ingress_canary_latency:error_rate_1h
     eval_time: 5m
     exp_samples: []
+# ========================================
+# Test 9: HA replica duplicates must not double-count windowed availability
+# ========================================
+# The same canary observation scraped by two Prometheus HA replicas
+# (prometheus_replica "a"/"b") must be collapsed by max without
+# (prometheus_replica) before the per-HCP sum, or every window's
+# succeeded/total count (and therefore its volume floor) would double.
+- interval: 1m
+  input_series:
+  - series: 'ingress_canary_route_reachable{_id="dedup", cluster="mgmt-1", region="uksouth", host="canary.apps.dedup.example.io", instance="10.0.0.1:60000", prometheus_replica="a"}'
+    values: "1+0x10"
+  - series: 'ingress_canary_route_reachable{_id="dedup", cluster="mgmt-1", region="uksouth", host="canary.apps.dedup.example.io", instance="10.0.0.1:60000", prometheus_replica="b"}'
+    values: "1+0x10"
+  promql_expr_test:
+  - expr: errors:ingress_canary:total_5m
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:ingress_canary:total_5m{_id="dedup", cluster="mgmt-1", region="uksouth"}'
+      value: 5
+  - expr: errors:ingress_canary:succeeded_5m
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:ingress_canary:succeeded_5m{_id="dedup", cluster="mgmt-1", region="uksouth"}'
+      value: 5
+  - expr: errors:ingress_canary:error_rate_5m
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:ingress_canary:error_rate_5m{_id="dedup", cluster="mgmt-1", region="uksouth"}'
+      value: 0
+# ========================================
+# Test 10: HA replica duplicates must not double-count windowed latency
+# ========================================
+# Same dedup requirement as Test 9, for the increase()-based latency windows.
+- interval: 1m
+  input_series:
+  - series: 'ingress_canary_check_duration_bucket{_id="dedup", cluster="mgmt-1", region="uksouth", host="canary.apps.dedup.example.io", instance="10.0.0.1:60000", le="200", prometheus_replica="a"}'
+    values: "0+1x10"
+  - series: 'ingress_canary_check_duration_bucket{_id="dedup", cluster="mgmt-1", region="uksouth", host="canary.apps.dedup.example.io", instance="10.0.0.1:60000", le="+Inf", prometheus_replica="a"}'
+    values: "0+1x10"
+  - series: 'ingress_canary_check_duration_bucket{_id="dedup", cluster="mgmt-1", region="uksouth", host="canary.apps.dedup.example.io", instance="10.0.0.1:60000", le="200", prometheus_replica="b"}'
+    values: "0+1x10"
+  - series: 'ingress_canary_check_duration_bucket{_id="dedup", cluster="mgmt-1", region="uksouth", host="canary.apps.dedup.example.io", instance="10.0.0.1:60000", le="+Inf", prometheus_replica="b"}'
+    values: "0+1x10"
+  promql_expr_test:
+  - expr: errors:ingress_canary_latency:total_5m
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:ingress_canary_latency:total_5m{_id="dedup", cluster="mgmt-1", region="uksouth"}'
+      value: 5
+  - expr: errors:ingress_canary_latency:fast_5m
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:ingress_canary_latency:fast_5m{_id="dedup", cluster="mgmt-1", region="uksouth"}'
+      value: 5
+  - expr: errors:ingress_canary_latency:error_rate_5m
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:ingress_canary_latency:error_rate_5m{_id="dedup", cluster="mgmt-1", region="uksouth"}'
+      value: 0
