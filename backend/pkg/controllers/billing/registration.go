@@ -18,8 +18,11 @@ import (
 	"strings"
 	"time"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerconfig"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 )
 
 func registerOrphanedBillingCleanupController() controllerconfig.ControllerRegistration {
@@ -45,9 +48,13 @@ func registerCreateBillingDocController() controllerconfig.ControllerRegistratio
 func instantiateCreateBillingDocController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
 	_, clusterLister := controllerContext.BackendInformers.Clusters()
 	_, billingLister := controllerContext.BackendInformers.BillingDocs()
-	return controllerutils.NewClusterWatchingController(
+	controller := controllerutils.NewClusterWatchingController(
 		CreateBillingDocControllerName, controllerContext.ResourcesDBClient, controllerContext.BackendInformers, controllerContext.UnionKubeApplierInformers, 60*time.Second,
-		NewCreateBillingDocController(controllerContext.Clock, controllerContext.AzureLocation, controllerContext.ResourcesDBClient, controllerContext.BillingDBClient, clusterLister, billingLister)), nil
+		NewCreateBillingDocController(controllerContext.Clock, controllerContext.AzureLocation, controllerContext.ResourcesDBClient, controllerContext.BillingDBClient, clusterLister, billingLister))
+	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
+	controller.AddInterestingResource(azcorearm.SubscriptionResourceType, "*")
+
+	return controller, nil
 }
 
 func Register(registry map[string]controllerconfig.ControllerRegistration) {

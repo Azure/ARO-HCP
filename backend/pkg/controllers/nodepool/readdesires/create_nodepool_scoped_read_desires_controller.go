@@ -80,7 +80,7 @@ func NewCreateNodePoolScopedReadDesiresController(
 		hostedClusterNamespaceEnvIdentifier: hostedClusterNamespaceEnvIdentifier,
 	}
 
-	return controllerutils.NewNodePoolWatchingController(
+	controller := controllerutils.NewNodePoolWatchingController(
 		CreateNodePoolScopedReadDesiresControllerName,
 		resourcesDBClient,
 		informers,
@@ -88,6 +88,12 @@ func NewCreateNodePoolScopedReadDesiresController(
 		1*time.Minute,
 		syncer,
 	)
+	controller.AddInterestingResource(coreapi.NodePoolResourceType, "*")
+	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
+	controller.AddInterestingResource(coreapi.ServiceProviderClusterResourceType, coreapi.ServiceProviderClusterResourceName)
+	controller.AddInterestingResource(kubeapplierapi.NodePoolScopedReadDesireResourceType, kubeapplierapi.ReadDesireNameReadonlyNodePool)
+
+	return controller
 }
 
 func (c *createNodePoolScopedReadDesiresSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPNodePoolKey) error {
@@ -199,7 +205,7 @@ func buildNodePoolReadDesire(
 // backend uses for the NodePool mirror. Lowercase form of the existing
 // MaestroBundleInternalName so the downstream ManagementClusterContent
 // document path stays stable.
-var readDesireNameReadonlyNodePool = strings.ToLower(string(coreapi.MaestroBundleInternalNameReadonlyHypershiftNodePool))
+const readDesireNameReadonlyNodePool = kubeapplierapi.ReadDesireNameReadonlyNodePool
 
 // nodePoolTarget builds the ResourceReference that points at the
 // nodepool's NodePool object in the management cluster. The naming rules

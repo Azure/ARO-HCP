@@ -99,6 +99,10 @@ Legacy credential-request removal baseline: `5bfaafa51` plus working-tree change
 scope: removal of the two unreachable legacy credential controllers from the backend catalog.
 The CSR-based credential lifecycle and diagrams are unchanged.
 
+Backend input-filter update baseline: `3b3a5248bd` plus working-tree changes;
+scope: explicit resource interests in all 75 eligible backend constructors and
+shared fixed desire-name constants. See [the input audit](backend-controller-inputs.md).
+
 The generation instructions are maintained in [controller-data-flow.md](prompts/controller-data-flow.md).
 The historical filename is retained for existing links.
 
@@ -889,6 +893,20 @@ field/condition edges in the lifecycle DOT sources and PNGs below.
 revocation” in Trigger identify the resource key passed to the shared watching
 wrapper. These wrappers also map related document events onto the owning key;
 where supplied, union kube-applier informers add mirrored-resource events.
+Watching-controller constructors expose `AddInterestingResource` through their
+returned controller API; calls are handled by the underlying generic controller.
+The shared filter is opt-in; all 75 backend watching-controller constructor sites
+now explicitly register the resource types and names read by their reconciliation
+(case-insensitive, with `*` matching any name of a registered type). See the
+[complete backend input inventory](backend-controller-inputs.md) for exact names,
+collection wildcard rationale, and inputs that still rely on resync. Fleet and
+other callers without registrations continue accepting their configured events.
+Interests filter existing informer events; they do not add subscriptions or
+parent-to-child fan-out. The filter applies once to the incoming
+event before resolving its owning key, so an accepted child event can traverse
+unregistered ancestors while respecting the maximum depth. Explicit enqueues and
+error retries bypass resource-event filtering; accepted resync events still obey
+cooldowns. These registrations do not change domain writes, gates, informer wiring or lifecycle diagram edges.
 Controllers using the default active-operation cooldown run at most every 10s
 with an active operation and every five minutes without one; see
 [cooldown.go](../backend/pkg/utils/controllerutils/cooldown.go).

@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
@@ -48,8 +49,11 @@ func NewCosmosRolloutVersionMigrationController(
 		fleetDBClient: fleetDBClient,
 		cooldown:      controllerutil.NewTimeBasedCooldownChecker(resyncDuration),
 	}
-	return controllerutils.NewControlPlaneVersionRolloutWatchingController(
+	controller := controllerutils.NewControlPlaneVersionRolloutWatchingController(
 		CosmosRolloutVersionMigrationControllerName, fleetInformers, resyncDuration, syncer)
+	controller.AddInterestingResource(fleetapi.ControlPlaneVersionRolloutResourceType, "*")
+
+	return controller
 }
 
 func (c *cosmosRolloutVersionMigrationController) CooldownChecker() controllerutil.CooldownChecker {

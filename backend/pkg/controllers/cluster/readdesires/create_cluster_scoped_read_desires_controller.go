@@ -91,7 +91,7 @@ func NewCreateClusterScopedReadDesiresController(
 		hostedClusterNamespaceEnvIdentifier: hostedClusterNamespaceEnvIdentifier,
 	}
 
-	return controllerutils.NewClusterWatchingController(
+	controller := controllerutils.NewClusterWatchingController(
 		CreateClusterScopedReadDesiresControllerName,
 		resourcesDBClient,
 		informers,
@@ -99,6 +99,13 @@ func NewCreateClusterScopedReadDesiresController(
 		1*time.Minute,
 		syncer,
 	)
+	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
+	controller.AddInterestingResource(coreapi.ServiceProviderClusterResourceType, coreapi.ServiceProviderClusterResourceName)
+	controller.AddInterestingResource(kubeapplierapi.ClusterScopedReadDesireResourceType, kubeapplierapi.ReadDesireNameReadonlyHostedCluster)
+	controller.AddInterestingResource(kubeapplierapi.ClusterScopedReadDesireResourceType, kubeapplierapi.ReadDesireNameReadonlyHypershiftControlPlaneComponentClusterAutoscaler)
+	controller.AddInterestingResource(kubeapplierapi.ClusterScopedReadDesireResourceType, kubeapplierapi.ReadDesireNameServingCA)
+
+	return controller
 }
 
 func (c *createClusterScopedReadDesiresSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
@@ -233,7 +240,7 @@ type desiredReadDesire struct {
 // the backend uses for the HostedCluster mirror. It matches the existing
 // MaestroBundleInternalName in lowercase so the downstream
 // ManagementClusterContent document path stays stable across the migration.
-var readDesireNameReadonlyHostedCluster = strings.ToLower(string(coreapi.MaestroBundleInternalNameReadonlyHypershiftHostedCluster))
+const readDesireNameReadonlyHostedCluster = kubeapplierapi.ReadDesireNameReadonlyHostedCluster
 
 // hostedClusterTarget builds the ResourceReference that points at the
 // cluster's HostedCluster object in the management cluster. The naming

@@ -91,7 +91,7 @@ func NewNodePoolClusterServiceDeleteDispatchController(
 		firstSeenDeletionTimestampCache: lru.New(50000),
 	}
 
-	return controllerutils.NewNodePoolWatchingController(
+	controller := controllerutils.NewNodePoolWatchingController(
 		NodePoolClusterServiceDeleteDispatchControllerName,
 		resourcesDBClient,
 		informers,
@@ -99,6 +99,9 @@ func NewNodePoolClusterServiceDeleteDispatchController(
 		time.Minute,
 		syncer,
 	)
+	controller.AddInterestingResource(coreapi.NodePoolResourceType, "*")
+
+	return controller
 }
 
 // NeedsWork reports whether the deleter has unfinished business for the given

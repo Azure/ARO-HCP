@@ -61,7 +61,7 @@ func NewSystemAdminCredentialRequestWatchingController(
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 	resyncDuration time.Duration,
 	syncer SystemAdminCredentialRequestSyncer,
-) Controller {
+) WatchingController {
 
 	systemAdminCredentialRequestSyncer := &systemAdminCredentialRequestWatchingController{
 		name:              name,

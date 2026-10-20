@@ -83,7 +83,7 @@ func NewManagementClusterWatchingController(
 	fleetInformers fleetinformers.FleetInformers,
 	resyncDuration time.Duration,
 	syncer ManagementClusterSyncer,
-) Controller {
+) WatchingController {
 	mcSyncer := &managementClusterWatchingController{
 		name:          name,
 		syncer:        syncer,

@@ -56,7 +56,7 @@ func NewSystemAdminCredentialRevocationWatchingController(
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 	resyncDuration time.Duration,
 	syncer SystemAdminCredentialRevocationSyncer,
-) Controller {
+) WatchingController {
 
 	systemAdminCredentialRevocationSyncer := &systemAdminCredentialRevocationWatchingController{
 		name:              name,
