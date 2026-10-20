@@ -724,6 +724,31 @@ func instantiateContainerRegistryPullCredentialsValidationController(controllerC
 	), nil
 }
 
+func registerEtcdEncryptionKMSKeyReachableValidationController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{
+		Workers:     20,
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateEtcdEncryptionKMSKeyReachableValidationController, false),
+	}
+}
+
+func instantiateEtcdEncryptionKMSKeyReachableValidationController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	_, serviceProviderClusterLister := controllerContext.BackendInformers.ServiceProviderClusters()
+	return clustervalidation.NewNamedClusterValidationController(
+		clustervalidation.ClusterValidationEtcdEncryptionKMSKeyReachableValidationControllerName,
+		validationutils.NewEtcdEncryptionKMSKeyReachableValidation(
+			controllerContext.MIDataplaneBasedIdentityAccessTokenRetrieverBuilder,
+			azureclient.NewKeyVaultKeysClientBuilder(
+				controllerContext.CloudEnvironment.KeyVaultDNSSuffix(),
+				controllerContext.CloudEnvironment.AZCoreClientOptions(),
+			),
+			controllerContext.Clock,
+		),
+		controllerContext.ResourcesDBClient,
+		serviceProviderClusterLister,
+		controllerContext.BackendInformers,
+	), nil
+}
+
 func registerCreateClusterScopedReadDesiresController() controllerconfig.ControllerRegistration {
 	return controllerconfig.ControllerRegistration{
 		Workers:     20,
@@ -1269,6 +1294,7 @@ func Register(registry map[string]controllerconfig.ControllerRegistration) {
 	registry[strings.ToLower(clustervalidation.ClusterValidationDataPlaneIdentitiesPermissionsValidationControllerName)] = registerDataPlaneIdentitiesPermissionsValidationController()
 	registry[strings.ToLower(clustervalidation.ClusterValidationContainerRegistryPullCredentialsPermissionValidationControllerName)] = registerContainerRegistryPullCredentialsValidationController()
 	registry[strings.ToLower(clustervalidation.ClusterValidationAzureClusterVnetIntegrationSubnetSizeValidationControllerName)] = registerAzureClusterVnetIntegrationSubnetSizeValidationController()
+	registry[strings.ToLower(clustervalidation.ClusterValidationEtcdEncryptionKMSKeyReachableValidationControllerName)] = registerEtcdEncryptionKMSKeyReachableValidationController()
 	registry[strings.ToLower(clusterreaddesires.CreateClusterScopedReadDesiresControllerName)] = registerCreateClusterScopedReadDesiresController()
 	registry[strings.ToLower(clustercreation.CreateServiceProviderClusterControllerName)] = registerCreateServiceProviderClusterController()
 	registry[strings.ToLower(clusterdeletion.CleanOrphanedClusterManagedResourceGroupControllerName)] = registerCleanOrphanedClusterManagedResourceGroupController()

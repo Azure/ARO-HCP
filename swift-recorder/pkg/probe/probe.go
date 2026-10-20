@@ -21,7 +21,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"os/exec"
 	"time"
 
@@ -230,24 +229,4 @@ func (b *limitedOutput) Write(p []byte) (int, error) {
 		b.cancel()
 	}
 	return n, nil
-}
-
-func writeResult(output io.Writer, result Result) error {
-	data, err := json.Marshal(result)
-	if err != nil {
-		return err
-	}
-	if len(data)+1 > MaxResultBytes {
-		result.Before, result.After = Evidence{}, Evidence{}
-		result.Truncated = append(result.Truncated, "supplementary evidence omitted: result exceeds 1 MiB")
-		data, err = json.Marshal(result)
-		if err != nil {
-			return err
-		}
-	}
-	if len(data)+1 > MaxResultBytes {
-		return fmt.Errorf("probe result exceeded %d bytes", MaxResultBytes)
-	}
-	_, err = output.Write(append(data, '\n'))
-	return err
 }

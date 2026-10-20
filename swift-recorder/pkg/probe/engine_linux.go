@@ -19,6 +19,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -129,6 +130,26 @@ func Run(req Request, output io.Writer) error {
 	result.CounterDeltas = counterDeltas(result.Before, result.After)
 	result.FinishedAt = time.Now().UTC()
 	return writeResult(output, result)
+}
+
+func writeResult(output io.Writer, result Result) error {
+	data, err := json.Marshal(result)
+	if err != nil {
+		return err
+	}
+	if len(data)+1 > MaxResultBytes {
+		result.Before, result.After = Evidence{}, Evidence{}
+		result.Truncated = append(result.Truncated, "supplementary evidence omitted: result exceeds 1 MiB")
+		data, err = json.Marshal(result)
+		if err != nil {
+			return err
+		}
+	}
+	if len(data)+1 > MaxResultBytes {
+		return fmt.Errorf("probe result exceeded %d bytes", MaxResultBytes)
+	}
+	_, err = output.Write(append(data, '\n'))
+	return err
 }
 
 func validateIdentity(fd int, req Request) error {
