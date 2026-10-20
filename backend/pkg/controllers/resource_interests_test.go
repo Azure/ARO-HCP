@@ -82,6 +82,10 @@ type interestBackendInformers struct {
 func (i *interestBackendInformers) Clusters() (cache.SharedIndexInformer, corelisters.ClusterLister) {
 	return i.sources["cluster"], i.clusters
 }
+
+func (i *interestBackendInformers) Subscriptions() (cache.SharedIndexInformer, corelisters.SubscriptionLister) {
+	return i.sources["subscription"], nil
+}
 func (i *interestBackendInformers) NodePools() (cache.SharedIndexInformer, corelisters.NodePoolLister) {
 	return i.sources["nodepool"], i.nodePools
 }
@@ -318,7 +322,7 @@ func TestControllerResourceInterests(t *testing.T) {
 		for _, mode := range []string{"add", "update", "resync", "delete", "tombstone"} {
 			t.Run(tc.name+"/"+mode, func(t *testing.T) {
 				sources := map[string]*interestInformer{}
-				for _, name := range []string{"cluster", "nodepool", "spc", "spnp", "content", "read", "apply", "controller", "externalauth", "request", "revocation"} {
+				for _, name := range []string{"subscription", "cluster", "nodepool", "spc", "spnp", "content", "read", "apply", "controller", "externalauth", "request", "revocation"} {
 					sources[name] = &interestInformer{}
 				}
 				observed := make(chan string, len(tc.events)+1)

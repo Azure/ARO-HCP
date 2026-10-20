@@ -122,13 +122,21 @@ func NewExternalAuthOIDCClientsDegradedController(
 		readDesireLister:                  readDesireLister,
 		resourcesDBClient:                 resourcesDBClient,
 	}
-	return controllerutils.NewExternalAuthWatchingController(
+	controller := controllerutils.NewExternalAuthWatchingController(
 		ExternalAuthOIDCClientsDegradedControllerName,
 		resourcesDBClient,
 		informers,
 		1*time.Minute,
 		syncer,
 	)
+	controller.AddInterestingResource(coreapi.ExternalAuthResourceType, "*")
+	controller.AddInterestingResource(coreapi.ServiceProviderExternalAuthResourceType, coreapi.ServiceProviderExternalAuthResourceName)
+	controller.AddInterestingResource(coreapi.ServiceProviderClusterResourceType, coreapi.ServiceProviderClusterResourceName)
+	providerInformer, _ := informers.ServiceProviderClusters()
+	if err := controllerutils.WatchClusterParentsForExternalAuths(controller, informers, providerInformer); err != nil {
+		panic(err)
+	}
+	return controller
 }
 
 func (c *externalAuthOIDCClientsDegradedController) needsWork(externalAuth *coreapi.ExternalAuth) bool {

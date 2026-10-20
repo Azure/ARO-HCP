@@ -107,6 +107,10 @@ func NewClusterResourcesController(
 	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
 	controller.AddInterestingResource(coreapi.ServiceProviderClusterResourceType, coreapi.ServiceProviderClusterResourceName)
 	controller.AddInterestingResource(coreapi.NodePoolResourceType, "*")
+	controller.AddInterestingResource(azcorearm.SubscriptionResourceType, "*")
+	if err := controllerutils.WatchSubscriptionsForClusters(controller, informers); err != nil {
+		panic(err)
+	}
 	controller.AddInterestingResource(kubeapplierapi.ClusterScopedApplyDesireResourceType, "*")
 	controller.AddInterestingResource(kubeapplierapi.NodePoolScopedApplyDesireResourceType, "*")
 	controller.AddInterestingResource(kubeapplierapi.ClusterScopedReadDesireResourceType, "*")

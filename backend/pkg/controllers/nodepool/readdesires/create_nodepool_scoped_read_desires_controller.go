@@ -92,6 +92,11 @@ func NewCreateNodePoolScopedReadDesiresController(
 	controller.AddInterestingResource(coreapi.NodePoolResourceType, "*")
 	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
 	controller.AddInterestingResource(coreapi.ServiceProviderClusterResourceType, coreapi.ServiceProviderClusterResourceName)
+	clusterInformer, _ := informers.Clusters()
+	providerInformer, _ := informers.ServiceProviderClusters()
+	if err := controllerutils.WatchClusterParentsForNodePools(controller, informers, clusterInformer, providerInformer); err != nil {
+		panic(err)
+	}
 	controller.AddInterestingResource(kubeapplierapi.NodePoolScopedReadDesireResourceType, kubeapplierapi.ReadDesireNameReadonlyNodePool)
 	if err := controller.QueueForChildInformers(time.Minute, readDesireInformer); err != nil {
 		panic(err)
