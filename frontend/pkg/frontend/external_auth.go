@@ -605,9 +605,7 @@ func (f *Frontend) addDeleteExternalAuthToTransaction(ctx context.Context, write
 		"",
 		"",
 		correlationData)
-	// TODO remove this once migration of the new external auth deletion from frontend to backend approach is fully completed in all ARO-HCP
-	// permanent environments, for all regions.
-	operationDoc.UsesNewExternalAuthDeletionApproach = true
+
 	if request != nil {
 		// these are optional because when this is triggered via the subscription deletion flow, there is no
 		// deletion request containing these headers so these operations cannot be directly tracked.
@@ -626,9 +624,7 @@ func (f *Frontend) addDeleteExternalAuthToTransaction(ctx context.Context, write
 	}
 	externalAuth.ServiceProviderProperties.ActiveOperationID = operationDoc.ResourceID.Name
 	externalAuth.Properties.ProvisioningState = operationDoc.Status
-	// TODO remove this once migration of the new external auth deletion from frontend to backend approach is fully completed in all ARO-HCP
-	// permanent environments, for all regions.
-	externalAuth.ServiceProviderProperties.UsesNewExternalAuthDeletionApproach = true
+
 	_, err = f.resourcesDBClient.HCPClusters(externalAuth.ID.SubscriptionID, externalAuth.ID.ResourceGroupName).ExternalAuth(externalAuth.ID.Parent.Name).
 		AddReplaceToTransaction(ctx, transaction, externalAuth, nil)
 	if err != nil {
