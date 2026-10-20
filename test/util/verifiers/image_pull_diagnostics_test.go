@@ -1,3 +1,17 @@
+// Copyright 2026 Microsoft Corporation
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package verifiers
 
 import (
@@ -36,7 +50,10 @@ func TestCaptureImagePullFailureDiagnostics(t *testing.T) {
 			EphemeralContainers: []corev1.EphemeralContainer{{EphemeralContainerCommon: corev1.EphemeralContainerCommon{Name: "debug", Env: []corev1.EnvVar{{Name: "PRIVATE", Value: "ephemeral-marker"}}}}},
 			Volumes:             []corev1.Volume{{Name: "volume", VolumeSource: corev1.VolumeSource{Secret: &corev1.SecretVolumeSource{SecretName: "secret-marker"}}}},
 		},
-		Status: corev1.PodStatus{ContainerStatuses: []corev1.ContainerStatus{{Name: "pull-test", State: corev1.ContainerState{Waiting: &corev1.ContainerStateWaiting{Reason: "ImagePullBackOff", Message: "pull failed"}}}}},
+		Status: corev1.PodStatus{
+			Conditions:        []corev1.PodCondition{{Type: corev1.PodScheduled, Status: corev1.ConditionFalse, Reason: "Unschedulable", Message: "Insufficient cpu"}},
+			ContainerStatuses: []corev1.ContainerStatus{{Name: "pull-test", Image: "registry.example/image", State: corev1.ContainerState{Waiting: &corev1.ContainerStateWaiting{Reason: "ImagePullBackOff", Message: "pull failed"}}}},
+		},
 	}
 	event := &corev1.Event{
 		ObjectMeta:     metav1.ObjectMeta{Name: "pull-failed", Namespace: pod.Namespace, Annotations: map[string]string{"private": "event-annotation-marker"}},
@@ -56,6 +73,9 @@ func TestCaptureImagePullFailureDiagnostics(t *testing.T) {
 	} {
 		t.Run(scenario.name, func(t *testing.T) {
 			client := fake.NewClientset(event)
+			var output bytes.Buffer
+			ginkgo.GinkgoWriter.TeeTo(&output)
+			defer ginkgo.GinkgoWriter.ClearTeeWriters()
 			if !scenario.missingPod {
 				require.NoError(t, client.Tracker().Add(pod.DeepCopy()))
 			}
@@ -70,6 +90,7 @@ func TestCaptureImagePullFailureDiagnostics(t *testing.T) {
 				verificationErr = errors.New("original image pull failure")
 			}
 			CaptureImagePullFailureDiagnostics(context.Background(), verificationErr, client, pod.Namespace, pod.Name, directory)
+			require.NotContains(t, output.String(), "private-error-marker")
 			if !scenario.failed {
 				require.Empty(t, client.Actions(), "successful verification must not collect diagnostics")
 				entries, err := os.ReadDir(directory)
@@ -82,11 +103,15 @@ func TestCaptureImagePullFailureDiagnostics(t *testing.T) {
 			require.Len(t, actions, 2, "only pod GET and event LIST are allowed")
 			require.True(t, actions[0].Matches("get", "pods"))
 			require.True(t, actions[1].Matches("list", "events"))
+			require.Equal(t, pod.Namespace, actions[0].GetNamespace())
+			require.Equal(t, pod.Namespace, actions[1].GetNamespace())
 			selector := actions[1].(clienttesting.ListAction).GetListRestrictions().Fields.String()
 			require.Contains(t, selector, "involvedObject.kind=Pod")
 			require.Contains(t, selector, "involvedObject.name=pull-test")
 			if !scenario.missingPod {
 				require.Contains(t, selector, "involvedObject.uid=pod-uid")
+			} else {
+				require.NotContains(t, selector, "involvedObject.uid")
 			}
 			base := filepath.Join(directory, "image-pull-test", pod.Namespace, pod.Name)
 			if scenario.missingPod {
@@ -101,6 +126,7 @@ func TestCaptureImagePullFailureDiagnostics(t *testing.T) {
 				require.NoError(t, yaml.Unmarshal(data, &captured))
 				require.Equal(t, "worker-1", captured.Spec.NodeName)
 				require.Equal(t, "ImagePullBackOff", captured.Status.ContainerStatuses[0].State.Waiting.Reason)
+				require.Equal(t, pod.Status, captured.Status)
 				require.Equal(t, "registry.example/init", captured.Spec.InitContainers[0].Image)
 				info, err := os.Stat(filepath.Join(base, "pod.yaml"))
 				require.NoError(t, err)
@@ -108,11 +134,17 @@ func TestCaptureImagePullFailureDiagnostics(t *testing.T) {
 			}
 			if scenario.eventsError {
 				require.NoFileExists(t, filepath.Join(base, "events.yaml"))
+				require.Contains(t, output.String(), "events for image-pull-test/pull-test unavailable: request failed")
 			} else {
 				data, err := os.ReadFile(filepath.Join(base, "events.yaml"))
 				require.NoError(t, err)
 				require.Contains(t, string(data), "Failed to pull image")
 				require.NotContains(t, string(data), "event-annotation-marker")
+				var captured corev1.EventList
+				require.NoError(t, yaml.Unmarshal(data, &captured))
+				require.Len(t, captured.Items, 1)
+				require.Equal(t, event.InvolvedObject, captured.Items[0].InvolvedObject)
+				require.Equal(t, event.Count, captured.Items[0].Count)
 			}
 		})
 	}
@@ -163,4 +195,25 @@ func TestImagePullDiagnosticsLogFallback(t *testing.T) {
 			require.Contains(t, output.String(), "kind: EventList")
 		})
 	}
+}
+
+func TestImagePullDiagnosticsDeadline(t *testing.T) {
+	var output bytes.Buffer
+	ginkgo.GinkgoWriter.TeeTo(&output)
+	defer ginkgo.GinkgoWriter.ClearTeeWriters()
+	client, err := kubernetes.NewForConfig(&rest.Config{
+		Host: "https://example.invalid",
+		Transport: imagePullDiagnosticTransport(func(request *http.Request) (*http.Response, error) {
+			<-request.Context().Done()
+			return nil, request.Context().Err()
+		}),
+	})
+	require.NoError(t, err)
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	started := time.Now()
+	captureImagePullDiagnostics(ctx, client, "image-pull-test", "pull-test", t.TempDir())
+	require.ErrorIs(t, ctx.Err(), context.DeadlineExceeded)
+	require.Contains(t, output.String(), "unavailable: context deadline exceeded")
+	require.Less(t, time.Since(started), time.Second, "blocked Kubernetes requests must respect the collection deadline")
 }
