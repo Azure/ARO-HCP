@@ -528,9 +528,24 @@ var _ = Describe("Customer", func() {
 			By("verifying ACM's ingress certificate must remain absent after the customer's override")
 			Expect(verifiers.VerifyACMIngressCertificateAbsent().Verify(ctx, adminRESTConfig)).To(Succeed(), "ACM's ingress certificate must remain absent after the customer's override")
 		},
-		// Add earlier release lines only once a CPO override for https://github.com/openshift/hypershift/pull/9132
-		// exists across all previously-released versions; start with 5.1 for early feedback.
+		// TODO move to complete_cluster_create_multiversion.go test in a follow up PR
+		Entry("for cluster version 4.20", "4.20"),
+		Entry("for cluster version 4.21", "4.21"),
+		Entry("for cluster version 4.22", "4.22"),
+		Entry("for cluster version 4.23", "4.23"),
+		Entry("for cluster version 5.0", "5.0"),
 		Entry("for cluster version 5.1", "5.1"),
+		Entry("for cluster version 5.2", "5.2"),
+		Entry("for cluster version 5.3", "5.3"),
+		Entry("for cluster version 5.4", "5.4"),
+		Entry("for cluster version 5.5", "5.5"),
+		Entry("for cluster version 5.6", "5.6"),
+		Entry("for cluster version 5.7", "5.7"),
+		Entry("for cluster version 5.8", "5.8"),
+		Entry("for cluster version 5.9", "5.9"),
+		Entry("for cluster version 5.10", "5.10"),
+		Entry("for cluster version 5.11", "5.11"),
+		Entry("for cluster version 5.12", "5.12"),
 	)
 })
 

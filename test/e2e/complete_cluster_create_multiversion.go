@@ -44,13 +44,6 @@ import (
 //go:embed test-artifacts
 var TestArtifactsFS embed.FS
 
-// defaultIngressCertificateHyperShiftMinVersion mirrors minVersionForLegacyIngressDesire in
-// backend/pkg/controllers/clusterresources/ingress_default_certificate.go: the version at and
-// above which the backend suppresses the legacy ACM-managed ingress desires (ManagedCluster,
-// DefaultIngressConfigMap, and the default-ingress SecretSync/SecretProviderClass) so HyperShift
-// delivers the default ingress certificate directly instead.
-var defaultIngressCertificateHyperShiftMinVersion = semver.MustParse("5.1.0")
-
 var _ = Describe("ARO-HCP", func() {
 
 	DescribeTable("should be able to perform a control plane and node pool install with OCP "+framework.DefaultOpenshiftChannelGroup()+" channel",
@@ -222,14 +215,8 @@ var _ = Describe("ARO-HCP", func() {
 			Expect(verifiers.VerifyDefaultIngressCertificate(consoleHostURL.Host, appsWildcard, 5*time.Minute).Verify(ctx, adminRESTConfig)).To(Succeed(), "console must serve the delivered default ingress certificate for cluster %q", clusterName)
 			Expect(verifiers.VerifyDefaultIngressServingCertificateSecretWiring(10*time.Minute).Verify(ctx, adminRESTConfig)).To(Succeed(), "default-ingress-cert must exist and be referenced by IngressController/default for cluster %q", clusterName)
 
-			parsedVersion, err := semver.ParseTolerant(version)
-			Expect(err).NotTo(HaveOccurred(), "failed to parse version %q", version)
-			// Compare major.minor only: these are channel version lines, not patch builds.
-			majorMinorVersion := semver.Version{Major: parsedVersion.Major, Minor: parsedVersion.Minor}
-			if majorMinorVersion.GTE(defaultIngressCertificateHyperShiftMinVersion) {
-				By("verifying ACM's ingress certificate secret is absent, as HyperShift delivers it directly from 5.1+")
-				Expect(verifiers.VerifyACMIngressCertificateAbsent().Verify(ctx, adminRESTConfig)).To(Succeed(), "ACM must not create its ingress certificate secret for cluster %q", clusterName)
-			}
+			By("verifying ACM's ingress certificate secret is absent, as HyperShift delivers it directly from 5.1+")
+			Expect(verifiers.VerifyACMIngressCertificateAbsent().Verify(ctx, adminRESTConfig)).To(Succeed(), "ACM must not create its ingress certificate secret for cluster %q", clusterName)
 		},
 		Entry("for 4.20", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible,
 			labels.AllowRetry, // owner: @raelga, tracking: AROSLSRE-1747. Known-issue test, retriable during EV2 gating. Remove this label when the issue is fixed.
