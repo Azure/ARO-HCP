@@ -382,6 +382,61 @@ func TestRenderFacetedLineChartInitialThreshold(t *testing.T) {
 	}
 }
 
+func selectionTestPanel() panelPageData {
+	window := timing.TimeWindow{Start: time.Unix(1700000000, 0), End: time.Unix(1700000600, 0)}
+	panel := panelPageData{Title: "Synthetic controller metrics"}
+	for _, spec := range []struct {
+		title     string
+		chartType string
+		threshold float64
+		zero      bool
+	}{
+		{title: "Controllers", chartType: chartTypeLine, threshold: 5},
+		{title: "Independent controllers", chartType: chartTypeLine},
+		{title: "Idle controllers", chartType: chartTypeLine, zero: true},
+		{title: "Faceted controllers", chartType: chartTypeFacetedLine, threshold: 5},
+		{title: "Stacked phases", chartType: chartTypeFacetedStackedArea},
+	} {
+		var results []promutil.Result
+		facets := []string{"first"}
+		if spec.chartType != chartTypeLine {
+			facets = append(facets, "second")
+		}
+		for _, facet := range facets {
+			for _, controller := range []struct{ name, value string }{{"busy", "10"}, {"quiet", "2"}} {
+				value := controller.value
+				if spec.zero {
+					value = "0"
+				}
+				results = append(results, promutil.Result{
+					Metric: map[string]string{"controller": controller.name, "facet": facet},
+					Values: [][]any{{float64(window.Start.Unix()), value}, {float64(window.End.Unix()), value}},
+				})
+			}
+		}
+		panel.Charts = append(panel.Charts, buildChartData(QuerySpec{
+			Title: spec.title, ChartType: spec.chartType, FacetBy: "facet", StackBy: "controller", MinPeakThreshold: spec.threshold,
+		}, "", "", "", results, window))
+	}
+	panel.Charts = append(panel.Charts, chartData{Title: "No data"})
+	return panel
+}
+
+func TestRenderPanelSelectionFixtures(t *testing.T) {
+	rendered, err := renderPanelHTML(selectionTestPanel())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count := strings.Count(string(rendered), `class="item"`); count != 6 {
+		t.Fatalf("rendered %d ECharts instances, want six including independent line facets", count)
+	}
+	for _, want := range []string{"Deselect all", "aria-controls", "aria-label", `data-no-slider="true"`, `data-min-peak-threshold="5"`, "No results returned"} {
+		if !strings.Contains(string(rendered), want) {
+			t.Errorf("rendered selection panel missing %q", want)
+		}
+	}
+}
+
 func TestExtractChartBody(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
