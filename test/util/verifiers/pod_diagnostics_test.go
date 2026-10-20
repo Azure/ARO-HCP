@@ -40,25 +40,25 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
-func TestCaptureImagePullFailureDiagnostics(t *testing.T) {
+func TestCapturePodFailureDiagnostics(t *testing.T) {
 	pod := &corev1.Pod{
-		ObjectMeta: metav1.ObjectMeta{Name: "pull-test", Namespace: "image-pull-test", UID: "pod-uid", Annotations: map[string]string{"private": "annotation-marker"}},
+		ObjectMeta: metav1.ObjectMeta{Name: "workload", Namespace: "test-workloads", UID: "pod-uid", Annotations: map[string]string{"private": "annotation-marker"}},
 		Spec: corev1.PodSpec{
 			NodeName:            "worker-1",
-			Containers:          []corev1.Container{{Name: "pull-test", Image: "registry.example/image", Env: []corev1.EnvVar{{Name: "PRIVATE", Value: "env-marker"}}, Command: []string{"command-marker"}}},
+			Containers:          []corev1.Container{{Name: "workload", Image: "registry.example/image", Env: []corev1.EnvVar{{Name: "PRIVATE", Value: "env-marker"}}, Command: []string{"command-marker"}}},
 			InitContainers:      []corev1.Container{{Name: "init", Image: "registry.example/init", Args: []string{"args-marker"}}},
 			EphemeralContainers: []corev1.EphemeralContainer{{EphemeralContainerCommon: corev1.EphemeralContainerCommon{Name: "debug", Env: []corev1.EnvVar{{Name: "PRIVATE", Value: "ephemeral-marker"}}}}},
 			Volumes:             []corev1.Volume{{Name: "volume", VolumeSource: corev1.VolumeSource{Secret: &corev1.SecretVolumeSource{SecretName: "secret-marker"}}}},
 		},
 		Status: corev1.PodStatus{
-			Conditions:        []corev1.PodCondition{{Type: corev1.PodScheduled, Status: corev1.ConditionFalse, Reason: "Unschedulable", Message: "Insufficient cpu"}},
-			ContainerStatuses: []corev1.ContainerStatus{{Name: "pull-test", Image: "registry.example/image", State: corev1.ContainerState{Waiting: &corev1.ContainerStateWaiting{Reason: "ImagePullBackOff", Message: "pull failed"}}}},
+			Conditions:        []corev1.PodCondition{{Type: corev1.PodScheduled, Status: corev1.ConditionTrue, Reason: "Scheduled"}},
+			ContainerStatuses: []corev1.ContainerStatus{{Name: "workload", Image: "registry.example/image", State: corev1.ContainerState{Waiting: &corev1.ContainerStateWaiting{Reason: "CrashLoopBackOff", Message: "Back-off restarting failed container"}}}},
 		},
 	}
 	event := &corev1.Event{
-		ObjectMeta:     metav1.ObjectMeta{Name: "pull-failed", Namespace: pod.Namespace, Annotations: map[string]string{"private": "event-annotation-marker"}},
+		ObjectMeta:     metav1.ObjectMeta{Name: "container-failed", Namespace: pod.Namespace, Annotations: map[string]string{"private": "event-annotation-marker"}},
 		InvolvedObject: corev1.ObjectReference{Kind: "Pod", Name: pod.Name, Namespace: pod.Namespace, UID: pod.UID},
-		Reason:         "Failed", Message: "Failed to pull image", Count: 2,
+		Reason:         "BackOff", Message: "Back-off restarting failed container", Count: 2,
 	}
 	for _, scenario := range []struct {
 		name        string
@@ -85,20 +85,21 @@ func TestCaptureImagePullFailureDiagnostics(t *testing.T) {
 				})
 			}
 			directory := t.TempDir()
-			var verificationErr error
+			var failureErr error
 			if scenario.failed {
-				verificationErr = errors.New("original image pull failure")
+				failureErr = errors.New("original pod failure")
 			}
-			CaptureImagePullFailureDiagnostics(context.Background(), verificationErr, client, pod.Namespace, pod.Name, directory)
+			CapturePodFailureDiagnostics(context.Background(), failureErr, client, pod.Namespace, pod.Name, directory)
 			require.NotContains(t, output.String(), "private-error-marker")
 			if !scenario.failed {
+				require.Empty(t, output.String(), "successful verification must not log diagnostics")
 				require.Empty(t, client.Actions(), "successful verification must not collect diagnostics")
 				entries, err := os.ReadDir(directory)
 				require.NoError(t, err)
 				require.Empty(t, entries)
 				return
 			}
-			require.EqualError(t, verificationErr, "original image pull failure")
+			require.EqualError(t, failureErr, "original pod failure")
 			actions := client.Actions()
 			require.Len(t, actions, 2, "only pod GET and event LIST are allowed")
 			require.True(t, actions[0].Matches("get", "pods"))
@@ -107,13 +108,13 @@ func TestCaptureImagePullFailureDiagnostics(t *testing.T) {
 			require.Equal(t, pod.Namespace, actions[1].GetNamespace())
 			selector := actions[1].(clienttesting.ListAction).GetListRestrictions().Fields.String()
 			require.Contains(t, selector, "involvedObject.kind=Pod")
-			require.Contains(t, selector, "involvedObject.name=pull-test")
+			require.Contains(t, selector, "involvedObject.name=workload")
 			if !scenario.missingPod {
 				require.Contains(t, selector, "involvedObject.uid=pod-uid")
 			} else {
 				require.NotContains(t, selector, "involvedObject.uid")
 			}
-			base := filepath.Join(directory, "image-pull-test", pod.Namespace, pod.Name)
+			base := filepath.Join(directory, "pod-diagnostics", pod.Namespace, pod.Name)
 			if scenario.missingPod {
 				require.NoFileExists(t, filepath.Join(base, "pod.yaml"))
 			} else {
@@ -125,7 +126,7 @@ func TestCaptureImagePullFailureDiagnostics(t *testing.T) {
 				var captured corev1.Pod
 				require.NoError(t, yaml.Unmarshal(data, &captured))
 				require.Equal(t, "worker-1", captured.Spec.NodeName)
-				require.Equal(t, "ImagePullBackOff", captured.Status.ContainerStatuses[0].State.Waiting.Reason)
+				require.Equal(t, "CrashLoopBackOff", captured.Status.ContainerStatuses[0].State.Waiting.Reason)
 				require.Equal(t, pod.Status, captured.Status)
 				require.Equal(t, "registry.example/init", captured.Spec.InitContainers[0].Image)
 				info, err := os.Stat(filepath.Join(base, "pod.yaml"))
@@ -134,11 +135,11 @@ func TestCaptureImagePullFailureDiagnostics(t *testing.T) {
 			}
 			if scenario.eventsError {
 				require.NoFileExists(t, filepath.Join(base, "events.yaml"))
-				require.Contains(t, output.String(), "events for image-pull-test/pull-test unavailable: request failed")
+				require.Contains(t, output.String(), "events for test-workloads/workload unavailable: request failed")
 			} else {
 				data, err := os.ReadFile(filepath.Join(base, "events.yaml"))
 				require.NoError(t, err)
-				require.Contains(t, string(data), "Failed to pull image")
+				require.Contains(t, string(data), "Back-off restarting failed container")
 				require.NotContains(t, string(data), "event-annotation-marker")
 				var captured corev1.EventList
 				require.NoError(t, yaml.Unmarshal(data, &captured))
@@ -151,17 +152,54 @@ func TestCaptureImagePullFailureDiagnostics(t *testing.T) {
 	require.Equal(t, "env-marker", pod.Spec.Containers[0].Env[0].Value, "diagnostics must not mutate the original pod")
 }
 
-type imagePullDiagnosticTransport func(*http.Request) (*http.Response, error)
+func TestPodDiagnosticsSchedulingFailure(t *testing.T) {
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "pending", Namespace: "test-workloads", UID: "pending-uid"},
+		Spec: corev1.PodSpec{
+			SchedulerName: "default-scheduler",
+			Containers:    []corev1.Container{{Name: "workload", Image: "registry.example/image"}},
+		},
+		Status: corev1.PodStatus{
+			Phase:      corev1.PodPending,
+			Conditions: []corev1.PodCondition{{Type: corev1.PodScheduled, Status: corev1.ConditionFalse, Reason: "Unschedulable", Message: "Insufficient cpu"}},
+		},
+	}
+	event := &corev1.Event{
+		ObjectMeta:     metav1.ObjectMeta{Name: "scheduling-failed", Namespace: pod.Namespace},
+		InvolvedObject: corev1.ObjectReference{Kind: "Pod", Name: pod.Name, Namespace: pod.Namespace, UID: pod.UID},
+		Reason:         "FailedScheduling", Message: "0/1 nodes are available: Insufficient cpu", Count: 3,
+	}
+	directory := t.TempDir()
+	CapturePodFailureDiagnostics(context.Background(), errors.New("pod did not schedule"), fake.NewClientset(pod, event), pod.Namespace, pod.Name, directory)
+	base := filepath.Join(directory, "pod-diagnostics", pod.Namespace, pod.Name)
+	podData, err := os.ReadFile(filepath.Join(base, "pod.yaml"))
+	require.NoError(t, err)
+	var capturedPod corev1.Pod
+	require.NoError(t, yaml.Unmarshal(podData, &capturedPod))
+	require.Equal(t, pod.Status, capturedPod.Status)
+	require.Equal(t, pod.Spec.SchedulerName, capturedPod.Spec.SchedulerName)
+	require.Empty(t, capturedPod.Spec.NodeName)
+	eventData, err := os.ReadFile(filepath.Join(base, "events.yaml"))
+	require.NoError(t, err)
+	var capturedEvents corev1.EventList
+	require.NoError(t, yaml.Unmarshal(eventData, &capturedEvents))
+	require.Len(t, capturedEvents.Items, 1)
+	require.Equal(t, event.Reason, capturedEvents.Items[0].Reason)
+	require.Equal(t, event.Message, capturedEvents.Items[0].Message)
+	require.Equal(t, event.InvolvedObject, capturedEvents.Items[0].InvolvedObject)
+}
 
-func (transport imagePullDiagnosticTransport) RoundTrip(request *http.Request) (*http.Response, error) {
+type podDiagnosticTransport func(*http.Request) (*http.Response, error)
+
+func (transport podDiagnosticTransport) RoundTrip(request *http.Request) (*http.Response, error) {
 	return transport(request)
 }
 
-func TestImagePullDiagnosticsContext(t *testing.T) {
+func TestPodDiagnosticsContext(t *testing.T) {
 	requests := 0
 	client, err := kubernetes.NewForConfig(&rest.Config{
 		Host: "https://example.invalid",
-		Transport: imagePullDiagnosticTransport(func(request *http.Request) (*http.Response, error) {
+		Transport: podDiagnosticTransport(func(request *http.Request) (*http.Response, error) {
 			requests++
 			require.NoError(t, request.Context().Err(), "diagnostics must survive caller cancellation")
 			deadline, ok := request.Context().Deadline()
@@ -174,11 +212,11 @@ func TestImagePullDiagnosticsContext(t *testing.T) {
 	require.NoError(t, err)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	CaptureImagePullFailureDiagnostics(ctx, errors.New("original"), client, "image-pull-test", "pull-test", t.TempDir())
+	CapturePodFailureDiagnostics(ctx, errors.New("original"), client, "test-workloads", "workload", t.TempDir())
 	require.Equal(t, 2, requests)
 }
 
-func TestImagePullDiagnosticsLogFallback(t *testing.T) {
+func TestPodDiagnosticsLogFallback(t *testing.T) {
 	for _, scenario := range []string{"no artifacts", "unwritable artifacts"} {
 		t.Run(scenario, func(t *testing.T) {
 			directory := ""
@@ -189,21 +227,21 @@ func TestImagePullDiagnosticsLogFallback(t *testing.T) {
 			var output bytes.Buffer
 			ginkgo.GinkgoWriter.TeeTo(&output)
 			defer ginkgo.GinkgoWriter.ClearTeeWriters()
-			CaptureImagePullFailureDiagnostics(context.Background(), errors.New("original"), fake.NewClientset(), "image-pull-test", "deleted", directory)
-			require.Contains(t, output.String(), "pod image-pull-test/deleted unavailable: NotFound")
+			CapturePodFailureDiagnostics(context.Background(), errors.New("original"), fake.NewClientset(), "test-workloads", "deleted", directory)
+			require.Contains(t, output.String(), "pod test-workloads/deleted unavailable: NotFound")
 			require.Contains(t, output.String(), "events.yaml")
 			require.Contains(t, output.String(), "kind: EventList")
 		})
 	}
 }
 
-func TestImagePullDiagnosticsDeadline(t *testing.T) {
+func TestPodDiagnosticsDeadline(t *testing.T) {
 	var output bytes.Buffer
 	ginkgo.GinkgoWriter.TeeTo(&output)
 	defer ginkgo.GinkgoWriter.ClearTeeWriters()
 	client, err := kubernetes.NewForConfig(&rest.Config{
 		Host: "https://example.invalid",
-		Transport: imagePullDiagnosticTransport(func(request *http.Request) (*http.Response, error) {
+		Transport: podDiagnosticTransport(func(request *http.Request) (*http.Response, error) {
 			<-request.Context().Done()
 			return nil, request.Context().Err()
 		}),
@@ -212,7 +250,7 @@ func TestImagePullDiagnosticsDeadline(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
 	defer cancel()
 	started := time.Now()
-	captureImagePullDiagnostics(ctx, client, "image-pull-test", "pull-test", t.TempDir())
+	capturePodDiagnostics(ctx, client, "test-workloads", "workload", t.TempDir())
 	require.ErrorIs(t, ctx.Err(), context.DeadlineExceeded)
 	require.Contains(t, output.String(), "unavailable: context deadline exceeded")
 	require.Less(t, time.Since(started), time.Second, "blocked Kubernetes requests must respect the collection deadline")

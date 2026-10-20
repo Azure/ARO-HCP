@@ -293,7 +293,7 @@ var _ = Describe("Customer", func() {
 			By("waiting for image from registry.redhat.io to be pulled successfully")
 			err = verifiers.VerifyImagePulled(pullTestNamespace, redhatRegistryHost, "ubi-minimal", imagePullTimeout).
 				Verify(ctx, adminRESTConfig)
-			verifiers.CaptureImagePullFailureDiagnostics(ctx, err, kubeClient, pullTestNamespace, pod.Name, tc.LogDirPath)
+			verifiers.CapturePodFailureDiagnostics(ctx, err, kubeClient, pullTestNamespace, pod.Name, tc.LogDirPath)
 			Expect(err).NotTo(HaveOccurred(), "failed to wait for image from registry.redhat.io to be pulled successfully with the added pull secret")
 		})
 })
