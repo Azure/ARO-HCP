@@ -509,6 +509,15 @@ rules:
   - pods
   verbs:
   - list
+- apiGroups:
+  - ""
+  resources:
+  - persistentvolumeclaims
+  verbs:
+  - get
+  - list
+  - watch
+  - update
 ---
 # Source: mgmt-agent/templates/clusterrolebinding.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -791,4 +800,39 @@ spec:
     matchLabels:
       app.kubernetes.io/name: mgmt-agent
       port: metrics
+---
+# Source: mgmt-agent/templates/snapshot-pvc-finalizer-policy.yaml
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: mgmt-agent-snapshot-pvc-finalizer-cleanup
+  labels:
+    app.kubernetes.io/name: mgmt-agent
+spec:
+  failurePolicy: Fail
+  matchConditions:
+  - name: mgmt-agent-service-account
+    expression: "request.userInfo.username == 'system:serviceaccount:mgmt-agent:mgmt-agent'"
+  matchConstraints:
+    resourceRules:
+    - apiGroups: [""]
+      apiVersions: ["v1"]
+      operations: ["UPDATE"]
+      resources: ["persistentvolumeclaims"]
+      scope: Namespaced
+  validations:
+  - expression: "has(oldObject.metadata.deletionTimestamp) && 'snapshot.storage.kubernetes.io/pvc-as-source-protection' in oldObject.metadata.?finalizers.orValue([]) && object.metadata.?finalizers.orValue([]) == oldObject.metadata.?finalizers.orValue([]).filter(f, f != 'snapshot.storage.kubernetes.io/pvc-as-source-protection') && object.spec == oldObject.spec && object.status == oldObject.status && object.metadata.?labels == oldObject.metadata.?labels && object.metadata.?annotations == oldObject.metadata.?annotations && object.metadata.?ownerReferences == oldObject.metadata.?ownerReferences && object.metadata.?deletionTimestamp == oldObject.metadata.?deletionTimestamp && object.metadata.?deletionGracePeriodSeconds == oldObject.metadata.?deletionGracePeriodSeconds"
+    message: mgmt-agent may only remove the snapshot source-protection finalizer from a deleting PVC
+    reason: Forbidden
+---
+# Source: mgmt-agent/templates/snapshot-pvc-finalizer-policy-binding.yaml
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: mgmt-agent-snapshot-pvc-finalizer-cleanup
+  labels:
+    app.kubernetes.io/name: mgmt-agent
+spec:
+  policyName: mgmt-agent-snapshot-pvc-finalizer-cleanup
+  validationActions: [Deny]
 
