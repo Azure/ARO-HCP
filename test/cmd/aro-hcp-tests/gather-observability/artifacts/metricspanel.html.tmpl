@@ -23,6 +23,12 @@
         .no-results .subtitle { color: #888; }
         .no-results .message { margin: 40px 0; font-size: 18px; color: #999; }
         .chart-section { margin-bottom: 10px; }
+        .series-controls { max-width: 1200px; margin: 8px auto; }
+        .series-controls button {
+            padding: 4px 10px; cursor: pointer;
+            background: #333; color: #fff; border: 1px solid #888;
+        }
+        .series-controls button:focus-visible { outline: 2px solid #4E9AF1; outline-offset: 2px; }
         .chart-description {
             max-width: 1200px; margin: 0 auto; padding: 4px 0 0 0;
             font-size: 13px; color: #888;
@@ -69,13 +75,55 @@
     for (var i = 0; i < items.length; i++) {
         var inst = echarts.getInstanceByDom(items[i]);
         if (!inst) continue;
+        var selection = initSelection(inst, items[i]);
         var section = items[i].closest('.chart-section');
         if (section && section.getAttribute('data-no-slider') === 'true') continue;
         var initialThreshold = section ? parseFloat(section.getAttribute('data-min-peak-threshold')) || 0 : 0;
-        initSlider(inst, items[i], initialThreshold);
+        initSlider(inst, items[i], initialThreshold, selection);
     }
 
-    function initSlider(chart, chartDom, initialThreshold) {
+    function initSelection(chart, chartDom) {
+        var option = chart.getOption();
+        var manualSelection = Object.create(null);
+        var eligible = Object.create(null);
+        var names = [];
+        (option.series || []).forEach(function(series) {
+            if (Object.prototype.hasOwnProperty.call(manualSelection, series.name)) return;
+            names.push(series.name);
+            manualSelection[series.name] = !option.legend || !option.legend[0].selected || option.legend[0].selected[series.name] !== false;
+            eligible[series.name] = true;
+        });
+        function applySelection() {
+            var selected = {};
+            names.forEach(function(name) { selected[name] = manualSelection[name] && eligible[name]; });
+            chart.setOption({legend: {selected: selected}});
+        }
+        chart.on('legendselectchanged', function(event) {
+            manualSelection[event.name] = event.selected[event.name];
+        });
+        if (names.length) {
+            var controls = document.createElement('div');
+            controls.className = 'series-controls';
+            var button = document.createElement('button');
+            button.type = 'button';
+            button.textContent = 'Deselect all';
+            button.setAttribute('aria-controls', chartDom.id);
+            button.setAttribute('aria-label', 'Deselect all series in ' + option.title[0].text);
+            button.addEventListener('click', function() {
+                names.forEach(function(name) { manualSelection[name] = false; });
+                applySelection();
+            });
+            controls.appendChild(button);
+            chartDom.parentNode.insertAdjacentElement('beforebegin', controls);
+        }
+        return function(visibleNames) {
+            names.forEach(function(name) { eligible[name] = visibleNames.indexOf(name) !== -1; });
+            chart.setOption({legend: {data: visibleNames}});
+            applySelection();
+        };
+    }
+
+    function initSlider(chart, chartDom, initialThreshold, applySelection) {
         var option = chart.getOption();
         if (!option.series || option.series.length < 2) return;
 
@@ -144,19 +192,15 @@
         function applyThreshold() {
             var threshold = parseFloat(slider.value);
             var visibleNames = [];
-            var selected = {};
             seriesPeaks.forEach(function(s) {
                 var show = s.peak >= threshold;
-                selected[s.name] = show;
                 if (show) visibleNames.push(s.name);
             });
 
             info.textContent = visibleNames.length + '/' + seriesPeaks.length +
                 (threshold > yExtent[0] ? ' ≥' + formatVal(threshold) : '');
 
-            chart.setOption({
-                legend: {data: visibleNames, selected: selected}
-            });
+            applySelection(visibleNames);
 
             // Move legend up below the grid and shrink the container to eliminate the gap
             var newLH = legendHeight(visibleNames);
