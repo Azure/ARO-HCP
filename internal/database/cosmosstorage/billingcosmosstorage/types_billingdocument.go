@@ -77,6 +77,8 @@ type BillingDocumentPatchOperations struct {
 // SetDeletionTime appends a set operation for the DeletionTime field.
 func (p *BillingDocumentPatchOperations) SetDeletionTime(deletionTime time.Time) {
 	p.AppendSet("/deletionTime", deletionTime)
+	// Check at write time: a stale read must not overwrite an existing cutoff.
+	p.SetCondition("FROM c WHERE NOT IS_DEFINED(c.deletionTime) OR IS_NULL(c.deletionTime)")
 }
 
 // BillingDocumentList is a list of billing documents for use with Kubernetes informers.
