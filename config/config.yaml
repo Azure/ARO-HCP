@@ -1162,7 +1162,7 @@ defaults:
     image:
       registry: arohcpsvcdev.azurecr.io
       repository: ocm-rael/aro-hcp-clusters-service
-      digest: sha256:4e865adc69ea31e2121ee126419014d552920b7e6605ada3c9cee39b1f19d04b # CS MR !504: a99898c8c1e8fea7bd210281b34e4daeaf500b37
+      digest: sha256:3a6e4affc6cc4a925f3c6136cb8dc99399159dca3f233f9d4668672d91760675 # CS MR !504: dc929399b0a9f05dca5679eaf1068bc98a13d53b
     # controls how many HCPs can be placed on an MC, sadly not configurable per MC
     provisionShardClusterLimit: 100
     provisionShardStatus: active
