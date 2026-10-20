@@ -16,6 +16,7 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"strings"
@@ -24,6 +25,7 @@ import (
 	"testing/synctest"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -32,6 +34,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/mismatch"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosclient"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosratelimit"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
@@ -224,6 +227,135 @@ func TestStorageFactoryConcurrentMCContainerLookups(t *testing.T) {
 	other, err := factory.tokenBucket("another-mc", "one")
 	require.NoError(t, err)
 	require.NotSame(t, buckets[0], other)
+}
+
+type billingPatchRequest struct {
+	Method, Path, Continuation string
+	Body                       billingPatchBody
+}
+
+type billingPatchBody struct {
+	Query      string                  `json:"query,omitempty"`
+	Parameters []billingQueryParameter `json:"parameters,omitempty"`
+	Condition  string                  `json:"condition,omitempty"`
+	Operations []billingPatchOperation `json:"operations,omitempty"`
+}
+
+type billingQueryParameter struct{ Name, Value string }
+type billingPatchOperation struct {
+	Op, Path string
+	Value    time.Time
+}
+type billingPatchExchange struct {
+	Want               billingPatchRequest
+	Status             int
+	Body, Continuation string
+}
+type billingPatchCall struct {
+	Cutoff     time.Time
+	WantError  string
+	WantStatus int
+}
+
+func TestBillingPatchRequestsAndErrors(t *testing.T) {
+	resourceID, parseErr := azcorearm.ParseResourceID("/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster")
+	require.NoError(t, parseErr)
+	firstCutoff := time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
+	secondCutoff := firstCutoff.Add(time.Hour)
+	const documentsPath = "/dbs/test/colls/Billing/docs"
+	query := func(body, sentContinuation, nextContinuation string, status int) billingPatchExchange {
+		return billingPatchExchange{
+			Want: billingPatchRequest{Method: http.MethodPost, Path: documentsPath, Continuation: sentContinuation,
+				Body: billingPatchBody{
+					Query:      "SELECT c.id FROM c WHERE STRINGEQUALS(c.resourceId, @resourceId, true) AND (NOT IS_DEFINED(c.deletionTime) OR IS_NULL(c.deletionTime))",
+					Parameters: []billingQueryParameter{{Name: "@resourceId", Value: resourceID.String()}},
+				}},
+			Status: status, Body: body, Continuation: nextContinuation,
+		}
+	}
+	patch := func(id string, cutoff time.Time, status int) billingPatchExchange {
+		return billingPatchExchange{
+			Want: billingPatchRequest{Method: http.MethodPatch, Path: documentsPath + "/" + id,
+				Body: billingPatchBody{
+					Condition:  "FROM c WHERE NOT IS_DEFINED(c.deletionTime) OR IS_NULL(c.deletionTime)",
+					Operations: []billingPatchOperation{{Op: "set", Path: "/deletionTime", Value: cutoff}},
+				}},
+			Status: status, Body: `{}`,
+		}
+	}
+	for _, tc := range []struct {
+		name      string
+		direct    bool
+		exchanges []billingPatchExchange
+		calls     []billingPatchCall
+	}{
+		{name: "unset cutoff condition sent", direct: true, calls: []billingPatchCall{{Cutoff: firstCutoff}},
+			exchanges: []billingPatchExchange{patch("doc", firstCutoff, http.StatusOK)}},
+		{name: "condition failure propagated", direct: true, calls: []billingPatchCall{{Cutoff: firstCutoff, WantStatus: http.StatusPreconditionFailed}},
+			exchanges: []billingPatchExchange{patch("doc", firstCutoff, http.StatusPreconditionFailed)}},
+		{name: "missing projected ID refuses patch", calls: []billingPatchCall{{Cutoff: firstCutoff, WantError: "missing ID"}},
+			exchanges: []billingPatchExchange{query(`{"Documents":[{}]}`, "", "", http.StatusOK)}},
+		{name: "partial success retries only remaining active record", calls: []billingPatchCall{
+			{Cutoff: firstCutoff, WantStatus: http.StatusPreconditionFailed}, {Cutoff: secondCutoff},
+		}, exchanges: []billingPatchExchange{
+			query(`{"Documents":[{"id":"a"},{"id":"b"}]}`, "", "", http.StatusOK),
+			patch("a", firstCutoff, http.StatusOK),
+			patch("b", firstCutoff, http.StatusPreconditionFailed),
+			query(`{"Documents":[{"id":"b"}]}`, "", "", http.StatusOK),
+			patch("b", secondCutoff, http.StatusOK),
+		}},
+		{name: "later query page failure sends no patches", calls: []billingPatchCall{{Cutoff: firstCutoff, WantStatus: http.StatusBadRequest}}, exchanges: []billingPatchExchange{
+			query(`{"Documents":[{"id":"a"}]}`, "", "next-page", http.StatusOK),
+			query(`{"code":"BadRequest","message":"page failed"}`, "next-page", "", http.StatusBadRequest),
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			requests := 0
+			options := storageTestOptions(t, func(req *http.Request) (*http.Response, error) {
+				if req.URL.Path == "" || req.URL.Path == "/" {
+					return &http.Response{StatusCode: http.StatusOK, Request: req, Header: http.Header{}, Body: io.NopCloser(strings.NewReader(`{"id":"test","writableLocations":[{"name":"test","databaseAccountEndpoint":"https://cosmos.test"}],"readableLocations":[{"name":"test","databaseAccountEndpoint":"https://cosmos.test"}]}`))}, nil
+				}
+				require.Less(t, requests, len(tc.exchanges), "unexpected request %s %s", req.Method, req.URL.Path)
+				exchange := tc.exchanges[requests]
+				requests++
+				body, err := io.ReadAll(req.Body)
+				require.NoError(t, err)
+				got := billingPatchRequest{Method: req.Method, Path: req.URL.Path, Continuation: req.Header.Get("x-ms-continuation")}
+				require.NoError(t, json.Unmarshal(body, &got.Body))
+				if diff := cmp.Diff(exchange.Want, got); diff != "" {
+					t.Fatalf("request %d (-want +got):\n%s", requests, diff)
+				}
+				headers := http.Header{}
+				if exchange.Continuation != "" {
+					headers.Set("x-ms-continuation", exchange.Continuation)
+				}
+				return &http.Response{StatusCode: exchange.Status, Request: req, Header: headers, Body: io.NopCloser(strings.NewReader(exchange.Body))}, nil
+			})
+			factory, err := newStorageFactory("https://cosmos.test", "test", options, BackendStorageFactoryOptions(false))
+			require.NoError(t, err)
+			crud := factory.BillingStorageClient("orphanedbillingcleanup").BillingDocs("sub")
+			for _, call := range tc.calls {
+				var operations billingcosmosstorage.BillingDocumentPatchOperations
+				operations.SetDeletionTime(call.Cutoff)
+				if tc.direct {
+					err = crud.PatchByID(t.Context(), "doc", operations)
+				} else {
+					err = crud.PatchByClusterID(t.Context(), resourceID, operations)
+				}
+				switch {
+				case call.WantError != "":
+					require.ErrorContains(t, err, call.WantError)
+				case call.WantStatus != 0:
+					var responseErr *azcore.ResponseError
+					require.ErrorAs(t, err, &responseErr)
+					require.Equal(t, call.WantStatus, responseErr.StatusCode)
+				default:
+					require.NoError(t, err)
+				}
+			}
+			require.Equal(t, len(tc.exchanges), requests)
+		})
+	}
 }
 
 func TestBackendStorageRegistrations(t *testing.T) {
