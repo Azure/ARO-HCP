@@ -62,6 +62,7 @@ func NewClusterDeletionController(
 	billingDBClient billingcosmosstorage.BillingDBClient,
 	informers coreinformers.BackendInformers,
 	kubeApplierDBClients kubeappliercosmosstorage.KubeApplierDBClients,
+	applyDesireInformer controllerutils.Notifier,
 ) controllerutils.Controller {
 	_, clusterLister := informers.Clusters()
 	_, serviceProviderClusterLister := informers.ServiceProviderClusters()
@@ -91,6 +92,13 @@ func NewClusterDeletionController(
 	controller.AddInterestingResource(coreapi.SystemAdminCredentialRevocationResourceType, "*")
 	controller.AddInterestingResource(coreapi.ClusterScopedManagementClusterContentResourceType, "*")
 	controller.AddInterestingResource(kubeapplierapi.ClusterScopedApplyDesireResourceType, "*")
+	nodePoolInformer, _ := informers.NodePools()
+	externalAuthInformer, _ := informers.ExternalAuths()
+	requestInformer, _ := informers.SystemAdminCredentialRequests()
+	revocationInformer, _ := informers.SystemAdminCredentialRevocations()
+	if err := controller.QueueForChildInformers(time.Minute, nodePoolInformer, externalAuthInformer, requestInformer, revocationInformer, applyDesireInformer); err != nil {
+		panic(err)
+	}
 
 	return controller
 }

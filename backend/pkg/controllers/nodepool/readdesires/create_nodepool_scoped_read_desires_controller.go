@@ -68,6 +68,7 @@ func NewCreateNodePoolScopedReadDesiresController(
 	kubeApplierDBClients kubeappliercosmosstorage.KubeApplierDBClients,
 	serviceProviderClusterLister corelisters.ServiceProviderClusterLister,
 	readDesireLister kubeapplierlisters.ReadDesireLister,
+	readDesireInformer controllerutils.Notifier,
 	informers coreinformers.BackendInformers,
 	hostedClusterNamespaceEnvIdentifier string,
 ) controllerutils.Controller {
@@ -84,7 +85,7 @@ func NewCreateNodePoolScopedReadDesiresController(
 		CreateNodePoolScopedReadDesiresControllerName,
 		resourcesDBClient,
 		informers,
-		nil, // do not fire on ReadDesires this controller itself creates
+		nil, // register only the ReadDesire source below
 		1*time.Minute,
 		syncer,
 	)
@@ -92,6 +93,9 @@ func NewCreateNodePoolScopedReadDesiresController(
 	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
 	controller.AddInterestingResource(coreapi.ServiceProviderClusterResourceType, coreapi.ServiceProviderClusterResourceName)
 	controller.AddInterestingResource(kubeapplierapi.NodePoolScopedReadDesireResourceType, kubeapplierapi.ReadDesireNameReadonlyNodePool)
+	if err := controller.QueueForChildInformers(time.Minute, readDesireInformer); err != nil {
+		panic(err)
+	}
 
 	return controller
 }

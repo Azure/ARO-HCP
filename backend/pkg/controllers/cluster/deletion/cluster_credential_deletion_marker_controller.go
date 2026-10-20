@@ -75,6 +75,11 @@ func NewClusterCredentialDeletionMarkerController(
 	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
 	controller.AddInterestingResource(coreapi.SystemAdminCredentialRequestResourceType, "*")
 	controller.AddInterestingResource(coreapi.SystemAdminCredentialRevocationResourceType, "*")
+	requestInformer, _ := informers.SystemAdminCredentialRequests()
+	revocationInformer, _ := informers.SystemAdminCredentialRevocations()
+	if err := controller.QueueForChildInformers(time.Minute, requestInformer, revocationInformer); err != nil {
+		panic(err)
+	}
 
 	return controller
 }

@@ -111,6 +111,12 @@ func NewClusterResourcesController(
 	controller.AddInterestingResource(kubeapplierapi.NodePoolScopedApplyDesireResourceType, "*")
 	controller.AddInterestingResource(kubeapplierapi.ClusterScopedReadDesireResourceType, "*")
 	controller.AddInterestingResource(kubeapplierapi.NodePoolScopedReadDesireResourceType, "*")
+	nodePoolInformer, _ := informers.NodePools()
+	applyInformer, _ := kubeApplierInformers.ApplyDesires()
+	readInformer, _ := kubeApplierInformers.ReadDesires()
+	if err := controller.QueueForDescendantInformers(30*time.Second, 2, nodePoolInformer, applyInformer, readInformer); err != nil {
+		panic(err)
+	}
 
 	return controller
 }
