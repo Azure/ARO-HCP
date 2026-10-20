@@ -121,12 +121,9 @@ backend/union-kube-applier-informers-controller | unused-watch | github.com/Azur
 backend/union-kube-applier-informers-controller | unused-watch | github.com/Azure/ARO-HCP/internal/api/kubeapplierapi.ReadDesire
 fleet/capacityreportingcontroller | missing-watch | github.com/Azure/ARO-HCP/internal/api/fleetapi.ManagementClusterScheduling
 fleet/capacityreportingcontroller | unused-watch | github.com/Azure/ARO-HCP/internal/api/fleetapi.ManagementCluster
-fleet/ensurecapacityreaddesirecontroller | missing-watch | github.com/Azure/ARO-HCP/internal/api/kubeapplierapi.ReadDesire
-fleet/ensuresharedingressreaddesirecontroller | missing-watch | github.com/Azure/ARO-HCP/internal/api/kubeapplierapi.ReadDesire
 fleet/hcpresourcerequirementscontroller | missing-watch | github.com/Azure/ARO-HCP/internal/api/fleetapi.HCPResourceRequirements
 fleet/hcpresourcerequirementscontroller | missing-watch | github.com/Azure/ARO-HCP/internal/api/fleetapi.Stamp
 fleet/hcpresourcerequirementscontroller | missing-watch | github.com/Azure/ARO-HCP/internal/api/kubeapplierapi.ReadDesire
 fleet/managementclusterscaleceilingreportingcontroller | missing-watch | github.com/Azure/ARO-HCP/internal/api/fleetapi.ManagementClusterScheduling
-fleet/managementclusterscaleceilingreportingcontroller | missing-watch | github.com/Azure/ARO-HCP/internal/api/kubeapplierapi.ReadDesire
 fleet/union-kube-applier-informers-controller | unused-watch | github.com/Azure/ARO-HCP/internal/api/kubeapplierapi.ApplyDesire
 fleet/union-kube-applier-informers-controller | unused-watch | github.com/Azure/ARO-HCP/internal/api/kubeapplierapi.ReadDesire
