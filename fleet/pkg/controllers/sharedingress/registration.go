@@ -16,11 +16,15 @@ func Register(registry map[string]controllerconfig.ControllerRegistration) {
 		Workers: 1,
 		Instantiate: func(ctx controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
 			managementClusterInformer, _ := ctx.FleetInformers.ManagementClusters()
-			_, readDesireLister := ctx.UnionKubeApplierInformers.ReadDesires()
-			return NewEnsureSharedIngressReadDesireController(
+			readDesireInformer, readDesireLister := ctx.UnionKubeApplierInformers.ReadDesires()
+			controller := NewEnsureSharedIngressReadDesireController(
 				managementClusterInformer, ctx.KubeApplierDBClients, readDesireLister,
 				base.StampWatchingControllerConfig{CooldownPeriod: 5 * time.Minute},
-			), nil
+			)
+			if err := controller.QueueForInformers(5*time.Minute, readDesireInformer); err != nil {
+				return nil, err
+			}
+			return controller, nil
 		},
 	}
 	registry[strings.ToLower(SharedIngressReportingControllerName)] = controllerconfig.ControllerRegistration{

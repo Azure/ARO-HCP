@@ -205,6 +205,16 @@ rollout relationships require separate reverse mappings and are not covered here
 
 ## Other watching controllers
 
+### Fleet desire consumers
+
+Fleet's capacity ReadDesire creator, shared-ingress ReadDesire creator, and
+scale-ceiling reporter also subscribe to the union ReadDesire source. Their
+existing stamp-key ancestor mapper derives the stamp directly from the desire's
+resource ID, with no network lookup or global scan. Customer-cluster-scoped
+desires have no stamp ancestor and do not map to these queues. Scheduling-output
+watches remain separate work: reporters currently replace their output on every
+reconciliation, so adding those watches requires a convergence guard first.
+
 | Constructor source | Explicit resource inputs | Collection rationale and additional inputs |
 |---|---|---|
 | [CreateBillingDoc](../backend/pkg/controllers/billing/registration.go) | `Cluster(*)`, `Subscription(*)` | Billing document by cluster UID (cache/live billing DB), clock and configured location. |
