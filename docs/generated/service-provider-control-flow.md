@@ -1888,13 +1888,13 @@ Reads the vnet-integration subnet via the cluster's Service Managed Identity and
 
 [Source](../../backend/pkg/utils/validationutils/control_plane_identities_permissions_cluster_validation.go) · **Trigger:** Cluster; 1m; result-based retry.
 
-Checks control-plane identities against required actions/data actions and network scopes using Azure access-check APIs. When permissions are missing (NotAllowed only, never Denied), lists the identities' role assignments with the first-party application; if every missing permission is covered by an assignment at or above the resource created within the last 60 minutes, reports Unknown `RoleAssignmentPropagationPending` (30s retry) instead of Failed; if the principal-ID or role-assignment lookup fails, reports Unknown `RoleAssignmentPropagationCheckFailed` instead of Failed, except that an authorization (403) error keeps the original Failed result. Writes the corresponding service-provider `Status.Validations` condition; no Azure mutation.
+Checks control-plane identities against required actions/data actions and network scopes using Azure access-check APIs. When permissions are missing (NotAllowed only, never Denied), lists the identities' role assignments with the first-party application; if every missing permission is covered by an assignment at or above the resource created within the last 60 minutes, the validation still reports Failed but with reason `MissingRequiredPermissionsPendingPropagation`, a user message telling the customer the grant is still taking effect and to retry, and a shortened 30s retry so a propagation tail that clears inside the validation failure timeout recovers without customer action. If the principal-ID or role-assignment lookup fails, the plain `MissingRequiredPermissions` failure is reported and the lookup error is counted. The outcome is Failed in every case, so the operation fails on the usual schedule regardless. Writes the corresponding service-provider `Status.Validations` condition; no Azure mutation.
 
 #### ClusterValidationDataPlaneIdentitiesPermissionsValidation
 
 [Source](../../backend/pkg/utils/validationutils/data_plane_identities_permissions_validation.go) · **Trigger:** Cluster; 1m; result-based retry.
 
-Checks data-plane identity permissions for required resource/network scopes. Applies the same RBAC propagation deferral as the control-plane permissions validation. Writes the corresponding service-provider `Status.Validations` condition; no Azure mutation.
+Checks data-plane identity permissions for required resource/network scopes. Applies the same RBAC propagation guidance as the control-plane permissions validation. Writes the corresponding service-provider `Status.Validations` condition; no Azure mutation.
 
 #### NodePoolValidationAzureVMSizeSupportsEphemeralOSDiskValidation
 

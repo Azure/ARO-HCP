@@ -169,9 +169,9 @@ func (v *DataPlaneIdentitiesPermissionsValidation) Validate(ctx context.Context,
 			)
 		}
 		internalAndUserMsg := fmt.Sprintf("Data plane operators missing required permissions: %s", string(jsonBytes))
-		if deferred, ok := deferForPropagationIfApplicable(ctx, v.propagationDetector, v.Name(), *clusterSubscription.Properties.TenantId, missingPermissions, principalIDs,
-			"Waiting for recently created role assignments for the data plane operator identities to take effect."); ok {
-			return deferred
+		if withGuidance, ok := failureWithPropagationGuidance(ctx, v.propagationDetector, v.Name(), *clusterSubscription.Properties.TenantId, missingPermissions, principalIDs,
+			internalAndUserMsg); ok {
+			return withGuidance
 		}
 		return FailedValidation(
 			"MissingRequiredPermissions",

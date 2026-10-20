@@ -142,8 +142,8 @@ func (v *ControlPlaneIdentitiesPermissionsClusterValidation) Validate(ctx contex
 			)
 		}
 		internalAndUserMsg := fmt.Sprintf("Control plane operators missing required permissions: %s", string(jsonBytes))
-		if deferred, ok := v.deferForPropagation(ctx, clusterSubscription, cluster, missingPermissions); ok {
-			return deferred
+		if withGuidance, ok := v.failureWithPropagationGuidance(ctx, clusterSubscription, cluster, missingPermissions, internalAndUserMsg); ok {
+			return withGuidance
 		}
 		return FailedValidation(
 			"MissingRequiredPermissions",
@@ -159,10 +159,10 @@ func (v *ControlPlaneIdentitiesPermissionsClusterValidation) Validate(ctx contex
 	)
 }
 
-// deferForPropagation checks whether the missing permissions can be attributed to RBAC propagation delay. Control plane operators are checked by JWT, so their principal IDs are only resolved
-// here, on the missing-permissions path, to keep the common passing path free of extra Azure calls. Failure to resolve a principal ID is treated like a failed role
-// assignment lookup; see propagationCheckFailed.
-func (v *ControlPlaneIdentitiesPermissionsClusterValidation) deferForPropagation(ctx context.Context, clusterSubscription *coreapi.Subscription, cluster *coreapi.Cluster, missingPermissions []*identityResourceMissingPermissions) (ValidationResult, bool) {
+// failureWithPropagationGuidance checks whether the missing permissions can be attributed to RBAC propagation delay and, if so, restates the failure with retry guidance. Control plane
+// operators are checked by JWT, so their principal IDs are only resolved here, on the missing-permissions path, to keep the common passing path free of extra Azure calls. Failure to
+// resolve a principal ID is treated like a failed role assignment lookup: the caller reports its plain missing-permissions failure. See recordPropagationCheckFailure.
+func (v *ControlPlaneIdentitiesPermissionsClusterValidation) failureWithPropagationGuidance(ctx context.Context, clusterSubscription *coreapi.Subscription, cluster *coreapi.Cluster, missingPermissions []*identityResourceMissingPermissions, missingPermissionsMessage string) (ValidationResult, bool) {
 	if v.propagationDetector == nil {
 		return ValidationResult{}, false
 	}
@@ -171,10 +171,10 @@ func (v *ControlPlaneIdentitiesPermissionsClusterValidation) deferForPropagation
 	}
 	principalIDs, err := v.resolvePrincipalIDs(ctx, cluster, missingPermissions)
 	if err != nil {
-		return propagationCheckFailed(ctx, v.Name(), err)
+		recordPropagationCheckFailure(ctx, v.Name(), err)
+		return ValidationResult{}, false
 	}
-	return deferForPropagationIfApplicable(ctx, v.propagationDetector, v.Name(), *clusterSubscription.Properties.TenantId, missingPermissions, principalIDs,
-		"Waiting for recently created role assignments for the control plane operator identities to take effect.")
+	return failureWithPropagationGuidance(ctx, v.propagationDetector, v.Name(), *clusterSubscription.Properties.TenantId, missingPermissions, principalIDs, missingPermissionsMessage)
 }
 
 func (v *ControlPlaneIdentitiesPermissionsClusterValidation) resolvePrincipalIDs(ctx context.Context, cluster *coreapi.Cluster, missingPermissions []*identityResourceMissingPermissions) (map[string]string, error) {
