@@ -6,6 +6,20 @@ go here.
 Ideally anything here is treated as temporary
 and always ends up getting upstreamed.
 
+## Default Storage Class
+
+The management pipeline's `storageclass-namespace` step prepares the `default-sc`
+namespace before the `storageclass` Helm release can create its hook Job.
+`dev-infrastructure/scripts/wait-default-sc-namespace.sh` waits up to two minutes
+for the namespace's `kube-root-ca.crt` ConfigMap to exist, then up to two minutes
+for its `ca.crt` entry to be non-empty. Kubernetes API requests have a ten-second
+timeout. A failed check blocks the Helm step rather than starting a pod without
+a published namespace root CA. Existing namespaces are reused.
+
+This checks API publication, not synchronization of every kubelet's ConfigMap
+cache. The Helm step retains its bounded retries and hook recreation policy for
+transient failures, including image pulls.
+
 ## Proportional Kubelet Reservations
 
 The kubelet DaemonSet intentionally migrates AKS `--kube-reserved` to
