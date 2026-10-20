@@ -267,6 +267,12 @@ images:
       filePath: ../../config/config.yaml
 ```
 
+Image holds use an exact `source.tag` instead of `source.tagPattern`, with a
+comment linking the regression issue and the subtask that validates removal.
+The `aksCommandRuntime` hold retains `master.261001.6` for AROSLSRE-2481 until
+AROSLSRE-2482 validates a corrected kubectl runtime over TLS 1.3 with certificate
+verification enabled.
+
 ### Registry-Specific Examples
 
 **Quay.io (Public)**:
