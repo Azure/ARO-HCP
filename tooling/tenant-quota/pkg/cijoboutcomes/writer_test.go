@@ -334,8 +334,8 @@ func TestKustoQueriesUseExactScopedIntegerCursor(t *testing.T) {
 	require.NotContains(t, query, "ago(")
 	require.NotContains(t, query, "take ")
 	for _, field := range []string{"adoBuildId", "message", "jobUri", "buildId", "jobName"} {
-		require.NoError(t, validateMapping(fmt.Sprintf(`[{"Column":%q,"DataType":"string","Properties":{"Path":"$['%s']"}}]`, field, field), field))
-		require.Error(t, validateMapping("[]", field))
+		require.NoError(t, validateMapping(fmt.Sprintf(`[{"Column":%q,"DataType":"string","Properties":{"Path":"$['%s']"}}]`, field, field), field, "string"))
+		require.Error(t, validateMapping("[]", field, "string"))
 	}
 }
 
@@ -399,6 +399,39 @@ func TestKustoProductionReadHooks(t *testing.T) {
 	require.ErrorContains(t, err, "column jobUri not found")
 }
 
+func TestIngestionRequiresSlotMetadataMapping(t *testing.T) {
+	columns := []string{"adoBuildId", "runtimeRegion", "leasedSlot", "leasedAssets", "message"}
+	for _, missing := range columns[1 : len(columns)-1] {
+		t.Run(missing, func(t *testing.T) {
+			w := newTestWriter(t)
+			w.config.CIJobOutcomes.ClusterURI = "http://localhost"
+			mapping := make([]map[string]any, 0, len(columns)-1)
+			for _, column := range columns {
+				if column != missing {
+					dataType := "string"
+					if column == "leasedAssets" {
+						dataType = "dynamic"
+					}
+					mapping = append(mapping, map[string]any{"Column": column, "DataType": dataType, "Properties": map[string]string{"Path": "$['" + column + "']"}})
+				}
+			}
+			data, err := json.Marshal(mapping)
+			require.NoError(t, err)
+			quoted, err := json.Marshal(string(data))
+			require.NoError(t, err)
+			w.client.Transport = ingestionTransport(func(r *http.Request) (*http.Response, error) {
+				if r.Method == http.MethodGet {
+					return &http.Response{StatusCode: http.StatusNotFound, Body: http.NoBody}, nil
+				}
+				require.Equal(t, "/v1/rest/mgmt", r.URL.Path, "no ingestion before all mappings are checked")
+				body := fmt.Sprintf(`{"Tables":[{"TableName":"Table","Columns":[{"ColumnName":"Mapping","ColumnType":"string"}],"Rows":[[%s]]}]}`, quoted)
+				return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": []string{"application/json"}}, Body: io.NopCloser(strings.NewReader(body))}, nil
+			})
+			require.ErrorContains(t, w.initializeKustoWithCredential(t.Context(), true, nil), "missing "+missing)
+		})
+	}
+}
+
 func TestPendingQueryRejectsPartialAndMissingPrimaryResults(t *testing.T) {
 	for _, partial := range []bool{false, true} {
 		w := newTestWriter(t)
@@ -445,7 +478,7 @@ func TestMappingQueriesAndGuards(t *testing.T) {
 				}),
 			}))
 			require.NoError(t, err)
-			require.NoError(t, w.checkMapping(t.Context(), client, target, field))
+			require.NoError(t, w.checkMapping(t.Context(), client, target, field, "string"))
 			require.NoError(t, client.Close())
 		}
 	}
