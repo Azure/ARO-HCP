@@ -4,5 +4,7 @@
 # functions/, broken tests here require consumer approval to update.
 # Prow enforces approval from both groups when a PR touches both
 # directories.
+options:
+  no_parent_owners: true
 approvers:
   - sre-approvers
