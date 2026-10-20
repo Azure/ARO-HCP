@@ -1,7 +1,8 @@
 {{- if .Values.azureCnsCpuLimits.enabled }}
 # Remove the CPU limit from the azure-cns DaemonSet to eliminate DHCP timeout
-# failures during HCP cluster creation. AKS sets a default CPU limit of 500m;
-# at that ceiling azure-cns is throttled at ~37% on CI management clusters,
+# failures during HCP cluster creation. AKS sets a default CPU limit of 40m on
+# the DaemonSet's cns-container (observed on k8s 1.35 CI management clusters);
+# at that ceiling azure-cns is throttled on CI management clusters,
 # causing DHCP Discover packets to time out and blocking cluster-network bring-up.
 # The CPU request is retained for scheduling. No limit means the kernel will not
 # throttle the container.
@@ -86,12 +87,22 @@ spec:
           DESIRED_REQ="{{ .Values.azureCnsCpuLimits.cpuRequest }}"
 
           # Wait for the AKS-managed DaemonSet to appear: the hook can run
-          # before the CNI is fully installed during cluster bring-up. Fail
-          # loudly (the Job retries, and Helm reports the failure) rather
-          # than silently skipping the mitigation.
+          # before the CNI is fully installed during cluster bring-up. A failing
+          # kubectl (API error, RBAC, broken client) must fail the job immediately
+          # with its real message, not burn the whole wait and misreport the
+          # DaemonSet as missing; only a clean empty result means "not yet
+          # created" and keeps waiting.
           echo "Waiting for azure-cns DaemonSet to appear in kube-system (up to 5m)..."
           WAITED=0
-          until kubectl get daemonset azure-cns -n kube-system --ignore-not-found -o name | grep -q .; do
+          while :; do
+            if ! DS_NAME=$(kubectl get daemonset azure-cns -n kube-system --ignore-not-found -o name 2>&1); then
+              echo "ERROR: kubectl failed while waiting for the azure-cns DaemonSet:" >&2
+              echo "$DS_NAME" >&2
+              exit 1
+            fi
+            if [ -n "$DS_NAME" ]; then
+              break
+            fi
             if [ "$WAITED" -ge 300 ]; then
               echo "ERROR: azure-cns DaemonSet did not appear in kube-system within 5m" >&2
               exit 1
@@ -101,18 +112,23 @@ spec:
           done
           echo "azure-cns DaemonSet found (waited ${WAITED}s)"
 
-          # Resolve the azure-cns container index by name so the JSON patch
-          # targets the right container even if AKS adds or reorders
-          # sidecars.
-          echo "Resolving azure-cns container index..."
-          CNS_INDEX=$(kubectl get daemonset azure-cns -n kube-system \
-            -o jsonpath='{range .spec.template.spec.containers[*]}{.name}{"\n"}{end}' \
-            | awk '$0 == "azure-cns" {print NR - 1}')
-          if [ -z "$CNS_INDEX" ]; then
-            echo "ERROR: container 'azure-cns' not found in the DaemonSet spec" >&2
+          # Resolve the CNS container by its image, not by an exact container
+          # name: the DaemonSet is named azure-cns but its container is named
+          # cns-container (upstream azure-container-networking naming), and AKS
+          # adds and reorders sidecars. Matching the image survives both.
+          echo "Resolving the azure-cns container..."
+          CNS_CONTAINERS=$(kubectl get daemonset azure-cns -n kube-system \
+            -o jsonpath='{range .spec.template.spec.containers[*]}{.name}{"\t"}{.image}{"\n"}{end}')
+          CNS_RESOLVED=$(printf '%s\n' "$CNS_CONTAINERS" | awk -F'\t' \
+            '$2 ~ /azure-cns/ || $1 == "cns-container" || $1 == "azure-cns" {print (NR - 1) " " $1; exit}')
+          if [ -z "$CNS_RESOLVED" ]; then
+            echo "ERROR: no azure-cns container found in the DaemonSet spec; containers are:" >&2
+            printf '%s\n' "$CNS_CONTAINERS" >&2
             exit 1
           fi
-          echo "azure-cns container index: $CNS_INDEX"
+          CNS_INDEX=${CNS_RESOLVED%% *}
+          CNS_NAME=${CNS_RESOLVED#* }
+          echo "azure-cns container resolved: '$CNS_NAME' (index $CNS_INDEX)"
 
           echo "Reading current CPU resource values..."
           CURRENT_REQ=$(kubectl get daemonset azure-cns -n kube-system \
