@@ -37,8 +37,9 @@ import (
 // DefaultRoleAssignmentPropagationWindow is how long after a role assignment is created that a
 // NotAllowed CheckAccessV2 decision for its principal is attributed to Azure RBAC propagation
 // delay rather than to a genuinely missing permission. Azure documents propagation of up to
-// ~10 minutes in most cases, but propagation of 46 minutes and more has been observed in stage and
-// prod, so the window is sized to cover that tail with margin.
+// ~10 minutes in most cases with no guarantee; the longest delay measured on this validation
+// path is ~31 minutes (ARO-30179, 2026-10-20; AROSLSRE-2484 tracks measuring the tail), so the
+// window is sized to cover that with margin.
 //
 // The window only selects which failure the customer is told about. It never extends how long an
 // operation runs: a permission validation that keeps failing still fails the operation on the
