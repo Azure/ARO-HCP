@@ -289,10 +289,11 @@ other cleanup programs are outside this ARM audit path.
 
 For `cleanup-sweeper` `rg-ordered`, candidate resource groups are chosen using `tooling/cleanup-sweeper/resourcegroups.policy.yaml`. Discovery treats the `createdAt` tag (RFC3339 timestamp on the resource group) as required for any `action: delete` rule: groups without a parseable tag are not candidates.
 
-The policy excludes long-lived slot-managed identity pools whose resource-group
-names start with `aro-hcp-msi-container-`. These groups carry `persist=true`,
-but they back repeated E2E leases and must not be treated as resources that
-expire after 15 days.
+The policy excludes long-lived slot-managed identity containers and
+infrastructure-identity bundle resource groups. Their names start with
+`aro-hcp-msi-container-` and `aro-hcp-dev-infrastructure-identities-`,
+respectively. These groups back repeated E2E leases and must not be treated as
+resources that expire after 15 days.
 
 Azure does not set that tag by default. Subscriptions where `rg-ordered` should run must apply an Azure Policy (or equivalent) that stamps `tags['createdAt']` when a resource group is created, using `[utcNow()]` in the policy rule. The rule body lives in `tooling/cleanup-sweeper/scripts/rg-createdat-policy-rule.json`.
 
