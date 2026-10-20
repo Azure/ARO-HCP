@@ -82,16 +82,31 @@ func TestClusterValidationOperationState(t *testing.T) {
 			wantMessage: "Identity: ValidationResult: Identity details; Subnet: ValidationResult: Subnet details",
 		},
 		{
-			name:        "old unknown validation does not fail the operation",
-			validations: []metav1.Condition{condition("Subnet", metav1.ConditionUnknown, time.Hour)},
-			wantState:   coreapi.ProvisioningStateProvisioning, wantCode: coreapi.CloudErrorCodeInternalServerError,
+			name:        "recent unknown validation does not fail the operation",
+			validations: []metav1.Condition{condition("Subnet", metav1.ConditionUnknown, 4*time.Minute)},
+			wantState:   coreapi.ProvisioningStateProvisioning, wantCode: coreapi.CloudErrorCodeInvalidResource,
 			wantMessage: "Subnet: ValidationResult: Subnet details",
 		},
 		{
-			name: "unknown validation does not extend a failure timeout",
+			name:        "old unknown validation fails the operation same as a failed one",
+			validations: []metav1.Condition{condition("Subnet", metav1.ConditionUnknown, 10*time.Minute)},
+			wantState:   coreapi.ProvisioningStateFailed, wantCode: coreapi.CloudErrorCodeInvalidResource,
+			wantMessage: "Subnet: ValidationResult: Subnet details",
+		},
+		{
+			name: "fresh unknown validation does not extend a failure timeout",
 			validations: []metav1.Condition{
 				condition("Subnet", metav1.ConditionFalse, 11*time.Minute),
 				condition("Identity", metav1.ConditionUnknown, time.Minute),
+			},
+			wantState: coreapi.ProvisioningStateFailed, wantCode: coreapi.CloudErrorCodeInvalidResource,
+			wantMessage: "Identity: ValidationResult: Identity details; Subnet: ValidationResult: Subnet details",
+		},
+		{
+			name: "old unknown validation alongside a fresh failure still fails",
+			validations: []metav1.Condition{
+				condition("Subnet", metav1.ConditionFalse, 4*time.Minute),
+				condition("Identity", metav1.ConditionUnknown, 10*time.Minute),
 			},
 			wantState: coreapi.ProvisioningStateFailed, wantCode: coreapi.CloudErrorCodeInvalidResource,
 			wantMessage: "Identity: ValidationResult: Identity details; Subnet: ValidationResult: Subnet details",
@@ -101,6 +116,12 @@ func TestClusterValidationOperationState(t *testing.T) {
 			validations: []metav1.Condition{{Type: "Subnet", Status: metav1.ConditionFalse, Reason: "InvalidSubnet"}},
 			wantState:   coreapi.ProvisioningStateProvisioning, wantCode: coreapi.CloudErrorCodeInvalidResource,
 			wantMessage: "Subnet: InvalidSubnet",
+		},
+		{
+			name:        "missing transition time does not imply an expired unknown failure",
+			validations: []metav1.Condition{{Type: "Subnet", Status: metav1.ConditionUnknown, Reason: "InternalError"}},
+			wantState:   coreapi.ProvisioningStateProvisioning, wantCode: coreapi.CloudErrorCodeInvalidResource,
+			wantMessage: "Subnet: InternalError",
 		},
 	}
 	for _, tt := range tests {
@@ -127,12 +148,14 @@ func TestClusterValidationOperationState(t *testing.T) {
 func TestClusterValidationOperationAge(t *testing.T) {
 	t.Parallel()
 	now := operationtesting.MustParseTime("2026-09-23T12:00:00Z")
-	spc := &coreapi.ServiceProviderCluster{Status: coreapi.ServiceProviderClusterStatus{
-		Validations: []metav1.Condition{{
-			Type: "Subnet", Status: metav1.ConditionFalse, Reason: "InvalidSubnet",
-			LastTransitionTime: metav1.NewTime(now.Add(-10 * time.Minute)),
-		}},
-	}}
+	statuses := []struct {
+		name   string
+		status metav1.ConditionStatus
+		reason string
+	}{
+		{name: "failed", status: metav1.ConditionFalse, reason: "InvalidSubnet"},
+		{name: "unknown", status: metav1.ConditionUnknown, reason: "InternalError"},
+	}
 	tests := []struct {
 		name      string
 		startTime time.Time
@@ -145,13 +168,24 @@ func TestClusterValidationOperationAge(t *testing.T) {
 		{name: "missing operation start time", wantState: coreapi.ProvisioningStateProvisioning},
 		{name: "future operation start time", startTime: now.Add(time.Minute), wantState: coreapi.ProvisioningStateProvisioning},
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, st := range statuses {
+		t.Run(st.name, func(t *testing.T) {
 			t.Parallel()
-			got := clusterValidationOperationState(spc, tt.startTime, now)
-			assert.Equal(t, tt.wantState, got.ProvisioningState)
-			assert.Equal(t, coreapi.CloudErrorCodeInvalidResource, got.CloudErrorCode)
-			assert.Equal(t, "Subnet: InvalidSubnet", got.Message)
+			spc := &coreapi.ServiceProviderCluster{Status: coreapi.ServiceProviderClusterStatus{
+				Validations: []metav1.Condition{{
+					Type: "Subnet", Status: st.status, Reason: st.reason,
+					LastTransitionTime: metav1.NewTime(now.Add(-10 * time.Minute)),
+				}},
+			}}
+			for _, tt := range tests {
+				t.Run(tt.name, func(t *testing.T) {
+					t.Parallel()
+					got := clusterValidationOperationState(spc, tt.startTime, now)
+					assert.Equal(t, tt.wantState, got.ProvisioningState)
+					assert.Equal(t, coreapi.CloudErrorCodeInvalidResource, got.CloudErrorCode)
+					assert.Equal(t, "Subnet: "+st.reason, got.Message)
+				})
+			}
 		})
 	}
 }
