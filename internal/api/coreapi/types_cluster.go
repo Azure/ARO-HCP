@@ -143,7 +143,9 @@ type ClusterServiceProviderProperties struct {
 	// to communicate with the Managed Identities Resource Provider (MI RP).
 	// Written by: Frontend PUT Cluster (Create)
 	ManagedIdentitiesDataPlaneIdentityURL string `json:"managedIdentitiesDataPlaneIdentityURL,omitempty"`
-	// Written by: BackfillClusterUID
+	// ClusterUID is a stable identifier generated on CREATE
+	// It is immutable; UPDATE leaves it alone.
+	// Written by: Frontend PUT Cluster (Create) via admission.MutateCluster
 	ClusterUID string `json:"clusterUID,omitempty"`
 	// BillingDocumentCosmosID is the Cosmos DB document ID of the billing document
 	// associated with this cluster. It is set when the billing document is created

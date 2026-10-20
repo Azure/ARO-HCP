@@ -84,7 +84,6 @@ var expectedControllerLaunches = []struct {
 	{"clustervalidationalwayssuccessvalidation", 20},
 	{"deleteorphanedcosmosresources", 10},
 	{"missingresourceid", 20},
-	{"backfillclusteruid", 20},
 	{"orphanedbillingcleanup", 20},
 	{"createbillingdoc", 20},
 	{"controlplaneactiveversions", 20},
@@ -339,7 +338,7 @@ func TestControllerRegistryNamedZoneRegistrations(t *testing.T) {
 	files := token.NewFileSet()
 	for zone, expectedCount := range map[string]int{
 		"billing": 2, "cluster": 66, "clusterresources": 1, "cosmosmigration": 2,
-		"datadump": 1, "externalauth": 13, "metrics": 6, "mismatch": 4, "nodepool": 19,
+		"datadump": 1, "externalauth": 13, "metrics": 6, "mismatch": 3, "nodepool": 19,
 	} {
 		source, err := parser.ParseFile(files, "../controllers/"+zone+"/registration.go", nil, 0)
 		require.NoError(t, err)
