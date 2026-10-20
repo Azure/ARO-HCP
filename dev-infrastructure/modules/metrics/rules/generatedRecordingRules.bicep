@@ -391,10 +391,6 @@ resource hypershiftJourneyRecordingRules 'Microsoft.AlertsManagement/prometheusR
     interval: 'PT1M'
     rules: [
       {
-        record: 'hypershift:hostedclusters_unhealthy:ratio'
-        expression: 'clamp_max(sum by (cluster, region) (max by (cluster, platform, condition, region) (hypershift_hostedclusters_failure_conditions)) / (sum by (cluster, region) (max by (cluster, platform, region) (hypershift_hostedclusters)) > 0), 1)'
-      }
-      {
         record: 'hypershift:hostedcluster_creations:count_30d'
         expression: 'count by (cluster, region) (max by (cluster, exported_namespace, name, _id, region) (max_over_time(hypershift_cluster_waiting_initial_availability_duration_seconds[30d])))'
       }

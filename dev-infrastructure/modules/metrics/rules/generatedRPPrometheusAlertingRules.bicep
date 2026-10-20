@@ -1308,114 +1308,6 @@ resource hypershiftJourneyMonitorRules 'Microsoft.AlertsManagement/prometheusRul
             }
           }
         ]
-        alert: 'userJourneyHealthyClusters1h5m'
-        enabled: true
-        labels: {
-          component: 'slo'
-          long_window: '1h'
-          service: 'hypershift-journey'
-          severity: '3'
-          short_window: '5m'
-          slo: 'hypershift-journey-errors'
-        }
-        annotations: {
-          correlationId: 'userJourneyHealthyClusters/{{ $labels.cluster }}'
-          description: '''HostedCluster failure-condition share is burning error budget at 14.4x over 1h/5m.
-Management Cluster: {{ $labels.cluster }}
-'''
-          info: '''HostedCluster failure-condition share is burning error budget at 14.4x over 1h/5m.
-Management Cluster: {{ $labels.cluster }}
-'''
-          runbook_url: 'https://aka.ms/arohcp-runbook-hypershift'
-          summary: '{{ $labels.cluster }}: HostedCluster failure-condition share is burning error budget at 14.4x over 1h/5m'
-          title: '{{ $labels.cluster }}: HostedCluster failure-condition share is burning error budget at 14.4x over 1h/5m'
-        }
-        expression: '(avg_over_time(hypershift:hostedclusters_unhealthy:ratio[1h]) > (14.4 * (1 - 0.999)) and on (cluster) count_over_time(hypershift:hostedclusters_unhealthy:ratio[1h:1m]) > 54) and on (cluster) (avg_over_time(hypershift:hostedclusters_unhealthy:ratio[5m]) > (14.4 * (1 - 0.999)) and on (cluster) count_over_time(hypershift:hostedclusters_unhealthy:ratio[5m:1m]) > 3)'
-        for: 'PT10M'
-        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
-      }
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'userJourneyHealthyClusters6h30m'
-        enabled: true
-        labels: {
-          component: 'slo'
-          long_window: '6h'
-          service: 'hypershift-journey'
-          severity: '3'
-          short_window: '30m'
-          slo: 'hypershift-journey-errors'
-        }
-        annotations: {
-          correlationId: 'userJourneyHealthyClusters/{{ $labels.cluster }}'
-          description: '''HostedCluster failure-condition share is burning error budget at 6x over 6h/30m.
-Management Cluster: {{ $labels.cluster }}
-'''
-          info: '''HostedCluster failure-condition share is burning error budget at 6x over 6h/30m.
-Management Cluster: {{ $labels.cluster }}
-'''
-          runbook_url: 'https://aka.ms/arohcp-runbook-hypershift'
-          summary: '{{ $labels.cluster }}: HostedCluster failure-condition share is burning error budget at 6x over 6h/30m'
-          title: '{{ $labels.cluster }}: HostedCluster failure-condition share is burning error budget at 6x over 6h/30m'
-        }
-        expression: '(avg_over_time(hypershift:hostedclusters_unhealthy:ratio[6h]) > (6 * (1 - 0.999)) and on (cluster) count_over_time(hypershift:hostedclusters_unhealthy:ratio[6h:5m]) > 64) and on (cluster) (avg_over_time(hypershift:hostedclusters_unhealthy:ratio[30m]) > (6 * (1 - 0.999)) and on (cluster) count_over_time(hypershift:hostedclusters_unhealthy:ratio[30m:1m]) > 27)'
-        for: 'PT30M'
-        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
-      }
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'userJourneyHealthyClusters3d6h'
-        enabled: true
-        labels: {
-          component: 'slo'
-          long_window: '3d'
-          service: 'hypershift-journey'
-          severity: '3'
-          short_window: '6h'
-          slo: 'hypershift-journey-errors'
-        }
-        annotations: {
-          correlationId: 'userJourneyHealthyClusters/{{ $labels.cluster }}'
-          description: '''HostedCluster failure-condition share is burning error budget at 1x over 3d/6h.
-Management Cluster: {{ $labels.cluster }}
-'''
-          info: '''HostedCluster failure-condition share is burning error budget at 1x over 3d/6h.
-Management Cluster: {{ $labels.cluster }}
-'''
-          runbook_url: 'https://aka.ms/arohcp-runbook-hypershift'
-          summary: '{{ $labels.cluster }}: HostedCluster failure-condition share is burning error budget at 1x over 3d/6h'
-          title: '{{ $labels.cluster }}: HostedCluster failure-condition share is burning error budget at 1x over 3d/6h'
-        }
-        expression: '(avg_over_time(hypershift:hostedclusters_unhealthy:ratio[3d]) > (1 * (1 - 0.999)) and on (cluster) count_over_time(hypershift:hostedclusters_unhealthy:ratio[3d:30m]) > 130) and on (cluster) (avg_over_time(hypershift:hostedclusters_unhealthy:ratio[6h]) > (1 * (1 - 0.999)) and on (cluster) count_over_time(hypershift:hostedclusters_unhealthy:ratio[6h:5m]) > 64)'
-        for: 'PT3H'
-        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
-      }
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
         alert: 'userJourneyCreationLatencySLO'
         enabled: true
         labels: {
@@ -1601,7 +1493,7 @@ resource hypershiftOperatorMonitorRules 'Microsoft.AlertsManagement/prometheusRu
             }
           }
         ]
-        alert: 'userJourneyAvailability1h5m'
+        alert: 'hypershiftOperatorAvailability1h5m'
         enabled: true
         labels: {
           component: 'slo'
@@ -1612,7 +1504,7 @@ resource hypershiftOperatorMonitorRules 'Microsoft.AlertsManagement/prometheusRu
           slo: 'hypershift-operator-availability'
         }
         annotations: {
-          correlationId: 'userJourneyAvailability/{{ $labels.cluster }}'
+          correlationId: 'hypershiftOperatorAvailability/{{ $labels.cluster }}'
           description: '''hypershift-operator replica availability is burning error budget at 14.4x over 1h/5m.
 Management Cluster: {{ $labels.cluster }}
 '''
@@ -1637,7 +1529,7 @@ Management Cluster: {{ $labels.cluster }}
             }
           }
         ]
-        alert: 'userJourneyAvailability6h30m'
+        alert: 'hypershiftOperatorAvailability6h30m'
         enabled: true
         labels: {
           component: 'slo'
@@ -1648,7 +1540,7 @@ Management Cluster: {{ $labels.cluster }}
           slo: 'hypershift-operator-availability'
         }
         annotations: {
-          correlationId: 'userJourneyAvailability/{{ $labels.cluster }}'
+          correlationId: 'hypershiftOperatorAvailability/{{ $labels.cluster }}'
           description: '''hypershift-operator replica availability is burning error budget at 6x over 6h/30m.
 Management Cluster: {{ $labels.cluster }}
 '''
@@ -1673,7 +1565,7 @@ Management Cluster: {{ $labels.cluster }}
             }
           }
         ]
-        alert: 'userJourneyAvailability3d6h'
+        alert: 'hypershiftOperatorAvailability3d6h'
         enabled: true
         labels: {
           component: 'slo'
@@ -1684,7 +1576,7 @@ Management Cluster: {{ $labels.cluster }}
           slo: 'hypershift-operator-availability'
         }
         annotations: {
-          correlationId: 'userJourneyAvailability/{{ $labels.cluster }}'
+          correlationId: 'hypershiftOperatorAvailability/{{ $labels.cluster }}'
           description: '''hypershift-operator replica availability is burning error budget at 1x over 3d/6h.
 Management Cluster: {{ $labels.cluster }}
 '''
@@ -1709,7 +1601,7 @@ Management Cluster: {{ $labels.cluster }}
             }
           }
         ]
-        alert: 'userJourneyReconcileErrors1h5m'
+        alert: 'hypershiftOperatorReconcileErrors1h5m'
         enabled: true
         labels: {
           component: 'slo'
@@ -1720,7 +1612,7 @@ Management Cluster: {{ $labels.cluster }}
           slo: 'hypershift-operator-errors'
         }
         annotations: {
-          correlationId: 'userJourneyReconcileErrors/{{ $labels.cluster }}'
+          correlationId: 'hypershiftOperatorReconcileErrors/{{ $labels.cluster }}'
           description: '''hypershift-operator reconcile error ratio is burning error budget at 14.4x over 1h/5m.
 Management Cluster: {{ $labels.cluster }}
 '''
@@ -1745,7 +1637,7 @@ Management Cluster: {{ $labels.cluster }}
             }
           }
         ]
-        alert: 'userJourneyReconcileErrors6h30m'
+        alert: 'hypershiftOperatorReconcileErrors6h30m'
         enabled: true
         labels: {
           component: 'slo'
@@ -1756,7 +1648,7 @@ Management Cluster: {{ $labels.cluster }}
           slo: 'hypershift-operator-errors'
         }
         annotations: {
-          correlationId: 'userJourneyReconcileErrors/{{ $labels.cluster }}'
+          correlationId: 'hypershiftOperatorReconcileErrors/{{ $labels.cluster }}'
           description: '''hypershift-operator reconcile error ratio is burning error budget at 6x over 6h/30m.
 Management Cluster: {{ $labels.cluster }}
 '''
@@ -1781,7 +1673,7 @@ Management Cluster: {{ $labels.cluster }}
             }
           }
         ]
-        alert: 'userJourneyReconcileErrors3d6h'
+        alert: 'hypershiftOperatorReconcileErrors3d6h'
         enabled: true
         labels: {
           component: 'slo'
@@ -1792,7 +1684,7 @@ Management Cluster: {{ $labels.cluster }}
           slo: 'hypershift-operator-errors'
         }
         annotations: {
-          correlationId: 'userJourneyReconcileErrors/{{ $labels.cluster }}'
+          correlationId: 'hypershiftOperatorReconcileErrors/{{ $labels.cluster }}'
           description: '''hypershift-operator reconcile error ratio is burning error budget at 1x over 3d/6h.
 Management Cluster: {{ $labels.cluster }}
 '''
@@ -1817,7 +1709,7 @@ Management Cluster: {{ $labels.cluster }}
             }
           }
         ]
-        alert: 'userJourneyReconcileLatency1h5m'
+        alert: 'hypershiftOperatorReconcileLatency1h5m'
         enabled: true
         labels: {
           component: 'slo'
@@ -1828,7 +1720,7 @@ Management Cluster: {{ $labels.cluster }}
           slo: 'hypershift-operator-latency'
         }
         annotations: {
-          correlationId: 'userJourneyReconcileLatency/{{ $labels.cluster }}'
+          correlationId: 'hypershiftOperatorReconcileLatency/{{ $labels.cluster }}'
           description: '''hypershift-operator reconciles slower than 10s is burning error budget at 14.4x over 1h/5m.
 Management Cluster: {{ $labels.cluster }}
 '''
@@ -1853,7 +1745,7 @@ Management Cluster: {{ $labels.cluster }}
             }
           }
         ]
-        alert: 'userJourneyReconcileLatency6h30m'
+        alert: 'hypershiftOperatorReconcileLatency6h30m'
         enabled: true
         labels: {
           component: 'slo'
@@ -1864,7 +1756,7 @@ Management Cluster: {{ $labels.cluster }}
           slo: 'hypershift-operator-latency'
         }
         annotations: {
-          correlationId: 'userJourneyReconcileLatency/{{ $labels.cluster }}'
+          correlationId: 'hypershiftOperatorReconcileLatency/{{ $labels.cluster }}'
           description: '''hypershift-operator reconciles slower than 10s is burning error budget at 6x over 6h/30m.
 Management Cluster: {{ $labels.cluster }}
 '''
@@ -1889,7 +1781,7 @@ Management Cluster: {{ $labels.cluster }}
             }
           }
         ]
-        alert: 'userJourneyReconcileLatency3d6h'
+        alert: 'hypershiftOperatorReconcileLatency3d6h'
         enabled: true
         labels: {
           component: 'slo'
@@ -1900,7 +1792,7 @@ Management Cluster: {{ $labels.cluster }}
           slo: 'hypershift-operator-latency'
         }
         annotations: {
-          correlationId: 'userJourneyReconcileLatency/{{ $labels.cluster }}'
+          correlationId: 'hypershiftOperatorReconcileLatency/{{ $labels.cluster }}'
           description: '''hypershift-operator reconciles slower than 10s is burning error budget at 1x over 3d/6h.
 Management Cluster: {{ $labels.cluster }}
 '''
@@ -1925,7 +1817,7 @@ Management Cluster: {{ $labels.cluster }}
             }
           }
         ]
-        alert: 'userJourneySaturation1h5m'
+        alert: 'hypershiftOperatorSaturation1h5m'
         enabled: true
         labels: {
           component: 'slo'
@@ -1936,7 +1828,7 @@ Management Cluster: {{ $labels.cluster }}
           slo: 'hypershift-operator-saturation'
         }
         annotations: {
-          correlationId: 'userJourneySaturation/{{ $labels.cluster }}'
+          correlationId: 'hypershiftOperatorSaturation/{{ $labels.cluster }}'
           description: '''hypershift-operator saturated intervals is burning error budget at 14.4x over 1h/5m.
 Management Cluster: {{ $labels.cluster }}
 '''
@@ -1961,7 +1853,7 @@ Management Cluster: {{ $labels.cluster }}
             }
           }
         ]
-        alert: 'userJourneySaturation6h30m'
+        alert: 'hypershiftOperatorSaturation6h30m'
         enabled: true
         labels: {
           component: 'slo'
@@ -1972,7 +1864,7 @@ Management Cluster: {{ $labels.cluster }}
           slo: 'hypershift-operator-saturation'
         }
         annotations: {
-          correlationId: 'userJourneySaturation/{{ $labels.cluster }}'
+          correlationId: 'hypershiftOperatorSaturation/{{ $labels.cluster }}'
           description: '''hypershift-operator saturated intervals is burning error budget at 6x over 6h/30m.
 Management Cluster: {{ $labels.cluster }}
 '''
@@ -1997,7 +1889,7 @@ Management Cluster: {{ $labels.cluster }}
             }
           }
         ]
-        alert: 'userJourneySaturation3d6h'
+        alert: 'hypershiftOperatorSaturation3d6h'
         enabled: true
         labels: {
           component: 'slo'
@@ -2008,7 +1900,7 @@ Management Cluster: {{ $labels.cluster }}
           slo: 'hypershift-operator-saturation'
         }
         annotations: {
-          correlationId: 'userJourneySaturation/{{ $labels.cluster }}'
+          correlationId: 'hypershiftOperatorSaturation/{{ $labels.cluster }}'
           description: '''hypershift-operator saturated intervals is burning error budget at 1x over 3d/6h.
 Management Cluster: {{ $labels.cluster }}
 '''
@@ -2033,7 +1925,7 @@ Management Cluster: {{ $labels.cluster }}
             }
           }
         ]
-        alert: 'userJourneySaturationSignal'
+        alert: 'hypershiftOperatorSaturationSignal'
         enabled: true
         labels: {
           component: 'slo'
@@ -2042,7 +1934,7 @@ Management Cluster: {{ $labels.cluster }}
           slo: 'hypershift-operator-saturation'
         }
         annotations: {
-          correlationId: 'userJourneySaturationSignal/{{ $labels.cluster }}/{{ $labels.signal }}'
+          correlationId: 'hypershiftOperatorSaturationSignal/{{ $labels.cluster }}/{{ $labels.signal }}'
           description: '''hypershift-operator {{ $labels.signal }} is above its limit.
 Management Cluster: {{ $labels.cluster }}
 '''
@@ -2067,7 +1959,7 @@ Management Cluster: {{ $labels.cluster }}
             }
           }
         ]
-        alert: 'userJourneyIdle'
+        alert: 'hypershiftOperatorIdle'
         enabled: true
         labels: {
           component: 'slo'
@@ -2076,7 +1968,7 @@ Management Cluster: {{ $labels.cluster }}
           slo: 'hypershift-operator-traffic'
         }
         annotations: {
-          correlationId: 'userJourneyIdle/{{ $labels.cluster }}'
+          correlationId: 'hypershiftOperatorIdle/{{ $labels.cluster }}'
           description: '''hypershift-operator has not reconciled anything for 30 minutes.
 Management Cluster: {{ $labels.cluster }}
 '''
@@ -2101,7 +1993,7 @@ Management Cluster: {{ $labels.cluster }}
             }
           }
         ]
-        alert: 'userJourneyQueueSurge'
+        alert: 'hypershiftOperatorQueueSurge'
         enabled: true
         labels: {
           component: 'slo'
@@ -2110,7 +2002,7 @@ Management Cluster: {{ $labels.cluster }}
           slo: 'hypershift-operator-traffic'
         }
         annotations: {
-          correlationId: 'userJourneyQueueSurge/{{ $labels.cluster }}'
+          correlationId: 'hypershiftOperatorQueueSurge/{{ $labels.cluster }}'
           description: '''hypershift-operator workqueue adds exceed 3x the rate one hour ago.
 Management Cluster: {{ $labels.cluster }}
 '''

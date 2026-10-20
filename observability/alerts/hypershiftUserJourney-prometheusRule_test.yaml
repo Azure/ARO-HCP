@@ -58,7 +58,7 @@ tests:
         component: slo
         long_window: 1h
         short_window: 5m
-        severity: "3"
+        severity: "4"
         slo: control-plane-operator-errors
         service: control-plane-operator
         cluster: mc1
@@ -157,55 +157,55 @@ tests:
           Control Plane Namespace: ocm-prefix-1
         runbook_url: https://aka.ms/arohcp-runbook-hypershift
         correlationId: "userJourneyAvailability/mc1/ocm-prefix-1"
-  - eval_time: 400m
-    alertname: userJourneyAvailability6h30m
-    exp_alerts:
-    - exp_labels:
-        component: slo
-        long_window: 6h
-        short_window: 30m
-        severity: "3"
-        slo: hypershift-journey-availability
-        service: hypershift-journey
-        cluster: mc1
-        namespace: ocm-prefix-1
-      exp_annotations:
-        summary: "mc1/ocm-prefix-1: Hosted control plane API availability is burning error budget at 6x over 6h/30m"
-        description: |
-          Hosted control plane API availability is burning error budget at 6x over 6h/30m.
-          Management Cluster: mc1
-          Control Plane Namespace: ocm-prefix-1
-        runbook_url: https://aka.ms/arohcp-runbook-hypershift
-        correlationId: "userJourneyAvailability/mc1/ocm-prefix-1"
+  # - eval_time: 400m
+  #   alertname: userJourneyAvailability6h30m
+  #   exp_alerts:
+  #   - exp_labels:
+  #       component: slo
+  #       long_window: 6h
+  #       short_window: 30m
+  #       severity: "3"
+  #       slo: hypershift-journey-availability
+  #       service: hypershift-journey
+  #       cluster: mc1
+  #       namespace: ocm-prefix-1
+  #     exp_annotations:
+  #       summary: "mc1/ocm-prefix-1: Hosted control plane API availability is burning error budget at 6x over 6h/30m"
+  #       description: |
+  #         Hosted control plane API availability is burning error budget at 6x over 6h/30m.
+  #         Management Cluster: mc1
+  #         Control Plane Namespace: ocm-prefix-1
+  #       runbook_url: https://aka.ms/arohcp-runbook-hypershift
+  #       correlationId: "userJourneyAvailability/mc1/ocm-prefix-1"
   - eval_time: 415m
     alertname: userJourneyAvailability1h5m
     exp_alerts: []
-  - eval_time: 415m
-    alertname: userJourneyAvailability6h30m
-    exp_alerts:
-    - exp_labels:
-        component: slo
-        long_window: 6h
-        short_window: 30m
-        severity: "3"
-        slo: hypershift-journey-availability
-        service: hypershift-journey
-        cluster: mc1
-        namespace: ocm-prefix-1
-      exp_annotations:
-        summary: "mc1/ocm-prefix-1: Hosted control plane API availability is burning error budget at 6x over 6h/30m"
-        description: |
-          Hosted control plane API availability is burning error budget at 6x over 6h/30m.
-          Management Cluster: mc1
-          Control Plane Namespace: ocm-prefix-1
-        runbook_url: https://aka.ms/arohcp-runbook-hypershift
-        correlationId: "userJourneyAvailability/mc1/ocm-prefix-1"
+  # - eval_time: 415m
+  #   alertname: userJourneyAvailability6h30m
+  #   exp_alerts:
+  #   - exp_labels:
+  #       component: slo
+  #       long_window: 6h
+  #       short_window: 30m
+  #       severity: "3"
+  #       slo: hypershift-journey-availability
+  #       service: hypershift-journey
+  #       cluster: mc1
+  #       namespace: ocm-prefix-1
+  #     exp_annotations:
+  #       summary: "mc1/ocm-prefix-1: Hosted control plane API availability is burning error budget at 6x over 6h/30m"
+  #       description: |
+  #         Hosted control plane API availability is burning error budget at 6x over 6h/30m.
+  #         Management Cluster: mc1
+  #         Control Plane Namespace: ocm-prefix-1
+  #       runbook_url: https://aka.ms/arohcp-runbook-hypershift
+  #       correlationId: "userJourneyAvailability/mc1/ocm-prefix-1"
   - eval_time: 445m
     alertname: userJourneyAvailability1h5m
     exp_alerts: []
-  - eval_time: 445m
-    alertname: userJourneyAvailability6h30m
-    exp_alerts: []
+  # - eval_time: 445m
+  #   alertname: userJourneyAvailability6h30m
+  #   exp_alerts: []
   - eval_time: 400m
     alertname: hypershiftCPOAvailability1h5m
     exp_alerts:
@@ -213,7 +213,7 @@ tests:
         component: slo
         long_window: 1h
         short_window: 5m
-        severity: "3"
+        severity: "4"
         slo: control-plane-operator-availability
         service: control-plane-operator
         cluster: mc1
@@ -233,7 +233,7 @@ tests:
         component: slo
         long_window: 6h
         short_window: 30m
-        severity: "3"
+        severity: "4"
         slo: control-plane-operator-availability
         service: control-plane-operator
         cluster: mc1
@@ -256,7 +256,7 @@ tests:
         component: slo
         long_window: 6h
         short_window: 30m
-        severity: "3"
+        severity: "4"
         slo: control-plane-operator-availability
         service: control-plane-operator
         cluster: mc1
@@ -282,7 +282,7 @@ tests:
         component: slo
         long_window: 1h
         short_window: 5m
-        severity: "3"
+        severity: "4"
         slo: control-plane-operator-errors
         service: control-plane-operator
         cluster: mc1
@@ -302,7 +302,7 @@ tests:
         component: slo
         long_window: 6h
         short_window: 30m
-        severity: "3"
+        severity: "4"
         slo: control-plane-operator-errors
         service: control-plane-operator
         cluster: mc1
@@ -325,7 +325,7 @@ tests:
         component: slo
         long_window: 6h
         short_window: 30m
-        severity: "3"
+        severity: "4"
         slo: control-plane-operator-errors
         service: control-plane-operator
         cluster: mc1
@@ -351,7 +351,7 @@ tests:
         component: slo
         long_window: 1h
         short_window: 5m
-        severity: "3"
+        severity: "4"
         slo: control-plane-operator-latency
         service: control-plane-operator
         cluster: mc1
@@ -371,7 +371,7 @@ tests:
         component: slo
         long_window: 6h
         short_window: 30m
-        severity: "3"
+        severity: "4"
         slo: control-plane-operator-latency
         service: control-plane-operator
         cluster: mc1
@@ -394,7 +394,7 @@ tests:
         component: slo
         long_window: 6h
         short_window: 30m
-        severity: "3"
+        severity: "4"
         slo: control-plane-operator-latency
         service: control-plane-operator
         cluster: mc1
@@ -420,7 +420,7 @@ tests:
         component: slo
         long_window: 1h
         short_window: 5m
-        severity: "3"
+        severity: "4"
         slo: control-plane-operator-saturation
         service: control-plane-operator
         cluster: mc1
@@ -440,7 +440,7 @@ tests:
         component: slo
         long_window: 6h
         short_window: 30m
-        severity: "3"
+        severity: "4"
         slo: control-plane-operator-saturation
         service: control-plane-operator
         cluster: mc1
@@ -463,7 +463,7 @@ tests:
         component: slo
         long_window: 6h
         short_window: 30m
-        severity: "3"
+        severity: "4"
         slo: control-plane-operator-saturation
         service: control-plane-operator
         cluster: mc1
@@ -555,7 +555,7 @@ tests:
         component: slo
         long_window: 6h
         short_window: 30m
-        severity: "3"
+        severity: "4"
         slo: control-plane-operator-availability
         service: control-plane-operator
         cluster: mc1
@@ -578,7 +578,7 @@ tests:
         component: slo
         long_window: 6h
         short_window: 30m
-        severity: "3"
+        severity: "4"
         slo: control-plane-operator-errors
         service: control-plane-operator
         cluster: mc1
@@ -601,7 +601,7 @@ tests:
         component: slo
         long_window: 6h
         short_window: 30m
-        severity: "3"
+        severity: "4"
         slo: control-plane-operator-latency
         service: control-plane-operator
         cluster: mc1
@@ -624,7 +624,7 @@ tests:
         component: slo
         long_window: 6h
         short_window: 30m
-        severity: "3"
+        severity: "4"
         slo: control-plane-operator-saturation
         service: control-plane-operator
         cluster: mc1
@@ -640,26 +640,26 @@ tests:
   - eval_time: 400m
     alertname: hypershiftCPOSaturation1h5m
     exp_alerts: []
-  - eval_time: 400m
-    alertname: userJourneyAvailability6h30m
-    exp_alerts:
-    - exp_labels:
-        component: slo
-        long_window: 6h
-        short_window: 30m
-        severity: "3"
-        slo: hypershift-journey-availability
-        service: hypershift-journey
-        cluster: mc1
-        namespace: ocm-prefix-3
-      exp_annotations:
-        summary: "mc1/ocm-prefix-3: Hosted control plane API availability is burning error budget at 6x over 6h/30m"
-        description: |
-          Hosted control plane API availability is burning error budget at 6x over 6h/30m.
-          Management Cluster: mc1
-          Control Plane Namespace: ocm-prefix-3
-        runbook_url: https://aka.ms/arohcp-runbook-hypershift
-        correlationId: "userJourneyAvailability/mc1/ocm-prefix-3"
+  # - eval_time: 400m
+  #   alertname: userJourneyAvailability6h30m
+  #   exp_alerts:
+  #   - exp_labels:
+  #       component: slo
+  #       long_window: 6h
+  #       short_window: 30m
+  #       severity: "3"
+  #       slo: hypershift-journey-availability
+  #       service: hypershift-journey
+  #       cluster: mc1
+  #       namespace: ocm-prefix-3
+  #     exp_annotations:
+  #       summary: "mc1/ocm-prefix-3: Hosted control plane API availability is burning error budget at 6x over 6h/30m"
+  #       description: |
+  #         Hosted control plane API availability is burning error budget at 6x over 6h/30m.
+  #         Management Cluster: mc1
+  #         Control Plane Namespace: ocm-prefix-3
+  #       runbook_url: https://aka.ms/arohcp-runbook-hypershift
+  #       correlationId: "userJourneyAvailability/mc1/ocm-prefix-3"
   - eval_time: 400m
     alertname: userJourneyAvailability1h5m
     exp_alerts: []
@@ -710,7 +710,7 @@ tests:
         component: slo
         long_window: 3d
         short_window: 6h
-        severity: "3"
+        severity: "4"
         slo: control-plane-operator-availability
         service: control-plane-operator
         cluster: mc1
@@ -736,7 +736,7 @@ tests:
         component: slo
         long_window: 3d
         short_window: 6h
-        severity: "3"
+        severity: "4"
         slo: control-plane-operator-errors
         service: control-plane-operator
         cluster: mc1
@@ -762,7 +762,7 @@ tests:
         component: slo
         long_window: 3d
         short_window: 6h
-        severity: "3"
+        severity: "4"
         slo: control-plane-operator-latency
         service: control-plane-operator
         cluster: mc1
@@ -788,7 +788,7 @@ tests:
         component: slo
         long_window: 3d
         short_window: 6h
-        severity: "3"
+        severity: "4"
         slo: control-plane-operator-saturation
         service: control-plane-operator
         cluster: mc1
@@ -895,54 +895,54 @@ tests:
     exp_samples:
     - labels: '{namespace="ocm-prefix-3"}'
       value: 1
-  - expr: count by (namespace) (hypershift_kube_apiserver_available:sli_sum_6h)
-    eval_time: 100m
-    exp_samples:
-    - labels: '{namespace="ocm-prefix-2"}'
-      value: 1
-    - labels: '{namespace="ocm-prefix-3"}'
-      value: 1
-  - expr: count by (namespace) (hypershift_kube_apiserver_available:sli_sum_6h)
-    eval_time: 125m
-    exp_samples:
-    - labels: '{namespace="ocm-prefix-3"}'
-      value: 1
-  - expr: count by (namespace) (hypershift_kube_apiserver_available:sli_count_6h)
-    eval_time: 100m
-    exp_samples:
-    - labels: '{namespace="ocm-prefix-2"}'
-      value: 1
-    - labels: '{namespace="ocm-prefix-3"}'
-      value: 1
-  - expr: count by (namespace) (hypershift_kube_apiserver_available:sli_count_6h)
-    eval_time: 125m
-    exp_samples:
-    - labels: '{namespace="ocm-prefix-3"}'
-      value: 1
-  - expr: count by (namespace) (hypershift_kube_apiserver_available:sli_sum_3d)
-    eval_time: 100m
-    exp_samples:
-    - labels: '{namespace="ocm-prefix-2"}'
-      value: 1
-    - labels: '{namespace="ocm-prefix-3"}'
-      value: 1
-  - expr: count by (namespace) (hypershift_kube_apiserver_available:sli_sum_3d)
-    eval_time: 125m
-    exp_samples:
-    - labels: '{namespace="ocm-prefix-3"}'
-      value: 1
-  - expr: count by (namespace) (hypershift_kube_apiserver_available:sli_count_3d)
-    eval_time: 100m
-    exp_samples:
-    - labels: '{namespace="ocm-prefix-2"}'
-      value: 1
-    - labels: '{namespace="ocm-prefix-3"}'
-      value: 1
-  - expr: count by (namespace) (hypershift_kube_apiserver_available:sli_count_3d)
-    eval_time: 125m
-    exp_samples:
-    - labels: '{namespace="ocm-prefix-3"}'
-      value: 1
+  # - expr: count by (namespace) (hypershift_kube_apiserver_available:sli_sum_6h)
+  #   eval_time: 100m
+  #   exp_samples:
+  #   - labels: '{namespace="ocm-prefix-2"}'
+  #     value: 1
+  #   - labels: '{namespace="ocm-prefix-3"}'
+  #     value: 1
+  # - expr: count by (namespace) (hypershift_kube_apiserver_available:sli_sum_6h)
+  #   eval_time: 125m
+  #   exp_samples:
+  #   - labels: '{namespace="ocm-prefix-3"}'
+  #     value: 1
+  # - expr: count by (namespace) (hypershift_kube_apiserver_available:sli_count_6h)
+  #   eval_time: 100m
+  #   exp_samples:
+  #   - labels: '{namespace="ocm-prefix-2"}'
+  #     value: 1
+  #   - labels: '{namespace="ocm-prefix-3"}'
+  #     value: 1
+  # - expr: count by (namespace) (hypershift_kube_apiserver_available:sli_count_6h)
+  #   eval_time: 125m
+  #   exp_samples:
+  #   - labels: '{namespace="ocm-prefix-3"}'
+  #     value: 1
+  # - expr: count by (namespace) (hypershift_kube_apiserver_available:sli_sum_3d)
+  #   eval_time: 100m
+  #   exp_samples:
+  #   - labels: '{namespace="ocm-prefix-2"}'
+  #     value: 1
+  #   - labels: '{namespace="ocm-prefix-3"}'
+  #     value: 1
+  # - expr: count by (namespace) (hypershift_kube_apiserver_available:sli_sum_3d)
+  #   eval_time: 125m
+  #   exp_samples:
+  #   - labels: '{namespace="ocm-prefix-3"}'
+  #     value: 1
+  # - expr: count by (namespace) (hypershift_kube_apiserver_available:sli_count_3d)
+  #   eval_time: 100m
+  #   exp_samples:
+  #   - labels: '{namespace="ocm-prefix-2"}'
+  #     value: 1
+  #   - labels: '{namespace="ocm-prefix-3"}'
+  #     value: 1
+  # - expr: count by (namespace) (hypershift_kube_apiserver_available:sli_count_3d)
+  #   eval_time: 125m
+  #   exp_samples:
+  #   - labels: '{namespace="ocm-prefix-3"}'
+  #     value: 1
   alert_rule_test:
   - eval_time: 100m
     alertname: userJourneyAvailability1h5m
@@ -967,88 +967,88 @@ tests:
   - eval_time: 125m
     alertname: userJourneyAvailability1h5m
     exp_alerts: []
-  - eval_time: 125m
-    alertname: userJourneyAvailability6h30m
-    exp_alerts: []
-  - eval_time: 125m
-    alertname: userJourneyAvailability3d6h
-    exp_alerts: []
+  # - eval_time: 125m
+  #   alertname: userJourneyAvailability6h30m
+  #   exp_alerts: []
+  # - eval_time: 125m
+  #   alertname: userJourneyAvailability3d6h
+  #   exp_alerts: []
   - eval_time: 200m
     alertname: userJourneyAvailability1h5m
     exp_alerts: []
-  - eval_time: 200m
-    alertname: userJourneyAvailability6h30m
-    exp_alerts: []
-  - eval_time: 200m
-    alertname: userJourneyAvailability3d6h
-    exp_alerts: []
-- interval: 1m
-  name: "API outages between coarse subquery steps still burn the 6h and 3d tiers"
-  # Down at minutes 1-4 of every half-hour (4/30 = 13.3% unavailable) and up
-  # at every 5m/30m boundary. A [6h:5m] or [3d:30m] subquery only samples
-  # those boundaries and reports 100% available; the per-minute :eligible
-  # recording keeps every minute, so both long windows see the outages.
-  input_series:
-  - series: 'hypershift_kube_apiserver_available{namespace="ocm-prefix-1", cluster="mc1"}'
-    values: "1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24"
-  promql_expr_test:
-  # (40m, 400m]: 360 eligible minutes, 12 half-hours x 4 down minutes = 48.
-  - expr: hypershift_kube_apiserver_available:sli_count_6h
-    eval_time: 400m
-    exp_samples:
-    - labels: 'hypershift_kube_apiserver_available:sli_count_6h{namespace="ocm-prefix-1", cluster="mc1"}'
-      value: 360
-  - expr: hypershift_kube_apiserver_available:sli_sum_6h
-    eval_time: 400m
-    exp_samples:
-    - labels: 'hypershift_kube_apiserver_available:sli_sum_6h{namespace="ocm-prefix-1", cluster="mc1"}'
-      value: 312
-  alert_rule_test:
-  # 6h coverage guard (>320 eligible minutes) is met at ~335m, then for: 30m.
-  - eval_time: 330m
-    alertname: userJourneyAvailability6h30m
-    exp_alerts: []
-  - eval_time: 380m
-    alertname: userJourneyAvailability6h30m
-    exp_alerts:
-    - exp_labels:
-        component: slo
-        long_window: 6h
-        short_window: 30m
-        severity: "3"
-        slo: hypershift-journey-availability
-        service: hypershift-journey
-        cluster: mc1
-        namespace: ocm-prefix-1
-      exp_annotations:
-        summary: "mc1/ocm-prefix-1: Hosted control plane API availability is burning error budget at 6x over 6h/30m"
-        description: |
-          Hosted control plane API availability is burning error budget at 6x over 6h/30m.
-          Management Cluster: mc1
-          Control Plane Namespace: ocm-prefix-1
-        runbook_url: https://aka.ms/arohcp-runbook-hypershift
-        correlationId: "userJourneyAvailability/mc1/ocm-prefix-1"
-  # 3d coverage guard (>3900 eligible minutes) is met at ~3915m, then for: 3h.
-  - eval_time: 3900m
-    alertname: userJourneyAvailability3d6h
-    exp_alerts: []
-  - eval_time: 4200m
-    alertname: userJourneyAvailability3d6h
-    exp_alerts:
-    - exp_labels:
-        component: slo
-        long_window: 3d
-        short_window: 6h
-        severity: "3"
-        slo: hypershift-journey-availability
-        service: hypershift-journey
-        cluster: mc1
-        namespace: ocm-prefix-1
-      exp_annotations:
-        summary: "mc1/ocm-prefix-1: Hosted control plane API availability is burning error budget at 1x over 3d/6h"
-        description: |
-          Hosted control plane API availability is burning error budget at 1x over 3d/6h.
-          Management Cluster: mc1
-          Control Plane Namespace: ocm-prefix-1
-        runbook_url: https://aka.ms/arohcp-runbook-hypershift
-        correlationId: "userJourneyAvailability/mc1/ocm-prefix-1"
+  # - eval_time: 200m
+  #   alertname: userJourneyAvailability6h30m
+  #   exp_alerts: []
+  # - eval_time: 200m
+  #   alertname: userJourneyAvailability3d6h
+  #   exp_alerts: []
+# - interval: 1m
+#   name: "API outages between coarse subquery steps still burn the 6h and 3d tiers"
+#   # Down at minutes 1-4 of every half-hour (4/30 = 13.3% unavailable) and up
+#   # at every 5m/30m boundary. A [6h:5m] or [3d:30m] subquery only samples
+#   # those boundaries and reports 100% available; the per-minute :eligible
+#   # recording keeps every minute, so both long windows see the outages.
+#   input_series:
+#   - series: 'hypershift_kube_apiserver_available{namespace="ocm-prefix-1", cluster="mc1"}'
+#     values: "1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24 1 0x3 1x24"
+#   promql_expr_test:
+#   # (40m, 400m]: 360 eligible minutes, 12 half-hours x 4 down minutes = 48.
+#   - expr: hypershift_kube_apiserver_available:sli_count_6h
+#     eval_time: 400m
+#     exp_samples:
+#     - labels: 'hypershift_kube_apiserver_available:sli_count_6h{namespace="ocm-prefix-1", cluster="mc1"}'
+#       value: 360
+#   - expr: hypershift_kube_apiserver_available:sli_sum_6h
+#     eval_time: 400m
+#     exp_samples:
+#     - labels: 'hypershift_kube_apiserver_available:sli_sum_6h{namespace="ocm-prefix-1", cluster="mc1"}'
+#       value: 312
+#   alert_rule_test:
+#   # 6h coverage guard (>320 eligible minutes) is met at ~335m, then for: 30m.
+#   - eval_time: 330m
+#     alertname: userJourneyAvailability6h30m
+#     exp_alerts: []
+#   - eval_time: 380m
+#     alertname: userJourneyAvailability6h30m
+#     exp_alerts:
+#     - exp_labels:
+#         component: slo
+#         long_window: 6h
+#         short_window: 30m
+#         severity: "3"
+#         slo: hypershift-journey-availability
+#         service: hypershift-journey
+#         cluster: mc1
+#         namespace: ocm-prefix-1
+#       exp_annotations:
+#         summary: "mc1/ocm-prefix-1: Hosted control plane API availability is burning error budget at 6x over 6h/30m"
+#         description: |
+#           Hosted control plane API availability is burning error budget at 6x over 6h/30m.
+#           Management Cluster: mc1
+#           Control Plane Namespace: ocm-prefix-1
+#         runbook_url: https://aka.ms/arohcp-runbook-hypershift
+#         correlationId: "userJourneyAvailability/mc1/ocm-prefix-1"
+#   # 3d coverage guard (>3900 eligible minutes) is met at ~3915m, then for: 3h.
+#   - eval_time: 3900m
+#     alertname: userJourneyAvailability3d6h
+#     exp_alerts: []
+#   - eval_time: 4200m
+#     alertname: userJourneyAvailability3d6h
+#     exp_alerts:
+#     - exp_labels:
+#         component: slo
+#         long_window: 3d
+#         short_window: 6h
+#         severity: "3"
+#         slo: hypershift-journey-availability
+#         service: hypershift-journey
+#         cluster: mc1
+#         namespace: ocm-prefix-1
+#       exp_annotations:
+#         summary: "mc1/ocm-prefix-1: Hosted control plane API availability is burning error budget at 1x over 3d/6h"
+#         description: |
+#           Hosted control plane API availability is burning error budget at 1x over 3d/6h.
+#           Management Cluster: mc1
+#           Control Plane Namespace: ocm-prefix-1
+#         runbook_url: https://aka.ms/arohcp-runbook-hypershift
+#         correlationId: "userJourneyAvailability/mc1/ocm-prefix-1"

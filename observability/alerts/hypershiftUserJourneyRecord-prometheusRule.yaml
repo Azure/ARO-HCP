@@ -29,11 +29,11 @@ spec:
   #     1m, so [6h] holds ~360 samples and [3d] ~4320.
   - name: hypershift-journey-availability-recording-rules
     rules:
-    - record: hypershift_kube_apiserver_available:eligible
-      expr: |
-        max by (namespace, cluster) (hypershift_kube_apiserver_available)
-        and on (namespace, cluster)
-        max by (namespace, cluster) (hypershift_kube_apiserver_available offset 15m)
+    # - record: hypershift_kube_apiserver_available:eligible
+    #   expr: |
+    #     max by (namespace, cluster) (hypershift_kube_apiserver_available)
+    #     and on (namespace, cluster)
+    #     max by (namespace, cluster) (hypershift_kube_apiserver_available offset 15m)
     - record: hypershift_kube_apiserver_available:sli_sum_5m
       expr: |
         sum by (namespace, cluster) (
@@ -100,34 +100,34 @@ spec:
         )
         and on (namespace, cluster)
         count by (namespace, cluster) (hypershift_kube_apiserver_available)
-    - record: hypershift_kube_apiserver_available:sli_sum_6h
-      expr: |
-        sum by (namespace, cluster) (
-          sum_over_time(hypershift_kube_apiserver_available:eligible[6h])
-        )
-        and on (namespace, cluster)
-        count by (namespace, cluster) (hypershift_kube_apiserver_available)
-    - record: hypershift_kube_apiserver_available:sli_count_6h
-      expr: |
-        sum by (namespace, cluster) (
-          count_over_time(hypershift_kube_apiserver_available:eligible[6h])
-        )
-        and on (namespace, cluster)
-        count by (namespace, cluster) (hypershift_kube_apiserver_available)
-    - record: hypershift_kube_apiserver_available:sli_sum_3d
-      expr: |
-        sum by (namespace, cluster) (
-          sum_over_time(hypershift_kube_apiserver_available:eligible[3d])
-        )
-        and on (namespace, cluster)
-        count by (namespace, cluster) (hypershift_kube_apiserver_available)
-    - record: hypershift_kube_apiserver_available:sli_count_3d
-      expr: |
-        sum by (namespace, cluster) (
-          count_over_time(hypershift_kube_apiserver_available:eligible[3d])
-        )
-        and on (namespace, cluster)
-        count by (namespace, cluster) (hypershift_kube_apiserver_available)
+    # - record: hypershift_kube_apiserver_available:sli_sum_6h
+    #   expr: |
+    #     sum by (namespace, cluster) (
+    #       sum_over_time(hypershift_kube_apiserver_available:eligible[6h])
+    #     )
+    #     and on (namespace, cluster)
+    #     count by (namespace, cluster) (hypershift_kube_apiserver_available)
+    # - record: hypershift_kube_apiserver_available:sli_count_6h
+    #   expr: |
+    #     sum by (namespace, cluster) (
+    #       count_over_time(hypershift_kube_apiserver_available:eligible[6h])
+    #     )
+    #     and on (namespace, cluster)
+    #     count by (namespace, cluster) (hypershift_kube_apiserver_available)
+    # - record: hypershift_kube_apiserver_available:sli_sum_3d
+    #   expr: |
+    #     sum by (namespace, cluster) (
+    #       sum_over_time(hypershift_kube_apiserver_available:eligible[3d])
+    #     )
+    #     and on (namespace, cluster)
+    #     count by (namespace, cluster) (hypershift_kube_apiserver_available)
+    # - record: hypershift_kube_apiserver_available:sli_count_3d
+    #   expr: |
+    #     sum by (namespace, cluster) (
+    #       count_over_time(hypershift_kube_apiserver_available:eligible[3d])
+    #     )
+    #     and on (namespace, cluster)
+    #     count by (namespace, cluster) (hypershift_kube_apiserver_available)
   # control-plane-operator SLIs per hosted control plane (cluster, namespace).
   # max without(prometheus_replica) dedupes HA scrapes before sum by, so rates
   # are not multiplied by the replica count.

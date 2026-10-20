@@ -311,10 +311,6 @@ resource hypershiftJourneyAvailabilityRecordingRules 'Microsoft.AlertsManagement
     interval: 'PT1M'
     rules: [
       {
-        record: 'hypershift_kube_apiserver_available:eligible'
-        expression: 'max by (namespace, cluster, region) (hypershift_kube_apiserver_available) and on (namespace, cluster) max by (namespace, cluster, region) (hypershift_kube_apiserver_available offset 15m)'
-      }
-      {
         record: 'hypershift_kube_apiserver_available:sli_sum_5m'
         expression: 'sum by (namespace, cluster, region) (sum_over_time((max by (namespace, cluster, region) (hypershift_kube_apiserver_available) and on (namespace, cluster) max by (namespace, cluster, region) (hypershift_kube_apiserver_available offset 15m))[5m:1m])) and on (namespace, cluster) count by (namespace, cluster, region) (hypershift_kube_apiserver_available)'
       }
@@ -337,22 +333,6 @@ resource hypershiftJourneyAvailabilityRecordingRules 'Microsoft.AlertsManagement
       {
         record: 'hypershift_kube_apiserver_available:sli_count_1h'
         expression: 'sum by (namespace, cluster, region) (count_over_time((max by (namespace, cluster, region) (hypershift_kube_apiserver_available) and on (namespace, cluster) max by (namespace, cluster, region) (hypershift_kube_apiserver_available offset 15m))[1h:1m])) and on (namespace, cluster) count by (namespace, cluster, region) (hypershift_kube_apiserver_available)'
-      }
-      {
-        record: 'hypershift_kube_apiserver_available:sli_sum_6h'
-        expression: 'sum by (namespace, cluster, region) (sum_over_time(hypershift_kube_apiserver_available:eligible[6h])) and on (namespace, cluster) count by (namespace, cluster, region) (hypershift_kube_apiserver_available)'
-      }
-      {
-        record: 'hypershift_kube_apiserver_available:sli_count_6h'
-        expression: 'sum by (namespace, cluster, region) (count_over_time(hypershift_kube_apiserver_available:eligible[6h])) and on (namespace, cluster) count by (namespace, cluster, region) (hypershift_kube_apiserver_available)'
-      }
-      {
-        record: 'hypershift_kube_apiserver_available:sli_sum_3d'
-        expression: 'sum by (namespace, cluster, region) (sum_over_time(hypershift_kube_apiserver_available:eligible[3d])) and on (namespace, cluster) count by (namespace, cluster, region) (hypershift_kube_apiserver_available)'
-      }
-      {
-        record: 'hypershift_kube_apiserver_available:sli_count_3d'
-        expression: 'sum by (namespace, cluster, region) (count_over_time(hypershift_kube_apiserver_available:eligible[3d])) and on (namespace, cluster) count by (namespace, cluster, region) (hypershift_kube_apiserver_available)'
       }
     ]
   }

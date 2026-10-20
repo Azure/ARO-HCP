@@ -73,62 +73,62 @@ spec:
           Control Plane Namespace: {{ $labels.namespace }}
         runbook_url: https://aka.ms/arohcp-runbook-hypershift
         correlationId: "userJourneyAvailability/{{ $labels.cluster }}/{{ $labels.namespace }}"
-    - alert: userJourneyAvailability6h30m
-      expr: |
-        (
-          (1 - (hypershift_kube_apiserver_available:sli_sum_6h / hypershift_kube_apiserver_available:sli_count_6h)) > (6 * (1 - 0.9995))
-          and on (namespace, cluster)
-          hypershift_kube_apiserver_available:sli_count_6h > 320
-        )
-        and on (namespace, cluster)
-        (
-          (1 - (hypershift_kube_apiserver_available:sli_sum_30m / hypershift_kube_apiserver_available:sli_count_30m)) > (6 * (1 - 0.9995))
-          and on (namespace, cluster)
-          hypershift_kube_apiserver_available:sli_count_30m > 27
-        )
-      for: 30m
-      labels:
-        long_window: 6h
-        short_window: 30m
-        severity: "3"
-        slo: hypershift-journey-availability
-        service: hypershift-journey
-      annotations:
-        summary: "{{ $labels.cluster }}/{{ $labels.namespace }}: Hosted control plane API availability is burning error budget at 6x over 6h/30m"
-        description: |
-          Hosted control plane API availability is burning error budget at 6x over 6h/30m.
-          Management Cluster: {{ $labels.cluster }}
-          Control Plane Namespace: {{ $labels.namespace }}
-        runbook_url: https://aka.ms/arohcp-runbook-hypershift
-        correlationId: "userJourneyAvailability/{{ $labels.cluster }}/{{ $labels.namespace }}"
-    - alert: userJourneyAvailability3d6h
-      expr: |
-        (
-          (1 - (hypershift_kube_apiserver_available:sli_sum_3d / hypershift_kube_apiserver_available:sli_count_3d)) > (1 * (1 - 0.9995))
-          and on (namespace, cluster)
-          hypershift_kube_apiserver_available:sli_count_3d > 3900
-        )
-        and on (namespace, cluster)
-        (
-          (1 - (hypershift_kube_apiserver_available:sli_sum_6h / hypershift_kube_apiserver_available:sli_count_6h)) > (1 * (1 - 0.9995))
-          and on (namespace, cluster)
-          hypershift_kube_apiserver_available:sli_count_6h > 320
-        )
-      for: 3h
-      labels:
-        long_window: 3d
-        short_window: 6h
-        severity: "3"
-        slo: hypershift-journey-availability
-        service: hypershift-journey
-      annotations:
-        summary: "{{ $labels.cluster }}/{{ $labels.namespace }}: Hosted control plane API availability is burning error budget at 1x over 3d/6h"
-        description: |
-          Hosted control plane API availability is burning error budget at 1x over 3d/6h.
-          Management Cluster: {{ $labels.cluster }}
-          Control Plane Namespace: {{ $labels.namespace }}
-        runbook_url: https://aka.ms/arohcp-runbook-hypershift
-        correlationId: "userJourneyAvailability/{{ $labels.cluster }}/{{ $labels.namespace }}"
+    # - alert: userJourneyAvailability6h30m
+    #   expr: |
+    #     (
+    #       (1 - (hypershift_kube_apiserver_available:sli_sum_6h / hypershift_kube_apiserver_available:sli_count_6h)) > (6 * (1 - 0.9995))
+    #       and on (namespace, cluster)
+    #       hypershift_kube_apiserver_available:sli_count_6h > 320
+    #     )
+    #     and on (namespace, cluster)
+    #     (
+    #       (1 - (hypershift_kube_apiserver_available:sli_sum_30m / hypershift_kube_apiserver_available:sli_count_30m)) > (6 * (1 - 0.9995))
+    #       and on (namespace, cluster)
+    #       hypershift_kube_apiserver_available:sli_count_30m > 27
+    #     )
+    #   for: 30m
+    #   labels:
+    #     long_window: 6h
+    #     short_window: 30m
+    #     severity: "3"
+    #     slo: hypershift-journey-availability
+    #     service: hypershift-journey
+    #   annotations:
+    #     summary: "{{ $labels.cluster }}/{{ $labels.namespace }}: Hosted control plane API availability is burning error budget at 6x over 6h/30m"
+    #     description: |
+    #       Hosted control plane API availability is burning error budget at 6x over 6h/30m.
+    #       Management Cluster: {{ $labels.cluster }}
+    #       Control Plane Namespace: {{ $labels.namespace }}
+    #     runbook_url: https://aka.ms/arohcp-runbook-hypershift
+    #     correlationId: "userJourneyAvailability/{{ $labels.cluster }}/{{ $labels.namespace }}"
+    # - alert: userJourneyAvailability3d6h
+    #   expr: |
+    #     (
+    #       (1 - (hypershift_kube_apiserver_available:sli_sum_3d / hypershift_kube_apiserver_available:sli_count_3d)) > (1 * (1 - 0.9995))
+    #       and on (namespace, cluster)
+    #       hypershift_kube_apiserver_available:sli_count_3d > 3900
+    #     )
+    #     and on (namespace, cluster)
+    #     (
+    #       (1 - (hypershift_kube_apiserver_available:sli_sum_6h / hypershift_kube_apiserver_available:sli_count_6h)) > (1 * (1 - 0.9995))
+    #       and on (namespace, cluster)
+    #       hypershift_kube_apiserver_available:sli_count_6h > 320
+    #     )
+    #   for: 3h
+    #   labels:
+    #     long_window: 3d
+    #     short_window: 6h
+    #     severity: "3"
+    #     slo: hypershift-journey-availability
+    #     service: hypershift-journey
+    #   annotations:
+    #     summary: "{{ $labels.cluster }}/{{ $labels.namespace }}: Hosted control plane API availability is burning error budget at 1x over 3d/6h"
+    #     description: |
+    #       Hosted control plane API availability is burning error budget at 1x over 3d/6h.
+    #       Management Cluster: {{ $labels.cluster }}
+    #       Control Plane Namespace: {{ $labels.namespace }}
+    #     runbook_url: https://aka.ms/arohcp-runbook-hypershift
+    #     correlationId: "userJourneyAvailability/{{ $labels.cluster }}/{{ $labels.namespace }}"
   # control-plane-operator (CPO) health, one CPO per hosted control plane.
   # SLO targets (proposed):
   #   Availability    99.95% of minutes with all desired replicas available
@@ -147,7 +147,8 @@ spec:
   #   1h/5m   x14.4  -> 2% of the 30d budget gone in 1h   (for: 10m)
   #   6h/30m  x6     -> 5% of the 30d budget gone in 6h   (for: 30m)
   #   3d/6h   x1     -> 10% of the 30d budget gone in 3d  (for: 3h)
-  # All tiers are Sev 3; the window/for: pair, not severity, conveys urgency.
+  # All tiers are Sev 4 per the ADR-79 mapping (internal, not a customer-facing
+  # user journey); the window/for: pair, not severity, conveys urgency.
   # Cold-start / onboarding guards: every tier also requires >3, >27, >54,
   # >64, >130 subquery steps over 5m:1m, 30m:1m, 1h:1m, 6h:5m, 3d:30m
   # (~80-90% of each window, the same steps and thresholds as the KAS
@@ -180,7 +181,7 @@ spec:
       labels:
         long_window: 1h
         short_window: 5m
-        severity: "3"
+        severity: "4"
         slo: control-plane-operator-availability
         service: control-plane-operator
       annotations:
@@ -208,7 +209,7 @@ spec:
       labels:
         long_window: 6h
         short_window: 30m
-        severity: "3"
+        severity: "4"
         slo: control-plane-operator-availability
         service: control-plane-operator
       annotations:
@@ -236,7 +237,7 @@ spec:
       labels:
         long_window: 3d
         short_window: 6h
-        severity: "3"
+        severity: "4"
         slo: control-plane-operator-availability
         service: control-plane-operator
       annotations:
@@ -268,7 +269,7 @@ spec:
       labels:
         long_window: 1h
         short_window: 5m
-        severity: "3"
+        severity: "4"
         slo: control-plane-operator-errors
         service: control-plane-operator
       annotations:
@@ -300,7 +301,7 @@ spec:
       labels:
         long_window: 6h
         short_window: 30m
-        severity: "3"
+        severity: "4"
         slo: control-plane-operator-errors
         service: control-plane-operator
       annotations:
@@ -332,7 +333,7 @@ spec:
       labels:
         long_window: 3d
         short_window: 6h
-        severity: "3"
+        severity: "4"
         slo: control-plane-operator-errors
         service: control-plane-operator
       annotations:
@@ -364,7 +365,7 @@ spec:
       labels:
         long_window: 1h
         short_window: 5m
-        severity: "3"
+        severity: "4"
         slo: control-plane-operator-latency
         service: control-plane-operator
       annotations:
@@ -396,7 +397,7 @@ spec:
       labels:
         long_window: 6h
         short_window: 30m
-        severity: "3"
+        severity: "4"
         slo: control-plane-operator-latency
         service: control-plane-operator
       annotations:
@@ -428,7 +429,7 @@ spec:
       labels:
         long_window: 3d
         short_window: 6h
-        severity: "3"
+        severity: "4"
         slo: control-plane-operator-latency
         service: control-plane-operator
       annotations:
@@ -456,7 +457,7 @@ spec:
       labels:
         long_window: 1h
         short_window: 5m
-        severity: "3"
+        severity: "4"
         slo: control-plane-operator-saturation
         service: control-plane-operator
       annotations:
@@ -484,7 +485,7 @@ spec:
       labels:
         long_window: 6h
         short_window: 30m
-        severity: "3"
+        severity: "4"
         slo: control-plane-operator-saturation
         service: control-plane-operator
       annotations:
@@ -512,7 +513,7 @@ spec:
       labels:
         long_window: 3d
         short_window: 6h
-        severity: "3"
+        severity: "4"
         slo: control-plane-operator-saturation
         service: control-plane-operator
       annotations:

@@ -27,28 +27,25 @@ tests:
     values: "1+0x600"
   alert_rule_test:
   - eval_time: 600m
-    alertname: userJourneyHealthyClusters1h5m
+    alertname: hypershiftOperatorAvailability1h5m
     exp_alerts: []
   - eval_time: 600m
-    alertname: userJourneyAvailability1h5m
+    alertname: hypershiftOperatorReconcileErrors1h5m
     exp_alerts: []
   - eval_time: 600m
-    alertname: userJourneyReconcileErrors1h5m
+    alertname: hypershiftOperatorReconcileLatency1h5m
     exp_alerts: []
   - eval_time: 600m
-    alertname: userJourneyReconcileLatency1h5m
+    alertname: hypershiftOperatorSaturation1h5m
     exp_alerts: []
   - eval_time: 600m
-    alertname: userJourneySaturation1h5m
+    alertname: hypershiftOperatorSaturationSignal
     exp_alerts: []
   - eval_time: 600m
-    alertname: userJourneySaturationSignal
-    exp_alerts: []
-  - eval_time: 600m
-    alertname: userJourneyIdle
+    alertname: hypershiftOperatorIdle
     exp_alerts: []
 - interval: 1m
-  name: "Single slow creation: burn and per-HC wait fire, volume-guarded SLO and backlog stay silent"
+  name: "Single slow creation: per-HC wait fires, volume-guarded SLO and backlog stay silent"
   input_series:
   - series: 'hypershift_hostedclusters{platform="Azure", cluster="mc1"}'
     values: "2+0x200"
@@ -57,24 +54,6 @@ tests:
   - series: 'hypershift_cluster_waiting_initial_availability_duration_seconds{name="slow", namespace="hypershift", exported_namespace="clusters", _id="a", cluster="mc1"}'
     values: "2000+0x200"
   alert_rule_test:
-  - eval_time: 100m
-    alertname: userJourneyHealthyClusters1h5m
-    exp_alerts:
-    - exp_labels:
-        component: slo
-        long_window: 1h
-        short_window: 5m
-        severity: "3"
-        slo: hypershift-journey-errors
-        service: hypershift-journey
-        cluster: mc1
-      exp_annotations:
-        summary: "mc1: HostedCluster failure-condition share is burning error budget at 14.4x over 1h/5m"
-        description: |
-          HostedCluster failure-condition share is burning error budget at 14.4x over 1h/5m.
-          Management Cluster: mc1
-        runbook_url: https://aka.ms/arohcp-runbook-hypershift
-        correlationId: "userJourneyHealthyClusters/mc1"
   - eval_time: 100m
     alertname: userJourneyCreationLatencySLO
     exp_alerts: [] # volume guard: 1 creation < 10
@@ -140,7 +119,7 @@ tests:
     values: "500+0x200"
   alert_rule_test:
   - eval_time: 100m
-    alertname: userJourneyAvailability1h5m
+    alertname: hypershiftOperatorAvailability1h5m
     exp_alerts:
     - exp_labels:
         component: slo
@@ -156,9 +135,9 @@ tests:
           hypershift-operator replica availability is burning error budget at 14.4x over 1h/5m.
           Management Cluster: mc1
         runbook_url: https://aka.ms/arohcp-runbook-hypershift
-        correlationId: "userJourneyAvailability/mc1"
+        correlationId: "hypershiftOperatorAvailability/mc1"
   - eval_time: 100m
-    alertname: userJourneyReconcileErrors1h5m
+    alertname: hypershiftOperatorReconcileErrors1h5m
     exp_alerts:
     - exp_labels:
         component: slo
@@ -174,9 +153,9 @@ tests:
           hypershift-operator reconcile error ratio is burning error budget at 14.4x over 1h/5m.
           Management Cluster: mc1
         runbook_url: https://aka.ms/arohcp-runbook-hypershift
-        correlationId: "userJourneyReconcileErrors/mc1"
+        correlationId: "hypershiftOperatorReconcileErrors/mc1"
   - eval_time: 100m
-    alertname: userJourneyReconcileLatency1h5m
+    alertname: hypershiftOperatorReconcileLatency1h5m
     exp_alerts:
     - exp_labels:
         component: slo
@@ -192,9 +171,9 @@ tests:
           hypershift-operator reconciles slower than 10s is burning error budget at 14.4x over 1h/5m.
           Management Cluster: mc1
         runbook_url: https://aka.ms/arohcp-runbook-hypershift
-        correlationId: "userJourneyReconcileLatency/mc1"
+        correlationId: "hypershiftOperatorReconcileLatency/mc1"
   - eval_time: 100m
-    alertname: userJourneySaturation1h5m
+    alertname: hypershiftOperatorSaturation1h5m
     exp_alerts:
     - exp_labels:
         component: slo
@@ -210,9 +189,9 @@ tests:
           hypershift-operator saturated intervals is burning error budget at 14.4x over 1h/5m.
           Management Cluster: mc1
         runbook_url: https://aka.ms/arohcp-runbook-hypershift
-        correlationId: "userJourneySaturation/mc1"
+        correlationId: "hypershiftOperatorSaturation/mc1"
   - eval_time: 100m
-    alertname: userJourneySaturationSignal
+    alertname: hypershiftOperatorSaturationSignal
     exp_alerts:
     - exp_labels:
         component: slo
@@ -227,7 +206,7 @@ tests:
           hypershift-operator workqueue_depth is above its limit.
           Management Cluster: mc1
         runbook_url: https://aka.ms/arohcp-runbook-hypershift
-        correlationId: "userJourneySaturationSignal/mc1/workqueue_depth"
+        correlationId: "hypershiftOperatorSaturationSignal/mc1/workqueue_depth"
 - interval: 1m
   name: "HyperShift Operator idle and queue surge"
   input_series:
@@ -239,7 +218,7 @@ tests:
     values: "0+1x80 80+100x60"
   alert_rule_test:
   - eval_time: 60m
-    alertname: userJourneyIdle
+    alertname: hypershiftOperatorIdle
     exp_alerts:
     - exp_labels:
         component: slo
@@ -253,9 +232,9 @@ tests:
           hypershift-operator has not reconciled anything for 30 minutes.
           Management Cluster: mc1
         runbook_url: https://aka.ms/arohcp-runbook-hypershift
-        correlationId: "userJourneyIdle/mc1"
+        correlationId: "hypershiftOperatorIdle/mc1"
   - eval_time: 125m
-    alertname: userJourneyQueueSurge
+    alertname: hypershiftOperatorQueueSurge
     exp_alerts:
     - exp_labels:
         component: slo
@@ -269,7 +248,7 @@ tests:
           hypershift-operator workqueue adds exceed 3x the rate one hour ago.
           Management Cluster: mc1
         runbook_url: https://aka.ms/arohcp-runbook-hypershift
-        correlationId: "userJourneyQueueSurge/mc1"
+        correlationId: "hypershiftOperatorQueueSurge/mc1"
 - interval: 1m
   name: "Waiting alert reports the HostedCluster namespace, not the scrape namespace"
   input_series:
@@ -401,34 +380,28 @@ tests:
     values: "500+0x300"
   alert_rule_test:
   - eval_time: 280m
-    alertname: userJourneyHealthyClusters6h30m
+    alertname: hypershiftOperatorAvailability6h30m
     exp_alerts: []
   - eval_time: 280m
-    alertname: userJourneyHealthyClusters3d6h
+    alertname: hypershiftOperatorAvailability3d6h
     exp_alerts: []
   - eval_time: 280m
-    alertname: userJourneyAvailability6h30m
+    alertname: hypershiftOperatorReconcileErrors6h30m
     exp_alerts: []
   - eval_time: 280m
-    alertname: userJourneyAvailability3d6h
+    alertname: hypershiftOperatorReconcileErrors3d6h
     exp_alerts: []
   - eval_time: 280m
-    alertname: userJourneyReconcileErrors6h30m
+    alertname: hypershiftOperatorReconcileLatency6h30m
     exp_alerts: []
   - eval_time: 280m
-    alertname: userJourneyReconcileErrors3d6h
+    alertname: hypershiftOperatorReconcileLatency3d6h
     exp_alerts: []
   - eval_time: 280m
-    alertname: userJourneyReconcileLatency6h30m
+    alertname: hypershiftOperatorSaturation6h30m
     exp_alerts: []
   - eval_time: 280m
-    alertname: userJourneyReconcileLatency3d6h
-    exp_alerts: []
-  - eval_time: 280m
-    alertname: userJourneySaturation6h30m
-    exp_alerts: []
-  - eval_time: 280m
-    alertname: userJourneySaturation3d6h
+    alertname: hypershiftOperatorSaturation3d6h
     exp_alerts: []
 - interval: 1m
   name: "Cold start: traffic spike needs a 7d baseline"
@@ -472,70 +445,7 @@ tests:
     values: "500+0x404 1+0x100"
   alert_rule_test:
   - eval_time: 400m
-    alertname: userJourneyHealthyClusters1h5m
-    exp_alerts:
-    - exp_labels:
-        component: slo
-        long_window: 1h
-        short_window: 5m
-        severity: "3"
-        slo: hypershift-journey-errors
-        service: hypershift-journey
-        cluster: mc1
-      exp_annotations:
-        summary: "mc1: HostedCluster failure-condition share is burning error budget at 14.4x over 1h/5m"
-        description: |
-          HostedCluster failure-condition share is burning error budget at 14.4x over 1h/5m.
-          Management Cluster: mc1
-        runbook_url: https://aka.ms/arohcp-runbook-hypershift
-        correlationId: "userJourneyHealthyClusters/mc1"
-  - eval_time: 400m
-    alertname: userJourneyHealthyClusters6h30m
-    exp_alerts:
-    - exp_labels:
-        component: slo
-        long_window: 6h
-        short_window: 30m
-        severity: "3"
-        slo: hypershift-journey-errors
-        service: hypershift-journey
-        cluster: mc1
-      exp_annotations:
-        summary: "mc1: HostedCluster failure-condition share is burning error budget at 6x over 6h/30m"
-        description: |
-          HostedCluster failure-condition share is burning error budget at 6x over 6h/30m.
-          Management Cluster: mc1
-        runbook_url: https://aka.ms/arohcp-runbook-hypershift
-        correlationId: "userJourneyHealthyClusters/mc1"
-  - eval_time: 415m
-    alertname: userJourneyHealthyClusters1h5m
-    exp_alerts: []
-  - eval_time: 415m
-    alertname: userJourneyHealthyClusters6h30m
-    exp_alerts:
-    - exp_labels:
-        component: slo
-        long_window: 6h
-        short_window: 30m
-        severity: "3"
-        slo: hypershift-journey-errors
-        service: hypershift-journey
-        cluster: mc1
-      exp_annotations:
-        summary: "mc1: HostedCluster failure-condition share is burning error budget at 6x over 6h/30m"
-        description: |
-          HostedCluster failure-condition share is burning error budget at 6x over 6h/30m.
-          Management Cluster: mc1
-        runbook_url: https://aka.ms/arohcp-runbook-hypershift
-        correlationId: "userJourneyHealthyClusters/mc1"
-  - eval_time: 445m
-    alertname: userJourneyHealthyClusters1h5m
-    exp_alerts: []
-  - eval_time: 445m
-    alertname: userJourneyHealthyClusters6h30m
-    exp_alerts: []
-  - eval_time: 400m
-    alertname: userJourneyAvailability1h5m
+    alertname: hypershiftOperatorAvailability1h5m
     exp_alerts:
     - exp_labels:
         component: slo
@@ -551,9 +461,9 @@ tests:
           hypershift-operator replica availability is burning error budget at 14.4x over 1h/5m.
           Management Cluster: mc1
         runbook_url: https://aka.ms/arohcp-runbook-hypershift
-        correlationId: "userJourneyAvailability/mc1"
+        correlationId: "hypershiftOperatorAvailability/mc1"
   - eval_time: 400m
-    alertname: userJourneyAvailability6h30m
+    alertname: hypershiftOperatorAvailability6h30m
     exp_alerts:
     - exp_labels:
         component: slo
@@ -569,12 +479,12 @@ tests:
           hypershift-operator replica availability is burning error budget at 6x over 6h/30m.
           Management Cluster: mc1
         runbook_url: https://aka.ms/arohcp-runbook-hypershift
-        correlationId: "userJourneyAvailability/mc1"
+        correlationId: "hypershiftOperatorAvailability/mc1"
   - eval_time: 415m
-    alertname: userJourneyAvailability1h5m
+    alertname: hypershiftOperatorAvailability1h5m
     exp_alerts: []
   - eval_time: 415m
-    alertname: userJourneyAvailability6h30m
+    alertname: hypershiftOperatorAvailability6h30m
     exp_alerts:
     - exp_labels:
         component: slo
@@ -590,15 +500,15 @@ tests:
           hypershift-operator replica availability is burning error budget at 6x over 6h/30m.
           Management Cluster: mc1
         runbook_url: https://aka.ms/arohcp-runbook-hypershift
-        correlationId: "userJourneyAvailability/mc1"
+        correlationId: "hypershiftOperatorAvailability/mc1"
   - eval_time: 445m
-    alertname: userJourneyAvailability1h5m
+    alertname: hypershiftOperatorAvailability1h5m
     exp_alerts: []
   - eval_time: 445m
-    alertname: userJourneyAvailability6h30m
+    alertname: hypershiftOperatorAvailability6h30m
     exp_alerts: []
   - eval_time: 400m
-    alertname: userJourneyReconcileErrors1h5m
+    alertname: hypershiftOperatorReconcileErrors1h5m
     exp_alerts:
     - exp_labels:
         component: slo
@@ -614,9 +524,9 @@ tests:
           hypershift-operator reconcile error ratio is burning error budget at 14.4x over 1h/5m.
           Management Cluster: mc1
         runbook_url: https://aka.ms/arohcp-runbook-hypershift
-        correlationId: "userJourneyReconcileErrors/mc1"
+        correlationId: "hypershiftOperatorReconcileErrors/mc1"
   - eval_time: 400m
-    alertname: userJourneyReconcileErrors6h30m
+    alertname: hypershiftOperatorReconcileErrors6h30m
     exp_alerts:
     - exp_labels:
         component: slo
@@ -632,12 +542,12 @@ tests:
           hypershift-operator reconcile error ratio is burning error budget at 6x over 6h/30m.
           Management Cluster: mc1
         runbook_url: https://aka.ms/arohcp-runbook-hypershift
-        correlationId: "userJourneyReconcileErrors/mc1"
+        correlationId: "hypershiftOperatorReconcileErrors/mc1"
   - eval_time: 415m
-    alertname: userJourneyReconcileErrors1h5m
+    alertname: hypershiftOperatorReconcileErrors1h5m
     exp_alerts: []
   - eval_time: 415m
-    alertname: userJourneyReconcileErrors6h30m
+    alertname: hypershiftOperatorReconcileErrors6h30m
     exp_alerts:
     - exp_labels:
         component: slo
@@ -653,15 +563,15 @@ tests:
           hypershift-operator reconcile error ratio is burning error budget at 6x over 6h/30m.
           Management Cluster: mc1
         runbook_url: https://aka.ms/arohcp-runbook-hypershift
-        correlationId: "userJourneyReconcileErrors/mc1"
+        correlationId: "hypershiftOperatorReconcileErrors/mc1"
   - eval_time: 445m
-    alertname: userJourneyReconcileErrors1h5m
+    alertname: hypershiftOperatorReconcileErrors1h5m
     exp_alerts: []
   - eval_time: 445m
-    alertname: userJourneyReconcileErrors6h30m
+    alertname: hypershiftOperatorReconcileErrors6h30m
     exp_alerts: []
   - eval_time: 400m
-    alertname: userJourneyReconcileLatency1h5m
+    alertname: hypershiftOperatorReconcileLatency1h5m
     exp_alerts:
     - exp_labels:
         component: slo
@@ -677,9 +587,9 @@ tests:
           hypershift-operator reconciles slower than 10s is burning error budget at 14.4x over 1h/5m.
           Management Cluster: mc1
         runbook_url: https://aka.ms/arohcp-runbook-hypershift
-        correlationId: "userJourneyReconcileLatency/mc1"
+        correlationId: "hypershiftOperatorReconcileLatency/mc1"
   - eval_time: 400m
-    alertname: userJourneyReconcileLatency6h30m
+    alertname: hypershiftOperatorReconcileLatency6h30m
     exp_alerts:
     - exp_labels:
         component: slo
@@ -695,12 +605,12 @@ tests:
           hypershift-operator reconciles slower than 10s is burning error budget at 6x over 6h/30m.
           Management Cluster: mc1
         runbook_url: https://aka.ms/arohcp-runbook-hypershift
-        correlationId: "userJourneyReconcileLatency/mc1"
+        correlationId: "hypershiftOperatorReconcileLatency/mc1"
   - eval_time: 415m
-    alertname: userJourneyReconcileLatency1h5m
+    alertname: hypershiftOperatorReconcileLatency1h5m
     exp_alerts: []
   - eval_time: 415m
-    alertname: userJourneyReconcileLatency6h30m
+    alertname: hypershiftOperatorReconcileLatency6h30m
     exp_alerts:
     - exp_labels:
         component: slo
@@ -716,15 +626,15 @@ tests:
           hypershift-operator reconciles slower than 10s is burning error budget at 6x over 6h/30m.
           Management Cluster: mc1
         runbook_url: https://aka.ms/arohcp-runbook-hypershift
-        correlationId: "userJourneyReconcileLatency/mc1"
+        correlationId: "hypershiftOperatorReconcileLatency/mc1"
   - eval_time: 445m
-    alertname: userJourneyReconcileLatency1h5m
+    alertname: hypershiftOperatorReconcileLatency1h5m
     exp_alerts: []
   - eval_time: 445m
-    alertname: userJourneyReconcileLatency6h30m
+    alertname: hypershiftOperatorReconcileLatency6h30m
     exp_alerts: []
   - eval_time: 400m
-    alertname: userJourneySaturation1h5m
+    alertname: hypershiftOperatorSaturation1h5m
     exp_alerts:
     - exp_labels:
         component: slo
@@ -740,9 +650,9 @@ tests:
           hypershift-operator saturated intervals is burning error budget at 14.4x over 1h/5m.
           Management Cluster: mc1
         runbook_url: https://aka.ms/arohcp-runbook-hypershift
-        correlationId: "userJourneySaturation/mc1"
+        correlationId: "hypershiftOperatorSaturation/mc1"
   - eval_time: 400m
-    alertname: userJourneySaturation6h30m
+    alertname: hypershiftOperatorSaturation6h30m
     exp_alerts:
     - exp_labels:
         component: slo
@@ -758,12 +668,12 @@ tests:
           hypershift-operator saturated intervals is burning error budget at 6x over 6h/30m.
           Management Cluster: mc1
         runbook_url: https://aka.ms/arohcp-runbook-hypershift
-        correlationId: "userJourneySaturation/mc1"
+        correlationId: "hypershiftOperatorSaturation/mc1"
   - eval_time: 415m
-    alertname: userJourneySaturation1h5m
+    alertname: hypershiftOperatorSaturation1h5m
     exp_alerts: []
   - eval_time: 415m
-    alertname: userJourneySaturation6h30m
+    alertname: hypershiftOperatorSaturation6h30m
     exp_alerts:
     - exp_labels:
         component: slo
@@ -779,15 +689,15 @@ tests:
           hypershift-operator saturated intervals is burning error budget at 6x over 6h/30m.
           Management Cluster: mc1
         runbook_url: https://aka.ms/arohcp-runbook-hypershift
-        correlationId: "userJourneySaturation/mc1"
+        correlationId: "hypershiftOperatorSaturation/mc1"
   - eval_time: 445m
-    alertname: userJourneySaturation1h5m
+    alertname: hypershiftOperatorSaturation1h5m
     exp_alerts: []
   - eval_time: 445m
-    alertname: userJourneySaturation6h30m
+    alertname: hypershiftOperatorSaturation6h30m
     exp_alerts: []
   - eval_time: 400m
-    alertname: userJourneySaturationSignal
+    alertname: hypershiftOperatorSaturationSignal
     exp_alerts:
     - exp_labels:
         component: slo
@@ -802,12 +712,12 @@ tests:
           hypershift-operator workqueue_depth is above its limit.
           Management Cluster: mc1
         runbook_url: https://aka.ms/arohcp-runbook-hypershift
-        correlationId: "userJourneySaturationSignal/mc1/workqueue_depth"
+        correlationId: "hypershiftOperatorSaturationSignal/mc1/workqueue_depth"
   - eval_time: 415m
-    alertname: userJourneySaturationSignal
+    alertname: hypershiftOperatorSaturationSignal
     exp_alerts: []
   - eval_time: 445m
-    alertname: userJourneySaturationSignal
+    alertname: hypershiftOperatorSaturationSignal
     exp_alerts: []
   - eval_time: 400m
     alertname: userJourneyClusterWaitingOver30m
@@ -836,59 +746,7 @@ tests:
     alertname: userJourneyClusterWaitingOver30m
     exp_alerts: []
 - interval: 1m
-  name: "Empty MC then populated: HealthyClusters tiers are not silenced by 0/0"
-  # 0 HostedClusters for 300m (0/0), then 4 with 1 failure condition (0.25).
-  # Unguarded, the empty period records NaN and avg_over_time stays NaN until
-  # those samples leave the long window (1h tier ~370m, 6h tier ~690m).
-  # Guarded, the empty period records nothing and each tier fires as soon as
-  # its sample-count guard and for: allow.
-  input_series:
-  - series: 'hypershift_hostedclusters{platform="Azure", cluster="mc1", prometheus_replica="r1"}'
-    values: "0x299 4x500"
-  - series: 'hypershift_hostedclusters_failure_conditions{platform="Azure", condition="ValidReleaseInfo", cluster="mc1", prometheus_replica="r1"}'
-    values: "0x299 1x500"
-  alert_rule_test:
-  - eval_time: 290m
-    alertname: userJourneyHealthyClusters1h5m
-    exp_alerts: []
-  - eval_time: 366m
-    alertname: userJourneyHealthyClusters1h5m
-    exp_alerts:
-    - exp_labels:
-        component: slo
-        long_window: 1h
-        short_window: 5m
-        severity: "3"
-        slo: hypershift-journey-errors
-        service: hypershift-journey
-        cluster: mc1
-      exp_annotations:
-        summary: "mc1: HostedCluster failure-condition share is burning error budget at 14.4x over 1h/5m"
-        description: |
-          HostedCluster failure-condition share is burning error budget at 14.4x over 1h/5m.
-          Management Cluster: mc1
-        runbook_url: https://aka.ms/arohcp-runbook-hypershift
-        correlationId: "userJourneyHealthyClusters/mc1"
-  - eval_time: 685m
-    alertname: userJourneyHealthyClusters6h30m
-    exp_alerts:
-    - exp_labels:
-        component: slo
-        long_window: 6h
-        short_window: 30m
-        severity: "3"
-        slo: hypershift-journey-errors
-        service: hypershift-journey
-        cluster: mc1
-      exp_annotations:
-        summary: "mc1: HostedCluster failure-condition share is burning error budget at 6x over 6h/30m"
-        description: |
-          HostedCluster failure-condition share is burning error budget at 6x over 6h/30m.
-          Management Cluster: mc1
-        runbook_url: https://aka.ms/arohcp-runbook-hypershift
-        correlationId: "userJourneyHealthyClusters/mc1"
-- interval: 1m
-  name: "Empty MC: idle operator with no HostedClusters does not fire userJourneyIdle"
+  name: "Empty MC: idle operator with no HostedClusters does not fire hypershiftOperatorIdle"
   # Same flat reconcile counter as the idle case, but the last HostedCluster
   # was deleted at 10m, so there is nothing to reconcile.
   input_series:
@@ -898,10 +756,10 @@ tests:
     values: "1+0x9 0+0x90"
   alert_rule_test:
   - eval_time: 60m
-    alertname: userJourneyIdle
+    alertname: hypershiftOperatorIdle
     exp_alerts: []
   - eval_time: 100m
-    alertname: userJourneyIdle
+    alertname: hypershiftOperatorIdle
     exp_alerts: []
 - interval: 1m
   name: "Operator scaled to zero then up: Availability tiers are not silenced by 0/0"
@@ -917,10 +775,10 @@ tests:
     values: "0x299 2x500"
   alert_rule_test:
   - eval_time: 290m
-    alertname: userJourneyAvailability1h5m
+    alertname: hypershiftOperatorAvailability1h5m
     exp_alerts: []
   - eval_time: 366m
-    alertname: userJourneyAvailability1h5m
+    alertname: hypershiftOperatorAvailability1h5m
     exp_alerts:
     - exp_labels:
         component: slo
@@ -936,9 +794,9 @@ tests:
           hypershift-operator replica availability is burning error budget at 14.4x over 1h/5m.
           Management Cluster: mc1
         runbook_url: https://aka.ms/arohcp-runbook-hypershift
-        correlationId: "userJourneyAvailability/mc1"
+        correlationId: "hypershiftOperatorAvailability/mc1"
   - eval_time: 685m
-    alertname: userJourneyAvailability6h30m
+    alertname: hypershiftOperatorAvailability6h30m
     exp_alerts:
     - exp_labels:
         component: slo
@@ -954,4 +812,138 @@ tests:
           hypershift-operator replica availability is burning error budget at 6x over 6h/30m.
           Management Cluster: mc1
         runbook_url: https://aka.ms/arohcp-runbook-hypershift
-        correlationId: "userJourneyAvailability/mc1"
+        correlationId: "hypershiftOperatorAvailability/mc1"
+- interval: 1m
+  name: "3d/6h tier fires between its 1x and the 6h/30m 6x thresholds"
+  # 70h of history: the [3d:30m] > 130 guard needs ~65.5h, then for: 3h.
+  # mc1 burns between 1x and 6x (availability 0.002 vs 0.0005/0.003,
+  # errors 0.003 vs 0.001/0.006, latency and saturation 0.03-0.033 vs
+  # 0.01/0.06): only the 3d/6h tier fires. mc2 burns just under 1x
+  # (availability 0.0004, errors 0.0008, latency 0.009, saturation 1 minute in
+  # 120 = 0.0083) and fires nothing.
+  input_series:
+  - series: 'kube_deployment_status_replicas_available{namespace="hypershift", deployment="operator", cluster="mc1"}'
+    values: "998+0x4260"
+  - series: 'kube_deployment_spec_replicas{namespace="hypershift", deployment="operator", cluster="mc1"}'
+    values: "1000+0x4260"
+  - series: 'controller_runtime_reconcile_total{namespace="hypershift", pod="operator-abc", result="error", cluster="mc1"}'
+    values: "0+3x4260"
+  - series: 'controller_runtime_reconcile_total{namespace="hypershift", pod="operator-abc", result="success", cluster="mc1"}'
+    values: "0+997x4260"
+  - series: 'controller_runtime_reconcile_time_seconds_bucket{namespace="hypershift", pod="operator-abc", le="10", cluster="mc1"}'
+    values: "0+97x4260"
+  - series: 'controller_runtime_reconcile_time_seconds_count{namespace="hypershift", pod="operator-abc", cluster="mc1"}'
+    values: "0+100x4260"
+  - series: 'workqueue_depth{namespace="hypershift", pod="operator-abc", name="hc", cluster="mc1"}'
+    values: "500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28 500 1x28"
+  - series: 'kube_deployment_status_replicas_available{namespace="hypershift", deployment="operator", cluster="mc2"}'
+    values: "9996+0x4260"
+  - series: 'kube_deployment_spec_replicas{namespace="hypershift", deployment="operator", cluster="mc2"}'
+    values: "10000+0x4260"
+  - series: 'controller_runtime_reconcile_total{namespace="hypershift", pod="operator-abc", result="error", cluster="mc2"}'
+    values: "0+1x4260"
+  - series: 'controller_runtime_reconcile_total{namespace="hypershift", pod="operator-abc", result="success", cluster="mc2"}'
+    values: "0+1249x4260"
+  - series: 'controller_runtime_reconcile_time_seconds_bucket{namespace="hypershift", pod="operator-abc", le="10", cluster="mc2"}'
+    values: "0+991x4260"
+  - series: 'controller_runtime_reconcile_time_seconds_count{namespace="hypershift", pod="operator-abc", cluster="mc2"}'
+    values: "0+1000x4260"
+  - series: 'workqueue_depth{namespace="hypershift", pod="operator-abc", name="hc", cluster="mc2"}'
+    values: "500 1x118 500 1x118 500 1x118 500 1x118 500 1x118 500 1x118 500 1x118 500 1x118 500 1x118 500 1x118 500 1x118 500 1x118 500 1x118 500 1x118 500 1x118 500 1x118 500 1x118 500 1x118 500 1x118 500 1x118 500 1x118 500 1x118 500 1x118 500 1x118 500 1x118 500 1x118 500 1x118 500 1x118 500 1x118 500 1x118 500 1x118 500 1x118 500 1x118 500 1x118 500 1x118 500 1x118"
+  alert_rule_test:
+  - eval_time: 4200m
+    alertname: hypershiftOperatorAvailability3d6h
+    exp_alerts:
+    - exp_labels:
+        component: slo
+        long_window: 3d
+        short_window: 6h
+        severity: "3"
+        slo: hypershift-operator-availability
+        service: hypershift-operator
+        cluster: mc1
+      exp_annotations:
+        summary: "mc1: hypershift-operator replica availability is burning error budget at 1x over 3d/6h"
+        description: |
+          hypershift-operator replica availability is burning error budget at 1x over 3d/6h.
+          Management Cluster: mc1
+        runbook_url: https://aka.ms/arohcp-runbook-hypershift
+        correlationId: "hypershiftOperatorAvailability/mc1"
+  - eval_time: 4200m
+    alertname: hypershiftOperatorAvailability1h5m
+    exp_alerts: []
+  - eval_time: 4200m
+    alertname: hypershiftOperatorAvailability6h30m
+    exp_alerts: []
+  - eval_time: 4200m
+    alertname: hypershiftOperatorReconcileErrors3d6h
+    exp_alerts:
+    - exp_labels:
+        component: slo
+        long_window: 3d
+        short_window: 6h
+        severity: "3"
+        slo: hypershift-operator-errors
+        service: hypershift-operator
+        cluster: mc1
+      exp_annotations:
+        summary: "mc1: hypershift-operator reconcile error ratio is burning error budget at 1x over 3d/6h"
+        description: |
+          hypershift-operator reconcile error ratio is burning error budget at 1x over 3d/6h.
+          Management Cluster: mc1
+        runbook_url: https://aka.ms/arohcp-runbook-hypershift
+        correlationId: "hypershiftOperatorReconcileErrors/mc1"
+  - eval_time: 4200m
+    alertname: hypershiftOperatorReconcileErrors1h5m
+    exp_alerts: []
+  - eval_time: 4200m
+    alertname: hypershiftOperatorReconcileErrors6h30m
+    exp_alerts: []
+  - eval_time: 4200m
+    alertname: hypershiftOperatorReconcileLatency3d6h
+    exp_alerts:
+    - exp_labels:
+        component: slo
+        long_window: 3d
+        short_window: 6h
+        severity: "3"
+        slo: hypershift-operator-latency
+        service: hypershift-operator
+        cluster: mc1
+      exp_annotations:
+        summary: "mc1: hypershift-operator reconciles slower than 10s is burning error budget at 1x over 3d/6h"
+        description: |
+          hypershift-operator reconciles slower than 10s is burning error budget at 1x over 3d/6h.
+          Management Cluster: mc1
+        runbook_url: https://aka.ms/arohcp-runbook-hypershift
+        correlationId: "hypershiftOperatorReconcileLatency/mc1"
+  - eval_time: 4200m
+    alertname: hypershiftOperatorReconcileLatency1h5m
+    exp_alerts: []
+  - eval_time: 4200m
+    alertname: hypershiftOperatorReconcileLatency6h30m
+    exp_alerts: []
+  - eval_time: 4200m
+    alertname: hypershiftOperatorSaturation3d6h
+    exp_alerts:
+    - exp_labels:
+        component: slo
+        long_window: 3d
+        short_window: 6h
+        severity: "3"
+        slo: hypershift-operator-saturation
+        service: hypershift-operator
+        cluster: mc1
+      exp_annotations:
+        summary: "mc1: hypershift-operator saturated intervals is burning error budget at 1x over 3d/6h"
+        description: |
+          hypershift-operator saturated intervals is burning error budget at 1x over 3d/6h.
+          Management Cluster: mc1
+        runbook_url: https://aka.ms/arohcp-runbook-hypershift
+        correlationId: "hypershiftOperatorSaturation/mc1"
+  - eval_time: 4200m
+    alertname: hypershiftOperatorSaturation1h5m
+    exp_alerts: []
+  - eval_time: 4200m
+    alertname: hypershiftOperatorSaturation6h30m
+    exp_alerts: []

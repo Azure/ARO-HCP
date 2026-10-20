@@ -178,82 +178,6 @@ Control Plane Namespace: {{ $labels.namespace }}
         for: 'PT10M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'userJourneyAvailability6h30m'
-        enabled: true
-        labels: {
-          component: 'slo'
-          long_window: '6h'
-          service: 'hypershift-journey'
-          severity: '3'
-          short_window: '30m'
-          slo: 'hypershift-journey-availability'
-        }
-        annotations: {
-          correlationId: 'userJourneyAvailability/{{ $labels.cluster }}/{{ $labels.namespace }}'
-          description: '''Hosted control plane API availability is burning error budget at 6x over 6h/30m.
-Management Cluster: {{ $labels.cluster }}
-Control Plane Namespace: {{ $labels.namespace }}
-'''
-          info: '''Hosted control plane API availability is burning error budget at 6x over 6h/30m.
-Management Cluster: {{ $labels.cluster }}
-Control Plane Namespace: {{ $labels.namespace }}
-'''
-          runbook_url: 'https://aka.ms/arohcp-runbook-hypershift'
-          summary: '{{ $labels.cluster }}/{{ $labels.namespace }}: Hosted control plane API availability is burning error budget at 6x over 6h/30m'
-          title: '{{ $labels.cluster }}/{{ $labels.namespace }}: Hosted control plane API availability is burning error budget at 6x over 6h/30m'
-        }
-        expression: '((1 - (hypershift_kube_apiserver_available:sli_sum_6h / hypershift_kube_apiserver_available:sli_count_6h)) > (6 * (1 - 0.9995)) and on (namespace, cluster) hypershift_kube_apiserver_available:sli_count_6h > 320) and on (namespace, cluster) ((1 - (hypershift_kube_apiserver_available:sli_sum_30m / hypershift_kube_apiserver_available:sli_count_30m)) > (6 * (1 - 0.9995)) and on (namespace, cluster) hypershift_kube_apiserver_available:sli_count_30m > 27)'
-        for: 'PT30M'
-        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
-      }
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'userJourneyAvailability3d6h'
-        enabled: true
-        labels: {
-          component: 'slo'
-          long_window: '3d'
-          service: 'hypershift-journey'
-          severity: '3'
-          short_window: '6h'
-          slo: 'hypershift-journey-availability'
-        }
-        annotations: {
-          correlationId: 'userJourneyAvailability/{{ $labels.cluster }}/{{ $labels.namespace }}'
-          description: '''Hosted control plane API availability is burning error budget at 1x over 3d/6h.
-Management Cluster: {{ $labels.cluster }}
-Control Plane Namespace: {{ $labels.namespace }}
-'''
-          info: '''Hosted control plane API availability is burning error budget at 1x over 3d/6h.
-Management Cluster: {{ $labels.cluster }}
-Control Plane Namespace: {{ $labels.namespace }}
-'''
-          runbook_url: 'https://aka.ms/arohcp-runbook-hypershift'
-          summary: '{{ $labels.cluster }}/{{ $labels.namespace }}: Hosted control plane API availability is burning error budget at 1x over 3d/6h'
-          title: '{{ $labels.cluster }}/{{ $labels.namespace }}: Hosted control plane API availability is burning error budget at 1x over 3d/6h'
-        }
-        expression: '((1 - (hypershift_kube_apiserver_available:sli_sum_3d / hypershift_kube_apiserver_available:sli_count_3d)) > (1 * (1 - 0.9995)) and on (namespace, cluster) hypershift_kube_apiserver_available:sli_count_3d > 3900) and on (namespace, cluster) ((1 - (hypershift_kube_apiserver_available:sli_sum_6h / hypershift_kube_apiserver_available:sli_count_6h)) > (1 * (1 - 0.9995)) and on (namespace, cluster) hypershift_kube_apiserver_available:sli_count_6h > 320)'
-        for: 'PT3H'
-        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
-      }
     ]
     scopes: [
       azureMonitoring
@@ -283,7 +207,7 @@ resource hypershiftCpoMonitorRules 'Microsoft.AlertsManagement/prometheusRuleGro
           component: 'slo'
           long_window: '1h'
           service: 'control-plane-operator'
-          severity: '3'
+          severity: '4'
           short_window: '5m'
           slo: 'control-plane-operator-availability'
         }
@@ -303,7 +227,7 @@ Namespace: {{ $labels.namespace }}
         }
         expression: '((1 - avg_over_time(hypershift:cpo:replica_availability:ratio[1h])) > (14.4 * (1 - 0.9995)) and on (cluster, namespace) count_over_time(hypershift:cpo:replica_availability:ratio[1h:1m]) > 54) and on (cluster, namespace) ((1 - avg_over_time(hypershift:cpo:replica_availability:ratio[5m])) > (14.4 * (1 - 0.9995)) and on (cluster, namespace) count_over_time(hypershift:cpo:replica_availability:ratio[5m:1m]) > 3)'
         for: 'PT10M'
-        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
       {
         actions: [
@@ -321,7 +245,7 @@ Namespace: {{ $labels.namespace }}
           component: 'slo'
           long_window: '6h'
           service: 'control-plane-operator'
-          severity: '3'
+          severity: '4'
           short_window: '30m'
           slo: 'control-plane-operator-availability'
         }
@@ -341,7 +265,7 @@ Namespace: {{ $labels.namespace }}
         }
         expression: '((1 - avg_over_time(hypershift:cpo:replica_availability:ratio[6h])) > (6 * (1 - 0.9995)) and on (cluster, namespace) count_over_time(hypershift:cpo:replica_availability:ratio[6h:5m]) > 64) and on (cluster, namespace) ((1 - avg_over_time(hypershift:cpo:replica_availability:ratio[30m])) > (6 * (1 - 0.9995)) and on (cluster, namespace) count_over_time(hypershift:cpo:replica_availability:ratio[30m:1m]) > 27)'
         for: 'PT30M'
-        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
       {
         actions: [
@@ -359,7 +283,7 @@ Namespace: {{ $labels.namespace }}
           component: 'slo'
           long_window: '3d'
           service: 'control-plane-operator'
-          severity: '3'
+          severity: '4'
           short_window: '6h'
           slo: 'control-plane-operator-availability'
         }
@@ -379,7 +303,7 @@ Namespace: {{ $labels.namespace }}
         }
         expression: '((1 - avg_over_time(hypershift:cpo:replica_availability:ratio[3d])) > (1 * (1 - 0.9995)) and on (cluster, namespace) count_over_time(hypershift:cpo:replica_availability:ratio[3d:30m]) > 130) and on (cluster, namespace) ((1 - avg_over_time(hypershift:cpo:replica_availability:ratio[6h])) > (1 * (1 - 0.9995)) and on (cluster, namespace) count_over_time(hypershift:cpo:replica_availability:ratio[6h:5m]) > 64)'
         for: 'PT3H'
-        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
       {
         actions: [
@@ -397,7 +321,7 @@ Namespace: {{ $labels.namespace }}
           component: 'slo'
           long_window: '1h'
           service: 'control-plane-operator'
-          severity: '3'
+          severity: '4'
           short_window: '5m'
           slo: 'control-plane-operator-errors'
         }
@@ -417,7 +341,7 @@ Namespace: {{ $labels.namespace }}
         }
         expression: '(hypershift:cpo:reconcile_error:ratio_rate1h > (14.4 * (1 - 0.999)) and on (cluster, namespace) hypershift:cpo:reconcile:rate5m > 0 and on (cluster, namespace) count_over_time(hypershift:cpo:reconcile:rate5m[1h:1m]) > 54) and on (cluster, namespace) (hypershift:cpo:reconcile_error:ratio_rate5m > (14.4 * (1 - 0.999)) and on (cluster, namespace) hypershift:cpo:reconcile:rate5m > 0 and on (cluster, namespace) count_over_time(hypershift:cpo:reconcile:rate5m[5m:1m]) > 3)'
         for: 'PT10M'
-        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
       {
         actions: [
@@ -435,7 +359,7 @@ Namespace: {{ $labels.namespace }}
           component: 'slo'
           long_window: '6h'
           service: 'control-plane-operator'
-          severity: '3'
+          severity: '4'
           short_window: '30m'
           slo: 'control-plane-operator-errors'
         }
@@ -455,7 +379,7 @@ Namespace: {{ $labels.namespace }}
         }
         expression: '(hypershift:cpo:reconcile_error:ratio_rate6h > (6 * (1 - 0.999)) and on (cluster, namespace) hypershift:cpo:reconcile:rate5m > 0 and on (cluster, namespace) count_over_time(hypershift:cpo:reconcile:rate5m[6h:5m]) > 64) and on (cluster, namespace) (hypershift:cpo:reconcile_error:ratio_rate30m > (6 * (1 - 0.999)) and on (cluster, namespace) hypershift:cpo:reconcile:rate5m > 0 and on (cluster, namespace) count_over_time(hypershift:cpo:reconcile:rate5m[30m:1m]) > 27)'
         for: 'PT30M'
-        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
       {
         actions: [
@@ -473,7 +397,7 @@ Namespace: {{ $labels.namespace }}
           component: 'slo'
           long_window: '3d'
           service: 'control-plane-operator'
-          severity: '3'
+          severity: '4'
           short_window: '6h'
           slo: 'control-plane-operator-errors'
         }
@@ -493,7 +417,7 @@ Namespace: {{ $labels.namespace }}
         }
         expression: '(hypershift:cpo:reconcile_error:ratio_rate3d > (1 * (1 - 0.999)) and on (cluster, namespace) hypershift:cpo:reconcile:rate5m > 0 and on (cluster, namespace) count_over_time(hypershift:cpo:reconcile:rate5m[3d:30m]) > 130) and on (cluster, namespace) (hypershift:cpo:reconcile_error:ratio_rate6h > (1 * (1 - 0.999)) and on (cluster, namespace) hypershift:cpo:reconcile:rate5m > 0 and on (cluster, namespace) count_over_time(hypershift:cpo:reconcile:rate5m[6h:5m]) > 64)'
         for: 'PT3H'
-        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
       {
         actions: [
@@ -511,7 +435,7 @@ Namespace: {{ $labels.namespace }}
           component: 'slo'
           long_window: '1h'
           service: 'control-plane-operator'
-          severity: '3'
+          severity: '4'
           short_window: '5m'
           slo: 'control-plane-operator-latency'
         }
@@ -531,7 +455,7 @@ Namespace: {{ $labels.namespace }}
         }
         expression: '(hypershift:cpo:reconcile_slow:ratio_rate1h > (14.4 * 0.01) and on (cluster, namespace) hypershift:cpo:reconcile:rate5m > 0 and on (cluster, namespace) count_over_time(hypershift:cpo:reconcile:rate5m[1h:1m]) > 54) and on (cluster, namespace) (hypershift:cpo:reconcile_slow:ratio_rate5m > (14.4 * 0.01) and on (cluster, namespace) hypershift:cpo:reconcile:rate5m > 0 and on (cluster, namespace) count_over_time(hypershift:cpo:reconcile:rate5m[5m:1m]) > 3)'
         for: 'PT10M'
-        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
       {
         actions: [
@@ -549,7 +473,7 @@ Namespace: {{ $labels.namespace }}
           component: 'slo'
           long_window: '6h'
           service: 'control-plane-operator'
-          severity: '3'
+          severity: '4'
           short_window: '30m'
           slo: 'control-plane-operator-latency'
         }
@@ -569,7 +493,7 @@ Namespace: {{ $labels.namespace }}
         }
         expression: '(hypershift:cpo:reconcile_slow:ratio_rate6h > (6 * 0.01) and on (cluster, namespace) hypershift:cpo:reconcile:rate5m > 0 and on (cluster, namespace) count_over_time(hypershift:cpo:reconcile:rate5m[6h:5m]) > 64) and on (cluster, namespace) (hypershift:cpo:reconcile_slow:ratio_rate30m > (6 * 0.01) and on (cluster, namespace) hypershift:cpo:reconcile:rate5m > 0 and on (cluster, namespace) count_over_time(hypershift:cpo:reconcile:rate5m[30m:1m]) > 27)'
         for: 'PT30M'
-        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
       {
         actions: [
@@ -587,7 +511,7 @@ Namespace: {{ $labels.namespace }}
           component: 'slo'
           long_window: '3d'
           service: 'control-plane-operator'
-          severity: '3'
+          severity: '4'
           short_window: '6h'
           slo: 'control-plane-operator-latency'
         }
@@ -607,7 +531,7 @@ Namespace: {{ $labels.namespace }}
         }
         expression: '(hypershift:cpo:reconcile_slow:ratio_rate3d > (1 * 0.01) and on (cluster, namespace) hypershift:cpo:reconcile:rate5m > 0 and on (cluster, namespace) count_over_time(hypershift:cpo:reconcile:rate5m[3d:30m]) > 130) and on (cluster, namespace) (hypershift:cpo:reconcile_slow:ratio_rate6h > (1 * 0.01) and on (cluster, namespace) hypershift:cpo:reconcile:rate5m > 0 and on (cluster, namespace) count_over_time(hypershift:cpo:reconcile:rate5m[6h:5m]) > 64)'
         for: 'PT3H'
-        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
       {
         actions: [
@@ -625,7 +549,7 @@ Namespace: {{ $labels.namespace }}
           component: 'slo'
           long_window: '1h'
           service: 'control-plane-operator'
-          severity: '3'
+          severity: '4'
           short_window: '5m'
           slo: 'control-plane-operator-saturation'
         }
@@ -645,7 +569,7 @@ Namespace: {{ $labels.namespace }}
         }
         expression: '(avg_over_time(hypershift:cpo:saturated[1h]) > (14.4 * 0.01) and on (cluster, namespace) count_over_time(hypershift:cpo:saturated[1h:1m]) > 54) and on (cluster, namespace) (avg_over_time(hypershift:cpo:saturated[5m]) > (14.4 * 0.01) and on (cluster, namespace) count_over_time(hypershift:cpo:saturated[5m:1m]) > 3)'
         for: 'PT10M'
-        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
       {
         actions: [
@@ -663,7 +587,7 @@ Namespace: {{ $labels.namespace }}
           component: 'slo'
           long_window: '6h'
           service: 'control-plane-operator'
-          severity: '3'
+          severity: '4'
           short_window: '30m'
           slo: 'control-plane-operator-saturation'
         }
@@ -683,7 +607,7 @@ Namespace: {{ $labels.namespace }}
         }
         expression: '(avg_over_time(hypershift:cpo:saturated[6h]) > (6 * 0.01) and on (cluster, namespace) count_over_time(hypershift:cpo:saturated[6h:5m]) > 64) and on (cluster, namespace) (avg_over_time(hypershift:cpo:saturated[30m]) > (6 * 0.01) and on (cluster, namespace) count_over_time(hypershift:cpo:saturated[30m:1m]) > 27)'
         for: 'PT30M'
-        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
       {
         actions: [
@@ -701,7 +625,7 @@ Namespace: {{ $labels.namespace }}
           component: 'slo'
           long_window: '3d'
           service: 'control-plane-operator'
-          severity: '3'
+          severity: '4'
           short_window: '6h'
           slo: 'control-plane-operator-saturation'
         }
@@ -721,7 +645,7 @@ Namespace: {{ $labels.namespace }}
         }
         expression: '(avg_over_time(hypershift:cpo:saturated[3d]) > (1 * 0.01) and on (cluster, namespace) count_over_time(hypershift:cpo:saturated[3d:30m]) > 130) and on (cluster, namespace) (avg_over_time(hypershift:cpo:saturated[6h]) > (1 * 0.01) and on (cluster, namespace) count_over_time(hypershift:cpo:saturated[6h:5m]) > 64)'
         for: 'PT3H'
-        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
       {
         actions: [

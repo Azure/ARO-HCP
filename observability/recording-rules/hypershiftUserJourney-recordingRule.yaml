@@ -15,22 +15,6 @@ spec:
   groups:
   - name: hypershift-journey-recording-rules
     rules:
-    # Share of HostedCluster failure-condition slots that are set on this MC.
-    # clamp_max(...,1): a HostedCluster can carry several failure conditions, so
-    # the raw ratio can exceed 1.
-    # max by (cluster, platform[, condition]) keeps one value per gauge series so
-    # multiple operator exporter pods (each reporting MC totals) are not summed.
-    # "> 0" on the denominator: an empty MC reports 0/0 = NaN, which clamp_max
-    # keeps and avg_over_time then spreads over every window it falls in,
-    # silencing the HealthyClusters tiers for up to 3d after repopulation.
-    - record: hypershift:hostedclusters_unhealthy:ratio
-      expr: |
-        clamp_max(
-          sum by (cluster) (max by (cluster, platform, condition) (hypershift_hostedclusters_failure_conditions))
-          /
-          (sum by (cluster) (max by (cluster, platform) (hypershift_hostedclusters)) > 0),
-          1
-        )
     # Fraction of creations observed in the last 30d whose wait exceeded 30m.
     # max_over_time runs over raw samples before deduplicating by creation
     # identity, so a peak scraped between subquery steps is never lost (a
