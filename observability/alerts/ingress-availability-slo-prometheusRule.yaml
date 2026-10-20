@@ -30,6 +30,11 @@ spec:
   # short window (e.g. 3d6h, not 3d) to match the routing the (unpublished)
   # ingress-tsg.md runbook expects.
   #
+  # No Grafana dashboard exists yet for this SLO -- on-call has no drill-down
+  # view to open from these alerts. Dashboard work for all user journeys
+  # (not just ingress) is tracked separately in ARO-22171; intentionally out
+  # of scope for this PR.
+  #
   # SLO: 99.5% ingress canary availability
   # Error Budget: 0.5% (1 - 0.995)
   #
