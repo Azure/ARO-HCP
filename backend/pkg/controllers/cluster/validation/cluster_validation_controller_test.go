@@ -37,6 +37,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -568,4 +569,92 @@ func TestClusterValidationSyncer_CooldownSuppression(t *testing.T) {
 
 	require.NotEmpty(t, enqueuer.enqueuedKeys, "should have re-enqueued after cooldown skip")
 	assert.Greater(t, enqueuer.enqueuedDurations[0], time.Duration(0), "enqueue duration should be positive")
+}
+
+type validationWithHook struct {
+	*MockClusterValidation
+	hook func()
+}
+
+func (v *validationWithHook) Validate(context.Context, *coreapi.Subscription, *coreapi.Cluster) validationutils.ValidationResult {
+	v.hook()
+	return v.result
+}
+
+func TestValidationFreshSPCMerge(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		validation *MockClusterValidation
+		deleted    bool
+	}{
+		{name: "passed", validation: NewMockClusterValidation(testValidationName).WithPassed()},
+		{name: "unknown suppressed", validation: NewMockClusterValidation(testValidationName).WithUnknownLogOnly("Unavailable", "unavailable", "Unavailable.")},
+		{name: "skipped", validation: NewMockClusterValidation(testValidationName).WithSkipped("NotApplicable", "not applicable", "Not applicable.")},
+		{name: "deleted", validation: NewMockClusterValidation(testValidationName).WithPassed(), deleted: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
+			mockDB := corecosmosstoragetesting.NewMockResourcesDBClient()
+			cluster := newTestCluster(t)
+			_, err := mockDB.HCPClusters(testSubscriptionID, testResourceGroup).Create(ctx, cluster, nil)
+			require.NoError(t, err)
+			_, err = mockDB.Subscriptions().Create(ctx, newTestSubscription(), nil)
+			require.NoError(t, err)
+			_, err = corecosmosstorage.GetOrCreateServiceProviderCluster(ctx, mockDB, cluster.ID)
+			require.NoError(t, err)
+			spcs := mockDB.ServiceProviderClusters(testSubscriptionID, testResourceGroup, testClusterName)
+			validation := &validationWithHook{MockClusterValidation: tc.validation}
+			var concurrent *coreapi.ServiceProviderCluster
+			validation.hook = func() {
+				if tc.deleted {
+					require.NoError(t, spcs.Delete(ctx, coreapi.ServiceProviderClusterResourceName))
+					return
+				}
+				current, err := spcs.Get(ctx, coreapi.ServiceProviderClusterResourceName)
+				require.NoError(t, err)
+				current.Spec.BackupScheduleState = coreapi.BackupScheduleStateDisabled
+				meta.SetStatusCondition(&current.Status.Conditions, metav1.Condition{
+					Type: "OtherStatus", Status: metav1.ConditionTrue, Reason: "Concurrent",
+					Message: "Status updated concurrently.", LastTransitionTime: metav1.NewTime(fixedNow),
+				})
+				meta.SetStatusCondition(&current.Status.Validations, metav1.Condition{
+					Type: "OtherValidation", Status: metav1.ConditionFalse, Reason: "Concurrent",
+					Message: "Validation updated concurrently.", LastTransitionTime: metav1.NewTime(fixedNow),
+				})
+				meta.SetStatusCondition(&current.Status.Validations, metav1.Condition{
+					Type: testValidationName, Status: metav1.ConditionFalse, Reason: "Concurrent",
+					Message: "Validation failed concurrently.", LastTransitionTime: metav1.NewTime(fixedNow),
+				})
+				concurrent, err = spcs.Replace(ctx, current, nil)
+				require.NoError(t, err)
+			}
+			syncer, enqueuer := newTestSyncer(mockDB, validation, clocktesting.NewFakePassiveClock(fixedNow))
+			require.NoError(t, syncer.SyncOnce(ctx, newTestClusterKey()))
+			stored, err := spcs.Get(ctx, coreapi.ServiceProviderClusterResourceName)
+			if tc.deleted {
+				assert.True(t, cosmosstorageutils.IsNotFoundError(err), "SPC remains deleted")
+				assert.True(t, syncer.retryCooldownChecker.CanSync(ctx, newTestClusterKey()), "deleted SPC has no cooldown")
+				assert.Empty(t, enqueuer.enqueuedKeys)
+				return
+			}
+			require.NoError(t, err)
+			require.NotNil(t, concurrent, "SPC was updated during validation")
+			assert.False(t, syncer.retryCooldownChecker.CanSync(ctx, newTestClusterKey()), "publication installs the cooldown")
+			want := concurrent.DeepCopy()
+			switch validation.result.Outcome.Type {
+			case validationutils.OutcomeTypePassed:
+				condition := meta.FindStatusCondition(stored.Status.Validations, testValidationName)
+				require.NotNil(t, condition)
+				desired := validation.result.ToCondition(testValidationName)
+				desired.LastTransitionTime = condition.LastTransitionTime
+				meta.SetStatusCondition(&want.Status.Validations, desired)
+			case validationutils.OutcomeTypeSkipped:
+				meta.RemoveStatusCondition(&want.Status.Validations, testValidationName)
+			case validationutils.OutcomeTypeUnknown:
+				assert.Equal(t, concurrent.CosmosETag, stored.CosmosETag, "suppression preserves the stored document")
+			}
+			assert.Equal(t, want.Spec, stored.Spec, "concurrent spec changes are preserved")
+			assert.Equal(t, want.Status, stored.Status, "owned and foreign conditions match")
+		})
+	}
 }
