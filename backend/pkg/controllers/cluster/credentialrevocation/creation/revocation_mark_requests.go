@@ -23,6 +23,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilsclock "k8s.io/utils/clock"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
@@ -66,6 +68,27 @@ func NewRevocationMarkRequestsController(
 	)
 	controller.AddInterestingResource(coreapi.SystemAdminCredentialRevocationResourceType, "*")
 	controller.AddInterestingResource(coreapi.SystemAdminCredentialRequestResourceType, "*")
+	requestInformer, _ := backendInformers.SystemAdminCredentialRequests()
+	revocationInformer, revocations := backendInformers.SystemAdminCredentialRevocations()
+	if err := controller.QueueForMappedInformer(time.Minute, requestInformer, func(ctx context.Context, id *azcorearm.ResourceID) ([]*azcorearm.ResourceID, error) {
+		// Requests and revocations are siblings: the request's parent is the
+		// cluster whose cached revocations need to reconsider their gate.
+		if id.Parent == nil {
+			return nil, nil
+		}
+		cluster := id.Parent
+		items, err := revocations.ListForCluster(ctx, cluster.SubscriptionID, cluster.ResourceGroupName, cluster.Name)
+		if err != nil {
+			return nil, err
+		}
+		var keys []*azcorearm.ResourceID
+		for _, item := range items {
+			keys = append(keys, item.GetResourceID())
+		}
+		return keys, nil
+	}, revocationInformer.HasSynced); err != nil {
+		panic(err)
+	}
 
 	return controller
 }

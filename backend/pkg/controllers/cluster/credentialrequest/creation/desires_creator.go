@@ -96,9 +96,18 @@ func NewDesiresCreatorController(
 	controller.AddInterestingResource(coreapi.SystemAdminCredentialRequestResourceType, "*")
 	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
 	controller.AddInterestingResource(coreapi.ServiceProviderClusterResourceType, coreapi.ServiceProviderClusterResourceName)
+	clusterInformer, _ := backendInformers.Clusters()
+	providerInformer, _ := backendInformers.ServiceProviderClusters()
+	if err := controllerutils.WatchClusterParentsForCredentialRequests(controller, backendInformers, clusterInformer, providerInformer); err != nil {
+		panic(err)
+	}
 	controller.AddInterestingResource(kubeapplierapi.SystemAdminCredentialRequestScopedApplyDesireResourceType, kubeapplierapi.SystemAdminCredentialCSRDesireName)
 	controller.AddInterestingResource(kubeapplierapi.SystemAdminCredentialRequestScopedApplyDesireResourceType, kubeapplierapi.SystemAdminCredentialCSRApprovalDesireName)
 	controller.AddInterestingResource(kubeapplierapi.SystemAdminCredentialRequestScopedReadDesireResourceType, kubeapplierapi.SystemAdminCredentialCSRDesireName)
+	applyInformer, _ := kubeApplierInformers.ApplyDesires()
+	if err := controller.QueueForChildInformers(time.Minute, applyInformer); err != nil {
+		panic(err)
+	}
 
 	return controller
 }

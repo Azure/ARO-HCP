@@ -74,8 +74,16 @@ func NewPostIssuanceCleanupController(
 	// Cleanup must include every remaining child, including legacy desire names.
 	controller.AddInterestingResource(coreapi.SystemAdminCredentialRequestResourceType, "*")
 	controller.AddInterestingResource(coreapi.ServiceProviderClusterResourceType, coreapi.ServiceProviderClusterResourceName)
+	providerInformer, _ := backendInformers.ServiceProviderClusters()
+	if err := controllerutils.WatchClusterParentsForCredentialRequests(controller, backendInformers, providerInformer); err != nil {
+		panic(err)
+	}
 	controller.AddInterestingResource(kubeapplierapi.SystemAdminCredentialRequestScopedApplyDesireResourceType, "*")
 	controller.AddInterestingResource(kubeapplierapi.SystemAdminCredentialRequestScopedReadDesireResourceType, "*")
+	applyInformer, _ := kubeApplierInformers.ApplyDesires()
+	if err := controller.QueueForChildInformers(time.Minute, applyInformer); err != nil {
+		panic(err)
+	}
 
 	return controller
 }

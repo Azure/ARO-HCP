@@ -35,17 +35,17 @@ primary-resource resync or existing explicit callbacks:
 - Cluster wrappers receive Cluster, ServiceProviderCluster, direct cluster
   ManagementClusterContent, and optional direct cluster ApplyDesire/ReadDesire
   events. Node-pool wrappers receive the analogous node-pool events. Status
-  aggregators' Controller-document lists are still polled.
+  aggregators explicitly subscribe to their direct Controller-document children.
 - External-auth wrappers receive ExternalAuth events. Credential wrappers receive
-  their request/revocation and optional direct ReadDesire events; ApplyDesire
-  cleanup progress is still polled.
+  their request/revocation and optional direct ReadDesire events; desire creators
+  and cleanup controllers also explicitly subscribe to direct ApplyDesire children.
 - Subscription wrappers receive Subscription events; management-cluster wrappers
   receive ManagementCluster events. Their descendant collections are polled.
 - Rollout wrappers receive ControlPlaneVersionRollout events. StatusCollector and
   ZStreamProgressiveDesiredVersionRollout retain their explicit cluster/SPC
   callbacks. Explicit enqueues and error retries bypass resource-event filtering.
-- Parent/sibling inputs (such as a node pool's parent cluster, subscription or
-  HostedCluster mirror), fleet placement inputs, external Azure/Cluster Service
+- Parent inputs now have explicit lister-backed subscriptions as described below.
+  Other sibling inputs (such as a HostedCluster mirror), fleet placement inputs, external Azure/Cluster Service
   reads, billing documents, configuration and clocks retain their existing polling
   or retry behavior. Registering an interest does not provide child fan-out.
 
@@ -55,6 +55,71 @@ retain the same causal edges. Filtering removes unrelated wake-ups, not reads or
 reconciliation steps.
 
 ## Cluster and credential controllers
+
+### Direct child subscriptions
+
+`QueueForChildInformers` subscribes to child events with a one-hop owner mapping
+and the existing type/name interest filter. It handles add/update/resync and
+delete/tombstone events, and waits for source and handler cache synchronization.
+Union consumers also retain their aggregate discovery barrier.
+
+- The three degraded aggregators watch their scoped Controller documents.
+- Cluster/node-pool ReadDesire creators watch their named mirrors.
+- Credential request/revocation desire creators and cleanup controllers watch
+  their direct ApplyDesires.
+- Cluster credential marking watches request/revocation children.
+- Cluster child cleanup and final deletion watch node pools, external auths,
+  requests/revocations, and direct cluster desires (ApplyDesire only for final
+  deletion; ApplyDesire and ReadDesire for child cleanup).
+- ClusterResources watches node pools and cluster/node-pool desires with an
+  explicit two-hop limit; minor-upgrade reconciliation watches node pools and
+  their provider-state documents with the same limit. Keys come directly from
+  event resource-ID ancestors, without live reads or cache scans.
+
+These subscriptions promptly observe existing dependencies; parent/sibling and
+Fleet dependencies still require reverse lookup/fan-out. Other generic watches
+retain their original add/update behavior.
+
+### Parent-to-child subscriptions
+
+`QueueForMappedInformer` maps an accepted parent event to child resource IDs using
+cached typed listers. It applies resource interests to the original parent and
+enqueues only IDs matching the controller's key type. Add, update (old and new
+parents), periodic resync, and delete/tombstone events are supported. Mapped keys
+bypass child ETag/cooldown checks and retain ordinary workqueue deduplication.
+
+The helpers use existing indexes, not live Cosmos calls or global scans:
+
+Each child kind has an explicit helper (`WatchClusterParentsForNodePools`,
+`WatchClusterParentsForExternalAuths`, `WatchClusterParentsForCredentialRequests`,
+or `WatchClusterParentsForCredentialRevocations`). Only parent normalization and
+watch registration are shared; there is no runtime switch selecting listers.
+
+- Subscription -> clusters: `ClusterLister.ListForSubscription`.
+- Subscription -> node pools: indexed subscription clusters, then each cluster's
+  `NodePoolLister.ListForCluster`.
+- Cluster or its ServiceProviderCluster -> node pools, external auths, credential
+  requests, or revocations: the corresponding typed `ListForCluster`.
+
+Subscription watches are explicitly installed for cluster creation/update,
+managed-resource-group, deny-assignment, role-assignment, billing creation, and
+cluster validation controllers; node-pool validation/version controllers also
+subscribe to subscriptions. Cluster watches fan out to node-pool creation,
+ReadDesire creation, validation, external-auth creation, and credential desire
+creation. Provider-state watches fan out to node-pool version/ReadDesire/cleanup
+controllers and credential desire/cleanup controllers.
+ClusterResources also subscribes to subscription changes. NodePoolVersion watches
+clusters as well as provider state because its subscription mapper reads the
+cluster inventory. External-auth OIDC status watches cluster provider state.
+Credential-request events map to sibling revocations using the revocation lister's
+cluster index, allowing marking to react to new or changed requests.
+
+The source informer, handler registration, and child lookup caches participate in
+startup synchronization. Mapping failures are logged and retried by the positive
+source resync period; primary-resource initial lists/resyncs cover children absent
+from the cache when a parent event arrived. A failed hard-delete mapping relies on
+the child resync because the removed parent cannot resync. Fleet placement and
+rollout relationships require separate reverse mappings and are not covered here.
 
 | Constructor source | Explicit resource inputs | Collection rationale and additional inputs |
 |---|---|---|
@@ -139,6 +204,16 @@ reconciliation steps.
 | [ExternalAuthClusterServiceUpdateDispatch](../backend/pkg/controllers/externalauth/update/external_auth_cluster_service_update_dispatch_controller.go) | `ExternalAuth(*)` | Polls Cluster Service external auth to dispatch pending intent. |
 
 ## Other watching controllers
+
+### Fleet desire consumers
+
+Fleet's capacity ReadDesire creator, shared-ingress ReadDesire creator, and
+scale-ceiling reporter also subscribe to the union ReadDesire source. Their
+existing stamp-key ancestor mapper derives the stamp directly from the desire's
+resource ID, with no network lookup or global scan. Customer-cluster-scoped
+desires have no stamp ancestor and do not map to these queues. Scheduling-output
+watches remain separate work: reporters currently replace their output on every
+reconciliation, so adding those watches requires a convergence guard first.
 
 | Constructor source | Explicit resource inputs | Collection rationale and additional inputs |
 |---|---|---|
