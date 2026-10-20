@@ -14,6 +14,8 @@ tests:
     values: "1+0x400"
   - series: 'ingress_canary_route_reachable{_id="aaa", cluster="mgmt-1", region="uksouth", host="canary.apps.aaa.example.io", instance="10.0.0.2:60000"}'
     values: "1+0x400"
+  - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="aaa", namespace="clusters-aaa", _id="aaa", cluster="mgmt-1", resource_id="/subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/aaa"}'
+    values: "1+0x400"
   promql_expr_test:
   - expr: availability:ingress_canary:ratio
     eval_time: 10m
@@ -65,6 +67,8 @@ tests:
     values: "0+0x400"
   - series: 'ingress_canary_route_reachable{_id="bbb", cluster="mgmt-1", region="uksouth", host="canary.apps.bbb.example.io", instance="10.0.0.10:60000"}'
     values: "0+0x400"
+  - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="bbb", namespace="clusters-bbb", _id="bbb", cluster="mgmt-1", resource_id="/subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/bbb"}'
+    values: "1+0x400"
   promql_expr_test:
   - expr: availability:ingress_canary:ratio
     eval_time: 10m
@@ -86,14 +90,17 @@ tests:
         _id: "bbb"
         cluster: "mgmt-1"
         region: "uksouth"
+        resource_id: "/subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/bbb"
         component: slo
         long_window: 1h
         severity: "3"
         short_window: 5m
         slo: ingress-availability
       exp_annotations:
-        summary: "Ingress canary availability critically degraded for bbb"
-        description: "More than 7.2% of synthetic canary route observations failed in both the last 5 minutes and the last hour for HCP cluster bbb, indicating an active fast error budget burn (14.4x) that would exhaust the 99.5% SLO budget in ~50 hours."
+        summary: "Ingress canary availability critically degraded for bbb (resource_id: /subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/bbb)"
+        description: |
+          More than 7.2% of synthetic canary route observations failed in both the last 5 minutes and the last hour for HCP cluster bbb, indicating an active fast error budget burn (14.4x) that would exhaust the 99.5% SLO budget in ~50 hours.
+          Resource ID: /subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/bbb
         runbook_url: "https://aka.ms/arohcp-runbook-ingress"
         correlationId: "userJourneyIngressAvailabilityErrors/bbb"
   # Medium burn: both 30m and 6h windows clear their floor quickly too;
@@ -105,14 +112,17 @@ tests:
         _id: "bbb"
         cluster: "mgmt-1"
         region: "uksouth"
+        resource_id: "/subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/bbb"
         component: slo
         long_window: 6h
         severity: "3"
         short_window: 30m
         slo: ingress-availability
       exp_annotations:
-        summary: "Ingress canary availability degraded for bbb"
-        description: "More than 3% of synthetic canary route observations failed in both the last 30 minutes and the last 6 hours for HCP cluster bbb, indicating an active medium error budget burn (6x) that would exhaust the 99.5% SLO budget in ~5 days."
+        summary: "Ingress canary availability degraded for bbb (resource_id: /subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/bbb)"
+        description: |
+          More than 3% of synthetic canary route observations failed in both the last 30 minutes and the last 6 hours for HCP cluster bbb, indicating an active medium error budget burn (6x) that would exhaust the 99.5% SLO budget in ~5 days.
+          Resource ID: /subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/bbb
         runbook_url: "https://aka.ms/arohcp-runbook-ingress"
         correlationId: "userJourneyIngressAvailabilityErrors/bbb"
 # ========================================
@@ -159,6 +169,8 @@ tests:
     values: "1+0x400"
   - series: 'ingress_canary_route_reachable{_id="ccc", cluster="mgmt-1", region="uksouth", host="canary.apps.ccc.example.io", instance="10.0.0.17:60000"}'
     values: "1+0x400"
+  - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="ccc", namespace="clusters-ccc", _id="ccc", cluster="mgmt-1", resource_id="/subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/ccc"}'
+    values: "1+0x400"
   alert_rule_test:
   # Fast burn should NOT fire (1/17 ≈ 5.9% < 7.2%), in any window
   - eval_time: 15m
@@ -171,14 +183,17 @@ tests:
         _id: "ccc"
         cluster: "mgmt-1"
         region: "uksouth"
+        resource_id: "/subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/ccc"
         component: slo
         long_window: 3d
         severity: "4"
         short_window: 6h
         slo: ingress-availability
       exp_annotations:
-        summary: "Ingress canary availability trending below SLO for ccc"
-        description: "More than 0.5% of synthetic canary route observations failed in both the last 6 hours and the last 3 days for HCP cluster ccc, consuming the error budget at the SLO rate. No immediate customer impact but trend requires investigation."
+        summary: "Ingress canary availability trending below SLO for ccc (resource_id: /subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/ccc)"
+        description: |
+          More than 0.5% of synthetic canary route observations failed in both the last 6 hours and the last 3 days for HCP cluster ccc, consuming the error budget at the SLO rate. No immediate customer impact but trend requires investigation.
+          Resource ID: /subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/ccc
         runbook_url: "https://aka.ms/arohcp-runbook-ingress"
         correlationId: "userJourneyIngressAvailabilityErrors/ccc"
 # ========================================
@@ -215,6 +230,10 @@ tests:
     values: "0+0x40"
   - series: 'ingress_canary_route_reachable{_id="hhh", cluster="mgmt-1", region="uksouth", host="canary.apps.hhh.example.io", instance="10.0.0.10:60000"}'
     values: "0+0x40"
+  - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="fff", namespace="clusters-fff", _id="fff", cluster="mgmt-1", resource_id="/subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/fff"}'
+    values: "1+0x40"
+  - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="hhh", namespace="clusters-hhh", _id="hhh", cluster="mgmt-1", resource_id="/subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hhh"}'
+    values: "1+0x40"
   alert_rule_test:
   - eval_time: 12m
     alertname: userJourneyIngressAvailabilityErrors1h5m
@@ -223,14 +242,17 @@ tests:
         _id: "hhh"
         cluster: "mgmt-1"
         region: "uksouth"
+        resource_id: "/subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hhh"
         component: slo
         long_window: 1h
         severity: "3"
         short_window: 5m
         slo: ingress-availability
       exp_annotations:
-        summary: "Ingress canary availability critically degraded for hhh"
-        description: "More than 7.2% of synthetic canary route observations failed in both the last 5 minutes and the last hour for HCP cluster hhh, indicating an active fast error budget burn (14.4x) that would exhaust the 99.5% SLO budget in ~50 hours."
+        summary: "Ingress canary availability critically degraded for hhh (resource_id: /subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hhh)"
+        description: |
+          More than 7.2% of synthetic canary route observations failed in both the last 5 minutes and the last hour for HCP cluster hhh, indicating an active fast error budget burn (14.4x) that would exhaust the 99.5% SLO budget in ~50 hours.
+          Resource ID: /subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hhh
         runbook_url: "https://aka.ms/arohcp-runbook-ingress"
         correlationId: "userJourneyIngressAvailabilityErrors/hhh"
 # ========================================
@@ -250,6 +272,8 @@ tests:
     values: "0+0x40"
   - series: 'ingress_canary_route_reachable{_id="ggg", cluster="mgmt-1", region="uksouth", host="canary.apps.ggg.example.io", instance="10.0.0.2:60000"}'
     values: "0+0x40"
+  - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="ggg", namespace="clusters-ggg", _id="ggg", cluster="mgmt-1", resource_id="/subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/ggg"}'
+    values: "1+0x40"
   alert_rule_test:
   # At t=1m, only 4 total observations exist -- below the 1h floor of 10 --
   # so the alert must stay suppressed even though the error rate is 100%.
@@ -265,14 +289,17 @@ tests:
         _id: "ggg"
         cluster: "mgmt-1"
         region: "uksouth"
+        resource_id: "/subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/ggg"
         component: slo
         long_window: 1h
         severity: "3"
         short_window: 5m
         slo: ingress-availability
       exp_annotations:
-        summary: "Ingress canary availability critically degraded for ggg"
-        description: "More than 7.2% of synthetic canary route observations failed in both the last 5 minutes and the last hour for HCP cluster ggg, indicating an active fast error budget burn (14.4x) that would exhaust the 99.5% SLO budget in ~50 hours."
+        summary: "Ingress canary availability critically degraded for ggg (resource_id: /subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/ggg)"
+        description: |
+          More than 7.2% of synthetic canary route observations failed in both the last 5 minutes and the last hour for HCP cluster ggg, indicating an active fast error budget burn (14.4x) that would exhaust the 99.5% SLO budget in ~50 hours.
+          Resource ID: /subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/ggg
         runbook_url: "https://aka.ms/arohcp-runbook-ingress"
         correlationId: "userJourneyIngressAvailabilityErrors/ggg"
 # ========================================
@@ -285,6 +312,8 @@ tests:
     values: "0+2x400"
   - series: 'ingress_canary_check_duration_bucket{_id="lat-ok", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-ok.example.io", instance="10.0.0.1:60000", le="+Inf"}'
     values: "0+2x400"
+  - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="lat-ok", namespace="clusters-lat-ok", _id="lat-ok", cluster="mgmt-1", resource_id="/subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/lat-ok"}'
+    values: "1+0x400"
   promql_expr_test:
   - expr: latency:ingress_canary:ratio
     eval_time: 10m
@@ -332,6 +361,8 @@ tests:
     values: "0+1x400"
   - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.5:60000", le="+Inf"}'
     values: "0+2x400"
+  - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="lat-bad", namespace="clusters-lat-bad", _id="lat-bad", cluster="mgmt-1", resource_id="/subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/lat-bad"}'
+    values: "1+0x400"
   promql_expr_test:
   - expr: latency:ingress_canary:ratio
     eval_time: 10m
@@ -351,14 +382,17 @@ tests:
         _id: "lat-bad"
         cluster: "mgmt-1"
         region: "uksouth"
+        resource_id: "/subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/lat-bad"
         component: slo
         long_window: 1h
         severity: "3"
         short_window: 5m
         slo: ingress-latency
       exp_annotations:
-        summary: "Ingress canary latency critically degraded for lat-bad"
-        description: "More than 7.2% of synthetic canary route checks exceeded 200ms in both the last 5 minutes and the last hour for HCP cluster lat-bad, indicating an active fast error budget burn (14.4x) that would exhaust the 99.5% SLO budget in ~50 hours."
+        summary: "Ingress canary latency critically degraded for lat-bad (resource_id: /subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/lat-bad)"
+        description: |
+          More than 7.2% of synthetic canary route checks exceeded 200ms in both the last 5 minutes and the last hour for HCP cluster lat-bad, indicating an active fast error budget burn (14.4x) that would exhaust the 99.5% SLO budget in ~50 hours.
+          Resource ID: /subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/lat-bad
         runbook_url: "https://aka.ms/arohcp-runbook-ingress"
         correlationId: "userJourneyIngressLatencyP99Errors/lat-bad"
   - eval_time: 40m
@@ -368,14 +402,17 @@ tests:
         _id: "lat-bad"
         cluster: "mgmt-1"
         region: "uksouth"
+        resource_id: "/subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/lat-bad"
         component: slo
         long_window: 6h
         severity: "3"
         short_window: 30m
         slo: ingress-latency
       exp_annotations:
-        summary: "Ingress canary latency degraded for lat-bad"
-        description: "More than 3% of synthetic canary route checks exceeded 200ms in both the last 30 minutes and the last 6 hours for HCP cluster lat-bad, indicating an active medium error budget burn (6x) that would exhaust the 99.5% SLO budget in ~5 days."
+        summary: "Ingress canary latency degraded for lat-bad (resource_id: /subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/lat-bad)"
+        description: |
+          More than 3% of synthetic canary route checks exceeded 200ms in both the last 30 minutes and the last 6 hours for HCP cluster lat-bad, indicating an active medium error budget burn (6x) that would exhaust the 99.5% SLO budget in ~5 days.
+          Resource ID: /subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/lat-bad
         runbook_url: "https://aka.ms/arohcp-runbook-ingress"
         correlationId: "userJourneyIngressLatencyP99Errors/lat-bad"
 # ========================================
@@ -390,6 +427,8 @@ tests:
     values: "0+16x400"
   - series: 'ingress_canary_check_duration_bucket{_id="lat-slow", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-slow.example.io", instance="10.0.0.1:60000", le="+Inf"}'
     values: "0+17x400"
+  - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="lat-slow", namespace="clusters-lat-slow", _id="lat-slow", cluster="mgmt-1", resource_id="/subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/lat-slow"}'
+    values: "1+0x400"
   alert_rule_test:
   # Fast burn should NOT fire (16/17 → ≈5.9% < 7.2%), in any window
   - eval_time: 15m
@@ -402,14 +441,17 @@ tests:
         _id: "lat-slow"
         cluster: "mgmt-1"
         region: "uksouth"
+        resource_id: "/subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/lat-slow"
         component: slo
         long_window: 3d
         severity: "4"
         short_window: 6h
         slo: ingress-latency
       exp_annotations:
-        summary: "Ingress canary latency trending below SLO for lat-slow"
-        description: "More than 0.5% of synthetic canary route checks exceeded 200ms in both the last 6 hours and the last 3 days for HCP cluster lat-slow, consuming the error budget at the SLO rate. No immediate customer impact but trend requires investigation."
+        summary: "Ingress canary latency trending below SLO for lat-slow (resource_id: /subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/lat-slow)"
+        description: |
+          More than 0.5% of synthetic canary route checks exceeded 200ms in both the last 6 hours and the last 3 days for HCP cluster lat-slow, consuming the error budget at the SLO rate. No immediate customer impact but trend requires investigation.
+          Resource ID: /subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/lat-slow
         runbook_url: "https://aka.ms/arohcp-runbook-ingress"
         correlationId: "userJourneyIngressLatencyP99Errors/lat-slow"
 # ========================================
@@ -423,6 +465,10 @@ tests:
   input_series:
   - series: 'ingress_canary_route_reachable{_id="silent", cluster="mgmt-1", region="uksouth", host="canary.apps.silent.example.io", instance="10.0.0.1:60000"}'
     values: "1+0x14"
+  # The HostedCluster itself is still very much alive -- only the canary
+  # signal went dark -- so this keeps reporting for the whole test.
+  - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="silent", namespace="clusters-silent", _id="silent", cluster="mgmt-1", resource_id="/subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/silent"}'
+    values: "1+0x40"
   alert_rule_test:
   # At t=15m the series has been silent for ~1 minute -- not yet 10 minutes
   # of silence, so the alert must not have fired yet.
@@ -437,12 +483,15 @@ tests:
         _id: "silent"
         cluster: "mgmt-1"
         region: "uksouth"
+        resource_id: "/subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/silent"
         component: slo
         severity: "4"
         slo: ingress-availability
       exp_annotations:
-        summary: "Ingress canary has stopped reporting for silent"
-        description: "HCP cluster silent was emitting synthetic canary route observations but has reported none in the last 10 minutes. This is a loss of the ingress availability/latency signal, not a confirmed failure -- investigate whether ingress-operator or the canary route itself is down."
+        summary: "Ingress canary has stopped reporting for silent (resource_id: /subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/silent)"
+        description: |
+          HCP cluster silent was emitting synthetic canary route observations but has reported none in the last 10 minutes. This is a loss of the ingress availability/latency signal, not a confirmed failure -- investigate whether ingress-operator or the canary route itself is down.
+          Resource ID: /subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/silent
         runbook_url: "https://aka.ms/arohcp-runbook-ingress"
         correlationId: "userJourneyIngressCanaryAbsent/silent"
 # ========================================
@@ -451,6 +500,8 @@ tests:
 - interval: 1m
   input_series:
   - series: 'ingress_canary_route_reachable{_id="steady", cluster="mgmt-1", region="uksouth", host="canary.apps.steady.example.io", instance="10.0.0.1:60000"}'
+    values: "1+0x400"
+  - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="steady", namespace="clusters-steady", _id="steady", cluster="mgmt-1", resource_id="/subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/steady"}'
     values: "1+0x400"
   alert_rule_test:
   - eval_time: 35m
@@ -467,6 +518,10 @@ tests:
   input_series:
   - series: 'ingress_canary_route_reachable{_id="silent-long", cluster="mgmt-1", region="uksouth", host="canary.apps.silent-long.example.io", instance="10.0.0.1:60000"}'
     values: "1+0x14"
+  # The HostedCluster record outlives the canary silence for the entire 25h
+  # window -- this cluster was never deleted, it just stopped reporting.
+  - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="silent-long", namespace="clusters-silent-long", _id="silent-long", cluster="mgmt-1", resource_id="/subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/silent-long"}'
+    values: "1+0x1500"
   alert_rule_test:
   - eval_time: 25h
     alertname: userJourneyIngressCanaryAbsent
@@ -475,11 +530,33 @@ tests:
         _id: "silent-long"
         cluster: "mgmt-1"
         region: "uksouth"
+        resource_id: "/subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/silent-long"
         component: slo
         severity: "4"
         slo: ingress-availability
       exp_annotations:
-        summary: "Ingress canary has stopped reporting for silent-long"
-        description: "HCP cluster silent-long was emitting synthetic canary route observations but has reported none in the last 10 minutes. This is a loss of the ingress availability/latency signal, not a confirmed failure -- investigate whether ingress-operator or the canary route itself is down."
+        summary: "Ingress canary has stopped reporting for silent-long (resource_id: /subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/silent-long)"
+        description: |
+          HCP cluster silent-long was emitting synthetic canary route observations but has reported none in the last 10 minutes. This is a loss of the ingress availability/latency signal, not a confirmed failure -- investigate whether ingress-operator or the canary route itself is down.
+          Resource ID: /subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/silent-long
         runbook_url: "https://aka.ms/arohcp-runbook-ingress"
         correlationId: "userJourneyIngressCanaryAbsent/silent-long"
+# ========================================
+# Test 11: Canary absence must NOT fire once the HostedCluster is deleted
+# ========================================
+# "deleted" reports canary observations for the first 14 minutes, then both
+# the canary AND the HostedCluster record disappear together, simulating an
+# actual cluster deletion rather than a live outage. Unlike Test 8 ("silent",
+# where the HostedCluster record persists), the join against
+# hostedClusterAPI_kubeapiserver_available drops this _id immediately once
+# its record is gone -- the absence alert must not fire for it, even well
+# past the `for: 10m` debounce (ARO-25969 review feedback).
+- interval: 1m
+  input_series:
+  - series: 'ingress_canary_route_reachable{_id="deleted", cluster="mgmt-1", region="uksouth", host="canary.apps.deleted.example.io", instance="10.0.0.1:60000"}'
+    values: "1+0x14"
+  - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="deleted", namespace="clusters-deleted", _id="deleted", cluster="mgmt-1", resource_id="/subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/deleted"}'
+    values: "1+0x14"
+  alert_rule_test:
+  - eval_time: 35m
+    alertname: userJourneyIngressCanaryAbsent
