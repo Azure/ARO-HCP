@@ -1,7 +1,22 @@
+// Copyright 2026 Microsoft Corporation
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package verifiers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -30,7 +45,7 @@ func captureImagePullDiagnostics(ctx context.Context, client kubernetes.Interfac
 	selector := fields.Set{"involvedObject.kind": "Pod", "involvedObject.name": podName}
 	pod, err := client.CoreV1().Pods(namespace).Get(ctx, podName, metav1.GetOptions{})
 	if err != nil {
-		ginkgo.GinkgoWriter.Printf("[image-pull diagnostics] pod %s/%s unavailable: %s\n", namespace, podName, apierrors.ReasonForError(err))
+		ginkgo.GinkgoWriter.Printf("[image-pull diagnostics] pod %s/%s unavailable: %s\n", namespace, podName, imagePullDiagnosticError(err))
 	} else {
 		if pod.UID != "" {
 			selector["involvedObject.uid"] = string(pod.UID)
@@ -40,7 +55,7 @@ func captureImagePullDiagnostics(ctx context.Context, client kubernetes.Interfac
 
 	events, err := client.CoreV1().Events(namespace).List(ctx, metav1.ListOptions{FieldSelector: selector.String()})
 	if err != nil {
-		ginkgo.GinkgoWriter.Printf("[image-pull diagnostics] events for %s/%s unavailable: %s\n", namespace, podName, apierrors.ReasonForError(err))
+		ginkgo.GinkgoWriter.Printf("[image-pull diagnostics] events for %s/%s unavailable: %s\n", namespace, podName, imagePullDiagnosticError(err))
 		return
 	}
 	events.TypeMeta = metav1.TypeMeta{APIVersion: "v1", Kind: "EventList"}
@@ -48,6 +63,18 @@ func captureImagePullDiagnostics(ctx context.Context, client kubernetes.Interfac
 		events.Items[index].ObjectMeta = imagePullDiagnosticMetadata(events.Items[index].ObjectMeta)
 	}
 	writeImagePullDiagnostic(artifactDir, namespace, podName, "events.yaml", events)
+}
+
+func imagePullDiagnosticError(err error) string {
+	for _, contextErr := range []error{context.Canceled, context.DeadlineExceeded} {
+		if errors.Is(err, contextErr) {
+			return contextErr.Error()
+		}
+	}
+	if reason := apierrors.ReasonForError(err); reason != "" {
+		return string(reason)
+	}
+	return "request failed"
 }
 
 func imagePullDiagnosticMetadata(metadata metav1.ObjectMeta) metav1.ObjectMeta {
