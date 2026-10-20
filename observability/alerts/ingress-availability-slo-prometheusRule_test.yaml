@@ -560,3 +560,48 @@ tests:
   alert_rule_test:
   - eval_time: 35m
     alertname: userJourneyIngressCanaryAbsent
+# ========================================
+# Test 12: Recovery — short window clears while the long window is still bad
+# ========================================
+# "recovered-fast" fails every observation for the first 55 minutes, then
+# recovers for good from minute 55 onward. By eval_time 60m the 5m window
+# (minutes 56-60) is 100% healthy, but the 1h window (minutes 1-60) is still
+# ~90% failed (54 of 60) -- comfortably past the fast-burn threshold on its
+# own. If a future change collapsed this alert down to only the long-window
+# condition, this case would incorrectly fire; every other burn-rate fixture
+# in this file is either continuously failing or continuously healthy, so
+# none of them would have caught that regression (Copilot review feedback).
+- interval: 1m
+  input_series:
+  - series: 'ingress_canary_route_reachable{_id="recovered-fast", cluster="mgmt-1", region="uksouth", host="canary.apps.recovered-fast.example.io", instance="10.0.0.1:60000"}'
+    values: "0+0x54 1+0x15"
+  - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="recovered-fast", namespace="clusters-recovered-fast", _id="recovered-fast", cluster="mgmt-1", resource_id="/subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/recovered-fast"}'
+    values: "1+0x70"
+  alert_rule_test:
+  # Before recovery (t=20m): both windows are 100% failed, floors cleared,
+  # and for:10m has elapsed -- the alert fires as expected.
+  - eval_time: 20m
+    alertname: userJourneyIngressAvailabilityErrors1h5m
+    exp_alerts:
+    - exp_labels:
+        _id: "recovered-fast"
+        cluster: "mgmt-1"
+        region: "uksouth"
+        resource_id: "/subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/recovered-fast"
+        component: slo
+        long_window: 1h
+        severity: "3"
+        short_window: 5m
+        slo: ingress-availability
+      exp_annotations:
+        summary: "Ingress canary availability critically degraded for recovered-fast (resource_id: /subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/recovered-fast)"
+        description: |
+          More than 7.2% of synthetic canary route observations failed in both the last 5 minutes and the last hour for HCP cluster recovered-fast, indicating an active fast error budget burn (14.4x) that would exhaust the 99.5% SLO budget in ~50 hours.
+          Resource ID: /subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/recovered-fast
+        runbook_url: "https://aka.ms/arohcp-runbook-ingress"
+        correlationId: "userJourneyIngressAvailabilityErrors/recovered-fast"
+  # After recovery (t=60m): the 5m window is fully healthy (minutes 56-60),
+  # so the short-window leg of the AND fails even though the 1h window is
+  # still ~90% failed -- the alert must NOT be firing.
+  - eval_time: 60m
+    alertname: userJourneyIngressAvailabilityErrors1h5m
