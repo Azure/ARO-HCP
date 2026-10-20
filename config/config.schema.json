@@ -686,10 +686,36 @@
       "additionalProperties": false,
       "properties": {
         "registry": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "repository": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
+        },
+        "digest": {
+          "type": "string",
+          "pattern": "^sha256:[a-fA-F0-9]{64}$"
+        }
+      },
+      "required": [
+        "registry",
+        "repository",
+        "digest"
+      ]
+    },
+    "containerImageOptionalDigest": {
+      "type": "object",
+      "description": "Container image whose digest property may be empty until supplied by deployment configuration.",
+      "additionalProperties": false,
+      "properties": {
+        "registry": {
+          "type": "string",
+          "minLength": 1
+        },
+        "repository": {
+          "type": "string",
+          "minLength": 1
         },
         "digest": {
           "type": "string",
@@ -697,6 +723,7 @@
         }
       },
       "required": [
+        "registry",
         "repository",
         "digest"
       ]
@@ -1322,7 +1349,7 @@
           ]
         },
         "dataPlaneHAProxyImage": {
-          "$ref": "#/definitions/containerImage"
+          "$ref": "#/definitions/containerImageOptionalDigest"
         }
       },
       "additionalProperties": false,
@@ -1418,7 +1445,7 @@
       "type": "object",
       "properties": {
         "image": {
-          "$ref": "#/definitions/containerImage"
+          "$ref": "#/definitions/containerImageOptionalDigest"
         },
 
         "k8s": {
@@ -1484,7 +1511,7 @@
       "type": "object",
       "properties": {
         "image": {
-          "$ref": "#/definitions/containerImage"
+          "$ref": "#/definitions/containerImageOptionalDigest"
         },
         "k8s": {
           "$ref": "#/definitions/k8sDeployment"
@@ -1533,7 +1560,7 @@
       "type": "object",
       "properties": {
         "image": {
-          "$ref": "#/definitions/containerImage"
+          "$ref": "#/definitions/containerImageOptionalDigest"
         },
         "k8s": {
           "$ref": "#/definitions/k8sDeployment"
@@ -1549,7 +1576,7 @@
       "type": "object",
       "properties": {
         "image": {
-          "$ref": "#/definitions/containerImage"
+          "$ref": "#/definitions/containerImageOptionalDigest"
         },
         "k8s": {
           "$ref": "#/definitions/k8sDeployment"
@@ -1594,7 +1621,7 @@
           "enum": ["slow", "all"]
         },
         "image": {
-          "$ref": "#/definitions/containerImage"
+          "$ref": "#/definitions/containerImageOptionalDigest"
         },
         "k8s": {
           "$ref": "#/definitions/k8sDeployment"
@@ -1607,7 +1634,7 @@
       "type": "object",
       "properties": {
         "image": {
-          "$ref": "#/definitions/containerImage"
+          "$ref": "#/definitions/containerImageOptionalDigest"
         },
         "cosmosContainerName": {
           "type": "string",
@@ -1642,7 +1669,7 @@
       "type": "object",
       "properties": {
         "image": {
-          "$ref": "#/definitions/containerImage"
+          "$ref": "#/definitions/containerImageOptionalDigest"
         },
         "managedIdentityName": {
           "type": "string",
@@ -1703,7 +1730,7 @@
           "$ref": "#/definitions/audit"
         },
         "image": {
-          "$ref": "#/definitions/containerImage"
+          "$ref": "#/definitions/containerImageOptionalDigest"
         },
         "k8s": {
           "$ref": "#/definitions/k8sDeployment"
@@ -1756,7 +1783,7 @@
           "$ref": "#/definitions/audit"
         },
         "image": {
-          "$ref": "#/definitions/containerImage"
+          "$ref": "#/definitions/containerImageOptionalDigest"
         },
 
         "k8s": {
@@ -2521,10 +2548,10 @@
           "required": ["connectSocket"]
         },
         "image": {
-          "$ref": "#/definitions/containerImage"
+          "$ref": "#/definitions/containerImageOptionalDigest"
         },
         "imageV2": {
-          "$ref": "#/definitions/containerImage"
+          "$ref": "#/definitions/containerImageOptionalDigest"
         }
       },
       "required": [
@@ -2568,7 +2595,7 @@
           "$ref": "#/definitions/k8sDeployment"
         },
         "image": {
-          "$ref": "#/definitions/containerImage"
+          "$ref": "#/definitions/containerImageOptionalDigest"
         },
         "certificate": {
           "type": "object",
@@ -3458,7 +3485,7 @@
           "description": "Name of the User-Assigned Managed Identity"
         },
         "image": {
-          "$ref": "#/definitions/containerImage"
+          "$ref": "#/definitions/containerImageOptionalDigest"
         },
         "certificate": {
           "type": "object",
@@ -3532,7 +3559,7 @@
           "type": "string"
         },
         "image": {
-          "$ref": "#/definitions/containerImage"
+          "$ref": "#/definitions/containerImageOptionalDigest"
         },
         "imageArtifact": {
           "$ref": "#/definitions/imageArtifact"
