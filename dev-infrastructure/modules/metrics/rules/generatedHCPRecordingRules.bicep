@@ -290,11 +290,11 @@ resource arohcpIngressAvailabilitySloWindowedRecordingRules 'Microsoft.AlertsMan
     rules: [
       {
         record: 'errors:ingress_canary:succeeded_5m'
-        expression: 'sum by (_id, cluster, region) (sum_over_time(ingress_canary_route_reachable[5m]))'
+        expression: 'sum by (_id, cluster, region) (max without (prometheus_replica) (sum_over_time(ingress_canary_route_reachable[5m])))'
       }
       {
         record: 'errors:ingress_canary:total_5m'
-        expression: 'sum by (_id, cluster, region) (count_over_time(ingress_canary_route_reachable[5m]))'
+        expression: 'sum by (_id, cluster, region) (max without (prometheus_replica) (count_over_time(ingress_canary_route_reachable[5m])))'
       }
       {
         record: 'errors:ingress_canary:failed_5m'
@@ -306,11 +306,11 @@ resource arohcpIngressAvailabilitySloWindowedRecordingRules 'Microsoft.AlertsMan
       }
       {
         record: 'errors:ingress_canary:succeeded_30m'
-        expression: 'sum by (_id, cluster, region) (sum_over_time(ingress_canary_route_reachable[30m]))'
+        expression: 'sum by (_id, cluster, region) (max without (prometheus_replica) (sum_over_time(ingress_canary_route_reachable[30m])))'
       }
       {
         record: 'errors:ingress_canary:total_30m'
-        expression: 'sum by (_id, cluster, region) (count_over_time(ingress_canary_route_reachable[30m]))'
+        expression: 'sum by (_id, cluster, region) (max without (prometheus_replica) (count_over_time(ingress_canary_route_reachable[30m])))'
       }
       {
         record: 'errors:ingress_canary:failed_30m'
@@ -322,11 +322,11 @@ resource arohcpIngressAvailabilitySloWindowedRecordingRules 'Microsoft.AlertsMan
       }
       {
         record: 'errors:ingress_canary:succeeded_1h'
-        expression: 'sum by (_id, cluster, region) (sum_over_time(ingress_canary_route_reachable[1h]))'
+        expression: 'sum by (_id, cluster, region) (max without (prometheus_replica) (sum_over_time(ingress_canary_route_reachable[1h])))'
       }
       {
         record: 'errors:ingress_canary:total_1h'
-        expression: 'sum by (_id, cluster, region) (count_over_time(ingress_canary_route_reachable[1h]))'
+        expression: 'sum by (_id, cluster, region) (max without (prometheus_replica) (count_over_time(ingress_canary_route_reachable[1h])))'
       }
       {
         record: 'errors:ingress_canary:failed_1h'
@@ -338,11 +338,11 @@ resource arohcpIngressAvailabilitySloWindowedRecordingRules 'Microsoft.AlertsMan
       }
       {
         record: 'errors:ingress_canary:succeeded_6h'
-        expression: 'sum by (_id, cluster, region) (sum_over_time(ingress_canary_route_reachable[6h]))'
+        expression: 'sum by (_id, cluster, region) (max without (prometheus_replica) (sum_over_time(ingress_canary_route_reachable[6h])))'
       }
       {
         record: 'errors:ingress_canary:total_6h'
-        expression: 'sum by (_id, cluster, region) (count_over_time(ingress_canary_route_reachable[6h]))'
+        expression: 'sum by (_id, cluster, region) (max without (prometheus_replica) (count_over_time(ingress_canary_route_reachable[6h])))'
       }
       {
         record: 'errors:ingress_canary:failed_6h'
@@ -354,11 +354,11 @@ resource arohcpIngressAvailabilitySloWindowedRecordingRules 'Microsoft.AlertsMan
       }
       {
         record: 'errors:ingress_canary:succeeded_3d'
-        expression: 'sum by (_id, cluster, region) (sum_over_time(ingress_canary_route_reachable[3d]))'
+        expression: 'sum by (_id, cluster, region) (max without (prometheus_replica) (sum_over_time(ingress_canary_route_reachable[3d])))'
       }
       {
         record: 'errors:ingress_canary:total_3d'
-        expression: 'sum by (_id, cluster, region) (count_over_time(ingress_canary_route_reachable[3d]))'
+        expression: 'sum by (_id, cluster, region) (max without (prometheus_replica) (count_over_time(ingress_canary_route_reachable[3d])))'
       }
       {
         record: 'errors:ingress_canary:failed_3d'
@@ -406,11 +406,11 @@ resource arohcpIngressLatencySloWindowedRecordingRules 'Microsoft.AlertsManageme
     rules: [
       {
         record: 'errors:ingress_canary_latency:total_5m'
-        expression: 'sum by (_id, cluster, region) (increase(ingress_canary_check_duration_bucket{le="+Inf"}[5m]))'
+        expression: 'sum by (_id, cluster, region) (max without (prometheus_replica) (increase(ingress_canary_check_duration_bucket{le="+Inf"}[5m])))'
       }
       {
         record: 'errors:ingress_canary_latency:fast_5m'
-        expression: 'sum by (_id, cluster, region) (increase(ingress_canary_check_duration_bucket{le="200"}[5m]))'
+        expression: 'sum by (_id, cluster, region) (max without (prometheus_replica) (increase(ingress_canary_check_duration_bucket{le="200"}[5m])))'
       }
       {
         record: 'errors:ingress_canary_latency:slow_5m'
@@ -422,11 +422,11 @@ resource arohcpIngressLatencySloWindowedRecordingRules 'Microsoft.AlertsManageme
       }
       {
         record: 'errors:ingress_canary_latency:total_30m'
-        expression: 'sum by (_id, cluster, region) (increase(ingress_canary_check_duration_bucket{le="+Inf"}[30m]))'
+        expression: 'sum by (_id, cluster, region) (max without (prometheus_replica) (increase(ingress_canary_check_duration_bucket{le="+Inf"}[30m])))'
       }
       {
         record: 'errors:ingress_canary_latency:fast_30m'
-        expression: 'sum by (_id, cluster, region) (increase(ingress_canary_check_duration_bucket{le="200"}[30m]))'
+        expression: 'sum by (_id, cluster, region) (max without (prometheus_replica) (increase(ingress_canary_check_duration_bucket{le="200"}[30m])))'
       }
       {
         record: 'errors:ingress_canary_latency:slow_30m'
@@ -438,11 +438,11 @@ resource arohcpIngressLatencySloWindowedRecordingRules 'Microsoft.AlertsManageme
       }
       {
         record: 'errors:ingress_canary_latency:total_1h'
-        expression: 'sum by (_id, cluster, region) (increase(ingress_canary_check_duration_bucket{le="+Inf"}[1h]))'
+        expression: 'sum by (_id, cluster, region) (max without (prometheus_replica) (increase(ingress_canary_check_duration_bucket{le="+Inf"}[1h])))'
       }
       {
         record: 'errors:ingress_canary_latency:fast_1h'
-        expression: 'sum by (_id, cluster, region) (increase(ingress_canary_check_duration_bucket{le="200"}[1h]))'
+        expression: 'sum by (_id, cluster, region) (max without (prometheus_replica) (increase(ingress_canary_check_duration_bucket{le="200"}[1h])))'
       }
       {
         record: 'errors:ingress_canary_latency:slow_1h'
@@ -454,11 +454,11 @@ resource arohcpIngressLatencySloWindowedRecordingRules 'Microsoft.AlertsManageme
       }
       {
         record: 'errors:ingress_canary_latency:total_6h'
-        expression: 'sum by (_id, cluster, region) (increase(ingress_canary_check_duration_bucket{le="+Inf"}[6h]))'
+        expression: 'sum by (_id, cluster, region) (max without (prometheus_replica) (increase(ingress_canary_check_duration_bucket{le="+Inf"}[6h])))'
       }
       {
         record: 'errors:ingress_canary_latency:fast_6h'
-        expression: 'sum by (_id, cluster, region) (increase(ingress_canary_check_duration_bucket{le="200"}[6h]))'
+        expression: 'sum by (_id, cluster, region) (max without (prometheus_replica) (increase(ingress_canary_check_duration_bucket{le="200"}[6h])))'
       }
       {
         record: 'errors:ingress_canary_latency:slow_6h'
@@ -470,11 +470,11 @@ resource arohcpIngressLatencySloWindowedRecordingRules 'Microsoft.AlertsManageme
       }
       {
         record: 'errors:ingress_canary_latency:total_3d'
-        expression: 'sum by (_id, cluster, region) (increase(ingress_canary_check_duration_bucket{le="+Inf"}[3d]))'
+        expression: 'sum by (_id, cluster, region) (max without (prometheus_replica) (increase(ingress_canary_check_duration_bucket{le="+Inf"}[3d])))'
       }
       {
         record: 'errors:ingress_canary_latency:fast_3d'
-        expression: 'sum by (_id, cluster, region) (increase(ingress_canary_check_duration_bucket{le="200"}[3d]))'
+        expression: 'sum by (_id, cluster, region) (max without (prometheus_replica) (increase(ingress_canary_check_duration_bucket{le="200"}[3d])))'
       }
       {
         record: 'errors:ingress_canary_latency:slow_3d'

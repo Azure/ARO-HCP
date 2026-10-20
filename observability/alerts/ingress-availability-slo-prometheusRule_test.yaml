@@ -455,3 +455,31 @@ tests:
   alert_rule_test:
   - eval_time: 35m
     alertname: userJourneyIngressCanaryAbsent
+# ========================================
+# Test 10: Canary absence must persist past the old 24h reference window
+# ========================================
+# "silent-long" reports for the first few minutes, then goes dark for over
+# 24 hours. With the original 24h reference window this alert would have
+# self-cleared once the last known-good sample aged out of that window, even
+# though the HCP never recovered (ARO-25969 review feedback). The 7d
+# reference window keeps this firing well past the old 24h boundary.
+- interval: 1m
+  input_series:
+  - series: 'ingress_canary_route_reachable{_id="silent-long", cluster="mgmt-1", region="uksouth", host="canary.apps.silent-long.example.io", instance="10.0.0.1:60000"}'
+    values: "1+0x14"
+  alert_rule_test:
+  - eval_time: 25h
+    alertname: userJourneyIngressCanaryAbsent
+    exp_alerts:
+    - exp_labels:
+        _id: "silent-long"
+        cluster: "mgmt-1"
+        region: "uksouth"
+        component: slo
+        severity: "4"
+        slo: ingress-availability
+      exp_annotations:
+        summary: "Ingress canary has stopped reporting for silent-long"
+        description: "HCP cluster silent-long was emitting synthetic canary route observations but has reported none in the last 10 minutes. This is a loss of the ingress availability/latency signal, not a confirmed failure -- investigate whether ingress-operator or the canary route itself is down."
+        runbook_url: "https://aka.ms/arohcp-runbook-ingress"
+        correlationId: "userJourneyIngressCanaryAbsent/silent-long"
