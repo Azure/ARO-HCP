@@ -40,7 +40,7 @@ environments:
 - name: ci02
   description: |
     CI infra for upgrade/in-place tests.
-    Sized for 10 concurrent HCPs (1/5 of ci01).
+    Sized for 6 concurrent HCPs.
   defaults:
     region: centralus
     cloud: dev
