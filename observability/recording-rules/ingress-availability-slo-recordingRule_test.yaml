@@ -289,3 +289,56 @@ tests:
     exp_samples:
     - labels: 'errors:ingress_canary_latency:error_rate_5m{_id="dedup", cluster="mgmt-1", region="uksouth"}'
       value: 0
+# ========================================
+# Test 11: HA replica duplicates must not skew the instantaneous availability ratio
+# ========================================
+# "host-a" is healthy and scraped by both Prometheus HA replicas; "host-b" is
+# down and, due to a transient per-instance scrape gap, is only scraped by
+# one replica this cycle. Equal replica counts per instance cancel out of a
+# sum/count ratio (both sides double by the same factor), but an uneven
+# split like this does not: without max without (prometheus_replica)
+# dedup, host-a's double representation would overweight the ratio toward
+# "healthy" (2 good / 3 total = 0.667) instead of the true 1-of-2-instances
+# figure (0.5).
+- interval: 1m
+  input_series:
+  - series: 'ingress_canary_route_reachable{_id="dedup-ratio", cluster="mgmt-1", region="uksouth", host="canary.apps.dedup-ratio.example.io", instance="host-a", prometheus_replica="a"}'
+    values: "1+0x10"
+  - series: 'ingress_canary_route_reachable{_id="dedup-ratio", cluster="mgmt-1", region="uksouth", host="canary.apps.dedup-ratio.example.io", instance="host-a", prometheus_replica="b"}'
+    values: "1+0x10"
+  - series: 'ingress_canary_route_reachable{_id="dedup-ratio", cluster="mgmt-1", region="uksouth", host="canary.apps.dedup-ratio.example.io", instance="host-b", prometheus_replica="a"}'
+    values: "0+0x10"
+  promql_expr_test:
+  - expr: availability:ingress_canary:ratio
+    eval_time: 5m
+    exp_samples:
+    - labels: 'availability:ingress_canary:ratio{_id="dedup-ratio", cluster="mgmt-1", region="uksouth"}'
+      value: 0.5
+# ========================================
+# Test 12: HA replica duplicates must not skew the instantaneous latency ratio
+# ========================================
+# Same asymmetric-replica-coverage scenario as Test 11, for the rate()-based
+# latency ratio: "host-a" is fast and scraped by both replicas, "host-b" is
+# slow and only scraped by one. Without dedup the fast host's double
+# representation pulls the ratio toward "fast" (2/3 = 0.667) instead of the
+# true 1-of-2-instances figure (0.5).
+- interval: 1m
+  input_series:
+  - series: 'ingress_canary_check_duration_bucket{_id="dedup-ratio", cluster="mgmt-1", region="uksouth", host="canary.apps.dedup-ratio.example.io", instance="host-a", le="200", prometheus_replica="a"}'
+    values: "0+1x10"
+  - series: 'ingress_canary_check_duration_bucket{_id="dedup-ratio", cluster="mgmt-1", region="uksouth", host="canary.apps.dedup-ratio.example.io", instance="host-a", le="+Inf", prometheus_replica="a"}'
+    values: "0+1x10"
+  - series: 'ingress_canary_check_duration_bucket{_id="dedup-ratio", cluster="mgmt-1", region="uksouth", host="canary.apps.dedup-ratio.example.io", instance="host-a", le="200", prometheus_replica="b"}'
+    values: "0+1x10"
+  - series: 'ingress_canary_check_duration_bucket{_id="dedup-ratio", cluster="mgmt-1", region="uksouth", host="canary.apps.dedup-ratio.example.io", instance="host-a", le="+Inf", prometheus_replica="b"}'
+    values: "0+1x10"
+  - series: 'ingress_canary_check_duration_bucket{_id="dedup-ratio", cluster="mgmt-1", region="uksouth", host="canary.apps.dedup-ratio.example.io", instance="host-b", le="200", prometheus_replica="a"}'
+    values: "0+0x10"
+  - series: 'ingress_canary_check_duration_bucket{_id="dedup-ratio", cluster="mgmt-1", region="uksouth", host="canary.apps.dedup-ratio.example.io", instance="host-b", le="+Inf", prometheus_replica="a"}'
+    values: "0+1x10"
+  promql_expr_test:
+  - expr: latency:ingress_canary:ratio
+    eval_time: 5m
+    exp_samples:
+    - labels: 'latency:ingress_canary:ratio{_id="dedup-ratio", cluster="mgmt-1", region="uksouth"}'
+      value: 0.5
