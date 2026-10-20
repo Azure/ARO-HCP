@@ -1133,7 +1133,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "backup:hostedcluster_count:count{cluster=\"$cluster\"}",
+          "expr": "count by (cluster) (\n  count by (cluster, hosted_cluster_namespace) (\n    label_replace(\n      max without (prometheus_replica) (\n        velero_backup_last_status{\n          cluster=\"$cluster\",\n          schedule=~\".+-(6-hourly|daily|weekly)\"\n        }\n      ),\n      \"hosted_cluster_namespace\", \"$1\",\n      \"schedule\", \"(.+)-(6-hourly|daily|weekly)\"\n    )\n  )\n)",
           "legendFormat": "HC Count",
           "refId": "B",
           "instant": true,
@@ -1995,7 +1995,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count by (cluster) (\n  max without (prometheus_replica) (\n    velero_backup_last_status{cluster=\"$cluster\", schedule=~\".+-(6-hourly|daily|weekly)\"}\n  )\n  unless\n  max without (prometheus_replica) (\n    velero_backup_last_successful_timestamp{cluster=\"$cluster\", schedule=~\".+-(6-hourly|daily|weekly)\"}\n  )\n)",
+          "expr": "count by (cluster) (\n  max without (prometheus_replica) (\n    velero_backup_last_status{cluster=\"$cluster\", schedule=~\".+-(6-hourly|daily|weekly)\"}\n  )\n  unless\n  max without (prometheus_replica) (\n    velero_backup_last_successful_timestamp{cluster=\"$cluster\", schedule=~\".+-(6-hourly|daily|weekly)\"}\n  )\n)\nor\n(\n  0 *\n  count by (cluster) (\n    max without (prometheus_replica) (\n      velero_backup_last_status{cluster=\"$cluster\", schedule=~\".+-(6-hourly|daily|weekly)\"}\n    )\n  )\n)",
           "legendFormat": "Never succeeded",
           "refId": "A",
           "instant": true,
@@ -2010,7 +2010,7 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "Failed + partial-failed + validation-failed key-rotation backups (schedule label matching <namespace>-keyrotation-<fingerprint>) in the selected time range. These are one-off backups triggered by KMS key rotation, not tied to a Schedule object, and are not retried if they fail - deliberately excluded from the recurring-cadence SLI panels above, so tracked here instead.",
+      "description": "Current count of key-rotation Backup CRs (name matching <namespace>-keyrotation-<fingerprint>) whose velerobackup_phase is Failed/PartiallyFailed/FailedValidation right now - this is current CR state, not a selected-range count, since key is name (not schedule): key-rotation backups are one-off, triggered by KMS key rotation, not tied to a Schedule object, and are not retried if they fail - deliberately excluded from the recurring-cadence SLI panels above, so tracked here instead.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -2065,14 +2065,14 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "round(\n  (sum(max without (prometheus_replica) (increase(velero_backup_failure_total{cluster=\"$cluster\", schedule=~\".+-keyrotation-.+\"}[$__range]))) or vector(0))\n  + (sum(max without (prometheus_replica) (increase(velero_backup_partial_failure_total{cluster=\"$cluster\", schedule=~\".+-keyrotation-.+\"}[$__range]))) or vector(0))\n  + (sum(max without (prometheus_replica) (increase(velero_backup_validation_failure_total{cluster=\"$cluster\", schedule=~\".+-keyrotation-.+\"}[$__range]))) or vector(0))\n)",
+          "expr": "sum by (cluster) (\n  max without (prometheus_replica) (\n    velerobackup_phase{\n      cluster=\"$cluster\",\n      name=~\".+-keyrotation-.+\",\n      phase=~\"Failed|PartiallyFailed|FailedValidation\"\n    }\n  )\n)",
           "legendFormat": "Failures",
           "refId": "A",
           "instant": true,
           "range": false
         }
       ],
-      "title": "Key-Rotation Backup Failures (range)",
+      "title": "Current Key-Rotation Backups in Failure Phase",
       "type": "stat"
     },
     {
@@ -2205,7 +2205,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "sum(max without (prometheus_replica) (increase(velero_repo_maintenance_failure_total{cluster=\"$cluster\"}[$__range]))) or vector(0)",
+          "expr": "sum(\n  max without (prometheus_replica) (\n    increase(\n      velero_repo_maintenance_failure_total{\n        cluster=\"$cluster\"\n      }[$__range]\n    )\n  )\n)",
           "legendFormat": "Repo maintenance failures",
           "refId": "A",
           "instant": true,
