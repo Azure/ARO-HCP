@@ -263,8 +263,10 @@ func TestSlotStateOutcomeJSON(t *testing.T) {
 			var got map[string]json.RawMessage
 			require.NoError(t, json.NewDecoder(payload).Decode(&got))
 			require.JSONEq(t, tc.assets, string(got["leasedAssets"]))
-			require.NotContains(t, string(payload.Bytes()), "slotStateVersion")
-			require.NotContains(t, string(payload.Bytes()), "slotStateStatus")
+			_, hasVersion := got["slotStateVersion"]
+			require.False(t, hasVersion)
+			_, hasStatus := got["slotStateStatus"]
+			require.False(t, hasStatus)
 		})
 	}
 }
