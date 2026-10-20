@@ -141,7 +141,7 @@ func TestIsRecentCoveringAssignment(t *testing.T) {
 	}
 }
 
-func TestDeferForPropagationIfApplicable(t *testing.T) {
+func TestFailureWithPropagationGuidance(t *testing.T) {
 	now := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
 	nsgID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + propagationTestSubscriptionID + "/resourceGroups/rg/providers/Microsoft.Network/networkSecurityGroups/nsg"))
 	subnetID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + propagationTestSubscriptionID + "/resourceGroups/rg/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet"))
@@ -163,29 +163,29 @@ func TestDeferForPropagationIfApplicable(t *testing.T) {
 		missing            []*identityResourceMissingPermissions
 		principalIDs       map[string]string
 		setupMocks         func(*azureclient.MockFirstPartyApplicationClientBuilder, *azureclient.MockRoleAssignmentsClient)
-		wantDeferred       bool
-		wantCheckFailed    bool
+		wantGuidance       bool
 		wantLookupErrors   float64
 		wantForbidden      float64
 		wantWindowExpired  float64
 		wantInternalSubstr string
+		wantUserSubstr     string
 	}{
 		{
-			name:        "nil detector never defers",
+			name:        "nil detector never adds guidance",
 			nilDetector: true,
 			missing:     []*identityResourceMissingPermissions{{Resource: nsgID, Identity: identityID, Decisions: notAllowed}},
 		},
 		{
-			name:    "explicit deny is never deferred",
+			name:    "explicit deny never gets guidance",
 			missing: []*identityResourceMissingPermissions{{Resource: nsgID, Identity: identityID, Decisions: denied}},
 		},
 		{
-			name:         "unknown principal is never deferred",
+			name:         "unknown principal never gets guidance",
 			missing:      []*identityResourceMissingPermissions{{Resource: nsgID, Identity: identityID, Decisions: notAllowed}},
 			principalIDs: map[string]string{},
 		},
 		{
-			name:    "recent inherited assignment defers",
+			name:    "recent inherited assignment gets guidance",
 			missing: []*identityResourceMissingPermissions{{Resource: nsgID, Identity: identityID, Decisions: notAllowed}},
 			setupMocks: func(builder *azureclient.MockFirstPartyApplicationClientBuilder, client *azureclient.MockRoleAssignmentsClient) {
 				builder.EXPECT().RoleAssignmentsClient(propagationTestTenantID, propagationTestSubscriptionID).Return(client, nil)
@@ -195,21 +195,24 @@ func TestDeferForPropagationIfApplicable(t *testing.T) {
 						return newRoleAssignmentsPager(nil, []*armauthorization.RoleAssignment{oldRGAssignment}, []*armauthorization.RoleAssignment{recentRGAssignment, recentNSGAssignment})
 					})
 			},
-			wantDeferred:       true,
+			wantGuidance:       true,
 			wantInternalSubstr: "recent-nsg",
+			// The newest covering assignment, not the oldest, anchors the customer's wait.
+			wantUserSubstr: "most recently at 2026-01-01T11:59:00Z",
 		},
 		{
-			name:    "assignment within the observed propagation tail defers",
+			name:    "assignment within the observed propagation tail gets guidance",
 			missing: []*identityResourceMissingPermissions{{Resource: nsgID, Identity: identityID, Decisions: notAllowed}},
 			setupMocks: func(builder *azureclient.MockFirstPartyApplicationClientBuilder, client *azureclient.MockRoleAssignmentsClient) {
 				builder.EXPECT().RoleAssignmentsClient(propagationTestTenantID, propagationTestSubscriptionID).Return(client, nil)
 				client.EXPECT().NewListForScopePager(nsgID.String(), gomock.Any()).Return(newRoleAssignmentsPager(nil, []*armauthorization.RoleAssignment{slowNSGAssignment}))
 			},
-			wantDeferred:       true,
+			wantGuidance:       true,
 			wantInternalSubstr: "slow-nsg",
+			wantUserSubstr:     "most recently at 2026-01-01T11:10:00Z",
 		},
 		{
-			name:    "only old assignments do not defer",
+			name:    "only old assignments get no guidance",
 			missing: []*identityResourceMissingPermissions{{Resource: nsgID, Identity: identityID, Decisions: notAllowed}},
 			setupMocks: func(builder *azureclient.MockFirstPartyApplicationClientBuilder, client *azureclient.MockRoleAssignmentsClient) {
 				builder.EXPECT().RoleAssignmentsClient(propagationTestTenantID, propagationTestSubscriptionID).Return(client, nil)
@@ -272,27 +275,21 @@ func TestDeferForPropagationIfApplicable(t *testing.T) {
 			},
 		},
 		{
-			name:    "client build failure reports unknown and is counted",
+			name:    "client build failure keeps the plain failure and is counted",
 			missing: []*identityResourceMissingPermissions{{Resource: nsgID, Identity: identityID, Decisions: notAllowed}},
 			setupMocks: func(builder *azureclient.MockFirstPartyApplicationClientBuilder, _ *azureclient.MockRoleAssignmentsClient) {
 				builder.EXPECT().RoleAssignmentsClient(propagationTestTenantID, propagationTestSubscriptionID).Return(nil, errors.New("no credential"))
 			},
-			wantDeferred:       true,
-			wantCheckFailed:    true,
-			wantLookupErrors:   1,
-			wantInternalSubstr: "no credential",
+			wantLookupErrors: 1,
 		},
 		{
-			name:    "list failure reports unknown and is counted",
+			name:    "list failure keeps the plain failure and is counted",
 			missing: []*identityResourceMissingPermissions{{Resource: nsgID, Identity: identityID, Decisions: notAllowed}},
 			setupMocks: func(builder *azureclient.MockFirstPartyApplicationClientBuilder, client *azureclient.MockRoleAssignmentsClient) {
 				builder.EXPECT().RoleAssignmentsClient(propagationTestTenantID, propagationTestSubscriptionID).Return(client, nil)
 				client.EXPECT().NewListForScopePager(nsgID.String(), gomock.Any()).Return(newRoleAssignmentsPager(errors.New("connection reset"), nil))
 			},
-			wantDeferred:       true,
-			wantCheckFailed:    true,
-			wantLookupErrors:   1,
-			wantInternalSubstr: "connection reset",
+			wantLookupErrors: 1,
 		},
 	}
 
@@ -314,37 +311,35 @@ func TestDeferForPropagationIfApplicable(t *testing.T) {
 			}
 			validationName := "Test" + strings.ReplaceAll(tt.name, " ", "")
 
-			deferralsBefore := testutil.ToFloat64(roleAssignmentPropagationDeferrals.WithLabelValues(validationName))
+			const missingPermissionsMessage = "Operators missing required permissions: [...]"
+
+			detectionsBefore := testutil.ToFloat64(roleAssignmentPropagationDetections.WithLabelValues(validationName))
 			lookupErrorsBefore := testutil.ToFloat64(roleAssignmentPropagationLookupErrors.WithLabelValues(validationName))
 			lookupForbiddenBefore := testutil.ToFloat64(roleAssignmentPropagationLookupForbidden.WithLabelValues(validationName))
 			windowExpiredBefore := testutil.ToFloat64(roleAssignmentPropagationWindowExpired.WithLabelValues(validationName))
-			result, deferred := deferForPropagationIfApplicable(context.Background(), detector, validationName, propagationTestTenantID, tt.missing, ids, "waiting")
+			result, gotGuidance := failureWithPropagationGuidance(context.Background(), detector, validationName, propagationTestTenantID, tt.missing, ids, missingPermissionsMessage)
 
-			assert.Equal(t, tt.wantDeferred, deferred)
+			assert.Equal(t, tt.wantGuidance, gotGuidance)
 			assert.Equal(t, lookupErrorsBefore+tt.wantLookupErrors, testutil.ToFloat64(roleAssignmentPropagationLookupErrors.WithLabelValues(validationName)))
 			assert.Equal(t, lookupForbiddenBefore+tt.wantForbidden, testutil.ToFloat64(roleAssignmentPropagationLookupForbidden.WithLabelValues(validationName)))
 			assert.Equal(t, windowExpiredBefore+tt.wantWindowExpired, testutil.ToFloat64(roleAssignmentPropagationWindowExpired.WithLabelValues(validationName)))
-			if !tt.wantDeferred {
-				assert.Equal(t, deferralsBefore, testutil.ToFloat64(roleAssignmentPropagationDeferrals.WithLabelValues(validationName)))
+			if !tt.wantGuidance {
+				assert.Equal(t, detectionsBefore, testutil.ToFloat64(roleAssignmentPropagationDetections.WithLabelValues(validationName)))
 				return
 			}
 			require.NoError(t, result.Validate())
-			assert.Equal(t, OutcomeTypeUnknown, result.Outcome.Type)
+			// Propagation guidance changes the message, never the outcome: the operation must
+			// still fail on the usual schedule.
+			assert.Equal(t, OutcomeTypeFailed, result.Outcome.Type)
+			assert.Equal(t, missingPermissionsPendingPropagationReason, result.Reason())
 			assert.Contains(t, result.InternalMessage(), tt.wantInternalSubstr)
-			if tt.wantCheckFailed {
-				assert.Equal(t, roleAssignmentPropagationCheckFailedReason, result.Reason())
-				assert.Equal(t, ControllerReportingPolicyTypeError, result.Outcome.Unknown.ControllerReportingPolicy)
-				if result.EarliestRetryAfter != nil {
-					assert.NotEqual(t, roleAssignmentPropagationRetryAfter, *result.EarliestRetryAfter)
-				}
-				assert.Equal(t, deferralsBefore, testutil.ToFloat64(roleAssignmentPropagationDeferrals.WithLabelValues(validationName)))
-				return
-			}
-			assert.Equal(t, roleAssignmentPropagationPendingReason, result.Reason())
-			assert.Equal(t, ControllerReportingPolicyTypeLogOnly, result.Outcome.Unknown.ControllerReportingPolicy)
+			userMessage := result.Outcome.Failed.UserMessage
+			assert.Contains(t, userMessage, missingPermissionsMessage, "the customer still needs to know which permissions are missing")
+			assert.Contains(t, userMessage, tt.wantUserSubstr)
+			assert.Contains(t, userMessage, "retry the operation", "the guidance must tell the customer what to do")
 			require.NotNil(t, result.EarliestRetryAfter)
 			assert.Equal(t, roleAssignmentPropagationRetryAfter, *result.EarliestRetryAfter)
-			assert.Equal(t, deferralsBefore+1, testutil.ToFloat64(roleAssignmentPropagationDeferrals.WithLabelValues(validationName)))
+			assert.Equal(t, detectionsBefore+1, testutil.ToFloat64(roleAssignmentPropagationDetections.WithLabelValues(validationName)))
 		})
 	}
 }

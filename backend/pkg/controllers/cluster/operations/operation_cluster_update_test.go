@@ -286,7 +286,7 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 				spc.Status.Validations = []metav1.Condition{{
 					Type: "SubnetValidation", Status: metav1.ConditionFalse,
 					Reason: "InvalidSubnet", Message: "subnet is unavailable",
-					LastTransitionTime: metav1.NewTime(testClockNow.Add(-(10*time.Minute + time.Second))),
+					LastTransitionTime: metav1.NewTime(testClockNow.Add(-(clusterValidationFailureTimeout + time.Second))),
 				}}
 				return spc
 			}(),

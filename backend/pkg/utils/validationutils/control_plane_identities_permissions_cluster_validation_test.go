@@ -21,6 +21,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -1486,7 +1487,7 @@ func TestValidate(t *testing.T) {
 	}
 }
 
-func TestControlPlaneDeferForPropagation(t *testing.T) {
+func TestControlPlaneFailureWithPropagationGuidance(t *testing.T) {
 	const (
 		testTenantID       = "11111111-1111-1111-1111-111111111111"
 		testSubscriptionID = "00000000-0000-0000-0000-000000000000"
@@ -1546,12 +1547,13 @@ func TestControlPlaneDeferForPropagation(t *testing.T) {
 		nilDetector        bool
 		missing            []*identityResourceMissingPermissions
 		setupMocks         func(m mocks)
-		wantDeferred       bool
-		wantReason         string
+		wantGuidance       bool
+		wantLookupErrors   float64
+		wantForbidden      float64
 		wantInternalSubstr string
 	}{
 		{
-			name:    "nil detector never defers",
+			name:    "nil detector never adds guidance",
 			missing: notAllowedOnTwoResources, nilDetector: true,
 		},
 		{
@@ -1559,7 +1561,7 @@ func TestControlPlaneDeferForPropagation(t *testing.T) {
 			missing: []*identityResourceMissingPermissions{{Resource: nsgResourceID, Identity: operatorIdentityResourceID, Decisions: denied}},
 		},
 		{
-			name:    "resolved principal with recent assignment defers",
+			name:    "resolved principal with recent assignment gets guidance",
 			missing: notAllowedOnTwoResources,
 			setupMocks: func(m mocks) {
 				m.expectUAMIs()
@@ -1572,49 +1574,43 @@ func TestControlPlaneDeferForPropagation(t *testing.T) {
 					})
 				m.raClient.EXPECT().NewListForScopePager(subnetResourceID.String(), gomock.Any()).Return(newRoleAssignmentsPager(nil, []*armauthorization.RoleAssignment{recentAssignment}))
 			},
-			wantDeferred:       true,
-			wantReason:         roleAssignmentPropagationPendingReason,
+			wantGuidance:       true,
 			wantInternalSubstr: "recent-rg",
 		},
 		{
-			name:    "user assigned identities client failure reports unknown",
+			name:    "user assigned identities client failure keeps the plain failure",
 			missing: notAllowedOnTwoResources,
 			setupMocks: func(m mocks) {
 				m.smiBuilder.EXPECT().UserAssignedIdentitiesClient(gomock.Any(), testIdentityURL, smiResourceID, testSubscriptionID).Return(nil, fmt.Errorf("no token"))
 			},
-			wantDeferred:       true,
-			wantReason:         roleAssignmentPropagationCheckFailedReason,
-			wantInternalSubstr: "no token",
+			wantLookupErrors: 1,
 		},
 		{
-			name:    "identity lookup failure reports unknown",
+			name:    "identity lookup failure keeps the plain failure",
 			missing: notAllowedOnTwoResources,
 			setupMocks: func(m mocks) {
 				m.expectUAMIs()
 				m.uamiClient.EXPECT().Get(gomock.Any(), operatorIdentityResourceID.ResourceGroupName, operatorIdentityResourceID.Name, nil).Return(armmsi.UserAssignedIdentitiesClientGetResponse{}, fmt.Errorf("throttled"))
 			},
-			wantDeferred:       true,
-			wantReason:         roleAssignmentPropagationCheckFailedReason,
-			wantInternalSubstr: "throttled",
+			wantLookupErrors: 1,
 		},
 		{
-			name:    "unauthorized identity lookup keeps the failure",
+			name:    "unauthorized identity lookup keeps the plain failure and is counted as forbidden",
 			missing: notAllowedOnTwoResources,
 			setupMocks: func(m mocks) {
 				m.expectUAMIs()
 				m.uamiClient.EXPECT().Get(gomock.Any(), operatorIdentityResourceID.ResourceGroupName, operatorIdentityResourceID.Name, nil).Return(armmsi.UserAssignedIdentitiesClientGetResponse{}, &azcore.ResponseError{StatusCode: http.StatusForbidden, ErrorCode: "AuthorizationFailed"})
 			},
+			wantForbidden: 1,
 		},
 		{
-			name:    "identity without principal ID reports unknown",
+			name:    "identity without principal ID keeps the plain failure",
 			missing: notAllowedOnTwoResources,
 			setupMocks: func(m mocks) {
 				m.expectUAMIs()
 				m.uamiClient.EXPECT().Get(gomock.Any(), operatorIdentityResourceID.ResourceGroupName, operatorIdentityResourceID.Name, nil).Return(armmsi.UserAssignedIdentitiesClientGetResponse{}, nil)
 			},
-			wantDeferred:       true,
-			wantReason:         roleAssignmentPropagationCheckFailedReason,
-			wantInternalSubstr: "principal ID is nil",
+			wantLookupErrors: 1,
 		},
 	}
 
@@ -1639,16 +1635,25 @@ func TestControlPlaneDeferForPropagation(t *testing.T) {
 			}
 			v := NewControlPlaneIdentitiesPermissionsClusterValidation(m.smiBuilder, nil, nil, nil, nil, "", detector)
 
-			result, deferred := v.deferForPropagation(context.Background(), clusterSubscription, cluster, tt.missing)
+			const missingPermissionsMessage = "Control plane operators missing required permissions: [...]"
+			lookupErrorsBefore := testutil.ToFloat64(roleAssignmentPropagationLookupErrors.WithLabelValues(v.Name()))
+			lookupForbiddenBefore := testutil.ToFloat64(roleAssignmentPropagationLookupForbidden.WithLabelValues(v.Name()))
 
-			assert.Equal(t, tt.wantDeferred, deferred)
-			if !tt.wantDeferred {
+			result, gotGuidance := v.failureWithPropagationGuidance(context.Background(), clusterSubscription, cluster, tt.missing, missingPermissionsMessage)
+
+			assert.Equal(t, tt.wantGuidance, gotGuidance)
+			// Principal-ID resolution failures are counted like role assignment lookup
+			// failures, so a persistently broken check is visible without changing the result.
+			assert.Equal(t, lookupErrorsBefore+tt.wantLookupErrors, testutil.ToFloat64(roleAssignmentPropagationLookupErrors.WithLabelValues(v.Name())))
+			assert.Equal(t, lookupForbiddenBefore+tt.wantForbidden, testutil.ToFloat64(roleAssignmentPropagationLookupForbidden.WithLabelValues(v.Name())))
+			if !tt.wantGuidance {
 				return
 			}
 			require.NoError(t, result.Validate())
-			assert.Equal(t, OutcomeTypeUnknown, result.Outcome.Type)
-			assert.Equal(t, tt.wantReason, result.Reason())
+			assert.Equal(t, OutcomeTypeFailed, result.Outcome.Type)
+			assert.Equal(t, missingPermissionsPendingPropagationReason, result.Reason())
 			assert.Contains(t, result.InternalMessage(), tt.wantInternalSubstr)
+			assert.Contains(t, result.Outcome.Failed.UserMessage, "retry the operation")
 		})
 	}
 }

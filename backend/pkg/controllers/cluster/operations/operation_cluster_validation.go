@@ -34,7 +34,16 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-const clusterValidationFailureTimeout = 10 * time.Minute
+// clusterValidationFailureTimeout is how long a validation must have been continuously failing,
+// on an operation at least as old, before the operation is failed terminally.
+//
+// It encodes "if this has not resolved itself by now, it never will, so fail and let the customer
+// act". Fifteen minutes keeps that promise quick: a failed create or update is cheap to retry
+// relative to holding an operation open against an eventually-consistent Azure control plane.
+// Raising it further is not the right fix for a slow dependency — #6495 and #7218 both widened
+// this window blindly and were each re-defeated by a longer tail. Diagnose the specific cause and
+// report it (see missingPermissionsPendingPropagationReason) rather than waiting longer.
+const clusterValidationFailureTimeout = 15 * time.Minute
 
 var (
 	// validationStaleProbeDeferrals counts operation evaluations in which a
