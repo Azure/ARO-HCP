@@ -669,10 +669,11 @@ downstream `LOCATION` differing from `SELECTED_LOCATION`. Region overrides must
 therefore be supplied at acquisition, before policy resolution. Local runs can
 provide the JSON variable directly without a slot contract.
 
-Only the `int` pool `westus3-shard0` currently declares policy. The UK South pool
-is unchanged. See [VM selection](../../../e2e/README.md#selecting-vm-sizes-skus)
-for ordered family search, exact role-size bounds, and specialized-selector
-exceptions.
+The `int` pool `westus3-shard0` declares pool-wide policy. The `stg` pool
+`westus3-shard0` declares policy only for its West US 3 runtime region; other
+runtime regions retain historical selection. INT UK South is unchanged.
+See [VM selection](../../../e2e/README.md#selecting-vm-sizes-skus) for ordered
+family search, exact role-size bounds, and specialized-selector exceptions.
 
 ## E2E identity asset
 
@@ -698,8 +699,15 @@ The optional pool-level `identity_container_provisioning_count` reserves a large
 physical inventory without increasing the runtime lease budget. It defaults to
 `resource_group_count` and cannot be smaller. Pool apply and inventory validation
 use the physical count; resolution, admission, and `LEASED_MSI_CONTAINERS` use
-`resource_group_count`. For INT West US 3, these counts are 100 physical groups
-and 75 leased groups per slot.
+`resource_group_count`. For INT and Stage West US 3, these counts are 100 physical
+groups and 75 leased groups per slot, with 25 physical groups held in reserve.
+The existing Stage UK South 25-container inventory and Boskos slot are retained
+separately, outside the active Stage catalog. Stage acquisition always leases
+the West US 3 inventory, even with a UK South runtime-region override. Both
+inventories share Stage-00 and their jobs must not run concurrently; distinct
+leases do not isolate subscription-wide quotas. See
+[Stage West US 3 capacity](../../../../docs/ci/identity-leasing.md#stage-west-us-3-capacity-and-trial)
+for the trial constraints.
 
 V2 catalog validation checks the generated names against Azure resource-group
 naming rules, including the 90-character limit with both numeric suffixes.
