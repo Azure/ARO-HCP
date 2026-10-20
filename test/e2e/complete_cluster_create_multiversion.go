@@ -215,7 +215,7 @@ var _ = Describe("ARO-HCP", func() {
 			Expect(verifiers.VerifyDefaultIngressCertificate(consoleHostURL.Host, appsWildcard, 5*time.Minute).Verify(ctx, adminRESTConfig)).To(Succeed(), "console must serve the delivered default ingress certificate for cluster %q", clusterName)
 			Expect(verifiers.VerifyDefaultIngressServingCertificateSecretWiring(10*time.Minute).Verify(ctx, adminRESTConfig)).To(Succeed(), "default-ingress-cert must exist and be referenced by IngressController/default for cluster %q", clusterName)
 
-			By("verifying ACM's ingress certificate secret is absent, as HyperShift delivers it directly from 5.1+")
+			By("verifying ACM's ingress certificate secret is absent, as HyperShift delivers it directly")
 			Expect(verifiers.VerifyACMIngressCertificateAbsent().Verify(ctx, adminRESTConfig)).To(Succeed(), "ACM must not create its ingress certificate secret for cluster %q", clusterName)
 		},
 		Entry("for 4.20", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible,

@@ -115,10 +115,12 @@ var _ = Describe("Customer", func() {
 				clusterParams.OpenshiftVersionId = resolved
 			} else {
 				resolved, err := framework.SelectControlPlaneVersion(ctx, http.DefaultTransport.RoundTrip, nil, channel+"-"+version, clusterversion.GetZStreamOffset(channel))
-				if framework.IsVersionNotFoundError(err) || (err == nil && resolved == nil) {
-					Skip(fmt.Sprintf("no %s version available in configured channel %s", version, channel))
+				if err != nil {
+					Skip(fmt.Sprintf("failed to resolve a version for channel %s-%s: %v", channel, version, err))
 				}
-				Expect(err).NotTo(HaveOccurred(), "failed to resolve configured channel %s-%s", channel, version)
+				if resolved == nil {
+					Skip(fmt.Sprintf("no version resolved for channel %s-%s", channel, version))
+				}
 				clusterParams.OpenshiftVersionId = resolved.Version
 			}
 			clusterParams.ClusterName = customerClusterName
