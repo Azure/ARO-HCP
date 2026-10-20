@@ -377,7 +377,7 @@ resource arohcpIngressCanaryLivenessAlerts 'Microsoft.AlertsManagement/prometheu
           summary: 'Ingress canary has stopped reporting for {{ $labels._id }}'
           title: 'Ingress canary has stopped reporting for {{ $labels._id }}'
         }
-        expression: 'count by (_id, cluster, region) (max_over_time(ingress_canary_route_reachable[1d])) unless count by (_id, cluster, region) (max_over_time(ingress_canary_route_reachable[10m]))'
+        expression: 'count by (_id, cluster, region) (max_over_time(ingress_canary_route_reachable[1w])) unless count by (_id, cluster, region) (max_over_time(ingress_canary_route_reachable[10m]))'
         for: 'PT10M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }

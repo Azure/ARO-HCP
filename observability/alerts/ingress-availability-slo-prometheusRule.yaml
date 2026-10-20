@@ -252,20 +252,28 @@ spec:
   # not a high error rate, so a canary that stops reporting looks the same
   # as a perfectly healthy one to every tier. This alert detects that case
   # directly against the raw metric: an (_id, cluster, region) seen at some
-  # point in the last 24h but not in the last 10 minutes has gone silent.
-  # The 24h reference window (rather than an `offset`-shifted comparison of
+  # point in the last 7d but not in the last 10 minutes has gone silent.
+  # The 7d reference window (rather than an `offset`-shifted comparison of
   # the same short window) keeps firing for the whole outage instead of
   # self-clearing once the last known-good sample ages out of a narrower
-  # historical comparison window. Sev 4: loss of the canary signal is not
-  # itself confirmed customer impact, but on-call has lost all visibility
-  # into this HCP's ingress health and needs to investigate.
+  # historical comparison window. 7d was chosen (over the original 24h) so a
+  # multi-day outage doesn't silently self-resolve this alert before on-call
+  # or the underlying issue has had a realistic chance to be addressed; it is
+  # still, by construction, a bounded window -- an HCP silent for longer than
+  # 7d straight will drop out of the reference side and this alert will
+  # clear even though reporting never recovered. There is no metric-only fix
+  # for that: an unbounded reference requires an HCP existence signal
+  # independent of the canary itself (e.g. a backend-emitted inventory
+  # metric), which is out of scope here. Sev 4: loss of the canary signal is
+  # not itself confirmed customer impact, but on-call has lost all
+  # visibility into this HCP's ingress health and needs to investigate.
   - name: arohcp_ingress_canary_liveness_alerts
     labels:
       component: slo
     rules:
     - alert: userJourneyIngressCanaryAbsent
       expr: |
-        count by (_id, cluster, region) (max_over_time(ingress_canary_route_reachable[24h]))
+        count by (_id, cluster, region) (max_over_time(ingress_canary_route_reachable[7d]))
         unless
         count by (_id, cluster, region) (max_over_time(ingress_canary_route_reachable[10m]))
       for: 10m
