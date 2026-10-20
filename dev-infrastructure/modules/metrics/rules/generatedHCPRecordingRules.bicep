@@ -268,7 +268,7 @@ resource arohcpIngressAvailabilitySloRecordingRules 'Microsoft.AlertsManagement/
     rules: [
       {
         record: 'availability:ingress_canary:ratio'
-        expression: 'sum by (_id, cluster, region) (ingress_canary_route_reachable) / count by (_id, cluster, region) (ingress_canary_route_reachable)'
+        expression: 'sum by (_id, cluster, region) (max without (prometheus_replica) (ingress_canary_route_reachable)) / count by (_id, cluster, region) (max without (prometheus_replica) (ingress_canary_route_reachable))'
       }
       {
         record: 'errors:ingress_canary:error_rate'
@@ -384,7 +384,7 @@ resource arohcpIngressLatencySloRecordingRules 'Microsoft.AlertsManagement/prome
     rules: [
       {
         record: 'latency:ingress_canary:ratio'
-        expression: 'sum by (_id, cluster, region) (rate(ingress_canary_check_duration_bucket{le="200"}[5m])) / sum by (_id, cluster, region) (rate(ingress_canary_check_duration_bucket{le="+Inf"}[5m]))'
+        expression: 'sum by (_id, cluster, region) (max without (prometheus_replica) (rate(ingress_canary_check_duration_bucket{le="200"}[5m]))) / sum by (_id, cluster, region) (max without (prometheus_replica) (rate(ingress_canary_check_duration_bucket{le="+Inf"}[5m])))'
       }
       {
         record: 'errors:ingress_canary_latency:error_rate'
