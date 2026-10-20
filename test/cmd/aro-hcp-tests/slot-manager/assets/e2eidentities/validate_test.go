@@ -46,13 +46,19 @@ func TestCompareIdentityPoolInventoryProvisionedReserve(t *testing.T) {
 	pools := []identityPool{{
 		SubscriptionName: "int-sub", IdentityContainerPrefix: "aro-hcp-msi-container-int", Slots: expanded,
 	}}
-	result := compareIdentityPoolInventory(pools, actual)
+	result, err := compareIdentityPoolInventory(pools, actual)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if !result.valid() || result.ExpectedResourceGroups != 100 || result.ActualResourceGroups != 100 ||
 		result.ExpectedIdentities != 1300 || result.ActualIdentities != 1300 {
 		t.Fatalf("physical reserve incorrectly classified as drift: %+v", result)
 	}
 	actual.ResourceGroups = groups[:70]
-	result = compareIdentityPoolInventory(pools, actual)
+	result, err = compareIdentityPoolInventory(pools, actual)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if result.valid() || len(result.MissingResourceGroups) != 30 {
 		t.Fatalf("missing physical reserve must be drift: %+v", result)
 	}
@@ -93,7 +99,10 @@ func TestCompareIdentityPoolInventory(t *testing.T) {
 		},
 	}
 
-	result := compareIdentityPoolInventory(pools, actual)
+	result, err := compareIdentityPoolInventory(pools, actual)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if result.valid() {
 		t.Fatal("expected drift to be detected")
 	}
@@ -125,7 +134,40 @@ func TestCompareIdentityPoolInventory(t *testing.T) {
 	}
 }
 
-func TestValidateOptionsRun(t *testing.T) {
+func TestCompareIdentityPoolInventoryMergesCaseVariantResourceGroups(t *testing.T) {
+	t.Parallel()
+	pool := identityPool{
+		SubscriptionName:        "dev-sub",
+		IdentityContainerPrefix: "aro-hcp-msi-container-dev",
+		Slots: []slots.ExpandedSlot{{
+			IdentityContainerPrefix: "aro-hcp-msi-container-dev-00",
+			IdentityContainerCount:  1,
+			Assets: slots.ResolvedAssets{E2EIdentities: &slots.ResolvedE2EIdentitiesAsset{
+				ResourceGroups: []string{"aro-hcp-msi-container-dev-00-00"},
+			}},
+		}},
+	}
+	resourceGroup := pool.Slots[0].IdentityContainerNames()[0]
+	identityNames := framework.NewDefaultIdentities().ToSlice()
+	half := len(identityNames) / 2
+	actual := subscriptionInventory{
+		ResourceGroups: []string{resourceGroup},
+		Identities: map[string][]string{
+			resourceGroup:                  identityNames[:half],
+			strings.ToUpper(resourceGroup): identityNames[half:],
+		},
+	}
+
+	result, err := compareIdentityPoolInventory([]identityPool{pool}, actual)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.valid() || result.ActualIdentities != len(identityNames) {
+		t.Fatalf("case-variant inventory entries were not merged: %+v", result)
+	}
+}
+
+func TestValidatePools(t *testing.T) {
 	t.Parallel()
 
 	pool := identityPool{
@@ -146,24 +188,18 @@ func TestValidateOptionsRun(t *testing.T) {
 		t.Parallel()
 
 		var output bytes.Buffer
-		opts := &ValidateOptions{
-			IdentityPools: []identityPool{pool},
-			LoadInventory: func(context.Context, string) (subscriptionInventory, error) {
-				identityNames := framework.NewDefaultIdentities().ToSlice()
-				for i := range identityNames {
-					identityNames[i] = strings.ToUpper(identityNames[i])
-				}
-				return subscriptionInventory{
-					ResourceGroups: []string{strings.ToUpper(resourceGroup)},
-					Identities: map[string][]string{
-						strings.ToUpper(resourceGroup): identityNames,
-					},
-				}, nil
-			},
-			Out: &output,
-		}
-
-		if err := opts.Run(context.Background()); err != nil {
+		if err := validatePools(context.Background(), []identityPool{pool}, func(context.Context, string) (subscriptionInventory, error) {
+			identityNames := framework.NewDefaultIdentities().ToSlice()
+			for i := range identityNames {
+				identityNames[i] = strings.ToUpper(identityNames[i])
+			}
+			return subscriptionInventory{
+				ResourceGroups: []string{strings.ToUpper(resourceGroup)},
+				Identities: map[string][]string{
+					strings.ToUpper(resourceGroup): identityNames,
+				},
+			}, nil
+		}, &output); err != nil {
 			t.Fatalf("expected validation to succeed: %v", err)
 		}
 		if !strings.Contains(output.String(), "result: valid") {
@@ -175,15 +211,9 @@ func TestValidateOptionsRun(t *testing.T) {
 		t.Parallel()
 
 		var output bytes.Buffer
-		opts := &ValidateOptions{
-			IdentityPools: []identityPool{pool},
-			LoadInventory: func(context.Context, string) (subscriptionInventory, error) {
-				return subscriptionInventory{}, nil
-			},
-			Out: &output,
-		}
-
-		err := opts.Run(context.Background())
+		err := validatePools(context.Background(), []identityPool{pool}, func(context.Context, string) (subscriptionInventory, error) {
+			return subscriptionInventory{}, nil
+		}, &output)
 		if err == nil {
 			t.Fatal("expected validation to fail")
 		}
@@ -192,6 +222,22 @@ func TestValidateOptionsRun(t *testing.T) {
 		}
 		if !strings.Contains(output.String(), resourceGroup) {
 			t.Fatalf("expected missing resource group in output, got %q", output.String())
+		}
+	})
+	t.Run("duplicate identity names with drift", func(t *testing.T) {
+		t.Parallel()
+
+		identityNames := framework.NewDefaultIdentities().ToSlice()
+		duplicateNames := append([]string{}, identityNames[:len(identityNames)-1]...)
+		duplicateNames = append(duplicateNames, identityNames[0])
+		err := validatePools(context.Background(), []identityPool{pool}, func(context.Context, string) (subscriptionInventory, error) {
+			return subscriptionInventory{
+				ResourceGroups: []string{resourceGroup},
+				Identities:     map[string][]string{resourceGroup: duplicateNames},
+			}, nil
+		}, &bytes.Buffer{})
+		if err == nil || !strings.Contains(err.Error(), "duplicate identity") {
+			t.Fatalf("expected duplicate identity error to fail validation, got %v", err)
 		}
 	})
 }

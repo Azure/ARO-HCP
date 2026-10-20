@@ -56,12 +56,12 @@ func TestPoolHandlersShareSelectionPolicy(t *testing.T) {
 				// Stop at subscription resolution so neither operation can reach Azure.
 				stop := errors.New("stop before Azure operation")
 				resolved := ""
-				handler := &Handler{poolDependencies: func() (azcore.TokenCredential, subscriptionIDResolverFunc, error) {
+				handler := NewHandler(WithPoolDependencies(func() (azcore.TokenCredential, subscriptionIDResolverFunc, error) {
 					return nil, func(_ context.Context, name string) (string, error) {
 						resolved = name
 						return "", stop
 					}, nil
-				}}
+				}))
 				registry, err := assets.NewRegistry(handler)
 				if err != nil {
 					t.Fatal(err)

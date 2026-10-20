@@ -35,6 +35,9 @@ type Kind = slots.AssetKind
 // KindE2EIdentities identifies reusable E2E managed identity containers.
 const KindE2EIdentities = slots.KindE2EIdentities
 
+// KindInfrastructureIdentities identifies reusable infrastructure identity bundles.
+const KindInfrastructureIdentities = slots.KindInfrastructureIdentities
+
 // PoolRequest supplies catalog data and options for pool provisioning or validation.
 // The registry scopes pools and inventories to each handler without changing capacity.
 type PoolRequest struct {
