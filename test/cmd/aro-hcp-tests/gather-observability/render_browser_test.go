@@ -28,6 +28,116 @@ import (
 	"time"
 )
 
+func TestRenderPanelBrowserSelection(t *testing.T) {
+	assetPath := os.Getenv("ECHARTS_JS_PATH")
+	if assetPath == "" {
+		t.Skip("set ECHARTS_JS_PATH for real chart selection regression")
+	}
+	browser, err := exec.LookPath("google-chrome")
+	if err != nil {
+		t.Skip("google-chrome unavailable; skipping optional browser test")
+	}
+	rendered, err := renderPanelHTML(selectionTestPanel())
+	if err != nil {
+		t.Fatal(err)
+	}
+	asset, err := os.ReadFile(assetPath)
+	if err != nil {
+		t.Fatalf("load ECharts for browser test: %v", err)
+	}
+	assertions := `<script>
+try {
+  function check(condition, message) { if (!condition) throw new Error(message); }
+  check(!window.selectionErrors.length, 'chart initialization errors: ' + window.selectionErrors.join('; '));
+  const plots = Array.from(document.querySelectorAll('.item'));
+  const charts = plots.map(plot => echarts.getInstanceByDom(plot));
+  const buttons = Array.from(document.querySelectorAll('.series-controls button'));
+  check(plots.length === 6 && buttons.length === 6, 'one control per instance, including each line facet and zero-valued chart, none for no data');
+  function legend(index) { return charts[index].getOption().legend[0]; }
+  function legendNames(index) { return charts[index].getModel().getComponent('legend').getData().map(entry => entry.get('name')); }
+  function names(index) { return Array.from(new Set(charts[index].getOption().series.map(series => series.name))); }
+  function selected(index) { return names(index).filter(name => legend(index).selected[name] !== false); }
+  function threshold(index, value) {
+    const slider = plots[index].querySelector('input[type=range]');
+    check(slider, 'expected threshold slider for chart ' + index);
+    slider.value = value;
+    slider.dispatchEvent(new Event('input'));
+  }
+  function reselect(index, name) { charts[index].dispatchAction({type: 'legendToggleSelect', name: name}); }
+  buttons.forEach((button, index) => {
+    check(button.textContent === 'Deselect all' && button.type === 'button', 'accessible native action');
+    check(button.getAttribute('aria-controls') === plots[index].id, 'control targets own plot');
+    check(button.getAttribute('aria-label').includes(charts[index].getOption().title[0].text), 'accessible name identifies graph');
+  });
+  check(selected(0).length === 1, 'initial threshold excludes quiet controller');
+  const retained = JSON.stringify(legend(0).data);
+  const other = JSON.stringify(legend(1));
+  buttons[0].click(); buttons[0].click();
+  check(selected(0).length === 0, 'repeated deselect all is idempotent');
+  check(JSON.stringify(legend(0).data) === retained, 'deselect retains eligible legend entries');
+  const busy = legend(0).data[0];
+  reselect(0, busy);
+  check(selected(0).length === 1 && selected(0)[0] === busy, 'one controller can be immediately enabled');
+  threshold(0, 0);
+  check(legend(0).data.length === 2 && selected(0).length === 1, 'lower threshold reveals entries without undoing deselection');
+  const quiet = names(0).find(name => name !== busy);
+  reselect(0, quiet);
+  threshold(0, 5);
+  check(selected(0).length === 1, 'threshold still excludes manually selected low-peak series');
+  threshold(0, 0);
+  check(selected(0).length === 2, 'lowering threshold restores manual choices');
+  reselect(0, quiet);
+  threshold(0, 5); threshold(0, 0);
+  check(selected(0).length === 1, 'individual deselection survives filtering');
+  check(JSON.stringify(legend(1)) === other, 'second graph unaffected');
+  buttons[2].click();
+  check(selected(2).length === 0 && legendNames(2).length === 2, 'zero-valued chart can deselect without losing entries');
+  reselect(2, names(2)[0]);
+  check(selected(2).length === 1, 'zero-valued controller can be reselected');
+  const otherFacet = JSON.stringify(legend(4));
+  buttons[3].click(); reselect(3, legend(3).data[0]); threshold(3, 0);
+  check(selected(3).length === 1, 'facet has independent selection and filtering');
+  check(JSON.stringify(legend(4)) === otherFacet, 'sibling facet unaffected');
+  check(!plots[5].querySelector('input[type=range]'), 'stacked chart keeps no-slider behavior');
+  buttons[5].click();
+  check(selected(5).length === 0 && legendNames(5).length > 0, 'stacked shared legend retains entries');
+  reselect(5, names(5)[0]);
+  check(selected(5).length === 1, 'stacked phase reselect works across its grids');
+  document.body.setAttribute('data-selection-test', 'PASS');
+} catch (error) { document.body.setAttribute('data-selection-test', 'FAIL: ' + error.message); }
+</script>`
+	page := strings.Replace(string(rendered), "<head>", `<head><script>window.selectionErrors = []; window.addEventListener('error', event => window.selectionErrors.push(event.message));</script>`, 1)
+	page = strings.Replace(page, "https://go-echarts.github.io/go-echarts-assets/assets/echarts.min.js", "/echarts.js", 1)
+	page = strings.Replace(page, "</body>", assertions+"</body>", 1)
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.URL.Path == "/echarts.js" {
+			writer.Header().Set("Content-Type", "application/javascript")
+			_, _ = writer.Write(asset)
+			return
+		}
+		writer.Header().Set("Content-Type", "text/html")
+		_, _ = io.WriteString(writer, page)
+	}))
+	defer server.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	command := exec.CommandContext(ctx, browser, "--headless", "--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage", "--no-first-run", "--user-data-dir="+t.TempDir(), "--dump-dom", server.URL)
+	var stderr bytes.Buffer
+	command.Stderr = &stderr
+	output, err := command.Output()
+	if err != nil {
+		t.Fatalf("browser failed: %v\n%s", err, stderr.String())
+	}
+	if !strings.Contains(string(output), `data-selection-test="PASS"`) {
+		for _, line := range strings.Split(string(output), "\n") {
+			if strings.Contains(line, "<body") {
+				t.Log(line)
+			}
+		}
+		t.Fatalf("browser selection assertions did not pass\n%s", stderr.String())
+	}
+}
+
 func TestRenderObservabilityBrowserResize(t *testing.T) {
 	browser, err := exec.LookPath("google-chrome")
 	if err != nil {
