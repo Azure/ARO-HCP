@@ -85,6 +85,12 @@ had drifted stale (109/110/111/136) relative to `TestControllerRegistryManifest`
 `TestControllerRegistryNamedZoneRegistrations`'s actual current counts; corrected to 113 zone
 instances, 114 backend instances, 115 total launches and 140 catalog entries.
 
+Etcd KMS key validation update baseline: `91884b370` plus working-tree changes; scope: add the
+`ClusterValidationEtcdEncryptionKMSKeyReachableValidation` catalog entry and document its
+read-only Key Vault data-plane probe and visibility-aware results. Existing cluster lifecycle
+diagrams already collapse the independently scheduled validation controllers into the generic
+cluster-validation node; no lifecycle edge or graph artifact changes.
+
 Update-deadline baseline: `a0f232352a2e933142f2f2dfb61f2870aed7a26f` plus working-tree changes; scope: cluster/node-pool update admission, create/update timeout error codes and diagnostics, and their lifecycle views.
 
 Cluster teardown update baseline: `d453011603d357d8fa8938acef97eec5d00818c4`
@@ -1918,6 +1924,12 @@ Reads worker/integration subnets and NSG rules and evaluates required connectivi
 
 Validates that the CAPZ control-plane operator identity has `Microsoft.ManagedIdentity/userAssignedIdentities/assign/action` permission on the customer's container registry pull managed identity. Skipped if no pull MI is configured; fails if pull MI is in a different subscription than the cluster (cross-subscription not yet supported). Uses Azure CheckAccess V2 API to verify permission. Writes the corresponding service-provider `Status.Validations` condition through its controller-specific Resources storage client and RU budget; no Azure mutation.
 
+#### ClusterValidationEtcdEncryptionKMSKeyReachableValidation
+
+[Source](../backend/pkg/utils/validationutils/etcd_encryption_kms_key_reachable_validation.go) · **Trigger:** Cluster; 1m; result-based retry.
+
+For customer-managed KMS encryption backed by Key Vault (not Managed HSM), uses the cluster's `kms` control-plane managed identity through MI Dataplane to call Key Vault `GetKey` for the configured active key name and version. A missing key/version and an explicit `ForbiddenByRbac` authorization denial are reported for either visibility; RBAC denials remain Unknown for the first 15 minutes after cluster creation. A `ForbiddenByConnection` network denial fails only when visibility is `Public`; network-dependent results for `Private` vaults are Skipped because the service-cluster route does not represent the management-cluster route. Other inconclusive results are Unknown for Public and Skipped for Private. Writes the named service-provider `Status.Validations` condition; the Key Vault call is read-only and does not create, change or delete keys or vault configuration.
+
 ### Backend: billing, repair, diagnostics and caches
 
 #### CreateBillingDoc
@@ -2258,6 +2270,7 @@ The DataplaneController registers ready session credentials, owner and backend A
 | Azure deny assignments | [ClusterDenyAssignment](#clusterdenyassignment) gets/creates/updates/deletes stale assignments | Tracks pending/confirmed IDs. Cluster creation requires no pending entries, a nonempty confirmed list and `EarliestRecheckTime` when enabled. Cluster deletion skips direct assignment cleanup; resource-group deletion cascades. |
 | Azure role assignments | [IdentityRoleAssignments](#identityroleassignments) gets and creates missing assignments | Persists intent before PUT; later GET confirms existence. Old confirmed assignments are retained. Cluster creation requires a nonempty confirmed list and no pending assignments. |
 | Azure identities, VM SKUs, quota, NSGs, container registry pull MI access and access checks | Identity/validation controllers and SKU cache **observe** | Store resolved identities, validation conditions or memory cache; these checks do not create identities, change NSGs, raise quota or modify managed identities. [ClusterValidationContainerRegistryPullCredentialsPermissionValidation](#clustervalidationcontainerregistrypullcredentialspermissionvalidation) checks CAPZ assign/action permission on pull MI using CheckAccess V2. |
+| Azure Key Vault KMS key | [ClusterValidationEtcdEncryptionKMSKeyReachableValidation](#clustervalidationetcdencryptionkmskeyreachablevalidation) **observes** | Calls the Key Vault data-plane `GetKey` API as the cluster's `kms` managed identity and records a validation condition. It does not mutate the key or vault; visibility-aware skips avoid treating the service-cluster network path as evidence about a private vault's management-cluster path. |
 | Azure VMSS NICs / AKS pool ceilings | [SwiftNICController](#swiftniccontroller) and [ManagementClusterScaleCeilingReportingController](#managementclusterscaleceilingreportingcontroller) **observe** | The former changes Kubernetes Node capacity; the latter writes Cosmos scheduling capacity. Neither changes Azure VM/pool size. |
 | Azure Monitor metrics-container ingestion limits | [AMWIngestionScaling](#amwingestionscaling) reads utilization and updates Azure limits | Periodic fleet controller, outside any single cluster's lifecycle. |
 | OpenShift update graph | [ControlPlaneVersionBestVersionSelection](#controlplaneversionbestversionselection) **observes** | Selects the channel target in Fleet Cosmos; assignment writes provider intent, while Cluster Service and HyperShift execute upgrades. |
