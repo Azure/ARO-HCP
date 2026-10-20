@@ -55,6 +55,18 @@ spec:
   # the same underlying breach observed at different burn rates), while
   # staying distinct per _id (no cross-cluster masking) and distinct from the
   # Latency family below (a different SLI, a different problem).
+  #
+  # Each alert multiplies its burn-rate condition by
+  # `hostedClusterAPI_kubeapiserver_available` (joined on _id, via
+  # group_left) to attach resource_id for on-call triage -- the canary
+  # metrics themselves never carry resource_id (see the recording rule's
+  # confirmed production label set). This mirrors
+  # UserJourneyKubeApiserverAvailabilityMonitor-prometheusRule-KSM.yaml,
+  # which already depends on this same metric for its own (higher-severity)
+  # alerting, so this does not introduce a new class of dependency. The `* 0
+  # + 1` neutralizes the joined value so only its resource_id label is
+  # consumed; the join is an inner join, so an _id with no corresponding
+  # HostedCluster record (e.g. already deleted) also won't fire here.
   - name: arohcp_ingress_availability_slo_alerts
     labels:
       component: slo
@@ -65,16 +77,20 @@ spec:
     - alert: userJourneyIngressAvailabilityErrors1h5m
       expr: |
         (
-          errors:ingress_canary:total_5m >= 3
+          (
+            errors:ingress_canary:total_5m >= 3
+            and
+            errors:ingress_canary:error_rate_5m > 0.072
+          )
           and
-          errors:ingress_canary:error_rate_5m > 0.072
+          (
+            errors:ingress_canary:total_1h >= 10
+            and
+            errors:ingress_canary:error_rate_1h > 0.072
+          )
         )
-        and
-        (
-          errors:ingress_canary:total_1h >= 10
-          and
-          errors:ingress_canary:error_rate_1h > 0.072
-        )
+        * on (_id) group_left(resource_id)
+        group by (_id, resource_id) (hostedClusterAPI_kubeapiserver_available * 0 + 1)
       for: 10m
       labels:
         severity: "3"
@@ -82,8 +98,10 @@ spec:
         long_window: 1h
         short_window: 5m
       annotations:
-        summary: "Ingress canary availability critically degraded for {{ $labels._id }}"
-        description: "More than 7.2% of synthetic canary route observations failed in both the last 5 minutes and the last hour for HCP cluster {{ $labels._id }}, indicating an active fast error budget burn (14.4x) that would exhaust the 99.5% SLO budget in ~50 hours."
+        summary: "Ingress canary availability critically degraded for {{ $labels._id }} (resource_id: {{ $labels.resource_id }})"
+        description: |
+          More than 7.2% of synthetic canary route observations failed in both the last 5 minutes and the last hour for HCP cluster {{ $labels._id }}, indicating an active fast error budget burn (14.4x) that would exhaust the 99.5% SLO budget in ~50 hours.
+          Resource ID: {{ $labels.resource_id }}
         runbook_url: "https://aka.ms/arohcp-runbook-ingress"
         correlationId: "userJourneyIngressAvailabilityErrors/{{ $labels._id }}"
     # ----------------------------------------
@@ -92,16 +110,20 @@ spec:
     - alert: userJourneyIngressAvailabilityErrors6h30m
       expr: |
         (
-          errors:ingress_canary:total_30m >= 15
+          (
+            errors:ingress_canary:total_30m >= 15
+            and
+            errors:ingress_canary:error_rate_30m > 0.030
+          )
           and
-          errors:ingress_canary:error_rate_30m > 0.030
+          (
+            errors:ingress_canary:total_6h >= 30
+            and
+            errors:ingress_canary:error_rate_6h > 0.030
+          )
         )
-        and
-        (
-          errors:ingress_canary:total_6h >= 30
-          and
-          errors:ingress_canary:error_rate_6h > 0.030
-        )
+        * on (_id) group_left(resource_id)
+        group by (_id, resource_id) (hostedClusterAPI_kubeapiserver_available * 0 + 1)
       for: 30m
       labels:
         severity: "3"
@@ -109,8 +131,10 @@ spec:
         long_window: 6h
         short_window: 30m
       annotations:
-        summary: "Ingress canary availability degraded for {{ $labels._id }}"
-        description: "More than 3% of synthetic canary route observations failed in both the last 30 minutes and the last 6 hours for HCP cluster {{ $labels._id }}, indicating an active medium error budget burn (6x) that would exhaust the 99.5% SLO budget in ~5 days."
+        summary: "Ingress canary availability degraded for {{ $labels._id }} (resource_id: {{ $labels.resource_id }})"
+        description: |
+          More than 3% of synthetic canary route observations failed in both the last 30 minutes and the last 6 hours for HCP cluster {{ $labels._id }}, indicating an active medium error budget burn (6x) that would exhaust the 99.5% SLO budget in ~5 days.
+          Resource ID: {{ $labels.resource_id }}
         runbook_url: "https://aka.ms/arohcp-runbook-ingress"
         correlationId: "userJourneyIngressAvailabilityErrors/{{ $labels._id }}"
     # ----------------------------------------
@@ -119,16 +143,20 @@ spec:
     - alert: userJourneyIngressAvailabilityErrors3d6h
       expr: |
         (
-          errors:ingress_canary:total_6h >= 30
+          (
+            errors:ingress_canary:total_6h >= 30
+            and
+            errors:ingress_canary:error_rate_6h > 0.005
+          )
           and
-          errors:ingress_canary:error_rate_6h > 0.005
+          (
+            errors:ingress_canary:total_3d >= 60
+            and
+            errors:ingress_canary:error_rate_3d > 0.005
+          )
         )
-        and
-        (
-          errors:ingress_canary:total_3d >= 60
-          and
-          errors:ingress_canary:error_rate_3d > 0.005
-        )
+        * on (_id) group_left(resource_id)
+        group by (_id, resource_id) (hostedClusterAPI_kubeapiserver_available * 0 + 1)
       for: 3h
       labels:
         severity: "4"
@@ -136,8 +164,10 @@ spec:
         long_window: 3d
         short_window: 6h
       annotations:
-        summary: "Ingress canary availability trending below SLO for {{ $labels._id }}"
-        description: "More than 0.5% of synthetic canary route observations failed in both the last 6 hours and the last 3 days for HCP cluster {{ $labels._id }}, consuming the error budget at the SLO rate. No immediate customer impact but trend requires investigation."
+        summary: "Ingress canary availability trending below SLO for {{ $labels._id }} (resource_id: {{ $labels.resource_id }})"
+        description: |
+          More than 0.5% of synthetic canary route observations failed in both the last 6 hours and the last 3 days for HCP cluster {{ $labels._id }}, consuming the error budget at the SLO rate. No immediate customer impact but trend requires investigation.
+          Resource ID: {{ $labels.resource_id }}
         runbook_url: "https://aka.ms/arohcp-runbook-ingress"
         correlationId: "userJourneyIngressAvailabilityErrors/{{ $labels._id }}"
   # ========================================
@@ -164,6 +194,10 @@ spec:
   # correlationId uses the LatencyP99Errors family so it stays distinct from
   # the Availability family above (different SLI, different problem) while
   # still correlating this family's own three burn tiers per _id.
+  #
+  # Same resource_id enrichment via hostedClusterAPI_kubeapiserver_available
+  # as the availability group above -- see its header comment for the full
+  # rationale.
   - name: arohcp_ingress_latency_slo_alerts
     labels:
       component: slo
@@ -174,16 +208,20 @@ spec:
     - alert: userJourneyIngressLatencyP99Errors1h5m
       expr: |
         (
-          errors:ingress_canary_latency:total_5m >= 3
+          (
+            errors:ingress_canary_latency:total_5m >= 3
+            and
+            errors:ingress_canary_latency:error_rate_5m > 0.072
+          )
           and
-          errors:ingress_canary_latency:error_rate_5m > 0.072
+          (
+            errors:ingress_canary_latency:total_1h >= 10
+            and
+            errors:ingress_canary_latency:error_rate_1h > 0.072
+          )
         )
-        and
-        (
-          errors:ingress_canary_latency:total_1h >= 10
-          and
-          errors:ingress_canary_latency:error_rate_1h > 0.072
-        )
+        * on (_id) group_left(resource_id)
+        group by (_id, resource_id) (hostedClusterAPI_kubeapiserver_available * 0 + 1)
       for: 10m
       labels:
         severity: "3"
@@ -191,8 +229,10 @@ spec:
         long_window: 1h
         short_window: 5m
       annotations:
-        summary: "Ingress canary latency critically degraded for {{ $labels._id }}"
-        description: "More than 7.2% of synthetic canary route checks exceeded 200ms in both the last 5 minutes and the last hour for HCP cluster {{ $labels._id }}, indicating an active fast error budget burn (14.4x) that would exhaust the 99.5% SLO budget in ~50 hours."
+        summary: "Ingress canary latency critically degraded for {{ $labels._id }} (resource_id: {{ $labels.resource_id }})"
+        description: |
+          More than 7.2% of synthetic canary route checks exceeded 200ms in both the last 5 minutes and the last hour for HCP cluster {{ $labels._id }}, indicating an active fast error budget burn (14.4x) that would exhaust the 99.5% SLO budget in ~50 hours.
+          Resource ID: {{ $labels.resource_id }}
         runbook_url: "https://aka.ms/arohcp-runbook-ingress"
         correlationId: "userJourneyIngressLatencyP99Errors/{{ $labels._id }}"
     # ----------------------------------------
@@ -201,16 +241,20 @@ spec:
     - alert: userJourneyIngressLatencyP99Errors6h30m
       expr: |
         (
-          errors:ingress_canary_latency:total_30m >= 15
+          (
+            errors:ingress_canary_latency:total_30m >= 15
+            and
+            errors:ingress_canary_latency:error_rate_30m > 0.030
+          )
           and
-          errors:ingress_canary_latency:error_rate_30m > 0.030
+          (
+            errors:ingress_canary_latency:total_6h >= 30
+            and
+            errors:ingress_canary_latency:error_rate_6h > 0.030
+          )
         )
-        and
-        (
-          errors:ingress_canary_latency:total_6h >= 30
-          and
-          errors:ingress_canary_latency:error_rate_6h > 0.030
-        )
+        * on (_id) group_left(resource_id)
+        group by (_id, resource_id) (hostedClusterAPI_kubeapiserver_available * 0 + 1)
       for: 30m
       labels:
         severity: "3"
@@ -218,8 +262,10 @@ spec:
         long_window: 6h
         short_window: 30m
       annotations:
-        summary: "Ingress canary latency degraded for {{ $labels._id }}"
-        description: "More than 3% of synthetic canary route checks exceeded 200ms in both the last 30 minutes and the last 6 hours for HCP cluster {{ $labels._id }}, indicating an active medium error budget burn (6x) that would exhaust the 99.5% SLO budget in ~5 days."
+        summary: "Ingress canary latency degraded for {{ $labels._id }} (resource_id: {{ $labels.resource_id }})"
+        description: |
+          More than 3% of synthetic canary route checks exceeded 200ms in both the last 30 minutes and the last 6 hours for HCP cluster {{ $labels._id }}, indicating an active medium error budget burn (6x) that would exhaust the 99.5% SLO budget in ~5 days.
+          Resource ID: {{ $labels.resource_id }}
         runbook_url: "https://aka.ms/arohcp-runbook-ingress"
         correlationId: "userJourneyIngressLatencyP99Errors/{{ $labels._id }}"
     # ----------------------------------------
@@ -228,16 +274,20 @@ spec:
     - alert: userJourneyIngressLatencyP99Errors3d6h
       expr: |
         (
-          errors:ingress_canary_latency:total_6h >= 30
+          (
+            errors:ingress_canary_latency:total_6h >= 30
+            and
+            errors:ingress_canary_latency:error_rate_6h > 0.005
+          )
           and
-          errors:ingress_canary_latency:error_rate_6h > 0.005
+          (
+            errors:ingress_canary_latency:total_3d >= 60
+            and
+            errors:ingress_canary_latency:error_rate_3d > 0.005
+          )
         )
-        and
-        (
-          errors:ingress_canary_latency:total_3d >= 60
-          and
-          errors:ingress_canary_latency:error_rate_3d > 0.005
-        )
+        * on (_id) group_left(resource_id)
+        group by (_id, resource_id) (hostedClusterAPI_kubeapiserver_available * 0 + 1)
       for: 3h
       labels:
         severity: "4"
@@ -245,8 +295,10 @@ spec:
         long_window: 3d
         short_window: 6h
       annotations:
-        summary: "Ingress canary latency trending below SLO for {{ $labels._id }}"
-        description: "More than 0.5% of synthetic canary route checks exceeded 200ms in both the last 6 hours and the last 3 days for HCP cluster {{ $labels._id }}, consuming the error budget at the SLO rate. No immediate customer impact but trend requires investigation."
+        summary: "Ingress canary latency trending below SLO for {{ $labels._id }} (resource_id: {{ $labels.resource_id }})"
+        description: |
+          More than 0.5% of synthetic canary route checks exceeded 200ms in both the last 6 hours and the last 3 days for HCP cluster {{ $labels._id }}, consuming the error budget at the SLO rate. No immediate customer impact but trend requires investigation.
+          Resource ID: {{ $labels.resource_id }}
         runbook_url: "https://aka.ms/arohcp-runbook-ingress"
         correlationId: "userJourneyIngressLatencyP99Errors/{{ $labels._id }}"
   # ========================================
@@ -263,30 +315,45 @@ spec:
   # self-clearing once the last known-good sample ages out of a narrower
   # historical comparison window. 7d was chosen (over the original 24h) so a
   # multi-day outage doesn't silently self-resolve this alert before on-call
-  # or the underlying issue has had a realistic chance to be addressed; it is
-  # still, by construction, a bounded window -- an HCP silent for longer than
-  # 7d straight will drop out of the reference side and this alert will
-  # clear even though reporting never recovered. There is no metric-only fix
-  # for that: an unbounded reference requires an HCP existence signal
-  # independent of the canary itself (e.g. a backend-emitted inventory
-  # metric), which is out of scope here. Sev 4: loss of the canary signal is
-  # not itself confirmed customer impact, but on-call has lost all
-  # visibility into this HCP's ingress health and needs to investigate.
+  # or the underlying issue has had a realistic chance to be addressed.
+  #
+  # The 7d window alone is still, by construction, bounded -- an HCP silent
+  # for longer than 7d straight would drop out of the reference side and
+  # this alert would clear even though reporting never recovered. Joining
+  # the reference side on _id against hostedClusterAPI_kubeapiserver_available
+  # (the same metric UserJourneyKubeApiserverAvailabilityMonitor-prometheusRule-
+  # KSM.yaml already depends on) closes that gap for the common case: once
+  # an HCP is actually deleted, its HostedCluster record disappears from
+  # that metric too, so the join drops it immediately rather than waiting
+  # out the full 7d. It does not close the gap for an HCP that still exists
+  # but is silent for longer than 7d straight -- that residual case would
+  # need a reference with no time window at all, which doesn't fit this
+  # metric's semantics. The join also attaches resource_id for on-call
+  # triage, which the canary metric itself never carries. Sev 4: loss of the
+  # canary signal is not itself confirmed customer impact, but on-call has
+  # lost all visibility into this HCP's ingress health and needs to
+  # investigate.
   - name: arohcp_ingress_canary_liveness_alerts
     labels:
       component: slo
     rules:
     - alert: userJourneyIngressCanaryAbsent
       expr: |
-        count by (_id, cluster, region) (max_over_time(ingress_canary_route_reachable[7d]))
-        unless
+        (
+          count by (_id, cluster, region) (max_over_time(ingress_canary_route_reachable[7d]))
+          * on (_id) group_left(resource_id)
+          group by (_id, resource_id) (hostedClusterAPI_kubeapiserver_available * 0 + 1)
+        )
+        unless on (_id, cluster, region)
         count by (_id, cluster, region) (max_over_time(ingress_canary_route_reachable[10m]))
       for: 10m
       labels:
         severity: "4"
         slo: ingress-availability
       annotations:
-        summary: "Ingress canary has stopped reporting for {{ $labels._id }}"
-        description: "HCP cluster {{ $labels._id }} was emitting synthetic canary route observations but has reported none in the last 10 minutes. This is a loss of the ingress availability/latency signal, not a confirmed failure -- investigate whether ingress-operator or the canary route itself is down."
+        summary: "Ingress canary has stopped reporting for {{ $labels._id }} (resource_id: {{ $labels.resource_id }})"
+        description: |
+          HCP cluster {{ $labels._id }} was emitting synthetic canary route observations but has reported none in the last 10 minutes. This is a loss of the ingress availability/latency signal, not a confirmed failure -- investigate whether ingress-operator or the canary route itself is down.
+          Resource ID: {{ $labels.resource_id }}
         runbook_url: "https://aka.ms/arohcp-runbook-ingress"
         correlationId: "userJourneyIngressCanaryAbsent/{{ $labels._id }}"
