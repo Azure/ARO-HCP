@@ -31,7 +31,7 @@ Image digests for Red Hat environments are defined in [config/config.yaml](../..
 2. Run `make -C config materialize`.
 3. Open a pull request with the change.
 
-Once merged, a Prow job will propagate the updated configuration to the CSPR environment.
+Once merged, a Prow job will build and promote the updated images.
 
 > [!NOTE]
 > Personal DEV environments are not updated automatically. Developers must manually apply the changes by running:

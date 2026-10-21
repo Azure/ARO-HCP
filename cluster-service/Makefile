@@ -28,46 +28,6 @@ PROVISION_SHARDS_IDS_NAMESPACE_UUID=916f9976-e1c0-4afd-b84c-5d5c94fbeaed
 # The value is generated using the uuid5 function from the python3 uuid module.
 PROVISION_SHARD_ID=$$(python3 -c "import uuid; print(uuid.uuid5(uuid.UUID('${PROVISION_SHARDS_IDS_NAMESPACE_UUID}'), '${MGMT_AKS_NAME}'))")
 
-deploy-pr-env-deps:
-	AZURE_CS_MI_CLIENT_ID=$(shell az identity show -g ${RESOURCEGROUP} -n clusters-service --query clientId -o tsv) && \
-	oc process --local -f cspr/cluster-service-namespace.yaml \
-		-p CLIENT_ID=$${AZURE_CS_MI_CLIENT_ID} \
-		-p KEY_VAULT_NAME=${SERVICE_KV} \
-		-p FIRST_PARTY_APP_CERTIFICATE_NAME=${FPA_CERT_NAME} \
-		-p FPA_CLIENT_ID=${AZURE_FIRST_PARTY_APPLICATION_CLIENT_ID} \
-		-p ARM_HELPER_CERTIFICATE_NAME=${ARM_HELPER_CERT_NAME} \
-		-p ARM_HELPER_CLIENT_ID=${AZURE_ARM_HELPER_IDENTITY_CLIENT_ID} \
-		-p ARM_HELPER_MOCK_FPA_PRINCIPAL_ID=${AZURE_ARM_HELPER_MOCK_FPA_PRINCIPAL_ID} \
-		-p MSI_MOCK_CERTIFICATE_NAME=${MI_MOCK_SERVICE_PRINCIPAL_CERT_NAME} \
-		-p MSI_MOCK_CLIENT_ID=${AZURE_MI_MOCK_SERVICE_PRINCIPAL_CLIENT_ID} \
-		-p MSI_MOCK_PRINCIPAL_ID=${AZURE_MI_MOCK_SERVICE_PRINCIPAL_PRINCIPAL_ID} | oc apply -f -
-	oc process --local -f cspr/orphaned-namespace-cleaner.yaml | oc apply -f -
-	./cspr/deploy-resource-cleaner.sh \
-		--resource-group "${RESOURCEGROUP}" \
-		--cx-keyvault "${CX_SECRETS_KV_NAME}" \
-		--mi-keyvault "${CX_MI_KV_NAME}" \
-		--acr-name "${OCP_ACR_NAME}" \
-		--istio-tag "${SVC_ISTIO_TAG}"
-
-cspr-jenkins-kubeconfig:
-	./cspr-kubeconfig.sh cluster-service-admin cluster-service-mgmt ./cspr.kubeconfig
-
-create-pr-env-sp:
-	CLUSTER_ID=$(shell az aks show -g ${RESOURCEGROUP} -n ${AKS_NAME} --query id -o tsv) && \
-	az ad sp create-for-rbac \
-	--display-name "cs-pr-authentication" \
-	--role 'Contributor' \
-	--scopes "$${CLUSTER_ID}"
-	az role assignment create \
-	--role "Key Vault Certificate User" \
-	--assignee "$(shell az ad sp list --display-name cs-pr-authentication --query [0].appId -o tsv)" \
-	--scope "$(shell az keyvault show --name ${SERVICE_KV} --query id -o tsv)"
-	echo "cs-pr-authentication requires 'Microsoft.Authorization/roleAssignments/write' action granted via 'User Access Administrator'. This role assignment requires elevated permissions, please add it in the case of re-creation of this service principal."
-#	az role assignment create \
-#	--role "User Access Administrator" \
-#	--assignee "$(shell az ad sp list --display-name cs-pr-authentication --query [0].appId -o tsv)" \
-#	--scope "$${CLUSTER_ID}"
-
 local-deploy-provision-shard:
 	@ZONE_RESOURCE_ID=$(shell az network dns zone show -n ${ZONE_NAME} -g ${REGIONAL_RESOURCEGROUP} --query id -o tsv) && \
 	CX_SECRETS_KV_URL=$(shell az keyvault show -n ${CX_SECRETS_KV_NAME} -g ${MGMT_RESOURCEGROUP} --query properties.vaultUri -o tsv) && \
@@ -141,4 +101,4 @@ shared-storage-runtime-config:
 	@cat local/azure-runtime-config.json | jq
 .PHONY: shared-storage-runtime-config
 
-.PHONY: create-pr-env-sp deploy-pr-env-deps cspr-jenkins-kubeconfig local-deploy-provision-shard
+.PHONY: local-deploy-provision-shard
