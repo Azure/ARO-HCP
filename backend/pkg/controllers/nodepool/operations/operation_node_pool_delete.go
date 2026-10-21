@@ -158,7 +158,10 @@ func (c *operationNodePoolDelete) reconcileOperationAndResourceStatus(ctx contex
 
 	nodePoolCSID := nodePool.ServiceProviderProperties.ClusterServiceID
 
-	nodePoolStatus, err := c.clusterServiceClient.GetNodePoolStatus(ctx, *nodePoolCSID)
+	csCtx, cancel := context.WithTimeout(ctx, controllerutils.CSReadTimeout)
+	defer cancel()
+
+	nodePoolStatus, err := c.clusterServiceClient.GetNodePoolStatus(csCtx, *nodePoolCSID)
 	if err != nil {
 		var ocmError *ocmerrors.Error
 		if !errors.As(err, &ocmError) || ocmError.Status() != http.StatusNotFound {

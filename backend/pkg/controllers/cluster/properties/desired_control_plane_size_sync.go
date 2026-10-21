@@ -145,7 +145,10 @@ func (c *desiredControlPlaneSizeSyncer) SyncOnce(ctx context.Context, key contro
 	}
 
 	clusterServiceID := *cachedCluster.ServiceProviderProperties.ClusterServiceID
-	clusterServiceCluster, err := c.clusterServiceClient.GetCluster(ctx, clusterServiceID)
+	csCtx, cancel := context.WithTimeout(ctx, controllerutils.CSReadTimeout)
+	defer cancel()
+
+	clusterServiceCluster, err := c.clusterServiceClient.GetCluster(csCtx, clusterServiceID)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get cluster from Cluster Service: %w", err))
 	}

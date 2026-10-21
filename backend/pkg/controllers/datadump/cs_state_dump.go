@@ -47,6 +47,8 @@ type csStateDump struct {
 
 const CSStateDumpControllerName = "CSStateDump"
 
+const csStateDumpTimeout = 2 * time.Minute
+
 // NewCSStateDumpController periodically fetches cluster-service state for each cluster and dumps it to logs.
 func NewCSStateDumpController(
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
@@ -105,8 +107,11 @@ func (c *csStateDump) SyncOnce(ctx context.Context, key controllerutils.HCPClust
 	}
 	csID := cluster.ServiceProviderProperties.ClusterServiceID
 
+	readCtx, cancelRead := context.WithTimeout(ctx, controllerutils.CSReadTimeout)
+
 	// Fetch cluster state from cluster-service
-	csCluster, err := c.csClient.GetCluster(ctx, *csID)
+	csCluster, err := c.csClient.GetCluster(readCtx, *csID)
+	cancelRead()
 	if err != nil {
 		logger.Error(err, "failed to get cluster from cluster-service for CS state dump")
 		// Continue with what we have
@@ -134,7 +139,9 @@ func (c *csStateDump) SyncOnce(ctx context.Context, key controllerutils.HCPClust
 		return nil
 	}
 
-	csNodePoolsByID, err := c.listNodePoolsByID(ctx, *csID)
+	listCtx, cancelList := context.WithTimeout(ctx, csStateDumpTimeout)
+	csNodePoolsByID, err := c.listNodePoolsByID(listCtx, *csID)
+	cancelList()
 	if err != nil {
 		logger.Error(err, "failed to list node pools from cluster-service for CS state dump")
 		return nil

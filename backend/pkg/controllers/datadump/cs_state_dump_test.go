@@ -17,8 +17,10 @@ package datadump
 import (
 	"context"
 	"fmt"
+	"iter"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/go-logr/logr/funcr"
 	"github.com/stretchr/testify/assert"
@@ -56,12 +58,53 @@ func TestCSStateDump_SyncOnce(t *testing.T) {
 			name:          "success logs cluster data with no node pools",
 			createCluster: true,
 			setupCSClient: func(mock *ocm.MockClusterServiceClientSpec, csID metadataapi.InternalID) {
+				var requestCtx, listCtx context.Context
+				t.Cleanup(func() {
+					require.NotNil(t, requestCtx)
+					require.ErrorIs(t, requestCtx.Err(), context.Canceled)
+					require.NotNil(t, listCtx)
+					require.ErrorIs(t, listCtx.Err(), context.Canceled)
+				})
 				csCluster, _ := arohcpv1alpha1.NewCluster().
 					ID("11111111111111111111111111111111").
 					State(arohcpv1alpha1.ClusterStateReady).
 					Build()
-				mock.EXPECT().GetCluster(gomock.Any(), csID).Return(csCluster, nil)
-				mock.EXPECT().ListNodePools(csID, "").Return(ocm.NewSimpleNodePoolListIterator(nil, nil))
+				mock.EXPECT().GetCluster(gomock.Any(), csID).DoAndReturn(func(ctx context.Context, _ metadataapi.InternalID) (*arohcpv1alpha1.Cluster, error) {
+					requestCtx = ctx
+					deadline, ok := ctx.Deadline()
+					require.True(t, ok)
+					require.InDelta(t, controllerutils.CSReadTimeout.Seconds(), time.Until(deadline).Seconds(), 1)
+					return csCluster, nil
+				})
+				mock.EXPECT().ListNodePools(csID, "").Return(&contextCheckingNodePoolIterator{
+					NodePoolListIterator: ocm.NewSimpleNodePoolListIterator(nil, nil),
+					check: func(ctx context.Context) {
+						listCtx = ctx
+						require.False(t, ctx == requestCtx, "cluster fetch and node pool iteration must have separate deadlines")
+						require.ErrorIs(t, requestCtx.Err(), context.Canceled)
+						require.NoError(t, ctx.Err())
+						deadline, ok := ctx.Deadline()
+						require.True(t, ok)
+						require.InDelta(t, csStateDumpTimeout.Seconds(), time.Until(deadline).Seconds(), 1)
+					},
+				})
+			},
+			wantErr: false,
+		},
+		{
+			name:          "cluster GET deadline does not prevent node pool iteration",
+			createCluster: true,
+			setupCSClient: func(mock *ocm.MockClusterServiceClientSpec, csID metadataapi.InternalID) {
+				mock.EXPECT().GetCluster(gomock.Any(), csID).Return(nil, context.DeadlineExceeded)
+				mock.EXPECT().ListNodePools(csID, "").Return(&contextCheckingNodePoolIterator{
+					NodePoolListIterator: ocm.NewSimpleNodePoolListIterator(nil, nil),
+					check: func(ctx context.Context) {
+						require.NoError(t, ctx.Err())
+						deadline, ok := ctx.Deadline()
+						require.True(t, ok)
+						require.InDelta(t, csStateDumpTimeout.Seconds(), time.Until(deadline).Seconds(), 1)
+					},
+				})
 			},
 			wantErr: false,
 		},
@@ -236,6 +279,16 @@ func TestCSStateDump_SyncOnce(t *testing.T) {
 			}
 		})
 	}
+}
+
+type contextCheckingNodePoolIterator struct {
+	ocm.NodePoolListIterator
+	check func(context.Context)
+}
+
+func (iterator *contextCheckingNodePoolIterator) Items(ctx context.Context) iter.Seq[*arohcpv1alpha1.NodePool] {
+	iterator.check(ctx)
+	return iterator.NodePoolListIterator.Items(ctx)
 }
 
 func newTestNodePool(name, clusterServiceIDStr string) *coreapi.NodePool {

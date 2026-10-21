@@ -113,7 +113,10 @@ func (c *clusterClusterServiceIDClearer) SyncOnce(ctx context.Context, key contr
 	}
 
 	csID := cluster.ServiceProviderProperties.ClusterServiceID
-	_, err = c.clusterServiceClient.GetClusterStatus(ctx, *csID)
+	csCtx, cancel := context.WithTimeout(ctx, controllerutils.CSReadTimeout)
+	defer cancel()
+
+	_, err = c.clusterServiceClient.GetClusterStatus(csCtx, *csID)
 	if err != nil {
 		var ocmError *ocmerrors.Error
 		if !errors.As(err, &ocmError) || ocmError.Status() != http.StatusNotFound {
