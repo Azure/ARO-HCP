@@ -35,7 +35,12 @@ type DatabaseProperties = {
 @description('The databases to create on the server.')
 param databases DatabaseProperties[] = []
 
-@description('The zone redundant mode of the Postgres Database')
+@description('The zone redundant mode of the Postgres Database. Empty string omits the highAvailability block entirely so an external actor (the postgres-ha migration script) owns HA.')
+@allowed([
+  ''
+  'SameZone'
+  'ZoneRedundant'
+])
 param postgresZoneRedundantMode string
 
 type MaintenanceWindow = {
@@ -92,35 +97,44 @@ resource postgres 'Microsoft.DBforPostgreSQL/flexibleServers@2023-12-01-preview'
     name: sku
     tier: tier
   }
-  properties: {
-    administratorLogin: ''
-    administratorLoginPassword: administratorLoginPassword
-    version: version
-    createMode: 'Default'
-    network: {
-      publicNetworkAccess: private ? 'Disabled' : 'Enabled'
-    }
-    authConfig: {
-      activeDirectoryAuth: 'Enabled'
-      passwordAuth: 'Disabled'
-      tenantId: subscription().tenantId
-    }
-    backup: {
-      backupRetentionDays: backupRetentionDays
-      geoRedundantBackup: geoRedundantBackup ? 'Enabled' : 'Disabled'
-    }
-    dataEncryption: {
-      type: 'SystemManaged'
-    }
-    highAvailability: {
-      mode: postgresZoneRedundantMode
-    }
-    maintenanceWindow: maintenanceWindow
-    storage: {
-      autoGrow: 'Enabled'
-      storageSizeGB: storageSizeGB
-    }
-  }
+  properties: union(
+    {
+      administratorLogin: ''
+      administratorLoginPassword: administratorLoginPassword
+      version: version
+      createMode: 'Default'
+      network: {
+        publicNetworkAccess: private ? 'Disabled' : 'Enabled'
+      }
+      authConfig: {
+        activeDirectoryAuth: 'Enabled'
+        passwordAuth: 'Disabled'
+        tenantId: subscription().tenantId
+      }
+      backup: {
+        backupRetentionDays: backupRetentionDays
+        geoRedundantBackup: geoRedundantBackup ? 'Enabled' : 'Disabled'
+      }
+      dataEncryption: {
+        type: 'SystemManaged'
+      }
+      maintenanceWindow: maintenanceWindow
+      storage: {
+        autoGrow: 'Enabled'
+        storageSizeGB: storageSizeGB
+      }
+    },
+    // Omit highAvailability entirely when unmanaged (empty mode): the RP's PUT
+    // merge semantics then preserve whatever HA the postgres-ha script has set.
+    // A present block would re-assert the mode on every rollout and fight the script.
+    empty(postgresZoneRedundantMode)
+      ? {}
+      : {
+          highAvailability: {
+            mode: postgresZoneRedundantMode
+          }
+        }
+  )
 }
 
 resource postgres_allow_public_access 'Microsoft.DBforPostgreSQL/flexibleServers/firewallRules@2023-12-01-preview' = if (!private) {
