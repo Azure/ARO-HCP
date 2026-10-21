@@ -7,11 +7,11 @@ digraph fleet_placement {
   service [label="Router Service\nhypershift-sharedingress/router", fillcolor="#fff0da", color="#b27624"];
   mirror [label="ReadDesireKubernetesController"];
   ingress [label="SharedIngressReportingController"];
-  registrations [label="ClustersServiceRegistrationController\nMaestroRegistrationController"];
+  registrations [label="ClustersServiceRegistrationController\nMaestroRegistrationController\napproved Stamp gates external calls\nonce True, later errors keep True/CheckFailed"];
   lifecycle [label="ManagementClusterLifecycleController\nall three conditions required"];
   capacity [label="CapacityReportingController\nManagementClusterScaleCeilingReportingController"];
   policy [label="ManagementCluster.Spec\nSchedulingPolicy = Schedulable", fillcolor="#e4f2e5", color="#4c8053"];
-  placement [label="Placement\nunresolved, live, nonterminal HCP"];
+  placement [label="Placement\ncached unresolved, nondeleting, nonterminal HCP"];
   selected [label="Pending reservation, then Spec placement\nCapacityAvailable = True", fillcolor="#e4f2e5", color="#4c8053"];
   deferred [label="No fit: CapacityAvailable\nFalse (known blockers) or Unknown", fillcolor="#e4f2e5", color="#4c8053"];
   create [label="ClusterClusterServiceCreate"];
@@ -21,9 +21,9 @@ digraph fleet_placement {
   service -> mirror [label="observed Service content"];
   mirror -> ingress [label="KubeContent"];
   ingress -> lifecycle [label="SharedIngressAvailable"];
-  registrations -> lifecycle [label="CS + Maestro registered"];
+  registrations -> lifecycle [label="CS + Maestro registration status\nTrue/CheckFailed still satisfies gate"];
   lifecycle -> placement [label="Ready = True"];
-  capacity -> placement [label="current capacity + scaling data;\navailable SWIFT NICs"];
+  capacity -> placement [label="current capacity + scaling data;\nSWIFT NIC fit; non-SWIFT contention ranking"];
   policy -> placement [label="eligible policy"];
   placement -> selected [label="fit: zero NICs non-SWIFT,\none SWIFT SingleReplica, three otherwise"];
   placement -> deferred [label="no eligible fit"];

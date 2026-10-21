@@ -20,13 +20,13 @@ digraph cluster_update {
   dispatch -> cs [label="PATCH"];
   upgrade -> cs [label="submit upgrade policy"];
   cs -> kube [label="desired manifests"];
-  kube -> mirror [label="observed HostedCluster"];
+  kube -> mirror [label="HostedCluster + cluster-autoscaler\nControlPlaneComponent content"];
   mirror -> active [label="version history"];
   put -> op [label="UpdateOperationCompletionDeadline"];
-  cs -> op [label="Cluster Service state"];
-  mirror -> op [label="observed readiness / version"];
-  upgrade -> op [label="upgrade intent failure, if\nrejected"];
-  validation -> op [label="False: Provisioning + InvalidResource;\nfailure and operation each >= 5m: Failed;\nall True: ready"];
+  cs -> op [label="Cluster Service state + spec checks"];
+  mirror -> op [label="HostedCluster configuration (not status);\nautoscaler Available + RolloutComplete\nwhen lowest active version >= 4.20"];
+  active -> op [label="reported active versions\nselect autoscaler gate"];
+  validation -> op [label="non-True (False / Unknown): InvalidResource;\ncondition + operation ages >= 10m: Failed;\nnonzero timestamps; all True: ready"];
   op -> done [label="completion / failure checks;\npending past deadline: selected code + reasons;\nonly InternalServerError becomes DeadlineExceeded"];
   observed [label="Customer resource Status.ActiveVersions\nmajor.minor versions", fillcolor="#e4f2e5", color="#4c8053"];
   active -> observed [label="separate Cosmos replace"];
