@@ -1438,7 +1438,7 @@
     "to": "now"
   },
   "timepicker": {},
-  "timezone": "browser",
+  "timezone": "utc",
   "title": "etcd Fsync Performance",
   "uid": "sre-cluster-health-etcd-fsync",
   "version": 2
