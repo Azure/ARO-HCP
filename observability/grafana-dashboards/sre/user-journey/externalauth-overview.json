@@ -252,7 +252,7 @@
       },
       "gridPos": {
         "h": 8,
-        "w": 3,
+        "w": 2,
         "x": 15,
         "y": 8
       },
@@ -281,7 +281,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count((time() - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\", phase=~\"accepted|awaitingsecret|provisioning\"}) > 900) or vector(0)",
+          "expr": "count((time() - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\", phase=~\"accepted|provisioning\"}) > 900) or vector(0)",
           "legendFormat": "__auto",
           "range": true,
           "refId": "A"
@@ -289,7 +289,7 @@
       ],
       "title": "Create >15m",
       "type": "stat",
-      "description": "Number of ExternalAuth create operations running longer than 15 minutes."
+      "description": "Number of ExternalAuth create operations running longer than 15 minutes. Excludes AwaitingSecret (customer-blocked waiting for OIDC client secret)."
     },
     {
       "datasource": {
@@ -322,8 +322,8 @@
       },
       "gridPos": {
         "h": 8,
-        "w": 3,
-        "x": 18,
+        "w": 2,
+        "x": 17,
         "y": 8
       },
       "id": 9,
@@ -392,8 +392,8 @@
       },
       "gridPos": {
         "h": 8,
-        "w": 3,
-        "x": 21,
+        "w": 2,
+        "x": 19,
         "y": 8
       },
       "id": 10,
@@ -429,7 +429,81 @@
       ],
       "title": "Delete >15m",
       "type": "stat",
-      "description": "Number of ExternalAuth delete operations running longer than 15 minutes."
+      "description": "Number of ExternalAuth delete operations running longer than 15 minutes. Only covers direct DELETE operations \u2014 ExternalAuths removed by parent cluster deletion do not create operations and are not tracked here."
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1
+              },
+              {
+                "color": "orange",
+                "value": 5
+              }
+            ]
+          },
+          "unit": "short",
+          "mappings": [],
+          "color": {
+            "mode": "thresholds"
+          },
+          "noValue": "0"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 3,
+        "x": 21,
+        "y": 8
+      },
+      "id": 907,
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "showPercentChange": false
+      },
+      "pluginVersion": "11.6.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "count(backend_externalauth_provision_state{subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\", phase=\"awaitingsecret\"}) or vector(0)",
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "AwaitingSecret",
+      "type": "stat",
+      "description": "ExternalAuths waiting for the customer to create the OIDC client secret. These are customer-blocked and excluded from stuck/timeliness metrics."
     },
     {
       "collapsed": false,
@@ -1553,7 +1627,7 @@
           }
         }
       ],
-      "description": "All currently in-flight ExternalAuth operations with their elapsed duration. Color indicates severity: green (<5m), yellow (5-15m), red (>15m)."
+      "description": "All currently in-flight ExternalAuth operations with their elapsed duration. Includes AwaitingSecret (customer-blocked). Color indicates severity: green (<5m), yellow (5-15m), red (>15m). Note: only shows direct CRUD operations \u2014 ExternalAuths removed by parent cluster deletion do not create operations."
     },
     {
       "datasource": {
@@ -1639,7 +1713,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "(time() - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\", phase=~\"accepted|awaitingsecret|provisioning|updating|deleting\"})",
+          "expr": "(time() - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\", phase=~\"accepted|provisioning|updating|deleting\"})",
           "legendFormat": "{{ operation_type }}: {{ resource_id }}",
           "range": true,
           "refId": "A"
@@ -1647,7 +1721,7 @@
       ],
       "title": "In-Flight Operation Duration",
       "type": "timeseries",
-      "description": "Real-time elapsed duration of each in-flight ExternalAuth operation. Rising lines indicate stuck operations."
+      "description": "Real-time elapsed duration of each in-flight ExternalAuth operation. Excludes AwaitingSecret. Rising lines indicate stuck operations."
     },
     {
       "collapsed": false,
@@ -1948,7 +2022,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "max(time() - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\", phase=~\"accepted|awaitingsecret|provisioning|updating|deleting\"})",
+          "expr": "max(time() - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\", phase=~\"accepted|provisioning|updating|deleting\"})",
           "legendFormat": "__auto",
           "range": true,
           "refId": "A"
@@ -1956,7 +2030,7 @@
       ],
       "title": "Longest In-Flight Op",
       "type": "stat",
-      "description": "Duration of the longest currently in-flight ExternalAuth operation."
+      "description": "Duration of the longest currently in-flight ExternalAuth operation. Excludes AwaitingSecret (customer-blocked)."
     },
     {
       "datasource": {
@@ -2022,7 +2096,7 @@
       ],
       "title": "Completed Ops (7d TTL)",
       "type": "stat",
-      "description": "Total completed ExternalAuth operations within the 7-day Cosmos TTL window."
+      "description": "Total completed ExternalAuth operations within the 7-day Cosmos TTL window. Note: update durations include both RP processing and HyperShift reconciliation time. Separating these requires hypershift_cluster_identity_providers from the HCPs workspace (not available in the services datasource)."
     },
     {
       "datasource": {
@@ -2591,7 +2665,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count(backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\", phase=~\"accepted|awaitingsecret|provisioning|updating|deleting\"})",
+          "expr": "count(backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\", phase=~\"accepted|provisioning|updating|deleting\"})",
           "legendFormat": "__auto",
           "range": true,
           "refId": "A"
@@ -2599,7 +2673,7 @@
       ],
       "title": "In-Flight Operations",
       "type": "stat",
-      "description": "Number of ExternalAuth operations currently in non-terminal phases."
+      "description": "Number of ExternalAuth operations currently in non-terminal phases. Excludes AwaitingSecret (customer-blocked)."
     },
     {
       "datasource": {
@@ -3027,10 +3101,21 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count(backend_externalauth_provision_state{subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\", phase=~\"provisioning|accepted|awaitingsecret\"})",
+          "expr": "count(backend_externalauth_provision_state{subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\", phase=~\"provisioning|accepted\"})",
           "legendFormat": "In Progress",
           "range": true,
           "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "count(backend_externalauth_provision_state{subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\", phase=\"awaitingsecret\"})",
+          "legendFormat": "AwaitingSecret (Customer-Blocked)",
+          "range": true,
+          "refId": "D"
         }
       ],
       "title": "Provisioning State Over Time",
@@ -4236,6 +4321,6 @@
   "timezone": "browser",
   "title": "ExternalAuth Lifecycle Overview",
   "uid": "sre-externalauth-overview",
-  "version": 4,
+  "version": 5,
   "description": "ExternalAuth lifecycle monitoring: frontend API, fleet state, active operations, duration/performance, SLO compliance, cluster health, and failure analysis."
 }
