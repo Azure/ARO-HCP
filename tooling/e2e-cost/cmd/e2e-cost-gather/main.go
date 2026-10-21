@@ -20,8 +20,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
-
 	cost "github.com/Azure/ARO-HCP/tooling/e2e-cost"
 )
 
@@ -33,6 +31,7 @@ func run() int {
 	job := flag.String("job", "", "Public Prow e2e-parallel job URL (required)")
 	output := flag.String("output", "run-data.json", "Render-ready JSON snapshot path")
 	timeout := flag.Duration("timeout", 30*time.Minute, "Maximum collection duration")
+	billingCache := flag.String("billing-cache", "", "Directory shared by concurrent collectors so each subscription report is generated once (optional; holds pricing data)")
 	flag.Parse()
 	if *job == "" || flag.NArg() != 0 || *timeout <= 0 {
 		flag.Usage()
@@ -46,13 +45,15 @@ func run() int {
 	fmt.Fprintln(os.Stderr, "Discovering resource ownership from job artifacts...")
 	snapshot := cost.Discover(ctx, client, *job, time.Now())
 	fmt.Fprintf(os.Stderr, "Discovered %d resource groups; resolving missing infrastructure subscriptions...\n", len(snapshot.Groups))
-	credential, err := azidentity.NewAzureCLICredential(nil)
+	// Each subscription's billing uses the CLI account with access to it, so
+	// one profile with several service principals logged in covers every tenant.
+	credential, err := cost.NewCLICredential()
 	if err != nil {
 		snapshot.Diagnose("error", "azure-credential", "billing", "Cannot initialize Azure CLI credentials; check az login and AZURE_CONFIG_DIR")
 	} else {
 		cost.ResolveInfraSubscriptions(ctx, client, credential, snapshot)
 		fmt.Fprintln(os.Stderr, "Collecting Azure amortized costs...")
-		cost.Collect(ctx, client, credential, snapshot)
+		cost.CollectWithCache(ctx, client, credential, snapshot, *billingCache)
 	}
 	if err := cost.WriteSnapshot(*output, snapshot); err != nil {
 		fmt.Fprintf(os.Stderr, "Write snapshot: %v\n", err)

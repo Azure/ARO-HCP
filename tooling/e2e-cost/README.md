@@ -1,8 +1,9 @@
 # E2E Cost Reports
 
-Small CLIs collect Azure-reported amortized costs for an ARO HCP
-`pull-ci-Azure-ARO-HCP-main-e2e-parallel` PR job and render an offline HTML report.
-Collection and rendering are separate so UI changes need no Azure refetch.
+Small CLIs collect Azure-reported amortized costs for an ARO HCP e2e-parallel
+Prow build and render an offline HTML report, one build at a time or for every
+build that started on a day. Collection and rendering are separate so UI changes
+need no Azure refetch.
 
 ## Usage
 
@@ -34,7 +35,8 @@ configurable with `--timeout`.
 
 The renderer needs no credentials or network. ECharts, CSS, data, and license notices
 are embedded in the HTML. Both outputs are atomically replaced and private (0600)
-by default: they contain resource IDs and negotiated pricing. No output is published.
+by default: they contain resource IDs and negotiated pricing. Publish them only to
+private, authenticated storage, never to public CI artifacts.
 
 ## Reading the Report
 
@@ -146,6 +148,54 @@ Cost Details downloads, not live-resource inventory scans. Invalid inputs or
 failed partitions are saved as diagnostics; independently retrieved costs remain
 available as known subtotals. Re-run collection to change filters or refresh data;
 excluded groups retain totals/reasons, not their per-resource inventory.
+
+## Daily Reports
+
+The daily flow reports every e2e-parallel build that started on one UTC day,
+across presubmit, periodic, and postsubmit jobs in every environment:
+
+```bash
+go build -o . ./cmd/e2e-cost-runs ./cmd/e2e-cost-gather ./cmd/e2e-cost-render ./cmd/e2e-cost-index
+DAY=2026-10-19; mkdir -p snapshots site/$DAY billing-cache
+
+./e2e-cost-runs --day "$DAY" |
+  xargs -P 16 -I{} sh -c 'id=$(basename "{}")
+    ./e2e-cost-gather --job "{}" --billing-cache billing-cache --output "snapshots/$id.json"
+    ./e2e-cost-render --input "snapshots/$id.json" --format json --output "site/$DAY/$id.json.gz"'
+
+./e2e-cost-index --day "$DAY" --snapshots snapshots --dir "site/$DAY" --manifest site/manifest.json --site-index site/index.html
+```
+
+`site/` is a static site to serve as-is over HTTPS: one viewer page (`index.html`),
+the list of published days (`manifest.json`), and per day an `index.json` run list
+and one gzip-compressed JSON report per build, about 20 MB a day in total.
+`e2e-cost-runs` selects jobs from Prow's history by name: every ARO-HCP job with
+`e2e-parallel` in its name, so new environments and variants are picked up
+without a list to maintain. Without `--day` it selects the day three days ago, by
+which time most billing has arrived. Each build still gets its own snapshot and
+report; a gather that exits nonzero still writes both, marked incomplete.
+
+Cost Details reports are subscription-wide, so every build of a day would
+otherwise request the same reports. With `--billing-cache`, concurrent gathers
+share one report per subscription and window: the first generates and stores
+it under a file lock, and the rest read it from disk. A failed generation is not
+cached, so the next gather retries. The cache holds pricing data; keep it private
+and discard it after the run.
+
+`e2e-cost-render --format json` writes the same computed report as the HTML
+output, as data. The viewer lists published days on the side; a day shows every
+build with its job, PR, result, and infrastructure, test, and net cost, most
+expensive first; and a build shows its report. Reports use the single-file
+report's markup, styles, and scripts, so they look and behave the same, and UI
+changes apply to every published day without regenerating it. `e2e-cost-index`
+writes the day's `index.json`, updates `manifest.json` (rerunning a day replaces
+its entry), and writes the viewer.
+
+Builds that provision their own environment (`aro-hcp-test-local`) report
+infrastructure and test resources. Builds against persistent stage, prod, and
+integration environments (`aro-hcp-test-persistent`) report only their test
+resources; the shared environment is not attributed to runs. Periodic builds
+record only their branch, so their commit is shown as unknown.
 
 ## Attribution
 

@@ -419,6 +419,36 @@ func TestBillingRetriesAndCancellation(t *testing.T) {
 	}
 }
 
+func TestBillingRetryAfterCostManagementHeaders(t *testing.T) {
+	date := time.Now().Add(time.Hour).UTC().Format(http.TimeFormat)
+	for _, tc := range []struct {
+		name    string
+		headers map[string]string
+		want    string
+	}{
+		{"none", nil, ""},
+		{"standard", map[string]string{"Retry-After": "5"}, "5"},
+		{"http-date", map[string]string{"Retry-After": date}, date},
+		// Live Cost Management 429s carry only the per-quota headers.
+		{"cost management only", map[string]string{"x-ms-ratelimit-microsoft.costmanagement-clienttype-retry-after": "17"}, "17"},
+		{"longest wins", map[string]string{
+			"Retry-After": "0",
+			"x-ms-ratelimit-microsoft.costmanagement-entity-retry-after":     "9",
+			"x-ms-ratelimit-microsoft.costmanagement-clienttype-retry-after": "17",
+		}, "17"},
+		{"malformed ignored", map[string]string{"x-ms-ratelimit-microsoft.costmanagement-qpu-retry-after": "soon"}, ""},
+		{"unrelated ignored", map[string]string{"x-ms-ratelimit-remaining-microsoft.costmanagement-entity-requests": "DefaultQuota:3"}, ""},
+	} {
+		header := http.Header{}
+		for name, value := range tc.headers {
+			header.Set(name, value)
+		}
+		if got := billingRetryAfter(header); got != tc.want {
+			t.Fatalf("%s: billingRetryAfter = %q, want %q", tc.name, got, tc.want)
+		}
+	}
+}
+
 func TestBillingEndpointAndSecretSafety(t *testing.T) {
 	for _, location := range []string{"http://management.azure.com/poll?sig=SECRET", "https://management.azure.com.evil.test/poll?sig=SECRET", "https://evil.test/poll?sig=SECRET", "https://user:SECRET@management.azure.com/poll", "https://management.azure.com:444/poll", "/poll?sig=SECRET"} {
 		t.Run(location, func(t *testing.T) {

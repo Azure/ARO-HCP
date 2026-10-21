@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>E2E cost reports</title>
+<style>
+{{.CSS}}
+.site{display:flex;min-height:100vh}.site-nav{flex:0 0 232px;box-sizing:border-box;position:sticky;top:0;height:100vh;overflow-y:auto;background:var(--paper);border-right:1px solid var(--line);padding:24px 14px;font-size:13px}.site-nav>a{display:block;font-weight:700;color:var(--ink);text-decoration:none;margin:0 6px 14px}.site-nav ol{list-style:none;margin:0;padding:0}.site-nav li a{display:flex;justify-content:space-between;gap:8px;padding:6px;border-radius:4px;color:var(--ink);text-decoration:none}.site-nav li a:hover{background:#eef3f4}.site-nav li a[aria-current]{background:#e2eef0;font-weight:650}.site-nav small{font-variant-numeric:tabular-nums}.site-main{flex:1;min-width:0}
+@media(max-width:900px){.site{display:block}.site-nav{position:static;height:auto;max-height:40vh;border-right:0;border-bottom:1px solid var(--line)}}
+</style>
+</head>
+<body><div class="site">
+<nav class="site-nav" aria-label="Report days"><a href="?">E2E cost reports</a><ol id="days"></ol></nav>
+<div class="site-main"><main id="view"><p class="muted">Loading…</p></main></div>
+</div>
+<script>{{.Runtime}}</script>
+<script id="licenses" type="application/json">{{.Licenses}}</script>
+<script>
+{{.Script}}
+(() => {
+  const view = document.getElementById("view");
+  const params = new URLSearchParams(location.search);
+  const day = params.get("day") || "";
+  const run = params.get("run") || "";
+  const esc = value => String(value ?? "").replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&#34;", "'": "&#39;"}[c]));
+  const safeURL = value => /^https:\/\//i.test(value || "") ? value : "";
+  const usd = value => "$" + Number(value || 0).toFixed(4);
+  const usd2 = value => "$" + Number(value || 0).toFixed(2);
+  const known = value => value || "Unknown";
+  const utc = value => !value || value.startsWith("0001-") ? "Unavailable" : value.replace("T", " ").replace(/(\.\d+)?Z$/, "") + " UTC";
+  const clock = value => !value || value.startsWith("0001-") ? "Unavailable" : value.slice(11, 16) + " UTC";
+  const shortJob = job => (job || "").replace(/^(pull|periodic|branch)-ci-Azure-ARO-HCP-main-/, "");
+  const validDay = /^\d{4}-\d{2}-\d{2}$/.test(day);
+  const validRun = /^\d{1,30}$/.test(run);
+
+  // Fetches JSON, decompressing gzip bodies the host did not already decode.
+  const fetchJSON = async path => {
+    const response = await fetch(path, {cache: "no-cache"});
+    if (!response.ok) throw new Error(path + ": HTTP " + response.status);
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    if (bytes[0] === 0x1f && bytes[1] === 0x8b) {
+      return JSON.parse(await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"))).text());
+    }
+    return JSON.parse(new TextDecoder().decode(bytes));
+  };
+  const unavailable = (title, detail) => {
+    view.innerHTML = '<header><p class="eyebrow">ARO HCP / E2E cost reports</p><h1>' + esc(title) + '</h1></header>' +
+      '<section class="panel warning"><p>' + esc(detail) + '</p></section>';
+  };
+
+  const renderNav = manifest => {
+    const list = document.getElementById("days");
+    list.replaceChildren();
+    for (const entry of manifest.days || []) {
+      const item = document.createElement("li");
+      const link = document.createElement("a");
+      link.href = "?day=" + encodeURIComponent(entry.day);
+      if (entry.day === day) link.setAttribute("aria-current", "page");
+      const label = document.createElement("span");
+      label.textContent = entry.day;
+      const meta = document.createElement("small");
+      meta.className = "muted";
+      meta.textContent = entry.runs + " runs";
+      link.append(label, meta);
+      item.append(link);
+      list.append(item);
+    }
+  };
+
+  const renderHome = manifest => {
+    document.title = "E2E cost reports";
+    const days = manifest.days || [];
+    view.innerHTML = '<header><p class="eyebrow">ARO HCP / E2E cost reports</p><h1>E2E cost reports</h1>' +
+      '<p class="muted">Daily per-run amortized Azure cost for ARO HCP e2e builds across environments. Each day is collected a few days after it ends, once most billing has arrived.</p></header>' +
+      '<section class="panel" aria-label="Days">' + (days.length ? '<div class="table-wrap"><table><thead><tr><th>Day (UTC)</th><th>Runs</th><th>Incomplete</th><th>Net USD</th></tr></thead><tbody>' +
+        days.map(d => '<tr><td><a href="?day=' + encodeURIComponent(d.day) + '">' + esc(d.day) + '</a></td><td>' + esc(d.runs) + '</td><td>' + esc(d.incomplete) + '</td><td class="money">' + usd2(d.netUSD) + '</td></tr>').join("") +
+        '</tbody></table></div>' : '<p>No days published yet.</p>') + '</section>';
+  };
+
+  const renderDay = index => {
+    document.title = "E2E costs | " + index.day;
+    const s = index.summary || {};
+    const runs = index.runs || [];
+    view.innerHTML = '<header><p class="eyebrow"><a href="?">ARO HCP / E2E cost reports</a></p><h1>E2E runs started ' + esc(index.day) + ' (UTC)</h1>' +
+      '<p class="muted">Per-run amortized Azure cost for ARO HCP e2e builds. Shared infrastructure is excluded; stage and prod runs test persistent environments, so only their test resources are reported. Billing is provisional and can arrive late.</p></header>' +
+      '<section class="panel" aria-label="Day summary"><div class="summary">' +
+      '<div class="metric"><span>Runs</span><strong>' + esc(s.runs) + '</strong></div>' +
+      '<div class="metric"><span>Net cost' + (s.incomplete ? ' (known subtotal)' : '') + '</span><strong>' + usd2(s.netUSD) + '</strong></div>' +
+      (s.incomplete ? '<div class="metric"><span>Incomplete runs</span><strong>' + esc(s.incomplete) + '</strong></div>' : '') +
+      '</div></section><section class="panel" aria-label="Runs"><h2>Runs, most expensive first</h2>' +
+      (runs.length ? '<div class="table-wrap"><table><thead><tr><th>Run</th><th>Job</th><th>PR</th><th>Started</th><th>Result</th><th>Infra USD</th><th>Tests USD</th><th>Net USD</th></tr></thead><tbody>' +
+        runs.map(r => '<tr><td><a href="?day=' + encodeURIComponent(index.day) + '&amp;run=' + encodeURIComponent(r.buildID) + '">' + esc(r.buildID) + '</a>' +
+          (r.complete ? '' : ' <span class="badge">Known subtotal</span>') +
+          (safeURL(r.url) ? '<br><a class="muted" href="' + esc(safeURL(r.url)) + '" rel="noreferrer">Prow</a>' : '') + '</td>' +
+          '<td>' + esc(shortJob(r.job)) + '</td><td>' + (r.pr ? esc(r.pr) : '—') + '</td><td>' + clock(r.startedAt) + '</td><td>' + esc(known(r.result)) + '</td>' +
+          '<td class="money">' + usd2(r.infraUSD) + '</td><td class="money">' + usd2(r.testsUSD) + '</td><td class="money">' + usd2(r.netUSD) + '</td></tr>').join("") +
+        '</tbody></table></div>' : '<p>No e2e runs started on this day.</p>') + '</section>';
+  };
+
+  // renderReport reproduces report.html's job-mode markup, then mounts the
+  // shared interactive script, so a run looks the same as its single-file report.
+  const renderReport = (d, licenses) => {
+    const j = d.job || {};
+    document.title = "E2E cost report | " + (j.name || "");
+    const diagnostic = (x, severity) => '\n<li><strong>' + (severity ? esc(x.severity) + ' / ' : '') + esc(x.code) + '</strong>' + (x.scope ? ' [' + esc(x.scope) + ']' : '') + ': ' + esc(x.message) + '</li>';
+    const alerts = d.alerts || [], notes = d.infoDiagnostics || [], inventory = d.inventory || [];
+    const prow = safeURL(j.url);
+    view.innerHTML = '<header>\n<p class="eyebrow">ARO HCP / E2E cost attribution</p>\n<h1>' + esc(j.name || "E2E cost report") + '</h1>\n<div class="meta">\n' +
+      (prow ? '<span><a href="' + esc(prow) + '" rel="noreferrer">Prow job' + (j.buildID ? ' / ' + esc(j.buildID) : '') + '</a></span>' : '') + '\n' +
+      (j.pr ? '<span>PR ' + esc(j.pr) + '</span>' : '') + (j.commit ? '<span>Commit <code>' + esc(j.commit) + '</code></span>' : '') + '\n' +
+      (j.result ? '<span>Result: ' + esc(j.result) + '</span>' : '') + '\n</div>\n' +
+      '<details><summary>Run and collection metadata</summary>\n<dl>\n\n' +
+      '<dt>Job started</dt><dd>' + utc(j.startedAt) + '</dd><dt>Job finished</dt><dd>' + utc(j.finishedAt) + '</dd>\n' +
+      (d.jobDuration ? '<dt>Job duration</dt><dd>' + esc(d.jobDuration) + '</dd>' : '') + '\n' +
+      '<dt>Infrastructure start</dt><dd>' + utc(j.infraStartedAt) + '</dd><dt>Infrastructure end</dt><dd>' + utc(j.infraEndedAt) + '</dd>\n\n' +
+      '<dt>Query range (UTC)</dt><dd>' + esc(known(d.queryStart)) + ' through ' + esc(known(d.queryEnd)) + '</dd>\n' +
+      '<dt>Collected</dt><dd>' + utc(d.collectedAt) + '</dd><dt>Cost basis</dt><dd>Amortized cost / USD</dd>\n</dl></details>\n</header>\n\n' +
+      (d.incomplete ? '<section class="panel warning" aria-label="Incomplete billing">\n<h2>Incomplete billing: known subtotal only</h2>\n<p>Some discovery or billing data is incomplete. Missing charges are not zero costs. Check the diagnostics and each resource group\'s billing status below.</p>\n</section>' : '') + '\n' +
+      (alerts.length ? '<section class="panel ' + (d.incomplete ? 'warning' : '') + '" aria-label="Collection diagnostics">\n<h2>Collection diagnostics</h2><ul class="diagnostics">' + alerts.map(a => diagnostic(a, true)).join("") + '</ul>\n</section>' : '') + '\n\n' +
+      '<section class="panel" aria-label="Cost summary">\n<h2>' + (d.incomplete ? 'Known subtotal' : 'Cost summary') + '</h2>\n' +
+      (d.hasCharges ? '<div class="summary">\n<div class="metric"><span>Positive net resource costs</span><strong>' + usd(d.positive) + '</strong></div>\n' +
+        '<div class="metric"><span>Negative net adjustments</span><strong>' + usd(d.negative) + '</strong></div>\n' +
+        '<div class="metric"><span>' + (d.incomplete ? 'Known net subtotal' : 'Net cost') + '</span><strong>' + usd(d.net) + '</strong></div>\n' +
+        (d.infraRate ? '<div class="metric"><span>' + (d.incomplete ? 'Known ' : '') + 'cost / infra-hour</span><strong>' + esc(d.infraRate) + '</strong></div>' : '') + '\n' +
+        '</div><p class="muted">Amortized USD. Totals include every recorded charge; areas include only resources with positive net costs. Credits within a resource are netted before sizing.</p>\n' +
+        (d.infraRate ? '<p class="muted">The cost / infra-hour rate is approximate: its denominator runs from provisioning start to asynchronous cleanup completion, not measured resource uptime. Its numerator includes all recorded net charges in the query range, including later charges outside that interval.</p>' : '') + '\n'
+        : '<h3>No billing records available</h3><p class="muted">Costs are unavailable, not $0. Unsupported or failed billing queries are listed above. Discovered resources and empty resource groups remain in the inventory below.</p>') + '\n</section>\n\n\n\n' +
+      (d.postJobResources ? '<section class="panel warning" aria-label="Post-job usage">\n<h2><span class="badge">Post-job usage</span> ' + esc(d.postJobResources) + ' resource(s)</h2>\n<p>' + usd(d.postJobNet) + ' net usage on UTC days after the job\'s finish day. These resources have amber outlines and badges. Same-day usage cannot be separated by the daily billing data.</p>\n</section>' : '') + '\n\n' +
+      '<section class="panel" aria-label="Cost treemap">\n<h2>Where the cost went</h2>\n' +
+      (d.positive > 0 ? '<p class="muted">Select a group to drill down. Use ECharts breadcrumbs to go back; select a resource to open its details. Areas represent positive net USD.</p>\n<label for="chart-grouping">Group costs</label>\n' +
+        '<select id="chart-grouping" style="font:inherit;padding:8px;margin-bottom:12px;max-width:100%"><option value="ownership">By infrastructure / test</option><option value="type">By resource type</option></select>\n' +
+        '<div id="treemap" role="img" aria-label="Interactive positive-cost treemap; the same resources are available in the table below"></div>\n'
+        : '<p class="muted">No positive net resource costs to chart. Zero costs, credits, and resources without billing records are listed below.</p>') + '\n</section>\n\n' +
+      '<details id="group-inventory" class="panel inventory" aria-label="Resource group inventory">\n<summary>Resource group inventory (' + inventory.length + ' groups)</summary>\n<div id="group-browser"></div>\n' +
+      (inventory.length ? '' : '<p>No resource groups discovered. See collection diagnostics if this was unexpected.</p>') + '\n</details>\n\n' +
+      '<details id="resource-inventory" class="panel inventory" aria-label="Resource inventory">\n<summary>All resources (' + esc(d.resourceCount) + ' resources)</summary>\n<div id="resource-browser"></div>\n' +
+      (d.resourceCount ? '' : '<p>No resources discovered.</p>') + '\n</details>\n<section id="selected-resource" class="panel" aria-label="Selected resource details" hidden></section>\n\n' +
+      '<footer><p>Billing can arrive late; this is a snapshot, not a final invoice.</p>\n\n' +
+      ((d.excludedGroups || []).length ? '<details><summary>Excluded shared resource groups</summary><ul>' + d.excludedGroups.map(g => '<li>' + esc(g) + '</li>').join("") + '</ul></details>' : '') + '\n' +
+      '<p>Shared infrastructure costs are excluded. This report covers only the resource groups attributed to this job, not its share of shared services.</p>\n\n' +
+      (notes.length ? '<details aria-label="Collection notes"><summary>Collection notes (' + notes.length + ')</summary><ul class="diagnostics">' + notes.map(n => diagnostic(n, false)).join("") + '</ul></details>' : '') + '\n' +
+      '<details><summary>Open-source licenses / Apache ECharts 5.6.0</summary><pre>' + esc(licenses.notice) + '\n' + esc(licenses.license) + '</pre></details></footer>';
+    initCostReport({subscriptionMode: false, inventory, option: d.option, typeData: d.typeData});
+  };
+
+  (async () => {
+    let manifest = {days: []};
+    try {
+      manifest = await fetchJSON("manifest.json");
+    } catch (error) {
+      if (!day) return unavailable("E2E cost reports", "No published days could be loaded (" + error.message + ").");
+    }
+    renderNav(manifest);
+    if (!day) return renderHome(manifest);
+    if (!validDay || (run && !validRun)) return unavailable("Report unavailable", "The requested day or run is not valid.");
+    try {
+      if (!run) return renderDay(await fetchJSON(day + "/index.json"));
+      const data = await fetchJSON(day + "/" + run + ".json.gz");
+      if (data.subscriptionMode) return unavailable("Report unavailable", "Subscription reports are rendered with e2e-cost-render, not the site viewer.");
+      renderReport(data, JSON.parse(document.getElementById("licenses").textContent));
+    } catch (error) {
+      unavailable("Report unavailable", "This report could not be loaded (" + error.message + ").");
+    }
+  })();
+})();
+</script>
+</body></html>
