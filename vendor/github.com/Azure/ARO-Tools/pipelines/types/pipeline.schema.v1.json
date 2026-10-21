@@ -1,0 +1,2310 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "pipeline.schema.v1",
+  "type": "object",
+  "additionalProperties": false,
+  "definitions": {
+    "stepMeta": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "$ref": "#/definitions/stepName"
+        },
+        "externalDependsOn": {
+          "$ref": "#/definitions/externalStepDependencies"
+        },
+        "dependsOn": {
+          "$ref": "#/definitions/stepDependencies"
+        },
+        "omitFromServiceGroupCompletion": {
+          "type": "boolean"
+        },
+        "automatedRetry": {
+          "type": "object",
+          "properties": {
+            "errorContainsAny": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "maxLength": 16
+            },
+            "maximumRetryCount": {
+              "type": "integer",
+              "maximum": 10
+            },
+            "durationBetweenRetries": {
+              "type": "string"
+            },
+            "honorRetryBudgetWhenFailingFast": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "required": [
+        "name"
+      ]
+    },
+    "validationStepBase": {
+      "type": "object",
+      "properties": {
+        "validation": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "Internal",
+              "GA"
+            ]
+          }
+        }
+      },
+      "required": [
+        "validation"
+      ]
+    },
+    "stepReference": {
+      "type": "object",
+      "properties": {
+        "resourceGroup": {
+          "type": "string",
+          "minLength": 1
+        },
+        "step": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "resourceGroup",
+        "step"
+      ]
+    },
+    "stepDependencies": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/stepReference"
+      },
+      "minLength": 1
+    },
+    "externalStepReference": {
+      "type": "object",
+      "properties": {
+        "serviceGroup": {
+          "type": "string",
+          "minLength": 1
+        },
+        "resourceGroup": {
+          "type": "string",
+          "minLength": 1
+        },
+        "step": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "serviceGroup",
+        "resourceGroup",
+        "step"
+      ]
+    },
+    "externalStepDependencies": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/externalStepReference"
+      },
+      "minLength": 1
+    },
+    "configRef": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "[a-zA-Z0-9]+(\\.[a-zA-Z0-9]+)*"
+    },
+    "durationString": {
+      "type": "string",
+      "pattern": "^[0-9]+[hms]$"
+    },
+    "staticVariableValue": {
+      "oneOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      ]
+    },
+    "stepName": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 34,
+      "pattern": "[a-zA-Z0-9\\-]{1,34}"
+    },
+    "input": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "resourceGroup": {
+          "type": "string",
+          "minLength": 1
+        },
+        "step": {
+          "type": "string",
+          "minLength": 1
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "resourceGroup",
+        "step",
+        "name"
+      ]
+    },
+    "value": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "input": {
+          "$ref": "#/definitions/input"
+        },
+        "configRef": {
+          "$ref": "#/definitions/configRef"
+        },
+        "value": {
+          "$ref": "#/definitions/staticVariableValue"
+        }
+      },
+      "oneOf": [
+        {
+          "required": [
+            "input"
+          ]
+        },
+        {
+          "required": [
+            "configRef"
+          ]
+        },
+        {
+          "required": [
+            "value"
+          ]
+        }
+      ]
+    },
+    "variable": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "input": {
+          "$ref": "#/definitions/input"
+        },
+        "configRef": {
+          "$ref": "#/definitions/configRef"
+        },
+        "value": {
+          "$ref": "#/definitions/staticVariableValue"
+        }
+      },
+      "oneOf": [
+        {
+          "required": [
+            "name",
+            "input"
+          ]
+        },
+        {
+          "required": [
+            "name",
+            "configRef"
+          ]
+        },
+        {
+          "required": [
+            "name",
+            "value"
+          ]
+        }
+      ],
+      "required": [
+        "name"
+      ]
+    },
+    "executionConstraint": {
+      "type": "object",
+      "properties": {
+        "singleton": {
+          "type": "boolean"
+        },
+        "level": {
+          "type": "string",
+          "enum": [
+            "Cloud",
+            "Region"
+          ]
+        },
+        "clouds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "public",
+              "ff",
+              "mc",
+              "usnat",
+              "ussec",
+              "bleu"
+            ]
+          }
+        },
+        "environments": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "int",
+              "stg",
+              "prod"
+            ]
+          }
+        },
+        "regions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "adoArtifactDownloadReference": {
+      "properties": {
+        "artifactName": {
+          "type": "string"
+        },
+        "buildId": {
+          "type": "string"
+        },
+        "adoProject": {
+          "type": "string"
+        },
+        "fileSourceToDestination": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "armStep": {
+      "unevaluatedProperties": false,
+      "allOf": [
+        {
+          "$ref": "#/definitions/stepMeta"
+        },
+        {
+          "properties": {
+            "action": {
+              "const": "ARM"
+            },
+            "template": {
+              "type": "string"
+            },
+            "parameters": {
+              "type": "string"
+            },
+            "variables": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/variable"
+              }
+            },
+            "deploymentLevel": {
+              "type": "string",
+              "enum": [
+                "ResourceGroup",
+                "Subscription"
+              ]
+            },
+            "deploymentMode": {
+              "type": "string",
+              "enum": [
+                "incremental",
+                "complete"
+              ]
+            },
+            "outputOnly": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "template",
+            "parameters",
+            "deploymentLevel"
+          ]
+        }
+      ]
+    },
+    "armStackStep": {
+      "unevaluatedProperties": false,
+      "allOf": [
+        {
+          "$ref": "#/definitions/stepMeta"
+        },
+        {
+          "properties": {
+            "action": {
+              "const": "ARMStack"
+            },
+            "template": {
+              "type": "string"
+            },
+            "parameters": {
+              "type": "string"
+            },
+            "variables": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/variable"
+              }
+            },
+            "deploymentLevel": {
+              "type": "string",
+              "enum": [
+                "ResourceGroup",
+                "Subscription"
+              ]
+            },
+            "actionOnUnmanage": {
+              "type": "string",
+              "enum": [
+                "delete",
+                "detach"
+              ]
+            },
+            "bypassStackOutOfSyncError": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "template",
+            "parameters",
+            "deploymentLevel",
+            "actionOnUnmanage"
+          ]
+        }
+      ]
+    },
+    "shellStepBase": {
+      "type": "object",
+      "properties": {
+        "action": {
+          "const": "Shell"
+        },
+        "command": {
+          "type": "string"
+        },
+        "timeout": {
+          "description": "Timeout is the maximum amount of time to wait for the shell step to complete. If unset, consumers should apply their default shell step timeout.",
+          "$ref": "#/definitions/durationString"
+        },
+        "aksCluster": {
+          "type": "string"
+        },
+        "variables": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/variable"
+          }
+        },
+        "subnetName": {
+          "type": "string"
+        },
+        "workingDir": {
+          "type": "string"
+        },
+        "shellIdentity": {
+          "$ref": "#/definitions/value"
+        },
+        "dryRun": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "command": {
+              "type": "string"
+            },
+            "variables": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/variable"
+              }
+            }
+          }
+        },
+        "adoArtifacts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/adoArtifactDownloadReference"
+          }
+        }
+      },
+      "required": [
+        "command",
+        "shellIdentity"
+      ]
+    },
+    "shellStep": {
+      "unevaluatedProperties": false,
+      "allOf": [
+        {
+          "$ref": "#/definitions/stepMeta"
+        },
+        {
+          "$ref": "#/definitions/shellStepBase"
+        }
+      ]
+    },
+    "shellValidationStep": {
+      "unevaluatedProperties": false,
+      "allOf": [
+        {
+          "$ref": "#/definitions/stepMeta"
+        },
+        {
+          "$ref": "#/definitions/shellStepBase"
+        },
+        {
+          "$ref": "#/definitions/validationStepBase"
+        }
+      ]
+    },
+    "publishGenevaActionStep": {
+      "unevaluatedProperties": false,
+      "allOf": [
+        {
+          "$ref": "#/definitions/stepMeta"
+        },
+        {
+          "properties": {
+            "action": {
+              "const": "PublishGenevaAction"
+            },
+            "secretKeyVault": {
+              "$ref": "#/definitions/value"
+            },
+            "secretName": {
+              "$ref": "#/definitions/value"
+            },
+            "gaExtensionName": {
+              "$ref": "#/definitions/value"
+            },
+            "gaPackagePath": {
+              "type": "string"
+            },
+            "useBetaEndpoint": {
+              "type": "boolean"
+            },
+            "genevaActionArtifact": {
+              "$ref": "#/definitions/adoArtifactDownloadReference"
+            }
+          },
+          "required": [
+            "secretKeyVault",
+            "secretName",
+            "gaExtensionName",
+            "gaPackagePath",
+            "genevaActionArtifact"
+          ]
+        }
+      ]
+    },
+    "runGenevaActionStep": {
+      "unevaluatedProperties": false,
+      "allOf": [
+        {
+          "$ref": "#/definitions/stepMeta"
+        },
+        {
+          "properties": {
+            "action": {
+              "const": "RunGenevaAction"
+            },
+            "secretKeyVault": {
+              "$ref": "#/definitions/value"
+            },
+            "secretName": {
+              "$ref": "#/definitions/value"
+            },
+            "gaExtensionName": {
+              "$ref": "#/definitions/value"
+            },
+            "gaEndpoint": {
+              "$ref": "#/definitions/value"
+            },
+            "gaOperationId": {
+              "$ref": "#/definitions/value"
+            },
+            "maxExecutionTime": {
+              "type": "string",
+              "description": "Max execution time duration (e.g., PT30M, PT1H).",
+              "default": "PT30M"
+            },
+            "payloadProperties": {
+              "type": "object",
+              "description": "Arbitrary key-value payload parameters for the Geneva Action operation.",
+              "additionalProperties": {
+                "$ref": "#/definitions/value"
+              }
+            }
+          },
+          "required": [
+            "secretKeyVault",
+            "secretName",
+            "gaExtensionName",
+            "gaOperationId"
+          ]
+        }
+      ]
+    },
+    "genevaHealthStep": {
+      "unevaluatedProperties": false,
+      "allOf": [
+        {
+          "$ref": "#/definitions/stepMeta"
+        },
+        {
+          "properties": {
+            "action": {
+              "const": "GenevaHealth"
+            },
+            "secretKeyVault": {
+              "$ref": "#/definitions/value"
+            },
+            "secretName": {
+              "$ref": "#/definitions/value"
+            },
+            "monitoringAccountName": {
+              "$ref": "#/definitions/value"
+            },
+            "monitorConfigPath": {
+              "type": "string"
+            },
+            "topologyConfigPath": {
+              "type": "string"
+            },
+            "configPackagePath": {
+              "type": "string"
+            },
+            "monitorV2ScopeBindingFile": {
+              "type": "string"
+            },
+            "additionalScopeBindings": {
+              "type": "object",
+              "additionalProperties": {
+                "$ref": "#/definitions/value"
+              }
+            },
+            "genevaConfigsArtifact": {
+              "$ref": "#/definitions/adoArtifactDownloadReference"
+            }
+          },
+          "required": [
+            "secretKeyVault",
+            "secretName",
+            "monitoringAccountName",
+            "genevaConfigsArtifact"
+          ]
+        }
+      ]
+    },
+    "publishGenevaAutomationStep": {
+      "unevaluatedProperties": false,
+      "allOf": [
+        {
+          "$ref": "#/definitions/stepMeta"
+        },
+        {
+          "properties": {
+            "action": {
+              "const": "PublishGenevaAutomation"
+            },
+            "secretKeyVault": {
+              "$ref": "#/definitions/value"
+            },
+            "kustoClientSecretName": {
+              "$ref": "#/definitions/value"
+            },
+            "genevaAutomationSecretName": {
+              "$ref": "#/definitions/value"
+            },
+            "icmServiceId": {
+              "$ref": "#/definitions/value"
+            },
+            "icmTeamId": {
+              "$ref": "#/definitions/value"
+            },
+            "workflowPath": {
+              "type": "string"
+            },
+            "genevaAutomationArtifact": {
+              "$ref": "#/definitions/adoArtifactDownloadReference"
+            }
+          },
+          "required": [
+            "secretKeyVault",
+            "kustoClientSecretName",
+            "genevaAutomationSecretName",
+            "icmServiceId",
+            "workflowPath",
+            "genevaAutomationArtifact"
+          ]
+        }
+      ]
+    },
+    "prowJobStep": {
+      "unevaluatedProperties": false,
+      "allOf": [
+        {
+          "$ref": "#/definitions/stepMeta"
+        },
+        {
+          "properties": {
+            "action": {
+              "const": "ProwJob"
+            },
+            "tokenKeyvault": {
+              "type": "string"
+            },
+            "tokenSecret": {
+              "type": "string"
+            },
+            "jobName": {
+              "type": "string"
+            },
+            "gatePromotion": {
+              "type": "string"
+            },
+            "allowedSubscriptions": {
+              "type": "string"
+            },
+            "commit": {
+              "type": "string"
+            },
+            "repo": {
+              "type": "string"
+            },
+            "baseRef": {
+              "type": "string"
+            },
+            "identityFrom": {
+              "$ref": "#/definitions/input"
+            },
+            "dryRun": {
+              "$ref": "#/definitions/value"
+            }
+          },
+          "required": [
+            "tokenKeyvault",
+            "tokenSecret",
+            "jobName",
+            "gatePromotion",
+            "identityFrom"
+          ]
+        }
+      ]
+    },
+    "grafanaDashboardsStep": {
+      "unevaluatedProperties": false,
+      "allOf": [
+        {
+          "$ref": "#/definitions/stepMeta"
+        },
+        {
+          "properties": {
+            "action": {
+              "const": "GrafanaDashboards"
+            },
+            "grafanaName": {
+              "type": "string"
+            },
+            "observabilityConfig": {
+              "type": "string"
+            },
+            "timeout": {
+              "$ref": "#/definitions/durationString"
+            },
+            "identityFrom": {
+              "$ref": "#/definitions/input"
+            }
+          },
+          "required": [
+            "grafanaName",
+            "observabilityConfig",
+            "identityFrom"
+          ]
+        }
+      ]
+    },
+    "grafanaManageStep": {
+      "unevaluatedProperties": false,
+      "allOf": [
+        {
+          "$ref": "#/definitions/stepMeta"
+        },
+        {
+          "properties": {
+            "action": {
+              "const": "GrafanaManage"
+            },
+            "grafanaName": {
+              "$ref": "#/definitions/value"
+            },
+            "location": {
+              "$ref": "#/definitions/value"
+            },
+            "sku": {
+              "$ref": "#/definitions/value"
+            },
+            "majorVersion": {
+              "$ref": "#/definitions/value"
+            },
+            "zoneRedundancy": {
+              "$ref": "#/definitions/value"
+            },
+            "publicNetworkAccess": {
+              "$ref": "#/definitions/value"
+            },
+            "crossTenantSecurityGroup": {
+              "$ref": "#/definitions/value"
+            },
+            "adx": {
+              "$ref": "#/definitions/grafanaADXIntegrations"
+            },
+            "discoveryTagKey": {
+              "$ref": "#/definitions/value"
+            },
+            "timeout": {
+              "$ref": "#/definitions/durationString"
+            },
+            "identityFrom": {
+              "$ref": "#/definitions/input"
+            }
+          },
+          "required": [
+            "grafanaName",
+            "location",
+            "identityFrom"
+          ]
+        }
+      ]
+    },
+    "grafanaADXIntegrations": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "$ref": "#/definitions/value"
+        },
+        "environment": {
+          "$ref": "#/definitions/value"
+        },
+        "geographies": {
+          "$ref": "#/definitions/value"
+        },
+        "scenario": {
+          "$ref": "#/definitions/value"
+        },
+        "targetResourceId": {
+          "$ref": "#/definitions/value"
+        }
+      },
+      "required": [
+        "enabled"
+      ]
+    },
+    "grafanaDatasourcesStep": {
+      "unevaluatedProperties": false,
+      "allOf": [
+        {
+          "$ref": "#/definitions/stepMeta"
+        },
+        {
+          "properties": {
+            "action": {
+              "const": "GrafanaDatasources"
+            },
+            "grafanaName": {
+              "type": "string"
+            },
+            "skipSync": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            },
+            "discoveryTagKey": {
+              "type": "string"
+            },
+            "timeout": {
+              "$ref": "#/definitions/durationString"
+            },
+            "identityFrom": {
+              "$ref": "#/definitions/input"
+            }
+          },
+          "required": [
+            "grafanaName",
+            "identityFrom"
+          ]
+        }
+      ]
+    },
+    "istioUpgradeStep": {
+      "unevaluatedProperties": false,
+      "allOf": [
+        {
+          "$ref": "#/definitions/stepMeta"
+        },
+        {
+          "properties": {
+            "action": {
+              "const": "IstioUpgrade"
+            },
+            "aksCluster": {
+              "$ref": "#/definitions/value"
+            },
+            "timeout": {
+              "$ref": "#/definitions/durationString"
+            },
+            "identityFrom": {
+              "$ref": "#/definitions/input"
+            }
+          },
+          "required": [
+            "aksCluster"
+          ]
+        }
+      ]
+    },
+    "helmStep": {
+      "unevaluatedProperties": false,
+      "allOf": [
+        {
+          "$ref": "#/definitions/stepMeta"
+        },
+        {
+          "properties": {
+            "action": {
+              "const": "Helm"
+            },
+            "aksCluster": {
+              "type": "string"
+            },
+            "subnetName": {
+              "type": "string"
+            },
+            "releaseName": {
+              "type": "string"
+            },
+            "releaseNamespace": {
+              "type": "string"
+            },
+            "namespaceFiles": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "chartDir": {
+              "type": "string"
+            },
+            "valuesFile": {
+              "type": "string"
+            },
+            "rollbackOnFailure": {
+              "type": "boolean"
+            },
+            "kustoDatabase": {
+              "type": "string"
+            },
+            "kustoTable": {
+              "type": "string"
+            },
+            "kustoEndpoint": {
+              "$ref": "#/definitions/input"
+            },
+            "timeout": {
+              "$ref": "#/definitions/durationString"
+            },
+            "inputVariables": {
+              "type": "object",
+              "patternProperties": {
+                "^.+$": {
+                  "$ref": "#/definitions/input"
+                }
+              }
+            },
+            "identityFrom": {
+              "$ref": "#/definitions/input"
+            }
+          },
+          "required": [
+            "aksCluster",
+            "releaseName",
+            "releaseNamespace",
+            "chartDir",
+            "valuesFile",
+            "identityFrom",
+            "kustoEndpoint",
+            "kustoDatabase",
+            "kustoTable"
+          ]
+        }
+      ]
+    },
+    "delegateChildZoneStep": {
+      "unevaluatedProperties": false,
+      "allOf": [
+        {
+          "$ref": "#/definitions/stepMeta"
+        },
+        {
+          "properties": {
+            "action": {
+              "const": "DelegateChildZone"
+            },
+            "parentZone": {
+              "$ref": "#/definitions/value"
+            },
+            "childZone": {
+              "$ref": "#/definitions/value"
+            },
+            "deploymentMode": {
+              "$ref": "#/definitions/value"
+            },
+            "secretKeyVault": {
+              "$ref": "#/definitions/value"
+            },
+            "secretName": {
+              "$ref": "#/definitions/value"
+            },
+            "dstsHost": {
+              "$ref": "#/definitions/value"
+            }
+          },
+          "required": [
+            "parentZone",
+            "childZone",
+            "secretKeyVault",
+            "secretName",
+            "dstsHost"
+          ]
+        }
+      ]
+    },
+    "setCertificateIssuerStep": {
+      "unevaluatedProperties": false,
+      "allOf": [
+        {
+          "$ref": "#/definitions/stepMeta"
+        },
+        {
+          "properties": {
+            "action": {
+              "const": "SetCertificateIssuer"
+            },
+            "vaultBaseUrl": {
+              "$ref": "#/definitions/value"
+            },
+            "issuer": {
+              "$ref": "#/definitions/value"
+            },
+            "secretKeyVault": {
+              "$ref": "#/definitions/value"
+            },
+            "secretName": {
+              "$ref": "#/definitions/value"
+            },
+            "applicationId": {
+              "$ref": "#/definitions/value"
+            }
+          },
+          "required": [
+            "vaultBaseUrl",
+            "issuer",
+            "secretKeyVault",
+            "secretName",
+            "applicationId"
+          ]
+        }
+      ]
+    },
+    "createCertificateStep": {
+      "unevaluatedProperties": false,
+      "allOf": [
+        {
+          "$ref": "#/definitions/stepMeta"
+        },
+        {
+          "properties": {
+            "action": {
+              "const": "CreateCertificate"
+            },
+            "vaultBaseUrl": {
+              "$ref": "#/definitions/value"
+            },
+            "certificateName": {
+              "$ref": "#/definitions/value"
+            },
+            "contentType": {
+              "$ref": "#/definitions/value"
+            },
+            "san": {
+              "$ref": "#/definitions/value"
+            },
+            "issuer": {
+              "$ref": "#/definitions/value"
+            },
+            "secretKeyVault": {
+              "$ref": "#/definitions/value"
+            },
+            "secretName": {
+              "$ref": "#/definitions/value"
+            },
+            "applicationId": {
+              "$ref": "#/definitions/value"
+            },
+            "commonName": {
+              "$ref": "#/definitions/value"
+            },
+            "manage": {
+              "$ref": "#/definitions/value"
+            }
+          },
+          "required": [
+            "vaultBaseUrl",
+            "certificateName",
+            "contentType",
+            "san",
+            "issuer",
+            "secretKeyVault",
+            "secretName",
+            "applicationId",
+            "commonName"
+          ]
+        }
+      ]
+    },
+    "resourceProviderRegistrationStep": {
+      "unevaluatedProperties": false,
+      "allOf": [
+        {
+          "$ref": "#/definitions/stepMeta"
+        },
+        {
+          "properties": {
+            "action": {
+              "const": "ResourceProviderRegistration"
+            },
+            "resourceProviderNamespaces": {
+              "$ref": "#/definitions/value"
+            }
+          },
+          "required": [
+            "resourceProviderNamespaces"
+          ]
+        }
+      ]
+    },
+    "kustoStep": {
+      "unevaluatedProperties": false,
+      "allOf": [
+        {
+          "$ref": "#/definitions/stepMeta"
+        },
+        {
+          "properties": {
+            "action": {
+              "const": "Kusto"
+            },
+            "secretKeyVault": {
+              "$ref": "#/definitions/value"
+            },
+            "secretName": {
+              "$ref": "#/definitions/value"
+            },
+            "applicationId": {
+              "$ref": "#/definitions/value"
+            },
+            "connectionString": {
+              "$ref": "#/definitions/value"
+            },
+            "command": {
+              "$ref": "#/definitions/value"
+            }
+          },
+          "required": [
+            "secretKeyVault",
+            "secretName",
+            "applicationId",
+            "connectionString",
+            "command"
+          ]
+        }
+      ]
+    },
+    "pav2Step": {
+      "unevaluatedProperties": false,
+      "allOf": [
+        {
+          "$ref": "#/definitions/stepMeta"
+        },
+        {
+          "properties": {
+            "action": {
+              "const": "Pav2"
+            },
+            "operation": {
+              "type": "string",
+              "description": "Specifies the type of Pav2 operation to run via Geneva Actions.",
+              "oneOf": [
+                {
+                  "const": "All",
+                  "description": "Run all Pav2 operations"
+                },
+                {
+                  "const": "AddAccount",
+                  "description": "Add Pav2 Account"
+                },
+                {
+                  "const": "ManageAppId",
+                  "description": "Manage the application ID"
+                }
+              ]
+            },
+            "secretKeyVault": {
+              "$ref": "#/definitions/value"
+            },
+            "secretName": {
+              "$ref": "#/definitions/value"
+            },
+            "storageAccount": {
+              "$ref": "#/definitions/value"
+            },
+            "smeEndpointSuffixParameter": {
+              "$ref": "#/definitions/value"
+            },
+            "smeAppidParameter": {
+              "$ref": "#/definitions/value"
+            }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "operation": {
+                    "const": "All"
+                  }
+                }
+              },
+              "then": {
+                "required": [
+                  "operation",
+                  "secretKeyVault",
+                  "secretName",
+                  "storageAccount",
+                  "smeEndpointSuffixParameter",
+                  "smeAppidParameter"
+                ]
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "operation": {
+                    "const": "AddAccount"
+                  }
+                }
+              },
+              "then": {
+                "required": [
+                  "operation",
+                  "secretKeyVault",
+                  "secretName",
+                  "storageAccount",
+                  "smeEndpointSuffixParameter"
+                ]
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "operation": {
+                    "const": "ManageAppId"
+                  }
+                }
+              },
+              "then": {
+                "required": [
+                  "operation",
+                  "secretKeyVault",
+                  "secretName",
+                  "smeAppidParameter"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "logsStep": {
+      "unevaluatedProperties": false,
+      "allOf": [
+        {
+          "$ref": "#/definitions/stepMeta"
+        },
+        {
+          "properties": {
+            "action": {
+              "type": "string",
+              "enum": [
+                "RPLogsAccount",
+                "ClusterLogsAccount"
+              ]
+            },
+            "rolloutKind": {
+              "type": "string",
+              "description": "Specifies the type of log rollout configuration. Different rollout kinds have different required fields and validation rules.",
+              "oneOf": [
+                {
+                  "const": "FluentBit",
+                  "description": "Log configuration from Fluent Bit source"
+                },
+                {
+                  "const": "ClassicRPLog",
+                  "description": "ARO Classic RP Log configuration from RP VMSS"
+                },
+                {
+                  "const": "ClassicClusterLog",
+                  "description": "ARO Classic Cluster Log configuration from ARO Clusters"
+                },
+                {
+                  "const": "AccountSetup",
+                  "description": "Geneva account configuration"
+                }
+              ]
+            },
+            "typeName": {
+              "$ref": "#/definitions/value"
+            },
+            "secretKeyVault": {
+              "$ref": "#/definitions/value"
+            },
+            "secretName": {
+              "$ref": "#/definitions/value"
+            },
+            "environment": {
+              "$ref": "#/definitions/value"
+            },
+            "accountName": {
+              "$ref": "#/definitions/value"
+            },
+            "metricsAccount": {
+              "$ref": "#/definitions/value"
+            },
+            "adminAlias": {
+              "$ref": "#/definitions/value"
+            },
+            "adminGroup": {
+              "$ref": "#/definitions/value"
+            },
+            "subscriptionId": {
+              "$ref": "#/definitions/value"
+            },
+            "namespace": {
+              "$ref": "#/definitions/value"
+            },
+            "certsan": {
+              "$ref": "#/definitions/value"
+            },
+            "certdescription": {
+              "$ref": "#/definitions/value"
+            },
+            "configVersion": {
+              "$ref": "#/definitions/value"
+            },
+            "monikerDefaultRegion": {
+              "$ref": "#/definitions/value"
+            },
+            "database": {
+              "$ref": "#/definitions/value"
+            },
+            "mdsdConfigFile": {
+              "$ref": "#/definitions/value"
+            },
+            "eventSources": {
+              "type": "object",
+              "description": "A map of event configurations where keys represent the fluent bit tag and values are their corresponding Geneva Event config. Refer to https://eng.ms/docs/products/geneva/collect/instrument/linux/fluentd for details",
+              "patternProperties": {
+                "^.*$": {
+                  "$ref": "#/definitions/EventConfig",
+                  "description": "Geneva Event configuration for the corresponding fluent bit tag"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "rolloutKind": {
+                    "const": "FluentBit"
+                  }
+                }
+              },
+              "then": {
+                "required": [
+                  "rolloutKind",
+                  "secretKeyVault",
+                  "secretName",
+                  "environment",
+                  "accountName",
+                  "namespace",
+                  "certsan",
+                  "certdescription",
+                  "configVersion",
+                  "eventSources"
+                ]
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "rolloutKind": {
+                    "const": "ClassicRPLog"
+                  }
+                }
+              },
+              "then": {
+                "required": [
+                  "rolloutKind",
+                  "secretKeyVault",
+                  "secretName",
+                  "environment",
+                  "certsan",
+                  "certdescription"
+                ]
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "rolloutKind": {
+                    "const": "ClassicClusterLog"
+                  }
+                }
+              },
+              "then": {
+                "required": [
+                  "rolloutKind",
+                  "secretKeyVault",
+                  "secretName",
+                  "environment",
+                  "certsan",
+                  "certdescription"
+                ]
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "rolloutKind": {
+                    "const": "AccountSetup"
+                  }
+                }
+              },
+              "then": {
+                "required": [
+                  "rolloutKind",
+                  "secretKeyVault",
+                  "secretName",
+                  "environment",
+                  "accountName",
+                  "metricsAccount",
+                  "adminAlias",
+                  "adminGroup",
+                  "subscriptionId",
+                  "namespace",
+                  "monikerDefaultRegion",
+                  "database"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "imageMirrorStep": {
+      "unevaluatedProperties": false,
+      "allOf": [
+        {
+          "$ref": "#/definitions/stepMeta"
+        },
+        {
+          "properties": {
+            "action": {
+              "const": "ImageMirror"
+            },
+            "targetACR": {
+              "$ref": "#/definitions/value"
+            },
+            "sourceRegistry": {
+              "$ref": "#/definitions/value"
+            },
+            "repository": {
+              "$ref": "#/definitions/value"
+            },
+            "digest": {
+              "$ref": "#/definitions/value"
+            },
+            "copyFrom": {
+              "const": "oci-layout"
+            },
+            "publicSource": {
+              "type": "boolean"
+            },
+            "imageFilePath": {
+              "$ref": "#/definitions/value"
+            },
+            "imageTarFileName": {
+              "$ref": "#/definitions/value"
+            },
+            "imageMetadataFileName": {
+              "$ref": "#/definitions/value"
+            },
+            "pullSecretKeyVault": {
+              "$ref": "#/definitions/value"
+            },
+            "pullSecretName": {
+              "$ref": "#/definitions/value"
+            },
+            "shellIdentity": {
+              "$ref": "#/definitions/value"
+            },
+            "artifactName": {
+              "type": "string"
+            },
+            "buildId": {
+              "type": "string"
+            },
+            "adoProject": {
+              "type": "string"
+            }
+          },
+          "anyOf": [
+            {
+              "required": [
+                "targetACR",
+                "sourceRegistry",
+                "repository",
+                "digest",
+                "pullSecretKeyVault",
+                "pullSecretName",
+                "shellIdentity"
+              ]
+            },
+            {
+              "required": [
+                "targetACR",
+                "repository",
+                "copyFrom",
+                "imageTarFileName",
+                "imageMetadataFileName",
+                "shellIdentity",
+                "adoProject",
+                "artifactName",
+                "buildId"
+              ]
+            },
+            {
+              "required": [
+                "targetACR",
+                "sourceRegistry",
+                "repository",
+                "digest",
+                "publicSource",
+                "shellIdentity"
+              ],
+              "properties": {
+                "publicSource": {
+                  "const": true
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "featureRegistrationStep": {
+      "unevaluatedProperties": false,
+      "allOf": [
+        {
+          "$ref": "#/definitions/stepMeta"
+        },
+        {
+          "properties": {
+            "action": {
+              "const": "FeatureRegistration"
+            },
+            "providerConfigRef": {
+              "$ref": "#/definitions/configRef"
+            },
+            "secretKeyVault": {
+              "$ref": "#/definitions/value"
+            },
+            "secretName": {
+              "$ref": "#/definitions/value"
+            }
+          },
+          "required": [
+            "secretKeyVault",
+            "secretName",
+            "providerConfigRef"
+          ]
+        }
+      ]
+    },
+    "providerFeatureRegistrationStep": {
+      "unevaluatedProperties": false,
+      "allOf": [
+        {
+          "$ref": "#/definitions/stepMeta"
+        },
+        {
+          "properties": {
+            "action": {
+              "const": "ProviderFeatureRegistration"
+            },
+            "providerConfigRef": {
+              "$ref": "#/definitions/configRef"
+            },
+            "identityFrom": {
+              "$ref": "#/definitions/input"
+            }
+          },
+          "required": [
+            "providerConfigRef",
+            "identityFrom"
+          ]
+        }
+      ]
+    },
+    "secretSyncStep": {
+      "unevaluatedProperties": false,
+      "allOf": [
+        {
+          "$ref": "#/definitions/stepMeta"
+        },
+        {
+          "properties": {
+            "action": {
+              "const": "SecretSync"
+            },
+            "configurationFile": {
+              "type": "string",
+              "minLength": 1
+            },
+            "encryptionKey": {
+              "type": "string",
+              "minLength": 1
+            },
+            "keyVault": {
+              "type": "string",
+              "minLength": 1
+            },
+            "identityFrom": {
+              "$ref": "#/definitions/input"
+            }
+          },
+          "required": [
+            "configurationFile",
+            "encryptionKey",
+            "keyVault",
+            "identityFrom"
+          ]
+        }
+      ]
+    },
+    "ev2RegistrationStep": {
+      "unevaluatedProperties": false,
+      "allOf": [
+        {
+          "$ref": "#/definitions/stepMeta"
+        },
+        {
+          "properties": {
+            "action": {
+              "const": "Ev2Registration"
+            },
+            "identityFrom": {
+              "$ref": "#/definitions/input"
+            }
+          },
+          "required": [
+            "identityFrom"
+          ]
+        }
+      ]
+    },
+    "EventConfig": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "The name of the Geneva table for this event source."
+        },
+        "account": {
+          "type": "string",
+          "description": "The name of the geneva account for this event source. If not specified, the default account will be used."
+        }
+      },
+      "required": [
+        "name"
+      ]
+    },
+    "kustoEntityGroupsStep": {
+      "unevaluatedProperties": false,
+      "allOf": [
+        {
+          "$ref": "#/definitions/stepMeta"
+        },
+        {
+          "properties": {
+            "action": {
+              "const": "KustoEntityGroups"
+            },
+            "entityGroups": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "minItems": 1
+            },
+            "environment": {
+              "type": "string",
+              "description": "Optional ARO-HCP environment (for example int, stg or prod) used to scope Kusto cluster discovery so each environment gets an isolated entity group."
+            },
+            "timeout": {
+              "$ref": "#/definitions/durationString"
+            },
+            "identityFrom": {
+              "$ref": "#/definitions/input"
+            }
+          },
+          "required": [
+            "entityGroups",
+            "identityFrom"
+          ]
+        }
+      ]
+    }
+  },
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "serviceGroup": {
+      "type": "string",
+      "minLength": 1
+    },
+    "rolloutName": {
+      "type": "string",
+      "minLength": 1
+    },
+    "resourceGroups": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 12,
+            "pattern": "[a-zA-Z0-9\\-]{1,12}"
+          },
+          "resourceGroup": {
+            "type": "string",
+            "minLength": 1
+          },
+          "subscription": {
+            "type": "string",
+            "minLength": 1
+          },
+          "stamped": {
+            "type": "boolean"
+          },
+          "executionConstraints": {
+            "type": "array",
+            "items": {
+              "$ref": "#/definitions/executionConstraint"
+            }
+          },
+          "subscriptionProvisioning": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "displayName": {
+                "$ref": "#/definitions/value"
+              },
+              "airsRegisteredUserPrincipalId": {
+                "$ref": "#/definitions/value"
+              },
+              "certificateDomains": {
+                "$ref": "#/definitions/value"
+              },
+              "backfillSubscriptionId": {
+                "$ref": "#/definitions/value"
+              },
+              "roleAssignment": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "anyOf": [
+              {
+                "required": [
+                  "backfillSubscriptionId"
+                ]
+              },
+              {
+                "required": [
+                  "displayName",
+                  "roleAssignment"
+                ]
+              }
+            ]
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "allOf": [
+                {
+                  "if": {
+                    "type": "object",
+                    "properties": {
+                      "action": {
+                        "const": "ARM"
+                      }
+                    },
+                    "required": [
+                      "action"
+                    ]
+                  },
+                  "then": {
+                    "$ref": "#/definitions/armStep"
+                  }
+                },
+                {
+                  "if": {
+                    "type": "object",
+                    "properties": {
+                      "action": {
+                        "const": "ARMStack"
+                      }
+                    },
+                    "required": [
+                      "action"
+                    ]
+                  },
+                  "then": {
+                    "$ref": "#/definitions/armStackStep"
+                  }
+                },
+                {
+                  "if": {
+                    "type": "object",
+                    "properties": {
+                      "action": {
+                        "const": "Shell"
+                      }
+                    },
+                    "required": [
+                      "action"
+                    ]
+                  },
+                  "then": {
+                    "$ref": "#/definitions/shellStep"
+                  }
+                },
+                {
+                  "if": {
+                    "type": "object",
+                    "properties": {
+                      "action": {
+                        "const": "Helm"
+                      }
+                    },
+                    "required": [
+                      "action"
+                    ]
+                  },
+                  "then": {
+                    "$ref": "#/definitions/helmStep"
+                  }
+                },
+                {
+                  "if": {
+                    "type": "object",
+                    "properties": {
+                      "action": {
+                        "const": "DelegateChildZone"
+                      }
+                    },
+                    "required": [
+                      "action"
+                    ]
+                  },
+                  "then": {
+                    "$ref": "#/definitions/delegateChildZoneStep"
+                  }
+                },
+                {
+                  "if": {
+                    "type": "object",
+                    "properties": {
+                      "action": {
+                        "const": "SetCertificateIssuer"
+                      }
+                    },
+                    "required": [
+                      "action"
+                    ]
+                  },
+                  "then": {
+                    "$ref": "#/definitions/setCertificateIssuerStep"
+                  }
+                },
+                {
+                  "if": {
+                    "type": "object",
+                    "properties": {
+                      "action": {
+                        "const": "CreateCertificate"
+                      }
+                    },
+                    "required": [
+                      "action"
+                    ]
+                  },
+                  "then": {
+                    "$ref": "#/definitions/createCertificateStep"
+                  }
+                },
+                {
+                  "if": {
+                    "type": "object",
+                    "properties": {
+                      "action": {
+                        "const": "ResourceProviderRegistration"
+                      }
+                    },
+                    "required": [
+                      "action"
+                    ]
+                  },
+                  "then": {
+                    "$ref": "#/definitions/resourceProviderRegistrationStep"
+                  }
+                },
+                {
+                  "if": {
+                    "type": "object",
+                    "properties": {
+                      "action": {
+                        "const": "Kusto"
+                      }
+                    },
+                    "required": [
+                      "action"
+                    ]
+                  },
+                  "then": {
+                    "$ref": "#/definitions/kustoStep"
+                  }
+                },
+                {
+                  "if": {
+                    "type": "object",
+                    "properties": {
+                      "action": {
+                        "const": "Pav2"
+                      }
+                    },
+                    "required": [
+                      "action"
+                    ]
+                  },
+                  "then": {
+                    "$ref": "#/definitions/pav2Step"
+                  }
+                },
+                {
+                  "if": {
+                    "type": "object",
+                    "properties": {
+                      "action": {
+                        "enum": [
+                          "RPLogsAccount",
+                          "ClusterLogsAccount"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "action"
+                    ]
+                  },
+                  "then": {
+                    "$ref": "#/definitions/logsStep"
+                  }
+                },
+                {
+                  "if": {
+                    "type": "object",
+                    "properties": {
+                      "action": {
+                        "const": "ImageMirror"
+                      }
+                    },
+                    "required": [
+                      "action"
+                    ]
+                  },
+                  "then": {
+                    "$ref": "#/definitions/imageMirrorStep"
+                  }
+                },
+                {
+                  "if": {
+                    "type": "object",
+                    "properties": {
+                      "action": {
+                        "const": "FeatureRegistration"
+                      }
+                    },
+                    "required": [
+                      "action"
+                    ]
+                  },
+                  "then": {
+                    "$ref": "#/definitions/featureRegistrationStep"
+                  }
+                },
+                {
+                  "if": {
+                    "type": "object",
+                    "properties": {
+                      "action": {
+                        "const": "ProviderFeatureRegistration"
+                      }
+                    },
+                    "required": [
+                      "action"
+                    ]
+                  },
+                  "then": {
+                    "$ref": "#/definitions/providerFeatureRegistrationStep"
+                  }
+                },
+                {
+                  "if": {
+                    "type": "object",
+                    "properties": {
+                      "action": {
+                        "const": "SecretSync"
+                      }
+                    },
+                    "required": [
+                      "action"
+                    ]
+                  },
+                  "then": {
+                    "$ref": "#/definitions/secretSyncStep"
+                  }
+                },
+                {
+                  "if": {
+                    "type": "object",
+                    "properties": {
+                      "action": {
+                        "const": "Ev2Registration"
+                      }
+                    },
+                    "required": [
+                      "action"
+                    ]
+                  },
+                  "then": {
+                    "$ref": "#/definitions/ev2RegistrationStep"
+                  }
+                },
+                {
+                  "if": {
+                    "type": "object",
+                    "properties": {
+                      "action": {
+                        "const": "GenevaHealth"
+                      }
+                    },
+                    "required": [
+                      "action"
+                    ]
+                  },
+                  "then": {
+                    "$ref": "#/definitions/genevaHealthStep"
+                  }
+                },
+                {
+                  "if": {
+                    "type": "object",
+                    "properties": {
+                      "action": {
+                        "const": "PublishGenevaAction"
+                      }
+                    },
+                    "required": [
+                      "action"
+                    ]
+                  },
+                  "then": {
+                    "$ref": "#/definitions/publishGenevaActionStep"
+                  }
+                },
+                {
+                  "if": {
+                    "type": "object",
+                    "properties": {
+                      "action": {
+                        "const": "RunGenevaAction"
+                      }
+                    },
+                    "required": [
+                      "action"
+                    ]
+                  },
+                  "then": {
+                    "$ref": "#/definitions/runGenevaActionStep"
+                  }
+                },
+                {
+                  "if": {
+                    "type": "object",
+                    "properties": {
+                      "action": {
+                        "const": "PublishGenevaAutomation"
+                      }
+                    },
+                    "required": [
+                      "action"
+                    ]
+                  },
+                  "then": {
+                    "$ref": "#/definitions/publishGenevaAutomationStep"
+                  }
+                },
+                {
+                  "if": {
+                    "type": "object",
+                    "properties": {
+                      "action": {
+                        "const": "ProwJob"
+                      }
+                    },
+                    "required": [
+                      "action"
+                    ]
+                  },
+                  "then": {
+                    "$ref": "#/definitions/prowJobStep"
+                  }
+                },
+                {
+                  "if": {
+                    "type": "object",
+                    "properties": {
+                      "action": {
+                        "const": "GrafanaManage"
+                      }
+                    },
+                    "required": [
+                      "action"
+                    ]
+                  },
+                  "then": {
+                    "$ref": "#/definitions/grafanaManageStep"
+                  }
+                },
+                {
+                  "if": {
+                    "type": "object",
+                    "properties": {
+                      "action": {
+                        "const": "GrafanaDashboards"
+                      }
+                    },
+                    "required": [
+                      "action"
+                    ]
+                  },
+                  "then": {
+                    "$ref": "#/definitions/grafanaDashboardsStep"
+                  }
+                },
+                {
+                  "if": {
+                    "type": "object",
+                    "properties": {
+                      "action": {
+                        "const": "GrafanaDatasources"
+                      }
+                    },
+                    "required": [
+                      "action"
+                    ]
+                  },
+                  "then": {
+                    "$ref": "#/definitions/grafanaDatasourcesStep"
+                  }
+                },
+                {
+                  "if": {
+                    "type": "object",
+                    "properties": {
+                      "action": {
+                        "const": "IstioUpgrade"
+                      }
+                    },
+                    "required": [
+                      "action"
+                    ]
+                  },
+                  "then": {
+                    "$ref": "#/definitions/istioUpgradeStep"
+                  }
+                },
+                {
+                  "if": {
+                    "type": "object",
+                    "properties": {
+                      "action": {
+                        "const": "KustoEntityGroups"
+                      }
+                    },
+                    "required": [
+                      "action"
+                    ]
+                  },
+                  "then": {
+                    "$ref": "#/definitions/kustoEntityGroupsStep"
+                  }
+                }
+              ],
+              "not": {
+                "description": "SafeFly steps are generated from an entrypoint opt-in, not authored.",
+                "type": "object",
+                "properties": {
+                  "action": {
+                    "const": "SafeFly"
+                  }
+                },
+                "required": [
+                  "action"
+                ]
+              },
+              "required": [
+                "name",
+                "action"
+              ]
+            }
+          },
+          "validationSteps": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "allOf": [
+                {
+                  "if": {
+                    "type": "object",
+                    "properties": {
+                      "action": {
+                        "const": "Shell"
+                      }
+                    },
+                    "required": [
+                      "action"
+                    ]
+                  },
+                  "then": {
+                    "$ref": "#/definitions/shellValidationStep"
+                  }
+                }
+              ],
+              "required": [
+                "name",
+                "action"
+              ]
+            }
+          },
+          "aksCluster": {
+            "description": "Deprecated, to be removed",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "resourceGroup",
+          "subscription",
+          "steps"
+        ]
+      }
+    },
+    "buildStep": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "command": {
+          "type": "string"
+        },
+        "args": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "required": [
+    "serviceGroup",
+    "rolloutName",
+    "resourceGroups"
+  ]
+}
