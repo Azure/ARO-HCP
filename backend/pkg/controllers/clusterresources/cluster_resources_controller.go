@@ -26,6 +26,8 @@ import (
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	utilsclock "k8s.io/utils/clock"
+	"k8s.io/utils/lru"
 	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -57,7 +59,23 @@ const (
 	// Fetches may make synchronous upstream calls; round 5x the observed
 	// p99.9 of 3500ms up to 20s.
 	clusterResourcesFetchTimeout = 20 * time.Second
+	// resourcesCacheTTL is how long a non-empty GetClusterResources response is
+	// reused. Cluster Service writes these manifests at provision and on node
+	// pool or cluster updates, so a few seconds of staleness is acceptable.
+	// SyncOnce itself is not gated: ApplyDesire cleanup still runs on every pass.
+	resourcesCacheTTL = 10 * time.Second
+
+	// resourcesCacheCapacity bounds memory for cached manifests. Evicting an
+	// entry only causes another GET.
+	resourcesCacheCapacity = 10000
 )
+
+// cachedClusterResources is one successful GetClusterResources response.
+// resources is shared with later syncs and must not be mutated.
+type cachedClusterResources struct {
+	fetchedAt time.Time
+	resources *arohcpv1alpha1.ClusterResources
+}
 
 // clusterResourcesController polls the Cluster Service SDK endpoint for cluster resources information
 type clusterResourcesController struct {
@@ -69,6 +87,9 @@ type clusterResourcesController struct {
 	kubeApplierDBClients         kubeappliercosmosstorage.KubeApplierDBClients
 	applyDesireLister            kubeapplierlisters.ApplyDesireLister
 	readDesireLister             kubeapplierlisters.ReadDesireLister
+
+	resourcesCache *lru.Cache
+	clock          utilsclock.PassiveClock
 }
 
 var _ controllerutils.ClusterSyncer = (*clusterResourcesController)(nil)
@@ -96,6 +117,8 @@ func NewClusterResourcesController(
 		kubeApplierDBClients:         kubeApplierDBClients,
 		applyDesireLister:            applyDesireLister,
 		readDesireLister:             readDesireLister,
+		resourcesCache:               lru.New(resourcesCacheCapacity),
+		clock:                        utilsclock.RealClock{},
 	}
 
 	controller := controllerutils.NewClusterWatchingController(
@@ -183,14 +206,10 @@ func (c *clusterResourcesController) SyncOnce(ctx context.Context, key controlle
 }
 
 // fetchAndProcessClusterResources calls the Cluster Service SDK to get cluster resources information
-// and processes the resources.
+// and processes the resources. A cached response is reused for resourcesCacheTTL; processing still runs.
 func (c *clusterResourcesController) fetchAndProcessClusterResources(ctx context.Context,
 	key controllerutils.HCPClusterKey, managementCluster *azcorearm.ResourceID, clusterServiceID metadataapi.InternalID) error {
-	// Get cluster resources from the Cluster Service SDK
-	csCtx, cancel := context.WithTimeout(ctx, clusterResourcesFetchTimeout)
-	defer cancel()
-
-	resources, err := c.clustersServiceClient.GetClusterResources(csCtx, clusterServiceID)
+	resources, err := c.getClusterResources(ctx, clusterServiceID)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -202,6 +221,31 @@ func (c *clusterResourcesController) fetchAndProcessClusterResources(ctx context
 	}
 
 	return nil
+}
+
+// getClusterResources returns the Cluster Service resource set, reusing a
+// successful response until resourcesCacheTTL has elapsed. Errors are not
+// cached, so the next sync calls Cluster Service again.
+func (c *clusterResourcesController) getClusterResources(ctx context.Context, id metadataapi.InternalID) (*arohcpv1alpha1.ClusterResources, error) {
+	if entry, ok := c.resourcesCache.Get(id.String()); ok {
+		cached := entry.(cachedClusterResources)
+		if c.clock.Since(cached.fetchedAt) < resourcesCacheTTL {
+			return cached.resources, nil
+		}
+	}
+
+	csCtx, cancel := context.WithTimeout(ctx, clusterResourcesFetchTimeout)
+	defer cancel()
+
+	resources, err := c.clustersServiceClient.GetClusterResources(csCtx, id)
+	if err != nil {
+		return resources, err
+	}
+	c.resourcesCache.Add(id.String(), cachedClusterResources{
+		fetchedAt: c.clock.Now(),
+		resources: resources,
+	})
+	return resources, nil
 }
 
 // processClusterResources converts each resource to ApplyDesire documents

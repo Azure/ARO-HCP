@@ -105,6 +105,10 @@ func TestDesireUpdatesDoNotRefetchLiveClusterResources(t *testing.T) {
 		}
 		synctest.Wait()
 		require.Equal(t, 1, client.calls)
+		// Expire the cache so an accidental desire-driven SyncOnce would
+		// increment the live GET count instead of being served from cache.
+		time.Sleep(resourcesCacheTTL)
+		synctest.Wait()
 		for i := 0; i < 5; i++ {
 			for kind, source := range map[string]*eventSource{"readDesires": &desires.read, "applyDesires": &desires.apply} {
 				id := metadataapi.Must(azcorearm.ParseResourceID(newCluster().ResourceID.String() + "/" + kind + "/test"))

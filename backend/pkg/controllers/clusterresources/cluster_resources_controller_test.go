@@ -30,6 +30,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	utilsclock "k8s.io/utils/clock"
+	clocktesting "k8s.io/utils/clock/testing"
+	"k8s.io/utils/lru"
 	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -232,6 +235,8 @@ func TestLegacyIngressDesireSuppression(test *testing.T) {
 				clustersServiceClient:        csClient, kubeApplierDBClients: clients,
 				applyDesireLister: &kubeapplierlistertesting.DBApplyDesireLister{Clients: clients, Lister: managementClusters},
 				readDesireLister:  &kubeapplierlistertesting.DBReadDesireLister{Clients: clients, Lister: managementClusters},
+				resourcesCache:    lru.New(resourcesCacheCapacity),
+				clock:             utilsclock.RealClock{},
 			}
 			require.NoError(test, syncer.SyncOnce(ctx, testKey()))
 			desires, err := syncer.applyDesireLister.ListForCluster(ctx, testSubscriptionID, testResourceGroupName, testClusterName)
@@ -640,6 +645,8 @@ func TestSyncOnce(t *testing.T) {
 				kubeApplierDBClients:         mockKubeApplierDBClients,
 				applyDesireLister:            &kubeapplierlistertesting.DBApplyDesireLister{Clients: mockKubeApplierDBClients, Lister: mcLister},
 				readDesireLister:             &kubeapplierlistertesting.DBReadDesireLister{Clients: mockKubeApplierDBClients, Lister: mcLister},
+				resourcesCache:               lru.New(resourcesCacheCapacity),
+				clock:                        utilsclock.RealClock{},
 			}
 
 			err := syncer.SyncOnce(ctx, testKey())
@@ -653,6 +660,101 @@ func TestSyncOnce(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGetClusterResourcesCache(t *testing.T) {
+	t.Parallel()
+
+	fixedNow := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	clusterServiceID := metadataapi.Must(metadataapi.NewInternalID(testClusterServiceID))
+	otherClusterServiceID := metadataapi.Must(metadataapi.NewInternalID("/api/clusters_mgmt/v1/clusters/def456"))
+	resources := buildClusterResources(map[string]string{
+		"ingress-configmap": `{"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":"default-ingress","namespace":"ocm-env-abc"}}`,
+	})
+	updated := buildClusterResources(map[string]string{
+		"ingress-configmap": `{"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":"default-ingress","namespace":"ocm-env-abc"},"data":{"key":"updated"}}`,
+	})
+
+	newSyncer := func(t *testing.T, client ocm.ClusterServiceClientSpec) (*clusterResourcesController, *clocktesting.FakePassiveClock) {
+		t.Helper()
+		clk := clocktesting.NewFakePassiveClock(fixedNow)
+		return &clusterResourcesController{
+			clustersServiceClient: client,
+			resourcesCache:        lru.New(resourcesCacheCapacity),
+			clock:                 clk,
+		}, clk
+	}
+
+	t.Run("reuses a successful response until the ttl elapses", func(t *testing.T) {
+		t.Parallel()
+		ctx := context.Background()
+		ctrl := gomock.NewController(t)
+		mock := ocm.NewMockClusterServiceClientSpec(ctrl)
+		gomock.InOrder(
+			mock.EXPECT().GetClusterResources(gomock.Any(), clusterServiceID).Return(resources, nil),
+			mock.EXPECT().GetClusterResources(gomock.Any(), clusterServiceID).Return(updated, nil),
+		)
+		syncer, clk := newSyncer(t, mock)
+
+		got, err := syncer.getClusterResources(ctx, clusterServiceID)
+		require.NoError(t, err, "first fetch should succeed")
+		require.Equal(t, resources, got, "first fetch should return the Cluster Service response")
+
+		clk.SetTime(fixedNow.Add(resourcesCacheTTL - time.Nanosecond))
+		got, err = syncer.getClusterResources(ctx, clusterServiceID)
+		require.NoError(t, err, "fetch inside the ttl should succeed")
+		require.Equal(t, resources, got, "fetch inside the ttl should return the cached response")
+
+		clk.SetTime(fixedNow.Add(resourcesCacheTTL))
+		got, err = syncer.getClusterResources(ctx, clusterServiceID)
+		require.NoError(t, err, "fetch at the ttl boundary should succeed")
+		require.Equal(t, updated, got, "fetch at the ttl boundary should return the fresh response")
+	})
+
+	t.Run("does not cache errors", func(t *testing.T) {
+		t.Parallel()
+		ctx := context.Background()
+		ctrl := gomock.NewController(t)
+		mock := ocm.NewMockClusterServiceClientSpec(ctrl)
+		gomock.InOrder(
+			mock.EXPECT().GetClusterResources(gomock.Any(), clusterServiceID).Return(nil, fmt.Errorf("connection refused")),
+			mock.EXPECT().GetClusterResources(gomock.Any(), clusterServiceID).Return(resources, nil),
+		)
+		syncer, _ := newSyncer(t, mock)
+
+		_, err := syncer.getClusterResources(ctx, clusterServiceID)
+		require.Error(t, err, "a failed fetch should be returned")
+		got, err := syncer.getClusterResources(ctx, clusterServiceID)
+		require.NoError(t, err, "the retry after an error should call Cluster Service again")
+		require.Equal(t, resources, got, "the retry should return the fresh response")
+	})
+
+	t.Run("caches each cluster service id separately", func(t *testing.T) {
+		t.Parallel()
+		ctx := context.Background()
+		ctrl := gomock.NewController(t)
+		mock := ocm.NewMockClusterServiceClientSpec(ctrl)
+		other := buildClusterResources(map[string]string{
+			"pull-secret": `{"apiVersion":"v1","kind":"Secret","metadata":{"name":"pull-secret","namespace":"ocm-env-def"}}`,
+		})
+		mock.EXPECT().GetClusterResources(gomock.Any(), clusterServiceID).Return(resources, nil)
+		mock.EXPECT().GetClusterResources(gomock.Any(), otherClusterServiceID).Return(other, nil)
+		syncer, _ := newSyncer(t, mock)
+
+		got, err := syncer.getClusterResources(ctx, clusterServiceID)
+		require.NoError(t, err, "first cluster fetch should succeed")
+		require.Equal(t, resources, got, "first cluster should return its own response")
+		got, err = syncer.getClusterResources(ctx, otherClusterServiceID)
+		require.NoError(t, err, "second cluster fetch should succeed")
+		require.Equal(t, other, got, "second cluster should return its own response")
+
+		got, err = syncer.getClusterResources(ctx, clusterServiceID)
+		require.NoError(t, err, "cached first cluster fetch should succeed")
+		require.Equal(t, resources, got, "cached first cluster should not reuse the other cluster's response")
+		got, err = syncer.getClusterResources(ctx, otherClusterServiceID)
+		require.NoError(t, err, "cached second cluster fetch should succeed")
+		require.Equal(t, other, got, "cached second cluster should not reuse the first cluster's response")
+	})
 }
 
 func TestDeleteStaleApplyDesires(t *testing.T) {
