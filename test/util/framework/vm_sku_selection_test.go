@@ -21,6 +21,8 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5"
+
+	"github.com/Azure/ARO-HCP/test/pkg/leaseenv"
 )
 
 const testLocation = "uksouth"
@@ -594,8 +596,8 @@ func TestSkuRestrictedInLocation(t *testing.T) {
 
 func TestSpecializedVMSizeSelectorsIgnoreFamilyPolicy(t *testing.T) {
 	const location = "westus3"
-	t.Setenv("SELECTED_LOCATION", "")
-	t.Setenv("ARO_HCP_E2E_VM_FAMILY_POLICY", `{"worker_families":["standardDSv5Family"],"helper_families":["standardDDSv5Family"]}`)
+	t.Setenv(leaseenv.SelectedLocation, "")
+	t.Setenv(leaseenv.VMFamilyPolicy, `{"worker_families":["standardDSv5Family"],"helper_families":["standardDDSv5Family"]}`)
 	tests := []struct {
 		name        string
 		constructor func() VMSizeSelector

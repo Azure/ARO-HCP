@@ -90,7 +90,8 @@ func syncOnceTestManagementCluster(aksResourceID string) *fleetapi.ManagementClu
 func syncOnceTestProfile() compute.Profile {
 	return compute.Profile{
 		Tiers: []compute.TierConfig{{
-			Name: "wrk", Role: compute.PoolRoleWorker, PoolMode: compute.PoolModeRegional,
+			Name: "wrk", PoolMode: compute.PoolModeRegional,
+			Class: compute.PoolClass{Role: compute.PoolRoleWorker, AgentPoolMode: armcontainerservice.AgentPoolModeUser},
 			Cores: 4, OSDiskSizeGB: 32, MaxNodes: 2, MaxPods: 100,
 			FamilyPriority: []compute.VMFamily{syncOnceTestVMFamily},
 		}},
@@ -335,7 +336,8 @@ func TestShadowSyncOnceOptionalTierFailureStillProjects(t *testing.T) {
 	// No 8-core SKU exists in the fake region, so this optional tier cannot
 	// allocate. The required tier above it still has a complete, usable plan.
 	profile.Tiers = append(profile.Tiers, compute.TierConfig{
-		Name: "wrk8", Role: compute.PoolRoleWorker, PoolMode: compute.PoolModeRegional,
+		Name: "wrk8", PoolMode: compute.PoolModeRegional,
+		Class: compute.PoolClass{Role: compute.PoolRoleWorker, AgentPoolMode: armcontainerservice.AgentPoolModeUser},
 		Cores: 8, OSDiskSizeGB: 32, MaxNodes: 1, MaxPods: 100,
 		FamilyPriority: []compute.VMFamily{syncOnceTestVMFamily},
 	})

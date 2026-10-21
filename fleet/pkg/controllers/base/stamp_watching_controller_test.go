@@ -30,6 +30,8 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
 )
 
@@ -117,9 +119,10 @@ func testStamp(stampID string, etag azcore.ETag) *fleetapi.Stamp {
 
 func TestStampQueueForInformers(t *testing.T) {
 	tests := []struct {
-		name    string
-		fire    func(n *capturingStampNotifier)
-		wantKey string
+		name             string
+		fire             func(n *capturingStampNotifier)
+		wantKey          string
+		registerInterest bool
 	}{
 		{
 			name: "add handler enqueues stamp",
@@ -136,18 +139,47 @@ func TestStampQueueForInformers(t *testing.T) {
 			},
 			wantKey: "s2",
 		},
+		{
+			name: "registered read desire resolves stamp through management cluster",
+			fire: func(n *capturingStampNotifier) {
+				rid := metadataapi.Must(azcorearm.ParseResourceID("/providers/microsoft.redhatopenshift/stamps/s3/managementClusters/default/readDesires/capacity"))
+				n.addFunc(&coreapi.CosmosMetadata{ResourceID: rid})
+			},
+			wantKey:          "s3",
+			registerInterest: true,
+		},
+		{
+			name: "unregistered child events remain accepted by default",
+			fire: func(n *capturingStampNotifier) {
+				rid := metadataapi.Must(azcorearm.ParseResourceID("/providers/microsoft.redhatopenshift/stamps/s4/managementClusters/default/readDesires/anything"))
+				n.addFunc(&coreapi.CosmosMetadata{ResourceID: rid})
+			},
+			wantKey: "s4",
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			syncer := &recordingStampSyncer{}
 			controller := NewStampWatchingController("test", syncer, StampWatchingControllerConfig{})
+			if tt.registerInterest {
+				controller.AddInterestingResource(kubeapplierapi.ManagementClusterScopedReadDesireResourceType, "capacity")
+			}
 
 			notifier := &capturingStampNotifier{}
 			if err := controller.QueueForInformers(time.Minute, notifier); err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
 
+			// These events must be ignored even though their ancestors are stamps.
+			// Queue them before the accepted event so an unexpected reconciliation
+			// would be observed before the expected key.
+			if tt.registerInterest {
+				for _, suffix := range []string{"readDesires/sharedingress", "controllers/other", "scheduling/default"} {
+					rid := metadataapi.Must(azcorearm.ParseResourceID("/providers/microsoft.redhatopenshift/stamps/ignored/managementClusters/default/" + suffix))
+					notifier.addFunc(&coreapi.CosmosMetadata{ResourceID: rid})
+				}
+			}
 			tt.fire(notifier)
 
 			ctx, cancel := context.WithCancel(context.Background())

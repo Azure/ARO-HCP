@@ -1010,6 +1010,23 @@
         unsupported: ""
 - source: dev-infrastructure/modules/metrics/rules/generatedDevHcpsPrometheusAlertingRules.bicep
   group: kube-applier
+  alert: KubeApplierApplyFailing
+  occurrence: 1
+  input: max by (cluster, namespace, operation, group, resource, reason, region) (increase(kube_applier_desire_operations_total{operation="apply",reason=~"KubeAPIError|PreCheckFailed",status="False"}[5m])) > 0
+  plan:
+    expression: max by (cluster, namespace, operation, group, resource, reason, region) (increase(kube_applier_desire_operations_total{operation="apply",reason=~"KubeAPIError|PreCheckFailed",status="False"}[5m])) > 0
+    conditions:
+      - expression: max by (cluster, namespace, operation, group, resource, reason, region) (increase(kube_applier_desire_operations_total{operation="apply",reason=~"KubeAPIError|PreCheckFailed",status="False"}[5m])) > 0
+        path: root
+        queries:
+          - expression: max by (cluster, namespace, operation, group, resource, reason, region) (increase(kube_applier_desire_operations_total{operation="apply",reason=~"KubeAPIError|PreCheckFailed",status="False"}[5m]))
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedDevHcpsPrometheusAlertingRules.bicep
+  group: kube-applier
   alert: KubeApplierDesiresMetricNotPresent
   occurrence: 1
   input: kube_applier_health == 1 unless on (cluster, namespace) kube_applier_desires
@@ -1024,6 +1041,23 @@
         thresholds:
           - operator: ==
             value: 1
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedDevHcpsPrometheusAlertingRules.bicep
+  group: kube-applier
+  alert: KubeApplierReadFailing
+  occurrence: 1
+  input: max by (cluster, namespace, operation, group, resource, reason, region) (increase(kube_applier_desire_operations_total{operation="resync",reason=~"KubeAPIError|PreCheckFailed",status="False"}[5m])) > 0
+  plan:
+    expression: max by (cluster, namespace, operation, group, resource, reason, region) (increase(kube_applier_desire_operations_total{operation="resync",reason=~"KubeAPIError|PreCheckFailed",status="False"}[5m])) > 0
+    conditions:
+      - expression: max by (cluster, namespace, operation, group, resource, reason, region) (increase(kube_applier_desire_operations_total{operation="resync",reason=~"KubeAPIError|PreCheckFailed",status="False"}[5m])) > 0
+        path: root
+        queries:
+          - expression: max by (cluster, namespace, operation, group, resource, reason, region) (increase(kube_applier_desire_operations_total{operation="resync",reason=~"KubeAPIError|PreCheckFailed",status="False"}[5m]))
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0
         unsupported: ""
 - source: dev-infrastructure/modules/metrics/rules/generatedDevHcpsPrometheusAlertingRules.bicep
   group: mgmt-capacity-rules
@@ -6939,6 +6973,24 @@
         unsupported: ""
 - source: kube-applier/alerts/kube-applier-prometheusRule.yaml
   group: kube-applier
+  alert: KubeApplierApplyFailing
+  occurrence: 1
+  input: |
+    max by (cluster, namespace, operation, group, resource, reason) (increase(kube_applier_desire_operations_total{operation="apply", status="False", reason=~"KubeAPIError|PreCheckFailed"}[5m])) > 0
+  plan:
+    expression: max by (cluster, namespace, operation, group, resource, reason) (increase(kube_applier_desire_operations_total{operation="apply",reason=~"KubeAPIError|PreCheckFailed",status="False"}[5m])) > 0
+    conditions:
+      - expression: max by (cluster, namespace, operation, group, resource, reason) (increase(kube_applier_desire_operations_total{operation="apply",reason=~"KubeAPIError|PreCheckFailed",status="False"}[5m])) > 0
+        path: root
+        queries:
+          - expression: max by (cluster, namespace, operation, group, resource, reason) (increase(kube_applier_desire_operations_total{operation="apply",reason=~"KubeAPIError|PreCheckFailed",status="False"}[5m]))
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0
+        unsupported: ""
+- source: kube-applier/alerts/kube-applier-prometheusRule.yaml
+  group: kube-applier
   alert: KubeApplierDesiresMetricNotPresent
   occurrence: 1
   input: |
@@ -6954,6 +7006,24 @@
         thresholds:
           - operator: ==
             value: 1
+        unsupported: ""
+- source: kube-applier/alerts/kube-applier-prometheusRule.yaml
+  group: kube-applier
+  alert: KubeApplierReadFailing
+  occurrence: 1
+  input: |
+    max by (cluster, namespace, operation, group, resource, reason) (increase(kube_applier_desire_operations_total{operation="resync", status="False", reason=~"KubeAPIError|PreCheckFailed"}[5m])) > 0
+  plan:
+    expression: max by (cluster, namespace, operation, group, resource, reason) (increase(kube_applier_desire_operations_total{operation="resync",reason=~"KubeAPIError|PreCheckFailed",status="False"}[5m])) > 0
+    conditions:
+      - expression: max by (cluster, namespace, operation, group, resource, reason) (increase(kube_applier_desire_operations_total{operation="resync",reason=~"KubeAPIError|PreCheckFailed",status="False"}[5m])) > 0
+        path: root
+        queries:
+          - expression: max by (cluster, namespace, operation, group, resource, reason) (increase(kube_applier_desire_operations_total{operation="resync",reason=~"KubeAPIError|PreCheckFailed",status="False"}[5m]))
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0
         unsupported: ""
 - source: maestro/alerts/maestro-prometheusRule.yaml
   group: maestro
@@ -11273,18 +11343,18 @@
   group: prow-ci-alerts
   alert: ProwCIE2EParallelDurationP95High
   occurrence: 1
-  input: histogram_quantile(0.95, sum by (job_name, le) (prow_ci_job_duration_window_runs{job_name="pull-ci-Azure-ARO-HCP-main-e2e-parallel",result="success"})) > 9000 and on (job_name) sum by (job_name) (prow_ci_job_duration_window_runs{job_name="pull-ci-Azure-ARO-HCP-main-e2e-parallel",result="success",le="+Inf"}) >= 20
+  input: histogram_quantile(0.95, sum by (job_name, le) (prow_ci_job_duration_window_runs{job_name="pull-ci-Azure-ARO-HCP-main-e2e-parallel",result="success"})) > 10800 and on (job_name) sum by (job_name) (prow_ci_job_duration_window_runs{job_name="pull-ci-Azure-ARO-HCP-main-e2e-parallel",result="success",le="+Inf"}) >= 20
   plan:
-    expression: histogram_quantile(0.95, sum by (job_name, le) (prow_ci_job_duration_window_runs{job_name="pull-ci-Azure-ARO-HCP-main-e2e-parallel",result="success"})) > 9000 and on (job_name) sum by (job_name) (prow_ci_job_duration_window_runs{job_name="pull-ci-Azure-ARO-HCP-main-e2e-parallel",le="+Inf",result="success"}) >= 20
+    expression: histogram_quantile(0.95, sum by (job_name, le) (prow_ci_job_duration_window_runs{job_name="pull-ci-Azure-ARO-HCP-main-e2e-parallel",result="success"})) > 10800 and on (job_name) sum by (job_name) (prow_ci_job_duration_window_runs{job_name="pull-ci-Azure-ARO-HCP-main-e2e-parallel",le="+Inf",result="success"}) >= 20
     conditions:
-      - expression: histogram_quantile(0.95, sum by (job_name, le) (prow_ci_job_duration_window_runs{job_name="pull-ci-Azure-ARO-HCP-main-e2e-parallel",result="success"})) > 9000
+      - expression: histogram_quantile(0.95, sum by (job_name, le) (prow_ci_job_duration_window_runs{job_name="pull-ci-Azure-ARO-HCP-main-e2e-parallel",result="success"})) > 10800
         path: root/and:left
         queries:
           - expression: histogram_quantile(0.95, sum by (job_name, le) (prow_ci_job_duration_window_runs{job_name="pull-ci-Azure-ARO-HCP-main-e2e-parallel",result="success"}))
             role: signal
         thresholds:
           - operator: '>'
-            value: 9000
+            value: 10800
         unsupported: ""
       - expression: sum by (job_name) (prow_ci_job_duration_window_runs{job_name="pull-ci-Azure-ARO-HCP-main-e2e-parallel",le="+Inf",result="success"}) >= 20
         path: root/and:right

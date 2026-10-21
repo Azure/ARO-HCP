@@ -85,7 +85,7 @@ images:
     group: platform-utils
     source:
       image: mcr.microsoft.com/aks/command/runtime
-      tagPattern: "^master\\.\\d+\\.\\d+$"
+      tag: "master.261001.6" # Hold for the kubectl TLS 1.3 panic (AROSLSRE-2481); remove after validation in AROSLSRE-2482.
       multiArch: true
     targets:
     - jsonPath: defaults.aksCommandRuntime.image.digest

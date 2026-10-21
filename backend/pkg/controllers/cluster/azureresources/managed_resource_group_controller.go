@@ -108,6 +108,9 @@ func NewManagedResourceGroupController(
 		5*time.Minute,
 		syncer,
 	)
+	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
+	controller.AddInterestingResource(coreapi.ServiceProviderClusterResourceType, coreapi.ServiceProviderClusterResourceName)
+	controller.AddInterestingResource(azcorearm.SubscriptionResourceType, "*")
 
 	// The syncer schedules its own fast requeue (via EnqueueAfter) when Azure reports the
 	// managed resource group is still provisioning, rather than relying on error-based

@@ -1,7 +1,7 @@
 zones: 1,2,3
 
 tiers:
-  wrk  worker  PerZone  pools=3  cores=32  maxNodes=2  initialMinNodes=0  osDisk=512GB  maxPods=225  swift=true  required=false  families=standardEDSv5Family
+  wrk  worker  PerZone  mode=User  pools=3  cores=32  maxNodes=2  initialMinNodes=0  osDisk=512GB  maxPods=225  swift=true  attachNICs=true  required=false  families=standardEDSv5Family
 
 quota limits (vCPUs):
   standardEDSv5Family:  416
@@ -17,4 +17,4 @@ pools:
   (none)
 
 failures:
-  NoZoneCoverage  required=false  tier 0 (32 cores): the eligible families' SKUs are not offered in existing worker zones 1
+  NoZoneCoverage  required=false  tier 0 (32 cores): the eligible families' SKUs are not offered in existing zones 1 for role "worker"

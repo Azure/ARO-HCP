@@ -33,7 +33,9 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets"
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets/infrastructureidentities"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
+	"github.com/Azure/ARO-HCP/test/pkg/leaseenv"
 )
 
 func TestAcquireAdmissionFlagAndEnvironment(t *testing.T) {
@@ -137,6 +139,37 @@ func TestResolveLeasedSlot(t *testing.T) {
 	}
 	if slot.SlotIndex != 1 {
 		t.Fatalf("expected slot index 1, got %d", slot.SlotIndex)
+	}
+}
+
+func TestAcquireRunRejectsUnsupportedInfrastructureBundleCountBeforeLease(t *testing.T) {
+	t.Parallel()
+	server, acquireCalls, _ := newTestLeaseProxyServer(t, map[string][]leaseProxyReply{
+		"aro-hcp-dev-slot": {successAcquireReply("aro-hcp-dev-slot-00")},
+	})
+	defer server.Close()
+
+	registry, err := assets.NewRegistry(infrastructureidentities.NewHandler())
+	if err != nil {
+		t.Fatal(err)
+	}
+	options := &AcquireOptions{completedAcquireOptions: &completedAcquireOptions{
+		CandidatePools: []slots.Pool{{
+			Name: "dev-slot", ResourceType: "aro-hcp-dev-slot",
+			SlotAssets: slots.SlotAssets{
+				InfrastructureIdentities: &slots.LeasedAsset{Allocation: slots.AllocationLeased, AssetPool: "bundles", UnitsPerSlot: 2},
+			},
+		}},
+		AssetRegistry:     registry,
+		LeaseProxyURL:     server.URL,
+		LeaseProxyTimeout: time.Second,
+	}}
+	err = options.Run(context.Background())
+	if err == nil || !strings.Contains(err.Error(), "does not accept demanded asset") {
+		t.Fatalf("expected unsupported bundle count rejection, got %v", err)
+	}
+	if len(*acquireCalls) != 0 {
+		t.Fatalf("unsupported bundle count reached lease proxy: %v", *acquireCalls)
 	}
 }
 
@@ -278,7 +311,7 @@ func TestAcquireCompleteRegionModeMatrix(t *testing.T) {
 			catalogPath := writeAcquireTestCatalog(t, tc.regionMode, fixedRegion)
 
 			t.Setenv("CLUSTER_PROFILE_DIR", clusterProfileDir)
-			t.Setenv("ARO_HCP_DEPLOY_ENV", "ci01")
+			t.Setenv(leaseenv.RuntimeDeployEnvironment, "ci01")
 			t.Setenv("SHARED_DIR", t.TempDir())
 			t.Setenv("LEASE_PROXY_SERVER_URL", "http://lease-proxy.example.com")
 			t.Setenv("ALLOWED_LOCATIONS", tc.allowedLocations)

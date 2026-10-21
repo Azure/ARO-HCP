@@ -234,7 +234,7 @@ func TestAlertsPipeline(t *testing.T) {
 						"summary":       "Backend controller workqueue operationnodepooldelete retry hot loop",
 						"title":         "Backend controller workqueue operationnodepooldelete retry hot loop",
 					},
-					"expression": "( sum by (name, cluster) ( max without(prometheus_replica) ( rate(workqueue_retries_total{namespace=\"aro-hcp\"}[10m]) ) ) / sum by (name, cluster) ( max without(prometheus_replica) ( rate(workqueue_adds_total{namespace=\"aro-hcp\"}[10m]) ) ) ) > 0.5",
+					"expression": "( sum by (name, cluster) ( max without(prometheus_replica) ( rate(workqueue_retries_total{namespace=\"aro-hcp\", name!~\"clustervalidation.*|nodepoolvalidation.*\"}[10m]) ) ) / sum by (name, cluster) ( max without(prometheus_replica) ( rate(workqueue_adds_total{namespace=\"aro-hcp\", name!~\"clustervalidation.*|nodepoolvalidation.*\"}[10m]) ) ) ) > 0.5",
 				},
 			},
 		},

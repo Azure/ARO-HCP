@@ -24,6 +24,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
@@ -64,6 +65,10 @@ func NewStatusCollectorController(fleetDBClient fleetcosmosstorage.FleetDBClient
 	}
 	controller := controllerutils.NewControlPlaneVersionRolloutWatchingController(
 		StatusCollectorControllerName, fleetInformers, 5*time.Minute, syncer)
+	controller.AddInterestingResource(fleetapi.ControlPlaneVersionRolloutResourceType, "*")
+	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
+	controller.AddInterestingResource(coreapi.ServiceProviderClusterResourceType, coreapi.ServiceProviderClusterResourceName)
+
 	if err := syncer.watchStatusInputs(clusterInformer, serviceProviderClusterInformer, controller); err != nil {
 		panic(err) // coding error
 	}

@@ -59,13 +59,17 @@ func NewExternalAuthClusterServiceCreateController(
 		clustersServiceClient: clustersServiceClient,
 	}
 
-	return controllerutils.NewExternalAuthWatchingController(
+	controller := controllerutils.NewExternalAuthWatchingController(
 		ExternalAuthClusterServiceCreateControllerName,
 		resourcesDBClient,
 		informers,
 		time.Minute,
 		syncer,
 	)
+	controller.AddInterestingResource(coreapi.ExternalAuthResourceType, "*")
+	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
+
+	return controller
 }
 
 func (c *externalAuthClusterServiceCreateSyncer) needsWork(externalAuth *coreapi.ExternalAuth) bool {

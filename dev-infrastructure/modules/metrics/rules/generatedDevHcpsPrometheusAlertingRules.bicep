@@ -280,6 +280,62 @@ resource kubeApplier 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'KubeApplierApplyFailing'
+        enabled: true
+        labels: {
+          component: 'kube-applier'
+          severity: 'warning'
+        }
+        annotations: {
+          correlationId: 'KubeApplierApplyFailing/{{ $labels.cluster }}/{{ $labels.group }}/{{ $labels.resource }}/{{ $labels.reason }}'
+          description: 'kube-applier on cluster {{ $labels.cluster }} has been failing to apply {{ $labels.group }}/{{ $labels.resource }} due to {{ $labels.reason }} for 15 minutes.'
+          info: 'kube-applier on cluster {{ $labels.cluster }} has been failing to apply {{ $labels.group }}/{{ $labels.resource }} due to {{ $labels.reason }} for 15 minutes.'
+          runbook_url: 'TBD'
+          summary: 'kube-applier on cluster {{ $labels.cluster }} failed to apply {{ $labels.group }}/{{ $labels.resource }} due to {{ $labels.reason }}'
+          title: 'kube-applier on cluster {{ $labels.cluster }} failed to apply {{ $labels.group }}/{{ $labels.resource }} due to {{ $labels.reason }}'
+        }
+        expression: 'max by (cluster, namespace, operation, group, resource, reason, region) (increase(kube_applier_desire_operations_total{operation="apply",reason=~"KubeAPIError|PreCheckFailed",status="False"}[5m])) > 0'
+        for: 'PT15M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'KubeApplierReadFailing'
+        enabled: true
+        labels: {
+          component: 'kube-applier'
+          severity: 'warning'
+        }
+        annotations: {
+          correlationId: 'KubeApplierReadFailing/{{ $labels.cluster }}/{{ $labels.group }}/{{ $labels.resource }}/{{ $labels.reason }}'
+          description: 'kube-applier on cluster {{ $labels.cluster }} has been failing to read {{ $labels.group }}/{{ $labels.resource }} due to {{ $labels.reason }} for 15 minutes.'
+          info: 'kube-applier on cluster {{ $labels.cluster }} has been failing to read {{ $labels.group }}/{{ $labels.resource }} due to {{ $labels.reason }} for 15 minutes.'
+          runbook_url: 'TBD'
+          summary: 'kube-applier on cluster {{ $labels.cluster }} failed to read {{ $labels.group }}/{{ $labels.resource }} due to {{ $labels.reason }}'
+          title: 'kube-applier on cluster {{ $labels.cluster }} failed to read {{ $labels.group }}/{{ $labels.resource }} due to {{ $labels.reason }}'
+        }
+        expression: 'max by (cluster, namespace, operation, group, resource, reason, region) (increase(kube_applier_desire_operations_total{operation="resync",reason=~"KubeAPIError|PreCheckFailed",status="False"}[5m])) > 0'
+        for: 'PT15M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
     ]
     scopes: [
       azureMonitoring

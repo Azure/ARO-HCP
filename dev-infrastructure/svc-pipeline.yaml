@@ -498,6 +498,13 @@ resourceGroups:
       # deployment identity's Key Vault role assignment (needed to create the
       # aks-etcd-encryption key) may not have propagated yet. Retry once it lands.
       - "ForbiddenByRbac"
+      # The AKS RP can validate KMS access before the cluster identity's
+      # Key Vault Crypto User role assignment has propagated.
+      - "AzureKeyVaultKmsValidateIdentityPermissionCustomerError"
+      # Every managed-cluster write reconciles the aks-managed-azure-monitor-metrics
+      # core extension, which fails while another AKS operation (e.g. a node-image
+      # auto-upgrade) holds the cluster. AKS documents this as wait-and-retry.
+      - "conflicting operation in progress"
       maximumRetryCount: 3
       durationBetweenRetries: 2m
   - name: upgrade-aks-cluster
@@ -724,19 +731,6 @@ resourceGroups:
       - '"DetailStatus": "Waiting to run"'
       maximumRetryCount: 3
       durationBetweenRetries: 1m
-  - name: cleanup-prometheus-pvc
-    aksCluster: '{{ .svc.aks.name }}'
-    action: Shell
-    command: ./cleanup-prometheus-pvc.sh
-    workingDir: ./scripts
-    dependsOn:
-    - resourceGroup: service
-      step: prometheus
-    shellIdentity:
-      input:
-        resourceGroup: global
-        step: output
-        name: globalMSIId
   - name: istio-upgrade
     aksCluster:
       configRef: svc.aks.name

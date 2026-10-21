@@ -2,6 +2,7 @@ using '../templates/svc-cluster.bicep'
 
 param useLeasedInfrastructureIdentities = {{ .infrastructureIdentities.useLeased }}
 param infrastructureIdentityResourceGroup = '{{ .infrastructureIdentities.serviceResourceGroup }}'
+param leasedAksIdentityName = '{{ .infrastructureIdentities.serviceAksIdentityName }}'
 
 // AKS
 param systemPoolOnly = {{ .svc.aks.systemPoolOnly }}

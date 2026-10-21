@@ -67,7 +67,7 @@ func NewClusterRequirementsValidAggregatorController(
 		serviceProviderClusterLister: serviceProviderClusterLister,
 		resourcesDBClient:            resourcesDBClient,
 	}
-	return controllerutils.NewClusterWatchingController(
+	controller := controllerutils.NewClusterWatchingController(
 		ClusterRequirementsValidAggregatorControllerName,
 		resourcesDBClient,
 		informers,
@@ -75,6 +75,10 @@ func NewClusterRequirementsValidAggregatorController(
 		1*time.Minute,
 		syncer,
 	)
+	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
+	controller.AddInterestingResource(coreapi.ServiceProviderClusterResourceType, coreapi.ServiceProviderClusterResourceName)
+
+	return controller
 }
 
 func (c *clusterRequirementsValidAggregator) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {

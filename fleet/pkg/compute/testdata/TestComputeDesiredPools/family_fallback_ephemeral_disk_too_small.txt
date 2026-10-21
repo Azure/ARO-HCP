@@ -1,7 +1,7 @@
 zones: 1,2,3
 
 tiers:
-  sys  system  Regional  pools=1  cores=8  maxNodes=3  initialMinNodes=0  osDisk=128GB  maxPods=100  swift=false  required=false  families=StandardEdsv6Family,StandardDdsv6Family
+  sys  system  Regional  mode=System  pools=1  cores=8  maxNodes=3  initialMinNodes=0  osDisk=128GB  maxPods=100  swift=true  attachNICs=false  required=false  families=StandardEdsv6Family,StandardDdsv6Family
 
 quota limits (vCPUs):
   StandardDdsv6Family:  100
@@ -14,7 +14,7 @@ skus:
 fully allocated: true
 
 pools:
-  sys0703b3f  system  Standard_D8ds_v6  cpu=8  memory=32GiB  nics=2  zone=regional  min=1  max=3  osDisk=128GB  maxPods=100  swift=false  labels=aro-hcp.azure.com/role=system  taints=-
+  sys01b9f0b  system  Standard_D8ds_v6  mode=System  cpu=8  memory=32GiB  nics=0  zone=regional  min=1  max=3  osDisk=128GB  maxPods=100  swift=true  labels=aro-hcp.azure.com/role=system  taints=CriticalAddonsOnly=true:NoSchedule
 
 failures:
   (none)

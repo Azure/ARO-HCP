@@ -18,7 +18,10 @@ package client
 
 import (
 	"context"
+	"errors"
 	"fmt"
+
+	"k8s.io/utils/ptr"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -27,6 +30,25 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
+
+// ErrMIDataplaneBasedIdentityNotFound indicates that miDataplaneBasedIdentityAccessTokenRetriever
+// failed to acquire a token because the bound identity no longer exists in Azure. The
+// Managed Identities Data Plane API does not return a distinguishable error for this
+// case; it returns the required credential fields (ClientID, ClientSecret, TenantID,
+// AuthenticationEndpoint) as nil instead. This is deliberately kept local to this file,
+// separate from ErrSMIClientBuilderIdentityNotFound in smi_client_builder.go: the two
+// errors are raised by different client types for different identities (the cluster's
+// Service Managed Identity vs. an arbitrary identity resolved through MI Dataplane), so
+// callers need to be able to tell them apart.
+var ErrMIDataplaneBasedIdentityNotFound = errors.New("managed identity does not exist in Azure")
+
+// IsMIDataplaneBasedIdentityNotFoundErr reports whether err means
+// miDataplaneBasedIdentityAccessTokenRetriever failed to acquire a token because the
+// bound identity no longer exists in Azure. It only ever fires for errors returned by
+// miDataplaneBasedIdentityAccessTokenRetriever's own GetToken method.
+func IsMIDataplaneBasedIdentityNotFoundErr(err error) bool {
+	return errors.Is(err, ErrMIDataplaneBasedIdentityNotFound)
+}
 
 // MIDataplaneBasedIdentityAccessTokenRetriever retrieves Azure access tokens for an
 // identity managed through the Managed Identities Data Plane (MI Dataplane) service.
@@ -90,7 +112,12 @@ func (r *miDataplaneBasedIdentityAccessTokenRetriever) GetToken(ctx context.Cont
 			utils.TrackError(fmt.Errorf("managed identities data plane returned no credentials for managed identity '%s'", r.identityResourceID.String()))
 	}
 
-	creds, err := dataplane.GetCredential(*r.clientOptions, resp.ExplicitIdentities[0])
+	identity := resp.ExplicitIdentities[0]
+	if miDataplaneIdentityCredentialFieldsMissing(identity) {
+		return azcore.AccessToken{}, utils.TrackError(fmt.Errorf("%w: %q", ErrMIDataplaneBasedIdentityNotFound, r.identityResourceID.String()))
+	}
+
+	creds, err := dataplane.GetCredential(*r.clientOptions, identity)
 	if err != nil {
 		return azcore.AccessToken{}, utils.TrackError(fmt.Errorf("failed to build token credential for managed identity '%s': %w", r.identityResourceID.String(), err))
 	}
@@ -126,4 +153,17 @@ func NewMIDataplaneBasedIdentityAccessTokenRetrieverBuilder(fpaMIdataplaneClient
 		fpaMIdataplaneClientBuilder: fpaMIdataplaneClientBuilder,
 		clientOptions:               &clientOptions,
 	}
+}
+
+// miDataplaneIdentityCredentialFieldsMissing reports whether identity lacks the fields required to
+// build a credential from it (ClientID, ClientSecret, TenantID, AuthenticationEndpoint).
+// The Managed Identities Data Plane API does not return a distinguishable error when an
+// identity no longer exists in Azure. Instead, it returns an entry in ExplicitIdentities
+// with these required fields nil. Callers use this to detect that case before calling
+// dataplane.GetCredential, so they can surface their own "identity not found" error.
+func miDataplaneIdentityCredentialFieldsMissing(identity dataplane.UserAssignedIdentityCredentials) bool {
+	return len(ptr.Deref(identity.ClientID, "")) == 0 ||
+		len(ptr.Deref(identity.ClientSecret, "")) == 0 ||
+		len(ptr.Deref(identity.TenantID, "")) == 0 ||
+		len(ptr.Deref(identity.AuthenticationEndpoint, "")) == 0
 }

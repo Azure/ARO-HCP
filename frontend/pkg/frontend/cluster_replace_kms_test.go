@@ -46,14 +46,14 @@ func TestDecodeDesiredClusterReplacePreservesKeyVaultType(t *testing.T) {
 		EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
 		Kms: &coreapi.KmsEncryptionProfile{
 			Visibility:   metadataapi.KeyVaultVisibilityPublic,
-			ActiveKey:    coreapi.KmsKey{Name: "test-key", VaultName: "test-vault", Version: "test-version"},
+			ActiveKey:    coreapi.KmsKey{Name: "test-key", VaultName: "test-vault", Version: "4e832b5c8f1e4e3d9c6b2a1f3e7d9c5b"},
 			KeyVaultType: coreapi.KmsKeyVaultTypeManagedHSM,
 		},
 	}
 
 	// A PUT that resends the KMS block for key rotation but omits the
 	// read/create-only keyVaultType, which the ARM contract allows.
-	body := `{"properties":{"etcd":{"dataEncryption":{"keyManagementMode":"CustomerManaged","customerManaged":{"encryptionType":"KMS","kms":{"vaultName":"test-vault","visibility":"Public","activeKey":{"name":"test-key","version":"test-version-2"}}}}}}}`
+	body := `{"properties":{"etcd":{"dataEncryption":{"keyManagementMode":"CustomerManaged","customerManaged":{"encryptionType":"KMS","kms":{"vaultName":"test-vault","visibility":"Public","activeKey":{"name":"test-key","version":"8e73e7d1fd7d4a87b730f676fc77d3a6"}}}}}}}`
 
 	created, modified := time.Unix(1600000000, 0).UTC(), time.Unix(1600000001, 0).UTC()
 	ctx := utils.ContextWithResourceID(context.Background(), resourceID)

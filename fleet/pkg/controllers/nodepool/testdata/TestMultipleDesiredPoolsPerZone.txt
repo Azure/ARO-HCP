@@ -23,25 +23,17 @@ initial headroom (vCPUs):
 fully allocated: true
 
 initial capacity:
-  system:  cpu=0  memory=0GiB  swiftNICs=0
-  infra:   cpu=0  memory=0GiB  swiftNICs=0
-  worker:  cpu=0  memory=0GiB  swiftNICs=0
-
-role floor:
-  system:  cpu=0  memory=0GiB  swiftNICs=0
-  infra:   cpu=0  memory=0GiB  swiftNICs=0
-  worker:  cpu=0  memory=0GiB  swiftNICs=0
 
 actions:
   margins above floor after each action (c = vCPU, G = memory GiB, n = Swift NICs)
 
-     #  action  role    pool  vm size   change         role margin            quota left
-     1  Create  worker  e1    E32ds_v6  min=1   max=4   +128c  +1024G   +28n  Edsv6 256c
-     2  Create  worker  d1    D8ds_v6   min=1   max=2   +144c  +1152G   +34n  Ddsv6 32c
-     3  Create  worker  e2    E32ds_v6  min=1   max=4   +272c  +2176G   +62n  Edsv6 128c
-     4  Create  worker  d2    D8ds_v6   min=1   max=2   +288c  +2304G   +68n  Ddsv6 16c
-     5  Create  worker  e3    E32ds_v6  min=1   max=4   +416c  +3328G   +96n  Edsv6 0c
-     6  Create  worker  d3    D8ds_v6   min=1   max=2   +432c  +3456G  +102n  Ddsv6 0c
+     #  action  role    pool  vm size   zone  change         margin                 quota left
+     1  Create  worker  e1    E32ds_v6  1     min=1   max=4   +128c  +1024G   +28n  Edsv6 256c
+     2  Create  worker  d1    D8ds_v6   1     min=1   max=2   +144c  +1152G   +34n  Ddsv6 32c
+     3  Create  worker  e2    E32ds_v6  2     min=1   max=4   +128c  +1024G   +28n  Edsv6 128c
+     4  Create  worker  d2    D8ds_v6   2     min=1   max=2   +144c  +1152G   +34n  Ddsv6 16c
+     5  Create  worker  e3    E32ds_v6  3     min=1   max=4   +128c  +1024G   +28n  Edsv6 0c
+     6  Create  worker  d3    D8ds_v6   3     min=1   max=2   +144c  +1152G   +34n  Ddsv6 0c
 
 steps:      6
 converged:  true

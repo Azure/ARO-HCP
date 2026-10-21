@@ -277,6 +277,8 @@ func (c *ApplyDesireController) processNext(ctx context.Context) bool {
 
 // SyncOnce performs a single reconcile pass for the named ApplyDesire.
 // It is idempotent; concurrent invocations on different keys are safe.
+// Transient apply failures are recorded in status and returned for rate-limited
+// retry; permanent input failures are status-only unless the status write fails.
 //
 // The desire's Type field discriminates the operation:
 //   - ServerSideApply: SSA-applies .spec.serverSideApply.kubeContent.
@@ -306,11 +308,18 @@ func (c *ApplyDesireController) SyncOnce(ctx context.Context, key keys.ApplyDesi
 			appliedKubeGeneration = &gen
 		}
 
-		return c.writer.UpdateStatus(ctx, key, func(d *kubeapplierapi.ApplyDesire) {
+		statusErr := c.writer.UpdateStatus(ctx, key, func(d *kubeapplierapi.ApplyDesire) {
 			conditions.SetSuccessfullyApplied(&d.Status.Conditions, syncErr)
 			conditions.SetDegraded(&d.Status.Conditions, classifyAsDegraded(syncErr))
 			d.Status.AppliedKubeGeneration = appliedKubeGeneration
 		})
+		if statusErr != nil && syncErr != nil {
+			return errors.Join(syncErr, statusErr)
+		}
+		if isRetryableApplyError(syncErr) {
+			return syncErr
+		}
+		return statusErr
 	case kubeapplierapi.ApplyDesireTypeDelete:
 		evaluation := c.evaluateDelete(ctx, desire)
 		if err := c.writer.UpdateStatus(ctx, key, evaluation.mutate); err != nil {
@@ -501,6 +510,22 @@ func classifyAsDegraded(err error) error {
 		return nil
 	}
 	return err
+}
+
+// Reports whether an apply failure needs a rate-limited retry rather than
+// waiting for a spec update or the periodic drift resync.
+func isRetryableApplyError(err error) bool {
+	if err == nil {
+		return false
+	}
+	var preCheck *conditions.PreCheckError
+	if errors.As(err, &preCheck) {
+		return false
+	}
+	// Dependencies can appear after a 404, and conflicts and throttling can
+	// clear without any desire update. Other 4xx responses need input changes.
+	return apierrors.IsNotFound(err) || apierrors.IsConflict(err) ||
+		apierrors.IsTooManyRequests(err) || !isClientError(err)
 }
 
 func isClientError(err error) bool {

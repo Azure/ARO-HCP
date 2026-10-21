@@ -19,6 +19,8 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/Azure/ARO-HCP/test/pkg/leaseenv"
 )
 
 func TestLocationRejectsInvalidatedSlotPolicy(t *testing.T) {
@@ -39,11 +41,11 @@ func TestLocationRejectsInvalidatedSlotPolicy(t *testing.T) {
 		{name: "legacy without policy", selected: "westus3", location: "centralus", unset: true},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Setenv("SELECTED_LOCATION", tt.selected)
+			t.Setenv(leaseenv.SelectedLocation, tt.selected)
 			t.Setenv("LOCATION", tt.location)
-			t.Setenv("ARO_HCP_E2E_VM_FAMILY_POLICY", tt.policy)
+			t.Setenv(leaseenv.VMFamilyPolicy, tt.policy)
 			if tt.unset {
-				if err := os.Unsetenv("ARO_HCP_E2E_VM_FAMILY_POLICY"); err != nil {
+				if err := os.Unsetenv(leaseenv.VMFamilyPolicy); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -52,7 +54,7 @@ func TestLocationRejectsInvalidatedSlotPolicy(t *testing.T) {
 				if (rejection != nil) != tt.wantReject {
 					t.Fatalf("location rejection = %v, want rejection %t", rejection, tt.wantReject)
 				}
-				if rejection != nil && !strings.Contains(fmt.Sprint(rejection), "SELECTED_LOCATION") {
+				if rejection != nil && !strings.Contains(fmt.Sprint(rejection), leaseenv.SelectedLocation) {
 					t.Fatalf("region mismatch did not identify the slot contract: %v", rejection)
 				}
 			}()

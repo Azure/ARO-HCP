@@ -1,9 +1,9 @@
 # Regenerate the controller and resource flow reference
 
-Work from the current checkout of ARO-HCP. Regenerate `docs/cosmos-data-flow.md`
-and the Graphviz sources and PNGs in `docs/diagrams/controller-flows/`.
-The historical Markdown filename is retained for existing links; the reference
-covers controller behavior, external effects, and resource lifecycles, not only
+Work from the current checkout of ARO-HCP. Regenerate `docs/generated/service-provider-control-flow.md`
+and the Graphviz sources and PNGs in `docs/generated/diagrams/controller-flows/`.
+The generated reference now lives at `docs/generated/service-provider-control-flow.md`
+and covers controller behavior, external effects, and resource lifecycles, not only
 Cosmos DB. This prompt is maintained separately from the generated reference.
 
 ## Establish scope and evidence

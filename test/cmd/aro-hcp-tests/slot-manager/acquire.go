@@ -35,6 +35,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
+	"github.com/Azure/ARO-HCP/test/pkg/leaseenv"
 	testutilframework "github.com/Azure/ARO-HCP/test/util/framework"
 )
 
@@ -54,7 +55,7 @@ func DefaultAcquireOptions() *RawAcquireOptions {
 		ClusterProfileDir:      strings.TrimSpace(os.Getenv("CLUSTER_PROFILE_DIR")),
 		ClusterProfileDirs:     splitSelectorValues(os.Getenv("CLUSTER_PROFILE_DIRS")),
 		Environment:            strings.TrimSpace(os.Getenv("ARO_HCP_SLOT_ENV")),
-		DeployEnv:              strings.TrimSpace(os.Getenv("ARO_HCP_DEPLOY_ENV")),
+		DeployEnv:              strings.TrimSpace(os.Getenv(leaseenv.RuntimeDeployEnvironment)),
 		AllowedSubscriptions:   allowedSubscriptions,
 		AllowedLocations:       allowedLocations,
 		SelectedLocation:       selectedLocation,
@@ -63,6 +64,7 @@ func DefaultAcquireOptions() *RawAcquireOptions {
 		SharedDir:              strings.TrimSpace(os.Getenv("SHARED_DIR")),
 		DisabledAssetAdmission: splitSelectorValues(os.Getenv("ARO_HCP_DISABLE_ASSET_ADMISSION")),
 		AdmissionTimeout:       admissionTimeout,
+		AssetAdmissionOptions:  splitSelectorValues(os.Getenv("ARO_HCP_ASSET_ADMISSION_OPTIONS")),
 
 		LeaseProxyServerURL: strings.TrimSpace(os.Getenv("LEASE_PROXY_SERVER_URL")),
 		LeaseProxyTimeout:   slots.DefaultLeaseProxyTimeout,
@@ -145,6 +147,13 @@ func BindAcquireOptions(opts *RawAcquireOptions, cmd *cobra.Command) error {
 	cmd.Flags().StringVar(&opts.CatalogPath, "slot-catalog", opts.CatalogPath, "Path to the canonical E2E slot catalog")
 	cmd.Flags().StringSliceVar(&opts.DisabledAssetAdmission, "disable-asset-admission", opts.DisabledAssetAdmission, "Emergency opt-out of admission for named asset kinds (repeatable or comma-separated). All other assets remain admitted. Defaults from ARO_HCP_DISABLE_ASSET_ADMISSION.")
 	cmd.Flags().StringVar(&opts.AdmissionTimeout, "admission-timeout", opts.AdmissionTimeout, "Maximum duration for the entire asset admission phase (e.g. 20m). Defaults from ARO_HCP_ADMISSION_TIMEOUT, or 10m when unset.")
+	assetAdmissionOptionUsage := "Per-asset admission option as <kind>.<key>=<value> (repeatable or comma-separated). Defaults from ARO_HCP_ASSET_ADMISSION_OPTIONS."
+	if opts.AssetRegistry != nil {
+		if registryUsage := opts.AssetRegistry.OptionsUsage(); registryUsage != "" {
+			assetAdmissionOptionUsage += "\nAvailable options:\n" + registryUsage
+		}
+	}
+	cmd.Flags().StringSliceVar(&opts.AssetAdmissionOptions, "asset-admission-option", opts.AssetAdmissionOptions, assetAdmissionOptionUsage)
 	cmd.Flags().StringVar(&opts.LeaseProxyServerURL, "lease-proxy-server-url", opts.LeaseProxyServerURL, "Lease proxy server URL")
 	cmd.Flags().DurationVar(&opts.LeaseProxyTimeout, "lease-proxy-timeout", opts.LeaseProxyTimeout, "Maximum time to spend probing a single candidate pool, including retryable proxy/network retries.")
 	cmd.Flags().DurationVar(&opts.MaxWaitForLease, "max-wait-for-lease", opts.MaxWaitForLease, "Maximum total time to keep retrying after full candidate-pool passes yield no immediate lease. Zero waits forever.")
@@ -174,6 +183,7 @@ type RawAcquireOptions struct {
 	AssetRegistry          *assets.Registry
 	DisabledAssetAdmission []string
 	AdmissionTimeout       string
+	AssetAdmissionOptions  []string
 	ResolveSubscriptions   func(context.Context, string, string, string, string) (slots.ResolvedSubscriptions, error)
 	// AzureGlobalLoggerLogPath is the file the Azure SDK's global logger writes
 	// to. See DefaultAcquireOptions for how the CLI computes a default.
@@ -343,6 +353,9 @@ func (o *ValidatedAcquireOptions) Complete(_ context.Context) (*AcquireOptions, 
 	}
 	if err := registry.ValidateRequirements(candidatePools); err != nil {
 		return nil, err
+	}
+	if err := registry.ApplyOptions(o.AssetAdmissionOptions); err != nil {
+		return nil, fmt.Errorf("--asset-admission-option: %w", err)
 	}
 	assetInventories, err := catalog.AssetInventories()
 	if err != nil {

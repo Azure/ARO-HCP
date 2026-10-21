@@ -37,10 +37,26 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+// ServiceProviderDefaultIngressWildcardServingCertName is the Kubernetes Secret and
+// SecretProviderClass name used for the default ingress wildcard serving certificate
+// referenced by HostedCluster.Spec.OperatorConfiguration.IngressOperator.DefaultCertificate.
+const ServiceProviderDefaultIngressWildcardServingCertName = "service-provider-default-ingress-wildcard-serving-cert"
+
 type Controller interface {
 	QueueForInformers(resyncDuration time.Duration, notifiers ...Notifier) error
 	SyncOnce(ctx context.Context, keyObj any) error
 	Run(ctx context.Context, threadiness int)
+}
+
+// WatchingController exposes resource-event filtering on the underlying generic
+// watching controller. With no interests registered, all events are accepted.
+type WatchingController interface {
+	Controller
+	AddInterestingResource(resourceType azcorearm.ResourceType, resourceName string)
+	// QueueForChildInformers maps direct child events (including deletion) to
+	// this controller's owner key, respecting its resource-interest filter.
+	QueueForChildInformers(resyncDuration time.Duration, notifiers ...Notifier) error
+	QueueForDescendantInformers(time.Duration, int, ...Notifier) error
 }
 
 // OperationKey is for driving workqueues keyed for operations

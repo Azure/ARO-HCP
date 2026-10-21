@@ -1,7 +1,5 @@
 {
 	"parentResourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7",
-	"properties": {
-		"usesNewNodePoolDeletionApproach": false
-	},
+	"properties": {},
 	"resourceType": "Microsoft.RedHatOpenShift/hcpOperationStatuses"
 }
