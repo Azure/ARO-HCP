@@ -299,7 +299,6 @@ func TestCheckerCheckAll(t *testing.T) {
 
 	if acmResult == nil || mceResult == nil {
 		t.Fatal("CheckAll() missing expected component results")
-		return
 	}
 
 	// ACM 2.17 should be detected

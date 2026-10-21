@@ -17,50 +17,46 @@ package version
 import (
 	"fmt"
 	"slices"
-	"strconv"
-	"strings"
 
 	"github.com/blang/semver/v4"
 
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	configv1 "github.com/openshift/api/config/v1"
 	hsv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
+
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 )
 
-// isControlPlaneMinorUpgrade preserves CS models.IsMinorVersionUpgrade's
-// classification, including a single major step and short or multi-segment
-// numeric source versions. This selects a condition gate; it does not validate
-// target eligibility.
-func isControlPlaneMinorUpgrade(source string, desired *semver.Version) (bool, error) {
-	if source == "" {
-		return false, fmt.Errorf("source version is empty")
+// completedControlPlaneVersion selects the last completed version from newest-first
+// history. A partial target must not become the baseline for a later retarget.
+func completedControlPlaneVersion(active []coreapi.ServiceProviderClusterActiveVersion) (*semver.Version, error) {
+	for _, entry := range active {
+		if entry.State == configv1.CompletedUpdate && entry.Version != nil {
+			return entry.Version, nil
+		}
+	}
+	return nil, fmt.Errorf("no completed control plane version in ServiceProviderCluster status")
+}
+
+// isControlPlaneMinorUpgrade selects the condition gate for a version change.
+// Target eligibility is validated separately before the desired version is set.
+func isControlPlaneMinorUpgrade(source, desired *semver.Version) (bool, error) {
+	if source == nil {
+		return false, fmt.Errorf("source version is missing")
 	}
 	if desired == nil {
 		return false, fmt.Errorf("desired version is missing")
 	}
-	// CS accepts additional numeric components, while semver permits at most
-	// three. Validate the extras before dropping them: only major and minor
-	// determine which condition gate applies.
-	parseSource := source
-	core, suffix := source, ""
-	if index := strings.IndexAny(source, "-+"); index >= 0 {
-		core, suffix = source[:index], source[index:]
+	// Compare only major.minor. Nightly and candidate builds carry prerelease
+	// identifiers that sort below a stable release of the same minor even when
+	// they are newer, so a full semver comparison would reject targets that
+	// admission deliberately accepts (see admitClusterVersionProfile).
+	if desired.Major < source.Major || (desired.Major == source.Major && desired.Minor < source.Minor) {
+		return false, fmt.Errorf("control plane version downgrade is not supported: %s -> %s", source, desired)
 	}
-	segments := strings.Split(core, ".")
-	if len(segments) > 3 {
-		for _, segment := range segments[3:] {
-			if _, err := strconv.ParseInt(segment, 10, 64); err != nil {
-				return false, fmt.Errorf("invalid source version %q: %w", source, err)
-			}
-		}
-		parseSource = strings.Join(segments[:3], ".") + suffix
-	}
-	parsed, err := semver.ParseTolerant(parseSource)
-	if err != nil {
-		return false, fmt.Errorf("invalid source version: %w", err)
-	}
-	sourceMajor, sourceMinor := parsed.Major, parsed.Minor
+	sourceMajor, sourceMinor := source.Major, source.Minor
 	if sourceMajor != desired.Major {
 		if desired.Major > sourceMajor && desired.Major-sourceMajor == 1 {
 			return true, nil
@@ -77,9 +73,14 @@ type controlPlaneUpgradeDecision struct {
 	message       string
 }
 
-// controlPlaneUpgradeConditions ports CS's IsClusterVersionUpgradeable predicate.
-// Missing observations are errors; known blocking conditions retain their original
-// diagnostics. ReconciliationActive always takes precedence over the minor gate.
+// controlPlaneUpgradeConditions gates a new policy using observed HostedCluster
+// conditions. A missing condition is an error rather than a pass, because
+// dispatching without an observation would submit an upgrade to a control plane
+// whose readiness is unknown; the caller's error path retries until the mirror
+// catches up. Blocking conditions are returned with their original reason and
+// message so the operator sees the control plane's own diagnostic.
+// ReconciliationActive takes precedence over the minor gate: a control plane
+// that is not reconciling cannot act on any new target, minor or not.
 func controlPlaneUpgradeConditions(conditions []metav1.Condition, minorUpgrade bool) (controlPlaneUpgradeDecision, error) {
 	reconciliation := meta.FindStatusCondition(conditions, string(hsv1beta1.ReconciliationActive))
 	if reconciliation == nil {
@@ -95,8 +96,12 @@ func controlPlaneUpgradeConditions(conditions []metav1.Condition, minorUpgrade b
 	if upgradeable == nil {
 		return controlPlaneUpgradeDecision{}, fmt.Errorf("HostedCluster has no %s condition", hsv1beta1.ClusterVersionUpgradeable)
 	}
-	// CS blocks only explicit False with an unaccepted reason. Unknown and other
-	// non-False values pass. Do not add freshness or observed-generation checks.
+	// Only an explicit False with an unaccepted reason blocks a minor upgrade.
+	// The accepted reasons describe an update already in flight or an
+	// acknowledgement the operator has to clear, neither of which means the
+	// target itself is unsafe. Unknown means the cluster-version operator has
+	// not reported yet and must not strand the upgrade indefinitely, so it
+	// passes too.
 	if upgradeable.Status == metav1.ConditionFalse && !slices.Contains(
 		[]string{"AdminAckRequired", "UpdateInProgress", "ClusterVersionUpdating"}, upgradeable.Reason,
 	) {

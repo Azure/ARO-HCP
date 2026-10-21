@@ -59,14 +59,34 @@ type upgradeEventInformer struct {
 	resyncs  []time.Duration
 }
 
+type upgradeEventRegistration struct{}
+
+func (upgradeEventRegistration) HasSynced() bool { return true }
+
+func (upgradeEventRegistration) HasSyncedChecker() cache.DoneChecker {
+	return upgradeEventDoneChecker{}
+}
+
+type upgradeEventDoneChecker struct{}
+
+func (upgradeEventDoneChecker) Name() string { return "upgrade test informer handler" }
+
+func (upgradeEventDoneChecker) Done() <-chan struct{} {
+	done := make(chan struct{})
+	close(done)
+	return done
+}
+
 func newUpgradeEventInformer() *upgradeEventInformer {
 	return &upgradeEventInformer{indexer: cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{})}
 }
 
+func (i *upgradeEventInformer) HasSynced() bool { return true }
+
 func (i *upgradeEventInformer) AddEventHandlerWithOptions(handler cache.ResourceEventHandler, opts cache.HandlerOptions) (cache.ResourceEventHandlerRegistration, error) {
 	i.handlers = append(i.handlers, handler)
 	i.resyncs = append(i.resyncs, *opts.ResyncPeriod)
-	return nil, nil
+	return upgradeEventRegistration{}, nil
 }
 
 func (i *upgradeEventInformer) notify(obj any) {
@@ -149,7 +169,7 @@ func TestTriggerControlPlaneUpgradeControllerRecovery(t *testing.T) {
 			}
 			var latest atomic.Value
 			latest.Store("")
-			var lists, reads, posts atomic.Int64
+			var lists, posts atomic.Int64
 			csID := *cluster.ServiceProviderProperties.ClusterServiceID
 			client.EXPECT().ListControlPlaneUpgradePolicies(csID, "creation_timestamp desc").DoAndReturn(func(metadataapi.InternalID, string) ocm.ControlPlaneUpgradePolicyListIterator {
 				lists.Add(1)
@@ -158,10 +178,6 @@ func TestTriggerControlPlaneUpgradeControllerRecovery(t *testing.T) {
 					policies = append(policies, metadataapi.Must(arohcpv1alpha1.NewControlPlaneUpgradePolicy().Version(target).Build()))
 				}
 				return ocm.NewSimpleControlPlaneUpgradePolicyListIterator(policies, nil)
-			}).AnyTimes()
-			client.EXPECT().GetCluster(gomock.Any(), csID).DoAndReturn(func(context.Context, metadataapi.InternalID) (*arohcpv1alpha1.Cluster, error) {
-				reads.Add(1)
-				return upgradeSourceCluster("4.19.1"), nil
 			}).AnyTimes()
 			client.EXPECT().PostControlPlaneUpgradePolicy(gomock.Any(), csID, gomock.Any()).DoAndReturn(func(_ context.Context, _ metadataapi.InternalID, builder *arohcpv1alpha1.ControlPlaneUpgradePolicyBuilder) (*arohcpv1alpha1.ControlPlaneUpgradePolicy, error) {
 				policy, err := builder.Build()
@@ -191,10 +207,13 @@ func TestTriggerControlPlaneUpgradeControllerRecovery(t *testing.T) {
 				controller.Run(stoppedCtx, 1)
 				controller = newController()
 			}
-			for _, informer := range []*upgradeEventInformer{informers.clusters, informers.providers, ka.reads} {
-				require.NotEmpty(t, informer.handlers)
-				for _, resync := range informer.resyncs {
-					require.Equal(t, time.Minute, resync)
+			for _, input := range []struct {
+				informer *upgradeEventInformer
+				resync   time.Duration
+			}{{informers.clusters, time.Minute}, {informers.providers, 0}, {ka.reads, 0}} {
+				require.NotEmpty(t, input.informer.handlers)
+				for _, resync := range input.informer.resyncs {
+					require.Equal(t, input.resync, resync)
 				}
 			}
 			done := make(chan struct{})
@@ -207,7 +226,7 @@ func TestTriggerControlPlaneUpgradeControllerRecovery(t *testing.T) {
 				informers.clusters.notify(cluster)
 				// A second worker attempt must come from the error requeue; no
 				// new informer event is sent before or after changing the cache.
-				require.Eventually(t, func() bool { return reads.Load() >= 3 }, 5*time.Second, 5*time.Millisecond)
+				require.Eventually(t, func() bool { return lists.Load() >= 3 }, 5*time.Second, 5*time.Millisecond)
 				require.NoError(t, ka.reads.indexer.Update(eligible))
 			}
 			require.Eventually(t, func() bool { return posts.Load() == 1 && degraded(metav1.ConditionFalse) }, 5*time.Second, 5*time.Millisecond)

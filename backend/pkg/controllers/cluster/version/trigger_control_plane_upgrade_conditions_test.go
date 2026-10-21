@@ -33,6 +33,7 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
+	configv1 "github.com/openshift/api/config/v1"
 	hsv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
@@ -49,10 +50,6 @@ import (
 
 func upgradeTestKey() controllerutils.HCPClusterKey {
 	return controllerutils.HCPClusterKey{SubscriptionID: testSubscriptionID, ResourceGroupName: testResourceGroupName, HCPClusterName: testClusterName}
-}
-
-func upgradeSourceCluster(rawVersion string) *arohcpv1alpha1.Cluster {
-	return metadataapi.Must(arohcpv1alpha1.NewCluster().Version(arohcpv1alpha1.NewVersion().RawID(rawVersion)).Build())
 }
 
 func upgradeReadDesires(t *testing.T, eligible bool) []*kubeapplierapi.ReadDesire {
@@ -93,7 +90,7 @@ func newUpgradeTestSyncer(t *testing.T, client ocm.ClusterServiceClientSpec) (*t
 	spc := &coreapi.ServiceProviderCluster{
 		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: metadataapi.Must(azcorearm.ParseResourceID(coreapihelpers.ToServiceProviderClusterResourceIDString(testSubscriptionID, testResourceGroupName, testClusterName)))},
 		Spec:           coreapi.ServiceProviderClusterSpec{ControlPlaneVersion: coreapi.ServiceProviderClusterSpecVersion{DesiredVersion: ptr.To(semver.MustParse("4.20.2"))}},
-		Status:         coreapi.ServiceProviderClusterStatus{ControlPlaneVersion: coreapi.ServiceProviderClusterStatusVersion{ActiveVersions: []coreapi.ServiceProviderClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.19.1"))}}}},
+		Status:         coreapi.ServiceProviderClusterStatus{ControlPlaneVersion: coreapi.ServiceProviderClusterStatusVersion{ActiveVersions: []coreapi.ServiceProviderClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.19.1")), State: configv1.CompletedUpdate}}}},
 	}
 	return &triggerControlPlaneUpgradeSyncer{
 		clock:                        clocktesting.NewFakePassiveClock(time.Date(2026, 10, 12, 0, 0, 0, 0, time.UTC)),
@@ -117,49 +114,44 @@ func (l *failingUpgradeReadLister) GetForCluster(context.Context, string, string
 func TestTriggerControlPlaneUpgradeConditionDispatch(t *testing.T) {
 	for _, tc := range []struct {
 		name    string
-		source  *arohcpv1alpha1.Cluster
-		getErr  error
 		mutate  func(*triggerControlPlaneUpgradeSyncer, *coreapi.ServiceProviderCluster, []*kubeapplierapi.ReadDesire)
 		wantErr string
 	}{
-		{name: "eligible", source: upgradeSourceCluster("4.19.1")},
-		{name: "blocked", source: upgradeSourceCluster("4.19.1"), mutate: func(c *triggerControlPlaneUpgradeSyncer, _ *coreapi.ServiceProviderCluster, _ []*kubeapplierapi.ReadDesire) {
+		{name: "eligible"},
+		{name: "blocked", mutate: func(c *triggerControlPlaneUpgradeSyncer, _ *coreapi.ServiceProviderCluster, _ []*kubeapplierapi.ReadDesire) {
 			c.readDesireLister = &kubeapplierlistertesting.SliceReadDesireLister{Desires: upgradeReadDesires(t, false)}
-		}, wantErr: `control plane upgrade from "4.19.1" to 4.20.2 blocked by ClusterVersionUpgradeable: reason="OperatorBlocked", message="original operator message"`},
-		{name: "CS raw version differs from active version", source: upgradeSourceCluster("4.19.1"), mutate: func(c *triggerControlPlaneUpgradeSyncer, spc *coreapi.ServiceProviderCluster, _ []*kubeapplierapi.ReadDesire) {
-			spc.Status.ControlPlaneVersion.ActiveVersions[0].Version = ptr.To(semver.MustParse("4.20.1"))
+		}, wantErr: `control plane upgrade from 4.19.1 to 4.20.2 blocked by ClusterVersionUpgradeable: reason="OperatorBlocked", message="original operator message"`},
+		{name: "partial target uses completed source", mutate: func(c *triggerControlPlaneUpgradeSyncer, spc *coreapi.ServiceProviderCluster, _ []*kubeapplierapi.ReadDesire) {
+			spc.Status.ControlPlaneVersion.ActiveVersions = append([]coreapi.ServiceProviderClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.20.1")), State: configv1.PartialUpdate}}, spc.Status.ControlPlaneVersion.ActiveVersions...)
 			c.readDesireLister = &kubeapplierlistertesting.SliceReadDesireLister{Desires: upgradeReadDesires(t, false)}
 		}, wantErr: "blocked by ClusterVersionUpgradeable"},
-		{name: "CS patch baseline skips minor condition", source: upgradeSourceCluster("4.20.1"), mutate: func(c *triggerControlPlaneUpgradeSyncer, _ *coreapi.ServiceProviderCluster, _ []*kubeapplierapi.ReadDesire) {
+		{name: "patch baseline skips minor condition", mutate: func(c *triggerControlPlaneUpgradeSyncer, spc *coreapi.ServiceProviderCluster, _ []*kubeapplierapi.ReadDesire) {
+			spc.Status.ControlPlaneVersion.ActiveVersions[0].Version = ptr.To(semver.MustParse("4.20.1"))
 			c.readDesireLister = &kubeapplierlistertesting.SliceReadDesireLister{Desires: upgradeReadDesires(t, false)}
 		}},
-		{name: "CS GET fails", getErr: errors.New("CS unavailable"), wantErr: "CS unavailable"},
-		{name: "linked autoscaler fails", getErr: errors.New("linked autoscaler unavailable"), wantErr: "linked autoscaler unavailable"},
-		{name: "nil CS response", wantErr: "missing CS source version"},
-		{name: "nil CS version", source: metadataapi.Must(arohcpv1alpha1.NewCluster().Build()), wantErr: "missing CS source version"},
-		{name: "empty raw version", source: upgradeSourceCluster(""), wantErr: "source version is empty"},
-		{name: "malformed raw version precedes mirror read", source: upgradeSourceCluster("bad"), mutate: func(c *triggerControlPlaneUpgradeSyncer, _ *coreapi.ServiceProviderCluster, _ []*kubeapplierapi.ReadDesire) {
+		{name: "no completed source", mutate: func(c *triggerControlPlaneUpgradeSyncer, spc *coreapi.ServiceProviderCluster, _ []*kubeapplierapi.ReadDesire) {
+			spc.Status.ControlPlaneVersion.ActiveVersions[0].State = configv1.PartialUpdate
 			c.readDesireLister = nil
-		}, wantErr: "failed to classify"},
-		{name: "missing mirror", source: upgradeSourceCluster("4.19.1"), mutate: func(c *triggerControlPlaneUpgradeSyncer, _ *coreapi.ServiceProviderCluster, _ []*kubeapplierapi.ReadDesire) {
+		}, wantErr: "no completed control plane version"},
+		{name: "missing mirror", mutate: func(c *triggerControlPlaneUpgradeSyncer, _ *coreapi.ServiceProviderCluster, _ []*kubeapplierapi.ReadDesire) {
 			c.readDesireLister = &kubeapplierlistertesting.SliceReadDesireLister{}
 		}, wantErr: "missing HostedCluster observation"},
-		{name: "read error", source: upgradeSourceCluster("4.19.1"), mutate: func(c *triggerControlPlaneUpgradeSyncer, _ *coreapi.ServiceProviderCluster, _ []*kubeapplierapi.ReadDesire) {
+		{name: "read error", mutate: func(c *triggerControlPlaneUpgradeSyncer, _ *coreapi.ServiceProviderCluster, _ []*kubeapplierapi.ReadDesire) {
 			c.readDesireLister = &failingUpgradeReadLister{err: errors.New("mirror unavailable")}
 		}, wantErr: "mirror unavailable"},
-		{name: "nil content", source: upgradeSourceCluster("4.19.1"), mutate: func(_ *triggerControlPlaneUpgradeSyncer, _ *coreapi.ServiceProviderCluster, desires []*kubeapplierapi.ReadDesire) {
+		{name: "nil content", mutate: func(_ *triggerControlPlaneUpgradeSyncer, _ *coreapi.ServiceProviderCluster, desires []*kubeapplierapi.ReadDesire) {
 			desires[0].Status.KubeContent = nil
 		}, wantErr: "missing HostedCluster observation"},
-		{name: "empty content", source: upgradeSourceCluster("4.19.1"), mutate: func(_ *triggerControlPlaneUpgradeSyncer, _ *coreapi.ServiceProviderCluster, desires []*kubeapplierapi.ReadDesire) {
+		{name: "empty content", mutate: func(_ *triggerControlPlaneUpgradeSyncer, _ *coreapi.ServiceProviderCluster, desires []*kubeapplierapi.ReadDesire) {
 			desires[0].Status.KubeContent.Raw = nil
 		}, wantErr: "missing HostedCluster observation"},
-		{name: "malformed content", source: upgradeSourceCluster("4.19.1"), mutate: func(_ *triggerControlPlaneUpgradeSyncer, _ *coreapi.ServiceProviderCluster, desires []*kubeapplierapi.ReadDesire) {
+		{name: "malformed content", mutate: func(_ *triggerControlPlaneUpgradeSyncer, _ *coreapi.ServiceProviderCluster, desires []*kubeapplierapi.ReadDesire) {
 			desires[0].Status.KubeContent.Raw = []byte("{")
 		}, wantErr: "failed to unmarshal"},
-		{name: "missing conditions", source: upgradeSourceCluster("4.19.1"), mutate: func(_ *triggerControlPlaneUpgradeSyncer, _ *coreapi.ServiceProviderCluster, desires []*kubeapplierapi.ReadDesire) {
+		{name: "missing conditions", mutate: func(_ *triggerControlPlaneUpgradeSyncer, _ *coreapi.ServiceProviderCluster, desires []*kubeapplierapi.ReadDesire) {
 			desires[0].Status.KubeContent.Raw = []byte(`{"status":{}}`)
 		}, wantErr: "no ReconciliationActive condition"},
-		{name: "cached content after unsuccessful read still eligible", source: upgradeSourceCluster("4.19.1"), mutate: func(_ *triggerControlPlaneUpgradeSyncer, _ *coreapi.ServiceProviderCluster, desires []*kubeapplierapi.ReadDesire) {
+		{name: "cached content after unsuccessful read still eligible", mutate: func(_ *triggerControlPlaneUpgradeSyncer, _ *coreapi.ServiceProviderCluster, desires []*kubeapplierapi.ReadDesire) {
 			desires[0].Status.Conditions = []metav1.Condition{{Type: kubeapplierapi.ConditionTypeSuccessful, Status: metav1.ConditionFalse}}
 		}},
 	} {
@@ -173,10 +165,7 @@ func TestTriggerControlPlaneUpgradeConditionDispatch(t *testing.T) {
 			}
 			before := spc.DeepCopy()
 			csID := *cluster.ServiceProviderProperties.ClusterServiceID
-			gomock.InOrder(
-				client.EXPECT().ListControlPlaneUpgradePolicies(csID, "creation_timestamp desc").Return(ocm.NewSimpleControlPlaneUpgradePolicyListIterator(nil, nil)),
-				client.EXPECT().GetCluster(gomock.Any(), csID).Return(tc.source, tc.getErr),
-			)
+			client.EXPECT().ListControlPlaneUpgradePolicies(csID, "creation_timestamp desc").Return(ocm.NewSimpleControlPlaneUpgradePolicyListIterator(nil, nil))
 			if tc.wantErr == "" {
 				builder := arohcpv1alpha1.NewControlPlaneUpgradePolicy().Version("4.20.2")
 				client.EXPECT().PostControlPlaneUpgradePolicy(gomock.Any(), csID, builder).Return(metadataapi.Must(builder.Build()), nil).Times(1)
@@ -255,7 +244,6 @@ func TestTriggerControlPlaneUpgradeRetargeting(t *testing.T) {
 			csID := *cluster.ServiceProviderProperties.ClusterServiceID
 			latest := metadataapi.Must(arohcpv1alpha1.NewControlPlaneUpgradePolicy().Version("4.20.1").State(arohcpv1alpha1.NewUpgradePolicyState().Value(arohcpv1alpha1.UpgradePolicyStateValueStarted)).Build())
 			client.EXPECT().ListControlPlaneUpgradePolicies(csID, "creation_timestamp desc").Return(ocm.NewSimpleControlPlaneUpgradePolicyListIterator([]*arohcpv1alpha1.ControlPlaneUpgradePolicy{latest}, nil))
-			client.EXPECT().GetCluster(gomock.Any(), csID).Return(upgradeSourceCluster("4.19.1"), nil)
 			if reason == "OperatorBlocked" {
 				require.ErrorContains(t, c.SyncOnce(t.Context(), upgradeTestKey()), reason)
 				return

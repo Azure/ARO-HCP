@@ -571,7 +571,6 @@ func TestSyncOnce(t *testing.T) {
 				cond := apimeta.FindStatusCondition(managementCluster.Status.Conditions, tt.wantCondition)
 				if cond == nil {
 					t.Fatalf("expected condition %q to be set", tt.wantCondition)
-					return
 				}
 				if cond.Status != tt.wantCondStatus {
 					t.Errorf("condition status: got %v, want %v", cond.Status, tt.wantCondStatus)

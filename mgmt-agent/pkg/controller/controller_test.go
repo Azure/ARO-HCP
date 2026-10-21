@@ -215,18 +215,15 @@ func TestProcess(t *testing.T) {
 
 			if result == nil {
 				t.Fatal("expected non-nil apply config, got nil")
-				return
 			}
 
 			if result.Status == nil {
 				t.Fatal("expected non-nil status in apply config")
-				return
 			}
 
 			capacity := result.Status.Capacity
 			if capacity == nil {
 				t.Fatal("expected non-nil capacity in apply config")
-				return
 			}
 
 			qty, exists := (*capacity)[SwiftNICResourceName]

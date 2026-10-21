@@ -580,7 +580,6 @@ func assertLegacyMirrors(t *testing.T, conds []metav1.Condition, primary *metav1
 	legacy := findCond(conds, kubeapplierapi.ConditionTypeSuccessful)
 	if legacy == nil {
 		t.Fatalf("legacy Successful condition not set (want mirror of %s)", primary.Type)
-		return
 	}
 	if legacy.Status != primary.Status || legacy.Reason != primary.Reason || legacy.Message != primary.Message {
 		t.Errorf("legacy Successful=%+v does not mirror %s=%+v", legacy, primary.Type, primary)

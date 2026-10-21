@@ -23,7 +23,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 
+	configv1 "github.com/openshift/api/config/v1"
 	hsv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
+
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 )
 
 func TestIsControlPlaneMinorUpgrade(t *testing.T) {
@@ -34,31 +37,29 @@ func TestIsControlPlaneMinorUpgrade(t *testing.T) {
 	}{
 		{name: "patch", source: "4.19.1", target: "4.19.2"},
 		{name: "equal", source: "4.19.1", target: "4.19.1"},
-		{name: "lower patch", source: "4.19.2", target: "4.19.1"},
 		{name: "minor", source: "4.19.1", target: "4.20.2", minor: true},
 		{name: "single major", source: "4.99.1", target: "5.0.0", minor: true},
+		{name: "prerelease target", source: "4.22.11", target: "5.0.0-ec.6", minor: true},
+		// Nightly and candidate builds sort below a stable release of the same
+		// minor; admission accepts them, so the gate must not call them downgrades.
+		{name: "prerelease within same minor", source: "4.22.5", target: "4.22.0-0.nightly-2026-10-20"},
+		{name: "lower patch", source: "4.19.2", target: "4.19.1"},
+		{name: "lower minor", source: "4.20.1", target: "4.19.1", wantErr: "downgrade"},
+		{name: "lower major", source: "5.0.0", target: "4.20.0", wantErr: "downgrade"},
 		{name: "major jump", source: "4.19.1", target: "6.0.0", wantErr: "only single major"},
-		{name: "lower major", source: "5.0.0", target: "4.20.0", wantErr: "only single major"},
-		{name: "lower minor", source: "4.20.1", target: "4.19.1"},
-		{name: "prerelease", source: "4.19.0-rc.1", target: "4.20.0-rc.2", minor: true},
-		{name: "metadata", source: "4.19.0+build.1", target: "4.20.0+build.2", minor: true},
-		{name: "short minor", source: "4.19", target: "4.20.0", minor: true},
-		{name: "short major", source: "4", target: "4.1.0", minor: true},
-		{name: "v prefix", source: "v4.19.0", target: "4.20.0", minor: true},
-		{name: "extra segment accepted by CS parser", source: "4.19.0.1", target: "4.20.0", minor: true},
-		{name: "extra segment with prerelease", source: "4.19.0.1-rc.1", target: "4.20.0", minor: true},
-		{name: "invalid extra segment", source: "4.19.0.extra", target: "4.20.0", wantErr: "invalid source"},
-		{name: "invalid", source: "invalid", target: "4.20.0", wantErr: "invalid source"},
-		{name: "API ID is not raw version", source: "openshift-v4.19.0", target: "4.20.0", wantErr: "invalid source"},
-		{name: "empty source", target: "4.20.0", wantErr: "source version is empty"},
+		{name: "missing source", target: "4.20.0", wantErr: "source version is missing"},
 		{name: "missing target", source: "4.19.0", wantErr: "desired version is missing"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			var source *semver.Version
+			if tc.source != "" {
+				source = ptr.To(semver.MustParse(tc.source))
+			}
 			var target *semver.Version
 			if tc.target != "" {
 				target = ptr.To(semver.MustParse(tc.target))
 			}
-			minor, err := isControlPlaneMinorUpgrade(tc.source, target)
+			minor, err := isControlPlaneMinorUpgrade(source, target)
 			if tc.wantErr != "" {
 				require.ErrorContains(t, err, tc.wantErr)
 				return
@@ -67,6 +68,20 @@ func TestIsControlPlaneMinorUpgrade(t *testing.T) {
 			require.Equal(t, tc.minor, minor)
 		})
 	}
+}
+
+func TestCompletedControlPlaneVersion(t *testing.T) {
+	base := ptr.To(semver.MustParse("4.19.1"))
+	partial := ptr.To(semver.MustParse("4.20.1"))
+	source, err := completedControlPlaneVersion([]coreapi.ServiceProviderClusterActiveVersion{
+		{Version: partial, State: configv1.PartialUpdate},
+		{Version: base, State: configv1.CompletedUpdate},
+	})
+	require.NoError(t, err)
+	require.Equal(t, base, source)
+
+	_, err = completedControlPlaneVersion([]coreapi.ServiceProviderClusterActiveVersion{{Version: partial, State: configv1.PartialUpdate}})
+	require.ErrorContains(t, err, "no completed control plane version")
 }
 
 func TestControlPlaneUpgradeConditions(t *testing.T) {

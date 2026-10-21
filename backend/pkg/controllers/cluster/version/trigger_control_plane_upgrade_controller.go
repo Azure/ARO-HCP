@@ -28,6 +28,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
@@ -93,6 +94,7 @@ func NewTriggerControlPlaneUpgradeController(
 	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
 	controller.AddInterestingResource(coreapi.ServiceProviderClusterResourceType, coreapi.ServiceProviderClusterResourceName)
 	controller.AddInterestingResource(coreapi.OperationStatusResourceType, "*")
+	controller.AddInterestingResource(kubeapplierapi.ClusterScopedReadDesireResourceType, kubeapplierapi.ReadDesireNameReadonlyHostedCluster)
 
 	return controller
 }
@@ -159,7 +161,7 @@ func (c *triggerControlPlaneUpgradeSyncer) SyncOnce(ctx context.Context, key con
 		return nil
 	}
 
-	return c.createUpgradePolicyIfNeeded(ctx, key, desiredVersion, *existingCluster.ServiceProviderProperties.ClusterServiceID)
+	return c.createUpgradePolicyIfNeeded(ctx, key, desiredVersion, existingServiceProviderCluster.Status.ControlPlaneVersion.ActiveVersions, *existingCluster.ServiceProviderProperties.ClusterServiceID)
 }
 
 // createUpgradePolicyIfNeeded ensures a control plane upgrade policy exists for the desired version.
@@ -169,7 +171,7 @@ func (c *triggerControlPlaneUpgradeSyncer) SyncOnce(ctx context.Context, key con
 //  1. Queries existing upgrade policies from Cluster Service (sorted by creation_timestamp desc)
 //  2. Checks if the latest policy matches the desired version - returns nil if it does
 //  3. Otherwise, evaluates upgrade conditions before creating a new policy
-func (c *triggerControlPlaneUpgradeSyncer) createUpgradePolicyIfNeeded(ctx context.Context, key controllerutils.HCPClusterKey, desiredVersion *semver.Version, clusterServiceID metadataapi.InternalID) error {
+func (c *triggerControlPlaneUpgradeSyncer) createUpgradePolicyIfNeeded(ctx context.Context, key controllerutils.HCPClusterKey, desiredVersion *semver.Version, activeVersions []coreapi.ServiceProviderClusterActiveVersion, clusterServiceID metadataapi.InternalID) error {
 	logger := utils.LoggerFromContext(ctx)
 
 	// Query existing control plane upgrade policies from Cluster Service
@@ -193,7 +195,7 @@ func (c *triggerControlPlaneUpgradeSyncer) createUpgradePolicyIfNeeded(ctx conte
 		return utils.TrackError(fmt.Errorf("failed to list control plane upgrade policies: %w", err))
 	}
 
-	if err := c.checkUpgradeConditions(ctx, key, desiredVersion, clusterServiceID); err != nil {
+	if err := c.checkUpgradeConditions(ctx, key, desiredVersion, activeVersions); err != nil {
 		return utils.TrackError(err)
 	}
 
@@ -210,40 +212,34 @@ func (c *triggerControlPlaneUpgradeSyncer) createUpgradePolicyIfNeeded(ctx conte
 	return nil
 }
 
-// checkUpgradeConditions evaluates the dispatch snapshot. It deliberately uses
-// CS's raw version for classification: the backend's active version can already
-// reflect an in-progress target. GetCluster also resolves a linked autoscaler;
-// failures of that read are retryable rather than falling back to another source.
-func (c *triggerControlPlaneUpgradeSyncer) checkUpgradeConditions(ctx context.Context, key controllerutils.HCPClusterKey, desiredVersion *semver.Version, clusterServiceID metadataapi.InternalID) error {
-	cluster, err := c.clusterServiceClient.GetCluster(ctx, clusterServiceID)
+// checkUpgradeConditions evaluates the observed versions and HostedCluster
+// conditions before a new policy is dispatched.
+func (c *triggerControlPlaneUpgradeSyncer) checkUpgradeConditions(ctx context.Context, key controllerutils.HCPClusterKey, desiredVersion *semver.Version, activeVersions []coreapi.ServiceProviderClusterActiveVersion) error {
+	sourceVersion, err := completedControlPlaneVersion(activeVersions)
 	if err != nil {
-		return fmt.Errorf("failed to get CS source version for control plane upgrade to %s: %w", desiredVersion, err)
+		return fmt.Errorf("cannot determine source version for control plane upgrade to %s: %w", desiredVersion, err)
 	}
-	if cluster == nil || cluster.Version() == nil {
-		return fmt.Errorf("missing CS source version for control plane upgrade to %s", desiredVersion)
-	}
-	sourceVersion := cluster.Version().RawID()
 	minorUpgrade, err := isControlPlaneMinorUpgrade(sourceVersion, desiredVersion)
 	if err != nil {
-		return fmt.Errorf("failed to classify control plane upgrade from %q to %s: %w", sourceVersion, desiredVersion, err)
+		return fmt.Errorf("failed to classify control plane upgrade from %s to %s: %w", sourceVersion, desiredVersion, err)
 	}
 
-	// Preserve CS's cached-content semantics even if the latest read failed.
+	// Use cached content even when the latest read failed.
 	hostedCluster, _, err := kubeapplierhelpers.GetCachedHostedClusterForCluster(ctx, c.readDesireLister, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if err != nil {
-		return fmt.Errorf("failed to observe HostedCluster for control plane upgrade from %q to %s: %w", sourceVersion, desiredVersion, err)
+		return fmt.Errorf("failed to observe HostedCluster for control plane upgrade from %s to %s: %w", sourceVersion, desiredVersion, err)
 	}
 	if hostedCluster == nil {
-		return fmt.Errorf("missing HostedCluster observation for control plane upgrade from %q to %s", sourceVersion, desiredVersion)
+		return fmt.Errorf("missing HostedCluster observation for control plane upgrade from %s to %s", sourceVersion, desiredVersion)
 	}
 	decision, err := controlPlaneUpgradeConditions(hostedCluster.Status.Conditions, minorUpgrade)
 	if err != nil {
-		return fmt.Errorf("cannot evaluate control plane upgrade from %q to %s: %w", sourceVersion, desiredVersion, err)
+		return fmt.Errorf("cannot evaluate control plane upgrade from %s to %s: %w", sourceVersion, desiredVersion, err)
 	}
 	if !decision.eligible {
 		// An expected eligibility wait intentionally uses the existing error path:
 		// rate-limited retry and controller Degraded until reconciliation succeeds.
-		return fmt.Errorf("control plane upgrade from %q to %s blocked by %s: reason=%q, message=%q", sourceVersion, desiredVersion, decision.conditionType, decision.reason, decision.message)
+		return fmt.Errorf("control plane upgrade from %s to %s blocked by %s: reason=%q, message=%q", sourceVersion, desiredVersion, decision.conditionType, decision.reason, decision.message)
 	}
 	return nil
 }

@@ -406,7 +406,6 @@ func TestNewPodWatcher(t *testing.T) {
 	}
 	if pw == nil {
 		t.Fatal("NewPodWatcher() returned nil")
-		return
 	}
 	if pw.podSynced == nil {
 		t.Fatal("NewPodWatcher() did not set podSynced")

@@ -293,7 +293,6 @@ func TestSyncOnce(t *testing.T) {
 
 			if cond == nil {
 				t.Fatalf("expected Ready condition with status=%v, got nil", *tt.wantCondStatus)
-				return
 			}
 			if cond.Status != *tt.wantCondStatus {
 				t.Errorf("condition status: got %v, want %v", cond.Status, *tt.wantCondStatus)
