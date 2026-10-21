@@ -30,6 +30,17 @@ data:
             operator: "Equal"
             value: "true"
             effect: "NoSchedule"
+          {{- $plugins := list }}
+          {{- range list .Values.azurePlugin .Values.hypershiftPlugin }}
+          {{- $resources := include "velero.resources" .resources | fromYaml }}
+          {{- if $resources }}
+          {{- $plugins = append $plugins (merge (dict "name" .initContainerName) $resources) }}
+          {{- end }}
+          {{- end }}
+          {{- with $plugins }}
+          initContainers:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
     ---
     apiVersion: apps/v1
     kind: DaemonSet

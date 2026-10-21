@@ -42,6 +42,7 @@ type Options struct {
 	Window            string  // PromQL lookback, e.g. "14d"
 	Step              string  // subquery resolution, e.g. "5m"
 	Margin            float64 // safety multiplier applied to observed usage, e.g. 1.25
+	ChangeThreshold   float64 // input-only fractional deadband in [0,1]; zero disables
 	Percentile        float64 // per-pod aggregation OVER TIME: 0 or >=1 => max (peak); else quantile_over_time (e.g. 0.95)
 	FleetPercentile   float64 // aggregation ACROSS PODS/clusters: 0 or >=1 => max; else percentile (e.g. 0.95)
 	LimitMultiple     float64 // if a numeric memory limit exists, set it to this multiple of the new request (0 disables)

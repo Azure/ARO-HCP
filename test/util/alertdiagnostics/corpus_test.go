@@ -46,6 +46,32 @@ type corpusEntry struct {
 var alertDeclaration = regexp.MustCompile(`(?m)^\s*(?:-\s*)?alert\s*:`)
 var templateAlertDeclaration = regexp.MustCompile(`(?:^|[\s{,])['"]?alert['"]?\s*:`)
 
+func isTemplatedHelmYAML(path string, data []byte) bool {
+	name := filepath.Base(path)
+	name = strings.TrimSuffix(name, filepath.Ext(name))
+	return bytes.Contains(data, []byte("{{")) &&
+		(strings.Contains(filepath.ToSlash(path), "/templates/") || strings.Contains(filepath.ToSlash(path), "/charts/") ||
+			name == "values" || strings.HasPrefix(name, "values-"))
+}
+
+func TestTemplatedHelmYAML(t *testing.T) {
+	for _, path := range []string{"chart/values.yaml", "chart/values-svc.yaml", "chart/values-mgmt.yml", "chart/values-opstool.yaml", "chart/templates/rule.yaml", "chart/charts/child.yaml"} {
+		if !isTemplatedHelmYAML(path, []byte(`{{ define "resources" }}{{ end }}`)) {
+			t.Errorf("templated Helm input not recognized: %s", path)
+		}
+		if isTemplatedHelmYAML(path, []byte("kind: PrometheusRule")) {
+			t.Errorf("plain YAML must still be inspected: %s", path)
+		}
+		data := []byte("{{ if .enabled }}\n- alert: Example\n{{ end }}")
+		if !isTemplatedHelmYAML(path, data) || !templateAlertDeclaration.Match(data) {
+			t.Errorf("templated alert must reach the explicit rendering-support guard: %s", path)
+		}
+	}
+	if isTemplatedHelmYAML("alerts/rules.yaml", []byte(`summary: '{{ $labels.cluster }}'`)) {
+		t.Fatal("authored alert annotations must not cause rule files to be skipped")
+	}
+}
+
 func TestRepositoryCorpus(t *testing.T) {
 	root := filepath.Clean("../../..")
 	if _, err := os.Stat(filepath.Join(root, "go.work")); err != nil {
@@ -81,7 +107,7 @@ func TestRepositoryCorpus(t *testing.T) {
 		}
 		// Helm templates are not YAML documents until rendered. The corpus
 		// covers authored rule YAML and deployed Bicep, not chart rendering.
-		if (strings.Contains(filepath.ToSlash(path), "/templates/") || strings.Contains(filepath.ToSlash(path), "/charts/") || name == "values.yaml") && bytes.Contains(data, []byte("{{")) {
+		if isTemplatedHelmYAML(path, data) {
 			if templateAlertDeclaration.Match(data) {
 				return fmt.Errorf("%s: alert in Helm template requires explicit corpus rendering support", path)
 			}

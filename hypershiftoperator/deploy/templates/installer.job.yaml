@@ -35,21 +35,27 @@ metadata:
   annotations:
     "helm.sh/hook": post-install,post-upgrade
     "helm.sh/hook-weight": "3"
-    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded,hook-failed
 spec:
   activeDeadlineSeconds: 1800
   backoffLimit: 1
+  ttlSecondsAfterFinished: 300
   template:
     spec:
-      containers:
-      - name: install
+      initContainers:
+      - name: render
         image: "{{ .Values.image }}@{{ .Values.imageDigest }}"
         command:
         - /bin/sh
         - -c
         - |
-          hypershift install \
-            --install-scope=resources \
+          set -eu
+          umask 077
+          trap 'rm -f /manifests/hypershift.yaml' EXIT
+          hypershift install render \
+            --outputs=resources \
+            --render-sensitive \
+            --output-file=/manifests/hypershift.yaml \
             --enable-conversion-webhook=false \
             --managed-service ARO-HCP \
             --aro-hcp-key-vault-users-client-id {{ .Values.azureKeyVaultClientId }} \
@@ -66,5 +72,52 @@ spec:
             --additional-operator-env-vars IMAGE_SHARED_INGRESS_HAPROXY={{ .Values.operatorEnvVars.sharedIngressImage }} \
             {{- end }}
             {{ .Values.additionalArgs }}
+          # Retain successful output for the apply container only.
+          trap - EXIT
+        volumeMounts:
+        - name: manifests
+          mountPath: /manifests
+      containers:
+      - name: install
+        image: "{{ .Values.installJobImage }}"
+        command:
+        - /bin/bash
+        - -c
+        - |
+          set -euo pipefail
+          umask 077
+          trap 'rm -f /manifests/*' EXIT
+          cp /overlay/kustomization.yaml /manifests/kustomization.yaml
+          kubectl kustomize /manifests > /manifests/rendered.yaml
+          kubectl create --dry-run=client --validate=false -f /manifests/rendered.yaml -o json |
+            jq -s '{apiVersion: "v1", kind: "List", items: [.[] | if .kind == "List" then .items[] else . end]}' > /manifests/resources.json
+          jq -c '.items[] | select(.kind == "PriorityClass")' /manifests/resources.json > /manifests/priorityclasses.jsonl
+          # Upstream creates PriorityClasses without updating existing immutable values.
+          while IFS= read -r priorityclass; do
+            if output=$(kubectl create -f - <<< "$priorityclass" 2>&1); then
+              printf '%s\n' "$output"
+            elif [[ "$output" == 'Error from server (AlreadyExists): '* ]]; then
+              printf '%s\n' "$output"
+            else
+              printf '%s\n' "$output" >&2
+              exit 1
+            fi
+          done < /manifests/priorityclasses.jsonl
+          jq '.items |= map(select(.kind != "PriorityClass"))' /manifests/resources.json > /manifests/apply.json
+          # Match the upstream install field manager and force-ownership policy.
+          kubectl apply --server-side --force-conflicts --field-manager=hypershift -f /manifests/apply.json
+        volumeMounts:
+        - name: manifests
+          mountPath: /manifests
+        - name: overlay
+          mountPath: /overlay
+          readOnly: true
+      volumes:
+      - name: manifests
+        emptyDir:
+          medium: Memory
+      - name: overlay
+        configMap:
+          name: hypershift-operator-resources
       restartPolicy: Never
       serviceAccountName: hypershift-installer

@@ -18,4 +18,5 @@ resources:
     cpu: "{{ .swiftRecorder.k8s.resources.requests.cpu }}"
     memory: "{{ .swiftRecorder.k8s.resources.requests.memory }}"
   limits:
+    cpu: "{{ .swiftRecorder.k8s.resources.limits.cpu }}"
     memory: "{{ .swiftRecorder.k8s.resources.limits.memory }}"

@@ -77,11 +77,17 @@ func validateUtilizationHistory(report utilizationReport) error {
 			}
 			nodes[key] = true
 			for _, value := range []utilizationHistoryResources{node.Capacity, node.Allocatable, node.Usage, node.Requests, node.PartialRequests} {
-				for _, measurement := range []*float64{value.CPU, value.Memory, value.SwiftNIC} {
+				for _, measurement := range []*float64{value.CPU, value.Memory, value.SwiftNIC, value.Pods} {
 					if measurement != nil && (math.IsNaN(*measurement) || math.IsInf(*measurement, 0) || *measurement < 0) {
 						return fmt.Errorf("%s: resource values must be finite and nonnegative", path)
 					}
 				}
+				if value.Pods != nil && *value.Pods != math.Trunc(*value.Pods) {
+					return fmt.Errorf("%s: pod counts must be integers", path)
+				}
+			}
+			if node.Requests.Pods != nil || node.PartialRequests.Pods != nil {
+				return fmt.Errorf("%s: pods have no request measurement", path)
 			}
 			if node.Usage.SwiftNIC != nil {
 				return fmt.Errorf("%s: SWIFT-NIC has no usage measurement", path)

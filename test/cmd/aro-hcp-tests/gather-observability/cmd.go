@@ -46,6 +46,7 @@ func NewCommand() (*cobra.Command, error) {
 	}
 	cmd.AddCommand(newRenderUtilizationCommand())
 	cmd.AddCommand(newRenderAMWCommand())
+	cmd.AddCommand(newRenderRightSizingCommand())
 	return cmd, nil
 }
 

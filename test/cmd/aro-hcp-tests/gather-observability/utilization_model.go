@@ -49,6 +49,8 @@ type utilizationHistoryResources struct {
 	CPU      *float64 `json:"cpu"`
 	Memory   *float64 `json:"memory"`
 	SwiftNIC *float64 `json:"swiftNIC"`
+	// Optional in schema v1: absent pod history is unknown, never zero.
+	Pods *float64 `json:"pods,omitempty"`
 }
 
 type utilizationHistoryEntry struct {

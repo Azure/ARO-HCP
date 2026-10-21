@@ -11,6 +11,29 @@ image:
   repository: "{{ .maestro.image.repository }}"
   digest: "{{ .maestro.image.digest }}"
 replicas: {{ .maestro.agent.k8s.replicas }}
+resources:
+  requests:
+    cpu: "{{ .maestro.agent.k8s.resources.requests.cpu }}"
+    memory: "{{ .maestro.agent.k8s.resources.requests.memory }}"
+  limits:
+    cpu: "{{ .maestro.agent.k8s.resources.limits.cpu }}"
+    memory: "{{ .maestro.agent.k8s.resources.limits.memory }}"
+metricsProxy:
+  resources:
+    requests:
+      cpu: "{{ .maestro.agent.metricsProxy.resources.requests.cpu }}"
+      memory: "{{ .maestro.agent.metricsProxy.resources.requests.memory }}"
+    limits:
+      cpu: "{{ .maestro.agent.metricsProxy.resources.limits.cpu }}"
+      memory: "{{ .maestro.agent.metricsProxy.resources.limits.memory }}"
+init:
+  resources:
+    requests:
+      cpu: "{{ .maestro.agent.init.resources.requests.cpu }}"
+      memory: "{{ .maestro.agent.init.resources.requests.memory }}"
+    limits:
+      cpu: "{{ .maestro.agent.init.resources.limits.cpu }}"
+      memory: "{{ .maestro.agent.init.resources.limits.memory }}"
 credsKeyVault:
   name: "{{ .mgmtKeyVault.name }}"
   secret: "{{ .maestro.agent.consumerName }}"

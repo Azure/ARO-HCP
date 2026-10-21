@@ -12,6 +12,14 @@ configMap:
 credsKeyVault:
   name: "{{ .serviceKeyVault.name }}"
   secret: "{{ .frontend.cert.name }}"
+certificateRefresher:
+  resources:
+    requests:
+      cpu: "{{ .frontend.certificateRefresher.resources.requests.cpu }}"
+      memory: "{{ .frontend.certificateRefresher.resources.requests.memory }}"
+    limits:
+      cpu: "{{ .frontend.certificateRefresher.resources.limits.cpu }}"
+      memory: "{{ .frontend.certificateRefresher.resources.limits.memory }}"
 deployment:
   replicas: {{ .frontend.k8s.replicas }}
   imageName: "{{ .acr.svc.name }}.azurecr.io/{{ .frontend.image.repository }}@{{ .frontend.image.digest }}"

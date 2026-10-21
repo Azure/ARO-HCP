@@ -31,6 +31,7 @@ ResourceRequestsAllowlist:
 - Job/finalize-mce/finalize
 - Job/finalize-mce-config/finalize
 - Job/install-hypershift/install
+- Job/install-hypershift/render # same short-lived installation helper, now split into render/apply
 - Job/install-hypershift-crds/install
 - Job/registration-*/python # registration job name varies by environment
 - Job/unannotate-default-sc/finalize
@@ -86,6 +87,7 @@ ResourceMemoryLimitsAllowlist:
 - Job/finalize-mce/finalize
 - Job/finalize-mce-config/finalize
 - Job/install-hypershift/install
+- Job/install-hypershift/render # installation helper intentionally has no memory limit
 - Job/install-hypershift-crds/install
 - Job/registration-*/python # registration job name varies by environment
 - Job/unannotate-default-sc/finalize

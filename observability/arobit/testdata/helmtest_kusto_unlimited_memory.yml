@@ -5,7 +5,9 @@ testData:
   arobit:
     mdsd:
       enabled: false
-    forwarder:
-      resources:
-        limits:
-          memory: unlimited
+  svc:
+    arobit:
+      forwarder:
+        resources:
+          limits:
+            memory: unlimited

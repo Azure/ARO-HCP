@@ -1,0 +1,54 @@
+values: ../deploy/values.yaml
+name: velero-resources
+namespace: velero
+testData:
+  velero:
+    server:
+      resources:
+        requests:
+          cpu: 500m
+          memory: 768Mi
+        limits:
+          cpu: NONE
+          memory: 2Gi
+    nodeAgent:
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+        limits:
+          cpu: NONE
+          memory: 256Mi
+    azurePlugin:
+      resources:
+        requests:
+          cpu: 10m
+          memory: 32Mi
+        limits:
+          cpu: NONE
+          memory: NONE
+    hypershiftPlugin:
+      resources:
+        requests:
+          cpu: NONE
+          memory: 48Mi
+        limits:
+          cpu: 100m
+          memory: 96Mi
+    installer:
+      generate:
+        resources:
+          requests:
+            cpu: 20m
+            memory: 64Mi
+          limits:
+            cpu: NONE
+            memory: 128Mi
+      apply:
+        resources:
+          requests:
+            cpu: 30m
+            memory: 96Mi
+          limits:
+            cpu: NONE
+            memory: NONE

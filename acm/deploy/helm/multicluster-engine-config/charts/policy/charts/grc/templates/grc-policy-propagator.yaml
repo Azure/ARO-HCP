@@ -115,9 +115,7 @@ spec:
           successThreshold: 1
           timeoutSeconds: 1
         resources:
-          requests:
-            cpu: 25m
-            memory: 64Mi
+          {{- include "acm.resources" .Values.resources.policyPropagator | nindent 10 }}
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:

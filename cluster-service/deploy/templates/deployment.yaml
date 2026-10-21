@@ -98,6 +98,9 @@ spec:
             secretProviderClass: cs-keyvault
       initContainers:
       - name: clusters-service-init
+        {{- with include "clusters-service.auxiliaryResources" .Values.initResources }}
+        {{- . | nindent 8 }}
+        {{- end }}
         image: '{{ .Values.imageRegistry }}/{{ .Values.imageRepository }}@{{ .Values.imageDigest }}'
         imagePullPolicy: IfNotPresent
         env:

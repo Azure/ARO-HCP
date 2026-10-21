@@ -46,7 +46,8 @@ func TestGatherIndependentFailures(t *testing.T) {
 		"endpoint:hcp", "endpoint:svc", "query:svc", "metrics", "render:First",
 		"render:alerts", "render:utilization", "render:history", "write:alerts.json", "write:utilization.json",
 		"write:junit", "write:page", "write:alert-diagnostics.json", "setup:cosmos", "setup:known", "setup:queries",
-		"amw", "render:amw", "write:amw.json",
+		"amw", "render:amw", "write:amw.json", "peaks", "write:replica-peaks.json",
+		"render:sizing", "write:right-sizing.json", "write:right-sizing.html",
 	} {
 		t.Run(failure, func(t *testing.T) {
 			t.Parallel()
@@ -85,6 +86,19 @@ func TestGatherIndependentFailures(t *testing.T) {
 			var suites *junit.TestSuites
 			var tabs []observabilityTab
 			deps := gatherDependencies{
+				renderRightSizing: func(rightSizingReport) ([]byte, error) {
+					return []byte("sizing partial"), call("render:sizing")
+				},
+				collectReplicaPeaks: func(context.Context, map[string]*workspaceData) replicaPeakReport {
+					if calls["utilization"] != 0 || calls["query:svc"] != 0 {
+						t.Error("replica peaks should be persisted before expensive utilization/chart collection")
+					}
+					report := replicaPeakReport{}
+					if err := call("peaks"); err != nil {
+						report.Warnings = []string{err.Error()}
+					}
+					return report
+				},
 				collectAMW: func(context.Context) amwReport {
 					report := amwReport{}
 					if err := call("amw"); err != nil {
@@ -136,7 +150,7 @@ func TestGatherIndependentFailures(t *testing.T) {
 					return []byte("history partial"), call("render:history")
 				},
 				writeFile: func(path string, data []byte, _ os.FileMode) error {
-					if !json.Valid(data) {
+					if strings.HasSuffix(path, ".json") && !json.Valid(data) {
 						t.Errorf("invalid JSON artifact %s", path)
 					}
 					return call("write:" + filepath.Base(path))
@@ -151,7 +165,7 @@ func TestGatherIndependentFailures(t *testing.T) {
 				},
 			}
 			err := o.run(logr.NewContext(context.Background(), logr.Discard()), deps)
-			fatal := failure != "" && failure != "query:svc" && failure != "metrics" && failure != "render:First" && failure != "amw" && failure != "render:amw" && failure != "write:amw.json"
+			fatal := failure != "" && failure != "query:svc" && failure != "metrics" && failure != "render:First" && failure != "amw" && failure != "render:amw" && failure != "write:amw.json" && failure != "peaks"
 			if (err != nil) != fatal {
 				t.Fatalf("Run error = %v, want fatal = %v", err, fatal)
 			}
@@ -159,6 +173,11 @@ func TestGatherIndependentFailures(t *testing.T) {
 				t.Errorf("fatal aggregate lost injected error: %v", err)
 			}
 			for _, name := range []string{"alerts:svc", "alerts:hcp", "metricRules:svc", "metricRules:hcp", "rules:svc", "rules:hcp", "endpoint:svc", "endpoint:hcp", "render:alerts", "write:alerts.json", "write:alert-diagnostics.json", "write:junit", "utilization", "render:utilization", "render:history", "write:utilization.json", "amw", "render:amw", "write:amw.json", "write:page"} {
+				if calls[name] != 1 {
+					t.Errorf("independent operation %s attempted %d times, want 1", name, calls[name])
+				}
+			}
+			for _, name := range []string{"peaks", "write:replica-peaks.json", "render:sizing", "write:right-sizing.json", "write:right-sizing.html"} {
 				if calls[name] != 1 {
 					t.Errorf("independent operation %s attempted %d times, want 1", name, calls[name])
 				}
@@ -180,9 +199,9 @@ func TestGatherIndependentFailures(t *testing.T) {
 					t.Errorf("unescaped error in %s tab", tab.Title)
 				}
 			}
-			wantTitles := []string{"Azure Monitor Alerts", "AMW", "First", "Second", "Utilization", "Resource History"}
+			wantTitles := []string{"Azure Monitor Alerts", "AMW", "Right-Sizing", "First", "Second", "Utilization", "Resource History"}
 			if failure == "setup:queries" {
-				wantTitles = []string{"Azure Monitor Alerts", "AMW", "Metrics", "Utilization", "Resource History"}
+				wantTitles = []string{"Azure Monitor Alerts", "AMW", "Right-Sizing", "Metrics", "Utilization", "Resource History"}
 			}
 			if !reflect.DeepEqual(titles, wantTitles) {
 				t.Errorf("tab order = %v, want %v", titles, wantTitles)
@@ -264,6 +283,118 @@ func TestCompleteRetainsIndependentSetupResults(t *testing.T) {
 			}
 			if missing == "scaling" && (o.cosmosAutoscaleMax("Resources") != 1000 || o.cosmosAutoscaleMax("Manifests-MC-1") != 5000) {
 				t.Fatal("missing one autoscale ceiling discarded available values")
+			}
+		})
+	}
+}
+
+func TestGatherRightSizingSavingsWiring(t *testing.T) {
+	t.Parallel()
+	for _, scenario := range []string{"concurrent baseline", "no baseline", "rewrite fails"} {
+		t.Run(scenario, func(t *testing.T) {
+			t.Parallel()
+			peaks, utilization := rightSizingReplayFixture()
+			if scenario == "no baseline" {
+				utilization.Snapshots = nil
+			}
+			initial := buildRightSizingReport(peaks, .1)
+			want := initial
+			want.Savings = buildRightSizingSavings(want, utilization)
+			if (want.Savings != nil) != (scenario != "no baseline") {
+				t.Fatalf("unexpected fixture savings: %+v", want.Savings)
+			}
+			o := Options{completedOptions: &completedOptions{
+				OutputDir: t.TempDir(), ChangeThreshold: .1,
+				TimeWindow: timing.TimeWindow{Start: peaks.Start, End: peaks.End},
+				Queries:    &QueriesConfig{Panels: []PanelSpec{{Title: "First"}, {Title: "Second"}}},
+			}}
+			deps := o.dependencies()
+			// No Azure dependencies or endpoints: only synthetic collectors run.
+			deps.fetchAlerts, deps.fetchMetricAlertRules, deps.fetchAlertRules = nil, nil, nil
+			deps.lookupEndpoint, deps.queryRange, deps.queryMetrics = nil, nil, nil
+			deps.collectAMW = func(context.Context) amwReport { return amwReport{} }
+			deps.collectReplicaPeaks = func(context.Context, map[string]*workspaceData) replicaPeakReport { return peaks }
+			var events []string
+			var writes []rightSizingReport
+			deps.collectUtilization = func(context.Context, map[string]*workspaceData) utilizationReport {
+				events = append(events, "collect utilization")
+				if len(writes) != 1 || !reflect.DeepEqual(writes[0], initial) {
+					t.Fatalf("recommendations must be persisted before utilization: %+v", writes)
+				}
+				return utilization
+			}
+			injected := errors.New("savings rewrite failed")
+			deps.writeFile = func(path string, data []byte, mode os.FileMode) error {
+				if filepath.Base(path) == "right-sizing.json" {
+					events = append(events, "write sizing JSON")
+					var report rightSizingReport
+					if err := json.Unmarshal(data, &report); err != nil {
+						t.Fatalf("invalid sizing JSON: %v", err)
+					}
+					writes = append(writes, report)
+					if strings.Contains(string(data), `"savings"`) != (len(writes) == 2) {
+						t.Fatalf("only the final JSON write may contain savings: %s", data)
+					}
+					if scenario == "rewrite fails" && len(writes) == 2 {
+						return injected
+					}
+				}
+				return os.WriteFile(path, data, mode)
+			}
+			deps.renderRightSizing = func(report rightSizingReport) ([]byte, error) {
+				events = append(events, "render sizing")
+				if !reflect.DeepEqual(report, want) {
+					t.Fatalf("renderer did not receive final savings: got %+v, want %+v", report, want)
+				}
+				return renderRightSizingHTML(report)
+			}
+			deps.renderPage = func(path string, tabs []observabilityTab) error {
+				events = append(events, "render page")
+				var titles []string
+				for _, tab := range tabs {
+					titles = append(titles, tab.Title)
+					if tab.Title == "Right-Sizing" {
+						standalone, err := os.ReadFile(filepath.Join(o.OutputDir, "right-sizing.html"))
+						if err != nil || tab.HTML != string(standalone) || tab.HTML == "" {
+							t.Fatalf("summary must embed the final standalone sizing page: %v", err)
+						}
+					}
+				}
+				if wantTitles := []string{"Azure Monitor Alerts", "AMW", "Right-Sizing", "First", "Second", "Utilization", "Resource History"}; !reflect.DeepEqual(titles, wantTitles) {
+					t.Fatalf("deferred sizing render changed tab order: %v", titles)
+				}
+				return renderObservabilityPage(path, tabs)
+			}
+			err := o.run(logr.NewContext(t.Context(), logr.Discard()), deps)
+			if scenario == "rewrite fails" {
+				if !errors.Is(err, injected) {
+					t.Fatalf("rewrite failure must remain fatal: %v", err)
+				}
+			} else if err != nil {
+				t.Fatal(err)
+			}
+			wantEvents := []string{"write sizing JSON", "collect utilization"}
+			if want.Savings != nil {
+				wantEvents = append(wantEvents, "write sizing JSON")
+				if len(writes) != 2 || !reflect.DeepEqual(writes[1], want) {
+					t.Fatalf("second write must persist final savings: %+v", writes)
+				}
+			}
+			wantEvents = append(wantEvents, "render sizing", "render page")
+			if !reflect.DeepEqual(events, wantEvents) {
+				t.Fatalf("sizing must render once after utilization: got %v, want %v", events, wantEvents)
+			}
+			data, err := os.ReadFile(filepath.Join(o.OutputDir, "right-sizing.json"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			persisted := want
+			if scenario == "rewrite fails" {
+				persisted = initial
+			}
+			var got rightSizingReport
+			if err := json.Unmarshal(data, &got); err != nil || !reflect.DeepEqual(got, persisted) {
+				t.Fatalf("unexpected final sizing artifact: %+v, error %v", got, err)
 			}
 		})
 	}
@@ -425,7 +556,7 @@ func TestGatherWritesArtifactsWithUtilizationWarnings(t *testing.T) {
 			if fail && (!errors.Is(err, writeErr) || !errors.Is(err, setupErr)) {
 				t.Fatalf("fatal aggregate lost independent errors: %v", err)
 			}
-			for _, name := range []string{"alerts.json", "alert-diagnostics.json", "junit_alerts.xml", "observability-summary.html", "utilization.json"} {
+			for _, name := range []string{"alerts.json", "alert-diagnostics.json", "junit_alerts.xml", "observability-summary.html", "utilization.json", "replica-peaks.json", "right-sizing.json", "right-sizing.html"} {
 				if fail && name == "alerts.json" {
 					continue
 				}
@@ -437,6 +568,12 @@ func TestGatherWritesArtifactsWithUtilizationWarnings(t *testing.T) {
 					var report utilizationReport
 					if err := json.Unmarshal(data, &report); err != nil || len(report.Warnings) == 0 {
 						t.Errorf("missing utilization collection warnings: %s, error %v", data, err)
+					}
+				}
+				if name == "replica-peaks.json" {
+					var report replicaPeakReport
+					if err := json.Unmarshal(data, &report); err != nil || len(report.Warnings) == 0 {
+						t.Errorf("missing replica peak collection warnings: %s, error %v", data, err)
 					}
 				}
 				if name == "observability-summary.html" && !strings.Contains(string(data), `"title":"Utilization"`) {
@@ -486,6 +623,9 @@ func TestGatherDiagnosticQueryFailureRetainsKnownAlertArtifacts(t *testing.T) {
 	deps.collectAMW = func(context.Context) amwReport {
 		amwCalled.Store(true)
 		return amwReport{}
+	}
+	deps.collectReplicaPeaks = func(context.Context, map[string]*workspaceData) replicaPeakReport {
+		return replicaPeakReport{Start: o.TimeWindow.Start, End: o.TimeWindow.End}
 	}
 	deps.queryRange = func(_ context.Context, _ *http.Client, _ azcore.TokenCredential, endpoint, expression string, _, _ time.Time, step string) (*promutil.Response, error) {
 		if expression == "panel_first" || expression == "panel_second" {

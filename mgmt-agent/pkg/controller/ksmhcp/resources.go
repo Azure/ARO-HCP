@@ -31,6 +31,17 @@ import (
 
 const configMapName = resourceName + "-crs-config"
 
+// DefaultResources preserves the requests and limit used for guest metrics.
+func DefaultResources() corev1.ResourceRequirements {
+	return corev1.ResourceRequirements{
+		Requests: corev1.ResourceList{
+			corev1.ResourceCPU:    resource.MustParse("10m"),
+			corev1.ResourceMemory: resource.MustParse("64Mi"),
+		},
+		Limits: corev1.ResourceList{corev1.ResourceMemory: resource.MustParse("256Mi")},
+	}
+}
+
 // Alerts to create based on the ingresscontroller_info metric:
 //
 //	absent(ingresscontroller_info{name="default"}) for 10m => default ingress missing
@@ -72,7 +83,7 @@ func buildConfigMap(namespace string, ownerRef metav1.OwnerReference) *coreac.Co
 		})
 }
 
-func buildDeployment(namespace, ksmImage, kubeconfigSecretName, kubeconfigKey string, ownerRef metav1.OwnerReference) *appsac.DeploymentApplyConfiguration {
+func buildDeployment(namespace, ksmImage, kubeconfigSecretName, kubeconfigKey string, ownerRef metav1.OwnerReference, resources corev1.ResourceRequirements) *appsac.DeploymentApplyConfiguration {
 	return appsac.Deployment(resourceName, namespace).
 		WithLabels(map[string]string{labelApp: resourceName}).
 		WithOwnerReferences(metaac.OwnerReference().
@@ -120,13 +131,8 @@ func buildDeployment(namespace, ksmImage, kubeconfigSecretName, kubeconfigKey st
 							WithInitialDelaySeconds(5).
 							WithTimeoutSeconds(5)).
 						WithResources(coreac.ResourceRequirements().
-							WithRequests(corev1.ResourceList{
-								corev1.ResourceCPU:    resource.MustParse("10m"),
-								corev1.ResourceMemory: resource.MustParse("64Mi"),
-							}).
-							WithLimits(corev1.ResourceList{
-								corev1.ResourceMemory: resource.MustParse("256Mi"),
-							})).
+							WithRequests(resources.Requests).
+							WithLimits(resources.Limits)).
 						WithVolumeMounts(
 							coreac.VolumeMount().
 								WithName("kubeconfig").

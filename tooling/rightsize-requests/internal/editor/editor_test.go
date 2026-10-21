@@ -15,11 +15,39 @@
 package editor
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 )
+
+func TestGetDistinguishesMissingAndMalformed(t *testing.T) {
+	for _, tc := range []struct {
+		content string
+		missing bool
+	}{
+		{content: "", missing: true},
+		{content: "# empty overlay\n", missing: true},
+		{content: "limits:\n  memory: 1Gi\n", missing: true},
+		{content: "limits: invalid\n"},
+		{content: "limits: []\n"},
+		{content: "limits:\n  cpu: {}\n"},
+	} {
+		path := filepath.Join(t.TempDir(), "config.yaml")
+		if err := os.WriteFile(path, []byte(tc.content), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		ed, err := New(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, _, err = ed.Get("limits.cpu")
+		if err == nil || errors.Is(err, ErrPathNotFound) != tc.missing {
+			t.Errorf("content %q: expected missing=%v, got %v", tc.content, tc.missing, err)
+		}
+	}
+}
 
 const sample = `# top comment
 defaults:
@@ -125,13 +153,14 @@ func TestUpsertInsertsAndReplaces(t *testing.T) {
 	}
 
 	// backend has no k8s block -> full insert; two updates share the requests parent.
-	// arobit has no forwarder block -> insert with limits too.
+	// Role-specific arobit blocks are absent; shared arobit settings stay untouched.
 	if err := ed.Upsert([]Update{
 		{Path: "clouds.public.defaults.backend.k8s.resources.requests.cpu", NewValue: "1780m"},
 		{Path: "clouds.public.defaults.backend.k8s.resources.requests.memory", NewValue: "1904Mi"},
-		{Path: "clouds.public.defaults.arobit.forwarder.resources.requests.cpu", NewValue: "210m"},
-		{Path: "clouds.public.defaults.arobit.forwarder.resources.requests.memory", NewValue: "1408Mi"},
-		{Path: "clouds.public.defaults.arobit.forwarder.resources.limits.memory", NewValue: "2816Mi"},
+		{Path: "clouds.public.defaults.svc.arobit.forwarder.resources.requests.cpu", NewValue: "210m"},
+		{Path: "clouds.public.defaults.svc.arobit.forwarder.resources.requests.memory", NewValue: "1408Mi"},
+		{Path: "clouds.public.defaults.svc.arobit.forwarder.resources.limits.memory", NewValue: "2816Mi"},
+		{Path: "clouds.public.defaults.mgmt.arobit.forwarder.resources.requests.cpu", NewValue: "420m"},
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -153,14 +182,22 @@ func TestUpsertInsertsAndReplaces(t *testing.T) {
       arobit:
         kusto:
           enabled: true
-        forwarder:
-          resources:
-            requests:
-              cpu: 210m
-              memory: 1408Mi
-            limits:
-              memory: 2816Mi
       kvCert: someprincipal
+      svc:
+        arobit:
+          forwarder:
+            resources:
+              requests:
+                cpu: 210m
+                memory: 1408Mi
+              limits:
+                memory: 2816Mi
+      mgmt:
+        arobit:
+          forwarder:
+            resources:
+              requests:
+                cpu: 420m
 `
 	if string(got) != want {
 		t.Fatalf("unexpected result:\n--- got ---\n%s\n--- want ---\n%s", got, want)

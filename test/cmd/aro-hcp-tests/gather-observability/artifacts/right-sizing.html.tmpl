@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Right-sizing</title>
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #0d1117; color: #e6edf3; font: 14px/1.5 -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+    main { max-width: 1400px; margin: auto; padding: 24px; }
+    h1 { margin: 0; font-size: 24px; } h2 { font-size: 18px; margin: 0 0 8px; }
+    p { margin: 8px 0; } small, .muted { color: #9da7b3; } small { display: block; font-size: 12px; }
+    .panel { margin-top: 20px; padding: 16px; background: #161b22; border: 1px solid #30363d; border-radius: 6px; }
+    .cpu { border-top: 2px solid #79b8ff; } .memory { border-top: 2px solid #c4a4ef; }
+    .controls, .pagination { display: flex; flex-wrap: wrap; align-items: end; gap: 10px; margin: 14px 0; }
+    label { display: flex; flex-direction: column; gap: 4px; color: #9da7b3; }
+    .controls > .checkbox { flex-direction: row; align-items: center; align-self: center; }
+    select, input, button { max-width: 100%; font: inherit; color: #e6edf3; background: #21262d; border: 1px solid #484f58; border-radius: 4px; padding: 6px 8px; }
+    .search { flex: 1; min-width: 200px; } select { max-width: 300px; }
+    button, summary { cursor: pointer; } button:hover:not(:disabled) { border-color: #58a6ff; } button:disabled { opacity: .5; cursor: default; }
+    :focus-visible { outline: 2px solid #58a6ff; outline-offset: 3px; }
+    .table-scroll { width: 100%; overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { padding: 9px 10px; text-align: left; vertical-align: top; border-bottom: 1px solid #30363d; }
+    thead th { color: #9da7b3; white-space: nowrap; } tbody th { min-width: 230px; max-width: 440px; font-weight: normal; overflow-wrap: anywhere; }
+    .numeric { white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .over { color: #79c0ff; } .under { color: #ffb4a9; } .unknown, .warning { color: #e3b341; }
+    .warning { margin-left: 4px; cursor: help; }
+    details, #window { overflow-wrap: anywhere; } summary { color: #9da7b3; } details p { max-width: 1000px; } #warnings { padding-left: 20px; }
+    .pagination { align-items: center; margin-bottom: 0; } .empty { padding: 20px; color: #9da7b3; }
+    #filter-status { font-size: 12px; }
+    #savings { margin-top: 14px; overflow-wrap: anywhere; } #savings p { margin: 4px 0; }
+    @media (max-width: 650px) { main { padding: 12px; } .panel { padding: 10px; } .controls > label { flex: 1; min-width: 0; } .controls > .search { flex-basis: 100%; } select { width: 100%; } }
+  </style>
+</head>
+<body>
+<main>
+  <header><h1>Right-sizing</h1><p id="window" class="muted"></p></header>
+  <noscript><p>JavaScript is required. See right-sizing.json for the source data.</p></noscript>
+  <details id="method">
+    <summary>Details</summary>
+    <p id="policy"></p>
+    <p>Round up (ceil) to 10m CPU or 10Mi memory, minimum 10m or 10Mi. CPU usage is the sizing-window peak; its 2m burst peak is in the tooltip. Memory usage is peak working set. Historical peaks cannot guarantee future capacity or prevent throttling, OOMs or alerts.</p>
+    <p>Display groups combine exact kind, workload, container and init identity across clusters; only namespaces starting with ocm-arohcp become ocm-arohcp*. Cluster filtering happens first. Usage and suggestions are maxima, requests span the observed minimum and maximum, and samples are summed only when every source count is known. Peaks are never summed. Source JSON remains ungrouped.</p>
+    <p>Rows rank by absolute minimum request minus suggestion, per container. Changes only compares the grouped suggestion with both request endpoints, suppressing changes at or below the tolerance; matching requests are not changes. Groups require eligible evidence in every source row. Uncheck Changes only to see estimates and warnings within tolerance or with incomplete evidence. Unknown is not zero. An asterisk marks incomplete evidence or policy warnings; inspect it before applying a suggestion. Coverage requires 10 observations and 90% of each replica's observed span, plus usable ownership and requests. Alert risk bypasses the deadband, not these checks.</p>
+    <p>Estimated request savings exclude unknown requests and unsupported changes, and assume dev/minimal HCP classes allow decreases. Actual repository stale-request and limit checks can prevent edits. These are estimated request changes, not node-cost savings. Historical request ranges may differ from current config; the CLI compares against current config and returns NOOP once it matches the suggestion. Manually protected historical floors are not represented here.</p>
+    <ul id="warnings"></ul>
+  </details>
+  <div class="controls" role="search" aria-label="Filter recommendations">
+    <label class="search" for="search">Search<input id="search" type="search" placeholder="Namespace, kind, name, container"></label>
+    <label for="cluster">Cluster<select id="cluster"><option value="">All clusters</option></select></label>
+    <label for="direction">Direction<select id="direction"><option value="all">All</option><option value="over">Over</option><option value="under">Under</option><option value="unknown">Unknown</option></select></label>
+    <label class="checkbox" for="editable"><input id="editable" type="checkbox" checked>Editable workloads only</label>
+    <label class="checkbox" for="changes" title="Compared with observed requests in this run, not current repository config."><input id="changes" type="checkbox" checked>Observed changes only</label>
+    <button id="reset" type="button">Reset</button>
+  </div>
+  <small>Editable means a supported updater capability, not a configured baseline or sufficient evidence to apply a suggestion. Additional HCP targets require a baseline in hypershift.additionalMinimalResourceRequests and --additional-hcp-config; uncheck Observed changes only to inspect these capabilities and warnings. Uncheck Editable workloads only to include managed and unmapped workloads; source JSON always retains all rows.</small>
+  <p id="filter-status" class="muted" role="status" aria-live="polite"></p>
+  <section id="savings" aria-label="Snapshot request savings" aria-live="polite"></section>
+  <section class="panel cpu" aria-labelledby="cpu-title">
+    <h2 id="cpu-title">CPU</h2>
+    <div class="table-scroll" tabindex="0" role="region" aria-label="CPU recommendations, scroll horizontally for all columns">
+      <table><thead><tr><th scope="col">Kind namespace/name</th><th scope="col">Requests</th><th scope="col">Usage</th><th scope="col">Suggested request</th><th scope="col">Samples</th></tr></thead><tbody id="cpu-rows"></tbody></table>
+    </div>
+    <nav class="pagination" aria-label="CPU pages"><button id="cpu-prev" type="button">Previous</button><span id="cpu-page" role="status"></span><button id="cpu-next" type="button">Next</button></nav>
+  </section>
+  <section class="panel memory" aria-labelledby="memory-title">
+    <h2 id="memory-title">Memory</h2>
+    <div class="table-scroll" tabindex="0" role="region" aria-label="Memory recommendations, scroll horizontally for all columns">
+      <table><thead><tr><th scope="col">Kind namespace/name</th><th scope="col">Requests</th><th scope="col">Usage</th><th scope="col">Suggested request</th><th scope="col">Samples</th></tr></thead><tbody id="memory-rows"></tbody></table>
+    </div>
+    <nav class="pagination" aria-label="Memory pages"><button id="memory-prev" type="button">Previous</button><span id="memory-page" role="status"></span><button id="memory-next" type="button">Next</button></nav>
+  </section>
+</main>
+<script id="right-sizing-data" type="application/json">{{.}}</script>
+<script>
+'use strict';
+const report = JSON.parse(document.getElementById('right-sizing-data').textContent);
+const $ = id => document.getElementById(id);
+const known = value => typeof value === 'number' && Number.isFinite(value);
+const number = new Intl.NumberFormat('en-US', {maximumFractionDigits: 2});
+const resources = ['cpu', 'memory'], pageSize = 30, pages = {cpu: 0, memory: 0};
+const rows = report.recommendations || [];
+function el(tag, text, className) {
+  const node = document.createElement(tag);
+  if (text !== undefined) node.textContent = text;
+  if (className) node.className = className;
+  return node;
+}
+function quantity(value, resource) {
+  return known(value) ? number.format(resource === 'cpu' ? value * 1000 : value / 1048576) + (resource === 'cpu' ? 'm' : 'Mi') : 'Unknown';
+}
+// Group only the display, after cluster selection. Never mutate the source rows.
+function groupRows(cluster) {
+  const groups = new Map();
+  for (const row of rows) {
+    if (cluster && row.cluster !== cluster) continue;
+    const namespace = row.namespace.startsWith('ocm-arohcp') ? 'ocm-arohcp*' : row.namespace;
+    const key = JSON.stringify([row.resource, namespace, row.kind, row.workload, row.container, row.initContainer]);
+    if (!groups.has(key)) groups.set(key, {resource: row.resource, namespace, kind: row.kind, workload: row.workload, container: row.container, initContainer: row.initContainer,
+      editable: true, eligible: true, peak: null, burstPeak: null, requestMin: null, requestMax: null, suggested: null, samples: 0, missing: new Set(), warnings: new Set(), search: new Set()});
+    const group = groups.get(key);
+    group.editable = group.editable && row.editable === true;
+    group.eligible = group.eligible && row.eligible === true;
+    for (const field of ['peak', 'burstPeak', 'requestMin', 'requestMax', 'suggested']) {
+      if (known(row[field])) {
+        group[field] = !known(group[field]) ? row[field] : (field === 'requestMin' ? Math.min : Math.max)(group[field], row[field]);
+      } else if (field !== 'burstPeak') group.missing.add(field);
+    }
+    if (Number.isSafeInteger(row.samples) && row.samples >= 0 && group.samples !== null && Number.isSafeInteger(group.samples + row.samples)) group.samples += row.samples;
+    else group.samples = null;
+    if (!row.eligible) group.warnings.add('Incomplete evidence; review before applying.');
+    if (row.alertRisk) group.warnings.add('Alert risk: sizing peak exceeds 1.2 times the minimum request.');
+    for (const warning of row.warnings || []) group.warnings.add(warning);
+    group.search.add([row.cluster, row.namespace, namespace, row.kind, row.workload, row.container].join(' ').toLowerCase());
+  }
+  for (const group of groups.values()) {
+    group.delta = known(group.requestMin) && known(group.suggested) ? group.requestMin - group.suggested : null;
+    group.direction = !known(group.delta) ? 'unknown' : group.delta > 0 ? 'over' : group.delta < 0 ? 'under' : 'matched';
+    // Decide only after every source contributes its maximum suggestion and request range.
+    group.actionable = group.eligible && ['requestMin', 'requestMax', 'suggested'].every(field => known(group[field]) && !group.missing.has(field)) &&
+      [group.requestMin, group.requestMax].some(request => request >= 0 && request !== group.suggested &&
+        (request === 0 || Math.abs(group.suggested - request) / request > report.changeThreshold + 1e-12 || (known(group.peak) && group.peak > 1.2 * request)));
+    for (const field of group.missing) group.warnings.add('Unknown ' + ({peak: 'usage', requestMin: 'minimum request', requestMax: 'maximum request', suggested: 'suggestion'})[field] + ' in some source rows.');
+    if (group.samples === null) group.warnings.add('Unknown samples: one or more source counts are unavailable.');
+    group.unknown = group.missing.size > 0 || group.samples === null;
+    group.search = [...group.search].join(' ');
+  }
+  const magnitude = row => known(row.delta) ? Math.abs(row.delta) : -1;
+  return [...groups.values()].sort((a, b) => magnitude(b) - magnitude(a));
+}
+let grouped = groupRows('');
+for (const cluster of [...new Set([...rows, ...(report.savings?.resources || [])].map(row => row.cluster))].sort()) {
+  const option = el('option', cluster); option.value = cluster; $('cluster').append(option);
+}
+const date = value => new Date(value).toISOString().replace('T', ' ').slice(0, 19);
+$('window').textContent = date(report.start) + ' to ' + date(report.end) + ' UTC';
+$('policy').textContent = 'Peak rounded up to 10m CPU / 10Mi memory (minimum one chunk), no extra headroom; CPU ' + (report.cpuWindow || 'Unknown') + '; change tolerance ' + number.format(report.changeThreshold * 100) + '%.';
+for (const warning of report.warnings || []) $('warnings').append(el('li', warning));
+const warningCount = (report.warnings || []).length;
+if (warningCount) {
+  const summary = $('method').querySelector('summary');
+  summary.textContent = 'Details (' + warningCount + ' warnings)';
+  summary.classList.add('unknown');
+}
+for (const heading of document.querySelectorAll('thead th:last-child')) {
+  heading.title = 'Conservative lower bound of distinct replica-minute usage observations, not raw scrapes. Unknown if any source count is missing.';
+}
+function renderTable(resource, filtered) {
+  const count = filtered.length, lastPage = Math.max(0, Math.ceil(count / pageSize) - 1);
+  pages[resource] = Math.min(pages[resource], lastPage);
+  const start = pages[resource] * pageSize, body = $(resource + '-rows');
+  body.replaceChildren();
+  for (const row of filtered.slice(start, start + pageSize)) {
+    const tr = el('tr'), identity = el('th'); identity.scope = 'row';
+    identity.append(el('span', row.kind + ' ' + row.namespace + '/' + row.workload), el('small', row.container + (row.initContainer ? ' (init container)' : '')));
+    tr.append(identity);
+    const requests = el('td', quantity(row.requestMin, resource) + (row.requestMin === row.requestMax ? '' : ' to ' + quantity(row.requestMax, resource)), 'numeric');
+    if ((row.missing.has('requestMin') || row.missing.has('requestMax')) && known(row.requestMin)) requests.append(el('small', 'Unknown in part', 'unknown'));
+    tr.append(requests);
+    const peak = el('td', quantity(row.peak, resource), 'numeric');
+    if (row.missing.has('peak') && known(row.peak)) peak.append(el('small', 'Unknown in part', 'unknown'));
+    if (resource === 'cpu') peak.title = 'Sizing: ' + (report.cpuWindow || 'Unknown') + '; burst (2m): ' + quantity(row.burstPeak, resource);
+    tr.append(peak);
+    const suggestion = el('td', quantity(row.suggested, resource), 'numeric ' + row.direction);
+    if (row.warnings.size) {
+      const warning = el('span', '*', 'warning'); warning.title = [...row.warnings].join('\n'); warning.tabIndex = 0; warning.setAttribute('aria-label', warning.title);
+      suggestion.append(warning);
+    }
+    tr.append(suggestion, el('td', known(row.samples) ? number.format(row.samples) : 'Unknown', 'numeric'));
+    body.append(tr);
+  }
+  if (!count) {
+    const tr = el('tr'), td = el('td', 'No matching rows.', 'empty');
+    td.colSpan = 5; tr.append(td); body.append(tr);
+  }
+  $(resource + '-page').textContent = count ? (start + 1) + '-' + Math.min(start + pageSize, count) + ' of ' + count : '0 rows';
+  $(resource + '-prev').disabled = pages[resource] === 0;
+  $(resource + '-next').disabled = pages[resource] >= lastPage;
+}
+function renderSavings() {
+  const summary = $('savings'), savings = report.savings;
+  summary.replaceChildren();
+  if (!savings || !savings.time) {
+    summary.append(el('small', 'Savings unavailable: no concurrent snapshot.'));
+    return;
+  }
+  summary.append(el('h2', 'Estimated request savings'));
+  summary.append(el('small', 'Hypothetical at ' + date(savings.time) + ' UTC; known regular-container requests. Independent of table filters.'));
+  for (const resource of resources) {
+    const entries = (savings.resources || []).filter(row => row.resource === resource && (!$('cluster').value || row.cluster === $('cluster').value));
+    const name = resource === 'cpu' ? 'CPU' : 'Memory';
+    const line = el('p'); line.id = 'savings-' + resource;
+    if (!entries.length) {
+      line.textContent = name + ': unavailable for this snapshot scope.';
+    } else {
+      const sum = field => entries.every(row => known(row[field])) ? entries.reduce((total, row) => total + row[field], 0) : null;
+      const before = sum('before'), after = sum('after'), unknown = sum('unknownContainers');
+      const amount = value => resource === 'cpu' && known(value) ? number.format(value) + ' cores' : quantity(value, resource);
+      let net = 'net change unavailable';
+      if (known(before) && known(after)) {
+        const delta = before - after;
+        net = delta === 0 ? 'no net change (0%)' : 'net ' + (before > 0 ? number.format(Math.abs(delta) / before * 100) + '% ' : amount(Math.abs(delta)) + ' ') + (delta > 0 ? 'reduction' : 'increase');
+      }
+      line.append(el('strong', name + ': '), el('span', amount(before) + ' -> ' + amount(after) + ' (' + net + ')'));
+      line.title = 'Reductions: ' + amount(sum('reductions')) + '; increases: ' + amount(sum('increases'));
+      const count = field => known(sum(field)) ? number.format(sum(field)) : 'Unknown';
+      line.append(el('small', (unknown > 0 || !known(unknown) ? 'Known requests (lower bound); ' : '') + count('changedContainers') + ' changed; ' + count('excludedContainers') + ' excluded; ' + count('unknownContainers') + ' unknown containers'));
+    }
+    summary.append(line);
+  }
+}
+function render() {
+  const search = $('search').value.trim().toLowerCase(), direction = $('direction').value;
+  const filtered = grouped.filter(row => (!$('editable').checked || row.editable) && (!$('changes').checked || row.actionable) && (direction === 'all' || (direction === 'unknown' ? row.unknown : row.direction === direction)) && (!search || row.search.includes(search)));
+  const hidden = $('editable').checked ? grouped.filter(row => !row.editable).length : 0;
+  $('filter-status').textContent = filtered.length + ' of ' + grouped.length + ' resource rows' + (hidden ? ' (' + hidden + ' hidden by editable filter)' : '');
+  for (const resource of resources) renderTable(resource, filtered.filter(row => row.resource === resource));
+  renderSavings();
+}
+function resetPages() { pages.cpu = 0; pages.memory = 0; render(); }
+for (const id of ['cluster', 'search', 'direction', 'editable', 'changes']) $(id).addEventListener('input', () => {
+  if (id === 'cluster') grouped = groupRows($('cluster').value);
+  if (id === 'direction' && $('direction').value === 'unknown') $('changes').checked = false;
+  resetPages();
+});
+for (const resource of resources) {
+  $(resource + '-prev').addEventListener('click', () => { pages[resource]--; render(); });
+  $(resource + '-next').addEventListener('click', () => { pages[resource]++; render(); });
+}
+$('reset').addEventListener('click', () => { $('cluster').value = ''; $('search').value = ''; $('direction').value = 'all'; $('editable').checked = true; $('changes').checked = true; grouped = groupRows(''); resetPages(); });
+render();
+</script>
+</body>
+</html>

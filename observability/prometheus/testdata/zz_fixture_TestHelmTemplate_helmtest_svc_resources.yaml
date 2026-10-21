@@ -68539,18 +68539,35 @@ spec:
       maxBackoff: 256s
     metadataConfig:
       send: false
-    # Both drop rules are needed: the namespace rule catches HCP metrics where
-    # namespace is still ocm-* (cluster-scoped like nodes, plus non-KSM HCP metrics),
-    # while the hostedcontrolplane rule catches per-HCP KSM metrics for namespaced
-    # resources where namespace has been promoted to the actual resource namespace
-    # (e.g. openshift-ingress-operator) and no longer matches ocm-*.
+    # Only the management KSM sizing/inventory allowlist overrides HCP routing.
     writeRelabelConfigs:
+      - targetLabel: __tmp_arohcp_workspace
+        replacement: services
+        action: replace
       - sourceLabels: [namespace]
         regex: '^ocm-arohcpdev.*'
-        action: drop
+        targetLabel: __tmp_arohcp_workspace
+        replacement: hcp
+        action: replace
       - sourceLabels: [hostedcontrolplane]
         regex: '^ocm-arohcpdev.*'
+        targetLabel: __tmp_arohcp_workspace
+        replacement: hcp
+        action: replace
+      # Keep this override narrow: requests, limits, and compact sizing inventory.
+      # Namespace labels are the low-cardinality dependency of HCP capacity alerts.
+      # Guest KSM carries hostedcontrolplane and keeps its existing route.
+      - sourceLabels: [job, hostedcontrolplane, __name__]
+        separator: ;
+        regex: '^kube-state-metrics;;(kube_pod_container_resource_requests|kube_pod_init_container_resource_requests|kube_pod_container_info|kube_pod_init_container_info|kube_pod_owner|kube_replicaset_owner|kube_job_owner|kube_replicationcontroller_owner|kube_pod_info|kube_pod_status_phase|kube_pod_status_scheduled|kube_pod_container_resource_limits|kube_namespace_labels)$'
+        targetLabel: __tmp_arohcp_workspace
+        replacement: services
+        action: replace
+      - sourceLabels: [__tmp_arohcp_workspace]
+        regex: hcp
         action: drop
+      - regex: __tmp_arohcp_workspace
+        action: labeldrop
   - url: '__hcpDcrRemoteWriteUrl__'
     azureAd:
       cloud: AzurePublic
@@ -68565,15 +68582,34 @@ spec:
       maxBackoff: 256s
     metadataConfig:
       send: false
-    # Combined into a single rule because sequential keep rules are AND
-    # (a metric must match all rules to survive), but we need OR — keep if
-    # either namespace or hostedcontrolplane matches ocm-*.
-    # See https://github.com/prometheus/prometheus/issues/3996
     writeRelabelConfigs:
-      - sourceLabels: [namespace, hostedcontrolplane]
+      - targetLabel: __tmp_arohcp_workspace
+        replacement: services
+        action: replace
+      - sourceLabels: [namespace]
+        regex: '^ocm-arohcpdev.*'
+        targetLabel: __tmp_arohcp_workspace
+        replacement: hcp
+        action: replace
+      - sourceLabels: [hostedcontrolplane]
+        regex: '^ocm-arohcpdev.*'
+        targetLabel: __tmp_arohcp_workspace
+        replacement: hcp
+        action: replace
+      # Keep this override narrow: requests, limits, and compact sizing inventory.
+      # Namespace labels are the low-cardinality dependency of HCP capacity alerts.
+      # Guest KSM carries hostedcontrolplane and keeps its existing route.
+      - sourceLabels: [job, hostedcontrolplane, __name__]
         separator: ;
-        regex: '(ocm-arohcpdev[^;]*;.*|.*;ocm-arohcpdev.*)'
+        regex: '^kube-state-metrics;;(kube_pod_container_resource_requests|kube_pod_init_container_resource_requests|kube_pod_container_info|kube_pod_init_container_info|kube_pod_owner|kube_replicaset_owner|kube_job_owner|kube_replicationcontroller_owner|kube_pod_info|kube_pod_status_phase|kube_pod_status_scheduled|kube_pod_container_resource_limits|kube_namespace_labels)$'
+        targetLabel: __tmp_arohcp_workspace
+        replacement: services
+        action: replace
+      - sourceLabels: [__tmp_arohcp_workspace]
+        regex: hcp
         action: keep
+      - regex: __tmp_arohcp_workspace
+        action: labeldrop
 ---
 # Source: hcp-prometheus/charts/kube-prometheus-stack/templates/prometheus/rules-1.14/alertmanager.rules.yaml
 apiVersion: monitoring.coreos.com/v1

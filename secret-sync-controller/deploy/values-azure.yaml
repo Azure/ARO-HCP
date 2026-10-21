@@ -19,6 +19,13 @@ tokenRequestAudience:
 - audience: # e.g. api://TokenAudienceExample
 # Metrics configuration
 metricsPort: 8085
+resources:
+  requests:
+    cpu: "{{ .secretSyncController.k8s.controllerResources.requests.cpu }}"
+    memory: "{{ .secretSyncController.k8s.controllerResources.requests.memory }}"
+  limits:
+    cpu: "{{ .secretSyncController.k8s.controllerResources.limits.cpu }}"
+    memory: "{{ .secretSyncController.k8s.controllerResources.limits.memory }}"
 providerContainer:
 - name: provider-azure-installer
   image: '{{ .secretSyncController.providerImage.registry }}/{{ .secretSyncController.providerImage.repository }}@{{ .secretSyncController.providerImage.digest }}'
@@ -42,6 +49,7 @@ providerContainer:
       cpu: "{{ .secretSyncController.k8s.resources.requests.cpu }}"
       memory: "{{ .secretSyncController.k8s.resources.requests.memory }}"
     limits:
+      cpu: "{{ .secretSyncController.k8s.resources.limits.cpu }}"
       memory: "{{ .secretSyncController.k8s.resources.limits.memory }}"
   ports:
   - containerPort: 8898

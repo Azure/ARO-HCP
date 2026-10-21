@@ -1,0 +1,5 @@
+additionalMinimalResourceRequests: {}
+operatorResources:
+  requests:
+    cpu: 10m
+    memory: 150Mi

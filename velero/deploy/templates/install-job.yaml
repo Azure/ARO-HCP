@@ -26,6 +26,9 @@ spec:
       {{- end }}
       initContainers:
       - name: generate-manifest
+        {{- with include "velero.resources" .Values.installer.generate.resources }}
+        {{- . | nindent 8 }}
+        {{- end }}
         image: "{{ .Values.imageRegistry }}/{{ .Values.veleroServer.repository }}@{{ .Values.veleroServer.digest }}"
         imagePullPolicy: IfNotPresent
         command:
@@ -51,10 +54,14 @@ spec:
             --snapshot-location-config subscriptionId={{ .Values.subscriptionId }} \
             --image {{ .Values.imageRegistry }}/{{ .Values.veleroServer.repository }}@{{ .Values.veleroServer.digest }} \
             --concurrent-backups 4 \
-            --velero-pod-mem-limit 0 \
-            --velero-pod-mem-request 1024Mi \
-            --velero-pod-cpu-limit 0 \
-            --velero-pod-cpu-request 1000m \
+            --velero-pod-mem-limit {{ include "velero.resourceFlag" .Values.veleroServer.resources.limits.memory }} \
+            --velero-pod-mem-request {{ include "velero.resourceFlag" .Values.veleroServer.resources.requests.memory }} \
+            --velero-pod-cpu-limit {{ include "velero.resourceFlag" .Values.veleroServer.resources.limits.cpu }} \
+            --velero-pod-cpu-request {{ include "velero.resourceFlag" .Values.veleroServer.resources.requests.cpu }} \
+            --node-agent-pod-mem-limit {{ include "velero.resourceFlag" .Values.nodeAgent.resources.limits.memory }} \
+            --node-agent-pod-mem-request {{ include "velero.resourceFlag" .Values.nodeAgent.resources.requests.memory }} \
+            --node-agent-pod-cpu-limit {{ include "velero.resourceFlag" .Values.nodeAgent.resources.limits.cpu }} \
+            --node-agent-pod-cpu-request {{ include "velero.resourceFlag" .Values.nodeAgent.resources.requests.cpu }} \
             --dry-run -o yaml > /manifest/velero.yaml
 
           echo "Manifest generated successfully."
@@ -67,6 +74,9 @@ spec:
           mountPath: /manifest
       containers:
       - name: apply-manifest
+        {{- with include "velero.resources" .Values.installer.apply.resources }}
+        {{- . | nindent 8 }}
+        {{- end }}
         image: "{{ .Values.installJobImage }}"
         imagePullPolicy: IfNotPresent
         command:

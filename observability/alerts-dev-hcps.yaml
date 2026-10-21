@@ -1,8 +1,7 @@
 prometheusRules:
   rulesFolders:
-  - alerts/mgmt-capacity-prometheusRule.yaml
-  - alerts/HCPkasRecord-prometheusRule-KSM.yaml
   - alerts/HCPclusterOperators-prometheusRule.yaml
+  - alerts/kubeContainerOOM-prometheusRule.yaml
   - ../kube-applier/alerts/kube-applier-prometheusRule.yaml
   untestedRules: []
   testDependencies:

@@ -20,3 +20,18 @@ hubconfig:
   replicaCount: 2
   tolerations: []
 org: open-cluster-management
+resources:
+  policyAddonController:
+    requests:
+      cpu: 25m
+      memory: 64Mi
+    limits:
+      cpu: NONE
+      memory: NONE
+  policyPropagator:
+    requests:
+      cpu: 25m
+      memory: 64Mi
+    limits:
+      cpu: NONE
+      memory: NONE

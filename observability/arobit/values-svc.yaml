@@ -32,10 +32,10 @@ forwarder:
       pullPolicy: IfNotPresent
     resources:
       requests:
-        cpu: "{{ .arobit.forwarder.resources.requests.cpu }}"
-        memory: "{{ .arobit.forwarder.resources.requests.memory }}"
+        cpu: "{{ .svc.arobit.forwarder.resources.requests.cpu }}"
+        memory: "{{ .svc.arobit.forwarder.resources.requests.memory }}"
       limits:
-        memory: "{{ .arobit.forwarder.resources.limits.memory }}"
+        memory: "{{ .svc.arobit.forwarder.resources.limits.memory }}"
   mdsd:
     # Geneva Config
     geneva:

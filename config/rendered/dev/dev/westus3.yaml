@@ -9,6 +9,70 @@ acm:
       digest: sha256:a02f5e70ac8b396946f8086ec23aa4e97196c2d9bad458e80577325d44a0d78c
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-217
+  resources:
+    backplaneOperator:
+      limits:
+        cpu: 100m
+        memory: 2Gi
+      requests:
+        cpu: 100m
+        memory: 20Mi
+    configPolicyController:
+      limits:
+        cpu: NONE
+        memory: NONE
+      requests:
+        cpu: NONE
+        memory: NONE
+    finalize:
+      limits:
+        cpu: NONE
+        memory: NONE
+      requests:
+        cpu: NONE
+        memory: NONE
+    governancePolicyFramework:
+      limits:
+        cpu: NONE
+        memory: NONE
+      requests:
+        cpu: NONE
+        memory: NONE
+    hypershiftAddonAgent:
+      limits:
+        cpu: NONE
+        memory: NONE
+      requests:
+        cpu: NONE
+        memory: NONE
+    klusterletAddonController:
+      limits:
+        cpu: NONE
+        memory: NONE
+      requests:
+        cpu: 50m
+        memory: 96Mi
+    policyAddonController:
+      limits:
+        cpu: NONE
+        memory: NONE
+      requests:
+        cpu: 25m
+        memory: 64Mi
+    policyPropagator:
+      limits:
+        cpu: NONE
+        memory: NONE
+      requests:
+        cpu: 25m
+        memory: 64Mi
+    workManager:
+      limits:
+        cpu: NONE
+        memory: NONE
+      requests:
+        cpu: NONE
+        memory: NONE
 acr:
   ocp:
     diagnosticSettings:
@@ -39,6 +103,14 @@ acrPull:
     digest: sha256:3c5c06a5c480305dfcb3a9a90b54fbc94469a0852eff90ed872cc4601af8e349
     registry: mcr.microsoft.com
     repository: aks/msi-acrpull
+  k8s:
+    resources:
+      limits:
+        cpu: 100m
+        memory: 1Gi
+      requests:
+        cpu: 100m
+        memory: 20Mi
 adminApi:
   audit:
     connectSocket: false
@@ -47,6 +119,14 @@ adminApi:
     issuer: Self
     name: admin-api-cert-dev-usw3
     san: admin.westus3.hcpsvc.osadev.cloud
+  certificateRefresher:
+    resources:
+      limits:
+        cpu: NONE
+        memory: NONE
+      requests:
+        cpu: NONE
+        memory: NONE
   image:
     digest: ""
     registry: arohcpsvcdev.azurecr.io
@@ -85,12 +165,6 @@ arobit:
       digest: sha256:413bd678fbaa1544fb6decaead554f63fa40e88907779fd69f0f69a27b399bda
       registry: mcr.microsoft.com
       repository: oss/v2/fluent/fluent-bit
-    resources:
-      limits:
-        memory: 1248Mi
-      requests:
-        cpu: 450m
-        memory: 472Mi
   kusto:
     buffering: true
     enabled: true
@@ -204,6 +278,13 @@ clustersService:
     digest: sha256:c8f24c8fdb67984669c822cbbc731e2e9e48c1fc9c036f97a803f5661a0e568d
     registry: quay.io
     repository: app-sre/aro-hcp-clusters-service
+  initResources:
+    limits:
+      cpu: NONE
+      memory: NONE
+    requests:
+      cpu: NONE
+      memory: NONE
   k8s:
     deploymentStrategy:
       rollingUpdate:
@@ -224,6 +305,13 @@ clustersService:
     containerizedDb:
       image: ""
       pvcCapacity: ""
+      resources:
+        limits:
+          cpu: NONE
+          memory: NONE
+        requests:
+          cpu: NONE
+          memory: NONE
     databaseName: clusters-service
     deploy: true
     enhancedMetricsEnabled: true
@@ -322,6 +410,14 @@ frontend:
     issuer: Self
     name: frontend-cert-dev-usw3
     san: rp.westus3.hcpsvc.osadev.cloud
+  certificateRefresher:
+    resources:
+      limits:
+        cpu: NONE
+        memory: NONE
+      requests:
+        cpu: NONE
+        memory: NONE
   clusterScopedIdentitiesConfig:
     roleSetName: dev
   cosmosDB:
@@ -501,6 +597,7 @@ hcpRecovery:
     serviceAccountName: hcp-recovery
 hypershift:
   additionalInstallArg: --enable-cpo-overrides --disable-capi-migration
+  additionalMinimalResourceRequests: {}
   image:
     digest: sha256:92d8765dea9419d3b534a51b18b4ca34e7ae6152ede7eb5442afa8c4abe6866d
     registry: quay.io
@@ -509,6 +606,10 @@ hypershift:
   metricsSet:
     performanceMetrics: false
   namespace: hypershift
+  operatorResources:
+    requests:
+      cpu: 10m
+      memory: 150Mi
   sharedIngressIPTag: ""
   sharedIngressImage:
     digest: sha256:5e22710fe440869655329ecc0ef57b4ae15f4ef96e74a8904b1e6fafc0d87678
@@ -606,12 +707,35 @@ maestro:
     certCN: mgmt-1.maestro.westus3.hcpsvc.osadev.cloud
     certSAN: hcp-underlay-usw3-mgmt-1.maestro.westus3.hcpsvc.osadev.cloud
     consumerName: hcp-underlay-usw3-mgmt-1
+    init:
+      resources:
+        limits:
+          cpu: NONE
+          memory: NONE
+        requests:
+          cpu: NONE
+          memory: NONE
     k8s:
       namespace: maestro
       replicas: 1
+      resources:
+        limits:
+          cpu: NONE
+          memory: NONE
+        requests:
+          cpu: NONE
+          memory: NONE
       serviceAccountName: maestro
     loglevel: 2
     managedIdentityName: maestro-consumer
+    metricsProxy:
+      resources:
+        limits:
+          cpu: NONE
+          memory: NONE
+        requests:
+          cpu: NONE
+          memory: NONE
     sidecar:
       image:
         digest: sha256:ec23965a03e8fef376d3f91ce39ee8461be2c2cc4c1fe04f03d49684327896db
@@ -631,6 +755,13 @@ maestro:
     containerizedDb:
       image: ""
       pvcCapacity: ""
+      resources:
+        limits:
+          cpu: NONE
+          memory: NONE
+        requests:
+          cpu: NONE
+          memory: NONE
     databaseName: maestro
     deploy: true
     enhancedMetricsEnabled: true
@@ -659,7 +790,21 @@ maestro:
       serviceAccountName: maestro
     loglevel: 2
     managedIdentityName: maestro-server
+    migrationResources:
+      limits:
+        cpu: NONE
+        memory: NONE
+      requests:
+        cpu: NONE
+        memory: NONE
     mqttClientName: maestro-server-usw3-dev
+    waitForDBResources:
+      limits:
+        cpu: NONE
+        memory: NONE
+      requests:
+        cpu: NONE
+        memory: NONE
 maestroMqttEventHub:
   enabled: false
   kustoConsumerGroupName: MaestroMqttToKusto
@@ -713,6 +858,14 @@ mgmt:
       zones: ""
     vnetAddressPrefix: 10.128.0.0/14
   applyKubeletFixes: true
+  arobit:
+    forwarder:
+      resources:
+        limits:
+          memory: 1248Mi
+        requests:
+          cpu: 450m
+          memory: 472Mi
   defaultStorageClassSkuName: PremiumV2_LRS
   hcpBackups:
     storageAccount:
@@ -720,6 +873,21 @@ mgmt:
       public: false
       zoneRedundantMode: Auto
     storageAccountContainerName: backups
+  kubeletFixes:
+    initResources:
+      limits:
+        cpu: NONE
+        memory: 64Mi
+      requests:
+        cpu: 10m
+        memory: 32Mi
+    resources:
+      limits:
+        cpu: NONE
+        memory: NONE
+      requests:
+        cpu: 10m
+        memory: NONE
   monitoringApiGroup: monitoring.coreos.com
   nsp:
     accessMode: Learning
@@ -736,6 +904,13 @@ mgmt:
         digest: sha256:d752ec78be754693d5c4850b11b23e496310dccbe5fa3c3dc316a51fc999353a
         registry: mcr.microsoft.com/oss/v2
         repository: kubernetes/kube-state-metrics
+      resources:
+        limits:
+          cpu: NONE
+          memory: NONE
+        requests:
+          cpu: NONE
+          memory: NONE
     namespace: prometheus
     namespaceNetworkPolicyGroup: monitoring
     prometheusConfigReloader:
@@ -743,11 +918,25 @@ mgmt:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus-config-reloader
         sha: a8ac03e4c43d0dceef3e092c904466e272b044a20617eeff5549a0e7b7b4809c
+      resources:
+        limits:
+          cpu: NONE
+          memory: NONE
+        requests:
+          cpu: NONE
+          memory: NONE
     prometheusOperator:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus-operator
         sha: beb3136196cc4c3ac295e8ec4e734151605533b89d6618c7ea6f2f0adb2ebe97
+      resources:
+        limits:
+          cpu: NONE
+          memory: NONE
+        requests:
+          cpu: NONE
+          memory: NONE
       version: ""
     prometheusSpec:
       image:
@@ -774,6 +963,14 @@ mgmt:
   stampIdentifier: "1"
   stamps:
     count: 1
+  storageClassHooks:
+    resources:
+      limits:
+        cpu: NONE
+        memory: NONE
+      requests:
+        cpu: NONE
+        memory: NONE
   subscription:
     certificateDomains:
     - '*.hcp.osadev.cloud'
@@ -807,6 +1004,12 @@ mgmt:
     usePlannedQuota: true
   swiftVnetIdentityResourceId: ""
 mgmtAgent:
+  guestKSMResources:
+    limits:
+      memory: 256Mi
+    requests:
+      cpu: 10m
+      memory: 64Mi
   image:
     digest: ""
     registry: arohcpsvcdev.azurecr.io
@@ -988,9 +1191,17 @@ secretSyncController:
     registry: registry.k8s.io
     repository: secrets-store-sync/controller
   k8s:
+    controllerResources:
+      limits:
+        cpu: NONE
+        memory: NONE
+      requests:
+        cpu: NONE
+        memory: NONE
     namespace: secret-sync-controller
     resources:
       limits:
+        cpu: NONE
         memory: unlimited
       requests:
         cpu: 50m
@@ -1019,6 +1230,14 @@ sessiongate:
     issuer: Self
     name: sessiongate-cert-dev-usw3
     san: sessiongate.westus3.hcpsvc.osadev.cloud
+  certificateRefresher:
+    resources:
+      limits:
+        cpu: NONE
+        memory: NONE
+      requests:
+        cpu: NONE
+        memory: NONE
   image:
     digest: ""
     registry: arohcpsvcdev.azurecr.io
@@ -1094,6 +1313,14 @@ svc:
       zoneRedundantMode: Auto
       zones: ""
     vnetAddressPrefix: 10.128.0.0/14
+  arobit:
+    forwarder:
+      resources:
+        limits:
+          memory: 1248Mi
+        requests:
+          cpu: 450m
+          memory: 472Mi
   istio:
     ingressGatewayIPAddressIPTags: ""
     ingressGatewayIPAddressName: aro-hcp-istio-ingress
@@ -1106,6 +1333,13 @@ svc:
     gateway:
       ipAddressName: aro-hcp-ops-ingress
       ipAddressTags: ""
+      resources:
+        limits:
+          cpu: NONE
+          memory: NONE
+        requests:
+          cpu: NONE
+          memory: NONE
   prometheus:
     admissionWebhook:
       patch:
@@ -1118,18 +1352,46 @@ svc:
         digest: sha256:d752ec78be754693d5c4850b11b23e496310dccbe5fa3c3dc316a51fc999353a
         registry: mcr.microsoft.com/oss/v2
         repository: kubernetes/kube-state-metrics
+      resources:
+        limits:
+          cpu: NONE
+          memory: NONE
+        requests:
+          cpu: NONE
+          memory: NONE
     namespace: prometheus
     namespaceNetworkPolicyGroup: ""
+    opstoolResources:
+      limits:
+        cpu: NONE
+        memory: 2Gi
+      requests:
+        cpu: 500m
+        memory: 1Gi
     prometheusConfigReloader:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus-config-reloader
         sha: a8ac03e4c43d0dceef3e092c904466e272b044a20617eeff5549a0e7b7b4809c
+      resources:
+        limits:
+          cpu: NONE
+          memory: NONE
+        requests:
+          cpu: NONE
+          memory: NONE
     prometheusOperator:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus-operator
         sha: beb3136196cc4c3ac295e8ec4e734151605533b89d6618c7ea6f2f0adb2ebe97
+      resources:
+        limits:
+          cpu: NONE
+          memory: NONE
+        requests:
+          cpu: NONE
+          memory: NONE
       version: ""
     prometheusSpec:
       image:
@@ -1199,6 +1461,7 @@ swiftRecorder:
     namespace: swift-recorder
     resources:
       limits:
+        cpu: NONE
         memory: 256Mi
       requests:
         cpu: 20m
@@ -1211,12 +1474,58 @@ velero:
     digest: sha256:1a514e936d28b954d35c29cfccd1d969db1e6d6da27caf5d2bd32508eb122a26
     registry: registry.stage.redhat.io
     repository: oadp/oadp-velero-plugin-for-microsoft-azure-rhel9
+    resources:
+      limits:
+        cpu: NONE
+        memory: NONE
+      requests:
+        cpu: NONE
+        memory: NONE
   enableInstantAccess: true
   hypershiftPlugin:
     digest: sha256:b9df7e16fc8323377e4833c22d825dc37c9dccd047bd312b98b0805fa811fdf9
     registry: registry.stage.redhat.io
     repository: oadp/oadp-hypershift-velero-plugin-rhel9
+    resources:
+      limits:
+        cpu: NONE
+        memory: NONE
+      requests:
+        cpu: NONE
+        memory: NONE
+  installer:
+    apply:
+      resources:
+        limits:
+          cpu: NONE
+          memory: NONE
+        requests:
+          cpu: NONE
+          memory: NONE
+    generate:
+      resources:
+        limits:
+          cpu: NONE
+          memory: NONE
+        requests:
+          cpu: NONE
+          memory: NONE
+  nodeAgent:
+    resources:
+      limits:
+        cpu: NONE
+        memory: NONE
+      requests:
+        cpu: NONE
+        memory: NONE
   server:
     digest: sha256:3cd80bba1d9d323c025ef4ecf1412e348dddf0801af344e7839395073d16c7fc
     registry: registry.stage.redhat.io
     repository: oadp/oadp-velero-rhel9
+    resources:
+      limits:
+        cpu: NONE
+        memory: NONE
+      requests:
+        cpu: 1000m
+        memory: 1024Mi

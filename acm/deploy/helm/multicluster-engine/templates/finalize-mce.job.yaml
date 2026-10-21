@@ -33,5 +33,7 @@ spec:
           echo "Namespace 'local-cluster' found."
         image: '{{ .Values.finalizeMceJobImage }}'
         name: finalize
+        resources:
+          {{- include "acm.resources" .Values.resources.finalize | nindent 10 }}
       restartPolicy: Never
       serviceAccountName: multicluster-engine-operator
