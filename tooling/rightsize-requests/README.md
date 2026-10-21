@@ -111,7 +111,7 @@ update, without falling back past a malformed override. Limits are never changed
 Every row mapping to the same config resource contributes, across all reports,
 clusters and workloads. The **maximum suggested value** wins, not the last row
 or an average. For example, CPU peaks of 0.1 and 0.4 cores in two reports select
-480m, never the quiet report's 120m, regardless of input order. If any
+400m, never the quiet report's 100m, regardless of input order. If any
 mapped row is ineligible, has unresolved identity or an unsupported init role,
 or lacks peak, suggestion, request bounds or complete replica measurements, that entire mapped
 resource is blocked. CPU and memory are evaluated independently. Unknown mappings
@@ -184,9 +184,9 @@ go run . --input run-a/right-sizing.json --input run-b/right-sizing.json \
   --dry-run
 ```
 
-The available CI data is incomplete. The default strict mode blocks reductions
-with incomplete evidence. The explicitly authorized CI-only experiment below is
-an opt-in exception, not a claim that the sample is complete or safe.
+The default strict mode blocks reductions with incomplete evidence. The
+experimental CI-only mode below is an opt-in exception, not a claim that a sample
+is complete or safe, or authorization to apply a proposed reduction.
 
 The prefix must match `^ocm-[a-z0-9][a-z0-9-]*-$`; matching uses a literal prefix,
 not regular-expression semantics, and requires a nonempty namespace suffix.
@@ -333,59 +333,33 @@ template edits affect its shared `e2e_minimal` branch, and additional overrides
 are written under `clouds.dev.defaults`. They therefore apply to all dev
 environments using that limited size class, not just the sampled CI shard.
 
-Reproduce the authorized four-report experiment from the repository root, without
-applying either file:
+To preview experimental CPU reductions, explicitly select saved reports and run
+the desired scope from the repository root. These examples do not apply changes:
 
 ```bash
 go run ./tooling/rightsize-requests \
-  --input /tmp/opencode/right-sizing-v3-2103929857506283520/right-sizing.json \
-  --input /tmp/opencode/right-sizing-v3-2103981635216084992/right-sizing.json \
-  --input /tmp/opencode/right-sizing-2104275998722756608/right-sizing.json \
-  --input /tmp/opencode/right-sizing-2104335322849480704/right-sizing.json \
+  --input run-a/right-sizing.json --input run-b/right-sizing.json \
   --sizing-template hypershiftoperator/deploy/templates/cluster.clustersizingconfiguration.yaml \
   --namespace-prefix ocm-arohcpci01- \
   --experimental-hcp-cpu-reductions --allow-decrease --dry-run
 
 go run ./tooling/rightsize-requests \
-  --input /tmp/opencode/right-sizing-v3-2103929857506283520/right-sizing.json \
-  --input /tmp/opencode/right-sizing-v3-2103981635216084992/right-sizing.json \
-  --input /tmp/opencode/right-sizing-2104275998722756608/right-sizing.json \
-  --input /tmp/opencode/right-sizing-2104335322849480704/right-sizing.json \
+  --input run-a/right-sizing.json --input run-b/right-sizing.json \
   --additional-hcp-config config/config.yaml \
   --namespace-prefix ocm-arohcpci01- \
   --experimental-hcp-cpu-reductions --allow-decrease --dry-run
 ```
 
-These are the selected saved reports, not the earlier failed `210406...` run.
-With the pre-experiment baseline and default 10% deadband, they propose nine
-reductions derived from the catalog and evidence, not hardcoded target values:
-
-| Scope | Workload / Container | CPU Before | CPU Target |
-|---|---|---:|---:|
-| Template | cluster-policy-controller / cluster-policy-controller | 100m | 10m |
-| Template | kube-controller-manager / kube-controller-manager | 100m | 30m |
-| Template | openshift-apiserver / openshift-apiserver | 100m | 30m |
-| Template | openshift-controller-manager / openshift-controller-manager | 100m | 20m |
-| Additional seed | azure-cloud-controller-manager / cloud-controller-manager | 75m observed | 10m |
-| Additional seed | etcd / etcd-metrics | 40m observed | 20m |
-| Additional seed | konnectivity-agent / konnectivity-agent | 40m observed | 10m |
-| Additional seed | kube-scheduler / kube-scheduler | 25m observed | 10m |
-| Additional seed | router / router | 50m observed | 10m |
-
-The template run reports four changes, etcd already at 100m, a skipped
-kube-apiserver increase to 200m, and a stale ovnkube-control-plane baseline. The
-additional run reports five changes/five seeds, skipping route-controller because
-its 69-character annotation suffix exceeds Kubernetes' 63-character limit.
-Different evidence or current configuration can change these results. Removing
-`--dry-run` applies that one scope only; review both plans and verify actual
-rendered charts separately.
+Proposals depend on the selected evidence and effective current configuration;
+these examples prescribe no target values. Removing `--dry-run` applies only the
+selected scope. Review each plan and verify actual rendered charts separately.
 
 **Keep this as a dry run until representative minimal-cluster evidence and live
 limits have been verified.** `--additional-hcp-config` and `--sizing-template`
 are mutually exclusive; neither accepts explicit `--config`, `--write-config`,
 `--source-prefix`, or `--write-prefix`. Both are input-only and never render or
-commit. This mode does not edit the seven literal template entries, other size
-classes, public-cloud overrides, or limits.
+commit. Additional HCP config mode does not edit the seven literal template
+entries; neither mode edits other size classes, public-cloud overrides, or limits.
 
 ### Report Contract
 
@@ -634,8 +608,7 @@ kube-state-metrics (the pod spec container name). In particular,
 `secretSyncController.k8s.resources` maps to `provider-azure-installer`, while
 `Deployment/secrets-store-sync-controller-manager/manager` maps separately to
 `secretSyncController.k8s.controllerResources`. A `manager`-only mapping is unsafe.
-The original table's 2026-08-28 int-cluster check does not validate the expanded
-catalog; chart/API source checks are not proof of live deployment or sizing.
+Chart/API source checks are not proof of live deployment or sizing.
 Run with `--dry-run` first and check the "unmapped workloads" section of the
 report to catch any drift (e.g. a renamed container) before writing.
 

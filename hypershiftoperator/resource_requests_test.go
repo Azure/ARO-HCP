@@ -271,6 +271,89 @@ func TestResourceValuesExpansion(t *testing.T) {
 	}
 }
 
+func TestInstallerRenderCleanup(t *testing.T) {
+	objects, err := render(t, "limitClusterSizes: true\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var script string
+	for _, object := range objects {
+		if object["kind"] != "Job" {
+			continue
+		}
+		metadata := object["metadata"].(map[string]interface{})
+		job := object["spec"].(map[string]interface{})
+		policy := metadata["annotations"].(map[string]interface{})["helm.sh/hook-delete-policy"]
+		if metadata["name"] == "install-hypershift-crds" {
+			if policy != "before-hook-creation,hook-succeeded" || job["ttlSecondsAfterFinished"] != nil {
+				t.Fatal("CRD Job cleanup changed")
+			}
+			continue
+		}
+		if metadata["name"] != "install-hypershift" {
+			continue
+		}
+		if policy != "before-hook-creation,hook-succeeded,hook-failed" || job["ttlSecondsAfterFinished"] != 300 {
+			t.Fatal("missing resource Job cleanup policy or TTL")
+		}
+		spec := job["template"].(map[string]interface{})["spec"].(map[string]interface{})
+		if spec["restartPolicy"] != "Never" || job["backoffLimit"] != 1 {
+			t.Fatal("installer retries must use a fresh Pod to rerender deleted manifests")
+		}
+		volume := spec["volumes"].([]interface{})[0].(map[string]interface{})
+		if volume["name"] != "manifests" || !reflect.DeepEqual(volume["emptyDir"], map[string]interface{}{"medium": "Memory"}) {
+			t.Fatalf("unexpected manifest volume: %v", volume)
+		}
+		for _, field := range []string{"initContainers", "containers"} {
+			for _, container := range spec[field].([]interface{}) {
+				if container.(map[string]interface{})["resources"] != nil {
+					t.Fatal("installer must not add resource requests or limits")
+				}
+			}
+		}
+		script = spec["initContainers"].([]interface{})[0].(map[string]interface{})["command"].([]interface{})[2].(string)
+	}
+	if script == "" {
+		t.Fatal("missing render script")
+	}
+	for _, fail := range []bool{false, true} {
+		t.Run(fmt.Sprintf("failure=%t", fail), func(t *testing.T) {
+			dir := t.TempDir()
+			fake := `#!/bin/sh
+set -eu
+for arg in "$@"; do
+  case "$arg" in
+    --output-file=*) output=${arg#--output-file=} ;;
+  esac
+done
+printf '%s\n' 'sensitive manifest' > "$output"
+exit "$RENDER_EXIT"
+`
+			if err := os.WriteFile(filepath.Join(dir, "hypershift"), []byte(fake), 0700); err != nil {
+				t.Fatal(err)
+			}
+			code := "0"
+			if fail {
+				code = "42"
+			}
+			cmd := exec.Command("sh", "-c", strings.ReplaceAll(script, "/manifests", dir))
+			cmd.Env = append(os.Environ(), "PATH="+dir+":"+os.Getenv("PATH"), "RENDER_EXIT="+code)
+			output, err := cmd.CombinedOutput()
+			if (err != nil) != fail || cmd.ProcessState.ExitCode() != map[bool]int{false: 0, true: 42}[fail] {
+				t.Fatalf("render error = %v: %s", err, output)
+			}
+			info, err := os.Stat(filepath.Join(dir, "hypershift.yaml"))
+			if fail {
+				if !os.IsNotExist(err) {
+					t.Fatalf("partial manifest was not removed: %v", err)
+				}
+			} else if err != nil || info.Mode().Perm() != 0600 {
+				t.Fatalf("successful manifest must be retained with mode 0600: %v, %v", info, err)
+			}
+		})
+	}
+}
+
 func TestInstallerPriorityClasses(t *testing.T) {
 	objects, err := render(t, "limitClusterSizes: true\n")
 	if err != nil {
@@ -292,6 +375,9 @@ func TestInstallerPriorityClasses(t *testing.T) {
 			// Exercise the rendered script without cluster access. jq remains real.
 			fake := `#!/bin/bash
 set -euo pipefail
+for manifest in "$TEST_DIR/manifests/"*; do
+  [[ $(stat -c %a "$manifest") == 600 ]] || exit 98
+done
 printf '%s\n' "$*" >> "$TEST_DIR/calls"
 case "$1" in
   kustomize)
@@ -334,14 +420,25 @@ esac
 			if err := os.WriteFile(filepath.Join(dir, "overlay.yaml"), []byte("unused by fake kustomize"), 0600); err != nil {
 				t.Fatal(err)
 			}
+			manifests := filepath.Join(dir, "manifests")
+			if err := os.Mkdir(manifests, 0700); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(manifests, "hypershift.yaml"), []byte("sensitive manifest"), 0600); err != nil {
+				t.Fatal(err)
+			}
 			localScript := strings.ReplaceAll(script, "/overlay/kustomization.yaml", filepath.Join(dir, "overlay.yaml"))
-			localScript = strings.ReplaceAll(localScript, "/manifests", dir)
+			localScript = strings.ReplaceAll(localScript, "/manifests", manifests)
 			cmd := exec.Command("bash", "-c", localScript)
 			cmd.Env = append(os.Environ(), "PATH="+dir+":"+os.Getenv("PATH"), "TEST_DIR="+dir, "SCENARIO="+scenario)
 			output, err := cmd.CombinedOutput()
 			wantSuccess := scenario == "absent" || scenario == "existing" || scenario == "concurrent-create"
 			if (err == nil) != wantSuccess {
 				t.Fatalf("installer error = %v, want success %t: %s", err, wantSuccess, output)
+			}
+			remaining, err := os.ReadDir(manifests)
+			if err != nil || len(remaining) != 0 {
+				t.Fatalf("manifest copies remain after installer exit: %v, %v", remaining, err)
 			}
 			_, appliedErr := os.Stat(filepath.Join(dir, "applied"))
 			if (appliedErr == nil) != wantSuccess {

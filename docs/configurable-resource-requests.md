@@ -17,10 +17,11 @@ catalog is [targets.go](../tooling/rightsize-requests/pkg/targets/targets.go).
   identity, eligibility, stale-data, limit, and decrease checks. See the
   [rightsize-requests README](../tooling/rightsize-requests/README.md).
 
-The configurability changes preserve existing default quantities and limits.
-Previously absent requirements remain absent or under upstream control; adding a
-knob must not silently add requests or limits. The tables identify the source of
-the policy rather than prescribing new numbers. Limits are configurable only
+Resource controls must preserve existing default quantities and limits unless a
+separate sizing change is reviewed. Absent requirements remain absent or under
+upstream control; adding a knob must not silently add requests or limits. The
+tables identify the source of the policy rather than prescribing new numbers.
+Limits are configurable only
 where the owning implementation supports them; offline right-sizing never changes
 limits.
 
@@ -324,8 +325,11 @@ and requires a nonempty suffix. This CLI mode selects by the explicit prefix and
 configured identity, not by management-cluster name; all matching source clusters
 participate. The prefix is the user's assertion of environment and minimal size,
 not proof of either. Use only representative `e2e_minimal` samples and independently
-check live pod limits. Available incomplete CI evidence is not sufficient to apply
-actual values. Keep `--dry-run` until these checks are complete.
+check live pod limits. Incomplete CI evidence alone does not establish safe sizing.
+Keep `--dry-run` until these checks are complete. The opt-in
+[experimental CI CPU-reduction mode](../tooling/rightsize-requests/README.md#experimental-ci-hcp-cpu-reductions)
+relaxes some evidence checks and can seed CPU entries; it is not authorization to
+apply its proposals.
 
 Maximum suggestions across matching evidence govern shared targets. Ineligible,
 init, incomplete, or unknown/wrong-owner evidence blocks the affected configured

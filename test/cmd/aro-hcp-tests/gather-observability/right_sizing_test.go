@@ -195,11 +195,12 @@ func TestRightSizingQueryFailuresAndLegacy(t *testing.T) {
 				r := buildRightSizingReport(p, 0.1)
 				for _, resource := range []string{"cpu", "memory"} {
 					row := rightSizingRow(t, r, resource)
-					failure := cluster != "other" && (query == "metadata" || query == "inventory" || query == "requests" ||
-						(resource == "cpu" && (query == "cpu" || query == "cpuSustained")) || (resource == "memory" && query == "memory"))
-					if row.Eligible == failure || (failure && !strings.Contains(strings.Join(row.Warnings, " "), "query failure")) {
-						t.Fatalf("wrong failure scope for %s: %+v", query, row)
+					if row.Eligible || row.Actionable || !strings.Contains(strings.Join(row.Warnings, " "), "collection completeness unknown") {
+						t.Fatalf("any query failure must block all recommendations for %s: %+v", query, row)
 					}
+				}
+				if !strings.Contains(strings.Join(r.Warnings, " "), fmt.Sprintf("cluster=%q workspace=%q query=%q", cluster, "hcp", query)) {
+					t.Fatalf("report lost failed query scope: %+v", r.Warnings)
 				}
 				b, err := json.Marshal(r)
 				if err != nil || strings.Contains(string(b), "config.yaml") {
@@ -497,7 +498,7 @@ func TestRightSizingMissingData(t *testing.T) {
 			p := rightSizingFixture()
 			p.Containers = slices.DeleteFunc(p.Containers, func(c replicaPeakContainer) bool {
 				if mode == "metadata-only" {
-					return true
+					return c.Pod == "api-rs-0" // Keep a healthy sibling that would otherwise authorize a reduction.
 				}
 				return (c.QueryName == "requests") != (mode == "request-only")
 			})
@@ -512,11 +513,21 @@ func TestRightSizingMissingData(t *testing.T) {
 				}
 			}
 			r := buildRightSizingReport(p, 0.1)
+			if len(r.Recommendations) != 2 {
+				t.Fatalf("expected CPU and memory recommendations, got %+v", r.Recommendations)
+			}
 			for _, row := range r.Recommendations {
+				if mode == "metadata-only" {
+					if row.Eligible || row.Actionable || row.Replicas != 2 || row.MeasuredReplicas != 1 || row.Peak == nil || row.Suggested == nil || row.Delta == nil || row.Direction != "over" ||
+						!strings.Contains(strings.Join(row.Warnings, " "), "no usage") || !strings.Contains(strings.Join(row.Warnings, " "), "missing requests") {
+						t.Fatalf("metadata-only sibling must block the healthy replica without losing its evidence: %+v", row)
+					}
+					continue
+				}
 				if row.Eligible || row.Actionable || row.AlertRisk || row.Delta != nil || row.Direction != "unknown" || row.Replicas != 2 || len(row.Warnings) == 0 {
 					t.Fatalf("missing data must remain unknown/ineligible: %+v", row)
 				}
-				if mode == "request-only" || mode == "metadata-only" {
+				if mode == "request-only" {
 					if row.Peak != nil || row.Suggested != nil || row.SuggestedQuantity != "" || row.MeasuredReplicas != 0 {
 						t.Fatalf("invented usage: %+v", row)
 					}

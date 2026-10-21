@@ -82,6 +82,13 @@ func buildRightSizingReport(peaks replicaPeakReport, changeThreshold float64) ri
 	if len(peaks.Warnings) != 0 {
 		r.Warnings = append(r.Warnings, "replica peak collection reported warnings; inspect the source report")
 	}
+	queryFailed := false
+	for _, q := range peaks.Queries {
+		if q.Status == "error" {
+			queryFailed = true
+			r.Warnings = append(r.Warnings, fmt.Sprintf("query failure: cluster=%q workspace=%q query=%q; collection completeness unknown", q.Cluster, q.Workspace, q.Name))
+		}
+	}
 	normalizeKind := func(kind string) string {
 		for _, known := range []string{"Pod", "ReplicaSet", "Deployment", "StatefulSet", "DaemonSet", "Job", "CronJob", "ReplicationController", "DeploymentConfig", "Node"} {
 			if strings.EqualFold(kind, known) {
@@ -259,11 +266,10 @@ func buildRightSizingReport(peaks replicaPeakReport, changeThreshold float64) ri
 			if g.init {
 				requestQuery = "initRequests"
 			}
-			for _, q := range peaks.Queries {
-				if q.Status == "error" && (q.Cluster == "" || q.Cluster == g.cluster) &&
-					(q.Name == "inventory" || q.Name == "metadata" || q.Name == requestQuery || q.Name == usageQuery || (resource == "cpu" && q.Name == "cpu")) {
-					warn("query failure: "+q.Name, true)
-				}
+			// A failed scope may have no rows at all, but still share config targets
+			// with surviving clusters. Do not authorize edits from partial collection.
+			if queryFailed {
+				warn("query failure: collection completeness unknown; all recommendations ineligible", true)
 			}
 			for _, p := range members {
 				if p.unmatched {

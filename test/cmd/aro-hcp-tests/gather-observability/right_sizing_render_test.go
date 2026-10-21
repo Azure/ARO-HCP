@@ -705,6 +705,70 @@ func rightSizingReplayFixture() (replicaPeakReport, utilizationReport) {
 	return peaks, utilization
 }
 
+func TestRightSizingEntireClusterQueryFailure(t *testing.T) {
+	peaks, utilization := rightSizingReplayFixture()
+	healthy := buildRightSizingReport(peaks, .1)
+	cpu := rightSizingRow(t, healthy, "cpu")
+	if !cpu.Eligible || !cpu.Actionable || !targets.EditableInCluster(cpu.Namespace, cpu.Kind, cpu.Workload, cpu.Container, cpu.Cluster, cpu.InitContainer) {
+		t.Fatalf("healthy fixture must authorize a mapped reduction: %+v", cpu)
+	}
+	if savings := buildRightSizingSavings(healthy, utilization); savings == nil || savings.Resources[0].Reductions <= 0 {
+		t.Fatalf("healthy fixture must produce real savings: %+v", savings)
+	}
+	// Discovery knows both clusters, but every query for one fails, leaving no
+	// container or metadata rows to participate in shared-target guards.
+	peaks.Clusters = []string{cpu.Cluster, "failed-cluster"}
+	for _, query := range replicaPeakQueries("failed-cluster", peaks.Start, peaks.End) {
+		peaks.Queries = append(peaks.Queries, replicaPeakQuery{Cluster: "failed-cluster", Workspace: query.workspace, Name: query.name, Status: "error", Error: "/secret/config.yaml"})
+	}
+	r := buildRightSizingReport(peaks, .1)
+	if len(r.Recommendations) != len(healthy.Recommendations) || len(r.Warnings) != len(peaks.Queries) || len(r.Warnings) == 0 {
+		t.Fatalf("failed cluster must retain scoped failure evidence even without rows: %+v", r)
+	}
+	data, err := json.Marshal(r)
+	if err != nil || bytes.Contains(data, []byte("/secret")) {
+		t.Fatalf("failure evidence must serialize without raw errors: %s, %v", data, err)
+	}
+	var persisted rightSizingReport
+	if err := json.Unmarshal(data, &persisted); err != nil {
+		t.Fatal(err)
+	}
+	for i, row := range persisted.Recommendations {
+		want := healthy.Recommendations[i]
+		want.Eligible, want.Actionable, want.Warnings = false, false, row.Warnings
+		if !reflect.DeepEqual(row, want) || !strings.Contains(strings.Join(row.Warnings, " "), "collection completeness unknown") {
+			t.Fatalf("query failure must block surviving rows without losing measurements: %+v", row)
+		}
+	}
+	if !reflect.DeepEqual(persisted.Warnings, r.Warnings) || !strings.Contains(strings.Join(persisted.Warnings, " "), "failed-cluster") {
+		t.Fatalf("persisted report lost the failed cluster: %+v", persisted.Warnings)
+	}
+	savings := buildRightSizingSavings(persisted, utilization)
+	if savings == nil || len(savings.Resources) != 2 {
+		t.Fatalf("missing savings baseline: %+v", savings)
+	}
+	for _, resource := range savings.Resources {
+		if resource.Before != resource.After || resource.ChangedContainers != 0 || resource.ExcludedContainers != 1 {
+			t.Fatalf("failed cluster must block savings for the healthy mapped target: %+v", resource)
+		}
+	}
+	html, err := renderRightSizingHTML(persisted)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, embedded, _ := strings.Cut(string(html), `<script id="right-sizing-data" type="application/json">`)
+	embedded, _, _ = strings.Cut(embedded, "</script>")
+	var displayed rightSizingReport
+	if err := json.Unmarshal([]byte(embedded), &displayed); err != nil {
+		t.Fatal(err)
+	}
+	for _, resource := range []string{"cpu", "memory"} {
+		if row := rightSizingRow(t, displayed, resource); row.Eligible || row.Actionable {
+			t.Fatalf("HTML must not authorize surviving cluster updates: %+v", row)
+		}
+	}
+}
+
 func TestRenderRightSizingCommandReplaySavings(t *testing.T) {
 	for _, baseline := range []string{"omitted", "concurrent", "no snapshots", "outside window"} {
 		t.Run(baseline, func(t *testing.T) {
@@ -968,6 +1032,11 @@ func TestRenderRightSizingCommandRejectsInvalidInput(t *testing.T) {
 		{"sizing report", string(sized), "0.1", "unknown field"},
 		{"null", "null", "0.1", "version"},
 		{"nonfinite value", strings.Replace(valid, `"max":0.1`, `"max":1e999`, 1), "0.1", "decode"},
+		{"null peak", strings.ReplaceAll(valid, `"max":0.02`, `"max":null`), "0.1", "summary.max must not be null"},
+		{"null request minimum", strings.Replace(valid, `"min":0.1`, `"min":null`, 1), "0.1", "summary.min must not be null"},
+		{"null count", strings.Replace(valid, `"count":61`, `"count":null`, 1), "0.1", "summary.count must not be null"},
+		{"null first", strings.Replace(valid, fmt.Sprintf(`"first":%d`, peaks.Start.Unix()), `"first":null`, 1), "0.1", "summary.first must not be null"},
+		{"null last", strings.Replace(valid, fmt.Sprintf(`"last":%d`, peaks.End.Unix()), `"last":null`, 1), "0.1", "summary.last must not be null"},
 		{"missing start", strings.Replace(valid, peaks.Start.Format(time.RFC3339), "0001-01-01T00:00:00Z", 1), "0.1", "timestamps"},
 		{"missing generatedAt", strings.Replace(valid, `"generatedAt":"`+peaks.End.Format(time.RFC3339)+`"`, `"generatedAt":null`, 1), "0.1", "timestamps"},
 		{"reversed", strings.Replace(valid, peaks.Start.Format(time.RFC3339), peaks.End.Add(time.Hour).Format(time.RFC3339), 1), "0.1", "start <= end"},

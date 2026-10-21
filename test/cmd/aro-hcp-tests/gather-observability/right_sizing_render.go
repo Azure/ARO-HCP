@@ -171,14 +171,36 @@ func newRenderRightSizingCommand() *cobra.Command {
 			}
 			defer file.Close()
 			decoder := json.NewDecoder(file)
-			decoder.DisallowUnknownFields()
-			var peaks replicaPeakReport
-			if err := decoder.Decode(&peaks); err != nil {
+			var raw json.RawMessage
+			if err := decoder.Decode(&raw); err != nil {
 				return fmt.Errorf("decode replica peaks input: %w", err)
 			}
 			var trailing any
 			if err := decoder.Decode(&trailing); err != io.EOF {
 				return fmt.Errorf("replica peaks input must contain exactly one JSON report (trailing data)")
+			}
+			// JSON null silently becomes zero in map[string]float64. Reject it
+			// before typed decoding so unknown evidence cannot authorize reductions.
+			var summaries struct {
+				Containers []struct {
+					Summary map[string]json.RawMessage `json:"summary"`
+				} `json:"containers"`
+			}
+			if err := json.Unmarshal(raw, &summaries); err != nil {
+				return fmt.Errorf("decode replica peaks input: %w", err)
+			}
+			for i, container := range summaries.Containers {
+				for stat, value := range container.Summary {
+					if bytes.Equal(bytes.TrimSpace(value), []byte("null")) {
+						return fmt.Errorf("replica peaks containers[%d].summary.%s must not be null", i, stat)
+					}
+				}
+			}
+			decoder = json.NewDecoder(bytes.NewReader(raw))
+			decoder.DisallowUnknownFields()
+			var peaks replicaPeakReport
+			if err := decoder.Decode(&peaks); err != nil {
+				return fmt.Errorf("decode replica peaks input: %w", err)
 			}
 			if peaks.Version != 1 {
 				return fmt.Errorf("unsupported replica peaks version %d (expected 1)", peaks.Version)

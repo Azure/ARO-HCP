@@ -35,10 +35,11 @@ metadata:
   annotations:
     "helm.sh/hook": post-install,post-upgrade
     "helm.sh/hook-weight": "3"
-    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded,hook-failed
 spec:
   activeDeadlineSeconds: 1800
   backoffLimit: 1
+  ttlSecondsAfterFinished: 300
   template:
     spec:
       initContainers:
@@ -49,6 +50,8 @@ spec:
         - -c
         - |
           set -eu
+          umask 077
+          trap 'rm -f /manifests/hypershift.yaml' EXIT
           hypershift install render \
             --outputs=resources \
             --render-sensitive \
@@ -69,6 +72,8 @@ spec:
             --additional-operator-env-vars IMAGE_SHARED_INGRESS_HAPROXY={{ .Values.operatorEnvVars.sharedIngressImage }} \
             {{- end }}
             {{ .Values.additionalArgs }}
+          # Retain successful output for the apply container only.
+          trap - EXIT
         volumeMounts:
         - name: manifests
           mountPath: /manifests
@@ -80,6 +85,8 @@ spec:
         - -c
         - |
           set -euo pipefail
+          umask 077
+          trap 'rm -f /manifests/*' EXIT
           cp /overlay/kustomization.yaml /manifests/kustomization.yaml
           kubectl kustomize /manifests > /manifests/rendered.yaml
           kubectl create --dry-run=client --validate=false -f /manifests/rendered.yaml -o json |
@@ -107,7 +114,8 @@ spec:
           readOnly: true
       volumes:
       - name: manifests
-        emptyDir: {}
+        emptyDir:
+          medium: Memory
       - name: overlay
         configMap:
           name: hypershift-operator-resources

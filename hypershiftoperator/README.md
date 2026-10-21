@@ -13,9 +13,17 @@ and container kustomize patch, then server-side applies using the upstream
 container uses the existing `aksCommandRuntime.image` tooling image, as Velero does.
 PriorityClasses use create-only with `AlreadyExists` tolerated, matching upstream;
 they are never passed to server-side apply because their values are immutable.
-Other create failures abort installation. The pinned command-runtime image
-(`sha256:161971cdd3bfe66be6a9b96d67fabf8c4b54a88b841add1aaced26b0a00358b4`)
-contains both `kubectl` and `jq`, used to split the rendered resources.
+Other create failures abort installation. The command-runtime image must contain
+both `kubectl` and `jq`, used to split the rendered resources.
+
+Sensitive rendered manifests are held in a memory-backed `emptyDir`, with
+`umask 077` in both containers. The render exit trap deletes partial output on
+failure but retains successful output for apply. The apply exit trap deletes all
+manifest copies on success or failure. `restartPolicy: Never` ensures a failed
+install retries in a fresh Pod, rerunning render rather than reusing deleted
+files. The resource Job is deleted by Helm on success or failure, with a
+300-second finished-Job TTL as fallback (including when a forced termination
+prevents shell cleanup). The separate CRD Job's cleanup policy is unchanged.
 
 `hypershift.additionalMinimalResourceRequests` is an optional, default-empty map
 whose keys are stable configuration identifiers. Each value has required string
@@ -45,14 +53,17 @@ integration is maintained separately from these chart and controller changes.
 
 ## Upstream Evidence
 
-The configured HSO digest is annotated with source revision
-`e2c566a4d792fd81fd85265e8ab858a5fc3e4044`. At that revision:
+The installer integration was inspected at source revision
+`ce952ef97199c55ec8f84d8f8de48f4485a32fba`. Its `10m`/`150Mi` operator
+requests also match the configured source revision
+[`51bfaf4a8d2a8b4cb3e80987b2748623c642f8ea`](https://github.com/openshift/hypershift/blob/51bfaf4a8d2a8b4cb3e80987b2748623c642f8ea/cmd/install/assets/hypershift_operator.go#L738).
+At the inspected integration revision:
 
-- [`cmd/install/install.go`](https://github.com/openshift/hypershift/blob/e2c566a4d792fd81fd85265e8ab858a5fc3e4044/cmd/install/install.go) registers the `install render` subcommand and uses server-side apply with field manager `hypershift` and force ownership.
-- [`cmd/install/install_render.go`](https://github.com/openshift/hypershift/blob/e2c566a4d792fd81fd85265e8ab858a5fc3e4044/cmd/install/install_render.go) provides `--outputs=resources`, `--output-file`, and `--render-sensitive`. There is no `install --render` flag. Secrets must be included to preserve installation behavior; the installer does not log rendered manifests.
-- [`cmd/install/assets/hypershift_operator.go`](https://github.com/openshift/hypershift/blob/e2c566a4d792fd81fd85265e8ab858a5fc3e4044/cmd/install/assets/hypershift_operator.go) supplies the operator's `10m`/`150Mi` requests.
-- [`support/controlplane-component/defaults.go`](https://github.com/openshift/hypershift/blob/e2c566a4d792fd81fd85265e8ab858a5fc3e4044/support/controlplane-component/defaults.go) applies resource-request annotations after component defaults and sidecar injection, keyed by component/container, copying only supplied requests.
-- [`hypershift-operator/controllers/sharedingress/router.go`](https://github.com/openshift/hypershift/blob/e2c566a4d792fd81fd85265e8ab858a5fc3e4044/hypershift-operator/controllers/sharedingress/router.go) owns the shared router Deployment spec. It is not covered by the component request override; patching that Deployment would not be durable.
+- [`cmd/install/install.go`](https://github.com/openshift/hypershift/blob/ce952ef97199c55ec8f84d8f8de48f4485a32fba/cmd/install/install.go) registers the `install render` subcommand and uses server-side apply with field manager `hypershift` and force ownership.
+- [`cmd/install/install_render.go`](https://github.com/openshift/hypershift/blob/ce952ef97199c55ec8f84d8f8de48f4485a32fba/cmd/install/install_render.go) provides `--outputs=resources`, `--output-file`, and `--render-sensitive`. There is no `install --render` flag. Secrets must be included to preserve installation behavior; the installer does not log rendered manifests.
+- [`cmd/install/assets/hypershift_operator.go`](https://github.com/openshift/hypershift/blob/ce952ef97199c55ec8f84d8f8de48f4485a32fba/cmd/install/assets/hypershift_operator.go) supplies the operator's `10m`/`150Mi` requests.
+- [`support/controlplane-component/defaults.go`](https://github.com/openshift/hypershift/blob/ce952ef97199c55ec8f84d8f8de48f4485a32fba/support/controlplane-component/defaults.go) applies resource-request annotations after component defaults and sidecar injection, keyed by component/container, copying only supplied requests.
+- [`hypershift-operator/controllers/sharedingress/router.go`](https://github.com/openshift/hypershift/blob/ce952ef97199c55ec8f84d8f8de48f4485a32fba/hypershift-operator/controllers/sharedingress/router.go) owns the shared router Deployment spec. It is not covered by the component request override; patching that Deployment would not be durable.
 
 The workload/regular-container allowlist is from the PR 7178 audit and framework
 registration inspection at `badd40555328303ab0730ce65d28dfce43983f76`, not proof of

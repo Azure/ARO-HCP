@@ -353,8 +353,7 @@ fatal.
 
 ### Right-Sizing Requests
 
-Desktop and mobile previews replaying job `2103929857506283520` with ten-minute
-CPU evidence and grouped HCP workloads:
+Desktop and mobile previews with ten-minute CPU evidence and grouped HCP workloads:
 
 ![Right-sizing stack ranks on desktop](images/right-sizing-desktop.png)
 
@@ -365,7 +364,9 @@ For HCP components, the updater also accepts `--sizing-template` and an explicit
 the `limitClusterSizes=true` branch of the Hypershift Helm template, not ordinary
 service config. The unrestricted branch and other size classes remain unchanged.
 See [the HCP sizing workflow](../../tooling/rightsize-requests/README.md) for
-scope and evidence requirements; incomplete HCP measurements block updates.
+scope and evidence requirements; incomplete HCP measurements block strict-mode
+updates. The opt-in experimental CI CPU-reduction mode relaxes some evidence
+checks and requires separate review; it does not establish safe sizing.
 
 The **Right-Sizing** tab has five columns: kind/namespace/name, requests, usage,
 suggested request, and samples. It groups the same owning workload and container
@@ -375,8 +376,11 @@ usage and suggestions use the maximum across instances, never a sum of peaks.
 The raw JSON retains exact clusters and namespaces for safe updater matching.
 
 **Editable workloads only** and **Changes only** are enabled by default. The
-shared catalog in `tooling/rightsize-requests/pkg/targets` contains 13 service
-targets and seven minimal-HCP targets; managed and unmapped workloads are hidden.
+shared catalog in `tooling/rightsize-requests/pkg/targets` covers service and
+infrastructure mappings, seven literal minimal-HCP targets, and 51 additional
+audited HCP capabilities (49 with usable annotation keys). Additional capabilities
+require configured baselines for strict-mode sizing. Managed and unmapped
+workloads are hidden.
 Editable means a supported mapping, not sufficient evidence or permission to edit.
 Changes compare the grouped suggestion, not raw usage peaks, against both observed
 request endpoints using the deadband; matching requests are not changes. Uncheck
@@ -413,6 +417,10 @@ Eligibility requires an exact pod-UID owner chain and, for **every observed
 replica**, both usage and request evidence with at least 10 grid points covering
 at least 90% of each signal's own first-to-last observation span. Missing,
 conflicting, or failed evidence is not zero and can make a row ineligible.
+Any failed replica-peak query makes all recommendations ineligible: a missing
+cluster can share configuration targets with surviving clusters without leaving
+any rows to block an unsafe reduction. Measurements remain available for review.
+Offline replay rejects null numeric summaries rather than treating them as zero.
 This is **not proof of actual full-lifetime coverage or absence of ingestion
 loss**: wholly unobserved replicas and missing leading/trailing samples can escape
 these checks. Old collected artifacts without `sizingCPUWindow` use the legacy
@@ -467,11 +475,13 @@ go run ./tooling/rightsize-requests --input right-sizing.json \
   --config config/config.yaml --allow-decrease
 ```
 
-JSON input mode uses a fixed, explicit `(namespace, container)` mapping and writes
-only `clouds.dev.defaults.*.resources.requests.cpu`/`.memory`. It takes the maximum
-suggestion across all cluster/workload records mapping to each resource, never
-sums them. Unknown mappings are skipped; an ineligible, unknown-owner, init-container
-or incomplete mapped row blocks that mapped resource. CPU and memory are independent.
+Normal config-mode JSON input uses the explicit shared identity catalog and writes
+only `clouds.dev.defaults.<ResourcePath>.requests.cpu`/`.memory`; cataloged paths
+may end in `.resources`, `initResources`, or another named resource block. It takes
+the maximum suggestion across all cluster/workload records mapping to each
+resource, never sums them. Unknown mappings are skipped; an ineligible,
+unknown-owner, unsupported init-container or incomplete mapped row blocks that
+mapped resource. CPU and memory are independent.
 Stale protection requires effective current config to lie in at least one contributing
 observed request range (not a gap between ranges), unless already equal to the
 suggestion. Decreases require `--allow-decrease`. Limits stay unchanged; suggestions
