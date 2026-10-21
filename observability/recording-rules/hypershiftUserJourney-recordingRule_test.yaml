@@ -52,6 +52,30 @@ tests:
     - labels: 'hypershift:hostedcluster_transitions:increase1h{cluster="mc1"}'
       value: 60
 - interval: 1m
+  name: "Transitions observed by every operator pod are counted once"
+  # Each operator pod's collector observes every transition, so two pods (and
+  # two HA Prometheus replicas) report the same counts. Expect 60 + 30 = 90,
+  # not 180 (pods summed) or 360 (pods and replicas summed).
+  input_series:
+  - series: 'hypershift_hosted_cluster_transition_seconds_count{condition="EtcdAvailable", pod="operator-a", cluster="mc1", prometheus_replica="r1"}'
+    values: "0+1x100"
+  - series: 'hypershift_hosted_cluster_transition_seconds_count{condition="EtcdAvailable", pod="operator-b", cluster="mc1", prometheus_replica="r1"}'
+    values: "0+1x100"
+  - series: 'hypershift_hosted_cluster_transition_seconds_count{condition="EtcdAvailable", pod="operator-a", cluster="mc1", prometheus_replica="r2"}'
+    values: "0+1x100"
+  - series: 'hypershift_hosted_cluster_transition_seconds_count{condition="EtcdAvailable", pod="operator-b", cluster="mc1", prometheus_replica="r2"}'
+    values: "0+1x100"
+  - series: 'hypershift_hosted_cluster_transition_seconds_count{condition="InfrastructureReady", pod="operator-a", cluster="mc1", prometheus_replica="r1"}'
+    values: "0+0.5x100"
+  - series: 'hypershift_hosted_cluster_transition_seconds_count{condition="InfrastructureReady", pod="operator-b", cluster="mc1", prometheus_replica="r1"}'
+    values: "0+0.5x100"
+  promql_expr_test:
+  - expr: hypershift:hostedcluster_transitions:increase1h
+    eval_time: 70m
+    exp_samples:
+    - labels: 'hypershift:hostedcluster_transitions:increase1h{cluster="mc1"}'
+      value: 90
+- interval: 1m
   name: "Reused namespace/name keeps separate creations by _id"
   input_series:
   - series: 'hypershift_cluster_waiting_initial_availability_duration_seconds{name="reused", namespace="hypershift", exported_namespace="clusters", _id="old", cluster="mc2"}'

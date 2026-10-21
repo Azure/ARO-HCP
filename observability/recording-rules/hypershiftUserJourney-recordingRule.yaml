@@ -63,9 +63,12 @@ spec:
         /
         (hypershift:hostedclusters_waiting:count > 0)
     # Traffic SLI: lifecycle transitions completed in the last hour.
+    # Every operator pod's collector observes each transition independently, so
+    # max by (cluster, condition) dedupes across pods and HA replicas before the
+    # sum; otherwise the count scales with the operator replica count.
     - record: hypershift:hostedcluster_transitions:increase1h
       expr: |
-        sum by (cluster) (max without (prometheus_replica) (increase(hypershift_hosted_cluster_transition_seconds_count[1h])))
+        sum by (cluster) (max by (cluster, condition) (increase(hypershift_hosted_cluster_transition_seconds_count[1h])))
   # HyperShift Operator SLIs per MC. One ratio per MWMBR window (5m, 30m, 1h,
   # 6h, 3d) for the same reason as the CPO rules: a ratio of rates must be taken
   # over the window, not averaged from 5m ratios.

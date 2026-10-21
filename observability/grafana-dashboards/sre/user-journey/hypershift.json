@@ -573,7 +573,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "sum by (condition) (max without(prometheus_replica) (increase(hypershift_hosted_cluster_transition_seconds_count[1h])))",
+          "expr": "sum by (condition) (max by (cluster, condition) (increase(hypershift_hosted_cluster_transition_seconds_count[1h])))",
           "legendFormat": "transitions/h {{condition}}",
           "refId": "C"
         }

@@ -416,7 +416,7 @@ resource hypershiftJourneyRecordingRules 'Microsoft.AlertsManagement/prometheusR
       }
       {
         record: 'hypershift:hostedcluster_transitions:increase1h'
-        expression: 'sum by (cluster, region) (max without (prometheus_replica) (increase(hypershift_hosted_cluster_transition_seconds_count[1h])))'
+        expression: 'sum by (cluster, region) (max by (cluster, condition, region) (increase(hypershift_hosted_cluster_transition_seconds_count[1h])))'
       }
     ]
   }
