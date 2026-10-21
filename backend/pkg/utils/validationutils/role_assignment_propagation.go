@@ -56,7 +56,7 @@ const roleAssignmentPropagationRetryAfter = 30 * time.Second
 // permissions are explained by recently created role assignments. It is distinct from the plain
 // MissingRequiredPermissions reason so that the two cases are separable in conditions, logs and
 // support escalations, even though both are terminal failures on the same schedule.
-const missingPermissionsPendingPropagationReason = "MissingRequiredPermissionsPendingPropagation"
+const missingPermissionsPendingPropagationReason = "RoleAssignmentPropagationPending"
 
 var (
 	// roleAssignmentPropagationDetections counts permission validation runs whose missing
@@ -132,6 +132,14 @@ var (
 //
 // Any role definition is accepted as evidence because customers may grant equivalent built-in or
 // custom roles; the propagation window bounds how long an assignment counts as evidence.
+//
+// Limitation: the detector does not resolve the assigned role's definition to verify that it
+// grants the specific missing actions. A recent Reader assignment therefore qualifies as
+// propagation evidence even when the missing permission is a write action, which can delay a
+// terminal failure for a genuinely misconfigured cluster. The propagation window bounds this
+// exposure, and the window-expired metric surfaces clusters where the deferral outlived the
+// window. Resolving role definitions would require an additional ARM API call per missing
+// permission and is tracked as a follow-up.
 type RoleAssignmentPropagationDetector struct {
 	fpaClientBuilder azureclient.FirstPartyApplicationClientBuilder
 	window           time.Duration
@@ -317,18 +325,20 @@ func onlyNotAllowedMissingPermissions(missing []*identityResourceMissingPermissi
 	return true
 }
 
-// failureWithPropagationGuidance restates a missing-permissions finding as a Failed result that
+// failureWithPropagationGuidance restates a missing-permissions finding as an Unknown result that
 // tells the customer the permissions they already granted have not taken effect yet and that
 // retrying is all that is needed. It returns false when the caller should report its plain
 // missing-permissions failure: when there is no detector, when the evidence does not attribute
-// every missing permission to propagation, or when the lookup itself failed (see
-// recordPropagationCheckFailure).
+// every missing permission to propagation, or when the lookup was rejected as unauthorized
+// (HTTP 403 — see recordPropagationCheckFailure). For other lookup errors (throttling, connection
+// resets, ARM server errors) it returns an Unknown result with reason
+// RoleAssignmentPropagationCheckFailed, because we cannot distinguish a genuine missing
+// permission from one that propagation evidence would have explained.
 //
-// The outcome is Failed either way. Attributing the failure to propagation changes what the
-// customer is told and how soon the validation is re-checked, never how long the operation is
-// allowed to run: an operation blocked on permissions still fails on the usual schedule, which is
-// the behaviour we want because retrying a failed create is cheap relative to waiting out an
-// unbounded propagation tail.
+// The outcome is Unknown (not Failed): a propagation-pending validation holds the operation in
+// Provisioning but does not terminally fail it (see isPropagationPending in the operations
+// controller). The 30-second retry means a propagation tail that clears resolves on its own
+// without the customer having to retry at all.
 func failureWithPropagationGuidance(ctx context.Context, detector *RoleAssignmentPropagationDetector, validationName string, tenantID string, missing []*identityResourceMissingPermissions, principalIDs map[string]string, missingPermissionsMessage string) (ValidationResult, bool) {
 	if detector == nil {
 		return ValidationResult{}, false
@@ -336,7 +346,20 @@ func failureWithPropagationGuidance(ctx context.Context, detector *RoleAssignmen
 	found, err := detector.findPropagationEvidence(ctx, tenantID, missing, principalIDs)
 	if err != nil {
 		recordPropagationCheckFailure(ctx, validationName, err)
-		return ValidationResult{}, false
+		if azureclient.IsForbiddenErr(err) {
+			// 403 means the first-party application cannot read role assignments at all, so
+			// there is never propagation evidence; the plain Failed is the honest result.
+			return ValidationResult{}, false
+		}
+		// Non-403 errors (throttling, connection resets, ARM 5xx) are transient: we cannot
+		// determine whether propagation explains the failure, so report Unknown rather
+		// than potentially failing an operation whose only problem is a slow ARM call.
+		return UnknownValidation(
+			"RoleAssignmentPropagationCheckFailed",
+			fmt.Sprintf("%s. Unable to verify whether recently created role assignments explain the missing permissions (lookup error). The operation will be retried.", missingPermissionsMessage),
+			fmt.Sprintf("%s; role assignment lookup failed: %v", missingPermissionsMessage, err),
+			ControllerReportingPolicyTypeLogOnly,
+		), true
 	}
 	if found.WindowExpired {
 		roleAssignmentPropagationWindowExpired.WithLabelValues(validationName).Inc()
@@ -354,13 +377,14 @@ func failureWithPropagationGuidance(ctx context.Context, detector *RoleAssignmen
 		missingPermissionsMessage, newestEvidenceTime(evidence).UTC().Format(time.RFC3339))
 	internalMessage := fmt.Sprintf("%s; covered by role assignments created within the last %s that may still be propagating: %s", missingPermissionsMessage, detector.window, formatPropagationEvidence(evidence))
 
-	result := FailedValidation(
+	result := UnknownValidation(
 		missingPermissionsPendingPropagationReason,
 		userMessage,
 		internalMessage,
+		ControllerReportingPolicyTypeLogOnly,
 	)
-	// Re-check sooner than a plain failure would. The operation still fails on the usual
-	// schedule, but a propagation tail that clears inside that budget then resolves on its own.
+	// Re-check sooner than a plain failure would. A propagation tail that clears inside the
+	// operation's overall budget resolves on its own without customer intervention.
 	result.EarliestRetryAfter = ptr.To(roleAssignmentPropagationRetryAfter)
 	return result, true
 }

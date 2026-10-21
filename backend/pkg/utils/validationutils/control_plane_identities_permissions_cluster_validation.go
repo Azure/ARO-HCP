@@ -45,7 +45,10 @@ type ControlPlaneIdentitiesPermissionsClusterValidation struct {
 	// checkAccessV2Scope is the OAuth scope (typically a "<resource>/.default" App ID URI. public, gov, and China clouds
 	// each use a different App ID URI respectively) passed to MI Dataplane when minting an access token for each control plane operator identity.
 	checkAccessV2Scope string
-	// propagationDetector, when non-nil, downgrades missing permissions that are explained by recently created role assignments from Failed to Unknown.
+	// propagationDetector, when non-nil, adds propagation guidance and a shorter retry interval
+	// to missing-permissions failures explained by recently created role assignments. The
+	// outcome becomes Unknown (RoleAssignmentPropagationPending) instead of Failed, so the
+	// operation holds in Provisioning rather than terminally failing while assignments propagate.
 	propagationDetector *RoleAssignmentPropagationDetector
 }
 
