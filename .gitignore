@@ -20,7 +20,6 @@ bin/envtest
 **/venv
 **/__pycache__
 **/charts/*.tgz
-/vendor/
 **/*.sha256
 CLAUDE.local.md
 .claude/*.local.json
@@ -48,3 +47,7 @@ timing-metadata-*
 # layout (namespaces/<ns>/core/secrets/), which these test fixtures require.
 !kube-applier/pkg/controllers/read_desire_kubernetes/testdata/**/secrets/
 !kube-applier/pkg/controllers/read_desire_kubernetes/testdata/**/secrets/**
+
+# Keep all generated dependency files, including paths matched above.
+!/vendor/**
+!/image-sync/oc-mirror/acrauth/vendor/**

@@ -34,7 +34,7 @@ update-mgc-schema:
 build: $(BINARY)
 .PHONY: build
 
-$(BINARY): $(SOURCES) $(MAKEFILE_LIST)
+$(BINARY): $(SOURCES) $(MAKEFILE_LIST) force-go-build
 	go build $(LDFLAGS) -o $(BINARY) .
 
 # Run tests
@@ -49,11 +49,11 @@ test-e2e: build
 .PHONY: test-e2e
 
 # Build for Windows x86_64
-$(WINDOWS_BINARY):
+$(WINDOWS_BINARY): force-go-build
 	GOOS=windows GOARCH=amd64 go build $(LDFLAGS) -o $(WINDOWS_BINARY) .
 
 # Build for Windows ARM64
-$(WINDOWS_BINARY_ARM64):
+$(WINDOWS_BINARY_ARM64): force-go-build
 	GOOS=windows GOARCH=arm64 go build $(LDFLAGS) -o $(WINDOWS_BINARY_ARM64) .
 
 # Build both Windows binaries
@@ -78,3 +78,7 @@ help:
 	@echo "  clean                - Remove build artifacts"
 	@echo "  help                 - Show this help message"
 .PHONY: help
+
+# Always consult Go's build cache, including for dependency-only changes.
+.PHONY: force-go-build
+force-go-build:

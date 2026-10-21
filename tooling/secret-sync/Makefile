@@ -14,7 +14,7 @@ KEY_VAULT_URI ?= https://$(KEY_VAULT_NAME).$(KEY_VAULT_DNS_SUFFIX)
 KEY_ENCRYPTION_KEY_NAME ?= $(shell yq '.global.keyVault.encryptionKeyName' < $(RENDERED_CONFIG))
 
 # Build the binary
-$(BINARY): $(SOURCES) $(MAKEFILE_LIST) go.mod go.sum
+$(BINARY): $(SOURCES) $(MAKEFILE_LIST) go.mod go.sum force-go-build
 	go build -ldflags="-s -w" -o $(BINARY) .
 
 # Clean the build artifacts
@@ -29,3 +29,7 @@ test-decrypt:
 	go test -tags decrypttest -v -timeout 5m .
 
 .PHONY: clean test-decrypt
+
+# Always consult Go's build cache, including for dependency-only changes.
+.PHONY: force-go-build
+force-go-build:

@@ -22,7 +22,7 @@ ARO_HCP_EXPORTER_TAGGED_IMAGE ?= $(ARO_HCP_IMAGE_REGISTRY)/$(ARO_HCP_EXPORTER_GE
 build: $(BINARY)
 .PHONY: build
 
-$(BINARY): $(SOURCES) $(MAKEFILE_LIST)
+$(BINARY): $(SOURCES) $(MAKEFILE_LIST) force-go-build
 	go build -o $(BINARY) .
 
 # Run tests
@@ -82,3 +82,7 @@ record-latest-override: $(YQ)
 		"$(ARO_HCP_EXPORTER_IMAGE_REPOSITORY)" "$(DEPLOY_ENV)" \
 		"customExporter" "$(OVERRIDE_CONFIG_FILE)" "$(YQ)"
 .PHONY: record-latest-override
+
+# Always consult Go's build cache, including for dependency-only changes.
+.PHONY: force-go-build
+force-go-build:

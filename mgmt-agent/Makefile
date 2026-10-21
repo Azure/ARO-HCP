@@ -33,7 +33,7 @@ update-codegen:
 build: $(BINARY)
 .PHONY: build
 
-$(BINARY): $(MGMT_AGENT_SOURCES)
+$(BINARY): $(MGMT_AGENT_SOURCES) force-go-build
 	go build $(LDFLAGS) -o $(BINARY) .
 
 run:
@@ -91,3 +91,7 @@ record-latest-override: $(YQ)
 deploy: build-and-push record-override
 	make -C .. pipeline/MgmtAgent OVERRIDE_CONFIG_FILE=$(OVERRIDE_CONFIG_FILE)
 .PHONY: deploy
+
+# Always consult Go's build cache, including for dependency-only changes.
+.PHONY: force-go-build
+force-go-build:
