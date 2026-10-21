@@ -44,7 +44,7 @@ All other tools should be transparently installed by the `make` targets that req
 > [!CAUTION] Cleanup-sensitive naming patterns
 > The following resource group naming patterns trigger special cleanup rules. Avoid them for custom `DEPLOY_ENV` values or ad-hoc resource groups. See [`resourcegroups.policy.yaml`](../tooling/cleanup-sweeper/resourcegroups.policy.yaml) for details.
 >
-> **Prefixes:** `hcp-underlay-pers-`, `hcp-underlay-prow-`, `hcp-underlay-ci`, `hcp-underlay-cspr-`, `hcp-underlay-dev-`, `hcp-underlay-perf-`, `hcp-underlay-int-`, `hcp-underlay-stg-`, `hcp-underlay-prod-`
+> **Prefixes:** `hcp-underlay-pers-`, `hcp-underlay-prow-`, `hcp-underlay-ci`, `hcp-underlay-dev-`, `hcp-underlay-perf-`, `hcp-underlay-int-`, `hcp-underlay-stg-`, `hcp-underlay-prod-`
 >
 > **Suffixes:** `-shared-resources`
 

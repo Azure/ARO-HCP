@@ -1537,7 +1537,7 @@ clouds:
         ocp:
           name: 'arohcpocpdev' # [globally-unique]
           zoneRedundantMode: Disabled
-          # All dev-cloud environments (ci00, ci01, cspr, dev, perf, pers) share
+          # All dev-cloud environments (ci00, ci01, dev, perf, pers) share
           # this single arohcpocpdev registry. Azure caps diagnosticSettings at
           # 5 per resource, so this MUST resolve to one static, shared
           # workspace/diagnostic-settings name across every environment
@@ -1623,69 +1623,6 @@ clouds:
               san: 'rp.{{ .ctx.region }}.hcpsvc.osadev.cloud'
             audit:
               connectSocket: false
-            cosmosDB:
-              private: false
-              zoneRedundantMode: 'Disabled'
-      cspr:
-        # this is the cluster service PR check and full cycle test environment
-        defaults:
-          kusto:
-            manageInstance: false
-          regionRG: hcp-underlay-{{ .ctx.environment }}-{{ .ctx.region }}
-          # Service Key Vault
-          serviceKeyVault:
-            assignNSP: false
-          monitoring:
-            svcWorkspaceName: 'services-{{ .ctx.environment }}-{{ .ctx.regionShort }}'
-            hcpWorkspaceName: 'hcps-{{ .ctx.environment }}-{{ .ctx.regionShort }}'
-          svc:
-            aks:
-              # MC AKS nodepools
-              # big enough for multiple CS instances during PR checks
-              userAgentPool:
-                minCount: 2
-                maxCount: 12
-          mgmt:
-            aks:
-              systemAgentPool:
-                minCount: 1
-                maxCount: 4
-              # MC AKS nodepools
-              # big enough for multiple HCPs
-              userAgentPool:
-                minCount: 1
-                maxCount: 3
-                vmSize: 'Standard_D16s_v3'
-                secondaryNicCount: 7
-                osDiskSizeGB: 128
-          # Geneva
-          geneva:
-            logs:
-              manage: Disabled
-          # DNS
-          dns:
-            regionalSubdomain: '{{ .ctx.region }}-cs'
-          # Admin API
-          adminApi:
-            cert:
-              san: 'admin.{{ .ctx.region }}-cs.hcpsvc.osadev.cloud'
-          # Sessiongate
-          sessiongate:
-            cert:
-              san: 'sessiongate.{{ .ctx.region }}-cs.hcpsvc.osadev.cloud'
-          # Maestro
-          maestro:
-            restrictIstioIngress: false
-            server:
-              certSAN: 'maestro-server-{{ .ctx.regionShort }}.maestro.{{ .ctx.region }}-cs.hcpsvc.osadev.cloud'
-              certCN: 'server.maestro.{{ .ctx.region }}-cs.hcpsvc.osadev.cloud'
-            agent:
-              certSAN: 'hcp-underlay-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}.maestro.{{ .ctx.region }}-cs.hcpsvc.osadev.cloud'
-              certCN: 'mgmt-{{ .ctx.stamp }}.maestro.{{ .ctx.region }}-cs.hcpsvc.osadev.cloud'
-          # Frontend
-          frontend:
-            cert:
-              san: 'rp.{{ .ctx.region }}-cs.hcpsvc.osadev.cloud'
             cosmosDB:
               private: false
               zoneRedundantMode: 'Disabled'
