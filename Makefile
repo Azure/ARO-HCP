@@ -21,7 +21,10 @@ export GOTOOLCHAIN ?= local
 
 # There is currently no convenient way to run commands against a whole Go workspace
 # https://github.com/golang/go/issues/50745
-MODULES := $(shell go list -f '{{.Dir}}/...' -m | xargs)
+# Read workspace membership without loading dependencies, so tidy/vendor can
+# repair an inconsistent vendor tree after dependency or workspace changes.
+MODULE_DIRS := $(abspath $(shell go work edit -json | jq -r '.Use[].DiskPath'))
+MODULES := $(addsuffix /...,$(MODULE_DIRS))
 TIDY_MODULES := $(MODULES) $(abspath image-sync/oc-mirror/acrauth)/...
 
 all: test lint
@@ -138,14 +141,15 @@ verify-yamlfmt: yamlfmt
 
 mocks: $(MOCKGEN) $(GOIMPORTS)
 	MOCKGEN=${MOCKGEN} go generate -run '\$$MOCKGEN\b' $(MODULES)
-	$(GOIMPORTS) -w -local github.com/Azure/ARO-HCP $$(find . -name "mock_*.go" -not -path "./.git/*" -not -path "./.bingo/*")
+	find . -type d \( -name vendor -o -name .git -o -name .bingo \) -prune -o -type f -name 'mock_*.go' -exec $(GOIMPORTS) -w -local github.com/Azure/ARO-HCP {} +
 .PHONY: mocks
 
 install-tools: $(BINGO) $(HELM_LINK) $(YQ_LINK) $(JQ) $(ORAS_LINK)
 .PHONY: install-tools
 
 licenses: $(ADDLICENSE)
-	$(shell find . -type f -name '*.go' | xargs -I {} $(ADDLICENSE) -c 'Microsoft Corporation' -l apache {})
+	find . -type d \( -name vendor -o -name .git -o -name .bingo \) -prune -o -type f -name '*.go' -exec $(ADDLICENSE) -c 'Microsoft Corporation' -l apache {} +
+.PHONY: licenses
 
 lint: $(GOLANGCI_LINT)
 	$(GOLANGCI_LINT) run -v --build-tags=$(LINT_GOTAGS) $(MODULES)
@@ -156,7 +160,7 @@ lint-fix: $(GOLANGCI_LINT)
 .PHONY: lint-fix
 
 fmt: $(GOIMPORTS)
-	$(GOIMPORTS) -w -local github.com/Azure/ARO-HCP $(shell go list -f '{{.Dir}}' -m | xargs)
+	find $(MODULE_DIRS) -type d -name vendor -prune -o -type f -name '*.go' -exec $(GOIMPORTS) -w -local github.com/Azure/ARO-HCP {} +
 .PHONY: fmt
 
 yamlfmt: $(YAMLFMT) $(YAMLWRAP)
@@ -172,10 +176,25 @@ work-sync:
 	go work sync
 .PHONY: work-sync
 
-tidy: $(TIDY_MODULES:/...=.tidy) work-sync
+tidy: $(TIDY_MODULES:/...=.tidy)
+	$(MAKE) work-sync
+	# Sync may upgrade dependencies; tidy again to settle their checksum files.
+	$(MAKE) $(TIDY_MODULES:/...=.tidy)
+.PHONY: tidy
 
 %.tidy:
-	cd $(basename $@) && go mod tidy
+	cd $(basename $@) && GOWORK=off go mod tidy
+
+# Finish all module updates and workspace synchronization before vendoring,
+# including when invoked with make -j.
+vendor: tidy
+	go work vendor
+	cd image-sync/oc-mirror/acrauth && GOWORK=off go mod vendor
+.PHONY: vendor
+
+verify-vendor:
+	bash hack/verify-vendor.sh
+.PHONY: verify-vendor
 
 bump-aro-tools: $(MODULES:/...=.bump-aro-tools) tidy
 
@@ -235,7 +254,7 @@ e2e-local/run-test:
 
 mega-lint:
 	$(CONTAINER_ENGINE) run --rm \
-		-e FILTER_REGEX_EXCLUDE='hypershiftoperator/deploy/crds/|acm/deploy/helm/multicluster-engine-config/charts/policy/charts|dev-infrastructure/global-pipeline.yaml|tooling/templatize/testdata/pipeline.yaml|hypershiftoperator/deploy/templates/cluster.clustersizingconfiguration.yaml' \
+		-e FILTER_REGEX_EXCLUDE='(^|/)vendor/|hypershiftoperator/deploy/crds/|acm/deploy/helm/multicluster-engine-config/charts/policy/charts|dev-infrastructure/global-pipeline.yaml|tooling/templatize/testdata/pipeline.yaml|hypershiftoperator/deploy/templates/cluster.clustersizingconfiguration.yaml' \
 		-e REPORT_OUTPUT_FOLDER=/tmp/report \
 		-v $${PWD}:/tmp/lint:Z \
 		docker.io/oxsecurity/megalinter-ci_light:v9
@@ -402,7 +421,7 @@ ARO-Tools:
 .PHONY: ARO-Tools
 
 update-helm-fixtures:
-	find * -name 'zz_fixture_TestHelmTemplate*' | xargs rm -rf
+	find . -type d \( -name vendor -o -name .git -o -name .bingo \) -prune -o -type f -name 'zz_fixture_TestHelmTemplate*' -exec rm -f {} +
 	$(MAKE) -C tooling/helmtest update
 .PHONY: update-helm-fixtures
 

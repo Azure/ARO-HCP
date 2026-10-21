@@ -21,6 +21,11 @@ use (
 	./swift-recorder
 	./test
 	./test-integration
+	./test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp
+	./test/sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp
+	./test/sdk/v20260630preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp
+	./test/sdk/v20260901preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp
+	./test/sdk/v20261001/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp
 	// image-sync/oc-mirror/acrauth is deliberately outside this workspace: it requires a newer azcore/azidentity, and workspace version selection would raise those for every module listed here.
 	./tooling/aro-hcp-exporter
 	./tooling/azutils
