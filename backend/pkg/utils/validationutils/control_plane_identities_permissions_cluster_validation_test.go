@@ -1650,10 +1650,10 @@ func TestControlPlaneFailureWithPropagationGuidance(t *testing.T) {
 				return
 			}
 			require.NoError(t, result.Validate())
-			assert.Equal(t, OutcomeTypeFailed, result.Outcome.Type)
+			assert.Equal(t, OutcomeTypeUnknown, result.Outcome.Type)
 			assert.Equal(t, missingPermissionsPendingPropagationReason, result.Reason())
 			assert.Contains(t, result.InternalMessage(), tt.wantInternalSubstr)
-			assert.Contains(t, result.Outcome.Failed.UserMessage, "retry the operation")
+			assert.Contains(t, result.Outcome.Unknown.UserMessage, "retry the operation")
 		})
 	}
 }

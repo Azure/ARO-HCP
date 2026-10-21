@@ -33,12 +33,12 @@ import (
 // on an operation at least as old, before the operation is failed terminally.
 //
 // It encodes "if this has not resolved itself by now, it never will, so fail and let the customer
-// act". Fifteen minutes keeps that promise quick: a failed create or update is cheap to retry
+// act". Ten minutes keeps that promise quick: a failed create or update is cheap to retry
 // relative to holding an operation open against an eventually-consistent Azure control plane.
 // Raising it further is not the right fix for a slow dependency — #6495 and #7218 both widened
 // this window blindly and were each re-defeated by a longer tail. Diagnose the specific cause and
 // report it (see missingPermissionsPendingPropagationReason) rather than waiting longer.
-const clusterValidationFailureTimeout = 15 * time.Minute
+const clusterValidationFailureTimeout = 10 * time.Minute
 
 func (c *operationClusterCreate) clusterValidation(ctx context.Context, operation *coreapi.Operation) (*operationbase.OperationState, error) {
 	serviceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Name)
@@ -76,7 +76,7 @@ func clusterValidationOperationState(serviceProviderCluster *coreapi.ServiceProv
 		messages = append(messages, message)
 		state.WithCloudErrorCode(coreapi.CloudErrorCodeInvalidResource)
 		validationOldEnough := operationOldEnough && !validation.LastTransitionTime.IsZero() && now.Sub(validation.LastTransitionTime.Time) >= clusterValidationFailureTimeout
-		if validationOldEnough {
+		if validationOldEnough && !isPropagationPending(validation) {
 			state.ProvisioningState = coreapi.ProvisioningStateFailed
 		}
 	}
@@ -89,4 +89,14 @@ func clusterValidationOperationState(serviceProviderCluster *coreapi.ServiceProv
 		})
 	}
 	return state
+}
+
+// isPropagationPending reports whether a non-passing validation condition represents a known
+// Azure RBAC propagation delay rather than a customer-actionable problem. These conditions are
+// Unknown (not False) and carry the RoleAssignmentPropagationPending reason; they hold the
+// operation in Provisioning but do not terminally fail it, because the role assignments the
+// customer already created will eventually take effect.
+func isPropagationPending(validation metav1.Condition) bool {
+	return validation.Status == metav1.ConditionUnknown &&
+		validation.Reason == "RoleAssignmentPropagationPending"
 }
