@@ -276,7 +276,7 @@ func TestIdentityMigrationSyncer_SyncOnce(t *testing.T) {
 // newTestClusterForIdentityMigration creates a test HCPOpenShiftCluster with default values
 // for identity migration testing.
 func newTestClusterForIdentityMigration(opts ...func(*api.HCPOpenShiftCluster)) *api.HCPOpenShiftCluster {
-	cluster := newTestCluster(opts...)
+	cluster := newTestCluster(testClusterName, opts...)
 	cluster.Location = testLocation
 	return cluster
 }

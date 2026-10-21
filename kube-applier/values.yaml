@@ -1,0 +1,24 @@
+pullBinding:
+  registry: "{{ .acr.svc.name }}.azurecr.io"
+  scope: "repository:{{ .kubeApplier.image.repository }}:pull"
+  workloadIdentityClientId: "__imagePullerMsiClientId__"
+  workloadIdentityTenantId: "__imagePullerMsiTenantId__"
+deployment:
+  replicas: {{ .kubeApplier.k8s.replicas }}
+  imageName: "{{ .acr.svc.name }}.azurecr.io/{{ .kubeApplier.image.repository }}@{{ .kubeApplier.image.digest }}"
+  zoneCount: {{ .azureRegionAvailabilityZoneCount }}
+  resources:
+    requests:
+      cpu: "{{ .kubeApplier.k8s.resources.requests.cpu }}"
+      memory: "{{ .kubeApplier.k8s.resources.requests.memory }}"
+    limits:
+      memory: "{{ .kubeApplier.k8s.resources.limits.memory }}"
+managementCluster: "{{ .kubeApplier.partitionKey }}"
+cosmosDB:
+  endpoint: "__cosmosDBDocumentEndpoint__"
+  databaseName: "{{ .frontend.cosmosDB.name }}"
+  containerName: "{{ .kubeApplier.cosmosContainerName }}"
+serviceAccount:
+  name: "{{ .kubeApplier.k8s.serviceAccountName }}"
+  workloadIdentityClientId: "__kubeApplierMsiClientId__"
+  workloadIdentityTenantId: "__kubeApplierMsiTenantId__"

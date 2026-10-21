@@ -29,7 +29,7 @@ resource kubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'KubePodCrashLooping/{{ $labels.cluster }}/{{ $labels.container }}/{{ $labels.namespace }}/{{ $labels.pod }}'
+          correlationId: 'KubePodCrashLooping/{{ $labels.cluster }}'
           description: 'Pod {{ $labels.namespace }}/{{ $labels.pod }} ({{ $labels.container }}) is in waiting state (reason: "CrashLoopBackOff").'
           info: 'Pod {{ $labels.namespace }}/{{ $labels.pod }} ({{ $labels.container }}) is in waiting state (reason: "CrashLoopBackOff").'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubepodcrashlooping'
@@ -56,7 +56,7 @@ resource kubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'KubePodNotReady/{{ $labels.cluster }}/{{ $labels.namespace }}/{{ $labels.pod }}'
+          correlationId: 'KubePodNotReady/{{ $labels.cluster }}'
           description: 'Pod {{ $labels.namespace }}/{{ $labels.pod }} has been in a non-ready state for longer than 15 minutes.'
           info: 'Pod {{ $labels.namespace }}/{{ $labels.pod }} has been in a non-ready state for longer than 15 minutes.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubepodnotready'
@@ -83,7 +83,7 @@ resource kubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'KubeDeploymentGenerationMismatch/{{ $labels.cluster }}/{{ $labels.deployment }}/{{ $labels.namespace }}'
+          correlationId: 'KubeDeploymentGenerationMismatch/{{ $labels.cluster }}'
           description: 'Deployment generation for {{ $labels.namespace }}/{{ $labels.deployment }} does not match, this indicates that the Deployment has failed but has not been rolled back.'
           info: 'Deployment generation for {{ $labels.namespace }}/{{ $labels.deployment }} does not match, this indicates that the Deployment has failed but has not been rolled back.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubedeploymentgenerationmismatch'
@@ -110,15 +110,15 @@ resource kubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'KubeDeploymentReplicasMismatch/{{ $labels.cluster }}/{{ $labels.deployment }}/{{ $labels.namespace }}'
-          description: 'Deployment {{ $labels.namespace }}/{{ $labels.deployment }} has not matched the expected number of replicas for longer than 15 minutes.'
-          info: 'Deployment {{ $labels.namespace }}/{{ $labels.deployment }} has not matched the expected number of replicas for longer than 15 minutes.'
+          correlationId: 'KubeDeploymentReplicasMismatch/{{ $labels.cluster }}'
+          description: 'Deployment {{ $labels.namespace }}/{{ $labels.deployment }} has not matched the expected number of replicas for longer than 30 minutes.'
+          info: 'Deployment {{ $labels.namespace }}/{{ $labels.deployment }} has not matched the expected number of replicas for longer than 30 minutes.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubedeploymentreplicasmismatch'
           summary: 'Deployment has not matched the expected number of replicas.'
           title: 'Deployment has not matched the expected number of replicas.'
         }
         expression: '( kube_deployment_spec_replicas{job="kube-state-metrics"} > kube_deployment_status_replicas_available{job="kube-state-metrics"} ) and ( changes(kube_deployment_status_replicas_updated{job="kube-state-metrics"}[10m]) == 0 )'
-        for: 'PT15M'
+        for: 'PT30M'
         severity: 3
       }
       {
@@ -137,15 +137,15 @@ resource kubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'KubeDeploymentRolloutStuck/{{ $labels.cluster }}/{{ $labels.deployment }}/{{ $labels.namespace }}'
-          description: 'Rollout of deployment {{ $labels.namespace }}/{{ $labels.deployment }} is not progressing for longer than 15 minutes.'
-          info: 'Rollout of deployment {{ $labels.namespace }}/{{ $labels.deployment }} is not progressing for longer than 15 minutes.'
+          correlationId: 'KubeDeploymentRolloutStuck/{{ $labels.cluster }}'
+          description: 'Rollout of deployment {{ $labels.namespace }}/{{ $labels.deployment }} is not progressing for longer than 30 minutes.'
+          info: 'Rollout of deployment {{ $labels.namespace }}/{{ $labels.deployment }} is not progressing for longer than 30 minutes.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubedeploymentrolloutstuck'
           summary: 'Deployment rollout is not progressing.'
           title: 'Deployment rollout is not progressing.'
         }
         expression: 'kube_deployment_status_condition{condition="Progressing", status="false",job="kube-state-metrics"} != 0'
-        for: 'PT15M'
+        for: 'PT30M'
         severity: 3
       }
       {
@@ -164,7 +164,7 @@ resource kubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'KubeStatefulSetReplicasMismatch/{{ $labels.cluster }}/{{ $labels.namespace }}/{{ $labels.statefulset }}'
+          correlationId: 'KubeStatefulSetReplicasMismatch/{{ $labels.cluster }}'
           description: 'StatefulSet {{ $labels.namespace }}/{{ $labels.statefulset }} has not matched the expected number of replicas for longer than 15 minutes.'
           info: 'StatefulSet {{ $labels.namespace }}/{{ $labels.statefulset }} has not matched the expected number of replicas for longer than 15 minutes.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubestatefulsetreplicasmismatch'
@@ -191,7 +191,7 @@ resource kubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'KubeStatefulSetGenerationMismatch/{{ $labels.cluster }}/{{ $labels.namespace }}/{{ $labels.statefulset }}'
+          correlationId: 'KubeStatefulSetGenerationMismatch/{{ $labels.cluster }}'
           description: 'StatefulSet generation for {{ $labels.namespace }}/{{ $labels.statefulset }} does not match, this indicates that the StatefulSet has failed but has not been rolled back.'
           info: 'StatefulSet generation for {{ $labels.namespace }}/{{ $labels.statefulset }} does not match, this indicates that the StatefulSet has failed but has not been rolled back.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubestatefulsetgenerationmismatch'
@@ -218,7 +218,7 @@ resource kubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'KubeStatefulSetUpdateNotRolledOut/{{ $labels.cluster }}/{{ $labels.namespace }}/{{ $labels.statefulset }}'
+          correlationId: 'KubeStatefulSetUpdateNotRolledOut/{{ $labels.cluster }}'
           description: 'StatefulSet {{ $labels.namespace }}/{{ $labels.statefulset }} update has not been rolled out.'
           info: 'StatefulSet {{ $labels.namespace }}/{{ $labels.statefulset }} update has not been rolled out.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubestatefulsetupdatenotrolledout'
@@ -245,7 +245,7 @@ resource kubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'KubeDaemonSetRolloutStuck/{{ $labels.cluster }}/{{ $labels.daemonset }}/{{ $labels.namespace }}'
+          correlationId: 'KubeDaemonSetRolloutStuck/{{ $labels.cluster }}'
           description: 'DaemonSet {{ $labels.namespace }}/{{ $labels.daemonset }} has not finished or progressed for at least 15 minutes.'
           info: 'DaemonSet {{ $labels.namespace }}/{{ $labels.daemonset }} has not finished or progressed for at least 15 minutes.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubedaemonsetrolloutstuck'
@@ -272,7 +272,7 @@ resource kubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'KubeContainerWaiting/{{ $labels.cluster }}/{{ $labels.container }}/{{ $labels.namespace }}/{{ $labels.pod }}'
+          correlationId: 'KubeContainerWaiting/{{ $labels.cluster }}'
           description: 'pod/{{ $labels.pod }} in namespace {{ $labels.namespace }} on container {{ $labels.container}} has been in waiting state for longer than 1 hour.'
           info: 'pod/{{ $labels.pod }} in namespace {{ $labels.namespace }} on container {{ $labels.container}} has been in waiting state for longer than 1 hour.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubecontainerwaiting'
@@ -299,7 +299,7 @@ resource kubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'KubeDaemonSetNotScheduled/{{ $labels.cluster }}/{{ $labels.daemonset }}/{{ $labels.namespace }}'
+          correlationId: 'KubeDaemonSetNotScheduled/{{ $labels.cluster }}'
           description: '{{ $value }} Pods of DaemonSet {{ $labels.namespace }}/{{ $labels.daemonset }} are not scheduled.'
           info: '{{ $value }} Pods of DaemonSet {{ $labels.namespace }}/{{ $labels.daemonset }} are not scheduled.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubedaemonsetnotscheduled'
@@ -326,7 +326,7 @@ resource kubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'KubeDaemonSetMisScheduled/{{ $labels.cluster }}/{{ $labels.daemonset }}/{{ $labels.namespace }}'
+          correlationId: 'KubeDaemonSetMisScheduled/{{ $labels.cluster }}'
           description: '{{ $value }} Pods of DaemonSet {{ $labels.namespace }}/{{ $labels.daemonset }} are running where they are not supposed to run.'
           info: '{{ $value }} Pods of DaemonSet {{ $labels.namespace }}/{{ $labels.daemonset }} are running where they are not supposed to run.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubedaemonsetmisscheduled'
@@ -353,7 +353,7 @@ resource kubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'KubeJobNotCompleted/{{ $labels.cluster }}/{{ $labels.job_name }}/{{ $labels.namespace }}'
+          correlationId: 'KubeJobNotCompleted/{{ $labels.cluster }}'
           description: 'Job {{ $labels.namespace }}/{{ $labels.job_name }} is taking more than {{ "43200" | humanizeDuration }} to complete.'
           info: 'Job {{ $labels.namespace }}/{{ $labels.job_name }} is taking more than {{ "43200" | humanizeDuration }} to complete.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubejobnotcompleted'
@@ -379,7 +379,7 @@ resource kubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'KubeJobFailed/{{ $labels.cluster }}/{{ $labels.job_name }}/{{ $labels.namespace }}'
+          correlationId: 'KubeJobFailed/{{ $labels.cluster }}'
           description: 'Job {{ $labels.namespace }}/{{ $labels.job_name }} failed to complete. Removing failed job after investigation should clear this alert.'
           info: 'Job {{ $labels.namespace }}/{{ $labels.job_name }} failed to complete. Removing failed job after investigation should clear this alert.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubejobfailed'
@@ -406,7 +406,7 @@ resource kubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'KubeHpaReplicasMismatch/{{ $labels.cluster }}/{{ $labels.horizontalpodautoscaler }}/{{ $labels.namespace }}'
+          correlationId: 'KubeHpaReplicasMismatch/{{ $labels.cluster }}'
           description: 'HPA {{ $labels.namespace }}/{{ $labels.horizontalpodautoscaler  }} has not matched the desired number of replicas for longer than 15 minutes.'
           info: 'HPA {{ $labels.namespace }}/{{ $labels.horizontalpodautoscaler  }} has not matched the desired number of replicas for longer than 15 minutes.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubehpareplicasmismatch'
@@ -433,7 +433,7 @@ resource kubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'KubeHpaMaxedOut/{{ $labels.cluster }}/{{ $labels.horizontalpodautoscaler }}/{{ $labels.namespace }}'
+          correlationId: 'KubeHpaMaxedOut/{{ $labels.cluster }}'
           description: 'HPA {{ $labels.namespace }}/{{ $labels.horizontalpodautoscaler  }} has been running at max replicas for longer than 15 minutes.'
           info: 'HPA {{ $labels.namespace }}/{{ $labels.horizontalpodautoscaler  }} has been running at max replicas for longer than 15 minutes.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubehpamaxedout'
@@ -581,7 +581,7 @@ resource kubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroups@20
           severity: 'info'
         }
         annotations: {
-          correlationId: 'KubeQuotaAlmostFull/{{ $labels.cluster }}/{{ $labels.namespace }}/{{ $labels.resource }}'
+          correlationId: 'KubeQuotaAlmostFull/{{ $labels.cluster }}'
           description: 'Namespace {{ $labels.namespace }} is using {{ $value | humanizePercentage }} of its {{ $labels.resource }} quota.'
           info: 'Namespace {{ $labels.namespace }} is using {{ $value | humanizePercentage }} of its {{ $labels.resource }} quota.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubequotaalmostfull'
@@ -608,7 +608,7 @@ resource kubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroups@20
           severity: 'info'
         }
         annotations: {
-          correlationId: 'KubeQuotaFullyUsed/{{ $labels.cluster }}/{{ $labels.namespace }}/{{ $labels.resource }}'
+          correlationId: 'KubeQuotaFullyUsed/{{ $labels.cluster }}'
           description: 'Namespace {{ $labels.namespace }} is using {{ $value | humanizePercentage }} of its {{ $labels.resource }} quota.'
           info: 'Namespace {{ $labels.namespace }} is using {{ $value | humanizePercentage }} of its {{ $labels.resource }} quota.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubequotafullyused'
@@ -635,7 +635,7 @@ resource kubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroups@20
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'KubeQuotaExceeded/{{ $labels.cluster }}/{{ $labels.namespace }}/{{ $labels.resource }}'
+          correlationId: 'KubeQuotaExceeded/{{ $labels.cluster }}'
           description: 'Namespace {{ $labels.namespace }} is using {{ $value | humanizePercentage }} of its {{ $labels.resource }} quota.'
           info: 'Namespace {{ $labels.namespace }} is using {{ $value | humanizePercentage }} of its {{ $labels.resource }} quota.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubequotaexceeded'
@@ -662,7 +662,7 @@ resource kubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroups@20
           severity: 'info'
         }
         annotations: {
-          correlationId: 'CPUThrottlingHigh/{{ $labels.cluster }}/{{ $labels.container }}/{{ $labels.namespace }}/{{ $labels.pod }}'
+          correlationId: 'CPUThrottlingHigh/{{ $labels.cluster }}'
           description: '{{ $value | humanizePercentage }} throttling of CPU in namespace {{ $labels.namespace }} for container {{ $labels.container }} in pod {{ $labels.pod }}.'
           info: '{{ $value | humanizePercentage }} throttling of CPU in namespace {{ $labels.namespace }} for container {{ $labels.container }} in pod {{ $labels.pod }}.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/cputhrottlinghigh'
@@ -702,7 +702,7 @@ resource kubernetesStorage 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
           severity: 'critical'
         }
         annotations: {
-          correlationId: 'KubePersistentVolumeFillingUp/{{ $labels.cluster }}/{{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }}'
+          correlationId: 'KubePersistentVolumeFillingUp/{{ $labels.cluster }}'
           description: 'The PersistentVolume claimed by {{ $labels.persistentvolumeclaim }} in Namespace {{ $labels.namespace }} {{ with $labels.cluster -}} on Cluster {{ . }} {{- end }} is only {{ $value | humanizePercentage }} free.'
           info: 'The PersistentVolume claimed by {{ $labels.persistentvolumeclaim }} in Namespace {{ $labels.namespace }} {{ with $labels.cluster -}} on Cluster {{ . }} {{- end }} is only {{ $value | humanizePercentage }} free.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubepersistentvolumefillingup'
@@ -711,7 +711,7 @@ resource kubernetesStorage 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         }
         expression: '( kubelet_volume_stats_available_bytes{job="kubelet", metrics_path="/metrics"} / kubelet_volume_stats_capacity_bytes{job="kubelet", metrics_path="/metrics"} ) < 0.03 and kubelet_volume_stats_used_bytes{job="kubelet", metrics_path="/metrics"} > 0 unless on(cluster, namespace, persistentvolumeclaim) kube_persistentvolumeclaim_access_mode{ access_mode="ReadOnlyMany"} == 1 unless on(cluster, namespace, persistentvolumeclaim) kube_persistentvolumeclaim_labels{label_excluded_from_alerts="true"} == 1'
         for: 'PT1M'
-        severity: 3
+        severity: 2
       }
       {
         actions: [
@@ -729,7 +729,7 @@ resource kubernetesStorage 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'KubePersistentVolumeFillingUp/{{ $labels.cluster }}/{{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }}'
+          correlationId: 'KubePersistentVolumeFillingUp/{{ $labels.cluster }}'
           description: 'Based on recent sampling, the PersistentVolume claimed by {{ $labels.persistentvolumeclaim }} in Namespace {{ $labels.namespace }} {{ with $labels.cluster -}} on Cluster {{ . }} {{- end }} is expected to fill up within four days. Currently {{ $value | humanizePercentage }} is available.'
           info: 'Based on recent sampling, the PersistentVolume claimed by {{ $labels.persistentvolumeclaim }} in Namespace {{ $labels.namespace }} {{ with $labels.cluster -}} on Cluster {{ . }} {{- end }} is expected to fill up within four days. Currently {{ $value | humanizePercentage }} is available.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubepersistentvolumefillingup'
@@ -756,7 +756,7 @@ resource kubernetesStorage 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
           severity: 'critical'
         }
         annotations: {
-          correlationId: 'KubePersistentVolumeInodesFillingUp/{{ $labels.cluster }}/{{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }}'
+          correlationId: 'KubePersistentVolumeInodesFillingUp/{{ $labels.cluster }}'
           description: 'The PersistentVolume claimed by {{ $labels.persistentvolumeclaim }} in Namespace {{ $labels.namespace }} {{ with $labels.cluster -}} on Cluster {{ . }} {{- end }} only has {{ $value | humanizePercentage }} free inodes.'
           info: 'The PersistentVolume claimed by {{ $labels.persistentvolumeclaim }} in Namespace {{ $labels.namespace }} {{ with $labels.cluster -}} on Cluster {{ . }} {{- end }} only has {{ $value | humanizePercentage }} free inodes.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubepersistentvolumeinodesfillingup'
@@ -765,7 +765,7 @@ resource kubernetesStorage 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         }
         expression: '( kubelet_volume_stats_inodes_free{job="kubelet", metrics_path="/metrics"} / kubelet_volume_stats_inodes{job="kubelet", metrics_path="/metrics"} ) < 0.03 and kubelet_volume_stats_inodes_used{job="kubelet", metrics_path="/metrics"} > 0 unless on(cluster, namespace, persistentvolumeclaim) kube_persistentvolumeclaim_access_mode{ access_mode="ReadOnlyMany"} == 1 unless on(cluster, namespace, persistentvolumeclaim) kube_persistentvolumeclaim_labels{label_excluded_from_alerts="true"} == 1'
         for: 'PT1M'
-        severity: 3
+        severity: 2
       }
       {
         actions: [
@@ -783,7 +783,7 @@ resource kubernetesStorage 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'KubePersistentVolumeInodesFillingUp/{{ $labels.cluster }}/{{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }}'
+          correlationId: 'KubePersistentVolumeInodesFillingUp/{{ $labels.cluster }}'
           description: 'Based on recent sampling, the PersistentVolume claimed by {{ $labels.persistentvolumeclaim }} in Namespace {{ $labels.namespace }} {{ with $labels.cluster -}} on Cluster {{ . }} {{- end }} is expected to run out of inodes within four days. Currently {{ $value | humanizePercentage }} of its inodes are free.'
           info: 'Based on recent sampling, the PersistentVolume claimed by {{ $labels.persistentvolumeclaim }} in Namespace {{ $labels.namespace }} {{ with $labels.cluster -}} on Cluster {{ . }} {{- end }} is expected to run out of inodes within four days. Currently {{ $value | humanizePercentage }} of its inodes are free.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubepersistentvolumeinodesfillingup'
@@ -810,7 +810,7 @@ resource kubernetesStorage 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
           severity: 'critical'
         }
         annotations: {
-          correlationId: 'KubePersistentVolumeErrors/{{ $labels.cluster }}/{{ $labels.persistentvolume }}/{{ $labels.phase }}'
+          correlationId: 'KubePersistentVolumeErrors/{{ $labels.cluster }}'
           description: 'The persistent volume {{ $labels.persistentvolume }} {{ with $labels.cluster -}} on Cluster {{ . }} {{- end }} has status {{ $labels.phase }}.'
           info: 'The persistent volume {{ $labels.persistentvolume }} {{ with $labels.cluster -}} on Cluster {{ . }} {{- end }} has status {{ $labels.phase }}.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubepersistentvolumeerrors'
@@ -819,7 +819,7 @@ resource kubernetesStorage 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         }
         expression: 'kube_persistentvolume_status_phase{phase=~"Failed|Pending",job="kube-state-metrics"} > 0'
         for: 'PT5M'
-        severity: 3
+        severity: 2
       }
     ]
     scopes: [
@@ -858,7 +858,7 @@ resource kubernetesSystem 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-
           title: 'Different semantic versions of Kubernetes components running.'
         }
         expression: 'count by (cluster) (count by (git_version, cluster) (label_replace(kubernetes_build_info{job!~"kube-dns|coredns"},"git_version","$1","git_version","(v[0-9]*.[0-9]*).*"))) > 1'
-        for: 'PT15M'
+        for: 'PT1H30M'
         severity: 3
       }
       {
@@ -877,7 +877,7 @@ resource kubernetesSystem 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'KubeClientErrors/{{ $labels.cluster }}/{{ $labels.instance }}/{{ $labels.job }}'
+          correlationId: 'KubeClientErrors/{{ $labels.cluster }}'
           description: 'Kubernetes API server client \'{{ $labels.job }}/{{ $labels.instance }}\' is experiencing {{ $value | humanizePercentage }} errors.\''
           info: 'Kubernetes API server client \'{{ $labels.job }}/{{ $labels.instance }}\' is experiencing {{ $value | humanizePercentage }} errors.\''
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubeclienterrors'
@@ -928,7 +928,7 @@ resource kubeApiserverSlos 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         }
         expression: 'sum(apiserver_request:burnrate1h) > (14.40 * 0.01000) and sum(apiserver_request:burnrate5m) > (14.40 * 0.01000)'
         for: 'PT2M'
-        severity: 3
+        severity: 2
       }
       {
         actions: [
@@ -957,7 +957,7 @@ resource kubeApiserverSlos 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         }
         expression: 'sum(apiserver_request:burnrate6h) > (6.00 * 0.01000) and sum(apiserver_request:burnrate30m) > (6.00 * 0.01000)'
         for: 'PT15M'
-        severity: 3
+        severity: 2
       }
       {
         actions: [
@@ -1082,7 +1082,7 @@ resource kubernetesSystemApiserver 'Microsoft.AlertsManagement/prometheusRuleGro
         }
         expression: 'apiserver_client_certificate_expiration_seconds_count{job="controlplane-apiserver"} > 0 and on(job) histogram_quantile(0.01, sum by (job, le) (rate(apiserver_client_certificate_expiration_seconds_bucket{job="controlplane-apiserver"}[5m]))) < 86400'
         for: 'PT5M'
-        severity: 3
+        severity: 2
       }
       {
         actions: [
@@ -1100,7 +1100,7 @@ resource kubernetesSystemApiserver 'Microsoft.AlertsManagement/prometheusRuleGro
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'KubeAggregatedAPIErrors/{{ $labels.cluster }}/{{ $labels.name }}/{{ $labels.namespace }}'
+          correlationId: 'KubeAggregatedAPIErrors/{{ $labels.cluster }}'
           description: 'Kubernetes aggregated API {{ $labels.name }}/{{ $labels.namespace }} has reported errors. It has appeared unavailable {{ $value | humanize }} times averaged over the past 10m.'
           info: 'Kubernetes aggregated API {{ $labels.name }}/{{ $labels.namespace }} has reported errors. It has appeared unavailable {{ $value | humanize }} times averaged over the past 10m.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubeaggregatedapierrors'
@@ -1126,7 +1126,7 @@ resource kubernetesSystemApiserver 'Microsoft.AlertsManagement/prometheusRuleGro
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'KubeAggregatedAPIDown/{{ $labels.cluster }}/{{ $labels.name }}/{{ $labels.namespace }}'
+          correlationId: 'KubeAggregatedAPIDown/{{ $labels.cluster }}'
           description: 'Kubernetes aggregated API {{ $labels.name }}/{{ $labels.namespace }} has been only {{ $value | humanize }}% available over the last 10m.'
           info: 'Kubernetes aggregated API {{ $labels.name }}/{{ $labels.namespace }} has been only {{ $value | humanize }}% available over the last 10m.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubeaggregatedapidown'
@@ -1162,7 +1162,7 @@ resource kubernetesSystemApiserver 'Microsoft.AlertsManagement/prometheusRuleGro
         }
         expression: 'count by (cluster) (up{job="controlplane-apiserver"} == 1) == 0'
         for: 'PT15M'
-        severity: 3
+        severity: 2
       }
       {
         actions: [
@@ -1220,7 +1220,7 @@ resource kubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGroup
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'KubeNodeNotReady/{{ $labels.cluster }}/{{ $labels.node }}'
+          correlationId: 'KubeNodeNotReady/{{ $labels.cluster }}'
           description: '{{ $labels.node }} has been unready for more than 15 minutes.'
           info: '{{ $labels.node }} has been unready for more than 15 minutes.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubenodenotready'
@@ -1247,7 +1247,7 @@ resource kubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGroup
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'KubeNodeUnreachable/{{ $labels.cluster }}/{{ $labels.node }}'
+          correlationId: 'KubeNodeUnreachable/{{ $labels.cluster }}'
           description: '{{ $labels.node }} is unreachable and some workloads may be rescheduled.'
           info: '{{ $labels.node }} is unreachable and some workloads may be rescheduled.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubenodeunreachable'
@@ -1274,7 +1274,7 @@ resource kubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGroup
           severity: 'info'
         }
         annotations: {
-          correlationId: 'KubeletTooManyPods/{{ $labels.cluster }}/{{ $labels.node }}'
+          correlationId: 'KubeletTooManyPods/{{ $labels.cluster }}'
           description: 'Kubelet \'{{ $labels.node }}\' is running at {{ $value | humanizePercentage }} of its Pod capacity.'
           info: 'Kubelet \'{{ $labels.node }}\' is running at {{ $value | humanizePercentage }} of its Pod capacity.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubelettoomanypods'
@@ -1301,7 +1301,7 @@ resource kubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGroup
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'KubeNodeReadinessFlapping/{{ $labels.cluster }}/{{ $labels.node }}'
+          correlationId: 'KubeNodeReadinessFlapping/{{ $labels.cluster }}'
           description: 'The readiness status of node {{ $labels.node }} has changed {{ $value }} times in the last 15 minutes.'
           info: 'The readiness status of node {{ $labels.node }} has changed {{ $value }} times in the last 15 minutes.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubenodereadinessflapping'
@@ -1328,7 +1328,7 @@ resource kubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGroup
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'KubeletPlegDurationHigh/{{ $labels.cluster }}/{{ $labels.node }}'
+          correlationId: 'KubeletPlegDurationHigh/{{ $labels.cluster }}'
           description: 'The Kubelet Pod Lifecycle Event Generator has a 99th percentile duration of {{ $value }} seconds on node {{ $labels.node }}.'
           info: 'The Kubelet Pod Lifecycle Event Generator has a 99th percentile duration of {{ $value }} seconds on node {{ $labels.node }}.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubeletplegdurationhigh'
@@ -1355,7 +1355,7 @@ resource kubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGroup
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'KubeletPodStartUpLatencyHigh/{{ $labels.cluster }}/{{ $labels.node }}'
+          correlationId: 'KubeletPodStartUpLatencyHigh/{{ $labels.cluster }}'
           description: 'Kubelet Pod startup 99th percentile latency is {{ $value }} seconds on node {{ $labels.node }}.'
           info: 'Kubelet Pod startup 99th percentile latency is {{ $value }} seconds on node {{ $labels.node }}.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubeletpodstartuplatencyhigh'
@@ -1382,7 +1382,7 @@ resource kubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGroup
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'KubeletClientCertificateExpiration/{{ $labels.cluster }}/{{ $labels.node }}'
+          correlationId: 'KubeletClientCertificateExpiration/{{ $labels.cluster }}'
           description: 'Client certificate for Kubelet on node {{ $labels.node }} expires in {{ $value | humanizeDuration }}.'
           info: 'Client certificate for Kubelet on node {{ $labels.node }} expires in {{ $value | humanizeDuration }}.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubeletclientcertificateexpiration'
@@ -1408,7 +1408,7 @@ resource kubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGroup
           severity: 'critical'
         }
         annotations: {
-          correlationId: 'KubeletClientCertificateExpiration/{{ $labels.cluster }}/{{ $labels.node }}'
+          correlationId: 'KubeletClientCertificateExpiration/{{ $labels.cluster }}'
           description: 'Client certificate for Kubelet on node {{ $labels.node }} expires in {{ $value | humanizeDuration }}.'
           info: 'Client certificate for Kubelet on node {{ $labels.node }} expires in {{ $value | humanizeDuration }}.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubeletclientcertificateexpiration'
@@ -1416,7 +1416,7 @@ resource kubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGroup
           title: 'Kubelet client certificate is about to expire.'
         }
         expression: 'kubelet_certificate_manager_client_ttl_seconds < 86400'
-        severity: 3
+        severity: 2
       }
       {
         actions: [
@@ -1434,7 +1434,7 @@ resource kubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGroup
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'KubeletServerCertificateExpiration/{{ $labels.cluster }}/{{ $labels.node }}'
+          correlationId: 'KubeletServerCertificateExpiration/{{ $labels.cluster }}'
           description: 'Server certificate for Kubelet on node {{ $labels.node }} expires in {{ $value | humanizeDuration }}.'
           info: 'Server certificate for Kubelet on node {{ $labels.node }} expires in {{ $value | humanizeDuration }}.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubeletservercertificateexpiration'
@@ -1460,7 +1460,7 @@ resource kubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGroup
           severity: 'critical'
         }
         annotations: {
-          correlationId: 'KubeletServerCertificateExpiration/{{ $labels.cluster }}/{{ $labels.node }}'
+          correlationId: 'KubeletServerCertificateExpiration/{{ $labels.cluster }}'
           description: 'Server certificate for Kubelet on node {{ $labels.node }} expires in {{ $value | humanizeDuration }}.'
           info: 'Server certificate for Kubelet on node {{ $labels.node }} expires in {{ $value | humanizeDuration }}.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubeletservercertificateexpiration'
@@ -1468,7 +1468,7 @@ resource kubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGroup
           title: 'Kubelet server certificate is about to expire.'
         }
         expression: 'kubelet_certificate_manager_server_ttl_seconds < 86400'
-        severity: 3
+        severity: 2
       }
       {
         actions: [
@@ -1486,7 +1486,7 @@ resource kubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGroup
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'KubeletClientCertificateRenewalErrors/{{ $labels.cluster }}/{{ $labels.node }}'
+          correlationId: 'KubeletClientCertificateRenewalErrors/{{ $labels.cluster }}'
           description: 'Kubelet on node {{ $labels.node }} has failed to renew its client certificate ({{ $value | humanize }} errors in the last 5 minutes).'
           info: 'Kubelet on node {{ $labels.node }} has failed to renew its client certificate ({{ $value | humanize }} errors in the last 5 minutes).'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubeletclientcertificaterenewalerrors'
@@ -1513,7 +1513,7 @@ resource kubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGroup
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'KubeletServerCertificateRenewalErrors/{{ $labels.cluster }}/{{ $labels.node }}'
+          correlationId: 'KubeletServerCertificateRenewalErrors/{{ $labels.cluster }}'
           description: 'Kubelet on node {{ $labels.node }} has failed to renew its server certificate ({{ $value | humanize }} errors in the last 5 minutes).'
           info: 'Kubelet on node {{ $labels.node }} has failed to renew its server certificate ({{ $value | humanize }} errors in the last 5 minutes).'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubeletservercertificaterenewalerrors'
@@ -1549,7 +1549,7 @@ resource kubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGroup
         }
         expression: 'count by (cluster) (up{job="kubelet", metrics_path="/metrics"} == 1) == 0'
         for: 'PT15M'
-        severity: 3
+        severity: 2
       }
     ]
     scopes: [
@@ -1589,7 +1589,7 @@ resource kubernetesSystemScheduler 'Microsoft.AlertsManagement/prometheusRuleGro
         }
         expression: 'count by (cluster) (up{job="controlplane-kube-scheduler"} == 1) == 0'
         for: 'PT15M'
-        severity: 3
+        severity: 2
       }
     ]
     scopes: [
@@ -1629,161 +1629,7 @@ resource kubernetesSystemControllerManager 'Microsoft.AlertsManagement/prometheu
         }
         expression: 'count by (cluster) (up{job="controlplane-kube-controller-manager"} == 1) == 0'
         for: 'PT15M'
-        severity: 3
-      }
-    ]
-    scopes: [
-      azureMonitoring
-    ]
-  }
-}
-
-resource kasMonitorRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
-  name: 'kas-monitor-rules'
-  location: location
-  properties: {
-    interval: 'PT1M'
-    rules: [
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'kas-monitor-ErrorBudgetBurn'
-        enabled: true
-        labels: {
-          long_window: '1h'
-          severity: 'warning'
-          short_window: '30m'
-        }
-        annotations: {
-          correlationId: 'kas-monitor-ErrorBudgetBurn/{{ $labels.cluster }}/{{ $labels.probe_url }}'
-          description: 'High error budget burn for {{ $labels.probe_url }} (current value: {{ $value }})'
-          info: 'High error budget burn for {{ $labels.probe_url }} (current value: {{ $value }})'
-          summary: 'High error budget burn for {{ $labels.probe_url }}'
-          title: 'High error budget burn for {{ $labels.probe_url }}'
-        }
-        expression: '1 - (sum by (probe_url, namespace, _id, cluster) (sum_over_time(probe_success{}[30m])) / sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{}[30m]))) > (14.4 * (1 - 0.9995)) and sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{}[30m])) > 5 and 1 - (sum by (probe_url, namespace, _id, cluster) (sum_over_time(probe_success{}[1h])) / sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{}[1h]))) > (14.4 * (1 - 0.9995)) and sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{}[1h])) > 60'
-        for: 'PT2M'
-        severity: 3
-      }
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'kas-monitor-ErrorBudgetBurn'
-        enabled: true
-        labels: {
-          long_window: '6h'
-          severity: 'warning'
-          short_window: '30m'
-        }
-        annotations: {
-          correlationId: 'kas-monitor-ErrorBudgetBurn/{{ $labels.cluster }}/{{ $labels.probe_url }}'
-          description: 'High error budget burn for {{ $labels.probe_url }} (current value: {{ $value }})'
-          info: 'High error budget burn for {{ $labels.probe_url }} (current value: {{ $value }})'
-          summary: 'High error budget burn for {{ $labels.probe_url }}'
-          title: 'High error budget burn for {{ $labels.probe_url }}'
-        }
-        expression: '1 - (sum by (probe_url, namespace, _id, cluster) (sum_over_time(probe_success{}[30m])) / sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{}[30m]))) > (6 * (1 - 0.9995)) and sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{}[30m])) > 30 and 1 - (sum by (probe_url, namespace, _id, cluster) (sum_over_time(probe_success{}[6h])) / sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{}[6h]))) > (6 * (1 - 0.9995)) and sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{}[6h])) > 360'
-        for: 'PT15M'
-        severity: 3
-      }
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'kas-monitor-ErrorBudgetBurn'
-        enabled: true
-        labels: {
-          long_window: '1d'
-          severity: 'info'
-          short_window: '2h'
-        }
-        annotations: {
-          correlationId: 'kas-monitor-ErrorBudgetBurn/{{ $labels.cluster }}/{{ $labels.probe_url }}'
-          description: 'High error budget burn for {{ $labels.probe_url }} (current value: {{ $value }})'
-          info: 'High error budget burn for {{ $labels.probe_url }} (current value: {{ $value }})'
-          summary: 'High error budget burn for {{ $labels.probe_url }}'
-          title: 'High error budget burn for {{ $labels.probe_url }}'
-        }
-        expression: '1 - (sum by (probe_url, namespace, _id, cluster) (sum_over_time(probe_success{}[2h])) / sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{}[2h]))) > (3 * (1 - 0.9995)) and sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{}[2h])) > 120 and 1 - (sum by (probe_url, namespace, _id, cluster) (sum_over_time(probe_success{}[1d])) / sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{}[1d]))) > (3 * (1 - 0.9995)) and sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{}[1d])) > 1440'
-        for: 'PT1H'
-        severity: 4
-      }
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'kas-monitor-ErrorBudgetBurn'
-        enabled: true
-        labels: {
-          long_window: '3d'
-          severity: 'info'
-          short_window: '6h'
-        }
-        annotations: {
-          correlationId: 'kas-monitor-ErrorBudgetBurn/{{ $labels.cluster }}/{{ $labels.probe_url }}'
-          description: 'High error budget burn for {{ $labels.probe_url }} (current value: {{ $value }})'
-          info: 'High error budget burn for {{ $labels.probe_url }} (current value: {{ $value }})'
-          summary: 'High error budget burn for {{ $labels.probe_url }}'
-          title: 'High error budget burn for {{ $labels.probe_url }}'
-        }
-        expression: '1 - (sum by (probe_url, namespace, _id, cluster) (sum_over_time(probe_success{}[6h])) / sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{}[6h]))) > (1 * (1 - 0.9995)) and sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{}[6h])) > 360 and 1 - (sum by (probe_url, namespace, _id, cluster) (sum_over_time(probe_success{}[3d])) / sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{}[3d]))) > (1 * (1 - 0.9995)) and sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{}[3d])) > 4320'
-        for: 'PT3H'
-        severity: 4
-      }
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'kas-monitor-ServiceMonitorCreationErrorBudgetBurn'
-        enabled: true
-        labels: {
-          component: 'route-monitor-operator'
-          severity: 'warning'
-          slo: 'hcp-monitoring-coverage'
-        }
-        annotations: {
-          correlationId: 'kas-monitor-ServiceMonitorCreationErrorBudgetBurn/{{ $labels.cluster }}'
-          description: '{{ $value | humanizePercentage }} of HCPs are missing probe_success metrics. SLO threshold: 14.4%. This indicates RMO failed to create ServiceMonitor, Blackbox Exporter is not probing, or Prometheus is not scraping.'
-          info: '{{ $value | humanizePercentage }} of HCPs are missing probe_success metrics. SLO threshold: 14.4%. This indicates RMO failed to create ServiceMonitor, Blackbox Exporter is not probing, or Prometheus is not scraping.'
-          runbook_url: 'TBD'
-          summary: 'HCP KAS monitoring coverage below SLO'
-          title: 'HCP KAS monitoring coverage below SLO'
-        }
-        expression: '( ( count(kube_namespace_status_phase{phase="Active", namespace=~"ocm-aro.*-.*-.*"}) - count(probe_success{namespace=~"ocm-aro.*"}) ) / count(kube_namespace_status_phase{phase="Active", namespace=~"ocm-aro.*-.*-.*"}) ) > 0.144'
-        for: 'PT15M'
-        severity: 3
+        severity: 2
       }
     ]
     scopes: [
@@ -1826,6 +1672,35 @@ resource mgmtCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         expression: '( count(kube_namespace_labels{namespace=~"^ocm-[^-]+-[^-]+$"}) by (cluster) / 60 ) > 0.60'
         for: 'PT15M'
         severity: 4
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'MgmtClusterNodeSwiftNICCapacityZero'
+        enabled: true
+        labels: {
+          severity: 'critical'
+          team: 'hcp-sl'
+        }
+        annotations: {
+          correlationId: 'MgmtClusterNodeSwiftNICCapacityZero/{{ $labels.cluster }}'
+          description: 'Node {{ $labels.node }} on management cluster {{ $labels.cluster }} has zero SWIFT NIC capacity. No HCPs can be scheduled on this node until NIC capacity is restored.'
+          info: 'Node {{ $labels.node }} on management cluster {{ $labels.cluster }} has zero SWIFT NIC capacity. No HCPs can be scheduled on this node until NIC capacity is restored.'
+          owning_team: 'hcp-sl'
+          runbook_url: 'https://portal.microsofticm.com/imp/v5/incidents/details/802529667'
+          summary: 'Management cluster node has zero SWIFT NIC capacity.'
+          title: 'Management cluster node has zero SWIFT NIC capacity.'
+        }
+        expression: 'kube_node_status_capacity{node=~"user.*", resource="aro_openshift_io_swift_nic"} == 0'
+        for: 'PT10M'
+        severity: 2
       }
       {
         actions: [
@@ -1883,11 +1758,11 @@ resource hcpHostedclusterMonitorRules 'Microsoft.AlertsManagement/prometheusRule
         enabled: true
         labels: {
           long_window: '1h'
-          severity: 'info'
+          severity: 'warning'
           short_window: '30m'
         }
         annotations: {
-          correlationId: 'hostedcluster-KubeAPIServer-ErrorBudgetBurn/{{ $labels._id }}/{{ $labels.cluster }}/{{ $labels.name }}'
+          correlationId: 'hostedcluster-KubeAPIServer-ErrorBudgetBurn/{{ $labels.cluster }}/{{ $labels._id }}'
           description: 'HostedCluster {{ $labels.name }} (ID: {{ $labels._id }}) KubeAPIServer availability is below SLO (current value: {{ $value }})'
           info: 'HostedCluster {{ $labels.name }} (ID: {{ $labels._id }}) KubeAPIServer availability is below SLO (current value: {{ $value }})'
           summary: 'High KubeAPIServer error budget burn for HostedCluster {{ $labels.name }}'
@@ -1895,7 +1770,7 @@ resource hcpHostedclusterMonitorRules 'Microsoft.AlertsManagement/prometheusRule
         }
         expression: '1 - (hostedClusterAPI_kubeapiserver_available:sum_over_time_30m / hostedClusterAPI_kubeapiserver_available:count_over_time_30m) > (14.4 * (1 - 0.9995)) and hostedClusterAPI_kubeapiserver_available:count_over_time_30m > 5 and 1 - (hostedClusterAPI_kubeapiserver_available:sum_over_time_1h / hostedClusterAPI_kubeapiserver_available:count_over_time_1h) > (14.4 * (1 - 0.9995)) and hostedClusterAPI_kubeapiserver_available:count_over_time_1h > 60'
         for: 'PT2M'
-        severity: 4
+        severity: 3
       }
       {
         actions: [
@@ -1911,11 +1786,11 @@ resource hcpHostedclusterMonitorRules 'Microsoft.AlertsManagement/prometheusRule
         enabled: true
         labels: {
           long_window: '6h'
-          severity: 'info'
+          severity: 'warning'
           short_window: '30m'
         }
         annotations: {
-          correlationId: 'hostedcluster-KubeAPIServer-ErrorBudgetBurn/{{ $labels._id }}/{{ $labels.cluster }}/{{ $labels.name }}'
+          correlationId: 'hostedcluster-KubeAPIServer-ErrorBudgetBurn/{{ $labels.cluster }}/{{ $labels._id }}'
           description: 'HostedCluster {{ $labels.name }} (ID: {{ $labels._id }}) KubeAPIServer availability is below SLO (current value: {{ $value }})'
           info: 'HostedCluster {{ $labels.name }} (ID: {{ $labels._id }}) KubeAPIServer availability is below SLO (current value: {{ $value }})'
           summary: 'High KubeAPIServer error budget burn for HostedCluster {{ $labels.name }}'
@@ -1923,7 +1798,7 @@ resource hcpHostedclusterMonitorRules 'Microsoft.AlertsManagement/prometheusRule
         }
         expression: '1 - (hostedClusterAPI_kubeapiserver_available:sum_over_time_30m / hostedClusterAPI_kubeapiserver_available:count_over_time_30m) > (6 * (1 - 0.9995)) and hostedClusterAPI_kubeapiserver_available:count_over_time_30m > 30 and 1 - (hostedClusterAPI_kubeapiserver_available:sum_over_time_6h / hostedClusterAPI_kubeapiserver_available:count_over_time_6h) > (6 * (1 - 0.9995)) and hostedClusterAPI_kubeapiserver_available:count_over_time_6h > 360'
         for: 'PT15M'
-        severity: 4
+        severity: 3
       }
       {
         actions: [
@@ -1943,7 +1818,7 @@ resource hcpHostedclusterMonitorRules 'Microsoft.AlertsManagement/prometheusRule
           short_window: '2h'
         }
         annotations: {
-          correlationId: 'hostedcluster-KubeAPIServer-ErrorBudgetBurn/{{ $labels._id }}/{{ $labels.cluster }}/{{ $labels.name }}'
+          correlationId: 'hostedcluster-KubeAPIServer-ErrorBudgetBurn/{{ $labels.cluster }}/{{ $labels._id }}'
           description: 'HostedCluster {{ $labels.name }} (ID: {{ $labels._id }}) KubeAPIServer availability is below SLO (current value: {{ $value }})'
           info: 'HostedCluster {{ $labels.name }} (ID: {{ $labels._id }}) KubeAPIServer availability is below SLO (current value: {{ $value }})'
           summary: 'High KubeAPIServer error budget burn for HostedCluster {{ $labels.name }}'
@@ -1971,7 +1846,7 @@ resource hcpHostedclusterMonitorRules 'Microsoft.AlertsManagement/prometheusRule
           short_window: '6h'
         }
         annotations: {
-          correlationId: 'hostedcluster-KubeAPIServer-ErrorBudgetBurn/{{ $labels._id }}/{{ $labels.cluster }}/{{ $labels.name }}'
+          correlationId: 'hostedcluster-KubeAPIServer-ErrorBudgetBurn/{{ $labels.cluster }}/{{ $labels._id }}'
           description: 'HostedCluster {{ $labels.name }} (ID: {{ $labels._id }}) KubeAPIServer availability is below SLO (current value: {{ $value }})'
           info: 'HostedCluster {{ $labels.name }} (ID: {{ $labels._id }}) KubeAPIServer availability is below SLO (current value: {{ $value }})'
           summary: 'High KubeAPIServer error budget burn for HostedCluster {{ $labels.name }}'
@@ -2010,7 +1885,7 @@ resource hcpClusterHealthRules 'Microsoft.AlertsManagement/prometheusRuleGroups@
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'HCPClusterVersionUnhealthy/{{ $labels.cluster }}/{{ $labels.namespace }}'
+          correlationId: 'HCPClusterVersionUnhealthy/{{ $labels.cluster }}'
           description: '''The Cluster Version Operator for {{ $labels.namespace }} (on Mgmt Cluster {{ $labels.cluster }}) 
 has been in a Failing or Degraded state for more than 1 hour.
 This usually indicates critical operators (Network, API, etc.) are down.

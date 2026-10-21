@@ -123,6 +123,9 @@ func TestCheckForProvisioningStateConflict(t *testing.T) {
 					parentResourceID := resourceID.Parent
 					clusterInternalID := api.Must(api.NewInternalID(ocm.GenerateOCMCommercialClusterHREF("testCluster")))
 					parentCluster := &api.HCPOpenShiftCluster{
+						CosmosMetadata: arm.CosmosMetadata{
+							ResourceID: parentResourceID,
+						},
 						TrackedResource: arm.TrackedResource{
 							Resource: arm.Resource{
 								ID: parentResourceID,
@@ -170,6 +173,9 @@ func TestCheckForProvisioningStateConflict(t *testing.T) {
 						// Pre-populate the parent cluster with the test provisioning state
 						clusterInternalID := api.Must(api.NewInternalID(ocm.GenerateOCMCommercialClusterHREF("testCluster")))
 						parentCluster := &api.HCPOpenShiftCluster{
+							CosmosMetadata: arm.CosmosMetadata{
+								ResourceID: parentResourceID,
+							},
 							TrackedResource: arm.TrackedResource{
 								Resource: arm.Resource{
 									ID: parentResourceID,

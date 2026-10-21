@@ -126,6 +126,9 @@ func TestOrphanedBillingCleanup_SyncOnce(t *testing.T) {
 			clusters: []*api.HCPOpenShiftCluster{
 				// Only cluster-2 exists
 				{
+					CosmosMetadata: arm.CosmosMetadata{
+						ResourceID: api.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID + "/resourceGroups/" + testResourceGroupName + "/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-2")),
+					},
 					TrackedResource: arm.TrackedResource{
 						Resource: arm.Resource{
 							ID:   api.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID + "/resourceGroups/" + testResourceGroupName + "/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-2")),

@@ -1,0 +1,57 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: hcp-kas-apiserver-request-recording-rules
+  namespace: prometheus
+spec:
+  groups:
+  - name: hcp-kas-apiserver-request-recording-rules
+    interval: 1m
+    rules:
+    # Pre-aggregated request rates for error budget calculations
+    # These run every 1m to build up sample density for long-window queries (30d)
+
+    # Total request rate per namespace (all status codes)
+    # Uses rate[5m] (industry standard for SLI recording rules with 30s scrape)
+    # for resilience to missed scrapes and smoother base signal.
+    - record: kas:apiserver_request_total:rate5m
+      expr: sum by (namespace, cluster) (rate(apiserver_request_total{namespace=~"ocm-.*"}[5m]))
+    # 5xx error request rate per namespace
+    - record: kas:apiserver_request_5xx:rate5m
+      expr: sum by (namespace, cluster) (rate(apiserver_request_total{namespace=~"ocm-.*", code=~"5.."}[5m]))
+    # Long-window averages for error budget monitoring
+    # These enable 30-day error budget queries without hitting cardinality limits
+    # 30-day average total request rate
+    # Using :5m resolution to reduce query cost (8640 samples vs 43200)
+    # Sufficient accuracy for 30-day error budget trends
+    - record: kas:apiserver_request_total:rate_avg_30d
+      expr: avg_over_time(kas:apiserver_request_total:rate5m[30d:5m])
+    # 30-day average 5xx error rate
+    - record: kas:apiserver_request_5xx:rate_avg_30d
+      expr: avg_over_time(kas:apiserver_request_5xx:rate5m[30d:5m])
+    # Additional windows for multi-burn-rate alerting
+    # 1-hour window (for critical 30m/1h burn rate alert)
+    - record: kas:apiserver_request_total:rate_avg_1h
+      expr: avg_over_time(kas:apiserver_request_total:rate5m[1h])
+    - record: kas:apiserver_request_5xx:rate_avg_1h
+      expr: avg_over_time(kas:apiserver_request_5xx:rate5m[1h])
+    # 6-hour window (for critical 30m/6h burn rate alert)
+    - record: kas:apiserver_request_total:rate_avg_6h
+      expr: avg_over_time(kas:apiserver_request_total:rate5m[6h])
+    - record: kas:apiserver_request_5xx:rate_avg_6h
+      expr: avg_over_time(kas:apiserver_request_5xx:rate5m[6h])
+    # 3-day window (for warning 6h/3d burn rate alert)
+    - record: kas:apiserver_request_total:rate_avg_3d
+      expr: avg_over_time(kas:apiserver_request_total:rate5m[3d])
+    - record: kas:apiserver_request_5xx:rate_avg_3d
+      expr: avg_over_time(kas:apiserver_request_5xx:rate5m[3d])
+    # 5-minute window (short window for Fast burn-rate tier)
+    - record: kas:apiserver_request_total:rate_avg_5m
+      expr: avg_over_time(kas:apiserver_request_total:rate5m[5m])
+    - record: kas:apiserver_request_5xx:rate_avg_5m
+      expr: avg_over_time(kas:apiserver_request_5xx:rate5m[5m])
+    # 30-minute window (short window for Medium burn-rate tier)
+    - record: kas:apiserver_request_total:rate_avg_30m
+      expr: avg_over_time(kas:apiserver_request_total:rate5m[30m])
+    - record: kas:apiserver_request_5xx:rate_avg_30m
+      expr: avg_over_time(kas:apiserver_request_5xx:rate5m[30m])

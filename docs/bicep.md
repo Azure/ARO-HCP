@@ -16,7 +16,7 @@ Beyond provisioning infrastructure, the Bicep templates also manage access contr
 
 ### Templates
 
-Top-level Bicep templates that correlate to an architectural scope reside in the `templates` directory. These templates are prefixed according to their respective [scope](high-level-architecture.md).
+Top-level Bicep templates that correlate to an architectural scope reside in the [/dev-infrastructure/templates](../dev-infrastructure/templates) directory. These templates are prefixed according to their respective [scope](high-level-architecture.md).
 
 * `global*.bicep` templates for the global scope
 * `region*.bicep` templates for the overall region scope
@@ -30,7 +30,7 @@ There are two additional prefixes for special purposes
 
 ### Modules
 
-Single bicep templates can become too complex and hard to maintain big at times. To mitigate this, we group resources by purpose and move them as dedicated bicep files into the `modules` directory.
+Single bicep templates can become too complex and hard to maintain big at times. To mitigate this, we group resources by purpose and move them as dedicated bicep files into the [/dev-infrastructure/modules](../dev-infrastructure/modules) directory.
 
 Modules provide a structured way to organize and reuse infrastructure definitions. While modules enhance maintainability by breaking down complex deployments into manageable components, they also serve a critical function in switching execution context during a Bicep template deployment. See the section about [Cross-Subscription deployments](#cross-subscription-deployments) for more details.
 
@@ -47,7 +47,7 @@ param regionalRegion = '{{ .region }}'
 
 ## Deploying Bicep templates
 
-In ARO HCP, we deploy Bicep templates via [pipeline](pipeline.md) files by supporting a dedicated step type for ARM/Bicep deployments.
+In ARO HCP, we deploy Bicep templates via [pipeline](pipeline-concept.md) files by supporting a dedicated step type for ARM/Bicep deployments.
 
 > [!IMPORTANT]
 > Read the documentation about [pipeline files](pipeline-concept.md) and their general format and functionality. The following documentation covers only the Bicep specific information

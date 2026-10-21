@@ -5,7 +5,7 @@ systemdLogs
 | project timestamp, log, cluster
 | where cluster == '{{.ClusterName}}'
 | where timestamp between({{ .TimestampMin }} .. {{ .TimestampMax }})
+| order by timestamp {{.OrderBy}}
 {{- if gt .Limit 0}}
 | limit {{.Limit}}
 {{- end}}
-| order by timestamp asc

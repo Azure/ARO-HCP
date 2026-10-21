@@ -7,6 +7,7 @@ ARO HCP is a cloud service deployed across multiple Azure regions, with a design
 - **Regional Scope** – Contains all the components required to operate ARO HCP within a region.
 - **Geography Scope** – Contains all the components shared between regions in the same geography.
 - **Global Scope** – Consists of shared services that support regional instances while maintaining built-in redundancy and resilience across multiple regions.
+- **Monitoring Scope** – Covers the monitoring stack deployed per region, managed as an independent deployment entrypoint.
 
 A high level architecture diagram can be found [here](https://link.excalidraw.com/l/1NnYvmogbSd/2I3z0Ishpo0).
 
@@ -105,3 +106,17 @@ The first region added in a given geography is the region that will deploy the K
 ### Azure layout
 
 The geography-level resources are deployed into the same dedicated global Azure subscription used for global services, with logical separation by geography (for example, one Kusto deployment per geography).
+
+## Monitoring Scope
+
+Monitoring resources are deployed as part of the regular regional rollout and follow the same lifecycle as other regional components. In addition, monitoring is defined as a separate deployment entrypoint (`Microsoft.Azure.ARO.HCP.Monitoring`) to provide flexibility and speed when iterating on the monitoring stack. This allows changes to alerting rules, metrics collection, or monitoring infrastructure to be pushed independently without waiting for or triggering a full regional rollout — supporting a gradual on-call ramp-up.
+
+While the monitoring resources are regional in nature and operate within the regional subscription, the dedicated entrypoint ensures that monitoring can evolve on its own schedule when needed.
+
+### Key Monitoring Services
+
+- **Azure Monitor Metrics**
+  - Provides metrics collection for both ARO HCP services running on the Service Cluster and hosted control planes running on Management Clusters.
+
+- **Prometheus Alerting Rules & Action Groups**
+  - Defines alerting rules and notification targets for operational monitoring of the ARO HCP service.

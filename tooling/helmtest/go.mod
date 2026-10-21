@@ -3,11 +3,13 @@ module github.com/Azure/ARO-HCP/tooling/helmtest
 go 1.25.7
 
 require (
-	github.com/Azure/ARO-Tools/config v0.0.0-20260512140819-ecd1d9a0477a
-	github.com/Azure/ARO-Tools/pipelines v0.0.0-20260512140819-ecd1d9a0477a
+	github.com/Azure/ARO-Tools/config v0.0.0-20260610232034-297626079c7d
+	github.com/Azure/ARO-Tools/pipelines v0.0.0-20260610232034-297626079c7d
+	github.com/Azure/ARO-Tools/testutil v0.0.0-20260610232034-297626079c7d
 	github.com/google/go-cmp v0.7.0
 	github.com/stretchr/testify v1.11.1
 	helm.sh/helm/v4 v4.1.4
+	k8s.io/api v0.35.3
 	k8s.io/apimachinery v0.35.3
 	sigs.k8s.io/yaml v1.6.0
 )
@@ -15,9 +17,8 @@ require (
 require (
 	cel.dev/expr v0.25.1 // indirect
 	dario.cat/mergo v1.0.1 // indirect
-	github.com/Azure/ARO-Tools/testutil v0.0.0-20260512140819-ecd1d9a0477a // indirect
-	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260512140819-ecd1d9a0477a // indirect
-	github.com/Azure/ARO-Tools/tools/yamlwrap v0.0.0-20260512140819-ecd1d9a0477a // indirect
+	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260610232034-297626079c7d // indirect
+	github.com/Azure/ARO-Tools/tools/yamlwrap v0.0.0-20260610232034-297626079c7d // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.21.1 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.13.1 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity/cache v0.4.0 // indirect
@@ -27,7 +28,7 @@ require (
 	github.com/BurntSushi/toml v1.6.0 // indirect
 	github.com/MakeNowJust/heredoc v1.0.0 // indirect
 	github.com/Masterminds/goutils v1.1.1 // indirect
-	github.com/Masterminds/semver/v3 v3.4.0 // indirect
+	github.com/Masterminds/semver/v3 v3.5.0 // indirect
 	github.com/Masterminds/sprig/v3 v3.3.0 // indirect
 	github.com/Masterminds/squirrel v1.5.4 // indirect
 	github.com/ProtonMail/go-crypto v1.3.0 // indirect
@@ -142,7 +143,6 @@ require (
 	gopkg.in/evanphx/json-patch.v4 v4.13.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	k8s.io/api v0.35.3 // indirect
 	k8s.io/apiextensions-apiserver v0.35.3 // indirect
 	k8s.io/apiserver v0.35.3 // indirect
 	k8s.io/cli-runtime v0.35.3 // indirect
@@ -150,7 +150,7 @@ require (
 	k8s.io/component-base v0.35.3 // indirect
 	k8s.io/klog/v2 v2.140.0 // indirect
 	k8s.io/kube-openapi v0.0.0-20260317180543-43fb72c5454a // indirect
-	k8s.io/kubectl v0.35.1 // indirect
+	k8s.io/kubectl v0.35.3 // indirect
 	k8s.io/utils v0.0.0-20260319190234-28399d86e0b5 // indirect
 	oras.land/oras-go/v2 v2.6.0 // indirect
 	sigs.k8s.io/controller-runtime v0.23.1 // indirect

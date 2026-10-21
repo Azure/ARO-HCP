@@ -21,6 +21,8 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+
 	"github.com/Azure/ARO-HCP/tooling/tenant-quota/pkg/config"
 	"github.com/Azure/ARO-HCP/tooling/tenant-quota/pkg/credentials"
 )
@@ -63,6 +65,7 @@ func NewCollector(cfg *config.Config, logger *slog.Logger, credProvider *credent
 }
 
 func (c *Collector) Start(ctx context.Context) {
+	defer utilruntime.HandleCrash()
 	interval := c.config.GetInterval()
 	c.logger.Info("Starting quota collection",
 		"interval", interval,

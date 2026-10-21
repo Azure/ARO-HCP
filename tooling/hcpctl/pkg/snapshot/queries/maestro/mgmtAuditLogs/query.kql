@@ -2,7 +2,10 @@
 let bundleResources = bundleMap
 | summarize groupVersion = take_any(groupVersion), resourceKind = take_any(resourceKind), label = take_any(label) by resourceNamespace, resourceName;
 cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('aksEvents')
-| where timestamp between ({{ kqlDatetime .StartTime }} .. {{ kqlDatetime .EndTime }})
+| where timestamp between ({{ kqlDatetime .PhaseStartTime }} .. {{ kqlDatetime .PhaseEndTime }})
+{{- if and .ServiceClusterName .ManagementClusterName }}
+| where cluster in ('{{ .ServiceClusterName }}', '{{ .ManagementClusterName }}')
+{{- end }}
 | where operationName == 'kube-audit'
 | extend event = parse_json(log)
 | where event.stage == 'ResponseComplete'

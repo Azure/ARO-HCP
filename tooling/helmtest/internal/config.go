@@ -17,6 +17,7 @@ package internal
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"sigs.k8s.io/yaml"
 
@@ -47,13 +48,30 @@ func LoadConfigAndMerge(configPath string, configOverride map[string]any) (map[s
 }
 
 func ReplaceImageDigest(yamlCfg map[string]any) map[string]any {
+	return ReplaceImageDigestExcluding(yamlCfg, nil)
+}
+
+// ReplaceImageDigestExcluding replaces all config values keyed "digest" with a
+// placeholder, except for dotted config paths listed in skipPaths (e.g.
+// "hypershift.sharedIngressImage.digest"). Skipped paths preserve their real
+// value so tests can detect when a node-affecting digest changes.
+func ReplaceImageDigestExcluding(yamlCfg map[string]any, skipPaths []string) map[string]any {
+	skip := make(map[string]bool, len(skipPaths))
+	for _, p := range skipPaths {
+		skip[p] = true
+	}
+	replaceImageDigest(yamlCfg, nil, skip)
+	return yamlCfg
+}
+
+func replaceImageDigest(yamlCfg map[string]any, prefix []string, skip map[string]bool) {
 	for key, value := range yamlCfg {
-		if _, ok := value.(map[string]any); ok {
-			yamlCfg[key] = ReplaceImageDigest(value.(map[string]any))
+		path := append(prefix, key)
+		if nested, ok := value.(map[string]any); ok {
+			replaceImageDigest(nested, path, skip)
 		}
-		if key == "digest" {
+		if key == "digest" && !skip[strings.Join(path, ".")] {
 			yamlCfg[key] = "sha256:1234567890"
 		}
 	}
-	return yamlCfg
 }

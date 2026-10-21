@@ -90,13 +90,18 @@ func makeTestRow(t *testing.T, colDefs []struct {
 	return kusto.TaggedRow{Row: azkquery.NewRow(bt, 0, vals), QueryName: "test"}
 }
 
+func testQueryOptions(subID, rg, infraCluster string) *kusto.QueryOptions {
+	q := kusto.NewQueryOptions()
+	q.SubscriptionId = subID
+	q.ResourceGroupName = rg
+	q.InfraClusterName = infraCluster
+	return &q
+}
+
 func TestNewGatherer(t *testing.T) {
 	mockQueryClient := &MockQueryClient{}
 	opts := GathererOptions{
-		QueryOptions: &kusto.QueryOptions{
-			SubscriptionId:    "test-sub",
-			ResourceGroupName: "test-rg",
-		},
+		QueryOptions: testQueryOptions("test-sub", "test-rg", ""),
 	}
 
 	// Test CLI gatherer
@@ -122,10 +127,7 @@ func TestGatherer_GatherLogs(t *testing.T) {
 		QueryClient: mockQueryClient,
 		opts: GathererOptions{
 			SkipKubernetesEventsLogs: true,
-			QueryOptions: &kusto.QueryOptions{
-				SubscriptionId:    "test-sub",
-				ResourceGroupName: "test-rg",
-			},
+			QueryOptions:             testQueryOptions("test-sub", "test-rg", ""),
 		},
 		outputFunc:    mockOutputFunc,
 		outputOptions: RowOutputOptions{"outputPath": "/test"},
@@ -140,6 +142,35 @@ func TestGatherer_GatherLogs(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestGatherer_GatherLogs_ExplicitClusterIds(t *testing.T) {
+	mockQueryClient := &MockQueryClient{}
+	gatherer := &Gatherer{
+		QueryClient: mockQueryClient,
+		opts: GathererOptions{
+			SkipKubernetesEventsLogs: true,
+			QueryOptions: &kusto.QueryOptions{
+				SubscriptionId:    "test-sub",
+				ResourceGroupName: "test-rg",
+				ClusterIds:        []string{"cluster-abc-123", "cluster-def-456"},
+			},
+		},
+		outputFunc:    mockOutputFunc,
+		outputOptions: RowOutputOptions{"outputPath": "/test"},
+	}
+
+	// With explicit cluster IDs, ExecutePreconfiguredQuery should only be called
+	// for cluster names discovery (not cluster ID discovery)
+	mockQueryClient.On("ExecutePreconfiguredQuery", mock.Anything, mock.Anything, mock.Anything).Return(&kusto.QueryResult{}, nil)
+	mockQueryClient.On("ConcurrentQueries", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+
+	err := gatherer.GatherLogs(t.Context())
+	assert.NoError(t, err)
+
+	// ExecutePreconfiguredQuery should NOT be called for cluster ID discovery,
+	// only for cluster names (2 calls: clusterNamesSvc + clusterNamesHcp)
+	mockQueryClient.AssertNumberOfCalls(t, "ExecutePreconfiguredQuery", 2)
+}
+
 func TestGatherer_GatherLogs_WithKubernetesEventsAndSystemdLogs(t *testing.T) {
 	mockQueryClient := &MockQueryClient{}
 	gatherer := &Gatherer{
@@ -147,10 +178,7 @@ func TestGatherer_GatherLogs_WithKubernetesEventsAndSystemdLogs(t *testing.T) {
 		opts: GathererOptions{
 			SkipKubernetesEventsLogs: false,
 			CollectSystemdLogs:       true,
-			QueryOptions: &kusto.QueryOptions{
-				SubscriptionId:    "test-sub",
-				ResourceGroupName: "test-rg",
-			},
+			QueryOptions:             testQueryOptions("test-sub", "test-rg", ""),
 		},
 		outputFunc:    mockOutputFunc,
 		outputOptions: RowOutputOptions{"outputPath": "/test"},
@@ -173,10 +201,7 @@ func TestGatherer_GatherLogs_SkipOnlySystemdLogs(t *testing.T) {
 		QueryClient: mockQueryClient,
 		opts: GathererOptions{
 			SkipKubernetesEventsLogs: false,
-			QueryOptions: &kusto.QueryOptions{
-				SubscriptionId:    "test-sub",
-				ResourceGroupName: "test-rg",
-			},
+			QueryOptions:             testQueryOptions("test-sub", "test-rg", ""),
 		},
 		outputFunc:    mockOutputFunc,
 		outputOptions: RowOutputOptions{"outputPath": "/test"},
@@ -201,9 +226,7 @@ func TestGatherer_GatherInfraLogs(t *testing.T) {
 		QueryClient: mockQueryClient,
 		opts: GathererOptions{
 			GatherInfraLogs: true,
-			QueryOptions: &kusto.QueryOptions{
-				InfraClusterName: "test-infra-cluster",
-			},
+			QueryOptions:    testQueryOptions("", "", "test-infra-cluster"),
 		},
 		outputFunc:    mockOutputFunc,
 		outputOptions: RowOutputOptions{"outputPath": "/test"},
@@ -225,9 +248,7 @@ func TestGatherer_GatherInfraLogs_Error(t *testing.T) {
 		QueryClient: mockQueryClient,
 		opts: GathererOptions{
 			GatherInfraLogs: true,
-			QueryOptions: &kusto.QueryOptions{
-				InfraClusterName: "test-infra-cluster",
-			},
+			QueryOptions:    testQueryOptions("", "", "test-infra-cluster"),
 		},
 		outputFunc:    mockOutputFunc,
 		outputOptions: RowOutputOptions{"outputPath": "/test"},
@@ -252,10 +273,7 @@ func TestGatherer_GatherLogs_ContextCancellation(t *testing.T) {
 		QueryClient: mockQueryClient,
 		opts: GathererOptions{
 			SkipKubernetesEventsLogs: true,
-			QueryOptions: &kusto.QueryOptions{
-				SubscriptionId:    "test-sub",
-				ResourceGroupName: "test-rg",
-			},
+			QueryOptions:             testQueryOptions("test-sub", "test-rg", ""),
 		},
 		outputFunc:    mockOutputFunc,
 		outputOptions: RowOutputOptions{"outputPath": "/test"},
@@ -299,7 +317,7 @@ func TestCliOutputFunc(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Verify file was created and contains log
-	expectedFile := filepath.Join(tempDir, "services", "cluster1-default-container1.jsonl")
+	expectedFile := filepath.Join(tempDir, "services", "cluster1_default_container1.jsonl")
 	assert.FileExists(t, expectedFile)
 	content, err := os.ReadFile(expectedFile)
 	require.NoError(t, err)
@@ -352,8 +370,8 @@ func TestCliOutputFunc_KubernetesEvents(t *testing.T) {
 	err = cliOutputFunc(t.Context(), logLineChan, options)
 	assert.NoError(t, err)
 
-	// Kubernetes events use cluster-querytype.jsonl naming
-	expectedFile := filepath.Join(tempDir, "cluster", "test-cluster-kubernetes-events.jsonl")
+	// Kubernetes events use cluster_querytype.jsonl naming
+	expectedFile := filepath.Join(tempDir, "cluster", "test-cluster_kubernetes-events.jsonl")
 	assert.FileExists(t, expectedFile)
 	content, err := os.ReadFile(expectedFile)
 	require.NoError(t, err)
@@ -386,7 +404,7 @@ func TestCliOutputFunc_SystemdLogs(t *testing.T) {
 	err = cliOutputFunc(t.Context(), logLineChan, options)
 	assert.NoError(t, err)
 
-	expectedFile := filepath.Join(tempDir, "cluster", "test-cluster-systemd-logs.jsonl")
+	expectedFile := filepath.Join(tempDir, "cluster", "test-cluster_systemd-logs.jsonl")
 	assert.FileExists(t, expectedFile)
 	content, err := os.ReadFile(expectedFile)
 	require.NoError(t, err)
@@ -687,7 +705,7 @@ func TestCliOutputFunc_JSONLFormat(t *testing.T) {
 	err = cliOutputFunc(t.Context(), logLineChan, options)
 	assert.NoError(t, err)
 
-	expectedFile := filepath.Join(tempDir, "services", "cluster1-default-container1.jsonl")
+	expectedFile := filepath.Join(tempDir, "services", "cluster1_default_container1.jsonl")
 	content, err := os.ReadFile(expectedFile)
 	require.NoError(t, err)
 
@@ -711,4 +729,145 @@ func splitNonEmpty(s string) []string {
 		}
 	}
 	return result
+}
+
+func TestCliOutputFunc_SplitByPod(t *testing.T) {
+	tempDir := t.TempDir()
+	err := os.MkdirAll(filepath.Join(tempDir, "services"), 0755)
+	require.NoError(t, err)
+
+	logLineChan := make(chan *NormalizedLogLine, 3)
+	options := RowOutputOptions{
+		"outputPath":                    tempDir,
+		string(kusto.QueryTypeServices): "services",
+		"splitByPod":                    true,
+	}
+
+	logLineChan <- &NormalizedLogLine{
+		Log:           makeLogMap("message", "log from pod-a"),
+		Cluster:       "cluster1",
+		Namespace:     "default",
+		ContainerName: "frontend",
+		PodName:       "frontend-abc123",
+		Timestamp:     time.Now(),
+		QueryType:     kusto.QueryTypeServices,
+	}
+	logLineChan <- &NormalizedLogLine{
+		Log:           makeLogMap("message", "log from pod-b"),
+		Cluster:       "cluster1",
+		Namespace:     "default",
+		ContainerName: "frontend",
+		PodName:       "frontend-def456",
+		Timestamp:     time.Now(),
+		QueryType:     kusto.QueryTypeServices,
+	}
+	logLineChan <- &NormalizedLogLine{
+		Log:           makeLogMap("message", "log from pod-a again"),
+		Cluster:       "cluster1",
+		Namespace:     "default",
+		ContainerName: "frontend",
+		PodName:       "frontend-abc123",
+		Timestamp:     time.Now(),
+		QueryType:     kusto.QueryTypeServices,
+	}
+	close(logLineChan)
+
+	err = cliOutputFunc(t.Context(), logLineChan, options)
+	assert.NoError(t, err)
+
+	// Each pod should get its own file
+	fileA := filepath.Join(tempDir, "services", "cluster1_default_frontend_frontend-abc123.jsonl")
+	fileB := filepath.Join(tempDir, "services", "cluster1_default_frontend_frontend-def456.jsonl")
+	assert.FileExists(t, fileA)
+	assert.FileExists(t, fileB)
+
+	contentA, err := os.ReadFile(fileA)
+	require.NoError(t, err)
+	linesA := splitNonEmpty(string(contentA))
+	assert.Len(t, linesA, 2)
+	assert.Contains(t, linesA[0], "log from pod-a")
+	assert.Contains(t, linesA[1], "log from pod-a again")
+
+	contentB, err := os.ReadFile(fileB)
+	require.NoError(t, err)
+	linesB := splitNonEmpty(string(contentB))
+	assert.Len(t, linesB, 1)
+	assert.Contains(t, linesB[0], "log from pod-b")
+}
+
+func TestCliOutputFunc_SplitByPod_EmptyPodName(t *testing.T) {
+	tempDir := t.TempDir()
+	err := os.MkdirAll(filepath.Join(tempDir, "services"), 0755)
+	require.NoError(t, err)
+
+	logLineChan := make(chan *NormalizedLogLine, 1)
+	options := RowOutputOptions{
+		"outputPath":                    tempDir,
+		string(kusto.QueryTypeServices): "services",
+		"splitByPod":                    true,
+	}
+
+	// When pod_name is empty (e.g. table doesn't have the column), fall back to default naming
+	logLineChan <- &NormalizedLogLine{
+		Log:           makeLogMap("message", "log without pod name"),
+		Cluster:       "cluster1",
+		Namespace:     "default",
+		ContainerName: "backend",
+		PodName:       "",
+		Timestamp:     time.Now(),
+		QueryType:     kusto.QueryTypeServices,
+	}
+	close(logLineChan)
+
+	err = cliOutputFunc(t.Context(), logLineChan, options)
+	assert.NoError(t, err)
+
+	// Should fall back to the default naming without pod name
+	expectedFile := filepath.Join(tempDir, "services", "cluster1_default_backend.jsonl")
+	assert.FileExists(t, expectedFile)
+}
+
+func TestCliOutputFunc_SplitByPod_Disabled(t *testing.T) {
+	tempDir := t.TempDir()
+	err := os.MkdirAll(filepath.Join(tempDir, "services"), 0755)
+	require.NoError(t, err)
+
+	logLineChan := make(chan *NormalizedLogLine, 2)
+	options := RowOutputOptions{
+		"outputPath":                    tempDir,
+		string(kusto.QueryTypeServices): "services",
+		"splitByPod":                    false,
+	}
+
+	// Even with pod names present, they should be grouped when splitByPod is false
+	logLineChan <- &NormalizedLogLine{
+		Log:           makeLogMap("message", "log from pod-a"),
+		Cluster:       "cluster1",
+		Namespace:     "default",
+		ContainerName: "frontend",
+		PodName:       "frontend-abc123",
+		Timestamp:     time.Now(),
+		QueryType:     kusto.QueryTypeServices,
+	}
+	logLineChan <- &NormalizedLogLine{
+		Log:           makeLogMap("message", "log from pod-b"),
+		Cluster:       "cluster1",
+		Namespace:     "default",
+		ContainerName: "frontend",
+		PodName:       "frontend-def456",
+		Timestamp:     time.Now(),
+		QueryType:     kusto.QueryTypeServices,
+	}
+	close(logLineChan)
+
+	err = cliOutputFunc(t.Context(), logLineChan, options)
+	assert.NoError(t, err)
+
+	// Both should go to the same file
+	expectedFile := filepath.Join(tempDir, "services", "cluster1_default_frontend.jsonl")
+	assert.FileExists(t, expectedFile)
+	content, err := os.ReadFile(expectedFile)
+	require.NoError(t, err)
+	lines := splitNonEmpty(string(content))
+	assert.Len(t, lines, 2)
 }

@@ -20,6 +20,8 @@ import (
 
 	"k8s.io/client-go/tools/cache"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
 )
 
@@ -28,7 +30,7 @@ type DeleteDesireLister interface {
 	List(ctx context.Context) ([]*kubeapplier.DeleteDesire, error)
 	GetForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName, name string) (*kubeapplier.DeleteDesire, error)
 	GetForNodePool(ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName, name string) (*kubeapplier.DeleteDesire, error)
-	ListForManagementCluster(ctx context.Context, managementCluster string) ([]*kubeapplier.DeleteDesire, error)
+	ListForManagementCluster(ctx context.Context, managementClusterResourceID *azcorearm.ResourceID) ([]*kubeapplier.DeleteDesire, error)
 	ListForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) ([]*kubeapplier.DeleteDesire, error)
 	ListForNodePool(ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName string) ([]*kubeapplier.DeleteDesire, error)
 }
@@ -63,9 +65,12 @@ func (l *deleteDesireLister) GetForNodePool(
 }
 
 func (l *deleteDesireLister) ListForManagementCluster(
-	ctx context.Context, managementCluster string,
+	ctx context.Context, managementClusterResourceID *azcorearm.ResourceID,
 ) ([]*kubeapplier.DeleteDesire, error) {
-	return listFromIndex[kubeapplier.DeleteDesire](l.indexer, ByManagementCluster, strings.ToLower(managementCluster))
+	if managementClusterResourceID == nil {
+		return nil, nil
+	}
+	return listFromIndex[kubeapplier.DeleteDesire](l.indexer, ByManagementCluster, strings.ToLower(managementClusterResourceID.String()))
 }
 
 func (l *deleteDesireLister) ListForCluster(

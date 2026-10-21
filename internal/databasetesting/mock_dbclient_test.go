@@ -149,6 +149,9 @@ func TestMockResourcesDBClient_CRUD_Cluster(t *testing.T) {
 	}
 
 	cluster := &api.HCPOpenShiftCluster{
+		CosmosMetadata: arm.CosmosMetadata{
+			ResourceID: clusterResourceID,
+		},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
 				ID:   clusterResourceID,
@@ -342,9 +345,10 @@ func TestMockResourcesDBClient_CRUD_Subscription(t *testing.T) {
 		t.Errorf("Expected state %s, got %s", arm.SubscriptionStateRegistered, retrieved.State)
 	}
 
-	// Replace
-	subscription.State = arm.SubscriptionStateSuspended
-	replaced, err := subscriptionCRUD.Replace(ctx, subscription, nil)
+	// Replace using the object returned from Create so the etag is carried
+	// over; Replace refuses unconditional updates.
+	created.State = arm.SubscriptionStateSuspended
+	replaced, err := subscriptionCRUD.Replace(ctx, created, nil)
 	if err != nil {
 		t.Fatalf("Failed to replace subscription: %v", err)
 	}
@@ -386,6 +390,9 @@ func TestMockResourcesDBClient_Transaction(t *testing.T) {
 	}
 
 	cluster := &api.HCPOpenShiftCluster{
+		CosmosMetadata: arm.CosmosMetadata{
+			ResourceID: clusterResourceID,
+		},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
 				ID:   clusterResourceID,
@@ -444,6 +451,9 @@ func TestMockResourcesDBClient_UntypedCRUD(t *testing.T) {
 	}
 
 	cluster := &api.HCPOpenShiftCluster{
+		CosmosMetadata: arm.CosmosMetadata{
+			ResourceID: clusterResourceID,
+		},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
 				ID:   clusterResourceID,
@@ -797,6 +807,9 @@ func TestMockResourcesDBClient_addResource(t *testing.T) {
 	}
 
 	cluster := &api.HCPOpenShiftCluster{
+		CosmosMetadata: arm.CosmosMetadata{
+			ResourceID: clusterResourceID,
+		},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
 				ID:   clusterResourceID,
@@ -878,6 +891,9 @@ func TestNewMockResourcesDBClientWithResources(t *testing.T) {
 	}
 
 	cluster := &api.HCPOpenShiftCluster{
+		CosmosMetadata: arm.CosmosMetadata{
+			ResourceID: clusterResourceID,
+		},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
 				ID:   clusterResourceID,
@@ -900,6 +916,7 @@ func TestNewMockResourcesDBClientWithResources(t *testing.T) {
 			"/nodePools/" + nodePoolName))
 
 	nodePool := &api.HCPOpenShiftClusterNodePool{
+		CosmosMetadata: arm.CosmosMetadata{ResourceID: nodePoolResourceID},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
 				ID:   nodePoolResourceID,

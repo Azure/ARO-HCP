@@ -13,14 +13,14 @@ param auditLogsDiagnosticSettingsRuleName string
 @description('Principal ID of the Kusto cluster managed identity')
 param kustoPrincipalId string
 
-@description('When true, deploy managed audit logs Event Hub resources')
-param manageInstance bool = true
+@description('Whether arobit Kusto is enabled in this region')
+param kustoEnabled bool = true
 
 @description('Whether the audit logs Event Hub is enabled in this region')
 param eventhubEnabled bool
 
 // Event Hub namespace for AKS audit logs
-resource eventHubNamespace 'Microsoft.EventHub/namespaces@2024-01-01' = if (manageInstance && eventhubEnabled) {
+resource eventHubNamespace 'Microsoft.EventHub/namespaces@2024-01-01' = if (kustoEnabled && eventhubEnabled) {
   name: auditLogsEventHubNamespaceName
   location: resourceGroup().location
   sku: {
@@ -69,7 +69,7 @@ resource eventHubNamespace 'Microsoft.EventHub/namespaces@2024-01-01' = if (mana
 }
 
 var eventHubDataReceiverRole = 'a638d3c7-ab3a-418d-83e6-5f17a39d4fde'
-resource eventHubDataReceiverRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (manageInstance && eventhubEnabled && kustoPrincipalId != '') {
+resource eventHubDataReceiverRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (kustoEnabled && eventhubEnabled && kustoPrincipalId != '') {
   scope: eventHubNamespace::eventHub
   name: guid(eventHubNamespace::eventHub.id, kustoPrincipalId, eventHubDataReceiverRole)
   properties: {
@@ -79,7 +79,7 @@ resource eventHubDataReceiverRoleAssignment 'Microsoft.Authorization/roleAssignm
   }
 }
 
-output auditLogsEventHubId string = manageInstance && eventhubEnabled ? eventHubNamespace::eventHub.id : ''
-output auditLogsEventHubAuthRuleId string = manageInstance && eventhubEnabled
+output auditLogsEventHubId string = kustoEnabled && eventhubEnabled ? eventHubNamespace::eventHub.id : ''
+output auditLogsEventHubAuthRuleId string = kustoEnabled && eventhubEnabled
   ? eventHubNamespace::diagnosticSettingsAuthRule.id
   : ''

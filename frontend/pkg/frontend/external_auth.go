@@ -23,6 +23,7 @@ import (
 	"strings"
 	"time"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -210,6 +211,7 @@ func decodeDesiredExternalAuthCreate(ctx context.Context) (*api.HCPOpenShiftClus
 
 	// ProxyResource info doesn't to come from the external resource information
 	conversion.CopyReadOnlyProxyResourceValues(&newInternalExternalAuth.ProxyResource, ptr.To(arm.NewProxyResource(resourceID)))
+	newInternalExternalAuth.SetResourceID(resourceID)
 
 	// set fields that were not included during the conversion, because the user does not provide them or because the
 	// data is determined live on read.
@@ -558,7 +560,7 @@ func (f *Frontend) DeleteExternalAuth(writer http.ResponseWriter, request *http.
 	}
 
 	// when we get a delete call (this happens from CI quite a bit), dump the state of the cluster resources.
-	if err := serverutils.DumpDataToLogger(ctx, f.resourcesDBClient, resourceID); err != nil {
+	if err := serverutils.DumpDataToLogger(ctx, f.resourcesDBClient, nil, nil, resourceID); err != nil {
 		// never fail, this is best effort
 		logger.Error(err, "failed to dump data to logger")
 	}
@@ -576,6 +578,8 @@ func (f *Frontend) DeleteExternalAuth(writer http.ResponseWriter, request *http.
 	if err := checkForProvisioningStateConflict(ctx, f.resourcesDBClient, database.OperationRequestDelete, externalAuth.ID, externalAuth.Properties.ProvisioningState); err != nil {
 		return utils.TrackError(err)
 	}
+
+	logger.Info(fmt.Sprintf("deleting resource %s", externalAuth.ID))
 
 	// Temporary check until creation and deletion interaction with CS is moved to the backend: if a delete arrives and the external
 	// auth has not been created in CS or the ClusterServiceID reference has not been persisted in Cosmos, return an error.
@@ -655,6 +659,9 @@ func (f *Frontend) addDeleteExternalAuthToTransaction(ctx context.Context, write
 		return utils.TrackError(err)
 	}
 
+	if externalAuth.ServiceProviderProperties.DeletionTimestamp == nil {
+		externalAuth.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: time.Now().UTC()}
+	}
 	externalAuth.ServiceProviderProperties.ActiveOperationID = operationDoc.ResourceID.Name
 	externalAuth.Properties.ProvisioningState = operationDoc.Status
 	_, err = f.resourcesDBClient.HCPClusters(externalAuth.ID.SubscriptionID, externalAuth.ID.ResourceGroupName).ExternalAuth(externalAuth.ID.Parent.Name).
@@ -689,8 +696,11 @@ func (f *Frontend) getInternalExternalAuthFromStorage(ctx context.Context, resou
 	// normalize or return a toupper or tolower form of the resource
 	// group or resource name. The resource group name and resource
 	// name must come from the URL and not the request body.
-	if !strings.EqualFold(internalExternalAuth.ID.String(), resourceID.String()) {
-		return nil, fmt.Errorf("unexpected resourceID: %s", internalExternalAuth.ID.String())
+	if internalExternalAuth.ResourceID == nil {
+		return nil, fmt.Errorf("stored externalauth document is missing cosmosMetadata.resourceID")
+	}
+	if !strings.EqualFold(internalExternalAuth.ResourceID.String(), resourceID.String()) {
+		return nil, fmt.Errorf("unexpected resourceID: %s", internalExternalAuth.ResourceID.String())
 	}
 	internalExternalAuth.ID = resourceID
 

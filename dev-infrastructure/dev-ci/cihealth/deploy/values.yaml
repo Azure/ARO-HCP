@@ -1,0 +1,101 @@
+nameOverride: ""
+fullnameOverride: ""
+msiClientId: ""
+secretProvider:
+  keyVault: ""
+  msiClientId: ""
+  tenantId: ""
+image:
+  registry: "quay.io"
+  repository: "roivaz/cihealth"
+  tag: "8e6b0cd"
+  pullPolicy: Always
+  pullSecrets: []
+disableRuntimeWorkloads: false
+postgres:
+  keyVaultSecretNames:
+    username: "cihealth-postgres-username"
+    password: "cihealth-postgres-password"
+    database: "cihealth-postgres-database"
+  image:
+    repository: "postgres"
+    tag: "17"
+    pullPolicy: IfNotPresent
+  service:
+    port: 5432
+  connection:
+    sslMode: disable
+    initialize: true
+    maxConnections: 20
+    minConnections: 1
+    connectTimeoutSeconds: 15
+  persistence:
+    size: 20Gi
+    accessModes:
+    - ReadWriteOnce
+    storageClass: "managed-premium"
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 1Gi
+  extraEnv: []
+app:
+  replicas: 2
+  defaultWeek: ""
+  historyWeeks: 4
+  listenPort: 8082
+  service:
+    type: ClusterIP
+    port: 8082
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 512Mi
+  extraEnv: []
+  extraArgs: []
+httpRoute:
+  enabled: false
+  host: ""
+  gatewayName: "opstool-gateway"
+  gatewayNamespace: "aks-istio-ingress"
+  sectionName: "apps-https"
+  blockReviewPath: true
+controllers:
+  replicas: 1
+  historyWeeks: 4
+  source:
+    envs:
+    - dev
+    - int
+    - stg
+    - prod
+    sippyBaseUrl: https://sippy.dptools.openshift.org
+    sippyOrg: Azure
+    sippyRepo: ARO-HCP
+    prowArtifactsBaseUrl: https://storage.googleapis.com
+    sippyReleases:
+      dev: Presubmits
+      int: aro-integration
+      stg: aro-stage
+      prod: aro-production
+  threads:
+    sourceProwRuns: 1
+    sourceSippyRuns: 1
+    sourceSippyTestsDaily: 1
+    sourceGitHubPullRequests: 1
+    sourceProwFailures: 1
+    factsRuns: 1
+    factsRawFailures: 1
+    metricsRollupDaily: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 1Gi
+  extraEnv: []
+  extraArgs: []

@@ -149,7 +149,7 @@ type RawBreakglassHCPOptions struct {
 	SessionTimeout    time.Duration // Certificate/session timeout duration
 	NoPortForward     bool          // Disable port forwarding after kubeconfig generation
 	NoShell           bool          // Disable shell mode (shell is default when port-forwarding is enabled)
-	Privileged        bool          // Use privileged access role (aro-sre-cluster-admin instead of aro-sre)
+	Privileged        bool          // Use privileged access group (system:masters instead of system:cluster-readers)
 	ExecCommand       string        // Command to execute directly instead of spawning interactive shell
 }
 
@@ -176,7 +176,7 @@ func BindBreakglassHCPOptions(opts *RawBreakglassHCPOptions, cmd *cobra.Command)
 	cmd.Flags().DurationVar(&opts.SessionTimeout, "session-timeout", opts.SessionTimeout, "certificate/session expiration time")
 	cmd.Flags().BoolVar(&opts.NoPortForward, "no-port-forward", opts.NoPortForward, "do not start port forwarding after generating kubeconfig")
 	cmd.Flags().BoolVar(&opts.NoShell, "no-shell", opts.NoShell, "do not spawn a shell; instead wait for Ctrl+C to terminate (default: spawn shell with KUBECONFIG set)")
-	cmd.Flags().BoolVar(&opts.Privileged, "privileged", opts.Privileged, "use privileged access role (aro-sre-cluster-admin instead of aro-sre)")
+	cmd.Flags().BoolVar(&opts.Privileged, "privileged", opts.Privileged, "use privileged access group (system:masters instead of system:cluster-readers)")
 	cmd.Flags().StringVar(&opts.ExecCommand, "exec", opts.ExecCommand, "execute command directly instead of spawning interactive shell")
 
 	return nil

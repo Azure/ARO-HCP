@@ -28,6 +28,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
+	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -41,7 +42,7 @@ type cosmosClusterMatching struct {
 }
 
 // NewCosmosClusterMatchingController periodically looks for mismatched cluster-service and cosmos externalauths
-func NewCosmosClusterMatchingController(clock utilsclock.PassiveClock, resourcesDBClient database.ResourcesDBClient, billingDBClient database.BillingDBClient, clusterServiceClient ocm.ClusterServiceClientSpec, informers informers.BackendInformers) controllerutils.Controller {
+func NewCosmosClusterMatchingController(clock utilsclock.PassiveClock, resourcesDBClient database.ResourcesDBClient, billingDBClient database.BillingDBClient, clusterServiceClient ocm.ClusterServiceClientSpec, informers informers.BackendInformers, kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers) controllerutils.Controller {
 	syncer := &cosmosClusterMatching{
 		clock:                clock,
 		cooldownChecker:      controllerutil.NewTimeBasedCooldownChecker(1 * time.Hour),
@@ -54,6 +55,7 @@ func NewCosmosClusterMatchingController(clock utilsclock.PassiveClock, resources
 		"CosmosMatchingClusters",
 		resourcesDBClient,
 		informers,
+		kubeApplierInformers,
 		60*time.Minute,
 		syncer,
 	)

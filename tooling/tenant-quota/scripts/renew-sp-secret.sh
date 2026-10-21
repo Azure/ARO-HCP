@@ -144,7 +144,7 @@ usage() {
     echo "  To add a new tenant, update the TENANTS array in this script with:"
     echo "    \"DisplayName:AzureADTenantId:ClientId:KeyVaultSecretName\""
     echo ""
-    echo "  Also update config/config-opstool.yaml with the same tenant configuration."
+    echo "  Also update config/config-dev-ci.yaml with the same tenant configuration."
 }
 
 # =============================================================================
@@ -162,11 +162,11 @@ usage() {
 # - The AzureADTenantId is used to warn you which tenant to login to
 #
 # To add a new tenant/SP:
-# 1. Create the SP in the target tenant (see config/config-opstool.yaml and
+# 1. Create the SP in the target tenant (see config/config-dev-ci.yaml and
 #    scripts/manage-service-principals.sh for the current workflow)
 # 2. Store the secret in Key Vault
 # 3. Add an entry here in the same format
-# 4. Add the corresponding entry in config/config-opstool.yaml
+# 4. Add the corresponding entry in config/config-dev-ci.yaml
 #
 # EXAMPLE - SPs from DIFFERENT Azure AD tenants:
 #   "RedHat0:64dc69e4-...:abc123:custom-metrics-collector-redhat0-client-secret"
@@ -177,6 +177,7 @@ usage() {
 #
 TENANTS=(
     "RedHat0:64dc69e4-d083-49fc-9569-ebece1dd1408:1ef710d1-afd7-4bf3-8095-e8126650607f:custom-metrics-collector-redhat0-client-secret"
+    "TestTestARO:93b21e64-4824-439a-b893-46c9b2a51082:e46ecbd4-9ef3-439e-a28a-74a4d8270349:custom-metrics-collector-test-test-azure-arohcp-client-secret"
 )
 
 get_tenant_config() {

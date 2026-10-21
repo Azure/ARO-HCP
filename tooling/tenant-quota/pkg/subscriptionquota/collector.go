@@ -23,6 +23,8 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 
 	"github.com/Azure/ARO-HCP/tooling/tenant-quota/pkg/config"
@@ -92,6 +94,7 @@ func (c *Collector) Collect(ch chan<- prometheus.Metric) {
 // Start runs the background collection loop. It collects immediately on
 // startup, then on every interval tick.
 func (c *Collector) Start(ctx context.Context) {
+	defer utilruntime.HandleCrash()
 	interval := c.config.GetInterval()
 	c.logger.Info("Starting subscription quota collection",
 		"interval", interval,

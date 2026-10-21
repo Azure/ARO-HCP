@@ -41,14 +41,14 @@ func queryToFixture(q Query) queryFixture {
 }
 
 func baseOptions() QueryOptions {
-	return QueryOptions{
-		SubscriptionId:    "test-sub",
-		ResourceGroupName: "test-rg",
-		InfraClusterName:  "test-cluster",
-		TimestampMin:      time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
-		TimestampMax:      time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC),
-		Limit:             100,
-	}
+	opts := NewQueryOptions()
+	opts.SubscriptionId = "test-sub"
+	opts.ResourceGroupName = "test-rg"
+	opts.InfraClusterName = "test-cluster"
+	opts.TimestampMin = time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	opts.TimestampMax = time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC)
+	opts.Limit = 100
+	return opts
 }
 
 func TestInfraKubernetesEvents(t *testing.T) {
@@ -67,10 +67,9 @@ func TestInfraKubernetesEvents(t *testing.T) {
 func TestInfraKubernetesEvents_NoTruncation(t *testing.T) {
 	f, err := NewQueryFactory()
 	require.NoError(t, err)
-	opts := QueryOptions{
-		InfraClusterName: "test-cluster",
-		Limit:            -1,
-	}
+	opts := NewQueryOptions()
+	opts.InfraClusterName = "test-cluster"
+	opts.Limit = -1
 	def, err := f.GetBuiltinQueryDefinition("kubernetesEvents")
 	require.NoError(t, err)
 	queries, err := f.Build(*def, NewTemplateDataFromOptions(opts))
@@ -96,10 +95,9 @@ func TestKubernetesEventsSvc(t *testing.T) {
 func TestKubernetesEventsMgmt(t *testing.T) {
 	f, err := NewQueryFactory()
 	require.NoError(t, err)
-	opts := QueryOptions{
-		InfraClusterName: "test-cluster",
-		Limit:            50,
-	}
+	opts := NewQueryOptions()
+	opts.InfraClusterName = "test-cluster"
+	opts.Limit = 50
 	def, err := f.GetBuiltinQueryDefinition("kubernetesEventsMgmt")
 	require.NoError(t, err)
 	queries, err := f.Build(*def, NewTemplateDataFromOptions(opts,
@@ -141,11 +139,10 @@ func TestInfraServiceLogs(t *testing.T) {
 func TestServiceLogs(t *testing.T) {
 	f, err := NewQueryFactory()
 	require.NoError(t, err)
-	opts := QueryOptions{
-		SubscriptionId:    "sub",
-		ResourceGroupName: "rg",
-		Limit:             10,
-	}
+	opts := NewQueryOptions()
+	opts.SubscriptionId = "sub"
+	opts.ResourceGroupName = "rg"
+	opts.Limit = 10
 	def, err := f.GetBuiltinQueryDefinition("serviceLogs")
 	require.NoError(t, err)
 	queries, err := f.Build(*def, NewTemplateDataFromOptions(opts,
@@ -161,11 +158,10 @@ func TestServiceLogs(t *testing.T) {
 func TestServiceLogs_NoClusterIds(t *testing.T) {
 	f, err := NewQueryFactory()
 	require.NoError(t, err)
-	opts := QueryOptions{
-		SubscriptionId:    "sub",
-		ResourceGroupName: "rg",
-		Limit:             10,
-	}
+	opts := NewQueryOptions()
+	opts.SubscriptionId = "sub"
+	opts.ResourceGroupName = "rg"
+	opts.Limit = 10
 	def, err := f.GetBuiltinQueryDefinition("serviceLogs")
 	require.NoError(t, err)
 	queries, err := f.Build(*def, NewTemplateDataFromOptions(opts, WithTable("containerLogs")))
@@ -178,7 +174,8 @@ func TestServiceLogs_NoClusterIds(t *testing.T) {
 func TestHostedControlPlaneLogs(t *testing.T) {
 	f, err := NewQueryFactory()
 	require.NoError(t, err)
-	opts := QueryOptions{Limit: 100}
+	opts := NewQueryOptions()
+	opts.Limit = 100
 	def, err := f.GetBuiltinQueryDefinition("hostedControlPlaneLogs")
 	require.NoError(t, err)
 	queries, err := f.Build(*def, NewTemplateDataFromOptions(opts, WithClusterId("cid1")))
@@ -214,6 +211,19 @@ func TestClusterNamesQuery(t *testing.T) {
 	testutil.CompareWithFixture(t, queryToFixture(queries[0]))
 }
 
+func TestClusterIdByNameQuery(t *testing.T) {
+	f, err := NewQueryFactory()
+	require.NoError(t, err)
+	opts := baseOptions()
+	def, err := f.GetBuiltinQueryDefinition("clusterIdByName")
+	require.NoError(t, err)
+	queries, err := f.Build(*def, NewTemplateDataFromOptions(opts, WithFilterClusterName("test-hcp")))
+	require.NoError(t, err)
+	require.Len(t, queries, 1)
+
+	testutil.CompareWithFixture(t, queryToFixture(queries[0]))
+}
+
 func TestBuildMerged_SingleTemplate(t *testing.T) {
 	f, err := NewQueryFactory()
 	require.NoError(t, err)
@@ -229,12 +239,11 @@ func TestBuildMerged_SingleTemplate(t *testing.T) {
 func TestBuildMerged_MultipleChildren(t *testing.T) {
 	f, err := NewQueryFactory()
 	require.NoError(t, err)
-	opts := QueryOptions{
-		ResourceGroupName: "test-rg",
-		TimestampMin:      time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
-		TimestampMax:      time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC),
-		Limit:             -1,
-	}
+	opts := NewQueryOptions()
+	opts.ResourceGroupName = "test-rg"
+	opts.TimestampMin = time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	opts.TimestampMax = time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC)
+	opts.Limit = -1
 
 	var detailedDef *QueryDefinition
 	for _, def := range f.customQueryDefinitions {
@@ -253,12 +262,11 @@ func TestBuildMerged_MultipleChildren(t *testing.T) {
 }
 
 func TestTemplateDataOptions(t *testing.T) {
-	opts := QueryOptions{
-		SubscriptionId:    "sub",
-		ResourceGroupName: "rg",
-		InfraClusterName:  "cluster",
-		Limit:             100,
-	}
+	opts := NewQueryOptions()
+	opts.SubscriptionId = "sub"
+	opts.ResourceGroupName = "rg"
+	opts.InfraClusterName = "cluster"
+	opts.Limit = 100
 
 	td := NewTemplateDataFromOptions(opts,
 		WithClusterId("cid1"),
@@ -273,7 +281,8 @@ func TestTemplateDataOptions(t *testing.T) {
 }
 
 func TestTemplateDataOptions_NoTruncation(t *testing.T) {
-	opts := QueryOptions{Limit: -1}
+	opts := NewQueryOptions()
+	opts.Limit = -1
 	td := NewTemplateDataFromOptions(opts)
 
 	testutil.CompareWithFixture(t, td)

@@ -1,0 +1,12 @@
+cert-manager:
+  crds:
+    enabled: true
+  config:
+    enableGatewayAPI: true
+  serviceAccount:
+    name: "cert-manager"
+    annotations:
+      azure.workload.identity/client-id: "__certManagerUAMIClientId__"
+      azure.workload.identity/tenant-id: "__tenantId__"
+  podLabels:
+    azure.workload.identity/use: "true"

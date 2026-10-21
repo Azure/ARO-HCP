@@ -9,31 +9,31 @@ It uses the same `templatize` + `pipeline.yaml` rollout system as the rest of th
 | Item | Value |
 | --- | --- |
 | Purpose | Host operational tooling workloads |
-| Cloud / environment | `dev` / `opstool` |
+| Cloud / environment | `dev` / `dev-ci` |
 | Current region | `westus3` |
-| Standalone config | `config/config-opstool.yaml` |
-| Standalone topology | `topology-opstool.yaml` |
-| Infra service group | `Microsoft.Azure.ARO.HCP.Opstool.Infra` |
+| Standalone config | `config/config-dev-ci.yaml` |
+| Standalone topology | `topology-dev-ci.yaml` |
+| Infra service group | `Microsoft.Azure.ARO.HCP.DevCI.Infra` |
 | Canonical workload example | `tooling/tenant-quota` |
 
 ## How Opstool Differs From The Main Environments
 
 The rest of the repo mostly follows the shared deployment model built around `config/config.yaml`, `topology.yaml`, and service groups such as `Microsoft.Azure.ARO.HCP.Global` and `Microsoft.Azure.ARO.HCP.Region`.
 
-`opstool` does not plug into that graph automatically.
+The `dev-ci` topology does not plug into that graph automatically.
 
-- It has its own config file: `config/config-opstool.yaml`.
-- It has its own topology: `topology-opstool.yaml`.
-- Its infra rollout lives in `dev-infrastructure/opstool-pipeline.yaml`.
-- Workloads are added as child service groups under the `Opstool.Infra` entrypoint.
+- It has its own config file: `config/config-dev-ci.yaml`.
+- It has its own topology: `topology-dev-ci.yaml`.
+- Its infra rollout lives in `dev-infrastructure/dev-ci/cluster/opstool-aks-pipeline.yaml`.
+- Workloads are added as child service groups under the `DevCI.Infra` entrypoint.
 
 This means `opstool` gets all the benefits of the shared tooling, but none of the implicit shared-environment wiring. If it needs a shared resource, that dependency must be wired explicitly in the standalone config or pipeline.
 
 ## Topology And Rollout Model
 
-`topology-opstool.yaml` defines a single entrypoint:
+`topology-dev-ci.yaml` defines a single entrypoint:
 
-- `Microsoft.Azure.ARO.HCP.Opstool.Infra`
+- `Microsoft.Azure.ARO.HCP.DevCI.Infra`
 
 That infra service group owns the cluster and shared cluster-level dependencies. Workloads are added beneath it as children. Today, `tenant-quota` is the concrete example of this pattern.
 
@@ -43,23 +43,23 @@ In practice the rollout shape is:
 2. Export shared outputs for child workloads.
 3. Deploy shared alerting infrastructure.
 4. Deploy the in-cluster Prometheus stack.
-5. Deploy child workloads such as `Microsoft.Azure.ARO.HCP.Opstool.TenantQuota`.
+5. Deploy child workloads such as `Microsoft.Azure.ARO.HCP.DevCI.TenantQuota`.
 
 For local execution of the full standalone topology, use:
 
 ```bash
-make opstool-local-run
+make dev-ci-local-run
 ```
 
 For a dry run:
 
 ```bash
-DRY_RUN=true make opstool-local-run
+DRY_RUN=true make dev-ci-local-run
 ```
 
 ## What The Infra Pipeline Creates
 
-`dev-infrastructure/opstool-pipeline.yaml` owns the shared cluster infrastructure for workloads running in `opstool`.
+`dev-infrastructure/dev-ci/cluster/opstool-aks-pipeline.yaml` owns the shared cluster infrastructure for workloads running in `opstool`.
 
 The infra template provisions:
 
@@ -86,7 +86,7 @@ Unlike the standard `Region` rollout, `opstool` does not inherit the shared dev 
 
 Today the most important shared dependency is the dev SVC ACR:
 
-- `config/config-opstool.yaml` declares `svc.acr`.
+- `config/config-dev-ci.yaml` declares `svc.acr`.
 - That config points at the shared dev registry in the global resource group.
 - `dev-infrastructure/templates/opstool-cluster.bicep` uses that information to grant the cluster pull access to the registry.
 
@@ -128,7 +128,7 @@ tooling/my-new-app/
 The standard pattern is:
 
 1. Put code and Helm assets together under `tooling/<app>/`.
-2. Add a child service group to `topology-opstool.yaml`.
+2. Add a child service group to `topology-dev-ci.yaml`.
 3. Use a workload pipeline that reads shared outputs from `output-opstool-cluster.bicep`.
 4. Reuse the shared `opstool` cluster resources unless the workload truly needs new infra.
 
@@ -153,6 +153,6 @@ Most `opstool` workloads should follow the same mechanics already used by `tenan
 
 - Store shared app secrets in the `opstool` workload Key Vault.
 - Mount secrets through a `SecretProviderClass` using the CSI driver.
-- Keep secret names in `config/config-opstool.yaml` when they are part of workload configuration.
+- Keep secret names in `config/config-dev-ci.yaml` when they are part of workload configuration.
 
 Mounted Key Vault files can change when the underlying secret rotates. Applications still need a reload strategy if they read credentials only once at startup. For file-backed secrets, either implement hot reload in the process or restart the workload when config or secret content changes.

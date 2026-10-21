@@ -1,0 +1,10 @@
+database: ServiceLogs
+kql: |
+  clustersServiceLogs
+  | where resource_id has '/subscriptions/test-sub/resourceGroups/test-rg'
+  | extend _cluster_name = extract(@"hcpOpenShiftClusters/([^/""]+)", 1, tostring(resource_id))
+  | where _cluster_name =~ 'test-hcp'
+  | where isnotempty(cid)
+  | distinct cid
+name: clusterIdByName
+unlimited: false

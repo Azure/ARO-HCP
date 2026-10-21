@@ -22,15 +22,12 @@ param kustoEnabled bool
 @description('Whether the audit logs Event Hub is enabled in this region')
 param eventhubEnabled bool
 
-@description('When true, create resources managed by this deployment')
-param manageInstance bool = true
-
 resource kustoCluster 'Microsoft.Kusto/clusters@2024-04-13' existing = if (kustoEnabled) {
   name: kustoName
 }
 
 // Kusto Event Hub data connection for AKS audit logs
-resource kustoDataConnection 'Microsoft.Kusto/clusters/databases/dataConnections@2024-04-13' = if (kustoEnabled && eventhubEnabled && manageInstance) {
+resource kustoDataConnection 'Microsoft.Kusto/clusters/databases/dataConnections@2024-04-13' = if (kustoEnabled && eventhubEnabled) {
   name: '${kustoName}/${databaseName}/${kustoDataConnectionName}'
   location: location
   kind: 'EventHub'

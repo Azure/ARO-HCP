@@ -25,6 +25,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
 
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+
 	"github.com/Azure/ARO-HCP/tooling/aro-hcp-exporter/internal/metrics"
 )
 
@@ -96,6 +98,7 @@ func (o *CompletedOptions) Run(ctx context.Context) error {
 	// Start server in a goroutine
 	errChan := make(chan error, 1)
 	go func() {
+		defer utilruntime.HandleCrash()
 		logger.Info("Starting server", "address", o.ListenAddress)
 		logger.Info("Metrics available", "url", fmt.Sprintf("http://%s%s", o.ListenAddress, metricsPath))
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -125,6 +128,7 @@ func (o *CompletedOptions) Run(ctx context.Context) error {
 }
 
 func collectLoop(ctx context.Context, collector metrics.CachingCollector, collectionInterval time.Duration) {
+	defer utilruntime.HandleCrash()
 	logger := logr.FromContextOrDiscard(ctx)
 	for {
 		select {

@@ -16,11 +16,20 @@ package controllers
 
 import (
 	"context"
+	"fmt"
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/maestro"
 )
+
+// hostedClusterNamespace returns the management-cluster namespace that
+// hosts a given HCP's HostedCluster / NodePool objects. Cluster Service
+// names it "ocm-<envIdentifier>-<csClusterID>" and we must mirror that
+// exactly so the kube-applier targets the right namespace.
+func hostedClusterNamespace(envIdentifier, csClusterID string) string {
+	return fmt.Sprintf("ocm-%s-%s", envIdentifier, csClusterID)
+}
 
 // createMaestroClientFromCSProvisionShard creates a Maestro client for the given cluster provision shard.
 // the client is scoped to the Consumer Name associated to the provision shard, and to

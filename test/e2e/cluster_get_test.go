@@ -45,8 +45,8 @@ var _ = Describe("Get HCPOpenShiftCluster", func() {
 
 			By("Checking Provisioning state with RP")
 			out, err := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient().Get(ctx, customerEnv.CustomerRGName, clusterInfo.Name, nil)
-			Expect(err).To(BeNil())
-			Expect(string(*out.Properties.ProvisioningState)).To(Equal(("Succeeded")))
+			Expect(err).To(BeNil(), "failed to get HCP cluster %q", clusterInfo.Name)
+			Expect(string(*out.Properties.ProvisioningState)).To(Equal(("Succeeded")), "cluster %q provisioning state should be Succeeded", clusterInfo.Name)
 		})
 	})
 
@@ -57,9 +57,9 @@ var _ = Describe("Get HCPOpenShiftCluster", func() {
 			clusterName := "non-existing-cluster"
 			By("Sending a GET request for the nonexistent cluster")
 			_, err := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient().Get(ctx, customerEnv.CustomerRGName, clusterName, nil)
-			Expect(err).ToNot(BeNil())
+			Expect(err).ToNot(BeNil(), "expected error when getting nonexistent cluster %q", clusterName)
 			errMessage := fmt.Sprintf("hcpOpenShiftClusters/%s' under resource group '%s' was not found.", clusterName, customerEnv.CustomerRGName)
-			Expect(strings.ToLower(err.Error())).To(ContainSubstring(strings.ToLower(errMessage)))
+			Expect(strings.ToLower(err.Error())).To(ContainSubstring(strings.ToLower(errMessage)), "error should indicate cluster %q was not found", clusterName)
 		})
 	})
 })

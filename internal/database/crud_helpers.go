@@ -163,9 +163,49 @@ func list[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClie
 	}
 }
 
-// serializeItem will create a CosmosUID if it doesn't exist, otherwise uses what exists.  This makes it compatible with
-// create, replace, and create
-func serializeItem[InternalAPIType, CosmosAPIType any](newObj *InternalAPIType) (*arm.CosmosMetadata, []byte, error) {
+// PrepareForCreate sets InstanceVersion to 1 on the CosmosMetadata of newObj.
+// All Create paths (in this package and in databasetesting) must call this
+// before serializing the document so that a fresh insert starts the version
+// counter at 1. The value is unconditionally overwritten so callers can't
+// accidentally carry over a value from a prior Get.
+func PrepareForCreate[InternalAPIType any](newObj *InternalAPIType) error {
+	cosmosPersistable, ok := any(newObj).(arm.CosmosPersistable)
+	if !ok {
+		return fmt.Errorf("type %T does not implement CosmosPersistable interface", newObj)
+	}
+	if cosmosPersistable.GetCosmosData().InstanceVersion != 0 {
+		return fmt.Errorf("create of %T requires InstanceVersion to be 0; refusing to overwrite existing value", newObj)
+	}
+	cosmosPersistable.GetCosmosData().InstanceVersion = 1
+	return nil
+}
+
+// PrepareForReplace enforces the two invariants of an update: every Replace
+// must carry a CosmosETag (we refuse unconditional updates) and the on-disk
+// InstanceVersion auto-increments. All Replace paths (in this package and in
+// databasetesting) must call this before serializing the document.
+func PrepareForReplace[InternalAPIType any](newObj *InternalAPIType) error {
+	cosmosPersistable, ok := any(newObj).(arm.CosmosPersistable)
+	if !ok {
+		return fmt.Errorf("type %T does not implement CosmosPersistable interface", newObj)
+	}
+	md := cosmosPersistable.GetCosmosData()
+	if len(md.CosmosETag) == 0 {
+		return fmt.Errorf("replace of %T requires a non-empty CosmosETag; refusing to perform an unconditional update", newObj)
+	}
+	if md.InstanceVersion == 0 {
+		return fmt.Errorf("replace of %T requires a non-zero InstanceVersion; refusing to perform update; DeepCopy the existing content to avoid overwrite", newObj)
+	}
+	md.InstanceVersion++
+	return nil
+}
+
+// SerializeItem produces the on-disk JSON representation of newObj. It validates
+// the cosmos UID and partition key, converts the internal type to its cosmos form,
+// and returns the marshaled bytes alongside the resolved CosmosMetadata. Mocks and
+// production callers share this so a Create/Replace from either path produces
+// byte-identical output.
+func SerializeItem[InternalAPIType, CosmosAPIType any](newObj *InternalAPIType) (*arm.CosmosMetadata, []byte, error) {
 	cosmosPersistable, ok := any(newObj).(arm.CosmosPersistable)
 	if !ok {
 		return nil, nil, fmt.Errorf("type %T does not implement CosmosPersistable interface", newObj)
@@ -199,7 +239,10 @@ func addCreateToTransaction[InternalAPIType, CosmosAPIType any](ctx context.Cont
 	if strings.ToLower(partitionKeyString) != partitionKeyString {
 		return "", fmt.Errorf("partitionKeyString must be lowercase, not: %q", partitionKeyString)
 	}
-	cosmosMetadata, data, err := serializeItem[InternalAPIType, CosmosAPIType](newObj)
+	if err := PrepareForCreate(newObj); err != nil {
+		return "", err
+	}
+	cosmosMetadata, data, err := SerializeItem[InternalAPIType, CosmosAPIType](newObj)
 	if err != nil {
 		return "", err
 	}
@@ -229,7 +272,10 @@ func addReplaceToTransaction[InternalAPIType, CosmosAPIType any](ctx context.Con
 	if strings.ToLower(partitionKeyString) != partitionKeyString {
 		return "", fmt.Errorf("partitionKeyString must be lowercase, not: %q", partitionKeyString)
 	}
-	cosmosMetadata, data, err := serializeItem[InternalAPIType, CosmosAPIType](newObj)
+	if err := PrepareForReplace(newObj); err != nil {
+		return "", err
+	}
+	cosmosMetadata, data, err := SerializeItem[InternalAPIType, CosmosAPIType](newObj)
 	if err != nil {
 		return "", err
 	}
@@ -247,14 +293,11 @@ func addReplaceToTransaction[InternalAPIType, CosmosAPIType any](ctx context.Con
 	if opts == nil {
 		opts = &azcosmos.TransactionalBatchItemOptions{}
 	}
-	if len(cosmosMetadata.CosmosETag) > 0 {
-		opts.IfMatchETag = &cosmosMetadata.CosmosETag
-	}
+	opts.IfMatchETag = &cosmosMetadata.CosmosETag
 
 	transaction.AddStep(
 		transactionDetails,
 		func(b *azcosmos.TransactionalBatch) (string, error) {
-			// TODO decide if, when, and how we ever add etags.  Currently we do unconditional replaces.
 			b.ReplaceItem(cosmosMetadata.GetCosmosUID(), data, opts)
 			return cosmosMetadata.GetCosmosUID(), nil
 		},
@@ -267,7 +310,10 @@ func create[InternalAPIType, CosmosAPIType any](ctx context.Context, containerCl
 	if strings.ToLower(partitionKeyString) != partitionKeyString {
 		return nil, fmt.Errorf("partitionKeyString must be lowercase, not: %q", partitionKeyString)
 	}
-	cosmosMetadata, data, err := serializeItem[InternalAPIType, CosmosAPIType](newObj)
+	if err := PrepareForCreate(newObj); err != nil {
+		return nil, err
+	}
+	cosmosMetadata, data, err := SerializeItem[InternalAPIType, CosmosAPIType](newObj)
 	if err != nil {
 		return nil, err
 	}
@@ -292,7 +338,10 @@ func replace[InternalAPIType, CosmosAPIType any](ctx context.Context, containerC
 	if strings.ToLower(partitionKeyString) != partitionKeyString {
 		return nil, fmt.Errorf("partitionKeyString must be lowercase, not: %q", partitionKeyString)
 	}
-	cosmosMetadata, data, err := serializeItem[InternalAPIType, CosmosAPIType](newObj)
+	if err := PrepareForReplace(newObj); err != nil {
+		return nil, err
+	}
+	cosmosMetadata, data, err := SerializeItem[InternalAPIType, CosmosAPIType](newObj)
 	if err != nil {
 		return nil, err
 	}
@@ -303,9 +352,7 @@ func replace[InternalAPIType, CosmosAPIType any](ctx context.Context, containerC
 	if opts == nil {
 		opts = &azcosmos.ItemOptions{}
 	}
-	if len(cosmosMetadata.CosmosETag) > 0 {
-		opts.IfMatchEtag = &cosmosMetadata.CosmosETag
-	}
+	opts.IfMatchEtag = &cosmosMetadata.CosmosETag
 	opts.EnableContentResponseOnWrite = true
 
 	responseItem, err := containerClient.ReplaceItem(ctx, azcosmos.NewPartitionKeyString(partitionKeyString), cosmosMetadata.GetCosmosUID(), data, opts)

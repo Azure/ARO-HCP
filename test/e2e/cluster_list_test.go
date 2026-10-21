@@ -50,10 +50,10 @@ var _ = Describe("List HCPOpenShiftCluster", func() {
 			clusterCount := 0
 			for pager.More() {
 				clusterList, err := pager.NextPage(ctx)
-				Expect(err).To(BeNil())
+				Expect(err).To(BeNil(), "failed to list clusters in resource group %q", customerEnv.CustomerRGName)
 				clusterCount += len(clusterList.Value)
 				for _, val := range clusterList.Value {
-					Expect(*val.ID).ToNot(BeEmpty())
+					Expect(*val.ID).ToNot(BeEmpty(), "cluster ID should not be empty in list response")
 					if val.Name != nil && *val.Name == clusterName {
 						foundPreCreated = true
 						break

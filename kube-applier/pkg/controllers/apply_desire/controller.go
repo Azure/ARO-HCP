@@ -366,9 +366,9 @@ type applyDesireFetcher struct {
 var _ desirestatuswriter.Fetcher[kubeapplier.ApplyDesire, keys.ApplyDesireKey] = &applyDesireFetcher{}
 
 func (f *applyDesireFetcher) Fetch(ctx context.Context, key keys.ApplyDesireKey) (*kubeapplier.ApplyDesire, error) {
-	crud, err := f.crudByParent.ApplyDesires(key.ResourceParent())
+	crud, err := key.CRUD(f.crudByParent)
 	if err != nil {
-		return nil, fmt.Errorf("crud for parent %v: %w", key.ResourceParent(), err)
+		return nil, fmt.Errorf("crud for key %v: %w", key, err)
 	}
 	return crud.Get(ctx, key.Name)
 }
@@ -388,9 +388,9 @@ func (r *applyDesireReplacer) Replace(ctx context.Context, desired *kubeapplier.
 	if err != nil {
 		return fmt.Errorf("derive key for replace: %w", err)
 	}
-	crud, err := r.crudByParent.ApplyDesires(key.ResourceParent())
+	crud, err := key.CRUD(r.crudByParent)
 	if err != nil {
-		return fmt.Errorf("crud for parent %v: %w", key.ResourceParent(), err)
+		return fmt.Errorf("crud for key %v: %w", key, err)
 	}
 	if _, err := crud.Replace(ctx, desired, nil); err != nil {
 		return err

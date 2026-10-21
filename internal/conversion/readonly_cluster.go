@@ -30,6 +30,10 @@ func CopyReadOnlyTrackedResourceValues(dest, src *arm.TrackedResource) {
 func CopyReadOnlyClusterValues(dest, src *api.HCPOpenShiftCluster) {
 	CopyReadOnlyTrackedResourceValues(&dest.TrackedResource, &src.TrackedResource)
 
+	// CosmosMetadata is read-only on the API surface; carry over so the
+	// case-preserving ResourceID and CosmosETag survive the replace round-trip.
+	dest.CosmosMetadata = *src.CosmosMetadata.DeepCopy()
+
 	switch {
 	case hasClusterIdentityToSet(src.Identity) && dest.Identity == nil:
 		dest.Identity = &arm.ManagedServiceIdentity{}
@@ -41,7 +45,6 @@ func CopyReadOnlyClusterValues(dest, src *api.HCPOpenShiftCluster) {
 	}
 
 	dest.ServiceProviderProperties = *src.ServiceProviderProperties.DeepCopy()
-	dest.CosmosETag = src.CosmosETag
 }
 
 func copyReadOnlyManagedServiceIdentityValues(dest, src *arm.ManagedServiceIdentity) {

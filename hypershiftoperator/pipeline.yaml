@@ -87,6 +87,7 @@ resourceGroups:
   - name: deploy
     aksCluster: '{{ .mgmt.aks.name }}'
     action: Helm
+    timeout: 10m
     releaseName: 'hypershift'
     releaseNamespace: '{{ .hypershift.namespace }}'
     chartDir: ./deploy

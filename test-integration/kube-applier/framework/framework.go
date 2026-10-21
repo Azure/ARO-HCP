@@ -235,18 +235,17 @@ func startControllers(parent context.Context, t *testing.T, kac database.KubeApp
 	t.Helper()
 	ctx, cancel := context.WithCancel(parent)
 
-	partitionListers := kac.PartitionListers(ManagementCluster)
-	kubeApplierCRUD := kac.KubeApplier(ManagementCluster)
+	listers := kac.Listers()
 
-	applyInformer := informers.NewApplyDesireInformerWithRelistDuration(partitionListers.ApplyDesires(), fastRelist)
-	deleteInformer := informers.NewDeleteDesireInformerWithRelistDuration(partitionListers.DeleteDesires(), fastRelist)
-	readInformer := informers.NewReadDesireInformerWithRelistDuration(partitionListers.ReadDesires(), fastRelist)
+	applyInformer := informers.NewApplyDesireInformerWithRelistDuration(listers.ApplyDesires(), fastRelist)
+	deleteInformer := informers.NewDeleteDesireInformerWithRelistDuration(listers.DeleteDesires(), fastRelist)
+	readInformer := informers.NewReadDesireInformerWithRelistDuration(listers.ReadDesires(), fastRelist)
 
-	applyCtl, err := apply_desire.NewApplyDesireController(applyInformer, dyn, kubeApplierCRUD, apply_desire.Config{})
+	applyCtl, err := apply_desire.NewApplyDesireController(applyInformer, dyn, kac, apply_desire.Config{})
 	require.NoError(t, err)
-	deleteCtl, err := delete_desire.NewDeleteDesireController(deleteInformer, dyn, kubeApplierCRUD, delete_desire.Config{})
+	deleteCtl, err := delete_desire.NewDeleteDesireController(deleteInformer, dyn, kac, delete_desire.Config{})
 	require.NoError(t, err)
-	readMgr, err := read_desire_manager.NewReadDesireInformerManagingController(readInformer, dyn, kubeApplierCRUD, read_desire_manager.Config{})
+	readMgr, err := read_desire_manager.NewReadDesireInformerManagingController(readInformer, dyn, kac, read_desire_manager.Config{})
 	require.NoError(t, err)
 
 	wg := &sync.WaitGroup{}

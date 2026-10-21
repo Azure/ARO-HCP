@@ -23,6 +23,7 @@ import (
 
 	"github.com/go-logr/logr"
 
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 )
 
@@ -119,6 +120,7 @@ func (e *Engine) runStep(ctx context.Context, step Step, parallelism int) error 
 	wg.Add(parallelism)
 	for i := 0; i < parallelism; i++ {
 		go func() {
+			defer utilruntime.HandleCrash()
 			defer wg.Done()
 			for {
 				select {

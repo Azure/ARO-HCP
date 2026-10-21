@@ -101,3 +101,27 @@ tests:
   - eval_time: 10m
     alertname: FrontendAuditLogConnectionDegraded
     exp_alerts: []
+# Test: FrontendHttpRequestPanics fires when panics occur
+- interval: 1m
+  input_series:
+  - series: 'frontend_http_request_panics_total{path_pattern="/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/{hcpOpenShiftClusterName}", method="GET"}'
+    values: "0 1 2 3 4 5 6 7 8 9 10"
+  alert_rule_test:
+  - eval_time: 6m
+    alertname: FrontendHttpRequestPanics
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+      exp_annotations:
+        description: 'Frontend HTTP request handler has panicked 5 time(s) in the last 5 minutes.'
+        runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/frontend-tsg.html'
+        summary: 'Frontend is panicking during HTTP request handling'
+# Test: FrontendHttpRequestPanics does not fire when no panics
+- interval: 1m
+  input_series:
+  - series: 'frontend_http_request_panics_total{path_pattern="/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/{hcpOpenShiftClusterName}", method="GET"}'
+    values: "0+0x10"
+  alert_rule_test:
+  - eval_time: 6m
+    alertname: FrontendHttpRequestPanics
+    exp_alerts: []

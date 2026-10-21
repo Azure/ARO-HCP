@@ -3,14 +3,16 @@ module github.com/Azure/ARO-HCP/test
 go 1.25.7
 
 require (
+	github.com/Azure/ARO-HCP/admin/server v0.0.0-00010101000000-000000000000
 	github.com/Azure/ARO-HCP/backend v0.0.0-20260513195720-7c0637c01c58
 	github.com/Azure/ARO-HCP/internal v0.0.0-00010101000000-000000000000
 	github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp v0.0.0-00010101000000-000000000000
 	github.com/Azure/ARO-HCP/test/sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp v0.0.0-00010101000000-000000000000
 	github.com/Azure/ARO-HCP/tooling/hcpctl v0.0.0-20260113131010-8f869ff652e6
 	github.com/Azure/ARO-HCP/tooling/templatize v0.0.0-00010101000000-000000000000
-	github.com/Azure/ARO-Tools/config v0.0.0-20260512140819-ecd1d9a0477a
-	github.com/Azure/ARO-Tools/tools/prow-job-executor v0.0.0-20260512140819-ecd1d9a0477a
+	github.com/Azure/ARO-HCP/tooling/utilitytypes v0.0.0-00010101000000-000000000000
+	github.com/Azure/ARO-Tools/config v0.0.0-20260610232034-297626079c7d
+	github.com/Azure/ARO-Tools/tools/prow-job-executor v0.0.0-20260610232034-297626079c7d
 	github.com/Azure/azure-kusto-go/azkustodata v1.2.1
 	github.com/Azure/azure-sdk-for-go/sdk/messaging/azeventhubs/v2 v2.0.2
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/alertsmanagement/armalertsmanagement v0.11.0
@@ -22,6 +24,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/msi/armmsi v1.3.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v6 v6.2.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/prometheusrulegroups/armprometheusrulegroups v0.1.0
+	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeploymentstacks v1.0.1
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources v1.2.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armsubscriptions v1.3.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/storage/armstorage v1.8.1
@@ -33,7 +36,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/onsi/ginkgo/v2 v2.28.1
 	github.com/onsi/gomega v1.39.1
-	github.com/openshift-eng/openshift-tests-extension v0.0.0-20260422120742-50dec0b5ecf3
+	github.com/openshift-eng/openshift-tests-extension v0.0.0-20260528165303-ac98bf018579
 	github.com/openshift/api v0.0.0-20260429122012-1180c0f5c3e9
 	github.com/openshift/client-go v0.0.0-20260429123927-c81f86abfa6a
 	github.com/openshift/cluster-version-operator v1.0.1-0.20260202115537-557510ea0603
@@ -65,18 +68,17 @@ require (
 	cloud.google.com/go/monitoring v1.24.3 // indirect
 	cloud.google.com/go/storage v1.62.1 // indirect
 	dario.cat/mergo v1.0.1 // indirect
-	github.com/Azure/ARO-Tools/pipelines v0.0.0-20260512140819-ecd1d9a0477a // indirect
-	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260512140819-ecd1d9a0477a // indirect
-	github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20260512140819-ecd1d9a0477a // indirect
-	github.com/Azure/ARO-Tools/tools/helm v0.0.0-20260512140819-ecd1d9a0477a // indirect
-	github.com/Azure/ARO-Tools/tools/registration v0.0.0-20260512140819-ecd1d9a0477a // indirect
-	github.com/Azure/ARO-Tools/tools/secret-sync v0.0.0-20260512140819-ecd1d9a0477a // indirect
-	github.com/Azure/ARO-Tools/tools/yamlwrap v0.0.0-20260512140819-ecd1d9a0477a // indirect
+	github.com/Azure/ARO-Tools/pipelines v0.0.0-20260610232034-297626079c7d // indirect
+	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260610232034-297626079c7d // indirect
+	github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20260610232034-297626079c7d // indirect
+	github.com/Azure/ARO-Tools/tools/helm v0.0.0-20260610232034-297626079c7d // indirect
+	github.com/Azure/ARO-Tools/tools/registration v0.0.0-20260610232034-297626079c7d // indirect
+	github.com/Azure/ARO-Tools/tools/secret-sync v0.0.0-20260610232034-297626079c7d // indirect
+	github.com/Azure/ARO-Tools/tools/yamlwrap v0.0.0-20260610232034-297626079c7d // indirect
 	github.com/Azure/azure-sdk-for-go v68.0.0+incompatible // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.4.2 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice v1.0.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dashboard/armdashboard/v2 v2.0.0 // indirect
-	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeploymentstacks v1.0.1 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armfeatures v1.2.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources/v3 v3.0.1 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azkeys v1.4.0 // indirect
@@ -92,7 +94,7 @@ require (
 	github.com/GoogleCloudPlatform/testgrid v0.0.123 // indirect
 	github.com/MakeNowJust/heredoc v1.0.0 // indirect
 	github.com/Masterminds/goutils v1.1.1 // indirect
-	github.com/Masterminds/semver/v3 v3.4.0 // indirect
+	github.com/Masterminds/semver/v3 v3.5.0 // indirect
 	github.com/Masterminds/sprig/v3 v3.3.0 // indirect
 	github.com/Masterminds/squirrel v1.5.4 // indirect
 	github.com/ProtonMail/go-crypto v1.3.0 // indirect
@@ -318,7 +320,7 @@ require (
 	k8s.io/apiserver v0.35.3 // indirect
 	k8s.io/component-base v0.35.3 // indirect
 	k8s.io/kube-openapi v0.0.0-20260317180543-43fb72c5454a // indirect
-	k8s.io/kubectl v0.35.1 // indirect
+	k8s.io/kubectl v0.35.3 // indirect
 	knative.dev/pkg v0.0.0-20260318013857-98d5a706d4fd // indirect
 	oras.land/oras-go/v2 v2.6.0 // indirect
 	sigs.k8s.io/controller-runtime v0.23.1 // indirect
@@ -343,16 +345,20 @@ require (
 	golang.org/x/net v0.53.0
 	golang.org/x/sys v0.43.0
 	golang.org/x/text v0.36.0 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 replace github.com/Azure/ARO-HCP/tooling/cleanup-sweeper => ../tooling/cleanup-sweeper
+
+replace github.com/Azure/ARO-HCP/admin/server => ../admin/server
 
 replace github.com/Azure/ARO-HCP/internal => ../internal
 
 replace github.com/Azure/ARO-HCP/tooling/templatize => ../tooling/templatize
 
 replace github.com/Azure/ARO-HCP/tooling/hcpctl => ../tooling/hcpctl
+
+replace github.com/Azure/ARO-HCP/tooling/utilitytypes => ../tooling/utilitytypes
 
 replace github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp => ./sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp
 

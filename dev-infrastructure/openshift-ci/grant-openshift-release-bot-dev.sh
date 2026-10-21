@@ -5,7 +5,9 @@ APPLICATION_NAME="OpenShift Release Bot"
 SUBSCRIPTIONS=(
     "ARO HCP E2E Infrastructure (EA Subscription)"
     "ARO HCP E2E Hosted Clusters (EA Subscription)"
-    "ARO HCP E2E Management Clusters (EA Subscription)"
+    "ARO HCP E2E Hosted Clusters 2 (EA Subscription)"
+    "ARO HCP E2E Hosted Clusters - Dev - 02"
+    "ARO HCP E2E Hosted Clusters - Dev - 03"
     "ARO Hosted Control Planes (EA Subscription 1)"
 )
 GLOBAL_SUBSCRIPTION_NAME="ARO Hosted Control Planes (EA Subscription 1)"

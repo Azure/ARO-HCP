@@ -2,6 +2,44 @@ rule_files:
 - mgmt-capacity-prometheusRule.yaml
 evaluation_interval: 1m
 tests:
+# Test SWIFT NIC capacity zero - alert fires when user node has 0 NIC capacity
+- interval: 1m
+  input_series:
+  - series: 'kube_node_status_capacity{cluster="mgmt-nic-zero", node="user-pool-node-1", resource="aro_openshift_io_swift_nic"}'
+    values: "0+0x10"
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: MgmtClusterNodeSwiftNICCapacityZero
+    exp_alerts:
+    - exp_labels:
+        severity: critical
+        team: hcp-sl
+        cluster: mgmt-nic-zero
+        node: user-pool-node-1
+        resource: aro_openshift_io_swift_nic
+      exp_annotations:
+        summary: Management cluster node has zero SWIFT NIC capacity.
+        description: Node user-pool-node-1 on management cluster mgmt-nic-zero has zero SWIFT NIC capacity. No HCPs can be scheduled on this node until NIC capacity is restored.
+        runbook_url: https://portal.microsofticm.com/imp/v5/incidents/details/802529667
+        owning_team: hcp-sl
+# Test SWIFT NIC capacity zero - no alert when user node has NIC capacity > 0
+- interval: 1m
+  input_series:
+  - series: 'kube_node_status_capacity{cluster="mgmt-nic-ok", node="user-pool-node-1", resource="aro_openshift_io_swift_nic"}'
+    values: "7+0x15"
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: MgmtClusterNodeSwiftNICCapacityZero
+    exp_alerts: []
+# Test SWIFT NIC capacity zero - no alert for non-user nodes
+- interval: 1m
+  input_series:
+  - series: 'kube_node_status_capacity{cluster="mgmt-nic-sys", node="system-pool-node-1", resource="aro_openshift_io_swift_nic"}'
+    values: "0+0x15"
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: MgmtClusterNodeSwiftNICCapacityZero
+    exp_alerts: []
 # Test warning threshold (60%) - need 37 namespaces (37/60 = 61.6% > 60%)
 - interval: 1m
   input_series:

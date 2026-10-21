@@ -17,7 +17,6 @@ package e2e
 import (
 	"context"
 	"strings"
-	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -49,69 +48,69 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 				tc := framework.NewTestContext()
 
 				if tc.UsePooledIdentities() {
-					err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
-					Expect(err).NotTo(HaveOccurred())
+					err := tc.AssignIdentityContainers(ctx, 1, framework.IdentityContainerAssignmentRetryInterval)
+					Expect(err).NotTo(HaveOccurred(), "failed to assign pooled identity containers")
 				}
 
 				By("creating a resource group")
 				resourceGroup, err := tc.NewResourceGroup(ctx, "patch-name", tc.Location())
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to create resource group for patch-name test")
 
 				By("creating cluster parameters")
-				clusterParams := framework.NewDefaultClusterParams()
+				clusterParams := framework.NewDefaultClusterParams20240610()
 				clusterParams.ClusterName = clusterName
 				managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 				clusterParams.ManagedResourceGroupName = managedResourceGroupName
 
 				By("creating customer resources")
-				clusterParams, err = tc.CreateClusterCustomerResources(ctx,
+				clusterParams, err = tc.CreateClusterCustomerResources20240610(ctx,
 					resourceGroup,
 					clusterParams,
 					map[string]interface{}{},
 					TestArtifactsFS,
 					framework.RBACScopeResourceGroup,
 				)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for patch-name cluster")
 
 				By("creating the HCP cluster")
-				err = tc.CreateHCPClusterFromParam(
+				err = tc.CreateHCPClusterFromParam20240610(
 					ctx,
 					GinkgoLogr,
 					*resourceGroup.Name,
 					clusterParams,
-					45*time.Minute,
+					framework.ClusterCreationTimeout,
 				)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster for patch-name test")
 
 				By("getting credentials")
-				adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
+				adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
 					ctx,
 					tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 					*resourceGroup.Name,
 					clusterName,
-					10*time.Minute,
+					framework.GetAdminRESTConfigTimeout,
 				)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to get admin REST config for patch-name cluster")
 
 				By("ensuring the cluster is viable")
 				err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to verify HCP cluster viability for patch-name test")
 
 				By("sending a PATCH request attempting to change the resource name")
 				newName := clusterName + "-renamed"
 				update := hcpsdk20240610preview.HcpOpenShiftClusterUpdate{
 					Name: &newName,
 				}
-				_, err = framework.UpdateHCPCluster(
+				_, err = framework.UpdateHCPCluster20240610(
 					ctx,
 					tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 					*resourceGroup.Name,
 					clusterName,
 					update,
-					10*time.Minute,
+					framework.UpdateHCPClusterTimeout,
 				)
-				Expect(err).To(HaveOccurred())
-				Expect(strings.ToLower(err.Error())).To(ContainSubstring("mismatchingresourcename"))
+				Expect(err).To(HaveOccurred(), "expected error when attempting to rename cluster via PATCH")
+				Expect(strings.ToLower(err.Error())).To(ContainSubstring("mismatchingresourcename"), "error should indicate mismatching resource name")
 			},
 		)
 	})
@@ -125,53 +124,53 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 				tc := framework.NewTestContext()
 
 				if tc.UsePooledIdentities() {
-					err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
-					Expect(err).NotTo(HaveOccurred())
+					err := tc.AssignIdentityContainers(ctx, 1, framework.IdentityContainerAssignmentRetryInterval)
+					Expect(err).NotTo(HaveOccurred(), "failed to assign pooled identity containers")
 				}
 
 				By("creating a resource group")
 				resourceGroup, err := tc.NewResourceGroup(ctx, "patch-tags", tc.Location())
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to create resource group for patch-tags test")
 
 				By("creating cluster parameters")
-				clusterParams := framework.NewDefaultClusterParams()
+				clusterParams := framework.NewDefaultClusterParams20240610()
 				clusterParams.ClusterName = clusterName
 				managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 				clusterParams.ManagedResourceGroupName = managedResourceGroupName
 
 				By("creating customer resources")
-				clusterParams, err = tc.CreateClusterCustomerResources(ctx,
+				clusterParams, err = tc.CreateClusterCustomerResources20240610(ctx,
 					resourceGroup,
 					clusterParams,
 					map[string]interface{}{},
 					TestArtifactsFS,
 					framework.RBACScopeResourceGroup,
 				)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for patch-tags cluster")
 
 				By("creating the HCP cluster")
-				err = tc.CreateHCPClusterFromParam(
+				err = tc.CreateHCPClusterFromParam20240610(
 					ctx,
 					GinkgoLogr,
 					*resourceGroup.Name,
 					clusterParams,
-					45*time.Minute,
+					framework.ClusterCreationTimeout,
 				)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster for patch-tags test")
 
 				By("getting credentials")
-				adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
+				adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
 					ctx,
 					tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 					*resourceGroup.Name,
 					clusterName,
-					10*time.Minute,
+					framework.GetAdminRESTConfigTimeout,
 				)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to get admin REST config for patch-tags cluster")
 
 				By("ensuring the cluster is viable")
 				err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to verify HCP cluster viability for patch-tags test")
 
 				By("sending a PATCH request to set a tag")
 				val := "should succeed"
@@ -181,32 +180,32 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 						"test": &val,
 					},
 				}
-				resp, err := framework.UpdateHCPCluster(
+				resp, err := framework.UpdateHCPCluster20240610(
 					ctx,
 					tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 					*resourceGroup.Name,
 					clusterName,
 					update,
-					10*time.Minute,
+					framework.UpdateHCPClusterTimeout,
 				)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to update HCP cluster tags via PATCH")
 
 				By("verifying the tag is present in the update response body")
 				Expect(resp.Tags).ToNot(BeNil(), "update response Tags was nil")
 				Expect(resp.Tags["test"]).ToNot(BeNil(), "update response Tags[\"test\"] was nil")
-				Expect(*resp.Tags["test"]).To(Equal(val))
+				Expect(*resp.Tags["test"]).To(Equal(val), "update response Tags[\"test\"] should equal %q", val)
 
 				By("verifying the tag is present on the cluster")
-				respGet, err := framework.GetHCPCluster(
+				respGet, err := framework.GetHCPCluster20240610(
 					ctx,
 					tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 					*resourceGroup.Name,
 					clusterName,
 				)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to GET HCP cluster after tag update")
 				Expect(respGet.Tags).ToNot(BeNil(), "GET response Tags was nil")
 				Expect(respGet.Tags["test"]).ToNot(BeNil(), "GET response Tags[\"test\"] was nil")
-				Expect(*respGet.Tags["test"]).To(Equal(val))
+				Expect(*respGet.Tags["test"]).To(Equal(val), "GET response Tags[\"test\"] should equal %q after update", val)
 			},
 		)
 	})

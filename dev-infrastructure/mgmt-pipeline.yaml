@@ -9,6 +9,32 @@
 $schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.Management.Infra
 rolloutName: Management Cluster Rollout
+buildStep:
+  command: bash
+  args:
+  - -c
+  - |
+    set -o errexit
+    set -o nounset
+    set -o pipefail
+    tmp="$(mktemp ./scripts/cleanup-pko-resources/cleanup-pko-resources.XXXXXX)"
+    trap 'rm -f "${tmp}"' EXIT
+    CGO_ENABLED=0 go build -o "${tmp}" ./scripts/cleanup-pko-resources
+    chmod 0755 "${tmp}"
+    mv "${tmp}" ./scripts/cleanup-pko-resources/cleanup-pko-resources
+    trap - EXIT
+    tmp2="$(mktemp ./scripts/recreate-system-pool/recreate-system-pool.XXXXXX)"
+    trap 'rm -f "${tmp2}"' EXIT
+    CGO_ENABLED=0 go build -o "${tmp2}" ./scripts/recreate-system-pool
+    chmod 0755 "${tmp2}"
+    mv "${tmp2}" ./scripts/recreate-system-pool/recreate-system-pool
+    trap - EXIT
+    tmp3="$(mktemp ./scripts/recreate-broken-pools/recreate-broken-pools.XXXXXX)"
+    trap 'rm -f "${tmp3}"' EXIT
+    CGO_ENABLED=0 go build -o "${tmp3}" ./scripts/recreate-broken-pools
+    chmod 0755 "${tmp3}"
+    mv "${tmp3}" ./scripts/recreate-broken-pools/recreate-broken-pools
+    trap - EXIT
 resourceGroups:
 - name: global
   resourceGroup: '{{ .global.rg }}'
@@ -69,6 +95,23 @@ resourceGroups:
   resourceGroup: '{{ .mgmt.rg }}'
   subscription: '{{ .mgmt.subscription.key }}'
   steps:
+  - name: grafana-monitoring-reader
+    action: ARM
+    template: templates/grafana-monitoring-reader.bicep
+    parameters: configurations/grafana-monitoring-reader.tmpl.bicepparam
+    deploymentLevel: Subscription
+    variables:
+    - name: grafanaPrincipalId
+      input:
+        resourceGroup: global
+        step: output
+        name: grafanaPrincipalId
+  - name: subscription-output
+    action: ARM
+    template: templates/subscription-lookup.bicep
+    parameters: configurations/subscription-lookup.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
   - name: rpRegistration
     action: ProviderFeatureRegistration
     providerConfigRef: mgmt.subscription.providers
@@ -175,6 +218,97 @@ resourceGroups:
         name: mgmtKeyVaultUrl
     issuer:
       value: OneCertV2-PublicCA
+  # Detect and self-heal the AKS system pool when NRP KVS corruption
+  # has wedged it (AROSLSRE-924 / ICM 798003653). Runs BEFORE the cluster
+  # ARM step so the cluster PUT does not get stuck behind a wedged
+  # VMSS update. The Go binary checks cluster existence first and exits
+  # 0 (no-op) if the cluster has not been created yet (greenfield
+  # rollout), or if any of the four detection guards fail.
+  - name: pipeline-msi-reader-permissions
+    action: ARM
+    template: templates/pipeline-msi-reader-permissions.bicep
+    parameters: configurations/pipeline-msi-reader-permissions.tmpl.bicepparam
+    deploymentLevel: Subscription
+    variables:
+    - name: globalMSIId
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
+  - name: recreate-system-pool-if-broken
+    action: Shell
+    command: ./scripts/recreate-system-pool/recreate-system-pool
+    workingDir: .
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
+    variables:
+    - name: CLUSTER_NAME
+      configRef: mgmt.aks.name
+    - name: RESOURCE_GROUP
+      configRef: mgmt.rg
+    - name: SUBSCRIPTION_ID
+      input:
+        resourceGroup: management
+        step: subscription-output
+        name: subscriptionId
+    - name: NRP_FAIL_THRESHOLD
+      value: '10'
+    - name: NRP_FAIL_WINDOW_MIN
+      value: '360'
+    dependsOn:
+    - resourceGroup: management
+      step: cx-oncert-public-kv-issuer
+    - resourceGroup: management
+      step: subscription-output
+    - resourceGroup: management
+      step: oncert-private-kv-issuer
+    - resourceGroup: management
+      step: oncert-public-kv-issuer
+    - resourceGroup: management
+      step: pipeline-msi-reader-permissions
+  - name: recreate-broken-user-nodepools
+    action: Shell
+    command: ./scripts/recreate-broken-pools/recreate-broken-pools
+    workingDir: .
+    # Internal overallTimeoutMin = 120. The extra 30m headroom accommodates
+    # the deferred forced-evidence cleanup contexts (abort + restore are
+    # rooted in context.Background and can run for up to ~23m past the
+    # parent ctx after a forced-evidence probe).
+    timeout: '150m'
+    automatedRetry:
+      errorContainsAny:
+      - "restore forced-evidence pool spec"
+      maximumRetryCount: 2
+      durationBetweenRetries: 5m
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
+    variables:
+    - name: CLUSTER_NAME
+      configRef: mgmt.aks.name
+    - name: RESOURCE_GROUP
+      configRef: mgmt.rg
+    - name: SUBSCRIPTION_ID
+      input:
+        resourceGroup: management
+        step: subscription-output
+        name: subscriptionId
+    - name: NODEPOOL_TAG
+      value: 'worker'
+    - name: NRP_FAIL_THRESHOLD
+      value: '10'
+    - name: NRP_FAIL_WINDOW_MIN
+      value: '360'
+    - name: FORCED_EVIDENCE_TIMEOUT_MIN
+      value: '20'
+    dependsOn:
+    - resourceGroup: management
+      step: recreate-system-pool-if-broken
   # Build the MC
   - name: cluster
     action: ARM
@@ -229,6 +363,8 @@ resourceGroups:
       step: oncert-private-kv-issuer
     - resourceGroup: management
       step: oncert-public-kv-issuer
+    - resourceGroup: management
+      step: recreate-broken-user-nodepools
     automatedRetry:
       errorContainsAny:
       - "DeploymentScriptACIProvisioningTimeout"
@@ -254,26 +390,6 @@ resourceGroups:
     dependsOn:
     - resourceGroup: management
       step: cluster
-  - name: delete-non-swift-user-nodepools
-    aksCluster: '{{ .mgmt.aks.name }}'
-    action: Shell
-    command: ./scripts/delete-user-nodepools.sh
-    workingDir: .
-    shellIdentity:
-      input:
-        resourceGroup: global
-        step: output
-        name: globalMSIId
-    variables:
-    - name: CLUSTER_NAME
-      configRef: mgmt.aks.name
-    - name: RESOURCE_GROUP
-      configRef: mgmt.rg
-    - name: POOL_NAME_PATTERN
-      value: 'user[0-9]+'
-    dependsOn:
-    - resourceGroup: management
-      step: cluster
   - name: upgrade-aks-cluster
     action: Shell
     command: ./upgrade-aks-cluster.sh
@@ -292,7 +408,7 @@ resourceGroups:
       configRef: mgmt.aks.kubernetesVersion
     dependsOn:
     - resourceGroup: management
-      step: delete-non-swift-user-nodepools
+      step: cluster
   - name: nsp
     action: ARM
     omitFromServiceGroupCompletion: true
@@ -384,6 +500,7 @@ resourceGroups:
   - name: prometheus
     aksCluster: '{{ .mgmt.aks.name }}'
     action: Helm
+    timeout: 10m
     releaseName: 'arohcp-monitor'
     releaseNamespace: 'prometheus'
     namespaceFiles:
@@ -412,6 +529,8 @@ resourceGroups:
     dependsOn:
     - resourceGroup: management
       step: upgrade-aks-cluster
+    - resourceGroup: management
+      step: image-registry-policy
     identityFrom:
       resourceGroup: global
       step: output
@@ -461,6 +580,34 @@ resourceGroups:
       - "Internal error occurred"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
+  - name: image-registry-policy
+    aksCluster: '{{ .mgmt.aks.name }}'
+    action: Helm
+    releaseName: image-registry-policy
+    releaseNamespace: image-registry-policy
+    chartDir: ./../image-registry-policy/deploy
+    valuesFile: ./../image-registry-policy/values.yaml
+    kustoEndpoint:
+      resourceGroup: kusto
+      step: output
+      name: kustoUri
+    kustoDatabase: '{{ .kusto.serviceLogsDatabase }}'
+    kustoTable: 'containerLogs'
+    dependsOn:
+    - resourceGroup: management
+      step: cluster
+    - resourceGroup: management
+      step: upgrade-aks-cluster
+    identityFrom:
+      resourceGroup: global
+      step: output
+      name: globalMSIId
+    automatedRetry:
+      errorContainsAny:
+      - "500 Internal Server Error"
+      - "Internal error occurred"
+      maximumRetryCount: 3
+      durationBetweenRetries: 1m
   - name: storageclass
     aksCluster: '{{ .mgmt.aks.name }}'
     action: Helm
@@ -477,6 +624,8 @@ resourceGroups:
     dependsOn:
     - resourceGroup: management
       step: upgrade-aks-cluster
+    - resourceGroup: management
+      step: image-registry-policy
     identityFrom:
       resourceGroup: global
       step: output
@@ -505,6 +654,8 @@ resourceGroups:
     dependsOn:
     - resourceGroup: management
       step: upgrade-aks-cluster
+    - resourceGroup: management
+      step: image-registry-policy
     identityFrom:
       resourceGroup: global
       step: output
@@ -531,6 +682,8 @@ resourceGroups:
     dependsOn:
     - resourceGroup: management
       step: upgrade-aks-cluster
+    - resourceGroup: management
+      step: image-registry-policy
     identityFrom:
       resourceGroup: global
       step: output
@@ -545,7 +698,7 @@ resourceGroups:
   - name: cleanup-pko
     aksCluster: '{{ .mgmt.aks.name }}'
     action: Shell
-    command: go run ./scripts/cleanup-pko-resources || echo "[WARNING] cleanup-pko exited non-zero, continuing (best-effort)"
+    command: ./scripts/cleanup-pko-resources/cleanup-pko-resources
     workingDir: .
     shellIdentity:
       input:
@@ -597,6 +750,7 @@ resourceGroups:
     releaseNamespace: 'arobit'
     chartDir: ../observability/arobit/deploy
     valuesFile: ../observability/arobit/values-mgmt.yaml
+    timeout: 10m
     kustoEndpoint:
       resourceGroup: kusto
       step: output
@@ -627,6 +781,7 @@ resourceGroups:
       errorContainsAny:
       - "500 Internal Server Error"
       - "Internal error occurred"
+      - "arobit-forwarder not ready. status: InProgress"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
   - name: kube-events
@@ -645,6 +800,8 @@ resourceGroups:
     dependsOn:
     - resourceGroup: management
       step: upgrade-aks-cluster
+    - resourceGroup: management
+      step: image-registry-policy
     identityFrom:
       resourceGroup: global
       step: output

@@ -19,6 +19,7 @@ import (
 	"crypto/tls"
 	"embed"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httputil"
 	"time"
@@ -160,28 +161,45 @@ func (v verifySimpleWebApp) Verify(ctx context.Context, adminRESTConfig *rest.Co
 		return fmt.Errorf("route host was never found: %w", err)
 	}
 
-	// wait for a response
-	lastErr = nil
 	url := "https://" + host
 
-	// Create HTTP client with TLS skip for development environments
-	client := &http.Client{}
-	if framework.IsDevelopmentEnvironment() {
-		client.Transport = &http.Transport{
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: true,
-			},
-		}
+	// First wait for app reachability using InsecureSkipVerify.
+	// Cert provisioning (OneCert -> Key Vault -> ACM -> IngressController) has
+	// variable latency, so this proves app availability independently of trust.
+	insecureTransport := http.DefaultTransport.(*http.Transport).Clone()
+	insecureTransport.TLSClientConfig = &tls.Config{
+		InsecureSkipVerify: true,
 	}
+	if err := waitForRouteReachability(ctx, &http.Client{Transport: insecureTransport}, url, 25*time.Minute); err != nil {
+		return err
+	}
+
+	// Then require strict TLS verification on the same route reachability check.
+	if framework.IsDevelopmentEnvironment() {
+		ginkgo.GinkgoWriter.Printf("Skipping strict TLS route reachability in development environment\n")
+		return nil
+	}
+	secureTransport := http.DefaultTransport.(*http.Transport).Clone()
+	if err := waitForRouteReachability(ctx, &http.Client{Transport: secureTransport}, url, 10*time.Minute); err != nil {
+		printNegotiatedCertificate(ctx, host)
+		return err
+	}
+
+	return nil
+}
+
+// waitForRouteReachability polls the URL with the provided client until a
+// successful HTTP 200 response is observed or timeout is reached.
+func waitForRouteReachability(ctx context.Context, client *http.Client, url string, timeout time.Duration) error {
+	var lastErr error
 	startTime := time.Now()
 	logged5Min := false
 	logged10Min := false
 	logged15Min := false
-	// firstResponseReceived := false
-	err = wait.PollUntilContextTimeout(ctx, 10*time.Second, 25*time.Minute, true, func(ctx context.Context) (done bool, err error) {
+
+	err := wait.PollUntilContextTimeout(ctx, 10*time.Second, timeout, true, func(ctx context.Context) (done bool, err error) {
 		elapsed := time.Since(startTime)
 
-		// Log progress messages at specific intervals
 		if elapsed >= 15*time.Minute && !logged15Min {
 			ginkgo.GinkgoWriter.Printf("Route availability check is taking over 15 minutes: url=%s elapsed=%v\n", url, elapsed)
 			logged15Min = true
@@ -204,7 +222,6 @@ func (v verifySimpleWebApp) Verify(ctx context.Context, adminRESTConfig *rest.Co
 		}
 		defer resp.Body.Close()
 
-		// Check for successful HTTP status code (200)
 		if resp.StatusCode != 200 {
 			statusErr := fmt.Errorf("received non-success status code: %d %s", resp.StatusCode, resp.Status)
 			if lastErr == nil || statusErr.Error() != lastErr.Error() {
@@ -225,7 +242,6 @@ func (v verifySimpleWebApp) Verify(ctx context.Context, adminRESTConfig *rest.Co
 			return false, nil
 		}
 
-		// Log timing information for successful response
 		elapsed = time.Since(startTime)
 		if elapsed < 5*time.Minute {
 			ginkgo.GinkgoWriter.Printf("Route became available in less than 5 minutes: url=%s elapsed=%v\n", url, elapsed)
@@ -233,19 +249,50 @@ func (v verifySimpleWebApp) Verify(ctx context.Context, adminRESTConfig *rest.Co
 		ginkgo.GinkgoWriter.Printf("got successful response from route: response=%s\n", string(responseByte))
 		return true, nil
 	})
+
 	switch {
 	case err == nil:
-		// continue
+		return nil
 	case lastErr != nil:
 		klog.ErrorS(lastErr, "failed to get or read response from route",
 			"url", url,
 		)
-		return fmt.Errorf("route host was never found: %w", lastErr)
-	case err != nil:
-		return fmt.Errorf("route host was never found: %w", err)
+		return fmt.Errorf("route was never reachable: %w", lastErr)
+	default:
+		return fmt.Errorf("route was never reachable: %w", err)
 	}
+}
 
-	return nil
+// printNegotiatedCertificate logs the leaf certificate currently negotiated for
+// host to aid strict TLS reachability diagnostics.
+func printNegotiatedCertificate(ctx context.Context, host string) {
+	dialCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	dialer := &tls.Dialer{
+		NetDialer: &net.Dialer{Timeout: 10 * time.Second},
+		Config:    &tls.Config{InsecureSkipVerify: true},
+	}
+	conn, err := dialer.DialContext(dialCtx, "tcp", host+":443")
+	if err != nil {
+		ginkgo.GinkgoWriter.Printf("failed to dial host to print negotiated certificate: host=%s err=%v\n", host, err)
+		return
+	}
+	defer conn.Close()
+
+	certs := conn.(*tls.Conn).ConnectionState().PeerCertificates
+	if len(certs) == 0 {
+		ginkgo.GinkgoWriter.Printf("no certificates served by %s\n", host)
+		return
+	}
+	ginkgo.GinkgoWriter.Printf("Negotiated certificate: host=%s subject=%v issuer=%v dnsNames=%v notBefore=%v notAfter=%v\n",
+		host,
+		certs[0].Subject,
+		certs[0].Issuer,
+		certs[0].DNSNames,
+		certs[0].NotBefore,
+		certs[0].NotAfter,
+	)
 }
 
 func gvr(group, version, resource string) schema.GroupVersionResource {

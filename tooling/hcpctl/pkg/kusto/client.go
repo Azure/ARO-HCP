@@ -24,6 +24,7 @@ import (
 
 	"github.com/Azure/azure-kusto-go/azkustodata"
 	azkquery "github.com/Azure/azure-kusto-go/azkustodata/query"
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 )
 
 type KustoClient interface {
@@ -76,8 +77,15 @@ func NewClient(endpoint *url.URL, queryTimeout time.Duration) (*Client, error) {
 	// Create connection string builder
 	kcsb := azkustodata.NewConnectionStringBuilder(endpoint.String())
 
-	// Use Azure default credential chain for authentication
-	kcsb = kcsb.WithDefaultAzureCredential()
+	// Use Azure default credential chain for authentication, which respects AZURE_CONFIG_DIR
+	cred, err := azidentity.NewDefaultAzureCredential(&azidentity.DefaultAzureCredentialOptions{
+		AdditionallyAllowedTenants:   []string{"*"},
+		RequireAzureTokenCredentials: true,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Azure credential: %w", err)
+	}
+	kcsb = kcsb.WithTokenCredential(cred)
 
 	// Create Kusto client with authentication
 	kustoClient, err := azkustodata.New(kcsb)

@@ -25,6 +25,8 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 )
 
 const (
@@ -62,6 +64,7 @@ func setupGithubAzureFederationAuthRefresher(ctx context.Context) error {
 		return fmt.Errorf("failed to refresh Azure session with federated GitHub ID token: %w", err)
 	}
 	go func() {
+		defer utilruntime.HandleCrash()
 		ticker := time.NewTicker(5 * time.Minute)
 		defer ticker.Stop()
 		for {

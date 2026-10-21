@@ -50,11 +50,11 @@ var _ = Describe("Get HCPOpenShiftCluster nodepool", func() {
 				for np := range nps {
 					By("Send get request for nodepool")
 					clusterNodePool, err := tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient().Get(ctx, customerEnv.CustomerRGName, clusterEnv.Name, nps[np].Name, nodePoolOptions)
-					Expect(err).To(BeNil())
+					Expect(err).To(BeNil(), "failed to get nodepool %q for cluster %q", nps[np].Name, clusterEnv.Name)
 					Expect(clusterNodePool).ToNot(BeNil(), "nodepool GET response was nil for nodepool %s", nps[np].Name)
 					By("Check to see nodepool exists and is successfully provisioned")
-					Expect(string(*clusterNodePool.Name)).To(Equal(nps[np].Name))
-					Expect(string(*clusterNodePool.Properties.ProvisioningState)).To(Equal("Succeeded"))
+					Expect(string(*clusterNodePool.Name)).To(Equal(nps[np].Name), "expected nodepool name to equal %s", nps[np].Name)
+					Expect(string(*clusterNodePool.Properties.ProvisioningState)).To(Equal("Succeeded"), "expected nodepool %s provisioning state to be Succeeded", nps[np].Name)
 				}
 			}
 		})

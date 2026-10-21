@@ -28,6 +28,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/spf13/cobra"
 
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/utils/set"
@@ -138,6 +139,7 @@ type completedOptions struct {
 	Location                string
 	ResourcesDBClient       database.ResourcesDBClient
 	BillingDBClient         database.BillingDBClient
+	FleetDBClient           database.FleetDBClient
 	ClusterServiceClient    ocm.ClusterServiceClientSpec
 	KustoClient             *kusto.Client
 	FpaCredentialRetriever  fpa.FirstPartyApplicationTokenCredentialRetriever
@@ -221,6 +223,10 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create the billing database client: %w", err)
 	}
+	fleetDBClient, err := database.NewFleetDBClient(cosmosDatabaseClient)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create the fleet database client: %w", err)
+	}
 
 	// Create Kusto client
 	var kustoClient *kusto.Client
@@ -290,6 +296,7 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 			Location:                o.Location,
 			ResourcesDBClient:       resourcesDBClient,
 			BillingDBClient:         billingDBClient,
+			FleetDBClient:           fleetDBClient,
 			ClusterServiceClient:    csClient,
 			KustoClient:             kustoClient,
 			FpaCredentialRetriever:  fpaCredentialRetriever,
@@ -345,6 +352,7 @@ func (opts *Options) Run(ctx context.Context) error {
 		metricsListener,
 		opts.ResourcesDBClient,
 		opts.BillingDBClient,
+		opts.FleetDBClient,
 		opts.ClusterServiceClient,
 		opts.KustoClient,
 		opts.FpaCredentialRetriever,
@@ -359,6 +367,7 @@ func (opts *Options) Run(ctx context.Context) error {
 
 	runErrCh := make(chan error, 1)
 	go func() {
+		defer utilruntime.HandleCrash()
 		runErrCh <- adminAPI.Run(ctx)
 		logger.Info("admin api exited")
 	}()

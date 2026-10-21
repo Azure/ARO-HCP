@@ -38,21 +38,21 @@ func (g *mockResourcesGlobalListers) Subscriptions() database.GlobalLister[arm.S
 }
 
 func (g *mockResourcesGlobalListers) Clusters() database.GlobalLister[api.HCPOpenShiftCluster] {
-	return &mockTypedGlobalLister[api.HCPOpenShiftCluster, database.HCPCluster]{
+	return &mockTypedGlobalLister[api.HCPOpenShiftCluster, database.GenericDocument[api.HCPOpenShiftCluster]]{
 		client:       g.client,
 		resourceType: api.ClusterResourceType,
 	}
 }
 
 func (g *mockResourcesGlobalListers) NodePools() database.GlobalLister[api.HCPOpenShiftClusterNodePool] {
-	return &mockTypedGlobalLister[api.HCPOpenShiftClusterNodePool, database.NodePool]{
+	return &mockTypedGlobalLister[api.HCPOpenShiftClusterNodePool, database.GenericDocument[api.HCPOpenShiftClusterNodePool]]{
 		client:       g.client,
 		resourceType: api.NodePoolResourceType,
 	}
 }
 
 func (g *mockResourcesGlobalListers) ExternalAuths() database.GlobalLister[api.HCPOpenShiftClusterExternalAuth] {
-	return &mockTypedGlobalLister[api.HCPOpenShiftClusterExternalAuth, database.ExternalAuth]{
+	return &mockTypedGlobalLister[api.HCPOpenShiftClusterExternalAuth, database.GenericDocument[api.HCPOpenShiftClusterExternalAuth]]{
 		client:       g.client,
 		resourceType: api.ExternalAuthResourceType,
 	}

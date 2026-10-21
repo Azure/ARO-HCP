@@ -40,12 +40,12 @@ func (h *CosmosDumpHandler) ServeHTTP(w http.ResponseWriter, request *http.Reque
 		return utils.TrackError(err)
 	}
 
-	if err := serverutils.DumpDataToLogger(ctx, h.resourcesDBClient, resourceID); err != nil {
+	if err := serverutils.DumpDataToLogger(ctx, h.resourcesDBClient, nil, nil, resourceID); err != nil {
 		return utils.TrackError(err)
 	}
 
 	_, err = arm.WriteJSONResponse(w, http.StatusOK, map[string]any{})
-	return err
+	return utils.TrackError(err)
 }
 
 type BillingDumpHandler struct {
@@ -71,5 +71,5 @@ func (h *BillingDumpHandler) ServeHTTP(w http.ResponseWriter, request *http.Requ
 	}
 
 	_, err = arm.WriteJSONResponse(w, http.StatusOK, map[string]any{})
-	return err
+	return utils.TrackError(err)
 }

@@ -20,6 +20,9 @@ param adminGroups string
 @description('CSV separated list of groups to assign viewer in the Kusto cluster, format: "(tenantId/)groupId", if tenantId is not provided, the current tenant will be used')
 param viewerGroups string
 
+@description('CSV separated list of identities (apps/managed identities) to assign viewer in the Kusto cluster, format: "(tenantId/)principalId", if tenantId is not provided, the current tenant will be used')
+param viewerIdentities string = ''
+
 @description('Minimum number of nodes for autoscale')
 param autoScaleMin int
 
@@ -45,6 +48,13 @@ var viewerPermissions = [
   for group in csvToArray(viewerGroups): {
     tenantId: contains(group, '/') ? split(group, '/')[0] : tenant().tenantId
     groupId: contains(group, '/') ? split(group, '/')[1] : group
+  }
+]
+
+var viewerIdentityPermissions = [
+  for identity in csvToArray(viewerIdentities): {
+    tenantId: contains(identity, '/') ? split(identity, '/')[0] : tenant().tenantId
+    principalId: contains(identity, '/') ? split(identity, '/')[1] : identity
   }
 ]
 
@@ -89,6 +99,18 @@ resource kusto 'Microsoft.Kusto/clusters@2024-04-13' = {
       properties: {
         principalId: permission.groupId
         principalType: 'Group'
+        role: 'AllDatabasesViewer'
+        tenantId: permission.tenantId
+      }
+    }
+  ]
+
+  resource clusterViewPermissionsForIdentities 'principalAssignments' = [
+    for permission in viewerIdentityPermissions: {
+      name: 'viewer-app-${permission.principalId}'
+      properties: {
+        principalId: permission.principalId
+        principalType: 'App'
         role: 'AllDatabasesViewer'
         tenantId: permission.tenantId
       }

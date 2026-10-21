@@ -26,6 +26,8 @@ import (
 
 	"k8s.io/klog/v2"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
 	"github.com/Azure/ARO-HCP/internal/signal"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/internal/version"
@@ -37,16 +39,17 @@ import (
 // from environment variables so a misconfigured pod fails fast instead of
 // silently picking up a stale operator-shell value.
 type KubeApplierRootCmdFlags struct {
-	Kubeconfig                 string
-	KubeNamespace              string
-	ManagementCluster          string
-	AzureCosmosDBName          string
-	AzureCosmosDBURL           string
-	MetricsServerListenAddress string
-	HealthzServerListenAddress string
-	LeaderElectionID           string
-	LogVerbosity               int
-	ExitOnPanic                bool
+	Kubeconfig                  string
+	KubeNamespace               string
+	ManagementClusterResourceID string
+	AzureCosmosDBName           string
+	AzureCosmosDBURL            string
+	AzureCosmosContainerName    string
+	MetricsServerListenAddress  string
+	HealthzServerListenAddress  string
+	LeaderElectionID            string
+	LogVerbosity                int
+	ExitOnPanic                 bool
 }
 
 func (f *KubeApplierRootCmdFlags) AddFlags(cmd *cobra.Command) {
@@ -54,10 +57,11 @@ func (f *KubeApplierRootCmdFlags) AddFlags(cmd *cobra.Command) {
 		"Absolute path to the kubeconfig file. Empty selects the in-cluster config.")
 	cmd.Flags().StringVar(&f.KubeNamespace, "namespace", f.KubeNamespace,
 		"Kubernetes namespace that hosts the leader-election lease.")
-	cmd.Flags().StringVar(&f.ManagementCluster, "management-cluster", f.ManagementCluster,
-		"Name of the management cluster this pod runs in. This is the Cosmos partition key.")
+	cmd.Flags().StringVar(&f.ManagementClusterResourceID, "management-cluster", f.ManagementClusterResourceID,
+		"ResourceID of the management cluster this pod runs in. This is the Cosmos partition key.")
 	cmd.Flags().StringVar(&f.AzureCosmosDBName, "cosmos-name", f.AzureCosmosDBName, "Cosmos database name.")
 	cmd.Flags().StringVar(&f.AzureCosmosDBURL, "cosmos-url", f.AzureCosmosDBURL, "Cosmos database URL.")
+	cmd.Flags().StringVar(&f.AzureCosmosContainerName, "cosmos-container", f.AzureCosmosContainerName, "Cosmos container name.")
 	cmd.Flags().StringVar(&f.MetricsServerListenAddress, "metrics-listen-address", f.MetricsServerListenAddress,
 		"Address on which to expose Prometheus metrics.")
 	cmd.Flags().StringVar(&f.HealthzServerListenAddress, "healthz-listen-address", f.HealthzServerListenAddress,
@@ -69,7 +73,7 @@ func (f *KubeApplierRootCmdFlags) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().BoolVar(&f.ExitOnPanic, "exit-on-panic", f.ExitOnPanic,
 		"If set, the process exits on any goroutine panic via apimachinery's HandleCrash.")
 
-	for _, name := range []string{"namespace", "management-cluster", "cosmos-name", "cosmos-url"} {
+	for _, name := range []string{"namespace", "management-cluster", "cosmos-name", "cosmos-url", "cosmos-container"} {
 		if err := cmd.MarkFlagRequired(name); err != nil {
 			// MarkFlagRequired only fails if the flag does not exist on the command,
 			// which is a programming error in this very function.
@@ -81,7 +85,7 @@ func (f *KubeApplierRootCmdFlags) AddFlags(cmd *cobra.Command) {
 func (f *KubeApplierRootCmdFlags) validate() error {
 	// MarkFlagRequired catches missing flags; these checks reject the
 	// pathological "--flag=" empty-string forms that cobra still accepts.
-	if len(f.ManagementCluster) == 0 {
+	if len(f.ManagementClusterResourceID) == 0 {
 		return utils.TrackError(fmt.Errorf("--management-cluster must not be empty"))
 	}
 	if len(f.AzureCosmosDBName) == 0 {
@@ -89,6 +93,9 @@ func (f *KubeApplierRootCmdFlags) validate() error {
 	}
 	if len(f.AzureCosmosDBURL) == 0 {
 		return utils.TrackError(fmt.Errorf("--cosmos-url must not be empty"))
+	}
+	if len(f.AzureCosmosContainerName) == 0 {
+		return utils.TrackError(fmt.Errorf("--cosmos-container must not be empty"))
 	}
 	if len(f.KubeNamespace) == 0 {
 		return utils.TrackError(fmt.Errorf("--namespace must not be empty"))
@@ -119,7 +126,11 @@ func (f *KubeApplierRootCmdFlags) ToKubeApplierOptions(ctx context.Context, cmd 
 		return nil, utils.TrackError(fmt.Errorf("failed to create leader election lock: %w", err))
 	}
 
-	kubeApplierDBClient, err := app.NewKubeApplierDBClient(ctx, f.AzureCosmosDBURL, f.AzureCosmosDBName)
+	managementClusterResourceID, err := azcorearm.ParseResourceID(f.ManagementClusterResourceID)
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to parse management cluster resource ID: %w", err))
+	}
+	kubeApplierDBClient, err := app.NewKubeApplierDBClient(ctx, f.AzureCosmosDBURL, f.AzureCosmosDBName, f.AzureCosmosContainerName, managementClusterResourceID)
 	if err != nil {
 		return nil, utils.TrackError(fmt.Errorf("failed to create kube-applier Cosmos client: %w", err))
 	}
@@ -130,7 +141,7 @@ func (f *KubeApplierRootCmdFlags) ToKubeApplierOptions(ctx context.Context, cmd 
 	}
 
 	return &app.Options{
-		ManagementCluster:          f.ManagementCluster,
+		ManagementCluster:          managementClusterResourceID,
 		LeaderElectionLock:         leaderElectionLock,
 		KubeApplierDBClient:        kubeApplierDBClient,
 		DynamicClient:              dyn,
@@ -168,6 +179,7 @@ func NewCmdRoot() *cobra.Command {
 	# Run kube-applier locally pointing at a personal-dev Cosmos and the
 	# in-cluster kubeconfig.
 	%s --management-cluster ${MANAGEMENT_CLUSTER} \
+		--cosmos-container ${CONTAINER_NAME} \
 		--cosmos-name ${DB_NAME} --cosmos-url ${DB_URL} \
 		--namespace ${RP_NAMESPACE}
 `, app.AppShortDescriptionName, processName),

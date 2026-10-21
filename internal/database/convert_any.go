@@ -20,7 +20,6 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/fleet"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -30,15 +29,6 @@ func CosmosToInternal[InternalAPIType, CosmosAPIType any](obj *CosmosAPIType) (*
 	var internalObj any
 	var err error
 	switch cosmosObj := any(obj).(type) {
-	case *ExternalAuth:
-		internalObj, err = CosmosToInternalExternalAuth(cosmosObj)
-
-	case *HCPCluster:
-		internalObj, err = CosmosToInternalCluster(cosmosObj)
-
-	case *NodePool:
-		internalObj, err = CosmosToInternalNodePool(cosmosObj)
-
 	case *TypedDocument:
 		var expectedObj InternalAPIType
 		switch castObj := any(expectedObj).(type) {
@@ -86,14 +76,6 @@ func InternalToCosmos[InternalAPIType, CosmosAPIType any](obj *InternalAPIType) 
 	var cosmosObj any
 	var err error
 	switch internalObj := any(obj).(type) {
-	case *api.HCPOpenShiftClusterExternalAuth:
-		cosmosObj, err = InternalToCosmosExternalAuth(internalObj)
-
-	case *api.HCPOpenShiftCluster:
-		cosmosObj, err = InternalToCosmosCluster(internalObj)
-
-	case *api.HCPOpenShiftClusterNodePool:
-		cosmosObj, err = InternalToCosmosNodePool(internalObj)
 
 	case *fleet.Stamp:
 		cosmosObj, err = InternalToCosmosFleet(internalObj)

@@ -1,0 +1,19 @@
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: {{ .Values.clusterIssuer.name | quote }}
+spec:
+  acme:
+    email: {{ .Values.clusterIssuer.email | quote }}
+    server: {{ .Values.clusterIssuer.server | quote }}
+    privateKeySecretRef:
+      name: {{ .Values.clusterIssuer.privateKeySecretName | quote }}
+    solvers:
+    - dns01:
+        azureDNS:
+          environment: {{ .Values.clusterIssuer.azureDNS.environment | quote }}
+          hostedZoneName: {{ .Values.clusterIssuer.azureDNS.hostedZoneName | quote }}
+          managedIdentity:
+            clientID: {{ .Values.clusterIssuer.azureDNS.managedIdentity.clientID | quote }}
+          resourceGroupName: {{ .Values.clusterIssuer.azureDNS.resourceGroupName | quote }}
+          subscriptionID: {{ .Values.clusterIssuer.azureDNS.subscriptionID | quote }}

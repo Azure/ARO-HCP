@@ -26,4 +26,4 @@ union
         | where resource_group == '{{.ResourceGroupName}}'
         | project timestamp, container_name, msg, log
     )
-| order by timestamp asc
+| order by timestamp {{.OrderBy}}

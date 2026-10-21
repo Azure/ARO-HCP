@@ -1,0 +1,30 @@
+{{- if and .Values.gateway.enabled (.Capabilities.APIVersions.Has "gateway.networking.k8s.io/v1/Gateway") }}
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: {{ .Values.gateway.name }}
+  namespace: {{ .Release.Namespace | quote }}
+  annotations:
+    cert-manager.io/cluster-issuer: {{ .Values.gateway.clusterIssuerName | quote }}
+  labels:
+    {{- include "opstool-gateway.labels" . | nindent 4 }}
+spec:
+  gatewayClassName: {{ .Values.gateway.className | quote }}
+  infrastructure:
+    annotations:
+      service.beta.kubernetes.io/azure-pip-name: {{ .Values.gateway.publicIpName | quote }}
+      service.beta.kubernetes.io/azure-load-balancer-resource-group: {{ .Values.gateway.publicIpResourceGroup | quote }}
+  listeners:
+  - name: {{ .Values.gateway.sectionName | quote }}
+    port: 443
+    protocol: HTTPS
+    hostname: {{ .Values.gateway.wildcardHostname | quote }}
+    tls:
+      mode: Terminate
+      certificateRefs:
+      - name: {{ .Values.gateway.credentialName }}
+        kind: Secret
+    allowedRoutes:
+      namespaces:
+        from: All
+{{- end }}

@@ -22,6 +22,7 @@ import (
 	"os"
 	"path"
 	"reflect"
+	"slices"
 	"strings"
 	"time"
 
@@ -58,27 +59,30 @@ type RowOutputFunc func(ctx context.Context, logLineChan chan *NormalizedLogLine
 // This structure is passed to RowOutputFunc implementations for processing.
 //
 // Fields available for custom output functions:
-//   - Log: The actual log message content as bytes
+//   - Log: Structured map of log fields
 //   - Cluster: The cluster ID where this log originated
 //   - Namespace: The Kubernetes namespace (for HCP logs) or service name
 //   - ContainerName: The container that generated this log
+//   - PodName: The pod that generated this log (only populated when SplitByPod is enabled)
 //   - Timestamp: When the log entry was created
 //
 // Example usage in a custom output function:
 //
 //	for logLine := range logLineChan {
+//		jsonBytes, _ := json.Marshal(logLine.Log)
 //		fmt.Printf("[%s] %s/%s/%s: %s\n",
 //			logLine.Timestamp.Format(time.RFC3339),
 //			logLine.Cluster,
 //			logLine.Namespace,
 //			logLine.ContainerName,
-//			string(logLine.Log))
+//			string(jsonBytes))
 //	}
 type NormalizedLogLine struct {
 	// Log           []byte          `kusto:"log"`
 	Cluster       string    `kusto:"cluster"`
 	Namespace     string    `kusto:"namespace_name"`
 	ContainerName string    `kusto:"container_name"`
+	PodName       string    `kusto:"pod_name"`
 	Timestamp     time.Time `kusto:"timestamp"`
 
 	Log       map[string]any  `kusto:"-"` // Log content, set by the gatherer pipeline
@@ -247,6 +251,7 @@ func NewCliGatherer(queryClient QueryClientInterface, outputPath, serviceLogsDir
 		string(kusto.QueryTypeServices):           serviceLogsDirectory,
 		string(kusto.QueryTypeHostedControlPlane): hostedControlPlaneLogsDirectory,
 		string(kusto.QueryTypeCustomLogs):         customLogsDirectory,
+		"splitByPod":                              opts.QueryOptions.SplitByPod,
 	}
 
 	return &Gatherer{
@@ -260,6 +265,7 @@ func NewCliGatherer(queryClient QueryClientInterface, outputPath, serviceLogsDir
 
 func cliOutputFunc(ctx context.Context, logLineChan chan *NormalizedLogLine, options RowOutputOptions) error {
 	outputPath := options["outputPath"].(string)
+	splitByPod, _ := options["splitByPod"].(bool)
 
 	openedFiles := make(map[string]*os.File)
 
@@ -288,22 +294,26 @@ func cliOutputFunc(ctx context.Context, logLineChan chan *NormalizedLogLine, opt
 			var fileName string
 			switch logLine.QueryType {
 			case kusto.QueryTypeKubernetesEvents, kusto.QueryTypeSystemdLogs:
-				fileName = fmt.Sprintf("%s-%s.jsonl", logLine.Cluster, logLine.QueryType)
+				fileName = fmt.Sprintf("%s_%s.jsonl", logLine.Cluster, logLine.QueryType)
 			case kusto.QueryTypeCustomLogs:
-				fileName = fmt.Sprintf("custom-query-%s.jsonl", logLine.QueryName)
+				fileName = fmt.Sprintf("custom-query_%s.jsonl", logLine.QueryName)
 			default:
-				fileName = fmt.Sprintf("%s-%s-%s.jsonl", logLine.Cluster, logLine.Namespace, logLine.ContainerName)
+				if splitByPod && logLine.PodName != "" {
+					fileName = fmt.Sprintf("%s_%s_%s_%s.jsonl", logLine.Cluster, logLine.Namespace, logLine.ContainerName, logLine.PodName)
+				} else {
+					fileName = fmt.Sprintf("%s_%s_%s.jsonl", logLine.Cluster, logLine.Namespace, logLine.ContainerName)
+				}
 			}
 
-			file, ok := openedFiles[fileName]
+			filePath := path.Join(outputPath, directory, fileName)
+			file, ok := openedFiles[filePath]
 			if !ok {
-				filePath := path.Join(outputPath, directory, fileName)
 				newFile, err := os.Create(filePath)
 				if err != nil {
 					allErrors = errors.Join(allErrors, fmt.Errorf("failed to create output file %s: %w", filePath, err))
 					continue
 				}
-				openedFiles[fileName] = newFile
+				openedFiles[filePath] = newFile
 				file = newFile
 			}
 			thisLog, err := json.Marshal(logLine.Log)
@@ -332,24 +342,61 @@ func (g *Gatherer) GatherLogs(ctx context.Context) error {
 
 	logger.V(1).Info("Query options", "queryOptions", g.GetQueryOptions())
 
-	// First, get all cluster IDs
-	clusterIds := make([]string, 0)
-	clusterIdDef, err := queryFactory.GetBuiltinQueryDefinition("clusterId")
-	if err != nil {
-		return fmt.Errorf("failed to get cluster id query definition: %w", err)
+	// Get cluster IDs: merge explicit IDs, resolved names, or discover all from RG
+	var clusterIds []string
+	if len(g.opts.QueryOptions.ClusterIds) > 0 {
+		clusterIds = append(clusterIds, g.opts.QueryOptions.ClusterIds...)
+		logger.V(1).Info("Using explicitly provided clusterIDs", "clusterIds", strings.Join(g.opts.QueryOptions.ClusterIds, ", "))
 	}
-	clusterIdQueries, err := queryFactory.Build(*clusterIdDef, kusto.NewTemplateDataFromOptions(g.GetQueryOptions()))
-	if err != nil {
-		return fmt.Errorf("failed to build cluster id query: %w", err)
+	if len(g.opts.QueryOptions.ClusterNames) > 0 {
+		clusterIdByNameDef, err := queryFactory.GetBuiltinQueryDefinition("clusterIdByName")
+		if err != nil {
+			return fmt.Errorf("failed to get clusterIdByName query definition: %w", err)
+		}
+		for _, name := range g.opts.QueryOptions.ClusterNames {
+			templateData := kusto.NewTemplateDataFromOptions(g.GetQueryOptions(), kusto.WithFilterClusterName(name))
+			nameQueries, err := queryFactory.Build(*clusterIdByNameDef, templateData)
+			if err != nil {
+				return fmt.Errorf("failed to build clusterIdByName query for %q: %w", name, err)
+			}
+			resolvedIds, err := executeQueryAndConvert[ClusterIdRow](ctx, g, nameQueries[0])
+			if err != nil {
+				return fmt.Errorf("failed to resolve cluster name %q to ID: %w", name, err)
+			}
+			if len(resolvedIds) == 0 {
+				return fmt.Errorf("cluster name %q did not resolve to any cluster ID", name)
+			}
+			for _, row := range resolvedIds {
+				clusterIds = append(clusterIds, row.ClusterId)
+			}
+		}
+		logger.V(1).Info("Resolved cluster names to IDs", "clusterNames", strings.Join(g.opts.QueryOptions.ClusterNames, ", "), "resolvedIds", strings.Join(clusterIds, ", "))
 	}
-	allClusterIds, err := executeQueryAndConvert[ClusterIdRow](ctx, g, clusterIdQueries[0])
-	if err != nil {
-		return fmt.Errorf("failed to execute cluster id query: %w", err)
+	if len(clusterIds) == 0 {
+		clusterIdDef, err := queryFactory.GetBuiltinQueryDefinition("clusterId")
+		if err != nil {
+			return fmt.Errorf("failed to get cluster id query definition: %w", err)
+		}
+		clusterIdQueries, err := queryFactory.Build(*clusterIdDef, kusto.NewTemplateDataFromOptions(g.GetQueryOptions()))
+		if err != nil {
+			return fmt.Errorf("failed to build cluster id query: %w", err)
+		}
+		allClusterIds, err := executeQueryAndConvert[ClusterIdRow](ctx, g, clusterIdQueries[0])
+		if err != nil {
+			return fmt.Errorf("failed to execute cluster id query: %w", err)
+		}
+		for _, row := range allClusterIds {
+			clusterIds = append(clusterIds, row.ClusterId)
+		}
+		logger.V(1).Info("Discovered clusterIDs from resource group", "clusterIds", strings.Join(clusterIds, ", "))
 	}
-	for _, row := range allClusterIds {
-		clusterIds = append(clusterIds, row.ClusterId)
+
+	slices.Sort(clusterIds)
+	clusterIds = slices.Compact(clusterIds)
+	clusterIds = slices.DeleteFunc(clusterIds, func(s string) bool { return s == "" })
+	if len(clusterIds) == 0 && (len(g.opts.QueryOptions.ClusterIds) > 0 || len(g.opts.QueryOptions.ClusterNames) > 0) {
+		return fmt.Errorf("no valid cluster IDs found for resource group %q", g.opts.QueryOptions.ResourceGroupName)
 	}
-	logger.V(1).Info("Obtained following clusterIDs", "clusterIds", strings.Join(clusterIds, ", "))
 
 	// Gather service logs
 	servicesQueries, err := serviceLogs(queryFactory, "serviceLogs", g.GetQueryOptions(), clusterIds)

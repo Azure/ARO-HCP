@@ -16,7 +16,8 @@ HELMCHART_DIR = deploy
 CONTAINER_ENGINE ?= $(shell command -v podman 2>/dev/null || echo docker)
 BINARY = bin/mgmt-agent
 MGMT_AGENT_SOURCES = $(shell find . -name '*.go' -o -name 'go.mod' -o -name 'go.sum')
-LDFLAGS = -ldflags ""
+LDFLAGS = -ldflags "\
+	-X github.com/Azure/ARO-HCP/internal/version.CommitSHA=${ARO_HCP_REVISION}"
 
 # Default target
 .DEFAULT_GOAL := build

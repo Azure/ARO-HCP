@@ -1,0 +1,91 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: hcp-kas-latency-recording-rules
+  namespace: prometheus
+spec:
+  groups:
+  - name: hcp-kas-latency-recording-rules
+    interval: 1m
+    rules:
+    # Atomic latency SLI ratio: good requests / total requests, evaluated in a
+    # single expression so numerator and denominator share the same scrape
+    # timestamp. This prevents good/total > 1.0 skew that arises when two
+    # separate recording rules are evaluated at independent timestamps during
+    # load changes.
+    #
+    # A request is "good" if it completes within the upstream K8s threshold for
+    # its verb/scope category (mutating: 1s, resource-scope reads: 1s,
+    # namespace-scope reads: 5s, cluster-scope reads: 30s). WATCH requests are
+    # excluded; they have unbounded duration by design and are not part of the
+    # upstream K8s latency SLI definition.
+    #
+    # The `or` operator in the numerator is correct: the verb/scope selectors
+    # are mutually exclusive, so `or` unions disjoint series without double-
+    # counting. The bucket and count metrics are scraped atomically from the
+    # same histogram scrape, so the ratio is mathematically bounded to [0, 1].
+    #
+    # Division by zero: when total is zero (no traffic), PromQL binary `/`
+    # drops the sample entirely rather than producing +Inf. This is the correct
+    # behavior — no traffic means no SLI data point. Do not add
+    # `or vector(0)` or `clamp_max` here; either would corrupt the metric.
+    - record: kas:apiserver_request_latency:sli_ratio:rate5m
+      expr: |
+        sum by (namespace, cluster) (
+          rate(apiserver_request_sli_duration_seconds_bucket{
+            namespace=~"ocm-.*",
+            verb=~"POST|PUT|PATCH|DELETE",
+            scope=~"resource|namespace|cluster",
+            subresource!~"proxy|attach|log|exec|portforward",
+            le="1.0"
+          }[5m])
+          or
+          rate(apiserver_request_sli_duration_seconds_bucket{
+            namespace=~"ocm-.*",
+            verb=~"GET|LIST",
+            scope="resource",
+            subresource!~"proxy|attach|log|exec|portforward",
+            le="1.0"
+          }[5m])
+          or
+          rate(apiserver_request_sli_duration_seconds_bucket{
+            namespace=~"ocm-.*",
+            verb=~"GET|LIST",
+            scope="namespace",
+            subresource!~"proxy|attach|log|exec|portforward",
+            le="5.0"
+          }[5m])
+          or
+          rate(apiserver_request_sli_duration_seconds_bucket{
+            namespace=~"ocm-.*",
+            verb=~"GET|LIST",
+            scope="cluster",
+            subresource!~"proxy|attach|log|exec|portforward",
+            le="30.0"
+          }[5m])
+        )
+        /
+        sum by (namespace, cluster) (
+          rate(apiserver_request_sli_duration_seconds_count{
+            namespace=~"ocm-.*",
+            verb=~"POST|PUT|PATCH|DELETE|GET|LIST",
+            scope=~"resource|namespace|cluster",
+            subresource!~"proxy|attach|log|exec|portforward"
+          }[5m])
+        )
+    # Window averages over the base 5m ratio. avg_over_time of a ratio is
+    # correct here because the base rule already produces a dimensionless [0,1]
+    # value; smoothing it preserves that bound and gives burn-rate alert
+    # consumers a stable signal.
+    - record: kas:apiserver_request_latency:sli_ratio:rate_avg_30m
+      expr: avg_over_time(kas:apiserver_request_latency:sli_ratio:rate5m[30m])
+    - record: kas:apiserver_request_latency:sli_ratio:rate_avg_1h
+      expr: avg_over_time(kas:apiserver_request_latency:sli_ratio:rate5m[1h])
+    - record: kas:apiserver_request_latency:sli_ratio:rate_avg_6h
+      expr: avg_over_time(kas:apiserver_request_latency:sli_ratio:rate5m[6h])
+    - record: kas:apiserver_request_latency:sli_ratio:rate_avg_3d
+      expr: avg_over_time(kas:apiserver_request_latency:sli_ratio:rate5m[3d])
+    # 30-day window (for dashboard SLO status gauge only, not alerting).
+    # Subquery step of 5m matches the base rule rate window (rate5m).
+    - record: kas:apiserver_request_latency:sli_ratio:rate_avg_30d
+      expr: avg_over_time(kas:apiserver_request_latency:sli_ratio:rate5m[30d:5m])

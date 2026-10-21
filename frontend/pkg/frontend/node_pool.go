@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"k8s.io/apimachinery/pkg/api/operation"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -212,6 +213,7 @@ func decodeDesiredNodePoolCreate(ctx context.Context, azureLocation string) (*ap
 		return nil, nameResourceIDMismatch(resourceID, newInternalNodePool.Name)
 	}
 	conversion.CopyReadOnlyTrackedResourceValues(&newInternalNodePool.TrackedResource, ptr.To(arm.NewTrackedResource(resourceID, azureLocation)))
+	newInternalNodePool.SetResourceID(resourceID)
 
 	// set fields that were not included during the conversion, because the user does not provide them or because the
 	// data is determined live on read.
@@ -220,9 +222,30 @@ func decodeDesiredNodePoolCreate(ctx context.Context, azureLocation string) (*ap
 	return newInternalNodePool, nil
 }
 
-func (f *Frontend) newNodePoolAdmissionContext(ctx context.Context, cluster *api.HCPOpenShiftCluster) (*admission.NodePoolAdmissionContext, error) {
+// newNodePoolAdmissionContext creates an admission context for node pool operations.
+// The cluster parameter is always required.
+// The spCluster and spNodePool parameters provide service provider state needed for
+// admission checks that depend on runtime state (e.g., version upgrade validation).
+// For UPDATE operations, these parameters are required and the function will fail if they're nil.
+// For CREATE operations, these can be nil since no prior state exists.
+func (f *Frontend) newNodePoolAdmissionContext(ctx context.Context, op operation.Operation, cluster *api.HCPOpenShiftCluster, spCluster *api.ServiceProviderCluster, spNodePool *api.ServiceProviderNodePool) (*admission.NodePoolAdmissionContext, error) {
+	if cluster == nil {
+		return nil, fmt.Errorf("cluster is required for admission context")
+	}
+
+	if op.Type == operation.Update {
+		if spCluster == nil {
+			return nil, fmt.Errorf("serviceProviderCluster is required for UPDATE operations")
+		}
+		if spNodePool == nil {
+			return nil, fmt.Errorf("serviceProviderNodePool is required for UPDATE operations")
+		}
+	}
+
 	return &admission.NodePoolAdmissionContext{
-		Cluster: cluster,
+		Cluster:                 cluster,
+		ServiceProviderCluster:  spCluster,
+		ServiceProviderNodePool: spNodePool,
 	}, nil
 }
 
@@ -263,13 +286,13 @@ func (f *Frontend) createNodePool(writer http.ResponseWriter, request *http.Requ
 		return utils.TrackError(fmt.Errorf("cluster %s has no ClusterServiceID", cluster.ID))
 	}
 
-	admissionContext, err := f.newNodePoolAdmissionContext(ctx, cluster)
-	if err != nil {
-		return utils.TrackError(err)
-	}
 	restOperation := operation.Operation{
 		Type:    operation.Create,
 		Options: validation.AFECsToValidationOptions(subscription.GetRegisteredFeatures()),
+	}
+	admissionContext, err := f.newNodePoolAdmissionContext(ctx, restOperation, cluster, nil, nil)
+	if err != nil {
+		return utils.TrackError(err)
 	}
 	if mutationErrs := admission.MutateNodePool(ctx, admissionContext, restOperation, newInternalNodePool, nil); len(mutationErrs) > 0 {
 		return utils.TrackError(arm.CloudErrorFromFieldErrors(mutationErrs))
@@ -277,7 +300,7 @@ func (f *Frontend) createNodePool(writer http.ResponseWriter, request *http.Requ
 
 	validationErrs := validation.ValidateNodePool(ctx, restOperation, newInternalNodePool, nil)
 	// in addition to static validation, we have validation based on the state of the hcp cluster
-	validationErrs = append(validationErrs, admission.AdmitNodePool(newInternalNodePool, nil, cluster)...)
+	validationErrs = append(validationErrs, admission.AdmitNodePool(ctx, admissionContext, restOperation, newInternalNodePool, nil)...)
 	if err := arm.CloudErrorFromFieldErrors(validationErrs); err != nil {
 		return utils.TrackError(err)
 	}
@@ -552,22 +575,20 @@ func (f *Frontend) updateNodePoolInCosmos(ctx context.Context, writer http.Respo
 		return utils.TrackError(err)
 	}
 
-	admissionContext, err := f.newNodePoolAdmissionContext(ctx, cluster)
-	if err != nil {
-		return utils.TrackError(err)
-	}
 	restOperation := operation.Operation{
 		Type:    operation.Update,
 		Options: validation.AFECsToValidationOptions(subscription.GetRegisteredFeatures()),
+	}
+	admissionContext, err := f.newNodePoolAdmissionContext(ctx, restOperation, cluster, spCluster, spNodePool)
+	if err != nil {
+		return utils.TrackError(err)
 	}
 	if mutationErrs := admission.MutateNodePool(ctx, admissionContext, restOperation, newInternalNodePool, oldInternalNodePool); len(mutationErrs) > 0 {
 		return utils.TrackError(arm.CloudErrorFromFieldErrors(mutationErrs))
 	}
 
 	validationErrs := validation.ValidateNodePool(ctx, restOperation, newInternalNodePool, oldInternalNodePool)
-	// in addition to static validation, we have validation based on the state of the hcp cluster
-	// AdmitNodePoolUpdate includes AdmitNodePool checks plus version upgrade validation
-	validationErrs = append(validationErrs, admission.AdmitNodePoolUpdate(newInternalNodePool, oldInternalNodePool, cluster, spNodePool, spCluster, restOperation)...)
+	validationErrs = append(validationErrs, admission.AdmitNodePool(ctx, admissionContext, restOperation, newInternalNodePool, oldInternalNodePool)...)
 	if err := arm.CloudErrorFromFieldErrors(validationErrs); err != nil {
 		return utils.TrackError(err)
 	}
@@ -668,7 +689,7 @@ func (f *Frontend) DeleteNodePool(writer http.ResponseWriter, request *http.Requ
 	}
 
 	// when we get a delete call (this happens from CI quite a bit), dump the state of the cluster resources.
-	if err := serverutils.DumpDataToLogger(ctx, f.resourcesDBClient, resourceID); err != nil {
+	if err := serverutils.DumpDataToLogger(ctx, f.resourcesDBClient, nil, nil, resourceID); err != nil {
 		// never fail, this is best effort
 		logger.Error(err, "failed to dump data to logger")
 	}
@@ -684,6 +705,32 @@ func (f *Frontend) DeleteNodePool(writer http.ResponseWriter, request *http.Requ
 	}
 
 	if err := checkForProvisioningStateConflict(ctx, f.resourcesDBClient, database.OperationRequestDelete, nodePool.ID, nodePool.Properties.ProvisioningState); err != nil {
+		return utils.TrackError(err)
+	}
+
+	logger.Info(fmt.Sprintf("deleting resource %s", nodePool.ID))
+
+	// We retrieve all node pools for the cluster, including the one we are attempting to
+	// delete, and we pass them to the delete admission validation.
+	// TODO once OCPBUGS-86702 is resolved, we should remove this retrieval and the check of last nodepool being
+	// deleted in the delete admission validation when we decide we want to allow the deletion of the last node pool.
+	nodePoolIterator, err := f.resourcesDBClient.HCPClusters(nodePool.ID.SubscriptionID, nodePool.ID.ResourceGroupName).NodePools(nodePool.ID.Parent.Name).List(ctx, nil)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+	clusterNodePools := make([]*api.HCPOpenShiftClusterNodePool, 0)
+	for _, clusterNodePool := range nodePoolIterator.Items(ctx) {
+		clusterNodePools = append(clusterNodePools, clusterNodePool)
+	}
+	if err := nodePoolIterator.GetError(); err != nil {
+		return utils.TrackError(err)
+	}
+
+	nodePoolDeleteAdmissionContext := &admission.NodePoolDeleteAdmissionContext{
+		ClusterNodePools: clusterNodePools,
+	}
+	err = arm.CloudErrorFromFieldErrors(admission.AdmitNodePoolOnDelete(ctx, nodePoolDeleteAdmissionContext, nodePool))
+	if err != nil {
 		return utils.TrackError(err)
 	}
 
@@ -765,6 +812,9 @@ func (f *Frontend) addDeleteNodePoolToTransaction(ctx context.Context, writer ht
 		return utils.TrackError(err)
 	}
 
+	if nodePool.ServiceProviderProperties.DeletionTimestamp == nil {
+		nodePool.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: time.Now().UTC()}
+	}
 	nodePool.ServiceProviderProperties.ActiveOperationID = operationDoc.ResourceID.Name
 	nodePool.Properties.ProvisioningState = operationDoc.Status
 	_, err = f.resourcesDBClient.HCPClusters(nodePool.ID.SubscriptionID, nodePool.ID.ResourceGroupName).NodePools(nodePool.ID.Parent.Name).
@@ -799,8 +849,11 @@ func (f *Frontend) getInternalNodePoolFromStorage(ctx context.Context, resourceI
 	// normalize or return a toupper or tolower form of the resource
 	// group or resource name. The resource group name and resource
 	// name must come from the URL and not the request body.
-	if !strings.EqualFold(internalNodePool.ID.String(), resourceID.String()) {
-		return nil, fmt.Errorf("unexpected resourceID: %s", internalNodePool.ID.String())
+	if internalNodePool.ResourceID == nil {
+		return nil, fmt.Errorf("stored nodepool document is missing cosmosMetadata.resourceID")
+	}
+	if !strings.EqualFold(internalNodePool.ResourceID.String(), resourceID.String()) {
+		return nil, fmt.Errorf("unexpected resourceID: %s", internalNodePool.ResourceID.String())
 	}
 	internalNodePool.ID = resourceID
 

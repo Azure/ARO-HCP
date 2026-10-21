@@ -26,13 +26,6 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
 )
 
-// kubeApplierContainer is the Cosmos container name used by the kube-applier
-// component. It is partitioned by the lower-cased management cluster name so
-// that a kube-applier pod's Cosmos credentials can be scoped to its own
-// management cluster, in contrast to every other container which is
-// partitioned by subscription ID.
-const kubeApplierContainer = "kube-applier"
-
 // NewKubeApplierPartitionKey creates a partition key for the kube-applier container,
 // which is partitioned by the lower-cased management cluster name. This deviates
 // from the subscription-ID partitioning used by every other container so that a

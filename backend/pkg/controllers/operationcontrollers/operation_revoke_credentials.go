@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"k8s.io/client-go/tools/cache"
+	utilsclock "k8s.io/utils/clock"
 
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 
@@ -33,6 +34,7 @@ import (
 )
 
 type operationRevokeCredentials struct {
+	clock                 utilsclock.PassiveClock
 	resourcesDBClient     database.ResourcesDBClient
 	clustersServiceClient ocm.ClusterServiceClientSpec
 	notificationClient    *http.Client
@@ -53,12 +55,14 @@ type operationRevokeCredentials struct {
 // any of "Succeeded", "Failed", or "Canceled". Once the operation status reaches
 // a terminal value, there will be no further updates to the operation document.
 func NewOperationRevokeCredentialsController(
+	clock utilsclock.PassiveClock,
 	resourcesDBClient database.ResourcesDBClient,
 	clustersServiceClient ocm.ClusterServiceClientSpec,
 	notificationClient *http.Client,
 	activeOperationInformer cache.SharedIndexInformer,
 ) controllerutils.Controller {
 	syncer := &operationRevokeCredentials{
+		clock:                 clock,
 		resourcesDBClient:     resourcesDBClient,
 		clustersServiceClient: clustersServiceClient,
 		notificationClient:    notificationClient,
@@ -197,7 +201,7 @@ func (opsync *operationRevokeCredentials) SynchronizeOperation(ctx context.Conte
 	}
 
 	logger.Info("updating status")
-	err = patchOperation(ctx, opsync.resourcesDBClient, oldOperation, newOperationStatus, newOperationError, postAsyncNotificationFn(opsync.notificationClient))
+	err = patchOperation(ctx, opsync.clock, opsync.resourcesDBClient, oldOperation, newOperationStatus, newOperationError, postAsyncNotificationFn(opsync.notificationClient))
 	if err != nil {
 		return utils.TrackError(err)
 	}

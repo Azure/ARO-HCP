@@ -29,6 +29,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
+	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -51,6 +52,7 @@ func NewClusterValidationController(
 	activeOperationLister listers.ActiveOperationLister,
 	resourcesDBClient database.ResourcesDBClient,
 	informers informers.BackendInformers,
+	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 ) controllerutils.Controller {
 
 	syncer := &clusterValidationSyncer{
@@ -63,6 +65,7 @@ func NewClusterValidationController(
 		fmt.Sprintf("ClusterValidation%s", validation.Name()),
 		resourcesDBClient,
 		informers,
+		kubeApplierInformers,
 		1*time.Minute,
 		syncer,
 	)

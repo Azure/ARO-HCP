@@ -1,0 +1,119 @@
+rule_files:
+- HCPkasRecord-prometheusRule-apiserver-requests.yaml
+evaluation_interval: 1m
+tests:
+# Test 1: Steady traffic with no errors (100% success)
+- interval: 1m
+  input_series:
+  - series: 'apiserver_request_total{cluster="test-mgmt-1", namespace="ocm-aro-test-01", code="200", resource="pods", verb="GET"}'
+    # Counter incrementing by 100 each minute (100 req/min)
+    values: "0+100x15"
+  - series: 'apiserver_request_total{cluster="test-mgmt-1", namespace="ocm-aro-test-01", code="201", resource="pods", verb="POST"}'
+    # Counter incrementing by 50 each minute (50 req/min)
+    values: "0+50x15"
+  promql_expr_test:
+  # Test total request rate recording (should aggregate all codes/resources/verbs)
+  - expr: kas:apiserver_request_total:rate5m{cluster="test-mgmt-1", namespace="ocm-aro-test-01"}
+    eval_time: 5m
+    exp_samples:
+    - labels: '{__name__="kas:apiserver_request_total:rate5m", cluster="test-mgmt-1", namespace="ocm-aro-test-01"}'
+      # rate over 5m of 100+50=150 req/min = 2.5 req/sec
+      value: 2.5
+  # Test 5xx error rate (should be 0 since no 5xx codes)
+  - expr: kas:apiserver_request_5xx:rate5m{cluster="test-mgmt-1", namespace="ocm-aro-test-01"}
+    eval_time: 5m
+    exp_samples: []
+  # Test 1-hour average
+  - expr: kas:apiserver_request_total:rate_avg_1h{cluster="test-mgmt-1", namespace="ocm-aro-test-01"}
+    eval_time: 10m
+    exp_samples:
+    - labels: '{__name__="kas:apiserver_request_total:rate_avg_1h", cluster="test-mgmt-1", namespace="ocm-aro-test-01"}'
+      value: 2
+# Test 2: Traffic with 5xx errors (99% success rate)
+- interval: 1m
+  input_series:
+  # Successful requests: counter incrementing by 990/min
+  - series: 'apiserver_request_total{cluster="test-mgmt-2", namespace="ocm-aro-test-02", code="200", resource="configmaps", verb="LIST"}'
+    values: "0+990x15"
+  # Failed requests (5xx): counter incrementing by 10/min
+  - series: 'apiserver_request_total{cluster="test-mgmt-2", namespace="ocm-aro-test-02", code="500", resource="secrets", verb="GET"}'
+    values: "0+10x15"
+  promql_expr_test:
+  # Total request rate should be 990+10=1000 req/min = 16.67 req/sec
+  - expr: kas:apiserver_request_total:rate5m{cluster="test-mgmt-2", namespace="ocm-aro-test-02"}
+    eval_time: 5m
+    exp_samples:
+    - labels: '{__name__="kas:apiserver_request_total:rate5m", cluster="test-mgmt-2", namespace="ocm-aro-test-02"}'
+      value: 16.666666666666668
+  # 5xx error rate should be 10 req/min = 0.167 req/sec
+  - expr: kas:apiserver_request_5xx:rate5m{cluster="test-mgmt-2", namespace="ocm-aro-test-02"}
+    eval_time: 5m
+    exp_samples:
+    - labels: '{__name__="kas:apiserver_request_5xx:rate5m", cluster="test-mgmt-2", namespace="ocm-aro-test-02"}'
+      value: 0.16666666666666666
+# Test 3: Multiple namespaces (ensure proper aggregation by namespace)
+- interval: 1m
+  input_series:
+  # Namespace 1: counter incrementing by 100/min, no errors
+  - series: 'apiserver_request_total{cluster="test-mgmt-3", namespace="ocm-aro-test-03", code="200", resource="nodes", verb="GET"}'
+    values: "0+100x15"
+  # Namespace 2: counter incrementing by 50/min, all errors
+  - series: 'apiserver_request_total{cluster="test-mgmt-3", namespace="ocm-aro-test-04", code="503", resource="pods", verb="DELETE"}'
+    values: "0+50x15"
+  promql_expr_test:
+  # Test namespace 1 has traffic but no 5xx
+  - expr: kas:apiserver_request_total:rate5m{cluster="test-mgmt-3", namespace="ocm-aro-test-03"}
+    eval_time: 5m
+    exp_samples:
+    - labels: '{__name__="kas:apiserver_request_total:rate5m", cluster="test-mgmt-3", namespace="ocm-aro-test-03"}'
+      value: 1.6666666666666667
+  - expr: kas:apiserver_request_5xx:rate5m{cluster="test-mgmt-3", namespace="ocm-aro-test-03"}
+    eval_time: 5m
+    exp_samples: []
+  # Test namespace 2 has 5xx errors
+  - expr: kas:apiserver_request_total:rate5m{cluster="test-mgmt-3", namespace="ocm-aro-test-04"}
+    eval_time: 5m
+    exp_samples:
+    - labels: '{__name__="kas:apiserver_request_total:rate5m", cluster="test-mgmt-3", namespace="ocm-aro-test-04"}'
+      value: 0.8333333333333334
+  - expr: kas:apiserver_request_5xx:rate5m{cluster="test-mgmt-3", namespace="ocm-aro-test-04"}
+    eval_time: 5m
+    exp_samples:
+    - labels: '{__name__="kas:apiserver_request_5xx:rate5m", cluster="test-mgmt-3", namespace="ocm-aro-test-04"}'
+      value: 0.8333333333333334
+# Test 4: Namespace filter validation (non-ocm namespace should be excluded)
+- interval: 1m
+  input_series:
+  # This should NOT be included (not ocm-* namespace)
+  - series: 'apiserver_request_total{cluster="test-mgmt-4", namespace="default", code="200", resource="pods", verb="GET"}'
+    values: "0+1000x15"
+  # This SHOULD be included (ocm-* namespace)
+  - series: 'apiserver_request_total{cluster="test-mgmt-4", namespace="ocm-aro-prod-01", code="200", resource="pods", verb="GET"}'
+    values: "0+50x15"
+  promql_expr_test:
+  # Should only see ocm-aro-prod-01, not default
+  - expr: kas:apiserver_request_total:rate5m{cluster="test-mgmt-4"}
+    eval_time: 5m
+    exp_samples:
+    - labels: '{__name__="kas:apiserver_request_total:rate5m", cluster="test-mgmt-4", namespace="ocm-aro-prod-01"}'
+      value: 0.8333333333333334
+# Test 5: Validate 5m avg_over_time window recording rules
+- interval: 1m
+  input_series:
+  - series: 'apiserver_request_total{cluster="test-mgmt-5", namespace="ocm-aro-test-05", code="200", resource="pods", verb="GET"}'
+    values: "0+60x15"
+  - series: 'apiserver_request_total{cluster="test-mgmt-5", namespace="ocm-aro-test-05", code="500", resource="pods", verb="GET"}'
+    values: "0+6x15"
+  promql_expr_test:
+  # After 10m, rate5m stabilizes at 66/min = 1.1 req/s
+  # avg_over_time of the stabilized rate5m samples converges to 1.1
+  - expr: kas:apiserver_request_total:rate_avg_5m{cluster="test-mgmt-5", namespace="ocm-aro-test-05"}
+    eval_time: 10m
+    exp_samples:
+    - labels: '{__name__="kas:apiserver_request_total:rate_avg_5m", cluster="test-mgmt-5", namespace="ocm-aro-test-05"}'
+      value: 1.1
+  - expr: kas:apiserver_request_5xx:rate_avg_5m{cluster="test-mgmt-5", namespace="ocm-aro-test-05"}
+    eval_time: 10m
+    exp_samples:
+    - labels: '{__name__="kas:apiserver_request_5xx:rate_avg_5m", cluster="test-mgmt-5", namespace="ocm-aro-test-05"}'
+      value: 0.1

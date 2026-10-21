@@ -87,6 +87,8 @@ spec:
             drop:
             - ALL
           runAsNonRoot: true
+          runAsUser: 65532
+          runAsGroup: 65532
           seccompProfile:
             type: RuntimeDefault
         {{- if .Values.audit.connectSocket }}

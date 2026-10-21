@@ -48,3 +48,4 @@ resource rpCosmosDbAccount 'Microsoft.DocumentDB/databaseAccounts@2023-11-15' ex
 }
 
 output rpCosmosDbAccountId string = rpCosmosDbAccount.id
+output cosmosDBDocumentEndpoint string = rpCosmosDbAccount.properties.documentEndpoint

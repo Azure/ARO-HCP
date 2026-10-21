@@ -74,14 +74,12 @@ func (v verifyMustGatherLogsImpl) Verify(ctx context.Context) error {
 
 	queryClient := mustgather.NewQueryClientWithFileWriter(kustoClient, v.config.QueryTimeout, "", nil)
 
-	queryOptions := kusto.QueryOptions{
-		SubscriptionId:    v.config.SubscriptionID,
-		ResourceGroupName: v.config.ResourceGroup,
-		InfraClusterName:  "",
-		TimestampMin:      time.Now().Add(-24 * time.Hour),
-		TimestampMax:      time.Now(),
-		Limit:             -1,
-	}
+	queryOptions := kusto.NewQueryOptions()
+	queryOptions.SubscriptionId = v.config.SubscriptionID
+	queryOptions.ResourceGroupName = v.config.ResourceGroup
+	queryOptions.TimestampMin = time.Now().Add(-24 * time.Hour)
+	queryOptions.TimestampMax = time.Now()
+	queryOptions.Limit = -1
 
 	foundLogSources := make(map[string]bool)
 	var foundMutex sync.Mutex

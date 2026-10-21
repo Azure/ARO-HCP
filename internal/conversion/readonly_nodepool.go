@@ -22,6 +22,10 @@ import (
 func CopyReadOnlyNodePoolValues(dest, src *api.HCPOpenShiftClusterNodePool) {
 	CopyReadOnlyTrackedResourceValues(&dest.TrackedResource, &src.TrackedResource)
 
+	// CosmosMetadata is read-only on the API surface; carry over so the
+	// case-preserving ResourceID and CosmosETag survive the replace round-trip.
+	dest.CosmosMetadata = *src.CosmosMetadata.DeepCopy()
+
 	switch {
 	case hasClusterIdentityToSet(src.Identity) && dest.Identity == nil:
 		dest.Identity = &arm.ManagedServiceIdentity{}
@@ -34,5 +38,4 @@ func CopyReadOnlyNodePoolValues(dest, src *api.HCPOpenShiftClusterNodePool) {
 
 	dest.Properties.ProvisioningState = src.Properties.ProvisioningState
 	dest.ServiceProviderProperties = *src.ServiceProviderProperties.DeepCopy()
-	dest.CosmosETag = src.CosmosETag
 }

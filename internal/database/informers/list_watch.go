@@ -14,10 +14,8 @@
 
 // Package informers provides Cosmos-backed SharedIndexInformers for the
 // kube-applier *Desire resource types. The factory accepts a
-// database.KubeApplierGlobalListers, which the caller obtains either from
-// KubeApplierDBClient.GlobalListers() (cross-partition, used by the backend) or
-// from KubeApplierDBClient.PartitionListers(mgmtCluster) (single-partition,
-// used by the kube-applier binary).
+// database.KubeApplierListers obtained from KubeApplierDBClient.Listers(),
+// scoped to one management cluster's container.
 package informers
 
 import (
@@ -26,6 +24,7 @@ import (
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/tools/cache"
 )
@@ -59,6 +58,7 @@ func newExpiringWatcher(ctx context.Context, expiry time.Duration) watch.Interfa
 		done:   make(chan struct{}),
 	}
 	go func() {
+		defer utilruntime.HandleCrash()
 		select {
 		case <-time.After(expiry):
 			w.result <- watch.Event{

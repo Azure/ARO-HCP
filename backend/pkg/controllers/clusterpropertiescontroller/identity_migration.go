@@ -28,6 +28,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
+	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -54,6 +55,7 @@ func NewIdentityMigrationController(
 	clusterServiceClient ocm.ClusterServiceClientSpec,
 	activeOperationLister listers.ActiveOperationLister,
 	informers informers.BackendInformers,
+	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 ) controllerutils.Controller {
 	_, clusterLister := informers.Clusters()
 
@@ -68,6 +70,7 @@ func NewIdentityMigrationController(
 		"IdentityMigration",
 		resourcesDBClient,
 		informers,
+		kubeApplierInformers,
 		60*time.Minute, // Check every 60 minutes
 		syncer,
 	)

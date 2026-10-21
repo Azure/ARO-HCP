@@ -1,0 +1,10 @@
+gateway:
+  enabled: {{ .opstool.gateway.enabled }}
+  name: "{{ .opstool.gateway.name }}"
+  className: "istio"
+  sectionName: "{{ .opstool.gateway.sectionName }}"
+  wildcardHostname: "{{ .opstool.gateway.wildcardHostname }}"
+  credentialName: "{{ .opstool.gateway.credentialName }}"
+  clusterIssuerName: "{{ .opstool.certManager.clusterIssuer.name }}"
+  publicIpName: "{{ .opstool.gateway.publicIpName }}"
+  publicIpResourceGroup: "{{ .opstool.gateway.publicIpResourceGroup }}"

@@ -22,6 +22,9 @@ param adminGroups string
 @description('CSV separated list of groups to assign viewer in the Kusto cluster')
 param viewerGroups string
 
+@description('CSV separated list of identities (apps/managed identities) to assign viewer in the Kusto cluster')
+param viewerIdentities string = ''
+
 @description('Name of the Kusto cluster to create')
 param kustoName string
 
@@ -53,6 +56,7 @@ var dummyScript = '.create-or-alter function with (docstring = \'dummy function 
 var allServiceLogsTablesKQL = {
   backendLogs: loadTextContent('tables/backendLogs.kql')
   containerlogs: loadTextContent('tables/containerLogs.kql')
+  fleetLogs: loadTextContent('tables/fleetLogs.kql')
   frontendLogs: loadTextContent('tables/frontendLogs.kql')
   clustersServiceLogs: loadTextContent('tables/clustersServiceLogs.kql')
   kubernetesEvents: loadTextContent('tables/kubernetesEvents.kql')
@@ -78,6 +82,7 @@ module cluster 'cluster.bicep' = {
     tier: tier
     adminGroups: adminGroups
     viewerGroups: viewerGroups
+    viewerIdentities: viewerIdentities
     autoScaleMin: autoScaleMin
     autoScaleMax: autoScaleMax
     enableAutoScale: enableAutoScale

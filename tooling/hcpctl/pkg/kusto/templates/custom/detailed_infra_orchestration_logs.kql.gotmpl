@@ -52,4 +52,4 @@ union
         | where logStr has cluster_id
         | project timestamp, container_name, msg = logStr, log
     )
-| order by timestamp asc
+| order by timestamp {{.OrderBy}}

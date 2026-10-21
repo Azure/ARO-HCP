@@ -19,6 +19,7 @@ import (
 	"sync"
 	"time"
 
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/Azure/ARO-HCP/internal/database"
@@ -75,6 +76,7 @@ func NewFleetInformersWithRelistDuration(ctx context.Context, gl database.FleetG
 }
 
 func (f *fleetInformers) RunWithContext(ctx context.Context) {
+	defer utilruntime.HandleCrash()
 	logger := utils.LoggerFromContext(ctx)
 	logger.Info("starting fleet informers")
 	defer logger.Info("stopped fleet informers")
@@ -83,12 +85,14 @@ func (f *fleetInformers) RunWithContext(ctx context.Context) {
 
 	wg.Add(1)
 	go func() {
+		defer utilruntime.HandleCrash()
 		defer wg.Done()
 		f.stampInformer.RunWithContext(ctx)
 	}()
 
 	wg.Add(1)
 	go func() {
+		defer utilruntime.HandleCrash()
 		defer wg.Done()
 		f.managementClusterInformer.RunWithContext(ctx)
 	}()

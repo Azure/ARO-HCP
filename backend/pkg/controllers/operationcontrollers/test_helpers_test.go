@@ -15,7 +15,10 @@
 package operationcontrollers
 
 import (
+	"fmt"
 	"time"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -82,6 +85,9 @@ func newClusterTestFixture() *clusterTestFixture {
 
 func (f *clusterTestFixture) newCluster(createdAt *time.Time) *api.HCPOpenShiftCluster {
 	return &api.HCPOpenShiftCluster{
+		CosmosMetadata: arm.CosmosMetadata{
+			ResourceID: f.clusterResourceID,
+		},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
 				ID:   f.clusterResourceID,
@@ -162,6 +168,9 @@ func newNodePoolTestFixture() *nodePoolTestFixture {
 
 func (f *nodePoolTestFixture) newCluster() *api.HCPOpenShiftCluster {
 	return &api.HCPOpenShiftCluster{
+		CosmosMetadata: arm.CosmosMetadata{
+			ResourceID: f.clusterResourceID,
+		},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
 				ID:   f.clusterResourceID,
@@ -177,6 +186,7 @@ func (f *nodePoolTestFixture) newCluster() *api.HCPOpenShiftCluster {
 
 func (f *nodePoolTestFixture) newNodePool() *api.HCPOpenShiftClusterNodePool {
 	return &api.HCPOpenShiftClusterNodePool{
+		CosmosMetadata: arm.CosmosMetadata{ResourceID: f.nodePoolResourceID},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
 				ID:   f.nodePoolResourceID,
@@ -190,6 +200,30 @@ func (f *nodePoolTestFixture) newNodePool() *api.HCPOpenShiftClusterNodePool {
 		ServiceProviderProperties: api.HCPOpenShiftClusterNodePoolServiceProviderProperties{
 			ClusterServiceID:  &f.nodePoolInternalID,
 			ActiveOperationID: testOperationName,
+		},
+	}
+}
+
+func (f *nodePoolTestFixture) newServiceProviderNodePool() *api.ServiceProviderNodePool {
+	resourceID := api.Must(azcorearm.ParseResourceID(fmt.Sprintf("%s/%s/%s",
+		f.nodePoolResourceID.String(),
+		api.ServiceProviderNodePoolResourceTypeName,
+		api.ServiceProviderNodePoolResourceName,
+	)))
+	return &api.ServiceProviderNodePool{
+		CosmosMetadata: api.CosmosMetadata{ResourceID: resourceID},
+	}
+}
+
+func (f *nodePoolTestFixture) newNodePoolVersionController(conditions []metav1.Condition) *api.Controller {
+	resourceID := api.Must(azcorearm.ParseResourceID(
+		f.nodePoolResourceID.String() + "/hcpOpenShiftControllers/NodePoolVersion",
+	))
+	return &api.Controller{
+		CosmosMetadata: api.CosmosMetadata{ResourceID: resourceID},
+		ExternalID:     f.nodePoolResourceID,
+		Status: api.ControllerStatus{
+			Conditions: conditions,
 		},
 	}
 }
@@ -256,6 +290,9 @@ func newExternalAuthTestFixture() *externalAuthTestFixture {
 
 func (f *externalAuthTestFixture) newCluster() *api.HCPOpenShiftCluster {
 	return &api.HCPOpenShiftCluster{
+		CosmosMetadata: arm.CosmosMetadata{
+			ResourceID: f.clusterResourceID,
+		},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
 				ID:   f.clusterResourceID,
@@ -271,6 +308,7 @@ func (f *externalAuthTestFixture) newCluster() *api.HCPOpenShiftCluster {
 
 func (f *externalAuthTestFixture) newExternalAuth() *api.HCPOpenShiftClusterExternalAuth {
 	return &api.HCPOpenShiftClusterExternalAuth{
+		CosmosMetadata: arm.CosmosMetadata{ResourceID: f.externalAuthResourceID},
 		ProxyResource: arm.ProxyResource{
 			Resource: arm.Resource{
 				ID:   f.externalAuthResourceID,

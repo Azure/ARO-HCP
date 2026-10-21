@@ -60,7 +60,7 @@ spec:
     spec:
       containers:
       - name: otel-collector
-        image: otel/opentelemetry-collector-contrib:0.128.0
+        image: docker.io/otel/opentelemetry-collector-contrib:0.128.0
         args: ["--config=/etc/otel/config/otel-collector-config.yaml"]
         volumeMounts:
         - name: otel-config

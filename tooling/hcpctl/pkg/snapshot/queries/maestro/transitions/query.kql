@@ -1,6 +1,9 @@
 {{ template "bundleMap" . }}
 cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('containerLogs')
-| where timestamp between ({{ kqlDatetime .StartTime }} .. {{ kqlDatetime .EndTime }})
+| where timestamp between ({{ kqlDatetime .PhaseStartTime }} .. {{ kqlDatetime .PhaseEndTime }})
+{{- if and .ServiceClusterName .ManagementClusterName }}
+| where cluster in ('{{ .ServiceClusterName }}', '{{ .ManagementClusterName }}')
+{{- end }}
 | where namespace_name == 'maestro'
 | where container_name in ('maestro-server', 'maestro-agent')
 | extend logs = tostring(log)

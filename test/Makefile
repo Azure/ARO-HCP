@@ -43,15 +43,18 @@ build: $(PROW_JOB_EXECUTOR) $(ARO_HCP_TESTS)
 int-e2e:
 	PROW_JOB_NAME="$$(yq .clouds.public.environments.int.defaults.e2e.regionTest.prowJobName < ../config/config.msft.clouds-overlay.yaml)" \
 	REGION="uksouth" \
+	ENVIRONMENT="int" \
 	$(MAKE) e2e
 
 stage-e2e:
 	PROW_JOB_NAME="$$(yq .clouds.public.environments.stg.defaults.e2e.regionTest.prowJobName < ../config/config.msft.clouds-overlay.yaml)" \
 	REGION="uksouth" \
+	ENVIRONMENT="stg" \
 	$(MAKE) e2e
 
 prod-e2e:
 	PROW_JOB_NAME="$$(yq .clouds.public.environments.prod.defaults.e2e.regionTest.prowJobName < ../config/config.msft.clouds-overlay.yaml)" \
+	ENVIRONMENT="prod" \
 	$(MAKE) e2e
 
 e2e: $(PROW_JOB_EXECUTOR)
@@ -63,6 +66,8 @@ e2e: $(PROW_JOB_EXECUTOR)
 	PROW_TOKEN_KEYVAULT="$$(yq .global.keyVault.name < ../config/rendered/dev/dev/westus3.yaml)" \
 	PROW_TOKEN_SECRET="$$(yq .e2e.prow.globalKeyVaultTokenSecret < ../config/rendered/dev/dev/westus3.yaml)" \
 	KEY_VAULT_DNSSUFFIX="vault.azure.net" \
+	CLOUD="$${CLOUD:-public}" \
+	ENVIRONMENT="$${ENVIRONMENT:?ENVIRONMENT must be set (e.g. int, stg, prod)}" \
 	BASE_SHA="$${BASE_SHA:-$$(git rev-parse HEAD)}" \
 	DRY_RUN="false" \
 	GATE_PROMOTION="true" \

@@ -26,6 +26,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
+	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -37,7 +38,7 @@ type cosmosExternalAuthMatching struct {
 }
 
 // NewCosmosExternalAuthMatchingController periodically looks for mismatched cluster-service and cosmos externalauths
-func NewCosmosExternalAuthMatchingController(resourcesDBClient database.ResourcesDBClient, clusterServiceClient ocm.ClusterServiceClientSpec, informers informers.BackendInformers) controllerutils.Controller {
+func NewCosmosExternalAuthMatchingController(resourcesDBClient database.ResourcesDBClient, clusterServiceClient ocm.ClusterServiceClientSpec, informers informers.BackendInformers, kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers) controllerutils.Controller {
 	syncer := &cosmosExternalAuthMatching{
 		cooldownChecker:      controllerutil.NewTimeBasedCooldownChecker(1 * time.Hour),
 		resourcesDBClient:    resourcesDBClient,
@@ -50,6 +51,7 @@ func NewCosmosExternalAuthMatchingController(resourcesDBClient database.Resource
 		"CosmosMatchingExternalAuths",
 		resourcesDBClient,
 		informers,
+		kubeApplierInformers,
 		60*time.Minute,
 		syncer,
 	)

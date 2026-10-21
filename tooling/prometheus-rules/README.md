@@ -15,6 +15,13 @@ This tool converts Kubernetes PrometheusRule custom resources (used by the Prome
 - Automatically generates IcM correlation IDs for proper incident aggregation
 - Supports expression replacements for platform-specific adjustments
 
+## Recent Change
+
+- Added support for `labelsToExtract` in config.
+- During generation, labels listed in `labelsToExtract` are detected from the `description` annotation template text and then appended to generated alert metadata in configured order.
+- This ensures generated alert title/correlation fields can include extra routing context (such as cluster/namespace/pod) without hard-coding those labels in the generator.
+- Using `description` as the signal for which labels to append is not perfectly precise, but for upstream-managed alert sources that cannot be edited directly (for example, `kubernetesControlPlane-prometheusRule.yaml`), it provides a practical way to preserve useful alert scoping.
+
 ## Usage
 
 ### Build
@@ -26,18 +33,26 @@ make
 ### Run
 
 ```bash
-# Generate alerting rules
+# Generate everything (alerts + recording rules)
 make run
 
-# Generate HCP-specific alerting rules
-make run-hcp
+# Generate all alerts or all recording rules
+make alerts          # All 4 alert configs
+make recording-rules # Both recording-rules configs
 
-# Generate recording rules
-make run-recording-rules
+# Generate individually
+make run-sl-services              # Alerting rules: SL queue, services datasource
+make run-sre-hcps                 # Alerting rules: SRE queue, HCPs datasource
+make run-rp-services              # Alerting rules: RP queue, services datasource
+make run-msft-services            # Alerting rules: MSFT queue, services datasource
+make run-recording-rules-services # Recording rules: services datasource
+make run-recording-rules-hcps    # Recording rules: HCPs datasource
 
 # Custom configuration
 go run . --config-file path/to/config.yaml
 ```
+
+Note: `run`, `alerts`, and `recording-rules` automatically run `fmt-devinfra` after generation. Individual `run-*` targets do not.
 
 ### Command-line Options
 

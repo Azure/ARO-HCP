@@ -1,14 +1,14 @@
 # Templatize template that renders the tool's config directly from
-# config-opstool.yaml. Used for local development (make run, make setup-sp).
+# config-dev-ci.yaml. Used for local development (make run, make setup-sp).
 #
 # This produces the same config shape as deploy/templates/configmap.yaml
 # but skips the Helm rendering step.
 #
 # Usage:
 #   templatize generate \
-#     --config-file config/config-opstool.yaml \
+#     --config-file config/config-dev-ci.yaml \
 #     --dev-settings-file tooling/templatize/settings.yaml \
-#     --dev-environment opstool \
+#     --dev-environment dev-ci \
 #     --input deploy/config.yaml.tmpl \
 #     --output _output/config.yaml
 #

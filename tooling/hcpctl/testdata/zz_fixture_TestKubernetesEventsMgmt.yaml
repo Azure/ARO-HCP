@@ -5,7 +5,7 @@ kql: |-
   | where cluster == 'test-cluster'
   | where eventNamespace !hasprefix 'ocm-arohcp' or eventNamespace has_any ('cid1', 'cid2')
   | project timestamp, log, cluster
-  | limit 50
   | order by timestamp asc
+  | limit 50
 name: kubernetesEventsMgmt
 unlimited: false

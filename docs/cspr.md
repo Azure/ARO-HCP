@@ -4,7 +4,7 @@ The CS PR check environment is used as a sandbox environment to test changes to 
 
 ## CI/CD
 
-All changes to the infrastructure definitions, configuration and service manifests are PR checked towards the CS PR environment. The driver for such deployments is [Prow](prow.md). On PR merge, Prow will execute the immediate deployment of these changes to the CS PR environment.
+All changes to the infrastructure definitions, configuration and service manifests are PR checked towards the CS PR environment. The driver for such deployments is [CI execution](ci/execution.md). On PR merge, Prow will execute the immediate deployment of these changes to the CS PR environment.
 
 > [!NOTE]
 > Since the this environment is the target for PR checks with infrastructure [bicep what-if](bicep.md#dry-runs) and [service deployment dry-runs](service-deployment-concept.md#deployment-via-pipelines), an unhealthy environment will potentially lead to partial failures of PR checks.

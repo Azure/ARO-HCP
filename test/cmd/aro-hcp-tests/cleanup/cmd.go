@@ -128,6 +128,8 @@ func newCleanupResourceGroupsCommand() *cobra.Command {
 	cmd.Flags().StringArrayVar(&rawOpt.ExcludeLocations, "exclude-location", rawOpt.ExcludeLocations, "Do not delete resource groups in these Azure locations (repeatable)")
 	cmd.Flags().BoolVar(&rawOpt.Tracked, "tracked", rawOpt.Tracked, "Use tracked resource groups")
 	cmd.Flags().StringVar(&rawOpt.SharedDir, "shared-dir", rawOpt.SharedDir, "Shared directory to use for tracked resource groups")
+	cmd.Flags().StringVar(&rawOpt.FPAClientID, "fpa-client-id", rawOpt.FPAClientID, "Client ID of the FPA used to delete Red Hat OpenShift service association links")
+	cmd.Flags().StringVar(&rawOpt.FPACertPath, "fpa-cert-path", rawOpt.FPACertPath, "Certificate path of the FPA used to delete Red Hat OpenShift service association links")
 
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		ctx, cancel := signal.NotifyContext(cmd.Context(), os.Interrupt)

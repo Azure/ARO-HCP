@@ -167,7 +167,7 @@ func TestBuildSubject(t *testing.T) {
 			privileged: false,
 			expected: pkix.Name{
 				CommonName:   "system:sre-break-glass:b-user@microsoft.com",
-				Organization: []string{"aro-sre"},
+				Organization: []string{"system:cluster-readers"},
 			},
 		},
 		{
@@ -176,7 +176,7 @@ func TestBuildSubject(t *testing.T) {
 			privileged: true,
 			expected: pkix.Name{
 				CommonName:   "system:sre-break-glass:b-user@microsoft.com",
-				Organization: []string{"aro-sre-cluster-admin"},
+				Organization: []string{"system:masters"},
 			},
 		},
 	}

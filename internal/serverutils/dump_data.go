@@ -26,7 +26,30 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-func DumpDataToLogger(ctx context.Context, resourcesDBClient database.ResourcesDBClient, resourceID *azcorearm.ResourceID) error {
+// DumpDataToLogger writes a structured-log entry for every document related
+// to resourceID. It covers three storage layers:
+//
+//  1. The resources container: the resource at resourceID itself plus every
+//     descendant under it (cluster + nested children).
+//  2. The operations container: every operation in the subscription whose
+//     externalID is rooted at resourceID.
+//  3. Every per-management-cluster kube-applier container: when both
+//     kubeApplierDBClients and managementClusterLister are non-nil, the
+//     function iterates the lister, opens an untyped CRUD per MC, and dumps
+//     every document under resourceID's prefix. *Desire documents live
+//     here, scoped to the cluster or nodepool they target.
+//
+// Passing nil for kubeApplierDBClients or managementClusterLister skips
+// layer (3); callers that don't yet have those wired (e.g. frontend
+// request handlers) can leave them nil without losing the cosmos / ops
+// dumps.
+func DumpDataToLogger(
+	ctx context.Context,
+	resourcesDBClient database.ResourcesDBClient,
+	kubeApplierDBClients database.KubeApplierDBClients,
+	managementClusterLister database.ManagementClusterLister,
+	resourceID *azcorearm.ResourceID,
+) error {
 	logger := utils.LoggerFromContext(ctx)
 
 	// load the HCP from the cosmos DB
@@ -78,7 +101,76 @@ func DumpDataToLogger(ctx context.Context, resourcesDBClient database.ResourcesD
 		errs = append(errs, err)
 	}
 
+	if err := dumpKubeApplierData(ctx, kubeApplierDBClients, managementClusterLister, resourceID); err != nil {
+		errs = append(errs, err)
+	}
+
 	return utils.TrackError(errors.Join(errs...))
+}
+
+// dumpKubeApplierData walks every configured management cluster's kube-applier
+// container for documents nested under resourceID's prefix and emits a log
+// line per record. *Desire documents live here, scoped to the cluster or
+// nodepool they target.
+//
+// Either input may be nil — both are required to do any work, so a nil on
+// either side means "kube-applier data isn't wired here" and the function
+// silently no-ops.
+func dumpKubeApplierData(
+	ctx context.Context,
+	kubeApplierDBClients database.KubeApplierDBClients,
+	managementClusterLister database.ManagementClusterLister,
+	resourceID *azcorearm.ResourceID,
+) error {
+	if kubeApplierDBClients == nil || managementClusterLister == nil {
+		return nil
+	}
+	logger := utils.LoggerFromContext(ctx)
+
+	managementClusters, err := managementClusterLister.List(ctx)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("listing management clusters for kube-applier dump: %w", err))
+	}
+
+	errs := []error{}
+	for _, mc := range managementClusters {
+		mcResourceID := mc.ResourceID
+		if mcResourceID == nil {
+			mcResourceID = mc.CosmosMetadata.ResourceID
+		}
+		if mcResourceID == nil {
+			continue
+		}
+		mcLogger := logger.WithValues("managementCluster", strings.ToLower(mcResourceID.String()))
+
+		client := kubeApplierDBClients.For(ctx, mcResourceID)
+		if client == nil {
+			mcLogger.Error(nil, "no kube-applier client configured for management cluster; skipping")
+			continue
+		}
+
+		desireCRUD, err := client.UntypedCRUD(*resourceID)
+		if err != nil {
+			errs = append(errs, utils.TrackError(err))
+			continue
+		}
+		desireIterator, err := desireCRUD.ListRecursive(ctx, nil)
+		if err != nil {
+			errs = append(errs, utils.TrackError(err))
+			continue
+		}
+		for _, doc := range desireIterator.Items(ctx) {
+			mcLogger.Info(fmt.Sprintf("dumping kube-applier resourceID %v", doc.ResourceID),
+				"currentResourceID", resourceIDToString(doc.ResourceID),
+				"content", doc,
+			)
+		}
+		if err := desireIterator.GetError(); err != nil {
+			errs = append(errs, utils.TrackError(err))
+		}
+	}
+
+	return errors.Join(errs...)
 }
 
 func resourceIDToString(id *azcorearm.ResourceID) string {

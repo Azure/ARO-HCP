@@ -48,6 +48,9 @@ clouds:
             audit:
               connectSocket: true
         regions:
+          eastus2euap:
+            kusto:
+              location: "eastus2"
           switzerlandnorth:
             kusto:
               kustoName: "hcp-prod-ch-2"

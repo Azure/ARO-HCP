@@ -60,6 +60,16 @@ hcpctl must-gather query \
   --limit 1000
 ```
 
+**Split output by pod name (for concurrency/timing debugging):**
+```bash
+hcpctl must-gather query \
+  --kusto my-kusto-cluster \
+  --region eastus \
+  --subscription-id 12345678-1234-1234-1234-123456789012 \
+  --resource-group my-resource-group \
+  --split-by-pod
+```
+
 #### Handling large data
 
 Kusto has limits for what a query can return, in order to overcome these, you can check the `json` files created. These contain information on the datasize queried. You can then use the `limit` and `timestamp` parameters to reduce the number of log rows gathered. These filters are applied per query.

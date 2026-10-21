@@ -100,6 +100,10 @@ func (o *Options) Run(ctx context.Context) error {
 		ResourceGroupNames: resourceGroupsToDelete,
 		Timeout:            o.Timeout,
 		CleanupWorkflow:    o.CleanupWorkflow,
+		FPACredentials: framework.FPACredentials{
+			ClientID: o.FPAClientID,
+			CertPath: o.FPACertPath,
+		},
 	}
 
 	err := tc.CleanupResourceGroups(

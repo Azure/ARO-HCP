@@ -345,6 +345,7 @@ type HcpOpenShiftClusterProperties struct {
 	Etcd *EtcdProfile
 
 	// imageDigestMirrors is a set of rules to allow pulling images from a mirrored registry by using digest specifications.
+	// WARNING: Updating this array will redeploy all node pools in the cluster.
 	ImageDigestMirrors []*ImageDigestMirror
 
 	// Cluster network configuration
@@ -373,6 +374,7 @@ type HcpOpenShiftClusterPropertiesUpdate struct {
 	Autoscaling *ClusterAutoscalingProfile
 
 	// imageDigestMirrors is a set of rules to allow pulling images from a mirrored registry by using digest specifications.
+	// WARNING: Updating this array will redeploy all node pools in the cluster.
 	ImageDigestMirrors []*ImageDigestMirror
 
 	// nodeDrainTimeoutMinutes is the grace period for how long Pod Disruption Budget-protected workloads will be respected during

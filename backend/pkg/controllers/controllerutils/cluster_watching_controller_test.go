@@ -65,6 +65,7 @@ func TestClusterWatchingControllerSyncHasLoggerContextValues(t *testing.T) {
 		"test-controller",
 		mockResourcesDBClient,
 		nil, // nil informers for unit testing
+		nil, // nil kube-applier informers for unit testing
 		time.Minute,
 		mockSyncer,
 	)

@@ -199,6 +199,62 @@ For instructions and best practices on creating ARO HCP E2E test cases, refer to
 
 Be sure to review these guidelines before creating or updating ARO HCP E2E test cases.
 
+## Updating E2E Timeouts
+
+Shared timeout constants live in [`test/util/framework/constants.go`](../util/framework/constants.go).
+
+**When to add a constant:** Use a named constant when the same duration applies to **multiple test cases** (same ARM operation, framework helper, or verifier pattern). **When a literal is fine:** A timeout that is specific to one test and only used once (for example, polling for a CR inside a single `Eventually` block) can stay inline in that test.
+
+Set each shared constant to the **99th percentile** of observed operation duration across environments (int, stage, prod as applicable). When tuning, change only the constant in `constants.go`—do not copy the value into individual tests.
+
+Framework helpers include an API version suffix. See [`test/AGENTS.md`](../AGENTS.md) for naming conventions.
+
+| Category | Constant | Typical use |
+|----------|----------|-------------|
+| Provisioning | `ClusterCreationTimeout` | `CreateHCPClusterFromParam20240610`, `CreateHCPClusterAndWait20240610`; preview: `CreateHCPClusterFromParam20251223`, `CreateHCPClusterAndWait20251223` |
+| Provisioning | `NodePoolCreationTimeout` | `CreateNodePoolFromParam20240610`, `CreateNodePoolAndWait20240610`; preview: `CreateNodePoolFromParam20251223`, `CreateNodePoolAndWait20251223` |
+| Provisioning | `ExternalAuthCreationTimeout` | `CreateOrUpdateExternalAuthAndWait20240610` |
+| Access cluster | `GetAdminRESTConfigTimeout` | `GetAdminRESTConfigForHCPCluster20240610` |
+| Deletion | `HCPClusterDeletionTimeout` | `DeleteHCPCluster20240610`, `DeleteAllHCPClusters20240610`, inline delete pollers |
+| Update | `UpdateHCPClusterTimeout` | `UpdateHCPCluster20240610` (tags, IDMS, autoscaling PATCH); preview: `UpdateHCPCluster20251223` |
+| Update | `HCPClusterVersionUpgradeTimeout` | Control plane version upgrades (`UpdateHCPCluster20240610`, `Eventually` verifiers) |
+| Update | `NodePoolVersionUpgradeTimeout` | Node pool version upgrades (`UpdateNodePoolAndWait20240610`, `Eventually` verifiers) |
+| Update | `NodePoolScalingTimeout` | Replica scale up/down, taints/labels with scaling (`UpdateNodePoolAndWait20240610`) |
+
+### Provisioning durations (Kusto)
+
+For **create** timeouts, run the following query (grouped by `resource_type`). Adjust `resourceType` or `controller_name` filters to narrow to clusters vs. node pools, etc.:
+
+```kql
+database('ServiceLogs').table('backendLogs')
+| where timestamp between (ago(7d) .. now())
+| where container_name == 'aro-hcp-backend'
+| where log.msg has 'new status'
+| where log.newStatus == 'Provisioning' or log.newStatus == 'Succeeded'
+| where log.controller_name endswith 'create'
+| project timestamp, resource_id = tostring(log.resource_id), status = tostring(log.newStatus), resource_type = tostring(log.resourceType), log.controller_name
+| summarize
+    provisioning_time = minif(timestamp, status == 'Provisioning'),
+    succeeded_time    = minif(timestamp, status == 'Succeeded')
+    by resource_id, resource_type
+| where isnotempty(provisioning_time) and isnotempty(succeeded_time)
+| extend duration = succeeded_time - provisioning_time
+| summarize
+    count  = count(),
+    avg    = avg(duration),
+    p50    = percentile(duration, 50),
+    p90    = percentile(duration, 90),
+    p95    = percentile(duration, 95),
+    p99    = percentile(duration, 99),
+    p999   = percentile(duration, 99.9),
+    p9999  = percentile(duration, 99.99)
+    by resource_type
+```
+
+### Update durations
+
+For **update** shared constants, use the same percentile approach but filter backend logs for the relevant controller (for example, `controller_name endswith 'update'`).
+
 ## General guidance to write E2E test with ginkgo
 
 Keep description of specs and tests informational and comprehensive so that it can be read and understood as a complete sentence, e.g. "Get HCPOpenShiftCluster: it fails to get a nonexistent cluster with a Not Found error by preparing an HCP clusters client (and) by sending a GET request for the nonexistent cluster".

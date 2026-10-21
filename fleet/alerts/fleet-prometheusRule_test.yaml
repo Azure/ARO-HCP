@@ -1,0 +1,83 @@
+rule_files:
+- fleet-prometheusRule.yaml
+evaluation_interval: 1m
+tests:
+# Test: FleetControllerRetryHotLoop fires when retry ratio > 50%
+- interval: 1m
+  input_series:
+  - series: 'workqueue_retries_total{name="ClustersServiceRegistrationController", namespace="fleet"}'
+    values: "0+80x25" # 80 retries per minute
+  - series: 'workqueue_adds_total{name="ClustersServiceRegistrationController", namespace="fleet"}'
+    values: "0+100x25" # 100 adds per minute → retry ratio = 80%
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: FleetControllerRetryHotLoop
+    exp_alerts:
+    - exp_labels:
+        name: ClustersServiceRegistrationController
+        severity: warning
+      exp_annotations:
+        description: 'Fleet controller workqueue ClustersServiceRegistrationController has a retry ratio of > 50% sustained over 10 minutes, indicating most queue activity is failed retries rather than fresh work.'
+        runbook_url: 'TBD'
+        summary: 'Fleet controller workqueue retry hot loop'
+# Test: FleetControllerRetryHotLoop does not fire when retry ratio < 50%
+- interval: 1m
+  input_series:
+  - series: 'workqueue_retries_total{name="ClustersServiceRegistrationController", namespace="fleet"}'
+    values: "0+20x25" # 20 retries per minute
+  - series: 'workqueue_adds_total{name="ClustersServiceRegistrationController", namespace="fleet"}'
+    values: "0+100x25" # 100 adds per minute → retry ratio = 20%
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: FleetControllerRetryHotLoop
+    exp_alerts: []
+# Test: FleetControllerQueueDepthHigh fires when depth > 10 for 5m
+- interval: 1m
+  input_series:
+  - series: 'workqueue_depth{name="ClustersServiceRegistrationController", namespace="fleet"}'
+    values: "15x10" # depth stays at 15 for 10 minutes
+  alert_rule_test:
+  - eval_time: 6m
+    alertname: FleetControllerQueueDepthHigh
+    exp_alerts:
+    - exp_labels:
+        name: ClustersServiceRegistrationController
+        severity: warning
+      exp_annotations:
+        description: 'Fleet controller workqueue ClustersServiceRegistrationController has had a depth > 10 for more than 5 minutes, indicating work is accumulating faster than it can be processed.'
+        runbook_url: 'TBD'
+        summary: 'Fleet controller workqueue depth is high'
+# Test: FleetControllerQueueDepthHigh does not fire when depth <= 10
+- interval: 1m
+  input_series:
+  - series: 'workqueue_depth{name="ClustersServiceRegistrationController", namespace="fleet"}'
+    values: "8x10" # depth stays at 8 for 10 minutes
+  alert_rule_test:
+  - eval_time: 6m
+    alertname: FleetControllerQueueDepthHigh
+    exp_alerts: []
+# Test: FleetControllerPanic fires when panics occur
+- interval: 1m
+  input_series:
+  - series: 'panic_total{controller="ClustersServiceRegistrationController", namespace="fleet"}'
+    values: "0 1 2 3 4 5 6 7 8 9 10"
+  alert_rule_test:
+  - eval_time: 6m
+    alertname: FleetControllerPanic
+    exp_alerts:
+    - exp_labels:
+        controller: ClustersServiceRegistrationController
+        severity: warning
+      exp_annotations:
+        description: 'Fleet controller ClustersServiceRegistrationController has panicked 5 time(s) in the last 5 minutes.'
+        runbook_url: 'TBD'
+        summary: 'Fleet controller is panicking'
+# Test: FleetControllerPanic does not fire when no panics
+- interval: 1m
+  input_series:
+  - series: 'panic_total{controller="ClustersServiceRegistrationController", namespace="fleet"}'
+    values: "0+0x10"
+  alert_rule_test:
+  - eval_time: 6m
+    alertname: FleetControllerPanic
+    exp_alerts: []

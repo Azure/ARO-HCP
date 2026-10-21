@@ -45,12 +45,12 @@ var needsUpdateEqualities = func() conversion.Equalities {
 		// arm.CosmosMetadata: only compare ResourceID. CosmosETag is server-assigned and
 		// ExistingCosmosUID is an in-memory bridge.
 		func(a, b arm.CosmosMetadata) bool {
-			return resourceIDStringsEqual(a.ResourceID, b.ResourceID)
+			return ResourceIDsEqual(a.ResourceID, b.ResourceID)
 		},
 		// *azcorearm.ResourceID: compare by string so unrelated parent pointer chains don't
 		// cause spurious inequality.
 		func(a, b *azcorearm.ResourceID) bool {
-			return resourceIDStringsEqual(a, b)
+			return ResourceIDsEqual(a, b)
 		},
 		// azcorearm.ResourceID (value): same reason as the pointer form.
 		func(a, b azcorearm.ResourceID) bool {
@@ -76,15 +76,15 @@ var needsUpdateEqualities = func() conversion.Equalities {
 	return e
 }()
 
-func resourceIDStringsEqual(a, b *azcorearm.ResourceID) bool {
-	var aStr, bStr string
-	if a != nil {
-		aStr = a.String()
+// ResourceIDsEqual compares two *azcorearm.ResourceID for equality by their
+// canonical string form. Both may be nil; non-nil values are compared by
+// String(), so independently-parsed instances with different parent pointer
+// chains still compare equal when they represent the same ARM ID.
+func ResourceIDsEqual(a, b *azcorearm.ResourceID) bool {
+	if a == nil || b == nil {
+		return a == b
 	}
-	if b != nil {
-		bStr = b.String()
-	}
-	return aStr == bStr
+	return a.String() == b.String()
 }
 
 // NeedsUpdate reports whether `desired` differs from `existing` in any way that should cause us to

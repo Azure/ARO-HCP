@@ -139,7 +139,7 @@ All registries support anonymous access by default for public images. Private re
 ./image-updater update --config config.yaml --tags --components maestro,hypershift
 
 # Exclude certain components
-./image-updater update --config config.yaml --tags --exclude-components arohcpfrontend
+./image-updater update --config config.yaml --tags --exclude-components maestro
 ```
 
 ### Groups
@@ -164,7 +164,7 @@ make update GROUPS=hypershift-stack,velero
 make update GROUPS=hypershift-stack EXCLUDE_COMPONENTS=maestro-agent-sidecar
 ```
 
-Example groups include `aro-rp`, `cs`, `aro-deps`, `hypershift-stack`, `prom-stack`, `obs-agents`, `velero`, and `platform-utils`. For the complete, current set of supported groups, refer to `config.yaml`.
+Example groups include `cs`, `aro-deps`, `hypershift-stack`, `prom-stack`, `obs-agents`, `velero`, and `platform-utils`. For the complete, current set of supported groups, refer to `config.yaml`.
 
 ### Output to File
 
@@ -202,13 +202,13 @@ To pin an image to a specific digest and prevent automatic updates:
 2. **Update `config.yaml`** to use a specific `tag` instead of `tagPattern`:
 
 ```yaml
-arohcpfrontend:
+imageSync:
   source:
-    image: arohcpsvcint.azurecr.io/arohcpfrontend
-    tag: "013ae7f72821c95873141388054ed7fdaa75dbf71d78e8701240fb39e5a39c51"  # Pin to specific digest
+    image: arohcpsvcdev.azurecr.io/image-sync/oc-mirror
+    tag: "8755133"  # Pin to a specific tag instead of tagPattern
     useAuth: true
   targets:
-  - jsonPath: defaults.frontend.image.digest
+  - jsonPath: defaults.imageSync.ocMirror.image.digest
     filePath: ../../config/config.yaml
 ```
 
@@ -222,7 +222,7 @@ az login
 
 ```bash
 # Update specific component
-make update COMPONENTS=arohcpfrontend
+make update COMPONENTS=imageSync
 ```
 
 5. **Run materialize** to update rendered configs:
@@ -300,12 +300,12 @@ clusters-service:
 
 **Azure Container Registry (Private)**:
 ```yaml
-arohcpfrontend:
+imageSync:
   source:
-    image: arohcpsvcdev.azurecr.io/arohcpfrontend
+    image: arohcpsvcdev.azurecr.io/image-sync/oc-mirror
     useAuth: true  # Uses DefaultAzureCredential
   targets:
-  - jsonPath: defaults.frontend.image.digest
+  - jsonPath: defaults.imageSync.ocMirror.image.digest
     filePath: ../../config/config.yaml
 ```
 

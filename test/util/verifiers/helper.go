@@ -124,6 +124,16 @@ var defaultRESTMappings = []meta.RESTMapping{
 		Scope:            meta.RESTScopeRoot,
 		Resource:         schema.GroupVersionResource{Group: "security.openshift.io", Version: "v1", Resource: "securitycontextconstraints"},
 	},
+	{
+		GroupVersionKind: schema.GroupVersionKind{Group: "cilium.io", Version: "v1alpha1", Kind: "CiliumConfig"},
+		Scope:            meta.RESTScopeNamespace,
+		Resource:         schema.GroupVersionResource{Group: "cilium.io", Version: "v1alpha1", Resource: "ciliumconfigs"},
+	},
+	{
+		GroupVersionKind: schema.GroupVersionKind{Group: "cilium.io", Version: "v2", Kind: "CiliumNetworkPolicy"},
+		Scope:            meta.RESTScopeNamespace,
+		Resource:         schema.GroupVersionResource{Group: "cilium.io", Version: "v2", Resource: "ciliumnetworkpolicies"},
+	},
 }
 
 var localRESTMapper = newHardcodedRESTMapper()

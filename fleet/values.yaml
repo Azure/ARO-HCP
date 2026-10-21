@@ -1,0 +1,28 @@
+serviceAccount:
+  name: "{{ .fleet.k8s.serviceAccountName }}"
+  workloadIdentityClientId: "__fleetMsiClientId__"
+  workloadIdentityTenantId: "__tenantId__"
+pullBinding:
+  registry: "{{ .acr.svc.name }}.azurecr.io"
+  scope: "repository:{{ .fleet.image.repository }}:pull"
+  workloadIdentityClientId: "__imagePullerMsiClientId__"
+  workloadIdentityTenantId: "__imagePullerMsiTenantId__"
+image:
+  registry: '{{ .acr.svc.name }}.azurecr.io'
+  repository: '{{ .fleet.image.repository }}'
+  digest: '{{ .fleet.image.digest }}'
+deployment:
+  replicas: {{ .fleet.k8s.replicas }}
+  resources:
+    requests:
+      cpu: "{{ .fleet.k8s.resources.requests.cpu }}"
+      memory: "{{ .fleet.k8s.resources.requests.memory }}"
+    limits:
+      memory: "{{ .fleet.k8s.resources.limits.memory }}"
+cloudEnvironmentName: '{{ .cloudEnvironmentName }}'
+region: '{{ .region }}'
+cosmos:
+  url: "__cosmosUrl__"
+  name: '{{ .frontend.cosmosDB.name }}'
+controller:
+  namespace: '{{ .fleet.k8s.namespace }}'

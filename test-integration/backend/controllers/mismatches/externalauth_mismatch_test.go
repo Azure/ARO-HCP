@@ -48,7 +48,7 @@ func testExternalAuthMismatchController(t *testing.T, withMock bool) {
 			},
 			ArtifactDir: api.Must(fs.Sub(artifacts, path.Join("artifacts/externalauth"))),
 			ControllerInitializerFn: func(ctx context.Context, t *testing.T, input *controllertesthelpers.ControllerInitializationInput) (controller controllerutils.Controller, testMemory map[string]any) {
-				return mismatchcontrollers.NewCosmosExternalAuthMatchingController(input.ResourcesDBClient, input.ClusterServiceClient, nil),
+				return mismatchcontrollers.NewCosmosExternalAuthMatchingController(input.ResourcesDBClient, input.ClusterServiceClient, nil, nil),
 					map[string]any{}
 			},
 			ControllerVerifierFn: func(ctx context.Context, t *testing.T, controller controllerutils.Controller, testMemory map[string]any, input *controllertesthelpers.ControllerInitializationInput) {
@@ -79,7 +79,7 @@ func testExternalAuthMismatchController(t *testing.T, withMock bool) {
 			},
 			ArtifactDir: api.Must(fs.Sub(artifacts, path.Join("artifacts/externalauth"))),
 			ControllerInitializerFn: func(ctx context.Context, t *testing.T, input *controllertesthelpers.ControllerInitializationInput) (controller controllerutils.Controller, testMemory map[string]any) {
-				return mismatchcontrollers.NewCosmosExternalAuthMatchingController(input.ResourcesDBClient, input.ClusterServiceClient, nil),
+				return mismatchcontrollers.NewCosmosExternalAuthMatchingController(input.ResourcesDBClient, input.ClusterServiceClient, nil, nil),
 					map[string]any{}
 
 			},

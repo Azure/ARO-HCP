@@ -94,6 +94,9 @@ func TestSerialConsoleHandler(t *testing.T) {
 				internalID, err := api.NewInternalID("/api/clusters_mgmt/v1/clusters/test-cluster-id")
 				require.NoError(t, err)
 				hcp := &api.HCPOpenShiftCluster{
+					CosmosMetadata: arm.CosmosMetadata{
+						ResourceID: resourceID,
+					},
 					TrackedResource: arm.TrackedResource{
 						Resource: arm.Resource{ID: resourceID},
 					},
@@ -117,6 +120,9 @@ func TestSerialConsoleHandler(t *testing.T) {
 				internalID, err := api.NewInternalID("/api/clusters_mgmt/v1/clusters/test-cluster-id")
 				require.NoError(t, err)
 				hcp := &api.HCPOpenShiftCluster{
+					CosmosMetadata: arm.CosmosMetadata{
+						ResourceID: resourceID,
+					},
 					TrackedResource: arm.TrackedResource{
 						Resource: arm.Resource{ID: resourceID},
 					},

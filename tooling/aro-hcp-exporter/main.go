@@ -21,7 +21,6 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/dusted-go/logging/prettylog"
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
 
@@ -74,10 +73,8 @@ This tool exposes metrics via HTTP that can be scraped by Prometheus.`,
 }
 
 func createLogger(verbosity int) logr.Logger {
-	prettyHandler := prettylog.NewHandler(&slog.HandlerOptions{
-		Level:       slog.Level(verbosity * -1),
-		AddSource:   false,
-		ReplaceAttr: nil,
+	handler := slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
+		Level: slog.Level(verbosity * -1),
 	})
-	return logr.FromSlogHandler(prettyHandler)
+	return logr.FromSlogHandler(handler)
 }

@@ -84,14 +84,15 @@ It runs continuously, leader-elected, alongside other ARO-HCP
 management-cluster services. It uses `rest.InClusterConfig()` like the
 `admin` server does.
 
-### Cross-partition access lives only in `GlobalListers`
+### Cross-management-cluster access lives in `KubeApplierDBClients` (plural)
 
-Following the existing split (`internal/database/global_lister.go`):
-
-- The kube-applier uses single-partition CRUD scoped to its
-  management-cluster partition.
-- The backend uses the new `GlobalListers().*Desires()` methods to list
-  across all management clusters.
+Each management cluster has its own Cosmos container. The kube-applier
+sidecar opens its own MC's container directly via `KubeApplierDBClient`.
+The backend holds a `KubeApplierDBClients` registry keyed by management
+cluster resourceID; `For(rid)` returns the per-MC `KubeApplierDBClient`,
+constructing it lazily on first access. Iterating
+`ManagementClusterResourceIDs()` lets the backend walk every container —
+this is how the orphan-cleanup controller spans all MCs.
 
 ## Out of scope (for the initial implementation)
 

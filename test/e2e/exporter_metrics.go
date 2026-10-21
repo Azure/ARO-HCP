@@ -95,7 +95,7 @@ var _ = Describe("Engineering", func() {
 				By("querying the /metrics endpoint")
 				metricsURL := fmt.Sprintf("http://localhost:%d/metrics", localPort)
 				req, err := http.NewRequestWithContext(cancelCtx, http.MethodGet, metricsURL, nil)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to create HTTP request for metrics endpoint")
 
 				resp, err := httpClient.Do(req)
 				if err != nil {

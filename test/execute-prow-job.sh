@@ -35,4 +35,4 @@ if [ -n "${zz_injected_EV2RolloutVersion:-}" ]; then
   fi
 fi
 
-"${PROW_JOB_EXECUTOR}" execute --prow-token-keyvault-uri "https://${PROW_TOKEN_KEYVAULT}.${KEY_VAULT_DNSSUFFIX}" --prow-token-keyvault-secret "$PROW_TOKEN_SECRET" --job-name "$PROW_JOB_NAME" --region "$REGION" --ev2-rollout-version "${zz_injected_EV2RolloutVersion:-}" --dry-run="${DRY_RUN:-false}" --gate-promotion="${GATE_PROMOTION:-false}" ${BASE_SHA_ARGS[@]+"${BASE_SHA_ARGS[@]}"}
+"${PROW_JOB_EXECUTOR}" execute --prow-token-keyvault-uri "https://${PROW_TOKEN_KEYVAULT}.${KEY_VAULT_DNSSUFFIX}" --prow-token-keyvault-secret "$PROW_TOKEN_SECRET" --job-name "$PROW_JOB_NAME" --cloud "$CLOUD" --environment "$ENVIRONMENT" --region "$REGION" --ev2-rollout-version "${zz_injected_EV2RolloutVersion:-}" --dry-run="${DRY_RUN:-false}" --gate-promotion="${GATE_PROMOTION:-false}" ${BASE_SHA_ARGS[@]+"${BASE_SHA_ARGS[@]}"}

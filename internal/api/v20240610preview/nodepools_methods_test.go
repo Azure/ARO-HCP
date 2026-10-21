@@ -40,6 +40,7 @@ func TestSizeGiBRoundTrip(t *testing.T) {
 		{
 			name: "SizeGiB with explicit value should round-trip",
 			original: &api.HCPOpenShiftClusterNodePool{
+				CosmosMetadata: arm.CosmosMetadata{ResourceID: api.Must(azcorearm.ParseResourceID(strings.ToLower("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/myRg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/myCluster/nodePools/myNodePool")))},
 				TrackedResource: arm.TrackedResource{
 					Resource: arm.Resource{
 						ID:   api.Must(azcorearm.ParseResourceID(strings.ToLower("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/myRg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/myCluster/nodePools/myNodePool"))),

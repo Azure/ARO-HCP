@@ -1,0 +1,12 @@
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: fleet-controller-metrics
+  namespace: '{{ .Release.Namespace }}'
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: fleet-controller
+  portLevelMtls:
+    8081:
+      mode: PERMISSIVE

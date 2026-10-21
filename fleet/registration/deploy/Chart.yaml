@@ -1,0 +1,6 @@
+apiVersion: v2
+name: fleet-registration
+description: A Helm chart for fleet stamp and management cluster registration
+type: application
+version: 0.1.0
+appVersion: "1.0.0"

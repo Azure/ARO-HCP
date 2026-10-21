@@ -323,6 +323,9 @@ func newTestCluster(subscriptionID, resourceGroupName, clusterName string) *api.
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + clusterName,
 	))
 	return &api.HCPOpenShiftCluster{
+		CosmosMetadata: arm.CosmosMetadata{
+			ResourceID: resourceID,
+		},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
 				ID:   resourceID,
@@ -344,6 +347,7 @@ func newTestNodePool(subscriptionID, resourceGroupName, clusterName, nodePoolNam
 			"/nodePools/" + nodePoolName,
 	))
 	return &api.HCPOpenShiftClusterNodePool{
+		CosmosMetadata: arm.CosmosMetadata{ResourceID: resourceID},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
 				ID:   resourceID,
@@ -381,7 +385,8 @@ func newTestExternalAuth(subscriptionID, resourceGroupName, clusterName, externa
 			"/externalAuths/" + externalAuthName,
 	))
 	return &api.HCPOpenShiftClusterExternalAuth{
-		ProxyResource: arm.NewProxyResource(resourceID),
+		CosmosMetadata: arm.CosmosMetadata{ResourceID: resourceID},
+		ProxyResource:  arm.NewProxyResource(resourceID),
 	}
 }
 

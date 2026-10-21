@@ -128,7 +128,7 @@ func NewHCPClusterCRUD(containerClient *azcosmos.ContainerClient, subscriptionID
 	parentResourceID := api.Must(azcorearm.ParseResourceID(strings.ToLower(path.Join(parts...))))
 
 	return &hcpClusterCRUD{
-		nestedCosmosResourceCRUD: NewCosmosResourceCRUD[api.HCPOpenShiftCluster, HCPCluster](containerClient, parentResourceID, api.ClusterResourceType),
+		nestedCosmosResourceCRUD: NewCosmosResourceCRUD[api.HCPOpenShiftCluster, GenericDocument[api.HCPOpenShiftCluster]](containerClient, parentResourceID, api.ClusterResourceType),
 	}
 }
 
@@ -144,7 +144,7 @@ type ExternalAuthsCRUD interface {
 }
 
 type hcpClusterCRUD struct {
-	*nestedCosmosResourceCRUD[api.HCPOpenShiftCluster, HCPCluster]
+	*nestedCosmosResourceCRUD[api.HCPOpenShiftCluster, GenericDocument[api.HCPOpenShiftCluster]]
 }
 
 var _ HCPClusterCRUD = &hcpClusterCRUD{}
@@ -159,7 +159,7 @@ func (h *hcpClusterCRUD) ExternalAuth(hcpClusterName string) ExternalAuthsCRUD {
 			hcpClusterName)))
 
 	return &externalAuthCRUD{
-		nestedCosmosResourceCRUD: NewCosmosResourceCRUD[api.HCPOpenShiftClusterExternalAuth, ExternalAuth](
+		nestedCosmosResourceCRUD: NewCosmosResourceCRUD[api.HCPOpenShiftClusterExternalAuth, GenericDocument[api.HCPOpenShiftClusterExternalAuth]](
 			h.containerClient,
 			parentResourceID,
 			api.ExternalAuthResourceType,
@@ -177,7 +177,7 @@ func (h *hcpClusterCRUD) NodePools(hcpClusterName string) NodePoolsCRUD {
 			hcpClusterName)))
 
 	return &nodePoolsCRUD{
-		nestedCosmosResourceCRUD: NewCosmosResourceCRUD[api.HCPOpenShiftClusterNodePool, NodePool](
+		nestedCosmosResourceCRUD: NewCosmosResourceCRUD[api.HCPOpenShiftClusterNodePool, GenericDocument[api.HCPOpenShiftClusterNodePool]](
 			h.containerClient,
 			parentResourceID,
 			api.NodePoolResourceType),
@@ -213,7 +213,7 @@ func (h *hcpClusterCRUD) ManagementClusterContents(hcpClusterName string) Manage
 }
 
 type externalAuthCRUD struct {
-	*nestedCosmosResourceCRUD[api.HCPOpenShiftClusterExternalAuth, ExternalAuth]
+	*nestedCosmosResourceCRUD[api.HCPOpenShiftClusterExternalAuth, GenericDocument[api.HCPOpenShiftClusterExternalAuth]]
 }
 
 func (h *externalAuthCRUD) Controllers(externalAuthName string) ResourceCRUD[api.Controller] {
@@ -228,7 +228,7 @@ func (h *externalAuthCRUD) Controllers(externalAuthName string) ResourceCRUD[api
 }
 
 type nodePoolsCRUD struct {
-	*nestedCosmosResourceCRUD[api.HCPOpenShiftClusterNodePool, NodePool]
+	*nestedCosmosResourceCRUD[api.HCPOpenShiftClusterNodePool, GenericDocument[api.HCPOpenShiftClusterNodePool]]
 }
 
 func (h *nodePoolsCRUD) Controllers(nodePoolName string) ResourceCRUD[api.Controller] {

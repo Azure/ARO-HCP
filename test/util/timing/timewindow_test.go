@@ -538,3 +538,110 @@ func TestComputeTimeWindow_TestTimingNotUsedWhenStepsProvide(t *testing.T) {
 		t.Errorf("end: got %v, want %v (test timing should not override steps)", got.End, wantEnd)
 	}
 }
+
+func TestDeriveSetupTestBoundary(t *testing.T) {
+	tests := []struct {
+		name            string
+		steps           []StepTimingMetadata
+		wantSetupFinish string // RFC3339 or "" for zero
+		wantTestStart   string
+	}{
+		{
+			name:            "no steps",
+			steps:           nil,
+			wantSetupFinish: "",
+			wantTestStart:   "",
+		},
+		{
+			name: "only identity container steps",
+			steps: []StepTimingMetadata{
+				{Name: "Assign 2 identity containers", StartedAt: "2025-06-01T10:00:00Z", FinishedAt: "2025-06-01T10:01:00Z"},
+				{Name: "Lease identity container", StartedAt: "2025-06-01T10:01:00Z", FinishedAt: "2025-06-01T10:02:00Z"},
+			},
+			wantSetupFinish: "2025-06-01T10:02:00Z",
+			wantTestStart:   "",
+		},
+		{
+			name: "only test steps",
+			steps: []StepTimingMetadata{
+				{Name: "Create cluster", StartedAt: "2025-06-01T10:05:00Z", FinishedAt: "2025-06-01T10:30:00Z"},
+			},
+			wantSetupFinish: "",
+			wantTestStart:   "2025-06-01T10:05:00Z",
+		},
+		{
+			name: "mixed setup and test steps",
+			steps: []StepTimingMetadata{
+				{Name: "Assign 2 identity containers", StartedAt: "2025-06-01T10:00:00Z", FinishedAt: "2025-06-01T10:01:00Z"},
+				{Name: "Lease identity container", StartedAt: "2025-06-01T10:01:00Z", FinishedAt: "2025-06-01T10:03:00Z"},
+				{Name: "Create cluster", StartedAt: "2025-06-01T10:03:00Z", FinishedAt: "2025-06-01T10:30:00Z"},
+				{Name: "Verify cluster health", StartedAt: "2025-06-01T10:30:00Z", FinishedAt: "2025-06-01T10:35:00Z"},
+			},
+			wantSetupFinish: "2025-06-01T10:03:00Z",
+			wantTestStart:   "2025-06-01T10:03:00Z",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotSetup, gotTest := deriveSetupTestBoundary(tt.steps)
+
+			if tt.wantSetupFinish == "" {
+				if !gotSetup.IsZero() {
+					t.Errorf("setupFinishTime: got %v, want zero", gotSetup)
+				}
+			} else {
+				want := mustParseTime(t, tt.wantSetupFinish)
+				if !gotSetup.Equal(want) {
+					t.Errorf("setupFinishTime: got %v, want %v", gotSetup, want)
+				}
+			}
+
+			if tt.wantTestStart == "" {
+				if !gotTest.IsZero() {
+					t.Errorf("testStartTime: got %v, want zero", gotTest)
+				}
+			} else {
+				want := mustParseTime(t, tt.wantTestStart)
+				if !gotTest.Equal(want) {
+					t.Errorf("testStartTime: got %v, want %v", gotTest, want)
+				}
+			}
+		})
+	}
+}
+
+func TestLoadTestTimingInfo_SetupTestBoundary(t *testing.T) {
+	dir := t.TempDir()
+	tm := SpecTimingMetadata{
+		Identifier: []string{"boundary-test"},
+		StartedAt:  "2025-06-01T10:00:00Z",
+		FinishedAt: "2025-06-01T11:00:00Z",
+		Steps: []StepTimingMetadata{
+			{Name: "Assign 2 identity containers", StartedAt: "2025-06-01T10:00:00Z", FinishedAt: "2025-06-01T10:02:00Z"},
+			{Name: "Create cluster", StartedAt: "2025-06-01T10:02:00Z", FinishedAt: "2025-06-01T10:50:00Z"},
+		},
+	}
+	writeYAML(t, filepath.Join(dir, "timing-metadata-boundary.yaml"), tm)
+
+	ctx := ctxWithLogger(t)
+	got, err := LoadTestTimingInfo(ctx, dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	info := got["boundary-test"]
+
+	wantSetupFinish := mustParseTime(t, "2025-06-01T10:02:00Z")
+	if !info.SetupFinishTime.Equal(wantSetupFinish) {
+		t.Errorf("SetupFinishTime: got %v, want %v", info.SetupFinishTime, wantSetupFinish)
+	}
+
+	wantTestStart := mustParseTime(t, "2025-06-01T10:02:00Z")
+	if !info.TestStartTime.Equal(wantTestStart) {
+		t.Errorf("TestStartTime: got %v, want %v", info.TestStartTime, wantTestStart)
+	}
+
+	wantCleanup := mustParseTime(t, "2025-06-01T11:00:00Z")
+	if !info.CleanupStartTime.Equal(wantCleanup) {
+		t.Errorf("CleanupStartTime: got %v, want %v", info.CleanupStartTime, wantCleanup)
+	}
+}

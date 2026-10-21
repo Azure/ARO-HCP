@@ -23,6 +23,8 @@ import (
 	"strconv"
 	"time"
 
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 )
 
@@ -183,6 +185,7 @@ func (c *LockClient) HoldLock(ctx context.Context, item *azcosmos.ItemResponse) 
 	}
 
 	go func() {
+		defer utilruntime.HandleCrash()
 		defer close(done)
 		for {
 			var doc *lockDocument

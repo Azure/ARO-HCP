@@ -1,0 +1,1 @@
+The last node pool can not be deleted from a cluster.

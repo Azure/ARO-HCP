@@ -49,6 +49,20 @@ resourceGroups:
     dependsOn:
     - resourceGroup: singleton
       step: infra
+  - name: grafana-monitoring-reader
+    action: ARM
+    template: templates/grafana-monitoring-reader.bicep
+    parameters: configurations/grafana-monitoring-reader.tmpl.bicepparam
+    deploymentLevel: Subscription
+    variables:
+    - name: grafanaPrincipalId
+      input:
+        resourceGroup: singleton
+        step: output
+        name: grafanaPrincipalId
+    dependsOn:
+    - resourceGroup: singleton
+      step: output
   - name: global-kv-private-issuer
     action: SetCertificateIssuer
     secretKeyVault:

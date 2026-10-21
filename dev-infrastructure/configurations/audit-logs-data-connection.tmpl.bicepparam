@@ -6,7 +6,6 @@ param auditLogsKustoConsumerGroupName = '{{ .auditLogsEventHub.kustoConsumerGrou
 param auditLogsEventHubId = '__auditLogsEventHubId__'
 param databaseName = '{{ .kusto.serviceLogsDatabase }}'
 param kustoDataConnectionName = '{{ .auditLogsEventHub.kustoDataConnectionName }}'
-param manageInstance = {{ .kusto.manageInstance }}
 param kustoEnabled = {{ .arobit.kusto.enabled }}
 param eventhubEnabled = {{ .auditLogsEventHub.enabled }}
 

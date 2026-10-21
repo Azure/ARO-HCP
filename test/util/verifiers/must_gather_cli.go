@@ -199,7 +199,7 @@ func infraClusterNames() (svcCluster, mgmtCluster string) {
 
 	deployEnv := os.Getenv("DEPLOY_ENV")
 	if deployEnv == "" {
-		deployEnv = "prow"
+		deployEnv = "ci00"
 	}
 
 	suffix := buildID

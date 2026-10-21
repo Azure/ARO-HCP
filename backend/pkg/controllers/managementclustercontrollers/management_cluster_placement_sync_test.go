@@ -112,6 +112,10 @@ func newTestManagementCluster() *fleet.ManagementCluster {
 	}
 }
 
+func testProvisionShardHREF(shardID string) string {
+	return "/api/aro_hcp/v1alpha1/provision_shards/" + shardID
+}
+
 // alwaysSyncCooldownChecker always allows syncing
 type alwaysSyncCooldownChecker struct{}
 
@@ -162,7 +166,7 @@ func TestManagementClusterPlacementSyncer_SyncOnce(t *testing.T) {
 			cachedSPC:   newTestSPC(),
 			existingSPC: newTestSPC(),
 			cachedCluster: newTestHCPCluster(func(c *api.HCPOpenShiftCluster) {
-				c.ServiceProviderProperties.ClusterServiceID = &api.InternalID{}
+				c.ServiceProviderProperties.ClusterServiceID = nil
 			}),
 			expectCSCall:                        false,
 			expectError:                         false,

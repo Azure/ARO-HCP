@@ -54,7 +54,7 @@ Each lister exposes a focused interface. For `ApplyDesire`:
 type ApplyDesireLister interface {
     List(ctx context.Context) ([]*kubeapplier.ApplyDesire, error)
     Get(ctx context.Context, parent ResourceKey, name string) (*kubeapplier.ApplyDesire, error)
-    ListForManagementCluster(ctx context.Context, mgmtCluster string) ([]*kubeapplier.ApplyDesire, error)
+    ListForManagementCluster(ctx context.Context, mgmtCluster *azcorearm.ResourceID) ([]*kubeapplier.ApplyDesire, error)
     ListForCluster(ctx context.Context, sub, rg, cluster string) ([]*kubeapplier.ApplyDesire, error)
     ListForNodePool(ctx context.Context, sub, rg, cluster, np string) ([]*kubeapplier.ApplyDesire, error)
 }
@@ -94,8 +94,8 @@ type KubeApplierInformers interface {
     RunWithContext(ctx context.Context)
 }
 
-func NewKubeApplierInformers(ctx context.Context, gl database.GlobalListers) KubeApplierInformers
-func NewKubeApplierInformersWithRelistDuration(ctx context.Context, gl database.GlobalListers, relistDuration time.Duration) KubeApplierInformers
+func NewKubeApplierInformers(ctx context.Context, gl database.KubeApplierListers) KubeApplierInformers
+func NewKubeApplierInformersWithRelistDuration(ctx context.Context, gl database.KubeApplierListers, relistDuration time.Duration) KubeApplierInformers
 ```
 
 Each per-type informer is the standard `cache.ListWatch` &rarr;
@@ -109,33 +109,19 @@ attention to:
 - Indexers must be registered up front:
   `cache.Indexers{listers.ByManagementCluster: ..., listers.ByCluster: ..., listers.ByNodePool: ...}`.
 
-### 4.3 Filtering by management cluster on the kube-applier side
+### 4.3 Per-management-cluster scoping comes from the container, not the lister
 
 The kube-applier process should only ever care about desires for *its*
-management cluster. There are two ways to enforce this:
+management cluster. In the per-MC container model that is automatic: the pod
+holds a `KubeApplierDBClient` bound to its own container, and
+`KubeApplierDBClient.Listers()` only returns documents from that container.
+There is no shared container to filter against — credential isolation and
+data isolation are the same thing.
 
-1. **Server-side**: change the kube-applier `ListWithContextFunc` to query
-   only its partition. This is the right answer because it also limits the
-   blast radius if Cosmos credentials are scoped to one partition.
-
-To do this, add a partition-scoped variant of the global lister that the
-informer factory accepts:
-
-```go
-type ScopedLister[T any] interface {
-    List(ctx context.Context, opts *DBClientListResourceDocsOptions) (DBClientIterator[T], error)
-}
-```
-
-The backend uses `GlobalLister[T]` (cross-partition). The kube-applier uses
-a `ScopedLister[T]` that wraps the single-partition `KubeApplier(...)
-.*Desires(...)` accessors.
-
-The informer factory should accept either via a small interface so the same
-factory works for both consumers.
-
-2. **Client-side**: filter in the event handler. Cheaper to implement but
-   doesn't reduce credential blast radius. **Not recommended.**
+The backend uses one informer per `KubeApplierDBClient` it obtains from
+`KubeApplierDBClients.For(rid)`. Cross-MC iteration in backend controllers
+walks `ManagementClusterResourceIDs()` and constructs a per-MC informer
+(or, for one-shot sweeps, calls `UntypedCRUD` directly) as needed.
 
 ### 4.4 `internal/database/listertesting`
 
@@ -161,6 +147,6 @@ the structure.
   informer's lister within one resync cycle (covered by an informer-level
   unit test).
 - The lister's `ListForManagementCluster` returns only desires for the
-  named partition.
+  identified management cluster's partition.
 - No code in `backend/` or `kube-applier/` depends on this package yet
   (still PR-shippable in isolation).

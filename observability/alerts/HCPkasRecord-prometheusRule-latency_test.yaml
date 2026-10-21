@@ -1,0 +1,103 @@
+rule_files:
+- HCPkasRecord-prometheusRule-latency.yaml
+evaluation_interval: 1m
+tests:
+# Test 1: All requests within threshold (100% good latency — ratio = 1.0)
+- interval: 1m
+  input_series:
+  # Mutating requests: 100/min, all completing within 1s (le="1.0" captures all)
+  - series: 'apiserver_request_sli_duration_seconds_bucket{cluster="test-mgmt-1", namespace="ocm-aro-test-01", verb="POST", scope="resource", le="0.1"}'
+    values: "0+50x15"
+  - series: 'apiserver_request_sli_duration_seconds_bucket{cluster="test-mgmt-1", namespace="ocm-aro-test-01", verb="POST", scope="resource", le="1.0"}'
+    values: "0+100x15"
+  - series: 'apiserver_request_sli_duration_seconds_bucket{cluster="test-mgmt-1", namespace="ocm-aro-test-01", verb="POST", scope="resource", le="+Inf"}'
+    values: "0+100x15"
+  - series: 'apiserver_request_sli_duration_seconds_count{cluster="test-mgmt-1", namespace="ocm-aro-test-01", verb="POST", scope="resource"}'
+    values: "0+100x15"
+  promql_expr_test:
+  # Ratio: 100 good / 100 total = 1.0 (all requests within threshold)
+  - expr: kas:apiserver_request_latency:sli_ratio:rate5m{cluster="test-mgmt-1", namespace="ocm-aro-test-01"}
+    eval_time: 5m
+    exp_samples:
+    - labels: '{__name__="kas:apiserver_request_latency:sli_ratio:rate5m", cluster="test-mgmt-1", namespace="ocm-aro-test-01"}'
+      value: 1.0
+# Test 2: 50% of requests exceed threshold (bad latency — ratio = 0.5)
+- interval: 1m
+  input_series:
+  # Namespace-scope GETs: 100/min total, 50/min complete within 5s threshold
+  - series: 'apiserver_request_sli_duration_seconds_bucket{cluster="test-mgmt-2", namespace="ocm-aro-test-02", verb="GET", scope="namespace", le="1.0"}'
+    values: "0+30x15"
+  - series: 'apiserver_request_sli_duration_seconds_bucket{cluster="test-mgmt-2", namespace="ocm-aro-test-02", verb="GET", scope="namespace", le="5.0"}'
+    values: "0+50x15"
+  - series: 'apiserver_request_sli_duration_seconds_bucket{cluster="test-mgmt-2", namespace="ocm-aro-test-02", verb="GET", scope="namespace", le="+Inf"}'
+    values: "0+100x15"
+  - series: 'apiserver_request_sli_duration_seconds_count{cluster="test-mgmt-2", namespace="ocm-aro-test-02", verb="GET", scope="namespace"}'
+    values: "0+100x15"
+  promql_expr_test:
+  # Ratio: 50 good (within 5s) / 100 total = 0.5
+  - expr: kas:apiserver_request_latency:sli_ratio:rate5m{cluster="test-mgmt-2", namespace="ocm-aro-test-02"}
+    eval_time: 5m
+    exp_samples:
+    - labels: '{__name__="kas:apiserver_request_latency:sli_ratio:rate5m", cluster="test-mgmt-2", namespace="ocm-aro-test-02"}'
+      value: 0.5
+# Test 3: Namespace filter - non-ocm namespace excluded
+- interval: 1m
+  input_series:
+  - series: 'apiserver_request_sli_duration_seconds_bucket{cluster="test-mgmt-3", namespace="kube-system", verb="GET", scope="namespace", le="5.0"}'
+    values: "0+100x15"
+  - series: 'apiserver_request_sli_duration_seconds_count{cluster="test-mgmt-3", namespace="kube-system", verb="GET", scope="namespace"}'
+    values: "0+100x15"
+  - series: 'apiserver_request_sli_duration_seconds_bucket{cluster="test-mgmt-3", namespace="ocm-aro-test-03", verb="GET", scope="namespace", le="5.0"}'
+    values: "0+50x15"
+  - series: 'apiserver_request_sli_duration_seconds_count{cluster="test-mgmt-3", namespace="ocm-aro-test-03", verb="GET", scope="namespace"}'
+    values: "0+50x15"
+  promql_expr_test:
+  # Only ocm-aro-test-03 should appear; kube-system is excluded by namespace=~"ocm-.*"
+  # Ratio: 50 good / 50 total = 1.0 for ocm-aro-test-03
+  - expr: kas:apiserver_request_latency:sli_ratio:rate5m{cluster="test-mgmt-3"}
+    eval_time: 5m
+    exp_samples:
+    - labels: '{__name__="kas:apiserver_request_latency:sli_ratio:rate5m", cluster="test-mgmt-3", namespace="ocm-aro-test-03"}'
+      value: 1.0
+# Test 4: Multiple verb/scope categories active simultaneously — ratio bounded to [0,1]
+#
+# This validates the key fix: with the atomic single-rule design, the ratio
+# cannot exceed 1.0 even when multiple verb/scope categories contribute to the
+# numerator and denominator simultaneously. The or-union in the numerator and
+# the count-based denominator must stay consistent.
+#
+# Setup: two namespaces, each with a different verb/scope category active:
+#   - ocm-aro-test-04a: POST (mutating), 50/100 within 1s -> ratio 0.5
+#   - ocm-aro-test-04b: GET cluster-scope, 25/100 within 30s -> ratio 0.25
+#
+# Values chosen to be exact binary fractions (1/2, 1/4) to avoid floating-point
+# rounding errors in promtool test comparison.
+- interval: 1m
+  input_series:
+  # ocm-aro-test-04a: POST/resource, 100/min total, 50/min within 1s threshold
+  - series: 'apiserver_request_sli_duration_seconds_bucket{cluster="test-mgmt-4", namespace="ocm-aro-test-04a", verb="POST", scope="resource", le="1.0"}'
+    values: "0+50x15"
+  - series: 'apiserver_request_sli_duration_seconds_bucket{cluster="test-mgmt-4", namespace="ocm-aro-test-04a", verb="POST", scope="resource", le="+Inf"}'
+    values: "0+100x15"
+  - series: 'apiserver_request_sli_duration_seconds_count{cluster="test-mgmt-4", namespace="ocm-aro-test-04a", verb="POST", scope="resource"}'
+    values: "0+100x15"
+  # ocm-aro-test-04b: GET/cluster, 100/min total, 25/min within 30s threshold
+  - series: 'apiserver_request_sli_duration_seconds_bucket{cluster="test-mgmt-4", namespace="ocm-aro-test-04b", verb="GET", scope="cluster", le="30.0"}'
+    values: "0+25x15"
+  - series: 'apiserver_request_sli_duration_seconds_bucket{cluster="test-mgmt-4", namespace="ocm-aro-test-04b", verb="GET", scope="cluster", le="+Inf"}'
+    values: "0+100x15"
+  - series: 'apiserver_request_sli_duration_seconds_count{cluster="test-mgmt-4", namespace="ocm-aro-test-04b", verb="GET", scope="cluster"}'
+    values: "0+100x15"
+  promql_expr_test:
+  # ocm-aro-test-04a: 50 good / 100 total = 0.5 (bounded, not > 1.0)
+  - expr: kas:apiserver_request_latency:sli_ratio:rate5m{cluster="test-mgmt-4", namespace="ocm-aro-test-04a"}
+    eval_time: 5m
+    exp_samples:
+    - labels: '{__name__="kas:apiserver_request_latency:sli_ratio:rate5m", cluster="test-mgmt-4", namespace="ocm-aro-test-04a"}'
+      value: 0.5
+  # ocm-aro-test-04b: 25 good / 100 total = 0.25 (bounded, not > 1.0)
+  - expr: kas:apiserver_request_latency:sli_ratio:rate5m{cluster="test-mgmt-4", namespace="ocm-aro-test-04b"}
+    eval_time: 5m
+    exp_samples:
+    - labels: '{__name__="kas:apiserver_request_latency:sli_ratio:rate5m", cluster="test-mgmt-4", namespace="ocm-aro-test-04b"}'
+      value: 0.25

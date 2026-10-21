@@ -16,7 +16,7 @@ data:
         servicePrincipalClientId: "{{ .servicePrincipalClientId }}"
         keyVaultSecretName: "{{ .keyVaultSecretName }}"
         scope: "https://graph.microsoft.com/.default"
-        directoryQuota: {{ .directoryQuota | default true }}
+        directoryQuota: {{ if or (eq .directoryQuota true) (eq .directoryQuota false) }}{{ .directoryQuota }}{{ else }}true{{ end }}
         {{- if .subscriptions }}
         subscriptions:
           {{- range .subscriptions }}

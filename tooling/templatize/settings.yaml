@@ -28,11 +28,11 @@ environments:
     ev2Cloud: public
     cxStamp: 1
     regionShortSuffix: "${USER:0:4}"
-- name: prow
+- name: ci00
   description: |
-    CI infra shard0 - PR end-to-end tests.
+    CI infra shard0 - PR end-to-end tests (fallback).
   defaults:
-    region: westus3
+    region: centralus
     cloud: dev
     ev2Cloud: public
     cxStamp: 1
@@ -41,7 +41,7 @@ environments:
   description: |
     CI infra shard1 - PR end-to-end tests.
   defaults:
-    region: westus3
+    region: centralus
     cloud: dev
     ev2Cloud: public
     cxStamp: 1
@@ -56,9 +56,9 @@ environments:
     ev2Cloud: public
     cxStamp: 1
     regionShortSuffix: "p${USER:0:4}"
-- name: opstool
+- name: dev-ci
   description: |
-    AKS cluster for SRE operational tooling.
+    Shared development and CI infrastructure topology.
   defaults:
     region: westus3
     cloud: dev

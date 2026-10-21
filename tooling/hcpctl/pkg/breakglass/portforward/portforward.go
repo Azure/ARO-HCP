@@ -22,6 +22,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/rest"
 	"k8s.io/kubectl/pkg/cmd/portforward"
@@ -74,6 +75,7 @@ func ForwardToService(ctx context.Context, restConfig *rest.Config, namespace, s
 
 	// monitor our caller's stop channel and cancel context when signaled
 	go func() {
+		defer utilruntime.HandleCrash()
 		<-stopCh
 		stopCancel()
 	}()
@@ -105,6 +107,7 @@ func ForwardToService(ctx context.Context, restConfig *rest.Config, namespace, s
 
 	// forward kubectl's ready signal to our caller's ready channel
 	go func() {
+		defer utilruntime.HandleCrash()
 		<-opts.ReadyChannel
 		close(readyCh)
 	}()
@@ -113,6 +116,7 @@ func ForwardToService(ctx context.Context, restConfig *rest.Config, namespace, s
 	// RunPortForwardContext is blocking, so we need to run it in a goroutine
 	errCh := make(chan error, 1)
 	go func() {
+		defer utilruntime.HandleCrash()
 		defer close(errCh)
 		if err := opts.RunPortForwardContext(stopCtx); err != nil {
 			errCh <- fmt.Errorf("port forwarding failed for service %s: %w", serviceName, err)

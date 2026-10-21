@@ -60,7 +60,7 @@ The source of truth for the current startup flow, HTTP handlers, and runtime def
 
 ## Deployment Layout
 
-The rollout is owned by `Microsoft.Azure.ARO.HCP.Opstool.TenantQuota` in `pipeline.yaml`.
+The rollout is owned by `Microsoft.Azure.ARO.HCP.DevCI.TenantQuota` in `pipeline.yaml`.
 
 The pipeline:
 
@@ -70,7 +70,7 @@ The pipeline:
 
 ## Configuration Source Of Truth
 
-The source of truth for deployed configuration is `config/config-opstool.yaml`, under `opstool.tenantQuota`.
+The source of truth for deployed configuration is `config/config-dev-ci.yaml`, under `opstool.tenantQuota`.
 
 Do not update tenant definitions in `deploy/values.yaml`. That file is only static chart defaults.
 
@@ -86,7 +86,7 @@ In short, a Key Vault secret update can be picked up without restarting the pod,
 
 ## Alerts
 
-Alert rules are defined in `alerting.bicep` and deployed into the `opstool` Azure Monitor Workspace. Notifications use the shared `opstool-email-alerts` Action Group provided by the `Opstool.Infra` rollout.
+Alert rules are defined in `alerting.bicep` and deployed into the `opstool` Azure Monitor Workspace. Notifications use the shared `opstool-email-alerts` Action Group provided by the `DevCI.Infra` rollout.
 
 ## Local Development
 
@@ -126,8 +126,8 @@ This script is the supported path for creating and reconciling the service princ
 
 After adding or changing a tenant:
 
-1. Update `config/config-opstool.yaml`.
-2. Redeploy `Microsoft.Azure.ARO.HCP.Opstool.TenantQuota` or just run the whole topology via `make opstool-local-run`
+1. Update `config/config-dev-ci.yaml`.
+2. Redeploy `Microsoft.Azure.ARO.HCP.DevCI.TenantQuota` or just run the whole topology via `make dev-ci-local-run`
 
 ### Renew a client secret
 

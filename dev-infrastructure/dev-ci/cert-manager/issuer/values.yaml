@@ -1,0 +1,12 @@
+clusterIssuer:
+  name: "letsencrypt-dns01"
+  email: ""
+  privateKeySecretName: "letsencrypt-dns01-account-key"
+  server: "https://acme-v02.api.letsencrypt.org/directory"
+  azureDNS:
+    environment: "AzurePublicCloud"
+    hostedZoneName: ""
+    resourceGroupName: ""
+    subscriptionID: ""
+    managedIdentity:
+      clientID: ""

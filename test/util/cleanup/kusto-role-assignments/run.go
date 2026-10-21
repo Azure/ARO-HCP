@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/go-logr/logr"
 	"golang.org/x/sync/errgroup"
@@ -74,10 +75,15 @@ func pageAssignmentsAndDeleteInvalid(ctx context.Context, pager *runtime.Pager[a
 				if err != nil {
 					return fmt.Errorf("failed to delete role assignment: %w", err)
 				}
+				pollCtx, pollCancel := context.WithTimeout(ctx, 5*time.Minute)
 				var resp any
-				if resp, err = poller.PollUntilDone(ctx, nil); err != nil {
+				if resp, err = poller.PollUntilDone(pollCtx, &runtime.PollUntilDoneOptions{
+					Frequency: 10 * time.Second,
+				}); err != nil {
+					pollCancel()
 					return fmt.Errorf("failed to delete role assignment: %w", err)
 				}
+				pollCancel()
 				switch m := resp.(type) {
 				case armkusto.DatabasePrincipalAssignmentsClientDeleteResponse:
 					logger.Info("Role assignment deleted", "database", database, "name", name)

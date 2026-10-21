@@ -35,7 +35,7 @@ spec:
     spec:
       containers:
       - name: lgtm
-        image: grafana/otel-lgtm:latest
+        image: docker.io/grafana/otel-lgtm:latest
         ports:
         - containerPort: 3000
         - containerPort: 4317

@@ -83,6 +83,9 @@ func newTestSubscription() *arm.Subscription {
 func newTestCluster(t *testing.T, clusterUID string, provisioningState arm.ProvisioningState, createdAt *time.Time) *api.HCPOpenShiftCluster {
 	t.Helper()
 	return &api.HCPOpenShiftCluster{
+		CosmosMetadata: arm.CosmosMetadata{
+			ResourceID: newTestClusterResourceID(t),
+		},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
 				ID:   newTestClusterResourceID(t),

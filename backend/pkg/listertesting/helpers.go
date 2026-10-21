@@ -55,3 +55,22 @@ func managementClusterContentMatchesCluster(resourceID *azcorearm.ResourceID, cl
 	}
 	return strings.EqualFold(resourceID.Parent.Name, clusterName)
 }
+
+// serviceProviderNodePoolMatchesNodePool checks if a service provider node pool's resource ID belongs to the given node pool.
+// Service provider node pools are grandchild resources: .../nodePools/<np>/serviceProviderNodePools/default
+// so we check the parent (nodePool) name.
+func serviceProviderNodePoolMatchesNodePool(resourceID *azcorearm.ResourceID, nodePoolName string) bool {
+	if resourceID == nil || resourceID.Parent == nil {
+		return false
+	}
+	return strings.EqualFold(resourceID.Parent.Name, nodePoolName)
+}
+
+// serviceProviderNodePoolMatchesCluster checks if a service provider node pool's resource ID belongs to the given cluster.
+// The cluster name is the grandparent: .../hcpOpenShiftClusters/<cluster>/nodePools/<np>/serviceProviderNodePools/default
+func serviceProviderNodePoolMatchesCluster(resourceID *azcorearm.ResourceID, clusterName string) bool {
+	if resourceID == nil || resourceID.Parent == nil || resourceID.Parent.Parent == nil {
+		return false
+	}
+	return strings.EqualFold(resourceID.Parent.Parent.Name, clusterName)
+}

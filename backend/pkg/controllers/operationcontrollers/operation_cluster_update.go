@@ -28,7 +28,7 @@ import (
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
-	"k8s.io/utils/clock"
+	utilsclock "k8s.io/utils/clock"
 	"k8s.io/utils/lru"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
@@ -40,10 +40,10 @@ import (
 )
 
 type operationClusterUpdate struct {
+	clock                           utilsclock.PassiveClock
 	resourcesDBClient               database.ResourcesDBClient
 	clusterServiceClient            ocm.ClusterServiceClientSpec
 	notificationClient              *http.Client
-	clock                           clock.PassiveClock
 	desiredVersionMismatchFirstSeen *lru.Cache
 }
 
@@ -62,16 +62,17 @@ type operationClusterUpdate struct {
 // any of "Succeeded", "Failed", or "Canceled". Once the operation status reaches
 // a terminal value, there will be no further updates to the operation document.
 func NewOperationClusterUpdateController(
+	clock utilsclock.PassiveClock,
 	resourcesDBClient database.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
 	notificationClient *http.Client,
 	activeOperationInformer cache.SharedIndexInformer,
 ) controllerutils.Controller {
 	syncer := &operationClusterUpdate{
+		clock:                           clock,
 		resourcesDBClient:               resourcesDBClient,
 		clusterServiceClient:            clusterServiceClient,
 		notificationClient:              notificationClient,
-		clock:                           clock.RealClock{},
 		desiredVersionMismatchFirstSeen: lru.New(100000),
 	}
 
@@ -133,7 +134,7 @@ func (c *operationClusterUpdate) SynchronizeOperation(ctx context.Context, key c
 	}
 
 	logger.Info("updating status")
-	if err := UpdateOperationStatus(ctx, c.resourcesDBClient, operation, operationalState.provisioningState, persistErr, postAsyncNotificationFn(c.notificationClient)); err != nil {
+	if err := UpdateOperationStatus(ctx, c.clock, c.resourcesDBClient, operation, operationalState.provisioningState, persistErr, postAsyncNotificationFn(c.notificationClient)); err != nil {
 		return utils.TrackError(err)
 	}
 	return nil

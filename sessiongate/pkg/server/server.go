@@ -26,6 +26,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/rest"
 	"k8s.io/klog/v2"
 
@@ -126,6 +127,7 @@ func (s *Server) Run(ctx context.Context) error {
 	// Start server in goroutine
 	serverErr := make(chan error, 1)
 	go func() {
+		defer utilruntime.HandleCrash()
 		if err := s.server.Serve(listener); err != nil && err != http.ErrServerClosed {
 			serverErr <- err
 		}

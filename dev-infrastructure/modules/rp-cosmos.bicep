@@ -34,8 +34,9 @@ var containers = [
   }
 ]
 
-param roleDefinitionId string = '00000000-0000-0000-0000-000000000002'
-param readOnlyRoleDefinitionId string = '00000000-0000-0000-0000-000000000001'
+// https://learn.microsoft.com/en-us/azure/cosmos-db/reference-data-plane-security#cosmos-db-built-in-data-contributor
+param cosmosDataContributorRoleDefinitionId string = '00000000-0000-0000-0000-000000000002'
+param cosmosReadOnlyRoleDefinitionId string = '00000000-0000-0000-0000-000000000001'
 
 resource cosmosDbAccount 'Microsoft.DocumentDB/databaseAccounts@2023-11-15' existing = {
   name: cosmosDBAccountName
@@ -93,10 +94,10 @@ resource cosmosDbContainers 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/
 
 resource sqlRoleAssignment 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2021-04-15' = [
   for uami in userAssignedMIs: {
-    name: guid(roleDefinitionId, uami.uamiPrincipalID, cosmosDbAccount.id)
+    name: guid(cosmosDataContributorRoleDefinitionId, uami.uamiPrincipalID, cosmosDbAccount.id)
     parent: cosmosDbAccount
     properties: {
-      roleDefinitionId: '/${subscription().id}/resourceGroups/${resourceGroup().name}/providers/Microsoft.DocumentDB/databaseAccounts/${cosmosDbAccount.name}/sqlRoleDefinitions/${roleDefinitionId}'
+      roleDefinitionId: '${cosmosDbAccount.id}/sqlRoleDefinitions/${cosmosDataContributorRoleDefinitionId}'
       principalId: uami.uamiPrincipalID
       scope: cosmosDbAccount.id
     }
@@ -105,10 +106,10 @@ resource sqlRoleAssignment 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignm
 
 resource sqlRoleAssignmentReadOnly 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2021-04-15' = [
   for uami in readOnlyUserAssignedMIs: {
-    name: guid(readOnlyRoleDefinitionId, uami.uamiPrincipalID, cosmosDbAccount.id)
+    name: guid(cosmosReadOnlyRoleDefinitionId, uami.uamiPrincipalID, cosmosDbAccount.id)
     parent: cosmosDbAccount
     properties: {
-      roleDefinitionId: '/${subscription().id}/resourceGroups/${resourceGroup().name}/providers/Microsoft.DocumentDB/databaseAccounts/${cosmosDbAccount.name}/sqlRoleDefinitions/${readOnlyRoleDefinitionId}'
+      roleDefinitionId: '${cosmosDbAccount.id}/sqlRoleDefinitions/${cosmosReadOnlyRoleDefinitionId}'
       principalId: uami.uamiPrincipalID
       scope: cosmosDbAccount.id
     }

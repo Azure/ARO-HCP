@@ -4,6 +4,9 @@ param cxKeyVaultName string
 @description('The name of the MGMT KeyVault')
 param mgmtKeyVaultName string
 
+@description('The name of the MSI KeyVault')
+param msiKeyVaultName string
+
 module mgmtKeyVault '../modules/keyvault/lookup.bicep' = {
   name: 'mgmt-kv-${uniqueString(mgmtKeyVaultName)}'
   params: {
@@ -23,3 +26,13 @@ module cxKeyVault '../modules/keyvault/lookup.bicep' = {
 
 output cxKeyVaultName string = cxKeyVault.outputs.keyVaultName
 output cxKeyVaultUrl string = cxKeyVault.outputs.keyVaultUrl
+
+module msiKeyVault '../modules/keyvault/lookup.bicep' = {
+  name: 'msi-kv-${uniqueString(msiKeyVaultName)}'
+  params: {
+    keyVaultName: msiKeyVaultName
+  }
+}
+
+output msiKeyVaultName string = msiKeyVault.outputs.keyVaultName
+output msiKeyVaultUrl string = msiKeyVault.outputs.keyVaultUrl

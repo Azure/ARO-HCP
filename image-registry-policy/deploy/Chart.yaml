@@ -1,0 +1,5 @@
+apiVersion: v2
+name: image-registry-policy
+description: Enforces FSI image sourcing requirements by restricting pod image pulls to allowed registries.
+type: application
+version: 0.1.0

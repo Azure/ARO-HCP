@@ -8,7 +8,7 @@ To make usage easier, there is `tooling/prometheus-rules` it can be used to conv
 
 In order to add rules for a service a rules folder for this service must be configured. 
 
-Open `observability/observability.yaml` and edit it:
+Open the appropriate `observability/alerts-<queue>-<datasource>.yaml` file and edit it:
 
 ```yaml
 prometheusRules:

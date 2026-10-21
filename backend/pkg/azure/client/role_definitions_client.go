@@ -1,0 +1,39 @@
+// Copyright 2026 Microsoft Corporation
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package client
+
+//go:generate $MOCKGEN -typed -source=role_definitions_client.go -destination=mock_role_definitions_client.go -package client RoleDefinitionsClient
+
+import (
+	"context"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v2"
+)
+
+// RoleDefinitionsClient is an interface that mirrors armauthorization.RoleDefinitionsClient.
+// (https://github.com/Azure/azure-sdk-for-go/tree/main/sdk/resourcemanager/authorization/armauthorization/v2).
+// If the Azure Go SDK adds methods to RoleDefinitionsClient, add them here to keep parity.
+type RoleDefinitionsClient interface {
+	// Get gets a role definition by scope and name.
+	Get(ctx context.Context, scope string, roleDefinitionName string, options *armauthorization.RoleDefinitionsClientGetOptions) (armauthorization.RoleDefinitionsClientGetResponse, error)
+	// GetByID gets a role definition by role definition resource ID.
+	// Use the format /providers/Microsoft.Authorization/roleDefinitions/{roleDefinitionID} for tenant level role definitions.
+	GetByID(ctx context.Context, roleDefinitionResourceID string, options *armauthorization.RoleDefinitionsClientGetByIDOptions) (armauthorization.RoleDefinitionsClientGetByIDResponse, error)
+	// NewListPager lists role definitions for a scope.
+	NewListPager(scope string, options *armauthorization.RoleDefinitionsClientListOptions) *runtime.Pager[armauthorization.RoleDefinitionsClientListResponse]
+}
+
+var _ RoleDefinitionsClient = (*armauthorization.RoleDefinitionsClient)(nil)

@@ -29,8 +29,11 @@ func CopyReadOnlyProxyResourceValues(dest, src *arm.ProxyResource) {
 func CopyReadOnlyExternalAuthValues(dest, src *api.HCPOpenShiftClusterExternalAuth) {
 	CopyReadOnlyProxyResourceValues(&dest.ProxyResource, &src.ProxyResource)
 
+	// CosmosMetadata is read-only on the API surface; carry over so the
+	// case-preserving ResourceID and CosmosETag survive the replace round-trip.
+	dest.CosmosMetadata = *src.CosmosMetadata.DeepCopy()
+
 	dest.Properties.ProvisioningState = src.Properties.ProvisioningState
 	dest.Properties.Condition = *src.Properties.Condition.DeepCopy()
 	dest.ServiceProviderProperties = *src.ServiceProviderProperties.DeepCopy()
-	dest.CosmosETag = src.CosmosETag
 }

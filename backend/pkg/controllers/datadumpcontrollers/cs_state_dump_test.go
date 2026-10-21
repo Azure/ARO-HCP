@@ -173,6 +173,9 @@ func TestCSStateDump_SyncOnce(t *testing.T) {
 			if tt.createCluster {
 				clusterResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster"))
 				cluster := &api.HCPOpenShiftCluster{
+					CosmosMetadata: arm.CosmosMetadata{
+						ResourceID: clusterResourceID,
+					},
 					TrackedResource: arm.TrackedResource{
 						Resource: arm.Resource{ID: clusterResourceID},
 					},
@@ -211,6 +214,7 @@ func newTestNodePool(name, clusterServiceIDStr string) *api.HCPOpenShiftClusterN
 	nodePoolResourceID := api.Must(azcorearm.ParseResourceID(
 		"/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster/nodePools/" + name))
 	np := &api.HCPOpenShiftClusterNodePool{
+		CosmosMetadata: arm.CosmosMetadata{ResourceID: nodePoolResourceID},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
 				ID:   nodePoolResourceID,

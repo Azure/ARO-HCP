@@ -9,7 +9,7 @@ component described in [../readme.md](../readme.md).
 | --- | --- |
 | [01-overview.md](01-overview.md) | Goals, components, key design decisions, open questions |
 | [02-api-types.md](02-api-types.md) | Work needed in `internal/api/kubeapplier` (deepcopy, ResourceType registration, helpers) |
-| [03-database.md](03-database.md) | New cosmos container, partition-key strategy, CRUD wiring, GlobalListers |
+| [03-database.md](03-database.md) | Per-management-cluster Cosmos containers, `KubeApplierDBClient` per container, thread-safe `KubeApplierDBClients` registry |
 | [04-informers-listers.md](04-informers-listers.md) | New `internal/database/{informers,listers,listertesting}` packages |
 | [05-controllers.md](05-controllers.md) | Controller designs (ApplyDesire, DeleteDesire, ReadDesireInformerManaging, ReadDesireKubernetes) |
 | [06-binary-and-runtime.md](06-binary-and-runtime.md) | The `kube-applier` binary: kubeconfig, dynamic client, leader election, health/metrics, deployment scaffolding |
@@ -41,7 +41,7 @@ owns these `*Desire` documents. The kube-applier only writes status.
 The work breaks into four largely-independent layers:
 
 1. **API plumbing** &mdash; deepcopy, ResourceType registration, condition helpers.
-2. **Storage** &mdash; new cosmos container, custom partition key, CRUD per type, cross-partition lister for the backend.
+2. **Storage** &mdash; per-management-cluster Cosmos containers, per-container `KubeApplierDBClient`, thread-safe `KubeApplierDBClients` registry for the backend's cross-MC iteration.
 3. **Cache layer** &mdash; informers/listers/listertesting under `internal/database/` so both the backend (creator) and kube-applier (consumer) can share them.
 4. **Runtime** &mdash; the binary itself: four controllers, in-cluster kubeconfig, dynamic+SSA client, leader election, observability.
 

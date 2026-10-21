@@ -35,6 +35,13 @@ type CosmosMetadata struct {
 	ExistingCosmosUID string `json:"-"`
 
 	CosmosETag azcore.ETag `json:"etag,omitempty"`
+
+	// InstanceVersion is a field that auto-increments every time the resource is updated.  This gives us the ability to
+	// compare two instances of stored resources and determine which one is newer.  We will use this field to integrate
+	// changefeeds for controllers and decide which changes are newer than the level we have already observed so that we
+	// can periodically re-list all items.
+	// The auto-incrementing happens automatically in the storage layer for conditional updates.
+	InstanceVersion int64 `json:"instanceVersion"`
 }
 
 var (

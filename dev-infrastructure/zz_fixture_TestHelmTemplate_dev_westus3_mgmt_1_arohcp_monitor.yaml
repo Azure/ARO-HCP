@@ -67656,6 +67656,11 @@ data:
           namespace:
           - metadata
           - namespace
+          subscription_id:
+          - spec
+          - platform
+          - azure
+          - subscriptionID
         metricNamePrefix: hostedClusterAPI
         metrics:
         - each:
@@ -68630,10 +68635,10 @@ spec:
       cloud: AzurePublic
       sdk: {}
     queueConfig:
-      capacity: 2500
-      maxShards: 500
+      capacity: 50000
+      maxShards: 50
       minShards: 1
-      maxSamplesPerSend: 2000
+      maxSamplesPerSend: 10000
       batchSendDeadline: 60s
       minBackoff: 30ms
       maxBackoff: 256s
@@ -68648,10 +68653,10 @@ spec:
       cloud: AzurePublic
       sdk: {}
     queueConfig:
-      capacity: 2500
-      maxShards: 500
+      capacity: 50000
+      maxShards: 50
       minShards: 1
-      maxSamplesPerSend: 2000
+      maxSamplesPerSend: 10000
       batchSendDeadline: 60s
       minBackoff: 30ms
       maxBackoff: 256s

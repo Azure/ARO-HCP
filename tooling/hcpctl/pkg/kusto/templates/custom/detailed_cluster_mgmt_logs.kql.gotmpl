@@ -23,4 +23,4 @@ union
         | summarize arg_min(timestamp, *) by status_name, status_message
         | project timestamp, container_name = "clusters-service (status)", msg = strcat(status_name, ": ", status_message), log = bag_pack("status_name", status_name, "status_message", status_message)
     )
-| order by timestamp asc
+| order by timestamp {{.OrderBy}}

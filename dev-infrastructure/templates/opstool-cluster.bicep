@@ -2,7 +2,6 @@ import {
   csvToArray
   getLocationAvailabilityZonesCSV
 } from '../modules/common.bicep'
-import * as mi from '../modules/managed-identities.bicep'
 
 @description('Azure Region Location')
 param location string = resourceGroup().location
@@ -32,6 +31,48 @@ param systemZoneRedundantMode string
 @description('Disk size for the AKS system nodes')
 param aksSystemOsDiskSizeGB int
 
+@description('Number of worker agent pools to create')
+param userAgentPoolCount int = 0
+
+@description('Minimum node count for worker agent pool')
+param userAgentMinCount int = 0
+
+@description('Maximum node count for worker agent pool')
+param userAgentMaxCount int = 0
+
+@description('VM instance type for the worker nodes')
+param userAgentVMSize string = 'Standard_D4s_v3'
+
+@description('Zones to use for the worker nodes')
+param userAgentPoolZones string = ''
+
+@description('Zone redundant mode for the worker nodes')
+param userZoneRedundantMode string = 'Disabled'
+
+@description('Disk size for the AKS worker nodes')
+param userOsDiskSizeGB int = 64
+
+@description('Number of infra agent pools to create')
+param infraAgentPoolCount int = 1
+
+@description('Minimum node count for infra agent pool')
+param infraAgentMinCount int = 1
+
+@description('Maximum node count for infra agent pool')
+param infraAgentMaxCount int = 3
+
+@description('VM instance type for the infra nodes')
+param infraAgentVMSize string = 'Standard_D4s_v3'
+
+@description('Zones to use for the infra nodes')
+param infraAgentPoolZones string = ''
+
+@description('Zone redundant mode for the infra nodes')
+param infraZoneRedundantMode string = 'Disabled'
+
+@description('Disk size for the AKS infra nodes')
+param infraOsDiskSizeGB int = 64
+
 @description('Name of the resource group for the AKS nodes')
 param aksNodeResourceGroupName string = '${resourceGroup().name}-aks1'
 
@@ -46,6 +87,9 @@ param podSubnetPrefix string
 
 @description('Kubernetes version')
 param kubernetesVersion string
+
+@description('Istio control plane versions to use with AKS. CSV format')
+param istioVersions string
 
 @description('Network dataplane plugin for the AKS cluster')
 param aksNetworkDataplane string = 'cilium'
@@ -90,49 +134,56 @@ param svcAcrName string = ''
 @description('The resource group containing the shared SVC ACR')
 param svcAcrResourceGroupName string = ''
 
-module managedIdentities '../modules/managed-identities.bicep' = {
-  name: 'opstool-managed-identities'
-  params: {
-    location: location
-    manageIdentityNames: [
-      'opstool'
-      'prometheus'
-      'tenant-quota'
-    ]
-  }
-}
-
 var nsgName = 'opstool-cluster-nsg'
 var systemAgentPoolName = 'system'
 var userAgentPoolName = 'user'
 var infraAgentPoolName = 'infra'
 
-resource opstoolClusterNSG 'Microsoft.Network/networkSecurityGroups@2023-11-01' = {
+resource opstoolClusterNSG 'Microsoft.Network/networkSecurityGroups@2023-11-01' existing = {
   name: nsgName
-  location: location
-  tags: {
-    persist: 'true'
-    owningTeam: owningTeamTagValue
-  }
-  properties: {
-    securityRules: []
-  }
 }
 
 var vnetName = 'opstool-aks-net'
 var nodeSubnetName = 'ClusterSubnet-001'
 
-var opstoolMI = mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, 'opstool')
-var prometheusMI = mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, 'prometheus')
+resource opstoolMI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
+  name: 'opstool'
+}
+
+resource cihealthMI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
+  name: 'cihealth'
+}
+
+resource certManagerMI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
+  name: 'cert-manager'
+}
+
+resource prometheusMI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
+  name: 'prometheus'
+}
+
+resource tenantQuotaMI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
+  name: 'tenant-quota'
+}
 
 var workloadIdentities = items({
+  cihealth_wi: {
+    uamiName: cihealthMI.name
+    namespace: 'cihealth'
+    serviceAccountName: 'cihealth'
+  }
+  cert_manager_wi: {
+    uamiName: certManagerMI.name
+    namespace: 'cert-manager'
+    serviceAccountName: 'cert-manager'
+  }
   prometheus_wi: {
-    uamiName: 'prometheus'
+    uamiName: prometheusMI.name
     namespace: 'prometheus'
     serviceAccountName: 'prometheus'
   }
   tenant_quota_wi: {
-    uamiName: 'tenant-quota'
+    uamiName: tenantQuotaMI.name
     namespace: 'tenant-quota'
     serviceAccountName: 'tenant-quota-collector'
   }
@@ -145,7 +196,7 @@ module vnetCreation '../modules/network/vnet.bicep' = {
     vnetName: vnetName
     vnetAddressPrefix: vnetAddressPrefix
     enableSwift: false
-    deploymentMsiId: opstoolMI.uamiID
+    deploymentMsiId: opstoolMI.id
   }
 }
 
@@ -162,9 +213,8 @@ module nodeSubnetCreation '../modules/network/aks-node-subnet.bicep' = {
   ]
 }
 
-resource aksClusterUserDefinedManagedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+resource aksClusterUserDefinedManagedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
   name: '${aksClusterName}-msi'
-  location: location
 }
 
 module opstoolCluster '../modules/aks-cluster-base.bicep' = {
@@ -182,28 +232,30 @@ module opstoolCluster '../modules/aks-cluster-base.bicep' = {
     aksEtcdKVEnableSoftDelete: aksEtcdKVEnableSoftDelete
     aksClusterOutboundIPAddressIPTags: aksClusterOutboundIPAddressIPTags
     kubernetesVersion: kubernetesVersion
-    deployIstio: false
-    istioVersions: []
+    deployIstio: true
+    istioVersions: split(istioVersions, ',')
     vnetName: vnetName
     nodeSubnetId: nodeSubnetCreation.outputs.subnetId
     podSubnetPrefix: podSubnetPrefix
     clusterType: 'opstool-cluster'
-    userOsDiskSizeGB: 64
-    userAgentMinCount: 0
-    userAgentMaxCount: 0
-    userAgentVMSize: 'Standard_D4s_v3'
-    userAgentPoolCount: 0
-    userAgentPoolZones: []
-    userZoneRedundantMode: 'Disabled'
-    infraAgentMinCount: 1
-    infraAgentMaxCount: 3
-    infraAgentVMSize: 'Standard_D4s_v3'
-    infraAgentPoolCount: 1
-    infraAgentPoolZones: length(csvToArray(systemAgentPoolZones)) > 0
-      ? csvToArray(systemAgentPoolZones)
+    userOsDiskSizeGB: userOsDiskSizeGB
+    userAgentMinCount: userAgentMinCount
+    userAgentMaxCount: userAgentMaxCount
+    userAgentVMSize: userAgentVMSize
+    userAgentPoolCount: userAgentPoolCount
+    userAgentPoolZones: length(csvToArray(userAgentPoolZones)) > 0
+      ? csvToArray(userAgentPoolZones)
       : locationAvailabilityZoneList
-    infraOsDiskSizeGB: 64
-    infraZoneRedundantMode: 'Disabled'
+    userZoneRedundantMode: userZoneRedundantMode
+    infraAgentMinCount: infraAgentMinCount
+    infraAgentMaxCount: infraAgentMaxCount
+    infraAgentVMSize: infraAgentVMSize
+    infraAgentPoolCount: infraAgentPoolCount
+    infraAgentPoolZones: length(csvToArray(infraAgentPoolZones)) > 0
+      ? csvToArray(infraAgentPoolZones)
+      : locationAvailabilityZoneList
+    infraOsDiskSizeGB: infraOsDiskSizeGB
+    infraZoneRedundantMode: infraZoneRedundantMode
     systemOsDiskSizeGB: aksSystemOsDiskSizeGB
     systemAgentMinCount: systemAgentMinCount
     systemAgentMaxCount: systemAgentMaxCount
@@ -221,7 +273,7 @@ module opstoolCluster '../modules/aks-cluster-base.bicep' = {
     pullAcrResourceIds: empty(svcAcrName) || empty(svcAcrResourceGroupName)
       ? []
       : [resourceId(svcAcrResourceGroupName, 'Microsoft.ContainerRegistry/registries', svcAcrName)]
-    deploymentMsiId: opstoolMI.uamiID
+    deploymentMsiId: opstoolMI.id
     enableSwiftV2Nodepools: false
     owningTeamTagValue: owningTeamTagValue
     aksClusterUserDefinedManagedIdentityName: aksClusterUserDefinedManagedIdentity.name
@@ -258,7 +310,7 @@ module dataCollection '../modules/metrics/datacollection.bicep' = {
     azureMonitoringWorkspaceId: azureMonitorWorkspace.id
     hcpAzureMonitoringWorkspaceId: ''
     aksClusterName: aksClusterName
-    prometheusPrincipalId: prometheusMI.uamiPrincipalID
+    prometheusPrincipalId: prometheusMI.properties.principalId
   }
   dependsOn: [
     opstoolCluster
@@ -268,8 +320,6 @@ module dataCollection '../modules/metrics/datacollection.bicep' = {
 //
 //   W O R K L O A D   S E C R E T S   K E Y   V A U L T
 //
-
-var tenantQuotaMI = mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, 'tenant-quota')
 
 module workloadKV '../modules/keyvault/keyvault.bicep' = {
   name: 'opstool-workload-secrets-kv'
@@ -288,7 +338,19 @@ module tenantQuotaKVAccess '../modules/keyvault/keyvault-secret-access.bicep' = 
   params: {
     keyVaultName: workloadKVName
     roleName: 'Key Vault Secrets User'
-    managedIdentityPrincipalIds: [tenantQuotaMI.uamiPrincipalID]
+    managedIdentityPrincipalIds: [tenantQuotaMI.properties.principalId]
+  }
+  dependsOn: [
+    workloadKV
+  ]
+}
+
+module cihealthKVAccess '../modules/keyvault/keyvault-secret-access.bicep' = {
+  name: 'cihealth-kv-access'
+  params: {
+    keyVaultName: workloadKVName
+    roleName: 'Key Vault Secrets User'
+    managedIdentityPrincipalIds: [cihealthMI.properties.principalId]
   }
   dependsOn: [
     workloadKV

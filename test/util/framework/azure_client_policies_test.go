@@ -16,6 +16,7 @@ package framework
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"testing"
@@ -207,6 +208,14 @@ func TestArmSystemDataPolicy(t *testing.T) {
 	})
 }
 
+type fakeResourceGroupClient struct {
+	err error
+}
+
+func (f *fakeResourceGroupClient) Get(_ context.Context, _, _ string) error {
+	return f.err
+}
+
 func TestArmResourceGroupValidationPolicy(t *testing.T) {
 	t.Setenv("FRONTEND_ADDRESS", "https://"+frontendHost)
 
@@ -230,7 +239,7 @@ func TestArmResourceGroupValidationPolicy(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			pol := &armResourceGroupValidationPolicy{cred: nil}
+			pol := &armResourceGroupValidationPolicy{rgClient: &fakeResourceGroupClient{}}
 			called := false
 			transport := &fakeTransport{
 				do: func(r *http.Request) (*http.Response, error) {
@@ -248,6 +257,69 @@ func TestArmResourceGroupValidationPolicy(t *testing.T) {
 			assert.True(t, called, "transport should have been called")
 		})
 	}
+
+	t.Run("returns 404 CloudError when resource group does not exist", func(t *testing.T) {
+		pol := &armResourceGroupValidationPolicy{
+			rgClient: &fakeResourceGroupClient{
+				err: &azcore.ResponseError{
+					StatusCode: http.StatusNotFound,
+					ErrorCode:  arm.CloudErrorCodeResourceGroupNotFound,
+				},
+			},
+		}
+		called := false
+		transport := &fakeTransport{
+			do: func(r *http.Request) (*http.Response, error) {
+				called = true
+				return okResponse()
+			},
+		}
+		pipeline := newTestPipeline(pol, transport)
+		req, err := runtime.NewRequest(context.Background(), http.MethodGet, "https://"+frontendHost+"/subscriptions/sub-id/resourceGroups/nonexistent-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster")
+		require.NoError(t, err)
+
+		resp, err := pipeline.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		assert.False(t, called, "transport should not have been called")
+		assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+		assert.Equal(t, "application/json", resp.Header.Get("Content-Type"))
+
+		var cloudErr arm.CloudError
+		err = json.NewDecoder(resp.Body).Decode(&cloudErr)
+		require.NoError(t, err)
+		assert.Equal(t, arm.CloudErrorCodeResourceGroupNotFound, cloudErr.Code)
+		assert.Contains(t, cloudErr.Message, "nonexistent-rg")
+	})
+
+	t.Run("propagates non-ResourceGroupNotFound errors from resource group client", func(t *testing.T) {
+		pol := &armResourceGroupValidationPolicy{
+			rgClient: &fakeResourceGroupClient{
+				err: &azcore.ResponseError{
+					StatusCode: http.StatusForbidden,
+					ErrorCode:  "AuthorizationFailed",
+				},
+			},
+		}
+		called := false
+		transport := &fakeTransport{
+			do: func(r *http.Request) (*http.Response, error) {
+				called = true
+				return okResponse()
+			},
+		}
+		pipeline := newTestPipeline(pol, transport)
+		req, err := runtime.NewRequest(context.Background(), http.MethodGet, "https://"+frontendHost+"/subscriptions/sub-id/resourceGroups/some-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster")
+		require.NoError(t, err)
+
+		_, err = pipeline.Do(req)
+		assert.Error(t, err)
+		assert.False(t, called, "transport should not have been called")
+
+		var respErr *azcore.ResponseError
+		require.ErrorAs(t, err, &respErr)
+		assert.Equal(t, http.StatusForbidden, respErr.StatusCode)
+	})
 }
 
 func TestRequestIDPolicy(t *testing.T) {

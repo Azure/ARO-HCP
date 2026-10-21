@@ -40,16 +40,14 @@ const (
 )
 
 // Management cluster identifiers. The *ID values are the resourceIDs the
-// fixtures stamp into Spec.ManagementCluster; the lowercased-string forms are
-// the partition-key values passed to lister.ListForManagementCluster, which
-// after the *Desire API change is the lowercased(rid.String()).
+// fixtures stamp into Spec.ManagementCluster and are also what callers pass
+// to lister.ListForManagementCluster.
 var (
 	testMgmtAID = api.Must(azcorearm.ParseResourceID(
 		"/providers/microsoft.redhatopenshift/stamps/1/managementclusters/mgmt-a"))
 	testMgmtBID = api.Must(azcorearm.ParseResourceID(
 		"/providers/microsoft.redhatopenshift/stamps/2/managementclusters/mgmt-b"))
 	testMgmtA = strings.ToLower(testMgmtAID.String())
-	testMgmtB = strings.ToLower(testMgmtBID.String())
 )
 
 func mustParseID(t *testing.T, s string) *azcorearm.ResourceID {
@@ -107,7 +105,7 @@ func TestKubeApplierInformers_ListByManagementCluster(t *testing.T) {
 	}
 
 	relistDuration := 250 * time.Millisecond
-	info := informers.NewKubeApplierInformersWithRelistDuration(ctx, mock.GlobalListers(), &relistDuration)
+	info := informers.NewKubeApplierInformersWithRelistDuration(ctx, mock.Listers(), &relistDuration)
 	startAndSync(t, ctx, info)
 
 	_, lister := info.ApplyDesires()
@@ -120,7 +118,7 @@ func TestKubeApplierInformers_ListByManagementCluster(t *testing.T) {
 		t.Errorf("ApplyDesireLister.List len = %d, want 3", len(all))
 	}
 
-	gotA, err := lister.ListForManagementCluster(ctx, testMgmtA)
+	gotA, err := lister.ListForManagementCluster(ctx, testMgmtAID)
 	if err != nil {
 		t.Fatalf("ListForManagementCluster mgmt-a: %v", err)
 	}
@@ -134,7 +132,7 @@ func TestKubeApplierInformers_ListByManagementCluster(t *testing.T) {
 		}
 	}
 
-	gotB, err := lister.ListForManagementCluster(ctx, testMgmtB)
+	gotB, err := lister.ListForManagementCluster(ctx, testMgmtBID)
 	if err != nil {
 		t.Fatalf("ListForManagementCluster mgmt-b: %v", err)
 	}
@@ -164,7 +162,7 @@ func TestKubeApplierInformers_ListForCluster_UnionsClusterAndNodePool(t *testing
 	}
 
 	relistDuration := 250 * time.Millisecond
-	info := informers.NewKubeApplierInformersWithRelistDuration(ctx, mock.GlobalListers(), &relistDuration)
+	info := informers.NewKubeApplierInformersWithRelistDuration(ctx, mock.Listers(), &relistDuration)
 	startAndSync(t, ctx, info)
 
 	_, lister := info.ApplyDesires()
@@ -200,7 +198,7 @@ func TestKubeApplierInformers_GetByID(t *testing.T) {
 	}
 
 	relistDuration := 250 * time.Millisecond
-	info := informers.NewKubeApplierInformersWithRelistDuration(ctx, mock.GlobalListers(), &relistDuration)
+	info := informers.NewKubeApplierInformersWithRelistDuration(ctx, mock.Listers(), &relistDuration)
 	startAndSync(t, ctx, info)
 
 	_, lister := info.ApplyDesires()

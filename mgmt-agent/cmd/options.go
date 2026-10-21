@@ -27,6 +27,7 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/sync/errgroup"
 
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	kubeinformers "k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -195,6 +196,7 @@ func (o *ControllerOptions) Run(ctx context.Context) error {
 		mux.Handle("/metrics", legacyregistry.Handler())
 		server := &http.Server{Addr: o.healthAddress, Handler: mux}
 		go func() {
+			defer utilruntime.HandleCrash()
 			<-ctx.Done()
 			if err := server.Shutdown(context.Background()); err != nil {
 				logger.Error(err, "Error shutting down health server")

@@ -1,1 +1,1 @@
-cannot downgrade from version 4.20.8 to 4.20.0
+must be within 2 minor versions of control plane version

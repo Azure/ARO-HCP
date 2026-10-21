@@ -1,5 +1,5 @@
 $schema: "pipeline.schema.v1"
-serviceGroup: Microsoft.Azure.ARO.HCP.Opstool.TenantQuota
+serviceGroup: Microsoft.Azure.ARO.HCP.DevCI.TenantQuota
 rolloutName: Tenant Quota Collector Rollout
 resourceGroups:
 - name: opstool

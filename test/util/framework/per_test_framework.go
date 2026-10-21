@@ -25,6 +25,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -38,6 +39,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/rand"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/client-go/rest"
 
 	"sigs.k8s.io/yaml"
 
@@ -53,6 +55,7 @@ import (
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	hcpsdk20251223preview "github.com/Azure/ARO-HCP/test/sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/timing"
+	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/pipeline"
 )
 
 type perItOrDescribeTestContext struct {
@@ -75,6 +78,7 @@ type perItOrDescribeTestContext struct {
 	azureLogFile     *os.File
 	timingMetadata   timing.SpecTimingMetadata
 	knownDeployments []deploymentInfo
+	hcpAdminConfigs  map[string]*rest.Config
 }
 
 type deploymentInfo struct {
@@ -131,6 +135,7 @@ func NewTestContext() *perItOrDescribeTestContext {
 		perBinaryInvocationTestContext: invocationContext(),
 		LogDirPath:                     logDirPath,
 		azureLogFile:                   azureLogFile,
+		hcpAdminConfigs:                make(map[string]*rest.Config),
 		timingMetadata: timing.SpecTimingMetadata{
 			// Answering the question of "what's the currently-running test name?" in Ginkgo is difficult -
 			// all we know in general is the hierarchy of nodes under which we are currently running. We
@@ -200,6 +205,22 @@ func (tc *perItOrDescribeTestContext) BeforeEach(ctx context.Context) {
 	ginkgo.DeferCleanup(tc.commitTimingMetadata, AnnotatedLocation("dump timing info"), ginkgo.NodeTimeout(45*time.Minute))
 
 	ginkgo.DeferCleanup(tc.closeAzureLogFile, AnnotatedLocation("close azure log file"))
+
+	// Registered last so it runs first in the FILO cleanup order, marking the
+	// boundary between the test body and cleanup.
+	ginkgo.DeferCleanup(tc.logTestEndAndCleanupStart, AnnotatedLocation("log test end and cleanup start"))
+
+	ginkgo.GinkgoLogr.Info("===== TEST CASE BEGAN =====")
+}
+
+func (tc *perItOrDescribeTestContext) logTestEndAndCleanupStart() {
+	report := ginkgo.CurrentSpecReport()
+	result := "SUCCESS"
+	if report.Failed() {
+		result = "FAILURE"
+	}
+	ginkgo.GinkgoLogr.Info(fmt.Sprintf("===== TEST CASE ENDED: %s =====", result))
+	ginkgo.GinkgoLogr.Info("===== CLEANUP BEGAN =====")
 }
 
 func (tc *perItOrDescribeTestContext) closeAzureLogFile() {
@@ -300,6 +321,15 @@ func isIgnorableResourceGroupCleanupError(err error) bool {
 	return isResourceGroupNotFoundError(err)
 }
 
+type FPACredentials struct {
+	ClientID string
+	CertPath string
+}
+
+func (c FPACredentials) IsConfigured() bool {
+	return c.ClientID != "" && c.CertPath != ""
+}
+
 type CleanupWorkflow string
 
 const (
@@ -311,6 +341,7 @@ type CleanupResourceGroupsOptions struct {
 	ResourceGroupNames []string
 	Timeout            time.Duration
 	CleanupWorkflow    CleanupWorkflow
+	FPACredentials     FPACredentials
 }
 
 func (tc *perItOrDescribeTestContext) CleanupResourceGroups(ctx context.Context, opts CleanupResourceGroupsOptions) error {
@@ -322,7 +353,7 @@ func (tc *perItOrDescribeTestContext) CleanupResourceGroups(ctx context.Context,
 		go func(ctx context.Context) {
 			defer wg.Done()
 			// prevent a stray panic from exiting the process. Don't do this generally because ginkgo/gomega rely on panics to function.
-			utilruntime.HandleCrashWithContext(ctx)
+			defer utilruntime.HandleCrashWithContext(ctx)
 
 			switch opts.CleanupWorkflow {
 			case CleanupWorkflowStandard:
@@ -330,7 +361,7 @@ func (tc *perItOrDescribeTestContext) CleanupResourceGroups(ctx context.Context,
 					errCh <- err
 				}
 			case CleanupWorkflowNoRP:
-				if err := tc.cleanupResourceGroupNoRP(ctx, currResourceGroupName, opts.Timeout); err != nil {
+				if err := tc.cleanupResourceGroupNoRP(ctx, currResourceGroupName, opts.Timeout, opts.FPACredentials); err != nil {
 					errCh <- err
 				}
 			}
@@ -369,11 +400,16 @@ func (tc *perItOrDescribeTestContext) collectDebugInfo(ctx context.Context) {
 		currResourceGroupName := resourceGroupName
 		waitGroup.Go(func() error {
 			// prevent a stray panic from exiting the process. Don't do this generally because ginkgo/gomega rely on panics to function.
-			utilruntime.HandleCrashWithContext(ctx)
+			defer utilruntime.HandleCrashWithContext(ctx)
 
 			return tc.collectDebugInfoForResourceGroup(ctx, currResourceGroupName)
 		})
 	}
+	waitGroup.Go(func() error {
+		defer utilruntime.HandleCrashWithContext(ctx)
+		tc.collectHCPInspectData(ctx)
+		return nil
+	})
 	if err := waitGroup.Wait(); err != nil {
 		// remember that Wait only shows the first error, not all the errors.
 		if !isResourceGroupNotFoundError(err) {
@@ -403,7 +439,7 @@ func (tc *perItOrDescribeTestContext) NewResourceGroup(ctx context.Context, reso
 
 	resourceGroup, err := CreateResourceGroup(ctx, tc.GetARMResourcesClientFactoryOrDie(ctx).NewResourceGroupsClient(), resourceGroupName, location, StandardResourceGroupExpiration, 20*time.Minute)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create resource group: %w", err)
+		return nil, fmt.Errorf("failed to create resource group %q: %w", resourceGroupName, err)
 	}
 
 	return resourceGroup, nil
@@ -498,7 +534,7 @@ func (tc *perItOrDescribeTestContext) cleanupResourceGroup(ctx context.Context, 
 
 	var nonConformantErr error
 	ginkgo.GinkgoLogr.Info("deleting all hcp clusters in resource group", "resourceGroup", resourceGroupName)
-	if err := DeleteAllHCPClusters(ctx, hcpClientFactory.NewHcpOpenShiftClustersClient(), resourceGroupName, timeout); err != nil {
+	if err := DeleteAllHCPClusters20240610(ctx, hcpClientFactory.NewHcpOpenShiftClustersClient(), resourceGroupName, timeout); err != nil {
 		if errors.Is(err, &NonConformingClustersError{}) {
 			nonConformantErr = err
 		} else if isResourceGroupNotFoundError(err) {
@@ -543,7 +579,7 @@ func (tc *perItOrDescribeTestContext) cleanupResourceGroup(ctx context.Context, 
 //  1. discovers any "managed" resource groups whose ManagedBy references a resource in the parent
 //     resource group and deletes them (using 'force' to speed up VM/VMSS deletion).
 //  2. deletes the parent resource group itself.
-func (tc *perItOrDescribeTestContext) cleanupResourceGroupNoRP(ctx context.Context, resourceGroupName string, timeout time.Duration) error {
+func (tc *perItOrDescribeTestContext) cleanupResourceGroupNoRP(ctx context.Context, resourceGroupName string, timeout time.Duration, fpaCredentials FPACredentials) error {
 	startTime := time.Now()
 	defer func() {
 		finishTime := time.Now()
@@ -573,6 +609,13 @@ func (tc *perItOrDescribeTestContext) cleanupResourceGroupNoRP(ctx context.Conte
 			} else {
 				return fmt.Errorf("failed to cleanup managed resource group %q: %w", managedRG, err)
 			}
+		}
+	}
+
+	if fpaCredentials.IsConfigured() {
+		ginkgo.GinkgoLogr.Info("deleting any remaining RedHatOpenShift service association links in resource group", "resourceGroup", resourceGroupName)
+		if err := tc.deleteRedHatOpenShiftServiceAssociationLinks(ctx, resourceGroupName, fpaCredentials); err != nil {
+			return fmt.Errorf("failed to delete RedHatOpenShift service association links in %q: %w", resourceGroupName, err)
 		}
 	}
 
@@ -645,6 +688,102 @@ func (tc *perItOrDescribeTestContext) collectDebugInfoForResourceGroup(ctx conte
 	}
 
 	return errors.Join(errs...)
+}
+
+func (tc *perItOrDescribeTestContext) collectHCPInspectData(ctx context.Context) {
+	if tc.LogDirPath == "" {
+		return
+	}
+
+	if _, err := exec.LookPath("oc"); err != nil {
+		ginkgo.GinkgoLogr.Info("oc not found in PATH, skipping HCP inspect data collection")
+		return
+	}
+
+	tc.contextLock.RLock()
+	configs := make(map[string]*rest.Config, len(tc.hcpAdminConfigs))
+	for k, v := range tc.hcpAdminConfigs {
+		configs[k] = v
+	}
+	tc.contextLock.RUnlock()
+
+	if len(configs) == 0 {
+		return
+	}
+
+	inspectGroup, inspectCtx := errgroup.WithContext(ctx)
+	for clusterKey, restConfig := range configs {
+		currKey := clusterKey
+		currConfig := restConfig
+		inspectGroup.Go(func() error {
+			defer utilruntime.HandleCrashWithContext(inspectCtx)
+			tc.runOCAdmInspect(inspectCtx, currKey, currConfig)
+			return nil
+		})
+	}
+	_ = inspectGroup.Wait()
+}
+
+func (tc *perItOrDescribeTestContext) runOCAdmInspect(ctx context.Context, clusterKey string, restConfig *rest.Config) {
+	parts := strings.SplitN(clusterKey, "/", 2)
+	if len(parts) != 2 {
+		ginkgo.GinkgoLogr.Error(fmt.Errorf("invalid cluster key %q", clusterKey), "skipping oc adm inspect")
+		return
+	}
+	clusterName := parts[1]
+	logger := ginkgo.GinkgoLogr.WithValues("cluster", clusterKey)
+	logger.Info("starting oc adm inspect for HCP cluster")
+
+	startTime := time.Now()
+	defer func() {
+		tc.RecordTestStep(fmt.Sprintf("oc adm inspect %s", clusterKey), startTime, time.Now())
+	}()
+
+	kubeconfigContent, err := GenerateKubeconfig(restConfig)
+	if err != nil {
+		logger.Error(err, "failed to generate kubeconfig for HCP inspect, skipping")
+		return
+	}
+
+	kubeconfigFile, err := os.CreateTemp("", fmt.Sprintf("inspect-kubeconfig-%s-*.yaml", clusterName))
+	if err != nil {
+		logger.Error(err, "failed to create temp kubeconfig file, skipping")
+		return
+	}
+	defer os.Remove(kubeconfigFile.Name())
+	defer kubeconfigFile.Close()
+
+	if _, err := kubeconfigFile.WriteString(kubeconfigContent); err != nil {
+		logger.Error(err, "failed to write temp kubeconfig file, skipping")
+		return
+	}
+	if err := kubeconfigFile.Close(); err != nil {
+		logger.Error(err, "failed to flush temp kubeconfig file, skipping")
+		return
+	}
+
+	inspectDir := filepath.Join(tc.LogDirPath, fmt.Sprintf("inspect-%s", clusterName))
+
+	inspectCtx, cancel := context.WithTimeout(ctx, 10*time.Minute)
+	defer cancel()
+
+	cmd := exec.CommandContext(inspectCtx, "oc", "adm", "inspect",
+		"--kubeconfig", kubeconfigFile.Name(),
+		"--dest-dir", inspectDir,
+		"ns/openshift-ingress",
+		"ns/openshift-ingress-operator",
+		"clusteroperator/ingress",
+	)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		logger.Error(err, "oc adm inspect failed", "output", string(output))
+		if mkdirErr := os.MkdirAll(inspectDir, 0755); mkdirErr == nil {
+			_ = os.WriteFile(filepath.Join(inspectDir, "inspect-error.log"), output, 0644)
+		}
+		return
+	}
+
+	logger.Info("oc adm inspect completed successfully", "outputDir", inspectDir)
 }
 
 func (tc *perItOrDescribeTestContext) NewAppRegistrationWithServicePrincipal(ctx context.Context) (*graphutil.Application, *graphutil.ServicePrincipal, error) {
@@ -1131,11 +1270,25 @@ func (tc *perItOrDescribeTestContext) commitTimingMetadata(ctx context.Context) 
 	if err != nil {
 		ginkgo.Fail(fmt.Sprintf("Failed to get ARM resource client factory: %v", err))
 	}
+	subscriptionID, err := tc.getSubscriptionIDUnlocked(ctx)
+	if err != nil {
+		ginkgo.Fail(fmt.Sprintf("Failed to get subscription ID: %v", err))
+	}
+	creds, err := tc.perBinaryInvocationTestContext.getAzureCredentials()
+	if err != nil {
+		ginkgo.Fail(fmt.Sprintf("Failed to get Azure credentials: %v", err))
+	}
 	operationsClient := factory.NewDeploymentOperationsClient()
+	getOperationsClient := pipeline.NewCachedOperationsClientGetter(
+		subscriptionID,
+		operationsClient,
+		creds,
+		tc.perBinaryInvocationTestContext.getClientFactoryOptions(),
+	)
 	for _, info := range tc.knownDeployments {
 		resourceGroupName, deploymentName := info.resourceGroupName, info.deploymentName
 		ginkgo.GinkgoLogr.Info("Dumping deployment operations.", "deployment", deploymentName, "resourceGroup", resourceGroupName)
-		operations, err := fetchOperationsFor(ctx, operationsClient, resourceGroupName, deploymentName)
+		operations, err := fetchOperationsFor(ctx, getOperationsClient, subscriptionID, resourceGroupName, deploymentName)
 		if err != nil {
 			ginkgo.GinkgoLogr.Error(err, "failed to fetch operations for deployment", "deployment", deploymentName, "resourceGroup", resourceGroupName)
 			continue
