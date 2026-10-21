@@ -32,13 +32,20 @@ param kustoEnabled bool = true
 param eventhubEnabled bool
 param maestroMqttEnabled bool
 
+@description('SKU/tier for the audit logs Event Hub namespace. Premium is not available in all regions; Standard is the fallback.')
+@allowed([
+  'Standard'
+  'Premium'
+])
+param eventHubSku string = 'Premium'
+
 // Event Hub namespace for AKS audit logs
 resource eventHubNamespace 'Microsoft.EventHub/namespaces@2024-01-01' = if (kustoEnabled && eventhubEnabled) {
   name: auditLogsEventHubNamespaceName
   location: resourceGroup().location
   sku: {
-    name: 'Premium'
-    tier: 'Premium'
+    name: eventHubSku
+    tier: eventHubSku
     capacity: 1
   }
   properties: {

@@ -2365,6 +2365,11 @@
           "type": "string",
           "description": "Name of the Audit logs Event Hub namespace"
         },
+        "sku": {
+          "type": "string",
+          "enum": ["Standard", "Premium"],
+          "description": "SKU/tier for the audit logs Event Hub namespace (default Premium; Standard for regions without Premium availability)"
+        },
         "authRuleName": {
           "type": "string",
           "description": "Name of the authorization rule for the Event Hub for use by the aks clusters"
@@ -2386,6 +2391,7 @@
       "required": [
         "name",
         "namespace",
+        "sku",
         "authRuleName",
         "kustoConsumerGroupName",
         "kustoDataConnectionName",
