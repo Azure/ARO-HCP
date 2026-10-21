@@ -6,7 +6,7 @@
 # - hcp-underlay-pers-*: delete after 15d if persist=true; after 2d if persist is absent or not "true".
 # - hcp-underlay-prow-*: delete after 6h (transitional, remove after rename rollout).
 # - Name prefix hcp-underlay-ci*: delete after 6h (covers ci00, ci01, etc.).
-# - Known shared envs (cspr/dev/perf/int/stg/prod) with persist=true: skipped.
+# - Known shared envs (dev/perf/int/stg/prod) with persist=true: skipped.
 # - Any RG with persist=true (not already matched above): delete after 15d.
 # - Default: delete any other RG after 2d.
 # Delete rules need a parseable tags.createdAt; see docs/cleanup.md and scripts/ for Azure Policy.
@@ -70,7 +70,7 @@ rgOrdered:
     - name: skip-shared-env-persist-true
       action: skip
       match:
-        nameRegex: "^hcp-underlay-(cspr|dev|perf|int|stg|prod)-"
+        nameRegex: "^hcp-underlay-(dev|perf|int|stg|prod)-"
       conditions:
         tagsEq:
           persist: "true"

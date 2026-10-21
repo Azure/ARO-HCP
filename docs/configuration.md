@@ -236,7 +236,6 @@ By enforcing a schema, configuration files remain predictable and can be automat
 ## Current Configuration Files
 
 - **[config.yaml](../config/config.yaml)** - Contains the baseline configuration for all ARO HCP environments and Red Hat development environment specific configuration under `clouds.dev`
-  - **cspr**: CS PR environment - a dedicated environment for testing Cluster Service PRs.
   - **pers**: personal DEV environment - used by developers to create new personal ARO HCP instances.
   - **perf**: personal perfscale environment - used by the perfscale team to create new ARO HCP instances with production grade management cluster settings
 - **[ADO sdp-pipelines/hcp/config.msft.sensitive.clouds-overlay.yaml](https://dev.azure.com/msazure/AzureRedHatOpenShift/_git/sdp-pipelines?path=/hcp/config.msft.sensitive.clouds-overlay.yaml)** - Contains the configuration overlay for the Microsoft deployment environments, adding MSFT specific settings to the baseline configuration.
@@ -261,7 +260,6 @@ Check [Propagate Configuration Changes](#propagate-configuration-changes) for mo
 Propagation of configuration changes varies depending on the environment:
 
 - **[config.yaml](../config/config.yaml)**:
-  - Only the **cspr** environment is automatically reconciled with new changes for configuration, infrastructure, and service deployments via [CI execution](ci/execution.md).
   - personal development environments (**pers**) are fully controlled by developers. If there are relevant changes, notify developers so they can apply updates manually.
 
 - **[ADO sdp-pipelines/hcp/config.msft.sensitive.clouds-overlay.yaml](https://dev.azure.com/msazure/AzureRedHatOpenShift/_git/sdp-pipelines?path=/hcp/config.msft.sensitive.clouds-overlay.yaml)**:
