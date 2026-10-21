@@ -11,7 +11,8 @@ metadata:
 spec:
   groups:
   - name: arohcp_certificate_rotation_slo_recording_rules
-    interval: 1h
+    # Keep recorded samples fresh for alerts evaluated in a separate rule group.
+    interval: 1m
     rules:
     - record: certificate:keyvault_certificate:lifetime_ratio
       expr: |
@@ -63,15 +64,3 @@ spec:
         max by (cluster, environment, region, key_vault) (
           keyvault_certificate_collector_last_success_timestamp_seconds
         ) > bool 0
-    - record: certificate:keyvault_certificate:days_until_expiry
-      expr: |-
-        (
-          max by (cluster, environment, region, key_vault, certificate_name) (
-            keyvault_certificate_not_after_timestamp_seconds
-          )
-          - time()
-        ) / 86400
-        and on (cluster, environment, region, key_vault, certificate_name)
-        max by (cluster, environment, region, key_vault, certificate_name) (
-          keyvault_certificate_enabled
-        ) == 1
