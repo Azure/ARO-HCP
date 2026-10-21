@@ -18,10 +18,11 @@ digraph cluster_delete {
   children [label="Node-pool and external-auth\ndeletion flows complete", fillcolor="#e4f2e5", color="#4c8053"];
   group [label="EnsureManagedResourceGroup", fillcolor="#e6f0fa", color="#35648a"];
   certificates [label="KubeAPIServerTLSCertificate +\nIngressTLSCertificate\neach: GET its own vault ref;\n404 clears that reference\nread-only, no Key Vault deletes", fillcolor="#e6f0fa", color="#35648a"];
-  cleanup [label="ClusterChildResourcesCleanup\nController", fillcolor="#e6f0fa", color="#35648a"];
-  final [label="ClusterDeletionController", fillcolor="#e6f0fa", color="#35648a"];
-  op [label="OperationClusterDelete", fillcolor="#e6f0fa", color="#35648a"];
+  cleanup [label="ClusterChildResourcesCleanupController\nboth timestamps + nil CS ID; child pipelines gone\nexclude Controller docs / child subtrees\nprovider: no MRG / TLS refs / bundles\ndesire gate skipped if placement/client absent", fillcolor="#e6f0fa", color="#35648a"];
+  final [label="ClusterDeletionController\nno TLS refs / bundles / eligible children\nno ApplyDesires if cached placement known\nknown placement + missing client waits", fillcolor="#e6f0fa", color="#35648a"];
+  op [label="OperationClusterDelete\ndeadline checked before normal CS guards\nbackground cleanup continues after failure", fillcolor="#e6f0fa", color="#35648a"];
   done [label="ARM Delete Operation Succeeded", fillcolor="#e4f2e5", color="#4c8053"];
+  failed [label="ARM Delete Operation Failed\ndeadline: InternalServerError + diagnostics\nCS Error: converted code / message", fillcolor="#fbe4e4", color="#9b4d4d"];
   schedules [label="BackupSchedule + kube-applier\nDelete-type desires remove Schedules", fillcolor="#e6f0fa", color="#35648a"];
   backups [label="BackupCleanup (mgmt-agent)\nALL: recognized terminal Backup, HC absent,\nno active transfers/restores, no opt-outs\nLive reads + pure plan + non-forced SSA", fillcolor="#e6f0fa", color="#35648a"];
   velero [label="Velero (external)\nprocess DeleteBackupRequest\ndelete Backup and associated backup data", fillcolor="#fff0da", color="#b27624"];
@@ -32,7 +33,8 @@ digraph cluster_delete {
   retained [label="Complete=True / CleanupComplete\nRetained protected tombstone; no ownerRef\nSoft-deleted history is not permanently purged\nNo Cosmos writes; not an ARM gate", fillcolor="#e4f2e5", color="#4c8053"];
   release [label="Explicit cleanup CR removal (optional)\nFresh sweep/check before finalizer release\nEnds late-writer protection", fillcolor="#e4f2e5", color="#4c8053"];
   delete -> resources [label="deletion intent"];
-  resources -> dispatch [label="ordered teardown complete\nall owned ApplyDesires gone"];
+  delete -> dispatch [label="deletion timestamp set; CS dispatch not stamped\nindependent of ApplyDesire teardown"];
+  delete -> op [label="Delete Operation + deadline\nindependent polling", style=dashed, color="#857456", constraint=false];
   delete -> ingress [label="deletion intent"];
   delete -> certificates [label="deletion intent"];
   certificates -> cleanup [label="all certificate references empty"];
@@ -47,7 +49,8 @@ digraph cluster_delete {
   pvc_released -> ordered [label="namespace deletion observed\nby kube-applier; resume", style=dashed, color="#857456", constraint=false];
   ordered -> drained [label="all stages complete"];
   drained -> cleanup [label="owned cluster-scoped desires gone\n(required before provider removal)"];
-  dispatch -> cs [label="DELETE; stamp dispatch\ntimestamp"];
+  dispatch -> cs [label="DELETE; stamp dispatch timestamp\n404: 120s first-observed grace"];
+  dispatch -> cleanup [label="no confirmed/pending target:\nnil ID + 120s grace permits stamping"];
   cs -> clear [label="GET reports not found"];
   cs -> backups [label="live HC list confirms absence\n(any HC, even terminating, blocks)"];
   delete -> schedules [label="deletion intent"];
@@ -55,7 +58,7 @@ digraph cluster_delete {
   velero -> backups [label="poll pending work; Processed + Backup\nexists: delete request, recheck, retry", style=dashed, color="#857456"];
   velero -> retirement [label="all associated Backups absent"];
   schedules -> retirement [label="matching Schedules absent"];
-  retirement -> handoff [label="all live gates pass"];
+  retirement -> handoff [label="all observed gates pass"];
   handoff -> drain [label="repository gone; durable intent remains"];
   drain -> drain [label="WaitingForRepository / Blocked /\nDrainingMaintenance: recheck", style=dashed, color="#857456", constraint=false];
   drain -> sweep [label="associated Jobs/Pods absent; no active\nforeign work; revalidate gates\nDeletingBlobs"];
@@ -71,8 +74,10 @@ digraph cluster_delete {
   credentials -> cleanup [label="all credential documents gone"];
   children -> cleanup [label="all node pools / external auth\ngone"];
   group -> cleanup [label="group references cleared\n(required before removing\nprovider doc)"];
-  cleanup -> final [label="nested resources and intents\ngone"];
-  final -> op [label="billing DeletionTime; cluster\ndoc deleted"];
+  cleanup -> final [label="eligible children removed;\nindependent final gates"];
+  final -> op [label="all active billing matches marked;\ncluster doc deleted"];
+  cs -> op [label="both timestamps + CS ID: poll status\n404 / Ready wait for document absence"];
+  op -> failed [label="document remains past deadline\nor CS Error before deadline"];
   op -> done [label="document absence observed"];
   clear -> clear [label="external deletion pending", style=dashed, color="#857456", constraint=false];
   group -> group [label="group still exists: observe again\n(or delete if orphaned)", style=dashed, color="#857456", constraint=false];
