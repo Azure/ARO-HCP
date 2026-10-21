@@ -49,10 +49,37 @@ func logVerifierTiming(name, outcome string, elapsed time.Duration) {
 	ginkgo.GinkgoWriter.Printf("[%s] %s after %s\n", name, outcome, rounded)
 }
 
+// gatherDiagnostics collects the failure dump detached from the caller's context: the verdict is
+// already in, and the diagnostics are the reason the failure is attributable at all, so a caller
+// deadline that has just expired must not take them away. diagnoseTimeout bounds this extra
+// wall clock.
+func gatherDiagnostics(name string, restConfig *rest.Config, diagnoseTimeout time.Duration, diagnose diagnoseFunc) string {
+	if diagnose == nil {
+		return ""
+	}
+	diagCtx, cancel := context.WithTimeout(context.Background(), diagnoseTimeout)
+	defer cancel()
+	details := diagnose(diagCtx, restConfig)
+	if details != "" {
+		ginkgo.GinkgoLogr.Info("Failure diagnostics", "name", name, "details", details)
+	}
+	return details
+}
+
+// withDiagnostics appends a gathered dump to a verdict, leaving the verdict untouched when there
+// is nothing to append.
+func withDiagnostics(verdict error, details string) error {
+	if details == "" {
+		return verdict
+	}
+	return fmt.Errorf("%w\n%s", verdict, details)
+}
+
 // pollUntilReady polls check until it succeeds or timeout expires. Failure details are logged
 // only when the error message changes between polls (delta-only logging). Actual elapsed
 // wall-clock time is logged on both success and failure. If diagnose is set, its output is
-// logged and appended when the poll times out.
+// logged and appended to every failure the poll returns: a timeout, or cancellation of the
+// caller's context.
 //
 // Budget contract, in two parts.
 //
@@ -62,11 +89,11 @@ func logVerifierTiming(name, outcome string, elapsed time.Duration) {
 // that was already going to fail, and included in the elapsed duration logged and reported in the
 // returned error.
 //
-// Reporting the failure can take a further diagnoseTimeout on top, on the failure path only and
-// only when diagnose is set. The verdict has already been reached by the time diagnostics are
-// gathered, so the reported elapsed deliberately excludes them: it measures how long the condition
-// was waited on, not how long the report took to assemble. A caller that must bound its total wall
-// clock has to allow for both parts.
+// Reporting the failure can take a further diagnoseTimeout on top, on the failure paths only
+// (timeout or cancellation) and only when diagnose is set. The verdict has already been reached by
+// the time diagnostics are gathered, so the reported elapsed deliberately excludes them: it
+// measures how long the condition was waited on, not how long the report took to assemble. A
+// caller that must bound its total wall clock has to allow for both parts.
 func pollUntilReady(
 	ctx context.Context,
 	name string,
@@ -110,10 +137,13 @@ func pollUntilReady(
 
 	if ctx.Err() != nil {
 		logVerifierTiming(name, "cancelled", elapsed)
+		// A suite-level timeout cutting off a long upgrade poll is a realistic CI failure and the
+		// moment the dump matters most, so cancellation reports diagnostics like a timeout does.
+		details := gatherDiagnostics(name, restConfig, diagnoseTimeout, diagnose)
 		if lastErr != nil {
-			return fmt.Errorf("%s cancelled after %s: %w", name, elapsed.Round(time.Millisecond), lastErr)
+			return withDiagnostics(fmt.Errorf("%s cancelled after %s: %w", name, elapsed.Round(time.Millisecond), lastErr), details)
 		}
-		return fmt.Errorf("%s cancelled after %s: %w", name, elapsed.Round(time.Millisecond), ctx.Err())
+		return withDiagnostics(fmt.Errorf("%s cancelled after %s: %w", name, elapsed.Round(time.Millisecond), ctx.Err()), details)
 	}
 
 	// The loop stops looking at the deadline, so a condition that became true between the last
@@ -137,22 +167,9 @@ func pollUntilReady(
 	lastErr = finalErr
 
 	logVerifierTiming(name, "timed out", elapsed)
-	if diagnose != nil {
-		// Detached from ctx deliberately: the verdict is already in, and the diagnostics are the
-		// reason the failure is attributable at all, so a caller deadline that has just expired
-		// must not take them away. diagnoseTimeout is what bounds this extra wall clock.
-		diagCtx, cancel := context.WithTimeout(context.Background(), diagnoseTimeout)
-		defer cancel()
-		if details := diagnose(diagCtx, restConfig); details != "" {
-			logger.Info("Failure diagnostics", "name", name, "details", details)
-			if lastErr != nil {
-				return fmt.Errorf("%s timed out after %s: %w\n%s", name, elapsed.Round(time.Millisecond), lastErr, details)
-			}
-			return fmt.Errorf("%s timed out after %s\n%s", name, elapsed.Round(time.Millisecond), details)
-		}
-	}
+	details := gatherDiagnostics(name, restConfig, diagnoseTimeout, diagnose)
 	if lastErr != nil {
-		return fmt.Errorf("%s timed out after %s: %w", name, elapsed.Round(time.Millisecond), lastErr)
+		return withDiagnostics(fmt.Errorf("%s timed out after %s: %w", name, elapsed.Round(time.Millisecond), lastErr), details)
 	}
-	return fmt.Errorf("%s timed out after %s: %w", name, elapsed.Round(time.Millisecond), err)
+	return withDiagnostics(fmt.Errorf("%s timed out after %s: %w", name, elapsed.Round(time.Millisecond), err), details)
 }

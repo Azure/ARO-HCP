@@ -80,6 +80,54 @@ func TestPollUntilReady_ParentContextDeadlineExceeded(t *testing.T) {
 	}
 }
 
+// TestPollUntilReady_CancellationRunsDiagnostics pins the cancellation branch to the same contract
+// as the timeout branch: a caller context cancelled mid-poll (a suite timeout firing is a
+// realistic CI failure) must still gather the diagnostics, detached from the cancelled context,
+// and append them to the returned error.
+func TestPollUntilReady_CancellationRunsDiagnostics(t *testing.T) {
+	parentCtx, cancel := context.WithCancel(context.Background())
+
+	diagnoseSawCancelledContext := false
+	err := pollUntilReady(
+		parentCtx,
+		"test-verifier",
+		10*time.Second, // far beyond the cancellation: only the caller's context can end the wait
+		10*time.Millisecond,
+		nil,
+		DefaultDiagnoseTimeout,
+		func(ctx context.Context, _ *rest.Config) string {
+			// A diagnose bound to the cancelled caller would see Done closed and bail; a
+			// detached one gets a fresh context.
+			select {
+			case <-ctx.Done():
+				diagnoseSawCancelledContext = true
+				return ""
+			default:
+			}
+			return "clusterversion diagnostics"
+		},
+		func(ctx context.Context) error {
+			cancel() // the suite timeout fires mid-poll
+			return fmt.Errorf("not ready")
+		},
+	)
+	if err == nil {
+		t.Fatal("expected an error when the caller's context is cancelled, got nil")
+	}
+	if !strings.Contains(err.Error(), "cancelled") {
+		t.Fatalf("expected 'cancelled' in the error, got: %s", err.Error())
+	}
+	if !strings.Contains(err.Error(), "not ready") {
+		t.Fatalf("expected the last check error to be wrapped, got: %s", err.Error())
+	}
+	if !strings.Contains(err.Error(), "clusterversion diagnostics") {
+		t.Fatalf("expected cancellation to carry the diagnostics, got: %s", err.Error())
+	}
+	if diagnoseSawCancelledContext {
+		t.Fatal("diagnose ran bound to the cancelled caller context instead of a detached one")
+	}
+}
+
 func TestPollUntilReady_PositiveTimeout(t *testing.T) {
 	err := pollUntilReady(
 		context.Background(),
