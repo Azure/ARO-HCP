@@ -429,6 +429,7 @@ defaults:
   auditLogsEventHub:
     name: "aks-auditlogs"
     enabled: true
+    sku: "Premium"
     namespace: "hcp-{{ .ctx.environment }}-{{ .ctx.region }}-auditlogs-eh"
     authRuleName: "SendRule"
     kustoConsumerGroupName: "AuditLogsToKusto"

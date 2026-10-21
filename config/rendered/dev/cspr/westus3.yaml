@@ -125,6 +125,7 @@ auditLogsEventHub:
   name: aks-auditlogs
   namespace: hcp-cspr-westus3-auditlogs-eh
   rg: westus3-shared-resources
+  sku: Premium
 automationDryRun: false
 azureGeoShortId: us
 azureRegionAvailabilityZoneCount: 3

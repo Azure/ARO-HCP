@@ -125,6 +125,7 @@ auditLogsEventHub:
   name: aks-auditlogs
   namespace: hcp-ci01-centralus-auditlogs-eh
   rg: centralus-shared-resources
+  sku: Premium
 automationDryRun: false
 azureGeoShortId: us
 azureRegionAvailabilityZoneCount: 3
