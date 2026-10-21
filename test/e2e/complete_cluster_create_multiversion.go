@@ -21,6 +21,7 @@ import (
 	"net/http"
 	"sort"
 	"strings"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -187,6 +188,14 @@ var _ = Describe("ARO-HCP", func() {
 			By("verifying a simple web app can run")
 			err = verifiers.VerifySimpleWebApp().Verify(ctx, adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred(), "failed to verify simple web app runs on cluster %q", clusterName)
+
+			By("configuring an ephemeral Dex provider for Console login")
+			consoleFixture, err := tc.SetupConsoleFixture20240610(ctx, *resourceGroup.Name, clusterName, adminRESTConfig, 15*time.Minute)
+			Expect(err).NotTo(HaveOccurred(), "failed to set up Console login fixture for cluster %q", clusterName)
+
+			By("verifying Console login and access to a namespaced marker")
+			err = verifiers.VerifyConsoleLogin(consoleFixture, 15*time.Minute).Verify(ctx, adminRESTConfig)
+			Expect(err).NotTo(HaveOccurred(), "failed to verify Console login for cluster %q", clusterName)
 		},
 		Entry("for 4.20", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible,
 			labels.AllowRetry, // owner: @raelga, tracking: AROSLSRE-1747. Known-issue test, retriable during EV2 gating. Remove this label when the issue is fixed.
@@ -203,7 +212,9 @@ var _ = Describe("ARO-HCP", func() {
 		Entry("for 5.0", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible,
 			labels.AllowRetry, // owner: @raelga, tracking: AROSLSRE-1747. Known-issue test, retriable during EV2 gating. Remove this label when the issue is fixed.
 			"5.0"),
-		Entry("for 5.1", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "5.1"),
+		Entry("for 5.1", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible,
+			labels.AllowRetry, // owner: @hbhushan3, tracking: AROSLSRE-1586. Known-issue test, retriable during EV2 gating. Remove this label when the issue is fixed.
+			"5.1"),
 		Entry("for 5.2", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "5.2"),
 		Entry("for 5.3", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "5.3"),
 		Entry("for 5.4", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "5.4"),

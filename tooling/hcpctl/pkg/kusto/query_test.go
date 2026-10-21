@@ -17,6 +17,7 @@ package kusto
 import (
 	"fmt"
 	"regexp"
+	"strings"
 	"testing"
 	"time"
 
@@ -173,6 +174,27 @@ func TestServiceLogs_NoClusterIds(t *testing.T) {
 	testutil.CompareWithFixture(t, queryToFixture(queries[0]))
 }
 
+func TestARMServiceLogsIgnoreClusterServiceIDs(t *testing.T) {
+	f, err := NewQueryFactory()
+	require.NoError(t, err)
+	def, err := f.GetBuiltinQueryDefinition("serviceLogs")
+	require.NoError(t, err)
+	for _, table := range []string{"backendLogs", "frontendLogs", "kubeApplierLogs", "fleetLogs"} {
+		t.Run(table, func(t *testing.T) {
+			queries, err := f.Build(*def, NewTemplateDataFromOptions(baseOptions(),
+				WithTable(table), WithClusterIds([]string{"cs-cluster-id"}),
+			))
+			require.NoError(t, err)
+			require.Len(t, queries, 1)
+			text := queries[0].GetQuery().String()
+			assert.NotContains(t, text, "cs-cluster-id", "CS IDs must be ignored even if supplied to the template")
+			assert.NotContains(t, text, "clustersServiceLogs", "ARM services must not resolve CS IDs")
+			assert.Contains(t, text, "| where log has '/subscriptions/test-sub/resourceGroups/test-rg'")
+			testutil.CompareWithFixture(t, queryToFixture(queries[0]))
+		})
+	}
+}
+
 func TestOperationIdsQuery(t *testing.T) {
 	f, err := NewQueryFactory()
 	require.NoError(t, err)
@@ -254,7 +276,7 @@ func TestFrontendQueriesWithOperationIds(t *testing.T) {
 			}
 			require.NoError(t, err)
 			queries, err := f.Build(*def, NewTemplateDataFromOptions(baseOptions(),
-				WithTable("frontendLogs"), WithClusterIds([]string{"cid1"}),
+				WithTable("frontendLogs"),
 				WithOperationIds([]string{"773f5d4a-cd7a-4e25-ac56-58130cbed2d2", "operation'quoted"}),
 			))
 			require.NoError(t, err)
@@ -604,6 +626,65 @@ func TestBuildMerged_MultipleChildren(t *testing.T) {
 	require.NoError(t, err)
 
 	testutil.CompareWithFixture(t, queryToFixture(q))
+}
+
+func TestOrchestrationSummaryAndWindows(t *testing.T) {
+	f, err := NewQueryFactory()
+	require.NoError(t, err)
+	parent, err := f.GetCustomQueryDefinition("detailedServiceLogs")
+	require.NoError(t, err)
+	def := *parent
+	def.Name = parent.Children[2].Name
+	def.TemplatePath = parent.Children[2].TemplatePath
+	def.Children = nil
+	require.Equal(t, "detailedInfraOrchestrationLogs", def.Name)
+	opts := baseOptions()
+	opts.TimestampMax = opts.TimestampMin.Add(12 * time.Minute)
+	data := NewTemplateDataFromOptions(opts)
+	logs, err := f.Build(def, data)
+	require.NoError(t, err)
+	data.Summarize = true
+	summary, err := f.Build(def, data)
+	require.NoError(t, err)
+	// Both modes must use exactly the same selection; only the final operator differs.
+	logKQL, summaryKQL := logs[0].GetQuery().String(), summary[0].GetQuery().String()
+	assert.Equal(t, strings.Split(logKQL, "| order by")[0], strings.Split(summaryKQL, "| summarize")[0])
+	assert.Contains(t, summaryKQL, "estimatedBytes = sum(estimate_data_size(*))")
+	assert.NotContains(t, summaryKQL, "| order by")
+	for _, source := range []string{"maestro", "hypershift", "acm-agent"} {
+		assert.Contains(t, logKQL, `source = "`+source+`"`)
+	}
+	assert.Contains(t, logKQL, "resource_id startswith '/subscriptions/test-sub/resourceGroups/test-rg/'")
+	assert.Contains(t, logKQL, "| where isnotempty(cid)\n    | distinct cid")
+	assert.NotContains(t, logKQL, "toscalar")
+	assert.NotContains(t, logKQL, "limit 1")
+	assert.Equal(t, 4, strings.Count(logKQL, "has_any (_cs_cluster_ids)"))
+
+	data.Summarize = false
+	queries, err := f.BuildTimeWindows(def, data, opts.TimestampMin, opts.TimestampMax, 5*time.Minute)
+	require.NoError(t, err)
+	windowed, ok := queries[0].(*TimeWindowQuery)
+	require.True(t, ok)
+	require.Len(t, windowed.Windows, 3)
+	for _, window := range windowed.Windows {
+		assert.Equal(t, 2, strings.Count(window.GetQuery().String(), "timestamp between ("+data.DiscoveryTimestampMin+" .. "+data.DiscoveryTimestampMax+")"))
+		assert.Equal(t, 3, strings.Count(window.GetQuery().String(), "timestamp between (_startTime .. _endTime)"))
+	}
+	assert.Contains(t, windowed.Windows[1].GetQuery().String(), "let _startTime = datetime(2025-01-01T00:05:00.0000000Z)")
+	data.OrderBy = OrderByDesc.String()
+	descending, err := f.BuildTimeWindows(def, data, opts.TimestampMin, opts.TimestampMax, 5*time.Minute)
+	require.NoError(t, err)
+	descWindows := descending[0].(*TimeWindowQuery).Windows
+	require.Len(t, descWindows, len(windowed.Windows))
+	for i, window := range descWindows {
+		assert.Equal(t, strings.Replace(windowed.Windows[len(descWindows)-1-i].GetQuery().String(), "| order by timestamp asc", "| order by timestamp desc", 1), window.GetQuery().String())
+	}
+
+	// Generated links have a resource group but no subscription.
+	opts.SubscriptionId = ""
+	links, err := f.Build(def, NewTemplateDataFromOptions(opts))
+	require.NoError(t, err)
+	assert.Contains(t, links[0].GetQuery().String(), "resource_id contains '/resourceGroups/test-rg/'")
 }
 
 func TestTemplateDataOptions(t *testing.T) {

@@ -103,7 +103,7 @@ They acquire a slot and write configuration without provisioning infrastructure.
 Both workflows return leases through `aro-hcp-lease-release` in their post-steps.
 
 The acquire step calls `./test/aro-hcp-tests slot-manager acquire`. See the
-design's [acquisition and admission](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#acquisition-and-admission)
+design's [acquisition lifecycle](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#acquire-persist-fail-release)
 and [runtime contract](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#runtime-contract)
 sections for the lifecycle and exported values.
 
@@ -111,18 +111,15 @@ Downstream steps source `${SHARED_DIR}/aro-hcp-slot.env` and map
 `SELECTED_LOCATION` to the runtime `LOCATION` they consume. The test framework
 receives `LEASED_MSI_CONTAINERS` through this contract rather than directly from
 a ci-operator lease.
-The same contract supplies `ARO_HCP_E2E_VM_FAMILY_POLICY`, resolved from the
-acquired pool's optional `vm_family_policy` against its runtime region. Pools
-without policy export `{}`. The suite rejects a subsequent location override
-that differs from `SELECTED_LOCATION`, so select the desired region during
-acquisition rather than after sourcing the contract.
+The slot contract also supplies `ARO_HCP_E2E_VM_FAMILY_POLICY`; see the
+[slot-manager design](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#vm--worker-sku-policy)
+and [E2E SKU selection guidance](../../test/e2e/README.md#selecting-vm-sizes-skus).
+
 
 The acquire step mounts cluster-profile credentials. Slot-manager authenticates
 directly from the selected profile; a prior `az login` is not required. See
-[credentials](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#credentials)
-for the required files and permissions, and
-[subscriptions](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#subscriptions)
-for the infrastructure opt-in contract used by persistent environments.
+[credential and subscription requirements](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#catalog)
+for the required files, permissions, and infrastructure opt-in contract.
 
 ### Subscription Sharding And Region Selection
 
@@ -131,7 +128,7 @@ The slot-manager path is what lets CI shard `e2e-parallel` across multiple custo
 The inventory lives in `test/e2e-config/e2e-slots.yaml`. See the design's
 [catalog](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#catalog) section for
 deployment and subscription bindings, region selection, and asset-pool sizing.
-Check [implementation status](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#implementation-status)
+Check the design's [asset lifecycle](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#asset-lifecycle)
 before enabling a new asset.
 
 For workflow configuration:
@@ -233,7 +230,10 @@ worst-case cost of `5 * (((58 - 1) * 26) + (1 * 41)) = 7615` assignments.
 Against the requested 8000-assignment quota, that leaves 385 assignments total,
 including the 100-assignment reserve and the subscription's persistent baseline.
 
-`suite-parallelism` is declared per suite in `test/cmd/aro-hcp-tests/main.go` and can be overridden at runtime by `ARO_HCP_SUITE_PARALLELISM` or the CLI `--max-concurrency` flag. Check the release-side job configuration and invocation rather than assuming the source literal applies. Neither worker override increases the `mi-containers` resource budget derived from `LEASED_MSI_CONTAINERS`.
+
+Suite worker precedence is documented in the design's
+[leased-identity parallelism section](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#suite-parallelism-from-leased-identities).
+This guide retains the quota and capacity formulas below.
 
 `run-cost` is the cost of a single run. To answer whether a change fits within a
 subscription's quota — the question that arises whenever role assignments are
@@ -371,20 +371,17 @@ containers, and all other pools retain their
 existing counts. This expands capacity within one suite run, not the number of
 simultaneous CI jobs.
 
-For runtime `ARO_HCP_DEPLOY_ENV=int` and `LOCATION=westus3` (both matched
-case-insensitively), `integration/parallel`, `integration/parallel/slow`, and
-`integration/parallel/all` default to 75 workers. Integration defaults remain 24
-outside that scope; Stage remains 34 and PROD remains 19. A valid positive
-`ARO_HCP_SUITE_PARALLELISM` overrides these defaults and still applies globally,
-including `upgrade/in-place`, whose default otherwise remains its dynamic spec
-count.
+For suite worker precedence, see the design's
+[leased-identity parallelism section](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#suite-parallelism-from-leased-identities).
+The default follows the acquired identity-container count, not physical
+inventory or reserve capacity.
 
-The existing CI invocation passes `--max-concurrency 100`, which overrides the
-suite worker default. The actual 75-container MI budget is enforced separately:
-the catalog exports only 75 entries in `LEASED_MSI_CONTAINERS`, and the
-resource-aware scheduler derives its `mi-containers` capacity from that list.
-It is not a guarantee or a cap of 75 concurrent specs: zero-demand specs consume
-no containers, and multi-container specs consume more than one unit of budget.
+An explicit CLI `--max-concurrency` overrides the derived suite worker default.
+The MSI resource budget is enforced separately: the resource-aware scheduler
+derives its `mi-containers` capacity from the acquired entries in
+`LEASED_MSI_CONTAINERS`. This budget is not a cap on concurrent specs:
+zero-demand specs consume no containers, and multi-container specs consume
+more than one unit of budget.
 
 The regional vCPU quota is 6,950 for the 100-physical, 75-leased trial.
 Higher throughput still requires quota-backed worker and helper SKU-family
@@ -446,9 +443,9 @@ Common failure modes:
     [admission opt-out contract](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#emergency-admission-opt-out)
 - **slot-manager acquisition or release failure**
   - inspect the acquire/release step logs and `${SHARED_DIR}/aro-hcp-slot-state.yaml`
-  - follow the design's [failure behavior](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#failure-behavior)
-    and [acquired-state recovery rules](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#acquired-state)
-    before retrying or manually returning a lease
+  - follow the design's [acquire, persist, fail, release](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#acquire-persist-fail-release)
+    rules before retrying or manually returning a lease
+
 - **`expected envvar LEASED_MSI_CONTAINERS to not be empty`**
   - inspect `aro-hcp-lease-acquire` and the runtime slot env export
 - **`no assigned identity containers available for <specID>`**

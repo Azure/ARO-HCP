@@ -22,7 +22,6 @@ Welcome to the **ARO HCP** documentation. This guide provides an overview of the
   - Feature/Capability Matrix
 - Red Hat development tenant deployment environments
   - [Personal ARO HCP environment](personal-dev.md)
-  - [CS PR environment](cspr.md)
 - MSFT deployment environments
   - [MSIT INT](environments.md#msit-corp-tenant-msft-int-tenant)
 

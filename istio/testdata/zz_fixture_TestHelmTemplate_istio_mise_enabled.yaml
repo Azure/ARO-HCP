@@ -109,8 +109,8 @@ kind: ConfigMap
 apiVersion: v1
 metadata:
   labels:
-    istio.io/rev: 'asm-1-29'
-  name: istio-shared-configmap-asm-1-29
+    istio.io/rev: 'asm-1-30'
+  name: istio-shared-configmap-asm-1-30
   namespace: aks-istio-system
 data:
   mesh: |-

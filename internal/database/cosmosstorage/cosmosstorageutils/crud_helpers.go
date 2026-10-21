@@ -306,6 +306,11 @@ func addCreateToTransaction[InternalAPIType, CosmosAPIType any, InternalAPITypeP
 		},
 	)
 
+	logger := utils.LoggerFromContext(ctx)
+	createLogValues := append(utils.LogValues{}.AddLogValuesForResourceID(cosmosMetadata.ResourceID), "instanceVersion", newObj.GetInstanceVersion())
+	transaction.OnSuccess(func(DBTransactionResult) {
+		logger.Info("created resource (transaction)", createLogValues...)
+	})
 	return cosmosMetadata.GetCosmosUID(), nil
 }
 
@@ -342,6 +347,11 @@ func addReplaceToTransaction[InternalAPIType, CosmosAPIType any, InternalAPIType
 		},
 	)
 
+	logger := utils.LoggerFromContext(ctx)
+	replaceLogValues := append(utils.LogValues{}.AddLogValuesForResourceID(cosmosMetadata.ResourceID), "instanceVersion", newObj.GetInstanceVersion())
+	transaction.OnSuccess(func(DBTransactionResult) {
+		logger.Info("replaced resource (transaction)", replaceLogValues...)
+	})
 	return cosmosMetadata.GetCosmosUID(), nil
 }
 
@@ -364,6 +374,8 @@ func create[InternalAPIType, CosmosAPIType any, InternalAPITypePointer coreapi.C
 		return nil, err
 	}
 
+	utils.LoggerFromContext(ctx).Info("created resource",
+		append(utils.LogValues{}.AddLogValuesForResourceID(cosmosMetadata.ResourceID), "instanceVersion", newObj.GetInstanceVersion())...)
 	return responseItemToInternalObj[InternalAPIType, CosmosAPIType](ctx, cosmosMetadata.GetCosmosUID(), responseItem)
 }
 
@@ -387,6 +399,8 @@ func replace[InternalAPIType, CosmosAPIType any, InternalAPITypePointer coreapi.
 		return nil, err
 	}
 
+	utils.LoggerFromContext(ctx).Info("replaced resource",
+		append(utils.LogValues{}.AddLogValuesForResourceID(cosmosMetadata.ResourceID), "instanceVersion", newObj.GetInstanceVersion())...)
 	return responseItemToInternalObj[InternalAPIType, CosmosAPIType](ctx, cosmosMetadata.GetCosmosUID(), responseItem)
 }
 
@@ -439,6 +453,11 @@ func softDeleteByCosmosID(ctx context.Context, containerClient *azcosmos.Contain
 	if err != nil {
 		return utils.TrackError(err)
 	}
+	logValues := utils.LogValues{}.AddLogValuesForResourceID(doc.ResourceID)
+	if newInstanceVersion, found, verr := unstructured.NestedInt64(doc.Content, "cosmosMetadata", "instanceVersion"); verr == nil && found {
+		logValues = append(logValues, "instanceVersion", newInstanceVersion)
+	}
+	utils.LoggerFromContext(ctx).Info("deleted resource", logValues...)
 	return nil
 }
 

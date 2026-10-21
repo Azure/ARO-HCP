@@ -91,7 +91,7 @@ func NewNodePoolClusterServiceDeleteDispatchController(
 		firstSeenDeletionTimestampCache: lru.New(50000),
 	}
 
-	return controllerutils.NewNodePoolWatchingController(
+	controller := controllerutils.NewNodePoolWatchingController(
 		NodePoolClusterServiceDeleteDispatchControllerName,
 		resourcesDBClient,
 		informers,
@@ -99,19 +99,15 @@ func NewNodePoolClusterServiceDeleteDispatchController(
 		time.Minute,
 		syncer,
 	)
+	controller.AddInterestingResource(coreapi.NodePoolResourceType, "*")
+
+	return controller
 }
 
 // NeedsWork reports whether the deleter has unfinished business for the given
 // NodePool: DeletionTimestamp must be set and ClusterServiceDeletionTimestamp
 // must not yet be set.
 func (c *nodePoolClusterServiceDeleteDispatchSyncer) NeedsWork(nodePool *coreapi.NodePool) bool {
-	// TODO temporary check to skip the new deletion approach for NodePools that were created before the new approach was implemented.
-	// This will be removed once all nodepools whose deletion was triggered before the new approach is fully rolled out have been
-	// fully deleted in all ARO-HCP permanent environments, for all regions.
-	if !nodePool.ServiceProviderProperties.UsesNewNodePoolDeletionApproach {
-		return false
-	}
-
 	return nodePool.ServiceProviderProperties.DeletionTimestamp != nil &&
 		nodePool.ServiceProviderProperties.ClusterServiceDeletionTimestamp == nil
 }
@@ -167,6 +163,9 @@ func (c *nodePoolClusterServiceDeleteDispatchSyncer) SyncOnce(ctx context.Contex
 	}
 
 	csID := nodePool.ServiceProviderProperties.ClusterServiceID
+	csCtx, cancel := context.WithTimeout(ctx, controllerutils.CSWriteTimeout)
+	defer cancel()
+
 	if csID == nil || len(csID.String()) == 0 {
 		elapsed := c.clock.Since(firstSeenNodePoolDeletionTimestamp)
 		if elapsed < missingClusterServiceIDTimeout {
@@ -177,7 +176,7 @@ func (c *nodePoolClusterServiceDeleteDispatchSyncer) SyncOnce(ctx context.Contex
 		}
 		logger.Info("giving up on cluster-service NodePool delete - ClusterServiceID never appeared",
 			"nodePoolDeletionTimestamp", nodePoolDeletionTimestamp, "nodePoolFirstSeenDeletionTimestamp", firstSeenNodePoolDeletionTimestamp)
-	} else if err := c.clusterServiceClient.DeleteNodePool(ctx, *csID); err != nil {
+	} else if err := c.clusterServiceClient.DeleteNodePool(csCtx, *csID); err != nil {
 		var ocmError *ocmerrors.Error
 
 		switch {

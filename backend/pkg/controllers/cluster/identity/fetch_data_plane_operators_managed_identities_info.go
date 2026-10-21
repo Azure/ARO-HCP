@@ -146,6 +146,8 @@ func NewFetchDataPlaneOperatorsManagedIdentitiesInfoController(
 		1*time.Minute,
 		syncer,
 	)
+	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
+	controller.AddInterestingResource(coreapi.ServiceProviderClusterResourceType, coreapi.ServiceProviderClusterResourceName)
 
 	return controller
 }

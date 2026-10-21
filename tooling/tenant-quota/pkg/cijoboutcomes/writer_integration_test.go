@@ -195,13 +195,14 @@ func TestWriterKustoIntegration(t *testing.T) {
 	})
 	t.Run("management mappings", func(t *testing.T) {
 		for _, guard := range []struct {
-			kind   batchKind
-			column string
-		}{{runBatch, "adoBuildId"}, {testsBatch, "message"}, {discoveredBatch, "jobUri"},
-			{discoveredBatch, "buildId"}, {discoveredBatch, "jobName"}, {processedBatch, "buildId"}} {
-			require.NoError(t, w.checkMapping(ctx, client, w.target(guard.kind), guard.column))
+			kind             batchKind
+			column, dataType string
+		}{{runBatch, "adoBuildId", "string"}, {testsBatch, "message", "string"}, {discoveredBatch, "jobUri", "string"},
+			{runBatch, "runtimeRegion", "string"}, {runBatch, "leasedSlot", "string"}, {runBatch, "leasedAssets", "dynamic"},
+			{discoveredBatch, "buildId", "string"}, {discoveredBatch, "jobName", "string"}, {processedBatch, "buildId", "string"}} {
+			require.NoError(t, w.checkMapping(ctx, client, w.target(guard.kind), guard.column, guard.dataType))
 		}
-		require.ErrorContains(t, w.checkMapping(ctx, client, w.target(discoveredBatch), "missing"), "missing missing")
+		require.ErrorContains(t, w.checkMapping(ctx, client, w.target(discoveredBatch), "missing", "string"), "missing missing")
 	})
 	t.Run("management extent tags", func(t *testing.T) {
 		exec(t, (&kql.Builder{}).AddUnsafe(fmt.Sprintf(
@@ -226,5 +227,35 @@ func TestWriterKustoIntegration(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, tc.want, exists)
 		}
+	})
+	t.Run("slot metadata mapping and asset queries", func(t *testing.T) {
+		metadata, err := parseSlotState([]byte(validSlotState))
+		require.NoError(t, err)
+		rows := []ciJobOutcome{
+			{BuildID: "slot-available", RuntimeRegion: metadata.RuntimeRegion, LeasedSlot: metadata.LeasedSlot,
+				LeasedAssets: metadata.LeasedAssets},
+			{BuildID: "slot-empty", LeasedAssets: []leasedAsset{}},
+			{BuildID: "slot-absent"},
+		}
+		payload, err := encodeRows(rows)
+		require.NoError(t, err)
+		exec(t, (&kql.Builder{}).AddUnsafe(
+			`.ingest inline into table ciJobOutcomes with (format="multijson", ingestionMappingReference="ciJobOutcomesMapping") <| `+payload.String()))
+		check := func(query string, want []string) {
+			t.Helper()
+			got, err := queryStrings(ctx, client, database, (&kql.Builder{}).AddUnsafe(query), "value")
+			require.NoError(t, err)
+			require.ElementsMatch(t, want, got)
+		}
+		check(`ciJobOutcomes | where buildId == "slot-available"
+			| project value = strcat(runtimeRegion, "/", leasedSlot, "/", gettype(leasedAssets))`,
+			[]string{"westus3/slot-01/array"})
+		check(`ciJobOutcomes | where buildId == "slot-available" | mv-expand asset = leasedAssets
+			| project value = strcat(asset.kind, "/", asset.resourceName)`,
+			[]string{"future_asset_kind/asset-03", "infrastructure_identities/asset-01", "infrastructure_identities/asset-02"})
+		check(`ciJobOutcomes | where buildId == "slot-empty" and array_length(leasedAssets) == 0 | project value = buildId`,
+			[]string{"slot-empty"})
+		check(`ciJobOutcomes | where buildId == "slot-absent" and isnull(leasedAssets) | project value = buildId`,
+			[]string{"slot-absent"})
 	})
 }

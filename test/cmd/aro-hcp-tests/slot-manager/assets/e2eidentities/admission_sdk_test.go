@@ -163,7 +163,7 @@ func (a *admissionTransport) Do(request *http.Request) (*http.Response, error) {
 	}, nil
 }
 
-func admissionSDKClients(t *testing.T, transport *admissionTransport) (*armmsi.ClientFactory, *armauthorization.RoleAssignmentsClient) {
+func admissionSDKClients(t *testing.T, transport *admissionTransport) *admitClients {
 	t.Helper()
 	options := &azcorearm.ClientOptions{ClientOptions: policy.ClientOptions{
 		Transport: transport, Retry: policy.RetryOptions{MaxRetries: -1},
@@ -176,7 +176,10 @@ func admissionSDKClients(t *testing.T, transport *admissionTransport) (*armmsi.C
 	if err != nil {
 		t.Fatal(err)
 	}
-	return factory, roles
+	return &admitClients{
+		identities: factory.NewUserAssignedIdentitiesClient(),
+		roles:      roles,
+	}
 }
 
 func TestAdmissionInventoriesOnceAndCleansOnlyLeasedPrincipals(t *testing.T) {
@@ -186,19 +189,32 @@ func TestAdmissionInventoriesOnceAndCleansOnlyLeasedPrincipals(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
 				dirty := scenario == "residue" || scenario == "already deleted"
 				transport := &admissionTransport{scenario: scenario, role: dirty, latency: time.Millisecond}
-				factory, roles := admissionSDKClients(t, transport)
+				clients := admissionSDKClients(t, transport)
 				groups := []string{"identity-rg-00", "identity-rg-01"}
 				request := assets.LeaseRequest{AcquiredSlotState: &slots.AcquiredSlotState{Slot: slots.ExpandedSlot{
 					Assets: slots.ResolvedAssets{E2EIdentities: &slots.ResolvedE2EIdentitiesAsset{
 						Allocation: slots.AllocationDedicated, ResourceGroups: groups,
 					}},
 				}}}
-				var reports []string
-				ctx := logr.NewContext(t.Context(), funcr.NewJSON(func(report string) {
-					reports = append(reports, report)
+				const driftMessage = "Unexpected identities in leased resource group; excluded from admission cleanup"
+				var logEntries []string
+				ctx := logr.NewContext(t.Context(), funcr.NewJSON(func(entry string) {
+					logEntries = append(logEntries, entry)
 				}, funcr.Options{}))
-				if err := admitIdentityLeaseWithClients(ctx, request, factory, roles); err != nil {
+				if err := admitIdentityLeaseWithClients(ctx, request, clients, 1); err != nil {
 					t.Fatalf("admission failed: %v", err)
+				}
+				var reports []string
+				for _, entry := range logEntries {
+					var decoded struct {
+						Msg string `json:"msg"`
+					}
+					if err := json.Unmarshal([]byte(entry), &decoded); err != nil {
+						t.Fatal(err)
+					}
+					if decoded.Msg == driftMessage {
+						reports = append(reports, entry)
+					}
 				}
 				wantReports := len(groups)
 				if scenario == "no extras" {
@@ -267,7 +283,7 @@ func TestAdmissionFailsClosed(t *testing.T) {
 	} {
 		t.Run(tc.scenario, func(t *testing.T) {
 			transport := &admissionTransport{scenario: tc.scenario, role: true}
-			factory, roles := admissionSDKClients(t, transport)
+			clients := admissionSDKClients(t, transport)
 			request := assets.LeaseRequest{AcquiredSlotState: &slots.AcquiredSlotState{Slot: slots.ExpandedSlot{
 				Assets: slots.ResolvedAssets{E2EIdentities: &slots.ResolvedE2EIdentitiesAsset{
 					Allocation: slots.AllocationDedicated, ResourceGroups: []string{"identity-rg"},
@@ -275,7 +291,7 @@ func TestAdmissionFailsClosed(t *testing.T) {
 			}}}
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 			defer cancel()
-			err := admitIdentityLeaseWithClients(ctx, request, factory, roles)
+			err := admitIdentityLeaseWithClients(ctx, request, clients, 1)
 			if err == nil || !strings.Contains(err.Error(), tc.want) {
 				t.Fatalf("expected admission failure containing %q, got %v", tc.want, err)
 			}

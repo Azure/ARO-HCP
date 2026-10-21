@@ -144,3 +144,31 @@ func TestShoeboxForwardUsesMDSDCompatibleTimestamp(t *testing.T) {
 		t.Fatal("Shoebox Forward output must disable metadata retention for MDSD timestamp compatibility")
 	}
 }
+
+func TestArobitWatsonMDSDSocketConfiguration(t *testing.T) {
+	for _, test := range []struct {
+		name           string
+		fixture        string
+		mdsdRolePrefix string
+	}{
+		{
+			name:           "management",
+			fixture:        "../../observability/arobit/testdata/zz_fixture_TestHelmTemplate_helmtest_mdsd_and_kusto_enabled_mgmt.yaml",
+			mdsdRolePrefix: "/var/run/mdsd/",
+		},
+		{
+			name:           "service",
+			fixture:        "../../observability/arobit/testdata/zz_fixture_TestHelmTemplate_helmtest_mdsd_and_kusto_enabled_svc.yaml",
+			mdsdRolePrefix: "/var/run/mdsd/asa/",
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			fixture, err := os.ReadFile(test.fixture)
+			require.NoError(t, err)
+
+			output := string(fixture)
+			require.Contains(t, output, "MDSD_ROLE_PREFIX\n              value: \""+test.mdsdRolePrefix+"\"")
+			require.NotContains(t, output, "MDSD_OPTION")
+		})
+	}
+}

@@ -105,15 +105,18 @@ cluster to obtain it. Any future "admission needs live cluster state" case must
 follow the same pattern: backend observes → mirrors onto `ServiceProviderCluster`
 → frontend prefetches → admission reads from context.
 
-The general-purpose landing spot for that state is
-`ServiceProviderCluster.Status.ActualHostedCluster`, which the backend
-`ActualHostedCluster` controller keeps as a copy of the whole observed
-HostedCluster (spec and status). Prefer reading a fact out of it over adding a
-new distilled field per check: a per-check field has to be named, versioned and
-backfilled, and single-purpose booleans in particular do not survive contact
-with the next release (`DataPlaneV5MirrorPresent` would need a sibling for every
-future major version). `admitClusterV5DataPlaneMirror` is the worked example —
-it reads `Spec.ImageContentSources` straight off the mirrored HostedCluster.
+`ServiceProviderCluster.Status.ImageContentSources` is the sole source for
+image-mirror admission. The backend `ActualHostedCluster` controller mirrors the
+observed HostedCluster's `spec.imageContentSources` verbatim, including each
+source and its mirrors. This is a pointer to a slice, not a version-specific
+boolean: a nil pointer means unavailable observed state, while a non-nil pointer
+to a possibly empty slice means the HostedCluster was observed. Empty observations
+are stored as an empty, non-nil slice so JSON round trips preserve that signal.
+
+`admitClusterV5DataPlaneMirror` reads only `Status.ImageContentSources`; the full
+HostedCluster is not stored on the ServiceProviderCluster. A nil pointer fails
+closed until the backend publishes an observation. There is no fallback to
+other observed or desired state.
 
 Two rules when consuming it:
 
@@ -121,20 +124,21 @@ Two rules when consuming it:
   management cluster today. `Spec.DesiredHostedCluster` is intent and may not be
   reality; do not gate on it.
 - **Fail closed while unobserved for safety-critical upgrade gates.**
-  `ActualHostedCluster` is nil until the backend has seen the HostedCluster, and
+  The mirror is nil until the backend has seen the HostedCluster, and
   is retracted to nil once a completed read reports no HostedCluster on the
   management cluster, so the mirror never outlives the object it mirrors. A read
   that has not happened or did not succeed leaves the previous value in place —
   that is "we have not looked", not "it is gone" — so a non-nil value can lag
   reality while the kube-applier is failing to read. Treat it as the last
   confirmed observation, not as a live view. For the v5 data-plane mirror gate,
-  nil means the required mirror cannot be proven present, so the upgrade must be
-  rejected. Once it is non-nil, an empty field within it is a real answer and is
-  also rejected.
+  a missing ServiceProviderCluster or nil ImageContentSources pointer means the
+  required source cannot be proven present, so the upgrade is rejected as
+  unavailable. An observed empty list or a list without the required source is
+  rejected as missing the mirror.
 
 Why the mirror exists at all (frontend has no kube-applier container access, so
 a frontend compromise cannot create management-cluster resources) is written up
-in [docs/cosmos-data-flow.md](../../docs/cosmos-data-flow.md#why-management-cluster-state-is-mirrored-onto-serviceprovidercluster).
+in [docs/generated/service-provider-control-flow.md](../../docs/generated/service-provider-control-flow.md#why-management-cluster-state-is-mirrored-onto-serviceprovidercluster).
 
 ## Tests
 

@@ -61,7 +61,7 @@ func NewNodePoolClusterServiceCreateController(
 		clustersServiceClient: clustersServiceClient,
 	}
 
-	return controllerutils.NewNodePoolWatchingController(
+	controller := controllerutils.NewNodePoolWatchingController(
 		NodePoolClusterServiceCreateControllerName,
 		resourcesDBClient,
 		informers,
@@ -69,6 +69,10 @@ func NewNodePoolClusterServiceCreateController(
 		time.Minute,
 		syncer,
 	)
+	controller.AddInterestingResource(coreapi.NodePoolResourceType, "*")
+	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
+
+	return controller
 }
 
 func (c *nodePoolClusterServiceCreateSyncer) needsWork(nodePool *coreapi.NodePool) bool {
@@ -125,7 +129,10 @@ func (c *nodePoolClusterServiceCreateSyncer) SyncOnce(ctx context.Context, key c
 		return utils.TrackError(fmt.Errorf("build node pool internal ID for adoption lookup: %w", err))
 	}
 
-	existing, err := c.findCSNodePool(ctx, nodePoolCSInternalID)
+	csCtx, cancel := context.WithTimeout(ctx, controllerutils.CSWriteTimeout)
+	defer cancel()
+
+	existing, err := c.findCSNodePool(csCtx, nodePoolCSInternalID)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -136,7 +143,7 @@ func (c *nodePoolClusterServiceCreateSyncer) SyncOnce(ctx context.Context, key c
 			return utils.TrackError(err)
 		}
 		logger.Info("performing POST node pool to Cluster Service", "cs_node_pool_href", csNodePoolHREF, "node_pool_resource_id", nodePool.ID.String())
-		_, err = c.clustersServiceClient.PostNodePool(ctx, clusterCSInternalID, csNodePoolBuilder)
+		_, err = c.clustersServiceClient.PostNodePool(csCtx, clusterCSInternalID, csNodePoolBuilder)
 		if c.isOCMErrorBadRequest(err) {
 			logger.Error(err, "CS node pool POST returned OCM error with HTTP 400 status code", "cs_node_pool_href", csNodePoolHREF, "node_pool_resource_id", nodePool.ID.String())
 		}

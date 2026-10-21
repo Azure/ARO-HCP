@@ -16,10 +16,8 @@ package mismatch
 
 import (
 	"strings"
-	"time"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerconfig"
-	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 )
 
 func registerClusterServiceMatchingClusterController() controllerconfig.ControllerRegistration {
@@ -44,7 +42,7 @@ func registerDeleteOrphanedCosmosResourcesController() controllerconfig.Controll
 func instantiateDeleteOrphanedCosmosResourcesController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
 	_, subscriptionLister := controllerContext.BackendInformers.Subscriptions()
 	_, managementClusterLister := controllerContext.FleetInformers.ManagementClusters()
-	return NewDeleteOrphanedCosmosResourcesController(controllerContext.ResourcesDBClient, controllerContext.KubeApplierDBClients, subscriptionLister, managementClusterLister), nil
+	return NewDeleteOrphanedCosmosResourcesController(controllerContext.Clock, controllerContext.ResourcesDBClient, controllerContext.KubeApplierDBClients, subscriptionLister, managementClusterLister), nil
 }
 
 func registerMissingResourceIDController() controllerconfig.ControllerRegistration {
@@ -58,23 +56,8 @@ func instantiateMissingResourceIDController(controllerContext controllerconfig.C
 	return NewMissingResourceIDController(controllerContext.ResourcesDBClient), nil
 }
 
-func registerBackfillClusterUIDController() controllerconfig.ControllerRegistration {
-	return controllerconfig.ControllerRegistration{
-		Workers:     20,
-		Instantiate: controllerconfig.WithCacheSyncs(instantiateBackfillClusterUIDController, true),
-	}
-}
-
-func instantiateBackfillClusterUIDController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
-	_, clusterLister := controllerContext.BackendInformers.Clusters()
-	return controllerutils.NewClusterWatchingController(
-		BackfillClusterUIDControllerName, controllerContext.ResourcesDBClient, controllerContext.BackendInformers, controllerContext.UnionKubeApplierInformers, 60*time.Minute,
-		NewBackfillClusterUIDController(controllerContext.Clock, controllerContext.ResourcesDBClient, controllerContext.BillingDBClient, clusterLister)), nil
-}
-
 func Register(registry map[string]controllerconfig.ControllerRegistration) {
 	registry[strings.ToLower(ClusterServiceMatchingClustersControllerName)] = registerClusterServiceMatchingClusterController()
 	registry[strings.ToLower(DeleteOrphanedCosmosResourcesControllerName)] = registerDeleteOrphanedCosmosResourcesController()
 	registry[strings.ToLower(MissingResourceIDControllerName)] = registerMissingResourceIDController()
-	registry[strings.ToLower(BackfillClusterUIDControllerName)] = registerBackfillClusterUIDController()
 }

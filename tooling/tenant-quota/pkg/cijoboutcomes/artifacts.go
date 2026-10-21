@@ -54,6 +54,7 @@ type runDetail struct {
 	StartedAt   time.Time
 	FinishedAt  time.Time
 	ADOBuildID  string
+	SlotState   slotStateMetadata
 }
 
 // fetchJobOutcomeDetail reads job enrichment only, independent of test sources.
@@ -90,7 +91,34 @@ func fetchJobOutcomeDetail(ctx context.Context, client *http.Client, prowURL str
 		}
 	}
 
+	detail.SlotState, err = fetchSlotState(ctx, client, info)
+	if err != nil {
+		failures = append(failures, fmt.Errorf("failed to read slot state: %w", err))
+	}
+
 	return detail, errors.Join(failures...)
+}
+
+func fetchSlotState(ctx context.Context, client *http.Client, info *snapshot.ProwJobInfo) (slotStateMetadata, error) {
+	ctx = utils.ContextWithLogger(ctx, utils.LoggerFromContext(ctx).WithValues("source", "slot-state"))
+	data, err := snapshot.FetchProwJobArtifact(ctx, client, info, slotStateArtifactPath)
+	if err != nil {
+		return slotStateMetadata{}, err
+	}
+	if data == nil {
+		snapshot.ReportProwArtifactProblem(ctx, "slot-state", slotStateAbsent)
+		return slotStateMetadata{Status: slotStateAbsent}, nil
+	}
+	metadata, err := parseSlotState(data)
+	if err != nil {
+		metadata.Status = slotStateMalformed
+		if errors.Is(err, errSlotStateVersion) {
+			metadata.Status = slotStateUnsupported
+		}
+		utils.LoggerFromContext(ctx).Error(err, "Slot state enrichment unavailable", "path", slotStateArtifactPath)
+		snapshot.ReportProwArtifactProblem(ctx, "slot-state", metadata.Status)
+	}
+	return metadata, nil
 }
 
 func enrichmentError(ctx context.Context, err error) error {

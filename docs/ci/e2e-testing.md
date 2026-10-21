@@ -26,6 +26,7 @@ All E2E tests run through Prow. For manual triggers or reruns, use PR comments o
 | Command | Environment | Runs Automatically | Notes |
 |---------|-------------|-------------------|-------|
 | `/test e2e-parallel` | DEV | Yes, on every PR | Required presubmit. Can validate unmerged RP and shared deployment-artifact changes because the job provisions DEV service footprint on demand. This is the only E2E job currently using slot-manager. |
+| `/test e2e-parallel-ocp-nightly` | DEV | No | Must be triggered manually. Runs tests using the latest nightly OCP build |
 | `/test integration-e2e-parallel` | INT | No | Must be triggered manually. Useful for validating test behavior against the shared INT environment. |
 | `/test integration-e2e-parallel-ocp-fast` | INT | No | Must be triggered manually |
 | `/test integration-e2e-parallel-ocp-stable` | INT | No | Must be triggered manually |
@@ -61,11 +62,11 @@ The DEV `e2e-parallel` job is different. Because it provisions the DEV RP footpr
 
 ## Running Only Specific Tests
 
-When validating a single test or a small subset of tests, you can temporarily filter which tests run by modifying `test/cmd/aro-hcp-tests/main.go`.
+When validating a single test or a small subset of tests, you can temporarily filter which tests run by modifying `test/cmd/aro-hcp-tests/cli.go`.
 
 ### Example: Filter by Test Name
 
-In [`test/cmd/aro-hcp-tests/main.go`](../../test/cmd/aro-hcp-tests/main.go), uncomment and modify the `MustFilter` line to match only the tests you want:
+In [`test/cmd/aro-hcp-tests/cli.go`](../../test/cmd/aro-hcp-tests/cli.go), uncomment and modify the `MustFilter` line to match only the tests you want:
 
 ```go
 // Specs can be globally filtered...
@@ -83,7 +84,7 @@ This uses [CEL expressions](https://github.com/google/cel-spec) to filter test s
    git checkout -b test/validate-my-test
    ```
 
-2. Edit `test/cmd/aro-hcp-tests/main.go` and add a filter:
+2. Edit `test/cmd/aro-hcp-tests/cli.go` and add a filter:
 
    ```go
    specs = specs.MustFilter([]string{`name.contains("MyTestName")`})

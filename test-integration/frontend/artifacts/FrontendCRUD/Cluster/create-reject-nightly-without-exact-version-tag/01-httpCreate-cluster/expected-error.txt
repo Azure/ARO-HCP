@@ -1,0 +1,5 @@
+{
+    "code": "InvalidRequestContent",
+    "message": "Required value: nightly builds are not published to the update graph, so the exact build must be pinned with this tag when channelGroup is \"nightly\" (e.g. \"4.21.0-0.nightly-2026-08-05-123456\")",
+    "target": "tags[aro-hcp.experimental.cluster.control-plane-exact-version]"
+  }

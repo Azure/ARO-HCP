@@ -505,8 +505,9 @@ kubectl exec -n maestro deployment/maestro -c maestro-server -- sh -c \
 - `clusters.cluster.x-k8s.io` with `cluster.cluster.x-k8s.io` finalizer
 - `hostedcontrolplanes.hypershift.openshift.io` with `hypershift.openshift.io/finalizer`
 - `deployments` with `hypershift.openshift.io/component-finalizer`
+- Deleting PVCs with `snapshot.storage.kubernetes.io/pvc-as-source-protection`
 
-**Fix**: Check `kubectl get namespace <ns> -o json | jq '.status.conditions'` to identify blocking resources, then remove their finalizers (Strategy 4).
+**Fix**: Check `kubectl get namespace <ns> -o json | jq '.status.conditions'` to identify blocking resources. If deleting PVCs are held by the snapshot source-protection finalizer, check for VolumeSnapshots still referencing each PVC and for errors from the management-agent's [SnapshotPVCFinalizerCleanupController](../generated/service-provider-control-flow.md#snapshotpvcfinalizercleanupcontroller). It removes only that finalizer after the PVC has been deleting for at least one minute and no cached or live VolumeSnapshot references it; a remaining snapshot must not be bypassed. The controller runs in all namespaces, not just the control-plane namespace. Allow it to reconcile before considering manual finalizer removal (Strategy 4) for other blockers.
 
 ### Scenario 5: CAPI Machine Deletion Cannot Finish
 
@@ -582,6 +583,7 @@ curl -s 'http://localhost:8002/api/maestro/v1/resource-bundles?size=2900' | \
 | `cluster.open-cluster-management.io/api-resource-cleanup` | ManagedCluster | ACM |
 | `hosting-manifests-cleanup` | ManagedClusterAddon | Hosting Addon Controller |
 | `hosting-addon-pre-delete` | ManagedClusterAddon | Hosting Addon Controller |
+| `snapshot.storage.kubernetes.io/pvc-as-source-protection` | PersistentVolumeClaim | External snapshot controller; management-agent removes a stale finalizer on deleting PVCs only after its grace period and snapshot checks |
 
 ## Quick Reference: Key Controller Logs
 

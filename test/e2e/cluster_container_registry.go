@@ -52,6 +52,11 @@ import (
 const (
 	managedIdentityOperatorRoleID = "f1a07417-d97a-45cb-824c-7a7467783830"
 	acrPullRoleID                 = "7f951dda-4ed3-4680-a7ca-43fe172d538d"
+	// readerRoleID is the built-in Reader role. msi-scoped-assignments.bicep grants it to the
+	// service managed identity over the resource group that holds the cluster's operator
+	// identities; the ACR pull MIs here are created outside that deployment, so the equivalent
+	// grant has to be made per-MI (see the SMI grant below for why the RP needs it).
+	readerRoleID = "acdd72a7-3385-48ef-bd42-f606fba81ae7"
 	// Azure Container Registry names must be 5-50 alphanumeric characters.
 	acrNameMaxLength = 50
 
@@ -65,6 +70,9 @@ const (
 	acrPullNodePoolScalingTimeout = 5 * time.Minute  // observed <1m, 5x safety
 	day2ConfigPatchTimeout        = 5 * time.Minute  // observed ~20-71s (3 runs), 4x safety
 	day2RolloutTimeout            = 15 * time.Minute // observed ~8.5-10m (3 runs), 1.5x safety
+	removalConfigPatchTimeout     = 5 * time.Minute  // mirrors day2ConfigPatchTimeout; same ARM PATCH wait shape
+	removalRolloutTimeout         = 15 * time.Minute // mirrors day2RolloutTimeout; same CAPZ detach-driven rollout
+	pullFailureTimeout            = 2 * time.Minute  // kubelet surfaces auth failures without backoff, so no long poll needed
 )
 
 var nonAlphanumeric = regexp.MustCompile(`[^a-zA-Z0-9]`)
@@ -112,6 +120,33 @@ func lookupCAPZPrincipalID(
 		return "", fmt.Errorf("CAPZ MI has no principal ID")
 	}
 	return *capzMI.Properties.PrincipalID, nil
+}
+
+// lookupServiceManagedIdentityPrincipalID resolves the principal ID of the cluster's service
+// managed identity. The RP's ContainerRegistryPullCredentialsPermissionValidation performs its
+// existence check on the pull MI as the SMI, not as CAPZ, so the SMI is a second principal that
+// needs access to the pull MI.
+func lookupServiceManagedIdentityPrincipalID(
+	ctx context.Context,
+	msiClient *armmsi.UserAssignedIdentitiesClient,
+	clusterParams framework.ClusterParams20261001,
+) (string, error) {
+	if clusterParams.UserAssignedIdentitiesProfile == nil || clusterParams.UserAssignedIdentitiesProfile.ServiceManagedIdentity == nil {
+		return "", fmt.Errorf("service managed identity not found in cluster params")
+	}
+	smiResourceIDStr := *clusterParams.UserAssignedIdentitiesProfile.ServiceManagedIdentity
+	smiResourceID, err := azcorearm.ParseResourceID(smiResourceIDStr)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse service managed identity resource ID %q: %w", smiResourceIDStr, err)
+	}
+	smi, err := msiClient.Get(ctx, smiResourceID.ResourceGroupName, smiResourceID.Name, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to get service managed identity: %w", err)
+	}
+	if smi.Properties == nil || smi.Properties.PrincipalID == nil {
+		return "", fmt.Errorf("service managed identity has no principal ID")
+	}
+	return *smi.Properties.PrincipalID, nil
 }
 
 // lookupMIPrincipalID retries because these reads land in a burst of ARM traffic right after
@@ -163,13 +198,60 @@ func grantBuiltInRoleWithRetry(
 		"%s should succeed once the principal propagates", description)
 }
 
+// waitForRoleAssignmentVisible polls until a role assignment granting roleID to principalID is
+// readable at scope.
+//
+// grantBuiltInRoleWithRetry returning means only that the Authorization RP accepted the write. The
+// read path replicates separately, and the RP evaluates these grants within seconds of the cluster
+// create that follows, so a grant can still be invisible when it is checked. That surfaces as a
+// confusing 403 attributed to the feature rather than to setup timing, so gate on visibility here.
+//
+// Reading the assignment back is a proxy, not proof: it confirms the assignment has replicated to
+// the Authorization read path, but ARM also caches authorization decisions briefly, and the test
+// cannot impersonate the principals (CAPZ and the service managed identity) to verify enforcement
+// directly. It closes the large window, not the small one.
+func waitForRoleAssignmentVisible(
+	ctx context.Context,
+	client *armauthorization.RoleAssignmentsClient,
+	scope, principalID, roleID, description string,
+	timeout time.Duration,
+) {
+	filter := fmt.Sprintf("assignedTo('%s')", principalID)
+	Eventually(func() error {
+		pager := client.NewListForScopePager(scope, &armauthorization.RoleAssignmentsClientListForScopeOptions{
+			Filter: &filter,
+		})
+		for pager.More() {
+			page, err := pager.NextPage(ctx)
+			if err != nil {
+				if isARMThrottlingError(err) {
+					return fmt.Errorf("throttled while listing role assignments at %s: %w", scope, err)
+				}
+				return StopTrying(fmt.Sprintf("failed to list role assignments at %s for principal %s", scope, principalID)).Wrap(err)
+			}
+			for _, ra := range page.Value {
+				if ra.Properties == nil || ra.Properties.RoleDefinitionID == nil {
+					continue
+				}
+				if strings.HasSuffix(strings.ToLower(*ra.Properties.RoleDefinitionID), strings.ToLower(roleID)) {
+					return nil
+				}
+			}
+		}
+		return fmt.Errorf("%s is not yet readable at scope %s", description, scope)
+	}).WithContext(ctx).WithTimeout(timeout).WithPolling(10*time.Second).Should(Succeed(),
+		"%s never became readable, so the RP would likely have evaluated it before it replicated", description)
+}
+
 // vmUserAssignedIdentityIDs lowercases IDs so they can be compared against an ARM resource ID whose casing ARM does not preserve.
 func vmUserAssignedIdentityIDs(vm *armcompute.VirtualMachine) ([]string, error) {
 	if vm == nil {
 		return nil, errors.New("virtual machine was nil")
 	}
 	if vm.Identity == nil {
-		return nil, errors.New("virtual machine Identity block was nil")
+		// ARM omits the Identity block entirely once the last user-assigned identity is removed,
+		// rather than returning an empty map — a valid state once identity removal clears the last identity.
+		return []string{}, nil
 	}
 	ids := make([]string, 0, len(vm.Identity.UserAssignedIdentities))
 	for id := range vm.Identity.UserAssignedIdentities {
@@ -178,10 +260,11 @@ func vmUserAssignedIdentityIDs(vm *armcompute.VirtualMachine) ([]string, error) 
 	return ids, nil
 }
 
-// verifyACRPullFromNodes uses no imagePullSecrets: a successful pull proves the node's CAPZ-attached
-// identity authenticated via the kubelet credential provider. Each call needs a fresh namespace since
-// VerifyImagePulled succeeds on *any* pod in it, and reuse would let day 1's cached image satisfy day 2.
-func verifyACRPullFromNodes(ctx context.Context, adminRESTConfig *rest.Config, namespace, acrLoginServer, phase string) {
+// deployACRPullTestPod creates a namespace, service account, and pod that attempts to pull
+// acrPullTestImageTag from acrLoginServer with no imagePullSecrets, relying solely on the node's
+// kubelet credential provider. Each call needs a fresh namespace since VerifyImagePulled matches
+// *any* pod in it, and reuse would let an earlier phase's cached image satisfy a later check.
+func deployACRPullTestPod(ctx context.Context, adminRESTConfig *rest.Config, namespace, acrLoginServer, phase string) {
 	By(fmt.Sprintf("[%s] creating namespace %s for the ACR image pull check", phase, namespace))
 	kubeClient, err := kubernetes.NewForConfig(adminRESTConfig)
 	Expect(err).NotTo(HaveOccurred(), "failed to create kubernetes client for the %s ACR pull check", phase)
@@ -250,24 +333,101 @@ func verifyACRPullFromNodes(ctx context.Context, adminRESTConfig *rest.Config, n
 		},
 	}, metav1.CreateOptions{})
 	Expect(err).NotTo(HaveOccurred(), "failed to create ACR pull test pod in %s", namespace)
+}
+
+// verifyACRPullFromNodes confirms a pod picks up the node's kubelet-credential-provider identity
+// and successfully pulls from the private ACR.
+func verifyACRPullFromNodes(ctx context.Context, adminRESTConfig *rest.Config, namespace, acrLoginServer, phase string) {
+	deployACRPullTestPod(ctx, adminRESTConfig, namespace, acrLoginServer, phase)
 
 	By(fmt.Sprintf("[%s] verifying the image was pulled from the private ACR", phase))
-	err = verifiers.VerifyImagePulled(namespace, acrLoginServer, acrPullTestImageName, acrPullImagePullTimeout).
+	err := verifiers.VerifyImagePulled(namespace, acrLoginServer, acrPullTestImageName, acrPullImagePullTimeout).
 		Verify(ctx, adminRESTConfig)
 	Expect(err).NotTo(HaveOccurred(), "[%s] pod in namespace %s never pulled image %s from private ACR %s",
 		phase, namespace, acrPullTestImageName, acrLoginServer)
 }
 
-// Full lifecycle of ACR pull via managed identity (ARO-24037): day 1 cluster creation and pull,
-// day 2 MI swap and pull. Self-contained per test/AGENTS.md (sharing a cluster would duplicate
-// expensive infrastructure setup). Observed wall-clock time ~28-34m across 3 runs, well under the
-// 150m suite TestTimeout — but the per-phase timeouts below are stuck-operation backstops, not an
-// additive budget, and their worst-case sum exceeds 150m (dominated by shared framework defaults
-// in test/util/framework/constants.go and CreateClusterCustomerResources20261001, which this test
-// does not control).
-var _ = Describe("Customer", func() {
-	timeBombDeadline := framework.V20261001DeploymentDeadline
+// acrPullDenialReasons are the kubelet container-waiting reasons consistent with the registry
+// having rejected the pull, as opposed to the pod still starting up.
+var acrPullDenialReasons = []string{"ImagePullBackOff", "ErrImagePull"}
 
+// acrPullDenialMessageMarkers are substrings of the waiting message that distinguish an actual
+// ACR authorization rejection from an unrelated pull failure (missing image, network timeout)
+// that would otherwise also match acrPullDenialReasons.
+var acrPullDenialMessageMarkers = []string{"unauthorized", "authentication required"}
+
+// verifyACRPullDenied is the mirror of verifyACRPullFromNodes for use once containerRegistry.managedIdentity
+// has been cleared: waits for the pod to reach a *confirmed* ACR authorization denial, not just any
+// failure to pull. A bare pull-error reason isn't enough on its own — ImagePullBackOff also covers
+// unrelated failures — and neither is treating every VerifyImagePulled error as proof of denial, since
+// that verifier also errors on pod-list failures or a pod that simply hasn't been scheduled yet.
+func verifyACRPullDenied(ctx context.Context, adminRESTConfig *rest.Config, namespace, acrLoginServer, phase string) {
+	deployACRPullTestPod(ctx, adminRESTConfig, namespace, acrLoginServer, phase)
+
+	By(fmt.Sprintf("[%s] verifying the pull is denied for lack of ACR authorization", phase))
+	kubeClient, err := kubernetes.NewForConfig(adminRESTConfig)
+	Expect(err).NotTo(HaveOccurred(), "failed to create kubernetes client for the %s ACR pull denial check", phase)
+
+	Eventually(func() error {
+		pod, err := kubeClient.CoreV1().Pods(namespace).Get(ctx, "acr-pull-test", metav1.GetOptions{})
+		if err != nil {
+			return fmt.Errorf("failed to get pod %s/acr-pull-test: %w", namespace, err)
+		}
+		for _, cs := range pod.Status.ContainerStatuses {
+			// Skip containers not pulling from the ACR under test.
+			if !strings.Contains(cs.Image, acrLoginServer) {
+				continue
+			}
+
+			// Fail fast if the container reached any success state. Kubelet may report these
+			// states before ImageID appears in status, or if credential provider caching allowed
+			// a pull during the token validity window after identity removal.
+			if cs.Ready {
+				return StopTrying(fmt.Sprintf("[%s] pod %s container %s unexpectedly became Ready after containerRegistry.managedIdentity was cleared", phase, pod.Name, cs.Name))
+			}
+			if cs.State.Running != nil {
+				return StopTrying(fmt.Sprintf("[%s] pod %s container %s unexpectedly reached Running state after containerRegistry.managedIdentity was cleared", phase, pod.Name, cs.Name))
+			}
+			if cs.State.Terminated != nil && cs.State.Terminated.ExitCode == 0 {
+				return StopTrying(fmt.Sprintf("[%s] pod %s container %s unexpectedly terminated successfully after containerRegistry.managedIdentity was cleared", phase, pod.Name, cs.Name))
+			}
+			if cs.ImageID != "" {
+				return StopTrying(fmt.Sprintf("[%s] pod %s unexpectedly pulled the image after containerRegistry.managedIdentity was cleared", phase, pod.Name))
+			}
+
+			// Check for confirmed ACR authorization denial in Waiting state.
+			if cs.State.Waiting == nil {
+				continue
+			}
+			reason, message := cs.State.Waiting.Reason, cs.State.Waiting.Message
+			if !slices.Contains(acrPullDenialReasons, reason) {
+				continue
+			}
+			lowerMsg := strings.ToLower(message)
+			for _, marker := range acrPullDenialMessageMarkers {
+				if strings.Contains(lowerMsg, marker) {
+					return nil
+				}
+			}
+			return StopTrying(fmt.Sprintf("[%s] pod %s container %s failed to pull for a reason unrelated to ACR authorization: %s - %s",
+				phase, pod.Name, cs.Name, reason, message))
+		}
+		return fmt.Errorf("[%s] pod %s has not yet reached a confirmed pull-denial state", phase, pod.Name)
+	}).WithContext(ctx).WithTimeout(pullFailureTimeout).WithPolling(10*time.Second).Should(Succeed(),
+		"[%s] pod in namespace %s never reached a confirmed ACR authorization denial after containerRegistry.managedIdentity was cleared",
+		phase, namespace)
+}
+
+// Full lifecycle of ACR pull via managed identity (ARO-24037): day 1 cluster creation and pull,
+// day 2 MI swap and pull, then identity removal and pull denial. Self-contained per test/AGENTS.md
+// (sharing a cluster would duplicate expensive infrastructure setup); removal runs after day 2, not
+// between day 1 and day 2, so it doesn't consume the active identity day 2's swap needs. Day 1+2
+// observed wall-clock time ~28-34m across 3 runs (removal has no observed runs yet, so its timeouts
+// below are estimates mirroring day 2's, not data-derived). The per-phase timeouts below are
+// stuck-operation backstops, not an additive budget, and their worst-case sum exceeds the 150m
+// suite TestTimeout (dominated by shared framework defaults in test/util/framework/constants.go
+// and CreateClusterCustomerResources20261001, which this test does not control).
+var _ = Describe("Customer", func() {
 	It("should be able to create a cluster with ACR pull via managed identity and pull from a private ACR",
 		labels.RequireNothing,
 		labels.Medium,
@@ -275,7 +435,7 @@ var _ = Describe("Customer", func() {
 		labels.AroRpApiCompatible,
 		labels.CreateCluster,
 		labels.Slow,
-		labels.MIContainers(2),
+		labels.MIContainers(1),
 		func(ctx context.Context) {
 			const (
 				customerClusterName = "acr-pull"
@@ -289,9 +449,14 @@ var _ = Describe("Customer", func() {
 				miLookupTimeout         = 1 * time.Minute // observed <20s, 3x safety
 				roleAssignmentTimeout   = 2 * time.Minute // observed <20s, 6x safety
 				vmIdentityAttachTimeout = 3 * time.Minute // observed <30s, 6x safety; brief because a miss here is a real error, not rollout lag
+				// No observed baseline: added after a stage/prod canary run failed on a grant the RP
+				// could not see. Generous because waiting here is far cheaper than a ~15m cluster
+				// create that fails on replication lag.
+				roleAssignmentVisibilityTimeout = 5 * time.Minute
 
-				day1PullNamespace = "acr-pull-test-day1"
-				day2PullNamespace = "acr-pull-test-day2"
+				day1PullNamespace    = "acr-pull-test-day1"
+				day2PullNamespace    = "acr-pull-test-day2"
+				removalPullNamespace = "acr-pull-test-removal"
 			)
 
 			// Setup: infrastructure, ACR, and managed identities for day 1 and day 2.
@@ -311,7 +476,7 @@ var _ = Describe("Customer", func() {
 			tc := framework.NewTestContext()
 
 			if tc.UsePooledIdentities() {
-				err := tc.AssignIdentityContainers(ctx, 2, framework.IdentityContainerAssignmentRetryInterval)
+				err := tc.AssignIdentityContainers(ctx, 1, framework.IdentityContainerAssignmentRetryInterval)
 				Expect(err).NotTo(HaveOccurred(), "failed to assign pooled identity containers")
 			}
 
@@ -396,6 +561,14 @@ var _ = Describe("Customer", func() {
 			}).WithContext(ctx).WithTimeout(miLookupTimeout).WithPolling(15*time.Second).Should(Succeed(),
 				"failed to look up CAPZ principal ID")
 
+			var smiPrincipalID string
+			Eventually(func() error {
+				var lookupErr error
+				smiPrincipalID, lookupErr = lookupServiceManagedIdentityPrincipalID(ctx, msiClient, clusterParams)
+				return lookupErr
+			}).WithContext(ctx).WithTimeout(miLookupTimeout).WithPolling(15*time.Second).Should(Succeed(),
+				"failed to look up service managed identity principal ID")
+
 			roleAssignmentsClient := newRoleAssignmentsClient(subscriptionID, cred)
 
 			By("granting AcrPull on the ACR to both managed identities")
@@ -414,6 +587,43 @@ var _ = Describe("Customer", func() {
 				day2MIResourceID, capzPrincipalID, managedIdentityOperatorRoleID,
 				"Managed Identity Operator role assignment on the day 2 MI", roleAssignmentTimeout)
 
+			// The RP reads the pull MI as the service managed identity before it checks CAPZ's
+			// assign/action permission, so the SMI needs read access on the pull MI too.
+			// msi-scoped-assignments.bicep already grants the SMI Reader, but only over the
+			// resource group it is deployed into: in pooled-identity mode (stage/prod CI) that is
+			// the shared identity-pool resource group, not this test's cluster resource group
+			// where the pull MIs are created. Without this grant, cluster creation fails with
+			// ManagedIdentityNotFound wrapping a 403 on userAssignedIdentities/read. Non-pooled
+			// DEV runs happen to pass because there the same bicep lands on the cluster resource
+			// group and its resource-group-wide Reader covers these MIs.
+			By("granting Reader on both managed identities to the service managed identity")
+			grantBuiltInRoleWithRetry(ctx, roleAssignmentsClient, subscriptionID,
+				day1MIResourceID, smiPrincipalID, readerRoleID,
+				"Reader role assignment on the day 1 MI for the service managed identity", roleAssignmentTimeout)
+			grantBuiltInRoleWithRetry(ctx, roleAssignmentsClient, subscriptionID,
+				day2MIResourceID, smiPrincipalID, readerRoleID,
+				"Reader role assignment on the day 2 MI for the service managed identity", roleAssignmentTimeout)
+
+			// Both grants on the pull MIs gate cluster creation: the RP reads the MI as the service
+			// managed identity, then CheckAccesses CAPZ's assign/action on it. The create below
+			// starts seconds from here, so confirm both have replicated before handing off.
+			By("waiting for the pull MI role assignments to become readable")
+			for _, visibility := range []struct {
+				scope       string
+				principalID string
+				roleID      string
+				description string
+			}{
+				{day1MIResourceID, capzPrincipalID, managedIdentityOperatorRoleID, "Managed Identity Operator role assignment on the day 1 MI"},
+				{day2MIResourceID, capzPrincipalID, managedIdentityOperatorRoleID, "Managed Identity Operator role assignment on the day 2 MI"},
+				{day1MIResourceID, smiPrincipalID, readerRoleID, "Reader role assignment on the day 1 MI for the service managed identity"},
+				{day2MIResourceID, smiPrincipalID, readerRoleID, "Reader role assignment on the day 2 MI for the service managed identity"},
+			} {
+				waitForRoleAssignmentVisible(ctx, roleAssignmentsClient,
+					visibility.scope, visibility.principalID, visibility.roleID, visibility.description,
+					roleAssignmentVisibilityTimeout)
+			}
+
 			// Day 1: create with the first identity and pull.
 			By("building and creating the cluster with containerRegistry set to the day 1 MI")
 			clusterParams.ContainerRegistryManagedIdentity = to.Ptr(day1MIResourceID)
@@ -423,12 +633,6 @@ var _ = Describe("Customer", func() {
 			hcpClient := tc.Get20261001ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
 			_, err = framework.CreateHCPClusterAndWait20261001(ctx, GinkgoLogr, hcpClient,
 				*resourceGroup.Name, customerClusterName, clusterResource, framework.ClusterCreationTimeout)
-			if framework.IsAPINotDeployedError(err) {
-				if time.Now().Before(timeBombDeadline) {
-					Skip(fmt.Sprintf("v20261001 API not yet deployed; skipping until %s", timeBombDeadline.Format(time.RFC3339)))
-				}
-				Fail(fmt.Sprintf("v20261001 API still not deployed as of %s deadline", timeBombDeadline.Format(time.RFC3339)))
-			}
 			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster with containerRegistry set")
 
 			By("[day 1] verifying containerRegistry.managedIdentity via GET")
@@ -554,13 +758,10 @@ var _ = Describe("Customer", func() {
 			// Gated on readiness first so a slow join surfaces as "node not ready" rather than a
 			// confusing image-pull timeout.
 			By("[day 1] verifying the node pool's node joined and is ready")
-			Eventually(func(g Gomega) {
-				g.Expect(verifiers.VerifyNodeCount(customerClusterName, expectedWorkerCount).Verify(ctx, adminRESTConfig)).
-					To(Succeed(), "node count should reach %d replicas after node pool creation", expectedWorkerCount)
-				g.Expect(verifiers.VerifyNodesReady().Verify(ctx, adminRESTConfig)).
-					To(Succeed(), "all nodes should be ready after node pool creation")
+			Eventually(func() error {
+				return verifiers.VerifyNodePoolReadyAndSchedulableNodeCount(nodePoolName, expectedWorkerCount).Verify(ctx, adminRESTConfig)
 			}).WithContext(ctx).WithTimeout(acrPullNodePoolScalingTimeout).WithPolling(30*time.Second).Should(Succeed(),
-				"node pool %s never reached %d ready node(s) after creation", nodePoolName, expectedWorkerCount)
+				"node pool %s never reached %d ready (and schedulable) node(s) after creation", nodePoolName, expectedWorkerCount)
 
 			verifyACRPullFromNodes(ctx, adminRESTConfig, day1PullNamespace, acrLoginServer, "day 1")
 
@@ -630,14 +831,70 @@ var _ = Describe("Customer", func() {
 			// Retried because guest node objects lag Azure VMs in both directions: the replacement
 			// can exist before its kubelet registers, and the old node survives until reaped.
 			By("[day 2] verifying the replacement node joined and is ready")
-			Eventually(func(g Gomega) {
-				g.Expect(verifiers.VerifyNodeCount(customerClusterName, expectedWorkerCount).Verify(ctx, adminRESTConfig)).
-					To(Succeed(), "node count should settle back to %d replicas after the rollout", expectedWorkerCount)
-				g.Expect(verifiers.VerifyNodesReady().Verify(ctx, adminRESTConfig)).
-					To(Succeed(), "all nodes should be ready after the rollout")
+			Eventually(func() error {
+				return verifiers.VerifyNodePoolReadyAndSchedulableNodeCount(nodePoolName, expectedWorkerCount).Verify(ctx, adminRESTConfig)
 			}).WithContext(ctx).WithTimeout(acrPullNodePoolScalingTimeout).WithPolling(30*time.Second).Should(Succeed(),
-				"node pool %s never settled back to %d ready node(s) after the day 2 rollout", nodePoolName, expectedWorkerCount)
+				"node pool %s never settled back to %d ready (and schedulable) node(s) after the day 2 rollout", nodePoolName, expectedWorkerCount)
 
 			verifyACRPullFromNodes(ctx, adminRESTConfig, day2PullNamespace, acrLoginServer, "day 2")
+
+			// Identity removal: clear the managed identity and verify the node pool loses pull access.
+			// Run after day 2, not between day 1 and day 2, so it doesn't consume the active identity
+			// day 2's swap needs to be a real swap rather than an attach-from-none.
+			By("[removal] clearing containerRegistry.managedIdentity via PATCH")
+			removalResp, err := framework.UpdateHCPCluster20261001(ctx, hcpClient,
+				*resourceGroup.Name, customerClusterName,
+				hcpsdk20261001.HcpOpenShiftCluster{
+					Properties: &hcpsdk20261001.HcpOpenShiftClusterProperties{
+						Platform: &hcpsdk20261001.PlatformProfile{
+							ContainerRegistry: azcore.NullValue[*hcpsdk20261001.ContainerRegistryProfile](),
+						},
+					},
+				},
+				removalConfigPatchTimeout)
+			Expect(err).NotTo(HaveOccurred(), "failed to clear containerRegistry.managedIdentity via PATCH")
+			Expect(removalResp).NotTo(BeNil(), "containerRegistry removal response was nil")
+			Expect(removalResp.Properties).NotTo(BeNil(), "containerRegistry removal response Properties was nil")
+			Expect(removalResp.Properties.ProvisioningState).NotTo(BeNil(), "containerRegistry removal response ProvisioningState was nil")
+			Expect(*removalResp.Properties.ProvisioningState).To(Equal(hcpsdk20261001.ProvisioningStateSucceeded),
+				"cluster provisioning state should be Succeeded after the containerRegistry removal")
+
+			By("[removal] verifying the cluster reports containerRegistry cleared via GET")
+			clusterAfterRemoval, err := hcpClient.Get(ctx, *resourceGroup.Name, customerClusterName, nil)
+			Expect(err).NotTo(HaveOccurred(), "failed to GET cluster after the containerRegistry removal")
+			Expect(clusterAfterRemoval.Properties).NotTo(BeNil(), "cluster properties was nil after the removal")
+			Expect(clusterAfterRemoval.Properties.Platform).NotTo(BeNil(), "cluster platform was nil after the removal")
+			Expect(clusterAfterRemoval.Properties.Platform.ContainerRegistry).To(BeNil(),
+				"containerRegistry should be cleared after the removal")
+
+			// Mirrors the day 2 rollout wait, but for detachment only — there's no replacement
+			// identity to attach, so only the day 2 MI's absence is checked.
+			By("[removal] waiting for node rollout to detach the day 2 MI")
+			var removalIdentities map[string][]string
+			Eventually(func() error {
+				identities, err := workerVMIdentities(ctx)
+				if err != nil {
+					return err
+				}
+				for vmName, attached := range identities {
+					if slices.Contains(attached, strings.ToLower(day2MIResourceID)) {
+						return fmt.Errorf("worker VM %s still has the day 2 MI %s attached, has %v", vmName, day2MIResourceID, attached)
+					}
+				}
+				removalIdentities = identities
+				return nil
+			}).WithContext(ctx).WithTimeout(removalRolloutTimeout).WithPolling(30*time.Second).Should(Succeed(),
+				"node pool %s never detached the day 2 MI %s after removal", nodePoolName, day2MIResourceID)
+			for vmName, attached := range removalIdentities {
+				GinkgoLogr.Info("worker VM identities after removal", "vm", vmName, "userAssignedIdentities", attached)
+			}
+
+			By("[removal] verifying the replacement node joined and is ready")
+			Eventually(func() error {
+				return verifiers.VerifyNodePoolReadyAndSchedulableNodeCount(nodePoolName, expectedWorkerCount).Verify(ctx, adminRESTConfig)
+			}).WithContext(ctx).WithTimeout(acrPullNodePoolScalingTimeout).WithPolling(30*time.Second).Should(Succeed(),
+				"node pool %s never settled back to %d ready (and schedulable) node(s) after the removal rollout", nodePoolName, expectedWorkerCount)
+
+			verifyACRPullDenied(ctx, adminRESTConfig, removalPullNamespace, acrLoginServer, "removal")
 		})
 })

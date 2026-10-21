@@ -205,6 +205,10 @@ Used for deploying Kubernetes services onto AKS clusters using [Helm](https://he
 15. `timeout`: Optional. Maximum time to wait for the Helm release to reach ready state. Uses Go duration syntax (e.g., `30s`, `5m`, `1h`). Defaults to `5m`.
 16. `rollbackOnFailure`: Optional. If `true`, rolls back to the previous release on upgrade failure, or uninstalls on install failure. Defaults to `false`.
 
+Before upgrading a release, legacy `helm` field-manager cleanup skips resources without
+a legacy entry and retries resource-version conflicts using a fresh read on each attempt.
+Other API errors and conflicts that exhaust the bounded retry budget fail the deployment.
+
 The Helm step uses a **content-addressed cache** to skip execution when the chart directory, values file, namespace files, release name, release namespace, and target cluster are all unchanged since the last successful run, enabling efficient incremental deployments.
 
 > [!NOTE]
@@ -277,6 +281,8 @@ Steps can be configured to automatically retry on failure by adding an `automate
 - Each retry attempt counts toward the total step execution time
 - If the configured maximum number of attempts is exhausted and the step still fails, the entire pipeline will fail
 - The `automatedRetry` configuration is available for all step types (ARM, Shell, Helm, etc.)
+
+The management `cluster-create` step also retries `waiting for deployment aks-cluster-create: context deadline exceeded`, the timeout emitted when its 30-minute deployment wait expires. The reconciler waits for an existing ARM deployment to finish before observing resources or submitting another deployment. Stage fail-fast rendering retains this error match but limits the policy to one retry after one minute; the pipeline's configured retry count and delay are unchanged.
 
 ### Step execution context
 

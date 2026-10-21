@@ -52,9 +52,9 @@ const (
 	TestVirtualNetworkName                      = "testVirtualNetwork"
 	TestSubnetName                              = "testSubnet"
 	TestVnetIntegrationSubnetName               = "testVnetIntegrationSubnet"
-	TestKMSKeyName                              = "testKMSKeyName"
-	TestKMSKeyVaultName                         = "testKMSKeyVaultName"
-	TestKMSKeyVersion                           = "testKMSKeyVersion"
+	TestKMSKeyName                              = "test-key"
+	TestKMSKeyVaultName                         = "test-vault"
+	TestKMSKeyVersion                           = "4e832b5c8f1e4e3d9c6b2a1f3e7d9c5b"
 	TestPendingClusterServiceIDPath             = "/api/aro_hcp/v1alpha1/clusters/test-cluster-service-id"
 	TestPendingClusterServiceIDClusterIDSegment = "test-cluster-service-id"
 )
@@ -113,20 +113,6 @@ func MinimumValidClusterTestCase() *coreapi.Cluster {
 	resource.CustomerProperties.Platform.VnetIntegrationSubnetID = metadataapi.Must(azcorearm.ParseResourceID(TestVnetIntegrationSubnetResourceID))
 	resource.CustomerProperties.Platform.NetworkSecurityGroupID = metadataapi.Must(azcorearm.ParseResourceID(TestNetworkSecurityGroupResourceID))
 	resource.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL = TestManagedIdentitiesDataPlaneIdentityURL
-	// PlatformManaged etcd encryption is not currently supported; require CustomerManaged for a valid cluster.
-	resource.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = metadataapi.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged
-	resource.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{
-		EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
-		Kms: &coreapi.KmsEncryptionProfile{
-			Visibility:   metadataapi.KeyVaultVisibilityPublic,
-			KeyVaultType: coreapi.KmsKeyVaultTypeKeyVault,
-			ActiveKey: coreapi.KmsKey{
-				Name:      "test-key",
-				VaultName: "test-vault",
-				Version:   "test-version",
-			},
-		},
-	}
 	// Add required systemData fields
 	createdAt := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 	resource.SystemData = &coreapi.SystemData{

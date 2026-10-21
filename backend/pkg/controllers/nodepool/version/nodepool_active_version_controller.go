@@ -27,6 +27,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	internalcontrollerutils "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
@@ -71,7 +72,7 @@ func NewNodePoolActiveVersionController(
 		readDesireLister:              readDesireLister,
 	}
 
-	return controllerutils.NewNodePoolWatchingController(
+	controller := controllerutils.NewNodePoolWatchingController(
 		NodePoolActiveVersionsControllerName,
 		resourcesDBClient,
 		informers,
@@ -79,6 +80,11 @@ func NewNodePoolActiveVersionController(
 		5*time.Minute,
 		syncer,
 	)
+	controller.AddInterestingResource(coreapi.NodePoolResourceType, "*")
+	controller.AddInterestingResource(coreapi.ServiceProviderNodePoolResourceType, coreapi.ServiceProviderNodePoolResourceName)
+	controller.AddInterestingResource(kubeapplierapi.NodePoolScopedReadDesireResourceType, kubeapplierapi.ReadDesireNameReadonlyNodePool)
+
+	return controller
 }
 
 // NeedsWork reports whether the controller has a ServiceProviderNodePool to

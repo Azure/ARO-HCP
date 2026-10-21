@@ -202,7 +202,10 @@ func (c *operationExternalAuthCreate) determineOperationState(ctx context.Contex
 
 func (c *operationExternalAuthCreate) externalAuthClusterServiceCreateOperationState(ctx context.Context, externalAuth *coreapi.ExternalAuth) (*operationbase.OperationState, error) {
 	logger := utils.LoggerFromContext(ctx)
-	_, err := c.clusterServiceClient.GetExternalAuth(ctx, *externalAuth.ServiceProviderProperties.ClusterServiceID)
+	csCtx, cancel := context.WithTimeout(ctx, controllerutils.CSReadTimeout)
+	defer cancel()
+
+	_, err := c.clusterServiceClient.GetExternalAuth(csCtx, *externalAuth.ServiceProviderProperties.ClusterServiceID)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}

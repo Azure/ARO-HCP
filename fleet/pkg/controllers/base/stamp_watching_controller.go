@@ -88,7 +88,7 @@ func NewStampWatchingController(
 	name string,
 	syncer StampSyncer,
 	cfg StampWatchingControllerConfig,
-) Controller {
+) WatchingController {
 	cfg = cfg.withDefaults()
 
 	var cooldown controllerutils.CooldownChecker

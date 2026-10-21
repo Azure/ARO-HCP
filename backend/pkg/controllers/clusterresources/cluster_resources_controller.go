@@ -22,6 +22,7 @@ import (
 	"strings"
 	"time"
 
+	semver "github.com/blang/semver/v4"
 	ocmv1 "open-cluster-management.io/api/work/v1"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -53,10 +54,15 @@ import (
 
 const (
 	ClusterResourcesControllerName = "ClusterResources"
+
+	// Fetches may make synchronous upstream calls; round 5x the observed
+	// p99.9 of 3500ms up to 20s.
+	clusterResourcesFetchTimeout = 20 * time.Second
 )
 
 // clusterResourcesController polls the Cluster Service SDK endpoint for cluster resources information
 type clusterResourcesController struct {
+	subscriptionLister           corelisters.SubscriptionLister
 	clusterLister                corelisters.ClusterLister
 	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
 	nodePoolLister               corelisters.NodePoolLister
@@ -70,6 +76,7 @@ var _ controllerutils.ClusterSyncer = (*clusterResourcesController)(nil)
 
 func NewClusterResourcesController(
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
+	subscriptionLister corelisters.SubscriptionLister,
 	kubeApplierDBClients kubeappliercosmosstorage.KubeApplierDBClients,
 	informers coreinformers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
@@ -82,6 +89,7 @@ func NewClusterResourcesController(
 	_, readDesireLister := kubeApplierInformers.ReadDesires()
 
 	syncer := &clusterResourcesController{
+		subscriptionLister:           subscriptionLister,
 		clusterLister:                clusterLister,
 		serviceProviderClusterLister: serviceProviderClusterLister,
 		nodePoolLister:               nodePoolLister,
@@ -91,7 +99,7 @@ func NewClusterResourcesController(
 		readDesireLister:             readDesireLister,
 	}
 
-	return controllerutils.NewClusterWatchingController(
+	controller := controllerutils.NewClusterWatchingController(
 		ClusterResourcesControllerName,
 		resourcesDBClient,
 		informers,
@@ -99,6 +107,23 @@ func NewClusterResourcesController(
 		30*time.Second, // Poll every 30 seconds.
 		syncer,
 	)
+	// Cleanup must include every remaining child, including legacy desire names.
+	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
+	controller.AddInterestingResource(coreapi.ServiceProviderClusterResourceType, coreapi.ServiceProviderClusterResourceName)
+	controller.AddInterestingResource(coreapi.NodePoolResourceType, "*")
+	controller.AddInterestingResource(kubeapplierapi.ClusterScopedApplyDesireResourceType, "*")
+	controller.AddInterestingResource(kubeapplierapi.NodePoolScopedApplyDesireResourceType, "*")
+	controller.AddInterestingResource(kubeapplierapi.ClusterScopedReadDesireResourceType, "*")
+	controller.AddInterestingResource(kubeapplierapi.NodePoolScopedReadDesireResourceType, "*")
+	nodePoolInformer, _ := informers.NodePools()
+	// Desire changes are observed on the primary-resource resync for now:
+	// live reconciliation fetches the full Cluster Service resource set, so
+	// subscribing to high-frequency desire status updates would amplify calls.
+	if err := controller.QueueForChildInformers(0, nodePoolInformer); err != nil {
+		panic(err)
+	}
+
+	return controller
 }
 
 // NeedsWork reports whether the controller has work to do for the given cluster.
@@ -151,7 +176,7 @@ func (c *clusterResourcesController) SyncOnce(ctx context.Context, key controlle
 	}
 
 	clusterServiceID := *cluster.ServiceProviderProperties.ClusterServiceID
-	if err := c.fetchAndProcessClusterResources(ctx, key, managementCluster, clusterServiceID); err != nil {
+	if err := c.fetchAndProcessClusterResources(ctx, key, managementCluster, clusterServiceID, spc.Spec.ControlPlaneVersion.DesiredVersion); err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get cluster resources: %w", err))
 	}
 
@@ -161,15 +186,18 @@ func (c *clusterResourcesController) SyncOnce(ctx context.Context, key controlle
 // fetchAndProcessClusterResources calls the Cluster Service SDK to get cluster resources information
 // and processes the resources.
 func (c *clusterResourcesController) fetchAndProcessClusterResources(ctx context.Context,
-	key controllerutils.HCPClusterKey, managementCluster *azcorearm.ResourceID, clusterServiceID metadataapi.InternalID) error {
+	key controllerutils.HCPClusterKey, managementCluster *azcorearm.ResourceID, clusterServiceID metadataapi.InternalID, version *semver.Version) error {
 	// Get cluster resources from the Cluster Service SDK
-	resources, err := c.clustersServiceClient.GetClusterResources(ctx, clusterServiceID)
+	csCtx, cancel := context.WithTimeout(ctx, clusterResourcesFetchTimeout)
+	defer cancel()
+
+	resources, err := c.clustersServiceClient.GetClusterResources(csCtx, clusterServiceID)
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
 	if resources != nil {
-		if err := c.processClusterResources(ctx, key, managementCluster, resources); err != nil {
+		if err := c.processClusterResources(ctx, key, managementCluster, resources, clusterServiceID.ID(), version); err != nil {
 			return utils.TrackError(fmt.Errorf("failed to process cluster resources: %w", err))
 		}
 	}
@@ -179,7 +207,8 @@ func (c *clusterResourcesController) fetchAndProcessClusterResources(ctx context
 
 // processClusterResources converts each resource to ApplyDesire documents
 func (c *clusterResourcesController) processClusterResources(ctx context.Context, key controllerutils.HCPClusterKey,
-	managementCluster *azcorearm.ResourceID, resources *arohcpv1alpha1.ClusterResources) error {
+	managementCluster *azcorearm.ResourceID, resources *arohcpv1alpha1.ClusterResources, clusterServiceID string,
+	version *semver.Version) error {
 
 	kubeApplierDBClient := c.kubeApplierDBClients.For(ctx, managementCluster)
 	if kubeApplierDBClient == nil {
@@ -194,6 +223,11 @@ func (c *clusterResourcesController) processClusterResources(ctx context.Context
 		kubeapplierapi.TagControllerName: ClusterResourcesControllerName,
 	}
 
+	subscription, err := c.subscriptionLister.Get(ctx, key.SubscriptionID)
+	if err != nil && !cosmosstorageutils.IsNotFoundError(err) {
+		return utils.TrackError(fmt.Errorf("failed to get Subscription from cache: %w", err))
+	}
+	hasExperimentalFeature := subscription != nil && subscription.HasRegisteredFeature(metadataapi.FeatureExperimentalReleaseFeatures)
 	resourceMap := resources.Resources()
 	desiredResourceIDs := make(map[string]bool, len(resourceMap))
 	var errs []error
@@ -213,6 +247,17 @@ func (c *clusterResourcesController) processClusterResources(ctx context.Context
 		classified, err := classifyClusterResource(&unstructuredObj)
 		if err != nil {
 			errs = append(errs, utils.TrackError(err))
+			continue
+		}
+
+		// Unset the ManagedCluster CR and ACM-path ingress bits because HyperShift
+		// manages the ingress certificate when the subscription's experimental
+		// release-features AFEC is registered. This ugly, intentional temporal shim
+		// is flag-gated and has to be applied only to 5.1 >= clusters until the CPO
+		// override with https://github.com/openshift/hypershift/pull/9132 for all versions
+		// up to 4.20 is released.
+		// CS still emits them all, we do this to allow ourselves testing.
+		if hasExperimentalFeature && version != nil && suppressLegacyIngressDesire(classified.desireName, *version) {
 			continue
 		}
 
@@ -269,10 +314,19 @@ func (c *clusterResourcesController) processClusterResources(ctx context.Context
 		default:
 			crud = applyDesireCRUD
 
-			// Ensure backend-managed annotations on HostedCluster before creating ApplyDesire
+			// Ensure backend-managed settings on HostedCluster before creating ApplyDesire
 			if classified.desireName == DesireNameHostedCluster {
 				if err := ensureHostedClusterAnnotations(&unstructuredObj); err != nil {
 					errs = append(errs, utils.TrackError(fmt.Errorf("failed to reconcile HostedCluster annotations for %s: %w", resourceKey, err)))
+					continue
+				}
+				if err := removeNullUsernamePrefixes(&unstructuredObj); err != nil {
+					errs = append(errs, utils.TrackError(fmt.Errorf("failed to normalize HostedCluster authentication for %s: %w", resourceKey, err)))
+					continue
+				}
+				if err := unstructured.SetNestedField(unstructuredObj.Object, controllerutils.ServiceProviderDefaultIngressWildcardServingCertName,
+					"spec", "operatorConfiguration", "ingressOperator", "defaultCertificate", "name"); err != nil {
+					errs = append(errs, utils.TrackError(fmt.Errorf("failed to set HostedCluster ingress certificate: %w", err)))
 					continue
 				}
 			}
@@ -366,6 +420,45 @@ func ensureHostedClusterAnnotations(hostedCluster *unstructured.Unstructured) er
 	return nil
 }
 
+// removeNullUsernamePrefixes drops null prefix values emitted when HyperShift's
+// UsernameClaimMapping is marshaled with a nil Prefix pointer. The HostedCluster
+// schema requires prefix to be unset unless prefixPolicy is Prefix.
+func removeNullUsernamePrefixes(hostedCluster *unstructured.Unstructured) error {
+	providers, found, err := unstructured.NestedSlice(hostedCluster.Object,
+		"spec", "configuration", "authentication", "oidcProviders")
+	if err != nil || !found {
+		return err
+	}
+
+	changed := false
+	for _, provider := range providers {
+		providerMap, ok := provider.(map[string]interface{})
+		if !ok {
+			return fmt.Errorf("OIDC provider is not an object")
+		}
+		username, found, err := unstructured.NestedMap(providerMap, "claimMappings", "username")
+		if err != nil {
+			return err
+		}
+		if !found {
+			continue
+		}
+		if prefix, exists := username["prefix"]; exists && prefix == nil {
+			delete(username, "prefix")
+			if err := unstructured.SetNestedMap(providerMap, username, "claimMappings", "username"); err != nil {
+				return err
+			}
+			changed = true
+		}
+	}
+
+	if changed {
+		return unstructured.SetNestedSlice(hostedCluster.Object, providers,
+			"spec", "configuration", "authentication", "oidcProviders")
+	}
+	return nil
+}
+
 type classifiedResource struct {
 	desireName   string
 	nodePoolName string
@@ -382,8 +475,8 @@ type classifiedResource struct {
 //	hypershift.openshift.io    HostedCluster          → HostedCluster
 //	hypershift.openshift.io    NodePool               → NodePool                 (nodePoolName set, scoped under nodepool)
 //	core/v1                    Namespace              → HostedClusterNamespace | ControlPlaneNamespace
-//	core/v1                    ConfigMap              → DefaultIngressConfigMap
-//	core/v1                    Secret                 → OCPPullSecret
+//	core/v1                    ConfigMap              → DefaultIngressConfigMap | ExternalAuthCAConfigMap
+//	core/v1                    Secret                 → OCPPullSecret | ExternalAuthClientSecret
 //	multitenancy.acn.azure.com PodNetwork             → PodNetwork
 //	multitenancy.acn.azure.com PodNetworkInstance      → PodNetworkInstance
 //	secret-sync.x-k8s.io      SecretSync             → {BoundServiceAccountSigningKey,DefaultIngressWildcardCert,KubeAPIServerServingCert}SecretSync
@@ -418,9 +511,15 @@ func classifyClusterResource(obj *unstructured.Unstructured) (classifiedResource
 		return classifiedResource{desireName: DesireNameManagedCluster}, nil
 
 	case "ConfigMap":
+		if obj.GetLabels()["api.openshift.com/type"] == "ext-auth" {
+			return classifiedResource{desireName: DesireNameExternalAuthCAConfigMap}, nil
+		}
 		return classifiedResource{desireName: DesireNameDefaultIngressConfigMap}, nil
 
 	case "Secret":
+		if obj.GetLabels()["api.openshift.com/type"] == "ext-auth" {
+			return classifiedResource{desireName: DesireNameExternalAuthClientSecret}, nil
+		}
 		return classifiedResource{desireName: DesireNameOCPPullSecret}, nil
 
 	case "PodNetwork":

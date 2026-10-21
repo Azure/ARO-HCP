@@ -77,13 +77,16 @@ func NewExternalAuthClusterServiceUpdateDispatchController(
 		externalAuthLister,
 	)
 
-	return controllerutils.NewExternalAuthWatchingController(
+	controller := controllerutils.NewExternalAuthWatchingController(
 		ExternalAuthClusterServiceUpdateDispatchControllerName,
 		resourcesDBClient,
 		backendInformers,
 		time.Minute,
 		syncer,
 	)
+	controller.AddInterestingResource(coreapi.ExternalAuthResourceType, "*")
+
+	return controller
 }
 
 func NewExternalAuthClusterServiceUpdateDispatchSyncer(
@@ -150,7 +153,10 @@ func (c *externalAuthClusterServiceUpdateDispatchSyncer) SyncOnce(ctx context.Co
 	}
 
 	externalAuthCSID := externalAuth.ServiceProviderProperties.ClusterServiceID
-	csExternalAuth, err := c.clusterServiceClient.GetExternalAuth(ctx, *externalAuthCSID)
+	csCtx, cancel := context.WithTimeout(ctx, controllerutils.CSWriteTimeout)
+	defer cancel()
+
+	csExternalAuth, err := c.clusterServiceClient.GetExternalAuth(csCtx, *externalAuthCSID)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get external auth from Cluster Service: %w", err))
 	}
@@ -196,7 +202,7 @@ func (c *externalAuthClusterServiceUpdateDispatchSyncer) SyncOnce(ctx context.Co
 		return utils.TrackError(fmt.Errorf("failed to build CS external auth builder: %w", err))
 	}
 
-	_, err = c.clusterServiceClient.UpdateExternalAuth(ctx, *externalAuthCSID, csExternalAuthBuilder)
+	_, err = c.clusterServiceClient.UpdateExternalAuth(csCtx, *externalAuthCSID, csExternalAuthBuilder)
 	if err != nil {
 		var ocmError *ocmerrors.Error
 		// XXX Matching an error message is brittle, but Clusters Service

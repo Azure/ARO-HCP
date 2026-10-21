@@ -24,6 +24,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
+	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -41,7 +44,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	utilyaml "k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/client-go/discovery"
-	memory "k8s.io/client-go/discovery/cached/memory"
+	"k8s.io/client-go/discovery/cached/memory"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -49,10 +52,14 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
-	armauthorization "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v3"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v3"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dns/armdns"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/msi/armmsi"
 
+	operatorv1 "github.com/openshift/api/operator/v1"
+
+	clusterversion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/version"
+	"github.com/Azure/ARO-HCP/test/util/dnsreadback"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
@@ -67,14 +74,14 @@ var letsEncryptStagingCAs embed.FS
 const certManagerManifestURL = "https://github.com/cert-manager/cert-manager/releases/download/v1.20.2/cert-manager.yaml"
 
 var _ = Describe("Customer", func() {
-	It("should be able to issue the default ingress serving certificate from Let's Encrypt using cert-manager with ACME DNS-01 challenges",
+	DescribeTable("should be able to issue the default ingress serving certificate from Let's Encrypt using cert-manager with ACME DNS-01 challenges",
 		labels.RequireNothing,
 		labels.High,
 		labels.Positive,
 		labels.CreateCluster,
 		labels.AroRpApiCompatible,
 		labels.MIContainers(1),
-		func(ctx context.Context) {
+		func(ctx context.Context, version string) {
 			const (
 				customerClusterName  = "ingress-cert-le"
 				customerNodePoolName = "np-1"
@@ -98,7 +105,24 @@ var _ = Describe("Customer", func() {
 
 			By("creating cluster parameters")
 			clusterParams := framework.NewDefaultClusterParams20260901()
+			channel := clusterParams.ChannelGroup
+			if channel == "nightly" {
+				resolved, err := framework.GetLatestNightlyInstallVersion(ctx, channel, version)
+				if framework.IsVersionNotFoundError(err) || framework.IsIncompatibleNightlyVersionError(err) {
+					Skip(fmt.Sprintf("no %s version available in configured channel %s: %v", version, channel, err))
+				}
+				Expect(err).NotTo(HaveOccurred(), "failed to resolve configured nightly channel")
+				clusterParams.OpenshiftVersionId = resolved
+			} else {
+				resolved, err := framework.SelectControlPlaneVersion(ctx, http.DefaultTransport.RoundTrip, nil, channel+"-"+version, clusterversion.GetZStreamOffset(channel))
+				if framework.IsVersionNotFoundError(err) || (err == nil && resolved == nil) {
+					Skip(fmt.Sprintf("no %s version available in configured channel %s", version, channel))
+				}
+				Expect(err).NotTo(HaveOccurred(), "failed to resolve configured channel %s-%s", channel, version)
+				clusterParams.OpenshiftVersionId = resolved.Version
+			}
 			clusterParams.ClusterName = customerClusterName
+			clusterParams.IngressType = "Public"
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName
 
@@ -124,6 +148,8 @@ var _ = Describe("Customer", func() {
 
 			By("creating the node pool")
 			nodePoolParams := framework.NewDefaultNodePoolParams20260901()
+			nodePoolParams.OpenshiftVersionId = clusterParams.OpenshiftVersionId
+			nodePoolParams.ChannelGroup = clusterParams.ChannelGroup
 			nodePoolParams.ClusterName = customerClusterName
 			nodePoolParams.NodePoolName = customerNodePoolName
 			nodePoolParams.Replicas = int32(2)
@@ -152,6 +178,7 @@ var _ = Describe("Customer", func() {
 
 			By("ensuring the cluster is viable")
 			Expect(verifiers.VerifyHCPCluster(ctx, adminRESTConfig)).To(Succeed(), "cluster viability check failed")
+			Expect(verifiers.VerifyIngressControllerScope(operatorv1.ExternalLoadBalancer).Verify(ctx, adminRESTConfig)).To(Succeed(), "default ingress certificate scenario requires public ingress")
 
 			By("getting the cluster's OIDC issuer URL and DNS domain")
 			Expect(clusterResp.Properties).NotTo(BeNil(), "cluster Properties was nil")
@@ -304,6 +331,12 @@ var _ = Describe("Customer", func() {
 				ctx, "cert-manager", types.MergePatchType, depPatch, metav1.PatchOptions{})
 			Expect(err).NotTo(HaveOccurred(), "failed to patch cert-manager deployment with workload identity label")
 
+			By("lowering CertificateRequest backoff so a new ACME Order can be retried within the issuance timeout")
+			backoffPatch := []byte(`[{"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--certificate-request-minimum-backoff-duration=1m"}]`)
+			_, err = kubeClient.AppsV1().Deployments(certManagerNamespace).Patch(
+				ctx, "cert-manager", types.JSONPatchType, backoffPatch, metav1.PatchOptions{})
+			Expect(err).NotTo(HaveOccurred(), "failed to lower cert-manager CertificateRequest backoff")
+
 			By("waiting for the cert-manager deployment to roll out with workload identity")
 			Eventually(func() error {
 				dep, err := kubeClient.AppsV1().Deployments(certManagerNamespace).Get(ctx, "cert-manager", metav1.GetOptions{})
@@ -356,6 +389,38 @@ var _ = Describe("Customer", func() {
 			}).WithContext(ctx).WithTimeout(5*time.Minute).WithPolling(10*time.Second).Should(Succeed(),
 				"ClusterIssuer should become Ready (ACME account registered)")
 
+			By("allowing DNS propagation headroom before requesting a certificate")
+			zonesClient, err := armdns.NewZonesClient(subscriptionID, cred, nil)
+			Expect(err).NotTo(HaveOccurred(), "failed to create DNS zones client")
+			zone, err := zonesClient.Get(ctx, managedResourceGroupName, delegatedDomain, nil)
+			Expect(err).NotTo(HaveOccurred(), "failed to get authoritative nameservers for the delegated zone")
+			Expect(zone.Properties).NotTo(BeNil(), "delegated zone properties was nil")
+			Expect(zone.Properties.NameServers).NotTo(BeEmpty(), "delegated zone must have authoritative nameservers")
+			var nameservers []string
+			for _, nameserver := range zone.Properties.NameServers {
+				Expect(nameserver).NotTo(BeNil(), "delegated zone nameserver was nil")
+				nameservers = append(nameservers, strings.ToLower(strings.TrimSuffix(*nameserver, "."))+".")
+			}
+			slices.Sort(nameservers)
+			nameserverAddresses := map[string]string{}
+			lastDNSStatus := ""
+			logDNSReadback := func(err error) error {
+				status := "DNS readback poll succeeded"
+				if err != nil {
+					status = err.Error()
+				}
+				if status != lastDNSStatus {
+					GinkgoLogr.Info("DNS readback", "zone", delegatedDomain, "nameservers", nameservers, "status", status)
+					lastDNSStatus = status
+				}
+				return err
+			}
+			if err := dnsreadback.Wait(ctx, 10*time.Second, 90*time.Second, 4, func(ctx context.Context) error {
+				return logDNSReadback(readbackIngressDNS(ctx, delegatedDomain, nameservers, nameserverAddresses, "", ""))
+			}); err != nil {
+				GinkgoLogr.Info("DNS readback gate incomplete; proceeding to issuance (best-effort)", "zone", delegatedDomain, "error", err)
+			}
+
 			By("creating a Certificate for the apps wildcard domain")
 			certObj := unstructuredCertificate("cluster-ingress-cert", ingressNamespace, ingressSecretName, issuerName, appsWildcard)
 			certGVR := schema.GroupVersionResource{Group: "cert-manager.io", Version: "v1", Resource: "certificates"}
@@ -368,6 +433,44 @@ var _ = Describe("Customer", func() {
 					dumpCertManagerIssuanceDiagnostics(ctx, dynClient, kubeClient, certManagerNamespace, ingressNamespace, issuerName)
 				}
 			})
+
+			By("reading back the presented ACME TXT from every authoritative nameserver before waiting for issuance")
+			challengeGVR := schema.GroupVersionResource{Group: "acme.cert-manager.io", Version: "v1", Resource: "challenges"}
+			observedChallenges := map[string]bool{}
+			readbackTXT := func(ctx context.Context) error {
+				cert, err := dynClient.Resource(certGVR).Namespace(ingressNamespace).Get(ctx, "cluster-ingress-cert", metav1.GetOptions{})
+				if err != nil {
+					return err
+				}
+				if ready, _ := isResourceReady(cert); ready {
+					return nil
+				}
+				challenges, err := dynClient.Resource(challengeGVR).Namespace(ingressNamespace).List(ctx, metav1.ListOptions{})
+				if err != nil {
+					return err
+				}
+				for _, challenge := range challenges.Items {
+					dnsName, _, _ := unstructured.NestedString(challenge.Object, "spec", "dnsName")
+					presented, _, _ := unstructured.NestedBool(challenge.Object, "status", "presented")
+					key, _, _ := unstructured.NestedString(challenge.Object, "spec", "key")
+					if strings.TrimPrefix(dnsName, "*.") != strings.TrimPrefix(appsWildcard, "*.") || !presented || key == "" {
+						continue
+					}
+					if !observedChallenges[challenge.GetName()] {
+						GinkgoLogr.Info("observed cert-manager TXT presentation", "challenge", challenge.GetName(),
+							"firstObservedPresentedAt", time.Now().UTC().Format(time.RFC3339Nano))
+						observedChallenges[challenge.GetName()] = true
+					}
+					return readbackIngressDNS(ctx, delegatedDomain, nameservers, nameserverAddresses, "_acme-challenge."+strings.TrimPrefix(dnsName, "*.")+".", key)
+				}
+				return fmt.Errorf("%w: waiting for a presented DNS-01 challenge for %s", dnsreadback.ErrInconsistent, appsWildcard)
+			}
+			lastDNSStatus = ""
+			if err := dnsreadback.Wait(ctx, 5*time.Second, 90*time.Second, 3, func(ctx context.Context) error {
+				return logDNSReadback(readbackTXT(ctx))
+			}); err != nil {
+				GinkgoLogr.Info("DNS TXT readback incomplete; proceeding to wait for issuance (best-effort)", "zone", delegatedDomain, "error", err)
+			}
 
 			By("waiting for the Certificate to be issued")
 			var lastCertStatus string
@@ -392,16 +495,105 @@ var _ = Describe("Customer", func() {
 			err = expectTLSSecretIssuedByLetsEncrypt(ctx, kubeClient, ingressNamespace, ingressSecretName, appsWildcard)
 			Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("TLS Secret should contain a valid cert issued by Let's Encrypt staging with SAN %s", appsWildcard))
 
-			// TODO: once we stop managing ingress certificates with ACM, we should plumb the openshift default ingresscontroller with this certificate
-			// 	signed by staging LetsEncrypt server
+			By("deploying a sample application before verifying the default ingress certificate")
+			sampleApp, err := framework.DeploySampleApp(ctx, adminRESTConfig)
+			Expect(err).NotTo(HaveOccurred(), "failed to deploy sample application")
+			DeferCleanup(func(ctx context.Context) {
+				err := kubeClient.CoreV1().Namespaces().Delete(ctx, sampleApp.Namespace, metav1.DeleteOptions{})
+				if !apierrors.IsNotFound(err) {
+					Expect(err).NotTo(HaveOccurred(), "failed to delete sample application namespace %q", sampleApp.Namespace)
+				}
+			})
 
-			//By("pointing IngressController/default at the new TLS Secret")
-			//icPatch := []byte(fmt.Sprintf(`{"spec":{"defaultCertificate":{"name":%q}}}`, ingressSecretName))
-			//icGVR := schema.GroupVersionResource{Group: "operator.openshift.io", Version: "v1", Resource: "ingresscontrollers"}
-			//_, err = dynClient.Resource(icGVR).Namespace("openshift-ingress-operator").Patch(ctx, "default", types.MergePatchType, icPatch, metav1.PatchOptions{})
-			//Expect(err).NotTo(HaveOccurred(), "failed to patch IngressController default certificate")
-		})
+			By("verifying ACM's ingress certificate must not be created")
+			Expect(verifiers.VerifyACMIngressCertificateAbsent().Verify(ctx, adminRESTConfig)).To(Succeed(), "ACM must not create its ingress certificate secret")
+
+			By("pointing IngressController/default at the customer's Let's Encrypt certificate")
+			icPatch := []byte(fmt.Sprintf(`{"spec":{"defaultCertificate":{"name":%q}}}`, ingressSecretName))
+			icGVR := schema.GroupVersionResource{Group: "operator.openshift.io", Version: "v1", Resource: "ingresscontrollers"}
+			_, err = dynClient.Resource(icGVR).Namespace("openshift-ingress-operator").Patch(ctx, "default", types.MergePatchType, icPatch, metav1.PatchOptions{})
+			Expect(err).NotTo(HaveOccurred(), "failed to patch IngressController default certificate")
+			customerSecret, err := kubeClient.CoreV1().Secrets(ingressNamespace).Get(ctx, ingressSecretName, metav1.GetOptions{})
+			Expect(err).NotTo(HaveOccurred(), "failed to read the customer's certificate")
+			certificateBlock, _ := pem.Decode(customerSecret.Data[corev1.TLSCertKey])
+			Expect(certificateBlock).NotTo(BeNil(), "customer TLS secret must contain a PEM certificate")
+			customerCertificate, err := x509.ParseCertificate(certificateBlock.Bytes)
+			Expect(err).NotTo(HaveOccurred(), "failed to parse the customer's certificate")
+			roots, err := loadEmbeddedCAs(letsEncryptStagingCAs, "letsencrypt-stg-cas")
+			Expect(err).NotTo(HaveOccurred(), "failed to load Let's Encrypt staging roots")
+
+			By("verifying the sample application serves the exact customer-specified certificate with a valid Let's Encrypt chain")
+			Expect(verifiers.VerifyCustomIngressCertificate(sampleApp.RouteHost, appsWildcard, customerCertificate, roots, 10*time.Minute).Verify(ctx, adminRESTConfig)).To(Succeed(), "sample application must serve the exact customer-specified certificate with a valid Let's Encrypt chain")
+
+			By("verifying ACM's ingress certificate must remain absent after the customer's override")
+			Expect(verifiers.VerifyACMIngressCertificateAbsent().Verify(ctx, adminRESTConfig)).To(Succeed(), "ACM's ingress certificate must remain absent after the customer's override")
+		},
+		// Add earlier release lines only once a CPO override for https://github.com/openshift/hypershift/pull/9132
+		// exists across all previously-released versions; start with 5.1 for early feedback.
+		Entry("for cluster version 5.1", "5.1"),
+	)
 })
+
+func ingressDNSResolver(address string) *net.Resolver {
+	return &net.Resolver{
+		PreferGo: true,
+		Dial: func(ctx context.Context, network, _ string) (net.Conn, error) {
+			return (&net.Dialer{}).DialContext(ctx, network, address)
+		},
+	}
+}
+
+func readbackIngressDNS(ctx context.Context, zone string, nameservers []string, nameserverAddresses map[string]string, txtName, txtValue string) error {
+	lookupCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	checkNS := func(resolver *net.Resolver, source string) error {
+		records, err := resolver.LookupNS(lookupCtx, zone+".")
+		if err != nil {
+			return fmt.Errorf("NS lookup for %s via %s: %w", zone, source, err)
+		}
+		var hosts []string
+		for _, record := range records {
+			hosts = append(hosts, strings.ToLower(record.Host))
+		}
+		slices.Sort(hosts)
+		if !slices.Equal(hosts, nameservers) {
+			return fmt.Errorf("%w: NS lookup for %s via %s: got %v, want %v", dnsreadback.ErrInconsistent, zone, source, hosts, nameservers)
+		}
+		return nil
+	}
+	recursive := ingressDNSResolver("1.1.1.1:53")
+	if err := checkNS(recursive, "recursive resolver 1.1.1.1:53"); err != nil {
+		return err
+	}
+	for _, nameserver := range nameservers {
+		address, cached := nameserverAddresses[nameserver]
+		if !cached {
+			addresses, err := recursive.LookupIP(lookupCtx, "ip4", nameserver)
+			if err != nil {
+				return fmt.Errorf("resolving authoritative nameserver %s via 1.1.1.1:53: %w", nameserver, err)
+			}
+			if len(addresses) == 0 {
+				return fmt.Errorf("%w: no IPv4 addresses for authoritative nameserver %s", dnsreadback.ErrInconsistent, nameserver)
+			}
+			address = net.JoinHostPort(addresses[0].String(), "53")
+			nameserverAddresses[nameserver] = address
+		}
+		resolver := ingressDNSResolver(address)
+		if err := checkNS(resolver, nameserver); err != nil {
+			return err
+		}
+		if txtName != "" {
+			records, err := resolver.LookupTXT(lookupCtx, txtName)
+			if err != nil {
+				return fmt.Errorf("TXT lookup for %s via %s: %w", txtName, nameserver, err)
+			}
+			if !slices.Contains(records, txtValue) {
+				return fmt.Errorf("%w: TXT lookup for %s via %s: expected challenge value absent (%d records)", dnsreadback.ErrInconsistent, txtName, nameserver, len(records))
+			}
+		}
+	}
+	return nil
+}
 
 // unstructuredClusterIssuer builds a cert-manager.io/v1 ClusterIssuer that uses
 // ACME DNS-01 challenges with the Azure DNS solver.

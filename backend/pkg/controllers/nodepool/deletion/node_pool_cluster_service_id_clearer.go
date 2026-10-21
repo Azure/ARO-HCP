@@ -63,7 +63,7 @@ func NewNodePoolClusterServiceIDClearerController(
 		clusterServiceClient: clusterServiceClient,
 	}
 
-	return controllerutils.NewNodePoolWatchingController(
+	controller := controllerutils.NewNodePoolWatchingController(
 		NodePoolDeletionClusterServiceIDClearerControllerName,
 		resourcesDBClient,
 		informers,
@@ -71,6 +71,9 @@ func NewNodePoolClusterServiceIDClearerController(
 		time.Minute,
 		syncer,
 	)
+	controller.AddInterestingResource(coreapi.NodePoolResourceType, "*")
+
+	return controller
 }
 
 // NeedsWork reports whether this controller has unfinished business for the
@@ -78,13 +81,6 @@ func NewNodePoolClusterServiceIDClearerController(
 // has already issued the CS delete (ClusterServiceDeletionTimestamp), and a
 // ClusterServiceID is still recorded that needs verification before clearing.
 func (c *nodePoolClusterServiceIDClearer) NeedsWork(nodePool *coreapi.NodePool) bool {
-	// TODO temporary check to skip the new deletion approach for NodePools that were created before the new approach was implemented.
-	// This will be removed once all nodepools whose deletion was triggered before the new approach is fully rolled out have been
-	// fully deleted in all ARO-HCP permanent environments, for all regions.
-	if !nodePool.ServiceProviderProperties.UsesNewNodePoolDeletionApproach {
-		return false
-	}
-
 	return nodePool.ServiceProviderProperties.DeletionTimestamp != nil &&
 		nodePool.ServiceProviderProperties.ClusterServiceDeletionTimestamp != nil &&
 		nodePool.ServiceProviderProperties.ClusterServiceID != nil && len(nodePool.ServiceProviderProperties.ClusterServiceID.String()) > 0
@@ -121,7 +117,10 @@ func (c *nodePoolClusterServiceIDClearer) SyncOnce(ctx context.Context, key cont
 	}
 
 	csID := nodePool.ServiceProviderProperties.ClusterServiceID
-	_, err = c.clusterServiceClient.GetNodePool(ctx, *csID)
+	csCtx, cancel := context.WithTimeout(ctx, controllerutils.CSReadTimeout)
+	defer cancel()
+
+	_, err = c.clusterServiceClient.GetNodePool(csCtx, *csID)
 	if err != nil {
 		var ocmError *ocmerrors.Error
 		if !errors.As(err, &ocmError) || ocmError.Status() != http.StatusNotFound {

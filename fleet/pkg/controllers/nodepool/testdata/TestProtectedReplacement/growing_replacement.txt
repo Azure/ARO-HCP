@@ -2,10 +2,10 @@ conditional projection: proposed changes are assumed to succeed; no ARM writes a
 Observed transitions and failed-pool reconciliation require a new observation; workload/autoscaler activity and external quota changes are not predicted.
 
 initial:
-  old  worker  sku  zone=  max=10  count=5  autoscaled
+  old  custom  sku  zone=  max=10  count=5  autoscaled
 
 desired:
-  new  worker  sku  zone=  max=20
+  new  custom  sku  zone=  max=20
 
 budget (vCPUs):
   family:  60
@@ -16,14 +16,32 @@ initial headroom (vCPUs):
 fully allocated: true
 
 initial capacity:
-  system:  cpu=0   memory=0GiB    swiftNICs=0
-  infra:   cpu=0   memory=0GiB    swiftNICs=0
-  worker:  cpu=40  memory=160GiB  swiftNICs=20
+  custom:  cpu=40  memory=160GiB  swiftNICs=20
+
+role-zone floor:
+  custom:  cpu=40  memory=160GiB  swiftNICs=20
 
 actions:
-    1.  Create  worker  sku  new  min=0   max=10  floor: cpu=40  memory=160GiB  swiftNICs=20  capacity: cpu=80  (+40)  memory=320GiB  (+160GiB)  swiftNICs=40  (+20)  family:     0c remaining
+  margins above floor after each action (c = vCPU, G = memory GiB, n = Swift NICs)
 
-steps:      1
-converged:  false
-outcome:    blocked
-reason:     no safe planner action is available for the remaining configuration difference (quota, capacity floor, or pool safety constraints)
+     #  action            role    pool  vm size  zone  change          margin                 quota left
+     1  Create            custom  new   sku            min=0   max=10    +40c   +160G   +20n  family 0c
+     2  SetScalingBounds  custom  old   sku            min=0   max=5     +20c    +80G   +10n  family 20c
+     3  SetScalingBounds  custom  new   sku            min=0   max=15    +40c   +160G   +20n  family 0c
+     4  Freeze            custom  old   sku            count=5           +40c   +160G   +20n
+     5  Reduce            custom  old   sku            count=4           +36c   +144G   +18n  family 4c
+     6  SetScalingBounds  custom  new   sku            min=0   max=16    +40c   +160G   +20n  family 0c
+     7  Reduce            custom  old   sku            count=3           +36c   +144G   +18n  family 4c
+     8  SetScalingBounds  custom  new   sku            min=0   max=17    +40c   +160G   +20n  family 0c
+     9  Reduce            custom  old   sku            count=2           +36c   +144G   +18n  family 4c
+    10  SetScalingBounds  custom  new   sku            min=0   max=18    +40c   +160G   +20n  family 0c
+    11  Reduce            custom  old   sku            count=1           +36c   +144G   +18n  family 4c
+    12  SetScalingBounds  custom  new   sku            min=0   max=19    +40c   +160G   +20n  family 0c
+    13  Reduce            custom  old   sku            count=0           +36c   +144G   +18n  family 4c
+    14  SetScalingBounds  custom  new   sku            min=0   max=20    +40c   +160G   +20n  family 0c
+    15  Delete            custom  old   sku                              +40c   +160G   +20n
+
+steps:      15
+converged:  true
+outcome:    converged
+reason:     pool configuration matches desired

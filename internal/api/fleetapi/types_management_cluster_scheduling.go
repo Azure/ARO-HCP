@@ -138,7 +138,10 @@ type ObservedResources struct {
 // ScaleCeiling holds projected capacity limits derived from AKS agent pool
 // configuration and SKU data.
 type ScaleCeiling struct {
-	// LastReportedAt is the time the scaling data was last computed.
+	// LastReportedAt is the computation time of the last published scaling
+	// result. Unchanged capacity and condition state retain this timestamp;
+	// it is not a heartbeat or the time of every successful poll. It advances
+	// when capacity/condition state changes or an absent timestamp is initialized.
 	//
 	// +optional
 	LastReportedAt *metav1.Time `json:"lastReportedAt,omitempty"`

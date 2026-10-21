@@ -50,11 +50,7 @@ const OperationExternalAuthDeleteControllerName = "OperationExternalAuthDelete"
 // the corresponding operation document in Cosmos DB.
 //
 // The controller has the following responsibilities:
-//   - For legacy operations (UsesNewExternalAuthDeletionApproach == false):
-//     it polls Cluster Service until the external auth is gone (404), then
-//     marks the operation as Succeeded and cleans up the Cosmos document.
-//   - For new-approach operations (UsesNewExternalAuthDeletionApproach == true):
-//     while the ExternalAuth Cosmos document is present, it reconciles the
+//   - while the ExternalAuth Cosmos document is present, it reconciles the
 //     operation status. When the ExternalAuth Cosmos document is deleted
 //     (by the externalAuthDeletionController), it marks the operation as
 //     Succeeded.
@@ -119,13 +115,6 @@ func (c *operationExternalAuthDelete) SynchronizeOperation(ctx context.Context, 
 		return fmt.Errorf("failed to get active operation: %w", err)
 	}
 
-	// TODO remove this once migration of external auth deletion from frontend to backend is fully completed.
-	if !operation.UsesNewExternalAuthDeletionApproach {
-		return c.legacySynchronizeOperation(ctx, operation)
-	}
-
-	// From here, we know it uses the new deletion approach.
-
 	if !c.ShouldProcess(ctx, operation) {
 		return nil // no work to do
 	}
@@ -166,7 +155,10 @@ func (c *operationExternalAuthDelete) reconcileOperationAndResourceStatus(ctx co
 
 	csID := externalAuth.ServiceProviderProperties.ClusterServiceID
 
-	csExternalAuth, err := c.clusterServiceClient.GetExternalAuth(ctx, *csID)
+	csCtx, cancel := context.WithTimeout(ctx, controllerutils.CSReadTimeout)
+	defer cancel()
+
+	csExternalAuth, err := c.clusterServiceClient.GetExternalAuth(csCtx, *csID)
 	if err != nil {
 		var ocmError *ocmerrors.Error
 		if !errors.As(err, &ocmError) || ocmError.Status() != http.StatusNotFound {

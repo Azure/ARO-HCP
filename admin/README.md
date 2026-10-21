@@ -20,9 +20,126 @@ This prefix is abbreviated as `{resourceId}` below.
 | `GET` | `/admin/v1/hcp{resourceId}/breakglass/{sessionName}/kubeconfig` | Get kubeconfig for a breakglass session ([details](breakglass.md)) |
 | `GET` | `/admin/v1/hcp{resourceId}/serialconsole?vmName=...` | Retrieve serial console logs for a VM |
 | `GET` | `/admin/v1/hcp{resourceId}/cosmosdump` | Cosmos DB dump for a cluster |
+| `POST` | `/admin/v1/hcp{resourceId}/desiredcontrolplanesize` | Set or clear the SRE-selected control-plane sizing tier |
+| `GET` | `/admin/v1/hcp{resourceId}/backupschedules` | Get backup schedule state and per-schedule status |
+| `PATCH` | `/admin/v1/hcp{resourceId}/backupschedules` | Enable or disable scheduled backups |
+| `GET` | `/admin/v1/hcp{resourceId}/backups` | List on-demand backups |
+| `POST` | `/admin/v1/hcp{resourceId}/controlplaneversionpin` | Pin a cluster's control plane to a version in its release line, or clear the pin (omit `exactVersion`) |
+| `POST` | `/admin/v1/versionrollouts/{channel}/controlplaneversionpin` | Set or clear control-plane pins for existing clusters in a regional y-stream channel |
 | `GET` | `/healthz/ready` | Readiness probe |
 | `GET` | `/healthz/live` | Liveness probe |
 | `GET` | `/metrics` | Prometheus metrics (served on the metrics port) |
+
+### Version pins
+
+`POST /controlplaneversionpin` accepts `exactVersion` and an optional `untilExactVersion`
+auto-release threshold. The pin affects the control plane, not worker node pool
+versions. Both version fields require a full `X.Y.Z` semantic version, optionally
+with a pre-release identifier but without build metadata. The pin must be in
+the cluster's requested major.minor release line. If the mirrored HostedCluster
+has a control-plane history, a target equal to or newer than its latest entry
+is accepted to hold or advance that version. A lower target is accepted only
+when it is the most recent distinct `Completed` version in the history, older
+than the latest entry. For a direct upgrade from `4.22.0` to `4.22.10`, a pin
+to the previously installed `4.22.0` is allowed; `4.22.5` is rejected as a
+rollback target because it was not installed. `4.22.10` can be held, and a
+newer version in the same release line can be pinned. A `Partial` entry is the
+latest attempted version, but does not qualify as an installed rollback target.
+
+| Request field | Meaning |
+|---------------|---------|
+| `exactVersion` | Control-plane version to pin. Omit it or send `null` to clear the pin. An empty string is rejected; a non-null version must match the cluster's requested release line. Rollbacks below the latest observed version require the immediately previous `Completed` version. |
+| `untilExactVersion` | Optional fleet best-version threshold that automatically clears the pin when reached. Omit it or send `null` to keep the pin until it is cleared explicitly. A non-null value requires `exactVersion` and must be in the same major.minor release line and greater than or equal to `exactVersion`. Nightly clusters cannot use this threshold. An empty string is rejected. |
+
+The response returns the pin's versions as canonical semantic-version strings.
+`exactVersion` is omitted after a clear; `untilExactVersion` is omitted when the
+pin has no auto-release threshold or has been cleared. Neither field is returned
+as an empty string or `null`, and `untilExactVersion` is present only with
+`exactVersion`.
+
+Rollback validation uses the mirrored HostedCluster's
+`status.controlPlaneVersion.history`. The field was backported to HyperShift
+[release-4.20](https://github.com/openshift/hypershift/pull/9055) and
+[release-4.21](https://github.com/openshift/hypershift/pull/9054), and
+[Azure CPO image overrides](https://github.com/openshift/hypershift/pull/9211)
+provide the backported code for earlier 4.20 and 4.21 patch releases. The
+backend may not have mirrored the history yet when the HostedCluster is first
+observed.
+
+If the control-plane history has not been mirrored yet, the pin is accepted;
+the API cannot classify it as a rollback without an observed version. A lower
+target is rejected with HTTP 400 when available history does not establish a
+valid previous version. Guest version history and the provider's distilled
+active versions are not used for rollback validation. Send `{}` or
+`{"exactVersion":null}` to clear the pin; clearing does not require version history.
+An observed latest version, or a `Completed` history entry examined for a
+rollback, returns HTTP 400 if it contains build metadata: semantic-version
+comparisons ignore `+build`, while pin requests do not accept it.
+Both setting and clearing require an existing ServiceProviderCluster document and
+reject clusters marked for deletion with HTTP 409; the endpoint never creates a
+provider document.
+
+Nightly clusters can be pinned to a previous or newer version, but their
+channels have no fleet rollout best version to trigger auto-release. Requests
+with `untilExactVersion` return HTTP 400 for nightly clusters; a nightly pin
+without a threshold remains until explicitly cleared.
+
+### Fleet control-plane version pins
+
+`POST /admin/v1/versionrollouts/stable-4.22/controlplaneversionpin` accepts the same body and
+version-pin validation as the single-cluster endpoint. It applies to existing
+ServiceProviderCluster documents in this Admin API's regional Resources container.
+It does not persist a channel-wide policy or pin clusters created after the request.
+
+Membership follows the rollout controllers: the backing cluster's channel group
+must match, and the provider's desired version must have the channel's major.minor.
+If desired version is absent, the oldest completed active version determines
+membership. Deleting clusters, orphaned provider documents, and clusters with no
+channel group or known effective minor are excluded. Active versions determine
+membership only; rollback validation still requires the mirrored control-plane
+history. A pin must also match each cluster's requested release line.
+If the oldest completed active-version entry used for fallback lacks a version,
+the request fails before writing any pins instead of silently excluding that cluster.
+
+The handler finishes listing and validates every pin change before writing. A
+validation failure returns HTTP 400 with per-cluster details and makes no writes.
+An identical persisted pin is counted as unchanged, without revalidating rollback
+history or rewriting the document; this lets callers retry after a rollback has
+completed. Clearing pins needs no observed history and does not create documents.
+
+Writes use each provider document's ETag independently. The operation is not
+atomic across clusters: it continues after individual failures and returns the
+successful writes and failed cluster IDs. HTTP 200 means all writes succeeded;
+HTTP 409 means writes encountered ETag conflicts; HTTP 500 means at least one
+write had another failure (or listing failed before any writes).
+
+A response after the write phase contains:
+
+```json
+{
+  "channel": "stable-4.22",
+  "matchedCount": 3,
+  "affectedCount": 1,
+  "unchangedCount": 1,
+  "failedCount": 1,
+  "failures": [
+    {
+      "resourceId": "/subscriptions/.../hcpOpenShiftClusters/cluster-name",
+      "code": "Conflict",
+      "message": "ETag conflict, retry the operation"
+    }
+  ]
+}
+```
+
+`affectedCount` counts successful document writes, not completed rollbacks.
+`matchedCount` equals `affectedCount + unchangedCount + failedCount`. An empty
+selection returns HTTP 200 with zero counts. Request validation, including
+channel/release-line and nightly restrictions, applies even to an empty selection.
+
+Inspect failed clusters before retrying; a new fleet request recomputes membership
+and can include newly created clusters.
+For a narrowly scoped retry, use the single-cluster endpoint on the failed IDs.
 
 ## Authentication
 

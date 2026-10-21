@@ -16,11 +16,18 @@ package e2e
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	"github.com/blang/semver/v4"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
+
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
@@ -160,6 +167,23 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 				)
 				Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster for patch-tags test")
 
+				verifyVersionPin := func(cluster *hcpsdk20240610preview.HcpOpenShiftCluster) {
+					Expect(cluster).NotTo(BeNil(), "cluster response was nil while checking version pin")
+					Expect(cluster.Properties).NotTo(BeNil(), "cluster response Properties was nil while checking version pin")
+					Expect(cluster.Properties.Version).NotTo(BeNil(), "cluster response Version was nil while checking version pin")
+					if exact, err := semver.Parse(clusterParams.OpenshiftVersionId); err == nil {
+						Expect(cluster.Properties.Version.ID).To(Equal(to.Ptr(fmt.Sprintf("%d.%d", exact.Major, exact.Minor))), "public version ID should retain the selected release line")
+						Expect(cluster.Tags[metadataapi.TagClusterControlPlaneExactVersion]).To(Equal(to.Ptr(clusterParams.OpenshiftVersionId)), "exact control-plane pin should survive creation and unrelated PATCH requests")
+					} else {
+						Expect(cluster.Properties.Version.ID).To(Equal(to.Ptr(clusterParams.OpenshiftVersionId)), "bare version ID should remain unchanged")
+						Expect(cluster.Tags).NotTo(HaveKey(metadataapi.TagClusterControlPlaneExactVersion), "bare version selection should remain unpinned")
+					}
+				}
+				By("verifying the version pin after creation")
+				created, err := framework.GetHCPCluster20240610(ctx, tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(), *resourceGroup.Name, clusterName)
+				Expect(err).NotTo(HaveOccurred(), "failed to GET cluster to check its initial version pin")
+				verifyVersionPin(&created.HcpOpenShiftCluster)
+
 				By("getting credentials")
 				adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20260901(
 					ctx,
@@ -175,22 +199,26 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 				Expect(err).NotTo(HaveOccurred(), "failed to verify HCP cluster viability for patch-tags test")
 
 				By("sending a PATCH request to set a tag")
+				hcpClient := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
+				current, err := framework.GetHCPCluster20240610(ctx, hcpClient, *resourceGroup.Name, clusterName)
+				Expect(err).NotTo(HaveOccurred(), "failed to get current tags before updating cluster %q", clusterName)
 				val := "should succeed"
 				update := hcpsdk20240610preview.HcpOpenShiftClusterUpdate{
 					Identity: toIdentityUpdate(clusterParams.Identity),
-					Tags: map[string]*string{
+					Tags: framework.TagsForPatch(current.Tags, map[string]*string{
 						"test": &val,
-					},
+					}),
 				}
 				resp, err := framework.UpdateHCPCluster20240610(
 					ctx,
-					tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
+					hcpClient,
 					*resourceGroup.Name,
 					clusterName,
 					update,
 					framework.UpdateHCPClusterTimeout,
 				)
 				Expect(err).NotTo(HaveOccurred(), "failed to update HCP cluster tags via PATCH")
+				verifyVersionPin(resp)
 
 				By("verifying the tag is present in the update response body")
 				Expect(resp.Tags).ToNot(BeNil(), "update response Tags was nil")
@@ -205,9 +233,20 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 					clusterName,
 				)
 				Expect(err).NotTo(HaveOccurred(), "failed to GET HCP cluster after tag update")
+				verifyVersionPin(&respGet.HcpOpenShiftCluster)
 				Expect(respGet.Tags).ToNot(BeNil(), "GET response Tags was nil")
 				Expect(respGet.Tags["test"]).ToNot(BeNil(), "GET response Tags[\"test\"] was nil")
 				Expect(*respGet.Tags["test"]).To(Equal(val), "GET response Tags[\"test\"] should equal %q after update", val)
+
+				By("verifying the tags the cluster was created with survived the PATCH")
+				// PATCH replaces the whole tag collection, so a body that forgets a
+				// pre-existing tag silently deletes it. Losing the size override stalls the
+				// update and blocks resource group cleanup, so assert it explicitly here
+				// rather than discovering it at teardown.
+				Expect(respGet.Tags[metadataapi.TagClusterSizeOverride]).ToNot(BeNil(),
+					"GET response Tags[%q] was nil; the PATCH dropped a tag the cluster was created with", metadataapi.TagClusterSizeOverride)
+				Expect(*respGet.Tags[metadataapi.TagClusterSizeOverride]).To(Equal(string(coreapi.MinimalControlPlanePodSizing)),
+					"GET response Tags[%q] should still equal %q after update", metadataapi.TagClusterSizeOverride, coreapi.MinimalControlPlanePodSizing)
 			},
 		)
 	})

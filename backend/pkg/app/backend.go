@@ -53,10 +53,18 @@ type Backend struct {
 }
 
 type BackendOptions struct {
-	StorageFactory                     StorageFactory
-	AppShortDescriptionName            string
-	AppVersion                         string
-	AzureLocation                      string
+	StorageFactory          StorageFactory
+	AppShortDescriptionName string
+	AppVersion              string
+	AzureLocation           string
+	// ServiceTenantID is the Azure AD tenant where the ARO-HCP service's First Party
+	// Application (FPA) identity is registered. It is the tenantId used both to
+	// retrieve the FPA credential that calls the Managed Identities Data Plane, and
+	// as the Secrets Store CSI Driver's authentication tenant when delivering TLS
+	// certificates from Key Vault onto a management cluster. It is never a customer's
+	// tenant, and permissions granted here are not scoped to any individual
+	// customer's HostedCluster or subscription.
+	ServiceTenantID                    string
 	LeaderElectionLock                 resourcelock.Interface
 	ClustersServiceClient              ocm.ClusterServiceClientSpec
 	MetricsRegisterer                  prometheus.Registerer
@@ -73,11 +81,15 @@ type BackendOptions struct {
 	// and is also exposed through backend_insecure_mock_managed_identities_enabled.
 	// Controllers that create Azure resources only a real FPA can create (e.g.
 	// deny assignments) are disabled when this is false (dev/int environments).
-	HasRealFPA                                          bool
-	BackendIdentityAzureClients                         *azureclient.BackendIdentityAzureClients
-	BackendIdentityAzureCachedReaders                   *cachedreader.BackendIdentityAzureCachedReaders
-	ExitOnPanic                                         bool
-	FPAMIDataplaneClientBuilder                         azureclient.FPAMIDataplaneClientBuilder
+	HasRealFPA                        bool
+	BackendIdentityAzureClients       *azureclient.BackendIdentityAzureClients
+	BackendIdentityAzureCachedReaders *cachedreader.BackendIdentityAzureCachedReaders
+	ExitOnPanic                       bool
+	FPAMIDataplaneClientBuilder       azureclient.FPAMIDataplaneClientBuilder
+	// HardcodedIdentity is the identity used for the cluster's control plane operator identities and the cluster's service managed identity when
+	// the Managed Identities Data Plane service is not available.
+	// HardcodedIdentity is nil when the real Managed Identities Data Plane is available.
+	HardcodedIdentity                                   *azureclient.HardcodedIdentity
 	MIDataplaneBasedIdentityAccessTokenRetrieverBuilder azureclient.MIDataplaneBasedIdentityAccessTokenRetrieverBuilder
 	BackupConfig                                        *clusterbackups.BackupConfig
 	SMIClientBuilder                                    azureclient.ServiceManagedIdentityClientBuilder

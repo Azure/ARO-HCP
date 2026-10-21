@@ -88,7 +88,7 @@ func NewClusterClusterServiceDeleteDispatchController(
 		firstSeenDeletionTimestampCache: lru.New(50000),
 	}
 
-	return controllerutils.NewClusterWatchingController(
+	controller := controllerutils.NewClusterWatchingController(
 		ClusterClusterServiceDeleteDispatchControllerName,
 		resourcesDBClient,
 		informers,
@@ -96,19 +96,15 @@ func NewClusterClusterServiceDeleteDispatchController(
 		time.Minute,
 		syncer,
 	)
+	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
+
+	return controller
 }
 
 // NeedsWork reports whether the deleter has unfinished business for the given
 // Cluster: DeletionTimestamp must be set and ClusterServiceDeletionTimestamp
 // must not yet be set.
 func (c *clusterClusterServiceDeleteDispatchSyncer) NeedsWork(cluster *coreapi.Cluster) bool {
-	// TODO temporary check to skip the new deletion approach for Clusters that were created before the new approach was implemented.
-	// This will be removed once all clusters whose deletion was triggered before the new approach is fully rolled out have been
-	// fully deleted in all ARO-HCP permanent environments, for all regions.
-	if !cluster.ServiceProviderProperties.UsesNewClusterDeletionApproach {
-		return false
-	}
-
 	return cluster.ServiceProviderProperties.DeletionTimestamp != nil &&
 		cluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp == nil
 }
@@ -160,6 +156,17 @@ func (c *clusterClusterServiceDeleteDispatchSyncer) SyncOnce(ctx context.Context
 	}
 
 	csID := cluster.ServiceProviderProperties.ClusterServiceID
+	// CS may have accepted POST while the response or the subsequent Cosmos
+	// replacement was lost. Creation stops reconciling once deletion begins, so
+	// recover its persisted target here instead of timing out and abandoning CS.
+	if replacement := recoverPendingDeletionTarget(cluster); replacement != nil {
+		logger.Info("Recovering pending CS creation as deletion target", "clusterServiceID", replacement.ServiceProviderProperties.ClusterServiceID.String())
+		_, err := clusterCRUD.Replace(ctx, replacement, nil)
+		return err
+	}
+	csCtx, cancel := context.WithTimeout(ctx, controllerutils.CSWriteTimeout)
+	defer cancel()
+
 	if csID == nil || len(csID.String()) == 0 {
 		elapsed := c.clock.Since(firstSeenClusterDeletionTimestamp)
 		if elapsed < missingClusterServiceIDTimeout {
@@ -170,7 +177,7 @@ func (c *clusterClusterServiceDeleteDispatchSyncer) SyncOnce(ctx context.Context
 		}
 		logger.Info("giving up on cluster-service Cluster delete - ClusterServiceID never appeared",
 			"clusterDeletionTimestamp", clusterDeletionTimestamp, "clusterFirstSeenDeletionTimestamp", firstSeenClusterDeletionTimestamp)
-	} else if err := c.clusterServiceClient.DeleteCluster(ctx, *csID); err != nil {
+	} else if err := c.clusterServiceClient.DeleteCluster(csCtx, *csID); err != nil {
 		var ocmError *ocmerrors.Error
 
 		switch {
@@ -201,4 +208,23 @@ func (c *clusterClusterServiceDeleteDispatchSyncer) SyncOnce(ctx context.Context
 	c.firstSeenDeletionTimestampCache.Remove(cacheKey)
 
 	return nil
+}
+
+// recoverPendingDeletionTarget produces only the replacement needed to route
+// deletion and its absence observer through the ordinary CS lifecycle.
+func recoverPendingDeletionTarget(cluster *coreapi.Cluster) *coreapi.Cluster {
+	properties := cluster.ServiceProviderProperties
+	if properties.DeletionTimestamp == nil || properties.ClusterServiceDeletionTimestamp != nil {
+		return nil
+	}
+	if properties.ClusterServiceID != nil && properties.ClusterServiceID.String() != "" {
+		return nil
+	}
+	if properties.PendingClusterServiceID == nil || properties.PendingClusterServiceID.String() == "" {
+		return nil
+	}
+	updated := cluster.DeepCopy()
+	updated.ServiceProviderProperties.ClusterServiceID = properties.PendingClusterServiceID
+	updated.ServiceProviderProperties.PendingClusterServiceID = nil
+	return updated
 }

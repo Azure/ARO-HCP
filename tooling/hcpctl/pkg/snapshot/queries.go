@@ -749,6 +749,17 @@ var allQueries = []querySpec{
 	},
 	{
 		component:    "hypershift",
+		queryName:    "ignitionServerEvents",
+		templatePath: "queries/hypershift/ignitionServerEvents/query.kql",
+		database:     "service",
+		category:     categoryResourceEvents,
+		ready: func(d queryData) bool {
+			return d.HostedClusterNamespace != "" && isClusterOrNodePool(d)
+		},
+		prerequisites: "HostedClusterNamespace, ResourceType is cluster or nodepool",
+	},
+	{
+		component:    "hypershift",
 		queryName:    "pkiOperatorEvents",
 		templatePath: "queries/hypershift/pkiOperatorEvents/query.kql",
 		database:     "service",
@@ -766,6 +777,17 @@ var allQueries = []querySpec{
 		category:     categoryLogs,
 		ready: func(d queryData) bool {
 			return d.HostedClusterNamespace != "" && (strings.EqualFold(d.ResourceType, "microsoft.redhatopenshift/hcpopenshiftclusters") || strings.EqualFold(d.ResourceType, "microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"))
+		},
+		prerequisites: "HostedClusterNamespace, ResourceType is cluster or nodepool",
+	},
+	{
+		component:    "hypershift",
+		queryName:    "ignitionServerLogs",
+		templatePath: "queries/hypershift/ignitionServerLogs/query.kql",
+		database:     "hcp",
+		category:     categoryLogs,
+		ready: func(d queryData) bool {
+			return d.HostedClusterNamespace != "" && isClusterOrNodePool(d)
 		},
 		prerequisites: "HostedClusterNamespace, ResourceType is cluster or nodepool",
 	},

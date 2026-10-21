@@ -3,7 +3,7 @@ module github.com/Azure/ARO-HCP/tooling/kustoctl
 go 1.26.0
 
 require (
-	github.com/Azure/ARO-Tools/tools/kustoctl v0.0.0-20260917062117-27fb5fa3a294
+	github.com/Azure/ARO-Tools/tools/kustoctl v0.0.0-20261015161319-19f2993c1807
 	github.com/Azure/azure-kusto-go/azkustodata v1.2.1
 	github.com/dusted-go/logging v1.3.0
 	github.com/go-logr/logr v1.4.4
@@ -11,7 +11,7 @@ require (
 )
 
 require (
-	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260917062117-27fb5fa3a294 // indirect
+	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20261015161319-19f2993c1807 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.23.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.14.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.12.0 // indirect
@@ -31,5 +31,5 @@ require (
 	golang.org/x/sync v0.23.0 // indirect
 	golang.org/x/sys v0.48.0 // indirect
 	golang.org/x/text v0.42.0 // indirect
-	k8s.io/apimachinery v0.36.2 // indirect
+	k8s.io/apimachinery v0.37.1 // indirect
 )

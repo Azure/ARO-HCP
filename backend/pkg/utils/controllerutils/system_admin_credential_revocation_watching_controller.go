@@ -56,7 +56,7 @@ func NewSystemAdminCredentialRevocationWatchingController(
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 	resyncDuration time.Duration,
 	syncer SystemAdminCredentialRevocationSyncer,
-) Controller {
+) WatchingController {
 
 	systemAdminCredentialRevocationSyncer := &systemAdminCredentialRevocationWatchingController{
 		name:              name,
@@ -76,7 +76,11 @@ func NewSystemAdminCredentialRevocationWatchingController(
 
 	if kubeApplierInformers != nil {
 		readDesireInformer, _ := kubeApplierInformers.ReadDesires()
-		if err := controller.QueueForInformersWithMaxDepth(resyncDuration, 1, readDesireInformer); err != nil {
+		if err := controller.QueueForInformersWithMaxDepth(0, 1, readDesireInformer); err != nil {
+			panic(err) // coding error
+		}
+		applyDesireInformer, _ := kubeApplierInformers.ApplyDesires()
+		if err := controller.QueueForInformersWithMaxDepth(0, 1, applyDesireInformer); err != nil {
 			panic(err) // coding error
 		}
 	}

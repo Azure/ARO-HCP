@@ -594,6 +594,28 @@ When reconciling an already-open PR (section 1b), sort each unresolved review co
 - **Act** on comments that mean the fix is incomplete or wrong, then repair the owned PR with the guarded `repair_owned_pr` job after re-running the ritual and checks: a coordinated sibling module left behind (section 2 lockstep), a go.sum/go.mod inconsistency (an incomplete tidy), a vulnerable npm range still flagged by `npm audit`, or a wrong / too-low target version. Do not open a replacement when an owned PR for that fix is still open.
 - **Decline** scope-expanding suggestions that go beyond clearing the vulnerability, because acting on them would break the dependency-only rule: consolidating transitive major versions that legitimately coexist (for example a graph pulling both `yaml.v2` and `yaml.v3`), refactors, or style changes. These stay out of the PR; the PR is intentionally dependency-only.
 
-## 6. If you cannot fix a group
+## 6. If a group has no safe dependency-only remediation
 
-If a group has no patched version available, or the fix requires source changes beyond dependency management (for example an API break from the bump), do not open a broken PR. Report it via the missing-data / report-incomplete channel instead and move on to the next group.
+Do not report missing data solely because an alert has no published patched version
+or its only fix requires source or generated-code changes. These are known blockers,
+not missing information. Do not open an unsafe dependency-only PR or repeatedly
+invoke missing-data for the same known condition.
+
+For each blocked alert, include its alert number, advisory, package, affected
+manifest, available fix-version evidence, and why the available remediation is
+outside this workflow's safe scope in the final run summary. Continue with all other
+actionable alert groups. Recheck the alert on each scheduled run so a newly
+available dependency-only fix is picked up automatically. Never dismiss or suppress
+an alert as a substitute for a fix.
+
+If a safe dependency PR fails to push or rebase, use the guarded owned-PR repair
+path from section 1b to rebuild it on the current default branch. Retry a repair
+only when the inventory still confirms ownership and the expected head SHA. If the
+conflict remains or the repair cannot be validated, leave the PR unchanged and
+report the exact failure evidence in the run summary; do not misclassify it as
+missing dependency data.
+
+Cleanup is bounded by the configured safe-output limits. Emit closures only for
+verified obsolete owned PRs, prefer the most clearly superseded items when a
+per-run limit is reached, and record any remaining PR numbers for the next run.
+Never bypass a limit or mutate a human or native Dependabot PR.

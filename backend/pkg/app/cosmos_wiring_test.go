@@ -270,7 +270,7 @@ func TestBackendInformerStorageIsUnlimited(t *testing.T) {
 		// Unlimited informers must not reduce the normal controllers' allocation.
 		budget := options.ResourcesRUsPerSecond * cosmosratelimit.DefaultControllerUtilization /
 			float64(len(options.ControllerNames)-len(options.UnlimitedControllerNames))
-		bucket, err := factory.tokenBucket("Resources", strings.ToLower(mismatch.BackfillClusterUIDControllerName))
+		bucket, err := factory.tokenBucket("Resources", strings.ToLower(mismatch.MissingResourceIDControllerName))
 		require.NoError(t, err)
 		bucket.Consume(2 * budget)
 		start := time.Now()

@@ -1,28 +1,16 @@
 knownIssues:
-- name: "BackendControllerRetryHotLoop"
-  labels:
-    name: "triggernodepoolupgrade"
-  reason: "being worked on in https://issues.redhat.com/browse/ARO-28029"
-- name: "BackendControllerRetryHotLoop"
-  labels:
-    name: "operationclustercreate"
-  reason: "fix in https://github.com/Azure/ARO-HCP/pull/5794"
 - name: "PrometheusOperatorRejectedResources"
   labels:
     resource: "servicemonitor"
-  reason: "https://issues.redhat.com/browse/ARO-28028"
+  reason: "ARO-28028 was closed Won't Do. This fires on the self-hosted Prometheus on management clusters and can be removed once management metrics move off self-hosted Prometheus to AMA (https://issues.redhat.com/browse/AROSLSRE-1693)."
 - name: "KubeVersionMismatch"
   labels:
     cluster: ".*-mgmt-.*"
-  reason: "Under investigation."
+  reason: "Under investigation - tracked in https://issues.redhat.com/browse/ARO-30225"
 - name: "OrphanedMRGDetected"
   reason: "Orphaned MRG cleanup is newly deployed and expected to fire while existing orphans are processed."
 - name: "BackendAsyncOperation.*Stuck"
-  reason: "Newly added stuck-async-operation alerts (https://github.com/Azure/ARO-HCP/pull/5952) surface a pre-existing problem: Azure Monitor Workspace ingestion latency (metrics can take ~10min to ingest) makes async operations look stuck and latches onto E2E runs even when the tests pass. Observed blocking green E2E runs (per https://cihealth.tools.hcpsvc.osadev.cloud/run-log?q=BackendAsync): BackendAsyncOperationClusterDeleteStuck, BackendAsyncOperationExternalAuthDeleteStuck, BackendAsyncOperationClusterCreateStuck, BackendAsyncOperationNodePoolDeleteStuck, BackendAsyncOperationNodePoolCreateStuck, BackendAsyncOperationStuck. Owner @stevekuznetsov; durable fix is the AMW auto-scaler (https://github.com/Azure/ARO-HCP/pull/6036). Marked known so it stops blocking the merge queue until that lands."
-- name: "KubePodNotReady"
-  labels:
-    namespace: "klusterlet-.*"
-  reason: "Klusterlet addon pods take a while to start when clusters are slow to provision, so this is a downstream issue and just noise."
+  reason: "Newly added stuck-async-operation alerts (https://github.com/Azure/ARO-HCP/pull/5952) surface a pre-existing problem: Azure Monitor Workspace ingestion latency (metrics can take ~10min to ingest) makes async operations look stuck and latches onto E2E runs even when the tests pass. Observed blocking green E2E runs (per https://cihealth.tools.hcpsvc.osadev.cloud/run-log?q=BackendAsync): BackendAsyncOperationClusterDeleteStuck, BackendAsyncOperationExternalAuthDeleteStuck, BackendAsyncOperationClusterCreateStuck, BackendAsyncOperationNodePoolDeleteStuck, BackendAsyncOperationNodePoolCreateStuck, BackendAsyncOperationStuck. The AMW auto-scaler (https://github.com/Azure/ARO-HCP/pull/6036) does not apply to DEV/CI and was closed unmerged; in DEV/CI the durable fix is the Prometheus-to-AMA metrics migration with multi-AMW routing (https://issues.redhat.com/browse/AROSLSRE-1693), which drastically reduces ingestion limits. Marked known so it stops blocking the merge queue until that lands."
 - name: "KubePodNotReady"
   labels:
     namespace: "ocm-.*"

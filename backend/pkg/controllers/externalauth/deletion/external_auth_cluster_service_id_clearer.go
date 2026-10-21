@@ -61,13 +61,16 @@ func NewExternalAuthClusterServiceIDClearerController(
 		clusterServiceClient: clusterServiceClient,
 	}
 
-	return controllerutils.NewExternalAuthWatchingController(
+	controller := controllerutils.NewExternalAuthWatchingController(
 		ExternalAuthDeletionClusterServiceIDClearerControllerName,
 		resourcesDBClient,
 		informers,
 		time.Minute,
 		syncer,
 	)
+	controller.AddInterestingResource(coreapi.ExternalAuthResourceType, "*")
+
+	return controller
 }
 
 // NeedsWork reports whether this controller has unfinished business for the
@@ -75,13 +78,6 @@ func NewExternalAuthClusterServiceIDClearerController(
 // has already issued the CS delete (ClusterServiceDeletionTimestamp), and a
 // ClusterServiceID is still recorded that needs verification before clearing.
 func (c *externalAuthClusterServiceIDClearer) NeedsWork(externalAuth *coreapi.ExternalAuth) bool {
-	// TODO temporary check to skip the new deletion approach for ExternalAuths that were created before the new approach was implemented.
-	// This will be removed once all externalauths whose deletion was triggered before the new approach is fully rolled out have been
-	// fully deleted in all ARO-HCP permanent environments, for all regions.
-	if !externalAuth.ServiceProviderProperties.UsesNewExternalAuthDeletionApproach {
-		return false
-	}
-
 	return externalAuth.ServiceProviderProperties.DeletionTimestamp != nil &&
 		externalAuth.ServiceProviderProperties.ClusterServiceDeletionTimestamp != nil &&
 		externalAuth.ServiceProviderProperties.ClusterServiceID != nil && len(externalAuth.ServiceProviderProperties.ClusterServiceID.String()) > 0
@@ -118,7 +114,10 @@ func (c *externalAuthClusterServiceIDClearer) SyncOnce(ctx context.Context, key 
 	}
 
 	csID := externalAuth.ServiceProviderProperties.ClusterServiceID
-	_, err = c.clusterServiceClient.GetExternalAuth(ctx, *csID)
+	csCtx, cancel := context.WithTimeout(ctx, controllerutils.CSReadTimeout)
+	defer cancel()
+
+	_, err = c.clusterServiceClient.GetExternalAuth(csCtx, *csID)
 	if err != nil {
 		var ocmError *ocmerrors.Error
 		if !errors.As(err, &ocmError) || ocmError.Status() != http.StatusNotFound {

@@ -27,6 +27,13 @@
 // from prowjob.json, empty when absent or on existing rows. Deploy this schema
 // and mapping before the writer; previously recorded runs are not backfilled.
 //
+// Slot metadata comes from the acquire step's aro-hcp-slot-state.yaml artifact.
+// runtimeRegion is the selected workload region, not the Kusto or catalog region.
+// leasedAssets is an array of {kind, resourceName} objects describing additional
+// Boskos leases at acquisition, not their eventual release status. An available
+// snapshot with no additional leases has []; unavailable state has null assets.
+// Deploy the additive columns and mapping before the slot-aware collector.
+//
 // GCS discovery migration: deploy this mapping and the ciDiscoveredJobs and
 // ciProcessedJobs schema scripts before deploying the collector. sippyRelease
 // and testFailures remain physical columns to preserve historical values, but
@@ -49,7 +56,10 @@
     testFailures: int,
     startedAt: datetime,
     finishedAt: datetime,
-    adoBuildId: string
+    adoBuildId: string,
+    runtimeRegion: string,
+    leasedSlot: string,
+    leasedAssets: dynamic
 )
 with (
     docstring = "Outcome of a single CI job run, written by the opstool tenant-quota collector",
@@ -69,6 +79,9 @@ with (
   {"column":"failed","path":"$['failed']","datatype":"bool"},
   {"column":"startedAt","path":"$['startedAt']","datatype":"datetime"},
   {"column":"finishedAt","path":"$['finishedAt']","datatype":"datetime"},
-  {"column":"adoBuildId","path":"$['adoBuildId']","datatype":"string"}
+  {"column":"adoBuildId","path":"$['adoBuildId']","datatype":"string"},
+  {"column":"runtimeRegion","path":"$['runtimeRegion']","datatype":"string"},
+  {"column":"leasedSlot","path":"$['leasedSlot']","datatype":"string"},
+  {"column":"leasedAssets","path":"$['leasedAssets']","datatype":"dynamic"}
 ]
 ```

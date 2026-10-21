@@ -84,26 +84,22 @@ func NewExternalAuthClusterServiceDeleteDispatchController(
 		firstSeenDeletionTimestampCache: lru.New(50000),
 	}
 
-	return controllerutils.NewExternalAuthWatchingController(
+	controller := controllerutils.NewExternalAuthWatchingController(
 		ExternalAuthClusterServiceDeleteDispatchControllerName,
 		resourcesDBClient,
 		informers,
 		time.Minute,
 		syncer,
 	)
+	controller.AddInterestingResource(coreapi.ExternalAuthResourceType, "*")
+
+	return controller
 }
 
 // NeedsWork reports whether the deleter has unfinished business for the given
 // ExternalAuth: DeletionTimestamp must be set and ClusterServiceDeletionTimestamp
 // must not yet be set.
 func (c *externalAuthClusterServiceDeleteDispatchSyncer) NeedsWork(externalAuth *coreapi.ExternalAuth) bool {
-	// TODO temporary check to skip the new deletion approach for ExternalAuths that were created before the new approach was implemented.
-	// This will be removed once all externalauths whose deletion was triggered before the new approach is fully rolled out have been
-	// fully deleted in all ARO-HCP permanent environments, for all regions.
-	if !externalAuth.ServiceProviderProperties.UsesNewExternalAuthDeletionApproach {
-		return false
-	}
-
 	return externalAuth.ServiceProviderProperties.DeletionTimestamp != nil &&
 		externalAuth.ServiceProviderProperties.ClusterServiceDeletionTimestamp == nil
 }
@@ -157,6 +153,9 @@ func (c *externalAuthClusterServiceDeleteDispatchSyncer) SyncOnce(ctx context.Co
 	}
 
 	csID := externalAuth.ServiceProviderProperties.ClusterServiceID
+	csCtx, cancel := context.WithTimeout(ctx, controllerutils.CSWriteTimeout)
+	defer cancel()
+
 	if csID == nil || len(csID.String()) == 0 {
 		elapsed := c.clock.Since(firstSeenExternalAuthDeletionTimestamp)
 		if elapsed < missingClusterServiceIDTimeout {
@@ -167,7 +166,7 @@ func (c *externalAuthClusterServiceDeleteDispatchSyncer) SyncOnce(ctx context.Co
 		}
 		logger.Info("giving up on cluster-service ExternalAuth delete - ClusterServiceID never appeared",
 			"externalAuthDeletionTimestamp", externalAuthDeletionTimestamp, "externalAuthFirstSeenDeletionTimestamp", firstSeenExternalAuthDeletionTimestamp)
-	} else if err := c.clusterServiceClient.DeleteExternalAuth(ctx, *csID); err != nil {
+	} else if err := c.clusterServiceClient.DeleteExternalAuth(csCtx, *csID); err != nil {
 		var ocmError *ocmerrors.Error
 
 		switch {

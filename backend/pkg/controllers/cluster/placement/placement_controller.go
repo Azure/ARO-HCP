@@ -171,6 +171,10 @@ func NewPlacementController(
 		5*time.Minute, // Check every 5 minutes
 		syncer,
 	)
+	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
+	controller.AddInterestingResource(coreapi.ServiceProviderClusterResourceType, coreapi.ServiceProviderClusterResourceName)
+	controller.AddInterestingResource(fleetapi.ManagementClusterResourceType, fleetapi.ManagementClusterResourceName)
+	controller.AddInterestingResource(fleetapi.ManagementClusterSchedulingResourceType, fleetapi.SchedulingResourceName)
 
 	// Assert the controller implements AfterEnqueuer so the syncer can schedule a
 	// fixed-cadence requeue when placement is deferred for lack of capacity, rather

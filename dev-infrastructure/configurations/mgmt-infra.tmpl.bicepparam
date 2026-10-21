@@ -2,6 +2,7 @@ using '../templates/mgmt-infra.bicep'
 
 param useLeasedInfrastructureIdentities = {{ .infrastructureIdentities.useLeased }}
 param managementIdentityResourceGroups = '{{ .infrastructureIdentities.managementResourceGroups }}'
+param managementAksIdentityNames = '{{ .infrastructureIdentities.managementAksIdentityNames }}'
 param stampIdentifier = '{{ .mgmt.stampIdentifier }}'
 
 // AKS

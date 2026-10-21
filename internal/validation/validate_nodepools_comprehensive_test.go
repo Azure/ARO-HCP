@@ -59,7 +59,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 			expectErrors: []utils.ExpectedError{},
 		},
 		{
-			name: "valid nodepool with autoscaling min=0 - create",
+			name: "autoscaling min zero - create",
 			nodePool: func() *coreapi.NodePool {
 				np := createValidNodePool()
 				np.Properties.AutoScaling = &coreapi.NodePoolAutoScaling{
@@ -69,7 +69,9 @@ func TestValidateNodePoolCreate(t *testing.T) {
 				np.Properties.Replicas = 0
 				return np
 			}(),
-			expectErrors: []utils.ExpectedError{},
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be greater than or equal to 1", FieldPath: "properties.autoScaling.min"},
+			},
 		},
 		{
 			name: "valid nodepool with labels - create",
@@ -483,6 +485,26 @@ func TestValidateNodePoolCreate(t *testing.T) {
 			},
 		},
 		{
+			name: "encryption set in different subscription - create",
+			nodePool: func() *coreapi.NodePool {
+				np := createValidNodePool()
+				np.Properties.Platform.OSDisk.EncryptionSetID = metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/different-sub/resourceGroups/test-rg/providers/Microsoft.Compute/diskEncryptionSets/test-des"))
+				return np
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be in the same Azure subscription", FieldPath: "properties.platform.osDisk.encryptionSetId"},
+			},
+		},
+		{
+			name: "encryption set in same subscription - valid - create",
+			nodePool: func() *coreapi.NodePool {
+				np := createValidNodePool()
+				np.Properties.Platform.OSDisk.EncryptionSetID = metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Compute/diskEncryptionSets/test-des"))
+				return np
+			}(),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
 			name: "replicas at maximum limit (200) - create",
 			nodePool: func() *coreapi.NodePool {
 				np := createValidNodePool()
@@ -553,7 +575,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 				return np
 			}(),
 			expectErrors: []utils.ExpectedError{
-				{Message: "must be greater than or equal to 0", FieldPath: "properties.autoScaling.min"},
+				{Message: "must be greater than or equal to 1", FieldPath: "properties.autoScaling.min"},
 			},
 		},
 		{
@@ -585,7 +607,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 				return np
 			}(),
 			expectErrors: []utils.ExpectedError{
-				{Message: "must be greater than or equal to 0", FieldPath: "properties.autoScaling.min"},
+				{Message: "must be greater than or equal to 1", FieldPath: "properties.autoScaling.min"},
 			},
 		},
 		{
@@ -1287,6 +1309,23 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 			},
 		},
 		{
+			name: "immutable OS disk encryption set - update",
+			newNodePool: func() *coreapi.NodePool {
+				np := createValidNodePool()
+				np.Properties.Platform.OSDisk.EncryptionSetID = metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Compute/diskEncryptionSets/test-des-new"))
+				return np
+			}(),
+			oldNodePool: func() *coreapi.NodePool {
+				np := createValidNodePool()
+				np.Properties.Platform.OSDisk.EncryptionSetID = metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Compute/diskEncryptionSets/test-des-old"))
+				return np
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "field is immutable", FieldPath: "properties.platform"},
+				{Message: "field is immutable", FieldPath: "properties.platform.osDisk"},
+			},
+		},
+		{
 			name: "immutable auto repair - update",
 			newNodePool: func() *coreapi.NodePool {
 				np := createValidNodePool()
@@ -1386,6 +1425,46 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 			oldNodePool: createValidNodePool(),
 			expectErrors: []utils.ExpectedError{
 				{Message: "cannot specify replicas when autoScaling is enabled", FieldPath: "properties.replicas"},
+			},
+		},
+		{
+			name: "autoscaling min zero - update",
+			newNodePool: func() *coreapi.NodePool {
+				np := createValidNodePool()
+				np.Properties.Replicas = 0
+				np.Properties.AutoScaling = &coreapi.NodePoolAutoScaling{
+					Min: 0,
+					Max: 5,
+				}
+				return np
+			}(),
+			oldNodePool: createValidNodePool(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be greater than or equal to 1", FieldPath: "properties.autoScaling.min"},
+			},
+		},
+		{
+			name: "unchanged autoscaling min zero is rejected - update",
+			newNodePool: func() *coreapi.NodePool {
+				np := createValidNodePool()
+				np.Properties.Replicas = 0
+				np.Properties.AutoScaling = &coreapi.NodePoolAutoScaling{
+					Min: 0,
+					Max: 5,
+				}
+				return np
+			}(),
+			oldNodePool: func() *coreapi.NodePool {
+				np := createValidNodePool()
+				np.Properties.Replicas = 0
+				np.Properties.AutoScaling = &coreapi.NodePoolAutoScaling{
+					Min: 0,
+					Max: 5,
+				}
+				return np
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be greater than or equal to 1", FieldPath: "properties.autoScaling.min"},
 			},
 		},
 		{
@@ -1766,7 +1845,7 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 
 // testNodePoolFeatureOptions creates validation options from feature names,
 // matching production behavior by normalizing to lowercase.
-func testNodePoolFeatureOptions(names ...string) []string {
+func testNodePoolFeatureOptions(names ...string) map[string]bool {
 	features := make([]coreapi.Feature, len(names))
 	for i, name := range names {
 		features[i] = coreapi.Feature{
@@ -1810,7 +1889,7 @@ func TestValidateNodePoolVersionWithFeatureFlags(t *testing.T) {
 	tests := []struct {
 		name         string
 		nodePool     *coreapi.NodePool
-		opOptions    []string
+		opOptions    map[string]bool
 		expectErrors []utils.ExpectedError
 	}{
 		{

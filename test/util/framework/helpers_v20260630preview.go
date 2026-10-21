@@ -139,6 +139,7 @@ func NewDefaultNodePoolParams20260630() NodePoolParams20260630 {
 		OSDiskSizeGiB:          int32(64),
 		DiskStorageAccountType: DefaultDiskStorageAccountType,
 		ChannelGroup:           DefaultOpenshiftNodePoolChannelGroup(),
+		AutoRepair:             true,
 		// NOTE: The E2E subscription must have the ExperimentalReleaseFeatures AFEC
 		// registered for these tags to be honored.
 		Tags: map[string]*string{
@@ -486,13 +487,14 @@ func BuildHCPClusterFromParams20260630(
 	}
 
 	tags, vnetIntegrationSubnetID := buildClusterNetworking(parameters.DisableSwift, parameters.Tags, parameters.VnetIntegrationSubnetID)
+	versionID, tags := buildControlPlaneVersion(parameters.OpenshiftVersionId, tags)
 	return hcpsdk20260630preview.HcpOpenShiftCluster{
 		Location: to.Ptr(location),
 		Identity: identity,
 		Tags:     tags,
 		Properties: &hcpsdk20260630preview.HcpOpenShiftClusterProperties{
 			Version: &hcpsdk20260630preview.VersionProfile{
-				ID:           to.Ptr(parameters.OpenshiftVersionId),
+				ID:           to.Ptr(versionID),
 				ChannelGroup: to.Ptr(parameters.ChannelGroup),
 			},
 			Platform: &hcpsdk20260630preview.PlatformProfile{

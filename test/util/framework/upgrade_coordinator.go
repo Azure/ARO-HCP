@@ -28,6 +28,7 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/Azure/ARO-HCP/test/pkg/filelock"
+	"github.com/Azure/ARO-HCP/test/pkg/leaseenv"
 	entrypointrun "github.com/Azure/ARO-HCP/tooling/templatize/cmd/entrypoint/run"
 )
 
@@ -338,7 +339,7 @@ func runRegionEntrypoint(ctx context.Context) error {
 // deployEnv returns the DEPLOY_ENV environment variable, which selects the
 // templatize dev-environment (e.g. "cspr", "pers").
 func deployEnv() string {
-	return os.Getenv("DEPLOY_ENV")
+	return os.Getenv(leaseenv.DeployEnvironment)
 }
 
 // overrideConfigFile returns the OVERRIDE_CONFIG_FILE environment variable.

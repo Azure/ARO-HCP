@@ -1476,6 +1476,26 @@
         "url"
       ]
     },
+    "ApiProfileUpdate": {
+      "type": "object",
+      "description": "Information about the API of a cluster.",
+      "properties": {
+        "authorizedCidrs": {
+          "type": "array",
+          "description": "The list of authorized IPv4 CIDR blocks allowed to access the API server. Maximum 500 entries.",
+          "maxItems": 500,
+          "items": {
+            "type": "string"
+          },
+          "x-ms-client-name": "authorizedCIDRs",
+          "x-ms-mutability": [
+            "read",
+            "update",
+            "create"
+          ]
+        }
+      }
+    },
     "Azure.ResourceManager.CommonTypes.ManagedServiceIdentityUpdate": {
       "type": "object",
       "description": "Managed service identity (system assigned and/or user assigned identities)",
@@ -2402,6 +2422,7 @@
           "description": "Shows the cluster API server profile",
           "x-ms-mutability": [
             "read",
+            "update",
             "create"
           ]
         },
@@ -2523,6 +2544,15 @@
         "version": {
           "$ref": "#/definitions/VersionProfileUpdate",
           "description": "Version of the control plane components",
+          "x-ms-mutability": [
+            "read",
+            "update",
+            "create"
+          ]
+        },
+        "api": {
+          "$ref": "#/definitions/ApiProfileUpdate",
+          "description": "Shows the cluster API server profile",
           "x-ms-mutability": [
             "read",
             "update",

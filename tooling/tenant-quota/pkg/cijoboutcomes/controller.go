@@ -50,6 +50,7 @@ type Writer struct {
 	gcs                     *GCSClient
 	queue, discoveryQueue   workqueue.TypedRateLimitingInterface[JobURI]
 	batches                 *ttlCache[string, struct{}]
+	names                   *nameSet
 	metrics                 writerMetrics
 	lastRepair              map[string]time.Time // discovery goroutine only, keyed by listing prefix
 	now                     func() time.Time
@@ -87,6 +88,7 @@ func NewWriter(cfg *config.Config, logger *slog.Logger) *Writer {
 		client:          &http.Client{Timeout: 2 * time.Minute},
 		queue:           newQueue(CIJobOutcomesControllerName), discoveryQueue: newQueue(CIJobDiscoveryControllerName),
 		batches: newTTLCache[string, struct{}](cfg.CIJobOutcomes.GetCacheSize(), cfg.CIJobOutcomes.GetCacheTTL()),
+		names:   newNameSet(cfg.CIJobOutcomes.GetCacheSize(), cfg.CIJobOutcomes.GetCacheTTL()),
 		metrics: newWriterMetrics(), lastRepair: map[string]time.Time{}, now: time.Now,
 		completion: fetchProwCompletion, jobDetail: fetchJobOutcomeDetail,
 		e2eRows: fetchE2ERows, observabilityRows: fetchObservabilityRows,
@@ -423,8 +425,23 @@ func (w *Writer) reconcile(ctx context.Context, uri JobURI) (time.Duration, erro
 			handled[source.tests] = len(tests) == 0
 		}
 		if missing[source.names] && (err == nil || names != nil) {
-			failures = append(failures, submitBatch(ctx, w, source.names, id, names))
-			handled[source.names] = len(names) == 0
+			// Names are gated on the table, not on the run: see nameSet. A run
+			// whose names are all written submits nothing and is done with the
+			// batch, which is why the empty case marks it handled.
+			unwritten, gateErr := w.names.unwritten(ctx, names)
+			switch {
+			case gateErr != nil:
+				failures = append(failures, fmt.Errorf("%s gate: %w", source.names, gateErr))
+				w.reportBatch(source.names, id, "error", 0, nil, gateErr)
+			default:
+				if submitErr := submitBatch(ctx, w, source.names, id, unwritten); submitErr != nil {
+					// The claim is only good for a submission that happened.
+					w.names.release(unwritten)
+					failures = append(failures, submitErr)
+				} else {
+					handled[source.names] = len(unwritten) == 0
+				}
+			}
 		}
 	}
 	if err := errors.Join(failures...); err != nil {

@@ -139,13 +139,6 @@ func (c *operationClusterDelete) SynchronizeOperation(ctx context.Context, key c
 		return fmt.Errorf("failed to get active operation: %w", err)
 	}
 
-	// TODO remove this once migration of cluster deletion from frontend to backend is fully completed.
-	if !operation.UsesNewClusterDeletionApproach {
-		return c.legacySynchronizeOperation(ctx, operation)
-	}
-
-	// From here, we know it uses the new deletion approach.
-
 	if !c.ShouldProcess(ctx, operation) {
 		return nil // no work to do
 	}
@@ -207,7 +200,10 @@ func (c *operationClusterDelete) reconcileOperationAndResourceStatus(ctx context
 
 	clusterCSID := cluster.ServiceProviderProperties.ClusterServiceID
 
-	csClusterStatus, err := c.clusterServiceClient.GetClusterStatus(ctx, *clusterCSID)
+	csCtx, cancel := context.WithTimeout(ctx, controllerutils.CSReadTimeout)
+	defer cancel()
+
+	csClusterStatus, err := c.clusterServiceClient.GetClusterStatus(csCtx, *clusterCSID)
 	if err != nil {
 		var ocmError *ocmerrors.Error
 		if !errors.As(err, &ocmError) || ocmError.Status() != http.StatusNotFound {
@@ -225,7 +221,7 @@ func (c *operationClusterDelete) reconcileOperationAndResourceStatus(ctx context
 		return nil
 	}
 
-	newOperationStatus, newOperationError, err := operationbase.ConvertClusterStatus(ctx, c.clusterServiceClient, operation, csClusterStatus, *clusterCSID)
+	newOperationStatus, newOperationError, err := operationbase.ConvertClusterStatus(csCtx, c.clusterServiceClient, operation, csClusterStatus, *clusterCSID)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -314,7 +310,10 @@ func (c *operationClusterDelete) clusterServiceStatusForDeletion(ctx context.Con
 		return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, ""), nil
 	}
 
-	csClusterStatus, err := c.clusterServiceClient.GetClusterStatus(ctx, *cluster.ServiceProviderProperties.ClusterServiceID)
+	csCtx, cancel := context.WithTimeout(ctx, controllerutils.CSReadTimeout)
+	defer cancel()
+
+	csClusterStatus, err := c.clusterServiceClient.GetClusterStatus(csCtx, *cluster.ServiceProviderProperties.ClusterServiceID)
 	if err != nil {
 		var ocmError *ocmerrors.Error
 		if errors.As(err, &ocmError) && ocmError.Status() == http.StatusNotFound {
