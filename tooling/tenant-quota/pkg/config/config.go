@@ -16,29 +16,256 @@ package config
 
 import (
 	"fmt"
+	"net/url"
 	"os"
+	"regexp"
+	"strings"
 	"time"
 
 	"gopkg.in/yaml.v3"
+
+	"k8s.io/apimachinery/pkg/util/sets"
 )
 
 const (
-	DefaultTimeout             = 30 * time.Second
-	DefaultInterval            = 15 * time.Minute
-	DefaultCacheTTL            = 24 * time.Hour
-	DefaultRoleAssignmentLimit = 4000
-	DefaultScope               = "https://graph.microsoft.com/.default"
+	DefaultTimeout       = 30 * time.Second
+	DefaultInterval      = 15 * time.Minute
+	DefaultCacheTTL      = 24 * time.Hour
+	DefaultScope         = "https://graph.microsoft.com/.default"
+	DefaultProwInterval  = 5 * time.Minute
+	DefaultProwRetention = 24 * time.Hour
+
+	DefaultCIJobOutcomesGCSBucket         = "test-platform-results-public"
+	DefaultCIJobOutcomesInterval          = 15 * time.Minute
+	DefaultCIJobOutcomesDiscoveryInterval = 30 * time.Minute
+	DefaultCIJobOutcomesCompletionDelay   = 15 * time.Minute
+	// DefaultCIJobOutcomesWindow is the minimum lookback on startup and repair polls.
+	DefaultCIJobOutcomesWindow           = 24 * time.Hour
+	DefaultCIJobOutcomesRepairInterval   = 12 * time.Hour
+	DefaultCIJobOutcomesOverlap          = 10 * time.Minute
+	DefaultCIJobOutcomesWorkers          = 10
+	DefaultCIJobOutcomesDiscoveryWorkers = 2
+	DefaultCIJobOutcomesCacheSize        = 20000
+	DefaultCIJobOutcomesCacheTTL         = 15 * time.Minute
 )
 
+var gcsBucketPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]*$`)
+
 type Config struct {
-	Interval string         `yaml:"interval"`
-	Timeout  string         `yaml:"timeout"`
-	CacheTTL string         `yaml:"cacheTTL,omitempty"`
-	Tenants  []TenantConfig `yaml:"tenants"`
+	ExitOnPanic bool           `yaml:"exitOnPanic"`
+	Interval    string         `yaml:"interval"`
+	Timeout     string         `yaml:"timeout"`
+	CacheTTL    string         `yaml:"cacheTTL,omitempty"`
+	Tenants     []TenantConfig `yaml:"tenants"`
+	Prow        ProwConfig     `yaml:"prow,omitempty"`
+
+	CIJobOutcomes CIJobOutcomesConfig `yaml:"ciJobOutcomes,omitempty"`
 
 	intervalDuration time.Duration
 	timeoutDuration  time.Duration
 	cacheTTLDuration time.Duration
+}
+
+// KustoTableConfig names a destination table and the ingestion mapping declared
+// alongside it in the table's own .kql file. The two are separate because a
+// mapping is a distinct Kusto object whose name is not derivable from the
+// table's.
+type KustoTableConfig struct {
+	Table            string `yaml:"table"`
+	IngestionMapping string `yaml:"ingestionMapping"`
+}
+
+// CIJobOutcomesConfig configures recording CI job outcomes in Kusto.
+type CIJobOutcomesConfig struct {
+	Enabled      bool   `yaml:"enabled"`
+	ClusterURI   string `yaml:"clusterURI"`
+	IngestionURI string `yaml:"ingestionURI"`
+	Database     string `yaml:"database"`
+
+	// Outcomes holds one row per run; TestNames is the test dimension; and
+	// TestResults joins the two with the per-test outcome and timings.
+	Outcomes    KustoTableConfig `yaml:"outcomes"`
+	TestNames   KustoTableConfig `yaml:"testNames"`
+	TestResults KustoTableConfig `yaml:"testResults"`
+	Discovered  KustoTableConfig `yaml:"discovered"`
+	Processed   KustoTableConfig `yaml:"processed"`
+
+	GCSBucket         string `yaml:"gcsBucket,omitempty"`
+	JobFilter         string `yaml:"jobFilter"`
+	Interval          string `yaml:"interval,omitempty"`
+	DiscoveryInterval string `yaml:"discoveryInterval,omitempty"`
+	CompletionDelay   string `yaml:"completionDelay,omitempty"`
+	Window            string `yaml:"window,omitempty"`
+	StartupSince      string `yaml:"startupSince,omitempty"`
+	RepairInterval    string `yaml:"repairInterval,omitempty"`
+	Overlap           string `yaml:"overlap,omitempty"`
+	Workers           *int   `yaml:"workers,omitempty"`
+	DiscoveryWorkers  *int   `yaml:"discoveryWorkers,omitempty"`
+	// CacheSize and CacheTTL bound recent-submission caches.
+	CacheSize *int   `yaml:"cacheSize,omitempty"`
+	CacheTTL  string `yaml:"cacheTTL,omitempty"`
+
+	intervalDuration          time.Duration
+	discoveryIntervalDuration time.Duration
+	completionDelayDuration   time.Duration
+	windowDuration            time.Duration
+	startupSince              time.Time
+	repairIntervalDuration    time.Duration
+	overlapDuration           time.Duration
+	cacheTTLDuration          time.Duration
+}
+
+func (c *CIJobOutcomesConfig) GetInterval() time.Duration {
+	return c.intervalDuration
+}
+
+func (c *CIJobOutcomesConfig) GetDiscoveryInterval() time.Duration {
+	return c.discoveryIntervalDuration
+}
+
+func (c *CIJobOutcomesConfig) GetCompletionDelay() time.Duration {
+	return c.completionDelayDuration
+}
+
+func (c *CIJobOutcomesConfig) GetWindow() time.Duration {
+	return c.windowDuration
+}
+
+func (c *CIJobOutcomesConfig) GetStartupSince() time.Time {
+	return c.startupSince
+}
+
+func (c *CIJobOutcomesConfig) GetRepairInterval() time.Duration {
+	return c.repairIntervalDuration
+}
+
+func (c *CIJobOutcomesConfig) GetOverlap() time.Duration {
+	return c.overlapDuration
+}
+
+func (c *CIJobOutcomesConfig) GetWorkers() int {
+	if c.Workers == nil {
+		return DefaultCIJobOutcomesWorkers
+	}
+	return *c.Workers
+}
+
+func (c *CIJobOutcomesConfig) GetCacheSize() int {
+	if c.CacheSize == nil {
+		return DefaultCIJobOutcomesCacheSize
+	}
+	return *c.CacheSize
+}
+
+func (c *CIJobOutcomesConfig) GetDiscoveryWorkers() int {
+	if c.DiscoveryWorkers == nil {
+		return DefaultCIJobOutcomesDiscoveryWorkers
+	}
+	return *c.DiscoveryWorkers
+}
+
+func (c *CIJobOutcomesConfig) GetCacheTTL() time.Duration {
+	return c.cacheTTLDuration
+}
+
+func (c *CIJobOutcomesConfig) validate() error {
+	if c.GCSBucket == "" {
+		c.GCSBucket = DefaultCIJobOutcomesGCSBucket
+	}
+	if !gcsBucketPattern.MatchString(c.GCSBucket) {
+		return fmt.Errorf("ciJobOutcomes.gcsBucket must be a bucket name, not a URL or path, got %q", c.GCSBucket)
+	}
+	c.startupSince = time.Time{}
+	if c.StartupSince != "" {
+		parsed, err := time.Parse(time.RFC3339, c.StartupSince)
+		if err != nil {
+			return fmt.Errorf("invalid ciJobOutcomes.startupSince %q: %w", c.StartupSince, err)
+		}
+		c.startupSince = parsed
+	}
+	if err := parseDuration(c.Interval, DefaultCIJobOutcomesInterval, &c.intervalDuration, "ciJobOutcomes.interval"); err != nil {
+		return err
+	}
+	if err := parseDuration(c.DiscoveryInterval, DefaultCIJobOutcomesDiscoveryInterval, &c.discoveryIntervalDuration, "ciJobOutcomes.discoveryInterval"); err != nil {
+		return err
+	}
+	if err := parseDuration(c.CompletionDelay, DefaultCIJobOutcomesCompletionDelay, &c.completionDelayDuration, "ciJobOutcomes.completionDelay"); err != nil {
+		return err
+	}
+	if err := parseDuration(c.Window, DefaultCIJobOutcomesWindow, &c.windowDuration, "ciJobOutcomes.window"); err != nil {
+		return err
+	}
+	if err := parseDuration(c.RepairInterval, DefaultCIJobOutcomesRepairInterval, &c.repairIntervalDuration, "ciJobOutcomes.repairInterval"); err != nil {
+		return err
+	}
+	if err := parseDuration(c.Overlap, DefaultCIJobOutcomesOverlap, &c.overlapDuration, "ciJobOutcomes.overlap"); err != nil {
+		return err
+	}
+	if err := parseDuration(c.CacheTTL, DefaultCIJobOutcomesCacheTTL, &c.cacheTTLDuration, "ciJobOutcomes.cacheTTL"); err != nil {
+		return err
+	}
+	if c.GetWorkers() <= 0 {
+		return fmt.Errorf("ciJobOutcomes.workers must be positive, got %d", c.GetWorkers())
+	}
+	if c.GetDiscoveryWorkers() <= 0 {
+		return fmt.Errorf("ciJobOutcomes.discoveryWorkers must be positive, got %d", c.GetDiscoveryWorkers())
+	}
+	if c.GetCacheSize() <= 0 {
+		return fmt.Errorf("ciJobOutcomes.cacheSize must be positive, got %d", c.GetCacheSize())
+	}
+	if !c.Enabled {
+		return nil
+	}
+
+	required := map[string]string{
+		"ciJobOutcomes.database":  c.Database,
+		"ciJobOutcomes.jobFilter": c.JobFilter,
+	}
+	for prefix, table := range map[string]KustoTableConfig{
+		"ciJobOutcomes.outcomes":    c.Outcomes,
+		"ciJobOutcomes.testNames":   c.TestNames,
+		"ciJobOutcomes.testResults": c.TestResults,
+		"ciJobOutcomes.discovered":  c.Discovered,
+		"ciJobOutcomes.processed":   c.Processed,
+	} {
+		required[prefix+".table"] = table.Table
+		required[prefix+".ingestionMapping"] = table.IngestionMapping
+	}
+	for name, value := range required {
+		if strings.TrimSpace(value) == "" {
+			return fmt.Errorf("%s is required", name)
+		}
+	}
+
+	// Every endpoint is checked here rather than left to fail on first use: a
+	// missing scheme is accepted by url.Parse and only surfaces as a connection
+	// error once the collector is already running.
+	for name, value := range map[string]string{
+		"ciJobOutcomes.clusterURI":   c.ClusterURI,
+		"ciJobOutcomes.ingestionURI": c.IngestionURI,
+	} {
+		if err := validateHTTPURL(value); err != nil {
+			return fmt.Errorf("%s %w", name, err)
+		}
+	}
+	return nil
+}
+
+type ProwConfig struct {
+	Enabled     bool                 `yaml:"enabled"`
+	BaseURL     string               `yaml:"baseURL"`
+	Interval    string               `yaml:"interval,omitempty"`
+	Retention   string               `yaml:"retention,omitempty"`
+	Repository  ProwRepositoryConfig `yaml:"repository"`
+	ExcludeJobs []string             `yaml:"excludeJobs,omitempty"`
+
+	intervalDuration  time.Duration
+	retentionDuration time.Duration
+}
+
+type ProwRepositoryConfig struct {
+	Org  string `yaml:"org"`
+	Name string `yaml:"name"`
 }
 
 type TenantConfig struct {
@@ -52,9 +279,8 @@ type TenantConfig struct {
 }
 
 type SubscriptionConfig struct {
-	Name                string   `yaml:"name"`
-	RoleAssignmentLimit int      `yaml:"roleAssignmentLimit,omitempty"`
-	Regions             []string `yaml:"regions"`
+	Name    string   `yaml:"name"`
+	Regions []string `yaml:"regions"`
 
 	// SubscriptionID is resolved at runtime from the Name field using the
 	// Azure subscriptions API. Not parsed from config YAML.
@@ -79,6 +305,24 @@ func LoadFromFile(path string) (*Config, error) {
 	return &cfg, nil
 }
 
+// LoadCIJobOutcomesFromFile validates only the selected collector, even when it
+// is disabled in the service. Tenant credentials and other collectors are unused.
+func LoadCIJobOutcomesFromFile(path string) (*Config, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("read config file %s: %w", path, err)
+	}
+	var cfg Config
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		return nil, fmt.Errorf("parse config file: %w", err)
+	}
+	cfg.CIJobOutcomes.Enabled = true
+	if err := cfg.CIJobOutcomes.validate(); err != nil {
+		return nil, err
+	}
+	return &cfg, nil
+}
+
 func (c *Config) Validate() error {
 	if err := parseDuration(c.Interval, DefaultInterval, &c.intervalDuration, "interval"); err != nil {
 		return err
@@ -87,6 +331,12 @@ func (c *Config) Validate() error {
 		return err
 	}
 	if err := parseDuration(c.CacheTTL, DefaultCacheTTL, &c.cacheTTLDuration, "cacheTTL"); err != nil {
+		return err
+	}
+	if err := c.Prow.validate(); err != nil {
+		return err
+	}
+	if err := c.CIJobOutcomes.validate(); err != nil {
 		return err
 	}
 
@@ -123,6 +373,53 @@ func (c *Config) Validate() error {
 	return nil
 }
 
+// validateHTTPURL reports whether value is a usable HTTP or HTTPS endpoint.
+func validateHTTPURL(value string) error {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return fmt.Errorf("is required")
+	}
+	parsed, err := url.Parse(trimmed)
+	if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
+		return fmt.Errorf("must be a valid HTTP or HTTPS URL, got %q", trimmed)
+	}
+	return nil
+}
+
+func (c *ProwConfig) validate() error {
+	if err := parseDuration(c.Interval, DefaultProwInterval, &c.intervalDuration, "prow.interval"); err != nil {
+		return err
+	}
+	if err := parseDuration(c.Retention, DefaultProwRetention, &c.retentionDuration, "prow.retention"); err != nil {
+		return err
+	}
+	if !c.Enabled {
+		return nil
+	}
+
+	parsedURL, err := url.Parse(strings.TrimSpace(c.BaseURL))
+	if err != nil || parsedURL.Host == "" || (parsedURL.Scheme != "http" && parsedURL.Scheme != "https") {
+		return fmt.Errorf("prow.baseURL must be a valid HTTP or HTTPS URL")
+	}
+	if strings.TrimSpace(c.Repository.Org) == "" {
+		return fmt.Errorf("prow.repository.org is required")
+	}
+	if strings.TrimSpace(c.Repository.Name) == "" {
+		return fmt.Errorf("prow.repository.name is required")
+	}
+
+	excludedJobs := sets.New[string]()
+	for i, jobName := range c.ExcludeJobs {
+		normalized := strings.TrimSpace(jobName)
+		if normalized == "" {
+			return fmt.Errorf("prow.excludeJobs[%d] must not be empty", i)
+		}
+		excludedJobs.Insert(normalized)
+	}
+	c.ExcludeJobs = sets.List(excludedJobs)
+	return nil
+}
+
 func parseDuration(raw string, defaultVal time.Duration, dst *time.Duration, name string) error {
 	if raw == "" {
 		*dst = defaultVal
@@ -149,6 +446,14 @@ func (c *Config) GetTimeout() time.Duration {
 
 func (c *Config) GetCacheTTL() time.Duration {
 	return c.cacheTTLDuration
+}
+
+func (c *ProwConfig) GetInterval() time.Duration {
+	return c.intervalDuration
+}
+
+func (c *ProwConfig) GetRetention() time.Duration {
+	return c.retentionDuration
 }
 
 // HasSubscriptions returns true if any tenant has subscription quota monitoring configured.
@@ -182,11 +487,4 @@ func (t *TenantConfig) IsDirectoryQuotaEnabled() bool {
 		return true
 	}
 	return *t.DirectoryQuota
-}
-
-func (s *SubscriptionConfig) GetRoleAssignmentLimit() int {
-	if s.RoleAssignmentLimit > 0 {
-		return s.RoleAssignmentLimit
-	}
-	return DefaultRoleAssignmentLimit
 }

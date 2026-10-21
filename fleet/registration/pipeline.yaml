@@ -36,6 +36,12 @@ resourceGroups:
       - "unknown_storage_failure"
       - "unexpected EOF"
       - "unauthorized: authentication required"
+      # Transient ACR pull/push failures during image mirroring (docker registry RegistryErrorResponse, "Please retry later").
+      - "RegistryErrorResponse"
+      - "Please retry later"
+      # Network-level failure reaching the registry (no registry response to match). AROSLSRE-2070.
+      - "connection refused"
+      - "i/o timeout"
       maximumRetryCount: 5
       durationBetweenRetries: 1m
 - name: kusto
@@ -49,6 +55,7 @@ resourceGroups:
     deploymentLevel: ResourceGroup
     outputOnly: true
 - name: management
+  stamped: true
   resourceGroup: '{{ .mgmt.rg }}'
   subscription: '{{ .mgmt.subscription.key }}'
   steps:
@@ -64,7 +71,8 @@ resourceGroups:
     parameters: ../../dev-infrastructure/configurations/mgmt-infra-lookup.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
-- name: service
+- name: svc-stamped
+  stamped: true
   resourceGroup: '{{ .svc.rg }}'
   subscription: '{{ .svc.subscription.key }}'
   steps:
@@ -81,6 +89,8 @@ resourceGroups:
     releaseNamespace: '{{ .fleet.k8s.namespace }}'
     chartDir: ./deploy
     valuesFile: ./values.yaml
+    namespaceFiles:
+    - namespace.yaml
     kustoEndpoint:
       resourceGroup: kusto
       step: kusto-lookup
@@ -89,7 +99,7 @@ resourceGroups:
     kustoTable: 'fleetLogs'
     inputVariables:
       cosmosUrl:
-        resourceGroup: service
+        resourceGroup: svc-stamped
         step: fleet-lookup
         name: cosmosDBDocumentEndpoint
       aksResourceID:
@@ -105,7 +115,7 @@ resourceGroups:
         step: infra-lookup
         name: msiKeyVaultUrl
       cxDnsZoneResourceId:
-        resourceGroup: service
+        resourceGroup: svc-stamped
         step: fleet-lookup
         name: cxDnsZoneResourceId
       hostedClustersSecretsKvMiClientId:
@@ -116,8 +126,39 @@ resourceGroups:
     - resourceGroup: global
       step: mirror-image
     externalDependsOn:
+    # we wait for CS installation because fleet needs to register the MC with CS
+    - serviceGroup: Microsoft.Azure.ARO.HCP.ClusterService
+      resourceGroup: service
+      step: deploy
+    # we wait for Maestro Server installation because fleet needs to register the MC with Maestro Server
+    - serviceGroup: Microsoft.Azure.ARO.HCP.Maestro.Server
+      resourceGroup: service
+      step: deploy
+    # we wait for the fleet service because the registration runs towards that
     - serviceGroup: Microsoft.Azure.ARO.HCP.Fleet
       resourceGroup: service
+      step: deploy
+    # the rest of the deps make sure the MC installation is complete
+    - serviceGroup: Microsoft.Azure.ARO.HCP.ACM
+      resourceGroup: management
+      step: deploy-policies
+    - serviceGroup: Microsoft.Azure.ARO.HCP.RP.HypershiftOperator
+      resourceGroup: management
+      step: deploy
+    - serviceGroup: Microsoft.Azure.ARO.HCP.KubeApplier
+      resourceGroup: management
+      step: deploy
+    - serviceGroup: Microsoft.Azure.ARO.HCP.Maestro.Agent
+      resourceGroup: management
+      step: deploy
+    - serviceGroup: Microsoft.Azure.ARO.HCP.MgmtAgent
+      resourceGroup: management
+      step: deploy
+    - serviceGroup: Microsoft.Azure.ARO.HCP.Velero
+      resourceGroup: management
+      step: deploy-velero
+    - serviceGroup: Microsoft.Azure.ARO.HCP.SecretSyncController
+      resourceGroup: management
       step: deploy
     identityFrom:
       resourceGroup: global

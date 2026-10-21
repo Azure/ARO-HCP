@@ -1,0 +1,1446 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "gridPos": {
+        "h": 4,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "code": {
+          "language": "plaintext",
+          "showLineNumbers": false,
+          "showMiniMap": false
+        },
+        "content": "### Cluster Upgrade SLOs\n\nPer-upgrade observability from `backend_cluster_version_info` via `hosted_control_plane_upgrade:*` recording rules.\n\n| SLO | Target | Alert |\n|-----|--------|-------|\n| **Reach partial** | `partial` within 20m | `userJourneyClusterUpgradeStuckInDesired` (>20m in `desired`, `for: 5m` \u2192 pages after ~25m) |\n| **Upgrade complete** | `completed` within 30m | `userJourneyClusterUpgradeStuckInProgress` (>30m in progress, `for: 5m` \u2192 pages after ~35m) |\n\n**Upgrade SLOs** \u2014 in-progress and stuck upgrade health against the 20m / 30m thresholds (alerts add a 5-minute pending window before paging).\n\n**Upgrade and Version Visualization Across the Fleet** \u2014 share of clusters with an upgrade in progress, clusters by latest active z-stream, success rate, stuck rate by z-stream (threshold via Stuck Minutes), and latest z-stream per minor (ControlPlaneDesiredVersion gateway selection).\n\n**Runbook:** [https://aka.ms/arohcp-runbook-cluster-upgrade](https://aka.ms/arohcp-runbook-cluster-upgrade)",
+        "mode": "markdown"
+      },
+      "pluginVersion": "12.4.3",
+      "title": "Dashboard Info",
+      "type": "text"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 4
+      },
+      "id": 11,
+      "panels": [],
+      "title": "Upgrade SLOs",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "datasource",
+        "uid": "-- Mixed --"
+      },
+      "description": "Upgrade-eligible clusters with a version upgrade currently in progress (desired or partial, not yet completed).",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue"
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 0,
+        "y": 5
+      },
+      "id": 3,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "12.4.3",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "sum(hosted_control_plane_upgrade:in_progress:count{cluster=~\"$cluster\"}) or vector(0)",
+          "instant": true,
+          "legendFormat": "Count of upgrades in progress",
+          "refId": "A"
+        }
+      ],
+      "title": "Count of Upgrades In Progress",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "datasource",
+        "uid": "-- Mixed --"
+      },
+      "description": "Upgrades stuck in desired for over 20 minutes without reaching partial (SLO threshold). Alert userJourneyClusterUpgradeStuckInDesired adds for: 5m and pages after ~25m.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 8,
+        "y": 5
+      },
+      "id": 4,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "12.4.3",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "sum(count by (cluster) (hosted_control_plane_upgrade:duration_in_desired:seconds{cluster=~\"$cluster\"} > 1200) or (0 * hosted_control_plane_upgrade:in_progress:count{cluster=~\"$cluster\"})) or vector(0)",
+          "instant": true,
+          "legendFormat": "Stuck in desired",
+          "refId": "A"
+        }
+      ],
+      "title": "Stuck in Desired (>20m)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "datasource",
+        "uid": "-- Mixed --"
+      },
+      "description": "Upgrades stuck in desired or partial for over 30 minutes without reaching completed (SLO threshold). Alert userJourneyClusterUpgradeStuckInProgress adds for: 5m and pages after ~35m.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 16,
+        "y": 5
+      },
+      "id": 5,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "12.4.3",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "sum(count by (cluster) (hosted_control_plane_upgrade:duration_in_progress:seconds{cluster=~\"$cluster\"} > 1800) or (0 * hosted_control_plane_upgrade:in_progress:count{cluster=~\"$cluster\"})) or vector(0)",
+          "instant": true,
+          "legendFormat": "Stuck in progress",
+          "refId": "A"
+        }
+      ],
+      "title": "Stuck in Progress (>30m)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "datasource",
+        "uid": "-- Mixed --"
+      },
+      "description": "Upgrade-eligible clusters with a version upgrade currently in progress (desired or partial, not yet completed).",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "filterable": true
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Time In Progress (Minutes)"
+            },
+            "properties": [
+              {
+                "id": "custom.filterable",
+                "value": false
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 9
+      },
+      "id": 2,
+      "options": {
+        "showHeader": true
+      },
+      "pluginVersion": "12.4.3",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "hosted_control_plane_upgrade:duration_in_progress:seconds{cluster=~\"$cluster\"} / 60",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "title": "In-Progress Upgrade Durations",
+      "type": "table",
+      "transformations": [
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "names": [
+                "cluster",
+                "resource_id",
+                "state",
+                "version",
+                "Value"
+              ]
+            }
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "^cluster$",
+            "renamePattern": "Service Cluster"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "^resource_id$",
+            "renamePattern": "Resource ID"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "^version$",
+            "renamePattern": "Target Version"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "^state$",
+            "renamePattern": "Current State"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "^Value$",
+            "renamePattern": "Time In Progress (Minutes)"
+          }
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "datasource",
+        "uid": "-- Mixed --"
+      },
+      "description": "Clusters with upgrades stuck past the 20 minute reach-partial window.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "filterable": true
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 17
+      },
+      "id": 6,
+      "options": {
+        "showHeader": true
+      },
+      "pluginVersion": "12.4.3",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "(\n  hosted_control_plane_upgrade:duration_in_desired:seconds{cluster=~\"$cluster\"}\n  and\n  hosted_control_plane_upgrade:duration_in_desired:seconds{cluster=~\"$cluster\"} > 1200\n) / 60",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "title": "Stuck in Desired Detail",
+      "type": "table",
+      "transformations": [
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "names": [
+                "cluster",
+                "resource_id",
+                "state",
+                "version",
+                "Value"
+              ]
+            }
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "^cluster$",
+            "renamePattern": "Service Cluster"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "^resource_id$",
+            "renamePattern": "Resource ID"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "^version$",
+            "renamePattern": "Target Version"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "^state$",
+            "renamePattern": "Current State"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "^Value$",
+            "renamePattern": "Time In Desired (Minutes)"
+          }
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "datasource",
+        "uid": "-- Mixed --"
+      },
+      "description": "Clusters with upgrades stuck past the 30 minute upgrade-complete window.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "filterable": true
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Time In Progress (Minutes)"
+            },
+            "properties": [
+              {
+                "id": "custom.filterable",
+                "value": false
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 25
+      },
+      "id": 7,
+      "options": {
+        "showHeader": true
+      },
+      "pluginVersion": "12.4.3",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "(\n  hosted_control_plane_upgrade:duration_in_progress:seconds{cluster=~\"$cluster\"}\n  and\n  hosted_control_plane_upgrade:duration_in_progress:seconds{cluster=~\"$cluster\"} > 1800\n) / 60",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "title": "Stuck in Progress Detail",
+      "type": "table",
+      "transformations": [
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "names": [
+                "cluster",
+                "resource_id",
+                "state",
+                "version",
+                "Value"
+              ]
+            }
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "^cluster$",
+            "renamePattern": "Service Cluster"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "^resource_id$",
+            "renamePattern": "Resource ID"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "^version$",
+            "renamePattern": "Target Version"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "^state$",
+            "renamePattern": "Current State"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "^Value$",
+            "renamePattern": "Time In Progress (Minutes)"
+          }
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 33
+      },
+      "id": 12,
+      "panels": [],
+      "title": "Upgrade and Version Visualization Across the Fleet",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "datasource",
+        "uid": "-- Mixed --"
+      },
+      "description": "Percentage of clusters with a version upgrade currently in progress (desired or partial, not completed), divided by total clusters (backend_cluster_created_time_seconds).",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 1,
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "yellow",
+                "value": 10
+              },
+              {
+                "color": "red",
+                "value": 25
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 0,
+        "y": 34
+      },
+      "id": 8,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "12.4.3",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "(\n  (sum(hosted_control_plane_upgrade:in_progress:count{cluster=~\"$cluster\"}) or vector(0))\n  /\n  (count(backend_cluster_created_time_seconds{cluster=~\"$cluster\"}) or vector(1))\n) * 100",
+          "instant": true,
+          "legendFormat": "Percentage of clusters upgrading",
+          "refId": "A"
+        }
+      ],
+      "title": "Percentage of Clusters with Upgrade In Progress",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "datasource",
+        "uid": "-- Mixed --"
+      },
+      "description": "Percentage of clusters at each z-stream, using each cluster's latest active version (highest semver among partial|completed). Percentages sum to 100% across bars.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "decimals": 1,
+          "max": 100,
+          "min": 0,
+          "unit": "percent",
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisPlacement": "auto",
+            "fillOpacity": 80,
+            "gradientMode": "none",
+            "lineWidth": 1,
+            "scaleDistribution": {
+              "type": "linear"
+            }
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 38
+      },
+      "id": 13,
+      "options": {
+        "barRadius": 0,
+        "barWidth": 0.8,
+        "fullHighlight": false,
+        "groupWidth": 0.7,
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "right",
+          "showLegend": false
+        },
+        "orientation": "horizontal",
+        "showValue": "always",
+        "stacking": "none",
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        },
+        "xTickLabelRotation": 0,
+        "xTickLabelSpacing": 0
+      },
+      "pluginVersion": "12.4.3",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "max by (resource_id, version) (\n  max without (prometheus_replica, state) (\n    backend_cluster_version_info{cluster=~\"$cluster\", state=~\"partial|completed\"} == 1\n  )\n)",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "title": "Percentage of Clusters by Latest Active Z-Stream",
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "pattern": "/^(resource_id|version|Value.*)$/"
+            }
+          }
+        },
+        {
+          "id": "extractFields",
+          "options": {
+            "source": "version",
+            "format": "regexp",
+            "regex": "^(?P<major>\\d+)\\.(?P<minor>\\d+)\\.(?P<z>\\d+)$",
+            "replace": false
+          }
+        },
+        {
+          "id": "convertFieldType",
+          "options": {
+            "conversions": [
+              {
+                "targetField": "major",
+                "destinationType": "number"
+              },
+              {
+                "targetField": "minor",
+                "destinationType": "number"
+              },
+              {
+                "targetField": "z",
+                "destinationType": "number"
+              }
+            ],
+            "fields": {}
+          }
+        },
+        {
+          "id": "calculateField",
+          "options": {
+            "alias": "_m1",
+            "mode": "binary",
+            "binary": {
+              "left": "major",
+              "operator": "*",
+              "right": 1000000
+            },
+            "replaceFields": false
+          }
+        },
+        {
+          "id": "calculateField",
+          "options": {
+            "alias": "_m2",
+            "mode": "binary",
+            "binary": {
+              "left": "minor",
+              "operator": "*",
+              "right": 1000
+            },
+            "replaceFields": false
+          }
+        },
+        {
+          "id": "calculateField",
+          "options": {
+            "alias": "_m3",
+            "mode": "binary",
+            "binary": {
+              "left": "_m1",
+              "operator": "+",
+              "right": "_m2"
+            },
+            "replaceFields": false
+          }
+        },
+        {
+          "id": "calculateField",
+          "options": {
+            "alias": "joinKey",
+            "mode": "binary",
+            "binary": {
+              "left": "_m3",
+              "operator": "+",
+              "right": "z"
+            },
+            "replaceFields": false
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": {},
+            "sort": [
+              {
+                "field": "joinKey",
+                "desc": true
+              }
+            ]
+          }
+        },
+        {
+          "id": "groupBy",
+          "options": {
+            "fields": {
+              "resource_id": {
+                "aggregations": [],
+                "operation": "groupby"
+              },
+              "version": {
+                "aggregations": [
+                  "first"
+                ],
+                "operation": "aggregate"
+              }
+            }
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "^version \\(first\\)$",
+            "renamePattern": "Version"
+          }
+        },
+        {
+          "id": "groupBy",
+          "options": {
+            "fields": {
+              "Version": {
+                "aggregations": [],
+                "operation": "groupby"
+              },
+              "resource_id": {
+                "aggregations": [
+                  "count"
+                ],
+                "operation": "aggregate"
+              }
+            }
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "^resource_id \\(count\\)$",
+            "renamePattern": "Clusters"
+          }
+        },
+        {
+          "id": "convertFieldType",
+          "options": {
+            "conversions": [
+              {
+                "targetField": "Clusters",
+                "destinationType": "number"
+              }
+            ],
+            "fields": {}
+          }
+        },
+        {
+          "id": "calculateField",
+          "options": {
+            "alias": "Percentage",
+            "mode": "binary",
+            "binary": {
+              "left": "Clusters",
+              "operator": "/",
+              "right": "Clusters"
+            },
+            "reduce": {
+              "reducer": "sum"
+            },
+            "replaceFields": false
+          }
+        },
+        {
+          "id": "calculateField",
+          "options": {
+            "alias": "Percentage",
+            "mode": "binary",
+            "binary": {
+              "left": "Percentage",
+              "operator": "*",
+              "right": 100
+            },
+            "replaceFields": true
+          }
+        },
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "names": [
+                "Version",
+                "Percentage"
+              ]
+            }
+          }
+        },
+        {
+          "id": "convertFieldType",
+          "options": {
+            "conversions": [
+              {
+                "targetField": "Percentage",
+                "destinationType": "number"
+              }
+            ],
+            "fields": {}
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": {},
+            "sort": [
+              {
+                "field": "Percentage",
+                "desc": true
+              }
+            ]
+          }
+        },
+        {
+          "id": "rowsToFields",
+          "options": {
+            "mappings": [
+              {
+                "fieldName": "Version",
+                "handlerKey": "field.name"
+              },
+              {
+                "fieldName": "Percentage",
+                "handlerKey": "field.value"
+              }
+            ]
+          }
+        }
+      ],
+      "type": "barchart"
+    },
+    {
+      "datasource": {
+        "type": "datasource",
+        "uid": "-- Mixed --"
+      },
+      "description": "Percentage of upgrades to each z-stream level that have succeeded.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 1,
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red"
+              },
+              {
+                "color": "yellow",
+                "value": 90
+              },
+              {
+                "color": "green",
+                "value": 95
+              }
+            ]
+          },
+          "unit": "percent",
+          "custom": {
+            "filterable": true
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Time"
+            },
+            "properties": [
+              {
+                "id": "custom.hidden",
+                "value": true
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 48
+      },
+      "id": 9,
+      "options": {
+        "showHeader": true
+      },
+      "pluginVersion": "12.4.3",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "(\n  (\n    count by (version) (\n      count by (version, resource_id) (\n        max without (prometheus_replica) (\n          backend_cluster_version_info{cluster=~\"$cluster\", state=\"completed\"} == 1\n        )\n        and on (resource_id)\n          hosted_control_plane_upgrade:upgrade_eligible:info{cluster=~\"$cluster\"} == 1\n      )\n    )\n    or\n    (\n      count by (version) (\n        count by (version, resource_id) (\n          max without (prometheus_replica) (\n            backend_cluster_version_info{cluster=~\"$cluster\", state=~\"desired|partial|completed\"} == 1\n          )\n          and on (resource_id)\n            hosted_control_plane_upgrade:upgrade_eligible:info{cluster=~\"$cluster\"} == 1\n        )\n      ) * 0\n    )\n  )\n  /\n  count by (version) (\n    count by (version, resource_id) (\n      max without (prometheus_replica) (\n        backend_cluster_version_info{cluster=~\"$cluster\", state=~\"desired|partial|completed\"} == 1\n      )\n      and on (resource_id)\n        hosted_control_plane_upgrade:upgrade_eligible:info{cluster=~\"$cluster\"} == 1\n    )\n  )\n) * 100",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "title": "Upgrade Success Rate by Z-Stream",
+      "transformations": [
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "pattern": "/^(version|Value.*)$/"
+            }
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "^version$",
+            "renamePattern": "Version"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "^Value.*$",
+            "renamePattern": "Percentage"
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "datasource",
+        "uid": "-- Mixed --"
+      },
+      "description": "Percentage of upgrades to each z-stream that are currently stuck (desired or partial, not completed) for more than ${stuckMinutes} minutes. Change the Stuck Minutes dashboard variable to adjust the threshold. Denominator is upgrade-eligible clusters with that version in desired|partial|completed. Uses duration_in_progress (excludes completed).",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 1,
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "yellow",
+                "value": 5
+              },
+              {
+                "color": "red",
+                "value": 15
+              }
+            ]
+          },
+          "unit": "percent",
+          "custom": {
+            "filterable": true
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Time"
+            },
+            "properties": [
+              {
+                "id": "custom.hidden",
+                "value": true
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 56
+      },
+      "id": 14,
+      "options": {
+        "showHeader": true
+      },
+      "pluginVersion": "12.4.3",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "(\n  (\n    count by (version) (\n      count by (version, resource_id) (\n        hosted_control_plane_upgrade:duration_in_progress:seconds{cluster=~\"$cluster\"} > (${stuckMinutes} * 60)\n      )\n    )\n    or\n    (\n      count by (version) (\n        count by (version, resource_id) (\n          max without (prometheus_replica) (\n            backend_cluster_version_info{cluster=~\"$cluster\", state=~\"desired|partial|completed\"} == 1\n          )\n          and on (resource_id)\n            hosted_control_plane_upgrade:upgrade_eligible:info{cluster=~\"$cluster\"} == 1\n        )\n      ) * 0\n    )\n  )\n  /\n  count by (version) (\n    count by (version, resource_id) (\n      max without (prometheus_replica) (\n        backend_cluster_version_info{cluster=~\"$cluster\", state=~\"desired|partial|completed\"} == 1\n      )\n      and on (resource_id)\n        hosted_control_plane_upgrade:upgrade_eligible:info{cluster=~\"$cluster\"} == 1\n    )\n  )\n) * 100",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "title": "Stuck Upgrade Rate by Z-Stream (>${stuckMinutes}m)",
+      "transformations": [
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "pattern": "/^(version|Value.*)$/"
+            }
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "^version$",
+            "renamePattern": "Version"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "^Value.*$",
+            "renamePattern": "Percentage"
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "datasource",
+        "uid": "-- Mixed --"
+      },
+      "description": "Highest x.y.z present in the fleet for each minor (x.y). Fleet versions are driven by the ARO-HCP ControlPlaneDesiredVersion controller, which selects the newest Cincinnati candidate in that minor that is a gateway to the next Y-stream (has an upgrade path into x.(y+1)), not necessarily Cincinnati's absolute tip in the channel.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "filterable": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Minor"
+            },
+            "properties": [
+              {
+                "id": "custom.filterable",
+                "value": true
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Latest Z-Stream"
+            },
+            "properties": [
+              {
+                "id": "custom.filterable",
+                "value": false
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 64
+      },
+      "id": 10,
+      "options": {
+        "showHeader": true
+      },
+      "pluginVersion": "12.4.3",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "count by (version, Minor) (\n  label_replace(\n    max without (prometheus_replica, state) (\n      backend_cluster_version_info{cluster=~\"$cluster\"}\n    ),\n    \"Minor\", \"$1.$2\", \"version\", \"([0-9]+)[.]([0-9]+)[.][0-9]+\"\n  )\n)",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "title": "Latest Z-Stream per Y-Stream",
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "pattern": "/^(Minor|version|Value.*)$/"
+            }
+          }
+        },
+        {
+          "id": "extractFields",
+          "options": {
+            "source": "version",
+            "format": "regexp",
+            "regex": "^(?P<maj>\\d+)\\.(?P<min>\\d+)\\.(?P<z>\\d+)$",
+            "replace": false
+          }
+        },
+        {
+          "id": "convertFieldType",
+          "options": {
+            "conversions": [
+              {
+                "targetField": "z",
+                "destinationType": "number"
+              },
+              {
+                "targetField": "maj",
+                "destinationType": "number"
+              },
+              {
+                "targetField": "min",
+                "destinationType": "number"
+              }
+            ],
+            "fields": {}
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": {},
+            "sort": [
+              {
+                "field": "z",
+                "desc": true
+              }
+            ]
+          }
+        },
+        {
+          "id": "groupBy",
+          "options": {
+            "fields": {
+              "Minor": {
+                "aggregations": [],
+                "operation": "groupby"
+              },
+              "version": {
+                "aggregations": [
+                  "first"
+                ],
+                "operation": "aggregate"
+              },
+              "maj": {
+                "aggregations": [
+                  "max"
+                ],
+                "operation": "aggregate"
+              },
+              "min": {
+                "aggregations": [
+                  "max"
+                ],
+                "operation": "aggregate"
+              }
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": {},
+            "sort": [
+              {
+                "field": "maj (max)",
+                "desc": true
+              },
+              {
+                "field": "min (max)",
+                "desc": true
+              }
+            ]
+          }
+        },
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "pattern": "/^(Minor|version \\(first\\))$/"
+            }
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "^version \\(first\\)$",
+            "renamePattern": "Latest Z-Stream"
+          }
+        }
+      ],
+      "type": "table"
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": [
+    "cluster-upgrade",
+    "aro-hcp",
+    "slo",
+    "user-journey"
+  ],
+  "templating": {
+    "list": [
+      {
+        "allowCustomValue": false,
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "includeAll": true,
+        "name": "datasource",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "regex": "^Managed_Prometheus_services-.*$",
+        "type": "datasource"
+      },
+      {
+        "allValue": ".*",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "$datasource"
+        },
+        "definition": "label_values(backend_cluster_version_info, cluster)",
+        "includeAll": true,
+        "multi": true,
+        "name": "cluster",
+        "query": "label_values(backend_cluster_version_info, cluster)",
+        "refresh": 2,
+        "type": "query",
+        "label": "Service Cluster"
+      },
+      {
+        "allowCustomValue": true,
+        "current": {
+          "text": "30",
+          "value": "30"
+        },
+        "description": "Minutes an upgrade may remain in desired/partial (not completed) before counting as stuck. Default 30 matches the upgrade-complete SLO.",
+        "hide": 0,
+        "includeAll": false,
+        "label": "Stuck Minutes",
+        "multi": false,
+        "name": "stuckMinutes",
+        "options": [
+          {
+            "selected": false,
+            "text": "20",
+            "value": "20"
+          },
+          {
+            "selected": true,
+            "text": "30",
+            "value": "30"
+          },
+          {
+            "selected": false,
+            "text": "45",
+            "value": "45"
+          },
+          {
+            "selected": false,
+            "text": "60",
+            "value": "60"
+          },
+          {
+            "selected": false,
+            "text": "90",
+            "value": "90"
+          },
+          {
+            "selected": false,
+            "text": "120",
+            "value": "120"
+          }
+        ],
+        "query": "20,30,45,60,90,120",
+        "skipUrlSync": false,
+        "type": "custom"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-7d",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Cluster Upgrade SLO",
+  "uid": "cluster-upgrade-slo",
+  "version": 1
+}

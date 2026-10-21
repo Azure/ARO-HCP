@@ -1,0 +1,5 @@
+{
+	"name": "ea-non-leaf",
+	"properties": {},
+	"type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/externalAuths"
+}

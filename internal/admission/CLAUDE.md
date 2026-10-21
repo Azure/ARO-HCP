@@ -78,6 +78,68 @@ mock in scope. It also keeps the cost of admission predictable — every
 lookup happens once, before validation, instead of being scattered through
 the admit functions.
 
+## The frontend must never reach the management cluster; mirror through ServiceProviderCluster
+
+The frontend (and therefore admission, which the frontend drives) must
+**never** have direct access to kube-applier, a `ReadDesireLister`, Maestro,
+or any management-cluster / HostedCluster Kubernetes API. The frontend is an
+ARM-facing service in the service cluster; giving it a path to the management
+clusters would widen its blast radius and break the isolation boundary between
+the RP and the clusters it manages. Do not add such a client to
+`Frontend`, and do not import `backend/pkg/kubeapplierhelpers` (or anything
+that reads ReadDesires) from `frontend/` or `internal/admission/`.
+
+When admission needs data that only exists on the management cluster — for
+example the observed `HostedCluster.status.version.desired.channels` — the
+**backend** (which legitimately watches the management clusters via the
+kube-applier ReadDesire mirror) must observe it and copy a distilled form onto
+the `ServiceProviderCluster` document in Cosmos. The frontend then prefetches
+`ServiceProviderCluster` in `newClusterAdmissionContext` like any other
+server-side state, and admission reads it from the context struct.
+
+Concrete example in this package: `admitClusterVersionID` validates a
+version.id change against `ServiceProviderCluster.Status.DesiredVersionChannels`.
+That field is populated by the backend `ControlPlaneActiveVersions` controller
+from the observed HostedCluster — the frontend never talks to the management
+cluster to obtain it. Any future "admission needs live cluster state" case must
+follow the same pattern: backend observes → mirrors onto `ServiceProviderCluster`
+→ frontend prefetches → admission reads from context.
+
+`ServiceProviderCluster.Status.ImageContentSources` is the sole source for
+image-mirror admission. The backend `ActualHostedCluster` controller mirrors the
+observed HostedCluster's `spec.imageContentSources` verbatim, including each
+source and its mirrors. This is a pointer to a slice, not a version-specific
+boolean: a nil pointer means unavailable observed state, while a non-nil pointer
+to a possibly empty slice means the HostedCluster was observed. Empty observations
+are stored as an empty, non-nil slice so JSON round trips preserve that signal.
+
+`admitClusterV5DataPlaneMirror` reads only `Status.ImageContentSources`; the full
+HostedCluster is not stored on the ServiceProviderCluster. A nil pointer fails
+closed until the backend publishes an observation. There is no fallback to
+other observed or desired state.
+
+Two rules when consuming it:
+
+- **Read actual, not desired.** Admission decides against what exists on the
+  management cluster today. `Spec.DesiredHostedCluster` is intent and may not be
+  reality; do not gate on it.
+- **Fail closed while unobserved for safety-critical upgrade gates.**
+  The mirror is nil until the backend has seen the HostedCluster, and
+  is retracted to nil once a completed read reports no HostedCluster on the
+  management cluster, so the mirror never outlives the object it mirrors. A read
+  that has not happened or did not succeed leaves the previous value in place —
+  that is "we have not looked", not "it is gone" — so a non-nil value can lag
+  reality while the kube-applier is failing to read. Treat it as the last
+  confirmed observation, not as a live view. For the v5 data-plane mirror gate,
+  a missing ServiceProviderCluster or nil ImageContentSources pointer means the
+  required source cannot be proven present, so the upgrade is rejected as
+  unavailable. An observed empty list or a list without the required source is
+  rejected as missing the mirror.
+
+Why the mirror exists at all (frontend has no kube-applier container access, so
+a frontend compromise cannot create management-cluster resources) is written up
+in [docs/generated/service-provider-control-flow.md](../../docs/generated/service-provider-control-flow.md#why-management-cluster-state-is-mirrored-onto-serviceprovidercluster).
+
 ## Tests
 
 - Unit tests live next to the implementation (`admit_xxx_test.go`).

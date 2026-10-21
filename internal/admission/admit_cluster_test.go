@@ -17,79 +17,109 @@ package admission
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/blang/semver/v4"
 
 	"k8s.io/apimachinery/pkg/api/operation"
+	"k8s.io/apimachinery/pkg/util/validation/field"
+	utilsclock "k8s.io/utils/clock"
+	clocktesting "k8s.io/utils/clock/testing"
 	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	hsv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
+
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
+	"github.com/Azure/ARO-HCP/internal/azure"
 	"github.com/Azure/ARO-HCP/internal/utils"
+	"github.com/Azure/ARO-HCP/internal/utils/apihelpers"
 )
 
 func TestMutateCluster(t *testing.T) {
-	afecRegistered := &arm.Subscription{
-		Properties: &arm.SubscriptionProperties{
-			RegisteredFeatures: &[]arm.Feature{
+	afecRegistered := &coreapi.Subscription{
+		Properties: &coreapi.SubscriptionProperties{
+			RegisteredFeatures: &[]coreapi.Feature{
 				{
-					Name:  ptr.To(api.FeatureExperimentalReleaseFeatures),
+					Name:  ptr.To(metadataapi.FeatureExperimentalReleaseFeatures),
 					State: ptr.To("Registered"),
 				},
 			},
 		},
 	}
-	noAFEC := &arm.Subscription{
-		Properties: &arm.SubscriptionProperties{},
+	noAFEC := &coreapi.Subscription{
+		Properties: &coreapi.SubscriptionProperties{},
 	}
 
 	tests := []struct {
-		name                             string
-		subscription                     *arm.Subscription
-		tags                             map[string]string
-		expectErrors                     []utils.ExpectedError
-		expectZeroFeatures               bool
-		expectedControlPlaneAvailability api.ControlPlaneAvailability
-		expectedControlPlanePodSizing    api.ControlPlanePodSizing
+		name                              string
+		subscription                      *coreapi.Subscription
+		tags                              map[string]string
+		expectErrors                      []utils.ExpectedError
+		expectZeroFeatures                bool
+		expectedControlPlaneAvailability  coreapi.ControlPlaneAvailability
+		expectedControlPlanePodSizing     coreapi.ControlPlanePodSizing
+		expectedControlPlaneOperatorImage string
+		expectedControlPlaneExactVersion  string
 	}{
+		{
+			name:               "AFEC registered recognizes disable-swift without projecting a feature",
+			subscription:       afecRegistered,
+			tags:               map[string]string{metadataapi.TagClusterDisableSwift: "true"},
+			expectZeroFeatures: true,
+		},
+		{
+			name:               "AFEC registered recognizes case insensitive disable-swift",
+			subscription:       afecRegistered,
+			tags:               map[string]string{strings.ToUpper(metadataapi.TagClusterDisableSwift): "false"},
+			expectZeroFeatures: true,
+		},
+		{
+			name:               "no AFEC ignores invalid disable-swift tag",
+			subscription:       noAFEC,
+			tags:               map[string]string{metadataapi.TagClusterDisableSwift: "invalid"},
+			expectZeroFeatures: true,
+		},
 		{
 			name:               "nil subscription ignores all tags",
 			subscription:       nil,
-			tags:               map[string]string{api.TagClusterSingleReplica: string(api.SingleReplicaControlPlane), api.TagClusterSizeOverride: string(api.MinimalControlPlanePodSizing)},
+			tags:               map[string]string{metadataapi.TagClusterSingleReplica: string(coreapi.SingleReplicaControlPlane), metadataapi.TagClusterSizeOverride: string(coreapi.MinimalControlPlanePodSizing)},
 			expectErrors:       []utils.ExpectedError{},
 			expectZeroFeatures: true,
 		},
 		{
 			name:               "no AFEC registered ignores all tags",
 			subscription:       noAFEC,
-			tags:               map[string]string{api.TagClusterSingleReplica: string(api.SingleReplicaControlPlane), api.TagClusterSizeOverride: string(api.MinimalControlPlanePodSizing)},
+			tags:               map[string]string{metadataapi.TagClusterSingleReplica: string(coreapi.SingleReplicaControlPlane), metadataapi.TagClusterSizeOverride: string(coreapi.MinimalControlPlanePodSizing)},
 			expectErrors:       []utils.ExpectedError{},
 			expectZeroFeatures: true,
 		},
 		{
 			name:                             "AFEC registered with single-replica tag only",
 			subscription:                     afecRegistered,
-			tags:                             map[string]string{api.TagClusterSingleReplica: string(api.SingleReplicaControlPlane)},
+			tags:                             map[string]string{metadataapi.TagClusterSingleReplica: string(coreapi.SingleReplicaControlPlane)},
 			expectErrors:                     []utils.ExpectedError{},
-			expectedControlPlaneAvailability: api.SingleReplicaControlPlane,
+			expectedControlPlaneAvailability: coreapi.SingleReplicaControlPlane,
 		},
 		{
 			name:                          "AFEC registered with size-override tag only",
 			subscription:                  afecRegistered,
-			tags:                          map[string]string{api.TagClusterSizeOverride: string(api.MinimalControlPlanePodSizing)},
+			tags:                          map[string]string{metadataapi.TagClusterSizeOverride: string(coreapi.MinimalControlPlanePodSizing)},
 			expectErrors:                  []utils.ExpectedError{},
-			expectedControlPlanePodSizing: api.MinimalControlPlanePodSizing,
+			expectedControlPlanePodSizing: coreapi.MinimalControlPlanePodSizing,
 		},
 		{
 			name:                             "AFEC registered with both tags",
 			subscription:                     afecRegistered,
-			tags:                             map[string]string{api.TagClusterSingleReplica: string(api.SingleReplicaControlPlane), api.TagClusterSizeOverride: string(api.MinimalControlPlanePodSizing)},
+			tags:                             map[string]string{metadataapi.TagClusterSingleReplica: string(coreapi.SingleReplicaControlPlane), metadataapi.TagClusterSizeOverride: string(coreapi.MinimalControlPlanePodSizing)},
 			expectErrors:                     []utils.ExpectedError{},
-			expectedControlPlaneAvailability: api.SingleReplicaControlPlane,
-			expectedControlPlanePodSizing:    api.MinimalControlPlanePodSizing,
+			expectedControlPlaneAvailability: coreapi.SingleReplicaControlPlane,
+			expectedControlPlanePodSizing:    coreapi.MinimalControlPlanePodSizing,
 		},
 		{
 			name:               "AFEC registered but no tags",
@@ -101,28 +131,28 @@ func TestMutateCluster(t *testing.T) {
 		{
 			name:                          "AFEC registered with case insensitive tag keys - size-override",
 			subscription:                  afecRegistered,
-			tags:                          map[string]string{"ARO-HCP.Experimental.Cluster.Size-Override": string(api.MinimalControlPlanePodSizing)},
+			tags:                          map[string]string{"ARO-HCP.Experimental.Cluster.Size-Override": string(coreapi.MinimalControlPlanePodSizing)},
 			expectErrors:                  []utils.ExpectedError{},
-			expectedControlPlanePodSizing: api.MinimalControlPlanePodSizing,
+			expectedControlPlanePodSizing: coreapi.MinimalControlPlanePodSizing,
 		},
 		{
 			name:                             "AFEC registered with case insensitive tag keys - single-replica",
 			subscription:                     afecRegistered,
-			tags:                             map[string]string{"ARO-HCP.Experimental.Cluster.Single-Replica": string(api.SingleReplicaControlPlane)},
+			tags:                             map[string]string{"ARO-HCP.Experimental.Cluster.Single-Replica": string(coreapi.SingleReplicaControlPlane)},
 			expectErrors:                     []utils.ExpectedError{},
-			expectedControlPlaneAvailability: api.SingleReplicaControlPlane,
+			expectedControlPlaneAvailability: coreapi.SingleReplicaControlPlane,
 		},
 		{
 			name:               "AFEC registered but tag values are empty strings",
 			subscription:       afecRegistered,
-			tags:               map[string]string{api.TagClusterSingleReplica: "", api.TagClusterSizeOverride: ""},
+			tags:               map[string]string{metadataapi.TagClusterSingleReplica: "", metadataapi.TagClusterSizeOverride: ""},
 			expectErrors:       []utils.ExpectedError{},
 			expectZeroFeatures: true,
 		},
 		{
 			name:         "AFEC registered but single-replica tag has invalid value",
 			subscription: afecRegistered,
-			tags:         map[string]string{api.TagClusterSingleReplica: "yes"},
+			tags:         map[string]string{metadataapi.TagClusterSingleReplica: "yes"},
 			expectErrors: []utils.ExpectedError{
 				{FieldPath: "tags", Message: "Invalid value"},
 			},
@@ -130,7 +160,7 @@ func TestMutateCluster(t *testing.T) {
 		{
 			name:         "AFEC registered but single-replica tag rejects true",
 			subscription: afecRegistered,
-			tags:         map[string]string{api.TagClusterSingleReplica: "true"},
+			tags:         map[string]string{metadataapi.TagClusterSingleReplica: "true"},
 			expectErrors: []utils.ExpectedError{
 				{FieldPath: "tags", Message: "Invalid value"},
 			},
@@ -138,7 +168,7 @@ func TestMutateCluster(t *testing.T) {
 		{
 			name:         "AFEC registered but size-override tag has invalid value",
 			subscription: afecRegistered,
-			tags:         map[string]string{api.TagClusterSizeOverride: "1"},
+			tags:         map[string]string{metadataapi.TagClusterSizeOverride: "1"},
 			expectErrors: []utils.ExpectedError{
 				{FieldPath: "tags", Message: "Invalid value"},
 			},
@@ -146,7 +176,7 @@ func TestMutateCluster(t *testing.T) {
 		{
 			name:         "AFEC registered with unrecognized experimental tag",
 			subscription: afecRegistered,
-			tags:         map[string]string{"aro-hcp.experimental.cluster.unknown-feature": string(api.SingleReplicaControlPlane)},
+			tags:         map[string]string{"aro-hcp.experimental.cluster.unknown-feature": string(coreapi.SingleReplicaControlPlane)},
 			expectErrors: []utils.ExpectedError{
 				{FieldPath: "tags", Message: "unrecognized experimental tag"},
 			},
@@ -154,14 +184,14 @@ func TestMutateCluster(t *testing.T) {
 		{
 			name:                          "AFEC registered with only size-override after removing single-replica",
 			subscription:                  afecRegistered,
-			tags:                          map[string]string{api.TagClusterSizeOverride: string(api.MinimalControlPlanePodSizing)},
+			tags:                          map[string]string{metadataapi.TagClusterSizeOverride: string(coreapi.MinimalControlPlanePodSizing)},
 			expectErrors:                  []utils.ExpectedError{},
-			expectedControlPlanePodSizing: api.MinimalControlPlanePodSizing,
+			expectedControlPlanePodSizing: coreapi.MinimalControlPlanePodSizing,
 		},
 		{
 			name:         "AFEC registered with unrecognized experimental tag in mixed case",
 			subscription: afecRegistered,
-			tags:         map[string]string{"ARO-HCP.Experimental.Cluster.Unknown-Feature": string(api.SingleReplicaControlPlane)},
+			tags:         map[string]string{"ARO-HCP.Experimental.Cluster.Unknown-Feature": string(coreapi.SingleReplicaControlPlane)},
 			expectErrors: []utils.ExpectedError{
 				{FieldPath: "tags", Message: "unrecognized experimental tag"},
 			},
@@ -176,7 +206,7 @@ func TestMutateCluster(t *testing.T) {
 		{
 			name:         "valid tag alongside unrecognized experimental tag fails",
 			subscription: afecRegistered,
-			tags:         map[string]string{api.TagClusterSingleReplica: string(api.SingleReplicaControlPlane), "aro-hcp.experimental.cluster.unknown": "value"},
+			tags:         map[string]string{metadataapi.TagClusterSingleReplica: string(coreapi.SingleReplicaControlPlane), "aro-hcp.experimental.cluster.unknown": "value"},
 			expectErrors: []utils.ExpectedError{
 				{FieldPath: "tags", Message: "unrecognized experimental tag"},
 			},
@@ -188,16 +218,94 @@ func TestMutateCluster(t *testing.T) {
 			expectErrors:       []utils.ExpectedError{},
 			expectZeroFeatures: true,
 		},
+		{
+			name:                              "AFEC registered with CPO image override tag",
+			subscription:                      afecRegistered,
+			tags:                              map[string]string{metadataapi.TagClusterCPOImageOverride: "quay.io/openshift/cpo:latest"},
+			expectErrors:                      []utils.ExpectedError{},
+			expectedControlPlaneOperatorImage: "quay.io/openshift/cpo:latest",
+		},
+		{
+			name:                              "AFEC registered with CPO image override tag with digest",
+			subscription:                      afecRegistered,
+			tags:                              map[string]string{metadataapi.TagClusterCPOImageOverride: "quay.io/openshift/cpo@sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890"},
+			expectErrors:                      []utils.ExpectedError{},
+			expectedControlPlaneOperatorImage: "quay.io/openshift/cpo@sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+		},
+		{
+			name:               "AFEC registered with empty CPO image override tag",
+			subscription:       afecRegistered,
+			tags:               map[string]string{metadataapi.TagClusterCPOImageOverride: ""},
+			expectErrors:       []utils.ExpectedError{},
+			expectZeroFeatures: true,
+		},
+		{
+			name:         "AFEC registered with whitespace-only CPO image override tag",
+			subscription: afecRegistered,
+			tags:         map[string]string{metadataapi.TagClusterCPOImageOverride: "  "},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "tags", Message: "Invalid value"},
+			},
+		},
+		{
+			name:               "no AFEC registered ignores CPO image override tag",
+			subscription:       noAFEC,
+			tags:               map[string]string{metadataapi.TagClusterCPOImageOverride: "quay.io/openshift/cpo:latest"},
+			expectErrors:       []utils.ExpectedError{},
+			expectZeroFeatures: true,
+		},
+		{
+			name:                              "AFEC registered with case insensitive CPO image override tag",
+			subscription:                      afecRegistered,
+			tags:                              map[string]string{"ARO-HCP.Experimental.Cluster.Control-Plane-Operator-Image-Override": "quay.io/openshift/cpo:v1.0"},
+			expectErrors:                      []utils.ExpectedError{},
+			expectedControlPlaneOperatorImage: "quay.io/openshift/cpo:v1.0",
+		},
+		{
+			name:               "AFEC registered with max-creation-duration tag is recognized",
+			subscription:       afecRegistered,
+			tags:               map[string]string{metadataapi.TagClusterMaxCreationDuration: "19m"},
+			expectErrors:       []utils.ExpectedError{},
+			expectZeroFeatures: true,
+		},
+		{
+			name:               "no AFEC registered ignores max-creation-duration tag",
+			subscription:       noAFEC,
+			tags:               map[string]string{metadataapi.TagClusterMaxCreationDuration: "19m"},
+			expectErrors:       []utils.ExpectedError{},
+			expectZeroFeatures: true,
+		},
+		{
+			name:               "AFEC registered with case insensitive max-creation-duration tag key",
+			subscription:       afecRegistered,
+			tags:               map[string]string{"ARO-HCP.Experimental.Cluster.Max-Creation-Duration": "19m"},
+			expectErrors:       []utils.ExpectedError{},
+			expectZeroFeatures: true,
+		},
+		{
+			// The exact-version tag is translated in the same pass as every other
+			// experimental tag, so it composes with them.
+			name:         "AFEC registered with exact-version tag alongside single-replica",
+			subscription: afecRegistered,
+			tags: map[string]string{
+				metadataapi.TagClusterControlPlaneExactVersion: "4.17.3",
+				metadataapi.TagClusterSingleReplica:            string(coreapi.SingleReplicaControlPlane),
+			},
+			expectErrors:                     []utils.ExpectedError{},
+			expectedControlPlaneAvailability: coreapi.SingleReplicaControlPlane,
+			expectedControlPlaneExactVersion: "4.17.3",
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cluster := &api.HCPOpenShiftCluster{
-				TrackedResource: arm.TrackedResource{
+			cluster := &coreapi.Cluster{
+				TrackedResource: coreapi.TrackedResource{
 					Tags: tt.tags,
 				},
 			}
 			admissionContext := &ClusterAdmissionContext{
+				Clock:           utilsclock.RealClock{},
 				Subscription:    tt.subscription,
 				OriginalCluster: cluster.DeepCopy(),
 			}
@@ -206,7 +314,7 @@ func TestMutateCluster(t *testing.T) {
 			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
 
 			if tt.expectZeroFeatures {
-				if cluster.ServiceProviderProperties.ExperimentalFeatures != (api.ExperimentalFeatures{}) {
+				if cluster.ServiceProviderProperties.ExperimentalFeatures != (coreapi.ExperimentalFeatures{}) {
 					t.Errorf("expected zero ExperimentalFeatures, got %+v", cluster.ServiceProviderProperties.ExperimentalFeatures)
 				}
 				return
@@ -218,6 +326,474 @@ func TestMutateCluster(t *testing.T) {
 			if cluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlanePodSizing != tt.expectedControlPlanePodSizing {
 				t.Errorf("expected ControlPlanePodSizing %q, got %q",
 					tt.expectedControlPlanePodSizing, cluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlanePodSizing)
+			}
+			if cluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneOperatorImage != tt.expectedControlPlaneOperatorImage {
+				t.Errorf("expected ControlPlaneOperatorImage %q, got %q",
+					tt.expectedControlPlaneOperatorImage, cluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneOperatorImage)
+			}
+			gotExact := ""
+			if exact := cluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion; exact != nil {
+				gotExact = exact.String()
+			}
+			if gotExact != tt.expectedControlPlaneExactVersion {
+				t.Errorf("expected ControlPlaneExactVersion %q, got %q", tt.expectedControlPlaneExactVersion, gotExact)
+			}
+		})
+	}
+
+}
+
+func TestMutateClusterZStreamUpdatePolicy(t *testing.T) {
+	registered := &coreapi.Subscription{Properties: &coreapi.SubscriptionProperties{
+		RegisteredFeatures: &[]coreapi.Feature{{
+			Name: ptr.To(metadataapi.FeatureExperimentalReleaseFeatures), State: ptr.To("Registered"),
+		}},
+	}}
+	tests := []struct {
+		name         string
+		subscription *coreapi.Subscription
+		tags         map[string]string
+		want         coreapi.ZStreamUpdatePolicy
+		wantError    bool
+	}{
+		{name: "Immediate", subscription: registered, tags: map[string]string{metadataapi.TagClusterZStreamUpdatePolicy: "Immediate"}, want: coreapi.ImmediateZStreamUpdatePolicy},
+		{name: "case insensitive key", subscription: registered, tags: map[string]string{"ARO-HCP.Experimental.Cluster.Z-Stream-Update-Policy": "Immediate"}, want: coreapi.ImmediateZStreamUpdatePolicy},
+		{name: "absent or removed", subscription: registered},
+		{name: "no subscription ignores policy", tags: map[string]string{metadataapi.TagClusterZStreamUpdatePolicy: "Immediate"}},
+		{name: "no AFEC ignores policy", subscription: &coreapi.Subscription{}, tags: map[string]string{metadataapi.TagClusterZStreamUpdatePolicy: "Immediate"}},
+		{name: "no AFEC ignores invalid value", subscription: &coreapi.Subscription{}, tags: map[string]string{metadataapi.TagClusterZStreamUpdatePolicy: "true"}},
+		{name: "boolean rejected", subscription: registered, tags: map[string]string{metadataapi.TagClusterZStreamUpdatePolicy: "true"}, wantError: true},
+		{name: "empty rejected", subscription: registered, tags: map[string]string{metadataapi.TagClusterZStreamUpdatePolicy: ""}, wantError: true},
+		{name: "unknown rejected", subscription: registered, tags: map[string]string{metadataapi.TagClusterZStreamUpdatePolicy: "Deferred"}, wantError: true},
+		{name: "lowercase value rejected", subscription: registered, tags: map[string]string{metadataapi.TagClusterZStreamUpdatePolicy: "immediate"}, wantError: true},
+	}
+	for _, tt := range tests {
+		for _, opType := range []operation.Type{operation.Create, operation.Update} {
+			t.Run(fmt.Sprintf("%s/%v", tt.name, opType), func(t *testing.T) {
+				cluster := &coreapi.Cluster{TrackedResource: coreapi.TrackedResource{Tags: tt.tags}}
+				var oldCluster *coreapi.Cluster
+				if opType == operation.Update {
+					// Both tag removal and loss of the AFEC must clear an existing policy.
+					cluster.ServiceProviderProperties.ExperimentalFeatures.ZStreamUpdatePolicy = coreapi.ImmediateZStreamUpdatePolicy
+					oldCluster = cluster.DeepCopy()
+				}
+				ctx := &ClusterAdmissionContext{
+					Clock: utilsclock.RealClock{}, Subscription: tt.subscription, OriginalCluster: cluster.DeepCopy(),
+				}
+				errs := MutateCluster(context.Background(), ctx, operation.Operation{Type: opType}, cluster, oldCluster)
+				var expectedErrors []utils.ExpectedError
+				if tt.wantError {
+					expectedErrors = []utils.ExpectedError{{FieldPath: "tags[" + metadataapi.TagClusterZStreamUpdatePolicy + "]", Message: `must be "Immediate"`}}
+				}
+				utils.VerifyErrorsMatch(t, expectedErrors, errs)
+				if !tt.wantError && cluster.ServiceProviderProperties.ExperimentalFeatures.ZStreamUpdatePolicy != tt.want {
+					t.Errorf("expected policy %q, got %q", tt.want, cluster.ServiceProviderProperties.ExperimentalFeatures.ZStreamUpdatePolicy)
+				}
+			})
+		}
+	}
+}
+
+func TestMutateClusterControlPlaneExactVersion(t *testing.T) {
+	afecRegistered := &coreapi.Subscription{
+		Properties: &coreapi.SubscriptionProperties{
+			RegisteredFeatures: &[]coreapi.Feature{
+				{
+					Name:  ptr.To(metadataapi.FeatureExperimentalReleaseFeatures),
+					State: ptr.To("Registered"),
+				},
+			},
+		},
+	}
+	noAFEC := &coreapi.Subscription{
+		Properties: &coreapi.SubscriptionProperties{},
+	}
+
+	const exactTag = metadataapi.TagClusterControlPlaneExactVersion
+
+	tests := []struct {
+		name              string
+		subscription      *coreapi.Subscription
+		op                operation.Operation
+		tags              map[string]string
+		versionID         string
+		oldExactVersion   string
+		expectErrors      []utils.ExpectedError
+		expectExactNil    bool
+		expectExactString string
+		expectVersionID   string
+	}{
+		{
+			name:            "no AFEC ignores exact-version tag value",
+			subscription:    noAFEC,
+			tags:            map[string]string{exactTag: "4.17.3"},
+			versionID:       "4.17",
+			expectErrors:    []utils.ExpectedError{},
+			expectExactNil:  true,
+			expectVersionID: "4.17",
+		},
+		{
+			name:            "no AFEC ignores exact-version tag present with patch version.id",
+			subscription:    noAFEC,
+			tags:            map[string]string{exactTag: ""},
+			versionID:       "4.17.3",
+			expectErrors:    []utils.ExpectedError{},
+			expectExactNil:  true,
+			expectVersionID: "4.17.3",
+		},
+		{
+			name:              "AFEC with full-semver tag value pins exact version",
+			subscription:      afecRegistered,
+			tags:              map[string]string{exactTag: "4.17.3"},
+			versionID:         "4.17",
+			expectErrors:      []utils.ExpectedError{},
+			expectExactString: "4.17.3",
+			expectVersionID:   "4.17",
+		},
+		{
+			name:         "AFEC with invalid tag value is rejected",
+			subscription: afecRegistered,
+			tags:         map[string]string{exactTag: "not-a-version"},
+			versionID:    "4.17",
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "tags", Message: "Invalid value"},
+			},
+		},
+		{
+			name:         "AFEC with minor-only tag value is rejected (must be exact)",
+			subscription: afecRegistered,
+			tags:         map[string]string{exactTag: "4.17"},
+			versionID:    "4.17",
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "tags", Message: "Invalid value"},
+			},
+		},
+		{
+			name:            "AFEC without exact-version tag does not pin from patch version.id",
+			subscription:    afecRegistered,
+			tags:            map[string]string{},
+			versionID:       "4.17.3",
+			expectErrors:    []utils.ExpectedError{},
+			expectExactNil:  true,
+			expectVersionID: "4.17.3",
+		},
+		{
+			name:              "tag pins the exact version and leaves a patch version.id untouched",
+			subscription:      afecRegistered,
+			tags:              map[string]string{exactTag: "4.17.3"},
+			versionID:         "4.17.9",
+			expectErrors:      []utils.ExpectedError{},
+			expectExactString: "4.17.3",
+			expectVersionID:   "4.17.9",
+		},
+		{
+			name:         "AFEC with present-but-empty exact-version tag is rejected",
+			subscription: afecRegistered,
+			tags:         map[string]string{exactTag: ""},
+			versionID:    "4.17.3",
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "tags", Message: "must specify an exact"},
+			},
+		},
+		{
+			name:            "AFEC with non-semver version.id is left untouched (not a full version)",
+			subscription:    afecRegistered,
+			tags:            map[string]string{},
+			versionID:       "4.20.garbage",
+			expectErrors:    []utils.ExpectedError{},
+			expectExactNil:  true,
+			expectVersionID: "4.20.garbage",
+		},
+		{
+			name:            "AFEC with nightly version.id (no tag) does not pin and is left untouched",
+			subscription:    afecRegistered,
+			tags:            map[string]string{},
+			versionID:       "5.0.0-0.nightly-multi-2026-07-09-124132",
+			expectErrors:    []utils.ExpectedError{},
+			expectExactNil:  true,
+			expectVersionID: "5.0.0-0.nightly-multi-2026-07-09-124132",
+		},
+		{
+			name:              "AFEC with nightly build in the tag pins the exact version",
+			subscription:      afecRegistered,
+			tags:              map[string]string{exactTag: "5.0.0-0.nightly-multi-2026-07-09-124132"},
+			versionID:         "5.0",
+			expectErrors:      []utils.ExpectedError{},
+			expectExactString: "5.0.0-0.nightly-multi-2026-07-09-124132",
+			expectVersionID:   "5.0",
+		},
+		{
+			name:            "AFEC without the exact-version tag clears an existing exact pin on UPDATE",
+			subscription:    afecRegistered,
+			op:              operation.Operation{Type: operation.Update},
+			tags:            map[string]string{},
+			versionID:       "4.17",
+			oldExactVersion: "4.17.3",
+			expectErrors:    []utils.ExpectedError{},
+			expectExactNil:  true,
+			expectVersionID: "4.17",
+		},
+		{
+			// The pin is derived from tags on every pass, so an unrelated tag does
+			// not resurrect a pin whose tag is gone.
+			name:            "AFEC clears an existing exact pin on UPDATE even when other tags are present",
+			subscription:    afecRegistered,
+			op:              operation.Operation{Type: operation.Update},
+			tags:            map[string]string{metadataapi.TagClusterSingleReplica: string(coreapi.SingleReplicaControlPlane)},
+			versionID:       "4.17",
+			oldExactVersion: "4.17.3",
+			expectErrors:    []utils.ExpectedError{},
+			expectExactNil:  true,
+			expectVersionID: "4.17",
+		},
+		{
+			name:              "case-insensitive tag key with value pins exact version",
+			subscription:      afecRegistered,
+			tags:              map[string]string{"ARO-HCP.Experimental.Cluster.Control-Plane-Exact-Version": "4.20.5"},
+			versionID:         "4.20",
+			expectErrors:      []utils.ExpectedError{},
+			expectExactString: "4.20.5",
+			expectVersionID:   "4.20",
+		},
+		{
+			name:              "pre-release build in the tag pins the exact version",
+			subscription:      afecRegistered,
+			tags:              map[string]string{exactTag: "4.20.0-rc.1"},
+			versionID:         "4.20",
+			expectErrors:      []utils.ExpectedError{},
+			expectExactString: "4.20.0-rc.1",
+			expectVersionID:   "4.20",
+		},
+		{
+			name:            "pre-release patch version.id (no tag) does not pin and is left untouched",
+			subscription:    afecRegistered,
+			tags:            map[string]string{},
+			versionID:       "4.20.0-rc.1",
+			expectErrors:    []utils.ExpectedError{},
+			expectExactNil:  true,
+			expectVersionID: "4.20.0-rc.1",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cluster := &coreapi.Cluster{
+				TrackedResource: coreapi.TrackedResource{
+					Tags: tt.tags,
+				},
+			}
+			cluster.CustomerProperties.Version.ID = tt.versionID
+			admissionContext := &ClusterAdmissionContext{
+				Clock:           utilsclock.RealClock{},
+				Subscription:    tt.subscription,
+				OriginalCluster: cluster.DeepCopy(),
+			}
+
+			var oldObj *coreapi.Cluster
+			if len(tt.oldExactVersion) > 0 {
+				oldObj = &coreapi.Cluster{}
+				oldExact := semver.MustParse(tt.oldExactVersion)
+				oldObj.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion = &oldExact
+			}
+
+			errs := MutateCluster(context.Background(), admissionContext, tt.op, cluster, oldObj)
+
+			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
+
+			gotExact := cluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion
+			if tt.expectExactNil {
+				if gotExact != nil {
+					t.Errorf("expected ControlPlaneExactVersion to be nil, got %q", gotExact.String())
+				}
+			} else if len(tt.expectExactString) > 0 {
+				if gotExact == nil {
+					t.Errorf("expected ControlPlaneExactVersion %q, got nil", tt.expectExactString)
+				} else if gotExact.String() != tt.expectExactString {
+					t.Errorf("expected ControlPlaneExactVersion %q, got %q", tt.expectExactString, gotExact.String())
+				}
+			}
+
+			if len(tt.expectVersionID) > 0 && cluster.CustomerProperties.Version.ID != tt.expectVersionID {
+				t.Errorf("expected version.id %q, got %q", tt.expectVersionID, cluster.CustomerProperties.Version.ID)
+			}
+		})
+	}
+
+}
+
+func TestMutateCreateOperationCompletionDeadline(t *testing.T) {
+	afecRegistered := &coreapi.Subscription{
+		Properties: &coreapi.SubscriptionProperties{
+			RegisteredFeatures: &[]coreapi.Feature{
+				{
+					Name:  ptr.To(metadataapi.FeatureExperimentalReleaseFeatures),
+					State: ptr.To("Registered"),
+				},
+			},
+		},
+	}
+	noAFEC := &coreapi.Subscription{
+		Properties: &coreapi.SubscriptionProperties{},
+	}
+
+	tests := []struct {
+		name             string
+		subscription     *coreapi.Subscription
+		tags             map[string]string
+		op               operation.Operation
+		expectErrors     []utils.ExpectedError
+		expectDeadline   bool
+		expectedDuration time.Duration
+	}{
+		{
+			name:             "CREATE defaults to 60 minutes",
+			subscription:     noAFEC,
+			tags:             nil,
+			op:               operation.Operation{Type: operation.Create},
+			expectDeadline:   true,
+			expectedDuration: 60 * time.Minute,
+		},
+		{
+			name:         "UPDATE does not set deadline",
+			subscription: noAFEC,
+			tags:         nil,
+			op:           operation.Operation{Type: operation.Update},
+		},
+		{
+			name:             "AFEC registered with max-creation-duration tag overrides default",
+			subscription:     afecRegistered,
+			tags:             map[string]string{metadataapi.TagClusterMaxCreationDuration: "19m"},
+			op:               operation.Operation{Type: operation.Create},
+			expectDeadline:   true,
+			expectedDuration: 19 * time.Minute,
+		},
+		{
+			name:             "AFEC registered without tag uses default",
+			subscription:     afecRegistered,
+			tags:             nil,
+			op:               operation.Operation{Type: operation.Create},
+			expectDeadline:   true,
+			expectedDuration: 60 * time.Minute,
+		},
+		{
+			name:             "no AFEC ignores max-creation-duration tag, uses default",
+			subscription:     noAFEC,
+			tags:             map[string]string{metadataapi.TagClusterMaxCreationDuration: "19m"},
+			op:               operation.Operation{Type: operation.Create},
+			expectDeadline:   true,
+			expectedDuration: 60 * time.Minute,
+		},
+		{
+			name:         "AFEC registered with invalid duration value",
+			subscription: afecRegistered,
+			tags:         map[string]string{metadataapi.TagClusterMaxCreationDuration: "not-a-duration"},
+			op:           operation.Operation{Type: operation.Create},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "tags", Message: "must be a valid Go duration string"},
+			},
+		},
+		{
+			name:             "nil subscription still sets default deadline",
+			subscription:     nil,
+			op:               operation.Operation{Type: operation.Create},
+			expectDeadline:   true,
+			expectedDuration: 60 * time.Minute,
+		},
+		{
+			name:             "AFEC registered with empty string tag uses default",
+			subscription:     afecRegistered,
+			tags:             map[string]string{metadataapi.TagClusterMaxCreationDuration: ""},
+			op:               operation.Operation{Type: operation.Create},
+			expectDeadline:   true,
+			expectedDuration: 60 * time.Minute,
+		},
+		{
+			name:             "AFEC registered with case insensitive tag key",
+			subscription:     afecRegistered,
+			tags:             map[string]string{"ARO-HCP.Experimental.Cluster.Max-Creation-Duration": "25m"},
+			op:               operation.Operation{Type: operation.Create},
+			expectDeadline:   true,
+			expectedDuration: 25 * time.Minute,
+		},
+		{
+			name:             "AFEC registered with compound duration",
+			subscription:     afecRegistered,
+			tags:             map[string]string{metadataapi.TagClusterMaxCreationDuration: "1h30m"},
+			op:               operation.Operation{Type: operation.Create},
+			expectDeadline:   true,
+			expectedDuration: 90 * time.Minute,
+		},
+		{
+			name:         "AFEC registered with duration less than one minute is rejected",
+			subscription: afecRegistered,
+			tags:         map[string]string{metadataapi.TagClusterMaxCreationDuration: "30s"},
+			op:           operation.Operation{Type: operation.Create},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "tags", Message: "must be at least 1m0s"},
+			},
+		},
+		{
+			name:         "AFEC registered with zero duration is rejected",
+			subscription: afecRegistered,
+			tags:         map[string]string{metadataapi.TagClusterMaxCreationDuration: "0s"},
+			op:           operation.Operation{Type: operation.Create},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "tags", Message: "must be at least 1m0s"},
+			},
+		},
+		{
+			name:         "AFEC registered with negative duration is rejected",
+			subscription: afecRegistered,
+			tags:         map[string]string{metadataapi.TagClusterMaxCreationDuration: "-5m"},
+			op:           operation.Operation{Type: operation.Create},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "tags", Message: "must be at least 1m0s"},
+			},
+		},
+		{
+			name:             "AFEC registered with exactly one minute is accepted",
+			subscription:     afecRegistered,
+			tags:             map[string]string{metadataapi.TagClusterMaxCreationDuration: "1m"},
+			op:               operation.Operation{Type: operation.Create},
+			expectDeadline:   true,
+			expectedDuration: time.Minute,
+		},
+	}
+
+	fixedNow, _ := time.Parse(time.RFC3339, "2025-01-15T10:00:00Z")
+	fakeClock := clocktesting.NewFakePassiveClock(fixedNow)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cluster := &coreapi.Cluster{
+				TrackedResource: coreapi.TrackedResource{
+					Tags: tt.tags,
+				},
+			}
+			admissionContext := &ClusterAdmissionContext{
+				Clock:           fakeClock,
+				Subscription:    tt.subscription,
+				OriginalCluster: cluster.DeepCopy(),
+			}
+			errs := MutateCluster(context.Background(), admissionContext, tt.op, cluster, nil)
+
+			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
+
+			if !tt.expectDeadline {
+				if cluster.ServiceProviderProperties.CreateOperationCompletionDeadline != nil {
+					t.Errorf("expected no deadline, got %v", cluster.ServiceProviderProperties.CreateOperationCompletionDeadline)
+				}
+				return
+			}
+
+			deadline := cluster.ServiceProviderProperties.CreateOperationCompletionDeadline
+			if deadline == nil {
+				t.Fatal("expected deadline to be set, got nil")
+			}
+
+			expected := fixedNow.Add(tt.expectedDuration)
+			if !deadline.Time.Equal(expected) {
+				t.Errorf("expected deadline %v, got %v", expected, deadline.Time)
 			}
 		})
 	}
@@ -234,58 +810,85 @@ func TestAdmitCluster_Update(t *testing.T) {
 		clusterName       = "test-cluster"
 	)
 
-	clusterResourceID := api.Must(azcorearm.ParseResourceID(
+	clusterResourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + subscriptionID +
 			"/resourceGroups/" + resourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + clusterName))
 
-	serviceProviderResourceID := api.Must(azcorearm.ParseResourceID(
+	serviceProviderResourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		clusterResourceID.String() + "/serviceProviderClusters/default"))
+	serviceProviderClusterStatusWithActiveControlPlaneVersion := func(fullVersion string) coreapi.ServiceProviderClusterStatus {
+		return coreapi.ServiceProviderClusterStatus{
+			ControlPlaneVersion: coreapi.ServiceProviderClusterStatusVersion{
+				ActiveVersions: []coreapi.ServiceProviderClusterActiveVersion{{Version: ptr.To(metadataapi.Must(semver.ParseTolerant(fullVersion)))}},
+			},
+			ImageContentSources: ptr.To([]hsv1beta1.ImageContentSource{{Source: apihelpers.OcpV5ArtDevMirrorSource}}),
+		}
+	}
 
-	serviceProviderClusterStatusWithActiveControlPlaneVersion := func(fullVersion string) api.ServiceProviderClusterStatus {
-		return api.ServiceProviderClusterStatus{
-			ControlPlaneVersion: api.ServiceProviderClusterStatusVersion{
-				ActiveVersions: []api.HCPClusterActiveVersion{{Version: ptr.To(api.Must(semver.ParseTolerant(fullVersion)))}},
+	serviceProviderClusterSpecWithDesiredControlPlaneVersion := func(fullVersion string) coreapi.ServiceProviderClusterSpec {
+		return coreapi.ServiceProviderClusterSpec{
+			ControlPlaneVersion: coreapi.ServiceProviderClusterSpecVersion{
+				DesiredVersion: ptr.To(metadataapi.Must(semver.ParseTolerant(fullVersion))),
 			},
 		}
 	}
 
-	serviceProviderClusterStatusWithActiveControlPlaneVersions := func(fullVersions ...string) api.ServiceProviderClusterStatus {
-		active := make([]api.HCPClusterActiveVersion, 0, len(fullVersions))
+	serviceProviderClusterStatusWithActiveControlPlaneVersions := func(fullVersions ...string) coreapi.ServiceProviderClusterStatus {
+		active := make([]coreapi.ServiceProviderClusterActiveVersion, 0, len(fullVersions))
 		for _, v := range fullVersions {
-			active = append(active, api.HCPClusterActiveVersion{Version: ptr.To(api.Must(semver.ParseTolerant(v)))})
+			active = append(active, coreapi.ServiceProviderClusterActiveVersion{Version: ptr.To(metadataapi.Must(semver.ParseTolerant(v)))})
 		}
-		return api.ServiceProviderClusterStatus{
-			ControlPlaneVersion: api.ServiceProviderClusterStatusVersion{ActiveVersions: active},
+		return coreapi.ServiceProviderClusterStatus{
+			ControlPlaneVersion: coreapi.ServiceProviderClusterStatusVersion{ActiveVersions: active},
+			ImageContentSources: ptr.To([]hsv1beta1.ImageContentSource{{Source: apihelpers.OcpV5ArtDevMirrorSource}}),
 		}
 	}
 
-	makeTestNodePool := func(name, versionID string) *api.HCPOpenShiftClusterNodePool {
-		nodePoolResourceID := api.Must(azcorearm.ParseResourceID(
+	makeTestNodePool := func(name, versionID string) *coreapi.NodePool {
+		nodePoolResourceID := metadataapi.Must(azcorearm.ParseResourceID(
 			clusterResourceID.String() + "/nodePools/" + name))
-		return &api.HCPOpenShiftClusterNodePool{
-			CosmosMetadata: arm.CosmosMetadata{
-				ResourceID: nodePoolResourceID,
+		return &coreapi.NodePool{
+			CosmosMetadata: coreapi.CosmosMetadata{
+				ResourceID:   nodePoolResourceID,
+				PartitionKey: strings.ToLower(nodePoolResourceID.SubscriptionID),
 			},
-			TrackedResource: arm.NewTrackedResource(nodePoolResourceID, "eastus"),
-			Properties: api.HCPOpenShiftClusterNodePoolProperties{
-				Version: api.NodePoolVersionProfile{ID: versionID},
+			TrackedResource: coreapi.NewTrackedResource(nodePoolResourceID, "eastus"),
+			Properties: coreapi.NodePoolProperties{
+				Version: coreapi.NodePoolVersionProfile{ID: versionID},
 			},
 		}
 	}
 
-	makeServiceProviderNodePool := func(nodePoolName string, activeFullVersions ...string) *api.ServiceProviderNodePool {
-		npResourceID := api.Must(azcorearm.ParseResourceID(clusterResourceID.String() + "/nodePools/" + nodePoolName))
-		spResourceID := api.Must(azcorearm.ParseResourceID(fmt.Sprintf("%s/%s/%s",
-			npResourceID.String(), api.ServiceProviderNodePoolResourceTypeName, api.ServiceProviderNodePoolResourceName)))
-		active := make([]api.HCPNodePoolActiveVersion, 0, len(activeFullVersions))
+	makeServiceProviderNodePool := func(nodePoolName string, activeFullVersions ...string) *coreapi.ServiceProviderNodePool {
+		npResourceID := metadataapi.Must(azcorearm.ParseResourceID(clusterResourceID.String() + "/nodePools/" + nodePoolName))
+		spResourceID := metadataapi.Must(azcorearm.ParseResourceID(fmt.Sprintf("%s/%s/%s",
+			npResourceID.String(), coreapi.ServiceProviderNodePoolResourceTypeName, coreapi.ServiceProviderNodePoolResourceName)))
+		active := make([]coreapi.ServiceProviderNodePoolActiveVersion, 0, len(activeFullVersions))
 		for _, v := range activeFullVersions {
-			active = append(active, api.HCPNodePoolActiveVersion{Version: ptr.To(api.Must(semver.ParseTolerant(v)))})
+			active = append(active, coreapi.ServiceProviderNodePoolActiveVersion{Version: ptr.To(metadataapi.Must(semver.ParseTolerant(v)))})
 		}
-		return &api.ServiceProviderNodePool{
-			CosmosMetadata: api.CosmosMetadata{ResourceID: spResourceID},
-			Status: api.ServiceProviderNodePoolStatus{
-				NodePoolVersion: api.ServiceProviderNodePoolStatusVersion{ActiveVersions: active},
+		return &coreapi.ServiceProviderNodePool{
+			CosmosMetadata: coreapi.CosmosMetadata{ResourceID: spResourceID, PartitionKey: strings.ToLower(spResourceID.SubscriptionID)},
+			Status: coreapi.ServiceProviderNodePoolStatus{
+				NodePoolVersion: coreapi.ServiceProviderNodePoolStatusVersion{ActiveVersions: active},
+			},
+		}
+	}
+
+	kmsEtcdProfile := func(keyVersion string) coreapi.EtcdProfile {
+		return coreapi.EtcdProfile{
+			DataEncryption: coreapi.EtcdDataEncryptionProfile{
+				KeyManagementMode: metadataapi.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
+				CustomerManaged: &coreapi.CustomerManagedEncryptionProfile{
+					Kms: &coreapi.KmsEncryptionProfile{
+						ActiveKey: coreapi.KmsKey{
+							Name:      "test-key",
+							VaultName: "test-vault",
+							Version:   keyVersion,
+						},
+					},
+				},
 			},
 		}
 	}
@@ -293,34 +896,41 @@ func TestAdmitCluster_Update(t *testing.T) {
 	tests := []struct {
 		name                         string
 		oldClusterVersionID          string
-		clusterVersionID             string
-		serviceProviderClusterStatus api.ServiceProviderClusterStatus
-		nodePools                    []*api.HCPOpenShiftClusterNodePool
-		serviceProviderNodePools     []*api.ServiceProviderNodePool
+		channelGroup                 string
+		etcd                         coreapi.EtcdProfile
+		options                      map[string]bool
+		serviceProviderClusterSpec   coreapi.ServiceProviderClusterSpec
+		serviceProviderClusterStatus coreapi.ServiceProviderClusterStatus
+		oldClusterExactVersionPin    string // control-plane exact-version pin already on the cluster, if any
+		nodePools                    []*coreapi.NodePool
+		serviceProviderNodePools     []*coreapi.ServiceProviderNodePool
+		newClusterFromOld            func(*coreapi.Cluster) //This method uses a copy of the oldCluster, changes are applied to that copy.
 		expectErrors                 []utils.ExpectedError
 	}{
 		{
 			name:                         "empty desired version skips admission",
 			oldClusterVersionID:          "4.10",
-			clusterVersionID:             "",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.22"),
-			nodePools:                    []*api.HCPOpenShiftClusterNodePool{makeTestNodePool("np1", "4.10.0")},
-			expectErrors:                 []utils.ExpectedError{},
+			nodePools:                    []*coreapi.NodePool{makeTestNodePool("np1", "4.10.0")},
+			newClusterFromOld: func(oldCopy *coreapi.Cluster) {
+				oldCopy.CustomerProperties.Version.ID = ""
+			},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name:                         "unchanged version skips admission",
 			oldClusterVersionID:          "5.0",
-			clusterVersionID:             "5.0",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.22"),
-			nodePools:                    []*api.HCPOpenShiftClusterNodePool{makeTestNodePool("workers", "4.20.0")},
+			nodePools:                    []*coreapi.NodePool{makeTestNodePool("workers", "4.20.0")},
 			expectErrors:                 []utils.ExpectedError{},
 		},
 		{
 			name:                         "unparsable old version id",
 			oldClusterVersionID:          "4.x",
-			clusterVersionID:             "4.22",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.22"),
-			nodePools:                    nil,
+			newClusterFromOld: func(c *coreapi.Cluster) {
+				c.CustomerProperties.Version.ID = "4.22"
+			},
 			expectErrors: []utils.ExpectedError{
 				{FieldPath: "properties.version.id", Message: "Invalid character(s) found in minor number"},
 			},
@@ -328,25 +938,28 @@ func TestAdmitCluster_Update(t *testing.T) {
 		{
 			name:                         "skips skew vs lowest when old minor matches lowest active cluster version",
 			oldClusterVersionID:          "4.21",
-			clusterVersionID:             "4.23",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.21"),
-			nodePools:                    nil,
-			expectErrors:                 []utils.ExpectedError{},
+			newClusterFromOld: func(c *coreapi.Cluster) {
+				c.CustomerProperties.Version.ID = "4.23"
+			},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name:                         "allows 4.22 to 5.0 with active cluster version 4.22",
 			oldClusterVersionID:          "4.22",
-			clusterVersionID:             "5.0",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.22"),
-			nodePools:                    nil,
-			expectErrors:                 []utils.ExpectedError{},
+			newClusterFromOld: func(c *coreapi.Cluster) {
+				c.CustomerProperties.Version.ID = "5.0"
+			},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name:                         "rejects 5.1 when old minor below lowest active cluster version",
 			oldClusterVersionID:          "4.21",
-			clusterVersionID:             "5.1",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.22"),
-			nodePools:                    nil,
+			newClusterFromOld: func(c *coreapi.Cluster) {
+				c.CustomerProperties.Version.ID = "5.1"
+			},
 			expectErrors: []utils.ExpectedError{
 				{FieldPath: "properties.version.id", Message: "invalid upgrade path"},
 			},
@@ -354,9 +967,10 @@ func TestAdmitCluster_Update(t *testing.T) {
 		{
 			name:                         "rejects 4.24 when old minor below lowest active cluster version",
 			oldClusterVersionID:          "4.21",
-			clusterVersionID:             "4.24",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.22"),
-			nodePools:                    nil,
+			newClusterFromOld: func(c *coreapi.Cluster) {
+				c.CustomerProperties.Version.ID = "4.24"
+			},
 			expectErrors: []utils.ExpectedError{
 				{FieldPath: "properties.version.id", Message: "only upgrade to the next minor is allowed"},
 			},
@@ -364,9 +978,10 @@ func TestAdmitCluster_Update(t *testing.T) {
 		{
 			name:                         "rejects version below highest active cluster version",
 			oldClusterVersionID:          "4.22",
-			clusterVersionID:             "4.21",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.22"),
-			nodePools:                    nil,
+			newClusterFromOld: func(c *coreapi.Cluster) {
+				c.CustomerProperties.Version.ID = "4.21"
+			},
 			expectErrors: []utils.ExpectedError{
 				{FieldPath: "properties.version.id", Message: "must be at least"},
 			},
@@ -374,17 +989,19 @@ func TestAdmitCluster_Update(t *testing.T) {
 		{
 			name:                         "allows upgrade across adjacent active cluster minors",
 			oldClusterVersionID:          "4.21",
-			clusterVersionID:             "4.22",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersions("4.22", "4.21"),
-			nodePools:                    nil,
-			expectErrors:                 []utils.ExpectedError{},
+			newClusterFromOld: func(c *coreapi.Cluster) {
+				c.CustomerProperties.Version.ID = "4.22"
+			},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name:                         "rejects skip minor vs lowest when fleet spans minors",
 			oldClusterVersionID:          "4.21",
-			clusterVersionID:             "4.22",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersions("4.20", "4.22"),
-			nodePools:                    nil,
+			newClusterFromOld: func(c *coreapi.Cluster) {
+				c.CustomerProperties.Version.ID = "4.22"
+			},
 			expectErrors: []utils.ExpectedError{
 				{FieldPath: "properties.version.id", Message: "only upgrade to the next minor is allowed"},
 			},
@@ -392,9 +1009,11 @@ func TestAdmitCluster_Update(t *testing.T) {
 		{
 			name:                         "rejects when node pool over two minors behind",
 			oldClusterVersionID:          "4.20",
-			clusterVersionID:             "4.21",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.20"),
-			nodePools:                    []*api.HCPOpenShiftClusterNodePool{makeTestNodePool("workers", "4.17.0")},
+			nodePools:                    []*coreapi.NodePool{makeTestNodePool("workers", "4.17.0")},
+			newClusterFromOld: func(c *coreapi.Cluster) {
+				c.CustomerProperties.Version.ID = "4.21"
+			},
 			expectErrors: []utils.ExpectedError{
 				{FieldPath: "properties.version.id", Message: "must not be more than two minor versions ahead"},
 			},
@@ -402,9 +1021,8 @@ func TestAdmitCluster_Update(t *testing.T) {
 		{
 			name:                         "allows no-op version with node pools in skew",
 			oldClusterVersionID:          "4.20",
-			clusterVersionID:             "4.20",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.20"),
-			nodePools: []*api.HCPOpenShiftClusterNodePool{
+			nodePools: []*coreapi.NodePool{
 				makeTestNodePool("workers", "4.18.0"),
 				makeTestNodePool("infra", "4.20.3"),
 				makeTestNodePool("spot", "4.20.1"),
@@ -414,49 +1032,61 @@ func TestAdmitCluster_Update(t *testing.T) {
 		{
 			name:                         "allows 4.22 to 5.0 node pool 4.22",
 			oldClusterVersionID:          "4.22",
-			clusterVersionID:             "5.0",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.22"),
-			nodePools:                    []*api.HCPOpenShiftClusterNodePool{makeTestNodePool("workers", "4.22.0")},
-			expectErrors:                 []utils.ExpectedError{},
+			nodePools:                    []*coreapi.NodePool{makeTestNodePool("workers", "4.22.0")},
+			newClusterFromOld: func(c *coreapi.Cluster) {
+				c.CustomerProperties.Version.ID = "5.0"
+			},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name:                         "allows 4.22 to 5.0 node pool 4.21",
 			oldClusterVersionID:          "4.22",
-			clusterVersionID:             "5.0",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.22"),
-			nodePools:                    []*api.HCPOpenShiftClusterNodePool{makeTestNodePool("workers", "4.21.0")},
-			expectErrors:                 []utils.ExpectedError{},
+			nodePools:                    []*coreapi.NodePool{makeTestNodePool("workers", "4.21.0")},
+			newClusterFromOld: func(c *coreapi.Cluster) {
+				c.CustomerProperties.Version.ID = "5.0"
+			},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name:                         "allows 4.23 to 5.1 node pool 4.22",
 			oldClusterVersionID:          "4.23",
-			clusterVersionID:             "5.1",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.23"),
-			nodePools:                    []*api.HCPOpenShiftClusterNodePool{makeTestNodePool("workers", "4.22.0")},
-			expectErrors:                 []utils.ExpectedError{},
+			nodePools:                    []*coreapi.NodePool{makeTestNodePool("workers", "4.22.0")},
+			newClusterFromOld: func(c *coreapi.Cluster) {
+				c.CustomerProperties.Version.ID = "5.1"
+			},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name:                         "allows 4.23 to 5.1 node pool 4.23",
 			oldClusterVersionID:          "4.23",
-			clusterVersionID:             "5.1",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.23"),
-			nodePools:                    []*api.HCPOpenShiftClusterNodePool{makeTestNodePool("workers", "4.23.0")},
-			expectErrors:                 []utils.ExpectedError{},
+			nodePools:                    []*coreapi.NodePool{makeTestNodePool("workers", "4.23.0")},
+			newClusterFromOld: func(c *coreapi.Cluster) {
+				c.CustomerProperties.Version.ID = "5.1"
+			},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name:                         "allows 5.1 to 5.2 node pool 4.23",
 			oldClusterVersionID:          "5.1",
-			clusterVersionID:             "5.2",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("5.1"),
-			nodePools:                    []*api.HCPOpenShiftClusterNodePool{makeTestNodePool("workers", "4.23.0")},
-			expectErrors:                 []utils.ExpectedError{},
+			nodePools:                    []*coreapi.NodePool{makeTestNodePool("workers", "4.23.0")},
+			newClusterFromOld: func(c *coreapi.Cluster) {
+				c.CustomerProperties.Version.ID = "5.2"
+			},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name:                         "rejects 4.22 to 5.0 node pool 4.20",
 			oldClusterVersionID:          "4.22",
-			clusterVersionID:             "5.0",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.22"),
-			nodePools:                    []*api.HCPOpenShiftClusterNodePool{makeTestNodePool("workers", "4.20.0")},
+			nodePools:                    []*coreapi.NodePool{makeTestNodePool("workers", "4.20.0")},
+			newClusterFromOld: func(c *coreapi.Cluster) {
+				c.CustomerProperties.Version.ID = "5.0"
+			},
 			expectErrors: []utils.ExpectedError{
 				{FieldPath: "properties.version.id", Message: "incompatible with node pool"},
 			},
@@ -464,9 +1094,11 @@ func TestAdmitCluster_Update(t *testing.T) {
 		{
 			name:                         "rejects 4.23 to 5.1 node pool 4.21",
 			oldClusterVersionID:          "4.23",
-			clusterVersionID:             "5.1",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.23"),
-			nodePools:                    []*api.HCPOpenShiftClusterNodePool{makeTestNodePool("workers", "4.21.0")},
+			nodePools:                    []*coreapi.NodePool{makeTestNodePool("workers", "4.21.0")},
+			newClusterFromOld: func(c *coreapi.Cluster) {
+				c.CustomerProperties.Version.ID = "5.1"
+			},
 			expectErrors: []utils.ExpectedError{
 				{FieldPath: "properties.version.id", Message: "incompatible with node pool"},
 			},
@@ -474,9 +1106,11 @@ func TestAdmitCluster_Update(t *testing.T) {
 		{
 			name:                         "rejects 4.22 to 5.0 node pool 4.23",
 			oldClusterVersionID:          "4.22",
-			clusterVersionID:             "5.0",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.22"),
-			nodePools:                    []*api.HCPOpenShiftClusterNodePool{makeTestNodePool("workers", "4.23.0")},
+			nodePools:                    []*coreapi.NodePool{makeTestNodePool("workers", "4.23.0")},
+			newClusterFromOld: func(c *coreapi.Cluster) {
+				c.CustomerProperties.Version.ID = "5.0"
+			},
 			expectErrors: []utils.ExpectedError{
 				{FieldPath: "properties.version.id", Message: "incompatible with node pool"},
 			},
@@ -484,11 +1118,13 @@ func TestAdmitCluster_Update(t *testing.T) {
 		{
 			name:                         "rejects 4.22 to 5.0 mixed node pool minors",
 			oldClusterVersionID:          "4.22",
-			clusterVersionID:             "5.0",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.22"),
-			nodePools: []*api.HCPOpenShiftClusterNodePool{
+			nodePools: []*coreapi.NodePool{
 				makeTestNodePool("workers", "4.22.0"),
 				makeTestNodePool("legacy", "4.20.0"),
+			},
+			newClusterFromOld: func(c *coreapi.Cluster) {
+				c.CustomerProperties.Version.ID = "5.0"
 			},
 			expectErrors: []utils.ExpectedError{
 				{FieldPath: "properties.version.id", Message: "incompatible with node pool"},
@@ -497,10 +1133,12 @@ func TestAdmitCluster_Update(t *testing.T) {
 		{
 			name:                         "rejects 4.22 to 5.0 sp node pool behind customer minor",
 			oldClusterVersionID:          "4.22",
-			clusterVersionID:             "5.0",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.22"),
-			nodePools:                    []*api.HCPOpenShiftClusterNodePool{makeTestNodePool("workers", "4.22.0")},
-			serviceProviderNodePools:     []*api.ServiceProviderNodePool{makeServiceProviderNodePool("workers", "4.17.0")},
+			nodePools:                    []*coreapi.NodePool{makeTestNodePool("workers", "4.22.0")},
+			serviceProviderNodePools:     []*coreapi.ServiceProviderNodePool{makeServiceProviderNodePool("workers", "4.17.0")},
+			newClusterFromOld: func(c *coreapi.Cluster) {
+				c.CustomerProperties.Version.ID = "5.0"
+			},
 			expectErrors: []utils.ExpectedError{
 				{FieldPath: "properties.version.id", Message: "incompatible with node pool"},
 			},
@@ -508,10 +1146,12 @@ func TestAdmitCluster_Update(t *testing.T) {
 		{
 			name:                         "rejects minor upgrade sp node pool two minors behind",
 			oldClusterVersionID:          "4.20",
-			clusterVersionID:             "4.21",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.20"),
-			nodePools:                    []*api.HCPOpenShiftClusterNodePool{makeTestNodePool("workers", "4.20.0")},
-			serviceProviderNodePools:     []*api.ServiceProviderNodePool{makeServiceProviderNodePool("workers", "4.17.0")},
+			nodePools:                    []*coreapi.NodePool{makeTestNodePool("workers", "4.20.0")},
+			serviceProviderNodePools:     []*coreapi.ServiceProviderNodePool{makeServiceProviderNodePool("workers", "4.17.0")},
+			newClusterFromOld: func(c *coreapi.Cluster) {
+				c.CustomerProperties.Version.ID = "4.21"
+			},
 			expectErrors: []utils.ExpectedError{
 				{FieldPath: "properties.version.id", Message: "must not be more than two minor versions ahead"},
 			},
@@ -519,10 +1159,12 @@ func TestAdmitCluster_Update(t *testing.T) {
 		{
 			name:                         "rejects 4.22 to 5.0 incompatible lowest active cluster version",
 			oldClusterVersionID:          "4.22",
-			clusterVersionID:             "5.0",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.22"),
-			nodePools:                    []*api.HCPOpenShiftClusterNodePool{makeTestNodePool("workers", "4.22.0")},
-			serviceProviderNodePools:     []*api.ServiceProviderNodePool{makeServiceProviderNodePool("workers", "4.22.0", "4.17.0")},
+			nodePools:                    []*coreapi.NodePool{makeTestNodePool("workers", "4.22.0")},
+			serviceProviderNodePools:     []*coreapi.ServiceProviderNodePool{makeServiceProviderNodePool("workers", "4.22.0", "4.17.0")},
+			newClusterFromOld: func(c *coreapi.Cluster) {
+				c.CustomerProperties.Version.ID = "5.0"
+			},
 			expectErrors: []utils.ExpectedError{
 				{FieldPath: "properties.version.id", Message: "incompatible with node pool"},
 			},
@@ -530,11 +1172,180 @@ func TestAdmitCluster_Update(t *testing.T) {
 		{
 			name:                         "allows 4.22 to 5.0 compatible active cluster versions",
 			oldClusterVersionID:          "4.22",
-			clusterVersionID:             "5.0",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.22"),
-			nodePools:                    []*api.HCPOpenShiftClusterNodePool{makeTestNodePool("workers", "4.22.0")},
-			serviceProviderNodePools:     []*api.ServiceProviderNodePool{makeServiceProviderNodePool("workers", "4.22.1", "4.22.0")},
+			nodePools:                    []*coreapi.NodePool{makeTestNodePool("workers", "4.22.0")},
+			serviceProviderNodePools:     []*coreapi.ServiceProviderNodePool{makeServiceProviderNodePool("workers", "4.22.1", "4.22.0")},
+			newClusterFromOld: func(c *coreapi.Cluster) {
+				c.CustomerProperties.Version.ID = "5.0"
+			},
+			expectErrors: []utils.ExpectedError{},
+		},
+
+		{
+			name:                         "allows stable to nightly upgrade in same minor (major.minor comparison)",
+			oldClusterVersionID:          "4.20",
+			channelGroup:                 "stable",
+			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.20.8"),
+			nodePools:                    []*coreapi.NodePool{makeTestNodePool("workers", "4.20.0")},
+			newClusterFromOld: func(c *coreapi.Cluster) {
+				c.CustomerProperties.Version.ID = "4.20.0-0.nightly-2026-10-02-150000"
+				c.CustomerProperties.Version.ChannelGroup = "nightly"
+			},
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name:                         "allows nightly to nightly upgrade in same minor (major.minor comparison)",
+			oldClusterVersionID:          "4.20.0-0.nightly-2026-10-01-125400",
+			channelGroup:                 "nightly",
+			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.20.0-0.nightly-2026-10-01-125400"),
+			nodePools:                    []*coreapi.NodePool{makeTestNodePool("workers", "4.20.0-0.nightly-2026-10-01-125400")},
+			newClusterFromOld: func(c *coreapi.Cluster) {
+				c.CustomerProperties.Version.ID = "4.20.0-0.nightly-2026-10-02-150000"
+			},
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name:                         "allows nightly to stable upgrade in same minor",
+			oldClusterVersionID:          "4.20.0-0.nightly-2026-10-01-125400",
+			channelGroup:                 "nightly",
+			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.20.0-0.nightly-2026-10-01-125400"),
+			nodePools:                    []*coreapi.NodePool{makeTestNodePool("workers", "4.20.0-0.nightly-2026-10-01-125400")},
+			newClusterFromOld: func(c *coreapi.Cluster) {
+				c.CustomerProperties.Version.ID = "4.20"
+			},
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name:                         "allows nightly to stable upgrade",
+			oldClusterVersionID:          "4.20.0-0.nightly-2026-10-01-125400",
+			channelGroup:                 "nightly",
+			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.20.0-0.nightly-2026-10-01-125400"),
+			nodePools:                    []*coreapi.NodePool{makeTestNodePool("workers", "4.20.0-0.nightly-2026-10-01-125400")},
+			newClusterFromOld: func(c *coreapi.Cluster) {
+				c.CustomerProperties.Version.ID = "4.21"
+			},
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name:                         "rejects nightly downgrade to different minor",
+			oldClusterVersionID:          "4.21.0-0.nightly-2026-10-01-125400",
+			channelGroup:                 "nightly",
+			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.21.0-0.nightly-2026-10-01-125400"),
+			nodePools:                    []*coreapi.NodePool{makeTestNodePool("workers", "4.21.0-0.nightly-2026-10-01-125400")},
+			newClusterFromOld: func(c *coreapi.Cluster) {
+				c.CustomerProperties.Version.ID = "4.20.0-0.nightly-2026-10-02-150000"
+			},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.version.id", Message: "must be at least"},
+			},
+		},
+		{
+			name:                         "kms key version change allowed at 4.22 nightly",
+			oldClusterVersionID:          "4.22",
+			channelGroup:                 "nightly",
+			etcd:                         kmsEtcdProfile("old-version"),
+			options:                      map[string]bool{metadataapi.APIVersionOption(metadataapi.APIVersionV20260630Preview): true},
+			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.22.0-0.nightly-multi-2026-06-29-132714"),
+			newClusterFromOld: func(c *coreapi.Cluster) {
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.ActiveKey.Version = "new-version"
+			},
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name:                         "kms key version change allowed at 4.22",
+			oldClusterVersionID:          "4.22",
+			etcd:                         kmsEtcdProfile("old-version"),
+			options:                      map[string]bool{metadataapi.APIVersionOption(metadataapi.APIVersionV20260630Preview): true},
+			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.22.4"),
+			newClusterFromOld: func(c *coreapi.Cluster) {
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.ActiveKey.Version = "new-version"
+			},
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name:                         "kms key version change allowed at 5.0",
+			oldClusterVersionID:          "4.22",
+			etcd:                         kmsEtcdProfile("old-version"),
+			options:                      map[string]bool{metadataapi.APIVersionOption(metadataapi.APIVersionV20260630Preview): true},
+			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("5.0.1"),
+			newClusterFromOld: func(c *coreapi.Cluster) {
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.ActiveKey.Version = "new-version"
+			},
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name:                         "kms key version change blocked at 4.21",
+			oldClusterVersionID:          "4.21",
+			etcd:                         kmsEtcdProfile("old-version"),
+			options:                      map[string]bool{metadataapi.APIVersionOption(metadataapi.APIVersionV20260630Preview): true},
+			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.21.5"),
+			newClusterFromOld: func(c *coreapi.Cluster) {
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.ActiveKey.Version = "new-version"
+			},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.etcd.dataEncryption.customerManaged.kms.activeKey.version", Message: "KMS key version rotation requires cluster version 4.22.0 or above"},
+			},
+		},
+		{
+			name:                         "kms key version change allowed during upgrade with lowest >= 4.22.4",
+			oldClusterVersionID:          "4.22",
+			etcd:                         kmsEtcdProfile("old-version"),
+			options:                      map[string]bool{metadataapi.APIVersionOption(metadataapi.APIVersionV20260630Preview): true},
+			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersions("4.23.0", "4.22.4"),
+			newClusterFromOld: func(c *coreapi.Cluster) {
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.ActiveKey.Version = "new-version"
+			},
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name:                         "kms key version change blocked during upgrade with lowest < 4.22.0",
+			oldClusterVersionID:          "4.22",
+			etcd:                         kmsEtcdProfile("old-version"),
+			options:                      map[string]bool{metadataapi.APIVersionOption(metadataapi.APIVersionV20260630Preview): true},
+			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersions("4.22.0", "4.21.15"),
+			newClusterFromOld: func(c *coreapi.Cluster) {
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.ActiveKey.Version = "new-version"
+			},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.etcd.dataEncryption.customerManaged.kms.activeKey.version", Message: "KMS key version rotation requires cluster version 4.22.0 or above"},
+			},
+		},
+		{
+			name:                         "no error when kms key version unchanged on old cluster",
+			oldClusterVersionID:          "4.21",
+			etcd:                         kmsEtcdProfile("same-version"),
+			options:                      map[string]bool{metadataapi.APIVersionOption(metadataapi.APIVersionV20260630Preview): true},
+			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.21.0"),
 			expectErrors:                 []utils.ExpectedError{},
+		},
+		{
+			// The exact-version pin may move in either direction within its
+			// release line. version.id keeps its own no-downgrade rule, but
+			// which build of that line the control plane runs is the pin's
+			// business, so admission does not compare the pin against the
+			// versions the cluster already holds.
+			name:                         "lowering the exact-version pin below the desired and active control plane versions is admitted",
+			oldClusterVersionID:          "4.21",
+			oldClusterExactVersionPin:    "4.21.9",
+			serviceProviderClusterSpec:   serviceProviderClusterSpecWithDesiredControlPlaneVersion("4.21.9"),
+			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.21.9"),
+			newClusterFromOld: func(c *coreapi.Cluster) {
+				c.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion = ptr.To(metadataapi.Must(semver.ParseTolerant("4.21.5")))
+			},
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			// Same for a first pin on a previously unpinned cluster, which
+			// static validation cannot see at all: it has no old pin to compare
+			// against.
+			name:                         "first exact-version pin below the desired and active control plane versions is admitted",
+			oldClusterVersionID:          "4.21",
+			serviceProviderClusterSpec:   serviceProviderClusterSpecWithDesiredControlPlaneVersion("4.21.9"),
+			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.21.9"),
+			newClusterFromOld: func(c *coreapi.Cluster) {
+				c.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion = ptr.To(metadataapi.Must(semver.ParseTolerant("4.21.0")))
+			},
+			expectErrors: []utils.ExpectedError{},
 		},
 	}
 
@@ -542,15 +1353,13 @@ func TestAdmitCluster_Update(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			serviceProviderCluster := &api.ServiceProviderCluster{
-				CosmosMetadata: api.CosmosMetadata{ResourceID: serviceProviderResourceID},
+			serviceProviderCluster := &coreapi.ServiceProviderCluster{
+				CosmosMetadata: coreapi.CosmosMetadata{ResourceID: serviceProviderResourceID, PartitionKey: strings.ToLower(serviceProviderResourceID.SubscriptionID)},
+				Spec:           tt.serviceProviderClusterSpec,
 				Status:         tt.serviceProviderClusterStatus,
 			}
 
-			// Pair each node pool with its matching service provider node pool
-			// by name. The frontend's newClusterAdmissionContext prefetches both
-			// from Cosmos and zips them together; we replicate that wiring here.
-			spByName := map[string]*api.ServiceProviderNodePool{}
+			spByName := map[string]*coreapi.ServiceProviderNodePool{}
 			for _, sp := range tt.serviceProviderNodePools {
 				spByName[sp.ResourceID.Parent.Name] = sp
 			}
@@ -563,26 +1372,805 @@ func TestAdmitCluster_Update(t *testing.T) {
 			}
 
 			admissionContext := &ClusterAdmissionContext{
-				ServiceProviderCluster: serviceProviderCluster,
-				ClusterNodePools:       admissionNodePools,
+				ServiceProviderCluster:        serviceProviderCluster,
+				ClusterNodePools:              admissionNodePools,
+				ClusterScopedIdentitiesConfig: azure.NewClusterScopedIdentitiesConfig(azure.RoleDefinitionConfigSetNameDev),
 			}
 
-			oldCluster := &api.HCPOpenShiftCluster{
-				TrackedResource: arm.NewTrackedResource(clusterResourceID, "eastus"),
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
-					Version: api.VersionProfile{ID: tt.oldClusterVersionID},
+			etcd := tt.etcd
+			if etcd == (coreapi.EtcdProfile{}) {
+				etcd = kmsEtcdProfile("v1")
+			}
+			oldCluster := &coreapi.Cluster{
+				TrackedResource: coreapi.NewTrackedResource(clusterResourceID, "eastus"),
+				CustomerProperties: coreapi.ClusterCustomerProperties{
+					Version: coreapi.VersionProfile{ID: tt.oldClusterVersionID, ChannelGroup: tt.channelGroup},
+					Etcd:    etcd,
+					// Unrelated to version skew, but admission rejects a cluster missing them.
+					Platform: coreapitesting.MinimumValidClusterTestCase().CustomerProperties.Platform,
 				},
 			}
-			newCluster := &api.HCPOpenShiftCluster{
-				TrackedResource: oldCluster.TrackedResource,
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
-					Version: api.VersionProfile{ID: tt.clusterVersionID},
-				},
+			if tt.oldClusterExactVersionPin != "" {
+				oldCluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion = ptr.To(metadataapi.Must(semver.ParseTolerant(tt.oldClusterExactVersionPin)))
+			}
+			newCluster := oldCluster.DeepCopy()
+			if tt.newClusterFromOld != nil {
+				tt.newClusterFromOld(newCluster)
 			}
 
-			errs := AdmitCluster(ctx, admissionContext, operation.Operation{Type: operation.Update}, newCluster, oldCluster)
+			errs := AdmitCluster(ctx, admissionContext, operation.Operation{Type: operation.Update, Options: tt.options}, newCluster, oldCluster)
 
 			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
 		})
 	}
+}
+
+func TestAdmitCluster_PlatformResourceIDs(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	const subscriptionID = "6b690bec-0c16-4ecb-8f67-781caf40bba7"
+
+	subnetID := metadataapi.Must(azcorearm.ParseResourceID(
+		"/subscriptions/" + subscriptionID + "/resourceGroups/customer/providers/Microsoft.Network/virtualNetworks/vnet/subnets/cluster-subnet"))
+	otherSubnetID := metadataapi.Must(azcorearm.ParseResourceID(
+		"/subscriptions/" + subscriptionID + "/resourceGroups/other/providers/Microsoft.Network/virtualNetworks/vnet/subnets/other"))
+	nsgID := metadataapi.Must(azcorearm.ParseResourceID(
+		"/subscriptions/" + subscriptionID + "/resourceGroups/customer/providers/Microsoft.Network/networkSecurityGroups/cluster-nsg"))
+	otherNsgID := metadataapi.Must(azcorearm.ParseResourceID(
+		"/subscriptions/" + subscriptionID + "/resourceGroups/other/providers/Microsoft.Network/networkSecurityGroups/other-nsg"))
+
+	makeCluster := func(name, managedResourceGroup string, subnet, nsg *azcorearm.ResourceID) *coreapi.Cluster {
+		resourceID := metadataapi.Must(azcorearm.ParseResourceID(fmt.Sprintf(
+			"/subscriptions/%s/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/%s",
+			subscriptionID, name)))
+		return &coreapi.Cluster{
+			TrackedResource: coreapi.NewTrackedResource(resourceID, "eastus"),
+			CustomerProperties: coreapi.ClusterCustomerProperties{
+				Platform: coreapi.CustomerPlatformProfile{
+					ManagedResourceGroup:   managedResourceGroup,
+					SubnetID:               subnet,
+					NetworkSecurityGroupID: nsg,
+				},
+			},
+		}
+	}
+
+	makeNodePool := func(clusterName, nodePoolName string, subnet *azcorearm.ResourceID) *coreapi.NodePool {
+		resourceID := metadataapi.Must(azcorearm.ParseResourceID(fmt.Sprintf(
+			"/subscriptions/%s/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/%s/hcpOpenShiftClusterNodePools/%s",
+			subscriptionID, clusterName, nodePoolName)))
+		return &coreapi.NodePool{
+			TrackedResource: coreapi.NewTrackedResource(resourceID, "eastus"),
+			Properties: coreapi.NodePoolProperties{
+				Platform: coreapi.NodePoolPlatformProfile{
+					SubnetID: subnet,
+				},
+			},
+		}
+	}
+
+	tests := []struct {
+		name                  string
+		subscriptionClusters  []*coreapi.Cluster
+		subscriptionNodePools []*coreapi.NodePool
+		newCluster            *coreapi.Cluster
+		expectErrors          []utils.ExpectedError
+	}{
+		{
+			name:                 "create with empty subscription clusters",
+			subscriptionClusters: nil,
+			newCluster:           makeCluster("new-cluster", "mrg-new", subnetID, nsgID),
+			expectErrors:         []utils.ExpectedError{},
+		},
+		{
+			name: "create rejects duplicate subnet",
+			subscriptionClusters: []*coreapi.Cluster{
+				makeCluster("existing-cluster", "mrg-existing", subnetID, nsgID),
+			},
+			newCluster: makeCluster("new-cluster", "mrg-new", subnetID, otherNsgID),
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.platform.subnetId", Message: "already in use by another cluster"},
+			},
+		},
+		{
+			name: "create rejects duplicate network security group",
+			subscriptionClusters: []*coreapi.Cluster{
+				makeCluster("existing-cluster", "mrg-existing", subnetID, nsgID),
+			},
+			newCluster: makeCluster("new-cluster", "mrg-new", otherSubnetID, nsgID),
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.platform.networkSecurityGroupId", Message: "already in use by another cluster"},
+			},
+		},
+		{
+			name: "create rejects duplicate managed resource group",
+			subscriptionClusters: []*coreapi.Cluster{
+				makeCluster("existing-cluster", "shared-mrg", subnetID, nsgID),
+			},
+			newCluster: makeCluster("new-cluster", "shared-mrg", otherSubnetID, otherNsgID),
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.platform.managedResourceGroup", Message: "please provide a unique managed resource group name"},
+			},
+		},
+		{
+			name: "create rejects duplicate subnet used by node pool",
+			subscriptionClusters: []*coreapi.Cluster{
+				makeCluster("existing-cluster", "mrg-existing", otherSubnetID, nsgID),
+			},
+			subscriptionNodePools: []*coreapi.NodePool{
+				makeNodePool("existing-cluster", "workers", subnetID),
+			},
+			newCluster: makeCluster("new-cluster", "mrg-new", subnetID, otherNsgID),
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.platform.subnetId", Message: "already in use by another cluster"},
+			},
+		},
+		{
+			name: "create allows distinct platform values",
+			subscriptionClusters: []*coreapi.Cluster{
+				makeCluster("existing-cluster", "mrg-existing", subnetID, nsgID),
+			},
+			newCluster:   makeCluster("new-cluster", "mrg-new", otherSubnetID, otherNsgID),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name: "create with nil new platform resource IDs returns required errors",
+			subscriptionClusters: []*coreapi.Cluster{
+				makeCluster("existing-cluster", "mrg-existing", subnetID, nsgID),
+			},
+			newCluster: makeCluster("new-cluster", "mrg-new", nil, nil),
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.platform.subnetId", Message: "Required value"},
+				{FieldPath: "properties.platform.networkSecurityGroupId", Message: "Required value"},
+			},
+		},
+		{
+			name: "create with existing cluster missing platform resource IDs returns internal errors",
+			subscriptionClusters: []*coreapi.Cluster{
+				makeCluster("existing-cluster", "mrg-existing", nil, nil),
+			},
+			newCluster: makeCluster("new-cluster", "mrg-new", subnetID, nsgID),
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.platform.subnetId", Message: "existing cluster is missing subnetId"},
+				{FieldPath: "properties.platform.networkSecurityGroupId", Message: "existing cluster is missing networkSecurityGroupId"},
+			},
+		},
+		{
+			name: "create with existing node pool missing subnet returns internal error",
+			subscriptionClusters: []*coreapi.Cluster{
+				makeCluster("existing-cluster", "mrg-existing", otherSubnetID, nsgID),
+			},
+			subscriptionNodePools: []*coreapi.NodePool{
+				makeNodePool("existing-cluster", "workers", nil),
+			},
+			newCluster: makeCluster("new-cluster", "mrg-new", subnetID, otherNsgID),
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.platform.subnetId", Message: "existing node pool is missing subnetId"},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			admissionContext := &ClusterAdmissionContext{
+				OriginalCluster:               tt.newCluster.DeepCopy(),
+				SubscriptionClusters:          tt.subscriptionClusters,
+				SubscriptionNodePools:         tt.subscriptionNodePools,
+				ClusterScopedIdentitiesConfig: azure.NewClusterScopedIdentitiesConfig(azure.RoleDefinitionConfigSetNameDev),
+			}
+
+			errs := AdmitCluster(ctx, admissionContext, operation.Operation{Type: operation.Create}, tt.newCluster, nil)
+
+			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
+		})
+	}
+}
+
+// TestAdmitClusterVersionID covers the version-channel admission check that
+// fires when a cluster's version.id is updated. The check requires the target
+// update channel ("<channelGroup>-<major>.<minor>") to be present in the
+// associated HostedCluster's observed status.version.desired.channels, which the
+// backend mirrors onto ServiceProviderCluster.Status.DesiredVersionChannels. The
+// requested version's major.minor is derived from its ID, so patch, nightly and
+// pre-release IDs all resolve to their release-line channel. The check is skipped
+// entirely for the "nightly" and "candidate" channel groups, which we trust to
+// self-serve without waiting for the target channel to be mirrored.
+func TestAdmitClusterVersionID(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	// Matches the path admitClusterCustomerProperties passes down in production
+	// (field.NewPath("properties").Child("version")).
+	fldPath := field.NewPath("properties", "version")
+
+	spcWithChannels := func(channels ...string) *coreapi.ServiceProviderCluster {
+		return &coreapi.ServiceProviderCluster{
+			Status: coreapi.ServiceProviderClusterStatus{
+				DesiredVersionChannels: channels,
+			},
+		}
+	}
+
+	tests := []struct {
+		name         string
+		op           operation.Operation
+		oldVersion   *coreapi.VersionProfile
+		newVersion   *coreapi.VersionProfile
+		spc          *coreapi.ServiceProviderCluster // nil models a missing/unmirrored ServiceProviderCluster
+		expectErrors []utils.ExpectedError
+	}{
+		{
+			name:         "version.id update with matching channel passes",
+			op:           operation.Operation{Type: operation.Update},
+			oldVersion:   &coreapi.VersionProfile{ID: "4.18", ChannelGroup: "stable"},
+			newVersion:   &coreapi.VersionProfile{ID: "4.19", ChannelGroup: "stable"},
+			spc:          spcWithChannels("stable-4.18", "candidate-4.19", "stable-4.19"),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name:       "version.id update with no matching channel is rejected",
+			op:         operation.Operation{Type: operation.Update},
+			oldVersion: &coreapi.VersionProfile{ID: "4.18", ChannelGroup: "stable"},
+			newVersion: &coreapi.VersionProfile{ID: "4.19", ChannelGroup: "stable"},
+			spc:        spcWithChannels("stable-4.20", "candidate-4.20"),
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.version.id", Message: `no upgrade path to update channel "stable-4.19"`},
+			},
+		},
+		{
+			// Micro/patch version: the requested channel is keyed by major.minor,
+			// so "4.20.8" must resolve to the "stable-4.20" channel and pass.
+			name:         "micro version resolves to major.minor channel and passes",
+			op:           operation.Operation{Type: operation.Update},
+			oldVersion:   &coreapi.VersionProfile{ID: "4.19", ChannelGroup: "stable"},
+			newVersion:   &coreapi.VersionProfile{ID: "4.20.8", ChannelGroup: "stable"},
+			spc:          spcWithChannels("stable-4.20"),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			// Micro version whose major.minor channel is absent is rejected; the
+			// error names the derived "stable-4.20" channel, not the raw "4.20.8".
+			name:       "micro version with no matching major.minor channel is rejected",
+			op:         operation.Operation{Type: operation.Update},
+			oldVersion: &coreapi.VersionProfile{ID: "4.19", ChannelGroup: "stable"},
+			newVersion: &coreapi.VersionProfile{ID: "4.20.8", ChannelGroup: "stable"},
+			spc:        spcWithChannels("stable-4.19"),
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.version.id", Message: `no upgrade path to update channel "stable-4.20"`},
+			},
+		},
+		{
+			// Nightly-build pre-release string ("5.0.0-0.nightly-...") must resolve to the "5.0"
+			// release line. Uses the "fast" channel group so the availability check actually runs
+			// (nightly/candidate short-circuit it).
+			name:         "nightly-build version string resolves to major.minor channel and passes",
+			op:           operation.Operation{Type: operation.Update},
+			oldVersion:   &coreapi.VersionProfile{ID: "4.19", ChannelGroup: "fast"},
+			newVersion:   &coreapi.VersionProfile{ID: "5.0.0-0.nightly-2026-08-05-123456", ChannelGroup: "fast"},
+			spc:          spcWithChannels("fast-5.0"),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			// Same setup on "fast", but the target channel is absent: the availability check runs
+			// and rejects it (unlike nightly/candidate, which short-circuit — see below).
+			name:       "nightly-build version string with no matching channel is rejected on fast",
+			op:         operation.Operation{Type: operation.Update},
+			oldVersion: &coreapi.VersionProfile{ID: "4.19", ChannelGroup: "fast"},
+			newVersion: &coreapi.VersionProfile{ID: "5.0.0-0.nightly-2026-08-05-123456", ChannelGroup: "fast"},
+			spc:        spcWithChannels("fast-4.19"),
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.version.id", Message: `no upgrade path to update channel "fast-5.0"`},
+			},
+		},
+		{
+			// candidate short-circuits the availability check: we trust candidate users, so a
+			// missing target channel is NOT rejected (contrast the "fast" case above).
+			name:         "candidate channel group skips the availability check",
+			op:           operation.Operation{Type: operation.Update},
+			oldVersion:   &coreapi.VersionProfile{ID: "4.19", ChannelGroup: "candidate"},
+			newVersion:   &coreapi.VersionProfile{ID: "5.0.0-0.nightly-2026-08-05-123456", ChannelGroup: "candidate"},
+			spc:          spcWithChannels("candidate-4.19"), // candidate-5.0 absent, but not enforced
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			// nightly likewise short-circuits the availability check.
+			name:         "nightly channel group skips the availability check",
+			op:           operation.Operation{Type: operation.Update},
+			oldVersion:   &coreapi.VersionProfile{ID: "4.19", ChannelGroup: "nightly"},
+			newVersion:   &coreapi.VersionProfile{ID: "4.20", ChannelGroup: "nightly"},
+			spc:          spcWithChannels("nightly-4.19"), // nightly-4.20 absent, but not enforced
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			// Pre-release: "4.21.0-rc.1" must resolve to "4.21".
+			name:         "pre-release version resolves to major.minor channel and passes",
+			op:           operation.Operation{Type: operation.Update},
+			oldVersion:   &coreapi.VersionProfile{ID: "4.20", ChannelGroup: "fast"},
+			newVersion:   &coreapi.VersionProfile{ID: "4.21.0-rc.1", ChannelGroup: "fast"},
+			spc:          spcWithChannels("fast-4.21"),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			// Fail open: the ServiceProviderCluster (and thus the channel mirror)
+			// is not available, so the channel check cannot run and must not block.
+			// The missing-prefetch condition is separately surfaced as an
+			// InternalError by the version-skew check in admitClusterVersionProfile.
+			name:         "version.id update with missing service provider cluster skips (fail open until synced)",
+			op:           operation.Operation{Type: operation.Update},
+			oldVersion:   &coreapi.VersionProfile{ID: "4.18", ChannelGroup: "stable"},
+			newVersion:   &coreapi.VersionProfile{ID: "4.19", ChannelGroup: "stable"},
+			spc:          nil,
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			// Fail open: the backend has not yet mirrored any channels, so we
+			// cannot validate the requested channel and must not block the update.
+			name:         "version.id update with empty channel list skips (fail open until synced)",
+			op:           operation.Operation{Type: operation.Update},
+			oldVersion:   &coreapi.VersionProfile{ID: "4.18", ChannelGroup: "stable"},
+			newVersion:   &coreapi.VersionProfile{ID: "4.19", ChannelGroup: "stable"},
+			spc:          spcWithChannels(),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name:         "unchanged version.id is a no-op",
+			op:           operation.Operation{Type: operation.Update},
+			oldVersion:   &coreapi.VersionProfile{ID: "4.19", ChannelGroup: "stable"},
+			newVersion:   &coreapi.VersionProfile{ID: "4.19", ChannelGroup: "stable"},
+			spc:          spcWithChannels(), // no channels present, but unchanged version is never validated
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name:         "create operation is a no-op",
+			op:           operation.Operation{Type: operation.Create},
+			oldVersion:   nil,
+			newVersion:   &coreapi.VersionProfile{ID: "4.19", ChannelGroup: "stable"},
+			spc:          nil,
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name:         "empty channel group skips the check",
+			op:           operation.Operation{Type: operation.Update},
+			oldVersion:   &coreapi.VersionProfile{ID: "4.18"},
+			newVersion:   &coreapi.VersionProfile{ID: "4.19"},
+			spc:          spcWithChannels("stable-4.20"),
+			expectErrors: []utils.ExpectedError{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			admissionContext := &ClusterAdmissionContext{
+				ServiceProviderCluster: tt.spc,
+			}
+
+			errs := admitClusterVersionID(ctx, admissionContext, tt.op, fldPath, tt.newVersion, tt.oldVersion)
+
+			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
+		})
+	}
+}
+
+func TestAdmitClusterContainerRegistryPullManagedIdentity(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	miResourceID := metadataapi.Must(azcorearm.ParseResourceID(
+		"/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/customer-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/acr-pull-mi"))
+
+	makeCluster := func(version string, mi *azcorearm.ResourceID) *coreapi.Cluster {
+		return &coreapi.Cluster{
+			CustomerProperties: coreapi.ClusterCustomerProperties{
+				Version: coreapi.VersionProfile{ID: version},
+				Platform: coreapi.CustomerPlatformProfile{
+					ContainerRegistry: coreapi.ContainerRegistryProfile{
+						PullManagedIdentity: mi,
+					},
+				},
+			},
+		}
+	}
+
+	makeSPC := func(version string) *coreapi.ServiceProviderCluster {
+		v := semver.MustParse(version)
+		return &coreapi.ServiceProviderCluster{
+			Status: coreapi.ServiceProviderClusterStatus{
+				ControlPlaneVersion: coreapi.ServiceProviderClusterStatusVersion{
+					ActiveVersions: []coreapi.ServiceProviderClusterActiveVersion{
+						{Version: &v},
+					},
+				},
+			},
+		}
+	}
+
+	tests := []struct {
+		name         string
+		op           operation.Operation
+		cluster      *coreapi.Cluster
+		spc          *coreapi.ServiceProviderCluster
+		expectErrors []utils.ExpectedError
+	}{
+		{
+			name:         "create without containerRegistry — no error",
+			op:           operation.Operation{Type: operation.Create},
+			cluster:      makeCluster("4.17.5", nil),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name:         "create with containerRegistry on 4.22 — allowed",
+			op:           operation.Operation{Type: operation.Create},
+			cluster:      makeCluster("4.22.0", miResourceID),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name:    "create with containerRegistry on 4.17 — rejected",
+			op:      operation.Operation{Type: operation.Create},
+			cluster: makeCluster("4.17.5", miResourceID),
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.platform.containerRegistry.managedIdentity", Message: "containerRegistry requires cluster version 4.22.0 or above"},
+			},
+		},
+		{
+			name:    "create with containerRegistry on 4.21 — rejected",
+			op:      operation.Operation{Type: operation.Create},
+			cluster: makeCluster("4.21.9", miResourceID),
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.platform.containerRegistry.managedIdentity", Message: "containerRegistry requires cluster version 4.22.0 or above"},
+			},
+		},
+		{
+			name:         "update with containerRegistry on 4.22 cluster — allowed",
+			op:           operation.Operation{Type: operation.Update},
+			cluster:      makeCluster("4.22.0", miResourceID),
+			spc:          makeSPC("4.22.1"),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name:    "update with containerRegistry on 4.17 cluster — rejected",
+			op:      operation.Operation{Type: operation.Update},
+			cluster: makeCluster("4.17.5", miResourceID),
+			spc:     makeSPC("4.17.5"),
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.platform.containerRegistry.managedIdentity", Message: "containerRegistry requires cluster version 4.22.0 or above"},
+			},
+		},
+		{
+			name:         "update without containerRegistry on old cluster — no error",
+			op:           operation.Operation{Type: operation.Update},
+			cluster:      makeCluster("4.17.5", nil),
+			spc:          makeSPC("4.17.5"),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name:         "update with containerRegistry and no ServiceProviderCluster falls back to requested version — allowed on 4.22",
+			op:           operation.Operation{Type: operation.Update},
+			cluster:      makeCluster("4.22.0", miResourceID),
+			spc:          nil,
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name:    "update with containerRegistry and no ServiceProviderCluster falls back to requested version — rejected on 4.21",
+			op:      operation.Operation{Type: operation.Update},
+			cluster: makeCluster("4.21.9", miResourceID),
+			spc:     nil,
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.platform.containerRegistry.managedIdentity", Message: "containerRegistry requires cluster version 4.22.0 or above"},
+			},
+		},
+		{
+			name:    "containerRegistry with unparseable requested version and no ServiceProviderCluster — internal error",
+			op:      operation.Operation{Type: operation.Create},
+			cluster: makeCluster("not-a-version", miResourceID),
+			spc:     nil,
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.platform.containerRegistry.managedIdentity", Message: "cannot parse cluster version"},
+			},
+		},
+		{
+			name:    "update with containerRegistry and empty ActiveVersions falls back to stored version",
+			op:      operation.Operation{Type: operation.Update},
+			cluster: makeCluster("4.22.0", miResourceID),
+			spc: &coreapi.ServiceProviderCluster{
+				Status: coreapi.ServiceProviderClusterStatus{
+					ControlPlaneVersion: coreapi.ServiceProviderClusterStatusVersion{
+						ActiveVersions: nil,
+					},
+				},
+			},
+			expectErrors: nil,
+		},
+		{
+			name:    "update with containerRegistry, empty ActiveVersions, and unsupported stored version rejected",
+			op:      operation.Operation{Type: operation.Update},
+			cluster: makeCluster("4.21.0", miResourceID),
+			spc: &coreapi.ServiceProviderCluster{
+				Status: coreapi.ServiceProviderClusterStatus{
+					ControlPlaneVersion: coreapi.ServiceProviderClusterStatusVersion{
+						ActiveVersions: nil,
+					},
+				},
+			},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.platform.containerRegistry.managedIdentity", Message: "containerRegistry requires cluster version"},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			admissionContext := &ClusterAdmissionContext{
+				OriginalCluster:        tt.cluster.DeepCopy(),
+				ServiceProviderCluster: tt.spc,
+			}
+
+			fldPath := field.NewPath("properties", "platform", "containerRegistry", "managedIdentity")
+			errs := admitClusterContainerRegistryPullManagedIdentity(ctx, admissionContext, tt.op, fldPath, &tt.cluster.CustomerProperties.Platform.ContainerRegistry)
+
+			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
+		})
+	}
+}
+
+func TestAdmitClusterV5DataPlaneMirror(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	// Matches the path admitClusterCustomerProperties passes down in production
+	// (field.NewPath("properties").Child("version")).
+	fldPath := field.NewPath("properties", "version")
+
+	// spcWithMirrors models a ServiceProviderCluster whose image content sources
+	// have been mirrored by the backend.
+	spcWithMirrors := func(sources ...string) *coreapi.ServiceProviderCluster {
+		imageContentSources := make([]hsv1beta1.ImageContentSource, len(sources))
+		for index, source := range sources {
+			imageContentSources[index] = hsv1beta1.ImageContentSource{Source: source}
+		}
+		return &coreapi.ServiceProviderCluster{
+			Status: coreapi.ServiceProviderClusterStatus{ImageContentSources: &imageContentSources},
+		}
+	}
+	// spcUnmirrored models a ServiceProviderCluster the backend has not yet
+	// observed a HostedCluster for. A v5 upgrade must fail closed until the
+	// required mirror is proven present.
+	spcUnmirrored := &coreapi.ServiceProviderCluster{}
+
+	const v4Mirror = "quay.io/openshift-release-dev/ocp-v4.0-art-dev"
+	missingMirror := []utils.ExpectedError{
+		{FieldPath: "properties.version.id", Message: "missing the required data-plane image mirror"},
+	}
+	unavailableMirror := []utils.ExpectedError{
+		{FieldPath: "properties.version.id", Message: "backend has not observed the HostedCluster"},
+	}
+
+	tests := []struct {
+		name         string
+		op           operation.Operation
+		oldVersion   *coreapi.VersionProfile
+		newVersion   *coreapi.VersionProfile
+		spc          *coreapi.ServiceProviderCluster // nil models a missing ServiceProviderCluster prefetch
+		expectErrors []utils.ExpectedError
+	}{
+		{
+			name:       "non-nil pointer to a nil slice reports missing not unavailable",
+			op:         operation.Operation{Type: operation.Update},
+			oldVersion: &coreapi.VersionProfile{ID: "4.22"},
+			newVersion: &coreapi.VersionProfile{ID: "5.0"},
+			spc: &coreapi.ServiceProviderCluster{
+				Status: coreapi.ServiceProviderClusterStatus{ImageContentSources: ptr.To([]hsv1beta1.ImageContentSource(nil))},
+			},
+			expectErrors: missingMirror,
+		},
+		{
+			name:         "4->5 upgrade with the v5 mirror present passes",
+			op:           operation.Operation{Type: operation.Update},
+			oldVersion:   &coreapi.VersionProfile{ID: "4.22"},
+			newVersion:   &coreapi.VersionProfile{ID: "5.0"},
+			spc:          spcWithMirrors(v4Mirror, apihelpers.OcpV5ArtDevMirrorSource),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			// The observed HostedCluster has image content sources, but not the
+			// v5 one: nodes could not pull 5.y images, so the upgrade is blocked.
+			name:         "4->5 upgrade without the v5 mirror is rejected",
+			op:           operation.Operation{Type: operation.Update},
+			oldVersion:   &coreapi.VersionProfile{ID: "4.22"},
+			newVersion:   &coreapi.VersionProfile{ID: "5.0"},
+			spc:          spcWithMirrors(v4Mirror),
+			expectErrors: missingMirror,
+		},
+		{
+			// An observed HostedCluster with no image content sources at all is a
+			// real answer, not an unknown one, so it is enforced.
+			name:         "4->5 upgrade with no image content sources at all is rejected",
+			op:           operation.Operation{Type: operation.Update},
+			oldVersion:   &coreapi.VersionProfile{ID: "4.22"},
+			newVersion:   &coreapi.VersionProfile{ID: "5.0"},
+			spc:          spcWithMirrors(),
+			expectErrors: missingMirror,
+		},
+		{
+			// The gate is about crossing into 5.y, not about landing on 5.0
+			// specifically.
+			name:         "4->5.1 upgrade without the v5 mirror is rejected",
+			op:           operation.Operation{Type: operation.Update},
+			oldVersion:   &coreapi.VersionProfile{ID: "4.23"},
+			newVersion:   &coreapi.VersionProfile{ID: "5.1"},
+			spc:          spcWithMirrors(v4Mirror),
+			expectErrors: missingMirror,
+		},
+		{
+			name:         "pre-release 5.y target without the v5 mirror is rejected",
+			op:           operation.Operation{Type: operation.Update},
+			oldVersion:   &coreapi.VersionProfile{ID: "4.22"},
+			newVersion:   &coreapi.VersionProfile{ID: "5.0.0-ec.6"},
+			spc:          spcWithMirrors(v4Mirror),
+			expectErrors: missingMirror,
+		},
+		{
+			// Fail closed: nil ImageContentSources means the required mirror has not
+			// been proven present yet.
+			name:         "4->5 upgrade with an unmirrored hosted cluster is rejected until synced",
+			op:           operation.Operation{Type: operation.Update},
+			oldVersion:   &coreapi.VersionProfile{ID: "4.22"},
+			newVersion:   &coreapi.VersionProfile{ID: "5.0"},
+			spc:          spcUnmirrored,
+			expectErrors: unavailableMirror,
+		},
+		{
+			// Missing observed state cannot prove that the required mirror exists.
+			name:         "4->5 upgrade with missing service provider cluster is rejected",
+			op:           operation.Operation{Type: operation.Update},
+			oldVersion:   &coreapi.VersionProfile{ID: "4.22"},
+			newVersion:   &coreapi.VersionProfile{ID: "5.0"},
+			spc:          nil,
+			expectErrors: unavailableMirror,
+		},
+		{
+			name:         "minor upgrade within 4.y is not gated",
+			op:           operation.Operation{Type: operation.Update},
+			oldVersion:   &coreapi.VersionProfile{ID: "4.21"},
+			newVersion:   &coreapi.VersionProfile{ID: "4.22"},
+			spc:          spcWithMirrors(v4Mirror),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			// Already on 5.y: the cluster is demonstrably able to pull 5.y images,
+			// so z-stream and minor moves within 5.y are not our concern.
+			name:         "z-stream upgrade within 5.y is not gated",
+			op:           operation.Operation{Type: operation.Update},
+			oldVersion:   &coreapi.VersionProfile{ID: "5.0.1"},
+			newVersion:   &coreapi.VersionProfile{ID: "5.0.2"},
+			spc:          spcWithMirrors(v4Mirror),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name:         "downgrade out of 5.y is not gated",
+			op:           operation.Operation{Type: operation.Update},
+			oldVersion:   &coreapi.VersionProfile{ID: "5.0"},
+			newVersion:   &coreapi.VersionProfile{ID: "4.22"},
+			spc:          spcWithMirrors(v4Mirror),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			// Both ends of the crossing are pinned: a future major ships its own
+			// mirror under its own source, so the v5 mirror must neither gate nor
+			// wave through a jump into 6.y.
+			name:         "4->6 upgrade is not gated by the v5 mirror",
+			op:           operation.Operation{Type: operation.Update},
+			oldVersion:   &coreapi.VersionProfile{ID: "4.22"},
+			newVersion:   &coreapi.VersionProfile{ID: "6.0"},
+			spc:          spcWithMirrors(v4Mirror),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			// admitClusterVersionProfile already reports the parse failure; we must
+			// not duplicate it.
+			name:         "unparseable version skips without a duplicate error",
+			op:           operation.Operation{Type: operation.Update},
+			oldVersion:   &coreapi.VersionProfile{ID: "4.22"},
+			newVersion:   &coreapi.VersionProfile{ID: "not-a-version"},
+			spc:          spcWithMirrors(v4Mirror),
+			expectErrors: []utils.ExpectedError{},
+		},
+	}
+
+	// Every case here satisfies admitClusterV5DataPlaneMirror's precondition: an
+	// UPDATE carrying a non-empty version.id that differs from the old one. That
+	// gate lives in admitClusterVersionProfile and is covered by its own tests, so
+	// CREATE and unchanged-version.id are deliberately not re-tested here.
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			admissionContext := &ClusterAdmissionContext{
+				ServiceProviderCluster: tt.spc,
+			}
+
+			errs := admitClusterV5DataPlaneMirror(ctx, admissionContext, tt.op, fldPath, tt.newVersion, tt.oldVersion)
+
+			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
+		})
+	}
+
+	t.Run("create does not access the missing old version", func(t *testing.T) {
+		t.Parallel()
+
+		errs := admitClusterV5DataPlaneMirror(
+			ctx,
+			&ClusterAdmissionContext{},
+			operation.Operation{Type: operation.Create},
+			fldPath,
+			&coreapi.VersionProfile{ID: "5.0"},
+			nil,
+		)
+
+		if len(errs) != 0 {
+			t.Fatalf("expected no admission errors on CREATE, got %v", errs)
+		}
+	})
+}
+
+func TestAdmitCluster_WiresV5DataPlaneMirrorAdmission(t *testing.T) {
+	t.Parallel()
+
+	oldCluster := &coreapi.Cluster{
+		CustomerProperties: coreapi.ClusterCustomerProperties{
+			Version: coreapi.VersionProfile{ID: "4.22"},
+			Etcd: coreapi.EtcdProfile{
+				DataEncryption: coreapi.EtcdDataEncryptionProfile{
+					CustomerManaged: &coreapi.CustomerManagedEncryptionProfile{
+						Kms: &coreapi.KmsEncryptionProfile{},
+					},
+				},
+			},
+			Platform: coreapi.CustomerPlatformProfile{
+				OperatorsAuthentication: coreapi.OperatorsAuthenticationProfile{
+					UserAssignedIdentities: coreapi.UserAssignedIdentitiesProfile{
+						ControlPlaneOperators: map[string]*azcorearm.ResourceID{
+							"cloud-controller-manager": metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/cloud-controller-manager")),
+							"cloud-network-config":     metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/cloud-network-config")),
+							"cluster-api-azure":        metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/cluster-api-azure")),
+							"control-plane":            metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/control-plane")),
+							"disk-csi-driver":          metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/disk-csi-driver")),
+							"file-csi-driver":          metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/file-csi-driver")),
+							"image-registry":           metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/image-registry")),
+							"ingress":                  metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/ingress")),
+						},
+						DataPlaneOperators: map[string]*azcorearm.ResourceID{
+							"disk-csi-driver": metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/disk-csi-driver")),
+							"file-csi-driver": metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/file-csi-driver")),
+							"image-registry":  metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/image-registry")),
+						},
+					},
+				},
+			},
+		},
+	}
+	newCluster := oldCluster.DeepCopy()
+	newCluster.CustomerProperties.Version.ID = "5.0"
+
+	errs := AdmitCluster(
+		context.Background(),
+		&ClusterAdmissionContext{
+			ServiceProviderCluster:        &coreapi.ServiceProviderCluster{},
+			ClusterScopedIdentitiesConfig: azure.NewClusterScopedIdentitiesConfig(azure.RoleDefinitionConfigSetNameDev),
+		},
+		operation.Operation{Type: operation.Update},
+		newCluster,
+		oldCluster,
+	)
+
+	utils.VerifyErrorsMatch(t, []utils.ExpectedError{
+		{FieldPath: "properties.version.id", Message: "backend has not observed the HostedCluster"},
+	}, errs)
 }

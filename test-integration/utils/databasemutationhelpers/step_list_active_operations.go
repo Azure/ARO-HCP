@@ -23,15 +23,15 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 )
 
 type listActiveOperationsStep struct {
 	stepID StepID
 	key    CosmosCRUDKey
 
-	expectedOperations []*api.Operation
+	expectedOperations []*coreapi.Operation
 }
 
 func newListActiveOperationsStep(stepID StepID, stepDir fs.FS) (*listActiveOperationsStep, error) {
@@ -44,7 +44,7 @@ func newListActiveOperationsStep(stepID StepID, stepDir fs.FS) (*listActiveOpera
 		return nil, fmt.Errorf("failed to unmarshal key.json: %w", err)
 	}
 
-	expectedResources, err := readResourcesInDir[api.Operation](stepDir)
+	expectedResources, err := readResourcesInDir[coreapi.Operation](stepDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read resource in dir: %w", err)
 	}
@@ -63,12 +63,12 @@ func (l *listActiveOperationsStep) StepID() StepID {
 }
 
 func (l *listActiveOperationsStep) RunTest(ctx context.Context, t *testing.T, stepInput StepInput) {
-	resourceCRUDClient := NewCosmosCRUD[api.Operation](t, stepInput.ResourcesDBClient, l.key.ParentResourceID, l.key.ResourceType.ResourceType)
+	resourceCRUDClient := NewCosmosCRUD[coreapi.Operation](t, stepInput.ResourcesDBClient, l.key.ParentResourceID, l.key.ResourceType.ResourceType)
 
-	var operationsCRUD = any(resourceCRUDClient).(database.OperationCRUD)
+	var operationsCRUD = any(resourceCRUDClient).(corecosmosstorage.OperationCRUD)
 	actualControllersIterator := operationsCRUD.ListActiveOperations(nil)
 
-	actualControllers := []*api.Operation{}
+	actualControllers := []*coreapi.Operation{}
 	for _, actual := range actualControllersIterator.Items(ctx) {
 		actualControllers = append(actualControllers, actual)
 	}

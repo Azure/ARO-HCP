@@ -82,6 +82,15 @@ func UnionDataActions(roleDefinitions []armauthorization.RoleDefinition) ([]stri
 	return dataActionsUnion.UnsortedList(), nil
 }
 
+// IntersectActions returns the set of actions present in both a and b, with no duplicates.
+func IntersectActions(a, b []string) []string {
+	result := set.New(a...).Intersection(set.New(b...)).UnsortedList()
+	if len(result) == 0 {
+		return nil
+	}
+	return result
+}
+
 func safeRoleDefinitionID(roleDefinition armauthorization.RoleDefinition) string {
 	if roleDefinition.ID != nil {
 		return *roleDefinition.ID

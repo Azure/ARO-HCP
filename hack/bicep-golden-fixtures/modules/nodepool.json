@@ -1,0 +1,73 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep"
+    }
+  },
+  "parameters": {
+    "clusterName": {
+      "metadata": {
+        "description": "The name of the Hypershift cluster to which the node pool will be attached."
+      },
+      "type": "string"
+    },
+    "nodePoolName": {
+      "metadata": {
+        "description": "The name of the node pool"
+      },
+      "type": "string"
+    },
+    "openshiftVersionId": {
+      "metadata": {
+        "description": "OpenShift Version ID to use"
+      },
+      "type": "string"
+    },
+    "osDiskSizeGiB": {
+      "defaultValue": 64,
+      "metadata": {
+        "description": "Size of the osDisk for the node pool in GiB"
+      },
+      "type": "int"
+    },
+    "replicas": {
+      "defaultValue": 2,
+      "metadata": {
+        "description": "Number of replicas in the node pool"
+      },
+      "type": "int"
+    },
+    "vmSize": {
+      "defaultValue": "Standard_D8s_v3",
+      "metadata": {
+        "description": "VM size for the nodepool VMs"
+      },
+      "type": "string"
+    }
+  },
+  "resources": [
+    {
+      "apiVersion": "2024-06-10-preview",
+      "location": "[resourceGroup().location]",
+      "name": "[format('{0}/{1}', parameters('clusterName'), parameters('nodePoolName'))]",
+      "properties": {
+        "platform": {
+          "osDisk": {
+            "diskStorageAccountType": "StandardSSD_LRS",
+            "sizeGiB": "[parameters('osDiskSizeGiB')]"
+          },
+          "subnetId": "[reference(resourceId('Microsoft.RedHatOpenShift/hcpOpenShiftClusters', parameters('clusterName')), '2024-06-10-preview').platform.subnetId]",
+          "vmSize": "[parameters('vmSize')]"
+        },
+        "replicas": "[parameters('replicas')]",
+        "version": {
+          "channelGroup": "stable",
+          "id": "[parameters('openshiftVersionId')]"
+        }
+      },
+      "type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools"
+    }
+  ]
+}

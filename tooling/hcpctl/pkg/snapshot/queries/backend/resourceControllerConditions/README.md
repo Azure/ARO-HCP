@@ -24,5 +24,6 @@ Review for any `Degraded=true` values. Expect to see only `Degraded=false` condi
 
 ## Where to Go Next
 
-- Check `resourceControllerConditionTimeline` for the full history of condition changes.
+- Check `conditions/backend/resourceControllerConditionTimeline.md` for the full history of condition changes.
+- If `OperationClusterCreate` is degraded or ARM create stays `Provisioning`, review `OperationClusterCreate` rows here and `conditions/hypershift/hostedClusterConditions.md` for the degraded component message.
 - If a controller is posting degraded status, review the controller's logs by filtering the backend.

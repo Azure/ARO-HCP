@@ -1,4 +1,10 @@
 prometheusRules:
-  rulesFolders: []
+  rulesFolders:
+  - recording-rules/backend-operation-slo-recordingRule.yaml
+  - recording-rules/access-cluster-slo-recordingRule.yaml
+  - recording-rules/cluster-provision-slo-recordingRule.yaml
+  - recording-rules/cluster-deletion-slo-recordingRule.yaml
+  - recording-rules/userJourneyClusterUpgrade-recordingRule.yaml
+  - recording-rules/frontend-slo-recordingRule.yaml
   untestedRules: []
   outputBicep: ../dev-infrastructure/modules/metrics/rules/generatedRecordingRules.bicep

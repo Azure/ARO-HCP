@@ -61,6 +61,11 @@ The Management Clusters are the execution layer of ARO HCP, responsible for host
   - Reports resource status back to the Maestro Server.
   - Operates asynchronously, ensuring reliable state enforcement without direct dependency on the Service Cluster.
 
+- **mgmt-agent**
+  - Runs on every Management Cluster alongside Hypershift and the Maestro agent.
+  - Bridges management-cluster concerns (for example SWIFT NIC extended resources on nodes).
+  - Emits structured **resource** and **pod** lifecycle **event logs** to Kusto via `mgmt-agent-controller` container logs — see [mgmt-agent event logs](../tooling/hcpctl/pkg/agent/prompts/exemplars/mgmt-agent-event-logs.md) for ad-hoc query patterns. These are intentionally **not** included in the default snapshot dump because output volume is unbounded.
+
 - **Advanced Cluster Management (ACM)**
   - Responsible for additional lifecycle and policy management of ARO HCP clusters.
 

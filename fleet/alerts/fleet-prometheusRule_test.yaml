@@ -14,12 +14,13 @@ tests:
     alertname: FleetControllerRetryHotLoop
     exp_alerts:
     - exp_labels:
+        component: fleet
         name: ClustersServiceRegistrationController
         severity: warning
       exp_annotations:
         description: 'Fleet controller workqueue ClustersServiceRegistrationController has a retry ratio of > 50% sustained over 10 minutes, indicating most queue activity is failed retries rather than fresh work.'
         runbook_url: 'TBD'
-        summary: 'Fleet controller workqueue retry hot loop'
+        summary: 'Fleet controller workqueue ClustersServiceRegistrationController retry hot loop'
 # Test: FleetControllerRetryHotLoop does not fire when retry ratio < 50%
 - interval: 1m
   input_series:
@@ -41,12 +42,13 @@ tests:
     alertname: FleetControllerQueueDepthHigh
     exp_alerts:
     - exp_labels:
+        component: fleet
         name: ClustersServiceRegistrationController
         severity: warning
       exp_annotations:
         description: 'Fleet controller workqueue ClustersServiceRegistrationController has had a depth > 10 for more than 5 minutes, indicating work is accumulating faster than it can be processed.'
         runbook_url: 'TBD'
-        summary: 'Fleet controller workqueue depth is high'
+        summary: 'Fleet controller workqueue ClustersServiceRegistrationController depth is high'
 # Test: FleetControllerQueueDepthHigh does not fire when depth <= 10
 - interval: 1m
   input_series:
@@ -66,12 +68,13 @@ tests:
     alertname: FleetControllerPanic
     exp_alerts:
     - exp_labels:
+        component: fleet
         controller: ClustersServiceRegistrationController
         severity: warning
       exp_annotations:
         description: 'Fleet controller ClustersServiceRegistrationController has panicked 5 time(s) in the last 5 minutes.'
         runbook_url: 'TBD'
-        summary: 'Fleet controller is panicking'
+        summary: 'Fleet controller ClustersServiceRegistrationController is panicking'
 # Test: FleetControllerPanic does not fire when no panics
 - interval: 1m
   input_series:

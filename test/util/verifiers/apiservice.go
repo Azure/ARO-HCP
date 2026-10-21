@@ -46,7 +46,6 @@ func (v verifyAllAPIServicesAvailableImpl) Verify(ctx context.Context, adminREST
 	retryCtx, cancel := context.WithTimeoutCause(ctx, 5*time.Minute, errors.New("API service retry timeout"))
 	defer cancel()
 
-	attempts := 0
 	var lastErr error
 	verifyErr := wait.ExponentialBackoffWithContext(retryCtx, wait.Backoff{
 		Duration: 800 * time.Millisecond,
@@ -55,8 +54,6 @@ func (v verifyAllAPIServicesAvailableImpl) Verify(ctx context.Context, adminREST
 		Steps:    10,
 		Cap:      20 * time.Second,
 	}, func(ctx context.Context) (done bool, err error) {
-		attempts++
-
 		allAPIServices, err := apiserviceClient.APIServices().List(ctx, metav1.ListOptions{})
 		if err != nil {
 			return false, fmt.Errorf("failed to list all APIServices: %w", err)
@@ -98,15 +95,6 @@ func (v verifyAllAPIServicesAvailableImpl) Verify(ctx context.Context, adminREST
 		}
 		return true, nil
 	})
-
-	deadline, err := time.Parse(time.RFC3339, "2026-01-15T00:00:00Z")
-	if err != nil {
-		return fmt.Errorf("failed to parse deadline: %w", err)
-	}
-
-	if attempts > 1 && time.Now().After(deadline) {
-		return errors.New("the APIService verifier is not allowed to re-try after Jan 15th, 2026 - HyperShift should only post ready status once aggregated APIs are ready then")
-	}
 
 	if verifyErr == nil {
 		// even if we had an error at some point, the loop succeeded on the last run

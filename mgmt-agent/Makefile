@@ -2,22 +2,30 @@ SHELL = /usr/bin/env bash -o pipefail
 .SHELLFLAGS = -ec
 MGMT_AGENT_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 
+-include ../setup-env.mk
 -include ../setup-templatize-env.mk
 -include ../.bingo/Variables.mk
 
 # Image
 ARO_HCP_REVISION ?= $(shell git rev-parse HEAD)
 ARO_HCP_COMMIT_TIME ?= $(shell TZ=UTC git show -s --format=%cd --date=iso-strict-local ${ARO_HCP_REVISION})
-MGMT_AGENT_IMAGE_TAG ?= $(shell DETECT_DIRTY_GIT_WORKTREE=${DETECT_DIRTY_GIT_WORKTREE} DEPLOY_ENV=${DEPLOY_ENV} ../generate-tag.sh)
+MGMT_AGENT_IMAGE_TAG ?= $(or $(IMAGE_TAG),$(shell DETECT_DIRTY_GIT_WORKTREE=${DETECT_DIRTY_GIT_WORKTREE} DEPLOY_ENV=${DEPLOY_ENV} ../generate-tag.sh))
 MGMT_AGENT_GENERATED_IMAGE_REPOSITORY = $(shell DEPLOY_ENV=${DEPLOY_ENV} BASELINE_REPO=${MGMT_AGENT_IMAGE_REPOSITORY} ../generate-repo.sh)
 MGMT_AGENT_TAGGED_IMAGE ?= $(ARO_HCP_IMAGE_REGISTRY)/$(MGMT_AGENT_GENERATED_IMAGE_REPOSITORY):$(MGMT_AGENT_IMAGE_TAG)
 
 HELMCHART_DIR = deploy
-CONTAINER_ENGINE ?= $(shell command -v podman 2>/dev/null || echo docker)
 BINARY = bin/mgmt-agent
 MGMT_AGENT_SOURCES = $(shell find . -name '*.go' -o -name 'go.mod' -o -name 'go.sum')
 LDFLAGS = -ldflags "\
 	-X github.com/Azure/ARO-HCP/internal/version.CommitSHA=${ARO_HCP_REVISION}"
+
+# K8S Codegen
+KUBE_CODEGEN_SH=../hack/kube-codegen.sh
+
+update-codegen:
+	KUBE_CODEGEN_TAG=v0.35.3 KUBE_CODEGEN_SH=$(KUBE_CODEGEN_SH) ./hack/update-codegen.sh
+	make -C .. fmt
+.PHONY: update-codegen
 
 # Default target
 .DEFAULT_GOAL := build
@@ -29,7 +37,7 @@ $(BINARY): $(MGMT_AGENT_SOURCES)
 	go build $(LDFLAGS) -o $(BINARY) .
 
 run:
-	go run . controller --namespace ${NAMESPACE} -v 2
+	go run . controller --namespace ${NAMESPACE} --log-verbosity 2
 .PHONY: run
 
 image:
@@ -43,7 +51,7 @@ image:
 .PHONY: image
 
 build-and-push: image $(ORAS) $(YQ)
-	az acr login --name ${ARO_HCP_IMAGE_ACR}
+	$(acr-login)
 	@LOCAL_DIGEST=$$($(CONTAINER_ENGINE) image inspect --format '{{.Id}}' ${MGMT_AGENT_TAGGED_IMAGE} | sed 's/sha256://'); \
 	REMOTE_DIGEST=$$($(ORAS) manifest fetch ${MGMT_AGENT_TAGGED_IMAGE} 2>/dev/null | $(YQ) .config.digest | sed 's/sha256://'); \
 	if [ "$$LOCAL_DIGEST" = "$$REMOTE_DIGEST" ]; then \
@@ -73,6 +81,13 @@ record-override: $(YQ) $(ORAS)
 
 # Dev work
 
+record-latest-override: $(YQ)
+	@../hack/record-latest-image-override.sh \
+		"$(ARO_HCP_IMAGE_ACR)" "$(ARO_HCP_IMAGE_REGISTRY)" \
+		"$(MGMT_AGENT_IMAGE_REPOSITORY)" "$(DEPLOY_ENV)" \
+		"mgmtAgent" "$(OVERRIDE_CONFIG_FILE)" "$(YQ)"
+.PHONY: record-latest-override
+
 deploy: build-and-push record-override
-	make -C .. pipeline/Microsoft.Azure.ARO.HCP.MgmtAgent OVERRIDE_CONFIG_FILE=$(OVERRIDE_CONFIG_FILE)
+	make -C .. pipeline/MgmtAgent OVERRIDE_CONFIG_FILE=$(OVERRIDE_CONFIG_FILE)
 .PHONY: deploy

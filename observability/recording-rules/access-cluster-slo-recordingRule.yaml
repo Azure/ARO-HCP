@@ -1,0 +1,69 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    app.kubernetes.io/name: kube-prometheus
+    app.kubernetes.io/part-of: kube-prometheus
+    prometheus: k8s
+    role: recording-rules
+  name: access-cluster-slo-recording-rules
+  namespace: monitoring
+spec:
+  groups:
+  # ========================================
+  # Access the Cluster SLO Recording Rules
+  # ========================================
+  # These rules track the Errors SLO for credential operations
+  # (operation_type: requestcredential, revokecredentials).
+  # SLO: 95% of credential operations should succeed (not reach "failed" terminal phase)
+  # Error Budget: 5% (1 - 0.95)
+  #
+  # Metrics are gauge-based (backend_resource_operation_phase_info) from Cosmos DB,
+  # so we use count() aggregations rather than rate() on counters.
+  #
+  # Scope: covers requestcredential and revokecredentials operations on
+  # hcpOpenShiftClusters (not nodepools).
+  - name: arohcp_access_cluster_slo_recording_rules
+    interval: 1m
+    rules:
+    # Instantaneous count of succeeded credential operations per cluster
+    - record: errors:backend_credential_operation:succeeded_total
+      expr: |
+        count by (cluster) (backend_resource_operation_phase_info{
+          resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
+          operation_type=~"requestcredential|revokecredentials",
+          phase="succeeded"
+        })
+    # Instantaneous count of all terminal credential operations per cluster
+    - record: errors:backend_credential_operation:terminal_total
+      expr: |
+        count by (cluster) (backend_resource_operation_phase_info{
+          resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
+          operation_type=~"requestcredential|revokecredentials",
+          phase=~"succeeded|failed|canceled"
+        })
+    # Instantaneous error rate per cluster: fraction of terminal operations that failed
+    - record: errors:backend_credential_operation:error_rate
+      expr: |
+        (
+          count by (cluster) (backend_resource_operation_phase_info{
+            resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
+            operation_type=~"requestcredential|revokecredentials",
+            phase="failed"
+          })
+          or
+          0 * count by (cluster) (backend_resource_operation_phase_info{
+            resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
+            operation_type=~"requestcredential|revokecredentials",
+            phase=~"succeeded|failed|canceled"
+          })
+        )
+        /
+        clamp_min(
+          count by (cluster) (backend_resource_operation_phase_info{
+            resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
+            operation_type=~"requestcredential|revokecredentials",
+            phase=~"succeeded|failed|canceled"
+          }),
+          1
+        )

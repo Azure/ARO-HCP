@@ -16,8 +16,8 @@ package e2e
 
 import (
 	"context"
-	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
@@ -25,11 +25,13 @@ import (
 	. "github.com/onsi/gomega"
 
 	"k8s.io/apimachinery/pkg/util/rand"
-	"k8s.io/apimachinery/pkg/util/wait"
 
-	azcore "github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
-	"github.com/Azure/ARO-HCP/internal/cincinnati"
+	clusterversion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/version"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
@@ -37,7 +39,8 @@ import (
 
 var _ = Describe("Service Provider", func() {
 	DescribeTable("should upgrade the control plane z-stream automatically on behalf of the customer",
-		func(ctx context.Context, minorVersion string, baseInstallVersion string) {
+		labels.MIContainers(1),
+		func(ctx context.Context, minorVersion string) {
 			const (
 				customerNetworkSecurityGroupName = "customer-nsg-zstream-"
 				customerVnetName                 = "customer-vnet-zstream-"
@@ -45,18 +48,31 @@ var _ = Describe("Service Provider", func() {
 				customerClusterNamePrefix        = "cluster-zstream-"
 			)
 
+			channelGroup := framework.DefaultOpenshiftChannelGroup()
+			// The nightly channel group is not served by the OpenShift update service graph API, so we
+			// cannot resolve a concrete z-stream to install one release behind the tip. There is nothing
+			// to exercise here for nightly.
+			if channelGroup == "nightly" {
+				Skip("automated z-stream upgrade is not supported for the nightly channel group")
+			}
+
 			tc := framework.NewTestContext()
 
-			if len(baseInstallVersion) == 0 {
-				baseInstallVersion = minorVersion // set it to minor so that we defaul to .0 as the patch version
-			}
-			installVersion, hasUpgradePath, err := framework.GetInstallVersionForZStreamUpgrade(ctx, "candidate", baseInstallVersion)
+			// Install one z-stream behind the channel tip (normalOffset+1) so the backend has a newer
+			// z-stream to automatically upgrade to once the exact-version pin is removed. If the
+			// channel has no release at that offset (err) or none is resolved (nil), there is no
+			// automated z-stream upgrade to exercise, so skip.
+			normalOffset := clusterversion.GetZStreamOffset(channelGroup)
+			desiredVersion, err := framework.SelectControlPlaneVersion(ctx, http.DefaultTransport.RoundTrip, nil, fmt.Sprintf("%s-%s", channelGroup, minorVersion), normalOffset+1)
 			if err != nil {
-				if cincinnati.IsCincinnatiVersionNotFoundError(err) {
-					Skip(fmt.Sprintf("Cincinnati returned version not found for configured id %s (minor %s)", baseInstallVersion, minorVersion))
-				}
-				Expect(err).NotTo(HaveOccurred(), "failed to get install version for z-stream upgrade of %s", minorVersion)
+				Skip(fmt.Sprintf("no version resolved for channel %s-%s at offset %d: %v", channelGroup, minorVersion, normalOffset+1, err))
 			}
+			if desiredVersion == nil {
+				Skip(fmt.Sprintf("no version resolved for channel %s-%s at offset %d", channelGroup, minorVersion, normalOffset+1))
+				return
+			}
+			installVersion := desiredVersion.Version
+
 			if tc.UsePooledIdentities() {
 				err := tc.AssignIdentityContainers(ctx, 1, framework.IdentityContainerAssignmentRetryInterval)
 				Expect(err).NotTo(HaveOccurred(), "failed to assign pooled identity containers")
@@ -68,11 +84,7 @@ var _ = Describe("Service Provider", func() {
 			clusterParams := framework.NewDefaultClusterParams20240610()
 			clusterParams.ClusterName = clusterName
 			clusterParams.OpenshiftVersionId = installVersion
-
-			// We use the candidate channel to potentially catch early z-stream upgrades.
-			// issues before they reach stable.
-			By("using the candidate channel")
-			clusterParams.ChannelGroup = "candidate"
+			clusterParams.ChannelGroup = channelGroup
 
 			By("creating resource group")
 			resourceGroup, err := tc.NewResourceGroup(ctx, "rg-zstream-upgrade-"+versionLabel, tc.Location())
@@ -95,51 +107,28 @@ var _ = Describe("Service Provider", func() {
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for z-stream cluster %q", clusterName)
 
-			By(fmt.Sprintf("creating the HCP cluster with version '%s' on candidate channel", installVersion))
-			// Cincinnati can advertise a z-stream build before Cluster Service has registered that version, so
-			// create fails with InvalidRequestContent until the worker in CS catches up—rare but flaky. We retry with backoff
-			// for up to 5m instead of failing the whole test. See https://github.com/Azure/ARO-HCP/pull/4621#discussion_r2986322194
-			// Drop this retry once cluster creation runs in the backend (https://github.com/Azure/ARO-HCP/pull/4477).
-			stopRetryingAfter := time.Now().Add(5 * time.Minute)
-			backoffErr := wait.ExponentialBackoffWithContext(ctx, wait.Backoff{
-				Duration: 5 * time.Second,
-				Factor:   2,
-				Jitter:   0.1,
-				Steps:    25,
-				Cap:      45 * time.Second,
-			}, func(_ context.Context) (done bool, err error) {
-				createErr := tc.CreateHCPClusterFromParam20240610(
-					ctx,
-					GinkgoLogr,
-					*resourceGroup.Name,
-					clusterParams,
-					framework.ClusterCreationTimeout,
-				)
-				if createErr == nil {
-					return true, nil
-				}
-				var azureErr *azcore.ResponseError
-				// Example ARM body: { "error": { "code": "InvalidRequestContent", "message": "Version 'openshift-v4.y.z-candidate' doesn't exist" } }
-				shouldRetryMissingVersionInCS := errors.As(createErr, &azureErr) &&
-					azureErr.ErrorCode == "InvalidRequestContent" &&
-					strings.Contains(azureErr.Error(), "Version") &&
-					strings.Contains(azureErr.Error(), "openshift-v") &&
-					strings.Contains(azureErr.Error(), "doesn't exist")
-				if shouldRetryMissingVersionInCS {
-					if time.Now().After(stopRetryingAfter) {
-						return false, fmt.Errorf("giving up after %v waiting for OpenShift version in Cluster Service: %w", 5*time.Minute, createErr)
-					}
-					GinkgoLogr.Info("OpenShift version not yet in Cluster Service; retrying cluster create", "error", createErr)
-					return false, nil
-				}
-				return false, createErr
-			})
-			Expect(backoffErr).NotTo(HaveOccurred(), "failed to create HCP cluster %q with version %s on candidate channel", clusterName, installVersion)
+			clusterCreationTimeout := framework.ClusterCreationTimeout
+			// 4.22 control plane provisioning has been consistently slower and frequently hits the default timeout.
+			// Bump the create+wait budget to reduce flaky timeouts for this minor.
+			if minorVersion == "4.22" {
+				clusterCreationTimeout = 35 * time.Minute
+			}
+
+			By(fmt.Sprintf("creating the HCP cluster at exact install version '%s' on %s channel", installVersion, channelGroup))
+			err = tc.CreateHCPClusterFromParam20240610(
+				ctx,
+				GinkgoLogr,
+				*resourceGroup.Name,
+				clusterParams,
+				clusterCreationTimeout,
+			)
+			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %q with version %s on %s channel", clusterName, installVersion, channelGroup)
 
 			By("verifying the cluster is viable")
-			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
+			hcpClient := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
+			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20260901(
 				ctx,
-				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
+				tc.Get20260901ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
 				clusterName,
 				framework.GetAdminRESTConfigTimeout,
@@ -148,25 +137,48 @@ var _ = Describe("Service Provider", func() {
 			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred(), "failed to verify HCP cluster %q is viable", clusterName)
 
-			if !hasUpgradePath {
-				By("skipping z-stream upgrade verification: no upgrade path (cluster installed at latest)")
-				return
+			By(fmt.Sprintf("removing the exact version pin and enabling immediate z-stream updates for %s", minorVersion))
+			// The install version was pinned through the exact-version tag. PATCH replaces
+			// all tags, so preserve the cluster's other tags while removing the pin.
+			// Retain Immediate from the progressive rollout test: production fleet
+			// canary readiness can outlast this test's upgrade timeout.
+			versionLine, upgradeTags := framework.ControlPlaneExactVersionPatchTags(minorVersion)
+			upgradeTags[metadataapi.TagClusterZStreamUpdatePolicy] = to.Ptr(string(coreapi.ImmediateZStreamUpdatePolicy))
+			update := hcpsdk20240610preview.HcpOpenShiftClusterUpdate{
+				Tags: framework.TagsForPatch(clusterParams.Tags, upgradeTags),
+				Properties: &hcpsdk20240610preview.HcpOpenShiftClusterPropertiesUpdate{
+					Version: &hcpsdk20240610preview.VersionProfile{
+						ID:           to.Ptr(versionLine),
+						ChannelGroup: to.Ptr(channelGroup),
+					},
+				},
 			}
+			_, err = framework.UpdateHCPCluster20240610(ctx, hcpClient, *resourceGroup.Name, clusterName, update, framework.HCPClusterVersionUpgradeTimeout)
+			Expect(err).NotTo(HaveOccurred(), "failed to remove the exact-version pin and enable immediate z-stream updates for cluster %q on minor version %s", clusterName, minorVersion)
 
 			By("verifying that only a z-stream upgrade was performed")
 			Eventually(func() error {
 				return verifiers.VerifyHCPCluster(ctx, adminRESTConfig, verifiers.VerifyHostedControlPlaneZStreamUpgradeOnly(installVersion))
-			}, framework.HCPClusterVersionUpgradeTimeout, 2*time.Minute).Should(Succeed())
+			}, framework.HCPClusterVersionUpgradeTimeout, 2*time.Minute).Should(Succeed(), "cluster %q did not automatically advance beyond %s with the Immediate policy", clusterName, installVersion)
 			GinkgoLogr.Info("z-stream upgrade verification passed", "installVersion", installVersion)
 		},
 
-		// for 4.19, if we start with 4.19.0, the version that has an upgrade path to 4.19.latest is
-		// 4.19.3 but cluster install on this version fails with KMS authentication problem.
-		// For all the other minor versions, we can start with 4.y.0 and install the latest version in the candidate channel.
-		Entry("for 4.19", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "4.19", "4.19.25"),
-		Entry("for 4.20", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "4.20", ""),
-		Entry("for 4.21", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "4.21", ""),
-		Entry("for 4.22", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "4.22", ""),
-		Entry("for 4.23", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "4.23", ""),
+		Entry("for 4.20", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "4.20"),
+		Entry("for 4.21", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "4.21"),
+		Entry("for 4.22", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, labels.AllowRetry, "4.22"), // owner: @raelga, tracking: AROSLSRE-1319. Known-issue test, retriable during EV2 gating. Remove this label when the issue is fixed.
+		Entry("for 4.23", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "4.23"),
+		Entry("for 5.0", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "5.0"),
+		Entry("for 5.1", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "5.1"),
+		Entry("for 5.2", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "5.2"),
+		Entry("for 5.3", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "5.3"),
+		Entry("for 5.4", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "5.4"),
+		Entry("for 5.5", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "5.5"),
+		Entry("for 5.6", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "5.6"),
+		Entry("for 5.7", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "5.7"),
+		Entry("for 5.8", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "5.8"),
+		Entry("for 5.9", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "5.9"),
+		Entry("for 5.10", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "5.10"),
+		Entry("for 5.11", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "5.11"),
+		Entry("for 5.12", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "5.12"),
 	)
 })

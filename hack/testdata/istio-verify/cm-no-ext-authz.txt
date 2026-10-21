@@ -1,0 +1,64 @@
+=== MESH STATE SNAPSHOT — 2026-08-07T00:00:00Z ===
+
+--- MESH NAMESPACES ---
+NAMESPACE   REVISION
+aro-hcp     asm-1-20-3
+
+  Injection: tag-based (all namespaces)
+
+--- CONTROL PLANES ---
+POD                          READY   IMAGE
+istiod-asm-1-20-3-7f8d9      True    mcr.microsoft.com/oss/istio/pilot:1.20.3-1
+
+--- TAG WEBHOOK VALIDATION ---
+  Target service: istiod-asm-1-20-3 (namespace: aks-istio-system)
+  CA bundle length: 1234
+  CA bundle: present
+
+--- CONFIGMAPS (aks-istio-system) ---
+NAME                                    REVISION
+istio-shared-configmap-asm-1-20-3       asm-1-20-3
+
+--- CONFIGMAP CONTENT (ext-authz providers) ---
+  istio-shared-configmap-asm-1-20-3: no ext-authz
+
+--- CONFIGMAP LABELS ---
+  istio-shared-configmap-asm-1-20-3: istio.io/rev=asm-1-20-3
+
+--- INGRESS PIP PINNING (azure-pip-name annotations) ---
+  aks-istio-ingressgateway: pip=aro-hcp-ingress-pip rg=my-rg
+
+--- POD SIDECAR REVISIONS (all pods with istio-proxy) ---
+Total pods with istio-proxy: 3
+  COUNT  IMAGE
+      3 mcr.microsoft.com/oss/istio/proxyv2:1.20.3-1
+
+--- STALE SIDECAR PODS (not on latest istiod revision) ---
+Latest istiod version: 1.20.3-1
+(none)
+
+--- DEPLOYMENT ROLLOUT STATUS (mesh namespaces) ---
+NAME     READY   DESIRED   UPDATED   AVAIL
+[aro-hcp]
+istiod   1       1         1         1
+
+--- FLEET MESH STATUS ---
+  Namespace label: istio.io/rev=asm-1-20-3
+  Pods with sidecars:
+    fleet-controller-abc123 mcr.microsoft.com/oss/istio/proxyv2:1.20.3-1
+  istio-proxy: healthy
+
+--- SIDECAR INJECTION STATUS ---
+  aro-hcp: 5/5 pods injected
+
+--- MTLS POLICY ---
+  aks-istio-system default STRICT
+
+--- AUTHORIZATION POLICIES ---
+  Total: 2 (deny-all=1, explicit-ALLOW=1)
+
+--- LEASES (aks-istio-system) ---
+  istio-leader holder=istiod-asm-1-20-3-7f8d9 status=active
+  Total: 1 (active=1 orphan=0)
+
+=== END SNAPSHOT ===

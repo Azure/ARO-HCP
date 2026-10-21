@@ -19,7 +19,8 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/test-integration/utils/integrationutils"
 )
@@ -29,10 +30,10 @@ type OperationAccessor interface {
 }
 
 type operationAccessor struct {
-	resourcesDBClient database.ResourcesDBClient
+	resourcesDBClient corecosmosstorage.ResourcesDBClient
 }
 
-func newOperationAccessor(resourcesDBClient database.ResourcesDBClient) *operationAccessor {
+func newOperationAccessor(resourcesDBClient corecosmosstorage.ResourcesDBClient) *operationAccessor {
 	return &operationAccessor{resourcesDBClient: resourcesDBClient}
 }
 
@@ -45,7 +46,7 @@ func (c operationAccessor) CompleteOperation(ctx context.Context, resourceIDStri
 	}
 
 	if err := integrationutils.MarkOperationsCompleteForName(ctx, c.resourcesDBClient, resourceID.SubscriptionID, resourceID.Name); err != nil {
-		if database.IsPreconditionFailedError(err) {
+		if cosmosstorageutils.IsPreconditionFailedError(err) {
 			// to handle the migration case, we need to retry like a controller will.  We only retry once though.
 			err = integrationutils.MarkOperationsCompleteForName(ctx, c.resourcesDBClient, resourceID.SubscriptionID, resourceID.Name)
 		}

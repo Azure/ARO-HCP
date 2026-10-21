@@ -106,6 +106,17 @@ func (o *CompletedOptions) Run(ctx context.Context) error {
 		}
 	}()
 
+	go func() {
+		defer utilruntime.HandleCrash()
+		logger.Info("Starting periodic Resource Graph polling")
+		for {
+			o.ClusterPoller.Poll(ctx)
+			if ctx.Err() != nil {
+				return
+			}
+		}
+	}()
+
 	for _, collector := range o.Collectors {
 		logger.Info("Starting collector", "name", collector.Name())
 		go collectLoop(ctx, collector, o.CollectionInterval)

@@ -6,6 +6,8 @@ metadata:
 spec:
   groups:
   - name: mgmt-capacity-rules
+    labels:
+      component: capacity
     rules:
     # Management cluster HCP capacity monitoring
     # Owner: Service Lifecycle team (hcp-sl)
@@ -14,7 +16,7 @@ spec:
       annotations:
         description: Management cluster {{ $labels.cluster }} is at {{ $value | humanizePercentage }} of its HCP capacity (60 HCP limit). Current count exceeds warning threshold of 60%.
         runbook_url: https://aka.ms/arohcp-runbook/mgmt-cluster-capacity
-        summary: Management cluster HCP capacity is approaching limit (60% threshold).
+        summary: Management cluster {{ $labels.cluster }} HCP capacity approaching limit (60% threshold)
         owning_team: hcp-sl
       expr: |
         (
@@ -28,8 +30,8 @@ spec:
     - alert: MgmtClusterNodeSwiftNICCapacityZero
       annotations:
         description: Node {{ $labels.node }} on management cluster {{ $labels.cluster }} has zero SWIFT NIC capacity. No HCPs can be scheduled on this node until NIC capacity is restored.
-        runbook_url: https://portal.microsofticm.com/imp/v5/incidents/details/802529667
-        summary: Management cluster node has zero SWIFT NIC capacity.
+        runbook_url: https://aka.ms/arohcp-runbook/zero-swift-nic-capacity
+        summary: Node {{ $labels.node }} on management cluster {{ $labels.cluster }} has zero SWIFT NIC capacity
         owning_team: hcp-sl
       expr: |
         kube_node_status_capacity{node=~"user.*", resource="aro_openshift_io_swift_nic"} == 0
@@ -41,7 +43,7 @@ spec:
       annotations:
         description: Management cluster {{ $labels.cluster }} is at {{ $value | humanizePercentage }} of its HCP capacity (60 HCP limit). Current count exceeds critical threshold of 85%. Immediate action required to provision additional management cluster capacity.
         runbook_url: https://aka.ms/arohcp-runbook/mgmt-cluster-capacity
-        summary: Management cluster HCP capacity is critically high (85% threshold).
+        summary: Management cluster {{ $labels.cluster }} HCP capacity critically high (85% threshold)
         owning_team: hcp-sl
       expr: |
         (
@@ -51,4 +53,16 @@ spec:
       for: 5m
       labels:
         severity: info
+        team: hcp-sl
+    - alert: MgmtAgentCapacityReportingSyncFailing
+      annotations:
+        description: Capacity reporting on management cluster {{ $labels.cluster }} has been failing continuously for at least 5 minutes. The CapacityReport CR may contain stale data, which can affect fleet-level placement decisions. Check mgmt-agent logs for root cause.
+        runbook_url: https://aka.ms/arohcp-runbook/mgmt-cluster-capacity
+        summary: Capacity reporting sync failing on {{ $labels.cluster }}
+        owning_team: hcp-sl
+      expr: |
+        increase(capacity_reporting_sync_errors_total[5m]) >= 8
+      for: 5m
+      labels:
+        severity: warning
         team: hcp-sl

@@ -59,6 +59,7 @@ var _ = Describe("Image Registry Policy", func() {
 		labels.Negative,
 		labels.CoreInfraService,
 		labels.DevelopmentOnly,
+		labels.MIContainers(0),
 		func(ctx context.Context) {
 			By("creating a test namespace")
 			ns := &corev1.Namespace{
@@ -124,6 +125,7 @@ var _ = Describe("Image Registry Policy", func() {
 		labels.Positive,
 		labels.CoreInfraService,
 		labels.DevelopmentOnly,
+		labels.MIContainers(0),
 		func(ctx context.Context) {
 			By("verifying the ValidatingAdmissionPolicy exists")
 			_, err := kubeClient.AdmissionregistrationV1().ValidatingAdmissionPolicies().Get(

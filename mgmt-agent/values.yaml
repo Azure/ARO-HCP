@@ -1,18 +1,37 @@
+schedulingRole: "{{ .mgmt.scheduling.role }}"
+monitoringApiGroup: "{{ .mgmt.monitoringApiGroup }}"
 image:
   registry: "{{ .acr.svc.name }}.{{ .acrDNSSuffix }}"
   repository: "{{ .mgmtAgent.image.repository }}"
   digest: "{{ .mgmtAgent.image.digest }}"
+ksmImage:
+  registry: "{{ .mgmt.prometheus.kubeStateMetrics.image.registry }}"
+  repository: "{{ .mgmt.prometheus.kubeStateMetrics.image.repository }}"
+  digest: "{{ .mgmt.prometheus.kubeStateMetrics.image.digest }}"
 deployment:
   replicas: "{{ .mgmtAgent.k8s.replicas }}"
   requests:
-    cpu: 50m
-    memory: 64Mi
-logLevel: "2"
+    cpu: "{{ .mgmtAgent.k8s.resources.requests.cpu }}"
+    memory: "{{ .mgmtAgent.k8s.resources.requests.memory }}"
+logVerbosity: 2
 health:
   port: 8080
-nodeSelector: {}
-tolerations: []
-affinity: {}
+nodeHealth:
+  configMapName: mgmt-agent-node-health
+  configKey: config.yaml
+  # Rendered into the ConfigMap the controller watches. Detection logic,
+  # thresholds, and the SWIFT-v2 node scoping are hard-coded; the only runtime
+  # config is this switch, and its value comes from
+  # config/config.yaml (mgmtAgent.nodeHealth.enabled), which defaults to true.
+  # An environment that wants the controller off overrides the key to false.
+  #
+  # The controller hot-reloads a live edit to the ConfigMap within one resync,
+  # which makes `kubectl edit` a valid break-glass to switch the controller off
+  # during an incident, but that edit is not durable: the next mgmt-agent
+  # rollout runs helm and restores the rendered value. A change meant to stick
+  # goes in git.
+  config:
+    enabled: {{ .mgmtAgent.nodeHealth.enabled }}
 serviceAccount:
   name: "{{ .mgmtAgent.k8s.serviceAccountName }}"
   workloadIdentityClientId: "__msiClientId__"

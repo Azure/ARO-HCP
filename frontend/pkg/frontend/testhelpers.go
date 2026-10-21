@@ -15,28 +15,39 @@
 package frontend
 
 import (
+	"context"
 	"testing"
 
 	"github.com/go-logr/logr/testr"
+	"github.com/microsoft/go-otel-audit/audit/msgs"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	"k8s.io/client-go/tools/cache"
+
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
 	"github.com/Azure/ARO-HCP/internal/audit"
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
+	"github.com/Azure/ARO-HCP/internal/azure"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 )
 
 // The definitions in this file are meant for unit tests.
 
-func newNoopAuditClient(t *testing.T) *audit.AuditClient {
-	c, err := audit.NewOtelAuditClient(t.Context(), audit.CreateConn(false), nil)
-	require.NoError(t, err)
-	return c
+type noopAuditClient struct{}
+
+func (noopAuditClient) Send(context.Context, msgs.Msg) error {
+	return nil
+}
+
+func newNoopAuditClient(t *testing.T) audit.Client {
+	return noopAuditClient{}
 }
 
 func NewTestFrontend(t *testing.T) *Frontend {
-	mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
-	mockLocksDBClient := databasetesting.NewMockLocksDBClient()
+	mockResourcesDBClient := corecosmosstoragetesting.NewMockResourcesDBClient()
 	reg := prometheus.NewRegistry()
 
 	f := NewFrontend(
@@ -46,11 +57,35 @@ func NewTestFrontend(t *testing.T) *Frontend {
 		reg,
 		reg,
 		mockResourcesDBClient,
-		mockLocksDBClient,
+		newTestFrontendInformers(t, mockResourcesDBClient),
 		nil,
 		newNoopAuditClient(t),
-		api.TestLocation,
-		"", false, false, true,
+		coreapitesting.TestLocation,
+		true,
+		azure.NewClusterScopedIdentitiesConfig(azure.RoleDefinitionConfigSetNameDev),
 	)
 	return f
+}
+
+func newTestFrontendInformers(t testing.TB, resourcesDBClient corecosmosstorage.ResourcesDBClient) coreinformers.FrontendInformers {
+	t.Helper()
+	return coreinformers.NewFrontendInformers(t.Context(), resourcesDBClient.ResourcesGlobalListers(), resourcesDBClient)
+}
+
+func newTestClusterInformer(t testing.TB, clusters ...*coreapi.Cluster) cache.SharedIndexInformer {
+	t.Helper()
+	informer := coreinformers.NewClusterInformer(nil, nil)
+	for _, cluster := range clusters {
+		require.NoError(t, informer.GetStore().Add(cluster.DeepCopy()))
+	}
+	return informer
+}
+
+func newTestNodePoolInformer(t testing.TB, nodePools ...*coreapi.NodePool) cache.SharedIndexInformer {
+	t.Helper()
+	informer := coreinformers.NewNodePoolInformer(nil, nil)
+	for _, nodePool := range nodePools {
+		require.NoError(t, informer.GetStore().Add(nodePool.DeepCopy()))
+	}
+	return informer
 }

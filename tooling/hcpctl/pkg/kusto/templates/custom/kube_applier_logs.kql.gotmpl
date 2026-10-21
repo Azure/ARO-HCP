@@ -1,0 +1,9 @@
+kubeApplierLogs
+| where timestamp between({{.TimestampMin}} .. {{.TimestampMax}})
+// Match every management cluster in the environment (e.g. "...-mgmt-1", "...-mgmt-2")
+// rather than a single exact cluster, because the kube-applier that reconciles a
+// cluster's desired state may run on any management cluster in the fleet.
+| where cluster contains '{{.ClusterName}}'
+| where resource_group =~ '{{.ResourceGroupName}}'
+| project timestamp, cluster, controller_name, level, msg, resource_id, resource_name, operation, log
+| order by timestamp {{.OrderBy}}

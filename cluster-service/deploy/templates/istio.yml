@@ -1,0 +1,117 @@
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: default
+  namespace: '{{ .Release.Namespace }}'
+spec:
+  selector:
+    matchLabels:
+      app: clusters-service
+  portLevelMtls:
+    8080:
+      mode: PERMISSIVE
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-metrics
+  namespace: '{{ .Release.Namespace }}'
+spec:
+  action: "ALLOW"
+  rules:
+  - to:
+    - operation:
+        paths: ["/metrics"]
+        methods: ["GET"]
+        ports: ["8080"]
+  selector:
+    matchLabels:
+      app: "clusters-service"
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-nothing
+  namespace: '{{ .Release.Namespace }}'
+spec: {}
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-frontend
+  namespace: '{{ .Release.Namespace }}'
+spec:
+  action: "ALLOW"
+  rules:
+  - from:
+    - source:
+        principals:
+        - "cluster.local/ns/aro-hcp/sa/frontend"
+        - "cluster.local/ns/aro-hcp/sa/backend"
+    to:
+    - operation:
+        ports:
+        - "8000"
+  selector:
+    matchLabels:
+      app: "clusters-service"
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-admin-api
+  namespace: '{{ .Release.Namespace }}'
+spec:
+  action: "ALLOW"
+  rules:
+  - from:
+    - source:
+        principals:
+        - "cluster.local/ns/aro-hcp-admin-api/sa/admin-api"
+    to:
+    - operation:
+        ports:
+        - "8000"
+  selector:
+    matchLabels:
+      app: "clusters-service"
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-fleet-controller
+  namespace: '{{ .Release.Namespace }}'
+spec:
+  action: "ALLOW"
+  rules:
+  - from:
+    - source:
+        principals:
+        - "cluster.local/ns/fleet/sa/fleet"
+    to:
+    - operation:
+        ports:
+        - "8000"
+  selector:
+    matchLabels:
+      app: "clusters-service"
+---
+# TODO: Remove when migration to Azure Postgres completes
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-intra-namespace
+  namespace: '{{ .Release.Namespace }}'
+spec:
+  action: "ALLOW"
+  rules:
+  - from:
+    - source:
+        principals: ["cluster.local/ns/{{ .Release.Namespace }}/sa/{{ .Values.serviceAccountName }}"]
+    to:
+    - operation:
+        ports:
+        - "5432"
+  selector:
+    matchLabels:
+      name: "ocm-cs-db"

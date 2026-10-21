@@ -17,6 +17,7 @@ package kusto
 import (
 	"bytes"
 	"fmt"
+	"slices"
 	"strings"
 	"text/template"
 	"time"
@@ -67,6 +68,13 @@ type Query interface {
 	GetDatabase() string
 	GetQuery() *kql.Builder
 	IsUnlimited() bool
+}
+
+// TimeWindowQuery executes one logical query as sequential, non-overlapping
+// time windows. The embedded Query retains the logical name and full-range KQL.
+type TimeWindowQuery struct {
+	Query
+	Windows []Query
 }
 
 // templateQuery is a Query backed by a rendered Go text/template.
@@ -133,13 +141,27 @@ type TemplateData struct {
 	ClusterName        string
 	ClusterNames       string
 	SubResourceGroupId string
+	SubscriptionId     string
 	ResourceGroupName  string
 	ClusterId          string
 	ClusterIds         string
+	OperationIds       string
 	FilterClusterName  string
 	HCPNamespacePrefix string
-	SplitByPod         bool
-	OrderBy            string
+
+	// Summarize returns per-source diagnostics instead of orchestration log rows.
+	Summarize bool
+	// Discovery bounds stay fixed when output is split into time windows.
+	DiscoveryTimestampMin string
+	DiscoveryTimestampMax string
+
+	// Namespace is the Kubernetes namespace to scope a query to (e.g. an
+	// oc-adm-inspect resource/event/log query). Single quotes are escaped for safe
+	// embedding inside a single-quoted KQL string literal; the template supplies
+	// the surrounding quotes (e.g. '{{.Namespace}}').
+	Namespace  string
+	SplitByPod bool
+	OrderBy    string
 }
 
 type TemplateDataOptions func(*TemplateData)
@@ -162,6 +184,12 @@ func WithClusterIds(clusterIds []string) TemplateDataOptions {
 	}
 }
 
+func WithOperationIds(operationIds []string) TemplateDataOptions {
+	return func(d *TemplateData) {
+		d.OperationIds = kqlEscStrList(operationIds)
+	}
+}
+
 func WithFilterClusterName(name string) TemplateDataOptions {
 	return func(d *TemplateData) {
 		d.FilterClusterName = kqlEscStr(name)
@@ -177,6 +205,12 @@ func WithHCPNamespacePrefix(hcpNamespacePrefix string) TemplateDataOptions {
 func WithClusterName(clusterName string) TemplateDataOptions {
 	return func(d *TemplateData) {
 		d.ClusterName = kqlEscStr(clusterName)
+	}
+}
+
+func WithNamespace(namespace string) TemplateDataOptions {
+	return func(d *TemplateData) {
+		d.Namespace = kqlEscStr(namespace)
 	}
 }
 
@@ -203,6 +237,7 @@ func NewTemplateDataFromOptions(queryOptions QueryOptions, options ...TemplateDa
 		NoTruncation:       queryOptions.Limit < 0,
 		Limit:              max(queryOptions.Limit, 0),
 		SubResourceGroupId: fmt.Sprintf("/subscriptions/%s/resourceGroups/%s", kqlEscStr(queryOptions.SubscriptionId), kqlEscStr(queryOptions.ResourceGroupName)),
+		SubscriptionId:     kqlEscStr(queryOptions.SubscriptionId),
 		ResourceGroupName:  kqlEscStr(queryOptions.ResourceGroupName),
 		SplitByPod:         queryOptions.SplitByPod,
 		OrderBy:            queryOptions.OrderBy.String(),
@@ -216,6 +251,8 @@ func NewTemplateDataFromOptions(queryOptions QueryOptions, options ...TemplateDa
 	for _, option := range append(defaults, options...) {
 		option(&templateData)
 	}
+	templateData.DiscoveryTimestampMin = templateData.TimestampMin
+	templateData.DiscoveryTimestampMax = templateData.TimestampMax
 	return templateData
 }
 
@@ -314,6 +351,55 @@ func (f *QueryFactory) Build(def QueryDefinition, templateData TemplateData) ([]
 		return nil, err
 	}
 	return []Query{q}, nil
+}
+
+// BuildTimeWindows partitions an inclusive Kusto time range without duplicating
+// boundary rows. Kusto datetimes have 100-nanosecond precision.
+func (f *QueryFactory) BuildTimeWindows(def QueryDefinition, data TemplateData, start, end time.Time, window time.Duration) ([]Query, error) {
+	const tick = 100 * time.Nanosecond
+	if window < tick || end.Before(start) {
+		return nil, fmt.Errorf("invalid query time range or window: %s .. %s, window %s", start, end, window)
+	}
+	start, end = start.Truncate(tick), end.Truncate(tick)
+	WithTimestampMin(start)(&data)
+	WithTimestampMax(end)(&data)
+	queries, err := f.Build(def, data)
+	if err != nil {
+		return nil, err
+	}
+	if end.Sub(start) <= window {
+		return queries, nil
+	}
+	sequences := make([]*TimeWindowQuery, len(queries))
+	for i, query := range queries {
+		sequences[i] = &TimeWindowQuery{Query: query}
+		queries[i] = sequences[i]
+	}
+	for {
+		windowEnd := end
+		if next := start.Add(window).Truncate(tick); next.Before(end) {
+			windowEnd = next.Add(-tick)
+		}
+		WithTimestampMin(start)(&data)
+		WithTimestampMax(windowEnd)(&data)
+		windows, err := f.Build(def, data)
+		if err != nil {
+			return nil, err
+		}
+		for i, query := range windows {
+			sequences[i].Windows = append(sequences[i].Windows, query)
+		}
+		if windowEnd.Equal(end) {
+			break
+		}
+		start = windowEnd.Add(tick)
+	}
+	if data.OrderBy == OrderByDesc.String() {
+		for _, sequence := range sequences {
+			slices.Reverse(sequence.Windows)
+		}
+	}
+	return queries, nil
 }
 
 // BuildMerged constructs a single Query from a QueryDefinition by rendering all templates

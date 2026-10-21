@@ -1,0 +1,127 @@
+{
+	"_attachments": "attachments/",
+	"_etag": "\"00000000-0000-0000-84e3-e443e80501dc\"",
+	"_rid": "1J4NAIJyEkkDAAAAAAAAAA==",
+	"_self": "dbs/1J4NAA==/colls/1J4NAIJyEkk=/docs/1J4NAIJyEkkDAAAAAAAAAA==/",
+	"_ts": 1768346723,
+	"id": "96b154eb-638c-5dae-ba08-9b2df5cd8f61",
+	"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
+	"properties": {
+		"cosmosMetadata": {
+			"instanceVersion": 2,
+			"parentResourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourcegroupname",
+			"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
+			"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags"
+		},
+		"customerProperties": {
+			"api": {
+				"visibility": "Public"
+			},
+			"autoscaling": {
+				"maxNodeProvisionTimeSeconds": 900,
+				"maxPodGracePeriodSeconds": 600,
+				"podPriorityThreshold": -10
+			},
+			"clusterImageRegistry": {
+				"state": "Disabled"
+			},
+			"cryptoRestrictions": "None",
+			"dns": {},
+			"etcd": {
+				"dataEncryption": {
+					"customerManaged": {
+						"encryptionType": "KMS",
+						"kms": {
+							"activeKey": {
+								"name": "encryptionKeyName",
+								"vaultName": "keyVaultName",
+								"version": "4e832b5c8f1e4e3d9c6b2a1f3e7d9c5b"
+							},
+							"keyVaultType": "KeyVault",
+							"visibility": "Public"
+						}
+					},
+					"keyManagementMode": "CustomerManaged"
+				}
+			},
+			"ingress": {
+				"type": "Public"
+			},
+			"network": {
+				"hostPrefix": 23,
+				"machineCidr": "10.0.0.0/16",
+				"networkType": "OVNKubernetes",
+				"podCidr": "10.128.0.0/14",
+				"serviceCidr": "172.30.0.0/16"
+			},
+			"platform": {
+				"managedResourceGroup": "managed-resource-group-name",
+				"networkSecurityGroupId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/bar/providers/Microsoft.Network/networkSecurityGroups/nsg",
+				"operatorsAuthentication": {
+					"userAssignedIdentities": {
+						"controlPlaneOperators": {
+							"cloud-controller-manager": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/cloud-controller-manager-identity",
+							"cloud-network-config": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/cloud-network-config-identity",
+							"cluster-api-azure": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/cluster-api-azure-identity",
+							"control-plane": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/control-plane-identity",
+							"disk-csi-driver": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/disk-csi-driver-identity",
+							"file-csi-driver": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/file-csi-driver-identity",
+							"image-registry": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/image-registry-identity",
+							"ingress": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/ingress-identity",
+							"kms": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/kms-identity"
+						},
+						"dataPlaneOperators": {
+							"disk-csi-driver": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/disk-csi-driver-dataplane-identity",
+							"file-csi-driver": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/file-csi-driver-dataplane-identity",
+							"image-registry": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/image-registry-dataplane-identity"
+						}
+					}
+				},
+				"outboundType": "LoadBalancer",
+				"subnetId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/bar/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet"
+			},
+			"version": {
+				"channelGroup": "stable",
+				"id": "4.20"
+			}
+		},
+		"id": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags",
+		"identity": {
+			"type": "UserAssigned",
+			"userAssignedIdentities": {
+				"/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/cloud-controller-manager-identity": {},
+				"/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/cloud-network-config-identity": {},
+				"/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/cluster-api-azure-identity": {},
+				"/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/control-plane-identity": {},
+				"/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/disk-csi-driver-identity": {},
+				"/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/file-csi-driver-identity": {},
+				"/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/image-registry-identity": {},
+				"/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/ingress-identity": {},
+				"/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/kms-identity": {}
+			}
+		},
+		"location": "fake-location",
+		"name": "create-with-tags",
+		"serviceProviderProperties": {
+			"api": {},
+			"console": {},
+			"dns": {},
+			"managedIdentitiesDataPlaneIdentityURL": "https://dummyhost.identity.azure.net/otherinformation?aqueryarg=somevalue",
+			"platform": {},
+			"provisioningState": "Succeeded"
+		},
+		"status": {},
+		"systemData": {
+			"createdBy": "Unknown-ARO-HCP-frontend",
+			"createdByType": "Application",
+			"lastModifiedBy": "Unknown-ARO-HCP-frontend",
+			"lastModifiedByType": "Application"
+		},
+		"tags": {
+			"one": "apple"
+		},
+		"type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
+	},
+	"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags",
+	"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
+}

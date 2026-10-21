@@ -19,23 +19,20 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/fs"
-	"net/http"
 	"sort"
 	"strconv"
 	"strings"
-	"sync/atomic"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
-
-	"k8s.io/apimachinery/pkg/util/wait"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/test-integration/utils/integrationutils"
 )
@@ -52,8 +49,8 @@ type IntegrationTestStep interface {
 	RunTest(ctx context.Context, t *testing.T, stepInput StepInput)
 }
 
-func NewResourceMutationTest[InternalAPIType any](ctx context.Context, testName string, testDir fs.FS, withMock bool) (*ResourceMutationTest, error) {
-	steps, err := readSteps[InternalAPIType](ctx, testDir)
+func NewResourceMutationTest[InternalAPIType any, InternalAPITypePointer coreapi.CosmosMetadataAccessorPtr[InternalAPIType]](ctx context.Context, testName string, testDir fs.FS, withMock bool) (*ResourceMutationTest, error) {
+	steps, err := readSteps[InternalAPIType, InternalAPITypePointer](ctx, testDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read steps for test %q: %w", testName, err)
 	}
@@ -64,11 +61,58 @@ func NewResourceMutationTest[InternalAPIType any](ctx context.Context, testName 
 	}, nil
 }
 
-func readSteps[InternalAPIType any](ctx context.Context, testDir fs.FS) ([]IntegrationTestStep, error) {
+// NewUntypedResourceMutationTest builds a ResourceMutationTest whose step
+// dispatch only knows about untyped step kinds (load, untyped*, http*, etc).
+// The typed CRUD step constructors (create/replace/get/list/...) require a
+// CosmosMetadataAccessor pointer constraint that the raw TypedDocument used
+// for UntypedCRUD suites doesn't satisfy, so we route that suite through
+// this constraint-free path.
+func NewUntypedResourceMutationTest(ctx context.Context, testName string, testDir fs.FS, withMock bool) (*ResourceMutationTest, error) {
+	steps, err := readUntypedSteps(ctx, testDir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read steps for test %q: %w", testName, err)
+	}
+	return &ResourceMutationTest{
+		testDir:  testDir,
+		withMock: withMock,
+		steps:    steps,
+	}, nil
+}
+
+func readUntypedSteps(ctx context.Context, testDir fs.FS) ([]IntegrationTestStep, error) {
+	steps := []IntegrationTestStep{}
+
+	testContent := metadataapi.Must(fs.ReadDir(testDir, "."))
+	for _, dirEntry := range testContent {
+		filenameParts := strings.SplitN(dirEntry.Name(), "-", 3)
+		switch len(filenameParts) {
+		case 1:
+			return nil, fmt.Errorf("step name %q is missing step type: <number>-<type>-<name>", dirEntry.Name())
+		case 2:
+			return nil, fmt.Errorf("step name %q is missing step name: <number>-<type>-<name>", dirEntry.Name())
+		case 3:
+			// all good
+		}
+		index := filenameParts[0]
+		stepType := filenameParts[1]
+		stepName, _ := strings.CutSuffix(filenameParts[2], ".json")
+
+		testStep, err := NewUntypedStep(index, stepType, stepName, testDir, dirEntry.Name())
+		if err != nil {
+			return nil, fmt.Errorf("failed to create new step %q: %w", dirEntry.Name(), err)
+		}
+		steps = append(steps, testStep)
+	}
+
+	sort.Sort(byIndex(steps))
+	return steps, nil
+}
+
+func readSteps[InternalAPIType any, InternalAPITypePointer coreapi.CosmosMetadataAccessorPtr[InternalAPIType]](ctx context.Context, testDir fs.FS) ([]IntegrationTestStep, error) {
 	steps := []IntegrationTestStep{}
 
 	numLoadClusterServiceSteps := 0
-	testContent := api.Must(fs.ReadDir(testDir, "."))
+	testContent := metadataapi.Must(fs.ReadDir(testDir, "."))
 	for _, dirEntry := range testContent {
 		filenameParts := strings.SplitN(dirEntry.Name(), "-", 3)
 		switch len(filenameParts) {
@@ -86,7 +130,7 @@ func readSteps[InternalAPIType any](ctx context.Context, testDir fs.FS) ([]Integ
 			numLoadClusterServiceSteps++
 		}
 
-		testStep, err := NewStep[InternalAPIType](index, stepType, stepName, testDir, dirEntry.Name())
+		testStep, err := NewStep[InternalAPIType, InternalAPITypePointer](index, stepType, stepName, testDir, dirEntry.Name())
 		if err != nil {
 			return nil, fmt.Errorf("failed to create new step %q: %w", dirEntry.Name(), err)
 		}
@@ -105,53 +149,31 @@ func (tt *ResourceMutationTest) RunTest(t *testing.T) {
 
 	ctx := t.Context()
 	ctx, cancel := context.WithCancel(ctx)
-	frontendStarted := atomic.Bool{}
-	frontendErrCh := make(chan error, 1)
-	defer func() {
-		if frontendStarted.Load() {
-			require.NoError(t, <-frontendErrCh)
-		}
-	}()
-	adminAPIStarted := atomic.Bool{}
-	adminAPIErrCh := make(chan error, 1)
-	defer func() {
-		if adminAPIStarted.Load() {
-			require.NoError(t, <-adminAPIErrCh)
-		}
-	}()
 	defer cancel()
 	ctx = utils.ContextWithLogger(ctx, integrationutils.DefaultLogger(t))
-	logger := utils.LoggerFromContext(ctx)
 
 	testInfo, err := integrationutils.NewIntegrationTestInfoFromEnv(ctx, t, tt.withMock)
 	require.NoError(t, err)
 	cleanupCtx := context.Background()
 	cleanupCtx = utils.ContextWithLogger(cleanupCtx, integrationutils.DefaultLogger(t))
 	defer testInfo.Cleanup(cleanupCtx)
+	frontendErrCh := make(chan error, 1)
+	adminAPIErrCh := make(chan error, 1)
+	defer func() {
+		cancel()
+		frontendErr, adminErr := <-frontendErrCh, <-adminAPIErrCh
+		require.NoError(t, frontendErr)
+		require.NoError(t, adminErr)
+	}()
 	go func() {
-		frontendStarted.Store(true)
 		frontendErrCh <- testInfo.Frontend.Run(ctx)
 	}()
 	go func() {
-		adminAPIStarted.Store(true)
 		adminAPIErrCh <- testInfo.AdminAPI.Run(ctx)
 	}()
 
 	// wait for migration to complete to eliminate races with our test's second call migrateCosmos and to ensure the server is ready for testing
-	serverUrls := []string{testInfo.FrontendURL, testInfo.AdminURL}
-	err = wait.PollUntilContextCancel(ctx, 1*time.Second, true, func(ctx context.Context) (bool, error) {
-		for _, url := range serverUrls {
-			resp, err := http.Get(url)
-			if err != nil {
-				t.Log(err)
-				return false, nil
-			}
-			if err := resp.Body.Close(); err != nil {
-				logger.Error(err, "failed to close response body")
-			}
-		}
-		return true, nil
-	})
+	err = integrationutils.WaitForHTTPReady(ctx, testInfo.FrontendURL+"/healthz", testInfo.AdminURL+"/healthz/ready")
 	require.NoError(t, err)
 
 	stepInput := NewCosmosStepInput(testInfo)
@@ -165,11 +187,82 @@ func (tt *ResourceMutationTest) RunTest(t *testing.T) {
 		ctx := t.Context()
 		ctx = utils.ContextWithLogger(ctx, integrationutils.DefaultLogger(t))
 
+		// Pure storage tests may intentionally load malformed or duplicate ARM
+		// identities. Only HTTP admission steps need a converged inventory.
+		switch step.StepID().stepType {
+		case "httpCreate", "httpReplace", "httpPatch", "httpDelete":
+			require.NoError(t, testInfo.WaitForFrontendCaches(ctx), "cache convergence before step %s", step.StepID())
+		}
 		step.RunTest(ctx, t, *stepInput)
 	}
 }
 
-func NewStep[InternalAPIType any](indexString, stepType, stepName string, testDir fs.FS, path string) (IntegrationTestStep, error) {
+// NewUntypedStep dispatches step types that don't require a typed CRUD client.
+// Returns an error for any step kind that needs an InternalAPIType (create,
+// replace, get, getByID, list, delete, replaceWithETag) — those must go through
+// NewStep.
+func NewUntypedStep(indexString, stepType, stepName string, testDir fs.FS, path string) (IntegrationTestStep, error) {
+	itoInt, err := strconv.Atoi(indexString)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert %s to int: %w", indexString, err)
+	}
+	stepID := StepID{index: itoInt, stepType: stepType, stepName: stepName}
+	stepDir, err := fs.Sub(testDir, path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read %s: %w", path, err)
+	}
+
+	switch stepType {
+	case "load", "loadCosmos":
+		return NewLoadCosmosStep(stepID, stepDir)
+	case "loadClusterService":
+		return NewLoadClusterServiceStep(stepID, stepDir)
+	case "cosmosCompare":
+		return NewCosmosCompareStep(stepID, stepDir)
+	case "untypedGet":
+		return newUntypedGetStep(stepID, stepDir)
+	case "listActiveOperations":
+		return newListActiveOperationsStep(stepID, stepDir)
+	case "untypedListRecursive":
+		return newUntypedListRecursiveStep(stepID, stepDir)
+	case "untypedList":
+		return newUntypedListStep(stepID, stepDir)
+	case "untypedDelete":
+		return newUntypedDeleteStep(stepID, stepDir)
+	case "httpGet":
+		return newHTTPGetStep(stepID, stepDir)
+	case "httpList":
+		return newHTTPListStep(stepID, stepDir)
+	case "httpCreate", "httpReplace":
+		return newHTTPCreateStep(stepID, stepDir)
+	case "httpPost":
+		return newHTTPPostStep(stepID, stepDir)
+	case "httpPatch":
+		return newHTTPPatchStep(stepID, stepDir)
+	case "httpDelete":
+		return newHTTPDeleteStep(stepID, stepDir)
+	case "completeOperation":
+		return newCompleteOperationStep(stepID, stepDir)
+	case "setClusterServiceID":
+		return newSetClusterServiceIDStep(stepID, stepDir)
+	case "clusterServiceCompare":
+		return newClusterServiceCompareStep(stepID, stepDir)
+	case "syncClusterClusterServiceUpdateDispatch":
+		return newSyncClusterClusterServiceUpdateDispatchStep(stepID, stepDir)
+	case "migrateCosmos":
+		return newMigrateCosmosStep(stepID, stepDir)
+	case "kubernetesLoad":
+		return NewKubernetesLoadStep(stepID, stepDir)
+	case "kubernetesApply":
+		return NewKubernetesApplyStep(stepID, stepDir)
+	case "kubernetesCompare":
+		return NewKubernetesCompareStep(stepID, stepDir)
+	default:
+		return nil, fmt.Errorf("unknown step type for untyped suite: %s", stepType)
+	}
+}
+
+func NewStep[InternalAPIType any, InternalAPITypePointer coreapi.CosmosMetadataAccessorPtr[InternalAPIType]](indexString, stepType, stepName string, testDir fs.FS, path string) (IntegrationTestStep, error) {
 	itoInt, err := strconv.Atoi(indexString)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert %s to int: %w", indexString, err)
@@ -191,25 +284,25 @@ func NewStep[InternalAPIType any](indexString, stepType, stepName string, testDi
 		return NewCosmosCompareStep(stepID, stepDir)
 
 	case "create":
-		return newCreateStep[InternalAPIType](stepID, stepDir)
+		return newCreateStep[InternalAPIType, InternalAPITypePointer](stepID, stepDir)
 
 	case "replace":
-		return newReplaceStep[InternalAPIType](stepID, stepDir)
+		return newReplaceStep[InternalAPIType, InternalAPITypePointer](stepID, stepDir)
 
 	case "replaceWithETag":
-		return newReplaceWithETagStep[InternalAPIType](stepID, stepDir)
+		return newReplaceWithETagStep[InternalAPIType, InternalAPITypePointer](stepID, stepDir)
 
 	case "get":
-		return newGetStep[InternalAPIType](stepID, stepDir)
+		return newGetStep[InternalAPIType, InternalAPITypePointer](stepID, stepDir)
 
 	case "getByID":
-		return newGetByIDStep[InternalAPIType](stepID, stepDir)
+		return newGetByIDStep[InternalAPIType, InternalAPITypePointer](stepID, stepDir)
 
 	case "untypedGet":
 		return newUntypedGetStep(stepID, stepDir)
 
 	case "list":
-		return newListStep[InternalAPIType](stepID, stepDir)
+		return newListStep[InternalAPIType, InternalAPITypePointer](stepID, stepDir)
 
 	case "listActiveOperations":
 		return newListActiveOperationsStep(stepID, stepDir)
@@ -221,7 +314,7 @@ func NewStep[InternalAPIType any](indexString, stepType, stepName string, testDi
 		return newUntypedListStep(stepID, stepDir)
 
 	case "delete":
-		return newDeleteStep[InternalAPIType](stepID, stepDir)
+		return newDeleteStep[InternalAPIType, InternalAPITypePointer](stepID, stepDir)
 
 	case "untypedDelete":
 		return newUntypedDeleteStep(stepID, stepDir)
@@ -247,8 +340,14 @@ func NewStep[InternalAPIType any](indexString, stepType, stepName string, testDi
 	case "completeOperation":
 		return newCompleteOperationStep(stepID, stepDir)
 
+	case "setClusterServiceID":
+		return newSetClusterServiceIDStep(stepID, stepDir)
+
 	case "clusterServiceCompare":
 		return newClusterServiceCompareStep(stepID, stepDir)
+
+	case "syncClusterClusterServiceUpdateDispatch":
+		return newSyncClusterClusterServiceUpdateDispatchStep(stepID, stepDir)
 
 	case "migrateCosmos":
 		return newMigrateCosmosStep(stepID, stepDir)
@@ -292,7 +391,7 @@ func (s byIndex) Less(i, j int) bool { return s[i].StepID().index < s[j].StepID(
 func (s byIndex) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 
 func stringifyResource(controller any) string {
-	return string(api.Must(json.MarshalIndent(controller, "", "\t")))
+	return string(metadataapi.Must(json.MarshalIndent(controller, "", "\t")))
 }
 
 type CosmosCRUDKey struct {
@@ -349,7 +448,7 @@ func readResourcesInDir[InternalAPIType any](dir fs.FS) ([]*InternalAPIType, err
 
 func readRawBytesInDir(dir fs.FS) ([][]byte, error) {
 	contents := [][]byte{}
-	testContent := api.Must(fs.ReadDir(dir, "."))
+	testContent := metadataapi.Must(fs.ReadDir(dir, "."))
 	for _, dirEntry := range testContent {
 		if dirEntry.Name() == "00-key.json" { // standard filenames to skip
 			continue
@@ -380,7 +479,8 @@ type StepInput struct {
 	CosmosContainer        *azcosmos.ContainerClient
 	ContentLoader          integrationutils.ContentLoader
 	DocumentLister         integrationutils.DocumentLister
-	ResourcesDBClient      database.ResourcesDBClient
+	ResourcesDBClient      corecosmosstorage.ResourcesDBClient
+	FleetDBClient          fleetcosmosstorage.FleetDBClient
 	FrontendURL            string
 	AdminURL               string
 	APIVersion             string
@@ -424,5 +524,6 @@ func NewCosmosStepInput(storageInfo integrationutils.StorageIntegrationTestInfo)
 		ContentLoader:     storageInfo,
 		DocumentLister:    storageInfo,
 		ResourcesDBClient: storageInfo.ResourcesDBClient(),
+		FleetDBClient:     storageInfo.FleetDBClient(),
 	}
 }

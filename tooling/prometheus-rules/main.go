@@ -17,8 +17,11 @@ package main
 import (
 	"flag"
 	"os"
+	"strings"
 
 	"github.com/sirupsen/logrus"
+
+	"sigs.k8s.io/yaml"
 
 	"github.com/Azure/ARO-HCP/tooling/prometheus-rules/pkg/prometheusrules"
 )
@@ -29,17 +32,51 @@ func main() {
 	}
 	var configFilePath string
 	var promtoolPath string
+	var correlationMap bool
+	var preserveAggregationLabels string
 
 	flag.CommandLine.StringVar(&configFilePath, "config-file", "", "Path to configuration")
 	flag.CommandLine.StringVar(&promtoolPath, "promtool-path", "promtool", "Path to promtool binary ")
+	flag.CommandLine.BoolVar(&correlationMap, "correlation-map", false, "Output a YAML correlation map instead of generating Bicep")
+	flag.CommandLine.StringVar(&preserveAggregationLabels, "preserve-aggregation-labels", "region", "Comma-separated labels that must survive every aggregation in a rule's PromQL")
 	flag.Parse()
+
+	if correlationMap {
+		configs := flag.Args()
+		if configFilePath != "" {
+			configs = append([]string{configFilePath}, configs...)
+		}
+		if len(configs) == 0 {
+			logrus.Fatal("at least one config file must be provided via --config-file or as arguments")
+		}
+		entries, err := prometheusrules.GenerateCorrelationMap(configs)
+		if err != nil {
+			logrus.WithError(err).Fatal("error generating correlation map")
+		}
+		out, err := yaml.Marshal(entries)
+		if err != nil {
+			logrus.WithError(err).Fatal("error marshaling correlation map")
+		}
+		os.Stdout.Write(out)
+		return
+	}
 
 	if err := prometheusrules.Validate(flag.Args(), configFilePath, promtoolPath); err != nil {
 		logrus.WithError(err).Fatal("invalid options")
 	}
 
-	if err := prometheusrules.GenerateFromConfig(configFilePath, false, promtoolPath); err != nil {
+	if err := prometheusrules.GenerateFromConfig(configFilePath, false, promtoolPath, splitAndTrim(preserveAggregationLabels)); err != nil {
 		logrus.WithError(err).Fatal("error running generator")
 	}
+}
 
+// splitAndTrim splits a comma-separated list, trimming whitespace and dropping empties.
+func splitAndTrim(csv string) []string {
+	var out []string
+	for _, part := range strings.Split(csv, ",") {
+		if trimmed := strings.TrimSpace(part); trimmed != "" {
+			out = append(out, trimmed)
+		}
+	}
+	return out
 }

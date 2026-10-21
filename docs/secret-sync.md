@@ -163,17 +163,10 @@ The command is idempotent — re-running with the same secret name overwrites th
 
 If the Key Vault's RSA key needs rotation, [download the new public key](#2-get-the-public-key-first-time-only-per-vault) and [re-register all secrets](#4-register-the-secret).
 
-## Creating a Registry Service Account
+> [!NOTE]
+> The `component-sync-pull-secret` contains `registry.stage.redhat.io` credentials for pulling OADP/Velero images. The pull secret JSON is sourced from the [OADP QE automation repo](https://gitlab.cee.redhat.com/migrationqe/oadp-qe-automation/-/blob/main/operator/generic/pull-secrets.json).
 
-The `component-sync-pull-secret` contains credentials for `registry.redhat.io`, obtained via a Red Hat registry service account. To create or rotate one:
-
-1. Log in to the [Red Hat Customer Portal](https://access.redhat.com) with a Red Hat account.
-2. Navigate to the [Registry Service Account management page](https://access.redhat.com/terms-based-registry/).
-3. Click **New Service Account**, provide a name and description.
-4. After creation, go to the **Docker Configuration** tab and download the JSON.
-5. Base64-encode the Docker config JSON and [register it as a secret](#register-a-secret) under the name `component-sync-pull-secret`.
-
-For the full guide, see [Creating Registry Service Accounts](https://access.redhat.com/articles/RegistryAuthentication#creating-registry-service-accounts-6) in the Red Hat documentation.
+The image-updater Prow job consumes a normalized Docker config copy from the `hcm-aro/component-sync-pull-secret/pull-secret` Google Secret Manager field. When rotating this pull secret, update that field with the decoded `config.json` value as part of the same operation; the job does not access the DEV Key Vault directly.
 
 ## Renewing the Prow Token
 

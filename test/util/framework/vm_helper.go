@@ -16,6 +16,8 @@ package framework
 
 import (
 	"context"
+	"embed"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -27,10 +29,85 @@ import (
 
 	"github.com/onsi/ginkgo/v2"
 
+	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/utils/ptr"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 )
+
+// DeployTestVM deploys a test VM in the given VNet/subnet with a retry loop
+// that absorbs transient ARM errors but fails fast on SkuNotAvailable.
+// Returns the VM name and the deployment (which can be used to extract outputs
+// like the public IP via GetOutputValueString).
+func (tc *perItOrDescribeTestContext) DeployTestVM(
+	ctx context.Context,
+	testArtifactsFS embed.FS,
+	resourceGroupName string,
+	clusterName string,
+	vnetName string,
+	subnetName string,
+) (string, *armresources.DeploymentExtended, error) {
+	sshPublicKey, _, err := GenerateSSHKeyPair()
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to generate SSH key pair: %w", err)
+	}
+
+	vmName := fmt.Sprintf("%s-test-vm", clusterName)
+	vmSize, err := tc.SelectVMSize(ctx, JumpboxVMSizeSelector())
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to resolve jumpbox VM size: %w", err)
+	}
+
+	var deployment *armresources.DeploymentExtended
+	var deployErr error
+	for attempt := 0; attempt < 3; attempt++ {
+		if attempt > 0 {
+			time.Sleep(20 * time.Second)
+		}
+		deployment, deployErr = tc.CreateBicepTemplateAndWait(ctx,
+			WithTemplateFromFS(testArtifactsFS, "test-artifacts/generated-test-artifacts/modules/test-vm.json"),
+			WithDeploymentName("test-vm"),
+			WithScope(BicepDeploymentScopeResourceGroup),
+			WithClusterResourceGroup(resourceGroupName),
+			WithParameters(map[string]any{
+				"vmName":       vmName,
+				"vnetName":     vnetName,
+				"subnetName":   subnetName,
+				"sshPublicKey": sshPublicKey,
+				"vmSize":       vmSize,
+			}),
+			WithTimeout(30*time.Minute),
+		)
+		if deployErr == nil || strings.Contains(deployErr.Error(), "SkuNotAvailable") {
+			break
+		}
+	}
+	if deployErr != nil {
+		return "", nil, fmt.Errorf("failed to deploy test VM: %w", deployErr)
+	}
+
+	return vmName, deployment, nil
+}
+
+// RunKubectlOnVM writes the given base64-encoded kubeconfig to the VM and runs
+// a kubectl command. This is the standard pattern for interacting with a cluster
+// whose KAS is only reachable from within the VNet.
+func RunKubectlOnVM(ctx context.Context, tc interface {
+	SubscriptionID(ctx context.Context) (string, error)
+	AzureCredential() (azcore.TokenCredential, error)
+}, resourceGroup, vmName, kubeconfigB64, kubectlArgs string, pollTimeout time.Duration) (string, error) {
+	// Redirect stderr to /dev/null because RunVMCommand treats any stderr
+	// content as an error, and kubectl writes warnings (e.g. TLS, API
+	// discovery) to stderr even on success.
+	cmd := fmt.Sprintf(
+		"echo '%s' | base64 -d > /tmp/kubeconfig && kubectl --kubeconfig=/tmp/kubeconfig %s 2>/dev/null",
+		kubeconfigB64, kubectlArgs,
+	)
+	return RunVMCommand(ctx, tc, resourceGroup, vmName, cmd, pollTimeout)
+}
 
 // Helper to run command on VM
 func RunVMCommand(ctx context.Context, tc interface {
@@ -47,75 +124,141 @@ func RunVMCommand(ctx context.Context, tc interface {
 		return "", err
 	}
 
-	computeClient, err := armcompute.NewVirtualMachinesClient(subscriptionID, azCreds, nil)
+	clientFactory, err := armcompute.NewClientFactory(subscriptionID, azCreds, nil)
 	if err != nil {
 		return "", err
 	}
 
-	runCommandInput := armcompute.RunCommandInput{
-		CommandID: to.Ptr("RunShellScript"),
-		Script: []*string{
-			to.Ptr(command),
+	vmClient := clientFactory.NewVirtualMachinesClient()
+	runCommandsClient := clientFactory.NewVirtualMachineRunCommandsClient()
+
+	vm, err := vmClient.Get(ctx, resourceGroup, vmName, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to get VM %q before running command: %w", vmName, err)
+	}
+	if vm.Location == nil || *vm.Location == "" {
+		return "", fmt.Errorf("VM %q has no location set", vmName)
+	}
+
+	runCommandName := fmt.Sprintf("e2e-runcommand-%d", time.Now().UnixNano())
+	timeoutSeconds := int32(max(60, int(pollTimeout.Seconds())+60))
+	// Managed Run Commands accept exactly one script source (script, scriptUri,
+	// or commandId). Custom shell content must use Script only — CommandID is
+	// for predefined gallery/builtin commands, not the old RunShellScript action.
+	runCommand := armcompute.VirtualMachineRunCommand{
+		Location: vm.Location,
+		Properties: &armcompute.VirtualMachineRunCommandProperties{
+			Source: &armcompute.VirtualMachineRunCommandScriptSource{
+				Script: to.Ptr(command),
+			},
+			AsyncExecution:   to.Ptr(false),
+			TimeoutInSeconds: to.Ptr(timeoutSeconds),
 		},
 	}
 
-	poller, err := computeClient.BeginRunCommand(ctx, resourceGroup, vmName, runCommandInput, nil)
+	poller, err := runCommandsClient.BeginCreateOrUpdate(ctx, resourceGroup, vmName, runCommandName, runCommand, nil)
 	if err != nil {
 		return "", err
 	}
 
-	// Create a timeout context to avoid waiting too long on VM command failures
-	// VM commands should complete quickly (within a few minutes at most)
+	// Create a timeout context to avoid waiting too long on VM command failures.
+	// On any PollUntilDone failure (timeout or ARM/LRO error), best-effort delete
+	// the named run command so it cannot block subsequent commands on the VM.
+	// Error messages intentionally omit the script content — callers often pass
+	// secrets such as base64-encoded kubeconfigs.
 	pollCtx, cancel := context.WithTimeout(ctx, pollTimeout)
 	defer cancel()
 
-	result, err := poller.PollUntilDone(pollCtx, nil)
+	_, err = poller.PollUntilDone(pollCtx, nil)
 	if err != nil {
-		return "", err
+		deleteErr := deleteVirtualMachineRunCommandBestEffort(runCommandsClient, resourceGroup, vmName, runCommandName)
+		timedOut := errors.Is(err, context.DeadlineExceeded) || errors.Is(pollCtx.Err(), context.DeadlineExceeded)
+		switch {
+		case timedOut && deleteErr != nil:
+			return "", fmt.Errorf("timed out waiting for VM run command %q on VM %q and failed to cancel it: %w (cancel error: %v)", runCommandName, vmName, err, deleteErr)
+		case timedOut:
+			return "", fmt.Errorf("timed out waiting for VM run command %q on VM %q; canceled run command", runCommandName, vmName)
+		case deleteErr != nil:
+			return "", fmt.Errorf("VM run command %q on VM %q failed and cleanup also failed: %w (cancel error: %v)", runCommandName, vmName, err, deleteErr)
+		default:
+			return "", fmt.Errorf("VM run command %q on VM %q failed: %w", runCommandName, vmName, err)
+		}
+	}
+	defer func() {
+		if deleteErr := deleteVirtualMachineRunCommandBestEffort(runCommandsClient, resourceGroup, vmName, runCommandName); deleteErr != nil {
+			ginkgo.GinkgoLogr.Error(deleteErr, "failed to delete completed VM run command resource", "resourceGroup", resourceGroup, "vmName", vmName, "runCommandName", runCommandName)
+		}
+	}()
+
+	// CreateOrUpdate LRO responses often omit instance view; fetch it explicitly.
+	// Use a fresh timeout — pollCtx may already be near its deadline after PollUntilDone.
+	getCtx, getCancel := context.WithTimeout(ctx, 2*time.Minute)
+	defer getCancel()
+	result, err := runCommandsClient.GetByVirtualMachine(getCtx, resourceGroup, vmName, runCommandName, &armcompute.VirtualMachineRunCommandsClientGetByVirtualMachineOptions{
+		Expand: to.Ptr("instanceView"),
+	})
+	if err != nil {
+		return "", fmt.Errorf("failed to get instance view for run command %q on VM %q: %w", runCommandName, vmName, err)
 	}
 
-	if len(result.Value) > 0 && result.Value[0].Message != nil {
-		// Azure Run Command returns output in format:
-		// "Enable succeeded: \n[stdout]\n<actual output>\n[stderr]\n<errors>"
-		// We need to extract stdout and stderr content
-		message := *result.Value[0].Message
-
-		// Find the stdout section
-		stdoutStart := strings.Index(message, "[stdout]\n")
-		if stdoutStart == -1 {
-			// If no stdout marker, return the whole message
-			return message, nil
-		}
-
-		// Skip past the "[stdout]\n" marker
-		stdoutStart += len("[stdout]\n")
-
-		// Find where stderr starts (if present)
-		stderrStart := strings.Index(message[stdoutStart:], "\n[stderr]")
-
-		var output string
-		if stderrStart == -1 {
-			// No stderr marker, take everything after stdout
-			output = message[stdoutStart:]
-		} else {
-			// Take only the stdout section
-			output = message[stdoutStart : stdoutStart+stderrStart]
-
-			// Extract and inspect stderr
-			stderrAbsoluteStart := stdoutStart + stderrStart + len("\n[stderr]\n")
-			if stderrAbsoluteStart < len(message) {
-				stderr := strings.TrimSpace(message[stderrAbsoluteStart:])
-				if stderr != "" {
-					// Return an error if stderr is not empty
-					return "", fmt.Errorf("%s", stderr)
-				}
-			}
-		}
-
-		return strings.TrimSpace(output), nil
+	if result.Properties == nil || result.Properties.InstanceView == nil {
+		return "", fmt.Errorf("run command %q on VM %q completed without instance view", runCommandName, vmName)
 	}
 
-	return "", nil
+	return outputFromRunCommandInstanceView(result.Properties.InstanceView, runCommandName, vmName)
+}
+
+func outputFromRunCommandInstanceView(instanceView *armcompute.VirtualMachineRunCommandInstanceView, runCommandName, vmName string) (string, error) {
+	output := strings.TrimSpace(ptr.Deref(instanceView.Output, ""))
+	errorOutput := strings.TrimSpace(ptr.Deref(instanceView.Error, ""))
+
+	if errorOutput != "" {
+		return "", fmt.Errorf("%s", errorOutput)
+	}
+
+	if instanceView.ExitCode != nil && *instanceView.ExitCode != 0 {
+		return "", fmt.Errorf("run command %q failed with exit code %d on VM %q (output: %q)", runCommandName, *instanceView.ExitCode, vmName, output)
+	}
+
+	if instanceView.ExecutionState != nil && *instanceView.ExecutionState != armcompute.ExecutionStateSucceeded {
+		return "", fmt.Errorf("run command %q finished in unexpected state %q on VM %q (output: %q)", runCommandName, *instanceView.ExecutionState, vmName, output)
+	}
+
+	return output, nil
+}
+
+func deleteVirtualMachineRunCommandBestEffort(
+	runCommandsClient *armcompute.VirtualMachineRunCommandsClient,
+	resourceGroup string,
+	vmName string,
+	runCommandName string,
+) error {
+	deleteCtx, deleteCancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer deleteCancel()
+	return deleteVirtualMachineRunCommand(deleteCtx, runCommandsClient, resourceGroup, vmName, runCommandName)
+}
+
+func deleteVirtualMachineRunCommand(
+	ctx context.Context,
+	runCommandsClient *armcompute.VirtualMachineRunCommandsClient,
+	resourceGroup string,
+	vmName string,
+	runCommandName string,
+) error {
+	poller, err := runCommandsClient.BeginDelete(ctx, resourceGroup, vmName, runCommandName, nil)
+	if err != nil {
+		if IsNotFoundError(err) {
+			return nil
+		}
+		return err
+	}
+
+	_, err = poller.PollUntilDone(ctx, nil)
+	if err != nil && !IsNotFoundError(err) {
+		return err
+	}
+
+	return nil
 }
 
 // GetVirtualMachinesInResourceGroup lists all VMs in the given resource group
@@ -156,6 +299,15 @@ func GetVirtualMachinesInResourceGroup(
 	return vms, nil
 }
 
+// isRetryableBootDiagnosticsError checks if the error is a 409 OperationNotAllowed
+func isRetryableBootDiagnosticsError(err error) bool {
+	var azErr *azcore.ResponseError
+	if !errors.As(err, &azErr) {
+		return false
+	}
+	return azErr.StatusCode == http.StatusConflict && azErr.ErrorCode == "OperationNotAllowed"
+}
+
 // GetVirtualMachineConsoleLog retrieves the boot diagnostics serial console log from an Azure VM.
 // Returns an io.ReadCloser for streaming the console log data. The caller is responsible for closing the reader.
 // Returns an error if the retrieval fails or boot diagnostics is not enabled.
@@ -165,12 +317,40 @@ func GetVirtualMachineConsoleLog(
 	resourceGroupName string,
 	vmName string,
 ) (io.ReadCloser, error) {
+	logger := ginkgo.GinkgoLogr
 	vmClient := computeClientFactory.NewVirtualMachinesClient()
 
-	// Retrieve boot diagnostics data which includes the serial console log
-	result, err := vmClient.RetrieveBootDiagnosticsData(ctx, resourceGroupName, vmName, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve boot diagnostics data for VM %q: %w", vmName, err)
+	var result armcompute.VirtualMachinesClientRetrieveBootDiagnosticsDataResponse
+	var attempt int
+	var lastRetryableErr error
+	retryErr := wait.ExponentialBackoffWithContext(ctx, wait.Backoff{
+		Duration: 5 * time.Second,
+		Factor:   2.0,
+		Steps:    5,
+		Cap:      20 * time.Second,
+	}, func(ctx context.Context) (bool, error) {
+		attempt++
+		var err error
+		result, err = vmClient.RetrieveBootDiagnosticsData(ctx, resourceGroupName, vmName, nil)
+		if err == nil {
+			return true, nil
+		}
+		if isRetryableBootDiagnosticsError(err) {
+			lastRetryableErr = err
+			logger.Info("retrying boot diagnostics retrieval due to OperationNotAllowed",
+				"vmName", vmName,
+				"attempt", attempt,
+				"error", azureFailureError(err))
+			return false, nil
+		}
+		return false, err
+	})
+
+	if retryErr != nil {
+		if wait.Interrupted(retryErr) && lastRetryableErr != nil {
+			return nil, fmt.Errorf("failed to retrieve boot diagnostics data for VM %q after %d attempts, last error: %w", vmName, attempt, lastRetryableErr)
+		}
+		return nil, fmt.Errorf("failed to retrieve boot diagnostics data for VM %q: %w", vmName, retryErr)
 	}
 
 	// Check if serial console log URI is available
@@ -181,12 +361,12 @@ func GetVirtualMachineConsoleLog(
 	// Fetch the actual log content from the blob storage URL
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, *result.SerialConsoleLogBlobURI, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create request for console log blob for VM %q: %w", vmName, err)
+		return nil, fmt.Errorf("failed to create request for console log blob for VM %q: %s", vmName, azureFailureError(err))
 	}
 	client := &http.Client{Timeout: 5 * time.Minute}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch console log from blob storage for VM %q: %w", vmName, err)
+		return nil, fmt.Errorf("failed to fetch console log from blob storage for VM %q: %s", vmName, azureFailureError(err))
 	}
 
 	if resp.StatusCode != http.StatusOK {
@@ -197,9 +377,75 @@ func GetVirtualMachineConsoleLog(
 	return resp.Body, nil
 }
 
+// describeVirtualMachineState returns a one-line description of a VM's
+// provisioning state and instance view statuses, and saves the full instance
+// view to "<vmName>-instance-view.json" in targetDirectory. It is best effort:
+// failures are reported in the returned description.
+func describeVirtualMachineState(
+	ctx context.Context,
+	vmClient *armcompute.VirtualMachinesClient,
+	resourceGroupName string,
+	vm *armcompute.VirtualMachine,
+	targetDirectory string,
+) string {
+	provisioningState := "<unset>"
+	if vm.Properties != nil && vm.Properties.ProvisioningState != nil {
+		provisioningState = *vm.Properties.ProvisioningState
+	}
+
+	resp, err := vmClient.InstanceView(ctx, resourceGroupName, *vm.Name, nil)
+	if err != nil {
+		return fmt.Sprintf("VM provisioningState=%q, instance view unavailable: %v", provisioningState, err)
+	}
+
+	description := fmt.Sprintf("VM provisioningState=%q, instance view statuses: %s", provisioningState, summarizeVirtualMachineInstanceView(&resp.VirtualMachineInstanceView))
+
+	instanceViewPath := filepath.Join(targetDirectory, fmt.Sprintf("%s-instance-view.json", *vm.Name))
+	instanceViewJSON, err := json.MarshalIndent(resp.VirtualMachineInstanceView, "", "  ")
+	if err == nil {
+		err = os.WriteFile(instanceViewPath, instanceViewJSON, 0644)
+	}
+	if err != nil {
+		return fmt.Sprintf("%s (failed to save instance view: %v)", description, err)
+	}
+	ginkgo.GinkgoLogr.Info("VM instance view saved", "vmName", *vm.Name, "targetPath", instanceViewPath)
+	return description
+}
+
+// summarizeVirtualMachineInstanceView renders the VM-level statuses of an
+// instance view, for example
+// `[ProvisioningState/failed/InternalExecutionError: "An internal execution error occurred. Please retry later."]`.
+func summarizeVirtualMachineInstanceView(instanceView *armcompute.VirtualMachineInstanceView) string {
+	if instanceView == nil || len(instanceView.Statuses) == 0 {
+		return "[]"
+	}
+	statuses := make([]string, 0, len(instanceView.Statuses))
+	for _, status := range instanceView.Statuses {
+		if status == nil {
+			continue
+		}
+		code := ptr.Deref(status.Code, "<no code>")
+		if message := strings.TrimSpace(ptr.Deref(status.Message, "")); message != "" {
+			statuses = append(statuses, fmt.Sprintf("%s: %q", code, message))
+		} else {
+			statuses = append(statuses, code)
+		}
+	}
+	return "[" + strings.Join(statuses, ", ") + "]"
+}
+
 // DownloadAllVirtualMachineConsoleLogs downloads boot diagnostics console logs for all VMs
 // in the specified resource group and saves them to the target directory.
 // Each log file is named "<vmName>-console.log". VMs without boot diagnostics enabled are skipped.
+//
+// When a VM's console log cannot be retrieved, its instance view is saved as
+// "<vmName>-instance-view.json" instead, and the returned error includes the VM's
+// provisioning state and instance view statuses. Azure refuses boot diagnostics
+// retrieval with 409 OperationNotAllowed for as long as an operation holds the
+// VM, which is the case for the whole remaining life of a VM whose create
+// failed inside Azure (for example with InternalExecutionError). Reads are not
+// held, so the provisioning state and instance view still show why.
+//
 // Returns an error if the directory cannot be created or if listing VMs fails.
 func DownloadAllVirtualMachineConsoleLogs(
 	ctx context.Context,
@@ -208,6 +454,11 @@ func DownloadAllVirtualMachineConsoleLogs(
 	targetDirectory string,
 ) error {
 	logger := ginkgo.GinkgoLogr
+
+	if targetDirectory == "" {
+		logger.Info("skipping VM console log download: no target directory configured (ARTIFACT_DIR not set)")
+		return nil
+	}
 
 	// Create target directory if it doesn't exist
 	if err := os.MkdirAll(targetDirectory, 0755); err != nil {
@@ -228,6 +479,7 @@ func DownloadAllVirtualMachineConsoleLogs(
 	}
 
 	// Download console log for each VM
+	vmClient := computeClientFactory.NewVirtualMachinesClient()
 	var downloadErrors []string
 	for _, vm := range vms {
 		if vm.Name == nil {
@@ -238,7 +490,8 @@ func DownloadAllVirtualMachineConsoleLogs(
 		if err != nil {
 			// Don't fail completely if one VM doesn't have boot diagnostics enabled
 			logger.Info("failed to fetch VM console log", "vmName", *vm.Name)
-			downloadErrors = append(downloadErrors, fmt.Sprintf("VM %q: %v", *vm.Name, err))
+			vmState := describeVirtualMachineState(ctx, vmClient, resourceGroupName, vm, targetDirectory)
+			downloadErrors = append(downloadErrors, fmt.Sprintf("VM %q: %v; %s", *vm.Name, err, vmState))
 			continue
 		}
 

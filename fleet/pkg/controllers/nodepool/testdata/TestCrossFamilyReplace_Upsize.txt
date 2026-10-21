@@ -1,0 +1,58 @@
+conditional projection: proposed changes are assumed to succeed; no ARM writes are performed.
+Observed transitions and failed-pool reconciliation require a new observation; workload/autoscaler activity and external quota changes are not predicted.
+
+initial:
+  old1  worker  Standard_D4s_v3  zone=1  max=6  count=2  autoscaled
+  old2  worker  Standard_D4s_v3  zone=2  max=6  count=2  autoscaled
+  old3  worker  Standard_D4s_v3  zone=3  max=6  count=2  autoscaled
+
+desired:
+  new1  worker  Standard_E32ds_v6  zone=1  max=6
+  new2  worker  Standard_E32ds_v6  zone=2  max=6
+  new3  worker  Standard_E32ds_v6  zone=3  max=6
+
+budget (vCPUs):
+  StandardEdsv6Family:  576
+  standardDSv3Family:   72
+
+initial headroom (vCPUs):
+  StandardEdsv6Family:  576
+  standardDSv3Family:   24
+
+fully allocated: true
+
+initial capacity:
+  worker:  cpu=72  memory=288GiB  swiftNICs=18
+
+role-zone floor:
+  worker zone 1:  cpu=24  memory=96GiB  swiftNICs=6
+  worker zone 2:  cpu=24  memory=96GiB  swiftNICs=6
+  worker zone 3:  cpu=24  memory=96GiB  swiftNICs=6
+
+actions:
+  margins above floor after each action (c = vCPU, G = memory GiB, n = Swift NICs)
+
+     #  action            role    pool  vm size   zone  change         margin                 quota left
+     1  Create            worker  new1  E32ds_v6  1     min=1   max=6   +192c  +1536G   +42n  Edsv6 384c
+     2  Create            worker  new2  E32ds_v6  2     min=1   max=6   +192c  +1536G   +42n  Edsv6 192c
+     3  Create            worker  new3  E32ds_v6  3     min=1   max=6   +192c  +1536G   +42n  Edsv6 0c
+     4  SetScalingBounds  worker  old1  D4s_v3    1     min=1   max=2   +176c  +1472G   +38n  DSv3 40c
+     5  SetScalingBounds  worker  old2  D4s_v3    2     min=1   max=2   +176c  +1472G   +38n  DSv3 56c
+     6  SetScalingBounds  worker  old3  D4s_v3    3     min=1   max=2   +176c  +1472G   +38n  DSv3 72c
+     7  Freeze            worker  old1  D4s_v3    1     count=2         +176c  +1472G   +38n
+     8  Freeze            worker  old2  D4s_v3    2     count=2         +176c  +1472G   +38n
+     9  Freeze            worker  old3  D4s_v3    3     count=2         +176c  +1472G   +38n
+    10  Reduce            worker  old1  D4s_v3    1     count=1         +172c  +1456G   +37n  DSv3 76c
+    11  Reduce            worker  old1  D4s_v3    1     count=0         +168c  +1440G   +36n  DSv3 80c
+    12  Reduce            worker  old2  D4s_v3    2     count=1         +172c  +1456G   +37n  DSv3 84c
+    13  Reduce            worker  old2  D4s_v3    2     count=0         +168c  +1440G   +36n  DSv3 88c
+    14  Reduce            worker  old3  D4s_v3    3     count=1         +172c  +1456G   +37n  DSv3 92c
+    15  Reduce            worker  old3  D4s_v3    3     count=0         +168c  +1440G   +36n  DSv3 96c
+    16  Delete            worker  old1  D4s_v3    1                     +168c  +1440G   +36n
+    17  Delete            worker  old2  D4s_v3    2                     +168c  +1440G   +36n
+    18  Delete            worker  old3  D4s_v3    3                     +168c  +1440G   +36n
+
+steps:      18
+converged:  true
+outcome:    converged
+reason:     pool configuration matches desired

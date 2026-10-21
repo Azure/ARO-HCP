@@ -44,8 +44,6 @@ var (
 	}
 )
 
-var _ DiagnosticVerifier = verifyOperatorInstalled{}
-
 // imagePullErrorReasons lists all container waiting reasons that indicate an
 // image pull problem.  Values come from k8s.io/kubernetes/pkg/kubelet/images/types.go.
 var imagePullErrorReasons = sets.New(
@@ -143,13 +141,20 @@ func catalogSourceHealthCheck(ctx context.Context, cs *unstructured.Unstructured
 type verifyOperatorInstalled struct {
 	namespace        string
 	subscriptionName string
+	timeout          time.Duration
 }
 
 func (v verifyOperatorInstalled) Name() string {
-	return "VerifyOperatorInstalled"
+	return fmt.Sprintf("VerifyOperatorInstalled(%s/%s)", v.namespace, v.subscriptionName)
 }
 
 func (v verifyOperatorInstalled) Verify(ctx context.Context, adminRESTConfig *rest.Config) error {
+	return pollUntilReady(ctx, v.Name(), v.timeout, DefaultPollInterval, adminRESTConfig, DefaultDiagnoseTimeout, v.diagnoseFailure, func(ctx context.Context) error {
+		return v.checkOnce(ctx, adminRESTConfig)
+	})
+}
+
+func (v verifyOperatorInstalled) checkOnce(ctx context.Context, adminRESTConfig *rest.Config) error {
 	dynamicClient, err := dynamic.NewForConfig(adminRESTConfig)
 	if err != nil {
 		return fmt.Errorf("failed to create dynamic client: %w", err)
@@ -361,7 +366,7 @@ func formatInstallPlanConditions(conditions []any) string {
 	return strings.Join(formatted, "\n")
 }
 
-func (v verifyOperatorInstalled) DiagnoseFailure(ctx context.Context, restConfig *rest.Config) string {
+func (v verifyOperatorInstalled) diagnoseFailure(ctx context.Context, restConfig *rest.Config) string {
 	var sections []string
 
 	dynamicClient, err := dynamic.NewForConfig(restConfig)
@@ -528,10 +533,11 @@ func diagnoseEvents(ctx context.Context, kubeClient kubernetes.Interface, namesp
 	return lines
 }
 
-func VerifyOperatorInstalled(namespace, subscriptionName string) HostedClusterVerifier {
+func VerifyOperatorInstalled(namespace, subscriptionName string, timeout time.Duration) HostedClusterVerifier {
 	return verifyOperatorInstalled{
 		namespace:        namespace,
 		subscriptionName: subscriptionName,
+		timeout:          timeout,
 	}
 }
 
@@ -541,7 +547,7 @@ type verifyOperatorCSV struct {
 }
 
 func (v verifyOperatorCSV) Name() string {
-	return "VerifyOperatorCSV"
+	return fmt.Sprintf("VerifyOperatorCSV(%s/%s)", v.namespace, v.csvName)
 }
 
 func (v verifyOperatorCSV) Verify(ctx context.Context, adminRESTConfig *rest.Config) error {
@@ -585,13 +591,20 @@ func VerifyOperatorCSV(namespace, csvName string) HostedClusterVerifier {
 type verifyCatalogSourceReady struct {
 	namespace     string
 	catalogSource string
+	timeout       time.Duration
 }
 
 func (v verifyCatalogSourceReady) Name() string {
-	return "VerifyCatalogSourceReady"
+	return fmt.Sprintf("VerifyCatalogSourceReady(%s/%s)", v.namespace, v.catalogSource)
 }
 
 func (v verifyCatalogSourceReady) Verify(ctx context.Context, adminRESTConfig *rest.Config) error {
+	return pollUntilReady(ctx, v.Name(), v.timeout, DefaultPollInterval, adminRESTConfig, DefaultDiagnoseTimeout, nil, func(ctx context.Context) error {
+		return v.checkOnce(ctx, adminRESTConfig)
+	})
+}
+
+func (v verifyCatalogSourceReady) checkOnce(ctx context.Context, adminRESTConfig *rest.Config) error {
 	dynamicClient, err := dynamic.NewForConfig(adminRESTConfig)
 	if err != nil {
 		return fmt.Errorf("failed to create dynamic client: %w", err)
@@ -620,10 +633,11 @@ func (v verifyCatalogSourceReady) Verify(ctx context.Context, adminRESTConfig *r
 	return catalogSourceHealthCheck(ctx, cs, v.namespace, v.catalogSource, kubeClient, false)
 }
 
-// VerifyCatalogSourceReady verifies that a catalog source is healthy and ready to serve operators
-func VerifyCatalogSourceReady(namespace, catalogSource string) HostedClusterVerifier {
+// VerifyCatalogSourceReady verifies that a catalog source is healthy and ready to serve operators.
+func VerifyCatalogSourceReady(namespace, catalogSource string, timeout time.Duration) HostedClusterVerifier {
 	return verifyCatalogSourceReady{
 		namespace:     namespace,
 		catalogSource: catalogSource,
+		timeout:       timeout,
 	}
 }

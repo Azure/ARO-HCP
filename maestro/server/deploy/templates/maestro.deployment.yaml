@@ -112,10 +112,6 @@ spec:
           mountPath: /secrets/mqtt-creds
           readOnly: true
         env:
-        - name: OTEL_EXPORTER_OTLP_ENDPOINT
-          value: '{{ .Values.tracing.address }}'
-        - name: OTEL_TRACES_EXPORTER
-          value: '{{ .Values.tracing.exporter }}'
         - name: "AMS_ENV"
           value: "production"
         - name: POD_NAME
@@ -162,9 +158,15 @@ spec:
           limits:
             memory: '{{ .Values.deployment.resources.limits.memory }}'
 {{- end }}
+        # NOTE: liveness uses /livez, a process-only endpoint that does NOT touch
+        # Postgres (openshift-online/maestro#543), so a transient DB slowdown no
+        # longer fails this probe. Readiness keeps using /healthcheck (which does a
+        # Postgres instance-row read), so a pod that can't reach the DB is pulled
+        # from Service endpoints instead of being restarted into a connection-pool
+        # reset storm (AROSLSRE-1170).
         livenessProbe:
           httpGet:
-            path: /healthcheck
+            path: /livez
             port: {{ .Values.maestro.healthCheckBindPort }}
             scheme: HTTP
           initialDelaySeconds: 25

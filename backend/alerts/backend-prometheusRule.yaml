@@ -11,33 +11,9 @@ metadata:
 spec:
   groups:
   - name: backend
+    labels:
+      component: backend
     rules:
-    - alert: BackendControllerRetryHotLoop
-      # A ratio of retries to total adds that is rate-independent:
-      # it stays high regardless of item count or backoff delay.
-      # A ratio > 0.5 sustained for 10 minutes means more than half
-      # of all queue activity is retries rather than fresh work.
-      expr: |
-        (
-          sum by (name, cluster) (
-            max without(prometheus_replica) (
-              rate(workqueue_retries_total{namespace="aro-hcp"}[10m])
-            )
-          )
-          /
-          sum by (name, cluster) (
-            max without(prometheus_replica) (
-              rate(workqueue_adds_total{namespace="aro-hcp"}[10m])
-            )
-          )
-        ) > 0.5
-      for: 10m
-      labels:
-        severity: warning
-      annotations:
-        description: 'Backend controller workqueue {{ $labels.name }} has a retry ratio of > 50% sustained over 10 minutes, indicating most queue activity is failed retries rather than fresh work.'
-        runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html'
-        summary: 'Backend controller workqueue retry hot loop'
     - alert: BackendControllerQueueDepthHigh
       expr: |
         max by (name, cluster) (
@@ -45,13 +21,42 @@ spec:
             workqueue_depth{namespace="aro-hcp"}
           )
         ) > 10
-      for: 5m
+        unless on (name, cluster) (
+          workqueue_depth{namespace="aro-hcp",name=~"clustervalidation(controlplaneidentitiespermissionsclustervalidation|dataplaneidentitiespermissionsvalidation|containerregistrypullcredentialspermissionvalidation)"}
+          and on (cluster) (
+            max by (cluster) (backend_insecure_mock_managed_identities_enabled{namespace="aro-hcp"}) == 1
+          )
+        )
+      for: 15m
       labels:
         severity: warning
       annotations:
-        description: 'Backend controller workqueue {{ $labels.name }} has had a depth > 10 for more than 5 minutes, indicating work is accumulating faster than it can be processed.'
-        runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html'
-        summary: 'Backend controller workqueue depth is high'
+        description: 'Backend controller workqueue {{ $labels.name }} has had a depth > 10 for more than 15 minutes, indicating work is accumulating faster than it can be processed.'
+        runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/alerts.md#backend-queue-depth-thresholds'
+        summary: 'Backend controller workqueue {{ $labels.name }} depth is high'
+    # Match lowercase workqueue name labels, not Go controller-name constants.
+    # These three validation controllers receive CheckAccessV2ClientBuilder in
+    # backend/pkg/controllers/cluster/registration.go. In mock mode their shared
+    # per-tenant limiter uses CheckAccessV2InsecureARMPermissionsManagerRateLimiterQPS
+    # = 4.5, so allow 90m to drain. All other queues and real-FPA mode retain 15m.
+    # Missing mode metrics also retain 15m (e.g. during an older-backend rollout).
+    - alert: BackendControllerQueueDepthHigh
+      expr: |
+        max by (name, cluster) (
+          max without(prometheus_replica) (
+            workqueue_depth{namespace="aro-hcp",name=~"clustervalidation(controlplaneidentitiespermissionsclustervalidation|dataplaneidentitiespermissionsvalidation|containerregistrypullcredentialspermissionvalidation)"}
+          )
+        ) > 10
+        and on (cluster) (
+          max by (cluster) (backend_insecure_mock_managed_identities_enabled{namespace="aro-hcp"}) == 1
+        )
+      for: 90m
+      labels:
+        severity: warning
+      annotations:
+        description: 'Backend controller workqueue {{ $labels.name }} has had a depth > 10 for more than 90 minutes. Insecure mock managed identities are enabled; CheckAccessV2 throughput is limited by CheckAccessV2InsecureARMPermissionsManagerRateLimiterQPS = 4.5.'
+        runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/alerts.md#backend-queue-depth-thresholds'
+        summary: 'Backend controller workqueue {{ $labels.name }} depth is high'
     - alert: BackendControllerPanic
       expr: |
         sum by (controller, cluster) (
@@ -63,4 +68,32 @@ spec:
       annotations:
         description: 'Backend controller {{ $labels.controller }} has panicked {{ printf "%.0f" $value }} time(s) in the last 5 minutes.'
         runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html'
-        summary: 'Backend controller is panicking'
+        summary: 'Backend controller {{ $labels.controller }} is panicking'
+    - alert: OrphanedMRGDetected
+      expr: |
+        sum by (location, cluster) (
+          max without(prometheus_replica) (
+            increase(aro_hcp_orphaned_managed_resource_groups_found_total[10m])
+          )
+        ) > 0
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        description: 'Found {{ printf "%.0f" $value }} orphaned cluster managed resource groups in location {{ $labels.location }} over the last 10 minutes. Orphaned MRGs should not exist - investigate why cluster deletion left resources behind.'
+        runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html'
+        summary: 'Orphaned cluster managed resource groups detected in {{ $labels.location }}'
+    - alert: OrphanedMRGDeletionFailing
+      expr: |
+        sum by (location, cluster) (
+          max without(prometheus_replica) (
+            increase(aro_hcp_orphaned_managed_resource_groups_deletion_failed_total[10m])
+          )
+        ) > 0
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        description: 'Orphaned cluster managed resource group deletion has failed {{ printf "%.0f" $value }} time(s) in location {{ $labels.location }} over the last 10 minutes. Deletion should succeed - investigate Azure permissions or resource locks.'
+        runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html'
+        summary: 'Orphaned cluster managed resource group deletion failing in {{ $labels.location }}'

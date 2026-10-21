@@ -1,0 +1,36 @@
+digraph fleet_placement {
+  graph [rankdir=TB, bgcolor="white", pad="0.3", nodesep="0.45", ranksep="0.6", fontname="DejaVu Sans", fontsize=18, labelloc=t, dpi=110];
+  node [shape=box, style="rounded,filled", fillcolor="#e6f0fa", color="#35648a", fontname="DejaVu Sans", fontsize=12, margin="0.16,0.10"];
+  edge [color="#536577", fontname="DejaVu Sans", fontsize=10, arrowsize=0.7];
+  label="Cluster placement · readiness, capacity and deadline";
+  ensure [label="EnsureSharedIngressReadDesireController"];
+  service [label="Router Service\nhypershift-sharedingress/router", fillcolor="#fff0da", color="#b27624"];
+  mirror [label="ReadDesireKubernetesController"];
+  ingress [label="SharedIngressReportingController"];
+  registrations [label="ClustersServiceRegistrationController\nMaestroRegistrationController"];
+  lifecycle [label="ManagementClusterLifecycleController\nall three conditions required"];
+  capacity [label="CapacityReportingController\nManagementClusterScaleCeilingReportingController"];
+  policy [label="ManagementCluster.Spec\nSchedulingPolicy = Schedulable", fillcolor="#e4f2e5", color="#4c8053"];
+  placement [label="Placement\nunresolved, live, nonterminal HCP"];
+  selected [label="Pending reservation, then Spec placement\nCapacityAvailable = True", fillcolor="#e4f2e5", color="#4c8053"];
+  deferred [label="No fit: CapacityAvailable\nFalse (known blockers) or Unknown", fillcolor="#e4f2e5", color="#4c8053"];
+  create [label="ClusterClusterServiceCreate"];
+  operation [label="OperationClusterCreate\nchecks placement before CS ID exists"];
+  failed [label="At overall deadline: Failed\nFalse → AROHCPCapacityHeavyUse\nmissing / Unknown → InternalServerError", fillcolor="#e4f2e5", color="#4c8053"];
+  ensure -> mirror [label="sharedingress ReadDesire"];
+  service -> mirror [label="observed Service content"];
+  mirror -> ingress [label="KubeContent"];
+  ingress -> lifecycle [label="SharedIngressAvailable"];
+  registrations -> lifecycle [label="CS + Maestro registered"];
+  lifecycle -> placement [label="Ready = True"];
+  capacity -> placement [label="current capacity + scaling data;\navailable SWIFT NICs"];
+  policy -> placement [label="eligible policy"];
+  placement -> selected [label="fit: zero NICs non-SWIFT,\none SWIFT SingleReplica, three otherwise"];
+  placement -> deferred [label="no eligible fit"];
+  selected -> create [label="selected provision shard"];
+  selected -> operation [label="placement check satisfied;\nother checks still required"];
+  deferred -> operation [label="unresolved placement"];
+  operation -> failed [label="still unresolved at deadline"];
+  deferred -> placement [label="enqueue after 29s", style=dashed, color="#857456", constraint=false];
+  operation -> operation [label="before deadline / no deadline:\nkeep waiting", style=dashed, color="#857456", constraint=false];
+}

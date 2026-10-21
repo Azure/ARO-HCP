@@ -87,33 +87,33 @@ func TestProcess(t *testing.T) {
 			},
 			getVM: func(ctx context.Context, sub, rg, vmss, id string) (armcompute.VirtualMachineScaleSetVMsClientGetResponse, error) {
 				return vmResponse(
-					nic(true, true),  // primary accelerated — excluded
-					nic(false, true), // non-primary accelerated — counted
-					nic(false, true), // non-primary accelerated — counted
-					nic(false, true), // non-primary accelerated — counted
-					nic(false, true), // non-primary accelerated — counted
-					nic(false, true), // non-primary accelerated — counted
-					nic(false, true), // non-primary accelerated — counted
-					nic(false, true), // non-primary accelerated — counted
+					nic(true, true),   // primary accelerated — excluded
+					nic(false, true),  // non-primary accelerated — counted
+					nic(false, true),  // non-primary accelerated — counted
+					nic(false, true),  // non-primary accelerated — counted
+					nic(false, false), // non-primary non-accelerated — counted
+					nic(false, true),  // non-primary accelerated — counted
+					nic(false, false), // non-primary non-accelerated — counted
+					nic(false, true),  // non-primary accelerated — counted
 				), nil
 			},
 			wantApply:    true,
 			wantNICCount: 7,
 		},
 		{
-			name: "VM with no accelerated NICs",
+			name: "VM with non-accelerated NICs",
 			node: &corev1.Node{
 				ObjectMeta: metav1.ObjectMeta{Name: "node-1"},
 				Spec:       corev1.NodeSpec{ProviderID: validProviderID},
 			},
 			getVM: func(ctx context.Context, sub, rg, vmss, id string) (armcompute.VirtualMachineScaleSetVMsClientGetResponse, error) {
 				return vmResponse(
-					nic(true, false),  // primary, not accelerated
-					nic(false, false), // non-primary, not accelerated
+					nic(true, false),  // primary, not accelerated — excluded
+					nic(false, false), // non-primary, not accelerated — counted
 				), nil
 			},
 			wantApply:    true,
-			wantNICCount: 0,
+			wantNICCount: 1,
 		},
 		{
 			name: "VM with nil properties",

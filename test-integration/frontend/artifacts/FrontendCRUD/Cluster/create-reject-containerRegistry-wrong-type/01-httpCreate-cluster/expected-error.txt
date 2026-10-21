@@ -1,0 +1,2 @@
+"message": "Invalid value: \"/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/customer-rg/providers/Microsoft.Storage/storageAccounts/wrong-type\": resource ID must reference an instance of type \"Microsoft.ManagedIdentity/userAssignedIdentities\"",
+    "target": "properties.platform.containerRegistry.managedIdentity"

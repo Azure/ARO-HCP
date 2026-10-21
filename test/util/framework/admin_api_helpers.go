@@ -39,6 +39,8 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5"
 
 	"github.com/Azure/ARO-HCP/admin/server/handlers/stamp"
+	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
+	"github.com/Azure/ARO-HCP/test/util/config"
 )
 
 const (
@@ -50,9 +52,22 @@ const (
 	// adminAPIRequestTimeout is the timeout for individual HTTP requests to the admin API.
 	adminAPIRequestTimeout = 30 * time.Second
 	// sessionReadyTimeout is the maximum time to wait for a breakglass session to become
-	// ready. Session creation involves creating a Session CR, reconciling RBAC bindings,
-	// and generating a kubeconfig with a short-lived token.
-	sessionReadyTimeout = 1 * time.Minute
+	// ready. Sessiongate deregisters a management-cluster (MC) provider when the MC has
+	// zero sessions. A Session created immediately afterward takes the cold registration
+	// path, rebuilding the remote AKS client and informers and waiting for informer cache
+	// sync before requeuing the Session. See registerMCProvider and
+	// MCProviderCacheSyncTimeout (about 30s) in sessiongate/pkg/controller. Together with
+	// Session reconciliation, this needs headroom beyond the observed roughly 2.5-minute
+	// cold MC-provider build, so allow three minutes.
+	sessionReadyTimeout = 3 * time.Minute
+	// sessionReadyTTLBuffer accounts for the TTL clock starting at CR creation,
+	// while readiness polling starts only after the create POST returns. Without
+	// this safety margin, the session could be deleted before the poll budget elapses.
+	// The TTL must exceed the readiness budget and leave time for verification.
+	sessionReadyTTLBuffer = 30 * time.Second
+	// SessionReadyTTL is the TTL for sessions created and awaited for readiness,
+	// with a safety margin beyond the readiness timeout.
+	SessionReadyTTL = sessionReadyTimeout + sessionReadyTTLBuffer
 	// sessionReadyPollInterval is how frequently to poll the session status endpoint
 	// while waiting for readiness.
 	sessionReadyPollInterval = 5 * time.Second
@@ -69,6 +84,7 @@ const (
 type AzureIdentityDetails struct {
 	PrincipalName string
 	PrincipalType PrincipalType
+	ObjectID      string
 }
 
 // GetCurrentAzureIdentityDetails extracts the current Azure identity from the
@@ -101,6 +117,11 @@ func (tc *perBinaryInvocationTestContext) GetCurrentAzureIdentityDetails(ctx con
 		return nil, fmt.Errorf("unexpected JWT claims type %T", parsed.Claims)
 	}
 
+	oid, ok := claims["oid"].(string)
+	if !ok {
+		return nil, fmt.Errorf("oid claim missing or not a string in token")
+	}
+
 	idType, ok := claims["idtyp"].(string)
 	if !ok {
 		return nil, fmt.Errorf("idtyp claim missing or not a string in token")
@@ -113,16 +134,14 @@ func (tc *perBinaryInvocationTestContext) GetCurrentAzureIdentityDetails(ctx con
 		return &AzureIdentityDetails{
 			PrincipalName: upn,
 			PrincipalType: PrincipalTypeDSTSUser,
+			ObjectID:      oid,
 		}, nil
 	}
 	if idType == "app" {
-		oid, ok := claims["oid"].(string)
-		if !ok {
-			return nil, fmt.Errorf("oid claim missing or not a string for app identity")
-		}
 		return &AzureIdentityDetails{
 			PrincipalName: oid,
 			PrincipalType: PrincipalTypeAADServicePrincipal,
+			ObjectID:      oid,
 		}, nil
 	}
 	return nil, fmt.Errorf("unknown identity type %q in token claims", idType)
@@ -283,6 +302,15 @@ func createAdminAPIHTTPClient(identityDetails *AzureIdentityDetails) *http.Clien
 		},
 		Timeout: adminAPIRequestTimeout,
 	}
+}
+
+func (tc *perItOrDescribeTestContext) NewAdminAPIHTTPClient(ctx context.Context) (*http.Client, string, error) {
+	identityDetails, err := tc.GetCurrentAzureIdentityDetails(ctx)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to get Azure identity details: %w", err)
+	}
+	httpClient := createAdminAPIHTTPClient(identityDetails)
+	return httpClient, tc.perBinaryInvocationTestContext.adminAPIAddress, nil
 }
 
 func (tc *perItOrDescribeTestContext) CreateSREBreakglassCredentials(ctx context.Context, resourceID string, ttl time.Duration, accessLevel string, identityDetails *AzureIdentityDetails) (*rest.Config, time.Time, error) {
@@ -492,6 +520,76 @@ func (tc *perItOrDescribeTestContext) GetManagementCluster(ctx context.Context, 
 	return &result, nil
 }
 
+func (tc *perItOrDescribeTestContext) GetManagementClusterScheduling(ctx context.Context, stampIdentifier string, managementClusterName string, identityDetails *AzureIdentityDetails) (*fleetapi.ManagementClusterSchedulingStatus, error) {
+	endpoint := fmt.Sprintf("%s/admin/v1/stamps/%s/managementclusters/%s/scheduling", tc.perBinaryInvocationTestContext.adminAPIAddress, stampIdentifier, managementClusterName)
+
+	By(fmt.Sprintf("getting scheduling for management cluster %s in stamp %s via admin API: %s", managementClusterName, stampIdentifier, endpoint))
+	body, err := adminAPIGet(ctx, createAdminAPIHTTPClient(identityDetails), endpoint)
+	if err != nil {
+		return nil, err
+	}
+
+	var result fleetapi.ManagementClusterSchedulingStatus
+	if err := json.Unmarshal(body, &result); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal management cluster scheduling: %w", err)
+	}
+	return &result, nil
+}
+
+func (tc *perItOrDescribeTestContext) GetHCPResourceRequirements(ctx context.Context, name string, identityDetails *AzureIdentityDetails) (*fleetapi.HCPResourceRequirementsStatus, error) {
+	endpoint := fmt.Sprintf("%s/admin/v1/hcpresourcerequirements/%s", tc.perBinaryInvocationTestContext.adminAPIAddress, name)
+
+	By(fmt.Sprintf("getting HCP resource requirements %q via admin API: %s", name, endpoint))
+	body, err := adminAPIGet(ctx, createAdminAPIHTTPClient(identityDetails), endpoint)
+	if err != nil {
+		return nil, err
+	}
+
+	var result fleetapi.HCPResourceRequirementsStatus
+	if err := json.Unmarshal(body, &result); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal HCP resource requirements: %w", err)
+	}
+	return &result, nil
+}
+
+// DoAdminAPIRequest sends an HTTP request to the admin API, checks the status code, and
+// JSON-decodes the response body into T.
+func DoAdminAPIRequest[T any](ctx context.Context, httpClient *http.Client, method, url string, expectedStatus int, body io.Reader) (T, error) {
+	var zero T
+
+	req, err := http.NewRequestWithContext(ctx, method, url, body)
+	if err != nil {
+		return zero, fmt.Errorf("failed to create request: %w", err)
+	}
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return zero, fmt.Errorf("failed to send request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != expectedStatus {
+		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 1*1024*1024))
+		return zero, fmt.Errorf("expected status %d, got %d: %s", expectedStatus, resp.StatusCode, string(respBody))
+	}
+
+	// 204 No Content has no body by definition (e.g. DELETE); don't attempt to
+	// decode it. For any other status an empty body is still a decode error, so a
+	// handler that unexpectedly returns no payload is caught.
+	if resp.StatusCode == http.StatusNoContent {
+		return zero, nil
+	}
+
+	var result T
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return zero, fmt.Errorf("failed to decode response: %w", err)
+	}
+	return result, nil
+}
+
 func adminAPIGet(ctx context.Context, httpClient *http.Client, endpoint string) ([]byte, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
@@ -514,4 +612,167 @@ func adminAPIGet(ctx context.Context, httpClient *http.Client, endpoint string) 
 	}
 
 	return body, nil
+}
+
+// AlertProcessingRuleRequest is the test API for alert processing rule operations.
+// Unwanted dependencies are avoided by duplicating this contract.
+type AlertProcessingRuleRequest struct {
+	AlertRuleName     string   `json:"alertRuleName"`
+	ResourceFilter    string   `json:"resourceFilter,omitempty"`
+	StartTime         string   `json:"startTime"`
+	EndTime           string   `json:"endTime"`
+	Description       string   `json:"description,omitempty"`
+	IncidentReference string   `json:"incidentReference,omitempty"`
+	Enabled           *bool    `json:"enabled,omitempty"`
+	Scopes            []string `json:"scopes"`
+}
+
+// AlertProcessingRuleSummary is the response from the alert processing rules API.
+// Unwanted dependencies are avoided by duplicating this contract.
+type AlertProcessingRuleSummary struct {
+	Name           string            `json:"name"`
+	ID             string            `json:"id"`
+	Enabled        bool              `json:"enabled"`
+	Description    string            `json:"description,omitempty"`
+	Scopes         []string          `json:"scopes,omitempty"`
+	EffectiveFrom  string            `json:"effectiveFrom,omitempty"`
+	EffectiveUntil string            `json:"effectiveUntil,omitempty"`
+	Tags           map[string]string `json:"tags,omitempty"`
+}
+
+// AlertProcessingRuleListResponse is the response from the list alert processing rules API.
+type AlertProcessingRuleListResponse struct {
+	Value []AlertProcessingRuleSummary `json:"value"`
+}
+
+// GetServicesAMWResourceID constructs the services Azure Monitor Workspace resource ID
+func (tc *perItOrDescribeTestContext) GetServicesAMWResourceID(ctx context.Context) (string, error) {
+	serviceConfig, err := config.GetServiceConfig()
+	if err != nil {
+		return "", fmt.Errorf("failed to load service config: %w", err)
+	}
+
+	// The admin API's configured AMW lives in the regional/infrastructure
+	// subscription the service was deployed into, NOT the customer/hosted-clusters
+	// subscription returned by tc.SubscriptionID. Resolve that subscription by
+	// display name so the scope matches what the admin API was configured with.
+	clientFactory, err := tc.GetARMSubscriptionsClientFactory()
+	if err != nil {
+		return "", fmt.Errorf("failed to get ARM subscriptions client factory: %w", err)
+	}
+	svcSubscriptionName, err := config.GetStringByPath(serviceConfig, "svc.subscription.key")
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve svc.subscription.key: %w", err)
+	}
+	subscriptionID, err := GetSubscriptionID(ctx, clientFactory.NewClient(), svcSubscriptionName)
+	if err != nil {
+		return "", err
+	}
+
+	regionRG, err := config.GetStringByPath(serviceConfig, "regionRG")
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve regionRG: %w", err)
+	}
+
+	svcWorkspaceName, err := config.GetStringByPath(serviceConfig, "monitoring.svcWorkspaceName")
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve monitoring.svcWorkspaceName: %w", err)
+	}
+
+	return fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Monitor/accounts/%s", subscriptionID, regionRG, svcWorkspaceName), nil
+}
+
+// CreateAlertProcessingRule creates an alert processing rule via the admin API.
+func (tc *perItOrDescribeTestContext) CreateAlertProcessingRule(ctx context.Context, ruleName string, req AlertProcessingRuleRequest, expectedStatus int) (AlertProcessingRuleSummary, error) {
+	httpClient, adminAPIAddr, err := tc.NewAdminAPIHTTPClient(ctx)
+	if err != nil {
+		return AlertProcessingRuleSummary{}, err
+	}
+	return createAlertProcessingRuleWithClient(ctx, httpClient, adminAPIAddr, ruleName, req, expectedStatus)
+}
+
+// GetAlertProcessingRule retrieves an alert processing rule via the admin API.
+func (tc *perItOrDescribeTestContext) GetAlertProcessingRule(ctx context.Context, ruleName string, expectedStatus int) (AlertProcessingRuleSummary, error) {
+	httpClient, adminAPIAddr, err := tc.NewAdminAPIHTTPClient(ctx)
+	if err != nil {
+		return AlertProcessingRuleSummary{}, err
+	}
+	return getAlertProcessingRuleWithClient(ctx, httpClient, adminAPIAddr, ruleName, expectedStatus)
+}
+
+// ListAlertProcessingRules lists alert processing rules via the admin API.
+func (tc *perItOrDescribeTestContext) ListAlertProcessingRules(ctx context.Context, expectedStatus int) (AlertProcessingRuleListResponse, error) {
+	httpClient, adminAPIAddr, err := tc.NewAdminAPIHTTPClient(ctx)
+	if err != nil {
+		return AlertProcessingRuleListResponse{}, err
+	}
+	return listAlertProcessingRulesWithClient(ctx, httpClient, adminAPIAddr, expectedStatus)
+}
+
+// UpdateAlertProcessingRule updates an alert processing rule via the admin API.
+func (tc *perItOrDescribeTestContext) UpdateAlertProcessingRule(ctx context.Context, ruleName string, req AlertProcessingRuleRequest, expectedStatus int) (AlertProcessingRuleSummary, error) {
+	httpClient, adminAPIAddr, err := tc.NewAdminAPIHTTPClient(ctx)
+	if err != nil {
+		return AlertProcessingRuleSummary{}, err
+	}
+	return createAlertProcessingRuleWithClient(ctx, httpClient, adminAPIAddr, ruleName, req, expectedStatus)
+}
+
+// DeleteAlertProcessingRule deletes an alert processing rule via the admin API.
+func (tc *perItOrDescribeTestContext) DeleteAlertProcessingRule(ctx context.Context, ruleName string, expectedStatus int) error {
+	httpClient, adminAPIAddr, err := tc.NewAdminAPIHTTPClient(ctx)
+	if err != nil {
+		return err
+	}
+	return deleteAlertProcessingRuleWithClient(ctx, httpClient, adminAPIAddr, ruleName, expectedStatus)
+}
+
+func createAlertProcessingRuleWithClient(ctx context.Context, httpClient *http.Client, adminAPIAddr, ruleName string, req AlertProcessingRuleRequest, expectedStatus int) (AlertProcessingRuleSummary, error) {
+	body, err := json.Marshal(req)
+	if err != nil {
+		return AlertProcessingRuleSummary{}, err
+	}
+
+	return DoAdminAPIRequest[AlertProcessingRuleSummary](
+		ctx,
+		httpClient,
+		http.MethodPut,
+		fmt.Sprintf("%s/admin/v1/alertprocessingrules/%s", adminAPIAddr, ruleName),
+		expectedStatus,
+		bytes.NewBuffer(body),
+	)
+}
+
+func getAlertProcessingRuleWithClient(ctx context.Context, httpClient *http.Client, adminAPIAddr, ruleName string, expectedStatus int) (AlertProcessingRuleSummary, error) {
+	return DoAdminAPIRequest[AlertProcessingRuleSummary](
+		ctx,
+		httpClient,
+		http.MethodGet,
+		fmt.Sprintf("%s/admin/v1/alertprocessingrules/%s", adminAPIAddr, ruleName),
+		expectedStatus,
+		nil,
+	)
+}
+
+func listAlertProcessingRulesWithClient(ctx context.Context, httpClient *http.Client, adminAPIAddr string, expectedStatus int) (AlertProcessingRuleListResponse, error) {
+	return DoAdminAPIRequest[AlertProcessingRuleListResponse](
+		ctx,
+		httpClient,
+		http.MethodGet,
+		fmt.Sprintf("%s/admin/v1/alertprocessingrules", adminAPIAddr),
+		expectedStatus,
+		nil,
+	)
+}
+
+func deleteAlertProcessingRuleWithClient(ctx context.Context, httpClient *http.Client, adminAPIAddr, ruleName string, expectedStatus int) error {
+	_, err := DoAdminAPIRequest[any](
+		ctx,
+		httpClient,
+		http.MethodDelete,
+		fmt.Sprintf("%s/admin/v1/alertprocessingrules/%s", adminAPIAddr, ruleName),
+		expectedStatus,
+		nil,
+	)
+	return err
 }

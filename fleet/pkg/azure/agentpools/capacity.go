@@ -1,0 +1,97 @@
+// Copyright 2026 Microsoft Corporation
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package agentpools
+
+import (
+	"fmt"
+
+	"k8s.io/utils/ptr"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v8"
+
+	"github.com/Azure/ARO-HCP/fleet/pkg/azure/agentpoolspec"
+	"github.com/Azure/ARO-HCP/fleet/pkg/azure/skucache"
+	"github.com/Azure/ARO-HCP/fleet/pkg/compute"
+)
+
+// ObservedPoolCapacities derives capacity from inline agent pool profiles
+// embedded in the ManagedCluster response. It rejects incomplete ARM/SKU data
+// instead of recording a smaller baseline. Swift capacity comes from the
+// pool's configured NIC tag.
+func ObservedPoolCapacities(pools []*armcontainerservice.ManagedClusterAgentPoolProfile, metadata map[string]*skucache.SKUMetadata) (compute.CapacityByRole, error) {
+	var observed []compute.Pool
+	for _, pool := range pools {
+		if pool == nil {
+			return nil, fmt.Errorf("nil pool profile in cluster response")
+		}
+		if !IsManagedPoolProfile(pool) {
+			continue
+		}
+		if pool.Name == nil || pool.VMSize == nil || pool.Count == nil || pool.EnableAutoScaling == nil || (*pool.EnableAutoScaling && pool.MaxCount == nil) {
+			return nil, fmt.Errorf("incomplete ARM capacity data for pool %q", ptr.Deref(pool.Name, ""))
+		}
+		meta := metadata[*pool.VMSize]
+		if meta == nil {
+			return nil, fmt.Errorf("missing SKU metadata for pool %q (%s)", *pool.Name, *pool.VMSize)
+		}
+		spec := compute.NewVMSpecFromSKU(meta)
+		swift := agentpoolspec.IsSwiftEnabled(pool.Tags)
+		var secondaryNICs int64
+		if nics, present, err := agentpoolspec.SecondaryNICCount(pool.Tags); present {
+			if err != nil || !swift {
+				return nil, fmt.Errorf("invalid Swift NIC count for pool %q", *pool.Name)
+			}
+			secondaryNICs = nics
+		}
+		maxCount := int64(*pool.Count)
+		if *pool.EnableAutoScaling {
+			maxCount = int64(*pool.MaxCount)
+		}
+		observed = append(observed, compute.Pool{Role: compute.PoolRole(RoleFromAgentPoolProfile(pool)), Name: *pool.Name, Spec: spec, MaxCount: int32(maxCount), EnableSwift: swift, SecondaryNICs: secondaryNICs})
+	}
+	return compute.PoolCapacities(observed)
+}
+
+// ObservedAgentPoolCapacities derives capacity from the AgentPool list returned
+// by the AgentPools client (the controller's live reconcile path). It rejects
+// incomplete ARM/SKU data instead of undercounting current capacity. Swift
+// capacity comes from the pool's configured NIC tag.
+func ObservedAgentPoolCapacities(pools []armcontainerservice.AgentPool, metadata map[string]*skucache.SKUMetadata) (compute.CapacityByRole, error) {
+	var observed []compute.Pool
+	for _, pool := range pools {
+		if !IsManagedPool(pool) {
+			continue
+		}
+		p := pool.Properties
+		if pool.Name == nil || p.VMSize == nil || p.Count == nil || p.EnableAutoScaling == nil || (*p.EnableAutoScaling && p.MaxCount == nil) {
+			return nil, fmt.Errorf("incomplete ARM capacity data for pool %q", ptr.Deref(pool.Name, ""))
+		}
+		meta := metadata[*p.VMSize]
+		if meta == nil {
+			return nil, fmt.Errorf("missing SKU metadata for pool %q (%s)", *pool.Name, *p.VMSize)
+		}
+		spec := compute.NewVMSpecFromSKU(meta)
+		swift := agentpoolspec.IsSwiftEnabled(p.Tags)
+		var secondaryNICs int64
+		if nics, present, err := agentpoolspec.SecondaryNICCount(p.Tags); present {
+			if err != nil || !swift {
+				return nil, fmt.Errorf("invalid Swift NIC count for pool %q", *pool.Name)
+			}
+			secondaryNICs = nics
+		}
+		observed = append(observed, compute.Pool{Role: compute.PoolRole(RoleFromAgentPool(pool)), Name: *pool.Name, Spec: spec, MaxCount: int32(PoolMaxCount(pool)), EnableSwift: swift, SecondaryNICs: secondaryNICs})
+	}
+	return compute.PoolCapacities(observed)
+}

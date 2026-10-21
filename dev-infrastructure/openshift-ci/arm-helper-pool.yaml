@@ -1,0 +1,161 @@
+armHelperPool:
+  aro-hcp-arm-helper-sp-dev-0:
+    clientId: a47e216e-0f12-44ca-bc8f-e33ea9e3aa74
+    principalId: e376bf83-036c-4a4d-9d12-d5378122a1ca
+    certName: armHelperPoolCert-0
+  aro-hcp-arm-helper-sp-dev-1:
+    clientId: 4dfd1e36-233a-4c08-8ad0-2332f7c34e20
+    principalId: 395adf21-7939-42a3-810a-8273994b4895
+    certName: armHelperPoolCert-1
+  aro-hcp-arm-helper-sp-dev-2:
+    clientId: c614a0d0-aa87-4f6f-9d88-ae0d888467c0
+    principalId: fe2d0c6c-e966-4cc5-ae1b-6e47d5afb8ca
+    certName: armHelperPoolCert-2
+  aro-hcp-arm-helper-sp-dev-3:
+    clientId: dd771851-fbee-4963-ab94-54f71cb78fd6
+    principalId: 3050b7b2-5e2f-4690-89fb-61a65c8bea68
+    certName: armHelperPoolCert-3
+  aro-hcp-arm-helper-sp-dev-4:
+    clientId: c2ef6e1a-c3e1-46f2-965f-7f3c61d5d3c0
+    principalId: 2ed67f73-50d9-4480-87ed-5b6f626cb2ca
+    certName: armHelperPoolCert-4
+  aro-hcp-arm-helper-sp-dev-5:
+    clientId: b81c5337-79d1-4639-b0c8-f0a70ccd0c24
+    principalId: d513e8ba-29a2-48b5-a6e3-70d9f6eec051
+    certName: armHelperPoolCert-5
+  aro-hcp-arm-helper-sp-dev-6:
+    clientId: 9c78a811-9c85-4eb0-9c84-d0843866c888
+    principalId: 0ba971b1-6c9b-408b-973a-f6803a4d1393
+    certName: armHelperPoolCert-6
+  aro-hcp-arm-helper-sp-dev-7:
+    clientId: 65c21b16-89e0-40e0-91e9-436dcac89d94
+    principalId: 1b37bb89-66f0-46ed-bd98-4fc92a6b17d7
+    certName: armHelperPoolCert-7
+  aro-hcp-arm-helper-sp-dev-8:
+    clientId: 329ee193-c848-4bea-a593-5ca2cc888005
+    principalId: 6e585fcf-d2a2-40a2-93d9-b8314d0e6f90
+    certName: armHelperPoolCert-8
+  aro-hcp-arm-helper-sp-dev-9:
+    clientId: 28707543-2f29-4e18-97fa-a5c96b2153ac
+    principalId: a256ae52-e4cd-4a79-a628-0d535a775596
+    certName: armHelperPoolCert-9
+  aro-hcp-arm-helper-sp-dev-10:
+    clientId: 0a9e3940-6bc3-4cbf-a8f7-c65c3d8d2462
+    principalId: 988e39f6-0e00-497c-8b79-0cb68bf74d06
+    certName: armHelperPoolCert-10
+  aro-hcp-arm-helper-sp-dev-11:
+    clientId: f7e88da7-58bb-4b22-bfe4-fc8291ce5cbf
+    principalId: 34520546-2ec9-4bd0-a25f-c72d991eb27f
+    certName: armHelperPoolCert-11
+  aro-hcp-arm-helper-sp-dev-12:
+    clientId: 22d41f31-0924-4e09-9d69-3b8f69fa70c5
+    principalId: a859f373-21d5-411c-b07b-d0b5d8fada4c
+    certName: armHelperPoolCert-12
+  aro-hcp-arm-helper-sp-dev-13:
+    clientId: 42774cef-ac21-4336-af91-55d43e6b54ce
+    principalId: 2a2a318d-f548-431d-a279-673a0b70b89b
+    certName: armHelperPoolCert-13
+  aro-hcp-arm-helper-sp-dev-14:
+    clientId: 4be4d43c-421b-4308-9def-bef78924eddf
+    principalId: 3de0f8db-e965-43e4-9ec3-ab9de7b3298f
+    certName: armHelperPoolCert-14
+  aro-hcp-arm-helper-sp-dev-15:
+    clientId: d46337c6-073d-449f-bd79-e0b0a78afdfe
+    principalId: 14109d9a-6ac0-4365-8a55-7b90f235d64e
+    certName: armHelperPoolCert-15
+  aro-hcp-arm-helper-sp-dev-16:
+    clientId: 91702ae2-dad6-4c5d-a439-18e544582e12
+    principalId: 7bf945d6-4de8-4b09-833b-a7df23a7d560
+    certName: armHelperPoolCert-16
+  aro-hcp-arm-helper-sp-dev-17:
+    clientId: 5121a273-54a1-4d7c-a7e8-bcd7cffbcb17
+    principalId: bf1b291f-99bb-437c-ace3-b7ac914cf8eb
+    certName: armHelperPoolCert-17
+  aro-hcp-arm-helper-sp-dev-18:
+    clientId: f04bb867-5903-4ff2-a9c9-a42071a76442
+    principalId: 9ec41751-ba8e-42a5-9efd-a45f6d576f4d
+    certName: armHelperPoolCert-18
+  aro-hcp-arm-helper-sp-dev-19:
+    clientId: 5c1d461d-02c1-449b-9f10-59ee05cc5cbf
+    principalId: 9640878c-ff47-4f91-a4ff-a3e48f137bda
+    certName: armHelperPoolCert-19
+  aro-hcp-arm-helper-sp-dev-20:
+    clientId: 29ba203e-3608-49e4-93cb-70c636ae47fe
+    principalId: 68bea118-6e43-4fb5-a42f-010c241c7180
+    certName: armHelperPoolCert-20
+  aro-hcp-arm-helper-sp-dev-21:
+    clientId: bd69e714-4472-4553-b6ac-9997141e22a1
+    principalId: d95a1476-055e-4cb5-b898-c69a309a208d
+    certName: armHelperPoolCert-21
+  aro-hcp-arm-helper-sp-dev-22:
+    clientId: 2d1d5d05-dec8-49d1-8cc1-8f424d3ad01a
+    principalId: 4987732b-e746-473c-9970-d673796a35eb
+    certName: armHelperPoolCert-22
+  aro-hcp-arm-helper-sp-dev-23:
+    clientId: 0b4ba683-7331-4f5e-a31a-0a86d01242b0
+    principalId: 4f665bdf-3e2a-45f3-bb22-743b12b734cc
+    certName: armHelperPoolCert-23
+  aro-hcp-arm-helper-sp-dev-24:
+    clientId: c8cfcf6c-9796-4d97-b441-b1f351a000f8
+    principalId: 4b5c6566-72a4-4352-a42d-b9f3c1d7647a
+    certName: armHelperPoolCert-24
+  aro-hcp-arm-helper-sp-dev-25:
+    clientId: ea5e9c6c-1933-464d-8bf6-db343c22b92d
+    principalId: fb7c5a78-3299-4bf4-bccd-00fb8aa55ce6
+    certName: armHelperPoolCert-25
+  aro-hcp-arm-helper-sp-dev-26:
+    clientId: 2f99fdfb-ba6d-4600-b155-8c35101bfa51
+    principalId: 21671628-b920-4a43-bf1a-ae8be692ec88
+    certName: armHelperPoolCert-26
+  aro-hcp-arm-helper-sp-dev-27:
+    clientId: ccddf003-4086-4a63-a46f-f7b5ed7a465e
+    principalId: e93da60d-782b-41d1-9c0d-e683144a3bd0
+    certName: armHelperPoolCert-27
+  aro-hcp-arm-helper-sp-dev-28:
+    clientId: 2d4a992c-1ed2-4465-9d61-803adea51665
+    principalId: 633370c7-506e-4fe6-b6eb-05d307d5fcbf
+    certName: armHelperPoolCert-28
+  aro-hcp-arm-helper-sp-dev-29:
+    clientId: ff73ccaf-a905-4ec1-b201-61f1a933b435
+    principalId: a0a1ea8f-de86-4f50-8859-a8b44918eb45
+    certName: armHelperPoolCert-29
+  aro-hcp-arm-helper-sp-dev-30:
+    clientId: 6e3f2570-e6a0-4c2c-a677-00aec13a70bb
+    principalId: 7e50c13a-d0c9-4c75-a55c-43074d37d909
+    certName: armHelperPoolCert-30
+  aro-hcp-arm-helper-sp-dev-31:
+    clientId: 15d9575a-485d-4e5f-9c06-003e8353383b
+    principalId: 478e50be-e11a-4a53-937c-d805caba0e77
+    certName: armHelperPoolCert-31
+  aro-hcp-arm-helper-sp-dev-32:
+    clientId: ec9a4f0a-0681-428b-852c-fa777da7f4c0
+    principalId: f8142964-5bf3-4163-b9fe-7616ee8eeaf5
+    certName: armHelperPoolCert-32
+  aro-hcp-arm-helper-sp-dev-33:
+    clientId: 03b5a062-45f6-4ccd-a0d8-0e2143e2c464
+    principalId: a84e5ae6-da72-4308-b5b1-6d59adc4ea4a
+    certName: armHelperPoolCert-33
+  aro-hcp-arm-helper-sp-dev-34:
+    clientId: 72671881-beb9-4028-bc7c-47f511281566
+    principalId: bc13720d-98f4-405b-83bd-a58854f63436
+    certName: armHelperPoolCert-34
+  aro-hcp-arm-helper-sp-dev-35:
+    clientId: 3839b21b-d166-4b2c-8a90-2930afc23974
+    principalId: 88bced0a-b8f7-423e-b6e9-b4b21f6247d6
+    certName: armHelperPoolCert-35
+  aro-hcp-arm-helper-sp-dev-36:
+    clientId: ee13a5ab-af66-41f4-9c3d-12a3532d0e72
+    principalId: 87d2ca78-4938-4f01-be3d-623c1254933d
+    certName: armHelperPoolCert-36
+  aro-hcp-arm-helper-sp-dev-37:
+    clientId: 6ef5e3d8-4e95-4443-b92c-713415660c75
+    principalId: 7f30a470-4470-41a2-ad1d-e9fd2bd9121d
+    certName: armHelperPoolCert-37
+  aro-hcp-arm-helper-sp-dev-38:
+    clientId: 6608bb27-dfa1-4c02-8395-4ca010bd73db
+    principalId: 72d75eb9-932b-4904-92ea-0f504418ec06
+    certName: armHelperPoolCert-38
+  aro-hcp-arm-helper-sp-dev-39:
+    clientId: 8e1375cf-83e3-49ec-af77-77b29f9a7af6
+    principalId: 74413229-0909-4224-b2cb-168655a7f546
+    certName: armHelperPoolCert-39

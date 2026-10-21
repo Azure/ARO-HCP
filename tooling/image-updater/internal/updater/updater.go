@@ -18,9 +18,13 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 
 	"github.com/go-logr/logr"
+	"golang.org/x/sync/errgroup"
+
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 
 	"github.com/Azure/ARO-HCP/tooling/image-updater/internal/clients"
 	"github.com/Azure/ARO-HCP/tooling/image-updater/internal/config"
@@ -29,7 +33,8 @@ import (
 )
 
 const (
-	DefaultArchitecture = "amd64"
+	DefaultArchitecture       = "amd64"
+	maxConcurrentRepositories = 4
 )
 
 // Updater contains all pre-created resources needed for execution
@@ -58,6 +63,18 @@ func New(cfg *config.Config, dryRun bool, forceUpdate bool, registryClients map[
 	}
 }
 
+func runDiscoveryWorker(name string, worker func() error) (err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			if utilruntime.ReallyCrash {
+				panic(recovered)
+			}
+			err = fmt.Errorf("panic while fetching latest value for %s: %v", name, recovered)
+		}
+	}()
+	return worker()
+}
+
 // UpdateImages processes all images in the configuration
 func (u *Updater) UpdateImages(ctx context.Context) error {
 	logger, err := logr.FromContext(ctx)
@@ -66,19 +83,45 @@ func (u *Updater) UpdateImages(ctx context.Context) error {
 	}
 
 	logger.V(1).Info("starting image updates", "totalImages", len(u.Config.Images))
-	for name, imageConfig := range u.Config.Images {
-		logger.V(2).Info("processing image", "name", name, "source", imageConfig.Source.SourceDescription(), "tag", imageConfig.Source.TagInfo())
 
-		imageInfo, err := u.fetchLatestValue(ctx, imageConfig.Source)
-		if err != nil {
-			return fmt.Errorf("failed to fetch latest value for %s: %w", name, err)
-		}
+	names := make([]string, 0, len(u.Config.Images))
+	for name := range u.Config.Images {
+		names = append(names, name)
+	}
+	sort.Strings(names)
 
+	latestValues := make([]*clients.Tag, len(names))
+	group, groupCtx := errgroup.WithContext(ctx)
+	group.SetLimit(maxConcurrentRepositories)
+	for i, name := range names {
+		i, name := i, name
+		imageConfig := u.Config.Images[name]
+		group.Go(func() error {
+			defer utilruntime.HandleCrashWithContext(groupCtx)
+			return runDiscoveryWorker(name, func() error {
+				logger.V(2).Info("processing image", "name", name, "source", imageConfig.Source.SourceDescription(), "tag", imageConfig.Source.TagInfo())
+				imageInfo, err := u.fetchLatestValue(groupCtx, imageConfig.Source)
+				if err != nil {
+					return fmt.Errorf("failed to fetch latest value for %s: %w", name, err)
+				}
+				latestValues[i] = imageInfo
+				return nil
+			})
+		})
+	}
+	if err := group.Wait(); err != nil {
+		return err
+	}
+
+	// Keep editor access and update aggregation serial. Editors are stateful and
+	// multiple images may target the same file.
+	for i, name := range names {
+		imageConfig := u.Config.Images[name]
+		imageInfo := latestValues[i]
 		logger.V(2).Info("found latest tag", "name", name, "tag", imageInfo.Name, "digest", imageInfo.Digest)
 
 		for _, target := range imageConfig.Targets {
-			err := u.ProcessImageUpdates(ctx, name, imageInfo, target, imageConfig.Source)
-			if err != nil {
+			if err := u.ProcessImageUpdates(ctx, name, imageInfo, target); err != nil {
 				return fmt.Errorf("failed to update image %s: %w", name, err)
 			}
 		}
@@ -149,23 +192,13 @@ func (u *Updater) outputResults(ctx context.Context) error {
 	return nil
 }
 
-// fetchLatestValue retrieves the latest value from the source (registry digest or tag/version, or GitHub latest release).
+// fetchLatestValue retrieves the latest digest from the configured registry source.
 func (u *Updater) fetchLatestValue(ctx context.Context, source config.Source) (*clients.Tag, error) {
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("logger not found in context: %w", err)
 	}
 
-	if source.GitHubLatestRelease != "" {
-		logger.V(2).Info("fetching latest release from GitHub", "repo", source.GitHubLatestRelease)
-		release, err := clients.GetLatestRelease(ctx, source.GitHubLatestRelease)
-		if err != nil {
-			return nil, fmt.Errorf("github latest release %s: %w", source.GitHubLatestRelease, err)
-		}
-		return &clients.Tag{Name: release.Version, Version: release.Version, LastModified: release.PublishedAt}, nil
-	}
-
-	// Registry path: parse image reference and use existing client
 	registry, repository, err := source.ParseImageReference()
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse registry from image reference: %w", err)
@@ -204,7 +237,7 @@ func (u *Updater) fetchLatestValue(ctx context.Context, source config.Source) (*
 }
 
 // ProcessImageUpdates sets up the updates needed for a specific image and target
-func (u *Updater) ProcessImageUpdates(ctx context.Context, name string, tag *clients.Tag, target config.Target, source config.Source) error {
+func (u *Updater) ProcessImageUpdates(ctx context.Context, name string, tag *clients.Tag, target config.Target) error {
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
 		return fmt.Errorf("logger not found in context: %w", err)
@@ -224,20 +257,9 @@ func (u *Updater) ProcessImageUpdates(ctx context.Context, name string, tag *cli
 
 	logger.V(2).Info("Current digest", "name", name, "currentDigest", currentDigest)
 
-	var newDigest string
-	if source.GitHubLatestRelease != "" {
-		if strings.HasSuffix(target.JsonPath, ".digest") || strings.HasSuffix(target.JsonPath, ".sha") {
-			return fmt.Errorf("githubLatestRelease targets must not use .digest or .sha paths (got %q)", target.JsonPath)
-		}
-		newDigest = tag.Version
-		if newDigest == "" {
-			newDigest = tag.Name
-		}
-	} else {
-		newDigest = tag.Digest
-		if strings.HasSuffix(target.JsonPath, ".sha") {
-			newDigest = strings.TrimPrefix(tag.Digest, "sha256:")
-		}
+	newDigest := tag.Digest
+	if strings.HasSuffix(target.JsonPath, ".sha") {
+		newDigest = strings.TrimPrefix(tag.Digest, "sha256:")
 	}
 
 	if currentDigest == newDigest && !u.ForceUpdate {

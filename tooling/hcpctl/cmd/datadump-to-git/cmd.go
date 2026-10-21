@@ -21,6 +21,7 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path"
@@ -28,6 +29,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
@@ -40,12 +42,42 @@ type logEntry struct {
 	Msg   string `json:"msg"`
 }
 
-// contentData represents the content object in the log JSON
+// contentData represents the content object in the log JSON.
+// Datadump entries serialize api.Operation with externalId/request at the top level;
+// changefeed entries carry the raw cosmos document where those fields are nested
+// under "properties". Both layouts are supported.
 type contentData struct {
 	ResourceID     string             `json:"resourceID"`
 	ExternalId     string             `json:"externalId"`
 	Request        string             `json:"request"`
 	CosmosMetadata *cosmosMetadataRef `json:"cosmosMetadata,omitempty"`
+	Properties     *contentProperties `json:"properties,omitempty"`
+}
+
+// contentProperties holds fields nested under "properties" in changefeed cosmos documents.
+type contentProperties struct {
+	ExternalId string `json:"externalId"`
+	Request    string `json:"request"`
+}
+
+func (c *contentData) getExternalID() string {
+	if c.ExternalId != "" {
+		return c.ExternalId
+	}
+	if c.Properties != nil {
+		return c.Properties.ExternalId
+	}
+	return ""
+}
+
+func (c *contentData) getRequest() string {
+	if c.Request != "" {
+		return c.Request
+	}
+	if c.Properties != nil {
+		return c.Properties.Request
+	}
+	return ""
 }
 
 // cosmosMetadataRef is the relevant slice of arm.CosmosMetadata as serialized inside `content`.
@@ -61,8 +93,11 @@ type logData struct {
 	// for every dumped record. It's populated even when the inner content has no top-level
 	// resourceID (operation statuses, etc.), so it's our most reliable source of the document's
 	// ARM resource ID.
-	CurrentResourceID string       `json:"currentResourceID"`
-	Content           *contentData `json:"content"`
+	CurrentResourceID string `json:"currentResourceID"`
+	// ResourceID is the structured-logging key the changefeed logger sets via
+	// AddLogValuesForResourceID. It's the lowercased ARM resource ID of the document.
+	ResourceID string       `json:"resource_id"`
+	Content    *contentData `json:"content"`
 }
 
 // dataDumpEntry represents a parsed data dump entry
@@ -75,10 +110,17 @@ type dataDumpEntry struct {
 	// ResourceID. Used for log entries that don't carry an Azure resource ID
 	// (e.g. cluster-service state dumps).
 	RelativePath string
+	// ContainerPrefix, when non-empty, is prepended to the tracking key
+	// and commit message to disambiguate documents from different Cosmos
+	// containers that share the same resource ID (e.g. billing vs
+	// resources). Only set for containers that would otherwise collide
+	// (billing); resources and kubeApplier are left empty for
+	// compatibility with log-based entries that have no container.
+	ContainerPrefix string
 }
 
 func NewCommand(group string) (*cobra.Command, error) {
-	opts := defaultOptions()
+	opts := DefaultCosmosSnapshotToGitRepoOptions()
 
 	cmd := &cobra.Command{
 		Use:     "datadump-to-git",
@@ -184,49 +226,116 @@ func parseCSVFile(path string) ([]dataDumpEntry, error) {
 	}
 
 	reader := csv.NewReader(bufReader)
-	// Read header to find the "log" column index
 	header, err := reader.Read()
 	if err != nil {
 		return nil, fmt.Errorf("failed to read CSV header: %w", err)
 	}
 
-	logColIdx := -1
+	colIdx := make(map[string]int)
 	for i, col := range header {
-		// Handle BOM if present
 		cleanCol := strings.TrimPrefix(col, "\ufeff")
-		if strings.EqualFold(cleanCol, "log") {
-			logColIdx = i
-			break
-		}
-	}
-	if logColIdx < 0 {
-		return nil, fmt.Errorf("CSV file does not have a 'log' column")
+		colIdx[strings.ToLower(cleanCol)] = i
 	}
 
+	if logCol, ok := colIdx["log"]; ok {
+		return parseCSVLogColumn(reader, logCol)
+	}
+
+	return parseCSVDirectColumns(reader, colIdx)
+}
+
+func parseCSVLogColumn(reader *csv.Reader, logColIdx int) ([]dataDumpEntry, error) {
 	var entries []dataDumpEntry
 	for {
 		record, err := reader.Read()
 		if err != nil {
-			break // EOF or error
+			if err == io.EOF {
+				break
+			}
+			return entries, fmt.Errorf("error reading CSV: %w", err)
 		}
-
 		if logColIdx >= len(record) {
 			continue
 		}
-
 		logJSON := record[logColIdx]
-
 		if !looksLikeDataDump(logJSON) {
 			continue
 		}
-
 		entry, ok := parseLogJSON(logJSON)
 		if ok {
 			entries = append(entries, entry)
 		}
 	}
-
 	return entries, nil
+}
+
+func parseCSVDirectColumns(reader *csv.Reader, colIdx map[string]int) ([]dataDumpEntry, error) {
+	timestampCol, hasTimestamp := colIdx["timestamp"]
+	resourceIDCol, hasResourceID := colIdx["resourceid"]
+	contentCol, hasContent := colIdx["content"]
+	if !hasTimestamp || !hasResourceID || !hasContent {
+		return nil, fmt.Errorf("CSV file must have either a 'log' column or 'timestamp', 'resourceID', and 'content' columns")
+	}
+	containerCol, hasContainer := colIdx["cosmoscontainer"]
+
+	var entries []dataDumpEntry
+	for {
+		record, err := reader.Read()
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			return entries, fmt.Errorf("error reading CSV: %w", err)
+		}
+		if timestampCol >= len(record) || resourceIDCol >= len(record) || contentCol >= len(record) {
+			continue
+		}
+
+		resourceID := record[resourceIDCol]
+		content := record[contentCol]
+		if resourceID == "" || content == "" {
+			continue
+		}
+
+		timestamp := parseKustoTimestamp(record[timestampCol])
+
+		container := ""
+		if hasContainer && containerCol < len(record) {
+			container = strings.ToLower(record[containerCol])
+		}
+
+		var containerPrefix string
+		var relPath string
+		if container == "billing" {
+			containerPrefix = container
+			relPath = resourceIDToPath(resourceID + "/billing")
+		}
+
+		entries = append(entries, dataDumpEntry{
+			Timestamp:       timestamp,
+			ResourceID:      resourceID,
+			Content:         content,
+			FullMsg:         `{"content":` + content + `}`,
+			ContainerPrefix: containerPrefix,
+			RelativePath:    relPath,
+		})
+	}
+	return entries, nil
+}
+
+func parseKustoTimestamp(ts string) string {
+	ts = strings.TrimSpace(ts)
+	for _, layout := range []string{
+		time.RFC3339Nano,
+		time.RFC3339,
+		"1/2/2006, 3:04:05.000 PM",
+		"1/2/2006, 3:04:05 PM",
+	} {
+		if t, err := time.Parse(layout, ts); err == nil {
+			return t.Format(time.RFC3339)
+		}
+	}
+	return ts
 }
 
 // looksLikeDataDump is a coarse substring filter to skip log lines that
@@ -241,7 +350,8 @@ func looksLikeDataDump(logJSON string) bool {
 	return strings.Contains(logJSON, "dumping resourceID ") ||
 		strings.Contains(logJSON, "dumping kube-applier resourceID ") ||
 		strings.Contains(logJSON, "cluster-service state dump") ||
-		strings.Contains(logJSON, "cluster-service node pool state dump")
+		strings.Contains(logJSON, "cluster-service node pool state dump") ||
+		strings.Contains(logJSON, "delivering change feed item")
 }
 
 func parseJSONLFile(path string) ([]dataDumpEntry, error) {
@@ -260,6 +370,13 @@ func parseJSONLFile(path string) ([]dataDumpEntry, error) {
 	for scanner.Scan() {
 		line := scanner.Text()
 
+		// The must-gather Cosmos snapshot query emits the raw document and its
+		// metadata directly, rather than embedding it in a backend log entry.
+		if entry, ok := parseCosmosResourceSnapshot(line); ok {
+			entries = append(entries, entry)
+			continue
+		}
+
 		if !looksLikeDataDump(line) {
 			continue
 		}
@@ -275,6 +392,60 @@ func parseJSONLFile(path string) ([]dataDumpEntry, error) {
 	}
 
 	return entries, nil
+}
+
+// parseCosmosResourceSnapshot parses one row from
+// custom/custom-query_cosmosResourceSnapshots.jsonl in a must-gather.
+func parseCosmosResourceSnapshot(line string) (dataDumpEntry, bool) {
+	var snapshot struct {
+		Content         json.RawMessage `json:"content"`
+		CosmosContainer string          `json:"cosmosContainer"`
+		ResourceID      string          `json:"resourceID"`
+	}
+	if err := json.Unmarshal([]byte(line), &snapshot); err != nil ||
+		len(snapshot.Content) == 0 || snapshot.CosmosContainer == "" || snapshot.ResourceID == "" {
+		return dataDumpEntry{}, false
+	}
+
+	var cosmosDocument struct {
+		Timestamp          int64  `json:"_ts"`
+		LastTransitionTime string `json:"lastTransitionTime"`
+		StartTime          string `json:"startTime"`
+	}
+	if err := json.Unmarshal(snapshot.Content, &cosmosDocument); err != nil {
+		return dataDumpEntry{}, false
+	}
+	timestamp := ""
+	if cosmosDocument.Timestamp > 0 {
+		timestamp = time.Unix(cosmosDocument.Timestamp, 0).UTC().Format(time.RFC3339)
+	} else {
+		// Operation-status snapshots are serialized through their API type, which
+		// omits Cosmos system fields such as _ts. Their transition time is the
+		// closest equivalent timestamp, with startTime as a final fallback.
+		for _, candidate := range []string{cosmosDocument.LastTransitionTime, cosmosDocument.StartTime} {
+			if parsed, err := time.Parse(time.RFC3339Nano, candidate); err == nil {
+				timestamp = parsed.Format(time.RFC3339Nano)
+				break
+			}
+		}
+	}
+	if timestamp == "" {
+		return dataDumpEntry{}, false
+	}
+
+	container := strings.ToLower(snapshot.CosmosContainer)
+	result := dataDumpEntry{
+		Timestamp:  timestamp,
+		ResourceID: snapshot.ResourceID,
+		Content:    string(snapshot.Content),
+		FullMsg:    `{"content":` + string(snapshot.Content) + `}`,
+	}
+	if container == "billing" {
+		result.ContainerPrefix = container
+		result.RelativePath = resourceIDToPath(snapshot.ResourceID + "/billing")
+	}
+
+	return result, true
 }
 
 // unwrapLogEnvelope checks if the JSON is wrapped in a {"log": {...}} envelope
@@ -307,6 +478,8 @@ func parseLogJSON(logJSON string) (dataDumpEntry, bool) {
 		return parseCSClusterStateDump(inner, entry.Time)
 	case "cluster-service node pool state dump":
 		return parseCSNodePoolStateDump(inner, entry.Time)
+	case "delivering change feed item":
+		return parseChangeFeedEntry(inner, entry.Time)
 	}
 
 	// We need to extract resourceID and content from the inner log JSON
@@ -368,6 +541,26 @@ func parseCSNodePoolStateDump(inner, timestamp string) (dataDumpEntry, bool) {
 	}, true
 }
 
+// parseChangeFeedEntry parses a "delivering change feed item" log entry.
+// The changefeed logger writes the ARM resource ID under the `resource_id`
+// JSON key and the cosmos document under `content`.
+func parseChangeFeedEntry(inner, timestamp string) (dataDumpEntry, bool) {
+	resourceID := extractResourceID(inner)
+	if resourceID == "" {
+		return dataDumpEntry{}, false
+	}
+	content := extractContent(inner)
+	if content == "" {
+		return dataDumpEntry{}, false
+	}
+	return dataDumpEntry{
+		Timestamp:  timestamp,
+		ResourceID: resourceID,
+		Content:    content,
+		FullMsg:    inner,
+	}, true
+}
+
 // extractContent extracts the .content field to write to the git repo file
 func extractContent(logJSON string) string {
 	return extractRawField(logJSON, "content")
@@ -405,9 +598,11 @@ func extractStringField(logJSON, field string) string {
 //     always present for data dumps and is the only reliable location for record types whose
 //     `content` does not carry its own top-level `resourceID` (e.g. hcpOperationStatuses,
 //     managementClusterContents).
-//  2. `.content.resourceID` for record types whose envelope still serializes it (clusters,
+//  2. The top-level structured-logging `resource_id` key set by AddLogValuesForResourceID in the
+//     changefeed logger. This is always present for changefeed entries.
+//  3. `.content.resourceID` for record types whose envelope still serializes it (clusters,
 //     nodepools, externalauths).
-//  3. `.content.cosmosMetadata.resourceID` as a final fallback.
+//  4. `.content.cosmosMetadata.resourceID` as a final fallback.
 func extractResourceID(logJSON string) string {
 	var data logData
 	if err := json.Unmarshal([]byte(logJSON), &data); err != nil {
@@ -416,6 +611,9 @@ func extractResourceID(logJSON string) string {
 
 	if data.CurrentResourceID != "" {
 		return data.CurrentResourceID
+	}
+	if data.ResourceID != "" {
+		return data.ResourceID
 	}
 	if data.Content != nil && data.Content.ResourceID != "" {
 		return data.Content.ResourceID
@@ -462,16 +660,47 @@ func initGitRepo(dir string) error {
 	return nil
 }
 
+type trackedResource struct {
+	content         map[string]interface{}
+	instanceVersion int64
+}
+
+func extractInstanceVersion(content map[string]interface{}) int64 {
+	if content == nil {
+		return 0
+	}
+	cm, ok := content["cosmosMetadata"].(map[string]interface{})
+	if !ok {
+		if props, pOk := content["properties"].(map[string]interface{}); pOk {
+			cm, _ = props["cosmosMetadata"].(map[string]interface{})
+		}
+	}
+	if cm == nil {
+		return 0
+	}
+	switch v := cm["instanceVersion"].(type) {
+	case float64:
+		return int64(v)
+	case json.Number:
+		n, _ := v.Int64()
+		return n
+	}
+	return 0
+}
+
 func processEntries(ctx context.Context, entries []dataDumpEntry, outputDir string) (int, error) {
 	logger := logr.FromContextOrDiscard(ctx)
 
-	// Track last content per resource to detect changes and generate diffs
-	lastContent := make(map[string]map[string]interface{})
+	// Track last content per resource to detect changes and gate on instanceVersion
+	tracked := make(map[string]*trackedResource)
 	commitCount := 0
 
 	for i, entry := range entries {
 		// Normalize resource ID to lowercase for consistent tracking
 		normalizedResourceID := strings.ToLower(entry.ResourceID)
+		if entry.ContainerPrefix != "" {
+			normalizedResourceID = entry.ContainerPrefix + ":" + normalizedResourceID
+		}
 
 		// Convert resource_id to directory path structure
 		// For operation statuses, place them in the same directory as their externalId
@@ -501,18 +730,32 @@ func processEntries(ctx context.Context, entries []dataDumpEntry, outputDir stri
 			currentContent = nil
 		}
 
+		// Gate on instanceVersion: if the tracked resource already has an equal
+		// or higher version, this entry is stale and should be skipped.
+		incomingVersion := extractInstanceVersion(currentContent)
+		if prev, exists := tracked[normalizedResourceID]; exists {
+			if incomingVersion > 0 && prev.instanceVersion >= incomingVersion {
+				continue
+			}
+		}
+
 		// Check if content changed (direct string comparison)
-		previousContent, exists := lastContent[normalizedResourceID]
-		if exists && prettyContent == mustPrettyPrint(previousContent) {
-			// Content unchanged, skip
+		var previousContent map[string]interface{}
+		if prev, exists := tracked[normalizedResourceID]; exists {
+			previousContent = prev.content
+		}
+		if previousContent != nil && prettyContent == mustPrettyPrint(previousContent) {
 			continue
 		}
 
 		// Generate commit message
 		commitMsg := generateCommitMessage(normalizedResourceID, previousContent, currentContent)
 
-		// Update last content
-		lastContent[normalizedResourceID] = currentContent
+		// Update tracked state
+		tracked[normalizedResourceID] = &trackedResource{
+			content:         currentContent,
+			instanceVersion: incomingVersion,
+		}
 
 		// Write file
 		if err := os.WriteFile(filePath, []byte(prettyContent), 0644); err != nil {
@@ -750,7 +993,7 @@ func resourceIDToPathWithContent(resourceID string, logJSON string) string {
 		return resourceIDToPath(resourceID)
 	}
 
-	if data.Content == nil || data.Content.ExternalId == "" || data.Content.Request == "" {
+	if data.Content == nil || data.Content.getExternalID() == "" || data.Content.getRequest() == "" {
 		return resourceIDToPath(resourceID)
 	}
 
@@ -758,7 +1001,7 @@ func resourceIDToPathWithContent(resourceID string, logJSON string) string {
 	operationID := filepath.Base(resourceID)
 
 	// Use externalId as the base path
-	basePath := strings.TrimPrefix(data.Content.ExternalId, "/")
+	basePath := strings.TrimPrefix(data.Content.getExternalID(), "/")
 	basePath = strings.ReplaceAll(basePath, "\\", "/")
 	basePath = strings.ToLower(basePath)
 
@@ -773,7 +1016,7 @@ func resourceIDToPathWithContent(resourceID string, logJSON string) string {
 	parts = append(parts, "hcpoperationstatuses")
 
 	// Create filename with request prefix
-	filename := fmt.Sprintf("%s-%s.json", strings.ToLower(data.Content.Request), strings.ToLower(operationID))
+	filename := fmt.Sprintf("%s-%s.json", strings.ToLower(data.Content.getRequest()), strings.ToLower(operationID))
 	return filepath.Join(append(parts, filename)...)
 }
 

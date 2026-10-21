@@ -16,6 +16,7 @@ package client
 
 import (
 	"errors"
+	"net/http"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 )
@@ -33,4 +34,18 @@ func IsResourceGroupNotFoundErr(err error) bool {
 func IsResourceNotFoundErr(err error) bool {
 	var azErr *azcore.ResponseError
 	return errors.As(err, &azErr) && azErr.ErrorCode == "ResourceNotFound"
+}
+
+// IsRoleAssignmentNotFoundErr is used to determine if we are failing to find a role assignment
+// within azure. The role assignments API returns the more specific `RoleAssignmentNotFound`
+// error code (not `ResourceNotFound`) when a role assignment does not exist.
+func IsRoleAssignmentNotFoundErr(err error) bool {
+	var azErr *azcore.ResponseError
+	return errors.As(err, &azErr) && azErr.ErrorCode == "RoleAssignmentNotFound"
+}
+
+// IsAzureCoreResponseErrorHTTP404 returns true if the error is an azcore.ResponseError with http status code 404.
+func IsAzureCoreResponseErrorHTTP404(err error) bool {
+	var azErr *azcore.ResponseError
+	return errors.As(err, &azErr) && azErr.StatusCode == http.StatusNotFound
 }

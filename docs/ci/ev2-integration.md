@@ -19,11 +19,15 @@ In short, EV2 gating ensures the tests and the code they validate are always ali
 
 The public-cloud environment mapping lives in `config/config.msft.clouds-overlay.yaml`.
 
-Current `prowJobName` mappings are:
+Current `prowJobName` values (see `config/config.msft.clouds-overlay.yaml`) and the E2E suite each environment gates on:
 
-- **INT** -> `branch-ci-Azure-ARO-HCP-main-e2e-integration-e2e-parallel`
-- **STG** -> `branch-ci-Azure-ARO-HCP-main-e2e-stage-e2e-parallel`
-- **PROD** -> `branch-ci-Azure-ARO-HCP-main-e2e-prod-e2e-parallel`
+| Environment | `prowJobName` | Promotion E2E suite |
+| ----------- | ------------- | ------------------- |
+| INT | `branch-ci-Azure-ARO-HCP-main-e2e-integration-e2e-parallel-all` | Combined parallel (fast + Slow) |
+| STG | `branch-ci-Azure-ARO-HCP-main-e2e-stage-e2e-parallel-all` | Combined parallel (fast + Slow) |
+| PROD | `branch-ci-Azure-ARO-HCP-main-e2e-prod-e2e-parallel` | Regular parallel (fast only) |
+
+**Promotion E2E suite:** *Combined parallel* runs fast and Slow specs; *Regular parallel* runs the fast suite only.
 
 This is the first place to check if a rollout is invoking the wrong Prow job for a given environment.
 
@@ -101,6 +105,8 @@ The operational procedure for renewal lives in:
 
 - [Renew the Prow Token](../sops/renew-prow-token.md)
 
+To reproduce a failed gate by triggering the same job by hand, see [Manually Trigger an E2E Gate Run](../sops/manual-e2e-gate-run.md). This matters most in INT and STG, which have no retry available on the rollout step.
+
 Symptoms that usually point to token problems:
 
 - the EV2 rollout gets stuck or fails at `regionalGating`
@@ -154,5 +160,6 @@ When you need to change or debug EV2-to-Prow integration, start here:
 
 - [CI Overview](README.md)
 - [CI Execution](execution.md)
+- [EV2 Retry Catcher](ev2-retry-catcher.md)
 - [CI Operations](operations.md)
 - [Renew the Prow Token](../sops/renew-prow-token.md)

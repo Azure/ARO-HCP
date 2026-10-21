@@ -5,6 +5,10 @@ This document shows a proof chain for a failure to install a cluster coming from
 An ARO HCP cluster failed to install because an Azure Disk could not be mounted for an `etcd` pod in the hosted control
 plane due to internal Azure Disk errors.
 
+## Classification
+
+- **Category:** Azure Problems
+
 ## Summary
 
 An end-to-end test installing two ARO HCP clusters in one resource group installed one without issue, but failed on the
@@ -140,15 +144,13 @@ return utils.TrackError(err)
 No backend controllers posted unnatural status during the test run for this cluster.
 
 ```kql
-cluster('https://hcp-int-uk.uksouth.kusto.windows.net').database('ServiceLogs').table('backendLogs')
+cluster('https://hcp-int-uk.uksouth.kusto.windows.net').database('ServiceLogs').table('cosmosResourceSnapshots')
 | where timestamp between (datetime(2026-05-19T20:52:10Z) .. datetime(2026-05-19T21:43:55Z))
-| where container_name == 'aro-hcp-backend'
-| where log.controller_name == 'datadump'
-| where log.resource_group == 'customer-rg-crkv7p'
-| where log.resource_name == 'basic-hcp-cluster'
-| where log.content.resourceType =~ 'microsoft.redhatopenshift/hcpopenshiftclusters/hcpopenshiftcontrollers'
-| where log.content.resourceID has 'basic-hcp-cluster'
-| summarize payload=take_any(log.content) by etag=tostring(log.content._etag)
+| where subscriptionID == '64f0619f-ebc2-4156-9d91-c4c781de7e54'
+| where resourceGroup =~ 'customer-rg-crkv7p'
+| where resourceID startswith '/subscriptions/64f0619f-ebc2-4156-9d91-c4c781de7e54/resourcegroups/customer-rg-crkv7p/providers/microsoft.redhatopenshift/hcpopenshiftclusters/basic-hcp-cluster'
+| where resourceType =~ 'microsoft.redhatopenshift/hcpopenshiftclusters/hcpopenshiftcontrollers'
+| summarize payload=take_any(content) by etag=tostring(content._etag)
 | extend payload = parse_json(payload)
 | extend controller_name = extract("/hcpOpenShiftControllers/([^\\/]+)", 1, tostring(payload.resourceID))
 | extend ts = tolong(payload._ts)
@@ -217,14 +219,13 @@ return nil
 The `Available` condition on the `HostedCluster` never had a `true` status:
 
 ```kql
-cluster('https://hcp-int-uk.uksouth.kusto.windows.net').database('ServiceLogs').table('backendLogs')
+cluster('https://hcp-int-uk.uksouth.kusto.windows.net').database('ServiceLogs').table('cosmosResourceSnapshots')
 | where timestamp between (datetime(2026-05-19T20:52:10Z) .. datetime(2026-05-19T22:10:46Z))
-| where container_name == 'aro-hcp-backend'
-| where log.controller_name == 'datadump'
-| where log.resource_group == 'customer-rg-crkv7p'
-| where log.resource_name == 'basic-hcp-cluster'
-| where log.content.resourceType =~ 'microsoft.redhatopenshift/hcpopenshiftclusters/readdesires'
-| summarize content=take_any(log.content), observedTime=take_any(timestamp) by etag=tostring(log.content._etag)
+| where subscriptionID == '64f0619f-ebc2-4156-9d91-c4c781de7e54'
+| where resourceGroup =~ 'customer-rg-crkv7p'
+| where resourceID startswith '/subscriptions/64f0619f-ebc2-4156-9d91-c4c781de7e54/resourcegroups/customer-rg-crkv7p/providers/microsoft.redhatopenshift/hcpopenshiftclusters/basic-hcp-cluster'
+| where resourceType =~ 'microsoft.redhatopenshift/hcpopenshiftclusters/readdesires'
+| summarize content=take_any(content), observedTime=take_any(timestamp) by etag=tostring(content._etag)
 | sort by tolong(content._ts) asc
 | extend content = parse_json(content)
 | extend manifest = content.properties.status.kubeContent
@@ -252,14 +253,13 @@ The last snapshot of the `HostedCluster` conditions before the test cleanup bega
 present and the `kube-apiserver` deployment had not been found:
 
 ```kql
-cluster('https://hcp-int-uk.uksouth.kusto.windows.net').database('ServiceLogs').table('backendLogs')
+cluster('https://hcp-int-uk.uksouth.kusto.windows.net').database('ServiceLogs').table('cosmosResourceSnapshots')
 | where timestamp between (datetime(2026-05-19T20:52:10Z) .. datetime(2026-05-19T21:43:55Z))
-| where container_name == 'aro-hcp-backend'
-| where log.controller_name == 'datadump'
-| where log.resource_group == 'customer-rg-crkv7p'
-| where log.resource_name == 'basic-hcp-cluster'
-| where log.content.resourceType =~ 'microsoft.redhatopenshift/hcpopenshiftclusters/readdesires'
-| summarize content=take_any(log.content), observedTime=take_any(timestamp) by etag=tostring(log.content._etag)
+| where subscriptionID == '64f0619f-ebc2-4156-9d91-c4c781de7e54'
+| where resourceGroup =~ 'customer-rg-crkv7p'
+| where resourceID startswith '/subscriptions/64f0619f-ebc2-4156-9d91-c4c781de7e54/resourcegroups/customer-rg-crkv7p/providers/microsoft.redhatopenshift/hcpopenshiftclusters/basic-hcp-cluster'
+| where resourceType =~ 'microsoft.redhatopenshift/hcpopenshiftclusters/readdesires'
+| summarize content=take_any(content), observedTime=take_any(timestamp) by etag=tostring(content._etag)
 | top 1 by tolong(content._ts) desc
 | extend content = parse_json(content)
 | extend manifest = content.properties.status.kubeContent

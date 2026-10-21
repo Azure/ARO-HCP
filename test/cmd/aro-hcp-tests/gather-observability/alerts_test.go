@@ -234,7 +234,7 @@ func TestAlertsPipeline(t *testing.T) {
 						"summary":       "Backend controller workqueue operationnodepooldelete retry hot loop",
 						"title":         "Backend controller workqueue operationnodepooldelete retry hot loop",
 					},
-					"expression": "( sum by (name, cluster) ( max without(prometheus_replica) ( rate(workqueue_retries_total{namespace=\"aro-hcp\"}[10m]) ) ) / sum by (name, cluster) ( max without(prometheus_replica) ( rate(workqueue_adds_total{namespace=\"aro-hcp\"}[10m]) ) ) ) > 0.5",
+					"expression": "( sum by (name, cluster) ( max without(prometheus_replica) ( rate(workqueue_retries_total{namespace=\"aro-hcp\", name!~\"clustervalidation.*|nodepoolvalidation.*\"}[10m]) ) ) / sum by (name, cluster) ( max without(prometheus_replica) ( rate(workqueue_adds_total{namespace=\"aro-hcp\", name!~\"clustervalidation.*|nodepoolvalidation.*\"}[10m]) ) ) ) > 0.5",
 				},
 			},
 		},
@@ -289,6 +289,7 @@ func TestAlertsPipeline(t *testing.T) {
 		}
 	}
 
+	filterKeys, filterOptions := collectFilterOptions(classified)
 	output := alertsOutput{
 		Alerts: classified,
 		Summary: alertsSummary{
@@ -297,6 +298,8 @@ func TestAlertsPipeline(t *testing.T) {
 			Unknown:    len(classified) - knownCount,
 			BySeverity: severityCounts,
 		},
+		FilterKeys:    filterKeys,
+		FilterOptions: filterOptions,
 	}
 	output.TimeWindow.Start = "2026-04-13T05:00:00Z"
 	output.TimeWindow.End = "2026-04-13T08:00:00Z"

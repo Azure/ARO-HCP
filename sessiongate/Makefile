@@ -2,6 +2,7 @@ SHELL = /usr/bin/env bash -o pipefail
 .SHELLFLAGS = -ec
 SESSIONGATE_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 
+-include ../setup-env.mk
 -include ../setup-templatize-env.mk
 -include ../.bingo/Variables.mk
 -include ../tooling/hcpctl/Variables.mk
@@ -9,28 +10,23 @@ SESSIONGATE_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 # Image
 ARO_HCP_REVISION ?= $(shell git rev-parse HEAD)
 ARO_HCP_COMMIT_TIME ?= $(shell TZ=UTC git show -s --format=%cd --date=iso-strict-local ${ARO_HCP_REVISION})
-SESSION_GATE_IMAGE_TAG ?= $(shell DETECT_DIRTY_GIT_WORKTREE=${DETECT_DIRTY_GIT_WORKTREE} DEPLOY_ENV=${DEPLOY_ENV} ../generate-tag.sh)
+SESSION_GATE_IMAGE_TAG ?= $(or $(IMAGE_TAG),$(shell DETECT_DIRTY_GIT_WORKTREE=${DETECT_DIRTY_GIT_WORKTREE} DEPLOY_ENV=${DEPLOY_ENV} ../generate-tag.sh))
 SESSION_GATE_GENERATED_IMAGE_REPOSITORY = $(shell DEPLOY_ENV=${DEPLOY_ENV} BASELINE_REPO=${SESSION_GATE_IMAGE_REPOSITORY} ../generate-repo.sh)
 SESSION_GATE_TAGGED_IMAGE ?= $(ARO_HCP_IMAGE_REGISTRY)/$(SESSION_GATE_GENERATED_IMAGE_REPOSITORY):$(SESSION_GATE_IMAGE_TAG)
 
 HELMCHART_DIR = deploy
-CONTAINER_ENGINE ?= $(shell command -v podman 2>/dev/null || echo docker)
 BINARY = bin/sessiongate
 SESSION_GATE_SOURCES = $(shell find . -name '*.go' -o -name 'go.mod' -o -name 'go.sum')
 LDFLAGS = -ldflags ""
 
 # K8S Codegen
-KUBE_CODEGEN_TAG=v0.35.1
-KUBE_CODEGEN_SH=hack/kube-codegen.sh
+KUBE_CODEGEN_SH=../hack/kube-codegen.sh
 
 # Default target
 .DEFAULT_GOAL := build
 
-$(KUBE_CODEGEN_SH):
-	curl -o "$@" https://raw.githubusercontent.com/kubernetes/code-generator/refs/tags/${KUBE_CODEGEN_TAG}/kube_codegen.sh
-
-update-codegen: $(KUBE_CODEGEN_SH) $(INFORMER_GEN) $(CLIENT_GEN) $(LISTER_GEN) $(INFORMER_GEN) $(APPLYCONFIGURATION_GEN)
-	KUBE_CODEGEN_SH=$(KUBE_CODEGEN_SH) ./hack/update-codegen.sh
+update-codegen: $(INFORMER_GEN) $(CLIENT_GEN) $(LISTER_GEN) $(APPLYCONFIGURATION_GEN)
+	KUBE_CODEGEN_TAG=v0.35.3 KUBE_CODEGEN_SH=$(KUBE_CODEGEN_SH) ./hack/update-codegen.sh
 	make -C .. fmt
 .PHONY: update-codegen
 
@@ -55,7 +51,7 @@ image:
 .PHONY: image
 
 build-and-push: image $(ORAS) $(YQ)
-	az acr login --name ${ARO_HCP_IMAGE_ACR}
+	$(acr-login)
 	@LOCAL_DIGEST=$$($(CONTAINER_ENGINE) image inspect --format '{{.Id}}' ${SESSION_GATE_TAGGED_IMAGE} | sed 's/sha256://'); \
 	REMOTE_DIGEST=$$($(ORAS) manifest fetch ${SESSION_GATE_TAGGED_IMAGE} 2>/dev/null | $(YQ) .config.digest | sed 's/sha256://'); \
 	if [ "$$LOCAL_DIGEST" = "$$REMOTE_DIGEST" ]; then \
@@ -84,6 +80,13 @@ record-override: $(YQ) $(ORAS)
 .PHONY: record-override
 
 # Dev work
+
+record-latest-override: $(YQ)
+	@../hack/record-latest-image-override.sh \
+		"$(ARO_HCP_IMAGE_ACR)" "$(ARO_HCP_IMAGE_REGISTRY)" \
+		"$(SESSION_GATE_IMAGE_REPOSITORY)" "$(DEPLOY_ENV)" \
+		"sessiongate" "$(OVERRIDE_CONFIG_FILE)" "$(YQ)"
+.PHONY: record-latest-override
 
 deploy: build-and-push record-override
 	make -C .. pipeline/SessionGate OVERRIDE_CONFIG_FILE=$(OVERRIDE_CONFIG_FILE)

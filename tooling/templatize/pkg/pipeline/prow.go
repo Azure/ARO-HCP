@@ -58,11 +58,16 @@ func runProwJobStep(step *types.ProwJobStep, ctx context.Context, options *StepR
 	opts.KeyVaultURI = keyVaultURI
 	opts.ProwJobName = step.JobName
 	opts.GatePromotion = gate
+	// Route the triggered job to the correct subscription(s) for this region.
+	// The executor injects this as a Gangway env override the lease-acquire step
+	// prefers over the job's baseline ALLOWED_SUBSCRIPTIONS; empty is a no-op.
+	opts.AllowedSubscriptions = step.AllowedSubscriptions
 
 	inputs := prowInputs{
-		KeyVault: keyVaultURI,
-		Secret:   step.TokenSecret,
-		JobName:  step.JobName,
+		KeyVault:             keyVaultURI,
+		Secret:               step.TokenSecret,
+		JobName:              step.JobName,
+		AllowedSubscriptions: step.AllowedSubscriptions,
 	}
 	skip, commit, err := checkSentinel(logger, inputs, options.StepCacheDir)
 	if err != nil {
@@ -92,7 +97,8 @@ func runProwJobStep(step *types.ProwJobStep, ctx context.Context, options *StepR
 }
 
 type prowInputs struct {
-	KeyVault string `json:"keyVault"`
-	Secret   string `json:"secret"`
-	JobName  string `json:"jobName"`
+	KeyVault             string `json:"keyVault"`
+	Secret               string `json:"secret"`
+	JobName              string `json:"jobName"`
+	AllowedSubscriptions string `json:"allowedSubscriptions,omitempty"`
 }

@@ -15,8 +15,9 @@ tests:
     exp_alerts:
     - exp_labels:
         alertname: ArobitForwarderJobUp
-        severity: warning
         cluster: test
+        component: monitoring-infrastructure
+        severity: warning
       exp_annotations:
         description: |
           The Arobit forwarder metrics endpoint on cluster test has been unreachable for 15 minutes.
@@ -33,16 +34,17 @@ tests:
     exp_alerts:
     - exp_labels:
         alertname: FluentBitIngestionPaused
-        severity: warning
         cluster: test
+        component: monitoring-infrastructure
         pod: arobit-paused
+        severity: warning
       exp_annotations:
         runbook_url: https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/arobit.html
         description: |
           Fluent Bit pod arobit-paused on cluster test has paused collecting new log data for at least 5 minutes.
           Ingestion pauses when Fluent Bit's internal memory or storage buffers are full, typically caused by backpressure from a slow or failing output.
           Investigate the Fluent Bit logs for the specific error details and check the Kusto instance health.
-        summary: Fluent Bit input ingestion paused due to backpressure.
+        summary: Fluent Bit arobit-paused on test ingestion paused due to backpressure
 # FluentBitIngestionPaused - healthy pod, no alert
 - interval: 1m
   input_series:
@@ -63,16 +65,17 @@ tests:
     exp_alerts:
     - exp_labels:
         alertname: FluentBitHighOutputRetries
-        severity: warning
         cluster: test
+        component: monitoring-infrastructure
         pod: arobit-retrying
+        severity: warning
       exp_annotations:
         runbook_url: https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/arobit.html
         description: |
           Fluent Bit pod arobit-retrying on cluster test is retrying chunk delivery.
           Retries occur when the azure_kusto output encounters a recoverable error (e.g. transient network failure, HTTP 429/5xx from Kusto).
           Investigate the Fluent Bit logs for the specific error details and check the Kusto instance health.
-        summary: High Kusto output retries
+        summary: Fluent Bit arobit-retrying on test has high Kusto output retries
 # FluentBitHighOutputRetries - low retries, no alert
 - interval: 1m
   input_series:
@@ -102,15 +105,16 @@ tests:
     exp_alerts:
     - exp_labels:
         alertname: FluentBitOutputErrors
-        severity: warning
         cluster: test
+        component: monitoring-infrastructure
         pod: arobit-errors
+        severity: warning
       exp_annotations:
         runbook_url: https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/arobit.html
         description: |
           Fluent Bit pod arobit-errors on cluster test is encountering errors sending log chunks to Kusto.
           Investigate the Fluent Bit logs for the specific error details and check the Kusto instance health.
-        summary: Unrecoverable Kusto output errors - log data is being dropped.
+        summary: Fluent Bit arobit-errors on test dropping logs due to unrecoverable Kusto errors
 # FluentBitOutputErrors - no errors, no alert
 - interval: 1m
   input_series:
@@ -140,15 +144,16 @@ tests:
     exp_alerts:
     - exp_labels:
         alertname: FluentBitOutputRetriesExhausted
-        severity: warning
         cluster: test
+        component: monitoring-infrastructure
         pod: arobit-exhausted
+        severity: warning
       exp_annotations:
         runbook_url: https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/arobit.html
         description: |
           Fluent Bit pod arobit-exhausted on cluster test has chunks that exceeded the configured Retry_Limit for the Kusto output.
           Investigate the Fluent Bit logs for the specific error details and check the Kusto instance health.
-        summary: Kusto output retries exhausted - chunks discarded after max retries.
+        summary: Fluent Bit arobit-exhausted on test Kusto retries exhausted, chunks discarded
 # FluentBitOutputRetriesExhausted - no failed retries, no alert
 - interval: 1m
   input_series:

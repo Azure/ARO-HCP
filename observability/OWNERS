@@ -3,3 +3,6 @@ approvers:
 - geoberle
 - raelga
 - service-lifecycle-approvers
+- sre-approvers
+labels:
+- area/observability

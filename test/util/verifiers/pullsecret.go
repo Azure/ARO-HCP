@@ -18,6 +18,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -29,13 +30,20 @@ import (
 
 type verifyPullSecretMergedIntoGlobal struct {
 	expectedHost string
+	timeout      time.Duration
 }
 
 func (v verifyPullSecretMergedIntoGlobal) Name() string {
-	return "VerifyPullSecretMergedIntoGlobal"
+	return fmt.Sprintf("VerifyPullSecretMergedIntoGlobal(%s)", v.expectedHost)
 }
 
 func (v verifyPullSecretMergedIntoGlobal) Verify(ctx context.Context, adminRESTConfig *rest.Config) error {
+	return pollUntilReady(ctx, v.Name(), v.timeout, DefaultPollInterval, adminRESTConfig, DefaultDiagnoseTimeout, nil, func(ctx context.Context) error {
+		return v.checkOnce(ctx, adminRESTConfig)
+	})
+}
+
+func (v verifyPullSecretMergedIntoGlobal) checkOnce(ctx context.Context, adminRESTConfig *rest.Config) error {
 	kubeClient, err := kubernetes.NewForConfig(adminRESTConfig)
 	if err != nil {
 		return fmt.Errorf("failed to create kubernetes client: %w", err)
@@ -58,41 +66,33 @@ func (v verifyPullSecretMergedIntoGlobal) Verify(ctx context.Context, adminRESTC
 	return nil
 }
 
-func VerifyPullSecretMergedIntoGlobal(expectedHost string) HostedClusterVerifier {
-	return verifyPullSecretMergedIntoGlobal{expectedHost: expectedHost}
+// VerifyPullSecretMergedIntoGlobal polls until the kube-system/global-pull-secret
+// on the data plane contains an auths entry for expectedHost, or the timeout
+// expires. The global-pull-secret is created by HCCO's Global Pull Secret
+// Controller when it detects an additional-pull-secret in kube-system and
+// merges it with the original-pull-secret.
+//
+// See https://hypershift.pages.dev/how-to/aws/global-pull-secret/
+func VerifyPullSecretMergedIntoGlobal(expectedHost string, timeout time.Duration) HostedClusterVerifier {
+	return verifyPullSecretMergedIntoGlobal{
+		expectedHost: expectedHost,
+		timeout:      timeout,
+	}
 }
 
-type verifyGlobalPullSecretSyncer struct{}
+const (
+	globalPullSecretSyncerNamespace = "kube-system"
+	globalPullSecretSyncerName      = "global-pull-secret-syncer"
+)
 
-func (v verifyGlobalPullSecretSyncer) Name() string {
-	return "VerifyGlobalPullSecretSyncer"
-}
-
-func (v verifyGlobalPullSecretSyncer) Verify(ctx context.Context, adminRESTConfig *rest.Config) error {
-	kubeClient, err := kubernetes.NewForConfig(adminRESTConfig)
-	if err != nil {
-		return fmt.Errorf("failed to create kubernetes client: %w", err)
-	}
-
-	ds, err := kubeClient.AppsV1().DaemonSets("kube-system").Get(ctx, "global-pull-secret-syncer", metav1.GetOptions{})
-	if err != nil {
-		return fmt.Errorf("failed to get global-pull-secret-syncer DaemonSet: %w", err)
-	}
-
-	// Verify the DaemonSet is ready - all desired pods are available
-	if ds.Status.DesiredNumberScheduled == 0 {
-		return fmt.Errorf("global-pull-secret-syncer has no desired pods scheduled")
-	}
-	if ds.Status.NumberReady != ds.Status.DesiredNumberScheduled {
-		return fmt.Errorf("global-pull-secret-syncer not ready: %d/%d pods ready",
-			ds.Status.NumberReady, ds.Status.DesiredNumberScheduled)
-	}
-
-	return nil
-}
-
-func VerifyGlobalPullSecretSyncer() HostedClusterVerifier {
-	return verifyGlobalPullSecretSyncer{}
+// VerifyGlobalPullSecretSyncer verifies the global-pull-secret-syncer
+// DaemonSet in kube-system is ready. Until this DaemonSet is ready, nodes
+// will not have the updated pull secret credentials.
+// It delegates to [VerifyDaemonSetReady].
+//
+// See https://hypershift.pages.dev/how-to/aws/global-pull-secret/
+func VerifyGlobalPullSecretSyncer(timeout time.Duration) HostedClusterVerifier {
+	return VerifyDaemonSetReady(globalPullSecretSyncerNamespace, globalPullSecretSyncerName, timeout)
 }
 
 type verifyPullSecretAuthData struct {
@@ -104,7 +104,7 @@ type verifyPullSecretAuthData struct {
 }
 
 func (v verifyPullSecretAuthData) Name() string {
-	return "VerifyPullSecretAuthData"
+	return fmt.Sprintf("VerifyPullSecretAuthData(%s/%s:%s)", v.namespace, v.secretName, v.expectedHost)
 }
 
 func (v verifyPullSecretAuthData) Verify(ctx context.Context, adminRESTConfig *rest.Config) error {
@@ -139,6 +139,11 @@ func (v verifyPullSecretAuthData) Verify(ctx context.Context, adminRESTConfig *r
 	return nil
 }
 
+// VerifyPullSecretAuthData performs a single-shot check that the named
+// dockerconfigjson Secret contains the expected auth (base64-encoded
+// "username:password") and email values for the given registry host.
+// Call only after HCCO has finished merging (e.g. after
+// [VerifyPullSecretMergedIntoGlobal] succeeds).
 func VerifyPullSecretAuthData(secretName, namespace, expectedHost, expectedAuth, expectedEmail string) HostedClusterVerifier {
 	return verifyPullSecretAuthData{
 		secretName:    secretName,

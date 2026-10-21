@@ -34,11 +34,23 @@ const (
 	DefaultRetries = 1
 )
 
+// ErrTargetRetained tells the engine that a target discovered earlier is no
+// longer safe to delete after the step's final revalidation.
+var ErrTargetRetained = errors.New("target retained after revalidation")
+
+// ErrTargetAbsent tells the engine that cleanup found an already absent target.
+var ErrTargetAbsent = errors.New("target already absent")
+
 // Target represents a discovered resource selected for deletion.
 type Target struct {
 	ID   string
 	Name string
 	Type string
+	// Location is optional metadata some steps need to delete the target
+	// (e.g. purging a soft-deleted Key Vault requires its Azure location).
+	// It is carried on the Target so a step need not stash side state between
+	// Discover and Delete.
+	Location string
 }
 
 // Step defines one ordered cleanup stage in the engine execution model.
@@ -84,6 +96,7 @@ func (e *Engine) Run(ctx context.Context) error {
 	return nil
 }
 
+// Runs discovery, bounded deletion, and verification for one cleanup step.
 func (e *Engine) runStep(ctx context.Context, step Step, parallelism int) error {
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
@@ -130,8 +143,21 @@ func (e *Engine) runStep(ctx context.Context, step Step, parallelism int) error 
 					if !ok {
 						return
 					}
+					retained := false
+					absent := false
+					targetLogger := logger.WithValues("step", step.Name(), "id", target.ID)
+					targetCtx := logr.NewContext(ctx, targetLogger)
 					err := retry(ctx, step.RetryLimit(), func() error {
-						return step.Delete(ctx, target, e.Wait)
+						err := step.Delete(targetCtx, target, e.Wait)
+						if errors.Is(err, ErrTargetRetained) {
+							retained = true
+							return nil
+						}
+						if errors.Is(err, ErrTargetAbsent) {
+							absent = true
+							return nil
+						}
+						return err
 					})
 					if err != nil {
 						if step.ContinueOnError() {
@@ -140,11 +166,26 @@ func (e *Engine) runStep(ctx context.Context, step Step, parallelism int) error 
 								"step", step.Name(),
 								"resource", target.Name,
 								"type", target.Type,
+								"id", target.ID,
 								"error", err,
 							)
 							continue
 						}
 						errs <- fmt.Errorf("%s: failed deleting %s (%s): %w", step.Name(), target.Name, target.Type, err)
+						continue
+					}
+					if absent {
+						targetLogger.Info("Resource already absent")
+						continue
+					}
+					if retained {
+						logger.Info(
+							"Retained resource after revalidation",
+							"step", step.Name(),
+							"resource", target.Name,
+							"type", target.Type,
+							"id", target.ID,
+						)
 						continue
 					}
 					logger.Info(
@@ -198,6 +239,7 @@ func (e *Engine) runStep(ctx context.Context, step Step, parallelism int) error 
 	return fmt.Errorf("%s: verification failed: %w", step.Name(), verifyErr)
 }
 
+// Retries a cleanup operation with bounded exponential backoff.
 func retry(ctx context.Context, maxAttempts int, fn func() error) error {
 	if maxAttempts < DefaultRetries {
 		maxAttempts = DefaultRetries

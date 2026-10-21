@@ -35,10 +35,14 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
 {{- define "cihealth.image" -}}
+{{- $repository := .Values.image.repository -}}
 {{- if .Values.image.registry -}}
-{{- printf "%s/%s:%s" .Values.image.registry .Values.image.repository .Values.image.tag -}}
+{{- $repository = printf "%s/%s" .Values.image.registry .Values.image.repository -}}
+{{- end -}}
+{{- if .Values.image.digest -}}
+{{- printf "%s@%s" $repository .Values.image.digest -}}
 {{- else -}}
-{{- printf "%s:%s" .Values.image.repository .Values.image.tag -}}
+{{- printf "%s:%s" $repository .Values.image.tag -}}
 {{- end -}}
 {{- end -}}
 

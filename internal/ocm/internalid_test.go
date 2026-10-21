@@ -24,7 +24,7 @@ import (
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 )
 
 type FakeTransport struct{}
@@ -96,11 +96,18 @@ func TestInternalID(t *testing.T) {
 			clusterID: "abc",
 			expectErr: false,
 		},
+		{
+			name:      "parse aro_hcp v1alpha1 provision shard",
+			path:      "/api/aro_hcp/v1alpha1/provision_shards/abc",
+			kind:      arohcpv1alpha1.ProvisionShardKind,
+			id:        "abc",
+			expectErr: false,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			internalID, err := api.NewInternalID(tt.path)
+			internalID, err := metadataapi.NewInternalID(tt.path)
 			if tt.expectErr {
 				assert.Error(t, err)
 			} else {
@@ -108,13 +115,8 @@ func TestInternalID(t *testing.T) {
 			}
 
 			transport := &FakeTransport{}
-			_, ok := getClusterClient(internalID, transport)
-			assert.NotEqual(t, tt.expectErr, ok)
-			_, ok = getAroHCPClusterClient(internalID, transport)
-			assert.NotEqual(t, tt.expectErr, ok)
 
 			if tt.expectErr {
-				// test ends here if error is expected
 				return
 			}
 
@@ -124,11 +126,22 @@ func TestInternalID(t *testing.T) {
 			id := internalID.ID()
 			assert.Equal(t, tt.id, id)
 
-			clusterID := internalID.ClusterID()
-			assert.Equal(t, tt.clusterID, clusterID)
-
 			str := internalID.String()
 			assert.Equal(t, tt.path, str)
+
+			switch kind {
+			case arohcpv1alpha1.ProvisionShardKind:
+				_, ok := getAroHCPProvisionShardClient(internalID, transport)
+				assert.True(t, ok, "failed to get provision shard client")
+			default:
+				clusterID := internalID.ClusterID()
+				assert.Equal(t, tt.clusterID, clusterID)
+
+				_, ok := getClusterClient(internalID, transport)
+				assert.True(t, ok, "failed to get cluster client")
+				_, ok = getAroHCPClusterClient(internalID, transport)
+				assert.True(t, ok, "failed to get aro hcp cluster client")
+			}
 
 			if kind == arohcpv1alpha1.NodePoolKind {
 				_, ok := GetNodePoolClient(internalID, transport)
@@ -137,7 +150,7 @@ func TestInternalID(t *testing.T) {
 
 			if kind == arohcpv1alpha1.ExternalAuthKind {
 				_, ok := GetExternalAuthClient(internalID, transport)
-				assert.True(t, ok, "failed to get node pool client")
+				assert.True(t, ok, "failed to get external auth client")
 			}
 
 			bytes, err := json.Marshal(internalID)

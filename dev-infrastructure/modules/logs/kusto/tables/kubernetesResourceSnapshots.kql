@@ -1,0 +1,30 @@
+.create-merge table kubernetesResourceSnapshots (
+  timestamp: datetime,
+  environment: string,
+  region: string,
+  cluster: string,
+  event: string,
+  apiVersion: string,
+  objectKind: string,
+  namespace: string,
+  name: string,
+  uid: string,
+  object: dynamic
+)
+
+.create-or-alter table kubernetesResourceSnapshots ingestion json mapping 'ingestionMapping'
+```
+[
+  {"column":"timestamp","Properties":{"path":"$.timestamp"}},
+  {"column":"environment","Properties":{"path":"$.log.environment"}},
+  {"column":"region","Properties":{"path":"$.log.region"}},
+  {"column":"cluster","Properties":{"path":"$.log.cluster"}},
+  {"column":"event","Properties":{"path":"$.log.event"}},
+  {"column":"apiVersion","Properties":{"path":"$.log.object.apiVersion"}},
+  {"column":"objectKind","Properties":{"path":"$.log.object.kind"}},
+  {"column":"namespace","Properties":{"path":"$.log.namespace"}},
+  {"column":"name","Properties":{"path":"$.log.name"}},
+  {"column":"uid","Properties":{"path":"$.log.object.metadata.uid"}},
+  {"column":"object","Properties":{"path":"$.log.object"}}
+]
+```

@@ -25,33 +25,124 @@ import (
 	copilot "github.com/github/copilot-sdk/go"
 )
 
-//go:embed prompts/*
+//go:embed prompts
 var promptFS embed.FS
 
-// BuildSystemMessageConfig assembles a SystemMessageConfig in "customize" mode.
-//
-// Section strategy (from design review):
-//   - SectionIdentity: replace with our domain identity
-//   - SectionTone: replace with our analysis tone
-//   - SectionCodeChangeRules: remove (agent doesn't write code)
-//   - SectionToolInstructions: keep (SDK manages tool descriptions)
-//   - SectionToolEfficiency: keep
-//   - SectionSafety: keep
-//   - SectionCustomInstructions: append domain content (references, exemplars, output schema)
-func BuildSystemMessageConfig() (*copilot.SystemMessageConfig, error) {
-	base, err := promptFS.ReadFile("prompts/system.md")
+// Mode selects which framing the analysis prompts use.
+type Mode int
+
+const (
+	// ModeTest is the failed-e2e-test analysis framing. Its prompts are
+	// byte-for-byte identical to the original single-purpose implementation.
+	ModeTest Mode = iota
+	// ModeIntent is the free-form investigation framing driven by a
+	// human-written objective (e.g. a customer complaint about a cluster).
+	ModeIntent
+)
+
+// IdentityPrompt is the shared identity section text used by all providers in
+// test mode. Callers pass this to ProviderSessionConfig.IdentityPrompt so
+// prompt composition is centralized in the caller rather than scattered across
+// providers.
+const IdentityPrompt = "You are a senior SRE specializing in Azure Red Hat OpenShift (ARO-HCP). " +
+	"Your task is to perform root-cause analysis on failed e2e tests by examining " +
+	"diagnostic data, querying Azure Data Explorer (Kusto), and reading source code."
+
+// IntentIdentityPrompt is the identity section text used in intent mode, where
+// the objective is a free-form investigation rather than a failed test.
+const IntentIdentityPrompt = "You are a senior SRE specializing in Azure Red Hat OpenShift (ARO-HCP). " +
+	"Your task is to perform root-cause analysis of operational and customer-reported " +
+	"issues by examining diagnostic data, querying Azure Data Explorer (Kusto), and reading source code."
+
+// IdentityPromptFor returns the identity section text for the given mode.
+func IdentityPromptFor(mode Mode) string {
+	if mode == ModeIntent {
+		return IntentIdentityPrompt
+	}
+	return IdentityPrompt
+}
+
+// systemFragment is one ordered section of the domain system prompt. A section
+// is either shared across modes (one file) or mode-specific (a "<base>.<mode>.md"
+// pair). The whole prompt is these fragments concatenated in order.
+type systemFragment struct {
+	// path is set for a section whose text is identical in every mode.
+	path string
+	// variant is the base path for a mode-specific section; the file read is
+	// "<variant>.<mode>.md" (mode being "test" or "intent").
+	variant string
+}
+
+// systemFragments is the ordered list of sections that make up the domain
+// system prompt. Both modes assemble it with the exact same flow — they only
+// differ in which file each mode-specific section resolves to. Concatenating the
+// test variants reproduces the original single-file prompt byte for byte.
+var systemFragments = []systemFragment{
+	{path: "prompts/system/00_header.md"},
+	{variant: "prompts/system/10_recursive_why"},
+	{path: "prompts/system/20_standards.md"},
+	{path: "prompts/system/30_output_schema.md"},
+	{variant: "prompts/system/40_chain_link_rules"},
+	{path: "prompts/system/45_taxonomy_classification.md"},
+	{path: "prompts/system/50_markdown_formatting.md"},
+	{variant: "prompts/system/60_debugging_methodology"},
+	{path: "prompts/system/70_available_data_sources.md"},
+	{path: "prompts/system/80_discovery.md"},
+	{path: "prompts/system/90_kql_quality.md"},
+	{path: "prompts/system/95_epistemological.md"},
+	{variant: "prompts/system/99_methodology"},
+}
+
+// modeSuffix is the filename suffix used to pick a mode-specific fragment.
+func (m Mode) modeSuffix() string {
+	if m == ModeIntent {
+		return "intent"
+	}
+	return "test"
+}
+
+// buildSystemBody assembles the ordered system-prompt fragments for a mode.
+func buildSystemBody(mode Mode) (string, error) {
+	var sb strings.Builder
+	for _, f := range systemFragments {
+		path := f.path
+		if path == "" {
+			path = fmt.Sprintf("%s.%s.md", f.variant, mode.modeSuffix())
+		}
+		data, err := promptFS.ReadFile(path)
+		if err != nil {
+			return "", fmt.Errorf("failed to read system prompt fragment %s: %w", path, err)
+		}
+		sb.Write(data)
+	}
+	return sb.String(), nil
+}
+
+// TonePrompt is the shared tone section text used by all providers.
+// Callers pass this to ProviderSessionConfig.TonePrompt so prompt
+// composition is centralized in the caller rather than scattered across
+// providers.
+const TonePrompt = "Be precise, evidence-driven, and thorough. Every claim must be backed by " +
+	"data from tool calls. Prefer structured output over prose. When uncertain, " +
+	"investigate further rather than speculate."
+
+// buildDomainContent assembles the domain-specific prompt: the mode's system
+// prompt (built from ordered section fragments), the shared reference documents,
+// and the shared exemplar analyses. The assembly flow is identical for every
+// mode; only the per-mode fragments (see systemFragments) differ.
+func buildDomainContent(mode Mode) (string, error) {
+	systemBody, err := buildSystemBody(mode)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read system prompt: %w", err)
+		return "", err
 	}
 
-	// Build the custom instructions content: base prompt + references + exemplars.
 	var sb strings.Builder
-	sb.Write(base)
+	sb.WriteString(systemBody)
 
 	// Append reference documents.
 	refs, err := readDir("prompts/references")
 	if err != nil {
-		return nil, fmt.Errorf("failed to read reference documents: %w", err)
+		return "", fmt.Errorf("failed to read reference documents: %w", err)
 	}
 	if len(refs) > 0 {
 		sb.WriteString("\n\n## Reference Material\n\n")
@@ -61,10 +152,11 @@ func BuildSystemMessageConfig() (*copilot.SystemMessageConfig, error) {
 		}
 	}
 
-	// Append exemplars.
+	// Append exemplars. The same exemplars are used in both modes — they teach
+	// the expected quality, depth, and reasoning patterns regardless of framing.
 	exemplars, err := readDir("prompts/exemplars")
 	if err != nil {
-		return nil, fmt.Errorf("failed to read exemplar documents: %w", err)
+		return "", fmt.Errorf("failed to read exemplar documents: %w", err)
 	}
 	if len(exemplars) > 0 {
 		sb.WriteString("\n\n## Exemplar Analyses\n\n")
@@ -75,27 +167,78 @@ func BuildSystemMessageConfig() (*copilot.SystemMessageConfig, error) {
 		}
 	}
 
+	return sb.String(), nil
+}
+
+// BuildDomainPrompt returns only the domain-specific content (system.md,
+// references, exemplars) without the identity or tone preamble. This is
+// the preferred function for callers that pass the prompt through the
+// provider-neutral ProviderSessionConfig — each provider is responsible
+// for incorporating the shared identity and tone sections in its native
+// format (e.g. Copilot section overrides, Claude system message prefix).
+func BuildDomainPrompt() (string, error) {
+	return buildDomainContent(ModeTest)
+}
+
+// BuildDomainPromptFor returns the domain-specific content for the given mode.
+func BuildDomainPromptFor(mode Mode) (string, error) {
+	return buildDomainContent(mode)
+}
+
+// BuildSystemPrompt returns the complete system prompt as a plain string,
+// suitable for providers that accept a single system prompt (e.g. Claude).
+// It combines the identity, tone, and domain-specific content (system.md,
+// references, exemplars) into one string.
+func BuildSystemPrompt() (string, error) {
+	domain, err := buildDomainContent(ModeTest)
+	if err != nil {
+		return "", err
+	}
+
+	var sb strings.Builder
+	sb.WriteString(IdentityPrompt)
+	sb.WriteString("\n\n")
+	sb.WriteString(TonePrompt)
+	sb.WriteString("\n\n")
+	sb.WriteString(domain)
+	return sb.String(), nil
+}
+
+// BuildSystemMessageConfig assembles a Copilot-specific SystemMessageConfig
+// in "customize" mode. It uses the same shared content as BuildSystemPrompt
+// but packages it into Copilot SDK section overrides.
+//
+// Section strategy (from design review):
+//   - SectionIdentity: replace with our domain identity
+//   - SectionTone: replace with our analysis tone
+//   - SectionCodeChangeRules: remove (agent doesn't write code)
+//   - SectionToolInstructions: keep (SDK manages tool descriptions)
+//   - SectionToolEfficiency: keep
+//   - SectionSafety: keep
+//   - SectionCustomInstructions: append domain content (references, exemplars, output schema)
+func BuildSystemMessageConfig() (*copilot.SystemMessageConfig, error) {
+	domain, err := buildDomainContent(ModeTest)
+	if err != nil {
+		return nil, err
+	}
+
 	return &copilot.SystemMessageConfig{
 		Mode: "customize",
 		Sections: map[string]copilot.SectionOverride{
 			copilot.SectionIdentity: {
-				Action: copilot.SectionActionReplace,
-				Content: "You are a senior SRE specializing in Azure Red Hat OpenShift (ARO-HCP). " +
-					"Your task is to perform root-cause analysis on failed e2e tests by examining " +
-					"diagnostic data, querying Azure Data Explorer (Kusto), and reading source code.",
+				Action:  copilot.SectionActionReplace,
+				Content: IdentityPrompt,
 			},
 			copilot.SectionTone: {
-				Action: copilot.SectionActionReplace,
-				Content: "Be precise, evidence-driven, and thorough. Every claim must be backed by " +
-					"data from tool calls. Prefer structured output over prose. When uncertain, " +
-					"investigate further rather than speculate.",
+				Action:  copilot.SectionActionReplace,
+				Content: TonePrompt,
 			},
 			copilot.SectionCodeChangeRules: {
 				Action: copilot.SectionActionRemove,
 			},
 			copilot.SectionCustomInstructions: {
 				Action:  copilot.SectionActionAppend,
-				Content: sb.String(),
+				Content: domain,
 			},
 		},
 	}, nil
@@ -145,17 +288,61 @@ func BuildInitialPrompt(manifest, testError, testOutput, siblingTests, dataDir s
 	return sb.String()
 }
 
-// BuildSummaryPrompt creates the user prompt for the job-level summary step.
-func BuildSummaryPrompt(testAnalyses []string) string {
+// BuildIntentInitialPrompt creates the initial user prompt for a free-form
+// investigation. The objective is a human-written intent (e.g. a customer
+// complaint). Test logs and sibling tests are optional context — they are
+// included only when present, and the model is told not to assume a test
+// failure occurred.
+func BuildIntentInitialPrompt(intent, manifest, testError, testOutput, siblingTests, dataDir string, worktreePaths map[string]string) string {
 	var sb strings.Builder
-	sb.WriteString("The following per-test analyses have been completed for this job. ")
-	sb.WriteString("Please synthesize a job-level summary: are the failures related? Is there a common root cause?\n\n")
+	sb.WriteString("I need you to investigate an issue with an ARO-HCP cluster. ")
+	sb.WriteString("The objective below is written by a human and describes the observed symptom or question to answer. ")
+	sb.WriteString("Analyze the gathered diagnostic data to determine the root cause.\n\n")
+	sb.WriteString("## Investigation Objective\n\n")
+	sb.WriteString(intent)
+	sb.WriteString("\n\n## manifest.json\n\n")
+	sb.WriteString(manifest)
 
-	for i, analysis := range testAnalyses {
-		sb.WriteString(fmt.Sprintf("## Test %d\n\n%s\n\n", i+1, analysis))
+	// Optional context: this snapshot may have come from an e2e test run
+	// (from-prow-job) or directly from a resource (from-resource). Include
+	// whatever is present, but frame it as supporting context only.
+	if testError != "" || testOutput != "" || siblingTests != "" {
+		sb.WriteString("\n\n## Additional Context\n\n")
+		sb.WriteString("This snapshot may have been gathered from an e2e test run. The following artifacts ")
+		sb.WriteString("are provided as supporting context — do not assume the objective is a test failure.\n")
+		if testError != "" {
+			sb.WriteString("\n### Test Error Log\n\n")
+			sb.WriteString(testError)
+		}
+		if testOutput != "" {
+			sb.WriteString("\n\n### Test Output Log\n\n")
+			sb.WriteString(testOutput)
+		}
+		if siblingTests != "" {
+			sb.WriteString("\n\n### Sibling Tests\n\n")
+			sb.WriteString("The following JSON lists e2e tests from the same Prow job run, each with its ")
+			sb.WriteString("resource group and time window. You can query a comparable **passing** run for ")
+			sb.WriteString("known-good baseline logs to contrast against the affected cluster.\n\n")
+			sb.WriteString(siblingTests)
+		}
 	}
 
-	sb.WriteString("Output your summary as a JSON object with fields: {\"summary\": \"...\", \"notes\": \"...\"}")
+	sb.WriteString("\n\n## Data Directory\n\n")
+	sb.WriteString(fmt.Sprintf("Pre-gathered diagnostic artifacts (traces, state files, logs) are available at: `%s`\n", dataDir))
+	sb.WriteString("Use the available tools to explore this directory and read files as needed.\n")
+	sb.WriteString("Reference findings from these data by re-evaluating the Kusto queries, not by referring to these files on disk.\n")
+
+	if len(worktreePaths) > 0 {
+		sb.WriteString("\n## Source Code Repositories\n\n")
+		sb.WriteString("The following repositories are checked out at the commits deployed in the affected environment. ")
+		sb.WriteString("Use the available tools to read files from these directories when you need to understand the source code.\n\n")
+		for repo, path := range worktreePaths {
+			sb.WriteString(fmt.Sprintf("- **%s**: `%s`\n", repo, path))
+		}
+	}
+
+	sb.WriteString("\n\nPlease begin your investigation. Start by reading the manifest to understand the affected resources, then examine the relevant trace data and state files. Use the available tools to explore the data directory and the kusto_query tool if you need additional data not present in the pre-gathered artifacts.")
+	sb.WriteString("\n\nWhen you are done, output your analysis as a JSON object conforming to the draft chain schema.")
 
 	return sb.String()
 }

@@ -12,6 +12,9 @@ Additionally, the Test Test Azure Red Hat OpenShift tenant subscriptions used fo
 
 The rule is simple: all E2E testing in those environments must go through Prow jobs, triggered via PRs.
 
+> [!NOTE]
+> This forbids manually creating clusters against those environments — via `az`, the portal, or ad-hoc scripts. It does not forbid triggering the gate job itself. Re-running a failed EV2 `regionalGating` job, or running the suite from a branch, is an operational procedure documented in [Manually Trigger an E2E Gate Run](../sops/manual-e2e-gate-run.md); that path still executes the tests in Prow rather than creating resources by hand.
+
 If a scenario is not covered by an existing E2E test, the correct approach is to write a new test and validate it through the Prow CI system. If we need to manually test something that is not caught by E2E, then we have a gap in test coverage that should be addressed.
 
 ## Running Tests Via PR
@@ -23,6 +26,7 @@ All E2E tests run through Prow. For manual triggers or reruns, use PR comments o
 | Command | Environment | Runs Automatically | Notes |
 |---------|-------------|-------------------|-------|
 | `/test e2e-parallel` | DEV | Yes, on every PR | Required presubmit. Can validate unmerged RP and shared deployment-artifact changes because the job provisions DEV service footprint on demand. This is the only E2E job currently using slot-manager. |
+| `/test e2e-parallel-ocp-nightly` | DEV | No | Must be triggered manually. Runs tests using the latest nightly OCP build |
 | `/test integration-e2e-parallel` | INT | No | Must be triggered manually. Useful for validating test behavior against the shared INT environment. |
 | `/test integration-e2e-parallel-ocp-fast` | INT | No | Must be triggered manually |
 | `/test integration-e2e-parallel-ocp-stable` | INT | No | Must be triggered manually |
@@ -38,7 +42,11 @@ All E2E tests run through Prow. For manual triggers or reruns, use PR comments o
 
 The `ocp-fast`, `ocp-stable`, and `ocp-nightly` variants run the same E2E suite but against different OCP update channels to catch compatibility issues with newer OCP versions early. For more information on OCP update channels, see [What are the differences between each of the update channels?](https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/updating_clusters/understanding-openshift-updates-1#update-availability_understanding-openshift-updates)
 
-This guide intentionally does not hard-code the current runtime region for these jobs. Inspect the live `openshift/release` ci-operator config if you need the current `LOCATION` or `MULTISTAGE_PARAM_OVERRIDE_LOCATION` for a specific job.
+DEV `e2e-parallel` selects a runtime region for each run according to the
+`LOCATION_WEIGHTS` in the live `openshift/release` ci-operator config. Other
+jobs may use an explicit `LOCATION` or
+`MULTISTAGE_PARAM_OVERRIDE_LOCATION`. Inspect the live config when the current
+weights or pinned region matter.
 
 To rerun all failed jobs:
 
@@ -54,11 +62,11 @@ The DEV `e2e-parallel` job is different. Because it provisions the DEV RP footpr
 
 ## Running Only Specific Tests
 
-When validating a single test or a small subset of tests, you can temporarily filter which tests run by modifying `test/cmd/aro-hcp-tests/main.go`.
+When validating a single test or a small subset of tests, you can temporarily filter which tests run by modifying `test/cmd/aro-hcp-tests/cli.go`.
 
 ### Example: Filter by Test Name
 
-In [`test/cmd/aro-hcp-tests/main.go`](../../test/cmd/aro-hcp-tests/main.go), uncomment and modify the `MustFilter` line to match only the tests you want:
+In [`test/cmd/aro-hcp-tests/cli.go`](../../test/cmd/aro-hcp-tests/cli.go), uncomment and modify the `MustFilter` line to match only the tests you want:
 
 ```go
 // Specs can be globally filtered...
@@ -76,7 +84,7 @@ This uses [CEL expressions](https://github.com/google/cel-spec) to filter test s
    git checkout -b test/validate-my-test
    ```
 
-2. Edit `test/cmd/aro-hcp-tests/main.go` and add a filter:
+2. Edit `test/cmd/aro-hcp-tests/cli.go` and add a filter:
 
    ```go
    specs = specs.MustFilter([]string{`name.contains("MyTestName")`})
@@ -139,5 +147,6 @@ See [CI Execution](execution.md#periodic-jobs) for why these jobs exist and how 
 - [CI Overview](README.md)
 - [CI Execution](execution.md)
 - [CI Operations](operations.md)
+- [Manually Trigger an E2E Gate Run](../sops/manual-e2e-gate-run.md)
 - [Test Test Tenant Access](../sops/test-test-tenant-access.md)
 - [E2E Test Code](../../test/e2e/)

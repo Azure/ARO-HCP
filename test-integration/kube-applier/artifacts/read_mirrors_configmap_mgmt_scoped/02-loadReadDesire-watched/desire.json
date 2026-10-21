@@ -1,0 +1,15 @@
+{
+	"cosmosMetadata": {
+		"partitionKey": "/providers/microsoft.redhatopenshift/stamps/test/managementclusters/mgmt-1",
+		"resourceID": "/providers/microsoft.redhatopenshift/stamps/test/managementclusters/default/readdesires/watched"
+	},
+	"spec": {
+		"managementCluster": "/providers/microsoft.redhatopenshift/stamps/test/managementclusters/mgmt-1",
+		"targetItem": {
+			"name": "watched",
+			"namespace": "read-mirrors-configmap-mgmt-scoped",
+			"resource": "configmaps",
+			"version": "v1"
+		}
+	}
+}

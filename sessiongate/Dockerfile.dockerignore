@@ -1,5 +1,6 @@
 **
 !image-environment
+!internal/
 !sessiongate/
 
 # https://github.com/containers/podman/discussions/22910

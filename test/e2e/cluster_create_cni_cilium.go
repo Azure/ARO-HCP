@@ -27,11 +27,16 @@ import (
 )
 
 var _ = Describe("Customer", func() {
+	// This test currently works around an upstream bug in Cilium: https://github.com/cilium/cilium/issues/45792
+	// The hard-coded NodePort collides with dynamically-allocated ports on the kube-apiserver's NodePort range (30000-32767), most commonly with the OpenShift ingress operator's router-default healthCheckNodePort. Around 1/2768 cluster installs are impacted. When port collision occurs, the test fails with "provided port is already allocated". This fix eliminates the collision; the affected probes now test connectivity via ClusterIP rather than NodePort.
+	// Note that the upstream bug in Cilium still exists. If we update the probe manifests in the future (currently located at test/util/verifiers/artifacts/cilium-connectivity-check-1.19.2), this patch will have to be applied again until the bug in Cilium is remediated.
+	// See this PR for an example of how to modify the probe manifests: https://github.com/Azure/ARO-HCP/pull/5934
 	It("should be able to create a HCP cluster and use cilium CNI plugin",
 		labels.RequireNothing,
 		labels.Critical,
 		labels.Positive,
 		labels.AroRpApiCompatible,
+		labels.MIContainers(1),
 		func(ctx context.Context) {
 			const (
 				customerClusterName  = "cilium-cl"
@@ -83,19 +88,25 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %q without CNI", customerClusterName)
 
 			By("getting credentials and verifying cluster is available")
-			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
+			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20260901(
 				ctx,
-				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
+				tc.Get20260901ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
 				customerClusterName,
 				framework.GetAdminRESTConfigTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to get admin REST config for cluster %q", customerClusterName)
+			adminRESTConfig.QPS = 50
+			adminRESTConfig.Burst = 100
 			Expect(verifiers.VerifyHCPCluster(ctx, adminRESTConfig)).To(Succeed(), "failed to verify HCP cluster %q is available", customerClusterName)
 
 			By("getting kubeconfig content for Helm")
 			kubeconfigContent, err := framework.GenerateKubeconfig(adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred(), "failed to generate kubeconfig for cluster %q", customerClusterName)
+
+			By("providing a Multus-compatible custom CNI conflist for Cilium")
+			err = framework.EnsureCiliumCNIConfigMap(ctx, adminRESTConfig, ciliumNamespace, framework.CiliumCNIConfigMapName, framework.CiliumConflistPortmap)
+			Expect(err).NotTo(HaveOccurred(), "failed to create Cilium CNI conflist ConfigMap")
 
 			By("installing Cilium via Helm")
 			ciliumValues := map[string]any{
@@ -131,6 +142,7 @@ var _ = Describe("Customer", func() {
 					"binPath":      "/var/lib/cni/bin",
 					"confPath":     "/var/run/multus/cni/net.d",
 					"chainingMode": "portmap",
+					"configMap":    framework.CiliumCNIConfigMapName,
 				},
 				"prometheus": map[string]any{
 					"serviceMonitor": map[string]any{
@@ -160,6 +172,10 @@ var _ = Describe("Customer", func() {
 			)
 			// We delay checking the error on purpose to get more details
 			// about the issue by running the verifiers.
+
+			By("allowing DNS pods to reach the kube-apiserver-proxy via CiliumNetworkPolicy (OCP >= 4.22 only)")
+			err = framework.EnsureDNSAllowHostAPIServerCiliumNetworkPolicy(ctx, adminRESTConfig, framework.NodePoolCreationTimeout)
+			Expect(err).NotTo(HaveOccurred(), "failed to create CiliumNetworkPolicy allowing DNS pods to reach the kube-apiserver-proxy")
 
 			By("checking that cilium is running and nodes are in Ready state")
 			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig, verifiers.VerifyNodesReady(), verifiers.VerifyCiliumOperational(ciliumNamespace, "k8s-app=cilium"))

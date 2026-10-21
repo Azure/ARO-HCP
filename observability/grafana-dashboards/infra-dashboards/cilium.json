@@ -3678,11 +3678,7 @@
   "templating": {
     "list": [
       {
-        "current": {
-          "selected": true,
-          "text": "Managed_Prometheus_arohcp-mwhtsch",
-          "value": "arohcp-mwhtsch"
-        },
+        "current": {},
         "hide": 0,
         "includeAll": false,
         "multi": false,

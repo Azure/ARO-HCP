@@ -29,7 +29,34 @@ These are the global settings for the ContainerServices API.
 
 ``` yaml
 openapi-type: arm
-tag: package-2025-12-23-preview
+tag: package-2026-10-01
+```
+
+### Tag: package-2026-10-01
+
+These settings apply only when `--tag=package-2026-10-01` is specified on the command line.
+
+``` yaml $(tag) == 'package-2026-10-01'
+input-file:
+  - stable/2026-10-01/openapi.json
+```
+
+### Tag: package-2026-09-01-preview
+
+These settings apply only when `--tag=package-2026-09-01-preview` is specified on the command line.
+
+``` yaml $(tag) == 'package-2026-09-01-preview'
+input-file:
+  - preview/2026-09-01-preview/openapi.json
+```
+
+### Tag: package-2026-06-30-preview
+
+These settings apply only when `--tag=package-2026-06-30-preview` is specified on the command line.
+
+``` yaml $(tag) == 'package-2026-06-30-preview'
+input-file:
+  - preview/2026-06-30-preview/openapi.json
 ```
 
 ### Tag: package-2025-12-23-preview
@@ -70,11 +97,6 @@ swagger-to-sdk:
 <!-- ### AutoRest v3 Suppressions -->
 ``` yaml
 suppressions:
-  - code: AvoidAnonymousTypes
-    from: openapi.json
-    where: $.definitions["Azure.ResourceManager.CommonTypes.ManagedServiceIdentityUpdate"].properties.userAssignedIdentities.additionalProperties
-    reason: This is an incorrect failure due to a bug in the tool
-    # https://github.com/Azure/typespec-azure/issues/1163
   - code: AvoidAdditionalProperties
     from: openapi.json
     where: $.definitions.UserAssignedIdentitiesProfile.properties.controlPlaneOperators
@@ -91,21 +113,14 @@ suppressions:
     from: openapi.json
     where: $.definitions.UserAssignedIdentitiesProfileUpdate.properties.dataPlaneOperators
     reason: This is a Record<UserAssignedIdentityResourceId> where the string keys are data plane operator names. The intention is to pair a data plane operator with a user-assigned managed identity resource ID. The set of valid data plane operator names varies by OpenShift version, and will be discoverable through a forthcoming proxy resource that models a supported OpenShift version.
-  - code: EnumInsteadOfBoolean
+  - code: PostResponseCodes
     from: openapi.json
-    where: $.definitions.NodePoolProperties.properties.autoRepair
-    reason: Evaluated and decided to stay with a boolean.
-  - code: EnumInsteadOfBoolean
-    from: openapi.json
-    where: $.definitions.NodePoolPlatformProfile.properties.enableEncryptionAtHost
-    reason: Evaluated and decided to stay with a boolean.
-  - code: EnumInsteadOfBoolean
-    from: openapi.json
-    where: $.definitions.HcpOpenShiftVersionProperties.properties.enabled
-    reason: Evaluated and decided to stay with a boolean.
+    where: $.paths["/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/{hcpOpenShiftClusterName}/revokeCredentials"].post
+    reason: False positive from validator on ArmResourceActionNoResponseContentAsync pattern. See https://github.com/Azure/azure-openapi-validator/issues/809
   - code: PreviewVersionOverOneYear
     from: openapi.json
-    reason: API version will be deprecated when 2025-12-23-preview is deployed to Azure regions.
+    where: $.definitions.Versions.v2024_06_10_preview
+    reason: We will remove this old private preview version once internal and external users have migrated to a public preview version.
 ```
 
 

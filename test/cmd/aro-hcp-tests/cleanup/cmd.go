@@ -112,7 +112,7 @@ func newCleanupResourceGroupsCommand() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:          "resource-groups",
-		Short:        "Delete resource groups (explicit list or expired resource groups)",
+		Short:        "Delete resource groups (explicit list, expired, tracked, or job ID)",
 		SilenceUsage: true,
 	}
 
@@ -124,14 +124,17 @@ func newCleanupResourceGroupsCommand() *cobra.Command {
 	cmd.Flags().StringVar(&rawOpt.CleanupWorkflow, "mode", string(rawOpt.CleanupWorkflow), "Cleanup workflow: 'standard' (default, via RP) or 'no-rp' (only to be used when the infra has already been cleaned up)")
 	cmd.Flags().BoolVar(&rawOpt.IsDevelopment, "is-development", rawOpt.IsDevelopment, "Use development (local RP) endpoint instead of ARM (only valid with mode=standard)")
 	cmd.Flags().DurationVar(&rawOpt.Timeout, "timeout", rawOpt.Timeout, "Timeout for deleting each resource group (e.g. 60m)")
+	cmd.Flags().IntVar(&rawOpt.Concurrency, "concurrency", rawOpt.Concurrency, "Maximum number of resource groups to clean concurrently")
 	cmd.Flags().StringArrayVar(&rawOpt.IncludeLocations, "include-location", rawOpt.IncludeLocations, "Only delete resource groups in these Azure locations (repeatable)")
 	cmd.Flags().StringArrayVar(&rawOpt.ExcludeLocations, "exclude-location", rawOpt.ExcludeLocations, "Do not delete resource groups in these Azure locations (repeatable)")
 	cmd.Flags().BoolVar(&rawOpt.Tracked, "tracked", rawOpt.Tracked, "Use tracked resource groups")
+	cmd.Flags().StringVar(&rawOpt.JobID, "job-id", rawOpt.JobID, "Delete resource groups tagged with this exact Prow BUILD_ID (may be combined with --tracked)")
 	cmd.Flags().StringVar(&rawOpt.SharedDir, "shared-dir", rawOpt.SharedDir, "Shared directory to use for tracked resource groups")
 	cmd.Flags().StringVar(&rawOpt.FPAClientID, "fpa-client-id", rawOpt.FPAClientID, "Client ID of the FPA used to delete Red Hat OpenShift service association links")
 	cmd.Flags().StringVar(&rawOpt.FPACertPath, "fpa-cert-path", rawOpt.FPACertPath, "Certificate path of the FPA used to delete Red Hat OpenShift service association links")
 
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
+		rawOpt.JobIDSet = cmd.Flags().Changed("job-id")
 		ctx, cancel := signal.NotifyContext(cmd.Context(), os.Interrupt)
 		defer cancel()
 

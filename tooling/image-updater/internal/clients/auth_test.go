@@ -15,258 +15,79 @@
 package clients
 
 import (
+	"context"
+	"crypto/sha256"
 	"encoding/base64"
-	"encoding/json"
+	"errors"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+
+	"github.com/google/go-containerregistry/pkg/authn"
+	"github.com/google/go-containerregistry/pkg/name"
+	"github.com/google/go-containerregistry/pkg/v1/remote"
 )
 
-func TestMergeDockerConfig(t *testing.T) {
-	tests := []struct {
-		name           string
-		existingConfig map[string]any
-		kvConfig       map[string]any
-		wantAuths      map[string]any
-		wantErr        bool
-	}{
-		{
-			name:           "merge with empty existing config",
-			existingConfig: map[string]any{},
-			kvConfig: map[string]any{
-				"auths": map[string]any{
-					"quay.io": map[string]any{
-						"auth": "dGVzdDp0ZXN0",
-					},
-				},
-			},
-			wantAuths: map[string]any{
-				"quay.io": map[string]any{
-					"auth": "dGVzdDp0ZXN0",
-				},
-			},
-			wantErr: false,
-		},
-		{
-			name: "merge with existing auths",
-			existingConfig: map[string]any{
-				"auths": map[string]any{
-					"docker.io": map[string]any{
-						"auth": "ZG9ja2VyOnRlc3Q=",
-					},
-				},
-			},
-			kvConfig: map[string]any{
-				"auths": map[string]any{
-					"quay.io": map[string]any{
-						"auth": "cXVheTp0ZXN0",
-					},
-				},
-			},
-			wantAuths: map[string]any{
-				"docker.io": map[string]any{
-					"auth": "ZG9ja2VyOnRlc3Q=",
-				},
-				"quay.io": map[string]any{
-					"auth": "cXVheTp0ZXN0",
-				},
-			},
-			wantErr: false,
-		},
-		{
-			name: "overwrite existing registry auth",
-			existingConfig: map[string]any{
-				"auths": map[string]any{
-					"quay.io": map[string]any{
-						"auth": "b2xkOnRlc3Q=",
-					},
-				},
-			},
-			kvConfig: map[string]any{
-				"auths": map[string]any{
-					"quay.io": map[string]any{
-						"auth": "bmV3OnRlc3Q=",
-					},
-				},
-			},
-			wantAuths: map[string]any{
-				"quay.io": map[string]any{
-					"auth": "bmV3OnRlc3Q=",
-				},
-			},
-			wantErr: false,
-		},
-		{
-			name:           "kv config without auths section",
-			existingConfig: map[string]any{},
-			kvConfig: map[string]any{
-				"credHelpers": map[string]any{
-					"gcr.io": "gcloud",
-				},
-			},
-			wantAuths: nil,
-			wantErr:   false,
-		},
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
+}
+
+func TestGetRemoteOptionsUsesDockerConfig(t *testing.T) {
+	const (
+		username = "registry-user"
+		password = "registry-password"
+	)
+	expectedAuthorization := "Basic " + base64.StdEncoding.EncodeToString([]byte(username+":"+password))
+	manifest := []byte(`{"schemaVersion":2,"mediaType":"application/vnd.oci.image.manifest.v1+json","config":{"mediaType":"application/vnd.oci.image.config.v1+json","digest":"sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855","size":0},"layers":[]}`)
+	manifestDigest := fmt.Sprintf("sha256:%x", sha256.Sum256(manifest))
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != expectedAuthorization {
+			w.Header().Set("WWW-Authenticate", `Basic realm="test"`)
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		w.Header().Set("Content-Type", "application/vnd.oci.image.manifest.v1+json")
+		w.Header().Set("Docker-Content-Digest", manifestDigest)
+		_, _ = w.Write(manifest)
+	}))
+	defer server.Close()
+
+	registryHost := strings.TrimPrefix(server.URL, "http://")
+	dockerConfigDir := t.TempDir()
+	dockerConfig := fmt.Sprintf(`{"auths":{%q:{"auth":%q}}}`, registryHost, base64.StdEncoding.EncodeToString([]byte(username+":"+password)))
+	if err := os.WriteFile(filepath.Join(dockerConfigDir, "config.json"), []byte(dockerConfig), 0600); err != nil {
+		t.Fatalf("failed to write Docker config: %v", err)
 	}
+	t.Setenv("DOCKER_CONFIG", dockerConfigDir)
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Create temp directory for test
-			tmpDir := t.TempDir()
-			dockerDir := filepath.Join(tmpDir, ".docker")
-			if err := os.MkdirAll(dockerDir, 0700); err != nil {
-				t.Fatalf("failed to create .docker directory: %v", err)
-			}
-
-			// Override home directory for this test
-			oldHome := os.Getenv("HOME")
-			os.Setenv("HOME", tmpDir)
-			defer os.Setenv("HOME", oldHome)
-
-			// Write existing config if provided
-			configPath := filepath.Join(dockerDir, "config.json")
-			if len(tt.existingConfig) > 0 {
-				data, err := json.MarshalIndent(tt.existingConfig, "", "  ")
-				if err != nil {
-					t.Fatalf("failed to marshal existing config: %v", err)
-				}
-				if err := os.WriteFile(configPath, data, 0600); err != nil {
-					t.Fatalf("failed to write existing config: %v", err)
-				}
-			}
-
-			// Run merge
-			err := mergeDockerConfig(tt.kvConfig)
-
-			if (err != nil) != tt.wantErr {
-				t.Errorf("mergeDockerConfig() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-
-			if tt.wantErr {
-				return
-			}
-
-			// Read and verify merged config
-			data, err := os.ReadFile(configPath)
-			if err != nil {
-				t.Fatalf("failed to read merged config: %v", err)
-			}
-
-			var got map[string]any
-			if err := json.Unmarshal(data, &got); err != nil {
-				t.Fatalf("failed to unmarshal merged config: %v", err)
-			}
-
-			if tt.wantAuths == nil {
-				if _, exists := got["auths"]; exists {
-					t.Errorf("mergeDockerConfig() created auths section when it shouldn't have")
-				}
-				return
-			}
-
-			gotAuths, ok := got["auths"].(map[string]any)
-			if !ok {
-				t.Fatalf("merged config auths is not a map")
-			}
-
-			// Compare auths
-			if len(gotAuths) != len(tt.wantAuths) {
-				t.Errorf("mergeDockerConfig() auths count = %v, want %v", len(gotAuths), len(tt.wantAuths))
-			}
-
-			for registry, wantAuth := range tt.wantAuths {
-				gotAuth, exists := gotAuths[registry]
-				if !exists {
-					t.Errorf("mergeDockerConfig() missing registry %s", registry)
-					continue
-				}
-
-				gotAuthStr, _ := json.Marshal(gotAuth)
-				wantAuthStr, _ := json.Marshal(wantAuth)
-				if string(gotAuthStr) != string(wantAuthStr) {
-					t.Errorf("mergeDockerConfig() registry %s = %v, want %v", registry, string(gotAuthStr), string(wantAuthStr))
-				}
-			}
-		})
+	ref, err := name.ParseReference(registryHost+"/test:latest", name.Insecure)
+	if err != nil {
+		t.Fatalf("failed to parse test registry reference: %v", err)
+	}
+	options := append(GetRemoteOptions(true), remote.WithTransport(server.Client().Transport))
+	if _, err := remote.Get(ref, options...); err != nil {
+		t.Fatalf("authenticated registry request failed: %v", err)
 	}
 }
 
-func TestDecodeSecretValue(t *testing.T) {
-	tests := []struct {
-		name        string
-		secretValue string
-		wantDecoded map[string]any
-		wantErr     bool
-	}{
-		{
-			name: "base64 encoded JSON",
-			secretValue: base64.StdEncoding.EncodeToString([]byte(`{
-				"auths": {
-					"quay.io": {
-						"auth": "dGVzdDp0ZXN0"
-					}
-				}
-			}`)),
-			wantDecoded: map[string]any{
-				"auths": map[string]any{
-					"quay.io": map[string]any{
-						"auth": "dGVzdDp0ZXN0",
-					},
-				},
-			},
-			wantErr: false,
-		},
-		{
-			name: "raw JSON (not base64)",
-			secretValue: `{
-				"auths": {
-					"quay.io": {
-						"auth": "cXVheTp0ZXN0"
-					}
-				}
-			}`,
-			wantDecoded: map[string]any{
-				"auths": map[string]any{
-					"quay.io": map[string]any{
-						"auth": "cXVheTp0ZXN0",
-					},
-				},
-			},
-			wantErr: false,
-		},
-	}
+func TestGenericBearerTokenHonorsCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	client := NewGenericRegistryClient("registry.example", true)
+	client.httpClient = &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		<-req.Context().Done()
+		return nil, req.Context().Err()
+	})}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Try to decode as base64 first
-			var dockerConfigData []byte
-			decoded, err := base64.StdEncoding.DecodeString(tt.secretValue)
-			if err == nil {
-				dockerConfigData = decoded
-			} else {
-				dockerConfigData = []byte(tt.secretValue)
-			}
-
-			// Parse JSON
-			var got map[string]any
-			err = json.Unmarshal(dockerConfigData, &got)
-
-			if (err != nil) != tt.wantErr {
-				t.Errorf("decode error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-
-			if tt.wantErr {
-				return
-			}
-
-			// Compare decoded data
-			gotStr, _ := json.Marshal(got)
-			wantStr, _ := json.Marshal(tt.wantDecoded)
-			if string(gotStr) != string(wantStr) {
-				t.Errorf("decoded = %v, want %v", string(gotStr), string(wantStr))
-			}
-		})
+	_, err := client.getBearerToken(ctx, "test/repository", authn.AuthConfig{Username: "user", Password: "password"})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("getBearerToken() error = %v, want context cancellation", err)
 	}
 }

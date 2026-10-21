@@ -15,6 +15,9 @@
 package kusto
 
 import (
+	"fmt"
+	"regexp"
+	"strings"
 	"testing"
 	"time"
 
@@ -171,6 +174,138 @@ func TestServiceLogs_NoClusterIds(t *testing.T) {
 	testutil.CompareWithFixture(t, queryToFixture(queries[0]))
 }
 
+func TestARMServiceLogsIgnoreClusterServiceIDs(t *testing.T) {
+	f, err := NewQueryFactory()
+	require.NoError(t, err)
+	def, err := f.GetBuiltinQueryDefinition("serviceLogs")
+	require.NoError(t, err)
+	for _, table := range []string{"backendLogs", "frontendLogs", "kubeApplierLogs", "fleetLogs"} {
+		t.Run(table, func(t *testing.T) {
+			queries, err := f.Build(*def, NewTemplateDataFromOptions(baseOptions(),
+				WithTable(table), WithClusterIds([]string{"cs-cluster-id"}),
+			))
+			require.NoError(t, err)
+			require.Len(t, queries, 1)
+			text := queries[0].GetQuery().String()
+			assert.NotContains(t, text, "cs-cluster-id", "CS IDs must be ignored even if supplied to the template")
+			assert.NotContains(t, text, "clustersServiceLogs", "ARM services must not resolve CS IDs")
+			assert.Contains(t, text, "| where log has '/subscriptions/test-sub/resourceGroups/test-rg'")
+			testutil.CompareWithFixture(t, queryToFixture(queries[0]))
+		})
+	}
+}
+
+func TestOperationIdsQuery(t *testing.T) {
+	f, err := NewQueryFactory()
+	require.NoError(t, err)
+	def, err := f.GetBuiltinQueryDefinition("operationIds")
+	require.NoError(t, err)
+	for _, scoped := range []bool{false, true} {
+		t.Run(fmt.Sprintf("clusterScoped_%t", scoped), func(t *testing.T) {
+			data := NewTemplateDataFromOptions(baseOptions())
+			if scoped {
+				WithClusterIds([]string{"cid1", "cid2"})(&data)
+			}
+			queries, err := f.Build(*def, data)
+			require.NoError(t, err)
+			require.Len(t, queries, 1)
+			testutil.CompareWithFixture(t, queryToFixture(queries[0]))
+		})
+	}
+}
+
+func TestBuildTimeWindows(t *testing.T) {
+	f, err := NewQueryFactory()
+	require.NoError(t, err)
+	def, err := f.GetCustomQueryDefinition("backendControllerConditions")
+	require.NoError(t, err)
+	start := time.Date(2026, 9, 25, 12, 34, 15, 0, time.UTC)
+	for _, tc := range []struct {
+		name     string
+		duration time.Duration
+		count    int
+	}{
+		{"reported interval", 58*time.Minute + 50*time.Second, 12},
+		{"exact multiple", 10 * time.Minute, 2},
+		{"one window", 5 * time.Minute, 1},
+		{"single timestamp", 0, 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			end := start.Add(tc.duration)
+			queries, err := f.BuildTimeWindows(*def, NewTemplateDataFromOptions(baseOptions()), start, end, 5*time.Minute)
+			require.NoError(t, err)
+			require.Len(t, queries, 1)
+			windows := queries
+			if sequence, ok := queries[0].(*TimeWindowQuery); ok {
+				windows = sequence.Windows
+			}
+			require.Len(t, windows, tc.count)
+			next := start
+			for i, query := range windows {
+				assert.Equal(t, "backendControllerConditions", query.GetName())
+				bounds := regexp.MustCompile(`datetime\(([^)]+)\)`).FindAllStringSubmatch(query.GetQuery().String(), -1)
+				require.Len(t, bounds, 2)
+				minTime, err := time.Parse(time.RFC3339Nano, bounds[0][1])
+				require.NoError(t, err)
+				maxTime, err := time.Parse(time.RFC3339Nano, bounds[1][1])
+				require.NoError(t, err)
+				assert.True(t, minTime.Equal(next), "window %d must start immediately after the preceding inclusive end", i)
+				assert.LessOrEqual(t, maxTime.Sub(minTime), 5*time.Minute)
+				next = maxTime.Add(100 * time.Nanosecond)
+			}
+			assert.True(t, next.Equal(end.Add(100*time.Nanosecond)), "last window must include the requested end")
+		})
+	}
+	_, err = f.BuildTimeWindows(*def, NewTemplateDataFromOptions(baseOptions()), start, start, 0)
+	require.Error(t, err)
+	_, err = f.BuildTimeWindows(*def, NewTemplateDataFromOptions(baseOptions()), start, start.Add(-time.Second), time.Minute)
+	require.Error(t, err)
+}
+
+func TestFrontendQueriesWithOperationIds(t *testing.T) {
+	f, err := NewQueryFactory()
+	require.NoError(t, err)
+	for _, name := range []string{"serviceLogs", "debugQueries", "detailedServiceLogs"} {
+		t.Run(name, func(t *testing.T) {
+			var def *QueryDefinition
+			var err error
+			if name == "serviceLogs" {
+				def, err = f.GetBuiltinQueryDefinition(name)
+			} else {
+				def, err = f.GetCustomQueryDefinition(name)
+			}
+			require.NoError(t, err)
+			queries, err := f.Build(*def, NewTemplateDataFromOptions(baseOptions(),
+				WithTable("frontendLogs"),
+				WithOperationIds([]string{"773f5d4a-cd7a-4e25-ac56-58130cbed2d2", "operation'quoted"}),
+			))
+			require.NoError(t, err)
+			testutil.CompareWithFixture(t, queryToFixture(queries[0]))
+		})
+	}
+}
+
+func TestVersionRolloutQueries(t *testing.T) {
+	for _, name := range []string{"versionRolloutLogs", "versionRolloutSnapshots"} {
+		for _, limit := range []int{100, -1} {
+			t.Run(fmt.Sprintf("%s/limit%d", name, limit), func(t *testing.T) {
+				f, err := NewQueryFactory()
+				require.NoError(t, err)
+				opts := baseOptions()
+				opts.Limit = limit
+				def, err := f.GetCustomQueryDefinition(name)
+				require.NoError(t, err)
+				require.NotNil(t, def)
+				require.True(t, def.IncludeInMustGather, "rollout diagnostics must be collected by default")
+				queries, err := f.Build(*def, NewTemplateDataFromOptions(opts, WithClusterNames([]string{"svc-cluster-1", "mgmt-cluster-1"})))
+				require.NoError(t, err)
+				require.Len(t, queries, 1)
+				testutil.CompareWithFixture(t, queryToFixture(queries[0]))
+			})
+		}
+	}
+}
+
 func TestHostedControlPlaneLogs(t *testing.T) {
 	f, err := NewQueryFactory()
 	require.NoError(t, err)
@@ -179,6 +314,238 @@ func TestHostedControlPlaneLogs(t *testing.T) {
 	def, err := f.GetBuiltinQueryDefinition("hostedControlPlaneLogs")
 	require.NoError(t, err)
 	queries, err := f.Build(*def, NewTemplateDataFromOptions(opts, WithClusterId("cid1")))
+	require.NoError(t, err)
+	require.Len(t, queries, 1)
+
+	testutil.CompareWithFixture(t, queryToFixture(queries[0]))
+}
+
+func TestVeleroBackups(t *testing.T) {
+	f, err := NewQueryFactory()
+	require.NoError(t, err)
+	opts := baseOptions()
+	def, err := f.GetCustomQueryDefinition("veleroBackups")
+	require.NoError(t, err)
+	require.NotNil(t, def, "veleroBackups custom query not found")
+	queries, err := f.Build(*def, NewTemplateDataFromOptions(opts, WithClusterNames([]string{"mgmt-cluster-1", "mgmt-cluster-2"})))
+	require.NoError(t, err)
+	require.Len(t, queries, 1)
+
+	testutil.CompareWithFixture(t, queryToFixture(queries[0]))
+}
+
+func TestVeleroBackups_NoTruncation(t *testing.T) {
+	f, err := NewQueryFactory()
+	require.NoError(t, err)
+	opts := baseOptions()
+	opts.Limit = -1
+	def, err := f.GetCustomQueryDefinition("veleroBackups")
+	require.NoError(t, err)
+	require.NotNil(t, def, "veleroBackups custom query not found")
+	queries, err := f.Build(*def, NewTemplateDataFromOptions(opts, WithClusterNames([]string{"mgmt-cluster-1", "mgmt-cluster-2"})))
+	require.NoError(t, err)
+	require.Len(t, queries, 1)
+
+	testutil.CompareWithFixture(t, queryToFixture(queries[0]))
+}
+
+func TestVeleroHcpLogs(t *testing.T) {
+	f, err := NewQueryFactory()
+	require.NoError(t, err)
+	opts := baseOptions()
+	def, err := f.GetCustomQueryDefinition("veleroHcpLogs")
+	require.NoError(t, err)
+	require.NotNil(t, def, "veleroHcpLogs custom query not found")
+	queries, err := f.Build(*def, NewTemplateDataFromOptions(opts))
+	require.NoError(t, err)
+	require.Len(t, queries, 1)
+
+	testutil.CompareWithFixture(t, queryToFixture(queries[0]))
+}
+
+func TestVeleroHcpLogs_NoTruncation(t *testing.T) {
+	f, err := NewQueryFactory()
+	require.NoError(t, err)
+	opts := baseOptions()
+	opts.Limit = -1
+	def, err := f.GetCustomQueryDefinition("veleroHcpLogs")
+	require.NoError(t, err)
+	require.NotNil(t, def, "veleroHcpLogs custom query not found")
+	queries, err := f.Build(*def, NewTemplateDataFromOptions(opts))
+	require.NoError(t, err)
+	require.Len(t, queries, 1)
+
+	testutil.CompareWithFixture(t, queryToFixture(queries[0]))
+}
+
+func TestVeleroServerLogs(t *testing.T) {
+	f, err := NewQueryFactory()
+	require.NoError(t, err)
+	opts := baseOptions()
+	def, err := f.GetCustomQueryDefinition("veleroServerLogs")
+	require.NoError(t, err)
+	require.NotNil(t, def, "veleroServerLogs custom query not found")
+	queries, err := f.Build(*def, NewTemplateDataFromOptions(opts, WithClusterNames([]string{"mgmt-cluster-1", "mgmt-cluster-2"})))
+	require.NoError(t, err)
+	require.Len(t, queries, 1)
+
+	testutil.CompareWithFixture(t, queryToFixture(queries[0]))
+}
+
+func TestVeleroServerLogs_NoTruncation(t *testing.T) {
+	f, err := NewQueryFactory()
+	require.NoError(t, err)
+	opts := baseOptions()
+	opts.Limit = -1
+	def, err := f.GetCustomQueryDefinition("veleroServerLogs")
+	require.NoError(t, err)
+	require.NotNil(t, def, "veleroServerLogs custom query not found")
+	queries, err := f.Build(*def, NewTemplateDataFromOptions(opts, WithClusterNames([]string{"mgmt-cluster-1", "mgmt-cluster-2"})))
+	require.NoError(t, err)
+	require.Len(t, queries, 1)
+
+	testutil.CompareWithFixture(t, queryToFixture(queries[0]))
+}
+
+func TestVeleroSchedules(t *testing.T) {
+	f, err := NewQueryFactory()
+	require.NoError(t, err)
+	opts := baseOptions()
+	def, err := f.GetCustomQueryDefinition("veleroSchedules")
+	require.NoError(t, err)
+	require.NotNil(t, def, "veleroSchedules custom query not found")
+	queries, err := f.Build(*def, NewTemplateDataFromOptions(opts, WithClusterNames([]string{"mgmt-cluster-1", "mgmt-cluster-2"})))
+	require.NoError(t, err)
+	require.Len(t, queries, 1)
+
+	testutil.CompareWithFixture(t, queryToFixture(queries[0]))
+}
+
+func TestVeleroSchedules_NoTruncation(t *testing.T) {
+	f, err := NewQueryFactory()
+	require.NoError(t, err)
+	opts := baseOptions()
+	opts.Limit = -1
+	def, err := f.GetCustomQueryDefinition("veleroSchedules")
+	require.NoError(t, err)
+	require.NotNil(t, def, "veleroSchedules custom query not found")
+	queries, err := f.Build(*def, NewTemplateDataFromOptions(opts, WithClusterNames([]string{"mgmt-cluster-1", "mgmt-cluster-2"})))
+	require.NoError(t, err)
+	require.Len(t, queries, 1)
+
+	testutil.CompareWithFixture(t, queryToFixture(queries[0]))
+}
+
+func TestVeleroDataUploads(t *testing.T) {
+	f, err := NewQueryFactory()
+	require.NoError(t, err)
+	opts := baseOptions()
+	def, err := f.GetCustomQueryDefinition("veleroDataUploads")
+	require.NoError(t, err)
+	require.NotNil(t, def, "veleroDataUploads custom query not found")
+	queries, err := f.Build(*def, NewTemplateDataFromOptions(opts, WithClusterNames([]string{"mgmt-cluster-1", "mgmt-cluster-2"})))
+	require.NoError(t, err)
+	require.Len(t, queries, 1)
+
+	testutil.CompareWithFixture(t, queryToFixture(queries[0]))
+}
+
+func TestVeleroDataUploads_NoTruncation(t *testing.T) {
+	f, err := NewQueryFactory()
+	require.NoError(t, err)
+	opts := baseOptions()
+	opts.Limit = -1
+	def, err := f.GetCustomQueryDefinition("veleroDataUploads")
+	require.NoError(t, err)
+	require.NotNil(t, def, "veleroDataUploads custom query not found")
+	queries, err := f.Build(*def, NewTemplateDataFromOptions(opts, WithClusterNames([]string{"mgmt-cluster-1", "mgmt-cluster-2"})))
+	require.NoError(t, err)
+	require.Len(t, queries, 1)
+
+	testutil.CompareWithFixture(t, queryToFixture(queries[0]))
+}
+
+func TestVeleroDeleteBackupRequests(t *testing.T) {
+	f, err := NewQueryFactory()
+	require.NoError(t, err)
+	opts := baseOptions()
+	def, err := f.GetCustomQueryDefinition("veleroDeleteBackupRequests")
+	require.NoError(t, err)
+	require.NotNil(t, def, "veleroDeleteBackupRequests custom query not found")
+	queries, err := f.Build(*def, NewTemplateDataFromOptions(opts, WithClusterNames([]string{"mgmt-cluster-1", "mgmt-cluster-2"})))
+	require.NoError(t, err)
+	require.Len(t, queries, 1)
+
+	testutil.CompareWithFixture(t, queryToFixture(queries[0]))
+}
+
+func TestVeleroDeleteBackupRequests_NoTruncation(t *testing.T) {
+	f, err := NewQueryFactory()
+	require.NoError(t, err)
+	opts := baseOptions()
+	opts.Limit = -1
+	def, err := f.GetCustomQueryDefinition("veleroDeleteBackupRequests")
+	require.NoError(t, err)
+	require.NotNil(t, def, "veleroDeleteBackupRequests custom query not found")
+	queries, err := f.Build(*def, NewTemplateDataFromOptions(opts, WithClusterNames([]string{"mgmt-cluster-1", "mgmt-cluster-2"})))
+	require.NoError(t, err)
+	require.Len(t, queries, 1)
+
+	testutil.CompareWithFixture(t, queryToFixture(queries[0]))
+}
+
+func TestVeleroBackupStorageLocations(t *testing.T) {
+	f, err := NewQueryFactory()
+	require.NoError(t, err)
+	opts := baseOptions()
+	def, err := f.GetCustomQueryDefinition("veleroBackupStorageLocations")
+	require.NoError(t, err)
+	require.NotNil(t, def, "veleroBackupStorageLocations custom query not found")
+	queries, err := f.Build(*def, NewTemplateDataFromOptions(opts, WithClusterNames([]string{"mgmt-cluster-1", "mgmt-cluster-2"})))
+	require.NoError(t, err)
+	require.Len(t, queries, 1)
+
+	testutil.CompareWithFixture(t, queryToFixture(queries[0]))
+}
+
+func TestVeleroBackupStorageLocations_NoTruncation(t *testing.T) {
+	f, err := NewQueryFactory()
+	require.NoError(t, err)
+	opts := baseOptions()
+	opts.Limit = -1
+	def, err := f.GetCustomQueryDefinition("veleroBackupStorageLocations")
+	require.NoError(t, err)
+	require.NotNil(t, def, "veleroBackupStorageLocations custom query not found")
+	queries, err := f.Build(*def, NewTemplateDataFromOptions(opts, WithClusterNames([]string{"mgmt-cluster-1", "mgmt-cluster-2"})))
+	require.NoError(t, err)
+	require.Len(t, queries, 1)
+
+	testutil.CompareWithFixture(t, queryToFixture(queries[0]))
+}
+
+func TestVeleroVolumeSnapshotLocations(t *testing.T) {
+	f, err := NewQueryFactory()
+	require.NoError(t, err)
+	opts := baseOptions()
+	def, err := f.GetCustomQueryDefinition("veleroVolumeSnapshotLocations")
+	require.NoError(t, err)
+	require.NotNil(t, def, "veleroVolumeSnapshotLocations custom query not found")
+	queries, err := f.Build(*def, NewTemplateDataFromOptions(opts, WithClusterNames([]string{"mgmt-cluster-1", "mgmt-cluster-2"})))
+	require.NoError(t, err)
+	require.Len(t, queries, 1)
+
+	testutil.CompareWithFixture(t, queryToFixture(queries[0]))
+}
+
+func TestVeleroVolumeSnapshotLocations_NoTruncation(t *testing.T) {
+	f, err := NewQueryFactory()
+	require.NoError(t, err)
+	opts := baseOptions()
+	opts.Limit = -1
+	def, err := f.GetCustomQueryDefinition("veleroVolumeSnapshotLocations")
+	require.NoError(t, err)
+	require.NotNil(t, def, "veleroVolumeSnapshotLocations custom query not found")
+	queries, err := f.Build(*def, NewTemplateDataFromOptions(opts, WithClusterNames([]string{"mgmt-cluster-1", "mgmt-cluster-2"})))
 	require.NoError(t, err)
 	require.Len(t, queries, 1)
 
@@ -259,6 +626,65 @@ func TestBuildMerged_MultipleChildren(t *testing.T) {
 	require.NoError(t, err)
 
 	testutil.CompareWithFixture(t, queryToFixture(q))
+}
+
+func TestOrchestrationSummaryAndWindows(t *testing.T) {
+	f, err := NewQueryFactory()
+	require.NoError(t, err)
+	parent, err := f.GetCustomQueryDefinition("detailedServiceLogs")
+	require.NoError(t, err)
+	def := *parent
+	def.Name = parent.Children[2].Name
+	def.TemplatePath = parent.Children[2].TemplatePath
+	def.Children = nil
+	require.Equal(t, "detailedInfraOrchestrationLogs", def.Name)
+	opts := baseOptions()
+	opts.TimestampMax = opts.TimestampMin.Add(12 * time.Minute)
+	data := NewTemplateDataFromOptions(opts)
+	logs, err := f.Build(def, data)
+	require.NoError(t, err)
+	data.Summarize = true
+	summary, err := f.Build(def, data)
+	require.NoError(t, err)
+	// Both modes must use exactly the same selection; only the final operator differs.
+	logKQL, summaryKQL := logs[0].GetQuery().String(), summary[0].GetQuery().String()
+	assert.Equal(t, strings.Split(logKQL, "| order by")[0], strings.Split(summaryKQL, "| summarize")[0])
+	assert.Contains(t, summaryKQL, "estimatedBytes = sum(estimate_data_size(*))")
+	assert.NotContains(t, summaryKQL, "| order by")
+	for _, source := range []string{"maestro", "hypershift", "acm-agent"} {
+		assert.Contains(t, logKQL, `source = "`+source+`"`)
+	}
+	assert.Contains(t, logKQL, "resource_id startswith '/subscriptions/test-sub/resourceGroups/test-rg/'")
+	assert.Contains(t, logKQL, "| where isnotempty(cid)\n    | distinct cid")
+	assert.NotContains(t, logKQL, "toscalar")
+	assert.NotContains(t, logKQL, "limit 1")
+	assert.Equal(t, 4, strings.Count(logKQL, "has_any (_cs_cluster_ids)"))
+
+	data.Summarize = false
+	queries, err := f.BuildTimeWindows(def, data, opts.TimestampMin, opts.TimestampMax, 5*time.Minute)
+	require.NoError(t, err)
+	windowed, ok := queries[0].(*TimeWindowQuery)
+	require.True(t, ok)
+	require.Len(t, windowed.Windows, 3)
+	for _, window := range windowed.Windows {
+		assert.Equal(t, 2, strings.Count(window.GetQuery().String(), "timestamp between ("+data.DiscoveryTimestampMin+" .. "+data.DiscoveryTimestampMax+")"))
+		assert.Equal(t, 3, strings.Count(window.GetQuery().String(), "timestamp between (_startTime .. _endTime)"))
+	}
+	assert.Contains(t, windowed.Windows[1].GetQuery().String(), "let _startTime = datetime(2025-01-01T00:05:00.0000000Z)")
+	data.OrderBy = OrderByDesc.String()
+	descending, err := f.BuildTimeWindows(def, data, opts.TimestampMin, opts.TimestampMax, 5*time.Minute)
+	require.NoError(t, err)
+	descWindows := descending[0].(*TimeWindowQuery).Windows
+	require.Len(t, descWindows, len(windowed.Windows))
+	for i, window := range descWindows {
+		assert.Equal(t, strings.Replace(windowed.Windows[len(descWindows)-1-i].GetQuery().String(), "| order by timestamp asc", "| order by timestamp desc", 1), window.GetQuery().String())
+	}
+
+	// Generated links have a resource group but no subscription.
+	opts.SubscriptionId = ""
+	links, err := f.Build(def, NewTemplateDataFromOptions(opts))
+	require.NoError(t, err)
+	assert.Contains(t, links[0].GetQuery().String(), "resource_id contains '/resourceGroups/test-rg/'")
 }
 
 func TestTemplateDataOptions(t *testing.T) {

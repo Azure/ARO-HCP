@@ -49,8 +49,13 @@ const (
 // DeleteOrphanedStepConfig configures orphaned role-assignment cleanup.
 type DeleteOrphanedStepConfig struct {
 	RoleAssignmentsClient *armauthorization.RoleAssignmentsClient
-	AzureCredential       azcore.TokenCredential
-	SubscriptionID        string
+	// GraphClient performs the Microsoft Graph directory reads (the
+	// orphaned-principal preflight and getByIds resolution). It is built from a
+	// credential that may differ from the one backing RoleAssignmentsClient, so
+	// that directory read permissions (Directory.Read.All) can be supplied by a
+	// separate identity. Build it with NewGraphClient.
+	GraphClient    *msgraphsdk.GraphServiceClient
+	SubscriptionID string
 
 	Name                        string
 	Retries                     int
@@ -73,8 +78,8 @@ func NewDeleteOrphanedStep(cfg DeleteOrphanedStepConfig) (runner.Step, error) {
 	if cfg.RoleAssignmentsClient == nil {
 		return nil, fmt.Errorf("role assignments client is required")
 	}
-	if cfg.AzureCredential == nil {
-		return nil, fmt.Errorf("azure credential is required")
+	if cfg.GraphClient == nil {
+		return nil, fmt.Errorf("graph client is required")
 	}
 	if strings.TrimSpace(cfg.SubscriptionID) == "" {
 		return nil, fmt.Errorf("subscription ID is required")
@@ -103,10 +108,12 @@ func MustNewDeleteOrphanedStep(cfg DeleteOrphanedStepConfig) runner.Step {
 	return step
 }
 
+// Name returns the cleanup step name.
 func (s *deleteOrphanedStep) Name() string {
 	return s.name
 }
 
+// RetryLimit returns the configured attempt limit.
 func (s *deleteOrphanedStep) RetryLimit() int {
 	if s.retries < runner.DefaultRetries {
 		return runner.DefaultRetries
@@ -114,10 +121,12 @@ func (s *deleteOrphanedStep) RetryLimit() int {
 	return s.retries
 }
 
+// ContinueOnError reports whether per-target failures are best effort.
 func (s *deleteOrphanedStep) ContinueOnError() bool {
 	return s.continueOnError
 }
 
+// Verify runs the optional post-deletion check.
 func (s *deleteOrphanedStep) Verify(ctx context.Context) error {
 	if s.verify == nil {
 		return nil
@@ -125,21 +134,58 @@ func (s *deleteOrphanedStep) Verify(ctx context.Context) error {
 	return s.verify(ctx)
 }
 
+// Discover selects assignments whose principals are absent from the directory.
 func (s *deleteOrphanedStep) Discover(ctx context.Context) ([]runner.Target, error) {
 	return discoverOrphanedRoleAssignments(
 		ctx,
 		s.cfg.RoleAssignmentsClient,
-		s.cfg.AzureCredential,
+		s.cfg.GraphClient,
 		s.cfg.SubscriptionID,
 	)
 }
 
+// Delete revalidates the principal before deleting an orphaned assignment.
 func (s *deleteOrphanedStep) Delete(ctx context.Context, target runner.Target, _ bool) error {
-	_, err := s.cfg.RoleAssignmentsClient.DeleteByID(ctx, target.ID, nil)
+	logger := logr.FromContextOrDiscard(ctx).WithValues("assignmentID", target.ID)
+	response, err := s.cfg.RoleAssignmentsClient.GetByID(ctx, target.ID, nil)
 	if err != nil {
 		var respErr *azcore.ResponseError
 		if errors.As(err, &respErr) && respErr.StatusCode == http.StatusNotFound {
-			return nil
+			logger.Info("Role assignment already absent", "phase", "revalidation")
+			return runner.ErrTargetAbsent
+		}
+		return fmt.Errorf("failed to re-read role assignment %q: %w", target.ID, err)
+	}
+	if response.Properties == nil ||
+		response.Properties.PrincipalID == nil ||
+		normalizeID(*response.Properties.PrincipalID) == "" {
+		return fmt.Errorf("refusing to delete role assignment %q without a principal ID", target.ID)
+	}
+
+	principalID := normalizeID(*response.Properties.PrincipalID)
+	scope := ""
+	if response.Properties.Scope != nil {
+		scope = *response.Properties.Scope
+	}
+	logger = logger.WithValues("principalID", principalID, "scope", scope)
+	ctx = logr.NewContext(ctx, logger)
+	activePrincipalLookup := newGraphActivePrincipalLookup(s.cfg.GraphClient)
+	active, err := activePrincipalLookup(ctx, principalID)
+	if err != nil {
+		return fmt.Errorf("failed revalidating principal %q for role assignment %q: %w", principalID, target.ID, err)
+	}
+	if active {
+		logger.Info("Retaining role assignment", "reason", "principal_present", "phase", "revalidation")
+		return fmt.Errorf("%w: principal %q exists in the active directory", runner.ErrTargetRetained, principalID)
+	}
+
+	logger.Info("Deleting orphaned role assignment", "reason", "principal_absent", "phase", "revalidation")
+	_, err = s.cfg.RoleAssignmentsClient.DeleteByID(ctx, target.ID, nil)
+	if err != nil {
+		var respErr *azcore.ResponseError
+		if errors.As(err, &respErr) && respErr.StatusCode == http.StatusNotFound {
+			logger.Info("Role assignment already absent", "phase", "delete")
+			return runner.ErrTargetAbsent
 		}
 		return fmt.Errorf("failed to delete role assignment %q: %w", target.ID, err)
 	}
@@ -147,13 +193,13 @@ func (s *deleteOrphanedStep) Delete(ctx context.Context, target runner.Target, _
 }
 
 // SAFETY CONTRACT:
-// This tool assumes that "principal not returned by Graph" means "safe to delete".
-// To prevent accidental deletion when run with insufficient permissions,
-// an explicit Graph preflight check is enforced and cannot be bypassed.
+// A role assignment is deletable only when its principal is absent from the
+// active directory at discovery and again immediately before deletion. An
+// explicit Graph visibility preflight is also enforced and cannot be bypassed.
 func discoverOrphanedRoleAssignments(
 	ctx context.Context,
 	roleAssignmentsClient *armauthorization.RoleAssignmentsClient,
-	azureCredential azcore.TokenCredential,
+	graphClient *msgraphsdk.GraphServiceClient,
 	subscriptionID string,
 ) ([]runner.Target, error) {
 	logger, err := logr.FromContext(ctx)
@@ -166,17 +212,12 @@ func discoverOrphanedRoleAssignments(
 	if roleAssignmentsClient == nil {
 		return nil, fmt.Errorf("role assignments client is required")
 	}
-	if azureCredential == nil {
-		return nil, fmt.Errorf("azure credential is required")
+	if graphClient == nil {
+		return nil, fmt.Errorf("graph client is required")
 	}
 	subscriptionID = strings.TrimSpace(subscriptionID)
 	if subscriptionID == "" {
 		return nil, fmt.Errorf("subscription ID is required")
-	}
-
-	graphClient, err := newGraphClient(azureCredential)
-	if err != nil {
-		return nil, fmt.Errorf("%s: %w", preflightFailureMessage, err)
 	}
 
 	// Mandatory and unconditional preflight. If this fails, we fail closed
@@ -191,28 +232,26 @@ func discoverOrphanedRoleAssignments(
 		return nil, err
 	}
 
-	// 2-4) Resolve all unique principal IDs via Graph directoryObjects/getByIds.
-	resolvedPrincipalIDs, err := resolvePrincipalIDsWithGraphGetByIDs(ctx, graphClient, assignments, logger, skipReporter)
+	// 2) Collect all unique principal IDs from the ARM assignments.
+	principalIDs := collectPrincipalIDs(assignments, logger, skipReporter)
+
+	// 3) Resolve active principals via Graph directoryObjects/getByIds.
+	resolvedPrincipalIDs, err := resolvePrincipalIDsWithGraphGetByIDs(ctx, graphClient, principalIDs, logger, skipReporter)
 	if err != nil {
 		return nil, fmt.Errorf("failed resolving role assignment principals with Microsoft Graph getByIds: %w", err)
 	}
 
-	// 5) Keep assignment iff principalId is not in resolved set.
-	candidateIDs := sets.New[string]()
-	candidates := make([]roleAssignmentRecord, 0, len(assignments))
-	for _, assignment := range assignments {
-		if _, resolved := resolvedPrincipalIDs[normalizeID(assignment.PrincipalID)]; resolved {
-			continue
-		}
-		if candidateIDs.Has(assignment.ID) {
-			continue
-		}
-		candidateIDs.Insert(assignment.ID)
-		candidates = append(candidates, assignment)
-	}
-
+	// 4) Keep an assignment only when its principal was absent from the active
+	// directory. Missing principal IDs are retained rather than guessed.
+	candidates := selectOrphanedRoleAssignments(assignments, resolvedPrincipalIDs)
 	targets := make([]runner.Target, 0, len(candidates))
 	for _, candidate := range candidates {
+		logger.Info("Selected orphaned role assignment",
+			"assignmentID", candidate.ID,
+			"principalID", candidate.PrincipalID,
+			"reason", "principal_absent",
+			"phase", "discovery",
+		)
 		targets = append(targets, candidate.ToTarget())
 	}
 
@@ -239,7 +278,11 @@ func discoverOrphanedRoleAssignments(
 	return targets, nil
 }
 
-func newGraphClient(azureCredential azcore.TokenCredential) (*msgraphsdk.GraphServiceClient, error) {
+// NewGraphClient builds a Microsoft Graph client from the given credential. It
+// is used by the workflow to construct the Graph client once and pass it to the
+// orphaned role-assignment step, keeping client construction alongside the ARM
+// clients rather than inside the step.
+func NewGraphClient(azureCredential azcore.TokenCredential) (*msgraphsdk.GraphServiceClient, error) {
 	authProvider, err := kiotaauth.NewAzureIdentityAuthenticationProviderWithScopes(
 		azureCredential,
 		[]string{graphScope},
@@ -256,6 +299,7 @@ func newGraphClient(azureCredential azcore.TokenCredential) (*msgraphsdk.GraphSe
 	return msgraphsdk.NewGraphServiceClient(adapter), nil
 }
 
+// Confirms that Graph can resolve a known directory principal.
 func runGraphVisibilityPreflight(ctx context.Context, graphClient *msgraphsdk.GraphServiceClient) error {
 	filter := fmt.Sprintf("displayName eq '%s'", escapeODataString(preflightGroupDisplayName))
 	selectFields := []string{"id"}
@@ -289,6 +333,7 @@ type roleAssignmentRecord struct {
 	PrincipalID string
 }
 
+// Lists valid role assignments within the target subscription.
 func listRoleAssignments(
 	ctx context.Context,
 	roleAssignmentsClient *armauthorization.RoleAssignmentsClient,
@@ -320,6 +365,7 @@ func listRoleAssignments(
 	return assignments, nil
 }
 
+// Extracts the assignment metadata needed for orphan discovery.
 func toRoleAssignmentRecord(
 	roleAssignment *armauthorization.RoleAssignment,
 	logger logr.Logger,
@@ -347,6 +393,7 @@ func toRoleAssignmentRecord(
 	return record, true
 }
 
+// ToTarget returns the runner target for this assignment.
 func (r roleAssignmentRecord) ToTarget() runner.Target {
 	return runner.Target{
 		ID:   r.ID,
@@ -355,13 +402,12 @@ func (r roleAssignmentRecord) ToTarget() runner.Target {
 	}
 }
 
-func resolvePrincipalIDsWithGraphGetByIDs(
-	ctx context.Context,
-	graphClient *msgraphsdk.GraphServiceClient,
+// Collects unique principal IDs while reporting incomplete assignments.
+func collectPrincipalIDs(
 	assignments []roleAssignmentRecord,
 	logger logr.Logger,
 	skipReporter *common.DiscoverySkipReporter,
-) (sets.Set[string], error) {
+) sets.Set[string] {
 	uniquePrincipalIDs := sets.New[string]()
 	for _, assignment := range assignments {
 		normalizedPrincipalID := normalizeID(assignment.PrincipalID)
@@ -375,12 +421,23 @@ func resolvePrincipalIDsWithGraphGetByIDs(
 		}
 		uniquePrincipalIDs.Insert(normalizedPrincipalID)
 	}
-	if uniquePrincipalIDs.Len() == 0 {
+	return uniquePrincipalIDs
+}
+
+// Resolves active principals in bounded Graph batches.
+func resolvePrincipalIDsWithGraphGetByIDs(
+	ctx context.Context,
+	graphClient *msgraphsdk.GraphServiceClient,
+	principalIDs sets.Set[string],
+	logger logr.Logger,
+	skipReporter *common.DiscoverySkipReporter,
+) (sets.Set[string], error) {
+	if principalIDs.Len() == 0 {
 		return sets.New[string](), nil
 	}
 
 	resolvedPrincipalIDs := sets.New[string]()
-	ids := sets.List(uniquePrincipalIDs)
+	ids := sets.List(principalIDs)
 	for start := 0; start < len(ids); start += graphGetByIDsBatchSize {
 		end := min(start+graphGetByIDsBatchSize, len(ids))
 		body := graphdirectoryobjects.NewGetByIdsPostRequestBody()
@@ -416,14 +473,74 @@ func resolvePrincipalIDsWithGraphGetByIDs(
 	return resolvedPrincipalIDs, nil
 }
 
+type activePrincipalLookup func(context.Context, string) (bool, error)
+
+// Builds a fresh active-directory lookup for pre-deletion revalidation.
+func newGraphActivePrincipalLookup(graphClient *msgraphsdk.GraphServiceClient) activePrincipalLookup {
+	return func(ctx context.Context, principalID string) (bool, error) {
+		body := graphdirectoryobjects.NewGetByIdsPostRequestBody()
+		body.SetIds([]string{principalID})
+
+		response, err := graphClient.DirectoryObjects().GetByIds().PostAsGetByIdsPostResponse(ctx, body, nil)
+		if err != nil {
+			return false, err
+		}
+		if response == nil {
+			return false, fmt.Errorf("active principal lookup for %q returned an empty response", principalID)
+		}
+		if len(response.GetValue()) == 0 {
+			return false, nil
+		}
+		if len(response.GetValue()) != 1 ||
+			response.GetValue()[0] == nil ||
+			response.GetValue()[0].GetId() == nil {
+			return false, fmt.Errorf("active principal lookup for %q returned an invalid response", principalID)
+		}
+		resolvedID := normalizeID(*response.GetValue()[0].GetId())
+		if resolvedID == "" || resolvedID != normalizeID(principalID) {
+			return false, fmt.Errorf(
+				"active principal lookup for %q returned unexpected ID %q",
+				principalID,
+				resolvedID,
+			)
+		}
+		return true, nil
+	}
+}
+
+// Selects assignments whose known principal IDs were not resolved.
+func selectOrphanedRoleAssignments(
+	assignments []roleAssignmentRecord,
+	resolvedPrincipalIDs sets.Set[string],
+) []roleAssignmentRecord {
+	candidateIDs := sets.New[string]()
+	candidates := make([]roleAssignmentRecord, 0, len(assignments))
+	for _, assignment := range assignments {
+		principalID := normalizeID(assignment.PrincipalID)
+		if principalID == "" || resolvedPrincipalIDs.Has(principalID) {
+			continue
+		}
+		normalizedAssignmentID := normalizeID(assignment.ID)
+		if candidateIDs.Has(normalizedAssignmentID) {
+			continue
+		}
+		candidateIDs.Insert(normalizedAssignmentID)
+		candidates = append(candidates, assignment)
+	}
+	return candidates
+}
+
+// Escapes single quotes in an OData string.
 func escapeODataString(raw string) string {
 	return strings.ReplaceAll(strings.TrimSpace(raw), "'", "''")
 }
 
+// Normalizes identifiers for case-insensitive comparison.
 func normalizeID(raw string) string {
 	return strings.ToLower(strings.TrimSpace(raw))
 }
 
+// Reads a nonempty assignment ID.
 func roleAssignmentID(roleAssignment *armauthorization.RoleAssignment) (string, bool) {
 	if roleAssignment == nil || roleAssignment.ID == nil {
 		return "", false
@@ -432,6 +549,7 @@ func roleAssignmentID(roleAssignment *armauthorization.RoleAssignment) (string, 
 	return id, id != ""
 }
 
+// Reads the assignment name or uses its ID as a fallback.
 func roleAssignmentName(roleAssignment *armauthorization.RoleAssignment, fallback string) string {
 	if roleAssignment != nil && roleAssignment.Name != nil {
 		name := strings.TrimSpace(*roleAssignment.Name)
@@ -442,6 +560,7 @@ func roleAssignmentName(roleAssignment *armauthorization.RoleAssignment, fallbac
 	return fallback
 }
 
+// Reads the resource type or uses the role-assignment type.
 func roleAssignmentType(roleAssignment *armauthorization.RoleAssignment) string {
 	if roleAssignment != nil && roleAssignment.Type != nil {
 		resourceType := strings.TrimSpace(*roleAssignment.Type)
@@ -452,6 +571,7 @@ func roleAssignmentType(roleAssignment *armauthorization.RoleAssignment) string 
 	return ResourceType
 }
 
+// Checks that an assignment belongs to the requested subscription.
 func assignmentWithinSubscriptionScope(
 	roleAssignment *armauthorization.RoleAssignment,
 	subscriptionScopePrefix string,

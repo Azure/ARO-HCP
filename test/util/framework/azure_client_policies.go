@@ -24,16 +24,18 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/onsi/ginkgo/v2"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 )
 
 // armSystemDataPolicy adds ARM system data headers for direct RP requests.
@@ -99,10 +101,10 @@ func (p *armResourceGroupValidationPolicy) Do(req *policy.Request) (*http.Respon
 	err = p.rgClient.Get(req.Raw().Context(), subID, rgName)
 	if err != nil {
 		var respErr *azcore.ResponseError
-		if errors.As(err, &respErr) && respErr.ErrorCode == arm.CloudErrorCodeResourceGroupNotFound {
-			cloudErr := arm.NewCloudError(
+		if errors.As(err, &respErr) && respErr.ErrorCode == coreapi.CloudErrorCodeResourceGroupNotFound {
+			cloudErr := coreapi.NewCloudError(
 				http.StatusNotFound,
-				arm.CloudErrorCodeResourceGroupNotFound,
+				coreapi.CloudErrorCodeResourceGroupNotFound,
 				"",
 				"Resource group '%s' could not be found.",
 				rgName,
@@ -151,117 +153,14 @@ func (p *requestIDPolicy) Do(req *policy.Request) (*http.Response, error) {
 	}
 
 	if req.Raw().URL.Host == frontendURL.Host {
-		if req.Raw().Header.Get(arm.HeaderNameCorrelationRequestID) == "" {
-			req.Raw().Header.Set(arm.HeaderNameCorrelationRequestID, uuid.New().String())
+		if req.Raw().Header.Get(coreapi.HeaderNameCorrelationRequestID) == "" {
+			req.Raw().Header.Set(coreapi.HeaderNameCorrelationRequestID, uuid.New().String())
 		}
-		if req.Raw().Header.Get(arm.HeaderNameClientRequestID) == "" {
-			req.Raw().Header.Set(arm.HeaderNameClientRequestID, uuid.New().String())
+		if req.Raw().Header.Get(coreapi.HeaderNameClientRequestID) == "" {
+			req.Raw().Header.Set(coreapi.HeaderNameClientRequestID, uuid.New().String())
 		}
 	}
 	return req.Next()
-}
-
-// lroPollerRetryDeploymentNotFoundPolicy is a pipeline policy that retries transient
-// 404 DeploymentNotFound errors during ARM deployment LRO polling.
-//
-// This addresses Azure Resource Manager's eventual consistency behavior where
-// the operationStatuses endpoint may return 404 immediately after a deployment
-// is created, even though the deployment will eventually succeed.
-//
-// The policy only activates for GET requests to URLs matching:
-//
-//	/providers/Microsoft.Resources/deployments/{name}/operationStatuses/{id}
-//
-// All other requests pass through unmodified.
-type lroPollerRetryDeploymentNotFoundPolicy struct {
-	MaxRetries     int
-	BaseBackoff    time.Duration
-	MaxBackoff     time.Duration
-	MaxRetryWindow time.Duration
-}
-
-func NewLROPollerRetryDeploymentNotFoundPolicy() *lroPollerRetryDeploymentNotFoundPolicy {
-	return &lroPollerRetryDeploymentNotFoundPolicy{
-		MaxRetries:     5,
-		BaseBackoff:    2 * time.Second,
-		MaxBackoff:     10 * time.Second,
-		MaxRetryWindow: 90 * time.Second,
-	}
-}
-
-func (p *lroPollerRetryDeploymentNotFoundPolicy) Do(req *policy.Request) (*http.Response, error) {
-	if !strings.EqualFold(req.Raw().Method, http.MethodGet) {
-		return req.Next()
-	}
-	path := req.Raw().URL.Path
-	if !strings.Contains(path, "/providers/Microsoft.Resources/deployments/") || !strings.Contains(path, "/operationStatuses/") {
-		return req.Next()
-	}
-
-	start := time.Now()
-	attempt := 0
-
-	for {
-
-		resp, err, retry := func(req *policy.Request) (resp *http.Response, err error, retry bool) {
-			retryReq := req.Clone(req.Raw().Context())
-			if err := retryReq.RewindBody(); err != nil {
-				return nil, err, false
-			}
-
-			resp, err = retryReq.Next()
-			if err == nil {
-				return resp, nil, false
-			}
-			defer func(resp *http.Response) {
-				if resp != nil {
-					if err := resp.Body.Close(); err != nil {
-						ginkgo.GinkgoLogr.Error(err, "failed to close response body")
-					}
-				}
-			}(resp)
-
-			var respErr *azcore.ResponseError
-			if errors.As(err, &respErr) &&
-				respErr.StatusCode == http.StatusNotFound &&
-				strings.EqualFold(respErr.ErrorCode, "DeploymentNotFound") {
-				return nil, err, true
-			}
-			// don't retry on any other error
-			return nil, err, false
-		}(req)
-
-		if !retry {
-			return resp, err
-		}
-
-		if attempt >= p.MaxRetries || time.Since(start) >= p.MaxRetryWindow {
-			err := fmt.Errorf("max retries or max retry window reached: %w", err)
-			return resp, err
-		}
-
-		sleep := p.backoff(attempt)
-
-		ginkgo.GinkgoLogr.Info("transient 404 DeploymentNotFound on operationStatuses",
-			"attempt", attempt+1,
-			"sleep", sleep.String(),
-			"url", req.Raw().URL.String())
-
-		select {
-		case <-time.After(sleep):
-			// retry
-		case <-req.Raw().Context().Done():
-			return nil, req.Raw().Context().Err()
-		}
-
-		attempt++
-	}
-}
-
-func (p *lroPollerRetryDeploymentNotFoundPolicy) backoff(attempt int) time.Duration {
-	sleep := min(p.BaseBackoff<<attempt, p.MaxBackoff)
-	jitter := time.Duration(rand.Int63n(int64(max(p.BaseBackoff/2, time.Millisecond))))
-	return sleep + jitter
 }
 
 // sanitizeAuthHeaderPolicy is a pipeline policy that redacts the Authorization
@@ -283,4 +182,169 @@ func (p *sanitizeAuthHeaderPolicy) Do(req *policy.Request) (*http.Response, erro
 		resp.Request.Header["Authorization"] = []string{"redacted"}
 	}
 	return resp, err
+}
+
+type requestAttemptTrackerKey struct{}
+
+// requestAttemptTracker records how the Azure SDK sent a single request,
+// including the SDK's own retries.
+type requestAttemptTracker struct {
+	attempts atomic.Int32
+	// outcomeUnknown is set when an attempt ended without a definitive answer
+	// from the service (a transport error, 408, or 5xx), so the service may have
+	// applied it even though the client saw a failure.
+	outcomeUnknown atomic.Bool
+}
+
+// Attempts returns how many times the request was sent.
+func (t *requestAttemptTracker) Attempts() int32 {
+	return t.attempts.Load()
+}
+
+// RetriedAfterUnknownOutcome reports whether the request was sent again after
+// an attempt that the service may have applied.
+func (t *requestAttemptTracker) RetriedAfterUnknownOutcome() bool {
+	return t.attempts.Load() > 1 && t.outcomeUnknown.Load()
+}
+
+// withRequestAttemptTracker returns a context that tracks every attempt the
+// Azure SDK makes to send a request issued with it. Tracking requires the client
+// to have requestAttemptTrackerPolicy installed, which getClientFactoryOptions
+// and getHCPClientFactoryOptions do.
+func withRequestAttemptTracker(ctx context.Context) (context.Context, *requestAttemptTracker) {
+	tracker := &requestAttemptTracker{}
+	return context.WithValue(ctx, requestAttemptTrackerKey{}, tracker), tracker
+}
+
+// requestAttemptTrackerPolicy is a per-retry policy that updates the tracker
+// installed in the request context by withRequestAttemptTracker, if any.
+type requestAttemptTrackerPolicy struct{}
+
+func (p *requestAttemptTrackerPolicy) Do(req *policy.Request) (*http.Response, error) {
+	tracker, ok := req.Raw().Context().Value(requestAttemptTrackerKey{}).(*requestAttemptTracker)
+	if !ok {
+		return req.Next()
+	}
+	tracker.attempts.Add(1)
+	resp, err := req.Next()
+	status := 0
+	if resp != nil {
+		status = resp.StatusCode
+	}
+	var respErr *azcore.ResponseError
+	if err != nil && errors.As(err, &respErr) {
+		status = respErr.StatusCode
+	}
+	if status == 0 || status == http.StatusRequestTimeout || status >= http.StatusInternalServerError {
+		tracker.outcomeUnknown.Store(true)
+	}
+	return resp, err
+}
+
+// retryVersionNotFoundPolicy is a pipeline policy that retries transient
+// InvalidRequestContent errors caused by an OpenShift version not yet being
+// registered in Cluster Service.
+//
+// Cincinnati can advertise a z-stream build before Cluster Service registers
+// that version, causing cluster create/update to fail with:
+//
+//	{"error":{"code":"InvalidRequestContent","message":"Version 'openshift-v4.y.z-candidate' doesn't exist"}}
+//
+// The policy only activates for PUT/PATCH requests targeting the cluster
+// resource type (Microsoft.RedHatOpenShift/hcpOpenShiftClusters), excluding
+// child resources like node pools or external auth.
+//
+// See https://github.com/Azure/ARO-HCP/pull/4621#discussion_r2986322194
+type retryVersionNotFoundPolicy struct {
+	MaxRetries     int
+	BaseBackoff    time.Duration
+	MaxBackoff     time.Duration
+	MaxRetryWindow time.Duration
+}
+
+func NewRetryVersionNotFoundPolicy() *retryVersionNotFoundPolicy {
+	return &retryVersionNotFoundPolicy{
+		MaxRetries:     25,
+		BaseBackoff:    5 * time.Second,
+		MaxBackoff:     45 * time.Second,
+		MaxRetryWindow: 5 * time.Minute,
+	}
+}
+
+func (p *retryVersionNotFoundPolicy) Do(req *policy.Request) (*http.Response, error) {
+	method := req.Raw().Method
+	if !strings.EqualFold(method, http.MethodPut) && !strings.EqualFold(method, http.MethodPatch) {
+		return req.Next()
+	}
+
+	resourceID, err := azcorearm.ParseResourceID(req.Raw().URL.Path)
+	if err != nil {
+		return req.Next()
+	}
+	if !strings.EqualFold(resourceID.ResourceType.String(), coreapi.ClusterResourceType.String()) {
+		return req.Next()
+	}
+
+	start := time.Now()
+	attempt := 0
+
+	for {
+		resp, err, retry := func(req *policy.Request) (resp *http.Response, err error, retry bool) {
+			retryReq := req.Clone(req.Raw().Context())
+			if err := retryReq.RewindBody(); err != nil {
+				return nil, err, false
+			}
+
+			resp, err = retryReq.Next()
+			if err == nil {
+				return resp, nil, false
+			}
+			defer func(resp *http.Response) {
+				if resp != nil {
+					if err := resp.Body.Close(); err != nil {
+						ginkgo.GinkgoLogr.Error(err, "failed to close response body")
+					}
+				}
+			}(resp)
+
+			var respErr *azcore.ResponseError
+			if errors.As(err, &respErr) &&
+				respErr.ErrorCode == "InvalidRequestContent" &&
+				strings.Contains(respErr.Error(), "Version") &&
+				strings.Contains(respErr.Error(), "openshift-v") &&
+				strings.Contains(respErr.Error(), "doesn't exist") {
+				return nil, err, true
+			}
+			return nil, err, false
+		}(req)
+
+		if !retry {
+			return resp, err
+		}
+
+		if attempt >= p.MaxRetries || time.Since(start) >= p.MaxRetryWindow {
+			return resp, fmt.Errorf("max retries or max retry window reached waiting for OpenShift version in Cluster Service: %w", err)
+		}
+
+		sleep := p.backoff(attempt)
+
+		ginkgo.GinkgoLogr.Info("OpenShift version not yet in Cluster Service; retrying",
+			"attempt", attempt+1,
+			"sleep", sleep.String(),
+			"url", req.Raw().URL.String())
+
+		select {
+		case <-time.After(sleep):
+		case <-req.Raw().Context().Done():
+			return nil, req.Raw().Context().Err()
+		}
+
+		attempt++
+	}
+}
+
+func (p *retryVersionNotFoundPolicy) backoff(attempt int) time.Duration {
+	sleep := min(p.BaseBackoff<<attempt, p.MaxBackoff)
+	jitter := time.Duration(rand.Int63n(int64(max(p.BaseBackoff/2, time.Millisecond))))
+	return sleep + jitter
 }

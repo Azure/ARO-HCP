@@ -23,7 +23,7 @@ namespace Microsoft.RedHatOpenShift;
 model HcpOpenShiftCluster is TrackedResource<HcpOpenShiftClusterProperties> {
   ...ResourceNameParameter<
     HcpOpenShiftCluster,
-    NamePattern = "^[a-zA-Z][-a-zA-Z0-9]{1,52}[a-zA-Z0-9]$"
+    NamePattern = "^[a-zA-Z]([-a-zA-Z0-9]{0,52}[a-zA-Z0-9])?$"
   >;
   ...ManagedServiceIdentityProperty;
 }
@@ -38,7 +38,7 @@ model HcpOpenShiftCluster is TrackedResource<HcpOpenShiftClusterProperties> {
 model NodePool is TrackedResource<NodePoolProperties> {
   ...ResourceNameParameter<
     NodePool,
-    NamePattern = "^[a-zA-Z][-a-zA-Z0-9]{1,13}[a-zA-Z0-9]$"
+    NamePattern = "^[a-zA-Z]([-a-zA-Z0-9]{0,13}[a-zA-Z0-9])?$"
   >;
   ...ManagedServiceIdentityProperty;
 }
@@ -48,7 +48,7 @@ model NodePool is TrackedResource<NodePoolProperties> {
 model ExternalAuth is ProxyResource<ExternalAuthProperties> {
   ...ResourceNameParameter<
     ExternalAuth,
-    NamePattern = "^[a-zA-Z][-a-zA-Z0-9]{1,15}$"
+    NamePattern = "^[a-zA-Z]([-a-zA-Z0-9]{0,13}[a-zA-Z0-9])?$"
   >;
 }
 
@@ -77,7 +77,19 @@ model HcpOpenShiftClusterProperties {
 
   /** Shows the cluster API server profile */
   @visibility(Lifecycle.Read, Lifecycle.Create)
+  @removed(Versions.v2026_10_01)
+  @renamedFrom(Versions.v2026_10_01, "api")
+  apiNoUpdate?: ApiProfile;
+
+  /** Shows the cluster API server profile */
+  @added(Versions.v2026_10_01)
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   api?: ApiProfile;
+
+  /** The cluster ingress configuration */
+  @added(Versions.v2026_06_30_preview)
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  ingress?: IngressProfile;
 
   /** Azure platform configuration */
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
@@ -89,6 +101,13 @@ model HcpOpenShiftClusterProperties {
 
   /** Configure ETCD. */
   @visibility(Lifecycle.Read, Lifecycle.Create)
+  @removed(Versions.v2026_06_30_preview)
+  @renamedFrom(Versions.v2026_06_30_preview, "etcd")
+  etcdNoUpdate?: EtcdProfile;
+
+  /** Configure ETCD. */
+  @added(Versions.v2026_06_30_preview)
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   etcd?: EtcdProfile;
 
   /** imageDigestMirrors is a set of rules to allow pulling images from a
@@ -110,7 +129,7 @@ model HcpOpenShiftClusterProperties {
    * Valid values are in minutes and from 0 to 10080 minutes (1 week).
    * 0 means that the MachinePool can be drained without any time limitation.
    *
-   * This is the value is used a default for all NodePools. It can be overridden
+   * This value is used as a default for all NodePools. It can be overridden
    * by specifying nodeDrainTimeoutMinutes for a given NodePool
    */
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
@@ -124,6 +143,23 @@ model HcpOpenShiftClusterProperties {
   /** OpenShift internal image registry */
   @visibility(Lifecycle.Read, Lifecycle.Create)
   clusterImageRegistry?: ClusterImageRegistryProfile;
+
+  /** Status of the cluster resource */
+  @visibility(Lifecycle.Read)
+  @added(Versions.v2026_06_30_preview)
+  @renamedFrom(Versions.v2026_10_01, "status")
+  @removed(Versions.v2026_10_01)
+  resourceStatus?: ResourceStatus;
+
+  /** Status of the cluster resource */
+  @visibility(Lifecycle.Read)
+  @added(Versions.v2026_10_01)
+  status?: ClusterResourceStatus;
+
+  /** Cryptographic restrictions for kernel and userspace libraries */
+  @added(Versions.v2026_06_30_preview)
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  cryptoRestrictions?: CryptoRestrictions = CryptoRestrictions.None;
 }
 
 /** The resource provisioning state. */
@@ -155,6 +191,18 @@ union ExternalAuthProvisioningState {
   "AwaitingSecret",
 }
 
+/** Cryptographic restrictions for kernel and userspace libraries */
+@added(Versions.v2026_06_30_preview)
+union CryptoRestrictions {
+  string,
+
+  /** No restrictions */
+  None: "None",
+
+  /** Use only FIPS-validated algorithms and implementations */
+  FIPS: "FIPS",
+}
+
 /** Versions represents an OpenShift version. */
 model VersionProfile {
   /** ID is the unique identifier of the version. */
@@ -174,11 +222,13 @@ model VersionProfile {
    *
    *  If not specified, the default value is 'stable'.
    *
-   *  Note: The default value is not declared in the API specification because
-   *        of a TypeSpec bug with updatable fields. The default value will be
-   *        declared in a future API version once the TypeSpec bug is fixed.
-   *        https://github.com/Azure/typespec-azure/issues/1586
+   *  This property is intended to be updateable, but that support is not yet
+   *  complete. Until then, changing this value after cluster creation is rejected.
    */
+  //  Note: The default value is not declared in the API specification because
+  //        of a TypeSpec bug with updatable fields. The default value will be
+  //        declared in a future API version once the TypeSpec bug is fixed.
+  //        https://github.com/Azure/typespec-azure/issues/1586
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   channelGroup?: string;
 }
@@ -189,8 +239,8 @@ model DnsProfile {
   @visibility(Lifecycle.Read)
   baseDomain?: string;
 
-  /**  BaseDomainPrefix is the unique name of the cluster representing the OpenShift's cluster name.
-   * BaseDomainPrefix is the name that will appear in the cluster's DNS, provisioned cloud providers resources
+  /**  BaseDomainPrefix is the base domain prefix for the cluster ingress. It will be used to
+   * configure ingress in the cluster through the subdomain "BaseDomainPrefix.BaseDomain".
    * */
   @visibility(Lifecycle.Read, Lifecycle.Create)
   @maxLength(15)
@@ -262,6 +312,15 @@ model ApiProfile {
   authorizedCidrs?: string[];
 }
 
+/** Information about the Ingress of a cluster. */
+@added(Versions.v2026_06_30_preview)
+model IngressProfile {
+  /** The type of the default cluster ingress. */
+  @added(Versions.v2026_06_30_preview)
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  type?: IngressType = IngressType.Public;
+}
+
 /** The internet visibility of the OpenShift API server */
 union Visibility {
   string,
@@ -273,9 +332,24 @@ union Visibility {
   Private: "Private",
 }
 
+/** The type of the default cluster ingress. */
+@added(Versions.v2026_06_30_preview)
+union IngressType {
+  string,
+
+  /** The default ingress is visible from the internet. */
+  Public: "Public",
+
+  /** The default ingress is not visible from the internet. */
+  Private: "Private",
+
+  /** The default ingress is disabled. */
+  Disabled: "Disabled",
+}
+
 /** Azure specific configuration */
 model PlatformProfile {
-  /** Resource group name to put cluster resources
+  /** The name of the resource group to put cluster resources in.
    *
    * If not specified then a unique name is generated from the
    * following pattern
@@ -289,7 +363,7 @@ model PlatformProfile {
   @visibility(Lifecycle.Read, Lifecycle.Create)
   managedResourceGroup?: string;
 
-  /** The Azure resource ID of the worker subnet
+  /** The Azure resource ID of the worker subnet.
    * Note that a subnet cannot be reused between ARO-HCP Clusters.
    */
   @visibility(Lifecycle.Read, Lifecycle.Create)
@@ -319,6 +393,12 @@ model PlatformProfile {
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   operatorsAuthentication: OperatorsAuthenticationProfile;
 
+  /** Azure Container Registry configuration for authenticating image pulls
+   * on the cluster's worker nodes. */
+  @added(Versions.v2026_10_01)
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
+  containerRegistry?: ContainerRegistryProfile;
+
   /** URL for the OIDC provider to be used for authentication
    * to authenticate against user Azure cloud account
    */
@@ -329,30 +409,29 @@ model PlatformProfile {
 /** ClusterAutoscaling specifies auto-scaling behavior that
  *  applies to all NodePools associated with a control plane. */
 model ClusterAutoscalingProfile {
-  /** maxNodesTotal is the maximum allowable number of nodes for the Autoscaler scale out to be operational.
-   * The autoscaler will not grow the cluster beyond this number. If omitted, the autoscaler will not have a maximum limit. */
+  /** maxNodesTotal is the maximum allowable number of nodes. The autoscaler will not grow the cluster beyond this number.
+   * If omitted, the autoscaler will not have a maximum limit. */
   @minValue(0)
   maxNodesTotal?: int32;
 
-  /** maxPodGracePeriod is the maximum seconds to wait for graceful pod termination before scaling down a NodePool.
+  /** maxPodGracePeriodSeconds is the maximum amount of time in seconds to wait for graceful pod termination before scaling down a NodePool.
    * The default is 600 seconds.
-   *
-   *  Note: The default value is not declared in the API specification because
-   *        of a TypeSpec bug with updatable fields. The default value will be
-   *        declared in a future API version once the TypeSpec bug is fixed.
-   *        https://github.com/Azure/typespec-azure/issues/1586
    */
+  // Note: The default value is not declared in the API specification because
+  //       of a TypeSpec bug with updatable fields. The default value will be
+  //       declared in a future API version once the TypeSpec bug is fixed.
+  //       https://github.com/Azure/typespec-azure/issues/1586
+  //
   @minValue(0)
   maxPodGracePeriodSeconds?: int32;
 
   /** maxNodeProvisionTimeSeconds is the maximum time to wait for node provisioning before considering the
    *  provisioning to be unsuccessful. The default is 900 seconds, or 15 minutes.
-   *
-   *  Note: The default value is not declared in the API specification because
-   *        of a TypeSpec bug with updatable fields. The default value will be
-   *        declared in a future API version once the TypeSpec bug is fixed.
-   *        https://github.com/Azure/typespec-azure/issues/1586
    */
+  // Note: The default value is not declared in the API specification because
+  //       of a TypeSpec bug with updatable fields. The default value will be
+  //       declared in a future API version once the TypeSpec bug is fixed.
+  //       https://github.com/Azure/typespec-azure/issues/1586
   @minValue(0)
   maxNodeProvisionTimeSeconds?: int32;
 
@@ -360,12 +439,11 @@ model ClusterAutoscalingProfile {
    * but only run when there are spare resources available. The default is -10.
    * See the following for more details:
    * https://github.com/kubernetes/autoscaler/blob/master/cluster-autoscaler/FAQ.md#how-does-cluster-autoscaler-work-with-pod-priority-and-preemption
-   *
-   *  Note: The default value is not declared in the API specification because
-   *        of a TypeSpec bug with updatable fields. The default value will be
-   *        declared in a future API version once the TypeSpec bug is fixed.
-   *        https://github.com/Azure/typespec-azure/issues/1586
    */
+  // Note: The default value is not declared in the API specification because
+  //       of a TypeSpec bug with updatable fields. The default value will be
+  //       declared in a future API version once the TypeSpec bug is fixed.
+  //       https://github.com/Azure/typespec-azure/issues/1586
   podPriorityThreshold?: int32;
 }
 
@@ -469,6 +547,16 @@ union OutboundType {
   LoadBalancer: "LoadBalancer",
 }
 
+/** Azure Container Registry configuration for a cluster.
+ * Configures how worker nodes authenticate container image pulls
+ * from Azure Container Registry (ACR). */
+@added(Versions.v2026_10_01)
+model ContainerRegistryProfile {
+  /** The user-assigned managed identity used for container registry image pulls. */
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
+  managedIdentity?: UserAssignedIdentityResourceId;
+}
+
 /** The configuration that the operators of the cluster have to authenticate to Azure. */
 model OperatorsAuthenticationProfile {
   /** Represents the information related to Azure User-Assigned managed identities needed
@@ -517,11 +605,21 @@ model KmsKey {
   /** name is the name of the keyvault key used for encryption/decryption. */
   @maxLength(255)
   @minLength(1)
+  @removed(Versions.v2026_06_30_preview)
+  @renamedFrom(Versions.v2026_06_30_preview, "name")
+  nameImplicitVisibility: string;
+
+  /** name is the name of the keyvault key used for encryption/decryption. */
+  @added(Versions.v2026_06_30_preview)
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  @maxLength(255)
+  @minLength(1)
   name: string;
 
   /** version contains the version of the key to use. */
   @maxLength(255)
   @minLength(1)
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   version: string;
 }
 
@@ -536,12 +634,33 @@ union KeyVaultVisibility {
   Private: "Private",
 }
 
+/** The type of keyvault used for KMS encryption. */
+@added(Versions.v2026_10_01)
+union KmsKeyVaultType {
+  string,
+
+  /** Standard Azure Key Vault. */
+  KeyVault: "KeyVault",
+
+  /** Azure Managed Hardware Security Module. */
+  ManagedHSM: "ManagedHSM",
+}
+
 /** The ETCD settings and configuration options. */
 model EtcdProfile {
   /** ETCD Data Encryption settings.
    * If not specified platform managed keys are used.
    */
   @visibility(Lifecycle.Read, Lifecycle.Create)
+  @removed(Versions.v2026_06_30_preview)
+  @renamedFrom(Versions.v2026_06_30_preview, "dataEncryption")
+  dataEncryptionNoUpdate?: EtcdDataEncryptionProfile;
+
+  /** ETCD Data Encryption settings.
+   * If not specified platform managed keys are used.
+   */
+  @added(Versions.v2026_06_30_preview)
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   dataEncryption?: EtcdDataEncryptionProfile;
 }
 
@@ -550,13 +669,29 @@ model EtcdDataEncryptionProfile {
   /** Specify the key management strategy used for the encryption key that encrypts the ETCD data.
    * By default, "PlatformManaged" is used.
    */
+  @removed(Versions.v2026_06_30_preview)
+  @renamedFrom(Versions.v2026_06_30_preview, "keyManagementMode")
   @visibility(Lifecycle.Read, Lifecycle.Create)
-  keyManagementMode?: EtcdDataEncryptionKeyManagementModeType = EtcdDataEncryptionKeyManagementModeType.PlatformManaged;
+  optionalKeyManagementMode?: EtcdDataEncryptionKeyManagementModeType = EtcdDataEncryptionKeyManagementModeType.PlatformManaged;
+
+  /** Specify the key management strategy used for the encryption key that encrypts the ETCD data. */
+  @added(Versions.v2026_06_30_preview)
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  keyManagementMode: EtcdDataEncryptionKeyManagementModeType;
 
   /** Specify customer managed encryption key details.
    * Required when keyManagementMode is "CustomerManaged".
    */
   @visibility(Lifecycle.Read, Lifecycle.Create)
+  @removed(Versions.v2026_06_30_preview)
+  @renamedFrom(Versions.v2026_06_30_preview, "customerManaged")
+  customerManagedNoUpdate?: CustomerManagedEncryptionProfile;
+
+  /** Specify customer managed encryption key details.
+   * Required when keyManagementMode is "CustomerManaged".
+   */
+  @added(Versions.v2026_06_30_preview)
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   customerManaged?: CustomerManagedEncryptionProfile;
 }
 
@@ -573,6 +708,16 @@ model CustomerManagedEncryptionProfile {
    * Required when encryptionType is "KMS".
    */
   @visibility(Lifecycle.Read, Lifecycle.Create)
+  @removed(Versions.v2026_06_30_preview)
+  @renamedFrom(Versions.v2026_06_30_preview, "kms")
+  kmsNoUpdate?: KmsEncryptionProfile;
+
+  /** The Key Management Service (KMS) encryption key details.
+   *
+   * Required when encryptionType is "KMS".
+   */
+  @added(Versions.v2026_06_30_preview)
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   kms?: KmsEncryptionProfile;
 }
 
@@ -595,7 +740,19 @@ model KmsEncryptionProfile {
 
   /** The details of the active key. */
   @visibility(Lifecycle.Read, Lifecycle.Create)
+  @removed(Versions.v2026_06_30_preview)
+  @renamedFrom(Versions.v2026_06_30_preview, "activeKey")
+  activeKeyNoUpdate: KmsKey;
+
+  /** The details of the active key. */
+  @added(Versions.v2026_06_30_preview)
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   activeKey: KmsKey;
+
+  /** The type of keyvault used for KMS encryption. Defaults to KeyVault when absent. */
+  @added(Versions.v2026_10_01)
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  keyVaultType?: KmsKeyVaultType = KmsKeyVaultType.KeyVault;
 }
 
 /** The encryption types supported for a customer managed key. */
@@ -614,6 +771,7 @@ union EtcdDataEncryptionKeyManagementModeType {
   CustomerManaged: "CustomerManaged",
 
   /** Platform managed encryption key management mode type. */
+  @removed(Versions.v2026_06_30_preview)
   PlatformManaged: "PlatformManaged",
 }
 
@@ -654,7 +812,14 @@ model NodePoolProperties {
   @minValue(0)
   replicas?: int32;
 
-  /** Auto-repair */
+  /** autoRepair specifies whether health checks should be enabled for machines
+   * in the NodePool. Enabling this feature will cause the controller to
+   * automatically delete unhealthy machines. The unhealthy criteria are
+   * determined by checking the Node Ready condition and a timeout that might
+   * vary depending on the platform provider. autoRepair will not take action
+   * when more than 2 Nodes are unhealthy at the same time, giving time for
+   * the cluster to stabilize or for the user to manually intervene.
+   */
   @visibility(Lifecycle.Read, Lifecycle.Create)
   autoRepair?: boolean = true;
 
@@ -662,15 +827,15 @@ model NodePoolProperties {
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   autoScaling?: NodePoolAutoScaling;
 
-  /** Kubernetes labels to propagate to the NodePool Nodes
+  /** Kubernetes labels to propagate to the NodePool Nodes.
    * Note that when the labels are updated this is only applied to newly
-   * create nodes in the Nodepool, existing node labels remain unchanged.
+   * created nodes in the NodePool, existing node labels remain unchanged.
    */
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   @identifiers(#["key", "value"])
   labels?: Label[];
 
-  /** Taints for the nodes */
+  /** Taints for the nodes. */
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   @identifiers(#["key", "value", "effect"])
   taints?: Taint[];
@@ -687,6 +852,18 @@ model NodePoolProperties {
    */
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   nodeDrainTimeoutMinutes?: int32;
+
+  /** Status of the node pool resource */
+  @visibility(Lifecycle.Read)
+  @added(Versions.v2026_06_30_preview)
+  @renamedFrom(Versions.v2026_10_01, "status")
+  @removed(Versions.v2026_10_01)
+  resourceStatus?: ResourceStatus;
+
+  /** Status of the node pool resource */
+  @visibility(Lifecycle.Read)
+  @added(Versions.v2026_10_01)
+  status?: NodePoolResourceStatus;
 }
 
 /** The taint effect the same as in Kubernetes */
@@ -749,18 +926,20 @@ model NodePoolVersionProfile {
    *
    *  If not specified, the default value is 'stable'.
    *
-   *  Note: The default value is not declared in the API specification because
-   *        of a TypeSpec bug with updatable fields. The default value will be
-   *        declared in a future API version once the TypeSpec bug is fixed.
-   *        https://github.com/Azure/typespec-azure/issues/1586
+   *  This property is intended to be updateable, but that support is not yet
+   *  complete. Until then, changing this value after node pool creation is rejected.
    */
+  // Note: The default value is not declared in the API specification because
+  //       of a TypeSpec bug with updatable fields. The default value will be
+  //       declared in a future API version once the TypeSpec bug is fixed.
+  //       https://github.com/Azure/typespec-azure/issues/1586
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   channelGroup?: string;
 }
 
 /** Azure node pool platform configuration */
 model NodePoolPlatformProfile {
-  /** The Azure resource ID of the worker subnet
+  /** The Azure resource ID of the worker subnet.
    * Note that a subnet cannot be reused between ARO-HCP Clusters, however the
    * same subnet can be used for NodePools of the same cluster.
    */
@@ -793,8 +972,20 @@ model NodePoolPlatformProfile {
 /** The settings and configuration options for OSDisk */
 model OsDiskProfile {
   /** The OS disk size in GiB */
+  @removed(Versions.v2026_06_30_preview)
+  @renamedFrom(Versions.v2026_06_30_preview, "sizeGiB")
   @visibility(Lifecycle.Read, Lifecycle.Create)
   @minValue(64)
+  noMaxSizeGiB?: int32 = 64;
+
+  /** The OS disk size in GiB. Maximum is 4095 GiB for Managed disks. For Ephemeral disks,
+   * the maximum is 2040 GiB; Azure may enforce a lower effective limit based on the
+   * selected VM size's local cache, temp, or NVMe capacity.
+   */
+  @added(Versions.v2026_06_30_preview)
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  @minValue(64)
+  @maxValue(4095)
   sizeGiB?: int32 = 64;
 
   /** The type of the disk storage account
@@ -899,6 +1090,13 @@ scalar DiskEncryptionSetResourceId
  * =======================================
  */
 
+/** HCP cluster admin credential request body */
+@added(Versions.v2026_09_01_preview)
+model HcpOpenShiftClusterAdminCredentialRequest {
+  /** PEM encoded certificate request */
+  certificateSigningRequest?: string;
+}
+
 /** HCP cluster admin credential */
 model HcpOpenShiftClusterAdminCredential {
   /** Admin kubeconfig with a temporary client certificate */
@@ -931,7 +1129,20 @@ model ExternalAuthProperties {
 
   /** An observation of the current state with additional information. */
   @visibility(Lifecycle.Read)
+  @removed(Versions.v2026_06_30_preview)
   condition?: ExternalAuthCondition;
+
+  /** Status of the external auth resource */
+  @visibility(Lifecycle.Read)
+  @added(Versions.v2026_06_30_preview)
+  @renamedFrom(Versions.v2026_10_01, "status")
+  @removed(Versions.v2026_10_01)
+  resourceStatus?: ResourceStatus;
+
+  /** Status of the external auth resource */
+  @visibility(Lifecycle.Read)
+  @added(Versions.v2026_10_01)
+  status?: ExternalAuthResourceStatus;
 
   /** Token Issuer profile */
   issuer: TokenIssuerProfile;
@@ -947,6 +1158,129 @@ model ExternalAuthProperties {
    * This configures how claims are validated and applied.
    */
   claim: ExternalAuthClaimProfile;
+}
+
+/** ResourceStatus represents the observed status of the resource. */
+@added(Versions.v2026_06_30_preview)
+model ResourceStatus {
+  /** The conditions on the resource */
+  @added(Versions.v2026_06_30_preview)
+  @visibility(Lifecycle.Read)
+  @identifiers(#["type"])
+  @maxItems(10)
+  conditions?: Condition[];
+}
+
+/** ClusterResourceStatus represents the observed status of the cluster resource. */
+@added(Versions.v2026_10_01)
+model ClusterResourceStatus {
+  /** The conditions on the resource */
+  ...ResourceStatus;
+
+  /** The observed active versions of the cluster.
+   * During upgrades, both the previous and target versions may be
+   * active simultaneously until the rollout completes, so this
+   * array can contain more than one entry. The ordering of entries
+   * has no meaning.
+   */
+  @added(Versions.v2026_10_01)
+  @visibility(Lifecycle.Read)
+  @identifiers(#["version"])
+  activeVersions?: ClusterActiveVersion[];
+}
+
+/** ClusterActiveVersion represents a version of a resource. */
+@added(Versions.v2026_10_01)
+model ClusterActiveVersion {
+  /** The version of the resource. Specified in major.minor, same as the input */
+  @visibility(Lifecycle.Read)
+  version: string;
+}
+
+/** NodePoolResourceStatus represents the observed status of the nodepool resource. */
+@added(Versions.v2026_10_01)
+model NodePoolResourceStatus {
+  ...ResourceStatus;
+
+  /** The observed active versions of the node pool.
+   * During upgrades, it is common for multiple versions to be active at the same time
+   * while old nodes are drained and replaced. The ordering of entries has no meaning.
+   */
+  @added(Versions.v2026_10_01)
+  @visibility(Lifecycle.Read)
+  @identifiers(#["version"])
+  activeVersions?: NodePoolActiveVersion[];
+}
+
+/** NodePoolActiveVersion represents a version of a resource. */
+@added(Versions.v2026_10_01)
+model NodePoolActiveVersion {
+  /** The version of the resource. Specified in major.minor.patch, same as the input */
+  @visibility(Lifecycle.Read)
+  version: string;
+}
+
+/** ExternalAuthResourceStatus represents the observed status of the external auth resource. */
+@added(Versions.v2026_10_01)
+model ExternalAuthResourceStatus {
+  ...ResourceStatus;
+}
+
+/** Condition represents an observation of a resource's state. */
+@added(Versions.v2026_06_30_preview)
+model Condition {
+  /** Type of the condition.
+   * This is a PascalCase identifier representing the type of the condition.
+   */
+  @visibility(Lifecycle.Read)
+  @maxLength(316)
+  @pattern(
+    "^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?([A-Za-z0-9]([-A-Za-z0-9_.]*[A-Za-z0-9])?)$",
+    "Condition type format following Kubernetes condition type conventions."
+  )
+  type: ConditionType;
+
+  /** The status of the condition. */
+  @visibility(Lifecycle.Read)
+  status: StatusType;
+
+  /** The last time the condition transitioned from one status to another. */
+  @visibility(Lifecycle.Read)
+  lastTransitionTime: utcDateTime;
+
+  /** A programmatic identifier indicating the reason for the condition's last transition.
+   * This value should be a CamelCase string.
+   */
+  @visibility(Lifecycle.Read)
+  @minLength(1)
+  @maxLength(1024)
+  @pattern(
+    "^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$",
+    "Reason must be a CamelCase string."
+  )
+  reason: string;
+
+  /** A human readable message indicating details about the transition.
+   * This may be an empty string.
+   */
+  @visibility(Lifecycle.Read)
+  @maxLength(32768)
+  message: string;
+}
+
+/** Representation of the possible condition types. */
+@added(Versions.v2026_06_30_preview)
+union ConditionType {
+  string,
+
+  /** Indicates that the resource is available. */
+  Available: "Available",
+
+  /** Indicates that the resource is in a degraded state. */
+  Degraded: "Degraded",
+
+  /** Indicates that the resource is in a progressing state. */
+  Progressing: "Progressing",
 }
 
 /** Condition defines an observation of the external auth state. */
@@ -974,7 +1308,7 @@ model ExternalAuthCondition {
   message: string;
 }
 
-/** Representation of the possible values of a external auths condition status. */
+/** Representation of the possible values of a condition status. */
 union StatusType {
   string,
 
@@ -1015,17 +1349,16 @@ model TokenIssuerProfile {
    * */
   url: url;
 
-  /** This configures the acceptable audiences the JWT token, issued by the identity
-   * provider, must be issued to. At least one of the entries must match the
-   * 'aud' claim in the JWT token.
+  /** This configures the acceptable audiences for JWT tokens issued by the identity provider.
+   * At least one of the entries must match the 'aud' claim in the JWT token.
    *
-   * audiences must contain at least one entry and must not exceed ten entries.
+   * Audiences must contain at least one entry and must not exceed ten entries.
    */
   @minItems(1)
   @maxItems(10)
   audiences: string[];
 
-  /** The issuer of the token
+  /** The issuer of the token.
    *
    * Certificate bundle to use to validate server certificates for the configured URL.
    * It must be PEM encoded and when not specified, the system trust is used.
@@ -1102,10 +1435,10 @@ model ExternalAuthClientComponentProfile {
 
 /** External Auth claim profile */
 model ExternalAuthClaimProfile {
-  /** The claim mappings */
+  /** The claim mappings. */
   mappings: TokenClaimMappingsProfile;
 
-  /** The claim validation rules */
+  /** The claim validation rules. */
   @identifiers(#["type", "requiredClaim"])
   validationRules?: TokenClaimValidationRule[];
 }
@@ -1135,8 +1468,8 @@ model GroupClaimProfile {
   @maxLength(256)
   claim: string;
 
-  /** Prefix for the claim external profile
-   * If this is specified prefixPolicy will be set to "Prefix" by default
+  /** Prefix for the claim external profile.
+   * If this is specified, prefixPolicy will be set to "Prefix" by default.
    */
   prefix?: string;
 }
@@ -1151,7 +1484,7 @@ model UsernameClaimProfile {
   @maxLength(256)
   claim: string;
 
-  /** Prefix for the claim external profile
+  /** Prefix for the claim external profile.
    * Must be set when the prefixPolicy field is set to 'Prefix' and must be unset
    * otherwise.
    */
@@ -1180,12 +1513,11 @@ model UsernameClaimProfile {
    *    and `claim` is set to:
    *    - "username": the mapped value will be "https://myoidc.tld#userA"
    *    - "email": the mapped value will be "userA@myoidc.tld"
-   *
-   * Note: The default value is not declared in the API specification because
-   *       of a TypeSpec bug with updatable fields. The default value will be
-   *       declared in a future API version once the TypeSpec bug is fixed.
-   *       https://github.com/Azure/typespec-azure/issues/1586
    */
+  // Note: The default value is not declared in the API specification because
+  //       of a TypeSpec bug with updatable fields. The default value will be
+  //       declared in a future API version once the TypeSpec bug is fixed.
+  //       https://github.com/Azure/typespec-azure/issues/1586
   prefixPolicy?: UsernameClaimPrefixPolicy;
 }
 

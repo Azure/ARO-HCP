@@ -1,0 +1,8 @@
+resourceGroups:
+- name: rg2
+  subscription: sub1
+  steps:
+  - name: deploy-cluster
+    action: ARMStack
+    template: cluster.bicep
+    parameters: cluster.tmpl.bicepparam

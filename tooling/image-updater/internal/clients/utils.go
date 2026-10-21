@@ -22,7 +22,41 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
+	"golang.org/x/sync/semaphore"
 )
+
+const maxConcurrentMetadataRequests int64 = 16
+
+var metadataRequestLimit = semaphore.NewWeighted(maxConcurrentMetadataRequests)
+
+func acquireMetadataRequest(ctx context.Context) (func(), error) {
+	if err := metadataRequestLimit.Acquire(ctx, 1); err != nil {
+		return nil, err
+	}
+	return func() { metadataRequestLimit.Release(1) }, nil
+}
+
+func validateCreationTimestamp(tagName string, timestamp time.Time) (time.Time, error) {
+	if timestamp.IsZero() || timestamp.Equal(time.Unix(0, 0).UTC()) {
+		return time.Time{}, fmt.Errorf("tag %s has no creation timestamp", tagName)
+	}
+	return timestamp, nil
+}
+
+// resolveCreationTimestamp validates an image config creation timestamp, falling
+// back to the date embedded in the tag name. Reproducible builders (e.g. Bazel)
+// pin the config timestamp to the Unix epoch, so the tag date is the only
+// ordering signal those images expose.
+func resolveCreationTimestamp(tagName string, timestamp time.Time) (time.Time, error) {
+	validated, err := validateCreationTimestamp(tagName, timestamp)
+	if err == nil {
+		return validated, nil
+	}
+	if parsedDate, ok := ParseDateFromTag(tagName); ok {
+		return parsedDate, nil
+	}
+	return time.Time{}, err
+}
 
 // RegistryClient defines the interface for container registry clients
 type RegistryClient interface {
@@ -72,7 +106,7 @@ func extractVersionLabel(ctx context.Context, registryURL, repository, tagName, 
 		return ""
 	}
 
-	remoteOpts := GetRemoteOptions(useAuth)
+	remoteOpts := append(GetRemoteOptions(useAuth), remote.WithContext(ctx))
 	desc, err := remote.Get(ref, remoteOpts...)
 	if err != nil {
 		// Network errors during version extraction are logged but don't fail the operation

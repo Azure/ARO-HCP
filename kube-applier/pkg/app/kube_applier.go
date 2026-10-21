@@ -24,6 +24,7 @@ import (
 
 	_ "k8s.io/component-base/metrics/prometheus/clientgo"
 
+	"github.com/go-logr/logr"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -33,13 +34,18 @@ import (
 	"k8s.io/client-go/tools/leaderelection"
 	"k8s.io/component-base/metrics/legacyregistry"
 
-	"github.com/Azure/ARO-HCP/internal/database/informers"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/informers/kubeapplierinformers"
+	sharedleaderelection "github.com/Azure/ARO-HCP/internal/leaderelection"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/internal/version"
 	"github.com/Azure/ARO-HCP/kube-applier/pkg/controllers/apply_desire"
-	"github.com/Azure/ARO-HCP/kube-applier/pkg/controllers/delete_desire"
 	"github.com/Azure/ARO-HCP/kube-applier/pkg/controllers/read_desire_manager"
 )
+
+// cosmosProbeTimeout bounds the Cosmos query behind /readyz so a hung query
+// cannot hold the handler open after the kubelet has given up on the probe.
+const cosmosProbeTimeout = 5 * time.Second
 
 // Run is the binary's main loop. It serves /healthz and /metrics, then runs
 // the controllers under a leader-election lease. Run returns when ctx is
@@ -56,39 +62,24 @@ func (o *Options) Run(ctx context.Context) error {
 
 	electionChecker := leaderelection.NewLeaderHealthzAdaptor(20 * time.Second)
 
-	var healthzServer, metricsServer *http.Server
-	defer func() {
-		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 31*time.Second)
-		defer shutdownCancel()
-		_ = shutdownHTTPServer(shutdownCtx, metricsServer, "metrics server")
-		_ = shutdownHTTPServer(shutdownCtx, healthzServer, "healthz server")
-	}()
-
-	errCh := make(chan error, 3)
-	wg := sync.WaitGroup{}
+	var (
+		mu   sync.Mutex
+		errs []error
+		wg   sync.WaitGroup
+	)
 
 	if o.HealthzServerListenAddress != "" {
-		healthGauge := promauto.With(o.metricsRegisterer()).NewGauge(prometheus.GaugeOpts{
-			Name: "kube_applier_health", Help: "kube_applier_health is 1 when healthy",
-		})
-		mux := http.NewServeMux()
-		mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
-			if err := electionChecker.Check(r); err != nil {
-				logger.Error(err, "readiness probe failed")
-				http.Error(w, "lease not renewed", http.StatusServiceUnavailable)
-				healthGauge.Set(0)
-				return
-			}
-			w.WriteHeader(http.StatusOK)
-			healthGauge.Set(1)
-		})
-		healthzServer = &http.Server{Addr: o.HealthzServerListenAddress, Handler: mux}
+		server := &http.Server{Addr: o.HealthzServerListenAddress, Handler: o.newHealthzMux(logger, electionChecker)}
 		wg.Add(1)
 		go func() {
-			defer kuberuntime.HandleCrash()
+			defer cancel(fmt.Errorf("healthz server exited"))
 			defer wg.Done()
-			logger.Info(fmt.Sprintf("healthz server listening on %s", o.HealthzServerListenAddress))
-			errCh <- healthzServer.ListenAndServe()
+			defer kuberuntime.HandleCrash()
+			if err := runHTTPServer(ctx, server, "healthz server"); err != nil {
+				mu.Lock()
+				errs = append(errs, err)
+				mu.Unlock()
+			}
 		}()
 	}
 
@@ -98,40 +89,82 @@ func (o *Options) Run(ctx context.Context) error {
 			o.metricsRegisterer(),
 			promhttp.HandlerFor(prometheus.Gatherers{o.metricsGatherer()}, promhttp.HandlerOpts{}),
 		))
-		metricsServer = &http.Server{Addr: o.MetricsServerListenAddress, Handler: mux}
+		server := &http.Server{Addr: o.MetricsServerListenAddress, Handler: mux}
 		wg.Add(1)
 		go func() {
-			defer kuberuntime.HandleCrash()
+			defer cancel(fmt.Errorf("metrics server exited"))
 			defer wg.Done()
-			logger.Info(fmt.Sprintf("metrics server listening on %s", o.MetricsServerListenAddress))
-			errCh <- metricsServer.ListenAndServe()
+			defer kuberuntime.HandleCrash()
+			if err := runHTTPServer(ctx, server, "metrics server"); err != nil {
+				mu.Lock()
+				errs = append(errs, err)
+				mu.Unlock()
+			}
 		}()
 	}
 
 	wg.Add(1)
 	go func() {
-		defer kuberuntime.HandleCrash()
+		defer cancel(fmt.Errorf("leader election exited"))
 		defer wg.Done()
-		err := o.runControllersUnderLeaderElection(ctx, electionChecker)
-		cancel(fmt.Errorf("leader election exited"))
-		errCh <- err
+		defer kuberuntime.HandleCrash()
+		if err := o.runControllersUnderLeaderElection(ctx, electionChecker); err != nil {
+			mu.Lock()
+			errs = append(errs, err)
+			mu.Unlock()
+		}
 	}()
 
-	<-ctx.Done()
 	wg.Wait()
-	close(errCh)
-
-	errs := []error{}
-	for err := range errCh {
-		if err != nil && !errors.Is(err, http.ErrServerClosed) {
-			errs = append(errs, err)
-		}
-	}
 	logger.Info(fmt.Sprintf("%s (%s) stopped", AppShortDescriptionName, version.CommitSHA))
 	return errors.Join(errs...)
 }
 
-// runControllersUnderLeaderElection wires the three controllers and runs them
+func (o *Options) newHealthzMux(logger logr.Logger, electionChecker *leaderelection.HealthzAdaptor) *http.ServeMux {
+	healthGauge := promauto.With(o.metricsRegisterer()).NewGauge(prometheus.GaugeOpts{
+		Name: "kube_applier_health", Help: "kube_applier_health is 1 when healthy",
+	})
+	mux := http.NewServeMux()
+	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+		if err := electionChecker.Check(r); err != nil {
+			logger.Error(err, "health probe failed: lease not renewed")
+			http.Error(w, "lease not renewed", http.StatusServiceUnavailable)
+			healthGauge.Set(0)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		healthGauge.Set(1)
+	})
+	mux.HandleFunc("/readyz", func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), cosmosProbeTimeout)
+		defer cancel()
+		if err := o.checkCosmos(ctx); err != nil {
+			logger.Error(err, "cosmos startup probe failed")
+			http.Error(w, "cosmos container not queryable", http.StatusServiceUnavailable)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	})
+	return mux
+}
+
+// checkCosmos issues one real data-plane query against cosmos.
+func (o *Options) checkCosmos(ctx context.Context) error {
+	pageSizeHint := int32(1)
+	iter, err := o.KubeApplierDBClient.Listers().ApplyDesires().List(ctx,
+		&cosmosstorageutils.DBClientListResourceDocsOptions{PageSizeHint: &pageSizeHint})
+	if err != nil {
+		return err
+	}
+	// The query is only issued once the iterator is pulled. An empty container
+	// yields no items and no error, which is a healthy result.
+	for range iter.Items(ctx) {
+		break
+	}
+	return iter.GetError()
+}
+
+// runControllersUnderLeaderElection wires the two controllers and runs them
 // inside the leader-election callback. Informers are started inside the
 // callback too: a non-leader replica should not be reading Cosmos.
 func (o *Options) runControllersUnderLeaderElection(
@@ -143,43 +176,43 @@ func (o *Options) runControllersUnderLeaderElection(
 	// scoped to this pod's MC; Listers() lists exactly that container's *Desires.
 	listers := o.KubeApplierDBClient.Listers()
 
-	applyInformer := informers.NewApplyDesireInformer(listers.ApplyDesires())
-	deleteInformer := informers.NewDeleteDesireInformer(listers.DeleteDesires())
-	readInformer := informers.NewReadDesireInformer(listers.ReadDesires())
+	applyInformer := kubeapplierinformers.NewApplyDesireInformer(listers.ApplyDesires(), o.KubeApplierDBClient)
+	readInformer := kubeapplierinformers.NewReadDesireInformer(listers.ReadDesires(), o.KubeApplierDBClient)
+
+	collector := newDesireCollector(
+		applyInformer.GetStore(),
+		readInformer.GetStore(),
+		o.metricsRegisterer(),
+	)
 
 	applyCtl, err := apply_desire.NewApplyDesireController(applyInformer, o.DynamicClient, o.KubeApplierDBClient, apply_desire.Config{})
 	if err != nil {
 		return fmt.Errorf("apply controller: %w", err)
-	}
-	deleteCtl, err := delete_desire.NewDeleteDesireController(deleteInformer, o.DynamicClient, o.KubeApplierDBClient, delete_desire.Config{})
-	if err != nil {
-		return fmt.Errorf("delete controller: %w", err)
 	}
 	readMgr, err := read_desire_manager.NewReadDesireInformerManagingController(readInformer, o.DynamicClient, o.KubeApplierDBClient, read_desire_manager.Config{})
 	if err != nil {
 		return fmt.Errorf("read manager: %w", err)
 	}
 
-	le, err := leaderelection.NewLeaderElector(leaderelection.LeaderElectionConfig{
+	leaderElectionConfig := leaderelection.LeaderElectionConfig{
 		Lock:          o.LeaderElectionLock,
-		LeaseDuration: leaderElectionLeaseDuration,
-		RenewDeadline: leaderElectionRenewDeadline,
-		RetryPeriod:   leaderElectionRetryPeriod,
+		LeaseDuration: sharedleaderelection.RecommendedLeaseDuration,
+		RenewDeadline: sharedleaderelection.RecommendedRenewDeadline,
+		RetryPeriod:   sharedleaderelection.RecommendedRetryPeriod,
 		Callbacks: leaderelection.LeaderCallbacks{
 			OnStartedLeading: func(ctx context.Context) {
 				logger.Info("acquired leader election lease; starting informers and controllers")
 				go applyInformer.RunWithContext(ctx)
-				go deleteInformer.RunWithContext(ctx)
 				go readInformer.RunWithContext(ctx)
 
 				if !cache.WaitForCacheSync(ctx.Done(),
-					applyInformer.HasSynced, deleteInformer.HasSynced, readInformer.HasSynced) {
+					applyInformer.HasSynced, readInformer.HasSynced) {
 					logger.Info("informer caches did not sync; aborting controller startup")
 					return
 				}
 
+				go collector.Run(ctx)
 				go applyCtl.Run(ctx, threadsApply)
-				go deleteCtl.Run(ctx, threadsDelete)
 				go readMgr.Run(ctx, threadsReadManager)
 			},
 			OnStoppedLeading: func() {
@@ -189,10 +222,15 @@ func (o *Options) runControllersUnderLeaderElection(
 		ReleaseOnCancel: true,
 		WatchDog:        electionChecker,
 		Name:            "kube-applier",
-	})
+	}
+
+	sharedleaderelection.LogLeaseProperties(logger, leaderElectionConfig)
+
+	le, err := leaderelection.NewLeaderElector(leaderElectionConfig)
 	if err != nil {
 		return err
 	}
+
 	le.Run(ctx)
 	return nil
 }
@@ -211,16 +249,34 @@ func (o *Options) metricsGatherer() prometheus.Gatherer {
 	return legacyregistry.DefaultGatherer
 }
 
-func shutdownHTTPServer(ctx context.Context, server *http.Server, name string) error {
-	if server == nil {
+// runHTTPServer runs the server and shuts it down when ctx is cancelled.
+// It returns nil if the server was shut down cleanly (http.ErrServerClosed),
+// or the underlying error if ListenAndServe failed for another reason.
+func runHTTPServer(ctx context.Context, server *http.Server, name string) error {
+	logger := utils.LoggerFromContext(ctx)
+
+	done := make(chan struct{})
+	defer close(done)
+	go func() {
+		defer kuberuntime.HandleCrash()
+		select {
+		case <-ctx.Done():
+			shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 31*time.Second)
+			defer shutdownCancel()
+			logger.Info(fmt.Sprintf("shutting down %s", name))
+			if err := server.Shutdown(shutdownCtx); err != nil {
+				logger.Error(err, fmt.Sprintf("failed to shut down %s", name))
+			} else {
+				logger.Info(fmt.Sprintf("%s shut down completed", name))
+			}
+		case <-done:
+		}
+	}()
+
+	logger.Info(fmt.Sprintf("%s listening on %s", name, server.Addr))
+	err := server.ListenAndServe()
+	if errors.Is(err, http.ErrServerClosed) {
 		return nil
 	}
-	logger := utils.LoggerFromContext(ctx)
-	logger.Info(fmt.Sprintf("shutting down %s", name))
-	if err := server.Shutdown(ctx); err != nil {
-		logger.Error(err, fmt.Sprintf("failed to shut down %s", name))
-		return err
-	}
-	logger.Info(fmt.Sprintf("%s shut down completed", name))
-	return nil
+	return err
 }

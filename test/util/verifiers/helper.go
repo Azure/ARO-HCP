@@ -27,12 +27,19 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
-func createArbitraryResource(ctx context.Context, dynamicClient dynamic.Interface, namespace string, resourceBytes []byte) (*unstructured.Unstructured, error) {
+func createArbitraryResource(ctx context.Context, dynamicClient dynamic.Interface, namespace string, resourceBytes []byte, mutators ...func(*unstructured.Unstructured) error) (*unstructured.Unstructured, error) {
 	desiredObj := &unstructured.Unstructured{}
 	if err := yaml.Unmarshal(resourceBytes, desiredObj); err != nil {
 		return nil, err
 	}
-	desiredObj.SetNamespace(namespace)
+
+	// Apply any caller-provided mutations (e.g. rewriting cluster-scoped
+	// resource names or references) before the resource is created.
+	for _, mutate := range mutators {
+		if err := mutate(desiredObj); err != nil {
+			return nil, err
+		}
+	}
 
 	restMapping, err := localRESTMapper.RESTMapping(desiredObj.GroupVersionKind().GroupKind(), desiredObj.GroupVersionKind().Version)
 	if err != nil {
@@ -40,9 +47,14 @@ func createArbitraryResource(ctx context.Context, dynamicClient dynamic.Interfac
 	}
 
 	if restMapping.Scope.Name() == meta.RESTScopeNameRoot {
+		// Cluster-scoped resources (e.g. SecurityContextConstraints) must not
+		// carry metadata.namespace; the API server rejects namespaced objects
+		// on root-scoped endpoints.
+		desiredObj.SetNamespace("")
 		return dynamicClient.Resource(restMapping.Resource).Create(ctx, desiredObj, metav1.CreateOptions{})
 	}
 
+	desiredObj.SetNamespace(namespace)
 	return dynamicClient.Resource(restMapping.Resource).Namespace(namespace).Create(ctx, desiredObj, metav1.CreateOptions{})
 }
 

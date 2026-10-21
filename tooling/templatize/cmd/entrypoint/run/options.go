@@ -18,8 +18,10 @@ import (
 	"compress/gzip"
 	"context"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -49,6 +51,7 @@ func BindOptions(opts *RawOptions, cmd *cobra.Command) error {
 	cmd.Flags().BoolVar(&opts.Persist, "persist-tag", opts.Persist, "toggle if persist tag should be set")
 	cmd.Flags().IntVar(&opts.DeploymentTimeoutSeconds, "deployment-timeout-seconds", opts.DeploymentTimeoutSeconds, "Timeout in Seconds to wait for previous deployments of the pipeline to finish")
 	cmd.Flags().BoolVar(&opts.AbortIfRegionalExist, "abort-if-regional-exist", opts.AbortIfRegionalExist, "Abort deployment if regional resource groups already exist (concurrent execution prevention)")
+	cmd.Flags().BoolVar(&opts.SkipBicepparamValidation, "skip-bicepparam-validation", opts.SkipBicepparamValidation, "Skip validation of bicepparam templates for simple field access.")
 
 	return nil
 }
@@ -59,6 +62,7 @@ type RawOptions struct {
 	Persist                  bool
 	DeploymentTimeoutSeconds int
 	AbortIfRegionalExist     bool
+	SkipBicepparamValidation bool
 
 	TimingOutputFile string
 	JUnitOutputFile  string
@@ -83,6 +87,7 @@ type completedOptions struct {
 	NoPersist                bool
 	DeploymentTimeoutSeconds int
 	AbortIfRegionalExist     bool
+	SkipBicepparamValidation bool
 
 	TimingOutputFile string
 	JUnitOutputFile  string
@@ -121,6 +126,7 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 			NoPersist:                !o.Persist,
 			DeploymentTimeoutSeconds: o.DeploymentTimeoutSeconds,
 			AbortIfRegionalExist:     o.AbortIfRegionalExist,
+			SkipBicepparamValidation: o.SkipBicepparamValidation,
 
 			TimingOutputFile: o.TimingOutputFile,
 			JUnitOutputFile:  o.JUnitOutputFile,
@@ -136,7 +142,17 @@ func (o *Options) Run(ctx context.Context) error {
 		}
 	}
 
-	subscriptionIdToAzureConfigDirectory, err := pipeline.GetAllRequiredAzureClients(ctx, o.Pipelines, o.Subscriptions)
+	allPipelines := slices.Collect(maps.Values(o.Pipelines))
+	for _, stampPipelines := range o.StampPipelines {
+		allPipelines = append(allPipelines, slices.Collect(maps.Values(stampPipelines))...)
+	}
+
+	subscriptionIDs, err := pipeline.ResolvePipelineSubscriptions(ctx, pipeline.LookupSubscriptionID(o.Subscriptions), allPipelines...)
+	if err != nil {
+		return fmt.Errorf("failed to resolve pipeline subscriptions: %w", err)
+	}
+
+	subscriptionIdToAzureConfigDirectory, err := pipeline.GetAllRequiredAzureClients(ctx, subscriptionIDs)
 	if err != nil {
 		return fmt.Errorf("failed to get all required Azure clients: %w", err)
 	}
@@ -149,7 +165,7 @@ func (o *Options) Run(ctx context.Context) error {
 	// Extract target resource group names from config for precheck
 	var regionRGNames []string
 	if o.AbortIfRegionalExist {
-		regionRGNames = entrypointutils.RegionalResourceGroupNames(o.Config)
+		regionRGNames = entrypointutils.RegionalResourceGroupNames(o.StampConfigs)
 	}
 
 	runOpts := &pipeline.PipelineRunOptions{
@@ -160,18 +176,20 @@ func (o *Options) Run(ctx context.Context) error {
 			DeploymentTimeoutSeconds:             o.DeploymentTimeoutSeconds,
 			StepCacheDir:                         o.StepCacheDir,
 			BicepClient:                          o.BicepClient,
+			SkipBicepparamValidation:             o.SkipBicepparamValidation,
 			SubscriptionIdToAzureConfigDirectory: subscriptionIdToAzureConfigDirectory,
 		},
 		TopoDirLookupFunc:     o.Topo.GetTopologyDirForServiceGroup,
 		Region:                o.Region,
 		Environment:           o.DeployEnv,
-		Stamp:                 o.Stamp,
 		SubsciptionLookupFunc: pipeline.LookupSubscriptionID(o.Subscriptions),
 		Concurrency:           o.Concurrency,
 		TimingOutputFile:      o.TimingOutputFile,
 		JUnitOutputFile:       o.JUnitOutputFile,
 		AbortIfRegionalExist:  o.AbortIfRegionalExist,
 		RegionRGNames:         regionRGNames,
+		StampConfigs:          o.StampConfigs,
+		StampPipelines:        o.StampPipelines,
 	}
 
 	if o.Entrypoint != nil {
@@ -179,7 +197,7 @@ func (o *Options) Run(ctx context.Context) error {
 		return err
 	}
 
-	_, err = pipeline.RunPipeline(o.Service, o.Pipelines[o.Service.ServiceGroup], ctx, runOpts, pipeline.RunStep)
+	_, err = pipeline.RunStampedPipeline(o.Service, o.Pipelines[o.Service.ServiceGroup], ctx, runOpts, pipeline.RunStep)
 	return err
 }
 

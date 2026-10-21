@@ -17,7 +17,7 @@ Using the `make run` target, the Backend binary can be run locally.
 
 The local code can also be deployed directly into a personal DEV environment by running `make deploy`. Understand that this requires such an environment to be created first via `make personal-dev-env` from the root of the repository.
 
-`make deploy` builds a custom developer image from the local code and uploads it to the DEV service ACR (`arohcpsvcdev`) into a developer specific repository. This way developer images will not conflict with other develooper images or CI built ones. The actual deployment is delegated to the pipeline/AdminAPI target in the root of the repository, providing a configuration override for `frontend.image.repository` and `frontend.image.digest` respectively.
+`make deploy` builds a custom developer image from the local code and uploads it to the DEV service ACR (`arohcpsvcdev`) into a developer specific repository. This way developer images will not conflict with other developer images or CI built ones. The actual deployment is delegated to the pipeline/RP.Backend target in the root of the repository, providing a configuration override for `backend.image.repository` and `backend.image.digest` respectively.
 
 ## Deployment
 

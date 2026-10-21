@@ -47,7 +47,7 @@ The higher-environment presubmit jobs are triggered manually when needed:
 These jobs target persistent environments that already exist in Azure:
 
 - **INT** runs tests from the Red Hat tenant against the service footprint in the MSIT Corp tenant
-- **STG** and **PROD** run tests from the Test Test Azure Red Hat OpenShift tenant against service footprints in the AME tenant
+- **STG and PROD** run tests from the Red Hat tenant against service footprints in the AME tenant
 
 Because those environments are already deployed before the PR merges, these jobs are most useful for validating E2E test changes and for checking behavior against a known shared environment. They are not the right signal for undeployed RP or infrastructure changes.
 
@@ -84,7 +84,7 @@ The charts below focus on that transaction path and the tenant and subscription 
 
 - **DEV** is a same-tenant, cross-subscription flow inside the Red Hat tenant.
 - **INT** runs tests from the Red Hat tenant against an RP footprint in the MSIT Corp tenant.
-- **STG / PROD** run tests from the Test Test Azure Red Hat OpenShift tenant against RP footprints in the AME tenant.
+- **STG / PROD** run tests from the Red Hat tenant against RP footprints in the AME tenant.
 - **Global scope** is shared by every regional RP instance in that environment.
 - **Regional scope** is the environment's regional service footprint; depending on the environment, `SVC` and `MGMT` can share a subscription or span multiple subscriptions.
 
@@ -189,10 +189,10 @@ flowchart LR
 flowchart LR
     subgraph stgChart[" "]
         direction LR
-        subgraph stgTestTenant["Test Test tenant"]
+        subgraph stgTestTenant["Red Hat tenant"]
             direction TB
-            stgId["OpenShift Release Bot MSFT Test<br/>service principal"]
-            subgraph stgTestSub["Testing subscription<br/>ARO HCP E2E - Staging"]
+            stgId["OpenShift Release Bot - STG<br/>service principal"]
+            subgraph stgTestSub["Testing subscription<br/>ARO HCP E2E Hosted Clusters - Stage - 00"]
                 direction TB
                 stgTestSubPad[".<br/>."]
                 subgraph stgRg["Test resource group"]
@@ -235,10 +235,10 @@ flowchart LR
 flowchart LR
     subgraph prodChart[" "]
         direction LR
-        subgraph prodTestTenant["Test Test tenant"]
+        subgraph prodTestTenant["Red Hat tenant"]
             direction TB
-            prodId["OpenShift Release Bot MSFT Test<br/>service principal"]
-            subgraph prodTestSub["Testing subscription<br/>ARO HCP E2E"]
+            prodId["OpenShift Release Bot - Prod<br/>service principal"]
+            subgraph prodTestSub["Testing subscription (sharded)<br/>ARO HCP E2E Hosted Clusters - Prod - 00 / - 01"]
                 direction TB
                 prodTestSubPad[".<br/>."]
                 subgraph prodRg["Test resource group"]
@@ -282,7 +282,7 @@ flowchart LR
 Each E2E mode starts from a CI identity:
 
 - **DEV and INT** use the `OpenShift Release Bot` service principal on the test side.
-- **STG and PROD** use the `OpenShift Release Bot MSFT Test` service principal in the Test Test Azure Red Hat OpenShift tenant.
+- **STG** uses the `OpenShift Release Bot - STG` and **PROD** uses the `OpenShift Release Bot - Prod` service principal, both in the Red Hat tenant.
 
 That identity is the caller that initiates the test-side Azure request. Across the job run, it creates one test resource group per test or spec.
 
@@ -341,17 +341,20 @@ See [CI Identity Leasing](identity-leasing.md) for the full lease lifecycle, sta
 
 The Boskos resource types that back those identity containers are defined in `openshift/release` by `core-services/prow/02_config/generate-boskos.py`.
 
-Today ARO HCP uses two acquire paths for those containers:
+ARO HCP uses slot-manager to acquire identity containers in both workflows:
 
 - DEV `e2e-parallel` uses the `aro-hcp-local-e2e` workflow, whose `aro-hcp-lease-acquire` step calls `slot-manager acquire`
-- higher-environment presubmit, EV2-gating, and periodic jobs still use ci-operator `leases:` directly
+- higher-environment presubmit, EV2-gating, and periodic jobs use `aro-hcp-persistent-e2e`, which also calls `slot-manager acquire`
 
-Operationally, the important distinction is:
+Slot-manager resolves a slot from the catalog, exports `SELECTED_LOCATION`,
+`CUSTOMER_SUBSCRIPTION`, and `LEASED_MSI_CONTAINERS`, and hands the leased
+identity-container set to the test framework.
 
-- the slot-manager path resolves a slot from the catalog, exports `SELECTED_LOCATION`, `CUSTOMER_SUBSCRIPTION`, and `LEASED_MSI_CONTAINERS`, and then hands the same leased identity-container set to the test framework
-- the legacy path still requests environment-specific identity-container resource types in job config and populates `LEASED_MSI_CONTAINERS` directly
-
-This document intentionally does not freeze the currently active runtime region in prose. If you need the live region or override for a job, inspect the current `openshift/release` ci-operator config.
+This document intentionally does not freeze current runtime weights or pinned
+regions in prose. If you need the live region-selection policy for a job,
+inspect its `LOCATION_WEIGHTS`, `LOCATION`, or
+`MULTISTAGE_PARAM_OVERRIDE_LOCATION` in the current `openshift/release`
+ci-operator config.
 
 ### MSI Mock Service Principal Pool
 

@@ -7,9 +7,6 @@ deployment:
     limits:
       memory: "{{ .maestro.server.k8s.resources.limits.memory }}"
   zoneCount: {{ .azureRegionAvailabilityZoneCount }}
-tracing:
-  address: "{{ .maestro.server.tracing.address }}"
-  exporter: "{{ .maestro.server.tracing.exporter }}"
 broker:
   host: "__brokerHost__"
   port: 8883
@@ -39,6 +36,9 @@ clustersService:
 backend:
   namespace: "{{ .backend.k8s.namespace }}"
   serviceAccount: "{{ .backend.k8s.serviceAccountName }}"
+fleet:
+  namespace: "{{ .fleet.k8s.namespace }}"
+  serviceAccount: "{{ .fleet.k8s.serviceAccountName }}"
 istio:
   restrictIngress: {{ .maestro.restrictIstioIngress }}
 azure:

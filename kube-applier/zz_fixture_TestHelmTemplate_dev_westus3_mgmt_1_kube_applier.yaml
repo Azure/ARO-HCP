@@ -1,4 +1,17 @@
 ---
+# Source: kube-applier/templates/kube-applier.poddisruptionbudget.yaml
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: kube-applier
+  namespace: kube-applier
+spec:
+  minAvailable: 1
+  unhealthyPodEvictionPolicy: AlwaysAllow
+  selector:
+    matchLabels:
+      app: kube-applier
+---
 # Source: kube-applier/templates/serviceaccount.yaml
 apiVersion: v1
 kind: ServiceAccount
@@ -54,9 +67,29 @@ rules:
   - patch
   - delete
 - apiGroups:
+  - ''
+  resources:
+  - services
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
   - certificates.k8s.io
   resources:
   - certificatesigningrequests
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - certificates.hypershift.openshift.io
+  resources:
+  - certificatesigningrequestapprovals
   verbs:
   - get
   - list
@@ -101,6 +134,40 @@ rules:
   - update
   - patch
   - delete
+- apiGroups:
+  - mgmtagent.aro-hcp.azure.com
+  resources:
+  - capacityreports
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - velero.io
+  resources:
+  - schedules
+  - backups
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - multitenancy.acn.azure.com
+  resources:
+  - podnetworks
+  - podnetworkinstances
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
 ---
 # Source: kube-applier/templates/clusterrolebinding.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -111,6 +178,20 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
   name: kube-applier
+subjects:
+- kind: ServiceAccount
+  name: 'kube-applier'
+  namespace: 'kube-applier'
+---
+# Source: kube-applier/templates/clusterrolebinding.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kube-applier-managedclusterset-admin
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: open-cluster-management:managedclusterset:admin:hypershift-management-clusters
 subjects:
 - kind: ServiceAccount
   name: 'kube-applier'
@@ -150,6 +231,24 @@ subjects:
   name: 'kube-applier'
   namespace: 'kube-applier'
 ---
+# Source: kube-applier/templates/metrics.service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: kube-applier
+    port: metrics
+  name: kube-applier-metrics
+  namespace: 'kube-applier'
+spec:
+  ports:
+  - port: 8081
+    protocol: TCP
+    targetPort: 8081
+    name: metrics
+  selector:
+    app: kube-applier
+---
 # Source: kube-applier/templates/deployment.yaml
 apiVersion: apps/v1
 kind: Deployment
@@ -160,7 +259,7 @@ metadata:
   namespace: 'kube-applier'
 spec:
   progressDeadlineSeconds: 600
-  replicas: 1
+  replicas: 2
   revisionHistoryLimit: 10
   selector:
     matchLabels:
@@ -176,6 +275,20 @@ spec:
         app: kube-applier
         azure.workload.identity/use: "true"
     spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: aro-hcp.azure.com/role
+                operator: In
+                values:
+                - "infra"
+      tolerations:
+      - key: "infra"
+        operator: Equal
+        value: "true"
+        effect: NoSchedule
       topologySpreadConstraints:
       - maxSkew: 1
         topologyKey: 'topology.kubernetes.io/zone'
@@ -190,6 +303,7 @@ spec:
           matchLabels:
             app: kube-applier
       serviceAccountName: 'kube-applier'
+      priorityClassName: service-lifecycle-critical
       containers:
       - name: kube-applier
         image: 'arohcpsvcdev.azurecr.io/kube-applier@sha256:1234567890'
@@ -210,6 +324,19 @@ spec:
         - name: metrics
           containerPort: 8081
           protocol: TCP
+        startupProbe:
+          httpGet:
+            path: /readyz
+            port: healthz
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 30
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: healthz
+          periodSeconds: 20
+          failureThreshold: 3
         readinessProbe:
           httpGet:
             path: /healthz
@@ -228,8 +355,8 @@ spec:
             type: RuntimeDefault
         resources:
           requests:
-            cpu: 100m
-            memory: 128Mi
+            cpu: 260m
+            memory: 224Mi
       restartPolicy: Always
       terminationGracePeriodSeconds: 30
 ---
@@ -250,4 +377,24 @@ spec:
       clientID: '__imagePullerMsiClientId__'
       tenantID: '__imagePullerMsiTenantId__'
   serviceAccountName: 'kube-applier'
+---
+# Source: kube-applier/templates/servicemonitor.yaml
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: kube-applier
+  namespace: 'kube-applier'
+spec:
+  endpoints:
+  - interval: 30s
+    path: /metrics
+    port: metrics
+    scheme: http
+  namespaceSelector:
+    matchNames:
+    - 'kube-applier'
+  selector:
+    matchLabels:
+      app: kube-applier
+      port: metrics
 

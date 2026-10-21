@@ -406,13 +406,15 @@ func setupPortForwarding(ctx context.Context, params *ExecutionParams, localPort
 	}()
 
 	// Wait for port forwarding to be ready
+	timer := time.NewTimer(PortForwardTimeout)
+	defer timer.Stop()
 	select {
 	case <-readyCh:
 		logger.V(1).Info("Port forwarding established", "service", kasServiceName, "localPort", localPort, "remotePort", KubeAPIServerPort, "namespace", params.Namespace)
 	case <-ctx.Done():
 		stopOnce.Do(func() { close(stopCh) })
 		return nil, nil, fmt.Errorf("context cancelled while waiting for port forwarding")
-	case <-time.After(PortForwardTimeout):
+	case <-timer.C:
 		stopOnce.Do(func() { close(stopCh) })
 		return nil, nil, fmt.Errorf("timeout waiting for port forwarding setup")
 	}

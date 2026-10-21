@@ -1,0 +1,267 @@
+// Copyright 2025 Microsoft Corporation
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package datadump
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"strings"
+	"time"
+
+	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
+	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
+
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	corelisters "github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/ocm"
+	"github.com/Azure/ARO-HCP/internal/utils"
+)
+
+type csStateDump struct {
+	clusterLister  corelisters.ClusterLister
+	nodePoolLister corelisters.NodePoolLister
+	csClient       ocm.ClusterServiceClientSpec
+
+	// nextDumpChecker ensures we don't hotloop from any source.
+	nextDumpChecker controllerutil.CooldownChecker
+}
+
+const CSStateDumpControllerName = "CSStateDump"
+
+// NewCSStateDumpController periodically fetches cluster-service state for each cluster and dumps it to logs.
+func NewCSStateDumpController(
+	resourcesDBClient corecosmosstorage.ResourcesDBClient,
+	clusterLister corelisters.ClusterLister,
+	nodePoolLister corelisters.NodePoolLister,
+	activeOperationLister corelisters.ActiveOperationLister,
+	backendInformers coreinformers.BackendInformers,
+	csClient ocm.ClusterServiceClientSpec,
+) controllerutils.Controller {
+	syncer := &csStateDump{
+		clusterLister:   clusterLister,
+		nodePoolLister:  nodePoolLister,
+		csClient:        csClient,
+		nextDumpChecker: controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
+	}
+
+	// kubeApplierInformers is intentionally omitted. SyncOnce only logs Cluster Service
+	// cluster and node pool state, so cluster-scoped ReadDesire and ApplyDesire updates
+	// must not requeue it. Those updates are management-cluster observations and apply
+	// status, not a change to the Cluster Service documents this controller dumps.
+	controller := controllerutils.NewClusterWatchingController(
+		CSStateDumpControllerName,
+		resourcesDBClient,
+		backendInformers,
+		nil,
+		1*time.Minute,
+		syncer,
+	)
+	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
+	controller.AddInterestingResource(coreapi.NodePoolResourceType, "*")
+
+	return controller
+}
+
+func (c *csStateDump) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
+	if !c.nextDumpChecker.CanSync(ctx, key) {
+		return nil
+	}
+
+	logger := utils.LoggerFromContext(ctx)
+
+	// Get the cluster from the informer cache to retrieve the ClusterServiceID
+	cluster, err := c.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	if cosmosstorageutils.IsNotFoundError(err) {
+		// Cluster doesn't exist in the informer cache, nothing to dump
+		return nil
+	}
+	if err != nil {
+		logger.Error(err, "failed to get cluster from informer cache for CS state dump")
+		return nil // best effort, don't fail
+	}
+
+	if cluster.ServiceProviderProperties.ClusterServiceID == nil || len(cluster.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
+		// No ClusterServiceID yet, cluster hasn't been registered with CS
+		return nil
+	}
+	csID := cluster.ServiceProviderProperties.ClusterServiceID
+
+	// Fetch cluster state from cluster-service
+	csCluster, err := c.csClient.GetCluster(ctx, *csID)
+	if err != nil {
+		logger.Error(err, "failed to get cluster from cluster-service for CS state dump")
+		// Continue with what we have
+	}
+	// Convert to structured JSON for logging
+	var clusterData map[string]any
+	if csCluster != nil {
+		clusterData, err = csObjectToMap(csCluster)
+		if err != nil {
+			logger.Error(err, "failed to serialize cluster-service cluster to JSON")
+			// Continue with what we have
+		}
+	}
+
+	logger.Info("cluster-service state dump",
+		"clusterServiceID", csID.String(),
+		"csCluster", clusterData,
+	)
+
+	// Fetch and dump node pools. Cluster Service documents come from one List.
+	allNodePools, err := c.nodePoolLister.ListForCluster(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	if err != nil {
+		logger.Error(err, "failed to list node pools from informer cache for CS state dump")
+		// best effort, don't fail
+		return nil
+	}
+
+	csNodePoolsByID, err := c.listNodePoolsByID(ctx, *csID)
+	if err != nil {
+		logger.Error(err, "failed to list node pools from cluster-service for CS state dump")
+		return nil
+	}
+
+	for _, nodePool := range allNodePools {
+		npCSID := nodePool.ServiceProviderProperties.ClusterServiceID
+		if npCSID == nil || len(npCSID.String()) == 0 {
+			// No ClusterServiceID yet, node pool hasn't been registered with CS
+			continue
+		}
+
+		csNodePool := csNodePoolsByID[npCSID.String()]
+		if csNodePool == nil {
+			logger.Error(fmt.Errorf("node pool %s was not returned by cluster-service", npCSID.String()),
+				"failed to get node pool from cluster-service for CS state dump",
+				"nodePoolClusterServiceID", npCSID.String(),
+			)
+			continue
+		}
+
+		var nodePoolData map[string]any
+		nodePoolData, err = csObjectToMap(csNodePool)
+		if err != nil {
+			logger.Error(err, "failed to serialize cluster-service node pool to JSON",
+				"nodePoolClusterServiceID", npCSID.String(),
+			)
+			continue
+		}
+
+		logger.Info("cluster-service node pool state dump",
+			"clusterServiceID", csID.String(),
+			"nodePoolClusterServiceID", npCSID.String(),
+			"hcp_nodepool_name", nodePool.ID,
+			"csNodePool", nodePoolData,
+		)
+	}
+
+	return nil
+}
+
+// listNodePoolsByID lists a cluster's node pools once and indexes them by Cluster Service href.
+func (c *csStateDump) listNodePoolsByID(ctx context.Context, csID ocm.InternalID) (map[string]*arohcpv1alpha1.NodePool, error) {
+	logger := utils.LoggerFromContext(ctx)
+	csNodePoolsByID := map[string]*arohcpv1alpha1.NodePool{}
+	nodePoolIter := c.csClient.ListNodePools(csID, "")
+	for csNodePool := range nodePoolIter.Items(ctx) {
+		if csNodePool == nil {
+			continue
+		}
+		href, ok := csNodePool.GetHREF()
+		if !ok || len(href) == 0 {
+			logger.Error(fmt.Errorf("node pool %s was returned without an href", csNodePool.ID()),
+				"cluster-service node pool list item is missing href",
+			)
+			continue
+		}
+		csNodePoolsByID[strings.ToLower(href)] = csNodePool
+	}
+	if err := nodePoolIter.GetError(); err != nil {
+		return nil, err
+	}
+	return csNodePoolsByID, nil
+}
+
+// csObjectToMap serializes a cluster-service object to JSON and then decodes it into a map[string]any
+// for structured logging. This approach handles the ocm-sdk types which use custom JSON marshaling.
+func csObjectToMap(obj any) (map[string]any, error) {
+	if obj == nil {
+		return nil, nil
+	}
+
+	// Marshal to JSON
+	jsonBytes, err := MarshalClusterServiceAny(obj)
+	if err != nil {
+		return nil, err
+	}
+
+	// Unmarshal into map[string]any
+	var result map[string]any
+	if err := json.Unmarshal(jsonBytes, &result); err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+
+// cluster service types fight the standard golang stack and don't conform to standard json interfaces.
+func MarshalClusterServiceAny(clusterServiceData any) ([]byte, error) {
+	switch castObj := clusterServiceData.(type) {
+	case *arohcpv1alpha1.Cluster:
+		buf := &bytes.Buffer{}
+		if err := arohcpv1alpha1.MarshalCluster(castObj, buf); err != nil {
+			return nil, err
+		}
+		return buf.Bytes(), nil
+	case *arohcpv1alpha1.ClusterAutoscaler:
+		buf := &bytes.Buffer{}
+		if err := arohcpv1alpha1.MarshalClusterAutoscaler(castObj, buf); err != nil {
+			return nil, err
+		}
+		return buf.Bytes(), nil
+	case *arohcpv1alpha1.ExternalAuth:
+		buf := &bytes.Buffer{}
+		if err := arohcpv1alpha1.MarshalExternalAuth(castObj, buf); err != nil {
+			return nil, err
+		}
+		return buf.Bytes(), nil
+	case *arohcpv1alpha1.NodePool:
+		buf := &bytes.Buffer{}
+		if err := arohcpv1alpha1.MarshalNodePool(castObj, buf); err != nil {
+			return nil, err
+		}
+		return buf.Bytes(), nil
+	case *arohcpv1alpha1.ProvisionShard:
+		buf := &bytes.Buffer{}
+		if err := arohcpv1alpha1.MarshalProvisionShard(castObj, buf); err != nil {
+			return nil, err
+		}
+		return buf.Bytes(), nil
+	case *cmv1.HypershiftConfig:
+		buf := &bytes.Buffer{}
+		if err := cmv1.MarshalHypershiftConfig(castObj, buf); err != nil {
+			return nil, err
+		}
+		return buf.Bytes(), nil
+	default:
+		return nil, fmt.Errorf("unknown type: %T", castObj)
+	}
+}

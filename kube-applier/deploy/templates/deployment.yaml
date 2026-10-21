@@ -23,6 +23,20 @@ spec:
         app: kube-applier
         azure.workload.identity/use: "true"
     spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: aro-hcp.azure.com/role
+                operator: In
+                values:
+                - {{ .Values.schedulingRole | quote }}
+      tolerations:
+      - key: {{ ternary "CriticalAddonsOnly" "infra" (eq .Values.schedulingRole "system") | quote }}
+        operator: Equal
+        value: "true"
+        effect: NoSchedule
       topologySpreadConstraints:
       - maxSkew: 1
         topologyKey: '{{ if eq (int .Values.deployment.zoneCount) 0 }}kubernetes.azure.com/agentpool{{ else }}topology.kubernetes.io/zone{{ end }}'
@@ -37,6 +51,7 @@ spec:
           matchLabels:
             app: kube-applier
       serviceAccountName: '{{ .Values.serviceAccount.name }}'
+      priorityClassName: service-lifecycle-critical
       containers:
       - name: kube-applier
         image: '{{ .Values.deployment.imageName }}'
@@ -57,6 +72,19 @@ spec:
         - name: metrics
           containerPort: 8081
           protocol: TCP
+        startupProbe:
+          httpGet:
+            path: /readyz
+            port: healthz
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 30
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: healthz
+          periodSeconds: 20
+          failureThreshold: 3
         readinessProbe:
           httpGet:
             path: /healthz

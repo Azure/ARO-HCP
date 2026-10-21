@@ -1,8 +1,11 @@
 using '../templates/svc-cluster.bicep'
 
-param istioVersions = '{{ .svc.istio.versions }}'
+param useLeasedInfrastructureIdentities = {{ .infrastructureIdentities.useLeased }}
+param infrastructureIdentityResourceGroup = '{{ .infrastructureIdentities.serviceResourceGroup }}'
+param leasedAksIdentityName = '{{ .infrastructureIdentities.serviceAksIdentityName }}'
 
 // AKS
+param systemPoolOnly = {{ .svc.aks.systemPoolOnly }}
 param kubernetesVersion = '{{ .svc.aks.kubernetesVersion }}'
 param vnetAddressPrefix = '{{ .svc.aks.vnetAddressPrefix }}'
 param subnetPrefix = '{{ .svc.aks.subnetPrefix }}'
@@ -40,8 +43,14 @@ param infraZoneRedundantMode = '{{ .svc.aks.infraAgentPool.zoneRedundantMode }}'
 param infraOsDiskSizeGB = {{ .svc.aks.infraAgentPool.osDiskSizeGB }}
 param userOsDiskSizeGB = {{ .svc.aks.userAgentPool.osDiskSizeGB }}
 param aksClusterOutboundIPAddressIPTags = '{{ .svc.aks.clusterOutboundIPAddressIPTags }}'
+// istioVersions intentionally not passed — mesh revisions are managed by the
+// IstioUpgrade pipeline step, not baked into the ARM template. Passing them
+// here would cause every ARM deployment to overwrite revisions the pipeline
+// step had already advanced, potentially rolling back an in-progress upgrade.
 param aksNetworkDataplane = '{{ .svc.aks.networkDataplane }}'
-param aksNetworkPolicy = '{{ .svc.aks.networkDataplane }}'
+param aksNetworkPolicy = '{{ .svc.aks.networkPolicy }}'
+param aksUpgradeSettingsMaxSurge = '{{ .svc.aks.upgradeSettings.maxSurge }}'
+param aksUpgradeSettingsMaxUnavailable = '{{ .svc.aks.upgradeSettings.maxUnavailable }}'
 
 param rpCosmosDbName = '{{ .frontend.cosmosDB.name }}'
 param rpCosmosDbPrivate = {{ .frontend.cosmosDB.private }}
@@ -57,14 +66,14 @@ param sessiongateMIName = '{{ .sessiongate.managedIdentityName }}'
 param sessiongateNamespace = '{{ .sessiongate.k8s.namespace }}'
 param sessiongateServiceAccountName = '{{ .sessiongate.k8s.serviceAccountName }}'
 param sessiongateIngressCertName = '{{ .sessiongate.cert.name }}'
-param sessiongateIngressCertIssuer = '{{ .sessiongate.cert.issuer }}'
+param sessiongateIngressCertSAN = '{{ .sessiongate.cert.san }}'
 
 param maestroMIName = '{{ .maestro.server.managedIdentityName }}'
 param maestroNamespace = '{{ .maestro.server.k8s.namespace }}'
 param maestroServiceAccountName = '{{ .maestro.server.k8s.serviceAccountName }}'
 param maestroEventGridNamespacesName = '{{ .maestro.eventGrid.name }}'
 param maestroServerMqttClientName = '{{ .maestro.server.mqttClientName }}'
-param maestroCertDomain = '{{ .maestro.certDomain }}'
+param maestroServerCertSAN = '{{ .maestro.server.certSAN }}'
 param maestroCertIssuer = '{{ .maestro.certIssuer }}'
 param maestroPostgresServerName = '{{ .maestro.postgres.name }}'
 param maestroPostgresServerMinTLSVersion = '{{ .maestro.postgres.minTLSVersion }}'
@@ -107,7 +116,7 @@ param adminApiMIName = '{{ .adminApi.managedIdentityName }}'
 param adminApiNamespace = '{{ .adminApi.k8s.namespace }}'
 param adminApiServiceAccountName = '{{ .adminApi.k8s.serviceAccountName }}'
 param adminApiIngressCertName = '{{ .adminApi.cert.name }}'
-param adminApiIngressCertIssuer = '{{ .adminApi.cert.issuer }}'
+param adminApiIngressCertSAN = '{{ .adminApi.cert.san }}'
 
 param fleetMIName = '{{ .fleet.managedIdentityName }}'
 param fleetNamespace = '{{ .fleet.k8s.namespace }}'
@@ -140,13 +149,9 @@ param regionalSvcDNSZoneName = '{{ .dns.regionalSubdomain }}.{{ .dns.svcParentZo
 param regionalResourceGroup = '{{ .regionRG }}'
 
 param frontendIngressCertName = '{{ .frontend.cert.name }}'
-param frontendIngressCertIssuer = '{{ .frontend.cert.issuer }}'
+param frontendIngressCertSAN = '{{ .frontend.cert.san }}'
 param genevaActionsServiceTag = '{{ .geneva.actions.serviceTag }}'
 param sreServiceTag = '{{ .administration.sreServiceTag }}'
-
-param fpaCertificateName = '{{ .firstPartyAppCertificate.name }}'
-param fpaCertificateIssuer = '{{ .firstPartyAppCertificate.issuer }}'
-param manageFpaCertificate = {{ .firstPartyAppCertificate.manage }}
 
 // Azure Monitor Workspace
 param azureMonitoringWorkspaceId = '__azureMonitoringWorkspaceId__'
@@ -161,13 +166,11 @@ param svcNSPAccessMode = '{{ .svc.nsp.accessMode }}'
 param serviceKeyVaultAsignNSP = {{ .serviceKeyVault.assignNSP }}
 
 // Geneva logging settings
-param genevaCertificateDomain = '{{ .geneva.logs.certificateDomain }}'
-param genevaCertificateIssuer = '{{ .geneva.logs.certificateIssuer }}'
 param genevaRpLogsName = '{{ .geneva.logs.rp.secretName }}'
-param genevaManageCertificates = {{ .geneva.logs.manageCertificates }}
 
 // Alert rules tag value
 param owningTeamTagValue = '{{ .monitoring.alertRuleOwningTeamTag }}'
+param aksClusterTags = '{{ .svc.aks.tags }}'
 
 
 param resourceContainerMaxScale = {{ .frontend.cosmosDB.resourceContainerMaxScale }}

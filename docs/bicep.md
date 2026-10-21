@@ -74,7 +74,7 @@ resourceGroups:
 
 1. The name of the group, within the pipeline
 2. The name of Azure resourcegroup targeted by this deployment
-3. The name of the Azue Subscription targeted by this deployment. When deploying via EV2, this needs to reference an [EV2 subscription key](https://ev2docs.azure.net/features/service-artifacts/actions/subscriptionProvisioningParameters.html#subscription-key)
+3. The name of the Azure Subscription targeted by this deployment. When deploying via EV2, this needs to reference an [EV2 subscription key](https://ev2docs.azure.net/features/service-artifacts/actions/subscriptionProvisioningParameters.html#subscription-key)
 4. The name of the Azure deployment
 5. The action type `ARM` marks this step as ARM/Bicep deployment action
 6. File reference to the Bicep template, relative to the location of the pipeline file
@@ -166,9 +166,9 @@ resourceGroups:
 
 ## Dry-runs
 
-We leverage ARMs [what-if](https://learn.microsoft.com/en-us/azure/azure-resource-manager/templates/deploy-what-if?tabs=azure-powershell) functionlity to conduct some basic testing on Bicep templates changes before running them towards any environment.
+We leverage ARMs [what-if](https://learn.microsoft.com/en-us/azure/azure-resource-manager/templates/deploy-what-if?tabs=azure-powershell) functionality to conduct some basic testing on Bicep templates changes before running them towards any environment.
 
 Bicep deployments will not provide any `output` values required for [output chaining](#output-templates-and-output-chaining) when running in `what-if` mode. To mitigate this, depend only on `outputOnly` steps backed by an `output-*.bicep` template. Our pipeline PR checks will execute proper deployments for `outputOnly: true` steps even during pipeline dry-runs, to ensure expected output chaining variables can be passed between steps. There are safeguards in place to ensure an `outputOnly: true` step does not declare and potentially modify any Azure resources.
 
 > [!WARNING]
-> `what-if` runs do not replace proper testing as the functionality is limited and heavily depends on the preflight checks of the involved Azure Resource Providers. Don't assume a template will deploy successfuly when it passes a dry-run. But rest assured the deployment will fail with certainty if the dry-run fails.
+> `what-if` runs do not replace proper testing as the functionality is limited and heavily depends on the preflight checks of the involved Azure Resource Providers. Don't assume a template will deploy successfully when it passes a dry-run. But rest assured the deployment will fail with certainty if the dry-run fails.

@@ -23,20 +23,20 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 )
 
 // replaceWithETagStep reads the current resource to get its etag, then performs a replace
 // with the updated resource data and the current etag. This tests the positive case
 // for etag-based conditional replace.
-type replaceWithETagStep[InternalAPIType any] struct {
+type replaceWithETagStep[InternalAPIType any, InternalAPITypePointer coreapi.CosmosMetadataAccessorPtr[InternalAPIType]] struct {
 	stepID StepID
 	key    CosmosItemKey
 
 	resources []*InternalAPIType
 }
 
-func newReplaceWithETagStep[InternalAPIType any](stepID StepID, stepDir fs.FS) (*replaceWithETagStep[InternalAPIType], error) {
+func newReplaceWithETagStep[InternalAPIType any, InternalAPITypePointer coreapi.CosmosMetadataAccessorPtr[InternalAPIType]](stepID StepID, stepDir fs.FS) (*replaceWithETagStep[InternalAPIType, InternalAPITypePointer], error) {
 	keyBytes, err := fs.ReadFile(stepDir, "00-key.json")
 	if err != nil {
 		return nil, fmt.Errorf("failed to read key.json: %w", err)
@@ -51,21 +51,19 @@ func newReplaceWithETagStep[InternalAPIType any](stepID StepID, stepDir fs.FS) (
 		return nil, fmt.Errorf("failed to read resource in dir: %w", err)
 	}
 
-	return &replaceWithETagStep[InternalAPIType]{
+	return &replaceWithETagStep[InternalAPIType, InternalAPITypePointer]{
 		stepID:    stepID,
 		key:       key,
 		resources: resources,
 	}, nil
 }
 
-var _ IntegrationTestStep = &replaceWithETagStep[any]{}
-
-func (l *replaceWithETagStep[InternalAPIType]) StepID() StepID {
+func (l *replaceWithETagStep[InternalAPIType, InternalAPITypePointer]) StepID() StepID {
 	return l.stepID
 }
 
-func (l *replaceWithETagStep[InternalAPIType]) RunTest(ctx context.Context, t *testing.T, stepInput StepInput) {
-	resourceCRUDClient := NewCosmosCRUD[InternalAPIType](t, stepInput.ResourcesDBClient, l.key.ResourceID.Parent, l.key.ResourceID.ResourceType)
+func (l *replaceWithETagStep[InternalAPIType, InternalAPITypePointer]) RunTest(ctx context.Context, t *testing.T, stepInput StepInput) {
+	resourceCRUDClient := NewCosmosCRUD[InternalAPIType, InternalAPITypePointer](t, stepInput.ResourcesDBClient, l.key.ResourceID.Parent, l.key.ResourceID.ResourceType)
 
 	// First, read the current resource to get its CosmosMetadata (etag plus
 	// instance version). The Replace path requires both: a matching etag for
@@ -91,12 +89,12 @@ func (l *replaceWithETagStep[InternalAPIType]) RunTest(ctx context.Context, t *t
 	}
 }
 
-// cosmosDataFor returns the embedded *arm.CosmosMetadata from a resource that
-// implements arm.CosmosPersistable. Returns nil if the value doesn't satisfy
+// cosmosDataFor returns the embedded *coreapi.CosmosMetadata from a resource that
+// implements coreapi.CosmosPersistable. Returns nil if the value doesn't satisfy
 // the interface (no resource in the suite is expected to fall in that case;
 // the nil return preserves the previous getETagFromResource behavior).
-func cosmosDataFor(resource any) *arm.CosmosMetadata {
-	if p, ok := resource.(arm.CosmosPersistable); ok {
+func cosmosDataFor(resource any) *coreapi.CosmosMetadata {
+	if p, ok := resource.(coreapi.CosmosPersistable); ok {
 		return p.GetCosmosData()
 	}
 	return nil

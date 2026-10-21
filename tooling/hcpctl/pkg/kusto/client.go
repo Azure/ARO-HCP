@@ -124,6 +124,9 @@ func (c *Client) ExecutePreconfiguredQuery(ctx context.Context, query Query, out
 	// Process the first table (primary result)
 	logger.V(6).Info("Processing primary result")
 	primaryResult := <-dataset.Tables()
+	if primaryResult == nil {
+		return nil, fmt.Errorf("query %q returned no primary result (KQL: %s)", query.GetName(), query.GetQuery().String())
+	}
 
 	err = primaryResult.Err()
 	if err != nil {
@@ -137,12 +140,12 @@ func (c *Client) ExecutePreconfiguredQuery(ctx context.Context, query Query, out
 	columnsSet := false
 	for row := range primaryResult.Table().Rows() {
 		logger.V(8).Info("Processing row", "rowNumber", totalRows)
+		if err := row.Err(); err != nil {
+			return nil, fmt.Errorf("failed to read query %q result (KQL: %s): %w", query.GetName(), query.GetQuery().String(), err)
+		}
 		row := row.Row()
 		if row == nil {
-			if query.IsUnlimited() {
-				logger.Error(fmt.Errorf("query is unlimited and result is nil, most likely a server-side error occurred. Try rerunning the query with limits"), "error while getting result")
-			}
-			continue
+			return nil, fmt.Errorf("query %q returned a nil row (KQL: %s)", query.GetName(), query.GetQuery().String())
 		}
 		if !columnsSet && row.Columns() != nil {
 			columns = row.Columns()

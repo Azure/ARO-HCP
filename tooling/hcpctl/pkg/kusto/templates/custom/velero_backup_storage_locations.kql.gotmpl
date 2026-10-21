@@ -1,0 +1,45 @@
+// Velero BackupStorageLocations: snapshot history of the BSL CRs on the management cluster(s)
+// hosting the target HCP, for backup-failure debugging (ARO-28989). BSLs are shared, cluster-scoped
+// Velero config (the ARO backup controller points every HCP Backup at StorageLocation "default"),
+// so they carry NO per-HCP ARM resource-id annotation and cannot be pinned to a single HCP. Instead
+// the result is scoped to the mgmt cluster(s) that host the target HCP: resolve the cluster set from
+// the target HCP's watcher-captured Backup CRs (matched by the resource-id annotation), then filter
+// BSLs to those clusters. A BSL stuck in the "Unavailable" phase (bad credentials, unreachable
+// object store) fails every backup on that mgmt cluster, so this is often the root cause. One row
+// per captured snapshot event, time-ordered. mgmtCluster is renamed off the reserved `cluster`
+// column so it survives into the output. isHealthy flags the Available phase.
+{{if .NoTruncation}}set notruncation;
+{{end -}}
+let hcpClusters = (
+    kubernetesResourceSnapshots
+    | where timestamp between ({{.TimestampMin}} .. {{.TimestampMax}})
+    | where cluster has_any ({{.ClusterNames}})
+    | where objectKind == "Backup"
+    | where namespace == "velero"
+    | where tostring(object.metadata.annotations["azure.microsoft.com/hcp-cluster-azure-resource-id"]) has '{{.SubResourceGroupId}}'
+    | distinct cluster
+);
+kubernetesResourceSnapshots
+| where timestamp between ({{.TimestampMin}} .. {{.TimestampMax}})
+| where cluster in (hcpClusters)
+| where objectKind == "BackupStorageLocation"
+| where namespace == "velero"
+| extend
+    capturedAt = timestamp,
+    mgmtCluster = cluster,
+    location = name,
+    provider = tostring(object.spec.provider),
+    bucket = tostring(object.spec.objectStorage.bucket),
+    prefix = tostring(object.spec.objectStorage.prefix),
+    isDefault = tobool(object.spec.default),
+    accessMode = tostring(object.spec.accessMode),
+    phase = tostring(object.status.phase),
+    message = tostring(object.status.message),
+    lastValidationTime = todatetime(object.status.lastValidationTime),
+    lastSyncedTime = todatetime(object.status.lastSyncedTime)
+| extend isHealthy = phase == "Available"
+| project timestamp, capturedAt, event, mgmtCluster, location, provider, bucket, prefix, isDefault, accessMode, phase, isHealthy, message, lastValidationTime, lastSyncedTime
+| order by timestamp asc
+{{- if gt .Limit 0}}
+| limit {{.Limit}}
+{{- end}}

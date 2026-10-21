@@ -2,3 +2,5 @@ approvers:
 - geoberle
 - janboll
 - stevekuznetsov
+labels:
+- area/admin

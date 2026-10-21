@@ -16,19 +16,38 @@ package controller
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
+	"net/http"
 	"os"
+	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 
+	maestroopenapi "github.com/openshift-online/maestro/pkg/api/openapi"
+	ocmsdk "github.com/openshift-online/ocm-sdk-go"
+
+	"github.com/Azure/ARO-HCP/fleet/pkg/compute"
+	"github.com/Azure/ARO-HCP/fleet/pkg/controllers/maestroregistration"
 	"github.com/Azure/ARO-HCP/fleet/pkg/manager"
 	"github.com/Azure/ARO-HCP/internal/azsdk"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosclient"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosratelimit"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/ocm"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 const (
@@ -41,6 +60,11 @@ type RawControllerOptions struct {
 	CosmosURL  string
 	CosmosName string
 
+	ClustersServiceURL         string
+	ClustersServiceTLSInsecure bool
+
+	MaestroTLSInsecure bool
+
 	CloudEnvironment string
 	Region           string
 
@@ -48,13 +72,21 @@ type RawControllerOptions struct {
 	LeaderElectionID     string
 	HealthzListenAddress string
 	MetricsListenAddress string
+
+	AMWWorkspaceResourceIDs []string
+	AMWScalingPollInterval  time.Duration
+
+	NodePoolProfile string
+
+	AzureRegionAvailabilityZoneCount int
 }
 
 func DefaultControllerOptions() *RawControllerOptions {
 	return &RawControllerOptions{
-		HealthzListenAddress: defaultHealthzListenAddress,
-		MetricsListenAddress: defaultMetricsListenAddress,
-		LeaderElectionID:     defaultLeaderElectionID,
+		HealthzListenAddress:   defaultHealthzListenAddress,
+		MetricsListenAddress:   defaultMetricsListenAddress,
+		LeaderElectionID:       defaultLeaderElectionID,
+		AMWScalingPollInterval: 30 * time.Minute,
 	}
 }
 
@@ -63,16 +95,23 @@ func BindControllerOptions(opts *RawControllerOptions, cmd *cobra.Command) error
 	cmd.Flags().StringVar(&opts.CosmosName, "cosmos-name", opts.CosmosName, "CosmosDB database name")
 	cmd.Flags().StringVar(&opts.CloudEnvironment, "cloud-environment", opts.CloudEnvironment, "Azure cloud environment (AzurePublicCloud, AzureChinaCloud, AzureUSGovernmentCloud)")
 	cmd.Flags().StringVar(&opts.Region, "region", opts.Region, "Azure region")
+	cmd.Flags().StringVar(&opts.ClustersServiceURL, "clusters-service-url", opts.ClustersServiceURL, "URL of the ClustersService API")
+	cmd.Flags().BoolVar(&opts.ClustersServiceTLSInsecure, "clusters-service-tls-insecure", opts.ClustersServiceTLSInsecure, "skip TLS verification for ClustersService")
+	cmd.Flags().BoolVar(&opts.MaestroTLSInsecure, "maestro-tls-insecure", opts.MaestroTLSInsecure, "skip TLS verification for Maestro")
 	cmd.Flags().StringVar(&opts.KubeNamespace, "kube-namespace", opts.KubeNamespace, "Kubernetes namespace for leader election lease")
 	cmd.Flags().StringVar(&opts.LeaderElectionID, "leader-election-id", opts.LeaderElectionID, "name of the leader election lease")
 	cmd.Flags().StringVar(&opts.HealthzListenAddress, "healthz-listen-address", opts.HealthzListenAddress, "listen address for healthz server")
 	cmd.Flags().StringVar(&opts.MetricsListenAddress, "metrics-listen-address", opts.MetricsListenAddress, "listen address for metrics server")
-
+	cmd.Flags().StringArrayVar(&opts.AMWWorkspaceResourceIDs, "amw-workspace-resource-id", opts.AMWWorkspaceResourceIDs, "Azure Monitor Workspace resource ID to manage ingestion limits for. Can be specified multiple times.")
+	cmd.Flags().DurationVar(&opts.AMWScalingPollInterval, "amw-scaling-poll-interval", opts.AMWScalingPollInterval, "Interval at which the AMW ingestion limits scaling controller checks utilization and scales limits.")
+	cmd.Flags().StringVar(&opts.NodePoolProfile, "nodepool-profile", opts.NodePoolProfile, "Shadow-only node pool tier profile (ci, development, integration, production); empty disables reporting. Never mutates pools.")
+	cmd.Flags().IntVar(&opts.AzureRegionAvailabilityZoneCount, "azure-region-availability-zone-count", opts.AzureRegionAvailabilityZoneCount, fmt.Sprintf("Number of availability zones the region offers. Node pool planning fails if this is below %d.", compute.RequiredAvailabilityZones))
 	for _, flag := range []string{
 		"cloud-environment",
 		"region",
 		"cosmos-url",
 		"cosmos-name",
+		"clusters-service-url",
 		"kube-namespace",
 	} {
 		if err := cmd.MarkFlagRequired(flag); err != nil {
@@ -86,6 +125,8 @@ func BindControllerOptions(opts *RawControllerOptions, cmd *cobra.Command) error
 type validatedControllerOptions struct {
 	*RawControllerOptions
 	cloudConfiguration cloud.Configuration
+	nodePoolProfile    *compute.Profile
+	nodePoolZones      []string
 }
 
 type ValidatedControllerOptions struct {
@@ -102,27 +143,63 @@ func (o *RawControllerOptions) Validate(ctx context.Context) (*ValidatedControll
 	if len(o.Region) == 0 {
 		return nil, fmt.Errorf("--region is required")
 	}
+	if len(o.ClustersServiceURL) == 0 {
+		return nil, fmt.Errorf("--clusters-service-url is required")
+	}
 	if len(o.KubeNamespace) == 0 {
 		return nil, fmt.Errorf("--kube-namespace is required")
+	}
+	if len(o.LeaderElectionID) == 0 {
+		return nil, fmt.Errorf("--leader-election-id is required")
 	}
 	cloudConfig, err := azsdk.CloudConfigurationFromName(o.CloudEnvironment)
 	if err != nil {
 		return nil, fmt.Errorf("--cloud-environment: %w", err)
 	}
 
+	for _, id := range o.AMWWorkspaceResourceIDs {
+		if _, err := azcorearm.ParseResourceID(id); err != nil {
+			return nil, utils.TrackError(fmt.Errorf("--amw-workspace-resource-id %q is not a valid ARM resource ID: %w", id, err))
+		}
+	}
+	if len(o.AMWWorkspaceResourceIDs) > 0 && o.AMWScalingPollInterval <= 0 {
+		return nil, utils.TrackError(fmt.Errorf("--amw-scaling-poll-interval must be positive when AMW workspaces are configured"))
+	}
+
+	var nodePoolProfile *compute.Profile
+	var nodePoolZones []string
+	if len(o.NodePoolProfile) > 0 {
+		nodePoolProfile, nodePoolZones, err = resolveNodePoolProfile(o)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	return &ValidatedControllerOptions{
 		validatedControllerOptions: &validatedControllerOptions{
 			RawControllerOptions: o,
 			cloudConfiguration:   cloudConfig,
+			nodePoolProfile:      nodePoolProfile,
+			nodePoolZones:        nodePoolZones,
 		},
 	}, nil
 }
 
 type controllerOptions struct {
-	fleetDBClient      database.FleetDBClient
-	leaderElectionLock resourcelock.Interface
-	healthzListenAddr  string
-	metricsListenAddr  string
+	kubeApplierDBClients         kubeappliercosmosstorage.KubeApplierDBClients
+	fleetDBClient                fleetcosmosstorage.FleetDBClient
+	clustersServiceClient        ocm.ClusterServiceClientSpec
+	maestroConsumerClientFactory maestroregistration.MaestroConsumerClientFactory
+	leaderElectionLock           resourcelock.Interface
+	region                       string
+	healthzListenAddr            string
+	metricsListenAddr            string
+	amwWorkspaceResourceIDs      []string
+	amwScalingPollInterval       time.Duration
+	azureCredential              azcore.TokenCredential
+	azureClientOptions           *policy.ClientOptions
+	nodePoolProfile              *compute.Profile
+	nodePoolZones                []string
 }
 
 type ControllerOptions struct {
@@ -133,15 +210,19 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 	clientOpts := azsdk.NewClientOptions(azsdk.ComponentFleet)
 	clientOpts.Cloud = o.cloudConfiguration
 
-	dbClient, err := database.NewCosmosDatabaseClient(o.CosmosURL, o.CosmosName, clientOpts)
+	storageOptions := cosmosclient.Options{ClientOptions: clientOpts}
+	bucket := cosmosratelimit.NewUnlimitedTokenBucket("fleet")
+	fleetDBClient, err := fleetcosmosstorage.NewFleetDBClient(o.CosmosURL, o.CosmosName, storageOptions, bucket)
 	if err != nil {
 		return nil, err
 	}
 
-	fleetDBClient, err := database.NewFleetDBClient(dbClient)
+	clustersServiceClient, err := newClustersServiceClient(o.ClustersServiceURL, o.ClustersServiceTLSInsecure)
 	if err != nil {
 		return nil, err
 	}
+
+	maestroConsumerClientFactory := newMaestroConsumerClientFactory(o.MaestroTLSInsecure)
 
 	kubeconfig, err := rest.InClusterConfig()
 	if err != nil {
@@ -158,22 +239,116 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 		return nil, err
 	}
 
+	azureCredential, err := azidentity.NewDefaultAzureCredential(&azidentity.DefaultAzureCredentialOptions{
+		ClientOptions:                clientOpts,
+		RequireAzureTokenCredentials: true,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Azure credential: %w", err)
+	}
+	azureClientOptions := &policy.ClientOptions{
+		Cloud: clientOpts.Cloud,
+	}
+
+	kubeApplierDBClients := kubeappliercosmosstorage.NewKubeApplierDBClients(
+		o.CosmosURL, o.CosmosName, storageOptions, func(string) (*cosmosratelimit.TokenBucket, error) { return bucket, nil },
+		kubeappliercosmosstorage.NewDBBackedManagementClusterLister(fleetDBClient),
+	)
+
 	return &ControllerOptions{
 		controllerOptions: &controllerOptions{
-			fleetDBClient:      fleetDBClient,
-			leaderElectionLock: leaderElectionLock,
-			healthzListenAddr:  o.HealthzListenAddress,
-			metricsListenAddr:  o.MetricsListenAddress,
+			kubeApplierDBClients:         kubeApplierDBClients,
+			fleetDBClient:                fleetDBClient,
+			clustersServiceClient:        clustersServiceClient,
+			maestroConsumerClientFactory: maestroConsumerClientFactory,
+			leaderElectionLock:           leaderElectionLock,
+			region:                       o.Region,
+			healthzListenAddr:            o.HealthzListenAddress,
+			metricsListenAddr:            o.MetricsListenAddress,
+			amwWorkspaceResourceIDs:      o.AMWWorkspaceResourceIDs,
+			amwScalingPollInterval:       o.AMWScalingPollInterval,
+			azureCredential:              azureCredential,
+			azureClientOptions:           azureClientOptions,
+			nodePoolProfile:              o.nodePoolProfile,
+			nodePoolZones:                o.nodePoolZones,
 		},
 	}, nil
 }
 
+func resolveNodePoolProfile(o *RawControllerOptions) (*compute.Profile, []string, error) {
+	profile, ok := compute.LookupProfile(o.NodePoolProfile)
+	if !ok {
+		return nil, nil, fmt.Errorf("--nodepool-profile %q is not a valid profile (valid: %s)",
+			o.NodePoolProfile, strings.Join(compute.ValidProfileNames(), ", "))
+	}
+	if err := compute.ValidateProfile(profile); err != nil {
+		return nil, nil, fmt.Errorf("--nodepool-profile %q is invalid: %w", o.NodePoolProfile, err)
+	}
+	zones, err := compute.ResolvePlanningZones(o.AzureRegionAvailabilityZoneCount)
+	if err != nil {
+		return nil, nil, fmt.Errorf("--azure-region-availability-zone-count: %w", err)
+	}
+	return &profile, zones, nil
+}
+
 func (o *ControllerOptions) Run(ctx context.Context) error {
 	mgr := &manager.Manager{
-		FleetDBClient:      o.fleetDBClient,
-		LeaderElectionLock: o.leaderElectionLock,
-		HealthzListenAddr:  o.healthzListenAddr,
-		MetricsListenAddr:  o.metricsListenAddr,
+		KubeApplierDBClients:         o.kubeApplierDBClients,
+		FleetDBClient:                o.fleetDBClient,
+		ClustersServiceClient:        o.clustersServiceClient,
+		MaestroConsumerClientFactory: o.maestroConsumerClientFactory,
+		LeaderElectionLock:           o.leaderElectionLock,
+		Region:                       o.region,
+		HealthzListenAddr:            o.healthzListenAddr,
+		MetricsListenAddr:            o.metricsListenAddr,
+		AMWWorkspaceResourceIDs:      o.amwWorkspaceResourceIDs,
+		AMWScalingPollInterval:       o.amwScalingPollInterval,
+		AzureCredential:              o.azureCredential,
+		AzureClientOptions:           o.azureClientOptions,
+		NodePoolProfile:              o.nodePoolProfile,
+		NodePoolZones:                o.nodePoolZones,
 	}
 	return mgr.Run(ctx)
+}
+
+type maestroConsumerClientFactory struct {
+	httpClient *http.Client
+}
+
+func newMaestroConsumerClientFactory(tlsInsecure bool) maestroregistration.MaestroConsumerClientFactory {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.TLSClientConfig = &tls.Config{
+		InsecureSkipVerify: tlsInsecure,
+	}
+	return &maestroConsumerClientFactory{
+		httpClient: &http.Client{
+			Timeout:   30 * time.Second,
+			Transport: otelhttp.NewTransport(transport),
+		},
+	}
+}
+
+func (f *maestroConsumerClientFactory) NewMaestroConsumerClient(maestroURL string) maestroregistration.MaestroConsumerClient {
+	maestroConfig := &maestroopenapi.Configuration{
+		Servers: maestroopenapi.ServerConfigurations{{
+			URL: maestroURL,
+		}},
+		HTTPClient: f.httpClient,
+	}
+	apiClient := maestroopenapi.NewAPIClient(maestroConfig)
+	return maestroregistration.NewMaestroConsumerClient(apiClient)
+}
+
+func newClustersServiceClient(url string, tlsInsecure bool) (ocm.ClusterServiceClientSpec, error) {
+	conn, err := ocmsdk.NewUnauthenticatedConnectionBuilder().
+		TransportWrapper(func(r http.RoundTripper) http.RoundTripper {
+			return otelhttp.NewTransport(r)
+		}).
+		URL(url).
+		Insecure(tlsInsecure).
+		Build()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create OCM connection: %w", err)
+	}
+	return ocm.NewClusterServiceClient(conn), nil
 }

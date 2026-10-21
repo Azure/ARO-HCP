@@ -73,7 +73,7 @@ while getopts "c:dr:x:e:i:o:p:P:s:" opt; do
 done
 
 make -s -C ${PROJECT_ROOT_DIR}/tooling/templatize templatize
-TEMPLATIZE="${PROJECT_ROOT_DIR}/tooling/templatize/templatize"
+TEMPLATIZE="${PROJECT_ROOT_DIR}/tooling/templatize/templatize-$(uname -m)"
 
 PERSIST_FLAG=""
 if [ -z "${PERSIST+x}" ] || [ "${PERSIST+x}" == "false" ]; then

@@ -1,0 +1,1 @@
+Region in-place upgrade validates node pool stability after full region upgrade

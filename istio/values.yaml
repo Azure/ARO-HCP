@@ -14,18 +14,13 @@ mise:
   namespace: "mise"
   image:
     registry: "{{ .acr.svc.name }}.azurecr.io"
-    repository: "{{ .mise.image.repository }}"
-    digest: "{{ .mise.image.digest }}"
-    digestv2: "{{ .mise.imageV2.digest }}"
+    repository: "{{ .mise.imageV2.repository }}"
+    digest: "{{ .mise.imageV2.digest }}"
   audit:
     adInstance: "https://{{ .mise.arm.authorityFQDN }}/"
-    clientId: "{{ .firstPartyAppClientId }}"
     tenantId: "{{ .mise.arm.tenantId }}"
-    audience: "api://{{ .firstPartyAppClientId }}"
+    connectSocket: {{ .mise.audit.connectSocket }}
   miseAppId: "__miseAppId__"
-  tracing:
-    address: "{{ .mise.tracing.address }}"
-    exporter: "{{ .mise.tracing.exporter }}"
   deployment:
     zoneCount: {{ .azureRegionAvailabilityZoneCount }}
   armPolicy:

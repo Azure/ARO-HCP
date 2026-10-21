@@ -2,18 +2,13 @@ image:
   registry: ""
   repository: ""
   digest: ""
-  digestv2: ""
-tracing:
-  address: ""
-  exporter: ""
 deployment:
   zoneCount: ""
 miseAppId: ""
 audit:
   adInstance: ""
-  clientId: ""
   tenantId: ""
-  audience: ""
+  connectSocket: false
 armPolicy:
   label: ""
   authority: ""
@@ -24,3 +19,7 @@ genevaActionsPolicy:
   authority: ""
   audience: ""
   applicationId: ""
+sessiongatePolicy:
+  label: ""
+  authority: ""
+  audience: ""

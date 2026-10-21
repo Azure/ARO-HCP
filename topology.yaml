@@ -68,6 +68,11 @@ services:
         - serviceGroup: Microsoft.Azure.ARO.HCP.MgmtAgent
           pipelinePath: mgmt-agent/pipeline.yaml
           purpose: Deploy the Management Agent.
+          children:
+          # Optional diagnostics follow mgmt-agent without gating fleet registration.
+          - serviceGroup: Microsoft.Azure.ARO.HCP.SwiftRecorder
+            pipelinePath: swift-recorder/pipeline.yaml
+            purpose: Deploy the opt-in SWIFT-v2 node-local startup recorder.
         - serviceGroup: Microsoft.Azure.ARO.HCP.Fleet.Registration
           pipelinePath: fleet/registration/pipeline.yaml
           purpose: Register the stamp and management cluster in CosmosDB.
@@ -87,6 +92,7 @@ services:
   purpose: Deploy global shared infrastructure.
 # Cleanup pipelines
 - serviceGroup: Microsoft.Azure.ARO.HCP.Management.Delete
+  stamped: true
   pipelinePath: dev-infrastructure/cleanup/delete.mgmt.pipeline.yaml
   purpose: Delete the management resources and management resource group
 - serviceGroup: Microsoft.Azure.ARO.HCP.Service.Delete
@@ -96,9 +102,9 @@ services:
   pipelinePath: dev-infrastructure/cleanup/delete.region.pipeline.yaml
   purpose: Delete the region resources and resource group
 # Dev-only pipelines
-- serviceGroup: Microsoft.Azure.ARO.HCP.Observability
-  pipelinePath: observability/tracing/pipeline.yaml
-  purpose: Deploy the development tracing stack.
+- serviceGroup: Microsoft.Azure.ARO.HCP.Grafana
+  pipelinePath: dev-infrastructure/grafana-pipeline.yaml
+  purpose: Test pipeline for Grafana reconciliation.
 # Kusto Infra pipeline
 - serviceGroup: Microsoft.Azure.ARO.HCP.Kusto.Delete
   pipelinePath: dev-infrastructure/cleanup/delete.kusto.instance.pipeline.yaml
@@ -107,5 +113,6 @@ services:
   pipelinePath: dev-infrastructure/svc-kubeconfig.yaml
   purpose: Grant access to AKS SVC AKS Clusters, mainly intended for E2E test setup.
 - serviceGroup: Microsoft.Azure.ARO.HCP.Management.Kubeconfig
+  stamped: true
   pipelinePath: dev-infrastructure/mgmt-kubeconfig.yaml
-  purpose: Grant access to AKS SVC AKS Clusters, mainly intended for E2E test setup.
+  purpose: Grant access to AKS Management Clusters, mainly intended for E2E test setup.

@@ -1,0 +1,4 @@
+filters:
+  '^(generatedRPPrometheusAlertingRules|generatedRPHCPPrometheusAlertingRules|generatedHCPRecordingRules|generatedRecordingRules)\.bicep$':
+    approvers:
+      - sre-approvers

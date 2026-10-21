@@ -1,0 +1,892 @@
+// Copyright 2025 Microsoft Corporation
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package e2e
+
+import (
+	"bytes"
+	"context"
+	"crypto/x509"
+	"embed"
+	"encoding/json"
+	"encoding/pem"
+	"errors"
+	"fmt"
+	"io"
+	"net"
+	"net/http"
+	"slices"
+	"strings"
+	"time"
+
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
+
+	"github.com/google/uuid"
+
+	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
+	utilyaml "k8s.io/apimachinery/pkg/util/yaml"
+	"k8s.io/client-go/discovery"
+	"k8s.io/client-go/discovery/cached/memory"
+	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/restmapper"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v3"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dns/armdns"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/msi/armmsi"
+
+	operatorv1 "github.com/openshift/api/operator/v1"
+
+	clusterversion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/version"
+	"github.com/Azure/ARO-HCP/test/util/dnsreadback"
+	"github.com/Azure/ARO-HCP/test/util/framework"
+	"github.com/Azure/ARO-HCP/test/util/labels"
+	"github.com/Azure/ARO-HCP/test/util/verifiers"
+)
+
+// Let's Encrypt staging root CAs from https://letsencrypt.org/docs/staging-environment/
+//
+//go:embed letsencrypt-stg-cas/*.crt
+var letsEncryptStagingCAs embed.FS
+
+// Pinned upstream cert-manager release. Bump deliberately; do not float to :latest.
+const certManagerManifestURL = "https://github.com/cert-manager/cert-manager/releases/download/v1.20.2/cert-manager.yaml"
+
+var _ = Describe("Customer", func() {
+	DescribeTable("should be able to issue the default ingress serving certificate from Let's Encrypt using cert-manager with ACME DNS-01 challenges",
+		labels.RequireNothing,
+		labels.High,
+		labels.Positive,
+		labels.CreateCluster,
+		labels.AroRpApiCompatible,
+		labels.MIContainers(1),
+		func(ctx context.Context, version string) {
+			const (
+				customerClusterName  = "ingress-cert-le"
+				customerNodePoolName = "np-1"
+				certManagerNamespace = "cert-manager"
+				certManagerSAName    = "cert-manager"
+				ingressSecretName    = "letsencrypt-ingress-secret"
+				ingressNamespace     = "openshift-ingress"
+				issuerName           = "letsencrypt-staging" // we're using staging as prod has strict limits on cert signing
+				acmeEmail            = "noreply@redhat.com"
+				acmeServer           = "https://acme-staging-v02.api.letsencrypt.org/directory"
+			)
+			tc := framework.NewTestContext()
+			if tc.UsePooledIdentities() {
+				err := tc.AssignIdentityContainers(ctx, 1, framework.IdentityContainerAssignmentRetryInterval)
+				Expect(err).NotTo(HaveOccurred(), "failed to assign pooled identity containers")
+			}
+
+			By("creating a resource group")
+			resourceGroup, err := tc.NewResourceGroup(ctx, "ingress-cert-le", tc.Location())
+			Expect(err).NotTo(HaveOccurred(), "failed to create resource group")
+
+			By("creating cluster parameters")
+			clusterParams := framework.NewDefaultClusterParams20260901()
+			channel := clusterParams.ChannelGroup
+			if channel == "nightly" {
+				resolved, err := framework.GetLatestNightlyInstallVersion(ctx, channel, version)
+				if framework.IsVersionNotFoundError(err) || framework.IsIncompatibleNightlyVersionError(err) {
+					Skip(fmt.Sprintf("no %s version available in configured channel %s: %v", version, channel, err))
+				}
+				Expect(err).NotTo(HaveOccurred(), "failed to resolve configured nightly channel")
+				clusterParams.OpenshiftVersionId = resolved
+			} else {
+				resolved, err := framework.SelectControlPlaneVersion(ctx, http.DefaultTransport.RoundTrip, nil, channel+"-"+version, clusterversion.GetZStreamOffset(channel))
+				if framework.IsVersionNotFoundError(err) || (err == nil && resolved == nil) {
+					Skip(fmt.Sprintf("no %s version available in configured channel %s", version, channel))
+				}
+				Expect(err).NotTo(HaveOccurred(), "failed to resolve configured channel %s-%s", channel, version)
+				clusterParams.OpenshiftVersionId = resolved.Version
+			}
+			clusterParams.ClusterName = customerClusterName
+			clusterParams.IngressType = "Public"
+			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
+			clusterParams.ManagedResourceGroupName = managedResourceGroupName
+
+			By("creating customer resources")
+			clusterParams, err = tc.CreateClusterCustomerResources20260901(ctx,
+				resourceGroup,
+				clusterParams,
+				map[string]interface{}{},
+				TestArtifactsFS,
+				framework.RBACScopeResourceGroup,
+			)
+			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources")
+
+			By("creating the HCP cluster")
+			err = tc.CreateHCPClusterFromParam20260901(ctx,
+				GinkgoLogr,
+				*resourceGroup.Name,
+				clusterParams,
+				nil,
+				framework.ClusterCreationTimeout,
+			)
+			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster")
+
+			By("creating the node pool")
+			nodePoolParams := framework.NewDefaultNodePoolParams20260901()
+			nodePoolParams.OpenshiftVersionId = clusterParams.OpenshiftVersionId
+			nodePoolParams.ChannelGroup = clusterParams.ChannelGroup
+			nodePoolParams.ClusterName = customerClusterName
+			nodePoolParams.NodePoolName = customerNodePoolName
+			nodePoolParams.Replicas = int32(2)
+			Expect(tc.CreateNodePoolFromParam20260901(ctx,
+				GinkgoLogr,
+				*resourceGroup.Name,
+				managedResourceGroupName,
+				customerClusterName,
+				nodePoolParams,
+				framework.NodePoolCreationTimeout,
+			)).To(Succeed(), "failed to create node pool")
+
+			hcpClient := tc.Get20260901ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
+			clusterResp, err := hcpClient.Get(ctx, *resourceGroup.Name, customerClusterName, nil)
+			Expect(err).NotTo(HaveOccurred(), "failed to get HCP cluster")
+
+			By("getting admin credentials")
+			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20260901(
+				ctx,
+				hcpClient,
+				*resourceGroup.Name,
+				customerClusterName,
+				framework.GetAdminRESTConfigTimeout,
+			)
+			Expect(err).NotTo(HaveOccurred(), "failed to get admin REST config")
+
+			By("ensuring the cluster is viable")
+			Expect(verifiers.VerifyHCPCluster(ctx, adminRESTConfig)).To(Succeed(), "cluster viability check failed")
+			Expect(verifiers.VerifyIngressControllerScope(operatorv1.ExternalLoadBalancer).Verify(ctx, adminRESTConfig)).To(Succeed(), "default ingress certificate scenario requires public ingress")
+
+			By("getting the cluster's OIDC issuer URL and DNS domain")
+			Expect(clusterResp.Properties).NotTo(BeNil(), "cluster Properties was nil")
+			Expect(clusterResp.Properties.Platform).NotTo(BeNil(), "cluster Properties.Platform was nil")
+			Expect(clusterResp.Properties.Platform.IssuerURL).NotTo(BeNil(), "cluster OIDC IssuerURL was nil")
+			oidcIssuerURL := *clusterResp.Properties.Platform.IssuerURL
+
+			Expect(clusterResp.Properties.DNS).NotTo(BeNil(), "cluster Properties.DNS was nil")
+			Expect(clusterResp.Properties.DNS.BaseDomain).NotTo(BeNil(), "cluster DNS.BaseDomain was nil")
+			Expect(clusterResp.Properties.DNS.BaseDomainPrefix).NotTo(BeNil(), "cluster DNS.BaseDomainPrefix was nil")
+			baseDomain := *clusterResp.Properties.DNS.BaseDomain
+			baseDomainPrefix := *clusterResp.Properties.DNS.BaseDomainPrefix
+			delegatedDomain := fmt.Sprintf("aro.%s.%s", baseDomainPrefix, baseDomain)
+			appsWildcard := fmt.Sprintf("*.apps.%s", delegatedDomain)
+
+			GinkgoLogr.Info("cluster information for certificate issuance",
+				"oidcIssuer", oidcIssuerURL,
+				"baseDomain", baseDomain,
+				"baseDomainPrefix", baseDomainPrefix,
+				"delegatedDomain", delegatedDomain,
+				"appsWildcard", appsWildcard,
+			)
+
+			By("deriving the DNS zone from the cluster's base domain")
+			subscriptionID, err := tc.SubscriptionID(ctx)
+			Expect(err).NotTo(HaveOccurred(), "failed to get subscription ID")
+			cred, err := tc.AzureCredential()
+			Expect(err).NotTo(HaveOccurred(), "failed to get Azure credential")
+
+			dnsZoneResourceID := fmt.Sprintf(
+				"/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/dnsZones/%s",
+				subscriptionID, managedResourceGroupName, delegatedDomain,
+			)
+			GinkgoLogr.Info("derived DNS zone", "zone", delegatedDomain, "resourceGroup", managedResourceGroupName, "resourceID", dnsZoneResourceID)
+
+			By("creating a CAA record to authorize Let's Encrypt to issue certificates for the zone")
+			recordSetsClient, err := armdns.NewRecordSetsClient(subscriptionID, cred, nil)
+			Expect(err).NotTo(HaveOccurred(), "failed to create DNS record sets client")
+			_, err = recordSetsClient.CreateOrUpdate(ctx, managedResourceGroupName, delegatedDomain, "@", armdns.RecordTypeCAA, armdns.RecordSet{
+				Properties: &armdns.RecordSetProperties{
+					TTL: to.Ptr[int64](3600),
+					CaaRecords: []*armdns.CaaRecord{
+						{
+							Flags: to.Ptr[int32](0),
+							Tag:   to.Ptr("issue"),
+							Value: to.Ptr("letsencrypt.org"),
+						},
+					},
+				},
+			}, nil)
+			Expect(err).NotTo(HaveOccurred(), "failed to create CAA record authorizing letsencrypt.org")
+
+			By("creating a UAMI for cert-manager and federating it to the in-cluster ServiceAccount")
+			msiClient, err := armmsi.NewUserAssignedIdentitiesClient(subscriptionID, cred, nil)
+			Expect(err).NotTo(HaveOccurred(), "failed to create UAMI client")
+			msiResp, err := msiClient.CreateOrUpdate(ctx, *resourceGroup.Name, "cert-manager", armmsi.Identity{
+				Location: resourceGroup.Location,
+			}, nil)
+			Expect(err).NotTo(HaveOccurred(), "failed to create UAMI")
+			Expect(msiResp.Properties).NotTo(BeNil(), "UAMI properties was nil")
+			Expect(msiResp.Properties.ClientID).NotTo(BeNil(), "UAMI ClientID was nil")
+			Expect(msiResp.Properties.PrincipalID).NotTo(BeNil(), "UAMI PrincipalID was nil")
+			uamiClientID := *msiResp.Properties.ClientID
+			uamiPrincipalID := *msiResp.Properties.PrincipalID
+
+			tenantID := tc.TenantID()
+			if len(tenantID) == 0 {
+				Expect(msiResp.Properties.TenantID).NotTo(BeNil(), "user assigned managed identity tenantID is nil")
+				tenantID = *msiResp.Properties.TenantID
+			}
+
+			ficClient, err := armmsi.NewFederatedIdentityCredentialsClient(subscriptionID, cred, nil)
+			Expect(err).NotTo(HaveOccurred(), "failed to create FIC client")
+			ficSubject := fmt.Sprintf("system:serviceaccount:%s:%s", certManagerNamespace, certManagerSAName)
+			_, err = ficClient.CreateOrUpdate(ctx, *resourceGroup.Name, "cert-manager", "cert-manager-fic", armmsi.FederatedIdentityCredential{
+				Properties: &armmsi.FederatedIdentityCredentialProperties{
+					Issuer:    to.Ptr(oidcIssuerURL),
+					Subject:   to.Ptr(ficSubject),
+					Audiences: []*string{to.Ptr("api://AzureADTokenExchange")},
+				},
+			}, nil)
+			Expect(err).NotTo(HaveOccurred(), "failed to create federated identity credential")
+
+			By("granting the UAMI DNS Zone Contributor on the DNS zone in the managed resource group")
+			// DNS Zone Contributor built-in role: befefa01-2a29-4197-83a8-272ff33ce314
+			const dnsZoneContributorRoleID = "befefa01-2a29-4197-83a8-272ff33ce314"
+			Eventually(func() error {
+				err := assignBuiltInRoleAtScope(ctx, newRoleAssignmentsClient(subscriptionID, cred), subscriptionID, dnsZoneResourceID, uamiPrincipalID, dnsZoneContributorRoleID)
+				if err != nil && !isPrincipalNotFoundError(err) {
+					return StopTrying(err.Error()).Wrap(err)
+				}
+				return err
+			}).WithContext(ctx).WithTimeout(5*time.Minute).WithPolling(15*time.Second).Should(Succeed(),
+				"DNS Zone Contributor role assignment should succeed once principal propagates")
+
+			By("installing cert-manager from the pinned upstream release manifest")
+			kubeClient, err := kubernetes.NewForConfig(adminRESTConfig)
+			Expect(err).NotTo(HaveOccurred(), "failed to create kube client")
+			dynClient, err := dynamic.NewForConfig(adminRESTConfig)
+			Expect(err).NotTo(HaveOccurred(), "failed to create dynamic client")
+			mapper := newDiscoveryMapper(adminRESTConfig)
+
+			Expect(applyManifestFromURL(ctx, dynClient, mapper, certManagerManifestURL)).To(Succeed(), "failed to install cert-manager manifests")
+
+			By("waiting for the cert-manager controller deployment to become Available")
+			var lastDeployErr string
+			Eventually(func() error {
+				dep, err := kubeClient.AppsV1().Deployments(certManagerNamespace).Get(ctx, "cert-manager", metav1.GetOptions{})
+				if err != nil {
+					return err
+				}
+				if dep.Status.ReadyReplicas < 1 {
+					msg := fmt.Sprintf("cert-manager deployment not ready: ready=%d desired=%d", dep.Status.ReadyReplicas, dep.Status.Replicas)
+					if msg != lastDeployErr {
+						GinkgoLogr.Info("waiting for cert-manager", "status", msg)
+						lastDeployErr = msg
+					}
+					return errors.New(msg)
+				}
+				return nil
+			}).WithContext(ctx).WithTimeout(10*time.Minute).WithPolling(10*time.Second).Should(Succeed(),
+				"cert-manager deployment should become ready")
+
+			By("annotating the cert-manager ServiceAccount with workload identity credentials")
+			saPatch := fmt.Sprintf(`{
+				"metadata": {
+					"annotations": {
+						"azure.workload.identity/client-id": %q,
+						"azure.workload.identity/tenant-id": %q
+					}
+				}
+			}`, uamiClientID, tenantID)
+			_, err = kubeClient.CoreV1().ServiceAccounts(certManagerNamespace).Patch(
+				ctx, certManagerSAName, types.MergePatchType, []byte(saPatch), metav1.PatchOptions{})
+			Expect(err).NotTo(HaveOccurred(), "failed to patch cert-manager ServiceAccount with workload identity annotations")
+
+			By("labeling the cert-manager deployment pods for workload identity injection and restarting")
+			depPatch := []byte(`{
+				"spec": {
+					"template": {
+						"metadata": {
+							"labels": {
+								"azure.workload.identity/use": "true"
+							}
+						}
+					}
+				}
+			}`)
+			_, err = kubeClient.AppsV1().Deployments(certManagerNamespace).Patch(
+				ctx, "cert-manager", types.MergePatchType, depPatch, metav1.PatchOptions{})
+			Expect(err).NotTo(HaveOccurred(), "failed to patch cert-manager deployment with workload identity label")
+
+			By("lowering CertificateRequest backoff so a new ACME Order can be retried within the issuance timeout")
+			backoffPatch := []byte(`[{"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--certificate-request-minimum-backoff-duration=1m"}]`)
+			_, err = kubeClient.AppsV1().Deployments(certManagerNamespace).Patch(
+				ctx, "cert-manager", types.JSONPatchType, backoffPatch, metav1.PatchOptions{})
+			Expect(err).NotTo(HaveOccurred(), "failed to lower cert-manager CertificateRequest backoff")
+
+			By("waiting for the cert-manager deployment to roll out with workload identity")
+			Eventually(func() error {
+				dep, err := kubeClient.AppsV1().Deployments(certManagerNamespace).Get(ctx, "cert-manager", metav1.GetOptions{})
+				if err != nil {
+					return err
+				}
+				if dep.Status.UpdatedReplicas != dep.Status.Replicas || dep.Status.ReadyReplicas != dep.Status.Replicas {
+					return fmt.Errorf("cert-manager rollout in progress: updated=%d ready=%d desired=%d",
+						dep.Status.UpdatedReplicas, dep.Status.ReadyReplicas, dep.Status.Replicas)
+				}
+				if dep.Status.ObservedGeneration < dep.Generation {
+					return fmt.Errorf("cert-manager deployment generation not yet observed: observed=%d current=%d",
+						dep.Status.ObservedGeneration, dep.Generation)
+				}
+				return nil
+			}).WithContext(ctx).WithTimeout(5*time.Minute).WithPolling(10*time.Second).Should(Succeed(),
+				"cert-manager deployment should complete rollout with workload identity")
+
+			By("creating a ClusterIssuer with ACME DNS-01 solver targeting the DNS zone in the managed resource group")
+			issuerObj := unstructuredClusterIssuer(
+				issuerName, acmeEmail, acmeServer,
+				delegatedDomain, managedResourceGroupName, subscriptionID, uamiClientID,
+			)
+			issuerGVR := schema.GroupVersionResource{Group: "cert-manager.io", Version: "v1", Resource: "clusterissuers"}
+			Eventually(func() error {
+				_, err := dynClient.Resource(issuerGVR).Create(ctx, issuerObj, metav1.CreateOptions{})
+				if err != nil && !apierrors.IsAlreadyExists(err) {
+					return err
+				}
+				return nil
+			}).WithContext(ctx).WithTimeout(2*time.Minute).WithPolling(5*time.Second).Should(Succeed(),
+				"ClusterIssuer CRD should be installed and the resource creatable")
+
+			By("waiting for the ClusterIssuer to become Ready")
+			var lastIssuerStatus string
+			Eventually(func() error {
+				issuer, err := dynClient.Resource(issuerGVR).Get(ctx, issuerName, metav1.GetOptions{})
+				if err != nil {
+					return err
+				}
+				ready, msg := isResourceReady(issuer)
+				if !ready {
+					if msg != lastIssuerStatus {
+						GinkgoLogr.Info("waiting for ClusterIssuer", "status", msg)
+						lastIssuerStatus = msg
+					}
+					return fmt.Errorf("clusterIssuer not ready: %s", msg)
+				}
+				return nil
+			}).WithContext(ctx).WithTimeout(5*time.Minute).WithPolling(10*time.Second).Should(Succeed(),
+				"ClusterIssuer should become Ready (ACME account registered)")
+
+			By("allowing DNS propagation headroom before requesting a certificate")
+			zonesClient, err := armdns.NewZonesClient(subscriptionID, cred, nil)
+			Expect(err).NotTo(HaveOccurred(), "failed to create DNS zones client")
+			zone, err := zonesClient.Get(ctx, managedResourceGroupName, delegatedDomain, nil)
+			Expect(err).NotTo(HaveOccurred(), "failed to get authoritative nameservers for the delegated zone")
+			Expect(zone.Properties).NotTo(BeNil(), "delegated zone properties was nil")
+			Expect(zone.Properties.NameServers).NotTo(BeEmpty(), "delegated zone must have authoritative nameservers")
+			var nameservers []string
+			for _, nameserver := range zone.Properties.NameServers {
+				Expect(nameserver).NotTo(BeNil(), "delegated zone nameserver was nil")
+				nameservers = append(nameservers, strings.ToLower(strings.TrimSuffix(*nameserver, "."))+".")
+			}
+			slices.Sort(nameservers)
+			nameserverAddresses := map[string]string{}
+			lastDNSStatus := ""
+			logDNSReadback := func(err error) error {
+				status := "DNS readback poll succeeded"
+				if err != nil {
+					status = err.Error()
+				}
+				if status != lastDNSStatus {
+					GinkgoLogr.Info("DNS readback", "zone", delegatedDomain, "nameservers", nameservers, "status", status)
+					lastDNSStatus = status
+				}
+				return err
+			}
+			if err := dnsreadback.Wait(ctx, 10*time.Second, 90*time.Second, 4, func(ctx context.Context) error {
+				return logDNSReadback(readbackIngressDNS(ctx, delegatedDomain, nameservers, nameserverAddresses, "", ""))
+			}); err != nil {
+				GinkgoLogr.Info("DNS readback gate incomplete; proceeding to issuance (best-effort)", "zone", delegatedDomain, "error", err)
+			}
+
+			By("creating a Certificate for the apps wildcard domain")
+			certObj := unstructuredCertificate("cluster-ingress-cert", ingressNamespace, ingressSecretName, issuerName, appsWildcard)
+			certGVR := schema.GroupVersionResource{Group: "cert-manager.io", Version: "v1", Resource: "certificates"}
+			_, err = dynClient.Resource(certGVR).Namespace(ingressNamespace).Create(ctx, certObj, metav1.CreateOptions{})
+			if err != nil && !apierrors.IsAlreadyExists(err) {
+				Fail(fmt.Sprintf("creating Certificate: %v", err))
+			}
+			DeferCleanup(func(ctx context.Context) {
+				if CurrentSpecReport().Failed() {
+					dumpCertManagerIssuanceDiagnostics(ctx, dynClient, kubeClient, certManagerNamespace, ingressNamespace, issuerName)
+				}
+			})
+
+			By("reading back the presented ACME TXT from every authoritative nameserver before waiting for issuance")
+			challengeGVR := schema.GroupVersionResource{Group: "acme.cert-manager.io", Version: "v1", Resource: "challenges"}
+			observedChallenges := map[string]bool{}
+			readbackTXT := func(ctx context.Context) error {
+				cert, err := dynClient.Resource(certGVR).Namespace(ingressNamespace).Get(ctx, "cluster-ingress-cert", metav1.GetOptions{})
+				if err != nil {
+					return err
+				}
+				if ready, _ := isResourceReady(cert); ready {
+					return nil
+				}
+				challenges, err := dynClient.Resource(challengeGVR).Namespace(ingressNamespace).List(ctx, metav1.ListOptions{})
+				if err != nil {
+					return err
+				}
+				for _, challenge := range challenges.Items {
+					dnsName, _, _ := unstructured.NestedString(challenge.Object, "spec", "dnsName")
+					presented, _, _ := unstructured.NestedBool(challenge.Object, "status", "presented")
+					key, _, _ := unstructured.NestedString(challenge.Object, "spec", "key")
+					if strings.TrimPrefix(dnsName, "*.") != strings.TrimPrefix(appsWildcard, "*.") || !presented || key == "" {
+						continue
+					}
+					if !observedChallenges[challenge.GetName()] {
+						GinkgoLogr.Info("observed cert-manager TXT presentation", "challenge", challenge.GetName(),
+							"firstObservedPresentedAt", time.Now().UTC().Format(time.RFC3339Nano))
+						observedChallenges[challenge.GetName()] = true
+					}
+					return readbackIngressDNS(ctx, delegatedDomain, nameservers, nameserverAddresses, "_acme-challenge."+strings.TrimPrefix(dnsName, "*.")+".", key)
+				}
+				return fmt.Errorf("%w: waiting for a presented DNS-01 challenge for %s", dnsreadback.ErrInconsistent, appsWildcard)
+			}
+			lastDNSStatus = ""
+			if err := dnsreadback.Wait(ctx, 5*time.Second, 90*time.Second, 3, func(ctx context.Context) error {
+				return logDNSReadback(readbackTXT(ctx))
+			}); err != nil {
+				GinkgoLogr.Info("DNS TXT readback incomplete; proceeding to wait for issuance (best-effort)", "zone", delegatedDomain, "error", err)
+			}
+
+			By("waiting for the Certificate to be issued")
+			var lastCertStatus string
+			Eventually(func() error {
+				cert, err := dynClient.Resource(certGVR).Namespace(ingressNamespace).Get(ctx, "cluster-ingress-cert", metav1.GetOptions{})
+				if err != nil {
+					return err
+				}
+				ready, msg := isResourceReady(cert)
+				if !ready {
+					if msg != lastCertStatus {
+						GinkgoLogr.Info("waiting for Certificate issuance", "status", msg)
+						lastCertStatus = msg
+					}
+					return fmt.Errorf("certificate not ready: %s", msg)
+				}
+				return nil
+			}).WithContext(ctx).WithTimeout(10*time.Minute).WithPolling(15*time.Second).Should(Succeed(),
+				"Certificate should be issued by Let's Encrypt staging via ACME DNS-01")
+
+			By("verifying the TLS Secret contains a valid certificate with the correct SAN")
+			err = expectTLSSecretIssuedByLetsEncrypt(ctx, kubeClient, ingressNamespace, ingressSecretName, appsWildcard)
+			Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("TLS Secret should contain a valid cert issued by Let's Encrypt staging with SAN %s", appsWildcard))
+
+			By("deploying a sample application before verifying the default ingress certificate")
+			sampleApp, err := framework.DeploySampleApp(ctx, adminRESTConfig)
+			Expect(err).NotTo(HaveOccurred(), "failed to deploy sample application")
+			DeferCleanup(func(ctx context.Context) {
+				err := kubeClient.CoreV1().Namespaces().Delete(ctx, sampleApp.Namespace, metav1.DeleteOptions{})
+				if !apierrors.IsNotFound(err) {
+					Expect(err).NotTo(HaveOccurred(), "failed to delete sample application namespace %q", sampleApp.Namespace)
+				}
+			})
+
+			By("verifying ACM's ingress certificate must not be created")
+			Expect(verifiers.VerifyACMIngressCertificateAbsent().Verify(ctx, adminRESTConfig)).To(Succeed(), "ACM must not create its ingress certificate secret")
+
+			By("pointing IngressController/default at the customer's Let's Encrypt certificate")
+			icPatch := []byte(fmt.Sprintf(`{"spec":{"defaultCertificate":{"name":%q}}}`, ingressSecretName))
+			icGVR := schema.GroupVersionResource{Group: "operator.openshift.io", Version: "v1", Resource: "ingresscontrollers"}
+			_, err = dynClient.Resource(icGVR).Namespace("openshift-ingress-operator").Patch(ctx, "default", types.MergePatchType, icPatch, metav1.PatchOptions{})
+			Expect(err).NotTo(HaveOccurred(), "failed to patch IngressController default certificate")
+			customerSecret, err := kubeClient.CoreV1().Secrets(ingressNamespace).Get(ctx, ingressSecretName, metav1.GetOptions{})
+			Expect(err).NotTo(HaveOccurred(), "failed to read the customer's certificate")
+			certificateBlock, _ := pem.Decode(customerSecret.Data[corev1.TLSCertKey])
+			Expect(certificateBlock).NotTo(BeNil(), "customer TLS secret must contain a PEM certificate")
+			customerCertificate, err := x509.ParseCertificate(certificateBlock.Bytes)
+			Expect(err).NotTo(HaveOccurred(), "failed to parse the customer's certificate")
+			roots, err := loadEmbeddedCAs(letsEncryptStagingCAs, "letsencrypt-stg-cas")
+			Expect(err).NotTo(HaveOccurred(), "failed to load Let's Encrypt staging roots")
+
+			By("verifying the sample application serves the exact customer-specified certificate with a valid Let's Encrypt chain")
+			Expect(verifiers.VerifyCustomIngressCertificate(sampleApp.RouteHost, appsWildcard, customerCertificate, roots, 10*time.Minute).Verify(ctx, adminRESTConfig)).To(Succeed(), "sample application must serve the exact customer-specified certificate with a valid Let's Encrypt chain")
+
+			By("verifying ACM's ingress certificate must remain absent after the customer's override")
+			Expect(verifiers.VerifyACMIngressCertificateAbsent().Verify(ctx, adminRESTConfig)).To(Succeed(), "ACM's ingress certificate must remain absent after the customer's override")
+		},
+		// Add earlier release lines only once a CPO override for https://github.com/openshift/hypershift/pull/9132
+		// exists across all previously-released versions; start with 5.1 for early feedback.
+		Entry("for cluster version 5.1", "5.1"),
+	)
+})
+
+func ingressDNSResolver(address string) *net.Resolver {
+	return &net.Resolver{
+		PreferGo: true,
+		Dial: func(ctx context.Context, network, _ string) (net.Conn, error) {
+			return (&net.Dialer{}).DialContext(ctx, network, address)
+		},
+	}
+}
+
+func readbackIngressDNS(ctx context.Context, zone string, nameservers []string, nameserverAddresses map[string]string, txtName, txtValue string) error {
+	lookupCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	checkNS := func(resolver *net.Resolver, source string) error {
+		records, err := resolver.LookupNS(lookupCtx, zone+".")
+		if err != nil {
+			return fmt.Errorf("NS lookup for %s via %s: %w", zone, source, err)
+		}
+		var hosts []string
+		for _, record := range records {
+			hosts = append(hosts, strings.ToLower(record.Host))
+		}
+		slices.Sort(hosts)
+		if !slices.Equal(hosts, nameservers) {
+			return fmt.Errorf("%w: NS lookup for %s via %s: got %v, want %v", dnsreadback.ErrInconsistent, zone, source, hosts, nameservers)
+		}
+		return nil
+	}
+	recursive := ingressDNSResolver("1.1.1.1:53")
+	if err := checkNS(recursive, "recursive resolver 1.1.1.1:53"); err != nil {
+		return err
+	}
+	for _, nameserver := range nameservers {
+		address, cached := nameserverAddresses[nameserver]
+		if !cached {
+			addresses, err := recursive.LookupIP(lookupCtx, "ip4", nameserver)
+			if err != nil {
+				return fmt.Errorf("resolving authoritative nameserver %s via 1.1.1.1:53: %w", nameserver, err)
+			}
+			if len(addresses) == 0 {
+				return fmt.Errorf("%w: no IPv4 addresses for authoritative nameserver %s", dnsreadback.ErrInconsistent, nameserver)
+			}
+			address = net.JoinHostPort(addresses[0].String(), "53")
+			nameserverAddresses[nameserver] = address
+		}
+		resolver := ingressDNSResolver(address)
+		if err := checkNS(resolver, nameserver); err != nil {
+			return err
+		}
+		if txtName != "" {
+			records, err := resolver.LookupTXT(lookupCtx, txtName)
+			if err != nil {
+				return fmt.Errorf("TXT lookup for %s via %s: %w", txtName, nameserver, err)
+			}
+			if !slices.Contains(records, txtValue) {
+				return fmt.Errorf("%w: TXT lookup for %s via %s: expected challenge value absent (%d records)", dnsreadback.ErrInconsistent, txtName, nameserver, len(records))
+			}
+		}
+	}
+	return nil
+}
+
+// unstructuredClusterIssuer builds a cert-manager.io/v1 ClusterIssuer that uses
+// ACME DNS-01 challenges with the Azure DNS solver.
+func unstructuredClusterIssuer(name, email, server, hostedZoneName, resourceGroupName, subscriptionID, uamiClientID string) *unstructured.Unstructured {
+	return &unstructured.Unstructured{Object: map[string]interface{}{
+		"apiVersion": "cert-manager.io/v1",
+		"kind":       "ClusterIssuer",
+		"metadata":   map[string]interface{}{"name": name},
+		"spec": map[string]interface{}{
+			"acme": map[string]interface{}{
+				"email":  email,
+				"server": server,
+				"privateKeySecretRef": map[string]interface{}{
+					"name": name + "-account-key",
+				},
+				"solvers": []interface{}{
+					map[string]interface{}{
+						"dns01": map[string]interface{}{
+							"azureDNS": map[string]interface{}{
+								"environment":       "AzurePublicCloud",
+								"hostedZoneName":    hostedZoneName,
+								"resourceGroupName": resourceGroupName,
+								"subscriptionID":    subscriptionID,
+								"managedIdentity": map[string]interface{}{
+									"clientID": uamiClientID,
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}}
+}
+
+// unstructuredCertificate builds a cert-manager.io/v1 Certificate that requests
+// a TLS cert for the given DNS name from the named ClusterIssuer.
+func unstructuredCertificate(name, namespace, secretName, issuerName, dnsName string) *unstructured.Unstructured {
+	return &unstructured.Unstructured{Object: map[string]interface{}{
+		"apiVersion": "cert-manager.io/v1",
+		"kind":       "Certificate",
+		"metadata": map[string]interface{}{
+			"name":      name,
+			"namespace": namespace,
+		},
+		"spec": map[string]interface{}{
+			"secretName": secretName,
+			"privateKey": map[string]interface{}{
+				"rotationPolicy": "Always",
+			},
+			"dnsNames": []interface{}{dnsName},
+			"issuerRef": map[string]interface{}{
+				"name": issuerName,
+				"kind": "ClusterIssuer",
+			},
+		},
+	}}
+}
+
+// isResourceReady checks the status.conditions of an unstructured resource for
+// a condition with type=Ready. Returns (true, "") if Ready=True, or
+// (false, summary) describing the current state.
+func isResourceReady(obj *unstructured.Unstructured) (bool, string) {
+	conditions, found, err := unstructured.NestedSlice(obj.Object, "status", "conditions")
+	if err != nil || !found {
+		return false, "no status.conditions found"
+	}
+	for _, c := range conditions {
+		cond, ok := c.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		condType, _, _ := unstructured.NestedString(cond, "type")
+		condStatus, _, _ := unstructured.NestedString(cond, "status")
+		condMsg, _, _ := unstructured.NestedString(cond, "message")
+		condReason, _, _ := unstructured.NestedString(cond, "reason")
+		if condType == "Ready" {
+			if condStatus == "True" {
+				return true, ""
+			}
+			return false, fmt.Sprintf("reason=%s message=%s", condReason, condMsg)
+		}
+	}
+	return false, "Ready condition not present"
+}
+
+// dumpCertManagerIssuanceDiagnostics logs the cert-manager/ACME issuance chain
+// (ClusterIssuer, Certificate, CertificateRequest, Order, Challenge) and the
+// cert-manager controller pods' recent logs to GinkgoWriter.
+//
+// cert-manager sets the Certificate's Ready condition to
+// reason=DoesNotExist/message="Issuing certificate as Secret does not exist"
+// once, when issuance starts, and does not update it again until issuance
+// finally succeeds or fails. isResourceReady therefore cannot explain why a
+// stuck Certificate is stuck: the real state (DNS-01 propagation, ACME
+// authorization, presented/processing) lives on the child CertificateRequest,
+// Order, and Challenge resources and in the controller's own logs.
+func dumpCertManagerIssuanceDiagnostics(ctx context.Context, dynClient dynamic.Interface, kubeClient kubernetes.Interface, certManagerNamespace, ingressNamespace, issuerName string) {
+	GinkgoWriter.Println("===== cert-manager issuance diagnostics (test failed) =====")
+
+	issuerGVR := schema.GroupVersionResource{Group: "cert-manager.io", Version: "v1", Resource: "clusterissuers"}
+	if issuer, err := dynClient.Resource(issuerGVR).Get(ctx, issuerName, metav1.GetOptions{}); err != nil {
+		GinkgoWriter.Printf("failed to get ClusterIssuer %s: %v\n", issuerName, err)
+	} else {
+		printUnstructuredStatus(issuer, fmt.Sprintf("clusterissuers/%s", issuerName))
+	}
+
+	for _, gvr := range []schema.GroupVersionResource{
+		{Group: "cert-manager.io", Version: "v1", Resource: "certificates"},
+		{Group: "cert-manager.io", Version: "v1", Resource: "certificaterequests"},
+		{Group: "acme.cert-manager.io", Version: "v1", Resource: "orders"},
+		{Group: "acme.cert-manager.io", Version: "v1", Resource: "challenges"},
+	} {
+		list, err := dynClient.Resource(gvr).Namespace(ingressNamespace).List(ctx, metav1.ListOptions{})
+		if err != nil {
+			GinkgoWriter.Printf("failed to list %s in namespace %s: %v\n", gvr.Resource, ingressNamespace, err)
+			continue
+		}
+		if len(list.Items) == 0 {
+			GinkgoWriter.Printf("no %s found in namespace %s\n", gvr.Resource, ingressNamespace)
+			continue
+		}
+		for i := range list.Items {
+			printUnstructuredStatus(&list.Items[i], fmt.Sprintf("%s/%s", gvr.Resource, list.Items[i].GetName()))
+		}
+	}
+
+	pods, err := kubeClient.CoreV1().Pods(certManagerNamespace).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		GinkgoWriter.Printf("failed to list pods in namespace %s: %v\n", certManagerNamespace, err)
+		return
+	}
+	for _, pod := range pods.Items {
+		logs, err := kubeClient.CoreV1().Pods(certManagerNamespace).GetLogs(pod.Name, &corev1.PodLogOptions{TailLines: to.Ptr(int64(200))}).Do(ctx).Raw()
+		if err != nil {
+			GinkgoWriter.Printf("failed to get logs for pod %s/%s: %v\n", certManagerNamespace, pod.Name, err)
+			continue
+		}
+		GinkgoWriter.Printf("--- pod %s/%s logs (last 200 lines) ---\n%s\n", certManagerNamespace, pod.Name, string(logs))
+	}
+}
+
+// printUnstructuredStatus writes an unstructured resource's status subtree to
+// GinkgoWriter as indented JSON, labelled with the given name.
+func printUnstructuredStatus(obj *unstructured.Unstructured, label string) {
+	status, _, _ := unstructured.NestedMap(obj.Object, "status")
+	b, err := json.MarshalIndent(status, "", "  ")
+	if err != nil {
+		GinkgoWriter.Printf("--- %s status: failed to marshal: %v ---\n", label, err)
+		return
+	}
+	GinkgoWriter.Printf("--- %s status ---\n%s\n", label, string(b))
+}
+
+// expectTLSSecretIssuedByLetsEncrypt verifies that the named Secret exists, is
+// of type kubernetes.io/tls, has a leaf cert whose SAN matches expectedSAN,
+// and that the certificate chain validates up to a Let's Encrypt staging root CA.
+func expectTLSSecretIssuedByLetsEncrypt(ctx context.Context, kubeClient kubernetes.Interface, ns, name, expectedSAN string) error {
+	s, err := kubeClient.CoreV1().Secrets(ns).Get(ctx, name, metav1.GetOptions{})
+	if err != nil {
+		return fmt.Errorf("getting secret %s/%s: %w", ns, name, err)
+	}
+	if s.Type != corev1.SecretTypeTLS {
+		return fmt.Errorf("secret %s/%s has type %q, want kubernetes.io/tls", ns, name, s.Type)
+	}
+	crtPEM, ok := s.Data[corev1.TLSCertKey]
+	if !ok || len(crtPEM) == 0 {
+		return fmt.Errorf("secret %s/%s has no tls.crt data", ns, name)
+	}
+
+	var certs []*x509.Certificate
+	rest := crtPEM
+	for {
+		var block *pem.Block
+		block, rest = pem.Decode(rest)
+		if block == nil {
+			break
+		}
+		cert, err := x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			return fmt.Errorf("parsing certificate in %s/%s: %w", ns, name, err)
+		}
+		certs = append(certs, cert)
+	}
+	if len(certs) == 0 {
+		return fmt.Errorf("secret %s/%s tls.crt contains no valid PEM certificates", ns, name)
+	}
+
+	leaf := certs[0]
+	sanFound := false
+	for _, san := range leaf.DNSNames {
+		if san == expectedSAN {
+			sanFound = true
+			break
+		}
+	}
+	if !sanFound {
+		return fmt.Errorf("leaf cert SANs %v do not include expected %q", leaf.DNSNames, expectedSAN)
+	}
+
+	roots, err := loadEmbeddedCAs(letsEncryptStagingCAs, "letsencrypt-stg-cas")
+	if err != nil {
+		return fmt.Errorf("loading Let's Encrypt staging root CAs: %w", err)
+	}
+
+	if err := verifyCertChain(certs, roots); err != nil {
+		return fmt.Errorf("certificate chain verification against Let's Encrypt staging roots failed: %w", err)
+	}
+
+	GinkgoLogr.Info("verified TLS Secret certificate chain to Let's Encrypt staging root",
+		"secret", fmt.Sprintf("%s/%s", ns, name),
+		"san", leaf.DNSNames,
+		"issuerCN", leaf.Issuer.CommonName,
+		"notBefore", leaf.NotBefore,
+		"notAfter", leaf.NotAfter,
+	)
+	return nil
+}
+
+// newRoleAssignmentsClient creates a role assignments client. Extracted to keep
+// the test body readable.
+func newRoleAssignmentsClient(subscriptionID string, cred azcore.TokenCredential) *armauthorization.RoleAssignmentsClient {
+	client, err := armauthorization.NewRoleAssignmentsClient(subscriptionID, cred, nil)
+	Expect(err).NotTo(HaveOccurred(), "failed to create role assignments client")
+	return client
+}
+
+func applyManifestFromURL(ctx context.Context, dyn dynamic.Interface, mapper meta.RESTMapper, manifestURL string) error {
+	body, err := framework.DownloadManifest(ctx, manifestURL)
+	if err != nil {
+		return err
+	}
+
+	decoder := utilyaml.NewYAMLOrJSONDecoder(bytes.NewReader(body), 4096)
+	for {
+		obj := &unstructured.Unstructured{}
+		if err := decoder.Decode(obj); err != nil {
+			if err == io.EOF {
+				break
+			}
+			return fmt.Errorf("decoding manifest doc: %w", err)
+		}
+		if len(obj.Object) == 0 {
+			continue
+		}
+		gvk := obj.GroupVersionKind()
+		mapping, err := mapper.RESTMapping(gvk.GroupKind(), gvk.Version)
+		if err != nil {
+			return fmt.Errorf("mapping %v: %w", gvk, err)
+		}
+		var ri dynamic.ResourceInterface
+		if mapping.Scope.Name() == meta.RESTScopeNameNamespace {
+			ri = dyn.Resource(mapping.Resource).Namespace(obj.GetNamespace())
+		} else {
+			ri = dyn.Resource(mapping.Resource)
+		}
+		if _, err := ri.Create(ctx, obj, metav1.CreateOptions{}); err != nil && !apierrors.IsAlreadyExists(err) {
+			return fmt.Errorf("creating %s %s/%s: %w", gvk.Kind, obj.GetNamespace(), obj.GetName(), err)
+		}
+	}
+	return nil
+}
+
+func newDiscoveryMapper(cfg *rest.Config) meta.RESTMapper {
+	dc := discovery.NewDiscoveryClientForConfigOrDie(cfg)
+	return restmapper.NewDeferredDiscoveryRESTMapper(memory.NewMemCacheClient(dc))
+}
+
+func assignBuiltInRoleAtScope(
+	ctx context.Context,
+	client *armauthorization.RoleAssignmentsClient,
+	subscriptionID, scope, principalID, roleDefinitionID string,
+) error {
+	roleDefResourceID := fmt.Sprintf("/subscriptions/%s/providers/Microsoft.Authorization/roleDefinitions/%s", subscriptionID, roleDefinitionID)
+	assignmentName := uuid.NewSHA1(uuid.NameSpaceDNS, []byte(strings.Join([]string{scope, principalID, roleDefinitionID}, "|"))).String()
+
+	_, err := client.Create(ctx, scope, assignmentName, armauthorization.RoleAssignmentCreateParameters{
+		Properties: &armauthorization.RoleAssignmentProperties{
+			PrincipalID:      to.Ptr(principalID),
+			RoleDefinitionID: to.Ptr(roleDefResourceID),
+		},
+	}, nil)
+	if err != nil {
+		var respErr *azcore.ResponseError
+		if errors.As(err, &respErr) && respErr.ErrorCode == "RoleAssignmentExists" {
+			return nil
+		}
+		return fmt.Errorf("assigning role %s on %s to %s: %w", roleDefinitionID, scope, principalID, err)
+	}
+	return nil
+}
+
+func isPrincipalNotFoundError(err error) bool {
+	var respErr *azcore.ResponseError
+	return errors.As(err, &respErr) && respErr.ErrorCode == "PrincipalNotFound"
+}

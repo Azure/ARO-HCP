@@ -7,7 +7,7 @@
 - Access: Requires a Red Hat (RH) account
 - Purpose: Hosts various development and test-related environments
 - Pros:
-  - full controll over the environment
+  - full control over the environment
   - small entry barrier
   - nearly no restrictions
   - quick development cycles
@@ -69,7 +69,7 @@ This table provides an overview of the various ARO HCP deployment environments, 
 - **OneCert**: Indicates if the environment supports the OneCert certificate signers/CAs, e.g. for creating certificates directly within Key Vault.
 - **Service Mock SPs**: Indicates if the environment requires us to use mocks for First Party App (FPA)
 - **ARM integration**: Indicates if the environment will be integrated with Azure Resource Manager (ARM). "We can use ARM to talk to the environment."
-- **MSI RP**: Indicates if we can use MSI-RP to get ahold of ARO HCP dataplane managed identities backing certificiates.
+- **MSI RP**: Indicates if we can use MSI-RP to get ahold of ARO HCP dataplane managed identities backing certificates.
 - **MSFT Compliance required**: Indicates if the environment requires MSFT Compliance.
 - **MISE**: Indicates if we can use MISE for RP frontend authn/z. If not available, we can only use `kubectl port-forward` to access the RP frontend service.
 - **Deployment Driver**: The tooling used to deploy / update an environment.

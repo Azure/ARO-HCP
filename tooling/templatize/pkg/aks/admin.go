@@ -77,7 +77,8 @@ func EnsureClusterAdmin(ctx context.Context, kubeconfigPath, subscriptionID, res
 
 	// Wait for role assignment to be effective
 	fmt.Println("Wait for role assignment to be effective")
-	timeout := time.After(options.Timeout)
+	timeoutTimer := time.NewTimer(options.Timeout)
+	defer timeoutTimer.Stop()
 	ticker := time.NewTicker(options.CheckFrequency)
 	defer ticker.Stop()
 
@@ -85,7 +86,7 @@ func EnsureClusterAdmin(ctx context.Context, kubeconfigPath, subscriptionID, res
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-timeout:
+		case <-timeoutTimer.C:
 			return fmt.Errorf("timed out waiting for role assignment to be effective")
 		case <-ticker.C:
 			err = CheckClusterAdminPermissions(ctx, kubeconfigPath)

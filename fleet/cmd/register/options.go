@@ -18,21 +18,18 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/fleet"
+	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
 	"github.com/Azure/ARO-HCP/internal/azsdk"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosclient"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosratelimit"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
 )
-
-// provisionShardNamespaceUUID is the namespace UUID used to generate deterministic
-// provision shard IDs via UUID v5. Must match the value used by cluster-service.
-var provisionShardNamespaceUUID = uuid.MustParse("916f9976-e1c0-4afd-b84c-5d5c94fbeaed")
 
 type RawRegisterOptions struct {
 	CloudEnvironment                                     string
@@ -104,8 +101,7 @@ type validatedRegisterOptions struct {
 	managementClusterResourceID *azcorearm.ResourceID
 	aksResourceID               *azcorearm.ResourceID
 	publicDNSZoneResourceID     *azcorearm.ResourceID
-	provisionShardID            *api.InternalID
-	schedulingPolicy            fleet.ManagementClusterSchedulingPolicy
+	schedulingPolicy            fleetapi.ManagementClusterSchedulingPolicy
 }
 
 type ValidatedRegisterOptions struct {
@@ -118,17 +114,17 @@ func (o *RawRegisterOptions) Validate(ctx context.Context) (*ValidatedRegisterOp
 		return nil, fmt.Errorf("--cloud-environment: %w", err)
 	}
 
-	stampResourceID, err := fleet.ToStampResourceID(o.StampIdentifier)
+	stampResourceID, err := fleetapihelpers.ToStampResourceID(o.StampIdentifier)
 	if err != nil {
 		return nil, fmt.Errorf("invalid stamp identifier %q: %w", o.StampIdentifier, err)
 	}
-	managementClusterResourceID, err := fleet.ToManagementClusterResourceID(o.StampIdentifier)
+	managementClusterResourceID, err := fleetapihelpers.ToManagementClusterResourceID(o.StampIdentifier)
 	if err != nil {
 		return nil, fmt.Errorf("invalid stamp identifier %q: %w", o.StampIdentifier, err)
 	}
 
-	schedulingPolicy := fleet.ManagementClusterSchedulingPolicy(o.SchedulingPolicy)
-	if !fleet.ValidManagementClusterSchedulingPolicies.Has(schedulingPolicy) {
+	schedulingPolicy := fleetapi.ManagementClusterSchedulingPolicy(o.SchedulingPolicy)
+	if !fleetapi.ValidManagementClusterSchedulingPolicies.Has(schedulingPolicy) {
 		return nil, fmt.Errorf("invalid scheduling policy %q: must be Schedulable or Unschedulable", o.SchedulingPolicy)
 	}
 
@@ -142,15 +138,6 @@ func (o *RawRegisterOptions) Validate(ctx context.Context) (*ValidatedRegisterOp
 		return nil, fmt.Errorf("invalid public-dns-zone-resource-id: %w", err)
 	}
 
-	// Deterministic UUID v5 matching cluster-service/Makefile's PROVISION_SHARD_ID
-	// generation. Both use the AKS cluster name as input — case-sensitive, so
-	// casing must stay consistent across config sources.
-	shardUUID := uuid.NewSHA1(provisionShardNamespaceUUID, []byte(aksID.Name))
-	shardID, err := api.NewInternalID(fmt.Sprintf("/api/aro_hcp/v1alpha1/provision_shards/%s", shardUUID.String()))
-	if err != nil {
-		return nil, fmt.Errorf("failed to construct provision shard ID: %w", err)
-	}
-
 	return &ValidatedRegisterOptions{
 		validatedRegisterOptions: &validatedRegisterOptions{
 			RawRegisterOptions:          o,
@@ -159,25 +146,23 @@ func (o *RawRegisterOptions) Validate(ctx context.Context) (*ValidatedRegisterOp
 			managementClusterResourceID: managementClusterResourceID,
 			aksResourceID:               aksID,
 			publicDNSZoneResourceID:     dnsID,
-			provisionShardID:            &shardID,
 			schedulingPolicy:            schedulingPolicy,
 		},
 	}, nil
 }
 
 type registerOptions struct {
-	fleetDBClient                                        database.FleetDBClient
+	fleetDBClient                                        fleetcosmosstorage.FleetDBClient
 	stampIdentifier                                      string
 	stampResourceID                                      *azcorearm.ResourceID
 	managementClusterResourceID                          *azcorearm.ResourceID
 	autoApprove                                          bool
-	schedulingPolicy                                     fleet.ManagementClusterSchedulingPolicy
+	schedulingPolicy                                     fleetapi.ManagementClusterSchedulingPolicy
 	aksResourceID                                        *azcorearm.ResourceID
 	publicDNSZoneResourceID                              *azcorearm.ResourceID
 	hostedClustersSecretsKeyVaultURL                     string
 	hostedClustersManagedIdentitiesKeyVaultURL           string
 	hostedClustersSecretsKeyVaultManagedIdentityClientID string
-	provisionShardID                                     *api.InternalID
 	maestroConsumerName                                  string
 	maestroRESTAPIURL                                    string
 	maestroGRPCTarget                                    string
@@ -192,12 +177,9 @@ func (o *ValidatedRegisterOptions) Complete(ctx context.Context) (*RegisterOptio
 	clientOpts := azsdk.NewClientOptions(azsdk.ComponentFleet)
 	clientOpts.Cloud = o.cloudConfiguration
 
-	dbClient, err := database.NewCosmosDatabaseClient(o.CosmosURL, o.CosmosName, clientOpts)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create CosmosDB client: %w", err)
-	}
-
-	fleetDBClient, err := database.NewFleetDBClient(dbClient)
+	storageOptions := cosmosclient.Options{ClientOptions: clientOpts}
+	bucket := cosmosratelimit.NewUnlimitedTokenBucket("fleet-register")
+	fleetDBClient, err := fleetcosmosstorage.NewFleetDBClient(o.CosmosURL, o.CosmosName, storageOptions, bucket)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create fleet DB client: %w", err)
 	}
@@ -215,7 +197,6 @@ func (o *ValidatedRegisterOptions) Complete(ctx context.Context) (*RegisterOptio
 			hostedClustersSecretsKeyVaultURL:           o.HostedClustersSecretsKeyVaultURL,
 			hostedClustersManagedIdentitiesKeyVaultURL: o.HostedClustersManagedIdentitiesKeyVaultURL,
 			hostedClustersSecretsKeyVaultManagedIdentityClientID: o.HostedClustersSecretsKeyVaultManagedIdentityClientID,
-			provisionShardID:               o.provisionShardID,
 			maestroConsumerName:            o.MaestroConsumerName,
 			maestroRESTAPIURL:              o.MaestroRESTAPIURL,
 			maestroGRPCTarget:              o.MaestroGRPCTarget,

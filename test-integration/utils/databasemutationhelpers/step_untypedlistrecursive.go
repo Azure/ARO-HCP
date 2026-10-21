@@ -25,7 +25,7 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 )
 
 type UntypedCRUDKey struct {
@@ -43,7 +43,7 @@ type untypedListRecursiveStep struct {
 	stepID StepID
 	key    UntypedCRUDKey
 
-	expectedResources []*database.TypedDocument
+	expectedResources []*cosmosstorageutils.TypedDocument
 }
 
 func newUntypedListRecursiveStep(stepID StepID, stepDir fs.FS) (*untypedListRecursiveStep, error) {
@@ -56,7 +56,7 @@ func newUntypedListRecursiveStep(stepID StepID, stepDir fs.FS) (*untypedListRecu
 		return nil, fmt.Errorf("failed to unmarshal key.json: %w", err)
 	}
 
-	expectedResources, err := readResourcesInDir[database.TypedDocument](stepDir)
+	expectedResources, err := readResourcesInDir[cosmosstorageutils.TypedDocument](stepDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read resource in dir: %w", err)
 	}
@@ -86,7 +86,7 @@ func (l *untypedListRecursiveStep) RunTest(ctx context.Context, t *testing.T, st
 	actualResourcesIterator, err := untypedCRUD.ListRecursive(ctx, nil)
 	require.NoError(t, err)
 
-	actualResources := []*database.TypedDocument{}
+	actualResources := []*cosmosstorageutils.TypedDocument{}
 	for _, actual := range actualResourcesIterator.Items(ctx) {
 		actualResources = append(actualResources, actual)
 	}

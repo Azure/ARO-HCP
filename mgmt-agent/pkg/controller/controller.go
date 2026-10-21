@@ -39,11 +39,11 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
 
 	"github.com/Azure/ARO-HCP/internal/azsdk"
+	"github.com/Azure/ARO-HCP/internal/kuberesources"
 )
 
 const (
-	// SwiftNICResourceName is the extended resource name for SWIFT NICs.
-	SwiftNICResourceName corev1.ResourceName = "aro.openshift.io/swift-nic"
+	SwiftNICResourceName = kuberesources.SwiftNICResourceName
 
 	// fieldManager is the SSA field manager name for this controller.
 	fieldManager = "mgmt-agent-swift-nic"
@@ -222,7 +222,7 @@ func (c *SwiftNICController) process(ctx context.Context, node *corev1.Node) (*a
 		), nil
 }
 
-// countSwiftNICs counts non-primary accelerated networking NICs on a VMSS VM.
+// countSwiftNICs counts non-primary NICs on a VMSS VM.
 func countSwiftNICs(vm armcompute.VirtualMachineScaleSetVMsClientGetResponse) int {
 	count := 0
 	if vm.Properties == nil || vm.Properties.NetworkProfileConfiguration == nil {
@@ -233,8 +233,7 @@ func countSwiftNICs(vm armcompute.VirtualMachineScaleSetVMsClientGetResponse) in
 			continue
 		}
 		isPrimary := nic.Properties.Primary != nil && *nic.Properties.Primary
-		isAccelerated := nic.Properties.EnableAcceleratedNetworking != nil && *nic.Properties.EnableAcceleratedNetworking
-		if !isPrimary && isAccelerated {
+		if !isPrimary {
 			count++
 		}
 	}

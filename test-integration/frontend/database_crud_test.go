@@ -21,9 +21,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/test-integration/utils/databasemutationhelpers"
 	"github.com/Azure/ARO-HCP/test-integration/utils/integrationutils"
 )
@@ -41,13 +40,13 @@ func testDatabaseCRUD(t *testing.T, withMock bool) {
 	allCRUDDirFS, err := fs.Sub(artifacts, "artifacts/DatabaseCRUD")
 	require.NoError(t, err)
 
-	crudSuiteDirs := api.Must(fs.ReadDir(allCRUDDirFS, "."))
+	crudSuiteDirs := metadataapi.Must(fs.ReadDir(allCRUDDirFS, "."))
 	for _, crudSuiteDirEntry := range crudSuiteDirs {
-		crudSuiteDir := api.Must(fs.Sub(allCRUDDirFS, crudSuiteDirEntry.Name()))
+		crudSuiteDir := metadataapi.Must(fs.Sub(allCRUDDirFS, crudSuiteDirEntry.Name()))
 		switch crudSuiteDirEntry.Name() {
 		case "ControllerCRUD":
 			t.Run(crudSuiteDirEntry.Name(), func(t *testing.T) {
-				testCRUDSuite[api.Controller](
+				testCRUDSuite[coreapi.Controller, *coreapi.Controller](
 					ctx,
 					t,
 					crudSuiteDir,
@@ -57,7 +56,7 @@ func testDatabaseCRUD(t *testing.T, withMock bool) {
 
 		case "OperationCRUD":
 			t.Run(crudSuiteDirEntry.Name(), func(t *testing.T) {
-				testCRUDSuite[api.Operation](
+				testCRUDSuite[coreapi.Operation, *coreapi.Operation](
 					ctx,
 					t,
 					crudSuiteDir,
@@ -67,7 +66,7 @@ func testDatabaseCRUD(t *testing.T, withMock bool) {
 
 		case "SubscriptionCRUD":
 			t.Run(crudSuiteDirEntry.Name(), func(t *testing.T) {
-				testCRUDSuite[arm.Subscription](
+				testCRUDSuite[coreapi.Subscription, *coreapi.Subscription](
 					ctx,
 					t,
 					crudSuiteDir,
@@ -77,7 +76,7 @@ func testDatabaseCRUD(t *testing.T, withMock bool) {
 
 		case "ServiceProviderClusterCRUD":
 			t.Run(crudSuiteDirEntry.Name(), func(t *testing.T) {
-				testCRUDSuite[api.ServiceProviderCluster](
+				testCRUDSuite[coreapi.ServiceProviderCluster, *coreapi.ServiceProviderCluster](
 					ctx,
 					t,
 					crudSuiteDir,
@@ -86,7 +85,7 @@ func testDatabaseCRUD(t *testing.T, withMock bool) {
 
 		case "UntypedCRUD":
 			t.Run(crudSuiteDirEntry.Name(), func(t *testing.T) {
-				testCRUDSuite[database.TypedDocument](
+				testUntypedCRUDSuite(
 					ctx,
 					t,
 					crudSuiteDir,
@@ -95,7 +94,7 @@ func testDatabaseCRUD(t *testing.T, withMock bool) {
 
 		case "ServiceProviderNodePoolCRUD":
 			t.Run(crudSuiteDirEntry.Name(), func(t *testing.T) {
-				testCRUDSuite[api.ServiceProviderNodePool](
+				testCRUDSuite[coreapi.ServiceProviderNodePool, *coreapi.ServiceProviderNodePool](
 					ctx,
 					t,
 					crudSuiteDir,
@@ -108,12 +107,33 @@ func testDatabaseCRUD(t *testing.T, withMock bool) {
 	}
 }
 
-func testCRUDSuite[InternalAPIType any](ctx context.Context, t *testing.T, crudSuiteDir fs.FS, withMock bool) {
-	testDirs := api.Must(fs.ReadDir(crudSuiteDir, "."))
+func testCRUDSuite[InternalAPIType any, InternalAPITypePointer coreapi.CosmosMetadataAccessorPtr[InternalAPIType]](ctx context.Context, t *testing.T, crudSuiteDir fs.FS, withMock bool) {
+	testDirs := metadataapi.Must(fs.ReadDir(crudSuiteDir, "."))
 	for _, testDirEntry := range testDirs {
-		testDir := api.Must(fs.Sub(crudSuiteDir, testDirEntry.Name()))
+		testDir := metadataapi.Must(fs.Sub(crudSuiteDir, testDirEntry.Name()))
 
-		currTest, err := databasemutationhelpers.NewResourceMutationTest[InternalAPIType](
+		currTest, err := databasemutationhelpers.NewResourceMutationTest[InternalAPIType, InternalAPITypePointer](
+			ctx,
+			testDirEntry.Name(),
+			testDir,
+			withMock,
+		)
+		require.NoError(t, err)
+
+		t.Run(testDirEntry.Name(), currTest.RunTest)
+	}
+}
+
+// testUntypedCRUDSuite mirrors testCRUDSuite for the UntypedCRUD test suite which
+// operates on raw TypedDocument values that don't implement CosmosMetadataAccessor.
+// All actual steps in this suite are untyped-* variants that do not require a typed
+// CRUD client, so we instantiate with cosmosstorageutils.TypedDocument and skip the constraint.
+func testUntypedCRUDSuite(ctx context.Context, t *testing.T, crudSuiteDir fs.FS, withMock bool) {
+	testDirs := metadataapi.Must(fs.ReadDir(crudSuiteDir, "."))
+	for _, testDirEntry := range testDirs {
+		testDir := metadataapi.Must(fs.Sub(crudSuiteDir, testDirEntry.Name()))
+
+		currTest, err := databasemutationhelpers.NewUntypedResourceMutationTest(
 			ctx,
 			testDirEntry.Name(),
 			testDir,

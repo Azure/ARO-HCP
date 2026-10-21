@@ -37,7 +37,8 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/utils/apihelpers"
 )
 
@@ -69,6 +70,47 @@ func immutableByReflect[T any](_ context.Context, op operation.Operation, fldPat
 	if !equality.Semantic.DeepEqual(value, oldValue) {
 		return field.ErrorList{
 			field.Forbidden(fldPath, "field is immutable"),
+		}
+	}
+	return nil
+}
+
+// rejectUnsupportedChannelGroupUpdate rejects a channelGroup change on an
+// existing cluster or node pool. Remove this once the backend owns
+// channelGroup control and can apply an update.
+//
+// The update cannot be applied today, for two reasons:
+//
+//   - The backend sends channelGroup to Cluster Service only on create
+//     (BuildCSCluster and BuildCSNodePool). Cluster and node-pool update
+//     dispatch omit the field.
+//   - Cluster Service rejects a patch that includes version at all
+//     so a channelGroup patch is reported as "Attribute 'version' is not allowed".
+func rejectUnsupportedChannelGroupUpdate(op operation.Operation, fldPath *field.Path, newChannelGroup string, oldChannelGroup *string) field.ErrorList {
+	if op.Type != operation.Update || oldChannelGroup == nil {
+		return nil
+	}
+	if newChannelGroup == *oldChannelGroup {
+		return nil
+	}
+	return field.ErrorList{field.Forbidden(
+		fldPath.Child("channelGroup"),
+		"updating channelGroup is not currently supported",
+	)}
+}
+
+// immutableByReflectOnceSet allows a nil→non-nil transition (first-time set)
+// but rejects any change or clearing once the field has been set.
+func immutableByReflectOnceSet[T any](_ context.Context, op operation.Operation, fldPath *field.Path, value, oldValue *T) field.ErrorList {
+	if op.Type != operation.Update {
+		return nil
+	}
+	if oldValue == nil {
+		return nil
+	}
+	if value == nil || !equality.Semantic.DeepEqual(value, oldValue) {
+		return field.ErrorList{
+			field.Forbidden(fldPath, "field is immutable once set"),
 		}
 	}
 	return nil
@@ -106,6 +148,33 @@ func VersionMustBeAtLeast(_ context.Context, op operation.Operation, fldPath *fi
 
 	if newVersion.LT(minVersion) {
 		return field.ErrorList{field.Invalid(fldPath, value, fmt.Sprintf("must be at least %s", minimumVersion))}
+	}
+
+	return nil
+}
+
+// VersionMustBeAtLeastMajorMinor checks if the version is at least the minimum major.minor version,
+// ignoring patch and prerelease.
+func VersionMustBeAtLeastMajorMinor(ctx context.Context, op operation.Operation, fldPath *field.Path, value, _ *string, minimumMajorMinorVersion string) field.ErrorList {
+	if value == nil {
+		return nil
+	}
+	if len(*value) == 0 {
+		return nil
+	}
+
+	newVersion, err := semver.ParseTolerant(*value)
+	if err != nil {
+		return field.ErrorList{field.Invalid(fldPath, value, err.Error())}
+	}
+
+	minVersion, err := semver.ParseTolerant(minimumMajorMinorVersion)
+	if err != nil {
+		return field.ErrorList{field.Invalid(fldPath, value, err.Error())}
+	}
+
+	if newVersion.Major < minVersion.Major || (newVersion.Major == minVersion.Major && newVersion.Minor < minVersion.Minor) {
+		return field.ErrorList{field.Invalid(fldPath, value, fmt.Sprintf("must be at least %s", minimumMajorMinorVersion))}
 	}
 
 	return nil
@@ -165,7 +234,7 @@ func OpenshiftVersionAtMostOneMinorSkew(previousVersionID, newVersionID string) 
 		}
 		previousVersionReleaseLine := fmt.Sprintf("%d.%d", parsedPreviousVersion.Major, parsedPreviousVersion.Minor)
 		desiredVersionReleaseLine := fmt.Sprintf("%d.%d", parsedDesiredVersion.Major, parsedDesiredVersion.Minor)
-		allowedTargetReleaseLine := api.AllowMajorUpgradePaths[previousVersionReleaseLine]
+		allowedTargetReleaseLine := metadataapi.AllowMajorUpgradePaths[previousVersionReleaseLine]
 		if desiredVersionReleaseLine != allowedTargetReleaseLine {
 			return fmt.Errorf("invalid upgrade path from %s to %s: cross-major upgrade from %s is only allowed to %s", previousVersionID, newVersionID, previousVersionReleaseLine, allowedTargetReleaseLine)
 		}
@@ -193,22 +262,6 @@ func OpenshiftVersionAtMostOneMinorSkewWithField(_ context.Context, _ operation.
 	return nil
 }
 
-func OpenshiftVersionWithOptionalMicro(_ context.Context, op operation.Operation, fldPath *field.Path, value, _ *string) field.ErrorList {
-	if value == nil {
-		return nil
-	}
-	if len(*value) == 0 {
-		return nil
-	}
-
-	_, err := semver.ParseTolerant(*value)
-	if err != nil {
-		return field.ErrorList{field.Invalid(fldPath, value, err.Error())}
-	}
-
-	return nil
-}
-
 func OpenShiftWithOptionalPrerelease(_ context.Context, op operation.Operation, fldPath *field.Path, value, _ *string) field.ErrorList {
 	if value == nil {
 		return nil
@@ -229,7 +282,10 @@ func OpenShiftWithOptionalPrerelease(_ context.Context, op operation.Operation, 
 	return nil
 }
 
-func OpenshiftVersionWithoutMicro(_ context.Context, op operation.Operation, fldPath *field.Path, value, _ *string) field.ErrorList {
+// OpenshiftVersionWithoutMicroDetail rejects a version ID that carries a PATCH
+// component, reporting the supplied detail. Callers differ only in how they tell
+// the user where the PATCH value belongs.
+func OpenshiftVersionWithoutMicroDetail(_ context.Context, _ operation.Operation, fldPath *field.Path, value, _ *string, detail string) field.ErrorList {
 	if value == nil {
 		return nil
 	}
@@ -244,10 +300,17 @@ func OpenshiftVersionWithoutMicro(_ context.Context, op operation.Operation, fld
 
 	// The version ID has already passed syntax validation so we know it's a valid semantic version.
 	if len(strings.SplitN(*value, ".", 3)) > 2 {
-		return field.ErrorList{field.Invalid(fldPath, value, "must be specified as MAJOR.MINOR; the PATCH value is managed")}
+		return field.ErrorList{field.Invalid(fldPath, value, detail)}
 	}
 
 	return nil
+}
+
+// OpenshiftVersionWithoutMicro rejects a PATCH component for subscriptions
+// without the experimental AFEC, where no exact pin is available at all.
+func OpenshiftVersionWithoutMicro(ctx context.Context, op operation.Operation, fldPath *field.Path, value, oldValue *string) field.ErrorList {
+	return OpenshiftVersionWithoutMicroDetail(ctx, op, fldPath, value, oldValue,
+		"must be specified as MAJOR.MINOR; the PATCH value is managed")
 }
 
 func MinItems[T any](_ context.Context, _ operation.Operation, fldPath *field.Path, value, _ []T, minLen int) field.ErrorList {
@@ -319,13 +382,18 @@ var (
 	rfc1035LabelRegex          = regexp.MustCompile(dnsRegexStringRFC1035Label)
 	rfc1035ErrorString         = `(must be a valid DNS RFC 1035 label)`
 
-	clusterResourceName            = `^[a-zA-Z][-a-zA-Z0-9]{1,52}[a-zA-Z0-9]$`
+	clusterResourceName            = `^[a-zA-Z]([-a-zA-Z0-9]{0,52}[a-zA-Z0-9])?$`
 	clusterResourceNameRegex       = regexp.MustCompile(clusterResourceName)
 	clusterResourceNameErrorString = `(must be a valid DNS RFC 1035 label)`
 
-	nodePoolResourceName            = `^[a-zA-Z][-a-zA-Z0-9]{1,13}[a-zA-Z0-9]$`
+	nodePoolResourceName            = `^[a-zA-Z]([-a-zA-Z0-9]{0,13}[a-zA-Z0-9])?$`
 	nodePoolResourceNameRegex       = regexp.MustCompile(nodePoolResourceName)
 	nodePoolResourceNameErrorString = `(must be a valid DNS RFC 1035 label)`
+
+	externalAuthResourceName      = `^[a-zA-Z]([-a-zA-Z0-9]{0,13}[a-zA-Z0-9])?$`
+	externalAuthResourceNameRegex = regexp.MustCompile(externalAuthResourceName)
+
+	externalAuthResourceNameErrorString = `(must be a valid DNS RFC 1035 label)`
 
 	// resourceGroupName See https://learn.microsoft.com/en-gb/azure/azure-resource-manager/management/resource-name-rules#microsoftresources
 	resourceGroupName            = `^[\p{L}\p{N}_\-.()]{0,89}[\p{L}\p{N}_\-()]$`
@@ -342,6 +410,16 @@ var (
 
 	azureVMName      = `^[a-zA-Z0-9]([a-zA-Z0-9._-]{0,62}[a-zA-Z0-9_])?$`
 	azureVMNameRegex = regexp.MustCompile(azureVMName)
+
+	// diskEncryptionSetName See https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/resource-name-rules#microsoftcompute
+	diskEncryptionSetName            = `^[a-zA-Z0-9_-]+$`
+	diskEncryptionSetNameRegex       = regexp.MustCompile(diskEncryptionSetName)
+	diskEncryptionSetNameErrorString = `(must contain only alphanumeric characters, underscores, and hyphens)`
+
+	// keyVaultKeyVersion See https://github.com/Azure/azure-rest-api-specs/blob/main/specification/keyvault/resource-manager/Microsoft.KeyVault/KeyVault/stable/2026-02-01/openapi.json#L2141-L2146
+	keyVaultKeyVersion            = `^[0-9a-fA-F]{32}$`
+	keyVaultKeyVersionRegex       = regexp.MustCompile(keyVaultKeyVersion)
+	keyVaultKeyVersionErrorString = `(must be a 32-character hexadecimal key version)`
 )
 
 func MatchesRegex(_ context.Context, _ operation.Operation, fldPath *field.Path, value, _ *string, regex *regexp.Regexp, errorString string) field.ErrorList {
@@ -366,6 +444,19 @@ func ValidateUUID(_ context.Context, _ operation.Operation, fldPath *field.Path,
 	}
 	if err := uuid.Validate(*value); err != nil {
 		return field.ErrorList{field.Invalid(fldPath, *value, err.Error())}
+	}
+	return nil
+}
+
+func AzureKeyVaultKeyVersion(_ context.Context, _ operation.Operation, fldPath *field.Path, value, _ *string) field.ErrorList {
+	if value == nil {
+		return nil
+	}
+	if len(*value) == 0 {
+		return nil
+	}
+	if !keyVaultKeyVersionRegex.MatchString(*value) {
+		return field.ErrorList{field.Invalid(fldPath, *value, keyVaultKeyVersionErrorString)}
 	}
 	return nil
 }
@@ -440,6 +531,20 @@ func HostPort(_ context.Context, _ operation.Operation, fldPath *field.Path, val
 	}
 
 	return nil
+}
+
+func DNS1123Label(_ context.Context, _ operation.Operation, fldPath *field.Path, value, _ *string) field.ErrorList {
+	if value == nil {
+		return nil
+	}
+	if len(*value) == 0 {
+		return nil
+	}
+	errs := field.ErrorList{}
+	for _, msg := range k8svalidation.IsDNS1123Label(*value) {
+		errs = append(errs, field.Invalid(fldPath, *value, msg))
+	}
+	return errs
 }
 
 func URL(_ context.Context, _ operation.Operation, fldPath *field.Path, value, _ *string) field.ErrorList {
@@ -617,6 +722,24 @@ func SameSubscription(ctx context.Context, op operation.Operation, fldPath *fiel
 
 	if !strings.EqualFold(value.SubscriptionID, subscriptionID) {
 		return field.ErrorList{field.Invalid(fldPath, value.String(), fmt.Sprintf("must be in the same Azure subscription: %q", subscriptionID))}
+	}
+
+	return nil
+}
+
+// SameVirtualNetwork checks that value and otherSubnet belong to the same Azure VNet.
+// Both must be subnet resource IDs whose Parent is the VNet.
+func SameVirtualNetwork(_ context.Context, _ operation.Operation, fldPath *field.Path, value, _ *azcorearm.ResourceID, otherSubnet *azcorearm.ResourceID) field.ErrorList {
+	if value == nil || otherSubnet == nil || value.Parent == nil || otherSubnet.Parent == nil {
+		return nil
+	}
+
+	if !strings.EqualFold(value.Parent.String(), otherSubnet.Parent.String()) {
+		return field.ErrorList{field.Invalid(
+			fldPath,
+			value.String(),
+			fmt.Sprintf("must belong to the same VNet as subnetId '%s'", otherSubnet.String()),
+		)}
 	}
 
 	return nil
@@ -875,7 +998,7 @@ func ValidateCrossMajorNodePoolSkew(nodePoolVersion, controlPlaneVersion semver.
 	npKey := fmt.Sprintf("%d.%d", nodePoolVersion.Major, nodePoolVersion.Minor)
 	cpKey := fmt.Sprintf("%d.%d", controlPlaneVersion.Major, controlPlaneVersion.Minor)
 
-	allowedCPs, exists := api.AllowControlPlaneNodePoolMajorVersionSkew[npKey]
+	allowedCPs, exists := metadataapi.AllowControlPlaneNodePoolMajorVersionSkew[npKey]
 	if !exists {
 		return fmt.Errorf("node pool version %s is not allowed to coexist with a different-major control plane",
 			nodePoolVersion.String())
@@ -894,7 +1017,7 @@ func ValidateMajorUpgrade(fromVersion, toVersion semver.Version) error {
 	sourceKey := fmt.Sprintf("%d.%d", fromVersion.Major, fromVersion.Minor)
 	targetKey := fmt.Sprintf("%d.%d", toVersion.Major, toVersion.Minor)
 
-	allowedTargets, exists := api.AllowMajorUpgradePaths[sourceKey]
+	allowedTargets, exists := metadataapi.AllowMajorUpgradePaths[sourceKey]
 	if !exists {
 		return fmt.Errorf("invalid upgrade path from %s to %s: major version upgrades are not supported",
 			fromVersion.String(), toVersion.String())
@@ -915,17 +1038,28 @@ func ValidateMajorUpgrade(fromVersion, toVersion semver.Version) error {
 //   - Downgrade: at most -2 minor versions from the highest control plane version
 //   - Cross-major changes (either direction) require AFEC FeatureExperimentalReleaseFeatures
 //   - NP version must be in the allowed skew map when CP and NP are on different majors
-func ValidateNodePoolVersionChange(desiredVersion semver.Version, activeVersions []api.HCPNodePoolActiveVersion, lowestCPVersion, highestCPVersion *semver.Version, allowMajorUpgrade bool) error {
+func ValidateNodePoolVersionChange(desiredVersion semver.Version, activeVersions []coreapi.ServiceProviderNodePoolActiveVersion, lowestCPVersion, highestCPVersion *semver.Version, allowMajorUpgrade bool) error {
 	// Skip if already in active versions
-	if slices.ContainsFunc(activeVersions, func(av api.HCPNodePoolActiveVersion) bool {
+	if slices.ContainsFunc(activeVersions, func(av coreapi.ServiceProviderNodePoolActiveVersion) bool {
 		return av.Version != nil && av.Version.EQ(desiredVersion)
 	}) {
 		return nil
 	}
+	if lowestCPVersion == nil {
+		return fmt.Errorf("cannot validate node pool version change because lowest control plane version is not known")
+	}
+	if highestCPVersion == nil {
+		return fmt.Errorf("cannot validate node pool version change because highest control plane version is not known")
+	}
 
 	lowest, highest := apihelpers.FindLowestAndHighestNodePoolVersion(activeVersions)
 
-	if desiredVersion.GT(*lowestCPVersion) {
+	// Only the node pool's major.minor must not exceed the lowest control
+	// plane version; a higher patch (z-stream) is allowed. Compare
+	// major.minor instead of the full semantic version so that e.g. NP
+	// 4.22.8 is permitted with CP 4.22.7.
+	if desiredVersion.Major > lowestCPVersion.Major ||
+		(desiredVersion.Major == lowestCPVersion.Major && desiredVersion.Minor > lowestCPVersion.Minor) {
 		return fmt.Errorf(
 			"invalid node pool version %s: cannot exceed control plane version %s",
 			desiredVersion.String(), lowestCPVersion.String(),
@@ -948,7 +1082,7 @@ func ValidateNodePoolVersionChange(desiredVersion semver.Version, activeVersions
 	isSameMajorNPChange := highest == nil || desiredVersion.Major == highest.Major
 	if desiredVersion.Major != highestCPVersion.Major && isSameMajorNPChange {
 		if !allowMajorUpgrade {
-			return fmt.Errorf("major version changes are not supported")
+			return fmt.Errorf("node pool version changes are not supported while the control plane is on a different major version (node pool major version %d vs control plane major version %d)", desiredVersion.Major, highestCPVersion.Major)
 		}
 		return ValidateCrossMajorNodePoolSkew(desiredVersion, *highestCPVersion)
 	}

@@ -17,6 +17,7 @@ package register
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -24,9 +25,9 @@ import (
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/fleet"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -75,13 +76,15 @@ func (o *RegisterOptions) registerStamp(ctx context.Context) error {
 
 	existing, err := stampsCRUD.Get(ctx, o.stampIdentifier)
 	if err != nil {
-		if !database.IsNotFoundError(err) {
+		if !cosmosstorageutils.IsNotFoundError(err) {
 			return fmt.Errorf("failed to get stamp %q: %w", o.stampIdentifier, err)
 		}
 
-		newStamp := &fleet.Stamp{
-			CosmosMetadata: api.CosmosMetadata{ResourceID: o.stampResourceID},
-			ResourceID:     o.stampResourceID,
+		newStamp := &fleetapi.Stamp{
+			CosmosMetadata: coreapi.CosmosMetadata{
+				ResourceID:   o.stampResourceID,
+				PartitionKey: strings.ToLower(o.stampIdentifier),
+			},
 		}
 		o.applyAutoApprove(newStamp)
 
@@ -104,14 +107,14 @@ func (o *RegisterOptions) registerStamp(ctx context.Context) error {
 	return nil
 }
 
-func (o *RegisterOptions) applyAutoApprove(stamp *fleet.Stamp) {
+func (o *RegisterOptions) applyAutoApprove(stamp *fleetapi.Stamp) {
 	if !o.autoApprove {
 		return
 	}
 	apimeta.SetStatusCondition(&stamp.Status.Conditions, metav1.Condition{
-		Type:               string(fleet.StampConditionApproved),
+		Type:               string(fleetapi.StampConditionApproved),
 		Status:             metav1.ConditionTrue,
-		Reason:             string(fleet.StampConditionReasonAutoApproved),
+		Reason:             string(fleetapi.StampConditionReasonAutoApproved),
 		Message:            "Auto-approved during registration",
 		LastTransitionTime: metav1.NewTime(time.Now()),
 	})
@@ -122,7 +125,7 @@ func (o *RegisterOptions) registerManagementCluster(ctx context.Context) error {
 	stampsCRUD := o.fleetDBClient.Stamps()
 
 	if _, err := stampsCRUD.Get(ctx, o.stampIdentifier); err != nil {
-		if database.IsNotFoundError(err) {
+		if cosmosstorageutils.IsNotFoundError(err) {
 			return fmt.Errorf("parent stamp %q not found: register the stamp first", o.stampIdentifier)
 		}
 		return fmt.Errorf("failed to verify parent stamp %q: %w", o.stampIdentifier, err)
@@ -130,15 +133,17 @@ func (o *RegisterOptions) registerManagementCluster(ctx context.Context) error {
 
 	managementClusterCRUD := stampsCRUD.ManagementClusters(o.stampIdentifier)
 
-	existing, err := managementClusterCRUD.Get(ctx, fleet.ManagementClusterResourceName)
+	existing, err := managementClusterCRUD.Get(ctx, fleetapi.ManagementClusterResourceName)
 	if err != nil {
-		if !database.IsNotFoundError(err) {
+		if !cosmosstorageutils.IsNotFoundError(err) {
 			return fmt.Errorf("failed to get management cluster for stamp %q: %w", o.stampIdentifier, err)
 		}
 
-		managementCluster := &fleet.ManagementCluster{
-			CosmosMetadata: api.CosmosMetadata{ResourceID: o.managementClusterResourceID},
-			ResourceID:     o.managementClusterResourceID,
+		managementCluster := &fleetapi.ManagementCluster{
+			CosmosMetadata: coreapi.CosmosMetadata{
+				ResourceID:   o.managementClusterResourceID,
+				PartitionKey: strings.ToLower(o.stampIdentifier),
+			},
 		}
 		o.applyToManagementCluster(managementCluster)
 
@@ -151,7 +156,7 @@ func (o *RegisterOptions) registerManagementCluster(ctx context.Context) error {
 	}
 
 	updated := existing.DeepCopy()
-	o.applyToManagementCluster(updated)
+	o.applyStatusToManagementCluster(updated)
 
 	logger.Info("Updating existing management cluster")
 	if _, err := managementClusterCRUD.Replace(ctx, updated, existing, nil); err != nil {
@@ -161,9 +166,12 @@ func (o *RegisterOptions) registerManagementCluster(ctx context.Context) error {
 	return nil
 }
 
-func (o *RegisterOptions) applyToManagementCluster(managementCluster *fleet.ManagementCluster) {
+func (o *RegisterOptions) applyToManagementCluster(managementCluster *fleetapi.ManagementCluster) {
 	managementCluster.Spec.SchedulingPolicy = o.schedulingPolicy
-	managementCluster.Status.ClusterServiceProvisionShardID = o.provisionShardID
+	o.applyStatusToManagementCluster(managementCluster)
+}
+
+func (o *RegisterOptions) applyStatusToManagementCluster(managementCluster *fleetapi.ManagementCluster) {
 	managementCluster.Status.AKSResourceID = o.aksResourceID
 	managementCluster.Status.PublicDNSZoneResourceID = o.publicDNSZoneResourceID
 	managementCluster.Status.HostedClustersSecretsKeyVaultURL = o.hostedClustersSecretsKeyVaultURL
@@ -173,9 +181,4 @@ func (o *RegisterOptions) applyToManagementCluster(managementCluster *fleet.Mana
 	managementCluster.Status.MaestroRESTAPIURL = o.maestroRESTAPIURL
 	managementCluster.Status.MaestroGRPCTarget = o.maestroGRPCTarget
 	managementCluster.Status.KubeApplierCosmosContainerName = o.kubeApplierCosmosContainerName
-	apimeta.SetStatusCondition(&managementCluster.Status.Conditions, metav1.Condition{
-		Type:   string(fleet.ManagementClusterConditionReady),
-		Status: metav1.ConditionTrue,
-		Reason: string(fleet.ManagementClusterConditionReasonProvisionShardActive),
-	})
 }

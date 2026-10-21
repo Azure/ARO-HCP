@@ -61,7 +61,9 @@ resourceGroups:
     certificateName:
       value: hcp-mdsd
     contentType:
-      value: x-pem-file # GCS certificate file in PEM format
+      value: x-pkcs12
+    commonName:
+      value: hcp-mdsd.geneva.keyvault.aro-int.azure.com
     san:
       value: hcp-mdsd.geneva.keyvault.aro-int.azure.com
     issuer:

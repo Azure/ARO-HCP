@@ -18,19 +18,26 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
+	"time"
 
 	"github.com/blang/semver/v4"
 	"github.com/google/uuid"
 
 	"k8s.io/apimachinery/pkg/api/operation"
 	"k8s.io/apimachinery/pkg/api/safe"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/validation/field"
+	utilsclock "k8s.io/utils/clock"
 	"k8s.io/utils/ptr"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/azure"
 	"github.com/Azure/ARO-HCP/internal/utils/apihelpers"
 	"github.com/Azure/ARO-HCP/internal/validation"
 )
@@ -41,35 +48,50 @@ import (
 // UPDATE-time admission checks that depend on existing server-side state
 // (e.g., version-skew validation).
 type ClusterAdmissionContext struct {
-	Subscription *arm.Subscription
+	Clock        utilsclock.PassiveClock
+	Subscription *coreapi.Subscription
 	// OriginalCluster is a deepcopy of the inbound cluster as the user submitted
 	// it, taken before any admission mutation runs. It is the read-only source
 	// of truth for fields (like tags) that are *consumed* during mutation but
 	// whose new-object value may already have been overwritten by the time the
 	// mutation actually runs.
-	OriginalCluster        *api.HCPOpenShiftCluster
-	ServiceProviderCluster *api.ServiceProviderCluster
+	OriginalCluster        *coreapi.Cluster
+	ServiceProviderCluster *coreapi.ServiceProviderCluster
 	// ClusterNodePools is the list of node pools belonging to the cluster, used
 	// for minor-version skew checks against the desired cluster version.
 	ClusterNodePools []ClusterAdmissionNodePool
+	// SubscriptionClusters lists cluster documents in the same subscription
+	// (not including the current cluster being admitted), used
+	// for cross-cluster platform resource uniqueness on CREATE.
+	// The list is empty on UPDATE.
+	SubscriptionClusters []*coreapi.Cluster
+	// SubscriptionNodePools lists node pool documents under SubscriptionClusters,
+	// used to ensure a cluster subnet is not already assigned to another cluster's
+	// node pool on CREATE.
+	// The list is empty on UPDATE.
+	SubscriptionNodePools []*coreapi.NodePool
+	// ClusterScopedIdentitiesConfig describes which operator identities a cluster requires. The role
+	// definition config set varies per environment, so the frontend supplies it rather than
+	// admission choosing one.
+	ClusterScopedIdentitiesConfig *azure.ClusterScopedIdentitiesConfig
 }
 
 // ClusterAdmissionNodePool is a single node pool plus its prefetched service
 // provider record. The cluster admission walks these to validate version skew
 // of every node pool against the desired cluster version.
 type ClusterAdmissionNodePool struct {
-	NodePool                *api.HCPOpenShiftClusterNodePool
-	ServiceProviderNodePool *api.ServiceProviderNodePool
+	NodePool                *coreapi.NodePool
+	ServiceProviderNodePool *coreapi.ServiceProviderNodePool
 }
 
 // MutateCluster applies admission-time mutations to a cluster (generating
 // the ClusterUID on CREATE and translating experimental tags into
 // ServiceProviderProperties.ExperimentalFeatures). It returns any field errors
 // produced by the mutation step.
-func MutateCluster(ctx context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, newObj, oldObj *api.HCPOpenShiftCluster) field.ErrorList {
+func MutateCluster(ctx context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, newObj, oldObj *coreapi.Cluster) field.ErrorList {
 	errs := field.ErrorList{}
 
-	// ServiceProviderProperties HCPOpenShiftClusterServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
+	// ServiceProviderProperties ClusterServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
 	errs = append(errs, mutateClusterServiceProviderProperties(ctx, admissionContext, op, field.NewPath("serviceProviderProperties"), &newObj.ServiceProviderProperties, safe.Field(oldObj, validation.ToClusterServiceProviderProperties))...)
 
 	return errs
@@ -77,11 +99,14 @@ func MutateCluster(ctx context.Context, admissionContext *ClusterAdmissionContex
 
 // mutateClusterServiceProviderProperties applies mutations that live on the
 // service-provider half of the cluster.
-func mutateClusterServiceProviderProperties(ctx context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.HCPOpenShiftClusterServiceProviderProperties) field.ErrorList {
+func mutateClusterServiceProviderProperties(ctx context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.ClusterServiceProviderProperties) field.ErrorList {
 	errs := field.ErrorList{}
 
 	errs = append(errs, mutateClusterUID(ctx, admissionContext, op, fldPath.Child("clusterUID"), &newObj.ClusterUID, safe.Field(oldObj, validation.ToClusterServiceProviderPropertiesClusterUID))...)
 	errs = append(errs, mutateClusterExperimentalFeatures(ctx, admissionContext, op, fldPath.Child("experimentalFeatures"), &newObj.ExperimentalFeatures, safe.Field(oldObj, toSPExperimentalFeatures))...)
+	errs = append(errs, mutateCreateOperationCompletionDeadline(ctx, admissionContext, op, fldPath.Child("createOperationCompletionDeadline"), &newObj.CreateOperationCompletionDeadline)...)
+	errs = append(errs, mutateUpdateOperationCompletionDeadline(ctx, admissionContext, op, fldPath.Child("updateOperationCompletionDeadline"), &newObj.UpdateOperationCompletionDeadline)...)
+	errs = append(errs, mutateDeleteOperationCompletionTimeout(ctx, admissionContext, op, fldPath.Child("deleteOperationCompletionTimeout"), &newObj.DeleteOperationCompletionTimeout)...)
 
 	return errs
 }
@@ -95,7 +120,7 @@ func mutateClusterUID(_ context.Context, _ *ClusterAdmissionContext, op operatio
 	return nil
 }
 
-func toSPExperimentalFeatures(oldObj *api.HCPOpenShiftClusterServiceProviderProperties) *api.ExperimentalFeatures {
+func toSPExperimentalFeatures(oldObj *coreapi.ClusterServiceProviderProperties) *coreapi.ExperimentalFeatures {
 	return &oldObj.ExperimentalFeatures
 }
 
@@ -107,10 +132,10 @@ func toSPExperimentalFeatures(oldObj *api.HCPOpenShiftClusterServiceProviderProp
 // Without AFEC registration ExperimentalFeatures is zeroed and tags are
 // ignored; with AFEC registered, unrecognized experimental tags and invalid
 // values are rejected.
-func mutateClusterExperimentalFeatures(_ context.Context, admissionContext *ClusterAdmissionContext, _ operation.Operation, _ *field.Path, newObj, _ *api.ExperimentalFeatures) field.ErrorList {
+func mutateClusterExperimentalFeatures(_ context.Context, admissionContext *ClusterAdmissionContext, _ operation.Operation, _ *field.Path, newObj, _ *coreapi.ExperimentalFeatures) field.ErrorList {
 	subscription := admissionContext.Subscription
-	if subscription == nil || !subscription.HasRegisteredFeature(api.FeatureExperimentalReleaseFeatures) {
-		*newObj = api.ExperimentalFeatures{}
+	if subscription == nil || !subscription.HasRegisteredFeature(metadataapi.FeatureExperimentalReleaseFeatures) {
+		*newObj = coreapi.ExperimentalFeatures{}
 		return nil
 	}
 
@@ -124,41 +149,92 @@ func mutateClusterExperimentalFeatures(_ context.Context, admissionContext *Clus
 	var errs field.ErrorList
 
 	// Reject unrecognized experimental tags.
-	knownTags := sets.New(api.TagClusterSingleReplica, api.TagClusterSizeOverride)
+	knownTags := sets.New(metadataapi.TagClusterSingleReplica, metadataapi.TagClusterSizeOverride, metadataapi.TagClusterCPOImageOverride, metadataapi.TagClusterControlPlaneExactVersion, metadataapi.TagClusterZStreamUpdatePolicy, metadataapi.TagClusterMaxCreationDuration, metadataapi.TagClusterMaxUpdateDuration, metadataapi.TagClusterMaxDeletionDuration, metadataapi.TagClusterDisableSwift)
 	for k := range tags {
-		if strings.HasPrefix(strings.ToLower(k), api.ExperimentalClusterTagPrefix) && !knownTags.Has(strings.ToLower(k)) {
+		if strings.HasPrefix(strings.ToLower(k), metadataapi.ExperimentalClusterTagPrefix) && !knownTags.Has(strings.ToLower(k)) {
 			errs = append(errs, field.Invalid(tagsPath.Key(k), k, "unrecognized experimental tag"))
 			return errs
 		}
 	}
 
-	var experimentalFeatures api.ExperimentalFeatures
+	var experimentalFeatures coreapi.ExperimentalFeatures
 
-	singleReplicaValue := lookupTag(tags, api.TagClusterSingleReplica)
-	switch api.ControlPlaneAvailability(singleReplicaValue) {
-	case api.SingleReplicaControlPlane:
-		experimentalFeatures.ControlPlaneAvailability = api.SingleReplicaControlPlane
-	case api.DefaultControlPlaneAvailability:
+	if hasTag(tags, metadataapi.TagClusterZStreamUpdatePolicy) {
+		value := lookupTag(tags, metadataapi.TagClusterZStreamUpdatePolicy)
+		if coreapi.ZStreamUpdatePolicy(value) != coreapi.ImmediateZStreamUpdatePolicy {
+			errs = append(errs, field.Invalid(tagsPath.Key(metadataapi.TagClusterZStreamUpdatePolicy), value,
+				fmt.Sprintf("must be %q", coreapi.ImmediateZStreamUpdatePolicy)))
+		} else {
+			experimentalFeatures.ZStreamUpdatePolicy = coreapi.ImmediateZStreamUpdatePolicy
+		}
+	}
+
+	singleReplicaValue := lookupTag(tags, metadataapi.TagClusterSingleReplica)
+	switch coreapi.ControlPlaneAvailability(singleReplicaValue) {
+	case coreapi.SingleReplicaControlPlane:
+		experimentalFeatures.ControlPlaneAvailability = coreapi.SingleReplicaControlPlane
+	case coreapi.DefaultControlPlaneAvailability:
 		// absent or empty
 	default:
 		errs = append(errs, field.Invalid(
-			tagsPath.Key(api.TagClusterSingleReplica), singleReplicaValue,
-			fmt.Sprintf("must be %q or empty", api.SingleReplicaControlPlane),
+			tagsPath.Key(metadataapi.TagClusterSingleReplica), singleReplicaValue,
+			fmt.Sprintf("must be %q or empty", coreapi.SingleReplicaControlPlane),
 		))
 	}
 
-	sizeOverrideValue := lookupTag(tags, api.TagClusterSizeOverride)
-	switch api.ControlPlanePodSizing(sizeOverrideValue) {
-	case api.MinimalControlPlanePodSizing:
-		experimentalFeatures.ControlPlanePodSizing = api.MinimalControlPlanePodSizing
-	case api.DefaultControlPlanePodSizing:
+	sizeOverrideValue := lookupTag(tags, metadataapi.TagClusterSizeOverride)
+	switch coreapi.ControlPlanePodSizing(sizeOverrideValue) {
+	case coreapi.MinimalControlPlanePodSizing:
+		experimentalFeatures.ControlPlanePodSizing = coreapi.MinimalControlPlanePodSizing
+	case coreapi.DefaultControlPlanePodSizing:
 		// absent or empty
 	default:
 		errs = append(errs, field.Invalid(
-			tagsPath.Key(api.TagClusterSizeOverride), sizeOverrideValue,
-			fmt.Sprintf("must be %q or empty", api.MinimalControlPlanePodSizing),
+			tagsPath.Key(metadataapi.TagClusterSizeOverride), sizeOverrideValue,
+			fmt.Sprintf("must be %q or empty", coreapi.MinimalControlPlanePodSizing),
 		))
 	}
+
+	cpoImageValue := lookupTag(tags, metadataapi.TagClusterCPOImageOverride)
+	if cpoImageValue != "" {
+		trimmed := strings.TrimSpace(cpoImageValue)
+		if trimmed == "" {
+			errs = append(errs, field.Invalid(
+				tagsPath.Key(metadataapi.TagClusterCPOImageOverride), cpoImageValue,
+				"must not be blank when provided",
+			))
+		} else {
+			experimentalFeatures.ControlPlaneOperatorImage = trimmed
+		}
+	}
+
+	// ControlPlaneExactVersion is expressed only through this tag. version.id
+	// always carries the bare "<major>.<minor>" release line (static validation
+	// rejects a patch-bearing version.id), so the tag is the sole source of an
+	// exact build and, unlike version.id's patch component, it round-trips
+	// through GET. A present-but-empty tag is rejected rather than treated as a
+	// bare enable flag.
+	if hasTag(tags, metadataapi.TagClusterControlPlaneExactVersion) {
+		exactVersionValue := lookupTag(tags, metadataapi.TagClusterControlPlaneExactVersion)
+		parsed, err := semver.Parse(exactVersionValue)
+		switch {
+		case len(exactVersionValue) == 0:
+			errs = append(errs, field.Invalid(
+				tagsPath.Key(metadataapi.TagClusterControlPlaneExactVersion), exactVersionValue,
+				"must specify an exact \"<major>.<minor>.<patch>\" version",
+			))
+		case err != nil:
+			errs = append(errs, field.Invalid(
+				tagsPath.Key(metadataapi.TagClusterControlPlaneExactVersion), exactVersionValue,
+				"must be a valid semantic version (e.g. \"4.17.3\")",
+			))
+		default:
+			experimentalFeatures.ControlPlaneExactVersion = &parsed
+		}
+	}
+
+	// disable-swift is validated against networking in validation.ValidateCluster;
+	// subnet absence is its source of truth, with no ExperimentalFeatures field.
 
 	if len(errs) > 0 {
 		return errs
@@ -179,14 +255,155 @@ func lookupTag(tags map[string]string, key string) string {
 	return ""
 }
 
+// hasTag reports whether the given tag key is present (case-insensitive),
+// regardless of its value. Unlike lookupTag it distinguishes an empty-valued
+// tag from an absent one, which the exact-version relocation relies on to treat
+// the tag as a bare enable flag.
+func hasTag(tags map[string]string, key string) bool {
+	for k := range tags {
+		if strings.EqualFold(k, key) {
+			return true
+		}
+	}
+	return false
+}
+
+const defaultCreateOperationCompletionDeadlineDuration = 60 * time.Minute
+const minCreateOperationCompletionDeadlineDuration = time.Minute
+
+const defaultUpdateOperationCompletionDeadlineDuration = 60 * time.Minute
+const minUpdateOperationCompletionDeadlineDuration = time.Minute
+
+// DefaultDeleteOperationCompletionDeadlineDuration is the fallback duration
+// used by the frontend DELETE handler when DeleteOperationCompletionTimeout
+// is nil (no tag / no AFEC).
+const DefaultDeleteOperationCompletionDeadlineDuration = 12 * time.Hour
+
+// MinDeleteOperationCompletionDeadlineDuration is the minimum value accepted
+// for the TagClusterMaxDeletionDuration tag.
+const MinDeleteOperationCompletionDeadlineDuration = time.Minute
+
+// mutateCreateOperationCompletionDeadline sets the deadline by which a cluster
+// creation operation must complete. On CREATE it defaults to 60 minutes from
+// now; when the subscription has the ExperimentalReleaseFeatures AFEC
+// registered, the caller may override the duration via the
+// TagClusterMaxCreationDuration ARM resource tag.
+func mutateCreateOperationCompletionDeadline(_ context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, _ *field.Path, newObj **metav1.Time) field.ErrorList {
+	if op.Type != operation.Create {
+		return nil
+	}
+
+	duration := defaultCreateOperationCompletionDeadlineDuration
+
+	subscription := admissionContext.Subscription
+	if subscription != nil && subscription.HasRegisteredFeature(metadataapi.FeatureExperimentalReleaseFeatures) {
+		var tags map[string]string
+		if admissionContext.OriginalCluster != nil {
+			tags = admissionContext.OriginalCluster.Tags
+		}
+		if tagValue := lookupTag(tags, metadataapi.TagClusterMaxCreationDuration); len(tagValue) > 0 {
+			parsed, err := time.ParseDuration(tagValue)
+			if err != nil {
+				tagsPath := field.NewPath("tags")
+				return field.ErrorList{field.Invalid(tagsPath.Key(metadataapi.TagClusterMaxCreationDuration), tagValue, "must be a valid Go duration string (e.g. \"19m\", \"30m\")")}
+			}
+			if parsed < minCreateOperationCompletionDeadlineDuration {
+				tagsPath := field.NewPath("tags")
+				return field.ErrorList{field.Invalid(tagsPath.Key(metadataapi.TagClusterMaxCreationDuration), tagValue, fmt.Sprintf("must be at least %s", minCreateOperationCompletionDeadlineDuration))}
+			}
+			duration = parsed
+		}
+	}
+
+	deadline := metav1.NewTime(admissionContext.Clock.Now().Add(duration))
+	*newObj = &deadline
+	return nil
+}
+
+// mutateUpdateOperationCompletionDeadline sets the deadline by which a cluster
+// update operation must complete. On UPDATE it defaults to 60 minutes from
+// now; when the subscription has the ExperimentalReleaseFeatures AFEC
+// registered, the caller may override the duration via the
+// TagClusterMaxUpdateDuration ARM resource tag.
+func mutateUpdateOperationCompletionDeadline(_ context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, _ *field.Path, newObj **metav1.Time) field.ErrorList {
+	if op.Type != operation.Update {
+		return nil
+	}
+
+	duration := defaultUpdateOperationCompletionDeadlineDuration
+
+	subscription := admissionContext.Subscription
+	if subscription != nil && subscription.HasRegisteredFeature(metadataapi.FeatureExperimentalReleaseFeatures) {
+		var tags map[string]string
+		if admissionContext.OriginalCluster != nil {
+			tags = admissionContext.OriginalCluster.Tags
+		}
+		if tagValue := lookupTag(tags, metadataapi.TagClusterMaxUpdateDuration); len(tagValue) > 0 {
+			parsed, err := time.ParseDuration(tagValue)
+			if err != nil {
+				tagsPath := field.NewPath("tags")
+				return field.ErrorList{field.Invalid(tagsPath.Key(metadataapi.TagClusterMaxUpdateDuration), tagValue, "must be a valid Go duration string (e.g. \"19m\", \"30m\")")}
+			}
+			if parsed < minUpdateOperationCompletionDeadlineDuration {
+				tagsPath := field.NewPath("tags")
+				return field.ErrorList{field.Invalid(tagsPath.Key(metadataapi.TagClusterMaxUpdateDuration), tagValue, fmt.Sprintf("must be at least %s", minUpdateOperationCompletionDeadlineDuration))}
+			}
+			duration = parsed
+		}
+	}
+
+	deadline := metav1.NewTime(admissionContext.Clock.Now().Add(duration))
+	*newObj = &deadline
+	return nil
+}
+
+// mutateDeleteOperationCompletionTimeout sets or clears
+// DeleteOperationCompletionTimeout based on the TagClusterMaxDeletionDuration
+// tag. Runs on both CREATE and UPDATE so that tag changes are reflected.
+// When the AFEC is not registered or the tag is absent, the field is set to nil
+// and the frontend DELETE handler falls back to DefaultDeleteOperationCompletionDeadlineDuration.
+func mutateDeleteOperationCompletionTimeout(_ context.Context, admissionContext *ClusterAdmissionContext, _ operation.Operation, _ *field.Path, newObj **time.Duration) field.ErrorList {
+	subscription := admissionContext.Subscription
+	if subscription == nil || !subscription.HasRegisteredFeature(metadataapi.FeatureExperimentalReleaseFeatures) {
+		*newObj = nil
+		return nil
+	}
+
+	var tags map[string]string
+	if admissionContext.OriginalCluster != nil {
+		tags = admissionContext.OriginalCluster.Tags
+	}
+	tagValue := lookupTag(tags, metadataapi.TagClusterMaxDeletionDuration)
+	if len(tagValue) == 0 {
+		*newObj = nil
+		return nil
+	}
+
+	parsed, err := time.ParseDuration(tagValue)
+	if err != nil {
+		tagsPath := field.NewPath("tags")
+		return field.ErrorList{field.Invalid(tagsPath.Key(metadataapi.TagClusterMaxDeletionDuration), tagValue, "must be a valid Go duration string (e.g. \"24m\", \"30m\")")}
+	}
+	if parsed < MinDeleteOperationCompletionDeadlineDuration {
+		tagsPath := field.NewPath("tags")
+		return field.ErrorList{field.Invalid(tagsPath.Key(metadataapi.TagClusterMaxDeletionDuration), tagValue, fmt.Sprintf("must be at least %s", MinDeleteOperationCompletionDeadlineDuration))}
+	}
+	*newObj = &parsed
+	return nil
+}
+
 // AdmitCluster performs non-static checks of cluster. Checks that require more
 // information than is contained inside of the cluster instance itself. For
 // UPDATE operations that may change the cluster version, the admissionContext
 // must carry the prefetched ServiceProviderCluster and ClusterNodePools.
-func AdmitCluster(ctx context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, newObj, oldObj *api.HCPOpenShiftCluster) field.ErrorList {
+func AdmitCluster(ctx context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, newObj, oldObj *coreapi.Cluster) field.ErrorList {
+	if op.Type == operation.Update && oldObj != nil && oldObj.ServiceProviderProperties.DeletionTimestamp != nil {
+		return field.ErrorList{field.Forbidden(field.NewPath(""), "cluster is being deleted and cannot be updated")}
+	}
+
 	errs := field.ErrorList{}
 
-	// CustomerProperties HCPOpenShiftClusterCustomerProperties `json:"customerProperties,omitempty"`
+	// CustomerProperties ClusterCustomerProperties `json:"customerProperties,omitempty"`
 	errs = append(errs, admitClusterCustomerProperties(ctx, admissionContext, op, field.NewPath("properties"), &newObj.CustomerProperties, safe.Field(oldObj, validation.ToClusterCustomerProperties))...)
 
 	return errs
@@ -194,10 +411,421 @@ func AdmitCluster(ctx context.Context, admissionContext *ClusterAdmissionContext
 
 // admitClusterCustomerProperties drills down into the customer-facing portion
 // of the cluster.
-func admitClusterCustomerProperties(ctx context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.HCPOpenShiftClusterCustomerProperties) field.ErrorList {
+func admitClusterCustomerProperties(ctx context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.ClusterCustomerProperties) field.ErrorList {
 	errs := field.ErrorList{}
 
 	errs = append(errs, admitClusterVersionProfile(ctx, admissionContext, op, fldPath.Child("version"), &newObj.Version, safe.Field(oldObj, validation.ToClusterCustomerPropertiesVersion))...)
+	errs = append(errs, admitClusterEtcdKmsKeyVersionChange(ctx, admissionContext, op, fldPath.Child("etcd", "dataEncryption", "customerManaged", "kms", "activeKey", "version"), newObj, oldObj)...)
+	errs = append(errs, admitClusterPlatform(ctx, admissionContext, op, fldPath.Child("platform"), &newObj.Platform, newObj)...)
+
+	return errs
+}
+
+// conditionallyRequiredControlPlaneOperatorIdentity names a control plane operator identity that
+// is only required once the cluster enables the feature that uses it, mirroring
+// azure.IdentityRequirementTypeOnEnablement. Operators marked azure.IdentityRequirementTypeAlways
+// come from the role set config instead.
+//
+// Note that CustomerManaged is currently the only accepted etcd key management mode, so the
+// kms entry below is required on every create in practice.
+type conditionallyRequiredControlPlaneOperatorIdentity struct {
+	operatorName string
+	isEnabled    func(newObj *coreapi.ClusterCustomerProperties) bool
+	// enabledBy names the configuration that made the identity required, using the
+	// customer-facing field path rather than the internal one.
+	enabledBy string
+}
+
+// Add an entry here when a new feature needs its own operator identity, so an incomplete
+// create fails synchronously instead of being accepted and stalling until the deadline.
+var conditionallyRequiredControlPlaneOperatorIdentities = []conditionallyRequiredControlPlaneOperatorIdentity{
+	{
+		operatorName: string(azure.ClusterOperatorIdentifierKMS),
+		isEnabled: func(newObj *coreapi.ClusterCustomerProperties) bool {
+			return newObj.Etcd.DataEncryption.KeyManagementMode == metadataapi.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged
+		},
+		enabledBy: "properties.etcd.dataEncryption.keyManagementMode is CustomerManaged",
+	},
+}
+
+// admitRequiredOperatorIdentities rejects a cluster that does not supply a user-assigned identity
+// for every operator it needs: those the role set config marks as always required for the cluster's
+// OpenShift version, plus those that become required once the feature using them is enabled.
+func admitRequiredOperatorIdentities(admissionContext *ClusterAdmissionContext, fldPath *field.Path, newObj *coreapi.UserAssignedIdentitiesProfile, clusterProperties *coreapi.ClusterCustomerProperties) field.ErrorList {
+	// An unparseable version is already rejected by the version validation, so skip rather than
+	// guess which operators a version we cannot interpret would require.
+	version, err := semver.ParseTolerant(clusterProperties.Version.ID)
+	if err != nil {
+		return nil
+	}
+
+	config := admissionContext.ClusterScopedIdentitiesConfig
+	controlPlaneSupplied := newObj.ControlPlaneOperators
+	dataPlaneSupplied := newObj.DataPlaneOperators
+
+	controlPlanePath := fldPath.Child("controlPlaneOperators")
+	dataPlanePath := fldPath.Child("dataPlaneOperators")
+
+	errs := field.ErrorList{}
+
+	controlPlaneRequired := make([]string, 0, len(config.ControlPlaneOperatorsIdentities))
+	for operatorName := range config.AlwaysRequiredControlPlaneOperators(&version) {
+		controlPlaneRequired = append(controlPlaneRequired, string(operatorName))
+	}
+	// Sorted so error ordering does not depend on map iteration order.
+	slices.Sort(controlPlaneRequired)
+	for _, operatorName := range controlPlaneRequired {
+		if !operatorIdentitySupplied(controlPlaneSupplied, operatorName) {
+			errs = append(errs, field.Required(controlPlanePath.Key(operatorName), fmt.Sprintf("a user-assigned identity for the %q control plane operator is required", operatorName)))
+		}
+	}
+
+	dataPlaneRequired := make([]string, 0, len(config.DataPlaneOperatorsIdentities))
+	for operatorName := range config.AlwaysRequiredDataPlaneOperators(&version) {
+		dataPlaneRequired = append(dataPlaneRequired, string(operatorName))
+	}
+	slices.Sort(dataPlaneRequired)
+	for _, operatorName := range dataPlaneRequired {
+		if !operatorIdentitySupplied(dataPlaneSupplied, operatorName) {
+			errs = append(errs, field.Required(dataPlanePath.Key(operatorName), fmt.Sprintf("a user-assigned identity for the %q data plane operator is required", operatorName)))
+		}
+	}
+
+	for _, operator := range conditionallyRequiredControlPlaneOperatorIdentities {
+		// The identity is only needed once the feature that uses it is turned on.
+		if !operator.isEnabled(clusterProperties) {
+			continue
+		}
+		// This version has no such operator, so requiring an identity for it would be
+		// unsatisfiable. Also covers a table entry naming an operator the config does not define.
+		if !controlPlaneOperatorSupportedForVersion(config, operator.operatorName, &version) {
+			continue
+		}
+		// The requirement is already met.
+		if operatorIdentitySupplied(controlPlaneSupplied, operator.operatorName) {
+			continue
+		}
+		errs = append(errs, field.Required(controlPlanePath.Key(operator.operatorName), fmt.Sprintf("a user-assigned identity for the %q control plane operator is required when %s", operator.operatorName, operator.enabledBy)))
+	}
+
+	return errs
+}
+
+// admitOperatorIdentityNames rejects operator names the service does not recognize. Matching is
+// case-sensitive, because the backend indexes operators by exact name.
+func admitOperatorIdentityNames(admissionContext *ClusterAdmissionContext, fldPath *field.Path, newObj *coreapi.UserAssignedIdentitiesProfile, clusterProperties *coreapi.ClusterCustomerProperties) field.ErrorList {
+	config := admissionContext.ClusterScopedIdentitiesConfig
+	controlPlanePath := fldPath.Child("controlPlaneOperators")
+	dataPlanePath := fldPath.Child("dataPlaneOperators")
+
+	errs := field.ErrorList{}
+	errs = append(errs, unrecognizedOperatorNameErrors(newObj.ControlPlaneOperators, controlPlanePath, recognizedControlPlaneOperatorNames(config))...)
+	errs = append(errs, unrecognizedOperatorNameErrors(newObj.DataPlaneOperators, dataPlanePath, recognizedDataPlaneOperatorNames(config))...)
+
+	// Layered deliberately: an unparseable version is reported by the version validation and must
+	// not stop the checks above from running.
+	if version, err := semver.ParseTolerant(clusterProperties.Version.ID); err == nil {
+		errs = append(errs, unsupportedOperatorNameErrors(newObj.ControlPlaneOperators, controlPlanePath, "control plane", &version,
+			func(operatorName string, v *semver.Version) bool {
+				return controlPlaneOperatorSupportedForVersion(config, operatorName, v)
+			})...)
+		errs = append(errs, unsupportedOperatorNameErrors(newObj.DataPlaneOperators, dataPlanePath, "data plane", &version,
+			func(operatorName string, v *semver.Version) bool {
+				return dataPlaneOperatorSupportedForVersion(config, operatorName, v)
+			})...)
+	}
+	return errs
+}
+
+// recognizedControlPlaneOperatorNames returns every control plane operator name the service knows,
+// regardless of OpenShift version, sorted for deterministic error text.
+func recognizedControlPlaneOperatorNames(config *azure.ClusterScopedIdentitiesConfig) []string {
+	names := make([]string, 0, len(config.ControlPlaneOperatorsIdentities))
+	for operatorName := range config.ControlPlaneOperatorsIdentities {
+		names = append(names, string(operatorName))
+	}
+	slices.Sort(names)
+	return names
+}
+
+// recognizedDataPlaneOperatorNames is the data plane counterpart of
+// recognizedControlPlaneOperatorNames.
+func recognizedDataPlaneOperatorNames(config *azure.ClusterScopedIdentitiesConfig) []string {
+	names := make([]string, 0, len(config.DataPlaneOperatorsIdentities))
+	for operatorName := range config.DataPlaneOperatorsIdentities {
+		names = append(names, string(operatorName))
+	}
+	slices.Sort(names)
+	return names
+}
+
+// controlPlaneOperatorSupportedForVersion reports whether the control plane operator exists for the
+// given OpenShift version. An operator the service does not recognize at all is not supported for
+// any version, so it reports false.
+func controlPlaneOperatorSupportedForVersion(config *azure.ClusterScopedIdentitiesConfig, operatorName string, version *semver.Version) bool {
+	operatorConfig, ok := config.ControlPlaneOperatorsIdentities[azure.ClusterOperatorIdentifier(operatorName)]
+	return ok && operatorConfig.IsSupportedForOpenshiftVersion(version)
+}
+
+// dataPlaneOperatorSupportedForVersion is the data plane counterpart of
+// controlPlaneOperatorSupportedForVersion, including reporting false for an unrecognized operator.
+func dataPlaneOperatorSupportedForVersion(config *azure.ClusterScopedIdentitiesConfig, operatorName string, version *semver.Version) bool {
+	operatorConfig, ok := config.DataPlaneOperatorsIdentities[azure.ClusterOperatorIdentifier(operatorName)]
+	return ok && operatorConfig.IsSupportedForOpenshiftVersion(version)
+}
+
+// unsupportedOperatorNameErrors rejects operator names that do not exist for the cluster's
+// OpenShift version. A name the service does not recognize is reported here as well as by
+// unrecognizedOperatorNameErrors, since it is both unknown and unavailable for the version.
+func unsupportedOperatorNameErrors(supplied map[string]*azcorearm.ResourceID, fldPath *field.Path, planeLabel string, version *semver.Version, isSupported func(operatorName string, version *semver.Version) bool) field.ErrorList {
+	unsupported := make([]string, 0, len(supplied))
+	for operatorName := range supplied {
+		// An empty name is already reported by the static identity validation.
+		if operatorName == "" || isSupported(operatorName, version) {
+			continue
+		}
+		unsupported = append(unsupported, operatorName)
+	}
+	// Sorted so error ordering does not depend on map iteration order.
+	slices.Sort(unsupported)
+
+	errs := field.ErrorList{}
+	for _, operatorName := range unsupported {
+		errs = append(errs, field.Invalid(fldPath.Key(operatorName), operatorName,
+			fmt.Sprintf("the %q %s operator does not exist for OpenShift version %s", operatorName, planeLabel, version)))
+	}
+	return errs
+}
+
+func unrecognizedOperatorNameErrors(supplied map[string]*azcorearm.ResourceID, fldPath *field.Path, recognized []string) field.ErrorList {
+	unrecognized := make([]string, 0, len(supplied))
+	for operatorName := range supplied {
+		// An empty name is already reported by the static identity validation.
+		if operatorName == "" || slices.Contains(recognized, operatorName) {
+			continue
+		}
+		unrecognized = append(unrecognized, operatorName)
+	}
+	// Sorted so error ordering does not depend on map iteration order.
+	slices.Sort(unrecognized)
+
+	errs := field.ErrorList{}
+	for _, operatorName := range unrecognized {
+		errs = append(errs, field.Invalid(fldPath.Key(operatorName), operatorName,
+			fmt.Sprintf("unrecognized operator name; supported values: %s", strings.Join(recognized, ", "))))
+	}
+	return errs
+}
+
+func operatorIdentitySupplied(operators map[string]*azcorearm.ResourceID, operatorName string) bool {
+	identity, ok := operators[operatorName]
+	return ok && identity != nil
+}
+
+func admitClusterPlatform(ctx context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, fldPath *field.Path, newObj *coreapi.CustomerPlatformProfile, clusterProperties *coreapi.ClusterCustomerProperties) field.ErrorList {
+	errs := field.ErrorList{}
+
+	errs = append(errs, admitClusterManagedResourceGroupName(ctx, admissionContext, op, fldPath, newObj)...)
+	errs = append(errs, admitClusterSubnetResourceID(ctx, admissionContext, op, fldPath, newObj)...)
+	errs = append(errs, admitClusterNetworkSecurityGroupResourceID(ctx, admissionContext, op, fldPath, newObj)...)
+	errs = append(errs, admitClusterContainerRegistryPullManagedIdentity(ctx, admissionContext, op, fldPath.Child("containerRegistry", "managedIdentity"), &newObj.ContainerRegistry)...)
+	errs = append(errs, admitClusterOperatorsAuthentication(admissionContext, fldPath.Child("operatorsAuthentication"), &newObj.OperatorsAuthentication, clusterProperties)...)
+	return errs
+}
+
+// admitClusterOperatorsAuthentication drills into the operator identity configuration. It takes
+// clusterProperties because the required identity set depends on the cluster version, and the kms
+// identity on the etcd encryption mode, neither of which live under platform.
+func admitClusterOperatorsAuthentication(admissionContext *ClusterAdmissionContext, fldPath *field.Path, newObj *coreapi.OperatorsAuthenticationProfile, clusterProperties *coreapi.ClusterCustomerProperties) field.ErrorList {
+	return admitClusterUserAssignedIdentities(admissionContext, fldPath.Child("userAssignedIdentities"), &newObj.UserAssignedIdentities, clusterProperties)
+}
+
+func admitClusterUserAssignedIdentities(admissionContext *ClusterAdmissionContext, fldPath *field.Path, newObj *coreapi.UserAssignedIdentitiesProfile, clusterProperties *coreapi.ClusterCustomerProperties) field.ErrorList {
+	errs := field.ErrorList{}
+
+	errs = append(errs, admitRequiredOperatorIdentities(admissionContext, fldPath, newObj, clusterProperties)...)
+	errs = append(errs, admitOperatorIdentityNames(admissionContext, fldPath, newObj, clusterProperties)...)
+
+	return errs
+}
+
+// minContainerRegistryPullMIVersion is the minimum OCP version whose CPO
+// supports the kubelet credential provider for ACR pull via managed identity.
+var minContainerRegistryPullMIVersion = semver.Version{Major: 4, Minor: 22}
+
+// admitClusterContainerRegistryPullManagedIdentity rejects containerRegistry
+// configuration when the cluster version does not support it (< 4.22).
+func admitClusterContainerRegistryPullManagedIdentity(_ context.Context, admissionContext *ClusterAdmissionContext, _ operation.Operation, fldPath *field.Path, newObj *coreapi.ContainerRegistryProfile) field.ErrorList {
+	if newObj.PullManagedIdentity == nil {
+		return nil
+	}
+
+	// Gate on the cluster's OpenShift version regardless of whether this is a
+	// create or an update. When the backend has mirrored observed active
+	// control-plane versions onto the ServiceProviderCluster (an existing
+	// cluster), use the lowest of those — the authoritative running version, and
+	// the conservative choice while an upgrade is in flight. Otherwise (a cluster
+	// not yet reconciled, e.g. on create) fall back to the requested version in
+	// the desired spec.
+	var clusterVersion semver.Version
+	if spc := admissionContext.ServiceProviderCluster; spc != nil {
+		lowest, _ := apihelpers.FindLowestAndHighestClusterVersion(spc.Status.ControlPlaneVersion.ActiveVersions)
+		if lowest != nil {
+			clusterVersion = semver.Version{Major: lowest.Major, Minor: lowest.Minor}
+		} else {
+			// ActiveVersions not yet mirrored by the backend (transient); fall
+			// back to the stored cluster version rather than blocking the request.
+			if admissionContext.OriginalCluster == nil {
+				return field.ErrorList{field.InternalError(fldPath, errors.New("cannot determine cluster version for containerRegistry validation"))}
+			}
+			parsed, err := semver.ParseTolerant(admissionContext.OriginalCluster.CustomerProperties.Version.ID)
+			if err != nil {
+				return field.ErrorList{field.InternalError(fldPath, fmt.Errorf("cannot parse cluster version %q: %w", admissionContext.OriginalCluster.CustomerProperties.Version.ID, err))}
+			}
+			clusterVersion = semver.Version{Major: parsed.Major, Minor: parsed.Minor}
+		}
+	} else {
+		if admissionContext.OriginalCluster == nil {
+			return field.ErrorList{field.InternalError(fldPath, errors.New("cannot validate containerRegistry version requirement"))}
+		}
+		parsed, err := semver.ParseTolerant(admissionContext.OriginalCluster.CustomerProperties.Version.ID)
+		if err != nil {
+			return field.ErrorList{field.InternalError(fldPath, fmt.Errorf("cannot parse cluster version %q: %w", admissionContext.OriginalCluster.CustomerProperties.Version.ID, err))}
+		}
+		clusterVersion = semver.Version{Major: parsed.Major, Minor: parsed.Minor}
+	}
+
+	if clusterVersion.LT(minContainerRegistryPullMIVersion) {
+		return field.ErrorList{field.Invalid(fldPath, newObj.PullManagedIdentity.String(),
+			fmt.Sprintf("containerRegistry requires cluster version %s or above", minContainerRegistryPullMIVersion))}
+	}
+
+	return nil
+}
+
+// admitClusterManagedResourceGroupName ensures the managed resource group name
+// is unique within the subscription on CREATE.
+//
+// Best-effort only: compares against SubscriptionClusters prefetched before
+// admission runs. Concurrent creates with the same MRG name can both succeed.
+func admitClusterManagedResourceGroupName(_ context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, fldPath *field.Path, newObj *coreapi.CustomerPlatformProfile) field.ErrorList {
+	if op.Type != operation.Create {
+		return nil
+	}
+
+	if admissionContext.OriginalCluster == nil {
+		return field.ErrorList{field.InternalError(fldPath, errors.New("original cluster is required for admission"))}
+	}
+
+	mrgPath := fldPath.Child("managedResourceGroup")
+	if len(newObj.ManagedResourceGroup) == 0 {
+		return field.ErrorList{field.Required(mrgPath, "")}
+	}
+
+	subscriptionID := admissionContext.OriginalCluster.ID.SubscriptionID
+	var errs field.ErrorList
+
+	for _, existing := range admissionContext.SubscriptionClusters {
+		if strings.EqualFold(newObj.ManagedResourceGroup, existing.CustomerProperties.Platform.ManagedResourceGroup) {
+			errs = append(errs, field.Invalid(
+				mrgPath,
+				newObj.ManagedResourceGroup,
+				fmt.Sprintf("Cluster with managed resource group name '%s' in subscription '%s' "+
+					"already exists, please provide a unique managed resource group name",
+					newObj.ManagedResourceGroup, subscriptionID),
+			))
+			break
+		}
+	}
+
+	return errs
+}
+
+// admitClusterSubnetResourceID ensures that the subnet ID is not already in use by any other
+// cluster or node pool within the same subscription when creating a new cluster.
+//
+// Best-effort only: compares against SubscriptionClusters and SubscriptionNodePools
+// prefetched before admission runs. Concurrent creates (or a create racing with a
+// node pool create) using the same subnet can both succeed.
+func admitClusterSubnetResourceID(_ context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, fldPath *field.Path, newObj *coreapi.CustomerPlatformProfile) field.ErrorList {
+	if op.Type != operation.Create {
+		return nil
+	}
+
+	subnetPath := fldPath.Child("subnetId")
+	if newObj.SubnetID == nil {
+		return field.ErrorList{field.Required(subnetPath, "")}
+	}
+	subnetID := newObj.SubnetID.String()
+	var errs field.ErrorList
+
+	for _, existing := range admissionContext.SubscriptionClusters {
+		existingSubnet := existing.CustomerProperties.Platform.SubnetID
+		if existingSubnet == nil {
+			errs = append(errs, field.InternalError(subnetPath, errors.New("existing cluster is missing subnetId")))
+			continue
+		}
+		if strings.EqualFold(subnetID, existingSubnet.String()) {
+			errs = append(errs, field.Invalid(
+				subnetPath,
+				subnetID,
+				fmt.Sprintf("Subnet '%s' is already in use by another cluster", subnetID),
+			))
+			break
+		}
+	}
+
+	for _, nodePool := range admissionContext.SubscriptionNodePools {
+		nodePoolSubnet := nodePool.Properties.Platform.SubnetID
+		if nodePoolSubnet == nil {
+			errs = append(errs, field.InternalError(subnetPath, errors.New("existing node pool is missing subnetId")))
+			continue
+		}
+		if strings.EqualFold(subnetID, nodePoolSubnet.String()) {
+			errs = append(errs, field.Invalid(
+				subnetPath,
+				subnetID,
+				fmt.Sprintf("Subnet '%s' is already in use by another cluster", subnetID),
+			))
+			break
+		}
+	}
+
+	return errs
+}
+
+// admitClusterNetworkSecurityGroupResourceID ensures that the network security group ID is not already in use by any other
+// cluster within the same subscription when creating a new cluster.
+//
+// Best-effort only: compares against SubscriptionClusters prefetched before
+// admission runs. Concurrent creates with the same NSG can both succeed.
+func admitClusterNetworkSecurityGroupResourceID(_ context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, fldPath *field.Path, newObj *coreapi.CustomerPlatformProfile) field.ErrorList {
+	if op.Type != operation.Create {
+		return nil
+	}
+
+	nsgPath := fldPath.Child("networkSecurityGroupId")
+	if newObj.NetworkSecurityGroupID == nil {
+		return field.ErrorList{field.Required(nsgPath, "")}
+	}
+	nsgID := newObj.NetworkSecurityGroupID.String()
+	var errs field.ErrorList
+
+	for _, existing := range admissionContext.SubscriptionClusters {
+		existingNSG := existing.CustomerProperties.Platform.NetworkSecurityGroupID
+		if existingNSG == nil {
+			errs = append(errs, field.InternalError(nsgPath, errors.New("existing cluster is missing networkSecurityGroupId")))
+			continue
+		}
+		if strings.EqualFold(nsgID, existingNSG.String()) {
+			errs = append(errs, field.Invalid(
+				nsgPath,
+				nsgID,
+				fmt.Sprintf("Network Security Group '%s' is already in use by another cluster", nsgID),
+			))
+			break
+		}
+	}
 
 	return errs
 }
@@ -206,7 +834,7 @@ func admitClusterCustomerProperties(ctx context.Context, admissionContext *Clust
 // changes (skew against active control-plane versions and existing node pool
 // minor skew). On CREATE there is no prior version to compare against, so this
 // is a no-op.
-func admitClusterVersionProfile(ctx context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.VersionProfile) field.ErrorList {
+func admitClusterVersionProfile(ctx context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.VersionProfile) field.ErrorList {
 	if op.Type != operation.Update || oldObj == nil {
 		return nil
 	}
@@ -234,7 +862,15 @@ func admitClusterVersionProfile(ctx context.Context, admissionContext *ClusterAd
 					errs = append(errs, field.Invalid(versionPath, newObj.ID, skewErr.Error()))
 				}
 			}
-			errs = append(errs, validation.VersionMustBeAtLeast(ctx, op, versionPath, ptr.To(newObj.ID), nil, highest.String())...)
+
+			// Nightly versions include prerelease identifiers (e.g., X.Y.0-0.nightly-...) that may sort
+			// lower than stable versions in semver comparison, even if the nightly was built after
+			// the current active control plane version. Only compare the major.minor of the version.
+			if newObj.ChannelGroup == metadataapi.ChannelGroupNightly {
+				errs = append(errs, validation.VersionMustBeAtLeastMajorMinor(ctx, op, versionPath, ptr.To(newObj.ID), nil, highest.String())...)
+			} else {
+				errs = append(errs, validation.VersionMustBeAtLeast(ctx, op, versionPath, ptr.To(newObj.ID), nil, highest.String())...)
+			}
 		}
 	}
 
@@ -245,5 +881,238 @@ func admitClusterVersionProfile(ctx context.Context, admissionContext *ClusterAd
 		errs = append(errs, field.Invalid(versionPath, newObj.ID, npErr.Error()))
 	}
 
+	// Reject the version change if the requested update channel has no reachable
+	// upgrade edge for this cluster. This only fires once the backend has
+	// mirrored a non-empty channel list onto the ServiceProviderCluster; until
+	// then it fails open (see admitClusterVersionID).
+	errs = append(errs, admitClusterVersionID(ctx, admissionContext, op, fldPath, newObj, oldObj)...)
+
+	// Reject an upgrade into OpenShift 5.x until the backend has mirrored an
+	// observed HostedCluster containing the 5.x data-plane image mirror (see
+	// admitClusterV5DataPlaneMirror).
+	errs = append(errs, admitClusterV5DataPlaneMirror(ctx, admissionContext, op, fldPath, newObj, oldObj)...)
+
 	return errs
+}
+
+// versionMajorMinor extracts the "<major>.<minor>" release line from an
+// OpenShift version ID. Update channels are always named
+// "<channelGroup>-<major>.<minor>" (e.g. "stable-4.20") — never with a patch or
+// pre-release suffix — so channel lookups must use the major.minor of the
+// requested version rather than its raw ID. Examples: "4.20" -> "4.20",
+// "4.20.8" -> "4.20", "5.0.0-0.nightly-2026-08-05-123456" -> "5.0",
+// "4.21.0-rc.1" -> "4.21". It returns an error when the ID cannot be parsed as
+// a (tolerant) semantic version.
+func versionMajorMinor(id string) (string, error) {
+	v, err := semver.ParseTolerant(id)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%d.%d", v.Major, v.Minor), nil
+}
+
+// admitClusterVersionID verifies that, when the cluster's target version.id
+// changes, an OpenShift update channel named "<channelGroup>-<major>.<minor>"
+// (e.g. "stable-4.20") is present in the associated HostedCluster's observed
+// status.version.desired.channels. The requested version's major.minor is
+// derived with versionMajorMinor, so patch ("4.20.8"), nightly
+// ("5.0.0-0.nightly-...") and pre-release ("4.21.0-rc.1") IDs all resolve to the
+// correct release-line channel.
+//
+// Admission never reaches the management cluster (or the DB) for this data: the
+// backend observes the HostedCluster and mirrors its
+// status.version.desired.channels onto ServiceProviderCluster.Status.
+// DesiredVersionChannels, which the frontend prefetches into the admission
+// context. See internal/admission/CLAUDE.md.
+//
+// Semantics of the channel list: a channel only appears in
+// status.version.desired.channels when the cluster's current version has a valid
+// upgrade edge to a release served by that channel. Therefore, once the list is
+// populated, a requested "<channelGroup>-<major>.<minor>" channel that is absent
+// means there is no supported upgrade path to that version line and the update is
+// rejected.
+//
+// Fail-open until synced: DesiredVersionChannels is populated asynchronously by
+// the backend and is empty on freshly created clusters and until the first sync
+// completes. When the list is not yet available we cannot validate the requested
+// channel, so we must NOT block the update — we skip the check and let the
+// backend converge. Enforcing against an empty list would reject every version
+// change until the mirror is populated, which is incorrect. This check therefore
+// only rejects when the backend has published a non-empty channel list that
+// genuinely lacks the requested channel.
+func admitClusterVersionID(_ context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.VersionProfile) field.ErrorList {
+	// Only enforce on UPDATE, and only when the customer is actually changing
+	// version.id. On CREATE there is no prior version, and an unchanged version
+	// need not be re-validated against the current channel list.
+	if op.Type != operation.Update || oldObj == nil {
+		return nil
+	}
+	if len(newObj.ID) == 0 || oldObj.ID == newObj.ID {
+		return nil
+	}
+
+	// Without a channel group we cannot construct a channel name to look for, so
+	// there is nothing to validate here. This mirrors the desired-version
+	// controller, which also terminates version resolution when the channel
+	// group is empty.
+	if len(newObj.ChannelGroup) == 0 {
+		return nil
+	}
+	// on nightlies and candidates, we don't wait for the target version to show up. We trust these people to
+	// know what they're doing.
+	if newObj.ChannelGroup == metadataapi.ChannelGroupNightly || newObj.ChannelGroup == metadataapi.ChannelGroupCandidate {
+		return nil
+	}
+
+	// No channel data yet: fail open (see the doc comment above). A genuinely
+	// missing ServiceProviderCluster prefetch is still surfaced as an
+	// InternalError by the version-skew check in admitClusterVersionProfile, so
+	// we do not duplicate that here.
+	if admissionContext.ServiceProviderCluster == nil {
+		return nil
+	}
+	availableChannels := admissionContext.ServiceProviderCluster.Status.DesiredVersionChannels
+	if len(availableChannels) == 0 {
+		return nil
+	}
+
+	// Channels are keyed by release line ("<channelGroup>-<major>.<minor>"), so
+	// compare against the major.minor of the requested version rather than its
+	// raw ID (which may carry a patch or pre-release suffix).
+	majorMinor, err := versionMajorMinor(newObj.ID)
+	if err != nil {
+		// The version ID failed to parse. admitClusterVersionProfile already
+		// reports the parse failure as a field error, so skip the channel check
+		// here rather than surfacing a duplicate error.
+		return nil
+	}
+	expectedChannel := fmt.Sprintf("%s-%s", newObj.ChannelGroup, majorMinor)
+	if slices.Contains(availableChannels, expectedChannel) {
+		return nil
+	}
+
+	return field.ErrorList{field.Invalid(
+		fldPath.Child("id"),
+		newObj.ID,
+		fmt.Sprintf("no upgrade path to update channel %q is currently available for this cluster; "+
+			"a channel appears in the cluster's desired version channels only when an upgrade edge to a "+
+			"release in that channel exists", expectedChannel),
+	)}
+}
+
+// admitClusterV5DataPlaneMirror rejects a 4.y -> 5.y upgrade when the cluster's
+// observed HostedCluster does not carry the 5.y data-plane image mirror
+// (apihelpers.OcpV5ArtDevMirrorSource) in spec.imageContentSources.
+//
+// 5.y data-plane images are published under a different source than 4.y. A
+// cluster created before that source was added to the platform's image content
+// sources cannot pull them, so letting the upgrade start would strand its nodes
+// on images they cannot fetch. Recovering the missing mirror is a separate,
+// Cluster Service-side concern; this check only prevents the cluster from
+// entering that state in the first place.
+//
+// The fact is read from the mirrored image content sources rather than from any desired
+// state: what matters is what actually exists on the management cluster today,
+// not what we intend to be true. Admission reaches neither the management
+// cluster nor the DB for it — the backend's ActualHostedCluster controller
+// observes the HostedCluster and copies its image content sources onto
+// ServiceProviderCluster.Status.ImageContentSources, which the frontend
+// prefetches into the admission context. See internal/admission/CLAUDE.md.
+//
+// Fail closed until synced: the mirror is populated asynchronously and
+// is nil on freshly created clusters and until the first sync completes. A v5
+// upgrade must not start while the required mirror cannot be proven present.
+// Once the HostedCluster has been observed, an empty spec.imageContentSources
+// is a real answer and is enforced as such.
+func admitClusterV5DataPlaneMirror(_ context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.VersionProfile) field.ErrorList {
+	// Keep this helper safe when called independently of admitClusterVersionProfile.
+	// CREATE has no old version, and unchanged updates do not need an upgrade gate.
+	if op.Type != operation.Update || newObj == nil || oldObj == nil || newObj.ID == oldObj.ID {
+		return nil
+	}
+
+	oldVersion, oldErr := semver.ParseTolerant(oldObj.ID)
+	newVersion, newErr := semver.ParseTolerant(newObj.ID)
+	if oldErr != nil || newErr != nil {
+		// admitClusterVersionProfile already reports parse failures; do not
+		// duplicate them here.
+		return nil
+	}
+	// Scoped to the 4.y -> 5.y crossing specifically, both ends pinned. A future
+	// major ships its own mirror under its own source, so a 4.y -> 6.y jump must
+	// not be waved through (or blocked) by a 5.y mirror check — it needs its own
+	// rule rather than a widened one here.
+	if oldVersion.Major != 4 || newVersion.Major != 5 {
+		return nil
+	}
+
+	// Not observed yet: fail closed (see the doc comment above). Admission must
+	// have an observed HostedCluster before allowing a 4.y -> 5.y upgrade.
+	if admissionContext.ServiceProviderCluster == nil || admissionContext.ServiceProviderCluster.Status.ImageContentSources == nil {
+		return unavailableV5DataPlaneMirrorError(fldPath, newObj.ID)
+	}
+	if apihelpers.ImageContentSourcesHaveSource(*admissionContext.ServiceProviderCluster.Status.ImageContentSources, apihelpers.OcpV5ArtDevMirrorSource) {
+		return nil
+	}
+
+	return missingV5DataPlaneMirrorError(fldPath, newObj.ID, newVersion.Major)
+}
+
+func unavailableV5DataPlaneMirrorError(fldPath *field.Path, versionID string) field.ErrorList {
+	return field.ErrorList{field.Invalid(
+		fldPath.Child("id"),
+		versionID,
+		"cannot validate the OpenShift 5.y data-plane image mirror yet: the backend has not observed the HostedCluster; retry the update",
+	)}
+}
+
+func missingV5DataPlaneMirrorError(fldPath *field.Path, versionID string, major uint64) field.ErrorList {
+	versionPath := fldPath.Child("id")
+	return field.ErrorList{field.Invalid(
+		versionPath,
+		versionID,
+		fmt.Sprintf("cannot upgrade to OpenShift %d.y: this cluster is missing the required data-plane image "+
+			"mirror %q, so its nodes would be unable to pull %d.y images; contact support to have the mirror "+
+			"added before upgrading",
+			major, apihelpers.OcpV5ArtDevMirrorSource, major),
+	)}
+}
+
+// minKmsKeyVersionRotationVersion is the minimum OCP version whose CPO
+// supports etcd KMS key version rotation.
+var minKmsKeyVersionRotationVersion = semver.Version{Major: 4, Minor: 22}
+
+// admitClusterEtcdKmsKeyVersionChange rejects KMS key version changes when the
+// cluster's active control plane version predates the CPO support (< 4.22).
+// Only runs for API versions >= v20260630Preview where version is mutable;
+// older API versions block version changes via the immutability check in validation.
+func admitClusterEtcdKmsKeyVersionChange(_ context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.ClusterCustomerProperties) field.ErrorList {
+	if op.Type != operation.Update || oldObj == nil {
+		return nil
+	}
+
+	if newObj.Etcd.DataEncryption.KeyManagementMode != metadataapi.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged && newObj.Etcd.DataEncryption.KeyManagementMode != oldObj.Etcd.DataEncryption.KeyManagementMode {
+		return field.ErrorList{field.Forbidden(fldPath, "KMS key version rotation is only supported for customer-managed encryption")}
+	}
+
+	if newObj.Etcd.DataEncryption.CustomerManaged.Kms.ActiveKey.Version == oldObj.Etcd.DataEncryption.CustomerManaged.Kms.ActiveKey.Version {
+		return nil
+	}
+
+	apiVersion := metadataapi.APIVersionFromOptions(op.Options)
+	if apiVersion.LT(metadataapi.APIVersionV20260630Preview) {
+		return field.ErrorList{field.Forbidden(fldPath, "KMS key version is immutable for this API version")}
+	}
+
+	if admissionContext.ServiceProviderCluster == nil {
+		return field.ErrorList{field.InternalError(fldPath, errors.New("cannot validate KMS key version rotation"))}
+	}
+
+	lowest, _ := apihelpers.FindLowestAndHighestClusterVersion(admissionContext.ServiceProviderCluster.Status.ControlPlaneVersion.ActiveVersions)
+	clusterVersion := semver.Version{Major: lowest.Major, Minor: lowest.Minor}
+	if clusterVersion.LT(minKmsKeyVersionRotationVersion) {
+		return field.ErrorList{field.Invalid(fldPath, newObj.Etcd.DataEncryption.CustomerManaged.Kms.ActiveKey.Version, fmt.Sprintf("KMS key version rotation requires cluster version %s or above", minKmsKeyVersionRotationVersion))}
+	}
+
+	return nil
 }

@@ -17,10 +17,10 @@ package validation
 import (
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 )
 
-func RewriteValidationFieldPaths(internalValidationErrors field.ErrorList, validationPathMapperFn api.ValidationPathMapperFunc) {
+func RewriteValidationFieldPaths(internalValidationErrors field.ErrorList, validationPathMapperFn coreapi.ValidationPathMapperFunc) {
 	if validationPathMapperFn == nil {
 		return
 	}

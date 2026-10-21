@@ -3,6 +3,11 @@ param containerName string
 param containerMaxScale int
 param kubeApplierManagedIdentityPrincipalId string
 
+// Principal ID of the Clusters Service (CS) managed identity, granted read/write
+// access to this per-management-cluster kube-applier container (mirrors the
+// kube-applier MI assignment below).
+param csManagedIdentityPrincipalId string
+
 // https://learn.microsoft.com/en-us/azure/cosmos-db/reference-data-plane-security#cosmos-db-built-in-data-contributor
 param cosmosDataContributorRoleDefinitionId string = '00000000-0000-0000-0000-000000000002'
 
@@ -70,6 +75,24 @@ resource sqlRoleAssignment 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignm
   properties: {
     roleDefinitionId: '${cosmosDbAccount.id}/sqlRoleDefinitions/${cosmosDataContributorRoleDefinitionId}'
     principalId: kubeApplierManagedIdentityPrincipalId
+    scope: containerScope
+  }
+}
+
+// Grant the Clusters Service managed identity read/write access to this
+// per-management-cluster kube-applier container (CS writes ReadDesires and reads
+// ApplyDesire status). Mirrors the kube-applier MI assignment above with a distinct
+// deterministic assignment name.
+resource csSqlRoleAssignment 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2021-04-15' = {
+  name: guid(
+    guid('cs-kube-applier-role', cosmosDbAccount.id, cosmosDataContributorRoleDefinitionId),
+    csManagedIdentityPrincipalId,
+    container.id
+  )
+  parent: cosmosDbAccount
+  properties: {
+    roleDefinitionId: '${cosmosDbAccount.id}/sqlRoleDefinitions/${cosmosDataContributorRoleDefinitionId}'
+    principalId: csManagedIdentityPrincipalId
     scope: containerScope
   }
 }

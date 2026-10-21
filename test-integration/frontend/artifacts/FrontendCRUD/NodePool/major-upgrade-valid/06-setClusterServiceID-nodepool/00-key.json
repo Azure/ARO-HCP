@@ -1,0 +1,5 @@
+{
+	"_artifactStep": "setClusterServiceID",
+	"id": "ff4e7d59-6c68-57da-9e62-3fdc47401dca",
+	"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/major-upgrade-valid/nodePools/np422"
+}

@@ -28,8 +28,9 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
@@ -39,18 +40,21 @@ var _ = Describe("Customer", func() {
 
 	backlevelVersions := []backlevelVersionSpec{
 		{
-			controlPlaneVersion: "4.19",
-			nodePoolVersions:    []string{"4.19.7"},
-			bicepModulesDir:     "test-artifacts/generated-test-artifacts/modules-4.19",
+			controlPlaneVersion: "4.20",
+			nodePoolVersions:    []string{"4.20.32"},
+			bicepModulesDir:     "test-artifacts/generated-test-artifacts/modules-4.20",
 		},
 	}
 
 	for _, version := range backlevelVersions {
+		version := version
 		It("should be able to create an HCP cluster with back-level version "+version.controlPlaneVersion,
 			labels.RequireNothing,
 			labels.Critical,
 			labels.Positive,
 			labels.AroRpApiCompatible,
+			labels.AllowRetry, // owner: @sjante, tracking: ARO-21125. Known-issue test, retriable during EV2 gating. Remove this label when the issue is fixed.
+			labels.MIContainers(1),
 			func(ctx context.Context) {
 				const (
 					customerNetworkSecurityGroupName = "customer-nsg-name-"
@@ -147,9 +151,9 @@ var _ = Describe("Customer", func() {
 				)
 				Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster version %s", version.controlPlaneVersion)
 
-				adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
+				adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20260901(
 					ctx,
-					tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
+					tc.Get20260901ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 					*resourceGroup.Name,
 					clusterName,
 					framework.GetAdminRESTConfigTimeout,
@@ -173,10 +177,13 @@ var _ = Describe("Customer", func() {
 					nodePoolName := customerNodePoolName + nodePoolSuffix
 
 					By("creating node pool version " + matchingNodePoolVersion + " and verifying a simple web app can run")
+					nodePoolDefaults := defaultNodePoolDefaults
+					nodePoolDefaults.vmSize, err = tc.SelectVMSize(ctx, framework.DefaultWorkerVMSizeSelector())
+					Expect(err).NotTo(HaveOccurred(), "failed to resolve the default worker VM size for the back-level node pool; check VM SKU restrictions/quota for the test subscription in %s", tc.Location())
 					nodePool, err := buildNodePoolRequest(
 						tc.Location(),
 						matchingNodePoolVersion,
-						defaultNodePoolDefaults,
+						nodePoolDefaults,
 					)
 					Expect(err).NotTo(HaveOccurred(), "failed to build node pool request for version %s", matchingNodePoolVersion)
 					nodePoolClient := tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient()
@@ -213,10 +220,13 @@ type nodePoolDefaults struct {
 }
 
 var defaultNodePoolDefaults = nodePoolDefaults{
-	replicas:               int32(2),
-	vmSize:                 "Standard_D8s_v3",
+	replicas: int32(2),
+	// vmSize is intentionally left empty: it is resolved at create time via the
+	// restriction-aware framework.DefaultWorkerVMSizeSelector so the suite is
+	// resilient to per-subscription SKU restrictions.
+	vmSize:                 "",
 	osDiskSizeGiB:          int32(64),
-	diskStorageAccountType: "StandardSSD_LRS",
+	diskStorageAccountType: framework.DefaultDiskStorageAccountType,
 	channelGroup:           "stable",
 }
 
@@ -244,14 +254,14 @@ func buildHCPClusterRequest(
 ) (hcpsdk20240610preview.HcpOpenShiftCluster, error) {
 
 	switch controlPlaneVersion {
-	case "4.19":
-		return buildHCPClusterRequest_4_19(location, managedResourceGroupName, controlPlaneVersion, channelGroup, customerInfra, userAssignedIdentitiesProfile, identityProfile), nil
+	case "4.20":
+		return buildHCPClusterRequest_4_20(location, managedResourceGroupName, controlPlaneVersion, channelGroup, customerInfra, userAssignedIdentitiesProfile, identityProfile), nil
 	default:
 		return hcpsdk20240610preview.HcpOpenShiftCluster{}, fmt.Errorf("unsupported control plane version: %s", controlPlaneVersion)
 	}
 }
 
-func buildHCPClusterRequest_4_19(
+func buildHCPClusterRequest_4_20(
 	location string,
 	managedResourceGroupName string,
 	controlPlaneVersion string,
@@ -264,7 +274,7 @@ func buildHCPClusterRequest_4_19(
 		Location: to.Ptr(location),
 		Identity: identityProfile,
 		Tags: map[string]*string{
-			api.TagClusterSizeOverride: to.Ptr(string(api.MinimalControlPlanePodSizing)),
+			metadataapi.TagClusterSizeOverride: to.Ptr(string(coreapi.MinimalControlPlanePodSizing)),
 		},
 		Properties: &hcpsdk20240610preview.HcpOpenShiftClusterProperties{
 			Version: &hcpsdk20240610preview.VersionProfile{
@@ -317,14 +327,14 @@ func buildNodePoolRequest(
 	defaults nodePoolDefaults,
 ) (hcpsdk20240610preview.NodePool, error) {
 	switch nodePoolVersion {
-	case "4.19.7":
-		return buildNodePoolRequest_4_19(location, nodePoolVersion, defaults), nil
+	case "4.20.32":
+		return buildNodePoolRequest_4_20(location, nodePoolVersion, defaults), nil
 	default:
 		return hcpsdk20240610preview.NodePool{}, fmt.Errorf("unsupported node pool version: %s", nodePoolVersion)
 	}
 }
 
-func buildNodePoolRequest_4_19(
+func buildNodePoolRequest_4_20(
 	location string,
 	nodePoolVersion string,
 	defaults nodePoolDefaults,

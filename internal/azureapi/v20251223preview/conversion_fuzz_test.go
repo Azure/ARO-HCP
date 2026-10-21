@@ -1,0 +1,133 @@
+// Copyright 2025 Microsoft Corporation
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package v20251223preview
+
+import (
+	"encoding/json"
+	"math/rand"
+	"testing"
+
+	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/require"
+
+	"k8s.io/apimachinery/pkg/api/equality"
+
+	"sigs.k8s.io/randfill"
+
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
+)
+
+func TestRoundTripInternalExternalInternal(t *testing.T) {
+	seed := rand.Int63()
+	t.Logf("seed: %d", seed)
+
+	fuzzer := coreapitesting.FuzzerFor(append(coreapitesting.CommonRoundTripFuzzFuncs(),
+		// Ingress and CryptoRestrictions were added in v20260630preview and do not exist in v20251223preview.
+		func(j *coreapi.ClusterCustomerProperties, c randfill.Continue) {
+			c.FillNoCustom(j)
+			j.Ingress = coreapi.CustomerIngressProfile{}
+			j.CryptoRestrictions = metadataapi.CryptoRestrictionsNone
+		},
+		// ContainerRegistry was added in v20261001 and does not exist in v20251223preview.
+		func(j *coreapi.CustomerPlatformProfile, c randfill.Continue) {
+			c.FillNoCustom(j)
+			j.ContainerRegistry = coreapi.ContainerRegistryProfile{}
+		},
+		// KeyVaultType was added in v20261001 and does not exist in v20251223preview.
+		func(j *coreapi.KmsEncryptionProfile, c randfill.Continue) {
+			c.FillNoCustom(j)
+			j.KeyVaultType = ""
+		},
+	), rand.NewSource(seed))
+
+	for i := 0; i < 200; i++ {
+		original := &coreapi.Cluster{}
+		fuzzer.Fill(original)
+		original.ResourceID = original.ID
+		original.InstanceVersion = 0
+		original.PartitionKey = ""
+		roundTripHCPCluster(t, original)
+	}
+
+	for i := 0; i < 200; i++ {
+		original := &coreapi.NodePool{}
+		fuzzer.Fill(original)
+		original.ResourceID = original.ID
+		original.CosmosETag = ""
+		original.InstanceVersion = 0
+		original.PartitionKey = ""
+		roundTripNodePool(t, original)
+	}
+
+	for i := 0; i < 200; i++ {
+		original := &coreapi.ExternalAuth{}
+		fuzzer.Fill(original)
+		original.ResourceID = original.ID
+		original.CosmosETag = ""
+		original.InstanceVersion = 0
+		original.PartitionKey = ""
+		roundTripExternalAuth(t, original)
+	}
+}
+
+func roundTripHCPCluster(t *testing.T, original *coreapi.Cluster) {
+	v := version{}
+	externalObj := v.NewCluster(original)
+
+	roundTrippedObj, err := externalObj.ConvertToInternal(original)
+	require.NoError(t, err)
+
+	if !equality.Semantic.DeepEqual(original, roundTrippedObj) {
+		originalJSON, _ := json.MarshalIndent(original, "", "    ")
+		intermediateJSON, _ := json.MarshalIndent(externalObj, "", "    ")
+		resultJSON, _ := json.MarshalIndent(roundTrippedObj, "", "    ")
+		t.Logf("Original: %s\n\nIntermediate: %s\n\n result: %s\n\n", string(originalJSON), string(intermediateJSON), string(resultJSON))
+		t.Errorf("Round trip failed: %v", cmp.Diff(original, roundTrippedObj, coreapi.CmpDiffOptions...))
+	}
+}
+
+func roundTripNodePool(t *testing.T, original *coreapi.NodePool) {
+	v := version{}
+	externalObj := v.NewNodePool(original)
+
+	roundTrippedObj, err := externalObj.ConvertToInternal(nil)
+	require.NoError(t, err)
+
+	if !equality.Semantic.DeepEqual(original, roundTrippedObj) {
+		originalJSON, _ := json.MarshalIndent(original, "", "    ")
+		intermediateJSON, _ := json.MarshalIndent(externalObj, "", "    ")
+		resultJSON, _ := json.MarshalIndent(roundTrippedObj, "", "    ")
+		t.Logf("Original: %s\n\nIntermediate: %s\n\n result: %s\n\n", string(originalJSON), string(intermediateJSON), string(resultJSON))
+		t.Errorf("Round trip failed: %v", cmp.Diff(original, roundTrippedObj, coreapi.CmpDiffOptions...))
+	}
+}
+
+func roundTripExternalAuth(t *testing.T, original *coreapi.ExternalAuth) {
+	v := version{}
+	externalObj := v.NewExternalAuth(original)
+
+	roundTrippedObj, err := externalObj.ConvertToInternal(nil)
+	require.NoError(t, err)
+
+	if !equality.Semantic.DeepEqual(original, roundTrippedObj) {
+		originalJSON, _ := json.MarshalIndent(original, "", "    ")
+		intermediateJSON, _ := json.MarshalIndent(externalObj, "", "    ")
+		resultJSON, _ := json.MarshalIndent(roundTrippedObj, "", "    ")
+		t.Logf("Original: %s\n\nIntermediate: %s\n\n result: %s\n\n", string(originalJSON), string(intermediateJSON), string(resultJSON))
+		t.Errorf("Round trip failed: %v", cmp.Diff(original, roundTrippedObj, coreapi.CmpDiffOptions...))
+	}
+}

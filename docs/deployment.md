@@ -1,6 +1,6 @@
 # WIP outline - Service and Infrastructure Deployment
 
-- existing pipelines and how they relate to the architectual scopes
+- existing pipelines and how they relate to the architectural scopes
 - how to deploy to RH DEV
   - Prow and makefiles to trigger pipelines
   - wait for previous deployment

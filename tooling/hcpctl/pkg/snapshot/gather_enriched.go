@@ -46,6 +46,9 @@ type GatherForTestOptions struct {
 	// HCPDatabase is the Kusto database name for HCP-side data.
 	HCPDatabase string
 
+	// MonitoringEventsDatabase is the Kusto database name for monitoring events (alerts).
+	MonitoringEventsDatabase string
+
 	// ServiceClusterName and ManagementClusterName are AKS cluster names
 	// used to filter Kusto queries to only relevant clusters for PR jobs.
 	ServiceClusterName    string
@@ -64,6 +67,13 @@ type GatherForTestOptions struct {
 	// Concurrency is the maximum number of concurrent Kusto queries.
 	// A value of 0 defaults to 4 * runtime.NumCPU().
 	Concurrency int
+
+	// NodeConsoleLogs contains VM serial console log files downloaded from
+	// the Prow job's GCS artifacts. These are optional — not every test creates VMs.
+	NodeConsoleLogs []NodeConsoleLogFile
+
+	// AzureLog is the client-side azure.log from GCS, or nil if not present.
+	AzureLog *AzureLogFile
 }
 
 // GatherForTestResult contains metadata about what was gathered.
@@ -111,6 +121,16 @@ func GatherForTest(ctx context.Context, opts GatherForTestOptions) (*GatherForTe
 		return nil, fmt.Errorf("failed to write test logs: %w", err)
 	}
 
+	// Write node console logs (if any).
+	if err := WriteNodeConsoleLogs(opts.OutputDir, opts.NodeConsoleLogs); err != nil {
+		return nil, fmt.Errorf("failed to write node console logs: %w", err)
+	}
+
+	// Write the client-side azure.log (if present).
+	if err := WriteAzureLog(opts.OutputDir, opts.AzureLog); err != nil {
+		return nil, fmt.Errorf("failed to write azure.log: %w", err)
+	}
+
 	// Build the gather input with 5-minute padding.
 	startTime := test.StartTime.Add(-5 * time.Minute)
 	endTime := test.EndTime.Add(5 * time.Minute)
@@ -121,12 +141,13 @@ func GatherForTest(ctx context.Context, opts GatherForTestOptions) (*GatherForTe
 	}
 
 	input := GatherInput{
-		ClusterURI:            opts.KustoEndpoint,
-		ServiceDatabase:       opts.ServiceDatabase,
-		HCPDatabase:           opts.HCPDatabase,
-		ResourceGroup:         test.ResourceGroup,
-		ServiceClusterName:    opts.ServiceClusterName,
-		ManagementClusterName: opts.ManagementClusterName,
+		ClusterURI:               opts.KustoEndpoint,
+		ServiceDatabase:          opts.ServiceDatabase,
+		HCPDatabase:              opts.HCPDatabase,
+		MonitoringEventsDatabase: opts.MonitoringEventsDatabase,
+		ResourceGroup:            test.ResourceGroup,
+		ServiceClusterName:       opts.ServiceClusterName,
+		ManagementClusterName:    opts.ManagementClusterName,
 		TimeWindow: TimeWindow{
 			Start:           startTime,
 			End:             endTime,
@@ -147,6 +168,19 @@ func GatherForTest(ctx context.Context, opts GatherForTestOptions) (*GatherForTe
 	// Enrich manifest with test metadata.
 	manifest.TestName = test.Name
 	manifest.ProwJobURL = opts.ProwJobURL
+	for _, cl := range opts.NodeConsoleLogs {
+		manifest.NodeConsoleLogs = append(manifest.NodeConsoleLogs, NodeConsoleLog{
+			NodeName:    cl.NodeName,
+			File:        fmt.Sprintf("node_boot_logs/%s", cl.FileName),
+			ArtifactURL: cl.ArtifactURL,
+		})
+	}
+	if opts.AzureLog != nil && len(opts.AzureLog.Content) > 0 {
+		manifest.AzureLog = &AzureLog{
+			File:        "azure_sdk_log/azure.log",
+			ArtifactURL: opts.AzureLog.ArtifactURL,
+		}
+	}
 	if err := WriteManifest(opts.OutputDir, manifest); err != nil {
 		return nil, fmt.Errorf("failed to write manifest: %w", err)
 	}

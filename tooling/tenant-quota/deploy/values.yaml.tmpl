@@ -1,11 +1,61 @@
 imageRegistry: "{{ .opstool.tenantQuota.image.registry }}"
 imageRepository: "{{ .opstool.tenantQuota.image.repository }}"
-imageTag: "{{ .opstool.tenantQuota.image.tag }}"
+imageDigest: "{{ .opstool.tenantQuota.image.digest }}"
 msiClientId: "__tenantQuotaUAMIClientId__"
+exitOnPanic: {{ .opstool.tenantQuota.exitOnPanic }}
 secretProvider:
   keyVault: "__keyVaultName__"
   msiClientId: "__tenantQuotaUAMIClientId__"
   tenantId: "64dc69e4-d083-49fc-9569-ebece1dd1408"
+prow:
+  enabled: {{ .opstool.tenantQuota.prow.enabled }}
+  baseURL: "{{ .opstool.tenantQuota.prow.baseURL }}"
+  interval: "{{ .opstool.tenantQuota.prow.interval }}"
+  retention: "{{ .opstool.tenantQuota.prow.retention }}"
+  repository:
+    org: "{{ .opstool.tenantQuota.prow.repository.org }}"
+    name: "{{ .opstool.tenantQuota.prow.repository.name }}"
+{{- if .opstool.tenantQuota.prow.excludeJobs }}
+  excludeJobs:
+{{- range .opstool.tenantQuota.prow.excludeJobs }}
+  - "{{ . }}"
+{{- end }}
+{{- else }}
+  excludeJobs: []
+{{- end }}
+ciJobOutcomes:
+  enabled: {{ .opstool.tenantQuota.ciJobOutcomes.enabled }}
+  clusterURI: "{{ .opstool.tenantQuota.ciJobOutcomes.clusterURI }}"
+  ingestionURI: "{{ .opstool.tenantQuota.ciJobOutcomes.ingestionURI }}"
+  database: "{{ .opstool.tenantQuota.ciJobOutcomes.database }}"
+  outcomes:
+    table: "{{ .opstool.tenantQuota.ciJobOutcomes.outcomes.table }}"
+    ingestionMapping: "{{ .opstool.tenantQuota.ciJobOutcomes.outcomes.ingestionMapping }}"
+  testNames:
+    table: "{{ .opstool.tenantQuota.ciJobOutcomes.testNames.table }}"
+    ingestionMapping: "{{ .opstool.tenantQuota.ciJobOutcomes.testNames.ingestionMapping }}"
+  testResults:
+    table: "{{ .opstool.tenantQuota.ciJobOutcomes.testResults.table }}"
+    ingestionMapping: "{{ .opstool.tenantQuota.ciJobOutcomes.testResults.ingestionMapping }}"
+  discovered:
+    table: "{{ .opstool.tenantQuota.ciJobOutcomes.discovered.table }}"
+    ingestionMapping: "{{ .opstool.tenantQuota.ciJobOutcomes.discovered.ingestionMapping }}"
+  processed:
+    table: "{{ .opstool.tenantQuota.ciJobOutcomes.processed.table }}"
+    ingestionMapping: "{{ .opstool.tenantQuota.ciJobOutcomes.processed.ingestionMapping }}"
+  gcsBucket: "{{ .opstool.tenantQuota.ciJobOutcomes.gcsBucket }}"
+  jobFilter: "{{ .opstool.tenantQuota.ciJobOutcomes.jobFilter }}"
+  interval: "{{ .opstool.tenantQuota.ciJobOutcomes.interval }}"
+  discoveryInterval: "{{ .opstool.tenantQuota.ciJobOutcomes.discoveryInterval }}"
+  completionDelay: "{{ .opstool.tenantQuota.ciJobOutcomes.completionDelay }}"
+  window: "{{ .opstool.tenantQuota.ciJobOutcomes.window }}"
+  startupSince: "{{ with index .opstool.tenantQuota.ciJobOutcomes "startupSince" }}{{ . }}{{ end }}"
+  repairInterval: "{{ .opstool.tenantQuota.ciJobOutcomes.repairInterval }}"
+  overlap: "{{ .opstool.tenantQuota.ciJobOutcomes.overlap }}"
+  workers: {{ .opstool.tenantQuota.ciJobOutcomes.workers }}
+  discoveryWorkers: {{ .opstool.tenantQuota.ciJobOutcomes.discoveryWorkers }}
+  cacheSize: {{ .opstool.tenantQuota.ciJobOutcomes.cacheSize }}
+  cacheTTL: "{{ .opstool.tenantQuota.ciJobOutcomes.cacheTTL }}"
 tenants:
 {{- range .opstool.tenantQuota.tenants }}
 - tenantId: "{{ .tenantId }}"
@@ -16,7 +66,6 @@ tenants:
   subscriptions:
 {{- range .subscriptions }}
     - name: "{{ .name }}"
-      roleAssignmentLimit: {{ .roleAssignmentLimit }}
       regions:
 {{- range .regions }}
         - "{{ . }}"

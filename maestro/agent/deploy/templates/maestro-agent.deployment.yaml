@@ -81,6 +81,30 @@ spec:
         - mountPath: /secrets/mqtt-creds
           name: mqtt-creds
           readOnly: true
+        # The agent is the OCM work spoke binary, which serves /healthz over HTTPS
+        # on port 8443 (library-go controllercmd serving). A stuck agent stops
+        # passing this check and is restarted instead of sitting silently broken.
+        startupProbe:
+          httpGet:
+            path: /healthz
+            scheme: HTTPS
+            port: 8443
+          periodSeconds: 10
+          failureThreshold: 30
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            scheme: HTTPS
+            port: 8443
+          initialDelaySeconds: 2
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            scheme: HTTPS
+            port: 8443
+          initialDelaySeconds: 2
+          periodSeconds: 10
       serviceAccountName: '{{ .Values.serviceAccountName }}'
       affinity:
         nodeAffinity:

@@ -19,19 +19,62 @@ import (
 	"strings"
 )
 
+// RenderOption customizes how RenderMarkdown emits a chain.
+type RenderOption func(*renderConfig)
+
+type renderConfig struct {
+	// maxTableRows caps the number of data rows emitted per table. 0 = unlimited.
+	maxTableRows int
+}
+
+// WithMaxTableRows caps every rendered table to n data rows (with a
+// "_Showing N of M rows._" note when truncated). Used to bound the size of the
+// document embedded in review prompts without dropping any table, so the model
+// can still judge whether each proof is concise and on-point.
+func WithMaxTableRows(n int) RenderOption {
+	return func(c *renderConfig) { c.maxTableRows = n }
+}
+
 // RenderMarkdown produces a low-fidelity markdown document from a hydrated
 // analysis chain. This is used to show the agent the full rendered output —
 // including query result tables — so it can review narrative coherence,
 // evidence quality, and depth before finalizing.
-func RenderMarkdown(chain *HydratedChain, testName string) string {
+//
+// title is the document heading. In test mode it is the test name and the
+// header reads "Test Failure Analysis: <title>". In intent mode (chain.Intent
+// is non-empty) the header reads "Analysis: <title>" and an Objective section
+// echoing the investigation intent is rendered before the root cause.
+func RenderMarkdown(chain *HydratedChain, title string, opts ...RenderOption) string {
+	var cfg renderConfig
+	for _, o := range opts {
+		o(&cfg)
+	}
 	var sb strings.Builder
 
-	sb.WriteString(fmt.Sprintf("# Test Failure Analysis: %s\n\n", testName))
+	if chain.Intent != "" {
+		sb.WriteString(fmt.Sprintf("# Analysis: %s\n\n", title))
+		sb.WriteString("## Objective\n\n")
+		sb.WriteString(chain.Intent)
+		sb.WriteString("\n\n")
+	} else {
+		sb.WriteString(fmt.Sprintf("# Test Failure Analysis: %s\n\n", title))
+	}
 
 	// Root cause.
 	sb.WriteString("## Root Cause\n\n")
 	sb.WriteString(chain.RootCause)
 	sb.WriteString("\n\n")
+
+	// Classification.
+	if chain.Classification != nil {
+		sb.WriteString("## Classification\n\n")
+		sb.WriteString(fmt.Sprintf("- **Category:** %s\n", chain.Classification.L1Category))
+		if chain.Classification.L2Subcategory != "" {
+			sb.WriteString(fmt.Sprintf("- **Component:** %s\n", chain.Classification.L2Subcategory))
+		}
+		sb.WriteString(fmt.Sprintf("- **Confidence:** %.0f%%\n", chain.Classification.Confidence*100))
+		sb.WriteString("\n")
+	}
 
 	// Summary.
 	sb.WriteString("## Summary\n\n")
@@ -65,7 +108,7 @@ func RenderMarkdown(chain *HydratedChain, testName string) string {
 					sb.WriteString("```kql\n")
 					sb.WriteString(proof.KQL)
 					sb.WriteString("\n```\n\n")
-					sb.WriteString(TableToMarkdown(proof.Table))
+					sb.WriteString(TableToMarkdownCapped(proof.Table, cfg.maxTableRows))
 					sb.WriteString("\n\n")
 				case "code":
 					sb.WriteString(fmt.Sprintf("#### Proof %d (code)\n\n", j+1))
@@ -78,12 +121,25 @@ func RenderMarkdown(chain *HydratedChain, testName string) string {
 					sb.WriteString(proof.CodeExcerpt)
 					sb.WriteString("\n```\n\n")
 				case "log":
-					sb.WriteString(fmt.Sprintf("#### Proof %d (log — %s)\n\n", j+1, proof.Source))
-					if proof.Note != "" {
-						sb.WriteString(proof.Note)
-						sb.WriteString("\n\n")
+					if proof.Source == "node_console_log" {
+						sb.WriteString(fmt.Sprintf("#### Proof %d (log — node console: %s)\n\n", j+1, proof.File))
+						if proof.Note != "" {
+							sb.WriteString(proof.Note)
+							sb.WriteString("\n\n")
+						}
+						if proof.ArtifactURL != "" {
+							sb.WriteString(fmt.Sprintf("Node console log `%s`, lines %d\u2013%d ([download](%s)):\n\n", proof.File, proof.Lines[0], proof.Lines[1], proof.ArtifactURL))
+						} else {
+							sb.WriteString(fmt.Sprintf("Node console log `%s`, lines %d\u2013%d:\n\n", proof.File, proof.Lines[0], proof.Lines[1]))
+						}
+					} else {
+						sb.WriteString(fmt.Sprintf("#### Proof %d (log \u2014 %s)\n\n", j+1, proof.Source))
+						if proof.Note != "" {
+							sb.WriteString(proof.Note)
+							sb.WriteString("\n\n")
+						}
+						sb.WriteString(fmt.Sprintf("Test %s log, lines %d\u2013%d:\n\n", proof.Source, proof.Lines[0], proof.Lines[1]))
 					}
-					sb.WriteString(fmt.Sprintf("Test %s log, lines %d–%d:\n\n", proof.Source, proof.Lines[0], proof.Lines[1]))
 					sb.WriteString("```\n")
 					sb.WriteString(proof.LogExcerpt)
 					sb.WriteString("\n```\n\n")
@@ -109,7 +165,7 @@ func RenderMarkdown(chain *HydratedChain, testName string) string {
 			sb.WriteString("```kql\n")
 			sb.WriteString(d.KQL)
 			sb.WriteString("\n```\n\n")
-			sb.WriteString(TableToMarkdown(d.Table))
+			sb.WriteString(TableToMarkdownCapped(d.Table, cfg.maxTableRows))
 			sb.WriteString("\n\n")
 		}
 	}

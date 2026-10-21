@@ -1,2 +1,5 @@
 _output
 tenant-quota-collector
+
+# Override ignored directories from the root directory's .gitignore
+!pkg/resourcegroups/

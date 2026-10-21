@@ -32,9 +32,6 @@ E2E_TESTING_SUBSCRIPTION_ID = 974ebd46-8ad3-41e3-afef-7ef25fd5c371
 
 # Environments where automation accounts are deployed
 
-# MSI mock pool size for boskos leasing in the E2E testing subscription
-MSI_MOCK_POOL_SIZE ?= 20
-
 list:
 	@grep '^[^#[:space:]].*:' Makefile
 .PHONY: list
@@ -82,186 +79,29 @@ feature-registration: # hardcoded to eastus as this is a subscription deployment
 		$(PROMPT_TO_CONFIRM)
 .PHONY: feature-registration
 
-# Create mock identities for the INT environment
-# This is done within the subscription the customer MRG / nodepools would be created
-# Manually lift/shift the cert/keys to the MSIT environment keyvault
-create-int-mock-identities: configurations/mock-identities.bicepparam
-	MSI_MOCK_ROLE_NAME=int-msi-mock && \
-	FIRST_PARTY_ROLE_NAME=int-first-party && \
-	FIRST_PARTY_CERT_NAME=intFirstPartyCert && \
-	FIRST_PARTY_CERT_DNS=intfirstparty.hcp.osadev.cloud && \
-	MSI_MOCK_CERT_NAME=intMsiMockCert && \
-	MSI_MOCK_CERT_DNS=intmsimock.hcp.osadev.cloud && \
-	ARM_HELPER_CERT_NAME=intArmHelperCert && \
-	ARM_HELPER_CERT_DNS=intarmhelper.hcp.osadev.cloud && \
-	az deployment group create \
-		--name "aro-hcp-int-mock-certificates" \
-		--resource-group $(GLOBAL_RESOURCEGROUP) \
-		--template-file templates/mock-identities.bicep \
-		--parameters configurations/mock-identities.bicepparam \
-		keyVaultName=aro-hcp-int-kv \
-		msiMockRoleName=$${MSI_MOCK_ROLE_NAME} \
-		firstPartyRoleName=$${FIRST_PARTY_ROLE_NAME} \
-		firstPartyCertName=$${FIRST_PARTY_CERT_NAME} \
-		firstPartyCertDns=$${FIRST_PARTY_CERT_DNS} \
-		msiMockCertName=$${MSI_MOCK_CERT_NAME} \
-		msiMockCertDns=$${MSI_MOCK_CERT_DNS} \
-		armHelperCertName=$${ARM_HELPER_CERT_NAME} \
-		armHelperCertDns=$${ARM_HELPER_CERT_DNS} && \
-	APPLICATION_NAME=aro-hcp-int-fp \
-	KEY_VAULT_NAME=aro-hcp-int-kv \
-	CERTIFICATE_NAME=$${FIRST_PARTY_CERT_NAME} \
-	ROLE_DEFINITION_NAME=$${FIRST_PARTY_ROLE_NAME} \
-	SUBSCRIPTION_ID=$(shell az account show --query id --output tsv) \
-	./scripts/create-sp-for-rbac.sh && \
-	APPLICATION_NAME=aro-hcp-int-arm-helper \
-	KEY_VAULT_NAME=aro-hcp-int-kv \
-	CERTIFICATE_NAME=$${ARM_HELPER_CERT_NAME} \
-	ROLE_DEFINITION_NAME='Role Based Access Control Administrator' \
-	SUBSCRIPTION_ID=$(shell az account show --query id --output tsv) \
-	./scripts/create-sp-for-rbac.sh && \
-	az role assignment create \
-		--role "Contributor" \
-		--assignee "$(shell az ad app list --display-name aro-hcp-int-arm-helper --query '[*]'.appId -o tsv)" \
-		--scope "/subscriptions/$(shell az account show --query id --output tsv)" \
-		--only-show-errors
-	APPLICATION_NAME=aro-hcp-int-msi-mock \
-	KEY_VAULT_NAME=aro-hcp-int-kv \
-	CERTIFICATE_NAME=$${MSI_MOCK_CERT_NAME} \
-	ROLE_DEFINITION_NAME=$${MSI_MOCK_ROLE_NAME} \
-	SUBSCRIPTION_ID=$(shell az account show --query id --output tsv) \
-	./scripts/create-sp-for-rbac.sh && \
-	az role assignment create \
-		--role "Key Vault Crypto User" \
-		--assignee "$(shell az ad app list --display-name aro-hcp-int-msi-mock --query '[*]'.appId -o tsv)" \
-		--scope "/subscriptions/$(shell az account show --query id --output tsv)" \
-		--only-show-errors
-
-.PHONY: create-mock-identities
-
-
-create-mock-identities: configurations/mock-identities.bicepparam
-	az deployment group wait --created --name "aro-hcp-dev-mock-certificates" --resource-group $(GLOBAL_RESOURCEGROUP) --interval 10
-	az deployment group create \
-		--name "aro-hcp-dev-mock-certificates" \
-		--resource-group $(GLOBAL_RESOURCEGROUP) \
-		--template-file templates/mock-identities.bicep $(PROMPT_TO_CONFIRM) \
-		--parameters configurations/mock-identities.bicepparam \
-		--parameters e2eTestSubscription=974ebd46-8ad3-41e3-afef-7ef25fd5c371
-
-	APPLICATION_NAME=aro-dev-first-party2 \
-	KEY_VAULT_NAME=aro-hcp-dev-svc-kv \
-	CERTIFICATE_NAME=firstPartyCert2 \
-	ROLE_DEFINITION_NAME=dev-first-party-mock \
-	SUBSCRIPTION_ID=$(shell az account show --query id --output tsv) \
-	./scripts/create-sp-for-rbac.sh
-
-	APPLICATION_NAME=aro-dev-arm-helper2 \
-	KEY_VAULT_NAME=aro-hcp-dev-svc-kv \
-	CERTIFICATE_NAME=armHelperCert2 \
-	ROLE_DEFINITION_NAME='Role Based Access Control Administrator' \
-	SUBSCRIPTION_ID=$(shell az account show --query id --output tsv) \
-	./scripts/create-sp-for-rbac.sh
-
-	az role assignment create \
-		--role "Contributor" \
-		--assignee "$(shell az ad app list --display-name aro-dev-arm-helper2 --query '[*]'.appId -o tsv)" \
-		--scope "/subscriptions/$(shell az account show --query id --output tsv)" \
-		--only-show-errors
-
-	APPLICATION_NAME=aro-dev-msi-mock2 \
-	KEY_VAULT_NAME=aro-hcp-dev-svc-kv \
-	CERTIFICATE_NAME=msiMockCert2 \
-	ROLE_DEFINITION_NAME=dev-msi-mock \
-	SUBSCRIPTION_ID=$(shell az account show --query id --output tsv) \
-	./scripts/create-sp-for-rbac.sh
-
-	az role assignment create \
-		--role "Azure Red Hat OpenShift KMS Plugin - Dev" \
-		--assignee "$(shell az ad app list --display-name aro-dev-msi-mock2 --query '[*]'.appId -o tsv)" \
-		--scope "/subscriptions/$(shell az account show --query id --output tsv)" \
-		--only-show-errors
-
-	@for i in $$(seq 0 $$(($(MSI_MOCK_POOL_SIZE) - 1))); do \
-		echo "Creating/updating MSI mock pool SP $$i ..."; \
-		APPLICATION_NAME=aro-dev-msi-mock-pool-$$i \
-		KEY_VAULT_NAME=aro-hcp-dev-svc-kv \
-		CERTIFICATE_NAME=msiMockPoolCert-$$i \
-		ROLE_DEFINITION_NAME=dev-msi-mock \
-		SUBSCRIPTION_ID=$(shell az account show --query id --output tsv) \
-		./scripts/create-sp-for-rbac.sh; \
-		az role assignment create \
-			--role "Azure Red Hat OpenShift KMS Plugin - Dev" \
-			--assignee "$$(az ad app list --filter "displayName eq 'aro-dev-msi-mock-pool-$$i'" --query '[*].appId' -o tsv)" \
-			--scope "/subscriptions/$(shell az account show --query id --output tsv)" \
-			--only-show-errors; \
-	done
-
-.PHONY: create-mock-identities
-
-create-msi-mock-pool: configurations/mock-identity-pool.bicepparam
-	az deployment group create \
-		--name "aro-hcp-dev-msi-mock-pool" \
-		--resource-group $(GLOBAL_RESOURCEGROUP) \
-		--template-file templates/mock-identity-pool.bicep $(PROMPT_TO_CONFIRM) \
-		--parameters configurations/mock-identity-pool.bicepparam \
-		--parameters msiMockPoolSize=$(MSI_MOCK_POOL_SIZE)
-
-	@for i in $$(seq 0 $$(($(MSI_MOCK_POOL_SIZE) - 1))); do \
-		echo "Creating/updating MSI mock pool SP $$i ..."; \
-		APPLICATION_NAME=aro-dev-msi-mock-pool-$$i \
-		KEY_VAULT_NAME=aro-hcp-dev-svc-kv \
-		CERTIFICATE_NAME=msiMockPoolCert-$$i \
-		ROLE_DEFINITION_NAME=dev-msi-mock \
-		SUBSCRIPTION_ID=$(shell az account show --query id --output tsv) \
-		./scripts/create-sp-for-rbac.sh; \
-		az role assignment create \
-			--role "Azure Red Hat OpenShift KMS Plugin - Dev" \
-			--assignee "$$(az ad app list --filter "displayName eq 'aro-dev-msi-mock-pool-$$i'" --query '[*].appId' -o tsv)" \
-			--scope "/subscriptions/$(shell az account show --query id --output tsv)" \
-			--only-show-errors; \
-	done
-
-.PHONY: create-msi-mock-pool
-
 populate-msi-mock-pool:
 	cd openshift-ci && \
-	MSI_MOCK_POOL_SIZE=$(MSI_MOCK_POOL_SIZE) \
-	./populate-msi-mock-pool.sh
+	POOL_SIZE=$$(yq '.clouds.dev.defaults.ci.dev.mockIdentities.pool.size' ../../config/config-dev-ci.yaml) \
+	APP_NAME_BASE=$$(yq '.clouds.dev.defaults.ci.dev.mockIdentities.pool.appBaseName' ../../config/config-dev-ci.yaml) \
+	BOSKOS_PREFIX=aro-hcp-msi-mock-cs-sp-dev \
+	CATALOG_KEY=miMockPool \
+	CERT_NAME_BASE=$$(yq '.clouds.dev.defaults.ci.dev.mockIdentities.pool.certBaseName' ../../config/config-dev-ci.yaml) \
+	OUTPUT_FILE=msi-mock-pool.yaml \
+	./populate-mock-identity-pool.sh
 
 .PHONY: populate-msi-mock-pool
 
-grant-int-e2e-access:
-	az role assignment create \
-		--role "int-first-party" \
-		--assignee "$(shell az ad app list --display-name aro-hcp-int-fp --query '[*]'.appId -o tsv)" \
-		--scope "/subscriptions/$(INT_TESTING_SUBSCRIPTION_ID)" \
-		--only-show-errors
+populate-arm-helper-pool:
+	cd openshift-ci && \
+	POOL_SIZE=$$(yq '.clouds.dev.defaults.ci.dev.mockIdentities.armHelperPool.size' ../../config/config-dev-ci.yaml) \
+	APP_NAME_BASE=$$(yq '.clouds.dev.defaults.ci.dev.mockIdentities.armHelperPool.appBaseName' ../../config/config-dev-ci.yaml) \
+	BOSKOS_PREFIX=aro-hcp-arm-helper-sp-dev \
+	CATALOG_KEY=armHelperPool \
+	CERT_NAME_BASE=$$(yq '.clouds.dev.defaults.ci.dev.mockIdentities.armHelperPool.certBaseName' ../../config/config-dev-ci.yaml) \
+	OUTPUT_FILE=arm-helper-pool.yaml \
+	./populate-mock-identity-pool.sh
 
-	az role assignment create \
-		--role "Contributor" \
-		--assignee "$(shell az ad app list --display-name aro-hcp-int-arm-helper --query '[*]'.appId -o tsv)" \
-		--scope "/subscriptions/$(INT_TESTING_SUBSCRIPTION_ID)" \
-		--only-show-errors
-
-	az role assignment create \
-		--role "Role Based Access Control Administrator" \
-		--assignee "$(shell az ad app list --display-name aro-hcp-int-arm-helper --query '[*]'.appId -o tsv)" \
-		--scope "/subscriptions/$(INT_TESTING_SUBSCRIPTION_ID)" \
-		--only-show-errors
-
-	az role assignment create \
-		--role "int-msi-mock" \
-		--assignee "$(shell az ad app list --display-name aro-hcp-int-msi-mock --query '[*]'.appId -o tsv)" \
-		--scope "/subscriptions/$(INT_TESTING_SUBSCRIPTION_ID)" \
-		--only-show-errors
-
-	az role assignment create \
-		--role "Key Vault Crypto User" \
-		--assignee "$(shell az ad app list --display-name aro-hcp-int-msi-mock --query '[*]'.appId -o tsv)" \
-		--scope "/subscriptions/$(INT_TESTING_SUBSCRIPTION_ID)" \
-		--only-show-errors
-.PHONY: grant-int-e2e-access
+.PHONY: populate-arm-helper-pool
 
 frontend-grant-ingress:
 	./scripts/frontend-grant-ingress-from-ip.sh "${SVC_RESOURCEGROUP}"

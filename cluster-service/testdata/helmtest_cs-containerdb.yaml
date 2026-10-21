@@ -1,0 +1,7 @@
+values: ../values.yaml
+name: cs-containerdb
+namespace: clusters-service
+testData:
+  clustersService:
+    postgres:
+      deploy: false

@@ -1,0 +1,4 @@
+filters:
+  '^(rp-rules|rp-hcp-rules)\.bicep$':
+    approvers:
+      - sre-approvers

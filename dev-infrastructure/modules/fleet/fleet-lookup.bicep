@@ -13,12 +13,24 @@ param rpCosmosDbName string
 @description('The name of the CX DNS zone (e.g. usw3gobe.hcp.osadev.cloud)')
 param cxDnsZoneName string
 
+@description('The name of the SVC Azure Monitor Workspace')
+param svcMonitorName string
+
+@description('The name of the HCP Azure Monitor Workspace')
+param hcpMonitorName string
+
+param useLeasedInfrastructureIdentities bool = false
+param infrastructureIdentityResourceGroup string = ''
+var identityScope = resourceGroup(useLeasedInfrastructureIdentities
+  ? infrastructureIdentityResourceGroup
+  : resourceGroup().name)
+
 //
 //   I M A G E   P U L L E R   L O O K U P
 //
 
 resource imagePullerIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
-  scope: resourceGroup()
+  scope: identityScope
   name: imagePullerMsiName
 }
 
@@ -30,7 +42,7 @@ output imagePullerMsiTenantId string = imagePullerIdentity.properties.tenantId
 //
 
 resource managedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
-  scope: resourceGroup()
+  scope: identityScope
   name: msiName
 }
 
@@ -58,3 +70,20 @@ resource cxDnsZone 'Microsoft.Network/dnsZones@2018-05-01' existing = {
 }
 
 output cxDnsZoneResourceId string = cxDnsZone.id
+
+//
+//   A Z U R E   M O N I T O R   W O R K S P A C E   L O O K U P
+//
+
+resource svcMonitor 'Microsoft.Monitor/accounts@2021-06-03-preview' existing = {
+  scope: resourceGroup(regionalResourceGroup)
+  name: svcMonitorName
+}
+
+resource hcpMonitor 'Microsoft.Monitor/accounts@2021-06-03-preview' existing = {
+  scope: resourceGroup(regionalResourceGroup)
+  name: hcpMonitorName
+}
+
+output svcAzureMonitorWorkspaceId string = svcMonitor.id
+output hcpAzureMonitorWorkspaceId string = hcpMonitor.id

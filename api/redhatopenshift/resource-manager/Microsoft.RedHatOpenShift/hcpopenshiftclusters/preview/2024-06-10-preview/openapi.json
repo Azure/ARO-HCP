@@ -380,7 +380,7 @@
             "description": "The name of the HcpOpenShiftCluster",
             "required": true,
             "type": "string",
-            "pattern": "^[a-zA-Z][-a-zA-Z0-9]{1,52}[a-zA-Z0-9]$"
+            "pattern": "^[a-zA-Z]([-a-zA-Z0-9]{0,52}[a-zA-Z0-9])?$"
           }
         ],
         "responses": {
@@ -425,7 +425,7 @@
             "description": "The name of the HcpOpenShiftCluster",
             "required": true,
             "type": "string",
-            "pattern": "^[a-zA-Z][-a-zA-Z0-9]{1,52}[a-zA-Z0-9]$"
+            "pattern": "^[a-zA-Z]([-a-zA-Z0-9]{0,52}[a-zA-Z0-9])?$"
           },
           {
             "name": "resource",
@@ -500,7 +500,7 @@
             "description": "The name of the HcpOpenShiftCluster",
             "required": true,
             "type": "string",
-            "pattern": "^[a-zA-Z][-a-zA-Z0-9]{1,52}[a-zA-Z0-9]$"
+            "pattern": "^[a-zA-Z]([-a-zA-Z0-9]{0,52}[a-zA-Z0-9])?$"
           },
           {
             "name": "properties",
@@ -572,7 +572,7 @@
             "description": "The name of the HcpOpenShiftCluster",
             "required": true,
             "type": "string",
-            "pattern": "^[a-zA-Z][-a-zA-Z0-9]{1,52}[a-zA-Z0-9]$"
+            "pattern": "^[a-zA-Z]([-a-zA-Z0-9]{0,52}[a-zA-Z0-9])?$"
           }
         ],
         "responses": {
@@ -634,7 +634,7 @@
             "description": "The name of the HcpOpenShiftCluster",
             "required": true,
             "type": "string",
-            "pattern": "^[a-zA-Z][-a-zA-Z0-9]{1,52}[a-zA-Z0-9]$"
+            "pattern": "^[a-zA-Z]([-a-zA-Z0-9]{0,52}[a-zA-Z0-9])?$"
           }
         ],
         "responses": {
@@ -684,7 +684,7 @@
             "description": "The name of the HcpOpenShiftCluster",
             "required": true,
             "type": "string",
-            "pattern": "^[a-zA-Z][-a-zA-Z0-9]{1,52}[a-zA-Z0-9]$"
+            "pattern": "^[a-zA-Z]([-a-zA-Z0-9]{0,52}[a-zA-Z0-9])?$"
           },
           {
             "name": "externalAuthName",
@@ -692,7 +692,7 @@
             "description": "The name of the ExternalAuth",
             "required": true,
             "type": "string",
-            "pattern": "^[a-zA-Z][-a-zA-Z0-9]{1,15}$"
+            "pattern": "^[a-zA-Z]([-a-zA-Z0-9]{0,13}[a-zA-Z0-9])?$"
           }
         ],
         "responses": {
@@ -737,7 +737,7 @@
             "description": "The name of the HcpOpenShiftCluster",
             "required": true,
             "type": "string",
-            "pattern": "^[a-zA-Z][-a-zA-Z0-9]{1,52}[a-zA-Z0-9]$"
+            "pattern": "^[a-zA-Z]([-a-zA-Z0-9]{0,52}[a-zA-Z0-9])?$"
           },
           {
             "name": "externalAuthName",
@@ -745,7 +745,7 @@
             "description": "The name of the ExternalAuth",
             "required": true,
             "type": "string",
-            "pattern": "^[a-zA-Z][-a-zA-Z0-9]{1,15}$"
+            "pattern": "^[a-zA-Z]([-a-zA-Z0-9]{0,13}[a-zA-Z0-9])?$"
           },
           {
             "name": "resource",
@@ -820,7 +820,7 @@
             "description": "The name of the HcpOpenShiftCluster",
             "required": true,
             "type": "string",
-            "pattern": "^[a-zA-Z][-a-zA-Z0-9]{1,52}[a-zA-Z0-9]$"
+            "pattern": "^[a-zA-Z]([-a-zA-Z0-9]{0,52}[a-zA-Z0-9])?$"
           },
           {
             "name": "externalAuthName",
@@ -828,7 +828,7 @@
             "description": "The name of the ExternalAuth",
             "required": true,
             "type": "string",
-            "pattern": "^[a-zA-Z][-a-zA-Z0-9]{1,15}$"
+            "pattern": "^[a-zA-Z]([-a-zA-Z0-9]{0,13}[a-zA-Z0-9])?$"
           },
           {
             "name": "properties",
@@ -900,7 +900,7 @@
             "description": "The name of the HcpOpenShiftCluster",
             "required": true,
             "type": "string",
-            "pattern": "^[a-zA-Z][-a-zA-Z0-9]{1,52}[a-zA-Z0-9]$"
+            "pattern": "^[a-zA-Z]([-a-zA-Z0-9]{0,52}[a-zA-Z0-9])?$"
           },
           {
             "name": "externalAuthName",
@@ -908,7 +908,7 @@
             "description": "The name of the ExternalAuth",
             "required": true,
             "type": "string",
-            "pattern": "^[a-zA-Z][-a-zA-Z0-9]{1,15}$"
+            "pattern": "^[a-zA-Z]([-a-zA-Z0-9]{0,13}[a-zA-Z0-9])?$"
           }
         ],
         "responses": {
@@ -970,7 +970,7 @@
             "description": "The name of the HcpOpenShiftCluster",
             "required": true,
             "type": "string",
-            "pattern": "^[a-zA-Z][-a-zA-Z0-9]{1,52}[a-zA-Z0-9]$"
+            "pattern": "^[a-zA-Z]([-a-zA-Z0-9]{0,52}[a-zA-Z0-9])?$"
           }
         ],
         "responses": {
@@ -1020,7 +1020,7 @@
             "description": "The name of the HcpOpenShiftCluster",
             "required": true,
             "type": "string",
-            "pattern": "^[a-zA-Z][-a-zA-Z0-9]{1,52}[a-zA-Z0-9]$"
+            "pattern": "^[a-zA-Z]([-a-zA-Z0-9]{0,52}[a-zA-Z0-9])?$"
           },
           {
             "name": "nodePoolName",
@@ -1028,7 +1028,7 @@
             "description": "The name of the NodePool",
             "required": true,
             "type": "string",
-            "pattern": "^[a-zA-Z][-a-zA-Z0-9]{1,13}[a-zA-Z0-9]$"
+            "pattern": "^[a-zA-Z]([-a-zA-Z0-9]{0,13}[a-zA-Z0-9])?$"
           }
         ],
         "responses": {
@@ -1073,7 +1073,7 @@
             "description": "The name of the HcpOpenShiftCluster",
             "required": true,
             "type": "string",
-            "pattern": "^[a-zA-Z][-a-zA-Z0-9]{1,52}[a-zA-Z0-9]$"
+            "pattern": "^[a-zA-Z]([-a-zA-Z0-9]{0,52}[a-zA-Z0-9])?$"
           },
           {
             "name": "nodePoolName",
@@ -1081,7 +1081,7 @@
             "description": "The name of the NodePool",
             "required": true,
             "type": "string",
-            "pattern": "^[a-zA-Z][-a-zA-Z0-9]{1,13}[a-zA-Z0-9]$"
+            "pattern": "^[a-zA-Z]([-a-zA-Z0-9]{0,13}[a-zA-Z0-9])?$"
           },
           {
             "name": "resource",
@@ -1156,7 +1156,7 @@
             "description": "The name of the HcpOpenShiftCluster",
             "required": true,
             "type": "string",
-            "pattern": "^[a-zA-Z][-a-zA-Z0-9]{1,52}[a-zA-Z0-9]$"
+            "pattern": "^[a-zA-Z]([-a-zA-Z0-9]{0,52}[a-zA-Z0-9])?$"
           },
           {
             "name": "nodePoolName",
@@ -1164,7 +1164,7 @@
             "description": "The name of the NodePool",
             "required": true,
             "type": "string",
-            "pattern": "^[a-zA-Z][-a-zA-Z0-9]{1,13}[a-zA-Z0-9]$"
+            "pattern": "^[a-zA-Z]([-a-zA-Z0-9]{0,13}[a-zA-Z0-9])?$"
           },
           {
             "name": "properties",
@@ -1236,7 +1236,7 @@
             "description": "The name of the HcpOpenShiftCluster",
             "required": true,
             "type": "string",
-            "pattern": "^[a-zA-Z][-a-zA-Z0-9]{1,52}[a-zA-Z0-9]$"
+            "pattern": "^[a-zA-Z]([-a-zA-Z0-9]{0,52}[a-zA-Z0-9])?$"
           },
           {
             "name": "nodePoolName",
@@ -1244,7 +1244,7 @@
             "description": "The name of the NodePool",
             "required": true,
             "type": "string",
-            "pattern": "^[a-zA-Z][-a-zA-Z0-9]{1,13}[a-zA-Z0-9]$"
+            "pattern": "^[a-zA-Z]([-a-zA-Z0-9]{0,13}[a-zA-Z0-9])?$"
           }
         ],
         "responses": {
@@ -1306,7 +1306,7 @@
             "description": "The name of the HcpOpenShiftCluster",
             "required": true,
             "type": "string",
-            "pattern": "^[a-zA-Z][-a-zA-Z0-9]{1,52}[a-zA-Z0-9]$"
+            "pattern": "^[a-zA-Z]([-a-zA-Z0-9]{0,52}[a-zA-Z0-9])?$"
           }
         ],
         "responses": {
@@ -1371,7 +1371,7 @@
             "description": "The name of the HcpOpenShiftCluster",
             "required": true,
             "type": "string",
-            "pattern": "^[a-zA-Z][-a-zA-Z0-9]{1,52}[a-zA-Z0-9]$"
+            "pattern": "^[a-zA-Z]([-a-zA-Z0-9]{0,52}[a-zA-Z0-9])?$"
           }
         ],
         "responses": {
@@ -1511,25 +1511,25 @@
         "maxNodesTotal": {
           "type": "integer",
           "format": "int32",
-          "description": "maxNodesTotal is the maximum allowable number of nodes for the Autoscaler scale out to be operational.\nThe autoscaler will not grow the cluster beyond this number. If omitted, the autoscaler will not have a maximum limit.",
+          "description": "maxNodesTotal is the maximum allowable number of nodes. The autoscaler will not grow the cluster beyond this number.\nIf omitted, the autoscaler will not have a maximum limit.",
           "minimum": 0
         },
         "maxPodGracePeriodSeconds": {
           "type": "integer",
           "format": "int32",
-          "description": "maxPodGracePeriod is the maximum seconds to wait for graceful pod termination before scaling down a NodePool.\nThe default is 600 seconds.\n\nNote: The default value is not declared in the API specification because\nof a TypeSpec bug with updatable fields. The default value will be\ndeclared in a future API version once the TypeSpec bug is fixed.\nhttps://github.com/Azure/typespec-azure/issues/1586",
+          "description": "maxPodGracePeriodSeconds is the maximum amount of time in seconds to wait for graceful pod termination before scaling down a NodePool.\nThe default is 600 seconds.",
           "minimum": 0
         },
         "maxNodeProvisionTimeSeconds": {
           "type": "integer",
           "format": "int32",
-          "description": "maxNodeProvisionTimeSeconds is the maximum time to wait for node provisioning before considering the\nprovisioning to be unsuccessful. The default is 900 seconds, or 15 minutes.\n\nNote: The default value is not declared in the API specification because\nof a TypeSpec bug with updatable fields. The default value will be\ndeclared in a future API version once the TypeSpec bug is fixed.\nhttps://github.com/Azure/typespec-azure/issues/1586",
+          "description": "maxNodeProvisionTimeSeconds is the maximum time to wait for node provisioning before considering the\nprovisioning to be unsuccessful. The default is 900 seconds, or 15 minutes.",
           "minimum": 0
         },
         "podPriorityThreshold": {
           "type": "integer",
           "format": "int32",
-          "description": "podPriorityThreshold enables users to schedule \"best-effort\" pods, which shouldn't trigger autoscaler actions,\nbut only run when there are spare resources available. The default is -10.\nSee the following for more details:\nhttps://github.com/kubernetes/autoscaler/blob/master/cluster-autoscaler/FAQ.md#how-does-cluster-autoscaler-work-with-pod-priority-and-preemption\n\nNote: The default value is not declared in the API specification because\nof a TypeSpec bug with updatable fields. The default value will be\ndeclared in a future API version once the TypeSpec bug is fixed.\nhttps://github.com/Azure/typespec-azure/issues/1586"
+          "description": "podPriorityThreshold enables users to schedule \"best-effort\" pods, which shouldn't trigger autoscaler actions,\nbut only run when there are spare resources available. The default is -10.\nSee the following for more details:\nhttps://github.com/kubernetes/autoscaler/blob/master/cluster-autoscaler/FAQ.md#how-does-cluster-autoscaler-work-with-pod-priority-and-preemption"
         }
       }
     },
@@ -1643,7 +1643,7 @@
         },
         "baseDomainPrefix": {
           "type": "string",
-          "description": "BaseDomainPrefix is the unique name of the cluster representing the OpenShift's cluster name.\nBaseDomainPrefix is the name that will appear in the cluster's DNS, provisioned cloud providers resources",
+          "description": "BaseDomainPrefix is the base domain prefix for the cluster ingress. It will be used to\nconfigure ingress in the cluster through the subdomain \"BaseDomainPrefix.BaseDomain\".",
           "maxLength": 15,
           "pattern": "^[a-z]([-a-z0-9]*[a-z0-9])?$",
           "x-ms-mutability": [
@@ -1761,11 +1761,11 @@
       "properties": {
         "mappings": {
           "$ref": "#/definitions/TokenClaimMappingsProfile",
-          "description": "The claim mappings"
+          "description": "The claim mappings."
         },
         "validationRules": {
           "type": "array",
-          "description": "The claim validation rules",
+          "description": "The claim validation rules.",
           "items": {
             "$ref": "#/definitions/TokenClaimValidationRule"
           },
@@ -1785,11 +1785,11 @@
       "properties": {
         "mappings": {
           "$ref": "#/definitions/TokenClaimMappingsProfileUpdate",
-          "description": "The claim mappings"
+          "description": "The claim mappings."
         },
         "validationRules": {
           "type": "array",
-          "description": "The claim validation rules",
+          "description": "The claim validation rules.",
           "items": {
             "$ref": "#/definitions/TokenClaimValidationRule"
           },
@@ -2123,7 +2123,7 @@
         },
         "prefix": {
           "type": "string",
-          "description": "Prefix for the claim external profile\nIf this is specified prefixPolicy will be set to \"Prefix\" by default"
+          "description": "Prefix for the claim external profile.\nIf this is specified, prefixPolicy will be set to \"Prefix\" by default."
         }
       },
       "required": [
@@ -2142,7 +2142,7 @@
         },
         "prefix": {
           "type": "string",
-          "description": "Prefix for the claim external profile\nIf this is specified prefixPolicy will be set to \"Prefix\" by default"
+          "description": "Prefix for the claim external profile.\nIf this is specified, prefixPolicy will be set to \"Prefix\" by default."
         }
       }
     },
@@ -2285,7 +2285,7 @@
         "nodeDrainTimeoutMinutes": {
           "type": "integer",
           "format": "int32",
-          "description": "nodeDrainTimeoutMinutes is the grace period for how long Pod Disruption Budget-protected workloads will be\nrespected during any node draining operation. After this grace period, any workloads protected by Pod Disruption\nBudgets that have not been successfully drained from a node will be forcibly evicted. This is\nespecially relevant to cluster upgrades.\n\nValid values are in minutes and from 0 to 10080 minutes (1 week).\n0 means that the MachinePool can be drained without any time limitation.\n\nThis is the value is used a default for all NodePools. It can be overridden\nby specifying nodeDrainTimeoutMinutes for a given NodePool",
+          "description": "nodeDrainTimeoutMinutes is the grace period for how long Pod Disruption Budget-protected workloads will be\nrespected during any node draining operation. After this grace period, any workloads protected by Pod Disruption\nBudgets that have not been successfully drained from a node will be forcibly evicted. This is\nespecially relevant to cluster upgrades.\n\nValid values are in minutes and from 0 to 10080 minutes (1 week).\n0 means that the MachinePool can be drained without any time limitation.\n\nThis value is used as a default for all NodePools. It can be overridden\nby specifying nodeDrainTimeoutMinutes for a given NodePool",
           "minimum": 0,
           "maximum": 10080,
           "x-ms-mutability": [
@@ -2341,7 +2341,7 @@
         "nodeDrainTimeoutMinutes": {
           "type": "integer",
           "format": "int32",
-          "description": "nodeDrainTimeoutMinutes is the grace period for how long Pod Disruption Budget-protected workloads will be\nrespected during any node draining operation. After this grace period, any workloads protected by Pod Disruption\nBudgets that have not been successfully drained from a node will be forcibly evicted. This is\nespecially relevant to cluster upgrades.\n\nValid values are in minutes and from 0 to 10080 minutes (1 week).\n0 means that the MachinePool can be drained without any time limitation.\n\nThis is the value is used a default for all NodePools. It can be overridden\nby specifying nodeDrainTimeoutMinutes for a given NodePool",
+          "description": "nodeDrainTimeoutMinutes is the grace period for how long Pod Disruption Budget-protected workloads will be\nrespected during any node draining operation. After this grace period, any workloads protected by Pod Disruption\nBudgets that have not been successfully drained from a node will be forcibly evicted. This is\nespecially relevant to cluster upgrades.\n\nValid values are in minutes and from 0 to 10080 minutes (1 week).\n0 means that the MachinePool can be drained without any time limitation.\n\nThis value is used as a default for all NodePools. It can be overridden\nby specifying nodeDrainTimeoutMinutes for a given NodePool",
           "minimum": 0,
           "maximum": 10080,
           "x-ms-mutability": [
@@ -2534,7 +2534,12 @@
           "type": "string",
           "description": "version contains the version of the key to use.",
           "minLength": 1,
-          "maxLength": 255
+          "maxLength": 255,
+          "x-ms-mutability": [
+            "read",
+            "update",
+            "create"
+          ]
         }
       },
       "required": [
@@ -2711,7 +2716,7 @@
       "properties": {
         "subnetId": {
           "$ref": "#/definitions/SubnetResourceId",
-          "description": "The Azure resource ID of the worker subnet\nNote that a subnet cannot be reused between ARO-HCP Clusters, however the\nsame subnet can be used for NodePools of the same cluster.",
+          "description": "The Azure resource ID of the worker subnet.\nNote that a subnet cannot be reused between ARO-HCP Clusters, however the\nsame subnet can be used for NodePools of the same cluster.",
           "x-ms-mutability": [
             "read",
             "create"
@@ -2794,7 +2799,7 @@
         },
         "autoRepair": {
           "type": "boolean",
-          "description": "Auto-repair",
+          "description": "autoRepair specifies whether health checks should be enabled for machines\nin the NodePool. Enabling this feature will cause the controller to\nautomatically delete unhealthy machines. The unhealthy criteria are\ndetermined by checking the Node Ready condition and a timeout that might\nvary depending on the platform provider. autoRepair will not take action\nwhen more than 2 Nodes are unhealthy at the same time, giving time for\nthe cluster to stabilize or for the user to manually intervene.",
           "default": true,
           "x-ms-mutability": [
             "read",
@@ -2812,7 +2817,7 @@
         },
         "labels": {
           "type": "array",
-          "description": "Kubernetes labels to propagate to the NodePool Nodes\nNote that when the labels are updated this is only applied to newly\ncreate nodes in the Nodepool, existing node labels remain unchanged.",
+          "description": "Kubernetes labels to propagate to the NodePool Nodes.\nNote that when the labels are updated this is only applied to newly\ncreated nodes in the NodePool, existing node labels remain unchanged.",
           "items": {
             "$ref": "#/definitions/Label"
           },
@@ -2828,7 +2833,7 @@
         },
         "taints": {
           "type": "array",
-          "description": "Taints for the nodes",
+          "description": "Taints for the nodes.",
           "items": {
             "$ref": "#/definitions/Taint"
           },
@@ -2893,7 +2898,7 @@
         },
         "labels": {
           "type": "array",
-          "description": "Kubernetes labels to propagate to the NodePool Nodes\nNote that when the labels are updated this is only applied to newly\ncreate nodes in the Nodepool, existing node labels remain unchanged.",
+          "description": "Kubernetes labels to propagate to the NodePool Nodes.\nNote that when the labels are updated this is only applied to newly\ncreated nodes in the NodePool, existing node labels remain unchanged.",
           "items": {
             "$ref": "#/definitions/Label"
           },
@@ -2909,7 +2914,7 @@
         },
         "taints": {
           "type": "array",
-          "description": "Taints for the nodes",
+          "description": "Taints for the nodes.",
           "items": {
             "$ref": "#/definitions/Taint"
           },
@@ -2970,7 +2975,7 @@
         },
         "channelGroup": {
           "type": "string",
-          "description": "ChannelGroup is the name of the set to which this version belongs.\nEach version belongs to only a single set.\n\nIf not specified, the default value is 'stable'.\n\nNote: The default value is not declared in the API specification because\nof a TypeSpec bug with updatable fields. The default value will be\ndeclared in a future API version once the TypeSpec bug is fixed.\nhttps://github.com/Azure/typespec-azure/issues/1586",
+          "description": "ChannelGroup is the name of the set to which this version belongs.\nEach version belongs to only a single set.\n\nIf not specified, the default value is 'stable'.\n\nThis property is intended to be updateable, but that support is not yet\ncomplete. Until then, changing this value after node pool creation is rejected.",
           "x-ms-mutability": [
             "read",
             "update",
@@ -3121,7 +3126,7 @@
       "properties": {
         "managedResourceGroup": {
           "type": "string",
-          "description": "Resource group name to put cluster resources\n\nIf not specified then a unique name is generated from the\nfollowing pattern\n\n\"aro-hcp-\" + clusterName + \"-\" + UUID\n\nwhere clusterName means the hcpOpenShiftClusters resource name\n(up to 45 characters) followed by a 16-byte universally unique\nidentifier per RFC 4122.",
+          "description": "The name of the resource group to put cluster resources in.\n\nIf not specified then a unique name is generated from the\nfollowing pattern\n\n\"aro-hcp-\" + clusterName + \"-\" + UUID\n\nwhere clusterName means the hcpOpenShiftClusters resource name\n(up to 45 characters) followed by a 16-byte universally unique\nidentifier per RFC 4122.",
           "x-ms-mutability": [
             "read",
             "create"
@@ -3129,7 +3134,7 @@
         },
         "subnetId": {
           "$ref": "#/definitions/SubnetResourceId",
-          "description": "The Azure resource ID of the worker subnet\nNote that a subnet cannot be reused between ARO-HCP Clusters.",
+          "description": "The Azure resource ID of the worker subnet.\nNote that a subnet cannot be reused between ARO-HCP Clusters.",
           "x-ms-mutability": [
             "read",
             "create"
@@ -3294,7 +3299,7 @@
     },
     "StatusType": {
       "type": "string",
-      "description": "Representation of the possible values of a external auths condition status.",
+      "description": "Representation of the possible values of a condition status.",
       "enum": [
         "True",
         "False",
@@ -3430,7 +3435,7 @@
         },
         "audiences": {
           "type": "array",
-          "description": "This configures the acceptable audiences the JWT token, issued by the identity\nprovider, must be issued to. At least one of the entries must match the\n'aud' claim in the JWT token.\n\naudiences must contain at least one entry and must not exceed ten entries.",
+          "description": "This configures the acceptable audiences for JWT tokens issued by the identity provider.\nAt least one of the entries must match the 'aud' claim in the JWT token.\n\nAudiences must contain at least one entry and must not exceed ten entries.",
           "minItems": 1,
           "maxItems": 10,
           "items": {
@@ -3439,7 +3444,7 @@
         },
         "ca": {
           "type": "string",
-          "description": "The issuer of the token\n\nCertificate bundle to use to validate server certificates for the configured URL.\nIt must be PEM encoded and when not specified, the system trust is used.",
+          "description": "The issuer of the token.\n\nCertificate bundle to use to validate server certificates for the configured URL.\nIt must be PEM encoded and when not specified, the system trust is used.",
           "x-ms-client-name": "CA"
         }
       },
@@ -3459,7 +3464,7 @@
         },
         "audiences": {
           "type": "array",
-          "description": "This configures the acceptable audiences the JWT token, issued by the identity\nprovider, must be issued to. At least one of the entries must match the\n'aud' claim in the JWT token.\n\naudiences must contain at least one entry and must not exceed ten entries.",
+          "description": "This configures the acceptable audiences for JWT tokens issued by the identity provider.\nAt least one of the entries must match the 'aud' claim in the JWT token.\n\nAudiences must contain at least one entry and must not exceed ten entries.",
           "minItems": 1,
           "maxItems": 10,
           "items": {
@@ -3468,7 +3473,7 @@
         },
         "ca": {
           "type": "string",
-          "description": "The issuer of the token\n\nCertificate bundle to use to validate server certificates for the configured URL.\nIt must be PEM encoded and when not specified, the system trust is used.",
+          "description": "The issuer of the token.\n\nCertificate bundle to use to validate server certificates for the configured URL.\nIt must be PEM encoded and when not specified, the system trust is used.",
           "x-ms-client-name": "CA"
         }
       }
@@ -3630,7 +3635,7 @@
         },
         "prefix": {
           "type": "string",
-          "description": "Prefix for the claim external profile\nMust be set when the prefixPolicy field is set to 'Prefix' and must be unset\notherwise."
+          "description": "Prefix for the claim external profile.\nMust be set when the prefixPolicy field is set to 'Prefix' and must be unset\notherwise."
         },
         "prefixPolicy": {
           "$ref": "#/definitions/UsernameClaimPrefixPolicy",
@@ -3653,7 +3658,7 @@
         },
         "prefix": {
           "type": "string",
-          "description": "Prefix for the claim external profile\nMust be set when the prefixPolicy field is set to 'Prefix' and must be unset\notherwise."
+          "description": "Prefix for the claim external profile.\nMust be set when the prefixPolicy field is set to 'Prefix' and must be unset\notherwise."
         },
         "prefixPolicy": {
           "$ref": "#/definitions/UsernameClaimPrefixPolicy",
@@ -3675,7 +3680,7 @@
         },
         "channelGroup": {
           "type": "string",
-          "description": "ChannelGroup is the name of the set to which this version belongs.\nEach version belongs to only a single set.\n\nIf not specified, the default value is 'stable'.\n\nNote: The default value is not declared in the API specification because\nof a TypeSpec bug with updatable fields. The default value will be\ndeclared in a future API version once the TypeSpec bug is fixed.\nhttps://github.com/Azure/typespec-azure/issues/1586",
+          "description": "ChannelGroup is the name of the set to which this version belongs.\nEach version belongs to only a single set.\n\nIf not specified, the default value is 'stable'.\n\nThis property is intended to be updateable, but that support is not yet\ncomplete. Until then, changing this value after cluster creation is rejected.",
           "x-ms-mutability": [
             "read",
             "update",

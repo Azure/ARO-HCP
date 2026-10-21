@@ -10,24 +10,6 @@ spec:
   - aks-istio-ingress/aro-hcp-gateway-external
   http:
   - match:
-    - headers:
-        x-ms-mise-version:
-          exact: "v2"
-      uri:
-        regex: '.+'
-    headers:
-      request:
-        add:
-          mise-inbound-policies-to-filter: "{{ .Values.mise.policyLabel }}"
-      response:
-        add:
-          x-ms-served-by: "v2"
-    route:
-    - destination:
-        host: aro-hcp-frontend-v2
-        port:
-          number: 8443
-  - match:
     - uri:
         regex: '.+'
     headers:

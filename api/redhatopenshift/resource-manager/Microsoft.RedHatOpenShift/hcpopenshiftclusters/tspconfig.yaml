@@ -12,11 +12,9 @@ options:
     output-file: "{version-status}/{version}/openapi.json"
     examples-dir: "{project-root}/examples"
     arm-types-dir: "{project-root}/../../../../common-types/resource-management"
-  "@azure-tools/typespec-csharp":
-    clear-output-folder: true
+  "@azure-typespec/http-client-csharp-mgmt":
     emitter-output-dir: "{output-dir}/{service-dir}/{namespace}"
-    flavor: azure
-    namespace: "Azure.ResourceManager.RedHatOpenShift"
+    namespace: "Azure.ResourceManager.RedHatOpenShiftHcp"
   "@azure-tools/typespec-go":
     emitter-output-dir: "{output-dir}/{service-dir}/armredhatopenshifthcp"
     fix-const-stuttering: true

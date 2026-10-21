@@ -22,7 +22,7 @@ import (
 
 	"github.com/blang/semver/v4"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/utils/apihelpers"
 )
 
@@ -70,8 +70,8 @@ func clusterVersionSkewVersusNodePool(nodePoolName string, nodePoolVer, parsedCl
 
 	nodePoolMinorReleaseLine := fmt.Sprintf("%d.%d", nodePoolVer.Major, nodePoolVer.Minor)
 	clusterMinorReleaseLine := fmt.Sprintf("%d.%d", parsedClusterVersion.Major, parsedClusterVersion.Minor)
-	nodePoolMinorReleaseVersion := api.Must(semver.ParseTolerant(nodePoolMinorReleaseLine))
-	clusterMinorReleaseVersion := api.Must(semver.ParseTolerant(clusterMinorReleaseLine))
+	nodePoolMinorReleaseVersion := metadataapi.Must(semver.ParseTolerant(nodePoolMinorReleaseLine))
+	clusterMinorReleaseVersion := metadataapi.Must(semver.ParseTolerant(clusterMinorReleaseLine))
 
 	if nodePoolMinorReleaseVersion.EQ(clusterMinorReleaseVersion) {
 		return nil
@@ -87,7 +87,7 @@ func clusterVersionSkewVersusNodePool(nodePoolName string, nodePoolVer, parsedCl
 		)
 	}
 
-	allowedClusterVersions := api.AllowControlPlaneNodePoolMajorVersionSkew[nodePoolMinorReleaseLine]
+	allowedClusterVersions := metadataapi.AllowControlPlaneNodePoolMajorVersionSkew[nodePoolMinorReleaseLine]
 	if slices.Contains(allowedClusterVersions, clusterMinorReleaseLine) {
 		return nil
 	}

@@ -2,6 +2,7 @@ TENANT_QUOTA_COLLECTOR_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 
 DEPLOY_ENV ?= dev-ci
 
+-include $(TENANT_QUOTA_COLLECTOR_DIR)/../../setup-env.mk
 -include $(TENANT_QUOTA_COLLECTOR_DIR)/../../setup-templatize-env.mk
 -include $(TENANT_QUOTA_COLLECTOR_DIR)/../../.bingo/Variables.mk
 
@@ -31,9 +32,6 @@ tenant-quota-collector:
 # ---------------------------------------------------------------------------
 # Local config rendering
 # ---------------------------------------------------------------------------
-# Renders config-dev-ci.yaml through templatize to produce the config.yaml
-# that the tool expects. This is the same content that ends up in the
-# ConfigMap data["config.yaml"] during a real deployment.
 _output/config.yaml: $(TEMPLATIZE) deploy/config.yaml.tmpl $(DEV_CI_CONFIG_FILE)
 	$(TEMPLATIZE) generate \
 		--config-file $(DEV_CI_CONFIG_FILE) \
@@ -70,10 +68,10 @@ fetch-secrets: _output/config.yaml
 # Run locally
 # ---------------------------------------------------------------------------
 run: _output/config.yaml fetch-secrets
-	SECRETS_STORE_PATH=$(SECRETS_DIR) CONFIG_PATH=_output/config.yaml go run main.go
+	SECRETS_STORE_PATH=$(SECRETS_DIR) CONFIG_PATH=_output/config.yaml go run .
 
 run-image: image _output/config.yaml fetch-secrets
-	docker run --rm -p 8080:8080 \
+	$(CONTAINER_ENGINE) run --rm -p 8080:8080 \
 		-e CONFIG_PATH=/config.yaml \
 		-e SECRETS_STORE_PATH=/secrets \
 		-v "$(abspath _output/config.yaml):/config.yaml:ro" \
@@ -87,7 +85,7 @@ clean:
 
 image: Dockerfile $(shell find . -name '*.go' -o -name 'go.mod' -o -name 'go.sum') Makefile
 	cd $(TENANT_QUOTA_COLLECTOR_DIR)/../.. && \
-	docker build . --file tooling/tenant-quota/Dockerfile \
+	$(CONTAINER_ENGINE) build . --file tooling/tenant-quota/Dockerfile \
 	               --build-arg PLATFORM=linux/amd64 \
 	               --build-arg REVISION=${ARO_HCP_REVISION} \
 	               --build-arg TAG=${TENANT_QUOTA_IMAGE_TAG} \
@@ -95,8 +93,8 @@ image: Dockerfile $(shell find . -name '*.go' -o -name 'go.mod' -o -name 'go.sum
 .PHONY: image
 
 build-and-push: image
-	az acr login --name ${ARO_HCP_IMAGE_ACR}
-	docker push ${TENANT_QUOTA_TAGGED_IMAGE}
+	$(acr-login)
+	$(CONTAINER_ENGINE) push ${TENANT_QUOTA_TAGGED_IMAGE}
 	@echo ""
 	@echo "Pushed: ${TENANT_QUOTA_TAGGED_IMAGE}"
 .PHONY: build-and-push

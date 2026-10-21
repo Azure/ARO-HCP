@@ -63,14 +63,18 @@ spec:
         imagePullPolicy: IfNotPresent
         args:
         - serve
-        - --subscription-names="ARO Hosted Control Planes (EA Subscription 1),ARO Hosted Control Planes (EA Subscription 1)"
+        - --cluster-types=svc-cluster,mgmt-cluster
+        - --cluster-name-filter=
+        - --region=westus3
         - --listen-address=:8080
         - --cache-ttl=60m
         - --collection-interval=2m
-        - --enabled-collectors=service-tag-usage,kusto-logs-current
-        - --cluster-names=dev-westus3-svc-1,dev-westus3-mgmt-1
+        - --enabled-collectors=service-tag-usage,kusto-logs-current,keyvault-certificates
         - --kusto-cluster=hcp-dev-us-2
         - --kusto-region=__kustoregion__
+        - --keyvault-name=aro-hcp-dev-svc-kv
+        - --keyvault-dns-suffix=vault.azure.net
+        - --certificate-names=frontend-cert-dev-usw3,admin-api-cert-dev-usw3,sessiongate-cert-dev-usw3
         ports:
         - name: metrics
           containerPort: 8080

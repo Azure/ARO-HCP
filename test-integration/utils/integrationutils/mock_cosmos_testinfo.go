@@ -19,49 +19,47 @@ import (
 	"path"
 	"testing"
 
-	"github.com/Azure/ARO-HCP/internal/database"
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/billingcosmosstoragetesting"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/fleetcosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 type MockCosmosIntegrationTestInfo struct {
 	ArtifactsDir string
 
-	mockResourcesDBClient *databasetesting.MockResourcesDBClient
-	mockBillingDBClient   *databasetesting.MockBillingDBClient
-	mockLocksDBClient     *databasetesting.MockLocksDBClient
-	mockFleetDBClient     *databasetesting.MockFleetDBClient
+	mockResourcesDBClient *corecosmosstoragetesting.MockResourcesDBClient
+	mockBillingDBClient   *billingcosmosstoragetesting.MockBillingDBClient
+	mockFleetDBClient     *fleetcosmosstoragetesting.MockFleetDBClient
 }
 
 func NewMockCosmosFromTestingEnv(ctx context.Context, t *testing.T) (StorageIntegrationTestInfo, error) {
-	mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
-	mockBillingDBClient := databasetesting.NewMockBillingDBClient()
-	mockLocksDBClient := databasetesting.NewMockLocksDBClient()
-	mockFleetDBClient := databasetesting.NewMockFleetDBClient()
+	mockResourcesDBClient := corecosmosstoragetesting.NewMockResourcesDBClient()
+	mockBillingDBClient := billingcosmosstoragetesting.NewMockBillingDBClient()
+	mockFleetDBClient := fleetcosmosstoragetesting.NewMockFleetDBClient()
 
 	testInfo := &MockCosmosIntegrationTestInfo{
 		ArtifactsDir:          path.Join(getArtifactDir(), t.Name()),
 		mockResourcesDBClient: mockResourcesDBClient,
 		mockBillingDBClient:   mockBillingDBClient,
-		mockLocksDBClient:     mockLocksDBClient,
 		mockFleetDBClient:     mockFleetDBClient,
 	}
 	return testInfo, nil
 }
 
-func (m *MockCosmosIntegrationTestInfo) ResourcesDBClient() database.ResourcesDBClient {
+func (m *MockCosmosIntegrationTestInfo) ResourcesDBClient() corecosmosstorage.ResourcesDBClient {
 	return m.mockResourcesDBClient
 }
 
-func (m *MockCosmosIntegrationTestInfo) BillingDBClient() database.BillingDBClient {
+func (m *MockCosmosIntegrationTestInfo) BillingDBClient() billingcosmosstorage.BillingDBClient {
 	return m.mockBillingDBClient
 }
 
-func (m *MockCosmosIntegrationTestInfo) LocksDBClient() database.LocksDBClient {
-	return m.mockLocksDBClient
-}
-
-func (m *MockCosmosIntegrationTestInfo) FleetDBClient() database.FleetDBClient {
+func (m *MockCosmosIntegrationTestInfo) FleetDBClient() fleetcosmosstorage.FleetDBClient {
 	return m.mockFleetDBClient
 }
 
@@ -69,7 +67,7 @@ func (m *MockCosmosIntegrationTestInfo) LoadContent(ctx context.Context, content
 	return m.mockResourcesDBClient.LoadContent(ctx, content)
 }
 
-func (m *MockCosmosIntegrationTestInfo) ListAllDocuments(ctx context.Context) ([]*database.TypedDocument, error) {
+func (m *MockCosmosIntegrationTestInfo) ListAllDocuments(ctx context.Context) ([]*cosmosstorageutils.TypedDocument, error) {
 	return m.mockResourcesDBClient.ListAllDocuments(ctx)
 }
 

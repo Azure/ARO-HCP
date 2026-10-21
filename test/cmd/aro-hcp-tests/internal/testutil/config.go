@@ -15,8 +15,10 @@
 package testutil
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
+	"strconv"
 
 	"sigs.k8s.io/yaml"
 
@@ -36,6 +38,40 @@ func ConfigGetString(cfg configtypes.Configuration, cfgPath string) (string, err
 		return "", fmt.Errorf("config value at %q is %T, not string", cfgPath, val)
 	}
 	return s, nil
+}
+
+// ConfigGetInt retrieves an integer value from the configuration at the
+// specified path. It accepts the numeric types produced by YAML/JSON
+// unmarshalling (int, int64, float64, json.Number) as well as a numeric
+// string. It returns an error if the path is missing or the value cannot be
+// interpreted as an integer.
+func ConfigGetInt(cfg configtypes.Configuration, cfgPath string) (int, error) {
+	val, err := cfg.GetByPath(cfgPath)
+	if err != nil {
+		return 0, err
+	}
+	switch v := val.(type) {
+	case int:
+		return v, nil
+	case int64:
+		return int(v), nil
+	case float64:
+		return int(v), nil
+	case json.Number:
+		n, err := v.Int64()
+		if err != nil {
+			return 0, fmt.Errorf("config value at %q is %q, not an integer: %w", cfgPath, v.String(), err)
+		}
+		return int(n), nil
+	case string:
+		n, err := strconv.Atoi(v)
+		if err != nil {
+			return 0, fmt.Errorf("config value at %q is %q, not an integer: %w", cfgPath, v, err)
+		}
+		return n, nil
+	default:
+		return 0, fmt.Errorf("config value at %q is %T, not an integer", cfgPath, val)
+	}
 }
 
 // LoadRenderedConfig reads and unmarshals a rendered configuration YAML file.

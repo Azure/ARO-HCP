@@ -19,6 +19,13 @@ type SpecTimingMetadata struct {
 	StartedAt  string   `json:"startedAt"`
 	FinishedAt string   `json:"finishedAt"`
 
+	// SubscriptionID is the Azure subscription the test ran its resources in.
+	// Unlike Resource.SubscriptionID (which is omitted from artifacts), this is
+	// serialized on purpose so the per-test must-gather links can target the right
+	// subscription; tests run in per-test subscriptions, so a single shared value
+	// would be wrong.
+	SubscriptionID string `json:"subscriptionID,omitempty"`
+
 	Steps []StepTimingMetadata `json:"steps,omitempty"`
 
 	// Deployments holds deployment operation metadata by resource group and deployment name

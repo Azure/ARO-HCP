@@ -2,7 +2,7 @@
 
 A personal DEV environment is a fully-fledged ARO HCP service stack that provides all major infrastructure and service components required to create hosted control planes in a region. Each ARO HCP team member creates their own personal DEV environment for development purposes.
 
-These environments are hosted in the Red Hat Azure tenant, meaning that all [restrictions](environments.md#aro-hcp-azure-tenant-overview) of that tenant apply.
+These environments are hosted in the Red Hat Azure tenant, meaning that all [restrictions](environments.md#azure-tenants) of that tenant apply.
 
 This document will describe how to create and manage a personal DEV environment and how to access them for development purposes.
 
@@ -37,9 +37,16 @@ All other tools should be transparently installed by the `make` targets that req
 
 ## Full Personal DEV Environment Setup
 
-> [!IMPORTANT]
-> A word of caution upfront: dev infrastructure is automatically deleted after 48h. If you want to keep your infrastructure indefinitely, run all the following commands with an env variable `PERSIST=true`.
-> Please consider the implication on cost if you decide to keep your infrastructure indefinitely.
+> [!IMPORTANT] Environment Cleanup
+> A word of caution upfront: dev infrastructure is automatically deleted after 48h. Setting `PERSIST=true` extends retention to 15 days instead of permanent.
+> Please consider the implication on cost if you decide to persist your infrastructure.
+
+> [!CAUTION] Cleanup-sensitive naming patterns
+> The following resource group naming patterns trigger special cleanup rules. Avoid them for custom `DEPLOY_ENV` values or ad-hoc resource groups. See [`resourcegroups.policy.yaml`](../tooling/cleanup-sweeper/resourcegroups.policy.yaml) for details.
+>
+> **Prefixes:** `hcp-underlay-pers-`, `hcp-underlay-prow-`, `hcp-underlay-ci`, `hcp-underlay-cspr-`, `hcp-underlay-dev-`, `hcp-underlay-perf-`, `hcp-underlay-int-`, `hcp-underlay-stg-`, `hcp-underlay-prod-`
+>
+> **Suffixes:** `-shared-resources`
 
 The creation process can take up to 20 minutes.
 
@@ -49,9 +56,21 @@ The creation process can take up to 20 minutes.
 
 This command creates a personal DEV environment with a unique name that is derived from your username. It builds and pushes all in-repo service images (frontend, backend, admin, sessiongate) from your local checkout and deploys them along with all required infrastructure components.
 
-> [!TIP]
+> [!NOTE] Update Personal DEV Environment 
 > This command can be used to update your personal DEV environment as well. It will apply the latest changes to the infrastructure and services. Steps are cached, so it's quick and safe to re-run the entire environment setup.
 > If you only want to update individual aspects of the environment, follow the [partial setup](#partial-personal-dev-environment-setup) instructions.
+
+> [!TIP] Make Options
+> [Make Options](./make-options.md) describes how to customize the make build e.g. by defining the container engine to be used or limiting parallel jobs. This can be of help when experiencing problems with the build.
+
+### Service Cluster Node Pools
+
+New personal DEV service clusters run all workloads on one autoscaling system pool of three to five `Standard_D4ds_v5` nodes (`svc.aks.systemPoolOnly`), as the CI service clusters do. See [Service Cluster Consolidation](ci/system-pool-only.md) for the placement details. The management cluster is unchanged.
+
+> [!IMPORTANT]
+> A personal environment created before this change cannot be redeployed. Its system pool was created as `Standard_D2s_v3` with a 32 GB OS disk, and AKS does not allow either property to change on an existing pool, so the service-cluster deployment fails with `PropertyChangeNotAllowed`. Delete and recreate the environment to pick up this topology — personal environments are meant to be short-lived. If you need to keep an existing one running, set `svc.aks.systemPoolOnly` to `false` and remove the `systemAgentPool` override in the `pers` section of your local `config/config.yaml`.
+
+Note also that redeploying would not consolidate such a cluster even if the system pool were compatible: ARM does not delete the user and infra pools once the Bicep stops emitting them.
 
 ### Local Cluster Service Development Setup
 
@@ -117,25 +136,9 @@ To access the Maestro Azure Postgres DB run
   psql -d maestro
   ```
 
-## Logging
-
-In order to enable Kusto logging, Ingest permissions need to be granted to your personal environment. This requires both mgmt and svc cluster to be created. Run following to grant permissions:
-
-```bash
-make -C dev-infrastructure kusto.grant.ingest
-```
-
 ## Observability
 
 By default, metrics from infra/management services are ingested into Azure Managed Prometheus (AMP).
-
-To enable tracing and collect traces into a Jaeger all-in-one instance, run:
-
-  ```bash
-  make infra.tracing
-  ```
-
-Refer to the [Tracing docs](../observability/tracing/README.md) for more details.
 
 ## Cleanup
 

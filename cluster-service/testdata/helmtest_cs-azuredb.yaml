@@ -1,0 +1,7 @@
+values: ../values.yaml
+name: cs-azuredb
+namespace: clusters-service
+testData:
+  clustersService:
+    postgres:
+      deploy: true

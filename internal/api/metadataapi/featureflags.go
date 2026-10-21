@@ -1,0 +1,126 @@
+// Copyright 2025 Microsoft Corporation
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package metadataapi
+
+// ARM handles feature names as case insensitive. Normalize the names using lowercase
+const (
+	// TOMBSTONE - intent replaced by FeatureExperimentalReleaseFeatures
+	// Feature flag FeatureAllowDevNonStableChannels is the feature in the subscription that
+	// allows the usage of non stable channels (i.e. candidate, nightly) for creation
+	// of new OpenShift clusters.
+	// FeatureAllowDevNonStableChannels = "Microsoft.RedHatOpenShift/AllowDevNonStableChannels"
+
+	// FeatureExperimentalReleaseFeatures is the subscription-level AFEC that gates all
+	// tag-based experimental features. When registered, per-resource tags in the
+	// "aro-hcp.experimental.*" namespace are honored. Without this AFEC, experimental
+	// tags are ignored.
+	FeatureExperimentalReleaseFeatures = "microsoft.redhatopenshift/experimentalreleasefeatures"
+
+	// ExperimentalClusterTagPrefix is the prefix for all experimental cluster
+	// tags. Tags with this prefix are only honored when the
+	// ExperimentalReleaseFeatures AFEC is registered. Unrecognized tags
+	// with this prefix are rejected.
+	//
+	// Azure ARM tag names must not contain: < > % & \ ? /
+	// The Azure Portal additionally rejects: * : +
+	// Tags starting with "microsoft", "azure", "windows", or "hidden-"
+	// are reserved. Names are limited to 512 characters (128 for storage
+	// accounts). See https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/tag-resources
+	ExperimentalClusterTagPrefix = "aro-hcp.experimental.cluster."
+
+	// TagClusterSingleReplica is the ARM resource tag that enables
+	// single-replica control plane components when the
+	// ExperimentalReleaseFeatures AFEC is registered on the subscription.
+	TagClusterSingleReplica = ExperimentalClusterTagPrefix + "single-replica"
+
+	// TagClusterSizeOverride is the ARM resource tag that enables the
+	// ClusterSizeOverride annotation for reduced resource requests when the
+	// ExperimentalReleaseFeatures AFEC is registered on the subscription.
+	TagClusterSizeOverride = ExperimentalClusterTagPrefix + "size-override"
+
+	// TagClusterDisableSwift permits creation without a VNet integration subnet
+	// when ExperimentalReleaseFeatures is registered, API visibility is Public,
+	// and KMS visibility is not Private. Keys are case-insensitive; values must be
+	// exactly "true" (opt in) or "false" (no opt-in). Without AFEC it is ignored.
+	// An honored "true" conflicts with a nonnil VNet integration subnet.
+	// The subnet, not this tag, determines immutable networking after creation;
+	// removing the tag or AFEC registration does not change existing networking.
+	TagClusterDisableSwift = ExperimentalClusterTagPrefix + "disable-swift"
+
+	// TagClusterCPOImageOverride is the ARM resource tag that overrides
+	// the control plane operator image for a HostedCluster when the
+	// ExperimentalReleaseFeatures AFEC is registered on the subscription.
+	TagClusterCPOImageOverride = ExperimentalClusterTagPrefix + "control-plane-operator-image-override"
+
+	// TagClusterControlPlaneExactVersion is the ARM resource tag that pins the
+	// control plane to an exact OpenShift release (e.g. "4.17.3", or a full
+	// nightly build such as "4.21.0-0.nightly-2026-08-05-123456") when the
+	// ExperimentalReleaseFeatures AFEC is registered on the subscription. When
+	// set, the desired control plane version controllers use the exact version
+	// directly and skip Cincinnati/gateway version resolution.
+	//
+	// This tag is the only way to express an exact version, for every channel
+	// group. version.id always carries the bare "<major>.<minor>" release line
+	// and a patch-bearing version.id is rejected, because version.id does not
+	// round-trip (a GET would return only "<major>.<minor>") while an ARM tag
+	// does. The tag's release line must match version.id.
+	//
+	// The tag is required for the "nightly" channel group: nightly builds are
+	// published to the CI releasestream API rather than the Cincinnati graph,
+	// so the backend cannot resolve a build from a bare "<major>.<minor>".
+	TagClusterControlPlaneExactVersion = ExperimentalClusterTagPrefix + "control-plane-exact-version"
+
+	// TagClusterZStreamUpdatePolicy controls automatic z-stream rollout when the
+	// ExperimentalReleaseFeatures AFEC is registered. The only valid value is
+	// "Immediate", which follows the channel's best version without waiting for
+	// canary progress. Production e2e tests need this to exercise automatic
+	// z-stream upgrades reliably, independently of the rest of the fleet.
+	TagClusterZStreamUpdatePolicy = ExperimentalClusterTagPrefix + "z-stream-update-policy"
+
+	// TagClusterMaxCreationDuration is the ARM resource tag that overrides
+	// the default cluster creation deadline (60 minutes) when the
+	// ExperimentalReleaseFeatures AFEC is registered on the subscription.
+	// The value must be a valid Go time.Duration string (e.g. "19m", "30m").
+	TagClusterMaxCreationDuration = ExperimentalClusterTagPrefix + "max-creation-duration"
+
+	// TagClusterMaxUpdateDuration overrides the default 60-minute update deadline.
+	// Only honored when ExperimentalReleaseFeatures is registered. The value must
+	// be a valid Go duration of at least one minute.
+	TagClusterMaxUpdateDuration = ExperimentalClusterTagPrefix + "max-update-duration"
+
+	// TagClusterMaxDeletionDuration is the ARM resource tag that overrides
+	// the default cluster deletion deadline (60 minutes) when the
+	// ExperimentalReleaseFeatures AFEC is registered on the subscription.
+	// The value must be a valid Go time.Duration string (e.g. "24m", "30m").
+	// The tag is set at cluster creation time but consumed at deletion time.
+	TagClusterMaxDeletionDuration = ExperimentalClusterTagPrefix + "max-deletion-duration"
+
+	// ExperimentalNodePoolTagPrefix is the prefix for all experimental node pool
+	// tags. Tags with this prefix are only honored when the
+	// ExperimentalReleaseFeatures AFEC is registered. Unrecognized tags
+	// with this prefix are rejected.
+	ExperimentalNodePoolTagPrefix = "aro-hcp.experimental.nodepool."
+
+	// TagNodePoolMaxCreationDuration is the ARM resource tag that overrides
+	// the default node pool creation deadline (60 minutes) when the
+	// ExperimentalReleaseFeatures AFEC is registered on the subscription.
+	// The value must be a valid Go time.Duration string (e.g. "19m", "30m").
+	TagNodePoolMaxCreationDuration = ExperimentalNodePoolTagPrefix + "max-creation-duration"
+
+	// TagNodePoolMaxUpdateDuration overrides the default 60-minute update deadline.
+	// Only honored when ExperimentalReleaseFeatures is registered. The value must
+	// be a valid Go duration of at least one minute.
+	TagNodePoolMaxUpdateDuration = ExperimentalNodePoolTagPrefix + "max-update-duration"
+)

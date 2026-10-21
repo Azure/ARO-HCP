@@ -27,7 +27,7 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 )
 
 type UntypedItemKey struct {
@@ -38,7 +38,7 @@ type untypedGetStep struct {
 	stepID StepID
 	key    UntypedItemKey
 
-	expectedResource *database.TypedDocument
+	expectedResource *cosmosstorageutils.TypedDocument
 	expectedError    string
 }
 
@@ -58,8 +58,8 @@ func newUntypedGetStep(stepID StepID, stepDir fs.FS) (*untypedGetStep, error) {
 	}
 	expectedError := strings.TrimSpace(string(expectedErrorBytes))
 
-	var expectedResource *database.TypedDocument
-	expectedResources, err := readResourcesInDir[database.TypedDocument](stepDir)
+	var expectedResource *cosmosstorageutils.TypedDocument
+	expectedResources, err := readResourcesInDir[cosmosstorageutils.TypedDocument](stepDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read resource in dir: %w", err)
 	}

@@ -16,7 +16,7 @@ package e2e
 
 import (
 	"context"
-	"fmt"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -26,7 +26,7 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api/fleet"
+	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 )
@@ -43,6 +43,7 @@ var _ = Describe("Fleet", func() {
 		labels.CoreInfraService,
 		labels.DevelopmentOnly,
 		labels.AroRpApiCompatible,
+		labels.MIContainers(0),
 		func(ctx context.Context) {
 			tc := framework.NewTestContext()
 
@@ -50,33 +51,115 @@ var _ = Describe("Fleet", func() {
 			currentIdentity, err := tc.GetCurrentAzureIdentityDetails(ctx)
 			Expect(err).NotTo(HaveOccurred(), "failed to get current Azure identity details")
 
-			By("listing all stamps via admin API")
-			stamps, err := tc.ListStamps(ctx, currentIdentity)
-			Expect(err).NotTo(HaveOccurred(), "failed to list stamps")
-			Expect(stamps).NotTo(BeEmpty(), "no stamps found — registration may not have run")
+			By("waiting for stamps to be registered with ready management clusters")
+			Eventually(func(g Gomega) {
+				stamps, err := tc.ListStamps(ctx, currentIdentity)
+				g.Expect(err).NotTo(HaveOccurred(), "failed to list stamps")
+				g.Expect(stamps).NotTo(BeEmpty(), "no stamps found — registration may not have run")
 
-			for _, s := range stamps {
-				Expect(s.ResourceID).NotTo(BeEmpty(), "stamp resourceId must not be empty")
-				By(fmt.Sprintf("verifying stamp %s", s.ResourceID))
+				for _, s := range stamps {
+					g.Expect(s.ResourceID).NotTo(BeEmpty(), "stamp resourceId must not be empty")
 
-				approvedCondition := apimeta.FindStatusCondition(s.Status.Conditions, string(fleet.StampConditionApproved))
-				Expect(approvedCondition).NotTo(BeNil(), "stamp must have Approved condition")
-				Expect(approvedCondition.Status).To(Equal(metav1.ConditionTrue), "stamp must be approved")
+					approvedCondition := apimeta.FindStatusCondition(s.Status.Conditions, string(fleetapi.StampConditionApproved))
+					g.Expect(approvedCondition).NotTo(BeNil(), "stamp %s must have Approved condition", s.ResourceID)
+					g.Expect(approvedCondition.Status).To(Equal(metav1.ConditionTrue), "stamp %s must be approved", s.ResourceID)
 
-				stampResourceID, err := azcorearm.ParseResourceID(s.ResourceID)
-				Expect(err).NotTo(HaveOccurred(), "failed to parse stamp resource ID %q", s.ResourceID)
-				stampIdentifier := stampResourceID.Name
+					stampResourceID, err := azcorearm.ParseResourceID(s.ResourceID)
+					g.Expect(err).NotTo(HaveOccurred(), "failed to parse stamp resource ID %q", s.ResourceID)
+					stampIdentifier := stampResourceID.Name
 
-				By(fmt.Sprintf("verifying management cluster for stamp %s", stampIdentifier))
-				managementCluster, err := tc.GetManagementCluster(ctx, stampIdentifier, fleet.ManagementClusterResourceName, currentIdentity)
-				Expect(err).NotTo(HaveOccurred(), "failed to get management cluster for stamp %s", stampIdentifier)
+					managementCluster, err := tc.GetManagementCluster(ctx, stampIdentifier, fleetapi.ManagementClusterResourceName, currentIdentity)
+					g.Expect(err).NotTo(HaveOccurred(), "failed to get management cluster for stamp %s", stampIdentifier)
 
-				Expect(managementCluster.ResourceID).NotTo(BeEmpty(), "management cluster resourceId must not be empty")
+					g.Expect(managementCluster.ResourceID).NotTo(BeEmpty(), "management cluster resourceId must not be empty")
 
-				readyCondition := apimeta.FindStatusCondition(managementCluster.Status.Conditions, string(fleet.ManagementClusterConditionReady))
-				Expect(readyCondition).NotTo(BeNil(), "management cluster must have Ready condition")
-				Expect(readyCondition.Status).To(Equal(metav1.ConditionTrue), "management cluster must be ready")
-			}
+					readyCondition := apimeta.FindStatusCondition(managementCluster.Status.Conditions, string(fleetapi.ManagementClusterConditionReady))
+					g.Expect(readyCondition).NotTo(BeNil(), "management cluster %s must have Ready condition", stampIdentifier)
+					g.Expect(readyCondition.Status).To(Equal(metav1.ConditionTrue), "management cluster %s must be ready", stampIdentifier)
+				}
+			}, 15*time.Minute, 30*time.Second).Should(Succeed(), "fleet registration did not complete in time")
+		},
+	)
+
+	It("should have HCP resource requirements data",
+		labels.RequireNothing,
+		labels.Medium,
+		labels.Positive,
+		labels.CoreInfraService,
+		labels.DevelopmentOnly,
+		labels.AroRpApiCompatible,
+		labels.MIContainers(0),
+		func(ctx context.Context) {
+			tc := framework.NewTestContext()
+
+			By("resolving current Azure identity")
+			currentIdentity, err := tc.GetCurrentAzureIdentityDetails(ctx)
+			Expect(err).NotTo(HaveOccurred(), "failed to get current Azure identity details")
+
+			By("waiting for HCP resource requirements to be computed")
+			Eventually(func(g Gomega) {
+				requirements, err := tc.GetHCPResourceRequirements(ctx, fleetapi.HCPResourceRequirementsResourceName, currentIdentity)
+				g.Expect(err).NotTo(HaveOccurred(), "failed to get HCP resource requirements")
+
+				g.Expect(requirements.Conditions).NotTo(BeEmpty(), "HCP resource requirements must have conditions")
+				g.Expect(apimeta.IsStatusConditionTrue(requirements.Conditions, fleetapi.ConditionTypeDataCurrent)).To(BeTrue(), "DataCurrent condition must be True")
+
+				g.Expect(requirements.SampleSize).To(BeNumerically(">", 0), "SampleSize must be positive")
+				g.Expect(requirements.LastReportedAt).NotTo(BeNil(), "LastReportedAt must be set")
+
+				g.Expect(requirements.AverageUsage).NotTo(BeEmpty(), "AverageUsage must not be empty")
+				g.Expect(requirements.AverageUsage.Cpu().IsZero()).To(BeFalse(), "AverageUsage CPU must be positive")
+
+				g.Expect(requirements.AverageRequests).NotTo(BeEmpty(), "AverageRequests must not be empty")
+				g.Expect(requirements.AverageRequests.Cpu().IsZero()).To(BeFalse(), "AverageRequests CPU must be positive")
+			}, 30*time.Minute, 30*time.Second).Should(Succeed(), "HCP resource requirements were not populated in time")
+		},
+	)
+
+	It("should have scheduling data for ready management clusters",
+		labels.RequireNothing,
+		labels.Medium,
+		labels.Positive,
+		labels.CoreInfraService,
+		labels.DevelopmentOnly,
+		labels.AroRpApiCompatible,
+		labels.MIContainers(0),
+		func(ctx context.Context) {
+			tc := framework.NewTestContext()
+
+			By("resolving current Azure identity")
+			currentIdentity, err := tc.GetCurrentAzureIdentityDetails(ctx)
+			Expect(err).NotTo(HaveOccurred(), "failed to get current Azure identity details")
+
+			By("waiting for scheduling documents to be populated")
+			Eventually(func(g Gomega) {
+				stamps, err := tc.ListStamps(ctx, currentIdentity)
+				g.Expect(err).NotTo(HaveOccurred(), "failed to list stamps")
+				g.Expect(stamps).NotTo(BeEmpty(), "no stamps found")
+
+				for _, s := range stamps {
+					stampResourceID, err := azcorearm.ParseResourceID(s.ResourceID)
+					g.Expect(err).NotTo(HaveOccurred(), "failed to parse stamp resource ID %q", s.ResourceID)
+					stampIdentifier := stampResourceID.Name
+
+					scheduling, err := tc.GetManagementClusterScheduling(ctx, stampIdentifier, fleetapi.ManagementClusterResourceName, currentIdentity)
+					g.Expect(err).NotTo(HaveOccurred(), "failed to get scheduling for stamp %s", stampIdentifier)
+
+					g.Expect(scheduling.Conditions).NotTo(BeEmpty(), "stamp %s scheduling must have conditions", stampIdentifier)
+					g.Expect(apimeta.IsStatusConditionTrue(scheduling.Conditions, fleetapi.ConditionTypeCapacityDataCurrent)).To(BeTrue(), "stamp %s CapacityDataCurrent condition must be True", stampIdentifier)
+					g.Expect(apimeta.IsStatusConditionTrue(scheduling.Conditions, fleetapi.ConditionTypeScalingDataCurrent)).To(BeTrue(), "stamp %s ScalingDataCurrent condition must be True", stampIdentifier)
+
+					g.Expect(scheduling.ObservedResources.Capacity).NotTo(BeEmpty(), "stamp %s scheduling must have observed capacity", stampIdentifier)
+					g.Expect(scheduling.ObservedResources.Capacity.Cpu().IsZero()).To(BeFalse(), "stamp %s scheduling CPU capacity must be positive", stampIdentifier)
+
+					g.Expect(scheduling.ObservedResources.Requests).NotTo(BeEmpty(), "stamp %s scheduling must have requested resources", stampIdentifier)
+					g.Expect(scheduling.ObservedResources.Requests.Cpu().IsZero()).To(BeFalse(), "stamp %s scheduling requested CPU must be positive", stampIdentifier)
+
+					g.Expect(scheduling.ScaleCeiling.Capacity).NotTo(BeEmpty(), "stamp %s scheduling must have scale ceiling capacity", stampIdentifier)
+					g.Expect(scheduling.ScaleCeiling.Capacity.Cpu().IsZero()).To(BeFalse(), "stamp %s scheduling scale ceiling CPU must be positive", stampIdentifier)
+					g.Expect(scheduling.ScaleCeiling.LastReportedAt).NotTo(BeNil(), "stamp %s scheduling must have scale ceiling lastReportedAt", stampIdentifier)
+				}
+			}, 15*time.Minute, 30*time.Second).Should(Succeed(), "scheduling data was not populated in time")
 		},
 	)
 })

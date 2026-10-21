@@ -1,0 +1,41 @@
+conditional projection: proposed changes are assumed to succeed; no ARM writes are performed.
+Observed transitions and failed-pool reconciliation require a new observation; workload/autoscaler activity and external quota changes are not predicted.
+
+initial:
+  (none)
+
+desired:
+  e1  worker  Standard_E32ds_v6  zone=1  max=4
+  d1  worker  Standard_D8ds_v6   zone=1  max=2
+  e2  worker  Standard_E32ds_v6  zone=2  max=4
+  d2  worker  Standard_D8ds_v6   zone=2  max=2
+  e3  worker  Standard_E32ds_v6  zone=3  max=4
+  d3  worker  Standard_D8ds_v6   zone=3  max=2
+
+budget (vCPUs):
+  StandardDdsv6Family:  48
+  StandardEdsv6Family:  384
+
+initial headroom (vCPUs):
+  StandardDdsv6Family:  48
+  StandardEdsv6Family:  384
+
+fully allocated: true
+
+initial capacity:
+
+actions:
+  margins above floor after each action (c = vCPU, G = memory GiB, n = Swift NICs)
+
+     #  action  role    pool  vm size   zone  change         margin                 quota left
+     1  Create  worker  e1    E32ds_v6  1     min=1   max=4   +128c  +1024G   +28n  Edsv6 256c
+     2  Create  worker  d1    D8ds_v6   1     min=1   max=2   +144c  +1152G   +34n  Ddsv6 32c
+     3  Create  worker  e2    E32ds_v6  2     min=1   max=4   +128c  +1024G   +28n  Edsv6 128c
+     4  Create  worker  d2    D8ds_v6   2     min=1   max=2   +144c  +1152G   +34n  Ddsv6 16c
+     5  Create  worker  e3    E32ds_v6  3     min=1   max=4   +128c  +1024G   +28n  Edsv6 0c
+     6  Create  worker  d3    D8ds_v6   3     min=1   max=2   +144c  +1152G   +34n  Ddsv6 0c
+
+steps:      6
+converged:  true
+outcome:    converged
+reason:     pool configuration matches desired

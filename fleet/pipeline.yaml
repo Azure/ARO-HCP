@@ -36,6 +36,12 @@ resourceGroups:
       - "unknown_storage_failure"
       - "unexpected EOF"
       - "unauthorized: authentication required"
+      # Transient ACR pull/push failures during image mirroring (docker registry RegistryErrorResponse, "Please retry later").
+      - "RegistryErrorResponse"
+      - "Please retry later"
+      # Network-level failure reaching the registry (no registry response to match). AROSLSRE-2070.
+      - "connection refused"
+      - "i/o timeout"
       maximumRetryCount: 5
       durationBetweenRetries: 1m
 - name: kusto
@@ -95,6 +101,14 @@ resourceGroups:
         resourceGroup: service
         step: output
         name: imagePullerMsiTenantId
+      svcAzureMonitorWorkspaceId:
+        resourceGroup: service
+        step: output
+        name: svcAzureMonitorWorkspaceId
+      hcpAzureMonitorWorkspaceId:
+        resourceGroup: service
+        step: output
+        name: hcpAzureMonitorWorkspaceId
     dependsOn:
     - resourceGroup: global
       step: mirror-image

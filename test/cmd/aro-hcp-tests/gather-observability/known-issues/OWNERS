@@ -1,0 +1,7 @@
+options:
+  no_parent_owners: true
+approvers:
+- geoberle
+- stevekuznetsov
+- mmazur
+- deads2k

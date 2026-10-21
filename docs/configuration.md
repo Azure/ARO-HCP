@@ -118,7 +118,7 @@ To prevent repetitive declarations of such values, templating can be used within
   - The ARO-Tools repository provides a subset of the real EV2 central configuration as an [additional region agnostic configuration layer](https://github.com/Azure/ARO-Tools/blob/main/config/ev2config/config.yaml) which works also in RH DEV environment deployments.
   - Variable paths are prefixed with `ev2.` to avoid conflicts with other configuration variables, e.g. `ev2.availabilityZoneCount`
   - Refer to the ARO-Tools [configuration README](https://github.com/Azure/ARO-Tools/blob/main/pkg/config/ev2config/README.md) to learn more about supported EV2 variables and how to add additional ones.
-  - EV2 variables can be used for tooling scripts by looking them up with `tooling/templatize/templatize ev2lookup`.
+  - EV2 variables can be used for tooling scripts by looking them up with `tooling/templatize/templatize-$(uname -m) ev2lookup`.
 
 Using these variables, configuration files can remain mostly **region-agnostic**, avoiding almost all regional overrides.
 
@@ -158,7 +158,7 @@ steps:
       configRef: frontend.cosmosDB.name
 ```
 
-For more details on shell steps, refer to the **Shell Step Documentation**.
+For more details on shell steps, refer to the [Shell Step Documentation](pipeline-concept.md#shell-step).
 
 ### Bicep Templates
 
@@ -173,6 +173,57 @@ param rpCosmosDbPrivate = {{ .frontend.cosmosDB.private }} // ... but not boolea
 
 - Only **basic fields** (string, boolean, or number types) should be referenced from pipeline files and Bicepparam files. Complex data types do not translate well to EV2 configuration settings right now.
 - Avoid using **arrays** in configuration. Instead, represent arrays as a list of comma separated values and parse them in Bicep templates using the `csvToArray` function from `modules/common.bicep`. Arrays do not translate well to EV2 configuration settings right now.
+
+## Management Controller Scheduling
+
+`mgmt.scheduling.role` selects the `aro-hcp.azure.com/role` node label for
+`mgmt-agent` and `kube-applier`. Supported roles are `infra` (the default) and
+`system`. Helm derives their single pod toleration from the role: `infra` uses
+`infra=true:NoSchedule`, and `system` uses `CriticalAddonsOnly=true:NoSchedule`.
+The operator is always `Equal`, the value `"true"`, and the effect `NoSchedule`.
+
+These settings do not change node pools or the scheduling of other workloads.
+
+## Swift Management VNet Identity
+
+`mgmt.swiftVnetIdentityResourceId` selects a user-assigned managed identity for
+management VNet creation and tagging. An empty value uses the global deployment
+identity. The `swift-vnet-permissions` step grants the selected identity Network
+Contributor and Tag Contributor on the management resource group and exports its
+resource ID to the `swift-vnet` container. Other deployment steps and the
+container launcher retain their existing identities.
+
+Environment-specific identity selections belong in the private
+`sdp-pipelines/hcp/config.msft.sensitive.clouds-overlay.yaml` overlay.
+Keep the ARO-HCP default empty so the override is opt-in. If an override selects
+an identity shared with PROD, the temporary container runs with that identity's
+existing privileges, including any PROD access. Limit that selection to the
+required deployment environment and region.
+
+Before deployment, verify that the launcher can assign the selected identity to
+the container group (`Microsoft.ManagedIdentity/userAssignedIdentities/assign/action`)
+and that the ARM deployment can read the identity and create the management
+resource-group role assignments. Permission on the shared identity is a separate
+prerequisite; this configuration does not grant it.
+
+SWIFTv2 uses the onboarded writer identity to stamp `CreatorServiceName` on the
+management VNet. DNC validates that value against the customer subnet's SAL
+ownership. The [ARO SWIFT architecture reference](https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/components-and-architecture/swift-networking-information)
+documents support for adding the security tag day-2.
+
+Deploy both the `swift-vnet-permissions` and `swift-vnet` steps for each affected
+stamp, record the selected identity's VNet write, and verify effective ownership
+and SWIFT network readiness. A successful write alone does not prove that an
+existing AKS stamp is repaired. Confirm the supported remediation with AKS Network:
+day-2 stamping may not be sufficient for an already affected stamp, but recreation
+is not a universal prerequisite. Any destructive stamp or VNet recreation requires
+a separate approved operation. Verify a SWIFT-enabled E2E scenario before
+increasing concurrency.
+
+After AKS Network registers the intended deployment identity, remove the private
+regional override to restore the empty default, deploy both steps, and repeat
+verification. Remove the temporary identity's role assignments after successful cutback.
+Incremental ARM deployments do not automatically remove superseded role assignments.
 
 ## Schema
 

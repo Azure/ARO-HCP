@@ -17,6 +17,7 @@ package runner
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -80,6 +81,21 @@ func TestEngineRun(t *testing.T) {
 
 	testCases := []testCase{
 		{
+			name: "already absent target is not retried",
+			step: &fakeStep{
+				name: "absent-step", targets: []Target{{ID: "x"}},
+				deleteErrByID: map[string]error{"x": fmt.Errorf("%w: missing assignment", ErrTargetAbsent)},
+				retryLimit:    3,
+			},
+			parallelism: 1,
+			assertions: func(t *testing.T, err error, step *fakeStep, _ bool) {
+				t.Helper()
+				if err != nil || step.deleteCalls != 1 || step.verifyCalls != 1 {
+					t.Fatalf("absent target must finish successfully without retries: err=%v deletes=%d verifies=%d", err, step.deleteCalls, step.verifyCalls)
+				}
+			},
+		},
+		{
 			name: "dry-run skips delete and verify",
 			step: &fakeStep{
 				name:    "dry-run-step",
@@ -132,6 +148,25 @@ func TestEngineRun(t *testing.T) {
 				}
 				if !strings.Contains(err.Error(), "failed deleting") {
 					t.Fatalf("expected delete failure error, got %v", err)
+				}
+			},
+		},
+		{
+			name: "target retained after revalidation is not retried or deleted",
+			step: &fakeStep{
+				name:          "retain-step",
+				targets:       []Target{{ID: "x", Name: "res-x", Type: "example/type"}},
+				deleteErrByID: map[string]error{"x": fmt.Errorf("%w: principal restored", ErrTargetRetained)},
+				retryLimit:    3,
+			},
+			parallelism: 1,
+			assertions: func(t *testing.T, err error, step *fakeStep, _ bool) {
+				t.Helper()
+				if err != nil {
+					t.Fatalf("expected no error, got %v", err)
+				}
+				if step.deleteCalls != 1 {
+					t.Fatalf("expected one revalidation call without retries, got %d", step.deleteCalls)
 				}
 			},
 		},

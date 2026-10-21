@@ -1,13 +1,14 @@
 ARG PLATFORM
 
 # Builder image installs tools needed to build aro-hcp-backend
-FROM --platform=${PLATFORM} mcr.microsoft.com/oss/go/microsoft/golang:1.25-azurelinux3.0 AS builder
+FROM --platform=${PLATFORM} mcr.microsoft.com/oss/go/microsoft/golang:1.26-azurelinux3.0 AS builder
+ENV GOTOOLCHAIN=local
 COPY internal/go.mod internal/go.sum internal/
-COPY test-integration/go.mod test-integration/
 COPY backend/go.mod backend/go.sum backend/
 RUN cd backend && go mod download
 WORKDIR /app
-COPY . .
+COPY internal/ internal/
+COPY --exclude=backend/aro-hcp-backend backend/ backend/
 ARG ARO_HCP_REVISION
 # https://github.com/microsoft/go/tree/microsoft/main/eng/doc/fips#build-option-to-require-fips-mode
 # NOTE: starting with go 1.27, GODEBUG=fips140=only can be used at runtime to also reject

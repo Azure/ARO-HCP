@@ -1,0 +1,39 @@
+// Copyright 2026 Microsoft Corporation
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package datadump
+
+import (
+	"strings"
+
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerconfig"
+)
+
+func registerCsStateDumpController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{
+		Workers:     20,
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateCsStateDumpController, false),
+	}
+}
+
+func instantiateCsStateDumpController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	_, clusterLister := controllerContext.BackendInformers.Clusters()
+	_, nodePoolLister := controllerContext.BackendInformers.NodePools()
+	_, activeOperationLister := controllerContext.BackendInformers.ActiveOperations()
+	return NewCSStateDumpController(controllerContext.ResourcesDBClient, clusterLister, nodePoolLister, activeOperationLister, controllerContext.BackendInformers, controllerContext.ClustersServiceClient), nil
+}
+
+func Register(registry map[string]controllerconfig.ControllerRegistration) {
+	registry[strings.ToLower(CSStateDumpControllerName)] = registerCsStateDumpController()
+}

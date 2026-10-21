@@ -1,0 +1,286 @@
+// Copyright 2026 Microsoft Corporation
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package cijoboutcomes
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/Azure/ARO-HCP/internal/utils"
+	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/snapshot"
+)
+
+// The artifact readers are hcpctl's - see tooling/hcpctl/pkg/snapshot - because
+// they already encode where each file lives, how the artifact directory is
+// named per job, and how test timing metadata is stitched onto test results.
+// Re-deriving that here would leave two copies to drift apart.
+
+// finishedJSONURL is the run's completion record, written by Prow itself rather
+// than by a test step. It is fetched directly because it needs none of the
+// artifact-directory discovery the other files do.
+const finishedJSONURL = "https://storage.googleapis.com/%s/%s/finished.json"
+
+var errArtifactNotFound = errors.New("artifact not found")
+var errArtifactMalformed = errors.New("artifact malformed")
+
+// prowFinished is the subset of finished.json that reaches Kusto.
+type prowFinished struct {
+	Timestamp int64  `json:"timestamp"`
+	Result    string `json:"result"`
+}
+
+// runDetail is optional enrichment, never evidence that a run has completed.
+type runDetail struct {
+	SvcCluster  string
+	MgmtCluster string
+	StartedAt   time.Time
+	FinishedAt  time.Time
+	ADOBuildID  string
+	SlotState   slotStateMetadata
+}
+
+// fetchJobOutcomeDetail reads job enrichment only, independent of test sources.
+// Permanent enrichment absence leaves zero fields; transport failures are retried.
+func fetchJobOutcomeDetail(ctx context.Context, client *http.Client, prowURL string) (runDetail, error) {
+	var detail runDetail
+	ctx = utils.ContextWithLogger(ctx, utils.LoggerFromContext(ctx).WithValues("source", "job-outcome"))
+
+	info, err := snapshot.ParseProwURL(prowURL)
+	if err != nil {
+		return detail, fmt.Errorf("failed to parse Prow URL %q: %w", prowURL, err)
+	}
+
+	var failures []error
+
+	detail, err = fetchProwRunMetadata(ctx, client, info.GCSBucket, info.GCSPrefix)
+	if err != nil {
+		failures = append(failures, err)
+	}
+
+	// Only runs that provision their own clusters have a config.yaml artifact.
+	// The rest resolve their configuration from the sdp-pipelines repository,
+	// which this collector has no checkout of - and their telemetry lives in
+	// their own environment's Kusto, so cluster names would join to nothing
+	// here anyway.
+	if info.IsPullRequest() {
+		jobConfig, err := snapshot.FetchProwJobConfigStrict(ctx, client, info)
+		switch {
+		case err != nil:
+			failures = append(failures, fmt.Errorf("failed to read cluster names: %w", err))
+		case jobConfig != nil:
+			detail.SvcCluster = jobConfig.ServiceClusterName
+			detail.MgmtCluster = jobConfig.ManagementClusterName
+		}
+	}
+
+	detail.SlotState, err = fetchSlotState(ctx, client, info)
+	if err != nil {
+		failures = append(failures, fmt.Errorf("failed to read slot state: %w", err))
+	}
+
+	return detail, errors.Join(failures...)
+}
+
+func fetchSlotState(ctx context.Context, client *http.Client, info *snapshot.ProwJobInfo) (slotStateMetadata, error) {
+	ctx = utils.ContextWithLogger(ctx, utils.LoggerFromContext(ctx).WithValues("source", "slot-state"))
+	data, err := snapshot.FetchProwJobArtifact(ctx, client, info, slotStateArtifactPath)
+	if err != nil {
+		return slotStateMetadata{}, err
+	}
+	if data == nil {
+		snapshot.ReportProwArtifactProblem(ctx, "slot-state", slotStateAbsent)
+		return slotStateMetadata{Status: slotStateAbsent}, nil
+	}
+	metadata, err := parseSlotState(data)
+	if err != nil {
+		metadata.Status = slotStateMalformed
+		if errors.Is(err, errSlotStateVersion) {
+			metadata.Status = slotStateUnsupported
+		}
+		utils.LoggerFromContext(ctx).Error(err, "Slot state enrichment unavailable", "path", slotStateArtifactPath)
+		snapshot.ReportProwArtifactProblem(ctx, "slot-state", metadata.Status)
+	}
+	return metadata, nil
+}
+
+func enrichmentError(ctx context.Context, err error) error {
+	if errors.Is(err, errArtifactNotFound) || errors.Is(err, errArtifactMalformed) {
+		utils.LoggerFromContext(ctx).Info("Artifact enrichment unavailable", "error", err)
+		reason := "malformed"
+		if errors.Is(err, errArtifactNotFound) {
+			reason = "absent"
+		}
+		snapshot.ReportProwArtifactProblem(ctx, "job", reason)
+		return nil
+	}
+	return err
+}
+
+// Source readers return nil slices for unavailable primary data and nonnil empty
+// slices for valid empty reports. Enrichment errors retain names, but not rows.
+func fetchE2ERows(ctx context.Context, client *http.Client, prowURL string) ([]ciTestResult, []ciTestName, error) {
+	ctx = utils.ContextWithLogger(ctx, utils.LoggerFromContext(ctx).WithValues("source", "e2e"))
+	info, err := snapshot.ParseProwURL(prowURL)
+	if err != nil {
+		return nil, nil, err
+	}
+	results, err := snapshot.FetchProwJobTestResultsStrict(ctx, client, info)
+	rows, names := testRowsFor(info.ProwID, results)
+	if err != nil {
+		return nil, names, err
+	}
+	return rows, names, nil
+}
+
+// fetchFinishedAt reads when the run completed.
+func fetchFinishedAt(ctx context.Context, client *http.Client, bucket, gcsPrefix string) (time.Time, error) {
+	return fetchFinishedAtFrom(ctx, client, fmt.Sprintf(finishedJSONURL, bucket, gcsPrefix))
+}
+
+func fetchFinishedAtFrom(ctx context.Context, client *http.Client, url string) (time.Time, error) {
+	var finished prowFinished
+	err := fetchJSONArtifact(ctx, client, url, &finished)
+	// A run still in progress has no finished.json.
+	if errors.Is(err, errArtifactNotFound) {
+		snapshot.ReportProwArtifactProblem(ctx, "job", "absent")
+		return time.Time{}, nil
+	}
+	if err != nil {
+		return time.Time{}, err
+	}
+	if finished.Timestamp <= 0 {
+		return time.Time{}, nil
+	}
+	return time.Unix(finished.Timestamp, 0).UTC(), nil
+}
+
+func fetchADOBuildID(ctx context.Context, client *http.Client, bucket, gcsPrefix string) (string, error) {
+	var job struct {
+		Metadata struct {
+			Annotations map[string]string `json:"annotations"`
+		} `json:"metadata"`
+	}
+	url := fmt.Sprintf("https://storage.googleapis.com/%s/%s/prowjob.json", bucket, gcsPrefix)
+	if err := fetchJSONArtifact(ctx, client, url, &job); err != nil {
+		return "", err
+	}
+	return job.Metadata.Annotations["ev2.rollout/build"], nil
+}
+
+func fetchJSONArtifact(ctx context.Context, client *http.Client, url string, into any) error {
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return fmt.Errorf("failed to build request for %s: %w", url, err)
+	}
+
+	response, err := client.Do(request)
+	if err != nil {
+		return fmt.Errorf("failed to fetch %s: %w", url, err)
+	}
+	defer func() { _ = response.Body.Close() }()
+
+	if response.StatusCode == http.StatusNotFound {
+		return fmt.Errorf("%w: %s", errArtifactNotFound, url)
+	}
+	if response.StatusCode != http.StatusOK {
+		return fmt.Errorf("unexpected status %d fetching %s", response.StatusCode, url)
+	}
+
+	body, err := io.ReadAll(response.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read %s: %w", url, err)
+	}
+
+	if err := json.Unmarshal(body, into); err != nil {
+		return fmt.Errorf("%w: failed to parse %s: %w", errArtifactMalformed, url, err)
+	}
+	return nil
+}
+
+// testRowsFor converts a run's test results into join rows and the distinct
+// names they reference.
+//
+// Only tests that ran are kept. A suite skips a large share of its specs
+// depending on what the run exercises, and a skipped test has no timings and no
+// outcome to attribute, so recording them would roughly double the table to say
+// nothing. Sippy's synthetic tests describe Sippy, not the run, and are dropped.
+func testRowsFor(buildID string, results []snapshot.TestResult) ([]ciTestResult, []ciTestName) {
+	if results == nil {
+		return nil, nil
+	}
+	rows := make([]ciTestResult, 0, len(results))
+	names := make([]ciTestName, 0, len(results))
+	seen := make(map[string]struct{}, len(results))
+
+	for _, result := range results {
+		if strings.Contains(result.Name, sippySyntheticTestMarker) {
+			continue
+		}
+		if !executed(result) {
+			continue
+		}
+
+		testID := testIDFor(result.Name)
+		if _, duplicate := seen[testID]; !duplicate {
+			seen[testID] = struct{}{}
+			names = append(names, ciTestName{TestID: testID, Name: result.Name})
+		}
+
+		rows = append(rows, ciTestResult{
+			BuildID:          buildID,
+			TestID:           testID,
+			Result:           resultOf(result),
+			Failed:           result.Failed,
+			Message:          result.Error,
+			ResourceGroup:    result.ResourceGroup,
+			StartedAt:        result.StartTime.UTC(),
+			FinishedAt:       result.EndTime.UTC(),
+			SetupFinishTime:  result.SetupFinishTime.UTC(),
+			TestStartTime:    result.TestStartTime.UTC(),
+			CleanupStartTime: result.CleanupStartTime.UTC(),
+		})
+	}
+	return rows, names
+}
+
+// executed reports whether a test ran, as opposed to being skipped.
+//
+// A skipped test is stamped with start and end times just as a passing one is,
+// so the timestamps cannot separate them - only the verdict can.
+func executed(result snapshot.TestResult) bool {
+	return result.Result != skippedResult
+}
+
+// skippedResult is the verdict the test extension reports for a test it did not
+// run.
+const skippedResult = "skipped"
+
+// resultOf reports the verdict for a test, falling back to the Failed flag for
+// results that carry none.
+func resultOf(result snapshot.TestResult) string {
+	if result.Result != "" {
+		return result.Result
+	}
+	if result.Failed {
+		return "failed"
+	}
+	return "passed"
+}

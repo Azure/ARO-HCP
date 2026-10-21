@@ -1,0 +1,64 @@
+name: "hcpctl Latest Build"
+on:
+  schedule:
+  # Check hourly; the "skip if unchanged" step below keeps this a no-op
+  # unless tooling/hcpctl actually changed since the last successful build.
+  # The build marker is only moved after a successful GoReleaser publish, so
+  # a failed run doesn't mask itself as "up to date" for the next check.
+  - cron: '0 * * * *'
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+jobs:
+  goreleaser:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      with:
+        ref: main
+        fetch-depth: 0
+    - name: Check for changes since last build
+      id: check
+      run: |
+        git fetch origin refs/markers/hcpctl-latest-built:refs/markers/hcpctl-latest-built 2>/dev/null || true
+        if git rev-parse -q --verify refs/markers/hcpctl-latest-built >/dev/null && \
+           git diff --quiet refs/markers/hcpctl-latest-built HEAD -- tooling/hcpctl; then
+          echo "changed=false" >> "$GITHUB_OUTPUT"
+        else
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+        fi
+    - name: Set up Go
+      if: steps.check.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'
+      uses: actions/setup-go@v6
+      with:
+        go-version-file: 'go.work'
+        cache-dependency-path: '**/go.sum'
+    - name: Run GoReleaser
+      if: steps.check.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'
+      uses: goreleaser/goreleaser-action@9c156ee8a17a598857849441385a2041ef570552 # v6.4.0
+      with:
+        distribution: goreleaser
+        version: "~> 2"
+        args: release --clean --skip=validate --config tooling/hcpctl/.goreleaser.yaml
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GORELEASER_CURRENT_TAG: hcpctl-latest
+    # Record the last successfully published commit using a non-tag marker ref under
+    # refs/markers/ instead of force-moving a tag. Prow's clonerefs runs
+    # `git fetch --tags --prune` against repos it caches between runs, and since git 2.20
+    # `--tags` refuses to overwrite an existing local tag that now points at a different
+    # commit ("would clobber existing tag"), which would break every Prow job that clones
+    # this repo. A ref outside refs/tags/ is invisible to `git fetch --tags`, so moving it
+    # hourly is safe. Doing this after a successful GoReleaser run means a failed run leaves
+    # the marker (and thus the next change-detection check) pointing at the last commit that
+    # actually published. The hcpctl-latest tag is never moved; GoReleaser publishes the
+    # release against the existing frozen tag, so the GitHub Release page still resolves.
+    - name: Update build marker
+      if: steps.check.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'
+      run: |
+        git update-ref refs/markers/hcpctl-latest-built HEAD
+        git push origin refs/markers/hcpctl-latest-built --force

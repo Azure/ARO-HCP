@@ -1,0 +1,41 @@
+conditional projection: proposed changes are assumed to succeed; no ARM writes are performed.
+Observed transitions and failed-pool reconciliation require a new observation; workload/autoscaler activity and external quota changes are not predicted.
+
+initial:
+  old1  worker  Standard_E32ds_v6  zone=1  max=6  count=2  autoscaled
+
+desired:
+  new1  worker  Standard_E32ds_v6  zone=1  max=6
+
+budget (vCPUs):
+  StandardEdsv6Family:  192
+
+initial headroom (vCPUs):
+  StandardEdsv6Family:  64
+
+fully allocated: true
+
+initial capacity:
+  worker:  cpu=192  memory=1536GiB  swiftNICs=42
+
+role-zone floor:
+  worker zone 1:  cpu=192  memory=1536GiB  swiftNICs=42
+
+actions:
+  margins above floor after each action (c = vCPU, G = memory GiB, n = Swift NICs)
+
+     #  action            role    pool  vm size   zone  change         margin                 quota left
+     1  Create            worker  new1  E32ds_v6  1     min=1   max=2    +64c   +512G   +14n  Edsv6 0c
+     2  SetScalingBounds  worker  old1  E32ds_v6  1     min=1   max=4     +0c     +0G    +0n  Edsv6 64c
+     3  SetScalingBounds  worker  new1  E32ds_v6  1     min=1   max=4    +64c   +512G   +14n  Edsv6 0c
+     4  SetScalingBounds  worker  old1  E32ds_v6  1     min=1   max=2     +0c     +0G    +0n  Edsv6 64c
+     5  SetScalingBounds  worker  new1  E32ds_v6  1     min=1   max=6    +64c   +512G   +14n  Edsv6 0c
+     6  Freeze            worker  old1  E32ds_v6  1     count=2          +64c   +512G   +14n
+     7  Reduce            worker  old1  E32ds_v6  1     count=1          +32c   +256G    +7n  Edsv6 32c
+     8  Reduce            worker  old1  E32ds_v6  1     count=0           +0c     +0G    +0n  Edsv6 64c
+     9  Delete            worker  old1  E32ds_v6  1                       +0c     +0G    +0n
+
+steps:      9
+converged:  true
+outcome:    converged
+reason:     pool configuration matches desired

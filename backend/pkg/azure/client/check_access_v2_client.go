@@ -14,6 +14,8 @@
 
 package client
 
+//go:generate $MOCKGEN -typed -source=check_access_v2_client.go -destination=mock_check_access_v2_client.go -package client CheckAccessV2Client
+
 import (
 	"context"
 

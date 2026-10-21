@@ -40,6 +40,10 @@ spec:
                 - ppc64le
                 - s390x
                 - arm64
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            preference:
+              matchExpressions:
               - key: aro-hcp.azure.com/role
                 operator: In
                 values:

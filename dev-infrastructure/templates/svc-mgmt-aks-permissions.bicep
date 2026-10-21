@@ -4,6 +4,9 @@ param aksClusterName string
 @description('Session Gate MI resource ID, used to grant AKS access')
 param sessiongateMIResourceId string
 
+@description('Fleet MI resource ID, used to grant AKS read access for node pool scaling')
+param fleetMIResourceId string
+
 import * as res from '../modules/resource.bicep'
 
 resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-02-01' existing = {
@@ -33,6 +36,34 @@ resource sessiongateAksAccess 'Microsoft.Authorization/roleAssignments@2022-04-0
   properties: {
     roleDefinitionId: aksClusterRBACAdminRoleId
     principalId: sessiongateMSI.properties.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+//
+//   F L E E T   A K S   R E A D   A C C E S S
+//
+
+// Reader role — scoped to the MC AKS cluster so the fleet controller's
+// node-pool-scaling controller can list agent pools and read SKU metadata.
+// https://www.azadvertizer.net/azrolesadvertizer/acdd72a7-3385-48ef-bd42-f606fba81ae7.html
+var readerRoleId = subscriptionResourceId(
+  'Microsoft.Authorization/roleDefinitions',
+  'acdd72a7-3385-48ef-bd42-f606fba81ae7'
+)
+
+var fleetMIRef = res.msiRefFromId(fleetMIResourceId)
+resource fleetMSI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
+  scope: resourceGroup(fleetMIRef.resourceGroup.subscriptionId, fleetMIRef.resourceGroup.name)
+  name: fleetMIRef.name
+}
+
+resource fleetAksReaderAccess 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  scope: aksCluster
+  name: guid(resourceGroup().id, aksClusterName, fleetMIResourceId, readerRoleId)
+  properties: {
+    roleDefinitionId: readerRoleId
+    principalId: fleetMSI.properties.principalId
     principalType: 'ServicePrincipal'
   }
 }

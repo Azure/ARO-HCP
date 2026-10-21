@@ -253,15 +253,17 @@ resource fileStorageOperatorRoleResourceGroupAssignment 'Microsoft.Authorization
   }
 }
 
-resource fileStorageOperatorRoleSubnetAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (rbacScope == 'resource') {
-  name: guid(resourceGroup().id, fileCsiDriverMi.id, fileStorageOperatorRoleId, subnet.id)
-  scope: subnet
+resource fileStorageOperatorRoleVnetAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (rbacScope == 'resource') {
+  name: guid(resourceGroup().id, fileCsiDriverMi.id, fileStorageOperatorRoleId, vnet.id)
+  scope: vnet
   properties: {
     principalId: fileCsiDriverMi.properties.principalId
     principalType: 'ServicePrincipal'
     roleDefinitionId: fileStorageOperatorRoleId
   }
 }
+
+// No subnet-scoped assignment: the VNet-scoped grant above already covers the subnet via RBAC scope inheritance.
 
 resource fileStorageOperatorRoleNsgAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (rbacScope == 'resource') {
   name: guid(resourceGroup().id, fileCsiDriverMi.id, fileStorageOperatorRoleId, nsg.id)
@@ -282,6 +284,36 @@ resource imageRegistryMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-
   name: identities.imageRegistryMiName
   scope: resourceGroup(resourceGroupName)
 }
+
+// Azure Red Hat OpenShift Image Registry Operator: Manage the OpenShift image registry's use of Azure Storage.
+// Shared by the control plane and data plane image-registry identities below.
+// https://www.azadvertizer.net/azrolesadvertizer/8b32b316-c2f5-4ddf-b05b-83dacd2d08b5.html
+var imageRegistryOperatorRoleId = subscriptionResourceId(
+  'Microsoft.Authorization/roleDefinitions',
+  '8b32b316-c2f5-4ddf-b05b-83dacd2d08b5'
+)
+
+resource imageRegistryOperatorRoleResourceGroupAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (rbacScope == 'resourceGroup') {
+  name: guid(resourceGroup().id, imageRegistryMi.id, imageRegistryOperatorRoleId)
+  scope: resourceGroup()
+  properties: {
+    principalId: imageRegistryMi.properties.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: imageRegistryOperatorRoleId
+  }
+}
+
+resource imageRegistryOperatorRoleVnetAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (rbacScope == 'resource') {
+  name: guid(resourceGroup().id, imageRegistryMi.id, imageRegistryOperatorRoleId, vnet.id)
+  scope: vnet
+  properties: {
+    principalId: imageRegistryMi.properties.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: imageRegistryOperatorRoleId
+  }
+}
+
+// No subnet-scoped assignment: the VNet-scoped grant above already covers the subnet via RBAC scope inheritance.
 
 
 //
@@ -310,15 +342,7 @@ resource networkOperatorRoleResourceGroupAssignment 'Microsoft.Authorization/rol
   }
 }
 
-resource networkOperatorRoleSubnetAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (rbacScope == 'resource') {
-  name: guid(resourceGroup().id, cloudNetworkConfigMi.id, networkOperatorRoleId, subnet.id)
-  scope: subnet
-  properties: {
-    principalId: cloudNetworkConfigMi.properties.principalId
-    principalType: 'ServicePrincipal'
-    roleDefinitionId: networkOperatorRoleId
-  }
-}
+// No subnet-scoped assignment: the VNet-scoped grant below already covers the subnet via RBAC scope inheritance.
 
 resource networkOperatorRoleVnetAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (rbacScope == 'resource') {
   name: guid(resourceGroup().id, cloudNetworkConfigMi.id, networkOperatorRoleId, vnet.id)
@@ -355,15 +379,17 @@ resource dpFileCsiDriverFileStorageOperatorRoleResourceGroupAssignment 'Microsof
   }
 }
 
-resource dpFileCsiDriverFileStorageOperatorRoleSubnetAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (rbacScope == 'resource') {
-  name: guid(resourceGroup().id, dpFileCsiDriverMi.id, fileStorageOperatorRoleId, subnet.id)
-  scope: subnet
+resource dpFileCsiDriverFileStorageOperatorRoleVnetAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (rbacScope == 'resource') {
+  name: guid(resourceGroup().id, dpFileCsiDriverMi.id, fileStorageOperatorRoleId, vnet.id)
+  scope: vnet
   properties: {
     principalId: dpFileCsiDriverMi.properties.principalId
     principalType: 'ServicePrincipal'
     roleDefinitionId: fileStorageOperatorRoleId
   }
 }
+
+// No subnet-scoped assignment: the VNet-scoped grant above already covers the subnet via RBAC scope inheritance.
 
 resource dpFileCsiDriverFileStorageOperatorRoleNsgAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (rbacScope == 'resource') {
   name: guid(resourceGroup().id, dpFileCsiDriverMi.id, fileStorageOperatorRoleId, nsg.id)
@@ -379,6 +405,28 @@ resource dpImageRegistryMi 'Microsoft.ManagedIdentity/userAssignedIdentities@202
   name: identities.dpImageRegistryMiName
   scope: resourceGroup(resourceGroupName)
 }
+
+resource dpImageRegistryOperatorRoleResourceGroupAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (rbacScope == 'resourceGroup') {
+  name: guid(resourceGroup().id, dpImageRegistryMi.id, imageRegistryOperatorRoleId)
+  scope: resourceGroup()
+  properties: {
+    principalId: dpImageRegistryMi.properties.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: imageRegistryOperatorRoleId
+  }
+}
+
+resource dpImageRegistryOperatorRoleVnetAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (rbacScope == 'resource') {
+  name: guid(resourceGroup().id, dpImageRegistryMi.id, imageRegistryOperatorRoleId, vnet.id)
+  scope: vnet
+  properties: {
+    principalId: dpImageRegistryMi.properties.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: imageRegistryOperatorRoleId
+  }
+}
+
+// No subnet-scoped assignment: the VNet-scoped grant above already covers the subnet via RBAC scope inheritance.
 
 //
 // S E R V I C E   M A N A G E D   I D E N T I T Y
@@ -417,16 +465,7 @@ resource serviceManagedIdentityRoleAssignmentVnet 'Microsoft.Authorization/roleA
   }
 }
 
-// grant service managed identity role to the service managed identity over the user provided subnet
-resource serviceManagedIdentityRoleAssignmentSubnet 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (rbacScope == 'resource') {
-  name: guid(resourceGroup().id, serviceManagedIdentity.id, hcpServiceManagedIdentityRoleId, subnet.id)
-  scope: subnet
-  properties: {
-    principalId: serviceManagedIdentity.properties.principalId
-    principalType: 'ServicePrincipal'
-    roleDefinitionId: hcpServiceManagedIdentityRoleId
-  }
-}
+// No subnet-scoped assignment: the VNet-scoped grant above already covers the subnet via RBAC scope inheritance.
 
 // grant service managed identity role to the service managed identity over the user provided NSG
 resource serviceManagedIdentityRoleAssignmentNSG 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (rbacScope == 'resource') {

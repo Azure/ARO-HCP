@@ -2,6 +2,12 @@
 
 Velero is used to backup and restore Hosted Clusters, NodePools and Hosted Cluster ETCD instances.
 
+Management-agent requests orphaned backup deletion through Velero and separately
+retires unused Kopia repositories through durable cleanup CRs and scoped Azure
+prefix sweeps. See [backup lifecycle and operator guidance](../docs/backups.md#repository-retirement)
+for preservation opt-outs, infrastructure-first permissions, retained tombstones
+and completion limits. Deleting a BackupRepository alone does not erase its data.
+
 ## Installation Overview
 
 Velero is installed using the CLI from the oadp-1.5-latest image. The CLI is used instead of the upstream Helm chart because this installation method vetted by the OADP QA team.
@@ -23,7 +29,7 @@ The Velero CLI has a bug where it does not truncate init container names to be l
 
 ## Image Access
 
-The three Velero images are sourced from `registry.redhat.io`:
+The three Velero images are sourced from `registry.stage.redhat.io`:
 
 | Config Key | Repository |
 |---|---|
@@ -35,7 +41,7 @@ Image registries, repositories, and digests are defined in [`config/config.yaml`
 
 ### Image mirroring
 
-The deployment pipeline mirrors each image from `registry.redhat.io` to the service ACR before the Helm deploy step. This is handled by `ImageMirror` steps in [`velero/pipeline.yaml`](pipeline.yaml). Authentication to the Red Hat registry uses the `component-sync-pull-secret` stored in the global Key Vault (referenced via `imageSync.ondemandSync.pullSecretName`). See [`docs/secret-sync.md`](../docs/secret-sync.md) for how the pull secret is managed and validated.
+The deployment pipeline mirrors each image from `registry.stage.redhat.io` to the service ACR before the Helm deploy step. This is handled by `ImageMirror` steps in [`velero/pipeline.yaml`](pipeline.yaml). Authentication to the Red Hat registry uses the `component-sync-pull-secret` stored in the global Key Vault (referenced via `imageSync.ondemandSync.pullSecretName`). See [`docs/secret-sync.md`](../docs/secret-sync.md) for how the pull secret is managed and validated.
 
 ## OADP Partner Information
 

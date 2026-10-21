@@ -104,13 +104,13 @@ func runArmStackStep(
 	)
 
 	state.RLock()
-	inputValues, err := getInputValues(id.ServiceGroup, step.Variables, options.Configuration, state.Outputs)
+	inputValues, err := getInputValues(id.ServiceGroup, step.Variables, options.Configuration, state.GetOutputs(id.Stamp))
 	state.RUnlock()
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get input values: %w", err)
 	}
 
-	template, params, err := transformParameters(ctx, options.BicepClient, options.Configuration, inputValues, step.Parameters, options.PipelineDirectory)
+	template, params, err := transformParameters(ctx, options.BicepClient, options.Configuration, inputValues, step.Parameters, options.PipelineDirectory, options.SkipBicepparamValidation)
 	if err != nil {
 		return nil, nil, err
 	}

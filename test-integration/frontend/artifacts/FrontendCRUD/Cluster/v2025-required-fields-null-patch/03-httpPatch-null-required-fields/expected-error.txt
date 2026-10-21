@@ -1,5 +1,0 @@
-{
-    "code": "InvalidRequestContent",
-    "message": "Required value: field cannot be null",
-    "target": "properties.platform.vnetIntegrationSubnetId"
-  }

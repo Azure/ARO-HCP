@@ -1,6 +1,6 @@
 # Image Updater
 
-A tool that automatically fetches the latest container image digests from registries and updates ARO-HCP configuration files. It supports multiple registry types and secure credential management via Azure Key Vault.
+A tool that automatically fetches the latest container image digests from registries and updates ARO-HCP configuration files. It supports multiple registry types and authenticated access through the standard Docker credential store.
 
 ## Table of Contents
 
@@ -19,7 +19,6 @@ A tool that automatically fetches the latest container image digests from regist
   - [Architecture Examples](#architecture-examples)
 - [Authentication](#authentication)
   - [Authentication Methods by Registry](#authentication-methods-by-registry)
-  - [Azure Key Vault Integration](#azure-key-vault-integration)
   - [Docker Credentials](#docker-credentials)
 - [Tag Selection](#tag-selection)
   - [Specific Tag (Pinning)](#specific-tag-pinning)
@@ -76,10 +75,9 @@ All registries support anonymous access by default for public images. Private re
 
 1. **Load Configuration**: Reads `config.yaml` to get list of images and target YAML files to update
 
-2. **Authenticate** (if needed): 
-   - Fetches credentials from Azure Key Vault (deduplicates by vault URL + secret name)
-   - Merges with local Docker config (`~/.docker/config.json`)
-   - Supports Azure CLI, Managed Identity, and other Azure authentication methods
+2. **Authenticate** (if needed):
+   - Reads registry credentials from the standard Docker config (`~/.docker/config.json`)
+   - Uses Azure CLI, managed identity, or other `DefaultAzureCredential` sources for private ACR access
 
 3. **Select Registry Client**: Automatically chooses the appropriate client based on registry URL
    - `quay.io` → QuayClient (Quay API with 100 tags/page pagination)
@@ -106,8 +104,7 @@ All registries support anonymous access by default for public images. Private re
 
 - **Universal Registry Support**: Works with any Docker Registry HTTP API v2 compatible registry
 - **Anonymous by Default**: No authentication for public registries (MCR, Docker Hub, public Quay.io)
-- **Azure Key Vault Integration**: Per-image credential configuration with automatic deduplication
-- **Multiple Auth Methods**: Docker config, Azure CLI, Managed Identity
+- **Multiple Auth Methods**: Docker config and Azure `DefaultAzureCredential`
 
 ### Reliability & Performance
 
@@ -164,7 +161,7 @@ make update GROUPS=hypershift-stack,velero
 make update GROUPS=hypershift-stack EXCLUDE_COMPONENTS=maestro-agent-sidecar
 ```
 
-Example groups include `cs`, `aro-deps`, `hypershift-stack`, `prom-stack`, `obs-agents`, `velero`, and `platform-utils`. For the complete, current set of supported groups, refer to `config.yaml`.
+Example groups include `cs`, `hypershift-stack`, `prom-stack`, `obs-agents`, `velero`, and `platform-utils`. For the complete, current set of supported groups, refer to `config.yaml`.
 
 ### Output to File
 
@@ -202,27 +199,27 @@ To pin an image to a specific digest and prevent automatic updates:
 2. **Update `config.yaml`** to use a specific `tag` instead of `tagPattern`:
 
 ```yaml
-imageSync:
+clusters-service:
   source:
-    image: arohcpsvcdev.azurecr.io/image-sync/oc-mirror
-    tag: "8755133"  # Pin to a specific tag instead of tagPattern
+    image: quay.io/app-sre/aro-hcp-clusters-service
+    tag: "abc1234"  # Pin to a specific tag instead of tagPattern
     useAuth: true
   targets:
-  - jsonPath: defaults.imageSync.ocMirror.image.digest
+  - jsonPath: defaults.clustersService.image.digest
     filePath: ../../config/config.yaml
 ```
 
-3. **Authenticate to Azure** (required for ACR access):
+3. **Authenticate to the registry** if the image is private.
 
 ```bash
-az login
+docker login quay.io
 ```
 
 4. **Run the image-updater** to apply the pinned digest:
 
 ```bash
 # Update specific component
-make update COMPONENTS=imageSync
+make update COMPONENTS=clusters-service
 ```
 
 5. **Run materialize** to update rendered configs:
@@ -283,16 +280,13 @@ hypershift:
     filePath: ../../config/config.yaml
 ```
 
-**Quay.io (Private with Key Vault)**:
+**Quay.io (Private with Docker Credentials)**:
 ```yaml
 clusters-service:
   source:
     image: quay.io/app-sre/aro-hcp-clusters-service
     tagPattern: "^[a-f0-9]{7}$"
     useAuth: true  # Required for private repos
-    keyVault:
-      url: "https://arohcpdev-global.vault.azure.net/"
-      secretName: "component-sync-pull-secret"
   targets:
   - jsonPath: defaults.clustersService.image.digest
     filePath: ../../config/config.yaml
@@ -300,13 +294,13 @@ clusters-service:
 
 **Azure Container Registry (Private)**:
 ```yaml
-imageSync:
+tenant-quota:
   source:
-    image: arohcpsvcdev.azurecr.io/image-sync/oc-mirror
-    useAuth: true  # Uses DefaultAzureCredential
+    image: arohcpsvcdev.azurecr.io/tenant-quota-collector
+    useAuth: true  # Uses Azure DefaultAzureCredential
   targets:
-  - jsonPath: defaults.imageSync.ocMirror.image.digest
-    filePath: ../../config/config.yaml
+  - jsonPath: clouds.dev.defaults.opstool.tenantQuota.image.digest
+    filePath: ../../config/config-dev-ci.yaml
 ```
 
 **Azure Container Registry (Public)**:
@@ -375,9 +369,9 @@ prometheus-operator:
 
 ### Prerequisites
 
-**Azure Authentication** (required only when accessing Azure Container Registry or Azure Key Vault):
+**Azure Authentication** (required only when accessing a private Azure Container Registry):
 
-The tool uses the Azure SDK for ACR access and Key Vault integration. You must authenticate with the appropriate Azure account based on the registry environment:
+The ACR client uses the Azure SDK. Authenticate with the appropriate Azure account for the registry environment:
 
 **For dev environment** (`arohcpsvcdev.azurecr.io`):
 ```bash
@@ -393,7 +387,6 @@ az login
 
 Authentication is only required when:
 - Accessing private Azure Container Registries (`*.azurecr.io`)
-- Using Azure Key Vault for credential storage (`keyVault` configuration)
 
 Without proper authentication, you will encounter `401 Unauthorized` errors when accessing these Azure resources. Public registries (MCR, Quay.io, Docker Hub, etc.) do not require Azure authentication.
 
@@ -402,45 +395,20 @@ Without proper authentication, you will encounter `401 Unauthorized` errors when
 | Registry | Default | Auth Methods |
 |----------|---------|--------------|
 | Quay.io (public) | Anonymous | None needed |
-| Quay.io (private) | Requires auth | Docker config, Key Vault |
+| Quay.io (private) | Requires auth | Docker config |
 | ACR (public) | Anonymous | None needed |
 | ACR (private) | Requires auth | DefaultAzureCredential (Azure CLI, Managed Identity, etc.) |
 | MCR | Anonymous | Always public |
 | Generic/Docker Hub | Anonymous | Docker config |
 
-### Azure Key Vault Integration
-
-For private registries, configure Azure Key Vault on a per-image basis:
-
-```yaml
-source:
-  image: quay.io/app-sre/private-repo
-  useAuth: true
-  keyVault:
-    url: "https://arohcpdev-global.vault.azure.net/"
-    secretName: "component-sync-pull-secret"
-```
-
-**Benefits**:
-- Credentials stored securely in Azure Key Vault
-- Different images can use different secrets
-- Automatic deduplication (same vault+secret fetched only once)
-- Works with `az login` and other Azure authentication
-
-**Requirements**:
-- Azure CLI authenticated (`az login`) or Managed Identity
-- Read access to the Key Vault
-- Pull secret in Docker config.json format (base64 or raw JSON)
 
 ### Docker Credentials
 
-For Quay.io and generic registries, you can also use Docker credentials:
+For Quay.io and generic registries, use Docker credentials:
 
 ```bash
 # Login to Quay.io
 docker login quay.io
-# or
-podman login quay.io
 ```
 
 Credentials are stored in `~/.docker/config.json` and automatically used when `useAuth: true`.
@@ -584,7 +552,6 @@ Write results to file in different formats:
   - Registry API calls
   - Retry attempts with backoff
   - Tag filtering steps
-  - Key Vault authentication
   - Manifest inspection
 
 Use `-v=2` for debugging auth issues, tag filtering, or network failures.
@@ -610,8 +577,6 @@ Use `-v=2` for debugging auth issues, tag filtering, or network failures.
 | `architecture` | string | No | `amd64` | Target architecture (mutually exclusive with `multiArch`) |
 | `multiArch` | bool | No | `false` | Fetch multi-arch manifest list (mutually exclusive with `architecture`) |
 | `useAuth` | bool | No | `false` | Require authentication (needed for private registries) |
-| `keyVault.url` | string | No | - | Azure Key Vault URL |
-| `keyVault.secretName` | string | No | - | Pull secret name in Key Vault |
 | `repoVersionUpgrade.repoPrefix` | string | No | - | Repo name prefix before version suffix; enables `--repositories` mode for this component |
 
 ### Target Fields

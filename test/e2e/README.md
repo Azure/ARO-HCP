@@ -6,6 +6,73 @@ For more information about ARO HCP environments, see the [ARO HCP Environments d
 
 ## Writing and running new E2E Test cases
 
+### SWIFT Networking
+
+The newer API-version default cluster parameters set `DisableSwift = true` to
+reduce consumption of management-cluster SWIFT NICs. The request builder sets
+`aro-hcp.experimental.cluster.disable-swift: "true"` and omits
+`properties.platform.vnetIntegrationSubnetId`. The customer subscription must
+have the `ExperimentalReleaseFeatures` AFEC registered; there is no fallback to
+SWIFT when the opt-in is unavailable. The `2024-06-10-preview` helpers retain
+their existing non-SWIFT behavior.
+
+Set `clusterParams.DisableSwift = false` explicitly for private API or private
+KMS scenarios, which always require VNet integration. Public SWIFT coverage is
+retained by the OCP-version install table (`2025-12-23-preview`), node-pool
+deletion (`2026-09-01-preview`), telemetry (`2025-12-23-preview`), cluster/node-pool active versions
+(`2026-10-01`), and the independent HyperShift presubmit test. The install
+table covers each available OCP release line; entries without resolvable releases
+skip before creating a cluster. There is not yet a `2026-06-30-preview` creation
+test, and `2024-06-10-preview` cannot express SWIFT networking on creation.
+Private application ingress alone does not require SWIFT. Customer infrastructure
+still creates the integration subnet, but non-SWIFT requests do not use it.
+
+The opt-in authorizes creation only. Networking remains immutable: removing the
+tag or revoking AFEC does not change an existing cluster's networking or prevent
+ordinary updates. An honored `"true"` tag together with an integration subnet is
+rejected. Tag names are case-insensitive; values must be exactly `"true"` or
+`"false"`. Without AFEC, the tag is ignored and normal subnet requirements apply.
+
+### SWIFT Telemetry Coverage
+
+`Engineering should be able to retrieve kusto logs for a cluster and services`
+creates an explicitly SWIFT-enabled cluster and two workers. See the
+[test](kusto_logs_present.go) and [`VerifySwiftRouterChecks` implementation/KQL](../util/verifiers/swift.go).
+It uses the test context's Azure credential, not management-cluster credentials,
+and service config `kusto.kustoName`, `kusto.location`, `kusto.serviceLogsDatabase`.
+The credential needs query access to `cosmosResourceSnapshots`,
+`kubernetesResourceSnapshots`, and `containerLogs` in that database.
+
+Mapping is exact: customer ARM ID -> child cluster ReadDesire HostedCluster ->
+fleet management-cluster document -> AKS telemetry cluster and HCP namespace
+(`metadata.namespace + "-" + metadata.name`). ReadDesire matching is
+case-insensitive and slash-delimited, excluding similarly named clusters and
+node-pool ReadDesires; it does not use Cluster Service log CID or `spec.infraID`.
+`spec.managementCluster` joins fleet `resourceID` case-insensitively; the last
+segment of fleet `status.aksResourceID` supplies the telemetry cluster name.
+Cosmos joins retain environment, region, and snapshot-emitting service cluster
+(not the target management cluster) to avoid collisions across personal/CI installs.
+Latest documents are selected by `content._ts`, then snapshot `timestamp`, before
+excluding tombstones or absent/deleting manifests; duplicates do not multiply
+scope. Mapping documents may predate test start. The linked KQL specifies the
+manifest fields and fleet resource types.
+
+Kubernetes evidence must be since test start: latest snapshots, filtered for
+deletion afterward, establish router Deployment replicas and every Running,
+nondeleting private-router Pod UID. Missing/ambiguous mapping, replicas, or reports
+cannot pass. Kusto returns bounded summaries, not raw probe logs.
+
+Call `VerifySwiftRouterChecks(ctx, credential, resourceID, startTime, workers, timeout)`
+with a nonzero test start and positive worker count/timeout; this test allows
+12 minutes. Every current router needs a latest healthy, complete summary matching
+its UID/node, emitted after test start and no more than eight minutes old.
+All [probe roles and DNS coverage](../../swift-recorder/LOG_RECORDS.md#role-matrix-and-tls-identities)
+must be present, including all peers and at least the requested worker count.
+Non-TCP targets require HTTP success (verified TLS for HTTPS); worker TCP refusal
+counts as reachability, not SSH readiness. Partial/canceled passes, missing coverage,
+and protocol failures fail. The verifier owns polling, one-minute query deadlines,
+and delta-only timeout diagnostics; do not wrap it in another `Eventually`.
+
 ### Resource Naming
 
 > **Important:** These tests are running in parallel so it is **VITAL** that we avoid naming collisions with other tests that may be running in CI at the same time. This may break CI runs until the duplicate resources are removed!
@@ -23,7 +90,7 @@ When writing E2E test cases that provision their own cluster (i.e., the test cas
 - **Label Requirement:** You **MUST** add the `RequireNothing` label to these test cases. This label ensures the test is always considered for CI execution.
 - **Triggering in CI:** These tests will automatically run in the CI pipeline when a pull request is created or updated. Specifically, they are executed as part of the `ci/prow/integration...` and `ci/prow/stage...` jobs.
 
-See [`test/e2e/complete_cluster_create.go`](complete_cluster_create.go) for a reference implementation.
+See [`test/e2e/complete_cluster_create_multiversion.go`](complete_cluster_create_multiversion.go) for a reference implementation.
 
 > **Note:** Creating per-test cluster test cases is the **main focus** of this test suite. Whenever possible, prefer writing per-test cluster test cases over per-run cluster test cases. Priority may change in future.
 
@@ -71,8 +138,34 @@ You can also redefine default OpenShift versions the E2E test cases will use
 when deploying ARO HCP hosted cluster, eg.:
 
 ```bash
+$ export ARO_HCP_OPENSHIFT_CONTROLPLANE_VERSION=4.21
+$ export ARO_HCP_OPENSHIFT_NODEPOOL_VERSION=4.21.0
+```
+
+Cluster parameters retain the full selected `OpenshiftVersionId` until the
+`BuildHCPClusterFromParams*` request boundary. For an exact control-plane build
+(including nightly), the builder sends its release line in `properties.version.id`
+and the full build in `aro-hcp.experimental.cluster.control-plane-exact-version`.
+This uses existing RP support to preserve the pin through GET and unrelated PATCH
+requests; it does not change customer `version.id` behavior. The subscription must
+have the `ExperimentalReleaseFeatures` AFEC registered.
+
+Use `PickAtLeastOpenshiftVersionId` on the raw parameters before building requests
+when a test requires a minimum version. Builders preserve explicit exact-version
+tags for bare version IDs and never mutate the input parameters. Version-changing
+PATCH requests must use `ControlPlaneExactVersionPatchTags` to replace an exact pin
+or explicitly send it as `null` when following a release line. Unrelated PATCHes
+should omit it. Node-pool version IDs remain concrete versions.
+
+When `ARO_HCP_OPENSHIFT_CONTROLPLANE_VERSION` is set, you can also set
+`ARO_HCP_OPENSHIFT_LATEST_Z_STREAM=true` to resolve that major.minor (or full
+semver) to the latest z-stream install version in the active channel group
+(`ARO_HCP_OPENSHIFT_CHANNEL_GROUP`, default `candidate`):
+
+```bash
 $ export ARO_HCP_OPENSHIFT_CONTROLPLANE_VERSION=4.20
-$ export ARO_HCP_OPENSHIFT_NODEPOOL_VERSION=4.20.15
+$ export ARO_HCP_OPENSHIFT_LATEST_Z_STREAM=true
+# e.g. resolves to 4.20.15 (whatever is latest in the channel)
 ```
 
 So finally, you can run a particular test case:
@@ -85,6 +178,19 @@ Or `integration/parallel` test suite:
 
 ```bash
 $ ./test/aro-hcp-tests run-suite "integration/parallel" --junit-path="junit.xml"
+```
+
+The `integration/parallel/all` and `stage/parallel/all` suites select the union
+of their fast (`integration/parallel` / `stage/parallel`) and Slow
+(`integration/parallel/slow` / `stage/parallel/slow`) suites. Each retains its
+environment exclusions and runs both Slow-labeled and non-Slow tests in one
+suite:
+
+```bash
+./test/aro-hcp-tests list tests --suite "integration/parallel/all" --output names
+./test/aro-hcp-tests run-suite "integration/parallel/all"
+./test/aro-hcp-tests list tests --suite "stage/parallel/all" --output names
+./test/aro-hcp-tests run-suite "stage/parallel/all"
 ```
 
 ### Test cases with per-run cluster
@@ -158,6 +264,30 @@ Set the **CUSTOMER_SUBSCRIPTION** environment variable to the **name** of the Az
 ### Artifact Directory (ARTIFACT_DIR)
 Set the **ARTIFACT_DIR** environment variable to specify the directory where test artifacts and logs will be saved. This is especially useful in CI environments to collect and persist test outputs.
 
+When a versioned `CreateNodePoolFromParam` helper fails during bringup, it gathers
+an Azure failure bundle before returning the original error. Each failure gets
+its own `azure-failure-<nodepool>-<timestamp>-<suffix>/` directory beneath the
+test's artifact directory, including VM console logs. Collection has a single
+five-minute budget independent of the failed provisioning context.
+
+The bundle contains full typed Azure networking objects from the supplied
+customer and managed resource groups: load balancers, NICs, VNets/subnets, NSGs,
+route tables, NAT gateways, public IPs, private endpoints and DNS zone groups,
+and private DNS zones, records and VNet links. Worker NIC effective routes and
+effective NSGs are queried best-effort. VM summaries and instance views exclude
+bootstrap data, extension settings and credential-bearing URLs. Console logs
+and instance views are gathered independently. References outside those two
+resource groups are not followed; no Kubernetes collection or active network
+probe is added.
+
+Start with `manifest.json` for collection times, operation status, errors and
+artifact paths. Successful pages are retained even if later requests fail or
+the deadline expires. Empty results are distinguished from failed or skipped
+operations. Effective-state queries require the NIC diagnostic action
+permissions and may be unavailable during early VM provisioning. This bundle
+captures configuration at failure time, not historical packet delivery or the
+backend selected for an individual connection.
+
 ### Shared Directory (SHARED_DIR)
 Set the **SHARED_DIR** environment variable to specify a directory for sharing files between different CI steps or test invocations. This directory is used for storing files that need to be accessed across multiple test runs or scripts.
 
@@ -176,7 +306,12 @@ which contains all E2E test cases compatible with dev environment.
 ./test/aro-hcp-tests run-suite "rp-api-compat-all/parallel"
 ```
 Or this could be simplified by just running the following make command which would set the required environment variable, build the binary and execute the complete suite against your RP .
+Set the config variables accordingly to run the metrics tests locally.
 ```bash
+export ARO_HCP_CONFIG_FILE="REPOROOT/config/config.yaml"; \
+export CLOUD="dev"; \
+export DEPLOY_ENV="pers"; \
+export REGION="westus3"; \
 make e2e/local
 ```
 
@@ -199,6 +334,64 @@ For instructions and best practices on creating ARO HCP E2E test cases, refer to
 
 Be sure to review these guidelines before creating or updating ARO HCP E2E test cases.
 
+## Selecting VM sizes (SKUs)
+
+E2E tests must **not** hardcode VM SKUs. Across the many subscriptions and
+regions the suite runs in, a fixed SKU may be quota-restricted (for example
+`NotAvailableForSubscription`), which breaks node pool creation in that environment.
+
+Instead, resolve VM sizes at runtime through the restriction-aware selector in
+[`test/util/framework/vm_sku_selection.go`](../util/framework/vm_sku_selection.go):
+
+- `tc.SelectVMSize(ctx, selector)` queries the Azure **Resource SKUs** API for the
+  test location, filters out SKUs that are restricted in the current
+  subscription/location, applies the selector's capability filters, and returns
+  a usable SKU. When the selector requires zones, only SKUs with at least one
+  non-restricted zone are considered usable. It prefers the selector's ordered
+  `Preferred` list first, then falls back to a deterministic, sorted pick when
+  the selector permits discovery.
+- Use the named selectors for common shapes: `DefaultWorkerVMSizeSelector()`,
+  `SmallWorkerVMSizeSelector()`, `JumpboxVMSizeSelector()`,
+  `ARM64NodePoolVMSizeSelector()`, `GPUNodePoolVMSizeSelector()`.
+- The default node pool params (`NewDefaultNodePoolParams20240610` /
+  `...20251223` / `...20260630`) leave `VMSize` empty; `CreateNodePoolFromParam*`
+  resolves it via `DefaultWorkerVMSizeSelector()` automatically. The OS disk
+  storage account type comes from the shared `DefaultDiskStorageAccountType`
+  constant. Set `VMSize` explicitly only to pin a specific size (for example
+  negative tests that assert on a specific SKU).
+
+The optional `vm_family_policy` is resolved by slot-manager against the acquired
+runtime region and exported as `ARO_HCP_E2E_VM_FAMILY_POLICY`. The suite consumes
+that resolved policy; it does not select a region or load catalog configuration.
+See the [slot-manager design](../cmd/aro-hcp-tests/slot-manager/DESIGN.md#vm--worker-sku-policy)
+for the catalog and runtime contract.
+
+Configured selectors search supplied families in order, then choose a usable
+preferred size or deterministic discovery result within a family. Restriction
+and capability checks still apply; see
+[`vm_sku_selection.go`](../util/framework/vm_sku_selection.go) for selector
+behavior.
+
+
+Local runs can supply the same resolved override without slot-manager:
+
+```bash
+export ARO_HCP_E2E_VM_FAMILY_POLICY='{"worker_families":["standardDSv5Family"],"helper_families":["standardDDSv5Family"]}'
+./test/aro-hcp-tests run-suite integration/parallel
+```
+
+Keep the usual local subscription, location, and authentication setup. The
+override does not choose a subscription or region, or grant quota.
+
+Only reported **restrictions** are honoured; quota *headroom* (vCPU Usages API)
+is out of scope. [ARO-30092](https://redhat.atlassian.net/browse/ARO-30092)
+records 2,000 vCPUs for each configured worker family, 350 for each helper
+family, and a shared 6,950-vCPU regional limit in the target subscription.
+Enabling further families requires checking their quota, total regional quota,
+and workload demand first. Azure SKU metadata and quota approval do not reserve
+physical capacity or guarantee that a later VM allocation succeeds. Ordered
+selection does not retry deployments after allocation or quota failures.
+
 ## Updating E2E Timeouts
 
 Shared timeout constants live in [`test/util/framework/constants.go`](../util/framework/constants.go).
@@ -206,6 +399,8 @@ Shared timeout constants live in [`test/util/framework/constants.go`](../util/fr
 **When to add a constant:** Use a named constant when the same duration applies to **multiple test cases** (same ARM operation, framework helper, or verifier pattern). **When a literal is fine:** A timeout that is specific to one test and only used once (for example, polling for a CR inside a single `Eventually` block) can stay inline in that test.
 
 Set each shared constant to the **99th percentile** of observed operation duration across environments (int, stage, prod as applicable). When tuning, change only the constant in `constants.go`—do not copy the value into individual tests.
+
+Cluster and node pool update helpers set the experimental `max-update-duration` tag to the supplied timeout minus one minute. When update tags are omitted, the helpers first read the resource's current tags and preserve them while adding the timeout tag. Explicit tag maps keep their replacement semantics. This gives the server time to return pending reasons before the test context expires. The tag requires `ExperimentalReleaseFeatures`; update timeouts must be at least two minutes to allow the minimum one-minute server deadline.
 
 Framework helpers include an API version suffix. See [`test/AGENTS.md`](../AGENTS.md) for naming conventions.
 
@@ -216,6 +411,8 @@ Framework helpers include an API version suffix. See [`test/AGENTS.md`](../AGENT
 | Provisioning | `ExternalAuthCreationTimeout` | `CreateOrUpdateExternalAuthAndWait20240610` |
 | Access cluster | `GetAdminRESTConfigTimeout` | `GetAdminRESTConfigForHCPCluster20240610` |
 | Deletion | `HCPClusterDeletionTimeout` | `DeleteHCPCluster20240610`, `DeleteAllHCPClusters20240610`, inline delete pollers |
+| Deletion | `NodePoolDeletionTimeout` | `DeleteNodePool20240610`, inline node pool delete pollers |
+| Deletion | `ExternalAuthDeletionTimeout` | `DeleteExternalAuth20240610`, inline external auth delete pollers |
 | Update | `UpdateHCPClusterTimeout` | `UpdateHCPCluster20240610` (tags, IDMS, autoscaling PATCH); preview: `UpdateHCPCluster20251223` |
 | Update | `HCPClusterVersionUpgradeTimeout` | Control plane version upgrades (`UpdateHCPCluster20240610`, `Eventually` verifiers) |
 | Update | `NodePoolVersionUpgradeTimeout` | Node pool version upgrades (`UpdateNodePoolAndWait20240610`, `Eventually` verifiers) |
@@ -239,6 +436,38 @@ database('ServiceLogs').table('backendLogs')
     by resource_id, resource_type
 | where isnotempty(provisioning_time) and isnotempty(succeeded_time)
 | extend duration = succeeded_time - provisioning_time
+| summarize
+    count  = count(),
+    avg    = avg(duration),
+    p50    = percentile(duration, 50),
+    p90    = percentile(duration, 90),
+    p95    = percentile(duration, 95),
+    p99    = percentile(duration, 99),
+    p999   = percentile(duration, 99.9),
+    p9999  = percentile(duration, 99.99)
+    by resource_type
+```
+
+### Deletion durations (Kusto)
+
+For **delete** timeouts, run the following query. The key differences from the provisioning query are: `controller_name endswith 'delete'`, start is detected via `log.msg == 'checking operation'`, and end via `log.newStatus == 'Succeeded'`.
+
+```kql
+database('ServiceLogs').table('backendLogs')
+| where timestamp between (ago(7d) .. now())
+| where container_name == 'aro-hcp-backend'
+| where log.controller_name endswith 'delete'
+| where log.msg == 'checking operation'
+    or (log.msg has 'Updating operation status' and log.newStatus == 'Succeeded')
+| project timestamp, resource_id = tostring(log.resource_id), resource_type = tostring(log.resourceType),
+    is_start = log.msg == 'checking operation',
+    is_end   = log.newStatus == 'Succeeded'
+| summarize
+    start_time     = minif(timestamp, tobool(is_start)),
+    succeeded_time = minif(timestamp, tobool(is_end))
+    by resource_id, resource_type
+| where isnotempty(start_time) and isnotempty(succeeded_time)
+| extend duration = succeeded_time - start_time
 | summarize
     count  = count(),
     avg    = avg(duration),
@@ -314,6 +543,10 @@ API usage and compatibility:
 Positivity labels:
 
 - `Positive`/`Negative`: indicates positive/negative test scenarios
+
+Retry labels:
+
+- `allow-retry`: marks a test as safe to auto-retry during an EV2 gating run (INT, Stage or Prod) when it fails due to a known, actively tracked issue. Temporary by design (tracked in AROSLSRE-1721): every use must have an owner and a tracking issue, and must be removed once the underlying issue is fixed.
 
 ### Assertions
 

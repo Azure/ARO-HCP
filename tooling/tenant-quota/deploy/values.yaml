@@ -4,9 +4,34 @@
 imageRegistry: ""
 imageRepository: "tenant-quota-collector"
 imageTag: ""
+imageDigest: ""
 msiClientId: ""
+exitOnPanic: false
 secretProvider:
   keyVault: ""
   msiClientId: ""
   tenantId: ""
+prow:
+  enabled: false
+  baseURL: ""
+  interval: "5m"
+  retention: "24h"
+  repository:
+    org: ""
+    name: ""
+  excludeJobs: []
+ciJobOutcomes:
+  enabled: false
+  gcsBucket: "test-platform-results-public"
+  interval: "15m"
+  discoveryInterval: "30m"
+  completionDelay: "15m"
+  window: "24h"
+  startupSince: ""
+  repairInterval: "12h"
+  overlap: "10m"
+  workers: 10
+  discoveryWorkers: 2
+  cacheSize: 20000
+  cacheTTL: "15m"
 tenants: []

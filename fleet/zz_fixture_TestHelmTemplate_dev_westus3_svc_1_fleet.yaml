@@ -1,4 +1,17 @@
 ---
+# Source: fleet/templates/fleet-controller.poddisruptionbudget.yaml
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: fleet-controller
+  namespace: fleet
+spec:
+  minAvailable: 1
+  unhealthyPodEvictionPolicy: AlwaysAllow
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: fleet-controller
+---
 # Source: fleet/templates/serviceaccount.yaml
 apiVersion: v1
 kind: ServiceAccount
@@ -117,8 +130,20 @@ spec:
         - '__cosmosUrl__'
         - --cosmos-name
         - 'arohcpdev-rp-usw3'
+        - --clusters-service-url
+        - 'http://clusters-service.clusters-service.svc.cluster.local:8000'
         - --kube-namespace
         - 'fleet'
+        - "--amw-scaling-poll-interval"
+        - "30s"
+        - "--amw-workspace-resource-id"
+        - "__svcAzureMonitorWorkspaceId__"
+        - "--amw-workspace-resource-id"
+        - "__hcpAzureMonitorWorkspaceId__"
+        - "--nodepool-profile"
+        - "production"
+        - "--azure-region-availability-zone-count"
+        - "3"
         ports:
         - name: healthz
           containerPort: 8080
@@ -126,6 +151,19 @@ spec:
         - name: metrics
           containerPort: 8081
           protocol: TCP
+        startupProbe:
+          httpGet:
+            path: /startupz
+            port: healthz
+          timeoutSeconds: 6
+          periodSeconds: 10
+          failureThreshold: 30
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: healthz
+          periodSeconds: 20
+          failureThreshold: 3
         readinessProbe:
           httpGet:
             path: /healthz

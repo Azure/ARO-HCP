@@ -1,0 +1,180 @@
+rule_files:
+- cluster-provision-slo-recordingRule.yaml
+evaluation_interval: 1m
+tests:
+# Verify recording rules produce expected output from input series.
+# 6 succeeded, 4 failed cluster create operations → error rate = 40%.
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/a", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/b", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/c", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/d", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/e", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/f", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/g", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="failed", cluster="mgmt-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/h", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="failed", cluster="mgmt-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/i", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="failed", cluster="mgmt-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/j", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="failed", cluster="mgmt-1"}'
+    values: "1+0x15"
+  # In-flight (non-terminal) and other resource/operation types must be ignored
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/k", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="provisioning", cluster="mgmt-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/np/a", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="create", phase="failed", cluster="mgmt-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/l", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "1+0x15"
+  # Canceled operations must be excluded from both numerator and denominator
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/m", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="canceled", cluster="mgmt-1"}'
+    values: "1+0x15"
+  promql_expr_test:
+  - expr: "errors:backend_cluster_provision:succeeded_total"
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:backend_cluster_provision:succeeded_total{cluster="mgmt-1"}'
+      value: 6
+  - expr: "errors:backend_cluster_provision:terminal_total"
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:backend_cluster_provision:terminal_total{cluster="mgmt-1"}'
+      value: 10
+  - expr: "errors:backend_cluster_provision:error_rate"
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:backend_cluster_provision:error_rate{cluster="mgmt-1"}'
+      value: 0.4
+# ========================================
+# Latency Recording Rule Tests
+# ========================================
+# Test: In-flight cluster create operation — duration computed
+# Operation started at t=0 (start_time_seconds=0), still in "provisioning" phase.
+# At eval_time=10m (600s), duration should be 600.
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/2/cluster/inflight", subscription_id="sub-2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="provisioning", cluster="mgmt-1"}'
+    values: "0+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/2/cluster/inflight", subscription_id="sub-2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="provisioning", cluster="mgmt-1"}'
+    values: "1+0x15"
+  promql_expr_test:
+  - expr: latency:backend_cluster_provision:inflight_duration_seconds
+    eval_time: 10m
+    exp_samples:
+    - labels: 'latency:backend_cluster_provision:inflight_duration_seconds{cluster="mgmt-1", operation_type="create", phase="provisioning", resource_id="/sub/2/cluster/inflight", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", subscription_id="sub-2"}'
+      value: 600
+# Test: Terminal operation — no duration emitted
+# Operation in "succeeded" phase should NOT produce a latency metric.
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/3/cluster/done", subscription_id="sub-3", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1"}'
+    values: "0+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/3/cluster/done", subscription_id="sub-3", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1"}'
+    values: "1+0x15"
+  promql_expr_test:
+  - expr: latency:backend_cluster_provision:inflight_duration_seconds
+    eval_time: 10m
+    exp_samples: []
+# Test: Isolation — nodepool and update operations excluded
+# Only cluster create operations in non-terminal phase should produce duration.
+- interval: 1m
+  input_series:
+  # Nodepool create in provisioning (different resource_type — excluded)
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/4/np/a", subscription_id="sub-4", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="create", phase="provisioning", cluster="mgmt-1"}'
+    values: "0+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/4/np/a", subscription_id="sub-4", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="create", phase="provisioning", cluster="mgmt-1"}'
+    values: "1+0x15"
+  # Cluster update in provisioning (different operation_type — excluded)
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/4/cluster/b", subscription_id="sub-4", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="provisioning", cluster="mgmt-1"}'
+    values: "0+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/4/cluster/b", subscription_id="sub-4", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="provisioning", cluster="mgmt-1"}'
+    values: "1+0x15"
+  promql_expr_test:
+  - expr: latency:backend_cluster_provision:inflight_duration_seconds
+    eval_time: 10m
+    exp_samples: []
+# ========================================
+# Windowed recording rule tests (stateless, last_transition-windowed)
+# ========================================
+# A stale failure (transition t=0, still emitted within the 7-day TTL) plus a
+# recent failure and a recent success (transition t=90m). At eval 95m the stale
+# one is outside the 1h window and is excluded, so error_rate_1h = 1/2 = 0.5.
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", subscription_id="sub-1", resource_id="/old", phase="failed"}'
+    values: "1x200"
+  - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", subscription_id="sub-1", resource_id="/old", phase="failed"}'
+    values: "0x200"
+  - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", subscription_id="sub-1", resource_id="/f1", phase="failed"}'
+    values: "_x89 1x111"
+  - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", subscription_id="sub-1", resource_id="/f1", phase="failed"}'
+    values: "_x89 5400x111"
+  - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", subscription_id="sub-1", resource_id="/s1", phase="succeeded"}'
+    values: "_x89 1x111"
+  - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", subscription_id="sub-1", resource_id="/s1", phase="succeeded"}'
+    values: "_x89 5400x111"
+  promql_expr_test:
+  - expr: errors:backend_cluster_provision:failed_1h
+    eval_time: 95m
+    exp_samples:
+    - labels: 'errors:backend_cluster_provision:failed_1h{cluster="mgmt-1"}'
+      value: 1
+  - expr: errors:backend_cluster_provision:error_rate_1h
+    eval_time: 95m
+    exp_samples:
+    - labels: 'errors:backend_cluster_provision:error_rate_1h{cluster="mgmt-1"}'
+      value: 0.5
+# Canceled operations excluded from windowed denominator and failure count.
+# 1 succeeded, 1 failed, 1 canceled — all with recent transitions.
+# Canceled must not appear in total_1h (expect 2) or failed_1h (expect 1).
+# error_rate_1h = 1/2 = 0.5.
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", subscription_id="sub-1", resource_id="/s1", phase="succeeded"}'
+    values: "1x200"
+  - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", subscription_id="sub-1", resource_id="/s1", phase="succeeded"}'
+    values: "0x200"
+  - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", subscription_id="sub-1", resource_id="/f1", phase="failed"}'
+    values: "1x200"
+  - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", subscription_id="sub-1", resource_id="/f1", phase="failed"}'
+    values: "0x200"
+  - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", subscription_id="sub-1", resource_id="/c1", phase="canceled"}'
+    values: "1x200"
+  - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", subscription_id="sub-1", resource_id="/c1", phase="canceled"}'
+    values: "0x200"
+  promql_expr_test:
+  - expr: errors:backend_cluster_provision:failed_1h
+    eval_time: 30m
+    exp_samples:
+    - labels: 'errors:backend_cluster_provision:failed_1h{cluster="mgmt-1"}'
+      value: 1
+  - expr: errors:backend_cluster_provision:total_1h
+    eval_time: 30m
+    exp_samples:
+    - labels: 'errors:backend_cluster_provision:total_1h{cluster="mgmt-1"}'
+      value: 2
+  - expr: errors:backend_cluster_provision:error_rate_1h
+    eval_time: 30m
+    exp_samples:
+    - labels: 'errors:backend_cluster_provision:error_rate_1h{cluster="mgmt-1"}'
+      value: 0.5
+# Zero in-window failures: the `or 0 * ...` term pins the failure rate to 0.
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", subscription_id="sub-1", resource_id="/s1", phase="succeeded"}'
+    values: "1x200"
+  - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", subscription_id="sub-1", resource_id="/s1", phase="succeeded"}'
+    values: "0x200"
+  promql_expr_test:
+  - expr: errors:backend_cluster_provision:error_rate_1h
+    eval_time: 30m
+    exp_samples:
+    - labels: 'errors:backend_cluster_provision:error_rate_1h{cluster="mgmt-1"}'
+      value: 0

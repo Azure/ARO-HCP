@@ -8,7 +8,7 @@ API access is not desirable (credentials, blast radius, network topology).
 
 Today, parts of this gap are closed by purpose-built controllers (e.g. the
 `Controller` resource pattern, Maestro's bundle controllers, etc.). The
-`kube-applier` generalises that bridge by introducing three minimal,
+`kube-applier` generalises that bridge by introducing two minimal,
 declarative "desire" resources stored in Cosmos. The backend writes them; the
 kube-applier reconciles them against the local kube-apiserver.
 
@@ -22,7 +22,8 @@ kube-applier reconciles them against the local kube-apiserver.
    +---------+   |   (cross-partition)|     |  partition = MgmtCluster    |
                  +--------------------+     |  docs:                      |
                                             |   - ApplyDesire             |
-                                            |   - DeleteDesire            |
+                                            |     (Type=ServerSideApply   |
+                                            |      | Delete)              |
                                             |   - ReadDesire              |
                                             +--------------+--------------+
                                                            |
@@ -32,7 +33,7 @@ kube-applier reconciles them against the local kube-apiserver.
    +-------------+   +-------------------------------------+--+
    | Mgmt        |   |  kube-applier binary (per mgmt cluster) |
    | Kube API    |<--|  - ApplyDesireController               |
-   |             |   |  - DeleteDesireController              |
+   |             |   |    (handles SSA + Delete via Type)     |
    |             |   |  - ReadDesireInformerManagingController|
    |             |   |     spawns/destroys                    |
    |             |   |       ReadDesireKubernetesController N |
@@ -60,8 +61,10 @@ subscription ID. Implications:
 
 ### One Cosmos document per `*Desire`; no list/select APIs at the kube layer
 
-Per the readme: each `*Desire` references exactly one Kubernetes object. We
-are intentionally not adding `ApplyManyDesire`, `ReadManyDesire`, label
+Per the readme: each `*Desire` references exactly one Kubernetes object.
+`ApplyDesire` uses a discriminated union on `Type` (`ServerSideApply` or
+`Delete`) so a single CRD covers both apply and delete semantics. We are
+intentionally not adding `ApplyManyDesire`, `ReadManyDesire`, label
 selectors, or list-all variants. This keeps every `.status` story
 unambiguous.
 
@@ -73,8 +76,15 @@ We reuse that idiom on each `*Desire.Status.Conditions`.
 
 The well-known condition types per the readme:
 
-- `Successful` &mdash; was the desired effect achieved (with reasons
-  `KubeAPIError` or `PreCheckFailed` when not).
+- `SuccessfullyApplied` &mdash; for an ApplyDesire with `Type=ServerSideApply`,
+  was the desired effect achieved (with reasons `KubeAPIError` or
+  `PreCheckFailed` when not).
+- `SuccessfullyDeleted` &mdash; for an ApplyDesire with `Type=Delete`, is the
+  target gone (`WaitingForDeletion` while finalizers run).
+- `Successful` &mdash; retained for backwards compatibility. For an ApplyDesire
+  it mirrors whichever operation-specific condition applies; it is the primary
+  condition for a ReadDesire. Readers prefer the operation-specific condition and
+  fall back to `Successful` (`kubeapplierapi.IsConditionTruePreferring`).
 - `Degraded` &mdash; controller-level health (replaces the existing
   `Controller` resource's `Degraded`).
 

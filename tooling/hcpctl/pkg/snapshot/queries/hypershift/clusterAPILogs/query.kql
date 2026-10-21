@@ -5,13 +5,16 @@ cluster('{{ .ClusterURI }}').database('{{ .HCPDatabase }}').table('containerLogs
 {{- end }}
 | where namespace_name == '{{ .HostedControlPlaneNamespace }}'
 | where pod_name has 'cluster-api-'
-| extend msg = extract(@']\s+"([^"]+)"', 1, tostring(log))
-| extend err = extract(@'err="((?:[^"\\]|\\.)*)"', 1, tostring(log))
-| extend controller = extract(@'controller="([^"]*)"', 1, tostring(log))
-| extend controllerGroup = extract(@'controllerGroup="([^"]*)"', 1, tostring(log))
-| extend controllerKind = extract(@'controllerKind="([^"]*)"', 1, tostring(log))
-| extend name = extract(@'\sname="([^"]*)"', 1, tostring(log))
-| extend namespace = extract(@'namespace="([^"]*)"', 1, tostring(log))
+| extend logStr = tostring(log)
+| extend msg = extract(@']\s+"([^"]+)"', 1, logStr)
+| extend err = coalesce(
+    extract(@'err=<\n([\s\S]*?)\n\s*>', 1, logStr),
+    extract(@'err="((?:[^"\\]|\\.)*)"', 1, logStr))
+| extend controller = extract(@'controller="([^"]*)"', 1, logStr)
+| extend controllerGroup = extract(@'controllerGroup="([^"]*)"', 1, logStr)
+| extend controllerKind = extract(@'controllerKind="([^"]*)"', 1, logStr)
+| extend name = extract(@'\sname="([^"]*)"', 1, logStr)
+| extend namespace = extract(@'namespace="([^"]*)"', 1, logStr)
 | where controller contains 'machine'
 | project timestamp, msg, err, controller, controllerGroup, controllerKind, name, namespace
 | summarize

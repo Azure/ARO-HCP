@@ -1,5 +1,0 @@
-knownIssues:
-- name: "KubeVersionMismatch"
-  labels:
-    cluster: ".*-mgmt-.*"
-  reason: "Under investigation."

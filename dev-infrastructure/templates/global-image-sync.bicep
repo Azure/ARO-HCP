@@ -232,6 +232,8 @@ var operatorVersionsToMirrorDefinitions = [
   for version in operatorVersionsToMirrorArray: {
     name: 'oc-mirror-${replace(version, '.', '-')}'
     major: version
+    // The Red Hat Marketplace catalog was removed in OCP 4.22; no index is published from that version on.
+    hasMarketplaceIndex: int(split(version, '.')[0]) == 4 && int(split(version, '.')[1]) < 22
   }
 ]
 var ocpMirrorJobConfiguration = [
@@ -245,12 +247,14 @@ var ocpMirrorJobConfiguration = [
       kind: 'ImageSetConfiguration'
       apiVersion: 'mirror.openshift.io/v2alpha1'
       mirror: {
-        additionalImages: [
-          { name: 'registry.redhat.io/redhat/redhat-operator-index:v${job.major}' }
-          { name: 'registry.redhat.io/redhat/certified-operator-index:v${job.major}' }
-          { name: 'registry.redhat.io/redhat/community-operator-index:v${job.major}' }
-          { name: 'registry.redhat.io/redhat/redhat-marketplace-index:v${job.major}' }
-        ]
+        additionalImages: concat(
+          [
+            { name: 'registry.redhat.io/redhat/redhat-operator-index:v${job.major}' }
+            { name: 'registry.redhat.io/redhat/certified-operator-index:v${job.major}' }
+            { name: 'registry.redhat.io/redhat/community-operator-index:v${job.major}' }
+          ],
+          job.hasMarketplaceIndex ? [{ name: 'registry.redhat.io/redhat/redhat-marketplace-index:v${job.major}' }] : []
+        )
       }
     }
     compatibility: 'LATEST'
@@ -329,7 +333,7 @@ resource ocMirrorJobs 'Microsoft.App/jobs@2024-03-01' = [
         initContainers: [
           {
             name: 'decodesecrets'
-            image: 'mcr.microsoft.com/azure-cli:cbl-mariner2.0'
+            image: 'mcr.microsoft.com/azure-cli:azurelinux3.0'
             command: [
               '/bin/sh'
             ]

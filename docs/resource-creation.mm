@@ -2,7 +2,7 @@
 <!-- To view this file, download free mind mapping software FreeMind from http://freemind.sourceforge.net -->
 <node CREATED="1742324400000" ID="ID_1000000" MODIFIED="1742324400000" TEXT="ARO-HCP Resource Creation">
 <node CREATED="1742324401000" ID="ID_1000001" MODIFIED="1742324401000" POSITION="right" TEXT="Resource types">
-<node CREATED="1742324402000" ID="ID_1000002" MODIFIED="1742324402000" TEXT="HCPOpenShiftCluster (parent resource)"/>
+<node CREATED="1742324402000" ID="ID_1000002" MODIFIED="1742324402000" TEXT="Cluster (parent resource)"/>
 <node CREATED="1742324403000" ID="ID_1000003" MODIFIED="1742324403000" TEXT="NodePool (child of cluster)"/>
 <node CREATED="1742324404000" ID="ID_1000004" MODIFIED="1742324404000" TEXT="ExternalAuth (child of cluster)"/>
 </node>
@@ -29,7 +29,7 @@
 <node CREATED="1742324460500" ID="ID_1000164" MODIFIED="1742324460500" TEXT="subscription mgmt: ResourceID, LoggingPostMux (PUT adds LockSubscription)"/>
 </node>
 </node>
-<node CREATED="1742324425000" ID="ID_1000025" MODIFIED="1742324425000" POSITION="right" TEXT="HCPOpenShiftCluster creation (frontend/pkg/frontend/cluster.go)">
+<node CREATED="1742324425000" ID="ID_1000025" MODIFIED="1742324425000" POSITION="right" TEXT="Cluster creation (frontend/pkg/frontend/cluster.go)">
 <node CREATED="1742324426000" ID="ID_1000026" MODIFIED="1742324426000" TEXT="PUT handled by CreateOrUpdateHCPCluster">
 <node CREATED="1742324427000" ID="ID_1000027" MODIFIED="1742324427000" TEXT="check if resource exists in CosmosDB"/>
 <node CREATED="1742324428000" ID="ID_1000028" MODIFIED="1742324428000" TEXT="if exists: checkForProvisioningStateConflict, then update or patch"/>
@@ -144,7 +144,7 @@
 <node CREATED="1742324517000" ID="ID_1000117" MODIFIED="1742324517000" TEXT="other controllers">
 <node CREATED="1742324518000" ID="ID_1000118" MODIFIED="1742324518000" TEXT="mismatch controllers - reconcile Cosmos vs Cluster Service state"/>
 <node CREATED="1742324519000" ID="ID_1000119" MODIFIED="1742324519000" TEXT="upgrade controllers - trigger control plane upgrades"/>
-<node CREATED="1742324520000" ID="ID_1000120" MODIFIED="1742324520000" TEXT="cluster properties sync - identity migration, customer properties"/>
+<node CREATED="1742324520000" ID="ID_1000120" MODIFIED="1742324520000" TEXT="cluster identity sync - MSI identities, cluster identity from SPC"/>
 <node CREATED="1742324521000" ID="ID_1000121" MODIFIED="1742324521000" TEXT="Maestro bundle controllers - create/delete readonly resource bundles"/>
 </node>
 </node>

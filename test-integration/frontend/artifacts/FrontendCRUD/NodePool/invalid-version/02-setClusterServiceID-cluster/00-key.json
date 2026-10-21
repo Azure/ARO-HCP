@@ -1,0 +1,4 @@
+{
+	"_artifactStep": "setClusterServiceID",
+	"resourceID": "/subscriptions/85176f51-8b54-4150-b6b5-b4ff5d007f5b/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/basic"
+}

@@ -17,9 +17,12 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
+
+	"gopkg.in/yaml.v3"
 )
 
 // minimalValidTenant returns a TenantConfig with all required fields set.
@@ -72,6 +75,9 @@ func TestConfigValidate(t *testing.T) {
 			cfg:  minimalValidConfig(),
 			assertions: func(t *testing.T, cfg Config) {
 				t.Helper()
+				if cfg.ExitOnPanic {
+					t.Fatal("exitOnPanic must default to false")
+				}
 				if cfg.GetInterval() != DefaultInterval {
 					t.Fatalf("interval: got %v, want %v", cfg.GetInterval(), DefaultInterval)
 				}
@@ -80,6 +86,12 @@ func TestConfigValidate(t *testing.T) {
 				}
 				if cfg.GetCacheTTL() != DefaultCacheTTL {
 					t.Fatalf("cacheTTL: got %v, want %v", cfg.GetCacheTTL(), DefaultCacheTTL)
+				}
+				if cfg.Prow.GetInterval() != DefaultProwInterval {
+					t.Fatalf("prow interval: got %v, want %v", cfg.Prow.GetInterval(), DefaultProwInterval)
+				}
+				if cfg.Prow.GetRetention() != DefaultProwRetention {
+					t.Fatalf("prow retention: got %v, want %v", cfg.Prow.GetRetention(), DefaultProwRetention)
 				}
 			},
 		},
@@ -133,6 +145,85 @@ func TestConfigValidate(t *testing.T) {
 			cfg:        minimalValidConfig(),
 			mutate:     func(cfg *Config) { cfg.CacheTTL = "bad" },
 			wantErrSub: "invalid cacheTTL",
+		},
+		{
+			name: "valid prow config",
+			cfg:  minimalValidConfig(),
+			mutate: func(cfg *Config) {
+				cfg.Prow = validProwConfig()
+				cfg.Prow.Interval = "10m"
+				cfg.Prow.Retention = "48h"
+				cfg.Prow.ExcludeJobs = []string{" excluded-job "}
+			},
+			assertions: func(t *testing.T, cfg Config) {
+				t.Helper()
+				if cfg.Prow.GetInterval() != 10*time.Minute {
+					t.Fatalf("prow interval: got %v, want 10m", cfg.Prow.GetInterval())
+				}
+				if cfg.Prow.GetRetention() != 48*time.Hour {
+					t.Fatalf("prow retention: got %v, want 48h", cfg.Prow.GetRetention())
+				}
+				if len(cfg.Prow.ExcludeJobs) != 1 || cfg.Prow.ExcludeJobs[0] != "excluded-job" {
+					t.Fatalf("prow excludeJobs: got %v", cfg.Prow.ExcludeJobs)
+				}
+			},
+		},
+		{
+			name: "prow disabled allows empty connection settings",
+			cfg:  minimalValidConfig(),
+			mutate: func(cfg *Config) {
+				cfg.Prow = ProwConfig{Enabled: false}
+			},
+		},
+		{
+			name: "prow invalid base URL",
+			cfg:  minimalValidConfig(),
+			mutate: func(cfg *Config) {
+				cfg.Prow = validProwConfig()
+				cfg.Prow.BaseURL = "not-a-url"
+			},
+			wantErrSub: "prow.baseURL",
+		},
+		{
+			name: "prow missing repository org",
+			cfg:  minimalValidConfig(),
+			mutate: func(cfg *Config) {
+				cfg.Prow = validProwConfig()
+				cfg.Prow.Repository.Org = ""
+			},
+			wantErrSub: "prow.repository.org is required",
+		},
+		{
+			name: "prow missing repository name",
+			cfg:  minimalValidConfig(),
+			mutate: func(cfg *Config) {
+				cfg.Prow = validProwConfig()
+				cfg.Prow.Repository.Name = ""
+			},
+			wantErrSub: "prow.repository.name is required",
+		},
+		{
+			name: "prow empty exclusion",
+			cfg:  minimalValidConfig(),
+			mutate: func(cfg *Config) {
+				cfg.Prow = validProwConfig()
+				cfg.Prow.ExcludeJobs = []string{""}
+			},
+			wantErrSub: "prow.excludeJobs[0] must not be empty",
+		},
+		{
+			name: "prow duplicate exclusions are deduplicated",
+			cfg:  minimalValidConfig(),
+			mutate: func(cfg *Config) {
+				cfg.Prow = validProwConfig()
+				cfg.Prow.ExcludeJobs = []string{" job-b ", "job-a", "job-b"}
+			},
+			assertions: func(t *testing.T, cfg Config) {
+				t.Helper()
+				if !slices.Equal(cfg.Prow.ExcludeJobs, []string{"job-a", "job-b"}) {
+					t.Fatalf("prow excludeJobs: got %v, want [job-a job-b]", cfg.Prow.ExcludeJobs)
+				}
+			},
 		},
 		{
 			name:       "no tenants",
@@ -246,6 +337,17 @@ func TestConfigValidate(t *testing.T) {
 	}
 }
 
+func validProwConfig() ProwConfig {
+	return ProwConfig{
+		Enabled: true,
+		BaseURL: "https://prow.ci.openshift.org",
+		Repository: ProwRepositoryConfig{
+			Org:  "Azure",
+			Name: "ARO-HCP",
+		},
+	}
+}
+
 func TestLoadFromFile(t *testing.T) {
 	type testCase struct {
 		name       string
@@ -259,6 +361,15 @@ func TestLoadFromFile(t *testing.T) {
 			setup: func(t *testing.T) string {
 				t.Helper()
 				return writeYAML(t, `
+exitOnPanic: true
+prow:
+  enabled: true
+  baseURL: "https://prow.ci.openshift.org"
+  repository:
+    org: "Azure"
+    name: "ARO-HCP"
+  excludeJobs:
+    - "excluded-job"
 tenants:
   - tenantId: "tid-1"
     servicePrincipalClientId: "sp-id"
@@ -293,6 +404,12 @@ tenants:
 				if cfg.Tenants[0].Subscriptions[0].SubscriptionID != "" {
 					t.Fatalf("subscriptionId: got %q, want empty runtime-resolved value", cfg.Tenants[0].Subscriptions[0].SubscriptionID)
 				}
+				if !cfg.Prow.Enabled || cfg.Prow.Repository.Name != "ARO-HCP" {
+					t.Fatalf("prow config: got %#v", cfg.Prow)
+				}
+				if !cfg.ExitOnPanic {
+					t.Fatal("exitOnPanic must accept an explicit true value")
+				}
 			},
 		},
 		{
@@ -308,6 +425,32 @@ tenants:
 				}
 				if !strings.Contains(err.Error(), "read config file") {
 					t.Fatalf("expected read error, got %v", err)
+				}
+			},
+		},
+		{
+			name: "ignores legacy role assignment limit",
+			setup: func(t *testing.T) string {
+				t.Helper()
+				return writeYAML(t, `
+tenants:
+  - tenantId: "tid-1"
+    servicePrincipalClientId: "sp-id"
+    keyVaultSecretName: "kv-secret"
+    subscriptions:
+      - name: "prod"
+        roleAssignmentLimit: 8000
+        regions:
+          - eastus
+`)
+			},
+			assertions: func(t *testing.T, cfg *Config, err error) {
+				t.Helper()
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+				if len(cfg.Tenants[0].Subscriptions) != 1 {
+					t.Fatalf("subscriptions: got %d, want 1", len(cfg.Tenants[0].Subscriptions))
 				}
 			},
 		},
@@ -479,36 +622,218 @@ func TestTenantConfigIsDirectoryQuotaEnabled(t *testing.T) {
 	}
 }
 
-func TestSubscriptionConfigGetRoleAssignmentLimit(t *testing.T) {
-	type testCase struct {
-		name         string
-		subscription SubscriptionConfig
-		want         int
+// A missing scheme is accepted by url.Parse, so without an explicit check it
+// only surfaces as a connection error once the collector is already running.
+func TestCIJobOutcomesConfigValidatesEndpoints(t *testing.T) {
+	valid := func() CIJobOutcomesConfig {
+		return CIJobOutcomesConfig{
+			Enabled:      true,
+			ClusterURI:   "https://hcp-dev-us-2.eastus2.kusto.windows.net",
+			IngestionURI: "https://ingest-hcp-dev-us-2.eastus2.kusto.windows.net",
+			Database:     "ServiceLogs",
+			Outcomes:     KustoTableConfig{Table: "ciJobOutcomes", IngestionMapping: "ciJobOutcomesMapping"},
+			TestNames:    KustoTableConfig{Table: "ciTestNames", IngestionMapping: "ciTestNamesMapping"},
+			TestResults:  KustoTableConfig{Table: "ciTestResults", IngestionMapping: "ciTestResultsMapping"},
+			Discovered:   KustoTableConfig{Table: "ciDiscoveredJobs", IngestionMapping: "ciDiscoveredJobsMapping"},
+			Processed:    KustoTableConfig{Table: "ciProcessedJobs", IngestionMapping: "ciProcessedJobsMapping"},
+			JobFilter:    "e2e-parallel",
+		}
 	}
 
-	testCases := []testCase{
-		{
-			name:         "custom limit",
-			subscription: SubscriptionConfig{RoleAssignmentLimit: 1000},
-			want:         1000,
-		},
-		{
-			name:         "zero falls back to default",
-			subscription: SubscriptionConfig{},
-			want:         DefaultRoleAssignmentLimit,
-		},
-		{
-			name:         "negative falls back to default",
-			subscription: SubscriptionConfig{RoleAssignmentLimit: -1},
-			want:         DefaultRoleAssignmentLimit,
-		},
+	fullySpecified := valid()
+	if err := fullySpecified.validate(); err != nil {
+		t.Fatalf("a fully specified config must validate, got %v", err)
 	}
 
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			if got := tc.subscription.GetRoleAssignmentLimit(); got != tc.want {
-				t.Fatalf("GetRoleAssignmentLimit() = %d, want %d", got, tc.want)
+	for _, testCase := range []struct {
+		name   string
+		mutate func(*CIJobOutcomesConfig)
+	}{
+		{
+			name:   "cluster URI without a scheme",
+			mutate: func(c *CIJobOutcomesConfig) { c.ClusterURI = "hcp-dev-us-2.eastus2.kusto.windows.net" },
+		},
+		{
+			name:   "ingestion URI without a scheme",
+			mutate: func(c *CIJobOutcomesConfig) { c.IngestionURI = "ingest-hcp-dev-us-2.eastus2.kusto.windows.net" },
+		},
+		{
+			name:   "empty cluster URI",
+			mutate: func(c *CIJobOutcomesConfig) { c.ClusterURI = "" },
+		},
+		{
+			name:   "missing discovered table",
+			mutate: func(c *CIJobOutcomesConfig) { c.Discovered.Table = "" },
+		},
+		{
+			name:   "missing discovered ingestion mapping",
+			mutate: func(c *CIJobOutcomesConfig) { c.Discovered.IngestionMapping = "" },
+		},
+		{
+			name:   "missing processed table",
+			mutate: func(c *CIJobOutcomesConfig) { c.Processed.Table = "" },
+		},
+		{
+			name:   "missing processed ingestion mapping",
+			mutate: func(c *CIJobOutcomesConfig) { c.Processed.IngestionMapping = "" },
+		},
+		{
+			name:   "missing test names table",
+			mutate: func(c *CIJobOutcomesConfig) { c.TestNames.Table = "" },
+		},
+		{
+			name:   "missing test results ingestion mapping",
+			mutate: func(c *CIJobOutcomesConfig) { c.TestResults.IngestionMapping = "" },
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			cfg := valid()
+			testCase.mutate(&cfg)
+			if err := cfg.validate(); err == nil {
+				t.Error("expected validation to fail, got nil")
 			}
 		})
+	}
+
+	// Nothing is reachable while disabled, so an unset config must not block startup.
+	disabled := &CIJobOutcomesConfig{Enabled: false}
+	if err := disabled.validate(); err != nil {
+		t.Errorf("a disabled config must validate, got %v", err)
+	}
+}
+
+func TestCIJobOutcomesExample(t *testing.T) {
+	cfg, err := LoadCIJobOutcomesFromFile("../../ci-outcomes.example.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.CIJobOutcomes.Enabled {
+		t.Error("collector-only loading must enable CI job outcomes")
+	}
+	for name, table := range map[string]KustoTableConfig{
+		"ciJobOutcomes":    cfg.CIJobOutcomes.Outcomes,
+		"ciTestNames":      cfg.CIJobOutcomes.TestNames,
+		"ciTestResults":    cfg.CIJobOutcomes.TestResults,
+		"ciDiscoveredJobs": cfg.CIJobOutcomes.Discovered,
+		"ciProcessedJobs":  cfg.CIJobOutcomes.Processed,
+	} {
+		if table.Table != name || table.IngestionMapping != name+"Mapping" {
+			t.Errorf("example table %s: got %+v", name, table)
+		}
+	}
+	if cfg.CIJobOutcomes.GCSBucket != DefaultCIJobOutcomesGCSBucket || cfg.CIJobOutcomes.JobFilter != "e2e-parallel" {
+		t.Errorf("unexpected example discovery source: bucket %q, job filter %q", cfg.CIJobOutcomes.GCSBucket, cfg.CIJobOutcomes.JobFilter)
+	}
+}
+
+func TestCIJobOutcomesControllerSettings(t *testing.T) {
+	for _, tc := range []struct {
+		name             string
+		yaml             string
+		durations        []time.Duration
+		workers          int
+		discoveryWorkers int
+		cacheSize        int
+		gcsBucket        string
+	}{
+		{
+			name:             "defaults",
+			yaml:             "{}",
+			durations:        []time.Duration{15 * time.Minute, 24 * time.Hour, 12 * time.Hour, 10 * time.Minute, 15 * time.Minute, 30 * time.Minute, 15 * time.Minute},
+			workers:          10,
+			discoveryWorkers: 2,
+			cacheSize:        20000,
+			gcsBucket:        "test-platform-results-public",
+		},
+		{
+			name:             "explicit settings",
+			yaml:             "interval: 1m\nwindow: 48h\nrepairInterval: 6h\noverlap: 2h\nworkers: 3\ncacheSize: 100\ncacheTTL: 2m\ndiscoveryInterval: 5m\ncompletionDelay: 3m\ndiscoveryWorkers: 4\ngcsBucket: custom-results\n",
+			durations:        []time.Duration{time.Minute, 48 * time.Hour, 6 * time.Hour, 2 * time.Hour, 2 * time.Minute, 5 * time.Minute, 3 * time.Minute},
+			workers:          3,
+			discoveryWorkers: 4,
+			cacheSize:        100,
+			gcsBucket:        "custom-results",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var cfg CIJobOutcomesConfig
+			if err := yaml.Unmarshal([]byte(tc.yaml), &cfg); err != nil {
+				t.Fatal(err)
+			}
+			if err := cfg.validate(); err != nil {
+				t.Fatal(err)
+			}
+			got := []time.Duration{cfg.GetInterval(), cfg.GetWindow(), cfg.GetRepairInterval(), cfg.GetOverlap(), cfg.GetCacheTTL(), cfg.GetDiscoveryInterval(), cfg.GetCompletionDelay()}
+			if !slices.Equal(got, tc.durations) {
+				t.Errorf("controller durations: got %v, want %v", got, tc.durations)
+			}
+			if cfg.GetWorkers() != tc.workers || cfg.GetCacheSize() != tc.cacheSize {
+				t.Errorf("workers/cache size: got %d/%d, want %d/%d", cfg.GetWorkers(), cfg.GetCacheSize(), tc.workers, tc.cacheSize)
+			}
+			if cfg.GetDiscoveryWorkers() != tc.discoveryWorkers {
+				t.Errorf("discovery workers: got %d, want %d", cfg.GetDiscoveryWorkers(), tc.discoveryWorkers)
+			}
+			if cfg.GCSBucket != tc.gcsBucket {
+				t.Errorf("GCS bucket: got %q, want %q", cfg.GCSBucket, tc.gcsBucket)
+			}
+		})
+	}
+}
+
+func TestCIJobOutcomesStartupSince(t *testing.T) {
+	for _, tc := range []struct {
+		yaml string
+		want time.Time
+	}{
+		{yaml: "{}"},
+		{yaml: `startupSince: ""`},
+		{yaml: `startupSince: "2026-09-15T00:00:00Z"`, want: time.Date(2026, 9, 15, 0, 0, 0, 0, time.UTC)},
+		{yaml: `startupSince: "2026-09-15T02:00:00+02:00"`, want: time.Date(2026, 9, 15, 0, 0, 0, 0, time.UTC)},
+	} {
+		t.Run(tc.yaml, func(t *testing.T) {
+			var cfg CIJobOutcomesConfig
+			if err := yaml.Unmarshal([]byte(tc.yaml), &cfg); err != nil {
+				t.Fatal(err)
+			}
+			if err := cfg.validate(); err != nil {
+				t.Fatal(err)
+			}
+			if !cfg.GetStartupSince().Equal(tc.want) {
+				t.Errorf("startup since: got %v, want %v", cfg.GetStartupSince(), tc.want)
+			}
+			cfg.StartupSince = ""
+			if err := cfg.validate(); err != nil {
+				t.Fatal(err)
+			}
+			if !cfg.GetStartupSince().IsZero() {
+				t.Error("clearing startupSince must clear the parsed timestamp")
+			}
+		})
+	}
+}
+
+func TestCIJobOutcomesControllerSettingsValidation(t *testing.T) {
+	for _, field := range []string{"interval", "discoveryInterval", "completionDelay", "window", "repairInterval", "overlap", "cacheTTL", "workers", "discoveryWorkers", "cacheSize", "startupSince", "gcsBucket"} {
+		invalid := []string{"0s", "-1s", "invalid"}
+		if field == "workers" || field == "discoveryWorkers" || field == "cacheSize" {
+			invalid = []string{"0", "-1"}
+		}
+		if field == "startupSince" {
+			invalid = []string{"invalid", "2026-09-15", "2026-09-15T00:00:00", "2026-09-31T00:00:00Z"}
+		}
+		if field == "gcsBucket" {
+			invalid = []string{"gs://test-platform-results-public", "https://storage.googleapis.com/test-platform-results-public", "bucket/path", "bucket/", "bucket\\path", "' '", "' bucket'", "'bucket name'"}
+		}
+		for _, value := range invalid {
+			t.Run(field+"/"+value, func(t *testing.T) {
+				var cfg CIJobOutcomesConfig
+				if err := yaml.Unmarshal([]byte(field+": "+value), &cfg); err != nil {
+					t.Fatal(err)
+				}
+				if err := cfg.validate(); err == nil || !strings.Contains(err.Error(), "ciJobOutcomes."+field) {
+					t.Fatalf("expected validation error for %s, got %v", field, err)
+				}
+			})
+		}
 	}
 }

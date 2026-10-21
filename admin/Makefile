@@ -1,6 +1,6 @@
 ADMIN_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
-CONTAINER_ENGINE ?= $(shell command -v podman 2>/dev/null || echo docker)
 
+-include ../setup-env.mk
 -include ../setup-templatize-env.mk
 -include ../tooling/hcpctl/Variables.mk
 -include ../.bingo/Variables.mk
@@ -8,7 +8,7 @@ CONTAINER_ENGINE ?= $(shell command -v podman 2>/dev/null || echo docker)
 ARO_HCP_REVISION ?= $(shell git rev-parse HEAD)
 ARO_HCP_COMMIT_TIME ?= $(shell TZ=UTC git show -s --format=%cd --date=iso-strict-local ${ARO_HCP_REVISION})
 ARO_HCP_IMAGE_REGISTRY ?= ${ARO_HCP_IMAGE_ACR}.azurecr.io
-ADMIN_API_IMAGE_TAG ?= $(shell DETECT_DIRTY_GIT_WORKTREE=${DETECT_DIRTY_GIT_WORKTREE} DEPLOY_ENV=${DEPLOY_ENV} ../generate-tag.sh)
+ADMIN_API_IMAGE_TAG ?= $(or $(IMAGE_TAG),$(shell DETECT_DIRTY_GIT_WORKTREE=${DETECT_DIRTY_GIT_WORKTREE} DEPLOY_ENV=${DEPLOY_ENV} ../generate-tag.sh))
 ADMIN_API_GENERATED_IMAGE_REPOSITORY = $(shell DEPLOY_ENV=${DEPLOY_ENV} BASELINE_REPO=${ADMIN_API_IMAGE_REPOSITORY} ../generate-repo.sh)
 ADMIN_API_TAGGED_IMAGE ?= $(ARO_HCP_IMAGE_REGISTRY)/$(ADMIN_API_GENERATED_IMAGE_REPOSITORY):$(ADMIN_API_IMAGE_TAG)
 
@@ -72,7 +72,7 @@ image:
 .PHONY: image
 
 build-and-push: image $(ORAS) $(YQ)
-	az acr login --name ${ARO_HCP_IMAGE_ACR}
+	$(acr-login)
 	@LOCAL_DIGEST=$$($(CONTAINER_ENGINE) image inspect --format '{{.Id}}' ${ADMIN_API_TAGGED_IMAGE} | sed 's/sha256://'); \
 	REMOTE_DIGEST=$$($(ORAS) manifest fetch ${ADMIN_API_TAGGED_IMAGE} 2>/dev/null | $(YQ) .config.digest | sed 's/sha256://'); \
 	if [ "$$LOCAL_DIGEST" = "$$REMOTE_DIGEST" ]; then \
@@ -100,6 +100,13 @@ record-override: $(YQ) $(ORAS)
 	" > $(OVERRIDE_CONFIG_FILE)
 .PHONY: record-override
 
+record-latest-override: $(YQ)
+	@../hack/record-latest-image-override.sh \
+		"$(ARO_HCP_IMAGE_ACR)" "$(ARO_HCP_IMAGE_REGISTRY)" \
+		"$(ADMIN_API_IMAGE_REPOSITORY)" "$(DEPLOY_ENV)" \
+		"adminApi" "$(OVERRIDE_CONFIG_FILE)" "$(YQ)"
+.PHONY: record-latest-override
+
 deploy: build-and-push record-override
 	make -C .. pipeline/AdminAPI OVERRIDE_CONFIG_FILE=$(OVERRIDE_CONFIG_FILE)
 .PHONY: deploy
@@ -122,28 +129,3 @@ build-cli: $(CLI_BINARY)
 
 $(CLI_BINARY): $(CLI_SOURCES)
 	cd client && go build $(LDFLAGS) -o ../$(CLI_BINARY) .
-
-run-hello-world-test: $(CLI_BINARY)
-	./${CLI_BINARY} hello-world \
-		--ga-auth-cert-kv ${GA_AUTH_CERT_KV} \
-		--ga-auth-cert-secret ${GA_AUTH_CERT_SECRET} \
-		--ga-auth-tenant-id ${GA_AUTH_TENANT_ID} \
-		--ga-auth-client-id ${GA_AUTH_CLIENT_ID} \
-		--ga-auth-scopes ${GA_AUTH_SCOPES} \
-		--host ${ADMIN_API_HOST} \
-		--admin-api-endpoint ${ADMIN_API_ENDPOINT_BASE} \
-		--insecure-skip-verify
-.PHONY: run-hello-world-test
-
-run-hello-world-test-with-port-forward: $(CLI_BINARY) $(HCPCTL)
-	HCPCTL=$(HCPCTL) ./hack/run-with-port-forward.sh "${SVC_CLUSTER}" "${ISTIO_PORT_FORWARD_SPEC}" \
-		./${CLI_BINARY} hello-world \
-			--ga-auth-cert-kv "${GA_AUTH_CERT_KV}" \
-			--ga-auth-cert-secret "${GA_AUTH_CERT_SECRET}" \
-			--ga-auth-tenant-id "${GA_AUTH_TENANT_ID}" \
-			--ga-auth-client-id "${GA_AUTH_CLIENT_ID}" \
-			--ga-auth-scopes "${GA_AUTH_SCOPES}" \
-			--host "${ADMIN_API_HOST}" \
-			--admin-api-endpoint "https://localhost:$(PORT_FORWARD_LOCAL_PORT)" \
-			--insecure-skip-verify
-.PHONY: run-with-sc-integration

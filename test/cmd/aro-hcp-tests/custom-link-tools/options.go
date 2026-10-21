@@ -26,6 +26,8 @@ import (
 	"os"
 	"path"
 	"sort"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -229,6 +231,20 @@ func createQueryURL(query kusto.Query, kustoInfo KustoInfo) string {
 	return currURL.String()
 }
 
+// mgmtClusterLogPrefix strips the trailing "-<ordinal>" from a management cluster
+// name (e.g. "ci01-j9919872-mgmt-1" -> "ci01-j9919872-mgmt") so kube-applier log
+// queries can match every management cluster in an environment with
+// `where cluster contains '<prefix>'` rather than a single exact cluster. Names
+// without a trailing numeric segment are returned unchanged.
+func mgmtClusterLogPrefix(mgmtClusterName string) string {
+	if idx := strings.LastIndex(mgmtClusterName, "-"); idx > 0 {
+		if _, err := strconv.Atoi(mgmtClusterName[idx+1:]); err == nil {
+			return mgmtClusterName[:idx]
+		}
+	}
+	return mgmtClusterName
+}
+
 func createLink(displayName string, query kusto.Query, kustoInfo KustoInfo) LinkDetails {
 	return LinkDetails{
 		DisplayName: displayName,
@@ -278,13 +294,16 @@ func (o Options) Run(ctx context.Context) error {
 			queryOpts.TimestampMin = ti.StartTime
 			queryOpts.TimestampMax = ti.EndTime
 			queryOpts.Limit = -1
-			templateData := kusto.NewTemplateDataFromOptions(queryOpts)
 
 			var links []LinkDetails
 
 			customLinkQueries := []struct {
 				queryName       string
 				linkDisplayName string
+				// extraOpts are query-specific template-data options layered on top of
+				// the resource-group-scoped defaults (e.g. the kube-applier query needs
+				// the management-cluster prefix to match every mgmt cluster).
+				extraOpts []kusto.TemplateDataOptions
 			}{
 				{
 					queryName:       "hostedControlPlaneLogs",
@@ -295,8 +314,19 @@ func (o Options) Run(ctx context.Context) error {
 					linkDisplayName: "Service Logs",
 				},
 				{
+					queryName:       "kubeApplierLogs",
+					linkDisplayName: "Kube Applier Logs",
+					// Scope to every management cluster in the environment; the query uses
+					// `where cluster contains '<prefix>'` (see kube_applier_logs.kql.gotmpl).
+					extraOpts: []kusto.TemplateDataOptions{kusto.WithClusterName(mgmtClusterLogPrefix(o.MgmtClusterName))},
+				},
+				{
 					queryName:       "debugQueries",
 					linkDisplayName: "Debug Queries",
+				},
+				{
+					queryName:       "cosmosResourceSnapshots",
+					linkDisplayName: "Cosmos Resource Snapshots",
 				},
 			}
 
@@ -305,6 +335,7 @@ func (o Options) Run(ctx context.Context) error {
 				if err != nil {
 					return utils.TrackError(fmt.Errorf("failed to get %s query definition: %w", query.queryName, err))
 				}
+				templateData := kusto.NewTemplateDataFromOptions(queryOpts, query.extraOpts...)
 				q, err := testFactory.BuildMerged(*queryDef, templateData)
 				if err != nil {
 					return utils.TrackError(fmt.Errorf("failed to build %s query: %w", query.queryName, err))
@@ -431,10 +462,16 @@ func getPerTestMustGatherCommands(timingInfo map[string]timing.TimingInfo, subsc
 			continue
 		}
 		rg := ti.ResourceGroupNames[0]
+		// Prefer the subscription the test actually ran in; fall back to the global
+		// flag when the timing metadata predates per-test subscription capture.
+		testSubscriptionID := ti.SubscriptionID
+		if testSubscriptionID == "" {
+			testSubscriptionID = subscriptionID
+		}
 		cmd := fmt.Sprintf(`hcpctl must-gather query --kusto %s --region %s --timestamp-min '%s' --timestamp-max '%s' --resource-group %s --subscription-id %s`,
 			kusto.KustoName, kusto.KustoRegion,
 			ti.StartTime.Format(time.DateTime), ti.EndTime.Format(time.DateTime),
-			rg, subscriptionID)
+			rg, testSubscriptionID)
 		rows = append(rows, TestCommandRow{
 			TestName: testName,
 			Command:  cmd,
@@ -490,6 +527,7 @@ func getServiceLogLinks(tw timing.TimeWindow, svcClusterName, mgmtClusterName st
 	}{
 		{"backendControllerConditions", "Backend Controller Conditions"},
 		{"clustersServicePhases", "Clusters Service Phases"},
+		{"cosmosResourceSnapshotsInfra", "Cosmos Resource Snapshots"},
 	}
 	for _, cq := range clusterScopedCustomQueries {
 		def, err := factory.GetCustomQueryDefinition(cq.queryName)
@@ -524,6 +562,18 @@ func getServiceLogLinks(tw timing.TimeWindow, svcClusterName, mgmtClusterName st
 		}
 		allLinks = append(allLinks, createLink(mt.displayName, q, kustoInfo))
 	}
+
+	// HyperShift Operator image on the management cluster
+	hoImageDef, err := factory.GetCustomQueryDefinition("hypershiftOperatorImage")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get hypershift operator image query definition: %w", err)
+	}
+	hoImageData := kusto.NewTemplateDataFromOptions(mgmtOpts)
+	hoImageQuery, err := factory.BuildMerged(*hoImageDef, hoImageData)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build hypershift operator image query: %w", err)
+	}
+	allLinks = append(allLinks, createLink("HyperShift Operator Image", hoImageQuery, kustoInfo))
 
 	return allLinks, nil
 }

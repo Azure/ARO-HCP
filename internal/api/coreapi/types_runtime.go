@@ -1,0 +1,378 @@
+// Copyright 2026 Microsoft Corporation
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package coreapi
+
+import (
+	"strconv"
+	"strings"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+)
+
+var (
+	_ runtime.Object            = &Cluster{}
+	_ metav1.ObjectMetaAccessor = &Cluster{}
+)
+
+func (o *Cluster) GetObjectKind() schema.ObjectKind {
+	return schema.EmptyObjectKind
+}
+
+func (o *Cluster) GetObjectMeta() metav1.Object {
+	om := &metav1.ObjectMeta{}
+	if o.ID != nil {
+		om.Name = strings.ToLower(o.ID.String())
+	}
+	// shared_informer uses ResourceVersion to determine if an event is a sync
+	om.ResourceVersion = strconv.FormatInt(o.InstanceVersion, 10)
+	return om
+}
+
+// ClusterList is a list of Clusters compatible with
+// runtime.Object for use with Kubernetes informer machinery.
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+type ClusterList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []Cluster `json:"items"`
+}
+
+var _ runtime.Object = &ClusterList{}
+
+func (l *ClusterList) GetObjectKind() schema.ObjectKind {
+	return &l.TypeMeta
+}
+
+var (
+	_ runtime.Object            = &NodePool{}
+	_ metav1.ObjectMetaAccessor = &NodePool{}
+)
+
+func (o *NodePool) GetObjectKind() schema.ObjectKind {
+	return schema.EmptyObjectKind
+}
+
+func (o *NodePool) GetObjectMeta() metav1.Object {
+	om := &metav1.ObjectMeta{}
+	if o.ID != nil {
+		om.Name = strings.ToLower(o.ID.String())
+	}
+	// shared_informer uses ResourceVersion to determine if an event is a sync
+	om.ResourceVersion = strconv.FormatInt(o.InstanceVersion, 10)
+	return om
+}
+
+// NodePoolList is a list of NodePools
+// compatible with runtime.Object for use with Kubernetes informer machinery.
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+type NodePoolList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []NodePool `json:"items"`
+}
+
+var _ runtime.Object = &NodePoolList{}
+
+func (l *NodePoolList) GetObjectKind() schema.ObjectKind {
+	return &l.TypeMeta
+}
+
+var (
+	_ runtime.Object            = &ExternalAuth{}
+	_ metav1.ObjectMetaAccessor = &ExternalAuth{}
+)
+
+func (o *ExternalAuth) GetObjectKind() schema.ObjectKind {
+	return schema.EmptyObjectKind
+}
+
+func (o *ExternalAuth) GetObjectMeta() metav1.Object {
+	om := &metav1.ObjectMeta{}
+	if o.ID != nil {
+		om.Name = strings.ToLower(o.ID.String())
+	}
+	// shared_informer uses ResourceVersion to determine if an event is a sync
+	om.ResourceVersion = strconv.FormatInt(o.InstanceVersion, 10)
+	return om
+}
+
+// ExternalAuthList is a list of ExternalAuths
+// compatible with runtime.Object for use with Kubernetes informer machinery.
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+type ExternalAuthList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []ExternalAuth `json:"items"`
+}
+
+var _ runtime.Object = &ExternalAuthList{}
+
+func (l *ExternalAuthList) GetObjectKind() schema.ObjectKind {
+	return &l.TypeMeta
+}
+
+var (
+	_ runtime.Object            = &ServiceProviderCluster{}
+	_ metav1.ObjectMetaAccessor = &ServiceProviderCluster{}
+)
+
+func (o *ServiceProviderCluster) GetObjectKind() schema.ObjectKind {
+	return schema.EmptyObjectKind
+}
+
+func (o *ServiceProviderCluster) GetObjectMeta() metav1.Object {
+	om := &metav1.ObjectMeta{}
+	if o.GetResourceID() != nil {
+		om.Name = strings.ToLower(o.GetResourceID().String())
+	}
+	// shared_informer uses ResourceVersion to determine if an event is a sync
+	om.ResourceVersion = strconv.FormatInt(o.InstanceVersion, 10)
+	return om
+}
+
+// ServiceProviderClusterList is a list of ServiceProviderClusters
+// compatible with runtime.Object for use with Kubernetes informer machinery.
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+type ServiceProviderClusterList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []ServiceProviderCluster `json:"items"`
+}
+
+var _ runtime.Object = &ServiceProviderClusterList{}
+
+func (l *ServiceProviderClusterList) GetObjectKind() schema.ObjectKind {
+	return &l.TypeMeta
+}
+
+var (
+	_ runtime.Object            = &ServiceProviderNodePool{}
+	_ metav1.ObjectMetaAccessor = &ServiceProviderNodePool{}
+)
+
+func (o *ServiceProviderNodePool) GetObjectKind() schema.ObjectKind {
+	return schema.EmptyObjectKind
+}
+
+func (o *ServiceProviderNodePool) GetObjectMeta() metav1.Object {
+	om := &metav1.ObjectMeta{}
+	if o.GetResourceID() != nil {
+		om.Name = strings.ToLower(o.GetResourceID().String())
+	}
+	// shared_informer uses ResourceVersion to determine if an event is a sync
+	om.ResourceVersion = strconv.FormatInt(o.InstanceVersion, 10)
+	return om
+}
+
+// ServiceProviderNodePoolList is a list of ServiceProviderNodePools
+// compatible with runtime.Object for use with Kubernetes informer machinery.
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+type ServiceProviderNodePoolList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []ServiceProviderNodePool `json:"items"`
+}
+
+var _ runtime.Object = &ServiceProviderNodePoolList{}
+
+func (l *ServiceProviderNodePoolList) GetObjectKind() schema.ObjectKind {
+	return &l.TypeMeta
+}
+
+var (
+	_ runtime.Object            = &ServiceProviderExternalAuth{}
+	_ metav1.ObjectMetaAccessor = &ServiceProviderExternalAuth{}
+)
+
+func (o *ServiceProviderExternalAuth) GetObjectKind() schema.ObjectKind {
+	return schema.EmptyObjectKind
+}
+
+func (o *ServiceProviderExternalAuth) GetObjectMeta() metav1.Object {
+	om := &metav1.ObjectMeta{}
+	if o.GetResourceID() != nil {
+		om.Name = strings.ToLower(o.GetResourceID().String())
+	}
+	// shared_informer uses ResourceVersion to determine if an event is a sync
+	om.ResourceVersion = strconv.FormatInt(o.InstanceVersion, 10)
+	return om
+}
+
+var (
+	_ runtime.Object            = &Operation{}
+	_ metav1.ObjectMetaAccessor = &Operation{}
+)
+
+func (o *Operation) GetObjectKind() schema.ObjectKind {
+	return schema.EmptyObjectKind
+}
+
+func (o *Operation) GetObjectMeta() metav1.Object {
+	om := &metav1.ObjectMeta{}
+	if o.GetResourceID() != nil {
+		om.Name = strings.ToLower(o.GetResourceID().String())
+	}
+	// shared_informer uses ResourceVersion to determine if an event is a sync
+	om.ResourceVersion = strconv.FormatInt(o.InstanceVersion, 10)
+	return om
+}
+
+// OperationList is a list of Operations compatible with runtime.Object for use
+// with Kubernetes informer machinery.
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+type OperationList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []Operation `json:"items"`
+}
+
+var _ runtime.Object = &OperationList{}
+
+func (l *OperationList) GetObjectKind() schema.ObjectKind {
+	return &l.TypeMeta
+}
+
+var (
+	_ runtime.Object            = &Controller{}
+	_ metav1.ObjectMetaAccessor = &Controller{}
+)
+
+func (o *Controller) GetObjectKind() schema.ObjectKind {
+	return schema.EmptyObjectKind
+}
+
+func (o *Controller) GetObjectMeta() metav1.Object {
+	om := &metav1.ObjectMeta{}
+	if o.GetResourceID() != nil {
+		om.Name = strings.ToLower(o.GetResourceID().String())
+	}
+	// shared_informer uses ResourceVersion to determine if an event is a sync
+	om.ResourceVersion = strconv.FormatInt(o.InstanceVersion, 10)
+	return om
+}
+
+// ControllerList is a list of Controller resources.
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+type ControllerList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []Controller `json:"items"`
+}
+
+var _ runtime.Object = &ControllerList{}
+
+func (l *ControllerList) GetObjectKind() schema.ObjectKind {
+	return &l.TypeMeta
+}
+
+var _ runtime.Object = &ManagementClusterContent{}
+
+func (o *ManagementClusterContent) GetObjectKind() schema.ObjectKind {
+	return schema.EmptyObjectKind
+}
+
+func (o *ManagementClusterContent) GetObjectMeta() metav1.Object {
+	om := &metav1.ObjectMeta{}
+	if o.GetResourceID() != nil {
+		om.Name = strings.ToLower(o.GetResourceID().String())
+	}
+	// shared_informer uses ResourceVersion to determine if an event is a sync
+	om.ResourceVersion = strconv.FormatInt(o.InstanceVersion, 10)
+	return om
+}
+
+// ManagementClusterContentList is a list of ManagementClusterContent resources.
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+type ManagementClusterContentList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []ManagementClusterContent `json:"items"`
+}
+
+var _ runtime.Object = &ManagementClusterContentList{}
+
+func (l *ManagementClusterContentList) GetObjectKind() schema.ObjectKind {
+	return &l.TypeMeta
+}
+
+var (
+	_ runtime.Object            = &SystemAdminCredentialRequest{}
+	_ metav1.ObjectMetaAccessor = &SystemAdminCredentialRequest{}
+)
+
+func (o *SystemAdminCredentialRequest) GetObjectKind() schema.ObjectKind {
+	return schema.EmptyObjectKind
+}
+
+func (o *SystemAdminCredentialRequest) GetObjectMeta() metav1.Object {
+	om := &metav1.ObjectMeta{}
+	if o.GetResourceID() != nil {
+		om.Name = strings.ToLower(o.GetResourceID().String())
+	}
+	// shared_informer uses ResourceVersion to determine if an event is a sync
+	om.ResourceVersion = strconv.FormatInt(o.InstanceVersion, 10)
+	return om
+}
+
+// SystemAdminCredentialRequestList is a list of SystemAdminCredentialRequest resources
+// compatible with runtime.Object for use with Kubernetes informer machinery.
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+type SystemAdminCredentialRequestList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []SystemAdminCredentialRequest `json:"items"`
+}
+
+var _ runtime.Object = &SystemAdminCredentialRequestList{}
+
+func (l *SystemAdminCredentialRequestList) GetObjectKind() schema.ObjectKind {
+	return &l.TypeMeta
+}
+
+var (
+	_ runtime.Object            = &SystemAdminCredentialRevocation{}
+	_ metav1.ObjectMetaAccessor = &SystemAdminCredentialRevocation{}
+)
+
+func (o *SystemAdminCredentialRevocation) GetObjectKind() schema.ObjectKind {
+	return schema.EmptyObjectKind
+}
+
+func (o *SystemAdminCredentialRevocation) GetObjectMeta() metav1.Object {
+	om := &metav1.ObjectMeta{}
+	if o.GetResourceID() != nil {
+		om.Name = strings.ToLower(o.GetResourceID().String())
+	}
+	// shared_informer uses ResourceVersion to determine if an event is a sync
+	om.ResourceVersion = strconv.FormatInt(o.InstanceVersion, 10)
+	return om
+}
+
+// SystemAdminCredentialRevocationList is a list of SystemAdminCredentialRevocation
+// resources compatible with runtime.Object for use with Kubernetes informer machinery.
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+type SystemAdminCredentialRevocationList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []SystemAdminCredentialRevocation `json:"items"`
+}
+
+var _ runtime.Object = &SystemAdminCredentialRevocationList{}
+
+func (l *SystemAdminCredentialRevocationList) GetObjectKind() schema.ObjectKind {
+	return &l.TypeMeta
+}

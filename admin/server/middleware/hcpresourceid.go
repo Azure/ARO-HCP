@@ -21,7 +21,7 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -36,8 +36,8 @@ var patternPrefix = strings.ToLower(
 		"/subscriptions/{%s}/resourcegroups/{%s}/providers/%s/%s/{%s}",
 		pathSegmentSubscriptionID,
 		pathSegmentResourceGroupName,
-		api.ProviderNamespace,
-		api.ClusterResourceTypeName,
+		coreapi.ProviderNamespace,
+		coreapi.ClusterResourceTypeName,
 		pathSegmentResourceName,
 	),
 )
@@ -66,8 +66,8 @@ func MiddlewareHCPResourceID(w http.ResponseWriter, r *http.Request, next http.H
 		fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/%s/%s/%s",
 			subscriptionID,
 			resourceGroupName,
-			api.ProviderNamespace,
-			api.ClusterResourceTypeName,
+			coreapi.ProviderNamespace,
+			coreapi.ClusterResourceTypeName,
 			resourceName,
 		),
 	)
