@@ -3,7 +3,6 @@ rule_files:
 - UserJourneyEtcdAvailability-prometheusRule.yaml
 evaluation_interval: 1m
 tests:
-
 # ========================================
 # userJourneyEtcdBackendCommitDurationHigh
 # Threshold: p99 > 100ms
@@ -110,7 +109,6 @@ tests:
         summary: "etcd backend commit duration is chronically high for ocm-test-hcp-namespace (/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster, 00000000-0000-0000-0000-000000000000)"
         runbook_url: https://aka.ms/arohcp-runbook-etcd
         correlationId: "userJourneyEtcdBackendCommitDurationHigh/test-hcp-cluster/ocm-test-hcp-namespace"
-
 # Scenario 2: Normal commit duration — no tiers fire
 - interval: 1m
   input_series:
@@ -131,7 +129,6 @@ tests:
   - eval_time: 11m
     alertname: userJourneyEtcdBackendCommitDurationHigh6h30m
     exp_alerts: []
-
 # ========================================
 # userJourneyEtcdDatabaseHighFragmentation
 # Threshold: in-use ratio < 25% (high fragmentation)
@@ -169,7 +166,6 @@ tests:
         summary: "etcd database fragmentation is high for ocm-test-hcp-namespace (/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster, 00000000-0000-0000-0000-000000000000)"
         runbook_url: https://aka.ms/arohcp-runbook-etcd
         correlationId: "userJourneyEtcdDatabaseHighFragmentation/test-hcp-cluster/ocm-test-hcp-namespace"
-
 # Scenario 2: Database in-use ratio healthy (no fragmentation) — does not fire
 - interval: 1m
   input_series:
@@ -181,7 +177,6 @@ tests:
   - eval_time: 11m
     alertname: userJourneyEtcdDatabaseHighFragmentation
     exp_alerts: []
-
 # Scenario 3: Ratio temporarily low then recovers — does not fire
 - interval: 1m
   input_series:
@@ -193,7 +188,6 @@ tests:
   - eval_time: 15m
     alertname: userJourneyEtcdDatabaseHighFragmentation
     exp_alerts: []
-
 # ========================================
 # userJourneyEtcdDatabaseSizeExceeded
 # Threshold: (db_size / quota) > 85%
@@ -231,7 +225,6 @@ tests:
         summary: "etcd database size is too large for ocm-test-hcp-namespace (/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster, 00000000-0000-0000-0000-000000000000)"
         runbook_url: https://aka.ms/arohcp-runbook-etcd
         correlationId: "userJourneyEtcdDatabaseSizeExceeded/test-hcp-cluster/ocm-test-hcp-namespace"
-
 # Scenario 2: Database size below 85% of quota — does not fire
 - interval: 1m
   input_series:
@@ -243,7 +236,6 @@ tests:
   - eval_time: 11m
     alertname: userJourneyEtcdDatabaseSizeExceeded
     exp_alerts: []
-
 # Scenario 3: Brief spike above 85% then drops — does not fire
 - interval: 1m
   input_series:
@@ -255,7 +247,6 @@ tests:
   - eval_time: 15m
     alertname: userJourneyEtcdDatabaseSizeExceeded
     exp_alerts: []
-
 # ========================================
 # userJourneyEtcdFrequentLeaderChanges
 # Threshold: increase([15m]) > 3
@@ -288,7 +279,6 @@ tests:
         summary: "etcd cluster experiencing frequent leader changes for ocm-test-hcp-namespace (/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster, 00000000-0000-0000-0000-000000000000)"
         runbook_url: https://aka.ms/arohcp-runbook-etcd
         correlationId: "userJourneyEtcdFrequentLeaderChanges/test-hcp-cluster/ocm-test-hcp-namespace"
-
 # Scenario 2: Stable leader — does not fire
 - interval: 1m
   input_series:
@@ -298,7 +288,6 @@ tests:
   - eval_time: 15m
     alertname: userJourneyEtcdFrequentLeaderChanges
     exp_alerts: []
-
 # Scenario 3: Leader changes exactly at threshold — does not fire
 - interval: 1m
   input_series:
@@ -308,7 +297,6 @@ tests:
   - eval_time: 15m
     alertname: userJourneyEtcdFrequentLeaderChanges
     exp_alerts: []
-
 # ========================================
 # userJourneyEtcdNoLeader
 # Threshold: etcd_server_has_leader == 0
@@ -344,7 +332,6 @@ tests:
         summary: "etcd member has no leader for ocm-test-hcp-namespace (/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster, 00000000-0000-0000-0000-000000000000)"
         runbook_url: https://aka.ms/arohcp-runbook-etcd
         correlationId: "userJourneyEtcdNoLeader/test-hcp-cluster/ocm-test-hcp-namespace"
-
 # Scenario 2: etcd member has leader — does not fire
 - interval: 1m
   input_series:
@@ -354,7 +341,6 @@ tests:
   - eval_time: 10m
     alertname: userJourneyEtcdNoLeader
     exp_alerts: []
-
 # Scenario 3: Brief leader loss then recovers — does not fire
 - interval: 1m
   input_series:
@@ -364,7 +350,6 @@ tests:
   - eval_time: 10m
     alertname: userJourneyEtcdNoLeader
     exp_alerts: []
-
 # ========================================
 # userJourneyEtcdPeerRoundTripTimeHigh
 # Threshold: p99 > 100ms
@@ -475,7 +460,6 @@ tests:
         summary: "etcd peer round-trip time is chronically high for ocm-test-hcp-namespace (/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster, 00000000-0000-0000-0000-000000000000)"
         runbook_url: https://aka.ms/arohcp-runbook-etcd
         correlationId: "userJourneyEtcdPeerRoundTripTimeHigh/test-hcp-cluster/ocm-test-hcp-namespace"
-
 # Scenario 2: Normal peer RTT — no tiers fire
 - interval: 1m
   input_series:
@@ -491,7 +475,6 @@ tests:
   - eval_time: 11m
     alertname: userJourneyEtcdPeerRoundTripTimeHigh1h5m
     exp_alerts: []
-
 # ========================================
 # userJourneyEtcdWALFsyncDurationHigh
 # Threshold: p99 > 50ms
@@ -595,7 +578,6 @@ tests:
         summary: "etcd WAL fsync duration is chronically high for ocm-test-hcp-namespace (/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster, 00000000-0000-0000-0000-000000000000)"
         runbook_url: https://aka.ms/arohcp-runbook-etcd
         correlationId: "userJourneyEtcdWALFsyncDurationHigh/test-hcp-cluster/ocm-test-hcp-namespace"
-
 # Scenario 2: Normal WAL fsync duration — no tiers fire
 - interval: 1m
   input_series:

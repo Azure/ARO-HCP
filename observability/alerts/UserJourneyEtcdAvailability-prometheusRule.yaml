@@ -123,7 +123,6 @@ spec:
         description: "{{ $labels.namespace }} etcd has 99th percentile backend commit duration of {{ $value }}s (threshold: 100ms). Slow disk performance may impact write performance. Resource ID: {{ $labels.resource_id }}. Subscription ID: {{ $labels.subscription_id }}. Slow burn (3d/6h)."
         runbook_url: https://aka.ms/arohcp-runbook-etcd
         correlationId: "userJourneyEtcdBackendCommitDurationHigh/{{ $labels.cluster }}/{{ $labels.namespace }}"
-
     # ----------------------------------------
     # userJourneyEtcdDatabaseHighFragmentation
     # ----------------------------------------
@@ -152,7 +151,6 @@ spec:
         description: "{{ $labels.namespace }} etcd database in-use ratio is {{ $value | humanizePercentage }} (threshold: 25%). Database defragmentation may be needed to reclaim space. Resource ID: {{ $labels.resource_id }}. Subscription ID: {{ $labels.subscription_id }}."
         runbook_url: https://aka.ms/arohcp-runbook-etcd
         correlationId: "userJourneyEtcdDatabaseHighFragmentation/{{ $labels.cluster }}/{{ $labels.namespace }}"
-
     # ----------------------------------------
     # userJourneyEtcdDatabaseSizeExceeded
     # ----------------------------------------
@@ -181,7 +179,6 @@ spec:
         description: "{{ $labels.namespace }} etcd database size is {{ $value | humanizePercentage }} of quota (threshold: 85%). Database may need compaction or quota increase. Resource ID: {{ $labels.resource_id }}. Subscription ID: {{ $labels.subscription_id }}."
         runbook_url: https://aka.ms/arohcp-runbook-etcd
         correlationId: "userJourneyEtcdDatabaseSizeExceeded/{{ $labels.cluster }}/{{ $labels.namespace }}"
-
     # ----------------------------------------
     # userJourneyEtcdFrequentLeaderChanges
     # ----------------------------------------
@@ -210,7 +207,6 @@ spec:
         description: "{{ $labels.namespace }} etcd has seen {{ $value }} leader changes in the last 15 minutes (threshold: 3). This may indicate network issues or cluster instability. Resource ID: {{ $labels.resource_id }}. Subscription ID: {{ $labels.subscription_id }}."
         runbook_url: https://aka.ms/arohcp-runbook-etcd
         correlationId: "userJourneyEtcdFrequentLeaderChanges/{{ $labels.cluster }}/{{ $labels.namespace }}"
-
     # ----------------------------------------
     # userJourneyEtcdNoLeader
     # ----------------------------------------
@@ -239,7 +235,6 @@ spec:
         description: "{{ $labels.namespace }} etcd member has no leader. The cluster cannot process writes until a leader is elected. Resource ID: {{ $labels.resource_id }}. Subscription ID: {{ $labels.subscription_id }}."
         runbook_url: https://aka.ms/arohcp-runbook-etcd
         correlationId: "userJourneyEtcdNoLeader/{{ $labels.cluster }}/{{ $labels.namespace }}"
-
     # ----------------------------------------
     # userJourneyEtcdPeerRoundTripTimeHigh
     # ----------------------------------------
@@ -330,7 +325,6 @@ spec:
         description: "{{ $labels.namespace }} etcd has 99th percentile peer round-trip time of {{ $value }}s (threshold: 100ms). Network latency between peers may be affecting cluster performance. Resource ID: {{ $labels.resource_id }}. Subscription ID: {{ $labels.subscription_id }}. Slow burn (3d/6h)."
         runbook_url: https://aka.ms/arohcp-runbook-etcd
         correlationId: "userJourneyEtcdPeerRoundTripTimeHigh/{{ $labels.cluster }}/{{ $labels.namespace }}"
-
     # ----------------------------------------
     # userJourneyEtcdWALFsyncDurationHigh
     # ----------------------------------------
