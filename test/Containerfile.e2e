@@ -2,7 +2,7 @@ FROM registry.ci.openshift.org/aro-hcp/aro-hcp-ci-images:aro-hcp-e2e-base-ci
 USER root
 WORKDIR /opt/app-root/src/github.com/Azure/ARO-HCP
 COPY . .
-ENV GOFLAGS='-mod=readonly'
+ENV GOFLAGS='-mod=vendor'
 RUN make build-hcpctl && \
     make -C tooling/templatize templatize && \
     make -C test/ build && \

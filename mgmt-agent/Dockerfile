@@ -2,16 +2,11 @@ ARG PLATFORM
 
 # Builder image installs tools needed to build mgmt-agent
 FROM --platform=${PLATFORM} mcr.microsoft.com/oss/go/microsoft/golang:1.26-azurelinux3.0 AS builder
-ENV GOTOOLCHAIN=local
-COPY internal/go.mod internal/go.sum internal/
-COPY mgmt-agent/go.mod mgmt-agent/go.sum mgmt-agent/
-COPY swift-recorder/go.mod swift-recorder/go.sum swift-recorder/
-RUN cd mgmt-agent && go mod download
-RUN cd swift-recorder && go mod download
+ENV GOTOOLCHAIN=local GOWORK=/app/go.work GOFLAGS=-mod=vendor GOPROXY=off
 WORKDIR /app
-COPY internal/ internal/
-COPY --exclude=mgmt-agent/bin mgmt-agent/ mgmt-agent/
-COPY --exclude=swift-recorder/bin swift-recorder/ swift-recorder/
+# Dockerfile.dockerignore includes the complete workspace and vendor tree,
+# while excluding locally built binaries and development setup files.
+COPY . .
 ARG ARO_HCP_REVISION
 # https://github.com/microsoft/go/tree/microsoft/main/eng/doc/fips#build-option-to-require-fips-mode
 # NOTE: starting with go 1.27, GODEBUG=fips140=only can be used at runtime to also reject
