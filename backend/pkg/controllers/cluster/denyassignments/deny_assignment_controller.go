@@ -291,6 +291,9 @@ func (c *clusterDenyAssignmentSyncer) syncDenyAssignmentUpsert(ctx context.Conte
 			replacement.Status.AzureResources.DenyAssignments.AzureResources = removeDenyAssignmentRef(replacement.Status.AzureResources.DenyAssignments.AzureResources, stale.DenyAssignmentType)
 			replacement.Status.AzureResources.DenyAssignments.PendingAzureResources = removeDenyAssignmentRef(replacement.Status.AzureResources.DenyAssignments.PendingAzureResources, stale.DenyAssignmentType)
 		}
+		if len(staleDeletionErrs) > 0 {
+			replacement.Status.AzureResources.DenyAssignments.EarliestRecheckTime = nil
+		}
 		serviceProviderCluster, replacement, err = replaceServiceProviderClusterIfChanged(ctx, serviceProviderClusterCRUD, serviceProviderCluster, replacement, staleDeletionErrs)
 		if serviceProviderCluster == nil || err != nil {
 			return err
@@ -331,7 +334,7 @@ func replaceServiceProviderClusterIfChanged(
 	if err != nil {
 		return nil, nil, errors.Join(joinedPriorErr, utils.TrackError(fmt.Errorf("failed to replace ServiceProviderCluster: %w", err)))
 	}
-	return updated, updated.DeepCopy(), nil
+	return updated, updated.DeepCopy(), joinedPriorErr
 }
 
 func (c *clusterDenyAssignmentSyncer) ensureDenyAssignmentReferences(
