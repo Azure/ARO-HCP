@@ -29,7 +29,6 @@ import (
 	"github.com/go-echarts/go-echarts/v2/charts"
 	"github.com/go-echarts/go-echarts/v2/opts"
 
-	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/utils/ptr"
 
 	promutil "github.com/Azure/ARO-HCP/test/util/prometheus"
@@ -37,18 +36,12 @@ import (
 )
 
 const (
-	// minLegendHeight is the minimum height for the chart legend area.
-	minLegendHeight = 40
-	// legendRowHeight is the height of one row of legend entries.
-	legendRowHeight = 22
+	// legendHeight bounds the paginated legend independently of series count.
+	legendHeight = 120
 	// baseChartHeight is the base height for timeseries charts before legend.
 	baseChartHeight = 400
 	// legendBottomPadding is extra space below the legend area.
 	legendBottomPadding = 20
-	// legendCharWidth is the approximate pixel width per character in legend labels.
-	legendCharWidth = 7
-	// legendEntryPadding is the approximate pixel width for the legend icon and spacing.
-	legendEntryPadding = 40
 	// defaultChartWidth is the default chart width in pixels.
 	defaultChartWidth = 1200
 )
@@ -171,26 +164,6 @@ func renderPanelHTML(data panelPageData) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// estimateLegendHeight approximates the pixel height needed for the ECharts
-// horizontal legend by simulating how entries wrap across rows.
-func estimateLegendHeight(labels []string, chartWidth int) int {
-	if len(labels) == 0 {
-		return minLegendHeight
-	}
-	currentRowWidth := 0
-	rows := 1
-	for _, label := range labels {
-		entryWidth := len(label)*legendCharWidth + legendEntryPadding
-		if currentRowWidth+entryWidth > chartWidth && currentRowWidth > 0 {
-			rows++
-			currentRowWidth = entryWidth
-		} else {
-			currentRowWidth += entryWidth
-		}
-	}
-	return max(minLegendHeight, rows*legendRowHeight)
-}
-
 // buildChartData builds the chart HTML for a single PromQL query result.
 // Each promutil.Result becomes a separate series, labeled by its metric
 // labels. warning carries a non-fatal notice (e.g. partial-failure details)
@@ -235,12 +208,6 @@ func buildLineChartData(q QuerySpec, resourceID string, series []parsedSeries, t
 		return cmp.Compare(a.label, b.label)
 	})
 
-	// Adjust chart height for legend when many series
-	seriesLabels := make([]string, len(series))
-	for i := range series {
-		seriesLabels[i] = series[i].label
-	}
-	legendHeight := estimateLegendHeight(seriesLabels, defaultChartWidth)
 	chartHeight := baseChartHeight + legendHeight
 
 	line := charts.NewLine()
@@ -264,6 +231,9 @@ func buildLineChartData(q QuerySpec, resourceID string, series []parsedSeries, t
 			Trigger: "axis",
 		}),
 		charts.WithLegendOpts(opts.Legend{
+			Type:   "scroll",
+			Orient: "vertical",
+			Height: "110",
 			Show:   ptr.To(true),
 			Bottom: "0",
 		}),
@@ -376,11 +346,6 @@ func buildFacetedStackedAreaChartData(q QuerySpec, resourceID string, series []p
 	}
 	slices.Sort(facetNames)
 
-	allPhases := collectUniqueStackValues(series, q.StackBy)
-	slices.Sort(allPhases)
-
-	legendHeight := estimateLegendHeight(allPhases, defaultChartWidth)
-
 	// ECharts multi-grid layouts require explicit pixel positions and total height — grids don't auto-stack.
 	numFacets := len(facetNames)
 	titleAreaHeight := 80
@@ -423,6 +388,9 @@ func buildFacetedStackedAreaChartData(q QuerySpec, resourceID string, series []p
 			Trigger: "axis",
 		}),
 		charts.WithLegendOpts(opts.Legend{
+			Type:   "scroll",
+			Orient: "vertical",
+			Height: "110",
 			Show:   ptr.To(true),
 			Bottom: "0",
 		}),
@@ -541,16 +509,6 @@ func buildFacetSeriesLabel(metric map[string]string, stackBy string) string {
 		return v
 	}
 	return "value"
-}
-
-func collectUniqueStackValues(series []parsedSeries, stackBy string) []string {
-	result := sets.New[string]()
-	for _, s := range series {
-		if v := s.metric[stackBy]; len(v) > 0 {
-			result.Insert(v)
-		}
-	}
-	return result.UnsortedList()
 }
 
 // alignSeriesToCommonTimestamps ensures all series share the same set of
