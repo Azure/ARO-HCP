@@ -42,7 +42,7 @@
       "title": "Per-Cluster Drill-in",
       "tooltip": "Single-cluster oncall triage: KAS, etcd, provisioning, nodepools",
       "type": "link",
-      "url": "/d/sre-cluster-health-per-cluster-drill-in/per-cluster-oncall-drill-in"
+      "url": "/d/sre-cluster-health-per-cluster-drill-in/per-cluster-oncall-drill-in?var-namespace=$namespace&var-ds_hcps=$ds_hcps"
     },
     {
       "asDropdown": false,
@@ -144,7 +144,7 @@
             "uid": "$ds_hcps"
           },
           "editorMode": "code",
-          "expr": "histogram_quantile(0.99, sum by (le) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~\"$namespace\"}[5m])))",
+          "expr": "histogram_quantile(0.99, sum by (le) (max without (prometheus_replica) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~\"$namespace\"}[5m]))))",
           "instant": true,
           "legendFormat": "WAL fsync P99",
           "refId": "A"
@@ -218,7 +218,7 @@
             "uid": "$ds_hcps"
           },
           "editorMode": "code",
-          "expr": "histogram_quantile(0.999, sum by (le) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~\"$namespace\"}[5m])))",
+          "expr": "histogram_quantile(0.999, sum by (le) (max without (prometheus_replica) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~\"$namespace\"}[5m]))))",
           "instant": true,
           "legendFormat": "WAL fsync P99.9",
           "refId": "A"
@@ -292,7 +292,7 @@
             "uid": "$ds_hcps"
           },
           "editorMode": "code",
-          "expr": "histogram_quantile(0.99, sum by (le) (rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~\"$namespace\"}[5m])))",
+          "expr": "histogram_quantile(0.99, sum by (le) (max without (prometheus_replica) (rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~\"$namespace\"}[5m]))))",
           "instant": true,
           "legendFormat": "Backend Commit P99",
           "refId": "A"
@@ -358,7 +358,7 @@
             "uid": "$ds_hcps"
           },
           "editorMode": "code",
-          "expr": "sum(rate(etcd_disk_wal_fsync_duration_seconds_count{namespace=~\"$namespace\"}[5m]))",
+          "expr": "sum(max without (prometheus_replica) (rate(etcd_disk_wal_fsync_duration_seconds_count{namespace=~\"$namespace\"}[5m])))",
           "instant": true,
           "legendFormat": "WAL fsync ops/sec",
           "refId": "A"
@@ -451,7 +451,7 @@
             "uid": "$ds_hcps"
           },
           "editorMode": "code",
-          "expr": "sum by (le) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~\"$namespace\"}[$__rate_interval]))",
+          "expr": "sum by (le) (max without (prometheus_replica) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~\"$namespace\"}[$__rate_interval])))",
           "format": "heatmap",
           "legendFormat": "{{le}}",
           "range": true,
@@ -533,7 +533,7 @@
             "uid": "$ds_hcps"
           },
           "editorMode": "code",
-          "expr": "sum by (le) (rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~\"$namespace\"}[$__rate_interval]))",
+          "expr": "sum by (le) (max without (prometheus_replica) (rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~\"$namespace\"}[$__rate_interval])))",
           "format": "heatmap",
           "legendFormat": "{{le}}",
           "range": true,
@@ -681,7 +681,7 @@
             "uid": "$ds_hcps"
           },
           "editorMode": "code",
-          "expr": "histogram_quantile(0.5, sum by (le) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~\"$namespace\"}[5m])))",
+          "expr": "histogram_quantile(0.5, sum by (le) (max without (prometheus_replica) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~\"$namespace\"}[5m]))))",
           "legendFormat": "P50",
           "range": true,
           "refId": "A"
@@ -692,7 +692,7 @@
             "uid": "$ds_hcps"
           },
           "editorMode": "code",
-          "expr": "histogram_quantile(0.9, sum by (le) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~\"$namespace\"}[5m])))",
+          "expr": "histogram_quantile(0.9, sum by (le) (max without (prometheus_replica) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~\"$namespace\"}[5m]))))",
           "legendFormat": "P90",
           "range": true,
           "refId": "B"
@@ -703,7 +703,7 @@
             "uid": "$ds_hcps"
           },
           "editorMode": "code",
-          "expr": "histogram_quantile(0.99, sum by (le) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~\"$namespace\"}[5m])))",
+          "expr": "histogram_quantile(0.99, sum by (le) (max without (prometheus_replica) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~\"$namespace\"}[5m]))))",
           "legendFormat": "P99",
           "range": true,
           "refId": "C"
@@ -714,7 +714,7 @@
             "uid": "$ds_hcps"
           },
           "editorMode": "code",
-          "expr": "histogram_quantile(0.999, sum by (le) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~\"$namespace\"}[5m])))",
+          "expr": "histogram_quantile(0.999, sum by (le) (max without (prometheus_replica) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~\"$namespace\"}[5m]))))",
           "legendFormat": "P99.9",
           "range": true,
           "refId": "D"
@@ -725,7 +725,7 @@
             "uid": "$ds_hcps"
           },
           "editorMode": "code",
-          "expr": "histogram_quantile(0.9999, sum by (le) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~\"$namespace\"}[5m])))",
+          "expr": "histogram_quantile(0.9999, sum by (le) (max without (prometheus_replica) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~\"$namespace\"}[5m]))))",
           "legendFormat": "P99.99",
           "range": true,
           "refId": "E"
@@ -860,7 +860,7 @@
             "uid": "$ds_hcps"
           },
           "editorMode": "code",
-          "expr": "histogram_quantile(0.5, sum by (le) (rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~\"$namespace\"}[5m])))",
+          "expr": "histogram_quantile(0.5, sum by (le) (max without (prometheus_replica) (rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~\"$namespace\"}[5m]))))",
           "legendFormat": "P50",
           "range": true,
           "refId": "A"
@@ -871,7 +871,7 @@
             "uid": "$ds_hcps"
           },
           "editorMode": "code",
-          "expr": "histogram_quantile(0.9, sum by (le) (rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~\"$namespace\"}[5m])))",
+          "expr": "histogram_quantile(0.9, sum by (le) (max without (prometheus_replica) (rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~\"$namespace\"}[5m]))))",
           "legendFormat": "P90",
           "range": true,
           "refId": "B"
@@ -882,7 +882,7 @@
             "uid": "$ds_hcps"
           },
           "editorMode": "code",
-          "expr": "histogram_quantile(0.99, sum by (le) (rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~\"$namespace\"}[5m])))",
+          "expr": "histogram_quantile(0.99, sum by (le) (max without (prometheus_replica) (rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~\"$namespace\"}[5m]))))",
           "legendFormat": "P99",
           "range": true,
           "refId": "C"
@@ -893,7 +893,7 @@
             "uid": "$ds_hcps"
           },
           "editorMode": "code",
-          "expr": "histogram_quantile(0.999, sum by (le) (rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~\"$namespace\"}[5m])))",
+          "expr": "histogram_quantile(0.999, sum by (le) (max without (prometheus_replica) (rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~\"$namespace\"}[5m]))))",
           "legendFormat": "P99.9",
           "range": true,
           "refId": "D"
@@ -904,7 +904,7 @@
             "uid": "$ds_hcps"
           },
           "editorMode": "code",
-          "expr": "histogram_quantile(0.9999, sum by (le) (rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~\"$namespace\"}[5m])))",
+          "expr": "histogram_quantile(0.9999, sum by (le) (max without (prometheus_replica) (rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~\"$namespace\"}[5m]))))",
           "legendFormat": "P99.99",
           "range": true,
           "refId": "E"
@@ -1011,7 +1011,7 @@
             "uid": "$ds_hcps"
           },
           "editorMode": "code",
-          "expr": "sum(rate(etcd_disk_wal_fsync_duration_seconds_count{namespace=~\"$namespace\"}[$__rate_interval]))",
+          "expr": "sum(max without (prometheus_replica) (rate(etcd_disk_wal_fsync_duration_seconds_count{namespace=~\"$namespace\"}[$__rate_interval])))",
           "legendFormat": "WAL fsync ops/sec",
           "range": true,
           "refId": "A"
@@ -1022,7 +1022,7 @@
             "uid": "$ds_hcps"
           },
           "editorMode": "code",
-          "expr": "sum(rate(etcd_disk_backend_commit_duration_seconds_count{namespace=~\"$namespace\"}[$__rate_interval]))",
+          "expr": "sum(max without (prometheus_replica) (rate(etcd_disk_backend_commit_duration_seconds_count{namespace=~\"$namespace\"}[$__rate_interval])))",
           "legendFormat": "Backend commit ops/sec",
           "range": true,
           "refId": "B"
@@ -1153,7 +1153,7 @@
             "uid": "$ds_hcps"
           },
           "editorMode": "code",
-          "expr": "histogram_quantile(0.99, sum by (le) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~\"$namespace\"}[5m])))",
+          "expr": "histogram_quantile(0.99, sum by (le) (max without (prometheus_replica) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~\"$namespace\"}[5m]))))",
           "legendFormat": "WAL fsync P99",
           "range": true,
           "refId": "A"
@@ -1164,7 +1164,7 @@
             "uid": "$ds_hcps"
           },
           "editorMode": "code",
-          "expr": "sum(rate(etcd_disk_wal_fsync_duration_seconds_count{namespace=~\"$namespace\"}[5m]))",
+          "expr": "sum(max without (prometheus_replica) (rate(etcd_disk_wal_fsync_duration_seconds_count{namespace=~\"$namespace\"}[5m])))",
           "legendFormat": "WAL fsync ops/sec",
           "range": true,
           "refId": "B"
@@ -1276,7 +1276,7 @@
             "uid": "$ds_hcps"
           },
           "editorMode": "code",
-          "expr": "histogram_quantile(0.99, sum by (le, pod) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~\"$namespace\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.99, sum by (le, pod) (max without (prometheus_replica) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~\"$namespace\"}[$__rate_interval]))))",
           "legendFormat": "{{pod}}",
           "range": true,
           "refId": "A"
@@ -1371,7 +1371,7 @@
             "uid": "$ds_hcps"
           },
           "editorMode": "code",
-          "expr": "sum by (pod) (rate(etcd_disk_wal_fsync_duration_seconds_count{namespace=~\"$namespace\"}[$__rate_interval]))",
+          "expr": "sum by (pod) (max without (prometheus_replica) (rate(etcd_disk_wal_fsync_duration_seconds_count{namespace=~\"$namespace\"}[$__rate_interval])))",
           "legendFormat": "{{pod}}",
           "range": true,
           "refId": "A"
