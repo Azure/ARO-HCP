@@ -451,3 +451,87 @@ func TestValidateNodePoolVersionChange(t *testing.T) {
 		})
 	}
 }
+
+func TestAzureKeyVaultKeyVersion(t *testing.T) {
+	ctx := context.Background()
+	op := operation.Operation{Type: operation.Create}
+	fldPath := field.NewPath("version")
+
+	tests := []struct {
+		name        string
+		value       *string
+		expectError bool
+		errContains string
+	}{
+		{
+			name:  "nil value accepted",
+			value: nil,
+		},
+		{
+			name:  "empty value accepted",
+			value: ptr.To(""),
+		},
+		{
+			name:  "valid lowercase hex",
+			value: ptr.To("4e832b5c8f1e4e3d9c6b2a1f3e7d9c5b"),
+		},
+		{
+			name:  "valid uppercase hex",
+			value: ptr.To("4E832B5C8F1E4E3D9C6B2A1F3E7D9C5B"),
+		},
+		{
+			name:  "valid mixed case hex",
+			value: ptr.To("4e832b5C8F1E4E3D9c6b2a1f3e7d9c5B"),
+		},
+		{
+			name:        "too short rejected",
+			value:       ptr.To("4e832b5c8f1e4e3d9c6b2a1f3e7d9c5"),
+			expectError: true,
+			errContains: "must be a 32-character hexadecimal key version",
+		},
+		{
+			name:        "too long rejected",
+			value:       ptr.To("4e832b5c8f1e4e3d9c6b2a1f3e7d9c5bb"),
+			expectError: true,
+			errContains: "must be a 32-character hexadecimal key version",
+		},
+		{
+			name:        "non-hex characters rejected",
+			value:       ptr.To("4e832b5c8f1e4e3d9c6b2a1f3e7d9g5b"),
+			expectError: true,
+			errContains: "must be a 32-character hexadecimal key version",
+		},
+		{
+			name:        "full URL rejected",
+			value:       ptr.To("https://test-vault.vault.azure.net/keys/test-key/4e832b5c8f1e4e3d9c6b2a1f3e7d9c5b"),
+			expectError: true,
+			errContains: "must be a 32-character hexadecimal key version",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			errs := AzureKeyVaultKeyVersion(ctx, op, fldPath, tt.value, nil)
+			if tt.expectError {
+				if len(errs) == 0 {
+					t.Errorf("expected error containing %q, got none", tt.errContains)
+					return
+				}
+				found := false
+				for _, e := range errs {
+					if strings.Contains(e.Error(), tt.errContains) {
+						found = true
+						break
+					}
+				}
+				if !found {
+					t.Errorf("expected error containing %q, got %v", tt.errContains, errs)
+				}
+			} else {
+				if len(errs) != 0 {
+					t.Errorf("expected no errors, got %v", errs)
+				}
+			}
+		})
+	}
+}

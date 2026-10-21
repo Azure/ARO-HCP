@@ -17,7 +17,6 @@ package kubeapplierhelpers
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/google/uuid"
 
@@ -26,7 +25,6 @@ import (
 
 	"github.com/openshift/hypershift/api/hypershift/v1beta1"
 
-	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
@@ -37,12 +35,9 @@ import (
 // backend writes the per-cluster HostedCluster mirror under. Consumers look
 // this up via a ReadDesireLister.GetForCluster call.
 //
-// The value is the lowercased form of
-// coreapi.MaestroBundleInternalNameReadonlyHypershiftHostedCluster — the same
-// derivation the writer (create_cluster_scoped_read_desires_controller.go)
-// uses for its desired ReadDesire name. Lowercased so the resourceID path
-// reduces to a stable Cosmos key regardless of case.
-var ReadDesireNameReadonlyHostedCluster = strings.ToLower(string(coreapi.MaestroBundleInternalNameReadonlyHypershiftHostedCluster))
+// The API constant is shared with the writer and interested controllers.
+// It preserves the lowercased legacy Maestro bundle name.
+const ReadDesireNameReadonlyHostedCluster = kubeapplierapi.ReadDesireNameReadonlyHostedCluster
 
 // GetCachedHostedClusterForCluster reads the HostedCluster from the cached
 // per-cluster ReadDesire. The bool reports whether its Successful condition is

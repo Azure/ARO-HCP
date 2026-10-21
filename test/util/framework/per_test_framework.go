@@ -59,6 +59,7 @@ import (
 	hcpsdk20260630preview "github.com/Azure/ARO-HCP/test/sdk/v20260630preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	hcpsdk20260901preview "github.com/Azure/ARO-HCP/test/sdk/v20260901preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	hcpsdk20261001 "github.com/Azure/ARO-HCP/test/sdk/v20261001/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	"github.com/Azure/ARO-HCP/test/util/config"
 	"github.com/Azure/ARO-HCP/test/util/timing"
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/pipeline"
 )
@@ -449,6 +450,20 @@ func runResourceGroupCleanup(
 // collectDebugInfo collects information and saves it in artifact dir
 func (tc *perItOrDescribeTestContext) collectDebugInfo(ctx context.Context) {
 	ginkgo.GinkgoLogr.Info("collecting debug info")
+	tc.contextLock.RLock()
+	createdResourceGroups := slices.Clone(tc.knownResourceGroups)
+	tc.contextLock.RUnlock()
+	collector := mustGatherCollector{
+		getenv:         os.Getenv,
+		lookPath:       exec.LookPath,
+		serviceConfig:  config.GetServiceConfig,
+		subscriptionID: tc.SubscriptionID,
+		run: func(ctx context.Context, binary string, args ...string) error {
+			return exec.CommandContext(ctx, binary, args...).Run()
+		},
+		logger: ginkgo.GinkgoLogr,
+	}
+	collector.collect(ctx, ginkgo.CurrentSpecReport().Failed(), createdResourceGroups, tc.LogDirPath)
 
 	leasedContainers, err := tc.leasedIdentityContainers()
 	if err != nil {

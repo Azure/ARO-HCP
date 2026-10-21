@@ -22,6 +22,7 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
@@ -78,13 +79,19 @@ func NewPendingCleanupController(
 		fleetDBClient:                     fleetDBClient,
 	}
 
-	return controllerutils.NewManagementClusterWatchingController(
+	controller := controllerutils.NewManagementClusterWatchingController(
 		PendingCleanupControllerName,
 		fleetDBClient,
 		fleetInformers,
 		pendingCleanupResyncPeriod,
 		syncer,
 	)
+	controller.AddInterestingResource(fleetapi.ManagementClusterResourceType, fleetapi.ManagementClusterResourceName)
+	controller.AddInterestingResource(fleetapi.ManagementClusterSchedulingResourceType, fleetapi.SchedulingResourceName)
+	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
+	controller.AddInterestingResource(coreapi.ServiceProviderClusterResourceType, coreapi.ServiceProviderClusterResourceName)
+
+	return controller
 }
 
 // CooldownChecker returns nil: the resync period governs the sweep cadence.

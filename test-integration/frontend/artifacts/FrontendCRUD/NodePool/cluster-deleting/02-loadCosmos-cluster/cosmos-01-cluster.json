@@ -17,8 +17,7 @@
 		"id": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-deleting",
 		"serviceProviderProperties": {
 			"clusterServiceID": "/api/aro_hcp/v1alpha1/clusters/cs-cluster-deleting",
-			"provisioningState": "Deleting",
-			"usesNewClusterDeletionApproach": false
+			"provisioningState": "Deleting"
 		}
 	},
 	"resourceID": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-deleting",

@@ -110,16 +110,16 @@ func validateExternalAuthProperties(ctx context.Context, op operation.Operation,
 
 	//Clients           []ExternalAuthClientProfile `json:"clients"`
 	errs = append(errs, MaxItems(ctx, op, fldPath.Child("clients"), newObj.Clients, safe.Field(oldObj, toExternalAuthPropertiesClients), 20)...)
-	errs = append(errs, validate.EachSliceVal(
+	errs = append(errs, validate.EachValSliceVal(
 		ctx, op, fldPath.Child("clients"),
 		newObj.Clients, safe.Field(oldObj, toExternalAuthPropertiesClients),
 		nil, nil,
 		validateExternalAuthClientProfile,
 	)...)
-	errs = append(errs, validate.Unique(
+	errs = append(errs, validate.ValSliceUnique(
 		ctx, op, fldPath.Child("clients"),
 		newObj.Clients, safe.Field(oldObj, toExternalAuthPropertiesClients),
-		func(lhs coreapi.ExternalAuthClientProfile, rhs coreapi.ExternalAuthClientProfile) bool {
+		func(lhs *coreapi.ExternalAuthClientProfile, rhs *coreapi.ExternalAuthClientProfile) bool {
 			return lhs.Component == rhs.Component
 		},
 	)...)
@@ -127,7 +127,7 @@ func validateExternalAuthProperties(ctx context.Context, op operation.Operation,
 	//Claim             ExternalAuthClaimProfile    `json:"claim"`
 	errs = append(errs, validateExternalAuthClaimProfile(ctx, op, fldPath.Child("claim"), &newObj.Claim, safe.Field(oldObj, toExternalAuthPropertiesClaim))...)
 
-	errs = append(errs, validate.EachSliceVal(
+	errs = append(errs, validate.EachValSliceVal(
 		ctx, op, fldPath.Child("clients"),
 		newObj.Clients, safe.Field(oldObj, toExternalAuthPropertiesClients),
 		nil, nil,
@@ -182,14 +182,14 @@ func validateTokenIssuerProfile(ctx context.Context, op operation.Operation, fld
 	errs = append(errs, validate.RequiredSlice(ctx, op, fldPath.Child("audiences"), newObj.Audiences, safe.Field(oldObj, toTokenIssuerProfileAudiences))...)
 	errs = append(errs, MinItems(ctx, op, fldPath.Child("audiences"), newObj.Audiences, safe.Field(oldObj, toTokenIssuerProfileAudiences), 1)...)
 	errs = append(errs, MaxItems(ctx, op, fldPath.Child("audiences"), newObj.Audiences, safe.Field(oldObj, toTokenIssuerProfileAudiences), 10)...)
-	errs = append(errs, validate.EachSliceVal(
+	errs = append(errs, validate.EachValSliceVal(
 		ctx, op, fldPath.Child("audiences"),
 		newObj.Audiences, safe.Field(oldObj, toTokenIssuerProfileAudiences),
 		nil, nil,
 		validate.RequiredValue,
 	)...)
 	// TODO I bet these were forgotten
-	//errs = append(errs, validate.EachSliceVal(
+	//errs = append(errs, validate.EachValSliceVal(
 	//	ctx, op, fldPath.Child("audiences"),
 	//	newObj.Audiences, safe.Field(oldObj, toTokenIssuerProfileAudiences),
 	//	nil, nil,
@@ -236,7 +236,7 @@ func validateExternalAuthClientProfile(ctx context.Context, op operation.Operati
 	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("clientId"), &newObj.ClientID, safe.Field(oldObj, toExternalAuthClientProfileClientID))...)
 
 	//ExtraScopes []string                           `json:"extraScopes"`
-	errs = append(errs, validate.EachSliceVal(
+	errs = append(errs, validate.EachValSliceVal(
 		ctx, op, fldPath.Child("extraScopes"),
 		newObj.ExtraScopes, safe.Field(oldObj, toExternalAuthClientProfileExtraScopes),
 		nil, nil,
@@ -316,7 +316,7 @@ func validateExternalAuthClaimProfile(ctx context.Context, op operation.Operatio
 	errs = append(errs, validateTokenClaimMappingsProfile(ctx, op, fldPath.Child("mappings"), &newObj.Mappings, safe.Field(oldObj, toExternalAuthClaimProfileMappings))...)
 
 	//ValidationRules []TokenClaimValidationRule `json:"validationRules"`
-	errs = append(errs, validate.EachSliceVal(
+	errs = append(errs, validate.EachValSliceVal(
 		ctx, op, fldPath.Child("validationRules"),
 		newObj.ValidationRules, safe.Field(oldObj, toExternalAuthClaimProfileValidationRules),
 		nil, nil,

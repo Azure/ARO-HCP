@@ -21,7 +21,7 @@ Each service component defines its image digest in the [configuration](../config
 | Maestro Agent Sidecar (nginx) | `maestro.agent.sidecar.image.digest`              |
 | Mise                          | `mise.image.digest`                               |
 
-> **Note**: Some components, such as `backend.image.digest` and `frontend.image.digest`, may be unset in development environments. In these cases, the commit SHA is used to resolve the image and digest. Components deployed to both service (SVC) and management (MGMT) clusters have distinct configuration paths per cluster type.
+> **Note**: Frontend, backend, mgmt-agent, kube-applier, admin-api, sessiongate, and Fleet have no baseline digest pins. Their digests must be supplied by deployment overrides, such as CI-built images, sdp-pipelines promotions or local builds. The optional-digest schema permits unresolved baseline configuration; it does not make a digest optional when deploying an image.
 
 ## Bumping Image Digests in Red Hat Environments
 

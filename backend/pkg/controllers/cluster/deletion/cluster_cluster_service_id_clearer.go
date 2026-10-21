@@ -61,7 +61,7 @@ func NewClusterClusterServiceIDClearerController(
 		clusterServiceClient: clusterServiceClient,
 	}
 
-	return controllerutils.NewClusterWatchingController(
+	controller := controllerutils.NewClusterWatchingController(
 		ClusterDeletionClusterServiceIDClearerControllerName,
 		resourcesDBClient,
 		informers,
@@ -69,6 +69,9 @@ func NewClusterClusterServiceIDClearerController(
 		time.Minute,
 		syncer,
 	)
+	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
+
+	return controller
 }
 
 // NeedsWork reports whether this controller has unfinished business for the

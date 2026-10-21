@@ -77,13 +77,16 @@ func NewExternalAuthClusterServiceUpdateDispatchController(
 		externalAuthLister,
 	)
 
-	return controllerutils.NewExternalAuthWatchingController(
+	controller := controllerutils.NewExternalAuthWatchingController(
 		ExternalAuthClusterServiceUpdateDispatchControllerName,
 		resourcesDBClient,
 		backendInformers,
 		time.Minute,
 		syncer,
 	)
+	controller.AddInterestingResource(coreapi.ExternalAuthResourceType, "*")
+
+	return controller
 }
 
 func NewExternalAuthClusterServiceUpdateDispatchSyncer(

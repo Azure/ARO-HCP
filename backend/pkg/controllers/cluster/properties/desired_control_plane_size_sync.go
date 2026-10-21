@@ -77,7 +77,7 @@ func NewDesiredControlPlaneSizeController(
 		clusterServiceClient:         clusterServiceClient,
 	}
 
-	return controllerutils.NewClusterWatchingController(
+	controller := controllerutils.NewClusterWatchingController(
 		DesiredControlPlaneSizeControllerName,
 		resourcesDBClient,
 		informers,
@@ -85,6 +85,10 @@ func NewDesiredControlPlaneSizeController(
 		5*time.Minute,
 		syncer,
 	)
+	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
+	controller.AddInterestingResource(coreapi.ServiceProviderClusterResourceType, coreapi.ServiceProviderClusterResourceName)
+
+	return controller
 }
 
 // NeedsWork reports whether ServiceProviderCluster.Spec.DesiredHostedClusterControlPlaneSize

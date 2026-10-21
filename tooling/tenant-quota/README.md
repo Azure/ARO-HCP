@@ -58,6 +58,61 @@ the same policy. Discovery repair is not a completeness watermark: old missing
 discovery rows still require a wider explicit scan. Once discovery rows are visible,
 the pending-work anti-join survives restarts and late completion.
 
+### Slot Acquisition Metadata
+
+The `run` batch also reads
+`aro-hcp-lease-acquire/artifacts/aro-hcp-slot-state.yaml` beneath the discovered
+job artifact directory, for all collected job families. This is the versioned
+snapshot published after successful slot acquisition, not a current lease or
+release-status report. No log parsing or catalog lookup is used.
+
+`ciJobOutcomes` records:
+
+| Column | Meaning |
+| --- | --- |
+| `runtimeRegion` | Selected workload region from `runtime_region`, not the catalog region or `config.yaml`'s Kusto location |
+| `leasedSlot` | Primary Boskos lease name |
+| `leasedAssets` | Dynamic array of `{kind, resourceName}` objects from `leases.assets`, sorted by kind/name |
+
+Only actual additional Boskos leases are stored, not asset requirements or every
+resolved Azure resource. Multiple leases per kind and previously unseen kinds are
+retained. A valid snapshot with no additional leases produces `[]`; unavailable
+metadata produces `null` assets and empty region/slot fields. Missing, malformed,
+and unsupported artifacts are logged and counted with the `slot-state` artifact
+source; they do not prevent the outcome from being recorded. Transport errors
+retry the run batch before submission. Failed acquisitions currently publish no
+snapshot, so their partial lease selections are unavailable here.
+
+Deploy the additive `ciJobOutcomes` schema and JSON mapping before this collector.
+Ingestion startup checks the new mapping entries. **There is no backfill**:
+processed builds are skipped, and an existing run-batch tag prevents rewriting
+the outcome even if other batches are still pending. Historical rows have null
+assets; they must not be interpreted as having no leases.
+Rediscovery does not update these rows. `--inspect-artifacts` can preview the new
+fields without writing or bypassing these guards for ingestion.
+
+Regional failure counts:
+
+```kusto
+ciJobOutcomes
+| where startedAt > ago(7d) and isnotempty(runtimeRegion)
+| summarize runs = count(), failures = countif(failed) by runtimeRegion
+```
+
+Find runs that leased a particular asset:
+
+```kusto
+ciJobOutcomes
+| where startedAt > ago(7d) and isnotempty(runtimeRegion)
+| mv-expand asset = leasedAssets
+| where tostring(asset.resourceName) == "asset-01"
+| project buildId, runtimeRegion, leasedSlot, overallResult,
+          assetKind = tostring(asset.kind)
+```
+
+Use the unexpanded outcome rows for run counts: `mv-expand` produces one row per
+asset and omits runs with an empty array.
+
 ## One-Shot CLI
 
 Run from `tooling/tenant-quota`. Both commands dispatch before service startup,

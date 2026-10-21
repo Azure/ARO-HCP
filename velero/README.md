@@ -2,6 +2,12 @@
 
 Velero is used to backup and restore Hosted Clusters, NodePools and Hosted Cluster ETCD instances.
 
+Management-agent requests orphaned backup deletion through Velero and separately
+retires unused Kopia repositories through durable cleanup CRs and scoped Azure
+prefix sweeps. See [backup lifecycle and operator guidance](../docs/backups.md#repository-retirement)
+for preservation opt-outs, infrastructure-first permissions, retained tombstones
+and completion limits. Deleting a BackupRepository alone does not erase its data.
+
 ## Installation Overview
 
 Velero is installed using the CLI from the oadp-1.5-latest image. The CLI is used instead of the upstream Helm chart because this installation method vetted by the OADP QA team.

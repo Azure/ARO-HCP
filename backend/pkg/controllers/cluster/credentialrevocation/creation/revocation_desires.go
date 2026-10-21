@@ -82,7 +82,7 @@ func NewRevocationDesiresController(
 		readDesireLister:             readDesireLister,
 	}
 
-	return controllerutils.NewSystemAdminCredentialRevocationWatchingController(
+	controller := controllerutils.NewSystemAdminCredentialRevocationWatchingController(
 		RevocationDesiresControllerName,
 		resourcesDBClient,
 		backendInformers,
@@ -90,6 +90,13 @@ func NewRevocationDesiresController(
 		1*time.Minute,
 		syncer,
 	)
+	controller.AddInterestingResource(coreapi.SystemAdminCredentialRevocationResourceType, "*")
+	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
+	controller.AddInterestingResource(coreapi.ServiceProviderClusterResourceType, coreapi.ServiceProviderClusterResourceName)
+	controller.AddInterestingResource(kubeapplierapi.SystemAdminCredentialRevocationScopedApplyDesireResourceType, kubeapplierapi.SystemAdminCredentialRevocationDesireName)
+	controller.AddInterestingResource(kubeapplierapi.SystemAdminCredentialRevocationScopedReadDesireResourceType, kubeapplierapi.SystemAdminCredentialRevocationDesireName)
+
+	return controller
 }
 
 func (c *revocationDesires) SyncOnce(ctx context.Context, key controllerutils.SystemAdminCredentialRevocationKey) error {
@@ -185,7 +192,7 @@ func (c *revocationDesires) ensureRevocationDesires(
 		Namespace: controlPlaneNamespace,
 		Name:      crrObj.Name,
 	}
-	crrDesireName := "systemadmincredentialrevocation"
+	crrDesireName := kubeapplierapi.SystemAdminCredentialRevocationDesireName
 	crrDesire, err := buildRevocationApplyDesire(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName,
 		key.RevocationName, crrDesireName, mcResourceID, crrTarget, crrObj)
 	if err != nil {

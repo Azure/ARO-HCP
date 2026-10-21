@@ -72,15 +72,6 @@ type Operation struct {
 	// Error is an OData error, present when Status is "Failed" or "Canceled"
 	Error *CloudErrorBody `json:"error,omitempty"`
 
-	// TODO do NOT reference this field in any new code. It is in the process of being removed
-	UsesNewNodePoolDeletionApproach bool `json:"usesNewNodePoolDeletionApproach"`
-
-	// TODO do NOT reference this field in any new code. It is in the process of being removed
-	UsesNewExternalAuthDeletionApproach bool `json:"usesNewExternalAuthDeletionApproach"`
-
-	// TODO do NOT reference this field in any new code. It is in the process of being removed
-	UsesNewClusterDeletionApproach bool `json:"usesNewClusterDeletionApproach"`
-
 	// Written by: Frontend POST requestAdminCredential, backend systemadmincredentialcontrollers
 	SystemAdminCredentialRequest *OperationSystemAdminCredentialRequest `json:"systemAdminCredentialRequest,omitempty"`
 	// Written by: Frontend POST revokeCredentials, backend systemadmincredentialcontrollers

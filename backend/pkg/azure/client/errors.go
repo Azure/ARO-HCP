@@ -16,6 +16,7 @@ package client
 
 import (
 	"errors"
+	"net/http"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 )
@@ -41,4 +42,10 @@ func IsResourceNotFoundErr(err error) bool {
 func IsRoleAssignmentNotFoundErr(err error) bool {
 	var azErr *azcore.ResponseError
 	return errors.As(err, &azErr) && azErr.ErrorCode == "RoleAssignmentNotFound"
+}
+
+// IsAzureCoreResponseErrorHTTP404 returns true if the error is an azcore.ResponseError with http status code 404.
+func IsAzureCoreResponseErrorHTTP404(err error) bool {
+	var azErr *azcore.ResponseError
+	return errors.As(err, &azErr) && azErr.StatusCode == http.StatusNotFound
 }

@@ -61,7 +61,7 @@ func NewNodePoolClusterServiceCreateController(
 		clustersServiceClient: clustersServiceClient,
 	}
 
-	return controllerutils.NewNodePoolWatchingController(
+	controller := controllerutils.NewNodePoolWatchingController(
 		NodePoolClusterServiceCreateControllerName,
 		resourcesDBClient,
 		informers,
@@ -69,6 +69,10 @@ func NewNodePoolClusterServiceCreateController(
 		time.Minute,
 		syncer,
 	)
+	controller.AddInterestingResource(coreapi.NodePoolResourceType, "*")
+	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
+
+	return controller
 }
 
 func (c *nodePoolClusterServiceCreateSyncer) needsWork(nodePool *coreapi.NodePool) bool {

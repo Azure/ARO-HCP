@@ -24,6 +24,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -151,6 +152,9 @@ func (s *capacityReportingSyncer) persistObservedResources(ctx context.Context, 
 	// (present in Ready ∪ NotReady). Their swift-NIC capacity is accounted for by
 	// the observed data, so the transient reservation is no longer needed.
 	updated.Status.PendingAssignedClusters = dropObservedPendingAssignments(updated.Status.PendingAssignedClusters, readyResourceIDs, notReadyResourceIDs)
+	if !controllerutils.NeedsUpdate(existing, updated) {
+		return nil
+	}
 	if _, err := schedulingCRUD.Replace(ctx, updated, nil); err != nil {
 		return utils.TrackError(err)
 	}
@@ -194,27 +198,35 @@ func dropObservedPendingAssignments(pending []*azcorearm.ResourceID, readyResour
 // unparseable entries are logged and skipped rather than aborting the mirror,
 // so a single malformed ID never blocks capacity reporting. It returns nil when
 // no entries parse, so the omitempty-tagged status fields stay absent rather
-// than serializing an empty array.
+// than serializing an empty array. Membership is a set: canonicalize casing,
+// deduplicate and sort to avoid writes caused only by report iteration order.
 func parseResourceIDs(ctx context.Context, ids []string) []*azcorearm.ResourceID {
 	if len(ids) == 0 {
 		return nil
 	}
 	logger := utils.LoggerFromContext(ctx)
 	parsed := make([]*azcorearm.ResourceID, 0, len(ids))
+	seen := make(map[string]bool, len(ids))
 	for _, id := range ids {
 		if id == "" {
 			continue
 		}
-		resourceID, err := azcorearm.ParseResourceID(id)
+		canonical := strings.ToLower(id)
+		if seen[canonical] {
+			continue
+		}
+		resourceID, err := azcorearm.ParseResourceID(canonical)
 		if err != nil {
 			logger.Error(err, "skipping unparseable HCP resource ID from CapacityReport", "resourceID", id)
 			continue
 		}
 		parsed = append(parsed, resourceID)
+		seen[canonical] = true
 	}
 	if len(parsed) == 0 {
 		return nil
 	}
+	slices.SortFunc(parsed, func(a, b *azcorearm.ResourceID) int { return strings.Compare(a.String(), b.String()) })
 	return parsed
 }
 

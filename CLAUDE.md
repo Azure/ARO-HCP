@@ -208,8 +208,6 @@ Each service follows consistent patterns:
 
 - **Worker loops seed per-key logger via `utils.AddLoggerValues`.** Every controller's `processNext` (or equivalent) must call `logger := utils.AddLoggerValues(utils.LoggerFromContext(ctx), key)` and `ctx = utils.ContextWithLogger(ctx, logger)` after pulling a key off the queue but before invoking `SyncOnce`. The backend's `genericWatchingController` does this once; kube-applier controllers, which run their own worker loops, must do it themselves.
 
-- **`UsesNewClusterDeletionApproach`, `UsesNewNodePoolDeletionApproach`, `UsesNewExternalAuthDeletionApproach` are deprecated and mid-removal.** These fields (`internal/api/coreapi/types_cluster.go`, `types_nodepool.go`, `types_externalauth.go`, `types_operation.go`, each marked `// TODO do NOT reference this field in any new code`) used to gate the legacy-vs-new cluster/node-pool/external-auth deletion code paths. That gating was removed from both frontend admission (`feat: remove conditional logic in frontend based on deletion approach`) and backend controllers (`feat: remove legacy deletion code in backend`); the frontend now only writes these fields unconditionally as `true` so they keep round-tripping until the fields themselves are deleted. Any new code that reads, branches on, or adds a new write site for these fields is a review-blocker — flag it and point to this note and `docs/cosmos-data-flow.md`'s DELETE Cluster section instead of letting it merge.
-
 ### API Versioning
 ARM API versions live under `internal/api/v<YYYYMMDD>preview/` (e.g. `v20240610preview`, `v20251223preview`). Each version directory has a `generated/` subdirectory with auto-generated types and a `register.go` that wires the version into the API registry. Conversion between API versions and internal types happens in the `*_methods.go` files. The internal (versionless) types live in `internal/api/`.
 
@@ -259,10 +257,15 @@ Custom tools in `tooling/`:
 
 ## Cosmos Data Flow Documentation
 
-`docs/cosmos-data-flow.md` documents every controller, endpoint writes, external resource effects, and cluster/node-pool/external-auth lifecycles. Keep the reference and its Graphviz sources/PNGs in sync with the code.
+`docs/generated/service-provider-control-flow.md` documents every controller, endpoint writes, external resource effects, and cluster/node-pool/external-auth lifecycles. The ARO Ops bot keeps the reference and its Graphviz sources/PNGs in sync with the code.
 
 ### When to regenerate
-Regenerate `docs/cosmos-data-flow.md` (using [the generation prompt](docs/prompts/controller-data-flow.md)) whenever a change touches:
+Everything under `docs/generated/` is generated output, regenerated and committed
+separately by the ARO Ops bot on an automated hourly cadence. Do not regenerate
+these files inside feature PRs unless specifically requested, to avoid merge conflicts.
+
+The separate regeneration uses [the generation prompt](docs/prompts/controller-data-flow.md)
+to update `docs/generated/service-provider-control-flow.md` when source changes touch:
 - `frontend/pkg/frontend/` — any handler that writes to Cosmos
 - Controller implementations or startup registration in backend, fleet, kube-applier, mgmt-agent, sessiongate, or shared informer management — including controllers without Cosmos writes
 - Azure/Cluster Service/Kubernetes effects, reconciliation gates, or resource lifecycle dependencies

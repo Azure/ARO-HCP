@@ -32,6 +32,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -56,6 +57,7 @@ func NewClusterChildResourcesCleanupController(
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	kubeApplierDBClients kubeappliercosmosstorage.KubeApplierDBClients,
 	informers coreinformers.BackendInformers,
+	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 ) controllerutils.Controller {
 	_, clusterLister := informers.Clusters()
 	syncer := &clusterChildResourcesCleanupController{
@@ -64,14 +66,33 @@ func NewClusterChildResourcesCleanupController(
 		kubeApplierDBClients: kubeApplierDBClients,
 	}
 
-	return controllerutils.NewClusterWatchingController(
+	controller := controllerutils.NewClusterWatchingController(
 		ClusterChildResourcesCleanupControllerControllerName,
 		resourcesDBClient,
 		informers,
-		nil,
+		kubeApplierInformers,
 		time.Minute,
 		syncer,
 	)
+	// Cleanup must include every remaining child, including legacy desire names.
+	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
+	controller.AddInterestingResource(coreapi.ServiceProviderClusterResourceType, coreapi.ServiceProviderClusterResourceName)
+	controller.AddInterestingResource(coreapi.NodePoolResourceType, "*")
+	controller.AddInterestingResource(coreapi.ExternalAuthResourceType, "*")
+	controller.AddInterestingResource(coreapi.SystemAdminCredentialRequestResourceType, "*")
+	controller.AddInterestingResource(coreapi.SystemAdminCredentialRevocationResourceType, "*")
+	controller.AddInterestingResource(coreapi.ClusterScopedManagementClusterContentResourceType, "*")
+	controller.AddInterestingResource(kubeapplierapi.ClusterScopedApplyDesireResourceType, "*")
+	controller.AddInterestingResource(kubeapplierapi.ClusterScopedReadDesireResourceType, "*")
+	nodePoolInformer, _ := informers.NodePools()
+	externalAuthInformer, _ := informers.ExternalAuths()
+	requestInformer, _ := informers.SystemAdminCredentialRequests()
+	revocationInformer, _ := informers.SystemAdminCredentialRevocations()
+	if err := controller.QueueForChildInformers(0, nodePoolInformer, externalAuthInformer, requestInformer, revocationInformer); err != nil {
+		panic(err)
+	}
+
+	return controller
 }
 
 func (c *clusterChildResourcesCleanupController) NeedsWork(cluster *coreapi.Cluster) bool {

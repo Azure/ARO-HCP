@@ -48,6 +48,17 @@ type Controller interface {
 	Run(ctx context.Context, threadiness int)
 }
 
+// WatchingController exposes resource-event filtering on the underlying generic
+// watching controller. With no interests registered, all events are accepted.
+type WatchingController interface {
+	Controller
+	AddInterestingResource(resourceType azcorearm.ResourceType, resourceName string)
+	// QueueForChildInformers maps direct child events (including deletion) to
+	// this controller's owner key, respecting its resource-interest filter.
+	QueueForChildInformers(resyncDuration time.Duration, notifiers ...Notifier) error
+	QueueForDescendantInformers(time.Duration, int, ...Notifier) error
+}
+
 // OperationKey is for driving workqueues keyed for operations
 type OperationKey struct {
 	SubscriptionID   string `json:"subscriptionID"`

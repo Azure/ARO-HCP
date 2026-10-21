@@ -51,7 +51,7 @@ type systemAdminCredentialRequestWatchingController struct {
 // cluster resync.
 //
 // kubeApplierInformers is optional: when non-nil, the controller also enqueues
-// on ReadDesire events from the union kube-applier informer surface (the same
+// on ReadDesire and ApplyDesire events from the union kube-applier informer surface (the same
 // pattern as ClusterWatchingController, but walking up to the credential
 // request resource type instead of the cluster type).
 func NewSystemAdminCredentialRequestWatchingController(
@@ -61,7 +61,7 @@ func NewSystemAdminCredentialRequestWatchingController(
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 	resyncDuration time.Duration,
 	syncer SystemAdminCredentialRequestSyncer,
-) Controller {
+) WatchingController {
 
 	systemAdminCredentialRequestSyncer := &systemAdminCredentialRequestWatchingController{
 		name:              name,
@@ -84,7 +84,11 @@ func NewSystemAdminCredentialRequestWatchingController(
 		// request: .../hcpOpenShiftClusters/<cluster>/systemAdminCredentialRequests/<cred>/readDesires/<name>
 		// maxDepth of 1 means we walk up one parent to the credential request.
 		readDesireInformer, _ := kubeApplierInformers.ReadDesires()
-		if err := controller.QueueForInformersWithMaxDepth(resyncDuration, 1, readDesireInformer); err != nil {
+		if err := controller.QueueForInformersWithMaxDepth(0, 1, readDesireInformer); err != nil {
+			panic(err) // coding error
+		}
+		applyDesireInformer, _ := kubeApplierInformers.ApplyDesires()
+		if err := controller.QueueForInformersWithMaxDepth(0, 1, applyDesireInformer); err != nil {
 			panic(err) // coding error
 		}
 	}
