@@ -1,0 +1,56 @@
+#
+# Purpose: Roll out ONLY the Kusto logging configuration (the
+#          dev-infrastructure/modules/logs/kusto module deployed via
+#          templates/kusto.bicep: cluster, databases, tables, and the
+#          routing/transform update policies).
+#
+# This is a standalone, dev-convenience pipeline carved out of the Geography
+# rollout (geography-pipeline.yaml, step kusto-infra/deploy). It lets you
+# iterate on the logging configuration in isolation without running the rest
+# of the geography rollout (action groups, kusto-monitoring, entity-groups).
+#
+# Run with:
+#   make pipeline/Kusto.Logging DEPLOY_ENV=pers
+#
+# Managed Resources:
+# * Azure Data Explorer (Kusto) cluster, databases, tables, update policies
+#   (only when kusto.manageInstance is true for the target environment)
+#
+$schema: "pipeline.schema.v1"
+serviceGroup: Microsoft.Azure.ARO.HCP.Kusto.Logging
+rolloutName: Kusto Logging Rollout
+resourceGroups:
+- name: global
+  resourceGroup: '{{ .global.rg }}'
+  subscription: '{{ .global.subscription.key }}'
+  steps:
+  - name: output
+    action: ARM
+    template: templates/output-global.bicep
+    parameters: configurations/output-global.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+- name: kusto-infra
+  resourceGroup: '{{ .kusto.rg }}'
+  subscription: '{{ .global.subscription.key }}'
+  steps:
+  - name: deploy
+    action: ARM
+    template: templates/kusto.bicep
+    parameters: configurations/kusto.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    variables:
+    - name: grafanaPrincipalId
+      input:
+        resourceGroup: global
+        step: output
+        name: grafanaPrincipalId
+    dependsOn:
+    - resourceGroup: global
+      step: output
+    automatedRetry:
+      errorContainsAny:
+      - "InternalServerError"
+      - "Internal server error"
+      maximumRetryCount: 3
+      durationBetweenRetries: 1m

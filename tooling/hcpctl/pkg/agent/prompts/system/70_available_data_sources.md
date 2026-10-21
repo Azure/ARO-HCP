@@ -28,16 +28,17 @@ resource. Review the manifest's `directory_layout` for the full structure. Key l
 
 ### Kusto (via kusto_query tool)
 
-Each environment has two databases:
+Each environment has one logs database plus a separate monitoring-events database:
 
-- **`ServiceLogs`**: Frontend (`frontendLogs`), Backend (`backendLogs`), Clusters
-  Service (`clustersServiceLogs`), Maestro server/agent (`containerLogs`), Kubernetes
-  events (`kubernetesEvents`), audit logs (`kubeAudit`), Kubernetes resource snapshots
-  (`kubernetesResourceSnapshots`), Cosmos DB document snapshots
-  (`cosmosResourceSnapshots`). Management cluster data
-  (mgmt-agent, HyperShift operator) is also in this database — filter by `cluster`.
-- **`HostedControlPlaneLogs`**: Per-cluster hosted control plane container logs
-  (`containerLogs`) — kube-apiserver, etcd, control-plane-operator, etc.
+- **`AllAroHcpLogs`**: all forwarder logs, routed into typed tables by ADX update
+  policies — Frontend (`frontendLogs`), Backend (`backendLogs`), Clusters Service
+  (`clustersServiceLogs`), Maestro server/agent and other catch-all container logs
+  (`containerLogs`), Kubernetes events (`kubernetesEvents`), Kubernetes resource
+  snapshots (`kubernetesResourceSnapshots`), Cosmos DB document snapshots
+  (`cosmosResourceSnapshots`), and per-cluster hosted control plane container logs
+  (`hcpContainerLogs`) — kube-apiserver, etcd, control-plane-operator, etc.
+  Management cluster data (mgmt-agent, HyperShift operator) is also here — filter by
+  `cluster`. Audit logs (`kubeAudit`) remain in the `ServiceLogs` database.
 - **`MonitoringEvents`**: Alert events from Prometheus/metric alerting. The
   `alertEvents` table contains fired/resolved alerts with columns: `alertId`,
   `alertRule`, `severity`, `monitorCondition`, `firedDateTime`, `resolvedDateTime`,
@@ -48,13 +49,13 @@ Each environment has two databases:
 Hosted cluster namespaces: `ocm-arohcp<env>-<cid>-<id>`. Use `distinct pod_name,
 container_name` within a namespace to discover available logs.
 
-#### `kubernetesEvents` (ServiceLogs)
+#### `kubernetesEvents` (AllAroHcpLogs)
 
 The `kubernetesEvents` table contains Kubernetes API Event objects from both service
 and management clusters. Filter by `cluster`, `eventNamespace`, `objectKind`,
 `objectName`, `reason`, `message`.
 
-#### `kubernetesResourceSnapshots` (ServiceLogs)
+#### `kubernetesResourceSnapshots` (AllAroHcpLogs)
 
 The mgmt-agent on each management cluster snapshots Kubernetes resources into the
 `kubernetesResourceSnapshots` table. This is a good replacement for `kubectl get` —
@@ -86,7 +87,7 @@ kubernetesResourceSnapshots
     reason=tostring(condition.reason), message=tostring(condition.message)
 ```
 
-#### `cosmosResourceSnapshots` (ServiceLogs)
+#### `cosmosResourceSnapshots` (AllAroHcpLogs)
 
 The backend's datadump controller periodically snapshots Cosmos DB documents into the
 `cosmosResourceSnapshots` table. This provides the backend's view of ARM resources,

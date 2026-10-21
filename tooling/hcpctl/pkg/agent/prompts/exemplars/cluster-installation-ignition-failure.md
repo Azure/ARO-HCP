@@ -115,7 +115,7 @@ This narrows the problem from the test client to the RP/backend layer. The failu
 The async operation status endpoint returned `200` throughout the wait window, showing the client could poll successfully but the operation never advanced to completion.
 
 ```kql
-cluster('https://hcp-int-uk.uksouth.kusto.windows.net').database('ServiceLogs').table('frontendLogs')
+cluster('https://hcp-int-uk.uksouth.kusto.windows.net').database('AllAroHcpLogs').table('frontendLogs')
 | where timestamp between (datetime(2026-07-10T11:09:40Z) .. datetime(2026-07-10T11:39:47Z))
 | where log.path =~ '/subscriptions/64f0619f-ebc2-4156-9d91-c4c781de7e54/providers/microsoft.redhatopenshift/locations/uksouth/hcpoperationstatuses/b4428b9c-5f16-4766-aaa3-3325cbd51acb'
 | where log.msg == 'response complete'
@@ -133,7 +133,7 @@ cluster('https://hcp-int-uk.uksouth.kusto.windows.net').database('ServiceLogs').
 The backend repeatedly picked `Provisioning` for the node-pool create operation; there is no transition to `Succeeded` or `Failed` during the test window.
 
 ```kql
-cluster('https://hcp-int-uk.uksouth.kusto.windows.net').database('ServiceLogs').table('backendLogs')
+cluster('https://hcp-int-uk.uksouth.kusto.windows.net').database('AllAroHcpLogs').table('backendLogs')
 | where timestamp between (datetime(2026-07-10T11:09:40Z) .. datetime(2026-07-10T11:39:47Z))
 | where resource_group == 'complex-cilium-kv-9zw5pq'
 | where resource_name == 'cilium-np'
@@ -216,7 +216,7 @@ This isolates the next layer: Clusters Service had accepted and started the node
 This returns the Clusters Service node-pool lifecycle messages, including creation and the transition to `installing`; there is no later `ready` lifecycle message.
 
 ```kql
-cluster('https://hcp-int-uk.uksouth.kusto.windows.net').database('ServiceLogs').table('clustersServiceLogs')
+cluster('https://hcp-int-uk.uksouth.kusto.windows.net').database('AllAroHcpLogs').table('clustersServiceLogs')
 | where timestamp between (datetime(2026-07-10T10:56:49Z) .. datetime(2026-07-10T11:39:47Z))
 | where log.aro_hcp_node_pool_resource_id =~ '/subscriptions/64f0619f-ebc2-4156-9d91-c4c781de7e54/resourcegroups/complex-cilium-kv-9zw5pq/providers/microsoft.redhatopenshift/hcpopenshiftclusters/cilium-cluster/nodepools/cilium-np'
 | summarize first_occurrence=min(timestamp), last_occurrence=max(timestamp), occurrences=count() by msg=tostring(log.msg)
@@ -255,7 +255,7 @@ Machine cilium-cluster-cilium-np-75x6r-vnqzv: NodeProvisioning: Waiting for a no
 This explicitly demonstrates absence: Clusters Service never logged a `ready` state transition for this node pool.
 
 ```kql
-cluster('https://hcp-int-uk.uksouth.kusto.windows.net').database('ServiceLogs').table('clustersServiceLogs')
+cluster('https://hcp-int-uk.uksouth.kusto.windows.net').database('AllAroHcpLogs').table('clustersServiceLogs')
 | where timestamp between (datetime(2026-07-10T10:56:49Z) .. datetime(2026-07-10T11:39:47Z))
 | where log.aro_hcp_node_pool_resource_id =~ '/subscriptions/64f0619f-ebc2-4156-9d91-c4c781de7e54/resourcegroups/complex-cilium-kv-9zw5pq/providers/microsoft.redhatopenshift/hcpopenshiftclusters/cilium-cluster/nodepools/cilium-np'
 | summarize ready_transition_count=countif(tostring(log.msg) has 'state to ''ready''' or tostring(log.msg) has 'now in ''ready''')
@@ -326,7 +326,7 @@ This is the HyperShift/CAPI layer. The control plane existed well enough for adm
 Clusters Service repeatedly recorded the node-pool feedback showing both machines unhealthy: first while VMs were still creating, then while waiting for corresponding nodes to appear.
 
 ```kql
-cluster('https://hcp-int-uk.uksouth.kusto.windows.net').database('ServiceLogs').table('clustersServiceLogs')
+cluster('https://hcp-int-uk.uksouth.kusto.windows.net').database('AllAroHcpLogs').table('clustersServiceLogs')
 | where timestamp between (datetime(2026-07-10T10:56:49Z) .. datetime(2026-07-10T11:39:47Z))
 | where log.aro_hcp_node_pool_resource_id =~ '/subscriptions/64f0619f-ebc2-4156-9d91-c4c781de7e54/resourcegroups/complex-cilium-kv-9zw5pq/providers/microsoft.redhatopenshift/hcpopenshiftclusters/cilium-cluster/nodepools/cilium-np'
 | summarize first_occurrence=min(timestamp), last_occurrence=max(timestamp), occurrences=count() by msg=tostring(log.msg)
@@ -354,7 +354,7 @@ Machine cilium-cluster-cilium-np-75x6r-vnqzv: NodeProvisioning: Waiting for a no
 HyperShift repeatedly reconciled the node pool and logged `ReachedIgnitionEndpoint is false, MachineHealthCheck won't be created until this is true`, proving the machines never progressed far enough even to enable machine-health-check remediation.
 
 ```kql
-cluster('https://hcp-int-uk.uksouth.kusto.windows.net').database('ServiceLogs').table('containerLogs')
+cluster('https://hcp-int-uk.uksouth.kusto.windows.net').database('AllAroHcpLogs').table('containerLogs')
 | where timestamp between (datetime(2026-07-10T10:56:49Z) .. datetime(2026-07-10T11:39:47Z))
 | where namespace_name == 'hypershift'
 | where container_name == 'operator'
@@ -396,7 +396,7 @@ This is the deepest directly proven causal layer in the infrastructure stack. It
 The AzureMachine events show `OSProvisioningTimedOut` for both VMs roughly 20 minutes after provisioning started.
 
 ```kql
-cluster('https://hcp-int-uk.uksouth.kusto.windows.net').database('ServiceLogs').table('kubernetesEvents')
+cluster('https://hcp-int-uk.uksouth.kusto.windows.net').database('AllAroHcpLogs').table('kubernetesEvents')
 | where timestamp between (datetime(2026-07-10T11:09:40Z) .. datetime(2026-07-10T11:39:47Z))
 | where eventNamespace == 'ocm-arohcpint-2rf852lv3niid24ftgc1nk43om61tn8n-cilium-cluster'
 | where objectName has 'cilium-cluster-cilium-np-75x6r'
@@ -502,7 +502,7 @@ cluster('https://hcp-int-uk.uksouth.kusto.windows.net').database('ServiceLogs').
 Router events show the rollout: old RS scaled down, new RS created, new pod stuck in sandbox failures.
 
 ```kql
-cluster('https://hcp-int-uk.uksouth.kusto.windows.net').database('ServiceLogs').table('kubernetesEvents')
+cluster('https://hcp-int-uk.uksouth.kusto.windows.net').database('AllAroHcpLogs').table('kubernetesEvents')
 | where timestamp between (datetime(2026-07-10T10:50:40Z) .. datetime(2026-07-10T11:39:47Z))
 | where eventNamespace == 'ocm-arohcpint-2rf852lv3niid24ftgc1nk43om61tn8n-cilium-cluster'
 | where objectName contains "router"
@@ -606,7 +606,7 @@ The pod was scheduled to node `aks-userswft2-18526782-vmss000001`, where Azure C
 The new router pod's sandbox failures show the CNS error persisting for the entire test window:
 
 ```kql
-cluster('https://hcp-int-uk.uksouth.kusto.windows.net').database('ServiceLogs').table('kubernetesEvents')
+cluster('https://hcp-int-uk.uksouth.kusto.windows.net').database('AllAroHcpLogs').table('kubernetesEvents')
 | where timestamp between (datetime(2026-07-10T11:04:00Z) .. datetime(2026-07-10T11:39:47Z))
 | where eventNamespace == 'ocm-arohcpint-2rf852lv3niid24ftgc1nk43om61tn8n-cilium-cluster'
 | where objectName == 'router-865bdb6c6c-89tpn'

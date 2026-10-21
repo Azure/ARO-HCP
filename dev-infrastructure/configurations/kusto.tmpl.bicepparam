@@ -17,8 +17,6 @@ param manageInstance = {{ .kusto.manageInstance }}
 
 param serviceLogsDatabase = '{{ .kusto.serviceLogsDatabase }}'
 
-param hostedControlPlaneLogsDatabase = '{{ .kusto.hostedControlPlaneLogsDatabase }}'
-
 param monitoringEventsDatabase = '{{ .kusto.monitoringEventsDatabase }}'
 
 param allAroHcpLogsDatabase = '{{ .kusto.allAroHcpLogsDatabase }}'

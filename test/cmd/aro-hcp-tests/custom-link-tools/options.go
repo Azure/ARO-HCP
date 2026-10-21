@@ -87,10 +87,9 @@ type ValidatedOptions struct {
 
 // KustoInfo holds the Kusto cluster connection details derived from configuration.
 type KustoInfo struct {
-	KustoName                      string
-	KustoRegion                    string
-	ServiceLogsDatabase            string
-	HostedControlPlaneLogsDatabase string
+	KustoName             string
+	KustoRegion           string
+	AllAroHcpLogsDatabase string
 }
 
 // completedOptions is a private wrapper that enforces a call of Complete() before config generation can be invoked.
@@ -156,13 +155,9 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to get kusto location from config: %w", err)
 	}
-	serviceLogsDB, err := testutil.ConfigGetString(cfg, "kusto.serviceLogsDatabase")
+	allAroHcpLogsDB, err := testutil.ConfigGetString(cfg, "kusto.allAroHcpLogsDatabase")
 	if err != nil {
-		return nil, fmt.Errorf("failed to get service logs database from config: %w", err)
-	}
-	hcpLogsDB, err := testutil.ConfigGetString(cfg, "kusto.hostedControlPlaneLogsDatabase")
-	if err != nil {
-		return nil, fmt.Errorf("failed to get hosted control plane logs database from config: %w", err)
+		return nil, fmt.Errorf("failed to get AllAroHcpLogs database from config: %w", err)
 	}
 
 	steps, err := timing.LoadSteps(ctx, o.TimingInputDir)
@@ -191,10 +186,9 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 			SubscriptionID:    o.SubscriptionID,
 			Clock:             clock.RealClock{},
 			Kusto: KustoInfo{
-				KustoName:                      kustoName,
-				KustoRegion:                    kustoRegion,
-				ServiceLogsDatabase:            serviceLogsDB,
-				HostedControlPlaneLogsDatabase: hcpLogsDB,
+				KustoName:             kustoName,
+				KustoRegion:           kustoRegion,
+				AllAroHcpLogsDatabase: allAroHcpLogsDB,
 			},
 		},
 	}, nil
@@ -347,7 +341,7 @@ func (o Options) Run(ctx context.Context) error {
 				TestName:          testName,
 				ResourceGroupName: rg,
 				Links:             links,
-				Database:          o.Kusto.HostedControlPlaneLogsDatabase,
+				Database:          o.Kusto.AllAroHcpLogsDatabase,
 				Status:            "tbd",
 			})
 		}

@@ -21,6 +21,10 @@
 rawToCosmosResourceSnapshots() {
     rawLogs
     | where tostring(log.snapshotType) == "cosmos"
+    // kube-applier is not a snapshot source; its snapshotType-carrying records were
+    // dropped in the forwarder (filter.drop_kube_applier_snapshots) and are excluded
+    // here so they land in no table (kubeApplierLogs/containerLogs also drop them).
+    | where tostring(log.kubernetes.container_name) !startswith "kube-applier"
     | project
         timestamp,
         environment = tostring(log.environment),

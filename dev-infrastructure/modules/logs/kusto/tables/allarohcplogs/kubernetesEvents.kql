@@ -35,6 +35,7 @@
 .create-or-alter function with (skipvalidation = "true", docstring = "Route kube-events container logs to kubernetesEvents")
 rawToKubernetesEvents() {
     rawLogs
+    | where isempty(tostring(log.snapshotType))
     | where tostring(log.kubernetes.namespace_name) !startswith "ocm-"
     | where tostring(log.kubernetes.container_name) startswith "kube-events"
     | project

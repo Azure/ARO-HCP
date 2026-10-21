@@ -13,9 +13,6 @@ param manageInstance bool
 @description('Name of the service logs database.')
 param serviceLogsDatabase string
 
-@description('Name of the hosted control plane logs database.')
-param hostedControlPlaneLogsDatabase string
-
 @description('Name of the monitoring events database.')
 param monitoringEventsDatabase string
 
@@ -73,7 +70,6 @@ module kusto '../modules/logs/kusto/main.bicep' = if (manageInstance) {
     sku: sku
     tier: tier
     serviceLogsDatabase: serviceLogsDatabase
-    hostedControlPlaneLogsDatabase: hostedControlPlaneLogsDatabase
     monitoringEventsDatabase: monitoringEventsDatabase
     allAroHcpLogsDatabase: allAroHcpLogsDatabase
     adminGroups: adminGroups

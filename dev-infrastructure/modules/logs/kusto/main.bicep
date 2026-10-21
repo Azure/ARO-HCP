@@ -10,11 +10,8 @@ param tier string = 'Basic'
 @description('List of dSTS groups')
 param dstsGroups array
 
-@description('Name of the service logs database.')
+@description('Name of the service logs database. Retained for the Event-Hub (aksEvents/kubeAudit, maestroMqttConnections) and CI (ci*) tables only; all forwarder logs now route to AllAroHcpLogs.')
 param serviceLogsDatabase string
-
-@description('Name of the hosted control plane logs database.')
-param hostedControlPlaneLogsDatabase string
 
 @description('Name of the monitoring events database.')
 param monitoringEventsDatabase string
@@ -63,40 +60,30 @@ param enableAutoScale bool
 
 var db = {
   serviceLogs: serviceLogsDatabase
-  hostedControlPlaneLogs: hostedControlPlaneLogsDatabase
   monitoringEvents: monitoringEventsDatabase
   allAroHcpLogs: allAroHcpLogsDatabase
 }
 
-var databases = [db.serviceLogs, db.hostedControlPlaneLogs, db.monitoringEvents, db.allAroHcpLogs]
+var databases = [db.serviceLogs, db.monitoringEvents, db.allAroHcpLogs]
 var hasGrafana = enableGrafanaIntegration && grafanaPrincipalId != '' && grafanaPrincipalId != '__grafanaPrincipalId__'
 
 var dummyScript = '.create-or-alter function with (docstring = \'dummy function to run last and to remove permission\') dummyFunction() {print \'dummy\'}'
 
+// ServiceLogs now hosts ONLY the out-of-scope Event-Hub (aksEvents/kubeAudit,
+// maestroMqttConnections) and CI (ci*) tables. All forwarder-fed log tables that
+// used to live here (frontend/backend/clusters-service/fleet/kube-applier/
+// container/kubernetesEvents/systemd/azureVnet/*ResourceSnapshots) moved to the
+// AllAroHcpLogs database and are no longer created here. The pre-existing live
+// tables are left untouched (incremental deployment does not drop them); physical
+// decommission is a separate Phase 4 cleanup (see docs/logging.md).
 var allServiceLogsTablesKQL = {
-  backendLogs: loadTextContent('tables/backendLogs.kql')
-  kubeApplierLogs: loadTextContent('tables/kubeApplierLogs.kql')
-  containerlogs: loadTextContent('tables/containerLogs.kql')
-  fleetLogs: loadTextContent('tables/fleetLogs.kql')
-  frontendLogs: loadTextContent('tables/frontendLogs.kql')
-  clustersServiceLogs: loadTextContent('tables/clustersServiceLogs.kql')
-  kubernetesEvents: loadTextContent('tables/kubernetesEvents.kql')
   aksEvents: loadTextContent('tables/aksEvents.kql')
-  systemdLogs: loadTextContent('tables/systemdLogs.kql')
-  azureVnetLogs: loadTextContent('tables/azureVnetLogs.kql')
-  resourceSnapshots: loadTextContent('tables/kubernetesResourceSnapshots.kql')
-  cosmosResourceSnapshots: loadTextContent('tables/cosmosResourceSnapshots.kql')
   ciJobOutcomes: loadTextContent('tables/ciJobOutcomes.kql')
   ciDiscoveredJobs: loadTextContent('tables/ciDiscoveredJobs.kql')
   ciProcessedJobs: loadTextContent('tables/ciProcessedJobs.kql')
   ciTestNames: loadTextContent('tables/ciTestNames.kql')
   ciTestResults: loadTextContent('tables/ciTestResults.kql')
   maestroMqttConnections: loadTextContent('tables/maestroMqttConnections.kql')
-}
-
-var allCustomerLogsTablesKQL = {
-  containerlogs: loadTextContent('tables/containerLogs.kql')
-  kubernetesEvents: loadTextContent('tables/kubernetesEvents.kql')
 }
 
 var allMonitoringEventsTablesKQL = {
@@ -161,18 +148,6 @@ module serviceLogs 'database.bicep' = {
   dependsOn: [cluster]
 }
 
-module hostedControlPlaneLogs 'database.bicep' = {
-  name: 'hostedControlPlaneLogs'
-  params: {
-    location: location
-    kustoName: kustoName
-    databaseName: db.hostedControlPlaneLogs
-    softDeletePeriod: 'P14D'
-    hotCachePeriod: 'P2D'
-  }
-  dependsOn: [serviceLogs]
-}
-
 module monitoringEvents 'database.bicep' = {
   name: 'monitoringEvents'
   params: {
@@ -182,7 +157,7 @@ module monitoringEvents 'database.bicep' = {
     softDeletePeriod: 'P90D'
     hotCachePeriod: 'P2D'
   }
-  dependsOn: [hostedControlPlaneLogs]
+  dependsOn: [serviceLogs]
 }
 
 // AllAroHcpLogs: DB default 90d soft delete / 2d hot cache (R1). HCP logs get a
@@ -212,21 +187,6 @@ module serviceLogsTables 'script.bicep' = [
       continueOnErrors: false
     }
     dependsOn: [serviceLogs]
-  }
-]
-
-module hostedControlPlaneLogsTables 'script.bicep' = [
-  for tableName in objectKeys(allCustomerLogsTablesKQL): {
-    name: 'customerLogsTablesScript-${tableName}'
-    params: {
-      kustoName: kustoName
-      databaseName: db.hostedControlPlaneLogs
-      scriptName: tableName
-      scriptContent: allCustomerLogsTablesKQL[tableName]
-      principalPermissionsAction: 'RetainPermissionOnScriptCompletion'
-      continueOnErrors: false
-    }
-    dependsOn: [hostedControlPlaneLogs]
   }
 ]
 
@@ -288,11 +248,9 @@ module databaseUserScripts 'database-users.bicep' = [
       dstsGroups: dstsGroups
       continueOnErrors: false
     }
-    dependsOn: database == db.hostedControlPlaneLogs
-      ? [hostedControlPlaneLogs]
-      : database == db.monitoringEvents
-          ? [monitoringEvents]
-          : database == db.allAroHcpLogs ? [allAroHcpLogs] : [serviceLogs]
+    dependsOn: database == db.monitoringEvents
+      ? [monitoringEvents]
+      : database == db.allAroHcpLogs ? [allAroHcpLogs] : [serviceLogs]
   }
 ]
 
@@ -328,8 +286,8 @@ module grafanaAllAroHcpLogsAccess 'grant-access.bicep' = if (hasGrafana) {
 // The strip is database-scoped and only affects that deployment principal; it
 // does not touch the cluster-scoped AllDatabasesAdmin principalAssignment that
 // cluster.bicep grants the global rollout MSI, which is what lets the
-// KustoEntityGroups pipeline step (kustoctl) sync entity groups on all four
-// databases (including MonitoringEvents and AllAroHcpLogs) after deployment.
+// KustoEntityGroups pipeline step (kustoctl) sync entity groups on all three
+// databases (ServiceLogs, MonitoringEvents and AllAroHcpLogs) after deployment.
 module removePermission 'script.bicep' = [
   for (database, i) in databases: {
     name: '${database}-removePermission-${i}'
@@ -344,7 +302,6 @@ module removePermission 'script.bicep' = [
     dependsOn: [
       databaseUserScripts
       serviceLogsTables
-      hostedControlPlaneLogsTables
       monitoringEventsTables
       allAroHcpLogsFoundation
       allAroHcpLogsTables

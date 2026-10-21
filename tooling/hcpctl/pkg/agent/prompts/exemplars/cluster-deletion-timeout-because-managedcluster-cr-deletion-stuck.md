@@ -38,7 +38,7 @@ Clusters Service phase transitions show the cluster reached `'uninstalling'` but
 ```kql
 // manifest.json: kusto_cluster
 // manifest.json: time_window.start .. time_window.end
-cluster('https://hcp-stg-uk-2.uksouth.kusto.windows.net').database('ServiceLogs').table('clustersServiceLogs')
+cluster('https://hcp-stg-uk-2.uksouth.kusto.windows.net').database('AllAroHcpLogs').table('clustersServiceLogs')
 | where timestamp between (datetime(2026-07-01) .. datetime(2026-07-03))
 | where log has '2r9nhugpbdko2vai55lv2ikki9h9958r'
 | where log has 'state to' or log has 'now in'
@@ -64,7 +64,7 @@ The destruct chain looped 5,161 times, always stopping at the managed cluster de
 
 ```kql
 // manifest.json: kusto_cluster
-cluster('https://hcp-stg-uk-2.uksouth.kusto.windows.net').database('ServiceLogs').table('clustersServiceLogs')
+cluster('https://hcp-stg-uk-2.uksouth.kusto.windows.net').database('AllAroHcpLogs').table('clustersServiceLogs')
 | where timestamp between (datetime(2026-07-01) .. datetime(2026-07-03))
 | where log has '2r9nhugpbdko2vai55lv2ikki9h9958r'
 | where log has 'destructor' or log has 'destruct chain' or log has 'Not continuing'
@@ -117,7 +117,7 @@ Query the ManagedCluster CR conditions from `kubernetesResourceSnapshots` to see
 // manifest.json: kusto_cluster
 // manifest.json: cs_cluster_id (retrieve OCM cluster ID from the clustersService/cid snapshot query
 //   or from manifest.json; it is the opaque hash like '2r9nhugpbdko2vai55lv2ikki9h9958r')
-cluster('https://hcp-stg-uk-2.uksouth.kusto.windows.net').database('ServiceLogs').table('kubernetesResourceSnapshots')
+cluster('https://hcp-stg-uk-2.uksouth.kusto.windows.net').database('AllAroHcpLogs').table('kubernetesResourceSnapshots')
 | where timestamp between (datetime(2026-07-01) .. datetime(2026-07-03))
 | where objectKind == 'ManagedCluster'
 | where name == '2r9nhugpbdko2vai55lv2ikki9h9958r'
@@ -154,7 +154,7 @@ Query `kubernetesEvents` for eviction events in the klusterlet namespace:
 ```kql
 // manifest.json: kusto_cluster
 // manifest.json: cs_cluster_id
-cluster('https://hcp-stg-uk-2.uksouth.kusto.windows.net').database('ServiceLogs').table('kubernetesEvents')
+cluster('https://hcp-stg-uk-2.uksouth.kusto.windows.net').database('AllAroHcpLogs').table('kubernetesEvents')
 | where timestamp between (datetime(2026-07-01) .. datetime(2026-07-03))
 | where eventNamespace == 'klusterlet-2r9nhugpbdko2vai55lv2ikki9h9958r'
 | where reason == 'Evicted' or message has 'MemoryPressure' or message has 'evict'
@@ -183,7 +183,7 @@ Pod snapshots from `kubernetesResourceSnapshots` confirm addon pods were repeate
 ```kql
 // manifest.json: kusto_cluster
 // manifest.json: cs_cluster_id
-cluster('https://hcp-stg-uk-2.uksouth.kusto.windows.net').database('ServiceLogs').table('kubernetesResourceSnapshots')
+cluster('https://hcp-stg-uk-2.uksouth.kusto.windows.net').database('AllAroHcpLogs').table('kubernetesResourceSnapshots')
 | where timestamp between (datetime(2026-07-01) .. datetime(2026-07-03))
 | where objectKind == 'Pod'
 | where namespace == 'klusterlet-2r9nhugpbdko2vai55lv2ikki9h9958r'

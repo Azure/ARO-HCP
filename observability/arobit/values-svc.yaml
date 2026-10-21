@@ -71,8 +71,6 @@ forwarder:
     timeoutSeconds: 300
     intervalSeconds: 15
   kusto:
-    serviceLogsDatabase: {{ .kusto.serviceLogsDatabase }}
-    hostedControlPlaneLogsDatabase: {{ .kusto.hostedControlPlaneLogsDatabase }}
     allAroHcpLogsDatabase: {{ .kusto.allAroHcpLogsDatabase }}
     enabled: {{ .arobit.kusto.enabled }}
     buffering: {{ .arobit.kusto.buffering }}

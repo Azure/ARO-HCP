@@ -2253,9 +2253,6 @@
         "serviceLogsDatabase": {
           "type": "string"
         },
-        "hostedControlPlaneLogsDatabase": {
-          "type": "string"
-        },
         "monitoringEventsDatabase": {
           "type": "string",
           "description": "Name of the Kusto database for monitoring events (e.g. alert events from Event Hub)"
@@ -2319,7 +2316,6 @@
         "sku",
         "tier",
         "serviceLogsDatabase",
-        "hostedControlPlaneLogsDatabase",
         "monitoringEventsDatabase",
         "allAroHcpLogsDatabase",
         "adminGroups",

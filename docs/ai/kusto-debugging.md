@@ -16,14 +16,18 @@ the discovery chain for resolving correlation IDs into the magic strings
 
 ## Databases
 
-- `HostedControlPlaneLogs` – logs from hosted control plane
-- `ServiceLogs` — logs from service and management clusters (underlay)
+- `AllAroHcpLogs` — all forwarder logs (service, management, and hosted control plane);
+  routed into typed tables by ADX update policies. HCP container logs land in
+  `hcpContainerLogs`; everything else in the per-service / catch-all tables below.
+- `MonitoringEvents` — alert events (`alertEvents`). `ServiceLogs` still hosts audit
+  logs (`aksEvents` / `kubeAudit`) and CI tables.
 
 ## Tables
 
 - `containerLogs` — generic container logs from all pods; used for maestro, hypershift, and any service without a dedicated table
+- `hcpContainerLogs` — per-cluster hosted control plane container logs (kube-apiserver, etcd, control-plane-operator, etc.); 14-day retention
 - `kubernetesEvents` — Kubernetes API Event objects (warnings, scheduling/mount/probe failures, `reason`/`message` on
-  involved objects). Ingested by `kube-events` on service and management clusters into **`ServiceLogs.kubernetesEvents`**
+  involved objects). Ingested by `kube-events` on service and management clusters into **`AllAroHcpLogs.kubernetesEvents`**
   only. Filter `eventNamespace`, `objectKind`, `objectName`, `cluster`. Not the same as mgmt-agent `pod event` container logs.
 - `frontendLogs` — ARM API request/response logs: HTTP method, path, status code, duration, request/correlation IDs, subscription/resource identifiers
 - `backendLogs` — backend service logs: async operations, controller state dumps, cluster lifecycle, error codes, correlation IDs
@@ -39,7 +43,7 @@ the discovery chain for resolving correlation IDs into the magic strings
 - Service-specific tables add structured `log` (dynamic) with fields like `log.msg`, `log.content`.
 - `frontendLogs` is the entry point for tracing a request (use `client_request_id` or `correlation_request_id`).
 - `backendLogs` links to `frontendLogs` via `correlation_request_id` and contains state dumps from controllers.
-- **Kubernetes events**: `database('ServiceLogs').table('kubernetesEvents')` — scope `cluster`, `eventNamespace`,
+- **Kubernetes events**: `database('AllAroHcpLogs').table('kubernetesEvents')` — scope `cluster`, `eventNamespace`,
   `objectName`, `reason`. Snapshot `controlPlaneEvents` / `hypershift/events` use this table. See
   [kubernetes-events.md](../../tooling/hcpctl/pkg/agent/prompts/exemplars/kubernetes-events.md).
 - `containerLogs` is filtered by `namespace_name` and `container_name` to isolate maestro/hypershift logs.
@@ -50,5 +54,5 @@ the discovery chain for resolving correlation IDs into the magic strings
   [mgmt-agent-event-logs.md](../../tooling/hcpctl/pkg/agent/prompts/exemplars/mgmt-agent-event-logs.md).
 - Maestro bundle tracking joins `containerLogs` + `backendLogs`/`clustersServiceLogs` via bundle ID extraction.
 - Hosted cluster namespaces on management clusters take the form `ocm-arohcp<env>-<cid>-<id>`, where `cid` is the Clusters Service internal cluster ID (an opaque hash like `2iig1flm0pfjr9h8kkg6ggbjig1p3fpa`). Use `| distinct pod_name, container_name` within such a namespace to enumerate available pods/containers.
-- Use `| where namespace_name !contains 'ocm-arohcp'` against `database('HostedControlPlaneLogs').table('containerLogs')` to review management-cluster-level components.
+- Use `| where namespace_name !contains 'ocm-arohcp'` against `database('AllAroHcpLogs').table('hcpContainerLogs')` to review management-cluster-level components.
 - The Kusto ingest mappings and table schemas live in [dev-infrastructure/modules/logs/kusto/tables/](../../dev-infrastructure/modules/logs/kusto/tables/) — consult them when a query needs a column you haven't seen used before.

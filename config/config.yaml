@@ -419,7 +419,6 @@ defaults:
     rg: "hcp-kusto-{{ .ctx.environment }}-{{ .ev2.geoShortId }}"
     kustoName: "hcp-{{ .ctx.environment }}-{{ .ev2.geoShortId }}"
     serviceLogsDatabase: "ServiceLogs"
-    hostedControlPlaneLogsDatabase: "HostedControlPlaneLogs"
     monitoringEventsDatabase: "MonitoringEvents"
     allAroHcpLogsDatabase: "AllAroHcpLogs"
     adminGroups: ""
@@ -1316,7 +1315,7 @@ clouds:
         enabled: false
       cloudEnvironmentName: "AzurePublicCloud"
       kusto:
-        kustoName: "hcp-dev-us-2"
+        kustoName: "jbolltest"
         location: eastus2
         manageInstance: true
         sku: "Standard_E16ads_v5"

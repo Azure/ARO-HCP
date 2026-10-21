@@ -577,8 +577,7 @@ kusto:
   autoScaleMax: 10
   autoScaleMin: 2
   enableAutoScale: true
-  hostedControlPlaneLogsDatabase: HostedControlPlaneLogs
-  kustoName: hcp-dev-us-2
+  kustoName: jbolltest
   location: eastus2
   manageInstance: true
   monitoringEventsDatabase: MonitoringEvents

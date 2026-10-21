@@ -92,7 +92,7 @@ Expect(err).NotTo(HaveOccurred())
 We can see the test client polling successfully for the entire time period:
 
 ```kql
-cluster('https://hcp-int-uk.uksouth.kusto.windows.net').database('ServiceLogs').table('frontendLogs')
+cluster('https://hcp-int-uk.uksouth.kusto.windows.net').database('AllAroHcpLogs').table('frontendLogs')
 | where timestamp between (datetime(2026-05-19T20:52:10Z) .. datetime(2026-05-19T22:10:46Z))
 | where log.path =~ '/subscriptions/64f0619f-ebc2-4156-9d91-c4c781de7e54/providers/microsoft.redhatopenshift/locations/uksouth/hcpoperationstatuses/a049288c-cdf3-4431-ab37-ba94acfedbd1'
 | where log.msg == 'response complete'
@@ -144,7 +144,7 @@ return utils.TrackError(err)
 No backend controllers posted unnatural status during the test run for this cluster.
 
 ```kql
-cluster('https://hcp-int-uk.uksouth.kusto.windows.net').database('ServiceLogs').table('cosmosResourceSnapshots')
+cluster('https://hcp-int-uk.uksouth.kusto.windows.net').database('AllAroHcpLogs').table('cosmosResourceSnapshots')
 | where timestamp between (datetime(2026-05-19T20:52:10Z) .. datetime(2026-05-19T21:43:55Z))
 | where subscriptionID == '64f0619f-ebc2-4156-9d91-c4c781de7e54'
 | where resourceGroup =~ 'customer-rg-crkv7p'
@@ -170,7 +170,7 @@ cluster('https://hcp-int-uk.uksouth.kusto.windows.net').database('ServiceLogs').
 Clusters Service never transitioned the cluster past the `'installing'` phase:
 
 ```kql
-cluster('https://hcp-int-uk.uksouth.kusto.windows.net').database('ServiceLogs').table('clustersServiceLogs')
+cluster('https://hcp-int-uk.uksouth.kusto.windows.net').database('AllAroHcpLogs').table('clustersServiceLogs')
 | where timestamp between (datetime(2026-05-19T20:52:10Z) .. datetime(2026-05-19T22:10:46Z))
 | where log.aro_hcp_cluster_resource_id =~ '/subscriptions/64f0619f-ebc2-4156-9d91-c4c781de7e54/resourcegroups/customer-rg-crkv7p/providers/microsoft.redhatopenshift/hcpopenshiftclusters/basic-hcp-cluster'
 | where isempty(log.aro_hcp_node_pool_resource_id)
@@ -219,7 +219,7 @@ return nil
 The `Available` condition on the `HostedCluster` never had a `true` status:
 
 ```kql
-cluster('https://hcp-int-uk.uksouth.kusto.windows.net').database('ServiceLogs').table('cosmosResourceSnapshots')
+cluster('https://hcp-int-uk.uksouth.kusto.windows.net').database('AllAroHcpLogs').table('cosmosResourceSnapshots')
 | where timestamp between (datetime(2026-05-19T20:52:10Z) .. datetime(2026-05-19T22:10:46Z))
 | where subscriptionID == '64f0619f-ebc2-4156-9d91-c4c781de7e54'
 | where resourceGroup =~ 'customer-rg-crkv7p'
@@ -253,7 +253,7 @@ The last snapshot of the `HostedCluster` conditions before the test cleanup bega
 present and the `kube-apiserver` deployment had not been found:
 
 ```kql
-cluster('https://hcp-int-uk.uksouth.kusto.windows.net').database('ServiceLogs').table('cosmosResourceSnapshots')
+cluster('https://hcp-int-uk.uksouth.kusto.windows.net').database('AllAroHcpLogs').table('cosmosResourceSnapshots')
 | where timestamp between (datetime(2026-05-19T20:52:10Z) .. datetime(2026-05-19T21:43:55Z))
 | where subscriptionID == '64f0619f-ebc2-4156-9d91-c4c781de7e54'
 | where resourceGroup =~ 'customer-rg-crkv7p'
@@ -279,7 +279,7 @@ cluster('https://hcp-int-uk.uksouth.kusto.windows.net').database('ServiceLogs').
 The `hypershift-operator` is continually not finding `etcd` in a fully ready state during the entire test duration:
 
 ```kql
-cluster('https://hcp-int-uk.uksouth.kusto.windows.net').database('ServiceLogs').table('containerLogs')
+cluster('https://hcp-int-uk.uksouth.kusto.windows.net').database('AllAroHcpLogs').table('containerLogs')
 | where timestamp between (datetime(2026-05-19T20:52:10Z) .. datetime(2026-05-19T22:10:46Z))
 | where namespace_name == 'hypershift'
 | where container_name == 'operator'
@@ -308,7 +308,7 @@ Events for the `etcd` pods show that volumes mounted quickly for the other repli
 for `etcd-0` until after the test has timed out.
 
 ```kql
-cluster('https://hcp-int-uk.uksouth.kusto.windows.net').database('ServiceLogs').table('kubernetesEvents')
+cluster('https://hcp-int-uk.uksouth.kusto.windows.net').database('AllAroHcpLogs').table('kubernetesEvents')
 | where timestamp between (datetime(2026-05-19T20:52:10Z) .. datetime(2026-05-19T22:10:46Z))
 | where eventNamespace == 'ocm-arohcpint-2qd822p7guniitr7ibsb7qjeccri0gdl-x0c2h7b6o1c1w1a'
         and objectName contains 'etcd-'
@@ -345,7 +345,7 @@ spinning up a new one. The `etcd-0` pod scheduled on the new node and mounted th
 The direct error from Azure Disk is seen in the failed mount events:
 
 ```kql
-cluster('https://hcp-int-uk.uksouth.kusto.windows.net').database('ServiceLogs').table('kubernetesEvents')
+cluster('https://hcp-int-uk.uksouth.kusto.windows.net').database('AllAroHcpLogs').table('kubernetesEvents')
 | where timestamp between (datetime(2026-05-19T20:52:10Z) .. datetime(2026-05-19T22:10:46Z))
 | where eventNamespace == 'ocm-arohcpint-2qd822p7guniitr7ibsb7qjeccri0gdl-x0c2h7b6o1c1w1a'
         and objectName == 'etcd-0'
@@ -380,7 +380,7 @@ cluster('https://hcp-int-uk.uksouth.kusto.windows.net').database('ServiceLogs').
 #### Proof 2: Log Snippet
 
 ```kql
-cluster('https://hcp-int-uk.uksouth.kusto.windows.net').database('ServiceLogs').table('kubernetesEvents')
+cluster('https://hcp-int-uk.uksouth.kusto.windows.net').database('AllAroHcpLogs').table('kubernetesEvents')
 | where timestamp between (datetime(2026-05-19T20:52:10Z) .. datetime(2026-05-19T22:10:46Z))
 | where objectKind == 'Node' and objectName == 'aks-userswft3-15776247-vmss00000h'
 | extend firstSeen = coalesce(firstSeen, todatetime(log.event_time)), lastSeen = coalesce(lastSeen, todatetime(log.event_time))

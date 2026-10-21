@@ -70,7 +70,7 @@ spec:
         - --cache-ttl=60m
         - --collection-interval=2m
         - --enabled-collectors=service-tag-usage,kusto-logs-current,keyvault-certificates
-        - --kusto-cluster=hcp-dev-us-2
+        - --kusto-cluster=jbolltest
         - --kusto-region=__kustoregion__
         - --keyvault-name=aro-hcp-dev-svc-kv
         - --keyvault-dns-suffix=vault.azure.net

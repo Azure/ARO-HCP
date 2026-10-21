@@ -58,7 +58,7 @@ occurred
 #### Proof 1 (kusto)
 
 ```kql
-cluster('https://hcp-int-uk.uksouth.kusto.windows.net').database('ServiceLogs').table('backendLogs')
+cluster('https://hcp-int-uk.uksouth.kusto.windows.net').database('AllAroHcpLogs').table('backendLogs')
 | where timestamp between (datetime(2026-07-20T21:32:50Z) .. datetime(2026-07-20T22:18:05Z))
 | where resource_group == 'rg-np-version-upgrade-9cldvc-x78hlk'
 | where resource_name == 'npupgrade-4-20'
@@ -79,7 +79,7 @@ cluster('https://hcp-int-uk.uksouth.kusto.windows.net').database('ServiceLogs').
 #### Proof 1 (kusto -- HyperShift NodePool snapshots showing the revert)
 
 ```kql
-cluster('https://hcp-int-uk.uksouth.kusto.windows.net').database('ServiceLogs').table('kubernetesResourceSnapshots')
+cluster('https://hcp-int-uk.uksouth.kusto.windows.net').database('AllAroHcpLogs').table('kubernetesResourceSnapshots')
 | where timestamp between (datetime(2026-07-20T21:32:50Z) .. datetime(2026-07-20T22:18:05Z))
 | where apiVersion == 'hypershift.openshift.io/v1beta1'
 | where objectKind == 'NodePool'
@@ -111,7 +111,7 @@ The NodePool had `specReplicas=3` for only ~600ms (9:33:03.273 to 9:33:03.938) b
 #### Proof 2 (kusto -- CS database correctly had replicas=3)
 
 ```kql
-cluster('https://hcp-int-uk.uksouth.kusto.windows.net').database('ServiceLogs').table('backendLogs')
+cluster('https://hcp-int-uk.uksouth.kusto.windows.net').database('AllAroHcpLogs').table('backendLogs')
 | where timestamp between (datetime(2026-07-20T12:33:00Z) .. datetime(2026-07-21T22:30:05Z))
 | where container_name == 'aro-hcp-backend'
 | where log.controller_name == 'csstatedump'
@@ -143,7 +143,7 @@ The CS database correctly stored `specReplicas=3` from 9:33:20 onwards for the e
 #### Proof 3 (kusto -- ManifestWork never had replicas=3)
 
 ```kql
-cluster('https://hcp-int-uk.uksouth.kusto.windows.net').database('ServiceLogs').table('clustersServiceLogs')
+cluster('https://hcp-int-uk.uksouth.kusto.windows.net').database('AllAroHcpLogs').table('clustersServiceLogs')
 | where timestamp between (datetime(2026-07-20T21:32:50Z) .. datetime(2026-07-20T22:18:05Z))
 | where log contains 'f6i4v1b5u3u5b4f-npupgrade-4-20'
 | where log contains 'NodePoolManifestWork for cluster'
@@ -177,7 +177,7 @@ The ManifestWork (as observed by the CS status controller) never showed `specRep
 #### Proof 1 (kusto -- CS logs showing overlapping operations)
 
 ```kql
-cluster('https://hcp-int-uk.uksouth.kusto.windows.net').database('ServiceLogs').table('clustersServiceLogs')
+cluster('https://hcp-int-uk.uksouth.kusto.windows.net').database('AllAroHcpLogs').table('clustersServiceLogs')
 | where timestamp between (datetime(2026-07-20T21:32:50Z) .. datetime(2026-07-20T21:34:00Z))
 | where log has '2rm44ag6ca53sf0k892iva6rn0nbbmik'
 | where log has 'Successfully patched node pool CR'

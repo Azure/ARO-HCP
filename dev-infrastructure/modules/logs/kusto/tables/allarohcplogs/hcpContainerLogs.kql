@@ -27,6 +27,7 @@
 .create-or-alter function with (skipvalidation = "true", docstring = "Route ocm-* namespace container logs to hcpContainerLogs")
 rawToHcpContainerLogs() {
     rawLogs
+    | where isempty(tostring(log.snapshotType))
     | where tostring(log.kubernetes.namespace_name) startswith "ocm-"
     | project
         timestamp,

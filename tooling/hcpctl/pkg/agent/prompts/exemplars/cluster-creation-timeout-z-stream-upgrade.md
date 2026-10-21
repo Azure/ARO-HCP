@@ -49,7 +49,7 @@ never finished cluster creation; the 20-minute create wait expired while the bac
 // manifest.json: resource_group
 let resourceGroup = 'rg-zstream-upgrade-4-22-d84tcz';
 // manifest.json: kusto_cluster
-cluster('https://hcp-dev-us-2.eastus2.kusto.windows.net').database('ServiceLogs').table('backendLogs')
+cluster('https://hcp-dev-us-2.eastus2.kusto.windows.net').database('AllAroHcpLogs').table('backendLogs')
 | where resource_group == resourceGroup
 | where log.controller_name == 'operationclustercreate'
 | where tostring(log.msg) == 'picked cluster create operation status'
@@ -82,7 +82,7 @@ let hcNamespace = 'ocm-arohcpci01-2r4sj32f75bfmfa9m6rkupe7o982hqst';
 // manifest.json: hosted_control_plane_namespace (name suffix)
 let hcName = 'p2d8v9o7y9g8x5o';
 // manifest.json: kusto_cluster
-cluster('https://hcp-dev-us-2.eastus2.kusto.windows.net').database('ServiceLogs').table('kubernetesResourceSnapshots')
+cluster('https://hcp-dev-us-2.eastus2.kusto.windows.net').database('AllAroHcpLogs').table('kubernetesResourceSnapshots')
 // manifest.json: time_window.start .. time_window.end
 | where timestamp between (datetime(2026-06-24T17:43:34Z) .. datetime(2026-06-24T18:49:43Z))
 | where objectKind == 'HostedCluster'
@@ -130,7 +130,7 @@ let hcNamespace = 'ocm-arohcpci01-2r4sj32f75bfmfa9m6rkupe7o982hqst';
 // manifest.json: hosted_control_plane_namespace (name suffix)
 let hcName = 'p2d8v9o7y9g8x5o';
 // manifest.json: kusto_cluster
-cluster('https://hcp-dev-us-2.eastus2.kusto.windows.net').database('ServiceLogs').table('kubernetesResourceSnapshots')
+cluster('https://hcp-dev-us-2.eastus2.kusto.windows.net').database('AllAroHcpLogs').table('kubernetesResourceSnapshots')
 // manifest.json: time_window subset (CS ready .. test failure)
 | where timestamp between (csReadyAt .. probeEnd)
 | where objectKind == 'HostedCluster'
@@ -170,7 +170,7 @@ kube-apiserver pods on the new ReplicaSet `54b7f655f6` cold-started while old RS
 // manifest.json: hosted_control_plane_namespace
 let hcpNamespace = 'ocm-arohcpci01-2r4sj32f75bfmfa9m6rkupe7o982hqst-p2d8v9o7y9g8x5o';
 // manifest.json: kusto_cluster
-cluster('https://hcp-dev-us-2.eastus2.kusto.windows.net').database('ServiceLogs').table('kubernetesResourceSnapshots')
+cluster('https://hcp-dev-us-2.eastus2.kusto.windows.net').database('AllAroHcpLogs').table('kubernetesResourceSnapshots')
 // manifest.json: time_window subset (upgrade rollout window)
 | where timestamp between (datetime(2026-06-24T17:55:00Z) .. datetime(2026-06-24T18:05:00Z))
 | where objectKind == 'Pod'
@@ -220,7 +220,7 @@ New-RS `54b7f655f6` pods logged sustained `etcd-client` dial errors; prior RS `d
 // manifest.json: hosted_control_plane_namespace
 let hcpNamespace = 'ocm-arohcpci01-2r4sj32f75bfmfa9m6rkupe7o982hqst-p2d8v9o7y9g8x5o';
 // manifest.json: kusto_cluster
-cluster('https://hcp-dev-us-2.eastus2.kusto.windows.net').database('HostedControlPlaneLogs').table('containerLogs')
+cluster('https://hcp-dev-us-2.eastus2.kusto.windows.net').database('AllAroHcpLogs').table('hcpContainerLogs')
 // manifest.json: time_window subset (upgrade rollout window)
 | where timestamp between (datetime(2026-06-24T17:56:00Z) .. datetime(2026-06-24T18:05:00Z))
 | where namespace_name == hcpNamespace
@@ -253,7 +253,7 @@ let hcpNamespace = 'ocm-arohcpci01-2r4sj32f75bfmfa9m6rkupe7o982hqst-p2d8v9o7y9g8
 // pod event query (Proof 1): first new-RS kube-apiserver pod
 let failingPod = 'kube-apiserver-54b7f655f6-tn2dc';
 // manifest.json: kusto_cluster
-cluster('https://hcp-dev-us-2.eastus2.kusto.windows.net').database('ServiceLogs').table('kubernetesEvents')
+cluster('https://hcp-dev-us-2.eastus2.kusto.windows.net').database('AllAroHcpLogs').table('kubernetesEvents')
 // manifest.json: time_window subset (upgrade rollout window)
 | where timestamp between (datetime(2026-06-24T17:55:00Z) .. datetime(2026-06-24T18:05:00Z))
 | where eventNamespace == hcpNamespace
@@ -298,7 +298,7 @@ let hcpNamespace = 'ocm-arohcpci01-2r4sj32f75bfmfa9m6rkupe7o982hqst-p2d8v9o7y9g8
 // pod event query (Proof 1): first new-RS kube-apiserver pod
 let failingPod = 'kube-apiserver-54b7f655f6-tn2dc';
 // manifest.json: kusto_cluster
-cluster('https://hcp-dev-us-2.eastus2.kusto.windows.net').database('HostedControlPlaneLogs').table('containerLogs')
+cluster('https://hcp-dev-us-2.eastus2.kusto.windows.net').database('AllAroHcpLogs').table('hcpContainerLogs')
 // manifest.json: time_window subset (upgrade rollout window)
 | where timestamp between (datetime(2026-06-24T17:56:00Z) .. datetime(2026-06-24T18:05:00Z))
 | where namespace_name == hcpNamespace
@@ -334,7 +334,7 @@ etcd StatefulSet rolled during the forced upgrade:
 // manifest.json: hosted_control_plane_namespace
 let hcpNamespace = 'ocm-arohcpci01-2r4sj32f75bfmfa9m6rkupe7o982hqst-p2d8v9o7y9g8x5o';
 // manifest.json: kusto_cluster
-cluster('https://hcp-dev-us-2.eastus2.kusto.windows.net').database('ServiceLogs').table('kubernetesEvents')
+cluster('https://hcp-dev-us-2.eastus2.kusto.windows.net').database('AllAroHcpLogs').table('kubernetesEvents')
 // manifest.json: time_window subset (upgrade rollout window)
 | where timestamp between (datetime(2026-06-24T17:55:00Z) .. datetime(2026-06-24T18:05:00Z))
 | where eventNamespace == hcpNamespace
@@ -378,7 +378,7 @@ The dial failures fit **upgrade churn** from the in-flight z-stream bump to 4.22
 // manifest.json: hosted_control_plane_namespace
 let hcpNamespace = 'ocm-arohcpci01-2r4sj32f75bfmfa9m6rkupe7o982hqst-p2d8v9o7y9g8x5o';
 // manifest.json: kusto_cluster
-cluster('https://hcp-dev-us-2.eastus2.kusto.windows.net').database('ServiceLogs').table('kubernetesEvents')
+cluster('https://hcp-dev-us-2.eastus2.kusto.windows.net').database('AllAroHcpLogs').table('kubernetesEvents')
 // manifest.json: time_window subset (upgrade rollout window)
 | where timestamp between (datetime(2026-06-24T17:55:00Z) .. datetime(2026-06-24T18:05:00Z))
 | where eventNamespace == hcpNamespace
@@ -400,7 +400,7 @@ No rows — no Service Events for `etcd-client` in this window.
 // manifest.json: hosted_control_plane_namespace
 let hcpNamespace = 'ocm-arohcpci01-2r4sj32f75bfmfa9m6rkupe7o982hqst-p2d8v9o7y9g8x5o';
 // manifest.json: kusto_cluster
-cluster('https://hcp-dev-us-2.eastus2.kusto.windows.net').database('ServiceLogs').table('kubernetesEvents')
+cluster('https://hcp-dev-us-2.eastus2.kusto.windows.net').database('AllAroHcpLogs').table('kubernetesEvents')
 // manifest.json: time_window subset (upgrade rollout window)
 | where timestamp between (datetime(2026-06-24T17:55:00Z) .. datetime(2026-06-24T18:05:00Z))
 | where eventNamespace == hcpNamespace

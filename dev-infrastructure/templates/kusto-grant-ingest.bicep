@@ -9,9 +9,6 @@ param kustoResourceId string
 @description('SVC Database name to grant access on')
 param svcDatabaseName string
 
-@description('Hcp Database name to grant access on')
-param hcpDatabaseName string
-
 @description('AllAroHcpLogs (single all-logs) database name to grant access on')
 param allAroHcpDatabaseName string
 
@@ -24,7 +21,6 @@ param clusterLogPrincipalId string = ''
 param adminApiPrincipalId string = ''
 param exporterPrincipalId string = ''
 
-var hcpIngestors = clusterType == 'mgmt' ? [clusterLogPrincipalId] : []
 var svcIngestors = [clusterLogPrincipalId]
 
 var readers = clusterType == 'svc' ? [adminApiPrincipalId, exporterPrincipalId] : []
@@ -37,17 +33,6 @@ module grantKustoSvcDB '../modules/logs/kusto/grant-access.bicep' = if (arobitKu
     ingestAccessPrincipalIds: svcIngestors
     readAccessPrincipalIds: readers
     databaseName: svcDatabaseName
-    kustoName: kustoRef.name
-  }
-  scope: resourceGroup(kustoRef.resourceGroup.subscriptionId, kustoRef.resourceGroup.name)
-}
-
-module grantKustoHcpDB '../modules/logs/kusto/grant-access.bicep' = if (arobitKustoEnabled && kustoResourceId != '') {
-  name: 'grantKusto-hcp-${uniqueString(resourceGroup().name)}'
-  params: {
-    ingestAccessPrincipalIds: hcpIngestors
-    readAccessPrincipalIds: readers
-    databaseName: hcpDatabaseName
     kustoName: kustoRef.name
   }
   scope: resourceGroup(kustoRef.resourceGroup.subscriptionId, kustoRef.resourceGroup.name)
