@@ -1,0 +1,33 @@
+// Azure VNet CNI host-file logs (/var/log/azure-vnet.log), routed by the Fluent
+// Bit tag (azure-vnet.logs). Host-file logs use `hostname` for the node and carry
+// no collector-Pod metadata. Schema identical to the legacy
+// ServiceLogs.azureVnetLogs table (spec R7).
+.create-merge table azureVnetLogs (
+  timestamp: datetime,
+  environment: string,
+  region: string,
+  cluster: string,
+  hostname: string,
+  sourcePath: string,
+  level: string,
+  message: string,
+  log: dynamic
+)
+
+.create-or-alter function with (skipvalidation = "true", docstring = "Route azure-vnet.logs host logs to azureVnetLogs")
+rawToAzureVnetLogs() {
+    rawLogs
+    | where tag == "azure-vnet.logs"
+    | project
+        timestamp,
+        environment = tostring(log.environment),
+        region = tostring(log.region),
+        cluster = tostring(log.cluster),
+        hostname = tostring(log.hostname),
+        sourcePath = tostring(log.sourcePath),
+        level = tostring(log.level),
+        message = tostring(log.msg),
+        log
+}
+
+.alter table azureVnetLogs policy update @'[{"IsEnabled": true, "Source": "rawLogs", "Query": "rawToAzureVnetLogs()", "IsTransactional": true, "PropagateIngestionProperties": false}]'

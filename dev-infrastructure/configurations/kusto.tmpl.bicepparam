@@ -21,6 +21,8 @@ param hostedControlPlaneLogsDatabase = '{{ .kusto.hostedControlPlaneLogsDatabase
 
 param monitoringEventsDatabase = '{{ .kusto.monitoringEventsDatabase }}'
 
+param allAroHcpLogsDatabase = '{{ .kusto.allAroHcpLogsDatabase }}'
+
 param adminGroups = '{{ .kusto.adminGroups }}'
 
 param viewerGroups = '{{ .kusto.viewerGroups }}'

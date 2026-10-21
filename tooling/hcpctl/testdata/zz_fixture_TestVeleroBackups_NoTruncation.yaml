@@ -1,4 +1,4 @@
-database: ServiceLogs
+database: AllAroHcpLogs
 kql: |
   // Velero Backups: full snapshot history of Velero Backup CRs captured on management
   // clusters, for backup-failure debugging (ARO-28989). One row per captured snapshot event,

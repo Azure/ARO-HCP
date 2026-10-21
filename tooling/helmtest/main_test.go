@@ -145,6 +145,53 @@ func TestShoeboxForwardUsesMDSDCompatibleTimestamp(t *testing.T) {
 	}
 }
 
+// TestShoeboxForkRetainedOnMgmtMdsd guards the Geneva/Shoebox fork against the
+// Kusto-routing simplification (docs/logging.md, spec §9 risk). The AllAroHcpLogs
+// migration removes Kusto-routing filters from the forwarder but MUST retain the
+// namespace_router + set_cluster_id Lua + shoebox fork, because customer logs
+// reach Geneva through them. This path only runs on mgmt+mdsd, so the behavioural
+// e2e may not exercise it — assert on the rendered mgmt+mdsd fixture instead.
+func TestShoeboxForkRetainedOnMgmtMdsd(t *testing.T) {
+	fixture, err := os.ReadFile("../../observability/arobit/testdata/zz_fixture_TestHelmTemplate_helmtest_mdsd_and_kusto_enabled_mgmt.yaml")
+	require.NoError(t, err)
+	output := string(fixture)
+
+	require.Contains(t, output, "Alias           filter.namespace_router",
+		"namespace_router must be retained; the Shoebox fork matches the ocm.logs tag it produces")
+	require.Contains(t, output, "Alias           lua.set_cluster_id_from_annotation",
+		"set_cluster_id Lua must be retained; the Shoebox transform reuses the cluster_id it stamps")
+	require.Contains(t, output, "Alias           filter.shoebox_router",
+		"shoebox_router must render on mgmt+mdsd")
+	require.Contains(t, output, "Alias           forward.shoebox",
+		"the Shoebox forward output must render on mgmt+mdsd")
+	require.Contains(t, output, "Host            127.0.0.1",
+		"the Shoebox forward must target the MDSD clusterlogs sidecar host")
+	require.Contains(t, output, "Port            5002",
+		"the Shoebox forward must target the MDSD clusterlogs sidecar on port 5002")
+}
+
+// TestAllAroHcpLogsRawOutputRendered asserts the single AllAroHcpLogs landing
+// output renders on both cluster types and targets rawLogs via the rawMapping
+// (docs/logging.md). Exactly one such output must exist.
+func TestAllAroHcpLogsRawOutputRendered(t *testing.T) {
+	for _, fixture := range []string{
+		"../../dev-infrastructure/zz_fixture_TestHelmTemplate_dev_westus3_svc_1_arobit.yaml",
+		"../../dev-infrastructure/zz_fixture_TestHelmTemplate_dev_westus3_mgmt_1_arobit.yaml",
+	} {
+		t.Run(fixture, func(t *testing.T) {
+			raw, err := os.ReadFile(fixture)
+			require.NoError(t, err)
+			output := string(raw)
+			require.Equal(t, 1, strings.Count(output, "Table_Name rawLogs"),
+				"expected exactly one AllAroHcpLogs rawLogs output")
+			require.Contains(t, output, "Database_Name AllAroHcpLogs",
+				"rawLogs output must target the AllAroHcpLogs database")
+			require.Contains(t, output, "ingestion_mapping_reference rawMapping",
+				"rawLogs output must use the rawMapping ingestion mapping")
+		})
+	}
+}
+
 func TestArobitWatsonMDSDSocketConfiguration(t *testing.T) {
 	for _, test := range []struct {
 		name           string

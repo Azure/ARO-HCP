@@ -421,6 +421,7 @@ defaults:
     serviceLogsDatabase: "ServiceLogs"
     hostedControlPlaneLogsDatabase: "HostedControlPlaneLogs"
     monitoringEventsDatabase: "MonitoringEvents"
+    allAroHcpLogsDatabase: "AllAroHcpLogs"
     adminGroups: ""
     viewerGroups: ""
     viewerIdentities: ""

@@ -1,4 +1,4 @@
-database: ServiceLogs
+database: AllAroHcpLogs
 kql: |
   // Velero DeleteBackupRequests: backup-deletion requests for the target HCP, captured on management
   // clusters, for backup-failure debugging (ARO-28989). Shows deletion/GC intent and outcome — useful

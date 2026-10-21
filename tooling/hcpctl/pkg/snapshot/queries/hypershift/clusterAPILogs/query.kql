@@ -1,4 +1,4 @@
-cluster('{{ .ClusterURI }}').database('{{ .HCPDatabase }}').table('containerLogs')
+cluster('{{ .ClusterURI }}').database('{{ .HCPDatabase }}').table('hcpContainerLogs')
 | where timestamp between ({{ kqlDatetime .PhaseStartTime }} .. {{ kqlDatetime .PhaseEndTime }})
 {{- if and .ServiceClusterName .ManagementClusterName }}
 | where cluster in ('{{ .ServiceClusterName }}', '{{ .ManagementClusterName }}')

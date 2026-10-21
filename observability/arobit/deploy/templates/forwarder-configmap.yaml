@@ -647,28 +647,18 @@ data:
         Match metrics.fluentbit
         Host  0.0.0.0
         Port  9090
-{{- if .Values.forwarder.clusterType | eq "mgmt" }}
-    [OUTPUT]
-        Match ocm.logs
-        Name azure_kusto
-        Retry_Limit 5
-        auth_type workload_identity
-        tenant_id {{ .Values.forwarder.tenantId }}
-        client_id {{ .Values.forwarder.msiClientId }}
-        workload_identity_token_file ${AZURE_FEDERATED_TOKEN_FILE}
-        Ingestion_Endpoint {{ .Values.forwarder.kusto.ingestionEndpoint }}
-        Database_Name {{ .Values.forwarder.kusto.hostedControlPlaneLogsDatabase }}
-        Table_Name containerLogs
-        ingestion_mapping_reference ingestionMapping
-        azure_kusto_buffer_key containerLogsOcm
-        buffer_dir "{{ .Values.forwarder.kusto.buffer_dir }}"
-{{- if .Values.forwarder.kusto.buffering }}
-        {{- template "buffer_settings" . }}
-{{- end }}
-{{- end }}
 
+    # AllAroHcpLogs single landing table (spec docs/logging.md). Dual-write: this
+    # ships every Kusto-destined record to AllAroHcpLogs.rawLogs ALONGSIDE the
+    # legacy per-table outputs above, where transactional ADX update policies fan
+    # it out to the typed tables. Routing/transform now lives in KQL, so this one
+    # output replaces the ~12 above once the legacy outputs are removed (spec
+    # Phase 3). Match_regex captures all current Kusto tags (the container-name /
+    # snapshot re-tagged *.logs, ocm.logs, raw kubernetes.*, systemd.*, and
+    # azure-vnet.logs) while deliberately NOT matching shoeboxlogs,
+    # metrics.fluentbit, or mdsd-other.logs.
     [OUTPUT]
-        Match aro-hcp-frontend.logs
+        Match_regex ^(ocm\.logs|aro-hcp-frontend\.logs|aro-hcp-backend\.logs|clusters-service\.logs|fleet-controller\.logs|kube-applier\.logs|kube-events\.logs|resource-snapshots\.logs|cosmos-snapshots\.logs|kubernetes\..*|systemd\..*|azure-vnet\.logs)$
         Name azure_kusto
         Retry_Limit 5
         auth_type workload_identity
@@ -676,190 +666,10 @@ data:
         client_id {{ .Values.forwarder.msiClientId }}
         workload_identity_token_file ${AZURE_FEDERATED_TOKEN_FILE}
         Ingestion_Endpoint {{ .Values.forwarder.kusto.ingestionEndpoint }}
-        Database_Name {{ .Values.forwarder.kusto.serviceLogsDatabase }}
-        Table_Name frontendLogs
-        ingestion_mapping_reference ingestionMapping
-        buffer_dir "{{ .Values.forwarder.kusto.buffer_dir }}"
-{{- if .Values.forwarder.kusto.buffering }}
-        azure_kusto_buffer_key frontendLogs
-        {{- template "buffer_settings" . }}
-{{- end }}
-
-    [OUTPUT]
-        Match aro-hcp-backend.logs
-        Name azure_kusto
-        Retry_Limit 5
-        auth_type workload_identity
-        tenant_id {{ .Values.forwarder.tenantId }}
-        client_id {{ .Values.forwarder.msiClientId }}
-        workload_identity_token_file ${AZURE_FEDERATED_TOKEN_FILE}
-        Ingestion_Endpoint {{ .Values.forwarder.kusto.ingestionEndpoint }}
-        Database_Name {{ .Values.forwarder.kusto.serviceLogsDatabase }}
-        Table_Name backendLogs
-        ingestion_mapping_reference ingestionMapping
-        azure_kusto_buffer_key backendLogs
-        buffer_dir "{{ .Values.forwarder.kusto.buffer_dir }}"
-{{- if .Values.forwarder.kusto.buffering }}
-        {{- template "buffer_settings" . }}
-{{- end }}
-
-    [OUTPUT]
-        Match fleet-controller.logs
-        Name azure_kusto
-        Retry_Limit 5
-        auth_type workload_identity
-        tenant_id {{ .Values.forwarder.tenantId }}
-        client_id {{ .Values.forwarder.msiClientId }}
-        workload_identity_token_file ${AZURE_FEDERATED_TOKEN_FILE}
-        Ingestion_Endpoint {{ .Values.forwarder.kusto.ingestionEndpoint }}
-        Database_Name {{ .Values.forwarder.kusto.serviceLogsDatabase }}
-        Table_Name fleetLogs
-        ingestion_mapping_reference ingestionMapping
-        azure_kusto_buffer_key fleetLogs
-        buffer_dir "{{ .Values.forwarder.kusto.buffer_dir }}"
-{{- if .Values.forwarder.kusto.buffering }}
-        {{- template "buffer_settings" . }}
-{{- end }}
-
-    [OUTPUT]
-        Match kube-applier.logs
-        Name azure_kusto
-        Retry_Limit 5
-        auth_type workload_identity
-        tenant_id {{ .Values.forwarder.tenantId }}
-        client_id {{ .Values.forwarder.msiClientId }}
-        workload_identity_token_file ${AZURE_FEDERATED_TOKEN_FILE}
-        Ingestion_Endpoint {{ .Values.forwarder.kusto.ingestionEndpoint }}
-        Database_Name {{ .Values.forwarder.kusto.serviceLogsDatabase }}
-        Table_Name kubeApplierLogs
-        ingestion_mapping_reference ingestionMapping
-        azure_kusto_buffer_key kubeApplierLogs
-        buffer_dir "{{ .Values.forwarder.kusto.buffer_dir }}"
-{{- if .Values.forwarder.kusto.buffering }}
-        {{- template "buffer_settings" . }}
-{{- end }}
-
-    [OUTPUT]
-        Match clusters-service.logs
-        Name azure_kusto
-        Retry_Limit 5
-        auth_type workload_identity
-        tenant_id {{ .Values.forwarder.tenantId }}
-        client_id {{ .Values.forwarder.msiClientId }}
-        workload_identity_token_file ${AZURE_FEDERATED_TOKEN_FILE}
-        Ingestion_Endpoint {{ .Values.forwarder.kusto.ingestionEndpoint }}
-        Database_Name {{ .Values.forwarder.kusto.serviceLogsDatabase }}
-        Table_Name clustersServiceLogs
-        ingestion_mapping_reference ingestionMapping
-        azure_kusto_buffer_key clustersServiceLogs
-        buffer_dir "{{ .Values.forwarder.kusto.buffer_dir }}"
-{{- if .Values.forwarder.kusto.buffering }}
-        {{- template "buffer_settings" . }}
-{{- end }}
-
-    [OUTPUT]
-        Match resource-snapshots.logs
-        Name azure_kusto
-        Retry_Limit 5
-        auth_type workload_identity
-        tenant_id {{ .Values.forwarder.tenantId }}
-        client_id {{ .Values.forwarder.msiClientId }}
-        workload_identity_token_file ${AZURE_FEDERATED_TOKEN_FILE}
-        Ingestion_Endpoint {{ .Values.forwarder.kusto.ingestionEndpoint }}
-        Database_Name {{ .Values.forwarder.kusto.serviceLogsDatabase }}
-        Table_Name kubernetesResourceSnapshots
-        ingestion_mapping_reference ingestionMapping
-        azure_kusto_buffer_key resourceSnapshots
-        buffer_dir "{{ .Values.forwarder.kusto.buffer_dir }}"
-{{- if .Values.forwarder.kusto.buffering }}
-        {{- template "buffer_settings" . }}
-{{- end }}
-
-    [OUTPUT]
-        Match cosmos-snapshots.logs
-        Name azure_kusto
-        Retry_Limit 5
-        auth_type workload_identity
-        tenant_id {{ .Values.forwarder.tenantId }}
-        client_id {{ .Values.forwarder.msiClientId }}
-        workload_identity_token_file ${AZURE_FEDERATED_TOKEN_FILE}
-        Ingestion_Endpoint {{ .Values.forwarder.kusto.ingestionEndpoint }}
-        Database_Name {{ .Values.forwarder.kusto.serviceLogsDatabase }}
-        Table_Name cosmosResourceSnapshots
-        ingestion_mapping_reference ingestionMapping
-        azure_kusto_buffer_key cosmosResourceSnapshots
-        buffer_dir "{{ .Values.forwarder.kusto.buffer_dir }}"
-{{- if .Values.forwarder.kusto.buffering }}
-        {{- template "buffer_settings" . }}
-{{- end }}
-
-    [OUTPUT]
-        Match kubernetes.*
-        Name azure_kusto
-        Retry_Limit 5
-        auth_type workload_identity
-        tenant_id {{ .Values.forwarder.tenantId }}
-        client_id {{ .Values.forwarder.msiClientId }}
-        workload_identity_token_file ${AZURE_FEDERATED_TOKEN_FILE}
-        Ingestion_Endpoint {{ .Values.forwarder.kusto.ingestionEndpoint }}
-        Database_Name {{ .Values.forwarder.kusto.serviceLogsDatabase }}
-        Table_Name containerLogs
-        ingestion_mapping_reference ingestionMapping
-        azure_kusto_buffer_key containerLogs
-        buffer_dir "{{ .Values.forwarder.kusto.buffer_dir }}"
-{{- if .Values.forwarder.kusto.buffering }}
-        {{- template "buffer_settings" . }}
-{{- end }}
-
-    [OUTPUT]
-        Match kube-events.logs
-        Name azure_kusto
-        Retry_Limit 5
-        auth_type workload_identity
-        tenant_id {{ .Values.forwarder.tenantId }}
-        client_id {{ .Values.forwarder.msiClientId }}
-        workload_identity_token_file ${AZURE_FEDERATED_TOKEN_FILE}
-        Ingestion_Endpoint {{ .Values.forwarder.kusto.ingestionEndpoint }}
-        Database_Name {{ .Values.forwarder.kusto.serviceLogsDatabase }}
-        Table_Name kubernetesEvents
-        ingestion_mapping_reference ingestionMapping
-        azure_kusto_buffer_key kubernetesEvents
-        buffer_dir "{{ .Values.forwarder.kusto.buffer_dir }}"
-{{- if .Values.forwarder.kusto.buffering }}
-        {{- template "buffer_settings" . }}
-{{- end }}
-
-    [OUTPUT]
-        Match systemd.*
-        Name azure_kusto
-        Retry_Limit 5
-        auth_type workload_identity
-        tenant_id {{ .Values.forwarder.tenantId }}
-        client_id {{ .Values.forwarder.msiClientId }}
-        workload_identity_token_file ${AZURE_FEDERATED_TOKEN_FILE}
-        Ingestion_Endpoint {{ .Values.forwarder.kusto.ingestionEndpoint }}
-        Database_Name {{ .Values.forwarder.kusto.serviceLogsDatabase }}
-        Table_Name systemdLogs
-        ingestion_mapping_reference ingestionMapping
-        azure_kusto_buffer_key systemdLogs
-        buffer_dir "{{ .Values.forwarder.kusto.buffer_dir }}"
-{{- if .Values.forwarder.kusto.buffering }}
-        {{- template "buffer_settings" . }}
-{{- end }}
-
-    [OUTPUT]
-        Match azure-vnet.logs
-        Name azure_kusto
-        Retry_Limit 5
-        auth_type workload_identity
-        tenant_id {{ .Values.forwarder.tenantId }}
-        client_id {{ .Values.forwarder.msiClientId }}
-        workload_identity_token_file ${AZURE_FEDERATED_TOKEN_FILE}
-        Ingestion_Endpoint {{ .Values.forwarder.kusto.ingestionEndpoint }}
-        Database_Name {{ .Values.forwarder.kusto.serviceLogsDatabase }}
-        Table_Name azureVnetLogs
-        ingestion_mapping_reference ingestionMapping
-        azure_kusto_buffer_key azureVnetLogs
+        Database_Name {{ .Values.forwarder.kusto.allAroHcpLogsDatabase }}
+        Table_Name rawLogs
+        ingestion_mapping_reference rawMapping
+        azure_kusto_buffer_key rawLogs
         buffer_dir "{{ .Values.forwarder.kusto.buffer_dir }}"
 {{- if .Values.forwarder.kusto.buffering }}
         {{- template "buffer_settings" . }}

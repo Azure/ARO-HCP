@@ -1,0 +1,58 @@
+// Fleet controller logs: container_name startswith "fleet-controller".
+// Schema identical to the legacy ServiceLogs.fleetLogs table (spec R7).
+//
+// Note: unlike the legacy forwarder (which kept fleet snapshotType=cosmos records
+// in both fleetLogs and cosmosResourceSnapshots), snapshot records are routed
+// exclusively to cosmosResourceSnapshots here so every log lands in exactly one
+// table (spec R6).
+.create-merge table fleetLogs (
+  timestamp: datetime,
+  log: dynamic,
+  environment: string,
+  cluster: string,
+  namespace_name: string,
+  container_name: string,
+  container_image: string,           // fluentbit: kubernetes.container_image
+  host: string,
+  labels: string,
+  pod_name: string,
+  region: string,
+  level: string,
+  msg: string,
+  controller_name: string,
+  resource_name: string,
+  resource_id: string,
+  resource_type: string,
+  tag: string,                       // fluentbit: tag routing identifier
+  container_status_image_id: string  // fluentbit: kubernetes.container_hash (k8s status.containerStatuses.imageID)
+)
+
+.create-or-alter function with (skipvalidation = "true", docstring = "Route fleet-controller container logs to fleetLogs")
+rawToFleetLogs() {
+    rawLogs
+    | where tostring(log.kubernetes.namespace_name) !startswith "ocm-"
+    | where isempty(tostring(log.snapshotType))
+    | where tostring(log.kubernetes.container_name) startswith "fleet-controller"
+    | project
+        timestamp,
+        log = log.log,
+        environment = tostring(log.environment),
+        cluster = tostring(log.cluster),
+        namespace_name = tostring(log.kubernetes.namespace_name),
+        container_name = tostring(log.kubernetes.container_name),
+        container_image = tostring(log.kubernetes.container_image),
+        host = tostring(log.kubernetes.host),
+        labels = tostring(log.kubernetes.labels),
+        pod_name = tostring(log.kubernetes.pod_name),
+        region = tostring(log.region),
+        level = tostring(log.level),
+        msg = tostring(log.msg),
+        controller_name = tostring(log.controller_name),
+        resource_name = tostring(log.resource_name),
+        resource_id = tostring(log.resource_id),
+        resource_type = tostring(log.resourceType),
+        tag,
+        container_status_image_id = tostring(log.kubernetes.container_hash)
+}
+
+.alter table fleetLogs policy update @'[{"IsEnabled": true, "Source": "rawLogs", "Query": "rawToFleetLogs()", "IsTransactional": true, "PropagateIngestionProperties": false}]'

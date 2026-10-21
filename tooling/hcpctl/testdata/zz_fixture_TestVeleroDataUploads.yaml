@@ -1,4 +1,4 @@
-database: ServiceLogs
+database: AllAroHcpLogs
 kql: |
   // Velero DataUploads: per-volume data-mover upload operations (CSI snapshot -> object store) for
   // the target HCP, captured on management clusters, for backup-failure debugging (ARO-28989). This

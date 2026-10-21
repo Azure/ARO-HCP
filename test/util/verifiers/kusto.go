@@ -191,21 +191,21 @@ func VerifyMustGatherLogs(subscriptionID, rgName string) verifyMustGatherLogsImp
 			{
 				Namespace:     "aro-hcp",
 				ContainerName: "aro-hcp-frontend",
-				Database:      "ServiceLogs",
+				Database:      "AllAroHcpLogs",
 			},
 			{
 				Namespace:     "aro-hcp",
 				ContainerName: "aro-hcp-backend",
-				Database:      "ServiceLogs",
+				Database:      "AllAroHcpLogs",
 			},
 			{
 				Namespace:     "clusters-service",
 				ContainerName: "clusters-service-server",
-				Database:      "ServiceLogs",
+				Database:      "AllAroHcpLogs",
 			},
 			{
 				NamespacePrefix: "ocm-arohcp",
-				Database:        "HostedControlPlaneLogs",
+				Database:        "AllAroHcpLogs",
 				ContainerName:   "kube-apiserver",
 			},
 		},

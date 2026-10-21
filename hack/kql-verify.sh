@@ -21,6 +21,9 @@ set -o pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 KQL_DIR="${REPO_ROOT}/dev-infrastructure/modules/logs/kusto/tables"
+# The AllAroHcpLogs table set reuses table names from the legacy flat set, so it
+# must be validated in its OWN database to avoid name collisions (spec D7).
+ALLAROHCP_KQL_DIR="${KQL_DIR}/allarohcplogs"
 CONTAINER_NAME="kusto-emulator-$$"
 EMULATOR_IMAGE="${KUSTO_EMULATOR_IMAGE:-mcr.microsoft.com/azuredataexplorer/kustainer-linux:latest}"
 ENDPOINT="${KUSTO_ENDPOINT:-}"
@@ -63,8 +66,20 @@ if [ "${VERBOSE:-}" = "true" ]; then
   VERBOSE_FLAG="-v 1"
 fi
 
+# Legacy flat table set (ServiceLogs/HostedControlPlaneLogs/MonitoringEvents).
 go run github.com/Azure/ARO-HCP/tooling/kustoctl \
   ${VERBOSE_FLAG} \
   validate kql \
   --endpoint "${ENDPOINT}" \
+  --database validationdb \
   --kql-dir "${KQL_DIR}"
+
+# AllAroHcpLogs set, validated into a separate database. kustoctl sorts files, so
+# the numeric-prefixed 00_rawLogs / 01_serviceRouting run before the target-table
+# update policies that reference them.
+go run github.com/Azure/ARO-HCP/tooling/kustoctl \
+  ${VERBOSE_FLAG} \
+  validate kql \
+  --endpoint "${ENDPOINT}" \
+  --database allarohcplogsdb \
+  --kql-dir "${ALLAROHCP_KQL_DIR}"

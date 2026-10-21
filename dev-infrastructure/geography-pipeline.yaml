@@ -182,6 +182,7 @@ resourceGroups:
     - "AllServiceLogs:ServiceLogs"
     - "AllHostedControlPlaneLogs:HostedControlPlaneLogs"
     - "AllMonitoringEvents:MonitoringEvents"
+    - "AllAllAroHcpLogs:AllAroHcpLogs"
     environment: '{{ .environmentName }}'
     timeout: "10m"
     identityFrom:

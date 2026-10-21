@@ -1,0 +1,68 @@
+// Kubernetes events: container_name startswith "kube-events".
+// Schema identical to the legacy ServiceLogs.kubernetesEvents table (spec R7).
+//
+// Events from ocm-* namespaces are excluded here; they land in hcpContainerLogs
+// (the spec default keeps a single kubernetesEvents table, no hcpKubernetesEvents
+// — see spec open question 3).
+.create-merge table kubernetesEvents (
+  timestamp: datetime,
+  log: dynamic,
+  environment: string,
+  cluster: string,
+  namespace: string,
+  containerName: string,
+  containerImage: string,            // fluentbit: kubernetes.container_image
+  host: string,
+  labels: string,
+  podName: string,
+  region: string,
+  count: int,
+  kubeEventType: string,
+  firstSeen: datetime,
+  lastSeen: datetime,
+  message: string,
+  eventNamespace: string,
+  objectKind: string,
+  objectName: string,
+  objectApiVersion: string,
+  objectUID: string,
+  reason: string,
+  sourceComponent: string,
+  tag: string,                       // fluentbit: tag routing identifier
+  containerStatusImageId: string     // fluentbit: kubernetes.container_hash (k8s status.containerStatuses.imageID)
+)
+
+.create-or-alter function with (skipvalidation = "true", docstring = "Route kube-events container logs to kubernetesEvents")
+rawToKubernetesEvents() {
+    rawLogs
+    | where tostring(log.kubernetes.namespace_name) !startswith "ocm-"
+    | where tostring(log.kubernetes.container_name) startswith "kube-events"
+    | project
+        timestamp,
+        log = log.log,
+        environment = tostring(log.environment),
+        cluster = tostring(log.cluster),
+        namespace = tostring(log.kubernetes.namespace_name),
+        containerName = tostring(log.kubernetes.container_name),
+        containerImage = tostring(log.kubernetes.container_image),
+        host = tostring(log.kubernetes.host),
+        labels = tostring(log.kubernetes.labels),
+        podName = tostring(log.kubernetes.pod_name),
+        region = tostring(log.region),
+        count = toint(log.count),
+        kubeEventType = tostring(log.kubeEventType),
+        firstSeen = todatetime(log.first_timestamp),
+        lastSeen = todatetime(log.last_timestamp),
+        message = tostring(log.message),
+        eventNamespace = tostring(log.involved_object.namespace),
+        objectKind = tostring(log.involved_object.kind),
+        objectName = tostring(log.involved_object.name),
+        objectApiVersion = tostring(log.involved_object.api_version),
+        objectUID = tostring(log.involved_object.uid),
+        reason = tostring(log.reason),
+        sourceComponent = tostring(log.source.component),
+        tag,
+        containerStatusImageId = tostring(log.kubernetes.container_hash)
+}
+
+.alter table kubernetesEvents policy update @'[{"IsEnabled": true, "Source": "rawLogs", "Query": "rawToKubernetesEvents()", "IsTransactional": true, "PropagateIngestionProperties": false}]'

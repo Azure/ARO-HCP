@@ -1,0 +1,75 @@
+// kube-applier logs: container_name startswith "kube-applier". Schema-compatible
+// with backendLogs so queries port between them (spec R7). kube-applier is not a
+// source of resource snapshots, so any snapshotType-bearing record is excluded
+// here and routed by snapshotType to the snapshot tables instead (spec R6).
+.create-merge table kubeApplierLogs (
+  timestamp: datetime,
+  log: dynamic,
+  environment: string,
+  cluster: string,
+  namespace_name: string,
+  container_name: string,
+  container_image: string,           // fluentbit: kubernetes.container_image
+  host: string,
+  labels: string,
+  pod_name: string,
+  region: string,
+  level: string,
+  msg: string,
+  controller_name: string,
+  client_request_id: string,
+  correlation_request_id: string,
+  subscription_id: string,
+  resource_group: string,
+  cluster_name: string,
+  resource_id: string,
+  resource_name: string,
+  operation: string,
+  operation_id: string,
+  internal_id: string,
+  cluster_id: string,
+  cloud_error_code: string,
+  cloud_error_message: string,
+  tag: string,                       // fluentbit: tag routing identifier
+  container_status_image_id: string  // fluentbit: kubernetes.container_hash (k8s status.containerStatuses.imageID)
+)
+
+.create-or-alter function with (skipvalidation = "true", docstring = "Route kube-applier container logs to kubeApplierLogs")
+rawToKubeApplierLogs() {
+    rawLogs
+    | where tostring(log.kubernetes.namespace_name) !startswith "ocm-"
+    | where isempty(tostring(log.snapshotType))
+    | where tostring(log.kubernetes.container_name) startswith "kube-applier"
+    | project
+        timestamp,
+        log = log.log,
+        environment = tostring(log.environment),
+        cluster = tostring(log.cluster),
+        namespace_name = tostring(log.kubernetes.namespace_name),
+        container_name = tostring(log.kubernetes.container_name),
+        container_image = tostring(log.kubernetes.container_image),
+        host = tostring(log.kubernetes.host),
+        labels = tostring(log.kubernetes.labels),
+        pod_name = tostring(log.kubernetes.pod_name),
+        region = tostring(log.region),
+        level = tostring(log.level),
+        msg = tostring(log.msg),
+        controller_name = tostring(log.controller_name),
+        client_request_id = tostring(log.client_request_id),
+        correlation_request_id = tostring(log.correlation_request_id),
+        subscription_id = tostring(log.subscription_id),
+        resource_group = tostring(log.resource_group),
+        cluster_name = tostring(log.hcp_cluster_name),
+        resource_id = tostring(log.resource_id),
+        resource_name = tostring(log.resource_name),
+        operation = tostring(log.operation),
+        operation_id = tostring(log.operation_id),
+        internal_id = tostring(log.internal_id),
+        cluster_id = tostring(log.cluster_id),
+        cloud_error_code = tostring(log.cloud_error_code),
+        cloud_error_message = tostring(log.cloud_error_message),
+        tag,
+        container_status_image_id = tostring(log.kubernetes.container_hash)
+}
+
+.alter table kubeApplierLogs policy update @'[{"IsEnabled": true, "Source": "rawLogs", "Query": "rawToKubeApplierLogs()", "IsTransactional": true, "PropagateIngestionProperties": false}]'

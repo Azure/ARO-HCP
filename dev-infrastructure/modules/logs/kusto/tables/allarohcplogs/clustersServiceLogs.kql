@@ -1,0 +1,53 @@
+// Clusters Service logs: container_name startswith "clusters-service".
+// Schema identical to the legacy ServiceLogs.clustersServiceLogs table (spec R7).
+.create-merge table clustersServiceLogs (
+  timestamp: datetime,
+  log: dynamic,
+  environment: string,
+  cluster: string,
+  namespace_name: string,
+  container_name: string,
+  container_image: string,           // fluentbit: kubernetes.container_image
+  host: string,
+  labels: string,
+  pod_name: string,
+  region: string,
+  tag: string,                       // fluentbit: tag routing identifier
+  level: string,
+  caller: string,
+  msg: string,
+  resource_id: string,
+  opid: string,
+  cid: string,
+  container_status_image_id: string  // fluentbit: kubernetes.container_hash (k8s status.containerStatuses.imageID)
+)
+
+.create-or-alter function with (skipvalidation = "true", docstring = "Route clusters-service container logs to clustersServiceLogs")
+rawToClustersServiceLogs() {
+    rawLogs
+    | where tostring(log.kubernetes.namespace_name) !startswith "ocm-"
+    | where isempty(tostring(log.snapshotType))
+    | where tostring(log.kubernetes.container_name) startswith "clusters-service"
+    | project
+        timestamp,
+        log = log.log,
+        environment = tostring(log.environment),
+        cluster = tostring(log.cluster),
+        namespace_name = tostring(log.kubernetes.namespace_name),
+        container_name = tostring(log.kubernetes.container_name),
+        container_image = tostring(log.kubernetes.container_image),
+        host = tostring(log.kubernetes.host),
+        labels = tostring(log.kubernetes.labels),
+        pod_name = tostring(log.kubernetes.pod_name),
+        region = tostring(log.region),
+        tag,
+        level = tostring(log.level),
+        caller = tostring(log.caller),
+        msg = tostring(log.msg),
+        resource_id = tostring(log.aro_hcp_cluster_resource_id),
+        opid = tostring(log.opid),
+        cid = tostring(log.cid),
+        container_status_image_id = tostring(log.kubernetes.container_hash)
+}
+
+.alter table clustersServiceLogs policy update @'[{"IsEnabled": true, "Source": "rawLogs", "Query": "rawToClustersServiceLogs()", "IsTransactional": true, "PropagateIngestionProperties": false}]'

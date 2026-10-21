@@ -1,4 +1,4 @@
-database: ServiceLogs
+database: AllAroHcpLogs
 kql: |
   // Rollout documents live in the fleet partition, outside the customer's
   // resource group. Keep their best-version, counts, conditions and assignment

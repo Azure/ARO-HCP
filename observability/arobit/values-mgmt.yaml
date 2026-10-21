@@ -73,6 +73,7 @@ forwarder:
   kusto:
     serviceLogsDatabase: {{ .kusto.serviceLogsDatabase }}
     hostedControlPlaneLogsDatabase: {{ .kusto.hostedControlPlaneLogsDatabase }}
+    allAroHcpLogsDatabase: {{ .kusto.allAroHcpLogsDatabase }}
     enabled: {{ .arobit.kusto.enabled }}
     buffering: {{ .arobit.kusto.buffering }}
     ingestionEndpoint: "__kustoDataIngestionUri__"

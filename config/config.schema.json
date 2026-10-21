@@ -2287,6 +2287,10 @@
           "type": "string",
           "description": "Name of the Kusto database for monitoring events (e.g. alert events from Event Hub)"
         },
+        "allAroHcpLogsDatabase": {
+          "type": "string",
+          "description": "Name of the single Kusto database (AllAroHcpLogs) that receives all forwarder logs; routing/transform is done by ADX update policies instead of the Fluent Bit forwarder. See docs/logging.md."
+        },
         "adminGroups": {
           "$ref": "#/definitions/csvPrincipalList",
           "description": "CSV separated list of AAD groups to grant AllDatabasesAdmin on the Kusto cluster."
@@ -2344,6 +2348,7 @@
         "serviceLogsDatabase",
         "hostedControlPlaneLogsDatabase",
         "monitoringEventsDatabase",
+        "allAroHcpLogsDatabase",
         "adminGroups",
         "viewerGroups",
         "kustoName",

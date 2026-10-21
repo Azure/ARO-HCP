@@ -32,6 +32,7 @@ const (
 	clusterName                    = "hcp-dev-us-2"
 	servicesDatabase               = "ServiceLogs"
 	hostedControlPlaneLogsDatabase = "HostedControlPlaneLogs"
+	allAroHcpLogsDatabase          = "AllAroHcpLogs"
 	invalidPrincipalName           = "AAD app id failed to be resolved"
 )
 
@@ -49,6 +50,11 @@ func (o *Options) Run(ctx context.Context) error {
 	errGroup.Go(func() error {
 		pager := o.Client.NewListPager(resourceGroupName, clusterName, hostedControlPlaneLogsDatabase, nil)
 		return pageAssignmentsAndDeleteInvalid(ctx, pager, o.Client, hostedControlPlaneLogsDatabase)
+	})
+
+	errGroup.Go(func() error {
+		pager := o.Client.NewListPager(resourceGroupName, clusterName, allAroHcpLogsDatabase, nil)
+		return pageAssignmentsAndDeleteInvalid(ctx, pager, o.Client, allAroHcpLogsDatabase)
 	})
 
 	return errGroup.Wait()
