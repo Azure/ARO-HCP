@@ -75,7 +75,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "avg(sli:frontend_http:availability:rate5m{cluster=\"$cluster\"}) * 100",
+          "expr": "(\n  1 -\n  sum by (cluster) (\n    errors:frontend_http:error_rate:rate5m{cluster=\"$cluster\"}\n    * traffic:frontend_http:request_rate:rate5m{cluster=\"$cluster\"}\n  )\n  /\n  sum by (cluster) (\n    traffic:frontend_http:request_rate:rate5m{cluster=\"$cluster\"}\n  )\n) * 100",
           "instant": true,
           "legendFormat": "Availability %",
           "refId": "A"
@@ -118,7 +118,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "avg(sli:frontend_http:availability:rate_avg_30d{cluster=\"$cluster\"}) * 100",
+          "expr": "(\n  1 -\n  sum by (cluster) (\n    sum_over_time(\n      (\n        errors:frontend_http:error_rate:rate5m{cluster=\"$cluster\"}\n        * traffic:frontend_http:request_rate:rate5m{cluster=\"$cluster\"}\n      )[30d:5m]\n    )\n  )\n  /\n  sum by (cluster) (\n    sum_over_time(traffic:frontend_http:request_rate:rate5m{cluster=\"$cluster\"}[30d:5m])\n  )\n) * 100",
           "instant": true,
           "legendFormat": "Availability 30d %",
           "refId": "A"
@@ -160,7 +160,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "avg(errors:frontend_http:error_rate:rate5m{cluster=\"$cluster\"}) * 100",
+          "expr": "(\n  sum by (cluster) (\n    errors:frontend_http:error_rate:rate5m{cluster=\"$cluster\"}\n    * traffic:frontend_http:request_rate:rate5m{cluster=\"$cluster\"}\n  )\n  /\n  sum by (cluster) (\n    traffic:frontend_http:request_rate:rate5m{cluster=\"$cluster\"}\n  )\n) * 100",
           "instant": true,
           "legendFormat": "Error rate %",
           "refId": "A"
@@ -203,7 +203,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "clamp_min(\n  (\n    avg(sli:frontend_http:availability:rate_avg_30d{cluster=\"$cluster\"}) - 0.9995\n  ) / (1 - 0.9995) * 100,\n  0\n)",
+          "expr": "clamp_min((\n  (\n    1 -\n    sum by (cluster) (\n      sum_over_time(\n        (\n          errors:frontend_http:error_rate:rate5m{cluster=\"$cluster\"}\n          * traffic:frontend_http:request_rate:rate5m{cluster=\"$cluster\"}\n        )[30d:5m]\n      )\n    )\n    /\n    sum by (cluster) (\n      sum_over_time(traffic:frontend_http:request_rate:rate5m{cluster=\"$cluster\"}[30d:5m])\n    )\n  )\n  - 0.9995\n) / (1 - 0.9995) * 100, 0)",
           "instant": true,
           "legendFormat": "Budget remaining %",
           "refId": "A"
@@ -251,7 +251,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "sli:frontend_http:availability:rate5m{cluster=\"$cluster\"} * 100",
+          "expr": "(\n  1 -\n  sum by (cluster) (\n    errors:frontend_http:error_rate:rate5m{cluster=\"$cluster\"}\n    * traffic:frontend_http:request_rate:rate5m{cluster=\"$cluster\"}\n  )\n  /\n  sum by (cluster) (\n    traffic:frontend_http:request_rate:rate5m{cluster=\"$cluster\"}\n  )\n) * 100",
           "legendFormat": "{{ cluster }}",
           "refId": "A"
         }
