@@ -705,7 +705,7 @@ mgmt:
       maxCount: 14
       minCount: 5
       name: userswft
-      osDiskSizeGB: 100
+      osDiskSizeGB: 256
       poolCount: 3
       secondaryNicCount: 7
       vmSize: Standard_D16ds_v6
