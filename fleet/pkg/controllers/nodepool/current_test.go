@@ -120,9 +120,9 @@ func TestCurrentPoolStates(t *testing.T) {
 			expected: nil,
 		},
 		{
-			name: "configured Swift NIC count preserves the SKU maximum",
+			name: "configured disk and Swift NIC counts are distinct from SKU capacity",
 			skuMetadata: map[string]*skucache.SKUMetadata{
-				"Standard_E16ds_v6": {Name: "Standard_E16ds_v6", Family: "StandardEdsv6Family", VCPUs: 16, MemoryBytes: memoryBytes("128Gi"), SecondaryNICs: 7},
+				"Standard_E16ds_v6": {Name: "Standard_E16ds_v6", Family: "StandardEdsv6Family", VCPUs: 16, MemoryBytes: memoryBytes("128Gi"), SecondaryNICs: 7, EphemeralOSDiskSupported: true, EphemeralDiskSizeGB: 512},
 			},
 			pools: []armcontainerservice.AgentPool{
 				{

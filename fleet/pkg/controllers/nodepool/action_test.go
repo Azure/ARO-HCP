@@ -176,6 +176,7 @@ func assertConverged(t *testing.T, desired []compute.Pool, current []PoolState) 
 			continue
 		}
 		assert.Equal(t, want.MaxCount, p.MaxCount, "pool %s maxCount", p.Name)
+		assert.Equal(t, want.OSDiskSizeGB, p.OSDiskSizeGB, "pool %s OS disk size", p.Name)
 		assert.True(t, p.AutoScalingEnabled, "pool %s should have autoscaler enabled", p.Name)
 		delete(desiredByName, p.Name)
 	}
