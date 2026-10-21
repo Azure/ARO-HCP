@@ -1064,10 +1064,6 @@ defaults:
       registry: "empty-sentinel"
       repository: "mise-1p-container-image"
       digest: ""
-    image:
-      registry: "empty-sentinel"
-      repository: "mise-1p-container-image"
-      digest: ""
   # MSI RP
   msiRp:
     dataPlaneAudienceResource: https://dummy.org
@@ -1368,8 +1364,6 @@ clouds:
         arm:
           applicationId: "e2c2ff5c-e5b4-4e79-8c3e-1da8c48461e7"
         imageV2:
-          digest: ""
-        image:
           digest: ""
       # 1P app
       firstPartyAppClientId: b3cb2fab-15cb-4583-ad06-f91da9bfe2d1

@@ -2553,9 +2553,6 @@
           },
           "required": ["connectSocket"]
         },
-        "image": {
-          "$ref": "#/definitions/containerImageOptionalDigest"
-        },
         "imageV2": {
           "$ref": "#/definitions/containerImageOptionalDigest"
         }

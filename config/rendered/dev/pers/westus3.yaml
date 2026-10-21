@@ -849,10 +849,6 @@ mise:
     audienceFQDN: management.azure.com
     authorityFQDN: sts.windows.net
     policyLabel: Geneva Actions
-  image:
-    digest: ""
-    registry: empty-sentinel
-    repository: mise-1p-container-image
   imageV2:
     digest: ""
     registry: empty-sentinel
