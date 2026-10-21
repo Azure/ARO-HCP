@@ -40,9 +40,11 @@ func TestIsControlPlaneMinorUpgrade(t *testing.T) {
 		{name: "minor", source: "4.19.1", target: "4.20.2", minor: true},
 		{name: "single major", source: "4.99.1", target: "5.0.0", minor: true},
 		{name: "prerelease target", source: "4.22.11", target: "5.0.0-ec.6", minor: true},
-		// Nightly and candidate builds sort below a stable release of the same
-		// minor; admission accepts them, so the gate must not call them downgrades.
-		{name: "prerelease within same minor", source: "4.22.5", target: "4.22.0-0.nightly-2026-10-20"},
+		// Same release line, so the minor gate does not apply and classification
+		// stops here. A nightly sorts below a stable release of the same minor
+		// even when its content is ahead; whether the target is genuinely newer
+		// is admission's and Cluster Service's call, not this classifier's.
+		{name: "same minor with prerelease target", source: "4.22.5", target: "4.22.0-0.nightly-2026-10-20"},
 		{name: "lower patch", source: "4.19.2", target: "4.19.1"},
 		{name: "lower minor", source: "4.20.1", target: "4.19.1", wantErr: "downgrade"},
 		{name: "lower major", source: "5.0.0", target: "4.20.0", wantErr: "downgrade"},

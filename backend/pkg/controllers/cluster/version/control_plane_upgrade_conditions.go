@@ -49,10 +49,13 @@ func isControlPlaneMinorUpgrade(source, desired *semver.Version) (bool, error) {
 	if desired == nil {
 		return false, fmt.Errorf("desired version is missing")
 	}
-	// Compare only major.minor. Nightly and candidate builds carry prerelease
-	// identifiers that sort below a stable release of the same minor even when
-	// they are newer, so a full semver comparison would reject targets that
-	// admission deliberately accepts (see admitClusterVersionProfile).
+	// Compare only major.minor, the same granularity this function classifies
+	// on. A nightly build carries prerelease identifiers that sort below a
+	// stable release of the same minor even when it is newer, and admission
+	// accepts it on that basis (admitClusterVersionProfile uses
+	// VersionMustBeAtLeastMajorMinor for the nightly channel). A full semver
+	// comparison here would let such a request be accepted and then refuse to
+	// act on it. Other channels reject a lower target at admission already.
 	if desired.Major < source.Major || (desired.Major == source.Major && desired.Minor < source.Minor) {
 		return false, fmt.Errorf("control plane version downgrade is not supported: %s -> %s", source, desired)
 	}
