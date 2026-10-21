@@ -171,6 +171,9 @@ Welcome to the **ARO HCP** documentation. This guide provides an overview of the
   - Rationale, validation methodology and the access-controlled evidence record
 - [Node Rollout Pre-Merge Check](node-rollout-premerge-check.md)
   - Pre-merge check procedure to avoid unexpected node rollouts in production
+- [AKS Auto-Upgrade Risk Acceptance](ops/aks-auto-upgrade-risk-acceptance.md)
+  - Formal record of the residual risk accepted for AKS-managed unattended auto-upgrades
+  - Incident evidence, the rejected gated-upgrade alternative, compensating controls, and sign-off
 - [DEV CI Telemetry Exporter (`tenant-quota`)](../tooling/tenant-quota/README.md)
   - Tool-local runtime, deployment, credentials, and management reference
   - For alert response and maintenance, see [DEV CI Monitoring and Alert Response](ci/dev-ci-monitoring.md)
