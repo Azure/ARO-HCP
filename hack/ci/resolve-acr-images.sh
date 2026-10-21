@@ -45,8 +45,7 @@ ACR_IMAGE_REPOS=(
 
 # Do not require an unpublished optional image for otherwise complete image sets.
 SWIFT_RECORDER_ENABLED=$(yq '.swiftRecorder.enabled // false' "${ACR_CONFIG_FILE}")
-SWIFT_RECORDER_BOOTSTRAP=$(yq '.swiftRecorder.useMgmtAgentImage // false' "${ACR_CONFIG_FILE}")
-if [[ "${SWIFT_RECORDER_ENABLED}" == "true" && "${SWIFT_RECORDER_BOOTSTRAP}" != "true" ]]; then
+if [[ "${SWIFT_RECORDER_ENABLED}" == "true" ]]; then
   SWIFT_RECORDER_REPO=$(yq '.swiftRecorder.image.repository' "${ACR_CONFIG_FILE}")
   ACR_IMAGE_REPOS+=("${SWIFT_RECORDER_REPO}")
 fi
@@ -142,7 +141,7 @@ export FLEET_IMAGE="${ACR_URL}/${FLEET_REPO}@${FLEET_DIGEST}"
 export MGMT_AGENT_IMAGE="${ACR_URL}/${MGMT_AGENT_REPO}@${MGMT_AGENT_DIGEST}"
 export KUBE_APPLIER_IMAGE="${ACR_URL}/${KUBE_APPLIER_REPO}@${KUBE_APPLIER_DIGEST}"
 export EXPORTER_IMAGE="${ACR_URL}/${EXPORTER_REPO}@${EXPORTER_DIGEST}"
-if [[ "${SWIFT_RECORDER_ENABLED}" == "true" && "${SWIFT_RECORDER_BOOTSTRAP}" != "true" ]]; then
+if [[ "${SWIFT_RECORDER_ENABLED}" == "true" ]]; then
   SWIFT_RECORDER_DIGEST=$(resolve_digest "${SWIFT_RECORDER_REPO}" "${TARGET_SHA}")
   export SWIFT_RECORDER_IMAGE="${ACR_URL}/${SWIFT_RECORDER_REPO}@${SWIFT_RECORDER_DIGEST}"
 fi

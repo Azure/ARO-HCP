@@ -279,10 +279,9 @@ defaults:
         requests:
           cpu: 100m
           memory: 768Mi
-  # SWIFT-v2 node-local startup recorder. Dedicated image pending; CI bootstraps below.
+  # SWIFT-v2 node-local startup recorder.
   swiftRecorder:
     enabled: true
-    useMgmtAgentImage: false
     captureMode: slow
     image:
       registry: arohcpsvcdev.azurecr.io
@@ -1754,11 +1753,8 @@ clouds:
               profile: "ci"
       ci00:
         defaults:
-          # Temporary bootstrap: the PR-built mgmt-agent image carries /swift-recorder.
-          # Remove this image switch after dedicated image onboarding (stage 2).
           swiftRecorder:
             captureMode: all
-            useMgmtAgentImage: true
           # Avoid per-restore instant-access fees while retaining backup coverage.
           velero:
             enableInstantAccess: false
@@ -1855,11 +1851,8 @@ clouds:
       ci01:
         # prow infra shard1 - deploys into "ARO HCP E2E Infrastructure" subscription
         defaults:
-          # Temporary bootstrap: the PR-built mgmt-agent image carries /swift-recorder.
-          # Remove this image switch after dedicated image onboarding (stage 2).
           swiftRecorder:
             captureMode: all
-            useMgmtAgentImage: true
           # Avoid per-restore instant-access fees while retaining backup coverage.
           velero:
             enableInstantAccess: false

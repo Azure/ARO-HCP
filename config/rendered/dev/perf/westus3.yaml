@@ -1200,7 +1200,6 @@ swiftRecorder:
         cpu: 20m
         memory: 64Mi
     serviceAccountName: swift-recorder
-  useMgmtAgentImage: false
 tenantId: 64dc69e4-d083-49fc-9569-ebece1dd1408
 velero:
   azurePlugin:
