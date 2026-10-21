@@ -22,7 +22,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 )
 
-const ingressSecretProviderClassDesireName = IngressCertificateControllerName + "SecretProviderClass"
+// Persisted desire names must remain stable when the controller is renamed.
+const ingressSecretProviderClassDesireName = "IngressCertificateSecretProviderClass"
 
 func buildIngressCertificateDesires(
 	key controllerutils.HCPClusterKey,

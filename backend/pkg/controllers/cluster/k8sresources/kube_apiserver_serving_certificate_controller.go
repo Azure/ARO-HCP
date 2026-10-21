@@ -17,14 +17,19 @@ package k8sresources
 import (
 	"context"
 	"fmt"
+	"slices"
 	"time"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
+	configv1 "github.com/openshift/api/config/v1"
+	hsv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
@@ -36,9 +41,10 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-const KubeAPIServerServingCertificateControllerName = "KubeAPIServerServingCertificate"
+const KubeAPIServerServingCertificateControllerName = "KubeAPIServerServingCertificateK8sResources"
 
 type kubeAPIServerServingCertificateSyncer struct {
+	resourcesDBClient            corecosmosstorage.ResourcesDBClient
 	clusterLister                corelisters.ClusterLister
 	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
 	managementClusterLister      fleetlisters.ManagementClusterLister
@@ -73,6 +79,7 @@ func NewKubeAPIServerServingCertificateController(
 	controller := controllerutils.NewClusterWatchingController(
 		KubeAPIServerServingCertificateControllerName, resourcesDBClient, informers, kubeApplierInformers, 30*time.Second,
 		&kubeAPIServerServingCertificateSyncer{
+			resourcesDBClient:            resourcesDBClient,
 			clusterLister:                clusterLister,
 			serviceProviderClusterLister: serviceProviderClusterLister,
 			managementClusterLister:      managementClusterLister,
@@ -170,6 +177,47 @@ func (syncer *kubeAPIServerServingCertificateSyncer) ensureSecretSyncDesiresCrea
 		if err := kubeapplierhelpers.EnsureApplyDesire(ctx, applyCRUD, syncer.applyDesireLister, desire); err != nil {
 			return utils.TrackError(err)
 		}
+	}
+	// ClusterPropertiesSync supplies the observed base domain, including the DNS
+	// slug. Secret delivery can proceed while we wait for that observation.
+	if cluster.CustomerProperties.DNS.BaseDomainPrefix == "" || cluster.ServiceProviderProperties.DNS.BaseDomain == "" {
+		return nil
+	}
+	apiHostname := fmt.Sprintf("api.%s.%s", cluster.CustomerProperties.DNS.BaseDomainPrefix, cluster.ServiceProviderProperties.DNS.BaseDomain)
+	replacement := serviceProviderCluster.DeepCopy()
+	if replacement.Spec.DesiredHostedCluster == nil {
+		replacement.Spec.DesiredHostedCluster = &hsv1beta1.HostedCluster{}
+	}
+	hostedCluster := replacement.Spec.DesiredHostedCluster
+	if hostedCluster.Spec.Configuration == nil {
+		hostedCluster.Spec.Configuration = &hsv1beta1.ClusterConfiguration{}
+	}
+	if hostedCluster.Spec.Configuration.APIServer == nil {
+		hostedCluster.Spec.Configuration.APIServer = &configv1.APIServerSpec{}
+	}
+	servingCerts := &hostedCluster.Spec.Configuration.APIServer.ServingCerts
+	// Own the service-provided certificate mapping, preserving any other named
+	// certificates and unrelated API server configuration.
+	servingCerts.NamedCertificates = slices.DeleteFunc(servingCerts.NamedCertificates, func(cert configv1.APIServerNamedServingCert) bool {
+		return cert.ServingCertificate.Name == kubeAPIServerServingCertSecretName || slices.Contains(cert.Names, apiHostname)
+	})
+	servingCerts.NamedCertificates = append(servingCerts.NamedCertificates, configv1.APIServerNamedServingCert{
+		Names:              []string{apiHostname},
+		ServingCertificate: configv1.SecretNameReference{Name: kubeAPIServerServingCertSecretName},
+	})
+	return syncer.persistIfChanged(ctx, key, serviceProviderCluster, replacement)
+}
+
+func (syncer *kubeAPIServerServingCertificateSyncer) persistIfChanged(ctx context.Context, key controllerutils.HCPClusterKey, existing, replacement *coreapi.ServiceProviderCluster) error {
+	if !controllerutil.NeedsUpdate(existing, replacement) {
+		return nil
+	}
+	_, err := syncer.resourcesDBClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName).Replace(ctx, replacement, nil)
+	if cosmosstorageutils.IsPreconditionFailedError(err) {
+		return nil
+	}
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("replace desired kube-apiserver serving certificate: %w", err))
 	}
 	return nil
 }

@@ -27,6 +27,9 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
+	configv1 "github.com/openshift/api/config/v1"
+	hsv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
+
 	apisconfigv1 "github.com/Azure/ARO-HCP/backend/pkg/apis/config/v1"
 	azureconfig "github.com/Azure/ARO-HCP/backend/pkg/azure/config"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
@@ -50,9 +53,12 @@ func kubeAPIServerTestReference() *coreapi.AzureTLSCertificateReference {
 func newKubeAPIServerCertificateFixture(test *testing.T) *kubeAPIServerCertificateFixture {
 	test.Helper()
 	fixture := newCertificateFixture(test)
+	fixture.cluster.CustomerProperties.DNS.BaseDomainPrefix = "domain-prefix"
+	fixture.cluster.ServiceProviderProperties.DNS.BaseDomain = "slug.example.com"
 	fixture.serviceProvider.Status.AzureResources.IngressCertificate = nil
 	fixture.serviceProvider.Status.AzureResources.KubeAPIServerCertificate = &coreapi.TLSCertificate{AzureReference: kubeAPIServerTestReference()}
 	return &kubeAPIServerCertificateFixture{certificateFixture: fixture, syncer: &kubeAPIServerServingCertificateSyncer{
+		resourcesDBClient:            fixture.syncer.resourcesDBClient,
 		clusterLister:                fixture.syncer.clusterLister,
 		serviceProviderClusterLister: fixture.syncer.serviceProviderClusterLister,
 		managementClusterLister:      fixture.syncer.managementClusterLister,
@@ -339,5 +345,110 @@ func TestKubeAPIServerServingCertificateAdoptsExistingDesires(test *testing.T) {
 	}
 	for _, desire := range fixture.reads(test) {
 		require.Equal(test, KubeAPIServerServingCertificateControllerName, desire.Tags[kubeapplierapi.TagControllerName])
+	}
+}
+
+func TestKubeAPIServerServingCertificatePersistsDesiredHostedCluster(test *testing.T) {
+	for _, state := range []string{"nil", "empty", "configuration", "existing"} {
+		test.Run(state, func(test *testing.T) {
+			fixture := newKubeAPIServerCertificateFixture(test)
+			ctx := test.Context()
+			crud := fixture.syncer.resourcesDBClient.ServiceProviderClusters(fixture.key.SubscriptionID, fixture.key.ResourceGroupName, fixture.key.HCPClusterName)
+			existing := fixture.serviceProvider.DeepCopy()
+			if state != "nil" {
+				existing.Spec.DesiredHostedCluster = &hsv1beta1.HostedCluster{ObjectMeta: metav1.ObjectMeta{Name: "preserved"}}
+			}
+			if state == "configuration" || state == "existing" {
+				existing.Spec.DesiredHostedCluster.Spec.Configuration = &hsv1beta1.ClusterConfiguration{
+					Authentication: &configv1.AuthenticationSpec{Type: configv1.AuthenticationTypeOIDC},
+				}
+			}
+			otherCertificate := configv1.APIServerNamedServingCert{
+				Names: []string{"other.example.com"}, ServingCertificate: configv1.SecretNameReference{Name: "other-certificate"},
+			}
+			if state == "existing" {
+				existing.Spec.DesiredHostedCluster.Spec.Configuration.APIServer = &configv1.APIServerSpec{
+					ClientCA: configv1.ConfigMapNameReference{Name: "preserved-client-ca"},
+					ServingCerts: configv1.APIServerServingCerts{NamedCertificates: []configv1.APIServerNamedServingCert{
+						otherCertificate,
+						{Names: []string{"api.domain-prefix.slug.example.com"}, ServingCertificate: configv1.SecretNameReference{Name: "old-certificate"}},
+					}},
+				}
+			}
+			_, err := crud.Replace(ctx, existing, nil)
+			require.NoError(test, err)
+			fixture.syncer.serviceProviderClusterLister = &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: fixture.syncer.resourcesDBClient}
+			before, err := fixture.syncer.serviceProviderClusterLister.Get(ctx, fixture.key.SubscriptionID, fixture.key.ResourceGroupName, fixture.key.HCPClusterName)
+			require.NoError(test, err)
+			original := before.DeepCopy()
+			require.NoError(test, fixture.syncer.SyncOnce(ctx, fixture.key))
+			actual, err := crud.Get(ctx, coreapi.ServiceProviderClusterResourceName)
+			require.NoError(test, err)
+			expected := existing.DeepCopy()
+			if expected.Spec.DesiredHostedCluster == nil {
+				expected.Spec.DesiredHostedCluster = &hsv1beta1.HostedCluster{}
+			}
+			if expected.Spec.DesiredHostedCluster.Spec.Configuration == nil {
+				expected.Spec.DesiredHostedCluster.Spec.Configuration = &hsv1beta1.ClusterConfiguration{}
+			}
+			if expected.Spec.DesiredHostedCluster.Spec.Configuration.APIServer == nil {
+				expected.Spec.DesiredHostedCluster.Spec.Configuration.APIServer = &configv1.APIServerSpec{}
+			}
+			certificates := []configv1.APIServerNamedServingCert{}
+			if state == "existing" {
+				certificates = append(certificates, otherCertificate)
+			}
+			certificates = append(certificates, configv1.APIServerNamedServingCert{
+				Names:              []string{"api.domain-prefix.slug.example.com"},
+				ServingCertificate: configv1.SecretNameReference{Name: "kube-apiserver-tls-cert"},
+			})
+			expected.Spec.DesiredHostedCluster.Spec.Configuration.APIServer.ServingCerts.NamedCertificates = certificates
+			require.Equal(test, expected.Spec, actual.Spec)
+			require.Equal(test, original.Status, actual.Status)
+			require.Equal(test, original, before, "cached document must not be mutated")
+			require.NoError(test, fixture.syncer.SyncOnce(ctx, fixture.key))
+			repeated, err := crud.Get(ctx, coreapi.ServiceProviderClusterResourceName)
+			require.NoError(test, err)
+			require.Equal(test, actual.CosmosETag, repeated.CosmosETag, "unchanged configuration must not be rewritten")
+
+			stale := actual.DeepCopy()
+			stale.CosmosETag = "stale"
+			replacement := stale.DeepCopy()
+			replacement.Spec.DesiredHostedCluster.Name = "must-not-overwrite"
+			require.NoError(test, fixture.syncer.persistIfChanged(ctx, fixture.key, stale, replacement))
+			current, err := crud.Get(ctx, coreapi.ServiceProviderClusterResourceName)
+			require.NoError(test, err)
+			require.Equal(test, actual, current, "conflict must leave the current document intact")
+
+			fixture.cluster.ServiceProviderProperties.DNS.BaseDomain = "new-slug.example.com"
+			require.NoError(test, fixture.syncer.SyncOnce(ctx, fixture.key))
+			current, err = crud.Get(ctx, coreapi.ServiceProviderClusterResourceName)
+			require.NoError(test, err)
+			updated := current.Spec.DesiredHostedCluster.Spec.Configuration.APIServer.ServingCerts.NamedCertificates
+			require.Len(test, updated, len(certificates), "repair must replace the owned mapping without duplicating it")
+			require.Equal(test, []string{"api.domain-prefix.new-slug.example.com"}, updated[len(updated)-1].Names)
+		})
+	}
+}
+
+func TestKubeAPIServerServingCertificateWaitsForDNSObservation(test *testing.T) {
+	for _, missing := range []string{"prefix", "base-domain"} {
+		test.Run(missing, func(test *testing.T) {
+			fixture := newKubeAPIServerCertificateFixture(test)
+			if missing == "prefix" {
+				fixture.cluster.CustomerProperties.DNS.BaseDomainPrefix = ""
+			} else {
+				fixture.cluster.ServiceProviderProperties.DNS.BaseDomain = ""
+			}
+			ctx := test.Context()
+			crud := fixture.syncer.resourcesDBClient.ServiceProviderClusters(fixture.key.SubscriptionID, fixture.key.ResourceGroupName, fixture.key.HCPClusterName)
+			before, err := crud.Get(ctx, coreapi.ServiceProviderClusterResourceName)
+			require.NoError(test, err)
+			require.NoError(test, fixture.syncer.SyncOnce(ctx, fixture.key))
+			require.Len(test, fixture.applies(test), 2, "secret delivery must not wait for DNS observation")
+			after, err := crud.Get(ctx, coreapi.ServiceProviderClusterResourceName)
+			require.NoError(test, err)
+			require.Equal(test, before, after, "must not persist an incomplete certificate hostname")
+		})
 	}
 }

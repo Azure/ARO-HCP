@@ -767,7 +767,7 @@ func TestDeleteAllOwnedApplyDesires(t *testing.T) {
 // An older owner tag must not let stale cleanup or cluster deletion race with
 // adoption by the dedicated kube-apiserver serving certificate controller.
 func TestKubeAPIServerServingCertificateDesiresAreIgnored(t *testing.T) {
-	for _, owner := range []string{ClusterResourcesControllerName, "KubeAPIServerServingCertificate"} {
+	for _, owner := range []string{ClusterResourcesControllerName, "KubeAPIServerServingCertificate", "KubeAPIServerServingCertificateK8sResources"} {
 		t.Run(owner, func(t *testing.T) {
 			ctx := t.Context()
 			names := []string{DesireNameKubeAPIServerServingCertSecretSync, DesireNameKubeAPIServerServingCertSecretProviderClass}
