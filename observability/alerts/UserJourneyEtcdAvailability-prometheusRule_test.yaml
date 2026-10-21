@@ -17,23 +17,23 @@ tests:
 # Scenario 1: High commit duration — all three tiers fire
 - interval: 1m
   input_series:
-  - series: 'etcd_disk_backend_commit_duration_seconds_bucket{cluster="test-hcp-cluster",namespace="ocm-test-hcp-namespace",le="0.001"}'
+  - series: 'etcd_disk_backend_commit_duration_seconds_bucket{cluster="test-hcp-cluster",namespace="ocm-test-hcp-namespace",pod="etcd-0",le="0.001"}'
     values: "0+10x370"
-  - series: 'etcd_disk_backend_commit_duration_seconds_bucket{cluster="test-hcp-cluster",namespace="ocm-test-hcp-namespace",le="0.002"}'
+  - series: 'etcd_disk_backend_commit_duration_seconds_bucket{cluster="test-hcp-cluster",namespace="ocm-test-hcp-namespace",pod="etcd-0",le="0.002"}'
     values: "0+20x370"
-  - series: 'etcd_disk_backend_commit_duration_seconds_bucket{cluster="test-hcp-cluster",namespace="ocm-test-hcp-namespace",le="0.004"}'
+  - series: 'etcd_disk_backend_commit_duration_seconds_bucket{cluster="test-hcp-cluster",namespace="ocm-test-hcp-namespace",pod="etcd-0",le="0.004"}'
     values: "0+30x370"
-  - series: 'etcd_disk_backend_commit_duration_seconds_bucket{cluster="test-hcp-cluster",namespace="ocm-test-hcp-namespace",le="0.008"}'
+  - series: 'etcd_disk_backend_commit_duration_seconds_bucket{cluster="test-hcp-cluster",namespace="ocm-test-hcp-namespace",pod="etcd-0",le="0.008"}'
     values: "0+40x370"
-  - series: 'etcd_disk_backend_commit_duration_seconds_bucket{cluster="test-hcp-cluster",namespace="ocm-test-hcp-namespace",le="0.016"}'
+  - series: 'etcd_disk_backend_commit_duration_seconds_bucket{cluster="test-hcp-cluster",namespace="ocm-test-hcp-namespace",pod="etcd-0",le="0.016"}'
     values: "0+60x370"
-  - series: 'etcd_disk_backend_commit_duration_seconds_bucket{cluster="test-hcp-cluster",namespace="ocm-test-hcp-namespace",le="0.032"}'
+  - series: 'etcd_disk_backend_commit_duration_seconds_bucket{cluster="test-hcp-cluster",namespace="ocm-test-hcp-namespace",pod="etcd-0",le="0.032"}'
     values: "0+80x370"
-  - series: 'etcd_disk_backend_commit_duration_seconds_bucket{cluster="test-hcp-cluster",namespace="ocm-test-hcp-namespace",le="0.064"}'
+  - series: 'etcd_disk_backend_commit_duration_seconds_bucket{cluster="test-hcp-cluster",namespace="ocm-test-hcp-namespace",pod="etcd-0",le="0.064"}'
     values: "0+90x370"
-  - series: 'etcd_disk_backend_commit_duration_seconds_bucket{cluster="test-hcp-cluster",namespace="ocm-test-hcp-namespace",le="0.128"}'
+  - series: 'etcd_disk_backend_commit_duration_seconds_bucket{cluster="test-hcp-cluster",namespace="ocm-test-hcp-namespace",pod="etcd-0",le="0.128"}'
     values: "0+95x370"
-  - series: 'etcd_disk_backend_commit_duration_seconds_bucket{cluster="test-hcp-cluster",namespace="ocm-test-hcp-namespace",le="+Inf"}'
+  - series: 'etcd_disk_backend_commit_duration_seconds_bucket{cluster="test-hcp-cluster",namespace="ocm-test-hcp-namespace",pod="etcd-0",le="+Inf"}'
     values: "0+100x370"
   - series: 'kube_namespace_annotations{job="kube-state-metrics",cluster="test-hcp-cluster",namespace="ocm-test-hcp-namespace",annotation_azure_microsoft_com_hcp_cluster_azure_resource_id="/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster"}'
     values: "1+0x370"
@@ -44,18 +44,19 @@ tests:
     exp_alerts:
     - exp_labels:
         alertname: userJourneyEtcdBackendCommitDurationHigh1h5m
-        severity: "3"
+        severity: "4"
         long_window: 1h
         short_window: 5m
         slo: etcd-backend-commit-duration
         cluster: test-hcp-cluster
         namespace: ocm-test-hcp-namespace
+        pod: etcd-0
         component: hcp
         resource_id: "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster"
         subscription_id: "00000000-0000-0000-0000-000000000000"
       exp_annotations:
-        description: "ocm-test-hcp-namespace / test-hcp-cluster etcd has 99th percentile backend commit duration of 0.128s (threshold: 100ms). Slow disk performance may impact write performance. Resource ID: /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster. Subscription ID: 00000000-0000-0000-0000-000000000000. Fast burn (1h/5m)."
-        summary: "etcd backend commit duration is high for test-hcp-cluster ocm-test-hcp-namespace (/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster, 00000000-0000-0000-0000-000000000000)"
+        description: "ocm-test-hcp-namespace etcd has 99th percentile backend commit duration of 0.128s (threshold: 100ms). Slow disk performance may impact write performance. Resource ID: /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster. Subscription ID: 00000000-0000-0000-0000-000000000000. Fast burn (1h/5m)."
+        summary: "etcd backend commit duration is high for ocm-test-hcp-namespace (/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster, 00000000-0000-0000-0000-000000000000)"
         runbook_url: https://aka.ms/arohcp-runbook-etcd
         correlationId: "userJourneyEtcdBackendCommitDurationHigh/test-hcp-cluster/ocm-test-hcp-namespace"
   - eval_time: 11m
@@ -70,18 +71,19 @@ tests:
     exp_alerts:
     - exp_labels:
         alertname: userJourneyEtcdBackendCommitDurationHigh6h30m
-        severity: "3"
+        severity: "4"
         long_window: 6h
         short_window: 30m
         slo: etcd-backend-commit-duration
         cluster: test-hcp-cluster
         namespace: ocm-test-hcp-namespace
+        pod: etcd-0
         component: hcp
         resource_id: "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster"
         subscription_id: "00000000-0000-0000-0000-000000000000"
       exp_annotations:
-        description: "ocm-test-hcp-namespace / test-hcp-cluster etcd has 99th percentile backend commit duration of 0.128s (threshold: 100ms). Slow disk performance may impact write performance. Resource ID: /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster. Subscription ID: 00000000-0000-0000-0000-000000000000. Medium burn (6h/30m)."
-        summary: "etcd backend commit duration is high for test-hcp-cluster ocm-test-hcp-namespace (/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster, 00000000-0000-0000-0000-000000000000)"
+        description: "ocm-test-hcp-namespace etcd has 99th percentile backend commit duration of 0.128s (threshold: 100ms). Slow disk performance may impact write performance. Resource ID: /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster. Subscription ID: 00000000-0000-0000-0000-000000000000. Medium burn (6h/30m)."
+        summary: "etcd backend commit duration is high for ocm-test-hcp-namespace (/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster, 00000000-0000-0000-0000-000000000000)"
         runbook_url: https://aka.ms/arohcp-runbook-etcd
         correlationId: "userJourneyEtcdBackendCommitDurationHigh/test-hcp-cluster/ocm-test-hcp-namespace"
   - eval_time: 61m
@@ -99,27 +101,28 @@ tests:
         slo: etcd-backend-commit-duration
         cluster: test-hcp-cluster
         namespace: ocm-test-hcp-namespace
+        pod: etcd-0
         component: hcp
         resource_id: "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster"
         subscription_id: "00000000-0000-0000-0000-000000000000"
       exp_annotations:
-        description: "ocm-test-hcp-namespace / test-hcp-cluster etcd has 99th percentile backend commit duration of 0.128s (threshold: 100ms). Slow disk performance may impact write performance. Resource ID: /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster. Subscription ID: 00000000-0000-0000-0000-000000000000. Slow burn (3d/6h)."
-        summary: "etcd backend commit duration is chronically high for test-hcp-cluster ocm-test-hcp-namespace (/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster, 00000000-0000-0000-0000-000000000000)"
+        description: "ocm-test-hcp-namespace etcd has 99th percentile backend commit duration of 0.128s (threshold: 100ms). Slow disk performance may impact write performance. Resource ID: /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster. Subscription ID: 00000000-0000-0000-0000-000000000000. Slow burn (3d/6h)."
+        summary: "etcd backend commit duration is chronically high for ocm-test-hcp-namespace (/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster, 00000000-0000-0000-0000-000000000000)"
         runbook_url: https://aka.ms/arohcp-runbook-etcd
         correlationId: "userJourneyEtcdBackendCommitDurationHigh/test-hcp-cluster/ocm-test-hcp-namespace"
 
 # Scenario 2: Normal commit duration — no tiers fire
 - interval: 1m
   input_series:
-  - series: 'etcd_disk_backend_commit_duration_seconds_bucket{cluster="test-hcp-cluster",namespace="test-hcp-cluster-healthy",le="0.001"}'
+  - series: 'etcd_disk_backend_commit_duration_seconds_bucket{cluster="test-hcp-cluster",namespace="test-hcp-cluster-healthy",pod="etcd-0",le="0.001"}'
     values: "0+20x15"
-  - series: 'etcd_disk_backend_commit_duration_seconds_bucket{cluster="test-hcp-cluster",namespace="test-hcp-cluster-healthy",le="0.002"}'
+  - series: 'etcd_disk_backend_commit_duration_seconds_bucket{cluster="test-hcp-cluster",namespace="test-hcp-cluster-healthy",pod="etcd-0",le="0.002"}'
     values: "0+50x15"
-  - series: 'etcd_disk_backend_commit_duration_seconds_bucket{cluster="test-hcp-cluster",namespace="test-hcp-cluster-healthy",le="0.004"}'
+  - series: 'etcd_disk_backend_commit_duration_seconds_bucket{cluster="test-hcp-cluster",namespace="test-hcp-cluster-healthy",pod="etcd-0",le="0.004"}'
     values: "0+80x15"
-  - series: 'etcd_disk_backend_commit_duration_seconds_bucket{cluster="test-hcp-cluster",namespace="test-hcp-cluster-healthy",le="0.008"}'
+  - series: 'etcd_disk_backend_commit_duration_seconds_bucket{cluster="test-hcp-cluster",namespace="test-hcp-cluster-healthy",pod="etcd-0",le="0.008"}'
     values: "0+95x15"
-  - series: 'etcd_disk_backend_commit_duration_seconds_bucket{cluster="test-hcp-cluster",namespace="test-hcp-cluster-healthy",le="+Inf"}'
+  - series: 'etcd_disk_backend_commit_duration_seconds_bucket{cluster="test-hcp-cluster",namespace="test-hcp-cluster-healthy",pod="etcd-0",le="+Inf"}'
     values: "0+100x15"
   alert_rule_test:
   - eval_time: 11m
@@ -154,7 +157,7 @@ tests:
     exp_alerts:
     - exp_labels:
         alertname: userJourneyEtcdDatabaseHighFragmentation
-        severity: "3"
+        severity: "4"
         slo: etcd-database-fragmentation
         cluster: test-hcp-cluster
         namespace: ocm-test-hcp-namespace
@@ -162,8 +165,8 @@ tests:
         resource_id: "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster"
         subscription_id: "00000000-0000-0000-0000-000000000000"
       exp_annotations:
-        description: "ocm-test-hcp-namespace / test-hcp-cluster etcd database in-use ratio is 12.5% (threshold: 25%). Database defragmentation may be needed to reclaim space. Resource ID: /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster. Subscription ID: 00000000-0000-0000-0000-000000000000."
-        summary: "etcd database fragmentation is high for test-hcp-cluster ocm-test-hcp-namespace (/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster, 00000000-0000-0000-0000-000000000000)"
+        description: "ocm-test-hcp-namespace etcd database in-use ratio is 12.5% (threshold: 25%). Database defragmentation may be needed to reclaim space. Resource ID: /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster. Subscription ID: 00000000-0000-0000-0000-000000000000."
+        summary: "etcd database fragmentation is high for ocm-test-hcp-namespace (/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster, 00000000-0000-0000-0000-000000000000)"
         runbook_url: https://aka.ms/arohcp-runbook-etcd
         correlationId: "userJourneyEtcdDatabaseHighFragmentation/test-hcp-cluster/ocm-test-hcp-namespace"
 
@@ -193,16 +196,18 @@ tests:
 
 # ========================================
 # userJourneyEtcdDatabaseSizeExceeded
-# Threshold: size > 7GB (7000000000 bytes)
-# Gauge metric: 9GB throughout
+# Threshold: (db_size / quota) > 85%
+# Gauge metrics: db_size=7GB, quota=8GB -> ratio=87.5% throughout
 # Single alert: for: 15m -> check at 20m
 # ========================================
 
-# Scenario 1: Database size exceeds 7GB — fires
+# Scenario 1: Database size exceeds 85% of quota — fires
 - interval: 1m
   input_series:
   - series: 'etcd_mvcc_db_total_size_in_bytes{cluster="test-hcp-cluster",namespace="ocm-test-hcp-namespace"}'
-    values: "9000000000+0x370"
+    values: "7000000000+0x370"
+  - series: 'etcd_server_quota_backend_bytes{cluster="test-hcp-cluster",namespace="ocm-test-hcp-namespace"}'
+    values: "8000000000+0x370"
   - series: 'kube_namespace_annotations{job="kube-state-metrics",cluster="test-hcp-cluster",namespace="ocm-test-hcp-namespace",annotation_azure_microsoft_com_hcp_cluster_azure_resource_id="/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster"}'
     values: "1+0x370"
   alert_rule_test:
@@ -214,7 +219,7 @@ tests:
     exp_alerts:
     - exp_labels:
         alertname: userJourneyEtcdDatabaseSizeExceeded
-        severity: "3"
+        severity: "4"
         slo: etcd-database-size
         cluster: test-hcp-cluster
         namespace: ocm-test-hcp-namespace
@@ -222,26 +227,30 @@ tests:
         resource_id: "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster"
         subscription_id: "00000000-0000-0000-0000-000000000000"
       exp_annotations:
-        description: "ocm-test-hcp-namespace / test-hcp-cluster etcd database size is 9GB (threshold: 7GB). Database may need compaction or quota increase. Resource ID: /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster. Subscription ID: 00000000-0000-0000-0000-000000000000."
-        summary: "etcd database size is too large for test-hcp-cluster ocm-test-hcp-namespace (/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster, 00000000-0000-0000-0000-000000000000)"
+        description: "ocm-test-hcp-namespace etcd database size is 87.5% of quota (threshold: 85%). Database may need compaction or quota increase. Resource ID: /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster. Subscription ID: 00000000-0000-0000-0000-000000000000."
+        summary: "etcd database size is too large for ocm-test-hcp-namespace (/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster, 00000000-0000-0000-0000-000000000000)"
         runbook_url: https://aka.ms/arohcp-runbook-etcd
         correlationId: "userJourneyEtcdDatabaseSizeExceeded/test-hcp-cluster/ocm-test-hcp-namespace"
 
-# Scenario 2: Database size below threshold — does not fire
+# Scenario 2: Database size below 85% of quota — does not fire
 - interval: 1m
   input_series:
   - series: 'etcd_mvcc_db_total_size_in_bytes{cluster="test-hcp-cluster",namespace="test-hcp-cluster-healthy"}'
     values: "6000000000+0x15"
+  - series: 'etcd_server_quota_backend_bytes{cluster="test-hcp-cluster",namespace="test-hcp-cluster-healthy"}'
+    values: "8000000000+0x15"
   alert_rule_test:
   - eval_time: 11m
     alertname: userJourneyEtcdDatabaseSizeExceeded
     exp_alerts: []
 
-# Scenario 3: Brief spike then drops — does not fire
+# Scenario 3: Brief spike above 85% then drops — does not fire
 - interval: 1m
   input_series:
   - series: 'etcd_mvcc_db_total_size_in_bytes{cluster="test-hcp-cluster",namespace="test-hcp-cluster-transient"}'
-    values: "6000000000 9000000000 9000000000 6000000000+0x12"
+    values: "6000000000 7000000000 7000000000 6000000000+0x12"
+  - series: 'etcd_server_quota_backend_bytes{cluster="test-hcp-cluster",namespace="test-hcp-cluster-transient"}'
+    values: "8000000000+0x15"
   alert_rule_test:
   - eval_time: 15m
     alertname: userJourneyEtcdDatabaseSizeExceeded
@@ -267,7 +276,7 @@ tests:
     exp_alerts:
     - exp_labels:
         alertname: userJourneyEtcdFrequentLeaderChanges
-        severity: "3"
+        severity: "4"
         slo: etcd-leader-changes
         cluster: test-hcp-cluster
         namespace: ocm-test-hcp-namespace
@@ -275,8 +284,8 @@ tests:
         resource_id: "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster"
         subscription_id: "00000000-0000-0000-0000-000000000000"
       exp_annotations:
-        description: "ocm-test-hcp-namespace / test-hcp-cluster etcd has seen 15 leader changes in the last 15 minutes (threshold: 3). This may indicate network issues or cluster instability. Resource ID: /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster. Subscription ID: 00000000-0000-0000-0000-000000000000."
-        summary: "etcd cluster experiencing frequent leader changes for test-hcp-cluster ocm-test-hcp-namespace (/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster, 00000000-0000-0000-0000-000000000000)"
+        description: "ocm-test-hcp-namespace etcd has seen 15 leader changes in the last 15 minutes (threshold: 3). This may indicate network issues or cluster instability. Resource ID: /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster. Subscription ID: 00000000-0000-0000-0000-000000000000."
+        summary: "etcd cluster experiencing frequent leader changes for ocm-test-hcp-namespace (/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster, 00000000-0000-0000-0000-000000000000)"
         runbook_url: https://aka.ms/arohcp-runbook-etcd
         correlationId: "userJourneyEtcdFrequentLeaderChanges/test-hcp-cluster/ocm-test-hcp-namespace"
 
@@ -298,6 +307,62 @@ tests:
   alert_rule_test:
   - eval_time: 15m
     alertname: userJourneyEtcdFrequentLeaderChanges
+    exp_alerts: []
+
+# ========================================
+# userJourneyEtcdNoLeader
+# Threshold: etcd_server_has_leader == 0
+# Gauge metric: 0 = no leader, 1 = has leader
+# Single alert: for: 5m -> check at 10m
+# ========================================
+
+# Scenario 1: etcd member has no leader — fires
+- interval: 1m
+  input_series:
+  - series: 'etcd_server_has_leader{cluster="test-hcp-cluster",namespace="ocm-test-hcp-namespace"}'
+    values: "0+0x370"
+  - series: 'kube_namespace_annotations{job="kube-state-metrics",cluster="test-hcp-cluster",namespace="ocm-test-hcp-namespace",annotation_azure_microsoft_com_hcp_cluster_azure_resource_id="/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster"}'
+    values: "1+0x370"
+  alert_rule_test:
+  - eval_time: 3m
+    alertname: userJourneyEtcdNoLeader
+    exp_alerts: []
+  - eval_time: 10m
+    alertname: userJourneyEtcdNoLeader
+    exp_alerts:
+    - exp_labels:
+        alertname: userJourneyEtcdNoLeader
+        severity: "4"
+        slo: etcd-has-leader
+        cluster: test-hcp-cluster
+        namespace: ocm-test-hcp-namespace
+        component: hcp
+        resource_id: "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster"
+        subscription_id: "00000000-0000-0000-0000-000000000000"
+      exp_annotations:
+        description: "ocm-test-hcp-namespace etcd member has no leader. The cluster cannot process writes until a leader is elected. Resource ID: /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster. Subscription ID: 00000000-0000-0000-0000-000000000000."
+        summary: "etcd member has no leader for ocm-test-hcp-namespace (/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster, 00000000-0000-0000-0000-000000000000)"
+        runbook_url: https://aka.ms/arohcp-runbook-etcd
+        correlationId: "userJourneyEtcdNoLeader/test-hcp-cluster/ocm-test-hcp-namespace"
+
+# Scenario 2: etcd member has leader — does not fire
+- interval: 1m
+  input_series:
+  - series: 'etcd_server_has_leader{cluster="test-hcp-cluster",namespace="test-hcp-cluster-healthy"}'
+    values: "1+0x15"
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: userJourneyEtcdNoLeader
+    exp_alerts: []
+
+# Scenario 3: Brief leader loss then recovers — does not fire
+- interval: 1m
+  input_series:
+  - series: 'etcd_server_has_leader{cluster="test-hcp-cluster",namespace="test-hcp-cluster-transient"}'
+    values: "1 0 0 0 1+0x12"
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: userJourneyEtcdNoLeader
     exp_alerts: []
 
 # ========================================
@@ -348,7 +413,7 @@ tests:
     exp_alerts:
     - exp_labels:
         alertname: userJourneyEtcdPeerRoundTripTimeHigh1h5m
-        severity: "3"
+        severity: "4"
         long_window: 1h
         short_window: 5m
         slo: etcd-peer-round-trip-time
@@ -358,8 +423,8 @@ tests:
         resource_id: "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster"
         subscription_id: "00000000-0000-0000-0000-000000000000"
       exp_annotations:
-        description: "ocm-test-hcp-namespace / test-hcp-cluster etcd has 99th percentile peer round-trip time of 0.2048s (threshold: 100ms). Network latency between peers may be affecting cluster performance. Resource ID: /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster. Subscription ID: 00000000-0000-0000-0000-000000000000. Fast burn (1h/5m)."
-        summary: "etcd peer round-trip time is high for test-hcp-cluster ocm-test-hcp-namespace (/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster, 00000000-0000-0000-0000-000000000000)"
+        description: "ocm-test-hcp-namespace etcd has 99th percentile peer round-trip time of 0.2048s (threshold: 100ms). Network latency between peers may be affecting cluster performance. Resource ID: /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster. Subscription ID: 00000000-0000-0000-0000-000000000000. Fast burn (1h/5m)."
+        summary: "etcd peer round-trip time is high for ocm-test-hcp-namespace (/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster, 00000000-0000-0000-0000-000000000000)"
         runbook_url: https://aka.ms/arohcp-runbook-etcd
         correlationId: "userJourneyEtcdPeerRoundTripTimeHigh/test-hcp-cluster/ocm-test-hcp-namespace"
   - eval_time: 11m
@@ -374,7 +439,7 @@ tests:
     exp_alerts:
     - exp_labels:
         alertname: userJourneyEtcdPeerRoundTripTimeHigh6h30m
-        severity: "3"
+        severity: "4"
         long_window: 6h
         short_window: 30m
         slo: etcd-peer-round-trip-time
@@ -384,8 +449,8 @@ tests:
         resource_id: "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster"
         subscription_id: "00000000-0000-0000-0000-000000000000"
       exp_annotations:
-        description: "ocm-test-hcp-namespace / test-hcp-cluster etcd has 99th percentile peer round-trip time of 0.2048s (threshold: 100ms). Network latency between peers may be affecting cluster performance. Resource ID: /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster. Subscription ID: 00000000-0000-0000-0000-000000000000. Medium burn (6h/30m)."
-        summary: "etcd peer round-trip time is high for test-hcp-cluster ocm-test-hcp-namespace (/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster, 00000000-0000-0000-0000-000000000000)"
+        description: "ocm-test-hcp-namespace etcd has 99th percentile peer round-trip time of 0.2048s (threshold: 100ms). Network latency between peers may be affecting cluster performance. Resource ID: /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster. Subscription ID: 00000000-0000-0000-0000-000000000000. Medium burn (6h/30m)."
+        summary: "etcd peer round-trip time is high for ocm-test-hcp-namespace (/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster, 00000000-0000-0000-0000-000000000000)"
         runbook_url: https://aka.ms/arohcp-runbook-etcd
         correlationId: "userJourneyEtcdPeerRoundTripTimeHigh/test-hcp-cluster/ocm-test-hcp-namespace"
   - eval_time: 61m
@@ -406,8 +471,8 @@ tests:
         resource_id: "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster"
         subscription_id: "00000000-0000-0000-0000-000000000000"
       exp_annotations:
-        description: "ocm-test-hcp-namespace / test-hcp-cluster etcd has 99th percentile peer round-trip time of 0.2048s (threshold: 100ms). Network latency between peers may be affecting cluster performance. Resource ID: /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster. Subscription ID: 00000000-0000-0000-0000-000000000000. Slow burn (3d/6h)."
-        summary: "etcd peer round-trip time is chronically high for test-hcp-cluster ocm-test-hcp-namespace (/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster, 00000000-0000-0000-0000-000000000000)"
+        description: "ocm-test-hcp-namespace etcd has 99th percentile peer round-trip time of 0.2048s (threshold: 100ms). Network latency between peers may be affecting cluster performance. Resource ID: /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster. Subscription ID: 00000000-0000-0000-0000-000000000000. Slow burn (3d/6h)."
+        summary: "etcd peer round-trip time is chronically high for ocm-test-hcp-namespace (/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster, 00000000-0000-0000-0000-000000000000)"
         runbook_url: https://aka.ms/arohcp-runbook-etcd
         correlationId: "userJourneyEtcdPeerRoundTripTimeHigh/test-hcp-cluster/ocm-test-hcp-namespace"
 
@@ -440,21 +505,21 @@ tests:
 # Scenario 1: High WAL fsync duration — all three tiers fire
 - interval: 1m
   input_series:
-  - series: 'etcd_disk_wal_fsync_duration_seconds_bucket{cluster="test-hcp-cluster",namespace="ocm-test-hcp-namespace",le="0.001"}'
+  - series: 'etcd_disk_wal_fsync_duration_seconds_bucket{cluster="test-hcp-cluster",namespace="ocm-test-hcp-namespace",pod="etcd-0",le="0.001"}'
     values: "0+10x370"
-  - series: 'etcd_disk_wal_fsync_duration_seconds_bucket{cluster="test-hcp-cluster",namespace="ocm-test-hcp-namespace",le="0.002"}'
+  - series: 'etcd_disk_wal_fsync_duration_seconds_bucket{cluster="test-hcp-cluster",namespace="ocm-test-hcp-namespace",pod="etcd-0",le="0.002"}'
     values: "0+20x370"
-  - series: 'etcd_disk_wal_fsync_duration_seconds_bucket{cluster="test-hcp-cluster",namespace="ocm-test-hcp-namespace",le="0.004"}'
+  - series: 'etcd_disk_wal_fsync_duration_seconds_bucket{cluster="test-hcp-cluster",namespace="ocm-test-hcp-namespace",pod="etcd-0",le="0.004"}'
     values: "0+40x370"
-  - series: 'etcd_disk_wal_fsync_duration_seconds_bucket{cluster="test-hcp-cluster",namespace="ocm-test-hcp-namespace",le="0.008"}'
+  - series: 'etcd_disk_wal_fsync_duration_seconds_bucket{cluster="test-hcp-cluster",namespace="ocm-test-hcp-namespace",pod="etcd-0",le="0.008"}'
     values: "0+80x370"
-  - series: 'etcd_disk_wal_fsync_duration_seconds_bucket{cluster="test-hcp-cluster",namespace="ocm-test-hcp-namespace",le="0.016"}'
+  - series: 'etcd_disk_wal_fsync_duration_seconds_bucket{cluster="test-hcp-cluster",namespace="ocm-test-hcp-namespace",pod="etcd-0",le="0.016"}'
     values: "0+150x370"
-  - series: 'etcd_disk_wal_fsync_duration_seconds_bucket{cluster="test-hcp-cluster",namespace="ocm-test-hcp-namespace",le="0.032"}'
+  - series: 'etcd_disk_wal_fsync_duration_seconds_bucket{cluster="test-hcp-cluster",namespace="ocm-test-hcp-namespace",pod="etcd-0",le="0.032"}'
     values: "0+180x370"
-  - series: 'etcd_disk_wal_fsync_duration_seconds_bucket{cluster="test-hcp-cluster",namespace="ocm-test-hcp-namespace",le="0.064"}'
+  - series: 'etcd_disk_wal_fsync_duration_seconds_bucket{cluster="test-hcp-cluster",namespace="ocm-test-hcp-namespace",pod="etcd-0",le="0.064"}'
     values: "0+190x370"
-  - series: 'etcd_disk_wal_fsync_duration_seconds_bucket{cluster="test-hcp-cluster",namespace="ocm-test-hcp-namespace",le="+Inf"}'
+  - series: 'etcd_disk_wal_fsync_duration_seconds_bucket{cluster="test-hcp-cluster",namespace="ocm-test-hcp-namespace",pod="etcd-0",le="+Inf"}'
     values: "0+200x370"
   - series: 'kube_namespace_annotations{job="kube-state-metrics",cluster="test-hcp-cluster",namespace="ocm-test-hcp-namespace",annotation_azure_microsoft_com_hcp_cluster_azure_resource_id="/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster"}'
     values: "1+0x370"
@@ -465,18 +530,19 @@ tests:
     exp_alerts:
     - exp_labels:
         alertname: userJourneyEtcdWALFsyncDurationHigh1h5m
-        severity: "3"
+        severity: "4"
         long_window: 1h
         short_window: 5m
         slo: etcd-wal-fsync-duration
         cluster: test-hcp-cluster
         namespace: ocm-test-hcp-namespace
+        pod: etcd-0
         component: hcp
         resource_id: "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster"
         subscription_id: "00000000-0000-0000-0000-000000000000"
       exp_annotations:
-        description: "ocm-test-hcp-namespace / test-hcp-cluster etcd has 99th percentile WAL fsync duration of 0.064s (threshold: 50ms). Slow disk performance may impact cluster stability. Resource ID: /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster. Subscription ID: 00000000-0000-0000-0000-000000000000. Fast burn (1h/5m)."
-        summary: "etcd WAL fsync duration is high for test-hcp-cluster ocm-test-hcp-namespace (/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster, 00000000-0000-0000-0000-000000000000)"
+        description: "ocm-test-hcp-namespace etcd has 99th percentile WAL fsync duration of 0.064s (threshold: 50ms). Slow disk performance may impact cluster stability. Resource ID: /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster. Subscription ID: 00000000-0000-0000-0000-000000000000. Fast burn (1h/5m)."
+        summary: "etcd WAL fsync duration is high for ocm-test-hcp-namespace (/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster, 00000000-0000-0000-0000-000000000000)"
         runbook_url: https://aka.ms/arohcp-runbook-etcd
         correlationId: "userJourneyEtcdWALFsyncDurationHigh/test-hcp-cluster/ocm-test-hcp-namespace"
   - eval_time: 11m
@@ -491,18 +557,19 @@ tests:
     exp_alerts:
     - exp_labels:
         alertname: userJourneyEtcdWALFsyncDurationHigh6h30m
-        severity: "3"
+        severity: "4"
         long_window: 6h
         short_window: 30m
         slo: etcd-wal-fsync-duration
         cluster: test-hcp-cluster
         namespace: ocm-test-hcp-namespace
+        pod: etcd-0
         component: hcp
         resource_id: "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster"
         subscription_id: "00000000-0000-0000-0000-000000000000"
       exp_annotations:
-        description: "ocm-test-hcp-namespace / test-hcp-cluster etcd has 99th percentile WAL fsync duration of 0.064s (threshold: 50ms). Slow disk performance may impact cluster stability. Resource ID: /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster. Subscription ID: 00000000-0000-0000-0000-000000000000. Medium burn (6h/30m)."
-        summary: "etcd WAL fsync duration is high for test-hcp-cluster ocm-test-hcp-namespace (/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster, 00000000-0000-0000-0000-000000000000)"
+        description: "ocm-test-hcp-namespace etcd has 99th percentile WAL fsync duration of 0.064s (threshold: 50ms). Slow disk performance may impact cluster stability. Resource ID: /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster. Subscription ID: 00000000-0000-0000-0000-000000000000. Medium burn (6h/30m)."
+        summary: "etcd WAL fsync duration is high for ocm-test-hcp-namespace (/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster, 00000000-0000-0000-0000-000000000000)"
         runbook_url: https://aka.ms/arohcp-runbook-etcd
         correlationId: "userJourneyEtcdWALFsyncDurationHigh/test-hcp-cluster/ocm-test-hcp-namespace"
   - eval_time: 61m
@@ -519,25 +586,26 @@ tests:
         slo: etcd-wal-fsync-duration
         cluster: test-hcp-cluster
         namespace: ocm-test-hcp-namespace
+        pod: etcd-0
         component: hcp
         resource_id: "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster"
         subscription_id: "00000000-0000-0000-0000-000000000000"
       exp_annotations:
-        description: "ocm-test-hcp-namespace / test-hcp-cluster etcd has 99th percentile WAL fsync duration of 0.064s (threshold: 50ms). Slow disk performance may impact cluster stability. Resource ID: /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster. Subscription ID: 00000000-0000-0000-0000-000000000000. Slow burn (3d/6h)."
-        summary: "etcd WAL fsync duration is chronically high for test-hcp-cluster ocm-test-hcp-namespace (/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster, 00000000-0000-0000-0000-000000000000)"
+        description: "ocm-test-hcp-namespace etcd has 99th percentile WAL fsync duration of 0.064s (threshold: 50ms). Slow disk performance may impact cluster stability. Resource ID: /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster. Subscription ID: 00000000-0000-0000-0000-000000000000. Slow burn (3d/6h)."
+        summary: "etcd WAL fsync duration is chronically high for ocm-test-hcp-namespace (/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster, 00000000-0000-0000-0000-000000000000)"
         runbook_url: https://aka.ms/arohcp-runbook-etcd
         correlationId: "userJourneyEtcdWALFsyncDurationHigh/test-hcp-cluster/ocm-test-hcp-namespace"
 
 # Scenario 2: Normal WAL fsync duration — no tiers fire
 - interval: 1m
   input_series:
-  - series: 'etcd_disk_wal_fsync_duration_seconds_bucket{cluster="test-hcp-cluster",namespace="test-hcp-cluster-healthy",le="0.001"}'
+  - series: 'etcd_disk_wal_fsync_duration_seconds_bucket{cluster="test-hcp-cluster",namespace="test-hcp-cluster-healthy",pod="etcd-0",le="0.001"}'
     values: "0+100x15"
-  - series: 'etcd_disk_wal_fsync_duration_seconds_bucket{cluster="test-hcp-cluster",namespace="test-hcp-cluster-healthy",le="0.002"}'
+  - series: 'etcd_disk_wal_fsync_duration_seconds_bucket{cluster="test-hcp-cluster",namespace="test-hcp-cluster-healthy",pod="etcd-0",le="0.002"}'
     values: "0+180x15"
-  - series: 'etcd_disk_wal_fsync_duration_seconds_bucket{cluster="test-hcp-cluster",namespace="test-hcp-cluster-healthy",le="0.004"}'
+  - series: 'etcd_disk_wal_fsync_duration_seconds_bucket{cluster="test-hcp-cluster",namespace="test-hcp-cluster-healthy",pod="etcd-0",le="0.004"}'
     values: "0+195x15"
-  - series: 'etcd_disk_wal_fsync_duration_seconds_bucket{cluster="test-hcp-cluster",namespace="test-hcp-cluster-healthy",le="+Inf"}'
+  - series: 'etcd_disk_wal_fsync_duration_seconds_bucket{cluster="test-hcp-cluster",namespace="test-hcp-cluster-healthy",pod="etcd-0",le="+Inf"}'
     values: "0+200x15"
   alert_rule_test:
   - eval_time: 11m
