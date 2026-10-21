@@ -21,10 +21,13 @@ import (
 	"time"
 
 	"github.com/blang/semver/v4"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 
 	"k8s.io/apimachinery/pkg/api/equality"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/component-base/metrics/legacyregistry"
 
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/hypershift/api/hypershift/v1beta1"
@@ -44,6 +47,24 @@ const (
 	// ExternalAuthOIDCClientsDegradedControllerName is the controller name used for
 	// metrics labels, ctx values, log fields, and the Controller document name.
 	ExternalAuthOIDCClientsDegradedControllerName = "ExternalAuthOIDCClientsDegradedController"
+)
+
+// oidcClientDegradedGauge records per-component degradation: 1 when the
+// specific OIDC client (e.g. console, CLI) is degraded, 0 when healthy.
+// Labels component_name and component_namespace identify the client so
+// operators can tell whether console or CLI login is the one broken,
+// rather than only seeing the aggregate ExternalAuth-level signal.
+//
+// All component series for a resource_id are cleared (DeletePartialMatch)
+// before re-evaluation, so removed or renamed clients don't leak stale
+// series. When the controller cannot evaluate at all (early returns),
+// the previous series are left untouched.
+var oidcClientDegradedGauge = promauto.With(legacyregistry.Registerer()).NewGaugeVec(
+	prometheus.GaugeOpts{
+		Name: "backend_externalauth_oidc_client_degraded",
+		Help: "Whether a specific OIDC client is degraded (1) or healthy (0), per component.",
+	},
+	[]string{"resource_id", "subscription_id", "component_name", "component_namespace"},
 )
 
 // Hypershift OIDCClientStatus condition reasons set at runtime by the
@@ -241,6 +262,7 @@ func (c *externalAuthOIDCClientsDegradedController) determineOIDCClientsDegraded
 	activeVersions []coreapi.ServiceProviderClusterActiveVersion,
 ) metav1.Condition {
 	if len(externalAuth.Properties.Clients) == 0 {
+		c.clearPerComponentGauges(externalAuth)
 		return metav1.Condition{
 			Type:    coreapi.ExternalAuthOIDCClientsDegradedCondition,
 			Status:  metav1.ConditionFalse,
@@ -257,6 +279,7 @@ func (c *externalAuthOIDCClientsDegradedController) determineOIDCClientsDegraded
 	// and the CPO override will make sure OIDCClientStatus is always populated.
 	minOIDCObservabilityVersion := semver.MustParse("4.20.41")
 	if activeVersions[0].Version.LT(minOIDCObservabilityVersion) {
+		c.clearPerComponentGauges(externalAuth)
 		return metav1.Condition{
 			Type:    coreapi.ExternalAuthOIDCClientsDegradedCondition,
 			Status:  metav1.ConditionUnknown,
@@ -266,12 +289,19 @@ func (c *externalAuthOIDCClientsDegradedController) determineOIDCClientsDegraded
 	}
 
 	var degradedMessages []degradedClientMessage
+	degradedSet := make(map[string]bool, len(externalAuth.Properties.Clients))
 	for i := range externalAuth.Properties.Clients {
-		message := c.evaluateExternalAuthClient(&externalAuth.Properties.Clients[i], hostedCluster)
+		client := &externalAuth.Properties.Clients[i]
+		message := c.evaluateExternalAuthClient(client, hostedCluster)
 		if message != nil {
 			degradedMessages = append(degradedMessages, *message)
+			degradedSet[strings.ToLower(client.Component.Name)+"/"+strings.ToLower(client.Component.AuthClientNamespace)] = true
 		}
 	}
+
+	// Emit per-component degradation gauge. Clear all previous component
+	// series for this resource first so removed/renamed clients don't leak.
+	c.recordPerComponentGauges(externalAuth, degradedSet)
 
 	if len(degradedMessages) == 0 {
 		return metav1.Condition{
@@ -390,4 +420,49 @@ func (c *externalAuthOIDCClientsDegradedController) mapDegradedReasonToMessage(r
 	default:
 		return coreapi.ExternalAuthMessageGenericNotWorking
 	}
+}
+
+// recordPerComponentGauges sets backend_externalauth_oidc_client_degraded
+// for every declared client: 1 if the client key is in degradedSet, 0
+// otherwise. It clears all previous series for the resource first so
+// removed/renamed clients are cleaned up.
+func (c *externalAuthOIDCClientsDegradedController) recordPerComponentGauges(
+	externalAuth *coreapi.ExternalAuth,
+	degradedSet map[string]bool,
+) {
+	if externalAuth.ID == nil {
+		return
+	}
+	resourceID := strings.ToLower(externalAuth.ID.String())
+	subscriptionID := strings.ToLower(externalAuth.ID.SubscriptionID)
+
+	oidcClientDegradedGauge.DeletePartialMatch(prometheus.Labels{"resource_id": resourceID})
+
+	for i := range externalAuth.Properties.Clients {
+		client := &externalAuth.Properties.Clients[i]
+		name := strings.ToLower(client.Component.Name)
+		ns := strings.ToLower(client.Component.AuthClientNamespace)
+
+		value := 0.0
+		if degradedSet[name+"/"+ns] {
+			value = 1.0
+		}
+		oidcClientDegradedGauge.With(prometheus.Labels{
+			"resource_id":         resourceID,
+			"subscription_id":     subscriptionID,
+			"component_name":      name,
+			"component_namespace": ns,
+		}).Set(value)
+	}
+}
+
+// clearPerComponentGauges removes all per-component series for the given
+// external auth (e.g. when clients are empty or the version is unsupported).
+func (c *externalAuthOIDCClientsDegradedController) clearPerComponentGauges(externalAuth *coreapi.ExternalAuth) {
+	if externalAuth.ID == nil {
+		return
+	}
+	oidcClientDegradedGauge.DeletePartialMatch(prometheus.Labels{
+		"resource_id": strings.ToLower(externalAuth.ID.String()),
+	})
 }
