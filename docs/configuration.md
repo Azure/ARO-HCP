@@ -169,6 +169,8 @@ param rpCosmosDbName = '{{ .frontend.cosmosDB.name }}' // quote strings ...
 param rpCosmosDbPrivate = {{ .frontend.cosmosDB.private }} // ... but not boolean or number values
 ```
 
+For string parameters constrained by Bicep `@allowed`, wrap the value in `any()`, for example `param eventHubSku = any('{{ .auditLogsEventHub.sku }}')`. EV2 compiles parameter files with `__path.to.value__` placeholders and substitutes the configuration values afterward. The cast lets the placeholder compile while retaining the allowed-value constraint in the ARM template; the configuration schema validates the configured value.
+
 ### Limitations
 
 - Only **basic fields** (string, boolean, or number types) should be referenced from pipeline files and Bicepparam files. Complex data types do not translate well to EV2 configuration settings right now.
