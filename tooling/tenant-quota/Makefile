@@ -68,7 +68,7 @@ fetch-secrets: _output/config.yaml
 # Run locally
 # ---------------------------------------------------------------------------
 run: _output/config.yaml fetch-secrets
-	SECRETS_STORE_PATH=$(SECRETS_DIR) CONFIG_PATH=_output/config.yaml go run main.go
+	SECRETS_STORE_PATH=$(SECRETS_DIR) CONFIG_PATH=_output/config.yaml go run .
 
 run-image: image _output/config.yaml fetch-secrets
 	$(CONTAINER_ENGINE) run --rm -p 8080:8080 \

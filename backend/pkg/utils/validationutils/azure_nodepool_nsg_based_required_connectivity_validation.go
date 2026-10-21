@@ -123,7 +123,7 @@ func (v *AzureNodePoolNSGBasedRequiredConnectivityValidation) Validate(ctx conte
 
 	clusterSubnetID := cluster.CustomerProperties.Platform.SubnetID
 
-	workerSubnet, err := v.getSubnet(ctx, subnetsClient, workerSubnetID)
+	workerSubnet, err := getSubnet(ctx, subnetsClient, workerSubnetID)
 	if err != nil {
 		return UnknownValidation(
 			"InternalError",
@@ -142,7 +142,7 @@ func (v *AzureNodePoolNSGBasedRequiredConnectivityValidation) Validate(ctx conte
 		)
 	}
 
-	workerPrefixes, err := v.subnetAddressPrefixes(workerSubnet)
+	workerPrefixes, err := subnetAddressPrefixes(workerSubnet)
 	if err != nil {
 		return UnknownValidation(
 			"InternalError",
@@ -161,7 +161,7 @@ func (v *AzureNodePoolNSGBasedRequiredConnectivityValidation) Validate(ctx conte
 		// if worker subnet and cluster subnet are different then get clusterPrefixes from parent cluster's subnet and use as destination prefix.
 		clusterPrefixes := workerPrefixes
 		if !strings.EqualFold(workerSubnetID.String(), clusterSubnetID.String()) {
-			clusterSubnet, err := v.getSubnet(ctx, subnetsClient, clusterSubnetID)
+			clusterSubnet, err := getSubnet(ctx, subnetsClient, clusterSubnetID)
 			if err != nil {
 				return UnknownValidation(
 					"InternalError",
@@ -170,7 +170,7 @@ func (v *AzureNodePoolNSGBasedRequiredConnectivityValidation) Validate(ctx conte
 					ControllerReportingPolicyTypeError,
 				)
 			}
-			clusterPrefixes, err = v.subnetAddressPrefixes(clusterSubnet)
+			clusterPrefixes, err = subnetAddressPrefixes(clusterSubnet)
 			if err != nil {
 				return UnknownValidation(
 					"InternalError",
@@ -231,7 +231,7 @@ func (v *AzureNodePoolNSGBasedRequiredConnectivityValidation) Validate(ctx conte
 			"Azure network security group rules required for node pool connectivity are valid.",
 			"Azure network security group rules required for node pool connectivity are valid.")
 	}
-	vnetIntegrationSubnet, err := v.getSubnet(ctx, subnetsClient, vnetIntegrationSubnetID)
+	vnetIntegrationSubnet, err := getSubnet(ctx, subnetsClient, vnetIntegrationSubnetID)
 	if err != nil {
 		return UnknownValidation(
 			"InternalError",
@@ -240,7 +240,7 @@ func (v *AzureNodePoolNSGBasedRequiredConnectivityValidation) Validate(ctx conte
 			ControllerReportingPolicyTypeError,
 		)
 	}
-	vnetIntegrationPrefixes, err := v.subnetAddressPrefixes(vnetIntegrationSubnet)
+	vnetIntegrationPrefixes, err := subnetAddressPrefixes(vnetIntegrationSubnet)
 	if err != nil {
 		return UnknownValidation(
 			"InternalError",
@@ -311,42 +311,6 @@ func (v *AzureNodePoolNSGBasedRequiredConnectivityValidation) Validate(ctx conte
 		"Azure network security group rules required for node pool connectivity are valid.",
 		"Azure network security group rules required for node pool connectivity are valid.",
 	)
-}
-
-func (v *AzureNodePoolNSGBasedRequiredConnectivityValidation) getSubnet(ctx context.Context, subnetsClient azureclient.SubnetsClient, subnetID *azcorearm.ResourceID) (*armnetwork.Subnet, error) {
-	if subnetID == nil {
-		return nil, utils.TrackError(fmt.Errorf("subnet ID is nil"))
-	}
-	if subnetID.Parent == nil {
-		return nil, utils.TrackError(fmt.Errorf("subnet %q has no parent virtual network", subnetID.String()))
-	}
-	resp, err := subnetsClient.Get(ctx, subnetID.ResourceGroupName, subnetID.Parent.Name, subnetID.Name, nil)
-	if err != nil {
-		return nil, utils.TrackError(fmt.Errorf("failed to get subnet %q: %w", subnetID.String(), err))
-	}
-	if resp.Properties == nil {
-		return nil, utils.TrackError(fmt.Errorf("subnet %q has no properties", subnetID.String()))
-	}
-	return &resp.Subnet, nil
-}
-
-// subnetAddressPrefixes returns parsed subnet address prefixes from Azure.
-// Azure sets either AddressPrefixes or AddressPrefix.
-func (v *AzureNodePoolNSGBasedRequiredConnectivityValidation) subnetAddressPrefixes(subnet *armnetwork.Subnet) ([]netip.Prefix, error) {
-	if subnet.Properties == nil {
-		return nil, utils.TrackError(fmt.Errorf("subnet %q has no properties", ptr.Deref(subnet.ID, "")))
-	}
-	rawPrefixes := v.singularOrPluralStrings(subnet.Properties.AddressPrefix, subnet.Properties.AddressPrefixes)
-	// subnet from Azure should always have at least one address prefix
-	// treat missing prefixes as an internal error.
-	if len(rawPrefixes) == 0 {
-		return nil, utils.TrackError(fmt.Errorf("subnet %q has no address prefix", ptr.Deref(subnet.ID, "")))
-	}
-	prefixes, err := parsePrefixes(rawPrefixes, "subnet")
-	if err != nil {
-		return nil, utils.TrackError(fmt.Errorf("failed to parse subnet address prefixes for subnet %q: %w", ptr.Deref(subnet.ID, ""), err))
-	}
-	return prefixes, nil
 }
 
 // nsgIDFromSubnet returns the NSG resource ID attached to the subnet, or nil if none.

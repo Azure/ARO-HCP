@@ -353,3 +353,10 @@ func (g *mockFleetGlobalListers) ControlPlaneVersionRollouts() cosmosstorageutil
 		[]azcorearm.ResourceType{fleetapi.ControlPlaneVersionRolloutResourceType},
 	)
 }
+
+func (g *mockFleetGlobalListers) HCPResourceRequirements() cosmosstorageutils.GlobalLister[fleetapi.HCPResourceRequirements] {
+	return corecosmosstoragetesting.NewMockGlobalLister[fleetapi.HCPResourceRequirements, cosmosstorageutils.GenericDocument[fleetapi.HCPResourceRequirements]](
+		g.client,
+		[]azcorearm.ResourceType{fleetapi.HCPResourceRequirementsResourceType},
+	)
+}

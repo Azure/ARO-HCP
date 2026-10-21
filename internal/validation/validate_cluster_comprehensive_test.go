@@ -528,6 +528,7 @@ func TestValidateClusterCreate(t *testing.T) {
 					EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
 					Kms: &coreapi.KmsEncryptionProfile{
 						// Visibility is omitted (empty string) - EnsureDefaults will fill it in before validation
+						KeyVaultType: coreapi.KmsKeyVaultTypeKeyVault,
 						ActiveKey: coreapi.KmsKey{
 							Name:      "test-key",
 							VaultName: "test-vault",
@@ -556,7 +557,8 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{
 					EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
 					Kms: &coreapi.KmsEncryptionProfile{
-						Visibility: "InvalidVisibility",
+						Visibility:   "InvalidVisibility",
+						KeyVaultType: coreapi.KmsKeyVaultTypeKeyVault,
 						ActiveKey: coreapi.KmsKey{
 							Name:      "test-key",
 							VaultName: "test-vault",
@@ -578,7 +580,8 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{
 					EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
 					Kms: &coreapi.KmsEncryptionProfile{
-						Visibility: metadataapi.KeyVaultVisibilityPublic,
+						Visibility:   metadataapi.KeyVaultVisibilityPublic,
+						KeyVaultType: coreapi.KmsKeyVaultTypeKeyVault,
 						ActiveKey: coreapi.KmsKey{
 							Name:      "test-key",
 							VaultName: "test-vault",
@@ -597,7 +600,8 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{
 					EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
 					Kms: &coreapi.KmsEncryptionProfile{
-						Visibility: metadataapi.KeyVaultVisibilityPrivate,
+						Visibility:   metadataapi.KeyVaultVisibilityPrivate,
+						KeyVaultType: coreapi.KmsKeyVaultTypeKeyVault,
 						ActiveKey: coreapi.KmsKey{
 							Name:      "test-key",
 							VaultName: "test-vault",
@@ -1334,6 +1338,49 @@ func TestValidateClusterCreate(t *testing.T) {
 				{Message: "Unsupported value", FieldPath: "customerProperties.ingress.type"},
 			},
 		},
+		{
+			name: "Managed HSM KMS on 4.22 - create",
+			cluster: func() *coreapi.Cluster {
+				c := createValidCluster()
+				c.CustomerProperties.Version.ID = "4.22"
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.KeyVaultType = coreapi.KmsKeyVaultTypeManagedHSM
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name: "Managed HSM KMS below 4.22 rejected - create",
+			cluster: func() *coreapi.Cluster {
+				c := createValidCluster()
+				c.CustomerProperties.Version.ID = "4.21"
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.KeyVaultType = coreapi.KmsKeyVaultTypeManagedHSM
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "Managed HSM KMS requires OpenShift version 4.22 or later", FieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms.keyVaultType"},
+			},
+		},
+		{
+			name: "KeyVault KMS below 4.22 allowed - create",
+			cluster: func() *coreapi.Cluster {
+				c := createValidCluster()
+				c.CustomerProperties.Version.ID = "4.21"
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.KeyVaultType = coreapi.KmsKeyVaultTypeKeyVault
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name: "invalid KMS keyVaultType rejected - create",
+			cluster: func() *coreapi.Cluster {
+				c := createValidCluster()
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.KeyVaultType = "InvalidType"
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "Unsupported value", FieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms.keyVaultType"},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -1901,7 +1948,48 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{
 					EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
 					Kms: &coreapi.KmsEncryptionProfile{
-						Visibility: metadataapi.KeyVaultVisibilityPrivate,
+						Visibility:   metadataapi.KeyVaultVisibilityPrivate,
+						KeyVaultType: coreapi.KmsKeyVaultTypeKeyVault,
+						ActiveKey: coreapi.KmsKey{
+							Name:      "test-key",
+							VaultName: "test-vault",
+							Version:   "test-version",
+						},
+					},
+				}
+				return c
+			}(),
+			oldCluster: func() *coreapi.Cluster {
+				c := createValidCluster()
+				c.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = metadataapi.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{
+					EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
+					Kms: &coreapi.KmsEncryptionProfile{
+						Visibility:   metadataapi.KeyVaultVisibilityPublic,
+						KeyVaultType: coreapi.KmsKeyVaultTypeKeyVault,
+						ActiveKey: coreapi.KmsKey{
+							Name:      "test-key",
+							VaultName: "test-vault",
+							Version:   "test-version",
+						},
+					},
+				}
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "field is immutable", FieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms.visibility"},
+			},
+		},
+		{
+			name: "legacy empty kms keyVaultType with explicit KeyVault default - update",
+			newCluster: func() *coreapi.Cluster {
+				c := createValidCluster()
+				c.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = metadataapi.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{
+					EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
+					Kms: &coreapi.KmsEncryptionProfile{
+						Visibility:   metadataapi.KeyVaultVisibilityPublic,
+						KeyVaultType: coreapi.KmsKeyVaultTypeKeyVault,
 						ActiveKey: coreapi.KmsKey{
 							Name:      "test-key",
 							VaultName: "test-vault",
@@ -1925,11 +2013,10 @@ func TestValidateClusterUpdate(t *testing.T) {
 						},
 					},
 				}
+				c.EnsureDefaults()
 				return c
 			}(),
-			expectErrors: []utils.ExpectedError{
-				{Message: "field is immutable", FieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms.visibility"},
-			},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "mutable kms key version with v20260630preview - update",
@@ -1939,7 +2026,8 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{
 					EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
 					Kms: &coreapi.KmsEncryptionProfile{
-						Visibility: metadataapi.KeyVaultVisibilityPublic,
+						Visibility:   metadataapi.KeyVaultVisibilityPublic,
+						KeyVaultType: coreapi.KmsKeyVaultTypeKeyVault,
 						ActiveKey: coreapi.KmsKey{
 							Name:      "test-key",
 							VaultName: "test-vault",
@@ -1955,7 +2043,8 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{
 					EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
 					Kms: &coreapi.KmsEncryptionProfile{
-						Visibility: metadataapi.KeyVaultVisibilityPublic,
+						Visibility:   metadataapi.KeyVaultVisibilityPublic,
+						KeyVaultType: coreapi.KmsKeyVaultTypeKeyVault,
 						ActiveKey: coreapi.KmsKey{
 							Name:      "test-key",
 							VaultName: "test-vault",
@@ -1976,7 +2065,8 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{
 					EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
 					Kms: &coreapi.KmsEncryptionProfile{
-						Visibility: metadataapi.KeyVaultVisibilityPublic,
+						Visibility:   metadataapi.KeyVaultVisibilityPublic,
+						KeyVaultType: coreapi.KmsKeyVaultTypeKeyVault,
 						ActiveKey: coreapi.KmsKey{
 							Name:      "test-key",
 							VaultName: "test-vault",
@@ -1992,7 +2082,8 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{
 					EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
 					Kms: &coreapi.KmsEncryptionProfile{
-						Visibility: metadataapi.KeyVaultVisibilityPublic,
+						Visibility:   metadataapi.KeyVaultVisibilityPublic,
+						KeyVaultType: coreapi.KmsKeyVaultTypeKeyVault,
 						ActiveKey: coreapi.KmsKey{
 							Name:      "test-key",
 							VaultName: "test-vault",
@@ -2612,6 +2703,59 @@ func TestValidateClusterUpdate(t *testing.T) {
 			}(),
 			expectErrors: []utils.ExpectedError{},
 		},
+		{
+			name: "valid cluster update - unchanged KMS keyVaultType",
+			newCluster: func() *coreapi.Cluster {
+				c := createValidCluster()
+				c.CustomerProperties.Version.ID = "4.22"
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.KeyVaultType = coreapi.KmsKeyVaultTypeManagedHSM
+				return c
+			}(),
+			oldCluster: func() *coreapi.Cluster {
+				c := createValidCluster()
+				c.CustomerProperties.Version.ID = "4.22"
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.KeyVaultType = coreapi.KmsKeyVaultTypeManagedHSM
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name: "immutable KMS keyVaultType - change rejected on update",
+			newCluster: func() *coreapi.Cluster {
+				c := createValidCluster()
+				c.CustomerProperties.Version.ID = "4.22"
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.KeyVaultType = coreapi.KmsKeyVaultTypeManagedHSM
+				return c
+			}(),
+			oldCluster: func() *coreapi.Cluster {
+				c := createValidCluster()
+				c.CustomerProperties.Version.ID = "4.22"
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.KeyVaultType = coreapi.KmsKeyVaultTypeKeyVault
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "field is immutable", FieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms.keyVaultType"},
+			},
+		},
+		{
+			name: "legacy empty KMS keyVaultType defaulted before update does not change against ManagedHSM old - rejected",
+			newCluster: func() *coreapi.Cluster {
+				c := createValidCluster()
+				c.CustomerProperties.Version.ID = "4.22"
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.KeyVaultType = ""
+				c.EnsureDefaults()
+				return c
+			}(),
+			oldCluster: func() *coreapi.Cluster {
+				c := createValidCluster()
+				c.CustomerProperties.Version.ID = "4.22"
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.KeyVaultType = coreapi.KmsKeyVaultTypeManagedHSM
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "field is immutable", FieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms.keyVaultType"},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -2704,7 +2848,8 @@ func createValidCluster() *coreapi.Cluster {
 	cluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{
 		EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
 		Kms: &coreapi.KmsEncryptionProfile{
-			Visibility: metadataapi.KeyVaultVisibilityPublic,
+			Visibility:   metadataapi.KeyVaultVisibilityPublic,
+			KeyVaultType: coreapi.KmsKeyVaultTypeKeyVault,
 			ActiveKey: coreapi.KmsKey{
 				Name:      coreapitesting.TestKMSKeyName,
 				VaultName: coreapitesting.TestKMSKeyVaultName,
@@ -2755,7 +2900,8 @@ func createValidCluster() *coreapi.Cluster {
 	cluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{
 		EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
 		Kms: &coreapi.KmsEncryptionProfile{
-			Visibility: metadataapi.KeyVaultVisibilityPublic,
+			Visibility:   metadataapi.KeyVaultVisibilityPublic,
+			KeyVaultType: coreapi.KmsKeyVaultTypeKeyVault,
 			ActiveKey: coreapi.KmsKey{
 				Name:      "test-key",
 				VaultName: "test-vault",

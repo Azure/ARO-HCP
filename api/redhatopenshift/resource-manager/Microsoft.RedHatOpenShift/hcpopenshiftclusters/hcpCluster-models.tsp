@@ -140,13 +140,13 @@ model HcpOpenShiftClusterProperties {
   /** Status of the cluster resource */
   @visibility(Lifecycle.Read)
   @added(Versions.v2026_06_30_preview)
-  @renamedFrom(Versions.v2026_10_01_preview, "status")
-  @removed(Versions.v2026_10_01_preview)
+  @renamedFrom(Versions.v2026_10_01, "status")
+  @removed(Versions.v2026_10_01)
   resourceStatus?: ResourceStatus;
 
   /** Status of the cluster resource */
   @visibility(Lifecycle.Read)
-  @added(Versions.v2026_10_01_preview)
+  @added(Versions.v2026_10_01)
   status?: ClusterResourceStatus;
 
   /** Cryptographic restrictions for kernel and userspace libraries */
@@ -388,7 +388,7 @@ model PlatformProfile {
 
   /** Azure Container Registry configuration for authenticating image pulls
    * on the cluster's worker nodes. */
-  @added(Versions.v2026_10_01_preview)
+  @added(Versions.v2026_10_01)
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   containerRegistry?: ContainerRegistryProfile;
 
@@ -543,7 +543,7 @@ union OutboundType {
 /** Azure Container Registry configuration for a cluster.
  * Configures how worker nodes authenticate container image pulls
  * from Azure Container Registry (ACR). */
-@added(Versions.v2026_10_01_preview)
+@added(Versions.v2026_10_01)
 model ContainerRegistryProfile {
   /** The user-assigned managed identity used for container registry image pulls. */
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
@@ -625,6 +625,18 @@ union KeyVaultVisibility {
 
   /** The keyvault is not visible from the internet. */
   Private: "Private",
+}
+
+/** The type of keyvault used for KMS encryption. */
+@added(Versions.v2026_10_01)
+union KmsKeyVaultType {
+  string,
+
+  /** Standard Azure Key Vault. */
+  KeyVault: "KeyVault",
+
+  /** Azure Managed Hardware Security Module. */
+  ManagedHSM: "ManagedHSM",
 }
 
 /** The ETCD settings and configuration options. */
@@ -729,6 +741,11 @@ model KmsEncryptionProfile {
   @added(Versions.v2026_06_30_preview)
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   activeKey: KmsKey;
+
+  /** The type of keyvault used for KMS encryption. Defaults to KeyVault when absent. */
+  @added(Versions.v2026_10_01)
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  keyVaultType?: KmsKeyVaultType = KmsKeyVaultType.KeyVault;
 }
 
 /** The encryption types supported for a customer managed key. */
@@ -832,13 +849,13 @@ model NodePoolProperties {
   /** Status of the node pool resource */
   @visibility(Lifecycle.Read)
   @added(Versions.v2026_06_30_preview)
-  @renamedFrom(Versions.v2026_10_01_preview, "status")
-  @removed(Versions.v2026_10_01_preview)
+  @renamedFrom(Versions.v2026_10_01, "status")
+  @removed(Versions.v2026_10_01)
   resourceStatus?: ResourceStatus;
 
   /** Status of the node pool resource */
   @visibility(Lifecycle.Read)
-  @added(Versions.v2026_10_01_preview)
+  @added(Versions.v2026_10_01)
   status?: NodePoolResourceStatus;
 }
 
@@ -1111,13 +1128,13 @@ model ExternalAuthProperties {
   /** Status of the external auth resource */
   @visibility(Lifecycle.Read)
   @added(Versions.v2026_06_30_preview)
-  @renamedFrom(Versions.v2026_10_01_preview, "status")
-  @removed(Versions.v2026_10_01_preview)
+  @renamedFrom(Versions.v2026_10_01, "status")
+  @removed(Versions.v2026_10_01)
   resourceStatus?: ResourceStatus;
 
   /** Status of the external auth resource */
   @visibility(Lifecycle.Read)
-  @added(Versions.v2026_10_01_preview)
+  @added(Versions.v2026_10_01)
   status?: ExternalAuthResourceStatus;
 
   /** Token Issuer profile */
@@ -1148,7 +1165,7 @@ model ResourceStatus {
 }
 
 /** ClusterResourceStatus represents the observed status of the cluster resource. */
-@added(Versions.v2026_10_01_preview)
+@added(Versions.v2026_10_01)
 model ClusterResourceStatus {
   /** The conditions on the resource */
   ...ResourceStatus;
@@ -1159,14 +1176,14 @@ model ClusterResourceStatus {
    * array can contain more than one entry. The ordering of entries
    * has no meaning.
    */
-  @added(Versions.v2026_10_01_preview)
+  @added(Versions.v2026_10_01)
   @visibility(Lifecycle.Read)
   @identifiers(#["version"])
   activeVersions?: ClusterActiveVersion[];
 }
 
 /** ClusterActiveVersion represents a version of a resource. */
-@added(Versions.v2026_10_01_preview)
+@added(Versions.v2026_10_01)
 model ClusterActiveVersion {
   /** The version of the resource. Specified in major.minor, same as the input */
   @visibility(Lifecycle.Read)
@@ -1174,7 +1191,7 @@ model ClusterActiveVersion {
 }
 
 /** NodePoolResourceStatus represents the observed status of the nodepool resource. */
-@added(Versions.v2026_10_01_preview)
+@added(Versions.v2026_10_01)
 model NodePoolResourceStatus {
   ...ResourceStatus;
 
@@ -1182,14 +1199,14 @@ model NodePoolResourceStatus {
    * During upgrades, it is common for multiple versions to be active at the same time
    * while old nodes are drained and replaced. The ordering of entries has no meaning.
    */
-  @added(Versions.v2026_10_01_preview)
+  @added(Versions.v2026_10_01)
   @visibility(Lifecycle.Read)
   @identifiers(#["version"])
   activeVersions?: NodePoolActiveVersion[];
 }
 
 /** NodePoolActiveVersion represents a version of a resource. */
-@added(Versions.v2026_10_01_preview)
+@added(Versions.v2026_10_01)
 model NodePoolActiveVersion {
   /** The version of the resource. Specified in major.minor.patch, same as the input */
   @visibility(Lifecycle.Read)
@@ -1197,7 +1214,7 @@ model NodePoolActiveVersion {
 }
 
 /** ExternalAuthResourceStatus represents the observed status of the external auth resource. */
-@added(Versions.v2026_10_01_preview)
+@added(Versions.v2026_10_01)
 model ExternalAuthResourceStatus {
   ...ResourceStatus;
 }

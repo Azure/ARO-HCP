@@ -37,6 +37,7 @@
 								"vaultName": "keyVaultName",
 								"version": "2024-12-01-preview"
 							},
+							"keyVaultType": "KeyVault",
 							"visibility": "Public"
 						}
 					},
