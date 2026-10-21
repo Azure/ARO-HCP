@@ -2530,7 +2530,6 @@
       "required": [
         "deploy",
         "audit",
-        "image",
         "imageV2",
         "arm",
         "genevaActions",
