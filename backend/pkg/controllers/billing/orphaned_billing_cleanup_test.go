@@ -16,12 +16,13 @@ package billing
 
 import (
 	"context"
-	"strings"
+	"encoding/json"
 	"testing"
 	"time"
 
+	"github.com/go-logr/logr/funcr"
 	"github.com/go-logr/logr/testr"
-	"github.com/stretchr/testify/assert"
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 
 	clocktesting "k8s.io/utils/clock/testing"
@@ -30,36 +31,205 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
-	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
-	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/billingcosmosstoragetesting"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-func TestBillingCutoffConditionPreservesExistingCutoff(t *testing.T) {
-	first := mustParseTime("2026-10-01T00:00:00Z")
-	later := first.Add(time.Hour)
+func TestBillingOrphanCandidate(t *testing.T) {
 	for _, tc := range []struct {
-		name         string
-		existing     *time.Time
-		want         time.Time
-		wantConflict bool
+		name, uid, reference string
+		missingCluster       bool
+		wantCandidate        bool
+		wantReasons          []string
 	}{
-		{name: "unset cutoff", want: later},
-		{name: "existing cutoff", existing: &first, want: first, wantConflict: true},
+		{name: "absent cluster", missingCluster: true, wantCandidate: true},
+		{name: "referenced", uid: "doc", reference: "doc"},
+		{name: "reference protects legacy UID", reference: "doc"},
+		{name: "creation awaiting link", uid: "doc", wantReasons: []string{"UnresolvedClusterBillingIdentity"}},
+		{name: "legacy awaiting backfill", wantReasons: []string{"UnresolvedClusterBillingIdentity"}},
+		{name: "different UID without link", uid: "other", wantReasons: []string{"UnresolvedClusterBillingIdentity"}},
+		{name: "UID contradicts reference", uid: "doc", reference: "other", wantReasons: []string{"UnresolvedClusterBillingIdentity"}},
+		{name: "other inconsistent identity", uid: "other", reference: "third", wantReasons: []string{"UnresolvedClusterBillingIdentity"}},
+		{name: "cluster consistently references another record", uid: "other", reference: "other", wantCandidate: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			now := mustParseTime("2026-10-21T12:00:00Z")
+			var reasons []string
+			logger := funcr.NewJSON(func(line string) {
+				var entry map[string]any
+				require.NoError(t, json.Unmarshal([]byte(line), &entry))
+				if entry["event"] == "billing_orphan_identity_unresolved" {
+					reasons = append(reasons, entry["reason"].(string))
+				}
+			}, funcr.Options{})
+			ctx := utils.ContextWithLogger(t.Context(), logger)
+			doc := billingcosmosstorage.NewBillingDocument("doc", newTestClusterResourceID(t))
+			doc.CreationTime = now.Add(-time.Hour)
+			db := billingcosmosstoragetesting.NewMockBillingDBClient()
+			crud := db.BillingDocs(testSubscriptionID)
+			require.NoError(t, crud.Create(ctx, doc))
+			cached, err := crud.GetByID(ctx, doc.ID)
+			require.NoError(t, err)
+			clusters := &corelistertesting.SliceClusterLister{}
+			if !tc.missingCluster {
+				cluster := newTestCluster(t, tc.uid, coreapi.ProvisioningStateSucceeded, nil)
+				cluster.ServiceProviderProperties.BillingDocumentCosmosID = tc.reference
+				clusters.Clusters = []*coreapi.Cluster{cluster}
+			}
+			controller := NewOrphanedBillingCleanupController(clocktesting.NewFakePassiveClock(now), db, clusters,
+				&corelistertesting.SliceBillingLister{BillingDocuments: []*billingcosmosstorage.BillingDocument{cached}})
+			require.NoError(t, controller.SyncOnce(ctx, "default"))
+			persisted, err := crud.GetByID(ctx, doc.ID)
+			require.NoError(t, err)
+			if diff := cmp.Diff(tc.wantCandidate, persisted.OrphanedSince != nil); diff != "" {
+				t.Fatalf("candidate (-want +got):\n%s", diff)
+			}
+			require.Nil(t, persisted.DeletionTime)
+			if diff := cmp.Diff(tc.wantReasons, reasons); diff != "" {
+				t.Fatalf("diagnostics (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+type failingOrphanClusterLister struct {
+	corelisters.ClusterLister
+	err error
+}
+
+func (l failingOrphanClusterLister) Get(context.Context, string, string, string) (*coreapi.Cluster, error) {
+	return nil, l.err
+}
+
+func TestOrphanBillingGracePeriod(t *testing.T) {
+	now := mustParseTime("2026-10-21T12:00:00Z")
+	old := now.Add(-24 * time.Hour)
+	for _, tc := range []struct {
+		name                   string
+		since, deleted         *time.Time
+		uid, reference         string
+		lookupErr              error
+		concurrentCutoff       *time.Time
+		missingResourceID      bool
+		missingDocumentID      bool
+		mismatchedSubscription bool
+		wantSince, wantDeleted *time.Time
+		wantConflict           bool
+		wantUnchanged          bool
+	}{
+		{name: "first missing observation only records candidate", wantSince: &now},
+		{name: "before grace", since: ptr.To(old.Add(time.Nanosecond)), wantSince: ptr.To(old.Add(time.Nanosecond))},
+		{name: "at grace boundary", since: &old, wantSince: &old, wantDeleted: &now},
+		{name: "future observation waits", since: ptr.To(now.Add(time.Hour)), wantSince: ptr.To(now.Add(time.Hour))},
+		{name: "zero observation restarts grace", since: ptr.To(time.Time{}), wantSince: &now},
+		{name: "referenced cancels candidate", since: &old, uid: "doc", reference: "doc"},
+		{name: "incomplete linking cancels candidate", since: &old, uid: "doc"},
+		{name: "ambiguous identity cancels candidate", since: &old, uid: "other"},
+		{name: "missing resource ID preserves document", since: &old, missingResourceID: true, wantSince: &old, wantUnchanged: true},
+		{name: "missing document ID preserves document", since: &old, missingDocumentID: true, wantSince: &old, wantUnchanged: true},
+		{name: "conflicting subscription preserves document", since: &old, mismatchedSubscription: true, wantSince: &old, wantUnchanged: true},
+		{name: "different linked record after grace", uid: "other", reference: "other", since: &old, wantSince: &old, wantDeleted: &now},
+		{name: "existing cutoff preserved", since: &old, deleted: &old, wantSince: &old, wantDeleted: &old},
+		{name: "lookup failure does not authorize cutoff", since: &old, lookupErr: context.DeadlineExceeded, wantSince: &old},
+		{name: "concurrent cutoff prevents starting candidate", concurrentCutoff: &old, wantDeleted: &old, wantConflict: true},
+		{name: "concurrent cutoff prevents overwriting cutoff", concurrentCutoff: &old, since: &old, wantSince: &old, wantDeleted: &old, wantConflict: true},
+		{name: "concurrent cutoff prevents clearing candidate", concurrentCutoff: &old, since: &old, uid: "doc", reference: "doc", wantSince: &old, wantDeleted: &old, wantConflict: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
+			db := billingcosmosstoragetesting.NewMockBillingDBClient()
+			crud := db.BillingDocs(testSubscriptionID)
+			doc := billingcosmosstorage.NewBillingDocument("doc", newTestClusterResourceID(t))
+			doc.CreationTime = now.Add(-365 * 24 * time.Hour)
+			doc.OrphanedSince, doc.DeletionTime = tc.since, tc.deleted
+			doc.LastBillingTimeOfMngtEvent = &old
+			require.NoError(t, crud.Create(ctx, doc))
+			before, err := crud.GetByID(ctx, doc.ID)
+			require.NoError(t, err)
+			cached := before.DeepCopy()
+			if tc.concurrentCutoff != nil {
+				var concurrent billingcosmosstorage.BillingDocumentPatchOperations
+				concurrent.SetDeletionTime(*tc.concurrentCutoff)
+				require.NoError(t, crud.PatchByID(ctx, doc.ID, concurrent))
+			}
+			if tc.missingResourceID {
+				cached.ResourceID = nil
+			}
+			if tc.missingDocumentID {
+				cached.ID = ""
+			}
+			if tc.mismatchedSubscription {
+				cached.ResourceID.SubscriptionID = "different-subscription"
+			}
+			clusters := &corelistertesting.SliceClusterLister{}
+			if tc.uid != "" || tc.reference != "" {
+				cluster := newTestCluster(t, tc.uid, coreapi.ProvisioningStateSucceeded, &doc.CreationTime)
+				cluster.ServiceProviderProperties.BillingDocumentCosmosID = tc.reference
+				clusters.Clusters = []*coreapi.Cluster{cluster}
+			}
+			lister := corelisters.ClusterLister(clusters)
+			if tc.lookupErr != nil {
+				lister = failingOrphanClusterLister{ClusterLister: clusters, err: tc.lookupErr}
+			}
+			controller := NewOrphanedBillingCleanupController(clocktesting.NewFakePassiveClock(now), db, lister,
+				&corelistertesting.SliceBillingLister{BillingDocuments: []*billingcosmosstorage.BillingDocument{cached}})
+			err = controller.SyncOnce(ctx, "default")
+			switch {
+			case tc.lookupErr != nil:
+				require.ErrorIs(t, err, tc.lookupErr)
+			case tc.wantConflict:
+				require.True(t, cosmosstorageutils.IsPreconditionFailedError(err), "%v", err)
+			default:
+				require.NoError(t, err)
+			}
+			persisted, err := crud.GetByID(ctx, doc.ID)
+			require.NoError(t, err)
+			if tc.wantUnchanged {
+				if diff := cmp.Diff(before, persisted, cmp.Comparer(func(a, b *azcorearm.ResourceID) bool {
+					if a == nil || b == nil {
+						return a == b
+					}
+					return a.String() == b.String()
+				})); diff != "" {
+					t.Fatalf("document changed (-want +got):\n%s", diff)
+				}
+			}
+			if diff := cmp.Diff([]*time.Time{tc.wantSince, tc.wantDeleted, &old}, []*time.Time{persisted.OrphanedSince, persisted.DeletionTime, persisted.LastBillingTimeOfMngtEvent}); diff != "" {
+				t.Fatalf("timestamps (-want +got):\n%s", diff)
+			}
+			if diff := cmp.Diff([]*time.Time{tc.since, tc.deleted}, []*time.Time{cached.OrphanedSince, cached.DeletionTime}); diff != "" {
+				t.Fatalf("cached input mutated (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestBillingDeletionPatchPreservesCutoff(t *testing.T) {
+	earlier := mustParseTime("2026-10-01T10:00:00Z")
+	later := mustParseTime("2026-10-01T11:00:00Z")
+	for _, tc := range []struct {
+		name           string
+		existingCutoff *time.Time
+		wantCutoff     time.Time
+		wantConflict   bool
+	}{
+		{name: "unset cutoff", wantCutoff: later},
+		{name: "condition preserves earlier cutoff", existingCutoff: &earlier, wantCutoff: earlier, wantConflict: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			db := billingcosmosstoragetesting.NewMockBillingDBClient()
 			crud := db.BillingDocs(testSubscriptionID)
-			doc := newTestBillingDocument("doc", testSubscriptionID, testResourceGroupName, testClusterName, tc.existing)
+			doc := billingcosmosstorage.NewBillingDocument("doc", newTestClusterResourceID(t))
+			doc.CreationTime = earlier.Add(-time.Hour)
+			doc.DeletionTime = tc.existingCutoff
 			require.NoError(t, crud.Create(t.Context(), doc))
-			var patch billingcosmosstorage.BillingDocumentPatchOperations
-			patch.SetDeletionTime(later)
-			err := crud.PatchByID(t.Context(), doc.ID, patch)
+			var proposed billingcosmosstorage.BillingDocumentPatchOperations
+			proposed.SetDeletionTime(later)
+			err := crud.PatchByID(t.Context(), doc.ID, proposed)
 			if tc.wantConflict {
 				require.True(t, cosmosstorageutils.IsPreconditionFailedError(err), "%v", err)
 			} else {
@@ -67,192 +237,83 @@ func TestBillingCutoffConditionPreservesExistingCutoff(t *testing.T) {
 			}
 			persisted, err := crud.GetByID(t.Context(), doc.ID)
 			require.NoError(t, err)
-			require.Equal(t, &tc.want, persisted.DeletionTime)
+			if diff := cmp.Diff(&tc.wantCutoff, persisted.DeletionTime); diff != "" {
+				t.Fatalf("cutoff (-want +got):\n%s", diff)
+			}
 		})
 	}
 }
 
-func newTestBillingDocument(billingDocID, subscriptionID, resourceGroupName, clusterName string, deletedAt *time.Time) *billingcosmosstorage.BillingDocument {
-	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
-		"/subscriptions/" + subscriptionID +
-			"/resourceGroups/" + resourceGroupName +
-			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + clusterName))
-
-	return &billingcosmosstorage.BillingDocument{
-		BaseDocument: cosmosstorageutils.BaseDocument{
-			ID: billingDocID,
-		},
-		SubscriptionID: subscriptionID,
-		TenantID:       testTenantID,
-		Location:       testAzureLocation,
-		ResourceID:     resourceID,
-		CreationTime:   mustParseTime("2025-01-15T10:30:00Z"),
-		DeletionTime:   deletedAt,
+func TestOrphanBillingSweepContinuesAfterMissingDocument(t *testing.T) {
+	now := mustParseTime("2026-10-21T12:00:00Z")
+	expired := now.Add(-48 * time.Hour)
+	for _, tc := range []struct {
+		name                          string
+		since, wantSince, wantDeleted *time.Time
+	}{
+		{name: "record candidacy", wantSince: &now},
+		{name: "record cutoff", since: &expired, wantSince: &expired, wantDeleted: &now},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
+			db := billingcosmosstoragetesting.NewMockBillingDBClient()
+			missing := billingcosmosstorage.NewBillingDocument("removed", newTestClusterResourceID(t))
+			missing.OrphanedSince = tc.since
+			active := billingcosmosstorage.NewBillingDocument("active", newTestClusterResourceID(t))
+			active.CreationTime = expired.Add(-time.Hour)
+			active.OrphanedSince = tc.since
+			crud := db.BillingDocs(testSubscriptionID)
+			require.NoError(t, crud.Create(ctx, active))
+			controller := NewOrphanedBillingCleanupController(clocktesting.NewFakePassiveClock(now), db,
+				&corelistertesting.SliceClusterLister{},
+				&corelistertesting.SliceBillingLister{BillingDocuments: []*billingcosmosstorage.BillingDocument{missing, active}})
+			require.NoError(t, controller.SyncOnce(ctx, "default"))
+			persisted, err := crud.GetByID(ctx, active.ID)
+			require.NoError(t, err)
+			if diff := cmp.Diff([]*time.Time{tc.wantSince, tc.wantDeleted}, []*time.Time{persisted.OrphanedSince, persisted.DeletionTime}); diff != "" {
+				t.Fatalf("remaining document (-want +got):\n%s", diff)
+			}
+		})
 	}
 }
 
-func TestOrphanedBillingCleanup_SyncOnce(t *testing.T) {
-	fixedTime := mustParseTime("2025-01-20T10:30:00Z")
-	createdAt := mustParseTime("2025-01-15T10:30:00Z")
-
-	tests := []struct {
-		name             string
-		billingDocuments []*billingcosmosstorage.BillingDocument
-		clusters         []*coreapi.Cluster
-		expectError      bool
-		verify           func(t *testing.T, billingDBClient *billingcosmosstoragetesting.MockBillingDBClient)
+func TestOrphanBillingRestartAndReferenceRecovery(t *testing.T) {
+	ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
+	start := mustParseTime("2026-10-21T12:00:00Z")
+	db := billingcosmosstoragetesting.NewMockBillingDBClient()
+	crud := db.BillingDocs(testSubscriptionID)
+	doc := billingcosmosstorage.NewBillingDocument("doc", newTestClusterResourceID(t))
+	doc.CreationTime = start.Add(-time.Hour)
+	require.NoError(t, crud.Create(ctx, doc))
+	for _, step := range []struct {
+		name                   string
+		elapsed                time.Duration
+		referenced             bool
+		wantSince, wantDeleted *time.Time
 	}{
-		{
-			name: "marks orphaned billing document as deleted",
-			billingDocuments: []*billingcosmosstorage.BillingDocument{
-				newTestBillingDocument("billing-doc-1", testSubscriptionID, testResourceGroupName, testClusterName, nil),
-			},
-			clusters:    []*coreapi.Cluster{}, // No clusters
-			expectError: false,
-			verify: func(t *testing.T, billingDBClient *billingcosmosstoragetesting.MockBillingDBClient) {
-				billingDocs := billingDBClient.GetBillingDocuments()
-				require.Len(t, billingDocs, 1)
-				doc := billingDocs["billing-doc-1"]
-				require.NotNil(t, doc)
-				assert.NotNil(t, doc.DeletionTime, "orphaned billing document should be marked as deleted")
-			},
-		},
-		{
-			name: "skips billing document when cluster still exists",
-			billingDocuments: []*billingcosmosstorage.BillingDocument{
-				newTestBillingDocument("billing-doc-1", testSubscriptionID, testResourceGroupName, testClusterName, nil),
-			},
-			clusters: []*coreapi.Cluster{
-				newTestCluster(t, "billing-doc-1", coreapi.ProvisioningStateSucceeded, &createdAt),
-			},
-			expectError: false,
-			verify: func(t *testing.T, billingDBClient *billingcosmosstoragetesting.MockBillingDBClient) {
-				billingDocs := billingDBClient.GetBillingDocuments()
-				require.Len(t, billingDocs, 1)
-				doc := billingDocs["billing-doc-1"]
-				require.NotNil(t, doc)
-				assert.Nil(t, doc.DeletionTime, "billing document should not be marked as deleted when cluster exists")
-			},
-		},
-		{
-			name: "skips billing document already marked as deleted",
-			billingDocuments: []*billingcosmosstorage.BillingDocument{
-				newTestBillingDocument("billing-doc-1", testSubscriptionID, testResourceGroupName, "cluster-1", ptr.To(mustParseTime("2025-01-19T10:30:00Z"))),
-			},
-			clusters:    []*coreapi.Cluster{}, // No clusters
-			expectError: false,
-			verify: func(t *testing.T, billingDBClient *billingcosmosstoragetesting.MockBillingDBClient) {
-				billingDocs := billingDBClient.GetBillingDocuments()
-				require.Len(t, billingDocs, 1)
-				doc := billingDocs["billing-doc-1"]
-				require.NotNil(t, doc)
-				assert.NotNil(t, doc.DeletionTime)
-				// Verify the deletion time hasn't changed (should be the original time, not fixedTime)
-				assert.Equal(t, mustParseTime("2025-01-19T10:30:00Z"), *doc.DeletionTime)
-			},
-		},
-
-		{
-			name: "handles multiple billing documents",
-			billingDocuments: []*billingcosmosstorage.BillingDocument{
-				newTestBillingDocument("billing-doc-1", testSubscriptionID, testResourceGroupName, "cluster-1", nil),
-				newTestBillingDocument("billing-doc-2", testSubscriptionID, testResourceGroupName, "cluster-2", nil),
-				newTestBillingDocument("billing-doc-3", testSubscriptionID, testResourceGroupName, "cluster-3", nil),
-			},
-			clusters: []*coreapi.Cluster{
-				// Only cluster-2 exists
-				{
-					CosmosMetadata: coreapi.CosmosMetadata{
-						ResourceID:   metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID + "/resourceGroups/" + testResourceGroupName + "/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-2")),
-						PartitionKey: strings.ToLower(testSubscriptionID),
-					},
-					TrackedResource: coreapi.TrackedResource{
-						Resource: coreapi.Resource{
-							ID:   metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID + "/resourceGroups/" + testResourceGroupName + "/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-2")),
-							Name: "cluster-2",
-							Type: "Microsoft.RedHatOpenShift/hcpOpenShiftClusters",
-							SystemData: &coreapi.SystemData{
-								CreatedAt: &createdAt,
-							},
-						},
-					},
-					ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
-						ProvisioningState: coreapi.ProvisioningStateSucceeded,
-						ClusterUID:        "billing-doc-2",
-						ClusterServiceID:  metadataapihelpers.Ptr(metadataapi.Must(metadataapi.NewInternalID(testClusterServiceIDStr))),
-					},
-				},
-			},
-			expectError: false,
-			verify: func(t *testing.T, billingDBClient *billingcosmosstoragetesting.MockBillingDBClient) {
-				billingDocs := billingDBClient.GetBillingDocuments()
-				require.Len(t, billingDocs, 3)
-
-				// billing-doc-1 should be deleted (cluster-1 doesn't exist)
-				doc1 := billingDocs["billing-doc-1"]
-				require.NotNil(t, doc1)
-				assert.NotNil(t, doc1.DeletionTime, "billing-doc-1 should be marked as deleted")
-
-				// billing-doc-2 should not be deleted (cluster-2 exists)
-				doc2 := billingDocs["billing-doc-2"]
-				require.NotNil(t, doc2)
-				assert.Nil(t, doc2.DeletionTime, "billing-doc-2 should not be marked as deleted")
-
-				// billing-doc-3 should be deleted (cluster-3 doesn't exist)
-				doc3 := billingDocs["billing-doc-3"]
-				require.NotNil(t, doc3)
-				assert.NotNil(t, doc3.DeletionTime, "billing-doc-3 should be marked as deleted")
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.Background()
-			ctx = utils.ContextWithLogger(ctx, testr.New(t))
-
-			// Create mock DB and add billing documents
-			mockResourcesDBClient := corecosmosstoragetesting.NewMockResourcesDBClient()
-
-			// Add billing documents directly
-			mockBillingDBClient := billingcosmosstoragetesting.NewMockBillingDBClient()
-			for _, doc := range tt.billingDocuments {
-				billingCRUD := mockBillingDBClient.BillingDocs(doc.SubscriptionID)
-				err := billingCRUD.Create(ctx, doc)
-				require.NoError(t, err)
+		{name: "start", wantSince: &start},
+		{name: "reference reappears", elapsed: 12 * time.Hour, referenced: true},
+		{name: "new candidacy", elapsed: 13 * time.Hour, wantSince: ptr.To(start.Add(13 * time.Hour))},
+		{name: "old deadline cannot authorize cutoff", elapsed: 24 * time.Hour, wantSince: ptr.To(start.Add(13 * time.Hour))},
+		{name: "new deadline", elapsed: 37 * time.Hour, wantSince: ptr.To(start.Add(13 * time.Hour)), wantDeleted: ptr.To(start.Add(37 * time.Hour))},
+	} {
+		t.Run(step.name, func(t *testing.T) {
+			cached, err := crud.GetByID(ctx, doc.ID)
+			require.NoError(t, err)
+			clusters := &corelistertesting.SliceClusterLister{}
+			if step.referenced {
+				cluster := newTestCluster(t, "doc", coreapi.ProvisioningStateSucceeded, &doc.CreationTime)
+				cluster.ServiceProviderProperties.BillingDocumentCosmosID = "doc"
+				clusters.Clusters = []*coreapi.Cluster{cluster}
 			}
-
-			// Add clusters
-			for _, cluster := range tt.clusters {
-				if cluster.ID != nil {
-					clusterCRUD := mockResourcesDBClient.HCPClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName)
-					_, err := clusterCRUD.Create(ctx, cluster, nil)
-					require.NoError(t, err)
-				}
-			}
-
-			controller := &orphanedBillingCleanup{
-				name:  "OrphanedBillingCleanup",
-				clock: clocktesting.NewFakePassiveClock(fixedTime),
-				clusterLister: &corelistertesting.SliceClusterLister{
-					Clusters: tt.clusters,
-				},
-				billingLister: &corelistertesting.SliceBillingLister{
-					BillingDocuments: tt.billingDocuments,
-				},
-				billingDBClient: mockBillingDBClient,
-			}
-
-			err := controller.SyncOnce(ctx, "default")
-
-			if tt.expectError {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-			}
-
-			if tt.verify != nil {
-				tt.verify(t, mockBillingDBClient)
+			// A fresh controller has no remembered observations from earlier passes.
+			controller := NewOrphanedBillingCleanupController(clocktesting.NewFakePassiveClock(start.Add(step.elapsed)), db, clusters,
+				&corelistertesting.SliceBillingLister{BillingDocuments: []*billingcosmosstorage.BillingDocument{cached}})
+			require.NoError(t, controller.SyncOnce(ctx, "default"))
+			persisted, err := crud.GetByID(ctx, doc.ID)
+			require.NoError(t, err)
+			if diff := cmp.Diff([]*time.Time{step.wantSince, step.wantDeleted}, []*time.Time{persisted.OrphanedSince, persisted.DeletionTime}); diff != "" {
+				t.Fatalf("timestamps (-want +got):\n%s", diff)
 			}
 		})
 	}
