@@ -325,14 +325,14 @@ frontend:
   clusterScopedIdentitiesConfig:
     roleSetName: dev
   cosmosDB:
-    billingContainerMaxScale: 4000
+    billingContainerMaxScale: 8000
     disableLocalAuth: true
     enableBurstCapacity: true
-    fleetContainerMaxScale: 4000
-    locksContainerMaxScale: 4000
+    fleetContainerMaxScale: 8000
+    locksContainerMaxScale: 8000
     name: arohcpci00-rp-j7654321
     private: false
-    resourceContainerMaxScale: 19000
+    resourceContainerMaxScale: 38000
     zoneRedundantMode: Disabled
   exitOnPanic: true
   image:
@@ -539,7 +539,7 @@ infrastructureIdentities:
   useLeased: false
 keyVaultDNSSuffix: vault.azure.net
 kubeApplier:
-  cosmosContainerMaxScale: 19000
+  cosmosContainerMaxScale: 38000
   cosmosContainerName: Manifests-MC-1
   image:
     digest: ""
