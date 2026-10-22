@@ -27,6 +27,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clocktesting "k8s.io/utils/clock/testing"
 	"k8s.io/utils/ptr"
 
@@ -355,6 +356,85 @@ func TestFailureWithPropagationGuidance(t *testing.T) {
 			if wantReason == missingPermissionsPendingPropagationReason {
 				assert.Equal(t, detectionsBefore+1, testutil.ToFloat64(roleAssignmentPropagationDetections.WithLabelValues(validationName)))
 			}
+		})
+	}
+}
+
+// TestPreservePropagationDeferral covers the contract that an established
+// RoleAssignmentPropagationPending deferral survives a transient
+// RoleAssignmentPropagationCheckFailed result while its evidence can still be valid,
+// and is allowed to flip once the deferral outlives the propagation window.
+func TestPreservePropagationDeferral(t *testing.T) {
+	now := time.Now()
+	pending := func(age time.Duration) *metav1.Condition {
+		return &metav1.Condition{
+			Type:               "DataPlaneIdentitiesPermissions",
+			Status:             metav1.ConditionUnknown,
+			Reason:             missingPermissionsPendingPropagationReason,
+			LastTransitionTime: metav1.NewTime(now.Add(-age)),
+		}
+	}
+	checkFailed := metav1.Condition{
+		Type:    "DataPlaneIdentitiesPermissions",
+		Status:  metav1.ConditionUnknown,
+		Reason:  propagationCheckFailedReason,
+		Message: "Unable to verify whether recently created role assignments explain the missing permissions.",
+	}
+
+	testCases := []struct {
+		name       string
+		previous   *metav1.Condition
+		desired    metav1.Condition
+		wantReason string
+	}{
+		{
+			name:       "transient lookup failure keeps a fresh deferral pending",
+			previous:   pending(5 * time.Minute),
+			desired:    checkFailed,
+			wantReason: missingPermissionsPendingPropagationReason,
+		},
+		{
+			name:       "lookup failure takes over once the deferral outlives the propagation window",
+			previous:   pending(DefaultRoleAssignmentPropagationWindow + time.Minute),
+			desired:    checkFailed,
+			wantReason: propagationCheckFailedReason,
+		},
+		{
+			name:       "no stored condition writes the lookup failure as-is",
+			previous:   nil,
+			desired:    checkFailed,
+			wantReason: propagationCheckFailedReason,
+		},
+		{
+			name: "a stored lookup failure is never promoted to a deferral",
+			previous: &metav1.Condition{
+				Type:               "DataPlaneIdentitiesPermissions",
+				Status:             metav1.ConditionUnknown,
+				Reason:             propagationCheckFailedReason,
+				LastTransitionTime: metav1.NewTime(now.Add(-time.Minute)),
+			},
+			desired:    checkFailed,
+			wantReason: propagationCheckFailedReason,
+		},
+		{
+			name:       "a plain failure still overwrites an established deferral",
+			previous:   pending(5 * time.Minute),
+			desired:    metav1.Condition{Type: "DataPlaneIdentitiesPermissions", Status: metav1.ConditionFalse, Reason: "MissingRequiredPermissions"},
+			wantReason: "MissingRequiredPermissions",
+		},
+		{
+			name:       "a re-confirmed deferral is unchanged",
+			previous:   pending(5 * time.Minute),
+			desired:    metav1.Condition{Type: "DataPlaneIdentitiesPermissions", Status: metav1.ConditionUnknown, Reason: missingPermissionsPendingPropagationReason},
+			wantReason: missingPermissionsPendingPropagationReason,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := PreservePropagationDeferral(tc.previous, tc.desired, now)
+			assert.Equal(t, tc.wantReason, got.Reason)
+			assert.Equal(t, tc.desired.Message, got.Message, "only the reason is rewritten, never the message")
 		})
 	}
 }

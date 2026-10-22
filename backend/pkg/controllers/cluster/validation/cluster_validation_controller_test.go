@@ -1048,4 +1048,67 @@ func TestClusterValidationSyncer_ProbeRewriteRestartFallback(t *testing.T) {
 				"expected rewrite=%v", tc.wantRewrite)
 		})
 	}
+// TestClusterValidationSyncer_PropagationDeferralSurvivesLookupError covers the regression
+// where a single transient role-assignment lookup error (Unknown,
+// RoleAssignmentPropagationCheckFailed) ended an established RoleAssignmentPropagationPending
+// deferral: once the consecutive-Unknown streak exceeded the suppression threshold the
+// CheckFailed reason was written immediately, and because the status did not change,
+// LastTransitionTime was not refreshed — leaving an old condition that the operations
+// controller no longer treats as propagation-pending, terminally failing the operation on
+// the next reconciliation. The stored deferral must keep the Pending reason while its
+// evidence can still be valid.
+func TestClusterValidationSyncer_PropagationDeferralSurvivesLookupError(t *testing.T) {
+	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+
+	mockDB := corecosmosstoragetesting.NewMockResourcesDBClient()
+	cluster := newTestCluster(t)
+	_, err := mockDB.HCPClusters(testSubscriptionID, testResourceGroup).Create(ctx, cluster, nil)
+	require.NoError(t, err)
+	_, err = mockDB.Subscriptions().Create(ctx, newTestSubscription(), nil)
+	require.NoError(t, err)
+	_, err = corecosmosstorage.GetOrCreateServiceProviderCluster(ctx, mockDB, cluster.ID)
+	require.NoError(t, err)
+
+	spcCRUD := mockDB.ServiceProviderClusters(testSubscriptionID, testResourceGroup, testClusterName)
+	spc, err := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
+	require.NoError(t, err)
+	spc.Status.Validations = []metav1.Condition{
+		{
+			Type:               testValidationName,
+			Status:             metav1.ConditionUnknown,
+			Reason:             "RoleAssignmentPropagationPending",
+			Message:            "Role assignments granting these permissions were created recently and have not taken effect yet.",
+			LastTransitionTime: metav1.NewTime(time.Now().Add(-5 * time.Minute)),
+		},
+	}
+	_, err = spcCRUD.Replace(ctx, spc, nil)
+	require.NoError(t, err)
+
+	validation := NewMockClusterValidation(testValidationName).WithUnknownLogOnly(
+		"RoleAssignmentPropagationCheckFailed",
+		"missing permissions; role assignment lookup failed: ARM 500",
+		"Unable to verify whether recently created role assignments explain the missing permissions.",
+	)
+
+	fakeClock := clocktesting.NewFakePassiveClock(fixedNow)
+	syncer, _ := newTestSyncer(mockDB, validation, fakeClock)
+
+	// Exceed the consecutive-Unknown suppression threshold so the CheckFailed result is
+	// written immediately, which is where the deferral used to be lost. The clock advances
+	// between attempts because every Unknown result schedules a retry cooldown.
+	for i := 0; i <= maxConsecutiveUnknownsBeforeWrite; i++ {
+		fakeClock.SetTime(fakeClock.Now().Add(time.Hour))
+		require.NoError(t, syncer.SyncOnce(ctx, newTestClusterKey()))
+	}
+
+	after, err := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
+	require.NoError(t, err)
+
+	cond := meta.FindStatusCondition(after.Status.Validations, testValidationName)
+	require.NotNil(t, cond)
+	assert.Equal(t, metav1.ConditionUnknown, cond.Status)
+	assert.Equal(t, "RoleAssignmentPropagationPending", cond.Reason,
+		"an established propagation deferral must survive a transient lookup failure")
+	assert.Contains(t, cond.Message, "Unable to verify",
+		"the lookup failure should still be visible in the condition message")
 }
