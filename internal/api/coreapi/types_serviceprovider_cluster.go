@@ -125,7 +125,7 @@ type ServiceProviderClusterSpec struct {
 	// dissipated. Additionally, long recheck times are recommended for resources
 	// outside of their active phases. Order of at least six hours is, with
 	// durations up to 24 hours considered normal.
-	// Written by: FetchMSIIdentitiesInfo, FetchDataPlaneOperatorsManagedIdentitiesInfoController, FetchManagedIdentitiesInfo, IdentityRoleAssignments
+	// Written by: FetchMSIIdentitiesInfo, FetchDataPlaneOperatorsManagedIdentitiesInfoController, FetchManagedIdentitiesInfo, IdentityRoleAssignments, MockFPARoleAssignment
 	EarliestRecheckTimesByController map[string]*metav1.Time `json:"earliestRecheckTimesByController,omitempty"`
 
 	// PinnedVersion, when its ExactVersion is set, is an SRE-specified
@@ -497,6 +497,9 @@ type AzureResources struct {
 	// managed identity.
 	// Written by: IdentityRoleAssignments
 	RoleAssignments AzureMultiReference `json:"roleAssignments,omitempty"`
+	// MockFPARoleAssignment tracks the mock FPA's Owner assignment on the managed resource group.
+	// Written by: MockFPARoleAssignment
+	MockFPARoleAssignment AzureReference `json:"mockFPARoleAssignment,omitempty"`
 }
 
 // AzureMultiReference tracks a set of Azure resources through their creation lifecycle.

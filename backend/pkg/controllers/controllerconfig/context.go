@@ -61,6 +61,8 @@ type ControllerContext struct {
 	FPAMIDataplaneClientBuilder                         azureclient.FPAMIDataplaneClientBuilder
 	FleetDBClient                                       fleetcosmosstorage.FleetDBClient
 	HasRealFPA                                          bool
+	MockFPAPrincipalID                                  string
+	ARMPermissionsManagerClientBuilder                  azureclient.ARMPermissionsManagerClientBuilder
 	HardcodedIdentity                                   *azureclient.HardcodedIdentity
 	KubeApplierDBClients                                kubeappliercosmosstorage.KubeApplierDBClients
 	MIDataplaneBasedIdentityAccessTokenRetrieverBuilder azureclient.MIDataplaneBasedIdentityAccessTokenRetrieverBuilder

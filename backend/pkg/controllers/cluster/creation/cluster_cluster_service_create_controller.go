@@ -24,6 +24,7 @@ import (
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/roleassignments"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
@@ -48,6 +49,7 @@ type clusterClusterServiceCreateSyncer struct {
 	// FPA is available). When false, cluster creation must not wait for deny assignments to be
 	// created, because nothing creates them.
 	denyAssignmentsEnabled bool
+	mockFPAPrincipalID     string
 }
 
 var _ controllerutils.ClusterSyncer = (*clusterClusterServiceCreateSyncer)(nil)
@@ -60,6 +62,7 @@ func NewClusterClusterServiceCreateController(
 	managementClusterLister fleetlisters.ManagementClusterLister,
 	backendInformers coreinformers.BackendInformers,
 	denyAssignmentsEnabled bool,
+	mockFPAPrincipalID string,
 ) controllerutils.Controller {
 	_, clusterLister := backendInformers.Clusters()
 	_, serviceProviderClusterLister := backendInformers.ServiceProviderClusters()
@@ -72,6 +75,7 @@ func NewClusterClusterServiceCreateController(
 		managementClusterLister:      managementClusterLister,
 		clustersServiceClient:        clustersServiceClient,
 		denyAssignmentsEnabled:       denyAssignmentsEnabled,
+		mockFPAPrincipalID:           mockFPAPrincipalID,
 	}
 
 	controller := controllerutils.NewClusterWatchingController(
@@ -166,6 +170,11 @@ func (c *clusterClusterServiceCreateSyncer) SyncOnce(ctx context.Context, key co
 		return utils.TrackError(err)
 	}
 	if !ready {
+		return nil
+	}
+
+	if !c.denyAssignmentsEnabled && !roleassignments.MockFPARoleAssignmentReady(existingServiceProviderCluster, c.mockFPAPrincipalID) {
+		logger.Info("Mock FPA Owner assignment not yet confirmed, waiting for reconciliation")
 		return nil
 	}
 
