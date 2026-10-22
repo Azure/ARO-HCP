@@ -1122,6 +1122,7 @@ func pemBlockDetail(blockIndex int, subject, detail string) string {
 //   - each certificate must parse as X.509, have the CA basic constraint, and
 //     satisfy certificate is not expired
 //   - trailing non-PEM data after the last block is rejected
+//   - If the leaf certificate in bundle is not a CA certificate, it is accepted as public certificate chain
 func validateCACertificatePEM(ctx context.Context, op operation.Operation, fldPath *field.Path, value, _ *string) field.ErrorList {
 	if value == nil || len(*value) == 0 {
 		return nil
@@ -1132,6 +1133,8 @@ func validateCACertificatePEM(ctx context.Context, op operation.Operation, fldPa
 	foundBlock := false
 	blockIndex := 0
 	now := time.Now()
+	firstIsLeaf := false
+	foundCAAfterLeaf := false
 
 	for {
 		var block *pem.Block
@@ -1165,12 +1168,19 @@ func validateCACertificatePEM(ctx context.Context, op operation.Operation, fldPa
 		subject := cert.Subject.String()
 		diagnostic = pemBlockDiagnostic(blockIndex, subject)
 
-		if !cert.IsCA {
+		if blockIndex == 1 && !cert.IsCA {
+			// First cert is a leaf — this is the start of a public certificate chain.
+			// We require at least one CA cert to follow.
+			firstIsLeaf = true
+		} else if !cert.IsCA {
 			errs = append(errs, field.Invalid(
 				fldPath,
 				diagnostic,
 				pemBlockDetail(blockIndex, subject, "must be a CA certificate"),
 			))
+		} else if firstIsLeaf {
+			// This is a CA cert following the leaf — the chain requirement is satisfied.
+			foundCAAfterLeaf = true
 		}
 
 		if now.After(cert.NotAfter) {
@@ -1185,6 +1195,15 @@ func validateCACertificatePEM(ctx context.Context, op operation.Operation, fldPa
 
 	if !foundBlock {
 		return field.ErrorList{field.Invalid(fldPath, "", "not a valid PEM")}
+	}
+
+	// If the first cert was a leaf, at least one CA must follow it.
+	if firstIsLeaf && !foundCAAfterLeaf {
+		errs = append(errs, field.Invalid(
+			fldPath,
+			"",
+			"public certificate chain must include at least one CA certificate after the leaf certificate",
+		))
 	}
 
 	if len(bytes.TrimSpace(rest)) > 0 {

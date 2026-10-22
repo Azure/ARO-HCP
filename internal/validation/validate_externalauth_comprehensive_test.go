@@ -236,12 +236,44 @@ func TestValidateExternalAuth(t *testing.T) {
 			},
 		},
 		{
-			name: "non-CA certificate is rejected",
+			// A lone leaf cert with no CA following it is not a valid chain.
+			name: "non-CA certificate alone (no CA follows) is rejected",
 			newObj: func() *coreapi.ExternalAuth {
 				obj := createMinimalExternalAuth()
 				obj.Properties.Issuer.URL = "https://valid.example.com"
 				obj.Properties.Issuer.Audiences = []string{"audience1"}
 				obj.Properties.Issuer.CA = mustGenerateTestCertPEM(t, time.Now().Add(-time.Hour), time.Now().Add(24*time.Hour), false)
+				return obj
+			}(),
+			op: operation.Operation{Type: operation.Create},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.issuer.ca", Message: "public certificate chain must include at least one CA certificate after the leaf certificate"},
+			},
+		},
+		{
+			// Public certificate chain: leaf cert first, followed by a CA — valid.
+			name: "public certificate chain (leaf + CA) is accepted",
+			newObj: func() *coreapi.ExternalAuth {
+				obj := createMinimalExternalAuth()
+				obj.Properties.Issuer.URL = "https://valid.example.com"
+				obj.Properties.Issuer.Audiences = []string{"audience1"}
+				leaf := mustGenerateTestCertPEM(t, time.Now().Add(-time.Hour), time.Now().Add(24*time.Hour), false)
+				ca := mustGenerateTestCertPEM(t, time.Now().Add(-time.Hour), time.Now().Add(24*time.Hour), true)
+				obj.Properties.Issuer.CA = leaf + ca
+				return obj
+			}(),
+			op: operation.Operation{Type: operation.Create},
+		},
+		{
+			// Only the first block may be a non-CA; subsequent blocks must be CAs.
+			name: "non-CA certificate at block 2 is rejected",
+			newObj: func() *coreapi.ExternalAuth {
+				obj := createMinimalExternalAuth()
+				obj.Properties.Issuer.URL = "https://valid.example.com"
+				obj.Properties.Issuer.Audiences = []string{"audience1"}
+				ca := mustGenerateTestCertPEM(t, time.Now().Add(-time.Hour), time.Now().Add(24*time.Hour), true)
+				leaf := mustGenerateTestCertPEM(t, time.Now().Add(-time.Hour), time.Now().Add(24*time.Hour), false)
+				obj.Properties.Issuer.CA = ca + leaf
 				return obj
 			}(),
 			op: operation.Operation{Type: operation.Create},
@@ -1277,6 +1309,7 @@ func TestValidateCACertificatePEM(t *testing.T) {
 	expiredCA := mustGenerateTestCertPEM(t, now.Add(-48*time.Hour), now.Add(-time.Hour), true)
 	notYetValidCA := mustGenerateTestCertPEM(t, now.Add(time.Hour), now.Add(24*time.Hour), true)
 	privateKey := mustGenerateTestPrivateKeyPEM(t)
+	secondNonCA := mustGenerateTestCertPEM(t, now.Add(-time.Hour), now.Add(24*time.Hour), false)
 
 	tests := []struct {
 		name         string
@@ -1328,10 +1361,24 @@ func TestValidateCACertificatePEM(t *testing.T) {
 			},
 		},
 		{
-			name:  "non-CA certificate rejected",
+			// A lone leaf cert with no CA following it is rejected.
+			name:  "non-CA certificate alone (no CA follows) is rejected",
 			value: ptr.To(nonCA),
 			expectErrors: []utils.ExpectedError{
-				{FieldPath: "properties.issuer.ca", Message: "certificate 1 (CN=test-cert) must be a CA certificate"},
+				{FieldPath: "properties.issuer.ca", Message: "public certificate chain must include at least one CA certificate after the leaf certificate"},
+			},
+		},
+		{
+			// Public certificate chain: leaf first, then a CA — valid.
+			name:  "public certificate chain (leaf + CA) is accepted",
+			value: ptr.To(nonCA + validCA),
+		},
+		{
+			// Only the first block may be a non-CA; block 2+ must be CA.
+			name:  "non-CA certificate at block 2 is rejected",
+			value: ptr.To(validCA + secondNonCA),
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.issuer.ca", Message: "must be a CA certificate"},
 			},
 		},
 		{
@@ -1376,15 +1423,16 @@ func TestValidateCACertificatePEM_diagnostics(t *testing.T) {
 	privateKey := mustGenerateTestPrivateKeyPEM(t)
 	validCA := mustGenerateTestCertPEM(t, now.Add(-time.Hour), now.Add(90*24*time.Hour), true)
 
-	t.Run("non-CA uses block index and subject", func(t *testing.T) {
-		errs := validateCACertificatePEM(context.Background(), operation.Operation{}, fldPath, ptr.To(nonCA), nil)
+	t.Run("non-CA at block 2 uses block index and subject", func(t *testing.T) {
+		// Block 1 is a CA, block 2 is a non-CA — triggers the per-block error on block 2.
+		errs := validateCACertificatePEM(context.Background(), operation.Operation{}, fldPath, ptr.To(validCA+nonCA), nil)
 		if len(errs) != 1 {
 			t.Fatalf("expected 1 error, got %v", errs)
 		}
-		if got := fmt.Sprint(errs[0].BadValue); got != "block 1: CN=test-cert" {
-			t.Errorf("BadValue = %q, want %q", got, "block 1: CN=test-cert")
+		if got := fmt.Sprint(errs[0].BadValue); got != "block 2: CN=test-cert" {
+			t.Errorf("BadValue = %q, want %q", got, "block 2: CN=test-cert")
 		}
-		if !strings.Contains(errs[0].Detail, "certificate 1 (CN=test-cert) must be a CA certificate") {
+		if !strings.Contains(errs[0].Detail, "certificate 2 (CN=test-cert) must be a CA certificate") {
 			t.Errorf("Detail = %q", errs[0].Detail)
 		}
 	})
