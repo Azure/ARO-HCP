@@ -31,8 +31,10 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v2"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
+	"github.com/Azure/ARO-HCP/backend/pkg/azure/roleassignment"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
@@ -91,14 +93,31 @@ func TestMockFPARoleAssignmentDatabaseError(t *testing.T) {
 
 func TestMockFPARoleAssignmentSyncOnce(t *testing.T) {
 	for _, testCase := range []struct {
-		name                                                            string
-		noMRG, deleting, confirmed, create, skip, wantError, dbConflict bool
-		recheck                                                         *time.Duration
-		getError, createError, builderError                             error
-		mutateProperties                                                func(*armauthorization.RoleAssignmentProperties)
+		name                                                                        string
+		noMRG, pendingMRG, deleting, confirmed, create, skip, wantError, dbConflict bool
+		recheck                                                                     *time.Duration
+		getError, createError, builderError                                         error
+		rgError, rgBuilderError                                                     error
+		rgState                                                                     string
+		noSubscription, noTenant, noSubscriptionProperties, noRGState               bool
+		mutateProperties                                                            func(*armauthorization.RoleAssignmentProperties)
 	}{
-		{name: "absent managed group", noMRG: true, skip: true},
-		{name: "deleting without managed group", noMRG: true, deleting: true, skip: true},
+		{name: "existing managed group without tracking", noMRG: true, create: true},
+		{name: "existing managed group with pending tracking", pendingMRG: true, create: true},
+		{name: "deleting cluster without managed group tracking", noMRG: true, deleting: true, create: true},
+		{name: "deleting cluster with pending managed group tracking", pendingMRG: true, deleting: true, create: true},
+		{name: "creating managed group", rgState: "Creating"},
+		{name: "updating managed group", rgState: "Updating"},
+		{name: "absent Azure managed group clears stale readiness", confirmed: true, recheck: ptr.To(-time.Minute), rgError: &azcore.ResponseError{StatusCode: http.StatusNotFound, ErrorCode: "ResourceGroupNotFound"}},
+		{name: "deleting Azure managed group clears stale readiness", confirmed: true, recheck: ptr.To(-time.Minute), rgState: "Deleting"},
+		{name: "incomplete absent group ignores future recheck", recheck: ptr.To(time.Hour), rgError: &azcore.ResponseError{StatusCode: http.StatusNotFound, ErrorCode: "ResourceGroupNotFound"}},
+		{name: "resource group GET failure clears stale readiness", confirmed: true, recheck: ptr.To(-time.Minute), rgError: errors.New("get failed"), wantError: true},
+		{name: "unrelated resource group not found error", rgError: &azcore.ResponseError{StatusCode: http.StatusNotFound, ErrorCode: "SubscriptionNotFound"}, wantError: true},
+		{name: "resource group credentials fail", confirmed: true, recheck: ptr.To(-time.Minute), rgBuilderError: errors.New("credentials failed"), wantError: true},
+		{name: "subscription missing", confirmed: true, recheck: ptr.To(-time.Minute), noSubscription: true, wantError: true},
+		{name: "tenant missing", confirmed: true, recheck: ptr.To(-time.Minute), noTenant: true, wantError: true},
+		{name: "subscription properties missing", confirmed: true, recheck: ptr.To(-time.Minute), noSubscriptionProperties: true, wantError: true},
+		{name: "resource group state missing", confirmed: true, recheck: ptr.To(-time.Minute), noRGState: true, wantError: true},
 		{name: "existing assignment"},
 		{name: "subscription qualified Owner", mutateProperties: func(properties *armauthorization.RoleAssignmentProperties) {
 			properties.RoleDefinitionID = ptr.To("/subscriptions/" + testSubscriptionID + mockFPAOwnerRoleDefinitionID)
@@ -138,8 +157,9 @@ func TestMockFPARoleAssignmentSyncOnce(t *testing.T) {
 			ctx := context.Background()
 			cluster := newTestCluster(testCase.deleting)
 			spc := newTestServiceProviderCluster(t, true, false, false, false, coreapi.AzureMultiReference{})
-			expectedID, err := mockFPARoleAssignmentID(spc, testMockFPAPrincipalID)
+			expectedID, err := mockFPARoleAssignmentID(cluster, testMockFPAPrincipalID)
 			require.NoError(t, err)
+			require.Equal(t, roleassignment.ManagedResourceGroupScopedRoleAssignmentResourceID(testManagedResourceGroupScope(t), testMockFPAPrincipalID, mockFPAOwnerRoleDefinitionID), expectedID.String())
 			otherRecheck := metav1.NewTime(testFixedNow().Add(24 * time.Hour))
 			spc.Spec.EarliestRecheckTimesByController = map[string]*metav1.Time{"another-controller": &otherRecheck}
 			if testCase.confirmed {
@@ -150,11 +170,46 @@ func TestMockFPARoleAssignmentSyncOnce(t *testing.T) {
 				spc.Spec.EarliestRecheckTimesByController[MockFPARoleAssignmentControllerName] = &recheck
 			}
 			if testCase.noMRG {
+				spc.Status.AzureResources.ManagedResourceGroup = coreapi.AzureReference{}
+			}
+			if testCase.pendingMRG {
 				spc.Status.AzureResources.ManagedResourceGroup = coreapi.AzureReference{PendingAzureResource: testManagedResourceGroupID(t)}
 			}
 			database, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, spc})
 			require.NoError(t, err)
 			client := azureclient.NewMockRoleAssignmentsClient(gomock.NewController(t))
+			fpaBuilder := azureclient.NewMockFirstPartyApplicationClientBuilder(gomock.NewController(t))
+			rgClient := azureclient.NewMockResourceGroupsClient(gomock.NewController(t))
+			subscription := newTestSubscription(ptr.To(testTenantID))
+			if testCase.noTenant {
+				subscription.Properties.TenantId = nil
+			}
+			if testCase.noSubscriptionProperties {
+				subscription.Properties = nil
+			}
+			subscriptions := []*coreapi.Subscription{subscription}
+			if testCase.noSubscription {
+				subscriptions = nil
+			}
+			rgBlocked := testCase.rgError != nil || testCase.rgBuilderError != nil || testCase.rgState == "Deleting" || testCase.noRGState || testCase.noSubscription || testCase.noTenant || testCase.noSubscriptionProperties
+			if !testCase.skip && !testCase.noSubscription && !testCase.noTenant && !testCase.noSubscriptionProperties {
+				calls := 1
+				if testCase.create && !testCase.wantError && !rgBlocked {
+					calls++
+				}
+				fpaBuilder.EXPECT().ResourceGroupsClient(testTenantID, testSubscriptionID).Return(rgClient, testCase.rgBuilderError).Times(calls)
+				if testCase.rgBuilderError == nil {
+					state := testCase.rgState
+					if state == "" {
+						state = "Succeeded"
+					}
+					group := armresources.ResourceGroup{Properties: &armresources.ResourceGroupProperties{ProvisioningState: ptr.To(state)}}
+					if testCase.noRGState {
+						group.Properties = nil
+					}
+					rgClient.EXPECT().Get(gomock.Any(), cluster.CustomerProperties.Platform.ManagedResourceGroup, nil).Return(armresources.ResourceGroupsClientGetResponse{ResourceGroup: group}, testCase.rgError).Times(calls)
+				}
+			}
 			properties := &armauthorization.RoleAssignmentProperties{
 				PrincipalID: ptr.To(testMockFPAPrincipalID), RoleDefinitionID: ptr.To(mockFPAOwnerRoleDefinitionID),
 				Scope: ptr.To(testManagedResourceGroupScope(t)), PrincipalType: ptr.To(armauthorization.PrincipalTypeServicePrincipal),
@@ -163,7 +218,7 @@ func TestMockFPARoleAssignmentSyncOnce(t *testing.T) {
 				testCase.mutateProperties(properties)
 			}
 			response := armauthorization.RoleAssignmentsClientGetByIDResponse{RoleAssignment: armauthorization.RoleAssignment{Properties: properties}}
-			if !testCase.skip && testCase.builderError == nil {
+			if !testCase.skip && !rgBlocked && testCase.builderError == nil {
 				if testCase.create {
 					client.EXPECT().GetByID(gomock.Any(), expectedID.String(), nil).Return(armauthorization.RoleAssignmentsClientGetByIDResponse{}, roleAssignmentNotFoundError())
 					client.EXPECT().Create(gomock.Any(), testManagedResourceGroupScope(t), expectedID.Name, gomock.Any(), nil).
@@ -185,9 +240,12 @@ func TestMockFPARoleAssignmentSyncOnce(t *testing.T) {
 				resourcesDBClient:            database,
 				clusterLister:                &corelistertesting.DBClusterLister{ResourcesDBClient: database},
 				serviceProviderClusterLister: &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: database},
+				subscriptionLister:           &corelistertesting.SliceSubscriptionLister{Subscriptions: subscriptions},
+				fpaClientBuilder:             fpaBuilder,
 				principalID:                  testMockFPAPrincipalID, clock: clocktesting.NewFakeClock(testFixedNow()),
 				clientBuilder: mockFPAClientBuilderFunc(func(subscriptionID string) (azureclient.RoleAssignmentsClient, error) {
 					require.False(t, testCase.skip, "skipped reconciles must not retrieve credentials")
+					require.False(t, rgBlocked, "unavailable resource groups must not retrieve assignment credentials")
 					require.Equal(t, testSubscriptionID, subscriptionID)
 					return client, testCase.builderError
 				}),
@@ -204,16 +262,18 @@ func TestMockFPARoleAssignmentSyncOnce(t *testing.T) {
 			stored, err := database.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
 			require.NoError(t, err)
 			require.True(t, otherRecheck.Equal(stored.Spec.EarliestRecheckTimesByController["another-controller"]))
+			require.Equal(t, spc.Status.AzureResources.ManagedResourceGroup, stored.Status.AzureResources.ManagedResourceGroup)
 			if testCase.skip {
 				require.Equal(t, spc.Status, stored.Status)
 				return
 			}
-			if testCase.wantError || testCase.create {
+			if testCase.wantError || testCase.create || rgBlocked {
 				require.Nil(t, stored.Spec.EarliestRecheckTimesByController[MockFPARoleAssignmentControllerName])
-				require.False(t, MockFPARoleAssignmentReady(stored, testMockFPAPrincipalID))
+				require.False(t, MockFPARoleAssignmentReady(cluster, stored, testMockFPAPrincipalID))
+				require.Nil(t, stored.Status.AzureResources.MockFPARoleAssignment.AzureResource)
 				require.NotNil(t, stored.Status.AzureResources.MockFPARoleAssignment.PendingAzureResource)
 			}
-			if testCase.wantError {
+			if testCase.wantError || rgBlocked {
 				return
 			}
 			if testCase.create {
@@ -222,8 +282,11 @@ func TestMockFPARoleAssignmentSyncOnce(t *testing.T) {
 				stored, err = database.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
 				require.NoError(t, err)
 			}
-			require.True(t, MockFPARoleAssignmentReady(stored, testMockFPAPrincipalID))
-			require.False(t, MockFPARoleAssignmentReady(stored, "another-principal"))
+			require.True(t, MockFPARoleAssignmentReady(cluster, stored, testMockFPAPrincipalID))
+			require.False(t, MockFPARoleAssignmentReady(cluster, stored, "another-principal"))
+			otherCluster := cluster.DeepCopy()
+			otherCluster.CustomerProperties.Platform.ManagedResourceGroup = "another-group"
+			require.False(t, MockFPARoleAssignmentReady(otherCluster, stored, testMockFPAPrincipalID))
 			recheck := stored.Spec.EarliestRecheckTimesByController[MockFPARoleAssignmentControllerName]
 			require.GreaterOrEqual(t, recheck.Sub(testFixedNow()), 6*time.Hour)
 			require.Less(t, recheck.Sub(testFixedNow()), 9*time.Hour)
