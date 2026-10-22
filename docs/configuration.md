@@ -192,21 +192,23 @@ These settings do not change node pools or the scheduling of other workloads.
 management VNet creation and tagging. An empty value uses the global deployment
 identity. The `swift-vnet-permissions` step grants the selected identity Network
 Contributor and Tag Contributor on the management resource group and exports its
-resource ID to the `swift-vnet` container. Other deployment steps and the
-container launcher retain their existing identities.
+resource ID to both the `swift-vnet` Shell launcher and its nested VNet container.
+Other deployment steps retain their existing identities.
 
 Environment-specific identity selections belong in the private
 `sdp-pipelines/hcp/config.msft.sensitive.clouds-overlay.yaml` overlay.
 Keep the ARO-HCP default empty so the override is opt-in. If an override selects
-an identity shared with PROD, the temporary container runs with that identity's
-existing privileges, including any PROD access. Limit that selection to the
-required deployment environment and region.
+an identity shared with PROD, both the Shell launcher and the temporary container
+run with that identity's existing privileges, including any PROD access. Limit
+that selection to the required deployment environment and region.
 
-Before deployment, verify that the launcher can assign the selected identity to
-the container group (`Microsoft.ManagedIdentity/userAssignedIdentities/assign/action`)
-and that the ARM deployment can read the identity and create the management
-resource-group role assignments. Permission on the shared identity is a separate
-prerequisite; this configuration does not grant it.
+Before deployment, verify that EV2 can attach the selected identity to the Shell
+launcher, and that the selected identity can create, read, log and delete container
+groups in the management resource group and assign itself to the nested container
+(`Microsoft.ManagedIdentity/userAssignedIdentities/assign/action`). The ARM
+deployment must also be able to read the identity and create the management
+resource-group role assignments. The VNet RBAC step does not grant these launcher
+or identity-assignment permissions.
 
 SWIFTv2 uses the onboarded writer identity to stamp `CreatorServiceName` on the
 management VNet. DNC validates that value against the customer subnet's SAL
