@@ -178,6 +178,11 @@ func pollUntilReady(
 		elapsed = time.Since(startTime)
 
 		if finalErr == nil {
+			// A verdict that raced the caller's cancellation is not a pass the caller can rely
+			// on: report the interruption instead.
+			if ctx.Err() != nil {
+				return reportCancelled(nil)
+			}
 			logVerifierTiming(name, "succeeded on the final check after the deadline", elapsed)
 			return nil
 		}

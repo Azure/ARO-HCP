@@ -445,6 +445,14 @@ func TestPollUntilReady_CancelledDuringFinalCheckWindow(t *testing.T) {
 			wantErr:      "read interrupted",
 			wantCanceled: true,
 		},
+		{
+			// A nil verdict from a check racing the cancelled caller context must not read
+			// as a passing verifier; the outcome is the context error, with diagnostics.
+			name:         "check reports success",
+			final:        func(ctx context.Context) error { return nil },
+			wantErr:      "context canceled",
+			wantCanceled: true,
+		},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
