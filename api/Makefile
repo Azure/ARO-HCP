@@ -57,7 +57,7 @@ models: $(GOIMPORTS)
 	set -e; \
 	trap 'rm $(RM_FORCE) $(TYPESPEC_GO_OUTPUT_DIR)/go.mod' EXIT; \
 	mkdir -p $(TYPESPEC_GO_OUTPUT_DIR); \
-	printf 'module github.com/Azure/ARO-HCP/internal/azureapi/$(VERSION)/generated\n\ngo 1.26.0\n' > $(TYPESPEC_GO_OUTPUT_DIR)/go.mod; \
+	printf 'module github.com/Azure/ARO-HCP/internal/azureapi/$(VERSION)/generated\n\ngo 1.26.10\n' > $(TYPESPEC_GO_OUTPUT_DIR)/go.mod; \
 	npx tsp compile $(SPEC_BASE_DIR) \
 		--warn-as-error \
 		--emit @azure-tools/typespec-go \
