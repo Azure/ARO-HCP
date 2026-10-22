@@ -166,6 +166,7 @@ func (in *AzureResources) DeepCopyInto(out *AzureResources) {
 	}
 	in.ManagedResourceGroup.DeepCopyInto(&out.ManagedResourceGroup)
 	in.RoleAssignments.DeepCopyInto(&out.RoleAssignments)
+	in.MockFPARoleAssignment.DeepCopyInto(&out.MockFPARoleAssignment)
 	return
 }
 
