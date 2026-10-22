@@ -159,12 +159,8 @@ func TestGatherIndependentFailures(t *testing.T) {
 				t.Errorf("fatal aggregate lost injected error: %v", err)
 			}
 			for _, name := range []string{"alerts:svc", "alerts:hcp", "metricRules:svc", "metricRules:hcp", "rules:svc", "rules:hcp", "endpoint:svc", "endpoint:hcp", "render:alerts", "write:alerts.json", "write:alert-diagnostics.json", "write:junit", "utilization", "render:utilization", "render:history", "write:utilization.json", "amw", "render:amw", "write:amw.json", "write:page"} {
-				want := 1
-				if name == "write:page" {
-					want = 2 // Initial in-progress report, then final report.
-				}
-				if calls[name] != want {
-					t.Errorf("independent operation %s attempted %d times, want %d", name, calls[name], want)
+				if calls[name] != 1 {
+					t.Errorf("independent operation %s attempted %d times, want 1", name, calls[name])
 				}
 			}
 			if failure != "setup:queries" {

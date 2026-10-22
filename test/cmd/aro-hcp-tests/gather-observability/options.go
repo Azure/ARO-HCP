@@ -74,7 +74,6 @@ type RawOptions struct {
 type validatedOptions struct {
 	*RawOptions
 	severityThreshold int // -1 means no filter; 0=Sev0 .. 4=Sev4
-	timeout           time.Duration
 }
 
 type ValidatedOptions struct {
@@ -83,7 +82,6 @@ type ValidatedOptions struct {
 
 type completedOptions struct {
 	AMWOnly           bool
-	timeout           time.Duration
 	OutputDir         string
 	Workspaces        map[string]azcorearm.ResourceID
 	MetricResources   map[string]azcorearm.ResourceID
@@ -125,15 +123,8 @@ func (o *RawOptions) Validate() (*ValidatedOptions, error) {
 	if err != nil {
 		return nil, err
 	}
-	timeout := defaultGatherTimeout
-	if value := os.Getenv("GATHER_OBSERVABILITY_TIMEOUT"); value != "" {
-		timeout, err = time.ParseDuration(value)
-		if err != nil || timeout <= gatherReportReserve {
-			return nil, fmt.Errorf("GATHER_OBSERVABILITY_TIMEOUT must be a duration greater than %s", gatherReportReserve)
-		}
-	}
 	return &ValidatedOptions{
-		validatedOptions: &validatedOptions{RawOptions: o, severityThreshold: minSev, timeout: timeout},
+		validatedOptions: &validatedOptions{RawOptions: o, severityThreshold: minSev},
 	}, nil
 }
 
@@ -253,7 +244,6 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 
 	return &Options{completedOptions: &completedOptions{
 		AMWOnly:            o.AMWOnly,
-		timeout:            o.timeout,
 		OutputDir:          o.OutputDir,
 		Workspaces:         workspaces,
 		MetricResources:    metricResources,
@@ -313,7 +303,6 @@ func buildCosmosAutoscaleMaxLookup(cfg configtypes.Configuration) (autoscaleMaxL
 
 // Explicit dependencies let orchestration tests exercise failures without Azure.
 type gatherDependencies struct {
-	collectAMWUsage       func(context.Context, context.Context) (observabilityTab, error)
 	fetchAlerts           func(context.Context, azcore.TokenCredential, string, time.Time, time.Time) ([]alert, error)
 	fetchMetricAlertRules func(context.Context, azcore.TokenCredential, string, string) ([]string, error)
 	fetchAlertRules       func(context.Context, azcore.TokenCredential, azcorearm.ResourceID) (alertRuleInventory, error)
@@ -334,8 +323,7 @@ type gatherDependencies struct {
 
 func (o Options) dependencies() gatherDependencies {
 	return gatherDependencies{
-		collectAMWUsage: o.collectAMWUsage,
-		fetchAlerts:     fetchAlerts, fetchMetricAlertRules: fetchMetricAlertRules,
+		fetchAlerts: fetchAlerts, fetchMetricAlertRules: fetchMetricAlertRules,
 		fetchAlertRules: fetchAlertRules, lookupEndpoint: promutil.LookupPrometheusEndpoint,
 		queryRange: promutil.QueryRange, queryMetrics: queryAzureMonitorMetrics,
 		collectUtilization: o.collectUtilization, renderUtilization: renderUtilizationHTML,
@@ -351,15 +339,6 @@ func (o Options) Run(ctx context.Context) error {
 }
 
 func (o Options) run(ctx context.Context, deps gatherDependencies) error {
-	timeout := o.timeout
-	if timeout == 0 {
-		timeout = defaultGatherTimeout
-	}
-	reportCtx, stop := context.WithTimeout(ctx, timeout)
-	defer stop()
-	deadline, _ := reportCtx.Deadline()
-	ctx, cancel := context.WithDeadline(reportCtx, deadline.Add(-gatherReportReserve))
-	defer cancel()
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
 		return fmt.Errorf("logger not found in context: %w", err)
@@ -375,25 +354,6 @@ func (o Options) run(ctx context.Context, deps gatherDependencies) error {
 			logger.Error(err, "observability collection incomplete")
 			fatalErrors = append(fatalErrors, err)
 		}
-	}
-	// Publish before any cloud requests so an external kill leaves an honest page.
-	htmlPath := filepath.Join(o.OutputDir, "observability-summary.html")
-	initialTabs := []observabilityTab{{Title: "Azure Monitor Alerts", HTML: string(incompleteHTML(nil, errors.New("collection in progress; alert status is unknown")))}}
-	type amwResult struct {
-		tab observabilityTab
-		err error
-	}
-	var amwDone chan amwResult
-	if deps.collectAMWUsage != nil {
-		initialTabs = append(initialTabs, amwUsageStatus(errors.New("collection in progress; metric usage is unknown")))
-	}
-	record(deps.renderPage(htmlPath, initialTabs))
-	if deps.collectAMWUsage != nil {
-		amwDone = make(chan amwResult, 1)
-		go func() {
-			tab, err := deps.collectAMWUsage(ctx, reportCtx)
-			amwDone <- amwResult{tab: tab, err: err}
-		}()
 	}
 	record(o.queriesError)
 	record(o.cosmosError)
@@ -573,7 +533,7 @@ func (o Options) run(ctx context.Context, deps gatherDependencies) error {
 		tabs = append(tabs, observabilityTab{Title: "Metrics", HTML: string(incompleteHTML(nil, o.queriesError))})
 	}
 
-	// The collector's local timeout is also bounded by the shared acquisition budget.
+	// The collector owns its timeout; alert and HCP failures must not gate it.
 	report := deps.collectUtilization(ctx, workspaces)
 	writeJSON("utilization.json", report)
 	utilizationHTML, err := deps.renderUtilization(report)
@@ -596,23 +556,11 @@ func (o Options) run(ctx context.Context, deps gatherDependencies) error {
 		record(fmt.Errorf("failed to render alerts HTML: %w", err))
 	}
 	tabs[0].HTML = string(incompleteHTML(alertsHTML, err))
-	if amwDone != nil {
-		// Keep completed standard diagnostics visible while the catalog scan runs.
-		if reportCtx.Err() == nil {
-			record(deps.renderPage(htmlPath, append(slices.Clone(tabs), amwUsageStatus(errors.New("collection in progress; metric usage is unknown")))))
-		}
-		result := <-amwDone
-		if result.err != nil {
-			logger.Error(result.err, "AMW usage analysis incomplete (non-gating)")
-		}
-		tabs = append(tabs, result.tab)
-	}
 
 	// Emit a single tabbed HTML page. The filename must match the Spyglass HTML
 	// lens regex .*-summary.*\.html so Prow renders it inline as one iframe.
-	if reportCtx.Err() != nil {
-		logger.Error(reportCtx.Err(), "report budget exhausted; preserving last observability checkpoint")
-	} else if err := deps.renderPage(htmlPath, tabs); err != nil {
+	htmlPath := filepath.Join(o.OutputDir, "observability-summary.html")
+	if err := deps.renderPage(htmlPath, tabs); err != nil {
 		record(fmt.Errorf("failed to render observability HTML: %w", err))
 	} else {
 		logger.Info("wrote observability HTML artifact", "path", htmlPath, "tabs", len(tabs))

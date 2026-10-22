@@ -28,6 +28,22 @@ and omit the flag. Other explicit SDK credential selections, such as
 The tool only reads Azure public-cloud ARM and Prometheus APIs; it grants no roles
 and modifies no resources.
 
+![AMW usage report, desktop](images/usage-desktop.png)
+
+![AMW usage report, mobile](images/usage-mobile.png)
+
+## CI Integration (Disabled)
+
+This tool runs standalone only. It is **not** invoked by
+`aro-hcp-tests gather-observability` or by any CI job. Running the full-catalog
+scan as part of e2e artifact gathering was considered and is disabled because
+of its runtime: ranking a single environment's workspaces took about 25 minutes,
+far beyond the existing gather step budget. To analyze an e2e environment, run
+the tool manually against its workspaces before they are torn down.
+
+The bounded AMW/DCR platform-metrics pane in `gather-observability`
+(`--amw-only`) is a separate, lightweight feature and is unrelated to this tool.
+
 ## Selection And Bounds
 
 Repeat `--workspace` and `--metric` as needed. Each exact metric name is queried
