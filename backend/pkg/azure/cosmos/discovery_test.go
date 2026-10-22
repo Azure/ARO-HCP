@@ -21,6 +21,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -32,6 +33,8 @@ import (
 )
 
 const testAccountID = "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.DocumentDB/databaseAccounts/account"
+const testAccountResponse = `{"id":"` + testAccountID + `","name":"account","properties":{"documentEndpoint":"https://account.documents.test/"}}`
+const testDatabaseResponse = `{"properties":{"resource":{"id":"account"}}}`
 
 type testCredential struct{}
 
@@ -80,10 +83,10 @@ func TestMixedCaseAccountDiscovery(t *testing.T) {
 			account := testAccountWithID(t, id, func(request *http.Request) (string, error) {
 				paths = append(paths, request.URL.Path)
 				switch request.URL.Path {
-				case testAccountID:
-					return `{"properties":{"documentEndpoint":"https://account.documents.azure.com/"}}`, nil
+				case strings.Replace(testAccountID, "databaseAccounts/account", "databaseAccounts/AcCoUnT", 1):
+					return strings.Replace(testAccountResponse, testAccountID, strings.ToUpper(testAccountID), 1), nil
 				case testAccountID + "/sqlDatabases/account":
-					return `{"properties":{"resource":{"id":"account"}}}`, nil
+					return testDatabaseResponse, nil
 				case testAccountID + "/sqlDatabases/account/containers/MixedContainer/throughputSettings/default":
 					return throughput.body, nil
 				default:
@@ -93,7 +96,7 @@ func TestMixedCaseAccountDiscovery(t *testing.T) {
 			endpoint, database, err := account.Discover(t.Context())
 			require.NoError(t, err)
 			require.Equal(t, "account", database)
-			require.Equal(t, "https://account.documents.azure.com/", endpoint)
+			require.Equal(t, "https://account.documents.test/", endpoint)
 			limit, err := account.ContainerThroughput(t.Context(), "MixedContainer")
 			require.NoError(t, err)
 			require.Equal(t, throughput.want, limit)
@@ -121,15 +124,25 @@ func TestDiscover(t *testing.T) {
 		name, accountJSON, databaseJSON, failurePath string
 		wantError                                    bool
 	}{
-		{name: "valid", accountJSON: `{"properties":{"documentEndpoint":"https://account.documents.azure.com/"}}`, databaseJSON: `{"properties":{"resource":{"id":"account"}}}`},
-		{name: "missing endpoint", accountJSON: `{}`, wantError: true},
-		{name: "empty endpoint", accountJSON: `{"properties":{"documentEndpoint":""}}`, wantError: true},
-		{name: "insecure endpoint", accountJSON: `{"properties":{"documentEndpoint":"http://account/"}}`, wantError: true},
+		{name: "valid", accountJSON: testAccountResponse, databaseJSON: testDatabaseResponse},
+		{name: "missing account properties", accountJSON: `{"id":"` + testAccountID + `","name":"account"}`, wantError: true},
+		{name: "missing endpoint", accountJSON: strings.Replace(testAccountResponse, `"documentEndpoint":"https://account.documents.test/"`, ``, 1), wantError: true},
+		{name: "empty endpoint", accountJSON: strings.Replace(testAccountResponse, "https://account.documents.test/", "", 1), wantError: true},
+		{name: "insecure endpoint", accountJSON: strings.Replace(testAccountResponse, "https://", "http://", 1), wantError: true},
+		{name: "missing account name", accountJSON: strings.Replace(testAccountResponse, `"name":"account",`, ``, 1), wantError: true},
+		{name: "empty account name", accountJSON: strings.Replace(testAccountResponse, `"name":"account"`, `"name":""`, 1), wantError: true},
+		{name: "inconsistent account name", accountJSON: strings.Replace(testAccountResponse, `"name":"account"`, `"name":"other"`, 1), wantError: true},
+		{name: "missing account ID", accountJSON: strings.Replace(testAccountResponse, `"id":"`+testAccountID+`",`, ``, 1), wantError: true},
+		{name: "empty account ID", accountJSON: strings.Replace(testAccountResponse, testAccountID, "", 1), wantError: true},
+		{name: "inconsistent account ID", accountJSON: strings.Replace(testAccountResponse, "/resourceGroups/rg/", "/resourceGroups/other/", 1), wantError: true},
 		{name: "account failure", failurePath: testAccountID, wantError: true},
-		{name: "database failure", accountJSON: `{"properties":{"documentEndpoint":"https://account/"}}`, failurePath: testAccountID + "/sqlDatabases/account", wantError: true},
-		{name: "missing database", accountJSON: `{"properties":{"documentEndpoint":"https://account/"}}`, databaseJSON: `{}`, wantError: true},
-		{name: "mismatched database", accountJSON: `{"properties":{"documentEndpoint":"https://account/"}}`, databaseJSON: `{"properties":{"resource":{"id":"other"}}}`, wantError: true},
-		{name: "database case mismatch", accountJSON: `{"properties":{"documentEndpoint":"https://account/"}}`, databaseJSON: `{"properties":{"resource":{"id":"Account"}}}`, wantError: true},
+		{name: "database failure", accountJSON: testAccountResponse, failurePath: testAccountID + "/sqlDatabases/account", wantError: true},
+		{name: "missing database", accountJSON: testAccountResponse, databaseJSON: `{}`, wantError: true},
+		{name: "missing database resource", accountJSON: testAccountResponse, databaseJSON: `{"properties":{}}`, wantError: true},
+		{name: "missing database ID", accountJSON: testAccountResponse, databaseJSON: `{"properties":{"resource":{}}}`, wantError: true},
+		{name: "empty database ID", accountJSON: testAccountResponse, databaseJSON: `{"properties":{"resource":{"id":""}}}`, wantError: true},
+		{name: "mismatched database", accountJSON: testAccountResponse, databaseJSON: `{"properties":{"resource":{"id":"other"}}}`, wantError: true},
+		{name: "database case mismatch", accountJSON: testAccountResponse, databaseJSON: `{"properties":{"resource":{"id":"Account"}}}`, wantError: true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			account := testAccount(t, func(request *http.Request) (string, error) {
@@ -150,13 +163,32 @@ func TestDiscover(t *testing.T) {
 			endpoint, database, err := account.Discover(t.Context())
 			if test.wantError {
 				require.Error(t, err)
+				_, err = account.ContainerThroughput(t.Context(), "Resources")
+				require.ErrorContains(t, err, "must be discovered")
 				return
 			}
 			require.NoError(t, err)
-			require.Equal(t, "https://account.documents.azure.com/", endpoint)
+			require.Equal(t, "https://account.documents.test/", endpoint)
 			require.Equal(t, "account", database)
 		})
 	}
+}
+
+func discoveredTestAccount(t *testing.T, throughput func(*http.Request) (string, error)) *Account {
+	t.Helper()
+	account := testAccount(t, func(request *http.Request) (string, error) {
+		switch request.URL.Path {
+		case testAccountID:
+			return testAccountResponse, nil
+		case testAccountID + "/sqlDatabases/account":
+			return testDatabaseResponse, nil
+		default:
+			return throughput(request)
+		}
+	})
+	_, _, err := account.Discover(t.Context())
+	require.NoError(t, err)
+	return account
 }
 
 func TestContainerThroughput(t *testing.T) {
@@ -173,7 +205,7 @@ func TestContainerThroughput(t *testing.T) {
 		{"invalid autoscale with manual", `{"throughput":4000,"autoscaleSettings":{}}`, 0},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			account := testAccount(t, func(request *http.Request) (string, error) {
+			account := discoveredTestAccount(t, func(request *http.Request) (string, error) {
 				require.Equal(t, testAccountID+"/sqlDatabases/account/containers/MC-one/throughputSettings/default", request.URL.Path)
 				return `{"properties":{"resource":` + test.resource + `}}`, nil
 			})
@@ -186,11 +218,74 @@ func TestContainerThroughput(t *testing.T) {
 			require.Equal(t, test.want, throughput)
 		})
 	}
-	account := testAccount(t, func(*http.Request) (string, error) { return "", errors.New("forbidden") })
+	account := discoveredTestAccount(t, func(*http.Request) (string, error) { return "", errors.New("forbidden") })
 	_, err := account.ContainerThroughput(t.Context(), "Resources")
 	require.ErrorContains(t, err, "forbidden")
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	_, err = account.ContainerThroughput(ctx, "Resources")
 	require.Error(t, err)
+}
+
+func TestDiscoveryNamesRequireSuccess(t *testing.T) {
+	recovered := false
+	var paths []string
+	account := testAccount(t, func(request *http.Request) (string, error) {
+		paths = append(paths, request.URL.Path)
+		switch request.URL.Path {
+		case testAccountID:
+			return testAccountResponse, nil
+		case testAccountID + "/sqlDatabases/account":
+			if !recovered {
+				return "", errors.New("database unavailable")
+			}
+			return testDatabaseResponse, nil
+		case testAccountID + "/sqlDatabases/account/containers/Future-MC/throughputSettings/default":
+			return `{"properties":{"resource":{"throughput":4000}}}`, nil
+		default:
+			return "", fmt.Errorf("unexpected request %s", request.URL.Path)
+		}
+	})
+	_, err := account.ContainerThroughput(t.Context(), "Future-MC")
+	require.ErrorContains(t, err, "must be discovered")
+	require.Empty(t, paths)
+	_, _, err = account.Discover(t.Context())
+	require.ErrorContains(t, err, "database unavailable")
+	_, err = account.ContainerThroughput(t.Context(), "Future-MC")
+	require.ErrorContains(t, err, "must be discovered")
+	require.Len(t, paths, 2)
+	recovered = true
+	_, database, err := account.Discover(t.Context())
+	require.NoError(t, err)
+	require.Equal(t, "account", database)
+	limit, err := account.ContainerThroughput(t.Context(), "Future-MC")
+	require.NoError(t, err)
+	require.Equal(t, float64(4000), limit)
+	require.Len(t, paths, 5)
+}
+
+func TestDiscoveryNamesConcurrentUse(t *testing.T) {
+	account := discoveredTestAccount(t, func(request *http.Request) (string, error) {
+		if request.URL.Path != testAccountID+"/sqlDatabases/account/containers/Concurrent-MC/throughputSettings/default" {
+			return "", fmt.Errorf("unexpected request %s", request.URL.Path)
+		}
+		return `{"properties":{"resource":{"throughput":4000}}}`, nil
+	})
+	var workers sync.WaitGroup
+	errors := make(chan error, 20)
+	for range 10 {
+		workers.Go(func() {
+			_, _, err := account.Discover(t.Context())
+			errors <- err
+		})
+		workers.Go(func() {
+			_, err := account.ContainerThroughput(t.Context(), "Concurrent-MC")
+			errors <- err
+		})
+	}
+	workers.Wait()
+	close(errors)
+	for err := range errors {
+		require.NoError(t, err)
+	}
 }

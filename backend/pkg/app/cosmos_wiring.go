@@ -45,12 +45,7 @@ type StorageFactory interface {
 }
 
 type StorageFactoryOptions struct {
-	ContainerThroughput   func(containerName string) (float64, error)
-	ResourcesRUsPerSecond float64
-	BillingRUsPerSecond   float64
-	FleetRUsPerSecond     float64
-	// KubeApplierRUsPerSecond applies independently to each MC container.
-	KubeApplierRUsPerSecond float64
+	ContainerThroughput func(containerName string) (float64, error)
 	// KubeApplierUtilization overrides Utilization for MC containers so the
 	// backend and kube-applier binary can reserve separate shares.
 	KubeApplierUtilization float64
@@ -127,40 +122,30 @@ func newStorageFactory(cosmosURL, databaseName string, clientOptions cosmosclien
 		ControllerFractions: maps.Clone(options.ControllerFractions),
 	}
 	limitsByContainer := make(map[string]*cosmosratelimit.ControllerRateLimits)
-	for _, allocation := range []struct {
-		container string
-		rus       float64
-	}{
-		{"Resources", options.ResourcesRUsPerSecond},
-		{"Billing", options.BillingRUsPerSecond},
-		{"Fleet", options.FleetRUsPerSecond},
-	} {
+	if options.ContainerThroughput == nil {
+		return nil, fmt.Errorf("container throughput provider is required")
+	}
+	for _, container := range []string{"Resources", "Billing", "Fleet"} {
 		containerOptions := commonOptions
-		containerOptions.TotalRUsPerSecond = allocation.rus
-		if options.ContainerThroughput != nil {
-			throughput, err := options.ContainerThroughput(allocation.container)
-			if err != nil {
-				return nil, fmt.Errorf("discover %s throughput: %w", allocation.container, err)
-			}
-			containerOptions.TotalRUsPerSecond = throughput
+		throughput, err := options.ContainerThroughput(container)
+		if err != nil {
+			return nil, fmt.Errorf("discover %s throughput: %w", container, err)
 		}
+		containerOptions.TotalRUsPerSecond = throughput
 		limits, err := cosmosratelimit.NewControllerRateLimits(containerOptions)
 		if err != nil {
-			return nil, fmt.Errorf("invalid %s rate limits: %w", allocation.container, err)
+			return nil, fmt.Errorf("invalid %s rate limits: %w", container, err)
 		}
-		limitsByContainer[allocation.container] = limits
+		limitsByContainer[container] = limits
 	}
 	kubeApplierOptions := commonOptions
-	kubeApplierOptions.TotalRUsPerSecond = options.KubeApplierRUsPerSecond
 	if options.KubeApplierUtilization != 0 {
 		kubeApplierOptions.Utilization = options.KubeApplierUtilization
 	}
 	// Validate before controllers start; actual MC container names are resolved
 	// lazily from Fleet, and each gets its own ControllerRateLimits instance.
 	validationOptions := kubeApplierOptions
-	if options.ContainerThroughput != nil {
-		validationOptions.TotalRUsPerSecond = 1
-	}
+	validationOptions.TotalRUsPerSecond = 1
 	if _, err := cosmosratelimit.NewControllerRateLimits(validationOptions); err != nil {
 		return nil, fmt.Errorf("invalid kube-applier rate limits: %w", err)
 	}
@@ -200,13 +185,11 @@ func (f *cosmosStorageFactory) tokenBucket(containerName, controllerName string)
 				return cached, nil
 			}
 			options := f.kubeApplierRateLimitOptions
-			if f.containerThroughput != nil {
-				throughput, err := f.containerThroughput(containerName)
-				if err != nil {
-					return nil, err
-				}
-				options.TotalRUsPerSecond = throughput
+			throughput, err := f.containerThroughput(containerName)
+			if err != nil {
+				return nil, err
 			}
+			options.TotalRUsPerSecond = throughput
 			resolved, err := cosmosratelimit.NewControllerRateLimits(options)
 			if err != nil {
 				return nil, err

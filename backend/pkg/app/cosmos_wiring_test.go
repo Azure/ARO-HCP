@@ -110,13 +110,12 @@ func TestStorageFactorySeparatesContainerAndControllerBudgets(t *testing.T) {
 			}, nil
 		})
 		factory, err := newStorageFactory("https://cosmos.test", "test", options, StorageFactoryOptions{
-			ResourcesRUsPerSecond:   3.75, // 1 RU per controller after 80% utilization.
-			BillingRUsPerSecond:     7.5,  // 2 RUs per controller.
-			FleetRUsPerSecond:       15,   // 4 RUs per controller.
-			KubeApplierRUsPerSecond: 80,   // 8 RUs per controller at 30% utilization.
-			KubeApplierUtilization:  0.3,
-			ControllerNames:         []string{"normal", "other", "cleanup"},
-			ControllerFractions:     map[string]float64{"cleanup": 0.1},
+			ContainerThroughput: func(container string) (float64, error) {
+				return map[string]float64{"Resources": 3.75, "Billing": 7.5, "Fleet": 15, "KubeApplier-test": 80, "KubeApplier-test2": 80}[container], nil
+			},
+			KubeApplierUtilization: 0.3,
+			ControllerNames:        []string{"normal", "other", "cleanup"},
+			ControllerFractions:    map[string]float64{"cleanup": 0.1},
 		})
 		require.NoError(t, err)
 		require.Same(t, factory.ResourcesStorageClient("normal"), factory.ResourcesStorageClient("normal"))
@@ -195,9 +194,8 @@ func TestStorageFactorySeparatesContainerAndControllerBudgets(t *testing.T) {
 
 func testStorageAllocations() StorageFactoryOptions {
 	return StorageFactoryOptions{
-		ResourcesRUsPerSecond: 10, BillingRUsPerSecond: 10,
-		FleetRUsPerSecond: 10, KubeApplierRUsPerSecond: 10,
-		ControllerNames: []string{"one"},
+		ContainerThroughput: func(string) (float64, error) { return 10, nil },
+		ControllerNames:     []string{"one"},
 	}
 }
 
@@ -217,10 +215,7 @@ func TestStorageFactoryRejectsInvalidConfiguration(t *testing.T) {
 			o.UnlimitedControllerNames = []string{"one"}
 			o.ControllerFractions = map[string]float64{"one": .1}
 		}},
-		{"invalid Resources budget", func(o *StorageFactoryOptions) { o.ResourcesRUsPerSecond = 0 }},
-		{"invalid Billing budget", func(o *StorageFactoryOptions) { o.BillingRUsPerSecond = 0 }},
-		{"invalid Fleet budget", func(o *StorageFactoryOptions) { o.FleetRUsPerSecond = 0 }},
-		{"invalid kube-applier budget", func(o *StorageFactoryOptions) { o.KubeApplierRUsPerSecond = 0 }},
+		{"missing throughput provider", func(o *StorageFactoryOptions) { o.ContainerThroughput = nil }},
 		{"invalid kube-applier utilization", func(o *StorageFactoryOptions) { o.KubeApplierUtilization = 1.1 }},
 		{"invalid fraction", func(o *StorageFactoryOptions) { o.ControllerFractions = map[string]float64{"one": 0} }},
 	} {
@@ -336,6 +331,41 @@ func informerStorageTestOptions(t *testing.T) cosmosclient.Options {
 		}
 		return &http.Response{StatusCode: status, Request: req, Header: header, Body: io.NopCloser(strings.NewReader(body))}, nil
 	})
+}
+
+func TestStorageFactoryStartsWithoutManagementClusters(t *testing.T) {
+	options := BackendStorageFactoryOptions(false)
+	var calls []string
+	options.ContainerThroughput = func(container string) (float64, error) {
+		calls = append(calls, container)
+		return 1000, nil
+	}
+	clientOptions := informerStorageTestOptions(t)
+	transport := clientOptions.Transport
+	var registered atomic.Bool
+	clientOptions.Transport = storageTestTransport(func(request *http.Request) (*http.Response, error) {
+		if !registered.Load() && strings.Contains(request.URL.Path, "/colls/Fleet/") {
+			return &http.Response{StatusCode: http.StatusOK, Request: request, Header: http.Header{}, Body: io.NopCloser(strings.NewReader(`{"Documents":[]}`))}, nil
+		}
+		return transport.Do(request)
+	})
+	factory, err := newStorageFactory("https://cosmos.test", "test", clientOptions, options)
+	require.NoError(t, err)
+	require.Equal(t, []string{"Resources", "Billing", "Fleet"}, calls)
+	clients := factory.KubeApplierStorageClients(strings.ToLower(mismatch.MissingResourceIDControllerName))
+	key := unionkubeapplierinformers.ManagementClusterKey{StampIdentifier: "1", ManagementClusterName: "default"}
+	missing, err := clients.For(t.Context(), key.GetResourceID())
+	require.Nil(t, missing)
+	require.ErrorIs(t, err, kubeappliercosmosstorage.ErrManagementClusterNotFound)
+	require.Equal(t, []string{"Resources", "Billing", "Fleet"}, calls)
+	registered.Store(true)
+	client, err := clients.For(t.Context(), key.GetResourceID())
+	require.NoError(t, err)
+	require.NotNil(t, client)
+	cached, err := clients.For(t.Context(), key.GetResourceID())
+	require.NoError(t, err)
+	require.Same(t, client, cached)
+	require.Equal(t, []string{"Resources", "Billing", "Fleet", "KubeApplier-test"}, calls)
 }
 
 func TestBackendKubeApplierInformerSkipsThroughputDiscovery(t *testing.T) {
@@ -587,20 +617,33 @@ func TestStorageFactoryDiscoveredMCBudgets(t *testing.T) {
 
 func TestStorageFactoryInitialDiscoveryFailure(t *testing.T) {
 	for _, container := range []string{"Resources", "Billing", "Fleet"} {
-		t.Run(container, func(t *testing.T) {
-			options := BackendStorageFactoryOptions(false)
-			options.ContainerThroughput = func(name string) (float64, error) {
-				if name == container {
-					return 0, fmt.Errorf("ARM denied")
+		for _, failure := range []string{"error", "zero", "negative"} {
+			t.Run(container+"/"+failure, func(t *testing.T) {
+				options := BackendStorageFactoryOptions(false)
+				var calls []string
+				options.ContainerThroughput = func(name string) (float64, error) {
+					calls = append(calls, name)
+					if name == container {
+						switch failure {
+						case "error":
+							return 0, fmt.Errorf("ARM denied")
+						case "negative":
+							return -1, nil
+						default:
+							return 0, nil
+						}
+					}
+					return 1000, nil
 				}
-				return 1000, nil
-			}
-			_, err := newStorageFactory("https://cosmos.test", "test", storageTestOptions(t, nil), options)
-			require.ErrorContains(t, err, container)
-		})
+				factory, err := newStorageFactory("https://cosmos.test", "test", storageTestOptions(t, nil), options)
+				require.Nil(t, factory)
+				require.ErrorContains(t, err, container)
+				require.Equal(t, container, calls[len(calls)-1])
+			})
+		}
 	}
 	_, err := newStorageFactory("https://cosmos.test", "test", storageTestOptions(t, nil), BackendStorageFactoryOptions(false))
-	require.Error(t, err)
+	require.ErrorContains(t, err, "provider is required")
 }
 
 func TestBackendCleanupDiscoveryFailure(t *testing.T) {
@@ -801,7 +844,6 @@ func TestBackendStorageRegistrations(t *testing.T) {
 func TestBackendInformerStorageIsUnlimited(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		options := BackendStorageFactoryOptions(false)
-		options.ResourcesRUsPerSecond = 1000
 		options.ContainerThroughput = func(string) (float64, error) { return 1000, nil }
 		require.ElementsMatch(t, []string{
 			BackendInformersStorageName,
@@ -823,7 +865,7 @@ func TestBackendInformerStorageIsUnlimited(t *testing.T) {
 			}
 		}
 		// Unlimited informers must not reduce the normal controllers' allocation.
-		budget := options.ResourcesRUsPerSecond * cosmosratelimit.DefaultControllerUtilization /
+		budget := 1000 * cosmosratelimit.DefaultControllerUtilization /
 			float64(len(options.ControllerNames)-len(options.UnlimitedControllerNames))
 		bucket, err := factory.tokenBucket("Resources", strings.ToLower(mismatch.MissingResourceIDControllerName))
 		require.NoError(t, err)
