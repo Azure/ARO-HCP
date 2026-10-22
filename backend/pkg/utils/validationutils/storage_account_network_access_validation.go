@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armpolicy"
 
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
@@ -29,8 +30,10 @@ import (
 
 // knownStorageAccountPublicNetworkAccessDenyPolicyDefinitionID is the resource ID
 // of the built-in Azure Policy "Storage accounts should disable public network
-// access" definition. Its "effect" parameter defaults to "Deny" (allowed values:
-// Audit, Deny, Disabled). See:
+// access" definition. Its "effect" parameter defaults to "Audit" (allowed values:
+// Audit, Deny, Disabled) per the published definition, so an assignment without
+// an explicit override does not actually block Storage Account creation. See:
+// https://github.com/Azure/azure-policy/blob/main/built-in-policies/policyDefinitions/Storage/StoragePublicNetworkAccess_AuditDeny.json
 // https://learn.microsoft.com/en-us/azure/governance/policy/samples/built-in-policies#storage
 const knownStorageAccountPublicNetworkAccessDenyPolicyDefinitionID = "/providers/microsoft.authorization/policydefinitions/b2982f36-99f2-4db5-8eff-283140c09693"
 
@@ -56,9 +59,14 @@ const storageAccountPublicNetworkAccessDenyPolicyEffectParameterName = "effect"
 // This is a best-effort heuristic (Option A: "detect & report", as opposed to
 // Option B: natively supporting private Storage Accounts, tracked separately).
 // It inspects policy assignments effective at the subscription scope (which
-// includes those inherited from parent management groups); it does not evaluate
+// includes those inherited from parent management groups, and excludes
 // assignments scoped only to a specific resource group other than the
-// subscription itself, nor NotScopes/ResourceSelectors exclusions in detail.
+// subscription itself, via the "atScope()" list filter); it skips an assignment
+// whose NotScopes exclude the cluster's managed resource group. It does not
+// evaluate ResourceSelectors in detail: since those can narrow applicability by
+// resource properties this heuristic cannot inspect (location, type, etc.), an
+// assignment with any ResourceSelectors is conservatively treated as not
+// confidently applicable, to avoid a false conflict report.
 type StorageAccountNetworkAccessValidation struct {
 	azureFPAClientBuilder azureclient.FirstPartyApplicationClientBuilder
 }
@@ -91,6 +99,7 @@ func (v *StorageAccountNetworkAccessValidation) Validate(
 	tenantID := *clusterSubscription.Properties.TenantId
 	subscriptionID := cluster.ID.SubscriptionID
 	managedResourceGroup := cluster.CustomerProperties.Platform.ManagedResourceGroup
+	managedResourceGroupID := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s", subscriptionID, managedResourceGroup)
 
 	assignmentsClient, err := v.azureFPAClientBuilder.PolicyAssignmentsClient(tenantID, subscriptionID)
 	if err != nil {
@@ -126,6 +135,9 @@ func (v *StorageAccountNetworkAccessValidation) Validate(
 		if !assignmentIsEnforced(assignment) {
 			continue
 		}
+		if assignmentExcludesManagedResourceGroup(assignment, managedResourceGroupID) {
+			continue
+		}
 
 		blocks, displayName, err := v.assignmentDeniesStorageAccountPublicNetworkAccess(ctx, definitionsClient, assignment)
 		if err != nil {
@@ -157,15 +169,20 @@ func (v *StorageAccountNetworkAccessValidation) Validate(
 	return PassedValidation(coreapi.ControllerConditionReasonAsExpected, internalMsg, internalMsg)
 }
 
-// listSubscriptionPolicyAssignments pages through all policy assignments effective
-// within the cluster's subscription, including those inherited from parent
-// management groups.
+// listSubscriptionPolicyAssignments pages through policy assignments effective
+// at the cluster's subscription scope: assignments directly on the subscription
+// and those inherited from parent management groups. The "atScope()" filter
+// excludes assignments scoped only to a resource group or resource within the
+// subscription other than the subscription itself, which cannot apply beyond
+// their own scope and so are irrelevant to this subscription-wide check.
 func (v *StorageAccountNetworkAccessValidation) listSubscriptionPolicyAssignments(
 	ctx context.Context, assignmentsClient azureclient.PolicyAssignmentsClient,
 ) ([]*armpolicy.Assignment, error) {
 	var assignments []*armpolicy.Assignment
 
-	pager := assignmentsClient.NewListPager(nil)
+	pager := assignmentsClient.NewListPager(&armpolicy.AssignmentsClientListOptions{
+		Filter: to.Ptr("atScope()"),
+	})
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
@@ -188,6 +205,40 @@ func assignmentIsEnforced(assignment *armpolicy.Assignment) bool {
 	return mode == nil || *mode == armpolicy.EnforcementModeDefault
 }
 
+// assignmentExcludesManagedResourceGroup reports whether a policy assignment's
+// exclusions mean it should not be treated as applying to resourceGroupID (the
+// cluster's managed resource group):
+//
+//   - NotScopes: true if any entry is resourceGroupID itself, or an ancestor
+//     scope of it (e.g. the subscription or a containing management group),
+//     since excluding an ancestor scope excludes everything beneath it. A
+//     NotScopes entry scoped to a sibling or a specific resource within the
+//     managed resource group does not exclude the resource group as a whole,
+//     so it is not treated as an exclusion here.
+//   - ResourceSelectors: true if any are present, since they filter by
+//     resource properties (location, type, etc.) this heuristic cannot
+//     evaluate without per-resource data. Treating their presence as "cannot
+//     confirm applicability" avoids reporting a false Storage Account policy
+//     conflict.
+func assignmentExcludesManagedResourceGroup(assignment *armpolicy.Assignment, resourceGroupID string) bool {
+	if assignment == nil || assignment.Properties == nil {
+		return false
+	}
+
+	lowerResourceGroupID := strings.ToLower(resourceGroupID)
+	for _, notScope := range assignment.Properties.NotScopes {
+		if notScope == nil || *notScope == "" {
+			continue
+		}
+		lowerNotScope := strings.ToLower(*notScope)
+		if lowerNotScope == lowerResourceGroupID || strings.HasPrefix(lowerResourceGroupID, lowerNotScope+"/") {
+			return true
+		}
+	}
+
+	return len(assignment.Properties.ResourceSelectors) > 0
+}
+
 // assignmentDeniesStorageAccountPublicNetworkAccess reports whether the given
 // policy assignment, as enforced, denies Storage Accounts from having public
 // network access enabled. It returns a human-readable display name/identifier
@@ -207,8 +258,9 @@ func (v *StorageAccountNetworkAccessValidation) assignmentDeniesStorageAccountPu
 	if strings.EqualFold(definitionID, knownStorageAccountPublicNetworkAccessDenyPolicyDefinitionID) {
 		effect := assignedEffect
 		if effect == "" {
-			// The built-in policy's "effect" parameter defaults to "Deny" when not overridden.
-			effect = "Deny"
+			// The built-in policy's "effect" parameter defaults to "Audit" when not
+			// overridden, which does not block resource creation.
+			effect = "Audit"
 		}
 		return strings.EqualFold(effect, "Deny"), displayName, nil
 	}

@@ -26,6 +26,7 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armpolicy"
 
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
@@ -108,9 +109,17 @@ func TestStorageAccountNetworkAccessValidation_Validate(t *testing.T) {
 			wantOutcome: OutcomeTypePassed,
 		},
 		{
-			name: "built-in deny policy with default effect returns failed",
+			name: "built-in policy with default effect (Audit) returns passed",
 			assignments: []*armpolicy.Assignment{
-				makeTestPolicyAssignment("deny-public-storage", knownStorageAccountPublicNetworkAccessDenyPolicyDefinitionID, nil, nil),
+				makeTestPolicyAssignment("default-effect-public-storage", knownStorageAccountPublicNetworkAccessDenyPolicyDefinitionID, nil, nil),
+			},
+			wantOutcome: OutcomeTypePassed,
+		},
+		{
+			name: "built-in policy explicitly overridden to Deny returns failed",
+			assignments: []*armpolicy.Assignment{
+				makeTestPolicyAssignment("deny-public-storage", knownStorageAccountPublicNetworkAccessDenyPolicyDefinitionID, nil,
+					map[string]*armpolicy.ParameterValuesValue{"effect": {Value: "Deny"}}),
 			},
 			wantOutcome:          OutcomeTypeFailed,
 			wantInternalContains: "deny-public-storage",
@@ -120,6 +129,67 @@ func TestStorageAccountNetworkAccessValidation_Validate(t *testing.T) {
 			assignments: []*armpolicy.Assignment{
 				makeTestPolicyAssignment("audit-public-storage", knownStorageAccountPublicNetworkAccessDenyPolicyDefinitionID, nil,
 					map[string]*armpolicy.ParameterValuesValue{"effect": {Value: "Audit"}}),
+			},
+			wantOutcome: OutcomeTypePassed,
+		},
+		{
+			name: "built-in deny policy excluding the managed resource group via NotScopes returns passed",
+			assignments: []*armpolicy.Assignment{
+				{
+					Name: ptr.To("deny-public-storage-excluded"),
+					Properties: &armpolicy.AssignmentProperties{
+						DisplayName:        ptr.To("deny-public-storage-excluded"),
+						PolicyDefinitionID: ptr.To(knownStorageAccountPublicNetworkAccessDenyPolicyDefinitionID),
+						Parameters:         map[string]*armpolicy.ParameterValuesValue{"effect": {Value: "Deny"}},
+						NotScopes:          []*string{ptr.To("/subscriptions/" + testSubscriptionID + "/resourceGroups/" + testManagedRG)},
+					},
+				},
+			},
+			wantOutcome: OutcomeTypePassed,
+		},
+		{
+			name: "built-in deny policy excluding an unrelated resource group still returns failed",
+			assignments: []*armpolicy.Assignment{
+				{
+					Name: ptr.To("deny-public-storage-unrelated-exclusion"),
+					Properties: &armpolicy.AssignmentProperties{
+						DisplayName:        ptr.To("deny-public-storage-unrelated-exclusion"),
+						PolicyDefinitionID: ptr.To(knownStorageAccountPublicNetworkAccessDenyPolicyDefinitionID),
+						Parameters:         map[string]*armpolicy.ParameterValuesValue{"effect": {Value: "Deny"}},
+						NotScopes:          []*string{ptr.To("/subscriptions/" + testSubscriptionID + "/resourceGroups/some-other-rg")},
+					},
+				},
+			},
+			wantOutcome:          OutcomeTypeFailed,
+			wantInternalContains: "deny-public-storage-unrelated-exclusion",
+		},
+		{
+			name: "built-in deny policy excluding the ancestor subscription via NotScopes returns passed",
+			assignments: []*armpolicy.Assignment{
+				{
+					Name: ptr.To("deny-public-storage-sub-excluded"),
+					Properties: &armpolicy.AssignmentProperties{
+						DisplayName:        ptr.To("deny-public-storage-sub-excluded"),
+						PolicyDefinitionID: ptr.To(knownStorageAccountPublicNetworkAccessDenyPolicyDefinitionID),
+						Parameters:         map[string]*armpolicy.ParameterValuesValue{"effect": {Value: "Deny"}},
+						NotScopes:          []*string{ptr.To("/subscriptions/" + testSubscriptionID)},
+					},
+				},
+			},
+			wantOutcome: OutcomeTypePassed,
+		},
+		{
+			name: "built-in deny policy with resource selectors returns passed (applicability cannot be confirmed)",
+			assignments: []*armpolicy.Assignment{
+				{
+					Name: ptr.To("deny-public-storage-with-selectors"),
+					Properties: &armpolicy.AssignmentProperties{
+						DisplayName:        ptr.To("deny-public-storage-with-selectors"),
+						PolicyDefinitionID: ptr.To(knownStorageAccountPublicNetworkAccessDenyPolicyDefinitionID),
+						Parameters:         map[string]*armpolicy.ParameterValuesValue{"effect": {Value: "Deny"}},
+						ResourceSelectors:  []*armpolicy.ResourceSelector{{Name: ptr.To("selector1")}},
+					},
+				},
 			},
 			wantOutcome: OutcomeTypePassed,
 		},
@@ -187,7 +257,8 @@ func TestStorageAccountNetworkAccessValidation_Validate(t *testing.T) {
 			ctrl := gomock.NewController(t)
 
 			assignmentsClient := azureclient.NewMockPolicyAssignmentsClient(ctrl)
-			assignmentsClient.EXPECT().NewListPager(nil).
+			assignmentsClient.EXPECT().
+				NewListPager(&armpolicy.AssignmentsClientListOptions{Filter: to.Ptr("atScope()")}).
 				Return(newTestPolicyAssignmentListPager(tt.assignments, tt.assignmentsErr))
 
 			definitionsClient := azureclient.NewMockPolicyDefinitionsClient(ctrl)
