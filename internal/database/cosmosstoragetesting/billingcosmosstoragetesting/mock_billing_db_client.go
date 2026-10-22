@@ -226,6 +226,10 @@ func (m *mockBillingDocCRUD) PatchByID(ctx context.Context, billingDocID string,
 			return fmt.Errorf("unsupported mock billing patch operation %q", operation.Op)
 		}
 		switch operation.Path {
+		case "/orphanedSince":
+			if err := json.Unmarshal(operation.Value, &updated.OrphanedSince); err != nil {
+				return err
+			}
 		case "/deletionTime":
 			var cutoff time.Time
 			if err := json.Unmarshal(operation.Value, &cutoff); err != nil {

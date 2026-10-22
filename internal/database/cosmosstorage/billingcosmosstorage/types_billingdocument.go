@@ -37,6 +37,10 @@ type BillingDocument struct {
 	CreationTime time.Time `json:"creationTime,omitempty"`
 	// The cluster deletion time
 	DeletionTime *time.Time `json:"deletionTime,omitempty"`
+	// OrphanedSince is the first observation of an unreferenced billing record,
+	// not the cluster's deletion time. Nil cancels a previous orphan candidacy.
+	// Written by: OrphanedBillingCleanup
+	OrphanedSince *time.Time `json:"orphanedSince,omitempty"`
 
 	// LastBillingTimeOfVMEvent is the compute event batch-processing watermark.
 	// Nil means no watermark has been persisted yet.
@@ -79,6 +83,12 @@ type BillingDocumentPatchOperations struct {
 func (p *BillingDocumentPatchOperations) SetDeletionTime(deletionTime time.Time) {
 	p.AppendSet("/deletionTime", deletionTime)
 	// The first recorded cutoff must survive concurrent cleanup and retries.
+	p.SetCondition("FROM c WHERE NOT IS_DEFINED(c.deletionTime) OR IS_NULL(c.deletionTime)")
+}
+
+// SetOrphanedSince records or clears candidacy without changing the billing cutoff.
+func (p *BillingDocumentPatchOperations) SetOrphanedSince(observedAt *time.Time) {
+	p.AppendSet("/orphanedSince", observedAt)
 	p.SetCondition("FROM c WHERE NOT IS_DEFINED(c.deletionTime) OR IS_NULL(c.deletionTime)")
 }
 
@@ -136,6 +146,10 @@ func (in *BillingDocument) DeepCopy() *BillingDocument {
 	if in.LastBillingTimeOfVMEvent != nil {
 		out.LastBillingTimeOfVMEvent = new(time.Time)
 		*out.LastBillingTimeOfVMEvent = *in.LastBillingTimeOfVMEvent
+	}
+	if in.OrphanedSince != nil {
+		out.OrphanedSince = new(time.Time)
+		*out.OrphanedSince = *in.OrphanedSince
 	}
 
 	if in.LastBillingTimeOfMngtEvent != nil {
