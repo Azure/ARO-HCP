@@ -328,11 +328,11 @@ frontend:
     billingContainerMaxScale: 4000
     disableLocalAuth: true
     enableBurstCapacity: true
-    fleetContainerMaxScale: 8000
+    fleetContainerMaxScale: 4000
     locksContainerMaxScale: 4000
     name: arohcpci00-rp-j7654321
     private: false
-    resourceContainerMaxScale: 19000
+    resourceContainerMaxScale: 38000
     zoneRedundantMode: Disabled
   exitOnPanic: true
   image:
