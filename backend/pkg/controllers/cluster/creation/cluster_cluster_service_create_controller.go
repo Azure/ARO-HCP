@@ -24,7 +24,6 @@ import (
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/roleassignments"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
@@ -46,7 +45,6 @@ type clusterClusterServiceCreateSyncer struct {
 	managementClusterLister      fleetlisters.ManagementClusterLister
 	clustersServiceClient        ocm.ClusterServiceClientSpec
 	hasRealFPA                   bool
-	mockFPAPrincipalID           string
 }
 
 var _ controllerutils.ClusterSyncer = (*clusterClusterServiceCreateSyncer)(nil)
@@ -59,7 +57,6 @@ func NewClusterClusterServiceCreateController(
 	managementClusterLister fleetlisters.ManagementClusterLister,
 	backendInformers coreinformers.BackendInformers,
 	hasRealFPA bool,
-	mockFPAPrincipalID string,
 ) controllerutils.Controller {
 	_, clusterLister := backendInformers.Clusters()
 	_, serviceProviderClusterLister := backendInformers.ServiceProviderClusters()
@@ -72,7 +69,6 @@ func NewClusterClusterServiceCreateController(
 		managementClusterLister:      managementClusterLister,
 		clustersServiceClient:        clustersServiceClient,
 		hasRealFPA:                   hasRealFPA,
-		mockFPAPrincipalID:           mockFPAPrincipalID,
 	}
 
 	controller := controllerutils.NewClusterWatchingController(
@@ -170,7 +166,8 @@ func (c *clusterClusterServiceCreateSyncer) SyncOnce(ctx context.Context, key co
 		return nil
 	}
 
-	if !c.hasRealFPA && !roleassignments.MockFPARoleAssignmentReady(cluster, existingServiceProviderCluster, c.mockFPAPrincipalID) {
+	mockFPAAssignment := existingServiceProviderCluster.Status.AzureResources.MockFPARoleAssignment
+	if !c.hasRealFPA && (mockFPAAssignment.AzureResource == nil || mockFPAAssignment.PendingAzureResource != nil) {
 		logger.Info("Mock FPA Owner assignment not yet confirmed, waiting for reconciliation")
 		return nil
 	}

@@ -125,7 +125,7 @@ func TestMockFPARoleAssignmentInvalidScopeClearsReadiness(t *testing.T) {
 			expectedID, err := mockFPARoleAssignmentID(cluster, testMockFPAPrincipalID)
 			require.NoError(t, err)
 			spc.Status.AzureResources.MockFPARoleAssignment.AzureResource = expectedID
-			deadline := metav1.NewTime(testFixedNow().Add(time.Hour))
+			deadline := metav1.NewTime(testFixedNow())
 			spc.Spec.EarliestRecheckTimesByController = map[string]*metav1.Time{MockFPARoleAssignmentControllerName: &deadline}
 			cluster.CustomerProperties.Platform.ManagedResourceGroup = name
 			database, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, spc})
@@ -141,7 +141,7 @@ func TestMockFPARoleAssignmentInvalidScopeClearsReadiness(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, coreapi.AzureReference{}, stored.Status.AzureResources.MockFPARoleAssignment)
 			require.Nil(t, stored.Spec.EarliestRecheckTimesByController[MockFPARoleAssignmentControllerName])
-			require.False(t, MockFPARoleAssignmentReady(cluster, stored, testMockFPAPrincipalID))
+			require.True(t, syncer.needsWork(stored))
 			require.Equal(t, spc.Status.AzureResources.ManagedResourceGroup, stored.Status.AzureResources.ManagedResourceGroup)
 		})
 	}
@@ -170,18 +170,53 @@ func TestMockFPARoleAssignmentIDMatchesPublicCSRequest(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, expectedScope, assignmentID.Parent.String())
 				require.Equal(t, roleassignment.ManagedResourceGroupScopedRoleAssignmentResourceID(expectedScope, testMockFPAPrincipalID, mockFPAOwnerRoleDefinitionID), assignmentID.String())
-				spc.Status.AzureResources.MockFPARoleAssignment.AzureResource = assignmentID
-				deadline := metav1.NewTime(testFixedNow().Add(time.Hour))
-				spc.Spec.EarliestRecheckTimesByController = map[string]*metav1.Time{MockFPARoleAssignmentControllerName: &deadline}
-				require.True(t, MockFPARoleAssignmentReady(cluster, spc, testMockFPAPrincipalID))
 				if managedResourceGroupName != strings.ToLower(managedResourceGroupName) {
 					oldScope := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s", request.Azure().SubscriptionID(), strings.ToLower(managedResourceGroupName))
 					oldID, parseErr := azcorearm.ParseResourceID(roleassignment.ManagedResourceGroupScopedRoleAssignmentResourceID(oldScope, testMockFPAPrincipalID, mockFPAOwnerRoleDefinitionID))
 					require.NoError(t, parseErr)
 					require.NotEqual(t, assignmentID.Name, oldID.Name)
-					spc.Status.AzureResources.MockFPARoleAssignment.AzureResource = oldID
-					require.False(t, MockFPARoleAssignmentReady(cluster, spc, testMockFPAPrincipalID))
 				}
+			})
+		}
+	}
+}
+
+func TestMockFPARoleAssignmentNeedsWork(t *testing.T) {
+	assignmentID, err := mockFPARoleAssignmentID(newTestCluster(false), testMockFPAPrincipalID)
+	require.NoError(t, err)
+	for _, state := range []struct {
+		name               string
+		confirmed, pending bool
+	}{
+		{name: "absent"},
+		{name: "pending only", pending: true},
+		{name: "confirmed only", confirmed: true},
+		{name: "confirmed and pending", confirmed: true, pending: true},
+	} {
+		for _, deadline := range []struct {
+			name    string
+			recheck *time.Duration
+		}{
+			{name: "missing"},
+			{name: "past", recheck: ptr.To(-time.Minute)},
+			{name: "now", recheck: ptr.To(time.Duration(0))},
+			{name: "future", recheck: ptr.To(time.Hour)},
+		} {
+			t.Run(state.name+"/"+deadline.name, func(t *testing.T) {
+				spc := &coreapi.ServiceProviderCluster{}
+				if state.confirmed {
+					spc.Status.AzureResources.MockFPARoleAssignment.AzureResource = assignmentID
+				}
+				if state.pending {
+					spc.Status.AzureResources.MockFPARoleAssignment.PendingAzureResource = assignmentID
+				}
+				if deadline.recheck != nil {
+					recheck := metav1.NewTime(testFixedNow().Add(*deadline.recheck))
+					spc.Spec.EarliestRecheckTimesByController = map[string]*metav1.Time{MockFPARoleAssignmentControllerName: &recheck}
+				}
+				syncer := &mockFPARoleAssignmentSyncer{clock: clocktesting.NewFakeClock(testFixedNow())}
+				wantWork := !state.confirmed || state.pending || deadline.recheck == nil || *deadline.recheck <= 0
+				require.Equal(t, wantWork, syncer.needsWork(spc))
 			})
 		}
 	}
@@ -199,6 +234,7 @@ func TestMockFPARoleAssignmentSyncOnce(t *testing.T) {
 		mutateProperties                                                            func(*armauthorization.RoleAssignmentProperties)
 		confirmationConflict                                                        bool
 		managedResourceGroupName                                                    string
+		principalChanged                                                            bool
 	}{
 		{name: "existing managed group without tracking", noMRG: true, create: true},
 		{name: "existing managed group with pending tracking", pendingMRG: true, create: true},
@@ -230,6 +266,8 @@ func TestMockFPARoleAssignmentSyncOnce(t *testing.T) {
 		{name: "expired recheck", confirmed: true, recheck: ptr.To(-time.Minute)},
 		{name: "equal recheck", confirmed: true, recheck: ptr.To(time.Duration(0))},
 		{name: "future recheck skips", confirmed: true, recheck: ptr.To(time.Hour), skip: true},
+		{name: "last confirmation survives principal config change until recheck", confirmed: true, principalChanged: true, recheck: ptr.To(time.Hour), skip: true},
+		{name: "principal config change reconciles when due", confirmed: true, principalChanged: true, recheck: ptr.To(time.Duration(0))},
 		{name: "deleting respects future recheck", confirmed: true, deleting: true, recheck: ptr.To(time.Hour), skip: true},
 		{name: "incomplete ignores future recheck", recheck: ptr.To(time.Hour)},
 		{name: "get failure", getError: errors.New("read failed"), wantError: true},
@@ -269,6 +307,11 @@ func TestMockFPARoleAssignmentSyncOnce(t *testing.T) {
 			spc.Spec.EarliestRecheckTimesByController = map[string]*metav1.Time{"another-controller": &otherRecheck}
 			if testCase.confirmed {
 				spc.Status.AzureResources.MockFPARoleAssignment.AzureResource = expectedID
+				if testCase.principalChanged {
+					previousID, parseErr := mockFPARoleAssignmentID(cluster, "previous-principal")
+					require.NoError(t, parseErr)
+					spc.Status.AzureResources.MockFPARoleAssignment.AzureResource = previousID
+				}
 			}
 			if testCase.recheck != nil {
 				recheck := metav1.NewTime(testFixedNow().Add(*testCase.recheck))
@@ -374,13 +417,13 @@ func TestMockFPARoleAssignmentSyncOnce(t *testing.T) {
 			if testCase.skip {
 				require.Equal(t, spc.Status, stored.Status)
 				if testCase.dbConflict {
-					require.False(t, MockFPARoleAssignmentReady(cluster, stored, testMockFPAPrincipalID))
+					require.Nil(t, stored.Status.AzureResources.MockFPARoleAssignment.AzureResource)
 				}
 				return
 			}
 			if testCase.wantError || testCase.create || rgBlocked || testCase.confirmationConflict {
 				require.Nil(t, stored.Spec.EarliestRecheckTimesByController[MockFPARoleAssignmentControllerName])
-				require.False(t, MockFPARoleAssignmentReady(cluster, stored, testMockFPAPrincipalID))
+				require.True(t, syncer.needsWork(stored))
 				require.Nil(t, stored.Status.AzureResources.MockFPARoleAssignment.AzureResource)
 				require.NotNil(t, stored.Status.AzureResources.MockFPARoleAssignment.PendingAzureResource)
 			}
@@ -393,11 +436,9 @@ func TestMockFPARoleAssignmentSyncOnce(t *testing.T) {
 				stored, err = database.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
 				require.NoError(t, err)
 			}
-			require.True(t, MockFPARoleAssignmentReady(cluster, stored, testMockFPAPrincipalID))
-			require.False(t, MockFPARoleAssignmentReady(cluster, stored, "another-principal"))
-			otherCluster := cluster.DeepCopy()
-			otherCluster.CustomerProperties.Platform.ManagedResourceGroup = "another-group"
-			require.False(t, MockFPARoleAssignmentReady(otherCluster, stored, testMockFPAPrincipalID))
+			require.Equal(t, expectedID, stored.Status.AzureResources.MockFPARoleAssignment.AzureResource)
+			require.Nil(t, stored.Status.AzureResources.MockFPARoleAssignment.PendingAzureResource)
+			require.False(t, syncer.needsWork(stored))
 			recheck := stored.Spec.EarliestRecheckTimesByController[MockFPARoleAssignmentControllerName]
 			require.GreaterOrEqual(t, recheck.Sub(testFixedNow()), 6*time.Hour)
 			require.Less(t, recheck.Sub(testFixedNow()), 9*time.Hour)
