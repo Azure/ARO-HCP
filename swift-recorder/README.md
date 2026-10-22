@@ -41,8 +41,7 @@ build, push, record the actual digest, and deploy to a personal environment:
 make -C swift-recorder deploy DEPLOY_ENV=pers
 ```
 
-See the deployment guide for [image selection](../docs/swift-recorder-deployment.md#ci-image-bootstrap),
-[dedicated image onboarding](../docs/swift-recorder-deployment.md#stage-2-dedicated-image-onboarding),
+See the deployment guide for [image selection](../docs/swift-recorder-deployment.md#images)
 and [removal](../docs/swift-recorder-deployment.md#rollout-checks).
 Skipping deployment does not uninstall an existing release. This workload has
 powerful namespace, runtime-socket, and CA signing-key access; it is not unprivileged.

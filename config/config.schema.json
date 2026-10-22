@@ -1612,10 +1612,6 @@
           "type": "boolean",
           "description": "Enabled by default in every environment. Disabled pipelines skip image mirroring and deployment, but do not uninstall an existing release."
         },
-        "useMgmtAgentImage": {
-          "type": "boolean",
-          "description": "Temporary ci00/ci01 bootstrap: use the resolved mgmt-agent image containing /swift-recorder. Remove after dedicated image onboarding."
-        },
         "captureMode": {
           "type": "string",
           "enum": ["slow", "all"]
@@ -1628,7 +1624,7 @@
         }
       },
       "additionalProperties": false,
-      "required": ["enabled", "useMgmtAgentImage", "captureMode", "image", "k8s"]
+      "required": ["enabled", "captureMode", "image", "k8s"]
     },
     "kubeApplier": {
       "type": "object",
@@ -2552,9 +2548,6 @@
             }
           },
           "required": ["connectSocket"]
-        },
-        "image": {
-          "$ref": "#/definitions/containerImageOptionalDigest"
         },
         "imageV2": {
           "$ref": "#/definitions/containerImageOptionalDigest"
