@@ -188,6 +188,10 @@ func (c *clusterValidationSyncer) SyncOnce(ctx context.Context, key controllerut
 	} else {
 		previousCondition := meta.FindStatusCondition(existingServiceProviderCluster.Status.Validations, c.validation.Name())
 		desiredCondition := result.ToCondition(c.validation.Name())
+		// A transient role-assignment lookup failure must not end an established
+		// propagation deferral: keep the Pending reason while its evidence can still
+		// be valid, so the operations controller keeps holding the operation open.
+		desiredCondition = validationutils.PreservePropagationDeferral(previousCondition, desiredCondition, time.Now())
 
 		consecutiveUnknowns := c.trackConsecutiveUnknowns(key, desiredCondition)
 		if c.shouldWriteCondition(previousCondition, consecutiveUnknowns) {

@@ -23,6 +23,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/component-base/metrics/legacyregistry"
 	utilsclock "k8s.io/utils/clock"
 	"k8s.io/utils/ptr"
@@ -57,6 +58,11 @@ const roleAssignmentPropagationRetryAfter = 30 * time.Second
 // MissingRequiredPermissions reason so that the two cases are separable in conditions, logs and
 // support escalations, even though both are terminal failures on the same schedule.
 const missingPermissionsPendingPropagationReason = "RoleAssignmentPropagationPending"
+
+// propagationCheckFailedReason is the Unknown reason reported when the role-assignment
+// lookup itself failed (throttling, connection resets, ARM 5xx) while checking for
+// propagation delay, so propagation could be neither confirmed nor ruled out.
+const propagationCheckFailedReason = "RoleAssignmentPropagationCheckFailed"
 
 var (
 	// roleAssignmentPropagationDetections counts permission validation runs whose missing
@@ -355,7 +361,7 @@ func failureWithPropagationGuidance(ctx context.Context, detector *RoleAssignmen
 		// determine whether propagation explains the failure, so report Unknown rather
 		// than potentially failing an operation whose only problem is a slow ARM call.
 		return UnknownValidation(
-			"RoleAssignmentPropagationCheckFailed",
+			propagationCheckFailedReason,
 			fmt.Sprintf("%s. Unable to verify whether recently created role assignments explain the missing permissions (lookup error). The operation will be retried.", missingPermissionsMessage),
 			fmt.Sprintf("%s; role assignment lookup failed: %v", missingPermissionsMessage, err),
 			ControllerReportingPolicyTypeLogOnly,
@@ -387,6 +393,32 @@ func failureWithPropagationGuidance(ctx context.Context, detector *RoleAssignmen
 	// operation's overall budget resolves on its own without customer intervention.
 	result.EarliestRetryAfter = ptr.To(roleAssignmentPropagationRetryAfter)
 	return result, true
+}
+
+// PreservePropagationDeferral keeps an established propagation deferral intact across a
+// transient lookup failure. The operations controller holds an operation open only while
+// its validation condition carries the RoleAssignmentPropagationPending reason; a single
+// ARM 5xx during the lookup would otherwise flip the reason to
+// RoleAssignmentPropagationCheckFailed, and because meta.SetStatusCondition does not
+// refresh LastTransitionTime for a reason-only change, an old condition would terminally
+// fail the operation on the next reconciliation. While the stored deferral is younger
+// than the propagation window — past which its evidence cannot still be valid — a
+// CheckFailed result therefore keeps the Pending reason and only contributes its message.
+// Past the window the CheckFailed reason is written as-is, so a persistent lookup failure
+// still fails the operation on the usual schedule instead of deferring indefinitely.
+func PreservePropagationDeferral(previousCondition *metav1.Condition, desired metav1.Condition, now time.Time) metav1.Condition {
+	if previousCondition == nil ||
+		previousCondition.Status != metav1.ConditionUnknown ||
+		previousCondition.Reason != missingPermissionsPendingPropagationReason ||
+		desired.Status != metav1.ConditionUnknown ||
+		desired.Reason != propagationCheckFailedReason {
+		return desired
+	}
+	if now.Sub(previousCondition.LastTransitionTime.Time) > DefaultRoleAssignmentPropagationWindow {
+		return desired
+	}
+	desired.Reason = missingPermissionsPendingPropagationReason
+	return desired
 }
 
 // recordPropagationCheckFailure records that the missing permissions could not be checked for
