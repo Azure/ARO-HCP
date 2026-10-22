@@ -78,19 +78,19 @@ func (account *Account) Discover(ctx context.Context) (endpoint, database string
 		return "", "", fmt.Errorf("get Cosmos account %s: %w", account.id, err)
 	}
 	if response.Properties == nil || response.Properties.DocumentEndpoint == nil {
-		return "", "", fmt.Errorf("Cosmos account %s has no document endpoint", account.id)
+		return "", "", fmt.Errorf("cosmos account %s has no document endpoint", account.id)
 	}
 	endpoint = *response.Properties.DocumentEndpoint
 	parsed, err := url.Parse(endpoint)
 	if err != nil || parsed.Scheme != "https" || parsed.Host == "" || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" {
-		return "", "", fmt.Errorf("Cosmos account %s has an invalid document endpoint", account.id)
+		return "", "", fmt.Errorf("cosmos account %s has an invalid document endpoint", account.id)
 	}
 	result, err := account.sql.GetSQLDatabase(ctx, account.id.ResourceGroupName, account.id.Name, account.id.Name, nil)
 	if err != nil {
 		return "", "", fmt.Errorf("get Cosmos database %s (must match account name): %w", account.id.Name, err)
 	}
 	if result.Properties == nil || result.Properties.Resource == nil || result.Properties.Resource.ID == nil || *result.Properties.Resource.ID != account.id.Name {
-		return "", "", fmt.Errorf("Cosmos database must match account name %q", account.id.Name)
+		return "", "", fmt.Errorf("cosmos database must match account name %q", account.id.Name)
 	}
 	return endpoint, *result.Properties.Resource.ID, nil
 }
@@ -112,5 +112,5 @@ func (account *Account) ContainerThroughput(ctx context.Context, container strin
 			return float64(*throughput), nil
 		}
 	}
-	return 0, fmt.Errorf("Cosmos container %q has no positive configured throughput", container)
+	return 0, fmt.Errorf("cosmos container %q has no positive configured throughput", container)
 }
