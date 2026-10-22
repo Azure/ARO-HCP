@@ -43,9 +43,11 @@ _output/values.yaml: $(TEMPLATIZE) deploy/values.yaml.tmpl $(DEV_CI_CONFIG_FILE)
 		--input deploy/values.yaml.tmpl \
 		--output $@
 
-_output/config.yaml: _output/values.yaml deploy/templates/configmap.yaml deploy/templates/_helpers.tpl
-	helm template tenant-quota deploy --kube-version 1.30.0 -f _output/values.yaml --show-only templates/configmap.yaml \
-		| $(YQ) '.data."config.yaml"' > $@
+_output/config.yaml: $(HELM) $(YQ) _output/values.yaml deploy/templates/configmap.yaml deploy/templates/_helpers.tpl
+	set -o pipefail; \
+	$(HELM) template tenant-quota deploy --kube-version 1.30.0 -f _output/values.yaml --show-only templates/configmap.yaml \
+		| $(YQ) '.data."config.yaml"' > $@.tmp
+	mv $@.tmp $@
 
 render-config: _output/config.yaml
 .PHONY: render-config

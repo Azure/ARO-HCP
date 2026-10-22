@@ -243,3 +243,31 @@ func expectedTenants(testConfig map[string]any) []any {
 		tenant("testTestAro", []any{map[string]any{"name": other["subscriptionName"], "regions": regionList(other["regions"].(string))}}),
 	}
 }
+
+func TestTenantQuotaSchemaRejectsAmbiguousSubscriptionNames(t *testing.T) {
+	provider, err := config.NewConfigProvider("../../../config/config-dev-ci.yaml")
+	require.NoError(t, err)
+	resolver, err := provider.GetResolver(&config.ConfigReplacements{
+		CloudReplacement: "dev", EnvironmentReplacement: "dev-ci", RegionReplacement: "westus3",
+		RegionShortReplacement: "usw3", StampReplacement: "1",
+	})
+	require.NoError(t, err)
+	cfg, err := resolver.GetRegionConfiguration("westus3")
+	require.NoError(t, err)
+	resolved, err := yaml.Marshal(cfg)
+	require.NoError(t, err)
+	validate := func(csv string) error {
+		var testConfig map[string]any
+		require.NoError(t, yaml.Unmarshal(resolved, &testConfig))
+		testConfig["ci"].(map[string]any)["int"].(map[string]any)["e2eSubscriptions"] = csv
+		return resolver.ValidateSchema(map[string]any{
+			"clouds": map[string]any{"dev": map[string]any{"defaults": testConfig}},
+		})
+	}
+	require.NoError(t, validate("64f0619f-ebc2-4156-9d91-c4c781de7e54=Name - With (Punctuation)"))
+	for _, csv := range []string{"id=Engineering=Canary", "id=a,id2=b=c"} {
+		err := validate(csv)
+		require.Error(t, err, csv)
+		require.ErrorContains(t, err, "e2eSubscriptions")
+	}
+}
