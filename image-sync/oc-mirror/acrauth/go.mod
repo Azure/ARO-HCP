@@ -1,6 +1,6 @@
 module github.com/Azure/ARO-HCP/tooling/acrauth
 
-go 1.25.7
+go 1.26.10
 
 require github.com/Azure/ARO-Tools/tools/acrauth v0.0.0-20260904180154-466f2f384637
 
