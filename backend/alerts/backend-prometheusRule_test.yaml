@@ -113,6 +113,8 @@ tests:
   input_series:
   - series: workqueue_depth{name="clustervalidationcontrolplaneidentitiespermissionsclustervalidation",namespace="aro-hcp",cluster="mock",pod="backend-0",prometheus_replica="a"}
     values: 15x100
+  - series: workqueue_depth{name="clustervalidationservicemanagedidentitypermissionsclustervalidation",namespace="aro-hcp",cluster="mock",pod="backend-0",prometheus_replica="a"}
+    values: 15x100
   - series: workqueue_depth{name="clustervalidationdataplaneidentitiespermissionsvalidation",namespace="aro-hcp",cluster="mock",pod="backend-0",prometheus_replica="a"}
     values: 15x100
   - series: workqueue_depth{name="clustervalidationcontainerregistrypullcredentialspermissionvalidation",namespace="aro-hcp",cluster="mock",pod="backend-0",prometheus_replica="a"}
@@ -146,6 +148,15 @@ tests:
         summary: Backend controller workqueue clustervalidationcontrolplaneidentitiespermissionsclustervalidation depth is high
     - exp_labels:
         component: backend
+        name: clustervalidationservicemanagedidentitypermissionsclustervalidation
+        cluster: mock
+        severity: warning
+      exp_annotations:
+        description: Backend controller workqueue clustervalidationservicemanagedidentitypermissionsclustervalidation has had a depth > 10 for more than 90 minutes. Insecure mock managed identities are enabled; CheckAccessV2 throughput is limited by CheckAccessV2InsecureARMPermissionsManagerRateLimiterQPS = 4.5.
+        runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/alerts.md#backend-queue-depth-thresholds'
+        summary: Backend controller workqueue clustervalidationservicemanagedidentitypermissionsclustervalidation depth is high
+    - exp_labels:
+        component: backend
         name: clustervalidationdataplaneidentitiespermissionsvalidation
         cluster: mock
         severity: warning
@@ -166,6 +177,8 @@ tests:
   interval: 1m
   input_series:
   - series: workqueue_depth{name="clustervalidationcontrolplaneidentitiespermissionsclustervalidation",namespace="aro-hcp",cluster="mock"}
+    values: 15x100
+  - series: workqueue_depth{name="clustervalidationservicemanagedidentitypermissionsclustervalidation",namespace="aro-hcp",cluster="mock"}
     values: 15x100
   - series: workqueue_depth{name="clustervalidationdataplaneidentitiespermissionsvalidation",namespace="aro-hcp",cluster="mock"}
     values: 15x100
@@ -189,6 +202,15 @@ tests:
         description: Backend controller workqueue clustervalidationcontrolplaneidentitiespermissionsclustervalidation has had a depth > 10 for more than 15 minutes, indicating work is accumulating faster than it can be processed.
         runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/alerts.md#backend-queue-depth-thresholds'
         summary: Backend controller workqueue clustervalidationcontrolplaneidentitiespermissionsclustervalidation depth is high
+    - exp_labels:
+        component: backend
+        name: clustervalidationservicemanagedidentitypermissionsclustervalidation
+        cluster: mock
+        severity: warning
+      exp_annotations:
+        description: Backend controller workqueue clustervalidationservicemanagedidentitypermissionsclustervalidation has had a depth > 10 for more than 15 minutes, indicating work is accumulating faster than it can be processed.
+        runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/alerts.md#backend-queue-depth-thresholds'
+        summary: Backend controller workqueue clustervalidationservicemanagedidentitypermissionsclustervalidation depth is high
     - exp_labels:
         component: backend
         name: clustervalidationdataplaneidentitiespermissionsvalidation
@@ -221,6 +243,15 @@ tests:
         summary: Backend controller workqueue clustervalidationcontrolplaneidentitiespermissionsclustervalidation depth is high
     - exp_labels:
         component: backend
+        name: clustervalidationservicemanagedidentitypermissionsclustervalidation
+        cluster: mock
+        severity: warning
+      exp_annotations:
+        description: Backend controller workqueue clustervalidationservicemanagedidentitypermissionsclustervalidation has had a depth > 10 for more than 15 minutes, indicating work is accumulating faster than it can be processed.
+        runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/alerts.md#backend-queue-depth-thresholds'
+        summary: Backend controller workqueue clustervalidationservicemanagedidentitypermissionsclustervalidation depth is high
+    - exp_labels:
+        component: backend
         name: clustervalidationdataplaneidentitiespermissionsvalidation
         cluster: mock
         severity: warning
@@ -242,6 +273,8 @@ tests:
   input_series:
   - series: workqueue_depth{name="clustervalidationcontrolplaneidentitiespermissionsclustervalidation",namespace="aro-hcp",cluster="mock"}
     values: 15x100
+  - series: workqueue_depth{name="clustervalidationservicemanagedidentitypermissionsclustervalidation",namespace="aro-hcp",cluster="mock"}
+    values: 15x100
   - series: workqueue_depth{name="clustervalidationdataplaneidentitiespermissionsvalidation",namespace="aro-hcp",cluster="mock"}
     values: 15x100
   - series: workqueue_depth{name="clustervalidationcontainerregistrypullcredentialspermissionvalidation",namespace="aro-hcp",cluster="mock"}
@@ -259,6 +292,15 @@ tests:
         description: Backend controller workqueue clustervalidationcontrolplaneidentitiespermissionsclustervalidation has had a depth > 10 for more than 15 minutes, indicating work is accumulating faster than it can be processed.
         runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/alerts.md#backend-queue-depth-thresholds'
         summary: Backend controller workqueue clustervalidationcontrolplaneidentitiespermissionsclustervalidation depth is high
+    - exp_labels:
+        component: backend
+        name: clustervalidationservicemanagedidentitypermissionsclustervalidation
+        cluster: mock
+        severity: warning
+      exp_annotations:
+        description: Backend controller workqueue clustervalidationservicemanagedidentitypermissionsclustervalidation has had a depth > 10 for more than 15 minutes, indicating work is accumulating faster than it can be processed.
+        runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/alerts.md#backend-queue-depth-thresholds'
+        summary: Backend controller workqueue clustervalidationservicemanagedidentitypermissionsclustervalidation depth is high
     - exp_labels:
         component: backend
         name: clustervalidationdataplaneidentitiespermissionsvalidation
