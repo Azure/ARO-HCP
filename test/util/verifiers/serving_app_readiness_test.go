@@ -17,6 +17,7 @@ package verifiers
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -106,5 +107,51 @@ func TestWaitForRouterDefaultExternalIP_ReportsMissingExternalIP(t *testing.T) {
 		t.Fatal("expected a timeout when no external IP is assigned")
 	} else if !strings.Contains(err.Error(), "no external load balancer ingress IPs") {
 		t.Fatalf("unexpected error text: %v", err)
+	}
+}
+
+func TestWaitForRouterDefaultExternalIP_IgnoresIngressEntriesWithoutIP(t *testing.T) {
+	// A nonempty ingress list passes the readiness gate only once an entry reports an IP: an
+	// entry with every field unset, or only a hostname, still has no IP for the DNS record.
+	attempts := 0
+	service := `{"kind":"Service","apiVersion":"v1","status":{"loadBalancer":{"ingress":[{}]}}}`
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		attempts++
+		if attempts >= 3 {
+			service = `{"kind":"Service","apiVersion":"v1","status":{"loadBalancer":{"ingress":[{"hostname":"ingress-ip.example.io"},{"ip":"203.0.113.10"}]}}}`
+		}
+		_, _ = w.Write([]byte(service))
+	}))
+	t.Cleanup(server.Close)
+
+	if err := waitForRouterDefaultExternalIP(context.Background(), &rest.Config{Host: server.URL}, 5*time.Second, 200*time.Millisecond); err != nil {
+		t.Fatalf("expected the gate to wait past IP-less ingress entries and pass once an IP appears, got: %v", err)
+	}
+}
+
+func TestWaitForRouterDefaultExternalIP_TimesOutWhenIngressNeverGainsAnIP(t *testing.T) {
+	for _, testCase := range []struct {
+		name   string
+		status string
+		want   string
+	}{
+		{name: "entry with no fields set", status: `"ingress":[{}]`, want: "none has an assigned external IP"},
+		{name: "hostname-only entry", status: `"ingress":[{"hostname":"ingress-ip.example.io"}]`, want: "none has an assigned external IP"},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			service := fmt.Sprintf(`{"kind":"Service","apiVersion":"v1","status":{"loadBalancer":{%s}}}`, testCase.status)
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(service))
+			}))
+			t.Cleanup(server.Close)
+
+			if err := waitForRouterDefaultExternalIP(context.Background(), &rest.Config{Host: server.URL}, 1*time.Second, 100*time.Millisecond); err == nil {
+				t.Fatalf("expected a timeout for %q, got success", testCase.status)
+			} else if !strings.Contains(err.Error(), testCase.want) {
+				t.Fatalf("unexpected error text: %v", err)
+			}
+		})
 	}
 }

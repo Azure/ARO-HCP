@@ -217,9 +217,24 @@ func waitForRouterDefaultExternalIP(ctx context.Context, adminRESTConfig *rest.C
 			// can turn the final attempt into a rate-limiter/deadline error, which must not mask
 			// the last successfully observed service state.
 			lastErr = fmt.Errorf("failed to get openshift-ingress/router-default Service: %w", err)
-		} else if len(service.Status.LoadBalancer.Ingress) == 0 {
-			lastErr = fmt.Errorf("openshift-ingress/router-default Service has no external load balancer ingress IPs yet")
-			lastObservedStateErr = lastErr
+		} else {
+			// A nonempty ingress list does not guarantee an assigned IP: an entry can come back
+			// with every field unset, or with only a hostname, while the DNS record the route
+			// publishes still needs that IP.
+			var withIP int
+			for _, ingressEntry := range service.Status.LoadBalancer.Ingress {
+				if ingressEntry.IP != "" {
+					withIP++
+				}
+			}
+			if withIP == 0 {
+				if len(service.Status.LoadBalancer.Ingress) == 0 {
+					lastErr = fmt.Errorf("openshift-ingress/router-default Service has no external load balancer ingress IPs yet")
+				} else {
+					lastErr = fmt.Errorf("openshift-ingress/router-default Service has %d external load balancer ingress entries but none has an assigned external IP yet", len(service.Status.LoadBalancer.Ingress))
+				}
+				lastObservedStateErr = lastErr
+			}
 		}
 		if lastErr != nil {
 			if msg := lastErr.Error(); msg != lastErrMsg {
