@@ -1,1 +1,2 @@
 enabled: {{ .mgmt.applyKubeletFixes }}
+kubeletParametersImage: "{{ .aksCommandRuntime.image.registry }}/{{ .aksCommandRuntime.image.repository }}@{{ .aksCommandRuntime.image.digest }}"
