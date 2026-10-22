@@ -24,6 +24,7 @@ import (
 type GenericResourcesClient interface {
 	BeginCreateOrUpdateByID(ctx context.Context, resourceID string, apiVersion string, parameters armresources.GenericResource, options *armresources.ClientBeginCreateOrUpdateByIDOptions) (*azruntime.Poller[armresources.ClientCreateOrUpdateByIDResponse], error)
 	BeginDeleteByID(ctx context.Context, resourceID string, apiVersion string, options *armresources.ClientBeginDeleteByIDOptions) (*azruntime.Poller[armresources.ClientDeleteByIDResponse], error)
+	GetByID(ctx context.Context, resourceID string, apiVersion string, options *armresources.ClientGetByIDOptions) (armresources.ClientGetByIDResponse, error)
 }
 
 var _ GenericResourcesClient = (*armresources.Client)(nil)

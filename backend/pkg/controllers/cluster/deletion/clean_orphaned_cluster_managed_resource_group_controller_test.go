@@ -30,6 +30,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
+	"github.com/Azure/ARO-HCP/backend/pkg/azure/azuremockclient"
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -262,3 +263,43 @@ func TestDeleteOrphanedManagedResourceGroup_BeginDelete404(t *testing.T) {
 // the Poller[T] type which is a concrete struct from the Azure SDK, not an interface.
 // The polling logic is best tested through integration tests.
 // We test the error handling paths above which cover the critical business logic.
+
+func TestClusterResourceExistsDistinguishesOwnersFromOrphans(t *testing.T) {
+	notFound := &azcore.ResponseError{
+		StatusCode: http.StatusNotFound,
+		RawResponse: &http.Response{
+			StatusCode: http.StatusNotFound,
+		},
+	}
+	internalError := errors.New("Azure request failed")
+
+	tests := []struct {
+		name       string
+		err        error
+		wantExists bool
+		wantErr    bool
+	}{
+		{name: "owner exists", wantExists: true},
+		{name: "owner not found", err: notFound},
+		{name: "Azure error fails closed", err: internalError, wantErr: true},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			client := &azuremockclient.GenericResourcesClientFunc{
+				GetByIDFunc: func(context.Context, string, string, *armresources.ClientGetByIDOptions) (armresources.ClientGetByIDResponse, error) {
+					return armresources.ClientGetByIDResponse{}, test.err
+				},
+			}
+
+			exists, err := clusterResourceExists(context.Background(), client, "/subscriptions/sub/resourceGroups/owner/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster")
+			if test.wantErr {
+				require.ErrorIs(t, err, internalError)
+				assert.False(t, exists)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, test.wantExists, exists)
+		})
+	}
+}

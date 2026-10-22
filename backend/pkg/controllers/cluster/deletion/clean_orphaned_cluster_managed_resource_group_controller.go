@@ -72,6 +72,7 @@ type cleanOrphanedClusterManagedResourceGroup struct {
 }
 
 const CleanOrphanedClusterManagedResourceGroupControllerName = "CleanOrphanedClusterManagedResourceGroup"
+const hcpOpenShiftClusterAPIVersion = "2024-06-10-preview"
 
 // NewCleanOrphanedClusterManagedResourceGroupController periodically looks for managed resource groups
 // that are not referenced by any Cluster in the database and cleans them up.
@@ -276,6 +277,21 @@ func (c *cleanOrphanedClusterManagedResourceGroup) listClusterResourceIDsForSubs
 	return clusterResourceIDs, nil
 }
 
+// Checks whether the managedBy cluster exists in Azure.
+func clusterResourceExists(ctx context.Context, client azureclient.GenericResourcesClient, resourceID string) (bool, error) {
+	_, err := client.GetByID(ctx, resourceID, hcpOpenShiftClusterAPIVersion, nil)
+	if err == nil {
+		return true, nil
+	}
+
+	var responseError *azcore.ResponseError
+	if errors.As(err, &responseError) && responseError.StatusCode == http.StatusNotFound {
+		return false, nil
+	}
+
+	return false, utils.TrackError(err)
+}
+
 // SyncOnce implements the main sync logic for the controller for a single subscription.
 func (c *cleanOrphanedClusterManagedResourceGroup) SyncOnce(ctx context.Context, key controllerutils.SubscriptionKey) error {
 	logger := utils.LoggerFromContext(ctx)
@@ -306,6 +322,13 @@ func (c *cleanOrphanedClusterManagedResourceGroup) SyncOnce(ctx context.Context,
 		return utils.TrackError(err)
 	}
 
+	genericResourcesClient, err := c.azureFPAClientBuilder.GenericResourcesClient(tenantID, key.SubscriptionID)
+	if err != nil {
+		logger.Error(err, "Failed to create generic resources client",
+			"subscriptionID", key.SubscriptionID)
+		return utils.TrackError(err)
+	}
+
 	managedResourceGroups, err := c.listManagedResourceGroupsForSubscription(ctx, rgClient)
 	if err != nil {
 		logger.Error(err, "Failed to list managed resource groups for subscription",
@@ -320,29 +343,53 @@ func (c *cleanOrphanedClusterManagedResourceGroup) SyncOnce(ctx context.Context,
 		return utils.TrackError(err)
 	}
 
-	// Identify and clean up orphaned managed resource groups for this subscription
+	// Verify cluster owners not present in this backend before identifying orphaned MRGs.
+	type orphanedResourceGroup struct {
+		name      string
+		managedBy string
+	}
+	var orphanedResourceGroups []orphanedResourceGroup
+	for resourceGroupName, managedBy := range managedResourceGroups {
+		if _, exists := clusterResourceIDs[strings.ToLower(managedBy)]; exists {
+			continue
+		}
+
+		exists, err := clusterResourceExists(ctx, genericResourcesClient, managedBy)
+		if err != nil {
+			logger.Error(err, "Failed to verify managed resource group owner in Azure",
+				"subscriptionID", key.SubscriptionID,
+				"resourceGroup", resourceGroupName,
+				"managedBy", managedBy)
+			return utils.TrackError(err)
+		}
+		if exists {
+			logger.Info("Managed resource group owner exists in Azure outside this backend",
+				"subscriptionID", key.SubscriptionID,
+				"resourceGroup", resourceGroupName,
+				"managedBy", managedBy)
+			continue
+		}
+
+		orphanedResourceGroups = append(orphanedResourceGroups, orphanedResourceGroup{
+			name:      resourceGroupName,
+			managedBy: managedBy,
+		})
+	}
+
+	// Delete only the MRGs whose cluster owners are absent from both local storage and Azure.
 	eg, egCtx := errgroup.WithContext(ctx)
 	eg.SetLimit(maxConcurrentDeletions)
 
 	var mu sync.Mutex
 	var errs []error
 
-	for resourceGroupName, managedBy := range managedResourceGroups {
-		managedByResourceID := strings.ToLower(managedBy)
-
-		if _, exists := clusterResourceIDs[managedByResourceID]; exists {
-			// Cluster exists, this is not an orphaned resource group
-			continue
-		}
-
-		// Found an orphaned managed resource group
+	for _, orphanedResourceGroup := range orphanedResourceGroups {
 		orphanedMRGsFound.WithLabelValues(c.location).Inc()
 
-		resourceGroupName := resourceGroupName
-		managedBy := managedBy
+		orphanedResourceGroup := orphanedResourceGroup
 		eg.Go(func() error {
 			defer utilruntime.HandleCrash()
-			err := c.deleteOrphanedManagedResourceGroup(egCtx, rgClient, key.SubscriptionID, resourceGroupName, managedBy, readOnly)
+			err := c.deleteOrphanedManagedResourceGroup(egCtx, rgClient, key.SubscriptionID, orphanedResourceGroup.name, orphanedResourceGroup.managedBy, readOnly)
 			if err != nil {
 				mu.Lock()
 				defer mu.Unlock()

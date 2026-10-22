@@ -57,6 +57,7 @@ type GenericResourcesClientFunc struct {
 	DeleteCalls []string
 	CreateErr   error
 	DeleteErr   error
+	GetByIDFunc func(ctx context.Context, resourceID string, apiVersion string, options *armresources.ClientGetByIDOptions) (armresources.ClientGetByIDResponse, error)
 }
 
 type GenericResourceCreateCall struct {
@@ -85,6 +86,14 @@ func (m *GenericResourcesClientFunc) BeginDeleteByID(ctx context.Context, resour
 		return nil, m.DeleteErr
 	}
 	return nil, fmt.Errorf("GenericResourcesClientFunc: set DeleteErr to control this path; PollUntilDone cannot be called on a nil poller")
+}
+
+// GetByID delegates to the configured mock function.
+func (m *GenericResourcesClientFunc) GetByID(ctx context.Context, resourceID string, apiVersion string, options *armresources.ClientGetByIDOptions) (armresources.ClientGetByIDResponse, error) {
+	if m.GetByIDFunc == nil {
+		return armresources.ClientGetByIDResponse{}, fmt.Errorf("GenericResourcesClientFunc: GetByIDFunc is not configured")
+	}
+	return m.GetByIDFunc(ctx, resourceID, apiVersion, options)
 }
 
 // FirstPartyApplicationClientBuilderFunc builds mock Azure clients.
