@@ -10,15 +10,15 @@ initial:
   userswft2  worker  Standard_E32s_v3  zone=2      max=14  count=6  autoscaled
 
 desired:
-  sys016a272    system  Standard_E4ds_v6   zone=   max=2
-  inf1f13c80    infra   Standard_E4ds_v6   zone=1  max=2
-  inf2f13c80    infra   Standard_E4ds_v6   zone=2  max=2
-  wrk16101f738  worker  Standard_E16ds_v6  zone=1  max=20
-  wrk16201f738  worker  Standard_E16ds_v6  zone=2  max=20
-  wrk16301f738  worker  Standard_E16ds_v6  zone=3  max=20
-  wrk3215b2532  worker  Standard_E32ds_v6  zone=1  max=3
-  wrk3225b2532  worker  Standard_E32ds_v6  zone=2  max=3
-  wrk3235b2532  worker  Standard_E32ds_v6  zone=3  max=3
+  sys00138b2    system  Standard_E4ds_v6   zone=   max=2
+  inf112beae    infra   Standard_E4ds_v6   zone=1  max=2
+  inf212beae    infra   Standard_E4ds_v6   zone=2  max=2
+  wrk16116c1d5  worker  Standard_E16ds_v6  zone=1  max=20
+  wrk16216c1d5  worker  Standard_E16ds_v6  zone=2  max=20
+  wrk16316c1d5  worker  Standard_E16ds_v6  zone=3  max=20
+  wrk321d381f1  worker  Standard_E32ds_v6  zone=1  max=3
+  wrk322d381f1  worker  Standard_E32ds_v6  zone=2  max=3
+  wrk323d381f1  worker  Standard_E32ds_v6  zone=3  max=3
 
 budget (vCPUs):
   StandardEdsv6Family:  1640
@@ -53,15 +53,15 @@ actions:
   margins above floor after each action (c = vCPU, G = memory GiB, n = Swift NICs)
 
      #  action            role    pool          vm size   zone   change          margin                 quota left
-     1  Create            system  sys016a272    E4ds_v6          min=1   max=2     +32c   +256G    +0n  Edsv6 1632c
-     2  Create            infra   inf1f13c80    E4ds_v6   1      min=1   max=2     +96c   +768G    +0n  Edsv6 1624c
-     3  Create            infra   inf2f13c80    E4ds_v6   2      min=1   max=2     +96c   +768G    +0n  Edsv6 1616c
-     4  Create            worker  wrk16101f738  E16ds_v6  1      min=5   max=20   +352c  +2816G  +140n  Edsv6 1296c
-     5  Create            worker  wrk16201f738  E16ds_v6  2      min=5   max=20   +352c  +2816G  +140n  Edsv6 976c
-     6  Create            worker  wrk16301f738  E16ds_v6  3      min=5   max=20   +352c  +2816G  +140n  Edsv6 656c
-     7  Create            worker  wrk3215b2532  E32ds_v6  1      min=1   max=3    +448c  +3584G  +161n  Edsv6 560c
-     8  Create            worker  wrk3225b2532  E32ds_v6  2      min=1   max=3    +448c  +3584G  +161n  Edsv6 464c
-     9  Create            worker  wrk3235b2532  E32ds_v6  3      min=1   max=3    +448c  +3584G  +161n  Edsv6 368c
+     1  Create            system  sys00138b2    E4ds_v6          min=1   max=2     +32c   +256G    +0n  Edsv6 1632c
+     2  Create            infra   inf112beae    E4ds_v6   1      min=1   max=2     +96c   +768G    +0n  Edsv6 1624c
+     3  Create            infra   inf212beae    E4ds_v6   2      min=1   max=2     +96c   +768G    +0n  Edsv6 1616c
+     4  Create            worker  wrk16116c1d5  E16ds_v6  1      min=5   max=20   +352c  +2816G  +140n  Edsv6 1296c
+     5  Create            worker  wrk16216c1d5  E16ds_v6  2      min=5   max=20   +352c  +2816G  +140n  Edsv6 976c
+     6  Create            worker  wrk16316c1d5  E16ds_v6  3      min=5   max=20   +352c  +2816G  +140n  Edsv6 656c
+     7  Create            worker  wrk321d381f1  E32ds_v6  1      min=1   max=3    +448c  +3584G  +161n  Edsv6 560c
+     8  Create            worker  wrk322d381f1  E32ds_v6  2      min=1   max=3    +448c  +3584G  +161n  Edsv6 464c
+     9  Create            worker  wrk323d381f1  E32ds_v6  3      min=1   max=3    +448c  +3584G  +161n  Edsv6 368c
     10  Delete            system  system        E8s_v3    1,2,3                     +0c     +0G    +0n  ESv3 96c
     11  SetScalingBounds  infra   infra1        E32s_v3   1      min=1   max=1     +32c   +256G    +0n  ESv3 160c
     12  SetScalingBounds  infra   infra2        E32s_v3   2      min=1   max=1     +32c   +256G    +0n  ESv3 224c
