@@ -265,7 +265,7 @@ func TestTenantQuotaSchemaRejectsAmbiguousSubscriptionNames(t *testing.T) {
 		})
 	}
 	require.NoError(t, validate("64f0619f-ebc2-4156-9d91-c4c781de7e54=Name - With (Punctuation)"))
-	for _, csv := range []string{"id=Engineering=Canary", "id=a,id2=b=c"} {
+	for _, csv := range []string{"id=Engineering=Canary", "id=a,id2=b=c", "id=Team's Subscription", `id=Say "hi"`, `id=back\slash`, "id=${interp}", "id=back`tick"} {
 		err := validate(csv)
 		require.Error(t, err, csv)
 		require.ErrorContains(t, err, "e2eSubscriptions")

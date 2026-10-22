@@ -413,12 +413,12 @@
         "e2eSubscriptions": {
           "type": "string",
           "description": "CSV of SubscriptionID=DisplayName for customer testing subscriptions where the bot gets RBAC and E2E tests run",
-          "pattern": "^[a-zA-Z0-9-]+=[^,=]+(,[a-zA-Z0-9-]+=[^,=]+)*$"
+          "pattern": "^[a-zA-Z0-9-]+=[^,='\"\\\\$`]+(,[a-zA-Z0-9-]+=[^,='\"\\\\$`]+)*$"
         },
         "infrastructureSubscriptions": {
           "type": "string",
           "description": "CSV of SubscriptionID=DisplayName for infrastructure subscriptions where the bot gets RBAC (DEV-only)",
-          "pattern": "^[a-zA-Z0-9-]+=[^,=]+(,[a-zA-Z0-9-]+=[^,=]+)*$"
+          "pattern": "^[a-zA-Z0-9-]+=[^,='\"\\\\$`]+(,[a-zA-Z0-9-]+=[^,='\"\\\\$`]+)*$"
         },
         "infrastructureSubscriptionsGlobals": {
           "type": "string",
