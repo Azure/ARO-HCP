@@ -8,6 +8,10 @@ spec:
   - bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
     interval: 60s
     port: https
+    relabelings:
+    - action: replace
+      replacement: service
+      targetLabel: microsoft_metrics_include_label
     scheme: https
     scrapeTimeout: 10s
     tlsConfig:

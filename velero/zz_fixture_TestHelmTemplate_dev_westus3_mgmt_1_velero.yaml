@@ -302,6 +302,10 @@ spec:
     port: metrics
     scheme: http
     interval: 30s
+    relabelings:
+    - action: replace
+      replacement: service
+      targetLabel: microsoft_metrics_include_label
 ---
 # Source: velero-hcp-cli/templates/velero-podmonitor.yaml
 apiVersion: monitoring.coreos.com/v1
@@ -321,6 +325,10 @@ spec:
     port: metrics
     scheme: http
     interval: 30s
+    relabelings:
+    - action: replace
+      replacement: service
+      targetLabel: microsoft_metrics_include_label
 ---
 # Source: velero-hcp-cli/templates/volumesnapshotclass.yaml
 apiVersion: snapshot.storage.k8s.io/v1
