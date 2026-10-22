@@ -1,25 +1,19 @@
 ARG PLATFORM
 
 FROM --platform=${PLATFORM} mcr.microsoft.com/oss/go/microsoft/golang:1.26-azurelinux3.0 AS builder
-ENV GOTOOLCHAIN=local
-COPY hcpctl/go.mod hcpctl/go.sum hcpctl/
-COPY metricscache/go.mod metricscache/go.sum metricscache/
-COPY utilitytypes/go.mod utilitytypes/
-COPY aro-hcp-exporter/go.mod aro-hcp-exporter/go.sum aro-hcp-exporter/
-RUN cd aro-hcp-exporter && go mod download
+ENV GOTOOLCHAIN=local GOWORK=/app/go.work GOFLAGS=-mod=vendor GOPROXY=off
 WORKDIR /app
-COPY --exclude=hcpctl/hcpctl hcpctl/ hcpctl/
-COPY metricscache/ metricscache/
-COPY utilitytypes/ utilitytypes/
-COPY --exclude=aro-hcp-exporter/aro-hcp-exporter aro-hcp-exporter/ aro-hcp-exporter/
+# Dockerfile.dockerignore includes the complete workspace and vendor tree,
+# while excluding locally built binaries and development setup files.
+COPY . .
 # https://github.com/microsoft/go/tree/microsoft/main/eng/doc/fips#build-option-to-require-fips-mode
 # NOTE: starting with go 1.27, GODEBUG=fips140=only can be used at runtime to also reject
 # non-FIPS algorithms. See https://github.com/microsoft/go/tree/microsoft/main/eng/doc/fips
 ENV CGO_ENABLED=1 GOFIPS140=latest
-RUN make --directory aro-hcp-exporter build
+RUN make --directory tooling/aro-hcp-exporter build
 
 FROM --platform=${PLATFORM} mcr.microsoft.com/azurelinux/distroless/base:3.0
 USER 65532:65532
 WORKDIR /
-COPY --from=builder /app/aro-hcp-exporter/aro-hcp-exporter .
+COPY --from=builder /app/tooling/aro-hcp-exporter/aro-hcp-exporter .
 ENTRYPOINT ["/aro-hcp-exporter"]

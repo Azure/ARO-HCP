@@ -20,7 +20,7 @@ LDFLAGS = -ldflags "-X github.com/Azure/ARO-HCP/internal/version.CommitSHA=${ARO
 build: $(BINARY)
 .PHONY: build
 
-$(BINARY): $(SWIFT_RECORDER_SOURCES)
+$(BINARY): $(SWIFT_RECORDER_SOURCES) force-go-build
 	go build $(LDFLAGS) -o $(BINARY) .
 
 image:
@@ -63,3 +63,7 @@ deploy: build-and-push
 	$(YQ) -i '.clouds.dev.environments.$(DEPLOY_ENV).defaults.swiftRecorder.enabled = true' $(OVERRIDE_CONFIG_FILE)
 	$(MAKE) -C .. pipeline/SwiftRecorder OVERRIDE_CONFIG_FILE=$(OVERRIDE_CONFIG_FILE)
 .PHONY: deploy
+
+# Always consult Go's build cache, including for dependency-only changes.
+.PHONY: force-go-build
+force-go-build:

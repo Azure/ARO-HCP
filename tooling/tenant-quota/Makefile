@@ -26,7 +26,7 @@ endif
 
 .DEFAULT_GOAL := tenant-quota-collector
 
-tenant-quota-collector:
+tenant-quota-collector: force-go-build
 	go build -ldflags="-X github.com/Azure/ARO-HCP/internal/version.CommitSHA=${TENANT_QUOTA_IMAGE_TAG}" -o tenant-quota-collector .
 
 # ---------------------------------------------------------------------------
@@ -104,3 +104,7 @@ show-image:
 	@echo "Repository: ${TENANT_QUOTA_IMAGE_REPOSITORY}"
 	@echo "Tag: ${TENANT_QUOTA_IMAGE_TAG}"
 .PHONY: show-image
+
+# Always consult Go's build cache, including for dependency-only changes.
+.PHONY: force-go-build
+force-go-build:

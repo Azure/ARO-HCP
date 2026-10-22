@@ -52,12 +52,12 @@ update: bicep-fixtures update-go-fixtures
 
 TEST_SOURCES = $(shell find $(TEST_DIR) -name '*.go' -o -name '*.json' -o -name '*.bicep')
 ARO_HCP_TESTS = $(TEST_DIR)aro-hcp-tests
-$(ARO_HCP_TESTS): $(TEST_SOURCES) $(MAKEFILE_LIST) $(TEST_DIR)/go.mod $(TEST_DIR)/go.sum $(DEMO_BICEP_OUTPUTS) $(TEST_BICEP_OUTPUTS)
+$(ARO_HCP_TESTS): $(TEST_SOURCES) $(MAKEFILE_LIST) $(TEST_DIR)/go.mod $(TEST_DIR)/go.sum $(DEMO_BICEP_OUTPUTS) $(TEST_BICEP_OUTPUTS) force-go-build
 	cd $(TEST_DIR) && go build -o $@ ./cmd/aro-hcp-tests
 
 PROW_JOB_EXECUTOR_SOURCES = $(shell find $(TEST_DIR) -name '*.go')
 PROW_JOB_EXECUTOR = $(TEST_DIR)prow-job-executor
-$(PROW_JOB_EXECUTOR): $(PROW_JOB_EXECUTOR_SOURCES) $(MAKEFILE_LIST) $(TEST_DIR)/go.mod $(TEST_DIR)/go.sum
+$(PROW_JOB_EXECUTOR): $(PROW_JOB_EXECUTOR_SOURCES) $(MAKEFILE_LIST) $(TEST_DIR)/go.mod $(TEST_DIR)/go.sum force-go-build
 	cd $(TEST_DIR) && go build -o $@ ./cmd/prow-job-executor
 
 build: $(PROW_JOB_EXECUTOR) $(ARO_HCP_TESTS)
@@ -143,3 +143,7 @@ e2e: $(PROW_JOB_EXECUTOR)
 	DRY_RUN="false" \
 	GATE_PROMOTION="true" \
 	./execute-prow-job.sh
+
+# Always consult Go's build cache, including for dependency-only changes.
+.PHONY: force-go-build
+force-go-build:
