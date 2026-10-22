@@ -123,4 +123,9 @@ const (
 	// Only honored when ExperimentalReleaseFeatures is registered. The value must
 	// be a valid Go duration of at least one minute.
 	TagNodePoolMaxUpdateDuration = ExperimentalNodePoolTagPrefix + "max-update-duration"
+
+	// TagNodePoolMaxDeletionDuration overrides the node pool deletion budget.
+	// Only honored when ExperimentalReleaseFeatures is registered. The value must
+	// be a valid Go duration of at least one minute, set on PUT/PATCH for use by DELETE.
+	TagNodePoolMaxDeletionDuration = ExperimentalNodePoolTagPrefix + "max-deletion-duration"
 )
