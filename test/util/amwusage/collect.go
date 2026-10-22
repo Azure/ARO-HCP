@@ -65,6 +65,8 @@ type CollectOptions struct {
 	// Transport is optional and primarily useful for offline tests. Redirects are
 	// always disabled, including when a custom transport is supplied.
 	Transport http.RoundTripper
+	// Access selects how requests reach ARM and the workspaces; nil is DirectAccess.
+	Access Access
 }
 
 // CollectSummary counts attempted requests, not inferred ingestion or scan cost.
@@ -193,6 +195,8 @@ type collectionRequest struct {
 	Kind   string `json:"kind"`
 	Method string `json:"method"`
 	URL    string `json:"url"`
+	// Via is the URL actually requested when it differs from the logical URL.
+	Via string `json:"via,omitempty"`
 }
 
 type collectionEnvelope struct {
@@ -458,6 +462,10 @@ func collect(ctx context.Context, o CollectOptions, source []byte) (CollectSumma
 		return summary, err
 	}
 	client := &http.Client{Transport: o.Transport, Timeout: 120 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	access := o.Access
+	if access == nil {
+		access = DirectAccess{}
+	}
 	tokens := map[string]azcore.AccessToken{}
 	request := func(id, kind, target string, validate func([]byte) error) (bool, error) {
 		if err := ctx.Err(); err != nil {
@@ -472,6 +480,10 @@ func collect(ctx context.Context, o CollectOptions, source []byte) (CollectSumma
 			(u.Host != "management.azure.com" && !collectionPrometheusHost.MatchString(u.Host)) {
 			return false, errors.New("refusing authentication to untrusted endpoint")
 		}
+		resolved, scope, err := access.Resolve(u)
+		if err != nil {
+			return false, err
+		}
 		if summary.Requests > 0 {
 			timer := time.NewTimer(300 * time.Millisecond)
 			defer timer.Stop()
@@ -481,13 +493,12 @@ func collect(ctx context.Context, o CollectOptions, source []byte) (CollectSumma
 			case <-timer.C:
 			}
 		}
-		scope := "https://prometheus.monitor.azure.com/.default"
-		if u.Host == "management.azure.com" {
-			scope = "https://management.azure.com/.default"
-		}
 		record := &collectionRecord{collectionEnvelope: collectionEnvelope{
 			Request: collectionRequest{ID: id, Kind: kind, Method: http.MethodGet, URL: target}, StartedAt: time.Now().UTC(), Headers: map[string]string{},
 		}}
+		if via := resolved.String(); via != target {
+			record.Request.Via = via
+		}
 		requestCtx, cancel := context.WithTimeout(ctx, 120*time.Second)
 		defer cancel()
 		token := tokens[scope]
@@ -501,7 +512,7 @@ func collect(ctx context.Context, o CollectOptions, source []byte) (CollectSumma
 			// Credential errors may contain subprocess output. Never persist it.
 			record.Error = "Azure token acquisition failed; check credential configuration and login"
 		} else {
-			req, reqErr := http.NewRequestWithContext(requestCtx, http.MethodGet, target, nil)
+			req, reqErr := http.NewRequestWithContext(requestCtx, http.MethodGet, resolved.String(), nil)
 			if reqErr != nil {
 				return false, reqErr
 			}

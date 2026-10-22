@@ -28,6 +28,23 @@ and omit the flag. Other explicit SDK credential selections, such as
 The tool only reads Azure public-cloud ARM and Prometheus APIs; it grants no roles
 and modifies no resources.
 
+### Access Through Grafana
+
+When you cannot query the workspaces or ARM directly but can use an Azure
+Managed Grafana instance that has them as datasources, add
+`--grafana https://<name>.<region>.grafana.azure.com` to `collect`, `scan`,
+`recover-namespaces`, `enrich` or `labels`. Requests then go through Grafana's
+datasource resource routes and Grafana's own identity is used downstream; you
+only need a Grafana token. Datasources are discovered from the instance: ARM
+requests use its single Azure Monitor datasource, and each workspace's
+Prometheus requests use the Prometheus datasource whose URL is that workspace's
+query endpoint. A workspace without such a datasource fails rather than falling
+back to direct access.
+
+Evidence and scan databases always record the logical ARM and Prometheus URLs
+(collection records also keep the Grafana URL as `via`), so a seed collected
+one way can be scanned the other way.
+
 ![AMW usage report, desktop](images/usage-desktop.png)
 
 ![AMW usage report, mobile](images/usage-mobile.png)

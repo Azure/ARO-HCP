@@ -59,7 +59,7 @@ func runWithCollector(ctx context.Context, args []string, stdout, stderr io.Writ
 	}
 	flags := flag.NewFlagSet(args[0], flag.ContinueOnError)
 	flags.SetOutput(stderr)
-	var input, output string
+	var input, output, grafana string
 	parse := func() error {
 		if err := flags.Parse(args[1:]); err != nil {
 			return err
@@ -77,6 +77,7 @@ func runWithCollector(ctx context.Context, args []string, stdout, stderr io.Writ
 		var limits amwusage.LabelScanOptions
 		flags.StringVar(&database, "db", "", "isolated SQLite backup of the full-run ranking snapshot")
 		flags.BoolVar(&azureCLI, "azure-cli", false, "use SDK AzureCLICredential")
+		flags.StringVar(&grafana, "grafana", "", "optional Azure Managed Grafana URL; send ARM and Prometheus requests through its datasources instead of directly")
 		flags.BoolVar(&migrateOnly, "migrate-only", false, "normalize an isolated legacy backup offline; never send cloud requests")
 		flags.IntVar(&workers, "workers", 2, "maximum concurrent label requests, 1-2")
 		flags.Int64Var(&limits.MaxBytes, "max-bytes", 2147483648, "cumulative response byte budget; interrupted attempts reserve 32 MiB")
@@ -106,16 +107,11 @@ func runWithCollector(ctx context.Context, args []string, stdout, stderr io.Writ
 			return err
 		}
 		fmt.Fprintf(stdout, "Full-run raw labels: %s; cumulative limits %d bytes / %d requests; %d workers. Resume with this command.\n", database, limits.MaxBytes, limits.MaxRequests, workers)
-		var credential azcore.TokenCredential
-		if azureCLI {
-			credential, err = azidentity.NewAzureCLICredential(nil)
-		} else {
-			credential, err = azidentity.NewDefaultAzureCredential(&azidentity.DefaultAzureCredentialOptions{RequireAzureTokenCredentials: true})
-		}
+		credential, access, err := remoteAccess(ctx, azureCLI, grafana)
 		if err != nil {
 			return err
 		}
-		scanErr := store.Scan(ctx, amwusage.ScanOptions{Workers: workers, Credential: credential, Kinds: []string{"inventory_labels"}})
+		scanErr := store.Scan(ctx, amwusage.ScanOptions{Workers: workers, Credential: credential, Access: access, Kinds: []string{"inventory_labels"}})
 		summaryCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
 		defer cancel()
 		summary, summaryErr := store.LabelSummary(summaryCtx)
@@ -176,6 +172,7 @@ func runWithCollector(ctx context.Context, args []string, stdout, stderr io.Writ
 		var workers int
 		flags.StringVar(&database, "db", "", "new SQLite backup of the final ranking snapshot")
 		flags.BoolVar(&azureCLI, "azure-cli", false, "use SDK AzureCLICredential")
+		flags.StringVar(&grafana, "grafana", "", "optional Azure Managed Grafana URL; send ARM and Prometheus requests through its datasources instead of directly")
 		flags.IntVar(&workers, "workers", 2, "maximum concurrent requests, 1-2")
 		if err := parse(); err != nil {
 			return helpError(err)
@@ -200,16 +197,11 @@ func runWithCollector(ctx context.Context, args []string, stdout, stderr io.Writ
 		}
 		fmt.Fprintf(stdout, "Namespace recovery: %d newly planned children; durable maximum 1500 attempts. Database: %s\n", children, database)
 		fmt.Fprintln(stdout, "Roots without eligible inventory remain waiting_inventory (unknown); rerun recovery after ranking inventory becomes available. Existing plans remain immutable.")
-		var credential azcore.TokenCredential
-		if azureCLI {
-			credential, err = azidentity.NewAzureCLICredential(nil)
-		} else {
-			credential, err = azidentity.NewDefaultAzureCredential(&azidentity.DefaultAzureCredentialOptions{RequireAzureTokenCredentials: true})
-		}
+		credential, access, err := remoteAccess(ctx, azureCLI, grafana)
 		if err != nil {
 			return err
 		}
-		scanErr := store.Scan(ctx, amwusage.ScanOptions{Workers: workers, Credential: credential, NamespaceOnly: true})
+		scanErr := store.Scan(ctx, amwusage.ScanOptions{Workers: workers, Credential: credential, Access: access, NamespaceOnly: true})
 		summaryCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 15*time.Second)
 		defer cancel()
 		summary, summaryErr := store.Summary(summaryCtx)
@@ -224,6 +216,7 @@ func runWithCollector(ctx context.Context, args []string, stdout, stderr io.Writ
 		flags.StringVar(&database, "db", "", "existing isolated SQLite snapshot; never the active ranking database")
 		flags.StringVar(&plan, "plan", "", "bounded enrichment JSON plan; omitted to resume the stored plan")
 		flags.BoolVar(&azureCLI, "azure-cli", false, "use SDK AzureCLICredential")
+		flags.StringVar(&grafana, "grafana", "", "optional Azure Managed Grafana URL; send ARM and Prometheus requests through its datasources instead of directly")
 		flags.IntVar(&workers, "workers", 2, "maximum concurrent enrichment requests, 1-4")
 		if err := parse(); err != nil {
 			return helpError(err)
@@ -262,16 +255,11 @@ func runWithCollector(ctx context.Context, args []string, stdout, stderr io.Writ
 		} else if err := store.PlanEnrichment(ctx, nil); err != nil {
 			return err
 		}
-		var credential azcore.TokenCredential
-		if azureCLI {
-			credential, err = azidentity.NewAzureCLICredential(nil)
-		} else {
-			credential, err = azidentity.NewDefaultAzureCredential(&azidentity.DefaultAzureCredentialOptions{RequireAzureTokenCredentials: true})
-		}
+		credential, access, err := remoteAccess(ctx, azureCLI, grafana)
 		if err != nil {
-			return fmt.Errorf("configure Azure credentials with --azure-cli or AZURE_TOKEN_CREDENTIALS: %w", err)
+			return err
 		}
-		scanErr := store.Scan(ctx, amwusage.ScanOptions{Workers: workers, Credential: credential, Kinds: []string{"samples_window", "inventory_samples"}})
+		scanErr := store.Scan(ctx, amwusage.ScanOptions{Workers: workers, Credential: credential, Access: access, Kinds: []string{"samples_window", "inventory_samples"}})
 		summaryCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 15*time.Second)
 		defer cancel()
 		summary, summaryErr := store.EnrichmentSummary(summaryCtx)
@@ -315,6 +303,7 @@ func runWithCollector(ctx context.Context, args []string, stdout, stderr io.Writ
 		if args[0] == "scan" {
 			flags.StringVar(&input, "input", "", "schema-1 seed JSON, required only for initialization")
 			flags.BoolVar(&azureCLI, "azure-cli", false, "use SDK AzureCLICredential")
+			flags.StringVar(&grafana, "grafana", "", "optional Azure Managed Grafana URL; send ARM and Prometheus requests through its datasources instead of directly")
 			flags.IntVar(&workers, "workers", 4, "maximum concurrent requests, 1-4; initially one per workspace")
 		}
 		if err := parse(); err != nil {
@@ -375,16 +364,11 @@ func runWithCollector(ctx context.Context, args []string, stdout, stderr io.Writ
 		}
 		var scanErr error
 		if args[0] == "scan" {
-			var credential azcore.TokenCredential
-			if azureCLI {
-				credential, err = azidentity.NewAzureCLICredential(nil)
-			} else {
-				credential, err = azidentity.NewDefaultAzureCredential(&azidentity.DefaultAzureCredentialOptions{RequireAzureTokenCredentials: true})
-			}
+			credential, access, err := remoteAccess(ctx, azureCLI, grafana)
 			if err != nil {
-				return fmt.Errorf("configure Azure credentials with --azure-cli or AZURE_TOKEN_CREDENTIALS: %w", err)
+				return err
 			}
-			scanErr = store.Scan(ctx, amwusage.ScanOptions{Workers: workers, Credential: credential})
+			scanErr = store.Scan(ctx, amwusage.ScanOptions{Workers: workers, Credential: credential, Access: access})
 		}
 		summaryCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 15*time.Second)
 		defer cancel()
@@ -413,6 +397,7 @@ func runWithCollector(ctx context.Context, args []string, stdout, stderr io.Writ
 		flags.StringVar(&prowURL, "prow-url", "", "optional HTTPS annotation; NOT fetched or verified")
 		flags.StringVar(&output, "output", "", "required new evidence JSON path; also generates adjacent same-stem .html")
 		flags.BoolVar(&azureCLI, "azure-cli", false, "use SDK AzureCLICredential instead of AZURE_TOKEN_CREDENTIALS selection")
+		flags.StringVar(&grafana, "grafana", "", "optional Azure Managed Grafana URL; send ARM and Prometheus requests through its datasources instead of directly")
 		if err := parse(); err != nil {
 			return helpError(err)
 		}
@@ -472,16 +457,11 @@ func runWithCollector(ctx context.Context, args []string, stdout, stderr io.Writ
 		if err := checkReportOutput(report, output, selection, inventorySelection, contextFile); err != nil {
 			return err
 		}
-		var credential azcore.TokenCredential
-		if azureCLI {
-			credential, err = azidentity.NewAzureCLICredential(nil)
-		} else {
-			credential, err = azidentity.NewDefaultAzureCredential(&azidentity.DefaultAzureCredentialOptions{RequireAzureTokenCredentials: true})
-		}
+		credential, access, err := remoteAccess(ctx, azureCLI, grafana)
 		if err != nil {
-			return fmt.Errorf("configure Azure credentials with --azure-cli or AZURE_TOKEN_CREDENTIALS: %w", err)
+			return err
 		}
-		o.Credential = credential
+		o.Credential, o.Access = credential, access
 		summary, collectErr := collect(ctx, o)
 		fmt.Fprintf(stdout, "Collection: %d requests, %d failed, %d platform, %d PromQL; %d selected workspace/metric pairs.\nEvidence: %s\n", summary.Requests, summary.Failed, summary.Platform, summary.PromQL, summary.Selected, output)
 		if ctx.Err() != nil || errors.Is(collectErr, context.Canceled) || errors.Is(collectErr, context.DeadlineExceeded) {
@@ -638,6 +618,29 @@ func replaceReport(input, output string, write func(io.Writer) error, protected 
 	}
 	// Publish only the closed, complete report; never delete the old one first.
 	return os.Rename(file.Name(), output)
+}
+
+// remoteAccess selects the Azure credential and, with --grafana, routes requests
+// through that Grafana instance's datasources.
+func remoteAccess(ctx context.Context, azureCLI bool, grafana string) (azcore.TokenCredential, amwusage.Access, error) {
+	var credential azcore.TokenCredential
+	var err error
+	if azureCLI {
+		credential, err = azidentity.NewAzureCLICredential(nil)
+	} else {
+		credential, err = azidentity.NewDefaultAzureCredential(&azidentity.DefaultAzureCredentialOptions{RequireAzureTokenCredentials: true})
+	}
+	if err != nil {
+		return nil, nil, fmt.Errorf("configure Azure credentials with --azure-cli or AZURE_TOKEN_CREDENTIALS: %w", err)
+	}
+	if grafana == "" {
+		return credential, amwusage.DirectAccess{}, nil
+	}
+	access, err := amwusage.NewGrafanaAccess(ctx, grafana, credential, nil)
+	if err != nil {
+		return nil, nil, err
+	}
+	return credential, access, nil
 }
 
 func helpError(err error) error {

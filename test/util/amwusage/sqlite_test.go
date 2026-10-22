@@ -540,7 +540,7 @@ func TestSQLiteTruncatedStreamRetriesWithoutPublication(t *testing.T) {
 				r.Body = io.NopCloser(io.MultiReader(strings.NewReader(body), scanFailureReader{failure}))
 				return r, nil
 			})}
-			o, err := s.requestScan(ctx, *c, scanTestCredential{}, client)
+			o, err := s.requestScan(ctx, *c, scanTestCredential{}, DirectAccess{}, client)
 			if err != nil || !o.retry || o.classification != "transport" {
 				t.Fatalf("truncation not retried: %+v %v", o, err)
 			}

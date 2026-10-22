@@ -53,6 +53,8 @@ type ScanOptions struct {
 	Workers    int
 	Credential azcore.TokenCredential
 	Transport  http.RoundTripper
+	// Access selects how requests reach the workspaces; nil is DirectAccess.
+	Access Access
 	// Kinds selects logical enrichment roles through enrichment_query links.
 	// Only their exact requests are executed/recovered, without partition planning
 	// or run completion updates. Empty preserves normal catalog scanning.
@@ -179,6 +181,10 @@ func (s *ScanStore) Scan(ctx context.Context, o ScanOptions) error {
 	}
 	client := &http.Client{Transport: transport, Timeout: 120 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	credential := &scanCredential{credential: o.Credential}
+	access := o.Access
+	if access == nil {
+		access = DirectAccess{}
+	}
 	var wg sync.WaitGroup
 	errCh := make(chan error, o.Workers)
 	for range o.Workers {
@@ -186,7 +192,7 @@ func (s *ScanStore) Scan(ctx context.Context, o ScanOptions) error {
 		go func() {
 			defer utilruntime.HandleCrash()
 			defer wg.Done()
-			err := s.scanWorker(ctx, owner, credential, client, o.NamespaceOnly, o.Kinds...)
+			err := s.scanWorker(ctx, owner, credential, access, client, o.NamespaceOnly, o.Kinds...)
 			if err != nil {
 				errCh <- err
 				cancel()
@@ -208,7 +214,7 @@ func (s *ScanStore) Scan(ctx context.Context, o ScanOptions) error {
 	return errors.Join(failures...)
 }
 
-func (s *ScanStore) scanWorker(ctx context.Context, owner string, credential azcore.TokenCredential, client *http.Client, namespaceOnly bool, kinds ...string) error {
+func (s *ScanStore) scanWorker(ctx context.Context, owner string, credential azcore.TokenCredential, access Access, client *http.Client, namespaceOnly bool, kinds ...string) error {
 	for {
 		if err := ctx.Err(); err != nil {
 			return err
@@ -256,7 +262,7 @@ func (s *ScanStore) scanWorker(ctx context.Context, owner string, credential azc
 			}
 			continue
 		}
-		if err := s.executeScan(ctx, *claim, credential, client); err != nil {
+		if err := s.executeScan(ctx, *claim, credential, access, client); err != nil {
 			return err
 		}
 	}
@@ -347,7 +353,7 @@ func (s *ScanStore) claimScan(ctx context.Context, owner string, now time.Time, 
 	return c, false, tx.Commit()
 }
 
-func (s *ScanStore) executeScan(ctx context.Context, c scanClaim, credential azcore.TokenCredential, client *http.Client) error {
+func (s *ScanStore) executeScan(ctx context.Context, c scanClaim, credential azcore.TokenCredential, access Access, client *http.Client) error {
 	leaseCtx, stopHeartbeat := context.WithCancel(ctx)
 	defer stopHeartbeat()
 	requestCtx, cancel := context.WithTimeout(leaseCtx, 120*time.Second)
@@ -388,7 +394,7 @@ func (s *ScanStore) executeScan(ctx context.Context, c scanClaim, credential azc
 			}
 		}
 	}()
-	outcome, err := s.requestScan(requestCtx, c, credential, client)
+	outcome, err := s.requestScan(requestCtx, c, credential, access, client)
 	cancel()
 	// Renewal stays active while publication waits for the writer connection.
 	if err == nil && ctx.Err() == nil {
@@ -408,7 +414,7 @@ func (s *ScanStore) executeScan(ctx context.Context, c scanClaim, credential azc
 	return nil
 }
 
-func (s *ScanStore) requestScan(ctx context.Context, c scanClaim, credential azcore.TokenCredential, client *http.Client) (o scanOutcome, resultErr error) {
+func (s *ScanStore) requestScan(ctx context.Context, c scanClaim, credential azcore.TokenCredential, access Access, client *http.Client) (o scanOutcome, resultErr error) {
 	o = scanOutcome{scanResponseMeta: scanResponseMeta{warnings: "[]", stats: "{}"}}
 	if err := validateScanEndpoint(c.endpoint); err != nil {
 		return o, err
@@ -416,7 +422,15 @@ func (s *ScanStore) requestScan(ctx context.Context, c scanClaim, credential azc
 	if c.path != "/api/v1/query" && c.path != "/api/v1/query_range" {
 		return o, errors.New("untrusted query path")
 	}
-	token, err := credential.GetToken(ctx, policy.TokenRequestOptions{Scopes: []string{"https://prometheus.monitor.azure.com/.default"}})
+	logical, err := url.Parse(c.endpoint + c.path)
+	if err != nil {
+		return o, err
+	}
+	resolved, scope, err := access.Resolve(logical)
+	if err != nil {
+		return o, err
+	}
+	token, err := credential.GetToken(ctx, policy.TokenRequestOptions{Scopes: []string{scope}})
 	if err != nil {
 		if ctx.Err() != nil {
 			o.classification = "timeout"
@@ -429,7 +443,7 @@ func (s *ScanStore) requestScan(ctx context.Context, c scanClaim, credential azc
 		o.body = "Azure token acquisition failed; verify Azure CLI login and workspace query permissions"
 		return o, nil
 	}
-	method, target := http.MethodGet, c.endpoint+c.path+"?"+c.params
+	method, target := http.MethodGet, resolved.String()+"?"+c.params
 	var requestBody io.Reader
 	var priorGET414 bool
 	if c.kind == "inventory_labels" {
@@ -438,7 +452,7 @@ func (s *ScanStore) requestScan(ctx context.Context, c scanClaim, credential azc
 		}
 	}
 	if c.kind == "inventory_labels" && (len(target) > 6000 || priorGET414) {
-		method, target = http.MethodPost, c.endpoint+c.path
+		method, target = http.MethodPost, resolved.String()
 		requestBody = strings.NewReader(c.params)
 	}
 	if c.kind == "inventory_labels" {
