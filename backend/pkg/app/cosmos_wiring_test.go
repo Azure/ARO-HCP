@@ -21,11 +21,15 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/require"
+
+	"k8s.io/client-go/tools/cache"
+	cachetesting "k8s.io/client-go/tools/cache/testing"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -33,9 +37,14 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/mismatch"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosclient"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosratelimit"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/informers/kubeapplierinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/fleetlisters"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 )
 
@@ -250,7 +259,7 @@ func TestStorageFactoryDiscovery(t *testing.T) {
 	}
 	factory, err := newStorageFactory("https://cosmos.test", "test", storageTestOptions(t, nil), options)
 	require.NoError(t, err)
-	controller := options.ControllerNames[0]
+	controller := strings.ToLower(mismatch.MissingResourceIDControllerName)
 	done := make(chan error, 1)
 	go func() { _, err := factory.tokenBucket("slow-mc", controller); done <- err }()
 	<-blocked
@@ -265,7 +274,7 @@ func TestStorageFactoryDiscovery(t *testing.T) {
 	}
 	close(release)
 	require.NoError(t, <-done)
-	_, err = factory.tokenBucket("retry-mc", BackendInformersStorageName)
+	_, err = factory.tokenBucket("retry-mc", controller)
 	require.ErrorContains(t, err, "transient")
 	require.NotContains(t, factory.rateLimits, "retry-mc")
 	_, err = factory.tokenBucket("retry-mc", controller)
@@ -282,6 +291,222 @@ func TestStorageFactoryDiscovery(t *testing.T) {
 	}
 	require.Equal(t, map[string]int{"Resources": 1, "Billing": 1, "Fleet": 1, "slow-mc": 1, "fast-mc": 1, "retry-mc": 2, "concurrent-mc": 1}, calls)
 	require.NotSame(t, factory.rateLimits["slow-mc"], factory.rateLimits["fast-mc"])
+}
+
+func informerStorageTestOptions(t *testing.T) cosmosclient.Options {
+	t.Helper()
+	return storageTestOptions(t, func(req *http.Request) (*http.Response, error) {
+		body := `{"Documents":[]}`
+		status := http.StatusOK
+		header := http.Header{}
+		switch {
+		case req.URL.Path == "" || req.URL.Path == "/":
+			body = `{"id":"test","writableLocations":[{"name":"test","databaseAccountEndpoint":"https://cosmos.test"}],"readableLocations":[{"name":"test","databaseAccountEndpoint":"https://cosmos.test"}]}`
+		case strings.Contains(req.URL.Path, "/colls/Fleet/"):
+			body = `{"Documents":[{"id":"mc","partitionKey":"1","resourceID":"/providers/Microsoft.RedHatOpenShift/stamps/1/managementClusters/default","properties":{"status":{"kubeApplierCosmosContainerName":"KubeApplier-test"}}},{"id":"mc2","partitionKey":"2","resourceID":"/providers/Microsoft.RedHatOpenShift/stamps/2/managementClusters/default","properties":{"status":{"kubeApplierCosmosContainerName":"KubeApplier-other"}}}]}`
+		case strings.HasSuffix(req.URL.Path, "/pkranges"):
+			header.Set("ETag", "fixture")
+			body = `{"PartitionKeyRanges":[{"id":"0","minInclusive":"","maxExclusive":"FF"}]}`
+			if req.Header.Get("If-None-Match") != "" {
+				status = http.StatusNotModified
+				body = ""
+			}
+		case req.Method == http.MethodGet:
+			status = http.StatusNotModified
+			header.Set("ETag", "fixture")
+			body = ""
+		}
+		return &http.Response{StatusCode: status, Request: req, Header: header, Body: io.NopCloser(strings.NewReader(body))}, nil
+	})
+}
+
+func TestBackendKubeApplierInformerSkipsThroughputDiscovery(t *testing.T) {
+	for _, realFPA := range []bool{false, true} {
+		for _, discovery := range []string{"unconfigured", "same-container", "other-container"} {
+			t.Run(fmt.Sprintf("realFPA=%t/%s", realFPA, discovery), func(t *testing.T) {
+				synctest.Test(t, func(t *testing.T) {
+					options := BackendStorageFactoryOptions(realFPA)
+					var calls atomic.Int32
+					started, release := make(chan struct{}), make(chan struct{})
+					options.ContainerThroughput = func(container string) (float64, error) {
+						if container == "Resources" || container == "Billing" || container == "Fleet" {
+							return 1000, nil
+						}
+						calls.Add(1)
+						if discovery != "unconfigured" && container == "KubeApplier-test" {
+							close(started)
+							<-release
+							return 1000, nil
+						}
+						return 0, fmt.Errorf("MC throughput is not configured")
+					}
+					factory, err := newStorageFactory("https://cosmos.test", "test", informerStorageTestOptions(t), options)
+					require.NoError(t, err)
+					key := unionkubeapplierinformers.ManagementClusterKey{StampIdentifier: "1", ManagementClusterName: "default"}
+					limited := factory.KubeApplierStorageClients(strings.ToLower(mismatch.MissingResourceIDControllerName))
+					limitedDone := make(chan kubeappliercosmosstorage.KubeApplierDBClient, 1)
+					defer func() {
+						close(release)
+						if discovery != "unconfigured" {
+							client := <-limitedDone
+							require.NotNil(t, client)
+							require.Same(t, client, limited.For(t.Context(), key.GetResourceID()))
+							require.EqualValues(t, 1, calls.Load(), "successful discovery is cached")
+						}
+					}()
+					if discovery != "unconfigured" {
+						go func() { limitedDone <- limited.For(t.Context(), key.GetResourceID()) }()
+						<-started
+					}
+					informerKey := key
+					if discovery == "other-container" {
+						informerKey.StampIdentifier = "2"
+					}
+					informerFactory := unionkubeapplierinformers.NewKubeApplierInformerFactory(
+						factory.KubeApplierStorageClients(unionkubeapplierinformers.ControllerName), nil)
+					informerDone := make(chan kubeapplierinformers.KubeApplierInformers, 1)
+					go func() {
+						informerDone <- informerFactory.NewKubeApplierInformers(t.Context(), informerKey.GetResourceID())
+					}()
+					synctest.Wait()
+					select {
+					case informers := <-informerDone:
+						require.NotNil(t, informers, "informer construction must not require MC throughput")
+					default:
+						t.Fatal("informer construction waits for a limited controller's throughput discovery")
+					}
+					if discovery == "unconfigured" {
+						require.Zero(t, calls.Load(), "informers must not discover MC throughput")
+					} else {
+						require.EqualValues(t, 1, calls.Load(), "only the limited controller discovers throughput")
+						require.Empty(t, limitedDone, "limited clients must wait for discovery before use")
+					}
+				})
+			})
+		}
+	}
+
+}
+
+func TestBackendLimitedKubeApplierDiscoveryRetries(t *testing.T) {
+	for _, failure := range []string{"error", "zero", "negative"} {
+		t.Run(failure, func(t *testing.T) {
+			options := BackendStorageFactoryOptions(false)
+			calls := 0
+			options.ContainerThroughput = func(container string) (float64, error) {
+				if container != "KubeApplier-test" {
+					return 1000, nil
+				}
+				calls++
+				if calls == 1 {
+					switch failure {
+					case "error":
+						return 0, fmt.Errorf("ARM denied")
+					case "zero":
+						return 0, nil
+					case "negative":
+						return -1, nil
+					}
+				}
+				return 1000, nil
+			}
+			factory, err := newStorageFactory("https://cosmos.test", "test", informerStorageTestOptions(t), options)
+			require.NoError(t, err)
+			clients := factory.KubeApplierStorageClients(strings.ToLower(mismatch.MissingResourceIDControllerName))
+			key := unionkubeapplierinformers.ManagementClusterKey{StampIdentifier: "1", ManagementClusterName: "default"}
+			require.Nil(t, clients.For(t.Context(), key.GetResourceID()), "failed discovery must not produce an unlimited client")
+			require.Equal(t, 1, calls)
+			require.NotContains(t, factory.rateLimits, "KubeApplier-test")
+			client := clients.For(t.Context(), key.GetResourceID())
+			require.NotNil(t, client)
+			require.Same(t, client, clients.For(t.Context(), key.GetResourceID()))
+			require.Equal(t, 2, calls, "retry succeeds and subsequent lookups use the cache")
+		})
+	}
+}
+
+type trackingKubeApplierInformerFactory struct {
+	unionkubeapplierinformers.PerMCKubeApplierInformerFactory
+	created       atomic.Int32
+	started       atomic.Int32
+	stopped       atomic.Int32
+	stoppedEvents chan struct{}
+}
+
+func (f *trackingKubeApplierInformerFactory) NewKubeApplierInformers(ctx context.Context, resourceID *azcorearm.ResourceID) kubeapplierinformers.KubeApplierInformers {
+	informers := f.PerMCKubeApplierInformerFactory.NewKubeApplierInformers(ctx, resourceID)
+	if informers == nil {
+		return nil
+	}
+	f.created.Add(1)
+	return &trackingKubeApplierInformers{KubeApplierInformers: informers, factory: f}
+}
+
+type trackingKubeApplierInformers struct {
+	kubeapplierinformers.KubeApplierInformers
+	factory *trackingKubeApplierInformerFactory
+}
+
+func (informers *trackingKubeApplierInformers) RunWithContext(ctx context.Context) {
+	informers.factory.started.Add(1)
+	defer func() {
+		informers.factory.stopped.Add(1)
+		informers.factory.stoppedEvents <- struct{}{}
+	}()
+	informers.KubeApplierInformers.RunWithContext(ctx)
+}
+
+func TestBackendKubeApplierInformerLifecycleWithoutThroughput(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		options := BackendStorageFactoryOptions(false)
+		var calls atomic.Int32
+		options.ContainerThroughput = func(container string) (float64, error) {
+			if container == "Resources" || container == "Billing" || container == "Fleet" {
+				return 1000, nil
+			}
+			calls.Add(1)
+			return 0, fmt.Errorf("MC throughput is not configured")
+		}
+		factory, err := newStorageFactory("https://cosmos.test", "test", informerStorageTestOptions(t), options)
+		require.NoError(t, err)
+		tracked := &trackingKubeApplierInformerFactory{stoppedEvents: make(chan struct{}, 2), PerMCKubeApplierInformerFactory: unionkubeapplierinformers.NewKubeApplierInformerFactory(
+			factory.KubeApplierStorageClients(unionkubeapplierinformers.ControllerName), nil)}
+		source := cachetesting.NewFakeControllerSource()
+		defer source.Shutdown()
+		mcInformer := cache.NewSharedIndexInformer(source, &fleetapi.ManagementCluster{}, 0, nil)
+		controller := unionkubeapplierinformers.NewUnionKubeApplierInformersController(
+			mcInformer, fleetlisters.NewManagementClusterLister(mcInformer.GetIndexer()), tracked)
+		ctx, cancel := context.WithCancel(t.Context())
+		mcDone, controllerDone := make(chan struct{}), make(chan struct{})
+		go func() { defer close(mcDone); mcInformer.RunWithContext(ctx) }()
+		go func() { defer close(controllerDone); controller.Run(ctx, 1) }()
+		defer func() { cancel(); <-controllerDone; <-mcDone }()
+		require.True(t, cache.WaitForCacheSync(ctx.Done(), mcInformer.HasSynced))
+		synctest.Wait()
+		key := unionkubeapplierinformers.ManagementClusterKey{StampIdentifier: "1", ManagementClusterName: "default"}
+		mc := &fleetapi.ManagementCluster{CosmosMetadata: coreapi.CosmosMetadata{ResourceID: key.GetResourceID(), PartitionKey: "1"}}
+		source.Add(mc.DeepCopyObject())
+		synctest.Wait()
+		require.EqualValues(t, 1, tracked.created.Load(), "addition constructs the real per-MC informers")
+		require.EqualValues(t, 1, tracked.started.Load())
+		source.Modify(mc.DeepCopyObject())
+		synctest.Wait()
+		require.EqualValues(t, 1, tracked.created.Load(), "duplicate events must not start duplicate informers")
+		source.Delete(mc.DeepCopyObject())
+		<-tracked.stoppedEvents
+		synctest.Wait()
+		require.EqualValues(t, 1, tracked.stopped.Load(), "removal cancels and joins the real informers")
+		require.EqualValues(t, 1, tracked.created.Load(), "removal must not resurrect informers")
+		source.Add(mc.DeepCopyObject())
+		synctest.Wait()
+		require.EqualValues(t, 2, tracked.created.Load())
+		require.EqualValues(t, 2, tracked.started.Load())
+		cancel()
+		<-controllerDone
+		<-mcDone
+		require.EqualValues(t, 2, tracked.stopped.Load(), "shutdown joins all real informer goroutines")
+		require.Zero(t, calls.Load(), "no lifecycle event needs MC throughput discovery")
+	})
 }
 
 func TestStorageFactoryDiscoveredMCBudgets(t *testing.T) {

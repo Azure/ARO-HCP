@@ -185,6 +185,9 @@ func newStorageFactory(cosmosURL, databaseName string, clientOptions cosmosclien
 // three fixed containers are preconfigured; MC containers use the kube-applier
 // allocation and are registered when their names become known.
 func (f *cosmosStorageFactory) tokenBucket(containerName, controllerName string) (*cosmosratelimit.TokenBucket, error) {
+	if bucket, found := f.unlimitedBuckets[controllerName]; found {
+		return bucket, nil
+	}
 	f.rateLimitsMu.Lock()
 	limits := f.rateLimits[containerName]
 	f.rateLimitsMu.Unlock()
@@ -217,9 +220,6 @@ func (f *cosmosStorageFactory) tokenBucket(containerName, controllerName string)
 			return nil, err
 		}
 		limits = result.(*cosmosratelimit.ControllerRateLimits)
-	}
-	if bucket, found := f.unlimitedBuckets[controllerName]; found {
-		return bucket, nil
 	}
 	return limits.ForController(controllerName)
 }
