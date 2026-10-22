@@ -1885,10 +1885,6 @@
         "rg": {
           "$ref": "#/definitions/resourceGroupName"
         },
-        "useGlobalMeterIds": {
-          "type": "boolean",
-          "description": "If true, all SKUs bill to the global meter for their vCPU count."
-        },
         "aub": {
           "type": "object",
           "properties": {
@@ -1982,7 +1978,6 @@
       "additionalProperties": false,
       "required": [
         "rg",
-        "useGlobalMeterIds",
         "aub",
         "pav2",
         "kusto",
