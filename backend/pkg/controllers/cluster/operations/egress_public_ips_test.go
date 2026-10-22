@@ -16,6 +16,7 @@ package operations
 
 import (
 	"context"
+	"fmt"
 	"slices"
 	"testing"
 
@@ -68,7 +69,10 @@ func TestEgressPublicIPsOperationStatus(t *testing.T) {
 				observations[expected[0].String()] = coreapi.AzureResourceNotFound
 				wantMessage = "Check that Azure Policy permits"
 			case "unrelated":
-				observations = map[string]coreapi.AzureResourceObservation{"unrelated": coreapi.AzureResourceFound}
+				observations = map[string]coreapi.AzureResourceObservation{}
+				for index := 0; index < 9; index++ {
+					observations[fmt.Sprintf("%s-unrelated-%d", expected[0].String(), index)] = coreapi.AzureResourceFound
+				}
 			case "unknown":
 				observations = nil
 			case "read failure":

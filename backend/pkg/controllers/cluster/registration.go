@@ -1120,7 +1120,7 @@ func registerEgressPublicIPsController() controllerconfig.ControllerRegistration
 		Instantiate: controllerconfig.WithCacheSyncs(func(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
 			_, subscriptionLister := controllerContext.BackendInformers.Subscriptions()
 			_, serviceProviderClusterLister := controllerContext.BackendInformers.ServiceProviderClusters()
-			return clusterazureresources.NewEgressPublicIPsController(controllerContext.ResourcesDBClient, serviceProviderClusterLister, subscriptionLister, controllerContext.FPAClientBuilder, controllerContext.BackendInformers, controllerContext.UnionKubeApplierInformers), nil
+			return clusterazureresources.NewEgressPublicIPsController(controllerContext.Clock, controllerContext.ResourcesDBClient, serviceProviderClusterLister, subscriptionLister, controllerContext.FPAClientBuilder, controllerContext.BackendInformers, controllerContext.UnionKubeApplierInformers), nil
 		}, true),
 	}
 }

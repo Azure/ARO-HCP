@@ -131,7 +131,7 @@ type ServiceProviderClusterSpec struct {
 	// dissipated. Additionally, long recheck times are recommended for resources
 	// outside of their active phases. Order of at least six hours is, with
 	// durations up to 24 hours considered normal.
-	// Written by: FetchMSIIdentitiesInfo, FetchDataPlaneOperatorsManagedIdentitiesInfoController, FetchManagedIdentitiesInfo, IdentityRoleAssignments
+	// Written by: FetchMSIIdentitiesInfo, FetchDataPlaneOperatorsManagedIdentitiesInfoController, FetchManagedIdentitiesInfo, IdentityRoleAssignments, ObserveEgressPublicIPs
 	EarliestRecheckTimesByController map[string]*metav1.Time `json:"earliestRecheckTimesByController,omitempty"`
 
 	// PinnedVersion, when its ExactVersion is set, is an SRE-specified
