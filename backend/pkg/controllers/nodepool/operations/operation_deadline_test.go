@@ -50,94 +50,112 @@ func (failingDeadlineReadDesireLister) GetForNodePool(context.Context, string, s
 
 func TestNodePoolOperationDeadlines(t *testing.T) {
 	now := operationtesting.MustParseTime("2026-10-01T12:00:00Z")
-	for _, request := range []cosmosstorageutils.OperationRequest{
+	expired := &metav1.Time{Time: now.Add(-time.Second)}
+	equal := &metav1.Time{Time: now}
+	future := &metav1.Time{Time: now.Add(time.Second)}
+	newOwner, emptyOwner := "new-owner", ""
+	type expectation struct {
+		operationState coreapi.ProvisioningState
+		errorCode      string
+		reconcileError bool
+		resourceState  coreapi.ProvisioningState
+		owner          string
+	}
+	accepted := expectation{operationState: coreapi.ProvisioningStateAccepted, resourceState: coreapi.ProvisioningStateAccepted, owner: operationtesting.TestOperationName}
+	provisioning := expectation{operationState: coreapi.ProvisioningStateProvisioning, resourceState: coreapi.ProvisioningStateProvisioning, owner: operationtesting.TestOperationName}
+	retry := expectation{operationState: coreapi.ProvisioningStateAccepted, reconcileError: true, resourceState: coreapi.ProvisioningStateAccepted, owner: operationtesting.TestOperationName}
+	deadlineFailure := expectation{operationState: coreapi.ProvisioningStateFailed, errorCode: coreapi.CloudErrorCodeDeadlineExceeded, resourceState: coreapi.ProvisioningStateFailed}
+	mismatched := expectation{operationState: coreapi.ProvisioningStateAccepted, resourceState: coreapi.ProvisioningStateAccepted, owner: newOwner}
+	unowned := expectation{operationState: coreapi.ProvisioningStateAccepted, resourceState: coreapi.ProvisioningStateAccepted}
+	staleDeadline := expectation{operationState: coreapi.ProvisioningStateFailed, errorCode: coreapi.CloudErrorCodeDeadlineExceeded, resourceState: coreapi.ProvisioningStateAccepted, owner: newOwner}
+	succeeded := expectation{operationState: coreapi.ProvisioningStateSucceeded, resourceState: coreapi.ProvisioningStateAccepted, owner: operationtesting.TestOperationName}
+	failed := expectation{operationState: coreapi.ProvisioningStateFailed, resourceState: coreapi.ProvisioningStateAccepted, owner: operationtesting.TestOperationName}
+	canceled := expectation{operationState: coreapi.ProvisioningStateCanceled, resourceState: coreapi.ProvisioningStateAccepted, owner: operationtesting.TestOperationName}
+	cases := []struct {
+		name                  string
+		deadline              *metav1.Time
+		withCSID              bool
+		observationErrors     bool
+		owner                 *string
+		storedOwner           *string
+		staleOperationETag    bool
+		storedOperationStatus coreapi.ProvisioningState
+		operationStatus       coreapi.ProvisioningState
+		resourceAbsent        bool
+		// Expectations correspond to create, update, and delete. Nil means the
+		// case concerns cached reads, which the delete controller does not use.
+		want [3]*expectation
+	}{
+		{name: "expired without CS ID", deadline: expired, want: [3]*expectation{&deadlineFailure, &deadlineFailure, &deadlineFailure}},
+		{name: "expired before prerequisites", deadline: expired, withCSID: true, want: [3]*expectation{&deadlineFailure, &deadlineFailure, &deadlineFailure}},
+		{name: "expired with observation errors", deadline: expired, withCSID: true, observationErrors: true, want: [3]*expectation{&deadlineFailure, &deadlineFailure, &deadlineFailure}},
+		{name: "nil deadline", want: [3]*expectation{&provisioning, &retry, &accepted}},
+		{name: "at deadline", deadline: equal, want: [3]*expectation{&provisioning, &retry, &accepted}},
+		{name: "before deadline", deadline: future, want: [3]*expectation{&provisioning, &retry, &accepted}},
+		{name: "ownership mismatch", deadline: expired, owner: &newOwner, want: [3]*expectation{&mismatched, &mismatched, &mismatched}},
+		{name: "empty owner", deadline: expired, owner: &emptyOwner, want: [3]*expectation{&unowned, &unowned, &unowned}},
+		{name: "stale cached owner", deadline: expired, storedOwner: &newOwner, want: [3]*expectation{&staleDeadline, &staleDeadline, nil}},
+		{name: "stale operation etag", deadline: expired, staleOperationETag: true, want: [3]*expectation{&accepted, &accepted, nil}},
+		{name: "stale terminal operation", deadline: expired, storedOperationStatus: coreapi.ProvisioningStateSucceeded, want: [3]*expectation{&succeeded, &succeeded, nil}},
+		{name: "terminal succeeded", deadline: expired, operationStatus: coreapi.ProvisioningStateSucceeded, want: [3]*expectation{&succeeded, &succeeded, &succeeded}},
+		{name: "terminal failed", deadline: expired, operationStatus: coreapi.ProvisioningStateFailed, want: [3]*expectation{&failed, &failed, &failed}},
+		{name: "terminal canceled", deadline: expired, operationStatus: coreapi.ProvisioningStateCanceled, want: [3]*expectation{&canceled, &canceled, &canceled}},
+		{name: "document missing", deadline: expired, resourceAbsent: true, want: [3]*expectation{&accepted, &accepted, &succeeded}},
+	}
+	for requestIndex, request := range []cosmosstorageutils.OperationRequest{
 		cosmosstorageutils.OperationRequestCreate, cosmosstorageutils.OperationRequestUpdate, cosmosstorageutils.OperationRequestDelete,
 	} {
 		t.Run(string(request), func(t *testing.T) {
-			for _, scenario := range []string{
-				"expired without CS ID", "expired before prerequisites", "expired with observation errors",
-				"nil deadline", "at deadline", "before deadline", "ownership mismatch", "empty owner",
-				"stale cached owner", "stale operation etag", "stale terminal operation", "terminal succeeded", "terminal failed", "terminal canceled", "document missing",
-			} {
-				if request == cosmosstorageutils.OperationRequestDelete && (scenario == "stale cached owner" || scenario == "stale operation etag" || scenario == "stale terminal operation") {
-					continue // Delete reads operation and resource directly from the database.
+			for _, tc := range cases {
+				want := tc.want[requestIndex]
+				if want == nil {
+					continue
 				}
-				t.Run(scenario, func(t *testing.T) {
+				t.Run(tc.name, func(t *testing.T) {
 					ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
 					fixture := operationtesting.NewNodePoolTestFixture()
 					nodePool := fixture.NewNodePool()
 					nodePool.Properties.ProvisioningState = coreapi.ProvisioningStateAccepted
 					nodePool.ServiceProviderProperties.ClusterServiceID = nil
-					deadline := &metav1.Time{Time: now.Add(-time.Second)}
-					switch scenario {
-					case "nil deadline":
-						deadline = nil
-					case "at deadline":
-						deadline.Time = now
-					case "before deadline":
-						deadline.Time = now.Add(time.Second)
-					case "ownership mismatch":
-						nodePool.ServiceProviderProperties.ActiveOperationID = "new-owner"
-					case "empty owner":
-						nodePool.ServiceProviderProperties.ActiveOperationID = ""
-					case "expired before prerequisites":
-						nodePool.ServiceProviderProperties.ClusterServiceID = &fixture.NodePoolInternalID
-					case "expired with observation errors":
+					if tc.owner != nil {
+						nodePool.ServiceProviderProperties.ActiveOperationID = *tc.owner
+					}
+					if tc.withCSID {
 						nodePool.ServiceProviderProperties.ClusterServiceID = &fixture.NodePoolInternalID
 					}
-					nodePool.ServiceProviderProperties.CreateOperationCompletionDeadline = deadline
-					nodePool.ServiceProviderProperties.UpdateOperationCompletionDeadline = deadline
-					nodePool.ServiceProviderProperties.DeleteOperationCompletionDeadline = deadline
+					nodePool.ServiceProviderProperties.CreateOperationCompletionDeadline = tc.deadline
+					nodePool.ServiceProviderProperties.UpdateOperationCompletionDeadline = tc.deadline
+					nodePool.ServiceProviderProperties.DeleteOperationCompletionDeadline = tc.deadline
 					operation := fixture.NewOperation(request)
-					want := coreapi.ProvisioningStateFailed
-					switch scenario {
-					case "nil deadline", "at deadline", "before deadline", "ownership mismatch", "empty owner", "stale operation etag":
-						want = coreapi.ProvisioningStateAccepted
-						if request == cosmosstorageutils.OperationRequestCreate && (scenario == "nil deadline" || scenario == "at deadline" || scenario == "before deadline") {
-							want = coreapi.ProvisioningStateProvisioning
-						}
-					case "terminal succeeded":
-						operation.Status = coreapi.ProvisioningStateSucceeded
-						want = operation.Status
-					case "terminal failed":
-						operation.Status = coreapi.ProvisioningStateFailed
-						want = operation.Status
-					case "terminal canceled":
-						operation.Status = coreapi.ProvisioningStateCanceled
-						want = operation.Status
-					case "document missing":
-						want = coreapi.ProvisioningStateAccepted
-						if request == cosmosstorageutils.OperationRequestDelete {
-							want = coreapi.ProvisioningStateSucceeded
-						}
+					if tc.operationStatus != "" {
+						operation.Status = tc.operationStatus
 					}
 					resources := []any{operation}
-					if scenario != "document missing" {
+					if !tc.resourceAbsent {
 						resources = append(resources, nodePool)
 					}
 					db, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, resources)
 					require.NoError(t, err)
 					cachedOperation, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 					require.NoError(t, err)
-					if scenario == "stale operation etag" {
+					if tc.staleOperationETag {
 						cachedOperation.CosmosETag = "stale-etag"
 					}
-					if scenario == "stale terminal operation" {
+					if tc.storedOperationStatus != "" {
 						completed := cachedOperation.DeepCopy()
-						completed.Status = coreapi.ProvisioningStateSucceeded
+						completed.Status = tc.storedOperationStatus
 						_, err = db.Operations(operationtesting.TestSubscriptionID).Replace(ctx, completed, nil)
 						require.NoError(t, err)
-						want = coreapi.ProvisioningStateSucceeded
 					}
 					nodePools := &corelistertesting.SliceNodePoolLister{}
-					if scenario != "document missing" {
+					if !tc.resourceAbsent {
 						nodePools.NodePools = []*coreapi.NodePool{nodePool}
 					}
 					crud := db.HCPClusters(operationtesting.TestSubscriptionID, operationtesting.TestResourceGroupName).NodePools(operationtesting.TestClusterName)
-					if scenario == "stale cached owner" {
+					if tc.storedOwner != nil {
 						current, err := crud.Get(ctx, operationtesting.TestNodePoolName)
 						require.NoError(t, err)
-						current.ServiceProviderProperties.ActiveOperationID = "new-owner"
+						current.ServiceProviderProperties.ActiveOperationID = *tc.storedOwner
 						_, err = crud.Replace(ctx, current, nil)
 						require.NoError(t, err)
 					}
@@ -150,7 +168,7 @@ func TestNodePoolOperationDeadlines(t *testing.T) {
 						}
 					}
 					var reads kubeapplierlisters.ReadDesireLister = &kubeapplierlistertesting.SliceReadDesireLister{}
-					if scenario == "expired with observation errors" {
+					if tc.observationErrors {
 						reads = failingDeadlineReadDesireLister{}
 					}
 					clock := clocktesting.NewFakePassiveClock(now)
@@ -166,40 +184,28 @@ func TestNodePoolOperationDeadlines(t *testing.T) {
 						controller := &operationNodePoolDelete{clock: clock, resourcesDBClient: db, clusterServiceClient: cs}
 						err = controller.SynchronizeOperation(ctx, fixture.OperationKey())
 					}
-					if request == cosmosstorageutils.OperationRequestUpdate && (scenario == "nil deadline" || scenario == "at deadline" || scenario == "before deadline") {
+					if want.reconcileError {
 						require.Error(t, err)
 					} else {
 						require.NoError(t, err)
 					}
 					persisted, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 					require.NoError(t, err)
-					assert.Equal(t, want, persisted.Status)
-					if operation.Status.IsTerminal() || want != coreapi.ProvisioningStateFailed {
+					assert.Equal(t, want.operationState, persisted.Status)
+					if want.errorCode == "" {
 						assert.Nil(t, persisted.Error)
 					} else {
 						require.NotNil(t, persisted.Error)
-						assert.Equal(t, coreapi.CloudErrorCodeDeadlineExceeded, persisted.Error.Code)
+						assert.Equal(t, want.errorCode, persisted.Error.Code)
 						assert.Contains(t, persisted.Error.Message, "did not complete before the deadline")
 					}
-					if scenario == "document missing" {
+					if tc.resourceAbsent {
 						return
 					}
 					persistedNodePool, err := crud.Get(ctx, operationtesting.TestNodePoolName)
 					require.NoError(t, err)
-					if scenario == "stale cached owner" {
-						assert.Equal(t, "new-owner", persistedNodePool.ServiceProviderProperties.ActiveOperationID)
-						assert.Equal(t, coreapi.ProvisioningStateAccepted, persistedNodePool.Properties.ProvisioningState)
-					} else if want == coreapi.ProvisioningStateFailed && !operation.Status.IsTerminal() {
-						assert.Empty(t, persistedNodePool.ServiceProviderProperties.ActiveOperationID)
-						assert.Equal(t, want, persistedNodePool.Properties.ProvisioningState)
-					} else {
-						assert.Equal(t, nodePool.ServiceProviderProperties.ActiveOperationID, persistedNodePool.ServiceProviderProperties.ActiveOperationID)
-						resourceState := coreapi.ProvisioningStateAccepted
-						if want == coreapi.ProvisioningStateProvisioning {
-							resourceState = want
-						}
-						assert.Equal(t, resourceState, persistedNodePool.Properties.ProvisioningState)
-					}
+					assert.Equal(t, want.owner, persistedNodePool.ServiceProviderProperties.ActiveOperationID)
+					assert.Equal(t, want.resourceState, persistedNodePool.Properties.ProvisioningState)
 				})
 			}
 		})

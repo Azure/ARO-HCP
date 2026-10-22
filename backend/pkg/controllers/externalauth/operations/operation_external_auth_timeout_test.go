@@ -175,7 +175,7 @@ func TestExternalAuthOperationCompletionDeadline(t *testing.T) {
 					cs := ocm.NewMockClusterServiceClientSpec(gomock.NewController(t))
 					expires := tc.deadline != nil && now.After(tc.deadline.Time)
 					owned := tc.owner == "" && (!tc.staleResource || request != cosmosstorageutils.OperationRequestDelete)
-					readsCS := (!expires || request != cosmosstorageutils.OperationRequestDelete) && owned && tc.terminal == "" && !tc.absent && !tc.noCSID && !tc.prerequisiteGate
+					readsCS := owned && tc.terminal == "" && !tc.absent && !tc.noCSID && !tc.prerequisiteGate
 					if readsCS {
 						csEA, err := arohcpv1alpha1.NewExternalAuth().
 							Status(arohcpv1alpha1.NewExternalAuthStatus().State(arohcpv1alpha1.NewExternalAuthState().Value("uninstalling"))).Build()
