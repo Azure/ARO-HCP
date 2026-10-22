@@ -30,15 +30,20 @@ import (
 )
 
 const (
-	testIdentityResourceIDString      = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity"
-	testOtherIdentityResourceIDString = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/other-identity"
-	testRoleDefinitionResourceID      = "/providers/Microsoft.Authorization/roleDefinitions/00000000-0000-0000-0000-000000000000"
-	testPrincipalID                   = "test-principal"
+	testIdentityResourceIDString  = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity"
+	testRoleDefinitionResourceID  = "/providers/Microsoft.Authorization/roleDefinitions/00000000-0000-0000-0000-000000000000"
+	testRoleDefinitionResourceID2 = "/providers/Microsoft.Authorization/roleDefinitions/11111111-1111-1111-1111-111111111111"
+	testPrincipalID               = "test-principal"
 )
 
 func testIdentityResourceID(t *testing.T) *azcorearm.ResourceID {
 	t.Helper()
 	return metadataapi.Must(azcorearm.ParseResourceID(testIdentityResourceIDString))
+}
+
+func testRoleDefinitionID(t *testing.T, resourceID string) *azcorearm.ResourceID {
+	t.Helper()
+	return metadataapi.Must(azcorearm.ParseResourceID(resourceID))
 }
 
 func testAzureResource(t *testing.T) *azcorearm.ResourceID {
@@ -142,34 +147,28 @@ func TestRoleAssignmentStatusManaged(t *testing.T) {
 
 func TestServiceProviderClusterStatusIdentityRoleAssignmentsConfigured(t *testing.T) {
 	tests := []struct {
-		name     string
-		status   *coreapi.ServiceProviderClusterStatus
-		desire   *coreapi.StackDesire
-		expected bool
+		name                              string
+		status                            *coreapi.ServiceProviderClusterStatus
+		desire                            *coreapi.StackDesire
+		expectedRoleDefinitionResourceIDs []*azcorearm.ResourceID
+		expected                          bool
 	}{
 		{
-			name:     "no entries, considered as not configured",
-			status:   &coreapi.ServiceProviderClusterStatus{},
-			desire:   testManagedStackDesire(testAzureResource(t)),
-			expected: false,
+			name:                              "no expected role definitions, considered as not configured",
+			status:                            &coreapi.ServiceProviderClusterStatus{},
+			desire:                            testManagedStackDesire(testAzureResource(t)),
+			expectedRoleDefinitionResourceIDs: nil,
+			expected:                          false,
 		},
 		{
-			name: "entries only for a different identity, considered as not configured",
-			status: &coreapi.ServiceProviderClusterStatus{
-				RoleAssignmentsOverManagedResourceGroup: map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus{
-					{PrincipalID: testPrincipalID, RoleDefinitionResourceID: testRoleDefinitionResourceID}: {
-						ReservedAzureResourceID: testAzureResource(t),
-						TargetIdentity: &coreapi.RoleAssignmentTargetIdentity{
-							ResourceID: metadataapi.Must(azcorearm.ParseResourceID(testOtherIdentityResourceIDString)),
-						},
-					},
-				},
-			},
-			desire:   testManagedStackDesire(testAzureResource(t)),
-			expected: false,
+			name:                              "no entries at all, considered as not configured",
+			status:                            &coreapi.ServiceProviderClusterStatus{},
+			desire:                            testManagedStackDesire(testAzureResource(t)),
+			expectedRoleDefinitionResourceIDs: []*azcorearm.ResourceID{testRoleDefinitionID(t, testRoleDefinitionResourceID)},
+			expected:                          false,
 		},
 		{
-			name: "entries only for a different principal on the same identity, considered as not configured",
+			name: "entries only for a different principal, considered as not configured",
 			status: &coreapi.ServiceProviderClusterStatus{
 				RoleAssignmentsOverManagedResourceGroup: map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus{
 					{PrincipalID: "other-principal", RoleDefinitionResourceID: testRoleDefinitionResourceID}: {
@@ -180,11 +179,12 @@ func TestServiceProviderClusterStatusIdentityRoleAssignmentsConfigured(t *testin
 					},
 				},
 			},
-			desire:   testManagedStackDesire(testAzureResource(t)),
-			expected: false,
+			desire:                            testManagedStackDesire(testAzureResource(t)),
+			expectedRoleDefinitionResourceIDs: []*azcorearm.ResourceID{testRoleDefinitionID(t, testRoleDefinitionResourceID)},
+			expected:                          false,
 		},
 		{
-			name: "single desired key that is managed, considered as configured",
+			name: "single expected role definition present and managed, considered as configured",
 			status: &coreapi.ServiceProviderClusterStatus{
 				RoleAssignmentsOverManagedResourceGroup: map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus{
 					{PrincipalID: testPrincipalID, RoleDefinitionResourceID: testRoleDefinitionResourceID}: {
@@ -195,11 +195,12 @@ func TestServiceProviderClusterStatusIdentityRoleAssignmentsConfigured(t *testin
 					},
 				},
 			},
-			desire:   testManagedStackDesire(testAzureResource(t)),
-			expected: true,
+			desire:                            testManagedStackDesire(testAzureResource(t)),
+			expectedRoleDefinitionResourceIDs: []*azcorearm.ResourceID{testRoleDefinitionID(t, testRoleDefinitionResourceID)},
+			expected:                          true,
 		},
 		{
-			name: "single desired key that is not yet managed, considered as not configured",
+			name: "single expected role definition present but not yet managed, considered as not configured",
 			status: &coreapi.ServiceProviderClusterStatus{
 				RoleAssignmentsOverManagedResourceGroup: map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus{
 					{PrincipalID: testPrincipalID, RoleDefinitionResourceID: testRoleDefinitionResourceID}: {
@@ -210,11 +211,12 @@ func TestServiceProviderClusterStatusIdentityRoleAssignmentsConfigured(t *testin
 					},
 				},
 			},
-			desire:   testManagedStackDesire(),
-			expected: false,
+			desire:                            testManagedStackDesire(),
+			expectedRoleDefinitionResourceIDs: []*azcorearm.ResourceID{testRoleDefinitionID(t, testRoleDefinitionResourceID)},
+			expected:                          false,
 		},
 		{
-			name: "only a draining key for the identity with nothing else desired, considered as not configured",
+			name: "only a draining entry for the expected role definition, considered as not configured",
 			status: &coreapi.ServiceProviderClusterStatus{
 				RoleAssignmentsOverManagedResourceGroup: map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus{
 					{PrincipalID: testPrincipalID, RoleDefinitionResourceID: testRoleDefinitionResourceID}: {
@@ -226,11 +228,12 @@ func TestServiceProviderClusterStatusIdentityRoleAssignmentsConfigured(t *testin
 					},
 				},
 			},
-			desire:   testManagedStackDesire(testAzureResource(t)),
-			expected: false,
+			desire:                            testManagedStackDesire(testAzureResource(t)),
+			expectedRoleDefinitionResourceIDs: []*azcorearm.ResourceID{testRoleDefinitionID(t, testRoleDefinitionResourceID)},
+			expected:                          false,
 		},
 		{
-			name: "multiple desired keys all managed, considered as configured",
+			name: "multiple expected role definitions all present and managed, considered as configured",
 			status: &coreapi.ServiceProviderClusterStatus{
 				RoleAssignmentsOverManagedResourceGroup: map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus{
 					{PrincipalID: testPrincipalID, RoleDefinitionResourceID: testRoleDefinitionResourceID}: {
@@ -239,7 +242,7 @@ func TestServiceProviderClusterStatusIdentityRoleAssignmentsConfigured(t *testin
 							ResourceID: testIdentityResourceID(t),
 						},
 					},
-					{PrincipalID: testPrincipalID, RoleDefinitionResourceID: testRoleDefinitionResourceID + "-2"}: {
+					{PrincipalID: testPrincipalID, RoleDefinitionResourceID: testRoleDefinitionResourceID2}: {
 						ReservedAzureResourceID: testAzureResource(t),
 						TargetIdentity: &coreapi.RoleAssignmentTargetIdentity{
 							ResourceID: testIdentityResourceID(t),
@@ -247,11 +250,15 @@ func TestServiceProviderClusterStatusIdentityRoleAssignmentsConfigured(t *testin
 					},
 				},
 			},
-			desire:   testManagedStackDesire(testAzureResource(t)),
+			desire: testManagedStackDesire(testAzureResource(t)),
+			expectedRoleDefinitionResourceIDs: []*azcorearm.ResourceID{
+				testRoleDefinitionID(t, testRoleDefinitionResourceID),
+				testRoleDefinitionID(t, testRoleDefinitionResourceID2),
+			},
 			expected: true,
 		},
 		{
-			name: "multiple desired keys with one not managed, considered as not configured",
+			name: "multiple expected role definitions with one not managed, considered as not configured",
 			status: &coreapi.ServiceProviderClusterStatus{
 				RoleAssignmentsOverManagedResourceGroup: map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus{
 					{PrincipalID: testPrincipalID, RoleDefinitionResourceID: testRoleDefinitionResourceID}: {
@@ -260,21 +267,44 @@ func TestServiceProviderClusterStatusIdentityRoleAssignmentsConfigured(t *testin
 							ResourceID: testIdentityResourceID(t),
 						},
 					},
-					{PrincipalID: testPrincipalID, RoleDefinitionResourceID: testRoleDefinitionResourceID + "-2"}: {
+					{PrincipalID: testPrincipalID, RoleDefinitionResourceID: testRoleDefinitionResourceID2}: {
 						TargetIdentity: &coreapi.RoleAssignmentTargetIdentity{
 							ResourceID: testIdentityResourceID(t),
 						},
 					},
 				},
 			},
-			desire:   testManagedStackDesire(testAzureResource(t)),
+			desire: testManagedStackDesire(testAzureResource(t)),
+			expectedRoleDefinitionResourceIDs: []*azcorearm.ResourceID{
+				testRoleDefinitionID(t, testRoleDefinitionResourceID),
+				testRoleDefinitionID(t, testRoleDefinitionResourceID2),
+			},
+			expected: false,
+		},
+		{
+			name: "multiple expected role definitions with one missing from status entirely, considered as not configured",
+			status: &coreapi.ServiceProviderClusterStatus{
+				RoleAssignmentsOverManagedResourceGroup: map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus{
+					{PrincipalID: testPrincipalID, RoleDefinitionResourceID: testRoleDefinitionResourceID}: {
+						ReservedAzureResourceID: testAzureResource(t),
+						TargetIdentity: &coreapi.RoleAssignmentTargetIdentity{
+							ResourceID: testIdentityResourceID(t),
+						},
+					},
+				},
+			},
+			desire: testManagedStackDesire(testAzureResource(t)),
+			expectedRoleDefinitionResourceIDs: []*azcorearm.ResourceID{
+				testRoleDefinitionID(t, testRoleDefinitionResourceID),
+				testRoleDefinitionID(t, testRoleDefinitionResourceID2),
+			},
 			expected: false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := ServiceProviderClusterStatusIdentityRoleAssignmentsConfigured(tt.status, tt.desire, testIdentityResourceID(t), testPrincipalID)
+			got := ServiceProviderClusterStatusIdentityRoleAssignmentsConfigured(tt.status, tt.desire, testPrincipalID, tt.expectedRoleDefinitionResourceIDs)
 			assert.Equal(t, tt.expected, got)
 		})
 	}

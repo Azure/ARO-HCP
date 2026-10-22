@@ -252,7 +252,7 @@ func (s *clusterRoleAssignmentIntentSyncer) desiredRoleAssignmentIdentities(
 			unresolvedResourceIDs[strings.ToLower(identityResourceID.String())] = struct{}{}
 			continue
 		}
-		roleDefinitionIDs, err := controlPlaneOperatorRoleDefinitionIDsFromConfig(s.clusterScopedIdentitiesConfig, operatorName)
+		roleDefinitionIDs, err := ControlPlaneOperatorRoleDefinitionIDsFromConfig(s.clusterScopedIdentitiesConfig, operatorName)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -277,7 +277,7 @@ func (s *clusterRoleAssignmentIntentSyncer) desiredRoleAssignmentIdentities(
 			unresolvedResourceIDs[strings.ToLower(identityResourceID.String())] = struct{}{}
 			continue
 		}
-		roleDefinitionIDs, err := dataPlaneOperatorRoleDefinitionIDsFromConfig(s.clusterScopedIdentitiesConfig, operatorName)
+		roleDefinitionIDs, err := DataPlaneOperatorRoleDefinitionIDsFromConfig(s.clusterScopedIdentitiesConfig, operatorName)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -297,7 +297,7 @@ func (s *clusterRoleAssignmentIntentSyncer) desiredRoleAssignmentIdentities(
 	if !ok {
 		unresolvedResourceIDs[strings.ToLower(identityResourceID.String())] = struct{}{}
 	} else {
-		roleDefinitionIDs, err := serviceManagedIdentityRoleDefinitionIDsFromConfig(s.clusterScopedIdentitiesConfig)
+		roleDefinitionIDs, err := ServiceManagedIdentityRoleDefinitionIDsFromConfig(s.clusterScopedIdentitiesConfig)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -420,7 +420,13 @@ func addDesiredRoleAssignmentKeys(
 	return nil
 }
 
-func controlPlaneOperatorRoleDefinitionIDsFromConfig(config *azure.ClusterScopedIdentitiesConfig, operatorName string) ([]*azcorearm.ResourceID, error) {
+// ControlPlaneOperatorRoleDefinitionIDsFromConfig returns the role definition
+// resource IDs ClusterScopedIdentitiesConfig associates with the given
+// control-plane operator. Exported so callers other than this controller
+// (e.g. the create-operation completion check) can independently derive what
+// role assignments are currently required, instead of inferring it from
+// whatever this controller has already written.
+func ControlPlaneOperatorRoleDefinitionIDsFromConfig(config *azure.ClusterScopedIdentitiesConfig, operatorName string) ([]*azcorearm.ResourceID, error) {
 	// Here we assume that if the operator name exists in the cluster payload, the cluster scoped identities config always contains
 	// that operator name as defined in it. If that's not the case we return an error.
 	operatorIdentity, ok := config.ControlPlaneOperatorsIdentities[azure.ClusterOperatorIdentifier(operatorName)]
@@ -442,7 +448,11 @@ func controlPlaneOperatorRoleDefinitionIDsFromConfig(config *azure.ClusterScoped
 	return roleDefinitionIDs, nil
 }
 
-func dataPlaneOperatorRoleDefinitionIDsFromConfig(config *azure.ClusterScopedIdentitiesConfig, operatorName string) ([]*azcorearm.ResourceID, error) {
+// DataPlaneOperatorRoleDefinitionIDsFromConfig returns the role definition
+// resource IDs ClusterScopedIdentitiesConfig associates with the given
+// data-plane operator. See ControlPlaneOperatorRoleDefinitionIDsFromConfig
+// for why this is exported.
+func DataPlaneOperatorRoleDefinitionIDsFromConfig(config *azure.ClusterScopedIdentitiesConfig, operatorName string) ([]*azcorearm.ResourceID, error) {
 	operatorIdentity, ok := config.DataPlaneOperatorsIdentities[azure.ClusterOperatorIdentifier(operatorName)]
 	if !ok || operatorIdentity == nil {
 		return nil, utils.TrackError(fmt.Errorf("no data plane operator identity configuration for operator %q", operatorName))
@@ -454,7 +464,11 @@ func dataPlaneOperatorRoleDefinitionIDsFromConfig(config *azure.ClusterScopedIde
 	return roleDefinitionIDs, nil
 }
 
-func serviceManagedIdentityRoleDefinitionIDsFromConfig(config *azure.ClusterScopedIdentitiesConfig) ([]*azcorearm.ResourceID, error) {
+// ServiceManagedIdentityRoleDefinitionIDsFromConfig returns the role
+// definition resource IDs ClusterScopedIdentitiesConfig associates with the
+// service managed identity. See
+// ControlPlaneOperatorRoleDefinitionIDsFromConfig for why this is exported.
+func ServiceManagedIdentityRoleDefinitionIDsFromConfig(config *azure.ClusterScopedIdentitiesConfig) ([]*azcorearm.ResourceID, error) {
 	if config.ServiceManagedIdentity == nil {
 		return nil, utils.TrackError(fmt.Errorf("no service managed identity configuration"))
 	}

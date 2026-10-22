@@ -355,6 +355,7 @@ func instantiateOperationClusterCreateController(controllerContext controllercon
 		activeOperationInformer,
 		controllerContext.BackendInformers,
 		unionReadDesireLister,
+		controllerContext.ClusterScopedIdentitiesConfig,
 		controllerContext.HardcodedIdentity == nil, // When hardcodedIdentity is nil, it means that the real Managed Identities Data Plane is available
 	), nil
 }

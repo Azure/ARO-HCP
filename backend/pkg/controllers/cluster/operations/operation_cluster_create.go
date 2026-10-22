@@ -44,6 +44,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
+	"github.com/Azure/ARO-HCP/internal/azure"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
@@ -64,6 +65,13 @@ type operationClusterCreate struct {
 	resourcesDBClient                     corecosmosstorage.ResourcesDBClient
 	clusterServiceClient                  ocm.ClusterServiceClientSpec
 	notificationClient                    *http.Client
+	// clusterScopedIdentitiesConfig is the same config ClusterRoleAssignmentIntent
+	// uses to compute each operator's required role definitions. It's read
+	// directly here, rather than inferred from ServiceProviderCluster.Status,
+	// so roleAssignmentsOperationStatus can't report an identity as configured
+	// based on a role definition set that predates a config change
+	// ClusterRoleAssignmentIntent hasn't reconciled yet.
+	clusterScopedIdentitiesConfig *azure.ClusterScopedIdentitiesConfig
 	// managedIdentitiesDataPlaneServiceAvailable is the same environment
 	// signal ClusterRoleAssignmentIntent and FetchManagedIdentitiesInfo use
 	// (hardcodedIdentity == nil): it selects
@@ -98,6 +106,7 @@ func NewOperationClusterCreateController(
 	activeOperationInformer cache.SharedIndexInformer,
 	informers coreinformers.BackendInformers,
 	readDesireLister kubeapplierlisters.ReadDesireLister,
+	clusterScopedIdentitiesConfig *azure.ClusterScopedIdentitiesConfig,
 	managedIdentitiesDataPlaneServiceAvailable bool,
 ) controllerutils.Controller {
 	_, activeOperationLister := informers.ActiveOperations()
@@ -116,6 +125,7 @@ func NewOperationClusterCreateController(
 		resourcesDBClient:                          resourcesDBClient,
 		clusterServiceClient:                       clusterServiceClient,
 		notificationClient:                         notificationClient,
+		clusterScopedIdentitiesConfig:              clusterScopedIdentitiesConfig,
 		managedIdentitiesDataPlaneServiceAvailable: managedIdentitiesDataPlaneServiceAvailable,
 	}
 
@@ -575,8 +585,8 @@ func (c *operationClusterCreate) roleAssignmentsOperationStatus(ctx context.Cont
 		return nil, utils.TrackError(err)
 	}
 
-	identityConfigured := func(identityResourceID *azcorearm.ResourceID, target *coreapi.RoleAssignmentTargetIdentity, resolved bool) bool {
-		return resolved && coreapihelpers.ServiceProviderClusterStatusIdentityRoleAssignmentsConfigured(&serviceProviderCluster.Status, desire, identityResourceID, target.PrincipalID)
+	identityConfigured := func(target *coreapi.RoleAssignmentTargetIdentity, resolved bool, roleDefinitionResourceIDs []*azcorearm.ResourceID) bool {
+		return resolved && coreapihelpers.ServiceProviderClusterStatusIdentityRoleAssignmentsConfigured(&serviceProviderCluster.Status, desire, target.PrincipalID, roleDefinitionResourceIDs)
 	}
 
 	var pending []string
@@ -586,7 +596,11 @@ func (c *operationClusterCreate) roleAssignmentsOperationStatus(ctx context.Cont
 		if err != nil {
 			return nil, utils.TrackError(err)
 		}
-		if !identityConfigured(identityResourceID, target, resolved) {
+		roleDefinitionResourceIDs, err := clusterroleassignments.ControlPlaneOperatorRoleDefinitionIDsFromConfig(c.clusterScopedIdentitiesConfig, operatorName)
+		if err != nil {
+			return nil, utils.TrackError(err)
+		}
+		if !identityConfigured(target, resolved, roleDefinitionResourceIDs) {
 			pending = append(pending, fmt.Sprintf("control-plane operator %q (%s)", operatorName, identityResourceID))
 		}
 	}
@@ -598,7 +612,11 @@ func (c *operationClusterCreate) roleAssignmentsOperationStatus(ctx context.Cont
 		if err != nil {
 			return nil, utils.TrackError(err)
 		}
-		if !identityConfigured(identityResourceID, target, resolved) {
+		roleDefinitionResourceIDs, err := clusterroleassignments.DataPlaneOperatorRoleDefinitionIDsFromConfig(c.clusterScopedIdentitiesConfig, operatorName)
+		if err != nil {
+			return nil, utils.TrackError(err)
+		}
+		if !identityConfigured(target, resolved, roleDefinitionResourceIDs) {
 			pending = append(pending, fmt.Sprintf("data-plane operator %q (%s)", operatorName, identityResourceID))
 		}
 	}
@@ -607,7 +625,11 @@ func (c *operationClusterCreate) roleAssignmentsOperationStatus(ctx context.Cont
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
-	if !identityConfigured(identityResourceID, target, resolved) {
+	serviceManagedIdentityRoleDefinitionResourceIDs, err := clusterroleassignments.ServiceManagedIdentityRoleDefinitionIDsFromConfig(c.clusterScopedIdentitiesConfig)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+	if !identityConfigured(target, resolved, serviceManagedIdentityRoleDefinitionResourceIDs) {
 		pending = append(pending, fmt.Sprintf("service managed identity (%s)", identityResourceID))
 	}
 
