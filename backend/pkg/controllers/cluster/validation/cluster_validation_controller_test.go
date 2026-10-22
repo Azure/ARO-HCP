@@ -29,6 +29,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clocktesting "k8s.io/utils/clock/testing"
 	"k8s.io/utils/lru"
+	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -116,6 +117,7 @@ func newTestSyncer(mockDB *corecosmosstoragetesting.MockResourcesDBClient, valid
 		serviceProviderClusterLister: &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockDB},
 		validation:                   validation,
 		consecutiveUnknownCounts:     lru.New(consecutiveUnknownCountsCacheCapacity),
+		probeWriteTimes:              lru.New(consecutiveUnknownCountsCacheCapacity),
 		clock:                        fakeClock,
 	}
 	return syncer, enqueuer
@@ -947,4 +949,119 @@ func TestClusterValidationSyncer_RunTimeout(t *testing.T) {
 	_, hasProbe := spc.Status.ValidationProbeTimes[validationName]
 	assert.False(t, hasProbe, "a timed-out run must not record a probe time")
 	assert.NotEmpty(t, enqueuer.enqueuedKeys, "a timed-out run must schedule a retry")
+}
+
+// TestClusterValidationSyncer_ProbeRewriteWriteInterval asserts that probe rewrites are
+// throttled by the time between actual writes, not by the previous probe's run-start time.
+// With 61-second retry delays and Failed runs alternating between 59s and 1s, anchoring the
+// throttle on the stored probe (the previous run's start) let a rewrite land every
+// retry-plus-one-second, because a 59s run's start is almost a full interval old when a 1s
+// run completes right after it. Anchoring on the last successful write keeps consecutive
+// rewrites at least ValidationProbeRewriteInterval apart in wall-clock time.
+func TestClusterValidationSyncer_ProbeRewriteWriteInterval(t *testing.T) {
+	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+
+	mockDB := corecosmosstoragetesting.NewMockResourcesDBClient()
+	cluster := newTestCluster(t)
+	_, err := mockDB.HCPClusters(testSubscriptionID, testResourceGroup).Create(ctx, cluster, nil)
+	require.NoError(t, err)
+	_, err = mockDB.Subscriptions().Create(ctx, newTestSubscription(), nil)
+	require.NoError(t, err)
+	_, err = corecosmosstorage.GetOrCreateServiceProviderCluster(ctx, mockDB, cluster.ID)
+	require.NoError(t, err)
+
+	fakeClock := clocktesting.NewFakePassiveClock(fixedNow)
+	durations := []time.Duration{59 * time.Second, time.Second}
+	var run int
+	validation := NewMockClusterValidation(testValidationName).WithValidateFunc(func(context.Context) validationutils.ValidationResult {
+		d := durations[run%len(durations)]
+		run++
+		fakeClock.SetTime(fakeClock.Now().Add(d))
+		result := validationutils.FailedValidation("QuotaExceeded", "Quota exceeded for this subscription.", "quota exceeded")
+		result.EarliestRetryAfter = ptr.To(61 * time.Second)
+		return result
+	})
+
+	syncer, _ := newTestSyncer(mockDB, validation, fakeClock)
+
+	spcCRUD := mockDB.ServiceProviderClusters(testSubscriptionID, testResourceGroup, testClusterName)
+	var lastWrite time.Time
+	rewrites := 0
+	for i := 0; i < 20; i++ {
+		// Each run starts one retry delay after the previous run completed.
+		fakeClock.SetTime(fakeClock.Now().Add(62 * time.Second))
+
+		before, err := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
+		require.NoError(t, err)
+		require.NoError(t, syncer.SyncOnce(ctx, newTestClusterKey()))
+		after, err := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
+		require.NoError(t, err)
+
+		probe := after.Status.ValidationProbeTimes[testValidationName]
+		require.Falsef(t, probe.IsZero(), "run %d: a failing validation must always record a probe", i)
+		if !probe.Time.Equal(before.Status.ValidationProbeTimes[testValidationName].Time) {
+			if rewrites > 0 {
+				assert.GreaterOrEqualf(t, fakeClock.Since(lastWrite), validationutils.ValidationProbeRewriteInterval,
+					"rewrite %d landed too soon after the previous write", rewrites)
+			}
+			lastWrite = fakeClock.Now()
+			rewrites++
+		}
+	}
+	assert.GreaterOrEqual(t, rewrites, 3, "the schedule must produce several rewrites for the interval assertions to be meaningful")
+}
+
+// TestClusterValidationSyncer_ProbeRewriteRestartFallback covers the fallback used when no
+// write is on record (syncer restart or leader change): a stored probe at least
+// ValidationProbeRewriteInterval old is rewritten, while a younger one is left alone.
+func TestClusterValidationSyncer_ProbeRewriteRestartFallback(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		probeAge    time.Duration
+		wantRewrite bool
+	}{
+		{name: "stored probe older than the interval is rewritten", probeAge: validationutils.ValidationProbeRewriteInterval + time.Minute, wantRewrite: true},
+		{name: "stored probe younger than the interval is left alone", probeAge: time.Minute, wantRewrite: false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+
+			mockDB := corecosmosstoragetesting.NewMockResourcesDBClient()
+			cluster := newTestCluster(t)
+			_, err := mockDB.HCPClusters(testSubscriptionID, testResourceGroup).Create(ctx, cluster, nil)
+			require.NoError(t, err)
+			_, err = mockDB.Subscriptions().Create(ctx, newTestSubscription(), nil)
+			require.NoError(t, err)
+			_, err = corecosmosstorage.GetOrCreateServiceProviderCluster(ctx, mockDB, cluster.ID)
+			require.NoError(t, err)
+
+			spcCRUD := mockDB.ServiceProviderClusters(testSubscriptionID, testResourceGroup, testClusterName)
+			spc, err := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
+			require.NoError(t, err)
+			// Truncate to whole seconds: the mock DB round-trips timestamps at
+			// second precision, so sub-second differences would be indistinguishable
+			// from a rewrite.
+			storedProbe := time.Now().Add(-tc.probeAge).Truncate(time.Second)
+			spc.Status.ValidationProbeTimes = map[string]metav1.Time{
+				testValidationName: metav1.NewTime(storedProbe),
+			}
+			_, err = spcCRUD.Replace(ctx, spc, nil)
+			require.NoError(t, err)
+
+			fakeClock := clocktesting.NewFakePassiveClock(fixedNow)
+			validation := NewMockClusterValidation(testValidationName).WithFailed("QuotaExceeded", "quota exceeded", "Quota exceeded for this subscription.")
+			// A fresh syncer has no in-memory write record, exercising the fallback.
+			syncer, _ := newTestSyncer(mockDB, validation, fakeClock)
+			fakeClock.SetTime(storedProbe.Add(tc.probeAge)) // now is exactly probeAge after the stored probe
+
+			require.NoError(t, syncer.SyncOnce(ctx, newTestClusterKey()))
+
+			after, err := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
+			require.NoError(t, err)
+			probe := after.Status.ValidationProbeTimes[testValidationName]
+			require.False(t, probe.IsZero())
+			assert.Equalf(t, tc.wantRewrite, !probe.Time.Equal(storedProbe),
+				"expected rewrite=%v", tc.wantRewrite)
+		})
+	}
 }

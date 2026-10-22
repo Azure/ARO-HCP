@@ -227,7 +227,7 @@ func TestClusterValidationProbeFreshness(t *testing.T) {
 		{
 			name:       "old failure with stale probe stays provisioning",
 			validation: failedFor(10 * time.Minute),
-			probeAge:   ptrTo(8 * time.Minute),
+			probeAge:   ptrTo(validationutils.ValidationProbeFreshnessWindow + 2*time.Minute),
 			wantState:  coreapi.ProvisioningStateProvisioning,
 		},
 		{
@@ -263,7 +263,7 @@ func TestClusterValidationProbeFreshness(t *testing.T) {
 		{
 			name:       "old unknown condition with a stale probe stays provisioning",
 			validation: unknownFor(10 * time.Minute),
-			probeAge:   ptrTo(8 * time.Minute),
+			probeAge:   ptrTo(validationutils.ValidationProbeFreshnessWindow + 2*time.Minute),
 			wantState:  coreapi.ProvisioningStateProvisioning,
 		},
 		{

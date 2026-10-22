@@ -69,18 +69,19 @@ const (
 	// evidence rather than a freshly confirmed one.
 	//
 	// The window is derived from the other bounds so that a validation re-checking on schedule
-	// never looks stale. The rewrite decision is made when a run completes, and the stored probe is
-	// that run's start time. The run that stored the probe can itself run for up to
-	// ValidationRunTimeout, so the first run to complete after the probe has aged past
-	// ValidationProbeRewriteInterval completes no earlier than max(rewrite interval, run timeout)
-	// after the probe. If that run completes just before the probe reaches that age, it does not
-	// rewrite, and the next run starts up to one retry delay later and completes up to one run
-	// later. The worst-case stored probe age while re-checks continue is therefore
-	// max(ValidationProbeRewriteInterval, ValidationRunTimeout) + maxNonPassedRetryDelay +
-	// ValidationRunTimeout; the compile-time guard below keeps the max at ValidationRunTimeout.
+	// never looks stale. The rewrite throttle is anchored on the last successful probe write, and
+	// the stored probe is the start time of the run that wrote it: that run can itself run for up
+	// to ValidationRunTimeout before its write lands, so the first rewrite after it completes no
+	// earlier than ValidationRunTimeout (the writing run's own duration) +
+	// ValidationProbeRewriteInterval after the stored probe. If a run completes just before that
+	// bound, it does not rewrite, and the next run starts up to one retry delay later and runs up
+	// to one run timeout longer. The worst-case stored probe age while re-checks continue is
+	// therefore ValidationRunTimeout + max(ValidationProbeRewriteInterval, ValidationRunTimeout) +
+	// maxNonPassedRetryDelay + ValidationRunTimeout; the compile-time guard below keeps the middle
+	// max at ValidationRunTimeout.
 	// A run that times out is Unknown and does not rewrite, which correctly lets the probe go
 	// stale; the same holds for a rewrite lost to a write conflict until the next run lands.
-	ValidationProbeFreshnessWindow = 2*ValidationRunTimeout + maxNonPassedRetryDelay + validationProbeLagSlack
+	ValidationProbeFreshnessWindow = 3*ValidationRunTimeout + maxNonPassedRetryDelay + validationProbeLagSlack
 )
 
 // Fails to compile if ValidationProbeRewriteInterval exceeds ValidationRunTimeout: the operand

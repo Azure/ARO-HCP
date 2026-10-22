@@ -81,6 +81,11 @@ type clusterValidationSyncer struct {
 	// to Unknown on a transient blip.
 	consecutiveUnknownCounts *lru.Cache
 
+	// probeWriteTimes records, per HCPClusterKey, when the syncer last successfully wrote that
+	// validation's probe time, so the rewrite throttle in shouldRewriteProbe can be anchored on
+	// actual write moments rather than on run start times.
+	probeWriteTimes *lru.Cache
+
 	// clock provides the time recorded in Status.ValidationProbeTimes and the run duration metric.
 	clock utilsclock.PassiveClock
 
@@ -114,6 +119,7 @@ func NewNamedClusterValidationController(
 		serviceProviderClusterLister: serviceProviderClusterLister,
 		validation:                   validation,
 		consecutiveUnknownCounts:     lru.New(consecutiveUnknownCountsCacheCapacity),
+		probeWriteTimes:              lru.New(consecutiveUnknownCountsCacheCapacity),
 		clock:                        utilsclock.RealClock{},
 		runTimeout:                   validationutils.ValidationRunTimeout,
 	}
@@ -225,20 +231,23 @@ func (c *clusterValidationSyncer) SyncOnce(ctx context.Context, key controllerut
 	// because it is the earliest moment the run could have observed Azure, so
 	// it never overstates how fresh the evidence is.
 	// A still-failing validation rewrites its probe at most once per
-	// ValidationProbeRewriteInterval so that every retry does not become a
-	// Cosmos write; a missing probe is always written. Passed and Skipped
-	// outcomes drop the probe alongside the failure it described. Unknown
-	// outcomes neither refresh nor drop it: refreshing would defeat the
-	// consecutive-Unknown write suppression above, and a probe that goes stale
-	// during an Unknown streak correctly keeps the operation non-terminal.
+	// ValidationProbeRewriteInterval, measured from the last successful write
+	// (see shouldRewriteProbe), so that every retry does not become a Cosmos
+	// write; a missing probe is always written. Passed and Skipped outcomes drop
+	// the probe alongside the failure it described. Unknown outcomes neither
+	// refresh nor drop it: refreshing would defeat the consecutive-Unknown write
+	// suppression above, and a probe that goes stale during an Unknown streak
+	// correctly keeps the operation non-terminal.
+	probeRewritten := false
 	switch result.Outcome.Type {
 	case validationutils.OutcomeTypeFailed:
 		storedProbe := replacement.Status.ValidationProbeTimes[c.validation.Name()]
-		if storedProbe.IsZero() || c.clock.Since(storedProbe.Time) >= validationutils.ValidationProbeRewriteInterval {
+		if storedProbe.IsZero() || c.shouldRewriteProbe(key, storedProbe.Time) {
 			if replacement.Status.ValidationProbeTimes == nil {
 				replacement.Status.ValidationProbeTimes = map[string]metav1.Time{}
 			}
 			replacement.Status.ValidationProbeTimes[c.validation.Name()] = metav1.NewTime(probeStartTime)
+			probeRewritten = true
 		}
 	case validationutils.OutcomeTypePassed, validationutils.OutcomeTypeSkipped:
 		delete(replacement.Status.ValidationProbeTimes, c.validation.Name())
@@ -253,6 +262,11 @@ func (c *clusterValidationSyncer) SyncOnce(ctx context.Context, key controllerut
 		}
 		if err != nil {
 			return utils.TrackError(fmt.Errorf("failed to replace ServiceProviderCluster: %w", err))
+		}
+		if probeRewritten {
+			// Record the write moment only after it actually landed, so a rewrite lost to a
+			// precondition conflict does not push the next one out by a full interval.
+			c.probeWriteTimes.Add(key, c.clock.Now())
 		}
 	}
 
@@ -343,6 +357,21 @@ func (c *clusterValidationSyncer) handleRequeue(key controllerutils.HCPClusterKe
 // transient blip: a persistent Unknown streak is still allowed to overwrite the stored condition once it
 // exceeds maxConsecutiveUnknownsBeforeWrite, and a Passed/Failed result (consecutiveUnknowns == 0) always
 // overwrites immediately, resetting the streak.
+// shouldRewriteProbe reports whether a still-failing run may rewrite its probe time. The
+// throttle is anchored on the last successful probe write, not on the stored probe's run
+// start: the write lands when a run completes, so anchoring on the run start lets runs
+// with alternating durations rewrite more often than ValidationProbeRewriteInterval (a
+// 59s run followed by 1s runs can rewrite every retry delay plus one second). When no
+// write is on record — after a syncer restart or leader change — the stored probe's age
+// is used as a fallback: it is necessary but not sufficient for the interval to have
+// elapsed since the write, so at most one rewrite per restart can land early.
+func (c *clusterValidationSyncer) shouldRewriteProbe(key controllerutils.HCPClusterKey, storedProbe time.Time) bool {
+	if lastWrite, ok := c.probeWriteTimes.Get(key); ok {
+		return c.clock.Since(lastWrite.(time.Time)) >= validationutils.ValidationProbeRewriteInterval
+	}
+	return c.clock.Since(storedProbe) >= validationutils.ValidationProbeRewriteInterval
+}
+
 func (c *clusterValidationSyncer) shouldWriteCondition(previousCondition *metav1.Condition, consecutiveUnknowns int) bool {
 	return previousCondition == nil || consecutiveUnknowns == 0 || consecutiveUnknowns > maxConsecutiveUnknownsBeforeWrite
 }
