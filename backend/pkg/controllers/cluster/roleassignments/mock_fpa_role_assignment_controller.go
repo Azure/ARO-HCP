@@ -33,7 +33,6 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/azure/roleassignment"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
-	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
@@ -83,14 +82,19 @@ func NewMockFPARoleAssignmentController(clock utilsclock.PassiveClock, resources
 }
 
 func mockFPARoleAssignmentID(cluster *coreapi.Cluster, principalID string) (*azcorearm.ResourceID, error) {
-	if len(cluster.CustomerProperties.Platform.ManagedResourceGroup) == 0 || len(principalID) == 0 {
+	managedResourceGroupName := cluster.CustomerProperties.Platform.ManagedResourceGroup
+	if len(managedResourceGroupName) == 0 || len(principalID) == 0 {
 		return nil, fmt.Errorf("managed resource group name and mock FPA principal ID are required")
 	}
-	scope, err := coreapihelpers.ToResourceGroupResourceID(cluster.ID.SubscriptionID, cluster.CustomerProperties.Platform.ManagedResourceGroup)
+	scopeString := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s", strings.ToLower(cluster.ID.SubscriptionID), managedResourceGroupName)
+	scope, err := azcorearm.ParseResourceID(scopeString)
 	if err != nil {
 		return nil, err
 	}
-	return azcorearm.ParseResourceID(roleassignment.ManagedResourceGroupScopedRoleAssignmentResourceID(scope.String(), principalID, mockFPAOwnerRoleDefinitionID))
+	if scope.ResourceType.String() != azcorearm.ResourceGroupResourceType.String() || scope.ResourceGroupName != managedResourceGroupName || scope.String() != scopeString {
+		return nil, fmt.Errorf("invalid managed resource group scope %q", scopeString)
+	}
+	return azcorearm.ParseResourceID(roleassignment.ManagedResourceGroupScopedRoleAssignmentResourceID(scopeString, principalID, mockFPAOwnerRoleDefinitionID))
 }
 
 func MockFPARoleAssignmentReady(cluster *coreapi.Cluster, serviceProviderCluster *coreapi.ServiceProviderCluster, principalID string) bool {
