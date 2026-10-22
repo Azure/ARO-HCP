@@ -211,13 +211,14 @@ func TestLegacyIngressDesireSuppression(test *testing.T) {
 			}
 			csClient := ocm.NewMockClusterServiceClientSpec(gomock.NewController(test))
 			resources := buildClusterResources(map[string]string{
-				"hosted":   `{"apiVersion":"hypershift.openshift.io/v1beta1","kind":"HostedCluster","metadata":{"name":"test-cluster","namespace":"hc"}}`,
-				"managed":  `{"apiVersion":"cluster.open-cluster-management.io/v1","kind":"ManagedCluster","metadata":{"name":"test-cluster"}}`,
-				"config":   `{"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":"default-ingress","namespace":"open-cluster-management-policies"}}`,
-				"sync":     `{"apiVersion":"secret-sync.x-k8s.io/v1alpha1","kind":"SecretSync","metadata":{"name":"default-ingress-tls-cert-test","namespace":"open-cluster-management-policies"}}`,
-				"provider": `{"apiVersion":"secrets-store.csi.x-k8s.io/v1","kind":"SecretProviderClass","metadata":{"name":"default-ingress-tls-cert-test","namespace":"open-cluster-management-policies"}}`,
-				"kas":      `{"apiVersion":"secret-sync.x-k8s.io/v1alpha1","kind":"SecretSync","metadata":{"name":"kube-apiserver-tls-cert-test","namespace":"hc"}}`,
-				"signing":  `{"apiVersion":"secrets-store.csi.x-k8s.io/v1","kind":"SecretProviderClass","metadata":{"name":"signing-key-test","namespace":"hc"}}`,
+				"hosted":       `{"apiVersion":"hypershift.openshift.io/v1beta1","kind":"HostedCluster","metadata":{"name":"test-cluster","namespace":"hc"}}`,
+				"managed":      `{"apiVersion":"cluster.open-cluster-management.io/v1","kind":"ManagedCluster","metadata":{"name":"test-cluster"}}`,
+				"config":       `{"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":"default-ingress","namespace":"open-cluster-management-policies"}}`,
+				"sync":         `{"apiVersion":"secret-sync.x-k8s.io/v1alpha1","kind":"SecretSync","metadata":{"name":"default-ingress-tls-cert-test","namespace":"open-cluster-management-policies"}}`,
+				"provider":     `{"apiVersion":"secrets-store.csi.x-k8s.io/v1","kind":"SecretProviderClass","metadata":{"name":"default-ingress-tls-cert-test","namespace":"open-cluster-management-policies"}}`,
+				"kas":          `{"apiVersion":"secret-sync.x-k8s.io/v1alpha1","kind":"SecretSync","metadata":{"name":"kube-apiserver-tls-cert","namespace":"hc"}}`,
+				"kas-provider": `{"apiVersion":"secrets-store.csi.x-k8s.io/v1","kind":"SecretProviderClass","metadata":{"name":"kube-apiserver-tls-cert","namespace":"hc"}}`,
+				"signing":      `{"apiVersion":"secrets-store.csi.x-k8s.io/v1","kind":"SecretProviderClass","metadata":{"name":"signing-key-test","namespace":"hc"}}`,
 			})
 			csClient.EXPECT().GetClusterResources(gomock.Cond[context.Context](func(ctx context.Context) bool {
 				deadline, ok := ctx.Deadline()
@@ -235,9 +236,9 @@ func TestLegacyIngressDesireSuppression(test *testing.T) {
 			require.NoError(test, syncer.SyncOnce(ctx, testKey()))
 			desires, err := syncer.applyDesireLister.ListForCluster(ctx, testSubscriptionID, testResourceGroupName, testClusterName)
 			require.NoError(test, err)
-			expected := 7
+			expected := 6
 			if scenario.suppressed {
-				expected = 3
+				expected = 2
 			}
 			require.Len(test, desires, expected)
 			desireNames := make([]string, 0, len(desires))
@@ -252,7 +253,7 @@ func TestLegacyIngressDesireSuppression(test *testing.T) {
 					require.Equal(test, controllerutils.ServiceProviderDefaultIngressWildcardServingCertName, name)
 				}
 				if scenario.suppressed {
-					require.Contains(test, []string{strings.ToLower("HostedCluster"), strings.ToLower("KubeAPIServerServingCertSecretSync"), strings.ToLower("BoundServiceAccountSigningKeySecretProviderClass")}, desire.ResourceID.Name)
+					require.Contains(test, []string{strings.ToLower("HostedCluster"), strings.ToLower("BoundServiceAccountSigningKeySecretProviderClass")}, desire.ResourceID.Name)
 				}
 			}
 			for _, desireName := range []string{"ManagedCluster", "DefaultIngressConfigMap", "DefaultIngressWildcardCertSecretSync", "DefaultIngressWildcardCertSecretProviderClass"} {
@@ -262,6 +263,8 @@ func TestLegacyIngressDesireSuppression(test *testing.T) {
 					require.Contains(test, desireNames, strings.ToLower(desireName))
 				}
 			}
+			require.NotContains(test, desireNames, strings.ToLower(DesireNameKubeAPIServerServingCertSecretSync))
+			require.NotContains(test, desireNames, strings.ToLower(DesireNameKubeAPIServerServingCertSecretProviderClass))
 			require.Contains(test, desireNames, strings.ToLower("HostedCluster"))
 		})
 	}

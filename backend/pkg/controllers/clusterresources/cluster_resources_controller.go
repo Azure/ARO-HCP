@@ -248,6 +248,12 @@ func (c *clusterResourcesController) processClusterResources(ctx context.Context
 			continue
 		}
 
+		// The dedicated certificate controller owns these desires, including
+		// adoption of existing ClusterResources documents.
+		if managedByKubeAPIServerServingCertificate(classified.desireName) {
+			continue
+		}
+
 		// Unset the ManagedCluster CR and ACM-path ingress bits because HyperShift
 		// manages the ingress certificate when the subscription's experimental
 		// release-features AFEC is registered.
@@ -729,6 +735,9 @@ func (c *clusterResourcesController) deleteStaleApplyDesires(
 	}
 
 	for _, desire := range existing {
+		if managedByKubeAPIServerServingCertificate(desire.ResourceID.Name) {
+			continue
+		}
 		if desire.Tags == nil ||
 			desire.Tags[kubeapplierapi.TagControllerName] != ClusterResourcesControllerName {
 			continue
