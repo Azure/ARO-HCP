@@ -395,6 +395,16 @@ func failureWithPropagationGuidance(ctx context.Context, detector *RoleAssignmen
 	return result, true
 }
 
+// IsPropagationPending reports whether condition represents a detected RBAC propagation
+// delay: an Unknown condition carrying the RoleAssignmentPropagationPending reason. Such
+// conditions hold an operation open (see the operations controller's propagation gate) and
+// must be written to storage as soon as they are detected, not suppressed behind an older
+// stored failure.
+func IsPropagationPending(condition metav1.Condition) bool {
+	return condition.Status == metav1.ConditionUnknown &&
+		condition.Reason == missingPermissionsPendingPropagationReason
+}
+
 // PreservePropagationDeferral keeps an established propagation deferral intact across a
 // transient lookup failure. The operations controller holds an operation open only while
 // its validation condition carries the RoleAssignmentPropagationPending reason; a single
