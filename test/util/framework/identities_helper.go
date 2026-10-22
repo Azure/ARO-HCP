@@ -27,6 +27,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/go-logr/logr"
 	"github.com/google/uuid"
 	"github.com/onsi/ginkgo/v2"
 
@@ -412,7 +413,7 @@ func (tc *perItOrDescribeTestContext) leasedIdentityContainers() ([]string, erro
 	return leasedContainers, nil
 }
 
-// releaseLeasedIdentities releases all the identity containers leased to the calling test spec.
+// Releases identities only after consumer checks and tracked assignment cleanup succeed.
 // To be used only in the cleanup phase of the test.
 func (tc *perItOrDescribeTestContext) releaseLeasedIdentities(ctx context.Context) error {
 	startTime := time.Now()
@@ -468,30 +469,164 @@ func (tc *perItOrDescribeTestContext) releaseLeasedIdentities(ctx context.Contex
 	}
 	ficsClient := msiClientFactory.NewFederatedIdentityCredentialsClient()
 
+	guardCtx, cancel := context.WithTimeout(logr.NewContext(ctx, ginkgo.GinkgoLogr.WithValues("spec", specID())), 10*time.Minute)
+	defer cancel()
+	available, err := tc.filterLeasedIdentityConsumers(guardCtx, subscriptionID, leasedContainers)
+	if err != nil {
+		return err
+	}
+	tc.contextLock.RLock()
+	tracked := slices.Clone(tc.createdRoleAssignmentIDs)
+	tc.contextLock.RUnlock()
+	plan, err := planIdentityRoleAssignmentCleanup(guardCtx, msiClientFactory.NewUserAssignedIdentitiesClient(), client, subscriptionID, leasedContainers, available, tracked)
+	if err != nil {
+		return err
+	}
+	if err := tc.cleanupRoleAssignmentIDs(ctx, client, plan.unassociated); err != nil {
+		return err
+	}
+	return releaseIdentityContainers(leasedContainers, available,
+		func(resourceGroup string) error {
+			return tc.cleanupRoleAssignmentIDs(ctx, client, plan.byContainer[resourceGroup])
+		},
+		func(resourceGroup string) error {
+			return state.releaseByContainerName(resourceGroup,
+				func() error {
+					return tc.cleanupLeasedIdentityContainerFICs(ctx, ficsClient, resourceGroup)
+				},
+				func() error {
+					return tc.cleanupLeasedIdentityContainerRoleAssignments(ctx, client, resourceGroup, plan)
+				},
+			)
+		},
+	)
+}
+
+// Filters pooled cleanup candidates using the explicit consumer guard policy.
+func (tc *perItOrDescribeTestContext) filterLeasedIdentityConsumers(ctx context.Context, subscriptionID string, containers []string) ([]string, error) {
+	mode, err := IdentityConsumerGuardMode(os.Getenv(IdentityConsumerGuardEnvvar))
+	if err != nil {
+		return nil, err
+	}
+	if mode == "disabled" {
+		return FilterIdentityConsumers20261001(ctx, nil, subscriptionID, containers, "teardown", mode)
+	}
+	factory, err := tc.Get20261001ClientFactory(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed creating identity consumer client: %w", err)
+	}
+	return FilterIdentityConsumers20261001(ctx, factory, subscriptionID, containers, "teardown", mode)
+}
+
+// Releases safe containers independently, retaining each until its cleanup succeeds.
+func releaseIdentityContainers(containers, available []string, cleanupTrackedAssignments func(string) error, releaseContainer func(string) error) error {
 	var errs []error
-	for _, resourceGroup := range leasedContainers {
-		err := state.releaseByContainerName(resourceGroup,
-			func() error {
-				return tc.cleanupLeasedIdentityContainerFICs(ctx, ficsClient, resourceGroup)
-			},
-			func() error {
-				return tc.cleanupLeasedIdentityContainerRoleAssignments(ctx, client, resourceGroup)
-			},
-		)
-		if err != nil {
+	for _, resourceGroup := range containers {
+		if !slices.Contains(available, resourceGroup) {
+			errs = append(errs, fmt.Errorf("identity container %s is still referenced by HCP consumers", resourceGroup))
+			continue
+		}
+		if err := cleanupTrackedAssignments(resourceGroup); err != nil {
+			errs = append(errs, fmt.Errorf("failed to cleanup role assignments for identity container %s: %w", resourceGroup, err))
+			continue
+		}
+		if err := releaseContainer(resourceGroup); err != nil {
 			errs = append(errs, fmt.Errorf("failed to release identity container %s: %w", resourceGroup, err))
 		}
-	}
-
-	// Clean up role assignments (role definitions are reusable across e2e tests)
-	if err := tc.cleanupRoleAssignments(ctx, subscriptionID); err != nil {
-		errs = append(errs, fmt.Errorf("failed to cleanup role assignments: %w", err))
 	}
 
 	if len(errs) > 0 {
 		return fmt.Errorf("failed cleanup operations: %w", errors.Join(errs...))
 	}
 	return nil
+}
+
+type identityRoleAssignmentCleanup struct {
+	byContainer          map[string][]string
+	unassociated         []string
+	protectedPrincipals  map[string]bool
+	preservedAssignments map[string]bool
+	containerAssignments map[string][]*armauthorization.RoleAssignment
+}
+
+// Plans tracked assignment cleanup by principal ownership before any deletion.
+func planIdentityRoleAssignmentCleanup(ctx context.Context, identities *armmsi.UserAssignedIdentitiesClient, roles *armauthorization.RoleAssignmentsClient, subscriptionID string, containers, available, tracked []string) (*identityRoleAssignmentCleanup, error) {
+	plan := &identityRoleAssignmentCleanup{
+		byContainer:          map[string][]string{},
+		protectedPrincipals:  map[string]bool{},
+		preservedAssignments: map[string]bool{},
+		containerAssignments: map[string][]*armauthorization.RoleAssignment{},
+	}
+	if len(available) == 0 {
+		return plan, ctx.Err()
+	}
+	if len(available) == len(containers) {
+		plan.unassociated = tracked
+		return plan, inventoryIdentityContainerRoleAssignments(ctx, roles, subscriptionID, available, plan)
+	}
+	owners := map[string]string{}
+	for _, group := range containers {
+		found := map[string]bool{}
+		pager := identities.NewListByResourceGroupPager(group, nil)
+		for pager.More() {
+			page, err := pager.NextPage(ctx)
+			if err != nil {
+				return nil, fmt.Errorf("failed listing identity principals for container %q: %w", group, err)
+			}
+			if page.Value == nil {
+				return nil, fmt.Errorf("identity principal inventory for container %q has no value array", group)
+			}
+			for _, identity := range page.Value {
+				if identity == nil || identity.ID == nil || identity.Properties == nil || identity.Properties.PrincipalID == nil || *identity.Properties.PrincipalID == "" {
+					return nil, fmt.Errorf("incomplete identity principal inventory for container %q", group)
+				}
+				id, err := azcorearm.ParseResourceID(*identity.ID)
+				if err != nil || !strings.EqualFold(id.SubscriptionID, subscriptionID) || !strings.EqualFold(id.ResourceGroupName, group) ||
+					!strings.EqualFold(id.ResourceType.String(), "Microsoft.ManagedIdentity/userAssignedIdentities") {
+					return nil, fmt.Errorf("invalid identity ID %q in container %q", *identity.ID, group)
+				}
+				principal := strings.ToLower(*identity.Properties.PrincipalID)
+				if owner, exists := owners[principal]; exists && owner != group {
+					return nil, fmt.Errorf("principal %q belongs to multiple identity containers", principal)
+				}
+				owners[principal] = group
+				found[strings.ToLower(id.Name)] = true
+				if !slices.Contains(available, group) {
+					plan.protectedPrincipals[principal] = true
+				}
+			}
+		}
+		for _, name := range NewDefaultIdentities().ToSlice() {
+			if !found[name] {
+				return nil, fmt.Errorf("identity principal inventory for container %q is missing %q", group, name)
+			}
+		}
+	}
+	for _, assignmentID := range tracked {
+		assignment, err := roles.GetByID(ctx, assignmentID, nil)
+		if err != nil {
+			var responseErr *azcore.ResponseError
+			if errors.As(err, &responseErr) && responseErr.StatusCode == http.StatusNotFound && responseErr.ErrorCode == "RoleAssignmentNotFound" {
+				plan.unassociated = append(plan.unassociated, assignmentID)
+				continue
+			}
+			return nil, fmt.Errorf("failed inspecting tracked role assignment %q: %w", assignmentID, err)
+		}
+		if assignment.Properties == nil || assignment.Properties.PrincipalID == nil || *assignment.Properties.PrincipalID == "" {
+			return nil, fmt.Errorf("tracked role assignment %q has no principal", assignmentID)
+		}
+		principal := strings.ToLower(*assignment.Properties.PrincipalID)
+		owner, known := owners[principal]
+		switch {
+		case known && slices.Contains(available, owner):
+			plan.byContainer[owner] = append(plan.byContainer[owner], assignmentID)
+		case !known && len(available) == len(containers):
+			plan.unassociated = append(plan.unassociated, assignmentID)
+		default:
+			plan.preservedAssignments[strings.ToLower(assignmentID)] = true
+		}
+	}
+	return plan, inventoryIdentityContainerRoleAssignments(ctx, roles, subscriptionID, available, plan)
 }
 
 // cleanupLeasedIdentityContainerFICs deletes all federated identity credentials contained in the identity container
@@ -567,12 +702,10 @@ func (tc *perItOrDescribeTestContext) trackRoleAssignment(assignmentID string) {
 	tc.createdRoleAssignmentIDs = append(tc.createdRoleAssignmentIDs, assignmentID)
 }
 
-// cleanupRoleAssignments deletes only the role assignments created by THIS test.
-// Role definitions are not cleaned up - they are reusable across e2e test runs.
+// Cleans tracked test assignments without deleting reusable role definitions.
 func (tc *perItOrDescribeTestContext) cleanupRoleAssignments(ctx context.Context, subscriptionID string) error {
 	tc.contextLock.RLock()
-	assignmentIDsToDelete := make([]string, len(tc.createdRoleAssignmentIDs))
-	copy(assignmentIDsToDelete, tc.createdRoleAssignmentIDs)
+	assignmentIDsToDelete := slices.Clone(tc.createdRoleAssignmentIDs)
 	tc.contextLock.RUnlock()
 
 	if len(assignmentIDsToDelete) == 0 {
@@ -589,6 +722,11 @@ func (tc *perItOrDescribeTestContext) cleanupRoleAssignments(ctx context.Context
 	if err != nil {
 		return fmt.Errorf("failed to create role assignments client: %w", err)
 	}
+	return tc.cleanupRoleAssignmentIDs(ctx, roleAssignmentsClient, assignmentIDsToDelete)
+}
+
+// Deletes selected tracked assignments and retains failures for cleanup retries.
+func (tc *perItOrDescribeTestContext) cleanupRoleAssignmentIDs(ctx context.Context, roleAssignmentsClient *armauthorization.RoleAssignmentsClient, assignmentIDsToDelete []string) error {
 
 	// Delete only the role assignments we created
 	var errs []error
@@ -738,32 +876,39 @@ func (tc *perItOrDescribeTestContext) cleanupCustomE2ETestRolesAssignmentsForIde
 	return nil
 }
 
-// cleanupLeasedIdentityContainerRoleAssignments cleans up the identity container by deleting all the role assignments
-// that were created within it.
-func (tc *perItOrDescribeTestContext) cleanupLeasedIdentityContainerRoleAssignments(ctx context.Context,
-	client *armauthorization.RoleAssignmentsClient, resourceGroup string) error {
-
-	subscriptionID, err := tc.SubscriptionID(ctx)
-	if err != nil {
-		return err
-	}
-
-	scope := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s", subscriptionID, resourceGroup)
-
-	var toDelete []*armauthorization.RoleAssignment
-	pager := client.NewListForResourceGroupPager(resourceGroup, nil)
-	for pager.More() {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
-			return fmt.Errorf("failed to list role assignments for scope %s: %w", scope, err)
-		}
-		for _, ra := range page.Value {
-			if !strings.HasPrefix(strings.ToLower(*ra.Properties.Scope), strings.ToLower(scope)) {
-				continue
+// Inventories safe container scopes without selecting protected consumer assignments.
+func inventoryIdentityContainerRoleAssignments(ctx context.Context, client *armauthorization.RoleAssignmentsClient, subscriptionID string, containers []string, plan *identityRoleAssignmentCleanup) error {
+	for _, resourceGroup := range containers {
+		scope := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s", subscriptionID, resourceGroup)
+		pager := client.NewListForResourceGroupPager(resourceGroup, nil)
+		for pager.More() {
+			page, err := pager.NextPage(ctx)
+			if err != nil {
+				return fmt.Errorf("failed to list role assignments for scope %s: %w", scope, err)
 			}
-			toDelete = append(toDelete, ra)
+			if page.Value == nil {
+				return fmt.Errorf("role assignment inventory for scope %s has no value array", scope)
+			}
+			for _, ra := range page.Value {
+				if ra == nil || ra.ID == nil || ra.Name == nil || ra.Properties == nil || ra.Properties.Scope == nil || ra.Properties.PrincipalID == nil {
+					return fmt.Errorf("incomplete role assignment inventory for scope %s", scope)
+				}
+				if !strings.EqualFold(*ra.Properties.Scope, scope) && !strings.HasPrefix(strings.ToLower(*ra.Properties.Scope), strings.ToLower(scope)+"/") {
+					continue
+				}
+				if plan.protectedPrincipals[strings.ToLower(*ra.Properties.PrincipalID)] || plan.preservedAssignments[strings.ToLower(*ra.ID)] {
+					continue
+				}
+				plan.containerAssignments[resourceGroup] = append(plan.containerAssignments[resourceGroup], ra)
+			}
 		}
 	}
+	return ctx.Err()
+}
+
+// Deletes the inventoried container assignments after consumer safety is established.
+func (tc *perItOrDescribeTestContext) cleanupLeasedIdentityContainerRoleAssignments(ctx context.Context, client *armauthorization.RoleAssignmentsClient, resourceGroup string, plan *identityRoleAssignmentCleanup) error {
+	toDelete := plan.containerAssignments[resourceGroup]
 
 	if len(toDelete) == 0 {
 		return nil
@@ -865,7 +1010,7 @@ func (e *leasedIdentityPoolEntry) use(me string) error {
 	return nil
 }
 
-// release transitions the entry back to free. Cleanup functions are only
+// Releases the entry only after successful cleanup. Cleanup functions are only
 // executed when the entry was busy; assigned-only entries have not created
 // resources (FICs, role assignments) that need cleanup.
 func (e *leasedIdentityPoolEntry) release(cleanups ...func() error) error {
@@ -874,24 +1019,21 @@ func (e *leasedIdentityPoolEntry) release(cleanups ...func() error) error {
 	}
 	assignedOnly := e.Current.State == leaseStateAssigned
 
-	e.History = append(e.History, e.Current)
-	e.Current.State = leaseStateFree
-	e.Current.LeasedBy = ""
-	e.Current.TransitionedAt = time.Now().UTC().Format(time.RFC3339)
-
-	if assignedOnly {
-		return nil
-	}
-
 	errs := []error{}
-	for _, cleanup := range cleanups {
-		if err := cleanup(); err != nil {
-			errs = append(errs, fmt.Errorf("failed to cleanup: %w", err))
+	if !assignedOnly {
+		for _, cleanup := range cleanups {
+			if err := cleanup(); err != nil {
+				errs = append(errs, fmt.Errorf("failed to cleanup: %w", err))
+			}
 		}
 	}
 	if len(errs) > 0 {
 		return fmt.Errorf("failed cleanup operations: %w", errors.Join(errs...))
 	}
+	e.History = append(e.History, e.Current)
+	e.Current.State = leaseStateFree
+	e.Current.LeasedBy = ""
+	e.Current.TransitionedAt = time.Now().UTC().Format(time.RFC3339)
 	return nil
 }
 
@@ -1028,7 +1170,7 @@ func (state *leasedIdentityPoolState) assignNTo(me string, n uint8) error {
 	return nil
 }
 
-// releaseByContainerName releases the identity container by the given name.
+// Releases a named container without persisting free state after failed cleanup.
 func (state *leasedIdentityPoolState) releaseByContainerName(resourceGroup string, cleanupFn ...func() error) error {
 	if err := state.lock(); err != nil {
 		return fmt.Errorf("failed to acquire managed identities pool state file lock: %w", err)
@@ -1046,8 +1188,7 @@ func (state *leasedIdentityPoolState) releaseByContainerName(resourceGroup strin
 	for i := range state.entries {
 		if state.entries[i].ResourceGroup == resourceGroup {
 			if err := state.entries[i].release(cleanupFn...); err != nil {
-				// cleanup is best effort, just log errors and continue
-				ginkgo.GinkgoLogr.Info("WARN: failed to release managed identities resource group", "resourceGroup", resourceGroup, "error", err)
+				return fmt.Errorf("retaining managed identities resource group %q: %w", resourceGroup, err)
 			}
 			if err := state.writeUnlocked(); err != nil {
 				return fmt.Errorf("failed to write managed identities pool state file: %w", err)

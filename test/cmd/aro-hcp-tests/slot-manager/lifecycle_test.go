@@ -141,6 +141,9 @@ func (h *lifecycleHandler) ValidatePools(ctx context.Context, request assets.Poo
 	return h.ApplyPools(ctx, request)
 }
 func (h *lifecycleHandler) AdmitLease(ctx context.Context, request assets.LeaseRequest) error {
+	if request.SkipAdmissionCleanup {
+		return nil
+	}
 	if h.admit != nil {
 		if err := h.admit(ctx); err != nil {
 			return err

@@ -40,6 +40,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
+	hcpsdk "github.com/Azure/ARO-HCP/test/sdk/v20261001/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 )
 
@@ -52,15 +53,17 @@ func (admissionCredential) GetToken(context.Context, policy.TokenRequestOptions)
 // This transport never opens a socket. All SDK requests, including deletes and
 // subscription-wide role enumeration, are handled by a bounded fake inventory.
 type admissionTransport struct {
-	active        atomic.Int32
-	latency       time.Duration
-	mu            sync.Mutex
-	scenario      string
-	role          bool
-	deletes       []string
-	roleLists     int
-	identityLists int
-	requests      []string
+	active           atomic.Int32
+	latency          time.Duration
+	mu               sync.Mutex
+	scenario         string
+	role             bool
+	deletes          []string
+	roleLists        int
+	identityLists    int
+	requests         []string
+	principals       map[string]string
+	consumerResponse func(*http.Request) (any, int, error)
 }
 
 func (a *admissionTransport) Do(request *http.Request) (*http.Response, error) {
@@ -79,6 +82,15 @@ func (a *admissionTransport) Do(request *http.Request) (*http.Response, error) {
 	names := framework.NewDefaultIdentities().ToSlice()
 	principal := "00000000-0000-0000-0000-0000000000AB"
 	switch {
+	case strings.Contains(path, "/Microsoft.RedHatOpenShift/"):
+		if a.consumerResponse == nil {
+			return nil, fmt.Errorf("unexpected consumer inventory request: %s", path)
+		}
+		var err error
+		payload, status, err = a.consumerResponse(request)
+		if err != nil {
+			return nil, err
+		}
 	case request.Method == http.MethodDelete:
 		if a.scenario == "role delete failure" {
 			status = http.StatusForbidden
@@ -102,6 +114,10 @@ func (a *admissionTransport) Do(request *http.Request) (*http.Response, error) {
 			id := fmt.Sprintf("00000000-0000-0000-0000-%012d", i+1)
 			if i == 0 {
 				id = strings.ToLower(principal)
+			}
+			if i == 0 && a.principals != nil {
+				parts := strings.Split(path, "/")
+				id = a.principals[parts[4]]
 			}
 			switch a.scenario {
 			case "bad principal":
@@ -149,6 +165,12 @@ func (a *admissionTransport) Do(request *http.Request) (*http.Response, error) {
 				"properties": map[string]string{"principalId": principal},
 			})
 		}
+		for group, id := range a.principals {
+			roles = append(roles, map[string]any{
+				"id":         "/subscriptions/sub/resourceGroups/" + group + "/providers/Microsoft.Authorization/roleAssignments/" + id,
+				"properties": map[string]string{"principalId": id},
+			})
+		}
 		payload = map[string]any{"value": roles}
 	default:
 		return nil, fmt.Errorf("unexpected SDK request %s %s", request.Method, path)
@@ -176,9 +198,14 @@ func admissionSDKClients(t *testing.T, transport *admissionTransport) *admitClie
 	if err != nil {
 		t.Fatal(err)
 	}
+	hcp, err := hcpsdk.NewClientFactory("sub", admissionCredential{}, options)
+	if err != nil {
+		t.Fatal(err)
+	}
 	return &admitClients{
 		identities: factory.NewUserAssignedIdentitiesClient(),
 		roles:      roles,
+		hcp:        hcp,
 	}
 }
 

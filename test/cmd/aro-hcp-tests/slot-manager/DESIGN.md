@@ -30,8 +30,9 @@ catalog → select environment and pool → lease primary slot
 
 Presence of an asset declaration means the asset is required. Slot-manager
 acquires or resolves, admits, and publishes every declared asset before the job
-runs. The runtime contract is withheld until all non-disabled assets pass
-admission. Release returns recorded leases; it does not generally destroy
+runs. The runtime contract is withheld until admission succeeds or an explicit
+opt-out permits publication. E2E identity cleanup opt-outs still run the configured
+consumer guard. Release returns recorded leases; it does not generally destroy
 persistent backing resources.
 
 ## Catalog
@@ -200,7 +201,8 @@ After successful admission, slot-manager atomically writes
 - `ARO_HCP_E2E_SLOT_NAME`
 - `ARO_HCP_E2E_SLOT_RESOURCE_TYPE`
 
-Asset handlers own their exports: E2E identities own `LEASED_MSI_CONTAINERS`;
+Asset handlers own their exports: E2E identities own `LEASED_MSI_CONTAINERS`
+and `ARO_HCP_IDENTITY_CONSUMER_GUARD`;
 infrastructure identities own `LEASED_INFRASTRUCTURE_IDENTITY_BUNDLE`. The
 latter is JSON containing service and management resource groups and identity
 names. `INFRA_SUBSCRIPTION_ID` is exported only when infrastructure demand
@@ -224,7 +226,7 @@ where `M` ranges from zero to `resource_group_count - 1`. An optional
 `identity_container_provisioning_count` may reserve larger physical inventory;
 it defaults to `resource_group_count` and cannot be smaller. Physical count
 controls pool provisioning and validation; `resource_group_count` controls the
-lease and `LEASED_MSI_CONTAINERS` export.
+lease. Only its admitted safe subset is exported as `LEASED_MSI_CONTAINERS`.
 
 Admission enumerates each group's identities, requires the standard identities
 and valid principal IDs, then discovers and deletes their role assignments in
@@ -233,6 +235,35 @@ reported but not cleaned. Each synchronous deletion must succeed or return
 `404`; incomplete enumeration or deletion failure blocks publication. FIC
 cleanup is not part of E2E identity admission. Release does not delete identity
 resource groups or identities.
+
+### Identity consumer policy
+
+`identity_consumer_guard` is an optional catalog environment policy with values
+`disabled`, `audit`, or `enforce`. It defaults to `disabled`; the canonical catalog
+explicitly selects `enforce` for INT, STG and PROD. `--identity-consumer-guard`
+overrides `ARO_HCP_IDENTITY_CONSUMER_GUARD`, which overrides the catalog. The
+resolved value is exported to tests, so acquisition and per-spec teardown use
+the same policy without environment-name branching.
+
+Enforcement inventories every cluster and child node-pool page through the
+stable `2026-10-01` SDK before cleanup. It excludes referenced containers and
+fails closed on incomplete inventory. Audit retains scans and logs but allows
+cleanup and reuse; disabled performs no consumer requests. Acquisition cleans
+only admitted principals using the existing cleanup-worker limit.
+
+`--asset-admission-option=e2e_identities.minimum-containers=N` permits a positive
+minimum safe capacity; the default requires the full slot allocation to avoid
+admitting a suite with only enough identities for one spec. Slot ownership is
+unchanged. `admitted_identity_containers` is persisted before runtime publication.
+The cleanup opt-out suppresses admission mutations, not the configured guard.
+
+Per-spec teardown releases safe containers independently, preserving referenced
+containers and their principal-associated RBAC. Incomplete inventories block
+all mutations; cleanup failure keeps the affected reservation busy. A child-list
+`404` is tolerated only after GET confirms that its exact parent resource is
+absent. The [operator guide](../../../../docs/ci/identity-leasing.md#temporary-identity-consumer-guard)
+describes controls, troubleshooting and limitations.
+
 
 `apply-pool-assets` creates or updates managed identity groups;
 `validate-pool-assets` performs read-only shape validation. E2E identity pool

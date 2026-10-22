@@ -92,6 +92,7 @@ environments:
           resource_group_prefix: aro-hcp-msi-container-dev
           resource_group_count: 20
   int:
+    identity_consumer_guard: enforce
     deployment_environment:
       name: int
     pools:
@@ -130,6 +131,7 @@ environments:
           resource_group_prefix: aro-hcp-msi-container-int-westus3-shard0
           resource_group_count: 75
   stg:
+    identity_consumer_guard: enforce
     deployment_environment:
       name: stg
     pools:
@@ -149,6 +151,7 @@ environments:
           # provisionShardClusterLimit is configured to 25 in STG
           resource_group_count: 25
   prod:
+    identity_consumer_guard: enforce
     deployment_environment:
       name: prod
     pools:

@@ -290,11 +290,13 @@ func (tc *perItOrDescribeTestContext) deleteCreatedResources(ctx context.Context
 		}
 	}
 
-	// Remove role assignments only after cluster teardown; deletion path still needs some (e.g. DES Reader).
-	if subscriptionID, err := tc.SubscriptionID(ctx); err != nil {
-		ginkgo.GinkgoLogr.Error(err, "failed to get subscription ID for role assignment cleanup")
-	} else if err := tc.cleanupRoleAssignments(ctx, subscriptionID); err != nil {
-		ginkgo.GinkgoLogr.Error(err, "failed to cleanup role assignments after resource group deletion")
+	// Pooled assignments are cleaned by guarded per-container release below.
+	if !tc.UsePooledIdentities() {
+		if subscriptionID, err := tc.SubscriptionID(ctx); err != nil {
+			ginkgo.GinkgoLogr.Error(err, "failed to get subscription ID for role assignment cleanup")
+		} else if err := tc.cleanupRoleAssignments(ctx, subscriptionID); err != nil {
+			ginkgo.GinkgoLogr.Error(err, "failed to cleanup role assignments after resource group deletion")
+		}
 	}
 
 	err = graphClient.CleanupApplications(ctx, appRegistrations)
