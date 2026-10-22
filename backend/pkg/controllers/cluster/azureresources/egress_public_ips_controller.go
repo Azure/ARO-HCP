@@ -19,6 +19,10 @@ import (
 	"errors"
 	"time"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/wait"
+	utilsclock "k8s.io/utils/clock"
+
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
@@ -37,6 +41,7 @@ import (
 const EgressPublicIPsControllerName = "ObserveEgressPublicIPs"
 
 type egressPublicIPsSyncer struct {
+	clock                        utilsclock.PassiveClock
 	resourcesDBClient            corecosmosstorage.ResourcesDBClient
 	clusterLister                corelisters.ClusterLister
 	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
@@ -45,6 +50,7 @@ type egressPublicIPsSyncer struct {
 }
 
 func NewEgressPublicIPsController(
+	clock utilsclock.PassiveClock,
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	serviceProviderClusterLister corelisters.ServiceProviderClusterLister,
 	subscriptionLister corelisters.SubscriptionLister,
@@ -54,6 +60,7 @@ func NewEgressPublicIPsController(
 ) controllerutils.Controller {
 	_, clusterLister := informers.Clusters()
 	syncer := &egressPublicIPsSyncer{
+		clock:                        clock,
 		resourcesDBClient:            resourcesDBClient,
 		clusterLister:                clusterLister,
 		serviceProviderClusterLister: serviceProviderClusterLister,
@@ -69,6 +76,9 @@ func NewEgressPublicIPsController(
 
 func (c *egressPublicIPsSyncer) NeedsWork(cluster *coreapi.Cluster, serviceProviderCluster *coreapi.ServiceProviderCluster) bool {
 	if cluster.ServiceProviderProperties.DeletionTimestamp != nil || !coreapihelpers.UsesLoadBalancerEgress(cluster) {
+		return false
+	}
+	if recheck := serviceProviderCluster.Spec.EarliestRecheckTimesByController[EgressPublicIPsControllerName]; recheck != nil && c.clock.Now().Before(recheck.Time) {
 		return false
 	}
 	expected, err := coreapihelpers.EgressPublicIPResourceIDs(cluster)
@@ -101,9 +111,34 @@ func (c *egressPublicIPsSyncer) SyncOnce(ctx context.Context, key controllerutil
 	if !c.NeedsWork(cluster, existing) {
 		return nil
 	}
+	invalidation := existing.DeepCopy()
+	for resourceID, observation := range invalidation.Status.AzureResources.EgressPublicIPs {
+		if observation == coreapi.AzureResourceNotFound {
+			invalidation.Status.AzureResources.EgressPublicIPs[resourceID] = coreapi.AzureResourceUnknown
+		}
+	}
+	delete(invalidation.Spec.EarliestRecheckTimesByController, EgressPublicIPsControllerName)
+	if controllerutil.NeedsUpdate(existing, invalidation) {
+		existing, err = c.resourcesDBClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName).Replace(ctx, invalidation, nil)
+		if err != nil {
+			return utils.TrackError(err)
+		}
+	}
 	observations, observationErr := c.observe(ctx, cluster)
 	replacement := existing.DeepCopy()
 	replacement.Status.AzureResources.EgressPublicIPs = observations
+	if observationErr == nil {
+		for _, observation := range observations {
+			if observation == coreapi.AzureResourceNotFound {
+				if replacement.Spec.EarliestRecheckTimesByController == nil {
+					replacement.Spec.EarliestRecheckTimesByController = map[string]*metav1.Time{}
+				}
+				recheck := metav1.NewTime(c.clock.Now().Add(wait.Jitter(time.Minute, 0.5)))
+				replacement.Spec.EarliestRecheckTimesByController[EgressPublicIPsControllerName] = &recheck
+				break
+			}
+		}
+	}
 	if controllerutil.NeedsUpdate(existing, replacement) {
 		if _, err := c.resourcesDBClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName).Replace(ctx, replacement, nil); err != nil {
 			return utils.TrackError(errors.Join(observationErr, err))
@@ -141,7 +176,7 @@ func (c *egressPublicIPsSyncer) observe(ctx context.Context, cluster *coreapi.Cl
 		switch {
 		case err == nil:
 			observations[resourceID.String()] = coreapi.AzureResourceFound
-		case azureclient.IsAzureCoreResponseErrorHTTP404(err):
+		case azureclient.IsAzureCoreResponseErrorHTTP404(err) && (azureclient.IsResourceNotFoundErr(err) || azureclient.IsResourceGroupNotFoundErr(err)):
 			observations[resourceID.String()] = coreapi.AzureResourceNotFound
 		default:
 			errs = append(errs, utils.TrackError(err))

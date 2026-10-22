@@ -86,6 +86,7 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 	}{
 		{
 			name:              "cluster service error code is persisted",
+			egressObservation: coreapi.AzureResourceNotFound,
 			existingCluster:   newClusterWithAPIURL("https://api.example.com", &createdAt),
 			existingOperation: fixture.NewOperation(cosmosstorageutils.OperationRequestCreate),
 			setupCSMock: func(ctrl *gomock.Controller, fixture *operationtesting.ClusterTestFixture) ocm.ClusterServiceClientSpec {
