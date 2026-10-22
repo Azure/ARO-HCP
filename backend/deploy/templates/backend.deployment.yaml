@@ -116,11 +116,6 @@ spec:
             configMapKeyRef:
               name: backend-config
               key: DB_URL
-        - name: DB_KUBE_APPLIER_CONTAINER
-          valueFrom:
-            configMapKeyRef:
-              name: backend-config
-              key: DB_KUBE_APPLIER_CONTAINER
         - name: LOCATION
           valueFrom:
             configMapKeyRef:
