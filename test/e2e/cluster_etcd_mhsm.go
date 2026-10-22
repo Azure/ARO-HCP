@@ -30,6 +30,7 @@ import (
 	utilrand "k8s.io/apimachinery/pkg/util/rand"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 	"github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azkeys"
 
 	hcpsdk20261001 "github.com/Azure/ARO-HCP/test/sdk/v20261001/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
@@ -81,28 +82,44 @@ var _ = Describe("Cluster Etcd Managed HSM Encryption", func() {
 			keyName := "etcd-cmk"
 			mhsmDeploymentName := fmt.Sprintf("mhsm-deploy-%s", customerClusterName)
 
-			mhsmDeploymentResult, err := tc.CreateBicepTemplateAndWait(ctx,
-				framework.WithTemplateFromFS(TestArtifactsFS, "test-artifacts/generated-test-artifacts/managed-hsm-bootstrap.json"),
-				framework.WithDeploymentName(mhsmDeploymentName),
-				framework.WithScope(framework.BicepDeploymentScopeResourceGroup),
-				framework.WithClusterResourceGroup(*resourceGroup.Name),
-				framework.WithParameters(map[string]interface{}{
-					"hsmName":                    hsmName,
-					"keyName":                    keyName,
-					"location":                   tc.Location(),
-					"wrappingCertificate0Base64": cert0Base64,
-					"wrappingCertificate1Base64": cert1Base64,
-					"wrappingCertificate2Base64": cert2Base64,
-					"securityDomainQuorum":       2,
-					"additionalAdminObjectIds":   []interface{}{deployerIdentity.ObjectID},
-					"keyManagerObjectIds":        []interface{}{},
-					"enablePurgeProtection":      false,
-					"softDeleteRetentionInDays":  7,
-					"keySize":                    3072,
-					"forceUpdateTag":             "test-run-1",
-				}),
-				framework.WithTimeout(60*time.Minute),
-			)
+			// Azure intermittently fails to provision the Container Instance behind the
+			// bootstrap deploymentScript. The script never runs in that case, so it is
+			// safe to redeploy with a new forceUpdateTag. Any other failure may have
+			// activated the HSM already and is not retried.
+			const mhsmBootstrapMaxAttempts = 2
+			var mhsmDeploymentResult *armresources.DeploymentExtended
+			for attempt := 1; ; attempt++ {
+				mhsmDeploymentResult, err = tc.CreateBicepTemplateAndWait(ctx,
+					framework.WithTemplateFromFS(TestArtifactsFS, "test-artifacts/generated-test-artifacts/managed-hsm-bootstrap.json"),
+					framework.WithDeploymentName(mhsmDeploymentName),
+					framework.WithScope(framework.BicepDeploymentScopeResourceGroup),
+					framework.WithClusterResourceGroup(*resourceGroup.Name),
+					framework.WithParameters(map[string]interface{}{
+						"hsmName":                    hsmName,
+						"keyName":                    keyName,
+						"location":                   tc.Location(),
+						"wrappingCertificate0Base64": cert0Base64,
+						"wrappingCertificate1Base64": cert1Base64,
+						"wrappingCertificate2Base64": cert2Base64,
+						"securityDomainQuorum":       2,
+						"additionalAdminObjectIds":   []interface{}{deployerIdentity.ObjectID},
+						"keyManagerObjectIds":        []interface{}{},
+						"enablePurgeProtection":      false,
+						"softDeleteRetentionInDays":  7,
+						"keySize":                    3072,
+						"forceUpdateTag":             fmt.Sprintf("test-run-%d", attempt),
+					}),
+					framework.WithTimeout(60*time.Minute),
+				)
+				if err == nil || attempt == mhsmBootstrapMaxAttempts || !framework.IsDeploymentScriptACIProvisioningTimeout(err) {
+					break
+				}
+				GinkgoLogr.Info("Managed HSM bootstrap script container was not provisioned; redeploying",
+					"attempt", attempt,
+					"maxAttempts", mhsmBootstrapMaxAttempts,
+					"deployment", mhsmDeploymentName,
+					"error", err.Error())
+			}
 			Expect(err).NotTo(HaveOccurred(), "failed to deploy and activate Managed HSM")
 
 			keyID, err := framework.GetOutputValueString(mhsmDeploymentResult, "keyId")

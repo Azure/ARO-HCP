@@ -20,10 +20,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
@@ -280,6 +282,19 @@ func (tc *perItOrDescribeTestContext) CreateBicepTemplateAndWait(
 		return nil, fmt.Errorf("unsupported deployment scope %v", cfg.scope)
 	}
 
+}
+
+// IsDeploymentScriptACIProvisioningTimeout reports whether an ARM deployment
+// failed because Azure did not provision the Container Instance that backs a
+// Microsoft.Resources/deploymentScripts resource. The script never started in
+// that case, so redeploying with a new forceUpdateTag cannot repeat any of its
+// side effects. ARM nests the code inside the DeploymentFailed error body.
+func IsDeploymentScriptACIProvisioningTimeout(err error) bool {
+	var respErr *azcore.ResponseError
+	if !errors.As(err, &respErr) {
+		return false
+	}
+	return strings.Contains(respErr.Error(), "DeploymentScriptACIProvisioningTimeout")
 }
 
 func deploymentProvisioningState(deployment *armresources.DeploymentExtended) string {
