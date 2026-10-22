@@ -15,18 +15,19 @@
 package kustotest
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/Azure/ARO-HCP/tooling/kustoctl/pkg/kqlfunc"
 )
 
 const (
@@ -42,25 +43,15 @@ func debugf(t *testing.T, format string, args ...any) {
 	}
 }
 
-type manifest struct {
-	Databases     map[string]databaseSpec `json:"databases"`
-	databaseOrder []string
-}
-
-type databaseSpec struct {
-	Tables    []string `json:"tables"`
-	Functions []string `json:"functions"`
-}
-
 // RunFunctionTests discovers and runs all artifact-driven Kusto function test
 // cases for a suite. Each subdirectory under the suite is a function name, and
 // each subdirectory under that is a test case.
 //
-// The runner:
-//  1. Connects to the Kusto emulator at KUSTO_ENDPOINT
-//  2. Reads manifest.json to discover the database topology
-//  3. Creates each database and loads its tables and functions from KUSTO_KQL_ROOT
-//  4. Walks the artifact tree; each step's 00-key.json declares which database it targets
+// Database/table/function topology is computed in-process on every run,
+// directly from the ".kql" files and fixtures on disk (see discoverFunctions,
+// discoverTestTables). Databases, tables, and functions are each created in
+// one pass across all databases, which keeps creation order independent of
+// any particular database, including for cross-database functions.
 func RunFunctionTests(t *testing.T, suiteDir fs.FS) {
 	t.Helper()
 
@@ -77,12 +68,26 @@ func RunFunctionTests(t *testing.T, suiteDir fs.FS) {
 
 	rootDir, err := fs.Sub(artifacts, "artifacts")
 	require.NoError(t, err, "failed to sub into artifacts root")
-	m := readManifest(t, rootDir)
-	require.NotNil(t, m, "artifacts/manifest.json is required")
-	require.NotEmpty(t, m.Databases, "manifest.json must define at least one database")
 
 	functionsRoot := filepath.Join(kqlRoot, "functions")
-	clients := make(map[string]*emulatorClient, len(m.Databases))
+	functionsByDatabase := discoverFunctions(t, functionsRoot)
+	tablesByDatabase := discoverTestTables(t, rootDir)
+
+	databases := make(map[string]bool, len(functionsByDatabase)+len(tablesByDatabase))
+	for db := range functionsByDatabase {
+		databases[db] = true
+	}
+	for db := range tablesByDatabase {
+		databases[db] = true
+	}
+	dbNames := make([]string, 0, len(databases))
+	for db := range databases {
+		dbNames = append(dbNames, db)
+	}
+	sort.Strings(dbNames)
+	require.NotEmpty(t, dbNames, "discovered no databases from function files or ingestRows fixtures")
+
+	clients := make(map[string]*emulatorClient, len(dbNames))
 
 	defer func() {
 		for _, c := range clients {
@@ -92,23 +97,32 @@ func RunFunctionTests(t *testing.T, suiteDir fs.FS) {
 
 	resetAllDatabases(ctx, t, endpoint)
 
-	for _, dbName := range m.databaseOrder {
-		spec := m.Databases[dbName]
+	for _, dbName := range dbNames {
 		client := newEmulatorClient(t, endpoint, dbName)
 		clients[dbName] = client
-
 		debugf(t, "Creating database %q", dbName)
 		client.createDatabase(ctx, t)
+	}
 
-		debugf(t, "[%s] Loading tables: %v", dbName, spec.Tables)
-		for _, table := range spec.Tables {
+	for _, dbName := range dbNames {
+		client := clients[dbName]
+		tables := tablesByDatabase[dbName]
+		debugf(t, "[%s] Loading tables: %v", dbName, tables)
+		for _, table := range tables {
 			client.loadKQLFile(ctx, t, filepath.Join(kqlRoot, "tables", table+".kql"))
 		}
+	}
 
-		debugf(t, "[%s] Loading functions: %v", dbName, spec.Functions)
-		for _, funcName := range spec.Functions {
-			path := findKQLFile(t, functionsRoot, funcName)
-			client.loadKQLFile(ctx, t, path)
+	for _, dbName := range dbNames {
+		client := clients[dbName]
+		funcs := functionsByDatabase[dbName]
+		names := make([]string, len(funcs))
+		for i, f := range funcs {
+			names[i] = f.Name
+		}
+		debugf(t, "[%s] Loading functions: %v", dbName, names)
+		for _, f := range funcs {
+			client.loadKQLFile(ctx, t, f.Path)
 		}
 	}
 
@@ -150,55 +164,68 @@ func RunFunctionTests(t *testing.T, suiteDir fs.FS) {
 	}
 }
 
-func readManifest(t *testing.T, suiteDir fs.FS) *manifest {
+// discoverFunctions groups every function file by database in dependency
+// order, via the same kqlfunc package "kustoctl generate kql-bicep" uses.
+// Every function file found is included: main.bicep always deploys the full
+// set, so loading the full set here is always a valid superset for testing.
+func discoverFunctions(t *testing.T, functionsRoot string) map[string][]kqlfunc.File {
 	t.Helper()
-	content, err := fs.ReadFile(suiteDir, "manifest.json")
-	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			return nil
-		}
-		require.NoError(t, err, "failed to read manifest.json")
-	}
-	var m manifest
-	require.NoError(t, json.Unmarshal(content, &m), "failed to parse manifest.json")
-	m.databaseOrder, err = parseDatabaseOrder(content)
-	require.NoError(t, err, "failed to parse database order from manifest.json")
-	require.Len(t, m.databaseOrder, len(m.Databases),
-		"parseDatabaseOrder returned %d keys but manifest has %d databases; manifest.json may be malformed",
-		len(m.databaseOrder), len(m.Databases))
-	return &m
+	paths, err := kqlfunc.FindFiles(functionsRoot)
+	require.NoError(t, err, "failed to find function files under %q", functionsRoot)
+	require.NotEmpty(t, paths, "no .kql function files found under %q", functionsRoot)
+
+	files, err := kqlfunc.ParseFiles(paths)
+	require.NoError(t, err, "failed to parse function files")
+	grouped, err := kqlfunc.SortByDependency(files)
+	require.NoError(t, err, "failed to order function files by dependency")
+	return grouped
 }
 
-// parseDatabaseOrder extracts database key names from the raw manifest JSON
-// in their declared order. This gives manifest authors control over database
-// setup ordering, which matters when cross-database functions reference
-// tables in other databases.
-func parseDatabaseOrder(data []byte) ([]string, error) {
-	var raw struct {
-		Databases json.RawMessage `json:"databases"`
-	}
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return nil, fmt.Errorf("unmarshalling manifest: %w", err)
-	}
-	dec := json.NewDecoder(bytes.NewReader(raw.Databases))
-	if _, err := dec.Token(); err != nil {
-		return nil, fmt.Errorf("reading opening token of databases object: %w", err)
-	}
-	var order []string
-	for dec.More() {
-		tok, err := dec.Token()
+// discoverTestTables scans every "ingestRows" step's 00-key.json for its
+// declared database/table pair. Filter and enrichment functions operate on a
+// generic piped "T" parameter; ingestRows steps are where a concrete table
+// name is declared. Scans the whole artifact tree so every suite shares one
+// table set.
+func discoverTestTables(t *testing.T, root fs.FS) map[string][]string {
+	t.Helper()
+	tables := make(map[string]map[string]bool)
+	err := fs.WalkDir(root, ".", func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
-			return nil, fmt.Errorf("reading database key: %w", err)
+			return err
 		}
-		if key, ok := tok.(string); ok {
-			order = append(order, key)
-			var skip json.RawMessage
-			if err := dec.Decode(&skip); err != nil {
-				return nil, fmt.Errorf("skipping value for database %q: %w", key, err)
-			}
+		if !d.IsDir() {
+			return nil
 		}
+		_, stepType, _, ok := parseStepDirName(d.Name())
+		if !ok || stepType != "ingestRows" {
+			return nil
+		}
+		keyContent, err := fs.ReadFile(root, filepath.ToSlash(filepath.Join(path, "00-key.json")))
+		if err != nil {
+			return fmt.Errorf("%s: missing 00-key.json: %w", path, err)
+		}
+		var key ingestRowsKey
+		if err := json.Unmarshal(keyContent, &key); err != nil {
+			return fmt.Errorf("%s: failed to parse 00-key.json: %w", path, err)
+		}
+		if tables[key.Database] == nil {
+			tables[key.Database] = make(map[string]bool)
+		}
+		tables[key.Database][key.Table] = true
+		return nil
+	})
+	require.NoError(t, err, "failed to scan artifact tree for ingestRows steps")
+
+	result := make(map[string][]string, len(tables))
+	for db, set := range tables {
+		names := make([]string, 0, len(set))
+		for name := range set {
+			names = append(names, name)
+		}
+		sort.Strings(names)
+		result[db] = names
 	}
-	return order, nil
+	return result
 }
 
 func resetAllDatabases(ctx context.Context, t *testing.T, endpoint string) {
@@ -218,24 +245,4 @@ func resetAllDatabases(ctx context.Context, t *testing.T, endpoint string) {
 			assert.NoError(t, dbClient.close())
 		}
 	}
-}
-
-func findKQLFile(t *testing.T, root, name string) string {
-	t.Helper()
-	target := name + ".kql"
-	var matches []string
-	err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if !d.IsDir() && d.Name() == target {
-			matches = append(matches, path)
-		}
-		return nil
-	})
-	require.NoError(t, err, "failed to search for %q under %q", target, root)
-	require.NotEmpty(t, matches, "function %q not found under %q", name, root)
-	require.Len(t, matches, 1,
-		"function %q matched multiple files under %q: %v", name, root, matches)
-	return matches[0]
 }

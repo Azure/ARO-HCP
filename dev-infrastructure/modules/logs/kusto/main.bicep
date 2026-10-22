@@ -1,3 +1,9 @@
+// This is the editable source for main.bicep. The two Kusto function
+// loadTextContent() lists are rendered from the current .kql function files'
+// dependency order (see tooling/kustoctl/pkg/kqlfunc) rather than
+// hand-maintained, so a function always loads after anything it depends on.
+// Edit this file, then run `make generate` (or `make -C dev-infrastructure
+// generate-kusto-bicep`) to regenerate main.bicep, and commit both.
 @description('Azure Region Location')
 param location string = resourceGroup().location
 
@@ -91,7 +97,38 @@ var allServiceLogsTablesKQL = {
 }
 
 var allServiceLogsFunctionsKQL = [
+  loadTextContent('functions/components/enrichments/ServiceLogs_EnrichWithConditionHistory.kql')
+  loadTextContent('functions/components/enrichments/ServiceLogs_EnrichWithConditionEpisodes.kql')
+  loadTextContent('functions/components/enrichments/ServiceLogs_EnrichWithControlPlaneComponentColumns.kql')
+  loadTextContent('functions/components/enrichments/ServiceLogs_EnrichWithCosmosConditionsColumn.kql')
+  loadTextContent('functions/components/enrichments/ServiceLogs_EnrichWithDeploymentReplicaColumns.kql')
+  loadTextContent('functions/components/enrichments/ServiceLogs_EnrichWithHcpClusterStateColumns.kql')
+  loadTextContent('functions/components/enrichments/ServiceLogs_EnrichWithHcpExternalAuthStateColumns.kql')
+  loadTextContent('functions/components/enrichments/ServiceLogs_EnrichWithHcpNodePoolStateColumns.kql')
+  loadTextContent('functions/components/enrichments/ServiceLogs_EnrichWithHcpOperationStatusColumns.kql')
+  loadTextContent('functions/components/enrichments/ServiceLogs_EnrichWithHostedClusterLabelsColumns.kql')
+  loadTextContent('functions/components/enrichments/ServiceLogs_EnrichWithHostedClusterStateColumns.kql')
+  loadTextContent('functions/components/enrichments/ServiceLogs_EnrichWithHostedControlPlaneColumns.kql')
+  loadTextContent('functions/components/enrichments/ServiceLogs_EnrichWithMachineNodeInfoColumns.kql')
+  loadTextContent('functions/components/enrichments/ServiceLogs_EnrichWithManagementClusterNodeLabelsColumns.kql')
+  loadTextContent('functions/components/enrichments/ServiceLogs_EnrichWithManagementClusterStateColumns.kql')
+  loadTextContent('functions/components/enrichments/ServiceLogs_EnrichWithMultiClusterEngineColumns.kql')
+  loadTextContent('functions/components/enrichments/ServiceLogs_EnrichWithServiceProviderClusterPlacementColumns.kql')
+  loadTextContent('functions/components/filters/ServiceLogs_FilterByLogLevel.kql')
+  loadTextContent('functions/components/filters/ServiceLogs_FilterCosmosResourceByIdentity.kql')
+  loadTextContent('functions/components/filters/ServiceLogs_FilterK8sEventsByUid.kql')
+  loadTextContent('functions/triage/resolvers/ServiceLogs_GetClusterIdFromInternalId.kql')
+  loadTextContent('functions/triage/resolvers/ServiceLogs_GetNodePoolNameFromInternalId.kql')
+  loadTextContent('functions/components/filters/ServiceLogs_FilterK8sNodePoolByPoolId.kql')
+  loadTextContent('functions/components/filters/ServiceLogs_FilterK8sMachinesByNodePool.kql')
+  loadTextContent('functions/components/filters/ServiceLogs_FilterK8sResourceByClusterServiceId.kql')
+  loadTextContent('functions/components/filters/ServiceLogs_FilterK8sResourceByClusterServiceIdSet.kql')
+  loadTextContent('functions/components/filters/ServiceLogs_FilterK8sResourceByIdentity.kql')
+  loadTextContent('functions/components/filters/ServiceLogs_FilterK8sResourceByUid.kql')
+  loadTextContent('functions/components/filters/ServiceLogs_FilterOperationsByExternalId.kql')
+  loadTextContent('functions/components/filters/ServiceLogs_FilterOperationsByOperationId.kql')
   loadTextContent('functions/triage/resolvers/ServiceLogs_GetARMResourceIDForClustersServiceID.kql')
+  loadTextContent('functions/triage/resolvers/ServiceLogs_GetClusterServiceIdHistory.kql')
   loadTextContent('functions/triage/resolvers/ServiceLogs_GetClustersServiceIDForARMResourceID.kql')
 ]
 

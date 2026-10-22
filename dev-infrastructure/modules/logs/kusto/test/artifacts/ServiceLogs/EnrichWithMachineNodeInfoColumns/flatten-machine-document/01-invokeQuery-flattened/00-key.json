@@ -1,0 +1,4 @@
+{
+	"database": "ServiceLogs",
+	"query": "kubernetesResourceSnapshots | invoke EnrichWithMachineNodeInfoColumns() | project version, nodeRef, providerId, vmResourceId, azureVmId, architecture, bootID, containerRuntimeVersion, kernelVersion, kubeProxyVersion, kubeletVersion, machineID, operatingSystem, osImage, phase, lastUpdated, subscriptionId, resourceGroupName, resourceName"
+}

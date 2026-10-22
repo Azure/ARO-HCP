@@ -1,0 +1,21 @@
+// @owner: sre-team
+// @domain: Components/Filters
+// @depends: FilterK8sNodePoolByPoolId
+// @params: T=piped kubernetesResourceSnapshots-shaped rows, p_Kind='Machine' or 'AzureMachine', p_PoolId=Clusters Service internal node pool ID (.../clusters/{cid}/node_pools/{poolName})
+// @returns: one row per matching object (latest capture per uid), with duplicate captures collapsed
+.create-or-alter function
+with (
+  docstring = 'Resolves the Machine or AzureMachine objects belonging to a given node pool: collapses repeated captures to the latest per uid, then confirms ownership via the hypershift.openshift.io/nodePool annotation against the pool\'s own namespace/name (resolved via FilterK8sNodePoolByPoolId against the same piped stream), matching how HyperShift itself reads that annotation: the full "<namespace>/<name>" value, compared exactly, not by suffix. A pool whose own NodePool object was not captured in T\'s time range cannot be resolved this way and yields no matches, rather than falling back to a less precise comparison. Use with the invoke operator. | Returns: one row per object uid with name, namespace, cluster, event, object, and the original timestamp as the latest-capture time | Example: kubernetesResourceSnapshots | invoke FilterK8sMachinesByNodePool("AzureMachine", "/api/aro_hcp/v1alpha1/clusters/abc123/node_pools/mypool")',
+  folder = 'Components\\Filters'
+)
+FilterK8sMachinesByNodePool(T: (objectKind: string, namespace: string, name: string, uid: string, cluster: string, event: string, timestamp: datetime, object: dynamic), p_Kind: string, p_PoolId: string)
+{
+    let nodePoolKey = toscalar(T
+        | invoke FilterK8sNodePoolByPoolId(p_PoolId)
+        | top 1 by timestamp desc
+        | project key = strcat(namespace, '/', name));
+    T
+    | where objectKind == p_Kind
+    | summarize arg_max(timestamp, name, namespace, cluster, event, object) by uid
+    | where isnotempty(nodePoolKey) and tostring(object.metadata.annotations['hypershift.openshift.io/nodePool']) == nodePoolKey
+}

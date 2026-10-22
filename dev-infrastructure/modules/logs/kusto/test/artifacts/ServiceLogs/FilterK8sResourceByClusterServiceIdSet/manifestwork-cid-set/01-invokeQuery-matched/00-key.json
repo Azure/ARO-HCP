@@ -1,0 +1,4 @@
+{
+	"database": "ServiceLogs",
+	"query": "datatable(objectKind:string, name:string, object:dynamic) [\n  'ManifestWork', 'mw-1', dynamic({'metadata':{'labels':{'api.openshift.com/id':'abc-123'}}}),\n  'ManifestWork', 'mw-2', dynamic({'metadata':{'labels':{'api.openshift.com/id':'zzz-999'}}}),\n  'ManifestWork', 'mw-3', dynamic({'metadata':{'labels':{'api.openshift.com/id':'def-456'}}}),\n  'HostedCluster', 'hc-1', dynamic({'metadata':{'labels':{'api.openshift.com/id':'abc-123'}}})\n] | invoke FilterK8sResourceByClusterServiceIdSet('ManifestWork', dynamic(['abc-123','def-456'])) | project name, cid | order by name asc"
+}

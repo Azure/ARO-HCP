@@ -1,6 +1,5 @@
 // @owner: sre-team
 // @domain: Triage/HCP
-// @depends: containerLogs
 // @params: p_ResourceId=ARM resource ID, p_StartTime=window start, p_EndTime=window end
 // @returns: single row with clusters_service_id string column
 .create-or-alter function

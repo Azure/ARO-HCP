@@ -1,0 +1,29 @@
+[
+	{
+		"captures": 2,
+		"conditionType": "Available",
+		"endTime": "2026-09-30T12:01:00Z",
+		"observed": "2026-09-30T12:01:00Z",
+		"startTime": "2026-09-30T12:00:00Z",
+		"status": "True",
+		"uid": "pod-del-replay"
+	},
+	{
+		"captures": 1,
+		"conditionType": "Available",
+		"endTime": "2026-09-30T12:01:00Z",
+		"observed": "2026-09-30T12:00:00Z",
+		"startTime": "2026-09-30T12:00:00Z",
+		"status": "True",
+		"uid": "pod-del-solo"
+	},
+	{
+		"captures": 1,
+		"conditionType": "Available",
+		"endTime": "2026-09-30T12:01:00Z",
+		"observed": "2026-09-30T12:01:00Z",
+		"startTime": "2026-09-30T12:01:00Z",
+		"status": "False",
+		"uid": "pod-del-solo"
+	}
+]

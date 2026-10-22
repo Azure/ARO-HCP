@@ -1,0 +1,4 @@
+{
+	"database": "ServiceLogs",
+	"query": "cosmosResourceSnapshots | invoke FilterCosmosResourceByIdentity('Microsoft.RedHatOpenShift/hcpOpenShiftClusters', '/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/my-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/my-cluster') | project resourceID, resourceType, cosmosContainer"
+}

@@ -1,0 +1,14 @@
+[
+	{
+		"aksResourceID": "/subscriptions/64f0619f-ebc2-4156-9d91-c4c781de7e54/resourceGroups/mgmt-cluster-rg/providers/Microsoft.ContainerService/managedClusters/mgmt-cluster-01",
+		"conditions": "[{\"status\":\"True\",\"type\":\"Ready\"}]",
+		"hostedClustersManagedIdentitiesKeyVaultURL": "https://mgmt-cluster-01-identities.vault.azure.net/",
+		"hostedClustersSecretsKeyVaultURL": "https://mgmt-cluster-01-secrets.vault.azure.net/",
+		"instanceVersion": 42,
+		"maestroConsumerName": "mgmt-cluster-01",
+		"provisionShardID": "shard-001",
+		"publicDNSZoneResourceID": "/subscriptions/64f0619f-ebc2-4156-9d91-c4c781de7e54/resourceGroups/mgmt-cluster-rg/providers/Microsoft.Network/dnszones/mgmt-cluster-01.example.com",
+		"schedulingPolicy": "Enabled",
+		"sharedIngressIPAddresses": "[\"10.0.1.4\"]"
+	}
+]

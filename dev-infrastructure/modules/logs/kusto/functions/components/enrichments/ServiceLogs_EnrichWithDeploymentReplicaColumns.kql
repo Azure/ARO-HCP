@@ -1,0 +1,18 @@
+// @owner: sre-team
+// @domain: Components/Enrichments
+// @params: T=piped kubernetesResourceSnapshots-shaped rows for a Deployment object
+// @returns: T plus replicas/availableReplicas/updatedReplicas/readyReplicas flattened out of spec/status
+.create-or-alter function
+with (
+  docstring = 'Flattens the standard Deployment replica-count fields (spec.replicas, status.availableReplicas, status.updatedReplicas, status.readyReplicas) off a Deployment object, so callers do not duplicate that field path in every query. Use with the invoke operator. | Returns: all of T\'s columns plus the flattened replica-count fields | Example: kubernetesResourceSnapshots | where objectKind == "Deployment" | invoke EnrichWithDeploymentReplicaColumns()',
+  folder = 'Components\\Enrichments'
+)
+EnrichWithDeploymentReplicaColumns(T: (object: dynamic))
+{
+    T
+    | extend
+        replicas = toint(object.spec.replicas),
+        availableReplicas = toint(object.status.availableReplicas),
+        updatedReplicas = toint(object.status.updatedReplicas),
+        readyReplicas = toint(object.status.readyReplicas)
+}

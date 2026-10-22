@@ -1,0 +1,15 @@
+// @owner: sre-team
+// @domain: Components/Filters
+// @params: T=piped kubernetesEvents-shaped rows, p_Namespace=event namespace, p_ObjectKind=k8s object kind, p_ObjectUids=dynamic array of one or more object UIDs to match
+// @returns: T filtered to events for the given namespace/kind whose objectUID is one of p_ObjectUids
+.create-or-alter function
+with (
+  docstring = 'Filters piped kubernetesEvents rows down to events for one or more object UIDs within a namespace and kind. Pass a single-element array (e.g. pack_array(uid)) for the common case of one object, or a multi-element array when events must be correlated across several related UIDs (e.g. a Machine and its owned AzureMachine). Use with the invoke operator. | Returns: filtered rows with the same schema as the input | Example: kubernetesEvents | invoke FilterK8sEventsByUid("ocm-abc123", "Machine", pack_array("05c4e153-c0e0-467d-a24f-d474dd7162df"))',
+  folder = 'Components\\Filters'
+)
+FilterK8sEventsByUid(T: (eventNamespace: string, objectKind: string, objectUID: string), p_Namespace: string, p_ObjectKind: string, p_ObjectUids: dynamic)
+{
+    T
+    | where eventNamespace == p_Namespace and objectKind == p_ObjectKind
+    | where objectUID in (p_ObjectUids)
+}

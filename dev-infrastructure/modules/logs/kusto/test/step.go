@@ -45,6 +45,20 @@ func (s byIndex) Len() int           { return len(s) }
 func (s byIndex) Less(i, j int) bool { return s[i].StepID().index < s[j].StepID().index }
 func (s byIndex) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 
+// parseStepDirName parses the "NN-<type>-<name>" step directory convention
+// shared by readSteps and discoverTestTables.
+func parseStepDirName(name string) (index int, stepType, stepName string, ok bool) {
+	parts := strings.SplitN(name, "-", 3)
+	if len(parts) < 3 {
+		return 0, "", "", false
+	}
+	index, err := strconv.Atoi(parts[0])
+	if err != nil {
+		return 0, "", "", false
+	}
+	return index, parts[1], parts[2], true
+}
+
 func readSteps(testDir fs.FS) ([]kustoTestStep, error) {
 	entries, err := fs.ReadDir(testDir, ".")
 	if err != nil {
@@ -56,15 +70,11 @@ func readSteps(testDir fs.FS) ([]kustoTestStep, error) {
 		if !entry.IsDir() {
 			continue
 		}
-		parts := strings.SplitN(entry.Name(), "-", 3)
-		if len(parts) < 3 {
+		index, stepType, stepName, ok := parseStepDirName(entry.Name())
+		if !ok {
 			return nil, fmt.Errorf("step name %q must follow NN-<type>-<name> convention", entry.Name())
 		}
-		index, err := strconv.Atoi(parts[0])
-		if err != nil {
-			return nil, fmt.Errorf("step %q: failed to parse index: %w", entry.Name(), err)
-		}
-		id := stepID{index: index, stepType: parts[1], stepName: parts[2]}
+		id := stepID{index: index, stepType: stepType, stepName: stepName}
 
 		stepDir, err := fs.Sub(testDir, entry.Name())
 		if err != nil {

@@ -1,0 +1,33 @@
+// @owner: sre-team
+// @domain: Components/Enrichments
+// @params: T=piped kubernetesResourceSnapshots-shaped rows for a Machine object
+// @returns: T plus version/nodeRef/vmResourceId/node-info/phase/lastUpdated fields flattened out of the object
+.create-or-alter function
+with (
+  docstring = 'For ASI: flattens the fields read off a Machine object\'s spec/status. Use with the invoke operator. | Returns: all of T\'s columns plus the flattened fields, including a derived Azure VM resourceId (and its subscription/resourceGroup/vmName components) parsed out of spec.providerID | Example: kubernetesResourceSnapshots | invoke FilterK8sResourceByUid(machineUid) | invoke EnrichWithMachineNodeInfoColumns()',
+  folder = 'Components\\Enrichments'
+)
+EnrichWithMachineNodeInfoColumns(T: (object: dynamic))
+{
+    T
+    | extend
+        version = tostring(object.spec.version),
+        providerId = tostring(object.spec.providerID),
+        nodeRef = tostring(object.status.nodeRef.name),
+        azureVmId = tostring(object.status.nodeInfo.systemUUID),
+        architecture = tostring(object.status.nodeInfo.architecture),
+        bootID = tostring(object.status.nodeInfo.bootID),
+        containerRuntimeVersion = tostring(object.status.nodeInfo.containerRuntimeVersion),
+        kernelVersion = tostring(object.status.nodeInfo.kernelVersion),
+        kubeProxyVersion = tostring(object.status.nodeInfo.kubeProxyVersion),
+        kubeletVersion = tostring(object.status.nodeInfo.kubeletVersion),
+        machineID = tostring(object.status.nodeInfo.machineID),
+        operatingSystem = tostring(object.status.nodeInfo.operatingSystem),
+        osImage = tostring(object.status.nodeInfo.osImage),
+        phase = tostring(object.status.phase),
+        lastUpdated = todatetime(object.status.lastUpdated)
+    | extend vmResourceId = extract(@'(?i)^azure://(/subscriptions/.*/providers/Microsoft.Compute/virtualMachines/[^/]+)$', 1, providerId)
+    | extend subscriptionId = extract(@'(?i)^/subscriptions/([^/]+)', 1, vmResourceId),
+        resourceGroupName = extract(@'(?i)/resourcegroups/([^/]+)/providers/', 1, vmResourceId),
+        resourceName = extract(@'(?i)/virtualmachines/([^/]+)$', 1, vmResourceId)
+}

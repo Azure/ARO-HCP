@@ -1,0 +1,4 @@
+{
+	"database": "ServiceLogs",
+	"query": "cosmosResourceSnapshots | where resourceID has 'no-conditions' | invoke EnrichWithCosmosConditionsColumn('conditions') | project conditionCount=coalesce(array_length(conditions), 0)"
+}

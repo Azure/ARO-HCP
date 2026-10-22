@@ -1,0 +1,54 @@
+// @owner: sre-team
+// @domain: Components/Enrichments
+// @params: T=piped cosmosResourceSnapshots-shaped rows for an hcpOpenShiftClusters/nodePools resource
+// @returns: T plus every field the HCP Node Pool state page displays (For ASI), flattened out of content.properties.properties
+.create-or-alter function
+with (
+  docstring = 'For ASI: flattens every field the HCP Node Pool state page displays out of an hcpOpenShiftClusters/nodePools cosmos document (content.properties.properties.* for the ARM-resource-body fields, content.properties.{serviceProviderProperties,systemData,status,tags,type} for the rest), so callers never reach into that nested shape themselves. Returns more columns than any one caller needs; that is fine. Use with the invoke operator. | Returns: all of T\'s columns plus every flattened field, including derived subnetName/subnetVnetName/subnetResourceGroup/subnetSubscriptionId parsed out of platform.subnetId | Example: cosmosResourceSnapshots | invoke FilterCosmosResourceByIdentity("Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools", resourceId) | invoke EnrichWithHcpNodePoolStateColumns()',
+  folder = 'Components\\Enrichments'
+)
+EnrichWithHcpNodePoolStateColumns(T: (content: dynamic))
+{
+    T
+    | extend d = content.properties
+    | extend
+        resourceType = tostring(d.type),
+        instanceVersion = tolong(d.cosmosMetadata.instanceVersion),
+        provisioningState = tostring(d.properties.provisioningState),
+        createdAt = todatetime(d.systemData.createdAt),
+        lastModifiedAt = todatetime(d.systemData.lastModifiedAt),
+        createdBy = tostring(d.systemData.createdBy),
+        createdByType = tostring(d.systemData.createdByType),
+        lastModifiedBy = tostring(d.systemData.lastModifiedBy),
+        lastModifiedByType = tostring(d.systemData.lastModifiedByType),
+        activeOperationId = tostring(d.serviceProviderProperties.activeOperationId),
+        createDeadline = todatetime(d.serviceProviderProperties.createOperationCompletionDeadline),
+        deletionTimestamp = todatetime(d.serviceProviderProperties.deletionTimestamp),
+        clusterServiceDeletionTimestamp = todatetime(d.serviceProviderProperties.clusterServiceDeletionTimestamp),
+        clusterServiceId = tostring(d.serviceProviderProperties.clusterServiceID),
+        usesNewNodePoolDeletionApproach = tobool(d.serviceProviderProperties.usesNewNodePoolDeletionApproach),
+        version = tostring(d.properties.version.id),
+        channelGroup = tostring(d.properties.version.channelGroup),
+        vmSize = tostring(d.properties.platform.vmSize),
+        availabilityZone = tostring(d.properties.platform.availabilityZone),
+        encryptionAtHost = tobool(d.properties.platform.enableEncryptionAtHost),
+        subnetId = tostring(d.properties.platform.subnetId),
+        osDiskSizeGiB = toint(d.properties.platform.osDisk.sizeGiB),
+        osDiskType = tostring(d.properties.platform.osDisk.diskType),
+        osDiskStorageAccountType = tostring(d.properties.platform.osDisk.diskStorageAccountType),
+        osDiskEncryptionSetId = tostring(d.properties.platform.osDisk.encryptionSetId),
+        replicas = toint(d.properties.replicas),
+        autoScalingMin = toint(d.properties.autoScaling.min),
+        autoScalingMax = toint(d.properties.autoScaling.max),
+        autoRepair = tobool(d.properties.autoRepair),
+        nodeDrainTimeoutMinutes = toint(d.properties.nodeDrainTimeoutMinutes),
+        tags = tostring(d.tags),
+        activeVersions = d.status.activeVersions,
+        labels = d.properties.labels,
+        taints = d.properties.taints
+    | extend subnetName = extract(@'(?i)/subnets/([^/]+)$', 1, subnetId),
+        subnetVnetName = extract(@'(?i)/virtualnetworks/([^/]+)/subnets/[^/]+$', 1, subnetId),
+        subnetResourceGroup = extract(@'(?i)/resourcegroups/([^/]+)/providers/', 1, subnetId),
+        subnetSubscriptionId = extract(@'(?i)^/subscriptions/([^/]+)/', 1, subnetId)
+    | project-away d
+}

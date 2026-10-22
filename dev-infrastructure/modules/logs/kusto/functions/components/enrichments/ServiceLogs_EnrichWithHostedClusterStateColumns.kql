@@ -1,0 +1,73 @@
+// @owner: sre-team
+// @domain: Components/Enrichments
+// @params: T=piped kubernetesResourceSnapshots-shaped rows for a HostedCluster object
+// @returns: T plus every field the HostedCluster details page displays (For ASI: HCP Cluster), flattened out of object.spec/object.status
+.create-or-alter function
+with (
+  docstring = 'For ASI: HCP Cluster. Flattens every field the details page displays out of a HostedCluster object (object.spec.* and object.status.*), so callers never reach into the nested HyperShift API shape themselves. Returns more columns than any one caller needs; that is fine. Use with the invoke operator. | Returns: all of T\'s columns plus every flattened field, including derived vnet/subnet/resource-group/subscription names parsed out of vnetID/subnetID/securityGroupID | Example: kubernetesResourceSnapshots | invoke FilterK8sResourceByClusterServiceId("HostedCluster", internalId) | invoke EnrichWithHostedClusterStateColumns()',
+  folder = 'Components\\Enrichments'
+)
+EnrichWithHostedClusterStateColumns(T: (object: dynamic))
+{
+    T
+    | extend
+        generation = tolong(object.metadata.generation),
+        clusterID = tostring(object.spec.clusterID),
+        infraID = tostring(object.spec.infraID),
+        controllerAvailabilityPolicy = tostring(object.spec.controllerAvailabilityPolicy),
+        infrastructureAvailabilityPolicy = tostring(object.spec.infrastructureAvailabilityPolicy),
+        kubeAPIServerDNSName = tostring(object.spec.kubeAPIServerDNSName),
+        issuerURL = tostring(object.spec.issuerURL),
+        baseDomain = tostring(object.spec.dns.baseDomain),
+        baseDomainPrefix = tostring(object.spec.dns.baseDomainPrefix),
+        publicZoneID = tostring(object.spec.dns.publicZoneID),
+        fips = tobool(object.spec.fips),
+        networkType = tostring(object.spec.networking.networkType),
+        clusterNetwork = tostring(object.spec.networking.clusterNetwork),
+        machineNetwork = tostring(object.spec.networking.machineNetwork),
+        serviceNetwork = tostring(object.spec.networking.serviceNetwork),
+        apiServerNetworking = tostring(object.spec.networking.apiServer),
+        location = tostring(object.spec.platform.azure.location),
+        topology = tostring(object.spec.platform.azure.topology),
+        resourceGroup = tostring(object.spec.platform.azure.resourceGroup),
+        vnetID = tostring(object.spec.platform.azure.vnetID),
+        subnetID = tostring(object.spec.platform.azure.subnetID),
+        securityGroupID = tostring(object.spec.platform.azure.securityGroupID),
+        privateType = tostring(object.spec.platform.azure.private.type),
+        podNetworkInstance = tostring(object.spec.platform.azure.private.swift.podNetworkInstance),
+        scaling = tostring(object.spec.autoscaling.scaling),
+        maxNodesTotal = toint(object.spec.autoscaling.maxNodesTotal),
+        maxNodeProvisionTime = tostring(object.spec.autoscaling.maxNodeProvisionTime),
+        maxPodGracePeriod = toint(object.spec.autoscaling.maxPodGracePeriod),
+        podPriorityThreshold = toint(object.spec.autoscaling.podPriorityThreshold),
+        etcdManagementType = tostring(object.spec.etcd.managementType),
+        etcdStorageType = tostring(object.spec.etcd.managed.storage.type),
+        etcdPersistentVolumeSize = tostring(object.spec.etcd.managed.storage.persistentVolume.size),
+        secretEncryptionType = tostring(object.spec.secretEncryption.type),
+        kmsProvider = tostring(object.spec.secretEncryption.kms.provider),
+        kmsKeyVaultName = tostring(object.spec.secretEncryption.kms.azure.activeKey.keyVaultName),
+        kmsKeyName = tostring(object.spec.secretEncryption.kms.azure.activeKey.keyName),
+        kmsKeyVersion = tostring(object.spec.secretEncryption.kms.azure.activeKey.keyVersion),
+        kmsKeyVaultAccess = tostring(object.spec.secretEncryption.kms.azure.keyVaultAccess),
+        disabledCapabilities = tostring(object.spec.capabilities.disabled),
+        authenticationType = tostring(object.spec.configuration.authentication.type),
+        apiServerAuditProfile = tostring(object.spec.configuration.apiServer.audit.profile),
+        controlPlaneEndpoint = tostring(object.status.controlPlaneEndpoint),
+        ignitionEndpoint = tostring(object.status.ignitionEndpoint),
+        payloadArch = tostring(object.status.payloadArch),
+        channel = tostring(object.spec.channel),
+        releaseImage = tostring(object.spec.release.image),
+        controlPlaneDesiredVersion = tostring(object.status.controlPlaneVersion.desired.version),
+        controlPlaneDesiredImage = tostring(object.status.controlPlaneVersion.desired.image),
+        versionDesiredVersion = tostring(object.status.version.desired.version),
+        versionDesiredImage = tostring(object.status.version.desired.image),
+        versionDesiredChannels = tostring(object.status.version.desired.channels)
+    | extend vnetName = extract(@'(?i)/virtualnetworks/([^/]+)$', 1, vnetID),
+        vnetResourceGroup = extract(@'(?i)/resourcegroups/([^/]+)/providers/', 1, vnetID),
+        vnetSubscriptionId = extract(@'(?i)^/subscriptions/([^/]+)/', 1, vnetID),
+        subnetName = extract(@'(?i)/subnets/([^/]+)$', 1, subnetID),
+        subnetVnetName = extract(@'(?i)/virtualnetworks/([^/]+)/subnets/', 1, subnetID),
+        subnetResourceGroup = extract(@'(?i)/resourcegroups/([^/]+)/providers/', 1, subnetID),
+        subnetSubscriptionId = extract(@'(?i)^/subscriptions/([^/]+)/', 1, subnetID),
+        securityGroupName = extract(@'(?i)/networksecuritygroups/([^/]+)$', 1, securityGroupID)
+}

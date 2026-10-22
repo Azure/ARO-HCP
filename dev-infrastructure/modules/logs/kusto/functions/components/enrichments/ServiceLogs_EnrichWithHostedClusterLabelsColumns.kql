@@ -1,0 +1,17 @@
+// @owner: sre-team
+// @domain: Components/Enrichments
+// @params: T=piped kubernetesResourceSnapshots-shaped rows for a HostedCluster object
+// @returns: T plus clusterServiceId/customerName/version flattened out of the HostedCluster's labels and status
+.create-or-alter function
+with (
+  docstring = 'For ASI: HCP Management Cluster. Flattens the fields read off a HostedCluster object, so callers do not reach into object.metadata.labels themselves. Use with the invoke operator. | Returns: all of T\'s columns plus clusterServiceId (from the api.openshift.com/id label), customerName (from the api.openshift.com/name label; the OCM-facing cluster name, not a Kubernetes identity), and version (the desired version from status) | Example: kubernetesResourceSnapshots | where objectKind == "HostedCluster" | invoke EnrichWithHostedClusterLabelsColumns()',
+  folder = 'Components\\Enrichments'
+)
+EnrichWithHostedClusterLabelsColumns(T: (object: dynamic))
+{
+    T
+    | extend
+        clusterServiceId = tostring(object.metadata.labels['api.openshift.com/id']),
+        customerName = tostring(object.metadata.labels['api.openshift.com/name']),
+        version = tostring(object.status.version.desired.version)
+}

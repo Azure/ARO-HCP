@@ -1,0 +1,4 @@
+{
+	"database": "ServiceLogs",
+	"query": "datatable(objectKind:string, namespace:string, name:string, uid:string, cluster:string, event:string, timestamp:datetime, object:dynamic) [\n  'Machine', 'ocm-abc-123-hcinfra1', 'hcinfra1-otherpool-m1', 'u1', 'mgmt-01', 'Update', datetime(2026-09-30T12:00:00Z), dynamic({'metadata':{'annotations':{}}})\n] | invoke FilterK8sMachinesByNodePool('Machine', '/api/aro_hcp/v1alpha1/clusters/abc-123/node_pools/pool1') | project uid"
+}

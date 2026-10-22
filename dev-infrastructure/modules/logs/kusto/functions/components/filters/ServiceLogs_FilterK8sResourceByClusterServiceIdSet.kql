@@ -1,0 +1,16 @@
+// @owner: sre-team
+// @domain: Components/Filters
+// @params: T=piped kubernetesResourceSnapshots-shaped rows, p_Kind=objectKind to match, p_CidSet=dynamic array of Clusters Service internal IDs to match against
+// @returns: T filtered to objects of p_Kind whose api.openshift.com/id label is a member of p_CidSet, plus a 'cid' column carrying that label's value
+.create-or-alter function
+with (
+  docstring = 'Filters piped kubernetesResourceSnapshots rows down to objects of a given kind whose api.openshift.com/id label value is a member of a caller-supplied set of Clusters Service internal IDs (e.g. from GetClusterServiceIdHistory). Surfaces the matched label value as a new "cid" column so callers do not need to read the label a second time. Use with the invoke operator. | Returns: filtered rows with the same schema as the input, plus a cid column | Example: kubernetesResourceSnapshots | invoke FilterK8sResourceByClusterServiceIdSet("ManifestWork", dynamic(["abc-123","xyz-999"]))',
+  folder = 'Components\\Filters'
+)
+FilterK8sResourceByClusterServiceIdSet(T: (objectKind: string, object: dynamic), p_Kind: string, p_CidSet: dynamic)
+{
+    T
+    | where objectKind == p_Kind
+    | extend cid = tostring(object.metadata.labels['api.openshift.com/id'])
+    | where cid in (p_CidSet)
+}

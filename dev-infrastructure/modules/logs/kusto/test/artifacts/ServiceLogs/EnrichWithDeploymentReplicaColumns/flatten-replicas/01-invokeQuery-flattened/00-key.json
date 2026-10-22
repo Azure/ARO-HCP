@@ -1,0 +1,4 @@
+{
+	"database": "ServiceLogs",
+	"query": "kubernetesResourceSnapshots | invoke EnrichWithDeploymentReplicaColumns() | project replicas, availableReplicas, updatedReplicas, readyReplicas"
+}

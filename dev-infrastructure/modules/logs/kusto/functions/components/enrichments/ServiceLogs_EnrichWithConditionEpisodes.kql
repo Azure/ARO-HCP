@@ -1,0 +1,33 @@
+// @owner: sre-team
+// @domain: ASI/Enrichments
+// @depends: EnrichWithConditionHistory
+// @params: T=piped rows with timestamp/uid/name/event/conditions/document columns
+// @returns: one row per condition episode, shaped for dashboard rendering (For ASI): GroupBy/Content/Tooltip/Health
+.create-or-alter function
+with (
+  docstring = 'For ASI: renders condition episodes (via EnrichWithConditionHistory) into the column shape ASI dashboards expect, GroupBy/Content/Tooltip/Health alongside the raw Status/Reason/Message. Not intended for general TSG/SRE use outside ASI; use EnrichWithConditionHistory directly for the underlying episode facts without this rendering. Use with the invoke operator. | Returns: EnrichWithConditionHistory\'s episode facts reshaped into dashboard rendering columns; Health treats "Progressing"-like conditionTypes as inverted (True means still in progress, not healthy) and conditionTypes containing degraded/failing/failure/pressure/problem as inverted too (True means a problem), every other conditionType treats True as healthy | Example: conditionSnapshots | invoke EnrichWithConditionEpisodes()',
+  folder = 'ASI\\Enrichments'
+)
+EnrichWithConditionEpisodes(T: (timestamp: datetime, uid: string, name: string, event: string, conditions: dynamic, document: string))
+{
+    T
+    | invoke EnrichWithConditionHistory()
+    | extend negative = tolower(conditionType) contains 'degraded'
+        or tolower(conditionType) contains 'failing'
+        or tolower(conditionType) contains 'failure'
+        or tolower(conditionType) contains 'pressure'
+        or tolower(conditionType) contains 'problem'
+    | project StartTime=startTime, EndTime=endTime,
+        Content=iff(isempty(reason), status, reason),
+        GroupBy=conditionType, Uid=uid, Name=name,
+        Status=status, Reason=reason, Message=message, LastTransition=lastTransition, Observed=observed,
+        Document=document, Event=event, Captures=captures,
+        Tooltip=case(isnotempty(reason) and isnotempty(message), strcat(reason, ': ', message),
+                     isnotempty(message), message, isnotempty(reason), reason, status),
+        Health=case(status !in ('True', 'False'), 'Neutral',
+                    tolower(conditionType) contains 'progressing',
+                        iff(status == 'True', 'Neutral', 'Healthy'),
+                    negative, iff(status == 'True', 'Degraded', 'Healthy'),
+                    iff(status == 'True', 'Healthy', 'Degraded'))
+    | order by GroupBy asc, StartTime asc
+}

@@ -1,0 +1,10 @@
+[
+	{
+		"captures": 2,
+		"conditionType": "Available",
+		"observed": "2026-09-30T12:00:00Z",
+		"startTime": "2026-09-30T12:00:00Z",
+		"status": "True",
+		"uid": "pod-dup"
+	}
+]

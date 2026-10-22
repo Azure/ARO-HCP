@@ -14,7 +14,7 @@ Declarative, artifact-driven integration tests for KQL stored functions. This fr
 make test-integration-kusto
 ```
 
-Starts the kustainer emulator, loads table schemas and function definitions from `artifacts/manifest.json`, runs all test suites, and cleans up the container. Set `KUSTO_DEBUG=1` for detailed step-level output.
+Starts the kustainer emulator, computes table/function topology in-process from `tables/`, `functions/`, and the `ingestRows` fixtures under `artifacts/` (no manifest file), runs all test suites, and cleans up the container. Set `KUSTO_DEBUG=1` for detailed step-level output.
 
 ## How It Works
 
@@ -22,7 +22,6 @@ Starts the kustainer emulator, loads table schemas and function definitions from
 sequenceDiagram
     participant Make as make test-integration-kusto
     participant Runner as go test (runner.go)
-    participant Manifest as manifest.json
     participant KQL as tables/ + functions/
     participant Emulator as Kusto Emulator
     participant Artifacts as test/artifacts/
@@ -30,15 +29,17 @@ sequenceDiagram
     Make->>Emulator: Start kustainer container
     Make->>Runner: go test ./...
 
-    Runner->>Manifest: Read artifacts/manifest.json
-    Manifest-->>Runner: databases: {name: {tables, functions}, ...}
+    Runner->>KQL: Parse functions/*.kql, group by database, order via kqlfunc
+    Runner->>Artifacts: Scan ingestRows steps for {database, table} pairs
 
-    loop Each database in manifest
+    loop Each database
         Runner->>Emulator: Create database
-        Runner->>KQL: Load listed table .kql files
-        Runner->>Emulator: Execute table schemas
-        Runner->>KQL: Find and load listed function .kql files
-        Runner->>Emulator: Execute function definitions
+    end
+    loop Each database
+        Runner->>Emulator: Execute discovered table schemas
+    end
+    loop Each database
+        Runner->>Emulator: Execute discovered function definitions
     end
 
     loop Each suite (ServiceLogs, HostedControlPlaneLogs, Catalog, ...)
@@ -58,44 +59,14 @@ sequenceDiagram
 
 No Go code changes required. A test case is a directory of numbered step subdirectories under `artifacts/<Suite>/<FunctionName>/<test-case>/`. Steps run sequentially and follow the `NN-<type>-<name>` naming convention.
 
-### Database Manifest
+### Database Topology
 
-A single `artifacts/manifest.json` declares the database topology shared by all suites. Each database is an explicit bucket listing its own tables and functions.
+No manifest file. Topology is derived fresh on every run:
 
-```json
-{
-  "databases": {
-    "HostedControlPlaneLogs": {
-      "functions": ["HostedControlPlaneLogs_GetARMResourceIDForClustersServiceID"],
-      "tables": ["containerLogs"]
-    }
-  }
-}
-```
+- **Functions**: every `.kql` file under `functions/`, grouped by database from its `{Database}_` filename prefix, ordered within each database via `tooling/kustoctl/pkg/kqlfunc`'s `// @depends:` parsing (same mechanism `kustoctl generate kql-bicep` uses).
+- **Tables**: every `{"database": ..., "table": ...}` pair declared across all `00-ingestRows-*/00-key.json` files in `artifacts/`, regardless of which suite is running.
 
-For cross-database functions, add the referenced database as another key:
-
-```json
-{
-  "databases": {
-    "ServiceLogs": {
-      "functions": ["ServiceLogs_GetClustersServiceIDForARMResourceID"],
-      "tables": ["cosmosResourceSnapshots"]
-    },
-    "HostedControlPlaneLogs": {
-      "tables": ["containerLogs"]
-    }
-  }
-}
-```
-
-- `databases`: map of database name to its spec. Databases are created in manifest key order, so list referenced databases before databases whose functions depend on them.
-- `tables`: table names (matching filenames in `tables/` without `.kql`). Only list tables that test fixtures actually ingest into or that functions under test depend on.
-- `functions`: function names (matched by filename anywhere under `functions/`). Only list functions that test cases invoke.
-
-The manifest should be a subset of what `main.bicep` deploys to production. It defines the minimal contract: the smallest set of schema the integration suite needs to validate its functions. Tests fail if `manifest.json` is missing.
-
-TL;DR: **If you are testing a new function or table, update the manifest; only bring what you need.**
+Filter and enrichment functions operate on a generic piped `T` parameter and never name a table; only `ingestRows` steps declare one.
 
 ### Step types
 

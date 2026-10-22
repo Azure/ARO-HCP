@@ -1,0 +1,4 @@
+{
+	"database": "ServiceLogs",
+	"query": "datatable(timestamp:datetime, uid:string, name:string, event:string, conditions:dynamic, document:string) [\n  datetime(2026-09-30T12:00:00Z), 'pod-dup', 'pod-dup', 'Update', dynamic([{'type':'Available','status':'True','reason':'AsExpected','message':'','lastTransitionTime':'2026-09-30T12:00:00Z'}]), 'doc-A',\n  datetime(2026-09-30T12:00:00Z), 'pod-dup', 'pod-dup', 'Update', dynamic([{'type':'Available','status':'True','reason':'AsExpected','message':'','lastTransitionTime':'2026-09-30T12:00:00Z'}]), 'doc-B'\n] | invoke EnrichWithConditionHistory() | project uid, conditionType, status, startTime, observed, captures"
+}

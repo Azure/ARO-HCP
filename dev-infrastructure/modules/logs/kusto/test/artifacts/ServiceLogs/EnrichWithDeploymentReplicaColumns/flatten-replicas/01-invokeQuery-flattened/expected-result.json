@@ -1,0 +1,8 @@
+[
+	{
+		"availableReplicas": 3,
+		"readyReplicas": 2,
+		"replicas": 3,
+		"updatedReplicas": 3
+	}
+]

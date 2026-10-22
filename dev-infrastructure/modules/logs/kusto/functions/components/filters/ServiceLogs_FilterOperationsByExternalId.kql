@@ -1,0 +1,17 @@
+// @owner: sre-team
+// @domain: Components/Filters
+// @params: T=piped cosmosResourceSnapshots-shaped rows, p_ExternalId=ARM resource ID the operation acts on (case-insensitive)
+// @returns: T filtered to hcpOperationStatuses rows for the given resource
+.create-or-alter function
+with (
+  docstring = 'Filters piped cosmosResourceSnapshots rows down to hcpOperationStatuses documents acting on a given ARM resource, matched via an exact, opaque comparison of content.properties.externalId to p_ExternalId; the subscriptionID partition pre-filter is a pure performance optimization (the subscription is already embedded in p_ExternalId, so it cannot change which rows match, only how many are scanned before the exact match runs). An ARM resource can have many recorded operation attempts over its lifetime, so this does not reduce to one. Use with the invoke operator. | Returns: filtered rows with the same schema as the input | Example: cosmosResourceSnapshots | invoke FilterOperationsByExternalId("/subscriptions/.../hcpOpenShiftClusters/foo")',
+  folder = 'Components\\Filters'
+)
+FilterOperationsByExternalId(T: (cosmosContainer: string, resourceType: string, subscriptionID: string, content: dynamic), p_ExternalId: string)
+{
+    let subscriptionId = extract(@'(?i)^/subscriptions/([^/]+)/', 1, p_ExternalId);
+    T
+    | where cosmosContainer == 'resources' and subscriptionID =~ subscriptionId
+    | where resourceType =~ 'Microsoft.RedHatOpenShift/hcpOperationStatuses'
+    | where tostring(content.properties.externalId) =~ p_ExternalId
+}

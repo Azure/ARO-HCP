@@ -1,0 +1,28 @@
+[
+	{
+		"apiVersion": "cluster.x-k8s.io/v1beta1",
+		"cluster": "mgmt-cluster-01",
+		"environment": "prod",
+		"event": "Update",
+		"name": "my-nodepool-abcde",
+		"namespace": "ocm-abc123",
+		"object": {},
+		"objectKind": "Machine",
+		"region": "uksouth",
+		"timestamp": "2026-09-30T12:00:00Z",
+		"uid": "target-uid"
+	},
+	{
+		"apiVersion": "cluster.x-k8s.io/v1beta1",
+		"cluster": "mgmt-cluster-01",
+		"environment": "prod",
+		"event": "Update",
+		"name": "my-nodepool-fghij",
+		"namespace": "ocm-abc123",
+		"object": {},
+		"objectKind": "Machine",
+		"region": "uksouth",
+		"timestamp": "2026-09-30T12:01:00Z",
+		"uid": "other-uid"
+	}
+]
