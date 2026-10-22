@@ -156,7 +156,7 @@ func setDenyAssignmentsCreated(spc *coreapi.ServiceProviderCluster) {
 
 func setMockFPAAssignmentCreated(t *testing.T, spc *coreapi.ServiceProviderCluster) {
 	t.Helper()
-	scope, err := azcorearm.ParseResourceID(strings.ToLower("/subscriptions/" + testSubscriptionID + "/resourceGroups/" + testManagedResourceGroup))
+	scope, err := azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID + "/resourceGroups/" + testManagedResourceGroup)
 	require.NoError(t, err)
 	spc.Status.AzureResources.ManagedResourceGroup.AzureResource = scope
 	assignmentID, err := azcorearm.ParseResourceID(roleassignment.ManagedResourceGroupScopedRoleAssignmentResourceID(scope.String(), "mock-fpa-principal", "/providers/Microsoft.Authorization/roleDefinitions/8e3af657-a8ff-443c-a75c-2fe8c4bcb635"))
