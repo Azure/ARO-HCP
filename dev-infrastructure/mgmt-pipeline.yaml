@@ -127,8 +127,7 @@ resourceGroups:
     - resourceGroup: management
       step: subscription-output
   # Create/tag the Swift VNet as the identity selected by swift-vnet-permissions.
-  # The same identity receives VNet RBAC and performs the write inside the container group.
-  # shellIdentity remains the global deployment identity that launches the container.
+  # The same identity launches the container group and performs the VNet write inside it.
   # Create, wait, log and cleanup all happen in this single Shell step ahead of infra,
   # since infra creates the node/pod subnets that live in this VNet.
   - name: swift-vnet
@@ -137,9 +136,9 @@ resourceGroups:
     workingDir: ./scripts
     shellIdentity:
       input:
-        resourceGroup: global
-        step: output
-        name: globalMSIId
+        resourceGroup: management
+        step: swift-vnet-permissions
+        name: swiftVnetMSIId
     variables:
     - name: VNET_NAME
       value: aks-net
