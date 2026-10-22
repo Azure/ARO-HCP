@@ -54,6 +54,7 @@ type scaleCeilingReportingSyncer struct {
 
 func NewManagementClusterScaleCeilingReportingController(
 	managementClusterInformer cache.SharedIndexInformer,
+	stampInformer cache.SharedIndexInformer,
 	fleetDBClient fleetcosmosstorage.FleetDBClient,
 	readDesireLister kubeapplierlisters.ReadDesireLister,
 	region string,
@@ -79,11 +80,14 @@ func NewManagementClusterScaleCeilingReportingController(
 
 	controller := fleetcontrollers.NewStampWatchingController(
 		ManagementClusterScaleCeilingReportingControllerName,
+		stampInformer,
+		scaleCeilingResyncPeriod,
 		syncer,
 		cfg,
 	)
 
-	if err := controller.QueueForInformers(scaleCeilingResyncPeriod, managementClusterInformer); err != nil {
+	// Stamp keys already resync once; other inputs only enqueue on changes.
+	if err := controller.QueueForInformers(0, managementClusterInformer); err != nil {
 		panic(err) // coding error
 	}
 
