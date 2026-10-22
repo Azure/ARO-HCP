@@ -94,6 +94,8 @@ func NewManagementClusterWatchingController(
 	// this happens when unit tests don't want triggering.  This isn't beautiful, but fails to do nothing which is pretty safe.
 	if fleetInformers != nil {
 		managementClusterInformer, _ := fleetInformers.ManagementClusters()
+		// Resync only the key resource so each key is resynced once per interval,
+		// not once for every input. Use 0 (no resync) for all other watches.
 		err := mcController.QueueForInformers(resyncDuration, managementClusterInformer)
 		if err != nil {
 			panic(err) // coding error
