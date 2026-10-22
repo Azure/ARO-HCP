@@ -271,13 +271,13 @@ func hasTag(tags map[string]string, key string) bool {
 const defaultCreateOperationCompletionDeadlineDuration = 60 * time.Minute
 const minCreateOperationCompletionDeadlineDuration = time.Minute
 
-const defaultUpdateOperationCompletionDeadlineDuration = 60 * time.Minute
+const defaultUpdateOperationCompletionDeadlineDuration = 90 * time.Minute
 const minUpdateOperationCompletionDeadlineDuration = time.Minute
 
 // DefaultDeleteOperationCompletionDeadlineDuration is the fallback duration
 // used by the frontend DELETE handler when DeleteOperationCompletionTimeout
 // is nil (no tag / no AFEC).
-const DefaultDeleteOperationCompletionDeadlineDuration = 12 * time.Hour
+const DefaultDeleteOperationCompletionDeadlineDuration = 50 * time.Minute
 
 // MinDeleteOperationCompletionDeadlineDuration is the minimum value accepted
 // for the TagClusterMaxDeletionDuration tag.
@@ -321,7 +321,7 @@ func mutateCreateOperationCompletionDeadline(_ context.Context, admissionContext
 }
 
 // mutateUpdateOperationCompletionDeadline sets the deadline by which a cluster
-// update operation must complete. On UPDATE it defaults to 60 minutes from
+// update operation must complete. On UPDATE it defaults to 90 minutes from
 // now; when the subscription has the ExperimentalReleaseFeatures AFEC
 // registered, the caller may override the duration via the
 // TagClusterMaxUpdateDuration ARM resource tag.
@@ -397,11 +397,10 @@ func mutateDeleteOperationCompletionTimeout(_ context.Context, admissionContext 
 // UPDATE operations that may change the cluster version, the admissionContext
 // must carry the prefetched ServiceProviderCluster and ClusterNodePools.
 func AdmitCluster(ctx context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, newObj, oldObj *coreapi.Cluster) field.ErrorList {
-	if op.Type == operation.Update && oldObj != nil && oldObj.ServiceProviderProperties.DeletionTimestamp != nil {
-		return field.ErrorList{field.Forbidden(field.NewPath(""), "cluster is being deleted and cannot be updated")}
-	}
-
 	errs := field.ErrorList{}
+	if op.Type == operation.Update && oldObj != nil && oldObj.ServiceProviderProperties.DeletionTimestamp != nil {
+		errs = append(errs, field.Forbidden(field.NewPath(""), "cluster is being deleted and cannot be updated"))
+	}
 
 	// CustomerProperties ClusterCustomerProperties `json:"customerProperties,omitempty"`
 	errs = append(errs, admitClusterCustomerProperties(ctx, admissionContext, op, field.NewPath("properties"), &newObj.CustomerProperties, safe.Field(oldObj, validation.ToClusterCustomerProperties))...)

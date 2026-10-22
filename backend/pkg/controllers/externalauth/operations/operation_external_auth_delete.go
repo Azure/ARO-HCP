@@ -133,6 +133,27 @@ func (c *operationExternalAuthDelete) SynchronizeOperation(ctx context.Context, 
 		return utils.TrackError(fmt.Errorf("failed to get external auth: %w", err))
 	}
 
+	if operation.ResourceID.Name != externalAuth.ServiceProviderProperties.ActiveOperationID {
+		logger.Info("external auth active operation id mismatch, returning early", "synchronizedActiveOperationID", operation.ResourceID.Name, "externalAuthActiveOperationID", externalAuth.ServiceProviderProperties.ActiveOperationID)
+		return nil
+	}
+
+	if deadline := externalAuth.ServiceProviderProperties.DeleteOperationCompletionDeadline; deadline != nil && c.clock.Now().After(deadline.Time) {
+		logger.Info("external auth delete operation deadline exceeded", "deadline", deadline.Time)
+		persistErr := &coreapi.CloudErrorBody{
+			Code:    coreapi.CloudErrorCodeDeadlineExceeded,
+			Message: "External auth deletion did not complete within the allowed time.",
+		}
+		err = operationbase.UpdateOperationStatus(ctx, c.clock, c.resourcesDBClient, operation, coreapi.ProvisioningStateFailed, persistErr, operationbase.PostAsyncNotificationFn(c.notificationClient))
+		if cosmosstorageutils.IsPreconditionFailedError(err) {
+			return nil
+		}
+		if err != nil {
+			return utils.TrackError(err)
+		}
+		return nil
+	}
+
 	if !c.shouldReconcileOperationAndResourceStatus(externalAuth) {
 		return nil
 	}

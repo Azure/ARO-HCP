@@ -18,9 +18,12 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/go-logr/logr/testr"
 	"github.com/stretchr/testify/require"
+
+	clocktesting "k8s.io/utils/clock/testing"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
@@ -52,7 +55,8 @@ func TestUpdateExternalAuthOperationWithoutInternalID(t *testing.T) {
 			ctx = ContextWithCorrelationData(ctx, &coreapi.CorrelationData{})
 
 			db := corecosmosstoragetesting.NewMockResourcesDBClient()
-			f := &Frontend{resourcesDBClient: db, azureLocation: coreapitesting.TestLocation}
+			clock := clocktesting.NewFakeClock(time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC))
+			f := &Frontend{resourcesDBClient: db, azureLocation: coreapitesting.TestLocation, clock: clock}
 			externalAuth := coreapitesting.MinimumValidExternalAuthTestCase()
 			externalAuth.CosmosMetadata = coreapi.CosmosMetadata{
 				ResourceID:   externalAuth.ID,
@@ -77,6 +81,8 @@ func TestUpdateExternalAuthOperationWithoutInternalID(t *testing.T) {
 			require.Equal(t, coreapi.ProvisioningStateAccepted, storedExternalAuth.Properties.ProvisioningState)
 			require.Equal(t, tc.clusterServiceID, storedExternalAuth.ServiceProviderProperties.ClusterServiceID, "updating must preserve the resource's legacy Cluster Service ID")
 			require.NotEmpty(t, storedExternalAuth.ServiceProviderProperties.ActiveOperationID)
+			require.Nil(t, storedExternalAuth.ServiceProviderProperties.CreateOperationCompletionDeadline, "legacy creation deadlines must not be backfilled")
+			require.WithinDuration(t, clock.Now().Add(30*time.Minute), storedExternalAuth.ServiceProviderProperties.UpdateOperationCompletionDeadline.Time, 0)
 
 			operation, err := db.Operations(externalAuth.ID.SubscriptionID).Get(ctx, storedExternalAuth.ServiceProviderProperties.ActiveOperationID)
 			require.NoError(t, err)
@@ -84,5 +90,57 @@ func TestUpdateExternalAuthOperationWithoutInternalID(t *testing.T) {
 			require.Equal(t, externalAuth.ID.String(), operation.ExternalID.String())
 			require.Empty(t, operation.InternalID.String(), "external auth operations must not depend on a Cluster Service ID")
 		})
+	}
+}
+
+func TestExternalAuthAcceptedOperationDeadlines(t *testing.T) {
+	ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
+	registry := coreapi.NewAPIRegistry()
+	require.NoError(t, v20251223preview.RegisterVersion(registry))
+	version, ok := registry.Lookup(string(metadataapi.APIVersionV20251223Preview))
+	require.True(t, ok)
+	ctx = ContextWithVersion(ctx, version)
+	ctx = ContextWithCorrelationData(ctx, &coreapi.CorrelationData{})
+	ctx = ContextWithSystemData(ctx, &coreapi.SystemData{})
+	clock := clocktesting.NewFakeClock(time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC))
+	db := corecosmosstoragetesting.NewMockResourcesDBClient()
+	f := &Frontend{resourcesDBClient: db, azureLocation: coreapitesting.TestLocation, clock: clock}
+	obj := coreapitesting.MinimumValidExternalAuthTestCase()
+	ctx = utils.ContextWithResourceID(ctx, obj.ID)
+	cluster := coreapi.NewDefaultCluster(obj.ID.Parent, coreapitesting.TestLocation)
+	cluster.SetResourceID(cluster.ID)
+	cluster.SetPartitionKey(cluster.ID.SubscriptionID)
+	cluster.ServiceProviderProperties.ProvisioningState = coreapi.ProvisioningStateSucceeded
+	_, err := db.HCPClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName).Create(ctx, cluster, nil)
+	require.NoError(t, err)
+	body, err := coreapi.MarshalJSON(version.NewExternalAuth(obj))
+	require.NoError(t, err)
+	ctx = ContextWithBody(ctx, body)
+	client := db.HCPClusters(obj.ID.SubscriptionID, obj.ID.ResourceGroupName).ExternalAuth(obj.ID.Parent.Name)
+
+	creationDeadline := clock.Now().Add(90 * time.Minute)
+	for i, method := range []string{http.MethodPut, http.MethodPut, http.MethodPatch} {
+		clock.Step(time.Hour)
+		request := httptest.NewRequestWithContext(ctx, method, obj.ID.String(), nil)
+		response := httptest.NewRecorder()
+		require.NoError(t, f.CreateOrUpdateExternalAuth(response, request))
+		stored, err := client.Get(ctx, obj.ID.Name)
+		require.NoError(t, err)
+		require.WithinDuration(t, creationDeadline, stored.ServiceProviderProperties.CreateOperationCompletionDeadline.Time, 0, "updates must preserve the creation deadline")
+		if i == 0 {
+			require.Nil(t, stored.ServiceProviderProperties.UpdateOperationCompletionDeadline)
+		} else {
+			require.WithinDuration(t, clock.Now().Add(30*time.Minute), stored.ServiceProviderProperties.UpdateOperationCompletionDeadline.Time, 0)
+		}
+		require.Nil(t, stored.ServiceProviderProperties.DeleteOperationCompletionDeadline)
+
+		clock.Step(time.Minute)
+		require.Error(t, f.CreateOrUpdateExternalAuth(httptest.NewRecorder(), request), "an active operation must reject another update")
+		unchanged, err := client.Get(ctx, obj.ID.Name)
+		require.NoError(t, err)
+		require.Equal(t, stored, unchanged, "rejected requests must not refresh deadlines")
+		stored.Properties.ProvisioningState = coreapi.ProvisioningStateFailed
+		_, err = client.Replace(ctx, stored, nil)
+		require.NoError(t, err)
 	}
 }

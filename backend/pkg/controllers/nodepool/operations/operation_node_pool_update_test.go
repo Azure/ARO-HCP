@@ -404,11 +404,12 @@ func TestOperationNodePoolUpdate_SynchronizeOperation(t *testing.T) {
 			},
 		},
 		{
-			name: "shouldReconcile gate not passed when ClusterServiceID is nil",
+			name: "missing ClusterServiceID waits for creation",
 			existingNodePool: newNodePoolWithVersion("4.19.0", func(nodePool *coreapi.NodePool) {
 				nodePool.ServiceProviderProperties.ClusterServiceID = nil
 			}),
-			existingOperation: newOperationAccepted(),
+			existingServiceProviderNodePool: newServiceProviderNodePoolWithDesiredVersion("4.19.0"),
+			existingOperation:               newOperationAccepted(),
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)

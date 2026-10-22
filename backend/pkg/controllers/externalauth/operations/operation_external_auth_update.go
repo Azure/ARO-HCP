@@ -16,10 +16,8 @@ package operations
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
-	"slices"
 	"strings"
 	"time"
 
@@ -111,8 +109,7 @@ func (c *operationExternalAuthUpdate) ShouldProcess(ctx context.Context, operati
 }
 
 func (c *operationExternalAuthUpdate) shouldReconcileOperationAndResourceStatus(ea *coreapi.ExternalAuth) bool {
-	return ea.ServiceProviderProperties.DeletionTimestamp == nil &&
-		ea.ServiceProviderProperties.ClusterServiceID != nil
+	return ea.ServiceProviderProperties.DeletionTimestamp == nil
 }
 
 func (c *operationExternalAuthUpdate) SynchronizeOperation(ctx context.Context, key controllerutils.OperationKey) error {
@@ -149,6 +146,7 @@ func (c *operationExternalAuthUpdate) SynchronizeOperation(ctx context.Context, 
 	}
 
 	operationalState, err := c.determineOperationState(ctx, existingExternalAuth)
+	operationalState, err = operationbase.ApplyOperationDeadline(operationalState, err, existingExternalAuth.ServiceProviderProperties.UpdateOperationCompletionDeadline, c.clock.Now(), "External auth update did not complete within the allowed time.")
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -177,21 +175,21 @@ func (c *operationExternalAuthUpdate) determineOperationState(ctx context.Contex
 	logger := utils.LoggerFromContext(ctx)
 
 	externalAuthCSID := existingExternalAuth.ServiceProviderProperties.ClusterServiceID
+	errs := []error{}
+	operationStates := []*operationbase.OperationState{}
 	csCtx, cancel := context.WithTimeout(ctx, controllerutils.CSReadTimeout)
 	defer cancel()
 
-	csExternalAuth, err := c.clusterServiceClient.GetExternalAuth(csCtx, *externalAuthCSID)
-	if err != nil {
-		return nil, utils.TrackError(fmt.Errorf("failed to get external auth from cluster service: %w", err))
-	}
-
-	errs := []error{}
-	operationStates := []*operationbase.OperationState{}
-
-	if operationState, csErr := c.clusterServiceExternalAuthSpecOperationState(existingExternalAuth, csExternalAuth); csErr != nil {
-		errs = append(errs, utils.TrackError(csErr))
+	if externalAuthCSID == nil || externalAuthCSID.String() == "" {
+		operationStates = append(operationStates, operationbase.NewOperationState(coreapi.ProvisioningStateAccepted, "Waiting for Cluster Service external auth creation").WithSource("clusterService"))
+	} else if csExternalAuth, err := c.clusterServiceClient.GetExternalAuth(csCtx, *externalAuthCSID); err != nil {
+		errs = append(errs, utils.TrackError(fmt.Errorf("failed to get external auth from cluster service: %w", err)))
 	} else {
-		operationStates = append(operationStates, operationState.WithSource("clusterServiceExternalAuthSpec"))
+		if operationState, csErr := c.clusterServiceExternalAuthSpecOperationState(existingExternalAuth, csExternalAuth); csErr != nil {
+			errs = append(errs, utils.TrackError(csErr))
+		} else {
+			operationStates = append(operationStates, operationState.WithSource("clusterServiceExternalAuthSpec"))
+		}
 	}
 
 	if operationState, hsErr := c.hypershiftHostedClusterExternalAuthOperationState(ctx, existingExternalAuth); hsErr != nil {
@@ -200,21 +198,6 @@ func (c *operationExternalAuthUpdate) determineOperationState(ctx context.Contex
 		operationStates = append(operationStates, operationState.WithSource("hypershiftHostedClusterExternalAuth"))
 	}
 
-	if err := errors.Join(errs...); err != nil {
-		return nil, err
-	}
-	if len(operationStates) == 0 {
-		return nil, errors.New("no operation states")
-	}
-	slices.SortStableFunc(operationStates, operationbase.CompareOperationState)
-	if operationStates[0] == nil {
-		return nil, errors.New("nil operation state")
-	}
 	logger.Info("determined external auth update operation status", "operationStates", operationStates)
-	picked, err := operationbase.PickWorstOperationState(operationStates)
-	if err != nil {
-		return nil, utils.TrackError(err)
-	}
-	logger.Info("picked external auth update operation status", "picked", picked)
-	return picked, nil
+	return operationbase.SummarizeOperationStates(operationStates, errs...)
 }
