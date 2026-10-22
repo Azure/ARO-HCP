@@ -447,6 +447,15 @@ func (c *operationClusterCreate) hostedClusterOperationStatus(ctx context.Contex
 		return operationbase.NewOperationState(coreapi.ProvisioningStateProvisioning, withDegradedSuffix("hosted cluster has no control plane endpoint port", hostedCluster)), nil
 	}
 
+	if !meta.IsStatusConditionTrue(hostedCluster.Status.Conditions, string(v1beta1.IngressDefaultCertificateSynced)) {
+		message := "ingress default certificate is not synced, condition missing"
+		if defaultCertificateCondition := meta.FindStatusCondition(hostedCluster.Status.Conditions, string(v1beta1.IngressDefaultCertificateSynced)); defaultCertificateCondition != nil {
+			message = fmt.Sprintf("ingress default certificate is not synced: %s: %s", defaultCertificateCondition.Reason, defaultCertificateCondition.Message)
+		}
+		logger.Info("ingress default certificate is not synced", "hostedCluster.Status.Conditions", hostedCluster.Status.Conditions)
+		return operationbase.NewOperationState(coreapi.ProvisioningStateProvisioning, withDegradedSuffix(message, hostedCluster)), nil
+	}
+
 	// if we got here,
 	// 1. the hosted cluster is available via condition
 	// 2. the hosted cluster has successfully installed at least one version

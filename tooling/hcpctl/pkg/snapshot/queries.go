@@ -671,7 +671,8 @@ var allQueries = []querySpec{
 			return d.ClusterID != "" && strings.EqualFold(d.ResourceType, "microsoft.redhatopenshift/hcpopenshiftclusters")
 		},
 		prerequisites: "ClusterID, ResourceType is cluster",
-		requiredWhen:  isClusterType,
+		// The ManagedCluster CR is being phased out, so empty results are acceptable.
+		// Query stays informational for clusters that still have one.
 	},
 	{
 		component:    "acm",

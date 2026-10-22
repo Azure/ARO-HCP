@@ -65,7 +65,7 @@ spec:
               spec:
                 {{ `{{hub- if ne $disableCertificates "true" hub}}` }}
                 defaultCertificate:
-                  name: cluster-ingress-cert
+                  name: default-ingress-cert
                 {{ `{{hub- end hub}}` }}
                 endpointPublishingStrategy:
                   type: LoadBalancerService
