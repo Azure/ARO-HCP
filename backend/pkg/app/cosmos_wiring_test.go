@@ -385,7 +385,6 @@ func TestBackendKubeApplierInformerSkipsThroughputDiscovery(t *testing.T) {
 			})
 		}
 	}
-
 }
 
 func TestBackendLimitedKubeApplierDiscoveryRetries(t *testing.T) {
@@ -456,19 +455,32 @@ func (informers *trackingKubeApplierInformers) RunWithContext(ctx context.Contex
 	informers.KubeApplierInformers.RunWithContext(ctx)
 }
 
-func TestBackendKubeApplierInformerLifecycleWithoutThroughput(t *testing.T) {
+func TestBackendKubeApplierInformerLifecycleDuringThroughputDiscovery(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		options := BackendStorageFactoryOptions(false)
 		var calls atomic.Int32
+		started, release := make(chan struct{}), make(chan struct{})
+		releaseDiscovery := sync.OnceFunc(func() { close(release) })
 		options.ContainerThroughput = func(container string) (float64, error) {
 			if container == "Resources" || container == "Billing" || container == "Fleet" {
 				return 1000, nil
 			}
 			calls.Add(1)
-			return 0, fmt.Errorf("MC throughput is not configured")
+			close(started)
+			<-release
+			return 1000, nil
 		}
 		factory, err := newStorageFactory("https://cosmos.test", "test", informerStorageTestOptions(t), options)
 		require.NoError(t, err)
+		key := unionkubeapplierinformers.ManagementClusterKey{StampIdentifier: "1", ManagementClusterName: "default"}
+		limited := factory.KubeApplierStorageClients(strings.ToLower(mismatch.MissingResourceIDControllerName))
+		limitedDone := make(chan kubeappliercosmosstorage.KubeApplierDBClient, 1)
+		go func() { limitedDone <- limited.For(t.Context(), key.GetResourceID()) }()
+		defer func() {
+			releaseDiscovery()
+			require.NotNil(t, <-limitedDone)
+		}()
+		<-started
 		tracked := &trackingKubeApplierInformerFactory{stoppedEvents: make(chan struct{}, 2), PerMCKubeApplierInformerFactory: unionkubeapplierinformers.NewKubeApplierInformerFactory(
 			factory.KubeApplierStorageClients(unionkubeapplierinformers.ControllerName), nil)}
 		source := cachetesting.NewFakeControllerSource()
@@ -480,10 +492,9 @@ func TestBackendKubeApplierInformerLifecycleWithoutThroughput(t *testing.T) {
 		mcDone, controllerDone := make(chan struct{}), make(chan struct{})
 		go func() { defer close(mcDone); mcInformer.RunWithContext(ctx) }()
 		go func() { defer close(controllerDone); controller.Run(ctx, 1) }()
-		defer func() { cancel(); <-controllerDone; <-mcDone }()
+		defer func() { releaseDiscovery(); cancel(); <-controllerDone; <-mcDone }()
 		require.True(t, cache.WaitForCacheSync(ctx.Done(), mcInformer.HasSynced))
 		synctest.Wait()
-		key := unionkubeapplierinformers.ManagementClusterKey{StampIdentifier: "1", ManagementClusterName: "default"}
 		mc := &fleetapi.ManagementCluster{CosmosMetadata: coreapi.CosmosMetadata{ResourceID: key.GetResourceID(), PartitionKey: "1"}}
 		source.Add(mc.DeepCopyObject())
 		synctest.Wait()
@@ -505,7 +516,8 @@ func TestBackendKubeApplierInformerLifecycleWithoutThroughput(t *testing.T) {
 		<-controllerDone
 		<-mcDone
 		require.EqualValues(t, 2, tracked.stopped.Load(), "shutdown joins all real informer goroutines")
-		require.Zero(t, calls.Load(), "no lifecycle event needs MC throughput discovery")
+		require.Empty(t, limitedDone, "all lifecycle events complete while same-container discovery remains blocked")
+		require.EqualValues(t, 1, calls.Load(), "only the limited controller discovers throughput")
 	})
 }
 
