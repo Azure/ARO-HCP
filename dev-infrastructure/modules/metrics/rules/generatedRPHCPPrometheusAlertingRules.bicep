@@ -167,7 +167,7 @@ resource hcpEtcdAvailabilityAlertRules 'Microsoft.AlertsManagement/prometheusRul
           summary: 'etcd backend commit duration is high for {{ $labels.namespace }} ({{ $labels.resource_id }}, {{ $labels.subscription_id }})'
           title: 'etcd backend commit duration is high for {{ $labels.namespace }} ({{ $labels.resource_id }}, {{ $labels.subscription_id }})'
         }
-        expression: '(histogram_quantile(0.99, sum by (namespace, cluster, pod, le, region) (rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~"ocm-.*"}[5m]))) > 0.1 and histogram_quantile(0.99, sum by (namespace, cluster, pod, le, region) (rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~"ocm-.*"}[1h]))) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")'
+        expression: '((histogram_quantile(0.99, sum by (namespace, cluster, pod, le, region) (rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~"ocm-.*"}[5m]))) > 0.1 and histogram_quantile(0.99, sum by (namespace, cluster, pod, le, region) (rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~"ocm-.*"}[1h]))) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")) unless on (subscription_id) internal_subscription:info'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
@@ -198,7 +198,7 @@ resource hcpEtcdAvailabilityAlertRules 'Microsoft.AlertsManagement/prometheusRul
           summary: 'etcd backend commit duration is high for {{ $labels.namespace }} ({{ $labels.resource_id }}, {{ $labels.subscription_id }})'
           title: 'etcd backend commit duration is high for {{ $labels.namespace }} ({{ $labels.resource_id }}, {{ $labels.subscription_id }})'
         }
-        expression: '(histogram_quantile(0.99, sum by (namespace, cluster, pod, le, region) (rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~"ocm-.*"}[30m]))) > 0.1 and histogram_quantile(0.99, sum by (namespace, cluster, pod, le, region) (rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~"ocm-.*"}[6h]))) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")'
+        expression: '((histogram_quantile(0.99, sum by (namespace, cluster, pod, le, region) (rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~"ocm-.*"}[30m]))) > 0.1 and histogram_quantile(0.99, sum by (namespace, cluster, pod, le, region) (rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~"ocm-.*"}[6h]))) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")) unless on (subscription_id) internal_subscription:info'
         for: 'PT30M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
@@ -229,7 +229,7 @@ resource hcpEtcdAvailabilityAlertRules 'Microsoft.AlertsManagement/prometheusRul
           summary: 'etcd backend commit duration is chronically high for {{ $labels.namespace }} ({{ $labels.resource_id }}, {{ $labels.subscription_id }})'
           title: 'etcd backend commit duration is chronically high for {{ $labels.namespace }} ({{ $labels.resource_id }}, {{ $labels.subscription_id }})'
         }
-        expression: '(histogram_quantile(0.99, sum by (namespace, cluster, pod, le, region) (rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~"ocm-.*"}[6h]))) > 0.1 and histogram_quantile(0.99, sum by (namespace, cluster, pod, le, region) (rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~"ocm-.*"}[3d]))) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")'
+        expression: '((histogram_quantile(0.99, sum by (namespace, cluster, pod, le, region) (rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~"ocm-.*"}[6h]))) > 0.1 and histogram_quantile(0.99, sum by (namespace, cluster, pod, le, region) (rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~"ocm-.*"}[3d]))) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")) unless on (subscription_id) internal_subscription:info'
         for: 'PT3H'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
@@ -258,7 +258,7 @@ resource hcpEtcdAvailabilityAlertRules 'Microsoft.AlertsManagement/prometheusRul
           summary: 'etcd database fragmentation is high for {{ $labels.namespace }} ({{ $labels.resource_id }}, {{ $labels.subscription_id }})'
           title: 'etcd database fragmentation is high for {{ $labels.namespace }} ({{ $labels.resource_id }}, {{ $labels.subscription_id }})'
         }
-        expression: '((etcd_mvcc_db_total_size_in_use_in_bytes / etcd_mvcc_db_total_size_in_bytes) < 0.25) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")'
+        expression: '(((etcd_mvcc_db_total_size_in_use_in_bytes / etcd_mvcc_db_total_size_in_bytes) < 0.25) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")) unless on (subscription_id) internal_subscription:info'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
@@ -287,7 +287,7 @@ resource hcpEtcdAvailabilityAlertRules 'Microsoft.AlertsManagement/prometheusRul
           summary: 'etcd database size is too large for {{ $labels.namespace }} ({{ $labels.resource_id }}, {{ $labels.subscription_id }})'
           title: 'etcd database size is too large for {{ $labels.namespace }} ({{ $labels.resource_id }}, {{ $labels.subscription_id }})'
         }
-        expression: '((etcd_mvcc_db_total_size_in_bytes / etcd_server_quota_backend_bytes) > 0.85) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")'
+        expression: '(((etcd_mvcc_db_total_size_in_bytes / etcd_server_quota_backend_bytes) > 0.85) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")) unless on (subscription_id) internal_subscription:info'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
@@ -316,7 +316,7 @@ resource hcpEtcdAvailabilityAlertRules 'Microsoft.AlertsManagement/prometheusRul
           summary: 'etcd cluster experiencing frequent leader changes for {{ $labels.namespace }} ({{ $labels.resource_id }}, {{ $labels.subscription_id }})'
           title: 'etcd cluster experiencing frequent leader changes for {{ $labels.namespace }} ({{ $labels.resource_id }}, {{ $labels.subscription_id }})'
         }
-        expression: '(increase(etcd_server_leader_changes_seen_total[15m]) > 3) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")'
+        expression: '((max by (namespace, cluster, region) (increase(etcd_server_leader_changes_seen_total[15m])) > 3) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")) unless on (subscription_id) internal_subscription:info'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
@@ -345,7 +345,7 @@ resource hcpEtcdAvailabilityAlertRules 'Microsoft.AlertsManagement/prometheusRul
           summary: 'etcd member has no leader for {{ $labels.namespace }} ({{ $labels.resource_id }}, {{ $labels.subscription_id }})'
           title: 'etcd member has no leader for {{ $labels.namespace }} ({{ $labels.resource_id }}, {{ $labels.subscription_id }})'
         }
-        expression: '(etcd_server_has_leader == 0) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")'
+        expression: '((etcd_server_has_leader == 0) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")) unless on (subscription_id) internal_subscription:info'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
@@ -376,7 +376,7 @@ resource hcpEtcdAvailabilityAlertRules 'Microsoft.AlertsManagement/prometheusRul
           summary: 'etcd peer round-trip time is high for {{ $labels.namespace }} ({{ $labels.resource_id }}, {{ $labels.subscription_id }})'
           title: 'etcd peer round-trip time is high for {{ $labels.namespace }} ({{ $labels.resource_id }}, {{ $labels.subscription_id }})'
         }
-        expression: '(histogram_quantile(0.99, sum by (namespace, cluster, le, region) (rate(etcd_network_peer_round_trip_time_seconds_bucket{namespace=~"ocm-.*"}[5m]))) > 0.1 and histogram_quantile(0.99, sum by (namespace, cluster, le, region) (rate(etcd_network_peer_round_trip_time_seconds_bucket{namespace=~"ocm-.*"}[1h]))) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")'
+        expression: '((histogram_quantile(0.99, sum by (namespace, cluster, le, region) (rate(etcd_network_peer_round_trip_time_seconds_bucket{namespace=~"ocm-.*"}[5m]))) > 0.1 and histogram_quantile(0.99, sum by (namespace, cluster, le, region) (rate(etcd_network_peer_round_trip_time_seconds_bucket{namespace=~"ocm-.*"}[1h]))) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")) unless on (subscription_id) internal_subscription:info'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
@@ -407,7 +407,7 @@ resource hcpEtcdAvailabilityAlertRules 'Microsoft.AlertsManagement/prometheusRul
           summary: 'etcd peer round-trip time is high for {{ $labels.namespace }} ({{ $labels.resource_id }}, {{ $labels.subscription_id }})'
           title: 'etcd peer round-trip time is high for {{ $labels.namespace }} ({{ $labels.resource_id }}, {{ $labels.subscription_id }})'
         }
-        expression: '(histogram_quantile(0.99, sum by (namespace, cluster, le, region) (rate(etcd_network_peer_round_trip_time_seconds_bucket{namespace=~"ocm-.*"}[30m]))) > 0.1 and histogram_quantile(0.99, sum by (namespace, cluster, le, region) (rate(etcd_network_peer_round_trip_time_seconds_bucket{namespace=~"ocm-.*"}[6h]))) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")'
+        expression: '((histogram_quantile(0.99, sum by (namespace, cluster, le, region) (rate(etcd_network_peer_round_trip_time_seconds_bucket{namespace=~"ocm-.*"}[30m]))) > 0.1 and histogram_quantile(0.99, sum by (namespace, cluster, le, region) (rate(etcd_network_peer_round_trip_time_seconds_bucket{namespace=~"ocm-.*"}[6h]))) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")) unless on (subscription_id) internal_subscription:info'
         for: 'PT30M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
@@ -438,7 +438,7 @@ resource hcpEtcdAvailabilityAlertRules 'Microsoft.AlertsManagement/prometheusRul
           summary: 'etcd peer round-trip time is chronically high for {{ $labels.namespace }} ({{ $labels.resource_id }}, {{ $labels.subscription_id }})'
           title: 'etcd peer round-trip time is chronically high for {{ $labels.namespace }} ({{ $labels.resource_id }}, {{ $labels.subscription_id }})'
         }
-        expression: '(histogram_quantile(0.99, sum by (namespace, cluster, le, region) (rate(etcd_network_peer_round_trip_time_seconds_bucket{namespace=~"ocm-.*"}[6h]))) > 0.1 and histogram_quantile(0.99, sum by (namespace, cluster, le, region) (rate(etcd_network_peer_round_trip_time_seconds_bucket{namespace=~"ocm-.*"}[3d]))) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")'
+        expression: '((histogram_quantile(0.99, sum by (namespace, cluster, le, region) (rate(etcd_network_peer_round_trip_time_seconds_bucket{namespace=~"ocm-.*"}[6h]))) > 0.1 and histogram_quantile(0.99, sum by (namespace, cluster, le, region) (rate(etcd_network_peer_round_trip_time_seconds_bucket{namespace=~"ocm-.*"}[3d]))) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")) unless on (subscription_id) internal_subscription:info'
         for: 'PT3H'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
@@ -469,7 +469,7 @@ resource hcpEtcdAvailabilityAlertRules 'Microsoft.AlertsManagement/prometheusRul
           summary: 'etcd WAL fsync duration is high for {{ $labels.namespace }} ({{ $labels.resource_id }}, {{ $labels.subscription_id }})'
           title: 'etcd WAL fsync duration is high for {{ $labels.namespace }} ({{ $labels.resource_id }}, {{ $labels.subscription_id }})'
         }
-        expression: '(histogram_quantile(0.99, sum by (namespace, cluster, pod, le, region) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~"ocm-.*"}[5m]))) > 0.05 and histogram_quantile(0.99, sum by (namespace, cluster, pod, le, region) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~"ocm-.*"}[1h]))) > 0.05) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")'
+        expression: '((histogram_quantile(0.99, sum by (namespace, cluster, pod, le, region) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~"ocm-.*"}[5m]))) > 0.05 and histogram_quantile(0.99, sum by (namespace, cluster, pod, le, region) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~"ocm-.*"}[1h]))) > 0.05) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")) unless on (subscription_id) internal_subscription:info'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
@@ -500,7 +500,7 @@ resource hcpEtcdAvailabilityAlertRules 'Microsoft.AlertsManagement/prometheusRul
           summary: 'etcd WAL fsync duration is high for {{ $labels.namespace }} ({{ $labels.resource_id }}, {{ $labels.subscription_id }})'
           title: 'etcd WAL fsync duration is high for {{ $labels.namespace }} ({{ $labels.resource_id }}, {{ $labels.subscription_id }})'
         }
-        expression: '(histogram_quantile(0.99, sum by (namespace, cluster, pod, le, region) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~"ocm-.*"}[30m]))) > 0.05 and histogram_quantile(0.99, sum by (namespace, cluster, pod, le, region) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~"ocm-.*"}[6h]))) > 0.05) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")'
+        expression: '((histogram_quantile(0.99, sum by (namespace, cluster, pod, le, region) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~"ocm-.*"}[30m]))) > 0.05 and histogram_quantile(0.99, sum by (namespace, cluster, pod, le, region) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~"ocm-.*"}[6h]))) > 0.05) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")) unless on (subscription_id) internal_subscription:info'
         for: 'PT30M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
@@ -531,7 +531,7 @@ resource hcpEtcdAvailabilityAlertRules 'Microsoft.AlertsManagement/prometheusRul
           summary: 'etcd WAL fsync duration is chronically high for {{ $labels.namespace }} ({{ $labels.resource_id }}, {{ $labels.subscription_id }})'
           title: 'etcd WAL fsync duration is chronically high for {{ $labels.namespace }} ({{ $labels.resource_id }}, {{ $labels.subscription_id }})'
         }
-        expression: '(histogram_quantile(0.99, sum by (namespace, cluster, pod, le, region) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~"ocm-.*"}[6h]))) > 0.05 and histogram_quantile(0.99, sum by (namespace, cluster, pod, le, region) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~"ocm-.*"}[3d]))) > 0.05) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")'
+        expression: '((histogram_quantile(0.99, sum by (namespace, cluster, pod, le, region) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~"ocm-.*"}[6h]))) > 0.05 and histogram_quantile(0.99, sum by (namespace, cluster, pod, le, region) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~"ocm-.*"}[3d]))) > 0.05) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")) unless on (subscription_id) internal_subscription:info'
         for: 'PT3H'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
