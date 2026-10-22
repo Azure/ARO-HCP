@@ -8,7 +8,6 @@ configMap:
   backendMiClientId: "__backendMsiClientId__"
   databaseUrl: "__cosmosDBDocumentEndpoint__"
   databaseName: "{{ .frontend.cosmosDB.name }}"
-  kubeApplierCosmosContainerName: "{{ .kubeApplier.cosmosContainerName }}"
 backupCadenceProfile: "{{ .backend.backupCadenceProfile }}"
 backupScheduleState: "{{ .backend.backupScheduleState }}"
 deployment:
