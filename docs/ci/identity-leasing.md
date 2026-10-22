@@ -537,6 +537,15 @@ recovery after missing RBAC is verified. This temporary guard cannot repair
 already-stuck clusters or prevent an external writer from creating a consumer
 after the scan.
 
+#### Local validation
+
+Run `go test ./cmd/aro-hcp-tests/... ./util/framework` from `test/` before
+requesting E2E validation. The CLI package's concurrency and upgrade-cohort
+tests consume a published admitted lease; slot-manager-only tests do not cover
+that boundary. Lease fixtures must distinguish owned containers from the
+admitted subset available to the runner.
+
+
 ## MSI Mock Service Principal Pool
 
 The MSI mock SP pool is DEV-only and solves a different problem from the managed identity container pool.
