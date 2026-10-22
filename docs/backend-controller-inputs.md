@@ -1,7 +1,7 @@
 # Backend controller input interests
 
 Audited against `3b3a5248bd` plus the interest registrations in this change.
-This inventory covers all **74 constructor sites** in `backend/pkg/controllers`
+This inventory covers all **75 constructor sites** in `backend/pkg/controllers`
 that wrap a watching controller, including the named validation factories.
 Operation controllers and the custom orphan/mismatch sweep loops do not expose
 `AddInterestingResource` and are outside this filter inventory; their behavior
@@ -93,6 +93,7 @@ and source/handler readiness are standard across all generic watch APIs.
 | Constructor source | Explicit resource inputs | Collection rationale and additional inputs |
 |---|---|---|
 | [ManagedResourceGroup](../backend/pkg/controllers/cluster/azureresources/managed_resource_group_controller.go) | `Cluster(*)`, `ServiceProviderCluster(default)`, `Subscription(*)` | Subscription tenant, managed-resource-group intent and prior state; polls Azure resource groups. |
+| [ObserveEgressPublicIPs](../backend/pkg/controllers/cluster/azureresources/egress_public_ips_controller.go) | `Cluster(*)`, `ServiceProviderCluster(default)`, `Subscription(*)` | Subscription tenant, outbound type, cluster-service ID, managed-resource-group name and prior observations; GETs the nine expected egress public IPs. |
 | [KeyRotationBackup](../backend/pkg/controllers/cluster/backups/key_rotation_controller.go) | `Cluster(*)`, `ServiceProviderCluster(default)`, `ClusterScopedApplyDesire(*)`, `ClusterScopedReadDesire(*)` | Lists on-demand backup desires whose names include the namespace and KMS fingerprint; also reads the HostedCluster mirror. Backup configuration and time affect reconciliation. |
 | [BackupSchedule](../backend/pkg/controllers/cluster/backups/schedule_controller.go) | `Cluster(*)`, `ServiceProviderCluster(default)`, `ClusterScopedApplyDesire(*)`, `ClusterScopedReadDesire(*)` | Lists backup desires whose names include the namespace and configured schedule; also reads the HostedCluster mirror. Backup configuration affects reconciliation. |
 | [ClusterClusterServiceCreate](../backend/pkg/controllers/cluster/creation/cluster_cluster_service_create_controller.go) | `Cluster(*)`, `ServiceProviderCluster(default)`, `Subscription(*)`, `ManagementCluster(default)` | Creation/placement gates, subscription tenant and management-cluster shard; polls Cluster Service matches. |

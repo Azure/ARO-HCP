@@ -80,6 +80,7 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 		existingOperation *coreapi.Operation
 		readDesireLister  kubeapplierlisters.ReadDesireLister
 		validations       []metav1.Condition
+		egressObservation coreapi.AzureResourceObservation
 		setupCSMock       func(ctrl *gomock.Controller, fixture *operationtesting.ClusterTestFixture) ocm.ClusterServiceClientSpec
 		wantErr           bool
 		verifyDB          func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient)
@@ -458,6 +459,48 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 		},
 	}
 
+	for _, template := range testCases {
+		if template.name != "successful create updates operation to succeeded" {
+			continue
+		}
+		for _, observation := range []coreapi.AzureResourceObservation{coreapi.AzureResourceNotFound, coreapi.AzureResourceUnknown} {
+			for _, expired := range []bool{false, true} {
+				testCase := template
+				testCase.name = fmt.Sprintf("egress %s deadline expired %t", observation, expired)
+				testCase.egressObservation = observation
+				testCase.existingCluster = template.existingCluster.DeepCopy()
+				testCase.existingOperation = template.existingOperation.DeepCopy()
+				deadline := metav1.NewTime(createdAt.Add(time.Hour))
+				testCase.existingCluster.ServiceProviderProperties.CreateOperationCompletionDeadline = &deadline
+				now := createdAt
+				if expired {
+					now = deadline.Add(time.Minute)
+				}
+				testCase.clock = clocktesting.NewFakePassiveClock(now)
+				testCase.verifyDB = func(t *testing.T, ctx context.Context, database *corecosmosstoragetesting.MockResourcesDBClient) {
+					operation, err := database.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
+					require.NoError(t, err)
+					if !expired {
+						require.Equal(t, coreapi.ProvisioningStateProvisioning, operation.Status)
+						return
+					}
+					require.Equal(t, coreapi.ProvisioningStateFailed, operation.Status)
+					require.NotNil(t, operation.Error)
+					require.Equal(t, coreapi.CloudErrorCodeDeadlineExceeded, operation.Error.Code)
+					require.Contains(t, operation.Error.Message, "egressPublicIPs")
+					if observation == coreapi.AzureResourceNotFound {
+						require.Contains(t, operation.Error.Message, "Check that Azure Policy permits")
+					} else {
+						require.Contains(t, operation.Error.Message, "Unable to verify")
+						require.NotContains(t, operation.Error.Message, "Azure Policy")
+					}
+				}
+				testCases = append(testCases, testCase)
+			}
+		}
+		break
+	}
+
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := context.Background()
@@ -527,6 +570,13 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 				}(),
 			}
 
+			serviceProvider := controller.serviceProviderClusterLister.(*corelistertesting.SliceServiceProviderClusterLister).ServiceProviderClusters[0]
+			serviceProvider.Status.AzureResources.EgressPublicIPs = confirmedEgressPublicIPs(t, tc.existingCluster)
+			if tc.egressObservation != "" {
+				for resourceID := range serviceProvider.Status.AzureResources.EgressPublicIPs {
+					serviceProvider.Status.AzureResources.EgressPublicIPs[resourceID] = tc.egressObservation
+				}
+			}
 			err = controller.SynchronizeOperation(ctx, fixture.OperationKey())
 			if tc.wantErr {
 				require.Error(t, err)
@@ -808,6 +858,7 @@ func (l *errorReadDesireLister) ListForNodePool(_ context.Context, _, _, _, _ st
 func newClusterWithAPIURL(url string, createdAt *time.Time) *coreapi.Cluster {
 	fixture := operationtesting.NewClusterTestFixture()
 	cluster := fixture.NewCluster(createdAt)
+	cluster.CustomerProperties.Platform.ManagedResourceGroup = "managed-rg"
 	cluster.ServiceProviderProperties.API = coreapi.ServiceProviderAPIProfile{URL: url}
 	return cluster
 }
@@ -1299,6 +1350,7 @@ func TestDetermineOperationState(t *testing.T) {
 			if tt.clusterOverride != nil {
 				clusterArg = tt.clusterOverride
 			}
+			controller.serviceProviderClusterLister.(*corelistertesting.SliceServiceProviderClusterLister).ServiceProviderClusters[0].Status.AzureResources.EgressPublicIPs = confirmedEgressPublicIPs(t, clusterArg)
 			result, err := controller.determineOperationState(ctx, operation, clusterArg)
 			if !tt.expectError && tt.expectedState == coreapi.ProvisioningStateSucceeded {
 				serviceProvider := controller.serviceProviderClusterLister.(*corelistertesting.SliceServiceProviderClusterLister).ServiceProviderClusters[0]

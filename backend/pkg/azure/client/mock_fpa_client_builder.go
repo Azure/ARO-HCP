@@ -194,6 +194,45 @@ func (c *MockFirstPartyApplicationClientBuilderGenericResourcesClientCall) DoAnd
 	return c
 }
 
+// PublicIPAddressesClient mocks base method.
+func (m *MockFirstPartyApplicationClientBuilder) PublicIPAddressesClient(tenantID, subscriptionID string) (PublicIPAddressesClient, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "PublicIPAddressesClient", tenantID, subscriptionID)
+	ret0, _ := ret[0].(PublicIPAddressesClient)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// PublicIPAddressesClient indicates an expected call of PublicIPAddressesClient.
+func (mr *MockFirstPartyApplicationClientBuilderMockRecorder) PublicIPAddressesClient(tenantID, subscriptionID any) *MockFirstPartyApplicationClientBuilderPublicIPAddressesClientCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PublicIPAddressesClient", reflect.TypeOf((*MockFirstPartyApplicationClientBuilder)(nil).PublicIPAddressesClient), tenantID, subscriptionID)
+	return &MockFirstPartyApplicationClientBuilderPublicIPAddressesClientCall{Call: call}
+}
+
+// MockFirstPartyApplicationClientBuilderPublicIPAddressesClientCall wrap *gomock.Call
+type MockFirstPartyApplicationClientBuilderPublicIPAddressesClientCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockFirstPartyApplicationClientBuilderPublicIPAddressesClientCall) Return(arg0 PublicIPAddressesClient, arg1 error) *MockFirstPartyApplicationClientBuilderPublicIPAddressesClientCall {
+	c.Call = c.Call.Return(arg0, arg1)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockFirstPartyApplicationClientBuilderPublicIPAddressesClientCall) Do(f func(string, string) (PublicIPAddressesClient, error)) *MockFirstPartyApplicationClientBuilderPublicIPAddressesClientCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockFirstPartyApplicationClientBuilderPublicIPAddressesClientCall) DoAndReturn(f func(string, string) (PublicIPAddressesClient, error)) *MockFirstPartyApplicationClientBuilderPublicIPAddressesClientCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
 // ResourceGroupsClient mocks base method.
 func (m *MockFirstPartyApplicationClientBuilder) ResourceGroupsClient(tenantID, subscriptionID string) (ResourceGroupsClient, error) {
 	m.ctrl.T.Helper()
