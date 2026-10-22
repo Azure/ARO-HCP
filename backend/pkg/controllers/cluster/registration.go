@@ -337,7 +337,6 @@ func instantiateClusterClusterServiceCreateController(controllerContext controll
 		managementClusterLister,
 		controllerContext.BackendInformers,
 		controllerContext.HasRealFPA,
-		controllerContext.MockFPAPrincipalID,
 	), nil
 }
 

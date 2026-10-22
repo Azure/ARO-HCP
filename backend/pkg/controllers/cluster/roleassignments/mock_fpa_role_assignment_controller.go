@@ -97,15 +97,11 @@ func mockFPARoleAssignmentID(cluster *coreapi.Cluster, principalID string) (*azc
 	return azcorearm.ParseResourceID(roleassignment.ManagedResourceGroupScopedRoleAssignmentResourceID(scopeString, principalID, mockFPAOwnerRoleDefinitionID))
 }
 
-func MockFPARoleAssignmentReady(cluster *coreapi.Cluster, serviceProviderCluster *coreapi.ServiceProviderCluster, principalID string) bool {
-	expectedID, err := mockFPARoleAssignmentID(cluster, principalID)
-	if err != nil {
-		return false
-	}
+func (c *mockFPARoleAssignmentSyncer) needsWork(serviceProviderCluster *coreapi.ServiceProviderCluster) bool {
 	reference := serviceProviderCluster.Status.AzureResources.MockFPARoleAssignment
-	return reference.PendingAzureResource == nil &&
-		controllerutil.ResourceIDsEqual(reference.AzureResource, expectedID) &&
-		serviceProviderCluster.Spec.EarliestRecheckTimesByController[MockFPARoleAssignmentControllerName] != nil
+	earliest := serviceProviderCluster.Spec.EarliestRecheckTimesByController[MockFPARoleAssignmentControllerName]
+	return reference.AzureResource == nil || reference.PendingAzureResource != nil ||
+		earliest == nil || !c.clock.Now().Before(earliest.Time)
 }
 
 func (c *mockFPARoleAssignmentSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
@@ -123,11 +119,8 @@ func (c *mockFPARoleAssignmentSyncer) SyncOnce(ctx context.Context, key controll
 	if err != nil {
 		return utils.TrackError(err)
 	}
-	if MockFPARoleAssignmentReady(cluster, existing, c.principalID) {
-		earliest := existing.Spec.EarliestRecheckTimesByController[MockFPARoleAssignmentControllerName]
-		if c.clock.Now().Before(earliest.Time) {
-			return nil
-		}
+	if !c.needsWork(existing) {
+		return nil
 	}
 	expectedID, assignmentIDErr := mockFPARoleAssignmentID(cluster, c.principalID)
 	replacement := existing.DeepCopy()
