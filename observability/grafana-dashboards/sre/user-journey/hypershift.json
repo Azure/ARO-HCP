@@ -109,7 +109,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "100 * (1 - avg_over_time(clamp_max(sum(max by (cluster, platform, condition) (hypershift_hostedclusters_failure_conditions)) / sum(max by (cluster, platform) (hypershift_hostedclusters)), 1)[30d:1h]))",
+          "expr": "100 * (1 - avg_over_time(clamp_max(sum(max by (cluster, platform, condition) (hypershift_hostedclusters_failure_conditions)) / sum(max by (cluster, platform) (hypershift_hostedclusters)), 1)[30d:1m]))",
           "legendFormat": "Healthy",
           "refId": "A",
           "instant": true
@@ -712,7 +712,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "100 * avg(avg_over_time((max without(prometheus_replica) (kube_deployment_status_replicas_available{namespace=\"hypershift\", deployment=\"operator\"}) / (max without(prometheus_replica) (kube_deployment_spec_replicas{namespace=\"hypershift\", deployment=\"operator\"}) > 0))[30d:5m]))",
+          "expr": "100 * avg(avg_over_time(clamp_max(max by (cluster, namespace, deployment) (kube_deployment_status_replicas_available{namespace=\"hypershift\", deployment=\"operator\"}) / (max by (cluster, namespace, deployment) (kube_deployment_spec_replicas{namespace=\"hypershift\", deployment=\"operator\"}) > 0), 1)[30d:5m]))",
           "legendFormat": "HyperShift Operator",
           "refId": "A",
           "instant": true
@@ -723,7 +723,7 @@
             "uid": "$hcp_datasource"
           },
           "editorMode": "code",
-          "expr": "100 * avg(avg_over_time((max without(prometheus_replica) (kube_deployment_status_replicas_available{namespace=~\"ocm-.*\", deployment=\"control-plane-operator\"}) / (max without(prometheus_replica) (kube_deployment_spec_replicas{namespace=~\"ocm-.*\", deployment=\"control-plane-operator\"}) > 0))[30d:5m]))",
+          "expr": "100 * avg(avg_over_time(clamp_max(max by (cluster, namespace, deployment) (kube_deployment_status_replicas_available{namespace=~\"ocm-.*\", deployment=\"control-plane-operator\"}) / (max by (cluster, namespace, deployment) (kube_deployment_spec_replicas{namespace=~\"ocm-.*\", deployment=\"control-plane-operator\"}) > 0), 1)[30d:5m]))",
           "legendFormat": "Control Plane Operator",
           "refId": "B",
           "instant": true
