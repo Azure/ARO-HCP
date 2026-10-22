@@ -176,6 +176,35 @@ Namespace: {{ $labels.namespace }}
         for: 'PT10M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyEtcdMetricsAbsent'
+        enabled: true
+        labels: {
+          component: 'hcp'
+          severity: '4'
+          slo: 'etcd-metrics-absent'
+        }
+        annotations: {
+          correlationId: 'userJourneyEtcdMetricsAbsent/{{ $labels.cluster }}/{{ $labels.namespace }}'
+          description: '{{ $labels.namespace }} has not reported etcd metrics for at least 15 minutes. All etcd availability alerts are blind for this cluster. Resource ID: {{ $labels.resource_id }}. Subscription ID: {{ $labels.subscription_id }}.'
+          info: '{{ $labels.namespace }} has not reported etcd metrics for at least 15 minutes. All etcd availability alerts are blind for this cluster. Resource ID: {{ $labels.resource_id }}. Subscription ID: {{ $labels.subscription_id }}.'
+          runbook_url: 'https://aka.ms/arohcp-runbook-etcd'
+          summary: 'etcd metrics are absent for {{ $labels.namespace }} ({{ $labels.resource_id }}, {{ $labels.subscription_id }})'
+          title: 'etcd metrics are absent for {{ $labels.namespace }} ({{ $labels.resource_id }}, {{ $labels.subscription_id }})'
+        }
+        expression: '((max by (namespace, cluster, resource_id, region) (label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)")) unless on (namespace, cluster) count by (namespace, cluster, region) (etcd_server_has_leader)) * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")) unless on (subscription_id) internal_subscription:info'
+        for: 'PT15M'
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
+      }
     ]
     scopes: [
       azureMonitoring

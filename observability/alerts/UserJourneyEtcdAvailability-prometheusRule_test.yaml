@@ -606,3 +606,54 @@ tests:
   - eval_time: 11m
     alertname: userJourneyEtcdWALFsyncDurationHigh1h5m
     exp_alerts: []
+# Scenario 1: etcd metrics absent — recording rule present but no etcd metrics — fires
+- interval: 1m
+  # ========================================
+  # userJourneyEtcdMetricsAbsent
+  # Threshold: recording rule exists but etcd_server_has_leader is absent
+  # Single alert: for: 15m -> check at 20m
+  # ========================================
+
+  input_series:
+  - series: 'kube_namespace_annotations{job="kube-state-metrics",cluster="test-hcp-cluster",namespace="ocm-test-hcp-namespace",annotation_azure_microsoft_com_hcp_cluster_azure_resource_id="/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster"}'
+    values: "1+0x25"
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: userJourneyEtcdMetricsAbsent
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: userJourneyEtcdMetricsAbsent
+    exp_alerts:
+    - exp_labels:
+        alertname: userJourneyEtcdMetricsAbsent
+        severity: "4"
+        slo: etcd-metrics-absent
+        exclude_internal_subscriptions: "true"
+        cluster: test-hcp-cluster
+        namespace: ocm-test-hcp-namespace
+        component: hcp
+        resource_id: "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster"
+        subscription_id: "00000000-0000-0000-0000-000000000000"
+      exp_annotations:
+        description: "ocm-test-hcp-namespace has not reported etcd metrics for at least 15 minutes. All etcd availability alerts are blind for this cluster. Resource ID: /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster. Subscription ID: 00000000-0000-0000-0000-000000000000."
+        summary: "etcd metrics are absent for ocm-test-hcp-namespace (/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster, 00000000-0000-0000-0000-000000000000)"
+        runbook_url: https://aka.ms/arohcp-runbook-etcd
+        correlationId: "userJourneyEtcdMetricsAbsent/test-hcp-cluster/ocm-test-hcp-namespace"
+# Scenario 2: etcd metrics present — does not fire
+- interval: 1m
+  input_series:
+  - series: 'etcd_server_has_leader{cluster="test-hcp-cluster",namespace="ocm-test-hcp-namespace"}'
+    values: "1+0x25"
+  - series: 'kube_namespace_annotations{job="kube-state-metrics",cluster="test-hcp-cluster",namespace="ocm-test-hcp-namespace",annotation_azure_microsoft_com_hcp_cluster_azure_resource_id="/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster"}'
+    values: "1+0x25"
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: userJourneyEtcdMetricsAbsent
+    exp_alerts: []
+# Scenario 3: No recording rule data — does not fire (no known HCP namespace)
+- interval: 1m
+  input_series: []
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: userJourneyEtcdMetricsAbsent
+    exp_alerts: []
