@@ -152,20 +152,28 @@ func pollUntilReady(
 	})
 
 	elapsed := time.Since(startTime)
+
+	// A suite-level timeout cutting off a long upgrade poll is a realistic CI failure and the moment
+	// the dump matters most, so cancellation reports diagnostics like a timeout does. lastErr
+	// carries the last known evidence of what the check saw; fall back to the context error when
+	// the poll was interrupted before the check ever got to observe anything.
+	reportCancelled := func(lastKnown error) error {
+		logVerifierTiming(name, "cancelled", elapsed)
+		details := gatherDiagnostics(name, restConfig, diagnoseTimeout, diagnose)
+		observed := lastKnown
+		if observed == nil {
+			observed = ctx.Err()
+		}
+		return withDiagnostics(fmt.Errorf("%s cancelled after %s: %w", name, elapsed.Round(time.Millisecond), observed), details)
+	}
+
 	if err == nil {
 		logVerifierTiming(name, "succeeded", elapsed)
 		return nil
 	}
 
 	if ctx.Err() != nil {
-		logVerifierTiming(name, "cancelled", elapsed)
-		// A suite-level timeout cutting off a long upgrade poll is a realistic CI failure and the
-		// moment the dump matters most, so cancellation reports diagnostics like a timeout does.
-		details := gatherDiagnostics(name, restConfig, diagnoseTimeout, diagnose)
-		if lastErr != nil {
-			return withDiagnostics(fmt.Errorf("%s cancelled after %s: %w", name, elapsed.Round(time.Millisecond), lastErr), details)
-		}
-		return withDiagnostics(fmt.Errorf("%s cancelled after %s: %w", name, elapsed.Round(time.Millisecond), ctx.Err()), details)
+		return reportCancelled(lastErr)
 	}
 
 	// The loop stops looking at the deadline, so a condition that became true between the last
@@ -196,6 +204,13 @@ func pollUntilReady(
 			logVerifierTiming(name, "succeeded on the final check after the deadline", elapsed)
 			return nil
 		}
+	}
+
+	// The caller's context can expire while the final check runs. Re-check it here so an
+	// interruption inside the final-check window is reported as a cancellation, not recast as a
+	// timeout -- or replaced by whatever error a check that ignores the child context produced.
+	if ctx.Err() != nil {
+		return reportCancelled(lastErr)
 	}
 
 	logVerifierTiming(name, "timed out", elapsed)

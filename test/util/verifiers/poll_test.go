@@ -427,6 +427,85 @@ func TestPollUntilReady_StillFailsWhenConditionNeverHolds(t *testing.T) {
 	}
 }
 
+// TestPollUntilReady_CancelledDuringFinalCheckWindow pins the post-final-check re-evaluation of
+// the caller's context: an interruption inside the final-check window reports the cancellation
+// outcome and its diagnostics, even when the check ignores the child context and returns its own
+// error, or honours the caller context and returns a wrapped cancellation.
+func TestPollUntilReady_CancelledDuringFinalCheckWindow(t *testing.T) {
+	const (
+		timeout  = 200 * time.Millisecond
+		interval = 10 * time.Second // longer than the timeout: the loop gets exactly one look
+		diagText = "diagnostics were gathered"
+	)
+	for _, testCase := range []struct {
+		name         string
+		final        func(ctx context.Context) error
+		wantErr      string
+		wantCanceled bool
+	}{
+		{
+			// A check that ignores the derived context must not cause the caller's
+			// cancellation to surface as a timeout recast around the check's own verdict.
+			name:    "check ignores the child context",
+			final:   func(ctx context.Context) error { return fmt.Errorf("check landed on its own verdict") },
+			wantErr: "check landed on its own verdict",
+		},
+		{
+			name: "check honours the caller context",
+			final: func(ctx context.Context) error {
+				<-ctx.Done()
+				return fmt.Errorf("read interrupted: %w", ctx.Err())
+			},
+			wantErr:      "read interrupted",
+			wantCanceled: true,
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			var attempts int
+			err := pollUntilReady(
+				ctx,
+				"test-verifier",
+				timeout,
+				interval,
+				nil,
+				30*time.Second,
+				func(context.Context, *rest.Config) string { return diagText },
+				func(ctx context.Context) error {
+					attempts++
+					if attempts == 1 {
+						return fmt.Errorf("not ready")
+					}
+					// The post-deadline check: the caller's deadline lands inside
+					// finalCheckTimeout while it is running.
+					cancel()
+					return testCase.final(ctx)
+				},
+			)
+			if err == nil {
+				t.Fatal("expected a cancellation error when the caller context ends in the final-check window, got nil")
+			}
+			if !strings.Contains(err.Error(), "cancelled") {
+				t.Fatalf("expected outcome 'cancelled', got: %s", err.Error())
+			}
+			if !strings.Contains(err.Error(), testCase.wantErr) {
+				t.Fatalf("expected the check's last verdict to be preserved, got: %s", err.Error())
+			}
+			if testCase.wantCanceled && !errors.Is(err, context.Canceled) {
+				t.Fatalf("expected the wrapped cancellation to stay unwrap-able, got: %s", err.Error())
+			}
+			if !strings.Contains(err.Error(), diagText) {
+				t.Fatalf("expected cancellation diagnostics to be appended, got: %s", err.Error())
+			}
+			if attempts != 2 {
+				t.Fatalf("expected 2 checks (1 in-loop poll + 1 final check), got %d", attempts)
+			}
+		})
+	}
+}
+
 func TestPollUntilReady_TerminalErrors(t *testing.T) {
 	observation := apierrors.NewNotFound(schema.GroupResource{Resource: "pods"}, "not-yet-created")
 	requestCanceled := fmt.Errorf("failed to list pods: %w", context.Canceled)
