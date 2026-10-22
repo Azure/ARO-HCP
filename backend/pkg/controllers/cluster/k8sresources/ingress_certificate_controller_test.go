@@ -224,6 +224,7 @@ func TestIngressCertificateTeardown(test *testing.T) {
 	otherRead.Tags[kubeapplierapi.TagControllerName] = "OtherController"
 	_, err = readCRUD.Create(ctx, otherRead, nil)
 	require.NoError(test, err)
+	readsBeforeCleanup := fixture.reads(test)
 	now := metav1.Now()
 	fixture.cluster.ServiceProviderProperties.DeletionTimestamp = &now
 	fixture.cluster.ServiceProviderProperties.ClusterServiceID = nil
@@ -239,10 +240,9 @@ func TestIngressCertificateTeardown(test *testing.T) {
 		applies := fixture.applies(test)
 		reads := fixture.reads(test)
 		require.Len(test, applies, 1)
-		require.Len(test, reads, 1)
+		require.ElementsMatch(test, readsBeforeCleanup, reads, "cleanup must retain every ReadDesire")
 		require.Equal(test, "OtherController", applies[0].Tags[kubeapplierapi.TagControllerName])
 		require.Equal(test, kubeapplierapi.ApplyDesireTypeServerSideApply, applies[0].Spec.Type)
-		require.Equal(test, "OtherController", reads[0].Tags[kubeapplierapi.TagControllerName])
 	}
 }
 

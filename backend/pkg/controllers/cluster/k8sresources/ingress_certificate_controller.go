@@ -125,12 +125,12 @@ func (syncer *ingressCertificateSyncer) SyncOnce(ctx context.Context, key contro
 	if err != nil {
 		return utils.TrackError(err)
 	}
+	if cluster.ServiceProviderProperties.DeletionTimestamp != nil {
+		return syncer.ensureSecretSyncDesiresDeleted(ctx, applyCRUD)
+	}
 	readCRUD, err := client.ReadDesiresForCluster(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if err != nil {
 		return utils.TrackError(err)
-	}
-	if cluster.ServiceProviderProperties.DeletionTimestamp != nil {
-		return syncer.ensureSecretSyncDesiresDeleted(ctx, applyCRUD, readCRUD)
 	}
 	return syncer.ensureSecretSyncDesiresCreated(ctx, key, cluster, serviceProviderCluster, managementClusterID, applyCRUD, readCRUD)
 }
@@ -216,20 +216,16 @@ func (syncer *ingressCertificateSyncer) needsWork(cluster *coreapi.Cluster, serv
 	return serviceProviderCluster.Status.AzureResources.IngressCertificate != nil && serviceProviderCluster.Status.AzureResources.IngressCertificate.AzureReference != nil && serviceProviderCluster.Status.HostedClusterNamespace != ""
 }
 
-// ensureSecretSyncDesiresDeleted ensures that the secret sync desires for the ingress certificate are purged from the database.
-// No need to ensure that they are removed from the management cluster since these is done in cascade when the
-// hosted cluster namespace is deleted
+// ensureSecretSyncDesiresDeleted purges ingress certificate ApplyDesires.
+// Namespace deletion removes the Kubernetes resources; ReadDesires remain to
+// observe their state throughout cleanup.
 func (syncer *ingressCertificateSyncer) ensureSecretSyncDesiresDeleted(
 	ctx context.Context,
 	applyCRUD cosmosstorageutils.ResourceCRUD[kubeapplierapi.ApplyDesire, *kubeapplierapi.ApplyDesire],
-	readCRUD cosmosstorageutils.ResourceCRUD[kubeapplierapi.ReadDesire, *kubeapplierapi.ReadDesire],
 ) error {
 	for _, name := range []string{ingressSecretProviderClassDesireName, kubeapplierhelpers.IngressSecretSyncDesireName} {
 		if err := applyCRUD.Delete(ctx, name); err != nil && !cosmosstorageutils.IsNotFoundError(err) {
 			return utils.TrackError(fmt.Errorf("delete ingress certificate ApplyDesire %s: %w", name, err))
-		}
-		if err := readCRUD.Delete(ctx, name); err != nil && !cosmosstorageutils.IsNotFoundError(err) {
-			return utils.TrackError(fmt.Errorf("delete ingress certificate ReadDesire %s: %w", name, err))
 		}
 	}
 	return nil
