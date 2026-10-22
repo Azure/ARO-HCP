@@ -46,6 +46,7 @@ const (
 	ClusterValidationAzureResourceProvidersRegistrationValidationControllerName         = "ClusterValidationAzureResourceProvidersRegistrationValidation"
 	ClusterValidationAzureClusterVnetIntegrationSubnetSizeValidationControllerName      = "ClusterValidationAzureClusterVnetIntegrationSubnetSizeValidation"
 	ClusterValidationAlwaysSuccessValidationControllerName                              = "ClusterValidationAlwaysSuccessValidation"
+	ClusterValidationEtcdEncryptionKMSKeyAccessValidationControllerName                 = "ClusterValidationEtcdEncryptionKMSKeyAccessValidation"
 	// consecutiveUnknownCountsCacheCapacity bounds the size of the consecutiveUnknownCounts LRU cache.
 	consecutiveUnknownCountsCacheCapacity = 50000
 
@@ -112,7 +113,7 @@ func NewNamedClusterValidationController(
 		name,
 		resourcesDBClient,
 		informers,
-		nil, // as of now, validations do not depend on ReadDesire content
+		nil, // not triggered by ReadDesire changes; validations that read ReadDesire content rely on the resync below
 		1*time.Minute,
 		syncer,
 	)
