@@ -64,6 +64,14 @@ func (r *scanReadTracker) Read(p []byte) (int, error) {
 	return n, err
 }
 
+// A stream ending between object members surfaces from Token as a SyntaxError
+// at the end of the input rather than io.ErrUnexpectedEOF. Malformed complete
+// bodies fail at an earlier offset and remain terminal.
+func endOfInput(err, readErr error, consumed int64) bool {
+	var syntax *json.SyntaxError
+	return readErr == io.EOF && errors.As(err, &syntax) && syntax.Offset >= consumed
+}
+
 func validateScanCount(o *scanObservation) {
 	if o.integer == nil {
 		if o.invalid == nil {
@@ -316,7 +324,7 @@ func parseScanResponse(reader io.Reader, inventory bool, emit func([]scanObserva
 	meta.resultType = resultType
 	if meta.bytes > limit {
 		parseErr = errors.New("response exceeds size limit")
-	} else if parseErr != nil && ((tracked.err != nil && tracked.err != io.EOF) || errors.Is(parseErr, io.ErrUnexpectedEOF) || errors.Is(parseErr, io.EOF)) {
+	} else if parseErr != nil && ((tracked.err != nil && tracked.err != io.EOF) || errors.Is(parseErr, io.ErrUnexpectedEOF) || errors.Is(parseErr, io.EOF) || endOfInput(parseErr, tracked.err, meta.bytes)) {
 		parseErr = scanBodyReadError{parseErr}
 	}
 	if parseErr == nil && (status != "success" || !seenData || !seenResult || (resultType != "vector" && resultType != "matrix") || (inventory && resultType != "vector")) {
