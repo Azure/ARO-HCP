@@ -1,0 +1,30 @@
+[
+	{
+		"conditionType": "Available",
+		"reason": "AsExpected",
+		"startTime": "2026-09-30T12:00:00Z",
+		"status": "True",
+		"uid": "pod-1"
+	},
+	{
+		"conditionType": "Available",
+		"reason": "CrashLoopBackOff",
+		"startTime": "2026-09-30T12:01:00Z",
+		"status": "False",
+		"uid": "pod-1"
+	},
+	{
+		"conditionType": "Available",
+		"reason": "AsExpected",
+		"startTime": "2026-09-30T12:02:00Z",
+		"status": "True",
+		"uid": "pod-1"
+	},
+	{
+		"conditionType": "Available",
+		"reason": "AsExpected",
+		"startTime": "2026-09-30T12:00:30Z",
+		"status": "True",
+		"uid": "pod-2"
+	}
+]

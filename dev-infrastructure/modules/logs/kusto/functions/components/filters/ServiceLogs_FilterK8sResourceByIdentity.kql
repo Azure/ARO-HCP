@@ -1,0 +1,17 @@
+// @owner: sre-team
+// @domain: Components/Filters
+// @params: T=piped kubernetesResourceSnapshots-shaped rows, p_Cluster=management cluster name, p_Namespace=object namespace, p_ObjectKind=k8s object kind, p_Name=object name
+// @returns: T filtered to the rows identifying one Kubernetes object
+.create-or-alter function
+with (
+  docstring = 'Filters piped kubernetesResourceSnapshots rows (or any rows with cluster/namespace/objectKind/name columns) down to one Kubernetes object, identified by management cluster, namespace, kind, and name. Use with the invoke operator. | Returns: filtered rows with the same schema as the input | Example: kubernetesResourceSnapshots | invoke FilterK8sResourceByIdentity("mgmt-cluster-01", "ocm-abc123", "ControlPlaneComponent", "kube-apiserver")',
+  folder = 'Components\\Filters'
+)
+FilterK8sResourceByIdentity(T: (cluster: string, namespace: string, objectKind: string, name: string), p_Cluster: string, p_Namespace: string, p_ObjectKind: string, p_Name: string)
+{
+    T
+    | where cluster == p_Cluster
+    | where namespace == p_Namespace
+    | where objectKind == p_ObjectKind
+    | where name == p_Name
+}

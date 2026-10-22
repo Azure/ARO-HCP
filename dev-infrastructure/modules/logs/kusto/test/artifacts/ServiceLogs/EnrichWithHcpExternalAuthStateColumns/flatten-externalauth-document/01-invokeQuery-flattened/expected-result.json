@@ -1,0 +1,44 @@
+[
+	{
+		"activeOperationId": "d9008ec2-b1d3-49a3-8d5b-78697ed482b5",
+		"claim": {
+			"mappings": {
+				"groups": {
+					"claim": "groups",
+					"prefix": ""
+				},
+				"username": {
+					"claim": "sub",
+					"prefix": "",
+					"prefixPolicy": "None"
+				}
+			},
+			"validationRules": []
+		},
+		"clients": [
+			{
+				"clientId": "e3e39d45-07d5-40e7-af15-7e455814a729",
+				"component": {
+					"authClientNamespace": "openshift-console",
+					"name": "console"
+				},
+				"extraScopes": [],
+				"type": "Confidential"
+			},
+			{
+				"clientId": "e3e39d45-07d5-40e7-af15-7e455814a729",
+				"component": {
+					"authClientNamespace": "openshift-console",
+					"name": "cli"
+				},
+				"extraScopes": [],
+				"type": "Public"
+			}
+		],
+		"clusterServiceDeletionTimestamp": "2026-10-20T13:44:15Z",
+		"clusterServiceId": "/api/aro_hcp/v1alpha1/clusters/abc123/external_auths/external-auth",
+		"deletionTimestamp": "2026-10-20T13:44:14Z",
+		"issuerUrl": "https://login.microsoftonline.com/64dc69e4-d083-49fc-9569-ebece1dd1408/v2.0",
+		"provisioningState": "Deleting"
+	}
+]

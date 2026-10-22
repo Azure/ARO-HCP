@@ -1,0 +1,41 @@
+[
+	{
+		"apiVersion": "cluster.x-k8s.io/v1beta1",
+		"cluster": "mgmt-cluster-01",
+		"environment": "int",
+		"event": "Update",
+		"name": "h8l0s7l6t0j9u6m-nodepool-1-lfnrc-rrhlx",
+		"namespace": "ocm-arohcpint-2tikv12vvsgnpsj8ipfds4ugoscfesf4-h8l0s7l6t0j9u6m",
+		"object": {
+			"spec": {
+				"providerID": "azure:///subscriptions/64f0619f-ebc2-4156-9d91-c4c781de7e54/resourceGroups/ci-op-tbidzhr2-84ef9-managed/providers/Microsoft.Compute/virtualMachines/h8l0s7l6t0j9u6m-nodepool-1-lfnrc-rrhlx",
+				"version": "4.22.17"
+			},
+			"status": {
+				"lastUpdated": "2026-10-20T17:07:39.0000000Z",
+				"nodeInfo": {
+					"architecture": "amd64",
+					"bootID": "7285340b-09db-4227-9c94-59a87aad8b10",
+					"containerRuntimeVersion": "cri-o://1.35.9-12.rhaos4.22.git4c168db.el9",
+					"kernelVersion": "5.14.0-687.53.1.el9_8.x86_64",
+					"kubeProxyVersion": "",
+					"kubeletVersion": "v1.35.8",
+					"machineID": "c4f2fd4c07b44011926475f5aa970cda",
+					"operatingSystem": "linux",
+					"osImage": "Red Hat Enterprise Linux CoreOS 9.8.20260929-0 (Plow)",
+					"systemUUID": "b9731832-9745-463e-a9a2-9ea7a13d3ea1"
+				},
+				"nodeRef": {
+					"apiVersion": "v1",
+					"kind": "Node",
+					"name": "h8l0s7l6t0j9u6m-nodepool-1-lfnrc-rrhlx"
+				},
+				"phase": "Running"
+			}
+		},
+		"objectKind": "Machine",
+		"region": "westus3",
+		"timestamp": "2026-10-20T17:08:51Z",
+		"uid": "315e8474-2161-4734-a65e-801a4316af26"
+	}
+]

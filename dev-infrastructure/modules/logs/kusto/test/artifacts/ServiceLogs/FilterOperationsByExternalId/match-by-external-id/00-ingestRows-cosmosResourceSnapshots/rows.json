@@ -1,0 +1,77 @@
+[
+	{
+		"cluster": "svc-cluster-01",
+		"cluster_id": "",
+		"content": {
+			"properties": {
+				"externalId": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/my-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/my-cluster",
+				"operationId": "op-1"
+			}
+		},
+		"cosmosContainer": "resources",
+		"environment": "dev",
+		"region": "eastus",
+		"resourceGroup": "my-rg",
+		"resourceID": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/my-rg/providers/Microsoft.RedHatOpenShift/hcpOperationStatuses/op-1",
+		"resourceName": "op-1",
+		"resourceType": "Microsoft.RedHatOpenShift/hcpOperationStatuses",
+		"subscriptionID": "00000000-0000-0000-0000-000000000001",
+		"timestamp": "2026-09-30T12:00:00Z"
+	},
+	{
+		"cluster": "svc-cluster-01",
+		"cluster_id": "",
+		"content": {
+			"properties": {
+				"externalId": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/my-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/other-cluster",
+				"operationId": "op-2"
+			}
+		},
+		"cosmosContainer": "resources",
+		"environment": "dev",
+		"region": "eastus",
+		"resourceGroup": "my-rg",
+		"resourceID": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/my-rg/providers/Microsoft.RedHatOpenShift/hcpOperationStatuses/op-2",
+		"resourceName": "op-2",
+		"resourceType": "Microsoft.RedHatOpenShift/hcpOperationStatuses",
+		"subscriptionID": "00000000-0000-0000-0000-000000000001",
+		"timestamp": "2026-09-30T12:01:00Z"
+	},
+	{
+		"cluster": "svc-cluster-01",
+		"cluster_id": "",
+		"content": {
+			"properties": {
+				"externalId": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/my-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/my-cluster",
+				"operationId": "op-3"
+			}
+		},
+		"cosmosContainer": "resources",
+		"environment": "dev",
+		"region": "eastus",
+		"resourceGroup": "my-rg",
+		"resourceID": "/subscriptions/00000000-0000-0000-0000-000000000002/resourceGroups/my-rg/providers/Microsoft.RedHatOpenShift/hcpOperationStatuses/op-3",
+		"resourceName": "op-3",
+		"resourceType": "Microsoft.RedHatOpenShift/hcpOperationStatuses",
+		"subscriptionID": "00000000-0000-0000-0000-000000000002",
+		"timestamp": "2026-09-30T12:02:00Z"
+	},
+	{
+		"cluster": "svc-cluster-01",
+		"cluster_id": "",
+		"content": {
+			"properties": {
+				"externalId": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/my-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/my-cluster"
+			}
+		},
+		"cosmosContainer": "resources",
+		"environment": "dev",
+		"region": "eastus",
+		"resourceGroup": "my-rg",
+		"resourceID": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/my-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/my-cluster",
+		"resourceName": "my-cluster",
+		"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters",
+		"subscriptionID": "00000000-0000-0000-0000-000000000001",
+		"timestamp": "2026-09-30T12:03:00Z"
+	}
+]

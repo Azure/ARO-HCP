@@ -1,6 +1,6 @@
 // @owner: sre-team
 // @domain: Triage/Resolvers
-// @depends: cosmosResourceSnapshots
+// @depends: GetClusterIdFromInternalId
 // @params: p_ResourceId=ARM resource ID (case-insensitive), p_StartTime=window start, p_EndTime=window end
 // @returns: single row with clusters_service_id string column
 .create-or-alter function
@@ -20,7 +20,7 @@ GetClustersServiceIDForARMResourceID(p_ResourceId: string, p_StartTime: datetime
     | where isnotempty(confirmedCsid) or isnotempty(pendingCsid)
     | summarize arg_max(timestamp, confirmedCsid, pendingCsid)
     | extend csid = iff(isnotempty(confirmedCsid), confirmedCsid, pendingCsid)
-    | extend clusters_service_id = extract(@"clusters/([^/]+)$", 1, csid)
+    | extend clusters_service_id = GetClusterIdFromInternalId(csid)
     | where isnotempty(clusters_service_id)
     | project clusters_service_id
     | take 1

@@ -1,0 +1,4 @@
+{
+	"database": "ServiceLogs",
+	"query": "kubernetesResourceSnapshots | invoke FilterK8sResourceByIdentity('mgmt-cluster-01', 'ocm-abc123', 'ControlPlaneComponent', 'kube-apiserver') | project uid"
+}

@@ -1,0 +1,4 @@
+{
+	"database": "ServiceLogs",
+	"query": "kubernetesResourceSnapshots | invoke EnrichWithHostedControlPlaneColumns() | project generation, resourceVersion, created, ready, initialized, nodeCount, version, releaseImage, endpointHost, endpointPort, desiredVersion, desiredImage, observedGeneration"
+}

@@ -1,0 +1,143 @@
+[
+	{
+		"cluster": "svc-cluster-01",
+		"cluster_id": "",
+		"content": {
+			"properties": {
+				"customerProperties": {
+					"api": {
+						"authorizedCidrs": [
+							"10.0.0.0/8"
+						],
+						"visibility": "Public"
+					},
+					"autoscaling": {
+						"maxNodeProvisionTimeSeconds": 900,
+						"maxNodesTotal": 24,
+						"maxPodGracePeriodSeconds": 600,
+						"podPriorityThreshold": -10
+					},
+					"clusterImageRegistry": {
+						"state": "Enabled"
+					},
+					"cryptoRestrictions": "None",
+					"dns": {
+						"baseDomainPrefix": "rawo-bami"
+					},
+					"etcd": {
+						"dataEncryption": {
+							"customerManaged": {
+								"encryptionType": "KMS",
+								"kms": {
+									"activeKey": {
+										"name": "etcd-data-kms-encryption-key",
+										"vaultName": "cust-kv-tgicshwz7hp4k",
+										"version": "9f84df6def6d4622aab67ff01445c285"
+									},
+									"visibility": "Public"
+								}
+							},
+							"keyManagementMode": "CustomerManaged"
+						}
+					},
+					"imageDigestMirrors": [
+						{
+							"mirrorSourcePolicy": "AllowContactingSource",
+							"mirrors": [
+								"mirror.example.com/openshift-release-dev/ocp-release"
+							],
+							"source": "quay.io/openshift-release-dev/ocp-release"
+						}
+					],
+					"ingress": {
+						"type": "Public"
+					},
+					"network": {
+						"hostPrefix": 23,
+						"machineCidr": "10.0.0.0/16",
+						"networkType": "OVNKubernetes",
+						"podCidr": "10.128.0.0/14",
+						"serviceCidr": "172.30.0.0/16"
+					},
+					"nodeDrainTimeoutMinutes": 15,
+					"platform": {
+						"managedResourceGroup": "rawo-bami-managed-rg",
+						"networkSecurityGroupId": "/subscriptions/f495d360-35bc-492e-a7d0-5859b28d05c2/resourceGroups/rawo-bami-billing-rg/providers/Microsoft.Network/networkSecurityGroups/customer-nsg",
+						"operatorsAuthentication": {
+							"userAssignedIdentities": {
+								"controlPlaneOperators": {
+									"kms": "/subscriptions/f495d360-35bc-492e-a7d0-5859b28d05c2/resourceGroups/rawo-bami-billing-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/rawo-bami-cp-kms-5pfx3yptnjg7i"
+								}
+							}
+						},
+						"outboundType": "LoadBalancer",
+						"subnetId": "/subscriptions/f495d360-35bc-492e-a7d0-5859b28d05c2/resourceGroups/rawo-bami-billing-rg/providers/Microsoft.Network/virtualNetworks/customer-vnet/subnets/customer-subnet-1",
+						"vnetIntegrationSubnetId": "/subscriptions/f495d360-35bc-492e-a7d0-5859b28d05c2/resourceGroups/rawo-bami-billing-rg/providers/Microsoft.Network/virtualNetworks/customer-vnet/subnets/customer-vnet-integration-subnet"
+					},
+					"version": {
+						"channelGroup": "stable",
+						"id": "4.20"
+					}
+				},
+				"identity": {
+					"principalId": "a5c120f7-50c3-4cf6-84b4-57517f60630d",
+					"tenantId": "4667ef03-62d8-4a55-b331-34b1e1b3ffba",
+					"type": "UserAssigned",
+					"userAssignedIdentities": {
+						"/subscriptions/f495d360-35bc-492e-a7d0-5859b28d05c2/resourceGroups/rawo-bami-billing-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/rawo-bami-cp-kms-5pfx3yptnjg7i": {
+							"clientId": "f2e4769e-d3c2-498d-92b9-3e6d24cd2d7a",
+							"principalId": "a5c120f7-50c3-4cf6-84b4-57517f60630d"
+						}
+					}
+				},
+				"serviceProviderProperties": {
+					"activeOperationId": "op-abc-123",
+					"api": {
+						"url": "https://api.rawo-bami.example.com:6443"
+					},
+					"clusterServiceDeletionTimestamp": "2026-09-09T17:48:06.0000000Z",
+					"clusterServiceID": "/api/aro_hcp/v1alpha1/clusters/2skcfu0lfpc978hflnpshmnaprghe1rp",
+					"clusterUID": "d7f8928b-f9ce-4989-8874-083e1a663aea",
+					"console": {
+						"url": "https://console-openshift-console.apps.rawo-bami.example.com"
+					},
+					"createOperationCompletionDeadline": "2026-09-04T20:03:18.0000000Z",
+					"deleteOperationCompletionDeadline": "2026-09-10T05:47:56.0000000Z",
+					"deletionTimestamp": "2026-09-09T17:47:56.0000000Z",
+					"dns": {
+						"baseDomain": "example.com"
+					},
+					"pendingClusterServiceID": "",
+					"platform": {
+						"issuerUrl": "https://rawo-bami.blob.core.windows.net/oidc"
+					},
+					"provisioningState": "Failed"
+				},
+				"status": {
+					"activeVersions": [
+						"4.20.1",
+						"4.20.2"
+					]
+				},
+				"systemData": {
+					"createdAt": "2026-09-04T19:03:18.5006423Z",
+					"lastModifiedAt": "2026-09-09T16:40:55.0607829Z"
+				},
+				"tags": {
+					"env": "prod"
+				}
+			},
+			"resourceID": "/subscriptions/f495d360-35bc-492e-a7d0-5859b28d05c2/resourceGroups/rawo-bami-billing-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/rawo-bami",
+			"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
+		},
+		"cosmosContainer": "resources",
+		"environment": "prod",
+		"region": "westus3",
+		"resourceGroup": "rawo-bami-billing-rg",
+		"resourceID": "/subscriptions/f495d360-35bc-492e-a7d0-5859b28d05c2/resourceGroups/rawo-bami-billing-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/rawo-bami",
+		"resourceName": "rawo-bami",
+		"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters",
+		"subscriptionID": "f495d360-35bc-492e-a7d0-5859b28d05c2",
+		"timestamp": "2026-09-30T12:00:00Z"
+	}
+]

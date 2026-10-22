@@ -1,0 +1,26 @@
+// @owner: sre-team
+// @domain: Components/Enrichments
+// @params: T=piped cosmosResourceSnapshots-shaped rows for a stamps/managementclusters (fleet) resource
+// @returns: T plus every field the Management Cluster state page displays (For ASI), flattened out of content.properties
+.create-or-alter function
+with (
+  docstring = 'For ASI: flattens every field the Management Cluster state page displays out of a microsoft.redhatopenshift/stamps/managementclusters (fleet container) cosmos document. Use with the invoke operator. | Returns: all of T\'s columns plus the flattened fields, several renamed to shorter names than the source document uses (e.g. provisionShardID from status.clusterServiceProvisionShardID) | Example: cosmosResourceSnapshots | where cosmosContainer == "fleet" and resourceType =~ "microsoft.redhatopenshift/stamps/managementclusters" | invoke EnrichWithManagementClusterStateColumns()',
+  folder = 'Components\\Enrichments'
+)
+EnrichWithManagementClusterStateColumns(T: (content: dynamic))
+{
+    T
+    | extend d = content.properties
+    | extend
+        aksResourceID = tostring(d.status.aksResourceID),
+        schedulingPolicy = tostring(d.spec.schedulingPolicy),
+        conditions = tostring(d.status.conditions),
+        provisionShardID = tostring(d.status.clusterServiceProvisionShardID),
+        maestroConsumerName = tostring(d.status.maestroConsumerName),
+        sharedIngressIPAddresses = tostring(d.status.sharedIngressIPAddresses),
+        publicDNSZoneResourceID = tostring(d.status.publicDNSZoneResourceID),
+        hostedClustersSecretsKeyVaultURL = tostring(d.status.hostedClustersSecretsKeyVaultURL),
+        hostedClustersManagedIdentitiesKeyVaultURL = tostring(d.status.hostedClustersManagedIdentitiesKeyVaultURL),
+        instanceVersion = tolong(d.cosmosMetadata.instanceVersion)
+    | project-away d
+}

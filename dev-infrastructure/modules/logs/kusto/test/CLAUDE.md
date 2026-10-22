@@ -7,7 +7,6 @@ Declarative, artifact-driven integration tests for KQL stored functions. Runs a 
 ```
 test/                                    # this directory (Go module: kustotest)
 ├── artifacts/                           # embedded test fixtures (//go:embed)
-│   ├── manifest.json                    # single manifest declaring all database topology
 │   └── <Suite>/                         # e.g. ServiceLogs, HostedControlPlaneLogs, Catalog
 │       └── <FunctionName>/              # function under test
 │           └── <test-case>/             # one test case
@@ -41,49 +40,21 @@ Sibling directories consumed at runtime (via `KUSTO_KQL_ROOT`):
 ## How Tests Work
 
 1. The Makefile starts a `kustainer-linux` container (Kusto emulator)
-2. `RunFunctionTests` reads `artifacts/manifest.json`, creates each database listed, and loads its tables then functions
+2. `RunFunctionTests` computes database/table/function topology in-process (no manifest file; see Database Topology below), creates all databases, then all tables, then all functions
 3. The runner walks `artifacts/<Suite>/<FunctionName>/<TestCase>/` discovering step directories
 4. Steps execute sequentially within each test case against the database specified in each step's `00-key.json`
 5. Between test cases, all tables across all databases are cleared for isolation
 
 Tables are loaded before functions so that `.create-or-alter function` statements validate against real schemas. This is the same ordering `kustoctl validate` (`verify-kql`) uses.
 
-### Database Manifest
+### Database Topology
 
-A single `artifacts/manifest.json` declares the database topology shared by all suites. Databases are explicit buckets; each lists its own tables and functions.
+No manifest file. Topology is derived fresh on every run:
 
-```json
-{
-  "databases": {
-    "HostedControlPlaneLogs": {
-      "functions": ["HostedControlPlaneLogs_GetARMResourceIDForClustersServiceID"],
-      "tables": ["containerLogs"]
-    }
-  }
-}
-```
+- **Functions**: every `.kql` file under `functions/`, grouped by database from its `{Database}_` filename prefix, ordered within each database via `tooling/kustoctl/pkg/kqlfunc`'s `// @depends:` parsing (same mechanism `kustoctl generate kql-bicep` uses).
+- **Tables**: every `{"database": ..., "table": ...}` pair declared across all `00-ingestRows-*/00-key.json` files in `artifacts/`, regardless of which suite is running.
 
-For cross-database functions, add the referenced database as another key:
-
-```json
-{
-  "databases": {
-    "ServiceLogs": {
-      "functions": ["ServiceLogs_GetClustersServiceIDForARMResourceID"],
-      "tables": ["cosmosResourceSnapshots"]
-    },
-    "HostedControlPlaneLogs": {
-      "tables": ["containerLogs"]
-    }
-  }
-}
-```
-
-- `databases`: map of database name to its spec. Databases are created in manifest key order, so list referenced databases before databases whose functions depend on them.
-- `tables`: table names matching filenames in `tables/` (without `.kql` extension). Only list tables that test cases ingest into or that functions under test depend on.
-- `functions`: function names matched by filename anywhere under `functions/` (directory structure is irrelevant; duplicate filenames are a test failure).
-
-Tests fail if `manifest.json` is missing.
+Filter and enrichment functions operate on a generic piped `T` parameter and never name a table; only `ingestRows` steps declare one.
 
 ### Debug Output
 
@@ -149,6 +120,7 @@ For all invoke types, omitting both `expected-result.json` and `expected-error.t
 - Function names use `PascalCase` with verb prefixes: `Get` (single row), `List` (multi-row), `Filter` (narrows piped input via `invoke`), `Enrich` (adds columns to piped input via `invoke`)
 - Parameters use `p_PascalCase` (e.g. `p_ResourceId`, `p_StartTime`); the `p_` prefix prevents KQL parameter shadowing from hiding table columns
 - Time parameters should prefer a range (`p_StartTime`, `p_EndTime`) over a single cutoff
+- `// @depends: Name, Name2` lists exact function names this one invokes (same database only; omit/blank if none; unresolved names, including table names, error). `main.bicep` (from `main.bicep.tmpl`) is generated from these headers by `tooling/kustoctl/pkg/kqlfunc`; the test manifest reads them directly at test time (see Database Topology above). Run `make generate-kusto` after changing dependencies and commit the result; `make verify-generate` catches drift.
 
 ## Function Docstring Format
 
@@ -181,7 +153,7 @@ No Go code changes required.
 4. Run `make fmt` from this directory to normalize JSON formatting
 5. Run `make test` (or top-level `make test-integration-kusto`)
 
-New suites are auto-discovered from subdirectories under `artifacts/`; no Go code changes needed. Update `artifacts/manifest.json` if the new suite needs databases, tables, or functions not already listed.
+New suites are auto-discovered from subdirectories under `artifacts/`; no Go code changes needed.
 
 ## Result Comparison
 

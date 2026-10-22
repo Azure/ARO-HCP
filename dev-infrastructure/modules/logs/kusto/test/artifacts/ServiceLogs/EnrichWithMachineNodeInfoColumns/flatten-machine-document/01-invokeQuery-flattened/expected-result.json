@@ -1,0 +1,23 @@
+[
+	{
+		"architecture": "amd64",
+		"azureVmId": "b9731832-9745-463e-a9a2-9ea7a13d3ea1",
+		"bootID": "7285340b-09db-4227-9c94-59a87aad8b10",
+		"containerRuntimeVersion": "cri-o://1.35.9-12.rhaos4.22.git4c168db.el9",
+		"kernelVersion": "5.14.0-687.53.1.el9_8.x86_64",
+		"kubeProxyVersion": "",
+		"kubeletVersion": "v1.35.8",
+		"lastUpdated": "2026-10-20T17:07:39Z",
+		"machineID": "c4f2fd4c07b44011926475f5aa970cda",
+		"nodeRef": "h8l0s7l6t0j9u6m-nodepool-1-lfnrc-rrhlx",
+		"operatingSystem": "linux",
+		"osImage": "Red Hat Enterprise Linux CoreOS 9.8.20260929-0 (Plow)",
+		"phase": "Running",
+		"providerId": "azure:///subscriptions/64f0619f-ebc2-4156-9d91-c4c781de7e54/resourceGroups/ci-op-tbidzhr2-84ef9-managed/providers/Microsoft.Compute/virtualMachines/h8l0s7l6t0j9u6m-nodepool-1-lfnrc-rrhlx",
+		"resourceGroupName": "ci-op-tbidzhr2-84ef9-managed",
+		"resourceName": "h8l0s7l6t0j9u6m-nodepool-1-lfnrc-rrhlx",
+		"subscriptionId": "64f0619f-ebc2-4156-9d91-c4c781de7e54",
+		"version": "4.22.17",
+		"vmResourceId": "/subscriptions/64f0619f-ebc2-4156-9d91-c4c781de7e54/resourceGroups/ci-op-tbidzhr2-84ef9-managed/providers/Microsoft.Compute/virtualMachines/h8l0s7l6t0j9u6m-nodepool-1-lfnrc-rrhlx"
+	}
+]

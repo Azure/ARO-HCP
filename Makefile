@@ -84,13 +84,17 @@ test-compile:
 	go list -f '{{.Dir}}/...' -m |xargs go test -c -o /dev/null
 .PHONY: test-compile
 
-generate: mocks record-nonlocal-e2e
+generate: mocks record-nonlocal-e2e generate-kusto
 	$(MAKE) all-tidy
 .PHONY: generate
 
 verify-generate: generate
 	./hack/verify.sh generate
 .PHONY: verify-generate
+
+generate-kusto:
+	hack/update-kusto-generated.sh
+.PHONY: generate-kusto
 
 generate-deepcopy: $(DEEPCOPY_GEN) $(GOIMPORTS)
 	DEEPCOPY_GEN=$(DEEPCOPY_GEN) hack/update-deepcopy.sh

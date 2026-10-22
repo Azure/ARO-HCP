@@ -1,0 +1,49 @@
+// @owner: sre-team
+// @domain: Components/Enrichments
+// @params: T=piped rows with timestamp/uid/name/event/conditions/document columns
+// @returns: one row per distinct (uid, conditionType) episode, a contiguous span where that
+//   condition's status/reason held steady, split on any change or a Delete event for that uid
+.create-or-alter function
+with (
+  docstring = 'Reduces repeated per-capture Kubernetes condition observations into episodes: one row per (uid, conditionType) span where status/reason held steady, ending at a change, a Delete event, or the last observed capture. A Delete event always ends its episode at its own timestamp (endTime), even if it was the only capture or a later out-of-order capture exists. General-purpose: returns the observed status/reason/message/timestamp facts as-is, with no ASI-specific interpretation layered on top (no Health/Tooltip-style derived classification); see EnrichWithConditionEpisodes for that rendering. Assumes each entry in the piped conditions array has type/status/reason/message/lastTransitionTime fields (standard Kubernetes condition shape); callers whose conditions come from an ARM/Cosmos document must verify their condition objects actually use this field naming before relying on this function, since ARM resource condition shapes are not guaranteed to match Kubernetes condition conventions. Use with the invoke operator. | Returns: one row per condition episode, with the observed status/reason/message/timestamp facts as-is; if two captures of the same episode share the exact same timestamp, which one\'s document/message/lastTransition is kept is an unresolvable tie (both are equally valid simultaneous observations), not something this function can make deterministic | Example: conditionSnapshots | invoke EnrichWithConditionHistory()',
+  folder = 'Components\\Enrichments'
+)
+EnrichWithConditionHistory(T: (timestamp: datetime, uid: string, name: string, event: string, conditions: dynamic, document: string))
+{
+    let lightSnapshots = T
+    | project timestamp, uid, conditions;
+    let conditionTypes = toscalar(lightSnapshots
+    | mv-expand condition=conditions
+    | where isnotempty(tostring(condition.type))
+    | summarize make_set(tostring(condition.type)));
+    let observations = T
+    | extend types=conditionTypes
+    | mv-expand conditionType=types to typeof(string)
+    | mv-apply condition=iff(array_length(conditions) > 0, conditions, dynamic([{}])) on (
+        summarize matching=take_anyif(condition, tostring(condition.type) == conditionType))
+    | project timestamp, uid, name, event, conditionType, document,
+        status=tostring(matching.status), reason=tostring(matching.reason),
+        message=tostring(matching.message),
+        lastTransition=todatetime(matching.lastTransitionTime)
+    | order by uid asc, conditionType asc, timestamp asc
+    | serialize
+    | extend boundary=uid != prev(uid) or conditionType != prev(conditionType)
+        or status != prev(status) or reason != prev(reason) or prev(event) == 'Delete'
+    | extend episode=row_cumsum(toint(boundary));
+    let rendered = observations
+    | summarize startTime=min(timestamp), observed=max(timestamp), captures=count(),
+        hasDelete=max(event == 'Delete'),
+        arg_max(timestamp, name, event, message, lastTransition, document)
+        by uid, conditionType, status, reason, episode
+    | order by uid asc, conditionType asc, startTime asc
+    | serialize
+    | extend nextStart=iff(uid == next(uid) and conditionType == next(conditionType),
+                           next(startTime), datetime(null))
+    | where isnotempty(status)
+    // observed == the Delete row's own timestamp (boundary rule above forces it last).
+    | extend endTime=iff(hasDelete, observed, coalesce(nextStart, iff(observed > startTime, observed, datetime(null))))
+    | project uid, name, conditionType, status, reason, message, lastTransition,
+        startTime, endTime, observed, captures, event, document
+    | order by uid asc, conditionType asc, startTime asc;
+    rendered
+}

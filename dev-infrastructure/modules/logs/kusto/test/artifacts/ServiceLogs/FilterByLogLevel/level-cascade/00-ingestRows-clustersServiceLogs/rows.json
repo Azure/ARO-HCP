@@ -1,0 +1,34 @@
+[
+	{
+		"cluster": "mgmt-cluster-01",
+		"environment": "prod",
+		"level": "info",
+		"msg": "reconcile started",
+		"region": "uksouth",
+		"timestamp": "2026-09-30T12:00:00Z"
+	},
+	{
+		"cluster": "mgmt-cluster-01",
+		"environment": "prod",
+		"level": "warn",
+		"msg": "retrying after transient error",
+		"region": "uksouth",
+		"timestamp": "2026-09-30T12:01:00Z"
+	},
+	{
+		"cluster": "mgmt-cluster-01",
+		"environment": "prod",
+		"level": "error",
+		"msg": "failed to reconcile",
+		"region": "uksouth",
+		"timestamp": "2026-09-30T12:02:00Z"
+	},
+	{
+		"cluster": "mgmt-cluster-01",
+		"environment": "prod",
+		"level": "fatal",
+		"msg": "panic: unrecoverable state",
+		"region": "uksouth",
+		"timestamp": "2026-09-30T12:03:00Z"
+	}
+]

@@ -1,0 +1,17 @@
+// @owner: sre-team
+// @domain: Components/Filters
+// @depends: GetClusterIdFromInternalId
+// @params: T=piped kubernetesResourceSnapshots-shaped rows, p_Kind=objectKind to match, p_InternalId=Clusters Service internal ID of the owning cluster (as captured in the owning cluster's cosmos document, e.g. .../clusters/{cid})
+// @returns: T filtered to objects of p_Kind whose api.openshift.com/id label matches that cluster ID
+.create-or-alter function
+with (
+  docstring = 'Filters piped kubernetesResourceSnapshots rows down to objects of a given kind carrying a given Clusters Service cluster ID in their api.openshift.com/id label. Kind-agnostic: the label alone is authoritative for cluster membership, so this works identically for HostedCluster, NodePool, or any other kind that carries it (same approach as FilterK8sResourceByClusterServiceIdSet). Does not disambiguate further within a cluster: it does not narrow NodePool down to one specific pool, since a cluster can have several; use FilterK8sNodePoolByPoolId for that. If p_InternalId does not contain a resolvable cluster ID, matches no rows rather than falling back to a less precise comparison. Use with the invoke operator. | Returns: filtered rows with the same schema as the input | Example: kubernetesResourceSnapshots | invoke FilterK8sResourceByClusterServiceId("HostedCluster", "/api/clusters_mgmt/v1/clusters/abc-123")',
+  folder = 'Components\\Filters'
+)
+FilterK8sResourceByClusterServiceId(T: (objectKind: string, object: dynamic), p_Kind: string, p_InternalId: string)
+{
+    let clusterId = GetClusterIdFromInternalId(p_InternalId);
+    T
+    | where objectKind == p_Kind
+    | where isnotempty(clusterId) and tostring(object.metadata.labels['api.openshift.com/id']) =~ clusterId
+}

@@ -1,0 +1,4 @@
+{
+	"database": "ServiceLogs",
+	"query": "kubernetesResourceSnapshots | invoke EnrichWithMultiClusterEngineColumns() | project phase, currentVersion, desiredVersion, resourceVersion"
+}

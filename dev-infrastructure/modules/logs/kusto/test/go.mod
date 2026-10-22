@@ -8,6 +8,7 @@ require (
 )
 
 require (
+	github.com/Azure/ARO-HCP/tooling/kustoctl v0.0.0
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.23.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.14.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.12.0 // indirect
@@ -25,3 +26,5 @@ require (
 	golang.org/x/sys v0.48.0 // indirect
 	golang.org/x/text v0.42.0 // indirect
 )
+
+replace github.com/Azure/ARO-HCP/tooling/kustoctl => ../../../../../tooling/kustoctl

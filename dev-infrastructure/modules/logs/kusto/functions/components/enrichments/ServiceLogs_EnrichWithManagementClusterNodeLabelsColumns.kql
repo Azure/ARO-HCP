@@ -1,0 +1,19 @@
+// @owner: sre-team
+// @domain: Components/Enrichments
+// @params: T=piped kubernetesResourceSnapshots-shaped rows for a Node object
+// @returns: T plus pool/role/zone/instanceType/providerID flattened out of the Node's labels and spec
+.create-or-alter function
+with (
+  docstring = 'For ASI: HCP Management Cluster. Flattens the fields read off a management-cluster Node object, so callers do not memorize these label keys themselves. Use with the invoke operator. | Returns: all of T\'s columns plus pool (from the agentpool label), role (from aro-hcp.azure.com/role), zone (from topology.kubernetes.io/zone), instanceType (from node.kubernetes.io/instance-type), and providerID (from spec) | Example: kubernetesResourceSnapshots | where objectKind == "Node" | invoke EnrichWithManagementClusterNodeLabelsColumns()',
+  folder = 'Components\\Enrichments'
+)
+EnrichWithManagementClusterNodeLabelsColumns(T: (object: dynamic))
+{
+    T
+    | extend
+        pool = tostring(object.metadata.labels['agentpool']),
+        role = tostring(object.metadata.labels['aro-hcp.azure.com/role']),
+        zone = tostring(object.metadata.labels['topology.kubernetes.io/zone']),
+        instanceType = tostring(object.metadata.labels['node.kubernetes.io/instance-type']),
+        providerID = tostring(object.spec.providerID)
+}

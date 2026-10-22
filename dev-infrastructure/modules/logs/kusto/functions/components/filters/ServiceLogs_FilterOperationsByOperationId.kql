@@ -1,0 +1,17 @@
+// @owner: sre-team
+// @domain: Components/Filters
+// @params: T=piped cosmosResourceSnapshots-shaped rows, p_OperationId=the operation's ARM resource ID, e.g. .../hcpOperationStatuses/{guid} (case-insensitive; matched as-is against content.properties.operationId, which cosmos stores in full ARM path form, not a bare GUID)
+// @returns: T filtered to hcpOperationStatuses rows for the given operation ID
+.create-or-alter function
+with (
+  docstring = 'Filters piped cosmosResourceSnapshots rows down to the hcpOperationStatuses document(s) for one operation, matched via content.properties.operationId (stored as the full ARM operation resource ID, not a bare GUID). Use with the invoke operator. | Returns: filtered rows with the same schema as the input | Example: cosmosResourceSnapshots | invoke FilterOperationsByOperationId(queryOperationId)',
+  folder = 'Components\\Filters'
+)
+FilterOperationsByOperationId(T: (cosmosContainer: string, resourceType: string, content: dynamic), p_OperationId: string)
+{
+    T
+    | where isnotempty(p_OperationId)
+    | where cosmosContainer == 'resources'
+    | where resourceType =~ 'Microsoft.RedHatOpenShift/hcpOperationStatuses'
+    | where tostring(content.properties.operationId) =~ p_OperationId
+}
