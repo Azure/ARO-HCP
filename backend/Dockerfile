@@ -5,6 +5,7 @@ FROM --platform=${PLATFORM} mcr.microsoft.com/oss/go/microsoft/golang:1.26-azure
 ENV GOTOOLCHAIN=local
 COPY internal/go.mod internal/go.sum internal/
 COPY backend/go.mod backend/go.sum backend/
+ENV GOPROXY='https://proxy.golang.org|direct'
 RUN cd backend && go mod download
 WORKDIR /app
 COPY internal/ internal/

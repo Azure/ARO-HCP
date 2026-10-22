@@ -5,6 +5,7 @@ ENV GOTOOLCHAIN=local
 COPY internal/go.mod internal/go.sum internal/
 COPY sessiongate/go.mod sessiongate/go.sum sessiongate/
 COPY admin/server/go.mod admin/server/go.sum admin/server/
+ENV GOPROXY='https://proxy.golang.org|direct'
 RUN cd admin/server && go mod download
 WORKDIR /app
 COPY internal/ internal/
