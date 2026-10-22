@@ -50,6 +50,7 @@ func withManagedMockFlags(f BackendRootCmdFlags) BackendRootCmdFlags {
 	f.InsecureAzureARMPermissionsManagerIdentityCertificateBundlePath = "/secrets/arm-helper-cert-bundle"
 	f.InsecureAzureARMPermissionsManagerIdentityClientID = "arm-helper-client-id"
 	f.InsecureAzureARMPermissionsManagerIdentityTenantID = "tenant-id"
+	f.InsecureAzureMockFPAPrincipalID = "mock-fpa-principal-id"
 	return f
 }
 
@@ -59,6 +60,15 @@ func TestValidateMockIdentityClientAndPrincipalID(t *testing.T) {
 		mutate  func(f *BackendRootCmdFlags)
 		wantErr string
 	}{
+		{
+			name: "mock FPA principal is required independently of MI principal",
+			mutate: func(f *BackendRootCmdFlags) {
+				f.InsecureAzureManagedIdentityMockClientID = "client-id"
+				f.InsecureAzureManagedIdentityMockServicePrincipalID = "mi-principal-id"
+				f.InsecureAzureMockFPAPrincipalID = ""
+			},
+			wantErr: "--insecure-azure-mock-fpa-principal-id must be set",
+		},
 		{
 			name: "raw values only is valid",
 			mutate: func(f *BackendRootCmdFlags) {
@@ -122,6 +132,15 @@ func TestValidateMockIdentityClientAndPrincipalID(t *testing.T) {
 				t.Fatalf("expected error containing %q, got: %v", tt.wantErr, err)
 			}
 		})
+	}
+}
+
+func TestRealFPARejectsMockFPAPrincipal(t *testing.T) {
+	flags := validBaseFlags()
+	flags.InsecureAzureMockFPAPrincipalID = "mock-fpa-principal"
+	err := flags.validate()
+	if err == nil || !contains(err.Error(), "--insecure-azure-mock-fpa-principal-id must not be set") {
+		t.Fatalf("expected mock FPA flag rejection in real mode, got %v", err)
 	}
 }
 
