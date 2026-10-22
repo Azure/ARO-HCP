@@ -84,7 +84,7 @@ var _ = Describe("Cluster Etcd Managed HSM Encryption", func() {
 			keyName := "etcd-cmk"
 			mhsmDeploymentName := fmt.Sprintf("mhsm-deploy-%s", customerClusterName)
 
-			_, err = tc.CreateBicepTemplateAndWait(ctx,
+			mhsmDeploymentResult, err := tc.CreateBicepTemplateAndWait(ctx,
 				framework.WithTemplateFromFS(TestArtifactsFS, "test-artifacts/generated-test-artifacts/managed-hsm-bootstrap.json"),
 				framework.WithDeploymentName(mhsmDeploymentName),
 				framework.WithScope(framework.BicepDeploymentScopeResourceGroup),
@@ -99,6 +99,9 @@ var _ = Describe("Cluster Etcd Managed HSM Encryption", func() {
 				framework.WithTimeout(45*time.Minute),
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to deploy Managed HSM")
+			mhsmURL, err := framework.GetOutputValueString(mhsmDeploymentResult, "managedHsmUri")
+			Expect(err).NotTo(HaveOccurred(), "failed to read managedHsmUri from mHSM deployment outputs")
+			Expect(mhsmURL).NotTo(BeEmpty(), "managedHsmUri was empty")
 
 			// Activation runs from the test process rather than an ARM deploymentScript, whose
 			// Azure Container Instance intermittently never starts (AROSLSRE-2510). The download
@@ -123,12 +126,12 @@ var _ = Describe("Cluster Etcd Managed HSM Encryption", func() {
 				}
 				activationAttempt++
 				securityDomainFile := filepath.Join(certDir, fmt.Sprintf("security-domain-%d.json", activationAttempt))
-				if downloadErr := downloadMHSMSecurityDomain(ctx, hsmName, securityDomainFile, wrappingCertPaths, 2); downloadErr != nil {
+				if downloadErr := downloadMHSMSecurityDomain(ctx, subscriptionID, hsmName, securityDomainFile, wrappingCertPaths, 2); downloadErr != nil {
 					return fmt.Errorf("activation attempt %d (status %q): %w", activationAttempt, status, downloadErr)
 				}
 				securityDomainDownloaded = true
 				return fmt.Errorf("security domain downloaded on attempt %d; waiting for activation status %q", activationAttempt, mhsmActivationStatusActive)
-			}, 20*time.Minute, 30*time.Second).Should(Succeed(), "failed to activate Managed HSM %s", hsmName)
+			}, 45*time.Minute, 30*time.Second).Should(Succeed(), "failed to activate Managed HSM %s", hsmName)
 			GinkgoLogr.Info("Managed HSM activated", "hsmName", hsmName, "attempts", activationAttempt)
 
 			// Detect the deployer's principal type so local User accounts and Prow's ServicePrincipal both work.
@@ -143,7 +146,7 @@ var _ = Describe("Cluster Etcd Managed HSM Encryption", func() {
 			// HSM can briefly reject role assignments.
 			grantMHSMCryptoUser := func(principalID, principalType, scope string) {
 				Eventually(func() error {
-					return ensureMHSMCryptoUser(ctx, hsmName, principalID, principalType, scope)
+					return ensureMHSMCryptoUser(ctx, subscriptionID, hsmName, principalID, principalType, scope)
 				}, 5*time.Minute, 15*time.Second).Should(Succeed(), "failed to grant Managed HSM Crypto User role to %s at %s", principalID, scope)
 				GinkgoLogr.Info("Granted Managed HSM Crypto User role", "principalID", principalID, "scope", scope)
 			}
@@ -151,7 +154,6 @@ var _ = Describe("Cluster Etcd Managed HSM Encryption", func() {
 			By("granting the test principal Managed HSM Crypto User to create key versions")
 			grantMHSMCryptoUser(deployerIdentity.ObjectID, deployerPrincipalType, "/keys")
 
-			mhsmURL := fmt.Sprintf("https://%s.managedhsm.azure.net/", hsmName)
 			cred, err := tc.AzureCredential()
 			Expect(err).NotTo(HaveOccurred(), "failed to get Azure credential for Managed HSM key client")
 			keyClient, err := azkeys.NewClient(mhsmURL, cred, nil)
@@ -391,8 +393,9 @@ func mhsmActivationStatus(ctx context.Context, subscriptionID, resourceGroup, hs
 
 // downloadMHSMSecurityDomain activates a Managed HSM by downloading its security domain
 // encrypted with the given wrapping certificates. The caller must be an initial administrator.
-func downloadMHSMSecurityDomain(ctx context.Context, hsmName, securityDomainFile string, wrappingCertPaths []string, quorum int) error {
+func downloadMHSMSecurityDomain(ctx context.Context, subscriptionID, hsmName, securityDomainFile string, wrappingCertPaths []string, quorum int) error {
 	args := []string{"keyvault", "security-domain", "download",
+		"--subscription", subscriptionID,
 		"--hsm-name", hsmName,
 		"--security-domain-file", securityDomainFile,
 		"--sd-quorum", strconv.Itoa(quorum),
@@ -408,8 +411,9 @@ func downloadMHSMSecurityDomain(ctx context.Context, hsmName, securityDomainFile
 
 // ensureMHSMCryptoUser assigns "Managed HSM Crypto User" to a principal at the given data-plane
 // scope unless an assignment already exists, so it is safe to retry.
-func ensureMHSMCryptoUser(ctx context.Context, hsmName, principalID, principalType, scope string) error {
+func ensureMHSMCryptoUser(ctx context.Context, subscriptionID, hsmName, principalID, principalType, scope string) error {
 	listOutput, err := exec.CommandContext(ctx, "az", "keyvault", "role", "assignment", "list",
+		"--subscription", subscriptionID,
 		"--hsm-name", hsmName,
 		"--assignee-object-id", principalID,
 		"--role", "Managed HSM Crypto User",
@@ -422,6 +426,7 @@ func ensureMHSMCryptoUser(ctx context.Context, hsmName, principalID, principalTy
 	}
 
 	createOutput, err := exec.CommandContext(ctx, "az", "keyvault", "role", "assignment", "create",
+		"--subscription", subscriptionID,
 		"--hsm-name", hsmName,
 		"--assignee-object-id", principalID,
 		"--assignee-principal-type", principalType,
