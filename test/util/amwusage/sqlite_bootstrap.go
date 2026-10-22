@@ -54,6 +54,13 @@ func (s *ScanStore) stageBootstrap(ctx context.Context, seed io.Reader) error {
 		return err
 	}
 	var existing string
+	// Known limitation: a run row with a seed_hash but planning_state other than
+	// 'complete' (an older or interrupted initialization without a completed
+	// bootstrap row) also counts as existing here, so the supplied seed is not
+	// staged and resumeBootstrap reports missing seed registration even though
+	// importScanSeed could rebuild the plan. If this arises, initialize a fresh
+	// database from the seed; a fix would only treat complete plans as existing
+	// and stage the supplied seed after verifying it matches run.seed_hash.
 	err = tx.QueryRowContext(ctx, `SELECT seed_hash FROM run WHERE id=1 UNION ALL SELECT seed_hash FROM bootstrap WHERE complete=1 LIMIT 1`).Scan(&existing)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return err

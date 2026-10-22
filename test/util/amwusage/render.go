@@ -152,6 +152,25 @@ func decodeArtifact(data []byte) (*artifactData, error) {
 	return &a, nil
 }
 
+// The report labels instant values as run-end cardinality, so they must come
+// from a vector evaluated at exactly the requested time. Malformed samples are
+// still counted separately as invalid cardinality groups.
+func instantAtRunEnd(response promResponse, end float64) bool {
+	if response.Data.ResultType != "vector" {
+		return false
+	}
+	for _, series := range response.Data.Result {
+		if len(series.Value) != 2 {
+			continue
+		}
+		at := finiteValue(series.Value[0])
+		if at == nil || math.Abs(*at-end) > 0.001 {
+			return false
+		}
+	}
+	return true
+}
+
 func finiteValue(raw json.RawMessage) *float64 {
 	s := string(raw)
 	if strings.HasPrefix(s, `"`) {
@@ -193,6 +212,10 @@ func analyzeMetric(metric artifactMetric, records map[string]artifactRecord, run
 	m.RangeState = decodeResponse(records[metric.Range], &ranged)
 	m.InstantOK = m.InstantState == "" && instant.Status == "success" && instant.Data.Result != nil
 	m.RangeOK = m.RangeState == "" && ranged.Status == "success" && ranged.Data.Result != nil
+	if m.InstantOK && !instantAtRunEnd(instant, run.End) {
+		m.InstantOK = false
+		m.InstantState = "Instant response is not a vector evaluated at the run end"
+	}
 	if !m.InstantOK && m.InstantState == "" {
 		m.InstantState = "Unsuccessful or malformed Prometheus response"
 	}

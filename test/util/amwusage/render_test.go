@@ -37,7 +37,7 @@ func testArtifact() *artifactData {
 		Workspaces:    []artifactWorkspace{{Name: "test-workspace", Names: []string{"metric", "unselected"}, Metrics: []artifactMetric{{Name: "metric", Instant: "i", Range: "r"}}, Platform: map[string]string{}}},
 		Manifests:     []artifactRecord{},
 		Records: map[string]artifactRecord{
-			"i": testRecord(`{"status":"success","data":{"result":[{"metric":{"job":"a"},"value":[775,"2"]},{"metric":{"job":"b"},"value":[775,"3"]}]}}`),
+			"i": testRecord(`{"status":"success","data":{"resultType":"vector","result":[{"metric":{"job":"a"},"value":[775,"2"]},{"metric":{"job":"b"},"value":[775,"3"]}]}}`),
 			"r": testRecord(`{"status":"success","data":{"result":[{"values":[[300,"2"],[600,"3"]]},{"values":[[300,"4"],[600,"NaN"]]}]}}`),
 		},
 	}
@@ -72,7 +72,7 @@ func TestRenderMetricMissingness(t *testing.T) {
 	if m.Expected != 2 || m.Valid != 1 || m.InvalidPoints != 1 || m.InvalidEvaluations != 1 || m.TrailingSeconds != 175 {
 		t.Fatalf("unexpected coverage: %+v", m)
 	}
-	a.Records["i"] = testRecord(`{"status":"success","data":{"result":[]}}`)
+	a.Records["i"] = testRecord(`{"status":"success","data":{"resultType":"vector","result":[]}}`)
 	a.Records["r"] = testRecord(`{"status":"success","data":{"result":[{"values":[[300,"0"],[600,"3"]]},{"values":[[300,"4"]]}]}}`)
 	m = analyzeMetric(a.Workspaces[0].Metrics[0], a.Records, a.Run)
 	requireNumber(t, m.Values[0].Value, 4)
@@ -90,6 +90,27 @@ func TestRenderMetricMissingness(t *testing.T) {
 	}
 }
 
+func TestRenderInstantRequiresRunEndVector(t *testing.T) {
+	for name, body := range map[string]string{
+		"stale timestamp":   `{"status":"success","data":{"resultType":"vector","result":[{"metric":{"job":"a"},"value":[775,"2"]},{"metric":{"job":"b"},"value":[700,"3"]}]}}`,
+		"matrix":            `{"status":"success","data":{"resultType":"matrix","result":[{"metric":{"job":"a"},"values":[[775,"2"]]}]}}`,
+		"missing type":      `{"status":"success","data":{"result":[{"metric":{"job":"a"},"value":[775,"2"]}]}}`,
+		"invalid timestamp": `{"status":"success","data":{"resultType":"vector","result":[{"metric":{"job":"a"},"value":["x","2"]}]}}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			a := testArtifact()
+			a.Records["i"] = testRecord(body)
+			m := analyzeMetric(a.Workspaces[0].Metrics[0], a.Records, a.Run)
+			if m.InstantOK || m.Series != nil || m.InstantState == "" {
+				t.Fatalf("instant response not at run end was accepted: %+v", m)
+			}
+			if !m.RangeOK {
+				t.Fatal("range query success was not preserved")
+			}
+		})
+	}
+}
+
 func TestRenderInvalidGroups(t *testing.T) {
 	for _, value := range []any{"NaN", "+Inf", "-Inf", "Infinity", nil, "", "not-a-number", true, "1e999"} {
 		for _, invalidFirst := range []bool{true, false} {
@@ -101,7 +122,7 @@ func TestRenderInvalidGroups(t *testing.T) {
 			if invalidFirst {
 				results[0], results[1] = results[1], results[0]
 			}
-			body, err := json.Marshal(map[string]any{"status": "success", "data": map[string]any{"result": results}})
+			body, err := json.Marshal(map[string]any{"status": "success", "data": map[string]any{"resultType": "vector", "result": results}})
 			if err != nil {
 				t.Fatal(err)
 			}
