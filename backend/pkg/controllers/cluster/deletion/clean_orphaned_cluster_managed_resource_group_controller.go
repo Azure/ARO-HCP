@@ -72,10 +72,9 @@ type cleanOrphanedClusterManagedResourceGroup struct {
 }
 
 const CleanOrphanedClusterManagedResourceGroupControllerName = "CleanOrphanedClusterManagedResourceGroup"
-const hcpOpenShiftClusterAPIVersion = "2024-06-10-preview"
 
-// NewCleanOrphanedClusterManagedResourceGroupController periodically looks for managed resource groups
-// that are not referenced by any Cluster in the database and cleans them up.
+// NewCleanOrphanedClusterManagedResourceGroupController periodically cleans up managed resource groups
+// whose cluster is absent from the database and whose customer resource group is absent from Azure.
 func NewCleanOrphanedClusterManagedResourceGroupController(
 	location string,
 	activeOperationLister corelisters.ActiveOperationLister,
@@ -277,21 +276,6 @@ func (c *cleanOrphanedClusterManagedResourceGroup) listClusterResourceIDsForSubs
 	return clusterResourceIDs, nil
 }
 
-// Checks whether the managedBy cluster exists in Azure.
-func clusterResourceExists(ctx context.Context, client azureclient.GenericResourcesClient, resourceID string) (bool, error) {
-	_, err := client.GetByID(ctx, resourceID, hcpOpenShiftClusterAPIVersion, nil)
-	if err == nil {
-		return true, nil
-	}
-
-	var responseError *azcore.ResponseError
-	if errors.As(err, &responseError) && responseError.StatusCode == http.StatusNotFound {
-		return false, nil
-	}
-
-	return false, utils.TrackError(err)
-}
-
 // SyncOnce implements the main sync logic for the controller for a single subscription.
 func (c *cleanOrphanedClusterManagedResourceGroup) SyncOnce(ctx context.Context, key controllerutils.SubscriptionKey) error {
 	logger := utils.LoggerFromContext(ctx)
@@ -322,13 +306,6 @@ func (c *cleanOrphanedClusterManagedResourceGroup) SyncOnce(ctx context.Context,
 		return utils.TrackError(err)
 	}
 
-	genericResourcesClient, err := c.azureFPAClientBuilder.GenericResourcesClient(tenantID, key.SubscriptionID)
-	if err != nil {
-		logger.Error(err, "Failed to create generic resources client",
-			"subscriptionID", key.SubscriptionID)
-		return utils.TrackError(err)
-	}
-
 	managedResourceGroups, err := c.listManagedResourceGroupsForSubscription(ctx, rgClient)
 	if err != nil {
 		logger.Error(err, "Failed to list managed resource groups for subscription",
@@ -343,7 +320,7 @@ func (c *cleanOrphanedClusterManagedResourceGroup) SyncOnce(ctx context.Context,
 		return utils.TrackError(err)
 	}
 
-	// Verify cluster owners not present in this backend before identifying orphaned MRGs.
+	// Check every candidate before counting or deleting any MRG, so lookup errors fail closed.
 	type orphanedResourceGroup struct {
 		name      string
 		managedBy string
@@ -354,20 +331,30 @@ func (c *cleanOrphanedClusterManagedResourceGroup) SyncOnce(ctx context.Context,
 			continue
 		}
 
-		exists, err := clusterResourceExists(ctx, genericResourcesClient, managedBy)
-		if err != nil {
-			logger.Error(err, "Failed to verify managed resource group owner in Azure",
+		ownerID, err := azcorearm.ParseResourceID(managedBy)
+		if err != nil || ownerID.ResourceGroupName == "" || !strings.EqualFold(ownerID.SubscriptionID, key.SubscriptionID) {
+			// The client is scoped to this subscription. Never infer absence from a
+			// same-named resource group in the wrong subscription or an invalid owner ID.
+			logger.Info("Protecting managed resource group with unsupported owner scope",
+				"resourceGroup", resourceGroupName,
+				"managedBy", managedBy)
+			continue
+		}
+
+		// DEV clusters are served directly by individual RPs, not ARM. An existing
+		// customer RG conservatively protects owners in other backends, matching the
+		// sweeper's protection even when the cluster itself may already be gone.
+		_, err = rgClient.Get(ctx, ownerID.ResourceGroupName, nil)
+		if err == nil {
+			continue
+		}
+		var responseError *azcore.ResponseError
+		if !errors.As(err, &responseError) || responseError.StatusCode != http.StatusNotFound {
+			logger.Error(err, "Failed to check managed resource group owner's customer resource group",
 				"subscriptionID", key.SubscriptionID,
 				"resourceGroup", resourceGroupName,
 				"managedBy", managedBy)
 			return utils.TrackError(err)
-		}
-		if exists {
-			logger.Info("Managed resource group owner exists in Azure outside this backend",
-				"subscriptionID", key.SubscriptionID,
-				"resourceGroup", resourceGroupName,
-				"managedBy", managedBy)
-			continue
 		}
 
 		orphanedResourceGroups = append(orphanedResourceGroups, orphanedResourceGroup{
@@ -376,7 +363,7 @@ func (c *cleanOrphanedClusterManagedResourceGroup) SyncOnce(ctx context.Context,
 		})
 	}
 
-	// Delete only the MRGs whose cluster owners are absent from both local storage and Azure.
+	// Only local-owner misses with a confirmed missing customer RG reach orphan handling.
 	eg, egCtx := errgroup.WithContext(ctx)
 	eg.SetLimit(maxConcurrentDeletions)
 
