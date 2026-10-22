@@ -42,6 +42,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	clusterdeletion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/deletion"
+	clusterk8sresources "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/k8sresources"
 	clusteroperations "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/operations"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/mismatch"
 	nodepooldeletion "github.com/Azure/ARO-HCP/backend/pkg/controllers/nodepool/deletion"
@@ -815,6 +816,101 @@ func TestBackendCleanupDiscoveryFailure(t *testing.T) {
 					require.True(t, cosmosstorageutils.IsNotFoundError(err), "only confirmed empty inventory permits deletion")
 					require.Equal(t, 2, calls, "discovery retries once then caches success")
 				}
+			})
+		}
+	}
+}
+
+func TestBackendServingCertificateDiscoveryFailure(t *testing.T) {
+	for _, deleting := range []bool{false, true} {
+		for _, failure := range []string{"ARM403", "ARM404", "timeout", "zero", "absent"} {
+			t.Run(fmt.Sprintf("deleting=%t/%s", deleting, failure), func(t *testing.T) {
+				ctx := t.Context()
+				require.True(t, utilruntime.ReallyCrash)
+				cluster := operationtesting.NewClusterTestFixture().NewCluster(nil)
+				if deleting {
+					now := metav1.Now()
+					cluster.ServiceProviderProperties.DeletionTimestamp = &now
+				}
+				mcName := "default"
+				if failure == "absent" {
+					mcName = "unregistered"
+				}
+				spc := &coreapi.ServiceProviderCluster{
+					CosmosMetadata: coreapi.CosmosMetadata{ResourceID: metadataapi.Must(azcorearm.ParseResourceID(cluster.ID.String() + "/serviceProviderClusters/default")), PartitionKey: cluster.ID.SubscriptionID},
+					Status: coreapi.ServiceProviderClusterStatus{
+						ManagementClusterResourceID: metadataapi.Must(azcorearm.ParseResourceID("/providers/Microsoft.RedHatOpenShift/stamps/1/managementClusters/" + mcName)),
+						HostedClusterNamespace:      "hosted-cluster",
+						AzureResources: coreapi.AzureResources{KubeAPIServerCertificate: &coreapi.TLSCertificate{AzureReference: &coreapi.AzureTLSCertificateReference{
+							KeyVaultURL: "https://certificates.vault.test/", CertificateName: "serving-certificate",
+						}}},
+					},
+				}
+				db, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, spc})
+				require.NoError(t, err)
+				billing := billingcosmosstoragetesting.NewMockBillingDBClient()
+				informers := coreinformers.NewBackendInformers(ctx, db.ResourcesGlobalListers(), db, billing.BillingGlobalListers())
+				clusterInformer, _ := informers.Clusters()
+				require.NoError(t, clusterInformer.GetIndexer().Add(cluster))
+				spcInformer, _ := informers.ServiceProviderClusters()
+				require.NoError(t, spcInformer.GetIndexer().Add(spc))
+				options := BackendStorageFactoryOptions(false)
+				calls := 0
+				options.ContainerThroughput = func(container string) (float64, error) {
+					if container != "KubeApplier-test" {
+						return 100000, nil
+					}
+					calls++
+					switch failure {
+					case "ARM403":
+						return 0, &azcore.ResponseError{StatusCode: http.StatusForbidden}
+					case "ARM404":
+						return 0, &azcore.ResponseError{StatusCode: http.StatusNotFound}
+					case "timeout":
+						return 0, context.DeadlineExceeded
+					default:
+						return 0, nil
+					}
+				}
+				clientOptions := informerStorageTestOptions(t)
+				transport := clientOptions.Transport
+				desireRequests := 0
+				clientOptions.Transport = storageTestTransport(func(request *http.Request) (*http.Response, error) {
+					if strings.Contains(request.URL.Path, "/colls/KubeApplier-") {
+						desireRequests++
+						return nil, fmt.Errorf("unexpected desire access before successful discovery")
+					}
+					return transport.Do(request)
+				})
+				factory, err := newStorageFactory("https://cosmos.test", "test", clientOptions, options)
+				require.NoError(t, err)
+				name := strings.ToLower(clusterk8sresources.KubeAPIServerServingCertificateControllerName)
+				require.Contains(t, options.ControllerNames, name)
+				require.NotContains(t, options.UnlimitedControllerNames, name)
+				controller := clusterk8sresources.NewKubeAPIServerServingCertificateController(db, factory.KubeApplierStorageClients(name), informers, unionkubeapplierinformers.NewUnionKubeApplierInformers(), nil, "tenant", "AzurePublicCloud")
+				t.Cleanup(func() {
+					stopped, cancel := context.WithCancel(context.Background())
+					cancel()
+					controller.Run(stopped, 0)
+				})
+				key := controllerutils.HCPClusterKey{SubscriptionID: cluster.ID.SubscriptionID, ResourceGroupName: cluster.ID.ResourceGroupName, HCPClusterName: cluster.ID.Name}
+				before, err := db.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName).Get(ctx, "default")
+				require.NoError(t, err)
+				for attempt := 1; attempt <= 2; attempt++ {
+					require.NotPanics(t, func() { err = controller.SyncOnce(ctx, key) })
+					if failure == "absent" {
+						require.NoError(t, err)
+						require.Zero(t, calls)
+					} else {
+						require.ErrorContains(t, err, "resolve kube-applier client for serving certificate")
+						require.NotErrorIs(t, err, kubeappliercosmosstorage.ErrManagementClusterNotFound)
+						require.Equal(t, attempt, calls, "failed discovery must remain retryable")
+					}
+				}
+				require.Zero(t, desireRequests, "neither creation nor deletion may access desires after failed discovery")
+				after, err := db.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName).Get(ctx, "default")
+				require.NoError(t, err)
+				require.Equal(t, before, after)
 			})
 		}
 	}
