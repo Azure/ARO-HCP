@@ -214,138 +214,43 @@ clouds:
             repository:
               org: "Azure"
               name: "ARO-HCP"
-            excludeJobs: []
+            excludeJobs: ""
+          # Tenants are keyed by name. redHat0 monitors every ci.<env>
+          # subscription (infrastructure + E2E) in the ci.<env>.regions regions;
+          # its subscription list is derived by the tenant-quota chart.
           tenants:
-          - tenantId: "64dc69e4-d083-49fc-9569-ebece1dd1408"
-            tenantName: "RedHat0"
-            servicePrincipalClientId: "1ef710d1-afd7-4bf3-8095-e8126650607f"
-            keyVaultSecretName: "custom-metrics-collector-redhat0-client-secret"
-            directoryQuota: true
-            subscriptions:
-            - name: "ARO Hosted Control Planes (EA Subscription 1)"
-              regions:
-              - westus3
-              - centralus
-              - canadacentral
-            - name: "ARO HCP E2E Hosted Clusters (EA Subscription)"
-              regions:
-              - westus3
-              - centralus
-              - canadacentral
-            - name: "ARO HCP E2E Hosted Clusters 2 (EA Subscription)"
-              regions:
-              - westus3
-              - centralus
-              - canadacentral
-            - name: "ARO HCP E2E Hosted Clusters - Dev - 02"
-              regions:
-              - westus3
-              - centralus
-              - canadacentral
-            - name: "ARO HCP E2E Hosted Clusters - Dev - 03"
-              regions:
-              - westus3
-              - centralus
-              - canadacentral
-            - name: "ARO HCP E2E Infrastructure (EA Subscription)"
-              regions:
-              - westus3
-              - centralus
-              - canadacentral
-            # INT also runs E2E in westus3, not just uksouth (see
-            # test/e2e-config/e2e-slots.yaml shard0/westus3-shard0 pools).
-            - name: "ARO SRE Team - INT (EA Subscription 3)"
-              regions:
-              - uksouth
-              - westus3
-            - name: "ARO HCP E2E Hosted Clusters - Stage - 00"
-              regions:
-              - uksouth
-              - westus3
-            # Prod-00 and Prod-01 run E2E across every production region, not
-            # just uksouth: e2e-slots.yaml pins their runtime-selected region
-            # to uksouth today (the eastus2euap canary lease belongs to the
-            # separate cross-tenant "ARO HCP E2E" test-tenant pool, not these
-            # subs), but quota must still be tracked across all prod regions
-            # to catch exhaustion before a regional failover needs it.
-            - name: "ARO HCP E2E Hosted Clusters - Prod - 00"
-              regions:
-              - eastus2euap
-              - uksouth
-              - switzerlandnorth
-              - canadacentral
-              - australiaeast
-              - westeurope
-              - centralindia
-              - brazilsouth
-              - eastus2
-            - name: "ARO HCP E2E Hosted Clusters - Prod - 01"
-              regions:
-              - eastus2euap
-              - uksouth
-              - switzerlandnorth
-              - canadacentral
-              - australiaeast
-              - westeurope
-              - centralindia
-              - brazilsouth
-              - eastus2
-          # Test Test Azure Red Hat OpenShift (Microsoft E2E tenant); directory quota off — subscription ARM only.
-          - tenantId: "93b21e64-4824-439a-b893-46c9b2a51082"
-            tenantName: "TestTestARO"
-            servicePrincipalClientId: "e46ecbd4-9ef3-439e-a28a-74a4d8270349"
-            keyVaultSecretName: "custom-metrics-collector-test-test-azure-arohcp-client-secret"
-            directoryQuota: false
-            subscriptions:
-            - name: "ARO HCP E2E"
-              regions:
-              - eastus2euap
-              - uksouth
-              - switzerlandnorth
-              - canadacentral
-              - australiaeast
-              - westeurope
-              - centralindia
-              - brazilsouth
-              - eastus2
+            redHat0:
+              tenantId: "64dc69e4-d083-49fc-9569-ebece1dd1408"
+              tenantName: "RedHat0"
+              servicePrincipalClientId: "1ef710d1-afd7-4bf3-8095-e8126650607f"
+              keyVaultSecretName: "custom-metrics-collector-redhat0-client-secret"
+              directoryQuota: true
+            # Test Test Azure Red Hat OpenShift (Microsoft E2E tenant); directory
+            # quota off, subscription ARM only. Not part of ci.<env>, so its single
+            # subscription and regions are listed here.
+            testTestAro:
+              tenantId: "93b21e64-4824-439a-b893-46c9b2a51082"
+              tenantName: "TestTestARO"
+              servicePrincipalClientId: "e46ecbd4-9ef3-439e-a28a-74a4d8270349"
+              keyVaultSecretName: "custom-metrics-collector-test-test-azure-arohcp-client-secret"
+              directoryQuota: false
+              subscriptionName: "ARO HCP E2E"
+              regions: "eastus2euap,uksouth,switzerlandnorth,canadacentral,australiaeast,westeurope,centralindia,brazilsouth,eastus2"
       ci:
         # Required Azure resource providers for ARO-HCP-managed E2E subscriptions.
         # This is the single source of truth for provider registration; add new
         # dependencies here and re-run make dev-ci-privileged-local-run.
-        e2eSubscriptionProviders:
-        - "Microsoft.Compute"
-        - "Microsoft.Insights"
-        - "Microsoft.KeyVault"
-        - "Microsoft.ManagedIdentity"
-        - "Microsoft.Network"
-        - "Microsoft.Quota"
-        - "Microsoft.RedHatOpenShift"
-        - "Microsoft.Storage"
+        e2eSubscriptionProviders: "Microsoft.Compute,Microsoft.Insights,Microsoft.KeyVault,Microsoft.ManagedIdentity,Microsoft.Network,Microsoft.Quota,Microsoft.RedHatOpenShift,Microsoft.Storage"
         dev:
           bot:
             applicationName: "OpenShift Release Bot"
           # Regions charted on the Dev quota dashboard: the three regions the
           # dev tenant-quota subscriptions actually collect quota for above.
-          dashboardRegions:
-          - westus3
-          - centralus
-          - canadacentral
-          e2eSubscriptions:
-          - name: "ARO HCP E2E Hosted Clusters (EA Subscription)"
-            id: "974ebd46-8ad3-41e3-afef-7ef25fd5c371"
-          - name: "ARO HCP E2E Hosted Clusters 2 (EA Subscription)"
-            id: "e8c5a115-842d-4d7e-98ad-cfb2c50b209e"
-          - name: "ARO HCP E2E Hosted Clusters - Dev - 02"
-            id: "e627aa70-36a3-40b0-8e68-975269e39d7b"
-          - name: "ARO HCP E2E Hosted Clusters - Dev - 03"
-            id: "6ed122d1-7e03-4a01-baae-9020abf350d4"
-          infrastructureSubscriptions:
-          - name: "ARO Hosted Control Planes (EA Subscription 1)"
-            id: "1d3378d3-5a3f-4712-85a1-2485495dfc4b"
-            isGlobalSubscription: true
-          - name: "ARO HCP E2E Infrastructure (EA Subscription)"
-            id: "0ef1ad54-9296-44cd-9600-5dc8e9a74034"
-            costTagInheritance: true
+          regions: "westus3,centralus,canadacentral"
+          e2eSubscriptions: "974ebd46-8ad3-41e3-afef-7ef25fd5c371=ARO HCP E2E Hosted Clusters (EA Subscription),e8c5a115-842d-4d7e-98ad-cfb2c50b209e=ARO HCP E2E Hosted Clusters 2 (EA Subscription),e627aa70-36a3-40b0-8e68-975269e39d7b=ARO HCP E2E Hosted Clusters - Dev - 02,6ed122d1-7e03-4a01-baae-9020abf350d4=ARO HCP E2E Hosted Clusters - Dev - 03"
+          infrastructureSubscriptions: "1d3378d3-5a3f-4712-85a1-2485495dfc4b=ARO Hosted Control Planes (EA Subscription 1),0ef1ad54-9296-44cd-9600-5dc8e9a74034=ARO HCP E2E Infrastructure (EA Subscription)"
+          infrastructureSubscriptionsGlobals: "1d3378d3-5a3f-4712-85a1-2485495dfc4b"
+          infrastructureSubscriptionsCostTags: "0ef1ad54-9296-44cd-9600-5dc8e9a74034"
           mockIdentities:
             vaultUrl: "https://aro-hcp-dev-svc-kv.vault.azure.net"
             firstParty:
@@ -375,12 +280,8 @@ clouds:
             applicationName: "OpenShift Release Bot - INT"
           # Regions charted on the Int quota dashboard (see e2e-slots.yaml
           # shard0/westus3-shard0 pools for the INT subscription).
-          dashboardRegions:
-          - uksouth
-          - westus3
-          e2eSubscriptions:
-          - name: "ARO SRE Team - INT (EA Subscription 3)"
-            id: "64f0619f-ebc2-4156-9d91-c4c781de7e54"
+          regions: "uksouth,westus3"
+          e2eSubscriptions: "64f0619f-ebc2-4156-9d91-c4c781de7e54=ARO SRE Team - INT (EA Subscription 3)"
           mockIdentities:
             vaultUrl: "https://aro-hcp-int-kv.vault.azure.net"
             firstParty:
@@ -408,33 +309,16 @@ clouds:
           bot:
             applicationName: "OpenShift Release Bot - STG"
           # Regions charted on the Stg quota dashboard.
-          dashboardRegions:
-          - uksouth
-          - westus3
-          e2eSubscriptions:
-          - name: "ARO HCP E2E Hosted Clusters - Stage - 00"
-            id: "dee2f1be-a999-4e19-b027-221e7adaf7d3"
+          regions: "uksouth,westus3"
+          e2eSubscriptions: "dee2f1be-a999-4e19-b027-221e7adaf7d3=ARO HCP E2E Hosted Clusters - Stage - 00"
         prod:
           bot:
             applicationName: "OpenShift Release Bot - Prod"
           # Regions charted on the Prod quota dashboard: all production
           # regions, shared identically by every Prod E2E subscription (see
           # opstool.tenantQuota.tenants[RedHat0].subscriptions above).
-          dashboardRegions:
-          - eastus2euap
-          - uksouth
-          - switzerlandnorth
-          - canadacentral
-          - australiaeast
-          - westeurope
-          - centralindia
-          - brazilsouth
-          - eastus2
-          e2eSubscriptions:
-          - name: "ARO HCP E2E Hosted Clusters - Prod - 00"
-            id: "8d696692-794f-4cdb-ba25-9250c9e9ec4c"
-          - name: "ARO HCP E2E Hosted Clusters - Prod - 01"
-            id: "ec435068-e722-475f-8504-c91b72a5dc51"
+          regions: "eastus2euap,uksouth,switzerlandnorth,canadacentral,australiaeast,westeurope,centralindia,brazilsouth,eastus2"
+          e2eSubscriptions: "8d696692-794f-4cdb-ba25-9250c9e9ec4c=ARO HCP E2E Hosted Clusters - Prod - 00,ec435068-e722-475f-8504-c91b72a5dc51=ARO HCP E2E Hosted Clusters - Prod - 01"
     environments:
       dev-ci:
         regions:

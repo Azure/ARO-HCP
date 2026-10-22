@@ -91,9 +91,9 @@ A brand-new subscription typically has no Azure resource providers registered be
    - Verify that the deployment stacks and identity-container resource groups are created in the new subscription.
 
 6. Extend the DEV bootstrap RBAC and quota-monitoring inventory.
-   - Add the subscription name and ID to `config/config-dev-ci.yaml` under `ci.dev.e2eSubscriptions`.
+   - Append `<subscription-id>=<display name>` to the comma-separated string `ci.dev.e2eSubscriptions` in `config/config-dev-ci.yaml` (display names must not contain commas).
    - That list feeds both the `dev-ci` RBAC grants and Cost Management tag-inheritance rollout. A new hosted-cluster subscription needs no per-index template edits. The E2E infrastructure subscription opts in separately via `costTagInheritance: true`; do not enable it for the global infrastructure subscription.
-   - In the same `config/config-dev-ci.yaml`, also add the subscription to the `opstool.tenantQuota` tenant's `subscriptions` list so the `tenant-quota-collector` tracks it. List the same `regions` the pool runs in; the collector retrieves the Role Assignment quota limit directly from Azure.
+   - No separate tenant-quota entry is needed: the `tenant-quota-collector` chart derives the `redHat0` tenant's subscriptions from `ci.<env>.e2eSubscriptions` (and `ci.dev.infrastructureSubscriptions`), monitoring them in the regions listed in `ci.<env>.regions`. Make sure that CSV covers the regions the pool runs in; the collector retrieves the Role Assignment quota limit directly from Azure.
    - In a normal onboarding flow, `homeSubscription`, `sharedPrincipals`, and `msiMockPool.principals` should not need to change.
    - Apply the **privileged** customer-subscription grants, createdAt tag policy, and Cost Management tag inheritance. The rollout requires **Owner** for subscription-scoped RBAC; its operator also needs permission to edit Cost Management settings on every target subscription (Cost Management Contributor). It is **not** run by the `dev-ci` postsubmit — ask an OWNERS-group member with the required access to run it from the repo root:
      - `make dev-ci-privileged-local-run`
@@ -276,7 +276,7 @@ Region access is separate from quota. Once the flag is `Registered`, file the pe
 
 ### Step 2: CI Infrastructure Setup
 
-1. Add the subscription to `config/config-dev-ci.yaml` under the appropriate `ci.<env>.e2eSubscriptions` section, with both its display `name` and its `id`. This is the only file to edit — the provider-registration pipeline reads the inventory directly and picks up the new entry by its `id`.
+1. Add the subscription to `config/config-dev-ci.yaml` under the appropriate `ci.<env>.e2eSubscriptions` section, by appending `<subscription-id>=<display name>` to the comma-separated `ci.<env>.e2eSubscriptions` string (display names must not contain commas). This is the only file to edit — the provider-registration pipeline reads the inventory directly and picks up the new entry by its `id`.
 
 2. Run the `Microsoft.Azure.ARO.HCP.DevCI.Privileged` entrypoint (`make dev-ci-privileged-local-run`). This grants the environment's CI bot (e.g. `OpenShift Release Bot - STG`) the required RBAC on the new subscription **and** registers all required resource providers (see `ci.e2eSubscriptionProviders` in `config/config-dev-ci.yaml`). Both run on demand via an OWNERS-group member; the RBAC grants require **Owner** on the target subscription, while provider registration needs only `*/register/action`.
 

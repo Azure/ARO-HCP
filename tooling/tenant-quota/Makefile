@@ -32,13 +32,20 @@ tenant-quota-collector:
 # ---------------------------------------------------------------------------
 # Local config rendering
 # ---------------------------------------------------------------------------
-_output/config.yaml: $(TEMPLATIZE) deploy/config.yaml.tmpl $(DEV_CI_CONFIG_FILE)
+# The chart owns the config shape (subscriptions are derived from the ci.<env>
+# CSVs in config-dev-ci.yaml), so render the deployed values and let Helm
+# produce the ConfigMap, then extract the collector config from it.
+_output/values.yaml: $(TEMPLATIZE) deploy/values.yaml.tmpl $(DEV_CI_CONFIG_FILE)
 	$(TEMPLATIZE) generate \
 		--config-file $(DEV_CI_CONFIG_FILE) \
 		--dev-settings-file $(DEV_SETTINGS_FILE) \
 		--dev-environment $(DEPLOY_ENV) \
-		--input deploy/config.yaml.tmpl \
+		--input deploy/values.yaml.tmpl \
 		--output $@
+
+_output/config.yaml: _output/values.yaml deploy/templates/configmap.yaml deploy/templates/_helpers.tpl
+	helm template tenant-quota deploy --kube-version 1.30.0 -f _output/values.yaml --show-only templates/configmap.yaml \
+		| $(YQ) '.data."config.yaml"' > $@
 
 render-config: _output/config.yaml
 .PHONY: render-config

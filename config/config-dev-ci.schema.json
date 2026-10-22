@@ -277,9 +277,13 @@
                 "prow": { "$ref": "#/$defs/ProwMetricsConfig" },
                 "ciJobOutcomes": { "$ref": "#/$defs/CIJobOutcomesConfig" },
                 "tenants": {
-                  "type": "array",
-                  "description": "List of Azure AD tenants to monitor for directory and subscription quota",
-                  "items": { "$ref": "#/$defs/TenantQuotaConfig" }
+                  "type": "object",
+                  "description": "Azure AD tenants to monitor for directory and subscription quota, keyed by tenant key (redHat0 is rendered by the tenant-quota chart from ci.<env>; testTestAro lists its own subscription)",
+                  "properties": {
+                    "redHat0": { "$ref": "#/$defs/TenantQuotaConfig" },
+                    "testTestAro": { "$ref": "#/$defs/TenantQuotaConfig" }
+                  },
+                  "additionalProperties": false
                 }
               }
             },
@@ -390,9 +394,9 @@
       "description": "Per-environment CI bot identity and subscription inventory",
       "properties": {
         "e2eSubscriptionProviders": {
-          "type": "array",
-          "description": "Azure resource provider namespaces to register on every ARO-HCP-managed E2E subscription",
-          "items": { "type": "string" }
+          "type": "string",
+          "description": "CSV of Azure resource provider namespaces to register on every ARO-HCP-managed E2E subscription",
+          "pattern": "^[a-zA-Z0-9.]+(,[a-zA-Z0-9.]+)*$"
         }
       },
       "additionalProperties": {
@@ -407,31 +411,35 @@
           "$ref": "#/$defs/CIBot"
         },
         "e2eSubscriptions": {
-          "type": "array",
-          "description": "Customer testing subscriptions where the bot gets RBAC and E2E tests run",
-          "items": {
-            "$ref": "#/$defs/SubscriptionReference"
-          }
+          "type": "string",
+          "description": "CSV of SubscriptionID=DisplayName for customer testing subscriptions where the bot gets RBAC and E2E tests run",
+          "pattern": "^[a-zA-Z0-9-]+=[^,]+(,[a-zA-Z0-9-]+=[^,]+)*$"
         },
         "infrastructureSubscriptions": {
-          "type": "array",
-          "description": "Infrastructure subscriptions where the bot gets RBAC (DEV-only)",
-          "items": {
-            "$ref": "#/$defs/InfraSubscriptionReference"
-          }
+          "type": "string",
+          "description": "CSV of SubscriptionID=DisplayName for infrastructure subscriptions where the bot gets RBAC (DEV-only)",
+          "pattern": "^[a-zA-Z0-9-]+=[^,]+(,[a-zA-Z0-9-]+=[^,]+)*$"
         },
-        "dashboardRegions": {
-          "type": "array",
-          "description": "Azure regions charted on this environment's DEV CI quota dashboard (see tooling/tenant-quota/dashboards.bicep); shared by every subscription in e2eSubscriptions/infrastructureSubscriptions for this environment",
-          "items": {
-            "type": "string"
-          }
+        "infrastructureSubscriptionsGlobals": {
+          "type": "string",
+          "description": "CSV of infrastructure subscription IDs marking where shared infra lives; the bot gets extra global-only data-plane roles (Grafana Admin) there",
+          "pattern": "^([a-zA-Z0-9-]+(,[a-zA-Z0-9-]+)*)?$"
+        },
+        "infrastructureSubscriptionsCostTags": {
+          "type": "string",
+          "description": "CSV of infrastructure subscription IDs on which Cost Management tag inheritance is enabled (DEV E2E infrastructure)",
+          "pattern": "^([a-zA-Z0-9-]+(,[a-zA-Z0-9-]+)*)?$"
+        },
+        "regions": {
+          "type": "string",
+          "description": "CSV of Azure regions monitored by the tenant-quota collector and charted on this environment's DEV CI quota dashboard (see tooling/tenant-quota/dashboards.bicep); shared by every subscription in e2eSubscriptions/infrastructureSubscriptions for this environment",
+          "pattern": "^[a-z0-9]+(,[a-z0-9]+)*$"
         },
         "mockIdentities": {
           "$ref": "#/$defs/MockIdentities"
         }
       },
-      "required": ["bot", "e2eSubscriptions", "dashboardRegions"]
+      "required": ["bot", "e2eSubscriptions", "regions"]
     },
     "CIBot": {
       "type": "object",
@@ -443,22 +451,6 @@
         }
       },
       "required": ["applicationName"]
-    },
-    "InfraSubscriptionReference": {
-      "type": "object",
-      "properties": {
-        "name": { "type": "string" },
-        "id": { "type": "string" },
-        "isGlobalSubscription": {
-          "type": "boolean",
-          "description": "Marks where shared infra lives; the bot gets extra global-only data-plane roles (Grafana Admin) here"
-        },
-        "costTagInheritance": {
-          "type": "boolean",
-          "description": "Enable Cost Management tag inheritance on this DEV E2E infrastructure subscription"
-        }
-      },
-      "required": ["name", "id"]
     },
     "MockIdentities": {
       "type": "object",
@@ -532,14 +524,6 @@
       },
       "required": ["appBaseName", "certBaseName", "certBaseDns", "size"]
     },
-    "SubscriptionReference": {
-      "type": "object",
-      "properties": {
-        "name": { "type": "string" },
-        "id": { "type": "string" }
-      },
-      "required": ["name", "id"]
-    },
     "Image": {
       "type": "object",
       "properties": {
@@ -564,17 +548,18 @@
     },
     "TenantQuotaConfig": {
       "type": "object",
-      "description": "Configuration for monitoring a single Azure AD tenant",
+      "description": "Configuration for monitoring a single Azure AD tenant. Subscriptions are either inferred from ci.<env> (when neither subscriptionName nor regions is set) or given explicitly via subscriptionName + regions",
       "properties": {
         "tenantId": { "type": "string", "description": "Azure AD tenant ID" },
         "tenantName": { "type": "string", "description": "Display name for metrics labels" },
         "servicePrincipalClientId": { "type": "string", "description": "App ID of the service principal" },
         "keyVaultSecretName": { "type": "string", "description": "Key Vault secret name holding the SP client secret" },
         "directoryQuota": { "type": "boolean", "description": "Enable directory (Azure AD) quota monitoring" },
-        "subscriptions": {
-          "type": "array",
-          "description": "Subscriptions to monitor for compute/network/RBAC quota",
-          "items": { "$ref": "#/$defs/SubscriptionQuotaConfig" }
+        "subscriptionName": { "type": "string", "description": "Display name of the single subscription to monitor (tenants whose subscriptions are not inferred from ci.<env>)" },
+        "regions": {
+          "type": "string",
+          "description": "CSV of Azure regions to monitor for subscriptionName",
+          "pattern": "^[a-z0-9]+(,[a-z0-9]+)*$"
         }
       },
       "required": ["tenantId", "tenantName", "servicePrincipalClientId", "keyVaultSecretName"]
@@ -638,25 +623,12 @@
           "required": ["org", "name"]
         },
         "excludeJobs": {
-          "type": "array",
-          "description": "Exact Prow job names to exclude",
-          "items": { "type": "string" }
+          "type": "string",
+          "description": "CSV of exact Prow job names to exclude (empty for none)",
+          "pattern": "^([^,]+(,[^,]+)*)?$"
         }
       },
       "required": ["enabled", "baseURL", "interval", "retention", "repository", "excludeJobs"]
-    },
-    "SubscriptionQuotaConfig": {
-      "type": "object",
-      "description": "Configuration for monitoring quota in a single subscription",
-      "properties": {
-        "name": { "type": "string", "description": "Subscription display name (used to resolve the subscription ID at runtime)" },
-        "regions": {
-          "type": "array",
-          "description": "Azure regions to monitor for regional quotas",
-          "items": { "type": "string" }
-        }
-      },
-      "required": ["name", "regions"]
     }
   }
 }
