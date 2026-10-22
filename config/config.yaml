@@ -1807,12 +1807,7 @@ clouds:
               private: false
               enableBurstCapacity: true
               zoneRedundantMode: 'Disabled'
-              resourceContainerMaxScale: 38000
-              billingContainerMaxScale: 8000
-              locksContainerMaxScale: 8000
               fleetContainerMaxScale: 8000
-          kubeApplier:
-            cosmosContainerMaxScale: 38000
           # MC
           mgmt:
             stamps:
@@ -1913,12 +1908,7 @@ clouds:
               private: false
               enableBurstCapacity: true
               zoneRedundantMode: 'Disabled'
-              resourceContainerMaxScale: 38000
-              billingContainerMaxScale: 8000
-              locksContainerMaxScale: 8000
               fleetContainerMaxScale: 8000
-          kubeApplier:
-            cosmosContainerMaxScale: 38000
           # MC
           mgmt:
             stamps:
