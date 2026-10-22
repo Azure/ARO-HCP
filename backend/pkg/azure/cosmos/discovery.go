@@ -22,7 +22,7 @@ import (
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/cosmos/armcosmos/v4"
 )
 
@@ -36,13 +36,13 @@ type sqlClient interface {
 }
 
 type Account struct {
-	id       *arm.ResourceID
+	id       *azcorearm.ResourceID
 	accounts accountClient
 	sql      sqlClient
 }
 
-func ParseAccountID(value string) (*arm.ResourceID, error) {
-	id, err := arm.ParseResourceID(value)
+func ParseAccountID(value string) (*azcorearm.ResourceID, error) {
+	id, err := azcorearm.ParseResourceID(value)
 	if err != nil {
 		return nil, fmt.Errorf("invalid Cosmos account resource ID: %w", err)
 	}
@@ -54,7 +54,7 @@ func ParseAccountID(value string) (*arm.ResourceID, error) {
 	return id, nil
 }
 
-func NewAccount(value string, credential azcore.TokenCredential, options *arm.ClientOptions) (*Account, error) {
+func NewAccount(value string, credential azcore.TokenCredential, options *azcorearm.ClientOptions) (*Account, error) {
 	id, err := ParseAccountID(value)
 	if err != nil {
 		return nil, err

@@ -49,7 +49,10 @@ resource cosmosDbAccount 'Microsoft.DocumentDB/databaseAccounts@2023-11-15' exis
   name: cosmosDBAccountName
 }
 
-var readerRoleDefinitionId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'acdd72a7-3385-48ef-bd42-f606fba81ae7')
+var readerRoleDefinitionId = subscriptionResourceId(
+  'Microsoft.Authorization/roleDefinitions',
+  'acdd72a7-3385-48ef-bd42-f606fba81ae7'
+)
 
 resource backendCosmosReader 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(cosmosDbAccount.id, backendManagedIdentityPrincipalId, readerRoleDefinitionId)

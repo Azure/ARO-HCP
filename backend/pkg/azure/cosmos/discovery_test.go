@@ -24,7 +24,7 @@ import (
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/stretchr/testify/require"
 )
@@ -45,7 +45,7 @@ func (transport testTransport) Do(request *http.Request) (*http.Response, error)
 
 func testAccount(t *testing.T, respond func(*http.Request) (string, error)) *Account {
 	t.Helper()
-	account, err := NewAccount(testAccountID, testCredential{}, &arm.ClientOptions{ClientOptions: azcore.ClientOptions{
+	account, err := NewAccount(testAccountID, testCredential{}, &azcorearm.ClientOptions{ClientOptions: azcore.ClientOptions{
 		Retry: policy.RetryOptions{MaxRetries: -1},
 		Transport: testTransport(func(request *http.Request) (*http.Response, error) {
 			body, err := respond(request)
