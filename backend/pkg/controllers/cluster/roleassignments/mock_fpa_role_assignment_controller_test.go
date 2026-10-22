@@ -62,6 +62,25 @@ type mockFPAFailingReplaceCRUD struct {
 	cosmosstorageutils.ResourceCRUD[coreapi.ServiceProviderCluster, *coreapi.ServiceProviderCluster]
 }
 
+type mockFPAConfirmationConflictDB struct {
+	corecosmosstorage.ResourcesDBClient
+}
+
+func (database mockFPAConfirmationConflictDB) ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName string) cosmosstorageutils.ResourceCRUD[coreapi.ServiceProviderCluster, *coreapi.ServiceProviderCluster] {
+	return mockFPAConfirmationConflictCRUD{ResourceCRUD: database.ResourcesDBClient.ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName)}
+}
+
+type mockFPAConfirmationConflictCRUD struct {
+	cosmosstorageutils.ResourceCRUD[coreapi.ServiceProviderCluster, *coreapi.ServiceProviderCluster]
+}
+
+func (storage mockFPAConfirmationConflictCRUD) Replace(ctx context.Context, replacement *coreapi.ServiceProviderCluster, options *azcosmos.ItemOptions) (*coreapi.ServiceProviderCluster, error) {
+	if replacement.Status.AzureResources.MockFPARoleAssignment.AzureResource != nil {
+		return nil, &azcore.ResponseError{StatusCode: http.StatusPreconditionFailed}
+	}
+	return storage.ResourceCRUD.Replace(ctx, replacement, options)
+}
+
 func (mockFPAFailingReplaceCRUD) Replace(context.Context, *coreapi.ServiceProviderCluster, *azcosmos.ItemOptions) (*coreapi.ServiceProviderCluster, error) {
 	return nil, errors.New("database unavailable")
 }
@@ -91,6 +110,37 @@ func TestMockFPARoleAssignmentDatabaseError(t *testing.T) {
 	require.ErrorContains(t, syncer.SyncOnce(ctx, testHCPClusterKey), "database unavailable")
 }
 
+func TestMockFPARoleAssignmentInvalidScopeClearsReadiness(t *testing.T) {
+	for _, name := range []string{"", "/"} {
+		t.Run(name, func(t *testing.T) {
+			ctx := context.Background()
+			cluster := newTestCluster(false)
+			spc := newTestServiceProviderCluster(t, true, false, false, false, coreapi.AzureMultiReference{})
+			expectedID, err := mockFPARoleAssignmentID(cluster, testMockFPAPrincipalID)
+			require.NoError(t, err)
+			spc.Status.AzureResources.MockFPARoleAssignment.AzureResource = expectedID
+			deadline := metav1.NewTime(testFixedNow().Add(time.Hour))
+			spc.Spec.EarliestRecheckTimesByController = map[string]*metav1.Time{MockFPARoleAssignmentControllerName: &deadline}
+			cluster.CustomerProperties.Platform.ManagedResourceGroup = name
+			database, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, spc})
+			require.NoError(t, err)
+			syncer := &mockFPARoleAssignmentSyncer{
+				resourcesDBClient:            database,
+				clusterLister:                &corelistertesting.DBClusterLister{ResourcesDBClient: database},
+				serviceProviderClusterLister: &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: database},
+				principalID:                  testMockFPAPrincipalID, clock: clocktesting.NewFakeClock(testFixedNow()),
+			}
+			require.Error(t, syncer.SyncOnce(ctx, testHCPClusterKey))
+			stored, err := database.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
+			require.NoError(t, err)
+			require.Equal(t, coreapi.AzureReference{}, stored.Status.AzureResources.MockFPARoleAssignment)
+			require.Nil(t, stored.Spec.EarliestRecheckTimesByController[MockFPARoleAssignmentControllerName])
+			require.False(t, MockFPARoleAssignmentReady(cluster, stored, testMockFPAPrincipalID))
+			require.Equal(t, spc.Status.AzureResources.ManagedResourceGroup, stored.Status.AzureResources.ManagedResourceGroup)
+		})
+	}
+}
+
 func TestMockFPARoleAssignmentSyncOnce(t *testing.T) {
 	for _, testCase := range []struct {
 		name                                                                        string
@@ -101,6 +151,7 @@ func TestMockFPARoleAssignmentSyncOnce(t *testing.T) {
 		rgState                                                                     string
 		noSubscription, noTenant, noSubscriptionProperties, noRGState               bool
 		mutateProperties                                                            func(*armauthorization.RoleAssignmentProperties)
+		confirmationConflict                                                        bool
 	}{
 		{name: "existing managed group without tracking", noMRG: true, create: true},
 		{name: "existing managed group with pending tracking", pendingMRG: true, create: true},
@@ -137,6 +188,7 @@ func TestMockFPARoleAssignmentSyncOnce(t *testing.T) {
 		{name: "unrelated conflict", create: true, createError: &azcore.ResponseError{StatusCode: http.StatusConflict, ErrorCode: "RoleAssignmentExists"}, wantError: true},
 		{name: "credential failure", builderError: errors.New("credential failed"), wantError: true},
 		{name: "database conflict", dbConflict: true, skip: true},
+		{name: "confirmation conflict leaves incomplete readiness", confirmationConflict: true, confirmed: true, recheck: ptr.To(-time.Minute)},
 		{name: "wrong principal", mutateProperties: func(properties *armauthorization.RoleAssignmentProperties) {
 			properties.PrincipalID = ptr.To("different-principal")
 		}, wantError: true},
@@ -253,6 +305,9 @@ func TestMockFPARoleAssignmentSyncOnce(t *testing.T) {
 			if testCase.dbConflict {
 				syncer.resourcesDBClient = preconditionFailingReplaceDB{ResourcesDBClient: database}
 			}
+			if testCase.confirmationConflict {
+				syncer.resourcesDBClient = mockFPAConfirmationConflictDB{ResourcesDBClient: database}
+			}
 			err = syncer.SyncOnce(ctx, testHCPClusterKey)
 			if testCase.wantError {
 				require.Error(t, err)
@@ -265,15 +320,18 @@ func TestMockFPARoleAssignmentSyncOnce(t *testing.T) {
 			require.Equal(t, spc.Status.AzureResources.ManagedResourceGroup, stored.Status.AzureResources.ManagedResourceGroup)
 			if testCase.skip {
 				require.Equal(t, spc.Status, stored.Status)
+				if testCase.dbConflict {
+					require.False(t, MockFPARoleAssignmentReady(cluster, stored, testMockFPAPrincipalID))
+				}
 				return
 			}
-			if testCase.wantError || testCase.create || rgBlocked {
+			if testCase.wantError || testCase.create || rgBlocked || testCase.confirmationConflict {
 				require.Nil(t, stored.Spec.EarliestRecheckTimesByController[MockFPARoleAssignmentControllerName])
 				require.False(t, MockFPARoleAssignmentReady(cluster, stored, testMockFPAPrincipalID))
 				require.Nil(t, stored.Status.AzureResources.MockFPARoleAssignment.AzureResource)
 				require.NotNil(t, stored.Status.AzureResources.MockFPARoleAssignment.PendingAzureResource)
 			}
-			if testCase.wantError || rgBlocked {
+			if testCase.wantError || rgBlocked || testCase.confirmationConflict {
 				return
 			}
 			if testCase.create {
