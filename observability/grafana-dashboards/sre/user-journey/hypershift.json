@@ -30,7 +30,7 @@
       },
       "id": 1,
       "options": {
-        "content": "### HyperShift User Journey SLO Dashboard\n\nMonitors whether **HyperShift creates and maintains a usable hosted control plane**, covering the HyperShift Operator (`hypershift` namespace) and the Control Plane Operator (CPO, in each `ocm-*` namespace).\n\n**Proposed SLO Targets (pending baseline and stakeholder review):**\n- Journey errors: >=99.9% healthy HostedCluster samples (no HyperShift failure conditions), 30d\n- Journey latency: >=99% of cluster creations reach initial availability within 30m, 30d\n- Component availability: >=99.95% available/desired operator replicas, 30d\n- Component errors: >=99.9% successful reconciliations, 30d\n- Component latency: >=99% of reconciliations within 10s\n- Component saturation: >=99% of intervals within limits\n- Traffic and journey saturation are **informational** until baselined from historical data\n\n**Alerting:** only these signals create tickets, because they catch problems the backend operation (LRO) alerts miss or catch too late:\n- `hypershiftOperatorPodsUnavailable` (Sev 3, 1+ pods unavailable for 15m) / `hypershiftOperatorPodsDown` (Sev 2, 2+ pods unavailable for 5m): HyperShift Operator pods unavailable on a management cluster\n- `hypershiftOperatorIdle` (Sev 3): HyperShift Operator wedged (no reconciles for 30m while HostedClusters exist)\n- `hypershiftCPODown` (Sev 3, no available pods for 10m): a hosted control plane's Control Plane Operator is down\n\nAll other panels are triage context for those alerts and the backend operation alerts.\n\n**Metrics Source:** `hypershift_*` metrics from the HyperShift Operator and CPO (openshift/hypershift), `controller_runtime_*`, `workqueue_*`, kube-state-metrics deployment metrics, container resource metrics. `hostedClusterAPI_kubeapiserver_available` (KASAvailable) is shown as supporting context. Journey availability from `hypershift_kube_apiserver_available` is deferred until that metric is scraped in production and its overlap with HCPKASAvailableBurn is settled.\n\n**Workspaces:** select the services and HCP workspaces for the same region. HyperShift Operator series (`hypershift` namespace) are read from the services workspace. CPO, HCP-namespace and KASAvailable series (`ocm-*` namespaces) and the KAS recording rules are read from the HCP workspace. Panels that compare the two operators combine both.\n\n**Jira:** [ARO-27787](https://redhat.atlassian.net/browse/ARO-27787)",
+        "content": "### HyperShift User Journey SLO Dashboard\n\nMonitors whether **HyperShift creates and maintains a usable hosted control plane**, covering the HyperShift Operator (`hypershift` namespace) and the Control Plane Operator (CPO, in each `ocm-*` namespace).\n\n**Proposed SLO Targets (pending baseline and stakeholder review):**\n- Journey errors: >=99.9% healthy HostedCluster samples (no HyperShift failure conditions), 30d\n- Journey latency (proxy): >=99% of HostedClusters observed waiting for initial availability never wait longer than 30m, 30d. This is a wait-threshold proxy, not a count of completed creations\n- Component availability: >=99.95% available/desired operator replicas, 30d\n- Component errors: >=99.9% successful reconciliations, 30d\n- Component latency: >=99% of reconciliations within 10s\n- Component saturation: >=99% of intervals within limits\n- Traffic and journey saturation are **informational** until baselined from historical data\n\n**Alerting:** only these signals create tickets, because they catch problems the backend operation (LRO) alerts miss or catch too late:\n- `hypershiftOperatorPodsUnavailable` (Sev 3, 1+ pods unavailable for 15m) / `hypershiftOperatorPodsDown` (Sev 2, 2+ pods unavailable for 5m): HyperShift Operator pods unavailable on a management cluster\n- `hypershiftOperatorIdle` (Sev 3): HyperShift Operator wedged (no reconciles for 30m while HostedClusters exist)\n- `hypershiftCPODown` (Sev 3, no available pods for 10m): a hosted control plane's Control Plane Operator is down\n\nAll other panels are triage context for those alerts and the backend operation alerts.\n\n**Metrics Source:** `hypershift_*` metrics from the HyperShift Operator and CPO (openshift/hypershift), `controller_runtime_*`, `workqueue_*`, kube-state-metrics deployment metrics, container resource metrics. `hostedClusterAPI_kubeapiserver_available` (KASAvailable) is shown as supporting context. Journey availability from `hypershift_kube_apiserver_available` is deferred until that metric is scraped in production and its overlap with HCPKASAvailableBurn is settled.\n\n**Workspaces:** select the services and HCP workspaces for the same region. HyperShift Operator series (`hypershift` namespace) are read from the services workspace. CPO, HCP-namespace and KASAvailable series (`ocm-*` namespaces) and the KAS recording rules are read from the HCP workspace. Panels that compare the two operators combine both.\n\n**Jira:** [ARO-27787](https://redhat.atlassian.net/browse/ARO-27787)",
         "mode": "markdown"
       },
       "title": "Dashboard Info",
@@ -123,7 +123,7 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "Journey latency: HostedClusters seen waiting for initial availability in the last 30d whose wait never exceeded 30m / all such HostedClusters. Clusters still waiting count as good until they pass 30m. Proposed SLO: 99%.",
+      "description": "Journey latency proxy: HostedClusters seen waiting for initial availability in the last 30d whose maximum observed wait never exceeded 30m / all such HostedClusters. This is a wait-threshold proxy, not a creation success rate: a wait under 30m does not prove the cluster became Available. Clusters that are still waiting, or that were deleted before becoming Available, count as good unless their wait passed 30m. Proposed SLO: 99%.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -180,12 +180,12 @@
           },
           "editorMode": "code",
           "expr": "100 * (1 - (count(max by (cluster, exported_namespace, name, _id) (max_over_time(hypershift_cluster_waiting_initial_availability_duration_seconds[30d])) > 1800) or vector(0)) / count(max by (cluster, exported_namespace, name, _id) (max_over_time(hypershift_cluster_waiting_initial_availability_duration_seconds[30d]))))",
-          "legendFormat": "Within 30m",
+          "legendFormat": "Max wait <= 30m",
           "refId": "A",
           "instant": true
         }
       ],
-      "title": "Creations Available Within 30m (30d)",
+      "title": "Initial Availability Wait <= 30m (Proxy, 30d)",
       "type": "stat"
     },
     {
@@ -368,8 +368,8 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "max by (name) (max without(prometheus_replica) (hypershift_cluster_waiting_initial_availability_duration_seconds))",
-          "legendFormat": "{{name}}",
+          "expr": "max by (cluster, exported_namespace, name, _id) (hypershift_cluster_waiting_initial_availability_duration_seconds)",
+          "legendFormat": "{{cluster}} / {{exported_namespace}} / {{name}}",
           "refId": "A"
         }
       ],
@@ -510,7 +510,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count(max without(prometheus_replica) (hypershift_cluster_waiting_initial_availability_duration_seconds) > 1800) or vector(0)",
+          "expr": "count(max by (cluster, exported_namespace, name, _id) (hypershift_cluster_waiting_initial_availability_duration_seconds) > 1800) or vector(0)",
           "legendFormat": "Over limit",
           "refId": "A",
           "instant": true
@@ -572,7 +572,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count(max without(prometheus_replica) (hypershift_cluster_waiting_initial_availability_duration_seconds)) or vector(0)",
+          "expr": "count(max by (cluster, exported_namespace, name, _id) (hypershift_cluster_waiting_initial_availability_duration_seconds)) or vector(0)",
           "legendFormat": "Transitioning",
           "refId": "A",
           "instant": true
@@ -631,7 +631,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "100 * (count(max without(prometheus_replica) (hypershift_cluster_waiting_initial_availability_duration_seconds) > 1800) or vector(0)) / count(max without(prometheus_replica) (hypershift_cluster_waiting_initial_availability_duration_seconds))",
+          "expr": "100 * (count(max by (cluster, exported_namespace, name, _id) (hypershift_cluster_waiting_initial_availability_duration_seconds) > 1800) or vector(0)) / count(max by (cluster, exported_namespace, name, _id) (hypershift_cluster_waiting_initial_availability_duration_seconds))",
           "legendFormat": "Over limit",
           "refId": "A"
         }
@@ -712,7 +712,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "100 * avg(avg_over_time((max without(prometheus_replica) (kube_deployment_status_replicas_available{namespace=\"hypershift\", deployment=\"operator\"}) / max without(prometheus_replica) (kube_deployment_spec_replicas{namespace=\"hypershift\", deployment=\"operator\"}))[30d:5m]))",
+          "expr": "100 * avg(avg_over_time((max without(prometheus_replica) (kube_deployment_status_replicas_available{namespace=\"hypershift\", deployment=\"operator\"}) / (max without(prometheus_replica) (kube_deployment_spec_replicas{namespace=\"hypershift\", deployment=\"operator\"}) > 0))[30d:5m]))",
           "legendFormat": "HyperShift Operator",
           "refId": "A",
           "instant": true
@@ -723,7 +723,7 @@
             "uid": "$hcp_datasource"
           },
           "editorMode": "code",
-          "expr": "100 * avg(avg_over_time((max without(prometheus_replica) (kube_deployment_status_replicas_available{namespace=~\"ocm-.*\", deployment=\"control-plane-operator\"}) / max without(prometheus_replica) (kube_deployment_spec_replicas{namespace=~\"ocm-.*\", deployment=\"control-plane-operator\"}))[30d:5m]))",
+          "expr": "100 * avg(avg_over_time((max without(prometheus_replica) (kube_deployment_status_replicas_available{namespace=~\"ocm-.*\", deployment=\"control-plane-operator\"}) / (max without(prometheus_replica) (kube_deployment_spec_replicas{namespace=~\"ocm-.*\", deployment=\"control-plane-operator\"}) > 0))[30d:5m]))",
           "legendFormat": "Control Plane Operator",
           "refId": "B",
           "instant": true
@@ -1017,7 +1017,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "min(max without(prometheus_replica) (kube_deployment_status_replicas_available{namespace=\"hypershift\", deployment=\"operator\"}) / max without(prometheus_replica) (kube_deployment_spec_replicas{namespace=\"hypershift\", deployment=\"operator\"}))",
+          "expr": "min(max without(prometheus_replica) (kube_deployment_status_replicas_available{namespace=\"hypershift\", deployment=\"operator\"}) / (max without(prometheus_replica) (kube_deployment_spec_replicas{namespace=\"hypershift\", deployment=\"operator\"}) > 0))",
           "legendFormat": "HyperShift Operator",
           "refId": "A"
         },
@@ -1027,7 +1027,7 @@
             "uid": "$hcp_datasource"
           },
           "editorMode": "code",
-          "expr": "min(max without(prometheus_replica) (kube_deployment_status_replicas_available{namespace=~\"ocm-.*\", deployment=\"control-plane-operator\"}) / max without(prometheus_replica) (kube_deployment_spec_replicas{namespace=~\"ocm-.*\", deployment=\"control-plane-operator\"}))",
+          "expr": "min(max without(prometheus_replica) (kube_deployment_status_replicas_available{namespace=~\"ocm-.*\", deployment=\"control-plane-operator\"}) / (max without(prometheus_replica) (kube_deployment_spec_replicas{namespace=~\"ocm-.*\", deployment=\"control-plane-operator\"}) > 0))",
           "legendFormat": "Control Plane Operator (worst HCP)",
           "refId": "B"
         }
@@ -1735,7 +1735,7 @@
       },
       "id": 33,
       "options": {
-        "content": "### Gaps and Open Questions\n\n**Verified from the openshift/hypershift source and this repository:**\n- `hypershift_hostedclusters`, `hypershift_hostedclusters_failure_conditions` (labels `platform`, `condition`) and `hypershift_nodepools` are gauges of object counts. A cluster with several failure conditions is counted once per condition.\n- `hypershift_cluster_waiting_initial_availability_duration_seconds` (labels `namespace`, `name`, `_id`) is a per-cluster gauge that disappears once the cluster first becomes available. The 30m SLI is therefore derived from the maximum wait seen per cluster over the window.\n- `hypershift_hosted_cluster_transition_seconds` is a histogram whose buckets stop at 600s and which does not cover the `Available` condition, so it is used only for the traffic panel.\n- `hypershift_kube_apiserver_available` is a CPO gauge (1 if the KAS `/healthz` probe returns 200) with no cluster labels; it is scoped by the control plane namespace. `hostedClusterAPI_kubeapiserver_available` is a kube-state-metrics StateSet of the HostedCluster `KubeAPIServerAvailable` condition (Deployment Available), keyed by the HostedCluster namespace and name. The probe also exposes a latency histogram.\n\n**Collection path (verified from source and this repository):**\n- The HyperShift Operator install always creates a ServiceMonitor (30s interval, no metric filtering) for the `operator` Deployment in the `hypershift` namespace. `--platform-monitoring=None` only skips the OpenShift platform monitoring RBAC, and `--metrics-set=SRE` does not filter operator metrics.\n- The CPO creates a PodMonitor per HCP namespace with no metric filtering (`ControlPlaneOperatorRelabelConfigs` returns nil).\n- The management cluster Prometheus selects all ServiceMonitors and PodMonitors in all namespaces (`serviceMonitorSelector: {}`, `podMonitorSelector: {}`), so both are collected.\n- Deployment and container names used in queries: `operator` (hypershift namespace) and `control-plane-operator` (HCP namespace). The control plane namespace is `<HostedCluster namespace>-<HostedCluster name>`.\n- `controller_runtime_reconcile_time_seconds` has a `le=\"10\"` bucket.\n- Remote write sends series whose `namespace` or `hostedcontrolplane` label matches `ocm-<environment>*` only to the HCP workspace, and everything else only to the services workspace. The HyperShift Operator ServiceMonitor does not set `honorLabels`, so all operator series (including the per-cluster wait gauge) carry `namespace=\"hypershift\"` and land in the services workspace; the HostedCluster namespace moves to `exported_namespace`. CPO and KASAvailable series, and the KAS recording rules, are in the HCP workspace.\n\n**KASAvailable patterns:**\n- Reused here: good/eligible sample ratio, 15m new-cluster exclusion, current-series presence check, fleet SLO distribution.\n- Display only as context: KAS availability.\n- Deferred: journey availability from `hypershift_kube_apiserver_available` (not yet scraped in production; overlaps HCPKASAvailableBurn).\n- Still to evaluate after SLO agreement: sample-count guards (HyperShift gauges update at the Prometheus scrape interval, unlike KSM), multi-window burn-rate alerting.\n- Targets are proposals and must be based on historical data and stakeholder agreement, not inherited from the KASAvailable 99.95%.",
+        "content": "### Gaps and Open Questions\n\n**Verified from the openshift/hypershift source and this repository:**\n- `hypershift_hostedclusters`, `hypershift_hostedclusters_failure_conditions` (labels `platform`, `condition`) and `hypershift_nodepools` are gauges of object counts. A cluster with several failure conditions is counted once per condition.\n- `hypershift_cluster_waiting_initial_availability_duration_seconds` (labels `namespace`, `name`, `_id`) is a per-cluster gauge that disappears once the cluster first becomes available. The 30m SLI is therefore a proxy derived from the maximum wait seen per cluster over the window. It does not record whether the cluster became Available, so clusters deleted before becoming Available within 30m count as good. A creation success SLI requires a recorded availability or completion outcome, for example from backend operation results or a HyperShift metric emitted on first availability.\n- `hypershift_hosted_cluster_transition_seconds` is a histogram whose buckets stop at 600s and which does not cover the `Available` condition, so it is used only for the traffic panel.\n- `hypershift_kube_apiserver_available` is a CPO gauge (1 if the KAS `/healthz` probe returns 200) with no cluster labels; it is scoped by the control plane namespace. `hostedClusterAPI_kubeapiserver_available` is a kube-state-metrics StateSet of the HostedCluster `KubeAPIServerAvailable` condition (Deployment Available), keyed by the HostedCluster namespace and name. The probe also exposes a latency histogram.\n\n**Collection path (verified from source and this repository):**\n- The HyperShift Operator install always creates a ServiceMonitor (30s interval, no metric filtering) for the `operator` Deployment in the `hypershift` namespace. `--platform-monitoring=None` only skips the OpenShift platform monitoring RBAC, and `--metrics-set=SRE` does not filter operator metrics.\n- The CPO creates a PodMonitor per HCP namespace with no metric filtering (`ControlPlaneOperatorRelabelConfigs` returns nil).\n- The management cluster Prometheus selects all ServiceMonitors and PodMonitors in all namespaces (`serviceMonitorSelector: {}`, `podMonitorSelector: {}`), so both are collected.\n- Deployment and container names used in queries: `operator` (hypershift namespace) and `control-plane-operator` (HCP namespace). The control plane namespace is `<HostedCluster namespace>-<HostedCluster name>`.\n- `controller_runtime_reconcile_time_seconds` has a `le=\"10\"` bucket.\n- Remote write sends series whose `namespace` or `hostedcontrolplane` label matches `ocm-<environment>*` only to the HCP workspace, and everything else only to the services workspace. The HyperShift Operator ServiceMonitor does not set `honorLabels`, so all operator series (including the per-cluster wait gauge) carry `namespace=\"hypershift\"` and land in the services workspace; the HostedCluster namespace moves to `exported_namespace`. CPO and KASAvailable series, and the KAS recording rules, are in the HCP workspace.\n\n**KASAvailable patterns:**\n- Reused here: good/eligible sample ratio, 15m new-cluster exclusion, current-series presence check, fleet SLO distribution.\n- Display only as context: KAS availability.\n- Deferred: journey availability from `hypershift_kube_apiserver_available` (not yet scraped in production; overlaps HCPKASAvailableBurn).\n- Still to evaluate after SLO agreement: sample-count guards (HyperShift gauges update at the Prometheus scrape interval, unlike KSM), multi-window burn-rate alerting.\n- Targets are proposals and must be based on historical data and stakeholder agreement, not inherited from the KASAvailable 99.95%.",
         "mode": "markdown"
       },
       "title": "Gaps and Open Questions",
