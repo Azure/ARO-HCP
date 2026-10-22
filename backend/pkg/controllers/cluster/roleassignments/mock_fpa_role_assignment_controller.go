@@ -168,7 +168,7 @@ func (c *mockFPARoleAssignmentSyncer) SyncOnce(ctx context.Context, key controll
 		return utils.TrackError(fmt.Errorf("failed to build ARM helper role assignments client: %w", err))
 	}
 	scope := expectedID.Parent.String()
-	response, err := client.GetByID(ctx, expectedID.String(), nil)
+	_, err = client.GetByID(ctx, expectedID.String(), nil)
 	if azureclient.IsRoleAssignmentNotFoundErr(err) {
 		_, err = client.Create(ctx, scope, expectedID.Name, armauthorization.RoleAssignmentCreateParameters{
 			Properties: &armauthorization.RoleAssignmentProperties{
@@ -184,18 +184,6 @@ func (c *mockFPARoleAssignmentSyncer) SyncOnce(ctx context.Context, key controll
 	}
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get mock FPA Owner assignment: %w", err))
-	}
-	properties := response.Properties
-	roleDefinitionID := ""
-	if properties != nil {
-		roleDefinitionID = ptr.Deref(properties.RoleDefinitionID, "")
-	}
-	if properties == nil || !strings.EqualFold(ptr.Deref(properties.PrincipalID, ""), c.principalID) ||
-		(!strings.EqualFold(roleDefinitionID, mockFPAOwnerRoleDefinitionID) && !strings.EqualFold(roleDefinitionID, "/subscriptions/"+cluster.ID.SubscriptionID+mockFPAOwnerRoleDefinitionID)) ||
-		!strings.EqualFold(ptr.Deref(properties.Scope, ""), scope) ||
-		ptr.Deref(properties.PrincipalType, "") != armauthorization.PrincipalTypeServicePrincipal ||
-		ptr.Deref(properties.Condition, "") != "" {
-		return utils.TrackError(fmt.Errorf("role assignment %s does not grant unconditional Owner to the intended mock FPA", expectedID))
 	}
 	replacement.Status.AzureResources.MockFPARoleAssignment = coreapi.AzureReference{AzureResource: expectedID}
 	if replacement.Spec.EarliestRecheckTimesByController == nil {

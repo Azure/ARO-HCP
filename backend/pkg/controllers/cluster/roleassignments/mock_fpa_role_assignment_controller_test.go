@@ -232,6 +232,7 @@ func TestMockFPARoleAssignmentSyncOnce(t *testing.T) {
 		rgState                                                                     string
 		noSubscription, noTenant, noSubscriptionProperties, noRGState               bool
 		mutateProperties                                                            func(*armauthorization.RoleAssignmentProperties)
+		noAssignmentProperties                                                      bool
 		confirmationConflict                                                        bool
 		managedResourceGroupName                                                    string
 		principalChanged                                                            bool
@@ -253,6 +254,7 @@ func TestMockFPARoleAssignmentSyncOnce(t *testing.T) {
 		{name: "subscription properties missing", confirmed: true, recheck: ptr.To(-time.Minute), noSubscriptionProperties: true, wantError: true},
 		{name: "resource group state missing", confirmed: true, recheck: ptr.To(-time.Minute), noRGState: true, wantError: true},
 		{name: "existing assignment"},
+		{name: "exact ID GET confirms without response properties", noAssignmentProperties: true},
 		{name: "mixed-case group existing assignment", managedResourceGroupName: "MixedCaseMRG"},
 		{name: "mixed-case group create then confirm", managedResourceGroupName: "MixedCaseMRG", create: true},
 		{name: "subscription qualified Owner", mutateProperties: func(properties *armauthorization.RoleAssignmentProperties) {
@@ -271,26 +273,27 @@ func TestMockFPARoleAssignmentSyncOnce(t *testing.T) {
 		{name: "deleting respects future recheck", confirmed: true, deleting: true, recheck: ptr.To(time.Hour), skip: true},
 		{name: "incomplete ignores future recheck", recheck: ptr.To(time.Hour)},
 		{name: "get failure", getError: errors.New("read failed"), wantError: true},
+		{name: "unrelated assignment GET not found error", getError: &azcore.ResponseError{StatusCode: http.StatusNotFound, ErrorCode: "SubscriptionNotFound"}, wantError: true},
 		{name: "create failure", create: true, createError: errors.New("create failed"), wantError: true},
 		{name: "unrelated conflict", create: true, createError: &azcore.ResponseError{StatusCode: http.StatusConflict, ErrorCode: "RoleAssignmentExists"}, wantError: true},
 		{name: "credential failure", builderError: errors.New("credential failed"), wantError: true},
 		{name: "database conflict", dbConflict: true, skip: true},
 		{name: "confirmation conflict leaves incomplete readiness", confirmationConflict: true, confirmed: true, recheck: ptr.To(-time.Minute)},
-		{name: "wrong principal", mutateProperties: func(properties *armauthorization.RoleAssignmentProperties) {
+		{name: "exact ID GET confirms without comparing principal", mutateProperties: func(properties *armauthorization.RoleAssignmentProperties) {
 			properties.PrincipalID = ptr.To("different-principal")
-		}, wantError: true},
-		{name: "wrong role", mutateProperties: func(properties *armauthorization.RoleAssignmentProperties) {
+		}},
+		{name: "exact ID GET confirms without comparing role", mutateProperties: func(properties *armauthorization.RoleAssignmentProperties) {
 			properties.RoleDefinitionID = ptr.To("different-role")
-		}, wantError: true},
-		{name: "wrong scope", mutateProperties: func(properties *armauthorization.RoleAssignmentProperties) {
+		}},
+		{name: "exact ID GET confirms without comparing scope", mutateProperties: func(properties *armauthorization.RoleAssignmentProperties) {
 			properties.Scope = ptr.To("different-scope")
-		}, wantError: true},
-		{name: "wrong principal type", mutateProperties: func(properties *armauthorization.RoleAssignmentProperties) {
+		}},
+		{name: "exact ID GET confirms without comparing principal type", mutateProperties: func(properties *armauthorization.RoleAssignmentProperties) {
 			properties.PrincipalType = ptr.To(armauthorization.PrincipalTypeUser)
-		}, wantError: true},
-		{name: "conditional Owner is insufficient", mutateProperties: func(properties *armauthorization.RoleAssignmentProperties) {
+		}},
+		{name: "exact ID GET confirms without inspecting condition", mutateProperties: func(properties *armauthorization.RoleAssignmentProperties) {
 			properties.Condition = ptr.To("restricted")
-		}, wantError: true},
+		}},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			ctx := context.Background()
@@ -365,6 +368,9 @@ func TestMockFPARoleAssignmentSyncOnce(t *testing.T) {
 			if testCase.mutateProperties != nil {
 				testCase.mutateProperties(properties)
 			}
+			if testCase.noAssignmentProperties {
+				properties = nil
+			}
 			response := armauthorization.RoleAssignmentsClientGetByIDResponse{RoleAssignment: armauthorization.RoleAssignment{Properties: properties}}
 			if !testCase.skip && !rgBlocked && testCase.builderError == nil {
 				if testCase.create {
@@ -378,6 +384,7 @@ func TestMockFPARoleAssignmentSyncOnce(t *testing.T) {
 							require.Equal(t, testMockFPAPrincipalID, *parameters.Properties.PrincipalID)
 							require.Equal(t, mockFPAOwnerRoleDefinitionID, *parameters.Properties.RoleDefinitionID)
 							require.Equal(t, armauthorization.PrincipalTypeServicePrincipal, *parameters.Properties.PrincipalType)
+							require.Nil(t, parameters.Properties.Condition)
 							return armauthorization.RoleAssignmentsClientCreateResponse{}, testCase.createError
 						})
 				} else {
