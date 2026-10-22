@@ -38,8 +38,7 @@ func TestSubscriptionReadOnlyMetadataHTTP(t *testing.T) {
 	reg := prometheus.NewRegistry()
 	f := NewFrontend(testr.New(t), nil, nil, reg, reg, db, newTestFrontendInformers(t, db), nil, newNoopAuditClient(t), coreapitesting.TestLocation, true, azure.NewClusterScopedIdentitiesConfig(azure.RoleDefinitionConfigSetNameDev))
 	ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
-	ts := newHTTPServer(ctx, f, db, nil)
-	t.Cleanup(ts.Close)
+	ts := newHTTPServer(t, ctx, f, db, nil)
 
 	body := map[string]any{
 		"cosmosMetadata": map[string]any{
@@ -113,10 +112,9 @@ func TestPreflightReadOnlyParityHTTP(t *testing.T) {
 	reg := prometheus.NewRegistry()
 	f := NewFrontend(testr.New(t), nil, nil, reg, reg, noInventoryListsDB{db}, newTestFrontendInformers(t, noInventoryListsDB{db}), nil, newNoopAuditClient(t), coreapitesting.TestLocation, true, azure.NewClusterScopedIdentitiesConfig(azure.RoleDefinitionConfigSetNameDev))
 	ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
-	ts := newHTTPServer(ctx, f, db, map[string]*coreapi.Subscription{
+	ts := newHTTPServer(t, ctx, f, db, map[string]*coreapi.Subscription{
 		coreapitesting.TestSubscriptionID: newTestSubscription(coreapitesting.TestSubscriptionID, coreapi.SubscriptionStateRegistered, nil),
 	})
-	t.Cleanup(ts.Close)
 
 	for _, c := range readonlyCreateCases(t) {
 		t.Run(c.version.String()+"/"+c.operation, func(t *testing.T) {

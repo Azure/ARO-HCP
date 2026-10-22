@@ -191,7 +191,7 @@ func TestOperationStatusEndpointSurvivesReadLag(t *testing.T) {
 	subs := map[string]*coreapi.Subscription{
 		coreapitesting.TestSubscriptionID: newTestSubscription(coreapitesting.TestSubscriptionID, coreapi.SubscriptionStateRegistered, nil),
 	}
-	ts := newHTTPServer(ctx, f, mockClient, subs)
+	ts := newHTTPServer(t, ctx, f, mockClient, subs)
 
 	// Poll the exact URL shape handed back in the Azure-AsyncOperation header
 	// of a 202 response, the way the azcore ARM poller does.
