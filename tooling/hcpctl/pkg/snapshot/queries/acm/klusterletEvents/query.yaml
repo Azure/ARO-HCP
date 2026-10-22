@@ -1,0 +1,12 @@
+description: "Lists Kubernetes API events from the klusterlet namespace (`klusterlet-<cluster-id>`) for this cluster."
+database: service
+tags: [acm, events]
+params:
+- ClusterID
+- ClusterURI
+- ManagementClusterName
+- PhaseEndTime
+- PhaseStartTime
+- ServiceClusterName
+- ServiceDatabase
+notes: "Only applies to cluster resources."

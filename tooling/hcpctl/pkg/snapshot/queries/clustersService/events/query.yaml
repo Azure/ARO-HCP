@@ -1,0 +1,10 @@
+description: "Lists Kubernetes events for Clusters Service pods in the clusters-service namespace during the time window."
+database: service
+tags: [clustersService, events]
+params:
+- ClusterURI
+- ManagementClusterName
+- PhaseEndTime
+- PhaseStartTime
+- ServiceClusterName
+- ServiceDatabase

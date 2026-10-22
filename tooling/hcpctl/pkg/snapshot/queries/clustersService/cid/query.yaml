@@ -1,0 +1,14 @@
+description: "Resolves the Clusters Service internal cluster ID (cid) from the ARM resource ID."
+database: service
+tags: [clustersService, discovery]
+params:
+- ClusterResourceID
+- ClusterURI
+- FullEndTime
+- FullStartTime
+- ManagementClusterName
+- ServiceClusterName
+- ServiceDatabase
+provides:
+  ClusterID:
+    column: "cid"

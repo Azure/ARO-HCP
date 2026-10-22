@@ -29,8 +29,7 @@ run for this kind of work. Each query directory has a README with these sections
 - "What to Look For" for the expected output and how to interpret it
 - "Where to Go Next" for suggested follow-up queries
 
-Use the library to choose queries, render them with your identifiers, and run them with the
-kusto_query tool. Begin with the frontend requests for the affected resource to find the
+Use the library to choose queries and run them with the run_query tool. Begin with the frontend requests for the affected resource to find the
 mutating request(s) relevant to the reported symptom; trace the requests (along with
 asynchronous operations) to confirm the client interaction.
 

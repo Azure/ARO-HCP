@@ -1,0 +1,13 @@
+description: "Shows the full resource document state over time from the backend datadump, ordered by etag to reveal each mutation."
+database: service
+tags: [backend, state]
+params:
+- ClusterURI
+- ManagementClusterName
+- PhaseEndTime
+- PhaseStartTime
+- ResourceGroup
+- ResourceID
+- ServiceClusterName
+- ServiceDatabase
+- SubscriptionID

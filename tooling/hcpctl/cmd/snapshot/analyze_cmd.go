@@ -509,14 +509,38 @@ func (o *validatedAnalyzeOptions) run(ctx context.Context) (runErr error) {
 		MaxValidationRounds: o.maxRounds,
 		ReviewRounds:        o.reviewRounds,
 	}
+	tools := []agent.ToolDefinition{kustoTool}
 	renderTitle := ""
 	if o.dynamic {
+		libraryDir := filepath.Join(workspaceDir, queryLibraryWorkspaceDir)
+		library, err := snapshotpkg.LoadQueryLibrary()
+		if err != nil {
+			return fmt.Errorf("failed to load query library: %w", err)
+		}
+		overview, err := snapshotpkg.LibraryOverview()
+		if err != nil {
+			return err
+		}
+		librarySession := snapshotpkg.NewLibrarySession(library, snapshotpkg.LibrarySessionConfig{
+			Config: map[string]string{
+				"ClusterURI":               kustoTarget,
+				"ServiceDatabase":          o.serviceDatabase,
+				"HCPDatabase":              o.hcpDatabase,
+				"MonitoringEventsDatabase": o.monitoringEventsDatabase,
+			},
+			Execute:    agent.LibraryQueryExecutor(cachedKustoClient),
+			ResultsDir: filepath.Join(workspaceDir, queryResultsWorkspaceDir),
+			LibraryDir: libraryDir,
+		})
+		tools = append(tools, agent.NewQueryLibraryToolDefinitions(librarySession)...)
 		analyzeOpts.Dynamic = &agent.DynamicContext{
 			KustoCluster:             kustoTarget,
 			ServiceDatabase:          o.serviceDatabase,
 			HCPDatabase:              o.hcpDatabase,
 			MonitoringEventsDatabase: o.monitoringEventsDatabase,
-			QueryLibraryDir:          filepath.Join(workspaceDir, queryLibraryWorkspaceDir),
+			QueryLibraryDir:          libraryDir,
+			QueryResultsDir:          filepath.Join(workspaceDir, queryResultsWorkspaceDir),
+			LibraryOverview:          overview,
 		}
 	} else {
 		analyzeOpts.Manifest = inputs.manifestData
@@ -563,7 +587,7 @@ func (o *validatedAnalyzeOptions) run(ctx context.Context) (runErr error) {
 		IdentityPrompt:   agent.IdentityPromptFor(mode),
 		TonePrompt:       agent.TonePrompt,
 		SystemPrompt:     domainPrompt,
-		Tools:            []agent.ToolDefinition{kustoTool},
+		Tools:            tools,
 		WorkingDirectory: workspaceDir,
 		Model:            o.model,
 	})
@@ -688,6 +712,10 @@ func writeUsageReport(path string, usage agent.UsageReport) error {
 // queryLibraryWorkspaceDir is the analysis workspace subdirectory holding the
 // snapshot query library in dynamic mode.
 const queryLibraryWorkspaceDir = "queries"
+
+// queryResultsWorkspaceDir is the analysis workspace subdirectory where
+// run_query writes the output of each library query it runs.
+const queryResultsWorkspaceDir = "results"
 
 // setupAnalysisWorkspace creates a temporary directory with symlinks to the
 // data directory (when set) and source code worktrees. With withQueryLibrary,

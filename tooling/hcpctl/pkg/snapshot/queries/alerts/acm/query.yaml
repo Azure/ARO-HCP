@@ -1,0 +1,12 @@
+description: "Lists fired or active Prometheus/metric alerts during the time window for the ACM klusterlet namespace (`klusterlet-<cluster-id>`) associated with the cluster under test."
+database: monitoringEvents
+tags: [alerts, events]
+params:
+- ClusterID
+- ClusterURI
+- FullEndTime
+- FullStartTime
+- ManagementClusterName
+- MonitoringEventsDatabase
+- ServiceClusterName
+notes: "Only applies to cluster resources."

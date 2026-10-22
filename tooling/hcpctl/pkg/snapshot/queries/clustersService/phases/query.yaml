@@ -1,0 +1,13 @@
+description: "Traces lifecycle phase transitions for a cluster or node pool in Clusters Service, showing state changes over time."
+database: service
+tags: [clustersService, state]
+params:
+- ClusterURI
+- ManagementClusterName
+- PhaseEndTime
+- PhaseStartTime
+- ResourceID
+- ResourceType
+- ServiceClusterName
+- ServiceDatabase
+notes: "Only applies to cluster and node pool resources."

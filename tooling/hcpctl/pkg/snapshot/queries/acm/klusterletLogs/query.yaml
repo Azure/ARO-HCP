@@ -1,0 +1,12 @@
+description: "Lists pod lifecycle snapshots from the klusterlet namespace (`klusterlet-<cluster-id>`) via `kubernetesResourceSnapshots`."
+database: service
+tags: [acm, logs]
+params:
+- ClusterID
+- ClusterURI
+- ManagementClusterName
+- PhaseEndTime
+- PhaseStartTime
+- ServiceClusterName
+- ServiceDatabase
+notes: "Only applies to cluster resources."

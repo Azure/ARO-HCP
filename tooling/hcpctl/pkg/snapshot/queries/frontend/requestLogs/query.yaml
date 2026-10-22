@@ -1,0 +1,11 @@
+description: "Shows all frontend log entries for the given client request ID, including the request method, path, message, and any error."
+database: service
+tags: [frontend, request, logs]
+params:
+- ClientRequestID
+- ClusterURI
+- FullEndTime
+- FullStartTime
+- ManagementClusterName
+- ServiceClusterName
+- ServiceDatabase

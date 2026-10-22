@@ -17,16 +17,13 @@ package snapshot
 import (
 	"io/fs"
 	"os"
-	"path"
 	"path/filepath"
-	"reflect"
-	"regexp"
 	"strings"
 	"testing"
 )
 
 // TestWriteQueryLibraryCopiesEveryEmbeddedFile ensures the exported library
-// is a byte-for-byte copy of every embedded README, KQL template, and partial.
+// is a byte-for-byte copy of every embedded file.
 func TestWriteQueryLibraryCopiesEveryEmbeddedFile(t *testing.T) {
 	dir := t.TempDir()
 	if err := WriteQueryLibrary(dir); err != nil {
@@ -64,88 +61,9 @@ func TestWriteQueryLibraryCopiesEveryEmbeddedFile(t *testing.T) {
 	if readmes == 0 || templates == 0 {
 		t.Fatalf("expected embedded READMEs and templates, got %d READMEs and %d templates", readmes, templates)
 	}
-	if _, err := os.Stat(filepath.Join(dir, QueryLibraryIndexFile)); err != nil {
-		t.Errorf("library missing %s: %v", QueryLibraryIndexFile, err)
-	}
-}
-
-// TestQueryLibraryIndexListsEveryQuery ensures the index lists every query
-// directory, including ones not registered in allQueries.
-func TestQueryLibraryIndexListsEveryQuery(t *testing.T) {
-	index, err := QueryLibraryIndex()
-	if err != nil {
-		t.Fatalf("QueryLibraryIndex: %v", err)
-	}
-	err = fs.WalkDir(queriesFS, queriesRoot, func(p string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() || d.Name() != "query.kql" {
-			return err
+	for _, f := range []string{LibraryOverviewFile, "params.yaml", "guides/resource-identity.md", "frontend/frontendRequests/query.yaml"} {
+		if _, err := os.Stat(filepath.Join(dir, filepath.FromSlash(f))); err != nil {
+			t.Errorf("library missing %s: %v", f, err)
 		}
-		dir := path.Dir(strings.TrimPrefix(p, queriesRoot+"/"))
-		if !strings.Contains(index, "| `"+dir+"/` |") {
-			t.Errorf("index does not list %s", dir)
-		}
-		return nil
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, want := range []string{
-		"`hypershift/hostedClusterConditionTimeline/`",
-		"`conditions/hypershift/hostedClusterConditionTimeline.md`",
-		"`.HCPDatabase`",
-		"`partials/bundleMap.kql`",
-	} {
-		if !strings.Contains(index, want) {
-			t.Errorf("index missing %q", want)
-		}
-	}
-}
-
-// TestQueryTemplateVariablesDocumented ensures every queryData field is
-// documented and every variable referenced by a template is a known field.
-func TestQueryTemplateVariablesDocumented(t *testing.T) {
-	documented := make(map[string]bool, len(queryTemplateVariables))
-	for _, v := range queryTemplateVariables {
-		if v.description == "" {
-			t.Errorf("template variable %s has no description", v.name)
-		}
-		documented[v.name] = true
-	}
-	fields := make(map[string]bool)
-	typ := reflect.TypeOf(queryData{})
-	for i := 0; i < typ.NumField(); i++ {
-		name := typ.Field(i).Name
-		fields[name] = true
-		if !documented[name] {
-			t.Errorf("queryData field %s is not documented in queryTemplateVariables", name)
-		}
-	}
-	for name := range documented {
-		if !fields[name] {
-			t.Errorf("queryTemplateVariables documents unknown field %s", name)
-		}
-	}
-
-	varRef := regexp.MustCompile(`\.([A-Z][A-Za-z]*)`)
-	action := regexp.MustCompile(`\{\{.*?\}\}`)
-	err := fs.WalkDir(queriesFS, queriesRoot, func(p string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() || !strings.HasSuffix(p, ".kql") {
-			return err
-		}
-		data, err := queriesFS.ReadFile(p)
-		if err != nil {
-			return err
-		}
-		for _, a := range action.FindAllString(string(data), -1) {
-			for _, m := range varRef.FindAllStringSubmatch(a, -1) {
-				if !fields[m[1]] {
-					t.Errorf("%s references unknown template variable .%s", p, m[1])
-				}
-			}
-		}
-		return nil
-	})
-	if err != nil {
-		t.Fatal(err)
 	}
 }

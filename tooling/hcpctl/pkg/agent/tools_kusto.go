@@ -55,7 +55,7 @@ const kustoToolDescription = `Execute a KQL query against Azure Data Explorer. U
 
 // dynamicKustoToolDescription is the kusto_query tool description used in
 // dynamic mode, where no diagnostic data has been gathered in advance.
-const dynamicKustoToolDescription = `Execute a concrete KQL query against Azure Data Explorer. This is the only source of runtime evidence in this investigation: use it to discover identifiers and to run queries rendered from the query library templates (substitute every {{ ... }} placeholder first). The query runs against the ARO-HCP logging cluster. Results are returned as a markdown table. Write queries that are self-contained and tell a story — they will be rendered verbatim in the final analysis.`
+const dynamicKustoToolDescription = `Execute a concrete KQL query against Azure Data Explorer. Use it for ad-hoc queries the query library does not cover, or to run an edited version of the KQL that run_query or describe_query rendered; run library queries themselves with run_query. The query runs against the ARO-HCP logging cluster. Results are returned as a markdown table. Write queries that are self-contained and tell a story — they will be rendered verbatim in the final analysis.`
 
 // kustoToolParamSchema is the JSON Schema for the kusto_query tool's
 // input parameters, shared between all providers.

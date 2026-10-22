@@ -1,0 +1,20 @@
+description: "Extracts Kubernetes audit log entries from the management cluster for ManifestWork resources, showing who mutated them and with what result."
+database: service
+tags: [maestro, logs]
+params:
+- ClusterID
+- ClusterResourceID
+- ClusterURI
+- FullEndTime
+- FullStartTime
+- ManagementClusterName
+- PhaseEndTime
+- PhaseStartTime
+- ResourceGroup
+- ServiceClusterName
+- ServiceDatabase
+- ServiceProviderResourceType
+- SubscriptionID
+requireAnyOf:
+- [ClusterID]
+- [SubscriptionID, ResourceGroup, ClusterResourceID, ServiceProviderResourceType]

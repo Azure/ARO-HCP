@@ -1,0 +1,11 @@
+description: "Lists all frontend requests polling the async operation path, showing the status code progression over time."
+database: service
+tags: [frontend, request, logs]
+params:
+- AsyncOperationPath
+- ClusterURI
+- FullEndTime
+- FullStartTime
+- ManagementClusterName
+- ServiceClusterName
+- ServiceDatabase

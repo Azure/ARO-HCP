@@ -1,23 +1,21 @@
 ## Available Data Sources
 
-### Query library
+### Query library (via list_queries, describe_query, describe_param, run_query)
 
-The initial message gives the path of a query library in your working directory. It is
-the complete set of KQL templates and READMEs used to build diagnostic snapshots,
-organized as `<component>/<queryName>/README.md` + `query.kql`, with shared template
-partials in `partials/`. Its `INDEX.md` lists every query with the database it targets
-and the identifiers it requires, documents every template variable and where to discover
-its value, and explains how to render a template by hand.
+The query library is the complete set of KQL queries and READMEs used to build
+diagnostic snapshots. Each query declares the parameters it needs (for example
+ResourceID, ClusterID, or the time window), and some queries' results **provide**
+parameters to others (for example `clustersService/cid` provides ClusterID). The
+library tools render and run queries for you: pass parameter values to `run_query` and
+it fills in the rest from values remembered earlier in the investigation, derivations,
+and defaults. Never render a library template by hand — use `run_query`, or
+`describe_query` to see the KQL it would run.
 
-The templates are not runnable as-is: they are Go `text/template` files containing
-placeholders such as `{{ .ClusterResourceID }}` and `{{ kqlDatetime .PhaseStartTime }}`.
-Before executing one, substitute every placeholder with a concrete value, resolve
-conditional blocks, and inline partials, so that the KQL you send to the kusto_query tool
-contains no `{{` or `}}`. Then adapt the query to the investigation — tighten the time
-window, add filters, or project only the columns you need.
+Each run's README, rendered KQL and full results are also written to a file, so you can
+reread or search earlier results without running the query again.
 
-The library is a starting point, not a boundary: write new queries whenever the library
-does not cover what you need.
+The library is a starting point, not a boundary: write ad-hoc queries with the
+kusto_query tool whenever the library does not cover what you need.
 
 ### Kusto (via kusto_query tool)
 

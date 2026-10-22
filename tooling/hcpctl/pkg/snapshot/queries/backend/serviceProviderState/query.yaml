@@ -1,0 +1,14 @@
+description: "Shows the service provider resource document state over time from the backend datadump, ordered by etag."
+database: service
+tags: [backend, state]
+params:
+- ClusterResourceID
+- ClusterURI
+- ManagementClusterName
+- PhaseEndTime
+- PhaseStartTime
+- ResourceGroup
+- ServiceClusterName
+- ServiceDatabase
+- ServiceProviderResourceType
+- SubscriptionID

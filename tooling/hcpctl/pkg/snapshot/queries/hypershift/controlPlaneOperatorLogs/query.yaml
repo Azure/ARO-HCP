@@ -1,0 +1,12 @@
+description: "Aggregates control-plane-operator log messages by unique msg/error pair, showing first/last occurrence and count to highlight recurring issues."
+database: hcp
+tags: [hypershift, logs]
+params:
+- ClusterURI
+- HCPDatabase
+- HostedControlPlaneNamespace
+- ManagementClusterName
+- PhaseEndTime
+- PhaseStartTime
+- ServiceClusterName
+notes: "Only applies to cluster resources."

@@ -1,0 +1,14 @@
+description: "Extracts the full URL path of the async operation from the Azure-AsyncOperation response header for the given correlation ID."
+database: service
+tags: [frontend, request, discovery]
+params:
+- ClientRequestID
+- ClusterURI
+- FullEndTime
+- FullStartTime
+- ManagementClusterName
+- ServiceClusterName
+- ServiceDatabase
+provides:
+  AsyncOperationPath:
+    column: "asyncOperationPath"

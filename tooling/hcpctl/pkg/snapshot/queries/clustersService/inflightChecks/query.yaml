@@ -1,0 +1,12 @@
+description: "Aggregates inflight check activity for a cluster, showing each check's lifecycle (creating, enqueued, running, passed, or error) grouped by check name in chronological order."
+database: service
+tags: [clustersService, logs]
+params:
+- ClusterURI
+- ManagementClusterName
+- PhaseEndTime
+- PhaseStartTime
+- ResourceID
+- ServiceClusterName
+- ServiceDatabase
+notes: "Only applies to cluster resources."

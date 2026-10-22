@@ -1,0 +1,20 @@
+description: "Filters Maestro server container logs for entries matching the known bundle IDs, showing the server-side processing of resource bundles."
+database: service
+tags: [maestro, logs]
+params:
+- ClusterID
+- ClusterResourceID
+- ClusterURI
+- FullEndTime
+- FullStartTime
+- ManagementClusterName
+- PhaseEndTime
+- PhaseStartTime
+- ResourceGroup
+- ServiceClusterName
+- ServiceDatabase
+- ServiceProviderResourceType
+- SubscriptionID
+requireAnyOf:
+- [ClusterID]
+- [SubscriptionID, ResourceGroup, ClusterResourceID, ServiceProviderResourceType]

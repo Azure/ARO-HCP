@@ -530,7 +530,7 @@ func TestSetupAnalysisWorkspaceDynamic(t *testing.T) {
 		t.Errorf("source worktree not linked: %q %v", target, err)
 	}
 	libraryDir := filepath.Join(workspace, queryLibraryWorkspaceDir)
-	for _, want := range []string{"INDEX.md", "partials/bundleMap.kql"} {
+	for _, want := range []string{"README.md", "params.yaml", "partials/bundleMap.kql"} {
 		if _, err := os.Stat(filepath.Join(libraryDir, want)); err != nil {
 			t.Errorf("query library missing %s: %v", want, err)
 		}

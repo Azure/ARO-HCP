@@ -401,12 +401,17 @@ type DynamicContext struct {
 	MonitoringEventsDatabase string
 	// QueryLibraryDir is the path of the query library in the agent's workspace.
 	QueryLibraryDir string
+	// QueryResultsDir is the directory where run_query writes query outputs.
+	QueryResultsDir string
+	// LibraryOverview is the query library's overview (its README.md), which
+	// explains parameters and the dependencies between queries.
+	LibraryOverview string
 }
 
 // BuildDynamicInitialPrompt creates the initial user prompt for a dynamic
 // investigation, which starts from the objective alone: no snapshot has been
-// gathered, so the agent discovers every fact itself through the kusto_query
-// tool, guided by the query library.
+// gathered, so the agent discovers every fact itself through the query
+// library tools, falling back to ad-hoc kusto_query queries.
 func BuildDynamicInitialPrompt(objective string, dc DynamicContext, worktreePaths map[string]string) string {
 	var sb strings.Builder
 	sb.WriteString("I need you to investigate an ARO-HCP issue or question. ")
@@ -416,24 +421,33 @@ func BuildDynamicInitialPrompt(objective string, dc DynamicContext, worktreePath
 	sb.WriteString("## Investigation Objective\n\n")
 	sb.WriteString(objective)
 
-	sb.WriteString("\n\n## Kusto\n\n")
-	sb.WriteString("Run queries with the kusto_query tool. Always reference tables with fully qualified ")
-	sb.WriteString("`cluster('<cluster>').database('<database>').table('<table>')` expressions using these values:\n\n")
-	sb.WriteString(fmt.Sprintf("- **Cluster** (`.ClusterURI`): `%s`\n", dc.KustoCluster))
-	sb.WriteString(fmt.Sprintf("- **Service logs database** (`.ServiceDatabase`): `%s`\n", dc.ServiceDatabase))
-	sb.WriteString(fmt.Sprintf("- **Hosted control plane logs database** (`.HCPDatabase`): `%s`\n", dc.HCPDatabase))
-	sb.WriteString(fmt.Sprintf("- **Monitoring events database** (`.MonitoringEventsDatabase`): `%s`\n", dc.MonitoringEventsDatabase))
+	sb.WriteString("\n\n## Query Library\n\n")
+	sb.WriteString("The query library holds the curated KQL queries that diagnostic snapshots are built from. Use it through these tools:\n\n")
+	sb.WriteString("- `list_queries`: find queries (optionally filtered by component or topic), with the parameters each needs and whether it can run now\n")
+	sb.WriteString("- `describe_query`: a query's README (what it shows, what to look for, where to go next), its parameters, and the KQL it would run\n")
+	sb.WriteString("- `describe_param`: what a parameter is, its current value, and which queries provide and use it\n")
+	sb.WriteString("- `run_query`: render and run a query. Parameter values you pass, and values that queries discover, are remembered for later queries, ")
+	sb.WriteString("so pass each value once; a missing-parameter error names the query that provides it\n\n")
+	if dc.QueryResultsDir != "" {
+		sb.WriteString(fmt.Sprintf("`run_query` writes each query's README, KQL and complete results to `%s`; read those files when the returned rows are truncated.\n", dc.QueryResultsDir))
+	}
+	if dc.QueryLibraryDir != "" {
+		sb.WriteString(fmt.Sprintf("The library's files (templates, READMEs, `params.yaml`, `guides/`) are also available at `%s` for searching.\n", dc.QueryLibraryDir))
+	}
+	if dc.LibraryOverview != "" {
+		sb.WriteString("\nThe library's overview follows.\n\n")
+		sb.WriteString(demoteHeadings(strings.TrimSpace(dc.LibraryOverview), 2))
+		sb.WriteString("\n")
+	}
 
-	sb.WriteString("\n## Query Library\n\n")
-	sb.WriteString(fmt.Sprintf("A library of KQL query templates with READMEs is available at: `%s`\n\n", dc.QueryLibraryDir))
-	sb.WriteString("- Start with `INDEX.md`: it lists every query with its target database and required identifiers, ")
-	sb.WriteString("documents every template variable and where to discover its value, and explains how to render a template.\n")
-	sb.WriteString("- Each `<component>/<queryName>/README.md` explains what the query shows, what to look for in its output, ")
-	sb.WriteString("and which queries to run next. Search the library (for example by table, condition, or error text) to find relevant queries.\n")
-	sb.WriteString("- Each `query.kql` is a Go template. Discover the identifiers it needs with your own queries, substitute every ")
-	sb.WriteString("`{{ ... }}` placeholder with concrete values (the Kusto values above fill the cluster and database placeholders), ")
-	sb.WriteString("resolve conditionals and partials, adapt the query to the objective, and execute the resulting KQL with the kusto_query tool.\n")
-	sb.WriteString("- Never send a query that still contains `{{` or `}}`.\n")
+	sb.WriteString("\n## Kusto\n\n")
+	sb.WriteString("The library tools target the Kusto cluster and databases below. For questions the library does not cover, ")
+	sb.WriteString("run ad-hoc queries with the kusto_query tool, referencing tables with fully qualified ")
+	sb.WriteString("`cluster('<cluster>').database('<database>').table('<table>')` expressions using these values:\n\n")
+	sb.WriteString(fmt.Sprintf("- **Cluster**: `%s`\n", dc.KustoCluster))
+	sb.WriteString(fmt.Sprintf("- **Service logs database**: `%s`\n", dc.ServiceDatabase))
+	sb.WriteString(fmt.Sprintf("- **Hosted control plane logs database**: `%s`\n", dc.HCPDatabase))
+	sb.WriteString(fmt.Sprintf("- **Monitoring events database**: `%s`\n", dc.MonitoringEventsDatabase))
 
 	if len(worktreePaths) > 0 {
 		sb.WriteString("\n## Source Code Repositories\n\n")
@@ -449,11 +463,28 @@ func BuildDynamicInitialPrompt(objective string, dc DynamicContext, worktreePath
 		}
 	}
 
-	sb.WriteString("\n\nPlease begin your investigation. Start by reading the query library index, then identify the affected ")
-	sb.WriteString("resources and time window from the objective and discover the identifiers you need with the kusto_query tool.")
+	sb.WriteString("\n\nPlease begin your investigation. Identify the affected resources and time window from the objective, ")
+	sb.WriteString("then use list_queries and run_query to discover the identifiers you need and gather evidence.")
 	sb.WriteString("\n\nWhen you are done, output your analysis as a JSON object conforming to the draft chain schema.")
 
 	return sb.String()
+}
+
+// demoteHeadings shifts every markdown heading in md down by levels, so that
+// an embedded document nests under the heading that introduces it.
+func demoteHeadings(md string, levels int) string {
+	lines := strings.Split(md, "\n")
+	inFence := false
+	for i, line := range lines {
+		if strings.HasPrefix(line, "```") {
+			inFence = !inFence
+			continue
+		}
+		if !inFence && strings.HasPrefix(line, "#") {
+			lines[i] = strings.Repeat("#", levels) + line
+		}
+	}
+	return strings.Join(lines, "\n")
 }
 
 // readDir reads all .md files from a directory in the embedded filesystem,

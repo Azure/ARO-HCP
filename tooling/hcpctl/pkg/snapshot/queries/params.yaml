@@ -1,0 +1,124 @@
+# Global catalog of the template parameters used by the query library.
+#
+# Every `{{ .Name }}` referenced by a query.kql (directly or through a partial)
+# must be listed in the query's query.yaml, and is described here unless the
+# query declares it locally (with its own hint). Fields:
+#
+#   type:     string (default), int, or datetime (rendered with kqlDatetime)
+#   source:   agent (default) — supplied by the investigator, provided by a
+#             query result, derived, or defaulted; config — fixed by the CLI
+#   hint:     what the value is and how to discover it
+#   optional: render as empty when unknown (templates guard such parameters
+#             with {{ if }} blocks)
+#   default:  another parameter whose value is used when this one is unknown
+#   derive:   ways to compute the value from another parameter, tried in order;
+#             func names a Go function registered by the library loader
+#   guide:    library-relative path of a guide explaining the parameter
+#
+# Which queries provide a parameter is declared by the `provides` section of
+# each query.yaml, not here.
+params:
+  ClusterURI:
+    source: config
+    hint: Kusto cluster URI holding the ARO-HCP logs.
+  ServiceDatabase:
+    source: config
+    hint: Service log database (frontend, backend, Clusters Service, Maestro, HyperShift operator, Kubernetes events, audit logs, resource and Cosmos snapshots).
+  HCPDatabase:
+    source: config
+    hint: Hosted control plane log database (per-cluster control plane container logs).
+  MonitoringEventsDatabase:
+    source: config
+    hint: Alert database.
+  ServiceClusterName:
+    optional: true
+    hint: AKS service cluster name (the `cluster` column). Only applied together with ManagementClusterName to restrict queries to one pair of clusters; leave unset to search every cluster in the region.
+  ManagementClusterName:
+    optional: true
+    hint: AKS management cluster name (the `cluster` column). See ServiceClusterName.
+  FullStartTime:
+    type: datetime
+    hint: Start of the investigation window (RFC3339). Every query filters on its time window, so pick one that covers the behavior under investigation with some margin.
+    guide: guides/time-windows.md
+  FullEndTime:
+    type: datetime
+    hint: End of the investigation window (RFC3339).
+    guide: guides/time-windows.md
+  PhaseStartTime:
+    type: datetime
+    default: FullStartTime
+    hint: Start of a narrower window of interest inside the investigation window, used by state, condition and log queries. Defaults to FullStartTime.
+    guide: guides/time-windows.md
+  PhaseEndTime:
+    type: datetime
+    default: FullEndTime
+    hint: End of the narrower window of interest. Defaults to FullEndTime.
+    guide: guides/time-windows.md
+  ResourceID:
+    default: ClusterResourceID
+    hint: Full ARM resource ID of the resource under investigation (cluster, node pool, ...). Take it from the objective, or from the `path` column of frontend/frontendRequests. Defaults to ClusterResourceID.
+    guide: guides/resource-identity.md
+  ClusterResourceID:
+    derive:
+    - from: ResourceID
+      func: armClusterResourceID
+    hint: ARM resource ID of the HCP cluster that owns ResourceID (equal to ResourceID for a cluster). Derived from ResourceID.
+    guide: guides/resource-identity.md
+  SubscriptionID:
+    derive:
+    - from: ResourceID
+      func: armSubscriptionID
+    - from: ClusterResourceID
+      func: armSubscriptionID
+    hint: Customer subscription ID. Derived from ResourceID or ClusterResourceID.
+    guide: guides/resource-identity.md
+  ResourceGroup:
+    derive:
+    - from: ResourceID
+      func: armResourceGroup
+    - from: ClusterResourceID
+      func: armResourceGroup
+    hint: Customer resource group. Derived from ResourceID or ClusterResourceID; set it explicitly to list every request in a resource group with frontend/frontendRequests before the resource is known.
+    guide: guides/resource-identity.md
+  ResourceType:
+    derive:
+    - from: ResourceID
+      func: armResourceType
+    hint: ARM resource type of ResourceID, for example microsoft.redhatopenshift/hcpopenshiftclusters or microsoft.redhatopenshift/hcpopenshiftclusters/nodepools. Derived from ResourceID.
+    guide: guides/resource-identity.md
+  ClusterResourceName:
+    derive:
+    - from: ClusterResourceID
+      func: armName
+    hint: Name of the HCP cluster that owns ResourceID. Derived from ClusterResourceID.
+    guide: guides/resource-identity.md
+  ServiceProviderResourceType:
+    derive:
+    - from: ResourceType
+      func: serviceProviderResourceType
+    hint: Cosmos service provider document type for ResourceType (serviceproviderclusters for clusters, serviceprovidernodepools for node pools). Derived from ResourceType.
+    guide: guides/resource-identity.md
+  InternalID:
+    hint: Clusters Service internal ID path of the resource, as stored in its Cosmos document.
+    guide: guides/resource-identity.md
+  ClusterID:
+    hint: Clusters Service cluster ID (`cid`) of the HCP cluster. Also appears in management cluster namespace names (ocm-<env>-<cid>).
+    guide: guides/resource-identity.md
+  HostedClusterNamespace:
+    hint: Management cluster namespace holding the HostedCluster (ocm-<env>-<cid>).
+    guide: guides/resource-identity.md
+  HostedControlPlaneNamespace:
+    hint: Management cluster namespace holding the hosted control plane (ocm-<env>-<cid>-<cluster name>).
+    guide: guides/resource-identity.md
+  CorrelationID:
+    hint: ARM correlation request ID of one request. Take it from the objective, or from the `correlation_id` column of frontend/frontendRequests.
+    guide: guides/requests.md
+  ClientRequestID:
+    hint: ARM client request ID of one request (from the `client_request_id` column of frontend/frontendRequests).
+    guide: guides/requests.md
+  AsyncOperationId:
+    hint: Async operation ID returned by a mutating request.
+    guide: guides/requests.md
+  AsyncOperationPath:
+    hint: Async operation status path returned by a mutating request; ARM polls it until the operation completes.
+    guide: guides/requests.md

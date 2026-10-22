@@ -1,0 +1,15 @@
+description: "Extracts a point-in-time snapshot of HCP OpenShift controller conditions from the *last* datadump emission within the current phase's time window."
+database: service
+tags: [backend, conditions]
+params:
+- ClusterResourceID
+- ClusterURI
+- ManagementClusterName
+- PhaseEndTime
+- PhaseStartTime
+- ResourceGroup
+- ResourceType
+- ServiceClusterName
+- ServiceDatabase
+- SubscriptionID
+notes: "Only returns rows when the resource has hcpopenshiftcontrollers child documents in cosmosResourceSnapshots (see backend/cosmosResourceDiscovery)."

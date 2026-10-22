@@ -1,0 +1,10 @@
+description: "Lists fired or active Prometheus/metric alerts during the time window that do not belong to a known service namespace or a per-cluster namespace (hosted control plane, klusterlet)."
+database: monitoringEvents
+tags: [alerts, context]
+params:
+- ClusterURI
+- FullEndTime
+- FullStartTime
+- ManagementClusterName
+- MonitoringEventsDatabase
+- ServiceClusterName

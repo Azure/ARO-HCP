@@ -1,0 +1,10 @@
+description: "Lists Kubernetes events for frontend pods in the aro-hcp namespace during the time window."
+database: service
+tags: [frontend, events]
+params:
+- ClusterURI
+- ManagementClusterName
+- PhaseEndTime
+- PhaseStartTime
+- ServiceClusterName
+- ServiceDatabase

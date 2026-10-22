@@ -46,8 +46,10 @@ The tool will be available on SAW devices similar to how the `oc` utility is acc
 investigates a free-form objective without a gathered snapshot. It takes no
 data directory; the agent queries the Kusto cluster selected by `--kusto` and
 `--region` (databases overridable with `--service-database`, `--hcp-database`,
-and `--monitoring-events-database`), guided by the snapshot query library that
-is written into its workspace. `--output` is required. `--intent`,
+and `--monitoring-events-database`) by running the snapshot query library's
+queries through the `list_queries`, `describe_query`, `describe_param`, and
+`run_query` tools, which fill in parameters from a per-investigation session,
+and by ad-hoc `kusto_query` queries. `--output` is required. `--intent`,
 `--intent-file`, `--dynamic`, and `--dynamic-file` are mutually exclusive. See
 [docs/snapshot-analysis.md](../../docs/snapshot-analysis.md#dynamic-investigations-no-snapshot).
 

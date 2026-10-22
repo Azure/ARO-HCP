@@ -1,0 +1,12 @@
+description: "Lists fired or active Prometheus/metric alerts during the time window for the hosted control plane namespace of the cluster under test."
+database: monitoringEvents
+tags: [alerts, events]
+params:
+- ClusterURI
+- FullEndTime
+- FullStartTime
+- HostedControlPlaneNamespace
+- ManagementClusterName
+- MonitoringEventsDatabase
+- ServiceClusterName
+notes: "Only applies to cluster resources."

@@ -1,0 +1,16 @@
+description: "Resolves the Clusters Service internal ID for a resource from the backend datadump, linking the ARM resource to its CS representation."
+database: service
+tags: [backend, discovery]
+params:
+- ClusterURI
+- FullEndTime
+- FullStartTime
+- ManagementClusterName
+- ResourceGroup
+- ResourceID
+- ServiceClusterName
+- ServiceDatabase
+- SubscriptionID
+provides:
+  InternalID:
+    column: "internalId"

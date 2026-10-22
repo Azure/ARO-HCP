@@ -1,0 +1,13 @@
+description: "Aggregates all Clusters Service log messages for the resource by unique message, showing first/last occurrence and count to highlight recurring activity or errors."
+database: service
+tags: [clustersService, logs]
+params:
+- ClusterURI
+- ManagementClusterName
+- PhaseEndTime
+- PhaseStartTime
+- ResourceID
+- ResourceType
+- ServiceClusterName
+- ServiceDatabase
+notes: "Only applies to cluster and node pool resources."

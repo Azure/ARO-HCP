@@ -1,0 +1,10 @@
+description: "Lists fired or active Prometheus/metric alerts during the time window for ARO-HCP service namespaces (clusters-service, maestro, hypershift, fleet, etc.)."
+database: monitoringEvents
+tags: [alerts, context]
+params:
+- ClusterURI
+- FullEndTime
+- FullStartTime
+- ManagementClusterName
+- MonitoringEventsDatabase
+- ServiceClusterName

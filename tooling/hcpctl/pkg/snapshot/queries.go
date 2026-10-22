@@ -875,30 +875,41 @@ var templateFuncMap = template.FuncMap{
 	"toLower":     strings.ToLower,
 }
 
-// renderQuery reads and renders an embedded KQL template with the given data.
-// Shared partial templates from queries/_partials/ are automatically available.
-func renderQuery(templatePath string, data queryData) (string, error) {
+// parseQueryTemplate reads and parses an embedded KQL template together with
+// the shared partial templates from queries/partials/, so queries can use
+// {{ template "bundleMap" . }} and similar.
+func parseQueryTemplate(templatePath string) (*template.Template, error) {
 	tmplBytes, err := queriesFS.ReadFile(templatePath)
 	if err != nil {
-		return "", fmt.Errorf("failed to read embedded query %s: %w", templatePath, err)
+		return nil, fmt.Errorf("failed to read embedded query %s: %w", templatePath, err)
 	}
 	tmpl, err := template.New(templatePath).Funcs(templateFuncMap).Parse(string(tmplBytes))
 	if err != nil {
-		return "", fmt.Errorf("failed to parse query template %s: %w", templatePath, err)
+		return nil, fmt.Errorf("failed to parse query template %s: %w", templatePath, err)
 	}
-	// Parse shared partial templates so queries can use {{ template "bundleMap" . }} etc.
 	partials, err := fs.Glob(queriesFS, "queries/partials/*.kql")
 	if err != nil {
-		return "", fmt.Errorf("failed to glob partial templates: %w", err)
+		return nil, fmt.Errorf("failed to glob partial templates: %w", err)
 	}
 	for _, p := range partials {
 		pBytes, err := queriesFS.ReadFile(p)
 		if err != nil {
-			return "", fmt.Errorf("failed to read partial %s: %w", p, err)
+			return nil, fmt.Errorf("failed to read partial %s: %w", p, err)
 		}
 		if _, err := tmpl.Parse(string(pBytes)); err != nil {
-			return "", fmt.Errorf("failed to parse partial %s: %w", p, err)
+			return nil, fmt.Errorf("failed to parse partial %s: %w", p, err)
 		}
+	}
+	return tmpl, nil
+}
+
+// renderQuery reads and renders an embedded KQL template with the given data,
+// which is either a queryData or a map of template variable names to values.
+// Shared partial templates from queries/partials/ are automatically available.
+func renderQuery(templatePath string, data any) (string, error) {
+	tmpl, err := parseQueryTemplate(templatePath)
+	if err != nil {
+		return "", err
 	}
 	var buf bytes.Buffer
 	if err := tmpl.Execute(&buf, data); err != nil {

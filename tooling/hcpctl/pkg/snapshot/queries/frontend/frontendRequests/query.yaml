@@ -1,0 +1,12 @@
+description: "Summarizes all ARM requests in the resource group, grouped by correlation ID, method, path, and status code."
+database: service
+tags: [frontend, context]
+params:
+- ClusterURI
+- FullEndTime
+- FullStartTime
+- ManagementClusterName
+- ResourceGroup
+- ServiceClusterName
+- ServiceDatabase
+notes: "Lists every ARM request against the resource group with its correlation ID, client request ID, method, path (the ARM resource ID) and status. It provides no parameter automatically, because it returns many requests: pick the request or resource of interest and pass its `path` as ResourceID or its `correlation_id` as CorrelationID."

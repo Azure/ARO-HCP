@@ -1,0 +1,12 @@
+description: "Extracts a point-in-time snapshot of ManagedCluster conditions from the most recent `kubernetesResourceSnapshots` entry within the current phase's time window."
+database: service
+tags: [acm, conditions]
+params:
+- ClusterID
+- ClusterURI
+- ManagementClusterName
+- PhaseEndTime
+- PhaseStartTime
+- ServiceClusterName
+- ServiceDatabase
+notes: "Only applies to cluster resources."

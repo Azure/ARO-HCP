@@ -184,7 +184,8 @@ func TestDynamicPromptHasNoSnapshotAssumptions(t *testing.T) {
 		"## Discovery",
 		"## KQL Quality Rules",
 		"## Epistemological Rules",
-		"INDEX.md",
+		"run_query",
+		"list_queries",
 		"kusto_query",
 	} {
 		if !strings.Contains(dynamicBody, want) {
@@ -227,6 +228,8 @@ func TestBuildDynamicInitialPrompt(t *testing.T) {
 		HCPDatabase:              "HcpDB",
 		MonitoringEventsDatabase: "EventsDB",
 		QueryLibraryDir:          "/workspace/queries",
+		QueryResultsDir:          "/workspace/results",
+		LibraryOverview:          "# Query library\n\nOverview body.\n\n## Parameters\n\n```kql\n# not a heading\n```\n",
 	}, map[string]string{"maestro": "/src/maestro", "ARO-HCP": "/src/ARO-HCP"})
 
 	for _, want := range []string{
@@ -234,7 +237,11 @@ func TestBuildDynamicInitialPrompt(t *testing.T) {
 		"https://adx.eastus.kusto.windows.net",
 		"SvcDB", "HcpDB", "EventsDB",
 		"/workspace/queries",
-		"INDEX.md",
+		"/workspace/results",
+		"list_queries", "describe_query", "describe_param", "run_query",
+		"### Query library\n\nOverview body.",
+		"#### Parameters",
+		"\n# not a heading\n",
 		"README",
 		"kusto_query",
 		"cluster(",

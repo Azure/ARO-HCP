@@ -1,0 +1,16 @@
+description: "Extracts NodePool condition transitions from the management cluster content datadump, showing type, status, reason, and message over time."
+database: service
+tags: [hypershift, conditions]
+params:
+- ClusterURI
+- FullEndTime
+- FullStartTime
+- ManagementClusterName
+- PhaseEndTime
+- PhaseStartTime
+- ResourceGroup
+- ResourceID
+- ServiceClusterName
+- ServiceDatabase
+- SubscriptionID
+notes: "Only applies to node pool resources."
