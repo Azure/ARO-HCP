@@ -16,10 +16,8 @@ package operations
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
-	"slices"
 	"strings"
 	"time"
 
@@ -122,8 +120,7 @@ func (c *operationClusterUpdate) ShouldProcess(ctx context.Context, operation *c
 }
 
 func (c *operationClusterUpdate) shouldReconcileOperationAndResourceStatus(cluster *coreapi.Cluster) bool {
-	return cluster.ServiceProviderProperties.DeletionTimestamp == nil &&
-		cluster.ServiceProviderProperties.ClusterServiceID != nil
+	return cluster.ServiceProviderProperties.DeletionTimestamp == nil
 }
 
 func (c *operationClusterUpdate) SynchronizeOperation(ctx context.Context, key controllerutils.OperationKey) error {
@@ -160,6 +157,7 @@ func (c *operationClusterUpdate) SynchronizeOperation(ctx context.Context, key c
 	}
 
 	operationalState, err := c.determineOperationState(ctx, operation, existingCluster)
+	operationalState, err = operationbase.ApplyOperationDeadline(operationalState, err, existingCluster.ServiceProviderProperties.UpdateOperationCompletionDeadline, c.clock.Now(), "cluster update did not complete before the deadline")
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -169,28 +167,6 @@ func (c *operationClusterUpdate) SynchronizeOperation(ctx context.Context, key c
 		persistErr = &coreapi.CloudErrorBody{
 			Code:    operationalState.CloudErrorCode,
 			Message: operationalState.Message,
-		}
-	}
-
-	if !operationalState.ProvisioningState.IsTerminal() &&
-		existingCluster.ServiceProviderProperties.UpdateOperationCompletionDeadline != nil &&
-		c.clock.Now().After(existingCluster.ServiceProviderProperties.UpdateOperationCompletionDeadline.Time) {
-
-		message := operationbase.DeadlineExceededMessage(
-			"cluster update did not complete before the deadline",
-			operationalState.Message,
-		)
-		logger.Info("update operation deadline exceeded, marking as failed",
-			"deadline", existingCluster.ServiceProviderProperties.UpdateOperationCompletionDeadline.Time,
-			"message", message)
-		operationalState.ProvisioningState = coreapi.ProvisioningStateFailed
-		code := operationalState.CloudErrorCode
-		if code == coreapi.CloudErrorCodeInternalServerError {
-			code = coreapi.CloudErrorCodeDeadlineExceeded
-		}
-		persistErr = &coreapi.CloudErrorBody{
-			Code:    code,
-			Message: message,
 		}
 	}
 
@@ -210,67 +186,50 @@ func (c *operationClusterUpdate) determineOperationState(ctx context.Context, op
 	logger := utils.LoggerFromContext(ctx)
 
 	clusterCSID := existingCluster.ServiceProviderProperties.ClusterServiceID
+	errs := []error{}
+	operationStates := []*operationbase.OperationState{}
 	csCtx, cancel := context.WithTimeout(ctx, controllerutils.CSReadTimeout)
 	defer cancel()
 
-	existingCSCluster, err := c.clusterServiceClient.GetCluster(csCtx, *clusterCSID)
-	if err != nil {
-		return nil, utils.TrackError(fmt.Errorf("failed to get cluster from cluster service: %w", err))
-	}
-
 	existingServiceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Name)
 	if err != nil {
-		return nil, utils.TrackError(fmt.Errorf("failed to get service provider cluster from cache: %w", err))
-	}
-
-	errs := []error{}
-	operationStates := []*operationbase.OperationState{}
-
-	operationStates = append(operationStates, c.clusterValidation(operation, existingServiceProviderCluster).WithSource("clusterValidation"))
-	if operationState, err := c.desiredVersionResolutionOperationState(ctx, operation, existingCluster, existingServiceProviderCluster); err != nil {
-		errs = append(errs, utils.TrackError(err))
+		errs = append(errs, utils.TrackError(fmt.Errorf("failed to get service provider cluster from cache: %w", err)))
 	} else {
-		operationStates = append(operationStates, operationState.WithSource("controlPlaneDesiredVersionResolution"))
+		operationStates = append(operationStates, c.clusterValidation(operation, existingServiceProviderCluster).WithSource("clusterValidation"))
+		if operationState, err := c.desiredVersionResolutionOperationState(ctx, operation, existingCluster, existingServiceProviderCluster); err != nil {
+			errs = append(errs, utils.TrackError(err))
+		} else {
+			operationStates = append(operationStates, operationState.WithSource("controlPlaneDesiredVersionResolution"))
+		}
+		if operationState, hsErr := c.hypershiftHostedClusterOperationState(ctx, existingCluster, existingServiceProviderCluster); hsErr != nil {
+			errs = append(errs, utils.TrackError(hsErr))
+		} else {
+			operationStates = append(operationStates, operationState.WithSource("hypershiftHostedCluster"))
+		}
+		if operationState, autoscalerErr := c.hypershiftControlPlaneClusterAutoscalerState(ctx, existingCluster, existingServiceProviderCluster); autoscalerErr != nil {
+			errs = append(errs, utils.TrackError(autoscalerErr))
+		} else {
+			operationStates = append(operationStates, operationState.WithSource("hypershiftControlPlaneClusterAutoscaler"))
+		}
 	}
-	if operationState, csErr := c.clusterServiceClusterStatusOperationState(csCtx, operation, existingCSCluster.Status(), *clusterCSID); csErr != nil {
-		errs = append(errs, utils.TrackError(csErr))
+	if clusterCSID == nil || clusterCSID.String() == "" {
+		operationStates = append(operationStates, operationbase.NewOperationState(coreapi.ProvisioningStateAccepted, "Waiting for Cluster Service cluster creation").WithSource("clusterService"))
+	} else if existingCSCluster, err := c.clusterServiceClient.GetCluster(csCtx, *clusterCSID); err != nil {
+		errs = append(errs, utils.TrackError(fmt.Errorf("failed to get cluster from cluster service: %w", err)))
 	} else {
-		operationStates = append(operationStates, operationState.WithSource("clusterServiceClusterStatus"))
-	}
-	if operationState, csErr := c.clusterServiceClusterSpecOperationState(existingCluster, existingCSCluster); csErr != nil {
-		errs = append(errs, utils.TrackError(csErr))
-	} else {
-		operationStates = append(operationStates, operationState.WithSource("clusterServiceClusterSpec"))
-	}
-
-	if operationState, hsErr := c.hypershiftHostedClusterOperationState(ctx, existingCluster, existingServiceProviderCluster); hsErr != nil {
-		errs = append(errs, utils.TrackError(hsErr))
-	} else {
-		operationStates = append(operationStates, operationState.WithSource("hypershiftHostedCluster"))
-	}
-	if operationState, autoscalerErr := c.hypershiftControlPlaneClusterAutoscalerState(ctx, existingCluster, existingServiceProviderCluster); autoscalerErr != nil {
-		errs = append(errs, utils.TrackError(autoscalerErr))
-	} else {
-		operationStates = append(operationStates, operationState.WithSource("hypershiftControlPlaneClusterAutoscaler"))
-	}
-
-	if err := errors.Join(errs...); err != nil {
-		return nil, err
-	}
-	if len(operationStates) == 0 {
-		return nil, errors.New("no operation states")
-	}
-	slices.SortStableFunc(operationStates, operationbase.CompareOperationState)
-	if operationStates[0] == nil {
-		return nil, errors.New("nil operation state")
+		if state, err := c.clusterServiceClusterStatusOperationState(csCtx, operation, existingCSCluster.Status(), *clusterCSID); err != nil {
+			errs = append(errs, utils.TrackError(err))
+		} else {
+			operationStates = append(operationStates, state.WithSource("clusterServiceClusterStatus"))
+		}
+		if state, err := c.clusterServiceClusterSpecOperationState(existingCluster, existingCSCluster); err != nil {
+			errs = append(errs, utils.TrackError(err))
+		} else {
+			operationStates = append(operationStates, state.WithSource("clusterServiceClusterSpec"))
+		}
 	}
 	logger.Info("determined cluster update operation status", "operationStates", operationStates)
-	picked, err := operationbase.PickWorstOperationState(operationStates)
-	if err != nil {
-		return nil, utils.TrackError(err)
-	}
-	logger.Info("picked cluster update operation status", "picked", picked)
-	return picked, nil
+	return operationbase.SummarizeOperationStates(operationStates, errs...)
 }
 
 func (c *operationClusterUpdate) desiredVersionResolutionOperationState(_ context.Context, operation *coreapi.Operation, existingCluster *coreapi.Cluster, spc *coreapi.ServiceProviderCluster) (*operationbase.OperationState, error) {

@@ -589,11 +589,13 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 			},
 		},
 		{
-			name: "shouldReconcile gate not passed when ClusterServiceID is nil",
+			name: "missing ClusterServiceID waits for creation",
 			existingCluster: newClusterWithCustomerVersion("4.19", func(cluster *coreapi.Cluster) {
 				cluster.ServiceProviderProperties.ClusterServiceID = nil
 			}),
-			existingOperation: newOperationAccepted(),
+			existingServiceProviderCluster: newServiceProviderClusterWithSpecControlPlaneVersion("4.19"),
+			cachedHostedClusterReadDesire:  newPassingCachedHostedClusterReadDesire(),
+			existingOperation:              newOperationAccepted(),
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)

@@ -17,7 +17,11 @@ package operationutils
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
+	"time"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 )
@@ -144,6 +148,47 @@ func DeadlineExceededMessage(deadlineSentence, remainingChecks string) string {
 		return deadlineSentence
 	}
 	return deadlineSentence + "; " + remainingChecks
+}
+
+// SummarizeOperationStates retains successfully observed state even when another
+// observation failed. Callers may use those diagnostics if monitoring expires.
+func SummarizeOperationStates(states []*OperationState, observationErrors ...error) (*OperationState, error) {
+	observationErr := errors.Join(observationErrors...)
+	if len(states) == 0 {
+		return nil, errors.Join(observationErr, errors.New("no operation states"))
+	}
+	slices.SortStableFunc(states, CompareOperationState)
+	if states[0] == nil {
+		return nil, errors.Join(observationErr, errors.New("nil operation state"))
+	}
+	state, err := PickWorstOperationState(states)
+	return state, errors.Join(observationErr, err)
+}
+
+// ApplyOperationDeadline uses the observations already collected for normal
+// monitoring. Fully observed terminal outcomes win; observation errors remain
+// retryable before expiry but cannot prevent a timeout afterwards.
+func ApplyOperationDeadline(state *OperationState, observationErr error, deadline *metav1.Time, now time.Time, message string) (*OperationState, error) {
+	if observationErr == nil && state != nil && state.ProvisioningState.IsTerminal() {
+		return state, nil
+	}
+	if deadline == nil || !now.After(deadline.Time) {
+		return state, observationErr
+	}
+	detail := ""
+	code := coreapi.CloudErrorCodeDeadlineExceeded
+	if state != nil {
+		detail = state.Message
+		if state.CloudErrorCode != "" && state.CloudErrorCode != coreapi.CloudErrorCodeInternalServerError {
+			code = state.CloudErrorCode
+		}
+	}
+	if observationErr != nil {
+		// Reconcile errors can contain internal implementation details. Do not
+		// expose their raw text in the ARM error.
+		detail = DeadlineExceededMessage("Some operation states could not be determined", detail)
+	}
+	return NewFailedOperationState(code, DeadlineExceededMessage(message, detail), nil), nil
 }
 
 // PickWorstOperationState expects states pre-sorted and returns the worst state with merged messages.
