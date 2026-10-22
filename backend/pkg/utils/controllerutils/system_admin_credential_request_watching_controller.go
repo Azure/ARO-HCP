@@ -26,7 +26,9 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 )
 
@@ -41,7 +43,8 @@ type systemAdminCredentialRequestWatchingController struct {
 	name   string
 	syncer SystemAdminCredentialRequestSyncer
 
-	resourcesDBClient corecosmosstorage.ResourcesDBClient
+	resourcesDBClient       corecosmosstorage.ResourcesDBClient
+	credentialRequestLister corelisters.SystemAdminCredentialRequestLister
 }
 
 // NewSystemAdminCredentialRequestWatchingController creates a controller that fires on
@@ -72,7 +75,8 @@ func NewSystemAdminCredentialRequestWatchingController(
 
 	// this happens when unit tests don't want triggering. This isn't beautiful, but fails to do nothing which is pretty safe.
 	if backendInformers != nil {
-		credentialRequestInformer, _ := backendInformers.SystemAdminCredentialRequests()
+		credentialRequestInformer, credentialRequestLister := backendInformers.SystemAdminCredentialRequests()
+		systemAdminCredentialRequestSyncer.credentialRequestLister = credentialRequestLister
 		err := controller.QueueForInformers(resyncDuration, credentialRequestInformer)
 		if err != nil {
 			panic(err) // coding error
@@ -97,6 +101,15 @@ func NewSystemAdminCredentialRequestWatchingController(
 }
 
 func (c *systemAdminCredentialRequestWatchingController) SyncOnce(ctx context.Context, key SystemAdminCredentialRequestKey) error {
+	// Controller status belongs to an existing parent resource.
+	_, err := c.credentialRequestLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.CredentialName)
+	if cosmosstorageutils.IsNotFoundError(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+
 	defer utilruntime.HandleCrash(DegradedControllerPanicHandler(
 		ctx,
 		c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).SystemAdminCredentialRequests(key.HCPClusterName).Controllers(key.CredentialName),

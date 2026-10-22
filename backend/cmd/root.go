@@ -35,6 +35,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/backups"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	internalazure "github.com/Azure/ARO-HCP/internal/azure"
+	"github.com/Azure/ARO-HCP/internal/cincinnati"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosclient"
 	"github.com/Azure/ARO-HCP/internal/signal"
 	"github.com/Azure/ARO-HCP/internal/tracing"
@@ -544,6 +545,7 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 		LeaderElectionLock:                 leaderElectionLock,
 		StorageFactory:                     storageFactory,
 		ClustersServiceClient:              clustersServiceClient,
+		VersionProfileSource:               cincinnati.NewGraphDataClient(),
 		MetricsServerListenAddress:         f.MetricsServerListenAddress,
 		HealthzServerListenAddress:         f.HealthzServerListenAddress,
 		TracerProviderShutdownFunc:         otelShutdown,

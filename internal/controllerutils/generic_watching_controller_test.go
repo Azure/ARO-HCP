@@ -187,6 +187,55 @@ func TestInterestingResourcesInformerEvents(t *testing.T) {
 	}
 }
 
+func TestQueueForInformersDelete(t *testing.T) {
+	clusterID := metadataapi.Must(azcorearm.ParseResourceID(testClusterARMID))
+	npID := metadataapi.Must(azcorearm.ParseResourceID(testNodePoolARMID))
+	cluster := &coreapi.CosmosMetadata{ResourceID: clusterID}
+	nodePool := &coreapi.CosmosMetadata{ResourceID: npID}
+	tests := []struct {
+		name     string
+		obj      any
+		interest *azcorearm.ResourceID
+		maxDepth int
+		want     bool
+	}{
+		{name: "normal delete bypasses cooldown", obj: cluster, want: true},
+		{name: "tombstone bypasses cooldown", obj: cache.DeletedFinalStateUnknown{Obj: cluster}, want: true},
+		{name: "accepted child maps to ancestor", obj: nodePool, interest: npID, maxDepth: 1, want: true},
+		{name: "accepted tombstone maps to ancestor", obj: cache.DeletedFinalStateUnknown{Obj: nodePool}, interest: npID, maxDepth: 1, want: true},
+		{name: "parent interest does not accept child", obj: nodePool, interest: clusterID, maxDepth: 1},
+		{name: "different name is rejected", obj: nodePool, interest: metadataapi.Must(azcorearm.ParseResourceID(testClusterARMID + "/nodePools/np2")), maxDepth: 1},
+		{name: "accepted child respects depth limit", obj: nodePool, interest: npID},
+		{name: "unlimited depth", obj: nodePool, maxDepth: -1, want: true},
+		{name: "invalid object", obj: "not a Cosmos document"},
+		{name: "invalid tombstone", obj: cache.DeletedFinalStateUnknown{Obj: "not a Cosmos document"}},
+		{name: "nil object"},
+		{name: "nil metadata", obj: (*coreapi.CosmosMetadata)(nil)},
+		{name: "missing resource ID", obj: &coreapi.CosmosMetadata{}},
+		{name: "tombstone missing resource ID", obj: cache.DeletedFinalStateUnknown{Obj: &coreapi.CosmosMetadata{}}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c, _, _ := newTestWatchingController()
+			t.Cleanup(c.queue.ShutDown)
+			c.syncer.(*stringSyncer).cooldown = neverAllowCooldown{}
+			if tt.interest != nil {
+				c.AddInterestingResource(tt.interest.ResourceType, tt.interest.Name)
+			}
+			n := &capturingNotifier{}
+			require.NoError(t, c.QueueForInformersWithMaxDepth(time.Minute, tt.maxDepth, n))
+			require.NotNil(t, n.deleteFunc)
+			require.NotPanics(t, func() { n.deleteFunc(tt.obj) })
+			keys := popAllQueue(c)
+			if tt.want {
+				require.Equal(t, []string{clusterID.String()}, keys, "accepted deletes must enqueue despite cooldown")
+			} else {
+				require.Empty(t, keys, "invalid, uninteresting or out-of-scope deletes must not enqueue")
+			}
+		})
+	}
+}
+
 func TestEnqueueResourceIDAddWithMaxDepth(t *testing.T) {
 	clusterID := metadataapi.Must(azcorearm.ParseResourceID(testClusterARMID))
 	npID := metadataapi.Must(azcorearm.ParseResourceID(testNodePoolARMID))
@@ -318,6 +367,7 @@ func TestEnqueueCosmosWithMaxDepth(t *testing.T) {
 type capturingNotifier struct {
 	addFunc    func(any)
 	updateFunc func(any, any)
+	deleteFunc func(any)
 }
 
 func (n *capturingNotifier) AddEventHandlerWithOptions(handler cache.ResourceEventHandler, opts cache.HandlerOptions) (cache.ResourceEventHandlerRegistration, error) {
@@ -327,6 +377,7 @@ func (n *capturingNotifier) AddEventHandlerWithOptions(handler cache.ResourceEve
 	}
 	n.addFunc = f.AddFunc
 	n.updateFunc = f.UpdateFunc
+	n.deleteFunc = f.DeleteFunc
 	return nil, nil
 }
 

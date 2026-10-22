@@ -60,6 +60,7 @@ func (b *Backend) newControllerContext(ctx context.Context) ControllerContext {
 		CloudEnvironment:                  b.options.CloudEnvironment,
 		ClusterScopedIdentitiesConfig:     b.options.ClusterScopedIdentitiesConfig,
 		ClustersServiceClient:             b.options.ClustersServiceClient,
+		VersionProfileSource:              b.options.VersionProfileSource,
 		FPAClientBuilder:                  b.options.FPAClientBuilder,
 		FPAMIDataplaneClientBuilder:       b.options.FPAMIDataplaneClientBuilder,
 		HasRealFPA:                        b.options.HasRealFPA,

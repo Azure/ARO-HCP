@@ -79,6 +79,8 @@ type interestBackendInformers struct {
 	clusters      corelisters.ClusterLister
 	nodePools     corelisters.NodePoolLister
 	externalAuths corelisters.ExternalAuthLister
+	requests      corelisters.SystemAdminCredentialRequestLister
+	revocations   corelisters.SystemAdminCredentialRevocationLister
 }
 
 func (i *interestBackendInformers) Clusters() (cache.SharedIndexInformer, corelisters.ClusterLister) {
@@ -106,10 +108,10 @@ func (i *interestBackendInformers) ServiceProviderExternalAuths() (cache.SharedI
 	return i.sources["spc"], nil
 }
 func (i *interestBackendInformers) SystemAdminCredentialRequests() (cache.SharedIndexInformer, corelisters.SystemAdminCredentialRequestLister) {
-	return i.sources["request"], nil
+	return i.sources["request"], i.requests
 }
 func (i *interestBackendInformers) SystemAdminCredentialRevocations() (cache.SharedIndexInformer, corelisters.SystemAdminCredentialRevocationLister) {
-	return i.sources["revocation"], nil
+	return i.sources["revocation"], i.revocations
 }
 
 type interestDesireInformers struct {

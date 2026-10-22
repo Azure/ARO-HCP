@@ -1245,6 +1245,33 @@ func instantiateControlPlaneVersionRolloutSeedingController(controllerContext co
 	), nil
 }
 
+func registerControlPlaneVersionCincinnatiSeedingController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{
+		Workers:     1,
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateControlPlaneVersionCincinnatiSeedingController, false),
+	}
+}
+
+func instantiateControlPlaneVersionCincinnatiSeedingController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	return rollout.NewControlPlaneVersionCincinnatiSeedingController(
+		controllerContext.FleetDBClient, controllerContext.FleetInformers,
+		controllerContext.VersionProfileSource,
+	), nil
+}
+
+func registerControlPlaneVersionRolloutRetirementController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{
+		Workers:     1,
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateControlPlaneVersionRolloutRetirementController, false),
+	}
+}
+
+func instantiateControlPlaneVersionRolloutRetirementController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	return rollout.NewControlPlaneVersionRolloutRetirementController(
+		controllerContext.FleetDBClient, controllerContext.FleetInformers,
+	), nil
+}
+
 func Register(registry map[string]controllerconfig.ControllerRegistration) {
 	registry[strings.ToLower(rollout.BestVersionSelectionControllerName)] = registerBestVersionSelectionController()
 	registry[strings.ToLower(rollout.StatusCollectorControllerName)] = registerStatusCollectorController()
@@ -1253,6 +1280,8 @@ func Register(registry map[string]controllerconfig.ControllerRegistration) {
 	registry[strings.ToLower(rollout.ZStreamProgressiveDesiredVersionRolloutControllerName)] = registerZStreamProgressiveDesiredVersionRolloutController()
 	registry[strings.ToLower(rollout.ForcedClusterDesiredVersionControllerName)] = registerForcedClusterDesiredVersionController()
 	registry[strings.ToLower(rollout.RolloutSeedingControllerName)] = registerControlPlaneVersionRolloutSeedingController()
+	registry[strings.ToLower(rollout.CincinnatiSeedingControllerName)] = registerControlPlaneVersionCincinnatiSeedingController()
+	registry[strings.ToLower(rollout.RolloutRetirementControllerName)] = registerControlPlaneVersionRolloutRetirementController()
 	registry[strings.ToLower(credentialrequestoperations.SystemAdminCredentialDispatchRequestCredentialControllerName)] = registerAdminCredentialsDispatchRequestCredentialController()
 	registry[strings.ToLower(credentialrevocationoperations.SystemAdminCredentialDispatchRevokeCredentialsControllerName)] = registerAdminCredentialsDispatchRevokeCredentialsController()
 	registry[strings.ToLower(credentialrequestoperations.SystemAdminCredentialOperationRequestCredentialPollControllerName)] = registerAdminCredentialsOperationRequestCredentialPollController()

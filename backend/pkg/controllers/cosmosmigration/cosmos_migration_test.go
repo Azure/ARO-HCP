@@ -73,6 +73,10 @@ func (s *stubCRUD) Delete(context.Context, string) error {
 	panic("not implemented")
 }
 
+func (s *stubCRUD) DeleteWithETag(context.Context, string, azcore.ETag) error {
+	panic("not implemented")
+}
+
 func (s *stubCRUD) AddCreateToTransaction(context.Context, cosmosstorageutils.DBTransaction, *stubDoc, *azcosmos.TransactionalBatchItemOptions) (string, error) {
 	panic("not implemented")
 }
@@ -262,6 +266,10 @@ func (s *opStubCRUD) Delete(context.Context, string) error {
 	panic("not implemented")
 }
 
+func (s *opStubCRUD) DeleteWithETag(context.Context, string, azcore.ETag) error {
+	panic("not implemented")
+}
+
 func (s *opStubCRUD) AddCreateToTransaction(context.Context, cosmosstorageutils.DBTransaction, *coreapi.Operation, *azcosmos.TransactionalBatchItemOptions) (string, error) {
 	panic("not implemented")
 }
@@ -397,6 +405,10 @@ func (e *errorSubscriptionCRUD) Replace(context.Context, *coreapi.Subscription, 
 }
 
 func (e *errorSubscriptionCRUD) Delete(context.Context, string) error {
+	panic("not implemented")
+}
+
+func (e *errorSubscriptionCRUD) DeleteWithETag(context.Context, string, azcore.ETag) error {
 	panic("not implemented")
 }
 
