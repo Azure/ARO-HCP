@@ -16,6 +16,7 @@ package verifiers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -34,6 +35,19 @@ const (
 
 type diagnoseFunc func(ctx context.Context, restConfig *rest.Config) string
 
+type pollObservationError struct {
+	observation  error
+	interruption error
+}
+
+func (failure *pollObservationError) Error() string {
+	return failure.observation.Error()
+}
+
+func (failure *pollObservationError) Unwrap() []error {
+	return []error{failure.observation, failure.interruption}
+}
+
 // logVerifierTiming records actual wall-clock duration when a verifier finishes polling.
 // Logs to GinkgoLogr (structured) and GinkgoWriter (visible in default CI output).
 func logVerifierTiming(name, outcome string, elapsed time.Duration) {
@@ -48,7 +62,9 @@ func logVerifierTiming(name, outcome string, elapsed time.Duration) {
 // pollUntilReady polls check until it succeeds or timeout expires. Failure details are logged
 // only when the error message changes between polls (delta-only logging). Actual elapsed
 // wall-clock time is logged on both success and failure. If diagnose is set, its output is
-// logged and appended when the poll times out.
+// logged and appended when the poll times out. If the polling context ends, a check
+// error wrapping that context's error does not replace or re-log an earlier failure's
+// message. Both observed errors remain available for unwrapping.
 func pollUntilReady(
 	ctx context.Context,
 	name string,
@@ -74,6 +90,10 @@ func pollUntilReady(
 		err := check(ctx)
 		if err == nil {
 			return true, nil
+		}
+		if lastErr != nil && ctx.Err() != nil && errors.Is(err, ctx.Err()) {
+			lastErr = &pollObservationError{observation: lastErr, interruption: err}
+			return false, nil
 		}
 		currentError := err.Error()
 		if currentError != previousError {
