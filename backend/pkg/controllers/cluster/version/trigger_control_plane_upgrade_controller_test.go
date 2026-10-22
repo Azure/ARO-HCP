@@ -178,7 +178,7 @@ func TestTriggerControlPlaneUpgradeSyncer_CreateUpgradePolicyIfNeeded(t *testing
 			}
 
 			ctx := context.Background()
-			err := syncer.createUpgradePolicyIfNeeded(ctx, upgradeTestKey(), tt.desiredVersion, []coreapi.ServiceProviderClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.19.15")), State: configv1.CompletedUpdate}}, tt.clusterServiceID)
+			err := syncer.createUpgradePolicyIfNeeded(ctx, upgradeTestKey(), tt.desiredVersion, ptr.To(semver.MustParse("4.19.15")), tt.clusterServiceID)
 
 			if tt.expectError {
 				assert.Error(t, err)

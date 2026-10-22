@@ -29,15 +29,20 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 )
 
-// completedControlPlaneVersion selects the last completed version from newest-first
-// history. A partial target must not become the baseline for a later retarget.
-func completedControlPlaneVersion(active []coreapi.ServiceProviderClusterActiveVersion) (*semver.Version, error) {
+// completedControlPlaneVersion returns the last version the cluster actually
+// reached, scanning the newest-first history for the first completed entry.
+// A partial entry is an in-flight target rather than an achieved version, so it
+// must not become the baseline for a later retarget: during an upgrade from
+// 4.19.1 to 4.20.1, a retarget to 4.20.2 is still a minor change and has to
+// keep the minor gate. Returns nil when the cluster has never completed an
+// install or upgrade, which the caller treats as "nothing to upgrade from".
+func completedControlPlaneVersion(active []coreapi.ServiceProviderClusterActiveVersion) *semver.Version {
 	for _, entry := range active {
 		if entry.State == configv1.CompletedUpdate && entry.Version != nil {
-			return entry.Version, nil
+			return entry.Version
 		}
 	}
-	return nil, fmt.Errorf("no completed control plane version in ServiceProviderCluster status")
+	return nil
 }
 
 // isControlPlaneMinorUpgrade selects the condition gate for a version change.

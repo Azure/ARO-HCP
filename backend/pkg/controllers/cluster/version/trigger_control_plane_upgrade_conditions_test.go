@@ -113,9 +113,11 @@ func (l *failingUpgradeReadLister) GetForCluster(context.Context, string, string
 
 func TestTriggerControlPlaneUpgradeConditionDispatch(t *testing.T) {
 	for _, tc := range []struct {
-		name    string
-		mutate  func(*triggerControlPlaneUpgradeSyncer, *coreapi.ServiceProviderCluster, []*kubeapplierapi.ReadDesire)
-		wantErr string
+		name string
+		// wantSkip marks a case that returns before any Cluster Service call.
+		wantSkip bool
+		mutate   func(*triggerControlPlaneUpgradeSyncer, *coreapi.ServiceProviderCluster, []*kubeapplierapi.ReadDesire)
+		wantErr  string
 	}{
 		{name: "eligible"},
 		{name: "blocked", mutate: func(c *triggerControlPlaneUpgradeSyncer, _ *coreapi.ServiceProviderCluster, _ []*kubeapplierapi.ReadDesire) {
@@ -129,10 +131,12 @@ func TestTriggerControlPlaneUpgradeConditionDispatch(t *testing.T) {
 			spc.Status.ControlPlaneVersion.ActiveVersions[0].Version = ptr.To(semver.MustParse("4.20.1"))
 			c.readDesireLister = &kubeapplierlistertesting.SliceReadDesireLister{Desires: upgradeReadDesires(t, false)}
 		}},
-		{name: "no completed source", mutate: func(c *triggerControlPlaneUpgradeSyncer, spc *coreapi.ServiceProviderCluster, _ []*kubeapplierapi.ReadDesire) {
+		// Never completed an install: skip quietly, before any CS call and
+		// without touching the mirror, rather than reporting Degraded.
+		{name: "no completed source skips", wantSkip: true, mutate: func(c *triggerControlPlaneUpgradeSyncer, spc *coreapi.ServiceProviderCluster, _ []*kubeapplierapi.ReadDesire) {
 			spc.Status.ControlPlaneVersion.ActiveVersions[0].State = configv1.PartialUpdate
 			c.readDesireLister = nil
-		}, wantErr: "no completed control plane version"},
+		}},
 		{name: "missing mirror", mutate: func(c *triggerControlPlaneUpgradeSyncer, _ *coreapi.ServiceProviderCluster, _ []*kubeapplierapi.ReadDesire) {
 			c.readDesireLister = &kubeapplierlistertesting.SliceReadDesireLister{}
 		}, wantErr: "missing HostedCluster observation"},
@@ -165,8 +169,10 @@ func TestTriggerControlPlaneUpgradeConditionDispatch(t *testing.T) {
 			}
 			before := spc.DeepCopy()
 			csID := *cluster.ServiceProviderProperties.ClusterServiceID
-			client.EXPECT().ListControlPlaneUpgradePolicies(csID, "creation_timestamp desc").Return(ocm.NewSimpleControlPlaneUpgradePolicyListIterator(nil, nil))
-			if tc.wantErr == "" {
+			if !tc.wantSkip {
+				client.EXPECT().ListControlPlaneUpgradePolicies(csID, "creation_timestamp desc").Return(ocm.NewSimpleControlPlaneUpgradePolicyListIterator(nil, nil))
+			}
+			if tc.wantErr == "" && !tc.wantSkip {
 				builder := arohcpv1alpha1.NewControlPlaneUpgradePolicy().Version("4.20.2")
 				client.EXPECT().PostControlPlaneUpgradePolicy(gomock.Any(), csID, builder).Return(metadataapi.Must(builder.Build()), nil).Times(1)
 			}

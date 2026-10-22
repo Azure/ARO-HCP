@@ -161,7 +161,17 @@ func (c *triggerControlPlaneUpgradeSyncer) SyncOnce(ctx context.Context, key con
 		return nil
 	}
 
-	return c.createUpgradePolicyIfNeeded(ctx, key, desiredVersion, existingServiceProviderCluster.Status.ControlPlaneVersion.ActiveVersions, *existingCluster.ServiceProviderProperties.ClusterServiceID)
+	// The upgrade baseline has to be a version the cluster actually reached. A
+	// cluster that never completed an install or upgrade has nothing to upgrade
+	// from, so skip like the other readiness guards above instead of reporting
+	// the controller Degraded; a later observation re-enqueues the key.
+	sourceVersion := completedControlPlaneVersion(existingServiceProviderCluster.Status.ControlPlaneVersion.ActiveVersions)
+	if sourceVersion == nil {
+		logger.Info("Skipping control plane upgrade trigger: no completed control plane version", "cluster", existingCluster.Name)
+		return nil
+	}
+
+	return c.createUpgradePolicyIfNeeded(ctx, key, desiredVersion, sourceVersion, *existingCluster.ServiceProviderProperties.ClusterServiceID)
 }
 
 // createUpgradePolicyIfNeeded ensures a control plane upgrade policy exists for the desired version.
@@ -171,7 +181,7 @@ func (c *triggerControlPlaneUpgradeSyncer) SyncOnce(ctx context.Context, key con
 //  1. Queries existing upgrade policies from Cluster Service (sorted by creation_timestamp desc)
 //  2. Checks if the latest policy matches the desired version - returns nil if it does
 //  3. Otherwise, evaluates upgrade conditions before creating a new policy
-func (c *triggerControlPlaneUpgradeSyncer) createUpgradePolicyIfNeeded(ctx context.Context, key controllerutils.HCPClusterKey, desiredVersion *semver.Version, activeVersions []coreapi.ServiceProviderClusterActiveVersion, clusterServiceID metadataapi.InternalID) error {
+func (c *triggerControlPlaneUpgradeSyncer) createUpgradePolicyIfNeeded(ctx context.Context, key controllerutils.HCPClusterKey, desiredVersion, sourceVersion *semver.Version, clusterServiceID metadataapi.InternalID) error {
 	logger := utils.LoggerFromContext(ctx)
 
 	// Query existing control plane upgrade policies from Cluster Service
@@ -195,7 +205,7 @@ func (c *triggerControlPlaneUpgradeSyncer) createUpgradePolicyIfNeeded(ctx conte
 		return utils.TrackError(fmt.Errorf("failed to list control plane upgrade policies: %w", err))
 	}
 
-	if err := c.checkUpgradeConditions(ctx, key, desiredVersion, activeVersions); err != nil {
+	if err := c.checkUpgradeConditions(ctx, key, desiredVersion, sourceVersion); err != nil {
 		return utils.TrackError(err)
 	}
 
@@ -212,13 +222,9 @@ func (c *triggerControlPlaneUpgradeSyncer) createUpgradePolicyIfNeeded(ctx conte
 	return nil
 }
 
-// checkUpgradeConditions evaluates the observed versions and HostedCluster
-// conditions before a new policy is dispatched.
-func (c *triggerControlPlaneUpgradeSyncer) checkUpgradeConditions(ctx context.Context, key controllerutils.HCPClusterKey, desiredVersion *semver.Version, activeVersions []coreapi.ServiceProviderClusterActiveVersion) error {
-	sourceVersion, err := completedControlPlaneVersion(activeVersions)
-	if err != nil {
-		return fmt.Errorf("cannot determine source version for control plane upgrade to %s: %w", desiredVersion, err)
-	}
+// checkUpgradeConditions evaluates the observed HostedCluster conditions
+// against the transition being requested, before a new policy is dispatched.
+func (c *triggerControlPlaneUpgradeSyncer) checkUpgradeConditions(ctx context.Context, key controllerutils.HCPClusterKey, desiredVersion, sourceVersion *semver.Version) error {
 	minorUpgrade, err := isControlPlaneMinorUpgrade(sourceVersion, desiredVersion)
 	if err != nil {
 		return fmt.Errorf("failed to classify control plane upgrade from %s to %s: %w", sourceVersion, desiredVersion, err)

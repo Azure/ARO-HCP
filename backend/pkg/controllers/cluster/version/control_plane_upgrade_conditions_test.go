@@ -75,53 +75,45 @@ func TestIsControlPlaneMinorUpgrade(t *testing.T) {
 func TestCompletedControlPlaneVersion(t *testing.T) {
 	base := ptr.To(semver.MustParse("4.19.1"))
 	partial := ptr.To(semver.MustParse("4.20.1"))
-	source, err := completedControlPlaneVersion([]coreapi.ServiceProviderClusterActiveVersion{
+	source := completedControlPlaneVersion([]coreapi.ServiceProviderClusterActiveVersion{
 		{Version: partial, State: configv1.PartialUpdate},
 		{Version: base, State: configv1.CompletedUpdate},
 	})
-	require.NoError(t, err)
 	require.Equal(t, base, source)
 
-	_, err = completedControlPlaneVersion([]coreapi.ServiceProviderClusterActiveVersion{{Version: partial, State: configv1.PartialUpdate}})
-	require.ErrorContains(t, err, "no completed control plane version")
+	// Never completed an install or upgrade: no baseline to upgrade from.
+	require.Nil(t, completedControlPlaneVersion([]coreapi.ServiceProviderClusterActiveVersion{{Version: partial, State: configv1.PartialUpdate}}))
+	require.Nil(t, completedControlPlaneVersion(nil))
 }
 
 func TestControlPlaneUpgradeConditions(t *testing.T) {
-	condition := func(kind string, status metav1.ConditionStatus, reason string) *metav1.Condition {
-		return &metav1.Condition{Type: kind, Status: status, Reason: reason, Message: "original diagnostic"}
+	condition := func(kind string, status metav1.ConditionStatus, reason string) metav1.Condition {
+		return metav1.Condition{Type: kind, Status: status, Reason: reason, Message: "original diagnostic"}
 	}
 	reconciliation := string(hsv1beta1.ReconciliationActive)
 	upgradeable := string(hsv1beta1.ClusterVersionUpgradeable)
 	active := condition(reconciliation, metav1.ConditionTrue, "AsExpected")
 	for _, tc := range []struct {
-		name        string
-		active      *metav1.Condition
-		upgradeable *metav1.Condition
-		minor       bool
-		eligible    bool
-		wantErr     string
+		name       string
+		conditions []metav1.Condition
+		minor      bool
+		eligible   bool
+		wantErr    string
 	}{
 		{name: "missing reconciliation takes precedence", minor: true, wantErr: reconciliation},
-		{name: "patch only needs reconciliation", active: active, eligible: true},
-		{name: "patch ignores blocked minor condition", active: active, upgradeable: condition(upgradeable, metav1.ConditionFalse, "Blocked"), eligible: true},
-		{name: "missing minor condition", active: active, minor: true, wantErr: upgradeable},
-		{name: "minor true", active: active, minor: true, upgradeable: condition(upgradeable, metav1.ConditionTrue, ""), eligible: true},
-		{name: "admin ack", active: active, minor: true, upgradeable: condition(upgradeable, metav1.ConditionFalse, "AdminAckRequired"), eligible: true},
-		{name: "old updating reason", active: active, minor: true, upgradeable: condition(upgradeable, metav1.ConditionFalse, "UpdateInProgress"), eligible: true},
-		{name: "new updating reason", active: active, minor: true, upgradeable: condition(upgradeable, metav1.ConditionFalse, "ClusterVersionUpdating"), eligible: true},
-		{name: "unknown passes", active: active, minor: true, upgradeable: condition(upgradeable, metav1.ConditionUnknown, "Blocked"), eligible: true},
-		{name: "empty status passes", active: active, minor: true, upgradeable: condition(upgradeable, "", "Blocked"), eligible: true},
-		{name: "unexpected status passes", active: active, minor: true, upgradeable: condition(upgradeable, "Unexpected", "Blocked"), eligible: true},
+		{name: "patch only needs reconciliation", conditions: []metav1.Condition{active}, eligible: true},
+		{name: "patch ignores blocked minor condition", conditions: []metav1.Condition{active, condition(upgradeable, metav1.ConditionFalse, "Blocked")}, eligible: true},
+		{name: "missing minor condition", conditions: []metav1.Condition{active}, minor: true, wantErr: upgradeable},
+		{name: "minor true", conditions: []metav1.Condition{active, condition(upgradeable, metav1.ConditionTrue, "")}, minor: true, eligible: true},
+		{name: "admin ack", conditions: []metav1.Condition{active, condition(upgradeable, metav1.ConditionFalse, "AdminAckRequired")}, minor: true, eligible: true},
+		{name: "old updating reason", conditions: []metav1.Condition{active, condition(upgradeable, metav1.ConditionFalse, "UpdateInProgress")}, minor: true, eligible: true},
+		{name: "new updating reason", conditions: []metav1.Condition{active, condition(upgradeable, metav1.ConditionFalse, "ClusterVersionUpdating")}, minor: true, eligible: true},
+		{name: "unknown passes", conditions: []metav1.Condition{active, condition(upgradeable, metav1.ConditionUnknown, "Blocked")}, minor: true, eligible: true},
+		{name: "empty status passes", conditions: []metav1.Condition{active, condition(upgradeable, "", "Blocked")}, minor: true, eligible: true},
+		{name: "unexpected status passes", conditions: []metav1.Condition{active, condition(upgradeable, "Unexpected", "Blocked")}, minor: true, eligible: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			var conditions []metav1.Condition
-			if tc.active != nil {
-				conditions = append(conditions, *tc.active)
-			}
-			if tc.upgradeable != nil {
-				conditions = append(conditions, *tc.upgradeable)
-			}
-			decision, err := controlPlaneUpgradeConditions(conditions, tc.minor)
+			decision, err := controlPlaneUpgradeConditions(tc.conditions, tc.minor)
 			if tc.wantErr != "" {
 				require.ErrorContains(t, err, tc.wantErr)
 				require.False(t, decision.eligible)
@@ -136,7 +128,7 @@ func TestControlPlaneUpgradeConditions(t *testing.T) {
 			blocked := condition(reconciliation, status, "Paused")
 			// A missing minor condition must not replace the reconciliation decision.
 			for _, minor := range []bool{false, true} {
-				decision, err := controlPlaneUpgradeConditions([]metav1.Condition{*blocked}, minor)
+				decision, err := controlPlaneUpgradeConditions([]metav1.Condition{blocked}, minor)
 				require.NoError(t, err)
 				require.Equal(t, controlPlaneUpgradeDecision{conditionType: reconciliation, reason: "Paused", message: "original diagnostic"}, decision)
 			}
@@ -145,7 +137,7 @@ func TestControlPlaneUpgradeConditions(t *testing.T) {
 	for _, reason := range []string{"Blocked", "", "adminackrequired", "updateinprogress", "clusterversionupdating"} {
 		t.Run("minor blocks reason "+reason, func(t *testing.T) {
 			blocked := condition(upgradeable, metav1.ConditionFalse, reason)
-			decision, err := controlPlaneUpgradeConditions([]metav1.Condition{*active, *blocked}, true)
+			decision, err := controlPlaneUpgradeConditions([]metav1.Condition{active, blocked}, true)
 			require.NoError(t, err)
 			require.Equal(t, controlPlaneUpgradeDecision{conditionType: upgradeable, reason: reason, message: "original diagnostic"}, decision)
 		})
