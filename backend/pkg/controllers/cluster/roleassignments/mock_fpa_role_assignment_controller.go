@@ -27,11 +27,13 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v2"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	"github.com/Azure/ARO-HCP/backend/pkg/azure/roleassignment"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
@@ -43,10 +45,16 @@ import (
 const MockFPARoleAssignmentControllerName = "MockFPARoleAssignment"
 const mockFPAOwnerRoleDefinitionID = "/providers/Microsoft.Authorization/roleDefinitions/8e3af657-a8ff-443c-a75c-2fe8c4bcb635"
 
+type resourceGroupsClientBuilder interface {
+	ResourceGroupsClient(tenantID, subscriptionID string) (azureclient.ResourceGroupsClient, error)
+}
+
 type mockFPARoleAssignmentSyncer struct {
 	resourcesDBClient            corecosmosstorage.ResourcesDBClient
 	clusterLister                corelisters.ClusterLister
 	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
+	subscriptionLister           corelisters.SubscriptionLister
+	fpaClientBuilder             resourceGroupsClientBuilder
 	clientBuilder                azureclient.ARMPermissionsManagerClientBuilder
 	principalID                  string
 	clock                        utilsclock.PassiveClock
@@ -54,13 +62,16 @@ type mockFPARoleAssignmentSyncer struct {
 
 var _ controllerutils.ClusterSyncer = (*mockFPARoleAssignmentSyncer)(nil)
 
-func NewMockFPARoleAssignmentController(clock utilsclock.PassiveClock, resourcesDBClient corecosmosstorage.ResourcesDBClient, clientBuilder azureclient.ARMPermissionsManagerClientBuilder, principalID string, informers coreinformers.BackendInformers) controllerutils.Controller {
+func NewMockFPARoleAssignmentController(clock utilsclock.PassiveClock, resourcesDBClient corecosmosstorage.ResourcesDBClient, clientBuilder azureclient.ARMPermissionsManagerClientBuilder, fpaClientBuilder resourceGroupsClientBuilder, principalID string, informers coreinformers.BackendInformers) controllerutils.Controller {
 	_, clusterLister := informers.Clusters()
 	_, serviceProviderClusterLister := informers.ServiceProviderClusters()
+	_, subscriptionLister := informers.Subscriptions()
 	syncer := &mockFPARoleAssignmentSyncer{
 		resourcesDBClient:            resourcesDBClient,
 		clusterLister:                clusterLister,
 		serviceProviderClusterLister: serviceProviderClusterLister,
+		subscriptionLister:           subscriptionLister,
+		fpaClientBuilder:             fpaClientBuilder,
 		clientBuilder:                clientBuilder,
 		principalID:                  principalID,
 		clock:                        clock,
@@ -71,16 +82,19 @@ func NewMockFPARoleAssignmentController(clock utilsclock.PassiveClock, resources
 	return controller
 }
 
-func mockFPARoleAssignmentID(serviceProviderCluster *coreapi.ServiceProviderCluster, principalID string) (*azcorearm.ResourceID, error) {
-	scope := serviceProviderCluster.Status.AzureResources.ManagedResourceGroup.AzureResource
-	if scope == nil || len(principalID) == 0 {
-		return nil, fmt.Errorf("confirmed managed resource group and mock FPA principal ID are required")
+func mockFPARoleAssignmentID(cluster *coreapi.Cluster, principalID string) (*azcorearm.ResourceID, error) {
+	if len(cluster.CustomerProperties.Platform.ManagedResourceGroup) == 0 || len(principalID) == 0 {
+		return nil, fmt.Errorf("managed resource group name and mock FPA principal ID are required")
+	}
+	scope, err := coreapihelpers.ToResourceGroupResourceID(cluster.ID.SubscriptionID, cluster.CustomerProperties.Platform.ManagedResourceGroup)
+	if err != nil {
+		return nil, err
 	}
 	return azcorearm.ParseResourceID(roleassignment.ManagedResourceGroupScopedRoleAssignmentResourceID(scope.String(), principalID, mockFPAOwnerRoleDefinitionID))
 }
 
-func MockFPARoleAssignmentReady(serviceProviderCluster *coreapi.ServiceProviderCluster, principalID string) bool {
-	expectedID, err := mockFPARoleAssignmentID(serviceProviderCluster, principalID)
+func MockFPARoleAssignmentReady(cluster *coreapi.Cluster, serviceProviderCluster *coreapi.ServiceProviderCluster, principalID string) bool {
+	expectedID, err := mockFPARoleAssignmentID(cluster, principalID)
 	if err != nil {
 		return false
 	}
@@ -105,19 +119,13 @@ func (c *mockFPARoleAssignmentSyncer) SyncOnce(ctx context.Context, key controll
 	if err != nil {
 		return utils.TrackError(err)
 	}
-	if existing.Status.AzureResources.ManagedResourceGroup.AzureResource == nil {
-		return nil
-	}
-	if MockFPARoleAssignmentReady(existing, c.principalID) {
+	if MockFPARoleAssignmentReady(cluster, existing, c.principalID) {
 		earliest := existing.Spec.EarliestRecheckTimesByController[MockFPARoleAssignmentControllerName]
 		if c.clock.Now().Before(earliest.Time) {
 			return nil
 		}
 	}
-	expectedID, err := mockFPARoleAssignmentID(existing, c.principalID)
-	if err != nil {
-		return utils.TrackError(err)
-	}
+	expectedID, assignmentIDErr := mockFPARoleAssignmentID(cluster, c.principalID)
 	replacement := existing.DeepCopy()
 	replacement.Status.AzureResources.MockFPARoleAssignment = coreapi.AzureReference{PendingAzureResource: expectedID}
 	delete(replacement.Spec.EarliestRecheckTimesByController, MockFPARoleAssignmentControllerName)
@@ -131,11 +139,38 @@ func (c *mockFPARoleAssignmentSyncer) SyncOnce(ctx context.Context, key controll
 			return utils.TrackError(err)
 		}
 	}
+	if assignmentIDErr != nil {
+		return utils.TrackError(assignmentIDErr)
+	}
+	subscription, err := c.subscriptionLister.Get(ctx, cluster.ID.SubscriptionID)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to get subscription %q: %w", cluster.ID.SubscriptionID, err))
+	}
+	if subscription.Properties == nil || subscription.Properties.TenantId == nil {
+		return utils.TrackError(fmt.Errorf("subscription %q has no tenant ID", cluster.ID.SubscriptionID))
+	}
+	rgClient, err := c.fpaClientBuilder.ResourceGroupsClient(*subscription.Properties.TenantId, cluster.ID.SubscriptionID)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to build resource groups client: %w", err))
+	}
+	resourceGroup, err := rgClient.Get(ctx, cluster.CustomerProperties.Platform.ManagedResourceGroup, nil)
+	if azureclient.IsResourceGroupNotFoundErr(err) {
+		return nil
+	}
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to get managed resource group: %w", err))
+	}
+	if resourceGroup.Properties == nil || resourceGroup.Properties.ProvisioningState == nil {
+		return utils.TrackError(fmt.Errorf("managed resource group has no provisioning state"))
+	}
+	if strings.EqualFold(*resourceGroup.Properties.ProvisioningState, string(armresources.ProvisioningStateDeleting)) {
+		return nil
+	}
 	client, err := c.clientBuilder.RoleAssignmentsClient(cluster.ID.SubscriptionID)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to build ARM helper role assignments client: %w", err))
 	}
-	scope := existing.Status.AzureResources.ManagedResourceGroup.AzureResource.String()
+	scope := expectedID.Parent.String()
 	response, err := client.GetByID(ctx, expectedID.String(), nil)
 	if azureclient.IsRoleAssignmentNotFoundErr(err) {
 		_, err = client.Create(ctx, scope, expectedID.Name, armauthorization.RoleAssignmentCreateParameters{

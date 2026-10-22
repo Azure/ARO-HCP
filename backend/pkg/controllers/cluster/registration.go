@@ -792,7 +792,7 @@ func registerMockFPARoleAssignmentController() controllerconfig.ControllerRegist
 		Enabled: func(context controllerconfig.ControllerContext) bool { return !context.HasRealFPA },
 		Instantiate: controllerconfig.WithCacheSyncs(func(context controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
 			return clusterroleassignments.NewMockFPARoleAssignmentController(context.Clock, context.ResourcesDBClient,
-				context.ARMPermissionsManagerClientBuilder, context.MockFPAPrincipalID, context.BackendInformers), nil
+				context.ARMPermissionsManagerClientBuilder, context.FPAClientBuilder, context.MockFPAPrincipalID, context.BackendInformers), nil
 		}, false),
 	}
 }

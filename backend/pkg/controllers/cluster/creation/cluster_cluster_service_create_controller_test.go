@@ -155,7 +155,7 @@ func setDenyAssignmentsCreated(spc *coreapi.ServiceProviderCluster) {
 
 func setMockFPAAssignmentCreated(t *testing.T, spc *coreapi.ServiceProviderCluster) {
 	t.Helper()
-	scope, err := azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID + "/resourceGroups/managed-group")
+	scope, err := azcorearm.ParseResourceID(strings.ToLower("/subscriptions/" + testSubscriptionID + "/resourceGroups/" + testManagedResourceGroup))
 	require.NoError(t, err)
 	spc.Status.AzureResources.ManagedResourceGroup.AzureResource = scope
 	assignmentID, err := azcorearm.ParseResourceID(roleassignment.ManagedResourceGroupScopedRoleAssignmentResourceID(scope.String(), "mock-fpa-principal", "/providers/Microsoft.Authorization/roleDefinitions/8e3af657-a8ff-443c-a75c-2fe8c4bcb635"))
@@ -176,7 +176,7 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 		dbCluster                      *coreapi.Cluster                // cluster stored in the DB
 		existingServiceProviderCluster *coreapi.ServiceProviderCluster // nil = not pre-seeded; controller get-or-creates
 		managementClusters             []*fleetapi.ManagementCluster   // seeded into the fleet lister
-		denyAssignmentsDisabled        bool                            // simulates an environment without a real FPA
+		mockFPA                        bool
 		setupMockCS                    func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec
 		expectError                    bool
 		verifyDB                       func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient)
@@ -323,8 +323,8 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 				// case isolates the deny-assignment behaviour.
 				spc.Spec.ManagementClusterResourceID = testManagementClusterResourceID()
 			}),
-			managementClusters:      []*fleetapi.ManagementCluster{newTestManagementCluster()},
-			denyAssignmentsDisabled: true,
+			managementClusters: []*fleetapi.ManagementCluster{newTestManagementCluster()},
+			mockFPA:            true,
 			setupMockCS: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
 				mockCS := ocm.NewMockClusterServiceClientSpec(ctrl)
 				mockCS.EXPECT().
@@ -458,9 +458,6 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 		{name: "pending", mutate: func(spc *coreapi.ServiceProviderCluster) {
 			spc.Status.AzureResources.MockFPARoleAssignment.PendingAzureResource = spc.Status.AzureResources.MockFPARoleAssignment.AzureResource
 		}},
-		{name: "MRG absent", mutate: func(spc *coreapi.ServiceProviderCluster) {
-			spc.Status.AzureResources.ManagedResourceGroup = coreapi.AzureReference{}
-		}},
 		{name: "reconcile incomplete", mutate: func(spc *coreapi.ServiceProviderCluster) { spc.Spec.EarliestRecheckTimesByController = nil }},
 		{name: "wrong assignment", mutate: func(spc *coreapi.ServiceProviderCluster) {
 			spc.Status.AzureResources.MockFPARoleAssignment.AzureResource = spc.Status.AzureResources.ManagedResourceGroup.AzureResource
@@ -470,7 +467,7 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 		blockedTest.listCluster = tests[0].listCluster.DeepCopy()
 		blockedTest.dbCluster = tests[0].dbCluster.DeepCopy()
 		blockedTest.name = "mock FPA gate blocks CS lookup and submission: " + blocked.name
-		blockedTest.denyAssignmentsDisabled = true
+		blockedTest.mockFPA = true
 		blockedTest.existingServiceProviderCluster = newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
 			spc.Spec.ControlPlaneVersion.DesiredVersion = desiredVersion
 			spc.Spec.ManagementClusterResourceID = testManagementClusterResourceID()
@@ -486,6 +483,23 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 			require.Nil(t, cluster.ServiceProviderProperties.ClusterServiceID)
 		}
 		tests = append(tests, blockedTest)
+	}
+	for _, pendingMRG := range []bool{false, true} {
+		readyTest := tests[0]
+		readyTest.listCluster = tests[0].listCluster.DeepCopy()
+		readyTest.dbCluster = tests[0].dbCluster.DeepCopy()
+		readyTest.name = fmt.Sprintf("mock FPA gate permits CS without confirmed MRG tracking, pending=%t", pendingMRG)
+		readyTest.mockFPA = true
+		readyTest.existingServiceProviderCluster = newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
+			spc.Spec.ControlPlaneVersion.DesiredVersion = desiredVersion
+			spc.Spec.ManagementClusterResourceID = testManagementClusterResourceID()
+			setMockFPAAssignmentCreated(t, spc)
+			if pendingMRG {
+				spc.Status.AzureResources.ManagedResourceGroup.PendingAzureResource = spc.Status.AzureResources.ManagedResourceGroup.AzureResource
+			}
+			spc.Status.AzureResources.ManagedResourceGroup.AzureResource = nil
+		})
+		tests = append(tests, readyTest)
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -519,7 +533,7 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 				subscriptionLister:           &corelistertesting.SliceSubscriptionLister{Subscriptions: []*coreapi.Subscription{subscription}},
 				managementClusterLister:      &fleetlistertesting.SliceManagementClusterLister{ManagementClusters: tt.managementClusters},
 				clustersServiceClient:        mockCS,
-				denyAssignmentsEnabled:       !tt.denyAssignmentsDisabled,
+				hasRealFPA:                   !tt.mockFPA,
 				mockFPAPrincipalID:           "mock-fpa-principal",
 			}
 

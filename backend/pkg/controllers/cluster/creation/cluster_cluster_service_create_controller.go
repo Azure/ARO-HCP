@@ -45,11 +45,8 @@ type clusterClusterServiceCreateSyncer struct {
 	subscriptionLister           corelisters.SubscriptionLister
 	managementClusterLister      fleetlisters.ManagementClusterLister
 	clustersServiceClient        ocm.ClusterServiceClientSpec
-	// denyAssignmentsEnabled mirrors whether the ClusterDenyAssignment controller runs (i.e. a real
-	// FPA is available). When false, cluster creation must not wait for deny assignments to be
-	// created, because nothing creates them.
-	denyAssignmentsEnabled bool
-	mockFPAPrincipalID     string
+	hasRealFPA                   bool
+	mockFPAPrincipalID           string
 }
 
 var _ controllerutils.ClusterSyncer = (*clusterClusterServiceCreateSyncer)(nil)
@@ -61,7 +58,7 @@ func NewClusterClusterServiceCreateController(
 	clustersServiceClient ocm.ClusterServiceClientSpec,
 	managementClusterLister fleetlisters.ManagementClusterLister,
 	backendInformers coreinformers.BackendInformers,
-	denyAssignmentsEnabled bool,
+	hasRealFPA bool,
 	mockFPAPrincipalID string,
 ) controllerutils.Controller {
 	_, clusterLister := backendInformers.Clusters()
@@ -74,7 +71,7 @@ func NewClusterClusterServiceCreateController(
 		subscriptionLister:           subscriptionLister,
 		managementClusterLister:      managementClusterLister,
 		clustersServiceClient:        clustersServiceClient,
-		denyAssignmentsEnabled:       denyAssignmentsEnabled,
+		hasRealFPA:                   hasRealFPA,
 		mockFPAPrincipalID:           mockFPAPrincipalID,
 	}
 
@@ -173,7 +170,7 @@ func (c *clusterClusterServiceCreateSyncer) SyncOnce(ctx context.Context, key co
 		return nil
 	}
 
-	if !c.denyAssignmentsEnabled && !roleassignments.MockFPARoleAssignmentReady(existingServiceProviderCluster, c.mockFPAPrincipalID) {
+	if !c.hasRealFPA && !roleassignments.MockFPARoleAssignmentReady(cluster, existingServiceProviderCluster, c.mockFPAPrincipalID) {
 		logger.Info("Mock FPA Owner assignment not yet confirmed, waiting for reconciliation")
 		return nil
 	}
@@ -242,7 +239,7 @@ func (c *clusterClusterServiceCreateSyncer) createPreconditionDesiredVersionReso
 func (c *clusterClusterServiceCreateSyncer) createPreconditionDenyAssignmentsCreated(ctx context.Context, serviceProviderCluster *coreapi.ServiceProviderCluster) (bool, error) {
 	logger := utils.LoggerFromContext(ctx)
 
-	if !c.denyAssignmentsEnabled {
+	if !c.hasRealFPA {
 		// Deny assignments require a real First Party Application (stage/prod). Where the FPA is not
 		// available (dev/int, MI mock), the ClusterDenyAssignment controller is disabled, so there is
 		// nothing to wait for and creation must not block on it.
