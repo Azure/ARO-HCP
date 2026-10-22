@@ -47,6 +47,7 @@ tests:
         long_window: 1h
         short_window: 5m
         slo: etcd-backend-commit-duration
+        exclude_internal_subscriptions: "true"
         cluster: test-hcp-cluster
         namespace: ocm-test-hcp-namespace
         pod: etcd-0
@@ -74,6 +75,7 @@ tests:
         long_window: 6h
         short_window: 30m
         slo: etcd-backend-commit-duration
+        exclude_internal_subscriptions: "true"
         cluster: test-hcp-cluster
         namespace: ocm-test-hcp-namespace
         pod: etcd-0
@@ -98,6 +100,7 @@ tests:
         long_window: 3d
         short_window: 6h
         slo: etcd-backend-commit-duration
+        exclude_internal_subscriptions: "true"
         cluster: test-hcp-cluster
         namespace: ocm-test-hcp-namespace
         pod: etcd-0
@@ -156,6 +159,7 @@ tests:
         alertname: userJourneyEtcdDatabaseHighFragmentation
         severity: "4"
         slo: etcd-database-fragmentation
+        exclude_internal_subscriptions: "true"
         cluster: test-hcp-cluster
         namespace: ocm-test-hcp-namespace
         component: hcp
@@ -215,6 +219,7 @@ tests:
         alertname: userJourneyEtcdDatabaseSizeExceeded
         severity: "4"
         slo: etcd-database-size
+        exclude_internal_subscriptions: "true"
         cluster: test-hcp-cluster
         namespace: ocm-test-hcp-namespace
         component: hcp
@@ -269,6 +274,7 @@ tests:
         alertname: userJourneyEtcdFrequentLeaderChanges
         severity: "4"
         slo: etcd-leader-changes
+        exclude_internal_subscriptions: "true"
         cluster: test-hcp-cluster
         namespace: ocm-test-hcp-namespace
         component: hcp
@@ -322,6 +328,7 @@ tests:
         alertname: userJourneyEtcdNoLeader
         severity: "4"
         slo: etcd-has-leader
+        exclude_internal_subscriptions: "true"
         cluster: test-hcp-cluster
         namespace: ocm-test-hcp-namespace
         component: hcp
@@ -402,6 +409,7 @@ tests:
         long_window: 1h
         short_window: 5m
         slo: etcd-peer-round-trip-time
+        exclude_internal_subscriptions: "true"
         cluster: test-hcp-cluster
         namespace: ocm-test-hcp-namespace
         component: hcp
@@ -428,6 +436,7 @@ tests:
         long_window: 6h
         short_window: 30m
         slo: etcd-peer-round-trip-time
+        exclude_internal_subscriptions: "true"
         cluster: test-hcp-cluster
         namespace: ocm-test-hcp-namespace
         component: hcp
@@ -450,6 +459,7 @@ tests:
         long_window: 3d
         short_window: 6h
         slo: etcd-peer-round-trip-time
+        exclude_internal_subscriptions: "true"
         cluster: test-hcp-cluster
         namespace: ocm-test-hcp-namespace
         component: hcp
@@ -517,6 +527,7 @@ tests:
         long_window: 1h
         short_window: 5m
         slo: etcd-wal-fsync-duration
+        exclude_internal_subscriptions: "true"
         cluster: test-hcp-cluster
         namespace: ocm-test-hcp-namespace
         pod: etcd-0
@@ -544,6 +555,7 @@ tests:
         long_window: 6h
         short_window: 30m
         slo: etcd-wal-fsync-duration
+        exclude_internal_subscriptions: "true"
         cluster: test-hcp-cluster
         namespace: ocm-test-hcp-namespace
         pod: etcd-0
@@ -567,6 +579,7 @@ tests:
         long_window: 3d
         short_window: 6h
         slo: etcd-wal-fsync-duration
+        exclude_internal_subscriptions: "true"
         cluster: test-hcp-cluster
         namespace: ocm-test-hcp-namespace
         pod: etcd-0
