@@ -228,6 +228,11 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*CompletedOptions, err
 		return nil, fmt.Errorf("failed to create collectors: %w", err)
 	}
 	registry := prometheus.NewRegistry()
+	for _, collector := range clusterPoller.Collectors() {
+		if regErr := registry.Register(collector); regErr != nil {
+			return nil, fmt.Errorf("failed to register cluster discovery collector: %w", regErr)
+		}
+	}
 	for _, collector := range collectors {
 		if regErr := registry.Register(collector); regErr != nil {
 			return nil, fmt.Errorf("failed to register collector: %s, error: %w", collector.Name(), regErr)

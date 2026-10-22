@@ -23,10 +23,25 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/apimachinery/pkg/util/wait"
 
 	"github.com/Azure/ARO-HCP/tooling/aro-hcp-exporter/pkg/graphquery"
+)
+
+const (
+	// maxDiscoveryBackoff caps the exponential backoff applied after
+	// consecutive Resource Graph failures.
+	maxDiscoveryBackoff = 10 * time.Minute
+	// discoveryBackoffJitter is the fraction of the computed backoff added as
+	// random jitter, so that exporters in different regions do not retry in
+	// lockstep against the same tenant-wide Resource Graph quota.
+	discoveryBackoffJitter = 0.2
+	// maxDiscoveryBackoffShift bounds the doubling exponent so the shift cannot
+	// overflow for unusually large poll intervals.
+	maxDiscoveryBackoffShift = 16
 )
 
 // DiscoverResult holds the cluster names and subscription IDs found by
@@ -50,6 +65,14 @@ type ClusterDiscoveryPoller struct {
 	discoveredCh chan struct{}
 	rows         []ClusterInfo
 	sleepTime    time.Duration
+
+	// consecutiveFailures drives the retry backoff. Only touched by Poll, which
+	// is documented as single-goroutine.
+	consecutiveFailures int
+
+	lastSuccess   prometheus.Gauge
+	errorsTotal   prometheus.Counter
+	clustersFound prometheus.Gauge
 }
 
 func NewClusterDiscoveryPoller(client graphquery.Querier, region string, clusterTypes []string, clusterNameFilter string, sleepTime time.Duration) *ClusterDiscoveryPoller {
@@ -60,49 +83,133 @@ func NewClusterDiscoveryPoller(client graphquery.Querier, region string, cluster
 		sleepTime:    sleepTime,
 		discovered:   false,
 		discoveredCh: make(chan struct{}),
+		lastSuccess: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "exporter_cluster_discovery_last_success_timestamp_seconds",
+			Help: "Unix timestamp of the last successful Azure Resource Graph cluster discovery query. Stays 0 until the first query succeeds.",
+		}),
+		errorsTotal: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "exporter_cluster_discovery_errors_total",
+			Help: "Total number of failed Azure Resource Graph cluster discovery queries.",
+		}),
+		clustersFound: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "exporter_cluster_discovery_clusters",
+			Help: "Number of clusters returned by the most recent successful Azure Resource Graph cluster discovery query.",
+		}),
 	}
 }
 
-func (c *ClusterDiscoveryPoller) Poll(ctx context.Context) {
-	select {
-	case <-ctx.Done():
-		return
-	default:
-		logger := logr.FromContextOrDiscard(ctx)
-		var newRows []ClusterInfo
-		err := c.client.ExecuteConvertRequest(ctx, graphquery.ResourceGraphRequest{
-			Query:  &c.query,
-			Output: &newRows,
-		})
-		if err != nil {
-			logger.Error(err, "failed to execute Resource Graph query")
-			return
-		}
-		c.resultMutex.Lock()
-		if !c.discovered {
-			c.discovered = true
-			close(c.discoveredCh)
-			logger.Info("First discovery of clusters", "total", len(newRows))
-		}
-		oldNames := clusterNames(c.rows)
-		c.rows = newRows
-		c.resultMutex.Unlock()
+// Collectors returns the Prometheus collectors tracking discovery health.
+//
+// These are plain gauges and counters rather than cached const-metrics, so they
+// are emitted on every scrape from process start. That is deliberate: every
+// other metric this exporter publishes disappears entirely when its collector
+// produces nothing, which makes a wedged exporter indistinguishable from a
+// healthy one that happens to have nothing to report. A
+// exporter_cluster_discovery_last_success_timestamp_seconds of 0 means
+// discovery has never succeeded and every collector is still blocked in
+// GetDiscoverResult.
+func (c *ClusterDiscoveryPoller) Collectors() []prometheus.Collector {
+	return []prometheus.Collector{c.lastSuccess, c.errorsTotal, c.clustersFound}
+}
 
-		newNames := clusterNames(newRows)
-		if !oldNames.Equal(newNames) {
-			added := newNames.Difference(oldNames)
-			removed := oldNames.Difference(newNames)
-			logger.Info("Discovered clusters changed",
-				"total", newNames.Len(),
-				"added", added.UnsortedList(),
-				"removed", removed.UnsortedList(),
-			)
-		}
+// Poll runs one discovery query and then waits before returning.
+//
+// The wait is unconditional. Callers drive this from a bare `for { Poll(ctx) }`
+// loop, so returning early on error turns a single transient Resource Graph
+// failure into an unthrottled retry storm, which gets the exporter throttled and
+// keeps the failure alive. Because GetDiscoverResult blocks until the first
+// successful poll, that state also leaves every collector blocked indefinitely
+// and the exporter publishing nothing while still serving 200s on /metrics.
+//
+// Poll is not safe for concurrent use; call it from a single goroutine.
+func (c *ClusterDiscoveryPoller) Poll(ctx context.Context) {
+	if ctx.Err() != nil {
+		return
 	}
+
+	delay := c.sleepTime
+	if err := c.discoverOnce(ctx); err != nil {
+		c.errorsTotal.Inc()
+		c.consecutiveFailures++
+		delay = c.retryDelay()
+		logr.FromContextOrDiscard(ctx).Error(err, "failed to execute Resource Graph query",
+			"consecutiveFailures", c.consecutiveFailures,
+			"retryAfter", delay.String(),
+		)
+	} else {
+		c.consecutiveFailures = 0
+	}
+
 	select {
 	case <-ctx.Done():
-	case <-time.After(c.sleepTime):
+	case <-time.After(delay):
 	}
+}
+
+func (c *ClusterDiscoveryPoller) discoverOnce(ctx context.Context) error {
+	logger := logr.FromContextOrDiscard(ctx)
+
+	var newRows []ClusterInfo
+	if err := c.client.ExecuteConvertRequest(ctx, graphquery.ResourceGraphRequest{
+		Query:  &c.query,
+		Output: &newRows,
+	}); err != nil {
+		return err
+	}
+
+	c.resultMutex.Lock()
+	if !c.discovered {
+		c.discovered = true
+		close(c.discoveredCh)
+		logger.Info("First discovery of clusters", "total", len(newRows))
+	}
+	oldNames := clusterNames(c.rows)
+	c.rows = newRows
+	c.resultMutex.Unlock()
+
+	c.lastSuccess.SetToCurrentTime()
+	c.clustersFound.Set(float64(len(newRows)))
+
+	newNames := clusterNames(newRows)
+	if !oldNames.Equal(newNames) {
+		added := newNames.Difference(oldNames)
+		removed := oldNames.Difference(newNames)
+		logger.Info("Discovered clusters changed",
+			"total", newNames.Len(),
+			"added", added.UnsortedList(),
+			"removed", removed.UnsortedList(),
+		)
+	}
+	return nil
+}
+
+// retryDelay returns how long to wait after consecutiveFailures consecutive
+// errors: the normal poll interval for the first failure, doubling for each
+// one after that, capped and jittered. A zero poll interval (used by tests)
+// stays zero.
+func (c *ClusterDiscoveryPoller) retryDelay() time.Duration {
+	if c.sleepTime <= 0 {
+		return 0
+	}
+
+	shift := c.consecutiveFailures - 1
+	if shift < 0 {
+		shift = 0
+	}
+	if shift > maxDiscoveryBackoffShift {
+		shift = maxDiscoveryBackoffShift
+	}
+
+	maxDelay := maxDiscoveryBackoff
+	if c.sleepTime > maxDelay {
+		maxDelay = c.sleepTime
+	}
+
+	delay := c.sleepTime << shift
+	if delay > maxDelay || delay <= 0 {
+		delay = maxDelay
+	}
+	return wait.Jitter(delay, discoveryBackoffJitter)
 }
 
 func (c *ClusterDiscoveryPoller) GetDiscoverResult(ctx context.Context) DiscoverResult {
