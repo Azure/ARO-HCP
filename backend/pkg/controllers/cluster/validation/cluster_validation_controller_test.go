@@ -952,63 +952,101 @@ func TestClusterValidationSyncer_RunTimeout(t *testing.T) {
 }
 
 // TestClusterValidationSyncer_ProbeRewriteWriteInterval asserts that probe rewrites are
-// throttled by the time between actual writes, not by the previous probe's run-start time.
-// With 61-second retry delays and Failed runs alternating between 59s and 1s, anchoring the
-// throttle on the stored probe (the previous run's start) let a rewrite land every
-// retry-plus-one-second, because a 59s run's start is almost a full interval old when a 1s
-// run completes right after it. Anchoring on the last successful write keeps consecutive
-// rewrites at least ValidationProbeRewriteInterval apart in wall-clock time.
+// throttled by the time between actual writes, not by the previous probe's run-start time,
+// and that the stored probe never ages past ValidationProbeFreshnessWindow while a
+// validation keeps re-checking on schedule. The freshness bound must cover, on top of the
+// rewrite interval and the retry/run overshoot, the writing run's own duration: the write
+// lands when the run completes, so the stored probe (that run's start) is already up to
+// one run timeout old when the clock it is measured against starts. The mixed-duration
+// schedule below (119s/1s runs, 90s retries) reaches a stored-probe age of ~420s before a
+// rewrite lands — beyond the old 6-minute window, which is why the window now includes an
+// extra run timeout.
 func TestClusterValidationSyncer_ProbeRewriteWriteInterval(t *testing.T) {
-	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+	for _, tc := range []struct {
+		name       string
+		durations  []time.Duration
+		retryDelay time.Duration
+	}{
+		{
+			name:       "short runs with short retries",
+			durations:  []time.Duration{59 * time.Second, time.Second},
+			retryDelay: 61 * time.Second,
+		},
+		{
+			name:       "mixed durations with maximum retries",
+			durations:  []time.Duration{119 * time.Second, time.Second},
+			retryDelay: 90 * time.Second,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
 
-	mockDB := corecosmosstoragetesting.NewMockResourcesDBClient()
-	cluster := newTestCluster(t)
-	_, err := mockDB.HCPClusters(testSubscriptionID, testResourceGroup).Create(ctx, cluster, nil)
-	require.NoError(t, err)
-	_, err = mockDB.Subscriptions().Create(ctx, newTestSubscription(), nil)
-	require.NoError(t, err)
-	_, err = corecosmosstorage.GetOrCreateServiceProviderCluster(ctx, mockDB, cluster.ID)
-	require.NoError(t, err)
+			mockDB := corecosmosstoragetesting.NewMockResourcesDBClient()
+			cluster := newTestCluster(t)
+			_, err := mockDB.HCPClusters(testSubscriptionID, testResourceGroup).Create(ctx, cluster, nil)
+			require.NoError(t, err)
+			_, err = mockDB.Subscriptions().Create(ctx, newTestSubscription(), nil)
+			require.NoError(t, err)
+			_, err = corecosmosstorage.GetOrCreateServiceProviderCluster(ctx, mockDB, cluster.ID)
+			require.NoError(t, err)
 
-	fakeClock := clocktesting.NewFakePassiveClock(fixedNow)
-	durations := []time.Duration{59 * time.Second, time.Second}
-	var run int
-	validation := NewMockClusterValidation(testValidationName).WithValidateFunc(func(context.Context) validationutils.ValidationResult {
-		d := durations[run%len(durations)]
-		run++
-		fakeClock.SetTime(fakeClock.Now().Add(d))
-		result := validationutils.FailedValidation("QuotaExceeded", "Quota exceeded for this subscription.", "quota exceeded")
-		result.EarliestRetryAfter = ptr.To(61 * time.Second)
-		return result
-	})
+			fakeClock := clocktesting.NewFakePassiveClock(fixedNow)
+			var run int
+			validation := NewMockClusterValidation(testValidationName).WithValidateFunc(func(context.Context) validationutils.ValidationResult {
+				d := tc.durations[run%len(tc.durations)]
+				run++
+				fakeClock.SetTime(fakeClock.Now().Add(d))
+				result := validationutils.FailedValidation("QuotaExceeded", "Quota exceeded for this subscription.", "quota exceeded")
+				result.EarliestRetryAfter = ptr.To(tc.retryDelay)
+				return result
+			})
 
-	syncer, _ := newTestSyncer(mockDB, validation, fakeClock)
+			syncer, _ := newTestSyncer(mockDB, validation, fakeClock)
 
-	spcCRUD := mockDB.ServiceProviderClusters(testSubscriptionID, testResourceGroup, testClusterName)
-	var lastWrite time.Time
-	rewrites := 0
-	for i := 0; i < 20; i++ {
-		// Each run starts one retry delay after the previous run completed.
-		fakeClock.SetTime(fakeClock.Now().Add(62 * time.Second))
+			spcCRUD := mockDB.ServiceProviderClusters(testSubscriptionID, testResourceGroup, testClusterName)
+			var lastWrite time.Time
+			rewrites := 0
+			for i := 0; i < 20; i++ {
+				// Each run starts one retry delay after the previous run completed.
+				fakeClock.SetTime(fakeClock.Now().Add(tc.retryDelay + time.Second))
 
-		before, err := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
-		require.NoError(t, err)
-		require.NoError(t, syncer.SyncOnce(ctx, newTestClusterKey()))
-		after, err := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
-		require.NoError(t, err)
+				before, err := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
+				require.NoError(t, err)
+				require.NoError(t, syncer.SyncOnce(ctx, newTestClusterKey()))
+				after, err := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
+				require.NoError(t, err)
 
-		probe := after.Status.ValidationProbeTimes[testValidationName]
-		require.Falsef(t, probe.IsZero(), "run %d: a failing validation must always record a probe", i)
-		if !probe.Time.Equal(before.Status.ValidationProbeTimes[testValidationName].Time) {
-			if rewrites > 0 {
-				assert.GreaterOrEqualf(t, fakeClock.Since(lastWrite), validationutils.ValidationProbeRewriteInterval,
-					"rewrite %d landed too soon after the previous write", rewrites)
+				probe := after.Status.ValidationProbeTimes[testValidationName]
+				require.Falsef(t, probe.IsZero(), "run %d: a failing validation must always record a probe", i)
+
+				// Freshness invariant: while re-checks continue on schedule, the stored
+				// probe must stay inside the freshness window. The old probe remains
+				// readable until the rewriting run's write lands at its completion, so
+				// its maximum observable age is completion minus the old probe. That
+				// bound necessarily includes the writing run's duration in addition to
+				// the rewrite interval and the retry/run overshoot; a window that omits
+				// it (the old 6-minute bound) lets this schedule drive the probe stale
+				// before the rewrite lands.
+				completion := fakeClock.Now()
+				if beforeProbe, ok := before.Status.ValidationProbeTimes[testValidationName]; ok {
+					assert.LessOrEqualf(t, completion.Sub(beforeProbe.Time), validationutils.ValidationProbeFreshnessWindow,
+						"run %d: the stored probe went stale while the validation was re-checking on schedule", i)
+				}
+				assert.LessOrEqualf(t, completion.Sub(probe.Time), validationutils.ValidationProbeFreshnessWindow,
+					"run %d: the freshly written probe exceeds the freshness window", i)
+
+				if !probe.Time.Equal(before.Status.ValidationProbeTimes[testValidationName].Time) {
+					if rewrites > 0 {
+						assert.GreaterOrEqualf(t, fakeClock.Since(lastWrite), validationutils.ValidationProbeRewriteInterval,
+							"rewrite %d landed too soon after the previous write", rewrites)
+					}
+					lastWrite = fakeClock.Now()
+					rewrites++
+				}
 			}
-			lastWrite = fakeClock.Now()
-			rewrites++
-		}
+			assert.GreaterOrEqual(t, rewrites, 3, "the schedule must produce several rewrites for the interval assertions to be meaningful")
+		})
 	}
-	assert.GreaterOrEqual(t, rewrites, 3, "the schedule must produce several rewrites for the interval assertions to be meaningful")
 }
 
 // TestClusterValidationSyncer_ProbeRewriteRestartFallback covers the fallback used when no
