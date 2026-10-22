@@ -25,6 +25,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	clocktesting "k8s.io/utils/clock/testing"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -35,6 +37,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
 	"github.com/Azure/ARO-HCP/internal/backup"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/billingcosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/kubeappliercosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
@@ -140,7 +143,7 @@ func TestClusterChildResourcesCleanupController_SyncOnce(t *testing.T) {
 		}
 		return applyDesire
 	}
-	assertNoClusterScopedKubeApplierResources := func(
+	assertOnlyClusterScopedReadDesiresRemain := func(
 		t *testing.T,
 		ctx context.Context,
 		kubeApplierDBClients *kubeappliercosmosstoragetesting.MockKubeApplierDBClients,
@@ -158,8 +161,8 @@ func TestClusterChildResourcesCleanupController_SyncOnce(t *testing.T) {
 		iter, err := untypedCRUD.List(ctx, nil)
 		require.NoError(t, err)
 		for _, resource := range iter.Items(ctx) {
-			if resource.ResourceID != nil {
-				t.Fatalf("expected no cluster-scoped kube-applier resources, found %q", resource.ResourceID)
+			if !strings.EqualFold(resource.ResourceType, kubeapplierapi.ClusterScopedReadDesireResourceType.String()) {
+				t.Fatalf("expected only retained reads, found %q", resource.ResourceID)
 			}
 		}
 		require.NoError(t, iter.GetError())
@@ -320,7 +323,7 @@ func TestClusterChildResourcesCleanupController_SyncOnce(t *testing.T) {
 			},
 		},
 		{
-			name:            "when SPC has kube-applier desires it deletes desires then deletes SPC",
+			name:            "when SPC has ReadDesires it retains them and deletes SPC",
 			existingCluster: newTestCluster(t, readyToDeleteClusterOptsFunc),
 			childResources: []any{
 				newTestSPCWithManagementCluster(managementClusterResourceID),
@@ -331,11 +334,11 @@ func TestClusterChildResourcesCleanupController_SyncOnce(t *testing.T) {
 				_, err := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
 				require.True(t, cosmosstorageutils.IsNotFoundError(err), "expected SPC to be deleted")
 
-				assertNoClusterScopedKubeApplierResources(t, ctx, kubeApplierDBClients)
+				assertOnlyClusterScopedReadDesiresRemain(t, ctx, kubeApplierDBClients)
 			},
 		},
 		{
-			name:            "when cluster has cluster and nodepool scoped kube-applier resources it deletes only cluster scoped ones",
+			name:            "when cluster has cluster and nodepool scoped resources it deletes only cluster scoped writes",
 			existingCluster: newTestCluster(t, readyToDeleteClusterOptsFunc),
 			childResources: []any{
 				newTestSPCWithManagementCluster(managementClusterResourceID),
@@ -350,7 +353,7 @@ func TestClusterChildResourcesCleanupController_SyncOnce(t *testing.T) {
 				_, err := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
 				require.True(t, cosmosstorageutils.IsNotFoundError(err), "expected SPC to be deleted")
 
-				assertNoClusterScopedKubeApplierResources(t, ctx, kubeApplierDBClients)
+				assertOnlyClusterScopedReadDesiresRemain(t, ctx, kubeApplierDBClients)
 				assertClusterScopedKubeApplierResourceExists(t, ctx, kubeApplierDBClients,
 					kubeapplierapihelpers.ToNodePoolScopedReadDesireResourceIDString(
 						testSubscriptionID, testResourceGroupName, testClusterName, "workers", "readonly-nodepool"))
@@ -582,7 +585,7 @@ func TestClusterChildResourcesCleanupController_SyncOnce(t *testing.T) {
 				newTestClusterScopedReadDesire("non-backup-desire"),
 			},
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, kubeApplierDBClients *kubeappliercosmosstoragetesting.MockKubeApplierDBClients) {
-				assertNoClusterScopedKubeApplierResources(t, ctx, kubeApplierDBClients)
+				assertOnlyClusterScopedReadDesiresRemain(t, ctx, kubeApplierDBClients)
 
 				serviceProviderCRUD := db.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName)
 				_, err := serviceProviderCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
@@ -625,6 +628,14 @@ func TestClusterChildResourcesCleanupController_SyncOnce(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
+
+			for _, resource := range tc.kubeApplierDesires {
+				if read, ok := resource.(*kubeapplierapi.ReadDesire); ok {
+					cosmosID := metadataapi.Must(coreapi.ResourceIDToCosmosID(read.ResourceID))
+					data, found := mockKubeApplierClient.GetDocument(cosmosID)
+					require.True(t, found && !cosmosstorageutils.IsSoftDeleted(data), "cleanup must retain ReadDesire %s", read.ResourceID)
+				}
+			}
 
 			if tc.verifyDB != nil {
 				tc.verifyDB(t, ctx, mockResourcesDBClient, mockKubeApplierDBClients)
@@ -715,4 +726,88 @@ func TestIsUnderSkippedSubtree(t *testing.T) {
 			assert.Equal(t, tc.want, got)
 		})
 	}
+}
+
+func TestReadDesiresSurviveClusterDeletion(t *testing.T) {
+	ctx := t.Context()
+	now := metav1.Now()
+	cluster := newTestCluster(t, func(cluster *coreapi.Cluster) {
+		cluster.ServiceProviderProperties.DeletionTimestamp = &now
+		cluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &now
+		cluster.ServiceProviderProperties.ClusterServiceID = nil
+	})
+	mcID := metadataapi.Must(azcorearm.ParseResourceID("/providers/microsoft.redhatopenshift/stamps/1/managementclusters/default"))
+	spc := &coreapi.ServiceProviderCluster{
+		CosmosMetadata: coreapi.CosmosMetadata{
+			ResourceID:   metadataapi.Must(azcorearm.ParseResourceID(cluster.ID.String() + "/serviceProviderClusters/default")),
+			PartitionKey: strings.ToLower(testSubscriptionID),
+		},
+		Status: coreapi.ServiceProviderClusterStatus{ManagementClusterResourceID: mcID},
+	}
+	db, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, spc})
+	require.NoError(t, err)
+	client := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClient()
+	clients := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClients()
+	clients.Register(mcID, client)
+	reads, err := client.ReadDesiresForCluster(testSubscriptionID, testResourceGroupName, testClusterName)
+	require.NoError(t, err)
+	var expectedReads []*kubeapplierapi.ReadDesire
+	for _, owner := range []string{"ClusterResources", "IngressCertificate", "CreateClusterScopedReadDesires", "untagged"} {
+		read := &kubeapplierapi.ReadDesire{
+			CosmosMetadata: coreapi.CosmosMetadata{
+				ResourceID:   metadataapi.Must(azcorearm.ParseResourceID(kubeapplierapihelpers.ToClusterScopedReadDesireResourceIDString(testSubscriptionID, testResourceGroupName, testClusterName, owner))),
+				PartitionKey: strings.ToLower(mcID.String()),
+			},
+			Spec: kubeapplierapi.ReadDesireSpec{ManagementCluster: mcID},
+		}
+		if owner != "untagged" {
+			read.Tags = map[string]string{kubeapplierapi.TagControllerName: owner}
+		}
+		read.Status.KubeContent = &runtime.RawExtension{Raw: []byte(`{"kind":"HostedCluster","metadata":{"name":"observed"}}`)}
+		stored, err := reads.Create(ctx, read, nil)
+		require.NoError(t, err)
+		expectedReads = append(expectedReads, stored)
+	}
+	applies, err := client.ApplyDesiresForCluster(testSubscriptionID, testResourceGroupName, testClusterName)
+	require.NoError(t, err)
+	_, err = applies.Create(ctx, &kubeapplierapi.ApplyDesire{
+		CosmosMetadata: coreapi.CosmosMetadata{
+			ResourceID:   metadataapi.Must(azcorearm.ParseResourceID(kubeapplierapihelpers.ToClusterScopedApplyDesireResourceIDString(testSubscriptionID, testResourceGroupName, testClusterName, "HostedCluster"))),
+			PartitionKey: strings.ToLower(mcID.String()),
+		},
+		Tags: map[string]string{kubeapplierapi.TagControllerName: "ClusterResources"},
+	}, nil)
+	require.NoError(t, err)
+	key := controllerutils.HCPClusterKey{SubscriptionID: testSubscriptionID, ResourceGroupName: testResourceGroupName, HCPClusterName: testClusterName}
+	lister := &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{cluster}}
+	cleanup := &clusterChildResourcesCleanupController{clusterLister: lister, resourcesDBClient: db, kubeApplierDBClients: clients}
+	assertReadsPreserved := func() {
+		for _, expected := range expectedReads {
+			actual, err := reads.Get(ctx, expected.ResourceID.Name)
+			require.NoError(t, err)
+			require.Equal(t, expected, actual)
+		}
+	}
+	require.NoError(t, cleanup.SyncOnce(ctx, key))
+	_, err = db.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
+	require.NoError(t, err, "SPC must remain while the owned ApplyDesire exists")
+	assertReadsPreserved()
+
+	// The resource controller finishes Kubernetes teardown and removes its apply.
+	require.NoError(t, applies.Delete(ctx, "HostedCluster"))
+	require.NoError(t, cleanup.SyncOnce(ctx, key))
+	_, err = db.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
+	require.True(t, cosmosstorageutils.IsNotFoundError(err), "retained reads must not block SPC deletion")
+	assertReadsPreserved()
+	deleter := &clusterDeletionController{
+		clusterLister:                lister,
+		serviceProviderClusterLister: &corelistertesting.SliceServiceProviderClusterLister{ServiceProviderClusters: []*coreapi.ServiceProviderCluster{spc}},
+		resourcesDBClient:            db, kubeApplierDBClients: clients,
+		billingDBClient: billingcosmosstoragetesting.NewMockBillingDBClient(),
+		passiveClock:    clocktesting.NewFakePassiveClock(time.Now()),
+	}
+	require.NoError(t, deleter.SyncOnce(ctx, key))
+	_, err = db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
+	require.True(t, cosmosstorageutils.IsNotFoundError(err), "retained reads must not block Cluster deletion")
+	assertReadsPreserved() // The orphan controller performs the eventual cleanup.
 }

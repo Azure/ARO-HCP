@@ -22,7 +22,6 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/clusterresources"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
@@ -39,11 +38,10 @@ import (
 // under a NodePool (e.g. ManagementClusterContent documents) recursively once
 // the NodePool is marked for deletion and Cluster Service has confirmed the
 // delete on its side. Controller status documents (NodePoolControllerResourceType)
-// are left alone. Nodepool-scoped kube-applier *Desires are deleted here using
-// the parent cluster's ServiceProviderCluster placement, except for ApplyDesires
-// that name an owning controller - those are that controller's to tear down; see
-// extraDeleteGateShouldDeleteApplyDesire. The orphan scraper handles controller
-// status after the NodePool document itself is removed.
+// are left alone. ReadDesires remain until the NodePool is deleted, when the
+// orphan scraper can remove them. ApplyDesires with an owning controller are
+// left for that controller to tear down; see extraDeleteGateShouldDeleteApplyDesire.
+// The orphan scraper handles controller status after the NodePool is removed.
 type nodePoolChildResourcesCleanupController struct {
 	nodePoolLister       corelisters.NodePoolLister
 	resourcesDBClient    corecosmosstorage.ResourcesDBClient
@@ -204,7 +202,7 @@ func (c *nodePoolChildResourcesCleanupController) extraDeleteGateShouldDeleteSer
 		return false, nil
 	}
 
-	// Check if there are any nodepool-scoped kube-applier *Desire documents remaining.
+	// Check for nodepool-scoped kube-applier documents other than retained ReadDesires.
 	nodePoolResourceID := serviceProviderNodePoolResourceID.Parent
 	clusterResourceID := nodePoolResourceID.Parent
 	spc, err := c.resourcesDBClient.ServiceProviderClusters(clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName, clusterResourceID.Name).Get(ctx, coreapi.ServiceProviderClusterResourceName)
@@ -233,7 +231,12 @@ func (c *nodePoolChildResourcesCleanupController) extraDeleteGateShouldDeleteSer
 		if err != nil {
 			return false, utils.TrackError(fmt.Errorf("failed to list nodepool-scoped kube-applier resources: %w", err))
 		}
-		for range desireIterator.Items(ctx) {
+		for _, desire := range desireIterator.Items(ctx) {
+			// Keep observing actual state until the NodePool is deleted. The orphan
+			// controller removes retained reads; they must not block provider cleanup.
+			if strings.EqualFold(desire.ResourceType, kubeapplierapi.NodePoolScopedReadDesireResourceType.String()) {
+				continue
+			}
 			logger.Info("waiting for nodepool-scoped kube-applier content to be deleted before removing ServiceProviderNodePool",
 				"serviceProviderNodePoolResourceID", spnp.ResourceID.String(),
 				"managementClusterResourceID", mcResourceID.String())
@@ -282,11 +285,10 @@ func (c *nodePoolChildResourcesCleanupController) ensureNodePoolScopedKubeApplie
 		return nil
 	}
 
-	// extraDeleteGates uses lowercased kubeapplierapi.*DesireResourceType keys. Types not
-	// in the map are deleted unconditionally.
+	// extraDeleteGates uses lowercased resource type keys. ReadDesires are skipped
+	// below; other types without a gate are deleted unconditionally.
 	extraDeleteGates := map[string]func(ctx context.Context, resourceID *azcorearm.ResourceID) (bool, error){
 		strings.ToLower(kubeapplierapi.NodePoolScopedApplyDesireResourceType.String()): c.extraDeleteGateShouldDeleteApplyDesire(kaClient, nodePoolResourceID),
-		strings.ToLower(kubeapplierapi.NodePoolScopedReadDesireResourceType.String()):  c.extraDeleteGateShouldDeleteReadDesire(kaClient, nodePoolResourceID),
 	}
 
 	desireCRUD, err := kaClient.UntypedCRUD(*nodePoolResourceID)
@@ -301,6 +303,12 @@ func (c *nodePoolChildResourcesCleanupController) ensureNodePoolScopedKubeApplie
 	for _, resource := range desireIterator.Items(ctx) {
 		if resource.ResourceID == nil {
 			return utils.TrackError(fmt.Errorf("kube-applier document at cosmosID %q has no resourceID; refusing to delete", resource.ID))
+		}
+
+		// ReadDesires outlive cleanup so actual state stays observable for the
+		// lifetime of the NodePool. The orphan controller removes them afterward.
+		if strings.EqualFold(resource.ResourceType, kubeapplierapi.NodePoolScopedReadDesireResourceType.String()) {
+			continue
 		}
 
 		if extraDeleteGate, ok := extraDeleteGates[strings.ToLower(resource.ResourceType)]; ok {
@@ -370,56 +378,6 @@ func (c *nodePoolChildResourcesCleanupController) extraDeleteGateShouldDeleteApp
 		if owningController := applyDesire.Tags[kubeapplierapi.TagControllerName]; len(owningController) > 0 {
 			logger.Info("waiting for owning controller to tear down nodepool-scoped ApplyDesire",
 				"applyDesireResourceID", applyDesireResourceID.String(), "owningController", owningController)
-			return false, nil
-		}
-
-		return true, nil
-	}
-}
-
-// extraDeleteGateShouldDeleteReadDesire reports whether a nodepool-scoped
-// ReadDesire document may be removed here.
-//
-// ReadDesires owned by ClusterResourcesController have their own cleanup path
-// (paired with ApplyDesire removal), so we skip them here. All other ReadDesires
-// are deleted here, including those from controllers that don't implement their
-// own cleanup.
-//
-// Untagged desires have no owner left to reap them, so they are deleted here.
-func (c *nodePoolChildResourcesCleanupController) extraDeleteGateShouldDeleteReadDesire(
-	kaClient kubeappliercosmosstorage.KubeApplierDBClient,
-	nodePoolResourceID *azcorearm.ResourceID,
-) func(ctx context.Context, readDesireResourceID *azcorearm.ResourceID) (bool, error) {
-	return func(ctx context.Context, readDesireResourceID *azcorearm.ResourceID) (bool, error) {
-		logger := utils.LoggerFromContext(ctx)
-
-		clusterResourceID := nodePoolResourceID.Parent
-		if clusterResourceID == nil {
-			return false, utils.TrackError(fmt.Errorf(
-				"node pool resource ID missing cluster parent: %s", nodePoolResourceID.String()))
-		}
-
-		readDesireCRUD, err := kaClient.ReadDesiresForNodePool(
-			clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName, clusterResourceID.Name, nodePoolResourceID.Name)
-		if err != nil {
-			return false, utils.TrackError(fmt.Errorf("failed to create nodepool-scoped ReadDesire CRUD: %w", err))
-		}
-
-		readDesire, err := readDesireCRUD.Get(ctx, strings.ToLower(readDesireResourceID.Name))
-		if cosmosstorageutils.IsNotFoundError(err) {
-			// Raced with the owner purging it; nothing left to delete.
-			return false, nil
-		}
-		if err != nil {
-			return false, utils.TrackError(fmt.Errorf("failed to get ReadDesire %q: %w", readDesireResourceID.String(), err))
-		}
-
-		// Only skip ReadDesires owned by ClusterResourcesController, which has its own
-		// cleanup path (paired with ApplyDesire removal). All other ReadDesires are
-		// cleaned up here since those controllers don't implement their own deletion logic.
-		if owningController := readDesire.Tags[kubeapplierapi.TagControllerName]; owningController == clusterresources.ClusterResourcesControllerName {
-			logger.Info("waiting for ClusterResources controller to tear down nodepool-scoped ReadDesire",
-				"readDesireResourceID", readDesireResourceID.String())
 			return false, nil
 		}
 

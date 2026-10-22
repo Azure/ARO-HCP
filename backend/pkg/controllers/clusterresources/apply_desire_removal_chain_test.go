@@ -480,7 +480,7 @@ func TestDeleteAllOwnedApplyDesires(t *testing.T) {
 					require.NoError(t, readErr, "pending ingress %s must retain its ReadDesire", name)
 				} else {
 					assert.True(t, cosmosstorageutils.IsNotFoundError(applyErr), "deleted ingress %s ApplyDesire should be purged, got %v", name, applyErr)
-					assert.True(t, cosmosstorageutils.IsNotFoundError(readErr), "deleted ingress %s ReadDesire should be purged, got %v", name, readErr)
+					assert.NoError(t, readErr, "deleted ingress %s ReadDesire must remain", name)
 				}
 			}
 			for _, name := range append([]string{DesireNameHostedCluster}, downstreamOfHostedCluster...) {
@@ -499,7 +499,7 @@ func TestDeleteAllOwnedApplyDesires(t *testing.T) {
 			_, err = applyCRUD.Get(ctx, pendingName)
 			assert.True(t, cosmosstorageutils.IsNotFoundError(err), "final ingress ApplyDesire should be purged, got %v", err)
 			_, err = readCRUD.Get(ctx, pendingName)
-			assert.True(t, cosmosstorageutils.IsNotFoundError(err), "final ingress ReadDesire should be purged, got %v", err)
+			assert.NoError(t, err, "final ingress ReadDesire must remain")
 			hostedCluster, err := applyCRUD.Get(ctx, DesireNameHostedCluster)
 			require.NoError(t, err, "HostedCluster desire should remain until deletion completes")
 			assert.Equal(t, kubeapplierapi.ApplyDesireTypeDelete, hostedCluster.Spec.Type, "HostedCluster deletion should start after ingress cleanup")
@@ -675,7 +675,7 @@ func TestDeleteAllOwnedApplyDesires(t *testing.T) {
 			"untagged desire should be untouched")
 	})
 
-	t.Run("deletes paired ReadDesires and retains NodePool observations until namespaces are gone", func(t *testing.T) {
+	t.Run("retains ReadDesires throughout resource and namespace cleanup", func(t *testing.T) {
 		t.Parallel()
 		ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
 
@@ -689,15 +689,15 @@ func TestDeleteAllOwnedApplyDesires(t *testing.T) {
 		err := fixture.controller.deleteAllOwnedApplyDesires(ctx, testKey(), testManagementClusterResourceID)
 		require.NoError(t, err, "deleteAllOwnedApplyDesires should succeed")
 
-		// Verify ReadDesires were deleted along with their ApplyDesires
+		// ReadDesires remain after their ApplyDesires are removed.
 		readDesireCRUD, err := fixture.mockKubeApplierClient.ReadDesiresForCluster(testSubscriptionID, testResourceGroupName, testClusterName)
 		require.NoError(t, err, "get ReadDesire CRUD")
 
 		_, err = readDesireCRUD.Get(ctx, DesireNamePodNetworkInstance)
-		assert.Error(t, err, "PodNetworkInstance ReadDesire should be deleted with its ApplyDesire")
+		assert.NoError(t, err, "PodNetworkInstance ReadDesire must remain after its ApplyDesire is removed")
 
 		_, err = readDesireCRUD.Get(ctx, DesireNamePodNetwork)
-		assert.Error(t, err, "PodNetwork ReadDesire should be deleted with its ApplyDesire")
+		assert.NoError(t, err, "PodNetwork ReadDesire must remain after its ApplyDesire is removed")
 
 		nodePoolReadDesireCRUD, err := fixture.mockKubeApplierClient.ReadDesiresForNodePool(testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName)
 		require.NoError(t, err, "get NodePool ReadDesire CRUD")
@@ -706,7 +706,7 @@ func TestDeleteAllOwnedApplyDesires(t *testing.T) {
 		require.NoError(t, err, "NodePool ReadDesire must remain while namespace deletion is pending")
 
 		// Simulate kube-applier completing namespace deletion, then reconcile
-		// the same fixture again to exercise the orphan sweep.
+		// the same fixture again to verify observations remain.
 		clusterCRUD, err := fixture.mockKubeApplierClient.ApplyDesiresForCluster(testSubscriptionID, testResourceGroupName, testClusterName)
 		require.NoError(t, err, "get writable cluster ApplyDesire CRUD")
 		for _, name := range []string{DesireNameHostedClusterNamespace, DesireNameControlPlaneNamespace} {
@@ -719,10 +719,10 @@ func TestDeleteAllOwnedApplyDesires(t *testing.T) {
 		err = fixture.controller.deleteAllOwnedApplyDesires(ctx, testKey(), testManagementClusterResourceID)
 		require.NoError(t, err, "cleanup should finish after namespace deletion")
 		_, err = nodePoolReadDesireCRUD.Get(ctx, DesireNameNodePool)
-		assert.True(t, cosmosstorageutils.IsNotFoundError(err), "orphaned NodePool ReadDesire should be swept, got %v", err)
+		assert.NoError(t, err, "NodePool ReadDesire must remain after namespace deletion")
 	})
 
-	t.Run("sweeps orphaned ReadDesires after ApplyDesires are gone", func(t *testing.T) {
+	t.Run("retains ReadDesires after ApplyDesires are gone", func(t *testing.T) {
 		t.Parallel()
 		ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
 
@@ -732,7 +732,7 @@ func TestDeleteAllOwnedApplyDesires(t *testing.T) {
 			newOwnedClusterDesire(DesireNameHostedClusterNamespace),
 			newOwnedClusterDesire(DesireNameControlPlaneNamespace),
 		}
-		// Mark namespace desires as deleted so the chain completes and sweep runs
+		// Mark namespace desires as deleted so the chain completes
 		markDeleted(desires, DesireNameHostedClusterNamespace, DesireNameControlPlaneNamespace)
 
 		fixture := newDestructFixtureWithReadDesires(t, ctx, testNodePoolName, desires,
@@ -743,20 +743,49 @@ func TestDeleteAllOwnedApplyDesires(t *testing.T) {
 		require.NoError(t, err, "get ReadDesire CRUD")
 
 		_, err = readDesireCRUD.Get(ctx, DesireNamePodNetworkInstance)
-		require.NoError(t, err, "orphaned PodNetworkInstance ReadDesire should exist before sweep")
+		require.NoError(t, err, "orphaned PodNetworkInstance ReadDesire should exist before cleanup")
 
 		_, err = readDesireCRUD.Get(ctx, DesireNamePodNetwork)
-		require.NoError(t, err, "orphaned PodNetwork ReadDesire should exist before sweep")
+		require.NoError(t, err, "orphaned PodNetwork ReadDesire should exist before cleanup")
 
-		// Run deletion - should sweep orphans
+		// Complete ApplyDesire deletion.
 		err = fixture.controller.deleteAllOwnedApplyDesires(ctx, testKey(), testManagementClusterResourceID)
 		require.NoError(t, err, "deleteAllOwnedApplyDesires should succeed")
 
-		// Verify orphaned ReadDesires were swept
+		// ReadDesires still observe the removed resources.
 		_, err = readDesireCRUD.Get(ctx, DesireNamePodNetworkInstance)
-		assert.Error(t, err, "orphaned PodNetworkInstance ReadDesire should be swept")
+		assert.NoError(t, err, "orphaned PodNetworkInstance ReadDesire must remain")
 
 		_, err = readDesireCRUD.Get(ctx, DesireNamePodNetwork)
-		assert.Error(t, err, "orphaned PodNetwork ReadDesire should be swept")
+		assert.NoError(t, err, "orphaned PodNetwork ReadDesire must remain")
 	})
+}
+
+func TestStaleApplyDesireCleanupPreservesReadState(t *testing.T) {
+	ctx := t.Context()
+	for _, name := range []string{DesireNamePodNetwork, DesireNamePodNetworkInstance, DesireNameManagedCluster} {
+		t.Run(name, func(t *testing.T) {
+			desire := newOwnedClusterDesire(name)
+			desire.Spec.Type = kubeapplierapi.ApplyDesireTypeDelete
+			desire.Spec.ServerSideApply = nil
+			desire.Status.Conditions = []metav1.Condition{{Type: kubeapplierapi.ConditionTypeSuccessfullyDeleted, Status: metav1.ConditionTrue}}
+			fixture := newDestructFixtureWithReadDesires(t, ctx, "nodepool", []*kubeapplierapi.ApplyDesire{desire}, name)
+			reads, err := fixture.mockKubeApplierClient.ReadDesiresForCluster(testSubscriptionID, testResourceGroupName, testClusterName)
+			require.NoError(t, err)
+			before, err := reads.Get(ctx, name)
+			require.NoError(t, err)
+			before.Status.KubeContent = &runtime.RawExtension{Raw: []byte(`{"kind":"Example","metadata":{"name":"observed"}}`)}
+			before, err = reads.Replace(ctx, before, nil)
+			require.NoError(t, err)
+
+			for range 2 {
+				require.NoError(t, fixture.controller.deleteStaleApplyDesires(ctx, testKey(), testManagementClusterResourceID, map[string]bool{}))
+				_, err = fixture.clusterCRUD.Get(ctx, name)
+				require.True(t, cosmosstorageutils.IsNotFoundError(err), "stale ApplyDesire should be removed")
+				after, err := reads.Get(ctx, name)
+				require.NoError(t, err, "ReadDesire should remain after stale cleanup")
+				require.Equal(t, before, after, "cleanup must preserve the observed state")
+			}
+		})
+	}
 }

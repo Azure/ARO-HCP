@@ -752,22 +752,6 @@ func (c *clusterResourcesController) deleteStaleApplyDesires(
 		}
 		if removed {
 			logger.Info("purged stale ApplyDesire", "desireName", desire.ResourceID.Name)
-
-			// Also delete the corresponding ReadDesire. ReadDesires created by this
-			// controller outlive their ApplyDesire when deleteStaleApplyDesires removes
-			// a resource no longer returned by Cluster Service. Without this cleanup, the
-			// orphaned ReadDesire would be preserved by the ownership gate during cluster
-			// deletion and never get cleaned up.
-			readDesireCRUD, readErr := kubeApplierDBClient.ReadDesiresFor(scope)
-			if readErr != nil {
-				return utils.TrackError(fmt.Errorf("get ReadDesire CRUD for stale cleanup of %s: %w", desire.ResourceID.Name, readErr))
-			}
-			if delErr := readDesireCRUD.Delete(ctx, desire.ResourceID.Name); delErr != nil &&
-				!cosmosstorageutils.IsNotFoundError(delErr) {
-				return utils.TrackError(
-					fmt.Errorf("delete stale ReadDesire %s: %w", desire.ResourceID.Name, delErr))
-			}
-			logger.Info("purged stale ReadDesire", "desireName", desire.ResourceID.Name)
 		} else {
 			logger.Info("stale ApplyDesire pending deletion", "desireName", desire.ResourceID.Name)
 		}
