@@ -16,6 +16,8 @@ package app
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -28,23 +30,37 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/tools/cache"
 	cachetesting "k8s.io/client-go/tools/cache/testing"
+	clocktesting "k8s.io/utils/clock/testing"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
+	clusterdeletion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/deletion"
+	clusteroperations "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/operations"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/mismatch"
+	nodepooldeletion "github.com/Azure/ARO-HCP/backend/pkg/controllers/nodepool/deletion"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils/operationtesting"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosclient"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosratelimit"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/billingcosmosstoragetesting"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/informers/kubeapplierinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/fleetlisters"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/kubeapplierlistertesting"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 )
 
@@ -121,7 +137,8 @@ func TestStorageFactorySeparatesContainerAndControllerBudgets(t *testing.T) {
 		require.True(t, cosmosstorageutils.IsNotFoundError(err), "%v", err)
 		mc, err := azcorearm.ParseResourceID("/providers/Microsoft.RedHatOpenShift/stamps/1/managementClusters/default")
 		require.NoError(t, err)
-		kubeApplier := factory.KubeApplierStorageClients("normal").For(ctx, mc)
+		kubeApplier, err := factory.KubeApplierStorageClients("normal").For(ctx, mc)
+		require.NoError(t, err)
 		require.NotNil(t, kubeApplier, "its Fleet lookup uses that controller's Fleet budget")
 		desires, err := kubeApplier.ReadDesiresForCluster("sub", "rg", "cluster")
 		require.NoError(t, err)
@@ -131,7 +148,8 @@ func TestStorageFactorySeparatesContainerAndControllerBudgets(t *testing.T) {
 		// Debt in one MC container must not consume the next MC's allocation.
 		mc2, err := azcorearm.ParseResourceID("/providers/Microsoft.RedHatOpenShift/stamps/2/managementClusters/default")
 		require.NoError(t, err)
-		kubeApplier2 := factory.KubeApplierStorageClients("normal").For(ctx, mc2)
+		kubeApplier2, err := factory.KubeApplierStorageClients("normal").For(ctx, mc2)
+		require.NoError(t, err)
 		require.NotNil(t, kubeApplier2)
 		desires2, err := kubeApplier2.ReadDesiresForCluster("sub", "rg", "cluster")
 		require.NoError(t, err)
@@ -350,12 +368,20 @@ func TestBackendKubeApplierInformerSkipsThroughputDiscovery(t *testing.T) {
 						if discovery != "unconfigured" {
 							client := <-limitedDone
 							require.NotNil(t, client)
-							require.Same(t, client, limited.For(t.Context(), key.GetResourceID()))
+							cached, err := limited.For(t.Context(), key.GetResourceID())
+							require.NoError(t, err)
+							require.Same(t, client, cached)
 							require.EqualValues(t, 1, calls.Load(), "successful discovery is cached")
 						}
 					}()
 					if discovery != "unconfigured" {
-						go func() { limitedDone <- limited.For(t.Context(), key.GetResourceID()) }()
+						go func() {
+							client, err := limited.For(t.Context(), key.GetResourceID())
+							if err != nil {
+								t.Error(err)
+							}
+							limitedDone <- client
+						}()
 						<-started
 					}
 					informerKey := key
@@ -413,12 +439,18 @@ func TestBackendLimitedKubeApplierDiscoveryRetries(t *testing.T) {
 			require.NoError(t, err)
 			clients := factory.KubeApplierStorageClients(strings.ToLower(mismatch.MissingResourceIDControllerName))
 			key := unionkubeapplierinformers.ManagementClusterKey{StampIdentifier: "1", ManagementClusterName: "default"}
-			require.Nil(t, clients.For(t.Context(), key.GetResourceID()), "failed discovery must not produce an unlimited client")
+			failed, err := clients.For(t.Context(), key.GetResourceID())
+			require.Error(t, err)
+			require.NotErrorIs(t, err, kubeappliercosmosstorage.ErrManagementClusterNotFound)
+			require.Nil(t, failed, "failed discovery must not produce an unlimited client")
 			require.Equal(t, 1, calls)
 			require.NotContains(t, factory.rateLimits, "KubeApplier-test")
-			client := clients.For(t.Context(), key.GetResourceID())
+			client, err := clients.For(t.Context(), key.GetResourceID())
+			require.NoError(t, err)
 			require.NotNil(t, client)
-			require.Same(t, client, clients.For(t.Context(), key.GetResourceID()))
+			cached, err := clients.For(t.Context(), key.GetResourceID())
+			require.NoError(t, err)
+			require.Same(t, client, cached)
 			require.Equal(t, 2, calls, "retry succeeds and subsequent lookups use the cache")
 		})
 	}
@@ -475,7 +507,13 @@ func TestBackendKubeApplierInformerLifecycleDuringThroughputDiscovery(t *testing
 		key := unionkubeapplierinformers.ManagementClusterKey{StampIdentifier: "1", ManagementClusterName: "default"}
 		limited := factory.KubeApplierStorageClients(strings.ToLower(mismatch.MissingResourceIDControllerName))
 		limitedDone := make(chan kubeappliercosmosstorage.KubeApplierDBClient, 1)
-		go func() { limitedDone <- limited.For(t.Context(), key.GetResourceID()) }()
+		go func() {
+			client, err := limited.For(t.Context(), key.GetResourceID())
+			if err != nil {
+				t.Error(err)
+			}
+			limitedDone <- client
+		}()
 		defer func() {
 			releaseDiscovery()
 			require.NotNil(t, <-limitedDone)
@@ -563,6 +601,180 @@ func TestStorageFactoryInitialDiscoveryFailure(t *testing.T) {
 	}
 	_, err := newStorageFactory("https://cosmos.test", "test", storageTestOptions(t, nil), BackendStorageFactoryOptions(false))
 	require.Error(t, err)
+}
+
+func TestBackendCleanupDiscoveryFailure(t *testing.T) {
+	for _, scope := range []string{"cluster", "nodepool", "diagnostic"} {
+		for _, failure := range []string{"ARM403", "ARM404", "timeout", "zero", "absent"} {
+			t.Run(scope+"/"+failure, func(t *testing.T) {
+				ctx := t.Context()
+				require.True(t, utilruntime.ReallyCrash, "exercise production panic policy")
+				fixture := operationtesting.NewClusterTestFixture()
+				cluster := fixture.NewCluster(nil)
+				now := metav1.Now()
+				cluster.ServiceProviderProperties.ClusterServiceID = nil
+				cluster.ServiceProviderProperties.DeletionTimestamp = &now
+				cluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &now
+				deadline := metav1.NewTime(now.Add(-time.Hour))
+				cluster.ServiceProviderProperties.DeleteOperationCompletionDeadline = &deadline
+				mcID := metadataapi.Must(azcorearm.ParseResourceID("/providers/Microsoft.RedHatOpenShift/stamps/1/managementClusters/default"))
+				if failure == "absent" {
+					mcID = metadataapi.Must(azcorearm.ParseResourceID("/providers/Microsoft.RedHatOpenShift/stamps/1/managementClusters/unregistered"))
+				}
+				spc := &coreapi.ServiceProviderCluster{
+					CosmosMetadata: coreapi.CosmosMetadata{ResourceID: metadataapi.Must(azcorearm.ParseResourceID(cluster.ID.String() + "/serviceProviderClusters/default")), PartitionKey: cluster.ID.SubscriptionID},
+					Status:         coreapi.ServiceProviderClusterStatus{ManagementClusterResourceID: mcID},
+				}
+				nodepool := operationtesting.NewNodePoolTestFixture().NewNodePool()
+				nodepool.ServiceProviderProperties.ClusterServiceID = nil
+				nodepool.ServiceProviderProperties.DeletionTimestamp = &now
+				nodepool.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &now
+				spnp := &coreapi.ServiceProviderNodePool{CosmosMetadata: coreapi.CosmosMetadata{ResourceID: metadataapi.Must(azcorearm.ParseResourceID(nodepool.ID.String() + "/serviceProviderNodePools/default")), PartitionKey: cluster.ID.SubscriptionID}}
+				operation := fixture.NewOperation(cosmosstorageutils.OperationRequestDelete)
+				resources := []any{cluster, spc, operation}
+				if scope == "nodepool" {
+					resources = append(resources, nodepool, spnp)
+				}
+				db, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, resources)
+				require.NoError(t, err)
+				billing := billingcosmosstoragetesting.NewMockBillingDBClient()
+				informers := coreinformers.NewBackendInformers(ctx, db.ResourcesGlobalListers(), db, billing.BillingGlobalListers())
+				clusterInformer, _ := informers.Clusters()
+				require.NoError(t, clusterInformer.GetIndexer().Add(cluster))
+				nodepoolInformer, _ := informers.NodePools()
+				require.NoError(t, nodepoolInformer.GetIndexer().Add(nodepool))
+				options := BackendStorageFactoryOptions(false)
+				calls := 0
+				recovered, hasDesires := false, true
+				options.ContainerThroughput = func(container string) (float64, error) {
+					if container != "KubeApplier-test" {
+						return 100000, nil
+					}
+					calls++
+					if recovered {
+						return 100000, nil
+					}
+					switch failure {
+					case "ARM403":
+						return 0, &azcore.ResponseError{StatusCode: http.StatusForbidden}
+					case "ARM404":
+						return 0, &azcore.ResponseError{StatusCode: http.StatusNotFound}
+					case "timeout":
+						return 0, context.DeadlineExceeded
+					default:
+						return 0, nil
+					}
+				}
+				parent := cluster.ID
+				if scope == "nodepool" {
+					parent = nodepool.ID
+				}
+				desireID := metadataapi.Must(azcorearm.ParseResourceID(parent.String() + "/applyDesires/owned"))
+				desire, err := json.Marshal(cosmosstorageutils.GenericDocument[kubeapplierapi.ApplyDesire]{
+					TypedDocument: cosmosstorageutils.TypedDocument{
+						BaseDocument: cosmosstorageutils.BaseDocument{ID: "owned"},
+						ResourceID:   desireID, ResourceType: strings.ToLower(desireID.ResourceType.String()), PartitionKey: strings.ToLower(mcID.String()),
+					},
+					Content: kubeapplierapi.ApplyDesire{Tags: map[string]string{kubeapplierapi.TagControllerName: "owner"}},
+				})
+				require.NoError(t, err)
+				dataOptions := informerStorageTestOptions(t)
+				originalTransport := dataOptions.Transport
+				dataOptions.Transport = storageTestTransport(func(request *http.Request) (*http.Response, error) {
+					if !strings.Contains(request.URL.Path, "/colls/KubeApplier-test/docs") {
+						return originalTransport.Do(request)
+					}
+					body := string(desire)
+					switch request.Method {
+					case http.MethodPost:
+						body = `{"Documents":[]}`
+						if hasDesires {
+							body = `{"Documents":[` + string(desire) + `]}`
+						}
+					case http.MethodGet:
+					default:
+						return nil, fmt.Errorf("unexpected desire mutation: %s", request.Method)
+					}
+					return &http.Response{StatusCode: http.StatusOK, Request: request, Header: http.Header{}, Body: io.NopCloser(strings.NewReader(body))}, nil
+				})
+				factory, err := newStorageFactory("https://cosmos.test", "test", dataOptions, options)
+				require.NoError(t, err)
+				var controller controllerutils.Controller
+				var key any
+				switch scope {
+				case "cluster":
+					clients := factory.KubeApplierStorageClients(strings.ToLower(clusterdeletion.ClusterChildResourcesCleanupControllerControllerName))
+					controller = clusterdeletion.NewClusterChildResourcesCleanupController(db, clients, informers, nil)
+					key = controllerutils.HCPClusterKey{SubscriptionID: cluster.ID.SubscriptionID, ResourceGroupName: cluster.ID.ResourceGroupName, HCPClusterName: cluster.ID.Name}
+				case "nodepool":
+					clients := factory.KubeApplierStorageClients(strings.ToLower(nodepooldeletion.NodePoolChildResourcesCleanupControllerControllerName))
+					controller = nodepooldeletion.NewNodePoolChildResourcesCleanupController(db, clients, informers, nil)
+					key = controllerutils.HCPNodePoolKey{SubscriptionID: cluster.ID.SubscriptionID, ResourceGroupName: cluster.ID.ResourceGroupName, HCPClusterName: cluster.ID.Name, HCPNodePoolName: nodepool.ID.Name}
+				default:
+					clients := factory.KubeApplierStorageClients(strings.ToLower(clusteroperations.OperationClusterDeleteControllerName))
+					active, _ := informers.ActiveOperations()
+					controller = clusteroperations.NewOperationClusterDeleteController(clocktesting.NewFakeClock(now.Time), db, billing, clients, &kubeapplierlistertesting.SliceReadDesireLister{}, &kubeapplierlistertesting.SliceApplyDesireLister{}, nil, nil, active)
+					key = fixture.OperationKey()
+				}
+				t.Cleanup(func() {
+					stopped, cancel := context.WithCancel(context.Background())
+					cancel()
+					controller.Run(stopped, 0)
+				})
+				require.NotPanics(t, func() { err = controller.SyncOnce(ctx, key) })
+				if scope == "diagnostic" {
+					require.NoError(t, err)
+					updated, err := db.Operations(cluster.ID.SubscriptionID).Get(ctx, operation.ResourceID.Name)
+					require.NoError(t, err)
+					require.Equal(t, coreapi.ProvisioningStateFailed, updated.Status)
+					require.Contains(t, updated.Error.Message, "diagnostics incomplete")
+				} else if failure == "absent" {
+					require.NoError(t, err)
+				} else {
+					require.Error(t, err)
+					require.False(t, errors.Is(err, kubeappliercosmosstorage.ErrManagementClusterNotFound))
+				}
+				if failure == "absent" {
+					require.Zero(t, calls, "no ARM discovery for an unregistered MC")
+					switch scope {
+					case "cluster":
+						_, err = db.ServiceProviderClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName, cluster.ID.Name).Get(ctx, "default")
+						require.True(t, cosmosstorageutils.IsNotFoundError(err))
+					case "nodepool":
+						_, err = db.ServiceProviderNodePools(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName, cluster.ID.Name, nodepool.ID.Name).Get(ctx, "default")
+						require.True(t, cosmosstorageutils.IsNotFoundError(err))
+					}
+					return
+				}
+				require.Equal(t, 1, calls, "the actual limited factory must attempt ARM discovery")
+				_, err = db.ServiceProviderClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName, cluster.ID.Name).Get(ctx, "default")
+				require.NoError(t, err, "SPC must survive incomplete inventory")
+				if scope == "nodepool" {
+					_, err = db.ServiceProviderNodePools(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName, cluster.ID.Name, nodepool.ID.Name).Get(ctx, "default")
+					require.NoError(t, err, "SPNP must survive incomplete inventory")
+				}
+				if scope != "diagnostic" {
+					recovered = true
+					require.NoError(t, controller.SyncOnce(ctx, key))
+					if scope == "cluster" {
+						_, err = db.ServiceProviderClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName, cluster.ID.Name).Get(ctx, "default")
+					} else {
+						_, err = db.ServiceProviderNodePools(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName, cluster.ID.Name, nodepool.ID.Name).Get(ctx, "default")
+					}
+					require.NoError(t, err, "recovery must still respect remaining desires")
+					hasDesires = false
+					require.NoError(t, controller.SyncOnce(ctx, key))
+					if scope == "cluster" {
+						_, err = db.ServiceProviderClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName, cluster.ID.Name).Get(ctx, "default")
+					} else {
+						_, err = db.ServiceProviderNodePools(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName, cluster.ID.Name, nodepool.ID.Name).Get(ctx, "default")
+					}
+					require.True(t, cosmosstorageutils.IsNotFoundError(err), "only confirmed empty inventory permits deletion")
+					require.Equal(t, 2, calls, "discovery retries once then caches success")
+				}
+			})
+		}
+	}
 }
 
 func TestBackendStorageRegistrations(t *testing.T) {

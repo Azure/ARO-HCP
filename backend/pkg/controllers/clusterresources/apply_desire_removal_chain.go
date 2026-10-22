@@ -131,9 +131,12 @@ func (c *clusterResourcesController) deleteAllOwnedApplyDesires(ctx context.Cont
 		return utils.TrackError(fmt.Errorf("list ApplyDesires for deletion cleanup: %w", err))
 	}
 
-	kubeApplierDBClient := c.kubeApplierDBClients.For(ctx, managementCluster)
-	if kubeApplierDBClient == nil {
+	kubeApplierDBClient, err := c.kubeApplierDBClients.For(ctx, managementCluster)
+	if errors.Is(err, kubeappliercosmosstorage.ErrManagementClusterNotFound) {
 		return nil
+	}
+	if err != nil {
+		return err
 	}
 
 	claimed := claimedDesireNames()

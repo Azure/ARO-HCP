@@ -17,6 +17,7 @@ package cosmos
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -45,8 +46,12 @@ func (transport testTransport) Do(request *http.Request) (*http.Response, error)
 }
 
 func testAccount(t *testing.T, respond func(*http.Request) (string, error)) *Account {
+	return testAccountWithID(t, testAccountID, respond)
+}
+
+func testAccountWithID(t *testing.T, id string, respond func(*http.Request) (string, error)) *Account {
 	t.Helper()
-	account, err := NewAccount(testAccountID, testCredential{}, &azcorearm.ClientOptions{ClientOptions: azcore.ClientOptions{
+	account, err := NewAccount(id, testCredential{}, &azcorearm.ClientOptions{ClientOptions: azcore.ClientOptions{
 		Retry: policy.RetryOptions{MaxRetries: -1},
 		Transport: testTransport(func(request *http.Request) (*http.Response, error) {
 			body, err := respond(request)
@@ -58,6 +63,44 @@ func testAccount(t *testing.T, respond func(*http.Request) (string, error)) *Acc
 	}})
 	require.NoError(t, err)
 	return account
+}
+
+func TestMixedCaseAccountDiscovery(t *testing.T) {
+	for _, throughput := range []struct {
+		name, body string
+		want       float64
+	}{
+		{"manual", `{"properties":{"resource":{"throughput":400}}}`, 400},
+		{"autoscale", `{"properties":{"resource":{"throughput":400,"autoscaleSettings":{"maxThroughput":4000,"targetMaxThroughput":9000}}}}`, 4000},
+	} {
+		t.Run(throughput.name, func(t *testing.T) {
+			id := strings.ReplaceAll(testAccountID, "databaseAccounts/account", "databaseAccounts/AcCoUnT")
+			id = strings.ReplaceAll(id, "Microsoft.DocumentDB", "microsoft.documentdb")
+			var paths []string
+			account := testAccountWithID(t, id, func(request *http.Request) (string, error) {
+				paths = append(paths, request.URL.Path)
+				switch request.URL.Path {
+				case testAccountID:
+					return `{"properties":{"documentEndpoint":"https://account.documents.azure.com/"}}`, nil
+				case testAccountID + "/sqlDatabases/account":
+					return `{"properties":{"resource":{"id":"account"}}}`, nil
+				case testAccountID + "/sqlDatabases/account/containers/MixedContainer/throughputSettings/default":
+					return throughput.body, nil
+				default:
+					return "", fmt.Errorf("unexpected request path %s", request.URL.Path)
+				}
+			})
+			endpoint, database, err := account.Discover(t.Context())
+			require.NoError(t, err)
+			require.Equal(t, "account", database)
+			require.Equal(t, "https://account.documents.azure.com/", endpoint)
+			limit, err := account.ContainerThroughput(t.Context(), "MixedContainer")
+			require.NoError(t, err)
+			require.Equal(t, throughput.want, limit)
+			require.Len(t, paths, 3)
+			require.Equal(t, "AcCoUnT", account.id.Name)
+		})
+	}
 }
 
 func TestParseAccountID(t *testing.T) {
@@ -86,6 +129,7 @@ func TestDiscover(t *testing.T) {
 		{name: "database failure", accountJSON: `{"properties":{"documentEndpoint":"https://account/"}}`, failurePath: testAccountID + "/sqlDatabases/account", wantError: true},
 		{name: "missing database", accountJSON: `{"properties":{"documentEndpoint":"https://account/"}}`, databaseJSON: `{}`, wantError: true},
 		{name: "mismatched database", accountJSON: `{"properties":{"documentEndpoint":"https://account/"}}`, databaseJSON: `{"properties":{"resource":{"id":"other"}}}`, wantError: true},
+		{name: "database case mismatch", accountJSON: `{"properties":{"documentEndpoint":"https://account/"}}`, databaseJSON: `{"properties":{"resource":{"id":"Account"}}}`, wantError: true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			account := testAccount(t, func(request *http.Request) (string, error) {

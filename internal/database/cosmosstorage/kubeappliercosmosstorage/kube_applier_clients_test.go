@@ -25,6 +25,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
@@ -75,7 +76,9 @@ func TestKubeApplierDBClients_ForReturnsNilForUnknownMC(t *testing.T) {
 		return cosmosratelimit.NewUnlimitedTokenBucket("test"), nil
 	}, &fakeManagementClusterLister{})
 	rid := mustParseResourceIDForKubeApplierTest(t, "/providers/microsoft.redhatopenshift/stamps/1/managementclusters/default")
-	assert.Nil(t, clients.For(context.Background(), rid), "unknown management cluster should return nil")
+	client, err := clients.For(context.Background(), rid)
+	assert.Nil(t, client)
+	assert.ErrorIs(t, err, ErrManagementClusterNotFound)
 }
 
 // TestKubeApplierDBClients_ForUsesLister_ReturnsNilWhenMissing covers the
@@ -91,7 +94,9 @@ func TestKubeApplierDBClients_ForUsesLister_ReturnsNilWhenMissing(t *testing.T) 
 	}, lister)
 
 	missing := mustParseResourceIDForKubeApplierTest(t, "/providers/microsoft.redhatopenshift/stamps/missing/managementclusters/default")
-	assert.Nil(t, clients.For(context.Background(), missing))
+	client, err := clients.For(context.Background(), missing)
+	assert.Nil(t, client)
+	assert.ErrorIs(t, err, ErrManagementClusterNotFound)
 	assert.GreaterOrEqual(t, lister.calls, 1, "For() must consult the lister")
 }
 
@@ -112,7 +117,9 @@ func TestKubeApplierDBClients_ForIsThreadSafe_UnknownReturnsNilUnderRace(t *test
 	for i := 0; i < goroutines; i++ {
 		go func() {
 			defer wg.Done()
-			assert.Nil(t, clients.For(ctx, rid))
+			client, err := clients.For(ctx, rid)
+			assert.Nil(t, client)
+			assert.ErrorIs(t, err, ErrManagementClusterNotFound)
 		}()
 	}
 	wg.Wait()
@@ -129,20 +136,21 @@ func TestKubeApplierDBClients_DiscoveryDoesNotHoldCacheLock(t *testing.T) {
 		}
 		return nil, fmt.Errorf("discovery unavailable")
 	}, &fakeManagementClusterLister{mcs: []*fleetapi.ManagementCluster{first, second}})
-	done := make(chan KubeApplierDBClient, 1)
-	go func() { done <- clients.For(t.Context(), first.ResourceID) }()
+	done := make(chan error, 1)
+	go func() { _, err := clients.For(t.Context(), first.ResourceID); done <- err }()
 	<-started
-	fast := make(chan KubeApplierDBClient, 1)
-	go func() { fast <- clients.For(t.Context(), second.ResourceID) }()
+	fast := make(chan error, 1)
+	go func() { _, err := clients.For(t.Context(), second.ResourceID); fast <- err }()
 	select {
-	case client := <-fast:
-		require.Nil(t, client)
+	case err := <-fast:
+		require.Error(t, err)
+		require.NotErrorIs(t, err, ErrManagementClusterNotFound)
 	case <-time.After(5 * time.Second):
 		close(release)
 		t.Fatal("discovery blocked another management cluster")
 	}
 	close(release)
-	require.Nil(t, <-done)
+	require.Error(t, <-done)
 	require.Empty(t, clients.(*kubeApplierDBClients).clients)
 }
 
@@ -151,4 +159,46 @@ func mustParseResourceIDForKubeApplierTest(t *testing.T, s string) *azcorearm.Re
 	rid, err := azcorearm.ParseResourceID(s)
 	require.NoError(t, err)
 	return rid
+}
+
+func TestKubeApplierDBClientsOperationalErrors(t *testing.T) {
+	for _, failure := range []string{"lister", "cancelled", "container", "budget", "initialization", "nil ID"} {
+		t.Run(failure, func(t *testing.T) {
+			mc := newFakeMC(t, "present", "container", "consumer")
+			lister := &fakeManagementClusterLister{mcs: []*fleetapi.ManagementCluster{mc}}
+			failureErr := fmt.Errorf("temporary failure")
+			endpoint := "https://cosmos.test"
+			switch failure {
+			case "lister":
+				lister.err = failureErr
+			case "cancelled":
+				lister.err = context.Canceled
+				failureErr = context.Canceled
+			case "container":
+				mc.Status.KubeApplierCosmosContainerName = ""
+			case "initialization":
+				endpoint = ":invalid"
+			}
+			credential, err := azcosmos.NewKeyCredential("ZmFrZQ==")
+			require.NoError(t, err)
+			clients := NewKubeApplierDBClients(endpoint, "test", cosmosclient.Options{KeyCredential: &credential}, func(string) (*cosmosratelimit.TokenBucket, error) {
+				if failure == "budget" {
+					return nil, failureErr
+				}
+				return cosmosratelimit.NewUnlimitedTokenBucket("test"), nil
+			}, lister)
+			id := mc.ResourceID
+			if failure == "nil ID" {
+				id = nil
+			}
+			client, err := clients.For(t.Context(), id)
+			require.Nil(t, client)
+			require.Error(t, err)
+			require.NotErrorIs(t, err, ErrManagementClusterNotFound)
+			if failure == "lister" || failure == "cancelled" || failure == "budget" {
+				require.ErrorIs(t, err, failureErr)
+			}
+			require.Empty(t, clients.(*kubeApplierDBClients).clients)
+		})
+	}
 }

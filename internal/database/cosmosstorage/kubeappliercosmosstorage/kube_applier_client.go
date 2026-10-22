@@ -17,6 +17,7 @@ package kubeappliercosmosstorage
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 
@@ -328,6 +329,8 @@ func (g *cosmosKubeApplierListers) ReadDesires() cosmosstorageutils.GlobalLister
 	}
 }
 
+var ErrManagementClusterNotFound = errors.New("management cluster not found")
+
 // KubeApplierDBClients is a thread-safe registry of KubeApplierDBClient keyed by
 // management-cluster resourceID. Each entry corresponds to one Cosmos container,
 // resolved at lookup time from the configured ManagementClusterLister. Per-MC
@@ -337,9 +340,9 @@ type KubeApplierDBClients interface {
 	// on demand. It walks the configured ManagementClusterLister to find the
 	// management cluster whose ResourceID matches; the container name comes
 	// from the management cluster's Status.KubeApplierCosmosContainerName.
-	// Returns nil if no management cluster matches, if the lister errors, or
-	// if the matched management cluster has no container name configured.
-	For(ctx context.Context, managementClusterResourceID *azcorearm.ResourceID) KubeApplierDBClient
+	// Returns ErrManagementClusterNotFound only when a successful lister lookup
+	// has no matching management cluster. Other failures are operational errors.
+	For(ctx context.Context, managementClusterResourceID *azcorearm.ResourceID) (KubeApplierDBClient, error)
 }
 
 // kubeApplierDBClients is the cosmos-backed implementation of KubeApplierDBClients.
@@ -381,9 +384,9 @@ func NewKubeApplierDBClients(url, databaseName string, options cosmosclient.Opti
 	}
 }
 
-func (c *kubeApplierDBClients) For(ctx context.Context, managementClusterResourceID *azcorearm.ResourceID) KubeApplierDBClient {
+func (c *kubeApplierDBClients) For(ctx context.Context, managementClusterResourceID *azcorearm.ResourceID) (KubeApplierDBClient, error) {
 	if managementClusterResourceID == nil {
-		return nil
+		return nil, errors.New("management cluster resource ID is required")
 	}
 	key := strings.ToLower(managementClusterResourceID.String())
 
@@ -391,44 +394,32 @@ func (c *kubeApplierDBClients) For(ctx context.Context, managementClusterResourc
 	existing := c.clients[key]
 	c.mu.Unlock()
 	if existing != nil {
-		return existing
+		return existing, nil
 	}
 
-	logger := utils.LoggerFromContext(ctx).WithValues(
-		"managementClusterResourceID", managementClusterResourceID.String())
-
-	mc := c.findManagementCluster(ctx, managementClusterResourceID)
-	if mc == nil {
-		// Lister hasn't observed this management cluster yet (e.g. fleet
-		// informer lag). Transient; the caller retriggers.
-		logger.V(1).Info("no management cluster found for resourceID; cannot build kube-applier client")
-		return nil
+	mc, err := c.findManagementCluster(ctx, managementClusterResourceID)
+	if err != nil {
+		return nil, err
 	}
 	containerName := mc.Status.KubeApplierCosmosContainerName
 	if len(containerName) == 0 {
-		// The MC document exists but is missing its container name. This is not
-		// expected in steady state and silently prevents every per-cluster
-		// ReadDesire from being written (see ARO-27510); surface it loudly.
-		logger.Info("management cluster found but Status.KubeApplierCosmosContainerName is empty; kube-applier client cannot be built and per-cluster ReadDesires will not be written")
-		return nil
+		return nil, fmt.Errorf("management cluster %s has no kube-applier container configured", managementClusterResourceID)
 	}
 	bucket, err := c.bucketForContainer(containerName)
 	if err != nil {
-		logger.Error(err, "failed to resolve kube-applier Cosmos RU budget", "containerName", containerName)
-		return nil
+		return nil, fmt.Errorf("resolve kube-applier Cosmos RU budget for %s: %w", containerName, err)
 	}
 	client, err := NewKubeApplierDBClient(c.url, c.databaseName, containerName, managementClusterResourceID, c.options, bucket)
 	if err != nil {
-		logger.Error(err, "failed to construct kube-applier DB client; treating as unavailable", "containerName", containerName)
-		return nil
+		return nil, fmt.Errorf("construct kube-applier client for %s: %w", managementClusterResourceID, err)
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if existing := c.clients[key]; existing != nil {
-		return existing
+		return existing, nil
 	}
 	c.clients[key] = client
-	return client
+	return client, nil
 }
 
 // findManagementCluster walks the lister looking for the management cluster
@@ -436,10 +427,10 @@ func (c *kubeApplierDBClients) For(ctx context.Context, managementClusterResourc
 // fleet is small (low hundreds of MCs at the worst case) and walking the list
 // keeps us tolerant of any resourceID-format mismatch between the caller's input
 // and the canonical form from the lister.
-func (c *kubeApplierDBClients) findManagementCluster(ctx context.Context, rid *azcorearm.ResourceID) *fleetapi.ManagementCluster {
+func (c *kubeApplierDBClients) findManagementCluster(ctx context.Context, rid *azcorearm.ResourceID) (*fleetapi.ManagementCluster, error) {
 	mcs, err := c.mcLister.List(ctx)
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("list management clusters for %s: %w", rid, err)
 	}
 	target := strings.ToLower(rid.String())
 	for _, mc := range mcs {
@@ -447,8 +438,8 @@ func (c *kubeApplierDBClients) findManagementCluster(ctx context.Context, rid *a
 			continue
 		}
 		if strings.ToLower(mc.ResourceID.String()) == target {
-			return mc
+			return mc, nil
 		}
 	}
-	return nil
+	return nil, fmt.Errorf("%w: %s", ErrManagementClusterNotFound, rid)
 }

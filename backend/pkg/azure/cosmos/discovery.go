@@ -37,6 +37,7 @@ type sqlClient interface {
 
 type Account struct {
 	id       *azcorearm.ResourceID
+	name     string
 	accounts accountClient
 	sql      sqlClient
 }
@@ -67,13 +68,13 @@ func NewAccount(value string, credential azcore.TokenCredential, options *azcore
 	if err != nil {
 		return nil, err
 	}
-	return &Account{id: id, accounts: accounts, sql: sql}, nil
+	return &Account{id: id, name: strings.ToLower(id.Name), accounts: accounts, sql: sql}, nil
 }
 
 func (account *Account) Discover(ctx context.Context) (endpoint, database string, err error) {
 	ctx, cancel := context.WithTimeout(ctx, time.Minute)
 	defer cancel()
-	response, err := account.accounts.Get(ctx, account.id.ResourceGroupName, account.id.Name, nil)
+	response, err := account.accounts.Get(ctx, account.id.ResourceGroupName, account.name, nil)
 	if err != nil {
 		return "", "", fmt.Errorf("get Cosmos account %s: %w", account.id, err)
 	}
@@ -85,12 +86,12 @@ func (account *Account) Discover(ctx context.Context) (endpoint, database string
 	if err != nil || parsed.Scheme != "https" || parsed.Host == "" || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" {
 		return "", "", fmt.Errorf("cosmos account %s has an invalid document endpoint", account.id)
 	}
-	result, err := account.sql.GetSQLDatabase(ctx, account.id.ResourceGroupName, account.id.Name, account.id.Name, nil)
+	result, err := account.sql.GetSQLDatabase(ctx, account.id.ResourceGroupName, account.name, account.name, nil)
 	if err != nil {
-		return "", "", fmt.Errorf("get Cosmos database %s (must match account name): %w", account.id.Name, err)
+		return "", "", fmt.Errorf("get Cosmos database %s (must match account name): %w", account.name, err)
 	}
-	if result.Properties == nil || result.Properties.Resource == nil || result.Properties.Resource.ID == nil || *result.Properties.Resource.ID != account.id.Name {
-		return "", "", fmt.Errorf("cosmos database must match account name %q", account.id.Name)
+	if result.Properties == nil || result.Properties.Resource == nil || result.Properties.Resource.ID == nil || *result.Properties.Resource.ID != account.name {
+		return "", "", fmt.Errorf("cosmos database must match account name %q", account.name)
 	}
 	return endpoint, *result.Properties.Resource.ID, nil
 }
@@ -98,7 +99,7 @@ func (account *Account) Discover(ctx context.Context) (endpoint, database string
 func (account *Account) ContainerThroughput(ctx context.Context, container string) (float64, error) {
 	ctx, cancel := context.WithTimeout(ctx, time.Minute)
 	defer cancel()
-	result, err := account.sql.GetSQLContainerThroughput(ctx, account.id.ResourceGroupName, account.id.Name, account.id.Name, container, nil)
+	result, err := account.sql.GetSQLContainerThroughput(ctx, account.id.ResourceGroupName, account.name, account.name, container, nil)
 	if err != nil {
 		return 0, fmt.Errorf("get Cosmos container %q throughput: %w", container, err)
 	}

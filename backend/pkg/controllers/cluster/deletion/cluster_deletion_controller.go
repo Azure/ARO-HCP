@@ -349,10 +349,13 @@ func (c *clusterDeletionController) deletePreconditionAllApplyDesiresGone(ctx co
 	}
 
 	managementClusterID := spc.Status.ManagementClusterResourceID
-	kubeApplierDBClient := c.kubeApplierDBClients.For(ctx, managementClusterID)
-	if kubeApplierDBClient == nil {
+	kubeApplierDBClient, err := c.kubeApplierDBClients.For(ctx, managementClusterID)
+	if errors.Is(err, kubeappliercosmosstorage.ErrManagementClusterNotFound) {
 		logger.Info("waiting for kube-applier DB client to be available for ApplyDesire precondition", "managementCluster", managementClusterID.String())
 		return false, nil
+	}
+	if err != nil {
+		return false, err
 	}
 
 	kubeApplierCRUD, err := kubeApplierDBClient.ApplyDesiresForCluster(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)

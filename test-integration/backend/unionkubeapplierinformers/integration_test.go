@@ -224,8 +224,8 @@ type cosmosKubeApplierFactory struct {
 func (factory *cosmosKubeApplierFactory) NewKubeApplierInformers(
 	ctx context.Context, managementClusterResourceID *azcorearm.ResourceID,
 ) kubeapplierinformers.KubeApplierInformers {
-	client := factory.kubeApplierClients.For(ctx, managementClusterResourceID)
-	if client == nil {
+	client, err := factory.kubeApplierClients.For(ctx, managementClusterResourceID)
+	if err != nil {
 		return nil
 	}
 	return kubeapplierinformers.NewKubeApplierInformersWithRelistDuration(ctx, client.Listers(), client, &factory.relistDuration)
