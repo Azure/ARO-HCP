@@ -1823,6 +1823,11 @@ func (in *NodePoolServiceProviderProperties) DeepCopyInto(out *NodePoolServicePr
 		in, out := &in.UpdateOperationCompletionDeadline, &out.UpdateOperationCompletionDeadline
 		*out = (*in).DeepCopy()
 	}
+	if in.DeleteOperationCompletionTimeout != nil {
+		in, out := &in.DeleteOperationCompletionTimeout, &out.DeleteOperationCompletionTimeout
+		*out = new(time.Duration)
+		**out = **in
+	}
 	return
 }
 

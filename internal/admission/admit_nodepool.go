@@ -97,6 +97,7 @@ func mutateNodePoolServiceProviderProperties(ctx context.Context, admissionConte
 	errs = append(errs, mutateNodePoolExperimentalTags(ctx, admissionContext, op)...)
 	errs = append(errs, mutateNodePoolCreateOperationCompletionDeadline(ctx, admissionContext, op, fldPath.Child("createOperationCompletionDeadline"), &newObj.CreateOperationCompletionDeadline)...)
 	errs = append(errs, mutateNodePoolUpdateOperationCompletionDeadline(ctx, admissionContext, op, fldPath.Child("updateOperationCompletionDeadline"), &newObj.UpdateOperationCompletionDeadline)...)
+	errs = append(errs, mutateNodePoolDeleteOperationCompletionTimeout(ctx, admissionContext, op, fldPath.Child("deleteOperationCompletionTimeout"), &newObj.DeleteOperationCompletionTimeout)...)
 
 	return errs
 }
@@ -116,7 +117,7 @@ func mutateNodePoolExperimentalTags(_ context.Context, admissionContext *NodePoo
 	tagsPath := field.NewPath("tags")
 	var errs field.ErrorList
 
-	knownTags := sets.New(metadataapi.TagNodePoolMaxCreationDuration, metadataapi.TagNodePoolMaxUpdateDuration)
+	knownTags := sets.New(metadataapi.TagNodePoolMaxCreationDuration, metadataapi.TagNodePoolMaxUpdateDuration, metadataapi.TagNodePoolMaxDeletionDuration)
 	for k := range tags {
 		if strings.HasPrefix(strings.ToLower(k), metadataapi.ExperimentalNodePoolTagPrefix) && !knownTags.Has(strings.ToLower(k)) {
 			errs = append(errs, field.Invalid(tagsPath.Key(k), k, "unrecognized experimental tag"))
@@ -198,6 +199,35 @@ func mutateNodePoolUpdateOperationCompletionDeadline(_ context.Context, admissio
 
 	deadline := metav1.NewTime(admissionContext.Clock.Now().Add(duration))
 	*newObj = &deadline
+	return nil
+}
+
+// mutateNodePoolDeleteOperationCompletionTimeout projects the experimental tag on
+// CREATE and UPDATE, clearing a previous override when the tag or feature is absent.
+func mutateNodePoolDeleteOperationCompletionTimeout(_ context.Context, admissionContext *NodePoolAdmissionContext, _ operation.Operation, _ *field.Path, newObj **time.Duration) field.ErrorList {
+	subscription := admissionContext.Subscription
+	if subscription == nil || !subscription.HasRegisteredFeature(metadataapi.FeatureExperimentalReleaseFeatures) {
+		*newObj = nil
+		return nil
+	}
+	var tags map[string]string
+	if admissionContext.OriginalNodePool != nil {
+		tags = admissionContext.OriginalNodePool.Tags
+	}
+	tagValue := lookupTag(tags, metadataapi.TagNodePoolMaxDeletionDuration)
+	if tagValue == "" {
+		*newObj = nil
+		return nil
+	}
+	parsed, err := time.ParseDuration(tagValue)
+	tagsPath := field.NewPath("tags").Key(metadataapi.TagNodePoolMaxDeletionDuration)
+	if err != nil {
+		return field.ErrorList{field.Invalid(tagsPath, tagValue, "must be a valid Go duration string (e.g. \"24m\", \"30m\")")}
+	}
+	if parsed < MinDeleteOperationCompletionDeadlineDuration {
+		return field.ErrorList{field.Invalid(tagsPath, tagValue, fmt.Sprintf("must be at least %s", MinDeleteOperationCompletionDeadlineDuration))}
+	}
+	*newObj = &parsed
 	return nil
 }
 

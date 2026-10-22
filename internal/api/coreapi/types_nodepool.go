@@ -17,6 +17,7 @@ package coreapi
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
@@ -141,6 +142,11 @@ type NodePoolServiceProviderProperties struct {
 	// including the current pending reasons in the returned error.
 	// Written by: Frontend PUT/PATCH NodePool (via admission)
 	UpdateOperationCompletionDeadline *metav1.Time `json:"updateOperationCompletionDeadline,omitempty"`
+
+	// DeleteOperationCompletionTimeout is the experimental deletion budget projected
+	// from the node pool's max-deletion-duration tag. Nil selects the default budget.
+	// Written by: Frontend PUT/PATCH NodePool (via admission)
+	DeleteOperationCompletionTimeout *time.Duration `json:"deleteOperationCompletionTimeout,omitempty"`
 }
 
 // NodePoolVersionProfile represents the worker node pool version.
