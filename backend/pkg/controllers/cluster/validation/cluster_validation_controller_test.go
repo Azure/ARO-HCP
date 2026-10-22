@@ -634,3 +634,58 @@ func TestClusterValidationSyncer_PropagationDeferralSurvivesLookupError(t *testi
 	assert.Contains(t, cond.Message, "Unable to verify",
 		"the lookup failure should still be visible in the condition message")
 }
+
+// TestClusterValidationSyncer_PropagationPendingBypassesSuppression covers the case where
+// propagation is detected while an older stored failure exists: the consecutive-Unknown
+// suppression would keep the False condition in place for the first ten Unknown results,
+// and the operation controllers can terminally fail on that stale failure even though the
+// propagation deferral that would hold the operation open was detected. A
+// propagation-pending condition must therefore be written immediately.
+func TestClusterValidationSyncer_PropagationPendingBypassesSuppression(t *testing.T) {
+	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+
+	mockDB := corecosmosstoragetesting.NewMockResourcesDBClient()
+	cluster := newTestCluster(t)
+	_, err := mockDB.HCPClusters(testSubscriptionID, testResourceGroup).Create(ctx, cluster, nil)
+	require.NoError(t, err)
+	_, err = mockDB.Subscriptions().Create(ctx, newTestSubscription(), nil)
+	require.NoError(t, err)
+	_, err = corecosmosstorage.GetOrCreateServiceProviderCluster(ctx, mockDB, cluster.ID)
+	require.NoError(t, err)
+
+	// A permission failure that started nine minutes ago, as a previous run left behind.
+	spcCRUD := mockDB.ServiceProviderClusters(testSubscriptionID, testResourceGroup, testClusterName)
+	spc, err := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
+	require.NoError(t, err)
+	spc.Status.Validations = []metav1.Condition{{
+		Type:               testValidationName,
+		Status:             metav1.ConditionFalse,
+		Reason:             "MissingRequiredPermissions",
+		Message:            "missing permissions",
+		LastTransitionTime: metav1.NewTime(time.Now().Add(-9 * time.Minute)),
+	}}
+	_, err = spcCRUD.Replace(ctx, spc, nil)
+	require.NoError(t, err)
+
+	// The customer has since created the corrective assignments; the next run detects
+	// propagation. This is the first Unknown result, so the suppression would normally
+	// keep the stored False condition in place.
+	validation := NewMockClusterValidation(testValidationName).WithUnknownLogOnly(
+		"RoleAssignmentPropagationPending",
+		"missing permissions; covered by role assignments created within the last 60m0s that may still be propagating",
+		"Role assignments granting these permissions were created recently and have not taken effect yet. No configuration change is required.",
+	)
+
+	fakeClock := clocktesting.NewFakePassiveClock(fixedNow)
+	syncer, _ := newTestSyncer(mockDB, validation, fakeClock)
+	require.NoError(t, syncer.SyncOnce(ctx, newTestClusterKey()))
+
+	after, err := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
+	require.NoError(t, err)
+	cond := meta.FindStatusCondition(after.Status.Validations, testValidationName)
+	require.NotNil(t, cond)
+	assert.Equal(t, metav1.ConditionUnknown, cond.Status,
+		"the propagation-pending result must be written despite the consecutive-Unknown suppression")
+	assert.Equal(t, "RoleAssignmentPropagationPending", cond.Reason,
+		"the stored failure must be replaced by the propagation deferral, not hidden behind it")
+}

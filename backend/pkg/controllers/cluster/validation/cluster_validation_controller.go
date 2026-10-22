@@ -194,7 +194,12 @@ func (c *clusterValidationSyncer) SyncOnce(ctx context.Context, key controllerut
 		desiredCondition = validationutils.PreservePropagationDeferral(previousCondition, desiredCondition, time.Now())
 
 		consecutiveUnknowns := c.trackConsecutiveUnknowns(key, desiredCondition)
-		if c.shouldWriteCondition(previousCondition, consecutiveUnknowns) {
+		// A propagation-pending result bypasses the consecutive-Unknown suppression: the
+		// condition it would be hidden behind is an older stored failure, and the
+		// operation controllers can terminally fail on that stale failure while the
+		// propagation deferral that would hold them open is never stored. Other Unknown
+		// results keep the normal suppression.
+		if c.shouldWriteCondition(previousCondition, consecutiveUnknowns) || validationutils.IsPropagationPending(desiredCondition) {
 			meta.SetStatusCondition(&replacement.Status.Validations, desiredCondition)
 		}
 	}

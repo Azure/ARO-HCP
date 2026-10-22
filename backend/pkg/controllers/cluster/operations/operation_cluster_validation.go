@@ -24,6 +24,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	operationbase "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/validationutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -97,6 +98,5 @@ func clusterValidationOperationState(serviceProviderCluster *coreapi.ServiceProv
 // operation in Provisioning but do not terminally fail it, because the role assignments the
 // customer already created will eventually take effect.
 func isPropagationPending(validation metav1.Condition) bool {
-	return validation.Status == metav1.ConditionUnknown &&
-		validation.Reason == "RoleAssignmentPropagationPending"
+	return validationutils.IsPropagationPending(validation)
 }
