@@ -16,6 +16,7 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -226,6 +227,107 @@ func TestStorageFactoryConcurrentMCContainerLookups(t *testing.T) {
 	require.NotSame(t, buckets[0], other)
 }
 
+func TestStorageFactoryDiscovery(t *testing.T) {
+	options := BackendStorageFactoryOptions(false)
+	var callsMu sync.Mutex
+	calls := map[string]int{}
+	blocked := make(chan struct{})
+	release := make(chan struct{})
+	options.ContainerThroughput = func(container string) (float64, error) {
+		callsMu.Lock()
+		calls[container]++
+		attempt := calls[container]
+		callsMu.Unlock()
+		if container == "slow-mc" {
+			close(blocked)
+			<-release
+			return 2000, nil
+		}
+		if container == "retry-mc" && attempt == 1 {
+			return 0, fmt.Errorf("transient discovery failure")
+		}
+		return 1000, nil
+	}
+	factory, err := newStorageFactory("https://cosmos.test", "test", storageTestOptions(t, nil), options)
+	require.NoError(t, err)
+	controller := options.ControllerNames[0]
+	done := make(chan error, 1)
+	go func() { _, err := factory.tokenBucket("slow-mc", controller); done <- err }()
+	<-blocked
+	fastDone := make(chan error, 1)
+	go func() { _, err := factory.tokenBucket("fast-mc", controller); fastDone <- err }()
+	select {
+	case err := <-fastDone:
+		require.NoError(t, err)
+	case <-time.After(5 * time.Second):
+		close(release)
+		t.Fatal("discovery holds a shared lock")
+	}
+	close(release)
+	require.NoError(t, <-done)
+	_, err = factory.tokenBucket("retry-mc", BackendInformersStorageName)
+	require.ErrorContains(t, err, "transient")
+	require.NotContains(t, factory.rateLimits, "retry-mc")
+	_, err = factory.tokenBucket("retry-mc", controller)
+	require.NoError(t, err)
+	var workers sync.WaitGroup
+	errors := make(chan error, 20)
+	for range 20 {
+		workers.Go(func() { _, err := factory.tokenBucket("concurrent-mc", controller); errors <- err })
+	}
+	workers.Wait()
+	close(errors)
+	for err := range errors {
+		require.NoError(t, err)
+	}
+	require.Equal(t, map[string]int{"Resources": 1, "Billing": 1, "Fleet": 1, "slow-mc": 1, "fast-mc": 1, "retry-mc": 2, "concurrent-mc": 1}, calls)
+	require.NotSame(t, factory.rateLimits["slow-mc"], factory.rateLimits["fast-mc"])
+}
+
+func TestStorageFactoryDiscoveredMCBudgets(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		options := StorageFactoryOptions{ControllerNames: []string{"controller"}, KubeApplierUtilization: 0.3,
+			ContainerThroughput: func(container string) (float64, error) {
+				if container == "large" {
+					return 2000, nil
+				}
+				return 1000, nil
+			},
+		}
+		factory, err := newStorageFactory("https://cosmos.test", "test", storageTestOptions(t, nil), options)
+		require.NoError(t, err)
+		for _, test := range []struct {
+			name   string
+			budget float64
+		}{{"small", 300}, {"large", 600}, {"Resources", 800}} {
+			bucket, err := factory.tokenBucket(test.name, "controller")
+			require.NoError(t, err)
+			bucket.Consume(2 * test.budget)
+			start := time.Now()
+			require.NoError(t, bucket.Wait(t.Context()))
+			require.InDelta(t, float64(time.Second), float64(time.Since(start)), 1, test.name)
+		}
+	})
+}
+
+func TestStorageFactoryInitialDiscoveryFailure(t *testing.T) {
+	for _, container := range []string{"Resources", "Billing", "Fleet"} {
+		t.Run(container, func(t *testing.T) {
+			options := BackendStorageFactoryOptions(false)
+			options.ContainerThroughput = func(name string) (float64, error) {
+				if name == container {
+					return 0, fmt.Errorf("ARM denied")
+				}
+				return 1000, nil
+			}
+			_, err := newStorageFactory("https://cosmos.test", "test", storageTestOptions(t, nil), options)
+			require.ErrorContains(t, err, container)
+		})
+	}
+	_, err := newStorageFactory("https://cosmos.test", "test", storageTestOptions(t, nil), BackendStorageFactoryOptions(false))
+	require.Error(t, err)
+}
+
 func TestBackendStorageRegistrations(t *testing.T) {
 	for _, realFPA := range []bool{false, true} {
 		names := BackendStorageControllerNames(realFPA)
@@ -233,7 +335,9 @@ func TestBackendStorageRegistrations(t *testing.T) {
 			t.Fatal("startup must not contact Cosmos")
 			return nil, nil
 		})
-		factory, err := newStorageFactory("https://cosmos.test", "test", options, BackendStorageFactoryOptions(realFPA))
+		factoryOptions := BackendStorageFactoryOptions(realFPA)
+		factoryOptions.ContainerThroughput = func(string) (float64, error) { return 1000, nil }
+		factory, err := newStorageFactory("https://cosmos.test", "test", options, factoryOptions)
 		require.NoError(t, err)
 		for _, name := range names {
 			require.NotNil(t, factory.ResourcesStorageClient(name))
@@ -248,6 +352,8 @@ func TestBackendStorageRegistrations(t *testing.T) {
 func TestBackendInformerStorageIsUnlimited(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		options := BackendStorageFactoryOptions(false)
+		options.ResourcesRUsPerSecond = 1000
+		options.ContainerThroughput = func(string) (float64, error) { return 1000, nil }
 		require.ElementsMatch(t, []string{
 			BackendInformersStorageName,
 			FleetInformersStorageName,

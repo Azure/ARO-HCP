@@ -80,13 +80,9 @@ func BackendCleanupControllerFractions(fraction float64) map[string]float64 {
 // Shared backend informers use unlimited clients outside these allocations.
 func BackendStorageFactoryOptions(hasRealFPA bool) StorageFactoryOptions {
 	return StorageFactoryOptions{
-		ResourcesRUsPerSecond:   19000,
-		BillingRUsPerSecond:     4000,
-		FleetRUsPerSecond:       4000,
-		KubeApplierRUsPerSecond: 19000,
-		KubeApplierUtilization:  0.3,
-		ControllerNames:         BackendStorageControllerNames(hasRealFPA),
-		ControllerFractions:     BackendCleanupControllerFractions(0.1),
+		KubeApplierUtilization: 0.3,
+		ControllerNames:        BackendStorageControllerNames(hasRealFPA),
+		ControllerFractions:    BackendCleanupControllerFractions(0.1),
 		UnlimitedControllerNames: []string{
 			BackendInformersStorageName,
 			FleetInformersStorageName,

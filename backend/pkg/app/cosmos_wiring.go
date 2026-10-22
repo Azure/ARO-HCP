@@ -19,6 +19,8 @@ import (
 	"maps"
 	"sync"
 
+	"golang.org/x/sync/singleflight"
+
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosclient"
@@ -43,6 +45,7 @@ type StorageFactory interface {
 }
 
 type StorageFactoryOptions struct {
+	ContainerThroughput   func(containerName string) (float64, error)
 	ResourcesRUsPerSecond float64
 	BillingRUsPerSecond   float64
 	FleetRUsPerSecond     float64
@@ -68,6 +71,8 @@ type controllerStorageClients struct {
 
 type cosmosStorageFactory struct {
 	rateLimitsMu                sync.Mutex
+	rateLimitDiscovery          singleflight.Group
+	containerThroughput         func(string) (float64, error)
 	rateLimits                  map[string]*cosmosratelimit.ControllerRateLimits
 	kubeApplierRateLimitOptions cosmosratelimit.ControllerRateLimitOptions
 	cosmosURL                   string
@@ -132,6 +137,13 @@ func newStorageFactory(cosmosURL, databaseName string, clientOptions cosmosclien
 	} {
 		containerOptions := commonOptions
 		containerOptions.TotalRUsPerSecond = allocation.rus
+		if options.ContainerThroughput != nil {
+			throughput, err := options.ContainerThroughput(allocation.container)
+			if err != nil {
+				return nil, fmt.Errorf("discover %s throughput: %w", allocation.container, err)
+			}
+			containerOptions.TotalRUsPerSecond = throughput
+		}
 		limits, err := cosmosratelimit.NewControllerRateLimits(containerOptions)
 		if err != nil {
 			return nil, fmt.Errorf("invalid %s rate limits: %w", allocation.container, err)
@@ -145,11 +157,16 @@ func newStorageFactory(cosmosURL, databaseName string, clientOptions cosmosclien
 	}
 	// Validate before controllers start; actual MC container names are resolved
 	// lazily from Fleet, and each gets its own ControllerRateLimits instance.
-	if _, err := cosmosratelimit.NewControllerRateLimits(kubeApplierOptions); err != nil {
+	validationOptions := kubeApplierOptions
+	if options.ContainerThroughput != nil {
+		validationOptions.TotalRUsPerSecond = 1
+	}
+	if _, err := cosmosratelimit.NewControllerRateLimits(validationOptions); err != nil {
 		return nil, fmt.Errorf("invalid kube-applier rate limits: %w", err)
 	}
 	factory := &cosmosStorageFactory{
-		rateLimits: limitsByContainer, kubeApplierRateLimitOptions: kubeApplierOptions,
+		containerThroughput: options.ContainerThroughput,
+		rateLimits:          limitsByContainer, kubeApplierRateLimitOptions: kubeApplierOptions,
 		cosmosURL: cosmosURL, databaseName: databaseName, clientOptions: clientOptions,
 		clients:          make(map[string]*controllerStorageClients, len(names)),
 		unlimitedBuckets: unlimitedBuckets,
@@ -168,19 +185,41 @@ func newStorageFactory(cosmosURL, databaseName string, clientOptions cosmosclien
 // three fixed containers are preconfigured; MC containers use the kube-applier
 // allocation and are registered when their names become known.
 func (f *cosmosStorageFactory) tokenBucket(containerName, controllerName string) (*cosmosratelimit.TokenBucket, error) {
-	if bucket, found := f.unlimitedBuckets[controllerName]; found {
-		return bucket, nil
-	}
 	f.rateLimitsMu.Lock()
-	defer f.rateLimitsMu.Unlock()
-	limits, found := f.rateLimits[containerName]
-	if !found {
-		var err error
-		limits, err = cosmosratelimit.NewControllerRateLimits(f.kubeApplierRateLimitOptions)
+	limits := f.rateLimits[containerName]
+	f.rateLimitsMu.Unlock()
+	if limits == nil {
+		result, err, _ := f.rateLimitDiscovery.Do(containerName, func() (interface{}, error) {
+			f.rateLimitsMu.Lock()
+			cached := f.rateLimits[containerName]
+			f.rateLimitsMu.Unlock()
+			if cached != nil {
+				return cached, nil
+			}
+			options := f.kubeApplierRateLimitOptions
+			if f.containerThroughput != nil {
+				throughput, err := f.containerThroughput(containerName)
+				if err != nil {
+					return nil, err
+				}
+				options.TotalRUsPerSecond = throughput
+			}
+			resolved, err := cosmosratelimit.NewControllerRateLimits(options)
+			if err != nil {
+				return nil, err
+			}
+			f.rateLimitsMu.Lock()
+			f.rateLimits[containerName] = resolved
+			f.rateLimitsMu.Unlock()
+			return resolved, nil
+		})
 		if err != nil {
 			return nil, err
 		}
-		f.rateLimits[containerName] = limits
+		limits = result.(*cosmosratelimit.ControllerRateLimits)
+	}
+	if bucket, found := f.unlimitedBuckets[controllerName]; found {
+		return bucket, nil
 	}
 	return limits.ForController(controllerName)
 }

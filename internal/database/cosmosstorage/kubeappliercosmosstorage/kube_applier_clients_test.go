@@ -16,8 +16,10 @@ package kubeappliercosmosstorage
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -114,6 +116,34 @@ func TestKubeApplierDBClients_ForIsThreadSafe_UnknownReturnsNilUnderRace(t *test
 		}()
 	}
 	wg.Wait()
+}
+
+func TestKubeApplierDBClients_DiscoveryDoesNotHoldCacheLock(t *testing.T) {
+	first := newFakeMC(t, "first", "slow", "first")
+	second := newFakeMC(t, "second", "fast", "second")
+	started, release := make(chan struct{}), make(chan struct{})
+	clients := NewKubeApplierDBClients("https://cosmos.test", "test", cosmosclient.Options{}, func(container string) (*cosmosratelimit.TokenBucket, error) {
+		if container == "slow" {
+			close(started)
+			<-release
+		}
+		return nil, fmt.Errorf("discovery unavailable")
+	}, &fakeManagementClusterLister{mcs: []*fleetapi.ManagementCluster{first, second}})
+	done := make(chan KubeApplierDBClient, 1)
+	go func() { done <- clients.For(t.Context(), first.ResourceID) }()
+	<-started
+	fast := make(chan KubeApplierDBClient, 1)
+	go func() { fast <- clients.For(t.Context(), second.ResourceID) }()
+	select {
+	case client := <-fast:
+		require.Nil(t, client)
+	case <-time.After(5 * time.Second):
+		close(release)
+		t.Fatal("discovery blocked another management cluster")
+	}
+	close(release)
+	require.Nil(t, <-done)
+	require.Empty(t, clients.(*kubeApplierDBClients).clients)
 }
 
 func mustParseResourceIDForKubeApplierTest(t *testing.T, s string) *azcorearm.ResourceID {

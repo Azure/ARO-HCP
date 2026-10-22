@@ -388,16 +388,16 @@ func (c *kubeApplierDBClients) For(ctx context.Context, managementClusterResourc
 	key := strings.ToLower(managementClusterResourceID.String())
 
 	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	if existing, ok := c.clients[key]; ok {
+	existing := c.clients[key]
+	c.mu.Unlock()
+	if existing != nil {
 		return existing
 	}
 
 	logger := utils.LoggerFromContext(ctx).WithValues(
 		"managementClusterResourceID", managementClusterResourceID.String())
 
-	mc := c.findManagementClusterLocked(ctx, managementClusterResourceID)
+	mc := c.findManagementCluster(ctx, managementClusterResourceID)
 	if mc == nil {
 		// Lister hasn't observed this management cluster yet (e.g. fleet
 		// informer lag). Transient; the caller retriggers.
@@ -422,16 +422,21 @@ func (c *kubeApplierDBClients) For(ctx context.Context, managementClusterResourc
 		logger.Error(err, "failed to construct kube-applier DB client; treating as unavailable", "containerName", containerName)
 		return nil
 	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if existing := c.clients[key]; existing != nil {
+		return existing
+	}
 	c.clients[key] = client
 	return client
 }
 
-// findManagementClusterLocked walks the lister looking for the management cluster
+// findManagementCluster walks the lister looking for the management cluster
 // whose ResourceID matches the caller's. Linear iteration is intentional: the
 // fleet is small (low hundreds of MCs at the worst case) and walking the list
 // keeps us tolerant of any resourceID-format mismatch between the caller's input
 // and the canonical form from the lister.
-func (c *kubeApplierDBClients) findManagementClusterLocked(ctx context.Context, rid *azcorearm.ResourceID) *fleetapi.ManagementCluster {
+func (c *kubeApplierDBClients) findManagementCluster(ctx context.Context, rid *azcorearm.ResourceID) *fleetapi.ManagementCluster {
 	mcs, err := c.mcLister.List(ctx)
 	if err != nil {
 		return nil
