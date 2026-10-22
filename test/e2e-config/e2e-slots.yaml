@@ -266,6 +266,7 @@ environments:
           allocation: leased
           asset_pool: dev-infrastructure-identities
   int:
+    identity_consumer_guard: enforce
     deployment_environment:
       name: int
     pools:
@@ -304,6 +305,7 @@ environments:
           resource_group_prefix: aro-hcp-msi-container-int-westus3-shard0
           resource_group_count: 100
   stg:
+    identity_consumer_guard: enforce
     deployment_environment:
       name: stg
     pools:
@@ -335,6 +337,7 @@ environments:
           resource_group_prefix: aro-hcp-msi-container-stg-shard1
           resource_group_count: 25
   prod:
+    identity_consumer_guard: enforce
     deployment_environment:
       name: prod
     pools:
