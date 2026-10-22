@@ -1,0 +1,178 @@
+// Copyright 2026 Microsoft Corporation
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Package quotaerror detects node pool operation messages that are entirely
+// explained by the customer's Azure compute quota.
+//
+// The input is the operation message built by the node pool create and update
+// state calculations. It embeds the Hypershift NodePool AllMachinesReady
+// condition, which is an aggregate over every not ready machine and is
+// truncated by Hypershift. Detection is deliberately conservative:
+//
+//   - only the AllMachinesReady section is read; the AllNodesHealthy and
+//     replica count sections are symptoms of the same machine failures,
+//   - the Azure error code is read from the "ERROR CODE: <code>" line the Azure
+//     SDK writes in ResponseError.Error(), which CAPZ embeds in the machine
+//     condition message, and not from free text elsewhere in the message,
+//   - every machine entry must be a quota error, otherwise a platform failure
+//     on one machine would be hidden behind a quota failure on another,
+//   - Hypershift states how many machines are not ready in the section header.
+//     Unless that many entries are visible, machines were dropped by truncation
+//     and may be unseen, so no match. A single oversized entry that Hypershift
+//     cut short is still matched when it is the only not ready machine,
+//   - anything else is not detected, and callers must keep treating it as an
+//     ordinary failure.
+package quotaerror
+
+import (
+	"regexp"
+	"strconv"
+	"strings"
+	"sync"
+)
+
+// maxDetailRunes caps the Azure error text surfaced to the customer.
+const maxDetailRunes = 400
+
+// allMachinesReadyMarker starts the AllMachinesReady section in both the node
+// pool create ("node pool condition ...") and update ("hypershift NodePool
+// condition ...") messages. That section is always the last one the state
+// calculations append (replicas, AllNodesHealthy, AllMachinesReady), so
+// everything after the marker belongs to it.
+const allMachinesReadyMarker = "condition AllMachinesReady is "
+
+// notReadyHeader is the first line Hypershift writes into the aggregated
+// message: "<not ready> of <total> machines are not ready".
+var notReadyHeader = sync.OnceValue(func() *regexp.Regexp {
+	return regexp.MustCompile(`(\d+) of \d+ machines are not ready`)
+})
+
+// machineEntryStart matches the start of each per machine entry Hypershift
+// writes: "Machine <name>: <reason>: <message>". Azure error text spans several
+// lines, so entries are split on this prefix and not on newlines.
+var machineEntryStart = sync.OnceValue(func() *regexp.Regexp {
+	return regexp.MustCompile(`(?m)^Machine \S+: `)
+})
+
+// sdkErrorCode matches the code line of the Azure SDK ResponseError text.
+var sdkErrorCode = sync.OnceValue(func() *regexp.Regexp {
+	return regexp.MustCompile(`ERROR CODE: (\w+)`)
+})
+
+// azureMessage matches the "message" value of the Azure error JSON body that the
+// SDK pretty prints. The closing quote is optional because Hypershift can cut an
+// oversized entry short.
+var azureMessage = sync.OnceValue(func() *regexp.Regexp {
+	return regexp.MustCompile(`"message":\s*"((?:[^"\\]|\\.)*)`)
+})
+
+// truncationSuffix is what Hypershift appends to an entry it cut short.
+const truncationSuffix = "... message truncated"
+
+// HasMachineFailures reports whether message has an AllMachinesReady section that
+// lists not ready machines, whether or not they are quota errors.
+func HasMachineFailures(message string) bool {
+	start := strings.Index(message, allMachinesReadyMarker)
+	return start >= 0 && notReadyHeader().MatchString(message[start+len(allMachinesReadyMarker):])
+}
+
+// Detect reports whether every failing machine in message hit an Azure quota
+// error. It returns Azure's own error message from the first machine, flattened
+// to one line and capped, for use in a customer facing message. The detail is
+// empty when no message can be extracted; the request URL and other SDK text
+// are never returned.
+//
+// CAPZ records the Azure error only as text inside the condition message (the
+// condition reason is always "Failed"). Azure reports vCPU quota as the broad
+// code OperationNotAllowed with a quota explanation, and some services use
+// QuotaExceeded or ResourceQuotaExceeded.
+//
+// TODO: confirm against a message captured from a real quota failure. The SDK
+// documents that its error text is not contractual.
+func Detect(message string) (string, bool) {
+	// The marker is generated by this repo with exact casing.
+	start := strings.Index(message, allMachinesReadyMarker)
+	if start < 0 {
+		return "", false
+	}
+	section := message[start+len(allMachinesReadyMarker):]
+
+	header := notReadyHeader().FindStringSubmatchIndex(section)
+	locs := machineEntryStart().FindAllStringIndex(section, -1)
+	if header == nil || len(locs) == 0 || header[0] > locs[0][0] {
+		return "", false
+	}
+	notReady, err := strconv.Atoi(section[header[2]:header[3]])
+	if err != nil || notReady != len(locs) {
+		return "", false
+	}
+
+	var detail string
+	for i, loc := range locs {
+		end := len(section)
+		if i+1 < len(locs) {
+			end = locs[i+1][0]
+		}
+		entry := section[loc[1]:end]
+		if !isQuotaError(entry) {
+			return "", false
+		}
+		if i == 0 {
+			detail = azureDetail(entry)
+		}
+	}
+	return detail, true
+}
+
+// isQuotaError requires every SDK error code in the entry to be a quota code.
+// OperationNotAllowed is broad, so it only counts with quota wording.
+func isQuotaError(entry string) bool {
+	matches := sdkErrorCode().FindAllStringSubmatch(entry, -1)
+	if len(matches) == 0 {
+		return false
+	}
+	for _, m := range matches {
+		switch strings.ToLower(m[1]) {
+		case "quotaexceeded", "resourcequotaexceeded":
+		case "operationnotallowed":
+			if !strings.Contains(strings.ToLower(entry), "quota") {
+				return false
+			}
+		default:
+			return false
+		}
+	}
+	return true
+}
+
+func azureDetail(entry string) string {
+	m := azureMessage().FindStringSubmatch(entry)
+	if m == nil {
+		return ""
+	}
+	text := strings.TrimSuffix(strings.TrimSpace(m[1]), truncationSuffix)
+	if unquoted, err := strconv.Unquote(`"` + text + `"`); err == nil {
+		text = unquoted
+	}
+	return flatten(text)
+}
+
+func flatten(entry string) string {
+	flat := strings.Join(strings.Fields(entry), " ")
+	runes := []rune(flat)
+	if len(runes) > maxDetailRunes {
+		return string(runes[:maxDetailRunes]) + "..."
+	}
+	return flat
+}

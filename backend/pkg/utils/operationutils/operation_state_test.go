@@ -18,9 +18,11 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/go-logr/logr/funcr"
 	"github.com/tj/assert"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 func TestNewOperationStateCloudErrorCode(t *testing.T) {
@@ -390,6 +392,33 @@ func TestPickWorstCloudErrorCode(t *testing.T) {
 			wantState: coreapi.ProvisioningStateFailed,
 		},
 		{
+			name: "customer caused code outranks internal server error",
+			states: []*OperationState{
+				failed(coreapi.CloudErrorCodeInternalServerError),
+				failed(coreapi.CloudErrorCodeQuotaExceeded),
+			},
+			wantCode:  coreapi.CloudErrorCodeQuotaExceeded,
+			wantState: coreapi.ProvisioningStateFailed,
+		},
+		{
+			name: "customer caused code outranks invalid codes",
+			states: []*OperationState{
+				failed(coreapi.CloudErrorCodeInvalidRequestContent),
+				failed(coreapi.CloudErrorCodeQuotaExceeded),
+			},
+			wantCode:  coreapi.CloudErrorCodeQuotaExceeded,
+			wantState: coreapi.ProvisioningStateFailed,
+		},
+		{
+			name: "customer caused code outranks other codes regardless of order",
+			states: []*OperationState{
+				failed(coreapi.CloudErrorCodeCapacityHeavyUse),
+				failed(coreapi.CloudErrorCodeQuotaExceeded),
+			},
+			wantCode:  coreapi.CloudErrorCodeQuotaExceeded,
+			wantState: coreapi.ProvisioningStateFailed,
+		},
+		{
 			name: "equal priority keeps first code",
 			states: []*OperationState{
 				failed(coreapi.CloudErrorCodeInvalidResource),
@@ -432,4 +461,90 @@ func TestPickWorstCloudErrorCode(t *testing.T) {
 			assert.Equal(t, tt.wantCode, got.CloudErrorCode)
 		})
 	}
+}
+
+func TestPickWorstOperationStateCustomerCausedShowsOnlyCustomerErrors(t *testing.T) {
+	t.Parallel()
+
+	quota := NewFailedOperationState(coreapi.CloudErrorCodeQuotaExceeded, "not enough quota", &coreapi.CloudErrorBody{
+		Code:    coreapi.CloudErrorCodeQuotaExceeded,
+		Message: "not enough quota",
+	}).WithSource("hypershiftNodePool")
+	platform := NewFailedOperationState(coreapi.CloudErrorCodeInternalServerError, "cs internal detail", coreapi.NewInternalServerError().CloudErrorBody).
+		WithSource("clusterServiceNodePoolStatus")
+
+	states := []*OperationState{platform, quota}
+	slices.SortStableFunc(states, CompareOperationState)
+	got, err := PickWorstOperationState(states)
+	assert.NoError(t, err)
+
+	assert.Equal(t, coreapi.CloudErrorCodeQuotaExceeded, got.CloudErrorCode)
+	assert.NotNil(t, got.Error)
+	assert.Equal(t, coreapi.CloudErrorCodeQuotaExceeded, got.Error.Code)
+	assert.Equal(t, "not enough quota", got.Error.Message)
+	assert.Equal(t, 0, len(got.Error.Details))
+	// The platform failure is dropped from the customer error but kept in the diagnostic message for logging.
+	assert.Contains(t, got.Message, "[clusterServiceNodePoolStatus] cs internal detail")
+	assert.Contains(t, got.Message, "[hypershiftNodePool] not enough quota")
+}
+
+func TestPickWorstOperationStateSystemErrorsAreUnfiltered(t *testing.T) {
+	t.Parallel()
+
+	a := NewFailedOperationState(coreapi.CloudErrorCodeInternalServerError, "a", &coreapi.CloudErrorBody{Code: coreapi.CloudErrorCodeInternalServerError, Message: "a"})
+	b := NewFailedOperationState(coreapi.CloudErrorCodeInternalServerError, "b", &coreapi.CloudErrorBody{Code: coreapi.CloudErrorCodeInternalServerError, Message: "b"})
+	states := []*OperationState{a, b}
+	slices.SortStableFunc(states, CompareOperationState)
+	got, err := PickWorstOperationState(states)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, len(got.Error.Details))
+}
+
+func TestLogOperationFailureKeepsWithheldDetail(t *testing.T) {
+	t.Parallel()
+
+	var logged []string
+	logger := funcr.New(func(_, args string) { logged = append(logged, args) }, funcr.Options{})
+	ctx := utils.ContextWithLogger(t.Context(), logger)
+
+	quota := NewFailedOperationState(coreapi.CloudErrorCodeQuotaExceeded, "not enough quota", &coreapi.CloudErrorBody{
+		Code:    coreapi.CloudErrorCodeQuotaExceeded,
+		Message: "not enough quota",
+	}).WithSource("hypershiftNodePool")
+	platform := NewFailedOperationState(coreapi.CloudErrorCodeInternalServerError, "cs internal detail", coreapi.NewInternalServerError().CloudErrorBody).
+		WithSource("clusterServiceNodePoolStatus")
+	states := []*OperationState{platform, quota}
+	slices.SortStableFunc(states, CompareOperationState)
+	picked, err := PickWorstOperationState(states)
+	assert.NoError(t, err)
+
+	LogOperationFailure(ctx, "node pool create", picked, PersistedOperationError(picked))
+
+	assert.Equal(t, 1, len(logged))
+	assert.Contains(t, logged[0], "node pool create operation failed")
+	// The platform detail withheld from the customer error is present in the log line.
+	assert.Contains(t, logged[0], "[clusterServiceNodePoolStatus] cs internal detail")
+	assert.Contains(t, logged[0], "[hypershiftNodePool] not enough quota")
+	assert.Contains(t, logged[0], coreapi.CloudErrorCodeQuotaExceeded)
+
+	// Nothing is logged when the operation has not failed.
+	logged = nil
+	LogOperationFailure(ctx, "node pool create", NewOperationState(coreapi.ProvisioningStateProvisioning, "x"), nil)
+	assert.Equal(t, 0, len(logged))
+}
+
+func TestPersistedOperationError(t *testing.T) {
+	t.Parallel()
+
+	assert.Nil(t, PersistedOperationError(nil))
+	assert.Nil(t, PersistedOperationError(NewOperationState(coreapi.ProvisioningStateProvisioning, "in progress")))
+
+	safe := &coreapi.CloudErrorBody{Code: coreapi.CloudErrorCodeQuotaExceeded, Message: "customer safe"}
+	withError := NewFailedOperationState(coreapi.CloudErrorCodeQuotaExceeded, "[src] diagnostic", safe)
+	assert.Equal(t, safe, PersistedOperationError(withError))
+
+	withoutError := NewFailedOperationState(coreapi.CloudErrorCodeInternalServerError, "[src] diagnostic", nil)
+	got := PersistedOperationError(withoutError)
+	assert.Equal(t, coreapi.CloudErrorCodeInternalServerError, got.Code)
+	assert.Equal(t, "[src] diagnostic", got.Message)
 }

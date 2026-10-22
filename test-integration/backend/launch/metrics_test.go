@@ -164,7 +164,7 @@ func TestBackendExposesMetrics(t *testing.T) {
 		)
 		require.NotNil(t, operation.ExternalID, "operation.ExternalID must not be nil")
 		operationMetricLine := fmt.Sprintf(
-			`backend_resource_operation_phase_info{operation_type="create",phase="succeeded",resource_id="%s",resource_type="%s",subscription_id="%s"} 1`,
+			`backend_resource_operation_phase_info{fault="",operation_type="create",phase="succeeded",resource_id="%s",resource_type="%s",subscription_id="%s"} 1`,
 			strings.ToLower(operation.ExternalID.String()),
 			strings.ToLower(clusterResourceID.ResourceType.String()),
 			strings.ToLower(operation.ExternalID.SubscriptionID),
@@ -326,6 +326,8 @@ type metricsTestStorageFactory struct {
 	resources corecosmosstorage.ResourcesDBClient
 	billing   billingcosmosstorage.BillingDBClient
 	fleet     fleetcosmosstorage.FleetDBClient
+	// kubeApplier is nil unless a test needs mirrored management cluster state.
+	kubeApplier kubeappliercosmosstorage.KubeApplierDBClients
 }
 
 func (f *metricsTestStorageFactory) ResourcesStorageClient(string) corecosmosstorage.ResourcesDBClient {
@@ -338,5 +340,5 @@ func (f *metricsTestStorageFactory) FleetStorageClient(string) fleetcosmosstorag
 	return f.fleet
 }
 func (f *metricsTestStorageFactory) KubeApplierStorageClients(string) kubeappliercosmosstorage.KubeApplierDBClients {
-	return nil
+	return f.kubeApplier
 }
