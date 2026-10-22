@@ -1,0 +1,232 @@
+name: "AKS Runtime TLS Preflight"
+on:
+  pull_request:
+    paths:
+    - config/config.yaml
+  workflow_dispatch:
+    inputs:
+      digest:
+        description: "aks/command/runtime digest to check (sha256:...); defaults to the digest on this branch"
+        required: false
+        default: ""
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  tls-preflight:
+    name: kubectl TLS 1.3 handshake
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+    - name: Checkout head
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      with:
+        ref: ${{ github.event.pull_request.head.sha || github.ref }}
+        fetch-depth: 1
+    - name: Determine candidate digest
+      id: digest
+      env:
+        BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        MANUAL_DIGEST: ${{ github.event.inputs.digest }}
+      run: |
+        set -euo pipefail
+
+        # Extract defaults.aksCommandRuntime.image.digest from a revision of
+        # config/config.yaml. The awk state machine matches the two-space-indented
+        # aksCommandRuntime block and stops at the next sibling key, so digests
+        # belonging to other components are never selected.
+        extract() {
+          git show "$1:config/config.yaml" | awk '
+            /^  aksCommandRuntime:/ { in_block = 1; next }
+            in_block && /^  [A-Za-z]/ { exit }
+            in_block && match($0, /sha256:[0-9a-f]+/) { print substr($0, RSTART, RLENGTH); exit }
+          '
+        }
+
+        if [ -n "$MANUAL_DIGEST" ]; then
+          echo "digest=$MANUAL_DIGEST" >> "$GITHUB_OUTPUT"
+          echo "source=manual dispatch input" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+
+        if [ "$GITHUB_EVENT_NAME" != "pull_request" ]; then
+          DIGEST=$(extract HEAD)
+          echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
+          echo "source=this branch" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+
+        git fetch --no-tags --depth=1 origin "$BASE_SHA"
+        BASE_DIGEST=$(extract "$BASE_SHA")
+        HEAD_DIGEST=$(extract HEAD)
+
+        if [ -z "$HEAD_DIGEST" ]; then
+          echo "::error::could not find defaults.aksCommandRuntime.image.digest in config/config.yaml"
+          exit 1
+        fi
+
+        if [ "$BASE_DIGEST" = "$HEAD_DIGEST" ]; then
+          echo "aksCommandRuntime digest unchanged ($HEAD_DIGEST); nothing to check."
+          echo "digest=$HEAD_DIGEST" >> "$GITHUB_OUTPUT"
+          echo "skip=true" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+
+        echo "aksCommandRuntime digest changed: $BASE_DIGEST -> $HEAD_DIGEST"
+        echo "digest=$HEAD_DIGEST" >> "$GITHUB_OUTPUT"
+        echo "source=PR base $BASE_SHA" >> "$GITHUB_OUTPUT"
+    - name: Start a TLS 1.3-only test server
+      if: steps.digest.outputs.skip != 'true'
+      run: |
+        set -euo pipefail
+
+        # kubectl is pointed at a local, deliberately TLS-1.3-only server, so
+        # a completed handshake proves kubectl exercised its TLS 1.3 code
+        # path: the server refuses every other protocol version, and no
+        # external endpoint or credential is involved. A self-signed
+        # certificate is fine because the kubeconfig below sets
+        # insecure-skip-tls-verify.
+        openssl req -x509 -newkey rsa:2048 -nodes \
+          -keyout tls.key -out tls.crt -days 1 -subj "/CN=localhost" >/dev/null 2>&1
+        openssl s_server -accept 8443 -tls1_3 \
+          -cert tls.crt -key tls.key -www -quiet &
+        echo $! > s_server.pid
+
+        # Sanity-check the listener from the runner before blaming kubectl.
+        # With -brief, OpenSSL reports the negotiated protocol on stderr as
+        # soon as the handshake completes. The full output is captured first
+        # and only checked after OpenSSL finishes, so however the connection
+        # ends (stdin is closed immediately), the handshake report decides.
+        for attempt in 1 2 3 4 5; do
+          set +e
+          PROBE=$(timeout 10 openssl s_client -connect localhost:8443 -tls1_3 -brief </dev/null 2>&1)
+          set -e
+          if printf '%s\n' "$PROBE" | grep -q 'Protocol version: *TLSv1.3'; then
+            echo "Test server is up and negotiating TLS 1.3."
+            exit 0
+          fi
+          sleep 2
+        done
+        echo "::error::the local TLS 1.3 test server did not come up; the preflight cannot run."
+        exit 1
+    - name: Run the kubectl TLS 1.3 handshake check
+      if: steps.digest.outputs.skip != 'true'
+      env:
+        DIGEST: ${{ steps.digest.outputs.digest }}
+        IMAGE: mcr.microsoft.com/aks/command/runtime
+      run: |
+        set -euo pipefail
+
+        # The aks/command/runtime image ships kubectl, and several deployment
+        # Jobs (unannotate-default-sc, azure-cns-cpu-limits-patch) execute it
+        # directly. A broken Go/OpenSSL FIPS integration in that kubectl panics
+        # during any TLS 1.3 handshake (AROSLSRE-2481, AROSLSRE-2021), which
+        # only surfaced days later as e2e-parallel provision failures. This
+        # check makes kubectl itself perform one handshake against the local
+        # TLS-1.3-only server so a broken image fails here, on the bump PR, in
+        # about a minute. curl or wget would not catch it: they use their own
+        # TLS stack, not kubectl's.
+        cat > kubeconfig <<EOF
+        apiVersion: v1
+        kind: Config
+        clusters:
+        - cluster:
+            server: https://localhost:8443
+            insecure-skip-tls-verify: true
+          name: tls-check
+        contexts:
+        - context:
+            cluster: tls-check
+            user: tls-check
+          name: tls-check
+        current-context: tls-check
+        users:
+        - name: tls-check
+          user:
+            # A dummy token keeps kubectl from prompting for credentials
+            # interactively; with it, kubectl reports HTTP-layer errors
+            # directly.
+            token: preflight-check
+        EOF
+
+        FULL_IMAGE="$IMAGE@$DIGEST"
+        echo "Checking kubectl from $FULL_IMAGE (linux/amd64, the platform CI deploys)..."
+        echo "Check source: ${{ steps.digest.outputs.source }}"
+
+        # --network host: the kubectl under test runs in a container and must
+        # reach the TLS-1.3-only server listening on the runner's loopback.
+        for attempt in 1 2 3; do
+          set +e
+          OUTPUT=$(timeout 90 docker run --rm --platform linux/amd64 --network host \
+            -v "$PWD/kubeconfig:/kubeconfig:ro" \
+            --entrypoint kubectl \
+            "$FULL_IMAGE" --kubeconfig=/kubeconfig get --raw / 2>&1)
+          RC=$?
+          set -e
+          echo "$OUTPUT"
+
+          if printf '%s\n' "$OUTPUT" | grep -q 'panic:\|OSSL_PARAM'; then
+            {
+              echo "## AKS runtime TLS preflight: FAILED"
+              echo ""
+              echo "kubectl in \`$FULL_IMAGE\` panicked during the TLS 1.3 handshake against the local TLS-1.3-only server."
+              echo "This is the AROSLSRE-2481 / AROSLSRE-2021 regression class: the image must not be"
+              echo "bumped until the runtime is rebuilt with a corrected kubectl/Go-OpenSSL integration"
+              echo "that passes this same TLS 1.3 check (see AROSLSRE-2476)."
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "::error::kubectl panicked during the TLS 1.3 handshake; $FULL_IMAGE must not be merged"
+            exit 1
+          fi
+
+          # A docker-level failure (exit 125, e.g. the image cannot be pulled)
+          # says nothing about kubectl and must never be reported as a pass:
+          # only kubectl's own exit status and kubectl-prefixed output decide
+          # the outcome. Words like "403 Forbidden" in docker's pull errors
+          # are explicitly not treated as kubectl results.
+          if [ "$RC" -eq 125 ] || printf '%s\n' "$OUTPUT" | grep -q 'docker: Error response from daemon\|Unable to find image'; then
+            echo "Attempt $attempt failed at the docker layer (image pull/run), not in kubectl; retrying in 10s..."
+            sleep 10
+            continue
+          fi
+
+          # Exit 0 means kubectl completed a TLS 1.3 handshake (the server
+          # accepts nothing else) and decoded the HTTP response.
+          if [ "$RC" -eq 0 ]; then
+            {
+              echo "## AKS runtime TLS preflight: PASSED"
+              echo ""
+              echo "kubectl in \`$FULL_IMAGE\` completed the TLS 1.3 handshake against the local"
+              echo "TLS-1.3-only server and reached the HTTP layer."
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "TLS 1.3 handshake completed; kubectl in $FULL_IMAGE is healthy."
+            exit 0
+          fi
+
+          # A kubectl-prefixed error (or an HTTP-layer error reported by
+          # kubectl itself) can only be produced after the TLS 1.3 handshake
+          # completed and a response was decoded.
+          if printf '%s\n' "$OUTPUT" | grep -q '^error:\|Error from server\|the server has asked\|You must be logged in'; then
+            {
+              echo "## AKS runtime TLS preflight: PASSED"
+              echo ""
+              echo "kubectl in \`$FULL_IMAGE\` completed the TLS 1.3 handshake against the local"
+              echo "TLS-1.3-only server and reached the HTTP layer (${RC}-exit, HTTP-level error)."
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "TLS 1.3 handshake completed; kubectl in $FULL_IMAGE is healthy."
+            exit 0
+          fi
+
+          echo "Attempt $attempt inconclusive (connection-level error); retrying in 10s..."
+          sleep 10
+        done
+
+        echo "::error::Could not verify the TLS handshake after 3 attempts; failing closed so an unverified digest cannot merge. Re-run once transient network issues clear."
+        exit 1
+    - name: Stop the TLS 1.3 test server
+      if: always() && steps.digest.outputs.skip != 'true'
+      run: |
+        if [ -f s_server.pid ]; then
+          kill "$(cat s_server.pid)" 2>/dev/null || true
+        fi
