@@ -1,0 +1,392 @@
+rule_files:
+- externalauth-slo-prometheusRule.yaml
+evaluation_interval: 1m
+tests:
+# ========================================
+# Test 1: Normal operation — all operations succeeded, no alerts
+# ========================================
+# 10 ExternalAuth operations in succeeded state, 0 failed.
+# Error rate = 0%, well below 95% SLO. No alerts should fire.
+# Uses pre-computed recording rule outputs as direct input.
+- interval: 1m
+  input_series:
+  # 5 succeeded create, 5 succeeded delete, 0 failed
+  - series: 'errors:backend_resource_operation:failed_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="create", cluster="mgmt-1", region="uksouth"}'
+    values: "0+0x70"
+  - series: 'errors:backend_resource_operation:total_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="create", cluster="mgmt-1", region="uksouth"}'
+    values: "5+0x70"
+  - series: 'errors:backend_resource_operation:failed_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="delete", cluster="mgmt-1", region="uksouth"}'
+    values: "0+0x70"
+  - series: 'errors:backend_resource_operation:total_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="delete", cluster="mgmt-1", region="uksouth"}'
+    values: "5+0x70"
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: UJExternalAuthErrors1h5m
+  - eval_time: 10m
+    alertname: UJExternalAuthErrors6h30m
+  - eval_time: 10m
+    alertname: UJExternalAuthErrors3d
+  - eval_time: 10m
+    alertname: UJExternalAuthErrorsDegradation
+# ========================================
+# Test 2: Fast burn — 80% failure rate, UJExternalAuthErrors1h5m fires
+# ========================================
+# 2 succeeded, 8 failed → error rate = 80% > 72% threshold (14.4x burn)
+# Both UJExternalAuthErrors1h5m and UJExternalAuthErrorsDegradation should fire.
+- interval: 1m
+  input_series:
+  - series: 'errors:backend_resource_operation:failed_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="create", cluster="mgmt-1", region="uksouth"}'
+    values: "8+0x40"
+  - series: 'errors:backend_resource_operation:total_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="create", cluster="mgmt-1", region="uksouth"}'
+    values: "10+0x40"
+  alert_rule_test:
+  # Fast burn fires after 5m 'for' duration
+  - eval_time: 7m
+    alertname: UJExternalAuthErrors1h5m
+    exp_alerts:
+    - exp_labels:
+        cluster: "mgmt-1"
+        region: "uksouth"
+        component: slo
+        long_window: 1h
+        severity: "3"
+        short_window: 5m
+        slo: externalauth-errors
+      exp_annotations:
+        summary: "mgmt-1: ExternalAuth operation error rate critically high (>72%)"
+        description: "More than 72% of ExternalAuth operations (create/update/delete) have failed in the last hour, indicating a fast error budget burn (14.4x) that would exhaust the 95% SLO budget in ~12 hours."
+        runbook_url: "https://aka.ms/arohcp-runbook-externalauth"
+  # Degradation also fires (15% threshold met at 80%)
+  - eval_time: 35m
+    alertname: UJExternalAuthErrorsDegradation
+    exp_alerts:
+    - exp_labels:
+        cluster: "mgmt-1"
+        region: "uksouth"
+        component: slo
+        severity: "4"
+        slo: externalauth-errors
+      exp_annotations:
+        summary: "mgmt-1: ExternalAuth operation failure rate exceeds 15% for 30 minutes"
+        description: "The ExternalAuth operation failure rate has been above 15% for 30 minutes. This provides early warning of degradation before SLO-based burn rate alerts fire."
+        runbook_url: "https://aka.ms/arohcp-runbook-externalauth"
+# ========================================
+# Test 3: Degradation — 20% failure rate, only degradation alert fires
+# ========================================
+# 8 succeeded, 2 failed → error rate = 20%
+# > 15% (degradation) but < 30% (medium burn) and < 72% (fast burn)
+- interval: 1m
+  input_series:
+  - series: 'errors:backend_resource_operation:failed_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="create", cluster="mgmt-1", region="uksouth"}'
+    values: "2+0x40"
+  - series: 'errors:backend_resource_operation:total_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="create", cluster="mgmt-1", region="uksouth"}'
+    values: "10+0x40"
+  alert_rule_test:
+  # Fast burn should NOT fire (20% < 72%)
+  - eval_time: 10m
+    alertname: UJExternalAuthErrors1h5m
+  # Degradation fires after 30m (20% > 15%)
+  - eval_time: 35m
+    alertname: UJExternalAuthErrorsDegradation
+    exp_alerts:
+    - exp_labels:
+        cluster: "mgmt-1"
+        region: "uksouth"
+        component: slo
+        severity: "4"
+        slo: externalauth-errors
+      exp_annotations:
+        summary: "mgmt-1: ExternalAuth operation failure rate exceeds 15% for 30 minutes"
+        description: "The ExternalAuth operation failure rate has been above 15% for 30 minutes. This provides early warning of degradation before SLO-based burn rate alerts fire."
+        runbook_url: "https://aka.ms/arohcp-runbook-externalauth"
+# ========================================
+# Test 4: Noise guard — single failure, 100% error rate but < 2 failures
+# ========================================
+# 1 failed, 0 succeeded → error rate = 100% but failed count = 1 < 2
+# No error alerts should fire (noise guard prevents alert spam).
+- interval: 1m
+  input_series:
+  - series: 'errors:backend_resource_operation:failed_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="create", cluster="mgmt-1", region="uksouth"}'
+    values: "1+0x40"
+  - series: 'errors:backend_resource_operation:total_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="create", cluster="mgmt-1", region="uksouth"}'
+    values: "1+0x40"
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: UJExternalAuthErrors1h5m
+  - eval_time: 35m
+    alertname: UJExternalAuthErrorsDegradation
+# ========================================
+# Test 5: Medium burn — 50% failure rate (multiple operation types)
+# ========================================
+# create: 3 failed / 5 total, delete: 2 failed / 5 total
+# Combined: 5 failed / 10 total = 50%
+# > 30% (medium burn) but < 72% (fast burn)
+- interval: 1m
+  input_series:
+  - series: 'errors:backend_resource_operation:failed_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="create", cluster="mgmt-1", region="uksouth"}'
+    values: "3+0x40"
+  - series: 'errors:backend_resource_operation:total_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="create", cluster="mgmt-1", region="uksouth"}'
+    values: "5+0x40"
+  - series: 'errors:backend_resource_operation:failed_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="delete", cluster="mgmt-1", region="uksouth"}'
+    values: "2+0x40"
+  - series: 'errors:backend_resource_operation:total_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="delete", cluster="mgmt-1", region="uksouth"}'
+    values: "5+0x40"
+  # Also provide 6h metrics for the medium burn alert
+  - series: 'errors:backend_resource_operation:failed_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="create", cluster="mgmt-1", region="uksouth"}'
+    values: "3+0x40"
+  - series: 'errors:backend_resource_operation:total_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="create", cluster="mgmt-1", region="uksouth"}'
+    values: "5+0x40"
+  - series: 'errors:backend_resource_operation:failed_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="delete", cluster="mgmt-1", region="uksouth"}'
+    values: "2+0x40"
+  - series: 'errors:backend_resource_operation:total_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="delete", cluster="mgmt-1", region="uksouth"}'
+    values: "5+0x40"
+  alert_rule_test:
+  # Fast burn should NOT fire (50% < 72%)
+  - eval_time: 35m
+    alertname: UJExternalAuthErrors1h5m
+  # Medium burn fires after 30m (50% > 30%)
+  - eval_time: 35m
+    alertname: UJExternalAuthErrors6h30m
+    exp_alerts:
+    - exp_labels:
+        cluster: "mgmt-1"
+        region: "uksouth"
+        component: slo
+        long_window: 6h
+        severity: "3"
+        short_window: 30m
+        slo: externalauth-errors
+      exp_annotations:
+        summary: "mgmt-1: ExternalAuth operation error rate elevated (>30%) for 30+ minutes"
+        description: "More than 30% of ExternalAuth operations have failed in the last 6 hours sustained over 30 minutes, indicating a medium error budget burn (6x) that would exhaust the 95% SLO budget in ~28 hours."
+        runbook_url: "https://aka.ms/arohcp-runbook-externalauth"
+# ========================================
+# Test 6: Latency — create P95 exceeds 15 minute threshold
+# ========================================
+# P95 latency for create = 1000s > 900s threshold.
+- interval: 1m
+  input_series:
+  - series: 'latency:backend_resource_operation:p95_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="create", phase="succeeded", cluster="mgmt-1", region="uksouth"}'
+    values: "1000+0x40"
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: UJExternalAuthCreateLatency
+    exp_alerts:
+    - exp_labels:
+        cluster: "mgmt-1"
+        region: "uksouth"
+        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"
+        operation_type: "create"
+        phase: "succeeded"
+        component: slo
+        severity: "3"
+        slo: externalauth-latency
+      exp_annotations:
+        summary: "mgmt-1: ExternalAuth create P95 latency exceeds 15 minutes"
+        description: "The P95 latency for succeeded ExternalAuth create operations in the last hour exceeds 900 seconds (15 minutes, the E2E timeout threshold)."
+        runbook_url: "https://aka.ms/arohcp-runbook-externalauth"
+  # Update and delete latency alerts should NOT fire (no input for them)
+  - eval_time: 20m
+    alertname: UJExternalAuthUpdateLatency
+  - eval_time: 20m
+    alertname: UJExternalAuthDeleteLatency
+# ========================================
+# Test 7: Latency — update P95 exceeds 10 minute threshold
+# ========================================
+# P95 latency for update = 700s > 600s threshold.
+- interval: 1m
+  input_series:
+  - series: 'latency:backend_resource_operation:p95_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="update", phase="succeeded", cluster="mgmt-1", region="uksouth"}'
+    values: "700+0x40"
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: UJExternalAuthUpdateLatency
+    exp_alerts:
+    - exp_labels:
+        cluster: "mgmt-1"
+        region: "uksouth"
+        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"
+        operation_type: "update"
+        phase: "succeeded"
+        component: slo
+        severity: "3"
+        slo: externalauth-latency
+      exp_annotations:
+        summary: "mgmt-1: ExternalAuth update P95 latency exceeds 10 minutes"
+        description: "The P95 latency for succeeded ExternalAuth update operations in the last hour exceeds 600 seconds (10 minutes)."
+        runbook_url: "https://aka.ms/arohcp-runbook-externalauth"
+# ========================================
+# Test 8: Latency — within threshold, no alert
+# ========================================
+# P95 latency for create = 500s < 900s threshold. No alert.
+- interval: 1m
+  input_series:
+  - series: 'latency:backend_resource_operation:p95_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="create", phase="succeeded", cluster="mgmt-1", region="uksouth"}'
+    values: "500+0x40"
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: UJExternalAuthCreateLatency
+# ========================================
+# Test 9: Stuck operation — ExternalAuth in awaitingsecret for > 1 hour
+# ========================================
+# start_time is 0 (epoch). At eval_time=90m (5400s), delta = 5400 > 3600.
+# The alert has for: 15m, so it fires after the threshold is crossed for 15m.
+# Threshold crossed at 60m, plus 15m for duration = 75m. At 90m, firing.
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/1/ea/stuck", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="create", phase="awaitingsecret", cluster="mgmt-1", environment="int", region="uksouth"}'
+    values: "0+0x95"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/ea/stuck", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="create", phase="awaitingsecret", cluster="mgmt-1", environment="int", region="uksouth"}'
+    values: "1+0x95"
+  alert_rule_test:
+  - eval_time: 90m
+    alertname: UJExternalAuthStuckOperation
+    exp_alerts:
+    - exp_labels:
+        cluster: "mgmt-1"
+        environment: "int"
+        region: "uksouth"
+        component: slo
+        operation_type: "create"
+        phase: "awaitingsecret"
+        resource_id: "/sub/1/ea/stuck"
+        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"
+        severity: "4"
+        exclude_internal_subscriptions: "true"
+        subscription_id: "sub-1"
+      exp_annotations:
+        summary: "mgmt-1: ExternalAuth operation for /sub/1/ea/stuck stuck in awaitingsecret for over 1 hour"
+        description: "ExternalAuth operation for /sub/1/ea/stuck has been in awaitingsecret phase for over 1 hour. Stuck operations are invisible to success/failure SLIs and require investigation."
+        runbook_url: "https://aka.ms/arohcp-runbook-externalauth"
+# ========================================
+# Test 10: No stuck operation — ExternalAuth in provisioning for < 1 hour
+# ========================================
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/2/ea/recent", subscription_id="sub-2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="create", phase="provisioning", cluster="mgmt-1", environment="int", region="uksouth"}'
+    values: "600+0x55"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/2/ea/recent", subscription_id="sub-2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="create", phase="provisioning", cluster="mgmt-1", environment="int", region="uksouth"}'
+    values: "1+0x55"
+  alert_rule_test:
+  - eval_time: 50m
+    alertname: UJExternalAuthStuckOperation
+# ========================================
+# Test 11: Queue depth — workqueue depth exceeds threshold
+# ========================================
+- interval: 1m
+  input_series:
+  - series: 'workqueue_depth{namespace="aro-hcp", name="OperationExternalAuthCreate", cluster="mgmt-1"}'
+    values: "15+0x10"
+  alert_rule_test:
+  - eval_time: 7m
+    alertname: UJExternalAuthSaturationQueueDepth
+    exp_alerts:
+    - exp_labels:
+        cluster: "mgmt-1"
+        component: slo
+        name: "OperationExternalAuthCreate"
+        severity: "4"
+      exp_annotations:
+        summary: "mgmt-1: ExternalAuth controller workqueue OperationExternalAuthCreate depth is high"
+        description: "ExternalAuth controller workqueue OperationExternalAuthCreate has had a depth > 10 for more than 5 minutes, indicating work is accumulating faster than it can be processed."
+        runbook_url: "https://aka.ms/arohcp-runbook-externalauth"
+# ========================================
+# Test 12: Queue depth normal — below threshold, no alert
+# ========================================
+- interval: 1m
+  input_series:
+  - series: 'workqueue_depth{namespace="aro-hcp", name="OperationExternalAuthCreate", cluster="mgmt-1"}'
+    values: "5+0x10"
+  alert_rule_test:
+  - eval_time: 7m
+    alertname: UJExternalAuthSaturationQueueDepth
+# ========================================
+# Test 13: Stuck operation that flaps (backend retry resets start_time)
+# ========================================
+# A genuinely-wedged delete stays in "deleting" the whole time, but the backend
+# retries the operation at t=120m and resets start_time, so (time() - start_time)
+# briefly drops below the 3600s threshold. The max_over_time(...[6h:]) hold must
+# keep the SAME alert firing across this gap.
+- interval: 1m
+  input_series:
+  # phase stays "deleting" throughout
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/3/ea/flap-del", subscription_id="sub-3", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="delete", phase="deleting", cluster="mgmt-1", environment="int", region="uksouth"}'
+    values: "1+0x300"
+  # start_time=0 until t=119m (age crosses 3600s at t=60m); backend retries at
+  # t=120m so start_time jumps to 7200s and age re-crosses 3600s only at t=180m.
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/3/ea/flap-del", subscription_id="sub-3", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="delete", phase="deleting", cluster="mgmt-1", environment="int", region="uksouth"}'
+    values: "0+0x119 7200+0x180"
+  alert_rule_test:
+  # Raw condition true (age 5400s > 3600s) → firing.
+  - eval_time: 90m
+    alertname: UJExternalAuthStuckOperation
+    exp_alerts:
+    - exp_labels:
+        cluster: "mgmt-1"
+        environment: "int"
+        region: "uksouth"
+        component: slo
+        operation_type: "delete"
+        phase: "deleting"
+        resource_id: "/sub/3/ea/flap-del"
+        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"
+        severity: "4"
+        exclude_internal_subscriptions: "true"
+        subscription_id: "sub-3"
+      exp_annotations:
+        summary: "mgmt-1: ExternalAuth operation for /sub/3/ea/flap-del stuck in deleting for over 1 hour"
+        description: "ExternalAuth operation for /sub/3/ea/flap-del has been in deleting phase for over 1 hour. Stuck operations are invisible to success/failure SLIs and require investigation."
+        runbook_url: "https://aka.ms/arohcp-runbook-externalauth"
+  # Raw condition FALSE here (start_time reset → age < 3600s) but the resource is
+  # still wedged. The 6h hold keeps the same alert firing → no resolve, no duplicate.
+  - eval_time: 150m
+    alertname: UJExternalAuthStuckOperation
+    exp_alerts:
+    - exp_labels:
+        cluster: "mgmt-1"
+        environment: "int"
+        region: "uksouth"
+        component: slo
+        operation_type: "delete"
+        phase: "deleting"
+        resource_id: "/sub/3/ea/flap-del"
+        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"
+        severity: "4"
+        exclude_internal_subscriptions: "true"
+        subscription_id: "sub-3"
+      exp_annotations:
+        summary: "mgmt-1: ExternalAuth operation for /sub/3/ea/flap-del stuck in deleting for over 1 hour"
+        description: "ExternalAuth operation for /sub/3/ea/flap-del has been in deleting phase for over 1 hour. Stuck operations are invisible to success/failure SLIs and require investigation."
+        runbook_url: "https://aka.ms/arohcp-runbook-externalauth"
+# ========================================
+# Test 14: Stuck operation fires for all subscriptions at YAML level
+# ========================================
+# Filtering of internal subscriptions happens in the generated bicep (via
+# the generator-injected `unless` clause), not in the source YAML.
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/e2e/ea/stuck", subscription_id="00000000-0000-0000-0000-000000000001", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="create", phase="awaitingsecret", cluster="mgmt-1", environment="int", region="uksouth"}'
+    values: "0+0x95"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/e2e/ea/stuck", subscription_id="00000000-0000-0000-0000-000000000001", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="create", phase="awaitingsecret", cluster="mgmt-1", environment="int", region="uksouth"}'
+    values: "1+0x95"
+  alert_rule_test:
+  - eval_time: 90m
+    alertname: UJExternalAuthStuckOperation
+    exp_alerts:
+    - exp_labels:
+        alertname: UJExternalAuthStuckOperation
+        resource_id: /sub/e2e/ea/stuck
+        subscription_id: "00000000-0000-0000-0000-000000000001"
+        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"
+        operation_type: create
+        phase: awaitingsecret
+        cluster: mgmt-1
+        environment: "int"
+        region: "uksouth"
+        severity: "4"
+        component: slo
+        exclude_internal_subscriptions: "true"
+      exp_annotations:
+        summary: "mgmt-1: ExternalAuth operation for /sub/e2e/ea/stuck stuck in awaitingsecret for over 1 hour"
+        description: "ExternalAuth operation for /sub/e2e/ea/stuck has been in awaitingsecret phase for over 1 hour. Stuck operations are invisible to success/failure SLIs and require investigation."
+        runbook_url: "https://aka.ms/arohcp-runbook-externalauth"
