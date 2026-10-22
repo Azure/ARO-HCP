@@ -59,6 +59,7 @@ const (
 	// Fetches may make synchronous upstream calls; round 5x the observed
 	// p99.9 of 3500ms up to 20s.
 	clusterResourcesFetchTimeout = 20 * time.Second
+
 	// resourcesCacheTTL is how long a non-empty GetClusterResources response is
 	// reused. Cluster Service writes these manifests at provision and on node
 	// pool or cluster updates, so a few seconds of staleness is acceptable.
@@ -68,6 +69,20 @@ const (
 	// resourcesCacheCapacity bounds memory for cached manifests. Evicting an
 	// entry only causes another GET.
 	resourcesCacheCapacity = 10000
+
+	// defaultKubeClientQPS pins the cluster-autoscaler --kube-client-qps flag
+	// Under heavy scaling load, the current hypershift default limits of 5 QPS can cause client-side throttling
+	// that extends autoscaler evaluation cycles beyond the health-check threshold and stalls autoscaling.
+	// Update this value deliberately when adopting a new hypershift default.
+	// As part of this change, the defaultKubeClientQPS value was also updated to 200. https://github.com/openshift/hypershift/pull/10006
+	defaultKubeClientQPS int64 = 200
+
+	// defaultKubeClientBurst pins the cluster-autoscaler --kube-client-burst flag
+	// Under heavy scaling load, the current hypershift default limits of 10 burst can cause client-side throttling
+	// that extends autoscaler evaluation cycles beyond the health-check threshold and stalls autoscaling.
+	// Update this value deliberately when adopting a new hypershift default.
+	// As part of this change, the defaultKubeClientBurst value was also updated to 300. https://github.com/openshift/hypershift/pull/10006
+	defaultKubeClientBurst int64 = 300
 )
 
 // cachedClusterResources is one successful GetClusterResources response.
@@ -374,6 +389,10 @@ func (c *clusterResourcesController) processClusterResources(ctx context.Context
 					errs = append(errs, utils.TrackError(fmt.Errorf("failed to set HostedCluster ingress certificate: %w", err)))
 					continue
 				}
+				if err := ensureHostedClusterAutoscaling(&unstructuredObj); err != nil {
+					errs = append(errs, utils.TrackError(fmt.Errorf("failed to set HostedCluster autoscaling for %s: %w", resourceKey, err)))
+					continue
+				}
 			}
 
 			desire, err = buildClusterResourceApplyDesire(
@@ -462,6 +481,20 @@ func ensureHostedClusterAnnotations(hostedCluster *unstructured.Unstructured) er
 	annotations[v1beta1.MachineHealthCheckNodeStartupTimeoutAnnotation] = "10m"
 
 	hostedCluster.SetAnnotations(annotations)
+	return nil
+}
+
+// ensureHostedClusterAutoscaling pins spec.autoscaling.kubeClientQPS and
+// spec.autoscaling.kubeClientBurst to fleet-wide defaults on the
+// HostedCluster manifest. This ensures the autoscaler rate-limit flags
+// are explicitly set and not subject to future Hypershift default changes.
+func ensureHostedClusterAutoscaling(hostedCluster *unstructured.Unstructured) error {
+	if err := unstructured.SetNestedField(hostedCluster.Object, defaultKubeClientQPS, "spec", "autoscaling", "kubeClientQPS"); err != nil {
+		return fmt.Errorf("setting spec.autoscaling.kubeClientQPS: %w", err)
+	}
+	if err := unstructured.SetNestedField(hostedCluster.Object, defaultKubeClientBurst, "spec", "autoscaling", "kubeClientBurst"); err != nil {
+		return fmt.Errorf("setting spec.autoscaling.kubeClientBurst: %w", err)
+	}
 	return nil
 }
 
