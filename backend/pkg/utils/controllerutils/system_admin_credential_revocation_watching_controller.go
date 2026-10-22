@@ -68,6 +68,8 @@ func NewSystemAdminCredentialRevocationWatchingController(
 	// this happens when unit tests don't want triggering. This isn't beautiful, but fails to do nothing which is pretty safe.
 	if backendInformers != nil {
 		revocationInformer, _ := backendInformers.SystemAdminCredentialRevocations()
+		// Resync only the key resource so each key is resynced once per interval,
+		// not once for every input. Use 0 (no resync) for all other watches.
 		err := controller.QueueForInformers(resyncDuration, revocationInformer)
 		if err != nil {
 			panic(err) // coding error

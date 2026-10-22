@@ -46,6 +46,7 @@ type ensureReadDesireSyncer struct {
 
 func NewEnsureCapacityReadDesireController(
 	managementClusterInformer cache.SharedIndexInformer,
+	stampInformer cache.SharedIndexInformer,
 	kubeApplierDBClients kubeappliercosmosstorage.KubeApplierDBClients,
 	cfg fleetcontrollers.StampWatchingControllerConfig,
 ) fleetcontrollers.Controller {
@@ -55,11 +56,14 @@ func NewEnsureCapacityReadDesireController(
 
 	controller := fleetcontrollers.NewStampWatchingController(
 		EnsureCapacityReadDesireControllerName,
+		stampInformer,
+		ensureResyncPeriod,
 		syncer,
 		cfg,
 	)
 
-	if err := controller.QueueForInformers(ensureResyncPeriod, managementClusterInformer); err != nil {
+	// Stamp keys already resync once; other inputs only enqueue on changes.
+	if err := controller.QueueForInformers(0, managementClusterInformer); err != nil {
 		panic(err) // coding error
 	}
 
