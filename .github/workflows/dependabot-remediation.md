@@ -169,7 +169,11 @@ safe-outputs:
     ecosystem: string
     package_family: string
     target_version: string
-    manifests: array
+    # Runtime ingestion requires an item schema for manifest arrays.
+    manifests:
+      type: array
+      items:
+        type: string
   steps:
     - name: Reject duplicate dependency PRs before creation
       if: contains(needs.agent.outputs.output_types, 'create_pull_request')
