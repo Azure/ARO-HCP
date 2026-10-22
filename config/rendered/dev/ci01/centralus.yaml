@@ -332,7 +332,7 @@ frontend:
     locksContainerMaxScale: 4000
     name: arohcpci01-rp-j7654321
     private: false
-    resourceContainerMaxScale: 38000
+    resourceContainerMaxScale: 44000
     zoneRedundantMode: Disabled
   exitOnPanic: true
   image:

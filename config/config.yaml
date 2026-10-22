@@ -1807,7 +1807,7 @@ clouds:
               private: false
               enableBurstCapacity: true
               zoneRedundantMode: 'Disabled'
-              resourceContainerMaxScale: 38000
+              resourceContainerMaxScale: 44000
           # MC
           mgmt:
             stamps:
@@ -1908,7 +1908,7 @@ clouds:
               private: false
               enableBurstCapacity: true
               zoneRedundantMode: 'Disabled'
-              resourceContainerMaxScale: 38000
+              resourceContainerMaxScale: 44000
           # MC
           mgmt:
             stamps:
