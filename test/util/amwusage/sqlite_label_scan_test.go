@@ -188,15 +188,16 @@ func TestLabelsCancellationAndInvalidPublication(t *testing.T) {
 					rows = append(rows, fmt.Sprintf(`{"metric":{"instance":"%d"},"value":[100600,"1"]}`, i))
 				}
 				warning := ""
-				if invalid == "duplicate" {
+				switch invalid {
+				case "duplicate":
 					rows = append(rows, rows[0])
-				} else if invalid == "case-collision" {
+				case "case-collision":
 					rows = append(rows, `{"metric":{"Job":"a","job":"a"},"value":[100600,"1"]}`)
-				} else if invalid == "case-duplicate" {
+				case "case-duplicate":
 					rows = append(rows, `{"metric":{"Instance":"0"},"value":[100600,"1"]}`)
-				} else if invalid == "warning" {
+				case "warning":
 					warning = `,"warnings":["partial"]`
-				} else {
+				default:
 					rows = append(rows, fmt.Sprintf(`{"metric":{"instance":"invalid"},"value":[100600,%q]}`, invalid))
 				}
 				body := `{"status":"success","data":{"resultType":"vector","result":[` + strings.Join(rows, ",") + `]}` + warning + `}`
@@ -424,7 +425,7 @@ func TestLabelsNormalizedStorageUsesSharedDictionary(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	labels := map[string]string{"Cluster": "ABC", "Job": "Test"}
 	id, err := internLabels(context.Background(), tx, labels)
 	if err != nil {
@@ -549,7 +550,7 @@ func TestLabelsStoredDictionaryCorruptionIsFatal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	labels := map[string]string{"cluster": "abc", "job": "test"}
 	id, err := internLabels(ctx, tx, labels)
 	if err != nil {

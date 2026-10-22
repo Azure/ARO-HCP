@@ -68,7 +68,7 @@ func labelDetailAccept(t *testing.T, s *ScanStore, id string, data []databaseSam
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	res, err := tx.Exec(`INSERT INTO attempt(query_id,owner,started_at,state,http_status) VALUES(?,'test',0,'succeeded',200)`, id)
 	if err != nil {
 		t.Fatal(err)
@@ -100,7 +100,7 @@ func labelDetailRead(t *testing.T, s *ScanStore) *databaseSampleDetail {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	d, err := readDatabaseLabelDetail(context.Background(), tx)
 	if err != nil {
 		t.Fatal(err)
@@ -216,7 +216,7 @@ func TestDatabaseLabelDetailRejectsInvalidCoverage(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			defer tx.Rollback()
+			defer func() { _ = tx.Rollback() }()
 			d, err := readDatabaseLabelDetail(context.Background(), tx)
 			if tc.name == "noninteger" {
 				if err == nil {
@@ -291,7 +291,7 @@ func TestDatabaseLabelDetailBoundsAndCancellation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	e, used, err := readDatabaseLabelMetric(context.Background(), tx, c, 100000, 100600, 1)
 	if err != nil || e != nil || used != 0 {
 		t.Fatalf("oversized inventory sampled: %v %d %v", e, used, err)
@@ -332,7 +332,7 @@ func TestDatabaseLabelDetailIncompleteMigration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	if _, err := readDatabaseLabelDetail(t.Context(), tx); err == nil || !strings.Contains(err.Error(), "migration is incomplete") {
 		t.Fatalf("partially migrated labels were readable: %v", err)
 	}
@@ -344,7 +344,7 @@ func normalizeLabelDetailFixture(t *testing.T, s *ScanStore) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	if _, err := tx.Exec(`ALTER TABLE label_scan_observation RENAME TO legacy_labels;
  CREATE TABLE label_scan_observation(attempt_id INTEGER NOT NULL,labelset_id INTEGER NOT NULL,timestamp REAL NOT NULL,
  samples INTEGER NOT NULL,PRIMARY KEY(attempt_id,labelset_id,timestamp)) WITHOUT ROWID;`); err != nil {
@@ -529,7 +529,7 @@ func TestDatabaseLabelDetailNormalizedSourceGroups(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	if _, err := tx.Exec(`DELETE FROM label_scan_expected_group WHERE metric_id=?`, c.ID); err != nil {
 		t.Fatal(err)
 	}
@@ -594,7 +594,7 @@ func TestDatabaseLabelDetailCapturedSourceRefresh(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	res, err := tx.Exec(`INSERT INTO attempt(query_id,owner,started_at,state,http_status) VALUES(?,'refresh',1,'succeeded',200)`, c.Source)
 	if err != nil {
 		t.Fatal(err)
@@ -637,7 +637,7 @@ func TestDatabaseLabelDetailCapturedGroupTampering(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			defer tx.Rollback()
+			defer func() { _ = tx.Rollback() }()
 			gid, err := internLabels(context.Background(), tx, labels)
 			if err != nil {
 				t.Fatal(err)
@@ -711,7 +711,7 @@ func addLabelDetailMetric(t *testing.T, s *ScanStore, workspace int, name string
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	res, err := tx.Exec(`INSERT INTO metric(workspace_id,name,display_name) VALUES(?,?,?)`, workspace, name, name)
 	if err != nil {
 		t.Fatal(err)
@@ -889,7 +889,7 @@ func TestDatabaseLabelDetailLocalArchive(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	started := time.Now()
 	d, err := readDatabaseLabelDetail(ctx, tx)
 	if err != nil {
