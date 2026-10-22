@@ -80,7 +80,7 @@ var (
 )
 
 // TierConfig defines a single node pool tier — a desired VM size class with
-// its own core count, disk size, node cap, and family preference list. Tiers
+// its own core count, minimum disk size, node cap, and family preference list. Tiers
 // are processed in order: tier 0 allocates from the shared quota pool first,
 // tier 1 fills from the remainder, and so on.
 type TierConfig struct {
@@ -90,11 +90,13 @@ type TierConfig struct {
 	// identifier: changing it renames — and therefore replaces — the tier's
 	// pools. Must match ^[a-z][a-z0-9]{0,4}$ (1-5 chars) and be unique within a
 	// profile; both are enforced by ValidateProfile.
-	Name            string
-	Class           PoolClass
-	PoolMode        PoolMode
-	Cores           int64
-	OSDiskSizeGB    int32
+	Name     string
+	Class    PoolClass
+	PoolMode PoolMode
+	Cores    int64
+	// MinOSDiskSizeGB filters SKUs; allocated pools use the selected SKU's full
+	// ephemeral disk capacity, not this minimum.
+	MinOSDiskSizeGB int32
 	MaxNodes        int64
 	InitialMinNodes int64
 	FamilyPriority  []VMFamily
@@ -127,39 +129,39 @@ var profiles = map[string]Profile{
 	ProfileDevelopment: {
 		Tiers: []TierConfig{
 			{
-				Name:           "sys",
-				Class:          SystemPools,
-				FamilyPriority: dFamilyPriority,
-				Cores:          4,
-				PoolMode:       PoolModeRegional,
-				PoolCount:      1,
-				MaxNodes:       3,
-				OSDiskSizeGB:   32,
-				MaxPods:        100,
-				Required:       true,
+				Name:            "sys",
+				Class:           SystemPools,
+				FamilyPriority:  dFamilyPriority,
+				Cores:           4,
+				PoolMode:        PoolModeRegional,
+				PoolCount:       1,
+				MaxNodes:        3,
+				MinOSDiskSizeGB: 32,
+				MaxPods:         100,
+				Required:        true,
 			},
 			{
-				Name:           "inf",
-				Class:          InfraPools,
-				FamilyPriority: dFamilyPriority,
-				Cores:          4,
-				PoolMode:       PoolModePerZone,
-				PoolCount:      2,
-				MaxNodes:       2,
-				OSDiskSizeGB:   64,
-				MaxPods:        225,
-				Required:       true,
+				Name:            "inf",
+				Class:           InfraPools,
+				FamilyPriority:  dFamilyPriority,
+				Cores:           4,
+				PoolMode:        PoolModePerZone,
+				PoolCount:       2,
+				MaxNodes:        2,
+				MinOSDiskSizeGB: 64,
+				MaxPods:         225,
+				Required:        true,
 			},
 			{
-				Name:           "wrk",
-				Class:          WorkerPools,
-				FamilyPriority: dFamilyPriority,
-				Cores:          4,
-				PoolMode:       PoolModePerZone,
-				PoolCount:      3,
-				MaxNodes:       6,
-				OSDiskSizeGB:   100,
-				MaxPods:        225,
+				Name:            "wrk",
+				Class:           WorkerPools,
+				FamilyPriority:  dFamilyPriority,
+				Cores:           4,
+				PoolMode:        PoolModePerZone,
+				PoolCount:       3,
+				MaxNodes:        6,
+				MinOSDiskSizeGB: 100,
+				MaxPods:         225,
 			},
 		},
 		BudgetStrategy: UnlimitedBudget,
@@ -167,28 +169,28 @@ var profiles = map[string]Profile{
 	ProfileCI: {
 		Tiers: []TierConfig{
 			{
-				Name:           "sys",
-				Class:          SystemPools,
-				FamilyPriority: dFamilyPriority,
-				Cores:          4,
-				PoolMode:       PoolModeRegional,
-				PoolCount:      1,
-				MaxNodes:       3,
-				OSDiskSizeGB:   32,
-				MaxPods:        100,
-				Required:       true,
+				Name:            "sys",
+				Class:           SystemPools,
+				FamilyPriority:  dFamilyPriority,
+				Cores:           4,
+				PoolMode:        PoolModeRegional,
+				PoolCount:       1,
+				MaxNodes:        3,
+				MinOSDiskSizeGB: 32,
+				MaxPods:         100,
+				Required:        true,
 			},
 			{
-				Name:           "inf",
-				Class:          InfraPools,
-				FamilyPriority: dFamilyPriority,
-				Cores:          4,
-				PoolMode:       PoolModePerZone,
-				PoolCount:      2,
-				MaxNodes:       3,
-				OSDiskSizeGB:   64,
-				MaxPods:        225,
-				Required:       true,
+				Name:            "inf",
+				Class:           InfraPools,
+				FamilyPriority:  dFamilyPriority,
+				Cores:           4,
+				PoolMode:        PoolModePerZone,
+				PoolCount:       2,
+				MaxNodes:        3,
+				MinOSDiskSizeGB: 64,
+				MaxPods:         225,
+				Required:        true,
 			},
 			{
 				Name:            "wrk",
@@ -199,7 +201,7 @@ var profiles = map[string]Profile{
 				PoolCount:       3,
 				MaxNodes:        6,
 				InitialMinNodes: 5,
-				OSDiskSizeGB:    256,
+				MinOSDiskSizeGB: 256,
 				MaxPods:         225,
 			},
 		},
@@ -211,28 +213,28 @@ var profiles = map[string]Profile{
 	ProfileIntegration: {
 		Tiers: []TierConfig{
 			{
-				Name:           "sys",
-				Class:          SystemPools,
-				FamilyPriority: eFamilyPriority,
-				Cores:          4,
-				PoolMode:       PoolModeRegional,
-				PoolCount:      1,
-				MaxNodes:       2,
-				OSDiskSizeGB:   128,
-				MaxPods:        100,
-				Required:       true,
+				Name:            "sys",
+				Class:           SystemPools,
+				FamilyPriority:  eFamilyPriority,
+				Cores:           4,
+				PoolMode:        PoolModeRegional,
+				PoolCount:       1,
+				MaxNodes:        2,
+				MinOSDiskSizeGB: 128,
+				MaxPods:         100,
+				Required:        true,
 			},
 			{
-				Name:           "inf",
-				Class:          InfraPools,
-				FamilyPriority: dFamilyPriority,
-				Cores:          4,
-				PoolMode:       PoolModePerZone,
-				PoolCount:      2,
-				MaxNodes:       3,
-				OSDiskSizeGB:   128,
-				MaxPods:        225,
-				Required:       true,
+				Name:            "inf",
+				Class:           InfraPools,
+				FamilyPriority:  dFamilyPriority,
+				Cores:           4,
+				PoolMode:        PoolModePerZone,
+				PoolCount:       2,
+				MaxNodes:        3,
+				MinOSDiskSizeGB: 128,
+				MaxPods:         225,
+				Required:        true,
 			},
 			{
 				Name:            "wrk",
@@ -243,7 +245,7 @@ var profiles = map[string]Profile{
 				PoolCount:       3,
 				MaxNodes:        14,
 				InitialMinNodes: 5,
-				OSDiskSizeGB:    512,
+				MinOSDiskSizeGB: 512,
 				MaxPods:         225,
 			},
 		},
@@ -252,28 +254,28 @@ var profiles = map[string]Profile{
 	ProfileProduction: {
 		Tiers: []TierConfig{
 			{
-				Name:           "sys",
-				Class:          SystemPools,
-				FamilyPriority: eFamilyPriority,
-				Cores:          4,
-				PoolMode:       PoolModeRegional,
-				PoolCount:      1,
-				MaxNodes:       2,
-				OSDiskSizeGB:   128,
-				MaxPods:        100,
-				Required:       true,
+				Name:            "sys",
+				Class:           SystemPools,
+				FamilyPriority:  eFamilyPriority,
+				Cores:           4,
+				PoolMode:        PoolModeRegional,
+				PoolCount:       1,
+				MaxNodes:        2,
+				MinOSDiskSizeGB: 128,
+				MaxPods:         100,
+				Required:        true,
 			},
 			{
-				Name:           "inf",
-				Class:          InfraPools,
-				FamilyPriority: eFamilyPriority,
-				Cores:          4,
-				PoolMode:       PoolModePerZone,
-				PoolCount:      2,
-				MaxNodes:       2,
-				OSDiskSizeGB:   128,
-				MaxPods:        225,
-				Required:       true,
+				Name:            "inf",
+				Class:           InfraPools,
+				FamilyPriority:  eFamilyPriority,
+				Cores:           4,
+				PoolMode:        PoolModePerZone,
+				PoolCount:       2,
+				MaxNodes:        2,
+				MinOSDiskSizeGB: 128,
+				MaxPods:         225,
+				Required:        true,
 			},
 			{
 				Name:            "wrk16",
@@ -284,7 +286,7 @@ var profiles = map[string]Profile{
 				PoolCount:       3,
 				MaxNodes:        20,
 				InitialMinNodes: 5,
-				OSDiskSizeGB:    400,
+				MinOSDiskSizeGB: 400,
 				MaxPods:         225,
 			},
 			{
@@ -296,7 +298,7 @@ var profiles = map[string]Profile{
 				PoolCount:       3,
 				MaxNodes:        3,
 				InitialMinNodes: 1,
-				OSDiskSizeGB:    512,
+				MinOSDiskSizeGB: 512,
 				MaxPods:         225,
 			},
 		},

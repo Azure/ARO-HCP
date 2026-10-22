@@ -19,6 +19,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"maps"
+	"math"
 	"slices"
 	"strings"
 
@@ -49,8 +50,8 @@ type EligibleSKUIndex map[VMFamily]map[int64]eligibleSKU
 
 // BuildEligibleSKUIndex indexes raw SKU metadata into a lookup table keyed by VM
 // family and vCPU count, keeping only SKUs available in the cache's region that
-// support an ephemeral OS disk with non-zero size and have an unconstrained,
-// non-zero vCPU count. Zone eligibility is evaluated later, per tier, at allocation
+// support an ephemeral OS disk with positive, int32-representable size and have
+// an unconstrained, non-zero vCPU count. Zone eligibility is evaluated later, per tier, at allocation
 // time. When multiple VM sizes in the same family share a vCPU count they are
 // interchangeable for allocation. The lexicographically smallest name wins
 // for deterministic selection.
@@ -61,6 +62,11 @@ func BuildEligibleSKUIndex(skuMetadata map[string]*skucache.SKUMetadata) Eligibl
 			continue
 		}
 		if !meta.EphemeralOSDiskSupported || meta.EphemeralDiskSizeGB <= 0 {
+			continue
+		}
+		// Pool and ARM disk sizes are int32. Reject unrepresentable capacity
+		// rather than overflowing or imposing an artificial Azure disk limit.
+		if meta.EphemeralDiskSizeGB > math.MaxInt32 {
 			continue
 		}
 		if meta.ConstrainedVCPUs {
@@ -271,14 +277,14 @@ func allocateRegionalTier(
 		}
 		pools = append(pools, Pool{
 			Role:              tier.Class.Role,
-			Name:              tier.poolName(meta.Name, "0"),
+			Name:              tier.poolName(meta.Name, "0", int32(meta.EphemeralDiskSizeGB)),
 			AgentPoolMode:     tier.Class.AgentPoolMode,
 			SecondaryNICs:     secondaryNICs,
 			Spec:              NewVMSpecFromSKU(meta),
 			AvailabilityZones: nil,
 			MaxCount:          int32(maxCount),
 			MinCount:          seedMinCount(tier.InitialMinNodes, maxCount),
-			OSDiskSizeGB:      tier.OSDiskSizeGB,
+			OSDiskSizeGB:      int32(meta.EphemeralDiskSizeGB),
 			MaxPods:           tier.MaxPods,
 			Labels:            tierLabels(tier),
 			Taints:            slices.Clone(tier.Class.Taints),
@@ -352,14 +358,14 @@ func allocatePerZoneTier(
 			}
 			pools = append(pools, Pool{
 				Role:              tier.Class.Role,
-				Name:              tier.poolName(family.meta.Name, zone),
+				Name:              tier.poolName(family.meta.Name, zone, int32(family.meta.EphemeralDiskSizeGB)),
 				AgentPoolMode:     tier.Class.AgentPoolMode,
 				SecondaryNICs:     secondaryNICs,
 				Spec:              NewVMSpecFromSKU(family.meta),
 				AvailabilityZones: []string{zone},
 				MaxCount:          int32(poolNodes),
 				MinCount:          seedMinCount(tier.InitialMinNodes, poolNodes),
-				OSDiskSizeGB:      tier.OSDiskSizeGB,
+				OSDiskSizeGB:      int32(family.meta.EphemeralDiskSizeGB),
 				MaxPods:           tier.MaxPods,
 				Labels:            tierLabels(tier),
 				Taints:            slices.Clone(tier.Class.Taints),
@@ -495,11 +501,11 @@ func tierSKU(logger logr.Logger, tier TierConfig, family VMFamily, skuIndex Elig
 		logger.Info("no eligible SKU found in family, skipping", "family", family, "desiredCores", tier.Cores)
 		return nil, false
 	}
-	if meta.EphemeralDiskSizeGB < int64(tier.OSDiskSizeGB) {
-		logger.Info("SKU ephemeral disk too small for configured OS disk size, skipping",
+	if meta.EphemeralDiskSizeGB < int64(tier.MinOSDiskSizeGB) {
+		logger.Info("SKU ephemeral disk too small for minimum OS disk size, skipping",
 			"family", family, "vmSize", vmSize,
 			"ephemeralDiskSizeGB", meta.EphemeralDiskSizeGB,
-			"osDiskSizeGB", tier.OSDiskSizeGB)
+			"minOSDiskSizeGB", tier.MinOSDiskSizeGB)
 		return nil, false
 	}
 	if tier.Class.AttachSecondaryNICs && meta.SecondaryNICs <= 0 {
@@ -529,7 +535,7 @@ func tierExhaustedFailure(tierIndex int, tier TierConfig, zones []string, requir
 		offeredZones := make(map[string]bool)
 		for _, family := range tier.FamilyPriority {
 			_, meta, found := skuIndex.Lookup(family, tier.Cores)
-			if !found || meta.EphemeralDiskSizeGB < int64(tier.OSDiskSizeGB) || (tier.Class.AttachSecondaryNICs && meta.SecondaryNICs <= 0) {
+			if !found || meta.EphemeralDiskSizeGB < int64(tier.MinOSDiskSizeGB) || (tier.Class.AttachSecondaryNICs && meta.SecondaryNICs <= 0) {
 				continue
 			}
 			hasEligible = true
@@ -549,7 +555,7 @@ func tierExhaustedFailure(tierIndex int, tier TierConfig, zones []string, requir
 		switch {
 		case !hasEligible:
 			reason = "NoEligibleSKU"
-			message = fmt.Sprintf("tier %d (%d cores): no family has an eligible SKU with exactly %d vCPUs (unrestricted in region, unconstrained vCPUs, ephemeral OS disk of at least %d GB)", tierIndex, tier.Cores, tier.Cores, tier.OSDiskSizeGB)
+			message = fmt.Sprintf("tier %d (%d cores): no family has an eligible SKU with exactly %d vCPUs (unrestricted in region, unconstrained vCPUs, ephemeral OS disk of at least %d GB)", tierIndex, tier.Cores, tier.Cores, tier.MinOSDiskSizeGB)
 			if tier.Class.AttachSecondaryNICs {
 				message += "; a positive secondary NIC capacity is also required"
 			}
@@ -575,7 +581,8 @@ func tierExhaustedFailure(tierIndex int, tier TierConfig, zones []string, requir
 // <symbolicName><zone><hash> where symbolicName is the tier's stable identifier
 // (1-5 chars), zone is the availability zone digit, and hash is a 6-character
 // hex prefix of the SHA-256 of the pool's identity fields (Role, VMSize,
-// OSDiskSizeGB, MaxPods, EnableSwift, AgentPoolMode, AttachSecondaryNICs).
+// resolved OSDiskSizeGB, MaxPods, EnableSwift, AgentPoolMode, AttachSecondaryNICs).
+// The tier's minimum is only a selection constraint, not part of pool identity.
 // Role changes require replacement rather than relabeling an existing pool.
 // Changing any identity field changes the hash, renaming the pool so the
 // reconciler replaces it — the only correct response to an immutable-field
@@ -583,8 +590,8 @@ func tierExhaustedFailure(tierIndex int, tier TierConfig, zones []string, requir
 // share the same hash suffix. Name uniqueness
 // within a cluster is guaranteed structurally by (symbolicName, zone), not by
 // the hash, so a 24-bit truncation is safe; it only guards change detection.
-func (tier TierConfig) poolName(vmSize, zone string) string {
-	input := fmt.Sprintf("%s|%s|%d|%d|%t|%s|%t", tier.Class.Role, vmSize, tier.OSDiskSizeGB, tier.MaxPods, tier.Class.EnableSwift, tier.Class.AgentPoolMode, tier.Class.AttachSecondaryNICs)
+func (tier TierConfig) poolName(vmSize, zone string, osDiskSizeGB int32) string {
+	input := fmt.Sprintf("%s|%s|%d|%d|%t|%s|%t", tier.Class.Role, vmSize, osDiskSizeGB, tier.MaxPods, tier.Class.EnableSwift, tier.Class.AgentPoolMode, tier.Class.AttachSecondaryNICs)
 	sum := sha256.Sum256([]byte(input))
 	return fmt.Sprintf("%s%s%s", tier.Name, zone, hex.EncodeToString(sum[:])[:6])
 }

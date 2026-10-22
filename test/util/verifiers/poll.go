@@ -16,6 +16,7 @@ package verifiers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -37,6 +38,19 @@ const (
 )
 
 type diagnoseFunc func(ctx context.Context, restConfig *rest.Config) string
+
+type pollObservationError struct {
+	observation  error
+	interruption error
+}
+
+func (failure *pollObservationError) Error() string {
+	return failure.observation.Error()
+}
+
+func (failure *pollObservationError) Unwrap() []error {
+	return []error{failure.observation, failure.interruption}
+}
 
 // logVerifierTiming records actual wall-clock duration when a verifier finishes polling.
 // Logs to GinkgoLogr (structured) and GinkgoWriter (visible in default CI output).
@@ -79,7 +93,9 @@ func withDiagnostics(verdict error, details string) error {
 // only when the error message changes between polls (delta-only logging). Actual elapsed
 // wall-clock time is logged on both success and failure. If diagnose is set, its output is
 // logged and appended to every failure the poll returns: a timeout, or cancellation of the
-// caller's context.
+// caller's context. If the polling context ends, a check error wrapping that context's error
+// does not replace or re-log an earlier failure's message. Both observed errors remain
+// available for unwrapping.
 //
 // Budget contract, in two parts.
 //
@@ -87,7 +103,9 @@ func withDiagnostics(verdict error, details string) error {
 // timeout, but one further check is then made so that a condition met between the last poll and
 // the deadline is not misreported as a timeout. That overshoot is bounded, paid only on the path
 // that was already going to fail, and included in the elapsed duration logged and reported in the
-// returned error.
+// returned error. The further check is skipped when the last observed verdict was the poll
+// context itself ending; waiting once more there yields no new evidence, so the preserved
+// observation is reported directly.
 //
 // Reporting the failure can take a further diagnoseTimeout on top, on the failure paths only
 // (timeout or cancellation) and only when diagnose is set. The verdict has already been reached by
@@ -119,6 +137,10 @@ func pollUntilReady(
 		err := check(ctx)
 		if err == nil {
 			return true, nil
+		}
+		if lastErr != nil && ctx.Err() != nil && errors.Is(err, ctx.Err()) {
+			lastErr = &pollObservationError{observation: lastErr, interruption: err}
+			return false, nil
 		}
 		currentError := err.Error()
 		if currentError != previousError {
@@ -152,19 +174,29 @@ func pollUntilReady(
 	// path that was going to fail anyway, and it is the difference between a real timeout and a
 	// near-miss: ARO-26775 failed on a control plane upgrade that landed 22s inside a 45m
 	// budget, missed because the preceding poll had fired 2m earlier.
-	finalCtx, cancelFinal := context.WithTimeout(ctx, finalCheckTimeout)
-	finalErr := check(finalCtx)
-	cancelFinal()
+	//
+	// Skip that retry when the last verdict was the poll context ending: the loop records an
+	// interruption as a pollObservationError, and a check that already had the full remaining
+	// budget and reported a context error cannot become a condition verdict after one more
+	// finalCheckTimeout of waiting. Re-running it would only bury the earlier observation
+	// underneath a fresh context error, so the preserved observation is reported as the timeout.
+	var interruption *pollObservationError
+	if lastErr == nil || !errors.As(lastErr, &interruption) {
+		finalCtx, cancelFinal := context.WithTimeout(ctx, finalCheckTimeout)
+		finalErr := check(finalCtx)
+		cancelFinal()
+		lastErr = finalErr
 
-	// Recompute rather than reusing the pre-check value: the final check runs after the deadline,
-	// so reporting the loop's elapsed time would understate how long the verifier actually took.
-	elapsed = time.Since(startTime)
+		// Recompute rather than reusing the pre-check value: the final check runs after the
+		// deadline, so reporting the loop's elapsed time would understate how long the verifier
+		// actually took.
+		elapsed = time.Since(startTime)
 
-	if finalErr == nil {
-		logVerifierTiming(name, "succeeded on the final check after the deadline", elapsed)
-		return nil
+		if finalErr == nil {
+			logVerifierTiming(name, "succeeded on the final check after the deadline", elapsed)
+			return nil
+		}
 	}
-	lastErr = finalErr
 
 	logVerifierTiming(name, "timed out", elapsed)
 	details := gatherDiagnostics(name, restConfig, diagnoseTimeout, diagnose)

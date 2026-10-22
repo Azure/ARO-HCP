@@ -1,0 +1,46 @@
+apiVersion: mgmtagent.aro-hcp.azure.com/v1alpha1
+kind: CapacityReport
+metadata:
+  name: cluster
+status:
+  conditions:
+  - lastTransitionTime: "2026-01-01T00:00:00Z"
+    message: ""
+    observedGeneration: 0
+    reason: DataCollected
+    status: "True"
+    type: ReportCurrent
+  hostedControlPlanes:
+    readyResourceIDs:
+    - /subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/cluster-0
+    - /subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/cluster-1
+    - /subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/cluster-2
+    - /subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/cluster-3
+    - /subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/cluster-4
+    readyResources:
+      requested:
+        aro.openshift.io/swift-nic: "5"
+        cpu: "10"
+        memory: "0"
+      usage:
+        aro.openshift.io/swift-nic: "5"
+        cpu: "5"
+        memory: "0"
+    resources:
+      requested:
+        aro.openshift.io/swift-nic: "5"
+        cpu: "10"
+        memory: "0"
+      usage:
+        aro.openshift.io/swift-nic: "5"
+        cpu: "5"
+        memory: "0"
+  lastReportedAt: "2026-01-01T00:00:00Z"
+  requested:
+    aro.openshift.io/swift-nic: "5"
+    cpu: "10"
+    memory: "0"
+  usage:
+    aro.openshift.io/swift-nic: "5"
+    cpu: "5"
+    memory: "0"

@@ -18,11 +18,11 @@ resourceGroups:
     targetACR:
       configRef: acr.svc.name
     sourceRegistry:
-      configRef: '{{ if .swiftRecorder.useMgmtAgentImage }}mgmtAgent{{ else }}swiftRecorder{{ end }}.image.registry'
+      configRef: swiftRecorder.image.registry
     repository:
-      configRef: '{{ if .swiftRecorder.useMgmtAgentImage }}mgmtAgent{{ else }}swiftRecorder{{ end }}.image.repository'
+      configRef: swiftRecorder.image.repository
     digest:
-      configRef: '{{ if .swiftRecorder.useMgmtAgentImage }}mgmtAgent{{ else }}swiftRecorder{{ end }}.image.digest'
+      configRef: swiftRecorder.image.digest
     pullSecretKeyVault:
       configRef: global.keyVault.name
     pullSecretName:

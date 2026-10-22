@@ -355,6 +355,7 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 		clusterWideKubeInformers.Core().V1().Pods(),
 		clusterWideKubeInformers.Core().V1().Namespaces(),
 		hsInformers.Hypershift().V1beta1().HostedControlPlanes(),
+		hsInformers.Hypershift().V1beta1().HostedClusters(),
 		metricsClient,
 		crClient,
 		nil,
