@@ -1095,6 +1095,7 @@ svc:
     ingressGatewayIPAddressName: aro-hcp-istio-ingress
     tag: prod-stable
     versions: asm-1-30
+  monitoringApiGroup: monitoring.coreos.com
   nsp:
     accessMode: Learning
     name: nsp-usw3ptest-svc

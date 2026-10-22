@@ -1,4 +1,5 @@
 enabled: {{ .swiftRecorder.enabled }}
+monitoringApiGroup: "{{ .mgmt.monitoringApiGroup }}"
 image:
   registry: "{{ .acr.svc.name }}.{{ .acrDNSSuffix }}"
   repository: "{{ .swiftRecorder.image.repository }}"

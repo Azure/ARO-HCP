@@ -787,7 +787,7 @@ resourceGroups:
     releaseName: acrpull
     releaseNamespace: acrpull
     chartDir: ./../acrpull/deploy
-    valuesFile: ./../acrpull/deploy/values.yaml
+    valuesFile: ./../acrpull/deploy/values-mgmt.yaml
     kustoEndpoint:
       resourceGroup: kusto
       step: output
@@ -970,7 +970,7 @@ resourceGroups:
     releaseName: service-lifecycle
     releaseNamespace: kube-system
     chartDir: ../service-lifecycle/deploy
-    valuesFile: ../service-lifecycle/deploy/values.yaml
+    valuesFile: ../service-lifecycle/deploy/values-mgmt.yaml
     kustoEndpoint:
       resourceGroup: kusto
       step: output
@@ -980,6 +980,11 @@ resourceGroups:
     dependsOn:
     - resourceGroup: management
       step: cluster
+    # ama-metrics-settings-configmap previously belonged to the arohcp-monitor
+    # (prometheus) release; wait for that upgrade to release ownership before
+    # service-lifecycle recreates it, or Helm ownership validation fails.
+    - resourceGroup: management
+      step: prometheus
     identityFrom:
       resourceGroup: global
       step: output
