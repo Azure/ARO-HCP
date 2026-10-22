@@ -63,16 +63,17 @@ func TestRenderClusterVersionHistory(t *testing.T) {
 		},
 		{
 			// The history ARO-26775 had to be recovered from Kusto, because the test output
-			// dropped exactly these stamps. Images are the real digests from the ticket.
+			// dropped exactly these stamps. Digests are the real ones from the ticket; the
+			// registry host is a neutral placeholder because no rendering depends on it.
 			name: "the ARO-26775 history, newest entry first",
 			history: []configv1.UpdateHistory{
 				{
 					Version: "4.21.13", State: configv1.PartialUpdate, StartedTime: completed,
-					Image: "arohcpocpint.azurecr.io/openshift-release-dev/ocp-release@sha256:9d0436ae6f2106e055d7f735d9416d2842d39f2f988be5f3a8ec4f1d0e064ff9",
+					Image: "example.io/openshift-release-dev/ocp-release@sha256:9d0436ae6f2106e055d7f735d9416d2842d39f2f988be5f3a8ec4f1d0e064ff9",
 				},
 				{
 					Version: "4.20.20", State: configv1.CompletedUpdate, StartedTime: started, CompletionTime: &completed,
-					Image: "arohcpocpint.azurecr.io/openshift-release-dev/ocp-release@sha256:1a59c7136e704fb5e0b4824b55757dac29b04c606ee2d05757a142cb90504b5d",
+					Image: "example.io/openshift-release-dev/ocp-release@sha256:1a59c7136e704fb5e0b4824b55757dac29b04c606ee2d05757a142cb90504b5d",
 				},
 			},
 			expected: "4.21.13=Partial started=2026-05-06T01:24:16Z image=sha256:9d0436ae6f21; " +
@@ -141,7 +142,7 @@ func TestShortImageDigest(t *testing.T) {
 		{name: "empty", image: "", expected: ""},
 		{
 			name:     "digest is truncated to 12 characters",
-			image:    "arohcpocpint.azurecr.io/openshift-release-dev/ocp-release@sha256:9d0436ae6f2106e055d7f735d9416d2842d39f2f988be5f3a8ec4f1d0e064ff9",
+			image:    "example.io/openshift-release-dev/ocp-release@sha256:9d0436ae6f2106e055d7f735d9416d2842d39f2f988be5f3a8ec4f1d0e064ff9",
 			expected: "sha256:9d0436ae6f21",
 		},
 		{
@@ -151,7 +152,7 @@ func TestShortImageDigest(t *testing.T) {
 		},
 		{
 			name:     "tag reference falls back to the last path segment",
-			image:    "arohcpocpint.azurecr.io/openshift-release-dev/ocp-release:4.21.13",
+			image:    "example.io/openshift-release-dev/ocp-release:4.21.13",
 			expected: "ocp-release:4.21.13",
 		},
 		{
