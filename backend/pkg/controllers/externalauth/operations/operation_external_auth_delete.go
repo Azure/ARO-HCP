@@ -138,31 +138,25 @@ func (c *operationExternalAuthDelete) SynchronizeOperation(ctx context.Context, 
 		return nil
 	}
 
-	if deadline := externalAuth.ServiceProviderProperties.DeleteOperationCompletionDeadline; deadline != nil && c.clock.Now().After(deadline.Time) {
-		logger.Info("external auth delete operation deadline exceeded", "deadline", deadline.Time)
-		persistErr := &coreapi.CloudErrorBody{
-			Code:    coreapi.CloudErrorCodeDeadlineExceeded,
-			Message: "External auth deletion did not complete within the allowed time.",
-		}
-		err = operationbase.UpdateOperationStatus(ctx, c.clock, c.resourcesDBClient, operation, coreapi.ProvisioningStateFailed, persistErr, operationbase.PostAsyncNotificationFn(c.notificationClient))
-		if cosmosstorageutils.IsPreconditionFailedError(err) {
-			return nil
-		}
-		if err != nil {
-			return utils.TrackError(err)
-		}
-		return nil
+	state, observationErr := c.externalAuthDeletionOperationState(ctx, operation, externalAuth)
+	var states []*operationbase.OperationState
+	if state != nil {
+		states = append(states, state.WithSource("externalAuthDeletion"))
 	}
-
-	if !c.shouldReconcileOperationAndResourceStatus(externalAuth) {
-		return nil
-	}
-	err = c.reconcileOperationAndResourceStatus(ctx, operation, externalAuth)
+	state, err = operationbase.SummarizeOperationStates(states, observationErr)
+	state, err = operationbase.ApplyOperationDeadline(state, err, externalAuth.ServiceProviderProperties.DeleteOperationCompletionDeadline, c.clock.Now(), "External auth deletion did not complete within the allowed time.")
 	if err != nil {
 		return utils.TrackError(err)
 	}
-
-	return nil
+	persistErr := state.Error
+	if state.ProvisioningState == coreapi.ProvisioningStateFailed && persistErr == nil {
+		persistErr = &coreapi.CloudErrorBody{Code: state.CloudErrorCode, Message: state.Message}
+	}
+	err = operationbase.UpdateOperationStatus(ctx, c.clock, c.resourcesDBClient, operation, state.ProvisioningState, persistErr, operationbase.PostAsyncNotificationFn(c.notificationClient))
+	if cosmosstorageutils.IsPreconditionFailedError(err) {
+		return nil
+	}
+	return utils.TrackError(err)
 }
 
 func (c *operationExternalAuthDelete) shouldReconcileOperationAndResourceStatus(externalAuth *coreapi.ExternalAuth) bool {
@@ -171,8 +165,11 @@ func (c *operationExternalAuthDelete) shouldReconcileOperationAndResourceStatus(
 		externalAuth.ServiceProviderProperties.ClusterServiceID != nil
 }
 
-func (c *operationExternalAuthDelete) reconcileOperationAndResourceStatus(ctx context.Context, operation *coreapi.Operation, externalAuth *coreapi.ExternalAuth) error {
+func (c *operationExternalAuthDelete) externalAuthDeletionOperationState(ctx context.Context, operation *coreapi.Operation, externalAuth *coreapi.ExternalAuth) (*operationbase.OperationState, error) {
 	logger := utils.LoggerFromContext(ctx)
+	if !c.shouldReconcileOperationAndResourceStatus(externalAuth) {
+		return operationbase.NewOperationState(operation.Status, "Waiting for external auth deletion prerequisites"), nil
+	}
 
 	csID := externalAuth.ServiceProviderProperties.ClusterServiceID
 
@@ -183,11 +180,11 @@ func (c *operationExternalAuthDelete) reconcileOperationAndResourceStatus(ctx co
 	if err != nil {
 		var ocmError *ocmerrors.Error
 		if !errors.As(err, &ocmError) || ocmError.Status() != http.StatusNotFound {
-			return utils.TrackError(fmt.Errorf("failed to get cluster-service ExternalAuth: %w", err))
+			return nil, utils.TrackError(fmt.Errorf("failed to get cluster-service ExternalAuth: %w", err))
 		}
 		// 404 - CS has finished deleting. externalAuthClusterServiceIDClearer will clear the ID.
 		logger.Info("cluster-service ExternalAuth gone - skipping operation update", "clusterServiceID", csID.String())
-		return nil
+		return operationbase.NewOperationState(operation.Status, "Waiting for external auth document deletion"), nil
 	}
 
 	csExternalAuthStatus := csExternalAuth.Status()
@@ -196,18 +193,17 @@ func (c *operationExternalAuthDelete) reconcileOperationAndResourceStatus(ctx co
 	// will be picked up by a next reconciliation of this controller and we will update the operation to Succeeded.
 	if csExternalAuthStatus.State().Value() == string(operationbase.ExternalAuthStateReady) {
 		logger.Info("cluster-service ExternalAuth in Ready state. Waiting until Cosmos ExternalAuth document is deleted.")
-		return nil
+		return operationbase.NewOperationState(operation.Status, "Waiting for external auth document deletion"), nil
 	}
 
 	newOperationStatus, newOperationError, err := operationbase.ConvertExternalAuthStatus(operation, csExternalAuthStatus)
 	if err != nil {
-		return utils.TrackError(err)
+		return nil, utils.TrackError(err)
 	}
-
-	err = operationbase.UpdateOperationStatus(ctx, c.clock, c.resourcesDBClient, operation, newOperationStatus, newOperationError, operationbase.PostAsyncNotificationFn(c.notificationClient))
-	if err != nil {
-		return utils.TrackError(err)
+	if newOperationError != nil {
+		state := operationbase.NewOperationState(newOperationStatus, newOperationError.Message).WithCloudErrorCode(newOperationError.Code)
+		state.Error = newOperationError
+		return state, nil
 	}
-
-	return nil
+	return operationbase.NewOperationState(newOperationStatus, "Waiting for external auth deletion"), nil
 }
