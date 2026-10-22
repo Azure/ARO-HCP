@@ -248,13 +248,13 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 			},
 		},
 		{
-			name:              "ClusterServiceID nil skips reconciliation",
+			name:              "ClusterServiceID nil remains provisioning",
 			nodePool:          nodePoolWithoutCSID,
 			existingOperation: fixture.NewOperation(cosmosstorageutils.OperationRequestCreate),
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, coreapi.ProvisioningStateAccepted, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateProvisioning, op.Status)
 			},
 		},
 		{
