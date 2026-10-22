@@ -105,10 +105,13 @@ var _ = Describe("Cluster Etcd Managed HSM Encryption", func() {
 			// returns before ARM reports the HSM as Active, so once a download has succeeded the
 			// loop only polls the status instead of downloading the security domain again.
 			By("activating the Managed HSM by downloading its security domain")
+			// The HSM lives in the test's customer subscription, which may differ from the az CLI default.
+			subscriptionID, err := tc.SubscriptionID(ctx)
+			Expect(err).NotTo(HaveOccurred(), "failed to resolve test subscription ID")
 			activationAttempt := 0
 			securityDomainDownloaded := false
 			Eventually(func() error {
-				status, statusErr := mhsmActivationStatus(ctx, *resourceGroup.Name, hsmName)
+				status, statusErr := mhsmActivationStatus(ctx, subscriptionID, *resourceGroup.Name, hsmName)
 				if statusErr != nil {
 					return statusErr
 				}
@@ -366,8 +369,9 @@ const mhsmActivationStatusActive = "Active"
 
 // mhsmActivationStatus returns the security-domain activation status of a Managed HSM
 // (for example NotActivated or Active) as reported by ARM.
-func mhsmActivationStatus(ctx context.Context, resourceGroup, hsmName string) (string, error) {
+func mhsmActivationStatus(ctx context.Context, subscriptionID, resourceGroup, hsmName string) (string, error) {
 	cmd := exec.CommandContext(ctx, "az", "keyvault", "show",
+		"--subscription", subscriptionID,
 		"--resource-group", resourceGroup,
 		"--hsm-name", hsmName,
 		"--query", "properties.securityDomainProperties.activationStatus",
