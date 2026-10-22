@@ -40,6 +40,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
@@ -251,6 +252,7 @@ func (c *operationClusterCreate) determineOperationState(ctx context.Context, op
 	} else {
 		operationStates = append(operationStates, currState.WithSource("roleAssignments"))
 	}
+	operationStates = append(operationStates, c.egressPublicIPsOperationStatus(ctx, cluster).WithSource("egressPublicIPs"))
 	if currState, err := c.tlsCertificatesOperationStatus(ctx, operation); err != nil {
 		errs = append(errs, utils.TrackError(err))
 	} else {
@@ -567,6 +569,35 @@ func (c *operationClusterCreate) tlsCertificatesOperationStatus(ctx context.Cont
 
 func (c *operationClusterCreate) shouldReconcileOperationAndResourceStatus(cluster *coreapi.Cluster) bool {
 	return cluster.ServiceProviderProperties.DeletionTimestamp == nil
+}
+
+func (c *operationClusterCreate) egressPublicIPsOperationStatus(ctx context.Context, cluster *coreapi.Cluster) *operationbase.OperationState {
+	if cluster.ServiceProviderProperties.DeletionTimestamp != nil || !coreapihelpers.UsesLoadBalancerEgress(cluster) {
+		return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, "")
+	}
+	unknown := operationbase.NewOperationState(coreapi.ProvisioningStateProvisioning, "Unable to verify required public IP address resources (Microsoft.Network/publicIPAddresses) for node egress in the cluster's managed resource group.")
+	expected, err := coreapihelpers.EgressPublicIPResourceIDs(cluster)
+	if err != nil || len(expected) == 0 {
+		return unknown
+	}
+	serviceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName, cluster.ID.Name)
+	if err != nil {
+		return unknown
+	}
+	missing := false
+	for _, resourceID := range expected {
+		switch serviceProviderCluster.Status.AzureResources.EgressPublicIPs[resourceID.String()] {
+		case coreapi.AzureResourceFound:
+		case coreapi.AzureResourceNotFound:
+			missing = true
+		default:
+			return unknown
+		}
+	}
+	if missing {
+		return operationbase.NewOperationState(coreapi.ProvisioningStateProvisioning, "Required public IP address resources (Microsoft.Network/publicIPAddresses) for node egress were not observed in the cluster's managed resource group. Check that Azure Policy permits creation of these resources.")
+	}
+	return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, "")
 }
 
 // withDegradedSuffix appends the HostedCluster Degraded condition's reason and
