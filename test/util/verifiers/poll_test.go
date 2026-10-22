@@ -154,9 +154,7 @@ func TestPollUntilReady_ParentContextDeadlineExceeded(t *testing.T) {
 }
 
 // TestPollUntilReady_CancellationRunsDiagnostics pins the cancellation branch to the same contract
-// as the timeout branch: a caller context cancelled mid-poll (a suite timeout firing is a
-// realistic CI failure) must still gather the diagnostics, detached from the cancelled context,
-// and append them to the returned error.
+// as the timeout branch: gather the diagnostics on a fresh context and append them to the error.
 func TestPollUntilReady_CancellationRunsDiagnostics(t *testing.T) {
 	parentCtx, cancel := context.WithCancel(context.Background())
 
@@ -221,12 +219,9 @@ func TestPollUntilReady_PositiveTimeout(t *testing.T) {
 // condition becomes true between the final poll and the deadline. Without the post-deadline
 // check this reports a timeout on work that finished inside the budget.
 func TestPollUntilReady_SucceedsWhenConditionLandsAfterLastPoll(t *testing.T) {
-	// An interval longer than the timeout means the ticker can never fire before the deadline,
-	// so the loop gets exactly one look: the immediate poll. Readiness is then driven off the
-	// check counter rather than the wall clock, so which call observes success does not depend
-	// on goroutine scheduling. The second call can only be the post-deadline check -- the same
-	// shape as a target version that appeared 22s before a 45m deadline whose preceding poll had
-	// fired 2m earlier. Success here is reachable only through the post-deadline check.
+	// An interval longer than the timeout means the loop gets exactly one in-loop look; readiness
+	// is driven off the check counter, so success (checks==2) is reachable only through the
+	// post-deadline check -- the shape of the ARO-26775 near-miss.
 	const (
 		timeout  = 1 * time.Second
 		interval = 5 * time.Second
@@ -259,10 +254,7 @@ func TestPollUntilReady_SucceedsWhenConditionLandsAfterLastPoll(t *testing.T) {
 }
 
 // TestPollUntilReady_OvershootIsBoundedByFinalCheckTimeout pins the first half of the budget
-// contract documented on pollUntilReady: reaching a verdict takes timeout plus at most
-// finalCheckTimeout, and no longer. A check that blocks forever must be cancelled by the final
-// check's own deadline. Diagnostics are the second half and are covered separately by
-// TestPollUntilReady_DiagnosticsAreBoundedAndExcludedFromElapsed.
+// contract on pollUntilReady: a verdict arrives within timeout + finalCheckTimeout, never later.
 func TestPollUntilReady_OvershootIsBoundedByFinalCheckTimeout(t *testing.T) {
 	const timeout = 250 * time.Millisecond
 
@@ -295,9 +287,8 @@ func TestPollUntilReady_OvershootIsBoundedByFinalCheckTimeout(t *testing.T) {
 	}
 }
 
-// TestPollUntilReady_ReportedElapsedIncludesFinalCheck guards the elapsed-time reporting that this
-// package exists to provide: the final check runs past the deadline, so reporting the loop's own
-// elapsed time would tell a reader the verifier finished sooner than it did.
+// TestPollUntilReady_ReportedElapsedIncludesFinalCheck guards that the reported elapsed includes
+// the past-the-deadline final check rather than understating the verifier's runtime.
 func TestPollUntilReady_ReportedElapsedIncludesFinalCheck(t *testing.T) {
 	const (
 		timeout         = 200 * time.Millisecond
@@ -336,11 +327,8 @@ func TestPollUntilReady_ReportedElapsedIncludesFinalCheck(t *testing.T) {
 	}
 }
 
-// TestPollUntilReady_DiagnosticsAreBoundedAndExcludedFromElapsed pins the second half of the
-// budget contract. Gathering diagnostics happens after the verdict, so it must be bounded by
-// diagnoseTimeout rather than running indefinitely, and it must not inflate the elapsed duration
-// the error reports -- that number says how long the condition was waited on, and a reader uses it
-// to size the timeout.
+// TestPollUntilReady_DiagnosticsAreBoundedAndExcludedFromElapsed pins the second half of the budget
+// contract: diagnostics are bounded by diagnoseTimeout and do not inflate the reported elapsed.
 func TestPollUntilReady_DiagnosticsAreBoundedAndExcludedFromElapsed(t *testing.T) {
 	const (
 		timeout         = 200 * time.Millisecond
@@ -428,9 +416,8 @@ func TestPollUntilReady_StillFailsWhenConditionNeverHolds(t *testing.T) {
 }
 
 // TestPollUntilReady_CancelledDuringFinalCheckWindow pins the post-final-check re-evaluation of
-// the caller's context: an interruption inside the final-check window reports the cancellation
-// outcome and its diagnostics, even when the check ignores the child context and returns its own
-// error, or honours the caller context and returns a wrapped cancellation.
+// the caller's context: an interruption inside the final-check window is reported as a
+// cancellation with its diagnostics, whichever verdict the check itself produces.
 func TestPollUntilReady_CancelledDuringFinalCheckWindow(t *testing.T) {
 	const (
 		timeout  = 200 * time.Millisecond
@@ -444,8 +431,7 @@ func TestPollUntilReady_CancelledDuringFinalCheckWindow(t *testing.T) {
 		wantCanceled bool
 	}{
 		{
-			// A check that ignores the derived context must not cause the caller's
-			// cancellation to surface as a timeout recast around the check's own verdict.
+			// The cancellation must not surface as a timeout recast around the check's own verdict.
 			name:    "check ignores the child context",
 			final:   func(ctx context.Context) error { return fmt.Errorf("check landed on its own verdict") },
 			wantErr: "check landed on its own verdict",
@@ -478,8 +464,7 @@ func TestPollUntilReady_CancelledDuringFinalCheckWindow(t *testing.T) {
 					if attempts == 1 {
 						return fmt.Errorf("not ready")
 					}
-					// The post-deadline check: the caller's deadline lands inside
-					// finalCheckTimeout while it is running.
+					// The post-deadline check: the caller's deadline lands inside finalCheckTimeout.
 					cancel()
 					return testCase.final(ctx)
 				},

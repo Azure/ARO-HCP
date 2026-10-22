@@ -31,9 +31,9 @@ const (
 	DefaultPollInterval = 15 * time.Second
 	// DefaultDiagnoseTimeout is the timeout for collecting failure diagnostics after a poll times out.
 	DefaultDiagnoseTimeout = 30 * time.Second
-	// finalCheckTimeout bounds the one last check made after the poll deadline expires. It is
-	// therefore also the amount by which reaching a verdict may overshoot the advertised timeout,
-	// so it is kept well below any caller's budget rather than reusing DefaultDiagnoseTimeout.
+	// finalCheckTimeout bounds the one check made after the poll deadline, so it is also the most
+	// the verify can overshoot its advertised timeout. Kept small rather than reusing
+	// DefaultDiagnoseTimeout.
 	finalCheckTimeout = 5 * time.Second
 )
 
@@ -63,10 +63,8 @@ func logVerifierTiming(name, outcome string, elapsed time.Duration) {
 	ginkgo.GinkgoWriter.Printf("[%s] %s after %s\n", name, outcome, rounded)
 }
 
-// gatherDiagnostics collects the failure dump detached from the caller's context: the verdict is
-// already in, and the diagnostics are the reason the failure is attributable at all, so a caller
-// deadline that has just expired must not take them away. diagnoseTimeout bounds this extra
-// wall clock.
+// gatherDiagnostics collects the failure dump on a fresh, bounded context: the verdict is already
+// in, so a caller deadline that just expired must not take the diagnostics away.
 func gatherDiagnostics(name string, restConfig *rest.Config, diagnoseTimeout time.Duration, diagnose diagnoseFunc) string {
 	if diagnose == nil {
 		return ""
@@ -89,29 +87,19 @@ func withDiagnostics(verdict error, details string) error {
 	return fmt.Errorf("%w\n%s", verdict, details)
 }
 
-// pollUntilReady polls check until it succeeds or timeout expires. Failure details are logged
-// only when the error message changes between polls (delta-only logging). Actual elapsed
-// wall-clock time is logged on both success and failure. If diagnose is set, its output is
-// logged and appended to every failure the poll returns: a timeout, or cancellation of the
-// caller's context. If the polling context ends, a check error wrapping that context's error
-// does not replace or re-log an earlier failure's message. Both observed errors remain
-// available for unwrapping.
+// pollUntilReady polls check until it succeeds or timeout expires, logging delta-only and
+// reporting elapsed wall-clock time in the result or the returned failure.
 //
-// Budget contract, in two parts.
+// Budget contract:
+//   - A verdict takes at most timeout + finalCheckTimeout; the extra check covers a condition met
+//     between the last poll and the deadline, and is skipped when the last verdict was the poll
+//     context ending (see pollObservationError).
+//   - Failure reporting may take a further diagnoseTimeout; the reported elapsed excludes it, so a
+//     caller bounding total wall clock must allow for both parts.
 //
-// Reaching a verdict takes at most timeout plus finalCheckTimeout: the polling loop stops at
-// timeout, but one further check is then made so that a condition met between the last poll and
-// the deadline is not misreported as a timeout. That overshoot is bounded, paid only on the path
-// that was already going to fail, and included in the elapsed duration logged and reported in the
-// returned error. The further check is skipped when the last observed verdict was the poll
-// context itself ending; waiting once more there yields no new evidence, so the preserved
-// observation is reported directly.
-//
-// Reporting the failure can take a further diagnoseTimeout on top, on the failure paths only
-// (timeout or cancellation) and only when diagnose is set. The verdict has already been reached by
-// the time diagnostics are gathered, so the reported elapsed deliberately excludes them: it
-// measures how long the condition was waited on, not how long the report took to assemble. A
-// caller that must bound its total wall clock has to allow for both parts.
+// If diagnose is set, its output is appended to every returned failure, including cancellation.
+// A check error wrapping the ended polling context's error does not replace an earlier failure's
+// message; both stay available for unwrapping.
 func pollUntilReady(
 	ctx context.Context,
 	name string,
@@ -153,10 +141,9 @@ func pollUntilReady(
 
 	elapsed := time.Since(startTime)
 
-	// A suite-level timeout cutting off a long upgrade poll is a realistic CI failure and the moment
-	// the dump matters most, so cancellation reports diagnostics like a timeout does. lastErr
-	// carries the last known evidence of what the check saw; fall back to the context error when
-	// the poll was interrupted before the check ever got to observe anything.
+	// Cancellation reports diagnostics like a timeout: a suite-level timeout cutting off a long
+	// upgrade poll is exactly when the dump matters most. lastErr carries the check's last
+	// evidence; fall back to the context error when the check never observed anything.
 	reportCancelled := func(lastKnown error) error {
 		logVerifierTiming(name, "cancelled", elapsed)
 		details := gatherDiagnostics(name, restConfig, diagnoseTimeout, diagnose)
@@ -176,18 +163,9 @@ func pollUntilReady(
 		return reportCancelled(lastErr)
 	}
 
-	// The loop stops looking at the deadline, so a condition that became true between the last
-	// check and the deadline reads as a timeout even though it was met within the budget. Look
-	// once more before failing. It costs at most finalCheckTimeout of wall clock, only on the
-	// path that was going to fail anyway, and it is the difference between a real timeout and a
-	// near-miss: ARO-26775 failed on a control plane upgrade that landed 22s inside a 45m
-	// budget, missed because the preceding poll had fired 2m earlier.
-	//
-	// Skip that retry when the last verdict was the poll context ending: the loop records an
-	// interruption as a pollObservationError, and a check that already had the full remaining
-	// budget and reported a context error cannot become a condition verdict after one more
-	// finalCheckTimeout of waiting. Re-running it would only bury the earlier observation
-	// underneath a fresh context error, so the preserved observation is reported as the timeout.
+	// Look once more after the deadline: a condition met between the last poll and the deadline
+	// would otherwise read as a timeout. The retry is skipped when the last verdict was the poll
+	// context ending, since the preserved observation is then the better report.
 	var interruption *pollObservationError
 	if lastErr == nil || !errors.As(lastErr, &interruption) {
 		finalCtx, cancelFinal := context.WithTimeout(ctx, finalCheckTimeout)
@@ -195,9 +173,8 @@ func pollUntilReady(
 		cancelFinal()
 		lastErr = finalErr
 
-		// Recompute rather than reusing the pre-check value: the final check runs after the
-		// deadline, so reporting the loop's elapsed time would understate how long the verifier
-		// actually took.
+		// Recompute: the final check runs past the deadline, so the loop's own elapsed would
+		// understate how long the verifier took.
 		elapsed = time.Since(startTime)
 
 		if finalErr == nil {
@@ -206,9 +183,8 @@ func pollUntilReady(
 		}
 	}
 
-	// The caller's context can expire while the final check runs. Re-check it here so an
-	// interruption inside the final-check window is reported as a cancellation, not recast as a
-	// timeout -- or replaced by whatever error a check that ignores the child context produced.
+	// The caller's context can expire while the final check runs; report that cancellation
+	// rather than recasting it as a timeout.
 	if ctx.Err() != nil {
 		return reportCancelled(lastErr)
 	}

@@ -172,9 +172,9 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to trigger y-stream upgrade of cluster %q to %s", clusterName, upgradeVersionId)
 
 			// Phased rather than fanned out through VerifyHCPCluster, since the viability verifiers
-			// do not poll for the length of an upgrade. The kube-apiserver check reuses the time
-			// left in HCPClusterVersionUpgradeTimeout (floored at
-			// minimumUpgradeConfirmationTimeout), so this phase may overrun the budget by that floor.
+			// do not poll for an upgrade's length. The kube-apiserver check shares the remaining
+			// HCPClusterVersionUpgradeTimeout budget to confirm an upgrade the verifier already
+			// reported, floored at minimumUpgradeConfirmationTimeout.
 			upgradeDeadline := time.Now().Add(framework.HCPClusterVersionUpgradeTimeout)
 
 			By("verifying the control plane reached the desired version")

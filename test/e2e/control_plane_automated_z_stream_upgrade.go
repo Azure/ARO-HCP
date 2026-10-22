@@ -59,9 +59,8 @@ var _ = Describe("Service Provider", func() {
 			tc := framework.NewTestContext()
 
 			// Install one z-stream behind the channel tip (normalOffset+1) so the backend has a newer
-			// z-stream to automatically upgrade to once the exact-version pin is removed. If the
-			// channel has no release at that offset (err) or none is resolved (nil), there is no
-			// automated z-stream upgrade to exercise, so skip.
+			// z-stream to automatically upgrade to once the exact-version pin is removed; skip when
+			// the channel resolves nothing there.
 			normalOffset := clusterversion.GetZStreamOffset(channelGroup)
 			desiredVersion, err := framework.SelectControlPlaneVersion(ctx, http.DefaultTransport.RoundTrip, nil, fmt.Sprintf("%s-%s", channelGroup, minorVersion), normalOffset+1)
 			if err != nil {
@@ -138,10 +137,9 @@ var _ = Describe("Service Provider", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to verify HCP cluster %q is viable", clusterName)
 
 			By(fmt.Sprintf("removing the exact version pin and enabling immediate z-stream updates for %s", minorVersion))
-			// The install version was pinned through the exact-version tag. PATCH replaces
-			// all tags, so preserve the cluster's other tags while removing the pin.
-			// Retain Immediate from the progressive rollout test: production fleet
-			// canary readiness can outlast this test's upgrade timeout.
+			// The install version was pinned through the exact-version tag. PATCH replaces all
+			// tags: preserve the cluster's other tags while removing the pin, keeping Immediate
+			// so production fleet canary readiness can outlast only this test's upgrade timeout.
 			versionLine, upgradeTags := framework.ControlPlaneExactVersionPatchTags(minorVersion)
 			upgradeTags[metadataapi.TagClusterZStreamUpdatePolicy] = to.Ptr(string(coreapi.ImmediateZStreamUpdatePolicy))
 			update := hcpsdk20240610preview.HcpOpenShiftClusterUpdate{

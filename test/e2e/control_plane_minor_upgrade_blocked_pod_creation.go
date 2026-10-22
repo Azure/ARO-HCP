@@ -231,10 +231,9 @@ var _ = Describe("Customer", func() {
 			_, err = framework.UpdateHCPCluster20260901(ctx, hcpClient, *resourceGroup.Name, clusterName, update, framework.HCPClusterVersionUpgradeTimeout)
 			Expect(err).NotTo(HaveOccurred(), "failed to trigger y-stream upgrade of cluster %q to %s", clusterName, upgradeVersionId)
 
-			// Phased rather than fanned out, and sharing one budget, as in
-			// control_plane_minor_upgrade.go: the kube-apiserver check confirms a rollout the
-			// control plane has already reported rather than waiting on a second upgrade, so it
-			// gets whatever is left of the budget, floored at minimumUpgradeConfirmationTimeout.
+			// Phased rather than fanned out, sharing one budget as in control_plane_minor_upgrade.go:
+			// the kube-apiserver check confirms a rollout already reported by the upgrade verifier,
+			// so it gets the remainder of that budget, floored at minimumUpgradeConfirmationTimeout.
 			upgradeDeadline := time.Now().Add(framework.HCPClusterVersionUpgradeTimeout)
 
 			By("verifying control plane reached the target minor")

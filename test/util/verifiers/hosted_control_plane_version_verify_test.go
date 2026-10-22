@@ -130,11 +130,8 @@ func newKubeAPIServerVersionTestServer(t *testing.T, versionHandler http.Handler
 }
 
 // TestVerifyKubeAPIServerServerVersionUpgraded_SucceedsAfterVersionChange covers the retry path:
-// the first reading still reports the pre-upgrade version and a later one reports the upgrade,
-// which the verifier must observe rather than report a timeout. The poll interval outlasts the
-// timeout, so the loop gets exactly one look and the changed version can only be seen by the
-// post-deadline check -- the same shape as an apiserver that finishes rolling just inside the
-// budget, which is the case the final check exists for.
+// the poll interval outlasts the timeout, so the changed /version can only be observed by the
+// post-deadline check -- the shape of an apiserver that finishes rolling just inside the budget.
 func TestVerifyKubeAPIServerServerVersionUpgraded_SucceedsAfterVersionChange(t *testing.T) {
 	preUpgrade := &version.Info{Major: "1", Minor: "31", GitVersion: "v1.31.0"}
 	postUpgrade := version.Info{Major: "1", Minor: "32", GitVersion: "v1.32.6"}
@@ -158,9 +155,8 @@ func TestVerifyKubeAPIServerServerVersionUpgraded_SucceedsAfterVersionChange(t *
 }
 
 // TestVerifyKubeAPIServerServerVersionUpgraded_TimeoutAppendsClusterVersionDiagnostics covers
-// the failure path: when /version never changes, the timeout error must carry the clusterversion
-// state the verifier's diagnose function gathers -- the history and the Progressing message are
-// what attribute a stalled rollout from the Prow log alone.
+// the failure path: when /version never changes, the timeout error must carry the gathered
+// clusterversion state, which attributes a stalled rollout from the Prow log alone.
 func TestVerifyKubeAPIServerServerVersionUpgraded_TimeoutAppendsClusterVersionDiagnostics(t *testing.T) {
 	preUpgrade := &version.Info{Major: "1", Minor: "31", GitVersion: "v1.31.0"}
 	cv := &configv1.ClusterVersion{

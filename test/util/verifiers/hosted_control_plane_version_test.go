@@ -211,14 +211,10 @@ func TestClusterVersionSummaryWithoutProgress(t *testing.T) {
 }
 
 // TestUpgradeCheckErrorsCarryHistory pins the contract that every verdict an upgrade check reaches
-// after reading clusterversion reports the state it judged.
-//
-// pollUntilReady surfaces the last check's error when it times out, so these strings are the whole
-// of what a failing run leaves behind. The transient "the upgrade has not happened yet" verdicts
-// matter most: they are what a 45 minute timeout reports, and without the stamps they cannot
-// distinguish an upgrade that stalled midway from one that never started — the ARO-26775 failure
-// mode. The terminal parse and downgrade verdicts are covered too, so the table fails if a branch
-// is added that returns bare.
+// after reading clusterversion reports the state it judged. pollUntilReady surfaces the last
+// check's error whenever the poll times out, so these strings are the whole of a failing run's
+// output; the transient "not happened yet" verdicts especially need the stamps to distinguish a
+// stalled upgrade from one that never started (the ARO-26775 failure mode).
 func TestUpgradeCheckErrorsCarryHistory(t *testing.T) {
 	started := mustTime(t, "2026-05-06T00:36:22Z")
 	completed := mustTime(t, "2026-05-06T01:24:16Z")
@@ -350,12 +346,8 @@ func runCheckOnce(t *testing.T, verifier HostedClusterVerifier, configClient con
 }
 
 // TestUpgradePhaseReporterLogsOnlyOnChange pins the delta-only logging contract: repeated
-// observations of an unchanged clusterversion must not re-log, or a 45 minute poll emits hundreds
-// of identical lines and buries the transitions that matter.
-//
-// The assertion is on what the reporter actually emitted rather than on its recorded rendering,
-// which stays put whether or not the guard is there. GinkgoLogr writes to GinkgoWriter too, so
-// teeing the writer captures both outputs.
+// observations of an unchanged clusterversion must not re-log. The assertion is on what the
+// reporter actually emitted, captured by teeing GinkgoWriter (where GinkgoLogr also writes).
 func TestUpgradePhaseReporterLogsOnlyOnChange(t *testing.T) {
 	emitted := &bytes.Buffer{}
 	ginkgo.GinkgoWriter.TeeTo(emitted)
