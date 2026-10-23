@@ -102,15 +102,24 @@ func TestValidateClusterCreate(t *testing.T) {
 			expectErrors: []utils.ExpectedError{},
 		},
 		{
-			name: "OpenShift 5 rejected on create without experimental release features (no prior version id)",
+			name: "OpenShift 5.0 stable allowed on create without experimental release features",
 			cluster: func() *coreapi.Cluster {
 				c := createValidCluster()
 				c.CustomerProperties.Version.ID = "5.0"
+				c.CustomerProperties.Version.ChannelGroup = "stable"
 				return c
 			}(),
-			expectErrors: []utils.ExpectedError{
-				{Message: "OpenShift v5 and above is not supported", FieldPath: "customerProperties.version.id"},
-			},
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name: "OpenShift 5.1 fast allowed on create without experimental release features",
+			cluster: func() *coreapi.Cluster {
+				c := createValidCluster()
+				c.CustomerProperties.Version.ID = "5.1"
+				c.CustomerProperties.Version.ChannelGroup = "fast"
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "OpenShift 5 allowed with experimental release features - create",
@@ -2627,7 +2636,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 			},
 		},
 		{
-			name: "update: cross-major 4.22 to 5.0 rejected without experimental release features",
+			name: "update: cross-major 4.22 to 5.0 allowed without experimental release features",
 			newCluster: func() *coreapi.Cluster {
 				c := createValidCluster()
 				c.CustomerProperties.Version.ID = "5.0"
@@ -2638,9 +2647,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c.CustomerProperties.Version.ID = "4.22"
 				return c
 			}(),
-			expectErrors: []utils.ExpectedError{
-				{Message: "OpenShift v5 and above is not supported", FieldPath: "customerProperties.version.id"},
-			},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "update: cross-major 4.20 to 5.0 rejected (4.20 not in 4→5 pairing map)",
@@ -2675,7 +2682,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 			expectErrors: []utils.ExpectedError{},
 		},
 		{
-			name: "update: cross-major 4.23 to 5.1 allowed",
+			name: "update: cross-major 4.23 to 5.1 allowed without experimental release features",
 			newCluster: func() *coreapi.Cluster {
 				c := createValidCluster()
 				c.CustomerProperties.Version.ID = "5.1"
@@ -2686,7 +2693,6 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c.CustomerProperties.Version.ID = "4.23"
 				return c
 			}(),
-			opOptions:    testFeatureOptions(metadataapi.FeatureExperimentalReleaseFeatures),
 			expectErrors: []utils.ExpectedError{},
 		},
 		{
@@ -2923,6 +2929,41 @@ func TestValidateClusterUpdate(t *testing.T) {
 			errs := ValidateCluster(ctx, op, tt.newCluster, tt.oldCluster, nil)
 			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
 		})
+	}
+}
+
+func TestValidateClusterUpdateWithoutExperimentalReleaseFeatures(t *testing.T) {
+	for _, tt := range []struct {
+		oldVersion   string
+		newVersion   string
+		errorMessage string
+	}{
+		{oldVersion: "5.0", newVersion: "5.0"},
+		{oldVersion: "5.0", newVersion: "5.1"},
+		{oldVersion: "6.0", newVersion: "6.1"},
+		{oldVersion: "5.1", newVersion: "5.0", errorMessage: "may not decrease"},
+		{oldVersion: "5.0", newVersion: "5.2", errorMessage: "only upgrade to the next minor is allowed"},
+		{oldVersion: "4.20", newVersion: "5.0", errorMessage: "cross-major upgrade from 4.20 is only allowed to"},
+		{oldVersion: "4.22", newVersion: "5.1", errorMessage: "cross-major upgrade from 4.22 is only allowed to 5.0"},
+		{oldVersion: "4.23", newVersion: "5.0", errorMessage: "cross-major upgrade from 4.23 is only allowed to 5.1"},
+		{oldVersion: "4.22", newVersion: "6.0", errorMessage: "skipping major versions is not allowed"},
+		{oldVersion: "5.0", newVersion: "6.0", errorMessage: "cross-major upgrade from 5.0 is only allowed to"},
+	} {
+		for _, channelGroup := range []string{"stable", "fast"} {
+			t.Run(fmt.Sprintf("%s/%s to %s", channelGroup, tt.oldVersion, tt.newVersion), func(t *testing.T) {
+				oldCluster := createValidCluster()
+				oldCluster.CustomerProperties.Version = coreapi.VersionProfile{ID: tt.oldVersion, ChannelGroup: channelGroup}
+				newCluster := oldCluster.DeepCopy()
+				newCluster.CustomerProperties.Version.ID = tt.newVersion
+
+				var expectedErrors []utils.ExpectedError
+				if tt.errorMessage != "" {
+					expectedErrors = []utils.ExpectedError{{Message: tt.errorMessage, FieldPath: "customerProperties.version.id"}}
+				}
+				errs := ValidateCluster(context.Background(), operation.Operation{Type: operation.Update}, newCluster, oldCluster, nil)
+				utils.VerifyErrorsMatch(t, expectedErrors, errs)
+			})
+		}
 	}
 }
 
