@@ -302,7 +302,7 @@ def load_lockfiles(repo, pr, files):
     if not locks:
         return
     detail = gh_lines(f"repos/{repo}/pulls/{pr['number']}",
-                      '{base: .base.sha, head: .head.sha, head_repo: .head.repo.full_name}')[0]
+                      '{base: .base.sha, head: .head.sha}')[0]
     comparison = gh_lines(f"repos/{repo}/compare/{detail['base']}...{detail['head']}",
                           '{base: .merge_base_commit.sha}')[0]
     detail["base"] = comparison["base"]
@@ -316,8 +316,7 @@ def load_lockfiles(repo, pr, files):
             if os.path.basename(path) not in ("package-lock.json", "npm-shrinkwrap.json"):
                 documents.append({})
                 continue
-            source = repo if side == "base" else detail["head_repo"]
-            content = gh_lines(f"repos/{source}/contents/{quote(path, safe='/')}?ref={detail[side]}",
+            content = gh_lines(f"repos/{repo}/contents/{quote(path, safe='/')}?ref={detail[side]}",
                                '. | {encoding, content}')[0]
             try:
                 if content.get("encoding") != "base64":

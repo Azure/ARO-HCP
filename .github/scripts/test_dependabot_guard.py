@@ -531,6 +531,24 @@ class RetestGuardTests(TestCase):
 
 
 class NpmLockOverlapTests(TestCase):
+    def test_deleted_fork_still_detects_lockfile_overlap(self):
+        def api(endpoint, expression):
+            if endpoint.endswith("/pulls/123"):
+                return [{"base": "base", "head": "head", "head_repo": None}]
+            if "/compare/" in endpoint:
+                return [{"base": "base"}]
+            if not endpoint.startswith("repos/owner/repo/contents/"):
+                raise subprocess.CalledProcessError(1, ["gh", "api", endpoint])
+            version = "1.0.0" if endpoint.endswith("ref=base") else "2.0.0"
+            content = {"lockfileVersion": 3, "packages": {
+                "node_modules/undici": {"version": version}}}
+            return [{"encoding": "base64", "content": base64.b64encode(json.dumps(content).encode()).decode()}]
+        files = [{"filename": "api/package-lock.json", "status": "modified"}]
+        with patch.object(guard, "gh_lines", side_effect=api):
+            guard.load_lockfiles("owner/repo", {"number": 123}, files)
+        self.assertIsNotNone(guard.overlaps(
+            ("npm", "undici", "2.0.0", {"api/package.json"}), files))
+
     def test_base_branch_only_updates_do_not_overlap(self):
         documents = {
             "base-tip": {"undici": "2.0.0", "other": "1.0.0"},
