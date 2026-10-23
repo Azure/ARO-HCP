@@ -24,6 +24,8 @@ import (
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
+	utilsclock "k8s.io/utils/clock"
+
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	operationbase "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
@@ -35,17 +37,30 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+// readyExternalAuthDeletionGracePeriod is how long a Ready Cluster Service
+// ExternalAuth may remain after delete dispatch before that Ready is treated
+// as stuck. DeleteExternalAuth only means Cluster Service accepted the
+// request. A healthy delete leaves Ready for uninstalling and then 404, and
+// the informer event from stamping ClusterServiceDeletionTimestamp can
+// observe the initial Ready. Clearing ClusterServiceID on that observation
+// lets Cosmos delete the document while Cluster Service still owns the
+// ExternalAuth. OperationExternalAuthDelete waits on Ready for the same
+// reason. After this grace, a persistent Ready is the stuck-delete case.
+const readyExternalAuthDeletionGracePeriod = 2 * time.Minute
+
 // externalAuthClusterServiceIDClearer clears ClusterServiceID after the
 // cluster-service ExternalAuth itself has been confirmed gone. This runs
 // after the delete dispatch controller has already issued the delete
 // request (ClusterServiceDeletionTimestamp is set). We poll
 // cluster-service for the ExternalAuth and zero out the stored
 // ClusterServiceID when CS returns 404, or when it still returns Ready
-// after Cluster Service accepted DELETE (CS does not transition some
-// ExternalAuths to 404, which otherwise deadlocks deletion). Ready is not
-// treated as terminal when dispatch recorded that DELETE was not accepted.
-// Documents dispatched before that flag existed (nil) still Ready-clear.
+// after readyExternalAuthDeletionGracePeriod from dispatch (CS does not
+// transition some ExternalAuths to 404, which otherwise deadlocks deletion).
+// Ready is not treated as terminal when dispatch recorded that DELETE was
+// not accepted. Documents dispatched before that flag existed (nil) use the
+// same grace, then Ready-clear.
 type externalAuthClusterServiceIDClearer struct {
+	clock                utilsclock.PassiveClock
 	externalAuthLister   corelisters.ExternalAuthLister
 	resourcesDBClient    corecosmosstorage.ResourcesDBClient
 	clusterServiceClient ocm.ClusterServiceClientSpec
@@ -56,12 +71,14 @@ var _ controllerutils.ExternalAuthSyncer = (*externalAuthClusterServiceIDClearer
 const ExternalAuthDeletionClusterServiceIDClearerControllerName = "ExternalAuthDeletionClusterServiceIDClearer"
 
 func NewExternalAuthClusterServiceIDClearerController(
+	clock utilsclock.PassiveClock,
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
 	informers coreinformers.BackendInformers,
 ) controllerutils.Controller {
 	_, externalAuthLister := informers.ExternalAuths()
 	syncer := &externalAuthClusterServiceIDClearer{
+		clock:                clock,
 		externalAuthLister:   externalAuthLister,
 		resourcesDBClient:    resourcesDBClient,
 		clusterServiceClient: clusterServiceClient,
@@ -91,11 +108,12 @@ func (c *externalAuthClusterServiceIDClearer) NeedsWork(externalAuth *coreapi.Ex
 
 // SyncOnce reads the ExternalAuth from cluster-service. ClusterServiceID is
 // cleared when cluster-service reports 404, or when it still reports Ready
-// after Cluster Service accepted DELETE (or after a pre-field dispatch, when
-// the accepted flag is unset). Ready after an explicit non-accepted dispatch
-// (parent-cluster uninstalling 400) waits for 404. Uninstalling (and any
-// other in-progress state) means cluster-service is still processing; we
-// retry on the next sync.
+// after readyExternalAuthDeletionGracePeriod from dispatch and DELETE was
+// accepted (or the accepted flag is unset on a pre-field document). Ready
+// inside that grace, or after an explicit non-accepted dispatch
+// (parent-cluster uninstalling 400), waits. Uninstalling (and any other
+// in-progress state) means cluster-service is still processing; we retry on
+// the next sync.
 func (c *externalAuthClusterServiceIDClearer) SyncOnce(ctx context.Context, key controllerutils.HCPExternalAuthKey) error {
 	logger := utils.LoggerFromContext(ctx)
 
@@ -148,11 +166,20 @@ func (c *externalAuthClusterServiceIDClearer) SyncOnce(ctx context.Context, key 
 				"clusterServiceID", csID.String())
 			return nil
 		}
-		// CS accepted DELETE but never leaves Ready / never 404s. Clearing the
-		// ID unblocks ExternalAuthDeletionController so the ARM operation can
+		if !c.readyExternalAuthDeletionGraceElapsed(externalAuth) {
+			// Accepted DELETE (or a pre-field dispatch) is not completion. CS
+			// usually leaves Ready for uninstalling before 404. The informer
+			// event from stamping the dispatch timestamp observes this Ready.
+			logger.Info("cluster-service ExternalAuth still Ready after delete dispatch. Waiting for async deletion to leave Ready",
+				"clusterServiceID", csID.String(),
+				"clusterServiceDeletionTimestamp", externalAuth.ServiceProviderProperties.ClusterServiceDeletionTimestamp.Time)
+			return nil
+		}
+		// CS stayed Ready for the full grace and never 404s. Clearing the ID
+		// unblocks ExternalAuthDeletionController so the ARM operation can
 		// complete instead of waiting forever for a Cosmos delete that cannot
 		// happen while ClusterServiceID is still set.
-		logger.Info("cluster-service ExternalAuth still Ready after accepted delete. Clearing ClusterServiceID",
+		logger.Info("cluster-service ExternalAuth still Ready after delete grace. Clearing ClusterServiceID",
 			"clusterServiceID", csID.String())
 		return c.clearClusterServiceID(ctx, externalAuthCRUD, externalAuth)
 	}
@@ -176,11 +203,26 @@ func (c *externalAuthClusterServiceIDClearer) clearClusterServiceID(ctx context.
 	return nil
 }
 
+// clusterServiceExternalAuthIsReady reports the Cluster Service state. Ready is
+// both the normal state before an accepted DELETE transitions to uninstalling
+// and the state Cluster Service keeps when a delete never finishes. A single
+// Ready observation is not completion; callers apply readyExternalAuthDeletionGracePeriod.
 func clusterServiceExternalAuthIsReady(csExternalAuth *arohcpv1alpha1.ExternalAuth) bool {
 	if csExternalAuth == nil {
 		return false
 	}
 	return csExternalAuth.Status().State().Value() == string(operationbase.ExternalAuthStateReady)
+}
+
+// readyExternalAuthDeletionGraceElapsed reports whether dispatch is old enough
+// that a still-Ready ExternalAuth is the stuck-delete case rather than an
+// asynchronous delete that has not left Ready yet.
+func (c *externalAuthClusterServiceIDClearer) readyExternalAuthDeletionGraceElapsed(externalAuth *coreapi.ExternalAuth) bool {
+	dispatchedAt := externalAuth.ServiceProviderProperties.ClusterServiceDeletionTimestamp
+	if dispatchedAt == nil {
+		return false
+	}
+	return c.clock.Since(dispatchedAt.Time) >= readyExternalAuthDeletionGracePeriod
 }
 
 // clusterServiceExternalAuthDeleteExplicitlyRejected reports that dispatch
