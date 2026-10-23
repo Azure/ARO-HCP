@@ -9,7 +9,7 @@
 - **Ingress**: Istio ingress gateway via AKS ingress public IP
 
 * It keeps track of cluster state in CosmosDB
-* It delegates authentication to [MISE](../frontend/deploy/charts/mise) through an Istio [AuthorizationPolicy](../frontend/deploy/templates/ext-authz.authorizationpolicy.yaml)
+* It delegates authentication to [MISE](../istio/deploy/charts/mise) through an Istio [AuthorizationPolicy](../frontend/deploy/templates/ext-authz.authorizationpolicy.yaml)
 * It delegates the HCP creation to Clusters Service
 * Communication with Clusters Service is done via the Istio with mTLS and policies in place
 

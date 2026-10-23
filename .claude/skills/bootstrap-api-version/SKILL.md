@@ -39,7 +39,7 @@ Before making any changes, read the codebase to find current registration points
 - **Cross-version test constants**: Search for the previous version's dash-separated string in `test-integration/` test files
 - **Version compliance fixtures**: Find `artifacts/VersionCompliance/` under `test-integration/` and list its `expected/` directories
 - **Defaults consistency test**: Search for `TestEnsureDefaultsConsistency` and find where previous versions are tested
-- **OpenAPI spec path in defaults test**: Search for `openapi.json` in `internal/api/defaults_test.go` or similar
+- **OpenAPI spec path in defaults test**: Search for `openapi.json` in `internal/api/coreapi/defaults_test.go` or similar
 - **E2E framework helpers**: Search for version-suffixed functions like `CreateHCPClusterFromParam` + PREV_PKG in `test/util/framework/`
 - **E2E test files**: Find `cluster_create_` + PREV_PKG files in `test/e2e/`
 - **Import alias rules**: Check `.golangci.yml` for `importas` rules referencing SDK packages
@@ -89,7 +89,7 @@ Find `readme.go.md` and `readme.python.md` in the same directory as the main API
 
 Generate models: `cd api && make models VERSION=NEW_PKG`
 
-Then copy every non-generated `.go` file from `internal/api/PREV_PKG/` to `internal/api/NEW_PKG/`. In each copied file:
+Then copy every non-generated `.go` file from `internal/azureapi/PREV_PKG/` to `internal/azureapi/NEW_PKG/`. In each copied file:
 - Change the `package` declaration from PREV_PKG to NEW_PKG
 - Update the copyright year to the current year
 - In `register.go`: update the version string returned by `String()` to the new version

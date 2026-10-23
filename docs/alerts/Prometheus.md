@@ -9,7 +9,7 @@ The timings below are approximate and exclude Azure Monitor evaluation jitter, I
 | Alert | `for:` | Severity | What it indicates |
 |---|---:|---|---|
 | `PrometheusJobUp` | 10m | critical | The cluster exists according to the external anchor, but `up{job="prometheus/prometheus", namespace="prometheus"} == 1` is not present. This catches Prometheus down, unreachable, or reporting `up=0`. |
-| `PrometheusMetricsAbsentPerCluster` | 10m | critical | No Prometheus self-`up` samples have arrived for a cluster that should be reporting. With `underlay_clusters`, this means a declared underlay cluster has no Prometheus self-metrics in the recent window. |
+| `PrometheusMetricsAbsentPerCluster` | 10m | critical | No Prometheus self-`up` samples have arrived for a cluster that should be reporting. Once `underlay_clusters` becomes the source of truth (see below), this will mean a declared underlay cluster has no Prometheus self-metrics in the recent window. |
 | `PrometheusUptimeSampleCount` | 10m | warning | Fewer than 95% of expected Prometheus self-`up` samples arrived over 24h. This treats missing samples as downtime. |
 | `PrometheusUptime` | 10m | critical | More than 5% of present Prometheus self-`up` samples over 24h were `0`, weighted by sample count across all observed series. This does not count missing samples as downtime. |
 | `PrometheusPendingRate` | 15m | critical | Prometheus remote-write queue pressure is high: too many samples are pending relative to in-flight samples. |

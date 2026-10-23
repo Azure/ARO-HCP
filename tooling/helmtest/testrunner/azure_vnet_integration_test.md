@@ -10,7 +10,7 @@ Or use the image currently pinned in `config/config.yaml` with Podman (set
 `CONTAINER_RUNTIME=docker` to use Docker):
 
 ```sh
-FLUENT_BIT_IMAGE=mcr.microsoft.com/oss/v2/fluent/fluent-bit@sha256:94cee54eb85d08891b179bd74be48632bf6e7968f046225abb6074b4655891d0 \
+FLUENT_BIT_IMAGE=mcr.microsoft.com/oss/v2/fluent/fluent-bit@sha256:413bd678fbaa1544fb6decaead554f63fa40e88907779fd69f0f69a27b399bda \
   go test ./tooling/helmtest/testrunner -run '^TestAzureVNetFluentBit$' -count=1 -v -timeout=3m
 ```
 

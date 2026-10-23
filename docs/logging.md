@@ -39,23 +39,23 @@ Kusto clusters are provisioned per environment and region via Bicep templates wi
 
 ## Table Schemas
 
-Table schemas are defined in KQL files under [`dev-infrastructure/modules/logs/kusto/tables/`](../../dev-infrastructure/modules/logs/kusto/tables/).
+Table schemas are defined in KQL files under [`dev-infrastructure/modules/logs/kusto/tables/`](../dev-infrastructure/modules/logs/kusto/tables/).
 
 ### ServiceLogs Database
 
-1. **`frontendLogs`** ([schema](../../dev-infrastructure/modules/logs/kusto/tables/frontendLogs.kql)): Frontend service logs with HTTP request/response details and tracking IDs
-2. **`backendLogs`** ([schema](../../dev-infrastructure/modules/logs/kusto/tables/backendLogs.kql)): Backend service logs with operation tracking, controller name, and error codes
-3. **`kubeApplierLogs`** ([schema](../../dev-infrastructure/modules/logs/kusto/tables/kubeApplierLogs.kql)): kube-applier logs, schema-compatible with `backendLogs` (same columns, incl. controller name) so queries port between them
-4. **`clustersServiceLogs`** ([schema](../../dev-infrastructure/modules/logs/kusto/tables/clustersServiceLogs.kql)): Clusters-service logs with cluster resource IDs
-5. **`fleetLogs`** ([schema](../../dev-infrastructure/modules/logs/kusto/tables/fleetLogs.kql)): Fleet controller logs with controller name, resource identifiers, and resource type
-6. **`containerLogs`** ([schema](../../dev-infrastructure/modules/logs/kusto/tables/containerLogs.kql)): General container logs from non-OCM namespaces
-7. **`kubernetesEvents`** ([schema](../../dev-infrastructure/modules/logs/kusto/tables/kubernetesEvents.kql)): Kubernetes events from all clusters
+1. **`frontendLogs`** ([schema](../dev-infrastructure/modules/logs/kusto/tables/frontendLogs.kql)): Frontend service logs with HTTP request/response details and tracking IDs
+2. **`backendLogs`** ([schema](../dev-infrastructure/modules/logs/kusto/tables/backendLogs.kql)): Backend service logs with operation tracking, controller name, and error codes
+3. **`kubeApplierLogs`** ([schema](../dev-infrastructure/modules/logs/kusto/tables/kubeApplierLogs.kql)): kube-applier logs, schema-compatible with `backendLogs` (same columns, incl. controller name) so queries port between them
+4. **`clustersServiceLogs`** ([schema](../dev-infrastructure/modules/logs/kusto/tables/clustersServiceLogs.kql)): Clusters-service logs with cluster resource IDs
+5. **`fleetLogs`** ([schema](../dev-infrastructure/modules/logs/kusto/tables/fleetLogs.kql)): Fleet controller logs with controller name, resource identifiers, and resource type
+6. **`containerLogs`** ([schema](../dev-infrastructure/modules/logs/kusto/tables/containerLogs.kql)): General container logs from non-OCM namespaces
+7. **`kubernetesEvents`** ([schema](../dev-infrastructure/modules/logs/kusto/tables/kubernetesEvents.kql)): Kubernetes events from all clusters
 8. **`azureVnetLogs`** ([schema](../dev-infrastructure/modules/logs/kusto/tables/azureVnetLogs.kql)): Azure VNet CNI host-file logs, with node identity and structured diagnostics
 
 ### HostedControlPlaneLogs Database
 
-1. **`containerLogs`** ([schema](../../dev-infrastructure/modules/logs/kusto/tables/containerLogs.kql)): Container logs from OCM namespaces (`ocm-*` pattern)
-2. **`kubernetesEvents`** ([schema](../../dev-infrastructure/modules/logs/kusto/tables/kubernetesEvents.kql)): Kubernetes events from Hosted Control Planes
+1. **`containerLogs`** ([schema](../dev-infrastructure/modules/logs/kusto/tables/containerLogs.kql)): Container logs from OCM namespaces (`ocm-*` pattern)
+2. **`kubernetesEvents`** ([schema](../dev-infrastructure/modules/logs/kusto/tables/kubernetesEvents.kql)): Kubernetes events from Hosted Control Planes
 
 Container-log tables include `timestamp`, `log` (dynamic JSON), `environment`, `cluster`, `region`, and Kubernetes metadata. Host-file logs instead use `hostname` for the node and do not have collector Pod metadata.
 
@@ -163,7 +163,7 @@ Follow up read: https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-nat
 
 ## Infrastructure
 
-Kusto infrastructure is defined in `dev-infrastructure/modules/logs/kusto/` and deployed via `dev-infrastructure/kusto-pipeline.yaml`:
+Kusto infrastructure is defined in `dev-infrastructure/modules/logs/kusto/` and deployed via `dev-infrastructure/geography-pipeline.yaml`:
 
 - **main.bicep**: Orchestrates cluster, databases, tables, and permissions
 - **cluster.bicep**: Cluster resource definition

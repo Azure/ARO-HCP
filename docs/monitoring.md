@@ -24,7 +24,7 @@ Azure Managed Prometheus handles **cluster-level infrastructure metrics** and au
 A self-managed Prometheus stack is deployed to service and management AKS clusters using the community-maintained [kube-prometheus-stack](https://github.com/prometheus-community/helm-charts/tree/main/charts/kube-prometheus-stack) Helm chart. This Prometheus instance handles **application and service metrics** from both service/management clusters and hosted control planes.
 
 **Configuration:**
-- Helm chart customized via `observability/prometheus/values.yaml` (trimmed-down version of upstream)
+- Helm chart customized via `observability/prometheus/deploy/values.yaml` (trimmed-down version of upstream; per-cluster-type overrides in `observability/prometheus/values-{svc,mgmt,opstool}.yaml`)
 - **Replicas and shards** configurable via cluster configuration in `config/config.yaml`
 - **Global Discovery**: Monitors all namespaces (`serviceMonitorNamespaceSelector: {}`, `podMonitorNamespaceSelector: {}`)
 - **Workload Identity**: Uses Microsoft Entra Workload Identity with "Monitoring Metrics Publisher" role on DCRs

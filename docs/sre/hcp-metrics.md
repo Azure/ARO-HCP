@@ -64,11 +64,11 @@ AMA's `controlplane-*` settings (`controlplane-apiserver`, `controlplane-etcd`, 
 | HyperShift install flags | `hypershiftoperator/deploy/templates/installer.job.yaml` |
 | PrometheusAgent spec | `observability/prometheus/deploy/templates/prometheus.yaml` |
 | KSM custom resource state | `observability/prometheus/values-mgmt.yaml` |
-| AMA config | `observability/prometheus/deploy/templates/ama-metrics-settings-configmap.yaml` |
+| AMA config | `service-lifecycle/deploy/templates/ama-metrics-settings-configmap.yaml` |
 | Grafana dashboards | `observability/grafana-dashboards/<folder>/` |
 | Dashboard registration | `observability/observability.yaml` → `grafana-dashboards.dashboardFolders` |
 | Alert rules | `observability/alerts/` |
-| Alert registration | `observability/alerts-sl-services.yaml` → `prometheusRules.rulesFolders` |
+| Alert registration | `observability/alerts-rp-services.yaml` → `prometheusRules.rulesFolders` |
 | Recording rules (HCP workspace) | `observability/recording-rules-hcps.yaml` |
 | Generated Bicep alerting rules | `dev-infrastructure/modules/metrics/rules/generatedPrometheusAlertingRules.bicep` |
 | DCR/DCE routing (Azure) | `dev-infrastructure/modules/metrics/datacollection.bicep` |
@@ -93,7 +93,7 @@ Then update the Helm fixture and deploy:
 ```bash
 make update-helm-fixtures
 # Deploy to your environment:
-make pipeline/HypershiftOperator DEPLOY_ENV=pers
+make pipeline/RP.HypershiftOperator DEPLOY_ENV=pers
 ```
 
 The new metric will appear in the `hcps-REGION` Azure Monitor Workspace after the next ServiceMonitor reconciliation and scrape cycle (~2-5 min).
@@ -112,7 +112,7 @@ Note: For HCP metrics, use dashboard folder `observability/grafana-dashboards/ka
 
 2. Create a matching test file: `<Name>-prometheusRule_test.yaml`. See existing test files for the format (`rule_files`, `evaluation_interval`, `tests` with `input_series` and `alert_rule_test`).
 
-3. Register the rule file in `observability/alerts-sl-services.yaml` under `prometheusRules.rulesFolders`.
+3. Register the rule file in `observability/alerts-rp-services.yaml` under `prometheusRules.rulesFolders`.
 
 4. Generate the Bicep rules and run tests:
    ```bash
@@ -120,7 +120,7 @@ Note: For HCP metrics, use dashboard folder `observability/grafana-dashboards/ka
    ```
    This runs `promtool` tests, processes all PrometheusRules, and regenerates `dev-infrastructure/modules/metrics/rules/generatedPrometheusAlertingRules.bicep`.
 
-5. For HCP-workspace rules (metrics from `ocm-*` namespaces), register in `observability/alerts-sre-hcps.yaml` instead.
+5. For HCP-workspace rules (metrics from `ocm-*` namespaces), register in `observability/alerts-rp-hcps.yaml` instead.
 
 ### Verifying which metrics are available
 

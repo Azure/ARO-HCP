@@ -8,7 +8,7 @@ This document outlines the process of creating an HCP via the Cluster Service ru
 * If running CS on the AKS cluster, port-forward the CS service to your local machine
 
     ```bash
-    kubectl port-forward svc/clusters-service 8000:8000 -n cluster-service
+    kubectl port-forward svc/clusters-service 8000:8000 -n clusters-service
     ```
 
 * Otherwise start CS on your local machine
@@ -20,7 +20,7 @@ This document outlines the process of creating an HCP via the Cluster Service ru
     * Access your CS deployment locally
 
         ```bash
-        KUBECONFIG=$(make infra.svc.aks.kubeconfigfile) kubectl port-forward svc/clusters-service 8000:8000 -n cluster-service
+        KUBECONFIG=$(make infra.svc.aks.kubeconfigfile) kubectl port-forward svc/clusters-service 8000:8000 -n clusters-service
         ```
 
       Alternative: if you run CS on your local machine, this step is not necessary.
@@ -89,7 +89,7 @@ This document outlines the process of creating an HCP via the Cluster Service ru
         az identity create -n ${USER}-${CS_CLUSTER_NAME}-cp-file-csi-driver-${OPERATORS_UAMIS_SUFFIX} -g <resource-group>
         az identity create -n ${USER}-${CS_CLUSTER_NAME}-cp-image-registry-${OPERATORS_UAMIS_SUFFIX} -g <resource-group>
         az identity create -n ${USER}-${CS_CLUSTER_NAME}-cp-cloud-network-config-${OPERATORS_UAMIS_SUFFIX} -g <resource-group>
-        az identity create -n ${USER}-${CS_CLUSTER_NAME}-cp-kms-${OPERATORS_UAMIS_SUFFIX} -g $RESOURCEGROUP
+        az identity create -n ${USER}-${CS_CLUSTER_NAME}-cp-kms-${OPERATORS_UAMIS_SUFFIX} -g <resource-group>
 
         # And then we create variables containing their Azure resource IDs and export them to be used later
         export CP_CONTROL_PLANE_UAMI=$(az identity show -n ${USER}-${CS_CLUSTER_NAME}-cp-control-plane-${OPERATORS_UAMIS_SUFFIX} -g <resource-group> | jq -r '.id')
@@ -100,7 +100,7 @@ This document outlines the process of creating an HCP via the Cluster Service ru
         export CP_FILE_CSI_DRIVER_UAMI=$(az identity show -n ${USER}-${CS_CLUSTER_NAME}-cp-file-csi-driver-${OPERATORS_UAMIS_SUFFIX} -g <resource-group> | jq -r '.id')
         export CP_IMAGE_REGISTRY_UAMI=$(az identity show -n ${USER}-${CS_CLUSTER_NAME}-cp-image-registry-${OPERATORS_UAMIS_SUFFIX} -g <resource-group> | jq -r '.id')
         export CP_CNC_UAMI=$(az identity show -n ${USER}-${CS_CLUSTER_NAME}-cp-cloud-network-config-${OPERATORS_UAMIS_SUFFIX} -g <resource-group> | jq -r '.id')
-        export CP_KMS_UAMI=$(az identity show -n ${USER}-${CS_CLUSTER_NAME}-cp-kms-${OPERATORS_UAMIS_SUFFIX} -g $RESOURCEGROUP | jq -r '.id')
+        export CP_KMS_UAMI=$(az identity show -n ${USER}-${CS_CLUSTER_NAME}-cp-kms-${OPERATORS_UAMIS_SUFFIX} -g <resource-group> | jq -r '.id')
         ```
 
     * Create the User-Assigned Managed Identities for the Data Plane operators. This assumes OCP 4.19 clusters will be created.

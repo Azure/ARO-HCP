@@ -1,5 +1,15 @@
 # How to run CS in DemoMode on AKS
 
+> **Status: obsolete build workflow.** The `make aks/registry` and `make aks/deploy`
+> targets this document relied on no longer exist in `cluster-service/Makefile`,
+> and the Clusters Service Go source now lives in its own repository (this repo
+> carries only the deployment configuration under `cluster-service/deploy/`).
+> For current local development and deployment workflows see
+> [docs/personal-dev.md](../docs/personal-dev.md) and
+> [cluster-creation.md](cluster-creation.md). The sections below are kept as a
+> reference for interacting with an already-running Clusters Service instance
+> (database access, port-forwarding, and the local API/`ocm` usage still apply).
+
 ## 0. Demo Mode
 
 Demo Mode in CS means "no external dependencies required for runtime". This allows CS to get deployed

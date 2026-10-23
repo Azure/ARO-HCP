@@ -46,7 +46,7 @@ All cluster and node pool operations are tied to a specific API version. This me
 
 ## Cleanup of Resources
 
-* **TestContext:** Using [TestContext](https://github.com/Azure/ARO-HCP/blob/main/test/util/framework/per_test_framework.go#L51), to create a resource group, will automatically register it for a cleanup after the test. The cleanup process involves deleting all HCP clusters within the designated resource groups (via `DeleteAllHCPClusters20240610`). The resource groups themselves are removed, along with any remaining Azure resources.
+* **TestContext:** Using [NewTestContext()](https://github.com/Azure/ARO-HCP/blob/main/test/util/framework/per_test_framework.go#L146) to create a resource group, will automatically register it for a cleanup after the test. The cleanup process involves deleting all HCP clusters within the designated resource groups (via `DeleteAllHCPClusters20240610`). The resource groups themselves are removed, along with any remaining Azure resources.
 * **Test resources:** Within the test, remove any created resources that are not part of the TestContext resource group or its associated HCP clusters. Ensure all tests start from a known, clean state to avoid flakiness and false positives.
 
 # Best Practices for Writing E2E Test Cases
@@ -71,7 +71,7 @@ All cluster and node pool operations are tied to a specific API version. This me
 ## Logging
 
 * **Log message structure:** Ensure log messages are direct, including the actual error message if an error occurs.
-* **Preferred Logger:** For logging, use `ginkgo.GinkgoLogr` to generate info or error entries in the output. This is the preferred logger. Alternatively, you can use the `klog` from the `k8s.io` module. To measure the execution time of a specific method, utilize the `RecordTestStep` function as a `defer` call within that method.
+* **Preferred Logger:** For logging, use `ginkgo.GinkgoLogr` to generate info or error entries in the output. This is the preferred logger. Alternatively, you can use the `klog` from the `k8s.io` module. To measure the execution time of a specific method, utilize the `RecordTestStep` method on the test context as a `defer` call within that method.
 * **Ginkgo Writer:** Use `ginkgo.GinkgoWriter` to create a regular message in output.
 
 ### Logging in Eventually/Polling Tests

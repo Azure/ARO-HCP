@@ -21,7 +21,7 @@ We use **two-layer defaulting**:
 
 2. **Canonical defaults** (read path + create/preflight): `CosmosToInternal*()`
    calls `EnsureDefaults()` on the internal type after unmarshaling from Cosmos.
-   Every reader — FE, BE, `MigrateCosmosOrDie` — gets correct defaults
+   Every reader — FE, BE — gets correct defaults
    regardless of when the document was written. `EnsureDefaults()` is also
    called on the CREATE and PREFLIGHT paths after `ConvertToInternal(nil)` as
    a backstop for fields unknown to the requesting API version's
@@ -109,10 +109,11 @@ sequenceDiagram
 
 Canonical defaults in `CosmosToInternal*()` are harmlessly overwritten for
 CS-sourced fields on the FE GET path. Their primary consumers are BE
-controllers (which never call CS) and `MigrateCosmosOrDie`.
+controllers (which never call CS).
 
 CS→RP conversion functions must return the same default as canonical defaults
-for empty values. This is enforced by `convert_defaults_consistency_test.go`.
+for empty values. This is enforced by `convert_defaults_consistency_test.go`
+(`internal/database/cosmosstorage/cosmosstorageutils/`).
 
 ### PATCH
 
@@ -266,17 +267,17 @@ flowchart TD
 
 ### Checklist
 
-**0. Canonical default** (`internal/api/defaults.go` or `enums.go`)
+**0. Canonical default** (`internal/api/coreapi/defaults.go` or `internal/api/metadataapi/enums.go`)
 - [ ] String enum → typed constant in `enums.go`
 - [ ] Non-enum (CIDR, int32, bool, string) → named constant in `defaults.go`
 - [ ] Naming: `Default<Resource><Field>` (e.g., `DefaultNetworkHostPrefix`)
 
-**1. Internal type** (`internal/api/types_*.go`)
+**1. Internal type** (`internal/api/coreapi/types_*.go`)
 - [ ] Add field. String enum → value type + `omitempty`. Bool/int where zero
   is valid → `*bool`/`*int32` or remove `omitempty`.
 - [ ] Add default to `NewDefault*()` constructor.
 
-**2. Versioned conversion** (`internal/api/v*/methods.go`)
+**2. Versioned conversion** (`internal/azureapi/v*/*_methods.go`)
 - [ ] `SetDefaultValues*()`: `if field == nil { field = default }`
 - [ ] `ConvertToInternal`: normalize + null rejection for required fields
 - [ ] `NewCluster*()`: internal→external mapping. Use `Ptr()` (not
@@ -284,7 +285,7 @@ flowchart TD
 - [ ] Older API versions that don't expose the field: add to their
   `preserveUnknown*Fields` function so it survives PUT/PATCH via that version.
 
-**3. Canonical defaults** (`internal/api/types_*.go`)
+**3. Canonical defaults** (`internal/api/coreapi/types_*.go`)
 - [ ] Add to the `EnsureDefaults()` method on the internal type
   (`Cluster`, `NodePool`, or
   `ExternalAuth`).
@@ -302,7 +303,7 @@ flowchart TD
 - [ ] Allowed values. Immutability constraints.
 
 **6. Tests**
-- [ ] `internal/database/convert_defaults_consistency_test.go`:
+- [ ] `internal/database/cosmosstorage/cosmosstorageutils/convert_defaults_consistency_test.go`:
   - [ ] Add field to `TestEnsureDefaultsConsistency*` (verifies canonical↔constructor↔versioned agreement)
   - [ ] Add field to `TestCSToRPDefaultsConsistency*` (verifies CS→RP matches canonical default)
   - [ ] Add field to `TestPreExistingData*` (verifies old Cosmos docs get the default)
@@ -312,42 +313,22 @@ flowchart TD
 
 ## Rolling Deployment
 
-`MigrateCosmosOrDie` runs at FE startup and does a Get→Replace sweep on all
-documents. After canonical defaults are implemented, the Get leg applies defaults
-and the Replace leg persists them — no additional migration code needed.
+> **Note:** The FE-startup migration sweep (`MigrateCosmosOrDie` in the former
+> `frontend/pkg/frontend/migrate_cosmos.go`) has been removed. Read-time
+> canonical defaults are now the only backfill mechanism.
 
-```mermaid
-sequenceDiagram
-    participant OldFE as Old FE Pod
-    participant NewFE as New FE Pod
-    participant Cosmos
+Defaults are applied at read time by `CosmosToInternal*()` calling
+`EnsureDefaults()`, so no migration pass or deploy ordering is required for
+data integrity: a pod running the new code backfills a missing field's
+default on read, and the default is persisted the next time a normal write
+path (PUT/PATCH or a controller Replace) touches the document. During a
+rolling deployment, pods still running the old code do not know defaults
+introduced by the new version — they neither serve nor persist them — the
+same backward-compatible behavior as any additive API change.
 
-    Note over OldFE,Cosmos: Rolling deployment begins
-
-    NewFE->>Cosmos: MigrateCosmosOrDie: Get doc
-    Cosmos-->>NewFE: {field absent}
-    Note over NewFE: CosmosToInternal<br/>applies canonical default
-    NewFE->>Cosmos: Replace: {field: "default"}
-    Note over Cosmos: Doc now has field
-
-    Note over OldFE: Old pod processes request
-    OldFE->>Cosmos: Get doc → old struct drops field → Replace
-    Note over Cosmos: Backfill undone (no ETag)
-
-    Note over OldFE: Old pod terminated
-
-    NewFE->>Cosmos: Normal read: Get doc
-    Note over NewFE: CosmosToInternal re-applies<br/>canonical default. Correct value served.
-
-    Note over NewFE,Cosmos: All old pods gone
-    NewFE->>Cosmos: MigrateCosmosOrDie sweep
-    Note over Cosmos: All docs backfilled durably.
-```
-
-Read-time defaults make deploy ordering irrelevant for correctness. The
-backfill becomes durable only after all old pods are terminated. Old pods
-dropping unknown fields is a pre-existing codebase characteristic, not
-introduced by canonical defaults.
+A historical design discussion of the removed startup sweep — including how
+old pods could drop unknown fields on Get→Replace — is preserved at
+[ARO-HCP `MigrateCosmosOrDie` (removed)](https://github.com/Azure/ARO-HCP/blob/8965d3851e004497a7e2e4ac145a5563c9d5f178/frontend/pkg/frontend/migrate_cosmos.go).
 
 ## Open Issues
 
@@ -373,14 +354,13 @@ pointer types or remove `omitempty` to avoid this. See existing precedent:
 
 | Layer | Cluster | NodePool | ExternalAuth | File |
 |-------|---------|----------|--------------|------|
-| Constructor defaults | `SetDefaultValuesCluster()` | `SetDefaultValuesNodePool()` | `SetDefaultValuesExternalAuth()` | `v*/methods.go` |
-| Canonical defaults | `Cluster.EnsureDefaults()` | `NodePool.EnsureDefaults()` | `ExternalAuth.EnsureDefaults()` | `internal/api/types_*.go` |
-| Cross-version preservation | `preserveUnknownClusterFields()` | `preserveUnknownNodePoolFields()` | `preserveUnknownExternalAuthFields()` | `v*/methods.go` |
+| Constructor defaults | `SetDefaultValuesCluster()` | `SetDefaultValuesNodePool()` | `SetDefaultValuesExternalAuth()` | `internal/azureapi/v*/*_methods.go` |
+| Canonical defaults | `Cluster.EnsureDefaults()` | `NodePool.EnsureDefaults()` | `ExternalAuth.EnsureDefaults()` | `internal/api/coreapi/types_*.go` |
+| Cross-version preservation | `preserveUnknownClusterFields()` | `preserveUnknownNodePoolFields()` | `preserveUnknownExternalAuthFields()` | `internal/azureapi/v*/*_methods.go` |
 | Read-only field restoration | `CopyReadOnlyClusterValues()` | `CopyReadOnlyNodePoolValues()` | `CopyReadOnlyExternalAuthValues()` | `internal/conversion/readonly_*.go` |
 | CS→RP defaults | `convertVersionIDCSToRP()` | `convertDiskStorageAccountTypeCSToRP()` | — | `internal/ocm/convert.go` |
-| Internal constructors | `NewDefaultCluster()` | `NewDefaultNodePool()` | — | `internal/api/types_*.go` |
-| Canonical constants | `DefaultClusterVersionID`, etc. | `DiskStorageAccountTypePremium_LRS`, etc. | `UsernameClaimPrefixPolicyNone` | `internal/api/defaults.go`, `enums.go` |
-| Migration | `MigrateCosmosOrDie()` | (included in cluster loop) | (included in cluster loop) | `frontend/pkg/frontend/migrate_cosmos.go` |
+| Internal constructors | `NewDefaultCluster()` | `NewDefaultNodePool()` | — | `internal/api/coreapi/types_*.go` |
+| Canonical constants | `DefaultClusterVersionID`, etc. | `DiskStorageAccountTypePremium_LRS`, etc. | `UsernameClaimPrefixPolicyNone` | `internal/api/coreapi/defaults.go`, `internal/api/metadataapi/enums.go` |
 
 ## References
 
@@ -392,4 +372,3 @@ pointer types or remove `omitempty` to avoid this. See existing precedent:
 - [ARO Classic write-path defaults](https://github.com/Azure/ARO-RP/blob/f173264b1a723fdb9d4c1ddd907eb75c6bed9649/pkg/frontend/openshiftcluster_putorpatch.go#L348)
 - [ARO Classic read-path enricher](https://github.com/Azure/ARO-RP/blob/f173264b1a723fdb9d4c1ddd907eb75c6bed9649/pkg/frontend/openshiftcluster_get.go#L50)
 - [ARO Classic `ToInternal(ext, out)` (cross-version preservation)](https://github.com/Azure/ARO-RP/blob/f173264b1a723fdb9d4c1ddd907eb75c6bed9649/pkg/api/v20240812preview/openshiftcluster_convert.go)
-- [ARO-HCP `MigrateCosmosOrDie`](https://github.com/Azure/ARO-HCP/blob/a98a017a0b7ab57bf2a30a25f07d1b8f729c45e4/frontend/pkg/frontend/migrate_cosmos.go)

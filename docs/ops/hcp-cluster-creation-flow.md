@@ -46,7 +46,7 @@ subgraph svc_cluster["service cluster"]
         rp_backend["RP Backend"]
         rp_frontend["RP Frontend"]
     end
-    subgraph cs_ns["ns cluster-service"]
+    subgraph cs_ns["ns clusters-service"]
         cs["Clusters Service"]
     end
     subgraph maestro_server_ns["ns maestro"]
@@ -107,7 +107,7 @@ You can query the state of a hosted control plane by sending a GET request to th
 
 ```sh
 RESOURCE_ID="/subscriptions/.../resourceGroups/.../providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/..."
-curl -s localhost:8443${RESOURCE_ID}$?api-version=2024-06-10-preview | jq
+curl -s "localhost:8443${RESOURCE_ID}?api-version=2026-10-01" | jq
 ```
 
 Noteworthy fields:

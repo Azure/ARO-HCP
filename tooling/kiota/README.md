@@ -10,6 +10,8 @@ To use this tool, install Kiota CLI manually from: https://learn.microsoft.com/e
 make generate-kiota
 ```
 
+> Note: run this from the **repository root** — the target is defined in the root `Makefile` (there is no Makefile inside `tooling/kiota/` itself).
+
 ## What is Kiota?
 
 Kiota is Microsoft's OpenAPI-to-code generator that creates type-safe, maintainable API clients. Instead of using large, monolithic SDKs that include every possible API endpoint, Kiota allows us to generate minimal clients with only the endpoints we actually need, and the only input is an openapi.yaml file.
@@ -28,7 +30,7 @@ Kiota's approach generates minimal, focused clients that only include the endpoi
 
 ## Generated SDKs
 
-- Microsoft Graph SDK: Application registration, group management, user information
+- Microsoft Graph SDK: application registration, group management, user information — generated into and checked in at `internal/graph/graphsdk` in this repository
 
 ## OpenAPI Spec Maintenance
 

@@ -1,5 +1,7 @@
 # `kube-applier` Implementation Plan
 
+> **Historical design document.** This was written before the source reorganization; file paths reference the pre-reorg tree (e.g. `internal/api/kubeapplier` → `internal/api/kubeapplierapi`, `internal/database/kubeappliercosmosstorage/…` → `internal/database/cosmosstorage/kubeappliercosmosstorage/…`, informers/listers landed as `kubeapplierinformers`/`kubeapplierlisters` subpackages). See `../readme.md` for the current state of the code.
+
 This directory contains the staged implementation plan for the `kube-applier`
 component described in [../readme.md](../readme.md).
 

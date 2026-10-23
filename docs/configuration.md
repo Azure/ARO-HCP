@@ -174,7 +174,7 @@ For string parameters constrained by Bicep `@allowed`, wrap the value in `any()`
 ### Limitations
 
 - Only **basic fields** (string, boolean, or number types) should be referenced from pipeline files and Bicepparam files. Complex data types do not translate well to EV2 configuration settings right now.
-- Avoid using **arrays** in configuration. Instead, represent arrays as a list of comma separated values and parse them in Bicep templates using the `csvToArray` function from `modules/common.bicep`. Arrays do not translate well to EV2 configuration settings right now.
+- Avoid using **arrays** in configuration. Instead, represent arrays as a list of comma separated values and parse them in Bicep templates using the `csvToArray` function from `dev-infrastructure/modules/common.bicep`. Arrays do not translate well to EV2 configuration settings right now.
 
 ## Management Controller Scheduling
 

@@ -574,7 +574,7 @@ sequenceDiagram
   
    The frontend pod would then execute the following steps for each child resource in the query result, but since there's only one child resource in this scenario we've omitted the loop from the interaction diagram.
 
-6. We stated previously the child node pool is still being created. That means Cosmos DB will contain a [resource document](#hosted-control-plane-clusters-and-node-pools) for the node pool, with its [activeOperationId](resource-document-activeoperationid-field) field referencing an [asynchronous operation document](#asynchronous-operations) for the node pool creation. The resource document will look something like:
+6. We stated previously the child node pool is still being created. That means Cosmos DB will contain a [resource document](#hosted-control-plane-clusters-and-node-pools) for the node pool, with its [activeOperationId](#resource-document-activeoperationid-field) field referencing an [asynchronous operation document](#asynchronous-operations) for the node pool creation. The resource document will look something like:
 
    ```
    {

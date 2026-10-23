@@ -145,9 +145,9 @@ rather than a raw stream — designed to fit in a context window.
 
 ## Debugging methodology
 
-This is distilled from `tooling/hcpctl/pkg/agent/prompts/system.md`, which
-drives the `hcpctl snapshot analyze` agent. It generalizes well to any
-interactive debugging session.
+This is distilled from `tooling/hcpctl/pkg/agent/prompts/system/` (see
+`60_debugging_methodology.intent.md`), which drives the `hcpctl snapshot
+analyze` agent. It generalizes well to any interactive debugging session.
 
 1. **Anchor in the failure.** Start with the test/operation error to identify
    the failing client/server relationship: ARM, the hosted cluster's kube
@@ -175,11 +175,11 @@ End-to-end analyses (causal chain, queries, code citations)
 live in
 [tooling/hcpctl/pkg/agent/prompts/exemplars/](../../tooling/hcpctl/pkg/agent/prompts/exemplars/):
 
-- `cluster-installation-azure-disk-failure.md`
-- `cluster-cleanup-unknown-failure.md`
-- `kubernetes-events.md` — `ServiceLogs.kubernetesEvents` and ad-hoc filtering beyond snapshot `controlPlaneEvents`
-- `mgmt-agent-event-logs.md` — ad-hoc KQL for mgmt-agent `resource event` / `pod event` timelines
+- `cluster-creation-timeout-z-stream-upgrade.md`
 - `cluster-deletion-timeout-because-managedcluster-cr-deletion-stuck.md` — cluster deletion stuck at ManagedCluster destructor due to addon pod eviction (MemoryPressure)
+- `cluster-installation-azure-disk-failure.md`
+- `cluster-installation-ignition-failure.md`
+- `clusters-service-worker-race-condition.md`
 
 Read these when you need a concrete template for what a thorough RCA looks
 like in this stack.

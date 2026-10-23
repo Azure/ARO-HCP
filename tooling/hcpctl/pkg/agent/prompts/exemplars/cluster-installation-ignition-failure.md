@@ -152,7 +152,7 @@ cluster('https://hcp-int-uk.uksouth.kusto.windows.net').database('ServiceLogs').
 
 The backend determines node-pool create status from Cluster Service via `GetNodePoolStatus`, logs the chosen state, and returns that as the operation state.
 
-`ARO-HCP` — `backend/pkg/controllers/operationcontrollers/operation_node_pool_create.go` lines 196–222:
+`ARO-HCP` — `backend/pkg/controllers/nodepool/operations/operation_node_pool_create.go` lines 226–234:
 
 ```
 	logger.Info("determined node pool create operation status", "operationStates", operationStates)
@@ -188,7 +188,7 @@ func (c *operationNodePoolCreate) nodePoolServiceCreateOperationState(ctx contex
 
 The conversion logic maps Cluster Service `installing` to ARM `Provisioning` and only maps `ready` to `Succeeded`.
 
-`ARO-HCP` — `backend/pkg/controllers/operationcontrollers/utils.go` lines 498–516:
+`ARO-HCP` — `backend/pkg/utils/operationutils/utils.go` lines 536–579:
 
 ```
 	switch state := NodePoolStateValue(nodePoolStatus.State().NodePoolStateValue()); state {

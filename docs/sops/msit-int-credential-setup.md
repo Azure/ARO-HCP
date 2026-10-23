@@ -25,7 +25,7 @@ The MSIT INT environment is unique because the first-party, MSI mock, and ARM he
 
 1. **Create and pin the INT mock identity certificates**
    The INT mock identity Entra apps and service principals are created
-   declaratively by `templates/mock-identity-apps.bicep` (the `mock-identity-apps-int`
+   declaratively by `dev-infrastructure/templates/mock-identity-apps.bicep` (the `mock-identity-apps-int`
    step of the Owner-only `Microsoft.Azure.ARO.HCP.DevCI.Privileged` entrypoint,
    run with `make dev-ci-privileged-local-run`). That template creates the apps
    but configures **no** authentication on them. The privileged entrypoint

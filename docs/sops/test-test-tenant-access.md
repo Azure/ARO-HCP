@@ -217,9 +217,9 @@ cd dev-infrastructure/openshift-ci/
 
 ### Credential Expiration and Rotation
 
-> **⚠️ IMPORTANT: Service Principal Credential Expires on September 30, 2026**
-> 
-> The OpenShift CI service principal credential must be rotated before this date to prevent CI/CD pipeline failures.
+> **⚠️ IMPORTANT: Service Principal Credential Expiry**
+>
+> The OpenShift CI service principal credential has a finite expiry and must be rotated before it lapses to prevent CI/CD pipeline failures. Check the current expiry (and any rotation history) with `az ad app credential list --id <app-object-id>` before relying on it.
 
 **Credential Rotation:**
 
@@ -260,7 +260,7 @@ The following quotas have been requested and approved for ARO HCP E2E testing:
 
 **ARM64 VM Quota (Dplsv6 Family):**
 
-The ARM64 node pool test (`arm64_nodepool.go`) uses `Standard_D2pls_v6` VMs. This requires the **Standard Dplsv6 Family vCPUs** quota.
+The ARM64 node pool test (`arm64_nodepool.go`) selects an available ARM64 SKU from the `Standard_D{2,4}pl{d}s_v6` family via `ARM64NodePoolVMSizeSelector()`. This requires the **Standard Dplsv6/Dpldsv6 Family vCPUs** quota.
 
 | Region | Current Quota | Requested |
 |--------|---------------|-----------|

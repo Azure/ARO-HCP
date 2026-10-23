@@ -10,7 +10,7 @@ as a separarate set of resources, APIs and SDKs.
 
 ## Getting Started
 
-To build the SDK for ContainerServices, [install Autorest](https://aka.ms/autorest/install). Then
+To build the SDK for RedHatOpenShift HCP, [install Autorest](https://aka.ms/autorest/install). Then
 in this folder, run this command:
 
 > `autorest`
@@ -25,7 +25,7 @@ To see additional help and options, run:
 
 ### Basic Information
 
-These are the global settings for the ContainerServices API.
+These are the global settings for the RedHatOpenShift HCP API.
 
 ``` yaml
 openapi-type: arm
