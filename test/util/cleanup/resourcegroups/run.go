@@ -128,7 +128,7 @@ func (o *Options) cleanupResourceGroups(ctx context.Context, tc interface {
 
 	if o.DryRun {
 		for _, rg := range resourceGroupsToDelete {
-			fmt.Println(rg)
+			logger.Info(rg)
 		}
 		return nil
 	}
