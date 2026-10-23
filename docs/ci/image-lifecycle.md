@@ -141,9 +141,11 @@ existing upgrade PRs, builder availability and live Prow draft-notification
 policy. Only the final publication steps can receive a narrowly scoped App
 token to push a new branch and open a draft PR. The workflow does not request
 reviewers, mark PRs ready, approve or merge them. Expected current/blocked
-states use `noop` without report issues. Readiness evidence is retained as the
-`go-toolchain-readiness` artifact; a blocked result is not evidence of a
-successfully published or deployed upgrade.
+states use `noop` without report issues. A stale base/target request or changed
+publication prerequisite also becomes a normal wait, with no App token minted.
+Malformed requests and real configuration/authentication errors remain failures.
+Readiness evidence is retained as the `go-toolchain-readiness` artifact; a
+blocked result is not evidence of a successfully published or deployed upgrade.
 
 ### Nested Podman Toolchain
 

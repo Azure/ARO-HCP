@@ -4,7 +4,8 @@
 Requires Python 3.10+, PyYAML, gh, git, Docker and Node 20+ (npx); apply/check
 additionally require the target Go binary on PATH. Discovery reads external
 services and builds a disposable proposed devcontainer. Compiler probes have
-no network, mounts, credentials or capabilities. Blocked means wait, not error.
+no network, mounts, credentials or capabilities. Plan waits exit 0; a blocked
+publication recheck exits 3, while configuration/authentication errors exit 1.
 """
 
 import argparse
@@ -804,7 +805,11 @@ def main():
             recheck_plan(root, args.plan, args.repo)
     except Blocked as exc:
         print(f"Go toolchain blocked: {exc}", file=sys.stderr)
-        return 1
+        if args.command == "recheck":
+            deferred = json.loads(Path(args.plan).read_text())
+            deferred.update(status="blocked", reason=str(exc))
+            Path(args.plan).write_text(json.dumps(deferred, indent=2, sort_keys=True) + "\n")
+        return 3
     except (ValueError, KeyError, OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
         detail = exc.stderr if isinstance(exc, subprocess.CalledProcessError) else str(exc)
         print(f"Go toolchain error: {detail}", file=sys.stderr)

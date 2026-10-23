@@ -76,7 +76,7 @@ steps:
   run: |
     python3 .github/scripts/go_toolchain_upgrade.py plan --repo "$GITHUB_REPOSITORY" --output "$PLAN"
     printf "%s\n" toolchain-readiness.json >> "$(git rev-parse --git-path info/exclude)"
-    cp "$PLAN" toolchain-readiness.json
+    jq '{status,current,target,reason,base_sha,builders,modules,excluded_modules,release_configs,overlapping_prs}' "$PLAN" > toolchain-readiness.json
 - name: Preserve readiness evidence
   uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
   with:
@@ -198,7 +198,11 @@ safe-outputs:
           if plan["status"] == "ready" and (
               request["expected_base_sha"] != plan["base_sha"] or request["target_version"] != plan["target"]
           ):
-              raise SystemExit("Base or target moved; the agent must inspect a fresh plan")
+              plan.update(status="blocked", reason="requested base or patch is stale; wait for a fresh agentic run")
+              Path(sys.argv[1]).write_text(json.dumps(plan, indent=2, sort_keys=True) + "\n")
+              with open(os.environ["GITHUB_OUTPUT"], "a") as destination:
+                  destination.write("ready=false\nstatus=blocked\n")
+              print("Go toolchain blocked: " + plan["reason"])
           # Custom safe-output jobs do not inherit gh-aw's staged environment.
           # Read the trusted run definition, never an agent-controlled flag.
           definition = subprocess.run(
@@ -207,7 +211,7 @@ safe-outputs:
           ).stdout
           workflow = yaml.safe_load(definition)
           staged = workflow["jobs"]["safe_outputs"].get("env", {}).get("GH_AW_SAFE_OUTPUTS_STAGED", False)
-          publish = staged is False or staged == "false"
+          publish = plan["status"] == "ready" and (staged is False or staged == "false")
           with open(os.environ["GITHUB_OUTPUT"], "a") as destination:
               destination.write("publish=" + str(publish).lower() + "\n")
           PY
@@ -274,6 +278,7 @@ safe-outputs:
           GOBIN: ${{ runner.temp }}/go-bin
           ENVTEST_BIN_DIR: ${{ runner.temp }}/envtest
       - name: Recheck fresh publication prerequisites
+        id: fresh
         if: steps.plan.outputs.ready == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
@@ -281,9 +286,16 @@ safe-outputs:
           GOTOOLCHAIN: local
           GOBIN: ${{ runner.temp }}/go-bin
           ENVTEST_BIN_DIR: ${{ runner.temp }}/envtest
-        run: python3 .github/scripts/go_toolchain_upgrade.py recheck --plan "$PLAN" --repo "$GITHUB_REPOSITORY"
+        run: |
+          if python3 .github/scripts/go_toolchain_upgrade.py recheck --plan "$PLAN" --repo "$GITHUB_REPOSITORY"; then
+            printf 'ready=true\n' >> "$GITHUB_OUTPUT"
+          else
+            result=$?
+            if [ "$result" -ne 3 ]; then exit "$result"; fi
+            printf 'ready=false\n' >> "$GITHUB_OUTPUT"
+          fi
       - name: Mint scoped publication token
-        if: steps.plan.outputs.ready == 'true' && steps.plan.outputs.publish == 'true'
+        if: steps.plan.outputs.ready == 'true' && steps.plan.outputs.publish == 'true' && steps.fresh.outputs.ready == 'true'
         id: publish-token
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1
         with:
@@ -297,7 +309,7 @@ safe-outputs:
           GOBIN: ${{ runner.temp }}/go-bin
           ENVTEST_BIN_DIR: ${{ runner.temp }}/envtest
       - name: Publish draft upgrade
-        if: steps.plan.outputs.ready == 'true' && steps.plan.outputs.publish == 'true'
+        if: steps.plan.outputs.ready == 'true' && steps.plan.outputs.publish == 'true' && steps.fresh.outputs.ready == 'true'
         env:
           GH_TOKEN: ${{ steps.publish-token.outputs.token }}
           TARGET: ${{ steps.plan.outputs.target }}
