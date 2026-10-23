@@ -483,8 +483,6 @@ func (c *operationClusterCreate) servingCABundleOperationStatus(ctx context.Cont
 
 // serviceProviderDefaultIngressServingCertificateStatus blocks cluster creation until
 // the ingress wildcard certificate's SecretSync has synced the TLS Secret at least once.
-// v0.0.6 removed SecretCreated, so use lastSuccessfulSyncTime while retaining support
-// for the legacy condition.
 func (c *operationClusterCreate) serviceProviderDefaultIngressServingCertificateStatus(ctx context.Context, operation *coreapi.Operation) (*operationbase.OperationState, error) {
 	logger := utils.LoggerFromContext(ctx)
 
@@ -500,7 +498,7 @@ func (c *operationClusterCreate) serviceProviderDefaultIngressServingCertificate
 		return operationbase.NewOperationState(coreapi.ProvisioningStateProvisioning, "default ingress certificate not yet observed"), nil
 	}
 
-	if !secretSync.Status.LastSuccessfulSyncTime.IsZero() || meta.IsStatusConditionTrue(secretSync.Status.Conditions, "SecretCreated") {
+	if !secretSync.Status.LastSuccessfulSyncTime.IsZero() {
 		return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, ""), nil
 	}
 	// Don't expose the SecretSync's own condition details on the operation; just log

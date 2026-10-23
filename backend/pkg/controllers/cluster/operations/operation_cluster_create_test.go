@@ -1413,20 +1413,13 @@ func TestServiceProviderDefaultIngressServingCertificateStatus(t *testing.T) {
 	}{
 		{name: "not yet synced"},
 		{
-			name: "legacy successful creation",
+			name: "legacy condition without sync timestamp",
 			status: secretsyncv1alpha1.SecretSyncStatus{
 				Conditions: []metav1.Condition{{Type: "SecretCreated", Status: metav1.ConditionTrue}},
 			},
-			succeeded: true,
 		},
 		{
-			name: "legacy failed creation",
-			status: secretsyncv1alpha1.SecretSyncStatus{
-				Conditions: []metav1.Condition{{Type: "SecretCreated", Status: metav1.ConditionFalse}},
-			},
-		},
-		{
-			name: "successful sync without legacy condition",
+			name: "successful sync",
 			status: secretsyncv1alpha1.SecretSyncStatus{
 				LastSuccessfulSyncTime: &syncedAt,
 				Conditions:             []metav1.Condition{{Type: "SecretUpdated", Status: metav1.ConditionTrue}},
@@ -1434,10 +1427,9 @@ func TestServiceProviderDefaultIngressServingCertificateStatus(t *testing.T) {
 			succeeded: true,
 		},
 		{
-			name: "successful sync with stale legacy failure",
+			name: "successful sync without conditions",
 			status: secretsyncv1alpha1.SecretSyncStatus{
 				LastSuccessfulSyncTime: &syncedAt,
-				Conditions:             []metav1.Condition{{Type: "SecretCreated", Status: metav1.ConditionFalse}},
 			},
 			succeeded: true,
 		},
@@ -1484,7 +1476,8 @@ func TestServiceProviderDefaultIngressServingCertificateStatus(t *testing.T) {
 				},
 			}
 
-			state, err := controller.serviceProviderDefaultIngressServingCertificateStatus(t.Context(), operation)
+			ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
+			state, err := controller.serviceProviderDefaultIngressServingCertificateStatus(ctx, operation)
 			require.NoError(t, err)
 			require.NotNil(t, state)
 			if tc.succeeded {
