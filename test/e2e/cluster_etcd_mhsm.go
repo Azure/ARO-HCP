@@ -111,10 +111,13 @@ var _ = Describe("Cluster Etcd Managed HSM Encryption", func() {
 			// The HSM lives in the test's customer subscription, which may differ from the az CLI default.
 			subscriptionID, err := tc.SubscriptionID(ctx)
 			Expect(err).NotTo(HaveOccurred(), "failed to resolve test subscription ID")
+			const activationTimeout = time.Hour
+			activationCtx, cancelActivation := context.WithTimeout(ctx, activationTimeout)
+			defer cancelActivation()
 			activationAttempt := 0
 			securityDomainDownloaded := false
 			Eventually(func() error {
-				status, statusErr := mhsmActivationStatus(ctx, subscriptionID, *resourceGroup.Name, hsmName)
+				status, statusErr := mhsmActivationStatus(activationCtx, subscriptionID, *resourceGroup.Name, hsmName)
 				if statusErr != nil {
 					return statusErr
 				}
@@ -126,12 +129,14 @@ var _ = Describe("Cluster Etcd Managed HSM Encryption", func() {
 				}
 				activationAttempt++
 				securityDomainFile := filepath.Join(certDir, fmt.Sprintf("security-domain-%d.json", activationAttempt))
-				if downloadErr := downloadMHSMSecurityDomain(ctx, subscriptionID, hsmName, securityDomainFile, wrappingCertPaths, 2); downloadErr != nil {
+				if downloadErr := downloadMHSMSecurityDomain(activationCtx, subscriptionID, hsmName, securityDomainFile, wrappingCertPaths, 2); downloadErr != nil {
 					return fmt.Errorf("activation attempt %d (status %q): %w", activationAttempt, status, downloadErr)
 				}
 				securityDomainDownloaded = true
 				return fmt.Errorf("security domain downloaded on attempt %d; waiting for activation status %q", activationAttempt, mhsmActivationStatusActive)
-			}, time.Hour, 30*time.Second).Should(Succeed(), "failed to activate Managed HSM %s", hsmName)
+			}).WithContext(activationCtx).WithTimeout(activationTimeout).WithPolling(30*time.Second).
+				Should(Succeed(), "failed to activate Managed HSM %s", hsmName)
+			cancelActivation()
 			GinkgoLogr.Info("Managed HSM activated", "hsmName", hsmName, "attempts", activationAttempt)
 
 			// Detect the deployer's principal type so local User accounts and Prow's ServicePrincipal both work.

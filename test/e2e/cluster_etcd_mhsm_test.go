@@ -16,11 +16,13 @@ package e2e
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestMHSMCLIUsesCustomerSubscription(t *testing.T) {
@@ -39,6 +41,7 @@ func TestMHSMCLIUsesCustomerSubscription(t *testing.T) {
 			"if \"%~4\"==\"list\" echo []\r\n" +
 			"exit /b 0\r\n"
 	}
+
 	if err := os.WriteFile(filepath.Join(dir, cliName), []byte(script), 0700); err != nil {
 		t.Fatal(err)
 	}
@@ -86,5 +89,54 @@ func TestMHSMCLIUsesCustomerSubscription(t *testing.T) {
 		if !strings.Contains(command, "--hsm-name test-hsm ") {
 			t.Errorf("command %d does not select the HSM: %s", i, command)
 		}
+	}
+}
+
+func TestMHSMActivationCLIDeadline(t *testing.T) {
+	dir := t.TempDir()
+	cliName := "az"
+	script := "#!/bin/sh\nwhile :; do :; done\n"
+	if runtime.GOOS == "windows" {
+		cliName = "az.cmd"
+		script = "@echo off\r\n:wait\r\ngoto wait\r\n"
+	}
+	if err := os.WriteFile(filepath.Join(dir, cliName), []byte(script), 0700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	for _, tc := range []struct {
+		name string
+		run  func(context.Context) error
+	}{
+		{
+			name: "status",
+			run: func(ctx context.Context) error {
+				_, err := mhsmActivationStatus(ctx, "customer-subscription", "customer-rg", "test-hsm")
+				return err
+			},
+		},
+		{
+			name: "download",
+			run: func(ctx context.Context) error {
+				return downloadMHSMSecurityDomain(ctx, "customer-subscription", "test-hsm",
+					filepath.Join(dir, "security-domain.json"), []string{"cert.cer"}, 2)
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+			defer cancel()
+			start := time.Now()
+			if err := tc.run(ctx); err == nil {
+				t.Fatal("stalled CLI unexpectedly succeeded")
+			}
+			if !errors.Is(ctx.Err(), context.DeadlineExceeded) {
+				t.Fatalf("context error = %v, want deadline exceeded", ctx.Err())
+			}
+			if elapsed := time.Since(start); elapsed > 5*time.Second {
+				t.Fatalf("CLI took %s to stop after a 200ms deadline", elapsed)
+			}
+		})
 	}
 }
