@@ -131,7 +131,7 @@ var _ = Describe("Cluster Etcd Managed HSM Encryption", func() {
 				}
 				securityDomainDownloaded = true
 				return fmt.Errorf("security domain downloaded on attempt %d; waiting for activation status %q", activationAttempt, mhsmActivationStatusActive)
-			}, 45*time.Minute, 30*time.Second).Should(Succeed(), "failed to activate Managed HSM %s", hsmName)
+			}, time.Hour, 30*time.Second).Should(Succeed(), "failed to activate Managed HSM %s", hsmName)
 			GinkgoLogr.Info("Managed HSM activated", "hsmName", hsmName, "attempts", activationAttempt)
 
 			// Detect the deployer's principal type so local User accounts and Prow's ServicePrincipal both work.
@@ -147,7 +147,7 @@ var _ = Describe("Cluster Etcd Managed HSM Encryption", func() {
 			grantMHSMCryptoUser := func(principalID, principalType, scope string) {
 				Eventually(func() error {
 					return ensureMHSMCryptoUser(ctx, subscriptionID, hsmName, principalID, principalType, scope)
-				}, 5*time.Minute, 15*time.Second).Should(Succeed(), "failed to grant Managed HSM Crypto User role to %s at %s", principalID, scope)
+				}, 10*time.Minute, 15*time.Second).Should(Succeed(), "failed to grant Managed HSM Crypto User role to %s at %s", principalID, scope)
 				GinkgoLogr.Info("Granted Managed HSM Crypto User role", "principalID", principalID, "scope", scope)
 			}
 
@@ -175,7 +175,7 @@ var _ = Describe("Cluster Etcd Managed HSM Encryption", func() {
 					}
 					keyID = string(*createKeyResp.Key.KID)
 					return nil
-				}, 5*time.Minute, 15*time.Second).Should(Succeed(), "failed to create Managed HSM key version (mHSM RBAC may still be propagating)")
+				}, 10*time.Minute, 15*time.Second).Should(Succeed(), "failed to create Managed HSM key version (mHSM RBAC may still be propagating)")
 				Expect(keyID).NotTo(BeEmpty(), "created key ID was empty")
 				return keyID
 			}
