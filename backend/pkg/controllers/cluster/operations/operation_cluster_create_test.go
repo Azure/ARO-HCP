@@ -16,6 +16,7 @@ package operations
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"testing"
 	"time"
@@ -28,6 +29,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilsclock "k8s.io/utils/clock"
 	clocktesting "k8s.io/utils/clock/testing"
+
+	secretsyncv1alpha1 "sigs.k8s.io/secrets-store-sync-controller/api/v1alpha1"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -1392,6 +1395,104 @@ func TestServingCABundleOperationStatus(t *testing.T) {
 			assert.Equal(t, tt.expectedState, result.ProvisioningState)
 			if tt.wantMsgSubstr != "" {
 				assert.Contains(t, result.Message, tt.wantMsgSubstr)
+			}
+		})
+	}
+}
+
+func TestServiceProviderDefaultIngressServingCertificateStatus(t *testing.T) {
+	fixture := operationtesting.NewClusterTestFixture()
+	operation := fixture.NewOperation(cosmosstorageutils.OperationRequestCreate)
+	syncedAt := metav1.NewTime(operationtesting.MustParseTime("2025-01-15T10:30:00Z"))
+
+	for _, tc := range []struct {
+		name       string
+		status     secretsyncv1alpha1.SecretSyncStatus
+		unobserved bool
+		succeeded  bool
+	}{
+		{name: "not yet synced"},
+		{
+			name: "legacy successful creation",
+			status: secretsyncv1alpha1.SecretSyncStatus{
+				Conditions: []metav1.Condition{{Type: "SecretCreated", Status: metav1.ConditionTrue}},
+			},
+			succeeded: true,
+		},
+		{
+			name: "legacy failed creation",
+			status: secretsyncv1alpha1.SecretSyncStatus{
+				Conditions: []metav1.Condition{{Type: "SecretCreated", Status: metav1.ConditionFalse}},
+			},
+		},
+		{
+			name: "successful sync without legacy condition",
+			status: secretsyncv1alpha1.SecretSyncStatus{
+				LastSuccessfulSyncTime: &syncedAt,
+				Conditions:             []metav1.Condition{{Type: "SecretUpdated", Status: metav1.ConditionTrue}},
+			},
+			succeeded: true,
+		},
+		{
+			name: "successful sync with stale legacy failure",
+			status: secretsyncv1alpha1.SecretSyncStatus{
+				LastSuccessfulSyncTime: &syncedAt,
+				Conditions:             []metav1.Condition{{Type: "SecretCreated", Status: metav1.ConditionFalse}},
+			},
+			succeeded: true,
+		},
+		{
+			name: "failed rotation after a successful first sync",
+			status: secretsyncv1alpha1.SecretSyncStatus{
+				LastSuccessfulSyncTime: &syncedAt,
+				Conditions:             []metav1.Condition{{Type: "SecretUpdated", Status: metav1.ConditionFalse}},
+			},
+			succeeded: true,
+		},
+		{
+			name: "zero sync timestamp",
+			status: secretsyncv1alpha1.SecretSyncStatus{
+				LastSuccessfulSyncTime: &metav1.Time{},
+				Conditions:             []metav1.Condition{{Type: "SecretUpdated", Status: metav1.ConditionTrue}},
+			},
+		},
+		{
+			name: "missing sync timestamp",
+			status: secretsyncv1alpha1.SecretSyncStatus{
+				Conditions: []metav1.Condition{{Type: "SecretUpdated", Status: metav1.ConditionTrue}},
+			},
+		},
+		{
+			name: "cached successful sync with unsuccessful observation",
+			status: secretsyncv1alpha1.SecretSyncStatus{
+				LastSuccessfulSyncTime: &syncedAt,
+			},
+			unobserved: true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			desire := operationtesting.NewIngressSecretSyncReadDesire(t)
+			content, err := json.Marshal(&secretsyncv1alpha1.SecretSync{Status: tc.status})
+			require.NoError(t, err)
+			desire.Status.KubeContent.Raw = content
+			if tc.unobserved {
+				desire.Status.Conditions[0].Status = metav1.ConditionFalse
+			}
+			controller := &operationClusterCreate{
+				readDesireLister: &kubeapplierlistertesting.SliceReadDesireLister{
+					Desires: []*kubeapplierapi.ReadDesire{desire},
+				},
+			}
+
+			state, err := controller.serviceProviderDefaultIngressServingCertificateStatus(t.Context(), operation)
+			require.NoError(t, err)
+			require.NotNil(t, state)
+			if tc.succeeded {
+				assert.Equal(t, coreapi.ProvisioningStateSucceeded, state.ProvisioningState)
+				assert.Empty(t, state.Message)
+			} else {
+				assert.Equal(t, coreapi.ProvisioningStateProvisioning, state.ProvisioningState)
+				assert.Contains(t, state.Message, "default ingress certificate not yet")
 			}
 		})
 	}
