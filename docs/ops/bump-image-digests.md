@@ -14,10 +14,10 @@ Each service component defines its image digest in the [configuration](../config
 | Maestro                       | `maestro.image.digest`                            |
 | Hypershift Operator           | `hypershift.image.digest`                         |
 | ACR Pull                      | `acrPull.image.digest`                            |
-| Prometheus Operator (SVC)     | `svc.prometheus.prometheusOperator.image.digest`  |
-| Prometheus Operator (MGMT)    | `mgmt.prometheus.prometheusOperator.image.digest` |
-| Prometheus Server (SVC)       | `svc.prometheus.prometheusSpec.image.digest`      |
-| Prometheus Server (MGMT)      | `mgmt.prometheus.prometheusSpec.image.digest`     |
+| Prometheus Operator (SVC)     | `svc.prometheus.prometheusOperator.image.sha`  |
+| Prometheus Operator (MGMT)    | `mgmt.prometheus.prometheusOperator.image.sha` |
+| Prometheus Server (SVC)       | `svc.prometheus.prometheusSpec.image.sha`      |
+| Prometheus Server (MGMT)      | `mgmt.prometheus.prometheusSpec.image.sha`     |
 | Maestro Agent Sidecar (nginx) | `maestro.agent.sidecar.image.digest`              |
 | Mise                          | `mise.imageV2.digest`                             |
 

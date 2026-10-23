@@ -1,5 +1,7 @@
 # 08 &mdash; Phased rollout plan
 
+> **Historical design document.** This was written before the source reorganization; file paths reference the pre-reorg tree (e.g. `internal/api/kubeapplier` → `internal/api/kubeapplierapi`, `internal/database/kubeappliercosmosstorage/…` → `internal/database/cosmosstorage/kubeappliercosmosstorage/…`, informers/listers landed as `kubeapplierinformers`/`kubeapplierlisters` subpackages). See `../readme.md` for the current state of the code.
+
 The goal of this phasing is that **every PR in the sequence is independently
 shippable, reviewable, and produces no regressions in main**. Most early
 PRs touch only `internal/` and have no runtime effect.

@@ -50,8 +50,8 @@ Every command below needs the values on one row of this table.
 
 | Environment | Make target | `AZURE_TENANT_ID` (tenant) | Prow job |
 |---|---|---|---|
-| INT | `int-e2e` | `64dc69e4-d083-49fc-9569-ebece1dd1408` (Red Hat) | `branch-ci-Azure-ARO-HCP-main-e2e-integration-e2e-parallel` |
-| STG | `stage-e2e` | `72f988bf-86f1-41af-91ab-2d7cd011db47` (Microsoft) | `branch-ci-Azure-ARO-HCP-main-e2e-stage-e2e-parallel` |
+| INT | `int-e2e` | `64dc69e4-d083-49fc-9569-ebece1dd1408` (Red Hat) | `branch-ci-Azure-ARO-HCP-main-e2e-integration-e2e-parallel-all` |
+| STG | `stage-e2e` | `72f988bf-86f1-41af-91ab-2d7cd011db47` (Microsoft) | `branch-ci-Azure-ARO-HCP-main-e2e-stage-e2e-parallel-all` |
 | PROD | `prod-e2e` | `72f988bf-86f1-41af-91ab-2d7cd011db47` (Microsoft) | `branch-ci-Azure-ARO-HCP-main-e2e-prod-e2e-parallel` |
 
 `int-e2e` and `stage-e2e` pin `REGION=uksouth`; `prod-e2e` requires `REGION` to be supplied. All three set `CLOUD=public` and `GATE_PROMOTION=true`.
@@ -72,7 +72,7 @@ Only needed when retrying a rollout gate. Find the Prow run EV2 triggered. EV2-t
 
 ```bash
 curl -s "https://prow.ci.openshift.org/prowjobs.js?omit=decoration_config,pod_spec" \
-  | jq -r '.items[] | select(.spec.job=="branch-ci-Azure-ARO-HCP-main-e2e-integration-e2e-parallel")
+  | jq -r '.items[] | select(.spec.job=="branch-ci-Azure-ARO-HCP-main-e2e-integration-e2e-parallel-all")
            | {state:          .status.state,
               base_sha:       .spec.refs.base_sha,
               region:         .metadata.annotations["ev2.rollout/region"],

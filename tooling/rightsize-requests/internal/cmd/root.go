@@ -89,7 +89,7 @@ scoped to the Azure Managed Grafana service application.`,
 	cmd.Flags().StringVar(&opts.DatasourcePattern, "datasource-pattern", "^services-", "regexp; only query datasources whose uid matches. Defaults to prod services clusters; hcps-* control-plane datasources are excluded.")
 	cmd.Flags().BoolVar(&opts.DryRun, "dry-run", false, "report proposed changes without editing config.yaml")
 	cmd.Flags().BoolVar(&opts.Commit, "commit", false, "git-commit the edited file (with a summary + Grafana Explore links) after writing")
-	cmd.Flags().StringVar(&opts.RenderCmd, "render-cmd", "", "shell command to regenerate rendered configs, run in the write repo root before committing (e.g. 'make -C hcp/ render-service-configuration-examples'); its output is folded into the commit")
+	cmd.Flags().StringVar(&opts.RenderCmd, "render-cmd", "", "shell command to regenerate rendered configs, run in the write repo root before committing (e.g. 'make -C config materialize'); its output is folded into the commit")
 	cmd.Flags().BoolVar(&opts.AllowDecrease, "allow-decrease", false, "also lower requests that are more than 2x the observed peak")
 
 	_ = cmd.MarkFlagRequired("grafana-url")

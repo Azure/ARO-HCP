@@ -40,14 +40,11 @@ the discovery chain for resolving correlation IDs into the magic strings
 - `frontendLogs` is the entry point for tracing a request (use `client_request_id` or `correlation_request_id`).
 - `backendLogs` links to `frontendLogs` via `correlation_request_id` and contains state dumps from controllers.
 - **Kubernetes events**: `database('ServiceLogs').table('kubernetesEvents')` — scope `cluster`, `eventNamespace`,
-  `objectName`, `reason`. Snapshot `controlPlaneEvents` / `hypershift/events` use this table. See
-  [kubernetes-events.md](../../tooling/hcpctl/pkg/agent/prompts/exemplars/kubernetes-events.md).
+  `objectName`, `reason`. Snapshot `controlPlaneEvents` / `hypershift/events` use this table.
 - `containerLogs` is filtered by `namespace_name` and `container_name` to isolate maestro/hypershift logs.
 - **mgmt-agent** (`container_name == 'mgmt-agent-controller'`, Service database, management `cluster`):
   `log.msg == 'resource event'` — CR add/update/delete with full `log.object` (Hypershift, ACM, CAPI,
   `multitenancy.acn.azure.com`, …). `log.msg == 'pod event'` — pod lifecycle with full Pod in `log.object`.
-  Write ad-hoc scoped queries; do not expect these in the snapshot dump. See
-  [mgmt-agent-event-logs.md](../../tooling/hcpctl/pkg/agent/prompts/exemplars/mgmt-agent-event-logs.md).
 - Maestro bundle tracking joins `containerLogs` + `backendLogs`/`clustersServiceLogs` via bundle ID extraction.
 - Hosted cluster namespaces on management clusters take the form `ocm-arohcp<env>-<cid>-<id>`, where `cid` is the Clusters Service internal cluster ID (an opaque hash like `2iig1flm0pfjr9h8kkg6ggbjig1p3fpa`). Use `| distinct pod_name, container_name` within such a namespace to enumerate available pods/containers.
 - Use `| where namespace_name !contains 'ocm-arohcp'` against `database('HostedControlPlaneLogs').table('containerLogs')` to review management-cluster-level components.

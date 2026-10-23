@@ -95,6 +95,25 @@ ARO HCP CI is split across this repository and the OpenShift CI configuration in
 - [Lease Configuration](identity-leasing.md#lease-configuration)
 - [Where To Look](identity-leasing.md#where-to-look)
 
+### [Infrastructure Identity Leasing](infrastructure-identity-leasing.md)
+
+- Infrastructure-identity pool asset model and lease lifecycle
+- `LEASED_INFRASTRUCTURE_IDENTITY_BUNDLE` runtime contract
+- Managing and validating the infrastructure identity pools
+
+### [AMW Platform Observability](amw-platform-observability.md)
+
+- Rendering and publishing Azure Monitor Workspace metrics for CI
+
+### [External Subscription Onboarding](external-subscription-onboarding.md)
+
+- Onboarding externally-owned E2E subscriptions
+- Mock identity and CI bot provisioning for external subscriptions
+
+### [System-Pool-Only AKS Nodes](system-pool-only.md)
+
+- Which environments run system-pool-only AKS node pools and how it is configured
+
 ### [DEV CI Monitoring and Alert Response](dev-ci-monitoring.md)
 
 - [At A Glance](dev-ci-monitoring.md#at-a-glance)

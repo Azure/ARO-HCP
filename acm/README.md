@@ -4,7 +4,7 @@ This folder contains helm charts and automation to managed helm charts for the A
 
 ## Structure
 
-Installation and configuration are split into three individual helm charts
+Installation and configuration are split into four individual helm charts
 
 * *multicluster-engine-crds:* manages the MCE CRDs
 * *multicluster-engine:* manages the MCE operator
@@ -13,7 +13,7 @@ Installation and configuration are split into three individual helm charts
 
 ## Updating charts
 
-To update the MCE and policy charts, change the `acm.mce.bundle` and `acm.operator.bundle` digests in `config/config.yaml` and run `make helm-charts`. Commit the resulting chart changes.
+To update the MCE and policy charts, change the `acm.mce.bundle` and `acm.operator.bundle` digests in `config/config.yaml` and run `make -C acm helm-charts`. Commit the resulting chart changes.
 
 The ACM version is automatically extracted from the ACM operator bundle image at build time. The version is used to:
 - Clone the appropriate upstream branch (`release-x.y`)

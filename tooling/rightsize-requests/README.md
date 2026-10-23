@@ -98,7 +98,7 @@ rightsize-requests \
   --write-config /path/to/config.msft.sensitive.clouds-overlay.yaml \
   --write-prefix clouds.public.defaults \
   --window 14d --limit-multiple 2 \
-  --render-cmd 'make -C hcp/ render-service-configuration-examples' \
+  --render-cmd 'make -C config materialize' \
   --commit
 ```
 

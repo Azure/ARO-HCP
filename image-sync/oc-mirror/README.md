@@ -7,7 +7,7 @@ This tool packages oc-mirror and all dependencies to mirror OCP artifacts and op
 To build a container image and push it to the service ACR, run
 
 ```bash
-make build-push
+make build-and-push
 ```
 
 ## Production deployment

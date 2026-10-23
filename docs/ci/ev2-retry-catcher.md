@@ -2,9 +2,9 @@
 
 This document describes the design behind automatically retrying an EV2 gating E2E run when it fails on a small, deliberately labeled set of known-issue tests.
 
-> **Status (as of 2026-08-06):** the code referenced below (`labels.AllowRetry`, `registerEV2RetryCatcher`, `writeEV2RetryMetadata`, and the ARO-Tools `prowjob` changes) is not yet merged to `main`. It lives in the implementation PRs linked in [Where to look](#where-to-look). This doc describes the design those PRs implement.
+> **Status:** the retry mechanism described here is implemented and merged to `main`: `labels.AllowRetry` (`test/util/labels/labels.go`), `registerEV2RetryCatcher`/`writeEV2RetryMetadata` (`test/cmd/aro-hcp-tests/ev2_reporting.go`), the `automatedRetry` wiring in `test/e2e-pipeline.yaml`, and the ARO-Tools `prow-job-executor` changes.
 >
-> The retry mechanism itself changed after the first round of this design: rather than `prow-job-executor` resubmitting the job internally through Gangway, it now fails with a distinctly matchable error and lets EV2's own `automatedRetry` step property redrive the whole gating step. See [Consuming the signal](#3-consuming-the-signal-aro-tools) and [Retrying via EV2's automatedRetry](#4-retrying-via-ev2s-automatedretry-sdp-pipelines--aro-hcp) below.
+> Note that the retry mechanism changed after the first round of this design: rather than `prow-job-executor` resubmitting the job internally through Gangway, it fails with a distinctly matchable error and lets EV2's own `automatedRetry` step property redrive the whole gating step. See [Consuming the signal](#3-consuming-the-signal-aro-tools) and [Retrying via EV2's automatedRetry](#4-retrying-via-ev2s-automatedretry-sdp-pipelines--aro-hcp) below.
 
 ## Problem
 

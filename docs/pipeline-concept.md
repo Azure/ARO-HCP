@@ -345,7 +345,7 @@ Developers and SREs deploy their personal development ARO HCP instances using Ma
 
 In addition, some shared ARO HCP instances are continuously reconciled on each change in the ARO-HCP repository using [CI execution](ci/execution.md). These jobs leverage the same Makefile targets and the same pipeline executor as developers and SREs.
 
-The custom pipeline runner can be found in [tooling/templatize](tooling/templatize).
+The custom pipeline runner can be found in [tooling/templatize](../tooling/templatize).
 
 To manually run a pipeline you can use the `make pipeline/` targets, e.g. to deploy `Microsoft.Azure.ARO.HCP.Maestro.Agent` with the `pers` environment architetype in the `dev` cloud (which is basically `public` cloud - see [configuration documentation](configuration.md)), run
 

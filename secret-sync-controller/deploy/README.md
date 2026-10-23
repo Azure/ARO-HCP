@@ -1,30 +1,30 @@
 # Deploying the Secrets Store Sync Controller
-You can deploy the Secrets Store Sync Controller with Helm using following command:
-```sh
-helm install -f values <path_to_values.yaml> secrets-store-sync-controller charts/secrets-store-sync-controller
-```
+
+This chart deploys the Secrets Store Sync Controller for this repository's
+Azure environment. The chart lives in this directory (`deploy/`) and its
+values are in `values-azure.yaml` — the image, ACR, and digests are rendered
+from the cluster configuration (`config/config.yaml`,
+`secretSyncController.image.*`) via the standard config-materialization flow
+(`make -C config materialize`), so the controller image is pinned by digest
+from the service ACR rather than by an upstream tag.
+
+Deploy (or update) via the standard service pipeline — see
+[docs/service-deployment-concept.md](../../docs/service-deployment-concept.md)
+and the root `Makefile` `pipeline/` targets.
 
 ## Configuration and Parameters
-You can customize the installation by modifying values in the `values.yaml` file or by passing parameters to the helm install command using the `--set key=value[,key=value]` argument.
+
+Values are customized in `values-azure.yaml` (or per-environment rendered
+config). Notable keys:
 
 | Parameter Name                                   | Description                                                                                       | Default Value                                                                                                                                                                         |
 |--------------------------------------------------|---------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `providerContainer`                              | The container for the Secrets Store Sync Controller.                                              | `[- name: provider-aws-installer ...]`                                                                                                                                                |
+| `providerContainer`                              | The CSI provider installer container.                                                             | `provider-azure-installer` (Azure CSI provider)                                                                                                                                       |
 | `controllerName`                                 | The name of the Secrets Store Sync Controller.                                                    | `secrets-store-sync-controller-manager`                                                                                                                                               |
-| `tokenRequestAudience`                           | The audience for the token request.                                                               | `[]`                                                                                                                                                                                  |
-| `logVerbosity`                                   | The log level.                                                                                    | `5`                                                                                                                                                                                   |
 | `validatingAdmissionPolicies.applyPolicies`      | Determines whether the Secrets Store Sync Controller should apply policies.                       | `true`                                                                                                                                                                                |
 | `validatingAdmissionPolicies.allowedSecretTypes` | The types of secrets that the Secrets Store Sync Controller should allow.                         | `["Opaque", "kubernetes.io/basic-auth", "bootstrap.kubernetes.io/token", "kubernetes.io/dockerconfigjson", "kubernetes.io/dockercfg", "kubernetes.io/ssh-auth", "kubernetes.io/tls"]` |
 | `validatingAdmissionPolicies.deniedSecretTypes`  | The types of secrets that the Secrets Store Sync Controller should deny.                          | `["kubernetes.io/service-account-token"]`                                                                                                                                             |
-| `image.repository`                               | The image repository of the Secrets Store Sync Controller.                                        | `registry.k8s.io/secrets-store-sync/controller`                                                                                                                                       |
-| `image.pullPolicy`                               | Image pull policy.                                                                                | `IfNotPresent`                                                                                                                                                                        |
-| `image.tag`                                      | The specific image tag to use. Overrides the image tag whose default is the chart's `appVersion`. | `v0.0.1`                                                                                                                                                                              |
-| `securityContext`                                | Security context for the Secrets Store Sync Controller.                                           | `{ allowPrivilegeEscalation: false, capabilities: { drop: [ALL] } }`                                                                                                                  |
-| `resources`                                      | The resource request/limits for the Secrets Store Sync Controller image.                          | `limits: 500m CPU, 128Mi; requests: 10m CPU, 64Mi`                                                                                                                                    |
-| `podAnnotations`                                 | Annotations to be added to pods.                                                                  | `{ kubectl.kubernetes.io/default-container: "manager" }`                                                                                                                              |
-| `podLabels`                                      | Labels to be added to pods.                                                                       | `{ control-plane: "controller-manager", secrets-store.io/system: "true", app: "secrets-store-sync-controller" }`                                                                      |
-| `nodeSelector`                                   | Node labels for pod assignment.                                                                   | `{}`                                                                                                                                                                                  |
-| `tolerations`                                    | Tolerations for pod assignment.                                                                   | `[{ operator: "Exists" }]`                                                                                                                                                            |
+| `image`                                          | Controller image — a single templated string in `values-azure.yaml`; `repository` and `digest` come from `secretSyncController.image.*` in the rendered config, pinned by digest from the service ACR. | (rendered from config) |                                                                                                                                                                |
 
-
-These parameters offer flexibility in configuring and deploying the Secrets Store Sync Controller according to specific requirements in your Kubernetes environment. Remember to replace values appropriately or use the `--set` flag when installing the chart via Helm.
+See [docs/secret-sync.md](../../docs/secret-sync.md) for the end-to-end
+secret synchronization flow and the tooling in `tooling/secret-sync/`.

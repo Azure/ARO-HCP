@@ -32,7 +32,7 @@ in config** — they are resolved at deployment time via Microsoft Graph lookup
 | `aro-dev-msi-mock-pool-<i>` (pool) | Same as miMock, one per Boskos lease | Same as miMock |
 
 Clusters Service consumes them via its deployment arguments
-(`cluster-service/helm-charts/cluster-service/templates/deployment.yaml`):
+(`cluster-service/deploy/templates/deployment.yaml`):
 `azureFirstPartyApplicationClientId`, `azureArmHelperIdentityClientId` +
 `azureArmHelperMockFpaPrincipalId`, and `azureMiMockServicePrincipal*`.
 
@@ -276,7 +276,7 @@ the privileged pipeline is run.
   privileged pipeline that deploys the templates above
 - `backend/pkg/azure/client/hardcoded_identity_mi_dataplane_client.go` — the mock MSI
 - `internal/azure/cluster_scoped_identities_config.go` — product operator-role mapping
-- `cluster-service/helm-charts/cluster-service/templates/deployment.yaml` — how CS
+- `cluster-service/deploy/templates/deployment.yaml` — how CS
   consumes the mock identities
 
 ## See Also

@@ -46,7 +46,7 @@ For the reference, the API definition of ARO-RP is here https://github.com/Azure
 The tsp generation is setup to generate the right project structure for the azure-rest-api-specs. The
 repository structure for typespecs projects is explained here https://github.com/Azure/azure-rest-api-specs/blob/main/documentation/typespec-structure-guidelines.md.
 
-The folder structure matches the upstream `azure-rest-api-specs` repository layout. The typespec service definition is stored in `redhatopenshift/resource-manager/Microsoft.RedHatOpenShift/hcpopenshiftclusters/`. TypeSpec source examples are in `examples/<version>/` (configured via `examples-dir` in `tspconfig.yaml`). The generated OpenAPI specs are placed in `preview/<version>/` subdirectories, and they reference emitted examples in `preview/<version>/examples/`. To allow proper swagger inspection, the `common-types` are copied from the `azure-rest-api-specs/specification` repository, without these the swagger preview would not work properly.
+The folder structure matches the upstream `azure-rest-api-specs` repository layout. The typespec service definition is stored in `redhatopenshift/resource-manager/Microsoft.RedHatOpenShift/hcpopenshiftclusters/`. TypeSpec source examples are in `examples/<version>/` (configured via `examples-dir` in `tspconfig.yaml`). The generated OpenAPI specs are placed in `preview/<version>/` and `stable/<version>/` subdirectories, and they reference emitted examples in the matching `<tier>/<version>/examples/` directory. To allow proper swagger inspection, the `common-types` are copied from the `azure-rest-api-specs/specification` repository, without these the swagger preview would not work properly.
 
 
 ## How to use typespec
@@ -56,12 +56,6 @@ To do so, open terminal, switch to the `api` directory and run:
 
 ```bash
 tsp compile redhatopenshift/resource-manager/Microsoft.RedHatOpenShift/hcpopenshiftclusters --warn-as-error
-```
-
-Or use the npm script:
-
-```bash
-npm run compile
 ```
 
 Or you can use the submitted build task, that does exactly the same. The default shortcut is `Ctrl+Shift+B` or `Cmd+Shift+B`.
@@ -85,10 +79,10 @@ The API client can be generated using the [autorest](https://github.com/Azure/au
 the devcontainer comes with the autorest installed. The usage is straightforward:
 
 ```bash
-autorest api/readme.md --tag=v20260630preview
+autorest redhatopenshift/resource-manager/Microsoft.RedHatOpenShift/hcpopenshiftclusters/readme.md --tag=package-2026-06-30-preview
 ```
 
-The autorest configuration is in the top-level `readme.md` file, which defines tags for each API version.
+The autorest configuration is in the `hcpopenshiftclusters/readme.md` file, which defines tags for each API version.
 
 **IMPORTANT**: When the new examples are generated, all files are changed. Please make sure to review the changes before committing them
 and commit only the changed parts. Otherwise it will result is a lot of unnecessary changes in the PR.

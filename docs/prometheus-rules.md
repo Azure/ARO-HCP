@@ -73,16 +73,14 @@ tests:
 
 ## Dev notifications
 
-In non MSFT environments (e.g. personal dev) you can add e-mail alerts by adding your email to the `devAlertingEmails` key.
+> **Note:** the `monitoring.devAlertingEmails` configuration key this section
+> previously described has been removed from `config/config.yaml` and its
+> schema. There is currently no repo-managed e-mail notification mechanism
+> for non-MSFT environments; alerts fire in Prometheus/Azure Monitor only.
 
-Example:
-
-```yaml
-monitoring:
-  devAlertingEmails: "aro-hcp-service-lifecycle-team@redhat.com,user@redhat.com"
-```
-
-Simply add an e-mail address by append the comma separated string.  
+The steps below apply to **MSFT environments only**, where dev notifications are
+delivered via Azure Monitor action groups rather than repo-managed e-mail
+configuration.
 
 Be aware when using google groups, they need to be configured to accept emails from outside of the organization.
 

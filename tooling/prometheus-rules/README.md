@@ -37,15 +37,21 @@ make
 make run
 
 # Generate all alerts or all recording rules
-make alerts          # All 4 alert configs
+make alerts          # All 11 alert configs
 make recording-rules # Both recording-rules configs
 
-# Generate individually
+# Generate individually (full list defined in the Makefile)
 make run-sl-services              # Alerting rules: SL queue, services datasource
+make run-sl-hcps                  # Alerting rules: SL queue, HCPs datasource
 make run-sre-hcps                 # Alerting rules: SRE queue, HCPs datasource
+make run-sre-services             # Alerting rules: SRE queue, services datasource
 make run-rp-services              # Alerting rules: RP queue, services datasource
 make run-rp-hcps                  # Alerting rules: RP queue, HCPs datasource
 make run-msft-services            # Alerting rules: MSFT queue, services datasource
+make run-kusto-services           # Alerting rules: Kusto queue, services datasource
+make run-kusto-hcps               # Alerting rules: Kusto queue, HCPs datasource
+make run-dev-services             # Alerting rules: DEV queue, services datasource
+make run-dev-hcps                 # Alerting rules: DEV queue, HCPs datasource
 make run-recording-rules-services # Recording rules: services datasource
 make run-recording-rules-hcps    # Recording rules: HCPs datasource
 
@@ -58,7 +64,9 @@ Note: `run`, `alerts`, and `recording-rules` automatically run `fmt-devinfra` af
 ### Command-line Options
 
 - `--config-file` (required): Path to configuration YAML file
-- `--force-info-severity`: Override all alert severities to "info" level (useful for testing)
+- `--correlation-map`: output a YAML correlation map instead of generating Bicep (boolean flag)
+- `--promtool-path`: path to the `promtool` binary
+- `--preserve-aggregation-labels`: comma-separated labels that must survive every aggregation in a rule's PromQL (default `region`)
 
 ## Configuration
 

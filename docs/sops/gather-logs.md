@@ -8,7 +8,7 @@ The must-gather commands are designed to collect and process diagnostic data fro
 
 ## Commands
 
-### 0. query
+### 0. Supported Kusto instances
 
 The `query` command is supported in the Kusto instances owned by SLSRE. See this Link for an up to date list of clusters and URLs:  [hcp/components-and-architecture/kusto](https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/components-and-architecture/kusto)
 

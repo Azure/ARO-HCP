@@ -40,35 +40,35 @@ curl -X PUT "localhost:8443/subscriptions/00000000-0000-0000-0000-000000000000?a
 
 List the Operations for the Provider
 ```bash
-curl -X GET "localhost:8443/providers/Microsoft.RedHatOpenShift/operations?api-version=2024-06-10-preview"
+curl -X GET "localhost:8443/providers/Microsoft.RedHatOpenShift/operations?api-version=2026-10-01"
 ```
 
 List HcpOpenShiftVersions Resources by Location
 
 ```bash
-curl -X GET "localhost:8443/subscriptions/00000000-0000-0000-0000-000000000000/providers/Microsoft.RedHatOpenShift/locations/westus3/hcpOpenShiftVersions?api-version=2024-06-10-preview"
+curl -X GET "localhost:8443/subscriptions/00000000-0000-0000-0000-000000000000/providers/Microsoft.RedHatOpenShift/locations/westus3/hcpOpenShiftVersions?api-version=2026-10-01"
 ```
 
 Get HcpOpenshiftVersion Resource
 
 ```bash
-curl -X GET "localhost:8443/subscriptions/00000000-0000-0000-0000-000000000000/providers/Microsoft.RedHatOpenShift/locations/westus3/hcpOpenShiftVersions/4.19.7?api-version=2024-06-10-preview"
+curl -X GET "localhost:8443/subscriptions/00000000-0000-0000-0000-000000000000/providers/Microsoft.RedHatOpenShift/locations/westus3/hcpOpenShiftVersions/4.19.7?api-version=2026-10-01"
 ```
 
 List HcpOpenShiftClusterResource Resources by Subscription ID
 ```bash
-curl -X GET "localhost:8443/subscriptions/00000000-0000-0000-0000-000000000000/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters?api-version=2024-06-10-preview"
+curl -X GET "localhost:8443/subscriptions/00000000-0000-0000-0000-000000000000/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters?api-version=2026-10-01"
 ```
 
 Get a HcpOpenShiftClusterResource
 ```bash
-curl -X GET "localhost:8443/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/dev-test-cluster?api-version=2024-06-10-preview"
+curl -X GET "localhost:8443/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/dev-test-cluster?api-version=2026-10-01"
 ```
 
 Create or Update a HcpOpenShiftClusterResource
 
 ```bash
-curl -X PUT "localhost:8443/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/dev-test-cluster?api-version=2024-06-10-preview" \
+curl -X PUT "localhost:8443/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/dev-test-cluster?api-version=2026-10-01" \
   -H "X-Ms-Arm-Resource-System-Data: {\"createdBy\": \"aro-hcp-local-testing\", \"createdByType\": \"User\", \"createdAt\": \"2024-06-06T19:26:56+00:00\"}" \
   -H "X-Ms-Identity-Url: https://dummyhost.identity.azure.net" \
   --json @cluster.json
@@ -79,7 +79,7 @@ with the Frontend is required. However, for the environments where a real manage
 
 Delete a HcpOpenShiftClusterResource
 ```bash
-curl -X DELETE "localhost:8443/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/dev-test-cluster?api-version=2024-06-10-preview"
+curl -X DELETE "localhost:8443/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/dev-test-cluster?api-version=2026-10-01"
 ```
 
 Execute deployment preflight checks
@@ -91,34 +91,34 @@ Node pool operations:
 
 Create node pool
 ```bash
-curl -X PUT "localhost:8443/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/dev-test-cluster/nodePools/dev-nodepool?api-version=2024-06-10-preview" \
+curl -X PUT "localhost:8443/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/dev-test-cluster/nodePools/dev-nodepool?api-version=2026-10-01" \
   -H "X-Ms-Arm-Resource-System-Data: {\"createdBy\": \"aro-hcp-local-testing\", \"createdByType\": \"User\", \"createdAt\": \"2024-06-06T19:26:56+00:00\"}" --json @node_pool.json
 ```
 
 Get node pool
 ```bash
-curl "localhost:8443/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/dev-test-cluster/nodePools/dev-nodepool?api-version=2024-06-10-preview"
+curl "localhost:8443/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/dev-test-cluster/nodePools/dev-nodepool?api-version=2026-10-01"
 ```
 
 Delete node pool
 ```bash
-curl -X DELETE "localhost:8443/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/dev-test-cluster/nodePools/dev-nodepool?api-version=2024-06-10-preview"
+curl -X DELETE "localhost:8443/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/dev-test-cluster/nodePools/dev-nodepool?api-version=2026-10-01"
 ```
 
 External Auth operations:
 
 Create external auth
 ```bash
-curl -X PUT "localhost:8443/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/dev-test-cluster/externalAuths/entra?api-version=2024-06-10-preview" \
+curl -X PUT "localhost:8443/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/dev-test-cluster/externalAuths/entra?api-version=2026-10-01" \
   -H "X-Ms-Arm-Resource-System-Data: {\"createdBy\": \"aro-hcp-local-testing\", \"createdByType\": \"User\", \"createdAt\": \"2024-06-06T19:26:56+00:00\"}" --json @external_auth.json
 ```
 
 Get external auth
 ```bash
-curl "localhost:8443/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/dev-test-cluster/externalAuths/entra?api-version=2024-06-10-preview"
+curl "localhost:8443/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/dev-test-cluster/externalAuths/entra?api-version=2026-10-01"
 ```
 
 Delete external auth
 ```bash
-curl -X DELETE "localhost:8443/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/dev-test-cluster/externalAuths/entra?api-version=2024-06-10-preview"
+curl -X DELETE "localhost:8443/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/dev-test-cluster/externalAuths/entra?api-version=2026-10-01"
 ```

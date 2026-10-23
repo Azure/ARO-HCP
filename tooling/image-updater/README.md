@@ -592,11 +592,11 @@ Use `-v=2` for debugging auth issues, tag filtering, or network failures.
 
 ### Automatic Retry
 
-- **Initial Interval**: 500ms
-- **Max Interval**: 60s
-- **Max Elapsed Time**: 5 minutes
+- **Initial Interval**: 1s
+- **Max Interval**: 30s
+- **Max Elapsed Time**: 2 minutes
 - **Multiplier**: 2.0 (exponential backoff)
-- **Randomization**: 0.1 (jitter)
+- **Randomization**: 0.5 (jitter)
 
 Retries on:
 - Network errors

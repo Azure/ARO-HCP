@@ -10,16 +10,26 @@ Likely - you want to prefer `./util` over direct calls to `./graphsdk`, but I'll
 - **`./util`** - helper functions, the prefered API for Microsoft Graph calls (with distinct files per openapi spec path in the official SDK)
     - **`client.go`** - Core client with authentication and common utilities
     - **`applications.go`** - Application management operations (create, read, update, delete, password management)
+    - **`serviceprincipal.go`** - Service principal operations
+    - **`directory_objects.go`** - Directory object operations
+    - **`graph_retry_handler.go`** - Retry policy for Graph API calls
 
 ## Usage
 
 Again, always prefer `./util` to `./graphsdk`:
 
 ```go
-import graph "github.com/Azure/ARO-HCP/internal/graph/util"
+import (
+    "github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+    graph "github.com/Azure/ARO-HCP/internal/graph/util"
+)
 
-// Create client with automatic authentication
-graphClient, err := graph.NewClient(ctx)
+// Create client with the given credential (e.g. azidentity.NewDefaultAzureCredential(nil))
+cred, err := azidentity.NewDefaultAzureCredential(nil)
+if err != nil {
+    return err
+}
+graphClient, err := graph.NewClient(ctx, cred)
 if err != nil {
     return err
 }

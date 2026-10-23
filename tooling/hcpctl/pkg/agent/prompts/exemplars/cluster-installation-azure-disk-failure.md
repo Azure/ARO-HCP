@@ -114,7 +114,7 @@ The RP frontend returns whatever state is current at the time of polling, and th
 status based on Clusters Service state; the RP backend had no processing errors, but Clusters Service never moved the
 cluster past the `'installing'` phase.
 
-#### Proof 1: Code Snippet: ARO-HCP/backend/pkg/controllers/operationcontrollers/operation_cluster_create.go (lines 140-155)
+#### Proof 1: Code Snippet: ARO-HCP/backend/pkg/controllers/cluster/operations/operation_cluster_create.go (lines 140-155)
 
 The RP backend simply computes cluster status based on what Clusters Service returns.
 

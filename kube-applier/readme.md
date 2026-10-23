@@ -2,7 +2,7 @@
 `kube-applier` is a binary that runs in a management cluster and uses the in-cluster kubeconfig and
 connection information for a cosmos container.
 
-It reads content from cosmos that use the APIs from `internal/api/kubeapplier` to decide what actions to take.
+It reads content from cosmos that use the APIs from `internal/api/kubeapplierapi` to decide what actions to take.
 At a high level:
 1. `ApplyDesire` is a discriminated union with a `.spec.type` field that selects the operation:
    - When `Type=ServerSideApply`: indicates a kube manifest in `.spec.serverSideApply.kubeContent` to issue a server-side-apply for.
@@ -27,7 +27,7 @@ We'll probably actually use a larger burst and smaller QPS, but it's an easy sca
 The scale of a region is larger, but is handled by cosmos so it will scale far beyond our needs.
 
 ## API structure
-The API types for this live in `internal/api/kubeapplier`.
+The API types for this live in `internal/api/kubeapplierapi`.
 
 Every `*Desire` API interacts with a single kubernetes resource instance.
 Lists, label selection, and list all are not supported.
@@ -81,12 +81,12 @@ through. Item IDs still nest cleanly into our existing resourceID structure, so
 queries like "every *Desire under this Cluster" remain a prefix scan.
 
 ### Golang type details for Database
-The golang types live in `internal/database`.
+The golang types live in `internal/database/cosmosstorage/kubeappliercosmosstorage`.
 
 `KubeApplierDBClient` is the per-container handle. It carries an open Cosmos container
 client plus the management cluster's partition-key value, and exposes:
-- `ApplyDesires(parent) ResourceCRUD[ApplyDesire]`
-- `ReadDesires(parent) ResourceCRUD[ReadDesire]`
+- `ApplyDesiresFor(parent DesireScope)` and the per-level accessors (e.g. `ApplyDesiresForCluster`)
+- `ReadDesiresFor(parent DesireScope)` and the per-level accessors
 - `Listers()` — per-container cross-type listers for feeding informers.
 - `UntypedCRUD(parentResourceID)` — TypedDocument prefix walk for cross-cutting cleanup.
 
@@ -101,9 +101,10 @@ The kube-applier sidecar binary opens exactly one container — its own — via 
 standalone `NewKubeApplierDBClient(container, managementClusterPartitionKey)`.
 It has no need for the plural registry.
 
-The `internal/database/informers`, `internal/database/listers`, and
-`internal/database/listertesting` packages provide the informers and listers for the
-`*Desire` APIs.
+The `internal/database/informers/kubeapplierinformers`,
+`internal/database/listers/kubeapplierlisters`, and
+`internal/database/listertesting/kubeapplierlistertesting` packages provide the
+informers and listers for the `*Desire` APIs.
 
 ## Controller structure
 The `kube-applier` binary is controller-based with many controllers structured similarly to the `backend` binary.
@@ -188,12 +189,12 @@ solve this case-by-case rather than baking adoption logic into the kube-applier.
 
 ## Testing
 Unit tests use the https://github.com/openshift/library-go/tree/master/pkg/manifestclient library to create fake kubernetes clients
-and the `internal/databasetesting` and `internal/database/listertesting` packages to create fake `KubeApplier` clients.
+and the `internal/database/cosmosstoragetesting/kubeappliercosmosstoragetesting` and `internal/database/listertesting/kubeapplierlistertesting` packages to create fake `KubeApplier` clients.
 
 Integration tests use [envtest](https://book.kubebuilder.io/reference/envtest.html)
 (via `sigs.k8s.io/controller-runtime`) to bring up a real `kube-apiserver` +
 `etcd` in-process, paired with the same fake `KubeApplier` clients from
-`internal/databasetesting` and `internal/database/listertesting`. envtest
+`internal/database/cosmosstoragetesting/kubeappliercosmosstoragetesting` and `internal/database/listertesting/kubeapplierlistertesting`. envtest
 gives us the actual SSA conflict and admission semantics that a fake client
 cannot reproduce, without the Docker dependency a `kind`-based suite would
 need. See `test-integration/kube-applier/README.md` for setup.

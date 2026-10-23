@@ -1,5 +1,7 @@
 # 03 &mdash; Database wiring (`internal/database`)
 
+> **Historical design document.** This was written before the source reorganization; file paths reference the pre-reorg tree (e.g. `internal/api/kubeapplier` → `internal/api/kubeapplierapi`, `internal/database/kubeappliercosmosstorage/…` → `internal/database/cosmosstorage/kubeappliercosmosstorage/…`, informers/listers landed as `kubeapplierinformers`/`kubeapplierlisters` subpackages). See `../readme.md` for the current state of the code.
+
 ## Goals
 
 1. Give each management cluster its **own** Cosmos container. A kube-applier

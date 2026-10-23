@@ -44,7 +44,7 @@ clustersService:
   ...
   image:
     registry: "quay.io"
-    repository: "app-sre/uhc-clusters-service"
+    repository: "app-sre/aro-hcp-clusters-service"
     digest: "sha256:xyz"
 ```
 

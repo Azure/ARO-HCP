@@ -60,7 +60,8 @@
 - **Definition:**: Service that orchestrates the creation and day two management of managed OpenShift clusters
 - **Abbreviation**: CS
 - **References**:
-  - [Source](https://gitlab.cee.redhat.com/service/uhc-clusters-service/)
+  - [Source (upstream)](https://gitlab.cee.redhat.com/service/uhc-clusters-service/)
+  - [Deployment configuration (in this repo)](../cluster-service/)
 
 ### Maestro
 

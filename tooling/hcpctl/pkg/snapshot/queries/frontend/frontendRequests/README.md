@@ -10,4 +10,4 @@ Pay close attention to mutating calls, as these expose the most important action
 
 ## Where to Go Next
 
-For each request, review `logs/frontend/asyncOperationRequests.md` to confirm that clients waited correctly on operation state; view `state/backend/resourceState.md` in the resource directory to dig into the next layer of the stack.
+For each request, review `logs/frontend/asyncOperationRequests.md` in the request directory to confirm that clients waited correctly on operation state; view `state/backend/resourceState.md` in the resource directory to dig into the next layer of the stack.

@@ -203,7 +203,7 @@ When writing E2E test cases that use a **per-run cluster** (i.e., the cluster is
 - **Setup Requirement (Test Case Structure):** These tests require the e2esetup models to be populated. This can be achieved by either:
   - Setting the `FALLBACK_TO_BICEP` environment variable to the name of a Bicep file to be used for populating e2esetup models, **or**
   - Setting the `SETUP_FILEPATH` environment variable to the path of a valid `e2e-setup.json` file describing your cluster and environment.
-- **Label Recommendation:** You **SHOULD NOT** add the `RequireNothing` label to these test cases; instead of `RequireNothing` use `RequireHappyPath`, or other labels that indicate the test's requirements (e.g. `Create-Cluster`, `Setup-Validation`, `Teardown Validation`, etc.) so the test runner can select appropriate tests based on the environment and setup.
+- **Label Recommendation:** You **SHOULD NOT** add the `RequireNothing` label to these test cases; instead of `RequireNothing` use `RequireHappyPathInfra`, or other labels that indicate the test's requirements (e.g. `Create-Cluster`, `Setup-Validation`, `Teardown Validation`, etc.) so the test runner can select appropriate tests based on the environment and setup.
 
 For more details on the setup file and fallback logic, see the [Setup File](#setup-file) and [Fallback to Bicep Setup](#fallback-to-bicep-setup) sections below.
 
@@ -211,7 +211,7 @@ For more details on the setup file and fallback logic, see the [Setup File](#set
 > - The cluster and its resource group will be deleted after running the tests.
 > - Fallback to Bicep setup is only supported when running against the integration or higher environment.
 > - Test case files should be named with the `_test.go` suffix. For example, see [`test/e2e/cluster_list_test.go`](cluster_list_test.go) for a reference.
-> - When using `FALLBACK_TO_BICEP`, you must run the `bicep-build` Makefile rule before running the E2E Test Suite to ensure the Bicep file is properly built and available.
+> - When using `FALLBACK_TO_BICEP`, you must run the `bicep-fixtures` Makefile rule before running the E2E Test Suite to ensure the Bicep file is properly built and available.
 > - If `FALLBACK_TO_BICEP` is set, the `SETUP_FILEPATH` variable must either be unset or set to a non-existent `e2e-setup.json` file. This ensures the test suite will trigger the fallback logic and use the Bicep file for setup.
 
 #### Build Tag (per-run only)
@@ -244,10 +244,10 @@ unset SETUP_FILEPATH  # or: export SETUP_FILEPATH=nonexistent-e2e-setup.json
 3. Build the Bicep file before running tests:
 
 ```bash
-make bicep-build
+make -C test bicep-fixtures
 ```
 
-4. Run test suite with the `RequireHappyPath` label:
+4. Run test suite with the `RequireHappyPathInfra` label:
 
 Run all test cases: `ginkgo --tags E2Etests --label-filter='PreLaunchSetup:HappyPathInfra' ./`
 
@@ -412,7 +412,7 @@ Framework helpers include an API version suffix. See [`test/AGENTS.md`](../AGENT
 | Access cluster | `GetAdminRESTConfigTimeout` | `GetAdminRESTConfigForHCPCluster20240610` |
 | Deletion | `HCPClusterDeletionTimeout` | `DeleteHCPCluster20240610`, `DeleteAllHCPClusters20240610`, inline delete pollers |
 | Deletion | `NodePoolDeletionTimeout` | `DeleteNodePool20240610`, inline node pool delete pollers |
-| Deletion | `ExternalAuthDeletionTimeout` | `DeleteExternalAuth20240610`, inline external auth delete pollers |
+| Deletion | `ExternalAuthDeletionTimeout` | `DeleteExternalAuthAndWait20240610`, inline external auth delete pollers |
 | Update | `UpdateHCPClusterTimeout` | `UpdateHCPCluster20240610` (tags, IDMS, autoscaling PATCH); preview: `UpdateHCPCluster20251223` |
 | Update | `HCPClusterVersionUpgradeTimeout` | Control plane version upgrades (`UpdateHCPCluster20240610`, `Eventually` verifiers) |
 | Update | `NodePoolVersionUpgradeTimeout` | Node pool version upgrades (`UpdateNodePoolAndWait20240610`, `Eventually` verifiers) |
@@ -518,7 +518,7 @@ Labels are located in file [`test/util/labels/labels.go`](https://github.com/Azu
 Test case environments labels:
 
 - `RequireNothing`: This test case creates its own cluster (per-test cluster)
-- `RequireHappyPath`: This test case expects populated e2esetup models (per-run cluster)
+- `RequireHappyPathInfra`: This test case expects populated e2esetup models (per-run cluster)
 
 Importance labels include four levels:
 

@@ -148,7 +148,7 @@ The UUID V5 format provides:
 - Compliance with Cosmos DB key length limits
 - URL-safe characters (no `/` or `|` delimiters)
 
-Implementation: `internal/api/arm/types_cosmosdata.go:ResourceIDStringToCosmosID()`
+Implementation: `internal/api/coreapi/arm_types_cosmosdata.go:ResourceIDStringToCosmosID()`
 
 ## ResourceInstanceEquals (comparison logic)
 
@@ -233,4 +233,4 @@ provider documents they expect rather than relying on frontend side effects.
 - `utils/integrationutils/utils.go` -- test infrastructure setup (mock cosmos, HTTP servers)
 - `utils/integrationutils/kube_mock.go` -- fake Kubernetes clientsets with informer support
 - `utils/integrationutils/cluster_service_mock.go` -- OCM cluster service mock
-- `internal/databasetesting/mock_dbclient.go` -- in-memory cosmos mock
+- `internal/database/cosmosstoragetesting/corecosmosstoragetesting/mock_resources_crud.go` -- in-memory cosmos mock
