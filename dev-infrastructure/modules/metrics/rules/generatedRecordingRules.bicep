@@ -501,3 +501,37 @@ resource arohcpFrontendSloRecordingRules 'Microsoft.AlertsManagement/prometheusR
     ]
   }
 }
+
+resource arohcpWorkloadIdentitySloRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_workload_identity_slo_recording_rules'
+  location: location
+  properties: {
+    scopes: [
+      azureMonitoring
+    ]
+    enabled: true
+    interval: 'PT1M'
+    rules: [
+      {
+        record: 'workload_identity:credential_refresher_expiry_observations:increase1h'
+        expression: 'sum by (cluster, region) (max without (prometheus_replica) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le="+Inf"}[1h])))'
+      }
+      {
+        record: 'workload_identity:credential_refresher_expiry_le30d:increase1h'
+        expression: 'sum by (cluster, region) (max without (prometheus_replica) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^30([.]0)?$"}[1h])))'
+      }
+      {
+        record: 'workload_identity:credential_refresher_expiry_le7d:increase1h'
+        expression: 'sum by (cluster, region) (max without (prometheus_replica) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^7([.]0)?$"}[1h])))'
+      }
+      {
+        record: 'workload_identity:credential_refresher_expiry_le0d:increase1h'
+        expression: 'sum by (cluster, region) (max without (prometheus_replica) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^0([.]0)?$"}[1h])))'
+      }
+      {
+        record: 'workload_identity:credential_expiry:sli_ratio_1h'
+        expression: '1 - (workload_identity:credential_refresher_expiry_le30d:increase1h / (workload_identity:credential_refresher_expiry_observations:increase1h > 0))'
+      }
+    ]
+  }
+}
