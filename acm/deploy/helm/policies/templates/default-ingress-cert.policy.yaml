@@ -55,6 +55,7 @@ spec:
           {{ `{{hub- $ns := .PolicyMetadata.namespace hub}}` }}
           {{ `{{hub- $disableCertificates := fromConfigMap $ns $cfgName "disable-certificates" hub}}` }}
           {{ `{{hub- $eps := fromConfigMap $ns $cfgName "endpoint-publishing-strategy" hub}}` }}
+          {{ `{{hub- $defaultCertName := fromConfigMap $ns $cfgName "default-certificate-name" hub}}` }}
           - complianceType: musthave
             objectDefinition:
               apiVersion: operator.openshift.io/v1
@@ -65,7 +66,7 @@ spec:
               spec:
                 {{ `{{hub- if ne $disableCertificates "true" hub}}` }}
                 defaultCertificate:
-                  name: default-ingress-cert
+                  name: {{ `{{hub if eq $defaultCertName "cluster-ingress-cert" hub}}cluster-ingress-cert{{hub else hub}}default-ingress-cert{{hub end hub}}` }}
                 {{ `{{hub- end hub}}` }}
                 endpointPublishingStrategy:
                   type: LoadBalancerService
