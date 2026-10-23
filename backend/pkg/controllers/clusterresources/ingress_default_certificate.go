@@ -15,11 +15,14 @@
 package clusterresources
 
 import (
+	"encoding/json"
 	"fmt"
 
 	semver "github.com/blang/semver/v4"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 )
 
 const (
@@ -59,31 +62,63 @@ func hccoIngressCertConsumerCovered(version semver.Version) bool {
 	return overriddenVersionsWithHCCOIngressCertConsumer[version.Major][version.Minor]
 }
 
+// selectACMIngressCertificate reports whether the guest IngressController
+// must use the certificate the ACM policy delivers in cluster-ingress-cert.
+// Versions without HCCO coverage - for example 4.23.0-ec.x payloads, which
+// predate the backport of the consumer and have no CPO override yet - fill
+// default-ingress-cert with a CPO-generated root-CA certificate
+// (AROSLSRE-2529), so they select the ACM certificate.
+//
+// The selection is sticky. HCCO never rewrites an existing IngressController,
+// and the backend cannot observe the guest cluster, so moving a guest back to
+// default-ingress-cert after an upgrade has no safe handoff: dropping the
+// legacy wiring would strand the guest on a certificate that is no longer
+// renewed. A missing version leaves the selection unchanged.
+func selectACMIngressCertificate(version *semver.Version, alreadySelected bool) bool {
+	if alreadySelected {
+		return true
+	}
+	return version != nil && !hccoIngressCertConsumerCovered(*version)
+}
+
 // suppressLegacyIngressDesire reports whether the legacy ACM-based ingress
-// certificate wiring desire should be suppressed for the given control plane
-// version. Suppression is only safe when the version's HCCO is known to
-// consume the service-provider ingress certificate delivered by the
-// hypershift-native path; otherwise the guest cluster is left serving the
-// CPO-generated root-CA ingress certificate (AROSLSRE-2529). Versions without
-// coverage - for example 4.23.0-ec.x payloads, which predate the backport of
-// the consumer and have no CPO override yet - keep the legacy ACM wiring.
-func suppressLegacyIngressDesire(desireName string, version *semver.Version) bool {
-	if version == nil || !hccoIngressCertConsumerCovered(*version) {
+// certificate wiring desire should be suppressed. Suppression is only safe
+// when the version's HCCO is known to consume the service-provider ingress
+// certificate delivered by the hypershift-native path and the guest has never
+// been pointed at the ACM-delivered certificate.
+func suppressLegacyIngressDesire(desireName string, version *semver.Version, acmCertificateSelected bool) bool {
+	if acmCertificateSelected || version == nil || !hccoIngressCertConsumerCovered(*version) {
 		return false
 	}
 
 	return legacyACMBasedIngressCertificateWiringDesireName(desireName)
 }
 
+// defaultIngressConfigSelectsACMCertificate reports whether the applied
+// default ingress ConfigMap desire already points the ACM policy at the
+// ACM-delivered certificate.
+func defaultIngressConfigSelectsACMCertificate(desire *kubeapplierapi.ApplyDesire) (bool, error) {
+	if desire == nil || desire.Spec.Type != kubeapplierapi.ApplyDesireTypeServerSideApply ||
+		desire.Spec.ServerSideApply == nil || desire.Spec.ServerSideApply.KubeContent == nil {
+		return false, nil
+	}
+	var configMap unstructured.Unstructured
+	if err := json.Unmarshal(desire.Spec.ServerSideApply.KubeContent.Raw, &configMap); err != nil {
+		return false, fmt.Errorf("decoding default ingress ConfigMap desire: %w", err)
+	}
+	name, _, err := unstructured.NestedString(configMap.Object, "data", defaultIngressConfigCertificateNameKey)
+	if err != nil {
+		return false, fmt.Errorf("reading data.%s: %w", defaultIngressConfigCertificateNameKey, err)
+	}
+	return name == acmIngressCertificateSecretName, nil
+}
+
 // ensureDefaultIngressConfigCertificateName points the ACM policy at the
-// Secret that carries the service-provider certificate for the given version.
-// Covered versions leave the key unset so the policy keeps the guest
-// IngressController on default-ingress-cert, which their HCCO fills with the
-// service-provider certificate. Uncovered versions get cluster-ingress-cert,
-// because their HCCO fills default-ingress-cert with a CPO-generated root-CA
-// certificate (AROSLSRE-2529).
-func ensureDefaultIngressConfigCertificateName(configMap *unstructured.Unstructured, version *semver.Version) error {
-	if version != nil && hccoIngressCertConsumerCovered(*version) {
+// Secret that carries the service-provider certificate. Without the key the
+// policy keeps the guest IngressController on default-ingress-cert, which the
+// HCCO of covered versions fills with the service-provider certificate.
+func ensureDefaultIngressConfigCertificateName(configMap *unstructured.Unstructured, acmCertificateSelected bool) error {
+	if !acmCertificateSelected {
 		unstructured.RemoveNestedField(configMap.Object, "data", defaultIngressConfigCertificateNameKey)
 		return nil
 	}

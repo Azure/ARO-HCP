@@ -183,24 +183,34 @@ func TestNeedsWork(t *testing.T) {
 
 func TestLegacyIngressDesireSuppression(test *testing.T) {
 	for _, scenario := range []struct {
-		name           string
-		desiredVersion string
-		featureName    string
-		featureState   string
-		missingSub     bool
-		suppressed     bool
+		name string
+		// previousVersion, when set, runs a first sync at that version before
+		// moving the cluster to desiredVersion, modelling an upgrade.
+		previousVersion string
+		desiredVersion  string
+		featureName     string
+		featureState    string
+		missingSub      bool
+		suppressed      bool
+		// acmCertificate is whether the default ingress ConfigMap selects the
+		// ACM-delivered certificate; only checked when not suppressed.
+		acmCertificate bool
 	}{
 		{name: "flag on above version threshold", desiredVersion: "5.1.0-rc.1", featureName: metadataapi.FeatureExperimentalReleaseFeatures, featureState: "Registered", suppressed: true},
 		{name: "flag on for overridden 4.20", desiredVersion: "4.20.12", featureName: metadataapi.FeatureExperimentalReleaseFeatures, featureState: "Registered", suppressed: true},
 		{name: "flag on for overridden 4.21", desiredVersion: "4.21.5", featureName: metadataapi.FeatureExperimentalReleaseFeatures, featureState: "Registered", suppressed: true},
 		{name: "flag on for overridden 4.22", desiredVersion: "4.22.0", featureName: metadataapi.FeatureExperimentalReleaseFeatures, featureState: "Registered", suppressed: true},
-		{name: "flag off for 4.23 ec payload without CPO override", desiredVersion: "4.23.0-ec.1", featureName: metadataapi.FeatureExperimentalReleaseFeatures, featureState: "Registered"},
-		{name: "flag off below overridden versions", desiredVersion: "4.19.7", featureName: metadataapi.FeatureExperimentalReleaseFeatures, featureState: "Registered"},
-		{name: "flag off for 5.0 predating the consumer", desiredVersion: "5.0.4", featureName: metadataapi.FeatureExperimentalReleaseFeatures, featureState: "Registered"},
+		{name: "flag off for 4.23 ec payload without CPO override", desiredVersion: "4.23.0-ec.1", featureName: metadataapi.FeatureExperimentalReleaseFeatures, featureState: "Registered", acmCertificate: true},
+		{name: "flag off below overridden versions", desiredVersion: "4.19.7", featureName: metadataapi.FeatureExperimentalReleaseFeatures, featureState: "Registered", acmCertificate: true},
+		{name: "flag off for 5.0 predating the consumer", desiredVersion: "5.0.4", featureName: metadataapi.FeatureExperimentalReleaseFeatures, featureState: "Registered", acmCertificate: true},
 		{name: "version missing flag off", featureName: metadataapi.FeatureExperimentalReleaseFeatures, featureState: "Registered"},
 		{name: "flag off unregistered experimental feature", desiredVersion: "5.1.0", featureName: metadataapi.FeatureExperimentalReleaseFeatures, featureState: "NotRegistered"},
 		{name: "flag on due to case insensitive experimental feature name", desiredVersion: "5.1.0-0.nightly-2026-10-08-211923", featureName: "Microsoft.RedHatOpenShift/ExperimentalReleaseFeatures", featureState: "Registered", suppressed: true},
 		{name: "flag off due to missing subscription", desiredVersion: "5.1.0", missingSub: true},
+		{name: "flag on upgrade from 4.23 ec to 5.1 keeps legacy wiring on the ACM certificate", previousVersion: "4.23.0-ec.1", desiredVersion: "5.1.0", featureName: metadataapi.FeatureExperimentalReleaseFeatures, featureState: "Registered", acmCertificate: true},
+		{name: "unregistered upgrade from 4.19 to 4.20 keeps the ACM certificate", previousVersion: "4.19.7", desiredVersion: "4.20.12", featureName: metadataapi.FeatureExperimentalReleaseFeatures, featureState: "NotRegistered", acmCertificate: true},
+		{name: "flag on upgrade from 4.22 to 4.23 ec restores legacy wiring on the ACM certificate", previousVersion: "4.22.0", desiredVersion: "4.23.0-ec.1", featureName: metadataapi.FeatureExperimentalReleaseFeatures, featureState: "Registered", acmCertificate: true},
+		{name: "missing version after the ACM certificate was selected keeps it", previousVersion: "4.23.0-ec.1", featureName: metadataapi.FeatureExperimentalReleaseFeatures, featureState: "Registered", acmCertificate: true},
 	} {
 		test.Run(scenario.name, func(test *testing.T) {
 			ctx := utils.ContextWithLogger(test.Context(), testr.New(test))
@@ -210,9 +220,11 @@ func TestLegacyIngressDesireSuppression(test *testing.T) {
 			managementClusters := &fleetlistertesting.SliceManagementClusterLister{ManagementClusters: []*fleetapi.ManagementCluster{{CosmosMetadata: coreapi.CosmosMetadata{ResourceID: testManagementClusterResourceID}}}}
 			cluster := newCluster()
 			serviceProviderCluster := newSPC(testManagementClusterResourceID)
-			if scenario.desiredVersion != "" {
-				desiredVersion := semver.MustParse(scenario.desiredVersion)
-				serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion = &desiredVersion
+			setDesiredVersion := func(version string) {
+				serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion = nil
+				if version != "" {
+					serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion = ptr.To(semver.MustParse(version))
+				}
 			}
 			subscriptionLister := &corelistertesting.SliceSubscriptionLister{}
 			if !scenario.missingSub {
@@ -251,6 +263,11 @@ func TestLegacyIngressDesireSuppression(test *testing.T) {
 				resourcesCache:    lru.New(resourcesCacheCapacity),
 				clock:             utilsclock.RealClock{},
 			}
+			if scenario.previousVersion != "" {
+				setDesiredVersion(scenario.previousVersion)
+				require.NoError(test, syncer.SyncOnce(ctx, testKey()))
+			}
+			setDesiredVersion(scenario.desiredVersion)
 			require.NoError(test, syncer.SyncOnce(ctx, testKey()))
 			desires, err := syncer.applyDesireLister.ListForCluster(ctx, testSubscriptionID, testResourceGroupName, testClusterName)
 			require.NoError(test, err)
@@ -269,6 +286,11 @@ func TestLegacyIngressDesireSuppression(test *testing.T) {
 					require.NoError(test, err)
 					require.True(test, found)
 					require.Equal(test, controllerutils.ServiceProviderDefaultIngressWildcardServingCertName, name)
+				}
+				if desire.ResourceID.Name == strings.ToLower(DesireNameDefaultIngressConfigMap) {
+					selected, err := defaultIngressConfigSelectsACMCertificate(desire)
+					require.NoError(test, err)
+					require.Equal(test, scenario.acmCertificate, selected, "default ingress ConfigMap certificate selection")
 				}
 				if scenario.suppressed {
 					require.Contains(test, []string{strings.ToLower("HostedCluster"), strings.ToLower("BoundServiceAccountSigningKeySecretProviderClass")}, desire.ResourceID.Name)
@@ -1216,37 +1238,59 @@ func TestProcessClusterResourcesNodePoolPath(t *testing.T) {
 	}
 }
 
+func TestSelectACMIngressCertificate(t *testing.T) {
+	tests := []struct {
+		name            string
+		version         string
+		alreadySelected bool
+		expected        bool
+	}{
+		{name: "4.23 ec payload selects the ACM certificate", version: "4.23.0-ec.1", expected: true},
+		{name: "version below the overridden versions selects the ACM certificate", version: "4.19.7", expected: true},
+		{name: "5.0 predating the consumer selects the ACM certificate", version: "5.0.4", expected: true},
+		{name: "overridden 4.20 keeps the native certificate", version: "4.20.12"},
+		{name: "native 5.1 keeps the native certificate", version: "5.1.0-rc.1"},
+		{name: "missing version keeps the native certificate", version: ""},
+		{name: "upgrade to a covered version keeps a selected ACM certificate", version: "5.1.0", alreadySelected: true, expected: true},
+		{name: "missing version keeps a selected ACM certificate", alreadySelected: true, expected: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var version *semver.Version
+			if tt.version != "" {
+				version = ptr.To(semver.MustParse(tt.version))
+			}
+			assert.Equal(t, tt.expected, selectACMIngressCertificate(version, tt.alreadySelected))
+		})
+	}
+}
+
 func TestEnsureDefaultIngressConfigCertificateName(t *testing.T) {
 	tests := []struct {
 		name         string
-		version      string
+		selected     bool
 		inputData    map[string]any
 		expectedData map[string]any
 	}{
 		{
-			name:         "4.23 ec payload points the policy at the ACM-delivered secret",
-			version:      "4.23.0-ec.1",
+			name:         "selected ACM certificate sets the key",
+			selected:     true,
 			inputData:    map[string]any{"disable-certificates": "false", "endpoint-publishing-strategy": "external"},
 			expectedData: map[string]any{"disable-certificates": "false", "endpoint-publishing-strategy": "external", "default-certificate-name": "cluster-ingress-cert"},
 		},
 		{
-			name:         "version below the overridden versions points the policy at the ACM-delivered secret",
-			version:      "4.19.7",
+			name:         "selected ACM certificate creates data",
+			selected:     true,
 			expectedData: map[string]any{"default-certificate-name": "cluster-ingress-cert"},
 		},
 		{
-			name:         "missing version points the policy at the ACM-delivered secret",
-			expectedData: map[string]any{"default-certificate-name": "cluster-ingress-cert"},
-		},
-		{
-			name:         "overridden 4.20 leaves the key unset",
-			version:      "4.20.12",
+			name:         "native certificate leaves the key unset",
 			inputData:    map[string]any{"disable-certificates": "false"},
 			expectedData: map[string]any{"disable-certificates": "false"},
 		},
 		{
-			name:         "native 5.1 removes a stale key after an upgrade",
-			version:      "5.1.0-rc.1",
+			name:         "native certificate drops a key Cluster Service emitted",
 			inputData:    map[string]any{"disable-certificates": "false", "default-certificate-name": "cluster-ingress-cert"},
 			expectedData: map[string]any{"disable-certificates": "false"},
 		},
@@ -1262,20 +1306,47 @@ func TestEnsureDefaultIngressConfigCertificateName(t *testing.T) {
 			if tt.inputData != nil {
 				configMap.Object["data"] = tt.inputData
 			}
-			var version *semver.Version
-			if tt.version != "" {
-				version = ptr.To(semver.MustParse(tt.version))
-			}
 
-			require.NoError(t, ensureDefaultIngressConfigCertificateName(configMap, version))
+			require.NoError(t, ensureDefaultIngressConfigCertificateName(configMap, tt.selected))
 
 			data, _, err := unstructured.NestedMap(configMap.Object, "data")
 			require.NoError(t, err)
-			if len(tt.expectedData) == 0 {
-				assert.Empty(t, data)
+			assert.Equal(t, tt.expectedData, data)
+		})
+	}
+}
+
+func TestDefaultIngressConfigSelectsACMCertificate(t *testing.T) {
+	desire := func(desireType kubeapplierapi.ApplyDesireType, content string) *kubeapplierapi.ApplyDesire {
+		d := &kubeapplierapi.ApplyDesire{Spec: kubeapplierapi.ApplyDesireSpec{Type: desireType}}
+		if content != "" {
+			d.Spec.ServerSideApply = &kubeapplierapi.ServerSideApplyConfig{KubeContent: &runtime.RawExtension{Raw: []byte(content)}}
+		}
+		return d
+	}
+	tests := []struct {
+		name     string
+		desire   *kubeapplierapi.ApplyDesire
+		expected bool
+		wantErr  bool
+	}{
+		{name: "missing desire", desire: nil},
+		{name: "ConfigMap selecting the ACM certificate", desire: desire(kubeapplierapi.ApplyDesireTypeServerSideApply, `{"kind":"ConfigMap","data":{"default-certificate-name":"cluster-ingress-cert"}}`), expected: true},
+		{name: "ConfigMap without a selection", desire: desire(kubeapplierapi.ApplyDesireTypeServerSideApply, `{"kind":"ConfigMap","data":{"disable-certificates":"false"}}`)},
+		{name: "ConfigMap with an unexpected selection", desire: desire(kubeapplierapi.ApplyDesireTypeServerSideApply, `{"kind":"ConfigMap","data":{"default-certificate-name":"other"}}`)},
+		{name: "desire being deleted", desire: desire(kubeapplierapi.ApplyDesireTypeDelete, "")},
+		{name: "undecodable content", desire: desire(kubeapplierapi.ApplyDesireTypeServerSideApply, `not-json`), wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			selected, err := defaultIngressConfigSelectsACMCertificate(tt.desire)
+			if tt.wantErr {
+				require.Error(t, err)
 				return
 			}
-			assert.Equal(t, tt.expectedData, data)
+			require.NoError(t, err)
+			assert.Equal(t, tt.expected, selected)
 		})
 	}
 }
