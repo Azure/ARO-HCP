@@ -72,13 +72,18 @@ func TestBackendLegacyIngressWiringByVersion(t *testing.T) {
 
 	integrationutils.WithAndWithoutCosmos(t, func(t *testing.T, withMock bool) {
 		for _, scenario := range []struct {
-			name                 string
-			desiredVersion       string
+			name           string
+			desiredVersion string
+			// seededACMCertificate seeds the ConfigMap desire as already
+			// selecting the ACM-delivered certificate, as a cluster upgraded
+			// from an uncovered version has it.
+			seededACMCertificate bool
 			legacyDesiresPresent bool
 		}{
 			{name: "4.23 ec payload keeps legacy ACM ingress wiring", desiredVersion: "4.23.0-ec.1", legacyDesiresPresent: true},
 			{name: "4.20 override covered version suppresses legacy ACM ingress wiring", desiredVersion: "4.20.12"},
 			{name: "5.1 native version suppresses legacy ACM ingress wiring", desiredVersion: "5.1.0-rc.1"},
+			{name: "5.1 cluster upgraded from the ACM certificate keeps legacy ACM ingress wiring", desiredVersion: "5.1.0-rc.1", seededACMCertificate: true, legacyDesiresPresent: true},
 		} {
 			t.Run(scenario.name, func(t *testing.T) {
 				ctx, cancel := context.WithCancel(t.Context())
@@ -206,11 +211,11 @@ func TestBackendLegacyIngressWiringByVersion(t *testing.T) {
 				mockKAClients.Register(mcResourceID, mockKAClient)
 
 				// Seed the legacy desires as a previous controller pass left
-				// them, with a ConfigMap that does not yet select a certificate.
-				// Every scenario then needs a completed reconciliation to pass:
-				// suppression must reap the seeds, and the legacy path must
-				// rewrite the ConfigMap.
-				seedLegacyIngressWiringApplyDesires(t, ctx, mockKAClient, mcResourceID, subscriptionID, rgName, clusterName)
+				// them. Unless the scenario models an upgraded cluster, the
+				// ConfigMap does not yet select a certificate, so every scenario
+				// needs a completed reconciliation to pass: suppression must reap
+				// the seeds, and the legacy path must rewrite the ConfigMap.
+				seedLegacyIngressWiringApplyDesires(t, ctx, mockKAClient, mcResourceID, subscriptionID, rgName, clusterName, scenario.seededACMCertificate)
 
 				clusterServiceMock := integrationutils.NewClusterServiceMock(t, storageIntegrationTestInfo.GetArtifactDir())
 				clusterServiceMock.MockClusterServiceClient.EXPECT().ListProvisionShards().
@@ -303,6 +308,22 @@ func TestBackendLegacyIngressWiringByVersion(t *testing.T) {
 						data["disable-certificates"] == "false"
 				}, 90*time.Second, 250*time.Millisecond, "legacy ingress wiring (present=%t) never converged for version %s",
 					scenario.legacyDesiresPresent, scenario.desiredVersion)
+
+				// The HostedCluster desire can land before the stale-desire reaper
+				// runs at the end of the same pass, so make sure kept legacy
+				// wiring is not reaped afterwards.
+				if scenario.legacyDesiresPresent {
+					require.Never(t, func() bool {
+						desires := listIngressWiringApplyDesires(t, ctx, mockKAClient, subscriptionID, rgName, clusterName)
+						for _, name := range legacyDesireNames {
+							desire, has := desires[strings.ToLower(name)]
+							if !has || desire.Spec.Type != kubeapplierapi.ApplyDesireTypeServerSideApply {
+								return true
+							}
+						}
+						return false
+					}, 3*time.Second, 250*time.Millisecond, "legacy ingress wiring was reaped for version %s", scenario.desiredVersion)
+				}
 			})
 		}
 	})
@@ -335,11 +356,14 @@ func ingressConfigMapData(t *testing.T, desire *kubeapplierapi.ApplyDesire) map[
 // desires owned by the cluster resources controller, using the Cluster
 // Service manifests but without the certificate selection the backend adds.
 func seedLegacyIngressWiringApplyDesires(t *testing.T, ctx context.Context, client kubeappliercosmosstorage.KubeApplierDBClient,
-	managementCluster *azcorearm.ResourceID, subscriptionID, resourceGroupName, clusterName string) {
+	managementCluster *azcorearm.ResourceID, subscriptionID, resourceGroupName, clusterName string, acmCertificateSelected bool) {
 	t.Helper()
 	crud, err := client.ApplyDesiresForCluster(subscriptionID, resourceGroupName, clusterName)
 	require.NoError(t, err, "failed to get ApplyDesire CRUD")
 	resources := ingressWiringClusterResources().Resources()
+	if acmCertificateSelected {
+		resources["config"] = strings.Replace(resources["config"], `"data":{`, `"data":{"default-certificate-name":"cluster-ingress-cert",`, 1)
+	}
 	for desireName, resourceKey := range map[string]string{
 		clusterresources.DesireNameManagedCluster:                                "managed",
 		clusterresources.DesireNameDefaultIngressConfigMap:                       "config",

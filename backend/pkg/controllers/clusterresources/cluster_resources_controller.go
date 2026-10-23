@@ -287,6 +287,16 @@ func (c *clusterResourcesController) processClusterResources(ctx context.Context
 		return utils.TrackError(fmt.Errorf("failed to get Subscription from cache: %w", err))
 	}
 	hasExperimentalFeature := subscription != nil && subscription.HasRegisteredFeature(metadataapi.FeatureExperimentalReleaseFeatures)
+
+	existingIngressConfig, err := applyDesireCRUD.Get(ctx, strings.ToLower(DesireNameDefaultIngressConfigMap))
+	if err != nil && !cosmosstorageutils.IsNotFoundError(err) {
+		return utils.TrackError(fmt.Errorf("failed to get default ingress ConfigMap ApplyDesire: %w", err))
+	}
+	acmCertificateAlreadySelected, err := defaultIngressConfigSelectsACMCertificate(existingIngressConfig)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+	acmCertificateSelected := selectACMIngressCertificate(version, acmCertificateAlreadySelected)
 	resourceMap := resources.Resources()
 	desiredResourceIDs := make(map[string]bool, len(resourceMap))
 	var errs []error
@@ -319,10 +329,11 @@ func (c *clusterResourcesController) processClusterResources(ctx context.Context
 		// manages the ingress certificate when the subscription's experimental
 		// release-features AFEC is registered, but only for versions whose HCCO
 		// consumes the service-provider ingress certificate (natively or via a
-		// CPO override). Other versions still need the legacy ACM wiring to
-		// deliver a trusted ingress certificate (AROSLSRE-2529).
+		// CPO override) and guests never pointed at the ACM-delivered
+		// certificate. Others still need the legacy ACM wiring to deliver and
+		// renew a trusted ingress certificate (AROSLSRE-2529).
 		// CS still emits them all, we do this to allow ourselves testing.
-		if hasExperimentalFeature && suppressLegacyIngressDesire(classified.desireName, version) {
+		if hasExperimentalFeature && suppressLegacyIngressDesire(classified.desireName, version, acmCertificateSelected) {
 			continue
 		}
 
@@ -400,7 +411,7 @@ func (c *clusterResourcesController) processClusterResources(ctx context.Context
 				}
 			}
 			if classified.desireName == DesireNameDefaultIngressConfigMap {
-				if err := ensureDefaultIngressConfigCertificateName(&unstructuredObj, version); err != nil {
+				if err := ensureDefaultIngressConfigCertificateName(&unstructuredObj, acmCertificateSelected); err != nil {
 					errs = append(errs, utils.TrackError(fmt.Errorf("failed to set default ingress certificate name for %s: %w", resourceKey, err)))
 					continue
 				}
