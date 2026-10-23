@@ -215,12 +215,14 @@ func TestClusterDiscoveryPoller_retryDelay(t *testing.T) {
 			wantAtMost:          4*time.Minute + 48*time.Second,
 		},
 		{
-			name:                "growth is capped",
+			// The base is capped; jitter is added on top, so the wait tops out
+			// at maxDiscoveryBackoffBase * (1 + discoveryBackoffJitter).
+			name:                "growth is capped at the base ceiling plus jitter",
 			sleepTime:           2 * time.Minute,
 			consecutiveFailures: 20,
 			discovered:          true,
-			wantAtLeast:         maxDiscoveryBackoff,
-			wantAtMost:          maxDiscoveryBackoff + 2*time.Minute,
+			wantAtLeast:         maxDiscoveryBackoffBase,
+			wantAtMost:          time.Duration(float64(maxDiscoveryBackoffBase) * (1 + discoveryBackoffJitter)),
 		},
 		{
 			name:                "poll interval longer than the cap is never shortened",

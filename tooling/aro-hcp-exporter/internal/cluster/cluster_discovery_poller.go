@@ -32,9 +32,16 @@ import (
 )
 
 const (
-	// maxDiscoveryBackoff caps the exponential backoff applied after
-	// consecutive Resource Graph failures.
-	maxDiscoveryBackoff = 10 * time.Minute
+	// maxDiscoveryBackoffBase caps the *base* delay of the exponential backoff
+	// applied after consecutive Resource Graph failures. Jitter is added on top,
+	// so the longest wait between attempts is
+	// maxDiscoveryBackoffBase * (1 + discoveryBackoffJitter).
+	//
+	// The jitter is deliberately not clamped back to this value: at the ceiling
+	// is exactly where the most exporters are backed off simultaneously, and
+	// clamping would land all of them on the same delay, re-synchronising the
+	// retries the jitter exists to spread.
+	maxDiscoveryBackoffBase = 10 * time.Minute
 	// discoveryBackoffJitter is the fraction of the computed backoff added as
 	// random jitter, so that exporters in different regions do not retry in
 	// lockstep against the same tenant-wide Resource Graph quota.
@@ -185,8 +192,8 @@ func (c *ClusterDiscoveryPoller) discoverOnce(ctx context.Context) error {
 
 // retryDelay returns how long to wait after consecutiveFailures consecutive
 // errors: the normal poll interval for the first failure, doubling for each one
-// after that, capped and jittered. A zero poll interval (used by tests) stays
-// zero.
+// after that, with the base capped at maxDiscoveryBackoffBase and jitter added
+// on top. A zero poll interval (used by tests) stays zero.
 //
 // Growth is deliberately suppressed until the first successful discovery.
 // Until then the exporter publishes nothing at all — every collector is parked
@@ -211,16 +218,16 @@ func (c *ClusterDiscoveryPoller) retryDelay() time.Duration {
 		shift = maxDiscoveryBackoffShift
 	}
 
-	maxDelay := maxDiscoveryBackoff
-	if c.sleepTime > maxDelay {
-		maxDelay = c.sleepTime
+	maxBase := maxDiscoveryBackoffBase
+	if c.sleepTime > maxBase {
+		maxBase = c.sleepTime
 	}
 
-	delay := c.sleepTime << shift
-	if delay > maxDelay || delay <= 0 {
-		delay = maxDelay
+	base := c.sleepTime << shift
+	if base > maxBase || base <= 0 {
+		base = maxBase
 	}
-	return wait.Jitter(delay, discoveryBackoffJitter)
+	return wait.Jitter(base, discoveryBackoffJitter)
 }
 
 func (c *ClusterDiscoveryPoller) hasDiscovered() bool {
