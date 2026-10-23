@@ -24,8 +24,9 @@ import (
 
 var (
 	// Positivity of test cases
-	Positive = ginkgo.Label("Positivity:Positive")
-	Negative = ginkgo.Label("Positivity:Negative")
+	Positive  = ginkgo.Label("Positivity:Positive")
+	Negative  = ginkgo.Label("Positivity:Negative")
+	ToBeFixed = ginkgo.Label("ToBeFixed")
 
 	Slow = ginkgo.Label("Speed:Slow")
 )
