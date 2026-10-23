@@ -23,7 +23,7 @@ The detailed startup, configuration, credentials, and rendered deployment behavi
 - [`main.go`](main.go)
 - [`pkg/config/config.go`](pkg/config/config.go)
 - [`pkg/credentials/provider.go`](pkg/credentials/provider.go)
-- [`deploy/config.yaml.tmpl`](deploy/config.yaml.tmpl)
+- [`deploy/templates/configmap.yaml`](deploy/templates/configmap.yaml)
 
 The service listens on port `8080` and exposes `/healthz`, `/readyz`, `/version`, and `/metrics`.
 
