@@ -17,7 +17,7 @@ validatingAdmissionPolicies:
 controllerName: secrets-store-sync-controller-manager
 tokenRequestAudience:
 - audience: # e.g. api://TokenAudienceExample
-# Metrics configuration
+# Controller health and metrics configuration
 metricsPort: 8085
 providerContainer:
 - name: provider-azure-installer
