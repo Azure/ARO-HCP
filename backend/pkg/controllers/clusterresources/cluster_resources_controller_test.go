@@ -201,6 +201,9 @@ func TestLegacyIngressDesireSuppression(test *testing.T) {
 		{name: "flag on for overridden 4.21", desiredVersion: "4.21.5", featureName: metadataapi.FeatureExperimentalReleaseFeatures, featureState: "Registered", suppressed: true},
 		{name: "flag on for overridden 4.22", desiredVersion: "4.22.0", featureName: metadataapi.FeatureExperimentalReleaseFeatures, featureState: "Registered", suppressed: true},
 		{name: "flag off for 4.23 ec payload without CPO override", desiredVersion: "4.23.0-ec.1", featureName: metadataapi.FeatureExperimentalReleaseFeatures, featureState: "Registered", acmCertificate: true},
+		{name: "flag on for 4.23 ec payload with the backport", desiredVersion: "4.23.0-ec.2", featureName: metadataapi.FeatureExperimentalReleaseFeatures, featureState: "Registered", suppressed: true},
+		{name: "flag on for 4.23 GA", desiredVersion: "4.23.0", featureName: metadataapi.FeatureExperimentalReleaseFeatures, featureState: "Registered", suppressed: true},
+		{name: "unregistered 4.23 GA keeps the native certificate", desiredVersion: "4.23.1", featureName: metadataapi.FeatureExperimentalReleaseFeatures, featureState: "NotRegistered"},
 		{name: "flag off below overridden versions", desiredVersion: "4.19.7", featureName: metadataapi.FeatureExperimentalReleaseFeatures, featureState: "Registered", acmCertificate: true},
 		{name: "flag off for 5.0 predating the consumer", desiredVersion: "5.0.4", featureName: metadataapi.FeatureExperimentalReleaseFeatures, featureState: "Registered", acmCertificate: true},
 		{name: "version missing flag off", featureName: metadataapi.FeatureExperimentalReleaseFeatures, featureState: "Registered"},
@@ -1245,7 +1248,14 @@ func TestSelectACMIngressCertificate(t *testing.T) {
 		alreadySelected bool
 		expected        bool
 	}{
-		{name: "4.23 ec payload selects the ACM certificate", version: "4.23.0-ec.1", expected: true},
+		{name: "4.23 ec payload before the backport selects the ACM certificate", version: "4.23.0-ec.1", expected: true},
+		{name: "first 4.23 ec payload before the backport selects the ACM certificate", version: "4.23.0-ec.0", expected: true},
+		{name: "4.23 nightly ordered before ec.2 selects the ACM certificate", version: "4.23.0-0.nightly-2026-09-20-000000", expected: true},
+		{name: "4.23 ec payload with the backport keeps the native certificate", version: "4.23.0-ec.2"},
+		{name: "later 4.23 ec payload keeps the native certificate", version: "4.23.0-ec.10"},
+		{name: "4.23 rc keeps the native certificate", version: "4.23.0-rc.1"},
+		{name: "4.23 GA keeps the native certificate", version: "4.23.0"},
+		{name: "4.23 z-stream keeps the native certificate", version: "4.23.4"},
 		{name: "version below the overridden versions selects the ACM certificate", version: "4.19.7", expected: true},
 		{name: "5.0 predating the consumer selects the ACM certificate", version: "5.0.4", expected: true},
 		{name: "overridden 4.20 keeps the native certificate", version: "4.20.12"},
