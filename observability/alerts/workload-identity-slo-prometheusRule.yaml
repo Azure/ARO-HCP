@@ -1,0 +1,47 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    app.kubernetes.io/name: kube-prometheus
+    app.kubernetes.io/part-of: kube-prometheus
+    prometheus: k8s
+    role: alert-rules
+  name: workload-identity-slo-rules
+  namespace: monitoring
+spec:
+  groups:
+  # ========================================
+  # Workload Identity SLO Alerts: MSI Credential Expiry
+  # ========================================
+  # SLO (ARO-25956): 100% of MSI credentials should have more than 30 days left
+  # before expiry. Certs are valid for 90 days and renewed at day 45.
+  #
+  # Threshold alert rather than multi-window burn rate: the SLO has no error
+  # budget and the signal is time left on a credential, not a request error rate.
+  #
+  # The 30 day warning is the existing ClusterCredentialExpiringSoon alert
+  # (msi-credential-refresher-prometheusRule.yaml). This adds the critical tier
+  # at 7 days or less. Expired and non-renewable credentials are excluded here;
+  # they are covered by ClusterCredentialExpired / ClusterCredentialNotRenewable.
+  - name: arohcp_workload_identity_slo_alerts
+    labels:
+      component: slo
+    rules:
+    # ----------------------------------------
+    # Critical: 7 days or less left (Sev 3)
+    # ----------------------------------------
+    - alert: userJourneyWorkloadIdentityCredentialExpiry7d
+      expr: |
+        (
+          workload_identity:credential_refresher_expiry_le7d:increase1h
+          -
+          workload_identity:credential_refresher_expiry_le0d:increase1h
+        ) > 0
+      for: 15m
+      labels:
+        severity: "3"
+        slo: workload-identity-credential-expiry
+      annotations:
+        summary: "MSI credential close to expiry (7 days or less left)"
+        description: "One or more MSI credentials monitored by this services cluster have 7 days or less left before expiry. Renewal has been failing for over a month and the affected cluster will lose operator access when the credential expires."
+        runbook_url: "https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/troubleshooting/tsgs/credential-refresher-expiring-cert"

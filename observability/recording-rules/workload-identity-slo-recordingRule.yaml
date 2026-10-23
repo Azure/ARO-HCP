@@ -1,0 +1,72 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    app.kubernetes.io/name: kube-prometheus
+    app.kubernetes.io/part-of: kube-prometheus
+    prometheus: k8s
+    role: recording-rules
+  name: workload-identity-slo-recording-rules
+  namespace: monitoring
+spec:
+  groups:
+  # ========================================
+  # Workload Identity SLO Recording Rules
+  # ========================================
+  # These rules track the MSI credential expiry SLO for the Workload Identity
+  # user journey.
+  # SLO: 100% of MSI credentials should have more than 30 days left before expiry.
+  # Error Budget: 0% (any credential at 30 days or less is a breach)
+  #
+  # Metric is a histogram (credential_refresher_days_until_msi_credential_expiration)
+  # observed for every MSI secret on each credential refresher pass (~10m).
+  # Certs are valid for 90 days and renewed at day 45, so a healthy credential
+  # never has 30 days or less left.
+  #
+  # HA dedup: max without (prometheus_replica) collapses duplicate series from
+  # prometheus_replica HA pairs.
+  - name: arohcp_workload_identity_slo_recording_rules
+    interval: 1m
+    rules:
+    # All expiry observations (the +Inf bucket counts every observation)
+    - record: workload_identity:credential_refresher_expiry_observations:increase1h
+      expr: |
+        sum by (cluster) (
+          max without (prometheus_replica) (
+            increase(credential_refresher_days_until_msi_credential_expiration_bucket{le="+Inf"}[1h])
+          )
+        )
+    # Observations with 30 days or less left (includes expired and non-renewable)
+    - record: workload_identity:credential_refresher_expiry_le30d:increase1h
+      expr: |
+        sum by (cluster) (
+          max without (prometheus_replica) (
+            increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^30([.]0)?$"}[1h])
+          )
+        )
+    # Observations with 7 days or less left (includes expired and non-renewable)
+    - record: workload_identity:credential_refresher_expiry_le7d:increase1h
+      expr: |
+        sum by (cluster) (
+          max without (prometheus_replica) (
+            increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^7([.]0)?$"}[1h])
+          )
+        )
+    # Observations already expired (0 days or less left)
+    - record: workload_identity:credential_refresher_expiry_le0d:increase1h
+      expr: |
+        sum by (cluster) (
+          max without (prometheus_replica) (
+            increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^0([.]0)?$"}[1h])
+          )
+        )
+    # SLI: fraction of observations with more than 30 days left.
+    # Absent (not 1) when there are no observations, so a stopped refresher
+    # does not show as 100%.
+    - record: workload_identity:credential_expiry:sli_ratio_1h
+      expr: |
+        1 - (
+          workload_identity:credential_refresher_expiry_le30d:increase1h
+          /
+          (workload_identity:credential_refresher_expiry_observations:increase1h > 0)
+        )
