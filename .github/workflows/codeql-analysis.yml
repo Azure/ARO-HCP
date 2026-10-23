@@ -63,8 +63,40 @@ jobs:
         build-mode: ${{ matrix.language == 'go' && 'manual' || 'none' }}
         # Use default CodeQL query packs
         # For custom queries, add: queries: security-and-quality
+    - name: Add swap space (go)
+      if: matrix.language == 'go'
+      # The `test` module build under the CodeQL Go tracer exceeds memory on the
+      # ~16 GB ubuntu-latest runner and is SIGTERM-killed (exit 143), even when
+      # built alone on a dedicated shard (AROSLSRE-2524; isolating `test/` on
+      # its own shard in PR #7726 still failed at ~3m34s). CodeQL reserves most
+      # RAM for itself (the run logged CODEQL_RAM ~14.5 GB), leaving little for
+      # `go build` plus the extractor. Add a large swapfile so the build spills
+      # to disk instead of being killed. The job has ample time headroom (it
+      # died in ~3-5 min of a 30-minute budget), so trading speed for memory is
+      # safe, and analysis coverage and visible failures are preserved. Applied
+      # to every Go shard so no single shard can regress into the same OOM.
+      run: |
+        sudo fallocate -l 10G /mnt/codeql-swapfile
+        sudo chmod 600 /mnt/codeql-swapfile
+        sudo mkswap /mnt/codeql-swapfile
+        sudo swapon /mnt/codeql-swapfile
+        echo "Swap after adding swapfile:"
+        swapon --show
+        free -h
     - name: Build (go)
       if: matrix.language == 'go'
+      # Cap build parallelism and GC headroom to lower peak memory during the
+      # build (complements the swapfile added above). CodeQL's Go tracer wraps
+      # every concurrent `compile` subprocess and holds extraction state, so
+      # peak RSS scales with how many packages compile at once. GOMAXPROCS also
+      # sets `go build -p`, so this caps concurrent package compiles to 2 and
+      # each compiler's own threads to 2; a lower GOGC keeps the heap tighter.
+      # Fewer concurrent compiles means less swap thrash. Same packages are
+      # built, so analysis coverage and build failures stay visible.
+      # See AROSLSRE-2524 and the swap step above for the full rationale.
+      env:
+        GOMAXPROCS: 2
+        GOGC: 50
       run: |
         # Keep substantial modules on stable shards, apart from the largest
         # builds. Distribute other workspace modules as go.work changes.
