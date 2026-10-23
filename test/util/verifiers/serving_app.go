@@ -44,6 +44,20 @@ import (
 //go:embed artifacts
 var staticFiles embed.FS
 
+// ingressReadinessTimeout bounds the two ingress readiness gates that run before the
+// DNS wait. ARO-29937 established that under subscription-level ARM throttling
+// (e2e-parallel's synchronized cluster creations) the guest cloud-controller-manager
+// can take on the order of 20 minutes to ensure the router-default load balancer —
+// measured 20m03s from Service creation to "Ensured load balancer" in run
+// 2104551230880616448, while other clusters in the same run never converged before
+// cleanup. The DNS wait that follows the gates keeps the shorter
+// framework.DNSResolutionTimeout budget: once the load balancer has an external IP,
+// the ingress operator publishes the wildcard record within seconds.
+const ingressReadinessTimeout = 20 * time.Minute
+
+// ingressReadinessPollInterval is the poll interval for both ingress readiness gates.
+const ingressReadinessPollInterval = 30 * time.Second
+
 type verifySimpleWebApp struct {
 	namespaceName string
 	nodeSelector  map[string]string
@@ -72,10 +86,10 @@ func (v verifySimpleWebApp) Verify(ctx context.Context, adminRESTConfig *rest.Co
 	// the DNS wait so a not-yet-forming ingress is reported as a readiness gate rather than a
 	// "DNS did not resolve" failure that points investigators at DNS instead of ingress readiness.
 	if err := waitForClusterOperatorCondition(ctx, adminRESTConfig, "ingress",
-		configv1.OperatorAvailable, framework.DNSResolutionTimeout, 30*time.Second); err != nil {
+		configv1.OperatorAvailable, ingressReadinessTimeout, ingressReadinessPollInterval); err != nil {
 		return fmt.Errorf("waiting for ingress ClusterOperator to become Available before DNS: %w", err)
 	}
-	if err := waitForRouterDefaultExternalIP(ctx, adminRESTConfig, framework.DNSResolutionTimeout, 30*time.Second); err != nil {
+	if err := waitForRouterDefaultExternalIP(ctx, adminRESTConfig, ingressReadinessTimeout, ingressReadinessPollInterval); err != nil {
 		return fmt.Errorf("waiting for openshift-ingress/router-default load balancer external IP before DNS: %w", err)
 	}
 
