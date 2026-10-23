@@ -483,6 +483,29 @@ func (c *operationClusterCreate) servingCABundleOperationStatus(ctx context.Cont
 
 // serviceProviderDefaultIngressServingCertificateStatus blocks cluster creation until
 // the ingress wildcard certificate's SecretSync reports a successful, up-to-date sync.
+//
+// With secrets-store-sync-controller v0.0.6, SecretCreated is no longer written;
+// successful creates and updates use SecretUpdated=True with reason SecretUpToDate.
+// Upstream: https://github.com/kubernetes-sigs/secrets-store-sync-controller
+//
+// Illustrative successful SecretSync.Status (not an observed v0.0.6 object):
+//
+//	{
+//		"conditions": [
+//			{
+//				"lastTransitionTime": "2025-01-15T10:30:00Z",
+//				"message": "Secret contains last observed values.",
+//				"reason": "SecretUpToDate",
+//				"status": "True",
+//				"type": "SecretUpdated"
+//			}
+//		],
+//		"lastSuccessfulSyncTime": "2025-01-15T10:30:00Z",
+//		"syncHash": "v1:<computed-state-hash>"
+//	}
+//
+// Upstream success path that sets the timestamp, hash, and condition:
+// https://github.com/kubernetes-sigs/secrets-store-sync-controller/blob/e6d4e5fbb10a0b57e5f43adc1de1a9c14d77e03a/pkg/controller/secretsync_controller.go#L374-L389
 func (c *operationClusterCreate) serviceProviderDefaultIngressServingCertificateStatus(ctx context.Context, operation *coreapi.Operation) (*operationbase.OperationState, error) {
 	logger := utils.LoggerFromContext(ctx)
 
@@ -498,9 +521,8 @@ func (c *operationClusterCreate) serviceProviderDefaultIngressServingCertificate
 		return operationbase.NewOperationState(coreapi.ProvisioningStateProvisioning, "default ingress certificate not yet observed"), nil
 	}
 
-	// v0.0.6 no longer writes SecretCreated. Success is SecretUpdated=True with
-	// reason SecretUpToDate for both creates and updates. Require that condition
-	// alongside the timestamp so a past success cannot hide a later failed sync.
+	// Require the condition alongside the timestamp so a past success cannot
+	// hide a later reported failure.
 	updatedCondition := meta.FindStatusCondition(secretSync.Status.Conditions, "SecretUpdated")
 	if !secretSync.Status.LastSuccessfulSyncTime.IsZero() &&
 		updatedCondition != nil &&
