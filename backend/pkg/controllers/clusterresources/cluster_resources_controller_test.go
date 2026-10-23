@@ -1269,3 +1269,30 @@ func TestEnsureHostedClusterAnnotations(t *testing.T) {
 		})
 	}
 }
+
+func TestEnsureHostedClusterAutoscaling(t *testing.T) {
+	hc := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "hypershift.openshift.io/v1beta1",
+			"kind":       "HostedCluster",
+			"metadata": map[string]interface{}{
+				"name":      testClusterName,
+				"namespace": "test-namespace",
+			},
+			"spec": map[string]interface{}{},
+		},
+	}
+
+	err := ensureHostedClusterAutoscaling(hc)
+	require.NoError(t, err)
+
+	qps, found, err := unstructured.NestedFieldNoCopy(hc.Object, "spec", "autoscaling", "kubeClientQPS")
+	require.NoError(t, err)
+	assert.True(t, found, "expected spec.autoscaling.kubeClientQPS to be present")
+	assert.Equal(t, int64(defaultKubeClientQPS), qps, "kubeClientQPS should be pinned to fleet default")
+
+	burst, found, err := unstructured.NestedFieldNoCopy(hc.Object, "spec", "autoscaling", "kubeClientBurst")
+	require.NoError(t, err)
+	assert.True(t, found, "expected spec.autoscaling.kubeClientBurst to be present")
+	assert.Equal(t, int64(defaultKubeClientBurst), burst, "kubeClientBurst should be pinned to fleet default")
+}
