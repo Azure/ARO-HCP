@@ -629,7 +629,7 @@ resource backend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
           summary: 'Backend controller workqueue {{ $labels.name }} depth is high'
           title: 'Backend controller workqueue {{ $labels.name }} depth is high'
         }
-        expression: 'max by (name, cluster, region) (max without (prometheus_replica) (workqueue_depth{namespace="aro-hcp"})) > 10 unless on (name, cluster) (workqueue_depth{name=~"clustervalidation(controlplaneidentitiespermissionsclustervalidation|dataplaneidentitiespermissionsvalidation|containerregistrypullcredentialspermissionvalidation)",namespace="aro-hcp"} and on (cluster) (max by (cluster, region) (backend_insecure_mock_managed_identities_enabled{namespace="aro-hcp"}) == 1))'
+        expression: 'max by (name, cluster, region) (max without (prometheus_replica) (workqueue_depth{name!~"(?i:cosmos_?migration)",namespace="aro-hcp"})) > 10 unless on (name, cluster) (workqueue_depth{name=~"clustervalidation(controlplaneidentitiespermissionsclustervalidation|dataplaneidentitiespermissionsvalidation|containerregistrypullcredentialspermissionvalidation)",namespace="aro-hcp"} and on (cluster) (max by (cluster, region) (backend_insecure_mock_managed_identities_enabled{namespace="aro-hcp"}) == 1))'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
