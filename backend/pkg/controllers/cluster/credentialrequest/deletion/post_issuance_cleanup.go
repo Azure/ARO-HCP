@@ -16,6 +16,7 @@ package deletion
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -121,10 +122,13 @@ func (c *postIssuanceCleanup) SyncOnce(ctx context.Context, key controllerutils.
 		return nil
 	}
 
-	kubeApplierClient := c.kubeApplierDBClients.For(ctx, mcResourceID)
-	if kubeApplierClient == nil {
+	kubeApplierClient, err := c.kubeApplierDBClients.For(ctx, mcResourceID)
+	if errors.Is(err, kubeappliercosmosstorage.ErrManagementClusterNotFound) {
 		logger.Info("kube-applier client not available for management cluster, waiting", "managementCluster", mcResourceID.String())
 		return nil
+	}
+	if err != nil {
+		return err
 	}
 
 	credName := cred.ResourceID.Name

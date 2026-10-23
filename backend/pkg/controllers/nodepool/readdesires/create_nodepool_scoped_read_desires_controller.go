@@ -16,6 +16,7 @@ package readdesires
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -156,9 +157,12 @@ func (c *createNodePoolScopedReadDesiresSyncer) SyncOnce(ctx context.Context, ke
 	// (see internal/ocm/convert.go's BuildCSNodePool), so the target name here must match.
 	target := nodePoolTarget(c.hostedClusterNamespaceEnvIdentifier, csClusterID, csClusterDomainPrefix, strings.ToLower(existingNodePool.ID.Name))
 
-	kaClient := c.kubeApplierDBClients.For(ctx, mcResourceID)
-	if kaClient == nil {
+	kaClient, err := c.kubeApplierDBClients.For(ctx, mcResourceID)
+	if errors.Is(err, kubeappliercosmosstorage.ErrManagementClusterNotFound) {
 		return nil
+	}
+	if err != nil {
+		return err
 	}
 	crud, err := kaClient.ReadDesiresForNodePool(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
 	if err != nil {

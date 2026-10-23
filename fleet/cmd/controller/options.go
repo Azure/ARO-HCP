@@ -251,7 +251,7 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 	}
 
 	kubeApplierDBClients := kubeappliercosmosstorage.NewKubeApplierDBClients(
-		o.CosmosURL, o.CosmosName, storageOptions, func(string) (*cosmosratelimit.TokenBucket, error) { return bucket, nil },
+		o.CosmosURL, o.CosmosName, storageOptions, func(string, int32) (*cosmosratelimit.TokenBucket, error) { return bucket, nil },
 		kubeappliercosmosstorage.NewDBBackedManagementClusterLister(fleetDBClient),
 	)
 

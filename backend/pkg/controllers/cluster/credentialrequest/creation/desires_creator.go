@@ -17,6 +17,7 @@ package creation
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -165,10 +166,13 @@ func (c *desiresCreator) SyncOnce(ctx context.Context, key controllerutils.Syste
 		return nil
 	}
 
-	kubeApplierClient := c.kubeApplierDBClients.For(ctx, mcResourceID)
-	if kubeApplierClient == nil {
+	kubeApplierClient, err := c.kubeApplierDBClients.For(ctx, mcResourceID)
+	if errors.Is(err, kubeappliercosmosstorage.ErrManagementClusterNotFound) {
 		logger.Info("kube-applier client not available for management cluster, waiting", "managementCluster", mcResourceID.String())
 		return nil
+	}
+	if err != nil {
+		return err
 	}
 
 	// Owner for annotations is the cluster's ARM resource ID.

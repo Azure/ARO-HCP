@@ -35,8 +35,7 @@ $(BINARY): $(BACKEND_SOURCES)
 run: $(BINARY)
 	./$(BINARY) --location ${LOCATION} \
 		--clusters-service-url http://localhost:8000 \
-		--cosmos-name ${DB_NAME} \
-		--cosmos-url ${DB_URL} \
+		--cosmos-account-resource-id ${COSMOS_ACCOUNT_RESOURCE_ID} \
 		--namespace ${RP_NAMESPACE}
 .PHONY: run
 

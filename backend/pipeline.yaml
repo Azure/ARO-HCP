@@ -100,10 +100,10 @@ resourceGroups:
         resourceGroup: service
         step: output
         name: backendMsiTenantId
-      cosmosDBDocumentEndpoint:
+      rpCosmosDbAccountId:
         resourceGroup: service
         step: output
-        name: cosmosDBDocumentEndpoint
+        name: rpCosmosDbAccountId
       regionalOidcStorageAccountBlobEndpoint:
         resourceGroup: service
         step: output

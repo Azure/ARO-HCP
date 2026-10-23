@@ -29,8 +29,7 @@ func validBaseFlags() BackendRootCmdFlags {
 	return BackendRootCmdFlags{
 		AzureLocation:                           "westus3",
 		ClustersServiceURL:                      "http://localhost:8000",
-		AzureCosmosDBName:                       "db",
-		AzureCosmosDBURL:                        "http://localhost",
+		CosmosAccountResourceID:                 "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.DocumentDB/databaseAccounts/db",
 		K8sNamespace:                            "ns",
 		MaestroSourceEnvironmentIdentifier:      "dev",
 		AzureClusterScopedIdentitiesRoleSetName: string(internalazure.RoleDefinitionConfigSetNameDev),
@@ -189,6 +188,17 @@ func TestResolveInsecureManagedIdentityMockIDsFromFilesEmptyFile(t *testing.T) {
 	}
 	if err := f.resolveInsecureManagedIdentityMockIDsFromFiles(); err == nil {
 		t.Fatal("expected error for empty file, got nil")
+	}
+}
+
+func TestValidateCosmosAccountResourceID(t *testing.T) {
+	for _, value := range []string{"", "not-an-arm-id", "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.DocumentDB/databaseAccounts/db/sqlDatabases/db"} {
+		flags := validBaseFlags()
+		flags.CosmosAccountResourceID = value
+		err := flags.validate()
+		if err == nil || !strings.Contains(err.Error(), "--cosmos-account-resource-id") {
+			t.Fatalf("expected Cosmos resource ID validation failure for %q, got %v", value, err)
+		}
 	}
 }
 

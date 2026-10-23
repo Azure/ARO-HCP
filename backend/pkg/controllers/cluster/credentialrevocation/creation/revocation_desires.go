@@ -17,6 +17,7 @@ package creation
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -146,10 +147,13 @@ func (c *revocationDesires) SyncOnce(ctx context.Context, key controllerutils.Sy
 		return nil
 	}
 
-	kubeApplierClient := c.kubeApplierDBClients.For(ctx, mcResourceID)
-	if kubeApplierClient == nil {
+	kubeApplierClient, err := c.kubeApplierDBClients.For(ctx, mcResourceID)
+	if errors.Is(err, kubeappliercosmosstorage.ErrManagementClusterNotFound) {
 		logger.Info("waiting for kube-applier client for management cluster", "managementCluster", mcResourceID.String())
 		return nil
+	}
+	if err != nil {
+		return err
 	}
 
 	suffix := revocation.Spec.RevokeOpSuffix

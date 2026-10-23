@@ -16,6 +16,7 @@ package k8sresources
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -117,9 +118,12 @@ func (syncer *ingressCertificateSyncer) SyncOnce(ctx context.Context, key contro
 		return nil
 	}
 	managementClusterID := serviceProviderCluster.Status.ManagementClusterResourceID
-	client := syncer.kubeApplierDBClients.For(ctx, managementClusterID)
-	if client == nil {
+	client, err := syncer.kubeApplierDBClients.For(ctx, managementClusterID)
+	if errors.Is(err, kubeappliercosmosstorage.ErrManagementClusterNotFound) {
 		return nil
+	}
+	if err != nil {
+		return err
 	}
 	applyCRUD, err := client.ApplyDesiresForCluster(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if err != nil {

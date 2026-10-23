@@ -16,25 +16,52 @@ package app
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/require"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/client-go/tools/cache"
+	cachetesting "k8s.io/client-go/tools/cache/testing"
+	clocktesting "k8s.io/utils/clock/testing"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
+	clusterdeletion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/deletion"
+	clusterk8sresources "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/k8sresources"
+	clusteroperations "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/operations"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/mismatch"
+	nodepooldeletion "github.com/Azure/ARO-HCP/backend/pkg/controllers/nodepool/deletion"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils/operationtesting"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosclient"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosratelimit"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/billingcosmosstoragetesting"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/informers/kubeapplierinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/fleetlisters"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/kubeapplierlistertesting"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 )
 
@@ -71,7 +98,7 @@ func TestStorageFactorySeparatesContainerAndControllerBudgets(t *testing.T) {
 			if strings.EqualFold(req.Header.Get("x-ms-documentdb-query"), "true") {
 				return &http.Response{StatusCode: http.StatusOK, Request: req,
 					Header: http.Header{"X-Ms-Request-Charge": []string{"2"}},
-					Body:   io.NopCloser(strings.NewReader(`{"Documents":[{"id":"mc","partitionKey":"1","resourceID":"/providers/Microsoft.RedHatOpenShift/stamps/1/managementClusters/default","properties":{"status":{"kubeApplierCosmosContainerName":"KubeApplier-test"}}},{"id":"mc2","partitionKey":"2","resourceID":"/providers/Microsoft.RedHatOpenShift/stamps/2/managementClusters/default","properties":{"status":{"kubeApplierCosmosContainerName":"KubeApplier-test2"}}}]}`))}, nil
+					Body:   io.NopCloser(strings.NewReader(`{"Documents":[{"id":"mc","partitionKey":"1","resourceID":"/providers/Microsoft.RedHatOpenShift/stamps/1/managementClusters/default","properties":{"status":{"kubeApplierCosmosContainerName":"KubeApplier-test","kubeApplierCosmosContainerMaxScale":80}}},{"id":"mc2","partitionKey":"2","resourceID":"/providers/Microsoft.RedHatOpenShift/stamps/2/managementClusters/default","properties":{"status":{"kubeApplierCosmosContainerName":"KubeApplier-test2","kubeApplierCosmosContainerMaxScale":80}}}]}`))}, nil
 			}
 			charge := "2"
 			if strings.Contains(req.URL.Path, "/colls/KubeApplier-") {
@@ -84,13 +111,12 @@ func TestStorageFactorySeparatesContainerAndControllerBudgets(t *testing.T) {
 			}, nil
 		})
 		factory, err := newStorageFactory("https://cosmos.test", "test", options, StorageFactoryOptions{
-			ResourcesRUsPerSecond:   3.75, // 1 RU per controller after 80% utilization.
-			BillingRUsPerSecond:     7.5,  // 2 RUs per controller.
-			FleetRUsPerSecond:       15,   // 4 RUs per controller.
-			KubeApplierRUsPerSecond: 80,   // 8 RUs per controller at 30% utilization.
-			KubeApplierUtilization:  0.3,
-			ControllerNames:         []string{"normal", "other", "cleanup"},
-			ControllerFractions:     map[string]float64{"cleanup": 0.1},
+			ContainerThroughput: func(container string) (float64, error) {
+				return map[string]float64{"Resources": 3.75, "Billing": 7.5, "Fleet": 15}[container], nil
+			},
+			KubeApplierUtilization: 0.3,
+			ControllerNames:        []string{"normal", "other", "cleanup"},
+			ControllerFractions:    map[string]float64{"cleanup": 0.1},
 		})
 		require.NoError(t, err)
 		require.Same(t, factory.ResourcesStorageClient("normal"), factory.ResourcesStorageClient("normal"))
@@ -111,7 +137,8 @@ func TestStorageFactorySeparatesContainerAndControllerBudgets(t *testing.T) {
 		require.True(t, cosmosstorageutils.IsNotFoundError(err), "%v", err)
 		mc, err := azcorearm.ParseResourceID("/providers/Microsoft.RedHatOpenShift/stamps/1/managementClusters/default")
 		require.NoError(t, err)
-		kubeApplier := factory.KubeApplierStorageClients("normal").For(ctx, mc)
+		kubeApplier, err := factory.KubeApplierStorageClients("normal").For(ctx, mc)
+		require.NoError(t, err)
 		require.NotNil(t, kubeApplier, "its Fleet lookup uses that controller's Fleet budget")
 		desires, err := kubeApplier.ReadDesiresForCluster("sub", "rg", "cluster")
 		require.NoError(t, err)
@@ -121,7 +148,8 @@ func TestStorageFactorySeparatesContainerAndControllerBudgets(t *testing.T) {
 		// Debt in one MC container must not consume the next MC's allocation.
 		mc2, err := azcorearm.ParseResourceID("/providers/Microsoft.RedHatOpenShift/stamps/2/managementClusters/default")
 		require.NoError(t, err)
-		kubeApplier2 := factory.KubeApplierStorageClients("normal").For(ctx, mc2)
+		kubeApplier2, err := factory.KubeApplierStorageClients("normal").For(ctx, mc2)
+		require.NoError(t, err)
 		require.NotNil(t, kubeApplier2)
 		desires2, err := kubeApplier2.ReadDesiresForCluster("sub", "rg", "cluster")
 		require.NoError(t, err)
@@ -167,9 +195,8 @@ func TestStorageFactorySeparatesContainerAndControllerBudgets(t *testing.T) {
 
 func testStorageAllocations() StorageFactoryOptions {
 	return StorageFactoryOptions{
-		ResourcesRUsPerSecond: 10, BillingRUsPerSecond: 10,
-		FleetRUsPerSecond: 10, KubeApplierRUsPerSecond: 10,
-		ControllerNames: []string{"one"},
+		ContainerThroughput: func(string) (float64, error) { return 10, nil },
+		ControllerNames:     []string{"one"},
 	}
 }
 
@@ -189,10 +216,7 @@ func TestStorageFactoryRejectsInvalidConfiguration(t *testing.T) {
 			o.UnlimitedControllerNames = []string{"one"}
 			o.ControllerFractions = map[string]float64{"one": .1}
 		}},
-		{"invalid Resources budget", func(o *StorageFactoryOptions) { o.ResourcesRUsPerSecond = 0 }},
-		{"invalid Billing budget", func(o *StorageFactoryOptions) { o.BillingRUsPerSecond = 0 }},
-		{"invalid Fleet budget", func(o *StorageFactoryOptions) { o.FleetRUsPerSecond = 0 }},
-		{"invalid kube-applier budget", func(o *StorageFactoryOptions) { o.KubeApplierRUsPerSecond = 0 }},
+		{"missing throughput provider", func(o *StorageFactoryOptions) { o.ContainerThroughput = nil }},
 		{"invalid kube-applier utilization", func(o *StorageFactoryOptions) { o.KubeApplierUtilization = 1.1 }},
 		{"invalid fraction", func(o *StorageFactoryOptions) { o.ControllerFractions = map[string]float64{"one": 0} }},
 	} {
@@ -214,16 +238,686 @@ func TestStorageFactoryConcurrentMCContainerLookups(t *testing.T) {
 	errors := make([]error, len(buckets))
 	var wg sync.WaitGroup
 	for i := range buckets {
-		wg.Go(func() { buckets[i], errors[i] = factory.tokenBucket("new-mc", "one") })
+		wg.Go(func() { buckets[i], errors[i] = factory.kubeApplierTokenBucket("new-mc", 10, "one") })
 	}
 	wg.Wait()
 	for i := range buckets {
 		require.NoError(t, errors[i])
 		require.Same(t, buckets[0], buckets[i])
 	}
-	other, err := factory.tokenBucket("another-mc", "one")
+	other, err := factory.kubeApplierTokenBucket("another-mc", 10, "one")
 	require.NoError(t, err)
 	require.NotSame(t, buckets[0], other)
+}
+
+func informerStorageTestOptions(t *testing.T) cosmosclient.Options {
+	t.Helper()
+	return storageTestOptions(t, func(req *http.Request) (*http.Response, error) {
+		body := `{"Documents":[]}`
+		status := http.StatusOK
+		header := http.Header{}
+		switch {
+		case req.URL.Path == "" || req.URL.Path == "/":
+			body = `{"id":"test","writableLocations":[{"name":"test","databaseAccountEndpoint":"https://cosmos.test"}],"readableLocations":[{"name":"test","databaseAccountEndpoint":"https://cosmos.test"}]}`
+		case strings.Contains(req.URL.Path, "/colls/Fleet/"):
+			body = `{"Documents":[{"id":"mc","partitionKey":"1","resourceID":"/providers/Microsoft.RedHatOpenShift/stamps/1/managementClusters/default","properties":{"status":{"kubeApplierCosmosContainerName":"KubeApplier-test","kubeApplierCosmosContainerMaxScale":1000}}},{"id":"mc2","partitionKey":"2","resourceID":"/providers/Microsoft.RedHatOpenShift/stamps/2/managementClusters/default","properties":{"status":{"kubeApplierCosmosContainerName":"KubeApplier-other","kubeApplierCosmosContainerMaxScale":2000}}}]}`
+		case strings.HasSuffix(req.URL.Path, "/pkranges"):
+			header.Set("ETag", "fixture")
+			body = `{"PartitionKeyRanges":[{"id":"0","minInclusive":"","maxExclusive":"FF"}]}`
+			if req.Header.Get("If-None-Match") != "" {
+				status = http.StatusNotModified
+				body = ""
+			}
+		case req.Method == http.MethodGet:
+			status = http.StatusNotModified
+			header.Set("ETag", "fixture")
+			body = ""
+		}
+		return &http.Response{StatusCode: status, Request: req, Header: header, Body: io.NopCloser(strings.NewReader(body))}, nil
+	})
+}
+
+func TestStorageFactoryStartsWithoutManagementClusters(t *testing.T) {
+	options := BackendStorageFactoryOptions(false)
+	var calls []string
+	options.ContainerThroughput = func(container string) (float64, error) {
+		calls = append(calls, container)
+		return 1000, nil
+	}
+	clientOptions := informerStorageTestOptions(t)
+	transport := clientOptions.Transport
+	var registered atomic.Bool
+	clientOptions.Transport = storageTestTransport(func(request *http.Request) (*http.Response, error) {
+		if !registered.Load() && strings.Contains(request.URL.Path, "/colls/Fleet/") {
+			return &http.Response{StatusCode: http.StatusOK, Request: request, Header: http.Header{}, Body: io.NopCloser(strings.NewReader(`{"Documents":[]}`))}, nil
+		}
+		return transport.Do(request)
+	})
+	factory, err := newStorageFactory("https://cosmos.test", "test", clientOptions, options)
+	require.NoError(t, err)
+	require.Equal(t, []string{"Resources", "Billing", "Fleet"}, calls)
+	clients := factory.KubeApplierStorageClients(strings.ToLower(mismatch.MissingResourceIDControllerName))
+	key := unionkubeapplierinformers.ManagementClusterKey{StampIdentifier: "1", ManagementClusterName: "default"}
+	missing, err := clients.For(t.Context(), key.GetResourceID())
+	require.Nil(t, missing)
+	require.ErrorIs(t, err, kubeappliercosmosstorage.ErrManagementClusterNotFound)
+	require.Equal(t, []string{"Resources", "Billing", "Fleet"}, calls)
+	registered.Store(true)
+	resolved := make([]kubeappliercosmosstorage.KubeApplierDBClient, 20)
+	errors := make([]error, len(resolved))
+	var workers sync.WaitGroup
+	for index := range resolved {
+		workers.Go(func() { resolved[index], errors[index] = clients.For(t.Context(), key.GetResourceID()) })
+	}
+	workers.Wait()
+	client := resolved[0]
+	for index := range resolved {
+		require.NoError(t, errors[index])
+		require.Same(t, client, resolved[index])
+	}
+	require.NotNil(t, client)
+	cached, err := clients.For(t.Context(), key.GetResourceID())
+	require.NoError(t, err)
+	require.Same(t, client, cached)
+	require.Equal(t, []string{"Resources", "Billing", "Fleet"}, calls)
+}
+
+func registeredStorageTestOptions(t *testing.T, metadata func() (int32, error)) cosmosclient.Options {
+	t.Helper()
+	options := informerStorageTestOptions(t)
+	transport := options.Transport
+	options.Transport = storageTestTransport(func(request *http.Request) (*http.Response, error) {
+		if !strings.Contains(request.URL.Path, "/colls/Fleet/") {
+			return transport.Do(request)
+		}
+		maxScale, err := metadata()
+		if err != nil {
+			return nil, err
+		}
+		response, err := transport.Do(request)
+		if err != nil {
+			return nil, err
+		}
+		body, err := io.ReadAll(response.Body)
+		response.Body.Close()
+		if err != nil {
+			return nil, err
+		}
+		response.Body = io.NopCloser(strings.NewReader(strings.ReplaceAll(string(body), `"kubeApplierCosmosContainerMaxScale":1000`, fmt.Sprintf(`"kubeApplierCosmosContainerMaxScale":%d`, maxScale))))
+		return response, nil
+	})
+	return options
+}
+
+func TestBackendKubeApplierInformerSkipsRegisteredBudget(t *testing.T) {
+	for _, realFPA := range []bool{false, true} {
+		t.Run(fmt.Sprint(realFPA), func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				options := BackendStorageFactoryOptions(realFPA)
+				var calls []string
+				options.ContainerThroughput = func(container string) (float64, error) { calls = append(calls, container); return 1000, nil }
+				factory, err := newStorageFactory("https://cosmos.test", "test", registeredStorageTestOptions(t, func() (int32, error) { return 0, nil }), options)
+				require.NoError(t, err)
+				factory.rateLimitsMu.Lock()
+				defer factory.rateLimitsMu.Unlock()
+				informerFactory := unionkubeapplierinformers.NewKubeApplierInformerFactory(factory.KubeApplierStorageClients(unionkubeapplierinformers.ControllerName), nil)
+				key := unionkubeapplierinformers.ManagementClusterKey{StampIdentifier: "1", ManagementClusterName: "default"}
+				done := make(chan kubeapplierinformers.KubeApplierInformers, 1)
+				go func() { done <- informerFactory.NewKubeApplierInformers(t.Context(), key.GetResourceID()) }()
+				synctest.Wait()
+				select {
+				case informers := <-done:
+					require.NotNil(t, informers)
+				default:
+					t.Fatal("exempt informer waits for budget cache lock")
+				}
+				require.Equal(t, []string{"Resources", "Billing", "Fleet"}, calls)
+			})
+		})
+	}
+}
+
+func TestBackendLimitedKubeApplierMetadataRetries(t *testing.T) {
+	for _, failure := range []string{"lister", "zero", "negative", "container"} {
+		t.Run(failure, func(t *testing.T) {
+			options := BackendStorageFactoryOptions(false)
+			var calls []string
+			options.ContainerThroughput = func(container string) (float64, error) { calls = append(calls, container); return 1000, nil }
+			attempts := 0
+			backfilled := false
+			clientOptions := registeredStorageTestOptions(t, func() (int32, error) {
+				attempts++
+				if !backfilled {
+					switch failure {
+					case "lister":
+						return 0, context.DeadlineExceeded
+					case "zero":
+						return 0, nil
+					case "negative":
+						return -1, nil
+					}
+				}
+				return 1000, nil
+			})
+			if failure == "container" {
+				transport := clientOptions.Transport
+				clientOptions.Transport = storageTestTransport(func(request *http.Request) (*http.Response, error) {
+					response, err := transport.Do(request)
+					if err != nil || backfilled || !strings.Contains(request.URL.Path, "/colls/Fleet/") {
+						return response, err
+					}
+					body, err := io.ReadAll(response.Body)
+					response.Body.Close()
+					if err != nil {
+						return nil, err
+					}
+					response.Body = io.NopCloser(strings.NewReader(strings.ReplaceAll(string(body), `"KubeApplier-test"`, `""`)))
+					return response, nil
+				})
+			}
+			factory, err := newStorageFactory("https://cosmos.test", "test", clientOptions, options)
+			require.NoError(t, err)
+			clients := factory.KubeApplierStorageClients(strings.ToLower(mismatch.MissingResourceIDControllerName))
+			key := unionkubeapplierinformers.ManagementClusterKey{StampIdentifier: "1", ManagementClusterName: "default"}
+			failed, err := clients.For(t.Context(), key.GetResourceID())
+			require.Error(t, err)
+			require.NotErrorIs(t, err, kubeappliercosmosstorage.ErrManagementClusterNotFound)
+			if failure == "container" {
+				require.ErrorContains(t, err, "no kube-applier container configured")
+			} else if failure != "lister" {
+				require.ErrorContains(t, err, "rerun management cluster registration")
+			}
+			require.Nil(t, failed)
+			require.NotContains(t, factory.rateLimits, "KubeApplier-test")
+			failedAttempts := attempts
+			backfilled = true
+			client, err := clients.For(t.Context(), key.GetResourceID())
+			require.NoError(t, err)
+			cached, err := clients.For(t.Context(), key.GetResourceID())
+			require.NoError(t, err)
+			require.Same(t, client, cached)
+			require.Equal(t, failedAttempts+1, attempts)
+			require.Equal(t, []string{"Resources", "Billing", "Fleet"}, calls)
+		})
+	}
+}
+
+type trackingKubeApplierInformerFactory struct {
+	unionkubeapplierinformers.PerMCKubeApplierInformerFactory
+	created       atomic.Int32
+	started       atomic.Int32
+	stopped       atomic.Int32
+	stoppedEvents chan struct{}
+}
+
+func (f *trackingKubeApplierInformerFactory) NewKubeApplierInformers(ctx context.Context, resourceID *azcorearm.ResourceID) kubeapplierinformers.KubeApplierInformers {
+	informers := f.PerMCKubeApplierInformerFactory.NewKubeApplierInformers(ctx, resourceID)
+	if informers == nil {
+		return nil
+	}
+	f.created.Add(1)
+	return &trackingKubeApplierInformers{KubeApplierInformers: informers, factory: f}
+}
+
+type trackingKubeApplierInformers struct {
+	kubeapplierinformers.KubeApplierInformers
+	factory *trackingKubeApplierInformerFactory
+}
+
+func (informers *trackingKubeApplierInformers) RunWithContext(ctx context.Context) {
+	informers.factory.started.Add(1)
+	defer func() {
+		informers.factory.stopped.Add(1)
+		informers.factory.stoppedEvents <- struct{}{}
+	}()
+	informers.KubeApplierInformers.RunWithContext(ctx)
+}
+
+func TestBackendKubeApplierInformerLifecycleDuringFleetLookup(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		options := BackendStorageFactoryOptions(false)
+		var calls atomic.Int32
+		started, release := make(chan struct{}), make(chan struct{})
+		releaseLookup := sync.OnceFunc(func() { close(release) })
+		options.ContainerThroughput = func(container string) (float64, error) {
+			calls.Add(1)
+			return 1000, nil
+		}
+		var lookups atomic.Int32
+		clientOptions := registeredStorageTestOptions(t, func() (int32, error) {
+			if lookups.Add(1) == 1 {
+				close(started)
+				<-release
+			}
+			return 1000, nil
+		})
+		factory, err := newStorageFactory("https://cosmos.test", "test", clientOptions, options)
+		require.NoError(t, err)
+		key := unionkubeapplierinformers.ManagementClusterKey{StampIdentifier: "1", ManagementClusterName: "default"}
+		limited := factory.KubeApplierStorageClients(strings.ToLower(mismatch.MissingResourceIDControllerName))
+		limitedDone := make(chan kubeappliercosmosstorage.KubeApplierDBClient, 1)
+		go func() {
+			client, err := limited.For(t.Context(), key.GetResourceID())
+			if err != nil {
+				t.Error(err)
+			}
+			limitedDone <- client
+		}()
+		defer func() {
+			releaseLookup()
+			require.NotNil(t, <-limitedDone)
+		}()
+		<-started
+		tracked := &trackingKubeApplierInformerFactory{stoppedEvents: make(chan struct{}, 2), PerMCKubeApplierInformerFactory: unionkubeapplierinformers.NewKubeApplierInformerFactory(
+			factory.KubeApplierStorageClients(unionkubeapplierinformers.ControllerName), nil)}
+		source := cachetesting.NewFakeControllerSource()
+		defer source.Shutdown()
+		mcInformer := cache.NewSharedIndexInformer(source, &fleetapi.ManagementCluster{}, 0, nil)
+		controller := unionkubeapplierinformers.NewUnionKubeApplierInformersController(
+			mcInformer, fleetlisters.NewManagementClusterLister(mcInformer.GetIndexer()), tracked)
+		ctx, cancel := context.WithCancel(t.Context())
+		mcDone, controllerDone := make(chan struct{}), make(chan struct{})
+		go func() { defer close(mcDone); mcInformer.RunWithContext(ctx) }()
+		go func() { defer close(controllerDone); controller.Run(ctx, 1) }()
+		defer func() { releaseLookup(); cancel(); <-controllerDone; <-mcDone }()
+		require.True(t, cache.WaitForCacheSync(ctx.Done(), mcInformer.HasSynced))
+		synctest.Wait()
+		mc := &fleetapi.ManagementCluster{CosmosMetadata: coreapi.CosmosMetadata{ResourceID: key.GetResourceID(), PartitionKey: "1"}}
+		source.Add(mc.DeepCopyObject())
+		synctest.Wait()
+		require.EqualValues(t, 1, tracked.created.Load(), "addition constructs the real per-MC informers")
+		require.EqualValues(t, 1, tracked.started.Load())
+		source.Modify(mc.DeepCopyObject())
+		synctest.Wait()
+		require.EqualValues(t, 1, tracked.created.Load(), "duplicate events must not start duplicate informers")
+		source.Delete(mc.DeepCopyObject())
+		<-tracked.stoppedEvents
+		synctest.Wait()
+		require.EqualValues(t, 1, tracked.stopped.Load(), "removal cancels and joins the real informers")
+		require.EqualValues(t, 1, tracked.created.Load(), "removal must not resurrect informers")
+		source.Add(mc.DeepCopyObject())
+		synctest.Wait()
+		require.EqualValues(t, 2, tracked.created.Load())
+		require.EqualValues(t, 2, tracked.started.Load())
+		cancel()
+		<-controllerDone
+		<-mcDone
+		require.EqualValues(t, 2, tracked.stopped.Load(), "shutdown joins all real informer goroutines")
+		require.Empty(t, limitedDone, "all lifecycle events complete while same-container Fleet lookup remains blocked")
+		require.EqualValues(t, 3, calls.Load(), "only fixed containers use ARM throughput")
+	})
+}
+
+func TestStorageFactoryRegisteredMCBudgetSnapshots(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		options := BackendStorageFactoryOptions(false)
+		var calls []string
+		options.ContainerThroughput = func(container string) (float64, error) { calls = append(calls, container); return 1000, nil }
+		maxScale := int32(1000)
+		factory, err := newStorageFactory("https://cosmos.test", "test", registeredStorageTestOptions(t, func() (int32, error) { return maxScale, nil }), options)
+		require.NoError(t, err)
+		controller := strings.ToLower(mismatch.MissingResourceIDControllerName)
+		clients := factory.KubeApplierStorageClients(controller)
+		key := unionkubeapplierinformers.ManagementClusterKey{StampIdentifier: "1", ManagementClusterName: "default"}
+		client, err := clients.For(t.Context(), key.GetResourceID())
+		require.NoError(t, err)
+		bucket, err := factory.tokenBucket("KubeApplier-test", controller)
+		require.NoError(t, err)
+		budget := 1000 * options.KubeApplierUtilization / float64(len(options.ControllerNames)-len(options.UnlimitedControllerNames))
+		bucket.Consume(2 * budget)
+		maxScale = 4000
+		cached, err := clients.For(t.Context(), key.GetResourceID())
+		require.NoError(t, err)
+		require.Same(t, client, cached)
+		repeated, err := factory.kubeApplierTokenBucket("KubeApplier-test", maxScale, controller)
+		require.NoError(t, err)
+		require.Same(t, bucket, repeated)
+		before := time.Now()
+		require.NoError(t, repeated.Wait(t.Context()))
+		require.InDelta(t, float64(time.Second), float64(time.Since(before)), 1)
+		otherController := strings.ToLower(clusterk8sresources.KubeAPIServerServingCertificateControllerName)
+		_, err = factory.KubeApplierStorageClients(otherController).For(t.Context(), key.GetResourceID())
+		require.NoError(t, err)
+		otherBucket, err := factory.tokenBucket("KubeApplier-test", otherController)
+		require.NoError(t, err)
+		otherBucket.Consume(2 * budget)
+		before = time.Now()
+		require.NoError(t, otherBucket.Wait(t.Context()))
+		require.InDelta(t, float64(time.Second), float64(time.Since(before)), 1)
+		maxScale = 500
+		cached, err = clients.For(t.Context(), key.GetResourceID())
+		require.NoError(t, err)
+		require.Same(t, client, cached)
+		repeated, err = factory.kubeApplierTokenBucket("KubeApplier-test", maxScale, controller)
+		require.NoError(t, err)
+		require.Same(t, bucket, repeated)
+		repeated.Consume(2 * budget)
+		before = time.Now()
+		require.NoError(t, repeated.Wait(t.Context()))
+		require.InDelta(t, float64(time.Second), float64(time.Since(before)), 1)
+		key.StampIdentifier = "2"
+		_, err = clients.For(t.Context(), key.GetResourceID())
+		require.NoError(t, err)
+		secondBucket, err := factory.tokenBucket("KubeApplier-other", controller)
+		require.NoError(t, err)
+		secondBucket.Consume(4 * budget)
+		before = time.Now()
+		require.NoError(t, secondBucket.Wait(t.Context()))
+		require.InDelta(t, float64(time.Second), float64(time.Since(before)), 1)
+		require.Equal(t, []string{"Resources", "Billing", "Fleet"}, calls)
+	})
+}
+
+func TestStorageFactoryInitialDiscoveryFailure(t *testing.T) {
+	for _, container := range []string{"Resources", "Billing", "Fleet"} {
+		for _, failure := range []string{"error", "zero", "negative"} {
+			t.Run(container+"/"+failure, func(t *testing.T) {
+				options := BackendStorageFactoryOptions(false)
+				var calls []string
+				options.ContainerThroughput = func(name string) (float64, error) {
+					calls = append(calls, name)
+					if name == container {
+						switch failure {
+						case "error":
+							return 0, fmt.Errorf("ARM denied")
+						case "negative":
+							return -1, nil
+						default:
+							return 0, nil
+						}
+					}
+					return 1000, nil
+				}
+				factory, err := newStorageFactory("https://cosmos.test", "test", storageTestOptions(t, nil), options)
+				require.Nil(t, factory)
+				require.ErrorContains(t, err, container)
+				require.Equal(t, container, calls[len(calls)-1])
+			})
+		}
+	}
+	_, err := newStorageFactory("https://cosmos.test", "test", storageTestOptions(t, nil), BackendStorageFactoryOptions(false))
+	require.ErrorContains(t, err, "provider is required")
+}
+
+func TestBackendCleanupMetadataFailure(t *testing.T) {
+	for _, scope := range []string{"cluster", "nodepool", "diagnostic"} {
+		for _, failure := range []string{"lister403", "lister404", "timeout", "zero", "negative", "absent"} {
+			t.Run(scope+"/"+failure, func(t *testing.T) {
+				ctx := t.Context()
+				require.True(t, utilruntime.ReallyCrash, "exercise production panic policy")
+				fixture := operationtesting.NewClusterTestFixture()
+				cluster := fixture.NewCluster(nil)
+				now := metav1.Now()
+				cluster.ServiceProviderProperties.ClusterServiceID = nil
+				cluster.ServiceProviderProperties.DeletionTimestamp = &now
+				cluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &now
+				deadline := metav1.NewTime(now.Add(-time.Hour))
+				cluster.ServiceProviderProperties.DeleteOperationCompletionDeadline = &deadline
+				mcID := metadataapi.Must(azcorearm.ParseResourceID("/providers/Microsoft.RedHatOpenShift/stamps/1/managementClusters/default"))
+				if failure == "absent" {
+					mcID = metadataapi.Must(azcorearm.ParseResourceID("/providers/Microsoft.RedHatOpenShift/stamps/1/managementClusters/unregistered"))
+				}
+				spc := &coreapi.ServiceProviderCluster{
+					CosmosMetadata: coreapi.CosmosMetadata{ResourceID: metadataapi.Must(azcorearm.ParseResourceID(cluster.ID.String() + "/serviceProviderClusters/default")), PartitionKey: cluster.ID.SubscriptionID},
+					Status:         coreapi.ServiceProviderClusterStatus{ManagementClusterResourceID: mcID},
+				}
+				nodepool := operationtesting.NewNodePoolTestFixture().NewNodePool()
+				nodepool.ServiceProviderProperties.ClusterServiceID = nil
+				nodepool.ServiceProviderProperties.DeletionTimestamp = &now
+				nodepool.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &now
+				spnp := &coreapi.ServiceProviderNodePool{CosmosMetadata: coreapi.CosmosMetadata{ResourceID: metadataapi.Must(azcorearm.ParseResourceID(nodepool.ID.String() + "/serviceProviderNodePools/default")), PartitionKey: cluster.ID.SubscriptionID}}
+				operation := fixture.NewOperation(cosmosstorageutils.OperationRequestDelete)
+				resources := []any{cluster, spc, operation}
+				if scope == "nodepool" {
+					resources = append(resources, nodepool, spnp)
+				}
+				db, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, resources)
+				require.NoError(t, err)
+				billing := billingcosmosstoragetesting.NewMockBillingDBClient()
+				informers := coreinformers.NewBackendInformers(ctx, db.ResourcesGlobalListers(), db, billing.BillingGlobalListers())
+				clusterInformer, _ := informers.Clusters()
+				require.NoError(t, clusterInformer.GetIndexer().Add(cluster))
+				nodepoolInformer, _ := informers.NodePools()
+				require.NoError(t, nodepoolInformer.GetIndexer().Add(nodepool))
+				options := BackendStorageFactoryOptions(false)
+				calls := 0
+				recovered, hasDesires := false, true
+				options.ContainerThroughput = func(container string) (float64, error) {
+					require.Contains(t, []string{"Resources", "Billing", "Fleet"}, container)
+					return 100000, nil
+				}
+				metadata := func() (int32, error) {
+					calls++
+					if recovered {
+						return 100000, nil
+					}
+					switch failure {
+					case "lister403":
+						return 0, &azcore.ResponseError{StatusCode: http.StatusForbidden}
+					case "lister404":
+						return 0, &azcore.ResponseError{StatusCode: http.StatusNotFound}
+					case "timeout":
+						return 0, context.DeadlineExceeded
+					case "negative":
+						return -1, nil
+					case "absent":
+						return 100000, nil
+					default:
+						return 0, nil
+					}
+				}
+				parent := cluster.ID
+				if scope == "nodepool" {
+					parent = nodepool.ID
+				}
+				desireID := metadataapi.Must(azcorearm.ParseResourceID(parent.String() + "/applyDesires/owned"))
+				desire, err := json.Marshal(cosmosstorageutils.GenericDocument[kubeapplierapi.ApplyDesire]{
+					TypedDocument: cosmosstorageutils.TypedDocument{
+						BaseDocument: cosmosstorageutils.BaseDocument{ID: "owned"},
+						ResourceID:   desireID, ResourceType: strings.ToLower(desireID.ResourceType.String()), PartitionKey: strings.ToLower(mcID.String()),
+					},
+					Content: kubeapplierapi.ApplyDesire{Tags: map[string]string{kubeapplierapi.TagControllerName: "owner"}},
+				})
+				require.NoError(t, err)
+				dataOptions := registeredStorageTestOptions(t, metadata)
+				originalTransport := dataOptions.Transport
+				dataOptions.Transport = storageTestTransport(func(request *http.Request) (*http.Response, error) {
+					if !strings.Contains(request.URL.Path, "/colls/KubeApplier-test/docs") {
+						return originalTransport.Do(request)
+					}
+					body := string(desire)
+					switch request.Method {
+					case http.MethodPost:
+						body = `{"Documents":[]}`
+						if hasDesires {
+							body = `{"Documents":[` + string(desire) + `]}`
+						}
+					case http.MethodGet:
+					default:
+						return nil, fmt.Errorf("unexpected desire mutation: %s", request.Method)
+					}
+					return &http.Response{StatusCode: http.StatusOK, Request: request, Header: http.Header{}, Body: io.NopCloser(strings.NewReader(body))}, nil
+				})
+				factory, err := newStorageFactory("https://cosmos.test", "test", dataOptions, options)
+				require.NoError(t, err)
+				var controller controllerutils.Controller
+				var key any
+				switch scope {
+				case "cluster":
+					clients := factory.KubeApplierStorageClients(strings.ToLower(clusterdeletion.ClusterChildResourcesCleanupControllerControllerName))
+					controller = clusterdeletion.NewClusterChildResourcesCleanupController(db, clients, informers, nil)
+					key = controllerutils.HCPClusterKey{SubscriptionID: cluster.ID.SubscriptionID, ResourceGroupName: cluster.ID.ResourceGroupName, HCPClusterName: cluster.ID.Name}
+				case "nodepool":
+					clients := factory.KubeApplierStorageClients(strings.ToLower(nodepooldeletion.NodePoolChildResourcesCleanupControllerControllerName))
+					controller = nodepooldeletion.NewNodePoolChildResourcesCleanupController(db, clients, informers, nil)
+					key = controllerutils.HCPNodePoolKey{SubscriptionID: cluster.ID.SubscriptionID, ResourceGroupName: cluster.ID.ResourceGroupName, HCPClusterName: cluster.ID.Name, HCPNodePoolName: nodepool.ID.Name}
+				default:
+					clients := factory.KubeApplierStorageClients(strings.ToLower(clusteroperations.OperationClusterDeleteControllerName))
+					active, _ := informers.ActiveOperations()
+					controller = clusteroperations.NewOperationClusterDeleteController(clocktesting.NewFakeClock(now.Time), db, billing, clients, &kubeapplierlistertesting.SliceReadDesireLister{}, &kubeapplierlistertesting.SliceApplyDesireLister{}, nil, nil, active)
+					key = fixture.OperationKey()
+				}
+				t.Cleanup(func() {
+					stopped, cancel := context.WithCancel(context.Background())
+					cancel()
+					controller.Run(stopped, 0)
+				})
+				require.NotPanics(t, func() { err = controller.SyncOnce(ctx, key) })
+				if scope == "diagnostic" {
+					require.NoError(t, err)
+					updated, err := db.Operations(cluster.ID.SubscriptionID).Get(ctx, operation.ResourceID.Name)
+					require.NoError(t, err)
+					require.Equal(t, coreapi.ProvisioningStateFailed, updated.Status)
+					require.Contains(t, updated.Error.Message, "diagnostics incomplete")
+				} else if failure == "absent" {
+					require.NoError(t, err)
+				} else {
+					require.Error(t, err)
+					require.False(t, errors.Is(err, kubeappliercosmosstorage.ErrManagementClusterNotFound))
+				}
+				if failure == "absent" {
+					require.Positive(t, calls, "absence requires a successful Fleet list")
+					switch scope {
+					case "cluster":
+						_, err = db.ServiceProviderClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName, cluster.ID.Name).Get(ctx, "default")
+						require.True(t, cosmosstorageutils.IsNotFoundError(err))
+					case "nodepool":
+						_, err = db.ServiceProviderNodePools(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName, cluster.ID.Name, nodepool.ID.Name).Get(ctx, "default")
+						require.True(t, cosmosstorageutils.IsNotFoundError(err))
+					}
+					return
+				}
+				failedCalls := calls
+				require.Positive(t, calls, "the actual limited factory reads registered metadata")
+				_, err = db.ServiceProviderClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName, cluster.ID.Name).Get(ctx, "default")
+				require.NoError(t, err, "SPC must survive incomplete inventory")
+				if scope == "nodepool" {
+					_, err = db.ServiceProviderNodePools(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName, cluster.ID.Name, nodepool.ID.Name).Get(ctx, "default")
+					require.NoError(t, err, "SPNP must survive incomplete inventory")
+				}
+				if scope != "diagnostic" {
+					recovered = true
+					require.NoError(t, controller.SyncOnce(ctx, key))
+					if scope == "cluster" {
+						_, err = db.ServiceProviderClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName, cluster.ID.Name).Get(ctx, "default")
+					} else {
+						_, err = db.ServiceProviderNodePools(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName, cluster.ID.Name, nodepool.ID.Name).Get(ctx, "default")
+					}
+					require.NoError(t, err, "recovery must still respect remaining desires")
+					hasDesires = false
+					require.NoError(t, controller.SyncOnce(ctx, key))
+					if scope == "cluster" {
+						_, err = db.ServiceProviderClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName, cluster.ID.Name).Get(ctx, "default")
+					} else {
+						_, err = db.ServiceProviderNodePools(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName, cluster.ID.Name, nodepool.ID.Name).Get(ctx, "default")
+					}
+					require.True(t, cosmosstorageutils.IsNotFoundError(err), "only confirmed empty inventory permits deletion")
+					require.Equal(t, failedCalls+1, calls, "metadata retries once then caches success")
+				}
+			})
+		}
+	}
+}
+
+func TestBackendServingCertificateMetadataFailure(t *testing.T) {
+	for _, deleting := range []bool{false, true} {
+		for _, failure := range []string{"lister403", "lister404", "timeout", "zero", "negative", "absent"} {
+			t.Run(fmt.Sprintf("deleting=%t/%s", deleting, failure), func(t *testing.T) {
+				ctx := t.Context()
+				require.True(t, utilruntime.ReallyCrash)
+				cluster := operationtesting.NewClusterTestFixture().NewCluster(nil)
+				if deleting {
+					now := metav1.Now()
+					cluster.ServiceProviderProperties.DeletionTimestamp = &now
+				}
+				mcName := "default"
+				if failure == "absent" {
+					mcName = "unregistered"
+				}
+				spc := &coreapi.ServiceProviderCluster{
+					CosmosMetadata: coreapi.CosmosMetadata{ResourceID: metadataapi.Must(azcorearm.ParseResourceID(cluster.ID.String() + "/serviceProviderClusters/default")), PartitionKey: cluster.ID.SubscriptionID},
+					Status: coreapi.ServiceProviderClusterStatus{
+						ManagementClusterResourceID: metadataapi.Must(azcorearm.ParseResourceID("/providers/Microsoft.RedHatOpenShift/stamps/1/managementClusters/" + mcName)),
+						HostedClusterNamespace:      "hosted-cluster",
+						AzureResources: coreapi.AzureResources{KubeAPIServerCertificate: &coreapi.TLSCertificate{AzureReference: &coreapi.AzureTLSCertificateReference{
+							KeyVaultURL: "https://certificates.vault.test/", CertificateName: "serving-certificate",
+						}}},
+					},
+				}
+				db, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, spc})
+				require.NoError(t, err)
+				billing := billingcosmosstoragetesting.NewMockBillingDBClient()
+				informers := coreinformers.NewBackendInformers(ctx, db.ResourcesGlobalListers(), db, billing.BillingGlobalListers())
+				clusterInformer, _ := informers.Clusters()
+				require.NoError(t, clusterInformer.GetIndexer().Add(cluster))
+				spcInformer, _ := informers.ServiceProviderClusters()
+				require.NoError(t, spcInformer.GetIndexer().Add(spc))
+				options := BackendStorageFactoryOptions(false)
+				calls := 0
+				options.ContainerThroughput = func(container string) (float64, error) {
+					require.Contains(t, []string{"Resources", "Billing", "Fleet"}, container)
+					return 100000, nil
+				}
+				metadata := func() (int32, error) {
+					calls++
+					switch failure {
+					case "lister403":
+						return 0, &azcore.ResponseError{StatusCode: http.StatusForbidden}
+					case "lister404":
+						return 0, &azcore.ResponseError{StatusCode: http.StatusNotFound}
+					case "timeout":
+						return 0, context.DeadlineExceeded
+					case "negative":
+						return -1, nil
+					case "absent":
+						return 100000, nil
+					default:
+						return 0, nil
+					}
+				}
+				clientOptions := registeredStorageTestOptions(t, metadata)
+				transport := clientOptions.Transport
+				desireRequests := 0
+				clientOptions.Transport = storageTestTransport(func(request *http.Request) (*http.Response, error) {
+					if strings.Contains(request.URL.Path, "/colls/KubeApplier-") {
+						desireRequests++
+						return nil, fmt.Errorf("unexpected desire access before valid metadata")
+					}
+					return transport.Do(request)
+				})
+				factory, err := newStorageFactory("https://cosmos.test", "test", clientOptions, options)
+				require.NoError(t, err)
+				name := strings.ToLower(clusterk8sresources.KubeAPIServerServingCertificateControllerName)
+				require.Contains(t, options.ControllerNames, name)
+				require.NotContains(t, options.UnlimitedControllerNames, name)
+				controller := clusterk8sresources.NewKubeAPIServerServingCertificateController(db, factory.KubeApplierStorageClients(name), informers, unionkubeapplierinformers.NewUnionKubeApplierInformers(), nil, "tenant", "AzurePublicCloud")
+				t.Cleanup(func() {
+					stopped, cancel := context.WithCancel(context.Background())
+					cancel()
+					controller.Run(stopped, 0)
+				})
+				key := controllerutils.HCPClusterKey{SubscriptionID: cluster.ID.SubscriptionID, ResourceGroupName: cluster.ID.ResourceGroupName, HCPClusterName: cluster.ID.Name}
+				before, err := db.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName).Get(ctx, "default")
+				require.NoError(t, err)
+				for attempt := 1; attempt <= 2; attempt++ {
+					previousCalls := calls
+					require.NotPanics(t, func() { err = controller.SyncOnce(ctx, key) })
+					if failure == "absent" {
+						require.NoError(t, err)
+						require.Equal(t, attempt, calls)
+					} else {
+						require.ErrorContains(t, err, "resolve kube-applier client for serving certificate")
+						require.NotErrorIs(t, err, kubeappliercosmosstorage.ErrManagementClusterNotFound)
+						require.Greater(t, calls, previousCalls, "invalid metadata must remain retryable")
+					}
+				}
+				require.Zero(t, desireRequests, "neither creation nor deletion may access desires after invalid metadata")
+				after, err := db.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName).Get(ctx, "default")
+				require.NoError(t, err)
+				require.Equal(t, before, after)
+			})
+		}
+	}
 }
 
 func TestBackendStorageRegistrations(t *testing.T) {
@@ -233,7 +927,9 @@ func TestBackendStorageRegistrations(t *testing.T) {
 			t.Fatal("startup must not contact Cosmos")
 			return nil, nil
 		})
-		factory, err := newStorageFactory("https://cosmos.test", "test", options, BackendStorageFactoryOptions(realFPA))
+		factoryOptions := BackendStorageFactoryOptions(realFPA)
+		factoryOptions.ContainerThroughput = func(string) (float64, error) { return 1000, nil }
+		factory, err := newStorageFactory("https://cosmos.test", "test", options, factoryOptions)
 		require.NoError(t, err)
 		for _, name := range names {
 			require.NotNil(t, factory.ResourcesStorageClient(name))
@@ -248,6 +944,7 @@ func TestBackendStorageRegistrations(t *testing.T) {
 func TestBackendInformerStorageIsUnlimited(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		options := BackendStorageFactoryOptions(false)
+		options.ContainerThroughput = func(string) (float64, error) { return 1000, nil }
 		require.ElementsMatch(t, []string{
 			BackendInformersStorageName,
 			FleetInformersStorageName,
@@ -268,7 +965,7 @@ func TestBackendInformerStorageIsUnlimited(t *testing.T) {
 			}
 		}
 		// Unlimited informers must not reduce the normal controllers' allocation.
-		budget := options.ResourcesRUsPerSecond * cosmosratelimit.DefaultControllerUtilization /
+		budget := 1000 * cosmosratelimit.DefaultControllerUtilization /
 			float64(len(options.ControllerNames)-len(options.UnlimitedControllerNames))
 		bucket, err := factory.tokenBucket("Resources", strings.ToLower(mismatch.MissingResourceIDControllerName))
 		require.NoError(t, err)
