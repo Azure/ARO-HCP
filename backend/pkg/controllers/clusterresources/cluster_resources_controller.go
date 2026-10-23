@@ -22,6 +22,7 @@ import (
 	"strings"
 	"time"
 
+	semver "github.com/blang/semver/v4"
 	ocmv1 "open-cluster-management.io/api/work/v1"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -213,7 +214,7 @@ func (c *clusterResourcesController) SyncOnce(ctx context.Context, key controlle
 	}
 
 	clusterServiceID := *cluster.ServiceProviderProperties.ClusterServiceID
-	if err := c.fetchAndProcessClusterResources(ctx, key, managementCluster, clusterServiceID); err != nil {
+	if err := c.fetchAndProcessClusterResources(ctx, key, managementCluster, clusterServiceID, spc.Spec.ControlPlaneVersion.DesiredVersion); err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get cluster resources: %w", err))
 	}
 
@@ -223,14 +224,14 @@ func (c *clusterResourcesController) SyncOnce(ctx context.Context, key controlle
 // fetchAndProcessClusterResources calls the Cluster Service SDK to get cluster resources information
 // and processes the resources. A cached response is reused for resourcesCacheTTL; processing still runs.
 func (c *clusterResourcesController) fetchAndProcessClusterResources(ctx context.Context,
-	key controllerutils.HCPClusterKey, managementCluster *azcorearm.ResourceID, clusterServiceID metadataapi.InternalID) error {
+	key controllerutils.HCPClusterKey, managementCluster *azcorearm.ResourceID, clusterServiceID metadataapi.InternalID, version *semver.Version) error {
 	resources, err := c.getClusterResources(ctx, clusterServiceID)
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
 	if resources != nil {
-		if err := c.processClusterResources(ctx, key, managementCluster, resources, clusterServiceID.ID()); err != nil {
+		if err := c.processClusterResources(ctx, key, managementCluster, resources, clusterServiceID.ID(), version); err != nil {
 			return utils.TrackError(fmt.Errorf("failed to process cluster resources: %w", err))
 		}
 	}
@@ -265,7 +266,8 @@ func (c *clusterResourcesController) getClusterResources(ctx context.Context, id
 
 // processClusterResources converts each resource to ApplyDesire documents
 func (c *clusterResourcesController) processClusterResources(ctx context.Context, key controllerutils.HCPClusterKey,
-	managementCluster *azcorearm.ResourceID, resources *arohcpv1alpha1.ClusterResources, clusterServiceID string) error {
+	managementCluster *azcorearm.ResourceID, resources *arohcpv1alpha1.ClusterResources, clusterServiceID string,
+	version *semver.Version) error {
 
 	kubeApplierDBClient := c.kubeApplierDBClients.For(ctx, managementCluster)
 	if kubeApplierDBClient == nil {
@@ -315,9 +317,12 @@ func (c *clusterResourcesController) processClusterResources(ctx context.Context
 
 		// Unset the ManagedCluster CR and ACM-path ingress bits because HyperShift
 		// manages the ingress certificate when the subscription's experimental
-		// release-features AFEC is registered.
+		// release-features AFEC is registered, but only for versions whose HCCO
+		// consumes the service-provider ingress certificate (natively or via a
+		// CPO override). Other versions still need the legacy ACM wiring to
+		// deliver a trusted ingress certificate (AROSLSRE-2529).
 		// CS still emits them all, we do this to allow ourselves testing.
-		if hasExperimentalFeature && legacyACMBasedIngressCertificateWiringDesireName(classified.desireName) {
+		if hasExperimentalFeature && suppressLegacyIngressDesire(classified.desireName, version) {
 			continue
 		}
 
