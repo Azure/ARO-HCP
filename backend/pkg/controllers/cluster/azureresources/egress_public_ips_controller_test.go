@@ -16,8 +16,13 @@ package azureresources
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -29,8 +34,10 @@ import (
 	clocktesting "k8s.io/utils/clock/testing"
 	"k8s.io/utils/ptr"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/fake"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v6"
 
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
@@ -43,6 +50,113 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 )
+
+type egressListPage struct {
+	values []*armnetwork.PublicIPAddress
+	status int
+	code   string
+	err    error
+	body   string
+}
+
+type egressListTransport struct {
+	test     *testing.T
+	pages    []egressListPage
+	requests int
+}
+
+func (transport *egressListTransport) Do(request *http.Request) (*http.Response, error) {
+	transport.test.Helper()
+	require.Equal(transport.test, http.MethodGet, request.Method)
+	require.Equal(transport.test, "/subscriptions/"+testSubscriptionID+"/resourceGroups/"+testManagedRGName+"/providers/Microsoft.Network/publicIPAddresses", request.URL.Path, "only resource-group enumeration is allowed, never per-IP GETs")
+	require.Empty(transport.test, request.URL.Query().Get("$filter"))
+	pageIndex := 0
+	if page := request.URL.Query().Get("page"); page != "" {
+		var err error
+		pageIndex, err = strconv.Atoi(page)
+		require.NoError(transport.test, err)
+	}
+	require.Less(transport.test, pageIndex, len(transport.pages))
+	transport.requests++
+	page := transport.pages[pageIndex]
+	if page.err != nil {
+		return nil, page.err
+	}
+	status := page.status
+	if status == 0 {
+		status = http.StatusOK
+	}
+	body := page.body
+	if body == "" {
+		result := map[string]any{"value": page.values}
+		if pageIndex+1 < len(transport.pages) {
+			nextURL := *request.URL
+			query := nextURL.Query()
+			query.Set("page", strconv.Itoa(pageIndex+1))
+			nextURL.RawQuery = query.Encode()
+			result["nextLink"] = nextURL.String()
+		}
+		if status != http.StatusOK {
+			code := page.code
+			if code == "" {
+				code = "ResourceNotFound"
+			}
+			result = map[string]any{"error": map[string]string{"code": code, "message": "list request failed"}}
+		}
+		encoded, err := json.Marshal(result)
+		require.NoError(transport.test, err)
+		body = string(encoded)
+	}
+	return &http.Response{StatusCode: status, Header: http.Header{"Content-Type": {"application/json"}}, Body: io.NopCloser(strings.NewReader(body)), Request: request}, nil
+}
+
+func newEgressListClient(test *testing.T, transport *egressListTransport) *armnetwork.PublicIPAddressesClient {
+	test.Helper()
+	client, err := armnetwork.NewPublicIPAddressesClient(testSubscriptionID, &fake.TokenCredential{}, &azcorearm.ClientOptions{
+		ClientOptions: policy.ClientOptions{Transport: transport, Retry: policy.RetryOptions{MaxRetries: -1}},
+	})
+	require.NoError(test, err)
+	return client
+}
+
+func TestEgressPublicIPsListNextLinkPreservesRequest(t *testing.T) {
+	for _, page := range []string{"", "&page=1"} {
+		t.Run("query"+page, func(t *testing.T) {
+			request, err := http.NewRequest(http.MethodGet, "https://arm.example.invalid:8443/subscriptions/"+testSubscriptionID+"/resourceGroups/"+testManagedRGName+"/providers/Microsoft.Network/publicIPAddresses?api-version=test-version&tag=one&tag=two&token=a%2Bb%26c"+page, nil)
+			require.NoError(t, err)
+			originalURL := *request.URL
+			transport := &egressListTransport{test: t, pages: make([]egressListPage, 3)}
+			response, err := transport.Do(request)
+			require.NoError(t, err)
+			defer response.Body.Close()
+			var result struct {
+				NextLink string `json:"nextLink"`
+			}
+			require.NoError(t, json.NewDecoder(response.Body).Decode(&result))
+			require.NotEmpty(t, result.NextLink)
+			nextURL, err := request.URL.Parse(result.NextLink)
+			require.NoError(t, err)
+			expectedURL := originalURL
+			expectedQuery := originalURL.Query()
+			nextPage := "1"
+			if page != "" {
+				nextPage = "2"
+			}
+			expectedQuery.Set("page", nextPage)
+			expectedURL.RawQuery = expectedQuery.Encode()
+			require.Equal(t, expectedURL, *nextURL, "nextLink must preserve the endpoint and every query value except page")
+			require.Equal(t, originalURL, *request.URL, "creating nextLink must not mutate the original request URL")
+		})
+	}
+}
+
+func egressListValues(expected []*azcorearm.ResourceID) []*armnetwork.PublicIPAddress {
+	values := make([]*armnetwork.PublicIPAddress, 0, len(expected))
+	for _, resourceID := range expected {
+		values = append(values, &armnetwork.PublicIPAddress{ID: ptr.To(resourceID.String())})
+	}
+	return values
+}
 
 type egressStatusNotifier struct {
 	handler cache.ResourceEventHandler
@@ -76,8 +190,8 @@ func (syncer *egressEventSyncer) SyncOnce(ctx context.Context, key controlleruti
 	return err
 }
 
-func TestEgressPublicIPsMixedResultsStatusEvents(t *testing.T) {
-	for _, status := range []int{429, 503} {
+func TestEgressPublicIPsListStatusEvents(t *testing.T) {
+	for _, status := range []int{0, 429, 503, 403, 404} {
 		t.Run(fmt.Sprint(status), func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
@@ -97,22 +211,12 @@ func TestEgressPublicIPsMixedResultsStatusEvents(t *testing.T) {
 			}
 			mockController := gomock.NewController(t)
 			builder := azureclient.NewMockFirstPartyApplicationClientBuilder(mockController)
-			client := azureclient.NewMockPublicIPAddressesClient(mockController)
-			builder.EXPECT().PublicIPAddressesClient(testTenantID, testSubscriptionID).Return(client, nil).AnyTimes()
-			getCalls := 0
-			recovered := false
-			for index, resourceID := range expected {
-				client.EXPECT().Get(gomock.Any(), testManagedRGName, resourceID.Name, nil).DoAndReturn(func(context.Context, string, string, *armnetwork.PublicIPAddressesClientGetOptions) (armnetwork.PublicIPAddressesClientGetResponse, error) {
-					getCalls++
-					var getErr error
-					if !recovered && index == 0 {
-						getErr = &azcore.ResponseError{StatusCode: 404, ErrorCode: "ResourceNotFound"}
-					} else if !recovered && index == 1 {
-						getErr = &azcore.ResponseError{StatusCode: status}
-					}
-					return armnetwork.PublicIPAddressesClientGetResponse{}, getErr
-				}).AnyTimes()
+			transport := &egressListTransport{test: t, pages: []egressListPage{{values: egressListValues(expected[1:])}}}
+			if status != 0 {
+				transport.pages = append(transport.pages, egressListPage{status: status})
 			}
+			client := newEgressListClient(t, transport)
+			builder.EXPECT().PublicIPAddressesClient(testTenantID, testSubscriptionID).Return(client, nil).AnyTimes()
 			clock := clocktesting.NewFakePassiveClock(time.Now())
 			enqueuer := &fakeAfterEnqueuer{}
 			syncer := &egressEventSyncer{
@@ -157,11 +261,17 @@ func TestEgressPublicIPsMixedResultsStatusEvents(t *testing.T) {
 			}
 			initial := stored()
 			notifier.handler.OnAdd(initial, false)
-			require.Error(t, runQueued())
+			require.Equal(t, status != 0, runQueued() != nil)
 			observed := stored()
 			require.NotEqual(t, initial.CosmosETag, observed.CosmosETag)
-			require.Equal(t, coreapi.AzureResourceNotFound, observed.Status.AzureResources.EgressPublicIPs[expected[0].String()])
-			require.Equal(t, coreapi.AzureResourceUnknown, observed.Status.AzureResources.EgressPublicIPs[expected[1].String()])
+			unconfirmed := coreapi.AzureResourceNotFound
+			if status != 0 {
+				unconfirmed = coreapi.AzureResourceUnknown
+			}
+			require.Equal(t, unconfirmed, observed.Status.AzureResources.EgressPublicIPs[expected[0].String()])
+			require.Equal(t, coreapi.AzureResourceFound, observed.Status.AzureResources.EgressPublicIPs[expected[1].String()])
+			requestsPerPass := len(transport.pages)
+			require.Equal(t, requestsPerPass, transport.requests)
 			require.Len(t, enqueuer.enqueuedDurations, 1)
 			delay := enqueuer.enqueuedDurations[0]
 			require.GreaterOrEqual(t, delay, time.Minute)
@@ -173,22 +283,22 @@ func TestEgressPublicIPsMixedResultsStatusEvents(t *testing.T) {
 			for range 3 {
 				notifier.handler.OnUpdate(initial, observed)
 				require.NoError(t, runQueued())
-				require.Equal(t, 9, getCalls, "status events must not repeat ARM reads during cooldown")
+				require.Equal(t, requestsPerPass, transport.requests, "status events must not repeat enumeration during cooldown")
 				require.Equal(t, observed.CosmosETag, stored().CosmosETag, "status events must not replace the document during cooldown")
 			}
 			require.Len(t, enqueuer.enqueuedDurations, 4)
 			require.Equal(t, time.Second, enqueuer.enqueuedDurations[3], "early events must preserve the explicit retry after error backoff is forgotten")
 			clock.SetTime(recheck.Time)
 			controller.Enqueue(enqueuer.enqueuedKeys[3])
-			require.Error(t, runQueued())
-			require.Equal(t, 18, getCalls, "cooldown expiry must allow exactly one nine-GET pass")
+			require.Equal(t, status != 0, runQueued() != nil)
+			require.Equal(t, 2*requestsPerPass, transport.requests, "cooldown expiry must allow exactly one enumeration")
 			retried := stored()
 			require.NotEqual(t, observed.CosmosETag, retried.CosmosETag)
-			recovered = true
+			transport.pages = []egressListPage{{values: egressListValues(expected)}}
 			clock.SetTime(retried.Spec.EarliestRecheckTimesByController[EgressPublicIPsControllerName].Time)
 			controller.Enqueue(enqueuer.enqueuedKeys[4])
 			require.NoError(t, runQueued())
-			require.Equal(t, 27, getCalls)
+			require.Equal(t, 2*requestsPerPass+1, transport.requests)
 			completed := stored()
 			for _, observation := range completed.Status.AzureResources.EgressPublicIPs {
 				require.Equal(t, coreapi.AzureResourceFound, observation)
@@ -196,7 +306,7 @@ func TestEgressPublicIPsMixedResultsStatusEvents(t *testing.T) {
 			require.Nil(t, completed.Spec.EarliestRecheckTimesByController[EgressPublicIPsControllerName])
 			notifier.handler.OnUpdate(retried, completed)
 			require.NoError(t, runQueued())
-			require.Equal(t, 27, getCalls)
+			require.Equal(t, 2*requestsPerPass+1, transport.requests)
 			require.Len(t, enqueuer.enqueuedKeys, 5, "completed observations must not schedule retries")
 			require.Equal(t, completed.CosmosETag, stored().CosmosETag)
 		})
@@ -212,10 +322,10 @@ func TestEgressPublicIPsSyncOnce(t *testing.T) {
 		builderFailure bool
 		conflict       bool
 	}{
-		{name: "zero", status: 404},
+		{name: "zero"},
 		{name: "resource group absent", status: 404, errorCode: "ResourceGroupNotFound"},
 		{name: "unrecognized 404", status: 404, errorCode: "NoRegisteredProviderFound"},
-		{name: "partial", found: 4, status: 404},
+		{name: "partial", found: 4},
 		{name: "all", found: 9},
 		{name: "authorization", found: 4, status: 403},
 		{name: "throttling", status: 429},
@@ -225,7 +335,7 @@ func TestEgressPublicIPsSyncOnce(t *testing.T) {
 		{name: "persistence conflict", found: 9, conflict: true},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
-			readFailure := testCase.status != 0 && (testCase.status != 404 || testCase.errorCode == "NoRegisteredProviderFound")
+			readFailure := testCase.status != 0
 			ctx := context.Background()
 			cluster := newTestCluster(false)
 			clusterID := metadataapi.Must(metadataapi.NewInternalID("/api/clusters_mgmt/v1/clusters/abc123"))
@@ -248,25 +358,24 @@ func TestEgressPublicIPsSyncOnce(t *testing.T) {
 			if testCase.builderFailure {
 				builder.EXPECT().PublicIPAddressesClient(testTenantID, testSubscriptionID).Return(nil, errors.New("credential failure"))
 			} else {
-				calls := 1
+				pages := []egressListPage{{values: egressListValues(expected[:testCase.found])}}
 				if readFailure {
-					calls = 2
-				}
-				builder.EXPECT().PublicIPAddressesClient(testTenantID, testSubscriptionID).Return(client, nil).Times(calls)
-				for index, resourceID := range expected {
-					var getErr error
-					if index >= testCase.found {
-						errorCode := testCase.errorCode
-						if errorCode == "" {
-							errorCode = "ResourceNotFound"
-						}
-						getErr = &azcore.ResponseError{StatusCode: testCase.status, ErrorCode: errorCode}
-						if testCase.status == -1 {
-							getErr = errors.New("transport failure")
-						}
+					failure := egressListPage{status: testCase.status, code: testCase.errorCode}
+					if testCase.status == -1 {
+						failure.err = errors.New("transport failure")
 					}
-					client.EXPECT().Get(gomock.Any(), testManagedRGName, resourceID.Name, nil).Return(armnetwork.PublicIPAddressesClientGetResponse{}, getErr).Times(calls)
+					if testCase.found == 0 {
+						pages = []egressListPage{failure}
+					} else {
+						pages = append(pages, failure)
+					}
 				}
+				transport := &egressListTransport{test: t, pages: pages}
+				sdkClient := newEgressListClient(t, transport)
+				builder.EXPECT().PublicIPAddressesClient(testTenantID, testSubscriptionID).Return(client, nil)
+				client.EXPECT().NewListPager(testManagedRGName, nil).DoAndReturn(func(group string, options *armnetwork.PublicIPAddressesClientListOptions) *runtime.Pager[armnetwork.PublicIPAddressesClientListResponse] {
+					return sdkClient.NewListPager(group, options)
+				})
 			}
 			syncer := &egressPublicIPsSyncer{
 				clock:                        clocktesting.NewFakePassiveClock(time.Now()),
@@ -298,21 +407,91 @@ func TestEgressPublicIPsSyncOnce(t *testing.T) {
 				want := coreapi.AzureResourceUnknown
 				if index < testCase.found {
 					want = coreapi.AzureResourceFound
-				} else if testCase.status == 404 && !readFailure {
+				} else if !readFailure && !testCase.builderFailure {
 					want = coreapi.AzureResourceNotFound
 				}
 				require.Equal(t, want, updated.Status.AzureResources.EgressPublicIPs[resourceID.String()])
 			}
 			if !testCase.builderFailure {
 				retryErr := syncer.SyncOnce(ctx, key)
-				if readFailure {
-					require.Error(t, retryErr)
-				} else {
-					require.NoError(t, retryErr)
-				}
+				require.NoError(t, retryErr)
 				again, err := database.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
 				require.NoError(t, err)
 				require.Equal(t, updated.CosmosETag, again.CosmosETag, "unchanged observations must not write")
+			}
+		})
+	}
+}
+
+func TestEgressPublicIPsEnumeration(t *testing.T) {
+	cluster := newTestCluster(false)
+	clusterID := metadataapi.Must(metadataapi.NewInternalID("/api/clusters_mgmt/v1/clusters/abc123"))
+	cluster.ServiceProviderProperties.ClusterServiceID = &clusterID
+	expected, err := coreapihelpers.EgressPublicIPResourceIDs(cluster)
+	require.NoError(t, err)
+	values := egressListValues(expected)
+	identity := expected[0].String()
+	testCases := []struct {
+		name    string
+		pages   []egressListPage
+		found   int
+		unknown bool
+	}{
+		{name: "all", pages: []egressListPage{{values: values}}, found: 9},
+		{name: "some", pages: []egressListPage{{values: values[:4]}}, found: 4},
+		{name: "empty", pages: []egressListPage{{values: []*armnetwork.PublicIPAddress{}}}},
+		{name: "duplicates", pages: []egressListPage{{values: []*armnetwork.PublicIPAddress{values[0], values[0]}}}, found: 1},
+		{name: "later pages", pages: []egressListPage{{values: values[:2]}, {}, {values: values[2:]}}, found: 9},
+		{name: "all found before later failure", pages: []egressListPage{{values: values}, {status: 503}}, found: 9, unknown: true},
+		{name: "case insensitive ID", pages: []egressListPage{{values: []*armnetwork.PublicIPAddress{{ID: ptr.To(strings.ToUpper(identity))}}}}, found: 1},
+		{name: "unrelated name", pages: []egressListPage{{values: []*armnetwork.PublicIPAddress{{ID: ptr.To(identity + "0")}}}}},
+		{name: "wrong resource group", pages: []egressListPage{{values: []*armnetwork.PublicIPAddress{{ID: ptr.To(strings.Replace(identity, testManagedRGName, "other-rg", 1))}}}}},
+		{name: "wrong subscription", pages: []egressListPage{{values: []*armnetwork.PublicIPAddress{{ID: ptr.To(strings.Replace(identity, testSubscriptionID, "other-subscription", 1))}}}}},
+		{name: "wrong resource type", pages: []egressListPage{{values: []*armnetwork.PublicIPAddress{{ID: ptr.To(strings.Replace(identity, "publicIPAddresses", "publicIPPrefixes", 1))}}}}},
+		{name: "nil record", pages: []egressListPage{{values: []*armnetwork.PublicIPAddress{nil}}, {values: values[:1]}}, found: 1, unknown: true},
+		{name: "nil ID", pages: []egressListPage{{values: []*armnetwork.PublicIPAddress{{Name: ptr.To("abc123-0")}}}}, unknown: true},
+		{name: "invalid ID", pages: []egressListPage{{values: []*armnetwork.PublicIPAddress{{ID: ptr.To("invalid")}}}}, unknown: true},
+		{name: "empty ID", pages: []egressListPage{{values: []*armnetwork.PublicIPAddress{{ID: ptr.To("")}}}}, unknown: true},
+		{name: "malformed later page", pages: []egressListPage{{values: values[:1]}, {body: "{"}}, found: 1, unknown: true},
+	}
+	for _, status := range []int{429, 503, 403, 404} {
+		for _, later := range []bool{false, true} {
+			pages := []egressListPage{}
+			found := 0
+			if later {
+				pages = append(pages, egressListPage{values: values[:2]})
+				found = 2
+			}
+			pages = append(pages, egressListPage{status: status})
+			testCases = append(testCases, struct {
+				name    string
+				pages   []egressListPage
+				found   int
+				unknown bool
+			}{name: fmt.Sprintf("status %d later %t", status, later), pages: pages, found: found, unknown: true})
+		}
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			transport := &egressListTransport{test: t, pages: testCase.pages}
+			builder := azureclient.NewMockFirstPartyApplicationClientBuilder(gomock.NewController(t))
+			builder.EXPECT().PublicIPAddressesClient(testTenantID, testSubscriptionID).Return(newEgressListClient(t, transport), nil)
+			syncer := &egressPublicIPsSyncer{
+				subscriptionLister:    &corelistertesting.SliceSubscriptionLister{Subscriptions: []*coreapi.Subscription{newTestSubscription(ptr.To(testTenantID))}},
+				azureFPAClientBuilder: builder,
+			}
+			observations, err := syncer.observe(context.Background(), cluster)
+			require.Equal(t, testCase.unknown, err != nil)
+			require.Equal(t, len(testCase.pages), transport.requests, "all pages must be followed before deriving absence")
+			require.Len(t, observations, 9)
+			for index, resourceID := range expected {
+				want := coreapi.AzureResourceNotFound
+				if index < testCase.found {
+					want = coreapi.AzureResourceFound
+				} else if testCase.unknown {
+					want = coreapi.AzureResourceUnknown
+				}
+				require.Equal(t, want, observations[resourceID.String()], resourceID.String())
 			}
 		})
 	}
@@ -388,7 +567,8 @@ func TestEgressPublicIPsInvalidationAndConflict(t *testing.T) {
 	crud := database.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName)
 	mockController := gomock.NewController(t)
 	builder := azureclient.NewMockFirstPartyApplicationClientBuilder(mockController)
-	client := azureclient.NewMockPublicIPAddressesClient(mockController)
+	transport := &egressListTransport{test: t, pages: []egressListPage{{status: 503}}}
+	client := newEgressListClient(t, transport)
 	syncer := &egressPublicIPsSyncer{
 		clock:                        clock,
 		resourcesDBClient:            database,
@@ -421,13 +601,6 @@ func TestEgressPublicIPsInvalidationAndConflict(t *testing.T) {
 		require.NoError(t, err)
 		return client, nil
 	})
-	for index, resourceID := range expected {
-		var getErr error
-		if index == 0 {
-			getErr = &azcore.ResponseError{StatusCode: 503}
-		}
-		client.EXPECT().Get(gomock.Any(), testManagedRGName, resourceID.Name, nil).Return(armnetwork.PublicIPAddressesClientGetResponse{}, getErr)
-	}
 	require.Error(t, syncer.SyncOnce(ctx, key))
 	stored, err := crud.Get(ctx, coreapi.ServiceProviderClusterResourceName)
 	require.NoError(t, err)

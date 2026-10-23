@@ -10,9 +10,9 @@
 package client
 
 import (
-	context "context"
 	reflect "reflect"
 
+	runtime "github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	armnetwork "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v6"
 	gomock "go.uber.org/mock/gomock"
 )
@@ -41,41 +41,40 @@ func (m *MockPublicIPAddressesClient) EXPECT() *MockPublicIPAddressesClientMockR
 	return m.recorder
 }
 
-// Get mocks base method.
-func (m *MockPublicIPAddressesClient) Get(ctx context.Context, resourceGroupName, publicIPAddressName string, options *armnetwork.PublicIPAddressesClientGetOptions) (armnetwork.PublicIPAddressesClientGetResponse, error) {
+// NewListPager mocks base method.
+func (m *MockPublicIPAddressesClient) NewListPager(resourceGroupName string, options *armnetwork.PublicIPAddressesClientListOptions) *runtime.Pager[armnetwork.PublicIPAddressesClientListResponse] {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Get", ctx, resourceGroupName, publicIPAddressName, options)
-	ret0, _ := ret[0].(armnetwork.PublicIPAddressesClientGetResponse)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret := m.ctrl.Call(m, "NewListPager", resourceGroupName, options)
+	ret0, _ := ret[0].(*runtime.Pager[armnetwork.PublicIPAddressesClientListResponse])
+	return ret0
 }
 
-// Get indicates an expected call of Get.
-func (mr *MockPublicIPAddressesClientMockRecorder) Get(ctx, resourceGroupName, publicIPAddressName, options any) *MockPublicIPAddressesClientGetCall {
+// NewListPager indicates an expected call of NewListPager.
+func (mr *MockPublicIPAddressesClientMockRecorder) NewListPager(resourceGroupName, options any) *MockPublicIPAddressesClientNewListPagerCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockPublicIPAddressesClient)(nil).Get), ctx, resourceGroupName, publicIPAddressName, options)
-	return &MockPublicIPAddressesClientGetCall{Call: call}
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewListPager", reflect.TypeOf((*MockPublicIPAddressesClient)(nil).NewListPager), resourceGroupName, options)
+	return &MockPublicIPAddressesClientNewListPagerCall{Call: call}
 }
 
-// MockPublicIPAddressesClientGetCall wrap *gomock.Call
-type MockPublicIPAddressesClientGetCall struct {
+// MockPublicIPAddressesClientNewListPagerCall wrap *gomock.Call
+type MockPublicIPAddressesClientNewListPagerCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *MockPublicIPAddressesClientGetCall) Return(arg0 armnetwork.PublicIPAddressesClientGetResponse, arg1 error) *MockPublicIPAddressesClientGetCall {
-	c.Call = c.Call.Return(arg0, arg1)
+func (c *MockPublicIPAddressesClientNewListPagerCall) Return(arg0 *runtime.Pager[armnetwork.PublicIPAddressesClientListResponse]) *MockPublicIPAddressesClientNewListPagerCall {
+	c.Call = c.Call.Return(arg0)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockPublicIPAddressesClientGetCall) Do(f func(context.Context, string, string, *armnetwork.PublicIPAddressesClientGetOptions) (armnetwork.PublicIPAddressesClientGetResponse, error)) *MockPublicIPAddressesClientGetCall {
+func (c *MockPublicIPAddressesClientNewListPagerCall) Do(f func(string, *armnetwork.PublicIPAddressesClientListOptions) *runtime.Pager[armnetwork.PublicIPAddressesClientListResponse]) *MockPublicIPAddressesClientNewListPagerCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockPublicIPAddressesClientGetCall) DoAndReturn(f func(context.Context, string, string, *armnetwork.PublicIPAddressesClientGetOptions) (armnetwork.PublicIPAddressesClientGetResponse, error)) *MockPublicIPAddressesClientGetCall {
+func (c *MockPublicIPAddressesClientNewListPagerCall) DoAndReturn(f func(string, *armnetwork.PublicIPAddressesClientListOptions) *runtime.Pager[armnetwork.PublicIPAddressesClientListResponse]) *MockPublicIPAddressesClientNewListPagerCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }

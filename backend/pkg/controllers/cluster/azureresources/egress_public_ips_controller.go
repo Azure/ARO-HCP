@@ -17,6 +17,7 @@ package azureresources
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -133,7 +134,7 @@ func (c *egressPublicIPsSyncer) SyncOnce(ctx context.Context, key controllerutil
 	replacement := existing.DeepCopy()
 	replacement.Status.AzureResources.EgressPublicIPs = observations
 	for _, observation := range observations {
-		if observation == coreapi.AzureResourceNotFound {
+		if observation == coreapi.AzureResourceNotFound || observationErr != nil {
 			if replacement.Spec.EarliestRecheckTimesByController == nil {
 				replacement.Spec.EarliestRecheckTimesByController = map[string]*metav1.Time{}
 			}
@@ -180,17 +181,38 @@ func (c *egressPublicIPsSyncer) observe(ctx context.Context, cluster *coreapi.Cl
 	if err != nil {
 		return observations, utils.TrackError(err)
 	}
-	var errs []error
-	for _, resourceID := range expected {
-		_, err := client.Get(ctx, resourceID.ResourceGroupName, resourceID.Name, nil)
-		switch {
-		case err == nil:
-			observations[resourceID.String()] = coreapi.AzureResourceFound
-		case azureclient.IsAzureCoreResponseErrorHTTP404(err) && (azureclient.IsResourceNotFoundErr(err) || azureclient.IsResourceGroupNotFoundErr(err)):
-			observations[resourceID.String()] = coreapi.AzureResourceNotFound
-		default:
-			errs = append(errs, utils.TrackError(err))
+	var invalidRecordErr error
+	pager := client.NewListPager(expected[0].ResourceGroupName, nil)
+	for pager.More() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			return observations, utils.TrackError(errors.Join(invalidRecordErr, err))
+		}
+		for _, publicIP := range page.Value {
+			if publicIP == nil || publicIP.ID == nil {
+				invalidRecordErr = errors.New("public IP enumeration returned a record without an ARM resource ID")
+				continue
+			}
+			resourceID, err := azcorearm.ParseResourceID(*publicIP.ID)
+			if err != nil {
+				invalidRecordErr = errors.New("public IP enumeration returned an invalid ARM resource ID")
+				continue
+			}
+			for _, expectedID := range expected {
+				if strings.EqualFold(resourceID.String(), expectedID.String()) {
+					observations[expectedID.String()] = coreapi.AzureResourceFound
+					break
+				}
+			}
 		}
 	}
-	return observations, errors.Join(errs...)
+	if invalidRecordErr != nil {
+		return observations, utils.TrackError(invalidRecordErr)
+	}
+	for resourceID, observation := range observations {
+		if observation != coreapi.AzureResourceFound {
+			observations[resourceID] = coreapi.AzureResourceNotFound
+		}
+	}
+	return observations, nil
 }
