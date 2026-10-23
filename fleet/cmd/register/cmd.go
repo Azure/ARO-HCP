@@ -181,4 +181,5 @@ func (o *RegisterOptions) applyStatusToManagementCluster(managementCluster *flee
 	managementCluster.Status.MaestroRESTAPIURL = o.maestroRESTAPIURL
 	managementCluster.Status.MaestroGRPCTarget = o.maestroGRPCTarget
 	managementCluster.Status.KubeApplierCosmosContainerName = o.kubeApplierCosmosContainerName
+	managementCluster.Status.KubeApplierCosmosContainerMaxScale = o.kubeApplierCosmosContainerMaxScale
 }
