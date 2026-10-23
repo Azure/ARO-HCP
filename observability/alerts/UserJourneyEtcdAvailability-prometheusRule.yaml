@@ -428,7 +428,6 @@ spec:
         description: "{{ $labels.namespace }} etcd has 99th percentile WAL fsync duration of {{ $value }}s (threshold: 50ms). Slow disk performance may impact cluster stability. Resource ID: {{ $labels.resource_id }}. Subscription ID: {{ $labels.subscription_id }}. Slow burn (3d/6h)."
         runbook_url: https://aka.ms/arohcp-runbook-etcd
         correlationId: "userJourneyEtcdWALFsyncDurationHigh/{{ $labels.cluster }}/{{ $labels.namespace }}"
-
     # ----------------------------------------
     # userJourneyEtcdMetricsAbsent
     # ----------------------------------------
