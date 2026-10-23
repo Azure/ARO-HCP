@@ -314,3 +314,67 @@ func TestFinalizeAnalysisSessionReturnsUsageWriteError(t *testing.T) {
 		t.Errorf("session cleanup = disconnect:%t delete:%t, want disconnect only", session.disconnectWasCalled, session.deleteWasCalled)
 	}
 }
+
+func TestValidateReasoningEffort(t *testing.T) {
+	t.Setenv("ANTHROPIC_API_KEY", "test-key")
+	dataDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dataDir, "manifest.json"), []byte(`{}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range []struct {
+		provider, effort, wantErr string
+	}{
+		{provider: providerCopilot},
+		{provider: providerCopilot, effort: "high"},
+		{provider: providerCopilot, effort: "minimal"},
+		{provider: providerCopilot, effort: "bogus", wantErr: "--effort"},
+		{provider: providerClaude},
+		{provider: providerClaude, effort: "high"},
+		{provider: providerClaude, effort: "minimal", wantErr: "--effort"},
+		{provider: providerClaudeCode},
+		{provider: providerClaudeCode, effort: "max"},
+		{provider: providerClaudeCode, effort: "none", wantErr: "--effort"},
+	} {
+		t.Run(test.provider+"/"+test.effort, func(t *testing.T) {
+			opts := defaultAnalyzeOptions()
+			opts.DataDir = dataDir
+			opts.AROHCPPath = dataDir
+			opts.HypershiftPath = dataDir
+			opts.MaestroPath = dataDir
+			opts.ClustersServicePath = dataDir
+			cmd := &cobra.Command{}
+			if err := bindAnalyzeOptions(opts, cmd); err != nil {
+				t.Fatal(err)
+			}
+			flags := []string{"--provider=" + test.provider}
+			if test.effort != "" {
+				flags = append(flags, "--effort="+test.effort)
+			}
+			if err := cmd.ParseFlags(flags); err != nil {
+				t.Fatal(err)
+			}
+			validated, err := opts.validate()
+			if test.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), test.wantErr) {
+					t.Fatalf("expected error containing %q, got %v", test.wantErr, err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			var got string
+			switch test.provider {
+			case providerCopilot:
+				got = validated.copilotConfig.ReasoningEffort
+			case providerClaude:
+				got = validated.claudeConfig.ReasoningEffort
+			case providerClaudeCode:
+				got = validated.claudeCodeConfig.ReasoningEffort
+			}
+			if got != test.effort {
+				t.Fatalf("forwarded effort = %q, want %q", got, test.effort)
+			}
+		})
+	}
+}
