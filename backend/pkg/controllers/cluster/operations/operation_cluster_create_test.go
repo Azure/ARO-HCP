@@ -1419,45 +1419,97 @@ func TestServiceProviderDefaultIngressServingCertificateStatus(t *testing.T) {
 			},
 		},
 		{
+			name: "legacy condition with sync timestamp",
+			status: secretsyncv1alpha1.SecretSyncStatus{
+				LastSuccessfulSyncTime: &syncedAt,
+				Conditions:             []metav1.Condition{{Type: "SecretCreated", Status: metav1.ConditionTrue}},
+			},
+		},
+		{
 			name: "successful sync",
 			status: secretsyncv1alpha1.SecretSyncStatus{
 				LastSuccessfulSyncTime: &syncedAt,
-				Conditions:             []metav1.Condition{{Type: "SecretUpdated", Status: metav1.ConditionTrue}},
+				Conditions:             []metav1.Condition{{Type: "SecretUpdated", Status: metav1.ConditionTrue, Reason: "SecretUpToDate"}},
 			},
 			succeeded: true,
 		},
 		{
-			name: "successful sync without conditions",
+			name: "successful sync ignores legacy condition",
+			status: secretsyncv1alpha1.SecretSyncStatus{
+				LastSuccessfulSyncTime: &syncedAt,
+				Conditions: []metav1.Condition{
+					{Type: "SecretCreated", Status: metav1.ConditionFalse},
+					{Type: "SecretUpdated", Status: metav1.ConditionTrue, Reason: "SecretUpToDate"},
+				},
+			},
+			succeeded: true,
+		},
+		{
+			name: "sync timestamp without conditions",
 			status: secretsyncv1alpha1.SecretSyncStatus{
 				LastSuccessfulSyncTime: &syncedAt,
 			},
-			succeeded: true,
 		},
 		{
 			name: "failed rotation after a successful first sync",
 			status: secretsyncv1alpha1.SecretSyncStatus{
 				LastSuccessfulSyncTime: &syncedAt,
-				Conditions:             []metav1.Condition{{Type: "SecretUpdated", Status: metav1.ConditionFalse}},
+				Conditions:             []metav1.Condition{{Type: "SecretUpdated", Status: metav1.ConditionFalse, Reason: "ProviderError"}},
 			},
-			succeeded: true,
+		},
+		{
+			name: "unknown sync condition after a successful first sync",
+			status: secretsyncv1alpha1.SecretSyncStatus{
+				LastSuccessfulSyncTime: &syncedAt,
+				Conditions:             []metav1.Condition{{Type: "SecretUpdated", Status: metav1.ConditionUnknown, Reason: "NoUpdatesAttemptedYet"}},
+			},
+		},
+		{
+			name: "failed condition with success reason",
+			status: secretsyncv1alpha1.SecretSyncStatus{
+				LastSuccessfulSyncTime: &syncedAt,
+				Conditions:             []metav1.Condition{{Type: "SecretUpdated", Status: metav1.ConditionFalse, Reason: "SecretUpToDate"}},
+			},
+		},
+		{
+			name: "successful condition with unexpected reason",
+			status: secretsyncv1alpha1.SecretSyncStatus{
+				LastSuccessfulSyncTime: &syncedAt,
+				Conditions:             []metav1.Condition{{Type: "SecretUpdated", Status: metav1.ConditionTrue, Reason: "SyncStarting"}},
+			},
+		},
+		{
+			name: "successful condition without reason",
+			status: secretsyncv1alpha1.SecretSyncStatus{
+				LastSuccessfulSyncTime: &syncedAt,
+				Conditions:             []metav1.Condition{{Type: "SecretUpdated", Status: metav1.ConditionTrue}},
+			},
+		},
+		{
+			name: "success reason used as condition type",
+			status: secretsyncv1alpha1.SecretSyncStatus{
+				LastSuccessfulSyncTime: &syncedAt,
+				Conditions:             []metav1.Condition{{Type: "SecretUpToDate", Status: metav1.ConditionTrue, Reason: "SecretUpToDate"}},
+			},
 		},
 		{
 			name: "zero sync timestamp",
 			status: secretsyncv1alpha1.SecretSyncStatus{
 				LastSuccessfulSyncTime: &metav1.Time{},
-				Conditions:             []metav1.Condition{{Type: "SecretUpdated", Status: metav1.ConditionTrue}},
+				Conditions:             []metav1.Condition{{Type: "SecretUpdated", Status: metav1.ConditionTrue, Reason: "SecretUpToDate"}},
 			},
 		},
 		{
 			name: "missing sync timestamp",
 			status: secretsyncv1alpha1.SecretSyncStatus{
-				Conditions: []metav1.Condition{{Type: "SecretUpdated", Status: metav1.ConditionTrue}},
+				Conditions: []metav1.Condition{{Type: "SecretUpdated", Status: metav1.ConditionTrue, Reason: "SecretUpToDate"}},
 			},
 		},
 		{
 			name: "cached successful sync with unsuccessful observation",
 			status: secretsyncv1alpha1.SecretSyncStatus{
 				LastSuccessfulSyncTime: &syncedAt,
+				Conditions:             []metav1.Condition{{Type: "SecretUpdated", Status: metav1.ConditionTrue, Reason: "SecretUpToDate"}},
 			},
 			unobserved: true,
 		},
