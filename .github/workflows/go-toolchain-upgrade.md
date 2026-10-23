@@ -333,7 +333,7 @@ safe-outputs:
           pr=$(gh pr view "$url" --json number --jq '.number')
           requested=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$pr" --jq '([.requested_reviewers[] | select(.type != "Bot")] | length) + (.requested_teams | length)')
           test "$requested" -eq 0 || { echo "Human review requests appeared; stopping further automation" >&2; exit 1; }
-          notifications=$(gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/issues/$pr/timeline?per_page=100" --jq '[.[][] | select(.event == "review_requested" and (.requested_reviewer.type // "") != "Bot")] | length')
+          notifications=$(gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/issues/$pr/timeline?per_page=100" | jq '[.[][] | select(.event == "review_requested" and (.requested_reviewer.type // "") != "Bot")] | length')
           test "$notifications" -eq 0 || { echo "Human review notification recorded; stopping further automation" >&2; exit 1; }
       - name: Preserve readiness evidence
         if: always()
