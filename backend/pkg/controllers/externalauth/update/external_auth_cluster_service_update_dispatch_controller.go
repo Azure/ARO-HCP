@@ -238,7 +238,7 @@ func (c *externalAuthClusterServiceUpdateDispatchSyncer) SyncOnce(ctx context.Co
 			)
 			return nil
 		}
-		return utils.TrackError(fmt.Errorf("failed to update cluster-service ExternalAuth: %w", err))
+		return utils.TrackError(fmt.Errorf("failed to update cluster-service ExternalAuth: %w", ocm.StripVolatileErrorFields(err)))
 	}
 
 	logger.Info("dispatched external auth update to Cluster Service", "clusterServiceID", externalAuthCSID.String())

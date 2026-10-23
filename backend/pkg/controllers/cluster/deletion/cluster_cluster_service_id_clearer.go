@@ -120,7 +120,7 @@ func (c *clusterClusterServiceIDClearer) SyncOnce(ctx context.Context, key contr
 	if err != nil {
 		var ocmError *ocmerrors.Error
 		if !errors.As(err, &ocmError) || ocmError.Status() != http.StatusNotFound {
-			return utils.TrackError(fmt.Errorf("failed to get cluster-service Cluster: %w", err))
+			return utils.TrackError(fmt.Errorf("failed to get cluster-service Cluster: %w", ocm.StripVolatileErrorFields(err)))
 		}
 		// 404 - cluster-service has finished deleting the Cluster, clear the CS ID.
 		logger.Info("cluster-service Cluster gone. Clearing ClusterServiceID", "clusterServiceID", csID.String())

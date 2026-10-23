@@ -124,7 +124,7 @@ func (c *nodePoolClusterServiceIDClearer) SyncOnce(ctx context.Context, key cont
 	if err != nil {
 		var ocmError *ocmerrors.Error
 		if !errors.As(err, &ocmError) || ocmError.Status() != http.StatusNotFound {
-			return utils.TrackError(fmt.Errorf("failed to get cluster-service NodePool: %w", err))
+			return utils.TrackError(fmt.Errorf("failed to get cluster-service NodePool: %w", ocm.StripVolatileErrorFields(err)))
 		}
 		// 404 - cluster-service has finished deleting the NodePool, clear the CS ID.
 		logger.Info("cluster-service NodePool gone. Clearing ClusterServiceID", "clusterServiceID", csID.String())

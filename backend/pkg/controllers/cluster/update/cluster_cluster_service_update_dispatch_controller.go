@@ -253,7 +253,7 @@ func (c *clusterClusterServiceUpdateDispatchSyncer) SyncOnce(ctx context.Context
 			)
 			return nil
 		}
-		return utils.TrackError(fmt.Errorf("failed to update cluster-service Cluster: %w", err))
+		return utils.TrackError(fmt.Errorf("failed to update cluster-service Cluster: %w", ocm.StripVolatileErrorFields(err)))
 	}
 
 	logger.Info("dispatched cluster update to Cluster Service", "clusterServiceID", clusterCSID.String())
