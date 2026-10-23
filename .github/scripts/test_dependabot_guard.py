@@ -1,9 +1,12 @@
 """Focused safety checks for agentic dependency PR creation and retests."""
 
+import difflib
 import importlib.util
+import io
 import json
 import os
 import sys
+import subprocess
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
@@ -18,12 +21,12 @@ guard = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(guard)
 
 
-def create_item(manifest="api/package.json", family="typespec", patch_files=None):
+def create_item(manifest="api/package.json", family="typespec", patch_files=None, ecosystem="npm"):
     item = {
         "type": "create_pull_request",
-        "title": f"api npm {family} family to 1.16.0 (high)",
+        "title": f"{ecosystem} {family} family to 1.16.0 (high)",
         "data": {
-            "ecosystem": "npm",
+            "ecosystem": ecosystem,
             "package_family": family,
             "target_version": "1.16.0",
             "manifests": [manifest],
@@ -34,49 +37,311 @@ def create_item(manifest="api/package.json", family="typespec", patch_files=None
     return item
 
 
+def changed_file(filename, before, after, status="modified"):
+    lines = list(difflib.unified_diff(before.splitlines(), after.splitlines(), lineterm=""))[2:]
+    return {
+        "filename": filename,
+        "status": status,
+        "patch": "\n".join(lines),
+        "additions": sum(line.startswith("+") for line in lines),
+        "deletions": sum(line.startswith("-") for line in lines),
+    }
+
+
+def open_pr(number=7689, title="Human toolchain update"):
+    return {"number": number, "title": title, "body": "", "base": "main"}
+
+
+def go_item(manifest="service/go.mod", family="github.com/gofiber/fiber/v2"):
+    return create_item(manifest, family, ecosystem="go")
+
+
+def npm_manifest(dependencies=None, **other):
+    return json.dumps({"dependencies": dependencies or {}, **other}, indent=2) + "\n"
+
+
 class CreateGuardTests(TestCase):
     @patch.object(guard, "gh_lines")
-    def test_existing_typespec_pr_blocks_create_even_if_patch_differs(self, gh):
+    def test_7689_go_directive_update_does_not_block_fiber(self, gh):
+        before = "module example.com/service\n\ngo 1.26.0\n\nrequire github.com/gofiber/fiber/v2 v2.52.0\n"
         gh.side_effect = [
-            [{"number": 7355, "title": "fix(deps): api npm typespec family", "body": "", "base": "main"}],
-            [{"filename": name} for name in ("api/Makefile", "api/package.json", "api/package-lock.json")],
+            [open_pr()],
+            [changed_file("service/go.mod", before, before.replace("go 1.26.0", "go 1.26.10"))],
         ]
-        with self.assertRaisesRegex(ValueError, "#7355"):
-            guard.guard_create({"items": [create_item()]}, "Azure/ARO-HCP")
+        item = go_item()
+        output = {"items": [item]}
+        guard.guard_create(output, "Azure/ARO-HCP")
+        self.assertEqual(output["items"], [item])
+        self.assertIn("filename, previous_filename, status, patch, additions, deletions", gh.call_args.args[1])
+        self.assertTrue(gh.call_args.args[0].endswith("/files?per_page=100"))
 
     @patch.object(guard, "gh_lines")
-    def test_unclassified_pr_on_same_manifest_blocks_create(self, gh):
+    def test_unrelated_go_dependency_in_shared_manifest_is_allowed(self, gh):
+        before = "module example.com/service\n\ngo 1.26.10\n\nrequire (\n\tgithub.com/gofiber/fiber/v2 v2.52.0\n\tgolang.org/x/net v0.48.0\n)\n"
         gh.side_effect = [
-            [{"number": 400, "title": "Other dependency", "body": "", "base": "main"}],
-            [{"filename": "api/package.json"}],
+            [open_pr()],
+            [changed_file("service/go.mod", before, before.replace("v0.48.0", "v0.49.0"))],
         ]
-        with self.assertRaisesRegex(ValueError, "#400"):
-            guard.guard_create({"items": [create_item()]}, "Azure/ARO-HCP")
+        item = go_item()
+        output = {"items": [item]}
+        guard.guard_create(output, "Azure/ARO-HCP")
+        self.assertEqual(output["items"], [item])
 
     @patch.object(guard, "gh_lines")
-    def test_unrelated_manifest_is_allowed(self, gh):
-        gh.side_effect = [
-            [{"number": 400, "title": "Other dependency", "body": "", "base": "main"}],
-            [{"filename": "service/go.mod"}],
-        ]
-        guard.guard_create({"items": [create_item()]}, "Azure/ARO-HCP")
+    def test_go_require_formatting_and_indirect_comments_do_not_overlap(self, gh):
+        prefix = "module example.com/service\n\ngo 1.26.10\n\n"
+        before = prefix + "require github.com/gofiber/fiber/v2 v2.52.0 // indirect\n"
+        for after in (
+            before.replace(" // indirect", ""),
+            before.replace(" v2.52.0", "\t\tv2.52.0"),
+            prefix + 'require (\n\t"github.com/gofiber/fiber/v2" v2.52.0\n)\n',
+        ):
+            with self.subTest(after=after):
+                gh.side_effect = [[open_pr()], [changed_file("service/go.mod", before, after)]]
+                item = go_item()
+                output = {"items": [item]}
+                guard.guard_create(output, "Azure/ARO-HCP")
+                self.assertEqual(output["items"], [item])
 
     @patch.object(guard, "gh_lines")
-    def test_same_family_on_another_manifest_is_blocked(self, gh):
-        gh.side_effect = [
-            [{"number": 401, "title": "fix(deps): typespec to 1.16.0", "body": "", "base": "main"}],
-            [{"filename": "other/package.json"}],
-        ]
-        with self.assertRaisesRegex(ValueError, "#401"):
-            guard.guard_create({"items": [create_item()]}, "Azure/ARO-HCP")
+    def test_go_replacement_formatting_does_not_overlap(self, gh):
+        before = "module example.com/service\n\nreplace github.com/gofiber/fiber/v2 => github.com/gofiber/fiber/v2 v2.52.0\n"
+        after = "module example.com/service\n\nreplace (\n\tgithub.com/gofiber/fiber/v2\t=>\tgithub.com/gofiber/fiber/v2 v2.52.0 // equivalent\n)\n"
+        gh.side_effect = [[open_pr()], [changed_file("service/go.mod", before, after)]]
+        item = go_item()
+        output = {"items": [item]}
+        guard.guard_create(output, "Azure/ARO-HCP")
+        self.assertEqual(output["items"], [item])
 
     @patch.object(guard, "gh_lines")
-    def test_prose_match_without_deps_is_allowed(self, gh):
+    def test_go_dependency_additions_and_removals_still_overlap(self, gh):
+        before = "module example.com/service\n\ngo 1.26.10\n"
+        after = before + "\nrequire github.com/gofiber/fiber/v2 v2.52.0\n"
+        for old, new in ((before, after), (after, before)):
+            with self.subTest(old=old, new=new):
+                gh.side_effect = [[open_pr()], [changed_file("other/go.mod", old, new)]]
+                output = {"items": [go_item()]}
+                guard.guard_create(output, "Azure/ARO-HCP")
+                self.assertEqual(output["items"], [])
+
+    @patch.object(guard, "gh_lines")
+    def test_real_go_overlap_defers_only_candidate_and_preserves_other_outputs(self, gh):
+        before = "module example.com/service\n\nrequire (\n\tgithub.com/gofiber/fiber/v2 v2.52.0\n)\n"
         gh.side_effect = [
-            [{"number": 402, "title": "Documentation for typespec", "body": "See typespec family docs", "base": "main"}],
-            [{"filename": "docs/readme.md"}],
+            [open_pr()],
+            [changed_file("service/go.mod", before, before.replace("v2.52.0", "v2.53.0"))],
         ]
-        guard.guard_create({"items": [create_item()]}, "Azure/ARO-HCP")
+        independent = create_item()
+        reconcile = {"type": "reconcile_owned_pr", "pull_request_number": "7187"}
+        noop = {"type": "noop", "message": "Other work preserved"}
+        output = {"items": [go_item(), independent, reconcile, noop], "other": "preserved"}
+        with patch("sys.stderr", new_callable=io.StringIO) as stderr:
+            guard.guard_create(output, "Azure/ARO-HCP")
+        self.assertEqual(output, {"items": [independent, reconcile, noop], "other": "preserved"})
+        self.assertIn("#7689", stderr.getvalue())
+        self.assertIn("github.com/gofiber/fiber/v2", stderr.getvalue())
+        self.assertIn("changes dependency", stderr.getvalue())
+        self.assertEqual(gh.call_count, 2)  # Read-only listing; no PR/issue mutations.
+
+    @patch.object(guard, "gh_lines")
+    def test_same_go_family_on_another_manifest_is_deferred(self, gh):
+        before = "module example.com/other\n\nrequire go.opentelemetry.io/otel/trace v1.41.0\n"
+        gh.side_effect = [
+            [open_pr()],
+            [changed_file("other/go.mod", before, before.replace("v1.41.0", "v1.42.0"))],
+        ]
+        output = {"items": [go_item(family="go.opentelemetry.io/otel/*")]}
+        guard.guard_create(output, "Azure/ARO-HCP")
+        self.assertEqual(output["items"], [])
+
+    @patch.object(guard, "gh_lines")
+    def test_go_replace_changes_are_dependency_changes(self, gh):
+        for directive in (
+            "replace github.com/gofiber/fiber/v2 => github.com/gofiber/fiber/v2 v2.52.0",
+            "replace (\n\tgithub.com/gofiber/fiber/v2 => github.com/gofiber/fiber/v2 v2.52.0\n)",
+        ):
+            with self.subTest(directive=directive):
+                before = "module example.com/service\n\n" + directive + "\n"
+                gh.side_effect = [
+                    [open_pr()],
+                    [changed_file("other/go.mod", before, before.replace("v2.52.0", "v2.53.0"))],
+                ]
+                output = {"items": [go_item()]}
+                guard.guard_create(output, "Azure/ARO-HCP")
+                self.assertEqual(output["items"], [])
+
+    @patch.object(guard, "gh_lines")
+    def test_npm_engines_and_other_dependencies_do_not_overlap(self, gh):
+        before = npm_manifest({"@typespec/compiler": "1.15.0", "undici": "7.0.0"}, engines={"node": "22"})
+        for after in (before.replace('"22"', '"24"'), before.replace('"7.0.0"', '"7.1.0"')):
+            with self.subTest(after=after):
+                gh.side_effect = [
+                    [open_pr(title="fix(deps): typespec to 1.16.0")],
+                    [changed_file("api/package.json", before, after)],
+                ]
+                item = create_item()
+                output = {"items": [item]}
+                guard.guard_create(output, "Azure/ARO-HCP")
+                self.assertEqual(output["items"], [item])
+
+    @patch.object(guard, "gh_lines")
+    def test_partial_npm_engines_context_is_not_a_dependency_change(self, gh):
+        gh.side_effect = [
+            [open_pr()],
+            [{
+                "filename": "api/package.json", "status": "modified",
+                "patch": '@@ -20,4 +20,4 @@\n   "engines": {\n-    "node": "22"\n+    "node": "24"\n   }\n }',
+            }],
+        ]
+        item = create_item()
+        output = {"items": [item]}
+        guard.guard_create(output, "Azure/ARO-HCP")
+        self.assertEqual(output["items"], [item])
+
+    @patch.object(guard, "gh_lines")
+    def test_npm_indentation_and_dependency_order_do_not_overlap(self, gh):
+        data = {
+            "dependencies": {"@typespec/compiler": "1.15.0", "undici": "7.0.0"},
+            "overrides": {"parent": {"@typespec/compiler": "1.15.0"}},
+        }
+        before = json.dumps(data, indent=2)
+        reordered = {
+            "overrides": data["overrides"],
+            "dependencies": dict(reversed(list(data["dependencies"].items()))),
+        }
+        for after in (json.dumps(data, indent=4), json.dumps(reordered, indent=2), json.dumps(data)):
+            with self.subTest(after=after):
+                gh.side_effect = [[open_pr()], [changed_file("api/package.json", before, after)]]
+                item = create_item()
+                output = {"items": [item]}
+                guard.guard_create(output, "Azure/ARO-HCP")
+                self.assertEqual(output["items"], [item])
+
+    @patch.object(guard, "gh_lines")
+    def test_nested_npm_override_target_is_matched(self, gh):
+        before = json.dumps({"overrides": {"some-parent": {"@typespec/compiler": "1.15.0"}}}, indent=2)
+        gh.side_effect = [
+            [open_pr()],
+            [changed_file("other/package.json", before, before.replace("1.15.0", "1.16.0"))],
+        ]
+        output = {"items": [create_item()]}
+        guard.guard_create(output, "Azure/ARO-HCP")
+        self.assertEqual(output["items"], [])
+
+    @patch.object(guard, "gh_lines")
+    def test_actual_npm_changes_overlap_globally_and_support_family_patterns(self, gh):
+        for section in ("dependencies", "devDependencies", "peerDependencies", "optionalDependencies", "overrides"):
+            for family in ("@typespec/*", "typespec"):
+                with self.subTest(section=section, family=family):
+                    before = json.dumps({section: {"@typespec/compiler": "1.15.0"}}, indent=2)
+                    gh.side_effect = [
+                        [open_pr(title="Unclassified PR")],
+                        [changed_file("other/package.json", before, before.replace("1.15.0", "1.16.0"))],
+                    ]
+                    output = {"items": [create_item(family=family)]}
+                    guard.guard_create(output, "Azure/ARO-HCP")
+                    self.assertEqual(output["items"], [])
+
+    @patch.object(guard, "gh_lines")
+    def test_missing_or_unreliable_patch_defers_only_relevant_candidate(self, gh):
+        before = npm_manifest({"@typespec/compiler": "1.15.0"})
+        valid = changed_file("api/package.json", before, before.replace("1.15.0", "1.16.0"))
+        bad_files = [
+            {"filename": "api/package.json", "status": "modified"},
+            {**valid, "patch": valid["patch"] + "\n..."},
+            {**valid, "additions": valid["additions"] + 1},
+            {**valid, "patch": "@@ -4,2 +4,2 @@\n-  old\n+  new"},
+            changed_file("api/package.json", before, before.replace('"1.15.0"', "not-json")),
+            {
+                "filename": "api/package.json", "status": "modified",
+                "patch": '@@ -20 +20 @@\n-    "@typespec/compiler": "1.15.0"\n+    "@typespec/compiler": "1.16.0"',
+            },
+        ]
+        for file in bad_files:
+            with self.subTest(file=file):
+                gh.side_effect = [[open_pr()], [file]]
+                independent = go_item()
+                output = {"items": [create_item(), independent, {"type": "noop"}]}
+                with patch("sys.stderr", new_callable=io.StringIO) as stderr:
+                    guard.guard_create(output, "Azure/ARO-HCP")
+                self.assertEqual(output["items"], [independent, {"type": "noop"}])
+                self.assertIn("#7689", stderr.getvalue())
+                self.assertIn("api/package.json", stderr.getvalue())
+
+    @patch.object(guard, "gh_lines")
+    def test_unclassifiable_go_change_defers_relevant_candidate(self, gh):
+        gh.side_effect = [
+            [open_pr()],
+            [{"filename": "service/go.mod", "status": "modified", "patch": "@@ -20 +20 @@\n-not a module\n+still not a module"}],
+        ]
+        output = {"items": [go_item(), create_item()]}
+        guard.guard_create(output, "Azure/ARO-HCP")
+        self.assertEqual(output["items"], [create_item()])
+
+    @patch.object(guard, "gh_lines")
+    def test_unavailable_diff_in_unrelated_manifest_does_not_block(self, gh):
+        gh.side_effect = [
+            [open_pr(title="fix(deps): typespec to 1.16.0")],
+            [{"filename": "other/package.json", "status": "modified"}],
+        ]
+        item = create_item()
+        output = {"items": [item]}
+        guard.guard_create(output, "Azure/ARO-HCP")
+        self.assertEqual(output["items"], [item])
+
+    @patch.object(guard, "gh_lines")
+    def test_uncertain_family_change_is_relevant_across_manifests(self, gh):
+        gh.side_effect = [
+            [open_pr()],
+            [{
+                "filename": "other/package.json", "status": "modified",
+                "patch": '@@ -20 +20 @@\n-    "@typespec/compiler": "1.15.0"\n+    "@typespec/compiler": "1.16.0"',
+            }],
+        ]
+        independent = go_item()
+        output = {"items": [create_item(), independent]}
+        guard.guard_create(output, "Azure/ARO-HCP")
+        self.assertEqual(output["items"], [independent])
+
+    @patch.object(guard, "gh_lines")
+    def test_unavailable_renamed_manifest_diff_is_relevant_to_previous_path(self, gh):
+        gh.side_effect = [
+            [open_pr()],
+            [{"filename": "other/package.json", "previous_filename": "api/package.json", "status": "renamed"}],
+        ]
+        output = {"items": [create_item()]}
+        guard.guard_create(output, "Azure/ARO-HCP")
+        self.assertEqual(output["items"], [])
+
+    @patch.object(guard, "gh_lines")
+    def test_non_main_pr_is_ignored(self, gh):
+        gh.return_value = [{**open_pr(), "base": "release"}]
+        item = create_item()
+        output = {"items": [item]}
+        guard.guard_create(output, "Azure/ARO-HCP")
+        self.assertEqual(output["items"], [item])
+        gh.assert_called_once()
+
+    @patch.object(guard, "gh_lines")
+    def test_api_failures_remain_failures(self, gh):
+        for responses in (
+            [subprocess.CalledProcessError(1, ["gh", "api"])],
+            [[open_pr()], subprocess.CalledProcessError(1, ["gh", "api"])],
+        ):
+            with self.subTest(responses=responses):
+                gh.side_effect = responses
+                with self.assertRaises(subprocess.CalledProcessError):
+                    guard.guard_create({"items": [create_item()]}, "Azure/ARO-HCP")
+
+    @patch.object(guard, "gh_lines")
+    def test_present_but_malformed_metadata_is_not_missing(self, gh):
+        for data in (None, [], "typespec", {"ecosystem": "npm"}):
+            with self.subTest(data=data):
+                item = create_item()
+                item["data"] = data
+                with self.assertRaises(ValueError):
+                    guard.guard_create({"items": [item]}, "Azure/ARO-HCP")
+        gh.assert_not_called()
 
     @patch.object(guard, "gh_lines")
     def test_two_character_package_is_allowed(self, gh):
@@ -106,6 +371,15 @@ class CreateGuardTests(TestCase):
         with self.assertRaisesRegex(ValueError, "multiple new PRs"):
             guard.guard_create(
                 {"items": [create_item(), create_item(family="other")]},
+                "Azure/ARO-HCP",
+            )
+        gh.assert_not_called()
+
+    @patch.object(guard, "gh_lines")
+    def test_two_requests_for_overlapping_family_patterns_are_rejected(self, gh):
+        with self.assertRaisesRegex(ValueError, "multiple new PRs"):
+            guard.guard_create(
+                {"items": [go_item(family="go.opentelemetry.io/otel/*"), go_item("other/go.mod", "go.opentelemetry.io/otel/trace")]},
                 "Azure/ARO-HCP",
             )
         gh.assert_not_called()
@@ -154,7 +428,7 @@ class CreateGuardTests(TestCase):
             guard.guard_create({"items": [item]}, "Azure/ARO-HCP")
         gh.assert_not_called()
 
-    def test_main_rewrites_output_after_dropping_malformed_creates(self):
+    def test_main_rewrites_output_after_dropping_creates_missing_metadata(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "agent_output.json"
             path.write_text(json.dumps({
@@ -170,6 +444,21 @@ class CreateGuardTests(TestCase):
                 [item["type"] for item in written["items"]],
                 ["reconcile_owned_pr"],
             )
+
+    @patch.object(guard, "gh_lines")
+    def test_main_persists_per_candidate_deferral(self, gh):
+        before = "module example.com/service\n\nrequire github.com/gofiber/fiber/v2 v2.52.0\n"
+        gh.side_effect = [
+            [open_pr()],
+            [changed_file("service/go.mod", before, before.replace("v2.52.0", "v2.53.0"))],
+        ]
+        independent = create_item()
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "agent_output.json"
+            path.write_text(json.dumps({"items": [go_item(), independent, {"type": "noop"}]}))
+            with patch.object(sys, "argv", ["dependabot_guard.py", "create", str(path), "Azure/ARO-HCP"]):
+                guard.main()
+            self.assertEqual(json.loads(path.read_text())["items"], [independent, {"type": "noop"}])
 
 
 class RetestGuardTests(TestCase):

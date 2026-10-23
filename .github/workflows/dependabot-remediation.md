@@ -175,14 +175,14 @@ safe-outputs:
       items:
         type: string
   steps:
-    - name: Reject duplicate dependency PRs before creation
+    - name: Defer overlapping dependency proposals before creation
       if: contains(needs.agent.outputs.output_types, 'create_pull_request')
       env:
         GH_TOKEN: ${{ steps.safe-outputs-app-token.outputs.token }}
         REPO: ${{ github.repository }}
         AGENT_OUTPUT: ${{ steps.setup-agent-output-env.outputs.GH_AW_AGENT_OUTPUT }}
-      # Missing `data` is dropped with a warning so a successful reconcile is not
-      # painted red. Invalid or overlapping `data` still fails closed.
+      # Missing data and actual/uncertain overlaps defer only the affected
+      # creates. Invalid metadata and API/authentication failures remain errors.
       run: python3 .github/scripts/dependabot_guard.py create "$AGENT_OUTPUT" "$REPO"
   create-pull-request:
     max: 6                              # one PR per vulnerability group
@@ -554,7 +554,7 @@ Do not use `push_to_pull_request_branch` here: this is a scheduled or manual run
 
 ## 2. Group the alerts
 
-Produce **one pull request per vulnerability group**. First choose one canonical open PR for the ecosystem, package family, target version, and affected manifests; reconcile it before considering a new PR. Never create a second PR for a family with a still-open overlapping PR, including one targeting a different version. The safe-output guard re-fetches all open PRs immediately before creation and rejects any unclassified overlapping manifest, even if its patch differs. Group by remediation family, not by individual alert:
+Produce **one pull request per vulnerability group**. First choose one canonical open PR for the ecosystem, package family, target version, and affected manifests; reconcile it before considering a new PR. Never create a second PR for a family with a still-open overlapping PR, including one targeting a different version. The safe-output guard re-fetches open PRs and classifies actual Go/npm dependency edits, not PR titles or shared filenames alone. Go-toolchain-only edits and unrelated dependency changes in a shared manifest do not overlap. An actual family overlap or an unreliable relevant diff defers only that group's create and logs its PR, dependency and reason; unrelated creates and non-create outputs continue. Malformed metadata and API/authentication errors still fail. Group by remediation family, not by individual alert:
 
 - Group alerts for the **same package** together (all modules at once).
 - **Keep coordinated module families in lockstep.** Some dependencies ship as a set of sibling modules released together under one version, for example OpenTelemetry (`go.opentelemetry.io/otel/...`), AWS SDK v2 (`github.com/aws/aws-sdk-go-v2/...`), Kubernetes (`k8s.io/...`), and gRPC/genproto (`google.golang.org/grpc`, `google.golang.org/genproto`). When an alert hits one member, bump **every** sibling already present in the workspace to the **same** release version, not just the alerted module. Leaving a sibling behind (for example `otel` core at v1.43.0 but `otel/exporters/stdout/stdoutmetric` at v1.40.0) draws reviewer flags and can cause API or type mismatches. Find the siblings with `grep -rho '<family-prefix>[^[:space:]]*' --include=go.mod . | sort -u`, `go get` each to the target version, then run `make all-tidy`.
