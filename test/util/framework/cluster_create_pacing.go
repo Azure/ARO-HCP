@@ -1,0 +1,359 @@
+// Copyright 2026 Microsoft Corporation
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package framework
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/go-logr/logr"
+	"github.com/onsi/ginkgo/v2"
+
+	"sigs.k8s.io/yaml"
+
+	"github.com/Azure/ARO-HCP/test/pkg/filelock"
+)
+
+// Cluster-creation start pacing.
+//
+// e2e-parallel specs start synchronized: dozens of cluster-creating specs begin
+// within seconds of each other, and each reaches its ARM-heavy phase (node VM
+// creation, guest cloud-controller-manager load-balancer ensure) roughly ten
+// minutes later. When enough clusters bring up at once they saturate the
+// subscription-level ARM read quota, and the guest CCM cannot ensure the
+// router-default load balancer until the storm relents (ARO-29937: measured
+// 20m03s from Service creation to "Ensured load balancer" under throttling,
+// and still unbound 22m23s in a heavier run).
+//
+// The pacer spreads that wave. Before any HCP cluster creation starts, it
+// records a timestamp in a state file shared by all spec subprocesses of the
+// run — the same file-plus-flock pattern as the managed identities pool state —
+// and waits until fewer than max starts were recorded within the trailing
+// window. It is a sliding-window rate limit on creation *starts*: nothing is
+// held for the lifetime of a cluster, so a crashed spec strands nothing; its
+// timestamp simply ages out of the window.
+//
+// The pacer fails open. Pacing is a best-effort storm mitigation, never a
+// correctness gate: if the shared state cannot be read or written, or the wait
+// would exceed maxClusterCreatePacingWait, the creation proceeds unpaced.
+// Only cancelling the context while waiting aborts the creation.
+
+const (
+	// ClusterCreatePacingEnvvar configures cluster-creation start pacing.
+	// Format: "<max>/<window>", e.g. "12/6m" allows at most 12 HCP cluster
+	// creation starts within any trailing 6-minute window, shared by every
+	// spec subprocess of the run through ARTIFACT_DIR. "0", "off" or
+	// "disabled" turns pacing off. Unset falls back to
+	// defaultClusterCreatePacing.
+	ClusterCreatePacingEnvvar = "ARO_HCP_E2E_CLUSTER_CREATE_PACING"
+
+	// defaultClusterCreatePacing admits an initial burst of 12 starts and then
+	// one start per 30s. Sized against e2e-parallel's 58-container CI leases:
+	// the synchronized wave spreads over ~25 minutes instead of ~1, cutting
+	// peak concurrent cluster bring-ups — and with them peak ARM subscription
+	// load — by roughly a third, while runs with fewer than 12 concurrent
+	// creations (personal dev, single-spec runs) are not delayed at all.
+	defaultClusterCreatePacing = "12/6m"
+
+	// clusterCreatePacingStateFile is created inside ARTIFACT_DIR, next to the
+	// managed identities pool state, so every spec subprocess of a run shares
+	// it. Without ARTIFACT_DIR there is no shared state and no other spec
+	// subprocess to coordinate with, so pacing is disabled entirely (see
+	// paceHCPClusterCreateStart).
+	clusterCreatePacingStateFile = "cluster-create-pacing-state.yaml"
+
+	// maxClusterCreatePacingWait bounds the total time a single creation may
+	// spend waiting for window capacity: a safety valve so a saturated or
+	// pathological state file can never stall a spec past its budget. Once the
+	// bound is reached the creation proceeds unpaced.
+	maxClusterCreatePacingWait = 30 * time.Minute
+
+	// clusterCreatePacingPollInterval caps how often a waiting creation
+	// re-checks the window.
+	clusterCreatePacingPollInterval = 15 * time.Second
+)
+
+// clusterCreatePacing is a sliding-window limit on cluster-creation starts.
+type clusterCreatePacing struct {
+	max    int
+	window time.Duration
+}
+
+func (p clusterCreatePacing) enabled() bool {
+	return p.max > 0 && p.window > 0
+}
+
+// parseClusterCreatePacing parses "<max>/<window>" (e.g. "12/6m"). An empty
+// value yields the default. "0", "off" and "disabled" (case-insensitive)
+// disable pacing.
+func parseClusterCreatePacing(value string) (clusterCreatePacing, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		value = defaultClusterCreatePacing
+	}
+	if strings.EqualFold(value, "off") || strings.EqualFold(value, "disabled") || value == "0" {
+		return clusterCreatePacing{}, nil
+	}
+	count, window, found := strings.Cut(value, "/")
+	if !found {
+		return clusterCreatePacing{}, fmt.Errorf("expected \"<max>/<window>\" like %q, got %q", defaultClusterCreatePacing, value)
+	}
+	max, err := strconv.Atoi(strings.TrimSpace(count))
+	if err != nil || max < 1 {
+		return clusterCreatePacing{}, fmt.Errorf("pacing max %q: want a positive integer", count)
+	}
+	duration, err := time.ParseDuration(strings.TrimSpace(window))
+	if err != nil || duration <= 0 {
+		return clusterCreatePacing{}, fmt.Errorf("pacing window %q: want a positive duration like 6m", window)
+	}
+	return clusterCreatePacing{max: max, window: duration}, nil
+}
+
+// clusterCreatePacingState is the on-disk sliding window: RFC3339 timestamps
+// of recent creation starts. It is only read and written while holding the
+// flock, mirroring leasedIdentityPoolState.
+type clusterCreatePacingState struct {
+	Starts []string `yaml:"starts,omitempty"`
+}
+
+// clusterCreatePacer records creation starts in a shared state file and waits
+// until the trailing window has capacity. now and sleep are injectable for
+// tests.
+type clusterCreatePacer struct {
+	cfg       clusterCreatePacing
+	statePath string
+	lockPath  string
+	now       func() time.Time
+	sleep     func(ctx context.Context, d time.Duration) error
+}
+
+// clusterCreatePacingMu serializes pacer state access within one process,
+// mirroring the in-process half of leasedIdentityPoolState's locking.
+var clusterCreatePacingMu sync.Mutex
+
+// pacedClusterCreates remembers cluster names this process has already paced.
+// The FromParam → AndWait call chain passes through both hooks (the outer one
+// before its per-call creation timeout is armed), and each spec subprocess is
+// its own process, so a per-process memo paces each cluster exactly once while
+// cross-process coordination continues to happen through the state file.
+var pacedClusterCreates sync.Map
+
+func newClusterCreatePacer(cfg clusterCreatePacing) *clusterCreatePacer {
+	return &clusterCreatePacer{
+		cfg:       cfg,
+		statePath: filepath.Join(artifactDir(), clusterCreatePacingStateFile),
+		lockPath:  filepath.Join(os.TempDir(), "cluster-create-pacing.lock"),
+		now:       time.Now,
+		sleep:     sleepContext,
+	}
+}
+
+// paceHCPClusterCreateStart waits until starting a new HCP cluster creation is
+// admissible under the shared sliding-window limiter, then records the start.
+// It must be called before a per-call creation timeout is armed (in both the
+// CreateHCPClusterFromParam wrappers and the CreateHCPClusterAndWait functions
+// they call), so the wait consumes the spec's budget, not
+// ClusterCreationTimeout.
+func paceHCPClusterCreateStart(ctx context.Context, logger logr.Logger, clusterName string) error {
+	cfg, err := parseClusterCreatePacing(os.Getenv(ClusterCreatePacingEnvvar))
+	if err != nil {
+		// Fail open: a malformed value disables pacing rather than failing tests.
+		logger.Info(fmt.Sprintf("WARN: invalid %s, cluster-creation pacing disabled: %v", ClusterCreatePacingEnvvar, err))
+		return nil
+	}
+	if !cfg.enabled() {
+		return nil
+	}
+	// Pacing coordinates spec subprocesses through ARTIFACT_DIR; without it
+	// there is no shared state to coordinate through (plain unit tests,
+	// one-off invocations), so pacing stays off.
+	if artifactDir() == "" {
+		return nil
+	}
+	if _, alreadyPaced := pacedClusterCreates.LoadOrStore(clusterName, struct{}{}); alreadyPaced {
+		return nil
+	}
+	return newClusterCreatePacer(cfg).pace(ctx, logger, clusterName)
+}
+
+// pace blocks until a new cluster-creation start fits in the sliding window.
+// It fails open on state-file errors, proceeds unpaced once the total wait
+// would exceed maxClusterCreatePacingWait, and returns the context error if
+// the context is cancelled while waiting.
+func (p *clusterCreatePacer) pace(ctx context.Context, logger logr.Logger, clusterName string) error {
+	start := p.now()
+	deadline := start.Add(maxClusterCreatePacingWait)
+	waited := false
+	for {
+		retryAfter, err := p.tryRecordStart()
+		if err != nil {
+			logger.Info(fmt.Sprintf("WARN: cluster-creation pacing state unavailable, proceeding unpaced for cluster %s: %v", clusterName, err))
+			return nil
+		}
+		if retryAfter == 0 {
+			if waited {
+				logger.Info("paced HCP cluster creation start",
+					"clusterName", clusterName,
+					"waited", p.now().Sub(start).Round(time.Second).String(),
+					"max", p.cfg.max,
+					"window", p.cfg.window.String(),
+					"reason", "spreading synchronized cluster creations that saturate ARM subscription quotas (ARO-29937)")
+			}
+			return nil
+		}
+		if p.now().After(deadline) {
+			logger.Info(fmt.Sprintf("WARN: cluster-creation pacing wait exceeded %s for cluster %s, proceeding unpaced", maxClusterCreatePacingWait, clusterName))
+			return nil
+		}
+		waited = true
+		if err := p.sleep(ctx, min(retryAfter, clusterCreatePacingPollInterval)); err != nil {
+			return fmt.Errorf("aborted while waiting for cluster-creation pacing (cluster %s): %w", clusterName, err)
+		}
+	}
+}
+
+// tryRecordStart records a start timestamp if the trailing window has
+// capacity. It returns the duration after which the caller should retry (zero
+// when the start was recorded). An error means state-file trouble, which pace
+// treats as fail-open.
+func (p *clusterCreatePacer) tryRecordStart() (time.Duration, error) {
+	clusterCreatePacingMu.Lock()
+	defer clusterCreatePacingMu.Unlock()
+
+	lockFile, err := os.OpenFile(p.lockPath, os.O_RDWR|os.O_CREATE, 0666)
+	if err != nil {
+		return 0, fmt.Errorf("failed to open cluster-creation pacing lock file: %w", err)
+	}
+	defer func() {
+		if err := lockFile.Close(); err != nil {
+			ginkgo.GinkgoLogr.Info("WARN: failed to close cluster-creation pacing lock file", "error", err)
+		}
+	}()
+
+	if err := filelock.Lock(lockFile.Fd()); err != nil {
+		return 0, fmt.Errorf("failed to acquire cluster-creation pacing lock: %w", err)
+	}
+	defer func() {
+		if err := filelock.Unlock(lockFile.Fd()); err != nil {
+			ginkgo.GinkgoLogr.Info("WARN: failed to release cluster-creation pacing lock", "error", err)
+		}
+	}()
+
+	now := p.now()
+
+	state, err := p.readState()
+	if err != nil {
+		return 0, err
+	}
+
+	// Keep only starts inside the trailing window.
+	recent := state.Starts[:0]
+	for _, ts := range state.Starts {
+		t, err := time.Parse(time.RFC3339, ts)
+		if err != nil {
+			return 0, fmt.Errorf("failed to parse recorded start %q: %w", ts, err)
+		}
+		if now.Sub(t) < p.cfg.window {
+			recent = append(recent, ts)
+		}
+	}
+
+	if len(recent) < p.cfg.max {
+		recent = append(recent, now.UTC().Format(time.RFC3339))
+		if err := p.writeState(recent); err != nil {
+			return 0, err
+		}
+		return 0, nil
+	}
+
+	// Window is full: retry once the oldest recorded start ages out. While the
+	// window is full every recorded start is inside it, so this is positive.
+	oldest, err := time.Parse(time.RFC3339, recent[0])
+	if err != nil {
+		return 0, fmt.Errorf("failed to parse recorded start %q: %w", recent[0], err)
+	}
+	return p.cfg.window - now.Sub(oldest), nil
+}
+
+func (p *clusterCreatePacer) readState() (clusterCreatePacingState, error) {
+	data, err := os.ReadFile(p.statePath)
+	if errors.Is(err, os.ErrNotExist) {
+		return clusterCreatePacingState{}, nil
+	}
+	if err != nil {
+		return clusterCreatePacingState{}, fmt.Errorf("failed to read cluster-creation pacing state file %s: %w", p.statePath, err)
+	}
+	var state clusterCreatePacingState
+	if err := yaml.Unmarshal(data, &state); err != nil {
+		return clusterCreatePacingState{}, fmt.Errorf("failed to unmarshal cluster-creation pacing state file %s: %w", p.statePath, err)
+	}
+	return state, nil
+}
+
+func (p *clusterCreatePacer) writeState(starts []string) error {
+	updated, err := yaml.Marshal(clusterCreatePacingState{Starts: starts})
+	if err != nil {
+		return fmt.Errorf("failed to marshal cluster-creation pacing state: %w", err)
+	}
+	dir := filepath.Dir(p.statePath)
+	tmp, err := os.CreateTemp(dir, "cluster-create-pacing-*.tmp")
+	if err != nil {
+		return fmt.Errorf("failed to create temporary cluster-creation pacing state file: %w", err)
+	}
+	cleanupTemp := func() {
+		if err := os.Remove(tmp.Name()); err != nil && !errors.Is(err, os.ErrNotExist) {
+			ginkgo.GinkgoLogr.Info("WARN: failed to remove temporary cluster-creation pacing state file", "error", err)
+		}
+	}
+	if _, err := tmp.Write(updated); err != nil {
+		tmp.Close()
+		cleanupTemp()
+		return fmt.Errorf("failed to write temporary cluster-creation pacing state file: %w", err)
+	}
+	if err := tmp.Sync(); err != nil {
+		tmp.Close()
+		cleanupTemp()
+		return fmt.Errorf("failed to sync temporary cluster-creation pacing state file: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		cleanupTemp()
+		return fmt.Errorf("failed to close temporary cluster-creation pacing state file: %w", err)
+	}
+	if err := os.Rename(tmp.Name(), p.statePath); err != nil {
+		cleanupTemp()
+		return fmt.Errorf("failed to replace cluster-creation pacing state file: %w", err)
+	}
+	return nil
+}
+
+// sleepContext sleeps for d, returning early with the context error if ctx is
+// cancelled first.
+func sleepContext(ctx context.Context, d time.Duration) error {
+	timer := time.NewTimer(d)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
+}
