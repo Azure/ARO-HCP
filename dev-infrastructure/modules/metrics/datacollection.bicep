@@ -20,6 +20,14 @@ resource dce 'Microsoft.Insights/dataCollectionEndpoints@2022-06-01' = {
   properties: {}
 }
 
+var svcLabelIncludeFilter = {
+  'microsoft_metrics_include_label': 'service'
+}
+
+var hcpLabelIncludeFilter = {
+  'microsoft_metrics_include_label': 'hcp'
+}
+
 resource dcr 'Microsoft.Insights/dataCollectionRules@2022-06-01' = {
   name: dcrName
   location: azureMonitorWorkspaceLocation
@@ -46,7 +54,7 @@ resource dcr 'Microsoft.Insights/dataCollectionRules@2022-06-01' = {
           streams: [
             'Microsoft-PrometheusMetrics'
           ]
-          labelIncludeFilter: {}
+          labelIncludeFilter: svcLabelIncludeFilter
         }
       ]
     }
@@ -88,7 +96,7 @@ resource hcpDcr 'Microsoft.Insights/dataCollectionRules@2022-06-01' = if (hcpAzu
           streams: [
             'Microsoft-PrometheusMetrics'
           ]
-          labelIncludeFilter: {}
+          labelIncludeFilter: hcpLabelIncludeFilter
         }
       ]
     }
@@ -114,6 +122,15 @@ resource aksClusterDcra 'Microsoft.Insights/dataCollectionRuleAssociations@2022-
   properties: {
     description: 'Association of data collection rule. Deleting this association will break the data collection for this AKS Cluster.'
     dataCollectionRuleId: dcr.id
+  }
+}
+
+resource aksClusterHcpDcra 'Microsoft.Insights/dataCollectionRuleAssociations@2022-06-01' = if (hcpAzureMonitoringWorkspaceId != '') {
+  name: '${aksClusterName}-hcp-dcra'
+  scope: aksCluster
+  properties: {
+    description: 'Association of HCP data collection rule for forwarding HCP metrics to the HCP Azure Monitor Workspace.'
+    dataCollectionRuleId: hcpDcr.id
   }
 }
 

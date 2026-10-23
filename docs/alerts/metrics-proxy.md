@@ -27,8 +27,9 @@ agent's HTTPS `/metrics` on `8443`. The PodMonitor is
 
 This is **not**:
 
-- Platform Prometheus agent health — already covered by
-  `observability/alerts/prometheus-prometheusRule.yaml` (see [Prometheus.md](Prometheus.md)).
+- Platform Prometheus agent health — platform Prometheus self-monitoring is
+  intentionally not alerted on; real data loss is caught by the ingestion-side
+  alerts instead.
 - HyperShift **control-plane** `metrics-proxy` / guest metrics-forwarding
   (`endpoint-resolver` + `metrics-proxy` in `ocm-*` namespaces). ARO-HCP does
   not enable that path today. Do not invent absence alerts for it.
@@ -45,7 +46,7 @@ The expression is the same shape as `MiseEnvoyScrapeDown`: cluster existence
 via kube-state-metrics, then `unless` a healthy scrape. Service clusters are
 excluded (`cluster=~".*-mgmt(-[0-9]+)?$"`) because they run maestro-**server**,
 not maestro-agent. `make -C observability alerts` rewrites aggregations to
-`group by (cluster, region)` in the generated Bicep (same as `PrometheusJobUp`).
+`group by (cluster, region)` in the generated Bicep.
 
 ## Time to page
 
@@ -66,11 +67,11 @@ stay true while `/metrics` fails — `up` is the signal that matters.
 
 ### Prometheus agent itself is down
 
-Do **not** debug metrics-proxy first. Use [Prometheus.md](Prometheus.md) /
-`PrometheusJobUp`. This rule needs a current kube-state-metrics `up` series
-from the same scraper as its left-hand anchor. If PrometheusAgent is down,
-that series disappears and `MaestroAgentMetricsProxyDown` will not become
-pending.
+Do **not** debug metrics-proxy first. This rule needs a current
+kube-state-metrics `up` series from the same scraper as its left-hand anchor.
+If PrometheusAgent is down, that series disappears and
+`MaestroAgentMetricsProxyDown` will not become pending — so a missing alert
+here does not rule out a dead scraper.
 
 ### HyperShift CP metrics-proxy
 

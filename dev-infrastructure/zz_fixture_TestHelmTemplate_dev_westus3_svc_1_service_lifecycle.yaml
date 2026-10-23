@@ -82,7 +82,44 @@ data:
     podannotations = "30s"
   debug-mode: |-
     enabled = false
+  default-targets-relabel-configs: |-
+    - action: replace
+      target_label: microsoft_metrics_account
+      replacement: service
 metadata:
   name: ama-metrics-settings-configmap
+  namespace: kube-system
+---
+# Source: service-lifecycle/templates/ama-metrics-configmap-reader.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: mgmt-agent
+  name: ama-metrics-configmap-reader
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  verbs:
+  - get
+  - list
+  - watch
+---
+# Source: service-lifecycle/templates/ama-metrics-configmap-reader.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/name: mgmt-agent
+  name: ama-metrics-configmap-reader
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: ama-metrics-configmap-reader
+subjects:
+- kind: ServiceAccount
+  name: ama-metrics-serviceaccount
   namespace: kube-system
 
