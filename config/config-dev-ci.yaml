@@ -131,7 +131,7 @@ clouds:
           image:
             registry: "quay.io"
             repository: "roivaz/cihealth"
-            digest: sha256:99aedf8ac3cb660bd5c6daff45aa14e3d3d0eb808952e8298439f4dd67120cbf # e2b6196 (2026-10-09 09:49)
+            digest: sha256:04195b6d519040f29cabfaa9be852f52826e360675dfeae7a75e8b95cb4199cd # 5bc0fb9 (2026-10-22 13:45)
           disableRuntimeWorkloads: false
           app:
             replicas: 2
@@ -163,7 +163,7 @@ clouds:
           image:
             registry: "arohcpsvcdev.azurecr.io"
             repository: "tenant-quota-collector"
-            digest: sha256:a5e6e46fb73cd13ec9b2b8d63ee1f50ba9e33d91d7a3fce7ac3aa62157f84989 # 1c94a98e5195de9686a023486cce04ad52c9b1c3 (2026-10-20 16:54)
+            digest: sha256:1c7dd30c60be49f740d979c1931b7dc7ccff97612b8a6272259343e55301d2ff # a3faa778c89dc44908836173d1100a8435d5b5b9 (2026-10-22 21:59)
           ciJobOutcomes:
             # Records the outcome of each CI job run so the alerts and logs in
             # the dev Kusto can be attributed to the run that produced them.
