@@ -31,6 +31,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/rand"
+	"k8s.io/client-go/kubernetes"
 
 	configv1 "github.com/openshift/api/config/v1"
 	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
@@ -207,7 +208,10 @@ var _ = Describe("ARO-HCP", func() {
 			Expect(clusterResp.Properties.DNS).NotTo(BeNil(), "cluster %q Properties.DNS was nil", clusterName)
 			Expect(clusterResp.Properties.DNS.BaseDomain).NotTo(BeNil(), "cluster %q DNS.BaseDomain was nil", clusterName)
 			Expect(clusterResp.Properties.DNS.BaseDomainPrefix).NotTo(BeNil(), "cluster %q DNS.BaseDomainPrefix was nil", clusterName)
-			appsWildcard := fmt.Sprintf("*.apps.aro.%s.%s", *clusterResp.Properties.DNS.BaseDomainPrefix, *clusterResp.Properties.DNS.BaseDomain)
+			baseDomain := *clusterResp.Properties.DNS.BaseDomain
+			baseDomainPrefix := *clusterResp.Properties.DNS.BaseDomainPrefix
+			appsWildcard := fmt.Sprintf("*.apps.aro.%s.%s", baseDomainPrefix, baseDomain)
+			delegatedDNSZone := fmt.Sprintf("aro.%s.%s", baseDomainPrefix, baseDomain)
 
 			By("verifying the console serves the default ingress certificate")
 			consoleHostURL, err := url.Parse(consoleFixture.ConsoleURL)
@@ -217,6 +221,33 @@ var _ = Describe("ARO-HCP", func() {
 
 			By("verifying ACM's ingress certificate secret is absent, as HyperShift delivers it directly")
 			Expect(verifiers.VerifyACMIngressCertificateAbsent().Verify(ctx, adminRESTConfig)).To(Succeed(), "ACM must not create its ingress certificate secret for cluster %q", clusterName)
+
+			subscriptionID, err := tc.SubscriptionID(ctx)
+			Expect(err).NotTo(HaveOccurred(), "failed to get subscription ID")
+			cred, err := tc.AzureCredential()
+			Expect(err).NotTo(HaveOccurred(), "failed to get Azure credential")
+
+			By("picking a candidate egress IP from a worker node's subnet for the cloud-network-config check")
+			kubeClient, err := kubernetes.NewForConfig(adminRESTConfig)
+			Expect(err).NotTo(HaveOccurred(), "failed to create kubernetes client")
+			nodeList, err := kubeClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
+			Expect(err).NotTo(HaveOccurred(), "failed to list nodes")
+			Expect(nodeList.Items).NotTo(BeEmpty(), "no nodes found on cluster %q", clusterName)
+			sampleNode := &nodeList.Items[0]
+
+			computeClientFactory := tc.GetARMComputeClientFactoryOrDie(ctx)
+			networkClientFactory, err := tc.GetARMNetworkClientFactory(ctx)
+			Expect(err).NotTo(HaveOccurred(), "failed to get ARM network client factory")
+
+			egressIP, err := framework.PickAvailableIPInNodeSubnet(ctx, computeClientFactory, networkClientFactory, sampleNode)
+			Expect(err).NotTo(HaveOccurred(), "failed to pick an available egress IP for cluster %q", clusterName)
+
+			By("verifying cluster operators")
+			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig,
+				verifiers.VerifyIngressDNSRecord(cred, subscriptionID, managedResourceGroupName, delegatedDNSZone, framework.IngressDNSVerifyTimeout),
+				verifiers.VerifyCloudNetworkConfigEgressIP(computeClientFactory, networkClientFactory, sampleNode.Name, egressIP, framework.CloudNetworkConfigVerifyTimeout),
+			)
+			Expect(err).NotTo(HaveOccurred(), "failed to verify cluster operators on cluster %q", clusterName)
 		},
 		Entry("for 4.20", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible,
 			labels.AllowRetry, // owner: @raelga, tracking: AROSLSRE-1747. Known-issue test, retriable during EV2 gating. Remove this label when the issue is fixed.
