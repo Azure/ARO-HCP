@@ -50,6 +50,9 @@ type ClaudeCodeConfig struct {
 	Backend       string
 	VertexProject string
 	VertexRegion  string
+	// ReasoningEffort is passed to the CLI as --effort (one of
+	// ClaudeReasoningEfforts). Empty keeps the CLI's default.
+	ReasoningEffort string
 }
 
 type claudeCodeClient interface {
@@ -75,6 +78,9 @@ func NewClaudeCodeProvider(cfg *ClaudeCodeConfig) (*ClaudeCodeProvider, error) {
 	}
 	if cfg != nil {
 		provider.cfg = *cfg
+	}
+	if err := ValidateClaudeReasoningEffort(provider.cfg.ReasoningEffort); err != nil {
+		return nil, err
 	}
 	switch provider.cfg.Backend {
 	case ClaudeBackendAPI, "":
@@ -131,6 +137,10 @@ func (p *ClaudeCodeProvider) CreateProviderSession(ctx context.Context, logger l
 	if p.env != nil {
 		opts = append(opts, claudeagent.WithEnv(p.env))
 	}
+	if effort := claudeagent.EffortLevel(p.cfg.ReasoningEffort); effort != "" {
+		// SDK v1.1.0 has no option helper; its transport maps Effort to --effort.
+		opts = append(opts, func(o *claudeagent.Options) { o.Effort = effort })
+	}
 	client, err := p.newClient(opts...)
 	if err != nil {
 		return nil, fmt.Errorf("creating Claude Code client: %w", err)
@@ -149,7 +159,7 @@ func (p *ClaudeCodeProvider) CreateProviderSession(ctx context.Context, logger l
 		initialInstructions: initialInstructions,
 	}
 	p.sessions = append(p.sessions, session)
-	logger.Info("Created Claude Code session.", "sessionID", session.id, "model", cfg.Model)
+	logger.Info("Created Claude Code session.", "sessionID", session.id, "model", cfg.Model, "reasoningEffort", p.cfg.ReasoningEffort)
 	return session, nil
 }
 

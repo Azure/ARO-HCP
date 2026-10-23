@@ -53,6 +53,10 @@ type RawAnalyzeOptions struct {
 	Output              string
 	Model               string
 
+	// ReasoningEffort optionally sets the model's reasoning effort for any
+	// provider. Allowed values depend on the provider; empty keeps defaults.
+	ReasoningEffort string
+
 	// Intent/IntentFile provide a free-form investigation objective (e.g. a
 	// customer complaint). When set, the analysis runs in intent mode instead
 	// of the default failed-test mode. They are mutually exclusive.
@@ -103,6 +107,7 @@ func bindAnalyzeOptions(opts *RawAnalyzeOptions, cmd *cobra.Command) error {
 	cmd.Flags().IntVar(&opts.MaxRounds, "max-rounds", opts.MaxRounds, "Maximum validation rounds per cycle")
 	cmd.Flags().StringVar(&opts.Output, "output", opts.Output, "Output directory for analysis results (defaults to data-dir)")
 	cmd.Flags().StringVar(&opts.Model, "model", opts.Model, "Override the model (applies to all providers)")
+	cmd.Flags().StringVar(&opts.ReasoningEffort, "effort", opts.ReasoningEffort, "Reasoning effort for models that support it (applies to all providers; defaults to the model's own default). copilot: "+strings.Join(agent.CopilotReasoningEfforts, ", ")+"; claude and claude-code: "+strings.Join(agent.ClaudeReasoningEfforts, ", "))
 
 	cmd.Flags().StringVar(&opts.Intent, "intent", opts.Intent, "Free-form investigation objective (e.g. a customer complaint). When set, analyzes the snapshot against this objective instead of assuming a failed e2e test. Mutually exclusive with --intent-file.")
 	cmd.Flags().StringVar(&opts.IntentFile, "intent-file", opts.IntentFile, "Path to a file containing the free-form investigation objective. Mutually exclusive with --intent.")
@@ -234,12 +239,16 @@ func (o *RawAnalyzeOptions) validate() (*validatedAnalyzeOptions, error) {
 	// Validate provider-specific options.
 	switch o.Provider {
 	case providerCopilot, "":
+		if err := agent.ValidateCopilotReasoningEffort(o.ReasoningEffort); err != nil {
+			return nil, fmt.Errorf("--effort: %w", err)
+		}
 		agentCfg := &agent.AgentConfig{
 			AuthMode:        o.AuthMode,
 			GitHubTokenFile: o.GitHubTokenFile,
 			ModelEndpoint:   o.ModelEndpoint,
 			ModelDeployment: o.ModelDeployment,
 			Model:           o.Model,
+			ReasoningEffort: o.ReasoningEffort,
 			MaxRounds:       o.MaxRounds,
 			Verbosity:       o.Verbosity,
 		}
@@ -274,10 +283,14 @@ func (o *RawAnalyzeOptions) validate() (*validatedAnalyzeOptions, error) {
 		validated.copilotConfig = agentCfg
 
 	case providerClaude, providerClaudeCode:
+		if err := agent.ValidateClaudeReasoningEffort(o.ReasoningEffort); err != nil {
+			return nil, fmt.Errorf("--effort: %w", err)
+		}
 		claudeCfg := &agent.ClaudeConfig{
-			APIKeyFile: o.AnthropicAPIKeyFile,
-			Model:      o.AnthropicModel,
-			Backend:    o.ClaudeBackend,
+			APIKeyFile:      o.AnthropicAPIKeyFile,
+			Model:           o.AnthropicModel,
+			Backend:         o.ClaudeBackend,
+			ReasoningEffort: o.ReasoningEffort,
 		}
 
 		switch o.ClaudeBackend {
@@ -313,11 +326,12 @@ func (o *RawAnalyzeOptions) validate() (*validatedAnalyzeOptions, error) {
 
 		if o.Provider == providerClaudeCode {
 			validated.claudeCodeConfig = &agent.ClaudeCodeConfig{
-				Model:         o.Model,
-				APIKeyFile:    claudeCfg.APIKeyFile,
-				Backend:       claudeCfg.Backend,
-				VertexProject: claudeCfg.VertexProject,
-				VertexRegion:  claudeCfg.VertexRegion,
+				Model:           o.Model,
+				APIKeyFile:      claudeCfg.APIKeyFile,
+				Backend:         claudeCfg.Backend,
+				VertexProject:   claudeCfg.VertexProject,
+				VertexRegion:    claudeCfg.VertexRegion,
+				ReasoningEffort: claudeCfg.ReasoningEffort,
 			}
 		} else {
 			validated.claudeConfig = claudeCfg

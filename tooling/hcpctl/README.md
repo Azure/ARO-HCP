@@ -94,6 +94,39 @@ The CLI's session persistence is disabled; hcpctl saves `conversation.json` and
 snapshots, with per-model tokens/cost where available; API request counts, cache
 TTLs, and service tiers are not available at the in-process provider's granularity.
 
+### Snapshot Analysis Reasoning Effort
+
+`--effort` (named after the equivalent Claude Code and Copilot CLI flag) sets
+the model's reasoning effort for every provider. When omitted, the model/backend default applies. Accepted values depend on the
+provider and are validated before the analysis starts:
+
+| Provider | Values | Forwarded as |
+| --- | --- | --- |
+| `copilot` | `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max` | Copilot SDK `SessionConfig.ReasoningEffort` |
+| `claude-code` | `low`, `medium`, `high`, `xhigh`, `max` | Claude Code CLI `--effort` |
+| `claude` | `low`, `medium`, `high`, `xhigh`, `max` | Messages API `output_config.effort` |
+
+Whether a level has an effect depends on the model; choose a model that
+supports reasoning effort. The Copilot runtime accepts any level without
+checking model support.
+
+```bash
+hcpctl snapshot analyze /path/to/snapshot --model gpt-6-luna --effort high \
+  --aro-hcp /path/to/ARO-HCP --hypershift /path/to/hypershift \
+  --maestro /path/to/maestro --clusters-service /path/to/clusters-service
+```
+
+Go callers set the same option on the provider configuration
+(`agent.AgentConfig`, `agent.ClaudeCodeConfig`, or `agent.ClaudeConfig`); invalid
+values are rejected by the provider constructors:
+
+```go
+client, err := agent.NewCopilotClient(&agent.AgentConfig{
+	Model:           "gpt-6-luna",
+	ReasoningEffort: agent.ReasoningEffortHigh,
+})
+```
+
 ### List Service Clusters
 
 ```bash
