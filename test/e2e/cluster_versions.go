@@ -16,10 +16,13 @@ package e2e
 
 import (
 	"context"
+	"strings"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 )
@@ -39,25 +42,43 @@ var _ = Describe("Customer", func() {
 			versionsClient := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftVersionsClient()
 			versionsPager := versionsClient.NewListPager(tc.Location(), nil)
 
-			versions, err := versionsPager.NextPage(ctx)
-			Expect(err).NotTo(HaveOccurred(), "failed to list HCP OpenShift versions")
-			Expect(versions.Value).NotTo(BeEmpty(), "Should return at least one OpenShift version")
+			var versions []*hcpsdk20240610preview.HcpOpenShiftVersion
+			for versionsPager.More() {
+				page, err := versionsPager.NextPage(ctx)
+				Expect(err).NotTo(HaveOccurred(), "failed to list HCP OpenShift versions")
+				versions = append(versions, page.Value...)
+			}
 
 			By("validating version response structure and content")
-			for _, version := range versions.Value {
+			for _, version := range versions {
+				Expect(version).NotTo(BeNil(), "listed version was nil")
 				Expect(version.ID).NotTo(BeNil(), "version ID was nil")
 				Expect(version.Name).NotTo(BeNil(), "version Name was nil")
 				Expect(version.Properties).NotTo(BeNil(), "version Properties was nil")
 
-				// Validate version name format (should be semantic version)
-				Expect(*version.Name).To(MatchRegexp(`^\d+\.\d+\.\d+`), "Version should follow semantic versioning")
+				Expect(version.Properties.ChannelGroup).NotTo(BeNil(), "version %s channel group was nil", *version.Name)
+				group := *version.Properties.ChannelGroup
+				Expect(metadataapi.AllowedChannelGroupsWithExperimentalFlag.Has(group)).To(BeTrue(), "version %s should use a supported channel group, got %s", *version.Name, group)
+				minor := *version.Name
+				if group != metadataapi.ChannelGroupStable {
+					Expect(minor).To(HaveSuffix("-"+group), "version %s should have its channel group suffix", *version.Name)
+					minor = strings.TrimSuffix(minor, "-"+group)
+				}
+				Expect(minor).To(MatchRegexp(`^\d+\.\d+$`), "version %s should identify a minor version", *version.Name)
+				Expect(version.Properties.Enabled).To(HaveValue(BeTrue()), "advertised version %s should be enabled", *version.Name)
+				Expect(version.Properties.EndOfLifeTimestamp).To(BeNil(), "version %s should omit an unknown end-of-life timestamp", *version.Name)
 
 				// Validate ID contains version-related path (works for both ARM and direct RP access)
 				Expect(*version.ID).To(ContainSubstring("/hcpOpenShiftVersions/"), "version ID should contain the hcpOpenShiftVersions resource path")
 				Expect(*version.ID).To(ContainSubstring(*version.Name), "version ID should contain the version name %s", *version.Name)
+
+				By("getting advertised HCP OpenShift version " + *version.Name)
+				got, err := versionsClient.Get(ctx, tc.Location(), *version.Name, nil)
+				Expect(err).NotTo(HaveOccurred(), "failed to get advertised OpenShift version %s", *version.Name)
+				Expect(got.HcpOpenShiftVersion).To(BeComparableTo(*version), "get and list should agree for OpenShift version %s", *version.Name)
 			}
 
 			By("verifying at least one version is available for cluster creation")
-			Expect(len(versions.Value)).To(BeNumerically(">=", 1), "at least one cluster version should be available")
+			Expect(versions).NotTo(BeEmpty(), "at least one cluster version should be available")
 		})
 })
