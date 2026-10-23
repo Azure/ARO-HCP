@@ -1,8 +1,12 @@
 knownIssues:
-- name: "PrometheusOperatorRejectedResources"
+- name: "BackendControllerRetryHotLoop"
   labels:
-    resource: "servicemonitor"
-  reason: "ARO-28028 was closed Won't Do. This fires on the self-hosted Prometheus on management clusters and can be removed once management metrics move off self-hosted Prometheus to AMA (https://issues.redhat.com/browse/AROSLSRE-1693)."
+    name: "triggernodepoolupgrade"
+  reason: "being worked on in https://issues.redhat.com/browse/ARO-28029"
+- name: "BackendControllerRetryHotLoop"
+  labels:
+    name: "operationclustercreate"
+  reason: "fix in https://github.com/Azure/ARO-HCP/pull/5794"
 - name: "KubeVersionMismatch"
   labels:
     cluster: ".*-mgmt-.*"

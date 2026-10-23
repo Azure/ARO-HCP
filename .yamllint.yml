@@ -83,6 +83,7 @@ ignore:
 - 'tooling/aro-hcp-exporter/deploy/templates/servicemonitor.yaml'
 - 'velero/deploy/templates/node-agent-podmonitor.yaml'
 - 'velero/deploy/templates/velero-podmonitor.yaml'
+- 'observability/kube-state-metrics/deploy/templates/servicemonitor.yaml'
 rules:
   brackets: enable
   colons: enable

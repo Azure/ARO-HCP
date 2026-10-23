@@ -665,7 +665,7 @@ resourceGroups:
     - resourceGroup: service
       step: cluster-output
   - name: prometheus
-    # Deploy prometheus first since istio depends on it's CRDs
+    # Deploy prometheus first since istio depends on its CRDs
     aksCluster: '{{ .svc.aks.name }}'
     action: Helm
     timeout: 10m

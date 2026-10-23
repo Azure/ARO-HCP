@@ -70,6 +70,10 @@ data:
     podannotations = "30s"
   debug-mode: |-
     enabled = false
+  default-targets-relabel-configs: |-
+    - action: replace
+      target_label: microsoft_metrics_account
+      replacement: service
 metadata:
   name: ama-metrics-settings-configmap
   namespace: kube-system

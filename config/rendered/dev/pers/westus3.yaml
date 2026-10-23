@@ -721,7 +721,7 @@ mgmt:
       public: false
       zoneRedundantMode: Auto
     storageAccountContainerName: backups
-  monitoringApiGroup: monitoring.coreos.com
+  monitoringApiGroup: azmonitoring.coreos.com
   nsp:
     accessMode: Learning
     name: nsp-usw3test-mgmt-1
@@ -1096,7 +1096,7 @@ svc:
     ingressGatewayIPAddressName: aro-hcp-istio-ingress
     tag: prod-stable
     versions: asm-1-30
-  monitoringApiGroup: monitoring.coreos.com
+  monitoringApiGroup: azmonitoring.coreos.com
   nsp:
     accessMode: Learning
     name: nsp-usw3test-svc
