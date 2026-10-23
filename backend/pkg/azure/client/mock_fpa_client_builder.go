@@ -39,6 +39,45 @@ func (m *MockFirstPartyApplicationClientBuilder) EXPECT() *MockFirstPartyApplica
 	return m.recorder
 }
 
+// ActivityLogsClient mocks base method.
+func (m *MockFirstPartyApplicationClientBuilder) ActivityLogsClient(tenantID, subscriptionID string) (ActivityLogsClient, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ActivityLogsClient", tenantID, subscriptionID)
+	ret0, _ := ret[0].(ActivityLogsClient)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ActivityLogsClient indicates an expected call of ActivityLogsClient.
+func (mr *MockFirstPartyApplicationClientBuilderMockRecorder) ActivityLogsClient(tenantID, subscriptionID any) *MockFirstPartyApplicationClientBuilderActivityLogsClientCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ActivityLogsClient", reflect.TypeOf((*MockFirstPartyApplicationClientBuilder)(nil).ActivityLogsClient), tenantID, subscriptionID)
+	return &MockFirstPartyApplicationClientBuilderActivityLogsClientCall{Call: call}
+}
+
+// MockFirstPartyApplicationClientBuilderActivityLogsClientCall wrap *gomock.Call
+type MockFirstPartyApplicationClientBuilderActivityLogsClientCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockFirstPartyApplicationClientBuilderActivityLogsClientCall) Return(arg0 ActivityLogsClient, arg1 error) *MockFirstPartyApplicationClientBuilderActivityLogsClientCall {
+	c.Call = c.Call.Return(arg0, arg1)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockFirstPartyApplicationClientBuilderActivityLogsClientCall) Do(f func(string, string) (ActivityLogsClient, error)) *MockFirstPartyApplicationClientBuilderActivityLogsClientCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockFirstPartyApplicationClientBuilderActivityLogsClientCall) DoAndReturn(f func(string, string) (ActivityLogsClient, error)) *MockFirstPartyApplicationClientBuilderActivityLogsClientCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
 // BuilderType mocks base method.
 func (m *MockFirstPartyApplicationClientBuilder) BuilderType() FirstPartyApplicationClientBuilderType {
 	m.ctrl.T.Helper()

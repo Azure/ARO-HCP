@@ -39,6 +39,7 @@ import (
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	azureconfig "github.com/Azure/ARO-HCP/backend/pkg/azure/config"
 	clusterbackups "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/backups"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerconfig"
 	internalazure "github.com/Azure/ARO-HCP/internal/azure"
 	"github.com/Azure/ARO-HCP/internal/cincinnati"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
@@ -98,6 +99,7 @@ type BackendOptions struct {
 	CheckAccessV2ClientBuilder                          azureclient.CheckAccessV2ClientBuilder
 	ClusterScopedIdentitiesConfig                       *internalazure.ClusterScopedIdentitiesConfig
 	CloudEnvironment                                    *azureconfig.AzureCloudEnvironment
+	OrphanedMRGCleanupConfig                            *controllerconfig.OrphanedMRGCleanupConfig
 }
 
 const backendShutdownTimeout = 31 * time.Second
