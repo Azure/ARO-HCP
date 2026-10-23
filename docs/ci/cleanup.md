@@ -237,6 +237,30 @@ The `cleanup-sweeper` `shared-leftovers` workflow runs per environment. Alongsid
 
 To resolve the principals behind orphaned role assignments, `shared-leftovers` reads the Microsoft Graph active directory, which requires `Directory.Read.All`. It deletes an assignment when the principal is absent from the active directory, including when the principal is soft-deleted. It performs the same active-directory check again immediately before deletion. A discovery failure ends the role-assignment step before deletion. A per-target revalidation failure skips that target while independently validated targets continue. The per-environment ARM identity (`VAULT_SECRET_PROFILE`) usually lacks that tenant-wide grant, so the step exports a dedicated Graph identity from `GRAPH_SECRET_PROFILE` (the dev bot, which holds `Directory.Read.All`) whenever its mounted profile differs from the ARM profile. When the two resolve to the same profile, no separate Graph credential is used and the ARM identity serves both. The sweeper binary reads that dedicated identity from `GRAPH_AZURE_CLIENT_ID` / `GRAPH_AZURE_TENANT_ID` / `GRAPH_AZURE_CLIENT_SECRET`, which the `aro-hcp-deprovision-cleanup-sweeper` step in `openshift/release` exports from the mounted Graph profile.
 
+#### Backend orphan-MRG detection
+
+The backend's `CleanOrphanedClusterManagedResourceGroup` controller checks MRGs
+in its region against its local cluster database. For an owner absent locally,
+it checks the customer resource group extracted from `managedBy`, not the HCP
+cluster through ARM: DEV clusters are served directly by individual RP
+frontends, so an ARM cluster lookup cannot establish cross-backend ownership.
+
+An existing customer RG protects the MRG, even if the cluster itself has already
+disappeared. This deliberately conservative check matches the sweeper's
+parent-RG protection. Invalid owner IDs, missing customer-RG scope, and owners
+in another subscription remain protected. Only a same-subscription customer-RG
+GET returning HTTP 404 permits orphan counting and existing cleanup handling.
+Other lookup errors abort the sync before any MRG is counted or queued for
+deletion, including candidates discovered earlier in that sync.
+
+The backend remains read-only unless
+`CLEAN_ORPHANED_MANAGED_RESOURCE_GROUPS_MODE=readwrite` is explicitly configured.
+This ownership check does not apply the sweeper's retention or `createdAt`
+policy, repair missing tags, or prove a live cluster exists. Periodic cleanup
+remains responsible for background hygiene; the `OrphanedMRGDetected` known-issue
+classification must be reassessed separately after rollout and backlog
+verification.
+
 #### Tracing sweeper deletions
 
 The `rg-ordered` and `shared-leftovers` commands carry a unique `runID`,
