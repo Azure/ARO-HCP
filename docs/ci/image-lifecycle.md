@@ -104,6 +104,47 @@ Tagging aro-hcp/aro-hcp-ci-images:aro-hcp-e2e-base-ci into pipeline:root
 
 That line means "import the shared CI build root into this specific job namespace."
 
+### Agentic Go Patch Upgrades
+
+[Go toolchain patch upgrades](../../.github/workflows/go-toolchain-upgrade.md)
+is a GitHub Agentic Workflow (`gh-aw`), with a compiler-generated
+`.lock.yml`, Copilot engine, daily schedule and manual default-branch trigger.
+Its trusted [readiness helper](../../.github/scripts/go_toolchain_upgrade.py)
+selects a stable patch within the workspace's current Go minor. Copilot
+inspects that plan and chooses an evidenced `noop` or one
+`prepare_toolchain_upgrade` custom safe-output request. The agent cannot
+directly publish a patch or change another author's PR.
+
+Readiness includes the live `openshift/release` build roots and builders,
+repository build images, and development-toolchain configuration. A local
+`.ci-operator.yaml` pin alone is not evidence that a promoted shared image has
+the required compiler. Published images are resolved to immutable digests;
+inline CI roots and the proposed development-container Go feature are built
+as disposable images and probed by immutable image ID. Probes have no network,
+mounts or credentials. Image builds need installation networking, use only
+trusted configuration and empty temporary contexts, and receive no App token.
+Missing or older compilers produce a normal blocked result, not a GitHub issue.
+Authentication and malformed configuration errors fail the run.
+
+An existing toolchain-upgrade PR, including a human-owned PR, causes the
+workflow to wait without changing it or opening a competing upgrade. The
+trusted safe-output job independently validates the requested base and target
+against a fresh plan. When ready, it edits application/workspace Go directives,
+the API generator's module declaration and the development-container Go
+feature. Bingo metadata and generated SDK module minimums remain protected,
+not hand-edited. The target compiler runs regeneration and tidy, with a
+generation fixpoint, dependency-scope check, test compilation, lint and
+generated-content gates. Matching dependency checksum keys are never renamed.
+
+Immediately before publication, the job rechecks the default-branch revision,
+existing upgrade PRs, builder availability and live Prow draft-notification
+policy. Only the final publication steps can receive a narrowly scoped App
+token to push a new branch and open a draft PR. The workflow does not request
+reviewers, mark PRs ready, approve or merge them. Expected current/blocked
+states use `noop` without report issues. Readiness evidence is retained as the
+`go-toolchain-readiness` artifact; a blocked result is not evidence of a
+successfully published or deployed upgrade.
+
 ### Nested Podman Toolchain
 
 `dev-infrastructure/openshift-ci/Dockerfile.nested-podman` defines a
