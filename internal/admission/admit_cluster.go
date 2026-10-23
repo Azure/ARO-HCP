@@ -91,10 +91,22 @@ type ClusterAdmissionNodePool struct {
 func MutateCluster(ctx context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, newObj, oldObj *coreapi.Cluster) field.ErrorList {
 	errs := field.ErrorList{}
 
+	errs = append(errs, mutateClusterDNS(ctx, admissionContext, op, field.NewPath("customerProperties", "dns"), &newObj.CustomerProperties.DNS)...)
+
 	// ServiceProviderProperties ClusterServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
 	errs = append(errs, mutateClusterServiceProviderProperties(ctx, admissionContext, op, field.NewPath("serviceProviderProperties"), &newObj.ServiceProviderProperties, safe.Field(oldObj, validation.ToClusterServiceProviderProperties))...)
 
 	return errs
+}
+
+// mutateClusterDNS defaults the vanity prefix only on CREATE. Legacy clusters
+// with an omitted prefix must retain CS naming until backend prefix backfill.
+func mutateClusterDNS(_ context.Context, _ *ClusterAdmissionContext, op operation.Operation, _ *field.Path, profile *coreapi.CustomerDNSProfile) field.ErrorList {
+	if op.Type == operation.Create && len(profile.BaseDomainPrefix) == 0 {
+		// The prefix is scoped beneath an exclusive DNS slug; it need not be unique.
+		profile.BaseDomainPrefix = "cluster"
+	}
+	return nil
 }
 
 // mutateClusterServiceProviderProperties applies mutations that live on the

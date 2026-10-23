@@ -74,6 +74,9 @@ func NewClusterBaseDomainPrefixSyncController(
 }
 
 func (c *clusterBaseDomainPrefixSyncer) needsWork(existingCluster *coreapi.Cluster) bool {
+	if existingCluster.ServiceProviderProperties.DeletionTimestamp != nil {
+		return false
+	}
 	if existingCluster.ServiceProviderProperties.ClusterServiceID == nil ||
 		len(existingCluster.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
 		return false
