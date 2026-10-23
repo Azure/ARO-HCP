@@ -31,6 +31,22 @@ tests:
     exp_samples:
     - labels: '{__name__="info:kube_namespace:hcp_cluster_subscription_id", job="kube-state-metrics", namespace="ocm-test-hcp-namespace-lowercase", annotation_azure_microsoft_com_hcp_cluster_azure_resource_id="/subscriptions/11111111-1111-1111-1111-111111111111/resourcegroups/test-rg/providers/microsoft.redhatopenshift/hcpopenshiftclusters/test-hcp-cluster", hcp_cluster_subscription_id="11111111-1111-1111-1111-111111111111"}'
       value: 1
+# Scenario 1c: malformed annotation (not a valid ARM resource ID) — resource_id
+# is still emitted (regex `(.*)` always matches), but subscription_id is NOT
+# emitted because the ARM regex does not match and the filter drops the series.
+- interval: 1m
+  input_series:
+  - series: 'kube_namespace_annotations{job="kube-state-metrics", namespace="ocm-test-hcp-namespace-malformed", annotation_azure_microsoft_com_hcp_cluster_azure_resource_id="not-an-arm-resource-id"}'
+    values: "1+0x5"
+  promql_expr_test:
+  - expr: info:kube_namespace:hcp_cluster_resource_id{namespace="ocm-test-hcp-namespace-malformed"}
+    eval_time: 1m
+    exp_samples:
+    - labels: '{__name__="info:kube_namespace:hcp_cluster_resource_id", job="kube-state-metrics", namespace="ocm-test-hcp-namespace-malformed", annotation_azure_microsoft_com_hcp_cluster_azure_resource_id="not-an-arm-resource-id", hcp_cluster_resource_id="not-an-arm-resource-id"}'
+      value: 1
+  - expr: info:kube_namespace:hcp_cluster_subscription_id{namespace="ocm-test-hcp-namespace-malformed"}
+    eval_time: 1m
+    exp_samples: []
 # Scenario 2: namespace has no hcp-cluster-azure-resource-id annotation — no series emitted
 - interval: 1m
   input_series:

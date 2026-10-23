@@ -49,15 +49,17 @@ spec:
     # against provider/type segments being lowercased (observed in production
     # annotation values, e.g. "resourcegroups"/"microsoft.redhatopenshift"),
     # since ARM resource ID casing isn't guaranteed by whatever wrote the
-    # annotation. `label_replace` requires a full-string match, so a regex
-    # that doesn't match (e.g. an unexpected format) leaves this label unset
-    # rather than erroring.
+    # annotation. The source metric is pre-filtered with the same ARM
+    # resource ID regex so that only annotations matching a valid ARM path
+    # enter the label_replace. Without this filter, a malformed annotation
+    # would pass through with an empty hcp_cluster_subscription_id, allowing
+    # alerts to fire with an empty subscription_id.
     - record: info:kube_namespace:hcp_cluster_subscription_id
       expr: |
         label_replace(
           max without (prometheus_replica, instance, pod, container, endpoint, service) (
             kube_namespace_annotations{
-              annotation_azure_microsoft_com_hcp_cluster_azure_resource_id!="",
+              annotation_azure_microsoft_com_hcp_cluster_azure_resource_id=~"(?i)/subscriptions/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/resourcegroups/.*",
               job="kube-state-metrics"
             }
           ),
