@@ -16,10 +16,8 @@ package operations
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
-	"slices"
 	"strings"
 	"time"
 
@@ -157,6 +155,7 @@ func (c *operationNodePoolUpdate) SynchronizeOperation(ctx context.Context, key 
 	}
 
 	operationalState, err := c.determineOperationState(ctx, operation, existingNodePool)
+	operationalState, err = operationbase.ApplyOperationDeadline(operationalState, err, existingNodePool.ServiceProviderProperties.UpdateOperationCompletionDeadline, c.clock.Now(), "node pool update did not complete before the deadline")
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -166,27 +165,6 @@ func (c *operationNodePoolUpdate) SynchronizeOperation(ctx context.Context, key 
 		persistErr = &coreapi.CloudErrorBody{
 			Code:    operationalState.CloudErrorCode,
 			Message: operationalState.Message,
-		}
-	}
-
-	if !operationalState.ProvisioningState.IsTerminal() &&
-		existingNodePool.ServiceProviderProperties.UpdateOperationCompletionDeadline != nil &&
-		c.clock.Now().After(existingNodePool.ServiceProviderProperties.UpdateOperationCompletionDeadline.Time) {
-		message := operationbase.DeadlineExceededMessage(
-			"node pool update did not complete before the deadline",
-			operationalState.Message,
-		)
-		logger.Info("update operation deadline exceeded, marking as failed",
-			"deadline", existingNodePool.ServiceProviderProperties.UpdateOperationCompletionDeadline.Time,
-			"message", message)
-		operationalState.ProvisioningState = coreapi.ProvisioningStateFailed
-		code := operationalState.CloudErrorCode
-		if code == coreapi.CloudErrorCodeInternalServerError {
-			code = coreapi.CloudErrorCodeDeadlineExceeded
-		}
-		persistErr = &coreapi.CloudErrorBody{
-			Code:    code,
-			Message: message,
 		}
 	}
 
@@ -204,69 +182,52 @@ func (c *operationNodePoolUpdate) SynchronizeOperation(ctx context.Context, key 
 }
 
 func (c *operationNodePoolUpdate) shouldReconcileOperationAndResourceStatus(nodePool *coreapi.NodePool) bool {
-	return nodePool.ServiceProviderProperties.DeletionTimestamp == nil &&
-		nodePool.ServiceProviderProperties.ClusterServiceID != nil
+	return nodePool.ServiceProviderProperties.DeletionTimestamp == nil
 }
 
 func (c *operationNodePoolUpdate) determineOperationState(ctx context.Context, operation *coreapi.Operation, existingNodePool *coreapi.NodePool) (*operationbase.OperationState, error) {
 	logger := utils.LoggerFromContext(ctx)
 
 	nodePoolCSID := existingNodePool.ServiceProviderProperties.ClusterServiceID
+	errs := []error{}
+	operationStates := []*operationbase.OperationState{}
 	csCtx, cancel := context.WithTimeout(ctx, controllerutils.CSReadTimeout)
 	defer cancel()
 
-	existingCSNodePool, err := c.clusterServiceClient.GetNodePool(csCtx, *nodePoolCSID)
-	if err != nil {
-		return nil, utils.TrackError(fmt.Errorf("failed to get node pool from cluster service: %w", err))
-	}
-
 	existingServiceProviderNodePool, err := c.serviceProviderNodePoolLister.Get(ctx, operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Parent.Name, operation.ExternalID.Name)
 	if err != nil {
-		return nil, utils.TrackError(fmt.Errorf("failed to get service provider node pool from cache: %w", err))
-	}
-
-	errs := []error{}
-	operationStates := []*operationbase.OperationState{}
-
-	if operationState, err := c.desiredVersionResolutionOperationState(ctx, operation, existingNodePool, existingServiceProviderNodePool); err != nil {
-		errs = append(errs, utils.TrackError(err))
+		errs = append(errs, utils.TrackError(fmt.Errorf("failed to get service provider node pool from cache: %w", err)))
 	} else {
-		operationStates = append(operationStates, operationState.WithSource("nodePoolDesiredVersionResolution"))
+		if operationState, err := c.desiredVersionResolutionOperationState(ctx, operation, existingNodePool, existingServiceProviderNodePool); err != nil {
+			errs = append(errs, utils.TrackError(err))
+		} else {
+			operationStates = append(operationStates, operationState.WithSource("nodePoolDesiredVersionResolution"))
+		}
 	}
-	if operationState, csErr := c.clusterServiceNodePoolStatusOperationState(ctx, operation, existingCSNodePool.Status()); csErr != nil {
-		errs = append(errs, utils.TrackError(csErr))
+	if nodePoolCSID == nil || nodePoolCSID.String() == "" {
+		operationStates = append(operationStates, operationbase.NewOperationState(coreapi.ProvisioningStateAccepted, "Waiting for Cluster Service node pool creation").WithSource("clusterService"))
+	} else if existingCSNodePool, err := c.clusterServiceClient.GetNodePool(csCtx, *nodePoolCSID); err != nil {
+		errs = append(errs, utils.TrackError(fmt.Errorf("failed to get node pool from cluster service: %w", err)))
 	} else {
-		operationStates = append(operationStates, operationState.WithSource("clusterServiceNodePoolStatus"))
-	}
-	if operationState, csErr := c.clusterServiceNodePoolSpecOperationState(existingNodePool, existingCSNodePool); csErr != nil {
-		errs = append(errs, utils.TrackError(csErr))
-	} else {
-		operationStates = append(operationStates, operationState.WithSource("clusterServiceNodePoolSpec"))
-	}
+		if operationState, csErr := c.clusterServiceNodePoolStatusOperationState(ctx, operation, existingCSNodePool.Status()); csErr != nil {
+			errs = append(errs, utils.TrackError(csErr))
+		} else {
+			operationStates = append(operationStates, operationState.WithSource("clusterServiceNodePoolStatus"))
+		}
+		if operationState, csErr := c.clusterServiceNodePoolSpecOperationState(existingNodePool, existingCSNodePool); csErr != nil {
+			errs = append(errs, utils.TrackError(csErr))
+		} else {
+			operationStates = append(operationStates, operationState.WithSource("clusterServiceNodePoolSpec"))
+		}
 
-	if operationState, hsErr := c.hypershiftNodePoolOperationState(ctx, existingNodePool, existingCSNodePool); hsErr != nil {
-		errs = append(errs, utils.TrackError(hsErr))
-	} else {
-		operationStates = append(operationStates, operationState.WithSource("hypershiftNodePool"))
-	}
-
-	if err := errors.Join(errs...); err != nil {
-		return nil, err
-	}
-	if len(operationStates) == 0 {
-		return nil, errors.New("no operation states")
-	}
-	slices.SortStableFunc(operationStates, operationbase.CompareOperationState)
-	if operationStates[0] == nil {
-		return nil, errors.New("nil operation state")
+		if operationState, hsErr := c.hypershiftNodePoolOperationState(ctx, existingNodePool, existingCSNodePool); hsErr != nil {
+			errs = append(errs, utils.TrackError(hsErr))
+		} else {
+			operationStates = append(operationStates, operationState.WithSource("hypershiftNodePool"))
+		}
 	}
 	logger.Info("determined node pool update operation status", "operationStates", operationStates)
-	picked, err := operationbase.PickWorstOperationState(operationStates)
-	if err != nil {
-		return nil, utils.TrackError(err)
-	}
-	logger.Info("picked node pool update operation status", "provisioningState", picked.ProvisioningState, "message", picked.Message)
-	return picked, nil
+	return operationbase.SummarizeOperationStates(operationStates, errs...)
 }
 
 func (c *operationNodePoolUpdate) desiredVersionResolutionOperationState(ctx context.Context, operation *coreapi.Operation, existingNodePool *coreapi.NodePool, existingServiceProviderNodePool *coreapi.ServiceProviderNodePool) (*operationbase.OperationState, error) {

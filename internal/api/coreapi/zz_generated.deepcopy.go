@@ -1105,6 +1105,18 @@ func (in *ExternalAuthServiceProviderProperties) DeepCopyInto(out *ExternalAuthS
 		in, out := &in.ClusterServiceDeletionTimestamp, &out.ClusterServiceDeletionTimestamp
 		*out = (*in).DeepCopy()
 	}
+	if in.CreateOperationCompletionDeadline != nil {
+		in, out := &in.CreateOperationCompletionDeadline, &out.CreateOperationCompletionDeadline
+		*out = (*in).DeepCopy()
+	}
+	if in.UpdateOperationCompletionDeadline != nil {
+		in, out := &in.UpdateOperationCompletionDeadline, &out.UpdateOperationCompletionDeadline
+		*out = (*in).DeepCopy()
+	}
+	if in.DeleteOperationCompletionDeadline != nil {
+		in, out := &in.DeleteOperationCompletionDeadline, &out.DeleteOperationCompletionDeadline
+		*out = (*in).DeepCopy()
+	}
 	return
 }
 
@@ -1743,6 +1755,15 @@ func (in *NodePoolServiceProviderProperties) DeepCopyInto(out *NodePoolServicePr
 	}
 	if in.UpdateOperationCompletionDeadline != nil {
 		in, out := &in.UpdateOperationCompletionDeadline, &out.UpdateOperationCompletionDeadline
+		*out = (*in).DeepCopy()
+	}
+	if in.DeleteOperationCompletionTimeout != nil {
+		in, out := &in.DeleteOperationCompletionTimeout, &out.DeleteOperationCompletionTimeout
+		*out = new(time.Duration)
+		**out = **in
+	}
+	if in.DeleteOperationCompletionDeadline != nil {
+		in, out := &in.DeleteOperationCompletionDeadline, &out.DeleteOperationCompletionDeadline
 		*out = (*in).DeepCopy()
 	}
 	return
