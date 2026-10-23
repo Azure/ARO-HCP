@@ -531,6 +531,32 @@ class RetestGuardTests(TestCase):
 
 
 class NpmLockOverlapTests(TestCase):
+    def test_null_and_renamed_previous_paths_preserve_dependency_comparison(self):
+        for previous in (None, "legacy/package-lock.json"):
+            with self.subTest(previous=previous):
+                base_path = previous or "api/package-lock.json"
+                documents = {
+                    f"repos/owner/repo/contents/{base_path}?ref=base": "1.0.0",
+                    "repos/owner/repo/contents/api/package-lock.json?ref=head": "2.0.0",
+                }
+                def api(endpoint, expression):
+                    if endpoint.endswith("/pulls/123"):
+                        return [{"base": "base", "head": "head"}]
+                    if "/compare/" in endpoint:
+                        return [{"base": "base"}]
+                    content = {"lockfileVersion": 3, "packages": {
+                        "node_modules/undici": {"version": documents[endpoint]}}}
+                    return [{"encoding": "base64", "content":
+                             base64.b64encode(json.dumps(content).encode()).decode()}]
+                files = [{"filename": "api/package-lock.json", "previous_filename": previous,
+                          "status": "renamed" if previous else "modified"}]
+                with patch.object(guard, "gh_lines", side_effect=api):
+                    guard.load_lockfiles("owner/repo", {"number": 123}, files)
+                self.assertIsNotNone(guard.overlaps(
+                    ("npm", "undici", "2.0.0", {"api/package.json"}), files))
+                self.assertIsNone(guard.overlaps(
+                    ("npm", "unrelated", "2.0.0", {"api/package.json"}), files))
+
     def test_deleted_fork_still_detects_lockfile_overlap(self):
         def api(endpoint, expression):
             if endpoint.endswith("/pulls/123"):
