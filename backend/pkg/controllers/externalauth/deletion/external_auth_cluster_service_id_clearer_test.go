@@ -26,7 +26,6 @@ import (
 	"go.uber.org/mock/gomock"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/ptr"
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
@@ -45,14 +44,6 @@ func TestExternalAuthClusterServiceIDClearer_SyncOnce(t *testing.T) {
 	withDeletionStampsExternalAuthOptsFunc := func(ea *coreapi.ExternalAuth) {
 		ea.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-time.Hour)}
 		ea.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-30 * time.Minute)}
-	}
-	withAcceptedCSDeleteExternalAuthOptsFunc := func(ea *coreapi.ExternalAuth) {
-		withDeletionStampsExternalAuthOptsFunc(ea)
-		ea.ServiceProviderProperties.ClusterServiceExternalAuthDeleteAccepted = ptr.To(true)
-	}
-	withRejectedCSDeleteExternalAuthOptsFunc := func(ea *coreapi.ExternalAuth) {
-		withDeletionStampsExternalAuthOptsFunc(ea)
-		ea.ServiceProviderProperties.ClusterServiceExternalAuthDeleteAccepted = ptr.To(false)
 	}
 
 	verifyClusterServiceIDUnchanged := func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
@@ -124,37 +115,7 @@ func TestExternalAuthClusterServiceIDClearer_SyncOnce(t *testing.T) {
 			verifyDB: verifyClusterServiceIDUnchanged,
 		},
 		{
-			name: "CS returns Ready after accepted delete -- clear ClusterServiceID",
-			existingExternalAuth: newTestExternalAuth(t, func(ea *coreapi.ExternalAuth) {
-				withAcceptedCSDeleteExternalAuthOptsFunc(ea)
-			}),
-			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
-				mock.EXPECT().
-					GetExternalAuth(gomock.Any(), metadataapi.Must(metadataapi.NewInternalID(testExternalAuthCSIDStr))).
-					Return(newCSExternalAuthWithState(t, string(operationbase.ExternalAuthStateReady)), nil)
-			},
-			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
-				t.Helper()
-				stored, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).
-					ExternalAuth(testClusterName).Get(ctx, testExternalAuthName)
-				require.NoError(t, err)
-				assert.Nil(t, stored.ServiceProviderProperties.ClusterServiceID, "expected ClusterServiceID to be cleared")
-			},
-		},
-		{
-			name: "CS returns Ready after parent-cluster uninstall dispatch -- wait",
-			existingExternalAuth: newTestExternalAuth(t, func(ea *coreapi.ExternalAuth) {
-				withRejectedCSDeleteExternalAuthOptsFunc(ea)
-			}),
-			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
-				mock.EXPECT().
-					GetExternalAuth(gomock.Any(), metadataapi.Must(metadataapi.NewInternalID(testExternalAuthCSIDStr))).
-					Return(newCSExternalAuthWithState(t, string(operationbase.ExternalAuthStateReady)), nil)
-			},
-			verifyDB: verifyClusterServiceIDUnchanged,
-		},
-		{
-			name: "CS returns Ready after pre-change dispatch (accepted flag unset) -- clear ClusterServiceID",
+			name: "CS returns Ready after delete dispatch -- wait for 404",
 			existingExternalAuth: newTestExternalAuth(t, func(ea *coreapi.ExternalAuth) {
 				withDeletionStampsExternalAuthOptsFunc(ea)
 			}),
@@ -163,13 +124,7 @@ func TestExternalAuthClusterServiceIDClearer_SyncOnce(t *testing.T) {
 					GetExternalAuth(gomock.Any(), metadataapi.Must(metadataapi.NewInternalID(testExternalAuthCSIDStr))).
 					Return(newCSExternalAuthWithState(t, string(operationbase.ExternalAuthStateReady)), nil)
 			},
-			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
-				t.Helper()
-				stored, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).
-					ExternalAuth(testClusterName).Get(ctx, testExternalAuthName)
-				require.NoError(t, err)
-				assert.Nil(t, stored.ServiceProviderProperties.ClusterServiceID, "expected ClusterServiceID to be cleared")
-			},
+			verifyDB: verifyClusterServiceIDUnchanged,
 		},
 		{
 			name: "CS returns 404 -- clear ClusterServiceID",

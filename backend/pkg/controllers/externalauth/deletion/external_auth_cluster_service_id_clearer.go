@@ -40,11 +40,11 @@ import (
 // after the delete dispatch controller has already issued the delete
 // request (ClusterServiceDeletionTimestamp is set). We poll
 // cluster-service for the ExternalAuth and zero out the stored
-// ClusterServiceID when CS returns 404, or when it still returns Ready
-// after Cluster Service accepted DELETE (CS does not transition some
-// ExternalAuths to 404, which otherwise deadlocks deletion). Ready is not
-// treated as terminal when dispatch recorded that DELETE was not accepted.
-// Documents dispatched before that flag existed (nil) still Ready-clear.
+// ClusterServiceID only when CS returns 404. Ready or uninstalling means
+// Cluster Service still owns the ExternalAuth (and the IdP may still be
+// active); we wait. Stuck deletes are failed by
+// DeleteOperationCompletionDeadline on OperationExternalAuthDelete rather
+// than by clearing the ID while CS still reports Ready.
 type externalAuthClusterServiceIDClearer struct {
 	externalAuthLister   corelisters.ExternalAuthLister
 	resourcesDBClient    corecosmosstorage.ResourcesDBClient
@@ -90,12 +90,9 @@ func (c *externalAuthClusterServiceIDClearer) NeedsWork(externalAuth *coreapi.Ex
 }
 
 // SyncOnce reads the ExternalAuth from cluster-service. ClusterServiceID is
-// cleared when cluster-service reports 404, or when it still reports Ready
-// after Cluster Service accepted DELETE (or after a pre-field dispatch, when
-// the accepted flag is unset). Ready after an explicit non-accepted dispatch
-// (parent-cluster uninstalling 400) waits for 404. Uninstalling (and any
-// other in-progress state) means cluster-service is still processing; we
-// retry on the next sync.
+// cleared only when cluster-service reports 404. Ready means teardown has
+// not been observed yet (including the brief Ready window after an accepted
+// DELETE). Uninstalling and any other in-progress state also wait.
 func (c *externalAuthClusterServiceIDClearer) SyncOnce(ctx context.Context, key controllerutils.HCPExternalAuthKey) error {
 	logger := utils.LoggerFromContext(ctx)
 
@@ -138,23 +135,13 @@ func (c *externalAuthClusterServiceIDClearer) SyncOnce(ctx context.Context, key 
 	}
 
 	if clusterServiceExternalAuthIsReady(csExternalAuth) {
-		if clusterServiceExternalAuthDeleteExplicitlyRejected(externalAuth) {
-			// Dispatch stamped ClusterServiceDeletionTimestamp because the parent
-			// cluster is uninstalling (400); CS never accepted DELETE for this
-			// ExternalAuth. Wait for 404 rather than dropping the ID while CS
-			// still owns the object. A nil flag is not rejection: those are
-			// in-flight documents dispatched before the field existed.
-			logger.Info("cluster-service ExternalAuth still Ready, DELETE was not accepted. Waiting for 404",
-				"clusterServiceID", csID.String())
-			return nil
-		}
-		// CS accepted DELETE but never leaves Ready / never 404s. Clearing the
-		// ID unblocks ExternalAuthDeletionController so the ARM operation can
-		// complete instead of waiting forever for a Cosmos delete that cannot
-		// happen while ClusterServiceID is still set.
-		logger.Info("cluster-service ExternalAuth still Ready after accepted delete. Clearing ClusterServiceID",
-			"clusterServiceID", csID.String())
-		return c.clearClusterServiceID(ctx, externalAuthCRUD, externalAuth)
+		// Accepted DELETE is not completion. CS usually leaves Ready briefly
+		// before uninstalling then 404. A persistent Ready is a stuck delete;
+		// OperationExternalAuthDelete fails it via DeleteOperationCompletionDeadline.
+		logger.Info("cluster-service ExternalAuth still Ready after delete dispatch. Waiting for 404",
+			"clusterServiceID", csID.String(),
+			"clusterServiceDeletionTimestamp", externalAuth.ServiceProviderProperties.ClusterServiceDeletionTimestamp.Time)
+		return nil
 	}
 
 	// ExternalAuth still exists in cluster-service in a non-Ready state
@@ -176,17 +163,11 @@ func (c *externalAuthClusterServiceIDClearer) clearClusterServiceID(ctx context.
 	return nil
 }
 
+// clusterServiceExternalAuthIsReady reports whether Cluster Service still
+// considers the ExternalAuth Ready. Ready is not deletion completion.
 func clusterServiceExternalAuthIsReady(csExternalAuth *arohcpv1alpha1.ExternalAuth) bool {
 	if csExternalAuth == nil {
 		return false
 	}
 	return csExternalAuth.Status().State().Value() == string(operationbase.ExternalAuthStateReady)
-}
-
-// clusterServiceExternalAuthDeleteExplicitlyRejected reports that dispatch
-// recorded Cluster Service did not accept DELETE. A nil flag is left unset on
-// documents stamped before this field existed; those must not wait for 404.
-func clusterServiceExternalAuthDeleteExplicitlyRejected(externalAuth *coreapi.ExternalAuth) bool {
-	accepted := externalAuth.ServiceProviderProperties.ClusterServiceExternalAuthDeleteAccepted
-	return accepted != nil && !*accepted
 }

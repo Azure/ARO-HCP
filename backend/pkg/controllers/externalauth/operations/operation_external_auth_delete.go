@@ -197,11 +197,12 @@ func (c *operationExternalAuthDelete) externalAuthDeletionOperationState(ctx con
 
 	csExternalAuthStatus := csExternalAuth.Status()
 
-	// If the external auth is in the Ready state from CS side, we wait until the Cosmos ExternalAuth document is deleted, which
-	// will be picked up by a next reconciliation of this controller and we will update the operation to Succeeded.
+	// Ready means Cluster Service still owns the ExternalAuth (IdP may still
+	// be active). Wait for uninstalling/404; do not treat Ready as completion.
+	// Stuck Ready is failed via DeleteOperationCompletionDeadline.
 	if csExternalAuthStatus.State().Value() == string(operationbase.ExternalAuthStateReady) {
-		logger.Info("cluster-service ExternalAuth in Ready state. Waiting until Cosmos ExternalAuth document is deleted.")
-		return operationbase.NewOperationState(operation.Status, "Waiting for external auth document deletion"), nil
+		logger.Info("cluster-service ExternalAuth in Ready state. Waiting for cluster-service deletion to leave Ready")
+		return operationbase.NewOperationState(operation.Status, "Waiting for cluster-service external auth deletion"), nil
 	}
 
 	newOperationStatus, newOperationError, err := operationbase.ConvertExternalAuthStatus(operation, csExternalAuthStatus)
