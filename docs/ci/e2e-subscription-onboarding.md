@@ -86,7 +86,7 @@ A brand-new subscription typically has no Azure resource providers registered be
 
 5. Provision the slot-backed identity containers in the new subscription.
    - Run:
-     - `go run ./test/cmd/aro-hcp-tests slot-manager apply-identity-pool --environment dev`
+     - `go run ./test/cmd/aro-hcp-tests slot-manager apply-identity-pool --environment dev` (or `--environment dev-upgrade` for the ci02 upgrade/CAPZ pools)
    - The built `aro-hcp-tests` binary can be used instead of `go run` if preferred.
    - Verify that the deployment stacks and identity-container resource groups are created in the new subscription.
 
