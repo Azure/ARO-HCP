@@ -17,13 +17,12 @@ package client
 //go:generate $MOCKGEN -typed -source=public_ip_addresses_client.go -destination=mock_public_ip_addresses_client.go -package client PublicIPAddressesClient
 
 import (
-	"context"
-
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v6"
 )
 
 type PublicIPAddressesClient interface {
-	Get(ctx context.Context, resourceGroupName string, publicIPAddressName string, options *armnetwork.PublicIPAddressesClientGetOptions) (armnetwork.PublicIPAddressesClientGetResponse, error)
+	NewListPager(resourceGroupName string, options *armnetwork.PublicIPAddressesClientListOptions) *runtime.Pager[armnetwork.PublicIPAddressesClientListResponse]
 }
 
 var _ PublicIPAddressesClient = (*armnetwork.PublicIPAddressesClient)(nil)
