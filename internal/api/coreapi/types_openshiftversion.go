@@ -22,6 +22,10 @@ import (
 // Raise it only after the retired minor's clusters have drained.
 const MinimumBackendVersion = "4.20"
 
+// MinimumPublicVersion bounds public version advertisement and cluster requests
+// independently of backend seeding and retirement.
+const MinimumPublicVersion = "4.20"
+
 // OpenShiftVersion represents a location-based available HCP OpenShift version resource.
 type OpenShiftVersion struct {
 	ProxyResource
@@ -30,7 +34,12 @@ type OpenShiftVersion struct {
 
 // OpenShiftVersionProperties contains details of an available HCP OpenShift version.
 type OpenShiftVersionProperties struct {
-	ChannelGroup       string    `json:"channelGroup"`
-	Enabled            bool      `json:"enabled"`
+	// ChannelGroup identifies the release channel of the advertised version.
+	ChannelGroup string `json:"channelGroup"`
+	// Enabled is retained for API compatibility and is always true for returned
+	// versions. It should be retired in a future API version.
+	Enabled bool `json:"enabled"`
+	// EndOfLifeTimestamp is the known end of support for this version. Its zero
+	// value represents an unknown date and is omitted from public responses.
 	EndOfLifeTimestamp time.Time `json:"endOfLifeTimestamp"`
 }

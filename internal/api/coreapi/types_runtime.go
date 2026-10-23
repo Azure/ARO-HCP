@@ -23,6 +23,12 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
+var _ runtime.Object = &OpenShiftVersionCatalog{}
+
+func (o *OpenShiftVersionCatalog) GetObjectKind() schema.ObjectKind {
+	return schema.EmptyObjectKind
+}
+
 var (
 	_ runtime.Object            = &Cluster{}
 	_ metav1.ObjectMetaAccessor = &Cluster{}

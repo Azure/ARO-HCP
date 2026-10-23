@@ -1272,7 +1272,19 @@ func instantiateControlPlaneVersionRolloutRetirementController(controllerContext
 	), nil
 }
 
+func registerOpenShiftVersionCatalogController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{
+		Workers:     1,
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateOpenShiftVersionCatalogController, false),
+	}
+}
+
+func instantiateOpenShiftVersionCatalogController(ctx controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	return rollout.NewOpenShiftVersionCatalogController(ctx.ResourcesDBClient, ctx.FleetInformers), nil
+}
+
 func Register(registry map[string]controllerconfig.ControllerRegistration) {
+	registry[strings.ToLower(rollout.VersionCatalogControllerName)] = registerOpenShiftVersionCatalogController()
 	registry[strings.ToLower(rollout.BestVersionSelectionControllerName)] = registerBestVersionSelectionController()
 	registry[strings.ToLower(rollout.StatusCollectorControllerName)] = registerStatusCollectorController()
 	registry[strings.ToLower(rollout.InitialNormalClusterDesiredVersionControllerName)] = registerInitialNormalClusterDesiredVersionController()
