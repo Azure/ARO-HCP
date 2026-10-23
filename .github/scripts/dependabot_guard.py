@@ -295,7 +295,7 @@ def lock_versions(document):
 
 
 def load_lockfiles(repo, pr, files):
-    """Fetch complete immutable lockfile revisions instead of guessing hunk context."""
+    """Compare merge-base/head resolutions without including unrelated base changes."""
     locks = [file for file in files if any(
         path and os.path.basename(path) in ("package-lock.json", "npm-shrinkwrap.json")
         for path in (file["filename"], file.get("previous_filename")))]
@@ -303,6 +303,9 @@ def load_lockfiles(repo, pr, files):
         return
     detail = gh_lines(f"repos/{repo}/pulls/{pr['number']}",
                       '{base: .base.sha, head: .head.sha, head_repo: .head.repo.full_name}')[0]
+    comparison = gh_lines(f"repos/{repo}/compare/{detail['base']}...{detail['head']}",
+                          '{base: .merge_base_commit.sha}')[0]
+    detail["base"] = comparison["base"]
     for file in locks:
         documents = []
         for side in ("base", "head"):

@@ -1,5 +1,6 @@
 """Focused safety checks for agentic dependency PR creation and retests."""
 
+import base64
 import difflib
 import importlib.util
 import io
@@ -530,6 +531,27 @@ class RetestGuardTests(TestCase):
 
 
 class NpmLockOverlapTests(TestCase):
+    def test_base_branch_only_updates_do_not_overlap(self):
+        documents = {
+            "base-tip": {"undici": "2.0.0", "other": "1.0.0"},
+            "ancestor": {"undici": "1.0.0", "other": "1.0.0"},
+            "head": {"undici": "1.0.0", "other": "2.0.0"},
+        }
+        def api(endpoint, expression):
+            if endpoint.endswith("/pulls/123"):
+                return [{"base": "base-tip", "head": "head", "head_repo": "fork/repo"}]
+            if "/compare/" in endpoint:
+                return [{"base": "ancestor"}]
+            versions = documents[endpoint.split("?ref=")[1]]
+            content = {"lockfileVersion": 3, "packages": {
+                "node_modules/" + name: {"version": version} for name, version in versions.items()}}
+            return [{"encoding": "base64", "content": base64.b64encode(json.dumps(content).encode()).decode()}]
+        files = [{"filename": "api/package-lock.json", "status": "modified"}]
+        with patch.object(guard, "gh_lines", side_effect=api):
+            guard.load_lockfiles("owner/repo", {"number": 123}, files)
+        self.assertIsNone(guard.overlaps(("npm", "undici", "2.0.0", {"api/package.json"}), files))
+        self.assertIsNotNone(guard.overlaps(("npm", "other", "2.0.0", {"api/package.json"}), files))
+
     def test_renamed_lockfile_without_content_still_defers(self):
         file = {"filename": "api/archived.json", "previous_filename": "api/package-lock.json"}
         self.assertIsNotNone(guard.overlaps(
