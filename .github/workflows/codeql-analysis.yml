@@ -94,7 +94,15 @@ jobs:
         fi
         printf 'Shard %s builds %s modules:\n' '${{ matrix.shard }}' "${#selected[@]}"
         printf '  %s\n' "${selected[@]}"
-        go build "${selected[@]}"
+        # Cap build parallelism to bound peak memory. CodeQL traces every
+        # compile, so building at the default GOMAXPROCS concurrency can push a
+        # heavy shard into runner OOM - the build receives SIGTERM (exit 143)
+        # minutes before the job timeout and analysis never runs (AROSLSRE-2524).
+        # The test module's packages are so interconnected that it cannot be
+        # split into lighter shards (every subset pulls ~the whole closure), so
+        # we lower concurrency instead. There is ample time budget to absorb it:
+        # the full workspace builds in ~2.5 min against the 30 min timeout.
+        go build -p 2 "${selected[@]}"
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@7211b7c8077ea37d8641b6271f6a365a22a5fbfa # v4.36.0
       with:
