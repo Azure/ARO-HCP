@@ -14,7 +14,7 @@ digraph cluster_create {
   cs [label="Cluster Service cluster exists\nClusterServiceID confirmed\nContinue in convergence panel", fillcolor="#e4f2e5", color="#4c8053"];
   put -> sp [label="missing service-provider\ndocument"];
   put -> id [label="missing pending/confirmed ID"];
-  sp -> ver [label="nil desired version +\nrequested channel / override"];
+  sp -> ver [label="normal: nil desired + channel\nforced: policy-specific gates"];
   rollout -> ver [label="selected target"];
   sp -> place [label="placement unresolved"];
   fleet -> place [label="Ready + schedulable +\ncurrent capacity"];
