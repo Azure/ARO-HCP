@@ -104,14 +104,43 @@ func TestDiscoverCandidates(t *testing.T) {
 
 func ptr(s string) *string { return &s }
 
+func boolPtr(b bool) *bool { return &b }
+
 func TestPromoteAndSortDeletionTargets(t *testing.T) {
 	t.Parallel()
+
+	now := time.Date(2026, 10, 2, 12, 0, 0, 0, time.UTC)
+	old := now.Add(-72 * time.Hour).Format(time.RFC3339)
+	young := now.Add(-time.Hour).Format(time.RFC3339)
+	persistPolicy := policy.RGDiscoveryPolicy{
+		Rules: []policy.RGDiscoveryRule{
+			{
+				Name:       "skip-managed",
+				Action:     policy.RGDiscoveryActionSkip,
+				Match:      policy.RGDiscoveryMatch{Any: true},
+				Conditions: policy.RGDiscoveryConditions{ManagedByAlive: boolPtr(true)},
+			},
+			{
+				Name:       "skip-persist",
+				Action:     policy.RGDiscoveryActionSkip,
+				Match:      policy.RGDiscoveryMatch{Any: true},
+				Conditions: policy.RGDiscoveryConditions{TagsEq: map[string]string{"persist": "true"}},
+			},
+			{
+				Name:      "delete-after-48h",
+				Action:    policy.RGDiscoveryActionDelete,
+				Match:     policy.RGDiscoveryMatch{Any: true},
+				OlderThan: 48 * time.Hour,
+			},
+		},
+	}
 
 	testCases := []struct {
 		name              string
 		deletionTargets   sets.Set[string]
 		allResourceGroups []*armresources.ResourceGroup
 		excludedRGs       []string
+		discovery         policy.RGDiscoveryPolicy
 		want              []string
 		wantTargetsAdded  []string
 	}{
@@ -146,14 +175,14 @@ func TestPromoteAndSortDeletionTargets(t *testing.T) {
 			want: []string{"z-child-rg", "parent-rg"},
 		},
 		{
-			name:            "excluded child is not added",
+			name:            "excluded child protects its parent",
 			deletionTargets: sets.New("parent-rg"),
 			excludedRGs:     []string{"child-rg"},
 			allResourceGroups: []*armresources.ResourceGroup{
 				{Name: ptr("parent-rg")},
 				{Name: ptr("child-rg"), ManagedBy: ptr("/subscriptions/sub/resourceGroups/parent-rg/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/cluster")},
 			},
-			want: []string{"parent-rg"},
+			want: []string{},
 		},
 		{
 			name:            "managed RG whose parent is not a target is ignored",
@@ -183,6 +212,52 @@ func TestPromoteAndSortDeletionTargets(t *testing.T) {
 			want:             []string{"child-rg", "Parent-RG"},
 			wantTargetsAdded: []string{"child-rg"},
 		},
+		{
+			name:            "child skipped by a policy rule protects its parent and siblings",
+			deletionTargets: sets.New("parent-rg", "other-rg"),
+			discovery:       persistPolicy,
+			allResourceGroups: []*armresources.ResourceGroup{
+				{Name: ptr("parent-rg"), Tags: map[string]*string{"createdAt": ptr(old)}},
+				{Name: ptr("other-rg"), Tags: map[string]*string{"createdAt": ptr(old)}},
+				// Mixed-case key and value: tagsEq matching is case-insensitive, as in real "persist=True" tags.
+				{Name: ptr("child-a"), ManagedBy: ptr("/subscriptions/sub/resourceGroups/parent-rg/providers/Microsoft.RedHatOpenShift/openShiftClusters/a"), Tags: map[string]*string{"createdAt": ptr(old), "Persist": ptr("True")}},
+				{Name: ptr("child-b"), ManagedBy: ptr("/subscriptions/sub/resourceGroups/parent-rg/providers/Microsoft.RedHatOpenShift/openShiftClusters/b"), Tags: map[string]*string{"createdAt": ptr(old)}},
+			},
+			want: []string{"other-rg"},
+		},
+		{
+			name:            "managedByAlive skip rule does not protect a child",
+			deletionTargets: sets.New("parent-rg"),
+			discovery:       persistPolicy,
+			allResourceGroups: []*armresources.ResourceGroup{
+				{Name: ptr("parent-rg"), Tags: map[string]*string{"createdAt": ptr(old)}},
+				{Name: ptr("child-rg"), ManagedBy: ptr("/subscriptions/sub/resourceGroups/parent-rg/providers/Microsoft.RedHatOpenShift/openShiftClusters/cluster"), Tags: map[string]*string{"createdAt": ptr(old)}},
+			},
+			want:             []string{"child-rg", "parent-rg"},
+			wantTargetsAdded: []string{"child-rg"},
+		},
+		{
+			name:            "child that is too young to delete is still promoted",
+			deletionTargets: sets.New("parent-rg"),
+			discovery:       persistPolicy,
+			allResourceGroups: []*armresources.ResourceGroup{
+				{Name: ptr("parent-rg"), Tags: map[string]*string{"createdAt": ptr(old)}},
+				{Name: ptr("child-rg"), ManagedBy: ptr("/subscriptions/sub/resourceGroups/parent-rg/providers/Microsoft.RedHatOpenShift/openShiftClusters/cluster"), Tags: map[string]*string{"createdAt": ptr(young)}},
+			},
+			want:             []string{"child-rg", "parent-rg"},
+			wantTargetsAdded: []string{"child-rg"},
+		},
+		{
+			name:            "protection propagates through nested managed groups",
+			deletionTargets: sets.New("grandparent-rg"),
+			discovery:       persistPolicy,
+			allResourceGroups: []*armresources.ResourceGroup{
+				{Name: ptr("grandparent-rg"), Tags: map[string]*string{"createdAt": ptr(old)}},
+				{Name: ptr("parent-rg"), ManagedBy: ptr("/subscriptions/sub/resourceGroups/grandparent-rg/providers/Microsoft.Example/managers/p"), Tags: map[string]*string{"createdAt": ptr(old)}},
+				{Name: ptr("child-rg"), ManagedBy: ptr("/subscriptions/sub/resourceGroups/parent-rg/providers/Microsoft.Example/managers/c"), Tags: map[string]*string{"createdAt": ptr(old), "persist": ptr("true")}},
+			},
+			want: []string{},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -193,7 +268,7 @@ func TestPromoteAndSortDeletionTargets(t *testing.T) {
 			excluded := sets.New(tc.excludedRGs...)
 			candidateSources := map[string]string{}
 
-			got := promoteAndSortDeletionTargets(logger, tc.deletionTargets, tc.allResourceGroups, excluded, candidateSources)
+			got := promoteAndSortDeletionTargets(logger, tc.deletionTargets, tc.allResourceGroups, excluded, tc.discovery, now, candidateSources)
 
 			if len(got) != len(tc.want) {
 				t.Fatalf("expected %v, got %v", tc.want, got)
@@ -209,5 +284,29 @@ func TestPromoteAndSortDeletionTargets(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestPromoteAndSortDeletionTargetsZeroReferenceTimeFailsClosed(t *testing.T) {
+	t.Parallel()
+
+	discovery := policy.RGDiscoveryPolicy{
+		Rules: []policy.RGDiscoveryRule{
+			{
+				Action:     policy.RGDiscoveryActionSkip,
+				Match:      policy.RGDiscoveryMatch{Any: true},
+				Conditions: policy.RGDiscoveryConditions{TagsEq: map[string]string{"persist": "true"}},
+			},
+		},
+	}
+	deletionTargets := sets.New("parent-rg")
+	allResourceGroups := []*armresources.ResourceGroup{
+		{Name: ptr("parent-rg")},
+		{Name: ptr("child-rg"), ManagedBy: ptr("/subscriptions/sub/resourceGroups/parent-rg/providers/Microsoft.RedHatOpenShift/openShiftClusters/cluster"), Tags: map[string]*string{"persist": ptr("true")}},
+	}
+
+	got := promoteAndSortDeletionTargets(logr.Discard(), deletionTargets, allResourceGroups, sets.New[string](), discovery, time.Time{}, map[string]string{})
+	if len(got) != 0 {
+		t.Fatalf("expected no targets, got %v", got)
 	}
 }
