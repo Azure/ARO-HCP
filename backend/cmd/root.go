@@ -44,21 +44,34 @@ import (
 )
 
 type BackendRootCmdFlags struct {
-	Kubeconfig                                                                                    string
-	K8sNamespace                                                                                  string
-	AzureLocation                                                                                 string
-	AzureCosmosDBName                                                                             string
-	AzureCosmosDBURL                                                                              string
-	ClustersServiceURL                                                                            string
-	ClustersServiceTLSInsecure                                                                    bool
-	MetricsServerListenAddress                                                                    string
-	HealthzServerListenAddress                                                                    string
-	AzureRuntimeConfigPath                                                                        string
-	AzureFirstPartyApplicationCertificateBundlePath                                               string
-	AzureFirstPartyApplicationClientID                                                            string
-	InsecureAzureMockFPAPrincipalID                                                               string
-	InsecureAzureARMPermissionsManagerIdentityCertificateBundlePath                               string
-	InsecureAzureARMPermissionsManagerIdentityClientID                                            string
+	Kubeconfig                                      string
+	K8sNamespace                                    string
+	AzureLocation                                   string
+	AzureCosmosDBName                               string
+	AzureCosmosDBURL                                string
+	ClustersServiceURL                              string
+	ClustersServiceTLSInsecure                      bool
+	MetricsServerListenAddress                      string
+	HealthzServerListenAddress                      string
+	AzureRuntimeConfigPath                          string
+	AzureFirstPartyApplicationCertificateBundlePath string
+	AzureFirstPartyApplicationClientID              string
+	// InsecureAzureMockFPAPrincipalID is the target mock FPA's service-principal object ID, not its
+	// application/client ID or the MI mock identity's object ID. The ARM helper grants it Owner on
+	// managed resource groups. Required in mock identity mode; must be empty in real-FPA mode.
+	InsecureAzureMockFPAPrincipalID string
+	// InsecureAzureARMPermissionsManagerIdentityCertificateBundlePath identifies the ARM helper's
+	// client certificate bundle file (private key and certificate chain), watched for rotation and
+	// used to authenticate CheckAccessV2 and role-assignment clients. Required in mock identity mode;
+	// must be empty in real-FPA mode.
+	InsecureAzureARMPermissionsManagerIdentityCertificateBundlePath string
+	// InsecureAzureARMPermissionsManagerIdentityClientID is the ARM helper's application/client ID
+	// used with its certificate and tenant to authenticate clients, not the target mock FPA's object ID.
+	// Required in mock identity mode; must be empty in real-FPA mode.
+	InsecureAzureARMPermissionsManagerIdentityClientID string
+	// InsecureAzureARMPermissionsManagerIdentityTenantID is the tenant used to authenticate the
+	// ARM helper with its client ID and certificate. Required in mock identity mode; must be empty
+	// in real-FPA mode.
 	InsecureAzureARMPermissionsManagerIdentityTenantID                                            string
 	LogVerbosity                                                                                  int
 	MaestroSourceEnvironmentIdentifier                                                            string
