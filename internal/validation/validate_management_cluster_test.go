@@ -50,6 +50,7 @@ func validManagementCluster(t *testing.T) *fleetapi.ManagementCluster {
 			MaestroRESTAPIURL:                                    "http://maestro.maestro.svc.cluster.local:8000",
 			MaestroGRPCTarget:                                    "maestro-grpc.maestro.svc.cluster.local:8090",
 			KubeApplierCosmosContainerName:                       "Manifests-MC-1",
+			KubeApplierCosmosContainerMaxScale:                   19000,
 		},
 	}
 }
@@ -167,6 +168,7 @@ func TestValidateManagementClusterCreate(t *testing.T) {
 				{fieldPath: "status.maestroRESTAPIURL", message: "Required"},
 				{fieldPath: "status.maestroGRPCTarget", message: "Required"},
 				{fieldPath: "status.kubeApplierCosmosContainerName", message: "Required"},
+				{fieldPath: "status.kubeApplierCosmosContainerMaxScale", message: "must be greater than or equal to 1"},
 			},
 		},
 		{
@@ -176,6 +178,15 @@ func TestValidateManagementClusterCreate(t *testing.T) {
 			},
 			expectErrors: []expectedError{
 				{fieldPath: "status.kubeApplierCosmosContainerName", message: "Required"},
+			},
+		},
+		{
+			name: "zero kubeApplierCosmosContainerMaxScale rejected",
+			modify: func(t *testing.T, mc *fleetapi.ManagementCluster) {
+				mc.Status.KubeApplierCosmosContainerMaxScale = 0
+			},
+			expectErrors: []expectedError{
+				{fieldPath: "status.kubeApplierCosmosContainerMaxScale", message: "must be greater than or equal to 1"},
 			},
 		},
 		{
@@ -503,6 +514,88 @@ func TestValidateManagementClusterUpdate_KubeApplierContainerMigration(t *testin
 			}
 			if !found {
 				t.Errorf("expected kubeApplierCosmosContainerName error containing %q, got: %v", tt.wantErrSub, fieldErrs)
+			}
+		})
+	}
+}
+
+// TestValidateManagementClusterUpdate_KubeApplierCosmosContainerMaxScaleGrandfathered
+// covers Status.KubeApplierCosmosContainerMaxScale: records predating this
+// field have it unset (zero), and unrelated controllers (lifecycle,
+// sharedingress, ...) replace the whole document on every reconcile without
+// touching this field. An update must not newly reject those documents just
+// because the carried-over zero value fails the create-time minimum. Unlike
+// KubeApplierCosmosContainerName, there is no immutability check: a
+// registration rerun may freely overwrite the value once it is set.
+func TestValidateManagementClusterUpdate_KubeApplierCosmosContainerMaxScaleGrandfathered(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		oldValue   int32
+		newValue   int32
+		wantErrSub string // empty → expect success
+	}{
+		{
+			name:     "zero old, zero new is allowed (record predates this field, untouched by update)",
+			oldValue: 0,
+			newValue: 0,
+		},
+		{
+			name:     "zero old, set new is allowed (registration backfill)",
+			oldValue: 0,
+			newValue: 19000,
+		},
+		{
+			name:     "set old, changed new is allowed (mutable, not immutable)",
+			oldValue: 19000,
+			newValue: 38000,
+		},
+		{
+			// Validated: the minimum check runs on Create, or on Update
+			// whenever the value actually changes (see
+			// validateManagementClusterStatus). Clearing a previously-set
+			// value is a change, so it is still rejected, unlike an unrelated
+			// Replace that carries a stale value forward unchanged.
+			name:       "set old, cleared new is rejected (value actually changed)",
+			oldValue:   19000,
+			newValue:   0,
+			wantErrSub: "must be greater than or equal to 1",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			oldObj := validManagementCluster(t)
+			newObj := validManagementCluster(t)
+			oldObj.Status.KubeApplierCosmosContainerMaxScale = tt.oldValue
+			newObj.Status.KubeApplierCosmosContainerMaxScale = tt.newValue
+
+			errs := ValidateManagementClusterUpdate(context.Background(), newObj, oldObj)
+
+			var fieldErrs []string
+			for _, e := range errs {
+				if strings.Contains(e.Field, "kubeApplierCosmosContainerMaxScale") {
+					fieldErrs = append(fieldErrs, e.Error())
+				}
+			}
+
+			if tt.wantErrSub == "" {
+				if len(fieldErrs) != 0 {
+					t.Errorf("expected no kubeApplierCosmosContainerMaxScale errors, got: %v", fieldErrs)
+				}
+				return
+			}
+			found := false
+			for _, e := range fieldErrs {
+				if strings.Contains(e, tt.wantErrSub) {
+					found = true
+					break
+				}
+			}
+			if !found {
+				t.Errorf("expected kubeApplierCosmosContainerMaxScale error containing %q, got: %v", tt.wantErrSub, fieldErrs)
 			}
 		})
 	}

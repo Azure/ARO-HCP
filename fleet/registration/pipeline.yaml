@@ -138,6 +138,10 @@ resourceGroups:
     - serviceGroup: Microsoft.Azure.ARO.HCP.Fleet
       resourceGroup: service
       step: deploy
+    # we wait for the admin API because the registration targets it
+    - serviceGroup: Microsoft.Azure.ARO.HCP.AdminAPI
+      resourceGroup: service
+      step: deploy
     # the rest of the deps make sure the MC installation is complete
     - serviceGroup: Microsoft.Azure.ARO.HCP.ACM
       resourceGroup: management
