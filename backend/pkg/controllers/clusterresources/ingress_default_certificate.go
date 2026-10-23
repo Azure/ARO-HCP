@@ -51,20 +51,32 @@ var overriddenVersionsWithHCCOIngressCertConsumer = map[uint64]map[uint64]bool{
 	4: {20: true, 21: true, 22: true},
 }
 
+// backportedHCCOIngressCertConsumer lists, per major.minor, the first payload
+// whose control-plane-operator carries a backport of the ingress default
+// certificate consumer. 4.23.0-ec.0 and 4.23.0-ec.1 were assembled before the
+// release-4.23 backport (https://github.com/openshift/hypershift/pull/9604).
+var backportedHCCOIngressCertConsumer = map[uint64]map[uint64]semver.Version{
+	4: {23: semver.MustParse("4.23.0-ec.2")},
+}
+
 // hccoIngressCertConsumerCovered reports whether the control-plane-operator
 // for the given version consumes the service-provider ingress default
-// certificate, either natively or via a CPO override.
+// certificate, natively, via a backport or via a CPO override.
 func hccoIngressCertConsumerCovered(version semver.Version) bool {
 	majorMinor := semver.Version{Major: version.Major, Minor: version.Minor}
 	if majorMinor.GTE(minVersionWithHCCOIngressCertConsumer) {
 		return true
 	}
-	return overriddenVersionsWithHCCOIngressCertConsumer[version.Major][version.Minor]
+	if overriddenVersionsWithHCCOIngressCertConsumer[version.Major][version.Minor] {
+		return true
+	}
+	firstBackported, ok := backportedHCCOIngressCertConsumer[version.Major][version.Minor]
+	return ok && version.GTE(firstBackported)
 }
 
 // selectACMIngressCertificate reports whether the guest IngressController
 // must use the certificate the ACM policy delivers in cluster-ingress-cert.
-// Versions without HCCO coverage - for example 4.23.0-ec.x payloads, which
+// Versions without HCCO coverage - for example 4.23.0-ec.0/ec.1, which
 // predate the backport of the consumer and have no CPO override yet - fill
 // default-ingress-cert with a CPO-generated root-CA certificate
 // (AROSLSRE-2529), so they select the ACM certificate.
