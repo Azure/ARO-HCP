@@ -27,9 +27,12 @@ name prerequisites wait for later reconciliation. UDR and deletion are skipped.
 Existence is sufficient; provisioning state and address assignment are not gates.
 Once all expected resources are confirmed, observation stops. Pending resources
 are rechecked on the controller's five-minute resync or relevant cache events.
-A successful pass with missing resources sets a jittered one-to-one-and-a-half
-minute minimum recheck time, preventing the controller's own status events from
-causing repeated invalidation/read cycles. Read failures retain normal retries.
+A pass with missing resources, including a pass with other reads failing, sets a
+jittered one-to-one-and-a-half minute minimum recheck time and explicitly queues
+that retry. Early status events reschedule the remaining delay without reads or
+document replacements, preventing self-triggered invalidation/read cycles.
+Read failures remain unknown and are returned as errors; passes without missing
+resources retain normal error retries.
 
 Cluster creation includes an `egressPublicIPs` completion source. Missing or
 unknown resources keep the operation provisioning rather than returning a Go
