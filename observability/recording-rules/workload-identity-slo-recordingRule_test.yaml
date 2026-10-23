@@ -1,0 +1,105 @@
+rule_files:
+- workload-identity-slo-recordingRule.yaml
+evaluation_interval: 1m
+tests:
+# Test: all credentials healthy, nothing in the 30/7/0 buckets. SLI = 1.
+- name: sli_is_one_when_all_healthy
+  interval: 1m
+  input_series:
+  - series: 'credential_refresher_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="+Inf"}'
+    values: "0+10x60"
+  - series: 'credential_refresher_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="30"}'
+    values: "0x60"
+  - series: 'credential_refresher_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="7"}'
+    values: "0x60"
+  - series: 'credential_refresher_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="0"}'
+    values: "0x60"
+  promql_expr_test:
+  - expr: workload_identity:credential_expiry:sli_ratio_1h
+    eval_time: 60m
+    exp_samples:
+    - labels: 'workload_identity:credential_expiry:sli_ratio_1h{cluster="svc-1"}'
+      value: 1
+  - expr: workload_identity:credential_refresher_expiry_le30d:increase1h
+    eval_time: 60m
+    exp_samples:
+    - labels: 'workload_identity:credential_refresher_expiry_le30d:increase1h{cluster="svc-1"}'
+      value: 0
+# Test: 2 of every 10 observations have 30 days or less left. SLI = 0.8.
+- name: sli_ratio_arithmetic
+  interval: 1m
+  input_series:
+  - series: 'credential_refresher_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="+Inf"}'
+    values: "0+10x60"
+  - series: 'credential_refresher_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="30"}'
+    values: "0+2x60"
+  - series: 'credential_refresher_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="7"}'
+    values: "0x60"
+  - series: 'credential_refresher_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="0"}'
+    values: "0x60"
+  promql_expr_test:
+  - expr: workload_identity:credential_expiry:sli_ratio_1h
+    eval_time: 60m
+    exp_samples:
+    - labels: 'workload_identity:credential_expiry:sli_ratio_1h{cluster="svc-1"}'
+      value: 0.8
+  - expr: workload_identity:credential_refresher_expiry_observations:increase1h
+    eval_time: 60m
+    exp_samples:
+    - labels: 'workload_identity:credential_refresher_expiry_observations:increase1h{cluster="svc-1"}'
+      value: 600
+# Test: same input scraped by two Prometheus replicas. SLI and counts must
+# not double.
+- name: replica_duplicates_are_deduplicated
+  interval: 1m
+  input_series:
+  - series: 'credential_refresher_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="+Inf",prometheus_replica="prometheus-0"}'
+    values: "0+10x60"
+  - series: 'credential_refresher_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="+Inf",prometheus_replica="prometheus-1"}'
+    values: "0+10x60"
+  - series: 'credential_refresher_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="30",prometheus_replica="prometheus-0"}'
+    values: "0+2x60"
+  - series: 'credential_refresher_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="30",prometheus_replica="prometheus-1"}'
+    values: "0+2x60"
+  promql_expr_test:
+  - expr: workload_identity:credential_expiry:sli_ratio_1h
+    eval_time: 60m
+    exp_samples:
+    - labels: 'workload_identity:credential_expiry:sli_ratio_1h{cluster="svc-1"}'
+      value: 0.8
+  # Same count as a single replica (see sli_ratio_arithmetic), not double.
+  - expr: workload_identity:credential_refresher_expiry_observations:increase1h
+    eval_time: 60m
+    exp_samples:
+    - labels: 'workload_identity:credential_refresher_expiry_observations:increase1h{cluster="svc-1"}'
+      value: 600
+# Test: le="30.0" style bucket labels also match.
+- name: tenths_place_bucket_labels
+  interval: 1m
+  input_series:
+  - series: 'credential_refresher_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="+Inf"}'
+    values: "0+10x60"
+  - series: 'credential_refresher_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="30.0"}'
+    values: "0+5x60"
+  - series: 'credential_refresher_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="7.0"}'
+    values: "0x60"
+  - series: 'credential_refresher_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="0.0"}'
+    values: "0x60"
+  promql_expr_test:
+  - expr: workload_identity:credential_expiry:sli_ratio_1h
+    eval_time: 60m
+    exp_samples:
+    - labels: 'workload_identity:credential_expiry:sli_ratio_1h{cluster="svc-1"}'
+      value: 0.5
+# Test: no observations in the last hour (refresher stopped). SLI is absent, not 1.
+- name: sli_absent_without_observations
+  interval: 1m
+  input_series:
+  - series: 'credential_refresher_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="+Inf"}'
+    values: "500x60"
+  - series: 'credential_refresher_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="30"}'
+    values: "0x60"
+  promql_expr_test:
+  - expr: workload_identity:credential_expiry:sli_ratio_1h
+    eval_time: 60m
+    exp_samples: []

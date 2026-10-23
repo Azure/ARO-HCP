@@ -1291,3 +1291,45 @@ resource arohcpClusterDeletionSaturationAlerts 'Microsoft.AlertsManagement/prome
     ]
   }
 }
+
+resource arohcpWorkloadIdentitySloAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_workload_identity_slo_alerts'
+  location: location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyWorkloadIdentityCredentialExpiry7d'
+        enabled: true
+        labels: {
+          component: 'slo'
+          severity: '3'
+          slo: 'workload-identity-credential-expiry'
+        }
+        annotations: {
+          correlationId: 'userJourneyWorkloadIdentityCredentialExpiry7d/{{ $labels.cluster }}'
+          description: 'One or more MSI credentials monitored by this services cluster have 7 days or less left before expiry. Renewal has been failing for over a month and the affected cluster will lose operator access when the credential expires.'
+          info: 'One or more MSI credentials monitored by this services cluster have 7 days or less left before expiry. Renewal has been failing for over a month and the affected cluster will lose operator access when the credential expires.'
+          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/troubleshooting/tsgs/credential-refresher-expiring-cert'
+          summary: 'MSI credential close to expiry (7 days or less left)'
+          title: 'MSI credential close to expiry (7 days or less left)'
+        }
+        expression: '(workload_identity:credential_refresher_expiry_le7d:increase1h - workload_identity:credential_refresher_expiry_le0d:increase1h) > 0'
+        for: 'PT15M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}

@@ -6648,6 +6648,23 @@
         thresholds: []
         unsupported: ""
 - source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+  group: arohcp_workload_identity_slo_alerts
+  alert: userJourneyWorkloadIdentityCredentialExpiry7d
+  occurrence: 1
+  input: (workload_identity:credential_refresher_expiry_le7d:increase1h - workload_identity:credential_refresher_expiry_le0d:increase1h) > 0
+  plan:
+    expression: (workload_identity:credential_refresher_expiry_le7d:increase1h - workload_identity:credential_refresher_expiry_le0d:increase1h) > 0
+    conditions:
+      - expression: (workload_identity:credential_refresher_expiry_le7d:increase1h - workload_identity:credential_refresher_expiry_le0d:increase1h) > 0
+        path: root
+        queries:
+          - expression: workload_identity:credential_refresher_expiry_le7d:increase1h - workload_identity:credential_refresher_expiry_le0d:increase1h
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
   group: rp-user-journey-cluster-upgrade-monitor-rules
   alert: userJourneyClusterUpgradeStuckInDesired
   occurrence: 1
@@ -11257,6 +11274,28 @@
         thresholds:
           - operator: '>'
             value: 1800
+        unsupported: ""
+- source: observability/alerts/workload-identity-slo-prometheusRule.yaml
+  group: arohcp_workload_identity_slo_alerts
+  alert: userJourneyWorkloadIdentityCredentialExpiry7d
+  occurrence: 1
+  input: |
+    (
+      workload_identity:credential_refresher_expiry_le7d:increase1h
+      -
+      workload_identity:credential_refresher_expiry_le0d:increase1h
+    ) > 0
+  plan:
+    expression: (workload_identity:credential_refresher_expiry_le7d:increase1h - workload_identity:credential_refresher_expiry_le0d:increase1h) > 0
+    conditions:
+      - expression: (workload_identity:credential_refresher_expiry_le7d:increase1h - workload_identity:credential_refresher_expiry_le0d:increase1h) > 0
+        path: root
+        queries:
+          - expression: workload_identity:credential_refresher_expiry_le7d:increase1h - workload_identity:credential_refresher_expiry_le0d:increase1h
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0
         unsupported: ""
 - source: tooling/tenant-quota/alerting.bicep
   group: e2e-expired-resource-group-alerts
