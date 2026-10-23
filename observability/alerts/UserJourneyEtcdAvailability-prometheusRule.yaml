@@ -8,8 +8,13 @@ spec:
   - name: hcp-etcd-availability-alert-rules
     rules:
     # ========================================
-    # Burn-rate tiers per ADR-001 (MWMBR), used for the histogram-based
-    # alerts (backend commit duration, peer round-trip time, WAL fsync):
+    # Alert inventory (14 rules across 8 families):
+    #
+    # Tiered (MWMBR per ADR-001) — 3 burn-rate tiers each (9 rules):
+    #   - userJourneyEtcdBackendCommitDurationHigh  (p99 > 100ms, per pod)
+    #   - userJourneyEtcdPeerRoundTripTimeHigh      (p99 > 100ms, aggregate)
+    #   - userJourneyEtcdWALFsyncDurationHigh       (p99 > 50ms, per pod)
+    # Burn-rate windows:
     #   Fast   (1h/5m):  fires in 5m  — severity: 4
     #   Medium (6h/30m): fires in 30m — severity: 4
     #   Slow   (3d/6h):  fires in 3h  — severity: 4
@@ -18,11 +23,12 @@ spec:
     # correlationId groups all three burn-rate tiers of an alert family into
     # one IcM incident (dropping the tier suffix from the alert name).
     #
-    # The remaining alerts (database size, fragmentation, leader changes)
-    # compare a gauge/increase directly against a fixed threshold, so the
-    # expression doesn't vary by window — these are single, non-tiered
-    # alerts (for: 15m, severity: 4) instead of three burn-rate tiers,
-    # except the frequent etcd leader changes alert, which uses for: 5m.
+    # Non-tiered — single alert each (5 rules):
+    #   - userJourneyEtcdDatabaseHighFragmentation  (ratio > 50%, for: 15m)
+    #   - userJourneyEtcdDatabaseSizeExceeded        (> 85% of quota, for: 15m)
+    #   - userJourneyEtcdFrequentLeaderChanges       (> 3 in 15m, for: 5m)
+    #   - userJourneyEtcdNoLeader                    (has_leader == 0, for: 5m)
+    #   - userJourneyEtcdMetricsAbsent               (etcd metrics missing, for: 15m)
     #
     # Every alert joins on (namespace, cluster) against the
     # info:kube_namespace:hcp_cluster_resource_id and
