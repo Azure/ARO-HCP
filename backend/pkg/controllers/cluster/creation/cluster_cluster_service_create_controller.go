@@ -338,7 +338,7 @@ func (c *clusterClusterServiceCreateSyncer) createClusterServiceCluster(ctx cont
 	logger.Info("Creating cluster in Cluster Service", "version", serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion.String())
 	result, err := c.clustersServiceClient.PostCluster(ctx, csClusterBuilder)
 	if err != nil {
-		return nil, utils.TrackError(fmt.Errorf("PostCluster failed: %w", err))
+		return nil, utils.TrackError(fmt.Errorf("PostCluster failed: %w", ocm.StripVolatileErrorFields(err)))
 	}
 
 	if result.ID() != clusterServiceUID {

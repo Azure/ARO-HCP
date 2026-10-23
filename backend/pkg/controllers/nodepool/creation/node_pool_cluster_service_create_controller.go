@@ -148,7 +148,7 @@ func (c *nodePoolClusterServiceCreateSyncer) SyncOnce(ctx context.Context, key c
 			logger.Error(err, "CS node pool POST returned OCM error with HTTP 400 status code", "cs_node_pool_href", csNodePoolHREF, "node_pool_resource_id", nodePool.ID.String())
 		}
 		if err != nil {
-			return utils.TrackError(err)
+			return utils.TrackError(ocm.StripVolatileErrorFields(err))
 		}
 	}
 
@@ -176,7 +176,7 @@ func (c *nodePoolClusterServiceCreateSyncer) findCSNodePool(ctx context.Context,
 		if errors.As(err, &ocmErr) && ocmErr.Status() == http.StatusNotFound {
 			return nil, nil
 		}
-		return nil, err
+		return nil, ocm.StripVolatileErrorFields(err)
 	}
 	return np, nil
 }

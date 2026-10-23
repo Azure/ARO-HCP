@@ -145,7 +145,7 @@ func (c *externalAuthClusterServiceCreateSyncer) SyncOnce(ctx context.Context, k
 			logger.Error(err, "CS external auth POST returned OCM error with HTTP 400 status code", "cs_external_auth_href", csExternalAuthHREF, "external_auth_resource_id", externalAuth.ID.String())
 		}
 		if err != nil {
-			return utils.TrackError(err)
+			return utils.TrackError(ocm.StripVolatileErrorFields(err))
 		}
 	}
 
@@ -173,7 +173,7 @@ func (c *externalAuthClusterServiceCreateSyncer) findCSExternalAuth(ctx context.
 		if errors.As(err, &ocmErr) && ocmErr.Status() == http.StatusNotFound {
 			return nil, nil
 		}
-		return nil, err
+		return nil, ocm.StripVolatileErrorFields(err)
 	}
 	return ea, nil
 }

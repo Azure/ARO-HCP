@@ -121,7 +121,7 @@ func (c *externalAuthClusterServiceIDClearer) SyncOnce(ctx context.Context, key 
 	if err != nil {
 		var ocmError *ocmerrors.Error
 		if !errors.As(err, &ocmError) || ocmError.Status() != http.StatusNotFound {
-			return utils.TrackError(fmt.Errorf("failed to get cluster-service ExternalAuth: %w", err))
+			return utils.TrackError(fmt.Errorf("failed to get cluster-service ExternalAuth: %w", ocm.StripVolatileErrorFields(err)))
 		}
 		// 404 - cluster-service has finished deleting the ExternalAuth, clear the CS ID.
 		logger.Info("cluster-service ExternalAuth gone. Clearing ClusterServiceID", "clusterServiceID", csID.String())

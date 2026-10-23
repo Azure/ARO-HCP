@@ -190,7 +190,7 @@ func (c *externalAuthClusterServiceDeleteDispatchSyncer) SyncOnce(ctx context.Co
 			}
 			logger.Info("cluster-service ExternalAuth already deleted or race against in-flight CS create", "clusterServiceID", csID.String())
 		default:
-			return utils.TrackError(fmt.Errorf("failed to delete cluster-service ExternalAuth: %w", err))
+			return utils.TrackError(fmt.Errorf("failed to delete cluster-service ExternalAuth: %w", ocm.StripVolatileErrorFields(err)))
 		}
 	} else {
 		logger.Info("requested cluster-service ExternalAuth delete", "clusterServiceID", csID.String())

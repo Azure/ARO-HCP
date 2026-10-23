@@ -162,7 +162,7 @@ func (c *operationExternalAuthDelete) reconcileOperationAndResourceStatus(ctx co
 	if err != nil {
 		var ocmError *ocmerrors.Error
 		if !errors.As(err, &ocmError) || ocmError.Status() != http.StatusNotFound {
-			return utils.TrackError(fmt.Errorf("failed to get cluster-service ExternalAuth: %w", err))
+			return utils.TrackError(fmt.Errorf("failed to get cluster-service ExternalAuth: %w", ocm.StripVolatileErrorFields(err)))
 		}
 		// 404 - CS has finished deleting. externalAuthClusterServiceIDClearer will clear the ID.
 		logger.Info("cluster-service ExternalAuth gone - skipping operation update", "clusterServiceID", csID.String())

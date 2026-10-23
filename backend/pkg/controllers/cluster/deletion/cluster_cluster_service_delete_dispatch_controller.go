@@ -190,7 +190,7 @@ func (c *clusterClusterServiceDeleteDispatchSyncer) SyncOnce(ctx context.Context
 			}
 			logger.Info("cluster-service Cluster already deleted or race against in-flight CS create", "clusterServiceID", csID.String())
 		default:
-			return utils.TrackError(fmt.Errorf("failed to delete cluster-service Cluster: %w", err))
+			return utils.TrackError(fmt.Errorf("failed to delete cluster-service Cluster: %w", ocm.StripVolatileErrorFields(err)))
 		}
 	} else {
 		logger.Info("requested cluster-service Cluster delete", "clusterServiceID", csID.String())
