@@ -312,7 +312,7 @@ def load_lockfiles(repo, pr, files):
             if file.get("status") == ("added" if side == "base" else "removed"):
                 documents.append({})
                 continue
-            path = file.get("previous_filename", file["filename"]) if side == "base" else file["filename"]
+            path = (file.get("previous_filename") or file["filename"]) if side == "base" else file["filename"]
             if os.path.basename(path) not in ("package-lock.json", "npm-shrinkwrap.json"):
                 documents.append({})
                 continue
