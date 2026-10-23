@@ -152,7 +152,8 @@ func LoadCosmosContent(ctx context.Context, cosmosContainer *azcosmos.ContainerC
 		metadataapihelpers.ResourceTypeStringEqual(contentMap["resourceType"].(string), coreapi.NodePoolControllerResourceType),
 		metadataapihelpers.ResourceTypeStringEqual(contentMap["resourceType"].(string), coreapi.ExternalAuthControllerResourceType),
 		metadataapihelpers.ResourceTypeStringEqual(contentMap["resourceType"].(string), coreapi.ServiceProviderClusterResourceType),
-		metadataapihelpers.ResourceTypeStringEqual(contentMap["resourceType"].(string), coreapi.ServiceProviderNodePoolResourceType):
+		metadataapihelpers.ResourceTypeStringEqual(contentMap["resourceType"].(string), coreapi.ServiceProviderNodePoolResourceType),
+		metadataapihelpers.ResourceTypeStringEqual(contentMap["resourceType"].(string), coreapi.OpenShiftVersionCatalogResourceType):
 		partitionKey := azcosmos.NewPartitionKeyString(contentMap["partitionKey"].(string))
 		_, err = cosmosContainer.CreateItem(ctx, partitionKey, content, nil)
 
@@ -305,6 +306,9 @@ func saveContainerContent(ctx context.Context, documentLister DocumentLister, ou
 			}
 		}
 		switch {
+		case metadataapihelpers.ResourceTypeStringEqual(resourceType.(string), coreapi.OpenShiftVersionCatalogResourceType):
+			filename = filepath.Join(resourceIDToDir(currTypedDocument.ResourceID), currTypedDocument.ResourceID.Name+".json")
+
 		case armResourceID != nil:
 			filename = filepath.Join(
 				resourceIDToDir(armResourceID),

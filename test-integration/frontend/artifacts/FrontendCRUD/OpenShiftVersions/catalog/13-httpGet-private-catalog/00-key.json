@@ -1,0 +1,4 @@
+{
+	"expectedStatusCode": 404,
+	"resourceID": "/providers/Microsoft.RedHatOpenShift/openShiftVersionCatalogs/default"
+}

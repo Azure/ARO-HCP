@@ -98,6 +98,18 @@ func (l *httpGetStep) StepID() StepID {
 
 func (l *httpGetStep) RunTest(ctx context.Context, t *testing.T, stepInput StepInput) {
 	accessor := stepInput.HTTPTestAccessor(l.key)
+	var lastResponse *http.Response
+	defer func() {
+		if l.key.ExpectedStatusCode != 0 || len(l.key.ExpectedHeaders) > 0 {
+			require.NotNil(t, lastResponse, "expected an HTTP response")
+			if l.key.ExpectedStatusCode != 0 {
+				require.Equal(t, l.key.ExpectedStatusCode, lastResponse.StatusCode)
+			}
+			for name, value := range l.key.ExpectedHeaders {
+				require.Equal(t, value, lastResponse.Header.Get(name), "response header %s", name)
+			}
+		}
+	}()
 
 	// Retry only while the response does not already match the expectation AND
 	// the server asked us to try again via Retry-After. A response that matches
@@ -117,13 +129,16 @@ func (l *httpGetStep) RunTest(ctx context.Context, t *testing.T, stepInput StepI
 
 	for {
 		resp, err := accessor.Get(ctx, l.key.ResourceID)
+		lastResponse = resp
 
 		// Capture the headers before decoding, since DecodeResponseBody
 		// consumes and closes the body.
 		var header http.Header
 		var body any
-		if err == nil {
+		if resp != nil {
 			header = resp.Header
+		}
+		if err == nil {
 			body, err = DecodeResponseBody(resp)
 		}
 
