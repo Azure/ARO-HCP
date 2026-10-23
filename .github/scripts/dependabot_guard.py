@@ -28,6 +28,7 @@ def gh_lines(path, expression, token=None):
 
 
 def group(item):
+    """Validate dependency metadata and derive its publication title."""
     data = item.get("data")
     if not isinstance(data, dict):
         raise ValueError("create_pull_request requires dependency group data")
@@ -66,9 +67,7 @@ def group(item):
     if actual_manifests and set(manifests) != actual_manifests:
         raise ValueError("manifests in data do not match actual manifests in patch")
 
-    title = item.get("title", "").casefold()
-    if family.casefold() not in title or version.casefold() not in title:
-        raise ValueError("PR title must identify the dependency family and target version")
+    item["title"] = f"{family} to {version}"
     return ecosystem, family.casefold(), version.casefold(), set(manifests)
 
 

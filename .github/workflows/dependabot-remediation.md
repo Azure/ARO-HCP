@@ -589,10 +589,10 @@ An existing owned PR may also need a small Go source correction when the depende
 
 ## 5. Open the pull requests
 
-For each group with no open overlapping PR, open one pull request via the create-pull-request safe output. The tool's structured `data` argument is mandatory: `{ecosystem: "go"|"npm", package_family, target_version, manifests}`. `package_family` and `target_version` must also appear in the title, and `manifests` must be the affected `go.mod` or `package.json` paths. Do not omit `data`; a create without it is dropped and the PR is not opened. If a create call returns success without `data`, immediately call it again with `data` before finishing. Do not underreport affected manifests. The PR must:
+For each group with no open overlapping PR, open one pull request via the create-pull-request safe output. The tool's structured `data` argument is mandatory: `{ecosystem: "go"|"npm", package_family, target_version, manifests}`. The safe-output guard derives the publication title from validated `package_family` and `target_version`; `manifests` must be the affected `go.mod` or `package.json` paths. Do not omit `data`; a create without it is dropped and the PR is not opened. If a create call returns success without `data`, immediately call it again with `data` before finishing. Do not underreport affected manifests. The PR must:
 
-- Title: `<package-or-family> to <version> (<severity>)` (the `fix(deps): ` prefix is added automatically, so give the rest).
-- Body: list the alerts fixed (GHSA/CVE, package, from -> to version), the modules or manifests touched, and confirm the workspace is tidy-clean and the build/lint targets pass. State that it is dependency-only.
+- Title: `<package_family> to <target_version>` (the `fix(deps): ` prefix is added automatically).
+- Body: list the alerts fixed (GHSA/CVE, severity, package, from -> to version), the modules or manifests touched, and confirm the workspace is tidy-clean and the build/lint targets pass. State that it is dependency-only.
 - Be dependency-only as described above.
 
 Follow the repository conventions: plain, human wording, no em-dashes. Do not add `Co-authored-by: Copilot` trailers. Do not create tracking issues. PRs only.

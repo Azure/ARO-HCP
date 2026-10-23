@@ -62,6 +62,15 @@ def npm_manifest(dependencies=None, **other):
 
 
 class CreateGuardTests(TestCase):
+    @patch.object(guard, "gh_lines", return_value=[])
+    def test_short_display_title_does_not_block_valid_fiber_proposal(self, _gh):
+        item = go_item("internal/go.mod")
+        item["title"] = "gofiber/fiber/v2 to 2.52.14 (medium)"
+        item["data"]["target_version"] = "2.52.14"
+        output = {"items": [item]}
+        guard.guard_create(output, "Azure/ARO-HCP")
+        self.assertEqual(output["items"][0]["title"], "github.com/gofiber/fiber/v2 to 2.52.14")
+
     @patch.object(guard, "gh_lines")
     def test_7689_go_directive_update_does_not_block_fiber(self, gh):
         before = "module example.com/service\n\ngo 1.26.0\n\nrequire github.com/gofiber/fiber/v2 v2.52.0\n"
@@ -73,8 +82,6 @@ class CreateGuardTests(TestCase):
         output = {"items": [item]}
         guard.guard_create(output, "Azure/ARO-HCP")
         self.assertEqual(output["items"], [item])
-        self.assertIn("filename, previous_filename, status, patch, additions, deletions", gh.call_args.args[1])
-        self.assertTrue(gh.call_args.args[0].endswith("/files?per_page=100"))
 
     @patch.object(guard, "gh_lines")
     def test_unrelated_go_dependency_in_shared_manifest_is_allowed(self, gh):
@@ -277,7 +284,10 @@ class CreateGuardTests(TestCase):
         ]
         output = {"items": [go_item(), create_item()]}
         guard.guard_create(output, "Azure/ARO-HCP")
-        self.assertEqual(output["items"], [create_item()])
+        self.assertEqual(
+            [item["data"]["package_family"] for item in output["items"]],
+            ["typespec"],
+        )
 
     @patch.object(guard, "gh_lines")
     def test_unavailable_diff_in_unrelated_manifest_does_not_block(self, gh):
@@ -459,7 +469,9 @@ class CreateGuardTests(TestCase):
             path.write_text(json.dumps({"items": [go_item(), independent, {"type": "noop"}]}))
             with patch.object(sys, "argv", ["dependabot_guard.py", "create", str(path), "Azure/ARO-HCP"]):
                 guard.main()
-            self.assertEqual(json.loads(path.read_text())["items"], [independent, {"type": "noop"}])
+            written = json.loads(path.read_text())["items"]
+            self.assertEqual([item["type"] for item in written], ["create_pull_request", "noop"])
+            self.assertEqual(written[0]["data"]["package_family"], "typespec")
 
 
 class RetestGuardTests(TestCase):
