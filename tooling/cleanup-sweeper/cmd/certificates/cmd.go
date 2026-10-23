@@ -48,7 +48,7 @@ func NewCommand() *cobra.Command {
 		Long: `Sweep only aro-hcp-dev-svc-kv.vault.azure.net, guarding both fixed DEV infrastructure subscriptions.
 Required guard subscriptions: 1d3378d3-5a3f-4712-85a1-2485495dfc4b and 0ef1ad54-9296-44cd-9600-5dc8e9a74034.
 Scope cannot be overridden. Root workflow flags are rejected; place certificate flags after ci-certificates.
-Only prow/ci00/ci01 frontend, admin-api, sessiongate and maestro-server job certificates are eligible.
+Only prow/ci00/ci01/ci02 frontend, admin-api, sessiongate and maestro-server job certificates are eligible.
 Both latest created and updated timestamps must be older than --min-age; renewals postpone cleanup.
 Job suffixes 0000000 through 0000099 and fixture 7654321 are always protected.
 Eligible soft-deleted certificates are purgeable tombstones matching the same fixed CI name policy;

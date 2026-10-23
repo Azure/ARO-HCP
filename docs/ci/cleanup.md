@@ -86,7 +86,7 @@ RG deletion asynchronously, and certificate steps reference runtime vault output
 so the periodic backstop handles these leftovers independently of the topology
 cleanup rather than assuming its consumers have already disappeared.
 
-For new `dev/ci00` and `dev/ci01` runs, `templatize` uses an explicit
+For new `dev/ci00`, `dev/ci01` and `dev/ci02` runs, `templatize` uses an explicit
 `EmailContacts` lifetime action instead of `AutoRenew` for job-named frontend,
 admin API, sessiongate, and Maestro server certificates in that shared vault.
 Validity remains six months. Changing only this lifetime action updates an
@@ -129,7 +129,7 @@ private key/secret reads are required.
 Deletion requires all of the following:
 
 - An exact `frontend-cert`, `admin-api-cert`, or `sessiongate-cert` name followed
-  by `-(prow|ci00|ci01)-jNNNNNNN`, or `maestro-server-jNNNNNNN`. Legacy `prow`
+  by `-(prow|ci00|ci01|ci02)-jNNNNNNN`, or `maestro-server-jNNNNNNN`. Legacy `prow`
   names are intentionally included in backlog cleanup.
 - Neither `persist=true` nor `doNotDelete=true`. Personal, shared DEV, CSPR, and
   mock-identity certificate names do not match. Placeholder suffixes `0000000`

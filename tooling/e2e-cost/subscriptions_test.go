@@ -149,7 +149,7 @@ func TestResolveSubscriptionNamesFallback(t *testing.T) {
 
 func TestDefaultExcludedGroup(t *testing.T) {
 	for _, name := range []string{
-		"hcp-underlay-ci00-j1234567", "HCP-UNDERLAY-CI01-J1234567-SVC-aks1", "hcp-underlay-ci01-j1234567-mgmt-2-aks1",
+		"hcp-underlay-ci00-j1234567", "HCP-UNDERLAY-CI01-J1234567-SVC-aks1", "hcp-underlay-ci01-j1234567-mgmt-2-aks1", "hcp-underlay-ci02-j1234567",
 		"arbitrary-test-bcdfgh245678", "rg-nightly-4-20-bcdfgh245678--managed", "rg-test-bcdfgh245678-managed-2",
 		"rg-test-bcdfgh245678-bcdfgh--managed", "rg-test-bcdfgh245678-nightly-bcdfgh--managed",
 		"rg-test-bcdfgh245678-cp-ystream-bcdfgh--managed", "rg-" + strings.Repeat("x", 52) + "-1234abcd",
@@ -161,7 +161,7 @@ func TestDefaultExcludedGroup(t *testing.T) {
 	}
 	for _, name := range []string{
 		"", "global", "shared", "production-cluster", "test", "rg-test", "rg-1234abcd", "unknown-" + strings.Repeat("x", 47) + "-1234abcd",
-		"hcp-underlay-ci02-j1234567", "hcp-underlay-ci00-j123456", "hcp-underlay-ci01-j1234567-extra",
+		"hcp-underlay-ci03-j1234567", "hcp-underlay-ci00-j123456", "hcp-underlay-ci01-j1234567-extra",
 		"rg-abcdefghijkl", "rg-bcdfgh245678-extra", "rg-bcdfgh24567", "rg-bcdfgh2456789",
 		"aro-hcp-msi-container-bcdfgh245678", "ARO-HCP-MSI-CONTAINER-bcdfgh245678--managed",
 		"OIDC-WI-SJRVZ4--MANAGED", "rg-test-bcdfgh245678-arbitrary--managed", "rg-test-bcdfgh245678-4-foo--managed",
