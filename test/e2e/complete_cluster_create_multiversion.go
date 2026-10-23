@@ -217,6 +217,14 @@ var _ = Describe("ARO-HCP", func() {
 
 			By("verifying ACM's ingress certificate secret is absent, as HyperShift delivers it directly")
 			Expect(verifiers.VerifyACMIngressCertificateAbsent().Verify(ctx, adminRESTConfig)).To(Succeed(), "ACM must not create its ingress certificate secret for cluster %q", clusterName)
+
+			By("verifying cluster operators")
+			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig,
+				// Verify the image-registry operator identity has the required permissions to push and pull images to the internal registry.
+				verifiers.VerifyImageRegistryOperator(),
+			)
+			Expect(err).NotTo(HaveOccurred(), "failed to verify cluster operators for cluster %q", clusterName)
+
 		},
 		Entry("for 4.20", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible,
 			labels.AllowRetry, // owner: @raelga, tracking: AROSLSRE-1747. Known-issue test, retriable during EV2 gating. Remove this label when the issue is fixed.
