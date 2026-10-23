@@ -47,6 +47,7 @@ type egressPublicIPsSyncer struct {
 	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
 	subscriptionLister           corelisters.SubscriptionLister
 	azureFPAClientBuilder        azureclient.FirstPartyApplicationClientBuilder
+	enqueueAfter                 controllerutils.AfterEnqueuer
 }
 
 func NewEgressPublicIPsController(
@@ -68,6 +69,7 @@ func NewEgressPublicIPsController(
 		azureFPAClientBuilder:        azureFPAClientBuilder,
 	}
 	controller := controllerutils.NewClusterWatchingController(EgressPublicIPsControllerName, resourcesDBClient, informers, kubeApplierInformers, 5*time.Minute, syncer)
+	syncer.enqueueAfter = controller.(controllerutils.AfterEnqueuer)
 	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
 	controller.AddInterestingResource(coreapi.ServiceProviderClusterResourceType, coreapi.ServiceProviderClusterResourceName)
 	controller.AddInterestingResource(azcorearm.SubscriptionResourceType, "*")
@@ -109,6 +111,9 @@ func (c *egressPublicIPsSyncer) SyncOnce(ctx context.Context, key controllerutil
 		return utils.TrackError(err)
 	}
 	if !c.NeedsWork(cluster, existing) {
+		if recheck := existing.Spec.EarliestRecheckTimesByController[EgressPublicIPsControllerName]; recheck != nil && c.clock.Now().Before(recheck.Time) && cluster.ServiceProviderProperties.DeletionTimestamp == nil && coreapihelpers.UsesLoadBalancerEgress(cluster) {
+			c.scheduleRecheck(key, existing)
+		}
 		return nil
 	}
 	invalidation := existing.DeepCopy()
@@ -127,16 +132,14 @@ func (c *egressPublicIPsSyncer) SyncOnce(ctx context.Context, key controllerutil
 	observations, observationErr := c.observe(ctx, cluster)
 	replacement := existing.DeepCopy()
 	replacement.Status.AzureResources.EgressPublicIPs = observations
-	if observationErr == nil {
-		for _, observation := range observations {
-			if observation == coreapi.AzureResourceNotFound {
-				if replacement.Spec.EarliestRecheckTimesByController == nil {
-					replacement.Spec.EarliestRecheckTimesByController = map[string]*metav1.Time{}
-				}
-				recheck := metav1.NewTime(c.clock.Now().Add(wait.Jitter(time.Minute, 0.5)))
-				replacement.Spec.EarliestRecheckTimesByController[EgressPublicIPsControllerName] = &recheck
-				break
+	for _, observation := range observations {
+		if observation == coreapi.AzureResourceNotFound {
+			if replacement.Spec.EarliestRecheckTimesByController == nil {
+				replacement.Spec.EarliestRecheckTimesByController = map[string]*metav1.Time{}
 			}
+			recheck := metav1.NewTime(c.clock.Now().Add(wait.Jitter(time.Minute, 0.5)))
+			replacement.Spec.EarliestRecheckTimesByController[EgressPublicIPsControllerName] = &recheck
+			break
 		}
 	}
 	if controllerutil.NeedsUpdate(existing, replacement) {
@@ -144,7 +147,14 @@ func (c *egressPublicIPsSyncer) SyncOnce(ctx context.Context, key controllerutil
 			return utils.TrackError(errors.Join(observationErr, err))
 		}
 	}
+	c.scheduleRecheck(key, replacement)
 	return observationErr
+}
+
+func (syncer *egressPublicIPsSyncer) scheduleRecheck(key controllerutils.HCPClusterKey, serviceProviderCluster *coreapi.ServiceProviderCluster) {
+	if recheck := serviceProviderCluster.Spec.EarliestRecheckTimesByController[EgressPublicIPsControllerName]; recheck != nil && syncer.enqueueAfter != nil {
+		syncer.enqueueAfter.EnqueueAfter(key, recheck.Sub(syncer.clock.Now()))
+	}
 }
 
 func (c *egressPublicIPsSyncer) observe(ctx context.Context, cluster *coreapi.Cluster) (map[string]coreapi.AzureResourceObservation, error) {
