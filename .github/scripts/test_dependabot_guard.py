@@ -529,5 +529,56 @@ class RetestGuardTests(TestCase):
         )
 
 
+class NpmLockOverlapTests(TestCase):
+    def test_renamed_lockfile_without_content_still_defers(self):
+        file = {"filename": "api/archived.json", "previous_filename": "api/package-lock.json"}
+        self.assertIsNotNone(guard.overlaps(
+            ("npm", "undici", "2.0.0", {"api/package.json"}), [file]))
+
+    def test_resolved_upgrade_matches_nested_and_scoped_packages(self):
+        for name in ("undici", "@scope/package"):
+            for format_version in (1, 2, 3):
+                def document(version):
+                    entry = {"version": version}
+                    if format_version == 1:
+                        return {"lockfileVersion": 1, "dependencies": {
+                            "parent": {"version": "1.0.0", "dependencies": {name: entry}}}}
+                    return {"lockfileVersion": format_version, "packages": {
+                        "node_modules/parent/node_modules/" + name: entry}}
+                for filename in ("api/package-lock.json", "api/npm-shrinkwrap.json"):
+                    with self.subTest(name=name, format=format_version, file=filename):
+                        file = {"filename": filename, "lock_versions": [
+                            guard.lock_versions(document("1.0.0")),
+                            guard.lock_versions(document("2.0.0"))]}
+                        candidate = ("npm", name, "2.0.0", {"api/package.json"})
+                        self.assertIn(name, guard.overlaps(candidate, [file]))
+                        other = ("npm", "unrelated", "2.0.0", {"api/package.json"})
+                        self.assertIsNone(guard.overlaps(other, [file]))
+
+    def test_uncertain_lockfile_defers_only_relevant_manifest(self):
+        candidate = ("npm", "undici", "2.0.0", {"api/package.json"})
+        file = {"filename": "api/package-lock.json"}
+        self.assertIn("unavailable", guard.overlaps(candidate, [file]))
+        other = ("npm", "different", "2.0.0", {"other/package.json"})
+        self.assertIsNone(guard.overlaps(other, [file]))
+
+    def test_formatting_and_metadata_do_not_change_resolutions(self):
+        before = {"lockfileVersion": 3, "packages": {
+            "node_modules/undici": {"version": "1.0.0", "dev": True}}}
+        after = {"packages": {"node_modules/undici": {"dev": False, "version": "1.0.0"}},
+                 "lockfileVersion": 3}
+        file = {"filename": "api/package-lock.json",
+                "lock_versions": [guard.lock_versions(before), guard.lock_versions(after)]}
+        self.assertIsNone(guard.overlaps(("npm", "undici", "2.0.0", {"api/package.json"}), [file]))
+
+    def test_added_and_removed_resolutions_overlap(self):
+        versions = guard.lock_versions({"lockfileVersion": 3, "packages": {
+            "node_modules/undici": {"version": "1.0.0"}}})
+        for pair in ([{}, versions], [versions, {}]):
+            self.assertIsNotNone(guard.overlaps(
+                ("npm", "undici", "2.0.0", {"api/package.json"}),
+                [{"filename": "api/package-lock.json", "lock_versions": pair}]))
+
+
 if __name__ == "__main__":
     main()

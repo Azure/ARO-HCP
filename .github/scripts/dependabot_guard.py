@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Fail closed on duplicate dependency PRs and unsupported automatic retests."""
 
+import base64
 import fnmatch
 import json
 import os
@@ -9,6 +10,7 @@ import subprocess
 import sys
 import tempfile
 from datetime import datetime, timedelta, timezone
+from urllib.parse import quote
 
 
 def gh_lines(path, expression, token=None):
@@ -258,17 +260,96 @@ def npm_dependencies(hunks):
     return changed_packages(entries)
 
 
+def lock_versions(document):
+    """Read resolved package identities from npm lockfile versions 1 through 3."""
+    result = {}
+    if not isinstance(document, dict) or document.get("lockfileVersion") not in (1, 2, 3):
+        raise ValueError("unsupported npm lockfile format")
+    if document["lockfileVersion"] in (2, 3):
+        packages = document.get("packages")
+        if not isinstance(packages, dict):
+            raise ValueError("npm lockfile packages are unavailable")
+        for path, entry in packages.items():
+            if not path:
+                continue
+            if not isinstance(entry, dict) or "node_modules/" not in path:
+                raise ValueError("cannot identify npm lockfile package")
+            package = path.rsplit("node_modules/", 1)[1]
+            if entry.get("link") is True:
+                raise ValueError("npm workspace link requires conservative deferral")
+            if not isinstance(entry.get("version"), str):
+                raise ValueError("npm resolved version is unavailable")
+            result[path] = (package, entry["version"], entry.get("resolved"), entry.get("integrity"))
+    else:
+        def visit(dependencies, parent=""):
+            if not isinstance(dependencies, dict):
+                raise ValueError("invalid npm lockfile dependencies")
+            for package, entry in dependencies.items():
+                if not isinstance(entry, dict) or not isinstance(entry.get("version"), str):
+                    raise ValueError("npm resolved version is unavailable")
+                path = parent + "node_modules/" + package
+                result[path] = (package, entry["version"], entry.get("resolved"), entry.get("integrity"))
+                visit(entry.get("dependencies", {}), path + "/")
+        visit(document.get("dependencies", {}))
+    return result
+
+
+def load_lockfiles(repo, pr, files):
+    """Fetch complete immutable lockfile revisions instead of guessing hunk context."""
+    locks = [file for file in files if any(
+        path and os.path.basename(path) in ("package-lock.json", "npm-shrinkwrap.json")
+        for path in (file["filename"], file.get("previous_filename")))]
+    if not locks:
+        return
+    detail = gh_lines(f"repos/{repo}/pulls/{pr['number']}",
+                      '{base: .base.sha, head: .head.sha, head_repo: .head.repo.full_name}')[0]
+    for file in locks:
+        documents = []
+        for side in ("base", "head"):
+            if file.get("status") == ("added" if side == "base" else "removed"):
+                documents.append({})
+                continue
+            path = file.get("previous_filename", file["filename"]) if side == "base" else file["filename"]
+            if os.path.basename(path) not in ("package-lock.json", "npm-shrinkwrap.json"):
+                documents.append({})
+                continue
+            source = repo if side == "base" else detail["head_repo"]
+            content = gh_lines(f"repos/{source}/contents/{quote(path, safe='/')}?ref={detail[side]}",
+                               '. | {encoding, content}')[0]
+            try:
+                if content.get("encoding") != "base64":
+                    raise ValueError("complete lockfile content unavailable")
+                documents.append(lock_versions(json.loads(base64.b64decode(content["content"]))))
+            except (ValueError, KeyError, TypeError):
+                documents = None
+                break
+        file["lock_versions"] = documents
+
+
 def overlaps(candidate, files):
     ecosystem, family, _, manifests = candidate
-    manifest_name = "go.mod" if ecosystem == "go" else "package.json"
+    manifest_names = {"go.mod"} if ecosystem == "go" else {"package.json", "package-lock.json", "npm-shrinkwrap.json"}
     for file in files:
         filename = file["filename"]
         paths = {filename, file.get("previous_filename")}
-        if not any(path and path.rsplit("/", 1)[-1] == manifest_name for path in paths):
+        if not any(path and os.path.basename(path) in manifest_names for path in paths):
             continue
+        lockfile = any(path and os.path.basename(path) in ("package-lock.json", "npm-shrinkwrap.json")
+                       for path in paths)
+        if lockfile:
+            paths.update(os.path.join(os.path.dirname(path), "package.json") for path in list(paths) if path)
         try:
-            hunks = patch_hunks(file)
-            packages = go_dependencies(hunks) if ecosystem == "go" else npm_dependencies(hunks)
+            if lockfile:
+                versions = file.get("lock_versions")
+                if not versions:
+                    raise ValueError("complete npm lockfile comparison unavailable")
+                before, after = versions
+                packages = {entry[0] for path in before.keys() | after.keys()
+                            if before.get(path) != after.get(path)
+                            for entry in (before.get(path), after.get(path)) if entry}
+            else:
+                hunks = patch_hunks(file)
+                packages = go_dependencies(hunks) if ecosystem == "go" else npm_dependencies(hunks)
         except ValueError as error:
             # An uncertain diff can still establish relevance in another
             # manifest when its changed lines mention this family. This is
@@ -343,6 +424,8 @@ def guard_create(output, repo):
             f"repos/{repo}/pulls/{pr['number']}/files?per_page=100",
             ".[] | {filename, previous_filename, status, patch, additions, deletions}",
         )
+        if any(candidate[0] == "npm" for candidate in groups):
+            load_lockfiles(repo, pr, files)
         for index, candidate in enumerate(groups):
             reason = overlaps(candidate, files)
             if reason:
