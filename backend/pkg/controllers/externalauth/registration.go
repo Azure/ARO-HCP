@@ -162,6 +162,7 @@ func registerExternalAuthClusterServiceIDClearerController() controllerconfig.Co
 
 func instantiateExternalAuthClusterServiceIDClearerController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
 	return externalauthdeletion.NewExternalAuthClusterServiceIDClearerController(
+		utilsclock.RealClock{},
 		controllerContext.ResourcesDBClient,
 		controllerContext.ClustersServiceClient,
 		controllerContext.BackendInformers,
