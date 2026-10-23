@@ -1,9 +1,26 @@
 cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('cosmosResourceSnapshots')
+{{- if .SeedFromIdentity }}
+// Identity-seeded (from-cluster): resolve the current resource inventory across
+// history up to the window end. cosmosResourceSnapshots is a change feed, so an idle
+// cluster whose resources last changed before the window has no in-window row.
+| where timestamp <= {{ kqlDatetime .FullEndTime }}
+{{- else }}
 | where timestamp between ({{ kqlDatetime .FullStartTime }} .. {{ kqlDatetime .FullEndTime }})
+{{- end }}
 {{- if and .ServiceClusterName .ManagementClusterName }}
 | where cluster in ('{{ .ServiceClusterName }}', '{{ .ManagementClusterName }}')
 {{- end }}
 | where subscriptionID == '{{ .SubscriptionID }}'
 | where resourceGroup =~ '{{ .ResourceGroup }}'
-| where resourceID startswith '{{ .ClusterResourceID }}'
+| where resourceID =~ '{{ .ClusterResourceID }}' or resourceID startswith '{{ .ClusterResourceID }}/'
+{{- if .SeedFromIdentity }}
+// The all-history scan above sees every change-feed row, including soft-deleted and
+// superseded ones. Collapse each resource to its latest snapshot and drop resources
+// whose latest snapshot is soft-deleted (content.deletionTimestamp set, mirroring the
+// live "NOT IS_DEFINED(c.deletionTimestamp)" storage filter) so the inventory reflects
+// what currently exists, not what ever existed.
+| extend deletionTimestamp=tostring(content.deletionTimestamp)
+| summarize arg_max(tolong(content._ts), resourceType, deletionTimestamp) by resourceID
+| where isempty(deletionTimestamp)
+{{- end }}
 | distinct resourceID=tolower(resourceID), resourceType=tolower(resourceType)

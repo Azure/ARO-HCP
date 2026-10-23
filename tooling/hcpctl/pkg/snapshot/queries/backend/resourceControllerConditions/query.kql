@@ -5,7 +5,7 @@ cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('cosmosRes
 {{- end }}
 | where subscriptionID == '{{ .SubscriptionID }}'
 | where resourceGroup =~ '{{ .ResourceGroup }}'
-| where resourceID startswith '{{ .ClusterResourceID }}'
+| where resourceID =~ '{{ .ClusterResourceID }}' or resourceID startswith '{{ .ClusterResourceID }}/'
 | where resourceType =~ '{{ .ResourceType }}/hcpopenshiftcontrollers'
 | summarize payload=take_any(content), observedTime=min(timestamp) by etag=tostring(content._etag)
 | extend payload = parse_json(payload)

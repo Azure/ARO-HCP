@@ -22,15 +22,31 @@ let bundleMapCS = cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}'
 {{- define "bundleMapBackend" -}}
 {{ if and .ClusterResourceID .ServiceProviderResourceType -}}
 let bundleMapBackend = cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('cosmosResourceSnapshots')
+{{- if .SeedFromIdentity }}
+// Identity-seeded (from-cluster): the read-only bundle map lets the maestro/* queries
+// correlate in-window logs. cosmosResourceSnapshots is a change feed, so an idle cluster
+// whose service-provider snapshot last changed before the window would map to no bundles
+// and those logs would be discarded. Scan history up to the window end instead.
+| where timestamp <= {{ kqlDatetime .FullEndTime }}
+{{- else }}
 | where timestamp between ({{ kqlDatetime .FullStartTime }} .. {{ kqlDatetime .FullEndTime }})
+{{- end }}
 {{- if and .ServiceClusterName .ManagementClusterName }}
 | where cluster in ('{{ .ServiceClusterName }}', '{{ .ManagementClusterName }}')
 {{- end }}
 | where subscriptionID == '{{ .SubscriptionID }}'
 | where resourceGroup =~ '{{ .ResourceGroup }}'
-| where resourceID startswith '{{ .ClusterResourceID }}'
+| where resourceID =~ '{{ .ClusterResourceID }}' or resourceID startswith '{{ .ClusterResourceID }}/'
 | where resourceType =~ '{{ .ServiceProviderResourceType }}'
+{{- if .SeedFromIdentity }}
+// Collapse each service-provider doc to its latest snapshot and drop soft-deleted ones so
+// the map reflects the current bundles, not every historical revision.
+| extend deletionTimestamp = tostring(content.deletionTimestamp)
+| summarize arg_max(tolong(content._ts), content, deletionTimestamp) by resourceID
+| where isempty(deletionTimestamp)
+{{- else }}
 | summarize content = take_any(content) by etag = tostring(content._etag)
+{{- end }}
 | mv-expand readOnlyBundle = content.properties.status.maestroReadonlyBundles
 | where tostring(readOnlyBundle) != ''
 | mv-expand resourceIdentifier = readOnlyBundle.resourceIdentifiers

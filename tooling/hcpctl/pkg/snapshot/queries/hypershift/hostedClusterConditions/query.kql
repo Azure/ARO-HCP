@@ -5,7 +5,7 @@ cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('cosmosRes
 {{- end }}
 | where subscriptionID == '{{ .SubscriptionID }}'
 | where resourceGroup =~ '{{ .ResourceGroup }}'
-| where resourceID startswith '{{ .ClusterResourceID }}'
+| where resourceID =~ '{{ .ClusterResourceID }}' or resourceID startswith '{{ .ClusterResourceID }}/'
 | where resourceType =~ 'microsoft.redhatopenshift/hcpopenshiftclusters/readdesires'
 | summarize content=take_any(content), observedTime=min(timestamp) by etag=tostring(content._etag)
 | top 1 by tolong(content._ts) desc
