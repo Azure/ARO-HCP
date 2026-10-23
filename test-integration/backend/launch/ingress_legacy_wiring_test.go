@@ -16,6 +16,7 @@ package launch
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"strings"
 	"testing"
@@ -26,6 +27,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -40,7 +43,9 @@ import (
 	clusterresources "github.com/Azure/ARO-HCP/backend/pkg/controllers/clusterresources"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
@@ -200,6 +205,13 @@ func TestBackendLegacyIngressWiringByVersion(t *testing.T) {
 				mockKAClients := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClients()
 				mockKAClients.Register(mcResourceID, mockKAClient)
 
+				// Seed the legacy desires as a previous controller pass left
+				// them, with a ConfigMap that does not yet select a certificate.
+				// Every scenario then needs a completed reconciliation to pass:
+				// suppression must reap the seeds, and the legacy path must
+				// rewrite the ConfigMap.
+				seedLegacyIngressWiringApplyDesires(t, ctx, mockKAClient, mcResourceID, subscriptionID, rgName, clusterName)
+
 				clusterServiceMock := integrationutils.NewClusterServiceMock(t, storageIntegrationTestInfo.GetArtifactDir())
 				clusterServiceMock.MockClusterServiceClient.EXPECT().ListProvisionShards().
 					Return(ocm.NewSimpleProvisionShardListIterator(nil, nil)).AnyTimes()
@@ -265,23 +277,31 @@ func TestBackendLegacyIngressWiringByVersion(t *testing.T) {
 					clusterresources.DesireNameDefaultIngressWildcardCertSecretProviderClass,
 				}
 
-				// The HostedCluster desire is never suppressed, so its presence
-				// proves the cluster resources controller completed a sync pass;
-				// only then is the absence of the legacy desires meaningful.
 				require.Eventually(t, func() bool {
 					desires := listIngressWiringApplyDesires(t, ctx, mockKAClient, subscriptionID, rgName, clusterName)
-					_, hasHostedCluster := desires[strings.ToLower(clusterresources.DesireNameHostedCluster)]
-					if !hasHostedCluster {
+					if _, hasHostedCluster := desires[strings.ToLower(clusterresources.DesireNameHostedCluster)]; !hasHostedCluster {
 						return false
 					}
+					// Suppression flips the seeded desires to Delete and waits for
+					// kube-applier (not running here) before removing them, so a
+					// legacy desire counts as wired only while it still applies.
 					for _, name := range legacyDesireNames {
-						_, has := desires[strings.ToLower(name)]
-						if has != scenario.legacyDesiresPresent {
+						desire, has := desires[strings.ToLower(name)]
+						applied := has && desire.Spec.Type == kubeapplierapi.ApplyDesireTypeServerSideApply
+						if applied != scenario.legacyDesiresPresent {
 							return false
 						}
 					}
-					return true
-				}, 90*time.Second, 250*time.Millisecond, "legacy ingress wiring desires (present=%t) never converged for version %s",
+					if !scenario.legacyDesiresPresent {
+						return true
+					}
+					// The ACM policy points the guest IngressController at the
+					// Secret named here; it must be the one the policy fills
+					// with the service-provider certificate.
+					data := ingressConfigMapData(t, desires[strings.ToLower(clusterresources.DesireNameDefaultIngressConfigMap)])
+					return data["default-certificate-name"] == "cluster-ingress-cert" &&
+						data["disable-certificates"] == "false"
+				}, 90*time.Second, 250*time.Millisecond, "legacy ingress wiring (present=%t) never converged for version %s",
 					scenario.legacyDesiresPresent, scenario.desiredVersion)
 			})
 		}
@@ -289,17 +309,72 @@ func TestBackendLegacyIngressWiringByVersion(t *testing.T) {
 }
 
 func listIngressWiringApplyDesires(t *testing.T, ctx context.Context, client kubeappliercosmosstorage.KubeApplierDBClient,
-	subscriptionID, resourceGroupName, clusterName string) map[string]bool {
+	subscriptionID, resourceGroupName, clusterName string) map[string]*kubeapplierapi.ApplyDesire {
 	t.Helper()
 	crud, err := client.ApplyDesiresForCluster(subscriptionID, resourceGroupName, clusterName)
 	require.NoError(t, err, "failed to get ApplyDesire CRUD")
 	iterator, err := crud.List(ctx, nil)
 	require.NoError(t, err, "failed to list ApplyDesires")
-	desires := map[string]bool{}
+	desires := map[string]*kubeapplierapi.ApplyDesire{}
 	for _, desire := range iterator.Items(ctx) {
-		desires[strings.ToLower(desire.ResourceID.Name)] = true
+		desires[strings.ToLower(desire.ResourceID.Name)] = desire
 	}
 	return desires
+}
+
+func ingressConfigMapData(t *testing.T, desire *kubeapplierapi.ApplyDesire) map[string]string {
+	t.Helper()
+	configMap := struct {
+		Data map[string]string `json:"data"`
+	}{}
+	require.NoError(t, json.Unmarshal(desire.Spec.ServerSideApply.KubeContent.Raw, &configMap), "failed to decode ConfigMap desire content")
+	return configMap.Data
+}
+
+// seedLegacyIngressWiringApplyDesires creates the legacy ACM ingress wiring
+// desires owned by the cluster resources controller, using the Cluster
+// Service manifests but without the certificate selection the backend adds.
+func seedLegacyIngressWiringApplyDesires(t *testing.T, ctx context.Context, client kubeappliercosmosstorage.KubeApplierDBClient,
+	managementCluster *azcorearm.ResourceID, subscriptionID, resourceGroupName, clusterName string) {
+	t.Helper()
+	crud, err := client.ApplyDesiresForCluster(subscriptionID, resourceGroupName, clusterName)
+	require.NoError(t, err, "failed to get ApplyDesire CRUD")
+	resources := ingressWiringClusterResources().Resources()
+	for desireName, resourceKey := range map[string]string{
+		clusterresources.DesireNameManagedCluster:                                "managed",
+		clusterresources.DesireNameDefaultIngressConfigMap:                       "config",
+		clusterresources.DesireNameDefaultIngressWildcardCertSecretSync:          "sync",
+		clusterresources.DesireNameDefaultIngressWildcardCertSecretProviderClass: "provider",
+	} {
+		var obj unstructured.Unstructured
+		require.NoError(t, json.Unmarshal([]byte(resources[resourceKey]), &obj))
+		gvk := obj.GroupVersionKind()
+		resourceID := metadataapi.Must(azcorearm.ParseResourceID(kubeapplierapihelpers.ToClusterScopedApplyDesireResourceIDString(
+			subscriptionID, resourceGroupName, clusterName, desireName)))
+		_, err := crud.Create(ctx, &kubeapplierapi.ApplyDesire{
+			CosmosMetadata: coreapi.CosmosMetadata{
+				ResourceID:   resourceID,
+				PartitionKey: strings.ToLower(managementCluster.String()),
+			},
+			Spec: kubeapplierapi.ApplyDesireSpec{
+				ManagementCluster: managementCluster,
+				Type:              kubeapplierapi.ApplyDesireTypeServerSideApply,
+				TargetItem: kubeapplierapi.ResourceReference{
+					Group:     gvk.Group,
+					Version:   gvk.Version,
+					Resource:  strings.ToLower(gvk.Kind) + "s",
+					Name:      obj.GetName(),
+					Namespace: obj.GetNamespace(),
+				},
+				ServerSideApply: &kubeapplierapi.ServerSideApplyConfig{
+					KubeContent:  &runtime.RawExtension{Raw: []byte(resources[resourceKey])},
+					FieldManager: ptr.To("work-agent"),
+				},
+			},
+			Tags: map[string]string{kubeapplierapi.TagControllerName: clusterresources.ClusterResourcesControllerName},
+		}, nil)
+		require.NoError(t, err, "failed to seed %s ApplyDesire", desireName)
+	}
 }
 
 // ingressWiringClusterResources mirrors the Cluster Service resource set for a
@@ -311,7 +386,7 @@ func ingressWiringClusterResources() *arohcpv1alpha1.ClusterResources {
 		Resources(map[string]string{
 			"hosted":       `{"apiVersion":"hypershift.openshift.io/v1beta1","kind":"HostedCluster","metadata":{"name":"cluster-1","namespace":"hc-cluster-1"}}`,
 			"managed":      `{"apiVersion":"cluster.open-cluster-management.io/v1","kind":"ManagedCluster","metadata":{"name":"cluster-1"}}`,
-			"config":       `{"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":"default-ingress","namespace":"open-cluster-management-policies"}}`,
+			"config":       `{"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":"default-ingress-config-cluster-1","namespace":"open-cluster-management-policies"},"data":{"disable-certificates":"false","endpoint-publishing-strategy":"external"}}`,
 			"sync":         `{"apiVersion":"secret-sync.x-k8s.io/v1alpha1","kind":"SecretSync","metadata":{"name":"default-ingress-tls-cert-cluster-1","namespace":"open-cluster-management-policies"}}`,
 			"provider":     `{"apiVersion":"secrets-store.csi.x-k8s.io/v1","kind":"SecretProviderClass","metadata":{"name":"default-ingress-tls-cert-cluster-1","namespace":"open-cluster-management-policies"}}`,
 			"kas":          `{"apiVersion":"secret-sync.x-k8s.io/v1alpha1","kind":"SecretSync","metadata":{"name":"kube-apiserver-tls-cert","namespace":"hc-cluster-1"}}`,

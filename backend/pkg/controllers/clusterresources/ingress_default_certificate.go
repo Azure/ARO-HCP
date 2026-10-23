@@ -14,7 +14,24 @@
 
 package clusterresources
 
-import semver "github.com/blang/semver/v4"
+import (
+	"fmt"
+
+	semver "github.com/blang/semver/v4"
+
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+)
+
+const (
+	// defaultIngressConfigCertificateNameKey is the key on the per-cluster
+	// default ingress ConfigMap that the ACM default-ingress-config policy
+	// (acm/deploy/helm/policies/templates/default-ingress-cert.policy.yaml)
+	// reads to pick the guest IngressController default certificate.
+	defaultIngressConfigCertificateNameKey = "default-certificate-name"
+	// acmIngressCertificateSecretName is the guest openshift-ingress Secret
+	// that the ACM policy fills with the service-provider certificate.
+	acmIngressCertificateSecretName = "cluster-ingress-cert"
+)
 
 // minVersionWithHCCOIngressCertConsumer is the minimum control plane version
 // whose control-plane-operator natively consumes the service-provider ingress
@@ -56,4 +73,22 @@ func suppressLegacyIngressDesire(desireName string, version *semver.Version) boo
 	}
 
 	return legacyACMBasedIngressCertificateWiringDesireName(desireName)
+}
+
+// ensureDefaultIngressConfigCertificateName points the ACM policy at the
+// Secret that carries the service-provider certificate for the given version.
+// Covered versions leave the key unset so the policy keeps the guest
+// IngressController on default-ingress-cert, which their HCCO fills with the
+// service-provider certificate. Uncovered versions get cluster-ingress-cert,
+// because their HCCO fills default-ingress-cert with a CPO-generated root-CA
+// certificate (AROSLSRE-2529).
+func ensureDefaultIngressConfigCertificateName(configMap *unstructured.Unstructured, version *semver.Version) error {
+	if version != nil && hccoIngressCertConsumerCovered(*version) {
+		unstructured.RemoveNestedField(configMap.Object, "data", defaultIngressConfigCertificateNameKey)
+		return nil
+	}
+	if err := unstructured.SetNestedField(configMap.Object, acmIngressCertificateSecretName, "data", defaultIngressConfigCertificateNameKey); err != nil {
+		return fmt.Errorf("setting data.%s: %w", defaultIngressConfigCertificateNameKey, err)
+	}
+	return nil
 }

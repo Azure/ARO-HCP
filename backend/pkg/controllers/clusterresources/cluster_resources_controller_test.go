@@ -1216,6 +1216,70 @@ func TestProcessClusterResourcesNodePoolPath(t *testing.T) {
 	}
 }
 
+func TestEnsureDefaultIngressConfigCertificateName(t *testing.T) {
+	tests := []struct {
+		name         string
+		version      string
+		inputData    map[string]any
+		expectedData map[string]any
+	}{
+		{
+			name:         "4.23 ec payload points the policy at the ACM-delivered secret",
+			version:      "4.23.0-ec.1",
+			inputData:    map[string]any{"disable-certificates": "false", "endpoint-publishing-strategy": "external"},
+			expectedData: map[string]any{"disable-certificates": "false", "endpoint-publishing-strategy": "external", "default-certificate-name": "cluster-ingress-cert"},
+		},
+		{
+			name:         "version below the overridden versions points the policy at the ACM-delivered secret",
+			version:      "4.19.7",
+			expectedData: map[string]any{"default-certificate-name": "cluster-ingress-cert"},
+		},
+		{
+			name:         "missing version points the policy at the ACM-delivered secret",
+			expectedData: map[string]any{"default-certificate-name": "cluster-ingress-cert"},
+		},
+		{
+			name:         "overridden 4.20 leaves the key unset",
+			version:      "4.20.12",
+			inputData:    map[string]any{"disable-certificates": "false"},
+			expectedData: map[string]any{"disable-certificates": "false"},
+		},
+		{
+			name:         "native 5.1 removes a stale key after an upgrade",
+			version:      "5.1.0-rc.1",
+			inputData:    map[string]any{"disable-certificates": "false", "default-certificate-name": "cluster-ingress-cert"},
+			expectedData: map[string]any{"disable-certificates": "false"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			configMap := &unstructured.Unstructured{Object: map[string]any{
+				"apiVersion": "v1",
+				"kind":       "ConfigMap",
+				"metadata":   map[string]any{"name": "default-ingress-config-abc", "namespace": "open-cluster-management-policies"},
+			}}
+			if tt.inputData != nil {
+				configMap.Object["data"] = tt.inputData
+			}
+			var version *semver.Version
+			if tt.version != "" {
+				version = ptr.To(semver.MustParse(tt.version))
+			}
+
+			require.NoError(t, ensureDefaultIngressConfigCertificateName(configMap, version))
+
+			data, _, err := unstructured.NestedMap(configMap.Object, "data")
+			require.NoError(t, err)
+			if len(tt.expectedData) == 0 {
+				assert.Empty(t, data)
+				return
+			}
+			assert.Equal(t, tt.expectedData, data)
+		})
+	}
+}
+
 func TestEnsureHostedClusterAnnotations(t *testing.T) {
 	tests := []struct {
 		name                string

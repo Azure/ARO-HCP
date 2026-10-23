@@ -399,6 +399,12 @@ func (c *clusterResourcesController) processClusterResources(ctx context.Context
 					continue
 				}
 			}
+			if classified.desireName == DesireNameDefaultIngressConfigMap {
+				if err := ensureDefaultIngressConfigCertificateName(&unstructuredObj, version); err != nil {
+					errs = append(errs, utils.TrackError(fmt.Errorf("failed to set default ingress certificate name for %s: %w", resourceKey, err)))
+					continue
+				}
+			}
 
 			desire, err = buildClusterResourceApplyDesire(
 				key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName,
