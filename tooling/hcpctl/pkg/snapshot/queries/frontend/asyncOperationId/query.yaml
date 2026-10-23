@@ -1,0 +1,14 @@
+description: "Extracts the async operation ID from the Azure-AsyncOperation response header for the given correlation ID."
+database: service
+tags: [frontend, request, discovery]
+params:
+- ClientRequestID
+- ClusterURI
+- FullEndTime
+- FullStartTime
+- ManagementClusterName
+- ServiceClusterName
+- ServiceDatabase
+provides:
+  AsyncOperationId:
+    column: "asyncOperationId"

@@ -8,7 +8,9 @@ This is an index of curated, production-tuned KQL queries used by the
 ARO HCP stack. Each query lives in
 [tooling/hcpctl/pkg/snapshot/queries/](../../tooling/hcpctl/pkg/snapshot/queries/)
 next to a `README.md` documenting intent, sample healthy output, and which
-query to run next.
+query to run next, and a `query.yaml` listing the parameters it needs and the
+values its results provide. `params.yaml` in that directory explains every
+parameter and how to obtain it.
 
 When debugging interactively, prefer to read the relevant `query.kql` file
 and adapt it (the queries take constants like resource group, time window,

@@ -1,0 +1,10 @@
+description: "Lists Kubernetes events for Maestro pods in the maestro namespace during the time window."
+database: service
+tags: [maestro, events]
+params:
+- ClusterURI
+- ManagementClusterName
+- PhaseEndTime
+- PhaseStartTime
+- ServiceClusterName
+- ServiceDatabase

@@ -17,9 +17,12 @@ package agent
 import (
 	"bytes"
 	"compress/gzip"
+	"context"
 	"encoding/base64"
 	"io"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -114,5 +117,24 @@ func TestQueryToDeepLink_invalidEndpoint(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "failed to parse kusto endpoint") {
 		t.Errorf("unexpected error message: %v", err)
+	}
+}
+
+// TestBackfillAllDiscoveryWithoutDataDir ensures dynamic investigations, which
+// have no data directory, never backfill discovery from the working directory.
+func TestBackfillAllDiscoveryWithoutDataDir(t *testing.T) {
+	cwd := t.TempDir()
+	discoveryDir := filepath.Join(cwd, "discovery")
+	if err := os.MkdirAll(discoveryDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(discoveryDir, "ids.md"), []byte("# IDs\n\n```kql\nprint 1\n```\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(cwd)
+
+	h := NewHydrator(&noopKustoClient{}, "https://adx.eastus.kusto.windows.net", "db", nil, "", "", nil, nil, "", "objective")
+	if got := h.backfillAllDiscovery(context.Background()); len(got) != 0 {
+		t.Fatalf("expected no backfilled discovery without a data directory, got %d", len(got))
 	}
 }

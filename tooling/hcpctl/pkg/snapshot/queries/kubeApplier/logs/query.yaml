@@ -1,0 +1,14 @@
+description: "kube-applier logs for the cluster, from the `kubeApplierLogs` table, filtered to the cluster's `subscription_id`, `resource_group`, and `cluster_name` (the HCP cluster name)."
+database: service
+tags: [kubeApplier, logs]
+params:
+- ClusterResourceName
+- ClusterURI
+- ManagementClusterName
+- PhaseEndTime
+- PhaseStartTime
+- ResourceGroup
+- ServiceClusterName
+- ServiceDatabase
+- SubscriptionID
+notes: "Only applies to cluster resources."

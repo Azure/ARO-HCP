@@ -1,0 +1,12 @@
+description: "Lists Kubernetes events from the hosted control plane namespace, excluding operator pods, to surface control plane component issues."
+database: service
+tags: [hypershift, events]
+params:
+- ClusterURI
+- HostedControlPlaneNamespace
+- ManagementClusterName
+- PhaseEndTime
+- PhaseStartTime
+- ServiceClusterName
+- ServiceDatabase
+notes: "Only applies to cluster resources."

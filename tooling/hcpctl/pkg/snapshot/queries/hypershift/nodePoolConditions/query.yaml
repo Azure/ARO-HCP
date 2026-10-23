@@ -1,0 +1,14 @@
+description: "Extracts a point-in-time snapshot of NodePool conditions from the *last* datadump emission within the current phase's time window."
+database: service
+tags: [hypershift, conditions]
+params:
+- ClusterURI
+- ManagementClusterName
+- PhaseEndTime
+- PhaseStartTime
+- ResourceGroup
+- ResourceID
+- ServiceClusterName
+- ServiceDatabase
+- SubscriptionID
+notes: "Only applies to node pool resources."

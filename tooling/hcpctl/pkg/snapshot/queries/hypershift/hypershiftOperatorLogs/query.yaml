@@ -1,0 +1,13 @@
+description: "Aggregates HyperShift operator log messages for the target HostedCluster or NodePool by unique msg/error pair, showing first/last occurrence and count."
+database: service
+tags: [hypershift, logs]
+params:
+- ClusterURI
+- HostedClusterNamespace
+- ManagementClusterName
+- PhaseEndTime
+- PhaseStartTime
+- ResourceType
+- ServiceClusterName
+- ServiceDatabase
+notes: "Only applies to cluster and node pool resources."

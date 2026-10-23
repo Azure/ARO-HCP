@@ -1,0 +1,11 @@
+description: "Extracts Maestro bundle creation events from Clusters Service logs, mapping bundle IDs and names to the Kubernetes resources they contain, including the group/version and kind of each resource."
+database: service
+tags: [clustersService, discovery]
+params:
+- ClusterID
+- ClusterURI
+- FullEndTime
+- FullStartTime
+- ManagementClusterName
+- ServiceClusterName
+- ServiceDatabase

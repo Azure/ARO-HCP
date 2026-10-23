@@ -1,0 +1,14 @@
+description: "Extracts Maestro resource bundle associations from the service provider resource, mapping bundle IDs and names to the resources they contain."
+database: service
+tags: [backend, discovery]
+params:
+- ClusterResourceID
+- ClusterURI
+- FullEndTime
+- FullStartTime
+- ManagementClusterName
+- ResourceGroup
+- ServiceClusterName
+- ServiceDatabase
+- ServiceProviderResourceType
+- SubscriptionID

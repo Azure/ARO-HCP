@@ -1,0 +1,14 @@
+description: "Extracts a point-in-time snapshot of HostedCluster conditions from the *last* datadump emission within the current phase's time window."
+database: service
+tags: [hypershift, conditions]
+params:
+- ClusterResourceID
+- ClusterURI
+- ManagementClusterName
+- PhaseEndTime
+- PhaseStartTime
+- ResourceGroup
+- ServiceClusterName
+- ServiceDatabase
+- SubscriptionID
+notes: "Only applies to cluster resources."

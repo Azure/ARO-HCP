@@ -1,0 +1,12 @@
+description: "Lists events for certificate signing request processing by the control-plane-pki-operator in the hosted control plane namespace."
+database: service
+tags: [hypershift, events]
+params:
+- ClusterURI
+- HostedControlPlaneNamespace
+- ManagementClusterName
+- PhaseEndTime
+- PhaseStartTime
+- ServiceClusterName
+- ServiceDatabase
+notes: "Only applies to requestAdminCredential resources."

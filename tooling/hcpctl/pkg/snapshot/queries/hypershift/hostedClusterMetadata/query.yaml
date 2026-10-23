@@ -1,0 +1,18 @@
+description: "Resolves the HostedCluster namespace and name on the management cluster from the management cluster content datadump."
+database: service
+tags: [hypershift, discovery]
+params:
+- ClusterResourceID
+- ClusterURI
+- FullEndTime
+- FullStartTime
+- ManagementClusterName
+- ResourceGroup
+- ServiceClusterName
+- ServiceDatabase
+- SubscriptionID
+provides:
+  HostedClusterNamespace:
+    column: "hostedClusterNamespace"
+  HostedControlPlaneNamespace:
+    template: "{{ .hostedClusterNamespace }}-{{ .hostedClusterName }}"

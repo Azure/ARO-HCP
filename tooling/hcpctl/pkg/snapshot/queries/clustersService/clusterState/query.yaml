@@ -1,0 +1,13 @@
+description: "Shows the Clusters Service cluster object state over time from the backend csstatedump controller."
+database: service
+tags: [clustersService, state]
+params:
+- ClusterResourceName
+- ClusterURI
+- ManagementClusterName
+- PhaseEndTime
+- PhaseStartTime
+- ResourceGroup
+- ServiceClusterName
+- ServiceDatabase
+notes: "Only applies to cluster resources."

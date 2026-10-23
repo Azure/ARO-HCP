@@ -1,0 +1,12 @@
+description: "Aggregates CAPI Azure provider controller log messages, showing first/last occurrence and count per unique message/error/controller/resource combination."
+database: hcp
+tags: [hypershift, logs]
+params:
+- ClusterURI
+- HCPDatabase
+- HostedControlPlaneNamespace
+- ManagementClusterName
+- PhaseEndTime
+- PhaseStartTime
+- ServiceClusterName
+notes: "Only applies to cluster resources."

@@ -38,6 +38,10 @@ const (
 	// ModeIntent is the free-form investigation framing driven by a
 	// human-written objective (e.g. a customer complaint about a cluster).
 	ModeIntent
+	// ModeDynamic is the objective-driven investigation framing used when no
+	// snapshot has been gathered: the agent discovers everything itself by
+	// querying Kusto, guided by the query library in its workspace.
+	ModeDynamic
 )
 
 // IdentityPrompt is the shared identity section text used by all providers in
@@ -54,61 +58,89 @@ const IntentIdentityPrompt = "You are a senior SRE specializing in Azure Red Hat
 	"Your task is to perform root-cause analysis of operational and customer-reported " +
 	"issues by examining diagnostic data, querying Azure Data Explorer (Kusto), and reading source code."
 
+// DynamicIdentityPrompt is the identity section text used in dynamic mode,
+// where the investigation starts from an objective with no gathered data.
+const DynamicIdentityPrompt = "You are a senior SRE specializing in Azure Red Hat OpenShift (ARO-HCP). " +
+	"Your task is to investigate operational questions and customer-reported issues from a written " +
+	"objective by querying Azure Data Explorer (Kusto) and reading source code."
+
 // IdentityPromptFor returns the identity section text for the given mode.
 func IdentityPromptFor(mode Mode) string {
-	if mode == ModeIntent {
+	switch mode {
+	case ModeIntent:
 		return IntentIdentityPrompt
+	case ModeDynamic:
+		return DynamicIdentityPrompt
+	default:
+		return IdentityPrompt
 	}
-	return IdentityPrompt
 }
 
 // systemFragment is one ordered section of the domain system prompt. A section
-// is either shared across modes (one file) or mode-specific (a "<base>.<mode>.md"
-// pair). The whole prompt is these fragments concatenated in order.
+// is either shared across modes (one file) or mode-specific (one
+// "<base>.<mode>.md" file per mode). The whole prompt is these fragments
+// concatenated in order.
 type systemFragment struct {
-	// path is set for a section whose text is identical in every mode.
+	// path is set for a section whose text is shared by the snapshot-based
+	// modes (test and intent).
 	path string
+	// dynamicPath, when set alongside path, replaces path in dynamic mode. It
+	// is used for shared sections whose text assumes a gathered snapshot or a
+	// failed test.
+	dynamicPath string
 	// variant is the base path for a mode-specific section; the file read is
-	// "<variant>.<mode>.md" (mode being "test" or "intent").
+	// "<variant>.<mode>.md" (mode being "test", "intent", or "dynamic").
 	variant string
 }
 
 // systemFragments is the ordered list of sections that make up the domain
-// system prompt. Both modes assemble it with the exact same flow — they only
-// differ in which file each mode-specific section resolves to. Concatenating the
+// system prompt. Every mode assembles it with the exact same flow — they only
+// differ in which file each section resolves to. Concatenating the
 // test variants reproduces the original single-file prompt byte for byte.
 var systemFragments = []systemFragment{
 	{path: "prompts/system/00_header.md"},
 	{variant: "prompts/system/10_recursive_why"},
-	{path: "prompts/system/20_standards.md"},
-	{path: "prompts/system/30_output_schema.md"},
+	{path: "prompts/system/20_standards.md", dynamicPath: "prompts/system/20_standards.dynamic.md"},
+	{path: "prompts/system/30_output_schema.md", dynamicPath: "prompts/system/30_output_schema.dynamic.md"},
 	{variant: "prompts/system/40_chain_link_rules"},
-	{path: "prompts/system/45_taxonomy_classification.md"},
+	{path: "prompts/system/45_taxonomy_classification.md", dynamicPath: "prompts/system/45_taxonomy_classification.dynamic.md"},
 	{path: "prompts/system/50_markdown_formatting.md"},
 	{variant: "prompts/system/60_debugging_methodology"},
-	{path: "prompts/system/70_available_data_sources.md"},
-	{path: "prompts/system/80_discovery.md"},
-	{path: "prompts/system/90_kql_quality.md"},
-	{path: "prompts/system/95_epistemological.md"},
+	{path: "prompts/system/70_available_data_sources.md", dynamicPath: "prompts/system/70_available_data_sources.dynamic.md"},
+	{path: "prompts/system/80_discovery.md", dynamicPath: "prompts/system/80_discovery.dynamic.md"},
+	{path: "prompts/system/90_kql_quality.md", dynamicPath: "prompts/system/90_kql_quality.dynamic.md"},
+	{path: "prompts/system/95_epistemological.md", dynamicPath: "prompts/system/95_epistemological.dynamic.md"},
 	{variant: "prompts/system/99_methodology"},
 }
 
 // modeSuffix is the filename suffix used to pick a mode-specific fragment.
 func (m Mode) modeSuffix() string {
-	if m == ModeIntent {
+	switch m {
+	case ModeIntent:
 		return "intent"
+	case ModeDynamic:
+		return "dynamic"
+	default:
+		return "test"
 	}
-	return "test"
+}
+
+// fragmentPath returns the embedded file that supplies this section in mode.
+func (f systemFragment) fragmentPath(mode Mode) string {
+	if f.variant != "" {
+		return fmt.Sprintf("%s.%s.md", f.variant, mode.modeSuffix())
+	}
+	if mode == ModeDynamic && f.dynamicPath != "" {
+		return f.dynamicPath
+	}
+	return f.path
 }
 
 // buildSystemBody assembles the ordered system-prompt fragments for a mode.
 func buildSystemBody(mode Mode) (string, error) {
 	var sb strings.Builder
 	for _, f := range systemFragments {
-		path := f.path
-		if path == "" {
-			path = fmt.Sprintf("%s.%s.md", f.variant, mode.modeSuffix())
-		}
+		path := f.fragmentPath(mode)
 		data, err := promptFS.ReadFile(path)
 		if err != nil {
 			return "", fmt.Errorf("failed to read system prompt fragment %s: %w", path, err)
@@ -129,7 +161,9 @@ const TonePrompt = "Be precise, evidence-driven, and thorough. Every claim must 
 // buildDomainContent assembles the domain-specific prompt: the mode's system
 // prompt (built from ordered section fragments), the shared reference documents,
 // and the shared exemplar analyses. The assembly flow is identical for every
-// mode; only the per-mode fragments (see systemFragments) differ.
+// mode; only the per-mode fragments (see systemFragments) differ, and dynamic
+// mode omits the exemplars, which walk through gathered snapshots of failed
+// tests.
 func buildDomainContent(mode Mode) (string, error) {
 	systemBody, err := buildSystemBody(mode)
 	if err != nil {
@@ -152,8 +186,13 @@ func buildDomainContent(mode Mode) (string, error) {
 		}
 	}
 
-	// Append exemplars. The same exemplars are used in both modes — they teach
-	// the expected quality, depth, and reasoning patterns regardless of framing.
+	if mode == ModeDynamic {
+		return sb.String(), nil
+	}
+
+	// Append exemplars. The same exemplars are used in test and intent modes —
+	// they teach the expected quality, depth, and reasoning patterns regardless
+	// of framing.
 	exemplars, err := readDir("prompts/exemplars")
 	if err != nil {
 		return "", fmt.Errorf("failed to read exemplar documents: %w", err)
@@ -345,6 +384,107 @@ func BuildIntentInitialPrompt(intent, manifest, testError, testOutput, siblingTe
 	sb.WriteString("\n\nWhen you are done, output your analysis as a JSON object conforming to the draft chain schema.")
 
 	return sb.String()
+}
+
+// DynamicContext describes where a dynamic investigation gets its data: the
+// Kusto cluster and databases to query, and the query library written to the
+// agent's workspace.
+type DynamicContext struct {
+	// KustoCluster is the URI of the Kusto cluster holding the ARO-HCP logs.
+	KustoCluster string
+	// ServiceDatabase is the service log database (normally ServiceLogs).
+	ServiceDatabase string
+	// HCPDatabase is the hosted control plane log database (normally
+	// HostedControlPlaneLogs).
+	HCPDatabase string
+	// MonitoringEventsDatabase is the alert database (normally MonitoringEvents).
+	MonitoringEventsDatabase string
+	// QueryLibraryDir is the path of the query library in the agent's workspace.
+	QueryLibraryDir string
+	// QueryResultsDir is the directory where run_query writes query outputs.
+	QueryResultsDir string
+	// LibraryOverview is the query library's overview (its README.md), which
+	// explains parameters and the dependencies between queries.
+	LibraryOverview string
+}
+
+// BuildDynamicInitialPrompt creates the initial user prompt for a dynamic
+// investigation, which starts from the objective alone: no snapshot has been
+// gathered, so the agent discovers every fact itself through the query
+// library tools, falling back to ad-hoc kusto_query queries.
+func BuildDynamicInitialPrompt(objective string, dc DynamicContext, worktreePaths map[string]string) string {
+	var sb strings.Builder
+	sb.WriteString("I need you to investigate an ARO-HCP issue or question. ")
+	sb.WriteString("The objective below is written by a human and describes what to investigate. ")
+	sb.WriteString("No diagnostic data has been gathered in advance: find the evidence yourself by querying Kusto ")
+	sb.WriteString("and reading source code, then determine the root cause.\n\n")
+	sb.WriteString("## Investigation Objective\n\n")
+	sb.WriteString(objective)
+
+	sb.WriteString("\n\n## Query Library\n\n")
+	sb.WriteString("The query library holds the curated KQL queries that diagnostic snapshots are built from. Use it through these tools:\n\n")
+	sb.WriteString("- `list_queries`: find queries (optionally filtered by component or topic), with the parameters each needs and whether it can run now\n")
+	sb.WriteString("- `describe_query`: a query's README (what it shows, what to look for, where to go next), its parameters, and the KQL it would run\n")
+	sb.WriteString("- `describe_param`: what a parameter is, its current value, and which queries provide and use it\n")
+	sb.WriteString("- `run_query`: render and run a query. Parameter values you pass, and values that queries discover, are remembered for later queries, ")
+	sb.WriteString("so pass each value once; a missing-parameter error names the query that provides it\n\n")
+	if dc.QueryResultsDir != "" {
+		sb.WriteString(fmt.Sprintf("`run_query` writes each query's README, KQL and complete results to `%s`; read those files when the returned rows are truncated.\n", dc.QueryResultsDir))
+	}
+	if dc.QueryLibraryDir != "" {
+		sb.WriteString(fmt.Sprintf("The library's files (templates, READMEs, `params.yaml`, `guides/`) are also available at `%s` for searching.\n", dc.QueryLibraryDir))
+	}
+	if dc.LibraryOverview != "" {
+		sb.WriteString("\nThe library's overview follows.\n\n")
+		sb.WriteString(demoteHeadings(strings.TrimSpace(dc.LibraryOverview), 2))
+		sb.WriteString("\n")
+	}
+
+	sb.WriteString("\n## Kusto\n\n")
+	sb.WriteString("The library tools target the Kusto cluster and databases below. For questions the library does not cover, ")
+	sb.WriteString("run ad-hoc queries with the kusto_query tool, referencing tables with fully qualified ")
+	sb.WriteString("`cluster('<cluster>').database('<database>').table('<table>')` expressions using these values:\n\n")
+	sb.WriteString(fmt.Sprintf("- **Cluster**: `%s`\n", dc.KustoCluster))
+	sb.WriteString(fmt.Sprintf("- **Service logs database**: `%s`\n", dc.ServiceDatabase))
+	sb.WriteString(fmt.Sprintf("- **Hosted control plane logs database**: `%s`\n", dc.HCPDatabase))
+	sb.WriteString(fmt.Sprintf("- **Monitoring events database**: `%s`\n", dc.MonitoringEventsDatabase))
+
+	if len(worktreePaths) > 0 {
+		sb.WriteString("\n## Source Code Repositories\n\n")
+		sb.WriteString("The following repositories are checked out locally. ")
+		sb.WriteString("Use the available tools to read files from these directories when you need to understand the source code.\n\n")
+		repos := make([]string, 0, len(worktreePaths))
+		for repo := range worktreePaths {
+			repos = append(repos, repo)
+		}
+		sort.Strings(repos)
+		for _, repo := range repos {
+			sb.WriteString(fmt.Sprintf("- **%s**: `%s`\n", repo, worktreePaths[repo]))
+		}
+	}
+
+	sb.WriteString("\n\nPlease begin your investigation. Identify the affected resources and time window from the objective, ")
+	sb.WriteString("then use list_queries and run_query to discover the identifiers you need and gather evidence.")
+	sb.WriteString("\n\nWhen you are done, output your analysis as a JSON object conforming to the draft chain schema.")
+
+	return sb.String()
+}
+
+// demoteHeadings shifts every markdown heading in md down by levels, so that
+// an embedded document nests under the heading that introduces it.
+func demoteHeadings(md string, levels int) string {
+	lines := strings.Split(md, "\n")
+	inFence := false
+	for i, line := range lines {
+		if strings.HasPrefix(line, "```") {
+			inFence = !inFence
+			continue
+		}
+		if !inFence && strings.HasPrefix(line, "#") {
+			lines[i] = strings.Repeat("#", levels) + line
+		}
+	}
+	return strings.Join(lines, "\n")
 }
 
 // readDir reads all .md files from a directory in the embedded filesystem,

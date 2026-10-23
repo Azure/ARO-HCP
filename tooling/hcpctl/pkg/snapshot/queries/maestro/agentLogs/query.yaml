@@ -1,0 +1,20 @@
+description: "Filters Maestro agent container logs for entries matching the known bundle IDs or ManifestWork names, showing the agent's resource reconciliation activity."
+database: service
+tags: [maestro, logs]
+params:
+- ClusterID
+- ClusterResourceID
+- ClusterURI
+- FullEndTime
+- FullStartTime
+- ManagementClusterName
+- PhaseEndTime
+- PhaseStartTime
+- ResourceGroup
+- ServiceClusterName
+- ServiceDatabase
+- ServiceProviderResourceType
+- SubscriptionID
+requireAnyOf:
+- [ClusterID]
+- [SubscriptionID, ResourceGroup, ClusterResourceID, ServiceProviderResourceType]

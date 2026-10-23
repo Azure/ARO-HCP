@@ -1,0 +1,17 @@
+description: "Extracts condition transitions from HCP OpenShift controller resources, showing each controller's status, reason, and message over time."
+database: service
+tags: [backend, conditions]
+params:
+- ClusterResourceID
+- ClusterURI
+- FullEndTime
+- FullStartTime
+- ManagementClusterName
+- PhaseEndTime
+- PhaseStartTime
+- ResourceGroup
+- ResourceType
+- ServiceClusterName
+- ServiceDatabase
+- SubscriptionID
+notes: "Only returns rows when the resource has hcpopenshiftcontrollers child documents in cosmosResourceSnapshots (see backend/cosmosResourceDiscovery)."

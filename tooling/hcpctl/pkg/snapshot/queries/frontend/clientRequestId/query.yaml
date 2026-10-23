@@ -1,0 +1,14 @@
+description: "Resolves the `client_request_id` from a `correlation_request_id` when only the latter is available."
+database: service
+tags: [frontend, request, discovery]
+params:
+- ClusterURI
+- CorrelationID
+- FullEndTime
+- FullStartTime
+- ManagementClusterName
+- ServiceClusterName
+- ServiceDatabase
+provides:
+  ClientRequestID:
+    column: "client_request_id"

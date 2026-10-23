@@ -1,0 +1,12 @@
+description: "Aggregates provision step activity for a cluster, showing each step's lifecycle (running, succeeded, error, or not yet completed) grouped by step name in chronological order."
+database: service
+tags: [clustersService, logs]
+params:
+- ClusterURI
+- ManagementClusterName
+- PhaseEndTime
+- PhaseStartTime
+- ResourceID
+- ServiceClusterName
+- ServiceDatabase
+notes: "Only applies to cluster resources."

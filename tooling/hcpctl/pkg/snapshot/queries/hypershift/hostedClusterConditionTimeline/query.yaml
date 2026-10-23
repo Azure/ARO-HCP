@@ -1,0 +1,16 @@
+description: "Extracts HostedCluster condition transitions from the management cluster content datadump, showing type, status, reason, and message over time."
+database: service
+tags: [hypershift, conditions]
+params:
+- ClusterResourceID
+- ClusterURI
+- FullEndTime
+- FullStartTime
+- ManagementClusterName
+- PhaseEndTime
+- PhaseStartTime
+- ResourceGroup
+- ServiceClusterName
+- ServiceDatabase
+- SubscriptionID
+notes: "Only applies to cluster resources."

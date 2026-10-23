@@ -1,0 +1,10 @@
+description: "Lists Kubernetes events for backend pods in the aro-hcp namespace during the time window."
+database: service
+tags: [backend, events]
+params:
+- ClusterURI
+- ManagementClusterName
+- PhaseEndTime
+- PhaseStartTime
+- ServiceClusterName
+- ServiceDatabase

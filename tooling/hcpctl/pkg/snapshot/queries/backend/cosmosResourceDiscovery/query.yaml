@@ -1,0 +1,14 @@
+description: "Discovers all resource types that exist in Cosmos DB under the cluster's ARM resource ID prefix."
+database: service
+tags: [backend, discovery]
+params:
+- ClusterResourceID
+- ClusterURI
+- FullEndTime
+- FullStartTime
+- ManagementClusterName
+- ResourceGroup
+- ServiceClusterName
+- ServiceDatabase
+- SubscriptionID
+notes: "Lists the Cosmos document types stored under the cluster. Use it to learn which resources exist (node pools, controllers, service provider documents) before running resource-specific queries."

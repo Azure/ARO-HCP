@@ -305,3 +305,51 @@ func TestRenderMarkdown_WithoutClassification(t *testing.T) {
 		t.Error("rendered markdown should not contain Classification section when nil")
 	}
 }
+
+// TestValidateDraft_DynamicRejectsLogProofs ensures dynamic investigations,
+// which gather no logs, reject log proofs with a dedicated problem category.
+func TestValidateDraft_DynamicRejectsLogProofs(t *testing.T) {
+	ctx := context.Background()
+	draft := validDraftWithClassification(&Classification{L1Category: L1AzureProblems, Confidence: 0.85})
+	draft.Title = "Nodepool stuck scaling"
+	draft.Chain[0].Question = "Why is nodepool np-1 stuck scaling?"
+
+	vc := newValidationContext(t)
+	vc.TestError = ""
+	vc.Intent = "nodepool np-1 is stuck scaling"
+	vc.Dynamic = true
+
+	result := ValidateDraft(ctx, &noopKustoClient{}, draft, vc)
+	var found bool
+	for _, p := range result.Problems {
+		if p.Category == "log_unavailable" {
+			found = true
+			if !strings.Contains(p.Detail, "kusto") {
+				t.Errorf("log_unavailable detail does not suggest a kusto proof: %s", p.Detail)
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("expected log_unavailable problem, got %+v", result.Problems)
+	}
+
+	// The same draft without the log proof passes the log check.
+	draft.Chain[0].Proof = draft.Chain[0].Proof[1:]
+	result = ValidateDraft(ctx, &noopKustoClient{}, draft, vc)
+	for _, p := range result.Problems {
+		if p.Category == "log_unavailable" {
+			t.Errorf("unexpected log_unavailable problem without log proofs: %+v", p)
+		}
+	}
+
+	// Snapshot intent mode still accepts log proofs.
+	vc.Dynamic = false
+	vc.TestError = "error line 1\n"
+	draft.Chain[0].Proof = append([]ProofItem{{Type: "log", Source: "error", Lines: [2]int{1, 1}}}, draft.Chain[0].Proof...)
+	result = ValidateDraft(ctx, &noopKustoClient{}, draft, vc)
+	for _, p := range result.Problems {
+		if p.Category == "log_unavailable" {
+			t.Errorf("snapshot mode rejected log proof: %+v", p)
+		}
+	}
+}

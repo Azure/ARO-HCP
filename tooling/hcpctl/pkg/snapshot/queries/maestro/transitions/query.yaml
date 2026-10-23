@@ -1,0 +1,20 @@
+description: "Traces the full lifecycle of Maestro resource bundles through all seven transition layers (client to server spec, broker, agent, and back), producing a per-bundle transition matrix."
+database: service
+tags: [maestro, state]
+params:
+- ClusterID
+- ClusterResourceID
+- ClusterURI
+- FullEndTime
+- FullStartTime
+- ManagementClusterName
+- PhaseEndTime
+- PhaseStartTime
+- ResourceGroup
+- ServiceClusterName
+- ServiceDatabase
+- ServiceProviderResourceType
+- SubscriptionID
+requireAnyOf:
+- [ClusterID]
+- [SubscriptionID, ResourceGroup, ClusterResourceID, ServiceProviderResourceType]
