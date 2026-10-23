@@ -4,7 +4,7 @@ The recorder defaults to enabled in **every environment**, including public,
 shared, and personal environments, and always runs continuous router checks.
 `swiftRecorder.enabled` is the only deployment gate, independent of source
 registry; there is no separate router-check switch or startup-only deployment.
-Startup `captureMode` remains `slow` outside ephemeral `ci00`/`ci01`, which use
+Startup `captureMode` remains `slow` outside ephemeral `ci00`/`ci01`/`ci02`, which use
 `all`. Source-image selection and pins are unchanged. Defaults do not deploy
 anything live: deployments must supply repo-built images through overrides.
 

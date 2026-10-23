@@ -83,7 +83,7 @@ CI service certificates live in the shared `aro-hcp-dev-svc-kv` vault, in the
 that group because it contains long-lived services and shared credentials. Do not
 enable global resource-group deletion to clean up individual certificates.
 
-For new `dev/ci00` and `dev/ci01` runs, `templatize` uses an explicit
+For new `dev/ci00`, `dev/ci01` and `dev/ci02` runs, `templatize` uses an explicit
 `EmailContacts` lifetime action instead of `AutoRenew` for job-named frontend,
 admin API, sessiongate, and Maestro server certificates in that shared vault.
 Validity remains six months. Changing only this lifetime action updates an
