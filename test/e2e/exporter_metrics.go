@@ -46,9 +46,13 @@ const (
 	// exporterMetricsTimeout bounds how long we wait for both collectors to
 	// publish. A healthy exporter gets there within a couple of collection
 	// intervals (collectionInterval is 2m and the Kusto collector self-throttles
-	// to 5m), so a longer wait does not buy correctness — it just holds a
-	// parallel worker hostage while an already-doomed run plays out.
-	exporterMetricsTimeout = 10 * time.Minute
+	// to 5m). The remaining budget absorbs a transient Resource Graph outage at
+	// startup: until its first success the discovery poller retries at a flat 2m
+	// interval, so recovery is picked up within one interval and the dependent
+	// collectors still have room to publish afterwards. Beyond that a longer
+	// wait buys no correctness — it just holds a parallel worker hostage while
+	// an already-doomed run plays out.
+	exporterMetricsTimeout = 15 * time.Minute
 	exporterMetricsPolling = 30 * time.Second
 )
 

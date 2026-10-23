@@ -178,6 +178,7 @@ func TestClusterDiscoveryPoller_retryDelay(t *testing.T) {
 		name                string
 		sleepTime           time.Duration
 		consecutiveFailures int
+		discovered          bool
 		wantAtLeast         time.Duration
 		wantAtMost          time.Duration
 	}{
@@ -185,13 +186,23 @@ func TestClusterDiscoveryPoller_retryDelay(t *testing.T) {
 			name:                "zero interval stays zero so tests do not sleep",
 			sleepTime:           0,
 			consecutiveFailures: 5,
+			discovered:          true,
 			wantAtLeast:         0,
 			wantAtMost:          0,
+		},
+		{
+			name:                "before first success the interval never escalates",
+			sleepTime:           2 * time.Minute,
+			consecutiveFailures: 5,
+			discovered:          false,
+			wantAtLeast:         2 * time.Minute,
+			wantAtMost:          2*time.Minute + 24*time.Second,
 		},
 		{
 			name:                "first failure waits one poll interval",
 			sleepTime:           2 * time.Minute,
 			consecutiveFailures: 1,
+			discovered:          true,
 			wantAtLeast:         2 * time.Minute,
 			wantAtMost:          2*time.Minute + 24*time.Second,
 		},
@@ -199,6 +210,7 @@ func TestClusterDiscoveryPoller_retryDelay(t *testing.T) {
 			name:                "second failure doubles",
 			sleepTime:           2 * time.Minute,
 			consecutiveFailures: 2,
+			discovered:          true,
 			wantAtLeast:         4 * time.Minute,
 			wantAtMost:          4*time.Minute + 48*time.Second,
 		},
@@ -206,6 +218,7 @@ func TestClusterDiscoveryPoller_retryDelay(t *testing.T) {
 			name:                "growth is capped",
 			sleepTime:           2 * time.Minute,
 			consecutiveFailures: 20,
+			discovered:          true,
 			wantAtLeast:         maxDiscoveryBackoff,
 			wantAtMost:          maxDiscoveryBackoff + 2*time.Minute,
 		},
@@ -213,6 +226,7 @@ func TestClusterDiscoveryPoller_retryDelay(t *testing.T) {
 			name:                "poll interval longer than the cap is never shortened",
 			sleepTime:           30 * time.Minute,
 			consecutiveFailures: 3,
+			discovered:          true,
 			wantAtLeast:         30 * time.Minute,
 			wantAtMost:          36 * time.Minute,
 		},
@@ -222,6 +236,7 @@ func TestClusterDiscoveryPoller_retryDelay(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			poller := NewClusterDiscoveryPoller(nil, "eastus", []string{"svc-cluster"}, "", tt.sleepTime)
 			poller.consecutiveFailures = tt.consecutiveFailures
+			poller.discovered = tt.discovered
 
 			delay := poller.retryDelay()
 
@@ -229,6 +244,27 @@ func TestClusterDiscoveryPoller_retryDelay(t *testing.T) {
 			assert.LessOrEqual(t, delay, tt.wantAtMost)
 		})
 	}
+}
+
+// TestClusterDiscoveryPoller_retryDelay_FlatUntilFirstSuccess pins the recovery
+// window while the exporter has published nothing. Escalating here would widen
+// the gap in which a recovered Resource Graph goes unnoticed, with no cached
+// data to protect in exchange.
+func TestClusterDiscoveryPoller_retryDelay_FlatUntilFirstSuccess(t *testing.T) {
+	const pollInterval = 2 * time.Minute
+	poller := NewClusterDiscoveryPoller(nil, "eastus", []string{"svc-cluster"}, "", pollInterval)
+
+	elapsed := time.Duration(0)
+	for attempt := 1; attempt <= 8; attempt++ {
+		poller.consecutiveFailures = attempt
+		delay := poller.retryDelay()
+		require.LessOrEqual(t, delay, pollInterval+pollInterval/5,
+			"attempt %d escalated beyond one jittered poll interval", attempt)
+		elapsed += delay
+	}
+
+	assert.LessOrEqual(t, elapsed, 20*time.Minute,
+		"eight failed attempts must still fit inside the e2e budget; got %s", elapsed)
 }
 
 func TestClusterDiscoveryPoller_Poll_ResetsBackoffAfterSuccess(t *testing.T) {

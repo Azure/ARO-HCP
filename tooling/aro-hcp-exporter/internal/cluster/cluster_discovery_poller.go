@@ -184,12 +184,23 @@ func (c *ClusterDiscoveryPoller) discoverOnce(ctx context.Context) error {
 }
 
 // retryDelay returns how long to wait after consecutiveFailures consecutive
-// errors: the normal poll interval for the first failure, doubling for each
-// one after that, capped and jittered. A zero poll interval (used by tests)
-// stays zero.
+// errors: the normal poll interval for the first failure, doubling for each one
+// after that, capped and jittered. A zero poll interval (used by tests) stays
+// zero.
+//
+// Growth is deliberately suppressed until the first successful discovery.
+// Until then the exporter publishes nothing at all — every collector is parked
+// in GetDiscoverResult — so there is no cached data that a longer backoff would
+// protect, and escalating only widens the window in which a recovered Resource
+// Graph goes unnoticed. Waiting one full poll interval already removes the
+// retry storm, which is the behaviour this backoff exists to prevent.
 func (c *ClusterDiscoveryPoller) retryDelay() time.Duration {
 	if c.sleepTime <= 0 {
 		return 0
+	}
+
+	if !c.hasDiscovered() {
+		return wait.Jitter(c.sleepTime, discoveryBackoffJitter)
 	}
 
 	shift := c.consecutiveFailures - 1
@@ -210,6 +221,12 @@ func (c *ClusterDiscoveryPoller) retryDelay() time.Duration {
 		delay = maxDelay
 	}
 	return wait.Jitter(delay, discoveryBackoffJitter)
+}
+
+func (c *ClusterDiscoveryPoller) hasDiscovered() bool {
+	c.resultMutex.Lock()
+	defer c.resultMutex.Unlock()
+	return c.discovered
 }
 
 func (c *ClusterDiscoveryPoller) GetDiscoverResult(ctx context.Context) DiscoverResult {
