@@ -16,6 +16,7 @@ package operations
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"testing"
 	"time"
@@ -28,6 +29,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilsclock "k8s.io/utils/clock"
 	clocktesting "k8s.io/utils/clock/testing"
+
+	secretsyncv1alpha1 "sigs.k8s.io/secrets-store-sync-controller/api/v1alpha1"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -1392,6 +1395,149 @@ func TestServingCABundleOperationStatus(t *testing.T) {
 			assert.Equal(t, tt.expectedState, result.ProvisioningState)
 			if tt.wantMsgSubstr != "" {
 				assert.Contains(t, result.Message, tt.wantMsgSubstr)
+			}
+		})
+	}
+}
+
+func TestServiceProviderDefaultIngressServingCertificateStatus(t *testing.T) {
+	fixture := operationtesting.NewClusterTestFixture()
+	operation := fixture.NewOperation(cosmosstorageutils.OperationRequestCreate)
+	syncedAt := metav1.NewTime(operationtesting.MustParseTime("2025-01-15T10:30:00Z"))
+
+	for _, tc := range []struct {
+		name       string
+		status     secretsyncv1alpha1.SecretSyncStatus
+		unobserved bool
+		succeeded  bool
+	}{
+		{name: "not yet synced"},
+		{
+			name: "legacy condition without sync timestamp",
+			status: secretsyncv1alpha1.SecretSyncStatus{
+				Conditions: []metav1.Condition{{Type: "SecretCreated", Status: metav1.ConditionTrue}},
+			},
+		},
+		{
+			name: "legacy condition with sync timestamp",
+			status: secretsyncv1alpha1.SecretSyncStatus{
+				LastSuccessfulSyncTime: &syncedAt,
+				Conditions:             []metav1.Condition{{Type: "SecretCreated", Status: metav1.ConditionTrue}},
+			},
+		},
+		{
+			name: "successful sync",
+			status: secretsyncv1alpha1.SecretSyncStatus{
+				LastSuccessfulSyncTime: &syncedAt,
+				Conditions:             []metav1.Condition{{Type: "SecretUpdated", Status: metav1.ConditionTrue, Reason: "SecretUpToDate"}},
+			},
+			succeeded: true,
+		},
+		{
+			name: "successful sync ignores legacy condition",
+			status: secretsyncv1alpha1.SecretSyncStatus{
+				LastSuccessfulSyncTime: &syncedAt,
+				Conditions: []metav1.Condition{
+					{Type: "SecretCreated", Status: metav1.ConditionFalse},
+					{Type: "SecretUpdated", Status: metav1.ConditionTrue, Reason: "SecretUpToDate"},
+				},
+			},
+			succeeded: true,
+		},
+		{
+			name: "sync timestamp without conditions",
+			status: secretsyncv1alpha1.SecretSyncStatus{
+				LastSuccessfulSyncTime: &syncedAt,
+			},
+		},
+		{
+			name: "failed rotation after a successful first sync",
+			status: secretsyncv1alpha1.SecretSyncStatus{
+				LastSuccessfulSyncTime: &syncedAt,
+				Conditions:             []metav1.Condition{{Type: "SecretUpdated", Status: metav1.ConditionFalse, Reason: "ProviderError"}},
+			},
+		},
+		{
+			name: "unknown sync condition after a successful first sync",
+			status: secretsyncv1alpha1.SecretSyncStatus{
+				LastSuccessfulSyncTime: &syncedAt,
+				Conditions:             []metav1.Condition{{Type: "SecretUpdated", Status: metav1.ConditionUnknown, Reason: "NoUpdatesAttemptedYet"}},
+			},
+		},
+		{
+			name: "failed condition with success reason",
+			status: secretsyncv1alpha1.SecretSyncStatus{
+				LastSuccessfulSyncTime: &syncedAt,
+				Conditions:             []metav1.Condition{{Type: "SecretUpdated", Status: metav1.ConditionFalse, Reason: "SecretUpToDate"}},
+			},
+		},
+		{
+			name: "successful condition with unexpected reason",
+			status: secretsyncv1alpha1.SecretSyncStatus{
+				LastSuccessfulSyncTime: &syncedAt,
+				Conditions:             []metav1.Condition{{Type: "SecretUpdated", Status: metav1.ConditionTrue, Reason: "SyncStarting"}},
+			},
+		},
+		{
+			name: "successful condition without reason",
+			status: secretsyncv1alpha1.SecretSyncStatus{
+				LastSuccessfulSyncTime: &syncedAt,
+				Conditions:             []metav1.Condition{{Type: "SecretUpdated", Status: metav1.ConditionTrue}},
+			},
+		},
+		{
+			name: "success reason used as condition type",
+			status: secretsyncv1alpha1.SecretSyncStatus{
+				LastSuccessfulSyncTime: &syncedAt,
+				Conditions:             []metav1.Condition{{Type: "SecretUpToDate", Status: metav1.ConditionTrue, Reason: "SecretUpToDate"}},
+			},
+		},
+		{
+			name: "zero sync timestamp",
+			status: secretsyncv1alpha1.SecretSyncStatus{
+				LastSuccessfulSyncTime: &metav1.Time{},
+				Conditions:             []metav1.Condition{{Type: "SecretUpdated", Status: metav1.ConditionTrue, Reason: "SecretUpToDate"}},
+			},
+		},
+		{
+			name: "missing sync timestamp",
+			status: secretsyncv1alpha1.SecretSyncStatus{
+				Conditions: []metav1.Condition{{Type: "SecretUpdated", Status: metav1.ConditionTrue, Reason: "SecretUpToDate"}},
+			},
+		},
+		{
+			name: "cached successful sync with unsuccessful observation",
+			status: secretsyncv1alpha1.SecretSyncStatus{
+				LastSuccessfulSyncTime: &syncedAt,
+				Conditions:             []metav1.Condition{{Type: "SecretUpdated", Status: metav1.ConditionTrue, Reason: "SecretUpToDate"}},
+			},
+			unobserved: true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			desire := operationtesting.NewIngressSecretSyncReadDesire(t)
+			content, err := json.Marshal(&secretsyncv1alpha1.SecretSync{Status: tc.status})
+			require.NoError(t, err)
+			desire.Status.KubeContent.Raw = content
+			if tc.unobserved {
+				desire.Status.Conditions[0].Status = metav1.ConditionFalse
+			}
+			controller := &operationClusterCreate{
+				readDesireLister: &kubeapplierlistertesting.SliceReadDesireLister{
+					Desires: []*kubeapplierapi.ReadDesire{desire},
+				},
+			}
+
+			ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
+			state, err := controller.serviceProviderDefaultIngressServingCertificateStatus(ctx, operation)
+			require.NoError(t, err)
+			require.NotNil(t, state)
+			if tc.succeeded {
+				assert.Equal(t, coreapi.ProvisioningStateSucceeded, state.ProvisioningState)
+				assert.Empty(t, state.Message)
+			} else {
+				assert.Equal(t, coreapi.ProvisioningStateProvisioning, state.ProvisioningState)
+				assert.Contains(t, state.Message, "default ingress certificate not yet")
 			}
 		})
 	}

@@ -482,33 +482,30 @@ func (c *operationClusterCreate) servingCABundleOperationStatus(ctx context.Cont
 }
 
 // serviceProviderDefaultIngressServingCertificateStatus blocks cluster creation until
-// the ingress wildcard certificate's SecretSync has synced the TLS Secret at least once
-// (a True "SecretCreated" condition). "SecretCreated" is the condition type
-// secrets-store-sync-controller sets on SecretSync.Status.Conditions once it has synced
-// the Secret:
-// https://github.com/kubernetes-sigs/secrets-store-sync-controller/blob/v0.0.5/internal/controller/conditions.go#L30.
-// As an example, an observed SecretSync.Status once synced looks like:
+// the ingress wildcard certificate's SecretSync reports a successful, up-to-date sync.
+//
+// With secrets-store-sync-controller v0.0.6, SecretCreated is no longer written;
+// successful creates and updates use SecretUpdated=True with reason SecretUpToDate.
+// Upstream: https://github.com/kubernetes-sigs/secrets-store-sync-controller
+//
+// Illustrative successful SecretSync.Status (not an observed v0.0.6 object):
 //
 //	{
 //		"conditions": [
 //			{
-//				"lastTransitionTime": "2026-10-09T18:04:41.0000000Z",
-//				"message": "Secret created successfully.",
-//				"reason": "CreateSuccessful",
-//				"status": "True",
-//				"type": "SecretCreated"
-//			},
-//			{
-//				"lastTransitionTime": "2026-10-09T18:04:41.0000000Z",
+//				"lastTransitionTime": "2025-01-15T10:30:00Z",
 //				"message": "Secret contains last observed values.",
 //				"reason": "SecretUpToDate",
 //				"status": "True",
 //				"type": "SecretUpdated"
 //			}
 //		],
-//		"lastSuccessfulSyncTime": "2026-10-09T18:04:41.0000000Z",
-//		"syncHash": "v1:9965d9a30245cf20e300a5417c01268bb5557980f10e2c51de479a09b3cd7584"
+//		"lastSuccessfulSyncTime": "2025-01-15T10:30:00Z",
+//		"syncHash": "v1:<computed-state-hash>"
 //	}
+//
+// Upstream success path that sets the timestamp, hash, and condition:
+// https://github.com/kubernetes-sigs/secrets-store-sync-controller/blob/e6d4e5fbb10a0b57e5f43adc1de1a9c14d77e03a/pkg/controller/secretsync_controller.go#L374-L389
 func (c *operationClusterCreate) serviceProviderDefaultIngressServingCertificateStatus(ctx context.Context, operation *coreapi.Operation) (*operationbase.OperationState, error) {
 	logger := utils.LoggerFromContext(ctx)
 
@@ -524,7 +521,13 @@ func (c *operationClusterCreate) serviceProviderDefaultIngressServingCertificate
 		return operationbase.NewOperationState(coreapi.ProvisioningStateProvisioning, "default ingress certificate not yet observed"), nil
 	}
 
-	if meta.IsStatusConditionTrue(secretSync.Status.Conditions, "SecretCreated") {
+	// Require the condition alongside the timestamp so a past success cannot
+	// hide a later reported failure.
+	updatedCondition := meta.FindStatusCondition(secretSync.Status.Conditions, "SecretUpdated")
+	if !secretSync.Status.LastSuccessfulSyncTime.IsZero() &&
+		updatedCondition != nil &&
+		updatedCondition.Status == metav1.ConditionTrue &&
+		updatedCondition.Reason == "SecretUpToDate" {
 		return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, ""), nil
 	}
 	// Don't expose the SecretSync's own condition details on the operation; just log
