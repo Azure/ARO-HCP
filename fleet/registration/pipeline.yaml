@@ -138,7 +138,8 @@ resourceGroups:
     - serviceGroup: Microsoft.Azure.ARO.HCP.Fleet
       resourceGroup: service
       step: deploy
-    # we wait for the admin API because the registration targets it
+    # Upgrade this other ManagementCluster writer before registration backfills
+    # new fields into Fleet Cosmos directly, so older writers do not drop them.
     - serviceGroup: Microsoft.Azure.ARO.HCP.AdminAPI
       resourceGroup: service
       step: deploy
