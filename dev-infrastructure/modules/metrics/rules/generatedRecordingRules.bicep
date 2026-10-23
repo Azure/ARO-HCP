@@ -1,3 +1,4 @@
+
 param azureMonitoring string
 
 param location string = resourceGroup().location
@@ -497,6 +498,24 @@ resource arohcpFrontendSloRecordingRules 'Microsoft.AlertsManagement/prometheusR
       {
         record: 'sli:frontend:saturation_memory:ratio5m'
         expression: '(sum by (cluster, region) (max without (prometheus_replica) (container_memory_working_set_bytes{container="aro-hcp-frontend",namespace="aro-hcp"})) / sum by (cluster, region) (max by (cluster, namespace, pod, container, region) (kube_pod_container_resource_limits{container="aro-hcp-frontend",job="kube-state-metrics",namespace="aro-hcp",resource="memory"}))) and on (cluster) (sum by (cluster, region) (max by (cluster, namespace, pod, container, region) (kube_pod_container_resource_limits{container="aro-hcp-frontend",job="kube-state-metrics",namespace="aro-hcp",resource="memory"})) > 0)'
+      }
+    ]
+  }
+}
+
+resource hypershiftOperatorRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'hypershift-operator-recording-rules'
+  location: location
+  properties: {
+    scopes: [
+      azureMonitoring
+    ]
+    enabled: true
+    interval: 'PT1M'
+    rules: [
+      {
+        record: 'hypershift:operator:reconcile:rate5m'
+        expression: 'sum by (cluster, region) (max without (prometheus_replica) (rate(controller_runtime_reconcile_total{namespace="hypershift",pod=~"operator-.*"}[5m])))'
       }
     ]
   }
