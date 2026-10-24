@@ -585,12 +585,15 @@ func (o Options) runQueries(ctx context.Context, workspaces map[string]*workspac
 	}
 	httpClient := &http.Client{Timeout: 30 * time.Second}
 
-	var tabs []observabilityTab
+	report := metricsReport{Version: 1, TimeWindow: timeWindow{
+		Start: o.TimeWindow.Start.UTC().Format(time.RFC3339),
+		End:   o.TimeWindow.End.UTC().Format(time.RFC3339),
+	}}
 	var fatalErrors []error
 	for _, panel := range o.Queries.Panels {
 		logger.Info("executing panel queries", "panel", panel.Title, "queries", len(panel.Queries))
 
-		var panelCharts []chartData
+		collected := metricsPanel{Title: panel.Title}
 		for _, q := range panel.Queries {
 			var results []promutil.Result
 			var queryErr string
@@ -654,19 +657,23 @@ func (o Options) runQueries(ctx context.Context, workspaces map[string]*workspac
 				}
 			}
 
-			panelCharts = append(panelCharts, buildChartData(q, metricResourceID, queryErr, warning, results, o.TimeWindow))
+			collected.Queries = append(collected.Queries, metricsQuery{
+				Spec: q, ResourceID: metricResourceID, Results: results, Error: queryErr, Warning: warning,
+			})
 		}
-
-		pageData := panelPageData{Title: panel.Title, Charts: panelCharts}
-		pageData.TimeWindow.Start = o.TimeWindow.Start.UTC().Format(time.RFC3339)
-		pageData.TimeWindow.End = o.TimeWindow.End.UTC().Format(time.RFC3339)
-
-		html, err := deps.renderPanel(pageData)
-		if err != nil {
-			logger.Error(err, "failed to render panel", "panel", panel.Title)
-		}
-		tabs = append(tabs, observabilityTab{Title: panel.Title, HTML: string(incompleteHTML(html, err))})
-		logger.Info("rendered panel tab", "panel", panel.Title, "charts", len(panelCharts))
+		report.Panels = append(report.Panels, collected)
+	}
+	// Save all evidence before any renderer runs, including failed/empty queries.
+	data, err := json.Marshal(report)
+	if err == nil {
+		err = deps.writeFile(filepath.Join(o.OutputDir, "metrics.json"), data, 0600)
+	}
+	if err != nil {
+		fatalErrors = append(fatalErrors, fmt.Errorf("write metrics.json: %w", err))
+	}
+	tabs, err := renderMetricsPanels(report, deps.renderPanel)
+	if err != nil {
+		logger.Error(err, "failed to render metrics panels")
 	}
 	return tabs, errors.Join(fatalErrors...)
 }
