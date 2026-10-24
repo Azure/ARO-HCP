@@ -58,6 +58,9 @@ const (
 	CloudNetworkConfigVerifyTimeout = 10 * time.Minute
 )
 
+// API version deployment deadlines (timebombs)
+var V20270201DeploymentDeadline = Must(time.Parse(time.RFC3339, "2027-03-01T00:00:00Z"))
+
 // Backup timeouts
 const (
 	BackupWaitTimeout  = 11 * time.Minute
