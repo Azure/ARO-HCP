@@ -25,7 +25,9 @@ import (
 	"helm.sh/helm/v4/pkg/chart/common/util"
 	chartv2 "helm.sh/helm/v4/pkg/chart/v2"
 	"helm.sh/helm/v4/pkg/engine"
+
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+
 	"sigs.k8s.io/yaml"
 )
 
@@ -80,8 +82,13 @@ func TestIngressCertificatePolicyOwnership(t *testing.T) {
 					guest["spec"].(map[string]any)["defaultCertificate"] = map[string]any{"name": *scenario.current}
 				}
 			}
+			objectsByIdentity := map[[4]string]map[string]any{
+				{"operator.openshift.io/v1", "IngressController", "openshift-ingress-operator", "default"}: guest,
+			}
 			managed, err := template.New("managed").Funcs(template.FuncMap{
-				"lookup": func(_, _, _, _ string) map[string]any { return guest },
+				"lookup": func(apiVersion, kind, namespace, name string) map[string]any {
+					return objectsByIdentity[[4]string{apiVersion, kind, namespace, name}]
+				},
 			}).Parse(hubOutput.String())
 			require.NoError(t, err)
 			var managedOutput bytes.Buffer
