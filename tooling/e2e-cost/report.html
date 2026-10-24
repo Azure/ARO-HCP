@@ -5,11 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{{if .SubscriptionMode}}Subscription residual costs{{else}}E2E cost report | {{.Job.Name}}{{end}}</title>
 <style>
-:root{color-scheme:light;--ink:#22333b;--muted:#536872;--line:#d9e2e5;--paper:#fff;--accent:#196b7c;--warning:#a85d00}
-*{box-sizing:border-box}body{margin:0;background:#f4f6f5;color:var(--ink);font:14px/1.5 system-ui,sans-serif}main{max-width:1180px;margin:auto;padding:28px 24px 48px}h1,h2,h3,p{margin:0 0 12px}h1{font-size:27px;letter-spacing:-.6px}h2{font-size:18px}h3{font-size:15px}a{color:var(--accent)}header{border-top:4px solid var(--accent);padding-top:18px;margin-bottom:24px}.eyebrow{text-transform:uppercase;letter-spacing:1.5px;font-size:11px;font-weight:700;color:var(--muted)}.muted,small{color:var(--muted)}.meta{display:flex;gap:10px 28px;flex-wrap:wrap}.meta span{overflow-wrap:anywhere}.panel{background:var(--paper);border:1px solid var(--line);border-radius:6px;padding:18px;margin:18px 0}.summary{display:flex;gap:20px 36px;flex-wrap:wrap}.metric{min-width:145px}.metric strong{display:block;font-size:24px;font-weight:650;font-variant-numeric:tabular-nums}.metric span{color:var(--muted);font-size:12px}.warning{border:2px solid var(--warning);background:#fffaf0}.badge{display:inline-block;border:1px solid var(--warning);color:#794300;border-radius:3px;padding:1px 6px;font-size:11px;font-weight:650}.diagnostics{padding-left:20px;overflow-wrap:anywhere}.diagnostics li{margin:6px 0}#treemap{height:420px;width:100%}.table-wrap{overflow-x:auto}table{border-collapse:collapse;width:100%;text-align:left;font-size:13px}th{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);white-space:nowrap}td,th{padding:10px 9px;border-bottom:1px solid var(--line);vertical-align:top}td{overflow-wrap:anywhere}td:first-child{min-width:180px}td.money{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}tr.post-job td:first-child{border-left:3px solid var(--warning)}input{font:inherit;padding:8px 10px;border:1px solid #8a9ca4;border-radius:4px;width:min(100%,450px);margin-bottom:12px}label{display:block;font-weight:600;margin-bottom:6px}details{margin:10px 0}summary{cursor:pointer;color:var(--accent);font-weight:600}details.resource{padding:12px;border:1px solid var(--line);border-radius:4px;scroll-margin-top:12px}details.resource[open]{border-color:var(--accent)}details.resource.post-job{border:2px solid var(--warning)}dl{display:grid;grid-template-columns:150px 1fr;gap:7px 14px}dt{color:var(--muted)}dd{margin:0;overflow-wrap:anywhere}pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:11px}code{overflow-wrap:anywhere}button{font:inherit;cursor:pointer}footer{font-size:12px;color:var(--muted)}[hidden]{display:none!important}
-h1,summary{overflow-wrap:anywhere}
-.pager{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:12px 0}.pager p{margin:0}button{font:inherit;padding:6px 12px;cursor:pointer}button:disabled{cursor:default}.inventory>summary{font-size:18px}.inventory>div{margin-top:16px}
-@media(max-width:640px){main{padding:16px 12px 30px}.panel{padding:12px}h1{font-size:23px}.summary{gap:14px 24px}.metric{min-width:120px}.metric strong{font-size:21px}#treemap{height:360px}dl{grid-template-columns:1fr;gap:2px}dd{margin-bottom:8px}}
+{{.CSS}}
 </style>
 </head>
 <body><main>
@@ -119,211 +115,20 @@ h1,summary{overflow-wrap:anywhere}
 {{if .SubscriptionMode}}<script id="filtered-data" type="application/json">{{.FilteredData}}</script>
 <script id="subscription-data" type="application/json">{{.SubscriptionData}}</script>{{end}}
 <script>
-"use strict";
+{{.Script}}
 (() => {
-  const groups = JSON.parse(document.getElementById("inventory-data").textContent) || [];
-  const resources = groups.flatMap(group => (group.resources || []).map(resource => ({resource, group})));
-  const byAnchor = new Map(resources.map(entry => [entry.resource.anchor, entry]));
-  const known = value => value || "Unknown";
-  const usd = value => "$" + value.toFixed(4);
-  const node = (tag, text, parent, className) => {
-    const element = document.createElement(tag);
-    if (text !== undefined) element.textContent = text;
-    if (className) element.className = className;
-    if (parent) parent.append(element);
-    return element;
+  const json = id => {
+    const element = document.getElementById(id);
+    return element ? JSON.parse(element.textContent) : null;
   };
-  const line = (parent, text, className) => {
-    node("br", undefined, parent);
-    return node("small", text, parent, className);
-  };
-  const net = (record, status) => !record.hasCharges ? "No billing records (not an explicit zero)" :
-    usd(record.net) + (status !== "complete" ? " (Known subtotal)" : record.net === 0 ? " (Explicit net zero)" : "");
-  const groupText = group => [group.name, group.subscriptionID, group.category, group.owner, group.kind,
-    group.attribution, group.billingStatus, group.attempts, ...(group.outcomes || [])].join(" ").toLocaleLowerCase();
-  // Index data once on first search, never scan rendered rows or rebuild text per keystroke.
-  let groupIndex, resourceIndex;
-  const searchIndex = () => {
-    if (resourceIndex) return;
-    groupIndex = groups.map(groupText);
-    const groupSearch = new Map(groups.map((group, index) => [group, groupIndex[index]]));
-    resourceIndex = resources.map(({resource: r, group}) => [groupSearch.get(group), r.id, r.name, r.type, r.source,
-      net(r, group.billingStatus), r.postJob ? "Post-job usage" : "",
-      ...(r.charges || []).map(c => [c.day, c.meterName, c.meterCategory, c.meterID, usd(c.costUSD)].join(" "))
-    ].join(" ").toLocaleLowerCase());
-  };
-  // One bounded table implementation for inventory, audit, and selected-resource charges.
-  const table = (host, records, size, noun, headers, renderRow, search) => {
-    let matches = records, page = 0;
-    if (search) {
-      const label = node("label", search.label, host);
-      label.htmlFor = search.id;
-      const input = node("input", undefined, host);
-      input.id = search.id;
-      input.type = "search";
-      input.autocomplete = "off";
-      input.placeholder = "Filter this offline inventory";
-      let timer;
-      input.addEventListener("input", () => {
-        clearTimeout(timer);
-        timer = setTimeout(() => {
-          const query = input.value.trim().toLocaleLowerCase();
-          const index = search.index();
-          matches = query ? records.filter((_, i) => index[i].includes(query)) : records;
-          page = 0;
-          draw();
-        }, 150);
-      });
-    }
-    const pager = node("div", undefined, host, "pager");
-    const previous = node("button", "Prev", pager);
-    const count = node("p", undefined, pager, "muted");
-    count.setAttribute("aria-live", "polite");
-    if (search) count.id = search.id === "search" ? "matches" : search.id.replace(/-search$/, "-matches");
-    const next = node("button", "Next", pager);
-    const wrap = node("div", undefined, host, "table-wrap");
-    const grid = node("table", undefined, wrap);
-    const heading = node("tr", undefined, node("thead", undefined, grid));
-    headers.forEach(text => node("th", text, heading));
-    const body = node("tbody", undefined, grid);
-    const draw = () => {
-      body.replaceChildren();
-      const start = page * size;
-      matches.slice(start, start + size).forEach(record => renderRow(node("tr", undefined, body), record));
-      if (!matches.length) {
-        node("td", "No matching " + noun + ".", node("tr", undefined, body)).colSpan = headers.length;
-      }
-      count.textContent = matches.length + " of " + records.length + " " + noun +
-        (matches.length ? " | " + (start + 1) + "-" + Math.min(start + size, matches.length) : "");
-      previous.disabled = page === 0;
-      next.disabled = start + size >= matches.length;
-    };
-    previous.addEventListener("click", () => { page--; draw(); });
-    next.addEventListener("click", () => { page++; draw(); });
-    draw();
-  };
-  const selected = document.getElementById("selected-resource");
-  const openResource = id => {
-    const entry = byAnchor.get(id);
-    if (!entry) return;
-    const {resource: r, group: g} = entry;
-    selected.replaceChildren();
-    selected.hidden = false;
-    node("h2", "Resource details", selected);
-    const detail = node("details", undefined, selected, "resource" + (r.postJob ? " post-job" : ""));
-    detail.id = id;
-    detail.open = true;
-    const title = node("summary", r.name, detail);
-    if (r.postJob) node("span", "Post-job usage", title, "badge");
-    const fields = node("dl", undefined, detail);
-    const field = (label, value) => { node("dt", label, fields); node("dd", value, fields); };
-    field("Full resource ID", r.id || "Unavailable (unattributed charge)");
-    field("Resource group", g.name);
-    field("Subscription", known(g.subscriptionID));
-    field("Owner", g.owner || "Unknown owner");
-    field("Group kind", known(g.kind));
-    if (g.attribution) field("Attribution", g.attribution);
-    field("Type / source", r.type + " / " + known(r.source));
-    field("Billing status", known(g.billingStatus));
-    {{if not .SubscriptionMode}}field("Attempts", g.attempts || "Unavailable");
-    field("Outcomes", (g.outcomes || []).join(", ") || "Unavailable");
-    {{end}}
-    field("Net cost", net(r, g.billingStatus));
-    if (r.charges && r.charges.length) {
-      const charges = node("div", undefined, detail);
-      charges.id = "charges";
-      table(charges, r.charges, 50, "meter rows", ["Usage day (UTC)", "Meter", "Category / meter ID", "USD"], (row, c) => {
-        node("td", c.day, row);
-        node("td", known(c.meterName), row);
-        line(node("td", known(c.meterCategory), row), known(c.meterID));
-        node("td", usd(c.costUSD), row, "money");
-      });
-    }
-    if (location.hash !== "#" + id) location.hash = id;
-    detail.scrollIntoView({block: "start"});
-  };
-  const fromHash = () => {
-    const id = location.hash.slice(1);
-    if (!selected.querySelector("details") || selected.querySelector("details").id !== id) openResource(id);
-  };
-  window.addEventListener("hashchange", fromHash);
-  fromHash();
-  const lazy = (id, mount) => {
-    const shell = document.getElementById(id);
-    let mounted = false;
-    shell.addEventListener("toggle", () => {
-      if (shell.open && !mounted) { mounted = true; mount(); }
-    });
-  };
-  lazy("group-inventory", () => table(document.getElementById("group-browser"), groups, 25, "groups",
-    ["Resource group / subscription", "Owner", "Billing status", "Resources", "Net USD"], (row, g) => {
-      const name = node("td", g.name, row);
-      line(name, known(g.subscriptionID));
-      if (g.attribution) line(name, "Attribution: " + g.attribution);
-      line(node("td", g.category + " / " + known(g.owner), row), g.kind);
-      const status = node("td", known(g.billingStatus), row);
-      if (g.billingStatus === "complete" && !g.hasCharges) line(status, "No billing records");
-      const count = (g.resources || []).length;
-      node("td", count ? count : "0 (empty)", row);
-      node("td", net(g, g.billingStatus), row, "money");
-    }, {id: "group-search", label: "Search groups, subscriptions, owners, or attribution", index: () => { searchIndex(); return groupIndex; }}));
-  lazy("resource-inventory", () => table(document.getElementById("resource-browser"), resources, 50, "resources",
-    ["Resource / type", "Resource group / owner", "Source / billing", "Net USD"], (row, {resource: r, group: g}) => {
-      row.dataset.resource = r.anchor;
-      if (r.postJob) row.className = "post-job";
-      const name = node("td", undefined, row);
-      const link = node("a", r.name, name);
-      link.href = "#" + r.anchor;
-      link.addEventListener("click", event => { event.preventDefault(); openResource(r.anchor); });
-      line(name, r.type);
-      if (r.postJob) line(name, "Post-job usage", "badge");
-      line(node("td", g.name, row), g.owner || "Unknown owner");
-      node("td", known(r.source) + " / " + known(g.billingStatus), row);
-      node("td", net(r, g.billingStatus), row, "money");
-    }, {id: "search", label: "Search resources, IDs, groups, owners, attribution, or meters", index: () => { searchIndex(); return resourceIndex; }}));
-  {{if .SubscriptionMode}}
-  const subscriptionNames = new Map((JSON.parse(document.getElementById("subscription-data").textContent) || [])
-    .map(sub => [sub.id.toLowerCase(), sub.displayName || ""]));
-  const subscriptionName = id => subscriptionNames.get(id.toLowerCase()) || "";
-  lazy("filtered-inventory", () => {
-    const filtered = JSON.parse(document.getElementById("filtered-data").textContent) || [];
-    let index;
-    table(document.getElementById("filtered-browser"), filtered, 25, "filtered groups",
-      ["Subscription", "Resource group", "Filter reason", "Excluded USD"], (row, g) => {
-        const cell = node("td", undefined, row);
-        const name = subscriptionName(g.subscriptionID);
-        if (name) {
-          node("strong", name, cell);
-          node("br", undefined, cell);
-        }
-        node("span", g.subscriptionID, cell);
-        node("td", g.name, row);
-        node("td", g.reason, row);
-        node("td", usd(g.costUSD), row, "money");
-      }, {id: "filtered-search", label: "Search filtered subscriptions, groups, reasons, or costs", index: () => {
-        if (!index) index = filtered.map(g => [g.subscriptionID, subscriptionName(g.subscriptionID), g.name, g.reason, usd(g.costUSD)].join(" ").toLocaleLowerCase());
-        return index;
-      }});
+  initCostReport({
+    subscriptionMode: {{.SubscriptionMode}},
+    inventory: json("inventory-data"),
+    option: json("chart-option"),
+    typeData: json("chart-types"),
+    filtered: json("filtered-data"),
+    subscriptions: json("subscription-data"),
   });
-  {{end}}
-  const element = document.getElementById("treemap");
-  if (element) {
-    const chart = echarts.init(element, null, {renderer: "canvas"});
-    const option = JSON.parse(document.getElementById("chart-option").textContent);
-    const ownershipData = option.series[0].data;
-    const typeData = JSON.parse(document.getElementById("chart-types").textContent);
-    chart.setOption(option);
-    document.getElementById("chart-grouping").addEventListener("change", event => {
-      const byType = event.target.value === "type";
-      option.series[0].data = byType ? typeData : ownershipData;
-      option.series[0].leafDepth = byType ? 1 : 2;
-      chart.setOption(option, {notMerge: true});
-    });
-    chart.on("click", params => {
-      if (params.data && params.data.resource) openResource(params.data.resource);
-    });
-    window.addEventListener("resize", () => chart.resize());
-  }
 })();
 </script>
 </body></html>
