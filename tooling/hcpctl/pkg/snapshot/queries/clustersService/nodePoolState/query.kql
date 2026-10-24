@@ -4,11 +4,15 @@ cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('backendLo
 | where cluster in ('{{ .ServiceClusterName }}', '{{ .ManagementClusterName }}')
 {{- end }}
 | where container_name == 'aro-hcp-backend'
-| where log.controller_name == 'csstatedump'
+| where log.controller_name == 'csstatedump' or log.snapshotType == 'clusterService'
 | where log.msg == 'cluster-service node pool state dump'
 | where log.resource_group == '{{ .ResourceGroup }}'
-| where log.resource_name == '{{ .ClusterResourceName }}'
+| extend clusterName = coalesce(extract(@'/hcpopenshiftclusters/([^/]+)', 1, tolower(tostring(log.hcp_cluster_name))), tostring(log.resource_name))
+| where clusterName =~ '{{ .ClusterResourceName }}'
+// Client snapshots retain the caller's cluster- or node-pool-scoped log context.
+| extend nodePoolName = coalesce(tostring(log.csNodePool.azure_node_pool.resource_name), tostring(log.csNodePool.id))
 | where log.hcp_nodepool_name =~ '{{ .ResourceID }}'
+    or (log.snapshotType == 'clusterService' and nodePoolName =~ extract(@'/nodepools/([^/]+)$', 1, tolower('{{ .ResourceID }}')))
 | summarize csNodePool=take_any(log.csNodePool) by timestamp
 | sort by timestamp asc
 | project csNodePool
