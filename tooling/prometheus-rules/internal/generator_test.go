@@ -18,7 +18,9 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -37,6 +39,62 @@ func TestNewOptions(t *testing.T) {
 	assert.NotNil(t, opts)
 	assert.Empty(t, opts.ruleFiles)
 	assert.Empty(t, opts.outputBicep)
+}
+
+func TestKubernetesDownAlertInventory(t *testing.T) {
+	alertPattern := regexp.MustCompile(`(?s)alert: '(KubeAPIDown|KubeletDown|KubeSchedulerDown|KubeControllerManagerDown)'.*?expression: '([^']+)'`)
+	for _, tc := range []struct {
+		config          string
+		inventoryMetric string
+		cluster         string
+	}{
+		{config: "alerts-kusto-services.yaml", inventoryMetric: "underlay_clusters", cluster: "underlay"},
+		{config: "alerts-kusto-hcps.yaml", inventoryMetric: "kube_node_info", cluster: "hosted"},
+	} {
+		t.Run(tc.config, func(t *testing.T) {
+			opts := NewOptions().WithPreserveAggregationLabels([]string{"region"})
+			require.NoError(t, opts.Complete(filepath.Join("../../../observability", tc.config), "promtool"))
+			opts.outputBicep = filepath.Join(t.TempDir(), "generatedAlertingRules.bicep")
+			require.NoError(t, opts.Generate())
+			generated, err := os.ReadFile(opts.outputBicep)
+			require.NoError(t, err)
+			matches := alertPattern.FindAllStringSubmatch(string(generated), -1)
+			require.Len(t, matches, 4, "all four Kubernetes Down alerts must be generated")
+
+			var tests strings.Builder
+			tests.WriteString(`evaluation_interval: 1m
+tests:
+- interval: 1m
+  input_series:
+  - series: 'underlay_clusters{cluster="underlay",region="test"}'
+    values: '1+0x1'
+  - series: 'kube_node_info{cluster="hosted",region="test"}'
+    values: '1+0x1'
+  - series: 'underlay_clusters{cluster="healthy",region="test"}'
+    values: '1+0x1'
+  - series: 'kube_node_info{cluster="healthy",region="test"}'
+    values: '1+0x1'
+  - series: 'apiserver_request_total{cluster="healthy",region="test",job="controlplane-apiserver"}'
+    values: '0+0x1'
+  - series: 'kubelet_node_name{cluster="healthy",region="test",job="kubelet",metrics_path="/metrics"}'
+    values: '1+0x1'
+  - series: 'rest_client_requests_total{cluster="healthy",region="test",job="controlplane-kube-scheduler"}'
+    values: '0+0x1'
+  - series: 'workqueue_adds_total{cluster="healthy",region="test",job="controlplane-kube-controller-manager"}'
+    values: '0+0x1'
+  promql_expr_test:
+`)
+			for _, match := range matches {
+				require.Contains(t, match[2], "("+tc.inventoryMetric+") unless on (cluster)", match[1])
+				require.NotContains(t, match[2], "up{", match[1])
+				fmt.Fprintf(&tests, "  - expr: %q\n    eval_time: 1m\n    exp_samples:\n    - labels: '{cluster=\"%s\",region=\"test\"}'\n      value: 1\n", match[2], tc.cluster)
+			}
+			testFile := filepath.Join(t.TempDir(), "inventory_test.yaml")
+			require.NoError(t, os.WriteFile(testFile, []byte(tests.String()), 0600))
+			output, err := exec.Command("promtool", "test", "rules", testFile).CombinedOutput()
+			require.NoError(t, err, "generated inventory expressions must select only the expected unhealthy cluster:\n%s", output)
+		})
+	}
 }
 
 func TestReadRulesFile(t *testing.T) {
