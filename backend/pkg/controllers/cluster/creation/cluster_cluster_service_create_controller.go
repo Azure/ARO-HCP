@@ -19,11 +19,15 @@ import (
 	"fmt"
 	"time"
 
+	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/validationutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
@@ -168,6 +172,14 @@ func (c *clusterClusterServiceCreateSyncer) SyncOnce(ctx context.Context, key co
 		return nil
 	}
 
+	ready, err = c.createPreconditionStorageAccountNetworkAccessValidationPassed(ctx, existingServiceProviderCluster)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+	if !ready {
+		return nil
+	}
+
 	subscription, err := c.subscriptionLister.Get(ctx, key.SubscriptionID)
 	if err != nil {
 		return utils.TrackError(err)
@@ -266,6 +278,42 @@ func (c *clusterClusterServiceCreateSyncer) createPreconditionDenyAssignmentsCre
 	logger.Info("Deny assignments not yet created, waiting for ClusterDenyAssignment controller",
 		"pendingDenyAssignmentTypes", pendingTypes)
 	return false, nil
+}
+
+// createPreconditionStorageAccountNetworkAccessValidationPassed reports whether the
+// StorageAccountNetworkAccessValidation controller has confirmed no enforced Azure
+// Policy assignment in the cluster's subscription would deny the managed resource
+// group's Storage Account(s) public network access. Returns (false, nil) when this
+// controller should wait and retry: the validation has not reported a result yet
+// (condition absent), is still Unknown (e.g. a transient Azure API error), or has
+// reported Failed (a conflicting policy was found).
+//
+// Gating on Failed here is what makes good on this validation's stated purpose of
+// rejecting the conflict before cluster creation ever reaches Azure resource
+// provisioning (see the "Why" section of https://github.com/Azure/ARO-HCP/pull/7514),
+// instead of letting Cluster Service attempt and eventually fail provisioning anyway.
+// This does not introduce a new way for an operation to get stuck: the
+// customer-visible operation already independently surfaces Failed/Unknown
+// validations after ten minutes via clusterValidationOperationState
+// (backend/pkg/controllers/cluster/operations/operation_cluster_validation.go)
+// regardless of whether CS cluster creation proceeds; this gate only prevents
+// superfluous, doomed CS/Azure provisioning work while that already-promised
+// operation failure plays out.
+// See https://github.com/Azure/ARO-HCP/pull/7514#discussion_r4366177315.
+func (c *clusterClusterServiceCreateSyncer) createPreconditionStorageAccountNetworkAccessValidationPassed(ctx context.Context, serviceProviderCluster *coreapi.ServiceProviderCluster) (bool, error) {
+	logger := utils.LoggerFromContext(ctx)
+
+	condition := meta.FindStatusCondition(serviceProviderCluster.Status.Validations, validationutils.StorageAccountNetworkAccessValidationName)
+	if condition == nil || condition.Status != metav1.ConditionTrue {
+		conditionStatus := "absent"
+		if condition != nil {
+			conditionStatus = string(condition.Status)
+		}
+		logger.Info("StorageAccountNetworkAccessValidation has not passed yet, waiting before creating the Cluster Service cluster",
+			"validationConditionStatus", conditionStatus)
+		return false, nil
+	}
+	return true, nil
 }
 
 func (c *clusterClusterServiceCreateSyncer) createClusterServiceCluster(ctx context.Context, cluster *coreapi.Cluster, serviceProviderCluster *coreapi.ServiceProviderCluster, tenantID string) (*arohcpv1alpha1.Cluster, error) {
