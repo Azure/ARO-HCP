@@ -960,7 +960,7 @@ func (f *Frontend) OperationStatus(writer http.ResponseWriter, request *http.Req
 		return utils.TrackError(err)
 	}
 
-	operation, err := f.resourcesDBClient.Operations(resourceID.SubscriptionID).Get(ctx, resourceID.Name)
+	operation, err := f.getOperation(ctx, resourceID.SubscriptionID, resourceID.Name)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -1040,7 +1040,7 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 		return utils.TrackError(err)
 	}
 
-	operation, err := f.resourcesDBClient.Operations(resourceID.SubscriptionID).Get(ctx, resourceID.Name)
+	operation, err := f.getOperation(ctx, resourceID.SubscriptionID, resourceID.Name)
 	if err != nil {
 		return utils.TrackError(err)
 	}

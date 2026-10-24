@@ -111,7 +111,7 @@ func TestOperationsList(t *testing.T) {
 	)
 
 	ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
-	ts := newHTTPServer(ctx, f, nil, nil)
+	ts := newHTTPServer(t, ctx, f, nil, nil)
 
 	// Use a bogus API version. Frontend should disregard it.
 	resp, err := ts.Client().Get(ts.URL + "/providers/" + coreapi.ProviderNamespace + "/operations?api-version=1999-12-31")
@@ -221,7 +221,7 @@ func TestSubscriptionsGET(t *testing.T) {
 				subs[coreapitesting.TestSubscriptionID] = test.subDoc
 			}
 			ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
-			ts := newHTTPServer(ctx, f, mockResourcesDBClient, subs)
+			ts := newHTTPServer(t, ctx, f, mockResourcesDBClient, subs)
 
 			rs, err := ts.Client().Get(ts.URL + coreapitesting.TestSubscriptionResourceID + "?api-version=" + coreapi.SubscriptionAPIVersion)
 			require.NoError(t, err)
@@ -374,7 +374,7 @@ func TestSubscriptionsPUT(t *testing.T) {
 				subs[coreapitesting.TestSubscriptionID] = test.subDoc
 			}
 			ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
-			ts := newHTTPServer(ctx, f, mockResourcesDBClient, subs)
+			ts := newHTTPServer(t, ctx, f, mockResourcesDBClient, subs)
 
 			urlPath := test.urlPath + "?api-version=" + coreapi.SubscriptionAPIVersion
 			req, err := http.NewRequest(http.MethodPut, ts.URL+urlPath, bytes.NewReader(body))
@@ -728,7 +728,7 @@ func TestDeploymentPreflight(t *testing.T) {
 				}),
 			}
 			ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
-			ts := newHTTPServer(ctx, f, mockResourcesDBClient, subs)
+			ts := newHTTPServer(t, ctx, f, mockResourcesDBClient, subs)
 
 			resource, err := json.Marshal(&test.resource)
 			require.NoError(t, err)
@@ -908,7 +908,7 @@ func TestRequestAdminCredential(t *testing.T) {
 			subs := map[string]*coreapi.Subscription{
 				coreapitesting.TestSubscriptionID: newTestSubscription(coreapitesting.TestSubscriptionID, coreapi.SubscriptionStateRegistered, nil),
 			}
-			ts := newHTTPServer(ctx, f, mockResourcesDBClient, subs)
+			ts := newHTTPServer(t, ctx, f, mockResourcesDBClient, subs)
 
 			url := ts.URL + requestPath + "?api-version=" + string(metadataapi.APIVersionV20260901Preview)
 			resp, err := ts.Client().Post(url, "application/json", bytes.NewReader(csrRequestBody))
@@ -1007,7 +1007,7 @@ func TestRequestAdminCredentialRequiresCSR(t *testing.T) {
 			subs := map[string]*coreapi.Subscription{
 				coreapitesting.TestSubscriptionID: newTestSubscription(coreapitesting.TestSubscriptionID, coreapi.SubscriptionStateRegistered, nil),
 			}
-			ts := newHTTPServer(ctx, f, mockResourcesDBClient, subs)
+			ts := newHTTPServer(t, ctx, f, mockResourcesDBClient, subs)
 
 			url := ts.URL + requestPath + "?api-version=" + string(metadataapi.APIVersionV20260901Preview)
 			var reqBody io.Reader
@@ -1174,7 +1174,7 @@ func TestRevokeCredentials(t *testing.T) {
 			subs := map[string]*coreapi.Subscription{
 				coreapitesting.TestSubscriptionID: newTestSubscription(coreapitesting.TestSubscriptionID, coreapi.SubscriptionStateRegistered, nil),
 			}
-			ts := newHTTPServer(ctx, f, mockResourcesDBClient, subs)
+			ts := newHTTPServer(t, ctx, f, mockResourcesDBClient, subs)
 
 			url := ts.URL + requestPath + "?api-version=" + coreapitesting.TestAPIVersion
 			resp, err := ts.Client().Post(url, "", nil)
@@ -1295,7 +1295,7 @@ func TestDeleteCluster(t *testing.T) {
 			subs := map[string]*coreapi.Subscription{
 				coreapitesting.TestSubscriptionID: newTestSubscription(coreapitesting.TestSubscriptionID, coreapi.SubscriptionStateRegistered, nil),
 			}
-			ts := newHTTPServer(ctx, f, mockResourcesDBClient, subs)
+			ts := newHTTPServer(t, ctx, f, mockResourcesDBClient, subs)
 
 			url := ts.URL + clusterResourceID.String() + "?api-version=" + coreapitesting.TestAPIVersion
 			req, err := http.NewRequest(http.MethodDelete, url, nil)
@@ -1410,11 +1410,14 @@ func assertHTTPMetrics(t *testing.T, r prometheus.Gatherer) {
 }
 
 // newHTTPServer returns a test HTTP server. The mock DB client will be
-// bootstrapped with the provided subscription documents.
-func newHTTPServer(ctx context.Context, f *Frontend, mockResourcesDBClient *corecosmosstoragetesting.MockResourcesDBClient, subs map[string]*coreapi.Subscription) *httptest.Server {
+// bootstrapped with the provided subscription documents. The server is
+// registered with t.Cleanup so its listener and serving goroutine are
+// released when the test finishes.
+func newHTTPServer(t *testing.T, ctx context.Context, f *Frontend, mockResourcesDBClient *corecosmosstoragetesting.MockResourcesDBClient, subs map[string]*coreapi.Subscription) *httptest.Server {
 	ts := httptest.NewUnstartedServer(f.server.Handler)
 	ts.Config.BaseContext = f.server.BaseContext
 	ts.Start()
+	t.Cleanup(ts.Close)
 
 	// Pre-populate subscriptions in the mock database
 	for _, sub := range subs {
