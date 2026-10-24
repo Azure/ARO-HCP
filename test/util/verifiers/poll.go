@@ -31,6 +31,10 @@ const (
 	DefaultPollInterval = 15 * time.Second
 	// DefaultDiagnoseTimeout is the timeout for collecting failure diagnostics after a poll times out.
 	DefaultDiagnoseTimeout = 30 * time.Second
+	// finalCheckTimeout bounds the one check made after the poll deadline, so it is also the most
+	// the verify can overshoot its advertised timeout. Kept small rather than reusing
+	// DefaultDiagnoseTimeout.
+	finalCheckTimeout = 5 * time.Second
 )
 
 type diagnoseFunc func(ctx context.Context, restConfig *rest.Config) string
@@ -59,12 +63,43 @@ func logVerifierTiming(name, outcome string, elapsed time.Duration) {
 	ginkgo.GinkgoWriter.Printf("[%s] %s after %s\n", name, outcome, rounded)
 }
 
-// pollUntilReady polls check until it succeeds or timeout expires. Failure details are logged
-// only when the error message changes between polls (delta-only logging). Actual elapsed
-// wall-clock time is logged on both success and failure. If diagnose is set, its output is
-// logged and appended when the poll times out. If the polling context ends, a check
-// error wrapping that context's error does not replace or re-log an earlier failure's
-// message. Both observed errors remain available for unwrapping.
+// gatherDiagnostics collects the failure dump on a fresh, bounded context: the verdict is already
+// in, so a caller deadline that just expired must not take the diagnostics away.
+func gatherDiagnostics(name string, restConfig *rest.Config, diagnoseTimeout time.Duration, diagnose diagnoseFunc) string {
+	if diagnose == nil {
+		return ""
+	}
+	diagCtx, cancel := context.WithTimeout(context.Background(), diagnoseTimeout)
+	defer cancel()
+	details := diagnose(diagCtx, restConfig)
+	if details != "" {
+		ginkgo.GinkgoLogr.Info("Failure diagnostics", "name", name, "details", details)
+	}
+	return details
+}
+
+// withDiagnostics appends a gathered dump to a verdict, leaving the verdict untouched when there
+// is nothing to append.
+func withDiagnostics(verdict error, details string) error {
+	if details == "" {
+		return verdict
+	}
+	return fmt.Errorf("%w\n%s", verdict, details)
+}
+
+// pollUntilReady polls check until it succeeds or timeout expires, logging delta-only and
+// reporting elapsed wall-clock time in the result or the returned failure.
+//
+// Budget contract:
+//   - A verdict takes at most timeout + finalCheckTimeout; the extra check covers a condition met
+//     between the last poll and the deadline, and is skipped when the last verdict was the poll
+//     context ending (see pollObservationError).
+//   - Failure reporting may take a further diagnoseTimeout; the reported elapsed excludes it, so a
+//     caller bounding total wall clock must allow for both parts.
+//
+// If diagnose is set, its output is appended to every returned failure, including cancellation.
+// A check error wrapping the ended polling context's error does not replace an earlier failure's
+// message; both stay available for unwrapping.
 func pollUntilReady(
 	ctx context.Context,
 	name string,
@@ -105,33 +140,64 @@ func pollUntilReady(
 	})
 
 	elapsed := time.Since(startTime)
+
+	// Cancellation reports diagnostics like a timeout: a suite-level timeout cutting off a long
+	// upgrade poll is exactly when the dump matters most. lastErr carries the check's last
+	// evidence; fall back to the context error when the check never observed anything.
+	reportCancelled := func(lastKnown error) error {
+		logVerifierTiming(name, "cancelled", elapsed)
+		details := gatherDiagnostics(name, restConfig, diagnoseTimeout, diagnose)
+		observed := lastKnown
+		if observed == nil {
+			observed = ctx.Err()
+		}
+		return withDiagnostics(fmt.Errorf("%s cancelled after %s: %w", name, elapsed.Round(time.Millisecond), observed), details)
+	}
+
 	if err == nil {
 		logVerifierTiming(name, "succeeded", elapsed)
 		return nil
 	}
 
 	if ctx.Err() != nil {
-		logVerifierTiming(name, "cancelled", elapsed)
-		if lastErr != nil {
-			return fmt.Errorf("%s cancelled after %s: %w", name, elapsed.Round(time.Millisecond), lastErr)
+		return reportCancelled(lastErr)
+	}
+
+	// Look once more after the deadline: a condition met between the last poll and the deadline
+	// would otherwise read as a timeout. The retry is skipped when the last verdict was the poll
+	// context ending, since the preserved observation is then the better report.
+	var interruption *pollObservationError
+	if lastErr == nil || !errors.As(lastErr, &interruption) {
+		finalCtx, cancelFinal := context.WithTimeout(ctx, finalCheckTimeout)
+		finalErr := check(finalCtx)
+		cancelFinal()
+		lastErr = finalErr
+
+		// Recompute: the final check runs past the deadline, so the loop's own elapsed would
+		// understate how long the verifier took.
+		elapsed = time.Since(startTime)
+
+		if finalErr == nil {
+			// A verdict that raced the caller's cancellation is not a pass the caller can rely
+			// on: report the interruption instead.
+			if ctx.Err() != nil {
+				return reportCancelled(nil)
+			}
+			logVerifierTiming(name, "succeeded on the final check after the deadline", elapsed)
+			return nil
 		}
-		return fmt.Errorf("%s cancelled after %s: %w", name, elapsed.Round(time.Millisecond), ctx.Err())
+	}
+
+	// The caller's context can expire while the final check runs; report that cancellation
+	// rather than recasting it as a timeout.
+	if ctx.Err() != nil {
+		return reportCancelled(lastErr)
 	}
 
 	logVerifierTiming(name, "timed out", elapsed)
-	if diagnose != nil {
-		diagCtx, cancel := context.WithTimeout(context.Background(), diagnoseTimeout)
-		defer cancel()
-		if details := diagnose(diagCtx, restConfig); details != "" {
-			logger.Info("Failure diagnostics", "name", name, "details", details)
-			if lastErr != nil {
-				return fmt.Errorf("%s timed out after %s: %w\n%s", name, elapsed.Round(time.Millisecond), lastErr, details)
-			}
-			return fmt.Errorf("%s timed out after %s\n%s", name, elapsed.Round(time.Millisecond), details)
-		}
-	}
+	details := gatherDiagnostics(name, restConfig, diagnoseTimeout, diagnose)
 	if lastErr != nil {
-		return fmt.Errorf("%s timed out after %s: %w", name, elapsed.Round(time.Millisecond), lastErr)
+		return withDiagnostics(fmt.Errorf("%s timed out after %s: %w", name, elapsed.Round(time.Millisecond), lastErr), details)
 	}
-	return fmt.Errorf("%s timed out after %s: %w", name, elapsed.Round(time.Millisecond), err)
+	return withDiagnostics(fmt.Errorf("%s timed out after %s: %w", name, elapsed.Round(time.Millisecond), err), details)
 }

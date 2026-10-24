@@ -121,9 +121,9 @@ var standardVerifiers = []HostedClusterVerifier{
 	verifyAllAPIServicesAvailable(),
 }
 
-func VerifyHCPCluster(ctx context.Context, adminRESTConfig *rest.Config, additionalVerifiers ...HostedClusterVerifier) error {
-	allVerifiers := append(standardVerifiers, additionalVerifiers...)
-
+// verifyAll runs every supplied verifier in parallel and joins their errors. It is unexported so
+// VerifyHCPCluster remains the single entry point for parallel verification (see test/AGENTS.md).
+func verifyAll(ctx context.Context, adminRESTConfig *rest.Config, allVerifiers ...HostedClusterVerifier) error {
 	errCh := make(chan error, len(allVerifiers))
 	wg := sync.WaitGroup{}
 	for _, verifier := range allVerifiers {
@@ -145,4 +145,21 @@ func VerifyHCPCluster(ctx context.Context, adminRESTConfig *rest.Config, additio
 	}
 
 	return errors.Join(errs...)
+}
+
+// VerifyHCPCluster runs the standard cluster viability verifiers, plus any additional verifiers,
+// in parallel (see test/AGENTS.md).
+//
+// Only pass independent verifiers that settle on a comparable timescale: the standard ones sample
+// the cluster once, near the start, so a verifier that polls for tens of minutes would assert
+// viability against the cluster as it was before the wait. A long-waiting verifier belongs in a
+// phase of its own, followed by a separate VerifyHCPCluster call -- see the upgrade specs, where
+// ARO-26775 is what the other shape costs.
+func VerifyHCPCluster(ctx context.Context, adminRESTConfig *rest.Config, additionalVerifiers ...HostedClusterVerifier) error {
+	// Appending to the package-level standardVerifiers would let one caller write into its shared backing array.
+	allVerifiers := make([]HostedClusterVerifier, 0, len(standardVerifiers)+len(additionalVerifiers))
+	allVerifiers = append(allVerifiers, standardVerifiers...)
+	allVerifiers = append(allVerifiers, additionalVerifiers...)
+
+	return verifyAll(ctx, adminRESTConfig, allVerifiers...)
 }

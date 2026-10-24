@@ -165,7 +165,10 @@ var _ = Describe("SRE", func() {
 				return clusterVersion.Status.History[0].Version, nil
 			}, framework.HCPClusterVersionUpgradeTimeout, 2*time.Minute).Should(Equal(bestVersion.String()),
 				"cluster %q did not start applying the SRE-pinned version %s", clusterName, bestVersion)
-			Expect(verifiers.VerifyHostedControlPlaneZStreamUpgradeOnly(installVersion.String()).Verify(ctx, adminRESTConfig)).
+			// The two Eventually blocks above already waited for the pinned target to be
+			// desired and applying, so this is a confirmation, not the wait itself; it
+			// gets the confirmation floor rather than a full upgrade budget.
+			Expect(verifiers.VerifyHostedControlPlaneZStreamUpgradeOnly(installVersion.String(), minimumUpgradeConfirmationTimeout).Verify(ctx, adminRESTConfig)).
 				NotTo(HaveOccurred(),
 					"cluster %q did not start a z-stream upgrade beyond %s with the SRE pin", clusterName, installVersion)
 

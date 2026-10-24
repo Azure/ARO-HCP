@@ -18,6 +18,8 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"strings"
+	"time"
 
 	"github.com/blang/semver/v4"
 	"github.com/onsi/ginkgo/v2"
@@ -27,14 +29,134 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 
+	configv1 "github.com/openshift/api/config/v1"
 	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 
-	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 )
 
+// upgradePhaseReporter emits one line per observed change in clusterversion state, stamped with
+// elapsed polling time. A run that logs its own phase transitions is diagnosable from the Prow
+// log alone, which is how ARO-26775 took four months to attribute.
+type upgradePhaseReporter struct {
+	name      string
+	startTime time.Time
+	previous  string
+}
+
+func newUpgradePhaseReporter(name string) *upgradePhaseReporter {
+	return &upgradePhaseReporter{name: name, startTime: time.Now()}
+}
+
+// observe logs the summary only when it differs from the previous observation, per the delta-only
+// logging rule for polling verifiers in test/AGENTS.md. Each verifier owns its own reporter and
+// drives it from a single poll loop, so no locking is needed.
+func (r *upgradePhaseReporter) observe(status configv1.ClusterVersionStatus) {
+	current := clusterVersionSummary(status)
+	if current == r.previous {
+		return
+	}
+	r.previous = current
+	elapsed := time.Since(r.startTime).Round(time.Second)
+	ginkgo.GinkgoLogr.Info("clusterversion changed",
+		"name", r.name, "elapsed", elapsed.String(), "clusterversion", current)
+	ginkgo.GinkgoWriter.Printf("[%s] +%s %s\n", r.name, elapsed, current)
+}
+
+// shortImageDigest reduces a release image reference to a 12-character digest prefix, or the last
+// path segment when there is no digest.
+func shortImageDigest(image string) string {
+	if image == "" {
+		return ""
+	}
+	if _, digest, found := strings.Cut(image, "@sha256:"); found {
+		return "sha256:" + digest[:min(len(digest), 12)]
+	}
+	return image[strings.LastIndex(image, "/")+1:]
+}
+
+// renderClusterVersionHistory renders status.history as one compact line, e.g.
+// `4.21.13=Partial started=2026-05-06T01:24:16Z image=sha256:9d0436ae6f21`. Stamps carry their
+// date (history spans install through upgrade, so runs cross midnight) and use RFC3339 so they
+// can be pasted straight into the attribution queries used for ARO-26775.
+func renderClusterVersionHistory(history []configv1.UpdateHistory) string {
+	if len(history) == 0 {
+		return "<empty>"
+	}
+	entries := make([]string, 0, len(history))
+	for _, historyEntry := range history {
+		entry := fmt.Sprintf("%s=%s", historyEntry.Version, historyEntry.State)
+		if !historyEntry.StartedTime.IsZero() {
+			entry += " started=" + historyEntry.StartedTime.UTC().Format(time.RFC3339)
+		}
+		if historyEntry.CompletionTime != nil && !historyEntry.CompletionTime.IsZero() {
+			entry += " completed=" + historyEntry.CompletionTime.UTC().Format(time.RFC3339)
+		}
+		if image := shortImageDigest(historyEntry.Image); image != "" {
+			entry += " image=" + image
+		}
+		entries = append(entries, entry)
+	}
+	return strings.Join(entries, "; ")
+}
+
+// renderClusterVersionProgress returns the Progressing condition's message, which reports how far
+// through the rollout the CVO is ("Working towards 4.21.13: 150 of 900 done").
+func renderClusterVersionProgress(conditions []configv1.ClusterOperatorStatusCondition) string {
+	for _, condition := range conditions {
+		if condition.Type == configv1.OperatorProgressing {
+			return fmt.Sprintf("Progressing=%s: %s", condition.Status, condition.Message)
+		}
+	}
+	return ""
+}
+
+// clusterVersionSummary is the one-line state dump logged while waiting and appended to failures:
+// history says which phase the upgrade reached and when, Progressing says how far through it is.
+func clusterVersionSummary(status configv1.ClusterVersionStatus) string {
+	summary := "history is " + renderClusterVersionHistory(status.History)
+	if progress := renderClusterVersionProgress(status.Conditions); progress != "" {
+		summary += "; " + progress
+	}
+	return summary
+}
+
+// withClusterVersionSummary appends the state an upgrade verifier judged to the returned verdict.
+// pollUntilReady reports the last check's error when it times out, so whatever a check returns is
+// what a failing run leaves in the Prow log; wrapping once here means no verdict can escape
+// without its evidence.
+func withClusterVersionSummary(status configv1.ClusterVersionStatus, err error) error {
+	if err == nil {
+		return nil
+	}
+	return fmt.Errorf("%w; %s", err, clusterVersionSummary(status))
+}
+
+// diagnoseClusterVersion dumps clusterversion status when an upgrade verifier times out, scoped
+// to the resource being polled per the polling-diagnostics guidance in test/AGENTS.md.
+func diagnoseClusterVersion(ctx context.Context, adminRESTConfig *rest.Config) string {
+	configClient, err := configv1client.NewForConfig(adminRESTConfig)
+	if err != nil {
+		return fmt.Sprintf("could not build a config client for diagnostics: %v", err)
+	}
+	clusterVersion, err := configClient.ClusterVersions().Get(ctx, "version", metav1.GetOptions{})
+	if err != nil {
+		return fmt.Sprintf("could not get clusterversion/version for diagnostics: %v", err)
+	}
+	details := []string{
+		"clusterversion/version history: " + renderClusterVersionHistory(clusterVersion.Status.History),
+		"clusterversion/version desired: " + clusterVersion.Status.Desired.Version,
+	}
+	for _, condition := range clusterVersion.Status.Conditions {
+		details = append(details, fmt.Sprintf("condition %s=%s reason=%s: %s",
+			condition.Type, condition.Status, condition.Reason, condition.Message))
+	}
+	return strings.Join(details, "\n")
+}
+
 type verifyHostedControlPlaneZStreamUpgradeOnly struct {
 	initialVersion string
+	timeout        time.Duration
 }
 
 func (v verifyHostedControlPlaneZStreamUpgradeOnly) Name() string {
@@ -42,31 +164,45 @@ func (v verifyHostedControlPlaneZStreamUpgradeOnly) Name() string {
 }
 
 func (v verifyHostedControlPlaneZStreamUpgradeOnly) Verify(ctx context.Context, adminRESTConfig *rest.Config) error {
+	// Parse the caller's input before polling: it cannot become valid by waiting, so defects left
+	// in the poll callback would only surface as a post-timeout failure.
 	initialSemver, err := semver.ParseTolerant(v.initialVersion)
 	if err != nil {
 		return fmt.Errorf("parse initial version %q: %w", v.initialVersion, err)
 	}
-
 	configClient, err := configv1client.NewForConfig(adminRESTConfig)
 	if err != nil {
 		return fmt.Errorf("failed to create config client: %w", err)
 	}
+	reporter := newUpgradePhaseReporter(v.Name())
+	return pollUntilReady(ctx, v.Name(), v.timeout, DefaultPollInterval, adminRESTConfig,
+		DefaultDiagnoseTimeout, diagnoseClusterVersion,
+		func(ctx context.Context) error {
+			return v.check(ctx, configClient, reporter, initialSemver)
+		})
+}
 
+func (v verifyHostedControlPlaneZStreamUpgradeOnly) check(ctx context.Context, configClient configv1client.ConfigV1Interface, reporter *upgradePhaseReporter, initialSemver semver.Version) error {
 	clusterVersion, err := configClient.ClusterVersions().Get(ctx, "version", metav1.GetOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to get clusterversion %q: %w", "version", err)
 	}
 
-	ginkgo.GinkgoLogr.Info("Retrieved openshift cluster version history",
-		"history", framework.SummarizeClusterVersionHistory(clusterVersion.Status.History))
+	reporter.observe(clusterVersion.Status)
 
+	return withClusterVersionSummary(clusterVersion.Status, v.evaluate(clusterVersion.Status.History, initialSemver))
+}
+
+// evaluate decides the z-stream verdict for one observation. It describes only what is wrong;
+// check appends the state that was judged, so every branch reports the same evidence.
+func (v verifyHostedControlPlaneZStreamUpgradeOnly) evaluate(history []configv1.UpdateHistory, initialSemver semver.Version) error {
 	uniqueVersionSet := map[string]bool{}
 	var uniqueVersions []string
 	var sawInitial, sawUpgrade bool
-	for _, history := range clusterVersion.Status.History {
-		historyVersion, err := semver.ParseTolerant(history.Version)
+	for _, historyEntry := range history {
+		historyVersion, err := semver.ParseTolerant(historyEntry.Version)
 		if err != nil {
-			return fmt.Errorf("parse version %q in history: %w", history.Version, err)
+			return fmt.Errorf("parse version %q in history: %w", historyEntry.Version, err)
 		}
 		if historyVersion.Major != initialSemver.Major || historyVersion.Minor != initialSemver.Minor {
 			return fmt.Errorf("version %q in clusterversion history has different major.minor than initial %q (expected %d.%d.x)",
@@ -102,18 +238,18 @@ func (v verifyHostedControlPlaneZStreamUpgradeOnly) Verify(ctx context.Context, 
 	return nil
 }
 
-// VerifyHostedControlPlaneZStreamUpgradeOnly returns a verifier that the HCP control plane has
-// performed only a z-stream upgrade from the initial version: every entry in ClusterVersion
-// status.history has the same major.minor as initialVersion, the initial version itself appears in
-// the history, at least one entry is greater than it, and the history holds at least two unique
-// versions (the pinned install version plus the auto-upgraded latest z-stream).
-func VerifyHostedControlPlaneZStreamUpgradeOnly(initialVersion string) HostedClusterVerifier {
-	return verifyHostedControlPlaneZStreamUpgradeOnly{initialVersion: initialVersion}
+// VerifyHostedControlPlaneZStreamUpgradeOnly polls until clusterversion status.history shows only
+// a z-stream upgrade from initialVersion: every entry shares its major.minor, the initial version
+// appears, at least one entry exceeds it, and there are at least two unique versions. timeout must
+// be > 0.
+func VerifyHostedControlPlaneZStreamUpgradeOnly(initialVersion string, timeout time.Duration) HostedClusterVerifier {
+	return verifyHostedControlPlaneZStreamUpgradeOnly{initialVersion: initialVersion, timeout: timeout}
 }
 
 type verifyHostedControlPlaneYStreamUpgrade struct {
 	targetMinor   string
 	previousMinor string
+	timeout       time.Duration
 }
 
 func (v verifyHostedControlPlaneYStreamUpgrade) Name() string {
@@ -121,24 +257,45 @@ func (v verifyHostedControlPlaneYStreamUpgrade) Name() string {
 }
 
 func (v verifyHostedControlPlaneYStreamUpgrade) Verify(ctx context.Context, adminRESTConfig *rest.Config) error {
+	// Parse the caller's input before polling, for the same reason as the z-stream verifier; as
+	// errors rather than panics so the offending string is named rather than crashing the loop.
+	parsedPreviousMinor, err := semver.ParseTolerant(v.previousMinor)
+	if err != nil {
+		return fmt.Errorf("parse previous minor %q: %w", v.previousMinor, err)
+	}
+	parsedTargetMinor, err := semver.ParseTolerant(v.targetMinor)
+	if err != nil {
+		return fmt.Errorf("parse target minor %q: %w", v.targetMinor, err)
+	}
 	configClient, err := configv1client.NewForConfig(adminRESTConfig)
 	if err != nil {
 		return fmt.Errorf("failed to create config client: %w", err)
 	}
+	reporter := newUpgradePhaseReporter(v.Name())
+	return pollUntilReady(ctx, v.Name(), v.timeout, DefaultPollInterval, adminRESTConfig,
+		DefaultDiagnoseTimeout, diagnoseClusterVersion,
+		func(ctx context.Context) error {
+			return v.check(ctx, configClient, reporter, parsedPreviousMinor, parsedTargetMinor)
+		})
+}
 
+func (v verifyHostedControlPlaneYStreamUpgrade) check(ctx context.Context, configClient configv1client.ConfigV1Interface, reporter *upgradePhaseReporter, parsedPreviousMinor, parsedTargetMinor semver.Version) error {
 	clusterVersion, err := configClient.ClusterVersions().Get(ctx, "version", metav1.GetOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to get clusterversion %q: %w", "version", err)
 	}
 
-	ginkgo.GinkgoLogr.Info("clusterversion status after y-stream upgrade",
-		"history", framework.SummarizeClusterVersionHistory(clusterVersion.Status.History))
+	reporter.observe(clusterVersion.Status)
 
-	parsedPreviousMinor := metadataapi.Must(semver.ParseTolerant(v.previousMinor))
-	parsedTargetMinor := metadataapi.Must(semver.ParseTolerant(v.targetMinor))
+	return withClusterVersionSummary(clusterVersion.Status,
+		v.evaluate(clusterVersion.Status.History, parsedPreviousMinor, parsedTargetMinor))
+}
 
+// evaluate decides the y-stream verdict for one observation. It describes only what is wrong;
+// check appends the state that was judged, so every branch reports the same evidence.
+func (v verifyHostedControlPlaneYStreamUpgrade) evaluate(history []configv1.UpdateHistory, parsedPreviousMinor, parsedTargetMinor semver.Version) error {
 	var previousMinorFound, targetMinorFound bool
-	for _, historyEntry := range clusterVersion.Status.History {
+	for _, historyEntry := range history {
 		if len(historyEntry.Version) == 0 {
 			continue
 		}
@@ -162,14 +319,16 @@ func (v verifyHostedControlPlaneYStreamUpgrade) Verify(ctx context.Context, admi
 	return nil
 }
 
-// VerifyHostedControlPlaneYStreamUpgrade returns a verifier that clusterversion status.history
-// contains at least one parseable version in previousMinor and at least one in targetMinor.
-func VerifyHostedControlPlaneYStreamUpgrade(previousMinor, targetMinor string) HostedClusterVerifier {
-	return verifyHostedControlPlaneYStreamUpgrade{previousMinor: previousMinor, targetMinor: targetMinor}
+// VerifyHostedControlPlaneYStreamUpgrade returns a verifier that polls until clusterversion
+// status.history contains at least one parseable version in previousMinor and at least one in
+// targetMinor. timeout must be > 0.
+func VerifyHostedControlPlaneYStreamUpgrade(previousMinor, targetMinor string, timeout time.Duration) HostedClusterVerifier {
+	return verifyHostedControlPlaneYStreamUpgrade{previousMinor: previousMinor, targetMinor: targetMinor, timeout: timeout}
 }
 
 type verifyKubeAPIServerServerVersionUpgraded struct {
 	preUpgrade *version.Info
+	timeout    time.Duration
 }
 
 func (v verifyKubeAPIServerServerVersionUpgraded) Name() string {
@@ -181,20 +340,28 @@ func (v verifyKubeAPIServerServerVersionUpgraded) Verify(ctx context.Context, ad
 	if err != nil {
 		return fmt.Errorf("create kubernetes clientset: %w", err)
 	}
-	postUpgrade, err := clientset.Discovery().ServerVersion()
-	if err != nil {
-		return fmt.Errorf("get kube-apiserver ServerVersion: %w", err)
-	}
-	if reflect.DeepEqual(v.preUpgrade, postUpgrade) {
-		ginkgo.GinkgoLogr.Info("kube-apiserver ServerVersion unchanged from pre-upgrade",
-			"preUpgrade", v.preUpgrade, "postUpgrade", postUpgrade)
-		return fmt.Errorf("kube-apiserver ServerVersion not updated (unchanged from pre-upgrade)")
-	}
-	return nil
+	// clusterversion is the state that explains why the kube-apiserver has not rolled yet, so it
+	// is the targeted dump for this verifier's timeouts as well.
+	return pollUntilReady(ctx, v.Name(), v.timeout, DefaultPollInterval, adminRESTConfig,
+		DefaultDiagnoseTimeout, diagnoseClusterVersion,
+		func(ctx context.Context) error {
+			postUpgrade, err := framework.GetKubeAPIServerVersion(ctx, clientset.Discovery())
+			if err != nil {
+				return fmt.Errorf("get kube-apiserver ServerVersion: %w", err)
+			}
+			if reflect.DeepEqual(v.preUpgrade, postUpgrade) {
+				// Naming both versions lets a reader distinguish a stalled rollout from
+				// a bad pre-upgrade reading.
+				return fmt.Errorf("expected the kube-apiserver ServerVersion to change from the pre-upgrade %q, still observing %q",
+					v.preUpgrade.GitVersion, postUpgrade.GitVersion)
+			}
+			return nil
+		})
 }
 
-// VerifyKubeAPIServerServerVersionUpgraded fails if the kube-apiserver version is the same as before the upgrade.
-// preUpgrade is the kubernetes discovery ServerVersion (/version) read from the cluster before upgrading.
-func VerifyKubeAPIServerServerVersionUpgraded(preUpgrade *version.Info) HostedClusterVerifier {
-	return verifyKubeAPIServerServerVersionUpgraded{preUpgrade: preUpgrade}
+// VerifyKubeAPIServerServerVersionUpgraded polls until the kube-apiserver version differs from
+// the pre-upgrade value, and fails if it never does. preUpgrade is the kubernetes discovery
+// ServerVersion (/version) read from the cluster before upgrading. timeout must be > 0.
+func VerifyKubeAPIServerServerVersionUpgraded(preUpgrade *version.Info, timeout time.Duration) HostedClusterVerifier {
+	return verifyKubeAPIServerServerVersionUpgraded{preUpgrade: preUpgrade, timeout: timeout}
 }

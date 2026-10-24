@@ -153,6 +153,52 @@ func TestPollUntilReady_ParentContextDeadlineExceeded(t *testing.T) {
 	}
 }
 
+// TestPollUntilReady_CancellationRunsDiagnostics pins the cancellation branch to the same contract
+// as the timeout branch: gather the diagnostics on a fresh context and append them to the error.
+func TestPollUntilReady_CancellationRunsDiagnostics(t *testing.T) {
+	parentCtx, cancel := context.WithCancel(context.Background())
+
+	diagnoseSawCancelledContext := false
+	err := pollUntilReady(
+		parentCtx,
+		"test-verifier",
+		10*time.Second, // far beyond the cancellation: only the caller's context can end the wait
+		10*time.Millisecond,
+		nil,
+		DefaultDiagnoseTimeout,
+		func(ctx context.Context, _ *rest.Config) string {
+			// A diagnose bound to the cancelled caller would see Done closed and bail; a
+			// detached one gets a fresh context.
+			select {
+			case <-ctx.Done():
+				diagnoseSawCancelledContext = true
+				return ""
+			default:
+			}
+			return "clusterversion diagnostics"
+		},
+		func(ctx context.Context) error {
+			cancel() // the suite timeout fires mid-poll
+			return fmt.Errorf("not ready")
+		},
+	)
+	if err == nil {
+		t.Fatal("expected an error when the caller's context is cancelled, got nil")
+	}
+	if !strings.Contains(err.Error(), "cancelled") {
+		t.Fatalf("expected 'cancelled' in the error, got: %s", err.Error())
+	}
+	if !strings.Contains(err.Error(), "not ready") {
+		t.Fatalf("expected the last check error to be wrapped, got: %s", err.Error())
+	}
+	if !strings.Contains(err.Error(), "clusterversion diagnostics") {
+		t.Fatalf("expected cancellation to carry the diagnostics, got: %s", err.Error())
+	}
+	if diagnoseSawCancelledContext {
+		t.Fatal("diagnose ran bound to the cancelled caller context instead of a detached one")
+	}
+}
+
 func TestPollUntilReady_PositiveTimeout(t *testing.T) {
 	err := pollUntilReady(
 		context.Background(),
@@ -166,6 +212,290 @@ func TestPollUntilReady_PositiveTimeout(t *testing.T) {
 	)
 	if err != nil {
 		t.Fatalf("expected success for positive timeout with passing check, got: %v", err)
+	}
+}
+
+// TestPollUntilReady_SucceedsWhenConditionLandsAfterLastPoll covers the ARO-26775 near-miss: the
+// condition becomes true between the final poll and the deadline. Without the post-deadline
+// check this reports a timeout on work that finished inside the budget.
+func TestPollUntilReady_SucceedsWhenConditionLandsAfterLastPoll(t *testing.T) {
+	// An interval longer than the timeout means the loop gets exactly one in-loop look; readiness
+	// is driven off the check counter, so success (checks==2) is reachable only through the
+	// post-deadline check -- the shape of the ARO-26775 near-miss.
+	const (
+		timeout  = 1 * time.Second
+		interval = 5 * time.Second
+	)
+	var checks int
+
+	err := pollUntilReady(
+		context.Background(),
+		"test-verifier",
+		timeout,
+		interval,
+		nil,
+		DefaultDiagnoseTimeout,
+		nil,
+		func(ctx context.Context) error {
+			checks++
+			if checks < 2 {
+				return fmt.Errorf("not ready")
+			}
+			return nil
+		},
+	)
+	if err != nil {
+		t.Fatalf("expected the post-deadline check to observe the condition, got: %v", err)
+	}
+	// One in-loop poll that saw "not ready", then the post-deadline check that saw success.
+	if checks != 2 {
+		t.Fatalf("expected 2 checks (1 in-loop poll + 1 post-deadline), got %d", checks)
+	}
+}
+
+// TestPollUntilReady_OvershootIsBoundedByFinalCheckTimeout pins the first half of the budget
+// contract on pollUntilReady: a verdict arrives within timeout + finalCheckTimeout, never later.
+func TestPollUntilReady_OvershootIsBoundedByFinalCheckTimeout(t *testing.T) {
+	const timeout = 250 * time.Millisecond
+
+	startTime := time.Now()
+	err := pollUntilReady(
+		context.Background(),
+		"test-verifier",
+		timeout,
+		100*time.Millisecond,
+		nil,
+		DefaultDiagnoseTimeout,
+		nil,
+		func(ctx context.Context) error {
+			<-ctx.Done()
+			return ctx.Err()
+		},
+	)
+	total := time.Since(startTime)
+
+	if err == nil {
+		t.Fatal("expected an error when the check never succeeds, got nil")
+	}
+	// Generous upper bound: the point is that the overshoot is governed by finalCheckTimeout
+	// rather than being unbounded, not that the scheduler is precise.
+	if maximum := timeout + finalCheckTimeout + 2*time.Second; total > maximum {
+		t.Fatalf("overshot the budget contract: ran for %s, expected at most %s", total, maximum)
+	}
+	if total < timeout {
+		t.Fatalf("returned before the timeout elapsed: ran for %s, expected at least %s", total, timeout)
+	}
+}
+
+// TestPollUntilReady_ReportedElapsedIncludesFinalCheck guards that the reported elapsed includes
+// the past-the-deadline final check rather than understating the verifier's runtime.
+func TestPollUntilReady_ReportedElapsedIncludesFinalCheck(t *testing.T) {
+	const (
+		timeout         = 200 * time.Millisecond
+		finalCheckDelay = 1500 * time.Millisecond
+	)
+	var checks int
+
+	err := pollUntilReady(
+		context.Background(),
+		"test-verifier",
+		timeout,
+		1*time.Second, // longer than the timeout, so the loop gets exactly one look
+		nil,
+		DefaultDiagnoseTimeout,
+		nil,
+		func(ctx context.Context) error {
+			checks++
+			if checks > 1 {
+				// The post-deadline check: slow, and still unsuccessful.
+				select {
+				case <-time.After(finalCheckDelay):
+				case <-ctx.Done():
+				}
+			}
+			return fmt.Errorf("not ready")
+		},
+	)
+	if err == nil {
+		t.Fatal("expected a timeout error when the condition never holds, got nil")
+	}
+
+	// The reported duration must account for the slow final check rather than stopping at the
+	// deadline. Parsing the exact value is brittle, so assert that the pre-check value is gone.
+	if strings.Contains(err.Error(), "timed out after "+timeout.String()) {
+		t.Fatalf("reported elapsed excludes the final check, understating the real duration: %s", err.Error())
+	}
+}
+
+// TestPollUntilReady_DiagnosticsAreBoundedAndExcludedFromElapsed pins the second half of the budget
+// contract: diagnostics are bounded by diagnoseTimeout and do not inflate the reported elapsed.
+func TestPollUntilReady_DiagnosticsAreBoundedAndExcludedFromElapsed(t *testing.T) {
+	const (
+		timeout         = 200 * time.Millisecond
+		diagnoseTimeout = 750 * time.Millisecond
+	)
+
+	startTime := time.Now()
+	err := pollUntilReady(
+		context.Background(),
+		"test-verifier",
+		timeout,
+		1*time.Second, // longer than the timeout, so the loop gets exactly one look
+		nil,
+		diagnoseTimeout,
+		func(ctx context.Context, _ *rest.Config) string {
+			// A diagnostic collector that never returns on its own: only diagnoseTimeout can
+			// stop it.
+			<-ctx.Done()
+			return "diagnostics gave up: " + ctx.Err().Error()
+		},
+		func(ctx context.Context) error { return fmt.Errorf("not ready") },
+	)
+	total := time.Since(startTime)
+
+	if err == nil {
+		t.Fatal("expected a timeout error when the condition never holds, got nil")
+	}
+	if !strings.Contains(err.Error(), "diagnostics gave up") {
+		t.Fatalf("expected the diagnostics to be appended to the error, got: %s", err.Error())
+	}
+	// Generous upper bound: the point is that diagnostics are governed by diagnoseTimeout rather
+	// than being unbounded, not that the scheduler is precise.
+	if maximum := timeout + finalCheckTimeout + diagnoseTimeout + 2*time.Second; total > maximum {
+		t.Fatalf("diagnostics overran their bound: ran for %s, expected at most %s", total, maximum)
+	}
+
+	reported := reportedElapsed(t, err)
+	if reported >= diagnoseTimeout {
+		t.Fatalf("reported elapsed %s includes the %s spent on diagnostics; it should measure the wait for the condition only",
+			reported, diagnoseTimeout)
+	}
+}
+
+// reportedElapsed extracts the duration pollUntilReady reports in a timeout error.
+func reportedElapsed(t *testing.T, err error) time.Duration {
+	t.Helper()
+	const marker = "timed out after "
+	message := err.Error()
+	index := strings.Index(message, marker)
+	if index < 0 {
+		t.Fatalf("error does not report an elapsed duration: %s", message)
+	}
+	remainder := message[index+len(marker):]
+	value, _, _ := strings.Cut(remainder, "\n")
+	value, _, _ = strings.Cut(value, ":")
+	parsed, parseErr := time.ParseDuration(strings.TrimSpace(value))
+	if parseErr != nil {
+		t.Fatalf("parse reported elapsed %q: %v", value, parseErr)
+	}
+	return parsed
+}
+
+// TestPollUntilReady_StillFailsWhenConditionNeverHolds guards against the post-deadline check
+// masking a genuine timeout.
+func TestPollUntilReady_StillFailsWhenConditionNeverHolds(t *testing.T) {
+	err := pollUntilReady(
+		context.Background(),
+		"test-verifier",
+		250*time.Millisecond,
+		100*time.Millisecond,
+		nil,
+		DefaultDiagnoseTimeout,
+		nil,
+		func(ctx context.Context) error { return fmt.Errorf("not ready") },
+	)
+	if err == nil {
+		t.Fatal("expected a timeout error when the condition never holds, got nil")
+	}
+	if !strings.Contains(err.Error(), "timed out") {
+		t.Fatalf("expected 'timed out' in error, got: %s", err.Error())
+	}
+	if !strings.Contains(err.Error(), "not ready") {
+		t.Fatalf("expected the last check error to be wrapped, got: %s", err.Error())
+	}
+}
+
+// TestPollUntilReady_CancelledDuringFinalCheckWindow pins the post-final-check re-evaluation of
+// the caller's context: an interruption inside the final-check window is reported as a
+// cancellation with its diagnostics, whichever verdict the check itself produces.
+func TestPollUntilReady_CancelledDuringFinalCheckWindow(t *testing.T) {
+	const (
+		timeout  = 200 * time.Millisecond
+		interval = 10 * time.Second // longer than the timeout: the loop gets exactly one look
+		diagText = "diagnostics were gathered"
+	)
+	for _, testCase := range []struct {
+		name         string
+		final        func(ctx context.Context) error
+		wantErr      string
+		wantCanceled bool
+	}{
+		{
+			// The cancellation must not surface as a timeout recast around the check's own verdict.
+			name:    "check ignores the child context",
+			final:   func(ctx context.Context) error { return fmt.Errorf("check landed on its own verdict") },
+			wantErr: "check landed on its own verdict",
+		},
+		{
+			name: "check honours the caller context",
+			final: func(ctx context.Context) error {
+				<-ctx.Done()
+				return fmt.Errorf("read interrupted: %w", ctx.Err())
+			},
+			wantErr:      "read interrupted",
+			wantCanceled: true,
+		},
+		{
+			// A nil verdict from a check racing the cancelled caller context must not read
+			// as a passing verifier; the outcome is the context error, with diagnostics.
+			name:         "check reports success",
+			final:        func(ctx context.Context) error { return nil },
+			wantErr:      "context canceled",
+			wantCanceled: true,
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			var attempts int
+			err := pollUntilReady(
+				ctx,
+				"test-verifier",
+				timeout,
+				interval,
+				nil,
+				30*time.Second,
+				func(context.Context, *rest.Config) string { return diagText },
+				func(ctx context.Context) error {
+					attempts++
+					if attempts == 1 {
+						return fmt.Errorf("not ready")
+					}
+					// The post-deadline check: the caller's deadline lands inside finalCheckTimeout.
+					cancel()
+					return testCase.final(ctx)
+				},
+			)
+			if err == nil {
+				t.Fatal("expected a cancellation error when the caller context ends in the final-check window, got nil")
+			}
+			if !strings.Contains(err.Error(), "cancelled") {
+				t.Fatalf("expected outcome 'cancelled', got: %s", err.Error())
+			}
+			if !strings.Contains(err.Error(), testCase.wantErr) {
+				t.Fatalf("expected the check's last verdict to be preserved, got: %s", err.Error())
+			}
+			if testCase.wantCanceled && !errors.Is(err, context.Canceled) {
+				t.Fatalf("expected the wrapped cancellation to stay unwrap-able, got: %s", err.Error())
+			}
+			if !strings.Contains(err.Error(), diagText) {
+				t.Fatalf("expected cancellation diagnostics to be appended, got: %s", err.Error())
+			}
+			if attempts != 2 {
+				t.Fatalf("expected 2 checks (1 in-loop poll + 1 final check), got %d", attempts)
+			}
+		})
 	}
 }
 
