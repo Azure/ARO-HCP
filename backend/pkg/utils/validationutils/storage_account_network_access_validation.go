@@ -82,8 +82,18 @@ func NewStorageAccountNetworkAccessValidation(
 	}
 }
 
+// StorageAccountNetworkAccessValidationName is this validation's name, used both as
+// the metav1.Condition type set on ServiceProviderCluster.Status.Validations and as
+// the key other packages must use to read that specific condition back out (e.g.
+// clusterClusterServiceCreateSyncer's creation precondition in
+// backend/pkg/controllers/cluster/creation). Exported so those call sites share this
+// constant instead of duplicating the literal, which would otherwise risk silently
+// drifting out of sync the way the controller name constant did (see
+// https://github.com/Azure/ARO-HCP/pull/7514#discussion_r4366177315).
+const StorageAccountNetworkAccessValidationName = "StorageAccountNetworkAccessValidation"
+
 func (v *StorageAccountNetworkAccessValidation) Name() string {
-	return "StorageAccountNetworkAccessValidation"
+	return StorageAccountNetworkAccessValidationName
 }
 
 func (v *StorageAccountNetworkAccessValidation) Validate(
