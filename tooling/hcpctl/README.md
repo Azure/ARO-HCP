@@ -227,10 +227,10 @@ hcpctl must-gather  query --kusto $kusto --region $region  --subscription-id $su
 
 The base backend, frontend, kube-applier, and fleet log queries always use the ARM subscription and resource group scope. They do not filter on Clusters Service IDs, including when `--cluster-id` or `--cluster-name` is specified. The `--cluster-id` flag takes a Clusters Service ID, not an ARM resource ID.
 
-The `detailedInfraOrchestrationLogs` custom query includes Maestro, Hypershift,
+The `detailedInfraOrchestrationLogs` custom query includes Hypershift
 and ACM agent logs, identified by a `source` field. Must-gather executes this
 query in five-minute output windows to reduce the risk of exceeding Kusto's
-result-size limit, while discovering cluster and Maestro bundle IDs over the
+result-size limit, while discovering cluster IDs over the
 entire requested interval. The windows feed the same JSONL file and do not
 truncate the requested interval. An unusually large individual window can still
 exceed the service limit; such failures remain errors, not successful partial
@@ -250,8 +250,8 @@ queries, err := factory.Build(*definition, data)
 Only the orchestration child's final output changes: it returns `rows`,
 `estimatedBytes`, `firstSeen`, and `lastSeen` grouped by `source`, using exactly
 the same discovery and filters as log collection. An empty arm has no summary
-row, so consumers must compare against all three expected source names
-(`maestro`, `hypershift`, `acm-agent`). Byte estimates are not exact wire sizes.
+row, so consumers must compare against both expected source names
+(`hypershift`, `acm-agent`). Byte estimates are not exact wire sizes.
 This is a library rendering option, not a CLI flag. The E2E presence verifier
 sets `GathererOptions.SummarizeOrchestrationLogs` to execute one full-range
 summary instead of downloading the orchestration payloads. It requires a positive
