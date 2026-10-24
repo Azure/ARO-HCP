@@ -9,13 +9,16 @@
     state: ""
   metadata:
     knownIssue: true
-    knownIssueReason: 'Standing hypershift v2 defect, root-caused in ARO-30406 (previously
-      ARO-28028, closed Won''t Do): the prometheus-agent on management clusters rejects
-      HCP-namespace ServiceMonitors because the root-ca ConfigMap they reference is
-      no longer created by the v2 control-plane-pki-operator. The alert fires on passing
-      runs at the same rate as failing ones, so it is not a run failure. Remove once
-      the root cause is fixed or management metrics move off self-hosted Prometheus
-      to AMA (AROSLSRE-1693).'
+    knownIssueReason: 'Teardown race, root-caused in ARO-30406: at HCP deletion the
+      root-ca ConfigMap is garbage-collected in the first wave (HCP ownerRef), but
+      the two CNO-rendered ServiceMonitors in the HCP namespace carry no ownerRef
+      (CNO skips SetControllerReference for cluster-annotated objects; upstream TODO
+      in cluster-network-operator''s operconfig controller) and linger ~3 minutes
+      until namespace deletion. prometheus-operator rejects them in that window, and
+      CI teardown churn keeps the rejected metric above the alert''s for: 20m. The
+      alert fires on passing runs at the same rate as failing ones, so it is not a
+      run failure. Remove once the upstream ownerRef fix lands in a supported OCP
+      version or management metrics move off self-hosted Prometheus to AMA (AROSLSRE-1693).'
 - alert:
     condition: ""
     labels:
