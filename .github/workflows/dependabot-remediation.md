@@ -568,6 +568,8 @@ For ordinary modified files, GitHub's absent or null `previous_filename` uses th
 
 Aim for at most 6 groups. If there are more, prioritise by severity (critical > high > medium > low).
 
+Order candidate groups by severity before submission, retaining a stable order for ties. Schedule at most one new proposal per affected manifest in a run: unrelated npm dependencies remain separate groups, but changes to the same `package.json` are serialized rather than combined. The publication guard checks fresh existing-PR dependency overlaps first, then keeps the first eligible candidate for each manifest and defers later manifest collisions without aborting independent proposals. A candidate deferred for an existing-PR overlap does not reserve a manifest slot. Duplicate dependency families, malformed metadata and API failures remain errors. If filtering leaves no actionable outputs, the guard emits an explicit no-op with the deferral reason; it does not create a report issue.
+
 ## 3. Remediate each group
 
 Work on a fresh branch per group, off the default branch. For each group:
