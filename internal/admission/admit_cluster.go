@@ -149,7 +149,7 @@ func mutateClusterExperimentalFeatures(_ context.Context, admissionContext *Clus
 	var errs field.ErrorList
 
 	// Reject unrecognized experimental tags.
-	knownTags := sets.New(metadataapi.TagClusterSingleReplica, metadataapi.TagClusterSizeOverride, metadataapi.TagClusterCPOImageOverride, metadataapi.TagClusterControlPlaneExactVersion, metadataapi.TagClusterZStreamUpdatePolicy, metadataapi.TagClusterMaxCreationDuration, metadataapi.TagClusterMaxUpdateDuration, metadataapi.TagClusterMaxDeletionDuration, metadataapi.TagClusterDisableSwift)
+	knownTags := sets.New(metadataapi.TagClusterSingleReplica, metadataapi.TagClusterSizeOverride, metadataapi.TagClusterCPOImageOverride, metadataapi.TagClusterControlPlaneExactVersion, metadataapi.TagClusterZStreamUpdatePolicy, metadataapi.TagClusterMaxCreationDuration, metadataapi.TagClusterMaxUpdateDuration, metadataapi.TagClusterMaxDeletionDuration, metadataapi.TagClusterDisableSwift, metadataapi.TagClusterBackupScheduleOverride)
 	for k := range tags {
 		if strings.HasPrefix(strings.ToLower(k), metadataapi.ExperimentalClusterTagPrefix) && !knownTags.Has(strings.ToLower(k)) {
 			errs = append(errs, field.Invalid(tagsPath.Key(k), k, "unrecognized experimental tag"))
@@ -231,6 +231,22 @@ func mutateClusterExperimentalFeatures(_ context.Context, admissionContext *Clus
 		default:
 			experimentalFeatures.ControlPlaneExactVersion = &parsed
 		}
+	}
+
+	// Only "Enabled" is accepted. The tag lifts a deployment-wide backup schedule
+	// pause for this cluster; pausing a single cluster is the admin API's job, and
+	// that pause outranks this override, so there is no "Disabled" value here.
+	backupScheduleOverrideValue := lookupTag(tags, metadataapi.TagClusterBackupScheduleOverride)
+	switch coreapi.BackupScheduleState(backupScheduleOverrideValue) {
+	case coreapi.BackupScheduleStateEnabled:
+		experimentalFeatures.BackupScheduleOverride = coreapi.BackupScheduleStateEnabled
+	case "":
+		// absent or empty
+	default:
+		errs = append(errs, field.Invalid(
+			tagsPath.Key(metadataapi.TagClusterBackupScheduleOverride), backupScheduleOverrideValue,
+			fmt.Sprintf("must be %q or empty", coreapi.BackupScheduleStateEnabled),
+		))
 	}
 
 	// disable-swift is validated against networking in validation.ValidateCluster;
