@@ -18,6 +18,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
@@ -459,17 +460,71 @@ func policyRuleTargetsStorageAccountPublicNetworkAccessDeny(definitionProperties
 		return false
 	}
 
-	if strings.Contains(rule, `"effect":"deny"`) || strings.Contains(rule, `"effect": "deny"`) {
+	// Resolve the rule's actual "then.effect" value, rather than assuming any
+	// rule that isn't a literal "deny" must be parameterized on our "effect"
+	// parameter: it could just as well be a literal "Audit"/"Disabled", or an
+	// expression this heuristic does not understand (e.g. a conditional
+	// policy function), neither of which this validation can resolve.
+	thenEffect, ok := policyRuleThenEffect(definitionProperties.PolicyRule)
+	if !ok {
+		return false
+	}
+	if strings.EqualFold(thenEffect, "Deny") {
 		return true
 	}
 
-	// The rule's effect is likely parameterized (e.g. "effect": "[parameters('effect')]").
-	// Resolve it from the assignment's override, falling back to the definition's default.
+	// then.effect is not a literal "Deny". Only continue trying to resolve it
+	// if it is specifically an ARM template parameter reference to our
+	// "effect" parameter (e.g. "[parameters('effect')]"); any other literal
+	// (Audit/Disabled) or unsupported expression is conservatively treated as
+	// non-blocking, since this heuristic does not evaluate general ARM
+	// template functions.
+	referencedParam, isParamRef := policyRuleEffectParameterReference(thenEffect)
+	if !isParamRef || !strings.EqualFold(referencedParam, storageAccountPublicNetworkAccessDenyPolicyEffectParameterName) {
+		return false
+	}
+
+	// Resolve the referenced parameter's value from the assignment's
+	// override, falling back to the definition's default.
 	effect := assignedEffect
 	if effect == "" {
 		effect = policyDefinitionDefaultEffect(definitionProperties)
 	}
 	return strings.EqualFold(effect, "Deny")
+}
+
+// policyRuleThenEffect extracts a policy rule's "then.effect" value as a
+// string. Returns ok=false if the rule does not have that shape (e.g. "then"
+// or "then.effect" are missing, or "effect" isn't a plain string), in which
+// case the rule's effect cannot be confirmed.
+func policyRuleThenEffect(policyRule any) (effect string, ok bool) {
+	ruleMap, ok := policyRule.(map[string]any)
+	if !ok {
+		return "", false
+	}
+	thenMap, ok := ruleMap["then"].(map[string]any)
+	if !ok {
+		return "", false
+	}
+	effect, ok = thenMap["effect"].(string)
+	return effect, ok
+}
+
+// policyRuleEffectParameterReferencePattern matches an ARM template parameter
+// reference of the form "[parameters('name')]" (the "parameters" function
+// name is matched case-insensitively, consistent with ARM template function
+// name semantics).
+var policyRuleEffectParameterReferencePattern = regexp.MustCompile(`(?i)^\[parameters\('([^']+)'\)\]$`)
+
+// policyRuleEffectParameterReference reports whether effectValue is an ARM
+// template parameter reference (e.g. "[parameters('effect')]"), and if so,
+// returns the referenced parameter name.
+func policyRuleEffectParameterReference(effectValue string) (paramName string, isParamRef bool) {
+	matches := policyRuleEffectParameterReferencePattern.FindStringSubmatch(strings.TrimSpace(effectValue))
+	if matches == nil {
+		return "", false
+	}
+	return matches[1], true
 }
 
 // policyDefinitionDefaultEffect returns the default value of a policy
