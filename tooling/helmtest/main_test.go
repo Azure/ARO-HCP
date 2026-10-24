@@ -114,6 +114,75 @@ func TestHelmTemplate(t *testing.T) {
 	testrunner.RunTestHelmTemplate(t, "settings.yaml")
 }
 
+func TestMaestroAgentRemoval(t *testing.T) {
+	raw, err := os.ReadFile("../../config/rendered/dev/dev/westus3.yaml")
+	require.NoError(t, err)
+	for _, test := range []struct {
+		name         string
+		enabled      bool
+		chartDefault bool
+	}{
+		{name: "disabled"},
+		{name: "explicit chart override", enabled: true},
+		{name: "chart default", chartDefault: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			var cfg types.Configuration
+			require.NoError(t, yaml.Unmarshal(raw, &cfg))
+			values, err := config.PreprocessFile("../../maestro/agent/values.yaml", cfg)
+			require.NoError(t, err)
+			var overrides map[string]any
+			require.NoError(t, yaml.Unmarshal(values, &overrides))
+			require.Equal(t, false, overrides["enabled"])
+			if test.chartDefault {
+				delete(overrides, "enabled")
+			} else if test.enabled {
+				overrides["enabled"] = true
+			}
+			for _, installCRD := range []bool{false, true} {
+				overrides["installAppliedManifestWorkCRD"] = installCRD
+				chart, err := loader.Load("../../maestro/agent/deploy")
+				require.NoError(t, err)
+				renderValues, err := util.ToRenderValues(chart, overrides, common.ReleaseOptions{
+					Name: "maestro-agent", Namespace: "maestro", IsUpgrade: true,
+				}, nil)
+				require.NoError(t, err)
+				manifests, err := engine.Render(chart, renderValues)
+				require.NoError(t, err)
+				agentResources := 0
+				for name, manifest := range manifests {
+					var resource struct {
+						Kind     string
+						Metadata struct {
+							Annotations map[string]string
+						}
+					}
+					require.NoError(t, yaml.Unmarshal([]byte(manifest), &resource), name)
+					if strings.Contains(name, "appliedmanifestworks") {
+						if installCRD {
+							require.Equal(t, "CustomResourceDefinition", resource.Kind)
+							require.Equal(t, "keep", resource.Metadata.Annotations["helm.sh/resource-policy"])
+						} else {
+							require.Empty(t, resource.Kind)
+						}
+						continue
+					}
+					if test.enabled {
+						require.NotEmpty(t, resource.Kind, name)
+						require.Empty(t, resource.Metadata.Annotations["helm.sh/resource-policy"], name)
+						agentResources++
+					} else {
+						require.Empty(t, resource.Kind, name)
+					}
+				}
+				if test.enabled {
+					require.Equal(t, 18, agentResources)
+				}
+			}
+		})
+	}
+}
+
 func TestACRValues(t *testing.T) {
 	testrunner.RunTestACRValues(t, "settings.yaml")
 }

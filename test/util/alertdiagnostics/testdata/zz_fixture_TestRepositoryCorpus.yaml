@@ -2163,21 +2163,6 @@
             value: 100
         unsupported: ""
 - source: dev-infrastructure/modules/metrics/rules/generatedDevServicesPrometheusAlertingRules.bicep
-  group: metrics-proxy
-  alert: MaestroAgentMetricsProxyDown
-  occurrence: 1
-  input: group by (cluster, region) (up{cluster=~".*-mgmt(-[0-9]+)?$",job="kube-state-metrics"}) unless on (cluster) group by (cluster, region) (up{endpoint="metrics",namespace="maestro",pod=~"maestro-agent-.*"} == 1)
-  plan:
-    expression: group by (cluster, region) (up{cluster=~".*-mgmt(-[0-9]+)?$",job="kube-state-metrics"}) unless on (cluster) group by (cluster, region) (up{endpoint="metrics",namespace="maestro",pod=~"maestro-agent-.*"} == 1)
-    conditions:
-      - expression: (group by (cluster, region) (up{cluster=~".*-mgmt(-[0-9]+)?$",job="kube-state-metrics"})) unless on (cluster) (group by (cluster, region) (up{endpoint="metrics",namespace="maestro",pod=~"maestro-agent-.*"} == 1))
-        path: root/unless:left
-        queries:
-          - expression: (group by (cluster, region) (up{cluster=~".*-mgmt(-[0-9]+)?$",job="kube-state-metrics"})) unless on (cluster) (group by (cluster, region) (up{endpoint="metrics",namespace="maestro",pod=~"maestro-agent-.*"} == 1))
-            role: signal
-        thresholds: []
-        unsupported: ""
-- source: dev-infrastructure/modules/metrics/rules/generatedDevServicesPrometheusAlertingRules.bicep
   group: prometheus-operator-rules
   alert: PrometheusOperatorNotReady
   occurrence: 1
@@ -11009,24 +10994,6 @@
         thresholds:
           - operator: '>'
             value: 180
-        unsupported: ""
-- source: observability/alerts/metrics-proxy-prometheusRule.yaml
-  group: metrics-proxy
-  alert: MaestroAgentMetricsProxyDown
-  occurrence: 1
-  input: |
-    group by (cluster) (up{job="kube-state-metrics", cluster=~".*-mgmt(-[0-9]+)?$"})
-    unless on (cluster)
-    group by (cluster) (up{namespace="maestro", endpoint="metrics", pod=~"maestro-agent-.*"} == 1)
-  plan:
-    expression: group by (cluster) (up{cluster=~".*-mgmt(-[0-9]+)?$",job="kube-state-metrics"}) unless on (cluster) group by (cluster) (up{endpoint="metrics",namespace="maestro",pod=~"maestro-agent-.*"} == 1)
-    conditions:
-      - expression: (group by (cluster) (up{cluster=~".*-mgmt(-[0-9]+)?$",job="kube-state-metrics"})) unless on (cluster) (group by (cluster) (up{endpoint="metrics",namespace="maestro",pod=~"maestro-agent-.*"} == 1))
-        path: root/unless:left
-        queries:
-          - expression: (group by (cluster) (up{cluster=~".*-mgmt(-[0-9]+)?$",job="kube-state-metrics"})) unless on (cluster) (group by (cluster) (up{endpoint="metrics",namespace="maestro",pod=~"maestro-agent-.*"} == 1))
-            role: signal
-        thresholds: []
         unsupported: ""
 - source: observability/alerts/mgmt-capacity-prometheusRule.yaml
   group: mgmt-capacity-rules
