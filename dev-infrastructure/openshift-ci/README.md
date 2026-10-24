@@ -68,6 +68,11 @@ make test-nested-podman-runtime
 Both tests use the image's default user without a runtime user override.
 The tools test asserts UID 1000 and checks that Go can compile, test,
 and install into `/opt/app-root`, the GOPATH used by integration jobs.
+The image also provides `/go` owned by UID 1000 and group 0 with mode `0775`,
+so ci-operator can clone source into `/go/src` when it uses this image as a
+build root. An image-build check runs as the default UID 1000 and creates a
+temporary Git repository under `/go`; a clone-directory permission regression
+fails the image build. This does not change the integration runtime GOPATH.
 The runtime test also asserts that Podman is rootless, exercises the inherited
 entrypoint, and checks the output of a nested container, so an entrypoint that
 silently discards commands fails.
