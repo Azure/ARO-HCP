@@ -518,7 +518,7 @@
       <summary>
         <span class="badge badge-workspace">{{$a.Metadata.MonitoringWorkspaceType}}</span>
         <span class="badge {{severityClass $a.Alert.Severity}}">{{$a.Alert.Severity}}</span>
-        <span class="{{conditionClass $a.Alert.Condition}}">{{$a.Alert.Condition}}</span>
+        <span class="{{conditionClass $a.Alert.Condition}}">{{$a.Alert.Condition}}{{if not $a.Alert.EndsAt}} <strong>STILL FIRING</strong>{{end}}</span>
         <span class="alert-title-inline">{{$a.Alert.Name}}</span>
         <span class="known-reason-inline">{{$a.Metadata.KnownIssueReason}} <strong>Known Issue</strong></span>
       </summary>
@@ -526,9 +526,12 @@
         <div class="alert-header">
           <span class="alert-time">
             Fired: {{formatTime $a.Alert.StartsAt}} {{relativeTime $.TimeWindow.Start $a.Alert.StartsAt}}{{if $a.Alert.EndsAt}} &middot; Resolved: {{formatTime $a.Alert.EndsAt}} {{relativeTime $.TimeWindow.Start $a.Alert.EndsAt}}{{end}}
+            &middot; Duration: {{formatDuration $a.Alert.StartsAt $a.Alert.EndsAt}}
           </span>
         </div>
         {{if $a.Alert.Description}}<div class="alert-description">{{$a.Alert.Description}}</div>{{end}}
+        {{with annotation $a.Alert.Annotations "description"}}<div class="alert-description">Annotation description: {{.}}</div>{{end}}
+        {{with annotation $a.Alert.Annotations "summary"}}<div class="alert-description">Summary: {{.}}</div>{{end}}
 
         {{if $a.Alert.Labels}}
         <div class="alert-labels">
@@ -555,13 +558,16 @@
     <div class="alert-header">
       <span class="badge badge-workspace">{{$a.Metadata.MonitoringWorkspaceType}}</span>
       <span class="badge {{severityClass $a.Alert.Severity}}">{{$a.Alert.Severity}}</span>
-      <span class="{{conditionClass $a.Alert.Condition}}">{{$a.Alert.Condition}}</span>
+      <span class="{{conditionClass $a.Alert.Condition}}">{{$a.Alert.Condition}}{{if not $a.Alert.EndsAt}} <strong>STILL FIRING</strong>{{end}}</span>
       <span class="alert-time">
         Fired: {{formatTime $a.Alert.StartsAt}} {{relativeTime $.TimeWindow.Start $a.Alert.StartsAt}}{{if $a.Alert.EndsAt}} &middot; Resolved: {{formatTime $a.Alert.EndsAt}} {{relativeTime $.TimeWindow.Start $a.Alert.EndsAt}}{{end}}
+        &middot; Duration: {{formatDuration $a.Alert.StartsAt $a.Alert.EndsAt}}
       </span>
     </div>
     <div class="alert-title">{{$a.Alert.Name}}</div>
     {{if $a.Alert.Description}}<div class="alert-description">{{$a.Alert.Description}}</div>{{end}}
+    {{with annotation $a.Alert.Annotations "description"}}<div class="alert-description">Annotation description: {{.}}</div>{{end}}
+    {{with annotation $a.Alert.Annotations "summary"}}<div class="alert-description">Summary: {{.}}</div>{{end}}
 
     {{if $a.Alert.Labels}}
     <div class="alert-labels">

@@ -19,7 +19,85 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
+
+func TestRenderAlertsHTMLFiringDetails(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name      string
+		condition string
+		end       *time.Time
+		want      []string
+		absent    []string
+	}{
+		{
+			name: "resolved", condition: "Resolved", end: mustTime("2026-04-13T07:12:34Z"),
+			want:   []string{`class="condition-resolved">Resolved</span>`, "Duration: 12m34s", "Resolved: 2026-04-13 07:12:34"},
+			absent: []string{"STILL FIRING", "Duration: still firing"},
+		},
+		{
+			name: "still firing", condition: "Fired",
+			want:   []string{`class="condition-fired">Fired <strong>STILL FIRING</strong></span>`, "Duration: still firing"},
+			absent: []string{"Resolved: 2026-04-13"},
+		},
+	}
+	for _, tt := range tests {
+		for _, classification := range []string{"unknown", "known"} {
+			t.Run(tt.name+"/"+classification, func(t *testing.T) {
+				t.Parallel()
+				data := alertsOutput{
+					Summary:    alertsSummary{Total: 1},
+					TimeWindow: timeWindow{Start: "2026-04-13T06:00:00Z", End: "2026-04-13T08:00:00Z"},
+					Alerts: []alert{{
+						Alert: alertData{
+							Name: "TargetDown", Condition: tt.condition,
+							StartsAt: mustTime("2026-04-13T07:00:00Z"), EndsAt: tt.end,
+							Labels:      map[string]string{"namespace": "aro-hcp"},
+							Description: "Azure alert description",
+							Expression:  `sum(up{namespace="aro-hcp"}) < 1`,
+							Annotations: map[string]string{
+								"description": "Targets <unavailable>",
+								"summary":     "Check targets & pods",
+								"runbook_url": "https://example.com/runbook?alert=down&env=test",
+							},
+						},
+						Metadata: alertMetadata{KnownIssue: classification == "known"},
+					}},
+				}
+				for _, annotations := range []bool{true, false} {
+					want := append([]string{
+						"Fired: 2026-04-13 07:00:00", "Azure alert description",
+						`<span class="label-key">namespace</span>=<span>aro-hcp</span>`,
+						`sum(up{namespace=&#34;aro-hcp&#34;}) &lt; 1`,
+					}, tt.want...)
+					absent := append([]string{"<unavailable>"}, tt.absent...)
+					if annotations {
+						want = append(want, "Annotation description: Targets &lt;unavailable&gt;", "Summary: Check targets &amp; pods",
+							`href="https://example.com/runbook?alert=down&amp;env=test"`)
+					} else {
+						data.Alerts[0].Alert.Annotations = nil
+						absent = append(absent, "Annotation description:", "Summary:", "View Runbook")
+					}
+					output, err := renderAlertsHTML(data)
+					if err != nil {
+						t.Fatalf("renderAlertsHTML: %v", err)
+					}
+					for _, text := range want {
+						if !strings.Contains(string(output), text) {
+							t.Errorf("annotations=%t: output missing %q", annotations, text)
+						}
+					}
+					for _, text := range absent {
+						if strings.Contains(string(output), text) {
+							t.Errorf("annotations=%t: output unexpectedly contains %q", annotations, text)
+						}
+					}
+				}
+			})
+		}
+	}
+}
 
 func TestRenderObservabilityPage(t *testing.T) {
 	dir := t.TempDir()
