@@ -48,7 +48,7 @@ const (
 	defaultDeletedPollInterval          = time.Second
 )
 
-var certificateName = regexp.MustCompile(`^(?:(?:frontend-cert|admin-api-cert|sessiongate-cert)-(?:prow|ci00|ci01)|maestro-server)-j([0-9]{7})$`)
+var certificateName = regexp.MustCompile(`^(?:(?:frontend-cert|admin-api-cert|sessiongate-cert)-(?:prow|ci00|ci01|ci02)|maestro-server)-j([0-9]{7})$`)
 var jobToken = regexp.MustCompile(`^j[0-9]{7}$`)
 var errOwnerInventory = errors.New("owner inventory unavailable")
 

@@ -229,7 +229,7 @@ func options(dryRun bool) Options {
 }
 
 func TestEligibility(t *testing.T) {
-	for _, name := range []string{"frontend-cert-prow-j1234567", "admin-api-cert-ci00-j1234567", "sessiongate-cert-ci01-j1234567", "maestro-server-j1234567", "frontend-cert-ci00-j0000100"} {
+	for _, name := range []string{"frontend-cert-prow-j1234567", "admin-api-cert-ci00-j1234567", "sessiongate-cert-ci01-j1234567", "frontend-cert-ci02-j1234567", "maestro-server-j1234567", "frontend-cert-ci00-j0000100"} {
 		if _, _, reason := eligible(oldCertificate(name), referenceTime, referenceTime.Add(-168*time.Hour)); reason != "" {
 			t.Errorf("%s: %s", name, reason)
 		}
@@ -290,7 +290,7 @@ func TestEligibility(t *testing.T) {
 }
 
 func TestDeletedEligibility(t *testing.T) {
-	for _, name := range []string{"frontend-cert-prow-j1234567", "admin-api-cert-ci00-j1234567", "sessiongate-cert-ci01-j1234567", "maestro-server-j1234567"} {
+	for _, name := range []string{"frontend-cert-prow-j1234567", "admin-api-cert-ci00-j1234567", "sessiongate-cert-ci01-j1234567", "sessiongate-cert-ci02-j1234567", "maestro-server-j1234567"} {
 		if _, _, reason := eligibleDeleted(deletedCertificate(name)); reason != "" {
 			t.Errorf("%s: %s", name, reason)
 		}

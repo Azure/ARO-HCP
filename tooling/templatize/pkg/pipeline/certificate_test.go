@@ -42,9 +42,12 @@ func TestEffectiveCertificatePolicy(t *testing.T) {
 	}{
 		{"frontend ci00", "dev", "ci00", vault, "frontend-cert-ci00-j1234567", true},
 		{"admin ci01", "dev", "ci01", vault, "admin-api-cert-ci01-j1234567", true},
+		{"frontend ci02", "dev", "ci02", vault, "frontend-cert-ci02-j1234567", true},
+		{"sessiongate ci02", "dev", "ci02", vault, "sessiongate-cert-ci02-j1234567", true},
 		{"sessiongate ci00", "dev", "ci00", vault, "sessiongate-cert-ci00-j1234567", true},
 		{"maestro ci00", "dev", "ci00", vault, "maestro-server-j1234567", true},
 		{"maestro ci01 trailing slash", "dev", "ci01", vault + "/", "maestro-server-j1234567", true},
+		{"maestro ci02", "dev", "ci02", vault, "maestro-server-j1234567", true},
 		{"public", "public", "ci00", vault, "frontend-cert-ci00-j1234567", false},
 		{"Azure cloud name", "Public", "ci00", vault, "maestro-server-j1234567", false},
 		{"unknown cloud", "", "ci00", vault, "maestro-server-j1234567", false},

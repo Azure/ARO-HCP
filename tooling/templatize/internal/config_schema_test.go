@@ -102,7 +102,7 @@ func TestSystemPoolOnlyConfigSchema(t *testing.T) {
 	provider, err := config.NewConfigProvider(filepath.Join(repoRootDir, "config/config.yaml"))
 	require.NoError(t, err)
 
-	for _, environment := range []string{"ci00", "ci01", "pers"} {
+	for _, environment := range []string{"ci00", "ci01", "ci02", "pers"} {
 		t.Run(environment, func(t *testing.T) {
 			region, regionShort := "centralus", "cus"
 			if environment == "pers" {
@@ -168,8 +168,9 @@ func TestSystemPoolOnlyConfigSchema(t *testing.T) {
 				{name: "service enabled ci00", cluster: "svc", value: true, environment: "ci00"},
 				{name: "service enabled ci01", cluster: "svc", value: true, environment: "ci01"},
 				{name: "service enabled pers", cluster: "svc", value: true, environment: "pers"},
-				{name: "service enabled ci02", cluster: "svc", value: true, environment: "ci02", wantError: "svc.aks.systemPoolOnly is supported only in ci00, ci01 and pers"},
-				{name: "service enabled prod", cluster: "svc", value: true, environment: "prod", wantError: "svc.aks.systemPoolOnly is supported only in ci00, ci01 and pers"},
+				{name: "service enabled ci02", cluster: "svc", value: true, environment: "ci02"},
+				{name: "service enabled ci03", cluster: "svc", value: true, environment: "ci03", wantError: "svc.aks.systemPoolOnly is supported only in ci00, ci01, ci02 and pers"},
+				{name: "service enabled prod", cluster: "svc", value: true, environment: "prod", wantError: "svc.aks.systemPoolOnly is supported only in ci00, ci01, ci02 and pers"},
 				{name: "service string rejected", cluster: "svc", value: "true", wantError: "at '/svc/aks/systemPoolOnly': got string, want boolean"},
 				{name: "management disabled", cluster: "mgmt", value: false},
 				{name: "management omitted", cluster: "mgmt", remove: true},
