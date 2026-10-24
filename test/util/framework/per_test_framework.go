@@ -1162,6 +1162,15 @@ func (tc *perItOrDescribeTestContext) runOCAdmInspect(ctx context.Context, clust
 
 func (tc *perItOrDescribeTestContext) NewAppRegistrationWithServicePrincipal(ctx context.Context) (*graphutil.Application, *graphutil.ServicePrincipal, error) {
 	appName := fmt.Sprintf("%s%d", graphutil.AppRegistrationPrefix, rand.Int())
+	return tc.newAppRegistrationWithServicePrincipal(ctx, appName, nil)
+}
+
+// NewNamedAppRegistrationWithServicePrincipal creates an Entra application with the requested name and redirect URIs.
+func (tc *perItOrDescribeTestContext) NewNamedAppRegistrationWithServicePrincipal(ctx context.Context, appName string, redirectURIs []string) (*graphutil.Application, *graphutil.ServicePrincipal, error) {
+	return tc.newAppRegistrationWithServicePrincipal(ctx, appName, redirectURIs)
+}
+
+func (tc *perItOrDescribeTestContext) newAppRegistrationWithServicePrincipal(ctx context.Context, appName string, redirectURIs []string) (*graphutil.Application, *graphutil.ServicePrincipal, error) {
 	ginkgo.GinkgoLogr.Info("creating app registration", "appName", appName)
 
 	graphClient, err := tc.GetGraphClient(ctx)
@@ -1169,7 +1178,7 @@ func (tc *perItOrDescribeTestContext) NewAppRegistrationWithServicePrincipal(ctx
 		return nil, nil, fmt.Errorf("failed to get graph client: %w", err)
 	}
 
-	app, err := graphClient.CreateApplication(ctx, appName, []string{})
+	app, err := graphClient.CreateApplication(ctx, appName, redirectURIs)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create app registration: %w", err)
 	}
