@@ -42,7 +42,38 @@ const (
 	exporterNamespace   = "aro-hcp-exporter"
 	exporterServiceName = "aro-hcp-exporter"
 	exporterServicePort = 8080
+
+	// exporterMetricsTimeout bounds how long we wait for both collectors to
+	// publish. A healthy exporter gets there within a couple of collection
+	// intervals (collectionInterval is 2m and the Kusto collector self-throttles
+	// to 5m). The remaining budget absorbs a transient Resource Graph outage at
+	// startup: until its first success the discovery poller retries at a flat 2m
+	// interval, so recovery is picked up within one interval and the dependent
+	// collectors still have room to publish afterwards. Beyond that a longer
+	// wait buys no correctness — it just holds a parallel worker hostage while
+	// an already-doomed run plays out.
+	exporterMetricsTimeout = 15 * time.Minute
+	exporterMetricsPolling = 30 * time.Second
 )
+
+// expectedExporterMetrics must all be present in a single scrape.
+var expectedExporterMetrics = []string{
+	"public_ip_count_by_region_service_tag",
+	"kusto_logs_age_in_seconds",
+}
+
+// exporterHealthMetricPrefixes select the samples the exporter emits
+// unconditionally. They explain *why* expectedExporterMetrics are missing:
+// collectors serve cached const-metrics, so a collector that produced nothing
+// contributes no output at all and is otherwise indistinguishable from one that
+// is wedged. In particular a
+// exporter_cluster_discovery_last_success_timestamp_seconds of 0 means cluster
+// discovery never succeeded and every collector is blocked behind it.
+var exporterHealthMetricPrefixes = []string{
+	"exporter_cluster_discovery_",
+	"exporter_collector_errors_total",
+	"exporter_collector_duration_seconds_count",
+}
 
 var _ = Describe("Engineering", func() {
 	It("should be able to retrieve expected metrics from the /metrics endpoint",
@@ -68,67 +99,72 @@ var _ = Describe("Engineering", func() {
 			var localPort int
 			var stopChan chan struct{}
 			connected := false
-			defer func() {
+			disconnect := func() {
 				if connected {
 					close(stopChan)
+					connected = false
 				}
-			}()
+			}
+			defer disconnect()
 
 			httpClient := http.Client{
 				Timeout: 30 * time.Second,
 			}
-			Eventually(func() bool {
+
+			By("polling the /metrics endpoint until every expected metric is published")
+			Eventually(func() error {
 				// (Re-)establish port-forward if needed.
 				if !connected {
-					By("finding a pod for the aro-hcp-exporter service")
 					podName, err := getExporterPodName(cancelCtx, kubeClient)
 					if err != nil {
-						return false
+						return fmt.Errorf("no running exporter pod: %w", err)
 					}
-					By("port-forwarding to the exporter pod")
 					localPort, stopChan, err = startPortForward(cancelCtx, restConfig, podName)
 					if err != nil {
-						return false
+						return fmt.Errorf("failed to port-forward to exporter pod %q: %w", podName, err)
 					}
 					connected = true
 				}
 
-				By("querying the /metrics endpoint")
 				metricsURL := fmt.Sprintf("http://localhost:%d/metrics", localPort)
 				req, err := http.NewRequestWithContext(cancelCtx, http.MethodGet, metricsURL, nil)
-				Expect(err).NotTo(HaveOccurred(), "failed to create HTTP request for metrics endpoint")
+				if err != nil {
+					return fmt.Errorf("failed to build request for %s: %w", metricsURL, err)
+				}
 
 				resp, err := httpClient.Do(req)
 				if err != nil {
-					GinkgoWriter.Printf("Failed to get metrics endpoint: %v", err)
-					close(stopChan)
-					connected = false
-					return false
+					disconnect()
+					return fmt.Errorf("failed to GET %s: %w", metricsURL, err)
 				}
 				defer resp.Body.Close()
 
 				if resp.StatusCode != http.StatusOK {
-					return false
+					return fmt.Errorf("GET %s returned %s, want 200 OK", metricsURL, resp.Status)
 				}
 
 				body, err := io.ReadAll(resp.Body)
 				if err != nil {
-					GinkgoWriter.Printf("Failed to read metrics response body: %v", err)
-					close(stopChan)
-					connected = false
-					return false
+					disconnect()
+					return fmt.Errorf("failed to read response body from %s: %w", metricsURL, err)
 				}
-
 				metricsOutput := string(body)
 
-				By("verifying public_ip_count_by_region_service_tag is present")
-				if !strings.Contains(metricsOutput, "public_ip_count_by_region_service_tag") {
-					return false
+				var missing []string
+				for _, name := range expectedExporterMetrics {
+					if !strings.Contains(metricsOutput, name) {
+						missing = append(missing, name)
+					}
 				}
-
-				By("verifying kusto_logs_age_in_seconds is present")
-				return strings.Contains(metricsOutput, "kusto_logs_age_in_seconds")
-			}).WithTimeout(30 * time.Minute).WithPolling(30 * time.Second).Should(BeTrue())
+				if len(missing) > 0 {
+					return fmt.Errorf("exporter has not published %s; exporter health metrics:\n%s",
+						strings.Join(missing, ", "),
+						extractMetricLines(metricsOutput, exporterHealthMetricPrefixes),
+					)
+				}
+				return nil
+			}).WithTimeout(exporterMetricsTimeout).WithPolling(exporterMetricsPolling).Should(Succeed(),
+				"exporter never published all of %s within %s", strings.Join(expectedExporterMetrics, ", "), exporterMetricsTimeout)
 		})
 })
 
@@ -152,6 +188,28 @@ func getExporterPodName(ctx context.Context, kubeClient kubernetes.Interface) (s
 		}
 	}
 	return "", fmt.Errorf("no running pod found for service %s/%s (selector: %s)", exporterNamespace, exporterServiceName, selector)
+}
+
+// extractMetricLines returns the sample lines whose metric name starts with one
+// of the given prefixes, so a failure message carries the exporter's own health
+// signals instead of the entire scrape.
+func extractMetricLines(metricsOutput string, prefixes []string) string {
+	var lines []string
+	for _, line := range strings.Split(metricsOutput, "\n") {
+		if strings.HasPrefix(line, "#") {
+			continue
+		}
+		for _, prefix := range prefixes {
+			if strings.HasPrefix(line, prefix) {
+				lines = append(lines, "  "+line)
+				break
+			}
+		}
+	}
+	if len(lines) == 0 {
+		return "  (none found in scrape)"
+	}
+	return strings.Join(lines, "\n")
 }
 
 func selectorToString(selector map[string]string) string {
