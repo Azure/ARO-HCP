@@ -1,0 +1,18 @@
+cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('kubernetesResourceSnapshots')
+| where timestamp between ({{ kqlDatetime .PhaseStartTime }} .. {{ kqlDatetime .PhaseEndTime }})
+{{- if and .ServiceClusterName .ManagementClusterName }}
+| where cluster in ('{{ .ServiceClusterName }}', '{{ .ManagementClusterName }}')
+{{- end }}
+| where objectKind == 'Schedule'
+| where namespace == 'velero'
+| where tostring(object.metadata.annotations['azure.microsoft.com/hcp-cluster-azure-resource-id']) =~ '{{ .ClusterResourceID }}'
+| extend
+    schedule = name,
+    cron = tostring(object.spec.schedule),
+    paused = tobool(object.spec.paused),
+    phase = tostring(object.status.phase),
+    lastBackup = todatetime(object.status.lastBackup),
+    validationErrors = object.status.validationErrors
+| extend isHealthy = phase == 'Enabled'
+| project timestamp, event, cluster, schedule, cron, paused, phase, isHealthy, lastBackup, validationErrors
+| order by timestamp asc
