@@ -26,16 +26,6 @@ spec:
           kubectl patch addondeploymentconfig hypershift-addon-deploy-config -n multicluster-engine --type=merge -p '{"spec":{"customizedVariables":[{"name":"disableMetrics","value": "true"},{"name":"disableHOManagement","value": "true"},{"name":"autoImportDisabled","value": "true"},{"name":"aroHcp","value": "true"}]}}'
           echo "Patch applied successfully."
 
-          # The upstream hypershift-addon template renders the agent container
-          # with no resources, so the pod runs BestEffort: under node pressure
-          # its startup exceeds the liveness probe budget (initialDelaySeconds 2
-          # + failureThreshold 3 x periodSeconds 10 = ~32s) and the kubelet
-          # kills it into a crashloop (AROSLSRE-2542). Requests move the pod to
-          # Burstable, giving the agent a guaranteed CPU share for startup and a
-          # better eviction rank under DiskPressure. No limits, so the startup
-          # we are protecting cannot be throttled. The addon manager re-renders
-          # the agent Deployment when this config changes; the backplane
-          # operator does not reconcile this field, so the patch persists.
           echo "Patching resourceRequirements on AddonDeploymentConfig 'hypershift-addon-deploy-config'..."
           kubectl patch addondeploymentconfig hypershift-addon-deploy-config -n multicluster-engine --type=merge -p '{"spec":{"resourceRequirements":[{"containerID":"deployments:hypershift-addon-agent:hypershift-addon-agent","resources":{"requests":{"cpu":"250m","memory":"256Mi"}}}]}}'
           CPU_REQUEST=$(kubectl get addondeploymentconfig hypershift-addon-deploy-config -n multicluster-engine -o jsonpath='{.spec.resourceRequirements[0].resources.requests.cpu}')
