@@ -1,6 +1,6 @@
 module github.com/Azure/ARO-HCP/dev-infrastructure/scripts/grafana-group-roles
 
-go 1.26.0
+go 1.26.10
 
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.23.0
