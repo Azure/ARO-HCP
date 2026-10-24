@@ -1,0 +1,7 @@
+# Provider side of the Kusto function contract.
+# Engineering owns the KQL function definitions. Changes to function
+# signatures or behavior may require updating the integration tests in
+# test/, which are owned by log consumers. Prow enforces approval
+# from both groups when a PR touches both directories.
+approvers:
+  - service-lifecycle-approvers
