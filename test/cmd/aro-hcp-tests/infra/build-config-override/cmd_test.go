@@ -225,7 +225,7 @@ func TestOutputPublication(t *testing.T) {
 }
 
 func TestFailureDoesNotPublish(t *testing.T) {
-	for _, failure := range []string{"invalid-input", "unknown-image", "missing-catalog", "publication", "extra-argument", "missing-output", "run-cost-tag-publication"} {
+	for _, failure := range []string{"invalid-input", "unknown-image", "missing-catalog", "publication", "extra-argument", "missing-output", "missing-run-cost-tag-file", "run-cost-tag-publication"} {
 		t.Run(failure, func(t *testing.T) {
 			clearEnvironment(t)
 			shared := t.TempDir()
@@ -254,10 +254,17 @@ func TestFailureDoesNotPublish(t *testing.T) {
 				args = append(args, "--deploy-env", "dev", "unexpected")
 			case "missing-output":
 				args = []string{"--deploy-env", "dev"}
+			case "missing-run-cost-tag-file":
+				t.Setenv("DEPLOY_ENV", "ci01")
+				t.Setenv("BUILD_ID", "1234567")
+				// No --shared-dir, so there is nowhere to publish the tag
+				// a per-run environment requires; the previous override must
+				// survive the rejected invocation.
+				args = []string{"--source-dir", runCostSourceDir(t), "--output-file", path}
 			case "run-cost-tag-publication":
 				t.Setenv("DEPLOY_ENV", "ci01")
 				t.Setenv("BUILD_ID", "1234567")
-				args = append(args, "--run-cost-tag-file", shared)
+				args = append(args, "--source-dir", runCostSourceDir(t), "--run-cost-tag-file", shared)
 			}
 			if stdout, err := execute(args...); err == nil || stdout != "" {
 				t.Fatalf("stdout = %q, err = %v", stdout, err)

@@ -191,11 +191,13 @@ func (o *Options) Run(_ context.Context) error {
 	if err != nil {
 		return err
 	}
-	if err := configoverride.WriteOverride(o.outputFile, result.YAML); err != nil {
-		return err
-	}
+	// Checked before writing so an invocation with invalid options cannot leave
+	// a partially applied configuration behind.
 	if result.RunCostTagValue != "" && o.runCostTagFile == "" {
 		return fmt.Errorf("run cost tag file is required when %s is tagged; pass --shared-dir or --run-cost-tag-file", configoverride.RunCostTagKey)
+	}
+	if err := configoverride.WriteOverride(o.outputFile, result.YAML); err != nil {
+		return err
 	}
 	if o.runCostTagFile != "" {
 		// The file is rewritten on every successful run, including with empty
