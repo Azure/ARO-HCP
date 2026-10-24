@@ -11,6 +11,36 @@ Installation and configuration are split into three individual helm charts
 * *multicluster-engine-config:* manages the MCE configuration and ACM `policy` components
 * *policy:* manages the actual ACM policies and policy placements
 
+## Ingress certificate delivery
+
+The backend selects certificate delivery using the control-plane version and the
+persisted `default-ingress-config-<cluster>` ConfigMap desire:
+
+* Versions without the native consumer, including `4.23.0-ec.0`,
+  `4.23.0-ec.1` and `5.0`, retain the ACM certificate delivery resources. The
+  ConfigMap selects `cluster-ingress-cert`, which the policy fills with the
+  service-provider certificate in `openshift-ingress`.
+* Covered versions (`4.20` through `4.22` via CPO overrides, `4.23` from
+  `4.23.0-ec.2` via the backport, and `5.1` onward natively) use
+  `default-ingress-cert` when ACM delivery has not already been selected.
+
+ACM selection remains sticky across upgrades. The native consumer does not
+rewrite an existing IngressController certificate reference, so keeping the ACM
+resources preserves certificate renewal without requiring an unverified handoff.
+The policy accepts only `cluster-ingress-cert` as an explicit selection; an
+absent or unrecognized selection uses `default-ingress-cert`.
+
+The policy initializes missing certificate references and repairs service-owned
+references (`default-ingress-cert` or `cluster-ingress-cert`). A reference to a
+different customer-selected Secret is not enforced, so later policy evaluations
+preserve it. ACM Secret delivery and renewal continue independently.
+
+The [version selection](../backend/pkg/controllers/clusterresources/ingress_default_certificate.go)
+and [policy](deploy/helm/policies/templates/default-ingress-cert.policy.yaml)
+define this contract. E2E checks validate the certificate served over HTTPS,
+including trust outside development and the exact customer-provided leaf,
+rather than requiring one delivery path or Secret name.
+
 ## Updating charts
 
 To update the MCE and policy charts, change the `acm.mce.bundle` and `acm.operator.bundle` digests in `config/config.yaml` and run `make helm-charts`. Commit the resulting chart changes.
