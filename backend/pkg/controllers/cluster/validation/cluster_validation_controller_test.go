@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/go-logr/logr/testr"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -28,6 +29,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clocktesting "k8s.io/utils/clock/testing"
 	"k8s.io/utils/lru"
+	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -38,6 +40,7 @@ import (
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -114,6 +117,8 @@ func newTestSyncer(mockDB *corecosmosstoragetesting.MockResourcesDBClient, valid
 		serviceProviderClusterLister: &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockDB},
 		validation:                   validation,
 		consecutiveUnknownCounts:     lru.New(consecutiveUnknownCountsCacheCapacity),
+		probeWriteTimes:              lru.New(consecutiveUnknownCountsCacheCapacity),
+		clock:                        fakeClock,
 	}
 	return syncer, enqueuer
 }
@@ -321,6 +326,340 @@ func TestClusterValidationSyncer_SyncOnce(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestClusterValidationSyncer_ProbeTimes verifies that the syncer records the
+// start time of each Failed run, rewritten while the validation keeps failing
+// at most once per ValidationProbeRewriteInterval, left untouched by Unknown
+// runs, and removed when the validation passes or is skipped. The operation
+// controllers use these probe times to distinguish a freshly re-confirmed
+// failure from one that has not been re-checked lately.
+func TestClusterValidationSyncer_ProbeTimes(t *testing.T) {
+	t.Parallel()
+
+	getSPC := func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient) *coreapi.ServiceProviderCluster {
+		t.Helper()
+		spc, err := mockDB.ServiceProviderClusters(testSubscriptionID, testResourceGroup, testClusterName).
+			Get(ctx, coreapi.ServiceProviderClusterResourceName)
+		require.NoError(t, err)
+		return spc
+	}
+
+	t.Run("failed run records a probe time at the clock's now", func(t *testing.T) {
+		t.Parallel()
+		ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+		mockDB := corecosmosstoragetesting.NewMockResourcesDBClient()
+		_, err := mockDB.HCPClusters(testSubscriptionID, testResourceGroup).Create(ctx, newTestCluster(t), nil)
+		require.NoError(t, err)
+		_, err = mockDB.Subscriptions().Create(ctx, newTestSubscription(), nil)
+		require.NoError(t, err)
+		_, err = corecosmosstorage.GetOrCreateServiceProviderCluster(ctx, mockDB, newTestCluster(t).ID)
+		require.NoError(t, err)
+
+		fakeClock := clocktesting.NewFakePassiveClock(fixedNow)
+		syncer, _ := newTestSyncer(mockDB, NewMockClusterValidation(testValidationName).WithFailed(
+			"QuotaExceeded", "quota exceeded", "Quota exceeded for this subscription.",
+		), fakeClock)
+		require.NoError(t, syncer.SyncOnce(ctx, newTestClusterKey()))
+
+		spc := getSPC(t, ctx, mockDB)
+		probeTime, ok := spc.Status.ValidationProbeTimes[testValidationName]
+		require.True(t, ok, "expected a probe time to be recorded")
+		assert.True(t, fixedNow.Equal(probeTime.Time), "probe time must be the clock's now, got %s", probeTime.Time)
+	})
+
+	t.Run("probe time is the run's start, not its completion", func(t *testing.T) {
+		t.Parallel()
+		ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+		mockDB := corecosmosstoragetesting.NewMockResourcesDBClient()
+		_, err := mockDB.HCPClusters(testSubscriptionID, testResourceGroup).Create(ctx, newTestCluster(t), nil)
+		require.NoError(t, err)
+		_, err = mockDB.Subscriptions().Create(ctx, newTestSubscription(), nil)
+		require.NoError(t, err)
+		_, err = corecosmosstorage.GetOrCreateServiceProviderCluster(ctx, mockDB, newTestCluster(t).ID)
+		require.NoError(t, err)
+
+		fakeClock := clocktesting.NewFakePassiveClock(fixedNow)
+		validation := NewMockClusterValidation(testValidationName).WithValidateFunc(func(context.Context) validationutils.ValidationResult {
+			fakeClock.SetTime(fixedNow.Add(90 * time.Second))
+			return validationutils.FailedValidation("QuotaExceeded", "Quota exceeded for this subscription.", "quota exceeded")
+		})
+		syncer, _ := newTestSyncer(mockDB, validation, fakeClock)
+		require.NoError(t, syncer.SyncOnce(ctx, newTestClusterKey()))
+
+		spc := getSPC(t, ctx, mockDB)
+		probeTime, ok := spc.Status.ValidationProbeTimes[testValidationName]
+		require.True(t, ok, "expected a probe time to be recorded")
+		assert.True(t, fixedNow.Equal(probeTime.Time), "probe time must be the run's start time, got %s", probeTime.Time)
+	})
+
+	t.Run("unchanged outcome still refreshes the probe time", func(t *testing.T) {
+		t.Parallel()
+		ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+		mockDB := corecosmosstoragetesting.NewMockResourcesDBClient()
+		_, err := mockDB.HCPClusters(testSubscriptionID, testResourceGroup).Create(ctx, newTestCluster(t), nil)
+		require.NoError(t, err)
+		_, err = mockDB.Subscriptions().Create(ctx, newTestSubscription(), nil)
+		require.NoError(t, err)
+		_, err = corecosmosstorage.GetOrCreateServiceProviderCluster(ctx, mockDB, newTestCluster(t).ID)
+		require.NoError(t, err)
+
+		// Seed a False condition with an old probe time, as a previous run
+		// would have left behind.
+		spcCRUD := mockDB.ServiceProviderClusters(testSubscriptionID, testResourceGroup, testClusterName)
+		spc, err := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
+		require.NoError(t, err)
+		spc.Status.Validations = []metav1.Condition{{
+			Type: testValidationName, Status: metav1.ConditionFalse, Reason: "QuotaExceeded",
+			LastTransitionTime: metav1.NewTime(fixedNow.Add(-10 * time.Minute)),
+		}}
+		spc.Status.ValidationProbeTimes = map[string]metav1.Time{
+			testValidationName: metav1.NewTime(fixedNow.Add(-10 * time.Minute)),
+		}
+		_, err = spcCRUD.Replace(ctx, spc, nil)
+		require.NoError(t, err)
+
+		fakeClock := clocktesting.NewFakePassiveClock(fixedNow)
+		syncer, _ := newTestSyncer(mockDB, NewMockClusterValidation(testValidationName).WithFailed(
+			"QuotaExceeded", "quota exceeded", "Quota exceeded for this subscription.",
+		), fakeClock)
+		require.NoError(t, syncer.SyncOnce(ctx, newTestClusterKey()))
+
+		spc = getSPC(t, ctx, mockDB)
+		sprobeTime, ok := spc.Status.ValidationProbeTimes[testValidationName]
+		require.True(t, ok, "expected a probe time to be recorded")
+		assert.True(t, fixedNow.Equal(sprobeTime.Time), "probe time must advance even when the outcome is unchanged, got %s", sprobeTime.Time)
+		// The condition itself is unchanged, so its LastTransitionTime is not.
+		cond := meta.FindStatusCondition(spc.Status.Validations, testValidationName)
+		require.NotNil(t, cond)
+		assert.True(t, fixedNow.Add(-10*time.Minute).Equal(cond.LastTransitionTime.Time), "condition LastTransitionTime must be unchanged, got %s", cond.LastTransitionTime.Time)
+	})
+
+	t.Run("unknown outcome does not refresh the probe time", func(t *testing.T) {
+		t.Parallel()
+		ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+		mockDB := corecosmosstoragetesting.NewMockResourcesDBClient()
+		_, err := mockDB.HCPClusters(testSubscriptionID, testResourceGroup).Create(ctx, newTestCluster(t), nil)
+		require.NoError(t, err)
+		_, err = mockDB.Subscriptions().Create(ctx, newTestSubscription(), nil)
+		require.NoError(t, err)
+		_, err = corecosmosstorage.GetOrCreateServiceProviderCluster(ctx, mockDB, newTestCluster(t).ID)
+		require.NoError(t, err)
+
+		oldProbe := metav1.NewTime(fixedNow.Add(-8 * time.Minute))
+		spcCRUD := mockDB.ServiceProviderClusters(testSubscriptionID, testResourceGroup, testClusterName)
+		spc, err := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
+		require.NoError(t, err)
+		spc.Status.Validations = []metav1.Condition{{
+			Type: testValidationName, Status: metav1.ConditionFalse, Reason: "QuotaExceeded",
+			LastTransitionTime: metav1.NewTime(fixedNow.Add(-10 * time.Minute)),
+		}}
+		spc.Status.ValidationProbeTimes = map[string]metav1.Time{testValidationName: oldProbe}
+		_, err = spcCRUD.Replace(ctx, spc, nil)
+		require.NoError(t, err)
+
+		fakeClock := clocktesting.NewFakePassiveClock(fixedNow)
+		syncer, _ := newTestSyncer(mockDB, NewMockClusterValidation(testValidationName).WithUnknownLogOnly(
+			"TransientIssue", "temporary network blip", "Temporarily unable to verify.",
+		), fakeClock)
+		require.NoError(t, syncer.SyncOnce(ctx, newTestClusterKey()))
+
+		spc = getSPC(t, ctx, mockDB)
+		probeTime, ok := spc.Status.ValidationProbeTimes[testValidationName]
+		require.True(t, ok, "expected the probe time to be retained")
+		assert.True(t, oldProbe.Equal(&probeTime), "probe time must not advance on an Unknown outcome, got %s", probeTime.Time)
+	})
+
+	t.Run("skipped run removes the probe time", func(t *testing.T) {
+		t.Parallel()
+		ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+		mockDB := corecosmosstoragetesting.NewMockResourcesDBClient()
+		_, err := mockDB.HCPClusters(testSubscriptionID, testResourceGroup).Create(ctx, newTestCluster(t), nil)
+		require.NoError(t, err)
+		_, err = mockDB.Subscriptions().Create(ctx, newTestSubscription(), nil)
+		require.NoError(t, err)
+		_, err = corecosmosstorage.GetOrCreateServiceProviderCluster(ctx, mockDB, newTestCluster(t).ID)
+		require.NoError(t, err)
+
+		spcCRUD := mockDB.ServiceProviderClusters(testSubscriptionID, testResourceGroup, testClusterName)
+		spc, err := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
+		require.NoError(t, err)
+		spc.Status.ValidationProbeTimes = map[string]metav1.Time{
+			testValidationName: metav1.NewTime(fixedNow.Add(-time.Minute)),
+		}
+		_, err = spcCRUD.Replace(ctx, spc, nil)
+		require.NoError(t, err)
+
+		fakeClock := clocktesting.NewFakePassiveClock(fixedNow)
+		syncer, _ := newTestSyncer(mockDB, NewMockClusterValidation(testValidationName).WithSkipped(
+			"NotApplicable", "cluster does not need this check", "Not applicable.",
+		), fakeClock)
+		require.NoError(t, syncer.SyncOnce(ctx, newTestClusterKey()))
+
+		spc = getSPC(t, ctx, mockDB)
+		_, ok := spc.Status.ValidationProbeTimes[testValidationName]
+		assert.False(t, ok, "expected the probe time to be removed for a skipped validation")
+	})
+
+	t.Run("failed re-check within the rewrite interval keeps the stored probe", func(t *testing.T) {
+		t.Parallel()
+		ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+		mockDB := corecosmosstoragetesting.NewMockResourcesDBClient()
+		_, err := mockDB.HCPClusters(testSubscriptionID, testResourceGroup).Create(ctx, newTestCluster(t), nil)
+		require.NoError(t, err)
+		_, err = mockDB.Subscriptions().Create(ctx, newTestSubscription(), nil)
+		require.NoError(t, err)
+		_, err = corecosmosstorage.GetOrCreateServiceProviderCluster(ctx, mockDB, newTestCluster(t).ID)
+		require.NoError(t, err)
+
+		recentProbe := metav1.NewTime(fixedNow.Add(-validationutils.ValidationProbeRewriteInterval + time.Second))
+		spcCRUD := mockDB.ServiceProviderClusters(testSubscriptionID, testResourceGroup, testClusterName)
+		spc, err := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
+		require.NoError(t, err)
+		spc.Status.Validations = []metav1.Condition{{
+			Type: testValidationName, Status: metav1.ConditionFalse, Reason: "QuotaExceeded",
+			Message:            "Quota exceeded for this subscription.",
+			LastTransitionTime: metav1.NewTime(fixedNow.Add(-10 * time.Minute)),
+		}}
+		spc.Status.ValidationProbeTimes = map[string]metav1.Time{testValidationName: recentProbe}
+		_, err = spcCRUD.Replace(ctx, spc, nil)
+		require.NoError(t, err)
+
+		fakeClock := clocktesting.NewFakePassiveClock(fixedNow)
+		syncer, _ := newTestSyncer(mockDB, NewMockClusterValidation(testValidationName).WithFailed(
+			"QuotaExceeded", "quota exceeded", "Quota exceeded for this subscription.",
+		), fakeClock)
+		require.NoError(t, syncer.SyncOnce(ctx, newTestClusterKey()))
+
+		spc = getSPC(t, ctx, mockDB)
+		probeTime, ok := spc.Status.ValidationProbeTimes[testValidationName]
+		require.True(t, ok, "expected the probe time to be retained")
+		assert.True(t, recentProbe.Equal(&probeTime), "a probe younger than the rewrite interval must not be rewritten, got %s", probeTime.Time)
+	})
+
+	t.Run("passed run removes the probe time", func(t *testing.T) {
+		t.Parallel()
+		ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+		mockDB := corecosmosstoragetesting.NewMockResourcesDBClient()
+		_, err := mockDB.HCPClusters(testSubscriptionID, testResourceGroup).Create(ctx, newTestCluster(t), nil)
+		require.NoError(t, err)
+		_, err = mockDB.Subscriptions().Create(ctx, newTestSubscription(), nil)
+		require.NoError(t, err)
+		_, err = corecosmosstorage.GetOrCreateServiceProviderCluster(ctx, mockDB, newTestCluster(t).ID)
+		require.NoError(t, err)
+
+		spcCRUD := mockDB.ServiceProviderClusters(testSubscriptionID, testResourceGroup, testClusterName)
+		spc, err := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
+		require.NoError(t, err)
+		spc.Status.ValidationProbeTimes = map[string]metav1.Time{
+			testValidationName: metav1.NewTime(fixedNow.Add(-time.Minute)),
+		}
+		_, err = spcCRUD.Replace(ctx, spc, nil)
+		require.NoError(t, err)
+
+		fakeClock := clocktesting.NewFakePassiveClock(fixedNow)
+		syncer, _ := newTestSyncer(mockDB, NewMockClusterValidation(testValidationName).WithPassed(), fakeClock)
+		require.NoError(t, syncer.SyncOnce(ctx, newTestClusterKey()))
+
+		spc = getSPC(t, ctx, mockDB)
+		_, ok := spc.Status.ValidationProbeTimes[testValidationName]
+		assert.False(t, ok, "expected the probe time to be removed for a passed validation")
+	})
+
+	t.Run("write conflict still schedules the retry cooldown", func(t *testing.T) {
+		t.Parallel()
+		ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+		mockDB := corecosmosstoragetesting.NewMockResourcesDBClient()
+		_, err := mockDB.HCPClusters(testSubscriptionID, testResourceGroup).Create(ctx, newTestCluster(t), nil)
+		require.NoError(t, err)
+		_, err = mockDB.Subscriptions().Create(ctx, newTestSubscription(), nil)
+		require.NoError(t, err)
+		_, err = corecosmosstorage.GetOrCreateServiceProviderCluster(ctx, mockDB, newTestCluster(t).ID)
+		require.NoError(t, err)
+
+		fakeClock := clocktesting.NewFakePassiveClock(fixedNow)
+		syncer, enqueuer := newTestSyncer(mockDB, NewMockClusterValidation(testValidationName).WithFailed(
+			"QuotaExceeded", "quota exceeded", "Quota exceeded for this subscription.",
+		), fakeClock)
+		syncer.serviceProviderClusterLister = &concurrentWriterServiceProviderClusterLister{
+			ServiceProviderClusterLister: syncer.serviceProviderClusterLister,
+			resourcesDBClient:            mockDB,
+			conflictOnGet:                2,
+		}
+		require.NoError(t, syncer.SyncOnce(ctx, newTestClusterKey()), "a write conflict must not surface as a sync error")
+
+		assert.False(t, syncer.retryCooldownChecker.CanSync(ctx, newTestClusterKey()), "the retry cooldown must be set even when the document write conflicts")
+		require.NotEmpty(t, enqueuer.enqueuedKeys, "a delayed requeue must be scheduled after a write conflict")
+		assert.Positive(t, enqueuer.enqueuedDurations[0], "the delayed requeue must be scheduled in the future")
+
+		spc := getSPC(t, ctx, mockDB)
+		_, ok := spc.Status.ValidationProbeTimes[testValidationName]
+		assert.False(t, ok, "the conflicted write must not have persisted a probe time")
+	})
+
+	t.Run("passed write conflict retries on the non-passed cadence", func(t *testing.T) {
+		t.Parallel()
+		ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+		mockDB := corecosmosstoragetesting.NewMockResourcesDBClient()
+		_, err := mockDB.HCPClusters(testSubscriptionID, testResourceGroup).Create(ctx, newTestCluster(t), nil)
+		require.NoError(t, err)
+		_, err = mockDB.Subscriptions().Create(ctx, newTestSubscription(), nil)
+		require.NoError(t, err)
+		_, err = corecosmosstorage.GetOrCreateServiceProviderCluster(ctx, mockDB, newTestCluster(t).ID)
+		require.NoError(t, err)
+
+		spcCRUD := mockDB.ServiceProviderClusters(testSubscriptionID, testResourceGroup, testClusterName)
+		spc, err := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
+		require.NoError(t, err)
+		spc.Status.Validations = []metav1.Condition{{
+			Type: testValidationName, Status: metav1.ConditionFalse, Reason: "QuotaExceeded",
+			LastTransitionTime: metav1.NewTime(fixedNow.Add(-10 * time.Minute)),
+		}}
+		_, err = spcCRUD.Replace(ctx, spc, nil)
+		require.NoError(t, err)
+
+		fakeClock := clocktesting.NewFakePassiveClock(fixedNow)
+		syncer, enqueuer := newTestSyncer(mockDB, NewMockClusterValidation(testValidationName).WithPassed(), fakeClock)
+		syncer.serviceProviderClusterLister = &concurrentWriterServiceProviderClusterLister{
+			ServiceProviderClusterLister: syncer.serviceProviderClusterLister,
+			resourcesDBClient:            mockDB,
+			conflictOnGet:                2,
+		}
+		require.NoError(t, syncer.SyncOnce(ctx, newTestClusterKey()), "a write conflict must not surface as a sync error")
+
+		maxDelay := 90*time.Second + time.Second
+		assert.LessOrEqual(t, syncer.retryCooldownChecker.TimeUntilReady(newTestClusterKey()), maxDelay,
+			"a lost Passed result must not apply the long passed-retry cooldown")
+		require.NotEmpty(t, enqueuer.enqueuedKeys, "a delayed requeue must be scheduled so the lost Passed result is recomputed")
+		assert.LessOrEqual(t, enqueuer.enqueuedDurations[0], maxDelay, "the requeue must use the non-passed retry cadence")
+
+		cond := meta.FindStatusCondition(getSPC(t, ctx, mockDB).Status.Validations, testValidationName)
+		require.NotNil(t, cond, "expected the stored condition to remain")
+		assert.Equal(t, metav1.ConditionFalse, cond.Status, "the conflicted write must not have persisted the Passed result")
+	})
+}
+
+// concurrentWriterServiceProviderClusterLister simulates a concurrent writer: on the conflictOnGet-th
+// Get it returns the stored document and then replaces it in the database, so a write based on the
+// returned copy hits an optimistic-concurrency conflict.
+type concurrentWriterServiceProviderClusterLister struct {
+	corelisters.ServiceProviderClusterLister
+	resourcesDBClient corecosmosstorage.ResourcesDBClient
+	conflictOnGet     int
+	gets              int
+}
+
+func (l *concurrentWriterServiceProviderClusterLister) Get(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) (*coreapi.ServiceProviderCluster, error) {
+	spc, err := l.ServiceProviderClusterLister.Get(ctx, subscriptionID, resourceGroupName, clusterName)
+	l.gets++
+	if err != nil || l.gets != l.conflictOnGet {
+		return spc, err
+	}
+	spcCRUD := l.resourcesDBClient.ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName)
+	if _, err := spcCRUD.Replace(ctx, spc.DeepCopy(), nil); err != nil {
+		return nil, err
+	}
+	return spc, nil
 }
 
 // TestClusterValidationSyncer_ShouldWriteCondition unit-tests the suppression decision in isolation from
@@ -568,4 +907,199 @@ func TestClusterValidationSyncer_CooldownSuppression(t *testing.T) {
 
 	require.NotEmpty(t, enqueuer.enqueuedKeys, "should have re-enqueued after cooldown skip")
 	assert.Greater(t, enqueuer.enqueuedDurations[0], time.Duration(0), "enqueue duration should be positive")
+}
+
+// TestClusterValidationSyncer_RunTimeout verifies that a validation run exceeding the per-run
+// timeout is recorded as Unknown, never as a confirmed failure, and does not refresh the probe time.
+func TestClusterValidationSyncer_RunTimeout(t *testing.T) {
+	t.Parallel()
+	const validationName = "TimeoutTestValidation"
+	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+
+	mockDB := corecosmosstoragetesting.NewMockResourcesDBClient()
+	cluster := newTestCluster(t)
+	_, err := mockDB.HCPClusters(testSubscriptionID, testResourceGroup).Create(ctx, cluster, nil)
+	require.NoError(t, err)
+	_, err = mockDB.Subscriptions().Create(ctx, newTestSubscription(), nil)
+	require.NoError(t, err)
+	_, err = corecosmosstorage.GetOrCreateServiceProviderCluster(ctx, mockDB, cluster.ID)
+	require.NoError(t, err)
+
+	validation := NewMockClusterValidation(validationName).WithValidateFunc(func(ctx context.Context) validationutils.ValidationResult {
+		<-ctx.Done()
+		return validationutils.FailedValidation("PartialConclusion", "Interrupted run.", "interrupted run")
+	})
+
+	fakeClock := clocktesting.NewFakePassiveClock(fixedNow)
+	syncer, enqueuer := newTestSyncer(mockDB, validation, fakeClock)
+	syncer.runTimeout = 10 * time.Millisecond
+
+	timeoutsBefore := testutil.ToFloat64(validationRunTimeouts.WithLabelValues(validationName))
+	err = syncer.SyncOnce(ctx, newTestClusterKey())
+	require.Error(t, err, "a timed-out run is reported as an inconclusive error")
+	assert.Equal(t, timeoutsBefore+1, testutil.ToFloat64(validationRunTimeouts.WithLabelValues(validationName)), "timeout counter must increment")
+
+	spc, err := mockDB.ServiceProviderClusters(testSubscriptionID, testResourceGroup, testClusterName).
+		Get(ctx, coreapi.ServiceProviderClusterResourceName)
+	require.NoError(t, err)
+	cond := meta.FindStatusCondition(spc.Status.Validations, validationName)
+	require.NotNil(t, cond)
+	assert.Equal(t, metav1.ConditionUnknown, cond.Status)
+	assert.Equal(t, "Timeout", cond.Reason)
+	_, hasProbe := spc.Status.ValidationProbeTimes[validationName]
+	assert.False(t, hasProbe, "a timed-out run must not record a probe time")
+	assert.NotEmpty(t, enqueuer.enqueuedKeys, "a timed-out run must schedule a retry")
+}
+
+// TestClusterValidationSyncer_ProbeRewriteWriteInterval asserts that probe rewrites are
+// throttled by the time between actual writes, not by the previous probe's run-start time,
+// and that the stored probe never ages past ValidationProbeFreshnessWindow while a
+// validation keeps re-checking on schedule. The freshness bound must cover, on top of the
+// rewrite interval and the retry/run overshoot, the writing run's own duration: the write
+// lands when the run completes, so the stored probe (that run's start) is already up to
+// one run timeout old when the clock it is measured against starts. The mixed-duration
+// schedule below (119s/1s runs, 90s retries) reaches a stored-probe age of ~420s before a
+// rewrite lands — beyond the old 6-minute window, which is why the window now includes an
+// extra run timeout.
+func TestClusterValidationSyncer_ProbeRewriteWriteInterval(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		durations  []time.Duration
+		retryDelay time.Duration
+	}{
+		{
+			name:       "short runs with short retries",
+			durations:  []time.Duration{59 * time.Second, time.Second},
+			retryDelay: 61 * time.Second,
+		},
+		{
+			name:       "mixed durations with maximum retries",
+			durations:  []time.Duration{119 * time.Second, time.Second},
+			retryDelay: 90 * time.Second,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+
+			mockDB := corecosmosstoragetesting.NewMockResourcesDBClient()
+			cluster := newTestCluster(t)
+			_, err := mockDB.HCPClusters(testSubscriptionID, testResourceGroup).Create(ctx, cluster, nil)
+			require.NoError(t, err)
+			_, err = mockDB.Subscriptions().Create(ctx, newTestSubscription(), nil)
+			require.NoError(t, err)
+			_, err = corecosmosstorage.GetOrCreateServiceProviderCluster(ctx, mockDB, cluster.ID)
+			require.NoError(t, err)
+
+			fakeClock := clocktesting.NewFakePassiveClock(fixedNow)
+			var run int
+			validation := NewMockClusterValidation(testValidationName).WithValidateFunc(func(context.Context) validationutils.ValidationResult {
+				d := tc.durations[run%len(tc.durations)]
+				run++
+				fakeClock.SetTime(fakeClock.Now().Add(d))
+				result := validationutils.FailedValidation("QuotaExceeded", "Quota exceeded for this subscription.", "quota exceeded")
+				result.EarliestRetryAfter = ptr.To(tc.retryDelay)
+				return result
+			})
+
+			syncer, _ := newTestSyncer(mockDB, validation, fakeClock)
+
+			spcCRUD := mockDB.ServiceProviderClusters(testSubscriptionID, testResourceGroup, testClusterName)
+			var lastWrite time.Time
+			rewrites := 0
+			for i := 0; i < 20; i++ {
+				// Each run starts one retry delay after the previous run completed.
+				fakeClock.SetTime(fakeClock.Now().Add(tc.retryDelay + time.Second))
+
+				before, err := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
+				require.NoError(t, err)
+				require.NoError(t, syncer.SyncOnce(ctx, newTestClusterKey()))
+				after, err := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
+				require.NoError(t, err)
+
+				probe := after.Status.ValidationProbeTimes[testValidationName]
+				require.Falsef(t, probe.IsZero(), "run %d: a failing validation must always record a probe", i)
+
+				// Freshness invariant: while re-checks continue on schedule, the stored
+				// probe must stay inside the freshness window. The old probe remains
+				// readable until the rewriting run's write lands at its completion, so
+				// its maximum observable age is completion minus the old probe. That
+				// bound necessarily includes the writing run's duration in addition to
+				// the rewrite interval and the retry/run overshoot; a window that omits
+				// it (the old 6-minute bound) lets this schedule drive the probe stale
+				// before the rewrite lands.
+				completion := fakeClock.Now()
+				if beforeProbe, ok := before.Status.ValidationProbeTimes[testValidationName]; ok {
+					assert.LessOrEqualf(t, completion.Sub(beforeProbe.Time), validationutils.ValidationProbeFreshnessWindow,
+						"run %d: the stored probe went stale while the validation was re-checking on schedule", i)
+				}
+				assert.LessOrEqualf(t, completion.Sub(probe.Time), validationutils.ValidationProbeFreshnessWindow,
+					"run %d: the freshly written probe exceeds the freshness window", i)
+
+				if !probe.Time.Equal(before.Status.ValidationProbeTimes[testValidationName].Time) {
+					if rewrites > 0 {
+						assert.GreaterOrEqualf(t, fakeClock.Since(lastWrite), validationutils.ValidationProbeRewriteInterval,
+							"rewrite %d landed too soon after the previous write", rewrites)
+					}
+					lastWrite = fakeClock.Now()
+					rewrites++
+				}
+			}
+			assert.GreaterOrEqual(t, rewrites, 3, "the schedule must produce several rewrites for the interval assertions to be meaningful")
+		})
+	}
+}
+
+// TestClusterValidationSyncer_ProbeRewriteRestartFallback covers the fallback used when no
+// write is on record (syncer restart or leader change): a stored probe at least
+// ValidationProbeRewriteInterval old is rewritten, while a younger one is left alone.
+func TestClusterValidationSyncer_ProbeRewriteRestartFallback(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		probeAge    time.Duration
+		wantRewrite bool
+	}{
+		{name: "stored probe older than the interval is rewritten", probeAge: validationutils.ValidationProbeRewriteInterval + time.Minute, wantRewrite: true},
+		{name: "stored probe younger than the interval is left alone", probeAge: time.Minute, wantRewrite: false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+
+			mockDB := corecosmosstoragetesting.NewMockResourcesDBClient()
+			cluster := newTestCluster(t)
+			_, err := mockDB.HCPClusters(testSubscriptionID, testResourceGroup).Create(ctx, cluster, nil)
+			require.NoError(t, err)
+			_, err = mockDB.Subscriptions().Create(ctx, newTestSubscription(), nil)
+			require.NoError(t, err)
+			_, err = corecosmosstorage.GetOrCreateServiceProviderCluster(ctx, mockDB, cluster.ID)
+			require.NoError(t, err)
+
+			spcCRUD := mockDB.ServiceProviderClusters(testSubscriptionID, testResourceGroup, testClusterName)
+			spc, err := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
+			require.NoError(t, err)
+			// Truncate to whole seconds: the mock DB round-trips timestamps at
+			// second precision, so sub-second differences would be indistinguishable
+			// from a rewrite.
+			storedProbe := time.Now().Add(-tc.probeAge).Truncate(time.Second)
+			spc.Status.ValidationProbeTimes = map[string]metav1.Time{
+				testValidationName: metav1.NewTime(storedProbe),
+			}
+			_, err = spcCRUD.Replace(ctx, spc, nil)
+			require.NoError(t, err)
+
+			fakeClock := clocktesting.NewFakePassiveClock(fixedNow)
+			validation := NewMockClusterValidation(testValidationName).WithFailed("QuotaExceeded", "quota exceeded", "Quota exceeded for this subscription.")
+			// A fresh syncer has no in-memory write record, exercising the fallback.
+			syncer, _ := newTestSyncer(mockDB, validation, fakeClock)
+			fakeClock.SetTime(storedProbe.Add(tc.probeAge)) // now is exactly probeAge after the stored probe
+
+			require.NoError(t, syncer.SyncOnce(ctx, newTestClusterKey()))
+
+			after, err := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
+			require.NoError(t, err)
+			probe := after.Status.ValidationProbeTimes[testValidationName]
+			require.False(t, probe.IsZero())
+			assert.Equalf(t, tc.wantRewrite, !probe.Time.Equal(storedProbe),
+				"expected rewrite=%v", tc.wantRewrite)
+		})
+	}
 }

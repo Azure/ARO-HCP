@@ -30,7 +30,68 @@ const (
 	passedRetryBase = 12 * time.Hour
 	// jitterFactor is the maxFactor passed to wait.Jitter; 0.5 means up to +50% of the base.
 	jitterFactor = 0.5
+	// maxNonPassedRetryDelay is the longest delay FailedValidation, UnknownValidation, and
+	// SkippedValidation schedule before the next run (nonpassedRetryBase plus maximum jitter).
+	maxNonPassedRetryDelay = time.Duration(float64(nonpassedRetryBase) * (1 + jitterFactor))
 )
+
+// NonPassedRetryDelay returns the jittered retry delay FailedValidation, UnknownValidation, and
+// SkippedValidation use, in [nonpassedRetryBase, maxNonPassedRetryDelay]. Jitter avoids retry storms.
+func NonPassedRetryDelay() time.Duration {
+	return wait.Jitter(nonpassedRetryBase, jitterFactor)
+}
+
+const (
+	// ValidationRunTimeout bounds a single validation run. Without it a hung Azure call blocks the
+	// worker indefinitely and the validation silently stops producing fresh results. It also keeps a
+	// recorded probe time (the run's start) close to when Azure was actually observed.
+	ValidationRunTimeout = 2 * time.Minute
+
+	// ValidationProbeRewriteInterval throttles how often a still-failing validation rewrites its probe
+	// time, so a continuously failing validation does not turn every retry into a Cosmos write.
+	//
+	// With the default retry delays (nonpassedRetryBase plus non-negative jitter, measured from the
+	// end of the previous run) consecutive failing runs usually start less than this interval apart,
+	// so the throttle skips roughly every other rewrite. It also caps writes when a run happens
+	// sooner than that: a validation that overrides EarliestRetryAfter with a shorter delay, or an
+	// immediate re-run after a backend restart or leader change drops the in-memory retry cooldown.
+	ValidationProbeRewriteInterval = ValidationRunTimeout
+
+	// validationProbeLagSlack absorbs workqueue and Cosmos write latency that the probe lag budget
+	// below does not model explicitly.
+	validationProbeLagSlack = 30 * time.Second
+
+	// ValidationProbeFreshnessWindow bounds how old a validation's recorded probe (the start time of
+	// its most recent conclusive Failed run, stored in ServiceProviderCluster.Status.ValidationProbeTimes)
+	// may be while its False condition still counts toward terminally failing a create or update
+	// operation. A probe older than this means the check has not actually run recently (stalled
+	// controller, workqueue backlog, or runs that keep timing out), so the stored failure is stale
+	// evidence rather than a freshly confirmed one.
+	//
+	// The window is derived from the other bounds so that a validation re-checking on schedule
+	// never looks stale. The rewrite throttle is anchored on the last successful probe write, and
+	// the stored probe is the start time of the run that wrote it: that run can itself run for up
+	// to ValidationRunTimeout before its write lands, so the first rewrite after it completes no
+	// earlier than ValidationRunTimeout (the writing run's own duration) +
+	// ValidationProbeRewriteInterval after the stored probe. If a run completes just before that
+	// bound, it does not rewrite, and the next run starts up to one retry delay later and runs up
+	// to one run timeout longer. The worst-case stored probe age while re-checks continue is
+	// therefore ValidationRunTimeout + max(ValidationProbeRewriteInterval, ValidationRunTimeout) +
+	// maxNonPassedRetryDelay + ValidationRunTimeout; the compile-time guard below keeps the middle
+	// max at ValidationRunTimeout.
+	// A run that times out is Unknown and does not rewrite, which correctly lets the probe go
+	// stale; the same holds for a rewrite lost to a write conflict until the next run lands.
+	ValidationProbeFreshnessWindow = 3*ValidationRunTimeout + maxNonPassedRetryDelay + validationProbeLagSlack
+)
+
+// Fails to compile if ValidationProbeRewriteInterval exceeds ValidationRunTimeout: the operand
+// becomes negative, which cannot be converted to an unsigned constant. The freshness window
+// derivation above assumes the rewrite interval is no longer than a run.
+const _ uint64 = uint64(ValidationRunTimeout - ValidationProbeRewriteInterval)
+
+// Fails to compile if the rewrite interval is not positive; a zero interval would rewrite on
+// every run and defeat the write throttle.
+const _ uint64 = uint64(ValidationProbeRewriteInterval - 1)
 
 // OutcomeType discriminates which validation outcome payload is populated.
 type OutcomeType string
