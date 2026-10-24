@@ -66,15 +66,15 @@ func TestClusterValidationOperationState(t *testing.T) {
 			wantMessage: "Subnet: ValidationResult: Subnet details",
 		},
 		{
-			name:        "validation at exactly ten minutes fails an older operation",
-			validations: []metav1.Condition{condition("Subnet", metav1.ConditionFalse, 10*time.Minute)},
+			name:        "validation at exactly the failure timeout fails an older operation",
+			validations: []metav1.Condition{condition("Subnet", metav1.ConditionFalse, clusterValidationFailureTimeout)},
 			wantState:   coreapi.ProvisioningStateFailed, wantCode: coreapi.CloudErrorCodeInvalidResource,
 			wantMessage: "Subnet: ValidationResult: Subnet details",
 		},
 		{
-			name: "any failure older than ten minutes fails and all failures are reported",
+			name: "any failure older than the failure timeout fails and all failures are reported",
 			validations: []metav1.Condition{
-				condition("Subnet", metav1.ConditionFalse, 10*time.Minute+time.Second),
+				condition("Subnet", metav1.ConditionFalse, clusterValidationFailureTimeout+time.Second),
 				condition("Identity", metav1.ConditionFalse, time.Minute),
 				condition("Quota", metav1.ConditionTrue, time.Hour),
 			},
@@ -89,14 +89,14 @@ func TestClusterValidationOperationState(t *testing.T) {
 		},
 		{
 			name:        "old unknown validation fails the operation same as a failed one",
-			validations: []metav1.Condition{condition("Subnet", metav1.ConditionUnknown, 10*time.Minute)},
+			validations: []metav1.Condition{condition("Subnet", metav1.ConditionUnknown, clusterValidationFailureTimeout)},
 			wantState:   coreapi.ProvisioningStateFailed, wantCode: coreapi.CloudErrorCodeInvalidResource,
 			wantMessage: "Subnet: ValidationResult: Subnet details",
 		},
 		{
 			name: "fresh unknown validation does not extend a failure timeout",
 			validations: []metav1.Condition{
-				condition("Subnet", metav1.ConditionFalse, 11*time.Minute),
+				condition("Subnet", metav1.ConditionFalse, clusterValidationFailureTimeout+time.Minute),
 				condition("Identity", metav1.ConditionUnknown, time.Minute),
 			},
 			wantState: coreapi.ProvisioningStateFailed, wantCode: coreapi.CloudErrorCodeInvalidResource,
@@ -106,7 +106,7 @@ func TestClusterValidationOperationState(t *testing.T) {
 			name: "old unknown validation alongside a fresh failure still fails",
 			validations: []metav1.Condition{
 				condition("Subnet", metav1.ConditionFalse, 4*time.Minute),
-				condition("Identity", metav1.ConditionUnknown, 10*time.Minute),
+				condition("Identity", metav1.ConditionUnknown, clusterValidationFailureTimeout),
 			},
 			wantState: coreapi.ProvisioningStateFailed, wantCode: coreapi.CloudErrorCodeInvalidResource,
 			wantMessage: "Identity: ValidationResult: Identity details; Subnet: ValidationResult: Subnet details",
@@ -162,8 +162,8 @@ func TestClusterValidationOperationAge(t *testing.T) {
 		wantState coreapi.ProvisioningState
 	}{
 		{name: "new operation", startTime: now, wantState: coreapi.ProvisioningStateProvisioning},
-		{name: "operation just under 10 minutes", startTime: now.Add(-10*time.Minute + time.Second), wantState: coreapi.ProvisioningStateProvisioning},
-		{name: "both clocks exactly 10 minutes", startTime: now.Add(-10 * time.Minute), wantState: coreapi.ProvisioningStateFailed},
+		{name: "operation just under the failure timeout", startTime: now.Add(-clusterValidationFailureTimeout + time.Second), wantState: coreapi.ProvisioningStateProvisioning},
+		{name: "both clocks exactly at the failure timeout", startTime: now.Add(-clusterValidationFailureTimeout), wantState: coreapi.ProvisioningStateFailed},
 		{name: "older operation", startTime: now.Add(-time.Hour), wantState: coreapi.ProvisioningStateFailed},
 		{name: "missing operation start time", wantState: coreapi.ProvisioningStateProvisioning},
 		{name: "future operation start time", startTime: now.Add(time.Minute), wantState: coreapi.ProvisioningStateProvisioning},
@@ -174,7 +174,7 @@ func TestClusterValidationOperationAge(t *testing.T) {
 			spc := &coreapi.ServiceProviderCluster{Status: coreapi.ServiceProviderClusterStatus{
 				Validations: []metav1.Condition{{
 					Type: "Subnet", Status: st.status, Reason: st.reason,
-					LastTransitionTime: metav1.NewTime(now.Add(-10 * time.Minute)),
+					LastTransitionTime: metav1.NewTime(now.Add(-clusterValidationFailureTimeout)),
 				}},
 			}}
 			for _, tt := range tests {
@@ -223,4 +223,33 @@ func TestOperationClusterCreate_ClusterValidationNotCached(t *testing.T) {
 	assert.Equal(t, coreapi.ProvisioningStateAccepted, got.ProvisioningState)
 	assert.Equal(t, coreapi.CloudErrorCodeInternalServerError, got.CloudErrorCode)
 	assert.Equal(t, "ServiceProviderCluster not cached yet", got.Message)
+}
+
+// TestClusterValidationPropagationDeferralGate pins both sides of the propagation-deferral
+// contract at the operation gate: an established RoleAssignmentPropagationPending condition
+// holds the operation open regardless of age, while a RoleAssignmentPropagationCheckFailed
+// condition is not a deferral and fails the operation once old enough. That asymmetry is why
+// the validation syncer must preserve the Pending reason across transient lookup failures
+// (see validationutils.PreservePropagationDeferral): a single ARM 5xx must not terminally
+// fail an operation whose permissions were already granted and are still propagating.
+func TestClusterValidationPropagationDeferralGate(t *testing.T) {
+	t.Parallel()
+	now := operationtesting.MustParseTime("2026-09-23T12:00:00Z")
+	spc := &coreapi.ServiceProviderCluster{Status: coreapi.ServiceProviderClusterStatus{
+		Validations: []metav1.Condition{{
+			Type:               "DataPlaneIdentitiesPermissions",
+			Status:             metav1.ConditionUnknown,
+			Reason:             "RoleAssignmentPropagationPending",
+			LastTransitionTime: metav1.NewTime(now.Add(-time.Hour)),
+		}},
+	}}
+
+	assert.Equal(t, coreapi.ProvisioningStateProvisioning,
+		clusterValidationOperationState(spc, now.Add(-time.Hour), now).ProvisioningState,
+		"an established propagation deferral holds the operation open")
+
+	spc.Status.Validations[0].Reason = "RoleAssignmentPropagationCheckFailed"
+	assert.Equal(t, coreapi.ProvisioningStateFailed,
+		clusterValidationOperationState(spc, now.Add(-time.Hour), now).ProvisioningState,
+		"a lookup-failure condition is not a deferral and fails the operation once old enough")
 }

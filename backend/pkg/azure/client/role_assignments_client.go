@@ -19,6 +19,7 @@ package client
 import (
 	"context"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v2"
 )
 
@@ -31,6 +32,9 @@ type RoleAssignmentsClient interface {
 	// (for example "{scope}/providers/Microsoft.Authorization/roleAssignments/{name}").
 	GetByID(ctx context.Context, roleAssignmentID string, options *armauthorization.RoleAssignmentsClientGetByIDOptions) (armauthorization.RoleAssignmentsClientGetByIDResponse, error)
 	Create(ctx context.Context, scope string, roleAssignmentName string, parameters armauthorization.RoleAssignmentCreateParameters, options *armauthorization.RoleAssignmentsClientCreateOptions) (armauthorization.RoleAssignmentsClientCreateResponse, error)
+	// NewListForScopePager lists the role assignments for the given scope. Without an atScope()
+	// filter the result includes assignments at, above, and below the scope.
+	NewListForScopePager(scope string, options *armauthorization.RoleAssignmentsClientListForScopeOptions) *runtime.Pager[armauthorization.RoleAssignmentsClientListForScopeResponse]
 }
 
 var _ RoleAssignmentsClient = (*armauthorization.RoleAssignmentsClient)(nil)
