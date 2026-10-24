@@ -418,6 +418,11 @@ type ServiceProviderClusterControlPlaneOperatorIdentity struct {
 	// Fetched from Azure and written here by the FetchMSIIdentitiesInfo.
 	// It may be nil or empty.
 	PrincipalID *string `json:"principalId,omitempty"`
+	// RetrievalError records the most recent credentials request failure, truncated
+	// to 1024 characters. When set, ClientID and PrincipalID are nil. A successful
+	// retrieval clears the error and may restore the resolved IDs.
+	// Written by: FetchMSIIdentitiesInfo
+	RetrievalError *string `json:"retrievalError,omitempty"`
 }
 
 // ServiceProviderClusterServiceManagedIdentity is the resolved metadata for the
@@ -434,6 +439,11 @@ type ServiceProviderClusterServiceManagedIdentity struct {
 	// Fetched from Azure and written here by the FetchMSIIdentitiesInfo.
 	// It may be nil or empty.
 	PrincipalID *string `json:"principalId,omitempty"`
+	// RetrievalError records the most recent credentials request failure, truncated
+	// to 1024 characters. When set, ClientID and PrincipalID are nil. A successful
+	// retrieval clears the error and may restore the resolved IDs.
+	// Written by: FetchMSIIdentitiesInfo
+	RetrievalError *string `json:"retrievalError,omitempty"`
 }
 
 // ServiceProviderClusterDataPlaneOperatorsManagedIdentities holds the resolved
