@@ -494,6 +494,11 @@ func CreateHCPClusterAndWait20251223(
 	cluster hcpsdk20251223preview.HcpOpenShiftCluster,
 	timeout time.Duration,
 ) (*hcpsdk20251223preview.HcpOpenShiftCluster, error) {
+	// Pace the creation start before the per-call timeout is armed (a no-op
+	// when a CreateHCPClusterFromParam wrapper already paced this cluster).
+	if err := paceHCPClusterCreateStart(ctx, logger, hcpClusterName); err != nil {
+		return nil, err
+	}
 	if timeout > 0*time.Second {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during CreateHCPCluster20251223AndWait for cluster %s in resource group %s", timeout.Minutes(), hcpClusterName, resourceGroupName))
@@ -742,6 +747,11 @@ func (tc *perItOrDescribeTestContext) CreateHCPClusterFromParam20251223(
 	imageDigestMirrors []*hcpsdk20251223preview.ImageDigestMirror,
 	timeout time.Duration,
 ) error {
+	// Pace the creation start before the per-call timeout is armed, so the
+	// wait consumes the spec's budget rather than ClusterCreationTimeout.
+	if err := paceHCPClusterCreateStart(ctx, logger, parameters.ClusterName); err != nil {
+		return err
+	}
 	if timeout > 0*time.Second {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during CreateHCPCluster20251223FromParam for cluster %s in resource group %s", timeout.Minutes(), parameters.ClusterName, resourceGroupName))

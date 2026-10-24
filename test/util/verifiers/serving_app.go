@@ -44,6 +44,17 @@ import (
 //go:embed artifacts
 var staticFiles embed.FS
 
+// ingressReadinessTimeout bounds the two ingress readiness gates that run before the
+// DNS wait. ARO-29937 established that under subscription-level ARM throttling
+// (e2e-parallel's synchronized cluster creations) the guest cloud-controller-manager
+// can take on the order of 20 minutes to ensure the router-default load balancer —
+// measured 20m03s from Service creation to "Ensured load balancer" in run
+// 2104551230880616448, while other clusters in the same run never converged before
+// cleanup. The DNS wait that follows the gates keeps the shorter
+// framework.DNSResolutionTimeout budget: once the load balancer has an external IP,
+// the ingress operator publishes the wildcard record within seconds.
+const ingressReadinessTimeout = 20 * time.Minute
+
 type verifySimpleWebApp struct {
 	namespaceName string
 	nodeSelector  map[string]string
@@ -66,6 +77,18 @@ func (v verifySimpleWebApp) Verify(ctx context.Context, adminRESTConfig *rest.Co
 		return err
 	}
 	v.namespaceName = app.Namespace
+
+	// The route's DNS record is published by the ingress operator only after it reaches Available
+	// and the router-default load balancer has an external IP. Wait for those gates before entering
+	// the DNS wait so a not-yet-forming ingress is reported as a readiness gate rather than a
+	// "DNS did not resolve" failure that points investigators at DNS instead of ingress readiness.
+	if err := waitForClusterOperatorCondition(ctx, adminRESTConfig, "ingress",
+		configv1.OperatorAvailable, ingressReadinessTimeout, DefaultPollInterval); err != nil {
+		return fmt.Errorf("waiting for ingress ClusterOperator to become Available before DNS: %w", err)
+	}
+	if err := waitForRouterDefaultExternalIP(ctx, adminRESTConfig, ingressReadinessTimeout, DefaultPollInterval); err != nil {
+		return fmt.Errorf("waiting for openshift-ingress/router-default load balancer external IP before DNS: %w", err)
+	}
 
 	url := "https://" + app.RouteHost
 
@@ -164,6 +187,83 @@ func logRouterDefaultState(ctx context.Context, adminRESTConfig *rest.Config) {
 			)
 		}
 	}
+}
+
+// waitForRouterDefaultExternalIP polls until the openshift-ingress/router-default Service reports a
+// load-balancer ingress IP. It is a targeted variant of the broader ingress readiness diagnostics
+// helper so a not-yet-promulgated load balancer can be surfaced as a readiness gate rather than as
+// a DNS failure once the route is finally polled.
+func waitForRouterDefaultExternalIP(ctx context.Context, adminRESTConfig *rest.Config, timeout time.Duration, interval time.Duration) error {
+	if adminRESTConfig == nil {
+		return errors.New("openshift-ingress/router-default external IP readiness wait: admin REST config is nil")
+	}
+	if timeout <= 0 {
+		return fmt.Errorf("openshift-ingress/router-default external IP readiness wait: timeout must be > 0, got %s", timeout)
+	}
+	if interval <= 0 {
+		return fmt.Errorf("openshift-ingress/router-default external IP readiness wait: interval must be > 0, got %s", interval)
+	}
+	config := rest.CopyConfig(adminRESTConfig)
+	config.Timeout = 10 * time.Second
+	config.QPS = 100
+	config.Burst = 200
+	kubeClient, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		return fmt.Errorf("failed to create guest Kubernetes client: %w", err)
+	}
+
+	const gateName = "VerifyRouterDefaultExternalIP"
+	start := time.Now()
+	var lastErr error
+	var lastErrMsg string
+	// lastObservedStateErr keeps the most recent not-ready observation across the poll, because
+	// the final attempt may land on the context deadline and fail with a rate-limiter/deadline
+	// error that would otherwise mask the service state readers need to debug.
+	var lastObservedStateErr error
+	verifyErr := wait.PollUntilContextTimeout(ctx, interval, timeout, true, func(ctx context.Context) (bool, error) {
+		service, err := kubeClient.CoreV1().Services("openshift-ingress").Get(ctx, "router-default", metav1.GetOptions{})
+		lastErr = nil
+		if err != nil {
+			// Do not persist transport errors in lastObservedStateErr: the deadline-boundary race
+			// can turn the final attempt into a rate-limiter/deadline error, which must not mask
+			// the last successfully observed service state.
+			lastErr = fmt.Errorf("failed to get openshift-ingress/router-default Service: %w", err)
+		} else {
+			// A nonempty ingress list does not guarantee an assigned IP: an entry can come back
+			// with every field unset, or with only a hostname, while the DNS record the route
+			// publishes still needs that IP.
+			var withIP int
+			for _, ingressEntry := range service.Status.LoadBalancer.Ingress {
+				if ingressEntry.IP != "" {
+					withIP++
+				}
+			}
+			if withIP == 0 {
+				if len(service.Status.LoadBalancer.Ingress) == 0 {
+					lastErr = fmt.Errorf("openshift-ingress/router-default Service has no external load balancer ingress IPs yet")
+				} else {
+					lastErr = fmt.Errorf("openshift-ingress/router-default Service has %d external load balancer ingress entries but none has an assigned external IP yet", len(service.Status.LoadBalancer.Ingress))
+				}
+				lastObservedStateErr = lastErr
+			}
+		}
+		if lastErr != nil {
+			if msg := lastErr.Error(); msg != lastErrMsg {
+				ginkgo.GinkgoLogr.Info(gateName, "status", "waiting", "error", lastErr)
+				lastErrMsg = msg
+			}
+			return false, nil
+		}
+		return true, nil
+	})
+	if verifyErr == nil {
+		ginkgo.GinkgoLogr.Info(gateName, "status", "succeeded", "elapsed", time.Since(start).Round(time.Millisecond).String())
+		return nil
+	}
+	if lastObservedStateErr != nil {
+		return fmt.Errorf("%s timed out after %s: %w", gateName, timeout, lastObservedStateErr)
+	}
+	return fmt.Errorf("%s timed out after %s: %w", gateName, timeout, verifyErr)
 }
 
 var routeReachabilityPollInterval = 10 * time.Second

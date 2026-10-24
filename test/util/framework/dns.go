@@ -63,12 +63,51 @@ func HostnameFromURL(rawURL string) (string, error) {
 	return "", fmt.Errorf("no hostname found in %q", rawURL)
 }
 
+// dnsPollTally classifies each failed lookup of WaitForDNSResolution so a timeout
+// can distinguish "the record does not exist yet" (not-found answers) from "the
+// resolver is not answering" (timeouts). ARO-29937 showed that reporting only the
+// last error invites the wrong diagnosis: a final i/o timeout on the resolver read
+// as "CoreDNS not serving" when the wildcard record had never been published and
+// every earlier poll had returned not-found.
+type dnsPollTally struct {
+	polls     int
+	notFound  int
+	temporary int
+	other     int
+}
+
+// record classifies one failed lookup. NXDOMAIN surfaces as a *net.DNSError with
+// IsNotFound set; an unresponsive server ("dial udp ...: i/o timeout") surfaces as
+// a *net.DNSError with IsTemporary set.
+func (t *dnsPollTally) record(err error) {
+	t.polls++
+	var dnsErr *net.DNSError
+	switch {
+	case errors.As(err, &dnsErr) && dnsErr.IsNotFound:
+		t.notFound++
+	case errors.As(err, &dnsErr) && dnsErr.IsTemporary:
+		t.temporary++
+	default:
+		t.other++
+	}
+}
+
+// summary renders the tally for inclusion in the timeout error message.
+func (t *dnsPollTally) summary() string {
+	return fmt.Sprintf("%d polls: %d not-found, %d timeout/transient, %d other",
+		t.polls, t.notFound, t.temporary, t.other)
+}
+
 // WaitForDNSResolution polls DNS for the given hostname until at least one
 // address record is returned, or the timeout is reached. Each poll attempt
 // uses a fresh net.Resolver with PreferGo: true to bypass negative DNS
-// caching from prior NXDOMAIN responses.
+// caching from prior NXDOMAIN responses. On timeout the error reports how
+// the failed polls split between not-found and transient errors, because
+// that split is what distinguishes a missing DNS record from an unhealthy
+// resolver.
 func WaitForDNSResolution(ctx context.Context, hostname string, timeout time.Duration) error {
 	var lastErr error
+	var tally dnsPollTally
 	startTime := time.Now()
 
 	err := wait.PollUntilContextTimeout(ctx, 10*time.Second, timeout, true, func(ctx context.Context) (done bool, err error) {
@@ -78,6 +117,7 @@ func WaitForDNSResolution(ctx context.Context, hostname string, timeout time.Dur
 
 		addrs, lookupErr := resolver.LookupHost(lookupCtx, hostname)
 		if lookupErr != nil {
+			tally.record(lookupErr)
 			if lastErr == nil || lookupErr.Error() != lastErr.Error() {
 				logDNSError(hostname, lookupErr, time.Since(startTime).Truncate(time.Second))
 				lastErr = lookupErr
@@ -100,7 +140,8 @@ func WaitForDNSResolution(ctx context.Context, hostname string, timeout time.Dur
 		if lastErr != nil {
 			lastErrStr = lastErr.Error()
 		}
-		return fmt.Errorf("DNS for %s did not resolve within %s (last error: %s): %w", hostname, timeout, lastErrStr, err)
+		return fmt.Errorf("DNS for %s did not resolve within %s (%s; last error: %s): %w",
+			hostname, timeout, tally.summary(), lastErrStr, err)
 	}
 	return nil
 }

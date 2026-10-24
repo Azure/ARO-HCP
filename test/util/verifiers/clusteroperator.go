@@ -100,6 +100,84 @@ func (v verifyAllClusterOperatorsAvailableImpl) Verify(ctx context.Context, admi
 	return errors.Join(verifyErr, lastErr)
 }
 
+// waitForClusterOperatorCondition polls until the named ClusterOperator reports the given condition
+// with status True. It is a single-operator variant of the all-operators readiness poll, so a
+// verifier that only depends on one operator (e.g. ingress readiness before a DNS poll) can avoid
+// being gated on every other operator becoming available at the same time.
+//
+// The returned timeout error names the condition and the last observed reason/message, so a reader
+// can tell which operator was still holding out and why.
+func waitForClusterOperatorCondition(
+	ctx context.Context,
+	adminRESTConfig *rest.Config,
+	operatorName string,
+	conditionType configv1.ClusterStatusConditionType,
+	timeout time.Duration,
+	interval time.Duration,
+) error {
+	if timeout <= 0 {
+		return fmt.Errorf("%s %s readiness wait: timeout must be > 0, got %s", operatorName, conditionType, timeout)
+	}
+	if interval <= 0 {
+		return fmt.Errorf("%s %s readiness wait: interval must be > 0, got %s", operatorName, conditionType, interval)
+	}
+	readyConfig := rest.CopyConfig(adminRESTConfig)
+	readyConfig.QPS = 100
+	readyConfig.Burst = 200
+
+	configClient, err := configv1client.NewForConfig(readyConfig)
+	if err != nil {
+		return fmt.Errorf("failed to create config client: %w", err)
+	}
+
+	name := fmt.Sprintf("VerifyClusterOperatorAvailable(operator=%s, condition=%s)", operatorName, conditionType)
+	start := time.Now()
+	var lastErr error
+	var lastErrMsg string
+	// lastConditionErr keeps the most recent unsatisfied-condition observation across the poll,
+	// because the final attempt may land on the context deadline and fail with a rate-limiter/
+	// deadline error that would otherwise mask the operator status readers need to debug.
+	var lastConditionErr error
+	verifyErr := wait.PollUntilContextTimeout(ctx, interval, timeout, true, func(ctx context.Context) (bool, error) {
+		operator, err := configClient.ClusterOperators().Get(ctx, operatorName, metav1.GetOptions{})
+		if err != nil {
+			lastErr = fmt.Errorf("failed to get ClusterOperator %q: %w", operatorName, err)
+			if msg := lastErr.Error(); msg != lastErrMsg {
+				ginkgo.GinkgoLogr.Info(name, "status", "failed", "error", err)
+				lastErrMsg = msg
+			}
+			return false, nil
+		}
+		condition := getClusterOperatorCondition(operator.Status.Conditions, conditionType)
+		lastErr = nil
+		switch {
+		case condition == nil:
+			lastErr = fmt.Errorf("ClusterOperator %q has no %s condition", operatorName, conditionType)
+			lastConditionErr = lastErr
+		case condition.Status != configv1.ConditionTrue:
+			lastErr = fmt.Errorf("ClusterOperator %q %s=%s reason=%s message=%q",
+				operatorName, conditionType, condition.Status, condition.Reason, condition.Message)
+			lastConditionErr = lastErr
+		}
+		if lastErr != nil {
+			if msg := lastErr.Error(); msg != lastErrMsg {
+				ginkgo.GinkgoLogr.Info(name, "status", "waiting", "error", lastErr)
+				lastErrMsg = msg
+			}
+			return false, nil
+		}
+		return true, nil
+	})
+	if verifyErr == nil {
+		ginkgo.GinkgoLogr.Info(name, "status", "succeeded", "elapsed", time.Since(start).Round(time.Millisecond).String())
+		return nil
+	}
+	if lastConditionErr != nil {
+		return fmt.Errorf("%s timed out after %s: %w", name, timeout, lastConditionErr)
+	}
+	return fmt.Errorf("%s timed out after %s: %w", name, timeout, verifyErr)
+}
+
 func getClusterOperatorCondition(conditions []configv1.ClusterOperatorStatusCondition, conditionType configv1.ClusterStatusConditionType) *configv1.ClusterOperatorStatusCondition {
 	for i := range conditions {
 		if conditions[i].Type == conditionType {
