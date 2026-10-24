@@ -22,50 +22,40 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/billingapi"
 )
 
 // BillingDocument records timestamps of Hosted Control Plane OpenShift cluster
 // creation and deletion for the purpose of customer billing.
 type BillingDocument struct {
-	cosmosstorageutils.BaseDocument
+	billingapi.BillingDocument
 
-	// The cluster creation time represents the time when the cluster was provisioned successfully
-	CreationTime time.Time `json:"creationTime,omitempty"`
-	// The cluster deletion time
-	DeletionTime *time.Time `json:"deletionTime,omitempty"`
+	// OrphanedSince is the first observation of an unreferenced billing record,
+	// not the cluster's deletion time. Nil cancels a previous orphan candidacy.
+	// Written by: OrphanedBillingCleanup
+	OrphanedSince *time.Time `json:"orphanedSince,omitempty"`
 
-	// LastBillingTimeOfVMEvent is the compute event batch-processing watermark.
-	// Nil means no watermark has been persisted yet.
-	// Written by: HCP Billing service after successful compute usage processing.
-	LastBillingTimeOfVMEvent *time.Time `json:"lastBillingTimeOfVMEvent,omitempty"`
-	// LastBillingTimeOfMngtEvent is the end of the last successfully billed hosting interval.
-	// Nil means no watermark has been persisted yet.
-	// Written by: HCP Billing service after successful hosting usage processing.
-	LastBillingTimeOfMngtEvent *time.Time `json:"lastBillingTimeOfMngtEvent,omitempty"`
-
-	// The location of the HCP cluster
-	Location string `json:"location,omitempty"`
-	// The tenant ID of the HCP cluster
-	TenantID string `json:"tenantId,omitempty"`
-	// The subscription ID of the HCP cluster (also the partition key)
-	SubscriptionID string `json:"subscriptionId,omitempty"`
-	// The HCP cluster ARM resource ID
-	ResourceID *azcorearm.ResourceID `json:"resourceId,omitempty"`
-	// The ARM resource ID of the managed resource group of the HCP cluster
-	ManagedResourceGroup string `json:"managedResourceGroup,omitempty"`
+	// Storage-only metadata stays local. Embedding BaseDocument here would
+	// duplicate the shared contract's id field and make JSON encoding ambiguous.
+	TimeToLive        int         `json:"ttl,omitempty"`
+	CosmosResourceID  string      `json:"_rid,omitempty"`
+	CosmosSelf        string      `json:"_self,omitempty"`
+	CosmosETag        azcore.ETag `json:"_etag,omitempty"`
+	CosmosAttachments string      `json:"_attachments,omitempty"`
+	CosmosTimestamp   int         `json:"_ts,omitempty"`
 }
 
 func NewBillingDocument(id string, resourceID *azcorearm.ResourceID) *BillingDocument {
 	return &BillingDocument{
-		BaseDocument: cosmosstorageutils.BaseDocument{
-			ID: id,
+		BillingDocument: billingapi.BillingDocument{
+			ID:             id,
+			SubscriptionID: resourceID.SubscriptionID,
+			ResourceID:     resourceID,
 		},
-		SubscriptionID: resourceID.SubscriptionID,
-		ResourceID:     resourceID,
 	}
 }
 
@@ -77,6 +67,23 @@ type BillingDocumentPatchOperations struct {
 // SetDeletionTime appends a set operation for the DeletionTime field.
 func (p *BillingDocumentPatchOperations) SetDeletionTime(deletionTime time.Time) {
 	p.AppendSet("/deletionTime", deletionTime)
+	// The first recorded cutoff must survive concurrent cleanup and retries.
+	p.SetCondition("FROM c WHERE NOT IS_DEFINED(c.deletionTime) OR IS_NULL(c.deletionTime)")
+}
+
+// SetOrphanedSince records or clears candidacy without changing the billing cutoff.
+func (p *BillingDocumentPatchOperations) SetOrphanedSince(observedAt *time.Time) {
+	p.AppendSet("/orphanedSince", observedAt)
+	p.SetCondition("FROM c WHERE NOT IS_DEFINED(c.deletionTime) OR IS_NULL(c.deletionTime)")
+}
+
+// NewActiveBillingManagedResourceGroupPatch sets only the managed RG of an active
+// record, preserving concurrent billing watermarks and rejecting closed records.
+func NewActiveBillingManagedResourceGroupPatch(resourceGroupID string) BillingDocumentPatchOperations {
+	var patch BillingDocumentPatchOperations
+	patch.AppendSet("/managedResourceGroup", resourceGroupID)
+	patch.SetCondition("FROM c WHERE NOT IS_DEFINED(c.deletionTime) OR IS_NULL(c.deletionTime)")
+	return patch
 }
 
 // BillingDocumentList is a list of billing documents for use with Kubernetes informers.
@@ -97,6 +104,9 @@ func (in *BillingDocument) GetObjectKind() schema.ObjectKind {
 func (in *BillingDocument) GetObjectMeta() metav1.Object {
 	om := &metav1.ObjectMeta{}
 	om.Name = strings.ToLower(in.ID)
+	// Informers must distinguish changed documents from unchanged relists so
+	// update handlers run even when their periodic resync is not due.
+	om.ResourceVersion = string(in.CosmosETag)
 	return om
 }
 
@@ -113,24 +123,10 @@ func (in *BillingDocument) DeepCopy() *BillingDocument {
 	out := new(BillingDocument)
 	*out = *in
 
-	if in.DeletionTime != nil {
-		out.DeletionTime = new(time.Time)
-		*out.DeletionTime = *in.DeletionTime
-	}
-
-	if in.LastBillingTimeOfVMEvent != nil {
-		out.LastBillingTimeOfVMEvent = new(time.Time)
-		*out.LastBillingTimeOfVMEvent = *in.LastBillingTimeOfVMEvent
-	}
-
-	if in.LastBillingTimeOfMngtEvent != nil {
-		out.LastBillingTimeOfMngtEvent = new(time.Time)
-		*out.LastBillingTimeOfMngtEvent = *in.LastBillingTimeOfMngtEvent
-	}
-
-	if in.ResourceID != nil {
-		out.ResourceID = new(azcorearm.ResourceID)
-		*out.ResourceID = *in.ResourceID
+	out.BillingDocument = *in.BillingDocument.DeepCopy()
+	if in.OrphanedSince != nil {
+		out.OrphanedSince = new(time.Time)
+		*out.OrphanedSince = *in.OrphanedSince
 	}
 
 	return out
@@ -155,7 +151,6 @@ func (in *BillingDocumentList) DeepCopy() *BillingDocumentList {
 	if in.Items != nil {
 		out.Items = make([]BillingDocument, len(in.Items))
 		for i := range in.Items {
-			in.Items[i].DeepCopy()
 			out.Items[i] = *in.Items[i].DeepCopy()
 		}
 	}

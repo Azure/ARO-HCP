@@ -3,11 +3,13 @@ ARG PLATFORM
 FROM --platform=${PLATFORM} mcr.microsoft.com/oss/go/microsoft/golang:1.26-azurelinux3.0 as builder
 ENV GOTOOLCHAIN=local
 COPY internal/go.mod internal/go.sum internal/
+COPY billingapi/go.mod billingapi/go.sum billingapi/
 COPY sessiongate/go.mod sessiongate/go.sum sessiongate/
 COPY admin/server/go.mod admin/server/go.sum admin/server/
 RUN cd admin/server && go mod download
 WORKDIR /app
 COPY internal/ internal/
+COPY billingapi/ billingapi/
 COPY --exclude=sessiongate/bin sessiongate/ sessiongate/
 COPY --exclude=admin/aro-hcp-admin --exclude=admin/aro-hcp-admin-cli admin/ admin/
 # https://github.com/microsoft/go/tree/microsoft/main/eng/doc/fips#build-option-to-require-fips-mode

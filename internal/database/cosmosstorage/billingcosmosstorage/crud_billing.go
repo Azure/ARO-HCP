@@ -45,7 +45,7 @@ type BillingDocCRUD interface {
 	// ListActiveForCluster lists active billing documents for a specific cluster
 	ListActiveForCluster(ctx context.Context, resourceID *azcorearm.ResourceID) ([]*BillingDocument, error)
 
-	// PatchByID patches a billing document by its ID
+	// PatchByID applies field updates with the supplied server-side condition.
 	PatchByID(ctx context.Context, billingDocID string, ops BillingDocumentPatchOperations) error
 
 	// PatchByClusterID patches all active billing documents for a cluster
@@ -121,7 +121,7 @@ func (b *billingDocCRUD) GetByID(ctx context.Context, billingDocID string) (*Bil
 func (b *billingDocCRUD) ListActive(ctx context.Context) ([]*BillingDocument, error) {
 	pk := cosmosstorageutils.NewPartitionKey(b.subscriptionID)
 
-	query := "SELECT * FROM c WHERE NOT IS_DEFINED(c.deletionTime)"
+	query := "SELECT * FROM c WHERE NOT IS_DEFINED(c.deletionTime) OR IS_NULL(c.deletionTime)"
 	opt := azcosmos.QueryOptions{}
 
 	queryPager := b.containerClient.NewQueryItemsPager(query, pk, &opt)
@@ -149,7 +149,7 @@ func (b *billingDocCRUD) ListActive(ctx context.Context) ([]*BillingDocument, er
 func (b *billingDocCRUD) ListActiveForCluster(ctx context.Context, resourceID *azcorearm.ResourceID) ([]*BillingDocument, error) {
 	pk := cosmosstorageutils.NewPartitionKey(b.subscriptionID)
 
-	query := "SELECT * FROM c WHERE STRINGEQUALS(c.resourceId, @resourceId, true) AND NOT IS_DEFINED(c.deletionTime)"
+	query := "SELECT * FROM c WHERE STRINGEQUALS(c.resourceId, @resourceId, true) AND (NOT IS_DEFINED(c.deletionTime) OR IS_NULL(c.deletionTime))"
 	queryParams := []azcosmos.QueryParameter{
 		{
 			Name:  "@resourceId",
@@ -195,53 +195,44 @@ func (b *billingDocCRUD) PatchByID(ctx context.Context, billingDocID string, ops
 }
 
 func (b *billingDocCRUD) PatchByClusterID(ctx context.Context, resourceID *azcorearm.ResourceID, ops BillingDocumentPatchOperations) error {
-	pk := cosmosstorageutils.NewPartitionKey(b.subscriptionID)
-
-	// Resource ID alone does not uniquely identify a billing document, but
-	// resource ID AND the absence of a deletion timestamp should be unique.
-	// However, we patch all active billing documents for the cluster in case there are duplicates.
-	const query = "SELECT c.id FROM c WHERE STRINGEQUALS(c.resourceId, @resourceId, true) AND NOT IS_DEFINED(c.deletionTime)"
-	opt := azcosmos.QueryOptions{
-		QueryParameters: []azcosmos.QueryParameter{
-			{
-				Name:  "@resourceId",
-				Value: resourceID.String(),
-			},
-		},
+	// Patching needs only identity; unrelated legacy fields must
+	// not prevent recording a billing cutoff.
+	const query = "SELECT c.id FROM c WHERE STRINGEQUALS(c.resourceId, @resourceId, true) AND (NOT IS_DEFINED(c.deletionTime) OR IS_NULL(c.deletionTime))"
+	pager := b.containerClient.NewQueryItemsPager(query, cosmosstorageutils.NewPartitionKey(b.subscriptionID), &azcosmos.QueryOptions{
+		QueryParameters: []azcosmos.QueryParameter{{Name: "@resourceId", Value: resourceID.String()}},
+	})
+	type patchTarget struct {
+		ID string `json:"id"`
 	}
-
-	queryPager := b.containerClient.NewQueryItemsPager(query, pk, &opt)
-
-	var billingIDs []string
-	for queryPager.More() {
-		queryResponse, err := queryPager.NextPage(ctx)
+	var targets []patchTarget
+	for pager.More() {
+		page, err := pager.NextPage(ctx)
 		if err != nil {
-			return fmt.Errorf("failed to advance page while querying Billing container for '%s': %w", resourceID, err)
+			return fmt.Errorf("query billing patch targets for %q: %w", resourceID, err)
 		}
-
-		for _, item := range queryResponse.Items {
-			var result map[string]string
-
-			err = json.Unmarshal(item, &result)
-			if err != nil {
-				return fmt.Errorf("failed to unmarshal Billing container item for '%s': %w", resourceID, err)
+		for _, item := range page.Items {
+			var target patchTarget
+			if err := json.Unmarshal(item, &target); err != nil {
+				return fmt.Errorf("decode billing patch target for %q: %w", resourceID, err)
 			}
-
-			if id, ok := result["id"]; ok {
-				billingIDs = append(billingIDs, id)
+			if target.ID == "" {
+				return fmt.Errorf("billing patch target for %q is missing ID", resourceID)
 			}
+			targets = append(targets, target)
 		}
 	}
-
-	if len(billingIDs) == 0 {
+	if len(targets) == 0 {
 		return cosmosstorageutils.NewNotFoundError()
 	}
 
-	// Patch all active billing documents for this cluster
-	for _, billingID := range billingIDs {
-		err := b.PatchByID(ctx, billingID, ops)
-		if err != nil {
-			return fmt.Errorf("failed to patch billing document '%s': %w", billingID, err)
+	// A retry queries active records again, preserving completed cutoffs after
+	// partial success. The patch condition protects against stale query results.
+	for _, target := range targets {
+		if err := b.PatchByID(ctx, target.ID, ops); err != nil {
+			if cosmosstorageutils.IsNotFoundError(err) {
+				continue // A concurrently removed record needs no billing cutoff.
+			}
+			return fmt.Errorf("failed to patch billing document %q: %w", target.ID, err)
 		}
 	}
 
