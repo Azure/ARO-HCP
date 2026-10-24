@@ -84,6 +84,23 @@ func TestHypershiftHostedClusterOperationState(t *testing.T) {
 			wantState: coreapi.ProvisioningStateSucceeded,
 		},
 		{
+			// Upgrade dispatch conditions do not currently gate this operation check.
+			// This characterizes existing behavior, not installed-version convergence.
+			name:                   "matching spec succeeds while upgrade conditions block dispatch",
+			cluster:                fixture.NewCluster(nil),
+			serviceProviderCluster: emptySPC,
+			readDesires: []*kubeapplierapi.ReadDesire{
+				operationtesting.NewHostedClusterReadDesire(t, &v1beta1.HostedCluster{
+					Spec: operationtesting.ClusterUpdateMatchingHostedClusterSpec(),
+					Status: v1beta1.HostedClusterStatus{Conditions: []metav1.Condition{
+						{Type: string(v1beta1.ReconciliationActive), Status: metav1.ConditionFalse, Reason: "Paused"},
+						{Type: string(v1beta1.ClusterVersionUpgradeable), Status: metav1.ConditionFalse, Reason: "OperatorBlocked"},
+					}},
+				}),
+			},
+			wantState: coreapi.ProvisioningStateSucceeded,
+		},
+		{
 			name: "autoscaling maxNodesTotal mismatch returns Updating",
 			cluster: func() *coreapi.Cluster {
 				c := fixture.NewCluster(nil)
