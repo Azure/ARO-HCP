@@ -426,3 +426,152 @@ func TestOverlayErrors(t *testing.T) {
 		})
 	}
 }
+
+const runCostSettings = `environments:
+- name: ci01
+  defaults:
+    cloud: dev
+    regionShortOverride: "j${BUILD_ID: -7}"
+- name: cspr
+  defaults:
+    cloud: dev
+    regionShortOverride: ""
+- name: pers
+  defaults:
+    cloud: dev
+    regionShortSuffix: "${USER:0:4}"
+- name: empty-override
+  defaults: {}
+`
+
+const runCostServiceConfig = `defaults:
+  svc:
+    aks:
+      tags: "clusterType=svc-cluster,persist=true"
+  mgmt:
+    aks:
+      tags: "clusterType=mgmt-cluster,persist=true"
+clouds:
+  dev:
+    defaults:
+      svc:
+        aks:
+          tags: "clusterType=svc-cloud,persist=true"
+      mgmt:
+        aks:
+          tags: "clusterType=mgmt-cloud,JOBID.ARO-HCP-CI.REDHAT.COM=stale"
+    environments:
+      ci01:
+        defaults:
+          svc:
+            aks:
+              tags: "clusterType=svc-env"
+`
+
+func runCostPaths(t *testing.T) Paths {
+	t.Helper()
+	return Paths{
+		TemplatizeSettings: fixture(t, "settings.yaml", runCostSettings),
+		ServiceConfig:      fixture(t, "config.yaml", runCostServiceConfig),
+	}
+}
+
+func TestRunCostTag(t *testing.T) {
+	paths := runCostPaths(t)
+	for _, tc := range []struct {
+		name        string
+		environment string
+		buildID     string
+		svc, mgmt   string
+	}{
+		{"per-run environment", "ci01", "1234567", "clusterType=svc-env,jobID.aro-hcp-ci.redhat.com=1234567", "clusterType=mgmt-cloud,jobID.aro-hcp-ci.redhat.com=1234567"},
+		{"long-lived environment", "cspr", "1234567", "", ""},
+		{"suffix-only environment", "pers", "1234567", "", ""},
+		{"unknown environment", "elsewhere", "1234567", "", ""},
+		{"environment without defaults", "empty-override", "1234567", "", ""},
+		{"unset build ID", "ci01", "", "", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			input := Inputs{DeployEnvironment: tc.environment, BuildID: tc.buildID, MSIContainers: "leased"}
+			result, document := generated(t, input, paths)
+			if tc.svc == "" {
+				if len(document) != 0 {
+					t.Fatalf("overrides generated for non-per-run input: %#v", document)
+				}
+				if result.RunCostTagKey != "" || result.RunCostTagValue != "" {
+					t.Fatalf("run cost tag published for non-per-run input: %#v", result)
+				}
+				return
+			}
+			defaults := defaultsAt(t, document, tc.environment)
+			for _, kind := range []struct{ name, want string }{{"svc", tc.svc}, {"mgmt", tc.mgmt}} {
+				var got interface{}
+				if cluster, ok := defaults[kind.name].(map[string]interface{}); ok {
+					if aks, ok := cluster["aks"].(map[string]interface{}); ok {
+						got = aks["tags"]
+					}
+				}
+				if got != kind.want {
+					t.Fatalf("%s aks tags = %#v, want %q", kind.name, got, kind.want)
+				}
+			}
+			if result.RunCostTagKey != RunCostTagKey || result.RunCostTagValue != tc.buildID {
+				t.Fatalf("run cost tag = %q=%q, want %q=%q", result.RunCostTagKey, result.RunCostTagValue, RunCostTagKey, tc.buildID)
+			}
+		})
+	}
+	for _, buildID := range []string{"has space", "semi;colon", "quote'", "$(injection)", "tab\tcharacter"} {
+		t.Run("invalid build ID "+buildID, func(t *testing.T) {
+			input := Inputs{DeployEnvironment: "ci01", BuildID: buildID}
+			result, err := Generate(input, paths)
+			if err == nil || !strings.Contains(err.Error(), "not a valid") {
+				t.Fatalf("Generate = %#v, %v; want invalid BUILD_ID error", result, err)
+			}
+			if result.YAML != nil || result.RunCostTagValue != "" {
+				t.Fatalf("partial result on failure: %#v", result)
+			}
+		})
+	}
+	// A per-run management environment also sized for healthchecks keeps both
+	// overrides; the stale cloud-level job ID entry is dropped in any casing.
+	t.Run("merges with healthcheck sizing", func(t *testing.T) {
+		_, document := generated(t, Inputs{DeployEnvironment: "ci01", BuildID: "1234567"}, paths)
+		defaults := defaultsAt(t, document, "ci01")
+		mgmt := defaults["mgmt"].(map[string]interface{})["aks"].(map[string]interface{})
+		if got := mgmt["tags"]; got != "clusterType=mgmt-cloud,jobID.aro-hcp-ci.redhat.com=1234567" {
+			t.Fatalf("mgmt aks tags = %#v", got)
+		}
+		if got := mgmt["userAgentPool"].(map[string]interface{})["minCount"]; got != 1 {
+			t.Fatalf("healthcheck sizing lost: %#v", got)
+		}
+	})
+}
+
+func TestRunCostTagInputErrors(t *testing.T) {
+	paths := runCostPaths(t)
+	for _, tc := range []struct {
+		name   string
+		paths  Paths
+		errMsg string
+	}{
+		{"missing settings", Paths{ServiceConfig: paths.ServiceConfig}, "read templatize settings"},
+		{"malformed settings", Paths{TemplatizeSettings: fixture(t, "settings.yaml", "["), ServiceConfig: paths.ServiceConfig}, "parse templatize settings"},
+		{"missing service config", Paths{TemplatizeSettings: paths.TemplatizeSettings}, "read service config"},
+		{"malformed service config", Paths{TemplatizeSettings: paths.TemplatizeSettings, ServiceConfig: fixture(t, "config.yaml", "[")}, "parse service config"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := Generate(Inputs{DeployEnvironment: "ci01", BuildID: "1234567"}, tc.paths)
+			if err == nil || !strings.Contains(err.Error(), tc.errMsg) {
+				t.Fatalf("Generate = %#v, %v; want %q error", result, err, tc.errMsg)
+			}
+			if result.YAML != nil {
+				t.Fatalf("partial result on failure: %#v", result)
+			}
+			// Inputs without BUILD_ID never read the run cost files.
+			generated(t, Inputs{DeployEnvironment: "ci01"}, tc.paths)
+		})
+	}
+	if input, err := InputsFromEnvironment([]string{"DEPLOY_ENV=ci01", "BUILD_ID=1234567"}); err != nil || input.BuildID != "1234567" {
+		t.Fatalf("InputsFromEnvironment = %#v, %v; want BUILD_ID captured", input, err)
+	}
+}

@@ -42,3 +42,14 @@ else
     unset -f _aro_hcp_build_config_override
     return 1
 fi
+
+# Run cost attribution: for per-run environments (those whose resource names
+# derive from BUILD_ID) the generator tags this run's AKS clusters and publishes
+# the tag here, so provision-environment.sh can pass it to templatize's
+# --new-resource-group-tags. The file is rewritten on every run, with empty
+# assignments when no tag applies, and its values come from a validated BUILD_ID
+# ([A-Za-z0-9._-]), so it is safe to source. Published only on success.
+if [[ -f "${SHARED_DIR}/run-cost-tag.env" ]]; then
+    # shellcheck disable=SC1090,SC1091
+    source "${SHARED_DIR}/run-cost-tag.env"
+fi

@@ -32,8 +32,15 @@ import (
 	"github.com/Azure/ARO-HCP/test/pkg/leaseenv"
 )
 
+// RunCostTagKey tags per-run infrastructure with the Prow job that created it.
+// AKS copies cluster tags onto each cluster's node resource group, and Cost
+// Management tag inheritance on the E2E subscriptions attributes the usage
+// records of everything inside a tagged resource group to the run.
+const RunCostTagKey = "jobID.aro-hcp-ci.redhat.com"
+
 type Inputs struct {
 	DeployEnvironment            string
+	BuildID                      string
 	Images                       map[string]string
 	OCLoginRegistries            string
 	MSIMockLease                 string
@@ -46,11 +53,23 @@ type Paths struct {
 	MSIMockCatalog    string
 	ARMHelperCatalog  string
 	HypershiftOverlay string
+	// TemplatizeSettings locates tooling/templatize/settings.yaml; it decides
+	// whether the deployment environment belongs to a single run. It is read
+	// only when BuildID is set.
+	TemplatizeSettings string
+	// ServiceConfig locates the service configuration; it provides the
+	// effective AKS tags the run cost tag is appended to. It is read only when
+	// a run cost tag applies.
+	ServiceConfig string
 }
 
 type Result struct {
 	YAML              []byte
 	OCLoginRegistries string
+	// RunCostTagKey and RunCostTagValue carry the applied run cost tag to the
+	// provisioning shell; both are empty when no tag applies.
+	RunCostTagKey   string
+	RunCostTagValue string
 }
 
 var imageComponents = [...]struct{ environment, component string }{
@@ -70,6 +89,9 @@ var (
 	resourceGroupName = regexp.MustCompile(`^[A-Za-z0-9._()-]*[A-Za-z0-9_()-]$`)
 	identityName      = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]*$`)
 	stampName         = regexp.MustCompile(`^[1-9][0-9]*$`)
+	// buildIDValue constrains BUILD_ID to characters that are safe both as an
+	// Azure tag value and in the environment file the provisioning shell sources.
+	buildIDValue = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
 )
 
 // InputsFromEnvironment reads CI overlay inputs and rejects unknown *_IMAGE
@@ -91,6 +113,8 @@ func InputsFromEnvironment(environ []string) (Inputs, error) {
 			input.InfrastructureIdentityBundle = value
 		case "USE_OC_LOGIN_REGISTRIES":
 			input.OCLoginRegistries = value
+		case "BUILD_ID":
+			input.BuildID = value
 		default:
 			if strings.HasSuffix(name, "_IMAGE") {
 				input.Images[name] = value
@@ -223,6 +247,20 @@ func Generate(input Inputs, paths Paths) (Result, error) {
 		}}
 	}
 
+	runCostTag, err := runCostTag(input, paths)
+	if err != nil {
+		return Result{}, err
+	}
+	if runCostTag != "" {
+		for _, kind := range []string{"svc", "mgmt"} {
+			baseTags, err := effectiveAKSTags(paths.ServiceConfig, input.DeployEnvironment, kind)
+			if err != nil {
+				return Result{}, err
+			}
+			setDefault(defaults, appendRunTag(baseTags, RunCostTagKey, runCostTag), kind, "aks", "tags")
+		}
+	}
+
 	root := map[string]interface{}{}
 	if len(defaults) > 0 {
 		root["clouds"] = map[string]interface{}{"dev": map[string]interface{}{
@@ -246,7 +284,139 @@ func Generate(input Inputs, paths Paths) (Result, error) {
 	if err != nil {
 		return Result{}, fmt.Errorf("encode configuration override: %w", err)
 	}
-	return Result{YAML: data, OCLoginRegistries: registries}, nil
+	result := Result{YAML: data, OCLoginRegistries: registries}
+	if runCostTag != "" {
+		result.RunCostTagKey, result.RunCostTagValue = RunCostTagKey, runCostTag
+	}
+	return result, nil
+}
+
+// runCostTag returns the Prow job ID to attribute this run's infrastructure
+// cost with, or "" when the deployment environment is not per-run or BUILD_ID
+// is unset. Only environments whose resource names derive from BUILD_ID belong
+// to a single run; long-lived environments such as cspr must not carry the ID
+// of whichever job deployed them last.
+func runCostTag(input Inputs, paths Paths) (string, error) {
+	if input.BuildID == "" {
+		return "", nil
+	}
+	perRun, err := perRunEnvironment(paths.TemplatizeSettings, input.DeployEnvironment)
+	if err != nil {
+		return "", err
+	}
+	if !perRun {
+		return "", nil
+	}
+	if !buildIDValue.MatchString(input.BuildID) {
+		return "", fmt.Errorf("BUILD_ID %q is not a valid %s tag value", input.BuildID, RunCostTagKey)
+	}
+	return input.BuildID, nil
+}
+
+// perRunEnvironment reports whether the environment's regionShortOverride in
+// tooling/templatize/settings.yaml derives from BUILD_ID, making every
+// resource name in the environment unique to one Prow job.
+func perRunEnvironment(settingsPath, environment string) (bool, error) {
+	data, err := os.ReadFile(settingsPath)
+	if err != nil {
+		return false, fmt.Errorf("read templatize settings %q: %w", settingsPath, err)
+	}
+	var settings struct {
+		Environments []struct {
+			Name     string `yaml:"name"`
+			Defaults struct {
+				RegionShortOverride string `yaml:"regionShortOverride"`
+			} `yaml:"defaults"`
+		} `yaml:"environments"`
+	}
+	if err := decodeYAML(data, &settings); err != nil {
+		return false, fmt.Errorf("parse templatize settings %q: %w", settingsPath, err)
+	}
+	for _, env := range settings.Environments {
+		if env.Name == environment {
+			return strings.Contains(env.Defaults.RegionShortOverride, "${BUILD_ID"), nil
+		}
+	}
+	return false, nil
+}
+
+// effectiveAKSTags resolves the tags string templatize would apply to the
+// cluster kind: environment, then cloud, then global defaults.
+func effectiveAKSTags(configPath, environment, kind string) (string, error) {
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		return "", fmt.Errorf("read service config %q: %w", configPath, err)
+	}
+	var document yaml.Node
+	if err := decodeYAML(data, &document); err != nil {
+		return "", fmt.Errorf("parse service config %q: %w", configPath, err)
+	}
+	// The raw configuration keeps Go template placeholders as mapping keys, so
+	// it is walked as a node tree rather than decoded into a map.
+	root := document.Content[0]
+	for _, path := range [][]string{
+		{"clouds", "dev", "environments", environment, "defaults", kind, "aks", "tags"},
+		{"clouds", "dev", "defaults", kind, "aks", "tags"},
+		{"defaults", kind, "aks", "tags"},
+	} {
+		if value, ok := nodeString(root, path...); ok {
+			return value, nil
+		}
+	}
+	return "", nil
+}
+
+func nodeString(node *yaml.Node, path ...string) (string, bool) {
+	for _, key := range path {
+		if node == nil || node.Kind != yaml.MappingNode {
+			return "", false
+		}
+		var next *yaml.Node
+		for i := 0; i+1 < len(node.Content); i += 2 {
+			if node.Content[i].Value == key {
+				next = node.Content[i+1]
+				break
+			}
+		}
+		node = next
+	}
+	if node == nil || node.Kind != yaml.ScalarNode {
+		return "", false
+	}
+	return node.Value, true
+}
+
+// appendRunTag returns base with any existing run cost tag entry (Azure tag
+// names are case-insensitive, so the key is dropped in any casing) replaced by
+// key=value.
+func appendRunTag(base, key, value string) string {
+	var entries []string
+	for _, entry := range strings.Split(base, ",") {
+		if entry == "" {
+			continue
+		}
+		entryKey, _, _ := strings.Cut(entry, "=")
+		if strings.EqualFold(entryKey, key) {
+			continue
+		}
+		entries = append(entries, entry)
+	}
+	return strings.Join(append(entries, key+"="+value), ",")
+}
+
+// setDefault stores value at the nested defaults path, creating intermediate
+// maps and preserving entries other generators placed along the path.
+func setDefault(defaults map[string]interface{}, value string, path ...string) {
+	current := defaults
+	for _, key := range path[:len(path)-1] {
+		next, ok := current[key].(map[string]interface{})
+		if !ok {
+			next = map[string]interface{}{}
+			current[key] = next
+		}
+		current = next
+	}
+	current[path[len(path)-1]] = value
 }
 
 func decodeYAML(data []byte, out interface{}) error {

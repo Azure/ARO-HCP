@@ -41,7 +41,7 @@ func clearEnvironment(t *testing.T) {
 		}
 	}
 	for _, key := range []string{
-		"SHARED_DIR", "DEPLOY_ENV", "ARM_HELPER_POOL_CATALOG", "USE_OC_LOGIN_REGISTRIES",
+		"SHARED_DIR", "DEPLOY_ENV", "ARM_HELPER_POOL_CATALOG", "USE_OC_LOGIN_REGISTRIES", "BUILD_ID",
 		leaseenv.MSIMockSP, leaseenv.ARMHelperSP, leaseenv.MSIContainers, leaseenv.InfrastructureIdentityBundle,
 		"BACKEND_IMAGE", "FRONTEND_IMAGE", "ADMIN_API_IMAGE", "SESSIONGATE_IMAGE", "HCP_RECOVERY_IMAGE",
 		"FLEET_IMAGE", "MGMT_AGENT_IMAGE", "SWIFT_RECORDER_IMAGE", "KUBE_APPLIER_IMAGE", "EXPORTER_IMAGE",
@@ -225,35 +225,133 @@ func TestOutputPublication(t *testing.T) {
 }
 
 func TestFailureDoesNotPublish(t *testing.T) {
-	for _, failure := range []string{"invalid-input", "unknown-image", "missing-catalog", "publication", "extra-argument", "missing-output"} {
+	for _, failure := range []string{"invalid-input", "unknown-image", "missing-catalog", "publication", "extra-argument", "missing-output", "missing-run-cost-tag-file", "run-cost-tag-publication"} {
 		t.Run(failure, func(t *testing.T) {
 			clearEnvironment(t)
 			shared := t.TempDir()
 			path := filepath.Join(shared, "config-override.yaml")
+			tagPath := filepath.Join(shared, "run-cost-tag.env")
 			if err := os.WriteFile(path, []byte("previous"), 0600); err != nil {
 				t.Fatal(err)
 			}
-			args := []string{"--shared-dir", shared, "--deploy-env", "dev"}
+			if err := os.WriteFile(tagPath, []byte("previous"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			args := []string{"--shared-dir", shared}
 			switch failure {
 			case "invalid-input":
 				t.Setenv("BACKEND_IMAGE", "not-a-digest")
+				args = append(args, "--deploy-env", "dev")
 			case "unknown-image":
 				t.Setenv("UNSUPPORTED_IMAGE", "registry.example/unsupported@sha256:1234")
+				args = append(args, "--deploy-env", "dev")
 			case "missing-catalog":
 				t.Setenv(leaseenv.MSIMockSP, "missing")
-				args = append(args, "--source-dir", t.TempDir())
+				args = append(args, "--deploy-env", "dev", "--source-dir", t.TempDir())
 			case "publication":
-				args = append(args, "--output-file", shared)
+				args = append(args, "--deploy-env", "dev", "--output-file", shared)
 			case "extra-argument":
-				args = append(args, "unexpected")
+				args = append(args, "--deploy-env", "dev", "unexpected")
 			case "missing-output":
 				args = []string{"--deploy-env", "dev"}
+			case "missing-run-cost-tag-file":
+				t.Setenv("DEPLOY_ENV", "ci01")
+				t.Setenv("BUILD_ID", "1234567")
+				// No --shared-dir, so there is nowhere to publish the tag
+				// a per-run environment requires; the previous override must
+				// survive the rejected invocation.
+				args = []string{"--source-dir", runCostSourceDir(t), "--output-file", path}
+			case "run-cost-tag-publication":
+				t.Setenv("DEPLOY_ENV", "ci01")
+				t.Setenv("BUILD_ID", "1234567")
+				args = append(args, "--source-dir", runCostSourceDir(t), "--run-cost-tag-file", shared)
 			}
 			if stdout, err := execute(args...); err == nil || stdout != "" {
 				t.Fatalf("stdout = %q, err = %v", stdout, err)
 			}
-			if data, err := os.ReadFile(path); err != nil || string(data) != "previous" {
-				t.Fatalf("previous override changed: %q, %v", data, err)
+			if failure != "run-cost-tag-publication" {
+				// The override is published before the run cost tag file, so a
+				// tag publication failure may have replaced it already.
+				if data, err := os.ReadFile(path); err != nil || string(data) != "previous" {
+					t.Fatalf("previous override changed: %q, %v", data, err)
+				}
+			}
+			if failure == "run-cost-tag-publication" {
+				if data, err := os.ReadFile(tagPath); err != nil || string(data) != "previous" {
+					t.Fatalf("previous run cost tag changed: %q, %v", data, err)
+				}
+			}
+		})
+	}
+}
+
+func runCostSourceDir(t *testing.T) string {
+	t.Helper()
+	source := t.TempDir()
+	dirs := map[string]string{
+		"tooling/templatize": "settings.yaml",
+		"config":             "config.yaml",
+	}
+	contents := map[string]string{
+		"settings.yaml": "environments:\n- name: ci01\n  defaults:\n    regionShortOverride: \"j${BUILD_ID: -7}\"\n- name: cspr\n  defaults:\n    regionShortOverride: \"\"\n",
+		"config.yaml":   "defaults:\n  svc:\n    aks:\n      tags: clusterType=svc-cluster,persist=true\n  mgmt:\n    aks:\n      tags: clusterType=mgmt-cluster,persist=true\n",
+	}
+	for dir, name := range dirs {
+		if err := os.MkdirAll(filepath.Join(source, dir), 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(source, dir, name), []byte(contents[name]), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return source
+}
+
+func TestRunCostTagPublication(t *testing.T) {
+	clearEnvironment(t)
+	source := runCostSourceDir(t)
+	t.Setenv("BUILD_ID", "1234567")
+	t.Setenv(leaseenv.MSIContainers, "leased")
+	for _, tc := range []struct {
+		name, environment string
+		tagged            bool
+	}{
+		{"per-run environment", "ci01", true},
+		{"long-lived environment", "cspr", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			shared := t.TempDir()
+			t.Setenv("DEPLOY_ENV", tc.environment)
+			if _, err := execute("--source-dir", source, "--shared-dir", shared); err != nil {
+				t.Fatal(err)
+			}
+			override, err := os.ReadFile(filepath.Join(shared, "config-override.yaml"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			tagPath := filepath.Join(shared, "run-cost-tag.env")
+			tagData, err := os.ReadFile(tagPath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !tc.tagged {
+				if bytes.Contains(override, []byte("jobID")) {
+					t.Fatalf("run cost tag in override: %s", override)
+				}
+				// The file is always published so repeated invocations reset
+				// any previous tag in the sourcing shell.
+				if want := "RUN_COST_TAG_KEY=\nRUN_COST_TAG_VALUE=\n"; string(tagData) != want {
+					t.Fatalf("run cost tag file = %q, want %q", tagData, want)
+				}
+				return
+			}
+			defaults := readDefaults(t, filepath.Join(shared, "config-override.yaml"), tc.environment)
+			aks := defaults["svc"].(map[string]any)["aks"].(map[string]any)
+			if tags := aks["tags"]; tags != "clusterType=svc-cluster,persist=true,jobID.aro-hcp-ci.redhat.com=1234567" {
+				t.Fatalf("svc aks tags = %#v", tags)
+			}
+			if want := "RUN_COST_TAG_KEY=jobID.aro-hcp-ci.redhat.com\nRUN_COST_TAG_VALUE=1234567\n"; string(tagData) != want {
+				t.Fatalf("run cost tag file = %q, want %q", tagData, want)
 			}
 		})
 	}
@@ -294,6 +392,18 @@ func TestSourcedAdapter(t *testing.T) {
 	if err := os.Mkdir(filepath.Join(checkout, "test"), 0755); err != nil {
 		t.Fatal(err)
 	}
+	// Per-run environment fixtures for the run cost attribution assertions.
+	for dir, content := range map[string]string{
+		"tooling/templatize/settings.yaml": "environments:\n- name: ci01\n  defaults:\n    regionShortOverride: \"j${BUILD_ID: -7}\"\n",
+		"config/config.yaml":               "defaults:\n  svc:\n    aks:\n      tags: clusterType=svc-cluster,persist=true\n  mgmt:\n    aks:\n      tags: clusterType=mgmt-cluster,persist=true\n",
+	} {
+		if err := os.MkdirAll(filepath.Join(checkout, filepath.Dir(dir)), 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(checkout, dir), []byte(content), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
 	launcher := filepath.Join(t.TempDir(), "aro-hcp-tests")
 	if err := os.WriteFile(launcher, []byte("#!/bin/bash\nexec \"${CLI_TEST_BINARY}\" -test.run=^TestCommandProcess$ -- \"$@\"\n"), 0700); err != nil {
 		t.Fatal(err)
@@ -331,6 +441,15 @@ unset ARO_HCP_TESTS_BINARY
 source "$1"
 [[ -f "$OVERRIDE_CONFIG_FILE" ]]
 bash -c '[[ "$USE_OC_LOGIN_REGISTRIES" == "unexported.example registry.example registry.example" ]]'
+export DEPLOY_ENV=ci01 BUILD_ID=1234567
+source "$1"
+[[ "$RUN_COST_TAG_KEY" == "jobID.aro-hcp-ci.redhat.com" ]]
+[[ "$RUN_COST_TAG_VALUE" == "1234567" ]]
+# A later non-per-run invocation resets the tag instead of keeping a stale one.
+DEPLOY_ENV=dev
+source "$1"
+[[ -f "${SHARED_DIR}/run-cost-tag.env" ]]
+[[ -z "${RUN_COST_TAG_VALUE:-}" ]]
 `, "adapter-test", adapter)
 	command.Dir = checkout
 	var stderr bytes.Buffer
