@@ -164,13 +164,16 @@ func (c *createClusterScopedReadDesiresSyncer) SyncOnce(ctx context.Context, key
 	}
 	csClusterID := existingCluster.ServiceProviderProperties.ClusterServiceID.ID()
 
-	kaClient := c.kubeApplierDBClients.For(ctx, mcResourceID)
-	if kaClient == nil {
+	kaClient, err := c.kubeApplierDBClients.For(ctx, mcResourceID)
+	if errors.Is(err, kubeappliercosmosstorage.ErrManagementClusterNotFound) {
 		// Registry doesn't have an entry yet for this MC (e.g. the fleet
 		// lister hasn't caught up). Skip and rely on retrigger. When the MC
 		// document is registered but misconfigured (e.g. missing its
 		// kube-applier container name), For() surfaces that loudly.
 		return nil
+	}
+	if err != nil {
+		return err
 	}
 	crud, err := kaClient.ReadDesiresForCluster(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if err != nil {

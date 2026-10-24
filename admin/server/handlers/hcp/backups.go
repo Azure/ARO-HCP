@@ -16,6 +16,7 @@ package hcp
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -137,10 +138,13 @@ func (h *HCPGetBackupScheduleHandler) ServeHTTP(writer http.ResponseWriter, requ
 			"management cluster placement not resolved for cluster %s", clusterDetails.cluster.ResourceID.String())
 	}
 
-	kubeApplierClient := h.kubeApplierDBClients.For(request.Context(), clusterDetails.serviceProviderCluster.Status.ManagementClusterResourceID)
-	if kubeApplierClient == nil {
+	kubeApplierClient, err := h.kubeApplierDBClients.For(request.Context(), clusterDetails.serviceProviderCluster.Status.ManagementClusterResourceID)
+	if errors.Is(err, kubeappliercosmosstorage.ErrManagementClusterNotFound) {
 		return coreapi.NewCloudError(http.StatusPreconditionFailed, coreapi.CloudErrorCodeInvalidResource, "",
 			"kube-applier client not available for management cluster %s", clusterDetails.serviceProviderCluster.Status.ManagementClusterResourceID.String())
+	}
+	if err != nil {
+		return err
 	}
 
 	readDesireCRUD, err := kubeApplierClient.ReadDesiresForCluster(clusterDetails.cluster.ResourceID.SubscriptionID, clusterDetails.cluster.ResourceID.ResourceGroupName, clusterDetails.cluster.ResourceID.Name)
@@ -272,10 +276,13 @@ func (h *HCPGetOnDemandBackupsHandler) ServeHTTP(writer http.ResponseWriter, req
 			"management cluster placement not resolved for cluster %s", clusterDetails.cluster.ResourceID.String())
 	}
 
-	kubeApplierClient := h.kubeApplierDBClients.For(request.Context(), clusterDetails.serviceProviderCluster.Status.ManagementClusterResourceID)
-	if kubeApplierClient == nil {
+	kubeApplierClient, err := h.kubeApplierDBClients.For(request.Context(), clusterDetails.serviceProviderCluster.Status.ManagementClusterResourceID)
+	if errors.Is(err, kubeappliercosmosstorage.ErrManagementClusterNotFound) {
 		return coreapi.NewCloudError(http.StatusPreconditionFailed, coreapi.CloudErrorCodeInvalidResource, "",
 			"kube-applier client not available for management cluster %s", clusterDetails.serviceProviderCluster.Status.ManagementClusterResourceID.String())
+	}
+	if err != nil {
+		return err
 	}
 
 	readDesireCRUD, err := kubeApplierClient.ReadDesiresForCluster(clusterDetails.cluster.ResourceID.SubscriptionID, clusterDetails.cluster.ResourceID.ResourceGroupName, clusterDetails.cluster.ResourceID.Name)

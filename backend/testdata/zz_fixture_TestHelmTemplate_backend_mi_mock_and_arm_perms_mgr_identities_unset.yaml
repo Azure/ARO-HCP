@@ -52,8 +52,7 @@ metadata:
   name: backend-config
   namespace: 'aro-hcp'
 data:
-  DB_NAME: 'arohcpdev-rp-usw3'
-  DB_URL: '__cosmosDBDocumentEndpoint__'
+  COSMOS_ACCOUNT_RESOURCE_ID: '__rpCosmosDbAccountId__'
   BACKEND_MI_CLIENT_ID: '__backendMsiClientId__'
   CURRENT_VERSION: ''
   LOCATION: 'westus3'
@@ -188,16 +187,11 @@ spec:
         - "--azure-cluster-scoped-identities-role-set-name"
         - "dev"
         env:
-        - name: DB_NAME
+        - name: COSMOS_ACCOUNT_RESOURCE_ID
           valueFrom:
             configMapKeyRef:
               name: backend-config
-              key: DB_NAME
-        - name: DB_URL
-          valueFrom:
-            configMapKeyRef:
-              name: backend-config
-              key: DB_URL
+              key: COSMOS_ACCOUNT_RESOURCE_ID
         - name: LOCATION
           valueFrom:
             configMapKeyRef:

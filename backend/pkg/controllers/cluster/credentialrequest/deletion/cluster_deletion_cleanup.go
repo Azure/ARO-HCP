@@ -16,6 +16,7 @@ package deletion
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -125,11 +126,14 @@ func (c *credentialRequestDeletion) SyncOnce(ctx context.Context, key controller
 		return nil
 	}
 
-	kubeApplierClient := c.kubeApplierDBClients.For(ctx, mcResourceID)
-	if kubeApplierClient == nil {
+	kubeApplierClient, err := c.kubeApplierDBClients.For(ctx, mcResourceID)
+	if errors.Is(err, kubeappliercosmosstorage.ErrManagementClusterNotFound) {
 		logger.Info("waiting to tear down credential desires: no kube-applier client for management cluster",
 			"credential", key.CredentialName, "managementCluster", mcResourceID.String())
 		return nil
+	}
+	if err != nil {
+		return err
 	}
 
 	waitingFor, err := kubeapplierhelpers.DeleteAllChildDesires(ctx, kubeApplierClient, kubeapplierhelpers.CredentialRequestDesireParent(key.CredentialName),

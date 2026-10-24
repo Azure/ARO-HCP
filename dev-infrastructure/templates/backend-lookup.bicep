@@ -54,7 +54,7 @@ resource cosmosDbAccount 'Microsoft.DocumentDB/databaseAccounts@2023-11-15' exis
   name: rpCosmosDbName
 }
 
-output cosmosDBDocumentEndpoint string = cosmosDbAccount.properties.documentEndpoint
+output rpCosmosDbAccountId string = cosmosDbAccount.id
 
 //
 //   S T O R A G E   A C C O U N T   L O O K U P

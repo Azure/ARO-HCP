@@ -68,6 +68,8 @@ require (
 	sigs.k8s.io/yaml v1.6.0
 )
 
+require github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeployments v1.0.0 // indirect
+
 require (
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/ncruces/go-strftime v0.1.9 // indirect

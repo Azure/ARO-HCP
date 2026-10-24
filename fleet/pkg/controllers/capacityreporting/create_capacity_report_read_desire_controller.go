@@ -16,6 +16,7 @@ package capacityreporting
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"k8s.io/client-go/tools/cache"
@@ -71,10 +72,13 @@ func (s *ensureReadDesireSyncer) SyncOnce(ctx context.Context, key fleetcontroll
 
 	managementClusterResourceID := metadataapi.Must(fleetapihelpers.ToManagementClusterResourceID(key.StampIdentifier))
 
-	kubeApplierClient := s.kubeApplierDBClients.For(ctx, managementClusterResourceID)
-	if kubeApplierClient == nil {
+	kubeApplierClient, err := s.kubeApplierDBClients.For(ctx, managementClusterResourceID)
+	if errors.Is(err, kubeappliercosmosstorage.ErrManagementClusterNotFound) {
 		logger.V(1).Info("kube-applier Cosmos client not available for management cluster")
 		return nil
+	}
+	if err != nil {
+		return err
 	}
 
 	crud, err := kubeApplierClient.ReadDesiresForManagementCluster(key.StampIdentifier)

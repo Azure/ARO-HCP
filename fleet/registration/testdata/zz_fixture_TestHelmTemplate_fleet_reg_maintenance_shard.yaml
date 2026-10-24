@@ -73,4 +73,6 @@ spec:
         - 'maestro-grpc.maestro.svc.cluster.local:8090'
         - --kube-applier-cosmos-container-name
         - 'Manifests-MC-1'
+        - --kube-applier-cosmos-container-max-scale
+        - '19000'
 

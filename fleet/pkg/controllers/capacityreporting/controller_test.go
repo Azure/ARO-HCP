@@ -349,8 +349,8 @@ func TestSyncOnce_DropsObservedPendingAssignments(t *testing.T) {
 // the create.
 type conflictOnCreateDBClients struct{}
 
-func (c *conflictOnCreateDBClients) For(_ context.Context, _ *azcorearm.ResourceID) kubeappliercosmosstorage.KubeApplierDBClient {
-	return &conflictOnCreateDBClient{}
+func (c *conflictOnCreateDBClients) For(_ context.Context, _ *azcorearm.ResourceID) (kubeappliercosmosstorage.KubeApplierDBClient, error) {
+	return &conflictOnCreateDBClient{}, nil
 }
 
 type conflictOnCreateDBClient struct {

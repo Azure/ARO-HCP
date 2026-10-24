@@ -15,6 +15,7 @@ package backups
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -149,13 +150,16 @@ func (c *backupScheduleSyncer) SyncOnce(ctx context.Context, key controllerutils
 	managementClusterResourceID := cachedServiceProviderCluster.Status.ManagementClusterResourceID
 	clusterPaused := cachedServiceProviderCluster.Spec.BackupScheduleState == coreapi.BackupScheduleStateDisabled
 
-	kubeApplierClient := c.kubeApplierDBClients.For(ctx, cachedServiceProviderCluster.Status.ManagementClusterResourceID)
-	if kubeApplierClient == nil {
+	kubeApplierClient, err := c.kubeApplierDBClients.For(ctx, cachedServiceProviderCluster.Status.ManagementClusterResourceID)
+	if errors.Is(err, kubeappliercosmosstorage.ErrManagementClusterNotFound) {
 		// Registry doesn't have an entry yet for this MC (e.g. the fleet
 		// lister hasn't caught up). Skip and rely on retrigger. When the MC
 		// document is registered but misconfigured (e.g. missing its
 		// kube-applier container name), For() surfaces that loudly.
 		return nil
+	}
+	if err != nil {
+		return err
 	}
 
 	applyDesireCRUD, err := kubeApplierClient.ApplyDesiresForCluster(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
@@ -229,13 +233,16 @@ func (c *backupScheduleSyncer) SyncOnce(ctx context.Context, key controllerutils
 func (c *backupScheduleSyncer) syncDeletion(ctx context.Context, key controllerutils.HCPClusterKey, serviceProviderCluster *coreapi.ServiceProviderCluster) error {
 	managementClusterResourceID := serviceProviderCluster.Status.ManagementClusterResourceID
 
-	kubeApplierClient := c.kubeApplierDBClients.For(ctx, managementClusterResourceID)
-	if kubeApplierClient == nil {
+	kubeApplierClient, err := c.kubeApplierDBClients.For(ctx, managementClusterResourceID)
+	if errors.Is(err, kubeappliercosmosstorage.ErrManagementClusterNotFound) {
 		// Registry doesn't have an entry yet for this MC (e.g. the fleet
 		// lister hasn't caught up). Skip and rely on retrigger. When the MC
 		// document is registered but misconfigured (e.g. missing its
 		// kube-applier container name), For() surfaces that loudly.
 		return nil
+	}
+	if err != nil {
+		return err
 	}
 
 	applyDesireCRUD, err := kubeApplierClient.ApplyDesiresForCluster(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)

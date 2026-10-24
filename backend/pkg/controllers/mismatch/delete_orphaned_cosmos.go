@@ -299,9 +299,13 @@ func (c *deleteOrphanedCosmosResources) sweepOrphanedDesires(
 		}
 		logger := logger.WithValues("managementCluster", strings.ToLower(mcResourceID.String()))
 
-		client := c.kubeApplierDBClients.For(ctx, mcResourceID)
-		if client == nil {
+		client, err := c.kubeApplierDBClients.For(ctx, mcResourceID)
+		if errors.Is(err, kubeappliercosmosstorage.ErrManagementClusterNotFound) {
 			logger.V(2).Info("kube-applier client unavailable; skipping incomplete container scan")
+			continue
+		}
+		if err != nil {
+			errs = append(errs, err)
 			continue
 		}
 

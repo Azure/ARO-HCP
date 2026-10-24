@@ -16,6 +16,7 @@ package kubeapplierlistertesting
 
 import (
 	"context"
+	"errors"
 	"strings"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -65,9 +66,12 @@ func (l *DBApplyDesireLister) List(ctx context.Context) ([]*kubeapplierapi.Apply
 	}
 	var all []*kubeapplierapi.ApplyDesire
 	for _, rid := range rids {
-		client := l.Clients.For(ctx, rid)
-		if client == nil {
+		client, err := l.Clients.For(ctx, rid)
+		if errors.Is(err, kubeappliercosmosstorage.ErrManagementClusterNotFound) {
 			continue
+		}
+		if err != nil {
+			return nil, err
 		}
 		iter, err := client.Listers().ApplyDesires().List(ctx, nil)
 		if err != nil {
@@ -145,9 +149,12 @@ func (l *DBApplyDesireLister) GetByResourceID(
 func (l *DBApplyDesireLister) ListForManagementCluster(
 	ctx context.Context, managementClusterResourceID *azcorearm.ResourceID,
 ) ([]*kubeapplierapi.ApplyDesire, error) {
-	client := l.Clients.For(ctx, managementClusterResourceID)
-	if client == nil {
+	client, err := l.Clients.For(ctx, managementClusterResourceID)
+	if errors.Is(err, kubeappliercosmosstorage.ErrManagementClusterNotFound) {
 		return nil, nil
+	}
+	if err != nil {
+		return nil, err
 	}
 	iter, err := client.Listers().ApplyDesires().List(ctx, nil)
 	if err != nil {
@@ -200,9 +207,12 @@ func findClusterDesireInAnyClient[T any, P coreapi.CosmosMetadataAccessorPtr[T]]
 		return nil, err
 	}
 	for _, rid := range rids {
-		client := clients.For(ctx, rid)
-		if client == nil {
+		client, err := clients.For(ctx, rid)
+		if errors.Is(err, kubeappliercosmosstorage.ErrManagementClusterNotFound) {
 			continue
+		}
+		if err != nil {
+			return nil, err
 		}
 		crud, err := crudFor(client)
 		if err != nil {
@@ -235,9 +245,12 @@ func (l *DBReadDesireLister) List(ctx context.Context) ([]*kubeapplierapi.ReadDe
 	}
 	var all []*kubeapplierapi.ReadDesire
 	for _, rid := range rids {
-		client := l.Clients.For(ctx, rid)
-		if client == nil {
+		client, err := l.Clients.For(ctx, rid)
+		if errors.Is(err, kubeappliercosmosstorage.ErrManagementClusterNotFound) {
 			continue
+		}
+		if err != nil {
+			return nil, err
 		}
 		iter, err := client.Listers().ReadDesires().List(ctx, nil)
 		if err != nil {
@@ -315,9 +328,12 @@ func (l *DBReadDesireLister) GetByResourceID(
 func (l *DBReadDesireLister) ListForManagementCluster(
 	ctx context.Context, managementClusterResourceID *azcorearm.ResourceID,
 ) ([]*kubeapplierapi.ReadDesire, error) {
-	client := l.Clients.For(ctx, managementClusterResourceID)
-	if client == nil {
+	client, err := l.Clients.For(ctx, managementClusterResourceID)
+	if errors.Is(err, kubeappliercosmosstorage.ErrManagementClusterNotFound) {
 		return nil, nil
+	}
+	if err != nil {
+		return nil, err
 	}
 	iter, err := client.Listers().ReadDesires().List(ctx, nil)
 	if err != nil {

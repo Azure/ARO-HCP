@@ -224,8 +224,8 @@ type cosmosKubeApplierFactory struct {
 func (factory *cosmosKubeApplierFactory) NewKubeApplierInformers(
 	ctx context.Context, managementClusterResourceID *azcorearm.ResourceID,
 ) kubeapplierinformers.KubeApplierInformers {
-	client := factory.kubeApplierClients.For(ctx, managementClusterResourceID)
-	if client == nil {
+	client, err := factory.kubeApplierClients.For(ctx, managementClusterResourceID)
+	if err != nil {
 		return nil
 	}
 	return kubeapplierinformers.NewKubeApplierInformersWithRelistDuration(ctx, client.Listers(), client, &factory.relistDuration)
@@ -318,6 +318,7 @@ func createManagementCluster(ctx context.Context, fleetClient fleetcosmosstorage
 			MaestroRESTAPIURL:                                    "http://maestro.maestro.svc.cluster.local:8000",
 			MaestroGRPCTarget:                                    "maestro-grpc.maestro.svc.cluster.local:8090",
 			KubeApplierCosmosContainerName:                       "Manifests-MC-" + stampIdentifier,
+			KubeApplierCosmosContainerMaxScale:                   19000,
 		},
 	}
 	_, err := fleetClient.Stamps().ManagementClusters(stampIdentifier).Create(ctx, managementCluster, nil)

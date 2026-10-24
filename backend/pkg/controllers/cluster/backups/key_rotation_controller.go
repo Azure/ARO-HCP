@@ -16,6 +16,7 @@ package backups
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -173,9 +174,12 @@ func (c *keyRotationBackupSyncer) SyncOnce(ctx context.Context, key controllerut
 	}
 
 	managementClusterResourceID := cachedServiceProviderCluster.Status.ManagementClusterResourceID
-	kubeApplierClient := c.kubeApplierDBClients.For(ctx, managementClusterResourceID)
-	if kubeApplierClient == nil {
+	kubeApplierClient, err := c.kubeApplierDBClients.For(ctx, managementClusterResourceID)
+	if errors.Is(err, kubeappliercosmosstorage.ErrManagementClusterNotFound) {
 		return nil
+	}
+	if err != nil {
+		return err
 	}
 
 	applyDesireCRUD, err := kubeApplierClient.ApplyDesiresForCluster(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
@@ -301,9 +305,12 @@ func (c *keyRotationBackupSyncer) syncDeletion(
 	cachedServiceProviderCluster *coreapi.ServiceProviderCluster,
 ) error {
 	managementClusterResourceID := cachedServiceProviderCluster.Status.ManagementClusterResourceID
-	kubeApplierClient := c.kubeApplierDBClients.For(ctx, managementClusterResourceID)
-	if kubeApplierClient == nil {
+	kubeApplierClient, err := c.kubeApplierDBClients.For(ctx, managementClusterResourceID)
+	if errors.Is(err, kubeappliercosmosstorage.ErrManagementClusterNotFound) {
 		return nil
+	}
+	if err != nil {
+		return err
 	}
 
 	applyDesireCRUD, err := kubeApplierClient.ApplyDesiresForCluster(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)

@@ -16,6 +16,7 @@ package k8sresources
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"time"
@@ -118,9 +119,12 @@ func (syncer *kubeAPIServerServingCertificateSyncer) SyncOnce(ctx context.Contex
 		return nil
 	}
 	managementClusterID := serviceProviderCluster.Status.ManagementClusterResourceID
-	client := syncer.kubeApplierDBClients.For(ctx, managementClusterID)
-	if client == nil {
+	client, err := syncer.kubeApplierDBClients.For(ctx, managementClusterID)
+	if errors.Is(err, kubeappliercosmosstorage.ErrManagementClusterNotFound) {
 		return nil
+	}
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("resolve kube-applier client for serving certificate: %w", err))
 	}
 	applyCRUD, err := client.ApplyDesiresForCluster(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if err != nil {

@@ -16,6 +16,7 @@ package deletion
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -110,11 +111,14 @@ func (c *revocationDeletion) SyncOnce(ctx context.Context, key controllerutils.S
 		return utils.TrackError(fmt.Errorf("ServiceProviderCluster for cluster %q has no ManagementClusterResourceID", key.HCPClusterName))
 	}
 
-	kubeApplierClient := c.kubeApplierDBClients.For(ctx, mcResourceID)
-	if kubeApplierClient == nil {
+	kubeApplierClient, err := c.kubeApplierDBClients.For(ctx, mcResourceID)
+	if errors.Is(err, kubeappliercosmosstorage.ErrManagementClusterNotFound) {
 		logger.Info("waiting for kube-applier client for management cluster before tearing down revocation desires",
 			"managementCluster", mcResourceID.String())
 		return nil
+	}
+	if err != nil {
+		return err
 	}
 
 	waitingFor, err := kubeapplierhelpers.DeleteAllChildDesires(ctx, kubeApplierClient, kubeapplierhelpers.RevocationDesireParent(key.RevocationName),
