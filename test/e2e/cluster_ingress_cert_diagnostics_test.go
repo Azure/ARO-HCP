@@ -39,6 +39,16 @@ import (
 	"k8s.io/client-go/rest"
 )
 
+func TestCollectIngressCertificateDiagnosticsWithoutArtifactDirectory(t *testing.T) {
+	directory := t.TempDir()
+	t.Chdir(directory)
+	// Nil clients make any API access fail instead of silently collecting data.
+	require.NoError(t, collectIngressCertificateDiagnostics(t.Context(), nil, nil, ""))
+	entries, err := os.ReadDir(directory)
+	require.NoError(t, err)
+	require.Empty(t, entries, "disabled artifact output must not write into the working directory")
+}
+
 func TestCollectIngressCertificateDiagnosticsSafeArtifacts(t *testing.T) {
 	for _, componentLabel := range []bool{true, false} {
 		name := "deployment-selector-fallback"

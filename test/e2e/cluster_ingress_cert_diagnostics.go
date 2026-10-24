@@ -35,6 +35,9 @@ import (
 // fetching secrets or serializing pod specs, issuer specs, or arbitrary metadata.
 // The caller supplies the cleanup deadline; every API request shares that budget.
 func collectIngressCertificateDiagnostics(ctx context.Context, kubeClient kubernetes.Interface, dynamicClient dynamic.Interface, directory string) error {
+	if directory == "" {
+		return nil
+	}
 	directory = filepath.Join(directory, "ingress-certificate-diagnostics")
 	if err := os.MkdirAll(directory, 0700); err != nil {
 		return fmt.Errorf("create ingress certificate diagnostics directory: %w", err)

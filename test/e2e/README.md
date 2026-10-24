@@ -93,6 +93,8 @@ directory before guest teardown. These artifacts include bounded cert-manager
 controller logs, issuer conditions/events, and guest DNS readiness state. They
 exclude Secret resources, pod environment variables, token projections, and
 issuer specifications. Artifact-collection errors do not replace the test failure.
+Collection is skipped when the per-test artifact directory is empty, including
+local runs without `ARTIFACT_DIR`.
 
 ### Resource Naming
 
