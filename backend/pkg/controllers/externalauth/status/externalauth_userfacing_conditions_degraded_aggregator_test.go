@@ -73,7 +73,7 @@ var (
 		Type:    coreapi.ExternalAuthOIDCClientsDegradedCondition,
 		Status:  metav1.ConditionFalse,
 		Reason:  coreapi.ExternalAuthOIDCClientsDegradedReasonAsExpected,
-		Message: coreapi.ExternalAuthMessageAllOperational,
+		Message: coreapi.ExternalAuthMessageOIDCClientsAllOperational,
 	}
 	availableFalse = metav1.Condition{
 		Type:    coreapi.ExternalAuthOIDCClientsDegradedCondition,
@@ -101,7 +101,7 @@ func TestCollectAllowlisted(t *testing.T) {
 		{
 			name: "OIDCClientsDegraded=False -> one result (kept with original status)",
 			serviceProviderExternalAuthConditions: []metav1.Condition{
-				{Type: coreapi.ExternalAuthOIDCClientsDegradedCondition, Status: metav1.ConditionFalse, Reason: coreapi.ExternalAuthOIDCClientsDegradedReasonAsExpected, Message: coreapi.ExternalAuthMessageAllOperational},
+				{Type: coreapi.ExternalAuthOIDCClientsDegradedCondition, Status: metav1.ConditionFalse, Reason: coreapi.ExternalAuthOIDCClientsDegradedReasonAsExpected, Message: coreapi.ExternalAuthMessageOIDCClientsAllOperational},
 			},
 			expectCount:  1,
 			expectType:   coreapi.ExternalAuthOIDCClientsDegradedCondition,
@@ -232,7 +232,7 @@ func TestExternalAuthUserFacingDegradedAggregator_SyncOnce(t *testing.T) {
 			externalAuth: newTestExternalAuthForAggregatorTests(),
 			serviceProviderExternalAuth: newTestServiceProviderExternalAuth(func(serviceProviderExternalAuth *coreapi.ServiceProviderExternalAuth) {
 				serviceProviderExternalAuth.Status.Conditions = []metav1.Condition{
-					{Type: coreapi.ExternalAuthOIDCClientsDegradedCondition, Status: metav1.ConditionFalse, Reason: coreapi.ExternalAuthOIDCClientsDegradedReasonAsExpected, Message: coreapi.ExternalAuthMessageAllOperational},
+					{Type: coreapi.ExternalAuthOIDCClientsDegradedCondition, Status: metav1.ConditionFalse, Reason: coreapi.ExternalAuthOIDCClientsDegradedReasonAsExpected, Message: coreapi.ExternalAuthMessageOIDCClientsAllOperational},
 				}
 			}),
 			expectDegraded: ptr.To(metav1.ConditionFalse),
