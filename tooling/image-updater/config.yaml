@@ -123,7 +123,7 @@ images:
     group: platform-utils
     source:
       image: registry.k8s.io/secrets-store-sync/controller
-      tagPattern: "^v\\d+\\.\\d+\\.\\d+$"
+      tag: "v0.0.5" # Hold for the v0.0.6 regression (AROSLSRE-2518); unpin with PR #7708 (AROSLSRE-2519).
       multiArch: true # This image only publishes multi-arch manifests
     targets:
     - jsonPath: defaults.secretSyncController.image.digest
