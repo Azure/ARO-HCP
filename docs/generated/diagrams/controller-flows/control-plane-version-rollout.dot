@@ -6,8 +6,8 @@ digraph control_plane_version_rollout {
   pin [label="Admin POST /controlplaneversionpin\nhold or advance latest observed version\nrollback: previous distinct Completed version\nmissing history: accept pin", fillcolor="#eee7fb", color="#7b59a4"];
   fleetpin [label="Admin POST /versionrollouts/{channel}/controlplaneversionpin\nregional rollout membership snapshot\nvalidate all changes before independent ETag writes\nunchanged pins: no-op; partial failures: summary", fillcolor="#eee7fb", color="#7b59a4"];
   actual [label="ActualHostedCluster controller\n→ provider Status.ControlPlaneVersionHistory\nfull observed control-plane history"];
-  seed [label="ControlPlaneVersionRolloutSeeding\nnon-deleting, non-nightly clusters"];
-  rollout [label="Fleet rollout: channel name + Spec.Version\nabsent legacy profile filled on Cosmos reads\nconsumers still parse channel names", fillcolor="#e4f2e5", color="#4c8053"];
+  seed [label="ControlPlaneVersionRolloutSeeding\nnon-deleting, non-nightly clusters\nprospective discovery: separate catalog panel"];
+  rollout [label="Fleet rollout: channel name + Spec.Version\nabsent legacy profile filled on Cosmos reads\nassignment consumers parse channel names", fillcolor="#e4f2e5", color="#4c8053"];
   migration [label="CosmosRolloutVersionMigration\nfive workers; 5m resync/cooldown\nonce per key/process after success\nno subscription dependency"];
   best [label="ControlPlaneVersionBestVersionSelection"];
   updategraph [label="OpenShift update graph\nstable offset 1; other channels offset 0\nrecency only; risk filtering is a follow-up", fillcolor="#fff0da", color="#b27624"];
@@ -20,7 +20,7 @@ digraph control_plane_version_rollout {
   external [label="Cluster Service / Maestro / HyperShift\nexternal control-plane convergence", fillcolor="#fff0da", color="#b27624"];
   observe [label="ReadDesireKubernetesController\n→ ControlPlaneActiveVersions"];
   history [label="Provider active versions + transition times\nCompleted entry confirms achieved version", fillcolor="#e4f2e5", color="#4c8053"];
-  status [label="ControlPlaneVersionStatusCollector\nexclude missing / deleting clusters\naggregate counts; no assignments"];
+  status [label="ControlPlaneVersionStatusCollector\nupgrade maps exclude missing / deleting clusters\nreference count INCLUDES deletion; see catalog panel"];
   counts [label="Fleet status: desired / mismatched / failed\nachieved / successful\nsuccess age > 1h; mismatch timeout > 2h default", fillcolor="#e4f2e5", color="#4c8053"];
   request -> seed [label="requested / pinned channels"];
   pin -> request [label="write / clear Spec.PinnedVersion"];
@@ -49,6 +49,6 @@ digraph control_plane_version_rollout {
   observe -> history [label="record observed state"];
   history -> status [label="completed version + age"];
   desired -> status [label="membership + target + age", style=dashed, constraint=false];
-  status -> counts [label="persist only changed aggregates"];
+  status -> counts [label="persist changed counts + reference inventory"];
   history -> normal [label="recompute decision counts\nfrom provider snapshot", style=dashed, color="#857456", constraint=false];
 }
