@@ -146,6 +146,47 @@ func TestEmbeddedKnownIssuesParse(t *testing.T) {
 	}
 }
 
+// TestClassifyDefaultKnownIssues guards the scoping of the embedded
+// PrometheusOperatorRejectedResources entry: only servicemonitor rejections by
+// the prometheus-agent on management clusters are the standing hypershift v2
+// defect (ARO-30406). Other rejected-resource alerts (different resource type
+// or cluster) must still fail runs.
+func TestClassifyDefaultKnownIssues(t *testing.T) {
+	t.Parallel()
+	issues, err := parseKnownIssues(defaultKnownIssuesData)
+	if err != nil {
+		t.Fatalf("embedded knownIssues.yaml failed to parse: %v", err)
+	}
+
+	classified := classifyAlerts([]alert{
+		{Alert: alertData{
+			Name: "PrometheusOperatorRejectedResources",
+			Labels: map[string]string{
+				"cluster":    "hcp-arohcp-useast-mgmt-01",
+				"controller": "prometheus-agent",
+				"resource":   "servicemonitor",
+			},
+		}},
+		{Alert: alertData{
+			Name: "PrometheusOperatorRejectedResources",
+			Labels: map[string]string{
+				"cluster":    "hcp-arohcp-useast-mgmt-01",
+				"controller": "prometheus-agent",
+				"resource":   "scrapeconfig",
+			},
+		}},
+		{Alert: alertData{
+			Name: "PrometheusOperatorRejectedResources",
+			Labels: map[string]string{
+				"cluster":    "hcp-arohcp-useast-svc-01",
+				"controller": "prometheus-agent",
+				"resource":   "servicemonitor",
+			},
+		}},
+	}, issues)
+	CompareWithFixture(t, classified)
+}
+
 func TestUndatedKnownIssueDoesNotExpire(t *testing.T) {
 	t.Parallel()
 	issues := mustParse(t, `knownIssues:

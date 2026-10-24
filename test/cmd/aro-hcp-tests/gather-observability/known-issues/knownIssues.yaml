@@ -1,8 +1,10 @@
 knownIssues:
 - name: "PrometheusOperatorRejectedResources"
   labels:
+    cluster: ".*-mgmt-.*"
+    controller: "prometheus-agent"
     resource: "servicemonitor"
-  reason: "ARO-28028 was closed Won't Do. This fires on the self-hosted Prometheus on management clusters and can be removed once management metrics move off self-hosted Prometheus to AMA (https://issues.redhat.com/browse/AROSLSRE-1693)."
+  reason: "Standing hypershift v2 defect, root-caused in ARO-30406 (previously ARO-28028, closed Won't Do): the prometheus-agent on management clusters rejects HCP-namespace ServiceMonitors because the root-ca ConfigMap they reference is no longer created by the v2 control-plane-pki-operator. The alert fires on passing runs at the same rate as failing ones, so it is not a run failure. Remove once the root cause is fixed or management metrics move off self-hosted Prometheus to AMA (AROSLSRE-1693)."
 - name: "KubeVersionMismatch"
   labels:
     cluster: ".*-mgmt-.*"

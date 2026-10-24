@@ -1,0 +1,40 @@
+- alert:
+    condition: ""
+    labels:
+      cluster: hcp-arohcp-useast-mgmt-01
+      controller: prometheus-agent
+      resource: servicemonitor
+    name: PrometheusOperatorRejectedResources
+    severity: ""
+    state: ""
+  metadata:
+    knownIssue: true
+    knownIssueReason: 'Standing hypershift v2 defect, root-caused in ARO-30406 (previously
+      ARO-28028, closed Won''t Do): the prometheus-agent on management clusters rejects
+      HCP-namespace ServiceMonitors because the root-ca ConfigMap they reference is
+      no longer created by the v2 control-plane-pki-operator. The alert fires on passing
+      runs at the same rate as failing ones, so it is not a run failure. Remove once
+      the root cause is fixed or management metrics move off self-hosted Prometheus
+      to AMA (AROSLSRE-1693).'
+- alert:
+    condition: ""
+    labels:
+      cluster: hcp-arohcp-useast-mgmt-01
+      controller: prometheus-agent
+      resource: scrapeconfig
+    name: PrometheusOperatorRejectedResources
+    severity: ""
+    state: ""
+  metadata:
+    knownIssue: false
+- alert:
+    condition: ""
+    labels:
+      cluster: hcp-arohcp-useast-svc-01
+      controller: prometheus-agent
+      resource: servicemonitor
+    name: PrometheusOperatorRejectedResources
+    severity: ""
+    state: ""
+  metadata:
+    knownIssue: false
