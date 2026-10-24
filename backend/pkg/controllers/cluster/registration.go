@@ -530,6 +530,7 @@ func instantiateClusterIdentitySyncController(controllerContext controllerconfig
 		controllerContext.ResourcesDBClient,
 		controllerContext.BackendInformers,
 		controllerContext.UnionKubeApplierInformers,
+		controllerContext.HardcodedIdentity == nil, // When hardcodedIdentity is nil, it means that the real Managed Identities Data Plane is available
 	), nil
 }
 
