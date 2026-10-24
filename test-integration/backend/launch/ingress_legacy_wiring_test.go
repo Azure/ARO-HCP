@@ -200,6 +200,7 @@ func TestBackendLegacyIngressWiringByVersion(t *testing.T) {
 							MaestroRESTAPIURL:                                    "http://maestro.maestro.svc.cluster.local:8000",
 							MaestroGRPCTarget:                                    "maestro-grpc.maestro.svc.cluster.local:8090",
 							KubeApplierCosmosContainerName:                       "kube-applier-mc-1",
+							KubeApplierCosmosContainerMaxScale:                   19000,
 						},
 					},
 				})
