@@ -246,6 +246,14 @@ type ManagementClusterStatus struct {
 	// +required, immutable once set.
 	KubeApplierCosmosContainerName string `json:"kubeApplierCosmosContainerName,omitempty"`
 
+	// KubeApplierCosmosContainerMaxScale is the configured autoscale maximum
+	// throughput (RU/s) of the kube-applier Cosmos container, sourced from
+	// pipeline configuration (the same value used to provision the container
+	// via Bicep).
+	//
+	// +required, must be positive.
+	KubeApplierCosmosContainerMaxScale int32 `json:"kubeApplierCosmosContainerMaxScale,omitempty"`
+
 	// SharedIngressIPAddresses holds the load balancer ingress IP addresses of
 	// the shared-ingress router Service (namespace hypershift-sharedingress,
 	// name router) observed on the management cluster. It is cleared (nil) when

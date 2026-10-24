@@ -36,6 +36,7 @@ func validRawOptions() *RawRegisterOptions {
 		MaestroRESTAPIURL:                                    "http://maestro:8000",
 		MaestroGRPCTarget:                                    "maestro:8090",
 		KubeApplierCosmosContainerName:                       "Manifests-MC-1",
+		KubeApplierCosmosContainerMaxScale:                   19000,
 	}
 }
 
@@ -75,6 +76,11 @@ func TestValidate(t *testing.T) {
 			name:      "invalid public DNS zone resource ID",
 			modify:    func(opts *RawRegisterOptions) { opts.PublicDNSZoneResourceID = "not-a-resource-id" },
 			expectErr: "invalid public-dns-zone-resource-id",
+		},
+		{
+			name:      "zero kube-applier-cosmos-container-max-scale",
+			modify:    func(opts *RawRegisterOptions) { opts.KubeApplierCosmosContainerMaxScale = 0 },
+			expectErr: "invalid --kube-applier-cosmos-container-max-scale",
 		},
 	}
 
