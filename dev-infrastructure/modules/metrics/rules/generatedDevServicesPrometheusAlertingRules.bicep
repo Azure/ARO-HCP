@@ -1689,6 +1689,106 @@ Investigate the Fluent Bit logs for the specific error details and check the Kus
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'FluentBitMultilineTruncated'
+        enabled: true
+        labels: {
+          component: 'monitoring-infrastructure'
+          severity: 'warning'
+        }
+        annotations: {
+          correlationId: 'FluentBitMultilineTruncated/{{ $labels.cluster }}/{{ $labels.name }}/{{ $labels.pod }}'
+          description: '''Fluent Bit filter {{ $labels.name }} in pod {{ $labels.pod }} on cluster {{ $labels.cluster }} has truncated multiline log records.
+The multiline assembly buffer reached its per-message limit, so partial records were emitted and message content may be missing.
+Inspect multiline_truncated metadata and review the message size and multiline_buffer_limit setting.
+'''
+          info: '''Fluent Bit filter {{ $labels.name }} in pod {{ $labels.pod }} on cluster {{ $labels.cluster }} has truncated multiline log records.
+The multiline assembly buffer reached its per-message limit, so partial records were emitted and message content may be missing.
+Inspect multiline_truncated metadata and review the message size and multiline_buffer_limit setting.
+'''
+          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/arobit.html'
+          summary: 'Fluent Bit {{ $labels.name }} in {{ $labels.pod }} on {{ $labels.cluster }} truncated multiline records'
+          title: 'Fluent Bit {{ $labels.name }} in {{ $labels.pod }} on {{ $labels.cluster }} truncated multiline records'
+        }
+        expression: 'max by (cluster, pod, name, region) (increase(fluentbit_filter_emit_truncated_total[5m])) > 0 or (max by (cluster, pod, name, region) (fluentbit_filter_emit_truncated_total) > 0 unless max by (cluster, pod, name, region) (fluentbit_filter_emit_truncated_total offset 5m))'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'FluentBitTailRingBufferDropped'
+        enabled: true
+        labels: {
+          component: 'monitoring-infrastructure'
+          severity: 'warning'
+        }
+        annotations: {
+          correlationId: 'FluentBitTailRingBufferDropped/{{ $labels.cluster }}/{{ $labels.name }}/{{ $labels.pod }}'
+          description: '''Fluent Bit input {{ $labels.name }} in pod {{ $labels.pod }} on cluster {{ $labels.cluster }} has discarded log batches after exhausting ring-buffer enqueue retries.
+These batches were lost before filesystem buffering or Kusto output retries could protect them; the counter counts batches, not records.
+Investigate collector saturation and backpressure in the multiline and rewrite-tag emitters.
+'''
+          info: '''Fluent Bit input {{ $labels.name }} in pod {{ $labels.pod }} on cluster {{ $labels.cluster }} has discarded log batches after exhausting ring-buffer enqueue retries.
+These batches were lost before filesystem buffering or Kusto output retries could protect them; the counter counts batches, not records.
+Investigate collector saturation and backpressure in the multiline and rewrite-tag emitters.
+'''
+          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/arobit.html'
+          summary: 'Fluent Bit {{ $labels.name }} in {{ $labels.pod }} on {{ $labels.cluster }} dropped container log batches'
+          title: 'Fluent Bit {{ $labels.name }} in {{ $labels.pod }} on {{ $labels.cluster }} dropped container log batches'
+        }
+        expression: 'max by (cluster, pod, name, region) (increase(fluentbit_input_ring_buffer_retry_failures_total{name="tail.container"}[5m])) > 0 or (max by (cluster, pod, name, region) (fluentbit_input_ring_buffer_retry_failures_total{name="tail.container"}) > 0 unless max by (cluster, pod, name, region) (fluentbit_input_ring_buffer_retry_failures_total{name="tail.container"} offset 5m))'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'FluentBitRoutingEmissionFailed'
+        enabled: true
+        labels: {
+          component: 'monitoring-infrastructure'
+          severity: 'warning'
+        }
+        annotations: {
+          correlationId: 'FluentBitRoutingEmissionFailed/{{ $labels.cluster }}/{{ $labels.router }}/{{ $labels.routing_type }}/{{ $labels.pod }}'
+          description: '''Fluent Bit router {{ $labels.router }} ({{ $labels.routing_type }}) in pod {{ $labels.pod }} on cluster {{ $labels.cluster }} has more matched records than successful rewrite emissions for at least two minutes.
+A failed reroute can leave the original tag and use a fallback destination; a failed copy omits the additional destination. The mixed container-name router combines both operations.
+Inspect rewrite-tag emitter backpressure. These counters measure emission failures, not confirmed Kusto loss.
+'''
+          info: '''Fluent Bit router {{ $labels.router }} ({{ $labels.routing_type }}) in pod {{ $labels.pod }} on cluster {{ $labels.cluster }} has more matched records than successful rewrite emissions for at least two minutes.
+A failed reroute can leave the original tag and use a fallback destination; a failed copy omits the additional destination. The mixed container-name router combines both operations.
+Inspect rewrite-tag emitter backpressure. These counters measure emission failures, not confirmed Kusto loss.
+'''
+          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/arobit.html'
+          summary: 'Fluent Bit {{ $labels.router }} ({{ $labels.routing_type }}) in {{ $labels.pod }} on {{ $labels.cluster }} has failed routing emissions'
+          title: 'Fluent Bit {{ $labels.router }} ({{ $labels.routing_type }}) in {{ $labels.pod }} on {{ $labels.cluster }} has failed routing emissions'
+        }
+        expression: '(sum by (cluster, pod, router, routing_type, region) (label_replace(label_replace(label_replace(label_replace(max by (cluster, pod, __name__, region) ({__name__=~"arobit_routing_(reroute|copy)_.+_matched_total"}), "routing_type", "$1", "__name__", "arobit_routing_(reroute|copy)_.+_matched_total"), "router", "$2", "__name__", "arobit_routing_(reroute|copy)_(.+)_matched_total"), "router", "shoebox_router", "router", "shoebox_router_(container|pod)"), "routing_type", "mixed", "router", "container_name_router")) > 0) unless on (cluster, pod, router) (max by (cluster, pod, router, region) (label_replace(fluentbit_filter_emit_records_total{name=~"filter\\..+_router(_frontend|_fleet)?"}, "router", "$1", "name", "filter\\.(.+)")) >= on (cluster, pod, router) group_right () sum by (cluster, pod, router, routing_type, region) (label_replace(label_replace(label_replace(label_replace(max by (cluster, pod, __name__, region) ({__name__=~"arobit_routing_(reroute|copy)_.+_matched_total"}), "routing_type", "$1", "__name__", "arobit_routing_(reroute|copy)_.+_matched_total"), "router", "$2", "__name__", "arobit_routing_(reroute|copy)_(.+)_matched_total"), "router", "shoebox_router", "router", "shoebox_router_(container|pod)"), "routing_type", "mixed", "router", "container_name_router")))'
+        for: 'PT2M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
     ]
     scopes: [
       azureMonitoring
