@@ -414,6 +414,110 @@ resource arohcpClusterDeletionSloWindowedLatencyRecordingRules 'Microsoft.Alerts
   }
 }
 
+resource arohcpClusterUpdateSloRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_cluster_update_slo_recording_rules'
+  location: location
+  properties: {
+    scopes: [
+      azureMonitoring
+    ]
+    enabled: true
+    interval: 'PT1M'
+    rules: [
+      {
+        record: 'current:backend_cluster_update:last_transition_time_seconds'
+        expression: 'max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (topk by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type) (1, (max without (prometheus_replica) (backend_resource_operation_last_transition_time_seconds{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) or 0 * max without (prometheus_replica) (backend_resource_operation_phase_info{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) and ((max without (prometheus_replica) (backend_resource_operation_start_time_seconds{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) or 0 * max without (prometheus_replica) (backend_resource_operation_phase_info{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) == on (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type) group_left () max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type) (max without (prometheus_replica) (backend_resource_operation_start_time_seconds{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) or 0 * max without (prometheus_replica) (backend_resource_operation_phase_info{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})))))'
+      }
+      {
+        record: 'errors:backend_cluster_update:succeeded_total'
+        expression: 'count by (cluster, region) (current:backend_cluster_update:last_transition_time_seconds{phase="succeeded"} unless on (subscription_id) internal_subscription:info)'
+      }
+      {
+        record: 'errors:backend_cluster_update:terminal_total'
+        expression: 'count by (cluster, region) (current:backend_cluster_update:last_transition_time_seconds{phase=~"succeeded|failed"} unless on (subscription_id) internal_subscription:info)'
+      }
+      {
+        record: 'errors:backend_cluster_update:error_rate'
+        expression: '(count by (cluster, region) (current:backend_cluster_update:last_transition_time_seconds{phase="failed"} unless on (subscription_id) internal_subscription:info) or 0 * count by (cluster, region) (current:backend_cluster_update:last_transition_time_seconds{phase=~"succeeded|failed"} unless on (subscription_id) internal_subscription:info)) / clamp_min(count by (cluster, region) (current:backend_cluster_update:last_transition_time_seconds{phase=~"succeeded|failed"} unless on (subscription_id) internal_subscription:info), 1)'
+      }
+    ]
+  }
+}
+
+resource arohcpClusterUpdateSloWindowedRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_cluster_update_slo_windowed_recording_rules'
+  location: location
+  properties: {
+    scopes: [
+      azureMonitoring
+    ]
+    enabled: true
+    interval: 'PT1M'
+    rules: [
+      {
+        record: 'errors:backend_cluster_update:failed_5m'
+        expression: 'count by (cluster, region) ((time() - current:backend_cluster_update:last_transition_time_seconds{phase="failed"}) < 300 unless on (subscription_id) internal_subscription:info) or 0 * count by (cluster, region) (current:backend_cluster_update:last_transition_time_seconds unless on (subscription_id) internal_subscription:info)'
+      }
+      {
+        record: 'errors:backend_cluster_update:total_5m'
+        expression: 'count by (cluster, region) ((time() - current:backend_cluster_update:last_transition_time_seconds{phase=~"succeeded|failed"}) < 300 unless on (subscription_id) internal_subscription:info)'
+      }
+      {
+        record: 'errors:backend_cluster_update:error_rate_5m'
+        expression: 'errors:backend_cluster_update:failed_5m / clamp_min(errors:backend_cluster_update:total_5m, 1)'
+      }
+      {
+        record: 'errors:backend_cluster_update:failed_30m'
+        expression: 'count by (cluster, region) ((time() - current:backend_cluster_update:last_transition_time_seconds{phase="failed"}) < 1800 unless on (subscription_id) internal_subscription:info) or 0 * count by (cluster, region) (current:backend_cluster_update:last_transition_time_seconds unless on (subscription_id) internal_subscription:info)'
+      }
+      {
+        record: 'errors:backend_cluster_update:total_30m'
+        expression: 'count by (cluster, region) ((time() - current:backend_cluster_update:last_transition_time_seconds{phase=~"succeeded|failed"}) < 1800 unless on (subscription_id) internal_subscription:info)'
+      }
+      {
+        record: 'errors:backend_cluster_update:error_rate_30m'
+        expression: 'errors:backend_cluster_update:failed_30m / clamp_min(errors:backend_cluster_update:total_30m, 1)'
+      }
+      {
+        record: 'errors:backend_cluster_update:failed_1h'
+        expression: 'count by (cluster, region) ((time() - current:backend_cluster_update:last_transition_time_seconds{phase="failed"}) < 3600 unless on (subscription_id) internal_subscription:info) or 0 * count by (cluster, region) (current:backend_cluster_update:last_transition_time_seconds unless on (subscription_id) internal_subscription:info)'
+      }
+      {
+        record: 'errors:backend_cluster_update:total_1h'
+        expression: 'count by (cluster, region) ((time() - current:backend_cluster_update:last_transition_time_seconds{phase=~"succeeded|failed"}) < 3600 unless on (subscription_id) internal_subscription:info)'
+      }
+      {
+        record: 'errors:backend_cluster_update:error_rate_1h'
+        expression: 'errors:backend_cluster_update:failed_1h / clamp_min(errors:backend_cluster_update:total_1h, 1)'
+      }
+      {
+        record: 'errors:backend_cluster_update:failed_6h'
+        expression: 'count by (cluster, region) ((time() - current:backend_cluster_update:last_transition_time_seconds{phase="failed"}) < 21600 unless on (subscription_id) internal_subscription:info) or 0 * count by (cluster, region) (current:backend_cluster_update:last_transition_time_seconds unless on (subscription_id) internal_subscription:info)'
+      }
+      {
+        record: 'errors:backend_cluster_update:total_6h'
+        expression: 'count by (cluster, region) ((time() - current:backend_cluster_update:last_transition_time_seconds{phase=~"succeeded|failed"}) < 21600 unless on (subscription_id) internal_subscription:info)'
+      }
+      {
+        record: 'errors:backend_cluster_update:error_rate_6h'
+        expression: 'errors:backend_cluster_update:failed_6h / clamp_min(errors:backend_cluster_update:total_6h, 1)'
+      }
+      {
+        record: 'errors:backend_cluster_update:failed_3d'
+        expression: 'count by (cluster, region) ((time() - current:backend_cluster_update:last_transition_time_seconds{phase="failed"}) < 259200 unless on (subscription_id) internal_subscription:info) or 0 * count by (cluster, region) (current:backend_cluster_update:last_transition_time_seconds unless on (subscription_id) internal_subscription:info)'
+      }
+      {
+        record: 'errors:backend_cluster_update:total_3d'
+        expression: 'count by (cluster, region) ((time() - current:backend_cluster_update:last_transition_time_seconds{phase=~"succeeded|failed"}) < 259200 unless on (subscription_id) internal_subscription:info)'
+      }
+      {
+        record: 'errors:backend_cluster_update:error_rate_3d'
+        expression: 'errors:backend_cluster_update:failed_3d / clamp_min(errors:backend_cluster_update:total_3d, 1)'
+      }
+    ]
+  }
+}
+
 resource arohcpUserJourneyClusterUpgradeRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'arohcp_user_journey_cluster_upgrade_recording_rules'
   location: location

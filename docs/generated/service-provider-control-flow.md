@@ -2377,7 +2377,7 @@ Cluster/NodePool/ExternalAuth handlers replace the provisioning-phase gauge and 
 
 [Source](../../backend/pkg/controllers/metrics/metrics_controller.go) · **Trigger:** All operations informer.
 
-Maintains Prometheus series for operation phases and removes stale series on deletion. No Cosmos domain write or external mutation.
+Maintains phase, start-time, and last-transition-time Prometheus gauges from the newest retained operation per ARM resource and operation type, selected by `StartTime` with the Cosmos document key breaking ties. Unordered informer resyncs cannot replace a newer attempt with an older one. Deletion immediately selects the newest surviving sibling, or clears all three gauges when none remain. No Cosmos domain write or external mutation.
 
 #### ClusterMetrics
 
