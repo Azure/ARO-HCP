@@ -507,7 +507,12 @@ def guard_retest(repo, number, sha, evidence, now=None):
 
 def main():
     try:
-        if sys.argv[1] == "create" and len(sys.argv) == 4:
+        if sys.argv[1] == "validate" and len(sys.argv) == 3:
+            with open(sys.argv[2], encoding="utf-8") as source:
+                item = json.load(source)
+            group(item)
+            print(json.dumps(item))
+        elif sys.argv[1] == "create" and len(sys.argv) == 4:
             path = sys.argv[2]
             with open(path, encoding="utf-8") as source:
                 output = json.load(source)
@@ -516,7 +521,7 @@ def main():
         elif sys.argv[1] == "retest" and len(sys.argv) == 6:
             guard_retest(*sys.argv[2:])
         else:
-            raise ValueError("usage: dependabot_guard.py create OUTPUT REPO | retest REPO PR SHA EVIDENCE")
+            raise ValueError("usage: dependabot_guard.py validate PROPOSAL | create OUTPUT REPO | retest REPO PR SHA EVIDENCE")
     except (OSError, KeyError, TypeError, ValueError, subprocess.CalledProcessError) as error:
         print(f"Dependabot guard refused action: {error}", file=sys.stderr)
         sys.exit(1)
