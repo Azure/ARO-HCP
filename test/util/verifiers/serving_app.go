@@ -55,9 +55,6 @@ var staticFiles embed.FS
 // the ingress operator publishes the wildcard record within seconds.
 const ingressReadinessTimeout = 20 * time.Minute
 
-// ingressReadinessPollInterval is the poll interval for both ingress readiness gates.
-const ingressReadinessPollInterval = 30 * time.Second
-
 type verifySimpleWebApp struct {
 	namespaceName string
 	nodeSelector  map[string]string
@@ -86,10 +83,10 @@ func (v verifySimpleWebApp) Verify(ctx context.Context, adminRESTConfig *rest.Co
 	// the DNS wait so a not-yet-forming ingress is reported as a readiness gate rather than a
 	// "DNS did not resolve" failure that points investigators at DNS instead of ingress readiness.
 	if err := waitForClusterOperatorCondition(ctx, adminRESTConfig, "ingress",
-		configv1.OperatorAvailable, ingressReadinessTimeout, ingressReadinessPollInterval); err != nil {
+		configv1.OperatorAvailable, ingressReadinessTimeout, DefaultPollInterval); err != nil {
 		return fmt.Errorf("waiting for ingress ClusterOperator to become Available before DNS: %w", err)
 	}
-	if err := waitForRouterDefaultExternalIP(ctx, adminRESTConfig, ingressReadinessTimeout, ingressReadinessPollInterval); err != nil {
+	if err := waitForRouterDefaultExternalIP(ctx, adminRESTConfig, ingressReadinessTimeout, DefaultPollInterval); err != nil {
 		return fmt.Errorf("waiting for openshift-ingress/router-default load balancer external IP before DNS: %w", err)
 	}
 

@@ -1088,6 +1088,14 @@ func BeginCreateHCPCluster20240610(
 	clusterParams ClusterParams20240610,
 	location string,
 ) (*runtime.Poller[hcpsdk20240610preview.HcpOpenShiftClustersClientCreateOrUpdateResponse], error) {
+	// Pace the creation start so the shared sliding-window limiter also
+	// throttles the asynchronous creation path (used by tests that start
+	// several creates in parallel). It is a memoized no-op when the caller
+	// already paced this cluster, e.g. before arming a provisioning timeout
+	// of its own.
+	if err := paceHCPClusterCreateStart(ctx, logger, hcpClusterName); err != nil {
+		return nil, err
+	}
 	cluster := BuildHCPClusterFromParams20240610(clusterParams, location)
 	logger.Info("Starting HCP cluster creation", "clusterName", hcpClusterName, "resourceGroup", resourceGroupName, "version", cluster.Properties.Version.ID, "channelGroup", cluster.Properties.Version.ChannelGroup)
 	createCtx, createAttempts := withRequestAttemptTracker(ctx)

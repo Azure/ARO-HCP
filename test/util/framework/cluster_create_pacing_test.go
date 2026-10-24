@@ -165,8 +165,32 @@ func TestClusterCreatePacerWaitsWhenWindowFull(t *testing.T) {
 	if len(starts) != 1 {
 		t.Errorf("recorded %d starts, want 1 (the aged-out start pruned, the new one recorded)", len(starts))
 	}
-	if want := clock.Now().UTC().Format(time.RFC3339); starts[0] != want {
+	if want := clock.Now().UTC().Format(time.RFC3339Nano); starts[0] != want {
 		t.Errorf("recorded start %q, want %q", starts[0], want)
+	}
+}
+
+// TestClusterCreatePacerKeepsFractionalSecondStarts checks that a start at a
+// fractional second is recorded with sub-second precision. A truncated (pure
+// RFC3339) timestamp would always fall back to the start of the second, so a
+// window shorter than one second would admit a second start immediately even
+// though the real start has not aged out of the window yet.
+func TestClusterCreatePacerKeepsFractionalSecondStarts(t *testing.T) {
+	clock := newFakePacerClock()
+	pacer := newTestPacer(t, clusterCreatePacing{max: 1, window: 500 * time.Millisecond}, clock)
+	deadline := clock.Now().Add(maxClusterCreatePacingWait + time.Hour)
+
+	clock.Advance(900 * time.Millisecond) // 12:00:00.900
+
+	if retryAfter, err := pacer.tryRecordStart(t.Context(), deadline); err != nil || retryAfter != 0 {
+		t.Fatalf("first tryRecordStart = (%v, %v), want recorded start (0, nil)", retryAfter, err)
+	}
+	retryAfter, err := pacer.tryRecordStart(t.Context(), deadline)
+	if err != nil {
+		t.Fatalf("second tryRecordStart unexpected error: %v", err)
+	}
+	if retryAfter <= 0 {
+		t.Errorf("second start admitted immediately (retryAfter %v); the fractional-second start was truncated to the second boundary", retryAfter)
 	}
 }
 
@@ -273,6 +297,13 @@ func TestPaceHCPClusterCreateStartPacesOncePerName(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("ARTIFACT_DIR", dir)
 	t.Setenv(ClusterCreatePacingEnvvar, "1/1h")
+	// pacedClusterCreates is process-global: drop the entries these calls
+	// insert so a repeated execution in the same process (-count=2, another
+	// test binary run) does not bypass admission.
+	t.Cleanup(func() {
+		pacedClusterCreates.Delete("cluster-twice")
+		pacedClusterCreates.Delete("cluster-other")
+	})
 
 	if err := paceHCPClusterCreateStart(t.Context(), logr.Discard(), "cluster-twice"); err != nil {
 		t.Fatalf("first pace unexpected error: %v", err)
@@ -365,6 +396,12 @@ func TestPaceHCPClusterCreateStartEnvHandling(t *testing.T) {
 		// sleeping, proving the shared state file is being consulted.
 		t.Setenv(ClusterCreatePacingEnvvar, "1/1h")
 		seed(t)
+		t.Cleanup(func() {
+			// pacedClusterCreates is process-global: drop the entry this call
+			// inserts so a repeated execution in the same process does not
+			// bypass admission.
+			pacedClusterCreates.Delete("cluster-saturated")
+		})
 		ctx, cancel := context.WithCancel(t.Context())
 		cancel()
 		err := paceHCPClusterCreateStart(ctx, logr.Discard(), "cluster-saturated")

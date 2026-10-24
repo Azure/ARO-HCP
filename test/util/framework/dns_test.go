@@ -178,14 +178,17 @@ func TestWaitForDNSResolutionTimeoutMessage(t *testing.T) {
 	// A .invalid hostname can never resolve (RFC 2606), so the wait fails; what the
 	// lookup errors look like depends on the environment's resolver (not-found when
 	// it answers NXDOMAIN, temporary when it is unreachable), so the test only
-	// asserts the structural parts of the message.
-	err := WaitForDNSResolution(t.Context(), "aro-29937-reserved.invalid", 250*time.Millisecond)
+	// asserts the structural parts of the message. The trailing dot makes the
+	// name absolute so the resolver cannot expand it against configured DNS
+	// search suffixes: a wildcard search domain would otherwise satisfy the
+	// lookup and mask the expected timeout.
+	err := WaitForDNSResolution(t.Context(), "aro-29937-reserved.invalid.", 250*time.Millisecond)
 	if err == nil {
 		t.Fatal("expected timeout error for reserved.invalid hostname, got nil")
 	}
 	msg := err.Error()
 	for _, want := range []string{
-		"aro-29937-reserved.invalid",
+		"aro-29937-reserved.invalid.",
 		"did not resolve within",
 		" polls: ",
 		"last error:",

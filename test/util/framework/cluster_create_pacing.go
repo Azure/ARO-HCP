@@ -53,9 +53,11 @@ import (
 // timestamp simply ages out of the window.
 //
 // The pacer fails open. Pacing is a best-effort storm mitigation, never a
-// correctness gate: if the shared state cannot be read or written, or the wait
-// would exceed maxClusterCreatePacingWait, the creation proceeds unpaced.
-// Only cancelling the context while waiting aborts the creation.
+// correctness gate: if the shared state cannot be read or written, the state
+// lock does not become available within maxClusterCreatePacingWait, or the
+// admission wait itself would exceed maxClusterCreatePacingWait, the creation
+// proceeds unpaced. Only cancelling the context while waiting aborts the
+// creation.
 
 const (
 	// ClusterCreatePacingEnvvar configures cluster-creation start pacing.
@@ -90,7 +92,19 @@ const (
 	// clusterCreatePacingPollInterval caps how often a waiting creation
 	// re-checks the window.
 	clusterCreatePacingPollInterval = 15 * time.Second
+
+	// clusterCreatePacingLockRetryInterval is the retry cadence while waiting
+	// for a contended pacer lock (in-process mutex or cross-process flock).
+	// Both acquisitions are non-blocking and retried on this interval so a
+	// stalled lock holder can neither stall a creation past the pacing
+	// deadline nor swallow its cancellation.
+	clusterCreatePacingLockRetryInterval = 250 * time.Millisecond
 )
+
+// errPacingLockUnavailable reports that the pacer state lock did not become
+// acquireable within the pacing deadline. pace treats it like any other
+// state-file trouble and fails open (proceeds unpaced).
+var errPacingLockUnavailable = errors.New("cluster-creation pacing lock not acquired within the pacing wait bound")
 
 // clusterCreatePacing is a sliding-window limit on cluster-creation starts.
 type clusterCreatePacing struct {
@@ -129,8 +143,9 @@ func parseClusterCreatePacing(value string) (clusterCreatePacing, error) {
 }
 
 // clusterCreatePacingState is the on-disk sliding window: RFC3339 timestamps
-// of recent creation starts. It is only read and written while holding the
-// flock, mirroring leasedIdentityPoolState.
+// of recent creation starts, written as RFC3339Nano so sub-second starts keep
+// their precision (parsing accepts fractional seconds either way). It is only
+// read and written while holding the flock, mirroring leasedIdentityPoolState.
 type clusterCreatePacingState struct {
 	Starts []string `yaml:"starts,omitempty"`
 }
@@ -147,7 +162,9 @@ type clusterCreatePacer struct {
 }
 
 // clusterCreatePacingMu serializes pacer state access within one process,
-// mirroring the in-process half of leasedIdentityPoolState's locking.
+// mirroring the in-process half of leasedIdentityPoolState's locking. It is
+// acquired non-blockingly (try-lock with bounded retries) inside lockState, so
+// a wedged goroutine holding it cannot stall the process forever.
 var clusterCreatePacingMu sync.Mutex
 
 // pacedClusterCreates remembers cluster names this process has already paced.
@@ -195,6 +212,16 @@ func paceHCPClusterCreateStart(ctx context.Context, logger logr.Logger, clusterN
 	return newClusterCreatePacer(cfg).pace(ctx, logger, clusterName)
 }
 
+// PaceHCPClusterCreateStart is the exported pacing entry point for callers
+// that begin a cluster creation through the asynchronous
+// BeginCreateHCPCluster... helpers while arming a provisioning timeout of
+// their own around it: call it on the context *before* the timeout is armed,
+// so the pacing wait consumes the spec's budget rather than the provisioning
+// timeout. The later pace inside the helper then becomes a memoized no-op.
+func PaceHCPClusterCreateStart(ctx context.Context, logger logr.Logger, clusterName string) error {
+	return paceHCPClusterCreateStart(ctx, logger, clusterName)
+}
+
 // pace blocks until a new cluster-creation start fits in the sliding window.
 // It fails open on state-file errors, proceeds unpaced once the total wait
 // would exceed maxClusterCreatePacingWait, and returns the context error if
@@ -204,8 +231,13 @@ func (p *clusterCreatePacer) pace(ctx context.Context, logger logr.Logger, clust
 	deadline := start.Add(maxClusterCreatePacingWait)
 	waited := false
 	for {
-		retryAfter, err := p.tryRecordStart()
+		retryAfter, err := p.tryRecordStart(ctx, deadline)
 		if err != nil {
+			// Cancellation must abort the creation; every other lock or state
+			// failure is fail-open (best-effort pacing, never a gate).
+			if ctx.Err() != nil {
+				return fmt.Errorf("aborted while waiting for cluster-creation pacing (cluster %s): %w", clusterName, err)
+			}
 			logger.Info(fmt.Sprintf("WARN: cluster-creation pacing state unavailable, proceeding unpaced for cluster %s: %v", clusterName, err))
 			return nil
 		}
@@ -231,32 +263,71 @@ func (p *clusterCreatePacer) pace(ctx context.Context, logger logr.Logger, clust
 	}
 }
 
-// tryRecordStart records a start timestamp if the trailing window has
-// capacity. It returns the duration after which the caller should retry (zero
-// when the start was recorded). An error means state-file trouble, which pace
-// treats as fail-open.
-func (p *clusterCreatePacer) tryRecordStart() (time.Duration, error) {
-	clusterCreatePacingMu.Lock()
-	defer clusterCreatePacingMu.Unlock()
-
+// lockState acquires the pacer locks — first the in-process mutex, then the
+// cross-process flock — without ever blocking indefinitely. Both acquisitions
+// are non-blocking and retried on clusterCreatePacingLockRetryInterval, so a
+// stalled lock holder (a wedged spec subprocess holding the flock, or a wedged
+// goroutine holding the mutex) can neither stall a creation past the pacing
+// deadline nor swallow its cancellation. It returns a release callback when
+// both locks are held; when the context is cancelled first it returns
+// ctx.Err(), and when the deadline passes first it returns
+// errPacingLockUnavailable.
+func (p *clusterCreatePacer) lockState(ctx context.Context, deadline time.Time) (func(), error) {
 	lockFile, err := os.OpenFile(p.lockPath, os.O_RDWR|os.O_CREATE, 0666)
 	if err != nil {
-		return 0, fmt.Errorf("failed to open cluster-creation pacing lock file: %w", err)
+		return nil, fmt.Errorf("failed to open cluster-creation pacing lock file: %w", err)
 	}
-	defer func() {
-		if err := lockFile.Close(); err != nil {
-			ginkgo.GinkgoLogr.Info("WARN: failed to close cluster-creation pacing lock file", "error", err)
+	for {
+		if ctx.Err() != nil {
+			_ = lockFile.Close()
+			return nil, ctx.Err()
 		}
-	}()
+		if p.now().After(deadline) {
+			_ = lockFile.Close()
+			return nil, errPacingLockUnavailable
+		}
 
-	if err := filelock.Lock(lockFile.Fd()); err != nil {
-		return 0, fmt.Errorf("failed to acquire cluster-creation pacing lock: %w", err)
-	}
-	defer func() {
-		if err := filelock.Unlock(lockFile.Fd()); err != nil {
-			ginkgo.GinkgoLogr.Info("WARN: failed to release cluster-creation pacing lock", "error", err)
+		if clusterCreatePacingMu.TryLock() {
+			if lockErr := filelock.TryLock(lockFile.Fd()); lockErr == nil {
+				return func() {
+					if err := filelock.Unlock(lockFile.Fd()); err != nil {
+						ginkgo.GinkgoLogr.Info("WARN: failed to release cluster-creation pacing lock", "error", err)
+					}
+					if err := lockFile.Close(); err != nil {
+						ginkgo.GinkgoLogr.Info("WARN: failed to close cluster-creation pacing lock file", "error", err)
+					}
+					clusterCreatePacingMu.Unlock()
+				}, nil
+			} else if !errors.Is(lockErr, filelock.ErrLockBusy) {
+				clusterCreatePacingMu.Unlock()
+				_ = lockFile.Close()
+				return nil, fmt.Errorf("failed to acquire cluster-creation pacing lock: %w", lockErr)
+			} else {
+				// Contended file lock: give the in-process mutex back while
+				// waiting, so other pacer calls in this process are not
+				// starved by cross-process contention.
+				clusterCreatePacingMu.Unlock()
+			}
 		}
-	}()
+
+		if err := p.sleep(ctx, clusterCreatePacingLockRetryInterval); err != nil {
+			_ = lockFile.Close()
+			return nil, err
+		}
+	}
+}
+
+// tryRecordStart records a start timestamp if the trailing window has
+// capacity. It returns the duration after which the caller should retry (zero
+// when the start was recorded). A cancelled context aborts; any other error —
+// state-file trouble or the lock not becoming free within the pacing deadline —
+// means fail-open, which pace treats as proceeding unpaced.
+func (p *clusterCreatePacer) tryRecordStart(ctx context.Context, deadline time.Time) (time.Duration, error) {
+	release, err := p.lockState(ctx, deadline)
+	if err != nil {
+		return 0, err
+	}
+	defer release()
 
 	now := p.now()
 
@@ -278,7 +349,11 @@ func (p *clusterCreatePacer) tryRecordStart() (time.Duration, error) {
 	}
 
 	if len(recent) < p.cfg.max {
-		recent = append(recent, now.UTC().Format(time.RFC3339))
+		// RFC3339Nano keeps sub-second precision: a truncated timestamp would
+		// let a start recorded in the same second as "now" appear already aged
+		// out of a window shorter than one second. Parsing accepts fractional
+		// seconds, so prior RFC3339 records stay readable.
+		recent = append(recent, now.UTC().Format(time.RFC3339Nano))
 		if err := p.writeState(recent); err != nil {
 			return 0, err
 		}
