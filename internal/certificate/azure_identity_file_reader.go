@@ -29,13 +29,27 @@ type AzureIdentityFileReader struct {
 	filePath string
 }
 
-var _ Reader = (*AzureIdentityFileReader)(nil)
+var (
+	_ Reader       = (*AzureIdentityFileReader)(nil)
+	_ BundleReader = (*AzureIdentityFileReader)(nil)
+)
 
 // NewAzureIdentityFileReader creates a new file-based certificate reader.
 func NewAzureIdentityFileReader(filePath string) *AzureIdentityFileReader {
 	return &AzureIdentityFileReader{
 		filePath: filePath,
 	}
+}
+
+// ReadBundle reads the raw certificate bundle bytes from the file, unparsed,
+// in whatever format (PEM or PKCS#12) they're stored in.
+func (f *AzureIdentityFileReader) ReadBundle() ([]byte, error) {
+	data, err := os.ReadFile(f.filePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read certificate file: %w", err)
+	}
+
+	return data, nil
 }
 
 // ReadCertificate reads and parses the certificate from the file. It expects
@@ -46,9 +60,9 @@ func NewAzureIdentityFileReader(filePath string) *AzureIdentityFileReader {
 // PEM format or PKCS#12 certificates that use SHA256 for message authentication. If you encounter such limitations, consider
 // using another module to load the certificate and private key.
 func (f *AzureIdentityFileReader) ReadCertificate() ([]*x509.Certificate, crypto.PrivateKey, error) {
-	data, err := os.ReadFile(f.filePath)
+	data, err := f.ReadBundle()
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to read certificate file: %w", err)
+		return nil, nil, err
 	}
 
 	certs, key, err := azidentity.ParseCertificates(data, nil)
