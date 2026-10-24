@@ -73,6 +73,27 @@ counts as reachability, not SSH readiness. Partial/canceled passes, missing cove
 and protocol failures fail. The verifier owns polling, one-minute query deadlines,
 and delta-only timeout diagnostics; do not wrap it in another `Eventually`.
 
+### Let's Encrypt guest DNS prerequisite
+
+The Let's Encrypt ingress-certificate test waits for guest DNS before creating its
+ClusterIssuer. The DNS ClusterOperator must be available and not degraded, and
+`openshift-dns/dns-default` must have a ready, nonterminating UDP endpoint.
+A short-lived pod in the `cert-manager` namespace then resolves the ACME hostname
+using `ClusterFirst` DNS. Runner-side DNS resolution is not a substitute for this
+workload-network check.
+
+The operator, endpoint, and pod checks share a ten-minute deadline. The probe uses
+the sample-app fixture's fixed `agnhost:2.39` image, does not mount service-account
+credentials, and is deleted on success, failure, or cancellation. The existing
+five-minute ClusterIssuer readiness timeout and certificate/HTTPS assertions
+remain independent of this prerequisite.
+
+Failed tests write `ingress-certificate-diagnostics/` under their artifact
+directory before guest teardown. These artifacts include bounded cert-manager
+controller logs, issuer conditions/events, and guest DNS readiness state. They
+exclude Secret resources, pod environment variables, token projections, and
+issuer specifications. Artifact-collection errors do not replace the test failure.
+
 ### Resource Naming
 
 > **Important:** These tests are running in parallel so it is **VITAL** that we avoid naming collisions with other tests that may be running in CI at the same time. This may break CI runs until the duplicate resources are removed!
