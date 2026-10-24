@@ -25,10 +25,12 @@ import (
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/require"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/statusutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 )
@@ -165,24 +167,40 @@ backend_nodepool_created_time_seconds{resource_id="%s",subscription_id="%s"} %d
 	require.NoError(t, testutil.GatherAndCompare(reg, strings.NewReader(expectedTime), "backend_nodepool_created_time_seconds"))
 }
 
-func TestExternalAuthMetricsHandler_SetsMetrics(t *testing.T) {
-	now := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
-	reg := prometheus.NewRegistry()
-	handler := NewExternalAuthMetricsHandler(reg)
+func newTestExternalAuth(name string, createdAt *time.Time, degraded *metav1.ConditionStatus) *coreapi.ExternalAuth {
+	resourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1/externalAuths/" + name))
+
+	var systemData *coreapi.SystemData
+	if createdAt != nil {
+		systemData = &coreapi.SystemData{CreatedAt: createdAt}
+	}
 
 	externalAuth := &coreapi.ExternalAuth{
-		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1/externalAuths/ea-1"))},
+		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: resourceID},
 		ProxyResource: coreapi.ProxyResource{
 			Resource: coreapi.Resource{
-				ID:         metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1/externalAuths/ea-1")),
-				SystemData: &coreapi.SystemData{CreatedAt: &now},
+				ID:         resourceID,
+				SystemData: systemData,
 			},
 		},
 		Properties: coreapi.ExternalAuthProperties{
 			ProvisioningState: coreapi.ProvisioningStateAccepted,
 		},
 	}
+	if degraded != nil {
+		externalAuth.Status.UserFacingConditions = []metav1.Condition{
+			{Type: statusutils.DegradedConditionType, Status: *degraded, Reason: "TestReason", Message: "test"},
+		}
+	}
+	return externalAuth
+}
 
+func TestExternalAuthMetricsHandler_SetsMetrics(t *testing.T) {
+	now := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	reg := prometheus.NewRegistry()
+	handler := NewExternalAuthMetricsHandler(reg)
+
+	externalAuth := newTestExternalAuth("ea-1", &now, nil)
 	handler.Sync(context.Background(), externalAuth)
 
 	resourceID := resourceIDMetricLabel(externalAuth.ID)
@@ -198,6 +216,127 @@ backend_externalauth_provision_state{phase="accepted",resource_id="%s",subscript
 backend_externalauth_created_time_seconds{resource_id="%s",subscription_id="%s"} %d
 `, resourceID, subscriptionID, now.Unix())
 	require.NoError(t, testutil.GatherAndCompare(reg, strings.NewReader(expectedTime), "backend_externalauth_created_time_seconds"))
+
+	// No Degraded condition reported yet (not yet evaluated) - series is
+	// omitted entirely, rather than defaulting to 0 ("healthy"), since that
+	// isn't known to be true yet.
+	require.NoError(t, testutil.GatherAndCompare(reg, strings.NewReader(""), "backend_externalauth_degraded"))
+}
+
+func TestExternalAuthMetricsHandler_Degraded(t *testing.T) {
+	for _, tc := range []struct {
+		name           string
+		status         *metav1.ConditionStatus
+		expectNoSeries bool
+		expected       float64
+	}{
+		{name: "no condition reported", status: nil, expectNoSeries: true},
+		{name: "degraded unknown", status: conditionStatusPtr(metav1.ConditionUnknown), expectNoSeries: true},
+		{name: "degraded false", status: conditionStatusPtr(metav1.ConditionFalse), expected: 0},
+		{name: "degraded true", status: conditionStatusPtr(metav1.ConditionTrue), expected: 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			reg := prometheus.NewRegistry()
+			handler := NewExternalAuthMetricsHandler(reg)
+
+			externalAuth := newTestExternalAuth("ea-1", nil, tc.status)
+			handler.Sync(context.Background(), externalAuth)
+
+			if tc.expectNoSeries {
+				require.NoError(t, testutil.GatherAndCompare(reg, strings.NewReader(""), "backend_externalauth_degraded"))
+				return
+			}
+
+			resourceID := resourceIDMetricLabel(externalAuth.ID)
+			subscriptionID := subscriptionIDMetricLabel(externalAuth.ID)
+			expected := fmt.Sprintf(`# HELP backend_externalauth_degraded Whether an external auth's user-facing Degraded condition is True (1) or not (0).
+# TYPE backend_externalauth_degraded gauge
+backend_externalauth_degraded{resource_id="%s",subscription_id="%s"} %v
+`, resourceID, subscriptionID, tc.expected)
+			require.NoError(t, testutil.GatherAndCompare(reg, strings.NewReader(expected), "backend_externalauth_degraded"))
+		})
+	}
+}
+
+func TestExternalAuthMetricsHandler_DegradedTransitionFromTrueToUnknownClearsSeries(t *testing.T) {
+	reg := prometheus.NewRegistry()
+	handler := NewExternalAuthMetricsHandler(reg)
+	degradedTrue := metav1.ConditionTrue
+	degradedUnknown := metav1.ConditionUnknown
+
+	externalAuth := newTestExternalAuth("ea-1", nil, &degradedTrue)
+	handler.Sync(context.Background(), externalAuth)
+
+	resourceID := resourceIDMetricLabel(externalAuth.ID)
+	subscriptionID := subscriptionIDMetricLabel(externalAuth.ID)
+	expected := fmt.Sprintf(`# HELP backend_externalauth_degraded Whether an external auth's user-facing Degraded condition is True (1) or not (0).
+# TYPE backend_externalauth_degraded gauge
+backend_externalauth_degraded{resource_id="%s",subscription_id="%s"} 1
+`, resourceID, subscriptionID)
+	require.NoError(t, testutil.GatherAndCompare(reg, strings.NewReader(expected), "backend_externalauth_degraded"))
+
+	// Degraded regresses to Unknown (e.g. a contributing controller stopped
+	// reporting) - stale degraded=1 series must not linger.
+	externalAuth = newTestExternalAuth("ea-1", nil, &degradedUnknown)
+	handler.Sync(context.Background(), externalAuth)
+	require.NoError(t, testutil.GatherAndCompare(reg, strings.NewReader(""), "backend_externalauth_degraded"))
+}
+
+func conditionStatusPtr(status metav1.ConditionStatus) *metav1.ConditionStatus {
+	return &status
+}
+
+func TestExternalAuthMetricsHandler_DeleteCleansUpAllGauges(t *testing.T) {
+	now := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	reg := prometheus.NewRegistry()
+	handler := NewExternalAuthMetricsHandler(reg)
+	degradedTrue := metav1.ConditionTrue
+
+	externalAuth := newTestExternalAuth("ea-1", &now, &degradedTrue)
+	handler.Sync(context.Background(), externalAuth)
+	handler.Delete(strings.ToLower(externalAuth.ID.String()))
+
+	require.NoError(t, testutil.GatherAndCompare(reg, strings.NewReader(""),
+		"backend_externalauth_provision_state", "backend_externalauth_created_time_seconds", "backend_externalauth_degraded"))
+}
+
+// TestResourceControllerSyncResource_DeletesExternalAuthDegradedMetricWhenResourceRemoved verifies
+// that backend_externalauth_degraded is cleared through the same informer-driven
+// delete/tombstone path as the other external auth gauges (resource_id-keyed
+// indexer removal), rather than needing a dedicated controller or NotFound
+// special-casing in a reconcile loop.
+func TestResourceControllerSyncResource_DeletesExternalAuthDegradedMetricWhenResourceRemoved(t *testing.T) {
+	degradedTrue := metav1.ConditionTrue
+	reg := prometheus.NewRegistry()
+	handler := NewExternalAuthMetricsHandler(reg)
+	externalAuth := newTestExternalAuth("ea-1", nil, &degradedTrue)
+
+	indexer := cache.NewIndexer(resourceIDStoreKeyForObject, cache.Indexers{})
+	require.NoError(t, indexer.Add(externalAuth))
+
+	controller := &Controller[*coreapi.ExternalAuth]{
+		name:    "TestMetrics",
+		indexer: indexer,
+		handler: handler,
+	}
+
+	key, err := resourceIDStoreKeyForObject(externalAuth)
+	require.NoError(t, err)
+	require.NoError(t, controller.syncResource(context.Background(), key))
+
+	resourceID := resourceIDMetricLabel(externalAuth.ID)
+	subscriptionID := subscriptionIDMetricLabel(externalAuth.ID)
+	expected := fmt.Sprintf(`# HELP backend_externalauth_degraded Whether an external auth's user-facing Degraded condition is True (1) or not (0).
+# TYPE backend_externalauth_degraded gauge
+backend_externalauth_degraded{resource_id="%s",subscription_id="%s"} 1
+`, resourceID, subscriptionID)
+	require.NoError(t, testutil.GatherAndCompare(reg, strings.NewReader(expected), "backend_externalauth_degraded"))
+
+	require.NoError(t, indexer.Delete(externalAuth))
+	require.NoError(t, controller.syncResource(context.Background(), key))
+
+	require.NoError(t, testutil.GatherAndCompare(reg, strings.NewReader(""),
+		"backend_externalauth_provision_state", "backend_externalauth_created_time_seconds", "backend_externalauth_degraded"))
 }
 
 func TestResourceControllerSyncResource_SetsMetricsFromIndexer(t *testing.T) {

@@ -20,8 +20,12 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 
+	apimeta "k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/statusutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 )
 
@@ -214,21 +218,74 @@ func (o externalAuthMetricsObject) CreatedAt() *time.Time {
 
 type externalAuthMetricsHandler struct {
 	*resourceStateMetricsHandler[externalAuthMetricsObject]
+	// degraded backs backend_externalauth_degraded{resource_id, subscription_id}:
+	// 1 when the external auth's user-facing Degraded condition is True, 0
+	// otherwise. Labeled the same way as the provision-state/created-time
+	// gauges above (resource_id, subscription_id) rather than naming the
+	// writing controller, since the ExternalAuth dashboard filters by
+	// subscription_id. It rides the same ExternalAuths() informer as those
+	// gauges, so it gets the same delete/tombstone handling for free instead
+	// of needing its own controller registration.
+	degraded *prometheus.GaugeVec
 }
 
 // NewExternalAuthMetricsHandler creates a metrics handler for external auth metrics.
 func NewExternalAuthMetricsHandler(r prometheus.Registerer) Handler[*coreapi.ExternalAuth] {
-	return &externalAuthMetricsHandler{
-		newResourceStateMetricsHandler[externalAuthMetricsObject](
+	h := &externalAuthMetricsHandler{
+		resourceStateMetricsHandler: newResourceStateMetricsHandler[externalAuthMetricsObject](
 			r,
 			"backend_externalauth_provision_state",
 			"Current provisioning state of the external auth (value is always 1).",
 			"backend_externalauth_created_time_seconds",
 			"Unix timestamp when the external auth was created.",
 		),
+		degraded: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "backend_externalauth_degraded",
+			Help: "Whether an external auth's user-facing Degraded condition is True (1) or not (0).",
+		}, []string{"resource_id", "subscription_id"}),
 	}
+	r.MustRegister(h.degraded)
+	return h
 }
 
 func (h *externalAuthMetricsHandler) Sync(ctx context.Context, externalAuth *coreapi.ExternalAuth) {
 	h.resourceStateMetricsHandler.Sync(ctx, externalAuthMetricsObject{externalAuth})
+
+	resourceID := resourceIDMetricLabel(externalAuth.ID)
+	if len(resourceID) == 0 {
+		return
+	}
+	subscriptionID := subscriptionIDMetricLabel(externalAuth.ID)
+
+	h.degraded.DeletePartialMatch(prometheus.Labels{"resource_id": resourceID})
+
+	// Omit the series entirely while the Degraded condition is Unknown or
+	// unreported (not yet evaluated) - reporting 0 would read as "healthy",
+	// which isn't known to be true yet. Same "absence means no data" handling
+	// as createdTime above.
+	cond := apimeta.FindStatusCondition(externalAuth.Status.UserFacingConditions, statusutils.DegradedConditionType)
+	if cond == nil || cond.Status == metav1.ConditionUnknown {
+		return
+	}
+
+	value := 0.0
+	if cond.Status == metav1.ConditionTrue {
+		value = 1.0
+	}
+	h.degraded.With(prometheus.Labels{
+		"resource_id":     resourceID,
+		"subscription_id": subscriptionID,
+	}).Set(value)
+}
+
+// Delete clears every gauge series for the removed external auth, including
+// backend_externalauth_degraded, so deleted resources don't leak permanent
+// series (DeletePartialMatch removes the series entirely rather than
+// zeroing it).
+func (h *externalAuthMetricsHandler) Delete(key string) {
+	h.resourceStateMetricsHandler.Delete(key)
+	if len(key) == 0 {
+		return
+	}
+	h.degraded.DeletePartialMatch(prometheus.Labels{"resource_id": key})
 }
