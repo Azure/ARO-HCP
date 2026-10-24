@@ -5919,6 +5919,218 @@
             value: 1
         unsupported: ""
 - source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+  group: arohcp_backup_slo_availability_alerts
+  alert: userJourneyBackupAvailability6Hourly
+  occurrence: 1
+  input: (time() - min by (cluster, region) (max by (cluster, schedule, region) (velero_backup_last_successful_timestamp{schedule=~".+-6-hourly"}))) > 13 * 3600
+  plan:
+    expression: (time() - min by (cluster, region) (max by (cluster, schedule, region) (velero_backup_last_successful_timestamp{schedule=~".+-6-hourly"}))) > 13 * 3600
+    conditions:
+      - expression: (time() - min by (cluster, region) (max by (cluster, schedule, region) (velero_backup_last_successful_timestamp{schedule=~".+-6-hourly"}))) > 13 * 3600
+        path: root
+        queries:
+          - expression: time() - min by (cluster, region) (max by (cluster, schedule, region) (velero_backup_last_successful_timestamp{schedule=~".+-6-hourly"}))
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 46800
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+  group: arohcp_backup_slo_availability_alerts
+  alert: userJourneyBackupAvailabilityDaily
+  occurrence: 1
+  input: (time() - min by (cluster, region) (max by (cluster, schedule, region) (velero_backup_last_successful_timestamp{schedule=~".+-daily"}))) > 49 * 3600
+  plan:
+    expression: (time() - min by (cluster, region) (max by (cluster, schedule, region) (velero_backup_last_successful_timestamp{schedule=~".+-daily"}))) > 49 * 3600
+    conditions:
+      - expression: (time() - min by (cluster, region) (max by (cluster, schedule, region) (velero_backup_last_successful_timestamp{schedule=~".+-daily"}))) > 49 * 3600
+        path: root
+        queries:
+          - expression: time() - min by (cluster, region) (max by (cluster, schedule, region) (velero_backup_last_successful_timestamp{schedule=~".+-daily"}))
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 176400
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+  group: arohcp_backup_slo_availability_alerts
+  alert: userJourneyBackupAvailabilityWeekly
+  occurrence: 1
+  input: (time() - min by (cluster, region) (max by (cluster, schedule, region) (velero_backup_last_successful_timestamp{schedule=~".+-weekly"}))) > 337 * 3600
+  plan:
+    expression: (time() - min by (cluster, region) (max by (cluster, schedule, region) (velero_backup_last_successful_timestamp{schedule=~".+-weekly"}))) > 337 * 3600
+    conditions:
+      - expression: (time() - min by (cluster, region) (max by (cluster, schedule, region) (velero_backup_last_successful_timestamp{schedule=~".+-weekly"}))) > 337 * 3600
+        path: root
+        queries:
+          - expression: time() - min by (cluster, region) (max by (cluster, schedule, region) (velero_backup_last_successful_timestamp{schedule=~".+-weekly"}))
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 1.2132e+06
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+  group: arohcp_backup_slo_availability_alerts
+  alert: userJourneyBackupNeverSucceeded6Hourly
+  occurrence: 1
+  input: count by (cluster, region) ((group by (cluster, schedule, region) (velero_backup_last_status{schedule=~".+-6-hourly"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_backup_last_successful_timestamp{schedule=~".+-6-hourly"})) and on (cluster, schedule) (count_over_time((group by (cluster, schedule, region) (velero_backup_last_status{schedule=~".+-6-hourly"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_backup_last_successful_timestamp{schedule=~".+-6-hourly"}))[12h:1m]) >= 716)) > 0
+  plan:
+    expression: count by (cluster, region) ((group by (cluster, schedule, region) (velero_backup_last_status{schedule=~".+-6-hourly"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_backup_last_successful_timestamp{schedule=~".+-6-hourly"})) and on (cluster, schedule) (count_over_time((group by (cluster, schedule, region) (velero_backup_last_status{schedule=~".+-6-hourly"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_backup_last_successful_timestamp{schedule=~".+-6-hourly"}))[12h:1m]) >= 716)) > 0
+    conditions:
+      - expression: count by (cluster, region) ((group by (cluster, schedule, region) (velero_backup_last_status{schedule=~".+-6-hourly"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_backup_last_successful_timestamp{schedule=~".+-6-hourly"})) and on (cluster, schedule) (count_over_time((group by (cluster, schedule, region) (velero_backup_last_status{schedule=~".+-6-hourly"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_backup_last_successful_timestamp{schedule=~".+-6-hourly"}))[12h:1m]) >= 716)) > 0
+        path: root
+        queries:
+          - expression: count by (cluster, region) ((group by (cluster, schedule, region) (velero_backup_last_status{schedule=~".+-6-hourly"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_backup_last_successful_timestamp{schedule=~".+-6-hourly"})) and on (cluster, schedule) (count_over_time((group by (cluster, schedule, region) (velero_backup_last_status{schedule=~".+-6-hourly"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_backup_last_successful_timestamp{schedule=~".+-6-hourly"}))[12h:1m]) >= 716))
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+  group: arohcp_backup_slo_availability_alerts
+  alert: userJourneyBackupNeverSucceededDaily
+  occurrence: 1
+  input: count by (cluster, region) ((group by (cluster, schedule, region) (velero_backup_last_status{schedule=~".+-daily"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_backup_last_successful_timestamp{schedule=~".+-daily"})) and on (cluster, schedule) (count_over_time((group by (cluster, schedule, region) (velero_backup_last_status{schedule=~".+-daily"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_backup_last_successful_timestamp{schedule=~".+-daily"}))[2d:5m]) >= 574)) > 0
+  plan:
+    expression: count by (cluster, region) ((group by (cluster, schedule, region) (velero_backup_last_status{schedule=~".+-daily"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_backup_last_successful_timestamp{schedule=~".+-daily"})) and on (cluster, schedule) (count_over_time((group by (cluster, schedule, region) (velero_backup_last_status{schedule=~".+-daily"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_backup_last_successful_timestamp{schedule=~".+-daily"}))[2d:5m]) >= 574)) > 0
+    conditions:
+      - expression: count by (cluster, region) ((group by (cluster, schedule, region) (velero_backup_last_status{schedule=~".+-daily"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_backup_last_successful_timestamp{schedule=~".+-daily"})) and on (cluster, schedule) (count_over_time((group by (cluster, schedule, region) (velero_backup_last_status{schedule=~".+-daily"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_backup_last_successful_timestamp{schedule=~".+-daily"}))[2d:5m]) >= 574)) > 0
+        path: root
+        queries:
+          - expression: count by (cluster, region) ((group by (cluster, schedule, region) (velero_backup_last_status{schedule=~".+-daily"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_backup_last_successful_timestamp{schedule=~".+-daily"})) and on (cluster, schedule) (count_over_time((group by (cluster, schedule, region) (velero_backup_last_status{schedule=~".+-daily"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_backup_last_successful_timestamp{schedule=~".+-daily"}))[2d:5m]) >= 574))
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+  group: arohcp_backup_slo_availability_alerts
+  alert: userJourneyBackupNeverSucceededWeekly
+  occurrence: 1
+  input: count by (cluster, region) ((group by (cluster, schedule, region) (velero_backup_last_status{schedule=~".+-weekly"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_backup_last_successful_timestamp{schedule=~".+-weekly"})) and on (cluster, schedule) (count_over_time((group by (cluster, schedule, region) (velero_backup_last_status{schedule=~".+-weekly"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_backup_last_successful_timestamp{schedule=~".+-weekly"}))[2w:15m]) >= 1341)) > 0
+  plan:
+    expression: count by (cluster, region) ((group by (cluster, schedule, region) (velero_backup_last_status{schedule=~".+-weekly"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_backup_last_successful_timestamp{schedule=~".+-weekly"})) and on (cluster, schedule) (count_over_time((group by (cluster, schedule, region) (velero_backup_last_status{schedule=~".+-weekly"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_backup_last_successful_timestamp{schedule=~".+-weekly"}))[2w:15m]) >= 1341)) > 0
+    conditions:
+      - expression: count by (cluster, region) ((group by (cluster, schedule, region) (velero_backup_last_status{schedule=~".+-weekly"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_backup_last_successful_timestamp{schedule=~".+-weekly"})) and on (cluster, schedule) (count_over_time((group by (cluster, schedule, region) (velero_backup_last_status{schedule=~".+-weekly"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_backup_last_successful_timestamp{schedule=~".+-weekly"}))[2w:15m]) >= 1341)) > 0
+        path: root
+        queries:
+          - expression: count by (cluster, region) ((group by (cluster, schedule, region) (velero_backup_last_status{schedule=~".+-weekly"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_backup_last_successful_timestamp{schedule=~".+-weekly"})) and on (cluster, schedule) (count_over_time((group by (cluster, schedule, region) (velero_backup_last_status{schedule=~".+-weekly"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_backup_last_successful_timestamp{schedule=~".+-weekly"}))[2w:15m]) >= 1341))
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+  group: arohcp_backup_slo_error_alerts
+  alert: userJourneyBackupErrors
+  occurrence: 1
+  input: ((sum by (cluster, region) (rate(velero_backup_success_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) / ((sum by (cluster, region) (rate(velero_backup_success_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) + (sum by (cluster, region) (rate(velero_backup_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))))) < 0.995 and on (cluster) sum by (cluster, region) (max without (prometheus_replica) (increase(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) >= 5
+  plan:
+    expression: ((sum by (cluster, region) (rate(velero_backup_success_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) / ((sum by (cluster, region) (rate(velero_backup_success_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) + (sum by (cluster, region) (rate(velero_backup_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))))) < 0.995 and on (cluster) sum by (cluster, region) (max without (prometheus_replica) (increase(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) >= 5
+    conditions:
+      - expression: ((sum by (cluster, region) (rate(velero_backup_success_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) / ((sum by (cluster, region) (rate(velero_backup_success_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) + (sum by (cluster, region) (rate(velero_backup_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))))) < 0.995
+        path: root/and:left
+        queries:
+          - expression: (sum by (cluster, region) (rate(velero_backup_success_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) / ((sum by (cluster, region) (rate(velero_backup_success_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) + (sum by (cluster, region) (rate(velero_backup_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))))
+            role: signal
+        thresholds:
+          - operator: <
+            value: 0.995
+        unsupported: ""
+      - expression: sum by (cluster, region) (max without (prometheus_replica) (increase(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) >= 5
+        path: root/and:right
+        queries:
+          - expression: sum by (cluster, region) (max without (prometheus_replica) (increase(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])))
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 5
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+  group: arohcp_backup_slo_latency_alerts
+  alert: userJourneyBackupLatency
+  occurrence: 1
+  input: (histogram_quantile(0.99, sum by (cluster, le, region) (rate(velero_backup_duration_seconds_bucket{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) > 1200) and on (cluster) sum by (cluster, region) (max without (prometheus_replica) (increase(velero_backup_duration_seconds_count{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) >= 5
+  plan:
+    expression: (histogram_quantile(0.99, sum by (cluster, le, region) (rate(velero_backup_duration_seconds_bucket{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) > 1200) and on (cluster) sum by (cluster, region) (max without (prometheus_replica) (increase(velero_backup_duration_seconds_count{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) >= 5
+    conditions:
+      - expression: histogram_quantile(0.99, sum by (cluster, le, region) (rate(velero_backup_duration_seconds_bucket{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) > 1200
+        path: root/and:left
+        queries:
+          - expression: histogram_quantile(0.99, sum by (cluster, le, region) (rate(velero_backup_duration_seconds_bucket{schedule=~".+-(6-hourly|daily|weekly)"}[6h])))
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 1200
+        unsupported: ""
+      - expression: sum by (cluster, region) (max without (prometheus_replica) (increase(velero_backup_duration_seconds_count{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) >= 5
+        path: root/and:right
+        queries:
+          - expression: sum by (cluster, region) (max without (prometheus_replica) (increase(velero_backup_duration_seconds_count{schedule=~".+-(6-hourly|daily|weekly)"}[6h])))
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 5
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+  group: arohcp_backup_slo_metrics_absent_alerts
+  alert: userJourneyBackupMetricsAbsent
+  occurrence: 1
+  input: group by (cluster, region) (underlay_clusters{cluster=~".*-mgmt-.*"}) unless on (cluster) group by (cluster, region) (up{namespace="velero",pod=~"velero-.+"} == 1)
+  plan:
+    expression: group by (cluster, region) (underlay_clusters{cluster=~".*-mgmt-.*"}) unless on (cluster) group by (cluster, region) (up{namespace="velero",pod=~"velero-.+"} == 1)
+    conditions:
+      - expression: (group by (cluster, region) (underlay_clusters{cluster=~".*-mgmt-.*"})) unless on (cluster) (group by (cluster, region) (up{namespace="velero",pod=~"velero-.+"} == 1))
+        path: root/unless:left
+        queries:
+          - expression: (group by (cluster, region) (underlay_clusters{cluster=~".*-mgmt-.*"})) unless on (cluster) (group by (cluster, region) (up{namespace="velero",pod=~"velero-.+"} == 1))
+            role: signal
+        thresholds: []
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+  group: arohcp_backup_slo_storage_availability_alerts
+  alert: userJourneyBackupStorageAvailability
+  occurrence: 1
+  input: max by (cluster, region) (velero_backup_location_status_gauge{backup_location_name="default"}) == 0
+  plan:
+    expression: max by (cluster, region) (velero_backup_location_status_gauge{backup_location_name="default"}) == 0
+    conditions:
+      - expression: max by (cluster, region) (velero_backup_location_status_gauge{backup_location_name="default"}) == 0
+        path: root
+        queries:
+          - expression: max by (cluster, region) (velero_backup_location_status_gauge{backup_location_name="default"})
+            role: signal
+        thresholds:
+          - operator: ==
+            value: 0
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+  group: arohcp_backup_slo_traffic_alerts
+  alert: userJourneyBackupTraffic
+  occurrence: 1
+  input: (avg_over_time((sum by (cluster, region) (max without (prometheus_replica) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m]))))[12h:1m]) < 0.1 * avg_over_time((sum by (cluster, region) (max without (prometheus_replica) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m]))))[1d:1m])) and avg_over_time((sum by (cluster, region) (max without (prometheus_replica) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m]))))[1d:1m]) > 0
+  plan:
+    expression: (avg_over_time((sum by (cluster, region) (max without (prometheus_replica) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m]))))[12h:1m]) < 0.1 * avg_over_time((sum by (cluster, region) (max without (prometheus_replica) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m]))))[1d:1m])) and avg_over_time((sum by (cluster, region) (max without (prometheus_replica) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m]))))[1d:1m]) > 0
+    conditions:
+      - expression: avg_over_time((sum by (cluster, region) (max without (prometheus_replica) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m]))))[12h:1m]) < 0.1 * avg_over_time((sum by (cluster, region) (max without (prometheus_replica) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m]))))[1d:1m])
+        path: root/and:left
+        queries:
+          - expression: avg_over_time((sum by (cluster, region) (max without (prometheus_replica) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m]))))[12h:1m])
+            role: left
+          - expression: 0.1 * avg_over_time((sum by (cluster, region) (max without (prometheus_replica) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m]))))[1d:1m])
+            role: right
+        thresholds: []
+        unsupported: ""
+      - expression: avg_over_time((sum by (cluster, region) (max without (prometheus_replica) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m]))))[1d:1m]) > 0
+        path: root/and:right
+        queries:
+          - expression: avg_over_time((sum by (cluster, region) (max without (prometheus_replica) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m]))))[1d:1m])
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
   group: arohcp_cluster_deletion_saturation_alerts
   alert: userJourneyClusterDeletionQueueDepth
   occurrence: 1
@@ -7731,6 +7943,400 @@
         path: root
         queries:
           - expression: sum by (cluster, pod) (increase(fluentbit_output_retries_failed_total{name=~"azure_kusto.*"}[5m]))
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0
+        unsupported: ""
+- source: observability/alerts/backup-slo-prometheusRule.yaml
+  group: arohcp_backup_slo_availability_alerts
+  alert: userJourneyBackupAvailability6Hourly
+  occurrence: 1
+  input: |
+    (
+      time()
+      -
+      min by (cluster) (
+        max by (cluster, schedule) (
+          velero_backup_last_successful_timestamp{schedule=~".+-6-hourly"}
+        )
+      )
+    )
+    > 13 * 3600
+  plan:
+    expression: (time() - min by (cluster) (max by (cluster, schedule) (velero_backup_last_successful_timestamp{schedule=~".+-6-hourly"}))) > 13 * 3600
+    conditions:
+      - expression: (time() - min by (cluster) (max by (cluster, schedule) (velero_backup_last_successful_timestamp{schedule=~".+-6-hourly"}))) > 13 * 3600
+        path: root
+        queries:
+          - expression: time() - min by (cluster) (max by (cluster, schedule) (velero_backup_last_successful_timestamp{schedule=~".+-6-hourly"}))
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 46800
+        unsupported: ""
+- source: observability/alerts/backup-slo-prometheusRule.yaml
+  group: arohcp_backup_slo_availability_alerts
+  alert: userJourneyBackupAvailabilityDaily
+  occurrence: 1
+  input: |
+    (
+      time()
+      -
+      min by (cluster) (
+        max by (cluster, schedule) (
+          velero_backup_last_successful_timestamp{schedule=~".+-daily"}
+        )
+      )
+    )
+    > 49 * 3600
+  plan:
+    expression: (time() - min by (cluster) (max by (cluster, schedule) (velero_backup_last_successful_timestamp{schedule=~".+-daily"}))) > 49 * 3600
+    conditions:
+      - expression: (time() - min by (cluster) (max by (cluster, schedule) (velero_backup_last_successful_timestamp{schedule=~".+-daily"}))) > 49 * 3600
+        path: root
+        queries:
+          - expression: time() - min by (cluster) (max by (cluster, schedule) (velero_backup_last_successful_timestamp{schedule=~".+-daily"}))
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 176400
+        unsupported: ""
+- source: observability/alerts/backup-slo-prometheusRule.yaml
+  group: arohcp_backup_slo_availability_alerts
+  alert: userJourneyBackupAvailabilityWeekly
+  occurrence: 1
+  input: |
+    (
+      time()
+      -
+      min by (cluster) (
+        max by (cluster, schedule) (
+          velero_backup_last_successful_timestamp{schedule=~".+-weekly"}
+        )
+      )
+    )
+    > 337 * 3600
+  plan:
+    expression: (time() - min by (cluster) (max by (cluster, schedule) (velero_backup_last_successful_timestamp{schedule=~".+-weekly"}))) > 337 * 3600
+    conditions:
+      - expression: (time() - min by (cluster) (max by (cluster, schedule) (velero_backup_last_successful_timestamp{schedule=~".+-weekly"}))) > 337 * 3600
+        path: root
+        queries:
+          - expression: time() - min by (cluster) (max by (cluster, schedule) (velero_backup_last_successful_timestamp{schedule=~".+-weekly"}))
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 1.2132e+06
+        unsupported: ""
+- source: observability/alerts/backup-slo-prometheusRule.yaml
+  group: arohcp_backup_slo_availability_alerts
+  alert: userJourneyBackupNeverSucceeded6Hourly
+  occurrence: 1
+  input: |
+    count by (cluster) (
+      (
+        group by (cluster, schedule) (
+          velero_backup_last_status{schedule=~".+-6-hourly"}
+        )
+        unless on (cluster, schedule)
+        group by (cluster, schedule) (
+          velero_backup_last_successful_timestamp{schedule=~".+-6-hourly"}
+        )
+      )
+      and on (cluster, schedule) (
+        count_over_time(
+          (
+            group by (cluster, schedule) (
+              velero_backup_last_status{schedule=~".+-6-hourly"}
+            )
+            unless on (cluster, schedule)
+            group by (cluster, schedule) (
+              velero_backup_last_successful_timestamp{schedule=~".+-6-hourly"}
+            )
+          )[12h:1m]
+        ) >= 716
+      )
+    ) > 0
+  plan:
+    expression: count by (cluster) ((group by (cluster, schedule) (velero_backup_last_status{schedule=~".+-6-hourly"}) unless on (cluster, schedule) group by (cluster, schedule) (velero_backup_last_successful_timestamp{schedule=~".+-6-hourly"})) and on (cluster, schedule) (count_over_time((group by (cluster, schedule) (velero_backup_last_status{schedule=~".+-6-hourly"}) unless on (cluster, schedule) group by (cluster, schedule) (velero_backup_last_successful_timestamp{schedule=~".+-6-hourly"}))[12h:1m]) >= 716)) > 0
+    conditions:
+      - expression: count by (cluster) ((group by (cluster, schedule) (velero_backup_last_status{schedule=~".+-6-hourly"}) unless on (cluster, schedule) group by (cluster, schedule) (velero_backup_last_successful_timestamp{schedule=~".+-6-hourly"})) and on (cluster, schedule) (count_over_time((group by (cluster, schedule) (velero_backup_last_status{schedule=~".+-6-hourly"}) unless on (cluster, schedule) group by (cluster, schedule) (velero_backup_last_successful_timestamp{schedule=~".+-6-hourly"}))[12h:1m]) >= 716)) > 0
+        path: root
+        queries:
+          - expression: count by (cluster) ((group by (cluster, schedule) (velero_backup_last_status{schedule=~".+-6-hourly"}) unless on (cluster, schedule) group by (cluster, schedule) (velero_backup_last_successful_timestamp{schedule=~".+-6-hourly"})) and on (cluster, schedule) (count_over_time((group by (cluster, schedule) (velero_backup_last_status{schedule=~".+-6-hourly"}) unless on (cluster, schedule) group by (cluster, schedule) (velero_backup_last_successful_timestamp{schedule=~".+-6-hourly"}))[12h:1m]) >= 716))
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0
+        unsupported: ""
+- source: observability/alerts/backup-slo-prometheusRule.yaml
+  group: arohcp_backup_slo_availability_alerts
+  alert: userJourneyBackupNeverSucceededDaily
+  occurrence: 1
+  input: |
+    count by (cluster) (
+      (
+        group by (cluster, schedule) (
+          velero_backup_last_status{schedule=~".+-daily"}
+        )
+        unless on (cluster, schedule)
+        group by (cluster, schedule) (
+          velero_backup_last_successful_timestamp{schedule=~".+-daily"}
+        )
+      )
+      and on (cluster, schedule) (
+        count_over_time(
+          (
+            group by (cluster, schedule) (
+              velero_backup_last_status{schedule=~".+-daily"}
+            )
+            unless on (cluster, schedule)
+            group by (cluster, schedule) (
+              velero_backup_last_successful_timestamp{schedule=~".+-daily"}
+            )
+          )[48h:5m]
+        ) >= 574
+      )
+    ) > 0
+  plan:
+    expression: count by (cluster) ((group by (cluster, schedule) (velero_backup_last_status{schedule=~".+-daily"}) unless on (cluster, schedule) group by (cluster, schedule) (velero_backup_last_successful_timestamp{schedule=~".+-daily"})) and on (cluster, schedule) (count_over_time((group by (cluster, schedule) (velero_backup_last_status{schedule=~".+-daily"}) unless on (cluster, schedule) group by (cluster, schedule) (velero_backup_last_successful_timestamp{schedule=~".+-daily"}))[2d:5m]) >= 574)) > 0
+    conditions:
+      - expression: count by (cluster) ((group by (cluster, schedule) (velero_backup_last_status{schedule=~".+-daily"}) unless on (cluster, schedule) group by (cluster, schedule) (velero_backup_last_successful_timestamp{schedule=~".+-daily"})) and on (cluster, schedule) (count_over_time((group by (cluster, schedule) (velero_backup_last_status{schedule=~".+-daily"}) unless on (cluster, schedule) group by (cluster, schedule) (velero_backup_last_successful_timestamp{schedule=~".+-daily"}))[2d:5m]) >= 574)) > 0
+        path: root
+        queries:
+          - expression: count by (cluster) ((group by (cluster, schedule) (velero_backup_last_status{schedule=~".+-daily"}) unless on (cluster, schedule) group by (cluster, schedule) (velero_backup_last_successful_timestamp{schedule=~".+-daily"})) and on (cluster, schedule) (count_over_time((group by (cluster, schedule) (velero_backup_last_status{schedule=~".+-daily"}) unless on (cluster, schedule) group by (cluster, schedule) (velero_backup_last_successful_timestamp{schedule=~".+-daily"}))[2d:5m]) >= 574))
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0
+        unsupported: ""
+- source: observability/alerts/backup-slo-prometheusRule.yaml
+  group: arohcp_backup_slo_availability_alerts
+  alert: userJourneyBackupNeverSucceededWeekly
+  occurrence: 1
+  input: |
+    count by (cluster) (
+      (
+        group by (cluster, schedule) (
+          velero_backup_last_status{schedule=~".+-weekly"}
+        )
+        unless on (cluster, schedule)
+        group by (cluster, schedule) (
+          velero_backup_last_successful_timestamp{schedule=~".+-weekly"}
+        )
+      )
+      and on (cluster, schedule) (
+        count_over_time(
+          (
+            group by (cluster, schedule) (
+              velero_backup_last_status{schedule=~".+-weekly"}
+            )
+            unless on (cluster, schedule)
+            group by (cluster, schedule) (
+              velero_backup_last_successful_timestamp{schedule=~".+-weekly"}
+            )
+          )[336h:15m]
+        ) >= 1341
+      )
+    ) > 0
+  plan:
+    expression: count by (cluster) ((group by (cluster, schedule) (velero_backup_last_status{schedule=~".+-weekly"}) unless on (cluster, schedule) group by (cluster, schedule) (velero_backup_last_successful_timestamp{schedule=~".+-weekly"})) and on (cluster, schedule) (count_over_time((group by (cluster, schedule) (velero_backup_last_status{schedule=~".+-weekly"}) unless on (cluster, schedule) group by (cluster, schedule) (velero_backup_last_successful_timestamp{schedule=~".+-weekly"}))[2w:15m]) >= 1341)) > 0
+    conditions:
+      - expression: count by (cluster) ((group by (cluster, schedule) (velero_backup_last_status{schedule=~".+-weekly"}) unless on (cluster, schedule) group by (cluster, schedule) (velero_backup_last_successful_timestamp{schedule=~".+-weekly"})) and on (cluster, schedule) (count_over_time((group by (cluster, schedule) (velero_backup_last_status{schedule=~".+-weekly"}) unless on (cluster, schedule) group by (cluster, schedule) (velero_backup_last_successful_timestamp{schedule=~".+-weekly"}))[2w:15m]) >= 1341)) > 0
+        path: root
+        queries:
+          - expression: count by (cluster) ((group by (cluster, schedule) (velero_backup_last_status{schedule=~".+-weekly"}) unless on (cluster, schedule) group by (cluster, schedule) (velero_backup_last_successful_timestamp{schedule=~".+-weekly"})) and on (cluster, schedule) (count_over_time((group by (cluster, schedule) (velero_backup_last_status{schedule=~".+-weekly"}) unless on (cluster, schedule) group by (cluster, schedule) (velero_backup_last_successful_timestamp{schedule=~".+-weekly"}))[2w:15m]) >= 1341))
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0
+        unsupported: ""
+- source: observability/alerts/backup-slo-prometheusRule.yaml
+  group: arohcp_backup_slo_error_alerts
+  alert: userJourneyBackupErrors
+  occurrence: 1
+  input: |
+    (
+      (
+        sum by (cluster) (rate(velero_backup_success_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))
+        or 0 * sum by (cluster) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))
+      )
+      /
+      (
+        (
+          sum by (cluster) (rate(velero_backup_success_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))
+          or 0 * sum by (cluster) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))
+        )
+        +
+        (
+          sum by (cluster) (rate(velero_backup_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))
+          or 0 * sum by (cluster) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))
+        )
+        +
+        (
+          sum by (cluster) (rate(velero_backup_partial_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))
+          or 0 * sum by (cluster) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))
+        )
+        +
+        (
+          sum by (cluster) (rate(velero_backup_validation_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))
+          or 0 * sum by (cluster) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))
+        )
+      )
+    ) < 0.995
+    and on (cluster)
+    sum by (cluster) (
+      max without (prometheus_replica) (increase(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))
+    ) >= 5
+  plan:
+    expression: ((sum by (cluster) (rate(velero_backup_success_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) / ((sum by (cluster) (rate(velero_backup_success_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) + (sum by (cluster) (rate(velero_backup_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) + (sum by (cluster) (rate(velero_backup_partial_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) + (sum by (cluster) (rate(velero_backup_validation_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))))) < 0.995 and on (cluster) sum by (cluster) (max without (prometheus_replica) (increase(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) >= 5
+    conditions:
+      - expression: ((sum by (cluster) (rate(velero_backup_success_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) / ((sum by (cluster) (rate(velero_backup_success_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) + (sum by (cluster) (rate(velero_backup_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) + (sum by (cluster) (rate(velero_backup_partial_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) + (sum by (cluster) (rate(velero_backup_validation_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))))) < 0.995
+        path: root/and:left
+        queries:
+          - expression: (sum by (cluster) (rate(velero_backup_success_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) / ((sum by (cluster) (rate(velero_backup_success_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) + (sum by (cluster) (rate(velero_backup_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) + (sum by (cluster) (rate(velero_backup_partial_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) + (sum by (cluster) (rate(velero_backup_validation_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))))
+            role: signal
+        thresholds:
+          - operator: <
+            value: 0.995
+        unsupported: ""
+      - expression: sum by (cluster) (max without (prometheus_replica) (increase(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) >= 5
+        path: root/and:right
+        queries:
+          - expression: sum by (cluster) (max without (prometheus_replica) (increase(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])))
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 5
+        unsupported: ""
+- source: observability/alerts/backup-slo-prometheusRule.yaml
+  group: arohcp_backup_slo_latency_alerts
+  alert: userJourneyBackupLatency
+  occurrence: 1
+  input: |
+    (
+      histogram_quantile(
+        0.99,
+        sum by (cluster, le) (
+          rate(velero_backup_duration_seconds_bucket{schedule=~".+-(6-hourly|daily|weekly)"}[6h])
+        )
+      ) > 1200
+    )
+    and on (cluster)
+    sum by (cluster) (
+      max without (prometheus_replica) (
+        increase(velero_backup_duration_seconds_count{schedule=~".+-(6-hourly|daily|weekly)"}[6h])
+      )
+    ) >= 5
+  plan:
+    expression: (histogram_quantile(0.99, sum by (cluster, le) (rate(velero_backup_duration_seconds_bucket{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) > 1200) and on (cluster) sum by (cluster) (max without (prometheus_replica) (increase(velero_backup_duration_seconds_count{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) >= 5
+    conditions:
+      - expression: histogram_quantile(0.99, sum by (cluster, le) (rate(velero_backup_duration_seconds_bucket{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) > 1200
+        path: root/and:left
+        queries:
+          - expression: histogram_quantile(0.99, sum by (cluster, le) (rate(velero_backup_duration_seconds_bucket{schedule=~".+-(6-hourly|daily|weekly)"}[6h])))
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 1200
+        unsupported: ""
+      - expression: sum by (cluster) (max without (prometheus_replica) (increase(velero_backup_duration_seconds_count{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) >= 5
+        path: root/and:right
+        queries:
+          - expression: sum by (cluster) (max without (prometheus_replica) (increase(velero_backup_duration_seconds_count{schedule=~".+-(6-hourly|daily|weekly)"}[6h])))
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 5
+        unsupported: ""
+- source: observability/alerts/backup-slo-prometheusRule.yaml
+  group: arohcp_backup_slo_metrics_absent_alerts
+  alert: userJourneyBackupMetricsAbsent
+  occurrence: 1
+  input: |
+    group by (cluster) (underlay_clusters{cluster=~".*-mgmt-.*"})
+    unless on (cluster)
+    group by (cluster) (up{namespace="velero", pod=~"velero-.+"} == 1)
+  plan:
+    expression: group by (cluster) (underlay_clusters{cluster=~".*-mgmt-.*"}) unless on (cluster) group by (cluster) (up{namespace="velero",pod=~"velero-.+"} == 1)
+    conditions:
+      - expression: (group by (cluster) (underlay_clusters{cluster=~".*-mgmt-.*"})) unless on (cluster) (group by (cluster) (up{namespace="velero",pod=~"velero-.+"} == 1))
+        path: root/unless:left
+        queries:
+          - expression: (group by (cluster) (underlay_clusters{cluster=~".*-mgmt-.*"})) unless on (cluster) (group by (cluster) (up{namespace="velero",pod=~"velero-.+"} == 1))
+            role: signal
+        thresholds: []
+        unsupported: ""
+- source: observability/alerts/backup-slo-prometheusRule.yaml
+  group: arohcp_backup_slo_storage_availability_alerts
+  alert: userJourneyBackupStorageAvailability
+  occurrence: 1
+  input: |
+    max by (cluster) (velero_backup_location_status_gauge{backup_location_name="default"}) == 0
+  plan:
+    expression: max by (cluster) (velero_backup_location_status_gauge{backup_location_name="default"}) == 0
+    conditions:
+      - expression: max by (cluster) (velero_backup_location_status_gauge{backup_location_name="default"}) == 0
+        path: root
+        queries:
+          - expression: max by (cluster) (velero_backup_location_status_gauge{backup_location_name="default"})
+            role: signal
+        thresholds:
+          - operator: ==
+            value: 0
+        unsupported: ""
+- source: observability/alerts/backup-slo-prometheusRule.yaml
+  group: arohcp_backup_slo_traffic_alerts
+  alert: userJourneyBackupTraffic
+  occurrence: 1
+  input: |
+    (
+      avg_over_time(
+        (
+          sum by (cluster) (
+            max without (prometheus_replica) (
+              rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m])
+            )
+          )
+        )[12h:1m]
+      )
+      < 0.1 * avg_over_time(
+        (
+          sum by (cluster) (
+            max without (prometheus_replica) (
+              rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m])
+            )
+          )
+        )[1d:1m]
+      )
+    )
+    and
+    avg_over_time(
+      (
+        sum by (cluster) (
+          max without (prometheus_replica) (
+            rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m])
+          )
+        )
+      )[1d:1m]
+    ) > 0
+  plan:
+    expression: (avg_over_time((sum by (cluster) (max without (prometheus_replica) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m]))))[12h:1m]) < 0.1 * avg_over_time((sum by (cluster) (max without (prometheus_replica) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m]))))[1d:1m])) and avg_over_time((sum by (cluster) (max without (prometheus_replica) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m]))))[1d:1m]) > 0
+    conditions:
+      - expression: avg_over_time((sum by (cluster) (max without (prometheus_replica) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m]))))[12h:1m]) < 0.1 * avg_over_time((sum by (cluster) (max without (prometheus_replica) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m]))))[1d:1m])
+        path: root/and:left
+        queries:
+          - expression: avg_over_time((sum by (cluster) (max without (prometheus_replica) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m]))))[12h:1m])
+            role: left
+          - expression: 0.1 * avg_over_time((sum by (cluster) (max without (prometheus_replica) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m]))))[1d:1m])
+            role: right
+        thresholds: []
+        unsupported: ""
+      - expression: avg_over_time((sum by (cluster) (max without (prometheus_replica) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m]))))[1d:1m]) > 0
+        path: root/and:right
+        queries:
+          - expression: avg_over_time((sum by (cluster) (max without (prometheus_replica) (rate(velero_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m]))))[1d:1m])
             role: signal
         thresholds:
           - operator: '>'
