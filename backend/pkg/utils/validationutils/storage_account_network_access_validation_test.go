@@ -179,6 +179,47 @@ func TestStorageAccountNetworkAccessValidation_Validate(t *testing.T) {
 			wantOutcome: OutcomeTypePassed,
 		},
 		{
+			name: "built-in deny policy with a policyEffect override returns passed (effective effect cannot be confirmed)",
+			assignments: []*armpolicy.Assignment{
+				{
+					Name: ptr.To("deny-public-storage-with-override"),
+					Properties: &armpolicy.AssignmentProperties{
+						DisplayName:        ptr.To("deny-public-storage-with-override"),
+						PolicyDefinitionID: ptr.To(knownStorageAccountPublicNetworkAccessDenyPolicyDefinitionID),
+						Parameters:         map[string]*armpolicy.ParameterValuesValue{"effect": {Value: "Deny"}},
+						Overrides: []*armpolicy.Override{
+							{
+								Kind:  ptr.To(armpolicy.OverrideKindPolicyEffect),
+								Value: ptr.To("Audit"),
+							},
+						},
+					},
+				},
+			},
+			wantOutcome: OutcomeTypePassed,
+		},
+		{
+			name: "built-in deny policy with an unrelated override kind still returns failed",
+			assignments: []*armpolicy.Assignment{
+				{
+					Name: ptr.To("deny-public-storage-with-unrelated-override"),
+					Properties: &armpolicy.AssignmentProperties{
+						DisplayName:        ptr.To("deny-public-storage-with-unrelated-override"),
+						PolicyDefinitionID: ptr.To(knownStorageAccountPublicNetworkAccessDenyPolicyDefinitionID),
+						Parameters:         map[string]*armpolicy.ParameterValuesValue{"effect": {Value: "Deny"}},
+						Overrides: []*armpolicy.Override{
+							{
+								Kind:  ptr.To(armpolicy.OverrideKindDefinitionVersion),
+								Value: ptr.To("2.*.*"),
+							},
+						},
+					},
+				},
+			},
+			wantOutcome:          OutcomeTypeFailed,
+			wantInternalContains: "deny-public-storage-with-unrelated-override",
+		},
+		{
 			name: "built-in deny policy with resource selectors returns passed (applicability cannot be confirmed)",
 			assignments: []*armpolicy.Assignment{
 				{

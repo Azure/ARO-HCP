@@ -138,6 +138,9 @@ func (v *StorageAccountNetworkAccessValidation) Validate(
 		if assignmentExcludesManagedResourceGroup(assignment, managedResourceGroupID) {
 			continue
 		}
+		if assignmentHasPolicyEffectOverride(assignment) {
+			continue
+		}
 
 		blocks, displayName, err := v.assignmentDeniesStorageAccountPublicNetworkAccess(ctx, definitionsClient, assignment)
 		if err != nil {
@@ -149,6 +152,19 @@ func (v *StorageAccountNetworkAccessValidation) Validate(
 			)
 		}
 		if blocks {
+			// TODO: this we will implement in future when the armpolicy Go SDK
+			// (currently v1.0.0, the latest published) gains an Exemptions
+			// client. Azure Policy Exemptions (Microsoft.Authorization/
+			// policyExemptions) are a separate resource type that can suppress
+			// this assignment's effect for the subscription or the managed
+			// resource group without appearing in NotScopes, so an assignment
+			// exempted at either scope can still reach this branch and
+			// incorrectly fail validation for a Storage Account Azure would
+			// actually permit. Resolving this would mean listing applicable,
+			// unexpired exemptions for the assignment/target scope (via the
+			// policyExemptions REST API directly, since no typed SDK client
+			// exists yet) before reporting a conflict.
+			// See https://github.com/Azure/ARO-HCP/pull/7514#discussion_r4348166503.
 			userMsg := fmt.Sprintf(
 				"The Azure Policy assignment %q in this subscription denies Storage Accounts from having public network "+
 					"access enabled. ARO-HCP clusters require a Storage Account with public network access enabled in the "+
@@ -239,6 +255,31 @@ func assignmentExcludesManagedResourceGroup(assignment *armpolicy.Assignment, re
 	return len(assignment.Properties.ResourceSelectors) > 0
 }
 
+// assignmentHasPolicyEffectOverride reports whether the assignment has an
+// Overrides entry of kind "policyEffect". Overrides are a mechanism separate
+// from Parameters for changing an assignment's effective policy effect (e.g. a
+// Deny effect from a parameter or the definition default can be overridden to
+// Audit or Disabled); like ResourceSelectors, an Override can itself be scoped
+// by Selectors (resource type, location, etc.) that this heuristic cannot
+// evaluate without per-resource data. Any policyEffect override is
+// conservatively treated as "cannot confirm the assignment's effective
+// effect", to avoid reporting a false Storage Account policy conflict when an
+// override has silently changed Deny to a non-blocking effect.
+func assignmentHasPolicyEffectOverride(assignment *armpolicy.Assignment) bool {
+	if assignment == nil || assignment.Properties == nil {
+		return false
+	}
+	for _, override := range assignment.Properties.Overrides {
+		if override == nil || override.Kind == nil {
+			continue
+		}
+		if *override.Kind == armpolicy.OverrideKindPolicyEffect {
+			return true
+		}
+	}
+	return false
+}
+
 // assignmentDeniesStorageAccountPublicNetworkAccess reports whether the given
 // policy assignment, as enforced, denies Storage Accounts from having public
 // network access enabled. It returns a human-readable display name/identifier
@@ -307,6 +348,19 @@ func (v *StorageAccountNetworkAccessValidation) getPolicyDefinition(
 		return &resp.Definition, nil
 	default:
 		// Management-group-scoped (or otherwise unrecognized) definition ID; not resolved by this heuristic.
+		//
+		// TODO: this we will implement in future when we add support for
+		// resolving policy set definitions (initiatives). An assignment's
+		// PolicyDefinitionID can reference a "/policySetDefinitions/" ID
+		// instead of a single policy definition; that also falls through to
+		// this branch today, so the caller treats it as non-blocking even
+		// when the initiative includes the known storage policy with an
+		// effective Deny. Fixing this means fetching the set definition,
+		// resolving its member policy definitions and their effective
+		// per-member parameter mappings (policyDefinitionReferenceId), and
+		// evaluating each member the same way a directly-assigned policy is
+		// evaluated above.
+		// See https://github.com/Azure/ARO-HCP/pull/7514#discussion_r4347875100.
 		return nil, nil
 	}
 }
@@ -372,6 +426,22 @@ func assignmentEffectParameterValue(assignment *armpolicy.Assignment) string {
 // effect, either hardcoded or driven by the assignment's "effect" parameter
 // override (or, absent an override, the policy definition's own default value
 // for that parameter).
+//
+// TODO: this we will implement in future when we replace this flat
+// string-match with either (a) a real policy rule condition evaluator, or
+// (b) switching this whole validation to call
+// armpolicyinsights.PolicyRestrictionsClient.CheckAtResourceGroupScope with a
+// hypothetical Storage Account resource (publicNetworkAccess: "Enabled")
+// against the managed resource group, letting Azure's own policy engine
+// decide instead of reimplementing it. Today, this function cannot
+// distinguish a rule that denies publicNetworkAccess=="Enabled" (actually
+// blocks ARO-HCP) from one that denies publicNetworkAccess=="Disabled" (would
+// not block us at all), and ignores sibling conditions (tags, location,
+// resource type qualifiers) that may narrow when the rule applies. Option (b)
+// above would also naturally resolve policy-set membership and honor
+// exemptions/overrides, closing several of this file's other open gaps at
+// once; it is the preferred direction, pending an architecture decision.
+// See https://github.com/Azure/ARO-HCP/pull/7514#discussion_r4347875042.
 func policyRuleTargetsStorageAccountPublicNetworkAccessDeny(definitionProperties *armpolicy.DefinitionProperties, assignedEffect string) bool {
 	if definitionProperties == nil || definitionProperties.PolicyRule == nil {
 		return false
