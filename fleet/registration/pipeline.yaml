@@ -138,6 +138,11 @@ resourceGroups:
     - serviceGroup: Microsoft.Azure.ARO.HCP.Fleet
       resourceGroup: service
       step: deploy
+    # Upgrade this other ManagementCluster writer before registration backfills
+    # new fields into Fleet Cosmos directly, so older writers do not drop them.
+    - serviceGroup: Microsoft.Azure.ARO.HCP.AdminAPI
+      resourceGroup: service
+      step: deploy
     # the rest of the deps make sure the MC installation is complete
     - serviceGroup: Microsoft.Azure.ARO.HCP.ACM
       resourceGroup: management

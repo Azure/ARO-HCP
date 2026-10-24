@@ -53,6 +53,7 @@ func testManagementCluster(stampIdentifier string, conditions ...metav1.Conditio
 			MaestroRESTAPIURL:                                    "http://maestro:8000",
 			MaestroGRPCTarget:                                    "maestro:8090",
 			KubeApplierCosmosContainerName:                       "kube-applier-test",
+			KubeApplierCosmosContainerMaxScale:                   19000,
 			Conditions:                                           conditions,
 		},
 	}
