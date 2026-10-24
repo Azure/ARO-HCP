@@ -57,7 +57,23 @@ func instantiateCreateBillingDocController(controllerContext controllerconfig.Co
 	return controller, nil
 }
 
+func registerReconcileBillingManagedResourceGroupController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{
+		Workers:     20,
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateReconcileBillingManagedResourceGroupController, false),
+	}
+}
+
+func instantiateReconcileBillingManagedResourceGroupController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	clusterInformer, clusterLister := controllerContext.BackendInformers.Clusters()
+	billingInformer, billingLister := controllerContext.BackendInformers.BillingDocs()
+	return newManagedRGWatchingController(
+		newReconcileBillingManagedResourceGroupSyncer(controllerContext.BillingDBClient, clusterLister, billingLister),
+		clusterInformer, billingInformer)
+}
+
 func Register(registry map[string]controllerconfig.ControllerRegistration) {
 	registry[strings.ToLower(OrphanedBillingCleanupControllerName)] = registerOrphanedBillingCleanupController()
 	registry[strings.ToLower(CreateBillingDocControllerName)] = registerCreateBillingDocController()
+	registry[strings.ToLower(ReconcileBillingManagedResourceGroupControllerName)] = registerReconcileBillingManagedResourceGroupController()
 }

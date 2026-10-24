@@ -17,6 +17,7 @@ package billing
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -47,9 +48,10 @@ type orphanedBillingCleanup struct {
 }
 
 const OrphanedBillingCleanupControllerName = "OrphanedBillingCleanup"
+const orphanBillingGracePeriod = 24 * time.Hour
 
 // NewOrphanedBillingCleanupController creates a controller that marks billing documents
-// as deleted when their corresponding cluster no longer exists in Cosmos DB.
+// as deleted after an unreferenced record remains a candidate for the grace period.
 func NewOrphanedBillingCleanupController(clock utilsclock.PassiveClock, billingDBClient billingcosmosstorage.BillingDBClient, clusterLister corelisters.ClusterLister, billingLister corelisters.BillingLister) controllerutils.Controller {
 	c := &orphanedBillingCleanup{
 		name:            OrphanedBillingCleanupControllerName,
@@ -69,8 +71,6 @@ func NewOrphanedBillingCleanupController(clock utilsclock.PassiveClock, billingD
 }
 
 func (c *orphanedBillingCleanup) synchronizeAllBillingDocs(ctx context.Context) error {
-	logger := utils.LoggerFromContext(ctx)
-
 	// Get all billing documents from the cached lister
 	allBillingDocs, err := c.billingLister.List(ctx)
 	if err != nil {
@@ -78,46 +78,75 @@ func (c *orphanedBillingCleanup) synchronizeAllBillingDocs(ctx context.Context) 
 	}
 
 	for _, doc := range allBillingDocs {
-		// Skip billing documents that are already marked as deleted
 		if doc.DeletionTime != nil {
 			continue
 		}
-
-		// Check if the cluster still exists
+		logger := utils.LoggerFromContext(ctx).WithValues("billingDocID", doc.ID, "resourceID", doc.ResourceID)
 		resourceID := doc.ResourceID
-		if resourceID == nil {
-			logger.Info("billing document has nil resourceID",
-				"billingDocID", doc.ID,
-			)
+		// Cluster lookup and billing writes must refer to the same subscription.
+		if doc.ID == "" || resourceID == nil || !strings.EqualFold(doc.SubscriptionID, resourceID.SubscriptionID) {
+			logger.Info("billing identity is unresolved; retaining record", "event", "billing_orphan_identity_unresolved", "reason", "InvalidBillingIdentity")
 			continue
 		}
-
-		clusterExists := true
-		_, err := c.clusterLister.Get(ctx, resourceID.SubscriptionID, resourceID.ResourceGroupName, resourceID.Name)
+		// A record is an orphan candidate when its cluster is absent from the
+		// cache, or the cluster's UID and link consistently identify another billing document.
+		orphan := false
+		cluster, err := c.clusterLister.Get(ctx, resourceID.SubscriptionID, resourceID.ResourceGroupName, resourceID.Name)
 		if cosmosstorageutils.IsNotFoundError(err) {
-			clusterExists = false
+			orphan = true
 		} else if err != nil {
-			return utils.TrackError(fmt.Errorf("failed to get cluster from cache: %w", err))
+			return utils.TrackError(fmt.Errorf("look up cluster for billing document %q: %w", doc.ID, err))
+		} else {
+			clusterUID := cluster.ServiceProviderProperties.ClusterUID
+			billingDocumentID := cluster.ServiceProviderProperties.BillingDocumentCosmosID
+			clusterReferencesThisDocument := billingDocumentID == doc.ID
+			if !clusterReferencesThisDocument {
+				billingLinkMatchesClusterUID := clusterUID != "" && billingDocumentID == clusterUID
+				// A consistent link to another document leaves this record unreferenced.
+				if billingLinkMatchesClusterUID {
+					orphan = true
+				} else {
+					// Creation writes billing before linking it. Missing or conflicting
+					// identity is not enough evidence to stop billing this record.
+					logger.Info("billing identity is unresolved; retaining record", "event", "billing_orphan_identity_unresolved", "reason", "UnresolvedClusterBillingIdentity")
+				}
+			}
 		}
-
-		if clusterExists {
-			continue
+		now := c.clock.Now()
+		var patch billingcosmosstorage.BillingDocumentPatchOperations
+		var event string
+		if !orphan {
+			if doc.OrphanedSince == nil {
+				continue
+			}
+			// Clear the timer when the cluster references this record or its linkage
+			// is ambiguous, so a later orphan observation starts a fresh grace period.
+			patch.SetOrphanedSince(nil)
+			event = "billing_orphan_candidate_cleared"
+		} else if doc.OrphanedSince == nil || doc.OrphanedSince.IsZero() {
+			// A missing or zero timestamp cannot establish elapsed time. Start the
+			// grace period now and persist it so restarts do not lose the observation.
+			patch.SetOrphanedSince(&now)
+			event = "billing_orphan_candidate_recorded"
+		} else {
+			// Keep the original observation while it still appears orphaned;
+			// resetting it on every sweep would prevent the grace period expiring.
+			if now.Before(doc.OrphanedSince.Add(orphanBillingGracePeriod)) {
+				continue
+			}
+			// The grace period ages observations, not proven deletion. Keep the
+			// existing cutoff policy: use confirmation time rather than backdating.
+			patch.SetDeletionTime(now)
+			event = "billing_orphan_cutoff_recorded"
 		}
-
-		deletionTime := c.clock.Now()
-		var patchOperations billingcosmosstorage.BillingDocumentPatchOperations
-		patchOperations.SetDeletionTime(deletionTime)
-		err = c.billingDBClient.BillingDocs(doc.SubscriptionID).PatchByID(ctx, doc.ID, patchOperations)
-		if err != nil {
-			return utils.TrackError(err)
+		if err := c.billingDBClient.BillingDocs(doc.SubscriptionID).PatchByID(ctx, doc.ID, patch); err != nil {
+			if cosmosstorageutils.IsNotFoundError(err) {
+				continue
+			}
+			return utils.TrackError(fmt.Errorf("update orphan state for billing document %q: %w", doc.ID, err))
 		}
-
-		logger.Info("successfully marked orphaned billing document as deleted",
-			"billingDocID", doc.ID,
-			"deletionTime", deletionTime,
-		)
+		logger.Info("updated billing orphan state", "event", event, "observedAt", now, "previousOrphanedSince", doc.OrphanedSince, "gracePeriod", orphanBillingGracePeriod)
 	}
-
 	return nil
 }
 
