@@ -59,7 +59,7 @@ var backportedHCCOIngressCertConsumer = map[uint64]map[uint64]semver.Version{
 	4: {23: semver.MustParse("4.23.0-ec.2")},
 }
 
-// hccoIngressCertConsumerCovered reports whether the control-plane-operator
+// Reports whether the control-plane-operator
 // for the given version consumes the service-provider ingress default
 // certificate, natively, via a backport or via a CPO override.
 func hccoIngressCertConsumerCovered(version semver.Version) bool {
@@ -74,7 +74,7 @@ func hccoIngressCertConsumerCovered(version semver.Version) bool {
 	return ok && version.GTE(firstBackported)
 }
 
-// selectACMIngressCertificate reports whether the guest IngressController
+// Reports whether the guest IngressController
 // must use the certificate the ACM policy delivers in cluster-ingress-cert.
 // Versions without HCCO coverage - for example 4.23.0-ec.0/ec.1, which
 // predate the backport of the consumer and have no CPO override yet - fill
@@ -93,7 +93,7 @@ func selectACMIngressCertificate(version *semver.Version, alreadySelected bool) 
 	return version != nil && !hccoIngressCertConsumerCovered(*version)
 }
 
-// suppressLegacyIngressDesire reports whether the legacy ACM-based ingress
+// Reports whether the legacy ACM-based ingress
 // certificate wiring desire should be suppressed. Suppression is only safe
 // when the version's HCCO is known to consume the service-provider ingress
 // certificate delivered by the hypershift-native path and the guest has never
@@ -106,7 +106,7 @@ func suppressLegacyIngressDesire(desireName string, version *semver.Version, acm
 	return legacyACMBasedIngressCertificateWiringDesireName(desireName)
 }
 
-// defaultIngressConfigSelectsACMCertificate reports whether the applied
+// Reports whether the applied
 // default ingress ConfigMap desire already points the ACM policy at the
 // ACM-delivered certificate.
 func defaultIngressConfigSelectsACMCertificate(desire *kubeapplierapi.ApplyDesire) (bool, error) {
@@ -125,7 +125,7 @@ func defaultIngressConfigSelectsACMCertificate(desire *kubeapplierapi.ApplyDesir
 	return name == acmIngressCertificateSecretName, nil
 }
 
-// ensureDefaultIngressConfigCertificateName points the ACM policy at the
+// Points the ACM policy at the
 // Secret that carries the service-provider certificate. Without the key the
 // policy keeps the guest IngressController on default-ingress-cert, which the
 // HCCO of covered versions fills with the service-provider certificate.

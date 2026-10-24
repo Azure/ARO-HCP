@@ -221,8 +221,8 @@ func (c *clusterResourcesController) SyncOnce(ctx context.Context, key controlle
 	return nil
 }
 
-// fetchAndProcessClusterResources calls the Cluster Service SDK to get cluster resources information
-// and processes the resources. A cached response is reused for resourcesCacheTTL; processing still runs.
+// Fetches the Cluster Service resource set and processes the cluster resources.
+// A cached response is reused for resourcesCacheTTL; processing still runs.
 func (c *clusterResourcesController) fetchAndProcessClusterResources(ctx context.Context,
 	key controllerutils.HCPClusterKey, managementCluster *azcorearm.ResourceID, clusterServiceID metadataapi.InternalID, version *semver.Version) error {
 	resources, err := c.getClusterResources(ctx, clusterServiceID)
@@ -239,7 +239,7 @@ func (c *clusterResourcesController) fetchAndProcessClusterResources(ctx context
 	return nil
 }
 
-// getClusterResources returns the Cluster Service resource set, reusing a
+// Returns the Cluster Service resource set, reusing a
 // successful response until resourcesCacheTTL has elapsed. Errors are not
 // cached, so the next sync calls Cluster Service again.
 func (c *clusterResourcesController) getClusterResources(ctx context.Context, id metadataapi.InternalID) (*arohcpv1alpha1.ClusterResources, error) {
@@ -264,7 +264,7 @@ func (c *clusterResourcesController) getClusterResources(ctx context.Context, id
 	return resources, nil
 }
 
-// processClusterResources converts each resource to ApplyDesire documents
+// Converts each cluster resource to ApplyDesire documents.
 func (c *clusterResourcesController) processClusterResources(ctx context.Context, key controllerutils.HCPClusterKey,
 	managementCluster *azcorearm.ResourceID, resources *arohcpv1alpha1.ClusterResources, clusterServiceID string,
 	version *semver.Version) error {
@@ -884,6 +884,7 @@ func (c *clusterResourcesController) deleteStaleApplyDesires(
 	return nil
 }
 
+// Reports whether a desire belongs to legacy ACM ingress certificate delivery.
 func legacyACMBasedIngressCertificateWiringDesireName(desireName string) bool {
 	switch desireName {
 	case DesireNameManagedCluster, DesireNameDefaultIngressConfigMap,
