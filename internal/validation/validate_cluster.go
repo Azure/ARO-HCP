@@ -567,7 +567,7 @@ func validateVersionProfile(ctx context.Context, op operation.Operation, fldPath
 
 		// Only the major.minor version can be specified for the control plane version
 		// so we only need to check if it meets the minimum required major.minor version
-		errs = append(errs, VersionMustBeAtLeastMajorMinor(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toVersionID), "4.20")...)
+		errs = append(errs, VersionMustBeAtLeastMajorMinor(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toVersionID), coreapi.MinimumPublicVersion)...)
 
 		errs = append(errs, VersionMayNotDecrease(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toVersionID))...)
 		errs = append(errs, OpenshiftVersionAtMostOneMinorSkewWithField(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toVersionID))...)
@@ -575,11 +575,6 @@ func validateVersionProfile(ctx context.Context, op operation.Operation, fldPath
 	if experimentalFeaturesEnabled, _ := op.HasOption(metadataapi.FeatureExperimentalReleaseFeatures); !experimentalFeaturesEnabled {
 		// we never allow micro to any cluster that might live longer than a couple days.  We cannot allow it because it might install naughty things
 		errs = append(errs, OpenshiftVersionWithoutMicro(ctx, op, fldPath.Child("id"), &newObj.ID, nil)...)
-		// only allow OpenShift v5 and above for subscriptions that have the experimental feature registered for now
-		// remove this together with the matching check in the control plane desired version controller when we are ready
-		if v, err := semver.ParseTolerant(newObj.ID); err == nil && v.Major >= 5 {
-			errs = append(errs, field.Invalid(fldPath.Child("id"), newObj.ID, "OpenShift v5 and above is not supported"))
-		}
 	} else {
 		// Even for CI clusters version.id carries only the release line: the published
 		// API documents id as "the desired X.Y version of the cluster control plane",

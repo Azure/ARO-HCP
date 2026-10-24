@@ -22,6 +22,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/test-integration/utils/databasemutationhelpers"
 	"github.com/Azure/ARO-HCP/test-integration/utils/integrationutils"
 )
 
@@ -42,6 +43,20 @@ func testFrontendCRUD(t *testing.T, withMock bool) {
 	for _, crudSuiteDirEntry := range crudSuiteDirs {
 		crudSuiteDir := metadataapi.Must(fs.Sub(allCRUDDirFS, crudSuiteDirEntry.Name()))
 		t.Run(crudSuiteDirEntry.Name(), func(t *testing.T) {
+			if crudSuiteDirEntry.Name() == "OpenShiftVersions" {
+				for _, apiVersion := range integrationutils.AllAPIVersions() {
+					t.Run(apiVersion, func(t *testing.T) {
+						for _, testDir := range metadataapi.Must(fs.ReadDir(crudSuiteDir, ".")) {
+							fixture := metadataapi.Must(fs.Sub(crudSuiteDir, testDir.Name()))
+							currTest, err := databasemutationhelpers.NewUntypedResourceMutationTest(ctx, testDir.Name(), fixture, withMock)
+							require.NoError(t, err)
+							currTest.APIVersion = apiVersion
+							t.Run(testDir.Name(), currTest.RunTest)
+						}
+					})
+				}
+				return
+			}
 			testUntypedCRUDSuite(
 				ctx,
 				t,
