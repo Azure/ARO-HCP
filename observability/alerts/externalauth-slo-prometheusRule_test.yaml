@@ -359,7 +359,28 @@ tests:
         description: "ExternalAuth operation for /sub/3/ea/flap-del has been in deleting phase for over 1 hour. Stuck operations are invisible to success/failure SLIs and require investigation."
         runbook_url: "https://aka.ms/arohcp-runbook-externalauth"
 # ========================================
-# Test 14: Stuck operation fires for all subscriptions at YAML level
+# Test 14: Completed operation clears stuck alert (current-state gate)
+# ========================================
+# An operation was stuck in "provisioning" for >1h, but has now completed
+# (phase moved to "succeeded"). The max_over_time window still remembers it
+# was overdue, but the current-state gate (and ... phase_info{phase=~non-terminal})
+# must prevent the alert from firing for a completed operation.
+- interval: 1m
+  input_series:
+  # Phase was "provisioning" for 80 minutes, then transitions to "succeeded"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/4/ea/completed", subscription_id="sub-4", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="create", phase="provisioning", cluster="mgmt-1", environment="int", region="uksouth"}'
+    values: "1+0x80 0+0x20"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/4/ea/completed", subscription_id="sub-4", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="create", phase="succeeded", cluster="mgmt-1", environment="int", region="uksouth"}'
+    values: "0+0x80 1+0x20"
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/4/ea/completed", subscription_id="sub-4", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="create", phase="provisioning", cluster="mgmt-1", environment="int", region="uksouth"}'
+    values: "0+0x80 _x20"
+  alert_rule_test:
+  # At t=85m the operation completed 5 minutes ago. max_over_time still remembers
+  # the overdue condition, but the current-state gate must suppress the alert.
+  - eval_time: 85m
+    alertname: UJExternalAuthStuckOperation
+# ========================================
+# Test 15: Stuck operation fires for all subscriptions at YAML level
 # ========================================
 # Filtering of internal subscriptions happens in the generated bicep (via
 # the generator-injected `unless` clause), not in the source YAML.
