@@ -268,6 +268,116 @@ func TestStorageAccountNetworkAccessValidation_Validate(t *testing.T) {
 			wantInternalContains: "custom-deny-public-storage",
 		},
 		{
+			name: "custom policy with effect parameterized to Deny returns failed",
+			assignments: []*armpolicy.Assignment{
+				makeTestPolicyAssignment("custom-param-deny-public-storage", customPolicyID, nil,
+					map[string]*armpolicy.ParameterValuesValue{"effect": {Value: "Deny"}}),
+			},
+			setupDefinitionMock: func(m *azureclient.MockPolicyDefinitionsClient) {
+				m.EXPECT().Get(gomock.Any(), "custom-storage-policy", nil).Return(armpolicy.DefinitionsClientGetResponse{
+					Definition: armpolicy.Definition{
+						Properties: &armpolicy.DefinitionProperties{
+							PolicyRule: map[string]any{
+								"if": map[string]any{
+									"allOf": []any{
+										map[string]any{"field": "type", "equals": "Microsoft.Storage/storageAccounts"},
+										map[string]any{"field": "Microsoft.Storage/storageAccounts/publicNetworkAccess", "equals": "Enabled"},
+									},
+								},
+								"then": map[string]any{"effect": "[parameters('effect')]"},
+							},
+						},
+					},
+				}, nil)
+			},
+			wantOutcome:          OutcomeTypeFailed,
+			wantInternalContains: "custom-param-deny-public-storage",
+		},
+		{
+			// Regression test: a literal, non-blocking then.effect must not be
+			// overridden just because an assignment happens to carry an
+			// unrelated parameter literally named "effect" with value "Deny".
+			name: "custom policy with literal Audit effect returns passed despite unrelated effect parameter set to Deny",
+			assignments: []*armpolicy.Assignment{
+				makeTestPolicyAssignment("custom-literal-audit-public-storage", customPolicyID, nil,
+					map[string]*armpolicy.ParameterValuesValue{"effect": {Value: "Deny"}}),
+			},
+			setupDefinitionMock: func(m *azureclient.MockPolicyDefinitionsClient) {
+				m.EXPECT().Get(gomock.Any(), "custom-storage-policy", nil).Return(armpolicy.DefinitionsClientGetResponse{
+					Definition: armpolicy.Definition{
+						Properties: &armpolicy.DefinitionProperties{
+							PolicyRule: map[string]any{
+								"if": map[string]any{
+									"allOf": []any{
+										map[string]any{"field": "type", "equals": "Microsoft.Storage/storageAccounts"},
+										map[string]any{"field": "Microsoft.Storage/storageAccounts/publicNetworkAccess", "equals": "Enabled"},
+									},
+								},
+								"then": map[string]any{"effect": "Audit"},
+							},
+						},
+					},
+				}, nil)
+			},
+			wantOutcome: OutcomeTypePassed,
+		},
+		{
+			// Regression test: then.effect referencing a different parameter
+			// than our known "effect" parameter name must not be resolved via
+			// that unrelated parameter.
+			name: "custom policy with effect parameterized to an unrelated parameter name returns passed",
+			assignments: []*armpolicy.Assignment{
+				makeTestPolicyAssignment("custom-param-other-public-storage", customPolicyID, nil,
+					map[string]*armpolicy.ParameterValuesValue{"effect": {Value: "Deny"}}),
+			},
+			setupDefinitionMock: func(m *azureclient.MockPolicyDefinitionsClient) {
+				m.EXPECT().Get(gomock.Any(), "custom-storage-policy", nil).Return(armpolicy.DefinitionsClientGetResponse{
+					Definition: armpolicy.Definition{
+						Properties: &armpolicy.DefinitionProperties{
+							PolicyRule: map[string]any{
+								"if": map[string]any{
+									"allOf": []any{
+										map[string]any{"field": "type", "equals": "Microsoft.Storage/storageAccounts"},
+										map[string]any{"field": "Microsoft.Storage/storageAccounts/publicNetworkAccess", "equals": "Enabled"},
+									},
+								},
+								"then": map[string]any{"effect": "[parameters('someOtherParam')]"},
+							},
+						},
+					},
+				}, nil)
+			},
+			wantOutcome: OutcomeTypePassed,
+		},
+		{
+			// Regression test: a conditional/unsupported ARM template
+			// expression (not a plain "[parameters('effect')]" reference)
+			// that could evaluate to Disabled must be treated conservatively
+			// as non-blocking rather than assumed to be Deny.
+			name: "custom policy with a conditional effect expression returns passed",
+			assignments: []*armpolicy.Assignment{
+				makeTestPolicyAssignment("custom-conditional-effect-public-storage", customPolicyID, nil, nil),
+			},
+			setupDefinitionMock: func(m *azureclient.MockPolicyDefinitionsClient) {
+				m.EXPECT().Get(gomock.Any(), "custom-storage-policy", nil).Return(armpolicy.DefinitionsClientGetResponse{
+					Definition: armpolicy.Definition{
+						Properties: &armpolicy.DefinitionProperties{
+							PolicyRule: map[string]any{
+								"if": map[string]any{
+									"allOf": []any{
+										map[string]any{"field": "type", "equals": "Microsoft.Storage/storageAccounts"},
+										map[string]any{"field": "Microsoft.Storage/storageAccounts/publicNetworkAccess", "equals": "Enabled"},
+									},
+								},
+								"then": map[string]any{"effect": "[if(equals(parameters('mode'), 'strict'), 'Deny', 'Disabled')]"},
+							},
+						},
+					},
+				}, nil)
+			},
+			wantOutcome: OutcomeTypePassed,
+		},
+		{
 			name: "custom policy unrelated to storage accounts returns passed",
 			assignments: []*armpolicy.Assignment{
 				makeTestPolicyAssignment("custom-unrelated", customPolicyID, nil, nil),
