@@ -73,6 +73,9 @@ func NewMockFleetDBClientWithResources(ctx context.Context, resources []any) (*M
 
 func (m *MockFleetDBClient) addResource(ctx context.Context, resource any) error {
 	switch r := resource.(type) {
+	case *fleetapi.DNSClaim:
+		_, err := m.DNSClaims(r.ResourceID.Parent.Name).Create(ctx, r, nil)
+		return err
 	case *fleetapi.Stamp:
 		return m.addStamp(ctx, r)
 	case *fleetapi.ManagementCluster:
@@ -246,6 +249,14 @@ func newMockFleetResourceCRUD[InternalAPIType any, InternalAPITypePointer coreap
 
 // --- FleetDBClient implementation ---
 
+func (m *MockFleetDBClient) DNSClaims(parentZone string) cosmosstorageutils.ResourceCRUD[fleetapi.DNSClaim, *fleetapi.DNSClaim] {
+	id, err := fleetapihelpers.DNSClaimResourceID("placeholder." + parentZone)
+	if err != nil {
+		panic(err)
+	}
+	return newMockFleetResourceCRUD[fleetapi.DNSClaim, *fleetapi.DNSClaim, cosmosstorageutils.GenericDocument[fleetapi.DNSClaim]](m, id.Parent, fleetapi.DNSClaimResourceType)
+}
+
 func (m *MockFleetDBClient) Stamps() fleetcosmosstorage.StampsCRUD {
 	inner := newMockFleetResourceCRUD[fleetapi.Stamp, *fleetapi.Stamp, cosmosstorageutils.GenericDocument[fleetapi.Stamp]](
 		m, nil, fleetapi.StampResourceType,
@@ -339,6 +350,10 @@ type mockFleetGlobalListers struct {
 }
 
 var _ fleetcosmosstorage.FleetGlobalListers = &mockFleetGlobalListers{}
+
+func (g *mockFleetGlobalListers) DNSClaims() cosmosstorageutils.GlobalLister[fleetapi.DNSClaim] {
+	return corecosmosstoragetesting.NewMockGlobalLister[fleetapi.DNSClaim, cosmosstorageutils.GenericDocument[fleetapi.DNSClaim]](g.client, []azcorearm.ResourceType{fleetapi.DNSClaimResourceType})
+}
 
 func (g *mockFleetGlobalListers) Stamps() cosmosstorageutils.GlobalLister[fleetapi.Stamp] {
 	return corecosmosstoragetesting.NewMockGlobalLister[fleetapi.Stamp, cosmosstorageutils.GenericDocument[fleetapi.Stamp]](

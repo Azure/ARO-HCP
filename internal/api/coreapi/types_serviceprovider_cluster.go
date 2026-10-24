@@ -76,6 +76,12 @@ type ServiceProviderCluster struct {
 
 // ServiceProviderClusterSpec contains the desired state of the cluster.
 type ServiceProviderClusterSpec struct {
+	// DesiredDNSBaseDomain is the allocation candidate whose Fleet claim must be
+	// owned before publishing Cluster.ServiceProviderProperties.DNS.BaseDomain.
+	// It remains set after publication to record the controller's naming intent.
+	// Written by: ClusterDNSAllocation
+	DesiredDNSBaseDomain string `json:"desiredDNSBaseDomain,omitempty"`
+
 	// ControlPlaneVersion contains the desired control plane version information.
 	// Example JSON structure:
 	// {
