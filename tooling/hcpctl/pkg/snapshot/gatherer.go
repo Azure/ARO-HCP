@@ -824,6 +824,7 @@ func (g *Gatherer) gatherPhase(
 				ClusterResourceName:         rs.data.ClusterResourceName,
 				InternalID:                  rs.data.InternalID,
 				ClusterID:                   rs.data.ClusterID,
+				ManagementClusterName:       rs.data.ManagementClusterName,
 				HostedClusterNamespace:      rs.data.HostedClusterNamespace,
 				HostedControlPlaneNamespace: rs.data.HostedControlPlaneNamespace,
 				Requests:                    requestInfos,
@@ -886,6 +887,11 @@ func (g *Gatherer) requestInPhase(req frontendRequest, phase phaseSpec) bool {
 // mergeResourceData copies resource-level discovered fields into a per-request
 // queryData so that trace queries have access to data from resource discovery.
 func mergeResourceData(dst *queryData, src queryData) {
+	// Resource placement takes precedence over the rendered config's single
+	// management cluster, including for per-request trace queries.
+	if src.ManagementClusterName != "" {
+		dst.ManagementClusterName = src.ManagementClusterName
+	}
 	if dst.InternalID == "" {
 		dst.InternalID = src.InternalID
 	}
