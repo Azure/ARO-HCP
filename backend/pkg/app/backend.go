@@ -54,7 +54,9 @@ type Backend struct {
 }
 
 type BackendOptions struct {
-	StorageFactory          StorageFactory
+	StorageFactory StorageFactory
+	// Clock is optional and defaults to the real clock. Tests set it to control time-based behavior.
+	Clock                   utilsclock.PassiveClock
 	AppShortDescriptionName string
 	AppVersion              string
 	AzureLocation           string
@@ -167,8 +169,12 @@ func (o *BackendOptions) NewBackend() (*Backend, error) {
 	if err := o.MetricsRegisterer.Register(mockIdentities); err != nil {
 		return nil, fmt.Errorf("failed to register backend identity mode metric: %w", err)
 	}
+	var clock utilsclock.PassiveClock = utilsclock.RealClock{}
+	if o.Clock != nil {
+		clock = o.Clock
+	}
 	return &Backend{
-		clock:   utilsclock.RealClock{},
+		clock:   clock,
 		options: o,
 	}, nil
 }

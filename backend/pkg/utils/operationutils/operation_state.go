@@ -15,11 +15,13 @@
 package operationutils
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 type OperationState struct {
@@ -72,7 +74,8 @@ func NewFailedOperationState(code, message string, operationError *coreapi.Cloud
 }
 
 // PickWorstCloudErrorCode selects a code from states matching provisioningState.
-// Invalid* codes rank worst, followed by other codes, then InternalServerError.
+// Customer caused codes (coreapi.IsCustomerCaused) rank worst, followed by
+// Invalid* codes, other codes, then InternalServerError.
 // Successful states have no error code. Otherwise, missing codes default to
 // InternalServerError; equal priorities keep the first code.
 func PickWorstCloudErrorCode(states []*OperationState, provisioningState coreapi.ProvisioningState) string {
@@ -93,6 +96,10 @@ func PickWorstCloudErrorCode(states []*OperationState, provisioningState coreapi
 
 func cloudErrorCodePriority(code string) int {
 	switch {
+	// Customer caused codes win so the operation is attributed to the customer
+	// until they resolve it; system health cannot be judged before then.
+	case coreapi.IsCustomerCaused(code):
+		return -1
 	case strings.HasPrefix(code, "Invalid"):
 		return 0
 	case code == coreapi.CloudErrorCodeInternalServerError:
@@ -146,6 +153,34 @@ func DeadlineExceededMessage(deadlineSentence, remainingChecks string) string {
 	return deadlineSentence + "; " + remainingChecks
 }
 
+// PersistedOperationError returns the error to persist on a failed operation. It
+// prefers the customer safe state.Error. The diagnostic state.Message holds source
+// tags and upstream text, so it is only the fallback when no safe error exists, and
+// callers must log it. It returns nil for states that have not failed.
+func PersistedOperationError(state *OperationState) *coreapi.CloudErrorBody {
+	if state == nil || state.ProvisioningState != coreapi.ProvisioningStateFailed {
+		return nil
+	}
+	if state.Error != nil {
+		return state.Error
+	}
+	return &coreapi.CloudErrorBody{Code: state.CloudErrorCode, Message: state.Message}
+}
+
+// LogOperationFailure logs the diagnostic detail of a failed state next to the
+// customer facing error, so detail withheld from the customer is never lost.
+// It does nothing when persisted is nil.
+func LogOperationFailure(ctx context.Context, operationKind string, state *OperationState, persisted *coreapi.CloudErrorBody) {
+	if state == nil || persisted == nil {
+		return
+	}
+	utils.LoggerFromContext(ctx).Info(operationKind+" operation failed",
+		"cloudErrorCode", state.CloudErrorCode,
+		"diagnosticMessage", state.Message,
+		"customerCode", persisted.Code,
+		"customerMessage", persisted.Message)
+}
+
 // PickWorstOperationState expects states pre-sorted and returns the worst state with merged messages.
 //
 // Only sources that report an actual message are included in the merged message: a source tied
@@ -165,13 +200,17 @@ func PickWorstOperationState(states []*OperationState) (*OperationState, error) 
 	if len(worstProvisioningState) == 0 {
 		return nil, errors.New("empty provisioning state")
 	}
+	code := PickWorstCloudErrorCode(states, worstProvisioningState)
+	// When a customer caused code wins, only customer caused errors are shown to
+	// the customer. Other errors stay in the diagnostic message, which is logged.
+	customerWins := worstProvisioningState == coreapi.ProvisioningStateFailed && coreapi.IsCustomerCaused(code)
 	var messageParts []string
 	var operationErrors []coreapi.CloudErrorBody
 	for _, s := range states {
 		if s.ProvisioningState != worstProvisioningState {
 			break
 		}
-		if s.Error != nil {
+		if s.Error != nil && (!customerWins || coreapi.IsCustomerCaused(s.Error.Code)) {
 			operationErrors = append(operationErrors, *s.Error)
 		}
 		if s.Message == "" {
@@ -184,7 +223,6 @@ func PickWorstOperationState(states []*OperationState) (*OperationState, error) 
 		messageParts = append(messageParts, fmt.Sprintf("[%s] %s", currentSource, s.Message))
 	}
 	message := strings.Join(messageParts, "; ")
-	code := PickWorstCloudErrorCode(states, worstProvisioningState)
 	if worstProvisioningState == coreapi.ProvisioningStateFailed {
 		operationError := coreapi.NewCloudErrorBodyFromSlice(operationErrors, "Operation failed due to multiple errors")
 		if operationError != nil {

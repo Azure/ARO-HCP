@@ -24,7 +24,26 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-var operationMetricLabelNames = []string{"resource_id", "subscription_id", "resource_type", "operation_type", "phase"}
+const (
+	faultCustomer = "customer"
+	faultSystem   = "system"
+)
+
+// faultMetricLabel says who must resolve a failed operation: the customer when
+// the persisted error code is one the customer must fix (coreapi.IsCustomerCaused),
+// otherwise the system. A failed operation without an error body is the system's.
+//
+// It is empty for operations that have not failed. Prometheus treats an empty
+// label as absent, so a selector like fault!="customer" still matches them.
+func faultMetricLabel(op *coreapi.Operation) string {
+	if op.Status != coreapi.ProvisioningStateFailed {
+		return ""
+	}
+	if op.Error != nil && coreapi.IsCustomerCaused(op.Error.Code) {
+		return faultCustomer
+	}
+	return faultSystem
+}
 
 // operationPhaseMetricsHandler emits and clears the
 // backend_resource_operation_* metric family.
@@ -66,19 +85,23 @@ type operationIdentity struct {
 
 // NewOperationPhaseMetricsHandler creates a metrics handler for operation metrics.
 func NewOperationPhaseMetricsHandler(r prometheus.Registerer) Handler[*coreapi.Operation] {
+	// All three gauges carry the same labels with the same values. Queries that
+	// combine them without on() or ignoring(), such as the stuck operation alerts,
+	// depend on that.
+	labelNames := []string{"resource_id", "subscription_id", "resource_type", "operation_type", "phase", "fault"}
 	h := &operationPhaseMetricsHandler{
 		phaseInfo: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "backend_resource_operation_phase_info",
 			Help: "Current phase of each operation (value is always 1).",
-		}, operationMetricLabelNames),
+		}, labelNames),
 		startTime: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "backend_resource_operation_start_time_seconds",
 			Help: "Unix timestamp when the operation started.",
-		}, operationMetricLabelNames),
+		}, labelNames),
 		lastTransitionTime: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "backend_resource_operation_last_transition_time_seconds",
 			Help: "Unix timestamp when the operation last changed phase.",
-		}, operationMetricLabelNames),
+		}, labelNames),
 		// Pre-sized to steady-state: bounded by operations within
 		// the 7-day CosmosDB TTL per shard (~1k-2k entries, ~100 clusters).
 		operationsBookkeeper: make(map[string]operationIdentity, 2000),
@@ -130,6 +153,7 @@ func (h *operationPhaseMetricsHandler) Sync(ctx context.Context, op *coreapi.Ope
 		"resource_type":   resourceIDToTypeMetricLabel(op.ExternalID),
 		"operation_type":  opType,
 		"phase":           phaseMetricLabel(op.Status),
+		"fault":           faultMetricLabel(op),
 	}
 	h.phaseInfo.With(labels).Set(1.0)
 
