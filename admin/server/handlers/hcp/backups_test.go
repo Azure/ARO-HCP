@@ -227,7 +227,7 @@ func TestGetBackupScheduleHandler(t *testing.T) {
 		"/subscriptions/" + coreapitesting.TestSubscriptionID + "/resourceGroups/mgmt-rg/providers/Microsoft.ContainerService/managedClusters/mgmt-cluster",
 	))
 
-	makeReadDesire := func(name string) *kubeapplierapi.ReadDesire {
+	makeReadDesire := func(name, targetName string) *kubeapplierapi.ReadDesire {
 		resourceIDStr := kubeapplierapihelpers.ToClusterScopedReadDesireResourceIDString(
 			coreapitesting.TestSubscriptionID, coreapitesting.TestResourceGroupName, coreapitesting.TestClusterName, name,
 		)
@@ -239,6 +239,9 @@ func TestGetBackupScheduleHandler(t *testing.T) {
 			},
 			Spec: kubeapplierapi.ReadDesireSpec{
 				ManagementCluster: managementClusterResourceID,
+				TargetItem: kubeapplierapi.ResourceReference{
+					Name: targetName,
+				},
 			},
 			Tags: map[string]string{backup.DesireTagKeySchedule: ""},
 		}
@@ -345,7 +348,7 @@ func TestGetBackupScheduleHandler(t *testing.T) {
 						LastBackup: &lastBackup,
 					},
 				})
-				rd := makeReadDesire(backup.BackupScheduleDesireNamePrefix + "hourly")
+				rd := makeReadDesire(backup.BackupScheduleDesireNamePrefix+"hourly", "hourly")
 				rd.Status.KubeContent = &runtime.RawExtension{Raw: scheduleJSON}
 				return []*kubeapplierapi.ReadDesire{rd}
 			}(),
@@ -365,7 +368,7 @@ func TestGetBackupScheduleHandler(t *testing.T) {
 			setMgmtPlacement:   true,
 			registerKubeClient: true,
 			readDesires: []*kubeapplierapi.ReadDesire{
-				makeReadDesire(backup.BackupScheduleDesireNamePrefix + "daily"),
+				makeReadDesire(backup.BackupScheduleDesireNamePrefix+"daily", "daily"),
 			},
 			expectedStatusCode: http.StatusOK,
 			expectedState:      coreapi.BackupScheduleStateEnabled,
@@ -374,12 +377,26 @@ func TestGetBackupScheduleHandler(t *testing.T) {
 			},
 		},
 		{
+			name:               "returns target Schedule name when desire name differs",
+			seedCluster:        true,
+			setMgmtPlacement:   true,
+			registerKubeClient: true,
+			readDesires: []*kubeapplierapi.ReadDesire{
+				makeReadDesire(backup.BackupScheduleDesireNamePrefix+"10min", "hosted-cluster-namespace-10min"),
+			},
+			expectedStatusCode: http.StatusOK,
+			expectedState:      coreapi.BackupScheduleStateEnabled,
+			expectedSchedules: []BackupScheduleDetail{
+				{Name: "hosted-cluster-namespace-10min"},
+			},
+		},
+		{
 			name:               "ReadDesire without schedule tag is skipped",
 			seedCluster:        true,
 			setMgmtPlacement:   true,
 			registerKubeClient: true,
 			readDesires: func() []*kubeapplierapi.ReadDesire {
-				rd := makeReadDesire(backup.BackupScheduleDesireNamePrefix + "untagged")
+				rd := makeReadDesire(backup.BackupScheduleDesireNamePrefix+"untagged", "untagged")
 				rd.Tags = map[string]string{}
 				return []*kubeapplierapi.ReadDesire{rd}
 			}(),
