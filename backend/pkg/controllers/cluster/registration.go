@@ -355,6 +355,8 @@ func instantiateOperationClusterCreateController(controllerContext controllercon
 		activeOperationInformer,
 		controllerContext.BackendInformers,
 		unionReadDesireLister,
+		controllerContext.ClusterScopedIdentitiesConfig,
+		controllerContext.HardcodedIdentity == nil, // When hardcodedIdentity is nil, it means that the real Managed Identities Data Plane is available
 	), nil
 }
 
@@ -1092,6 +1094,23 @@ func instantiateFetchManagedIdentitiesInfoController(controllerContext controlle
 	return fetchManagedIdentitiesInfoController, nil
 }
 
+func registerClusterRoleAssignmentIntentController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{
+		Workers:     20,
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateClusterRoleAssignmentIntentController, false),
+	}
+}
+
+func instantiateClusterRoleAssignmentIntentController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	return clusterroleassignments.NewClusterRoleAssignmentIntentController(
+		controllerContext.Clock,
+		controllerContext.ResourcesDBClient,
+		controllerContext.ClusterScopedIdentitiesConfig,
+		controllerContext.BackendInformers,
+		controllerContext.HardcodedIdentity == nil, // When hardcodedIdentity is nil, it means that the real Managed Identities Data Plane is available
+	), nil
+}
+
 func registerIdentityRoleAssignmentsController() controllerconfig.ControllerRegistration {
 	return controllerconfig.ControllerRegistration{
 		Workers:     20,
@@ -1100,17 +1119,9 @@ func registerIdentityRoleAssignmentsController() controllerconfig.ControllerRegi
 }
 
 func instantiateIdentityRoleAssignmentsController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
-	_, subscriptionLister := controllerContext.BackendInformers.Subscriptions()
-	_, serviceProviderClusterLister := controllerContext.BackendInformers.ServiceProviderClusters()
-	return clusterroleassignments.NewRoleAssignmentsController(
-		controllerContext.Clock,
+	return clusterroleassignments.NewClusterRoleAssignmentsController(
 		controllerContext.ResourcesDBClient,
-		serviceProviderClusterLister,
-		subscriptionLister,
-		controllerContext.FPAClientBuilder,
-		controllerContext.ClusterScopedIdentitiesConfig,
 		controllerContext.BackendInformers,
-		controllerContext.UnionKubeApplierInformers,
 	), nil
 }
 
@@ -1341,6 +1352,7 @@ func Register(registry map[string]controllerconfig.ControllerRegistration) {
 	registry[strings.ToLower(clusteridentity.FetchMSIIdentitiesInfoControllerName)] = registerFetchMSIIdentitiesInfoController()
 	registry[strings.ToLower(clusteridentity.FetchDataPlaneOperatorsManagedIdentitiesInfoControllerName)] = registerFetchDataPlaneOperatorsManagedIdentitiesInfoController()
 	registry[strings.ToLower(clusteridentity.FetchManagedIdentitiesInfoControllerName)] = registerFetchManagedIdentitiesInfoController()
-	registry[strings.ToLower(clusterroleassignments.RoleAssignmentsControllerName)] = registerIdentityRoleAssignmentsController()
+	registry[strings.ToLower(clusterroleassignments.ClusterRoleAssignmentIntentControllerName)] = registerClusterRoleAssignmentIntentController()
+	registry[strings.ToLower(clusterroleassignments.ClusterRoleAssignmentsControllerName)] = registerIdentityRoleAssignmentsController()
 	registry[strings.ToLower(clusterbackups.KeyRotationBackupControllerName)] = registerKeyRotationBackupController()
 }

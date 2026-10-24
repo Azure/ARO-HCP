@@ -1,0 +1,233 @@
+{
+  "apiVersion": "2024-03-01",
+  "azureCLI": "2.90.0",
+  "responses": [
+    {
+      "case": "07-provider-failure/submit",
+      "method": "PUT",
+      "url": "https://management.azure.com/subscriptions/SUBSCRIPTION_ID/resourceGroups/PROBE_RESOURCE_GROUP/providers/Microsoft.Resources/deploymentStacks/provider-failure?api-version=2024-03-01",
+      "status": 201,
+      "headers": {
+        "Content-Type": "application/json; charset=utf-8",
+        "Retry-After": "17",
+        "Azure-AsyncOperation": "https://management.azure.com/subscriptions/SUBSCRIPTION_ID/providers/Microsoft.Resources/locations/westus2/deploymentStackOperationStatus/REDACTED_UUID?api-version=2024-03-01&t=REDACTED&c=REDACTED&s=REDACTED&h=REDACTED"
+      },
+      "body": {
+        "properties": {
+          "actionOnUnmanage": {
+            "resources": "delete",
+            "resourceGroups": "detach",
+            "managementGroups": "detach",
+            "resourcesWithoutDeleteSupport": "fail"
+          },
+          "denySettings": {
+            "mode": "none",
+            "applyToChildScopes": false,
+            "excludedPrincipals": [],
+            "excludedActions": []
+          },
+          "resources": [],
+          "provisioningState": "initializing",
+          "detachedResources": [],
+          "deletedResources": [],
+          "failedResources": [],
+          "correlationId": "REDACTED_UUID"
+        },
+        "systemData": {
+          "createdBy": "REDACTED_EMAIL",
+          "createdByType": "User",
+          "createdAt": "2026-10-14T23:27:39.319405Z",
+          "lastModifiedBy": "REDACTED_EMAIL",
+          "lastModifiedByType": "User",
+          "lastModifiedAt": "2026-10-14T23:27:39.319405Z"
+        },
+        "id": "/subscriptions/SUBSCRIPTION_ID/resourceGroups/PROBE_RESOURCE_GROUP/providers/Microsoft.Resources/deploymentStacks/provider-failure",
+        "type": "Microsoft.Resources/deploymentStacks",
+        "name": "provider-failure"
+      },
+      "requestBody": {
+        "properties": {
+          "template": {
+            "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+            "contentVersion": "1.0.0.0",
+            "resources": [
+              {
+                "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+                "apiVersion": "2023-01-31",
+                "name": "federation-parent",
+                "location": "westus3"
+              },
+              {
+                "type": "Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials",
+                "apiVersion": "2023-01-31",
+                "name": "federation-parent/invalid-federation",
+                "dependsOn": [
+                  "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', 'federation-parent')]"
+                ],
+                "properties": {
+                  "issuer": "https://example.invalid",
+                  "subject": "probe",
+                  "audiences": []
+                }
+              }
+            ]
+          },
+          "actionOnUnmanage": {
+            "resources": "delete"
+          },
+          "denySettings": {
+            "mode": "none"
+          }
+        }
+      },
+      "requestSHA256": "17263fecf4bd2253cf85a8c0e144f74b1d7adf16016d0e30543c733665abe311"
+    },
+    {
+      "case": "07-provider-failure/get",
+      "method": "GET",
+      "url": "https://management.azure.com/subscriptions/SUBSCRIPTION_ID/resourceGroups/PROBE_RESOURCE_GROUP/providers/Microsoft.Resources/deploymentStacks/provider-failure?api-version=2024-03-01",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json; charset=utf-8"
+      },
+      "body": {
+        "properties": {
+          "actionOnUnmanage": {
+            "resources": "delete",
+            "resourceGroups": "detach",
+            "managementGroups": "detach",
+            "resourcesWithoutDeleteSupport": "fail"
+          },
+          "denySettings": {
+            "mode": "none",
+            "applyToChildScopes": false,
+            "excludedPrincipals": [],
+            "excludedActions": []
+          },
+          "resources": [],
+          "provisioningState": "initializing",
+          "detachedResources": [],
+          "deletedResources": [],
+          "failedResources": [],
+          "correlationId": "REDACTED_UUID"
+        },
+        "systemData": {
+          "createdBy": "REDACTED_EMAIL",
+          "createdByType": "User",
+          "createdAt": "2026-10-14T23:27:39.319405Z",
+          "lastModifiedBy": "REDACTED_EMAIL",
+          "lastModifiedByType": "User",
+          "lastModifiedAt": "2026-10-14T23:27:39.319405Z"
+        },
+        "id": "/subscriptions/SUBSCRIPTION_ID/resourceGroups/PROBE_RESOURCE_GROUP/providers/Microsoft.Resources/deploymentStacks/provider-failure",
+        "type": "Microsoft.Resources/deploymentStacks",
+        "name": "provider-failure"
+      }
+    },
+    {
+      "case": "07-provider-failure/get",
+      "method": "GET",
+      "url": "https://management.azure.com/subscriptions/SUBSCRIPTION_ID/resourceGroups/PROBE_RESOURCE_GROUP/providers/Microsoft.Resources/deploymentStacks/provider-failure?api-version=2024-03-01",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json; charset=utf-8"
+      },
+      "body": {
+        "properties": {
+          "actionOnUnmanage": {
+            "resources": "delete",
+            "resourceGroups": "detach",
+            "managementGroups": "detach",
+            "resourcesWithoutDeleteSupport": "fail"
+          },
+          "duration": "PT7.3721645S",
+          "denySettings": {
+            "mode": "none",
+            "applyToChildScopes": false,
+            "excludedPrincipals": [],
+            "excludedActions": []
+          },
+          "resources": [],
+          "provisioningState": "failed",
+          "detachedResources": [],
+          "deletedResources": [],
+          "failedResources": [],
+          "error": {
+            "code": "DeploymentStackDeploymentFailed",
+            "message": "One or more resources could not be deployed. Correlation id: 'REDACTED_UUID'.",
+            "details": [
+              {
+                "code": "InvalidTemplateDeployment",
+                "message": "The template deployment 'provider-failure-GENERATED_SUFFIX' is not valid according to the validation procedure. The following resource provider(s) - 'Microsoft.ManagedIdentity/userAssignedIdentities (2023-01-31)' reported preflight validation errors. Tracking id is 'REDACTED_UUID'. See inner errors for details.",
+                "details": [
+                  {
+                    "code": "PreflightValidationFailed",
+                    "target": "/subscriptions/SUBSCRIPTION_ID/resourcegroups/PROBE_RESOURCE_GROUP/providers/Microsoft.ManagedIdentity/deployments/provider-failure-GENERATED_SUFFIX",
+                    "message": "The deployment failed because Preflight Validation failed",
+                    "details": [
+                      {
+                        "code": "InvalidFederatedIdentityCredentialsAudienceLength",
+                        "target": "/subscriptions/SUBSCRIPTION_ID/resourceGroups/PROBE_RESOURCE_GROUP/providers/Microsoft.ManagedIdentity/userAssignedIdentities/federation-parent/federatedIdentityCredentials/invalid-federation",
+                        "message": "Federated identity credentials must have exactly 1 audience."
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          "correlationId": "REDACTED_UUID"
+        },
+        "systemData": {
+          "createdBy": "REDACTED_EMAIL",
+          "createdByType": "User",
+          "createdAt": "2026-10-14T23:27:39.319405Z",
+          "lastModifiedBy": "REDACTED_EMAIL",
+          "lastModifiedByType": "User",
+          "lastModifiedAt": "2026-10-14T23:27:39.319405Z"
+        },
+        "id": "/subscriptions/SUBSCRIPTION_ID/resourceGroups/PROBE_RESOURCE_GROUP/providers/Microsoft.Resources/deploymentStacks/provider-failure",
+        "type": "Microsoft.Resources/deploymentStacks",
+        "name": "provider-failure"
+      }
+    },
+    {
+      "case": "07-provider-failure/async-operation-get",
+      "method": "GET",
+      "url": "https://management.azure.com/subscriptions/SUBSCRIPTION_ID/providers/Microsoft.Resources/locations/westus2/deploymentStackOperationStatus/REDACTED_UUID?api-version=2024-03-01&t=REDACTED&c=REDACTED&s=REDACTED&h=REDACTED",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json; charset=utf-8"
+      },
+      "body": {
+        "id": "/subscriptions/SUBSCRIPTION_ID/providers/Microsoft.Resources/locations/westus2/deploymentStackOperationStatus/REDACTED_UUID",
+        "name": "REDACTED_UUID",
+        "status": "failed",
+        "error": {
+          "code": "DeploymentStackDeploymentFailed",
+          "message": "One or more resources could not be deployed. Correlation id: 'REDACTED_UUID'.",
+          "details": [
+            {
+              "code": "InvalidTemplateDeployment",
+              "message": "The template deployment 'provider-failure-GENERATED_SUFFIX' is not valid according to the validation procedure. The following resource provider(s) - 'Microsoft.ManagedIdentity/userAssignedIdentities (2023-01-31)' reported preflight validation errors. Tracking id is 'REDACTED_UUID'. See inner errors for details.",
+              "details": [
+                {
+                  "code": "PreflightValidationFailed",
+                  "target": "/subscriptions/SUBSCRIPTION_ID/resourcegroups/PROBE_RESOURCE_GROUP/providers/Microsoft.ManagedIdentity/deployments/provider-failure-GENERATED_SUFFIX",
+                  "message": "The deployment failed because Preflight Validation failed",
+                  "details": [
+                    {
+                      "code": "InvalidFederatedIdentityCredentialsAudienceLength",
+                      "target": "/subscriptions/SUBSCRIPTION_ID/resourceGroups/PROBE_RESOURCE_GROUP/providers/Microsoft.ManagedIdentity/userAssignedIdentities/federation-parent/federatedIdentityCredentials/invalid-federation",
+                      "message": "Federated identity credentials must have exactly 1 audience."
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

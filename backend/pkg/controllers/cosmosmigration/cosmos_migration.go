@@ -247,6 +247,16 @@ func (c *cosmosMigrationController) migrateClusters(ctx context.Context, logger 
 			migrationErrors = append(migrationErrors, err)
 		}
 
+		// Stack desires live in Resources, independently of management-cluster placement.
+		if err := migrateDesireDocuments(clusterCtx, clusterLogger, c.resourcesDBClient.StackDesires(clusterSubID, clusterRG, clusterName), "stack desire", func(desire *coreapi.StackDesire) string {
+			if desire.ResourceID == nil {
+				return ""
+			}
+			return desire.ResourceID.Name
+		}); err != nil {
+			migrationErrors = append(migrationErrors, err)
+		}
+
 		// Resolve the kube-applier client for this cluster's management cluster.
 		// Returns nil if no ServiceProviderCluster exists yet (e.g. placement is
 		// pending) or the management cluster is unknown.
@@ -535,7 +545,7 @@ func migrateDesireDocuments[T any, TPointer coreapi.CosmosMetadataAccessorPtr[T]
 		migrationErrors = append(migrationErrors, fmt.Errorf("failed to iterate %ss: %w", resourceDesc, err))
 	}
 	if seen > 0 {
-		logger.Info("migrated kube-applier desires", "resourceType", resourceDesc, "seen", seen, "migrated", migrated)
+		logger.Info("migrated desires", "resourceType", resourceDesc, "seen", seen, "migrated", migrated)
 	}
 	return errors.Join(migrationErrors...)
 }

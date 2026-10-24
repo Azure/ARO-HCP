@@ -17,6 +17,7 @@ package operations
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -28,17 +29,21 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilsclock "k8s.io/utils/clock"
 	clocktesting "k8s.io/utils/clock/testing"
+	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeploymentstacks"
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/hypershift/api/hypershift/v1beta1"
 
+	clusterroleassignments "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/roleassignments"
 	operationtesting "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils/operationtesting"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/azure"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
@@ -481,9 +486,10 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 				activeOperationLister: &corelistertesting.SliceActiveOperationLister{
 					Operations: []*coreapi.Operation{listerOperation},
 				},
-				resourcesDBClient:    mockResourcesDBClient,
-				clusterServiceClient: mockCSClient,
-				notificationClient:   nil,
+				clusterScopedIdentitiesConfig: testClusterScopedIdentitiesConfig(),
+				resourcesDBClient:             mockResourcesDBClient,
+				clusterServiceClient:          mockCSClient,
+				notificationClient:            nil,
 				clusterLister: &corelistertesting.SliceClusterLister{
 					Clusters: []*coreapi.Cluster{tc.existingCluster},
 				},
@@ -506,16 +512,15 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 								AzureResources: coreapi.AzureResources{
 									KubeAPIServerCertificate: confirmedTLSCertificate("kas"),
 									IngressCertificate:       confirmedTLSCertificate("ingress"),
-									RoleAssignments: coreapi.AzureMultiReference{
-										AzureResources: []*azcorearm.ResourceID{
-											metadataapi.Must(azcorearm.ParseResourceID(
-												"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/managed-rg/providers/Microsoft.Authorization/roleAssignments/11111111-1111-1111-1111-111111111111")),
-										},
-									},
 								},
+								ManagedIdentityDetails:                  defaultManagedIdentityDetails(),
+								RoleAssignmentsOverManagedResourceGroup: defaultConfiguredRoleAssignments(),
 							},
 						},
 					},
+				},
+				stackDesireLister: &corelistertesting.SliceStackDesireLister{
+					StackDesires: []*coreapi.StackDesire{defaultManagedStackDesire()},
 				},
 				readDesireLister: func() kubeapplierlisters.ReadDesireLister {
 					if tc.readDesireLister != nil {
@@ -674,6 +679,7 @@ func TestOperationClusterCreate_PlacementDeadline(t *testing.T) {
 			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
 			cluster := fixture.NewCluster(nil)
 			cluster.ServiceProviderProperties.ClusterServiceID = nil
+			cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity = defaultServiceManagedIdentityID
 			if tc.overallTimeout != 0 {
 				deadline := metav1.NewTime(startTime.Add(tc.overallTimeout))
 				cluster.ServiceProviderProperties.CreateOperationCompletionDeadline = &deadline
@@ -714,9 +720,11 @@ func TestOperationClusterCreate_PlacementDeadline(t *testing.T) {
 				clusterLister: &corelistertesting.SliceClusterLister{
 					Clusters: []*coreapi.Cluster{cluster},
 				},
-				serviceProviderClusterLister: spcLister,
-				readDesireLister:             &kubeapplierlistertesting.SliceReadDesireLister{},
-				resourcesDBClient:            db,
+				serviceProviderClusterLister:  spcLister,
+				stackDesireLister:             &corelistertesting.SliceStackDesireLister{},
+				readDesireLister:              &kubeapplierlistertesting.SliceReadDesireLister{},
+				resourcesDBClient:             db,
+				clusterScopedIdentitiesConfig: testClusterScopedIdentitiesConfig(),
 			}
 			placementState, err := controller.placementOperationStatus(ctx, operation, cluster)
 			require.NoError(t, err)
@@ -809,6 +817,11 @@ func newClusterWithAPIURL(url string, createdAt *time.Time) *coreapi.Cluster {
 	fixture := operationtesting.NewClusterTestFixture()
 	cluster := fixture.NewCluster(createdAt)
 	cluster.ServiceProviderProperties.API = coreapi.ServiceProviderAPIProfile{URL: url}
+	// roleAssignmentsOperationStatus requires a non-nil ServiceManagedIdentity
+	// (every real cluster has one); pair with defaultManagedIdentityDetails
+	// and defaultConfiguredRoleAssignments where the test also needs role
+	// assignments to report Succeeded.
+	cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity = defaultServiceManagedIdentityID
 	return cluster
 }
 
@@ -1260,10 +1273,11 @@ func TestDetermineOperationState(t *testing.T) {
 			}
 
 			controller := &operationClusterCreate{
-				clock:                utilsclock.RealClock{},
-				clusterLister:        tt.clusterLister,
-				readDesireLister:     tt.readDesireLister,
-				clusterServiceClient: setupCSMock(ctrl),
+				clock:                         utilsclock.RealClock{},
+				clusterLister:                 tt.clusterLister,
+				readDesireLister:              tt.readDesireLister,
+				clusterServiceClient:          setupCSMock(ctrl),
+				clusterScopedIdentitiesConfig: testClusterScopedIdentitiesConfig(),
 				serviceProviderClusterLister: &corelistertesting.SliceServiceProviderClusterLister{
 					ServiceProviderClusters: []*coreapi.ServiceProviderCluster{
 						{
@@ -1282,16 +1296,15 @@ func TestDetermineOperationState(t *testing.T) {
 								AzureResources: coreapi.AzureResources{
 									KubeAPIServerCertificate: confirmedTLSCertificate("kas"),
 									IngressCertificate:       confirmedTLSCertificate("ingress"),
-									RoleAssignments: coreapi.AzureMultiReference{
-										AzureResources: []*azcorearm.ResourceID{
-											metadataapi.Must(azcorearm.ParseResourceID(
-												"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/managed-rg/providers/Microsoft.Authorization/roleAssignments/11111111-1111-1111-1111-111111111111")),
-										},
-									},
 								},
+								ManagedIdentityDetails:                  defaultManagedIdentityDetails(),
+								RoleAssignmentsOverManagedResourceGroup: defaultConfiguredRoleAssignments(),
 							},
 						},
 					},
+				},
+				stackDesireLister: &corelistertesting.SliceStackDesireLister{
+					StackDesires: []*coreapi.StackDesire{defaultManagedStackDesire()},
 				},
 			}
 
@@ -1459,16 +1472,155 @@ func TestTLSCertificatesOperationStatus(test *testing.T) {
 	})
 }
 
+func roleAssignmentID(name string) *azcorearm.ResourceID {
+	return metadataapi.Must(azcorearm.ParseResourceID(
+		"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/managed-rg/providers/Microsoft.Authorization/roleAssignments/" + name))
+}
+
+const testRoleDefinitionResourceIDString = "/providers/Microsoft.Authorization/roleDefinitions/11111111-1111-1111-1111-111111111111"
+
+func roleAssignmentKey(name string) coreapi.RoleAssignmentKey {
+	return coreapi.RoleAssignmentKey{
+		PrincipalID:              name + "-principal",
+		RoleDefinitionResourceID: testRoleDefinitionResourceIDString,
+	}
+}
+
+// testClusterScopedIdentityRoleDefinitions builds the ClusterScopedIdentitiesConfig
+// role definitions list for one identity from the given role definition resource
+// ID strings.
+func testClusterScopedIdentityRoleDefinitions(resourceIDs ...string) []*azure.ClusterScopedIdentityRoleDefinition {
+	roleDefinitions := make([]*azure.ClusterScopedIdentityRoleDefinition, 0, len(resourceIDs))
+	for _, resourceID := range resourceIDs {
+		roleDefinitions = append(roleDefinitions, &azure.ClusterScopedIdentityRoleDefinition{
+			ResourceID: metadataapi.Must(azcorearm.ParseResourceID(resourceID)),
+		})
+	}
+	return roleDefinitions
+}
+
+// testClusterScopedIdentitiesConfig builds a ClusterScopedIdentitiesConfig for
+// roleAssignmentsOperationStatus tests: a "cpo" control-plane operator and the
+// service managed identity, each requiring smiRoleDefinitionResourceIDs (by
+// default just testRoleDefinitionResourceIDString, matching roleAssignmentKey).
+// Callers that need to exercise a config requiring more role definitions than
+// are currently reflected in RoleAssignmentsOverManagedResourceGroup (e.g. a
+// role definition ClusterRoleAssignmentIntent has not reconciled yet) can pass
+// additional resource ID strings.
+func testClusterScopedIdentitiesConfig(roleDefinitionResourceIDs ...string) *azure.ClusterScopedIdentitiesConfig {
+	if len(roleDefinitionResourceIDs) == 0 {
+		roleDefinitionResourceIDs = []string{testRoleDefinitionResourceIDString}
+	}
+	roleDefinitions := testClusterScopedIdentityRoleDefinitions(roleDefinitionResourceIDs...)
+	return &azure.ClusterScopedIdentitiesConfig{
+		ControlPlaneOperatorsIdentities: azure.ControlPlaneOperatorsIdentities{
+			"cpo": {
+				BaseClusterScopedOperatorIdentity: azure.BaseClusterScopedOperatorIdentity{
+					BaseClusterScopedIdentity: azure.BaseClusterScopedIdentity{RoleDefinitions: roleDefinitions},
+				},
+			},
+		},
+		ServiceManagedIdentity: &azure.ServiceManagedIdentity{
+			BaseClusterScopedIdentity: azure.BaseClusterScopedIdentity{RoleDefinitions: roleDefinitions},
+		},
+	}
+}
+
+// defaultServiceManagedIdentityID is the service managed identity every
+// newClusterWithAPIURL cluster is given, so that
+// operationClusterCreate.roleAssignmentsOperationStatus (which requires a
+// non-nil ServiceManagedIdentity) has something to resolve.
+var defaultServiceManagedIdentityID = metadataapi.Must(azcorearm.ParseResourceID(
+	"/subscriptions/" + operationtesting.TestSubscriptionID + "/resourceGroups/" + operationtesting.TestResourceGroupName + "/providers/Microsoft.ManagedIdentity/userAssignedIdentities/default-smi-identity"))
+
+const defaultServiceManagedIdentityPrincipalID = "default-smi-principal"
+
+// defaultManagedIdentityDetails resolves defaultServiceManagedIdentityID via
+// the hardcoded-identity source, which is what
+// coreapihelpers.ResolveMSIBasedRoleAssignmentTargetIdentity uses when
+// managedIdentitiesDataPlaneServiceAvailable is left at its zero value
+// (false), as in these fixtures.
+func defaultManagedIdentityDetails() map[string]*coreapi.ManagedIdentityMetadata {
+	return map[string]*coreapi.ManagedIdentityMetadata{
+		strings.ToLower(defaultServiceManagedIdentityID.String()): {
+			MetadataFromHardcodedIdentity: &coreapi.IdentityMetadataValue{
+				ClientID:    ptr.To(defaultServiceManagedIdentityPrincipalID + "-client"),
+				PrincipalID: ptr.To(defaultServiceManagedIdentityPrincipalID),
+				TenantID:    ptr.To(defaultServiceManagedIdentityPrincipalID + "-tenant"),
+			},
+		},
+	}
+}
+
+// defaultConfiguredRoleAssignments is the RoleAssignmentsOverManagedResourceGroup
+// entry matching defaultManagedIdentityDetails's resolved principal, with its
+// ReservedAzureResourceID reserved and reported managed by defaultManagedStackDesire.
+// Fixtures needing role assignments to report Succeeded use this alongside
+// defaultManagedIdentityDetails and defaultManagedStackDesire.
+func defaultConfiguredRoleAssignments() map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus {
+	return map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus{
+		roleAssignmentKey("default-smi"): {
+			ReservedAzureResourceID: roleAssignmentID("11111111-1111-1111-1111-111111111111"),
+			TargetIdentity: &coreapi.RoleAssignmentTargetIdentity{
+				ResourceID:  defaultServiceManagedIdentityID,
+				PrincipalID: defaultServiceManagedIdentityPrincipalID,
+			},
+		},
+	}
+}
+
+// defaultManagedStackDesire is the role-assignments StackDesire reporting
+// defaultConfiguredRoleAssignments' ReservedAzureResourceID as currently
+// managed by Azure.
+func defaultManagedStackDesire() *coreapi.StackDesire {
+	return managedStackDesire(roleAssignmentID("11111111-1111-1111-1111-111111111111"))
+}
+
+// managedStackDesire builds the cluster's role-assignments StackDesire with
+// its last-observed Azure state reporting each of managedIDs as "managed",
+// for roleAssignmentsOperationStatus tests.
+func managedStackDesire(managedIDs ...*azcorearm.ResourceID) *coreapi.StackDesire {
+	resources := make([]*armdeploymentstacks.ManagedResourceReference, 0, len(managedIDs))
+	for _, id := range managedIDs {
+		resources = append(resources, &armdeploymentstacks.ManagedResourceReference{
+			ID:     ptr.To(id.String()),
+			Status: ptr.To(armdeploymentstacks.ResourceStatusModeManaged),
+		})
+	}
+	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
+		"/subscriptions/" + operationtesting.TestSubscriptionID +
+			"/resourceGroups/" + operationtesting.TestResourceGroupName +
+			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + operationtesting.TestClusterName +
+			"/stackDesires/" + clusterroleassignments.RoleAssignmentsDesireName,
+	))
+	return &coreapi.StackDesire{
+		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: resourceID},
+		Status: coreapi.StackDesireStatus{
+			Stack: &armdeploymentstacks.DeploymentStack{
+				Properties: &armdeploymentstacks.DeploymentStackProperties{
+					Resources: resources,
+				},
+			},
+		},
+	}
+}
+
 func TestRoleAssignmentsOperationStatus(t *testing.T) {
 	fixture := operationtesting.NewClusterTestFixture()
 	operation := fixture.NewOperation(cosmosstorageutils.OperationRequestCreate)
 
-	roleAssignmentID := func(name string) *azcorearm.ResourceID {
-		return metadataapi.Must(azcorearm.ParseResourceID(
-			"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/managed-rg/providers/Microsoft.Authorization/roleAssignments/" + name))
+	controlPlaneOperatorID := metadataapi.Must(azcorearm.ParseResourceID(
+		"/subscriptions/" + operationtesting.TestSubscriptionID + "/resourceGroups/" + operationtesting.TestResourceGroupName + "/providers/Microsoft.ManagedIdentity/userAssignedIdentities/cpo-identity"))
+	serviceManagedIdentityID := metadataapi.Must(azcorearm.ParseResourceID(
+		"/subscriptions/" + operationtesting.TestSubscriptionID + "/resourceGroups/" + operationtesting.TestResourceGroupName + "/providers/Microsoft.ManagedIdentity/userAssignedIdentities/smi-identity"))
+
+	cluster := fixture.NewCluster(nil)
+	cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities = coreapi.UserAssignedIdentitiesProfile{
+		ControlPlaneOperators:  map[string]*azcorearm.ResourceID{"cpo": controlPlaneOperatorID},
+		ServiceManagedIdentity: serviceManagedIdentityID,
 	}
 
-	spcLister := func(ra coreapi.AzureMultiReference) corelisters.ServiceProviderClusterLister {
+	spcLister := func(roleAssignments map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus, managedIdentityDetails map[string]*coreapi.ManagedIdentityMetadata) corelisters.ServiceProviderClusterLister {
 		return &corelistertesting.SliceServiceProviderClusterLister{
 			ServiceProviderClusters: []*coreapi.ServiceProviderCluster{
 				{
@@ -1479,58 +1631,198 @@ func TestRoleAssignmentsOperationStatus(t *testing.T) {
 								coreapi.ServiceProviderClusterResourceName)),
 					},
 					Status: coreapi.ServiceProviderClusterStatus{
-						AzureResources: coreapi.AzureResources{
-							RoleAssignments: ra,
-						},
+						RoleAssignmentsOverManagedResourceGroup: roleAssignments,
+						ManagedIdentityDetails:                  managedIdentityDetails,
 					},
 				},
 			},
 		}
 	}
 
+	// resolvedDataplaneMetadata mirrors what FetchManagedIdentitiesInfo writes
+	// for an MSI-based identity when the real Managed Identities Data Plane is
+	// available, which is the source ResolveMSIBasedRoleAssignmentTargetIdentity
+	// picks when managedIdentitiesDataPlaneServiceAvailable is true.
+	resolvedDataplaneMetadata := func(principal string) *coreapi.ManagedIdentityMetadata {
+		return &coreapi.ManagedIdentityMetadata{
+			MetadataFromManagedIdentitiesDataplaneService: &coreapi.IdentityMetadataValue{
+				ClientID:    ptr.To(principal + "-client"),
+				PrincipalID: ptr.To(principal),
+				TenantID:    ptr.To(principal + "-tenant"),
+			},
+		}
+	}
+	// bothResolved is the default fixture: both control-plane operator and
+	// service managed identity metadata already resolved.
+	bothResolved := map[string]*coreapi.ManagedIdentityMetadata{
+		strings.ToLower(controlPlaneOperatorID.String()):   resolvedDataplaneMetadata("cpo-principal"),
+		strings.ToLower(serviceManagedIdentityID.String()): resolvedDataplaneMetadata("smi-principal"),
+	}
+
+	// reservedEntry sets ReservedAzureResourceID (as ClusterRoleAssignments' reservation
+	// pass would) regardless of whether the StackDesire reports it managed yet.
+	reservedEntry := func(identityID *azcorearm.ResourceID, principal string) *coreapi.RoleAssignmentStatus {
+		return &coreapi.RoleAssignmentStatus{
+			ReservedAzureResourceID: roleAssignmentID(principal),
+			TargetIdentity: &coreapi.RoleAssignmentTargetIdentity{
+				ResourceID:  identityID,
+				PrincipalID: principal,
+			},
+		}
+	}
+
 	tests := []struct {
-		name            string
-		roleAssignments coreapi.AzureMultiReference
-		expectedState   coreapi.ProvisioningState
-		wantMsgSubstr   string
+		name                   string
+		roleAssignments        map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus
+		managedIdentityDetails map[string]*coreapi.ManagedIdentityMetadata
+		// stackDesire is the role-assignments StackDesire the lister returns;
+		// nil means none has been published yet.
+		stackDesire *coreapi.StackDesire
+		// clusterScopedIdentitiesConfig overrides the default single-role-definition
+		// config; nil means use testClusterScopedIdentitiesConfig()'s default.
+		clusterScopedIdentitiesConfig *azure.ClusterScopedIdentitiesConfig
+		expectedState                 coreapi.ProvisioningState
+		wantMsgSubstrs                []string
 	}{
 		{
-			name: "all confirmed and none pending → Succeeded",
-			roleAssignments: coreapi.AzureMultiReference{
-				AzureResources: []*azcorearm.ResourceID{roleAssignmentID("11111111-1111-1111-1111-111111111111")},
+			name: "every identity from the cluster spec has a configured key → Succeeded",
+			roleAssignments: map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus{
+				roleAssignmentKey("cpo"): reservedEntry(controlPlaneOperatorID, "cpo-principal"),
+				roleAssignmentKey("smi"): reservedEntry(serviceManagedIdentityID, "smi-principal"),
 			},
-			expectedState: coreapi.ProvisioningStateSucceeded,
+			managedIdentityDetails: bothResolved,
+			stackDesire:            managedStackDesire(roleAssignmentID("cpo-principal"), roleAssignmentID("smi-principal")),
+			expectedState:          coreapi.ProvisioningStateSucceeded,
 		},
 		{
-			name:            "none confirmed → Provisioning",
-			roleAssignments: coreapi.AzureMultiReference{},
-			expectedState:   coreapi.ProvisioningStateProvisioning,
-			wantMsgSubstr:   "role assignments not yet confirmed",
+			// Regression case for the gap where this check only looked at
+			// RoleAssignmentsOverManagedResourceGroup's existing entries: if
+			// ClusterScopedIdentitiesConfig now requires a second role
+			// definition for an identity but ClusterRoleAssignmentIntent
+			// hasn't reconciled that config change into a key yet, a check
+			// that infers "desired" from existing entries alone would see
+			// only the one key that's already managed and wrongly report
+			// Succeeded. Requiring the config's full expected set catches it.
+			name: "config now requires a second role definition for an identity that Intent has not reconciled into a key yet → Provisioning",
+			roleAssignments: map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus{
+				roleAssignmentKey("cpo"): reservedEntry(controlPlaneOperatorID, "cpo-principal"),
+				roleAssignmentKey("smi"): reservedEntry(serviceManagedIdentityID, "smi-principal"),
+			},
+			managedIdentityDetails: bothResolved,
+			stackDesire:            managedStackDesire(roleAssignmentID("cpo-principal"), roleAssignmentID("smi-principal")),
+			clusterScopedIdentitiesConfig: testClusterScopedIdentitiesConfig(
+				testRoleDefinitionResourceIDString,
+				"/providers/Microsoft.Authorization/roleDefinitions/22222222-2222-2222-2222-222222222222",
+			),
+			expectedState:  coreapi.ProvisioningStateProvisioning,
+			wantMsgSubstrs: []string{"control-plane operator", "service managed identity"},
 		},
 		{
-			name: "some still pending → Provisioning",
-			roleAssignments: coreapi.AzureMultiReference{
-				AzureResources:        []*azcorearm.ResourceID{roleAssignmentID("11111111-1111-1111-1111-111111111111")},
-				PendingAzureResources: []*azcorearm.ResourceID{roleAssignmentID("22222222-2222-2222-2222-222222222222")},
+			name:                   "no identity metadata resolved yet, no role assignments recorded either → Provisioning",
+			roleAssignments:        map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus{},
+			managedIdentityDetails: map[string]*coreapi.ManagedIdentityMetadata{},
+			expectedState:          coreapi.ProvisioningStateProvisioning,
+			// Both identities are pending; the message must name both.
+			wantMsgSubstrs: []string{"control-plane operator", "service managed identity"},
+		},
+		{
+			name: "one identity's key is reserved but the StackDesire has not published it yet → Provisioning",
+			roleAssignments: map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus{
+				roleAssignmentKey("cpo"): reservedEntry(controlPlaneOperatorID, "cpo-principal"),
+				roleAssignmentKey("smi"): reservedEntry(serviceManagedIdentityID, "smi-principal"),
 			},
+			managedIdentityDetails: bothResolved,
+			stackDesire:            managedStackDesire(roleAssignmentID("cpo-principal")),
+			expectedState:          coreapi.ProvisioningStateProvisioning,
+			// The message must name the still-pending identity (SMI), not the
+			// already-configured one (CPO).
+			wantMsgSubstrs: []string{"service managed identity"},
+		},
+		{
+			// A deployment stack apply is not atomic: a failure applying one
+			// resource does not roll back resources that already succeeded. The
+			// SMI's assignment reporting a failure must not block the CPO's,
+			// which is already managed.
+			name: "one identity's reserved assignment is in FailedResources while the other is managed → Provisioning",
+			roleAssignments: map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus{
+				roleAssignmentKey("cpo"): reservedEntry(controlPlaneOperatorID, "cpo-principal"),
+				roleAssignmentKey("smi"): reservedEntry(serviceManagedIdentityID, "smi-principal"),
+			},
+			managedIdentityDetails: bothResolved,
+			stackDesire: func() *coreapi.StackDesire {
+				desire := managedStackDesire(roleAssignmentID("cpo-principal"))
+				desire.Status.Stack.Properties.FailedResources = []*armdeploymentstacks.ResourceReferenceExtended{
+					{ID: ptr.To(roleAssignmentID("smi-principal").String())},
+				}
+				return desire
+			}(),
+			expectedState:  coreapi.ProvisioningStateProvisioning,
+			wantMsgSubstrs: []string{"service managed identity"},
+		},
+		{
+			// Regression case: ClusterRoleAssignmentIntent only adds a key once an
+			// identity's metadata resolves, so an unresolved identity has no key at
+			// all rather than an unconfigured one. A check that only looks at keys
+			// already present would wrongly succeed here.
+			name: "one identity has no key at all yet because its metadata has not resolved → Provisioning",
+			roleAssignments: map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus{
+				roleAssignmentKey("cpo"): reservedEntry(controlPlaneOperatorID, "cpo-principal"),
+			},
+			managedIdentityDetails: map[string]*coreapi.ManagedIdentityMetadata{
+				strings.ToLower(controlPlaneOperatorID.String()): resolvedDataplaneMetadata("cpo-principal"),
+				// serviceManagedIdentityID intentionally has no entry: its metadata
+				// has not resolved yet, so it has no role assignment key either.
+			},
+			stackDesire:   managedStackDesire(roleAssignmentID("cpo-principal")),
 			expectedState: coreapi.ProvisioningStateProvisioning,
-			wantMsgSubstr: "role assignments not yet confirmed",
+			// The message must name the unresolved identity (SMI), not the
+			// already-resolved-and-configured one (CPO).
+			wantMsgSubstrs: []string{"service managed identity"},
+		},
+		{
+			name: "draining leftover for an identity is ignored once that identity also has a configured key → Succeeded",
+			roleAssignments: map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus{
+				roleAssignmentKey("cpo"): reservedEntry(controlPlaneOperatorID, "cpo-principal"),
+				roleAssignmentKey("smi"): reservedEntry(serviceManagedIdentityID, "smi-principal"),
+				roleAssignmentKey("old-cpo"): {
+					ReservedAzureResourceID: roleAssignmentID("old-cpo-principal"),
+					DeconfigureTimestamp:    &metav1.Time{Time: time.Now()},
+					TargetIdentity: &coreapi.RoleAssignmentTargetIdentity{
+						ResourceID:  controlPlaneOperatorID,
+						PrincipalID: "old-cpo-principal",
+					},
+				},
+			},
+			managedIdentityDetails: bothResolved,
+			stackDesire:            managedStackDesire(roleAssignmentID("cpo-principal"), roleAssignmentID("smi-principal")),
+			expectedState:          coreapi.ProvisioningStateSucceeded,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+			var stackDesireLister corelisters.StackDesireLister = &corelistertesting.SliceStackDesireLister{}
+			if tt.stackDesire != nil {
+				stackDesireLister = &corelistertesting.SliceStackDesireLister{StackDesires: []*coreapi.StackDesire{tt.stackDesire}}
+			}
+			clusterScopedIdentitiesConfig := tt.clusterScopedIdentitiesConfig
+			if clusterScopedIdentitiesConfig == nil {
+				clusterScopedIdentitiesConfig = testClusterScopedIdentitiesConfig()
+			}
 			controller := &operationClusterCreate{
-				serviceProviderClusterLister: spcLister(tt.roleAssignments),
+				serviceProviderClusterLister:               spcLister(tt.roleAssignments, tt.managedIdentityDetails),
+				stackDesireLister:                          stackDesireLister,
+				clusterScopedIdentitiesConfig:              clusterScopedIdentitiesConfig,
+				managedIdentitiesDataPlaneServiceAvailable: true,
 			}
 
-			result, err := controller.roleAssignmentsOperationStatus(ctx, operation)
+			result, err := controller.roleAssignmentsOperationStatus(ctx, operation, cluster)
 			require.NoError(t, err)
 			require.NotNil(t, result)
 			assert.Equal(t, tt.expectedState, result.ProvisioningState)
-			if tt.wantMsgSubstr != "" {
-				assert.Contains(t, result.Message, tt.wantMsgSubstr)
+			for _, substr := range tt.wantMsgSubstrs {
+				assert.Contains(t, result.Message, substr)
 			}
 		})
 	}

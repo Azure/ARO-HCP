@@ -31,15 +31,20 @@ import (
 	"k8s.io/client-go/tools/cache"
 	utilsclock "k8s.io/utils/clock"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/hypershift/api/hypershift/v1beta1"
 
+	clusterroleassignments "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/roleassignments"
 	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	operationbase "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
+	"github.com/Azure/ARO-HCP/internal/azure"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
@@ -55,10 +60,26 @@ type operationClusterCreate struct {
 	clusterLister                         corelisters.ClusterLister
 	serviceProviderClusterLister          corelisters.ServiceProviderClusterLister
 	clusterManagementClusterContentLister corelisters.ManagementClusterContentLister
+	stackDesireLister                     corelisters.StackDesireLister
 	readDesireLister                      kubeapplierlisters.ReadDesireLister
 	resourcesDBClient                     corecosmosstorage.ResourcesDBClient
 	clusterServiceClient                  ocm.ClusterServiceClientSpec
 	notificationClient                    *http.Client
+	// clusterScopedIdentitiesConfig is the same config ClusterRoleAssignmentIntent
+	// uses to compute each operator's required role definitions. It's read
+	// directly here, rather than inferred from ServiceProviderCluster.Status,
+	// so roleAssignmentsOperationStatus can't report an identity as configured
+	// based on a role definition set that predates a config change
+	// ClusterRoleAssignmentIntent hasn't reconciled yet.
+	clusterScopedIdentitiesConfig *azure.ClusterScopedIdentitiesConfig
+	// managedIdentitiesDataPlaneServiceAvailable is the same environment
+	// signal ClusterRoleAssignmentIntent and FetchManagedIdentitiesInfo use
+	// (hardcodedIdentity == nil): it selects
+	// MetadataFromManagedIdentitiesDataplaneService versus
+	// MetadataFromHardcodedIdentity when resolving MSI-based identities
+	// (control-plane operators and the service managed identity) in
+	// roleAssignmentsOperationStatus.
+	managedIdentitiesDataPlaneServiceAvailable bool
 }
 
 const OperationClusterCreateControllerName = "OperationClusterCreate"
@@ -85,21 +106,27 @@ func NewOperationClusterCreateController(
 	activeOperationInformer cache.SharedIndexInformer,
 	informers coreinformers.BackendInformers,
 	readDesireLister kubeapplierlisters.ReadDesireLister,
+	clusterScopedIdentitiesConfig *azure.ClusterScopedIdentitiesConfig,
+	managedIdentitiesDataPlaneServiceAvailable bool,
 ) controllerutils.Controller {
 	_, activeOperationLister := informers.ActiveOperations()
 	_, clusterLister := informers.Clusters()
 	_, serviceProviderClusterLister := informers.ServiceProviderClusters()
 	_, clusterManagementClusterContentLister := informers.ManagementClusterContents()
+	_, stackDesireLister := informers.StackDesires()
 	syncer := &operationClusterCreate{
-		clock:                                 clock,
-		activeOperationLister:                 activeOperationLister,
-		clusterLister:                         clusterLister,
-		serviceProviderClusterLister:          serviceProviderClusterLister,
-		clusterManagementClusterContentLister: clusterManagementClusterContentLister,
-		readDesireLister:                      readDesireLister,
-		resourcesDBClient:                     resourcesDBClient,
-		clusterServiceClient:                  clusterServiceClient,
-		notificationClient:                    notificationClient,
+		clock:                                      clock,
+		activeOperationLister:                      activeOperationLister,
+		clusterLister:                              clusterLister,
+		serviceProviderClusterLister:               serviceProviderClusterLister,
+		clusterManagementClusterContentLister:      clusterManagementClusterContentLister,
+		stackDesireLister:                          stackDesireLister,
+		readDesireLister:                           readDesireLister,
+		resourcesDBClient:                          resourcesDBClient,
+		clusterServiceClient:                       clusterServiceClient,
+		notificationClient:                         notificationClient,
+		clusterScopedIdentitiesConfig:              clusterScopedIdentitiesConfig,
+		managedIdentitiesDataPlaneServiceAvailable: managedIdentitiesDataPlaneServiceAvailable,
 	}
 
 	controller := controllerutils.NewGenericOperationController(
@@ -246,7 +273,7 @@ func (c *operationClusterCreate) determineOperationState(ctx context.Context, op
 	} else {
 		operationStates = append(operationStates, currState.WithSource("defaultIngressServingCertificate"))
 	}
-	if currState, err := c.roleAssignmentsOperationStatus(ctx, operation); err != nil {
+	if currState, err := c.roleAssignmentsOperationStatus(ctx, operation, cluster); err != nil {
 		errs = append(errs, utils.TrackError(err))
 	} else {
 		operationStates = append(operationStates, currState.WithSource("roleAssignments"))
@@ -536,11 +563,24 @@ func (c *operationClusterCreate) serviceProviderDefaultIngressServingCertificate
 // roleAssignmentsOperationStatus blocks cluster creation until the managed
 // resource group scoped role assignments for the cluster's control-plane operator,
 // data-plane operator, and service managed identity have all been confirmed present.
-// The IdentityRoleAssignments controller creates them and reflects them onto
-// ServiceProviderCluster.Status.AzureResources.RoleAssignments; creation is
-// considered complete for this source once at least one role assignment is confirmed
-// and none remain pending.
-func (c *operationClusterCreate) roleAssignmentsOperationStatus(ctx context.Context, operation *coreapi.Operation) (*operationbase.OperationState, error) {
+//
+// This resolves each identity from cluster's spec individually (the same
+// resolution ClusterRoleAssignmentIntent uses) and checks its role
+// assignments by the resolved principal, rather than asking whether every key
+// currently in RoleAssignmentsOverManagedResourceGroup is configured:
+// ClusterRoleAssignmentIntent only adds a key for an identity once that
+// identity's metadata resolves, so an identity whose metadata has not
+// resolved yet has no key at all. A single "are all present keys configured"
+// check cannot tell that apart from "there is nothing left to do," so it
+// would consider role assignments complete too early. Resolving and checking
+// each identity individually also correctly handles a UAMI used as both a
+// control-plane operator and a data-plane operator, which resolves to two
+// different principals and therefore two separate keys.
+//
+// Every identity is checked, even after the first miss, so the returned
+// message names every identity still pending rather than only the first one
+// found.
+func (c *operationClusterCreate) roleAssignmentsOperationStatus(ctx context.Context, operation *coreapi.Operation, cluster *coreapi.Cluster) (*operationbase.OperationState, error) {
 	serviceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Name)
 	if cosmosstorageutils.IsNotFoundError(err) {
 		return operationbase.NewOperationState(coreapi.ProvisioningStateProvisioning, "ServiceProviderCluster not cached yet"), nil
@@ -548,9 +588,63 @@ func (c *operationClusterCreate) roleAssignmentsOperationStatus(ctx context.Cont
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
-	roleAssignments := serviceProviderCluster.Status.AzureResources.RoleAssignments
-	if len(roleAssignments.AzureResources) == 0 || len(roleAssignments.PendingAzureResources) != 0 {
-		return operationbase.NewOperationState(coreapi.ProvisioningStateProvisioning, "role assignments not yet confirmed"), nil
+
+	desire, err := c.stackDesireLister.Get(ctx, operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Name, clusterroleassignments.RoleAssignmentsDesireName)
+	if err != nil && !cosmosstorageutils.IsNotFoundError(err) {
+		return nil, utils.TrackError(err)
+	}
+
+	identityConfigured := func(target *coreapi.RoleAssignmentTargetIdentity, resolved bool, roleDefinitionResourceIDs []*azcorearm.ResourceID) bool {
+		return resolved && coreapihelpers.ServiceProviderClusterStatusIdentityRoleAssignmentsConfigured(&serviceProviderCluster.Status, desire, target.PrincipalID, roleDefinitionResourceIDs)
+	}
+
+	var pending []string
+	userAssignedIdentities := cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities
+	for operatorName, identityResourceID := range userAssignedIdentities.ControlPlaneOperators {
+		target, resolved, err := coreapihelpers.ResolveMSIBasedRoleAssignmentTargetIdentity(&serviceProviderCluster.Status, identityResourceID, c.managedIdentitiesDataPlaneServiceAvailable)
+		if err != nil {
+			return nil, utils.TrackError(err)
+		}
+		roleDefinitionResourceIDs, err := clusterroleassignments.ControlPlaneOperatorRoleDefinitionIDsFromConfig(c.clusterScopedIdentitiesConfig, operatorName)
+		if err != nil {
+			return nil, utils.TrackError(err)
+		}
+		if !identityConfigured(target, resolved, roleDefinitionResourceIDs) {
+			pending = append(pending, fmt.Sprintf("control-plane operator %q (%s)", operatorName, identityResourceID))
+		}
+	}
+	for operatorName, identityResourceID := range userAssignedIdentities.DataPlaneOperators {
+		if identityResourceID == nil {
+			continue
+		}
+		target, resolved, err := coreapihelpers.ResolveDataPlaneRoleAssignmentTargetIdentity(&serviceProviderCluster.Status, identityResourceID)
+		if err != nil {
+			return nil, utils.TrackError(err)
+		}
+		roleDefinitionResourceIDs, err := clusterroleassignments.DataPlaneOperatorRoleDefinitionIDsFromConfig(c.clusterScopedIdentitiesConfig, operatorName)
+		if err != nil {
+			return nil, utils.TrackError(err)
+		}
+		if !identityConfigured(target, resolved, roleDefinitionResourceIDs) {
+			pending = append(pending, fmt.Sprintf("data-plane operator %q (%s)", operatorName, identityResourceID))
+		}
+	}
+	identityResourceID := userAssignedIdentities.ServiceManagedIdentity
+	target, resolved, err := coreapihelpers.ResolveMSIBasedRoleAssignmentTargetIdentity(&serviceProviderCluster.Status, identityResourceID, c.managedIdentitiesDataPlaneServiceAvailable)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+	serviceManagedIdentityRoleDefinitionResourceIDs, err := clusterroleassignments.ServiceManagedIdentityRoleDefinitionIDsFromConfig(c.clusterScopedIdentitiesConfig)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+	if !identityConfigured(target, resolved, serviceManagedIdentityRoleDefinitionResourceIDs) {
+		pending = append(pending, fmt.Sprintf("service managed identity (%s)", identityResourceID))
+	}
+
+	if len(pending) > 0 {
+		slices.Sort(pending)
+		return operationbase.NewOperationState(coreapi.ProvisioningStateProvisioning, fmt.Sprintf("role assignments not yet confirmed for: %s", strings.Join(pending, "; "))), nil
 	}
 	return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, ""), nil
 }
