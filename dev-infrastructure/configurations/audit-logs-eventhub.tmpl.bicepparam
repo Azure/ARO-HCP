@@ -12,5 +12,6 @@ param maestroMqttEnabled = {{ .maestroMqttEventHub.enabled }}
 param eventhubEnabled = {{ .auditLogsEventHub.enabled }}
 // EV2 substitutes the SKU after compilation; any() accepts its placeholder while preserving the template's allowed values.
 param eventHubSku = any('{{ .auditLogsEventHub.sku }}')
+param eventHubCapacity = {{ .auditLogsEventHub.capacity }}
 param kustoPrincipalId = '__kustoPrincipalId__'
 param kustoEnabled = {{ .arobit.kusto.enabled }}

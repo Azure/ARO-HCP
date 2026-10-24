@@ -119,6 +119,7 @@ arobit:
       crashdumpHostPath: /home/docker/azure-watson
 auditLogsEventHub:
   authRuleName: SendRule
+  capacity: 1
   enabled: false
   kustoConsumerGroupName: AuditLogsToKusto
   kustoDataConnectionName: pers-westus3-auditlogs
