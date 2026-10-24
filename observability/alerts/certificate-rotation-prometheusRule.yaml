@@ -1,0 +1,73 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    app.kubernetes.io/name: kube-prometheus
+    app.kubernetes.io/part-of: kube-prometheus
+    prometheus: k8s
+    role: alert-rules
+  name: certificate-rotation-rules
+  namespace: monitoring
+spec:
+  groups:
+  # Expected rotation: 50% lifetime; alert threshold: 65%, leaving 35% to respond.
+  # The 1h pending period filters transient failures; revisit for shorter lifetimes.
+  # Collection staleness fires after >1h without success plus 1h pending (~2h total).
+  # Sev 3: preventive alerts for shared service-cluster dependencies.
+  # Limitation: Key Vault metadata does not verify CSI sync or adoption by serving pods.
+  - name: arohcp_certificate_rotation_alerts
+    interval: 1m
+    labels:
+      component: certificate-rotation
+    rules:
+    - alert: userJourneyCertificateRotationFailure
+      expr: |
+        certificate:keyvault_certificate:lifetime_ratio > 0.65
+      for: 1h
+      labels:
+        severity: "3"
+      annotations:
+        summary: "{{ $labels.region }}/{{ $labels.key_vault }}: Certificate {{ $labels.certificate_name }} rotation is overdue"
+        description: "Certificate '{{ $labels.certificate_name }}' in Key Vault '{{ $labels.key_vault }}' ({{ $labels.region }}) exceeded the rotation safety threshold. Current lifetime: {{ $value | humanizePercentage }}. Safety threshold: 65%. Expected rotation: 50%."
+        runbook_url: TBD
+    - alert: userJourneyCertificateDisabled
+      expr: |
+        certificate:keyvault_certificate:enabled == 0
+      for: 1h
+      labels:
+        severity: "3"
+      annotations:
+        summary: "{{ $labels.region }}/{{ $labels.key_vault }}: Certificate {{ $labels.certificate_name }} is disabled"
+        description: "Certificate '{{ $labels.certificate_name }}' in Key Vault '{{ $labels.key_vault }}' ({{ $labels.region }}) has remained disabled for at least one hour."
+        runbook_url: TBD
+    - alert: userJourneyCertificateCollectionStale
+      expr: |
+        certificate:keyvault_certificate:collector_fresh == 0
+      for: 1h
+      labels:
+        severity: "3"
+      annotations:
+        summary: "{{ $labels.region }}/{{ $labels.key_vault }}: Certificate collection is stale"
+        description: "Certificate metadata collection for Key Vault '{{ $labels.key_vault }}' ({{ $labels.region }}) has not completed successfully within the last hour."
+        runbook_url: TBD
+    - alert: userJourneyCertificateExporterUnavailable
+      expr: |
+        max by (cluster, environment, region) (
+          kube_deployment_spec_replicas{
+            namespace="aro-hcp-exporter",
+            deployment="aro-hcp-exporter"
+          } > 0
+        )
+        unless on (cluster, environment, region)
+        max by (cluster, environment, region) (
+          up{
+            namespace="aro-hcp-exporter"
+          } == 1
+        )
+      for: 1h
+      labels:
+        severity: "3"
+      annotations:
+        summary: "Certificate exporter target is unavailable"
+        description: "The ARO HCP exporter has had no healthy Prometheus scrape target for at least one hour, so certificate collection health cannot be evaluated."
+        runbook_url: TBD
