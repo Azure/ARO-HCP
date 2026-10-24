@@ -1,0 +1,4 @@
+{
+	"database": "ServiceLogs",
+	"query": "datatable(internalId:string) [\n  '/api/aro_hcp/v1alpha1/clusters/abc-123',\n  '/api/aro_hcp/v1alpha1/clusters/abc-123/node_pools/pool1',\n  'not-a-cluster-path'\n] | project internalId, clusterId = GetClusterIdFromInternalId(internalId)"
+}

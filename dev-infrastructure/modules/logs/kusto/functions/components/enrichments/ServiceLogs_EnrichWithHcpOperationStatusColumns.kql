@@ -1,0 +1,30 @@
+// @owner: sre-team
+// @domain: Components/Enrichments
+// @params: T=piped cosmosResourceSnapshots-shaped rows for an hcpOperationStatuses resource
+// @returns: T plus every field the operation pages display (For ASI), flattened out of content.properties
+.create-or-alter function
+with (
+  docstring = 'For ASI: flattens every field the operation pages display out of an hcpOperationStatuses cosmos document (content.properties.*), so callers do not reach into that nested shape themselves. Use with the invoke operator. | Returns: all of T\'s columns plus the flattened fields; operationId is the full ARM operation resource ID, not a bare GUID, and operationName is derived from it, the trailing /hcpoperationstatuses/{id} segment | Example: cosmosResourceSnapshots | invoke FilterOperationsByOperationId(queryOperationId) | invoke EnrichWithHcpOperationStatusColumns()',
+  folder = 'Components\\Enrichments'
+)
+EnrichWithHcpOperationStatusColumns(T: (content: dynamic))
+{
+    T
+    | extend
+        operationId = tostring(content.properties.operationId),
+        request = tostring(content.properties.request),
+        status = tostring(content.properties.status),
+        startTime = todatetime(content.properties.startTime),
+        lastTransitionTime = todatetime(content.properties.lastTransitionTime),
+        clientRequestId = tostring(content.properties.clientRequestId),
+        correlationRequestId = tostring(content.properties.correlationRequestId),
+        externalId = tostring(content.properties.externalId),
+        internalId = tostring(content.properties.internalId),
+        instanceVersion = tolong(content.properties.cosmosMetadata.instanceVersion),
+        cosmosMetadataETag = tostring(content.properties.cosmosMetadata.etag),
+        errorCode = tostring(content.properties.error.code),
+        errorMessage = tostring(content.properties.error.message),
+        errorTarget = tostring(content.properties.error.target),
+        error = tostring(content.properties.error)
+    | extend operationName = extract(@'(?i)/hcpoperationstatuses/([^/]+)$', 1, operationId)
+}

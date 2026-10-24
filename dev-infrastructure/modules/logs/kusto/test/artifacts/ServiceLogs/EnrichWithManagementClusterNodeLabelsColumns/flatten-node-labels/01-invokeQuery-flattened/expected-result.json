@@ -1,0 +1,9 @@
+[
+	{
+		"instanceType": "Standard_D4s_v3",
+		"pool": "agentpool1",
+		"providerID": "azure:///subscriptions/64f0619f-ebc2-4156-9d91-c4c781de7e54/resourceGroups/mgmt-cluster-rg/providers/Microsoft.Compute/virtualMachineScaleSets/aks-agentpool1-vmss/virtualMachines/1",
+		"role": "workload",
+		"zone": "2"
+	}
+]

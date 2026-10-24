@@ -1,0 +1,10 @@
+[
+	{
+		"internalId": "/api/aro_hcp/v1alpha1/clusters/abc-123/node_pools/pool1",
+		"poolName": "pool1"
+	},
+	{
+		"internalId": "/api/aro_hcp/v1alpha1/clusters/abc-123",
+		"poolName": ""
+	}
+]

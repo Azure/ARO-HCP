@@ -1,0 +1,4 @@
+{
+	"database": "ServiceLogs",
+	"query": "datatable(objectKind:string, namespace:string, name:string, object:dynamic) [\n  'NodePool', 'ocm-no-label', '-', dynamic({'metadata':{'labels':{}}, 'spec':{'clusterName':''}})\n] | invoke FilterK8sNodePoolByPoolId('not-a-pool-path') | project name"
+}

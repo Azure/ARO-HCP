@@ -1,0 +1,4 @@
+{
+	"database": "ServiceLogs",
+	"query": "datatable(objectKind:string, namespace:string, name:string, object:dynamic) [\n  'HostedCluster', 'ocm-no-label', 'hc1', dynamic({'metadata':{'labels':{}}})\n] | invoke FilterK8sResourceByClusterServiceId('HostedCluster', 'not-a-cluster-path') | project name"
+}

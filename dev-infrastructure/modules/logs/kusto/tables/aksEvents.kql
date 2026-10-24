@@ -51,7 +51,7 @@ with (docstring = "Stores events from aks cluster")
 with (docstring = "Stores kube-audit events from aks cluster")
 
 .create-or-alter function 
-with (docstring = 'process aks events', skipvalidation = "true")
+with (docstring = 'process aks events')
 rawAksEventsTransform()  {
   rawAksEvents
   | mv-expand (records)
@@ -67,7 +67,7 @@ rawAksEventsTransform()  {
 }
 
 .create-or-alter function 
-with (docstring = 'process kube-audit events', skipvalidation = "true")
+with (docstring = 'process kube-audit events')
 rawAksEventsKubeAuditTransform()  {
   rawAksEventsTransform()
   | where tolower(category) == "kube-audit"

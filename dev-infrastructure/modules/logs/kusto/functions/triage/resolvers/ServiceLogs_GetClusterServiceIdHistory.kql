@@ -1,0 +1,26 @@
+// @owner: sre-team
+// @domain: Triage/Resolvers
+// @depends: GetClusterIdFromInternalId
+// @params: p_ResourceId=cluster's ARM resource ID (case-insensitive), p_StartTime=window start, p_EndTime=window end
+// @returns: single row with a cidSet dynamic array column (distinct Clusters Service internal IDs)
+.create-or-alter function
+with (
+  docstring = 'Resolves every Clusters Service internal ID (cid) this exact cluster ARM resource has ever been associated with during the window, covering both confirmed (clusterServiceID) and not-yet-confirmed (pendingClusterServiceID) IDs, and every incarnation if the cluster was recreated within the window. cidSet is sorted for deterministic output, since make_set()\'s own order is undefined. | Returns: single row with cidSet (sorted dynamic array of strings, possibly empty) | Example: let cids = toscalar(GetClusterServiceIdHistory("/subscriptions/.../hcpOpenShiftClusters/foo", ago(30d), now()) | project cidSet)',
+  folder = 'Triage\\Resolvers'
+)
+GetClusterServiceIdHistory(p_ResourceId: string, p_StartTime: datetime, p_EndTime: datetime)
+{
+    cosmosResourceSnapshots
+    | where timestamp between (p_StartTime .. p_EndTime)
+    | where cosmosContainer == 'resources'
+    | where resourceID =~ p_ResourceId
+    | extend ids = pack_array(
+        tostring(content.properties.serviceProviderProperties.clusterServiceID),
+        tostring(content.properties.serviceProviderProperties.pendingClusterServiceID))
+    | mv-expand id = ids to typeof(string)
+    | where isnotempty(id)
+    | extend cid = GetClusterIdFromInternalId(id)
+    | where isnotempty(cid)
+    | summarize cidSet = make_set(cid)
+    | extend cidSet = array_sort_asc(cidSet)
+}

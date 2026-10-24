@@ -1,0 +1,9 @@
+{
+	"args": [
+		"abc-123-def",
+		"datetime(2026-09-30T10:00:00Z)",
+		"datetime(2026-09-30T11:30:00Z)"
+	],
+	"database": "ServiceLogs",
+	"function": "GetARMResourceIDForClustersServiceID"
+}

@@ -1,0 +1,4 @@
+{
+	"database": "ServiceLogs",
+	"table": "cosmosResourceSnapshots"
+}

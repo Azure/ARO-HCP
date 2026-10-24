@@ -1,0 +1,266 @@
+[
+	{
+		"Description": "For ASI: renders condition episodes (via EnrichWithConditionHistory) into the column shape ASI dashboards expect, GroupBy/Content/Tooltip/Health alongside the raw Status/Reason/Message. Not intended for general TSG/SRE use outside ASI; use EnrichWithConditionHistory directly for the underlying episode facts without this rendering. Use with the invoke operator.",
+		"Example": "conditionSnapshots | invoke EnrichWithConditionEpisodes()",
+		"Folder": "ASI\\Enrichments",
+		"Name": "EnrichWithConditionEpisodes",
+		"Parameters": "(T:(timestamp:datetime,uid:string,name:string,event:string,conditions:dynamic,document:string))",
+		"Returns": "EnrichWithConditionHistory's episode facts reshaped into dashboard rendering columns; Health treats \"Progressing\"-like conditionTypes as inverted (True means still in progress, not healthy) and conditionTypes containing degraded/failing/failure/pressure/problem as inverted too (True means a problem), every other conditionType treats True as healthy"
+	},
+	{
+		"Description": "Reduces repeated per-capture Kubernetes condition observations into episodes: one row per (uid, conditionType) span where status/reason held steady, ending at a change, a Delete event, or the last observed capture. A Delete event always ends its episode at its own timestamp (endTime), even if it was the only capture or a later out-of-order capture exists. General-purpose: returns the observed status/reason/message/timestamp facts as-is, with no ASI-specific interpretation layered on top (no Health/Tooltip-style derived classification); see EnrichWithConditionEpisodes for that rendering. Assumes each entry in the piped conditions array has type/status/reason/message/lastTransitionTime fields (standard Kubernetes condition shape); callers whose conditions come from an ARM/Cosmos document must verify their condition objects actually use this field naming before relying on this function, since ARM resource condition shapes are not guaranteed to match Kubernetes condition conventions. Use with the invoke operator.",
+		"Example": "conditionSnapshots | invoke EnrichWithConditionHistory()",
+		"Folder": "Components\\Enrichments",
+		"Name": "EnrichWithConditionHistory",
+		"Parameters": "(T:(timestamp:datetime,uid:string,name:string,event:string,conditions:dynamic,document:string))",
+		"Returns": "one row per condition episode, with the observed status/reason/message/timestamp facts as-is; if two captures of the same episode share the exact same timestamp, which one's document/message/lastTransition is kept is an unresolvable tie (both are equally valid simultaneous observations), not something this function can make deterministic"
+	},
+	{
+		"Description": "For ASI: flattens the fields read off a ControlPlaneComponent object's spec/status, so callers do not reach into that nested shape themselves. Use with the invoke operator.",
+		"Example": "kubernetesResourceSnapshots | invoke FilterK8sResourceByIdentity(managementCluster, namespace, \"ControlPlaneComponent\", componentName) | invoke EnrichWithControlPlaneComponentColumns()",
+		"Folder": "Components\\Enrichments",
+		"Name": "EnrichWithControlPlaneComponentColumns",
+		"Parameters": "(T:(object:dynamic))",
+		"Returns": "all of T's columns plus the flattened fields"
+	},
+	{
+		"Description": "Flattens an ARM resource's condition array (content.properties.status[p_ConditionsPath]) out to a top-level conditions column, so callers never need to reach into the nested ARM document shape themselves, and so the field path itself becomes something this framework's tests pin, rather than an assumption left inline in every caller. Use with the invoke operator, typically piped into EnrichWithConditionHistory/EnrichWithConditionEpisodes afterward.",
+		"Example": "cosmosResourceSnapshots | invoke FilterCosmosResourceByIdentity(\"Microsoft.RedHatOpenShift/hcpOpenShiftClusters\", resourceId) | invoke EnrichWithCosmosConditionsColumn(\"userFacingConditions\")",
+		"Folder": "Components\\Enrichments",
+		"Name": "EnrichWithCosmosConditionsColumn",
+		"Parameters": "(T:(content:dynamic), p_ConditionsPath:string)",
+		"Returns": "all of T's columns plus conditions (dynamic array, possibly empty)"
+	},
+	{
+		"Description": "Flattens the standard Deployment replica-count fields (spec.replicas, status.availableReplicas, status.updatedReplicas, status.readyReplicas) off a Deployment object, so callers do not duplicate that field path in every query. Use with the invoke operator.",
+		"Example": "kubernetesResourceSnapshots | where objectKind == \"Deployment\" | invoke EnrichWithDeploymentReplicaColumns()",
+		"Folder": "Components\\Enrichments",
+		"Name": "EnrichWithDeploymentReplicaColumns",
+		"Parameters": "(T:(object:dynamic))",
+		"Returns": "all of T's columns plus the flattened replica-count fields"
+	},
+	{
+		"Description": "For ASI: flattens every field the HCP Cluster state page displays out of an hcpOpenShiftClusters cosmos document (content.properties.*), so callers never reach into the nested ARM document shape themselves, and so that shape is pinned by this function's own test rather than left as an untested assumption in every caller. Returns more columns than any one caller needs; that is fine. Use with the invoke operator.",
+		"Example": "cosmosResourceSnapshots | invoke FilterCosmosResourceByIdentity(\"Microsoft.RedHatOpenShift/hcpOpenShiftClusters\", resourceId) | invoke EnrichWithHcpClusterStateColumns()",
+		"Folder": "Components\\Enrichments",
+		"Name": "EnrichWithHcpClusterStateColumns",
+		"Parameters": "(T:(content:dynamic))",
+		"Returns": "all of T's columns plus every flattened field, including derived vnet/subnet/resource-group/subscription names parsed out of swiftSubnetId/nodeSubnetId/networkSecurityGroupId"
+	},
+	{
+		"Description": "For ASI: flattens every field the HCP External Auth state page displays out of an hcpOpenShiftClusters/externalAuths cosmos document (content.properties.properties.* for the ARM-resource-body fields, plus serviceProviderProperties), so callers never reach into that nested shape themselves. Returns more columns than any one caller needs; that is fine. Use with the invoke operator.",
+		"Example": "cosmosResourceSnapshots | invoke FilterCosmosResourceByIdentity(\"Microsoft.RedHatOpenShift/hcpOpenShiftClusters/externalAuths\", resourceId) | invoke EnrichWithHcpExternalAuthStateColumns()",
+		"Folder": "Components\\Enrichments",
+		"Name": "EnrichWithHcpExternalAuthStateColumns",
+		"Parameters": "(T:(content:dynamic))",
+		"Returns": "all of T's columns plus the flattened fields"
+	},
+	{
+		"Description": "For ASI: flattens every field the HCP Node Pool state page displays out of an hcpOpenShiftClusters/nodePools cosmos document (content.properties.properties.* for the ARM-resource-body fields, content.properties.{serviceProviderProperties,systemData,status,tags,type} for the rest), so callers never reach into that nested shape themselves. Returns more columns than any one caller needs; that is fine. Use with the invoke operator.",
+		"Example": "cosmosResourceSnapshots | invoke FilterCosmosResourceByIdentity(\"Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools\", resourceId) | invoke EnrichWithHcpNodePoolStateColumns()",
+		"Folder": "Components\\Enrichments",
+		"Name": "EnrichWithHcpNodePoolStateColumns",
+		"Parameters": "(T:(content:dynamic))",
+		"Returns": "all of T's columns plus every flattened field, including derived subnetName/subnetVnetName/subnetResourceGroup/subnetSubscriptionId parsed out of platform.subnetId"
+	},
+	{
+		"Description": "For ASI: flattens every field the operation pages display out of an hcpOperationStatuses cosmos document (content.properties.*), so callers do not reach into that nested shape themselves. Use with the invoke operator.",
+		"Example": "cosmosResourceSnapshots | invoke FilterOperationsByOperationId(queryOperationId) | invoke EnrichWithHcpOperationStatusColumns()",
+		"Folder": "Components\\Enrichments",
+		"Name": "EnrichWithHcpOperationStatusColumns",
+		"Parameters": "(T:(content:dynamic))",
+		"Returns": "all of T's columns plus the flattened fields; operationId is the full ARM operation resource ID, not a bare GUID, and operationName is derived from it, the trailing /hcpoperationstatuses/{id} segment"
+	},
+	{
+		"Description": "For ASI: HCP Management Cluster. Flattens the fields read off a HostedCluster object, so callers do not reach into object.metadata.labels themselves. Use with the invoke operator.",
+		"Example": "kubernetesResourceSnapshots | where objectKind == \"HostedCluster\" | invoke EnrichWithHostedClusterLabelsColumns()",
+		"Folder": "Components\\Enrichments",
+		"Name": "EnrichWithHostedClusterLabelsColumns",
+		"Parameters": "(T:(object:dynamic))",
+		"Returns": "all of T's columns plus clusterServiceId (from the api.openshift.com/id label), customerName (from the api.openshift.com/name label; the OCM-facing cluster name, not a Kubernetes identity), and version (the desired version from status)"
+	},
+	{
+		"Description": "For ASI: HCP Cluster. Flattens every field the details page displays out of a HostedCluster object (object.spec.* and object.status.*), so callers never reach into the nested HyperShift API shape themselves. Returns more columns than any one caller needs; that is fine. Use with the invoke operator.",
+		"Example": "kubernetesResourceSnapshots | invoke FilterK8sResourceByClusterServiceId(\"HostedCluster\", internalId) | invoke EnrichWithHostedClusterStateColumns()",
+		"Folder": "Components\\Enrichments",
+		"Name": "EnrichWithHostedClusterStateColumns",
+		"Parameters": "(T:(object:dynamic))",
+		"Returns": "all of T's columns plus every flattened field, including derived vnet/subnet/resource-group/subscription names parsed out of vnetID/subnetID/securityGroupID"
+	},
+	{
+		"Description": "For ASI: HCP Cluster. Flattens the fields the HostedControlPlane pages display out of a HostedControlPlane object's metadata/status. Use with the invoke operator.",
+		"Example": "kubernetesResourceSnapshots | invoke FilterK8sResourceByIdentity(managementCluster, controlPlaneNamespace, \"HostedControlPlane\", hostedClusterName) | invoke EnrichWithHostedControlPlaneColumns()",
+		"Folder": "Components\\Enrichments",
+		"Name": "EnrichWithHostedControlPlaneColumns",
+		"Parameters": "(T:(object:dynamic))",
+		"Returns": "all of T's columns plus the flattened fields; does not flatten apiVersion, since callers already have that column from their own query"
+	},
+	{
+		"Description": "For ASI: flattens the fields read off a Machine object's spec/status. Use with the invoke operator.",
+		"Example": "kubernetesResourceSnapshots | invoke FilterK8sResourceByUid(machineUid) | invoke EnrichWithMachineNodeInfoColumns()",
+		"Folder": "Components\\Enrichments",
+		"Name": "EnrichWithMachineNodeInfoColumns",
+		"Parameters": "(T:(object:dynamic))",
+		"Returns": "all of T's columns plus the flattened fields, including a derived Azure VM resourceId (and its subscription/resourceGroup/vmName components) parsed out of spec.providerID"
+	},
+	{
+		"Description": "For ASI: HCP Management Cluster. Flattens the fields read off a management-cluster Node object, so callers do not memorize these label keys themselves. Use with the invoke operator.",
+		"Example": "kubernetesResourceSnapshots | where objectKind == \"Node\" | invoke EnrichWithManagementClusterNodeLabelsColumns()",
+		"Folder": "Components\\Enrichments",
+		"Name": "EnrichWithManagementClusterNodeLabelsColumns",
+		"Parameters": "(T:(object:dynamic))",
+		"Returns": "all of T's columns plus pool (from the agentpool label), role (from aro-hcp.azure.com/role), zone (from topology.kubernetes.io/zone), instanceType (from node.kubernetes.io/instance-type), and providerID (from spec)"
+	},
+	{
+		"Description": "For ASI: flattens every field the Management Cluster state page displays out of a microsoft.redhatopenshift/stamps/managementclusters (fleet container) cosmos document. Use with the invoke operator.",
+		"Example": "cosmosResourceSnapshots | where cosmosContainer == \"fleet\" and resourceType =~ \"microsoft.redhatopenshift/stamps/managementclusters\" | invoke EnrichWithManagementClusterStateColumns()",
+		"Folder": "Components\\Enrichments",
+		"Name": "EnrichWithManagementClusterStateColumns",
+		"Parameters": "(T:(content:dynamic))",
+		"Returns": "all of T's columns plus the flattened fields, several renamed to shorter names than the source document uses (e.g. provisionShardID from status.clusterServiceProvisionShardID)"
+	},
+	{
+		"Description": "For ASI: HCP Management Cluster. Flattens the fields read off a MultiClusterEngine object's status, plus metadata.resourceVersion. Use with the invoke operator.",
+		"Example": "kubernetesResourceSnapshots | where objectKind == \"MultiClusterEngine\" | invoke EnrichWithMultiClusterEngineColumns()",
+		"Folder": "Components\\Enrichments",
+		"Name": "EnrichWithMultiClusterEngineColumns",
+		"Parameters": "(T:(object:dynamic))",
+		"Returns": "all of T's columns plus the flattened fields"
+	},
+	{
+		"Description": "For ASI: flattens the fields read off a microsoft.redhatopenshift/hcpopenshiftclusters/serviceProviderClusters cosmos document. This is the source of truth for where Clusters Service placed a given cluster (which management cluster resource ID, which hosted cluster namespace), needed to locate its actual k8s objects on the right management cluster. Use with the invoke operator.",
+		"Example": "cosmosResourceSnapshots | where resourceType =~ \"microsoft.redhatopenshift/hcpopenshiftclusters/serviceProviderClusters\" | invoke EnrichWithServiceProviderClusterPlacementColumns()",
+		"Folder": "Components\\Enrichments",
+		"Name": "EnrichWithServiceProviderClusterPlacementColumns",
+		"Parameters": "(T:(content:dynamic))",
+		"Returns": "all of T's columns plus the flattened fields"
+	},
+	{
+		"Description": "Filters piped log rows by minimum severity against a level column. DEBUG returns everything; ERROR/WARN/INFO are cumulative (WARN also returns ERROR, INFO also returns WARN+ERROR). The recognized level values (debug/info/warn/error) match exactly what ARO-HCP's own logging emits (Go's log/slog package has only Debug/Info/Warn/Error; there is no Warning or Fatal level anywhere in the codebase), so this does not accept or synonym-match any other spelling. Level comparison is case-insensitive, so it matches both upper (\"INFO\",\"WARN\",\"ERROR\") and lower-case (\"info\",\"warn\",\"error\") level values. An unrecognized p_LogLevel (anything other than DEBUG/WARN/ERROR, case-sensitive) falls back to INFO rather than hiding every row. Use with the invoke operator.",
+		"Example": "clustersServiceLogs | invoke FilterByLogLevel(\"WARN\")",
+		"Folder": "Components\\Filters",
+		"Name": "FilterByLogLevel",
+		"Parameters": "(T:(level:string), p_LogLevel:string)",
+		"Returns": "filtered rows with the same schema as the input"
+	},
+	{
+		"Description": "Filters piped cosmosResourceSnapshots rows (or any rows with resourceID/resourceType/cosmosContainer columns) down to the resources-container snapshots for one ARM resource. Hardcoded to cosmosContainer == \"resources\" (the ARM resource's own current-state document) rather than taking it as a parameter, since other cosmos containers (e.g. hcpOperationStatuses, fleet) can carry a matching resourceID/resourceType by coincidence but are a different kind of document entirely. Use with the invoke operator.",
+		"Example": "cosmosResourceSnapshots | invoke FilterCosmosResourceByIdentity(\"Microsoft.RedHatOpenShift/hcpOpenShiftClusters\", \"/subscriptions/.../hcpOpenShiftClusters/foo\")",
+		"Folder": "Components\\Filters",
+		"Name": "FilterCosmosResourceByIdentity",
+		"Parameters": "(T:(resourceID:string,resourceType:string,cosmosContainer:string), p_ResourceType:string, p_ResourceId:string)",
+		"Returns": "filtered rows with the same schema as the input"
+	},
+	{
+		"Description": "Filters piped kubernetesEvents rows down to events for one or more object UIDs within a namespace and kind. Pass a single-element array (e.g. pack_array(uid)) for the common case of one object, or a multi-element array when events must be correlated across several related UIDs (e.g. a Machine and its owned AzureMachine). Use with the invoke operator.",
+		"Example": "kubernetesEvents | invoke FilterK8sEventsByUid(\"ocm-abc123\", \"Machine\", pack_array(\"05c4e153-c0e0-467d-a24f-d474dd7162df\"))",
+		"Folder": "Components\\Filters",
+		"Name": "FilterK8sEventsByUid",
+		"Parameters": "(T:(eventNamespace:string,objectKind:string,objectUID:string), p_Namespace:string, p_ObjectKind:string, p_ObjectUids:dynamic)",
+		"Returns": "filtered rows with the same schema as the input"
+	},
+	{
+		"Description": "Resolves the Machine or AzureMachine objects belonging to a given node pool: collapses repeated captures to the latest per uid, then confirms ownership via the hypershift.openshift.io/nodePool annotation against the pool's own namespace/name (resolved via FilterK8sNodePoolByPoolId against the same piped stream), matching how HyperShift itself reads that annotation: the full \"<namespace>/<name>\" value, compared exactly, not by suffix. A pool whose own NodePool object was not captured in T's time range cannot be resolved this way and yields no matches, rather than falling back to a less precise comparison. Use with the invoke operator.",
+		"Example": "kubernetesResourceSnapshots | invoke FilterK8sMachinesByNodePool(\"AzureMachine\", \"/api/aro_hcp/v1alpha1/clusters/abc123/node_pools/mypool\")",
+		"Folder": "Components\\Filters",
+		"Name": "FilterK8sMachinesByNodePool",
+		"Parameters": "(T:(objectKind:string,namespace:string,name:string,uid:string,cluster:string,event:string,timestamp:datetime,object:dynamic), p_Kind:string, p_PoolId:string)",
+		"Returns": "one row per object uid with name, namespace, cluster, event, object, and the original timestamp as the latest-capture time"
+	},
+	{
+		"Description": "Filters piped kubernetesResourceSnapshots rows down to the single NodePool object identified by a Clusters Service internal node pool ID: scoped to the right cluster via the api.openshift.com/id label, then disambiguated to the specific pool by its full generated name, which Clusters Service always constructs as \"<object.spec.clusterName>-<poolName>\", compared exactly, not by suffix, since two sibling pools in the same cluster can otherwise share a \"-<poolName>\" suffix (e.g. pool1 and other-pool1). If p_PoolId does not resolve to both a cluster ID and a pool name, matches no rows rather than falling back to a less precise comparison. Use with the invoke operator.",
+		"Example": "kubernetesResourceSnapshots | invoke FilterK8sNodePoolByPoolId(\"/api/aro_hcp/v1alpha1/clusters/abc-123/node_pools/pool1\")",
+		"Folder": "Components\\Filters",
+		"Name": "FilterK8sNodePoolByPoolId",
+		"Parameters": "(T:(objectKind:string,name:string,object:dynamic), p_PoolId:string)",
+		"Returns": "filtered rows with the same schema as the input"
+	},
+	{
+		"Description": "Filters piped kubernetesResourceSnapshots rows down to objects of a given kind carrying a given Clusters Service cluster ID in their api.openshift.com/id label. Kind-agnostic: the label alone is authoritative for cluster membership, so this works identically for HostedCluster, NodePool, or any other kind that carries it (same approach as FilterK8sResourceByClusterServiceIdSet). Does not disambiguate further within a cluster: it does not narrow NodePool down to one specific pool, since a cluster can have several; use FilterK8sNodePoolByPoolId for that. If p_InternalId does not contain a resolvable cluster ID, matches no rows rather than falling back to a less precise comparison. Use with the invoke operator.",
+		"Example": "kubernetesResourceSnapshots | invoke FilterK8sResourceByClusterServiceId(\"HostedCluster\", \"/api/clusters_mgmt/v1/clusters/abc-123\")",
+		"Folder": "Components\\Filters",
+		"Name": "FilterK8sResourceByClusterServiceId",
+		"Parameters": "(T:(objectKind:string,object:dynamic), p_Kind:string, p_InternalId:string)",
+		"Returns": "filtered rows with the same schema as the input"
+	},
+	{
+		"Description": "Filters piped kubernetesResourceSnapshots rows down to objects of a given kind whose api.openshift.com/id label value is a member of a caller-supplied set of Clusters Service internal IDs (e.g. from GetClusterServiceIdHistory). Surfaces the matched label value as a new \"cid\" column so callers do not need to read the label a second time. Use with the invoke operator.",
+		"Example": "kubernetesResourceSnapshots | invoke FilterK8sResourceByClusterServiceIdSet(\"ManifestWork\", dynamic([\"abc-123\",\"xyz-999\"]))",
+		"Folder": "Components\\Filters",
+		"Name": "FilterK8sResourceByClusterServiceIdSet",
+		"Parameters": "(T:(objectKind:string,object:dynamic), p_Kind:string, p_CidSet:dynamic)",
+		"Returns": "filtered rows with the same schema as the input, plus a cid column"
+	},
+	{
+		"Description": "Filters piped kubernetesResourceSnapshots rows (or any rows with cluster/namespace/objectKind/name columns) down to one Kubernetes object, identified by management cluster, namespace, kind, and name. Use with the invoke operator.",
+		"Example": "kubernetesResourceSnapshots | invoke FilterK8sResourceByIdentity(\"mgmt-cluster-01\", \"ocm-abc123\", \"ControlPlaneComponent\", \"kube-apiserver\")",
+		"Folder": "Components\\Filters",
+		"Name": "FilterK8sResourceByIdentity",
+		"Parameters": "(T:(cluster:string,namespace:string,objectKind:string,name:string), p_Cluster:string, p_Namespace:string, p_ObjectKind:string, p_Name:string)",
+		"Returns": "filtered rows with the same schema as the input"
+	},
+	{
+		"Description": "Filters piped kubernetesResourceSnapshots-shaped rows down to one Kubernetes object UID. For kubernetesEvents, whose UID column is objectUID (not uid), use FilterK8sEventsByUid instead. Use with the invoke operator.",
+		"Example": "kubernetesResourceSnapshots | invoke FilterK8sResourceByUid(\"05c4e153-c0e0-467d-a24f-d474dd7162df\")",
+		"Folder": "Components\\Filters",
+		"Name": "FilterK8sResourceByUid",
+		"Parameters": "(T:(uid:string), p_Uid:string)",
+		"Returns": "filtered rows with the same schema as the input"
+	},
+	{
+		"Description": "Filters piped cosmosResourceSnapshots rows down to hcpOperationStatuses documents acting on a given ARM resource, matched via an exact, opaque comparison of content.properties.externalId to p_ExternalId; the subscriptionID partition pre-filter is a pure performance optimization (the subscription is already embedded in p_ExternalId, so it cannot change which rows match, only how many are scanned before the exact match runs). An ARM resource can have many recorded operation attempts over its lifetime, so this does not reduce to one. Use with the invoke operator.",
+		"Example": "cosmosResourceSnapshots | invoke FilterOperationsByExternalId(\"/subscriptions/.../hcpOpenShiftClusters/foo\")",
+		"Folder": "Components\\Filters",
+		"Name": "FilterOperationsByExternalId",
+		"Parameters": "(T:(cosmosContainer:string,resourceType:string,subscriptionID:string,content:dynamic), p_ExternalId:string)",
+		"Returns": "filtered rows with the same schema as the input"
+	},
+	{
+		"Description": "Filters piped cosmosResourceSnapshots rows down to the hcpOperationStatuses document(s) for one operation, matched via content.properties.operationId (stored as the full ARM operation resource ID, not a bare GUID). Use with the invoke operator.",
+		"Example": "cosmosResourceSnapshots | invoke FilterOperationsByOperationId(queryOperationId)",
+		"Folder": "Components\\Filters",
+		"Name": "FilterOperationsByOperationId",
+		"Parameters": "(T:(cosmosContainer:string,resourceType:string,content:dynamic), p_OperationId:string)",
+		"Returns": "filtered rows with the same schema as the input"
+	},
+	{
+		"Description": "Gets the ARM resource ID for a Clusters Service internal ID.",
+		"Example": "let rid = toscalar(GetARMResourceIDForClustersServiceID(\"abc123\", ago(7d), now()))",
+		"Folder": "Triage\\Resolvers",
+		"Name": "GetARMResourceIDForClustersServiceID",
+		"Parameters": "(p_ClustersServiceId:string, p_StartTime:datetime, p_EndTime:datetime)",
+		"Returns": "single row with arm_resource_id (ARM format)"
+	},
+	{
+		"Description": "Extracts the bare Clusters Service internal cluster ID out of a full internal ID path: the path segment immediately following \"clusters/\". Both \"/api/aro_hcp/v1alpha1/clusters/abc-123\" and \"/api/aro_hcp/v1alpha1/clusters/abc-123/node_pools/pool1\" yield \"abc-123\". This is the only place in this library that parses this path shape; no other function should duplicate this regex. Returns \"\" if p_InternalId does not contain a \"clusters/\" segment; callers MUST guard with isnotempty() before using the result in an equality comparison; otherwise an empty result could spuriously match an unrelated object whose own identity field is also empty (e.g. missing a label).",
+		"Example": "GetClusterIdFromInternalId(\"/api/aro_hcp/v1alpha1/clusters/abc-123\") == \"abc-123\"",
+		"Folder": "Triage\\Resolvers",
+		"Name": "GetClusterIdFromInternalId",
+		"Parameters": "(p_InternalId:string)",
+		"Returns": "the bare cluster ID string, or \"\" if not found"
+	},
+	{
+		"Description": "Resolves every Clusters Service internal ID (cid) this exact cluster ARM resource has ever been associated with during the window, covering both confirmed (clusterServiceID) and not-yet-confirmed (pendingClusterServiceID) IDs, and every incarnation if the cluster was recreated within the window. cidSet is sorted for deterministic output, since make_set()'s own order is undefined.",
+		"Example": "let cids = toscalar(GetClusterServiceIdHistory(\"/subscriptions/.../hcpOpenShiftClusters/foo\", ago(30d), now()) | project cidSet)",
+		"Folder": "Triage\\Resolvers",
+		"Name": "GetClusterServiceIdHistory",
+		"Parameters": "(p_ResourceId:string, p_StartTime:datetime, p_EndTime:datetime)",
+		"Returns": "single row with cidSet (sorted dynamic array of strings, possibly empty)"
+	},
+	{
+		"Description": "Gets the Clusters Service internal ID for an ARM resource ID.",
+		"Example": "let csid = toscalar(GetClustersServiceIDForARMResourceID(\"/subscriptions/.../hcpOpenShiftClusters/foo\", ago(7d), now()))",
+		"Folder": "Triage\\Resolvers",
+		"Name": "GetClustersServiceIDForARMResourceID",
+		"Parameters": "(p_ResourceId:string, p_StartTime:datetime, p_EndTime:datetime)",
+		"Returns": "single row with clusters_service_id (internal format)"
+	},
+	{
+		"Description": "Extracts the bare node pool name out of a full internal node pool ID path: the path segment immediately following \"node_pools/\". \"/api/aro_hcp/v1alpha1/clusters/abc-123/node_pools/pool1\" yields \"pool1\". This is the only place in this library that parses this path shape; no other function should duplicate this regex. Returns \"\" if p_InternalId does not contain a \"node_pools/\" segment; callers MUST guard with isnotempty() before using the result, for the same reason as GetClusterIdFromInternalId.",
+		"Example": "GetNodePoolNameFromInternalId(\"/api/aro_hcp/v1alpha1/clusters/abc-123/node_pools/pool1\") == \"pool1\"",
+		"Folder": "Triage\\Resolvers",
+		"Name": "GetNodePoolNameFromInternalId",
+		"Parameters": "(p_InternalId:string)",
+		"Returns": "the bare pool name string, or \"\" if not found"
+	}
+]

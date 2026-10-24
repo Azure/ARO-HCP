@@ -1,0 +1,24 @@
+// @owner: sre-team
+// @domain: Components/Enrichments
+// @params: T=piped cosmosResourceSnapshots-shaped rows for an hcpOpenShiftClusters/externalAuths resource
+// @returns: T plus every field the HCP External Auth state page displays (For ASI), flattened out of content.properties.properties
+.create-or-alter function
+with (
+  docstring = 'For ASI: flattens every field the HCP External Auth state page displays out of an hcpOpenShiftClusters/externalAuths cosmos document (content.properties.properties.* for the ARM-resource-body fields, plus serviceProviderProperties), so callers never reach into that nested shape themselves. Returns more columns than any one caller needs; that is fine. Use with the invoke operator. | Returns: all of T\'s columns plus the flattened fields | Example: cosmosResourceSnapshots | invoke FilterCosmosResourceByIdentity("Microsoft.RedHatOpenShift/hcpOpenShiftClusters/externalAuths", resourceId) | invoke EnrichWithHcpExternalAuthStateColumns()',
+  folder = 'Components\\Enrichments'
+)
+EnrichWithHcpExternalAuthStateColumns(T: (content: dynamic))
+{
+    T
+    | extend d = content.properties
+    | extend
+        provisioningState = tostring(d.properties.provisioningState),
+        issuerUrl = tostring(d.properties.issuer.url),
+        clients = d.properties.clients,
+        claim = d.properties.claim,
+        clusterServiceId = tostring(d.serviceProviderProperties.clusterServiceID),
+        activeOperationId = tostring(d.serviceProviderProperties.activeOperationId),
+        deletionTimestamp = todatetime(d.serviceProviderProperties.deletionTimestamp),
+        clusterServiceDeletionTimestamp = todatetime(d.serviceProviderProperties.clusterServiceDeletionTimestamp)
+    | project-away d
+}

@@ -1,0 +1,4 @@
+{
+	"database": "ServiceLogs",
+	"query": "cosmosResourceSnapshots | invoke FilterOperationsByOperationId('/subscriptions/00000000-0000-0000-0000-000000000001/providers/Microsoft.RedHatOpenShift/locations/eastus/hcpOperationStatuses/op-1') | project resourceID"
+}

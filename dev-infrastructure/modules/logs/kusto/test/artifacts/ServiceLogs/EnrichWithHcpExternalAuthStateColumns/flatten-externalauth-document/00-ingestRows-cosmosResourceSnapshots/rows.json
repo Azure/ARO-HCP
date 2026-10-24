@@ -1,0 +1,72 @@
+[
+	{
+		"cluster": "svc-cluster-01",
+		"cluster_id": "",
+		"content": {
+			"properties": {
+				"properties": {
+					"claim": {
+						"mappings": {
+							"groups": {
+								"claim": "groups",
+								"prefix": ""
+							},
+							"username": {
+								"claim": "sub",
+								"prefix": "",
+								"prefixPolicy": "None"
+							}
+						},
+						"validationRules": []
+					},
+					"clients": [
+						{
+							"clientId": "e3e39d45-07d5-40e7-af15-7e455814a729",
+							"component": {
+								"authClientNamespace": "openshift-console",
+								"name": "console"
+							},
+							"extraScopes": [],
+							"type": "Confidential"
+						},
+						{
+							"clientId": "e3e39d45-07d5-40e7-af15-7e455814a729",
+							"component": {
+								"authClientNamespace": "openshift-console",
+								"name": "cli"
+							},
+							"extraScopes": [],
+							"type": "Public"
+						}
+					],
+					"issuer": {
+						"audiences": [
+							"e3e39d45-07d5-40e7-af15-7e455814a729"
+						],
+						"ca": "",
+						"url": "https://login.microsoftonline.com/64dc69e4-d083-49fc-9569-ebece1dd1408/v2.0"
+					},
+					"provisioningState": "Deleting"
+				},
+				"serviceProviderProperties": {
+					"activeOperationId": "d9008ec2-b1d3-49a3-8d5b-78697ed482b5",
+					"clusterServiceDeletionTimestamp": "2026-10-20T13:44:15.0000000Z",
+					"clusterServiceID": "/api/aro_hcp/v1alpha1/clusters/abc123/external_auths/external-auth",
+					"deletionTimestamp": "2026-10-20T13:44:14.0000000Z",
+					"usesNewExternalAuthDeletionApproach": true
+				}
+			},
+			"resourceID": "/subscriptions/64f0619f-ebc2-4156-9d91-c4c781de7e54/resourceGroups/external-auth-cluster-fxfb8hwlc5lc/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/ea-cluster/externalAuths/external-auth",
+			"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/externalAuths"
+		},
+		"cosmosContainer": "resources",
+		"environment": "dev",
+		"region": "westus3",
+		"resourceGroup": "external-auth-cluster-fxfb8hwlc5lc",
+		"resourceID": "/subscriptions/64f0619f-ebc2-4156-9d91-c4c781de7e54/resourceGroups/external-auth-cluster-fxfb8hwlc5lc/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/ea-cluster/externalAuths/external-auth",
+		"resourceName": "external-auth",
+		"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/externalAuths",
+		"subscriptionID": "64f0619f-ebc2-4156-9d91-c4c781de7e54",
+		"timestamp": "2026-10-20T14:00:00Z"
+	}
+]

@@ -1,0 +1,4 @@
+{
+	"database": "ServiceLogs",
+	"query": "kubernetesResourceSnapshots | invoke FilterK8sResourceByUid('target-uid') | project name"
+}

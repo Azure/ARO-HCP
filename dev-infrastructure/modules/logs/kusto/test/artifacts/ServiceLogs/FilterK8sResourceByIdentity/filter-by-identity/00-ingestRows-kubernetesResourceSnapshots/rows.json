@@ -1,0 +1,67 @@
+[
+	{
+		"apiVersion": "hypershift.openshift.io/v1beta1",
+		"cluster": "mgmt-cluster-01",
+		"environment": "prod",
+		"event": "Update",
+		"name": "kube-apiserver",
+		"namespace": "ocm-abc123",
+		"object": {},
+		"objectKind": "ControlPlaneComponent",
+		"region": "uksouth",
+		"timestamp": "2026-09-30T12:00:00Z",
+		"uid": "uid-1"
+	},
+	{
+		"apiVersion": "hypershift.openshift.io/v1beta1",
+		"cluster": "mgmt-cluster-01",
+		"environment": "prod",
+		"event": "Update",
+		"name": "etcd",
+		"namespace": "ocm-abc123",
+		"object": {},
+		"objectKind": "ControlPlaneComponent",
+		"region": "uksouth",
+		"timestamp": "2026-09-30T12:01:00Z",
+		"uid": "uid-2"
+	},
+	{
+		"apiVersion": "v1",
+		"cluster": "mgmt-cluster-01",
+		"environment": "prod",
+		"event": "Update",
+		"name": "kube-apiserver",
+		"namespace": "ocm-abc123",
+		"object": {},
+		"objectKind": "Pod",
+		"region": "uksouth",
+		"timestamp": "2026-09-30T12:02:00Z",
+		"uid": "uid-3"
+	},
+	{
+		"apiVersion": "hypershift.openshift.io/v1beta1",
+		"cluster": "mgmt-cluster-02",
+		"environment": "prod",
+		"event": "Update",
+		"name": "kube-apiserver",
+		"namespace": "ocm-abc123",
+		"object": {},
+		"objectKind": "ControlPlaneComponent",
+		"region": "uksouth",
+		"timestamp": "2026-09-30T12:03:00Z",
+		"uid": "uid-4"
+	},
+	{
+		"apiVersion": "hypershift.openshift.io/v1beta1",
+		"cluster": "mgmt-cluster-01",
+		"environment": "prod",
+		"event": "Update",
+		"name": "kube-apiserver",
+		"namespace": "ocm-def456",
+		"object": {},
+		"objectKind": "ControlPlaneComponent",
+		"region": "uksouth",
+		"timestamp": "2026-09-30T12:04:00Z",
+		"uid": "uid-5"
+	}
+]

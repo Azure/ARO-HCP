@@ -1,0 +1,4 @@
+{
+	"database": "ServiceLogs",
+	"query": "datatable(eventNamespace:string, objectKind:string, objectUID:string, objectName:string) [\n  'ocm-abc123', 'Machine', 'uid-1', 'machine-a',\n  'ocm-abc123', 'Machine', 'uid-2', 'machine-b',\n  'ocm-abc123', 'AzureMachine', 'uid-1', 'azuremachine-a',\n  'ocm-def456', 'Machine', 'uid-1', 'machine-other-namespace'\n] | invoke FilterK8sEventsByUid('ocm-abc123', 'Machine', pack_array('uid-1')) | project objectName"
+}

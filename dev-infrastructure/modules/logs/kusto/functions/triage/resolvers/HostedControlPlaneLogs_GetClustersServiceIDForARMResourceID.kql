@@ -1,0 +1,21 @@
+// @owner: sre-team
+// @domain: Triage/HCP
+// @params: p_ResourceId=ARM resource ID, p_StartTime=window start, p_EndTime=window end
+// @returns: single row with clusters_service_id string column
+.create-or-alter function
+with (
+  docstring = 'Gets the Clusters Service internal ID for an ARM resource ID. | Returns: single row with clusters_service_id (internal format) | Example: let csid = toscalar(GetClustersServiceIDForARMResourceID("/subscriptions/.../hcpOpenShiftClusters/foo", ago(1h), now()))',
+  folder = 'Triage\\HCP'
+)
+GetClustersServiceIDForARMResourceID(p_ResourceId: string, p_StartTime: datetime, p_EndTime: datetime)
+{
+    containerLogs
+    | where timestamp between (p_StartTime .. p_EndTime)
+    | where cluster_id =~ p_ResourceId
+    | where namespace_name startswith "ocm-"
+    | summarize by namespace_name
+    | extend clusters_service_id = extract(@"^ocm-[^-]+-([^-]+)", 1, namespace_name)
+    | where isnotempty(clusters_service_id)
+    | project clusters_service_id
+    | take 1
+}

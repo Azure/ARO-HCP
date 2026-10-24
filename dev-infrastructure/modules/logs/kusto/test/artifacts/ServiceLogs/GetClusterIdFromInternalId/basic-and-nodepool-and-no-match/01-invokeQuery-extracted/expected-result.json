@@ -1,0 +1,14 @@
+[
+	{
+		"clusterId": "abc-123",
+		"internalId": "/api/aro_hcp/v1alpha1/clusters/abc-123"
+	},
+	{
+		"clusterId": "abc-123",
+		"internalId": "/api/aro_hcp/v1alpha1/clusters/abc-123/node_pools/pool1"
+	},
+	{
+		"clusterId": "",
+		"internalId": "not-a-cluster-path"
+	}
+]

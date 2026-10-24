@@ -1,0 +1,20 @@
+[
+	{
+		"clientRequestId": "client-req-001",
+		"correlationRequestId": "corr-req-001",
+		"cosmosMetadataETag": "\"0000a1b2-0000-0000-0000-000000000000\"",
+		"error": "{\"code\":\"\",\"message\":\"\",\"target\":\"\"}",
+		"errorCode": "",
+		"errorMessage": "",
+		"errorTarget": "",
+		"externalId": "/subscriptions/f495d360-35bc-492e-a7d0-5859b28d05c2/providers/Microsoft.RedHatOpenShift/locations/westus3/operationresults/op-abc-123",
+		"instanceVersion": 7,
+		"internalId": "op-abc-123",
+		"lastTransitionTime": "2026-09-04T20:03:18Z",
+		"operationId": "/subscriptions/f495d360-35bc-492e-a7d0-5859b28d05c2/resourceGroups/rawo-bami-billing-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/rawo-bami/hcpoperationstatuses/op-abc-123",
+		"operationName": "op-abc-123",
+		"request": "PUT",
+		"startTime": "2026-09-04T19:03:18.5006423Z",
+		"status": "Succeeded"
+	}
+]

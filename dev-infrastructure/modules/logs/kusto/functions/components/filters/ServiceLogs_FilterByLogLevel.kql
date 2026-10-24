@@ -1,0 +1,17 @@
+// @owner: sre-team
+// @domain: Components/Filters
+// @params: T=piped rows with a 'level' string column, p_LogLevel=one of 'DEBUG'|'WARN'|'ERROR'|'INFO' (empty/anything else treated as 'INFO')
+// @returns: T filtered to the rows matching or more severe than p_LogLevel
+.create-or-alter function
+with (
+  docstring = 'Filters piped log rows by minimum severity against a level column. DEBUG returns everything; ERROR/WARN/INFO are cumulative (WARN also returns ERROR, INFO also returns WARN+ERROR). The recognized level values (debug/info/warn/error) match exactly what ARO-HCP\'s own logging emits (Go\'s log/slog package has only Debug/Info/Warn/Error; there is no Warning or Fatal level anywhere in the codebase), so this does not accept or synonym-match any other spelling. Level comparison is case-insensitive, so it matches both upper ("INFO","WARN","ERROR") and lower-case ("info","warn","error") level values. An unrecognized p_LogLevel (anything other than DEBUG/WARN/ERROR, case-sensitive) falls back to INFO rather than hiding every row. Use with the invoke operator. | Returns: filtered rows with the same schema as the input | Example: clustersServiceLogs | invoke FilterByLogLevel("WARN")',
+  folder = 'Components\\Filters'
+)
+FilterByLogLevel(T: (level: string), p_LogLevel: string)
+{
+    T
+    | where p_LogLevel == 'DEBUG'
+        or (p_LogLevel == 'ERROR' and level in~ ('error'))
+        or (p_LogLevel == 'WARN' and level in~ ('warn', 'error'))
+        or (p_LogLevel !in ('DEBUG', 'ERROR', 'WARN') and level in~ ('info', 'warn', 'error'))
+}

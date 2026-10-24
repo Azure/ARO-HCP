@@ -1,0 +1,37 @@
+[
+	{
+		"apiVersion": "hypershift.openshift.io/v1beta1",
+		"cluster": "mgmt-cluster-01",
+		"environment": "int",
+		"event": "Update",
+		"name": "kube-apiserver",
+		"namespace": "ocm-arohcpint-2tikv12vvsgnpsj8ipfds4ugoscfesf4-h8l0s7l6t0j9u6m",
+		"object": {
+			"apiVersion": "hypershift.openshift.io/v1beta1",
+			"metadata": {
+				"generation": 2,
+				"resourceVersion": "123456"
+			},
+			"status": {
+				"conditions": [
+					{
+						"status": "True",
+						"type": "Available"
+					}
+				],
+				"observedGeneration": 2,
+				"resources": [
+					{
+						"kind": "Deployment",
+						"name": "kube-apiserver"
+					}
+				],
+				"version": "4.20.1"
+			}
+		},
+		"objectKind": "ControlPlaneComponent",
+		"region": "westus3",
+		"timestamp": "2026-10-20T17:08:51Z",
+		"uid": "3f2a1b4c-9876-5432-10fe-dcba98765432"
+	}
+]

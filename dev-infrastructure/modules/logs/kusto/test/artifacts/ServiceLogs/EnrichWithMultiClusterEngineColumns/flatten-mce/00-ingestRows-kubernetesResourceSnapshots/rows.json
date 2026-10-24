@@ -1,0 +1,24 @@
+[
+	{
+		"apiVersion": "multicluster.openshift.io/v1",
+		"cluster": "mgmt-cluster-01",
+		"environment": "int",
+		"event": "Update",
+		"name": "multiclusterengine",
+		"namespace": "",
+		"object": {
+			"metadata": {
+				"resourceVersion": "987654"
+			},
+			"status": {
+				"currentVersion": "2.9.0",
+				"desiredVersion": "2.9.0",
+				"phase": "Available"
+			}
+		},
+		"objectKind": "MultiClusterEngine",
+		"region": "westus3",
+		"timestamp": "2026-10-20T17:08:51Z",
+		"uid": "8c7b6a5d-4321-fedc-ba09-876543210fed"
+	}
+]

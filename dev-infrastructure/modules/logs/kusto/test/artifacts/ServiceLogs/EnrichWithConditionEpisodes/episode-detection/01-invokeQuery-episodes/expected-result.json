@@ -1,0 +1,30 @@
+[
+	{
+		"GroupBy": "Available",
+		"Reason": "AsExpected",
+		"StartTime": "2026-09-30T12:00:00Z",
+		"Status": "True",
+		"Uid": "pod-1"
+	},
+	{
+		"GroupBy": "Available",
+		"Reason": "CrashLoopBackOff",
+		"StartTime": "2026-09-30T12:01:00Z",
+		"Status": "False",
+		"Uid": "pod-1"
+	},
+	{
+		"GroupBy": "Available",
+		"Reason": "AsExpected",
+		"StartTime": "2026-09-30T12:02:00Z",
+		"Status": "True",
+		"Uid": "pod-1"
+	},
+	{
+		"GroupBy": "Available",
+		"Reason": "AsExpected",
+		"StartTime": "2026-09-30T12:00:30Z",
+		"Status": "True",
+		"Uid": "pod-2"
+	}
+]

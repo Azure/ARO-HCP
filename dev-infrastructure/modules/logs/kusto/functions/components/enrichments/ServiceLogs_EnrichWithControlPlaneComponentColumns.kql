@@ -1,0 +1,21 @@
+// @owner: sre-team
+// @domain: Components/Enrichments
+// @params: T=piped kubernetesResourceSnapshots-shaped rows for a ControlPlaneComponent object
+// @returns: T plus apiVersion/generation/resourceVersion/version/observedGeneration/resources/conditions flattened out of the object
+.create-or-alter function
+with (
+  docstring = 'For ASI: flattens the fields read off a ControlPlaneComponent object\'s spec/status, so callers do not reach into that nested shape themselves. Use with the invoke operator. | Returns: all of T\'s columns plus the flattened fields | Example: kubernetesResourceSnapshots | invoke FilterK8sResourceByIdentity(managementCluster, namespace, "ControlPlaneComponent", componentName) | invoke EnrichWithControlPlaneComponentColumns()',
+  folder = 'Components\\Enrichments'
+)
+EnrichWithControlPlaneComponentColumns(T: (object: dynamic))
+{
+    T
+    | extend
+        apiVersion = tostring(object.apiVersion),
+        generation = toint(object.metadata.generation),
+        resourceVersion = tostring(object.metadata.resourceVersion),
+        version = tostring(object.status.version),
+        observedGeneration = toint(object.status.observedGeneration),
+        resources = object.status.resources,
+        conditions = object.status.conditions
+}

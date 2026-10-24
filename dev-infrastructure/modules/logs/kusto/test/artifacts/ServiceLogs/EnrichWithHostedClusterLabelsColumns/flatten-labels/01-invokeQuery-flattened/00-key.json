@@ -1,0 +1,4 @@
+{
+	"database": "ServiceLogs",
+	"query": "kubernetesResourceSnapshots | invoke EnrichWithHostedClusterLabelsColumns() | project clusterServiceId, customerName, version"
+}

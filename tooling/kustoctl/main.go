@@ -27,6 +27,7 @@ import (
 
 	"github.com/Azure/ARO-Tools/tools/kustoctl/cmd/entitygroups"
 
+	"github.com/Azure/ARO-HCP/tooling/kustoctl/cmd/generate"
 	"github.com/Azure/ARO-HCP/tooling/kustoctl/cmd/validate"
 )
 
@@ -72,6 +73,13 @@ Kusto-related operational tasks.`,
 		os.Exit(1)
 	}
 	cmd.AddCommand(entityGroupsCmd)
+
+	generateCmd, err := generate.NewGenerateCommand()
+	if err != nil {
+		logger.Error(err, "failed to create generate command")
+		os.Exit(1)
+	}
+	cmd.AddCommand(generateCmd)
 
 	cmd.SetHelpCommand(&cobra.Command{Hidden: true})
 

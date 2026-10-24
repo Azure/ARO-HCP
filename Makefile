@@ -43,6 +43,17 @@ test-unit: envtest-setup test-infrastructure
 		go list -f '{{.Dir}}/...' -m | xargs go test -timeout 1200s -cover
 .PHONY: test-unit
 
+test-integration: test-integration-rp test-integration-kusto
+.PHONY: test-integration
+
+test-integration-rp:
+	$(MAKE) -C test-integration test
+.PHONY: test-integration-rp
+
+test-integration-kusto:
+	$(MAKE) -C dev-infrastructure/modules/logs/kusto/test test
+.PHONY: test-integration-kusto
+
 # envtest-setup downloads the kubebuilder envtest binaries (etcd +
 # kube-apiserver) into $(ENVTEST_BIN_DIR) and prints their path on stdout.
 # The kube-applier integration tests under test-integration/kube-applier/
@@ -70,11 +81,15 @@ test-compile:
 	go list -f '{{.Dir}}/...' -m |xargs go test -c -o /dev/null
 .PHONY: test-compile
 
-generate: deepcopy mocks fmt record-nonlocal-e2e all-tidy
+generate: deepcopy mocks fmt record-nonlocal-e2e all-tidy generate-kusto
 
 verify-generate: generate
 	./hack/verify.sh generate
 .PHONY: verify-generate
+
+generate-kusto:
+	hack/update-kusto-generated.sh
+.PHONY: generate-kusto
 
 deepcopy: $(DEEPCOPY_GEN) $(GOIMPORTS)
 	DEEPCOPY_GEN=$(DEEPCOPY_GEN) hack/update-deepcopy.sh
@@ -113,8 +128,12 @@ verify-tool-versions:
 update: deepcopy json-format
 .PHONY: update
 
-verify: verify-deepcopy verify-json-format verify-generate verify-yamlfmt verify-materialize verify-gomega-assertions verify-gomega-cmpdiff verify-mi-containers verify-schema verify-bicep-fixtures verify-tool-versions
+verify: verify-deepcopy verify-json-format verify-generate verify-yamlfmt verify-materialize verify-gomega-assertions verify-gomega-cmpdiff verify-mi-containers verify-schema verify-bicep-fixtures verify-tool-versions verify-kusto-fmt
 .PHONY: verify
+
+verify-kusto-fmt: $(JQ)
+	$(MAKE) -C dev-infrastructure/modules/logs/kusto/test JQ=$(JQ) verify-fmt
+.PHONY: verify-kusto-fmt
 
 verify-schema:
 	go run ./hack/verify-schema-additional-properties config/config.schema.json

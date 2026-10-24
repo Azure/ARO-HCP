@@ -1,0 +1,4 @@
+{
+	"database": "ServiceLogs",
+	"query": "cosmosResourceSnapshots | invoke EnrichWithHcpNodePoolStateColumns() | project resourceType, instanceVersion, provisioningState, createdAt, lastModifiedAt, createdBy, createdByType, lastModifiedBy, lastModifiedByType, activeOperationId, createDeadline, deletionTimestamp, clusterServiceDeletionTimestamp, clusterServiceId, usesNewNodePoolDeletionApproach, version, channelGroup, vmSize, availabilityZone, encryptionAtHost, subnetId, osDiskSizeGiB, osDiskType, osDiskStorageAccountType, osDiskEncryptionSetId, replicas, autoScalingMin, autoScalingMax, autoRepair, nodeDrainTimeoutMinutes, tags, activeVersions, labels, taints, subnetName, subnetVnetName, subnetResourceGroup, subnetSubscriptionId"
+}

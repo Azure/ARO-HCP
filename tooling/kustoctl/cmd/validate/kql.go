@@ -20,6 +20,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/go-logr/logr"
@@ -28,6 +29,8 @@ import (
 	"github.com/Azure/azure-kusto-go/azkustodata"
 	"github.com/Azure/azure-kusto-go/azkustodata/kql"
 	v1 "github.com/Azure/azure-kusto-go/azkustodata/query/v1"
+
+	"github.com/Azure/ARO-HCP/tooling/kustoctl/pkg/kqlfunc"
 )
 
 func newKQLCommand() *cobra.Command {
@@ -85,18 +88,46 @@ func runValidateKQL(cmd *cobra.Command, logger logr.Logger, client *azkustodata.
 	logQuery(logger, "", createCmd)
 	logDataset(logger, ds)
 
-	files, err := filepath.Glob(filepath.Join(kqlDir, "*.kql"))
+	var tableFiles, functionFiles []string
+	allFiles, err := kqlfunc.FindFiles(kqlDir)
 	if err != nil {
-		return fmt.Errorf("finding .kql files: %w", err)
+		return err
 	}
-	if len(files) == 0 {
+	for _, path := range allFiles {
+		rel, relErr := filepath.Rel(kqlDir, path)
+		if relErr != nil {
+			return fmt.Errorf("computing relative path for %q: %w", path, relErr)
+		}
+		if strings.HasPrefix(rel, "functions"+string(filepath.Separator)) {
+			functionFiles = append(functionFiles, path)
+		} else {
+			tableFiles = append(tableFiles, path)
+		}
+	}
+	functionFiles, err = orderFunctionFiles(functionFiles)
+	if err != nil {
+		return fmt.Errorf("ordering function files: %w", err)
+	}
+	totalFiles := len(tableFiles) + len(functionFiles)
+	if totalFiles == 0 {
 		return fmt.Errorf("no .kql files found in %s", kqlDir)
 	}
 
-	logger.Info("Found .kql files", "count", len(files))
+	logger.Info("Found .kql files", "count", totalFiles, "tables", len(tableFiles), "functions", len(functionFiles))
 
 	var failed []string
-	for _, file := range files {
+
+	// Tables must be loaded first so functions can resolve table references
+	for _, file := range tableFiles {
+		name := filepath.Base(file)
+		if err := validateFile(ctx, logger, client, database, file); err != nil {
+			logger.Error(err, "FAIL", "file", name)
+			failed = append(failed, name)
+		} else {
+			logger.Info("OK", "file", name)
+		}
+	}
+	for _, file := range functionFiles {
 		name := filepath.Base(file)
 		if err := validateFile(ctx, logger, client, database, file); err != nil {
 			logger.Error(err, "FAIL", "file", name)
@@ -116,7 +147,7 @@ func runValidateKQL(cmd *cobra.Command, logger logr.Logger, client *azkustodata.
 		return fmt.Errorf("validation failed for: %s", strings.Join(failed, ", "))
 	}
 
-	logger.Info("All .kql files validated successfully", "count", len(files))
+	logger.Info("All .kql files validated successfully", "count", totalFiles)
 	return nil
 }
 
@@ -184,6 +215,38 @@ func showTables(ctx context.Context, logger logr.Logger, client *azkustodata.Cli
 
 func unsafeStmt(cmd string) *kql.Builder {
 	return (&kql.Builder{}).AddUnsafe(cmd)
+}
+
+// orderFunctionFiles returns functionFiles ordered so that every function is
+// validated after any function it depends on, via kqlfunc. This emulator
+// validation loads every database's functions into one combined
+// "validationdb" (see newKQLCommand above), so the per-database groups are
+// simply concatenated afterward in a fixed (sorted-by-database-name) order;
+// that's safe because a function can only ever depend on another function in
+// its own database, so cross-database ordering has no load-order effect here.
+func orderFunctionFiles(paths []string) ([]string, error) {
+	parsed, err := kqlfunc.ParseFiles(paths)
+	if err != nil {
+		return nil, err
+	}
+	grouped, err := kqlfunc.SortByDependency(parsed)
+	if err != nil {
+		return nil, err
+	}
+
+	databases := make([]string, 0, len(grouped))
+	for database := range grouped {
+		databases = append(databases, database)
+	}
+	sort.Strings(databases)
+
+	ordered := make([]string, 0, len(paths))
+	for _, database := range databases {
+		for _, f := range grouped[database] {
+			ordered = append(ordered, f.Path)
+		}
+	}
+	return ordered, nil
 }
 
 func logQuery(logger logr.Logger, db, cmd string) {

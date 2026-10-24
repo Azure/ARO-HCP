@@ -1,0 +1,4 @@
+{
+	"database": "ServiceLogs",
+	"query": "cosmosResourceSnapshots | invoke EnrichWithHcpExternalAuthStateColumns() | project provisioningState, issuerUrl, clusterServiceId, activeOperationId, deletionTimestamp, clusterServiceDeletionTimestamp, clients, claim"
+}

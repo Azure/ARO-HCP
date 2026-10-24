@@ -1,0 +1,30 @@
+[
+	{
+		"cluster": "svc-cluster-01",
+		"cluster_id": "",
+		"content": {
+			"properties": {
+				"status": {
+					"control_plane_version": {
+						"active_versions": [
+							"4.20.1"
+						]
+					},
+					"hostedClusterNamespace": "ocm-arohcpint-2tikv12vvsgnpsj8ipfds4ugoscfesf4-h8l0s7l6t0j9u6m",
+					"managementClusterResourceID": "/subscriptions/64f0619f-ebc2-4156-9d91-c4c781de7e54/resourceGroups/mgmt-cluster-rg/providers/Microsoft.RedHatOpenShift/stamps/managementclusters/mgmt-cluster-01"
+				}
+			},
+			"resourceID": "/subscriptions/f495d360-35bc-492e-a7d0-5859b28d05c2/resourceGroups/rawo-bami-billing-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/rawo-bami/serviceProviderClusters/rawo-bami",
+			"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/serviceProviderClusters"
+		},
+		"cosmosContainer": "resources",
+		"environment": "prod",
+		"region": "westus3",
+		"resourceGroup": "rawo-bami-billing-rg",
+		"resourceID": "/subscriptions/f495d360-35bc-492e-a7d0-5859b28d05c2/resourceGroups/rawo-bami-billing-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/rawo-bami/serviceProviderClusters/rawo-bami",
+		"resourceName": "rawo-bami",
+		"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/serviceProviderClusters",
+		"subscriptionID": "f495d360-35bc-492e-a7d0-5859b28d05c2",
+		"timestamp": "2026-09-30T12:00:00Z"
+	}
+]

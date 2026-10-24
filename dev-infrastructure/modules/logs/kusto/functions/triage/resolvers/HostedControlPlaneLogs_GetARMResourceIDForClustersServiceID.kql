@@ -1,0 +1,21 @@
+// @owner: sre-team
+// @domain: Triage/HCP
+// @params: p_ClustersServiceId=internal Clusters Service ID, p_StartTime=window start, p_EndTime=window end
+// @returns: single row with arm_resource_id string column (ARM resource ID)
+.create-or-alter function
+with (
+  docstring = 'Gets the ARM resource ID for a Clusters Service internal ID. | Returns: single row with arm_resource_id (ARM format) | Example: let rid = toscalar(GetARMResourceIDForClustersServiceID("abc123", ago(1h), now()))',
+  folder = 'Triage\\HCP'
+)
+GetARMResourceIDForClustersServiceID(p_ClustersServiceId: string, p_StartTime: datetime, p_EndTime: datetime)
+{
+    containerLogs
+    | where timestamp between (p_StartTime .. p_EndTime)
+    | where namespace_name startswith "ocm-"
+    | extend csid_segment = extract(@"^ocm-[^-]+-([^-]+)", 1, namespace_name)
+    | where csid_segment == p_ClustersServiceId
+    | summarize by cluster_id
+    | where isnotempty(cluster_id)
+    | project arm_resource_id = cluster_id
+    | take 1
+}
