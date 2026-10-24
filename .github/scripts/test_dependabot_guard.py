@@ -61,6 +61,39 @@ def npm_manifest(dependencies=None, **other):
     return json.dumps({"dependencies": dependencies or {}, **other}, indent=2) + "\n"
 
 
+class MetadataPreflightTests(TestCase):
+    def run_preflight(self, item):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "proposal.json"
+            original = json.dumps(item)
+            path.write_text(original)
+            result = subprocess.run(
+                [sys.executable, str(Path(__file__).with_name("dependabot_guard.py")), "validate", str(path)],
+                env={**os.environ, "PATH": ""},
+                capture_output=True, text=True,
+            )
+            self.assertEqual(path.read_text(), original)
+            return result
+
+    def test_combined_unrelated_npm_names_are_rejected(self):
+        item = create_item(family="undici and fast-uri")
+        item["data"]["target_version"] = "7.30.1"
+        result = self.run_preflight(item)
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(result.stdout, "")
+
+    def test_independent_npm_packages_keep_their_own_versions(self):
+        for family, version in [("undici", "7.30.1"), ("fast-uri", "3.1.9")]:
+            with self.subTest(family=family):
+                item = create_item(family=family)
+                item["data"]["target_version"] = version
+                result = self.run_preflight(item)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                validated = json.loads(result.stdout)
+                self.assertEqual(validated["data"], item["data"])
+                self.assertEqual(validated["title"], f"{family} to {version}")
+
+
 class CreateGuardTests(TestCase):
     @patch.object(guard, "gh_lines", return_value=[])
     def test_short_display_title_does_not_block_valid_fiber_proposal(self, _gh):
