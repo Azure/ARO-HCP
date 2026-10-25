@@ -28,6 +28,7 @@ def gh_lines(path, expression, token=None):
 
 
 def group(item):
+    """Validate dependency metadata and derive its publication title."""
     data = item.get("data")
     if not isinstance(data, dict):
         raise ValueError("create_pull_request requires dependency group data")
@@ -66,9 +67,7 @@ def group(item):
     if actual_manifests and set(manifests) != actual_manifests:
         raise ValueError("manifests in data do not match actual manifests in patch")
 
-    title = item.get("title", "").casefold()
-    if family.casefold() not in title or version.casefold() not in title:
-        raise ValueError("PR title must identify the dependency family and target version")
+    item["title"] = f"{family} to {version}"
     return ecosystem, family.casefold(), version.casefold(), set(manifests)
 
 
@@ -312,7 +311,7 @@ def load_lockfiles(repo, pr, files):
             if file.get("status") == ("added" if side == "base" else "removed"):
                 documents.append({})
                 continue
-            path = file.get("previous_filename", file["filename"]) if side == "base" else file["filename"]
+            path = (file.get("previous_filename") or file["filename"]) if side == "base" else file["filename"]
             if os.path.basename(path) not in ("package-lock.json", "npm-shrinkwrap.json"):
                 documents.append({})
                 continue
@@ -400,20 +399,29 @@ def drop_creates_missing_data(output):
     return skipped
 
 
+def ensure_safe_output(output):
+    """Emit the runtime's explicit noop when no safe-output items remain."""
+    if not output["items"]:
+        output["items"] = [{
+            "type": "noop",
+            "message": "No dependency pull requests remain after publication guard deferrals.",
+        }]
+
+
 def guard_create(output, repo):
+    """Validate proposals, defer open overlaps, then schedule disjoint manifests."""
+    if output.get("errors"):
+        raise ValueError("safe-output ingestion errors must be resolved before publication")
     drop_creates_missing_data(output)
     items = [item for item in output.get("items", []) if item.get("type") == "create_pull_request"]
     if not items:
+        ensure_safe_output(output)
         return
     groups = [group(item) for item in items]
-    for index, (_, family, _, manifests) in enumerate(groups):
-        for _, other_family, _, other_manifests in groups[:index]:
-            if (
-                family_matches(family, other_family)
-                or family_matches(other_family, family)
-                or manifests.intersection(other_manifests)
-            ):
-                raise ValueError("multiple new PRs for the same family or manifest")
+    for index, (_, family, _, _) in enumerate(groups):
+        for _, other_family, _, _ in groups[:index]:
+            if family_matches(family, other_family) or family_matches(other_family, family):
+                raise ValueError("multiple new PRs for the same family")
     prs = gh_lines(
         f"repos/{repo}/pulls?state=open&per_page=100",
         '.[] | {number, title, body, base: .base.ref}',
@@ -437,10 +445,27 @@ def guard_create(output, repo):
                     f"open PR #{pr['number']}: {reason}",
                     file=sys.stderr,
                 )
+    reserved = {}
+    for item, (_, family, _, manifests) in zip(items, groups):
+        if id(item) in deferred:
+            continue
+        shared = sorted(manifests.intersection(reserved))
+        if shared:
+            selected_families = sorted({reserved[manifest] for manifest in shared})
+            deferred.add(id(item))
+            print(
+                f"::warning::Skipping create_pull_request for {family}: "
+                f"same-batch manifest conflict with selected dependency group(s) "
+                f"{', '.join(selected_families)}: {', '.join(shared)}",
+                file=sys.stderr,
+            )
+            continue
+        reserved.update((manifest, family) for manifest in manifests)
     output["items"] = [item for item in output["items"] if id(item) not in deferred]
+    ensure_safe_output(output)
     print(
         f"Checked {len(groups)} dependency groups against {len(prs)} open PRs; "
-        f"deferred {len(deferred)} overlapping create(s)"
+        f"deferred {len(deferred)} create(s) for open-PR or same-batch conflicts"
     )
 
 
@@ -508,7 +533,12 @@ def guard_retest(repo, number, sha, evidence, now=None):
 
 def main():
     try:
-        if sys.argv[1] == "create" and len(sys.argv) == 4:
+        if sys.argv[1] == "validate" and len(sys.argv) == 3:
+            with open(sys.argv[2], encoding="utf-8") as source:
+                item = json.load(source)
+            group(item)
+            print(json.dumps(item))
+        elif sys.argv[1] == "create" and len(sys.argv) == 4:
             path = sys.argv[2]
             with open(path, encoding="utf-8") as source:
                 output = json.load(source)
@@ -517,7 +547,7 @@ def main():
         elif sys.argv[1] == "retest" and len(sys.argv) == 6:
             guard_retest(*sys.argv[2:])
         else:
-            raise ValueError("usage: dependabot_guard.py create OUTPUT REPO | retest REPO PR SHA EVIDENCE")
+            raise ValueError("usage: dependabot_guard.py validate PROPOSAL | create OUTPUT REPO | retest REPO PR SHA EVIDENCE")
     except (OSError, KeyError, TypeError, ValueError, subprocess.CalledProcessError) as error:
         print(f"Dependabot guard refused action: {error}", file=sys.stderr)
         sys.exit(1)

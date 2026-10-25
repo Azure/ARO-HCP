@@ -82,10 +82,12 @@ steps:
       node-version: lts/*
   - name: Mint App token to read alerts and PRs
     id: read-token
-    uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+    uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510  # v3.3.0
     with:
       client-id: ${{ secrets.DEPENDABOT_APP_CLIENT_ID }}
       private-key: ${{ secrets.DEPENDABOT_APP_PRIVATE_KEY }}
+      owner: ${{ github.repository_owner }}
+      repositories: ${{ github.event.repository.name }}
       permission-contents: read
       permission-pull-requests: read
       permission-vulnerability-alerts: read
@@ -233,7 +235,7 @@ safe-outputs:
       steps:
         - name: Mint App token to repair owned PRs
           id: write-token
-          uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+          uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510  # v3.3.0
           with:
             client-id: ${{ secrets.DEPENDABOT_APP_CLIENT_ID }}
             private-key: ${{ secrets.DEPENDABOT_APP_PRIVATE_KEY }}
@@ -385,10 +387,12 @@ safe-outputs:
       steps:
         - name: Mint App token to reconcile owned PRs
           id: write-token
-          uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+          uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510  # v3.3.0
           with:
             client-id: ${{ secrets.DEPENDABOT_APP_CLIENT_ID }}
             private-key: ${{ secrets.DEPENDABOT_APP_PRIVATE_KEY }}
+            owner: ${{ github.repository_owner }}
+            repositories: ${{ github.event.repository.name }}
             permission-contents: write
             permission-pull-requests: write
             permission-issues: write
@@ -558,13 +562,17 @@ Produce **one pull request per vulnerability group**. First choose one canonical
 
 Npm overlap includes lockfile-only changes to `package-lock.json` and `npm-shrinkwrap.json`. The guard compares complete immutable base/head resolutions, including nested and scoped packages, rather than inferring versions from partial hunks. An unsupported or unavailable relevant lockfile comparison defers proposals for its corresponding `package.json`; API/authentication errors remain failures.
 Both lockfile revisions are read from commit objects in the base repository, so comparison does not depend on the fork repository remaining available.
+For ordinary modified files, GitHub's absent or null `previous_filename` uses the current filename; a non-null previous filename identifies the base path of a rename.
 
 - Group alerts for the **same package** together (all modules at once).
+- For npm, one group means exactly one package name and its own target version. Unrelated packages sharing `api/package.json` are separate proposals: `undici` to `7.30.1` and `fast-uri` to `3.1.9`, never `undici and fast-uri` with one version. Build each proposal independently from clean current main; do not carry another group's manifest or lockfile edits into its patch.
 - **Keep coordinated module families in lockstep.** Some dependencies ship as a set of sibling modules released together under one version, for example OpenTelemetry (`go.opentelemetry.io/otel/...`), AWS SDK v2 (`github.com/aws/aws-sdk-go-v2/...`), Kubernetes (`k8s.io/...`), and gRPC/genproto (`google.golang.org/grpc`, `google.golang.org/genproto`). When an alert hits one member, bump **every** sibling already present in the workspace to the **same** release version, not just the alerted module. Leaving a sibling behind (for example `otel` core at v1.43.0 but `otel/exporters/stdout/stdoutmetric` at v1.40.0) draws reviewer flags and can cause API or type mismatches. Find the siblings with `grep -rho '<family-prefix>[^[:space:]]*' --include=go.mod . | sort -u`, `go get` each to the target version, then run `make all-tidy`.
 - Group a **cascade family** together: if bumping one module forces a coordinated bump across many workspace modules after `go work sync` (for example a `golang.org/x/*`, `k8s.io/*`, or `google.golang.org/grpc` bump that ripples through the workspace), that is a single group and a single PR.
 - **Never mix ecosystems** in one PR. If any npm alerts show up, they are always separate PRs from Go fixes.
 
 Aim for at most 6 groups. If there are more, prioritise by severity (critical > high > medium > low).
+
+Order candidate groups by severity before submission, retaining a stable order for ties. Schedule at most one new proposal per affected manifest in a run: unrelated npm dependencies remain separate groups, but changes to the same `package.json` are serialized rather than combined. The publication guard checks fresh existing-PR dependency overlaps first, then keeps the first eligible candidate for each manifest and defers later manifest collisions without aborting independent proposals. A candidate deferred for an existing-PR overlap does not reserve a manifest slot. Duplicate dependency families, malformed metadata and API failures remain errors. If filtering leaves no actionable outputs, the guard emits an explicit no-op with the deferral reason; it does not create a report issue.
 
 ## 3. Remediate each group
 
@@ -588,10 +596,12 @@ An existing owned PR may also need a small Go source correction when the depende
 
 ## 5. Open the pull requests
 
-For each group with no open overlapping PR, open one pull request via the create-pull-request safe output. The tool's structured `data` argument is mandatory: `{ecosystem: "go"|"npm", package_family, target_version, manifests}`. `package_family` and `target_version` must also appear in the title, and `manifests` must be the affected `go.mod` or `package.json` paths. Do not omit `data`; a create without it is dropped and the PR is not opened. If a create call returns success without `data`, immediately call it again with `data` before finishing. Do not underreport affected manifests. The PR must:
+For each group with no open overlapping PR, open one pull request via the create-pull-request safe output. The tool's structured `data` argument is mandatory: `{ecosystem: "go"|"npm", package_family, target_version, manifests}`. The safe-output guard derives the publication title from validated `package_family` and `target_version`; `manifests` must be the affected `go.mod` or `package.json` paths. Do not omit `data`; a create without it is dropped and the PR is not opened. If a create call returns success without `data`, immediately call it again with `data` before finishing. Do not underreport affected manifests. The PR must:
 
-- Title: `<package-or-family> to <version> (<severity>)` (the `fix(deps): ` prefix is added automatically, so give the rest).
-- Body: list the alerts fixed (GHSA/CVE, package, from -> to version), the modules or manifests touched, and confirm the workspace is tidy-clean and the build/lint targets pass. State that it is dependency-only.
+Before calling create-pull-request, write that candidate's JSON object (`title`, `data`, and its `patch` or `files` when available) to `/tmp/gh-aw/agent/dependency-proposal.json` and run `python3 .github/scripts/dependabot_guard.py validate /tmp/gh-aw/agent/dependency-proposal.json`. This is a local, read-only metadata preflight using the production validator, not the networked `create` command. Submit only a candidate that exits successfully, using the canonical title and unchanged validated metadata returned on stdout. On failure, correct or split the group and regenerate its dependency-only patch before retrying validation; never emit invalid metadata or remove it to bypass validation. The publication guard remains authoritative and rechecks fresh overlaps.
+
+- Title: `<package_family> to <target_version>` (the `fix(deps): ` prefix is added automatically).
+- Body: list the alerts fixed (GHSA/CVE, severity, package, from -> to version), the modules or manifests touched, and confirm the workspace is tidy-clean and the build/lint targets pass. State that it is dependency-only.
 - Be dependency-only as described above.
 
 Follow the repository conventions: plain, human wording, no em-dashes. Do not add `Co-authored-by: Copilot` trailers. Do not create tracking issues. PRs only.

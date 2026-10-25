@@ -41,7 +41,7 @@ var versionConstraints = []Version{
 	{
 		Name:       "bicep module",
 		Cmd:        "az bicep version --only-show-errors |grep 'CLI version' |awk '{print $4}'",
-		Constraint: ">=0.31.0",
+		Constraint: ">=0.48.1",
 	},
 }
 

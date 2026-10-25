@@ -28,4 +28,12 @@ RUN dnf install -y git go make pass qrencode net-tools tree && dnf clean all
 # Integration jobs install Go tools into this GOPATH at runtime.
 RUN mkdir -p /opt/app-root && chmod 777 /opt/app-root
 
+# ci-operator clones source into /go before the test commands set GOPATH.
+RUN mkdir -p /go && chown 1000:0 /go && chmod 0775 /go
+
 USER 1000
+
+# Fail the image build if the default user cannot prepare a source checkout.
+RUN clone_root=$(mktemp -d /go/source-clone.XXXXXX) && \
+    git init --quiet "${clone_root}/src/github.com/Azure/ARO-HCP" && \
+    rm -rf "${clone_root}"

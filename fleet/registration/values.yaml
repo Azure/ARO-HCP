@@ -20,3 +20,4 @@ registration:
   maestroRESTAPIURL: "http://maestro.maestro.svc.cluster.local:8000"
   maestroGRPCTarget: "maestro-grpc.maestro.svc.cluster.local:8090"
   kubeApplierCosmosContainerName: '{{ .kubeApplier.cosmosContainerName }}'
+  kubeApplierCosmosContainerMaxScale: {{ .kubeApplier.cosmosContainerMaxScale }}

@@ -114,10 +114,14 @@ verify-tool-automation:
 	python3 -m unittest discover -s .github/scripts -p 'test_tool*.py'
 .PHONY: verify-tool-automation
 
+verify-agentic-maintenance:
+	python3 -m unittest discover -s .github/scripts -p 'test_agentic_pr_maintenance.py'
+.PHONY: verify-agentic-maintenance
+
 update: deepcopy json-format
 .PHONY: update
 
-verify: verify-deepcopy verify-json-format verify-generate verify-yamlfmt verify-materialize verify-gomega-assertions verify-gomega-cmpdiff verify-mi-containers verify-schema verify-bicep-fixtures verify-tool-versions verify-tool-automation
+verify: verify-deepcopy verify-json-format verify-generate verify-yamlfmt verify-materialize verify-gomega-assertions verify-gomega-cmpdiff verify-mi-containers verify-schema verify-bicep-fixtures verify-tool-versions verify-tool-automation verify-agentic-maintenance
 .PHONY: verify
 
 verify-schema:
