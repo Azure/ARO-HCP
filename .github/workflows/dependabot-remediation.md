@@ -86,6 +86,8 @@ steps:
     with:
       client-id: ${{ secrets.DEPENDABOT_APP_CLIENT_ID }}
       private-key: ${{ secrets.DEPENDABOT_APP_PRIVATE_KEY }}
+      owner: ${{ github.repository_owner }}
+      repositories: ${{ github.event.repository.name }}
       permission-contents: read
       permission-pull-requests: read
       permission-vulnerability-alerts: read
@@ -389,6 +391,8 @@ safe-outputs:
           with:
             client-id: ${{ secrets.DEPENDABOT_APP_CLIENT_ID }}
             private-key: ${{ secrets.DEPENDABOT_APP_PRIVATE_KEY }}
+            owner: ${{ github.repository_owner }}
+            repositories: ${{ github.event.repository.name }}
             permission-contents: write
             permission-pull-requests: write
             permission-issues: write
