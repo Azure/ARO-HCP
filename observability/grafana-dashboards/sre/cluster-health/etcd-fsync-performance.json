@@ -439,7 +439,7 @@
         },
         "yAxis": {
           "axisPlacement": "left",
-          "decimals": 0,
+          "decimals": 3,
           "reverse": false,
           "unit": "s"
         }
@@ -521,7 +521,7 @@
         },
         "yAxis": {
           "axisPlacement": "left",
-          "decimals": 0,
+          "decimals": 3,
           "reverse": false,
           "unit": "s"
         }
