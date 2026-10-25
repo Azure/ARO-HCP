@@ -87,6 +87,8 @@ github.com/Azure/ARO-Tools/tools/registration v0.0.0-20261029184915-ae250b4c53dd
 github.com/Azure/ARO-Tools/tools/registration v0.0.0-20261029184915-ae250b4c53dd/go.mod h1:h64ZzIvL9K9NRTElu3QOuzdkSKQ8MtU5itnO2qaSSXU=
 github.com/Azure/ARO-Tools/tools/secret-sync v0.0.0-20261029184915-ae250b4c53dd h1:qKHZ7FIFdlTuBwefmL/Ae/fB2BDQMPCCbD3lwqGbk30=
 github.com/Azure/ARO-Tools/tools/secret-sync v0.0.0-20261029184915-ae250b4c53dd/go.mod h1:UX61MaeD8Cua1gydcM1gNOsSjxbhxIG4If4miFF4iN8=
+github.com/Azure/ARO-Tools/tools/stackctl v0.0.0-20261029184915-ae250b4c53dd h1:dky8ILoy8zXey3FlyyW72fS914z4Pwrxtqe5IUr/COk=
+github.com/Azure/ARO-Tools/tools/stackctl v0.0.0-20261029184915-ae250b4c53dd/go.mod h1:aZUjKz9UquuTgSPUOCa4aAuVnuSRo98JSw2ygDprZvo=
 github.com/Azure/ARO-Tools/tools/yamlwrap v0.0.0-20261029184915-ae250b4c53dd h1:BU5g6qR9BzPUR4FBJBssyZsFT6YT9a1ZYV8QIMRXC9I=
 github.com/Azure/ARO-Tools/tools/yamlwrap v0.0.0-20261029184915-ae250b4c53dd/go.mod h1:WRzBikvk4L+BCu37C/VKXJ2NKyM3ofAnnj0fh/t7jns=
 github.com/Azure/azure-kusto-go/azkustodata v1.2.1 h1:De25JIENJVLYUMB4Z9LfAFzbgjGz1ozYJiL2zprs1KA=
