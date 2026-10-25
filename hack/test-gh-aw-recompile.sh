@@ -17,7 +17,7 @@ esac
 EOF
 chmod +x "$tmp/gh"
 export PATH="$tmp:$PATH" GITHUB_REPOSITORY=Azure/ARO-HCP GITHUB_RUN_ID=42 GITHUB_BASE_REF=main
-export MOCK_PR_DETAIL='{"state":"open","user":{"login":"aro-hcp-robot[bot]"},"head":{"repo":{"full_name":"Azure/ARO-HCP"},"ref":"upgrade-agentic-workflows-1971"},"base":{"ref":"main"}}'
+export MOCK_PR_DETAIL='{"state":"open","title":"chore(gh-aw): [auto] upgrade agentic workflows (AROSLSRE-2267)","user":{"login":"aro-hcp-robot[bot]"},"head":{"repo":{"full_name":"Azure/ARO-HCP"},"ref":"upgrade-agentic-workflows-1971"},"base":{"ref":"main"}}'
 export MOCK_PR_LIST='[{"number":7184,"headRefName":"upgrade-agentic-workflows-1971","author":{"login":"app/aro-hcp-robot"}}]'
 script="$root/hack/gh-aw-recompile.sh"
 
@@ -46,14 +46,14 @@ if bash "$script" --select-only > /dev/null 2>&1; then
 fi
 
 MOCK_PR_LIST='[{"number":7184,"headRefName":"upgrade-agentic-workflows-1971","author":{"login":"app/aro-hcp-robot"}}]'
-MOCK_PR_DETAIL='{"state":"open","user":{"login":"aro-hcp-robot[bot]"},"head":{"repo":{"full_name":"someone-else/ARO-HCP"},"ref":"upgrade-agentic-workflows-1971"},"base":{"ref":"main"}}'
+MOCK_PR_DETAIL='{"state":"open","title":"chore(gh-aw): [auto] upgrade agentic workflows (AROSLSRE-2267)","user":{"login":"aro-hcp-robot[bot]"},"head":{"repo":{"full_name":"someone-else/ARO-HCP"},"ref":"upgrade-agentic-workflows-1971"},"base":{"ref":"main"}}'
 export MOCK_PR_LIST MOCK_PR_DETAIL
 if bash "$script" --select-only > /dev/null 2>&1; then
   echo "A fork PR must be rejected." >&2
   exit 1
 fi
 
-MOCK_PR_DETAIL='{"state":"open","user":{"login":"aro-hcp-robot[bot]"},"head":{"repo":{"full_name":"Azure/ARO-HCP"},"ref":"upgrade-agentic-workflows-1971"},"base":{"ref":"main"}}'
+MOCK_PR_DETAIL='{"state":"open","title":"chore(gh-aw): [auto] upgrade agentic workflows (AROSLSRE-2267)","user":{"login":"aro-hcp-robot[bot]"},"head":{"repo":{"full_name":"Azure/ARO-HCP"},"ref":"upgrade-agentic-workflows-1971"},"base":{"ref":"main"}}'
 export MOCK_PR_DETAIL
 git init -q --bare "$tmp/origin.git"
 git init -q -b main "$tmp/reuse"
@@ -71,6 +71,8 @@ git -C "$tmp/reuse" commit -qm 'Out-of-scope bot change'
 git -C "$tmp/reuse" push -q origin upgrade-agentic-workflows-1971
 git -C "$tmp/reuse" switch -q main
 git -C "$tmp/reuse" branch -D upgrade-agentic-workflows-1971 > /dev/null
+export EXPECTED_UPGRADE_HEAD
+EXPECTED_UPGRADE_HEAD=$(git -C "$tmp/reuse" rev-parse origin/upgrade-agentic-workflows-1971)
 if (cd "$tmp/reuse" && bash "$script") > "$tmp/reuse.log" 2>&1; then
   echo "Existing bot PR changes outside .github must be rejected." >&2
   exit 1
@@ -79,6 +81,36 @@ if ! grep -q 'Upgrade changed files outside .github' "$tmp/reuse.log"; then
   cat "$tmp/reuse.log" >&2
   exit 1
 fi
+
+# Current metadata means no checkout, upgrade, compilation, push, PR or comment.
+# The gh mock rejects every mutation, so either no-op case fails if one is attempted.
+git init -q --bare "$tmp/noop-origin.git"
+git init -q -b main "$tmp/noop"
+git -C "$tmp/noop" config user.name Test
+git -C "$tmp/noop" config user.email test@example.com
+git -C "$tmp/noop" remote add origin "$tmp/noop-origin.git"
+mkdir -p "$tmp/noop/.github/workflows"
+printf '%s\n' '# gh-aw-metadata: {"compiler_version":"v0.89.21"}' \
+  > "$tmp/noop/.github/workflows/gh-aw-recompile.lock.yml"
+git -C "$tmp/noop" add .
+git -C "$tmp/noop" commit -qm 'Current compiler'
+git -C "$tmp/noop" push -q origin main
+(
+  cd "$tmp/noop"
+  unset EXPECTED_UPGRADE_HEAD
+  export MOCK_PR_LIST='[]'
+  bash "$script"
+  [[ $(git branch --show-current) == main ]]
+  git switch -q -c upgrade-agentic-workflows-1971
+  git push -q origin upgrade-agentic-workflows-1971
+  git switch -q main
+  git branch -D upgrade-agentic-workflows-1971 > /dev/null
+  export MOCK_PR_LIST='[{"number":7184,"headRefName":"upgrade-agentic-workflows-1971","author":{"login":"app/aro-hcp-robot"}}]'
+  export EXPECTED_UPGRADE_HEAD
+  EXPECTED_UPGRADE_HEAD=$(git rev-parse origin/upgrade-agentic-workflows-1971)
+  bash "$script"
+  [[ $(git branch --show-current) == main ]]
+)
 
 mkdir -p "$tmp/repo/.github/agents"
 printf '%s\n' \

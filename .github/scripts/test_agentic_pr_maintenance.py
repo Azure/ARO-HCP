@@ -492,5 +492,168 @@ class APITests(TestCase):
         self.assertEqual(result["kind"], "upgrade")
 
 
+class RecoveryTests(TestCase):
+    failure_url = "https://prow.ci.openshift.org/view/gs/test/failing/123"
+    comparison_url = "https://prow.ci.openshift.org/view/gs/test/main/124"
+    evidence = (
+        "The failing run shows an infrastructure DNS outage also present on main: "
+        f"{failure_url} compared with {comparison_url}."
+    )
+
+    def failed(self):
+        data = snapshot()
+        data["comments"] = [retry_hold(sha=HEAD)]
+        data["statuses"] = [dict(status("failure"), target_url=self.failure_url)]
+        return data
+
+    def test_failed_same_head_is_recoverable_but_not_green_release(self):
+        result = assess(self.failed())
+        self.assertTrue(result["can_recover_retry"])
+        self.assertFalse(result["can_release_hold"])
+
+    def test_pending_unknown_or_missing_failure_evidence_prevents_recovery(self):
+        for change in ("pending-status", "pending-check", "unknown", "no-url", "green", "human"):
+            with self.subTest(change=change):
+                data = self.failed()
+                if change == "pending-status":
+                    data["statuses"].append(status("pending", 2, "ci/other"))
+                elif change == "pending-check":
+                    data["checks"].append(check(None, "queued", "ci/other"))
+                elif change == "unknown":
+                    data["statuses"].append(status("unknown", 2, "ci/other"))
+                elif change == "no-url":
+                    del data["statuses"][0]["target_url"]
+                elif change == "green":
+                    data["statuses"][0]["state"] = "success"
+                else:
+                    data["comments"].append(comment(2, "/hold", "human"))
+                self.assertFalse(assess(data)["can_recover_retry"])
+
+    def test_recovery_posts_only_fixed_commands_and_is_permanently_bounded(self):
+        server = self.failed()
+        calls = []
+
+        def submit(args, **kwargs):
+            calls.append(args)
+            body = json.loads(kwargs["input"])["body"]
+            posted = comment(99, body, guard.ROBOT)
+            server["comments"].append(posted)
+            return subprocess.CompletedProcess(args, 0, json.dumps(posted), "")
+
+        with patch.object(guard, "fetch_snapshot", side_effect=lambda *args: copy.deepcopy(server)):
+            with patch.object(guard.subprocess, "run", side_effect=submit):
+                result = guard.execute("recover-retry", REPO, NUMBER, HEAD, self.evidence)
+                pending = guard.execute("recover-retry", REPO, NUMBER, HEAD, self.evidence)
+                self.assertEqual(pending["release_status"], "cancel-pending")
+                # A new retry hold at the same revision cannot reset the marker.
+                server["comments"].append(retry_hold(100, HEAD))
+                with self.assertRaisesRegex(ValueError, "already consumed"):
+                    guard.execute("recover-retry", REPO, NUMBER, HEAD, self.evidence)
+        self.assertEqual(result["release_status"], "cancel-requested")
+        self.assertEqual(len(calls), 1)
+        self.assertIn(f"<!-- {guard.RECOVERY_MARKER}{HEAD} -->", server["comments"][1]["body"])
+        self.assertTrue(server["comments"][1]["body"].endswith("/hold cancel\n/retest-required"))
+
+    def test_unknown_marker_author_does_not_consume_bot_budget(self):
+        data = self.failed()
+        data["comments"].append(comment(2, f"<!-- {guard.RECOVERY_MARKER}{HEAD} -->", "human"))
+        self.assertTrue(assess(data)["can_recover_retry"])
+
+    @patch.object(guard.subprocess, "run", side_effect=AssertionError("Unauthorized mutation"))
+    def test_invalid_missing_comparison_or_command_evidence_is_rejected(self, run):
+        with patch.object(guard, "fetch_snapshot", side_effect=lambda *args: self.failed()):
+            for evidence in (
+                "", self.failure_url, self.evidence.replace(self.failure_url, self.comparison_url),
+                self.evidence + "\n/approve", self.evidence + f"\n{guard.RECOVERY_MARKER}",
+                self.evidence.replace(self.comparison_url, "https://attacker.example/comparison"),
+            ):
+                with self.subTest(evidence=evidence), self.assertRaises(ValueError):
+                    guard.execute("recover-retry", REPO, NUMBER, HEAD, evidence)
+
+    @patch.object(guard.subprocess, "run", side_effect=AssertionError("Unauthorized mutation"))
+    def test_fresh_pending_human_hold_or_new_head_blocks_recovery(self, run):
+        for change in ("pending", "human", "head"):
+            fresh = self.failed()
+            if change == "pending":
+                fresh["statuses"].append(status("pending", 2, "ci/other"))
+            elif change == "human":
+                fresh["comments"].append(comment(2, "/hold", "human"))
+            else:
+                fresh["pull"]["head"]["sha"] = OTHER
+            with patch.object(guard, "fetch_snapshot", side_effect=[self.failed(), fresh]):
+                with self.subTest(change=change), self.assertRaises(ValueError):
+                    guard.execute("recover-retry", REPO, NUMBER, HEAD, self.evidence)
+
+    def test_real_compiler_regeneration_can_release_before_fresh_ci_is_green(self):
+        data = snapshot()
+        data["statuses"] = [status("pending")]
+        data["checks"] = [check(None, "queued")]
+
+        def submit(args, **kwargs):
+            if args[:2] == ["git", "merge-base"]:
+                return subprocess.CompletedProcess(args, 0, "", "")
+            if args[:2] == ["git", "diff"]:
+                return subprocess.CompletedProcess(args, 0, ".github/workflows/gh-aw-recompile.lock.yml\n", "")
+            body = json.loads(kwargs["input"])["body"]
+            return subprocess.CompletedProcess(args, 0, json.dumps(comment(99, body, guard.ROBOT)), "")
+
+        with patch.object(guard, "fetch_snapshot", side_effect=lambda *args: copy.deepcopy(data)):
+            with patch.object(guard, "compiler_versions", side_effect=lambda ref: [
+                "v0.89.20" if ref == OLDER else "v0.89.21"
+            ]):
+                with patch.object(guard.subprocess, "run", side_effect=submit) as run:
+                    result = guard.execute("release-regenerated", REPO, NUMBER, HEAD, OLDER)
+        self.assertEqual(result["release_status"], "cancel-requested")
+        self.assertNotIn("/retest-required", json.loads(run.call_args.kwargs["input"])["body"])
+
+    def test_unchanged_regeneration_or_human_hold_cannot_unhold(self):
+        for change in ("same-head", "human", "same-version"):
+            data = snapshot()
+            if change == "human":
+                data["comments"].append(comment(2, "/hold", "human"))
+            with patch.object(guard, "fetch_snapshot", return_value=data):
+                with patch.object(guard, "compiler_versions", return_value=["v0.89.21"]):
+                    with patch.object(guard.subprocess, "run", return_value=subprocess.CompletedProcess(
+                        [], 0, ".github/workflows/test.lock.yml\n", "",
+                    )) as run:
+                        with self.subTest(change=change), self.assertRaises(ValueError):
+                            guard.execute("release-regenerated", REPO, NUMBER, HEAD, HEAD if change == "same-head" else OLDER)
+                        self.assertFalse(any(call.args[0][0] == "gh" for call in run.call_args_list))
+
+
+class CompilerProvenanceTests(TestCase):
+    def test_all_lock_versions_are_read_without_checkout(self):
+        def git(args, **kwargs):
+            if args[1] == "ls-tree":
+                text = ".github/workflows/one.lock.yml\n.github/workflows/two.lock.yml\n.github/workflows/source.md\n"
+            else:
+                version = "v0.89.21" if "one.lock" in args[-1] else "v0.89.20"
+                text = '# gh-aw-metadata: ' + json.dumps({"compiler_version": version}) + "\n"
+            return subprocess.CompletedProcess(args, 0, text, "")
+        with patch.object(guard.subprocess, "run", side_effect=git):
+            self.assertEqual(guard.compiler_versions("origin/main"), ["v0.89.20", "v0.89.21"])
+
+    def test_missing_compiler_provenance_is_a_failure_not_a_noop(self):
+        with patch.object(guard.subprocess, "run", side_effect=[
+            subprocess.CompletedProcess([], 0, ".github/workflows/test.lock.yml\n", ""),
+            subprocess.CompletedProcess([], 0, "name: untrusted\n", ""),
+        ]):
+            with self.assertRaisesRegex(ValueError, "missing compiler provenance"):
+                guard.compiler_versions("origin/main")
+
+
+class WorkflowLifecycleTests(TestCase):
+    def test_one_daily_agentic_identity_with_independent_bootstrap(self):
+        workflows = Path(__file__).parents[1] / "workflows"
+        source = (workflows / "gh-aw-recompile.md").read_text()
+        self.assertIn("schedule: daily", source)
+        self.assertIn("needs: [recompile]", source)
+        self.assertIn("needs: []", source)
+        self.assertIn("engine: copilot", source)
+        self.assertIn("report-as-issue: false", source)
+        for obsolete in ("gh-aw-recompile.yml", "agentic-pr-maintenance.md", "agentic-pr-maintenance.lock.yml"):
+            self.assertFalse((workflows / obsolete).exists(), obsolete)
+
+
 if __name__ == "__main__":
     main()

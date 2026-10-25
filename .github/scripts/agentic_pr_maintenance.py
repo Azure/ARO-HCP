@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Assess owned bot PRs and cancel only evidenced, obsolete Prow retry holds.
+"""Guard the daily gh-aw compiler upgrade and bounded owned-PR hold recovery.
 
-CLI: inspect REPO PR, or assess|release-hold|verify-upgrade REPO PR EXPECTED_HEAD.
-All modes emit JSON. assess/inspect are read-only; verify-upgrade exits nonzero
-if refresh is unsafe. release-hold re-fetches evidence before `/hold cancel`.
-Neither CI requirements nor approval/merge policy are changed by this helper.
+inspect/assess are read-only. release-hold requires successful CI. recover-retry
+requires a current failure URL, comparison evidence and an unused per-head budget.
+release-regenerated is reserved for the trusted recompiler after a validated push.
+All mutations re-read ownership, head and hold provenance; merge policy is unchanged.
 """
 
 import json
@@ -27,6 +27,32 @@ HOLD_COMMAND = re.compile(r"^/hold(?:\s.*)?$", re.IGNORECASE | re.MULTILINE)
 CANCEL_COMMAND = re.compile(
     r"^/(?:remove-hold|hold\s+cancel|unhold)(?:\s.*)?$", re.IGNORECASE | re.MULTILINE
 )
+RECOVERY_MARKER = "gh-aw-recompile:recovery:"
+
+
+def compiler_versions(ref):
+    """Read compiler provenance without running or checking out the target tree."""
+    names = subprocess.run(
+        ["git", "ls-tree", "-r", "--name-only", ref, ".github/workflows"],
+        check=True, capture_output=True, text=True,
+    ).stdout.splitlines()
+    versions = set()
+    for name in names:
+        if not name.endswith(".lock.yml"):
+            continue
+        content = subprocess.run(
+            ["git", "show", f"{ref}:{name}"], check=True, capture_output=True, text=True,
+        ).stdout
+        first = content.splitlines()[0]
+        if not first.startswith("# gh-aw-metadata: "):
+            raise ValueError(f"missing compiler provenance in {name}")
+        version = json.loads(first.removeprefix("# gh-aw-metadata: ")).get("compiler_version")
+        if not isinstance(version, str) or not re.fullmatch(r"v[0-9]+\.[0-9]+\.[0-9]+", version):
+            raise ValueError(f"invalid compiler provenance in {name}")
+        versions.add(version)
+    if not versions:
+        raise ValueError("no compiled workflow provenance found")
+    return sorted(versions)
 
 
 def validate_target(repo, number, expected_head):
@@ -77,12 +103,12 @@ def fetch_snapshot(repo, number, expected_head):
     ]
     statuses = gh_lines(
         f"repos/{repo}/commits/{expected_head}/statuses?per_page=100",
-        ".[] | {id, context, state, created_at}",
+        ".[] | {id, context, state, created_at, target_url}",
         os.environ["CI_TOKEN"],
     )
     checks = gh_lines(
         f"repos/{repo}/commits/{expected_head}/check-runs?per_page=100&filter=latest",
-        ".check_runs[] | {id, name, head_sha, status, conclusion}",
+        ".check_runs[] | {id, name, head_sha, status, conclusion, details_url}",
         os.environ["CI_TOKEN"],
     )
     comments = gh_lines(
@@ -227,7 +253,11 @@ def ci_evidence(statuses, checks, expected_head):
         if status.get("state") == "success":
             positive.append(status["context"])
         else:
-            blocked.append({"name": status["context"], "state": status.get("state")})
+            blocked.append({
+                "name": status["context"], "state": status.get("state"),
+                "url": status.get("target_url"),
+                "pending": status.get("state") == "pending",
+            })
     for check in checks:
         if not isinstance(check, dict) or not isinstance(check.get("name"), str) or not check["name"]:
             raise ValueError("missing check-run name")
@@ -236,11 +266,17 @@ def ci_evidence(statuses, checks, expected_head):
         if check["name"].casefold() == "tide":
             continue
         if check.get("status") != "completed":
-            blocked.append({"name": check["name"], "state": check.get("status")})
+            blocked.append({
+                "name": check["name"], "state": check.get("status"),
+                "url": check.get("details_url"), "pending": True,
+            })
         elif check.get("conclusion") == "success":
             positive.append(check["name"])
         elif check.get("conclusion") not in ("neutral", "skipped"):
-            blocked.append({"name": check["name"], "state": check.get("conclusion")})
+            blocked.append({
+                "name": check["name"], "state": check.get("conclusion"),
+                "url": check.get("details_url"), "pending": False,
+            })
     return {"positive": sorted(set(positive)), "blocked": blocked}
 
 
@@ -308,6 +344,23 @@ def assess(snapshot, repo, number, expected_head):
     if held and not holds and not cancellation_pending:
         blockers.append("hold label has no active evidenced retry-exhaustion command")
     refresh_blockers = list(blockers)
+    retry_blockers = list(blockers)
+    if any(item["pending"] for item in ci["blocked"]):
+        retry_blockers.append("current-head CI is pending")
+    if any(item["state"] not in (
+        "pending", "queued", "in_progress", "waiting",
+        "failure", "error", "timed_out", "cancelled", "action_required", "startup_failure",
+    ) for item in ci["blocked"]):
+        retry_blockers.append("current-head CI contains unknown evidence")
+    failures = [item for item in ci["blocked"] if item["state"] in (
+        "failure", "error", "timed_out", "cancelled", "action_required", "startup_failure",
+    ) and item["url"]]
+    if not failures:
+        retry_blockers.append("no current-head failing CI URL")
+    marker = f"<!-- {RECOVERY_MARKER}{head} -->"
+    if any(marker in comment["body"] and comment["user"]["login"] == ROBOT
+           for comment in snapshot["comments"]):
+        retry_blockers.append("single recovery budget for this head is already consumed")
     if kind != "upgrade":
         refresh_blockers.append("compiler refresh requires the owned upgrade PR identity")
     release_blockers = list(blockers)
@@ -333,44 +386,79 @@ def assess(snapshot, repo, number, expected_head):
         "ci": ci,
         "release_status": status,
         "can_release_hold": status == "eligible",
+        "can_recover_retry": held and bool(holds) and not cancellation_pending and not retry_blockers,
+        "retry_blockers": retry_blockers,
+        "recovery_marker": marker,
         "can_refresh_upgrade": not refresh_blockers,
         "release_blockers": release_blockers,
         "refresh_blockers": refresh_blockers,
     }
 
 
-def execute(mode, repo, number, expected_head):
-    """Reconcile from API evidence; only release-hold can post a fixed Prow command."""
-    if mode not in ("assess", "release-hold", "verify-upgrade"):
+def execute(mode, repo, number, expected_head, evidence=None):
+    """Re-fetch the complete authorization before each fixed-command mutation."""
+    if mode not in ("assess", "release-hold", "verify-upgrade", "recover-retry", "release-regenerated"):
         raise ValueError("unsupported maintenance action")
     number = validate_target(repo, number, expected_head)
-    result = assess(fetch_snapshot(repo, number, expected_head), repo, number, expected_head)
-    if mode == "assess":
-        return result
-    if mode == "verify-upgrade":
-        if result["refresh_blockers"]:
-            raise ValueError("; ".join(result["refresh_blockers"]))
-        return result
-    if result["release_blockers"]:
-        raise ValueError("; ".join(result["release_blockers"]))
-    if not result["can_release_hold"]:
-        return result
-    # A second complete read prevents using the agent's earlier assessment as authorization.
-    result = assess(fetch_snapshot(repo, number, expected_head), repo, number, expected_head)
-    if result["release_blockers"]:
-        raise ValueError("; ".join(result["release_blockers"]))
-    if not result["can_release_hold"]:
-        return result
+    result = None
+    for _ in range(2 if mode not in ("assess", "verify-upgrade") else 1):
+        snapshot = fetch_snapshot(repo, number, expected_head)
+        result = assess(snapshot, repo, number, expected_head)
+        if mode == "assess":
+            return result
+        if mode == "verify-upgrade":
+            if result["refresh_blockers"]:
+                raise ValueError("; ".join(result["refresh_blockers"]))
+            return result
+        if not result["held"] or result["release_status"] == "cancel-pending":
+            return result
+        if mode == "release-hold":
+            if result["release_blockers"]:
+                raise ValueError("; ".join(result["release_blockers"]))
+            body = "/hold cancel"
+        elif mode == "recover-retry":
+            if result["retry_blockers"]:
+                raise ValueError("; ".join(result["retry_blockers"]))
+            if not isinstance(evidence, str) or len(evidence) < 40 or len(evidence) > 4000:
+                raise ValueError("recovery requires concise diagnosed transient-failure evidence")
+            if re.search(r"^\s*/", evidence, re.MULTILINE) or RECOVERY_MARKER in evidence:
+                raise ValueError("recovery evidence cannot contain commands or markers")
+            links = {url.rstrip(".;,") for url in re.findall(r"https://[^\s)<>]+", evidence)}
+            failed = {item["url"] for item in result["ci"]["blocked"] if item["url"]}
+            trusted = re.compile(
+                r"https://(?:prow\.ci\.openshift\.org|gcsweb-ci\.apps\.ci\.l2s4\.p1\.openshiftapps\.com|"
+                r"gcs\.ci\.openshift\.org|storage\.googleapis\.com|github\.com)/"
+            )
+            if not links.intersection(failed) or not any(
+                trusted.match(url) for url in links.difference(failed)
+            ):
+                raise ValueError("recovery needs a current failure URL and trusted comparison run URL")
+            body = f"{result['recovery_marker']}\n{evidence}\n\n/hold cancel\n/retest-required"
+        else:
+            if result["refresh_blockers"]:
+                raise ValueError("; ".join(result["refresh_blockers"]))
+            validate_target(repo, number, evidence)
+            if evidence == expected_head or any(
+                hold["sha"] == expected_head for hold in result["active_holds"]
+            ):
+                raise ValueError("regeneration must produce a genuinely new head")
+            subprocess.run(["git", "merge-base", "--is-ancestor", evidence, expected_head], check=True)
+            changed = subprocess.run(
+                ["git", "diff", "--name-only", f"origin/{snapshot['pull']['base']['ref']}...{expected_head}"],
+                check=True, capture_output=True, text=True,
+            ).stdout.splitlines()
+            if not changed or any(not path.startswith(".github/") for path in changed):
+                raise ValueError("regeneration must change only compiler-owned .github content")
+            if compiler_versions(evidence) == compiler_versions(expected_head):
+                raise ValueError("regeneration must change the compiler release provenance")
+            body = f"Validated compiler regeneration from {evidence} to {expected_head}.\n\n/hold cancel"
     response = subprocess.run(
         ["gh", "api", "--method", "POST", f"repos/{repo}/issues/{number}/comments", "--input", "-"],
-        input=json.dumps({"body": "/hold cancel"}),
-        check=True,
-        capture_output=True,
-        text=True,
-        env=os.environ.copy(),
+        input=json.dumps({"body": body}), check=True, capture_output=True,
+        text=True, env=os.environ.copy(),
     )
     comment = json.loads(response.stdout)
-    if not isinstance(comment, dict) or type(comment.get("id")) is not int or comment.get("body") != "/hold cancel":
+    if not isinstance(comment, dict) or type(comment.get("id")) is not int or comment.get("body") != body:
         raise ValueError("hold cancellation response is incomplete; inspect the PR before retrying")
     result["release_status"] = "cancel-requested"
     result["can_release_hold"] = False
@@ -381,6 +469,9 @@ def execute(mode, repo, number, expected_head):
 def main(argv=None):
     argv = sys.argv[1:] if argv is None else argv
     try:
+        if len(argv) == 2 and argv[0] == "compiler-versions":
+            print(json.dumps(compiler_versions(argv[1])))
+            return 0
         if len(argv) == 3 and argv[0] == "inspect":
             _, repo, number = argv
             # Validate paths before the first API request; the discovered head is not authorization.
@@ -389,10 +480,10 @@ def main(argv=None):
             if not isinstance(pull.get("head"), dict):
                 raise ValueError("missing current pull request head")
             result = execute("assess", repo, number, pull["head"].get("sha"))
-        elif len(argv) == 4:
+        elif len(argv) in (4, 5):
             result = execute(*argv)
         else:
-            raise ValueError("usage: agentic_pr_maintenance.py inspect REPO PR | assess|release-hold|verify-upgrade REPO PR EXPECTED_HEAD")
+            raise ValueError("usage: agentic_pr_maintenance.py compiler-versions REF | inspect REPO PR | assess|release-hold|verify-upgrade REPO PR HEAD | recover-retry REPO PR HEAD EVIDENCE | release-regenerated REPO PR HEAD PREVIOUS_HEAD")
         print(json.dumps(result, sort_keys=True))
         return 0
     except (OSError, KeyError, TypeError, ValueError, subprocess.CalledProcessError) as error:

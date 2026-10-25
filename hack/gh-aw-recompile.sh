@@ -75,24 +75,14 @@ if (( count == 1 )); then
   number=$(jq -r '.[0].number' <<<"$matches")
   branch=$(jq -r '.[0].headRefName' <<<"$matches")
   pr=$(gh api "repos/$repo/pulls/$number")
-  jq -e --arg bot "$bot" --arg repo "$repo" --arg base "$base" --arg branch "$branch" \
-    '.state == "open" and .user.login == $bot and .head.repo.full_name == $repo and .head.ref == $branch and .base.ref == $base' <<<"$pr" >/dev/null ||
-    { echo "Upgrade PR identity, repository, or base does not match." >&2; exit 1; }
+  jq -e --arg bot "$bot" --arg repo "$repo" --arg base "$base" --arg branch "$branch" --arg title "$title" \
+    '.state == "open" and .title == $title and .user.login == $bot and .head.repo.full_name == $repo and .head.ref == $branch and .base.ref == $base' <<<"$pr" >/dev/null ||
+    { echo "Upgrade PR identity, repository, title, or base does not match." >&2; exit 1; }
   expected_head=${EXPECTED_UPGRADE_HEAD:-$(jq -r '.head.sha' <<<"$pr")}
   if [[ ${1:-} == --select-only ]]; then
     printf '%s %s\n' "$number" "$branch"
     exit 0
   fi
-  # Freeze the default-branch guard before checking out the upgrade branch.
-  trusted_guard=$(mktemp)
-  trap 'rm -f "$trusted_guard"' EXIT
-  cp "$(dirname "${BASH_SOURCE[0]}")/../.github/scripts/agentic_pr_maintenance.py" "$trusted_guard"
-  git fetch origin "refs/heads/$branch:refs/remotes/origin/$branch"
-  git switch --detach "origin/$branch"
-  git switch -c "$branch"
-  git merge --no-edit "origin/$base"
-  check_upgrade_scope
-  python3 "$trusted_guard" verify-upgrade "$repo" "$number" "$expected_head"
 else
   number=''
   branch="upgrade-agentic-workflows-${GITHUB_RUN_ID:?GITHUB_RUN_ID is required}"
@@ -100,6 +90,51 @@ else
     printf 'new %s\n' "$branch"
     exit 0
   fi
+fi
+
+# Use the default-branch helper even after switching to an untrusted PR tree.
+trusted_guard=$(mktemp)
+trap 'rm -f "$trusted_guard"' EXIT
+cp "$(dirname "${BASH_SOURCE[0]}")/../.github/scripts/agentic_pr_maintenance.py" "$trusted_guard"
+target_version=${TARGET_GH_AW_VERSION:-}
+if [[ -z $target_version ]]; then
+  version_output=$(gh aw version 2>&1)
+  [[ $version_output =~ v[0-9]+\.[0-9]+\.[0-9]+ ]] ||
+    { echo "Cannot determine installed gh-aw version." >&2; exit 1; }
+  target_version=${BASH_REMATCH[0]}
+fi
+[[ $target_version =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] ||
+  { echo "Invalid target compiler release." >&2; exit 1; }
+ref="origin/$base"
+if [[ -n $number ]]; then
+  git fetch origin "refs/heads/$branch:refs/remotes/origin/$branch"
+  ref="origin/$branch"
+  [[ $(git rev-parse "$ref") == "$expected_head" ]] ||
+    { echo "Upgrade branch no longer matches the expected head." >&2; exit 1; }
+  changed=$(git diff --name-only "origin/$base...$ref")
+  if [[ -n $changed ]] && grep -v '^\.github/' <<<"$changed" >/dev/null; then
+    echo "Upgrade changed files outside .github; refusing to publish." >&2
+    exit 1
+  fi
+fi
+versions=$(python3 "$trusted_guard" compiler-versions "$ref")
+if jq -e --arg version "$target_version" 'length == 1 and .[0] == $version' <<<"$versions" >/dev/null; then
+  echo "Compiler $target_version is current; no regeneration or PR mutation."
+  exit 0
+fi
+
+if [[ -n $number ]]; then
+  python3 "$trusted_guard" verify-upgrade "$repo" "$number" "$expected_head"
+  git switch --detach "$ref"
+  git switch -c "$branch"
+  check_upgrade_scope
+  if ! git merge --no-edit "origin/$base"; then
+    git merge --abort
+    # Retain the reviewed PR history while regenerating from trusted main.
+    git merge --no-commit --no-ff -s ours "origin/$base"
+    git restore --source="origin/$base" --staged --worktree -- .
+  fi
+else
   git switch -c "$branch"
 fi
 
@@ -112,9 +147,14 @@ git add -A
 check_upgrade_scope
 if git diff --cached --quiet; then
   echo "No upgrade changes."
-  exit 0
+  # A real merge may already have produced the new compiler content.
+  if [[ -z $number || $(git rev-parse HEAD) == "$expected_head" ]]; then
+    exit 0
+  fi
 fi
-git commit -m "$title"
+if ! git diff --cached --quiet; then
+  git commit -m "$title"
+fi
 
 make verify-yamlfmt
 make -C config detect-change
@@ -164,6 +204,9 @@ if [[ $(gh api "repos/$repo/git/ref/heads/$branch" --jq '.object.sha') != "$(git
 fi
 if [[ -n $number ]]; then
   gh pr edit "$number" --repo "$repo" --title "$title" --body-file /tmp/gh-aw-upgrade-pr.md
+  new_head=$(git rev-parse HEAD)
+  # New compiler content gets fresh CI without recycling an unchanged-head budget.
+  python3 "$trusted_guard" release-regenerated "$repo" "$number" "$new_head" "$expected_head"
 else
   gh pr create --repo "$repo" --base "$base" --head "$branch" \
     --title "$title" --body-file /tmp/gh-aw-upgrade-pr.md
