@@ -54,6 +54,8 @@ type clusterServiceClusterMatching struct {
 
 const ClusterServiceMatchingClustersControllerName = "ClusterServiceMatchingClusters"
 
+const clusterServiceScanTimeout = 5 * time.Minute
+
 // NewClusterServiceClusterMatchingController periodically looks for mismatched cluster-service and cosmos clusters
 func NewClusterServiceClusterMatchingController(clock utilsclock.PassiveClock, resourcesDBClient corecosmosstorage.ResourcesDBClient, subscriptionLister corelisters.SubscriptionLister, clusterServiceClient ocm.ClusterServiceClientSpec) controllerutils.Controller {
 	c := &clusterServiceClusterMatching{
@@ -121,7 +123,10 @@ func (c *clusterServiceClusterMatching) getAllClusterServiceObjs(ctx context.Con
 	ret := []*arohcpv1alpha1.Cluster{}
 
 	clusterIterator := c.clusterServiceClient.ListClusters("")
-	for cluster := range clusterIterator.Items(ctx) {
+	// Bound the whole multi-page scan, including per-item link resolution.
+	scanCtx, cancel := context.WithTimeout(ctx, clusterServiceScanTimeout)
+	defer cancel()
+	for cluster := range clusterIterator.Items(scanCtx) {
 		ret = append(ret, cluster)
 		existingCluster, exists := clusterServiceIDToCluster[cluster.HREF()]
 		if exists {
@@ -207,7 +212,9 @@ func (c *clusterServiceClusterMatching) synchronizeAllClusters(ctx context.Conte
 			clusterLogger.Error(err, "error creating internal ID for cluster service cluster")
 			continue
 		}
-		err = c.clusterServiceClient.DeleteCluster(ctx, clusterServiceID)
+		deleteCtx, cancel := context.WithTimeout(ctx, controllerutils.CSWriteTimeout)
+		err = c.clusterServiceClient.DeleteCluster(deleteCtx, clusterServiceID)
+		cancel()
 		if err != nil {
 			clusterLogger.Error(err, "error deleting cluster service cluster")
 			continue

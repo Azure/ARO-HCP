@@ -290,12 +290,15 @@ func (c *operationClusterCreate) clusterServiceCreateOperationState(ctx context.
 
 	clusterServiceID := *cluster.ServiceProviderProperties.ClusterServiceID
 
-	clusterStatus, err := c.clusterServiceClient.GetClusterStatus(ctx, clusterServiceID)
+	csCtx, cancel := context.WithTimeout(ctx, controllerutils.CSReadTimeout)
+	defer cancel()
+
+	clusterStatus, err := c.clusterServiceClient.GetClusterStatus(csCtx, clusterServiceID)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
 
-	newOperationStatus, opError, err := operationbase.ConvertClusterStatus(ctx, c.clusterServiceClient, operation, clusterStatus, clusterServiceID)
+	newOperationStatus, opError, err := operationbase.ConvertClusterStatus(csCtx, c.clusterServiceClient, operation, clusterStatus, clusterServiceID)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
@@ -442,6 +445,15 @@ func (c *operationClusterCreate) hostedClusterOperationStatus(ctx context.Contex
 	}
 	if hostedCluster.Status.ControlPlaneEndpoint.Port == 0 {
 		return operationbase.NewOperationState(coreapi.ProvisioningStateProvisioning, withDegradedSuffix("hosted cluster has no control plane endpoint port", hostedCluster)), nil
+	}
+
+	if !meta.IsStatusConditionTrue(hostedCluster.Status.Conditions, string(v1beta1.IngressDefaultCertificateSynced)) {
+		message := "ingress default certificate is not synced, condition missing"
+		if defaultCertificateCondition := meta.FindStatusCondition(hostedCluster.Status.Conditions, string(v1beta1.IngressDefaultCertificateSynced)); defaultCertificateCondition != nil {
+			message = fmt.Sprintf("ingress default certificate is not synced: %s: %s", defaultCertificateCondition.Reason, defaultCertificateCondition.Message)
+		}
+		logger.Info("ingress default certificate is not synced", "hostedCluster.Status.Conditions", hostedCluster.Status.Conditions)
+		return operationbase.NewOperationState(coreapi.ProvisioningStateProvisioning, withDegradedSuffix(message, hostedCluster)), nil
 	}
 
 	// if we got here,

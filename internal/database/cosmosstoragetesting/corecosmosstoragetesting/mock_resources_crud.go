@@ -45,6 +45,11 @@ import (
 type MockDocumentStore interface {
 	GetDocument(cosmosID string) (json.RawMessage, bool)
 	StoreDocument(cosmosID string, data json.RawMessage)
+	// MutateDocument runs mutate and commits its result under the store mutex,
+	// recording the change feed before unlocking. Missing documents pass nil;
+	// a nil result or an error leaves storage and the change feed unchanged.
+	// The callback must not call back into the store.
+	MutateDocument(cosmosID string, mutate func(json.RawMessage) (json.RawMessage, error)) error
 	DeleteDocument(cosmosID string)
 	ListDocuments(resourceType *azcorearm.ResourceType, prefix string) []json.RawMessage
 	GetAllDocuments() map[string]json.RawMessage
@@ -312,6 +317,41 @@ func (m *MockResourceCRUD[InternalAPIType, InternalAPITypePointer, CosmosAPIType
 	}
 
 	return mockSoftDelete(m.client, cosmosUID)
+}
+
+func (m *MockResourceCRUD[InternalAPIType, InternalAPITypePointer, CosmosAPIType]) DeleteWithETag(ctx context.Context, resourceID string, expectedETag azcore.ETag) error {
+	completeResourceID, err := m.MakeResourceIDPath(resourceID)
+	if err != nil {
+		return fmt.Errorf("failed to make ResourceID path for '%s': %w", resourceID, err)
+	}
+	cosmosID, err := coreapi.ResourceIDToCosmosID(completeResourceID)
+	if err != nil {
+		return err
+	}
+	return m.client.MutateDocument(cosmosID, func(data json.RawMessage) (json.RawMessage, error) {
+		if data == nil {
+			return nil, nil
+		}
+		var doc cosmosstorageutils.GenericDocument[map[string]interface{}]
+		if err := json.Unmarshal(data, &doc); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal document for soft delete: %w", err)
+		}
+		if doc.DeletionTimestamp != nil {
+			return nil, nil
+		}
+		if doc.CosmosETag != expectedETag {
+			return nil, NewPreconditionFailedError()
+		}
+		if err := cosmosstorageutils.SetSoftDeleteFields(&doc, time.Now()); err != nil {
+			return nil, err
+		}
+		doc.CosmosETag = generateETag()
+		modified, err := json.Marshal(doc)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal soft-deleted document: %w", err)
+		}
+		return modified, nil
+	})
 }
 
 func mockSoftDelete(store MockDocumentStore, cosmosID string) error {

@@ -121,14 +121,14 @@ func TestProwControllerStrictAndSnapshotBestEffort(t *testing.T) {
 func TestProwArtifactProblemHandlerBoundedCategories(t *testing.T) {
 	var problems []string
 	ctx := WithProwArtifactProblemHandler(t.Context(), func(source, reason string) { problems = append(problems, source+"/"+reason) })
-	for _, source := range []string{"e2e", "timing", "config", "observability", "job"} {
-		for _, reason := range []string{"absent", "malformed"} {
+	for _, source := range []string{"e2e", "timing", "config", "observability", "job", "slot-state"} {
+		for _, reason := range []string{"absent", "malformed", "unsupported-version"} {
 			ReportProwArtifactProblem(ctx, source, reason)
 		}
 	}
 	ReportProwArtifactProblem(ctx, "arbitrary-job-name", "absent")
 	ReportProwArtifactProblem(ctx, "job", "arbitrary-error")
-	if len(problems) != 10 {
+	if len(problems) != 18 {
 		t.Fatalf("unexpected categories: %v", problems)
 	}
 	ReportProwArtifactProblem(t.Context(), "job", "absent")

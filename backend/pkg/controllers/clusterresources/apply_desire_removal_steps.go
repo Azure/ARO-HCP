@@ -104,9 +104,7 @@ var cascadeCoveredDesireNames = newDesireNameSet(
 	DesireNameExternalAuthClientSecret,
 	DesireNameExternalAuthCAConfigMap,
 	DesireNameBoundServiceAccountSigningKeySecretSync,
-	DesireNameKubeAPIServerServingCertSecretSync,
 	DesireNameBoundServiceAccountSigningKeySecretProviderClass,
-	DesireNameKubeAPIServerServingCertSecretProviderClass,
 	DesireNameNodePool,
 )
 

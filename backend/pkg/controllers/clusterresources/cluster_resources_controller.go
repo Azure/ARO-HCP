@@ -27,6 +27,8 @@ import (
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	utilsclock "k8s.io/utils/clock"
+	"k8s.io/utils/lru"
 	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -54,7 +56,42 @@ import (
 
 const (
 	ClusterResourcesControllerName = "ClusterResources"
+
+	// Fetches may make synchronous upstream calls; round 5x the observed
+	// p99.9 of 3500ms up to 20s.
+	clusterResourcesFetchTimeout = 20 * time.Second
+
+	// resourcesCacheTTL is how long a non-empty GetClusterResources response is
+	// reused. Cluster Service writes these manifests at provision and on node
+	// pool or cluster updates, so a few seconds of staleness is acceptable.
+	// SyncOnce itself is not gated: ApplyDesire cleanup still runs on every pass.
+	resourcesCacheTTL = 10 * time.Second
+
+	// resourcesCacheCapacity bounds memory for cached manifests. Evicting an
+	// entry only causes another GET.
+	resourcesCacheCapacity = 10000
+
+	// defaultKubeClientQPS pins the cluster-autoscaler --kube-client-qps flag
+	// Under heavy scaling load, the current hypershift default limits of 5 QPS can cause client-side throttling
+	// that extends autoscaler evaluation cycles beyond the health-check threshold and stalls autoscaling.
+	// Update this value deliberately when adopting a new hypershift default.
+	// As part of this change, the defaultKubeClientQPS value was also updated to 200. https://github.com/openshift/hypershift/pull/10006
+	defaultKubeClientQPS int64 = 200
+
+	// defaultKubeClientBurst pins the cluster-autoscaler --kube-client-burst flag
+	// Under heavy scaling load, the current hypershift default limits of 10 burst can cause client-side throttling
+	// that extends autoscaler evaluation cycles beyond the health-check threshold and stalls autoscaling.
+	// Update this value deliberately when adopting a new hypershift default.
+	// As part of this change, the defaultKubeClientBurst value was also updated to 300. https://github.com/openshift/hypershift/pull/10006
+	defaultKubeClientBurst int64 = 300
 )
+
+// cachedClusterResources is one successful GetClusterResources response.
+// resources is shared with later syncs and must not be mutated.
+type cachedClusterResources struct {
+	fetchedAt time.Time
+	resources *arohcpv1alpha1.ClusterResources
+}
 
 // clusterResourcesController polls the Cluster Service SDK endpoint for cluster resources information
 type clusterResourcesController struct {
@@ -66,6 +103,9 @@ type clusterResourcesController struct {
 	kubeApplierDBClients         kubeappliercosmosstorage.KubeApplierDBClients
 	applyDesireLister            kubeapplierlisters.ApplyDesireLister
 	readDesireLister             kubeapplierlisters.ReadDesireLister
+
+	resourcesCache *lru.Cache
+	clock          utilsclock.PassiveClock
 }
 
 var _ controllerutils.ClusterSyncer = (*clusterResourcesController)(nil)
@@ -93,9 +133,11 @@ func NewClusterResourcesController(
 		kubeApplierDBClients:         kubeApplierDBClients,
 		applyDesireLister:            applyDesireLister,
 		readDesireLister:             readDesireLister,
+		resourcesCache:               lru.New(resourcesCacheCapacity),
+		clock:                        utilsclock.RealClock{},
 	}
 
-	return controllerutils.NewClusterWatchingController(
+	controller := controllerutils.NewClusterWatchingController(
 		ClusterResourcesControllerName,
 		resourcesDBClient,
 		informers,
@@ -103,6 +145,23 @@ func NewClusterResourcesController(
 		30*time.Second, // Poll every 30 seconds.
 		syncer,
 	)
+	// Cleanup must include every remaining child, including legacy desire names.
+	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
+	controller.AddInterestingResource(coreapi.ServiceProviderClusterResourceType, coreapi.ServiceProviderClusterResourceName)
+	controller.AddInterestingResource(coreapi.NodePoolResourceType, "*")
+	controller.AddInterestingResource(kubeapplierapi.ClusterScopedApplyDesireResourceType, "*")
+	controller.AddInterestingResource(kubeapplierapi.NodePoolScopedApplyDesireResourceType, "*")
+	controller.AddInterestingResource(kubeapplierapi.ClusterScopedReadDesireResourceType, "*")
+	controller.AddInterestingResource(kubeapplierapi.NodePoolScopedReadDesireResourceType, "*")
+	nodePoolInformer, _ := informers.NodePools()
+	// Desire changes are observed on the primary-resource resync for now:
+	// live reconciliation fetches the full Cluster Service resource set, so
+	// subscribing to high-frequency desire status updates would amplify calls.
+	if err := controller.QueueForChildInformers(0, nodePoolInformer); err != nil {
+		panic(err)
+	}
+
+	return controller
 }
 
 // NeedsWork reports whether the controller has work to do for the given cluster.
@@ -162,12 +221,11 @@ func (c *clusterResourcesController) SyncOnce(ctx context.Context, key controlle
 	return nil
 }
 
-// fetchAndProcessClusterResources calls the Cluster Service SDK to get cluster resources information
-// and processes the resources.
+// Fetches the Cluster Service resource set and processes the cluster resources.
+// A cached response is reused for resourcesCacheTTL; processing still runs.
 func (c *clusterResourcesController) fetchAndProcessClusterResources(ctx context.Context,
 	key controllerutils.HCPClusterKey, managementCluster *azcorearm.ResourceID, clusterServiceID metadataapi.InternalID, version *semver.Version) error {
-	// Get cluster resources from the Cluster Service SDK
-	resources, err := c.clustersServiceClient.GetClusterResources(ctx, clusterServiceID)
+	resources, err := c.getClusterResources(ctx, clusterServiceID)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -181,7 +239,32 @@ func (c *clusterResourcesController) fetchAndProcessClusterResources(ctx context
 	return nil
 }
 
-// processClusterResources converts each resource to ApplyDesire documents
+// Returns the Cluster Service resource set, reusing a
+// successful response until resourcesCacheTTL has elapsed. Errors are not
+// cached, so the next sync calls Cluster Service again.
+func (c *clusterResourcesController) getClusterResources(ctx context.Context, id metadataapi.InternalID) (*arohcpv1alpha1.ClusterResources, error) {
+	if entry, ok := c.resourcesCache.Get(id.String()); ok {
+		cached := entry.(cachedClusterResources)
+		if c.clock.Since(cached.fetchedAt) < resourcesCacheTTL {
+			return cached.resources, nil
+		}
+	}
+
+	csCtx, cancel := context.WithTimeout(ctx, clusterResourcesFetchTimeout)
+	defer cancel()
+
+	resources, err := c.clustersServiceClient.GetClusterResources(csCtx, id)
+	if err != nil {
+		return resources, err
+	}
+	c.resourcesCache.Add(id.String(), cachedClusterResources{
+		fetchedAt: c.clock.Now(),
+		resources: resources,
+	})
+	return resources, nil
+}
+
+// Converts each cluster resource to ApplyDesire documents.
 func (c *clusterResourcesController) processClusterResources(ctx context.Context, key controllerutils.HCPClusterKey,
 	managementCluster *azcorearm.ResourceID, resources *arohcpv1alpha1.ClusterResources, clusterServiceID string,
 	version *semver.Version) error {
@@ -204,6 +287,16 @@ func (c *clusterResourcesController) processClusterResources(ctx context.Context
 		return utils.TrackError(fmt.Errorf("failed to get Subscription from cache: %w", err))
 	}
 	hasExperimentalFeature := subscription != nil && subscription.HasRegisteredFeature(metadataapi.FeatureExperimentalReleaseFeatures)
+
+	existingIngressConfig, err := applyDesireCRUD.Get(ctx, strings.ToLower(DesireNameDefaultIngressConfigMap))
+	if err != nil && !cosmosstorageutils.IsNotFoundError(err) {
+		return utils.TrackError(fmt.Errorf("failed to get default ingress ConfigMap ApplyDesire: %w", err))
+	}
+	acmCertificateAlreadySelected, err := defaultIngressConfigSelectsACMCertificate(existingIngressConfig)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+	acmCertificateSelected := selectACMIngressCertificate(version, acmCertificateAlreadySelected)
 	resourceMap := resources.Resources()
 	desiredResourceIDs := make(map[string]bool, len(resourceMap))
 	var errs []error
@@ -226,14 +319,21 @@ func (c *clusterResourcesController) processClusterResources(ctx context.Context
 			continue
 		}
 
+		// The dedicated certificate controller owns these desires, including
+		// adoption of existing ClusterResources documents.
+		if managedByKubeAPIServerServingCertificate(classified.desireName) {
+			continue
+		}
+
 		// Unset the ManagedCluster CR and ACM-path ingress bits because HyperShift
 		// manages the ingress certificate when the subscription's experimental
-		// release-features AFEC is registered. This ugly, intentional temporal shim
-		// is flag-gated and has to be applied only to 5.1 >= clusters until the CPO
-		// override with https://github.com/openshift/hypershift/pull/9132 for all versions
-		// up to 4.20 is released.
+		// release-features AFEC is registered, but only for versions whose HCCO
+		// consumes the service-provider ingress certificate (natively or via a
+		// CPO override) and guests never pointed at the ACM-delivered
+		// certificate. Others still need the legacy ACM wiring to deliver and
+		// renew a trusted ingress certificate (AROSLSRE-2529).
 		// CS still emits them all, we do this to allow ourselves testing.
-		if hasExperimentalFeature && version != nil && suppressLegacyIngressDesire(classified.desireName, *version) {
+		if hasExperimentalFeature && suppressLegacyIngressDesire(classified.desireName, version, acmCertificateSelected) {
 			continue
 		}
 
@@ -303,6 +403,16 @@ func (c *clusterResourcesController) processClusterResources(ctx context.Context
 				if err := unstructured.SetNestedField(unstructuredObj.Object, controllerutils.ServiceProviderDefaultIngressWildcardServingCertName,
 					"spec", "operatorConfiguration", "ingressOperator", "defaultCertificate", "name"); err != nil {
 					errs = append(errs, utils.TrackError(fmt.Errorf("failed to set HostedCluster ingress certificate: %w", err)))
+					continue
+				}
+				if err := ensureHostedClusterAutoscaling(&unstructuredObj); err != nil {
+					errs = append(errs, utils.TrackError(fmt.Errorf("failed to set HostedCluster autoscaling for %s: %w", resourceKey, err)))
+					continue
+				}
+			}
+			if classified.desireName == DesireNameDefaultIngressConfigMap {
+				if err := ensureDefaultIngressConfigCertificateName(&unstructuredObj, acmCertificateSelected); err != nil {
+					errs = append(errs, utils.TrackError(fmt.Errorf("failed to set default ingress certificate name for %s: %w", resourceKey, err)))
 					continue
 				}
 			}
@@ -393,6 +503,20 @@ func ensureHostedClusterAnnotations(hostedCluster *unstructured.Unstructured) er
 	annotations[v1beta1.MachineHealthCheckNodeStartupTimeoutAnnotation] = "10m"
 
 	hostedCluster.SetAnnotations(annotations)
+	return nil
+}
+
+// ensureHostedClusterAutoscaling pins spec.autoscaling.kubeClientQPS and
+// spec.autoscaling.kubeClientBurst to fleet-wide defaults on the
+// HostedCluster manifest. This ensures the autoscaler rate-limit flags
+// are explicitly set and not subject to future Hypershift default changes.
+func ensureHostedClusterAutoscaling(hostedCluster *unstructured.Unstructured) error {
+	if err := unstructured.SetNestedField(hostedCluster.Object, defaultKubeClientQPS, "spec", "autoscaling", "kubeClientQPS"); err != nil {
+		return fmt.Errorf("setting spec.autoscaling.kubeClientQPS: %w", err)
+	}
+	if err := unstructured.SetNestedField(hostedCluster.Object, defaultKubeClientBurst, "spec", "autoscaling", "kubeClientBurst"); err != nil {
+		return fmt.Errorf("setting spec.autoscaling.kubeClientBurst: %w", err)
+	}
 	return nil
 }
 
@@ -710,6 +834,9 @@ func (c *clusterResourcesController) deleteStaleApplyDesires(
 	}
 
 	for _, desire := range existing {
+		if managedByKubeAPIServerServingCertificate(desire.ResourceID.Name) {
+			continue
+		}
 		if desire.Tags == nil ||
 			desire.Tags[kubeapplierapi.TagControllerName] != ClusterResourcesControllerName {
 			continue
@@ -755,4 +882,15 @@ func (c *clusterResourcesController) deleteStaleApplyDesires(
 	}
 
 	return nil
+}
+
+// Reports whether a desire belongs to legacy ACM ingress certificate delivery.
+func legacyACMBasedIngressCertificateWiringDesireName(desireName string) bool {
+	switch desireName {
+	case DesireNameManagedCluster, DesireNameDefaultIngressConfigMap,
+		DesireNameDefaultIngressWildcardCertSecretSync, DesireNameDefaultIngressWildcardCertSecretProviderClass:
+		return true
+	default:
+		return false
+	}
 }

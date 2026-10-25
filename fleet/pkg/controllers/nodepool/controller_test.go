@@ -92,7 +92,7 @@ func syncOnceTestProfile() compute.Profile {
 		Tiers: []compute.TierConfig{{
 			Name: "wrk", PoolMode: compute.PoolModeRegional,
 			Class: compute.PoolClass{Role: compute.PoolRoleWorker, AgentPoolMode: armcontainerservice.AgentPoolModeUser},
-			Cores: 4, OSDiskSizeGB: 32, MaxNodes: 2, MaxPods: 100,
+			Cores: 4, MinOSDiskSizeGB: 32, MaxNodes: 2, MaxPods: 100,
 			FamilyPriority: []compute.VMFamily{syncOnceTestVMFamily},
 		}},
 		BudgetStrategy: compute.SubscriptionQuotaBudget,
@@ -338,7 +338,7 @@ func TestShadowSyncOnceOptionalTierFailureStillProjects(t *testing.T) {
 	profile.Tiers = append(profile.Tiers, compute.TierConfig{
 		Name: "wrk8", PoolMode: compute.PoolModeRegional,
 		Class: compute.PoolClass{Role: compute.PoolRoleWorker, AgentPoolMode: armcontainerservice.AgentPoolModeUser},
-		Cores: 8, OSDiskSizeGB: 32, MaxNodes: 1, MaxPods: 100,
+		Cores: 8, MinOSDiskSizeGB: 32, MaxNodes: 1, MaxPods: 100,
 		FamilyPriority: []compute.VMFamily{syncOnceTestVMFamily},
 	})
 

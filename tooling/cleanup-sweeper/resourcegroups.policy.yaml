@@ -1,12 +1,12 @@
 # cleanup-sweeper rg-ordered discovery policy (first matching rule wins).
 # - excludedResourceGroups: never candidates (see list below).
 # - Skip managed RGs (managedBy alive).
-# - Skip slot-managed identity-container pools.
+# - Skip persistent identity-container and infrastructure-identity bundle RGs.
 # - Skip *-shared-resources RGs.
 # - hcp-underlay-pers-*: delete after 15d if persist=true; after 2d if persist is absent or not "true".
 # - hcp-underlay-prow-*: delete after 6h (transitional, remove after rename rollout).
 # - Name prefix hcp-underlay-ci*: delete after 6h (covers ci00, ci01, etc.).
-# - Known shared envs (cspr/dev/perf/int/stg/prod) with persist=true: skipped.
+# - Known shared envs (dev/perf/int/stg/prod) with persist=true: skipped.
 # - Any RG with persist=true (not already matched above): delete after 15d.
 # - Default: delete any other RG after 2d.
 # Delete rules need a parseable tags.createdAt; see docs/cleanup.md and scripts/ for Azure Policy.
@@ -31,10 +31,10 @@ rgOrdered:
         any: true
       conditions:
         managedByAlive: true
-    - name: skip-identity-container-pools
+    - name: skip-persistent-identity-pools
       action: skip
       match:
-        nameRegex: "(?i)^aro-hcp-msi-container-"
+        nameRegex: "(?i)^aro-hcp-(msi-container|dev-infrastructure-identities)-"
     - name: skip-shared-resources
       action: skip
       match:
@@ -70,7 +70,7 @@ rgOrdered:
     - name: skip-shared-env-persist-true
       action: skip
       match:
-        nameRegex: "^hcp-underlay-(cspr|dev|perf|int|stg|prod)-"
+        nameRegex: "^hcp-underlay-(dev|perf|int|stg|prod)-"
       conditions:
         tagsEq:
           persist: "true"

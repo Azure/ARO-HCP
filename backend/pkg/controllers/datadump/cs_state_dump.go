@@ -26,6 +26,7 @@ import (
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
@@ -45,6 +46,8 @@ type csStateDump struct {
 }
 
 const CSStateDumpControllerName = "CSStateDump"
+
+const csStateDumpTimeout = 2 * time.Minute
 
 // NewCSStateDumpController periodically fetches cluster-service state for each cluster and dumps it to logs.
 func NewCSStateDumpController(
@@ -66,7 +69,7 @@ func NewCSStateDumpController(
 	// cluster and node pool state, so cluster-scoped ReadDesire and ApplyDesire updates
 	// must not requeue it. Those updates are management-cluster observations and apply
 	// status, not a change to the Cluster Service documents this controller dumps.
-	return controllerutils.NewClusterWatchingController(
+	controller := controllerutils.NewClusterWatchingController(
 		CSStateDumpControllerName,
 		resourcesDBClient,
 		backendInformers,
@@ -74,6 +77,10 @@ func NewCSStateDumpController(
 		1*time.Minute,
 		syncer,
 	)
+	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
+	controller.AddInterestingResource(coreapi.NodePoolResourceType, "*")
+
+	return controller
 }
 
 func (c *csStateDump) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
@@ -100,8 +107,11 @@ func (c *csStateDump) SyncOnce(ctx context.Context, key controllerutils.HCPClust
 	}
 	csID := cluster.ServiceProviderProperties.ClusterServiceID
 
+	readCtx, cancelRead := context.WithTimeout(ctx, controllerutils.CSReadTimeout)
+
 	// Fetch cluster state from cluster-service
-	csCluster, err := c.csClient.GetCluster(ctx, *csID)
+	csCluster, err := c.csClient.GetCluster(readCtx, *csID)
+	cancelRead()
 	if err != nil {
 		logger.Error(err, "failed to get cluster from cluster-service for CS state dump")
 		// Continue with what we have
@@ -129,7 +139,9 @@ func (c *csStateDump) SyncOnce(ctx context.Context, key controllerutils.HCPClust
 		return nil
 	}
 
-	csNodePoolsByID, err := c.listNodePoolsByID(ctx, *csID)
+	listCtx, cancelList := context.WithTimeout(ctx, csStateDumpTimeout)
+	csNodePoolsByID, err := c.listNodePoolsByID(listCtx, *csID)
+	cancelList()
 	if err != nil {
 		logger.Error(err, "failed to list node pools from cluster-service for CS state dump")
 		return nil

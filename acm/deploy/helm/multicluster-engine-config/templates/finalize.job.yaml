@@ -26,6 +26,15 @@ spec:
           kubectl patch addondeploymentconfig hypershift-addon-deploy-config -n multicluster-engine --type=merge -p '{"spec":{"customizedVariables":[{"name":"disableMetrics","value": "true"},{"name":"disableHOManagement","value": "true"},{"name":"autoImportDisabled","value": "true"},{"name":"aroHcp","value": "true"}]}}'
           echo "Patch applied successfully."
 
+          echo "Patching resourceRequirements on AddonDeploymentConfig 'hypershift-addon-deploy-config'..."
+          kubectl patch addondeploymentconfig hypershift-addon-deploy-config -n multicluster-engine --type=merge -p '{"spec":{"resourceRequirements":[{"containerID":"deployments:hypershift-addon-agent:hypershift-addon-agent","resources":{"requests":{"cpu":"250m","memory":"256Mi"}}}]}}'
+          CPU_REQUEST=$(kubectl get addondeploymentconfig hypershift-addon-deploy-config -n multicluster-engine -o jsonpath='{.spec.resourceRequirements[0].resources.requests.cpu}')
+          if [ -z "$CPU_REQUEST" ]; then
+            echo "ERROR: resourceRequirements were not persisted on 'hypershift-addon-deploy-config' (patch rejected or pruned by the CRD schema?)" >&2
+            exit 1
+          fi
+          echo "resourceRequirements applied (agent cpu request: $CPU_REQUEST)."
+
           echo "Wait for MulticlusterEngine to be available..."
           timeout=600
           interval=5

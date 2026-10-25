@@ -36,8 +36,9 @@ import (
 
 // Supported --provider values.
 const (
-	providerCopilot = "copilot"
-	providerClaude  = "claude"
+	providerCopilot    = "copilot"
+	providerClaude     = "claude"
+	providerClaudeCode = "claude-code"
 )
 
 // RawAnalyzeOptions holds the unvalidated CLI options for the analyze subcommand.
@@ -52,6 +53,10 @@ type RawAnalyzeOptions struct {
 	Output              string
 	Model               string
 
+	// ReasoningEffort optionally sets the model's reasoning effort for any
+	// provider. Allowed values depend on the provider; empty keeps defaults.
+	ReasoningEffort string
+
 	// Intent/IntentFile provide a free-form investigation objective (e.g. a
 	// customer complaint). When set, the analysis runs in intent mode instead
 	// of the default failed-test mode. They are mutually exclusive.
@@ -65,7 +70,7 @@ type RawAnalyzeOptions struct {
 	ViaKusto  string
 	ViaRegion string
 
-	// Provider selects the LLM backend: "copilot" (default) or "claude".
+	// Provider selects the LLM backend: "copilot" (default), "claude", or "claude-code".
 	Provider string
 
 	// Copilot-specific options.
@@ -102,6 +107,7 @@ func bindAnalyzeOptions(opts *RawAnalyzeOptions, cmd *cobra.Command) error {
 	cmd.Flags().IntVar(&opts.MaxRounds, "max-rounds", opts.MaxRounds, "Maximum validation rounds per cycle")
 	cmd.Flags().StringVar(&opts.Output, "output", opts.Output, "Output directory for analysis results (defaults to data-dir)")
 	cmd.Flags().StringVar(&opts.Model, "model", opts.Model, "Override the model (applies to all providers)")
+	cmd.Flags().StringVar(&opts.ReasoningEffort, "effort", opts.ReasoningEffort, "Reasoning effort for models that support it (applies to all providers; defaults to the model's own default). copilot: "+strings.Join(agent.CopilotReasoningEfforts, ", ")+"; claude and claude-code: "+strings.Join(agent.ClaudeReasoningEfforts, ", "))
 
 	cmd.Flags().StringVar(&opts.Intent, "intent", opts.Intent, "Free-form investigation objective (e.g. a customer complaint). When set, analyzes the snapshot against this objective instead of assuming a failed e2e test. Mutually exclusive with --intent-file.")
 	cmd.Flags().StringVar(&opts.IntentFile, "intent-file", opts.IntentFile, "Path to a file containing the free-form investigation objective. Mutually exclusive with --intent.")
@@ -110,7 +116,7 @@ func bindAnalyzeOptions(opts *RawAnalyzeOptions, cmd *cobra.Command) error {
 	cmd.Flags().StringVar(&opts.ViaRegion, "via-region", opts.ViaRegion, "Region of --via-kusto (required when --via-kusto is set)")
 
 	// Provider selection.
-	cmd.Flags().StringVar(&opts.Provider, "provider", opts.Provider, "LLM provider: copilot (default) or claude")
+	cmd.Flags().StringVar(&opts.Provider, "provider", opts.Provider, "LLM provider: copilot (default), claude, or claude-code")
 
 	// Copilot-specific flags.
 	cmd.Flags().StringVar(&opts.AuthMode, "auth-mode", opts.AuthMode, "Copilot auth mode: logged-in, token, or byok")
@@ -119,11 +125,11 @@ func bindAnalyzeOptions(opts *RawAnalyzeOptions, cmd *cobra.Command) error {
 	cmd.Flags().StringVar(&opts.ModelDeployment, "model-deployment", opts.ModelDeployment, "Model deployment name (required for byok auth mode)")
 
 	// Claude-specific flags.
-	cmd.Flags().StringVar(&opts.AnthropicAPIKeyFile, "anthropic-api-key-file", opts.AnthropicAPIKeyFile, "Path to file containing the Anthropic API key (required for --claude-backend api)")
+	cmd.Flags().StringVar(&opts.AnthropicAPIKeyFile, "anthropic-api-key-file", opts.AnthropicAPIKeyFile, "Path to file containing the Anthropic API key (claude or claude-code; otherwise use environment/CLI authentication)")
 	cmd.Flags().StringVar(&opts.AnthropicModel, "anthropic-model", opts.AnthropicModel, "Anthropic model name (defaults to "+agent.DefaultClaudeModel+")")
-	cmd.Flags().StringVar(&opts.ClaudeBackend, "claude-backend", agent.ClaudeBackendAPI, "Claude API backend: api (direct Anthropic API, default) or vertex (Google Vertex AI)")
-	cmd.Flags().StringVar(&opts.VertexProject, "vertex-project", opts.VertexProject, "GCP project ID for Vertex AI (env: GOOGLE_VERTEX_PROJECT_ID)")
-	cmd.Flags().StringVar(&opts.VertexRegion, "vertex-region", opts.VertexRegion, "GCP region for Vertex AI (env: GOOGLE_VERTEX_REGION)")
+	cmd.Flags().StringVar(&opts.ClaudeBackend, "claude-backend", agent.ClaudeBackendAPI, "Backend for claude or claude-code: api (direct Anthropic API, default) or vertex (Google Vertex AI)")
+	cmd.Flags().StringVar(&opts.VertexProject, "vertex-project", opts.VertexProject, "GCP project ID for claude or claude-code Vertex AI (env: GOOGLE_VERTEX_PROJECT_ID)")
+	cmd.Flags().StringVar(&opts.VertexRegion, "vertex-region", opts.VertexRegion, "GCP region for claude or claude-code Vertex AI (env: GOOGLE_VERTEX_REGION)")
 
 	for _, flag := range []string{"aro-hcp", "hypershift", "maestro", "clusters-service"} {
 		if err := cmd.MarkFlagRequired(flag); err != nil {
@@ -150,8 +156,9 @@ type validatedAnalyzeOptions struct {
 	viaKustoEndpoint *url.URL
 
 	// Provider selection — exactly one of these is non-nil.
-	copilotConfig *agent.AgentConfig
-	claudeConfig  *agent.ClaudeConfig
+	copilotConfig    *agent.AgentConfig
+	claudeConfig     *agent.ClaudeConfig
+	claudeCodeConfig *agent.ClaudeCodeConfig
 }
 
 func (o *RawAnalyzeOptions) validate() (*validatedAnalyzeOptions, error) {
@@ -232,12 +239,16 @@ func (o *RawAnalyzeOptions) validate() (*validatedAnalyzeOptions, error) {
 	// Validate provider-specific options.
 	switch o.Provider {
 	case providerCopilot, "":
+		if err := agent.ValidateCopilotReasoningEffort(o.ReasoningEffort); err != nil {
+			return nil, fmt.Errorf("--effort: %w", err)
+		}
 		agentCfg := &agent.AgentConfig{
 			AuthMode:        o.AuthMode,
 			GitHubTokenFile: o.GitHubTokenFile,
 			ModelEndpoint:   o.ModelEndpoint,
 			ModelDeployment: o.ModelDeployment,
 			Model:           o.Model,
+			ReasoningEffort: o.ReasoningEffort,
 			MaxRounds:       o.MaxRounds,
 			Verbosity:       o.Verbosity,
 		}
@@ -271,11 +282,15 @@ func (o *RawAnalyzeOptions) validate() (*validatedAnalyzeOptions, error) {
 		}
 		validated.copilotConfig = agentCfg
 
-	case providerClaude:
+	case providerClaude, providerClaudeCode:
+		if err := agent.ValidateClaudeReasoningEffort(o.ReasoningEffort); err != nil {
+			return nil, fmt.Errorf("--effort: %w", err)
+		}
 		claudeCfg := &agent.ClaudeConfig{
-			APIKeyFile: o.AnthropicAPIKeyFile,
-			Model:      o.AnthropicModel,
-			Backend:    o.ClaudeBackend,
+			APIKeyFile:      o.AnthropicAPIKeyFile,
+			Model:           o.AnthropicModel,
+			Backend:         o.ClaudeBackend,
+			ReasoningEffort: o.ReasoningEffort,
 		}
 
 		switch o.ClaudeBackend {
@@ -285,7 +300,7 @@ func (o *RawAnalyzeOptions) validate() (*validatedAnalyzeOptions, error) {
 				if _, err := os.Stat(claudeCfg.APIKeyFile); err != nil {
 					return nil, fmt.Errorf("--anthropic-api-key-file %q: %w", claudeCfg.APIKeyFile, err)
 				}
-			} else if os.Getenv("ANTHROPIC_API_KEY") == "" {
+			} else if o.Provider == providerClaude && os.Getenv("ANTHROPIC_API_KEY") == "" {
 				return nil, fmt.Errorf("--anthropic-api-key-file or ANTHROPIC_API_KEY environment variable is required when --claude-backend is %q", claudeCfg.Backend)
 			}
 		case agent.ClaudeBackendVertex:
@@ -309,10 +324,21 @@ func (o *RawAnalyzeOptions) validate() (*validatedAnalyzeOptions, error) {
 			return nil, fmt.Errorf("unknown --claude-backend %q, must be one of: api, vertex", o.ClaudeBackend)
 		}
 
-		validated.claudeConfig = claudeCfg
+		if o.Provider == providerClaudeCode {
+			validated.claudeCodeConfig = &agent.ClaudeCodeConfig{
+				Model:           o.Model,
+				APIKeyFile:      claudeCfg.APIKeyFile,
+				Backend:         claudeCfg.Backend,
+				VertexProject:   claudeCfg.VertexProject,
+				VertexRegion:    claudeCfg.VertexRegion,
+				ReasoningEffort: claudeCfg.ReasoningEffort,
+			}
+		} else {
+			validated.claudeConfig = claudeCfg
+		}
 
 	default:
-		return nil, fmt.Errorf("unknown --provider %q, must be one of: copilot, claude", o.Provider)
+		return nil, fmt.Errorf("unknown --provider %q, must be one of: copilot, claude, claude-code", o.Provider)
 	}
 
 	return validated, nil
@@ -431,6 +457,12 @@ func (o *validatedAnalyzeOptions) run(ctx context.Context) (runErr error) {
 			return fmt.Errorf("failed to create Claude provider: %w", err)
 		}
 		provider = claudeProvider
+	case o.claudeCodeConfig != nil:
+		claudeCodeProvider, err := agent.NewClaudeCodeProvider(o.claudeCodeConfig)
+		if err != nil {
+			return fmt.Errorf("failed to create Claude Code provider: %w", err)
+		}
+		provider = claudeCodeProvider
 	default:
 		return fmt.Errorf("no LLM provider configured")
 	}
@@ -658,6 +690,14 @@ Supported LLM providers (--provider flag):
              vertex Google Vertex AI. Uses Application Default Credentials
                     (ADC) for keyless auth. Requires --vertex-project and
                     --vertex-region (or their env var equivalents).
+  claude-code  Claude Code CLI via an in-process MCP bridge. Requires the claude
+               binary on PATH. Supports the same --claude-backend api/vertex
+               selection and Vertex ADC options as claude. The api backend uses
+               CLI authentication, ANTHROPIC_API_KEY, CLAUDE_CODE_OAUTH_TOKEN,
+               or --anthropic-api-key-file.
+               Uses --model (default: claude-sonnet-4-5-20250929).
+               Runs with permissions bypassed and best-effort settings/memory
+               isolation; this is not a filesystem sandbox.
 
 The agent examines the manifest, test logs, and Kusto query results,
 then iteratively refines its analysis through validation and review rounds.

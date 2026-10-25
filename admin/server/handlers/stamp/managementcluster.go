@@ -42,6 +42,7 @@ type ManagementClusterStatus struct {
 	MaestroGRPCTarget                                    string             `json:"maestroGRPCTarget,omitempty"`
 	ClusterServiceProvisionShardID                       string             `json:"clusterServiceProvisionShardID"`
 	KubeApplierCosmosContainerName                       string             `json:"kubeApplierCosmosContainerName,omitempty"`
+	KubeApplierCosmosContainerMaxScale                   int32              `json:"kubeApplierCosmosContainerMaxScale,omitempty"`
 	SharedIngressIPAddresses                             []string           `json:"sharedIngressIPAddresses,omitempty"`
 }
 
@@ -90,6 +91,7 @@ func toManagementClusterStatus(status fleetapi.ManagementClusterStatus) (Managem
 		MaestroGRPCTarget:                                    status.MaestroGRPCTarget,
 		ClusterServiceProvisionShardID:                       status.ClusterServiceProvisionShardID.String(),
 		KubeApplierCosmosContainerName:                       status.KubeApplierCosmosContainerName,
+		KubeApplierCosmosContainerMaxScale:                   status.KubeApplierCosmosContainerMaxScale,
 		SharedIngressIPAddresses:                             status.SharedIngressIPAddresses,
 	}, nil
 }

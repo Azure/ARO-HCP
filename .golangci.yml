@@ -11,15 +11,32 @@ linters:
   exclusions:
     presets:
     - std-error-handling
+    rules:
+    # forbidigo patterns with "in test files" in their message are scoped to the
+    # root test/ directory only. Other forbidigo patterns remain unrestricted.
+    - path-except: "^test/"
+      linters:
+      - forbidigo
+      text: "in test files"
   default: none
   enable:
   - errcheck
+  - forbidigo
   - govet
   - importas
   - ineffassign
   - staticcheck
   - unused
   settings:
+    forbidigo:
+      analyze-types: true
+      forbid:
+      - pattern: "^fmt\\.Print(f|ln)?$"
+        msg: "do not use fmt.Print* in test files - use Ginkgo's GinkgoLogr or GinkgoWriter instead"
+      - pattern: "^log\\.Print(f|ln)?$"
+        msg: "do not use log.Print* in test files - use Ginkgo's GinkgoLogr or GinkgoWriter instead"
+      - pattern: "^print(ln)?$"
+        msg: "do not use builtin print/println in test files - use Ginkgo's GinkgoLogr or GinkgoWriter instead"
     importas:
       no-unaliased: true
       alias:

@@ -91,7 +91,7 @@ func NewNodePoolClusterServiceDeleteDispatchController(
 		firstSeenDeletionTimestampCache: lru.New(50000),
 	}
 
-	return controllerutils.NewNodePoolWatchingController(
+	controller := controllerutils.NewNodePoolWatchingController(
 		NodePoolClusterServiceDeleteDispatchControllerName,
 		resourcesDBClient,
 		informers,
@@ -99,6 +99,9 @@ func NewNodePoolClusterServiceDeleteDispatchController(
 		time.Minute,
 		syncer,
 	)
+	controller.AddInterestingResource(coreapi.NodePoolResourceType, "*")
+
+	return controller
 }
 
 // NeedsWork reports whether the deleter has unfinished business for the given
@@ -160,6 +163,9 @@ func (c *nodePoolClusterServiceDeleteDispatchSyncer) SyncOnce(ctx context.Contex
 	}
 
 	csID := nodePool.ServiceProviderProperties.ClusterServiceID
+	csCtx, cancel := context.WithTimeout(ctx, controllerutils.CSWriteTimeout)
+	defer cancel()
+
 	if csID == nil || len(csID.String()) == 0 {
 		elapsed := c.clock.Since(firstSeenNodePoolDeletionTimestamp)
 		if elapsed < missingClusterServiceIDTimeout {
@@ -170,7 +176,7 @@ func (c *nodePoolClusterServiceDeleteDispatchSyncer) SyncOnce(ctx context.Contex
 		}
 		logger.Info("giving up on cluster-service NodePool delete - ClusterServiceID never appeared",
 			"nodePoolDeletionTimestamp", nodePoolDeletionTimestamp, "nodePoolFirstSeenDeletionTimestamp", firstSeenNodePoolDeletionTimestamp)
-	} else if err := c.clusterServiceClient.DeleteNodePool(ctx, *csID); err != nil {
+	} else if err := c.clusterServiceClient.DeleteNodePool(csCtx, *csID); err != nil {
 		var ocmError *ocmerrors.Error
 
 		switch {
@@ -194,7 +200,7 @@ func (c *nodePoolClusterServiceDeleteDispatchSyncer) SyncOnce(ctx context.Contex
 			}
 			logger.Info("cluster-service NodePool already deleted or race against in-flight CS create", "clusterServiceID", csID.String())
 		default:
-			return utils.TrackError(fmt.Errorf("failed to delete cluster-service NodePool: %w", err))
+			return utils.TrackError(fmt.Errorf("failed to delete cluster-service NodePool: %w", ocm.StripVolatileErrorFields(err)))
 		}
 	} else {
 		logger.Info("requested cluster-service NodePool delete", "clusterServiceID", csID.String())

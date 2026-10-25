@@ -1,37 +1,23 @@
 using '../../tooling/tenant-quota/dashboards.bicep'
 
 param azureMonitorWorkspaceId = '__azureMonitorWorkspaceId__'
-param tenantName = '{{ (index .opstool.tenantQuota.tenants 0).tenantName }}'
+param tenantName = '{{ .opstool.tenantQuota.tenants.redHat0.tenantName }}'
 
-param devSubscriptions = [
-{{ range .ci.dev.infrastructureSubscriptions }}  { id: '{{ .id }}', name: '{{ .name }}' }
-{{ end }}{{ range .ci.dev.e2eSubscriptions }}  { id: '{{ .id }}', name: '{{ .name }}' }
-{{ end }}]
+param devSubscriptions = concat(
+  empty('{{ .ci.dev.infrastructureSubscriptions }}') ? [] : map(split('{{ .ci.dev.infrastructureSubscriptions }}', ','), pair => { id: split(pair, '=')[0], name: split(pair, '=')[1] }),
+  empty('{{ .ci.dev.e2eSubscriptions }}') ? [] : map(split('{{ .ci.dev.e2eSubscriptions }}', ','), pair => { id: split(pair, '=')[0], name: split(pair, '=')[1] })
+)
 
-param devRegions = [
-{{ range .ci.dev.dashboardRegions }}  '{{ . }}'
-{{ end }}]
+param devRegions = split('{{ .ci.dev.regions }}', ',')
 
-param intSubscriptions = [
-{{ range .ci.int.e2eSubscriptions }}  { id: '{{ .id }}', name: '{{ .name }}' }
-{{ end }}]
+param intSubscriptions = empty('{{ .ci.int.e2eSubscriptions }}') ? [] : map(split('{{ .ci.int.e2eSubscriptions }}', ','), pair => { id: split(pair, '=')[0], name: split(pair, '=')[1] })
 
-param intRegions = [
-{{ range .ci.int.dashboardRegions }}  '{{ . }}'
-{{ end }}]
+param intRegions = split('{{ .ci.int.regions }}', ',')
 
-param stgSubscriptions = [
-{{ range .ci.stg.e2eSubscriptions }}  { id: '{{ .id }}', name: '{{ .name }}' }
-{{ end }}]
+param stgSubscriptions = empty('{{ .ci.stg.e2eSubscriptions }}') ? [] : map(split('{{ .ci.stg.e2eSubscriptions }}', ','), pair => { id: split(pair, '=')[0], name: split(pair, '=')[1] })
 
-param stgRegions = [
-{{ range .ci.stg.dashboardRegions }}  '{{ . }}'
-{{ end }}]
+param stgRegions = split('{{ .ci.stg.regions }}', ',')
 
-param prodSubscriptions = [
-{{ range .ci.prod.e2eSubscriptions }}  { id: '{{ .id }}', name: '{{ .name }}' }
-{{ end }}]
+param prodSubscriptions = empty('{{ .ci.prod.e2eSubscriptions }}') ? [] : map(split('{{ .ci.prod.e2eSubscriptions }}', ','), pair => { id: split(pair, '=')[0], name: split(pair, '=')[1] })
 
-param prodRegions = [
-{{ range .ci.prod.dashboardRegions }}  '{{ . }}'
-{{ end }}]
+param prodRegions = split('{{ .ci.prod.regions }}', ',')

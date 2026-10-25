@@ -13,6 +13,7 @@ require (
 	github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp v0.0.0-20260924132945-9a648fc2428f
 	github.com/Azure/ARO-HCP/test/sdk/v20260630preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp v0.0.0-20260730193700-1078d78685af
 	github.com/Azure/ARO-HCP/test/sdk/v20260901preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp v0.0.0-20260730193700-1078d78685af
+	github.com/blang/semver/v4 v4.0.0
 	github.com/google/go-cmp v0.7.0
 	github.com/microsoft/go-otel-audit v1.1.0
 	github.com/openshift-online/ocm-api-model/clientapi v0.0.468
@@ -21,10 +22,10 @@ require (
 	github.com/stretchr/testify v1.12.1
 	go.uber.org/goleak v1.3.0
 	go.uber.org/mock v0.6.0
-	k8s.io/apimachinery v0.36.2
-	k8s.io/client-go v0.36.2
-	k8s.io/utils v0.0.0-20260617174310-a95e086a2553
-	sigs.k8s.io/controller-runtime v0.24.1
+	k8s.io/apimachinery v0.37.1
+	k8s.io/client-go v0.37.1
+	k8s.io/utils v0.0.0-20260707023825-cf1189d6abe3
+	sigs.k8s.io/controller-runtime v0.25.0
 	sigs.k8s.io/yaml v1.6.0
 )
 
@@ -45,7 +46,6 @@ require (
 	github.com/Azure/checkaccess-v2-go-sdk v0.0.4-0.20260707173829-4b27d1696d22 // indirect
 	github.com/Azure/msi-dataplane v0.4.3 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect
-	github.com/blang/semver/v4 v4.0.0 // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/emicklei/go-restful/v3 v3.13.0 // indirect
@@ -77,10 +77,10 @@ require (
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/kubernetes-csi/external-snapshotter/client/v8 v8.4.0 // indirect
 	github.com/openshift-online/ocm-api-model/model v0.0.468 // indirect
-	github.com/openshift/api v0.0.0-20260805160557-b61243060d5f // indirect
+	github.com/openshift/api v0.0.0-20260930220732-5588d747a72b // indirect
 	github.com/openshift/cluster-version-operator v1.0.1-0.20260202115537-557510ea0603 // indirect
-	github.com/openshift/hypershift/api v0.0.0-20260911144647-689ab808b174 // indirect
-	github.com/openshift/library-go v0.0.0-20260504190829-2dd4388d7b89 // indirect
+	github.com/openshift/hypershift/api v0.0.0-20261002220447-d1eba2a7a57c // indirect
+	github.com/openshift/library-go v0.0.0-20261001004733-92c0a59426c9 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/prometheus/otlptranslator v1.0.0 // indirect
@@ -129,17 +129,17 @@ require (
 	google.golang.org/grpc v1.84.0 // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.13.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
-	k8s.io/api v0.36.2 // indirect
-	k8s.io/apiextensions-apiserver v0.36.2 // indirect
-	k8s.io/component-base v0.36.2 // indirect
+	k8s.io/api v0.37.1 // indirect
+	k8s.io/apiextensions-apiserver v0.37.1 // indirect
+	k8s.io/component-base v0.37.1 // indirect
 	k8s.io/klog/v2 v2.140.0 // indirect
-	k8s.io/kube-openapi v0.0.0-20260603220949-865597e52e25 // indirect
+	k8s.io/kube-openapi v0.0.0-20260721132016-d427ff9ee9ad // indirect
 	open-cluster-management.io/api v1.3.0 // indirect
 	sigs.k8s.io/json v0.0.0-20250730193827-2d320260d730 // indirect
 	sigs.k8s.io/randfill v1.0.0 // indirect
 	sigs.k8s.io/secrets-store-csi-driver v1.6.0 // indirect
 	sigs.k8s.io/secrets-store-sync-controller v0.0.5 // indirect
-	sigs.k8s.io/structured-merge-diff/v6 v6.4.0 // indirect
+	sigs.k8s.io/structured-merge-diff/v6 v6.4.2 // indirect
 )
 
 require (

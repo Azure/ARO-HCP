@@ -32,6 +32,7 @@ import (
 	"github.com/Azure/ARO-HCP/fleet/pkg/azure/skucache"
 	fleetcontrollers "github.com/Azure/ARO-HCP/fleet/pkg/controllers/base"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
+	"github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
@@ -143,9 +144,15 @@ func (s *scaleCeilingReportingSyncer) persistMaxCapacity(ctx context.Context, st
 	}
 
 	updated := existing.DeepCopy()
+	condition.LastTransitionTime = *now
 	meta.SetStatusCondition(&updated.Status.Conditions, condition)
-	updated.Status.ScaleCeiling.LastReportedAt = now
 	updated.Status.ScaleCeiling.Capacity = max
+	// Compare before advancing the publication timestamp: an unchanged
+	// computation must not produce another Cosmos event and wake us again.
+	if existing.Status.ScaleCeiling.LastReportedAt != nil && !controllerutils.NeedsUpdate(existing, updated) {
+		return nil
+	}
+	updated.Status.ScaleCeiling.LastReportedAt = now
 	if _, err := schedulingCRUD.Replace(ctx, updated, nil); err != nil {
 		return utils.TrackError(err)
 	}

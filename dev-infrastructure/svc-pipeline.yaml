@@ -501,6 +501,10 @@ resourceGroups:
       # The AKS RP can validate KMS access before the cluster identity's
       # Key Vault Crypto User role assignment has propagated.
       - "AzureKeyVaultKmsValidateIdentityPermissionCustomerError"
+      # Every managed-cluster write reconciles the aks-managed-azure-monitor-metrics
+      # core extension, which fails while another AKS operation (e.g. a node-image
+      # auto-upgrade) holds the cluster. AKS documents this as wait-and-retry.
+      - "conflicting operation in progress"
       maximumRetryCount: 3
       durationBetweenRetries: 2m
   - name: upgrade-aks-cluster
@@ -660,22 +664,6 @@ resourceGroups:
       step: output
     - resourceGroup: service
       step: cluster-output
-  # TRANSIENT: remove after rollout to all environments (AROSLSRE-2290)
-  # Cleans up orphaned tracing pods (jaeger, otel-collector, lgtm) left behind
-  # after PR #7072 removed the observability/tracing pipeline.
-  - name: cleanup-observability-tracing
-    aksCluster: '{{ .svc.aks.name }}'
-    action: Shell
-    command: ./cleanup-observability-tracing.sh
-    workingDir: ./scripts
-    dependsOn:
-    - resourceGroup: service
-      step: cluster-output
-    shellIdentity:
-      input:
-        resourceGroup: global
-        step: output
-        name: globalMSIId
   - name: prometheus
     # Deploy prometheus first since istio depends on it's CRDs
     aksCluster: '{{ .svc.aks.name }}'
@@ -796,7 +784,7 @@ resourceGroups:
     releaseName: acrpull
     releaseNamespace: acrpull
     chartDir: ./../acrpull/deploy
-    valuesFile: ./../acrpull/deploy/values.yaml
+    valuesFile: ./../acrpull/deploy/values-svc.yaml
     kustoEndpoint:
       resourceGroup: kusto
       step: output
@@ -827,7 +815,7 @@ resourceGroups:
     releaseName: service-lifecycle
     releaseNamespace: kube-system
     chartDir: ../service-lifecycle/deploy
-    valuesFile: ../service-lifecycle/deploy/values.yaml
+    valuesFile: ../service-lifecycle/deploy/values-svc.yaml
     kustoEndpoint:
       resourceGroup: kusto
       step: output
@@ -837,6 +825,11 @@ resourceGroups:
     dependsOn:
     - resourceGroup: service
       step: cluster
+    # ama-metrics-settings-configmap previously belonged to the arohcp-monitor
+    # (prometheus) release; wait for that upgrade to release ownership before
+    # service-lifecycle recreates it, or Helm ownership validation fails.
+    - resourceGroup: service
+      step: prometheus
     identityFrom:
       resourceGroup: global
       step: output

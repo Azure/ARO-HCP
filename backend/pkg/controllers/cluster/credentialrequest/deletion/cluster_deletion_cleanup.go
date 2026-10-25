@@ -23,6 +23,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
@@ -69,7 +70,7 @@ func NewClusterDeletionCleanupController(
 		serviceProviderClusterLister: serviceProviderClusterLister,
 	}
 
-	return controllerutils.NewSystemAdminCredentialRequestWatchingController(
+	controller := controllerutils.NewSystemAdminCredentialRequestWatchingController(
 		SystemAdminCredentialClusterDeletionCleanupControllerName,
 		resourcesDBClient,
 		backendInformers,
@@ -77,6 +78,13 @@ func NewClusterDeletionCleanupController(
 		1*time.Minute,
 		syncer,
 	)
+	// Cleanup must include every remaining child, including legacy desire names.
+	controller.AddInterestingResource(coreapi.SystemAdminCredentialRequestResourceType, "*")
+	controller.AddInterestingResource(coreapi.ServiceProviderClusterResourceType, coreapi.ServiceProviderClusterResourceName)
+	controller.AddInterestingResource(kubeapplierapi.SystemAdminCredentialRequestScopedApplyDesireResourceType, "*")
+	controller.AddInterestingResource(kubeapplierapi.SystemAdminCredentialRequestScopedReadDesireResourceType, "*")
+
+	return controller
 }
 
 // needsWork reports whether deletion has been requested for this credential

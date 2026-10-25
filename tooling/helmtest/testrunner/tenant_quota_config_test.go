@@ -17,6 +17,7 @@ package testrunner
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -156,9 +157,7 @@ func TestTenantQuotaCIJobOutcomes(t *testing.T) {
 				require.Equal(t, value, outcomes[key], "controller setting %s", key)
 			}
 			if tc.values == "values.yaml.tmpl" {
-				local, err := config.PreprocessFile(filepath.Join(chartDir, "config.yaml.tmpl"), testConfig)
-				require.NoError(t, err)
-				require.YAMLEq(t, string(local), cm.Data["config.yaml"])
+				require.Equal(t, expectedTenants(testConfig), runtime["tenants"])
 			} else {
 				expected["enabled"] = false
 				require.Equal(t, expected, outcomes)
@@ -195,5 +194,80 @@ func TestTenantQuotaCIJobOutcomes(t *testing.T) {
 			require.Error(t, err)
 			require.ErrorContains(t, err, tc.field)
 		})
+	}
+}
+
+// expectedTenants derives the rendered collector tenants from the ci.<env> CSV
+// inventory, independently of the chart's Helm implementation.
+func expectedTenants(testConfig map[string]any) []any {
+	ci := testConfig["ci"].(map[string]any)
+	tenants := testConfig["opstool"].(map[string]any)["tenantQuota"].(map[string]any)["tenants"].(map[string]any)
+	csv := func(s string) []string {
+		if s == "" {
+			return nil
+		}
+		return strings.Split(s, ",")
+	}
+	regionList := func(s string) []any {
+		var out []any
+		for _, r := range csv(s) {
+			out = append(out, r)
+		}
+		return out
+	}
+	var subscriptions []any
+	add := func(env, field string) {
+		e := ci[env].(map[string]any)
+		subs, _ := e[field].(string)
+		for _, pair := range csv(subs) {
+			name := pair[strings.Index(pair, "=")+1:]
+			subscriptions = append(subscriptions, map[string]any{"name": name, "regions": regionList(e["regions"].(string))})
+		}
+	}
+	add("dev", "infrastructureSubscriptions")
+	for _, env := range []string{"dev", "int", "stg", "prod"} {
+		add(env, "e2eSubscriptions")
+	}
+	tenant := func(key string, subs []any) map[string]any {
+		t := tenants[key].(map[string]any)
+		return map[string]any{
+			"tenantId": t["tenantId"], "tenantName": t["tenantName"],
+			"servicePrincipalClientId": t["servicePrincipalClientId"], "keyVaultSecretName": t["keyVaultSecretName"],
+			"scope": "https://graph.microsoft.com/.default", "directoryQuota": t["directoryQuota"],
+			"subscriptions": subs,
+		}
+	}
+	other := tenants["testTestAro"].(map[string]any)
+	return []any{
+		tenant("redHat0", subscriptions),
+		tenant("testTestAro", []any{map[string]any{"name": other["subscriptionName"], "regions": regionList(other["regions"].(string))}}),
+	}
+}
+
+func TestTenantQuotaSchemaRejectsAmbiguousSubscriptionNames(t *testing.T) {
+	provider, err := config.NewConfigProvider("../../../config/config-dev-ci.yaml")
+	require.NoError(t, err)
+	resolver, err := provider.GetResolver(&config.ConfigReplacements{
+		CloudReplacement: "dev", EnvironmentReplacement: "dev-ci", RegionReplacement: "westus3",
+		RegionShortReplacement: "usw3", StampReplacement: "1",
+	})
+	require.NoError(t, err)
+	cfg, err := resolver.GetRegionConfiguration("westus3")
+	require.NoError(t, err)
+	resolved, err := yaml.Marshal(cfg)
+	require.NoError(t, err)
+	validate := func(csv string) error {
+		var testConfig map[string]any
+		require.NoError(t, yaml.Unmarshal(resolved, &testConfig))
+		testConfig["ci"].(map[string]any)["int"].(map[string]any)["e2eSubscriptions"] = csv
+		return resolver.ValidateSchema(map[string]any{
+			"clouds": map[string]any{"dev": map[string]any{"defaults": testConfig}},
+		})
+	}
+	require.NoError(t, validate("64f0619f-ebc2-4156-9d91-c4c781de7e54=Name - With (Punctuation)"))
+	for _, csv := range []string{"id=Engineering=Canary", "id=a,id2=b=c", "id=Team's Subscription", `id=Say "hi"`, `id=back\slash`, "id=${interp}", "id=back`tick"} {
+		err := validate(csv)
+		require.Error(t, err, csv)
+		require.ErrorContains(t, err, "e2eSubscriptions")
 	}
 }

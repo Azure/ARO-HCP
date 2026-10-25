@@ -45,6 +45,7 @@ resourceGroups:
     - eastus2
     - japaneast
     - swedencentral
+    - eastasia
   steps:
   - name: subscription-lookup
     action: ARM
@@ -85,6 +86,7 @@ resourceGroups:
     - eastus2
     - japaneast
     - swedencentral
+    - eastasia
   steps:
   - name: deploy
     action: ARM

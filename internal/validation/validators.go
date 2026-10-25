@@ -262,22 +262,6 @@ func OpenshiftVersionAtMostOneMinorSkewWithField(_ context.Context, _ operation.
 	return nil
 }
 
-func OpenshiftVersionWithOptionalMicro(_ context.Context, op operation.Operation, fldPath *field.Path, value, _ *string) field.ErrorList {
-	if value == nil {
-		return nil
-	}
-	if len(*value) == 0 {
-		return nil
-	}
-
-	_, err := semver.ParseTolerant(*value)
-	if err != nil {
-		return field.ErrorList{field.Invalid(fldPath, value, err.Error())}
-	}
-
-	return nil
-}
-
 func OpenShiftWithOptionalPrerelease(_ context.Context, op operation.Operation, fldPath *field.Path, value, _ *string) field.ErrorList {
 	if value == nil {
 		return nil
@@ -298,7 +282,10 @@ func OpenShiftWithOptionalPrerelease(_ context.Context, op operation.Operation, 
 	return nil
 }
 
-func OpenshiftVersionWithoutMicro(_ context.Context, op operation.Operation, fldPath *field.Path, value, _ *string) field.ErrorList {
+// OpenshiftVersionWithoutMicroDetail rejects a version ID that carries a PATCH
+// component, reporting the supplied detail. Callers differ only in how they tell
+// the user where the PATCH value belongs.
+func OpenshiftVersionWithoutMicroDetail(_ context.Context, _ operation.Operation, fldPath *field.Path, value, _ *string, detail string) field.ErrorList {
 	if value == nil {
 		return nil
 	}
@@ -313,10 +300,17 @@ func OpenshiftVersionWithoutMicro(_ context.Context, op operation.Operation, fld
 
 	// The version ID has already passed syntax validation so we know it's a valid semantic version.
 	if len(strings.SplitN(*value, ".", 3)) > 2 {
-		return field.ErrorList{field.Invalid(fldPath, value, "must be specified as MAJOR.MINOR; the PATCH value is managed")}
+		return field.ErrorList{field.Invalid(fldPath, value, detail)}
 	}
 
 	return nil
+}
+
+// OpenshiftVersionWithoutMicro rejects a PATCH component for subscriptions
+// without the experimental AFEC, where no exact pin is available at all.
+func OpenshiftVersionWithoutMicro(ctx context.Context, op operation.Operation, fldPath *field.Path, value, oldValue *string) field.ErrorList {
+	return OpenshiftVersionWithoutMicroDetail(ctx, op, fldPath, value, oldValue,
+		"must be specified as MAJOR.MINOR; the PATCH value is managed")
 }
 
 func MinItems[T any](_ context.Context, _ operation.Operation, fldPath *field.Path, value, _ []T, minLen int) field.ErrorList {
@@ -421,6 +415,11 @@ var (
 	diskEncryptionSetName            = `^[a-zA-Z0-9_-]+$`
 	diskEncryptionSetNameRegex       = regexp.MustCompile(diskEncryptionSetName)
 	diskEncryptionSetNameErrorString = `(must contain only alphanumeric characters, underscores, and hyphens)`
+
+	// keyVaultKeyVersion See https://github.com/Azure/azure-rest-api-specs/blob/main/specification/keyvault/resource-manager/Microsoft.KeyVault/KeyVault/stable/2026-02-01/openapi.json#L2141-L2146
+	keyVaultKeyVersion            = `^[0-9a-fA-F]{32}$`
+	keyVaultKeyVersionRegex       = regexp.MustCompile(keyVaultKeyVersion)
+	keyVaultKeyVersionErrorString = `(must be a 32-character hexadecimal key version)`
 )
 
 func MatchesRegex(_ context.Context, _ operation.Operation, fldPath *field.Path, value, _ *string, regex *regexp.Regexp, errorString string) field.ErrorList {
@@ -445,6 +444,19 @@ func ValidateUUID(_ context.Context, _ operation.Operation, fldPath *field.Path,
 	}
 	if err := uuid.Validate(*value); err != nil {
 		return field.ErrorList{field.Invalid(fldPath, *value, err.Error())}
+	}
+	return nil
+}
+
+func AzureKeyVaultKeyVersion(_ context.Context, _ operation.Operation, fldPath *field.Path, value, _ *string) field.ErrorList {
+	if value == nil {
+		return nil
+	}
+	if len(*value) == 0 {
+		return nil
+	}
+	if !keyVaultKeyVersionRegex.MatchString(*value) {
+		return field.ErrorList{field.Invalid(fldPath, *value, keyVaultKeyVersionErrorString)}
 	}
 	return nil
 }

@@ -260,21 +260,27 @@ func TestConsecutiveFailuresUsesCompletionOrder(t *testing.T) {
 
 func TestDurationBuckets(t *testing.T) {
 	want := []float64{
-		60,
 		300,
 		600,
 		900,
 		1200,
 		1500,
 		1800,
-		2700,
+		2400,
+		3000,
 		3600,
+		4500,
 		5400,
+		6300,
 		7200,
-		7800,
-		8400,
+		8100,
 		9000,
+		9900,
 		10800,
+		11700,
+		12600,
+		13500,
+		14400,
 	}
 	if len(durationBuckets) != len(want) {
 		t.Fatalf("durationBuckets length = %d, want %d", len(durationBuckets), len(want))

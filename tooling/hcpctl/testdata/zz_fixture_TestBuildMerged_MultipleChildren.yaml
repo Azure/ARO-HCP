@@ -60,7 +60,7 @@ kql: |
 
   let _startTime = datetime(2025-01-01T00:00:00.0000000Z);
   let _endTime = datetime(2025-01-02T00:00:00.0000000Z);
-  // Discover all cluster and bundle IDs over the full range, not each output window.
+  // Discover all cluster IDs over the full range, not each output window.
   let _cs_cluster_ids = (
       database('ServiceLogs').table('clustersServiceLogs')
       | where timestamp between (datetime(2025-01-01T00:00:00.0000000Z) .. datetime(2025-01-02T00:00:00.0000000Z))
@@ -68,29 +68,7 @@ kql: |
       | where isnotempty(cid)
       | distinct cid
   );
-  // Find all Maestro resource IDs for these clusters.
-  let maestro_resource_ids = (
-      database('ServiceLogs').table('containerLogs')
-      | where timestamp between (datetime(2025-01-01T00:00:00.0000000Z) .. datetime(2025-01-02T00:00:00.0000000Z))
-      | where namespace_name has "maestro"
-      | extend logStr = tostring(log)
-      | where logStr has_any (_cs_cluster_ids)
-      | extend resourceId = extract(@'resourceid[=:"]+([a-f0-9\-]+)', 1, logStr)
-      | where isnotempty(resourceId)
-      | distinct resourceId
-  );
-  // Infrastructure & Orchestration Logs - Maestro, Hypershift, and ACM Agent
   union
-      (
-          // Maestro logs: Resource bundle operations for this cluster and its associated resources
-          // Includes: resource creation, updates, deletions, status events, gRPC communications
-          database('ServiceLogs').table('containerLogs')
-          | where timestamp between (_startTime .. _endTime)
-          | where namespace_name has "maestro"
-          | extend logStr = tostring(log)
-          | where logStr has_any (_cs_cluster_ids) or logStr has_any (maestro_resource_ids)
-          | project source = "maestro", timestamp, container_name, msg = logStr, log
-      ),
       (
           // Hypershift logs: Hypershift operator reconciliation of HostedCluster and NodePool CRs
           // Includes the CR reconciliation logs

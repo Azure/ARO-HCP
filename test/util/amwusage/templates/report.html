@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline' https://cdn.jsdelivr.net/npm/echarts@5.6.0/dist/echarts.min.js; connect-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'; object-src 'none'">
+<title>AMW | Active series investigation</title>
+<style>{{template "style.css"}}</style></head>
+<body><main id="report">
+<header><p class="eyebrow">AZURE MONITOR WORKSPACES / POST-HOC EVIDENCE</p>
+<h1>Where did the active series come from?</h1>
+<p>{{utc .Data.Run.Start}} to {{utc .Data.Run.End}} | {{number .Duration}} seconds</p>
+<p>{{.Data.Run.Job}} | {{with safeURL .Data.Run.Prow}}<a href="{{.}}" rel="noreferrer">Prow {{$.Data.Run.Build}}</a>{{else}}Build {{.Data.Run.Build}}{{end}} | Recorded result: {{with .Data.Run.Finished.result}}{{.}}{{else}}Unavailable{{end}}</p>
+</header>
+{{template "active.html" .}}
+<details class="evidence-details" id="sample-comparison"><summary>Samples and quiet-window comparison</summary>
+<p>Separate aggregate queries for {{range .Summary.Workspaces}}{{.Name}} ({{len .Metrics}} metrics); {{end}} compare the run window with the explicit quiet window. These are not the 12-hour inventories above.</p>
+{{template "contributors.html" .}}</details>
+<details class="evidence-details"><summary>Coverage, timelines and query evidence</summary>
+<p class="muted">Archived revision: {{with index .Data.Run.Started "repo-commit"}}{{.}}{{else}}Unavailable{{end}}.</p>
+<p class="muted">Collection status: {{collectionState .Data.Complete}}.</p>
+{{with .Data.Errors}}<aside class="verdict"><strong>Collection errors / partial evidence</strong>{{range .}}<pre class="error">{{.}}</pre>{{end}}</aside>{{end}}
+<div class="stats">
+<div><strong>{{number .Summary.PromQL}}</strong><span>PromQL requests</span></div>
+<div><strong>{{number .Summary.PromQLErrors}}</strong><span>PromQL failures</span></div>
+<div><strong>{{number .Summary.PlatformRequests}}</strong><span>Platform attempts / {{.Summary.PlatformErrors}} failures</span></div>
+<div><strong>{{number .Summary.ResponseBytes}}</strong><span>Reported response bytes / {{.Summary.ByteReports}} of {{.Summary.Requests}} requests</span></div>
+</div>
+<section><h2>Read the measurements correctly</h2>
+<p>Platform: one-minute maxima from {{utc .Data.Run.PlatformStart}} to {{utc .Data.Run.PlatformEnd}} (end exclusive). Dashed vertical lines mark the run. ActiveTimeSeries is a trailing 12-hour inventory, not this run's distinct-series count.</p>
+<p>Samples: <code>count_over_time</code> counts stored samples, not counter increments, API requests, CPU usage, or histogram observations. Each bucket series and each stored replica label set is counted separately. The chart is a five-minute sample count divided by five, in samples/minute.</p>
+<p>First sample evaluation is start + 5 minutes, so no pre-run lookback is included. The run interval is (start, end]; {{.Windows}} complete five-minute windows are plotted. The final {{.Trailing}} seconds are omitted from sample timelines but included in exact-run cardinality and the new full-window stored-sample query when collected. Missing group/evaluation values are not zero-filled.</p>
+<p>Any explicit nonfinite or invalid returned group value makes that sample evaluation unavailable, not a partial total. Such evaluations are excluded from sample subtotals and peaks. An absent series is distinct: remaining returned groups can still be summed without imputing the absent group. Any invalid cardinality group makes the entire cardinality total unavailable. Duplicate points within a group also withhold that evaluation.</p>
+<p class="muted">Quota comparisons require exactly one usage and one limit series, paired numeric minutes, positive limits and PT1M intervals. Multiple physical series remain visible but are not summed or arbitrarily paired. A quota crossing in paired maxima is not itself proof of dropped samples.</p>
+</section>
+{{range .Summary.Workspaces}}
+<section class="workspace"><p class="eyebrow">WORKSPACE / BOUNDED SELECTION</p><h2>{{.Name}}</h2>
+<p class="muted">{{.ID}}<br>{{.Endpoint}}</p>
+<p>{{number (len .Names)}} discovered names; {{len .Metrics}} selected ({{.SelectedPercent}}); {{.Succeeded}} with both queries successful. Unselected names were not queried. Discovery catalog entries do not establish sample coverage.</p>
+{{with .DiscoveryState}}<p class="error">Discovery coverage unavailable: {{.}}. An empty inventory is not proof of an empty workspace.</p>{{end}}
+<p class="verdict">{{.Verdict}}</p>
+<div class="plots">{{range .Quota}}<div class="card">{{template "chart" .Chart}}
+<p class="muted">Peak paired utilization {{percent .MaxRatio}}. {{.Paired}} numeric paired minutes; {{if .Paired}}{{.Crossings}} observed crossings{{else}}crossings unavailable{{end}}. Quota coverage: {{if .Complete}}complete{{else}}incomplete or not comparable{{end}}.</p></div>{{end}}</div>
+<details><summary>Platform series: complete coverage and physical labels</summary>
+<div class="table-wrap"><table><thead><tr><th>Metric / request</th><th>Labels</th><th>Numeric minutes</th><th>Missing</th><th>Rows / duplicates / outside window</th><th>Interval</th><th>First / last / peak maximum</th></tr></thead><tbody>
+{{range $name, $source := .Platform}}{{range $source.Series}}<tr><td>{{$name}}<br>{{$source.ID}}</td><td><pre>{{json .Labels}}</pre></td><td>{{.Valid}}/{{.Expected}}</td><td>{{.Missing}}</td><td>{{.Rows}} / {{.DuplicateTimestamps}} / {{.OutOfRangePoints}}</td><td>{{.Interval}}</td><td>{{number .First}} / {{number .Last}} / {{number .Max}}</td></tr>{{else}}<tr><td>{{$name}}<br>{{$source.ID}}</td><td colspan="6">{{$source.State}}. Numeric coverage unavailable, not zero.</td></tr>{{end}}{{end}}
+</tbody></table></div></details>
+<h3>Drop reasons: preserve missingness</h3>
+<div class="table-wrap"><table><thead><tr><th>Platform metric</th><th>Reason / physical labels</th><th>Numeric minutes</th><th>Missing minutes</th><th>Peak minute maximum</th></tr></thead><tbody>
+{{range $name, $source := .Platform}}{{if or (eq $name "EventsDropped") (eq $name "TimeSeriesSamplesDropped")}}{{range $source.Series}}<tr><td>{{$name}}</td><td>{{label .Labels "Reason"}}<pre>{{json .Labels}}</pre></td><td>{{.Valid}}/{{.Expected}}</td><td>{{.Missing}}</td><td>{{number .Max}}</td></tr>{{else}}<tr><td>{{$name}}</td><td>{{$source.State}}</td><td>Unavailable</td><td>Unknown</td><td>Unavailable</td></tr>{{end}}{{end}}{{end}}
+</tbody></table></div>
+<p class="muted">BadInputFormat and Duplicate are separate from LimitThrottling. Absent reason series and timestamp-only points are unknown, not evidence of zero. Minute maxima are not summed as a total dropped-event count.</p>
+<h3>Explicit metric sample</h3>
+<div class="table-wrap"><table><thead><tr><th>Metric</th><th>Exact-run stored series</th><th>Groups</th><th>Peak samples/min</th><th>Numeric evaluations</th><th>Observed sample subtotal</th></tr></thead><tbody>
+{{range .MetricResults}}<tr><td>{{.Name}}</td><td>{{if .InstantOK}}{{number .Series}}{{else}}QUERY FAILED{{end}}</td><td>{{if .InstantOK}}{{len .Groups}}{{else}}Unavailable{{end}}</td><td>{{if .RangeOK}}{{number .PeakSamplesPerMinute}}{{else}}QUERY FAILED{{end}}</td><td>{{.Valid}}/{{.Expected}}</td><td>{{number .ObservedSamples}}</td></tr>{{end}}
+</tbody></table></div>
+{{range .MetricResults}}<article class="metric card"><h3>{{.Name}}</h3>
+{{if or (not .InstantOK) (not .RangeOK)}}<p class="error">Unavailable, not zero. Failed queries are excluded from their numeric comparisons; independently successful query results remain visible.</p>{{end}}
+{{with .InstantState}}<pre class="error">Instant: {{.}}</pre>{{end}}{{with .RangeState}}<pre class="error">Range: {{.}}</pre>{{end}}
+{{if .RangeOK}}{{template "chart" .Chart}}
+<p class="muted">{{number .ObservedSamples}} observed stored samples across complete returned windows; peak {{number .PeakSamplesPerMinute}} samples/minute. {{.Valid}}/{{.Expected}} numeric evaluations. This is a subtotal of returned evidence, not an estimate for missing windows or groups.</p>{{end}}
+<p class="muted">{{.InvalidPoints}} invalid returned sample values; {{.InvalidEvaluations}} evaluations withheld; {{.OutOfRangePoints}} out-of-range points excluded; {{.DuplicatePoints}} duplicate points.</p>
+{{if .InstantOK}}<p>{{number .Series}} distinct physical stored series in (run start, run end], across {{len .Groups}} returned label groups. This is not 12-hour active series.</p>
+<p class="{{if .InvalidCardinalityGroups}}error{{else}}muted{{end}}">{{.InvalidCardinalityGroups}} invalid cardinality groups. {{if .InvalidCardinalityGroups}}Entire cardinality total withheld; valid individual groups remain inspectable below.{{end}}</p>{{else}}<p>Exact-run cardinality and label-group counts are unavailable because the instant query failed.</p>{{end}}
+{{with .Warnings}}<pre class="error">Response warnings: {{json .}}</pre>{{end}}
+{{if .Groups}}<details class="groups"><summary>Inspect all {{len .Groups}} label groups and series counts</summary>
+<label>Filter label groups <input type="search" placeholder="cluster, job, namespace, HCP" data-filter></label>
+<div class="table-wrap"><table><thead><tr><th>cluster</th><th>job</th><th>namespace</th><th>hostedcontrolplane</th><th>All physical labels</th><th>Stored series</th></tr></thead><tbody>
+{{range .Groups}}<tr><td>{{label .Labels "cluster"}}</td><td>{{label .Labels "job"}}</td><td>{{label .Labels "namespace"}}</td><td>{{label .Labels "hostedcontrolplane"}}</td><td><pre>{{json .Labels}}</pre></td><td>{{number .Count}}</td></tr>{{end}}
+</tbody></table></div></details>{{end}}
+<details><summary>Exact PromQL and request provenance</summary><pre>{{.RangeQuery}}
+
+{{.InstantQuery}}
+
+New series: {{.NewSeriesQuery}}
+
+Full-window samples: {{.SamplesQuery}}</pre><p>Range step: 300s, first evaluation: run start + 300s. Instant evaluation: {{utc $.Data.Run.End}}. Requested timeouts, URLs, response metadata and raw bodies are retained in the evidence archive.</p>
+<p>New series request: {{.NewSeries}}; full-window samples request: {{.Samples}}</p>
+<pre>Baseline series: {{.BaselineSeriesQuery}}
+Baseline samples: {{.BaselineSamplesQuery}}</pre><p>Baseline series request: {{.BaselineSeries}}; baseline samples request: {{.BaselineSamples}}. Baseline instant evaluation uses context.baseline.end, not run end.</p>
+<p>Range request: {{.Range}}</p><pre>{{(index $.Data.Records .Range).Request.URL}}</pre><p>Instant request: {{.Instant}}</p><pre>{{(index $.Data.Records .Instant).Request.URL}}</pre></details>
+</article>{{end}}
+<details><summary>Discovery inventory: all {{len .Names}} returned metric names</summary><p>The catalog response does not establish sample coverage or cardinality for each name.</p><pre>{{join .Names "\n"}}</pre></details>
+</section>{{end}}
+<section><h2>Query ledger and replay</h2>
+<p>{{.Summary.Requests}} evidence requests, {{.Summary.Errors}} failures retained. Summed request latency {{number .Summary.ElapsedMS}} ms; reported response payload {{number .Summary.ResponseBytes}} bytes ({{.Summary.ByteReports}}/{{.Summary.Requests}} requests reporting). ARM-reported cost sum {{number .Summary.APICost}} ({{.Summary.CostReports}} reporting; opaque API units, not currency). These totals describe recorded attempts, not unrecorded collection overhead. Prometheus scan cost is not inferred.</p>
+<p>Evidence collected {{with .Summary.FirstRequest}}{{.}}{{else}}at an unavailable start time{{end}} through {{with .Summary.LastRequest}}{{.}}{{else}}an unavailable end time{{end}}. Failed and corrected attempts remain in the ledger; no retry or pacing policy is inferred from successful responses.</p>
+<div class="table-wrap"><table><thead><tr><th>Request</th><th>Status</th><th>Latency ms</th><th>Bytes</th><th>API cost</th><th>Error / state</th></tr></thead><tbody>
+{{range .Data.Manifests}}<tr><td>{{.Request.ID}}<br>{{.Request.Kind}}</td><td>{{number .Status}}</td><td>{{number .ElapsedMS}}</td><td>{{number .ResponseBytes}}</td><td>{{number .APICost}}</td><td>{{if .OK}}OK{{else}}{{with .Error}}<pre>{{json .}}</pre>{{else}}Failed; no error recorded{{end}}{{end}}</td></tr>{{end}}
+</tbody></table></div>
+<details><summary>Full evidence archive: manifests, GET URLs, timestamps, metadata and raw response bodies</summary><p>All original JSON fields are preserved, including failures and fields not used by this renderer. No local raw-file links are needed to inspect this report.</p><pre id="evidence">{{.Evidence}}</pre></details>
+<button type="button" id="download">Download embedded evidence JSON</button>
+</section>
+<section><h2>What this analysis does not establish</h2><ul>
+<li>No all-workspace top-N, full fan-out or extrapolation from selected metric names to unknown metrics.</li>
+<li>No causal attribution of regional ingestion to this job. Services workspaces can include management-cluster telemetry. Run-owned classification requires the supplied literal namespace inventory; absent labels and unmapped attempts remain unassigned.</li>
+<li>No HA deduplication. Distinct stored series count physical label sets present in AMW; upstream ingestion deduplication is not reversible.</li>
+<li>No proof of a quiet period before the run, independent client pacing, or complete underlying ingestion merely from successful response status.</li>
+<li>No histogram event count derived from bucket-series sample counts. No dropped-event total derived by adding minute maxima.</li>
+<li>Regional quota headroom and incomplete LimitThrottling reason coverage cannot prove zero dropped samples. Even complete evidence supports only the observed interval and recorded series.</li>
+</ul></section>
+</details>
+<footer>Cached evidence, rendered in Go. Tables and SVG timelines work offline. Interactive treemap uses ECharts 5.6.0 from jsDelivr; no telemetry, frames or evidence requests.</footer>
+</main><script id="contribution-data" type="application/json">{{.ContributionJSON}}</script>
+<script id="active-data" type="application/json">{{.ActiveJSON}}</script>
+<script>{{template "ui.js"}}</script>
+<script async src="https://cdn.jsdelivr.net/npm/echarts@5.6.0/dist/echarts.min.js" id="echarts-library"></script>
+<script>{{template "contributors.js"}}</script><script>{{template "active.js"}}</script></body></html>
+
+{{define "chart"}}<figure><figcaption>{{.Title}}</figcaption>
+<svg viewBox="0 0 760 220" role="img" aria-label="{{.Title}}. Gaps mean unavailable values, not zero.">
+<title>{{.Title}}. Gaps mean unavailable values, not zero.</title>
+{{range .Ticks}}<line x1="62" x2="737" y1="{{.Position}}" y2="{{.Position}}" stroke="#dce3e8"/><text x="54" y="{{.Position}}" dy="4" text-anchor="end" class="axis">{{.Label}}</text>{{end}}
+{{range .Times}}<text x="{{.Position}}" y="207" text-anchor="{{.Anchor}}" class="axis">{{.Label}}</text>{{end}}
+{{range .RunMarkers}}<line x1="{{.}}" x2="{{.}}" y1="20" y2="182" stroke="#9ca3af" stroke-dasharray="3 5"/>{{end}}
+{{range .Lines}}<path d="{{.Path}}" fill="none" stroke="{{.Color}}" stroke-width="2"{{if .Dashed}} stroke-dasharray="7 4"{{end}}/>
+{{$color := .Color}}{{range .Dots}}<circle cx="{{.X}}" cy="{{.Y}}" r="1.6" fill="{{$color}}"><title>{{.Title}}</title></circle>{{end}}{{end}}
+{{if not .HasData}}<text x="380" y="105" text-anchor="middle" class="axis">No numeric data returned</text>{{end}}
+</svg><div class="legend">{{range .Lines}}<span><svg viewBox="0 0 16 8" aria-hidden="true"><line x1="0" x2="16" y1="4" y2="4" stroke="{{.Color}}" stroke-width="3"{{if .Dashed}} stroke-dasharray="4 2"{{end}}/></svg>{{.Name}}</span>{{end}}</div></figure>{{end}}

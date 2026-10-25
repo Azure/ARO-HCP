@@ -84,13 +84,16 @@ func NewExternalAuthClusterServiceDeleteDispatchController(
 		firstSeenDeletionTimestampCache: lru.New(50000),
 	}
 
-	return controllerutils.NewExternalAuthWatchingController(
+	controller := controllerutils.NewExternalAuthWatchingController(
 		ExternalAuthClusterServiceDeleteDispatchControllerName,
 		resourcesDBClient,
 		informers,
 		time.Minute,
 		syncer,
 	)
+	controller.AddInterestingResource(coreapi.ExternalAuthResourceType, "*")
+
+	return controller
 }
 
 // NeedsWork reports whether the deleter has unfinished business for the given
@@ -150,6 +153,9 @@ func (c *externalAuthClusterServiceDeleteDispatchSyncer) SyncOnce(ctx context.Co
 	}
 
 	csID := externalAuth.ServiceProviderProperties.ClusterServiceID
+	csCtx, cancel := context.WithTimeout(ctx, controllerutils.CSWriteTimeout)
+	defer cancel()
+
 	if csID == nil || len(csID.String()) == 0 {
 		elapsed := c.clock.Since(firstSeenExternalAuthDeletionTimestamp)
 		if elapsed < missingClusterServiceIDTimeout {
@@ -160,7 +166,7 @@ func (c *externalAuthClusterServiceDeleteDispatchSyncer) SyncOnce(ctx context.Co
 		}
 		logger.Info("giving up on cluster-service ExternalAuth delete - ClusterServiceID never appeared",
 			"externalAuthDeletionTimestamp", externalAuthDeletionTimestamp, "externalAuthFirstSeenDeletionTimestamp", firstSeenExternalAuthDeletionTimestamp)
-	} else if err := c.clusterServiceClient.DeleteExternalAuth(ctx, *csID); err != nil {
+	} else if err := c.clusterServiceClient.DeleteExternalAuth(csCtx, *csID); err != nil {
 		var ocmError *ocmerrors.Error
 
 		switch {
@@ -184,7 +190,7 @@ func (c *externalAuthClusterServiceDeleteDispatchSyncer) SyncOnce(ctx context.Co
 			}
 			logger.Info("cluster-service ExternalAuth already deleted or race against in-flight CS create", "clusterServiceID", csID.String())
 		default:
-			return utils.TrackError(fmt.Errorf("failed to delete cluster-service ExternalAuth: %w", err))
+			return utils.TrackError(fmt.Errorf("failed to delete cluster-service ExternalAuth: %w", ocm.StripVolatileErrorFields(err)))
 		}
 	} else {
 		logger.Info("requested cluster-service ExternalAuth delete", "clusterServiceID", csID.String())

@@ -138,7 +138,7 @@ Two rules when consuming it:
 
 Why the mirror exists at all (frontend has no kube-applier container access, so
 a frontend compromise cannot create management-cluster resources) is written up
-in [docs/cosmos-data-flow.md](../../docs/cosmos-data-flow.md#why-management-cluster-state-is-mirrored-onto-serviceprovidercluster).
+in [docs/generated/service-provider-control-flow.md](../../docs/generated/service-provider-control-flow.md#why-management-cluster-state-is-mirrored-onto-serviceprovidercluster).
 
 ## Tests
 

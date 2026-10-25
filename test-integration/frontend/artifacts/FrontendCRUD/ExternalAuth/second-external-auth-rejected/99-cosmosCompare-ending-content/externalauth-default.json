@@ -54,9 +54,7 @@
 			},
 			"provisioningState": "Accepted"
 		},
-		"serviceProviderProperties": {
-			"usesNewExternalAuthDeletionApproach": false
-		},
+		"serviceProviderProperties": {},
 		"status": {},
 		"systemData": {
 			"createdBy": "Unknown-ARO-HCP-frontend",

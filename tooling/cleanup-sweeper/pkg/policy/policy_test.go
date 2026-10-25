@@ -70,7 +70,7 @@ rgOrdered:
 	}
 }
 
-func TestRepositoryPolicyProtectsIdentityContainerPools(t *testing.T) {
+func TestRepositoryPolicyProtectsIdentityPools(t *testing.T) {
 	t.Parallel()
 
 	pol, err := Load("../../resourcegroups.policy.yaml")
@@ -94,7 +94,13 @@ func TestRepositoryPolicyProtectsIdentityContainerPools(t *testing.T) {
 			name:           "identity container older than 15 days is skipped case insensitively",
 			resourceGroup:  "ARO-HCP-MSI-Container-dev-shard0-00-00",
 			expectSelected: false,
-			expectRule:     "skip-identity-container-pools",
+			expectRule:     "skip-persistent-identity-pools",
+		},
+		{
+			name:           "infrastructure identity bundle older than 15 days is skipped",
+			resourceGroup:  "aro-hcp-dev-infrastructure-identities-00-mgmt-1",
+			expectSelected: false,
+			expectRule:     "skip-persistent-identity-pools",
 		},
 		{
 			name:           "unrelated persistent group older than 15 days is selected",

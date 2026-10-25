@@ -19,6 +19,7 @@ import (
 	"embed"
 	"fmt"
 	"net/http"
+	"net/url"
 	"sort"
 	"strings"
 	"time"
@@ -30,6 +31,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/rand"
+	"k8s.io/client-go/kubernetes"
 
 	configv1 "github.com/openshift/api/config/v1"
 	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
@@ -123,10 +125,12 @@ var _ = Describe("ARO-HCP", func() {
 			)
 			Expect(err).NotTo(HaveOccurred(), "HCP cluster %s/%s should provision", *resourceGroup.Name, clusterName)
 
+			hcpClient := tc.Get20260901ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
+
 			By("verifying the cluster is viable")
 			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20260901(
 				ctx,
-				tc.Get20260901ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
+				hcpClient,
 				*resourceGroup.Name,
 				clusterName,
 				framework.GetAdminRESTConfigTimeout,
@@ -196,6 +200,50 @@ var _ = Describe("ARO-HCP", func() {
 			By("verifying Console login and access to a namespaced marker")
 			err = verifiers.VerifyConsoleLogin(consoleFixture, 15*time.Minute).Verify(ctx, adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred(), "failed to verify Console login for cluster %q", clusterName)
+
+			By("fetching the cluster's DNS domain for default ingress certificate verification")
+			clusterResp, err := hcpClient.Get(ctx, *resourceGroup.Name, clusterName, nil)
+			Expect(err).NotTo(HaveOccurred(), "failed to get HCP cluster %q", clusterName)
+			Expect(clusterResp.Properties).NotTo(BeNil(), "cluster %q Properties was nil", clusterName)
+			Expect(clusterResp.Properties.DNS).NotTo(BeNil(), "cluster %q Properties.DNS was nil", clusterName)
+			Expect(clusterResp.Properties.DNS.BaseDomain).NotTo(BeNil(), "cluster %q DNS.BaseDomain was nil", clusterName)
+			Expect(clusterResp.Properties.DNS.BaseDomainPrefix).NotTo(BeNil(), "cluster %q DNS.BaseDomainPrefix was nil", clusterName)
+			baseDomain := *clusterResp.Properties.DNS.BaseDomain
+			baseDomainPrefix := *clusterResp.Properties.DNS.BaseDomainPrefix
+			appsWildcard := fmt.Sprintf("*.apps.aro.%s.%s", baseDomainPrefix, baseDomain)
+			delegatedDNSZone := fmt.Sprintf("aro.%s.%s", baseDomainPrefix, baseDomain)
+
+			By("verifying the console serves the default ingress certificate")
+			consoleHostURL, err := url.Parse(consoleFixture.ConsoleURL)
+			Expect(err).NotTo(HaveOccurred(), "failed to parse console URL %q for cluster %q", consoleFixture.ConsoleURL, clusterName)
+			Expect(verifiers.VerifyDefaultIngressCertificate(consoleHostURL.Host, appsWildcard, 5*time.Minute).Verify(ctx, adminRESTConfig)).To(Succeed(), "console must serve the delivered default ingress certificate for cluster %q", clusterName)
+
+			subscriptionID, err := tc.SubscriptionID(ctx)
+			Expect(err).NotTo(HaveOccurred(), "failed to get subscription ID")
+			cred, err := tc.AzureCredential()
+			Expect(err).NotTo(HaveOccurred(), "failed to get Azure credential")
+
+			By("picking a candidate egress IP from a worker node's subnet for the cloud-network-config check")
+			kubeClient, err := kubernetes.NewForConfig(adminRESTConfig)
+			Expect(err).NotTo(HaveOccurred(), "failed to create kubernetes client")
+			nodeList, err := kubeClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
+			Expect(err).NotTo(HaveOccurred(), "failed to list nodes")
+			Expect(nodeList.Items).NotTo(BeEmpty(), "no nodes found on cluster %q", clusterName)
+			sampleNode := &nodeList.Items[0]
+
+			computeClientFactory := tc.GetARMComputeClientFactoryOrDie(ctx)
+			networkClientFactory, err := tc.GetARMNetworkClientFactory(ctx)
+			Expect(err).NotTo(HaveOccurred(), "failed to get ARM network client factory")
+
+			egressIP, err := framework.PickAvailableIPInNodeSubnet(ctx, computeClientFactory, networkClientFactory, sampleNode)
+			Expect(err).NotTo(HaveOccurred(), "failed to pick an available egress IP for cluster %q", clusterName)
+
+			By("verifying cluster operators")
+			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig,
+				verifiers.VerifyIngressDNSRecord(cred, subscriptionID, managedResourceGroupName, delegatedDNSZone, framework.IngressDNSVerifyTimeout),
+				verifiers.VerifyCloudNetworkConfigEgressIP(computeClientFactory, networkClientFactory, sampleNode.Name, egressIP, framework.CloudNetworkConfigVerifyTimeout),
+			)
+			Expect(err).NotTo(HaveOccurred(), "failed to verify cluster operators on cluster %q", clusterName)
 		},
 		Entry("for 4.20", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible,
 			labels.AllowRetry, // owner: @raelga, tracking: AROSLSRE-1747. Known-issue test, retriable during EV2 gating. Remove this label when the issue is fixed.
@@ -212,7 +260,9 @@ var _ = Describe("ARO-HCP", func() {
 		Entry("for 5.0", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible,
 			labels.AllowRetry, // owner: @raelga, tracking: AROSLSRE-1747. Known-issue test, retriable during EV2 gating. Remove this label when the issue is fixed.
 			"5.0"),
-		Entry("for 5.1", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "5.1"),
+		Entry("for 5.1", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible,
+			labels.AllowRetry, // owner: @hbhushan3, tracking: AROSLSRE-1586. Known-issue test, retriable during EV2 gating. Remove this label when the issue is fixed.
+			"5.1"),
 		Entry("for 5.2", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "5.2"),
 		Entry("for 5.3", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "5.3"),
 		Entry("for 5.4", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "5.4"),

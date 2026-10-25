@@ -42,6 +42,12 @@ and gathers:
 The output directory defaults to `snapshot-<timestamp>/` and can be overridden
 with `--output-dir`.
 
+### Ignition bootstrap diagnostics
+
+Cluster and node-pool snapshots include phase-bounded ignition-server log summaries and events once the HostedCluster namespace is discovered. Queries cover both the HostedCluster and hosted control plane namespaces. Per-resource results are written to `logs/hypershift/ignitionServerLogs.md` and `events/hypershift/ignitionServerEvents.md`.
+
+Log summaries preserve message/error content by replica with first/last occurrence and record count, falling back to the original log content for plain-text or unrecognized records. Events retain every reason and message, not just known failures. Both queries include sibling pools; token Secret event identities provide pool attribution. Kubernetes Event counts are cumulative, not window-local request counts. These diagnostics do not replace guest console logs or prove a per-VM boot outcome. Empty results are informational, not proof that bootstrap succeeded.
+
 ## Step 2: Analyze
 
 ```bash

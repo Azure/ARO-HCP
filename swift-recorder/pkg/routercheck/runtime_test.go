@@ -168,10 +168,26 @@ func TestCRIRuntime(t *testing.T) {
 			if scenario == "no info" {
 				f.status.Info = nil
 			}
-			listener, err := net.Listen("unix", filepath.Join(dir, "cri.sock"))
+			// Unix socket paths are limited to 103 bytes on Darwin and 107 on Linux.
+			// Keep the socket independent of TMPDIR and the namespace fixture path.
+			socketDir, err := os.MkdirTemp("/tmp", "cri-")
 			if err != nil {
 				t.Fatal(err)
 			}
+			t.Cleanup(func() {
+				if err := os.RemoveAll(socketDir); err != nil {
+					t.Errorf("remove socket directory: %v", err)
+				}
+			})
+			listener, err := net.Listen("unix", filepath.Join(socketDir, "cri.sock"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := listener.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
+					t.Errorf("close CRI listener: %v", err)
+				}
+			})
 			server := grpc.NewServer()
 			runtimev1.RegisterRuntimeServiceServer(server, f)
 			go func() { _ = server.Serve(listener) }()

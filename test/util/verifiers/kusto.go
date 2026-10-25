@@ -106,14 +106,14 @@ func (s *gatheredLogSources) verify(expectedSources []expectedLogSource) error {
 	}
 
 	missingOrchestrationSources := []string{}
-	for _, source := range []string{"maestro", "hypershift", "acm-agent"} {
+	for _, source := range []string{"hypershift", "acm-agent"} {
 		if s.orchestrationCounts[source] == 0 {
 			missingOrchestrationSources = append(missingOrchestrationSources, source)
 		}
 	}
 	if len(missingSources) > 0 || len(missingOrchestrationSources) > 0 {
-		return fmt.Errorf("missing expected log sources: %v; detailedInfraOrchestrationLogs expected at least one row per source, missing: %v; observed counts: maestro=%d, hypershift=%d, acm-agent=%d",
-			missingSources, missingOrchestrationSources, s.orchestrationCounts["maestro"], s.orchestrationCounts["hypershift"], s.orchestrationCounts["acm-agent"])
+		return fmt.Errorf("missing expected log sources: %v; detailedInfraOrchestrationLogs expected at least one row per required source, missing: %v; observed counts: hypershift=%d, acm-agent=%d",
+			missingSources, missingOrchestrationSources, s.orchestrationCounts["hypershift"], s.orchestrationCounts["acm-agent"])
 	}
 	return nil
 }

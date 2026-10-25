@@ -31,45 +31,38 @@ func TestGatheredLogSources(t *testing.T) {
 	}{
 		{
 			name:       "all arms present",
-			sources:    []any{"maestro", "maestro", "hypershift", "acm-agent"},
-			containers: true,
-		},
-		{
-			name:       "missing maestro",
 			sources:    []any{"hypershift", "acm-agent"},
-			missing:    "[maestro]",
-			counts:     "maestro=0, hypershift=1, acm-agent=1",
 			containers: true,
 		},
 		{
 			name:       "missing hypershift",
-			sources:    []any{"maestro", "maestro", "acm-agent"},
+			sources:    []any{"acm-agent"},
 			missing:    "[hypershift]",
-			counts:     "maestro=2, hypershift=0, acm-agent=1",
+			counts:     "hypershift=0, acm-agent=1",
 			containers: true,
 		},
 		{
 			name:       "missing acm agent",
-			sources:    []any{"maestro", "hypershift"},
+			sources:    []any{"hypershift"},
 			missing:    "[acm-agent]",
-			counts:     "maestro=1, hypershift=1, acm-agent=0",
+			counts:     "hypershift=1, acm-agent=0",
 			containers: true,
 		},
 		{
 			name:       "all arms absent",
-			missing:    "[maestro hypershift acm-agent]",
-			counts:     "maestro=0, hypershift=0, acm-agent=0",
+			missing:    "[hypershift acm-agent]",
+			counts:     "hypershift=0, acm-agent=0",
 			containers: true,
 		},
 		{
 			name:    "all arms present does not replace container checks",
-			sources: []any{"maestro", "hypershift", "acm-agent"},
-			counts:  "maestro=1, hypershift=1, acm-agent=1",
+			sources: []any{"hypershift", "acm-agent"},
+			counts:  "hypershift=1, acm-agent=1",
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			var found gatheredLogSources
-			for _, source := range []string{"maestro", "hypershift", "acm-agent"} {
+			for _, source := range []string{"hypershift", "acm-agent"} {
 				err := found.record(&mustgather.NormalizedLogLine{
 					QueryName: "otherQuery",
 					Log:       map[string]any{"source": source, "rows": "100"},
@@ -114,7 +107,7 @@ func TestGatheredLogSources(t *testing.T) {
 			if err == nil {
 				t.Fatal("expected missing log sources to fail verification")
 			}
-			for _, want := range []string{"detailedInfraOrchestrationLogs expected at least one row per source", "observed counts: " + tt.counts} {
+			for _, want := range []string{"detailedInfraOrchestrationLogs expected at least one row per required source", "observed counts: " + tt.counts} {
 				if !strings.Contains(err.Error(), want) {
 					t.Errorf("expected failure to contain %q, got: %v", want, err)
 				}
@@ -128,6 +121,40 @@ func TestGatheredLogSources(t *testing.T) {
 						t.Errorf("expected missing container %q, got: %v", source.ContainerName, err)
 					}
 				}
+			}
+		})
+	}
+}
+
+func TestRetainedContainersAreIndividuallyRequired(t *testing.T) {
+	expected := VerifyMustGatherLogs("subscription", "resource-group").config.ExpectedLogSources
+	for _, missing := range []string{"aro-hcp-frontend", "aro-hcp-backend", "clusters-service-server", "kube-apiserver"} {
+		t.Run(missing, func(t *testing.T) {
+			var found gatheredLogSources
+			for _, source := range []string{"hypershift", "acm-agent"} {
+				if err := found.record(&mustgather.NormalizedLogLine{
+					QueryName: "detailedInfraOrchestrationLogs",
+					Log:       map[string]any{"source": source, "rows": "1"},
+				}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			for _, source := range expected {
+				if source.ContainerName == missing {
+					continue
+				}
+				namespace := source.Namespace
+				if namespace == "" {
+					namespace = source.NamespacePrefix + "-cluster"
+				}
+				if err := found.record(&mustgather.NormalizedLogLine{
+					Namespace: namespace, ContainerName: source.ContainerName,
+				}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := found.verify(expected); err == nil || !strings.Contains(err.Error(), missing) {
+				t.Fatalf("missing container %q must fail verification, got: %v", missing, err)
 			}
 		})
 	}
@@ -161,7 +188,7 @@ func TestOrchestrationSummaryCounts(t *testing.T) {
 				t.Fatalf("expected aggregate count %d, got %d", tc.want, got)
 			}
 			if !tc.invalid && tc.want == 0 {
-				if err := found.verify(nil); err == nil || !strings.Contains(err.Error(), "missing: [maestro hypershift acm-agent]") {
+				if err := found.verify(nil); err == nil || !strings.Contains(err.Error(), "missing: [hypershift acm-agent]") {
 					t.Fatalf("zero-count summary must not satisfy presence: %v", err)
 				}
 			}

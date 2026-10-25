@@ -14,10 +14,19 @@
 
 package clusterresources
 
+import (
+	"strings"
+
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/k8sresources"
+)
+
 // Desire names used by classifyClusterResource and the applyDesireRemovalChain.
 // These names bridge the creation and deletion flows: classifyClusterResource
 // assigns them when building ApplyDesires from Cluster Service resources, and
 // the removal steps claim them when tearing down a cluster.
+//
+// Kube-apiserver certificate names are recognized only for handoff to their
+// dedicated controller; ClusterResources neither creates nor removes them.
 //
 // This enumeration is closed: a new resource type cannot reach Cosmos without
 // being added to classifyClusterResource first, and adding it there without
@@ -41,9 +50,16 @@ const (
 
 	DesireNameBoundServiceAccountSigningKeySecretSync = "BoundServiceAccountSigningKeySecretSync"
 	DesireNameDefaultIngressWildcardCertSecretSync    = "DefaultIngressWildcardCertSecretSync"
-	DesireNameKubeAPIServerServingCertSecretSync      = "KubeAPIServerServingCertSecretSync"
+	DesireNameKubeAPIServerServingCertSecretSync      = k8sresources.KubeAPIServerServingCertSecretSyncDesireName
 
 	DesireNameBoundServiceAccountSigningKeySecretProviderClass = "BoundServiceAccountSigningKeySecretProviderClass"
 	DesireNameDefaultIngressWildcardCertSecretProviderClass    = "DefaultIngressWildcardCertSecretProviderClass"
-	DesireNameKubeAPIServerServingCertSecretProviderClass      = "KubeAPIServerServingCertSecretProviderClass"
+	DesireNameKubeAPIServerServingCertSecretProviderClass      = k8sresources.KubeAPIServerServingCertSecretProviderClassDesireName
 )
+
+// managedByKubeAPIServerServingCertificate also recognizes desires that still
+// carry the old ClusterResources owner tag, before the new controller adopts them.
+func managedByKubeAPIServerServingCertificate(name string) bool {
+	return strings.EqualFold(name, DesireNameKubeAPIServerServingCertSecretSync) ||
+		strings.EqualFold(name, DesireNameKubeAPIServerServingCertSecretProviderClass)
+}

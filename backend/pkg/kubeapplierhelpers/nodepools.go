@@ -17,13 +17,12 @@ package kubeapplierhelpers
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"k8s.io/apimachinery/pkg/util/json"
 
 	"github.com/openshift/hypershift/api/hypershift/v1beta1"
 
-	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -33,11 +32,9 @@ import (
 // writes the per-node-pool NodePool mirror under. Consumers look this up via a
 // ReadDesireLister.GetForNodePool call.
 //
-// The value is the lowercased form of
-// coreapi.MaestroBundleInternalNameReadonlyHypershiftNodePool — the same derivation
-// the writer (create_nodepool_scoped_read_desires_controller.go) uses for its
-// desired ReadDesire name.
-var ReadDesireNameReadonlyNodePool = strings.ToLower(string(coreapi.MaestroBundleInternalNameReadonlyHypershiftNodePool))
+// The API constant is shared with the writer and interested controllers.
+// It preserves the lowercased legacy Maestro bundle name.
+const ReadDesireNameReadonlyNodePool = kubeapplierapi.ReadDesireNameReadonlyNodePool
 
 // GetCachedNodePoolForNodePool reads the Hypershift NodePool mirror from the
 // per-node-pool ReadDesire. The ReadDesire's Status.KubeContent.Raw carries the

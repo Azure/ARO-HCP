@@ -20,6 +20,7 @@ import (
 	"path"
 	"strings"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
@@ -30,6 +31,7 @@ import (
 )
 
 type ResourceCRUD[InternalAPIType any, InternalAPITypePointer coreapi.CosmosMetadataAccessorPtr[InternalAPIType]] interface {
+	ConditionalDeleter
 	GetByID(ctx context.Context, cosmosID string) (*InternalAPIType, error)
 	Get(ctx context.Context, resourceID string) (*InternalAPIType, error)
 	List(ctx context.Context, opts *DBClientListResourceDocsOptions) (DBClientIterator[InternalAPIType], error)
@@ -42,12 +44,19 @@ type ResourceCRUD[InternalAPIType any, InternalAPITypePointer coreapi.CosmosMeta
 }
 
 type ValidatingResourceCRUD[InternalAPIType any, InternalAPITypePointer coreapi.CosmosMetadataAccessorPtr[InternalAPIType]] interface {
+	ConditionalDeleter
 	GetByID(ctx context.Context, cosmosID string) (*InternalAPIType, error)
 	Get(ctx context.Context, resourceID string) (*InternalAPIType, error)
 	List(ctx context.Context, opts *DBClientListResourceDocsOptions) (DBClientIterator[InternalAPIType], error)
 	Create(ctx context.Context, newObj *InternalAPIType, options *azcosmos.ItemOptions) (*InternalAPIType, error)
 	Replace(ctx context.Context, newObj *InternalAPIType, oldObj *InternalAPIType, options *azcosmos.ItemOptions) (*InternalAPIType, error)
 	Delete(ctx context.Context, resourceID string) error
+}
+
+// ConditionalDeleter soft-deletes only the evaluated version of a resource.
+// Missing and already soft-deleted resources succeed regardless of expectedETag.
+type ConditionalDeleter interface {
+	DeleteWithETag(ctx context.Context, resourceID string, expectedETag azcore.ETag) error
 }
 
 // PartitionKeyDeriver computes the Cosmos partition key for documents accessed
@@ -397,6 +406,14 @@ func (d *NestedCosmosResourceCRUD[InternalAPIType, InternalAPITypePointer, Cosmo
 }
 
 func (d *NestedCosmosResourceCRUD[InternalAPIType, InternalAPITypePointer, CosmosAPIType]) Delete(ctx context.Context, resourceName string) error {
+	return d.delete(ctx, resourceName, nil)
+}
+
+func (d *NestedCosmosResourceCRUD[InternalAPIType, InternalAPITypePointer, CosmosAPIType]) DeleteWithETag(ctx context.Context, resourceName string, expectedETag azcore.ETag) error {
+	return d.delete(ctx, resourceName, &expectedETag)
+}
+
+func (d *NestedCosmosResourceCRUD[InternalAPIType, InternalAPITypePointer, CosmosAPIType]) delete(ctx context.Context, resourceName string, expectedETag *azcore.ETag) error {
 	completeResourceID, err := d.makeResourceIDPath(resourceName)
 	if err != nil {
 		return fmt.Errorf("failed to make ResourceID path for '%s': %w", resourceName, err)
@@ -406,5 +423,9 @@ func (d *NestedCosmosResourceCRUD[InternalAPIType, InternalAPITypePointer, Cosmo
 		return err
 	}
 
-	return deleteResource(ctx, d.ContainerClient, partitionKey, completeResourceID)
+	cosmosID, err := coreapi.ResourceIDToCosmosID(completeResourceID)
+	if err != nil {
+		return err
+	}
+	return softDeleteByCosmosID(ctx, d.ContainerClient, partitionKey, cosmosID, expectedETag)
 }

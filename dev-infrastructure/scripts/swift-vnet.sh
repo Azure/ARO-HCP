@@ -5,17 +5,10 @@ set -euo pipefail
 # stampcreatorserviceinfo=true. That tag only triggers Swift stamp registration when it is
 # written by an identity registered for Swift usage with the network RP (globalMSI).
 #
-# ARM deployment scripts used to provide that identity elevation, but they auto-create a
-# shared-key storage account that Azure Policy now blocks (SFI-ID4.2.1). A plain Shell step
-# cannot be used directly either: templatize ignores shellIdentity, so the write would run as
-# the ambient (non-Swift-registered) identity and the stamp would never register.
-#
-# Instead this step launches a single container group that is assigned globalMSI and performs
-# the create/tag AS globalMSI. Everything (create, wait, log, cleanup) happens in this one
-# Shell step so there is no cross-step ordering/async race: we start the container group
-# asynchronously (az container create --no-wait) and then poll it to completion. The ambient
-# identity only launches the container; the VNet write itself is performed by globalMSI from
-# inside it.
+# EV2 runs the Shell launcher with the selected Swift VNet identity. The nested
+# container explicitly authenticates as DEPLOYMENT_MSI_ID so the VNet writer is
+# also selected when a local executor uses its ambient identity for the launcher.
+# Create, wait, log and cleanup stay in one Shell step to preserve ordering.
 #
 # Inputs via environment variables:
 #   VNET_NAME             - Name of the Swift VNet to create/tag

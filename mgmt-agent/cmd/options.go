@@ -27,10 +27,13 @@ import (
 
 	_ "k8s.io/component-base/metrics/prometheus/clientgo"
 
+	snapshotclientset "github.com/kubernetes-csi/external-snapshotter/client/v8/clientset/versioned"
+	snapshotinformers "github.com/kubernetes-csi/external-snapshotter/client/v8/informers/externalversions"
 	"github.com/spf13/cobra"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
@@ -62,6 +65,9 @@ import (
 	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller/ksmhcp"
 	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller/monitortranslator"
 	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller/nodehealth"
+	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller/repositorycleanup"
+	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller/repositorycleanup/storage"
+	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller/snapshotpvcfinalizercleanup"
 	capacityreportclient "github.com/Azure/ARO-HCP/mgmt-agent/pkg/generated/clientset/versioned"
 )
 
@@ -119,30 +125,33 @@ type ValidatedControllerOptions struct {
 }
 
 type completedControllerOptions struct {
-	ctrl                     *controller.SwiftNICController
-	ksmCtrl                  *ksmhcp.KSMHCPController
-	monitorTranslatorCtrl    *monitortranslator.MonitorTranslatorController
-	amaNetPolicyCtrl         *amanetpolicy.AMANetworkPolicyController
-	nodeHealth               *nodehealth.Controller
-	capacityReport           *capacityreporting.CapacityReportController
-	backupCleanup            *backupcleanup.Controller
-	veleroInformers          dynamicinformer.DynamicSharedInformerFactory
-	resourceWatcher          *controller.ResourceWatcher
-	podWatcher               *controller.PodWatcher
-	configMapWatcher         *controller.ConfigMapWatcher
-	kubeInformers            kubeinformers.SharedInformerFactory
-	ksmKubeInformers         kubeinformers.SharedInformerFactory
-	clusterWideKubeInformers kubeinformers.SharedInformerFactory
-	cmWatcherInformers       kubeinformers.SharedInformerFactory
-	nodeHealthInformers      kubeinformers.SharedInformerFactory
-	nodeHealthCMInformers    kubeinformers.SharedInformerFactory
-	hypershiftInformers      hypershiftinformers.SharedInformerFactory
-	dynamicInformers         dynamicinformer.DynamicSharedInformerFactory
-	translatorDynInformers   dynamicinformer.DynamicSharedInformerFactory
-	amaNetPolicyInformers    kubeinformers.SharedInformerFactory
-	workers                  int
-	healthAddress            string
-	leaderElectionLock       resourcelock.Interface
+	ctrl                        *controller.SwiftNICController
+	ksmCtrl                     *ksmhcp.KSMHCPController
+	monitorTranslatorCtrl       *monitortranslator.MonitorTranslatorController
+	amaNetPolicyCtrl            *amanetpolicy.AMANetworkPolicyController
+	nodeHealth                  *nodehealth.Controller
+	capacityReport              *capacityreporting.CapacityReportController
+	backupCleanup               *backupcleanup.Controller
+	repositoryCleanup           *repositorycleanup.Controller
+	snapshotPVCFinalizerCleanup *snapshotpvcfinalizercleanup.SnapshotPVCFinalizerCleanupController
+	veleroInformers             dynamicinformer.DynamicSharedInformerFactory
+	resourceWatcher             *controller.ResourceWatcher
+	podWatcher                  *controller.PodWatcher
+	configMapWatcher            *controller.ConfigMapWatcher
+	kubeInformers               kubeinformers.SharedInformerFactory
+	ksmKubeInformers            kubeinformers.SharedInformerFactory
+	clusterWideKubeInformers    kubeinformers.SharedInformerFactory
+	cmWatcherInformers          kubeinformers.SharedInformerFactory
+	nodeHealthInformers         kubeinformers.SharedInformerFactory
+	nodeHealthCMInformers       kubeinformers.SharedInformerFactory
+	hypershiftInformers         hypershiftinformers.SharedInformerFactory
+	snapshotInformers           snapshotinformers.SharedInformerFactory
+	dynamicInformers            dynamicinformer.DynamicSharedInformerFactory
+	translatorDynInformers      dynamicinformer.DynamicSharedInformerFactory
+	amaNetPolicyInformers       kubeinformers.SharedInformerFactory
+	workers                     int
+	healthAddress               string
+	leaderElectionLock          resourcelock.Interface
 }
 
 type ControllerOptions struct {
@@ -167,7 +176,9 @@ func (o *RawControllerOptions) Validate(ctx context.Context) (*ValidatedControll
 }
 
 func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerOptions, error) {
-	azureCredential, err := azidentity.NewDefaultAzureCredential(&azidentity.DefaultAzureCredentialOptions{})
+	azureCredential, err := azidentity.NewDefaultAzureCredential(&azidentity.DefaultAzureCredentialOptions{
+		RequireAzureTokenCredentials: true,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Azure credential: %w", err)
 	}
@@ -301,6 +312,33 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 	if err != nil {
 		return nil, fmt.Errorf("failed to create backup cleanup controller: %w", err)
 	}
+	repositoryInformers := make(map[schema.GroupVersionResource]cache.SharedIndexInformer)
+	for _, gvr := range repositorycleanup.RequiredResources() {
+		if gvr == repositorycleanup.HostedClustersGVR {
+			repositoryInformers[gvr] = hsInformers.Hypershift().V1beta1().HostedClusters().Informer()
+		} else {
+			repositoryInformers[gvr] = veleroInformers.ForResource(gvr).Informer()
+		}
+	}
+	repositoryCleanup, err := repositorycleanup.NewController(dynamicClient, storage.NewDeleter(azureCredential), repositoryInformers)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create repository cleanup controller: %w", err)
+	}
+
+	snapshotClientset, err := snapshotclientset.NewForConfig(kubeConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create VolumeSnapshot clientset: %w", err)
+	}
+	snapshotInformers := snapshotinformers.NewSharedInformerFactory(snapshotClientset, 10*time.Minute)
+	snapshotPVCFinalizerCleanup, err := snapshotpvcfinalizercleanup.NewSnapshotPVCFinalizerCleanupController(
+		kubeClientset,
+		snapshotClientset,
+		kubeInformers.Core().V1().PersistentVolumeClaims(),
+		snapshotInformers.Snapshot().V1().VolumeSnapshots(),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create snapshot PVC finalizer cleanup controller: %w", err)
+	}
 
 	metricsClient, err := metricsclientset.NewForConfig(kubeConfig)
 	if err != nil {
@@ -317,6 +355,7 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 		clusterWideKubeInformers.Core().V1().Pods(),
 		clusterWideKubeInformers.Core().V1().Namespaces(),
 		hsInformers.Hypershift().V1beta1().HostedControlPlanes(),
+		hsInformers.Hypershift().V1beta1().HostedClusters(),
 		metricsClient,
 		crClient,
 		nil,
@@ -404,30 +443,33 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 
 	return &ControllerOptions{
 		completedControllerOptions: &completedControllerOptions{
-			ctrl:                     ctrl,
-			ksmCtrl:                  ksmCtrl,
-			monitorTranslatorCtrl:    monitorTranslatorCtrl,
-			nodeHealth:               nodeHealth,
-			capacityReport:           capacityReportCtrl,
-			backupCleanup:            backupCleanup,
-			veleroInformers:          veleroInformers,
-			resourceWatcher:          resourceWatcher,
-			podWatcher:               podWatcher,
-			configMapWatcher:         configMapWatcher,
-			kubeInformers:            kubeInformers,
-			ksmKubeInformers:         ksmKubeInformers,
-			clusterWideKubeInformers: clusterWideKubeInformers,
-			cmWatcherInformers:       cmWatcherInformers,
-			nodeHealthInformers:      nodeHealthInformers,
-			nodeHealthCMInformers:    nodeHealthCMInformers,
-			hypershiftInformers:      hsInformers,
-			dynamicInformers:         dynInformers,
-			translatorDynInformers:   translatorDynInformers,
-			amaNetPolicyCtrl:         amaNetPolicyCtrl,
-			amaNetPolicyInformers:    amaNetPolicyInformers,
-			workers:                  o.Workers,
-			healthAddress:            o.HealthAddress,
-			leaderElectionLock:       leaderElectionLock,
+			ctrl:                        ctrl,
+			ksmCtrl:                     ksmCtrl,
+			monitorTranslatorCtrl:       monitorTranslatorCtrl,
+			nodeHealth:                  nodeHealth,
+			capacityReport:              capacityReportCtrl,
+			backupCleanup:               backupCleanup,
+			repositoryCleanup:           repositoryCleanup,
+			snapshotPVCFinalizerCleanup: snapshotPVCFinalizerCleanup,
+			veleroInformers:             veleroInformers,
+			resourceWatcher:             resourceWatcher,
+			podWatcher:                  podWatcher,
+			configMapWatcher:            configMapWatcher,
+			kubeInformers:               kubeInformers,
+			ksmKubeInformers:            ksmKubeInformers,
+			clusterWideKubeInformers:    clusterWideKubeInformers,
+			cmWatcherInformers:          cmWatcherInformers,
+			nodeHealthInformers:         nodeHealthInformers,
+			nodeHealthCMInformers:       nodeHealthCMInformers,
+			hypershiftInformers:         hsInformers,
+			snapshotInformers:           snapshotInformers,
+			dynamicInformers:            dynInformers,
+			translatorDynInformers:      translatorDynInformers,
+			amaNetPolicyCtrl:            amaNetPolicyCtrl,
+			amaNetPolicyInformers:       amaNetPolicyInformers,
+			workers:                     o.Workers,
+			healthAddress:               o.HealthAddress,
+			leaderElectionLock:          leaderElectionLock,
 		},
 	}, nil
 }
@@ -524,6 +566,7 @@ func (o *ControllerOptions) runControllersUnderLeaderElection(ctx context.Contex
 				logger.Info("acquired leader election lease; starting informers and controllers")
 				o.kubeInformers.Start(ctx.Done())
 				o.hypershiftInformers.Start(ctx.Done())
+				o.snapshotInformers.Start(ctx.Done())
 				o.veleroInformers.Start(ctx.Done())
 				if o.ksmKubeInformers != nil {
 					o.ksmKubeInformers.Start(ctx.Done())
@@ -622,6 +665,20 @@ func (o *ControllerOptions) runControllersUnderLeaderElection(ctx context.Contex
 					defer utilruntime.HandleCrash()
 					if err := o.backupCleanup.Run(ctx, o.workers); err != nil {
 						logger.Error(err, "backup cleanup controller failed")
+					}
+				}()
+
+				go func() {
+					defer utilruntime.HandleCrash()
+					if err := o.repositoryCleanup.Run(ctx, o.workers); err != nil {
+						logger.Error(err, "repository cleanup controller failed")
+					}
+				}()
+
+				go func() {
+					defer utilruntime.HandleCrash()
+					if err := o.snapshotPVCFinalizerCleanup.Run(ctx, o.workers); err != nil {
+						logger.Error(err, "Snapshot PVC finalizer cleanup controller failed")
 					}
 				}()
 

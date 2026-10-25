@@ -20,8 +20,9 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
-	"github.com/blang/semver/v4"
+	semver "github.com/blang/semver/v4"
 	"github.com/go-logr/logr/testr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -30,6 +31,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	utilsclock "k8s.io/utils/clock"
+	clocktesting "k8s.io/utils/clock/testing"
+	"k8s.io/utils/lru"
 	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -177,23 +181,39 @@ func TestNeedsWork(t *testing.T) {
 	}
 }
 
-func TestIngressDesireSuppression(test *testing.T) {
+func TestLegacyIngressDesireSuppression(test *testing.T) {
 	for _, scenario := range []struct {
-		name            string
-		customerVersion string
+		name string
+		// previousVersion, when set, runs a first sync at that version before
+		// moving the cluster to desiredVersion, modelling an upgrade.
+		previousVersion string
 		desiredVersion  string
 		featureName     string
 		featureState    string
-		missing         bool
+		missingSub      bool
 		suppressed      bool
+		// acmCertificate is whether the default ingress ConfigMap selects the
+		// ACM-delivered certificate; only checked when not suppressed.
+		acmCertificate bool
 	}{
-		{name: "flag off below version threshold", customerVersion: "4.20", desiredVersion: "4.20.42"},
-		{name: "flag on above version threshold", customerVersion: "5.1", desiredVersion: "5.1.0-rc.1", featureName: metadataapi.FeatureExperimentalReleaseFeatures, featureState: "Registered", suppressed: true},
-		{name: "flag off above version threshold due to missing experimental feature", customerVersion: "5.1", desiredVersion: "5.1.0-rc.1"},
-		{name: "version missing flag off", featureName: metadataapi.FeatureExperimentalReleaseFeatures, featureState: "Registered", suppressed: false},
-		{name: "unregistered flag", customerVersion: "5.1", desiredVersion: "5.1.0", featureName: metadataapi.FeatureExperimentalReleaseFeatures, featureState: "NotRegistered"},
-		{name: "flag on due to case insensitive experimental feature name", featureName: "Microsoft.RedHatOpenShift/ExperimentalReleaseFeatures", featureState: "Registered", suppressed: true, desiredVersion: "5.1.0-0.nightly-2026-10-08-211923"},
-		{name: "flag off due to missing subscription", customerVersion: "5.1", desiredVersion: "5.1.0", missing: true},
+		{name: "flag on above version threshold", desiredVersion: "5.1.0-rc.1", featureName: metadataapi.FeatureExperimentalReleaseFeatures, featureState: "Registered", suppressed: true},
+		{name: "flag on for overridden 4.20", desiredVersion: "4.20.12", featureName: metadataapi.FeatureExperimentalReleaseFeatures, featureState: "Registered", suppressed: true},
+		{name: "flag on for overridden 4.21", desiredVersion: "4.21.5", featureName: metadataapi.FeatureExperimentalReleaseFeatures, featureState: "Registered", suppressed: true},
+		{name: "flag on for overridden 4.22", desiredVersion: "4.22.0", featureName: metadataapi.FeatureExperimentalReleaseFeatures, featureState: "Registered", suppressed: true},
+		{name: "flag off for 4.23 ec payload without CPO override", desiredVersion: "4.23.0-ec.1", featureName: metadataapi.FeatureExperimentalReleaseFeatures, featureState: "Registered", acmCertificate: true},
+		{name: "flag on for 4.23 ec payload with the backport", desiredVersion: "4.23.0-ec.2", featureName: metadataapi.FeatureExperimentalReleaseFeatures, featureState: "Registered", suppressed: true},
+		{name: "flag on for 4.23 GA", desiredVersion: "4.23.0", featureName: metadataapi.FeatureExperimentalReleaseFeatures, featureState: "Registered", suppressed: true},
+		{name: "unregistered 4.23 GA keeps the native certificate", desiredVersion: "4.23.1", featureName: metadataapi.FeatureExperimentalReleaseFeatures, featureState: "NotRegistered"},
+		{name: "flag off below overridden versions", desiredVersion: "4.19.7", featureName: metadataapi.FeatureExperimentalReleaseFeatures, featureState: "Registered", acmCertificate: true},
+		{name: "flag off for 5.0 predating the consumer", desiredVersion: "5.0.4", featureName: metadataapi.FeatureExperimentalReleaseFeatures, featureState: "Registered", acmCertificate: true},
+		{name: "version missing flag off", featureName: metadataapi.FeatureExperimentalReleaseFeatures, featureState: "Registered"},
+		{name: "flag off unregistered experimental feature", desiredVersion: "5.1.0", featureName: metadataapi.FeatureExperimentalReleaseFeatures, featureState: "NotRegistered"},
+		{name: "flag on due to case insensitive experimental feature name", desiredVersion: "5.1.0-0.nightly-2026-10-08-211923", featureName: "Microsoft.RedHatOpenShift/ExperimentalReleaseFeatures", featureState: "Registered", suppressed: true},
+		{name: "flag off due to missing subscription", desiredVersion: "5.1.0", missingSub: true},
+		{name: "flag on upgrade from 4.23 ec to 5.1 keeps legacy wiring on the ACM certificate", previousVersion: "4.23.0-ec.1", desiredVersion: "5.1.0", featureName: metadataapi.FeatureExperimentalReleaseFeatures, featureState: "Registered", acmCertificate: true},
+		{name: "unregistered upgrade from 4.19 to 4.20 keeps the ACM certificate", previousVersion: "4.19.7", desiredVersion: "4.20.12", featureName: metadataapi.FeatureExperimentalReleaseFeatures, featureState: "NotRegistered", acmCertificate: true},
+		{name: "flag on upgrade from 4.22 to 4.23 ec restores legacy wiring on the ACM certificate", previousVersion: "4.22.0", desiredVersion: "4.23.0-ec.1", featureName: metadataapi.FeatureExperimentalReleaseFeatures, featureState: "Registered", acmCertificate: true},
+		{name: "missing version after the ACM certificate was selected keeps it", previousVersion: "4.23.0-ec.1", featureName: metadataapi.FeatureExperimentalReleaseFeatures, featureState: "Registered", acmCertificate: true},
 	} {
 		test.Run(scenario.name, func(test *testing.T) {
 			ctx := utils.ContextWithLogger(test.Context(), testr.New(test))
@@ -202,10 +222,15 @@ func TestIngressDesireSuppression(test *testing.T) {
 			clients.Register(testManagementClusterResourceID, client)
 			managementClusters := &fleetlistertesting.SliceManagementClusterLister{ManagementClusters: []*fleetapi.ManagementCluster{{CosmosMetadata: coreapi.CosmosMetadata{ResourceID: testManagementClusterResourceID}}}}
 			cluster := newCluster()
-			cluster.CustomerProperties.Version.ID = scenario.customerVersion
 			serviceProviderCluster := newSPC(testManagementClusterResourceID)
+			setDesiredVersion := func(version string) {
+				serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion = nil
+				if version != "" {
+					serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion = ptr.To(semver.MustParse(version))
+				}
+			}
 			subscriptionLister := &corelistertesting.SliceSubscriptionLister{}
-			if !scenario.missing {
+			if !scenario.missingSub {
 				subscription := &coreapi.Subscription{
 					CosmosMetadata: coreapi.CosmosMetadata{ResourceID: metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID))},
 					Properties:     &coreapi.SubscriptionProperties{},
@@ -215,21 +240,22 @@ func TestIngressDesireSuppression(test *testing.T) {
 				}
 				subscriptionLister.Subscriptions = append(subscriptionLister.Subscriptions, subscription)
 			}
-			if scenario.desiredVersion != "" {
-				desiredVersion := semver.MustParse(scenario.desiredVersion)
-				serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion = &desiredVersion
-			}
 			csClient := ocm.NewMockClusterServiceClientSpec(gomock.NewController(test))
 			resources := buildClusterResources(map[string]string{
-				"hosted":   `{"apiVersion":"hypershift.openshift.io/v1beta1","kind":"HostedCluster","metadata":{"name":"test-cluster","namespace":"hc"}}`,
-				"managed":  `{"apiVersion":"cluster.open-cluster-management.io/v1","kind":"ManagedCluster","metadata":{"name":"test-cluster"}}`,
-				"config":   `{"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":"default-ingress","namespace":"open-cluster-management-policies"}}`,
-				"sync":     `{"apiVersion":"secret-sync.x-k8s.io/v1alpha1","kind":"SecretSync","metadata":{"name":"default-ingress-tls-cert-test","namespace":"open-cluster-management-policies"}}`,
-				"provider": `{"apiVersion":"secrets-store.csi.x-k8s.io/v1","kind":"SecretProviderClass","metadata":{"name":"default-ingress-tls-cert-test","namespace":"open-cluster-management-policies"}}`,
-				"kas":      `{"apiVersion":"secret-sync.x-k8s.io/v1alpha1","kind":"SecretSync","metadata":{"name":"kube-apiserver-tls-cert-test","namespace":"hc"}}`,
-				"signing":  `{"apiVersion":"secrets-store.csi.x-k8s.io/v1","kind":"SecretProviderClass","metadata":{"name":"signing-key-test","namespace":"hc"}}`,
+				"hosted":       `{"apiVersion":"hypershift.openshift.io/v1beta1","kind":"HostedCluster","metadata":{"name":"test-cluster","namespace":"hc"}}`,
+				"managed":      `{"apiVersion":"cluster.open-cluster-management.io/v1","kind":"ManagedCluster","metadata":{"name":"test-cluster"}}`,
+				"config":       `{"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":"default-ingress","namespace":"open-cluster-management-policies"}}`,
+				"sync":         `{"apiVersion":"secret-sync.x-k8s.io/v1alpha1","kind":"SecretSync","metadata":{"name":"default-ingress-tls-cert-test","namespace":"open-cluster-management-policies"}}`,
+				"provider":     `{"apiVersion":"secrets-store.csi.x-k8s.io/v1","kind":"SecretProviderClass","metadata":{"name":"default-ingress-tls-cert-test","namespace":"open-cluster-management-policies"}}`,
+				"kas":          `{"apiVersion":"secret-sync.x-k8s.io/v1alpha1","kind":"SecretSync","metadata":{"name":"kube-apiserver-tls-cert","namespace":"hc"}}`,
+				"kas-provider": `{"apiVersion":"secrets-store.csi.x-k8s.io/v1","kind":"SecretProviderClass","metadata":{"name":"kube-apiserver-tls-cert","namespace":"hc"}}`,
+				"signing":      `{"apiVersion":"secrets-store.csi.x-k8s.io/v1","kind":"SecretProviderClass","metadata":{"name":"signing-key-test","namespace":"hc"}}`,
 			})
-			csClient.EXPECT().GetClusterResources(gomock.Any(), gomock.Any()).Return(resources, nil)
+			csClient.EXPECT().GetClusterResources(gomock.Cond[context.Context](func(ctx context.Context) bool {
+				deadline, ok := ctx.Deadline()
+				remaining := time.Until(deadline)
+				return ok && remaining > clusterResourcesFetchTimeout-time.Second && remaining <= clusterResourcesFetchTimeout
+			}), gomock.Any()).Return(resources, nil)
 			syncer := &clusterResourcesController{
 				subscriptionLister:           subscriptionLister,
 				clusterLister:                &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{cluster}},
@@ -237,13 +263,20 @@ func TestIngressDesireSuppression(test *testing.T) {
 				clustersServiceClient:        csClient, kubeApplierDBClients: clients,
 				applyDesireLister: &kubeapplierlistertesting.DBApplyDesireLister{Clients: clients, Lister: managementClusters},
 				readDesireLister:  &kubeapplierlistertesting.DBReadDesireLister{Clients: clients, Lister: managementClusters},
+				resourcesCache:    lru.New(resourcesCacheCapacity),
+				clock:             utilsclock.RealClock{},
 			}
+			if scenario.previousVersion != "" {
+				setDesiredVersion(scenario.previousVersion)
+				require.NoError(test, syncer.SyncOnce(ctx, testKey()))
+			}
+			setDesiredVersion(scenario.desiredVersion)
 			require.NoError(test, syncer.SyncOnce(ctx, testKey()))
 			desires, err := syncer.applyDesireLister.ListForCluster(ctx, testSubscriptionID, testResourceGroupName, testClusterName)
 			require.NoError(test, err)
-			expected := 7
+			expected := 6
 			if scenario.suppressed {
-				expected = 3
+				expected = 2
 			}
 			require.Len(test, desires, expected)
 			desireNames := make([]string, 0, len(desires))
@@ -257,8 +290,13 @@ func TestIngressDesireSuppression(test *testing.T) {
 					require.True(test, found)
 					require.Equal(test, controllerutils.ServiceProviderDefaultIngressWildcardServingCertName, name)
 				}
+				if desire.ResourceID.Name == strings.ToLower(DesireNameDefaultIngressConfigMap) {
+					selected, err := defaultIngressConfigSelectsACMCertificate(desire)
+					require.NoError(test, err)
+					require.Equal(test, scenario.acmCertificate, selected, "default ingress ConfigMap certificate selection")
+				}
 				if scenario.suppressed {
-					require.Contains(test, []string{strings.ToLower("HostedCluster"), strings.ToLower("KubeAPIServerServingCertSecretSync"), strings.ToLower("BoundServiceAccountSigningKeySecretProviderClass")}, desire.ResourceID.Name)
+					require.Contains(test, []string{strings.ToLower("HostedCluster"), strings.ToLower("BoundServiceAccountSigningKeySecretProviderClass")}, desire.ResourceID.Name)
 				}
 			}
 			for _, desireName := range []string{"ManagedCluster", "DefaultIngressConfigMap", "DefaultIngressWildcardCertSecretSync", "DefaultIngressWildcardCertSecretProviderClass"} {
@@ -268,6 +306,8 @@ func TestIngressDesireSuppression(test *testing.T) {
 					require.Contains(test, desireNames, strings.ToLower(desireName))
 				}
 			}
+			require.NotContains(test, desireNames, strings.ToLower(DesireNameKubeAPIServerServingCertSecretSync))
+			require.NotContains(test, desireNames, strings.ToLower(DesireNameKubeAPIServerServingCertSecretProviderClass))
 			require.Contains(test, desireNames, strings.ToLower("HostedCluster"))
 		})
 	}
@@ -643,6 +683,8 @@ func TestSyncOnce(t *testing.T) {
 				kubeApplierDBClients:         mockKubeApplierDBClients,
 				applyDesireLister:            &kubeapplierlistertesting.DBApplyDesireLister{Clients: mockKubeApplierDBClients, Lister: mcLister},
 				readDesireLister:             &kubeapplierlistertesting.DBReadDesireLister{Clients: mockKubeApplierDBClients, Lister: mcLister},
+				resourcesCache:               lru.New(resourcesCacheCapacity),
+				clock:                        utilsclock.RealClock{},
 			}
 
 			err := syncer.SyncOnce(ctx, testKey())
@@ -656,6 +698,101 @@ func TestSyncOnce(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGetClusterResourcesCache(t *testing.T) {
+	t.Parallel()
+
+	fixedNow := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	clusterServiceID := metadataapi.Must(metadataapi.NewInternalID(testClusterServiceID))
+	otherClusterServiceID := metadataapi.Must(metadataapi.NewInternalID("/api/clusters_mgmt/v1/clusters/def456"))
+	resources := buildClusterResources(map[string]string{
+		"ingress-configmap": `{"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":"default-ingress","namespace":"ocm-env-abc"}}`,
+	})
+	updated := buildClusterResources(map[string]string{
+		"ingress-configmap": `{"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":"default-ingress","namespace":"ocm-env-abc"},"data":{"key":"updated"}}`,
+	})
+
+	newSyncer := func(t *testing.T, client ocm.ClusterServiceClientSpec) (*clusterResourcesController, *clocktesting.FakePassiveClock) {
+		t.Helper()
+		clk := clocktesting.NewFakePassiveClock(fixedNow)
+		return &clusterResourcesController{
+			clustersServiceClient: client,
+			resourcesCache:        lru.New(resourcesCacheCapacity),
+			clock:                 clk,
+		}, clk
+	}
+
+	t.Run("reuses a successful response until the ttl elapses", func(t *testing.T) {
+		t.Parallel()
+		ctx := context.Background()
+		ctrl := gomock.NewController(t)
+		mock := ocm.NewMockClusterServiceClientSpec(ctrl)
+		gomock.InOrder(
+			mock.EXPECT().GetClusterResources(gomock.Any(), clusterServiceID).Return(resources, nil),
+			mock.EXPECT().GetClusterResources(gomock.Any(), clusterServiceID).Return(updated, nil),
+		)
+		syncer, clk := newSyncer(t, mock)
+
+		got, err := syncer.getClusterResources(ctx, clusterServiceID)
+		require.NoError(t, err, "first fetch should succeed")
+		require.Equal(t, resources, got, "first fetch should return the Cluster Service response")
+
+		clk.SetTime(fixedNow.Add(resourcesCacheTTL - time.Nanosecond))
+		got, err = syncer.getClusterResources(ctx, clusterServiceID)
+		require.NoError(t, err, "fetch inside the ttl should succeed")
+		require.Equal(t, resources, got, "fetch inside the ttl should return the cached response")
+
+		clk.SetTime(fixedNow.Add(resourcesCacheTTL))
+		got, err = syncer.getClusterResources(ctx, clusterServiceID)
+		require.NoError(t, err, "fetch at the ttl boundary should succeed")
+		require.Equal(t, updated, got, "fetch at the ttl boundary should return the fresh response")
+	})
+
+	t.Run("does not cache errors", func(t *testing.T) {
+		t.Parallel()
+		ctx := context.Background()
+		ctrl := gomock.NewController(t)
+		mock := ocm.NewMockClusterServiceClientSpec(ctrl)
+		gomock.InOrder(
+			mock.EXPECT().GetClusterResources(gomock.Any(), clusterServiceID).Return(nil, fmt.Errorf("connection refused")),
+			mock.EXPECT().GetClusterResources(gomock.Any(), clusterServiceID).Return(resources, nil),
+		)
+		syncer, _ := newSyncer(t, mock)
+
+		_, err := syncer.getClusterResources(ctx, clusterServiceID)
+		require.Error(t, err, "a failed fetch should be returned")
+		got, err := syncer.getClusterResources(ctx, clusterServiceID)
+		require.NoError(t, err, "the retry after an error should call Cluster Service again")
+		require.Equal(t, resources, got, "the retry should return the fresh response")
+	})
+
+	t.Run("caches each cluster service id separately", func(t *testing.T) {
+		t.Parallel()
+		ctx := context.Background()
+		ctrl := gomock.NewController(t)
+		mock := ocm.NewMockClusterServiceClientSpec(ctrl)
+		other := buildClusterResources(map[string]string{
+			"pull-secret": `{"apiVersion":"v1","kind":"Secret","metadata":{"name":"pull-secret","namespace":"ocm-env-def"}}`,
+		})
+		mock.EXPECT().GetClusterResources(gomock.Any(), clusterServiceID).Return(resources, nil)
+		mock.EXPECT().GetClusterResources(gomock.Any(), otherClusterServiceID).Return(other, nil)
+		syncer, _ := newSyncer(t, mock)
+
+		got, err := syncer.getClusterResources(ctx, clusterServiceID)
+		require.NoError(t, err, "first cluster fetch should succeed")
+		require.Equal(t, resources, got, "first cluster should return its own response")
+		got, err = syncer.getClusterResources(ctx, otherClusterServiceID)
+		require.NoError(t, err, "second cluster fetch should succeed")
+		require.Equal(t, other, got, "second cluster should return its own response")
+
+		got, err = syncer.getClusterResources(ctx, clusterServiceID)
+		require.NoError(t, err, "cached first cluster fetch should succeed")
+		require.Equal(t, resources, got, "cached first cluster should not reuse the other cluster's response")
+		got, err = syncer.getClusterResources(ctx, otherClusterServiceID)
+		require.NoError(t, err, "cached second cluster fetch should succeed")
+		require.Equal(t, other, got, "cached second cluster should not reuse the first cluster's response")
+	})
 }
 
 func TestDeleteStaleApplyDesires(t *testing.T) {
@@ -1104,6 +1241,41 @@ func TestProcessClusterResourcesNodePoolPath(t *testing.T) {
 	}
 }
 
+func TestSelectACMIngressCertificate(t *testing.T) {
+	tests := []struct {
+		name            string
+		version         string
+		alreadySelected bool
+		expected        bool
+	}{
+		{name: "4.23 ec payload before the backport selects the ACM certificate", version: "4.23.0-ec.1", expected: true},
+		{name: "first 4.23 ec payload before the backport selects the ACM certificate", version: "4.23.0-ec.0", expected: true},
+		{name: "4.23 nightly ordered before ec.2 selects the ACM certificate", version: "4.23.0-0.nightly-2026-09-20-000000", expected: true},
+		{name: "4.23 ec payload with the backport keeps the native certificate", version: "4.23.0-ec.2"},
+		{name: "later 4.23 ec payload keeps the native certificate", version: "4.23.0-ec.10"},
+		{name: "4.23 rc keeps the native certificate", version: "4.23.0-rc.1"},
+		{name: "4.23 GA keeps the native certificate", version: "4.23.0"},
+		{name: "4.23 z-stream keeps the native certificate", version: "4.23.4"},
+		{name: "version below the overridden versions selects the ACM certificate", version: "4.19.7", expected: true},
+		{name: "5.0 predating the consumer selects the ACM certificate", version: "5.0.4", expected: true},
+		{name: "overridden 4.20 keeps the native certificate", version: "4.20.12"},
+		{name: "native 5.1 keeps the native certificate", version: "5.1.0-rc.1"},
+		{name: "missing version keeps the native certificate", version: ""},
+		{name: "upgrade to a covered version keeps a selected ACM certificate", version: "5.1.0", alreadySelected: true, expected: true},
+		{name: "missing version keeps a selected ACM certificate", alreadySelected: true, expected: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var version *semver.Version
+			if tt.version != "" {
+				version = ptr.To(semver.MustParse(tt.version))
+			}
+			assert.Equal(t, tt.expected, selectACMIngressCertificate(version, tt.alreadySelected))
+		})
+	}
+}
+
 func TestEnsureHostedClusterAnnotations(t *testing.T) {
 	tests := []struct {
 		name                string
@@ -1169,4 +1341,31 @@ func TestEnsureHostedClusterAnnotations(t *testing.T) {
 				"annotations should match expected")
 		})
 	}
+}
+
+func TestEnsureHostedClusterAutoscaling(t *testing.T) {
+	hc := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "hypershift.openshift.io/v1beta1",
+			"kind":       "HostedCluster",
+			"metadata": map[string]interface{}{
+				"name":      testClusterName,
+				"namespace": "test-namespace",
+			},
+			"spec": map[string]interface{}{},
+		},
+	}
+
+	err := ensureHostedClusterAutoscaling(hc)
+	require.NoError(t, err)
+
+	qps, found, err := unstructured.NestedFieldNoCopy(hc.Object, "spec", "autoscaling", "kubeClientQPS")
+	require.NoError(t, err)
+	assert.True(t, found, "expected spec.autoscaling.kubeClientQPS to be present")
+	assert.Equal(t, int64(defaultKubeClientQPS), qps, "kubeClientQPS should be pinned to fleet default")
+
+	burst, found, err := unstructured.NestedFieldNoCopy(hc.Object, "spec", "autoscaling", "kubeClientBurst")
+	require.NoError(t, err)
+	assert.True(t, found, "expected spec.autoscaling.kubeClientBurst to be present")
+	assert.Equal(t, int64(defaultKubeClientBurst), burst, "kubeClientBurst should be pinned to fleet default")
 }

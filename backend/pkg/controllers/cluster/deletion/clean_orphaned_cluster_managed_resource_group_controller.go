@@ -73,8 +73,8 @@ type cleanOrphanedClusterManagedResourceGroup struct {
 
 const CleanOrphanedClusterManagedResourceGroupControllerName = "CleanOrphanedClusterManagedResourceGroup"
 
-// NewCleanOrphanedClusterManagedResourceGroupController periodically looks for managed resource groups
-// that are not referenced by any Cluster in the database and cleans them up.
+// NewCleanOrphanedClusterManagedResourceGroupController periodically cleans up managed resource groups
+// whose cluster is absent from the database and whose customer resource group is absent from Azure.
 func NewCleanOrphanedClusterManagedResourceGroupController(
 	location string,
 	activeOperationLister corelisters.ActiveOperationLister,
@@ -89,12 +89,16 @@ func NewCleanOrphanedClusterManagedResourceGroupController(
 		azureFPAClientBuilder: azureFPAClientBuilder,
 	}
 
-	return controllerutils.NewSubscriptionWatchingController(
+	controller := controllerutils.NewSubscriptionWatchingController(
 		CleanOrphanedClusterManagedResourceGroupControllerName,
 		backendInformers,
 		10*time.Minute,
 		syncer,
 	)
+	controller.AddInterestingResource(azcorearm.SubscriptionResourceType, "*")
+	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
+
+	return controller
 }
 
 // listManagedResourceGroupsForSubscription lists all HCP-managed resource groups in the controller's location
@@ -316,29 +320,63 @@ func (c *cleanOrphanedClusterManagedResourceGroup) SyncOnce(ctx context.Context,
 		return utils.TrackError(err)
 	}
 
-	// Identify and clean up orphaned managed resource groups for this subscription
+	// Check every candidate before counting or deleting any MRG, so lookup errors fail closed.
+	type orphanedResourceGroup struct {
+		name      string
+		managedBy string
+	}
+	var orphanedResourceGroups []orphanedResourceGroup
+	for resourceGroupName, managedBy := range managedResourceGroups {
+		if _, exists := clusterResourceIDs[strings.ToLower(managedBy)]; exists {
+			continue
+		}
+
+		ownerID, err := azcorearm.ParseResourceID(managedBy)
+		if err != nil || ownerID.ResourceGroupName == "" || !strings.EqualFold(ownerID.SubscriptionID, key.SubscriptionID) {
+			// The client is scoped to this subscription. Never infer absence from a
+			// same-named resource group in the wrong subscription or an invalid owner ID.
+			logger.Info("Protecting managed resource group with unsupported owner scope",
+				"resourceGroup", resourceGroupName,
+				"managedBy", managedBy)
+			continue
+		}
+
+		// DEV clusters are served directly by individual RPs, not ARM. An existing
+		// customer RG conservatively protects owners in other backends, matching the
+		// sweeper's protection even when the cluster itself may already be gone.
+		_, err = rgClient.Get(ctx, ownerID.ResourceGroupName, nil)
+		if err == nil {
+			continue
+		}
+		var responseError *azcore.ResponseError
+		if !errors.As(err, &responseError) || responseError.StatusCode != http.StatusNotFound {
+			logger.Error(err, "Failed to check managed resource group owner's customer resource group",
+				"subscriptionID", key.SubscriptionID,
+				"resourceGroup", resourceGroupName,
+				"managedBy", managedBy)
+			return utils.TrackError(err)
+		}
+
+		orphanedResourceGroups = append(orphanedResourceGroups, orphanedResourceGroup{
+			name:      resourceGroupName,
+			managedBy: managedBy,
+		})
+	}
+
+	// Only local-owner misses with a confirmed missing customer RG reach orphan handling.
 	eg, egCtx := errgroup.WithContext(ctx)
 	eg.SetLimit(maxConcurrentDeletions)
 
 	var mu sync.Mutex
 	var errs []error
 
-	for resourceGroupName, managedBy := range managedResourceGroups {
-		managedByResourceID := strings.ToLower(managedBy)
-
-		if _, exists := clusterResourceIDs[managedByResourceID]; exists {
-			// Cluster exists, this is not an orphaned resource group
-			continue
-		}
-
-		// Found an orphaned managed resource group
+	for _, orphanedResourceGroup := range orphanedResourceGroups {
 		orphanedMRGsFound.WithLabelValues(c.location).Inc()
 
-		resourceGroupName := resourceGroupName
-		managedBy := managedBy
+		orphanedResourceGroup := orphanedResourceGroup
 		eg.Go(func() error {
 			defer utilruntime.HandleCrash()
-			err := c.deleteOrphanedManagedResourceGroup(egCtx, rgClient, key.SubscriptionID, resourceGroupName, managedBy, readOnly)
+			err := c.deleteOrphanedManagedResourceGroup(egCtx, rgClient, key.SubscriptionID, orphanedResourceGroup.name, orphanedResourceGroup.managedBy, readOnly)
 			if err != nil {
 				mu.Lock()
 				defer mu.Unlock()

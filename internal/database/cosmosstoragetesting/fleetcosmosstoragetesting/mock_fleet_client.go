@@ -15,6 +15,7 @@
 package fleetcosmosstoragetesting
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -147,6 +148,19 @@ func (m *MockFleetDBClient) StoreDocument(cosmosID string, data json.RawMessage)
 	defer m.mu.Unlock()
 	m.documents[strings.ToLower(cosmosID)] = data
 	m.changeFeed.Record(data)
+}
+
+func (m *MockFleetDBClient) MutateDocument(cosmosID string, mutate func(json.RawMessage) (json.RawMessage, error)) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	cosmosID = strings.ToLower(cosmosID)
+	data, err := mutate(bytes.Clone(m.documents[cosmosID]))
+	if err != nil || data == nil {
+		return err
+	}
+	m.documents[cosmosID] = bytes.Clone(data)
+	m.changeFeed.Record(data)
+	return nil
 }
 
 func (m *MockFleetDBClient) ReadChangeFeed(ctx context.Context, options *azcosmos.ChangeFeedOptions) (azcosmos.ChangeFeedResponse, error) {

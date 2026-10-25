@@ -52,9 +52,11 @@ const (
 	IdentityContainerAssignmentRetryInterval = 60 * time.Second
 )
 
-// API version deployment deadlines (timebombs)
-var V20260630PreviewDeploymentDeadline = Must(time.Parse(time.RFC3339, "2026-08-14T00:00:00Z"))
-var V20261001DeploymentDeadline = Must(time.Parse(time.RFC3339, "2026-11-01T00:00:00Z"))
+// Operator verifier timeouts
+const (
+	IngressDNSVerifyTimeout         = 10 * time.Minute
+	CloudNetworkConfigVerifyTimeout = 10 * time.Minute
+)
 
 // Backup timeouts
 const (

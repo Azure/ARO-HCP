@@ -651,14 +651,14 @@ func TestOrchestrationSummaryAndWindows(t *testing.T) {
 	assert.Equal(t, strings.Split(logKQL, "| order by")[0], strings.Split(summaryKQL, "| summarize")[0])
 	assert.Contains(t, summaryKQL, "estimatedBytes = sum(estimate_data_size(*))")
 	assert.NotContains(t, summaryKQL, "| order by")
-	for _, source := range []string{"maestro", "hypershift", "acm-agent"} {
+	for _, source := range []string{"hypershift", "acm-agent"} {
 		assert.Contains(t, logKQL, `source = "`+source+`"`)
 	}
 	assert.Contains(t, logKQL, "resource_id startswith '/subscriptions/test-sub/resourceGroups/test-rg/'")
 	assert.Contains(t, logKQL, "| where isnotempty(cid)\n    | distinct cid")
 	assert.NotContains(t, logKQL, "toscalar")
 	assert.NotContains(t, logKQL, "limit 1")
-	assert.Equal(t, 4, strings.Count(logKQL, "has_any (_cs_cluster_ids)"))
+	assert.Equal(t, 2, strings.Count(logKQL, "has_any (_cs_cluster_ids)"))
 
 	data.Summarize = false
 	queries, err := f.BuildTimeWindows(def, data, opts.TimestampMin, opts.TimestampMax, 5*time.Minute)
@@ -667,8 +667,8 @@ func TestOrchestrationSummaryAndWindows(t *testing.T) {
 	require.True(t, ok)
 	require.Len(t, windowed.Windows, 3)
 	for _, window := range windowed.Windows {
-		assert.Equal(t, 2, strings.Count(window.GetQuery().String(), "timestamp between ("+data.DiscoveryTimestampMin+" .. "+data.DiscoveryTimestampMax+")"))
-		assert.Equal(t, 3, strings.Count(window.GetQuery().String(), "timestamp between (_startTime .. _endTime)"))
+		assert.Equal(t, 1, strings.Count(window.GetQuery().String(), "timestamp between ("+data.DiscoveryTimestampMin+" .. "+data.DiscoveryTimestampMax+")"))
+		assert.Equal(t, 2, strings.Count(window.GetQuery().String(), "timestamp between (_startTime .. _endTime)"))
 	}
 	assert.Contains(t, windowed.Windows[1].GetQuery().String(), "let _startTime = datetime(2025-01-01T00:05:00.0000000Z)")
 	data.OrderBy = OrderByDesc.String()
