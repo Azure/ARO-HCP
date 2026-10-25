@@ -110,10 +110,14 @@ verify-tool-versions:
 	$(MAKE) -C dev-infrastructure/openshift-ci verify
 .PHONY: verify-tool-versions
 
+verify-agentic-maintenance:
+	python3 -m unittest discover -s .github/scripts -p 'test_agentic_pr_maintenance.py'
+.PHONY: verify-agentic-maintenance
+
 update: deepcopy json-format
 .PHONY: update
 
-verify: verify-deepcopy verify-json-format verify-generate verify-yamlfmt verify-materialize verify-gomega-assertions verify-gomega-cmpdiff verify-mi-containers verify-schema verify-bicep-fixtures verify-tool-versions
+verify: verify-deepcopy verify-json-format verify-generate verify-yamlfmt verify-materialize verify-gomega-assertions verify-gomega-cmpdiff verify-mi-containers verify-schema verify-bicep-fixtures verify-tool-versions verify-agentic-maintenance
 .PHONY: verify
 
 verify-schema:

@@ -22,9 +22,17 @@ export MOCK_PR_LIST='[{"number":7184,"headRefName":"upgrade-agentic-workflows-19
 script="$root/hack/gh-aw-recompile.sh"
 
 [[ $(bash "$script" --select-only) == '7184 upgrade-agentic-workflows-1971' ]]
+if EXPECTED_UPGRADE_PR=7185 bash "$script" --select-only >/dev/null 2>&1; then
+  echo "A different requested upgrade PR must not be selected." >&2
+  exit 1
+fi
 MOCK_PR_LIST='[]'
 export MOCK_PR_LIST
 [[ $(bash "$script" --select-only) == 'new upgrade-agentic-workflows-42' ]]
+if EXPECTED_UPGRADE_PR=7184 bash "$script" --select-only >/dev/null 2>&1; then
+  echo "A missing requested upgrade PR must not be replaced." >&2
+  exit 1
+fi
 
 MOCK_PR_LIST='[{"number":7184,"headRefName":"upgrade-agentic-workflows-1971","author":{"login":"someone-else"}},{"number":7183,"headRefName":"fix-something","author":{"login":"app/aro-hcp-robot"}}]'
 export MOCK_PR_LIST

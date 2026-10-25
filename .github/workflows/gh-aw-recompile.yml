@@ -13,6 +13,8 @@ name: gh-aw recompile
 on:
   # Weekly, ahead of the nightly agentic runs, so a fresh recompile can land
   # before upstream blocks the current compiler version.
+  # Six-hour agentic PR maintenance also refreshes the existing upgrade PR when
+  # needed; this independent bootstrap survives blocked agentic runtimes.
   schedule:
   - cron: "0 6 * * 1"
   workflow_dispatch:
@@ -20,6 +22,8 @@ on:
 # uses the scoped aro-hcp-robot App token minted below, never GITHUB_TOKEN.
 permissions:
   contents: read
+  checks: read
+  statuses: read
 concurrency:
   group: gh-aw-recompile
   cancel-in-progress: false
@@ -91,6 +95,7 @@ jobs:
     - name: Repair and validate the bot's upgrade PR
       env:
         GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        CI_TOKEN: ${{ github.token }}
         GITHUB_BASE_REF: ${{ github.event.repository.default_branch }}
       run: |
         set -euo pipefail
