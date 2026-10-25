@@ -47,13 +47,13 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
       - name: Set up repository Go toolchain
-        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v6
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
         with:
           go-version-file: go.work
           cache: false
       - name: Mint scoped compiler refresh token
         id: write-token
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510  # v3.3.0
         with:
           client-id: ${{ secrets.DEPENDABOT_APP_CLIENT_ID }}
           private-key: ${{ secrets.DEPENDABOT_APP_PRIVATE_KEY }}
@@ -147,7 +147,7 @@ safe-outputs:
             persist-credentials: false
         - name: Mint PR-comment token
           id: write-token
-          uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+          uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510  # v3.3.0
           with:
             client-id: ${{ secrets.DEPENDABOT_APP_CLIENT_ID }}
             private-key: ${{ secrets.DEPENDABOT_APP_PRIVATE_KEY }}
