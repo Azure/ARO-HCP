@@ -57,6 +57,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/msi/armmsi"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
+	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 
 	clusterversion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/version"
 	"github.com/Azure/ARO-HCP/test/util/dnsreadback"
@@ -281,6 +282,15 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create kube client")
 			dynClient, err := dynamic.NewForConfig(adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred(), "failed to create dynamic client")
+			configClient, err := configv1client.NewForConfig(adminRESTConfig)
+			Expect(err).NotTo(HaveOccurred(), "failed to create guest config client")
+			DeferCleanup(func(ctx context.Context) {
+				if CurrentSpecReport().Failed() {
+					if err := collectIngressCertificateDiagnostics(ctx, kubeClient, dynClient, tc.LogDirPath); err != nil {
+						GinkgoLogr.Error(err, "failed to collect ingress certificate diagnostics")
+					}
+				}
+			}, NodeTimeout(time.Minute))
 			mapper := newDiscoveryMapper(adminRESTConfig)
 
 			Expect(applyManifestFromURL(ctx, dynClient, mapper, certManagerManifestURL)).To(Succeed(), "failed to install cert-manager manifests")
@@ -356,6 +366,13 @@ var _ = Describe("Customer", func() {
 				return nil
 			}).WithContext(ctx).WithTimeout(5*time.Minute).WithPolling(10*time.Second).Should(Succeed(),
 				"cert-manager deployment should complete rollout with workload identity")
+
+			By("waiting for guest DNS readiness and in-cluster ACME hostname resolution")
+			acmeHostname, err := framework.HostnameFromURL(acmeServer)
+			Expect(err).NotTo(HaveOccurred(), "failed to parse ACME hostname")
+			Expect(waitForIngressCertificateDNS(ctx, kubeClient, configClient, certManagerNamespace,
+				acmeHostname, 10*time.Minute, 10*time.Second)).To(Succeed(),
+				"guest DNS must be ready before ACME account registration")
 
 			By("creating a ClusterIssuer with ACME DNS-01 solver targeting the DNS zone in the managed resource group")
 			issuerObj := unstructuredClusterIssuer(
