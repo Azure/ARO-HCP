@@ -124,15 +124,15 @@ func toSPExperimentalFeatures(oldObj *coreapi.ClusterServiceProviderProperties) 
 	return &oldObj.ExperimentalFeatures
 }
 
-// mutateClusterExperimentalFeatures translates the experimental tag set from
-// the original (pre-mutation) cluster into ExperimentalFeatures on the
-// cluster's service provider properties. Tags are *read from*
-// admissionContext.OriginalCluster — never from the cluster being mutated —
-// because earlier admission steps may have overwritten the cluster's tag map.
-// Without AFEC registration ExperimentalFeatures is zeroed and tags are
-// ignored; with AFEC registered, unrecognized experimental tags and invalid
-// values are rejected.
-func mutateClusterExperimentalFeatures(_ context.Context, admissionContext *ClusterAdmissionContext, _ operation.Operation, _ *field.Path, newObj, _ *coreapi.ExperimentalFeatures) field.ErrorList {
+// Translates the experimental tag set from the original (pre-mutation) cluster
+// into ExperimentalFeatures on the cluster's service provider properties.
+// Tags are read from admissionContext.OriginalCluster, never from the cluster
+// being mutated, because earlier steps may have overwritten its tag map.
+// Without AFEC registration ExperimentalFeatures is zeroed and tags are ignored;
+// with AFEC registered, unrecognized experimental tags and invalid values are
+// rejected. Single-replica availability is retained only for updates to
+// persisted single-replica clusters.
+func mutateClusterExperimentalFeatures(_ context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, _ *field.Path, newObj, oldObj *coreapi.ExperimentalFeatures) field.ErrorList {
 	subscription := admissionContext.Subscription
 	if subscription == nil || !subscription.HasRegisteredFeature(metadataapi.FeatureExperimentalReleaseFeatures) {
 		*newObj = coreapi.ExperimentalFeatures{}
@@ -172,7 +172,11 @@ func mutateClusterExperimentalFeatures(_ context.Context, admissionContext *Clus
 	singleReplicaValue := lookupTag(tags, metadataapi.TagClusterSingleReplica)
 	switch coreapi.ControlPlaneAvailability(singleReplicaValue) {
 	case coreapi.SingleReplicaControlPlane:
-		experimentalFeatures.ControlPlaneAvailability = coreapi.SingleReplicaControlPlane
+		if op.Type != operation.Update || oldObj == nil || oldObj.ControlPlaneAvailability != coreapi.SingleReplicaControlPlane {
+			errs = append(errs, field.Forbidden(tagsPath.Key(metadataapi.TagClusterSingleReplica), "single-replica control planes cannot be enabled"))
+		} else {
+			experimentalFeatures.ControlPlaneAvailability = coreapi.SingleReplicaControlPlane
+		}
 	case coreapi.DefaultControlPlaneAvailability:
 		// absent or empty
 	default:

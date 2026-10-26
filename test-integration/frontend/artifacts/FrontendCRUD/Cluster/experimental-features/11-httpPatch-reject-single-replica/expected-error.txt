@@ -1,0 +1,5 @@
+{
+    "code": "InvalidRequestContent",
+    "message": "Forbidden: single-replica control planes cannot be enabled",
+    "target": "tags[aro-hcp.experimental.cluster.single-replica]"
+  }

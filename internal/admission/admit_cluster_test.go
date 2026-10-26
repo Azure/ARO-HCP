@@ -100,11 +100,12 @@ func TestMutateCluster(t *testing.T) {
 			expectZeroFeatures: true,
 		},
 		{
-			name:                             "AFEC registered with single-replica tag only",
-			subscription:                     afecRegistered,
-			tags:                             map[string]string{metadataapi.TagClusterSingleReplica: string(coreapi.SingleReplicaControlPlane)},
-			expectErrors:                     []utils.ExpectedError{},
-			expectedControlPlaneAvailability: coreapi.SingleReplicaControlPlane,
+			name:         "AFEC registered rejects single-replica create",
+			subscription: afecRegistered,
+			tags:         map[string]string{metadataapi.TagClusterSingleReplica: string(coreapi.SingleReplicaControlPlane)},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "tags[" + metadataapi.TagClusterSingleReplica + "]", Message: "single-replica control planes cannot be enabled"},
+			},
 		},
 		{
 			name:                          "AFEC registered with size-override tag only",
@@ -114,12 +115,12 @@ func TestMutateCluster(t *testing.T) {
 			expectedControlPlanePodSizing: coreapi.MinimalControlPlanePodSizing,
 		},
 		{
-			name:                             "AFEC registered with both tags",
-			subscription:                     afecRegistered,
-			tags:                             map[string]string{metadataapi.TagClusterSingleReplica: string(coreapi.SingleReplicaControlPlane), metadataapi.TagClusterSizeOverride: string(coreapi.MinimalControlPlanePodSizing)},
-			expectErrors:                     []utils.ExpectedError{},
-			expectedControlPlaneAvailability: coreapi.SingleReplicaControlPlane,
-			expectedControlPlanePodSizing:    coreapi.MinimalControlPlanePodSizing,
+			name:         "AFEC registered rejects single-replica create with independent sizing",
+			subscription: afecRegistered,
+			tags:         map[string]string{metadataapi.TagClusterSingleReplica: string(coreapi.SingleReplicaControlPlane), metadataapi.TagClusterSizeOverride: string(coreapi.MinimalControlPlanePodSizing)},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "tags[" + metadataapi.TagClusterSingleReplica + "]", Message: "single-replica control planes cannot be enabled"},
+			},
 		},
 		{
 			name:               "AFEC registered but no tags",
@@ -136,11 +137,12 @@ func TestMutateCluster(t *testing.T) {
 			expectedControlPlanePodSizing: coreapi.MinimalControlPlanePodSizing,
 		},
 		{
-			name:                             "AFEC registered with case insensitive tag keys - single-replica",
-			subscription:                     afecRegistered,
-			tags:                             map[string]string{"ARO-HCP.Experimental.Cluster.Single-Replica": string(coreapi.SingleReplicaControlPlane)},
-			expectErrors:                     []utils.ExpectedError{},
-			expectedControlPlaneAvailability: coreapi.SingleReplicaControlPlane,
+			name:         "AFEC registered rejects case insensitive single-replica tag keys",
+			subscription: afecRegistered,
+			tags:         map[string]string{"ARO-HCP.Experimental.Cluster.Single-Replica": string(coreapi.SingleReplicaControlPlane)},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "tags[" + metadataapi.TagClusterSingleReplica + "]", Message: "single-replica control planes cannot be enabled"},
+			},
 		},
 		{
 			name:               "AFEC registered but tag values are empty strings",
@@ -285,14 +287,14 @@ func TestMutateCluster(t *testing.T) {
 		{
 			// The exact-version tag is translated in the same pass as every other
 			// experimental tag, so it composes with them.
-			name:         "AFEC registered with exact-version tag alongside single-replica",
+			name:         "AFEC registered with exact-version tag alongside size-override",
 			subscription: afecRegistered,
 			tags: map[string]string{
 				metadataapi.TagClusterControlPlaneExactVersion: "4.17.3",
-				metadataapi.TagClusterSingleReplica:            string(coreapi.SingleReplicaControlPlane),
+				metadataapi.TagClusterSizeOverride:             string(coreapi.MinimalControlPlanePodSizing),
 			},
 			expectErrors:                     []utils.ExpectedError{},
-			expectedControlPlaneAvailability: coreapi.SingleReplicaControlPlane,
+			expectedControlPlanePodSizing:    coreapi.MinimalControlPlanePodSizing,
 			expectedControlPlaneExactVersion: "4.17.3",
 		},
 	}
@@ -341,6 +343,91 @@ func TestMutateCluster(t *testing.T) {
 		})
 	}
 
+}
+
+func TestMutateClusterSingleReplicaTransitions(t *testing.T) {
+	registered := &coreapi.Subscription{Properties: &coreapi.SubscriptionProperties{
+		RegisteredFeatures: &[]coreapi.Feature{{
+			Name: ptr.To(metadataapi.FeatureExperimentalReleaseFeatures), State: ptr.To("Registered"),
+		}},
+	}}
+	tests := []struct {
+		name         string
+		op           operation.Type
+		oldCluster   bool
+		oldReplica   bool
+		oldTag       bool
+		tagKey       string
+		tagValue     string
+		wantReplica  bool
+		errorMessage string
+	}{
+		{name: "create rejects opt-in", op: operation.Create, tagValue: "SingleReplica", errorMessage: "single-replica control planes cannot be enabled"},
+		{name: "create cannot be grandfathered by an old object", op: operation.Create, oldCluster: true, oldReplica: true, tagValue: "SingleReplica", errorMessage: "single-replica control planes cannot be enabled"},
+		{name: "update without old state rejects opt-in", op: operation.Update, tagValue: "SingleReplica", errorMessage: "single-replica control planes cannot be enabled"},
+		{name: "update default availability rejects opt-in", op: operation.Update, oldCluster: true, tagValue: "SingleReplica", errorMessage: "single-replica control planes cannot be enabled"},
+		{name: "old tag alone cannot grandfather update", op: operation.Update, oldCluster: true, oldTag: true, tagValue: "SingleReplica", errorMessage: "single-replica control planes cannot be enabled"},
+		{name: "persisted single replica retains setting", op: operation.Update, oldCluster: true, oldReplica: true, oldTag: true, tagValue: "SingleReplica", wantReplica: true},
+		{name: "persisted state without old tag grandfathers update", op: operation.Update, oldCluster: true, oldReplica: true, tagValue: "SingleReplica", wantReplica: true},
+		{name: "mixed case key cannot bypass rejection", op: operation.Update, oldCluster: true, tagKey: strings.ToUpper(metadataapi.TagClusterSingleReplica), tagValue: "SingleReplica", errorMessage: "single-replica control planes cannot be enabled"},
+		{name: "mixed case key retains persisted single replica", op: operation.Update, oldCluster: true, oldReplica: true, tagKey: strings.ToUpper(metadataapi.TagClusterSingleReplica), tagValue: "SingleReplica", wantReplica: true},
+		{name: "removing tag opts out", op: operation.Update, oldCluster: true, oldReplica: true, oldTag: true},
+		{name: "empty tag opts out", op: operation.Update, oldCluster: true, oldReplica: true, oldTag: true, tagKey: metadataapi.TagClusterSingleReplica},
+		{name: "default availability remains default", op: operation.Update, oldCluster: true},
+		{name: "create without opt-in remains default", op: operation.Create},
+		{name: "incorrect value case remains invalid", op: operation.Create, tagValue: "singlereplica", errorMessage: `must be "SingleReplica" or empty`},
+		{name: "persisted single replica cannot bypass invalid value", op: operation.Update, oldCluster: true, oldReplica: true, tagValue: "true", errorMessage: `must be "SingleReplica" or empty`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cluster := &coreapi.Cluster{}
+			cluster.Tags = map[string]string{metadataapi.TagClusterSizeOverride: string(coreapi.MinimalControlPlanePodSizing)}
+			if tt.tagKey != "" || tt.tagValue != "" {
+				key := tt.tagKey
+				if key == "" {
+					key = metadataapi.TagClusterSingleReplica
+				}
+				cluster.Tags[key] = tt.tagValue
+			}
+			var oldCluster *coreapi.Cluster
+			if tt.oldCluster {
+				oldCluster = &coreapi.Cluster{}
+				if tt.oldReplica {
+					oldCluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneAvailability = coreapi.SingleReplicaControlPlane
+				}
+				if tt.oldTag {
+					oldCluster.Tags = map[string]string{metadataapi.TagClusterSingleReplica: string(coreapi.SingleReplicaControlPlane)}
+				}
+			}
+			admissionContext := &ClusterAdmissionContext{
+				Clock:           clocktesting.NewFakeClock(time.Unix(1000, 0)),
+				Subscription:    registered,
+				OriginalCluster: cluster.DeepCopy(),
+			}
+			errs := MutateCluster(t.Context(), admissionContext, operation.Operation{Type: tt.op}, cluster, oldCluster)
+			var expectedErrors []utils.ExpectedError
+			if tt.errorMessage != "" {
+				expectedErrors = []utils.ExpectedError{{
+					FieldPath: "tags[" + metadataapi.TagClusterSingleReplica + "]",
+					Message:   tt.errorMessage,
+				}}
+			}
+			utils.VerifyErrorsMatch(t, expectedErrors, errs)
+			if tt.errorMessage != "" {
+				if cluster.ServiceProviderProperties.ExperimentalFeatures != (coreapi.ExperimentalFeatures{}) {
+					t.Fatal("rejected experimental tags must not be projected into features")
+				}
+				return
+			}
+			want := coreapi.ExperimentalFeatures{ControlPlanePodSizing: coreapi.MinimalControlPlanePodSizing}
+			if tt.wantReplica {
+				want.ControlPlaneAvailability = coreapi.SingleReplicaControlPlane
+			}
+			if got := cluster.ServiceProviderProperties.ExperimentalFeatures; got != want {
+				t.Errorf("experimental features = %+v, want %+v", got, want)
+			}
+		})
+	}
 }
 
 func TestMutateClusterZStreamUpdatePolicy(t *testing.T) {
@@ -539,7 +626,7 @@ func TestMutateClusterControlPlaneExactVersion(t *testing.T) {
 			name:            "AFEC clears an existing exact pin on UPDATE even when other tags are present",
 			subscription:    afecRegistered,
 			op:              operation.Operation{Type: operation.Update},
-			tags:            map[string]string{metadataapi.TagClusterSingleReplica: string(coreapi.SingleReplicaControlPlane)},
+			tags:            map[string]string{metadataapi.TagClusterSizeOverride: string(coreapi.MinimalControlPlanePodSizing)},
 			versionID:       "4.17",
 			oldExactVersion: "4.17.3",
 			expectErrors:    []utils.ExpectedError{},
