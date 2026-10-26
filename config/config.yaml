@@ -2027,17 +2027,14 @@ clouds:
                 osDiskSizeGB: 32
                 vmSize: Standard_D4ds_v6
               userAgentPool:
-                maxCount: 9
-                minCount: 4
+                maxCount: 3
+                minCount: 1
                 osDiskSizeGB: 100
                 vmSize: Standard_D16ds_v6
-                poolCount: 1
                 secondaryNicCount: 7
               infraAgentPool:
                 vmSize: Standard_E4ds_v6
                 osDiskSizeGB: 64
-                poolCount: 1
-                maxCount: 2
           # SVC - same as ci01
           svc:
             subscription:

@@ -115,12 +115,12 @@ environments:
         infrastructure_identities:
           allocation: leased
           asset_pool: dev-infrastructure-identities
-  # dev-upgrade is a separate environment for the upgrade/in-place test suite
-  # and CAPZ on-demand testing. It uses deploy_env ci02 so upgrade jobs and
-  # e2e-parallel jobs (ci00/ci01) never compete for the same Boskos pools.
-  # ci02 maps to a dedicated templatize environment with cluster sizing tuned
-  # for upgrade workloads.
-  dev-upgrade:
+  # dev-xs is a separate environment for smaller workloads such as upgrade/
+  # in-place tests and CAPZ on-demand testing. It uses deploy_env ci02 so
+  # these jobs and e2e-parallel jobs (ci00/ci01) never compete for the same
+  # Boskos pools. ci02 maps to a dedicated templatize environment with
+  # cluster sizing tuned for fewer concurrent HCPs.
+  dev-xs:
     deployment_environment:
       name: ci02
       infrastructure_subscription: "ARO HCP E2E Infrastructure (EA Subscription)"
