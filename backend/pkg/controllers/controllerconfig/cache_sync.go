@@ -181,3 +181,9 @@ func (informers *trackingFleetInformers) HCPResourceRequirements() (cache.Shared
 	informers.tracking.add(informer.HasSynced)
 	return informer, lister
 }
+
+func (informers *trackingFleetInformers) StuckClusterCleanups() (cache.SharedIndexInformer, fleetlisters.StuckClusterCleanupLister) {
+	informer, lister := informers.FleetInformers.StuckClusterCleanups()
+	informers.tracking.add(informer.HasSynced)
+	return informer, lister
+}

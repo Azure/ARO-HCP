@@ -59,6 +59,7 @@ type ManagementClustersCRUD interface {
 	cosmosstorageutils.ValidatingResourceCRUD[fleetapi.ManagementCluster, *fleetapi.ManagementCluster]
 	Controllers() cosmosstorageutils.ResourceCRUD[coreapi.Controller, *coreapi.Controller]
 	Scheduling() cosmosstorageutils.ResourceCRUD[fleetapi.ManagementClusterScheduling, *fleetapi.ManagementClusterScheduling]
+	StuckClusterCleanups() cosmosstorageutils.ValidatingResourceCRUD[fleetapi.StuckClusterCleanup, *fleetapi.StuckClusterCleanup]
 }
 
 // FleetGlobalListers provides cross-partition listers for fleet resource types.
@@ -68,6 +69,7 @@ type FleetGlobalListers interface {
 	ManagementClusterSchedulings() cosmosstorageutils.GlobalLister[fleetapi.ManagementClusterScheduling]
 	ControlPlaneVersionRollouts() cosmosstorageutils.GlobalLister[fleetapi.ControlPlaneVersionRollout]
 	HCPResourceRequirements() cosmosstorageutils.GlobalLister[fleetapi.HCPResourceRequirements]
+	StuckClusterCleanups() cosmosstorageutils.GlobalLister[fleetapi.StuckClusterCleanup]
 }
 
 type cosmosFleetDBClient struct {
@@ -182,6 +184,20 @@ func (m *cosmosManagementClustersCRUD) Scheduling() cosmosstorageutils.ResourceC
 		cosmosstorageutils.FleetPartitionKeyDeriver{}, cosmosstorageutils.FleetResourceIDBuilder{})
 }
 
+func (m *cosmosManagementClustersCRUD) StuckClusterCleanups() cosmosstorageutils.ValidatingResourceCRUD[fleetapi.StuckClusterCleanup, *fleetapi.StuckClusterCleanup] {
+	managementClusterResourceID, err := fleetapihelpers.ToManagementClusterResourceID(m.stampIdentifier)
+	if err != nil {
+		panic(fmt.Sprintf("invalid stamp identifier %q: %v", m.stampIdentifier, err))
+	}
+	inner := cosmosstorageutils.NewCosmosResourceCRUDWithStrategies[fleetapi.StuckClusterCleanup, *fleetapi.StuckClusterCleanup, cosmosstorageutils.GenericDocument[fleetapi.StuckClusterCleanup]](
+		m.containerClient, managementClusterResourceID, fleetapi.ManagementClusterStuckClusterCleanupResourceType,
+		cosmosstorageutils.FleetPartitionKeyDeriver{}, cosmosstorageutils.FleetResourceIDBuilder{})
+	return cosmosstorageutils.NewValidatingCRUD(inner,
+		validation.ValidateStuckClusterCleanupCreate,
+		validation.ValidateStuckClusterCleanupUpdate,
+	)
+}
+
 type cosmosFleetGlobalListers struct {
 	container *azcosmos.ContainerClient
 }
@@ -221,5 +237,12 @@ func (g *cosmosFleetGlobalListers) HCPResourceRequirements() cosmosstorageutils.
 	return &cosmosstorageutils.CosmosGlobalLister[fleetapi.HCPResourceRequirements, cosmosstorageutils.GenericDocument[fleetapi.HCPResourceRequirements]]{
 		ContainerClient: g.container,
 		ResourceTypes:   []azcorearm.ResourceType{fleetapi.HCPResourceRequirementsResourceType},
+	}
+}
+
+func (g *cosmosFleetGlobalListers) StuckClusterCleanups() cosmosstorageutils.GlobalLister[fleetapi.StuckClusterCleanup] {
+	return &cosmosstorageutils.CosmosGlobalLister[fleetapi.StuckClusterCleanup, cosmosstorageutils.GenericDocument[fleetapi.StuckClusterCleanup]]{
+		ContainerClient: g.container,
+		ResourceTypes:   []azcorearm.ResourceType{fleetapi.ManagementClusterStuckClusterCleanupResourceType},
 	}
 }

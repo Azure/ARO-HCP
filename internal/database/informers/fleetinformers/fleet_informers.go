@@ -34,6 +34,7 @@ const (
 	ManagementClusterSchedulingRelistDuration = 2 * time.Minute
 	ControlPlaneVersionRolloutRelistDuration  = 2 * time.Minute
 	HCPResourceRequirementsRelistDuration     = 2 * time.Minute
+	StuckClusterCleanupRelistDuration         = 2 * time.Minute
 )
 
 // NewStampInformer creates an unstarted SharedIndexInformer for stamps
@@ -176,6 +177,34 @@ func NewHCPResourceRequirementsInformerWithRelistDuration(lister cosmosstorageut
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod:      1 * time.Hour,
 			ObjectDescription: "HCPResourceRequirements",
+		},
+	)
+}
+
+// NewStuckClusterCleanupInformer creates an unstarted SharedIndexInformer for
+// stuck cluster cleanups with the default relist duration.
+func NewStuckClusterCleanupInformer(lister cosmosstorageutils.GlobalLister[fleetapi.StuckClusterCleanup], cosmosClient cosmosstorageutils.ChangeFeedClient) cache.SharedIndexInformer {
+	return NewStuckClusterCleanupInformerWithRelistDuration(lister, cosmosClient, StuckClusterCleanupRelistDuration)
+}
+
+// NewStuckClusterCleanupInformerWithRelistDuration creates an unstarted
+// SharedIndexInformer for stuck cluster cleanups with a configurable relist duration.
+func NewStuckClusterCleanupInformerWithRelistDuration(lister cosmosstorageutils.GlobalLister[fleetapi.StuckClusterCleanup], cosmosClient cosmosstorageutils.ChangeFeedClient, relistDuration time.Duration) cache.SharedIndexInformer {
+	lw := informerutils.NewChangeFeedListWatcher[fleetapi.StuckClusterCleanup, *fleetapi.StuckClusterCleanup, cosmosstorageutils.GenericDocument[fleetapi.StuckClusterCleanup]](
+		[]azcorearm.ResourceType{fleetapi.ManagementClusterStuckClusterCleanupResourceType},
+		utilsclock.RealClock{},
+		lister,
+		cosmosClient,
+		relistDuration,
+		"fleet",
+	)
+
+	return cache.NewSharedIndexInformerWithOptions(
+		&informerutils.ListWatchWithoutWatchListSemantics{ListWatch: lw.ToListWatch(), InformerName: "StuckClusterCleanups"},
+		&fleetapi.StuckClusterCleanup{},
+		cache.SharedIndexInformerOptions{
+			ResyncPeriod:      1 * time.Hour,
+			ObjectDescription: "StuckClusterCleanup",
 		},
 	)
 }
