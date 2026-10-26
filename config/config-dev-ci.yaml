@@ -163,7 +163,7 @@ clouds:
           image:
             registry: "arohcpsvcdev.azurecr.io"
             repository: "tenant-quota-collector"
-            digest: sha256:a5e6e46fb73cd13ec9b2b8d63ee1f50ba9e33d91d7a3fce7ac3aa62157f84989 # 1c94a98e5195de9686a023486cce04ad52c9b1c3 (2026-10-20 16:54)
+            digest: sha256:4c9207e462c3849bdffedaf8b8f8a578e602c1b2b3e882225ddbb45c3b524b3d # ef4e2de (2026-10-25 16:58)
           ciJobOutcomes:
             # Records the outcome of each CI job run so the alerts and logs in
             # the dev Kusto can be attributed to the run that produced them.
