@@ -235,11 +235,23 @@ var _ = Describe("Customer", func() {
 			_, err = framework.UpdateHCPCluster20260901(ctx, hcpClient, *resourceGroup.Name, clusterName, update, framework.HCPClusterVersionUpgradeTimeout)
 			Expect(err).NotTo(HaveOccurred(), "failed to trigger y-stream upgrade of cluster %q to %s", clusterName, upgradeVersionId)
 
+			activeVersionsClient := tc.Get20261001ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
+
 			By("verifying control plane reached the target minor")
 			Eventually(func() error {
+				// This test deliberately degrades the data plane with a deny-pod admission
+				// policy, so the guest CVO may never report the upgrade as complete. The
+				// activeVersions check reads HostedCluster controlPlaneVersion by way of the
+				// backend, and so reports control-plane completion regardless. Both must pass.
 				return errors.Join(
 					verifiers.VerifyKubeAPIServerServerVersionUpgraded(preUpgradeKubeAPIServerVersion).Verify(ctx, adminRESTConfig),
 					verifiers.VerifyHostedControlPlaneYStreamUpgrade(installVersionId, upgradeVersionId).Verify(ctx, adminRESTConfig),
+					verifiers.VerifyClusterActiveVersionsSettledAtMinor(
+						ctx,
+						activeVersionsClient,
+						*resourceGroup.Name,
+						clusterName,
+						upgradeVersionId),
 				)
 			}).WithContext(ctx).WithTimeout(framework.HCPClusterVersionUpgradeTimeout).WithPolling(2*time.Minute).Should(Succeed(), "control plane did not reach %s on cluster %q with deny-pod ValidatingAdmissionPolicy", upgradeVersionId, clusterName)
 
