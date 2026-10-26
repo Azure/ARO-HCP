@@ -169,10 +169,10 @@ func TestMockFPARoleAssignmentIDMatchesPublicCSRequest(t *testing.T) {
 				assignmentID, err := mockFPARoleAssignmentID(cluster, testMockFPAPrincipalID)
 				require.NoError(t, err)
 				require.Equal(t, expectedScope, assignmentID.Parent.String())
-				require.Equal(t, roleassignment.ManagedResourceGroupScopedRoleAssignmentResourceID(expectedScope, testMockFPAPrincipalID, mockFPAOwnerRoleDefinitionID), assignmentID.String())
+				require.Equal(t, roleassignment.ManagedResourceGroupScopedRoleAssignmentResourceID(expectedScope, testMockFPAPrincipalID, ownerRoleDefinitionID), assignmentID.String())
 				if managedResourceGroupName != strings.ToLower(managedResourceGroupName) {
 					oldScope := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s", request.Azure().SubscriptionID(), strings.ToLower(managedResourceGroupName))
-					oldID, parseErr := azcorearm.ParseResourceID(roleassignment.ManagedResourceGroupScopedRoleAssignmentResourceID(oldScope, testMockFPAPrincipalID, mockFPAOwnerRoleDefinitionID))
+					oldID, parseErr := azcorearm.ParseResourceID(roleassignment.ManagedResourceGroupScopedRoleAssignmentResourceID(oldScope, testMockFPAPrincipalID, ownerRoleDefinitionID))
 					require.NoError(t, parseErr)
 					require.NotEqual(t, assignmentID.Name, oldID.Name)
 				}
@@ -258,7 +258,7 @@ func TestMockFPARoleAssignmentSyncOnce(t *testing.T) {
 		{name: "mixed-case group existing assignment", managedResourceGroupName: "MixedCaseMRG"},
 		{name: "mixed-case group create then confirm", managedResourceGroupName: "MixedCaseMRG", create: true},
 		{name: "subscription qualified Owner", mutateProperties: func(properties *armauthorization.RoleAssignmentProperties) {
-			properties.RoleDefinitionID = ptr.To("/subscriptions/" + testSubscriptionID + mockFPAOwnerRoleDefinitionID)
+			properties.RoleDefinitionID = ptr.To("/subscriptions/" + testSubscriptionID + ownerRoleDefinitionID)
 		}},
 		{name: "deleting cluster still reconciles", deleting: true},
 		{name: "create then confirm", create: true},
@@ -305,7 +305,7 @@ func TestMockFPARoleAssignmentSyncOnce(t *testing.T) {
 			spc := newTestServiceProviderCluster(t, true, false, false, false, coreapi.AzureMultiReference{})
 			expectedID, err := mockFPARoleAssignmentID(cluster, testMockFPAPrincipalID)
 			require.NoError(t, err)
-			require.Equal(t, roleassignment.ManagedResourceGroupScopedRoleAssignmentResourceID(expectedScope, testMockFPAPrincipalID, mockFPAOwnerRoleDefinitionID), expectedID.String())
+			require.Equal(t, roleassignment.ManagedResourceGroupScopedRoleAssignmentResourceID(expectedScope, testMockFPAPrincipalID, ownerRoleDefinitionID), expectedID.String())
 			otherRecheck := metav1.NewTime(testFixedNow().Add(24 * time.Hour))
 			spc.Spec.EarliestRecheckTimesByController = map[string]*metav1.Time{"another-controller": &otherRecheck}
 			if testCase.confirmed {
@@ -362,7 +362,7 @@ func TestMockFPARoleAssignmentSyncOnce(t *testing.T) {
 				}
 			}
 			properties := &armauthorization.RoleAssignmentProperties{
-				PrincipalID: ptr.To(testMockFPAPrincipalID), RoleDefinitionID: ptr.To(mockFPAOwnerRoleDefinitionID),
+				PrincipalID: ptr.To(testMockFPAPrincipalID), RoleDefinitionID: ptr.To(ownerRoleDefinitionID),
 				Scope: ptr.To(expectedScope), PrincipalType: ptr.To(armauthorization.PrincipalTypeServicePrincipal),
 			}
 			if testCase.mutateProperties != nil {
@@ -382,7 +382,7 @@ func TestMockFPARoleAssignmentSyncOnce(t *testing.T) {
 							require.Equal(t, expectedID, stored.Status.AzureResources.MockFPARoleAssignment.PendingAzureResource)
 							require.Nil(t, stored.Status.AzureResources.MockFPARoleAssignment.AzureResource)
 							require.Equal(t, testMockFPAPrincipalID, *parameters.Properties.PrincipalID)
-							require.Equal(t, mockFPAOwnerRoleDefinitionID, *parameters.Properties.RoleDefinitionID)
+							require.Equal(t, ownerRoleDefinitionID, *parameters.Properties.RoleDefinitionID)
 							require.Equal(t, armauthorization.PrincipalTypeServicePrincipal, *parameters.Properties.PrincipalType)
 							require.Nil(t, parameters.Properties.Condition)
 							return armauthorization.RoleAssignmentsClientCreateResponse{}, testCase.createError
