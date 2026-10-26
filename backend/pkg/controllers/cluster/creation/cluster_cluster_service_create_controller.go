@@ -165,8 +165,8 @@ func (c *clusterClusterServiceCreateSyncer) SyncOnce(ctx context.Context, key co
 		return nil
 	}
 
-	mockFPAAssignment := existingServiceProviderCluster.Status.AzureResources.MockFPARoleAssignment
-	if !c.hasRealFPA && (mockFPAAssignment.AzureResource == nil || mockFPAAssignment.PendingAzureResource != nil) {
+	mockFPAOwnerRoleAssignment := existingServiceProviderCluster.Status.AzureResources.MockFPAOwnerRoleAssignment
+	if !c.hasRealFPA && (mockFPAOwnerRoleAssignment.AzureResource == nil || mockFPAOwnerRoleAssignment.PendingAzureResource != nil) {
 		logger.Info("Mock FPA Owner assignment not yet confirmed, waiting for reconciliation")
 		return nil
 	}

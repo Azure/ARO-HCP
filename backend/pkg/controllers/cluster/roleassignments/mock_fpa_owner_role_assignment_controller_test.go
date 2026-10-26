@@ -16,6 +16,7 @@ package roleassignments
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -50,50 +51,50 @@ import (
 
 const testMockFPAPrincipalID = "f14419d4-70d0-47b6-bb08-e6a8cc9564a6"
 
-type mockFPAClientBuilderFunc func(string) (azureclient.RoleAssignmentsClient, error)
+type mockFPAOwnerRoleAssignmentClientBuilderFunc func(string) (azureclient.RoleAssignmentsClient, error)
 
-func (builder mockFPAClientBuilderFunc) RoleAssignmentsClient(subscriptionID string) (azureclient.RoleAssignmentsClient, error) {
+func (builder mockFPAOwnerRoleAssignmentClientBuilderFunc) RoleAssignmentsClient(subscriptionID string) (azureclient.RoleAssignmentsClient, error) {
 	return builder(subscriptionID)
 }
 
-type mockFPAFailingReplaceDB struct {
+type mockFPAOwnerRoleAssignmentFailingReplaceDB struct {
 	corecosmosstorage.ResourcesDBClient
 }
 
-func (database mockFPAFailingReplaceDB) ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName string) cosmosstorageutils.ResourceCRUD[coreapi.ServiceProviderCluster, *coreapi.ServiceProviderCluster] {
-	return mockFPAFailingReplaceCRUD{ResourceCRUD: database.ResourcesDBClient.ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName)}
+func (database mockFPAOwnerRoleAssignmentFailingReplaceDB) ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName string) cosmosstorageutils.ResourceCRUD[coreapi.ServiceProviderCluster, *coreapi.ServiceProviderCluster] {
+	return mockFPAOwnerRoleAssignmentFailingReplaceCRUD{ResourceCRUD: database.ResourcesDBClient.ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName)}
 }
 
-type mockFPAFailingReplaceCRUD struct {
+type mockFPAOwnerRoleAssignmentFailingReplaceCRUD struct {
 	cosmosstorageutils.ResourceCRUD[coreapi.ServiceProviderCluster, *coreapi.ServiceProviderCluster]
 }
 
-type mockFPAConfirmationConflictDB struct {
+type mockFPAOwnerRoleAssignmentConfirmationConflictDB struct {
 	corecosmosstorage.ResourcesDBClient
 }
 
-func (database mockFPAConfirmationConflictDB) ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName string) cosmosstorageutils.ResourceCRUD[coreapi.ServiceProviderCluster, *coreapi.ServiceProviderCluster] {
-	return mockFPAConfirmationConflictCRUD{ResourceCRUD: database.ResourcesDBClient.ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName)}
+func (database mockFPAOwnerRoleAssignmentConfirmationConflictDB) ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName string) cosmosstorageutils.ResourceCRUD[coreapi.ServiceProviderCluster, *coreapi.ServiceProviderCluster] {
+	return mockFPAOwnerRoleAssignmentConfirmationConflictCRUD{ResourceCRUD: database.ResourcesDBClient.ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName)}
 }
 
-type mockFPAConfirmationConflictCRUD struct {
+type mockFPAOwnerRoleAssignmentConfirmationConflictCRUD struct {
 	cosmosstorageutils.ResourceCRUD[coreapi.ServiceProviderCluster, *coreapi.ServiceProviderCluster]
 }
 
-func (storage mockFPAConfirmationConflictCRUD) Replace(ctx context.Context, replacement *coreapi.ServiceProviderCluster, options *azcosmos.ItemOptions) (*coreapi.ServiceProviderCluster, error) {
-	if replacement.Status.AzureResources.MockFPARoleAssignment.AzureResource != nil {
+func (storage mockFPAOwnerRoleAssignmentConfirmationConflictCRUD) Replace(ctx context.Context, replacement *coreapi.ServiceProviderCluster, options *azcosmos.ItemOptions) (*coreapi.ServiceProviderCluster, error) {
+	if replacement.Status.AzureResources.MockFPAOwnerRoleAssignment.AzureResource != nil {
 		return nil, &azcore.ResponseError{StatusCode: http.StatusPreconditionFailed}
 	}
 	return storage.ResourceCRUD.Replace(ctx, replacement, options)
 }
 
-func (mockFPAFailingReplaceCRUD) Replace(context.Context, *coreapi.ServiceProviderCluster, *azcosmos.ItemOptions) (*coreapi.ServiceProviderCluster, error) {
+func (mockFPAOwnerRoleAssignmentFailingReplaceCRUD) Replace(context.Context, *coreapi.ServiceProviderCluster, *azcosmos.ItemOptions) (*coreapi.ServiceProviderCluster, error) {
 	return nil, errors.New("database unavailable")
 }
 
-func TestMockFPARoleAssignmentMissingResources(t *testing.T) {
+func TestMockFPAOwnerRoleAssignmentMissingResources(t *testing.T) {
 	for _, clusters := range [][]*coreapi.Cluster{nil, {newTestCluster(false)}} {
-		syncer := &mockFPARoleAssignmentSyncer{
+		syncer := &mockFPAOwnerRoleAssignmentSyncer{
 			clusterLister:                &corelistertesting.SliceClusterLister{Clusters: clusters},
 			serviceProviderClusterLister: &corelistertesting.SliceServiceProviderClusterLister{},
 		}
@@ -101,14 +102,14 @@ func TestMockFPARoleAssignmentMissingResources(t *testing.T) {
 	}
 }
 
-func TestMockFPARoleAssignmentDatabaseError(t *testing.T) {
+func TestMockFPAOwnerRoleAssignmentDatabaseError(t *testing.T) {
 	ctx := context.Background()
 	cluster := newTestCluster(false)
 	spc := newTestServiceProviderCluster(t, true, false, false, false, coreapi.AzureMultiReference{})
 	database, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, spc})
 	require.NoError(t, err)
-	syncer := &mockFPARoleAssignmentSyncer{
-		resourcesDBClient:            mockFPAFailingReplaceDB{ResourcesDBClient: database},
+	syncer := &mockFPAOwnerRoleAssignmentSyncer{
+		resourcesDBClient:            mockFPAOwnerRoleAssignmentFailingReplaceDB{ResourcesDBClient: database},
 		clusterLister:                &corelistertesting.DBClusterLister{ResourcesDBClient: database},
 		serviceProviderClusterLister: &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: database},
 		principalID:                  testMockFPAPrincipalID, clock: clocktesting.NewFakeClock(testFixedNow()),
@@ -116,21 +117,21 @@ func TestMockFPARoleAssignmentDatabaseError(t *testing.T) {
 	require.ErrorContains(t, syncer.SyncOnce(ctx, testHCPClusterKey), "database unavailable")
 }
 
-func TestMockFPARoleAssignmentInvalidScopeClearsReadiness(t *testing.T) {
+func TestMockFPAOwnerRoleAssignmentInvalidScopeClearsReadiness(t *testing.T) {
 	for _, name := range []string{"", "/", "group/child", "group/", "group/providers/Microsoft.Authorization/roleAssignments/assignment"} {
 		t.Run(name, func(t *testing.T) {
 			ctx := context.Background()
 			cluster := newTestCluster(false)
 			spc := newTestServiceProviderCluster(t, true, false, false, false, coreapi.AzureMultiReference{})
-			expectedID, err := mockFPARoleAssignmentID(cluster, testMockFPAPrincipalID)
+			expectedID, err := mockFPAOwnerRoleAssignmentID(cluster, testMockFPAPrincipalID)
 			require.NoError(t, err)
-			spc.Status.AzureResources.MockFPARoleAssignment.AzureResource = expectedID
+			spc.Status.AzureResources.MockFPAOwnerRoleAssignment.AzureResource = expectedID
 			deadline := metav1.NewTime(testFixedNow())
-			spc.Spec.EarliestRecheckTimesByController = map[string]*metav1.Time{MockFPARoleAssignmentControllerName: &deadline}
+			spc.Spec.EarliestRecheckTimesByController = map[string]*metav1.Time{MockFPAOwnerRoleAssignmentControllerName: &deadline}
 			cluster.CustomerProperties.Platform.ManagedResourceGroup = name
 			database, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, spc})
 			require.NoError(t, err)
-			syncer := &mockFPARoleAssignmentSyncer{
+			syncer := &mockFPAOwnerRoleAssignmentSyncer{
 				resourcesDBClient:            database,
 				clusterLister:                &corelistertesting.DBClusterLister{ResourcesDBClient: database},
 				serviceProviderClusterLister: &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: database},
@@ -139,15 +140,15 @@ func TestMockFPARoleAssignmentInvalidScopeClearsReadiness(t *testing.T) {
 			require.Error(t, syncer.SyncOnce(ctx, testHCPClusterKey))
 			stored, err := database.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
 			require.NoError(t, err)
-			require.Equal(t, coreapi.AzureReference{}, stored.Status.AzureResources.MockFPARoleAssignment)
-			require.Nil(t, stored.Spec.EarliestRecheckTimesByController[MockFPARoleAssignmentControllerName])
+			require.Equal(t, coreapi.AzureReference{}, stored.Status.AzureResources.MockFPAOwnerRoleAssignment)
+			require.Nil(t, stored.Spec.EarliestRecheckTimesByController[MockFPAOwnerRoleAssignmentControllerName])
 			require.True(t, syncer.needsWork(stored))
 			require.Equal(t, spc.Status.AzureResources.ManagedResourceGroup, stored.Status.AzureResources.ManagedResourceGroup)
 		})
 	}
 }
 
-func TestMockFPARoleAssignmentIDMatchesPublicCSRequest(t *testing.T) {
+func TestMockFPAOwnerRoleAssignmentIDMatchesPublicCSRequest(t *testing.T) {
 	for _, subscriptionID := range []string{"abcdef01-abcd-abcd-abcd-abcdef012345", "ABCDEF01-ABCD-ABCD-ABCD-ABCDEF012345"} {
 		for _, managedResourceGroupName := range []string{"test-managed-rg", "MixedCaseMRG"} {
 			t.Run(subscriptionID+"/"+managedResourceGroupName, func(t *testing.T) {
@@ -166,7 +167,7 @@ func TestMockFPARoleAssignmentIDMatchesPublicCSRequest(t *testing.T) {
 				require.Equal(t, strings.ToLower(subscriptionID), request.Azure().SubscriptionID())
 				require.Equal(t, managedResourceGroupName, request.Azure().ManagedResourceGroupName())
 				expectedScope := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s", request.Azure().SubscriptionID(), request.Azure().ManagedResourceGroupName())
-				assignmentID, err := mockFPARoleAssignmentID(cluster, testMockFPAPrincipalID)
+				assignmentID, err := mockFPAOwnerRoleAssignmentID(cluster, testMockFPAPrincipalID)
 				require.NoError(t, err)
 				require.Equal(t, expectedScope, assignmentID.Parent.String())
 				require.Equal(t, roleassignment.ManagedResourceGroupScopedRoleAssignmentResourceID(expectedScope, testMockFPAPrincipalID, ownerRoleDefinitionID), assignmentID.String())
@@ -181,8 +182,42 @@ func TestMockFPARoleAssignmentIDMatchesPublicCSRequest(t *testing.T) {
 	}
 }
 
-func TestMockFPARoleAssignmentNeedsWork(t *testing.T) {
-	assignmentID, err := mockFPARoleAssignmentID(newTestCluster(false), testMockFPAPrincipalID)
+func TestMockFPAOwnerRoleAssignmentSerialization(t *testing.T) {
+	require.Equal(t, "MockFPAOwnerRoleAssignment", MockFPAOwnerRoleAssignmentControllerName)
+	assignmentID, err := mockFPAOwnerRoleAssignmentID(newTestCluster(false), testMockFPAPrincipalID)
+	require.NoError(t, err)
+	for _, pending := range []bool{false, true} {
+		t.Run(fmt.Sprintf("pending=%t", pending), func(t *testing.T) {
+			reference := coreapi.AzureReference{AzureResource: assignmentID}
+			if pending {
+				reference = coreapi.AzureReference{PendingAzureResource: assignmentID}
+			}
+			resources := coreapi.AzureResources{MockFPAOwnerRoleAssignment: reference}
+			serialized, err := json.Marshal(resources)
+			require.NoError(t, err)
+			var fields map[string]json.RawMessage
+			require.NoError(t, json.Unmarshal(serialized, &fields))
+			require.Contains(t, fields, "mockFPAOwnerRoleAssignment")
+			require.NotContains(t, fields, "mockFPARoleAssignment")
+			expectedReference, err := json.Marshal(reference)
+			require.NoError(t, err)
+			require.JSONEq(t, string(expectedReference), string(fields["mockFPAOwnerRoleAssignment"]))
+			var decoded coreapi.AzureResources
+			require.NoError(t, json.Unmarshal(serialized, &decoded))
+			require.Equal(t, resources, decoded)
+			copied := decoded.DeepCopy()
+			require.Equal(t, &decoded, copied)
+			if pending {
+				require.NotSame(t, decoded.MockFPAOwnerRoleAssignment.PendingAzureResource, copied.MockFPAOwnerRoleAssignment.PendingAzureResource)
+			} else {
+				require.NotSame(t, decoded.MockFPAOwnerRoleAssignment.AzureResource, copied.MockFPAOwnerRoleAssignment.AzureResource)
+			}
+		})
+	}
+}
+
+func TestMockFPAOwnerRoleAssignmentNeedsWork(t *testing.T) {
+	assignmentID, err := mockFPAOwnerRoleAssignmentID(newTestCluster(false), testMockFPAPrincipalID)
 	require.NoError(t, err)
 	for _, state := range []struct {
 		name               string
@@ -205,16 +240,16 @@ func TestMockFPARoleAssignmentNeedsWork(t *testing.T) {
 			t.Run(state.name+"/"+deadline.name, func(t *testing.T) {
 				spc := &coreapi.ServiceProviderCluster{}
 				if state.confirmed {
-					spc.Status.AzureResources.MockFPARoleAssignment.AzureResource = assignmentID
+					spc.Status.AzureResources.MockFPAOwnerRoleAssignment.AzureResource = assignmentID
 				}
 				if state.pending {
-					spc.Status.AzureResources.MockFPARoleAssignment.PendingAzureResource = assignmentID
+					spc.Status.AzureResources.MockFPAOwnerRoleAssignment.PendingAzureResource = assignmentID
 				}
 				if deadline.recheck != nil {
 					recheck := metav1.NewTime(testFixedNow().Add(*deadline.recheck))
-					spc.Spec.EarliestRecheckTimesByController = map[string]*metav1.Time{MockFPARoleAssignmentControllerName: &recheck}
+					spc.Spec.EarliestRecheckTimesByController = map[string]*metav1.Time{"MockFPAOwnerRoleAssignment": &recheck}
 				}
-				syncer := &mockFPARoleAssignmentSyncer{clock: clocktesting.NewFakeClock(testFixedNow())}
+				syncer := &mockFPAOwnerRoleAssignmentSyncer{clock: clocktesting.NewFakeClock(testFixedNow())}
 				wantWork := !state.confirmed || state.pending || deadline.recheck == nil || *deadline.recheck <= 0
 				require.Equal(t, wantWork, syncer.needsWork(spc))
 			})
@@ -222,7 +257,7 @@ func TestMockFPARoleAssignmentNeedsWork(t *testing.T) {
 	}
 }
 
-func TestMockFPARoleAssignmentSyncOnce(t *testing.T) {
+func TestMockFPAOwnerRoleAssignmentSyncOnce(t *testing.T) {
 	for _, testCase := range []struct {
 		name                                                                        string
 		noMRG, pendingMRG, deleting, confirmed, create, skip, wantError, dbConflict bool
@@ -303,22 +338,22 @@ func TestMockFPARoleAssignmentSyncOnce(t *testing.T) {
 			}
 			expectedScope := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s", strings.ToLower(cluster.ID.SubscriptionID), cluster.CustomerProperties.Platform.ManagedResourceGroup)
 			spc := newTestServiceProviderCluster(t, true, false, false, false, coreapi.AzureMultiReference{})
-			expectedID, err := mockFPARoleAssignmentID(cluster, testMockFPAPrincipalID)
+			expectedID, err := mockFPAOwnerRoleAssignmentID(cluster, testMockFPAPrincipalID)
 			require.NoError(t, err)
 			require.Equal(t, roleassignment.ManagedResourceGroupScopedRoleAssignmentResourceID(expectedScope, testMockFPAPrincipalID, ownerRoleDefinitionID), expectedID.String())
 			otherRecheck := metav1.NewTime(testFixedNow().Add(24 * time.Hour))
 			spc.Spec.EarliestRecheckTimesByController = map[string]*metav1.Time{"another-controller": &otherRecheck}
 			if testCase.confirmed {
-				spc.Status.AzureResources.MockFPARoleAssignment.AzureResource = expectedID
+				spc.Status.AzureResources.MockFPAOwnerRoleAssignment.AzureResource = expectedID
 				if testCase.principalChanged {
-					previousID, parseErr := mockFPARoleAssignmentID(cluster, "previous-principal")
+					previousID, parseErr := mockFPAOwnerRoleAssignmentID(cluster, "previous-principal")
 					require.NoError(t, parseErr)
-					spc.Status.AzureResources.MockFPARoleAssignment.AzureResource = previousID
+					spc.Status.AzureResources.MockFPAOwnerRoleAssignment.AzureResource = previousID
 				}
 			}
 			if testCase.recheck != nil {
 				recheck := metav1.NewTime(testFixedNow().Add(*testCase.recheck))
-				spc.Spec.EarliestRecheckTimesByController[MockFPARoleAssignmentControllerName] = &recheck
+				spc.Spec.EarliestRecheckTimesByController[MockFPAOwnerRoleAssignmentControllerName] = &recheck
 			}
 			if testCase.noMRG {
 				spc.Status.AzureResources.ManagedResourceGroup = coreapi.AzureReference{}
@@ -379,8 +414,8 @@ func TestMockFPARoleAssignmentSyncOnce(t *testing.T) {
 						DoAndReturn(func(_ context.Context, _, _ string, parameters armauthorization.RoleAssignmentCreateParameters, _ *armauthorization.RoleAssignmentsClientCreateOptions) (armauthorization.RoleAssignmentsClientCreateResponse, error) {
 							stored, getErr := database.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
 							require.NoError(t, getErr)
-							require.Equal(t, expectedID, stored.Status.AzureResources.MockFPARoleAssignment.PendingAzureResource)
-							require.Nil(t, stored.Status.AzureResources.MockFPARoleAssignment.AzureResource)
+							require.Equal(t, expectedID, stored.Status.AzureResources.MockFPAOwnerRoleAssignment.PendingAzureResource)
+							require.Nil(t, stored.Status.AzureResources.MockFPAOwnerRoleAssignment.AzureResource)
 							require.Equal(t, testMockFPAPrincipalID, *parameters.Properties.PrincipalID)
 							require.Equal(t, ownerRoleDefinitionID, *parameters.Properties.RoleDefinitionID)
 							require.Equal(t, armauthorization.PrincipalTypeServicePrincipal, *parameters.Properties.PrincipalType)
@@ -391,14 +426,14 @@ func TestMockFPARoleAssignmentSyncOnce(t *testing.T) {
 					client.EXPECT().GetByID(gomock.Any(), expectedID.String(), nil).Return(response, testCase.getError)
 				}
 			}
-			syncer := &mockFPARoleAssignmentSyncer{
+			syncer := &mockFPAOwnerRoleAssignmentSyncer{
 				resourcesDBClient:            database,
 				clusterLister:                &corelistertesting.DBClusterLister{ResourcesDBClient: database},
 				serviceProviderClusterLister: &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: database},
 				subscriptionLister:           &corelistertesting.SliceSubscriptionLister{Subscriptions: subscriptions},
 				fpaClientBuilder:             fpaBuilder,
 				principalID:                  testMockFPAPrincipalID, clock: clocktesting.NewFakeClock(testFixedNow()),
-				clientBuilder: mockFPAClientBuilderFunc(func(subscriptionID string) (azureclient.RoleAssignmentsClient, error) {
+				clientBuilder: mockFPAOwnerRoleAssignmentClientBuilderFunc(func(subscriptionID string) (azureclient.RoleAssignmentsClient, error) {
 					require.False(t, testCase.skip, "skipped reconciles must not retrieve credentials")
 					require.False(t, rgBlocked, "unavailable resource groups must not retrieve assignment credentials")
 					require.Equal(t, testSubscriptionID, subscriptionID)
@@ -409,7 +444,7 @@ func TestMockFPARoleAssignmentSyncOnce(t *testing.T) {
 				syncer.resourcesDBClient = preconditionFailingReplaceDB{ResourcesDBClient: database}
 			}
 			if testCase.confirmationConflict {
-				syncer.resourcesDBClient = mockFPAConfirmationConflictDB{ResourcesDBClient: database}
+				syncer.resourcesDBClient = mockFPAOwnerRoleAssignmentConfirmationConflictDB{ResourcesDBClient: database}
 			}
 			err = syncer.SyncOnce(ctx, testHCPClusterKey)
 			if testCase.wantError {
@@ -424,15 +459,15 @@ func TestMockFPARoleAssignmentSyncOnce(t *testing.T) {
 			if testCase.skip {
 				require.Equal(t, spc.Status, stored.Status)
 				if testCase.dbConflict {
-					require.Nil(t, stored.Status.AzureResources.MockFPARoleAssignment.AzureResource)
+					require.Nil(t, stored.Status.AzureResources.MockFPAOwnerRoleAssignment.AzureResource)
 				}
 				return
 			}
 			if testCase.wantError || testCase.create || rgBlocked || testCase.confirmationConflict {
-				require.Nil(t, stored.Spec.EarliestRecheckTimesByController[MockFPARoleAssignmentControllerName])
+				require.Nil(t, stored.Spec.EarliestRecheckTimesByController[MockFPAOwnerRoleAssignmentControllerName])
 				require.True(t, syncer.needsWork(stored))
-				require.Nil(t, stored.Status.AzureResources.MockFPARoleAssignment.AzureResource)
-				require.NotNil(t, stored.Status.AzureResources.MockFPARoleAssignment.PendingAzureResource)
+				require.Nil(t, stored.Status.AzureResources.MockFPAOwnerRoleAssignment.AzureResource)
+				require.NotNil(t, stored.Status.AzureResources.MockFPAOwnerRoleAssignment.PendingAzureResource)
 			}
 			if testCase.wantError || rgBlocked || testCase.confirmationConflict {
 				return
@@ -443,10 +478,11 @@ func TestMockFPARoleAssignmentSyncOnce(t *testing.T) {
 				stored, err = database.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
 				require.NoError(t, err)
 			}
-			require.Equal(t, expectedID, stored.Status.AzureResources.MockFPARoleAssignment.AzureResource)
-			require.Nil(t, stored.Status.AzureResources.MockFPARoleAssignment.PendingAzureResource)
+			require.Equal(t, expectedID, stored.Status.AzureResources.MockFPAOwnerRoleAssignment.AzureResource)
+			require.Nil(t, stored.Status.AzureResources.MockFPAOwnerRoleAssignment.PendingAzureResource)
 			require.False(t, syncer.needsWork(stored))
-			recheck := stored.Spec.EarliestRecheckTimesByController[MockFPARoleAssignmentControllerName]
+			recheck := stored.Spec.EarliestRecheckTimesByController["MockFPAOwnerRoleAssignment"]
+			require.NotNil(t, recheck)
 			require.GreaterOrEqual(t, recheck.Sub(testFixedNow()), 6*time.Hour)
 			require.Less(t, recheck.Sub(testFixedNow()), 9*time.Hour)
 		})

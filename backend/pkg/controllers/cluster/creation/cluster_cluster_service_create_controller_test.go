@@ -155,16 +155,16 @@ func setDenyAssignmentsCreated(spc *coreapi.ServiceProviderCluster) {
 	spc.Status.AzureResources.DenyAssignments.EarliestRecheckTime = &recheckTime
 }
 
-func setMockFPAAssignmentCreated(t *testing.T, spc *coreapi.ServiceProviderCluster) {
+func setMockFPAOwnerRoleAssignmentCreated(t *testing.T, spc *coreapi.ServiceProviderCluster) {
 	t.Helper()
 	scope, err := azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID + "/resourceGroups/" + testManagedResourceGroup)
 	require.NoError(t, err)
 	spc.Status.AzureResources.ManagedResourceGroup.AzureResource = scope
 	assignmentID, err := azcorearm.ParseResourceID(roleassignment.ManagedResourceGroupScopedRoleAssignmentResourceID(scope.String(), "mock-fpa-principal", "/providers/Microsoft.Authorization/roleDefinitions/8e3af657-a8ff-443c-a75c-2fe8c4bcb635"))
 	require.NoError(t, err)
-	spc.Status.AzureResources.MockFPARoleAssignment.AzureResource = assignmentID
+	spc.Status.AzureResources.MockFPAOwnerRoleAssignment.AzureResource = assignmentID
 	recheck := metav1.Now()
-	spc.Spec.EarliestRecheckTimesByController = map[string]*metav1.Time{roleassignments.MockFPARoleAssignmentControllerName: &recheck}
+	spc.Spec.EarliestRecheckTimesByController = map[string]*metav1.Time{roleassignments.MockFPAOwnerRoleAssignmentControllerName: &recheck}
 }
 
 func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
@@ -323,7 +323,7 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 			existingServiceProviderCluster: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
 				// Desired version is resolved, and NO deny assignments are tracked because the
 				// ClusterDenyAssignment controller is disabled in this environment.
-				setMockFPAAssignmentCreated(t, spc)
+				setMockFPAOwnerRoleAssignmentCreated(t, spc)
 				spc.Spec.ControlPlaneVersion.DesiredVersion = desiredVersion
 				// Placement is resolved so the (independent) placement gate does not block; this
 				// case isolates the deny-assignment behaviour.
@@ -461,30 +461,30 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 			mutate  func(*coreapi.ServiceProviderCluster)
 		}{
 			{name: "absent", blocked: true, mutate: func(spc *coreapi.ServiceProviderCluster) {
-				spc.Status.AzureResources.MockFPARoleAssignment = coreapi.AzureReference{}
+				spc.Status.AzureResources.MockFPAOwnerRoleAssignment = coreapi.AzureReference{}
 			}},
 			{name: "pending only", blocked: true, mutate: func(spc *coreapi.ServiceProviderCluster) {
-				spc.Status.AzureResources.MockFPARoleAssignment.PendingAzureResource = spc.Status.AzureResources.MockFPARoleAssignment.AzureResource
-				spc.Status.AzureResources.MockFPARoleAssignment.AzureResource = nil
+				spc.Status.AzureResources.MockFPAOwnerRoleAssignment.PendingAzureResource = spc.Status.AzureResources.MockFPAOwnerRoleAssignment.AzureResource
+				spc.Status.AzureResources.MockFPAOwnerRoleAssignment.AzureResource = nil
 			}},
 			{name: "confirmed and pending", blocked: true, mutate: func(spc *coreapi.ServiceProviderCluster) {
-				spc.Status.AzureResources.MockFPARoleAssignment.PendingAzureResource = spc.Status.AzureResources.MockFPARoleAssignment.AzureResource
+				spc.Status.AzureResources.MockFPAOwnerRoleAssignment.PendingAzureResource = spc.Status.AzureResources.MockFPAOwnerRoleAssignment.AzureResource
 			}},
 			{name: "confirmed without recheck deadline", mutate: func(spc *coreapi.ServiceProviderCluster) {
 				spc.Spec.EarliestRecheckTimesByController = nil
 			}},
 			{name: "confirmed with future recheck", mutate: func(spc *coreapi.ServiceProviderCluster) {
 				deadline := metav1.NewTime(time.Now().Add(time.Hour))
-				spc.Spec.EarliestRecheckTimesByController[roleassignments.MockFPARoleAssignmentControllerName] = &deadline
+				spc.Spec.EarliestRecheckTimesByController[roleassignments.MockFPAOwnerRoleAssignmentControllerName] = &deadline
 			}},
 			{name: "confirmed with expired recheck", mutate: func(spc *coreapi.ServiceProviderCluster) {
 				deadline := metav1.NewTime(time.Now().Add(-time.Hour))
-				spc.Spec.EarliestRecheckTimesByController[roleassignments.MockFPARoleAssignmentControllerName] = &deadline
+				spc.Spec.EarliestRecheckTimesByController[roleassignments.MockFPAOwnerRoleAssignmentControllerName] = &deadline
 			}},
 			{name: "last confirmed principal remains sufficient until reconciled", mutate: func(spc *coreapi.ServiceProviderCluster) {
 				previousID, err := azcorearm.ParseResourceID(roleassignment.ManagedResourceGroupScopedRoleAssignmentResourceID(spc.Status.AzureResources.ManagedResourceGroup.AzureResource.String(), "previous-principal", "/providers/Microsoft.Authorization/roleDefinitions/8e3af657-a8ff-443c-a75c-2fe8c4bcb635"))
 				require.NoError(t, err)
-				spc.Status.AzureResources.MockFPARoleAssignment.AzureResource = previousID
+				spc.Status.AzureResources.MockFPAOwnerRoleAssignment.AzureResource = previousID
 			}},
 		} {
 			gateTest := tests[0]
@@ -498,7 +498,7 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 				if !mockFPA {
 					setDenyAssignmentsCreated(spc)
 				}
-				setMockFPAAssignmentCreated(t, spc)
+				setMockFPAOwnerRoleAssignmentCreated(t, spc)
 				state.mutate(spc)
 			})
 			if mockFPA && state.blocked {
@@ -523,7 +523,7 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 		readyTest.existingServiceProviderCluster = newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
 			spc.Spec.ControlPlaneVersion.DesiredVersion = desiredVersion
 			spc.Spec.ManagementClusterResourceID = testManagementClusterResourceID()
-			setMockFPAAssignmentCreated(t, spc)
+			setMockFPAOwnerRoleAssignmentCreated(t, spc)
 			if pendingMRG {
 				spc.Status.AzureResources.ManagedResourceGroup.PendingAzureResource = spc.Status.AzureResources.ManagedResourceGroup.AzureResource
 			}

@@ -42,7 +42,7 @@ import (
 )
 
 const (
-	MockFPARoleAssignmentControllerName = "MockFPARoleAssignment"
+	MockFPAOwnerRoleAssignmentControllerName = "MockFPAOwnerRoleAssignment"
 	// ownerRoleDefinitionID identifies Azure's built-in Owner role, used here to give
 	// the mock FPA Owner permissions on a cluster's managed resource group.
 	// https://learn.microsoft.com/en-us/azure/role-based-access-control/built-in-roles/privileged#owner
@@ -53,7 +53,7 @@ type resourceGroupsClientBuilder interface {
 	ResourceGroupsClient(tenantID, subscriptionID string) (azureclient.ResourceGroupsClient, error)
 }
 
-type mockFPARoleAssignmentSyncer struct {
+type mockFPAOwnerRoleAssignmentSyncer struct {
 	resourcesDBClient            corecosmosstorage.ResourcesDBClient
 	clusterLister                corelisters.ClusterLister
 	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
@@ -64,13 +64,13 @@ type mockFPARoleAssignmentSyncer struct {
 	clock                        utilsclock.PassiveClock
 }
 
-var _ controllerutils.ClusterSyncer = (*mockFPARoleAssignmentSyncer)(nil)
+var _ controllerutils.ClusterSyncer = (*mockFPAOwnerRoleAssignmentSyncer)(nil)
 
-func NewMockFPARoleAssignmentController(clock utilsclock.PassiveClock, resourcesDBClient corecosmosstorage.ResourcesDBClient, clientBuilder azureclient.ARMPermissionsManagerClientBuilder, fpaClientBuilder resourceGroupsClientBuilder, principalID string, informers coreinformers.BackendInformers) controllerutils.Controller {
+func NewMockFPAOwnerRoleAssignmentController(clock utilsclock.PassiveClock, resourcesDBClient corecosmosstorage.ResourcesDBClient, clientBuilder azureclient.ARMPermissionsManagerClientBuilder, fpaClientBuilder resourceGroupsClientBuilder, principalID string, informers coreinformers.BackendInformers) controllerutils.Controller {
 	_, clusterLister := informers.Clusters()
 	_, serviceProviderClusterLister := informers.ServiceProviderClusters()
 	_, subscriptionLister := informers.Subscriptions()
-	syncer := &mockFPARoleAssignmentSyncer{
+	syncer := &mockFPAOwnerRoleAssignmentSyncer{
 		resourcesDBClient:            resourcesDBClient,
 		clusterLister:                clusterLister,
 		serviceProviderClusterLister: serviceProviderClusterLister,
@@ -80,13 +80,13 @@ func NewMockFPARoleAssignmentController(clock utilsclock.PassiveClock, resources
 		principalID:                  principalID,
 		clock:                        clock,
 	}
-	controller := controllerutils.NewClusterWatchingController(MockFPARoleAssignmentControllerName, resourcesDBClient, informers, nil, time.Minute, syncer)
+	controller := controllerutils.NewClusterWatchingController(MockFPAOwnerRoleAssignmentControllerName, resourcesDBClient, informers, nil, time.Minute, syncer)
 	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
 	controller.AddInterestingResource(coreapi.ServiceProviderClusterResourceType, coreapi.ServiceProviderClusterResourceName)
 	return controller
 }
 
-func mockFPARoleAssignmentID(cluster *coreapi.Cluster, principalID string) (*azcorearm.ResourceID, error) {
+func mockFPAOwnerRoleAssignmentID(cluster *coreapi.Cluster, principalID string) (*azcorearm.ResourceID, error) {
 	managedResourceGroupName := cluster.CustomerProperties.Platform.ManagedResourceGroup
 	if len(managedResourceGroupName) == 0 || len(principalID) == 0 {
 		return nil, fmt.Errorf("managed resource group name and mock FPA principal ID are required")
@@ -102,14 +102,14 @@ func mockFPARoleAssignmentID(cluster *coreapi.Cluster, principalID string) (*azc
 	return azcorearm.ParseResourceID(roleassignment.ManagedResourceGroupScopedRoleAssignmentResourceID(scopeString, principalID, ownerRoleDefinitionID))
 }
 
-func (c *mockFPARoleAssignmentSyncer) needsWork(serviceProviderCluster *coreapi.ServiceProviderCluster) bool {
-	reference := serviceProviderCluster.Status.AzureResources.MockFPARoleAssignment
-	earliest := serviceProviderCluster.Spec.EarliestRecheckTimesByController[MockFPARoleAssignmentControllerName]
+func (c *mockFPAOwnerRoleAssignmentSyncer) needsWork(serviceProviderCluster *coreapi.ServiceProviderCluster) bool {
+	reference := serviceProviderCluster.Status.AzureResources.MockFPAOwnerRoleAssignment
+	earliest := serviceProviderCluster.Spec.EarliestRecheckTimesByController[MockFPAOwnerRoleAssignmentControllerName]
 	return reference.AzureResource == nil || reference.PendingAzureResource != nil ||
 		earliest == nil || !c.clock.Now().Before(earliest.Time)
 }
 
-func (c *mockFPARoleAssignmentSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
+func (c *mockFPAOwnerRoleAssignmentSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
 	cluster, err := c.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
@@ -127,10 +127,10 @@ func (c *mockFPARoleAssignmentSyncer) SyncOnce(ctx context.Context, key controll
 	if !c.needsWork(existing) {
 		return nil
 	}
-	expectedID, assignmentIDErr := mockFPARoleAssignmentID(cluster, c.principalID)
+	expectedID, assignmentIDErr := mockFPAOwnerRoleAssignmentID(cluster, c.principalID)
 	replacement := existing.DeepCopy()
-	replacement.Status.AzureResources.MockFPARoleAssignment = coreapi.AzureReference{PendingAzureResource: expectedID}
-	delete(replacement.Spec.EarliestRecheckTimesByController, MockFPARoleAssignmentControllerName)
+	replacement.Status.AzureResources.MockFPAOwnerRoleAssignment = coreapi.AzureReference{PendingAzureResource: expectedID}
+	delete(replacement.Spec.EarliestRecheckTimesByController, MockFPAOwnerRoleAssignmentControllerName)
 	storage := c.resourcesDBClient.ServiceProviderClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName, cluster.ID.Name)
 	if controllerutil.NeedsUpdate(existing, replacement) {
 		replacement, err = storage.Replace(ctx, replacement, nil)
@@ -190,12 +190,12 @@ func (c *mockFPARoleAssignmentSyncer) SyncOnce(ctx context.Context, key controll
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get mock FPA Owner assignment: %w", err))
 	}
-	replacement.Status.AzureResources.MockFPARoleAssignment = coreapi.AzureReference{AzureResource: expectedID}
+	replacement.Status.AzureResources.MockFPAOwnerRoleAssignment = coreapi.AzureReference{AzureResource: expectedID}
 	if replacement.Spec.EarliestRecheckTimesByController == nil {
 		replacement.Spec.EarliestRecheckTimesByController = map[string]*metav1.Time{}
 	}
 	recheckAt := metav1.NewTime(c.clock.Now().Add(wait.Jitter(roleAssignmentRecheckInterval, roleAssignmentRecheckJitterFactor)))
-	replacement.Spec.EarliestRecheckTimesByController[MockFPARoleAssignmentControllerName] = &recheckAt
+	replacement.Spec.EarliestRecheckTimesByController[MockFPAOwnerRoleAssignmentControllerName] = &recheckAt
 	_, err = storage.Replace(ctx, replacement, nil)
 	if cosmosstorageutils.IsPreconditionFailedError(err) {
 		return nil

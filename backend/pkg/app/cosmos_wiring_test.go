@@ -242,12 +242,13 @@ func TestBackendStorageRegistrations(t *testing.T) {
 		} else {
 			require.NotContains(t, names, "managedresourcegroupwatching")
 		}
-		mockFPAName := strings.ToLower(roleassignments.MockFPARoleAssignmentControllerName)
-		require.Equal(t, !controllerContext.HasRealFPA, newControllerRegistry()[mockFPAName].Enabled(controllerContext))
+		mockFPAOwnerRoleAssignmentName := strings.ToLower(roleassignments.MockFPAOwnerRoleAssignmentControllerName)
+		require.Equal(t, "mockfpaownerroleassignment", mockFPAOwnerRoleAssignmentName)
+		require.Equal(t, !controllerContext.HasRealFPA, newControllerRegistry()[mockFPAOwnerRoleAssignmentName].Enabled(controllerContext))
 		if controllerContext.HasRealFPA {
-			require.NotContains(t, names, mockFPAName)
+			require.NotContains(t, names, mockFPAOwnerRoleAssignmentName)
 		} else {
-			require.Contains(t, names, mockFPAName)
+			require.Contains(t, names, mockFPAOwnerRoleAssignmentName)
 		}
 		options := storageTestOptions(t, func(*http.Request) (*http.Response, error) {
 			t.Fatal("startup must not contact Cosmos")

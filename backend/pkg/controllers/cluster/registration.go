@@ -800,12 +800,12 @@ func registerEnsureManagedResourceGroupController() controllerconfig.ControllerR
 	}
 }
 
-func registerMockFPARoleAssignmentController() controllerconfig.ControllerRegistration {
+func registerMockFPAOwnerRoleAssignmentController() controllerconfig.ControllerRegistration {
 	return controllerconfig.ControllerRegistration{
 		Workers: 20,
 		Enabled: func(context controllerconfig.ControllerContext) bool { return !context.HasRealFPA },
 		Instantiate: controllerconfig.WithCacheSyncs(func(context controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
-			return clusterroleassignments.NewMockFPARoleAssignmentController(context.Clock, context.ResourcesDBClient,
+			return clusterroleassignments.NewMockFPAOwnerRoleAssignmentController(context.Clock, context.ResourcesDBClient,
 				context.ARMPermissionsManagerClientBuilder, context.FPAClientBuilder, context.MockFPAPrincipalID, context.BackendInformers), nil
 		}, false),
 	}
@@ -1392,6 +1392,6 @@ func Register(registry map[string]controllerconfig.ControllerRegistration) {
 	registry[strings.ToLower(clusteridentity.FetchDataPlaneOperatorsManagedIdentitiesInfoControllerName)] = registerFetchDataPlaneOperatorsManagedIdentitiesInfoController()
 	registry[strings.ToLower(clusteridentity.FetchManagedIdentitiesInfoControllerName)] = registerFetchManagedIdentitiesInfoController()
 	registry[strings.ToLower(clusterroleassignments.RoleAssignmentsControllerName)] = registerIdentityRoleAssignmentsController()
-	registry[strings.ToLower(clusterroleassignments.MockFPARoleAssignmentControllerName)] = registerMockFPARoleAssignmentController()
+	registry[strings.ToLower(clusterroleassignments.MockFPAOwnerRoleAssignmentControllerName)] = registerMockFPAOwnerRoleAssignmentController()
 	registry[strings.ToLower(clusterbackups.KeyRotationBackupControllerName)] = registerKeyRotationBackupController()
 }
