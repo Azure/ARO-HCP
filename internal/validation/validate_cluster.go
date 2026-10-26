@@ -504,8 +504,13 @@ func ToClusterServiceProviderPropertiesClusterUID(oldObj *coreapi.ClusterService
 	return &oldObj.ClusterUID
 }
 
+// Validates service-provider cluster properties and rejects single-replica availability on create.
 func validateClusterServiceProviderProperties(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.ClusterServiceProviderProperties) field.ErrorList {
 	errs := field.ErrorList{}
+
+	if op.Type == operation.Create && newObj.ExperimentalFeatures.ControlPlaneAvailability == coreapi.SingleReplicaControlPlane {
+		errs = append(errs, field.Forbidden(fldPath.Child("experimentalFeatures", "singleReplica"), "single-replica control planes cannot be enabled"))
+	}
 
 	// ProvisioningState       coreapi.ProvisioningState       `json:"provisioningState,omitempty"`
 	errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("provisioningState"), &newObj.ProvisioningState, safe.Field(oldObj, toClusterServiceProviderPropertiesProvisioningState))...)

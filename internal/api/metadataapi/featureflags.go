@@ -40,9 +40,9 @@ const (
 	// accounts). See https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/tag-resources
 	ExperimentalClusterTagPrefix = "aro-hcp.experimental.cluster."
 
-	// TagClusterSingleReplica is the ARM resource tag that enables
-	// single-replica control plane components when the
-	// ExperimentalReleaseFeatures AFEC is registered on the subscription.
+	// TagClusterSingleReplica retains single-replica control plane components
+	// only on updates to persisted single-replica clusters when the
+	// ExperimentalReleaseFeatures AFEC is registered. New opt-ins are rejected.
 	TagClusterSingleReplica = ExperimentalClusterTagPrefix + "single-replica"
 
 	// TagClusterSizeOverride is the ARM resource tag that enables the
