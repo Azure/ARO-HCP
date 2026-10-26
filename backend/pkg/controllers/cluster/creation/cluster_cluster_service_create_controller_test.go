@@ -614,6 +614,30 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 	}
 }
 
+func TestStorageAccountNetworkAccessCreationPrecondition(t *testing.T) {
+	for _, state := range []metadataapi.ClusterImageRegistryState{metadataapi.ClusterImageRegistryStateEnabled, metadataapi.ClusterImageRegistryStateDisabled} {
+		for _, status := range []string{"absent", string(metav1.ConditionTrue), string(metav1.ConditionFalse), string(metav1.ConditionUnknown)} {
+			t.Run(string(state)+"/"+status, func(t *testing.T) {
+				cluster := newTestCluster(func(cluster *coreapi.Cluster) {
+					cluster.CustomerProperties.ClusterImageRegistry.State = state
+				})
+				spc := newTestSPC()
+				if status != "absent" {
+					meta.SetStatusCondition(&spc.Status.Validations, metav1.Condition{
+						Type:   validationutils.StorageAccountNetworkAccessValidationName,
+						Status: metav1.ConditionStatus(status),
+						Reason: "Test",
+					})
+				}
+				controller := &clusterClusterServiceCreateSyncer{}
+				ready, err := controller.createPreconditionStorageAccountNetworkAccessValidationPassed(context.Background(), cluster, spc)
+				require.NoError(t, err)
+				assert.Equal(t, state == metadataapi.ClusterImageRegistryStateDisabled || status == string(metav1.ConditionTrue), ready)
+			})
+		}
+	}
+}
+
 func TestClusterClusterServiceCreate_findAROHCPClusterByAzureInfo(t *testing.T) {
 	azureTestCluster := func(t *testing.T, sub, rg, name, tenant, mrg string) *arohcpv1alpha1.Cluster {
 		t.Helper()

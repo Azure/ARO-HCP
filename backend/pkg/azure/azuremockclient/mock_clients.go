@@ -89,14 +89,18 @@ func (m *GenericResourcesClientFunc) BeginDeleteByID(ctx context.Context, resour
 
 // FirstPartyApplicationClientBuilderFunc builds mock Azure clients.
 type FirstPartyApplicationClientBuilderFunc struct {
-	GenericResourcesClientVal  azureclient.GenericResourcesClient
-	GenericResourcesClientErr  error
-	DenyAssignmentsClientVal   azureclient.DenyAssignmentsClient
-	DenyAssignmentsClientErr   error
-	PolicyAssignmentsClientVal azureclient.PolicyAssignmentsClient
-	PolicyAssignmentsClientErr error
-	PolicyDefinitionsClientVal azureclient.PolicyDefinitionsClient
-	PolicyDefinitionsClientErr error
+	GenericResourcesClientVal     azureclient.GenericResourcesClient
+	GenericResourcesClientErr     error
+	DenyAssignmentsClientVal      azureclient.DenyAssignmentsClient
+	DenyAssignmentsClientErr      error
+	PolicyAssignmentsClientVal    azureclient.PolicyAssignmentsClient
+	PolicyAssignmentsClientErr    error
+	PolicyDefinitionsClientVal    azureclient.PolicyDefinitionsClient
+	PolicyDefinitionsClientErr    error
+	PolicySetDefinitionsClientVal azureclient.PolicySetDefinitionsClient
+	PolicySetDefinitionsClientErr error
+	PolicyExemptionsClientVal     azureclient.PolicyExemptionsClient
+	PolicyExemptionsClientErr     error
 }
 
 var _ azureclient.FirstPartyApplicationClientBuilder = (*FirstPartyApplicationClientBuilderFunc)(nil)
@@ -139,4 +143,12 @@ func (m *FirstPartyApplicationClientBuilderFunc) PolicyAssignmentsClient(tenantI
 
 func (m *FirstPartyApplicationClientBuilderFunc) PolicyDefinitionsClient(tenantID string, subscriptionID string) (azureclient.PolicyDefinitionsClient, error) {
 	return m.PolicyDefinitionsClientVal, m.PolicyDefinitionsClientErr
+}
+
+func (m *FirstPartyApplicationClientBuilderFunc) PolicySetDefinitionsClient(tenantID string, subscriptionID string) (azureclient.PolicySetDefinitionsClient, error) {
+	return m.PolicySetDefinitionsClientVal, m.PolicySetDefinitionsClientErr
+}
+
+func (m *FirstPartyApplicationClientBuilderFunc) PolicyExemptionsClient(tenantID string, subscriptionID string) (azureclient.PolicyExemptionsClient, error) {
+	return m.PolicyExemptionsClientVal, m.PolicyExemptionsClientErr
 }

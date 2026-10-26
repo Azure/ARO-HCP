@@ -37,18 +37,18 @@ import (
 // newTestPolicyAssignmentListPager returns a one-page policy assignment list
 // pager for tests. If fetchErr is non-nil, the first page fetch fails with that
 // error.
-func newTestPolicyAssignmentListPager(assignments []*armpolicy.Assignment, fetchErr error) *runtime.Pager[armpolicy.AssignmentsClientListResponse] {
-	pages := []armpolicy.AssignmentsClientListResponse{{
+func newTestPolicyAssignmentListPager(assignments []*armpolicy.Assignment, fetchErr error) *runtime.Pager[armpolicy.AssignmentsClientListForResourceGroupResponse] {
+	pages := []armpolicy.AssignmentsClientListForResourceGroupResponse{{
 		AssignmentListResult: armpolicy.AssignmentListResult{Value: assignments},
 	}}
 	idx := -1
-	return runtime.NewPager(runtime.PagingHandler[armpolicy.AssignmentsClientListResponse]{
-		More: func(page armpolicy.AssignmentsClientListResponse) bool {
+	return runtime.NewPager(runtime.PagingHandler[armpolicy.AssignmentsClientListForResourceGroupResponse]{
+		More: func(page armpolicy.AssignmentsClientListForResourceGroupResponse) bool {
 			return idx+1 < len(pages)
 		},
-		Fetcher: func(ctx context.Context, page *armpolicy.AssignmentsClientListResponse) (armpolicy.AssignmentsClientListResponse, error) {
+		Fetcher: func(ctx context.Context, page *armpolicy.AssignmentsClientListForResourceGroupResponse) (armpolicy.AssignmentsClientListForResourceGroupResponse, error) {
 			if fetchErr != nil {
-				return armpolicy.AssignmentsClientListResponse{}, fetchErr
+				return armpolicy.AssignmentsClientListForResourceGroupResponse{}, fetchErr
 			}
 			idx++
 			return pages[idx], nil
@@ -58,6 +58,7 @@ func newTestPolicyAssignmentListPager(assignments []*armpolicy.Assignment, fetch
 
 func makeTestPolicyAssignment(name string, policyDefinitionID string, enforcementMode *armpolicy.EnforcementMode, parameters map[string]*armpolicy.ParameterValuesValue) *armpolicy.Assignment {
 	return &armpolicy.Assignment{
+		ID:   ptr.To("/subscriptions/test/providers/Microsoft.Authorization/policyAssignments/" + name),
 		Name: ptr.To(name),
 		Properties: &armpolicy.AssignmentProperties{
 			DisplayName:        ptr.To(name),
@@ -87,8 +88,10 @@ func TestStorageAccountNetworkAccessValidation_Validate(t *testing.T) {
 	cluster := &coreapi.Cluster{
 		TrackedResource: coreapi.TrackedResource{
 			Resource: coreapi.Resource{ID: clusterResourceID},
+			Location: "eastus",
 		},
 		CustomerProperties: coreapi.ClusterCustomerProperties{
+			ClusterImageRegistry: coreapi.ClusterImageRegistryProfile{State: metadataapi.ClusterImageRegistryStateEnabled},
 			Platform: coreapi.CustomerPlatformProfile{
 				ManagedResourceGroup: testManagedRG,
 			},
@@ -409,7 +412,7 @@ func TestStorageAccountNetworkAccessValidation_Validate(t *testing.T) {
 
 			assignmentsClient := azureclient.NewMockPolicyAssignmentsClient(ctrl)
 			assignmentsClient.EXPECT().
-				NewListPager(&armpolicy.AssignmentsClientListOptions{Filter: to.Ptr("atScope()")}).
+				NewListForResourceGroupPager(testManagedRG, &armpolicy.AssignmentsClientListForResourceGroupOptions{Filter: to.Ptr("atScope()")}).
 				Return(newTestPolicyAssignmentListPager(tt.assignments, tt.assignmentsErr))
 
 			definitionsClient := azureclient.NewMockPolicyDefinitionsClient(ctrl)
@@ -423,7 +426,10 @@ func TestStorageAccountNetworkAccessValidation_Validate(t *testing.T) {
 				fpaBuilder.EXPECT().PolicyDefinitionsClient(testTenantID, testSubscriptionID).Return(definitionsClient, nil)
 			}
 
-			v := NewStorageAccountNetworkAccessValidation(fpaBuilder)
+			v := NewStorageAccountNetworkAccessValidation(&storagePolicyTestBuilder{
+				FirstPartyApplicationClientBuilder: fpaBuilder,
+				exemptions:                         &storagePolicyTestExemptions{},
+			})
 			result := v.Validate(context.Background(), clusterSubscription, cluster)
 
 			assert.Equal(t, tt.wantOutcome, result.Outcome.Type)

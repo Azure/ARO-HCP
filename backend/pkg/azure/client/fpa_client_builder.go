@@ -54,6 +54,8 @@ type FirstPartyApplicationClientBuilder interface {
 	RoleAssignmentsClient(tenantID string, subscriptionID string) (RoleAssignmentsClient, error)
 	PolicyAssignmentsClient(tenantID string, subscriptionID string) (PolicyAssignmentsClient, error)
 	PolicyDefinitionsClient(tenantID string, subscriptionID string) (PolicyDefinitionsClient, error)
+	PolicySetDefinitionsClient(tenantID string, subscriptionID string) (PolicySetDefinitionsClient, error)
+	PolicyExemptionsClient(tenantID string, subscriptionID string) (PolicyExemptionsClient, error)
 }
 
 type firstPartyApplicationClientBuilder struct {
@@ -157,4 +159,20 @@ func (b *firstPartyApplicationClientBuilder) PolicyDefinitionsClient(tenantID st
 
 func (b *firstPartyApplicationClientBuilder) BuilderType() FirstPartyApplicationClientBuilderType {
 	return FirstPartyApplicationClientBuilderTypeValue
+}
+
+func (b *firstPartyApplicationClientBuilder) PolicySetDefinitionsClient(tenantID string, subscriptionID string) (PolicySetDefinitionsClient, error) {
+	creds, err := b.fpaTokenCredRetriever.RetrieveCredential(tenantID)
+	if err != nil {
+		return nil, err
+	}
+	return armpolicy.NewSetDefinitionsClient(subscriptionID, creds, b.options)
+}
+
+func (b *firstPartyApplicationClientBuilder) PolicyExemptionsClient(tenantID string, subscriptionID string) (PolicyExemptionsClient, error) {
+	creds, err := b.fpaTokenCredRetriever.RetrieveCredential(tenantID)
+	if err != nil {
+		return nil, err
+	}
+	return NewPolicyExemptionsClient(subscriptionID, creds, b.options)
 }

@@ -20,6 +20,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
 	clocktesting "k8s.io/utils/clock/testing"
 	"k8s.io/utils/ptr"
@@ -31,6 +33,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/creation"
 	clusterdns "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/dns"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/validationutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
@@ -65,6 +68,12 @@ func TestCreatePersistsClaimedDNSBeforeDispatch(t *testing.T) {
 					spc := &coreapi.ServiceProviderCluster{CosmosMetadata: coreapi.CosmosMetadata{ResourceID: metadataapi.Must(azcorearm.ParseResourceID(id.String() + "/serviceProviderClusters/default")), PartitionKey: testSubscriptionID}}
 					spc.Spec.ManagementClusterResourceID = managementID
 					spc.Spec.ControlPlaneVersion.DesiredVersion = ptr.To(semver.MustParse("4.20.0"))
+					// Satisfy the policy preflight so this test exercises DNS allocation and dispatch.
+					meta.SetStatusCondition(&spc.Status.Validations, metav1.Condition{
+						Type:   validationutils.StorageAccountNetworkAccessValidationName,
+						Status: metav1.ConditionTrue,
+						Reason: "AsExpected",
+					})
 					subscriptionID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID))
 					subscription := &coreapi.Subscription{CosmosMetadata: coreapi.CosmosMetadata{ResourceID: subscriptionID, PartitionKey: testSubscriptionID}, Properties: &coreapi.SubscriptionProperties{TenantId: ptr.To("11111111-1111-1111-1111-111111111111")}}
 					management := &fleetapi.ManagementCluster{CosmosMetadata: coreapi.CosmosMetadata{ResourceID: managementID, PartitionKey: "1"}, Status: fleetapi.ManagementClusterStatus{PublicDNSZoneResourceID: metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID + "/resourceGroups/dns/providers/Microsoft.Network/dnsZones/example.com")), ClusterServiceProvisionShardID: ptr.To(metadataapi.Must(metadataapi.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/" + testProvisionShardID)))}}

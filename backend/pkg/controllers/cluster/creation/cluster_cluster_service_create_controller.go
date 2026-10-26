@@ -172,7 +172,7 @@ func (c *clusterClusterServiceCreateSyncer) SyncOnce(ctx context.Context, key co
 		return nil
 	}
 
-	ready, err = c.createPreconditionStorageAccountNetworkAccessValidationPassed(ctx, existingServiceProviderCluster)
+	ready, err = c.createPreconditionStorageAccountNetworkAccessValidationPassed(ctx, cluster, existingServiceProviderCluster)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -280,27 +280,14 @@ func (c *clusterClusterServiceCreateSyncer) createPreconditionDenyAssignmentsCre
 	return false, nil
 }
 
-// createPreconditionStorageAccountNetworkAccessValidationPassed reports whether the
-// StorageAccountNetworkAccessValidation controller has confirmed no enforced Azure
-// Policy assignment in the cluster's subscription would deny the managed resource
-// group's Storage Account(s) public network access. Returns (false, nil) when this
-// controller should wait and retry: the validation has not reported a result yet
-// (condition absent), is still Unknown (e.g. a transient Azure API error), or has
-// reported Failed (a conflicting policy was found).
-//
-// Gating on Failed here is what makes good on this validation's stated purpose of
-// rejecting the conflict before cluster creation ever reaches Azure resource
-// provisioning (see the "Why" section of https://github.com/Azure/ARO-HCP/pull/7514),
-// instead of letting Cluster Service attempt and eventually fail provisioning anyway.
-// This does not introduce a new way for an operation to get stuck: the
-// customer-visible operation already independently surfaces Failed/Unknown
-// validations after ten minutes via clusterValidationOperationState
-// (backend/pkg/controllers/cluster/operations/operation_cluster_validation.go)
-// regardless of whether CS cluster creation proceeds; this gate only prevents
-// superfluous, doomed CS/Azure provisioning work while that already-promised
-// operation failure plays out.
-// See https://github.com/Azure/ARO-HCP/pull/7514#discussion_r4366177315.
-func (c *clusterClusterServiceCreateSyncer) createPreconditionStorageAccountNetworkAccessValidationPassed(ctx context.Context, serviceProviderCluster *coreapi.ServiceProviderCluster) (bool, error) {
+// createPreconditionStorageAccountNetworkAccessValidationPassed prevents registry
+// provisioning until its policy preflight passes. A disabled registry has no such
+// prerequisite: its validator removes the condition, so absence cannot mean ready
+// for enabled registries, but must not strand disabled ones.
+func (c *clusterClusterServiceCreateSyncer) createPreconditionStorageAccountNetworkAccessValidationPassed(ctx context.Context, cluster *coreapi.Cluster, serviceProviderCluster *coreapi.ServiceProviderCluster) (bool, error) {
+	if cluster.CustomerProperties.ClusterImageRegistry.State == metadataapi.ClusterImageRegistryStateDisabled {
+		return true, nil
+	}
 	logger := utils.LoggerFromContext(ctx)
 
 	condition := meta.FindStatusCondition(serviceProviderCluster.Status.Validations, validationutils.StorageAccountNetworkAccessValidationName)

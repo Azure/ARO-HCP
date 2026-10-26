@@ -69,12 +69,14 @@ resource firstPartyRole 'Microsoft.Authorization/roleDefinitions@2022-04-01' = {
           // (backend/pkg/utils/validationutils/storage_account_network_access_validation.go),
           // which runs under this mock first-party identity in dev/int (see
           // FPAClientBuilder) and lists policy assignments/definitions on the
-          // customer subscription to detect conflicting Deny policies before
-          // cluster creation reaches Azure provisioning. Without these, policy
-          // reads 403 and the validation stays Unknown indefinitely.
+          // managed resource group to detect registry storage conflicts before
+          // Cluster Service provisioning. Without these, reads return 403 and
+          // validation remains Unknown until the operation validation timeout.
           // See https://github.com/Azure/ARO-HCP/pull/7514#discussion_r4366177299.
           'Microsoft.Authorization/policyAssignments/read'
           'Microsoft.Authorization/policyDefinitions/read'
+          'Microsoft.Authorization/policySetDefinitions/read'
+          'Microsoft.Authorization/policyExemptions/read'
         ]
         notActions: []
       }

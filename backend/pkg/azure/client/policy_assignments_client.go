@@ -14,7 +14,7 @@
 
 package client
 
-//go:generate $MOCKGEN -typed -source=policy_assignments_client.go -destination=mock_policy_assignments_client.go -package client PolicyAssignmentsClient,PolicyDefinitionsClient
+//go:generate $MOCKGEN -typed -source=policy_assignments_client.go -destination=mock_policy_assignments_client.go -package client PolicyAssignmentsClient,PolicyDefinitionsClient,PolicySetDefinitionsClient
 
 import (
 	"context"
@@ -38,6 +38,7 @@ type PolicyAssignmentsClient interface {
 	NewListPager(
 		options *armpolicy.AssignmentsClientListOptions,
 	) *runtime.Pager[armpolicy.AssignmentsClientListResponse]
+	NewListForResourceGroupPager(resourceGroupName string, options *armpolicy.AssignmentsClientListForResourceGroupOptions) *runtime.Pager[armpolicy.AssignmentsClientListForResourceGroupResponse]
 }
 
 // interface guard to ensure that all methods defined in the PolicyAssignmentsClient
@@ -60,9 +61,19 @@ type PolicyDefinitionsClient interface {
 	// GetBuiltIn retrieves a built-in policy definition.
 	GetBuiltIn(ctx context.Context, policyDefinitionName string, options *armpolicy.DefinitionsClientGetBuiltInOptions) (
 		armpolicy.DefinitionsClientGetBuiltInResponse, error)
+	GetAtManagementGroup(ctx context.Context, managementGroupID string, policyDefinitionName string, options *armpolicy.DefinitionsClientGetAtManagementGroupOptions) (armpolicy.DefinitionsClientGetAtManagementGroupResponse, error)
 }
 
 // interface guard to ensure that all methods defined in the PolicyDefinitionsClient
 // interface are implemented by the real Azure Go SDK DefinitionsClient
 // client. This interface guard should always compile
 var _ PolicyDefinitionsClient = (*armpolicy.DefinitionsClient)(nil)
+
+// PolicySetDefinitionsClient resolves initiatives and their member parameter mappings.
+type PolicySetDefinitionsClient interface {
+	Get(ctx context.Context, policySetDefinitionName string, options *armpolicy.SetDefinitionsClientGetOptions) (armpolicy.SetDefinitionsClientGetResponse, error)
+	GetBuiltIn(ctx context.Context, policySetDefinitionName string, options *armpolicy.SetDefinitionsClientGetBuiltInOptions) (armpolicy.SetDefinitionsClientGetBuiltInResponse, error)
+	GetAtManagementGroup(ctx context.Context, managementGroupID string, policySetDefinitionName string, options *armpolicy.SetDefinitionsClientGetAtManagementGroupOptions) (armpolicy.SetDefinitionsClientGetAtManagementGroupResponse, error)
+}
+
+var _ PolicySetDefinitionsClient = (*armpolicy.SetDefinitionsClient)(nil)
