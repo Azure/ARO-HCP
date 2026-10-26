@@ -24,7 +24,7 @@ spec:
     # one IcM incident (dropping the tier suffix from the alert name).
     #
     # Non-tiered — single alert each (5 rules):
-    #   - userJourneyEtcdDatabaseHighFragmentation  (ratio > 50%, for: 15m)
+    #   - userJourneyEtcdDatabaseHighFragmentation  (ratio < 25%, per pod, for: 15m)
     #   - userJourneyEtcdDatabaseSizeExceeded        (> 85% of quota, for: 15m)
     #   - userJourneyEtcdFrequentLeaderChanges       (> 3 in 15m, for: 5m)
     #   - userJourneyEtcdNoLeader                    (has_leader == 0, for: 5m)
@@ -138,7 +138,7 @@ spec:
     - alert: userJourneyEtcdDatabaseHighFragmentation
       expr: |
         (
-          (etcd_mvcc_db_total_size_in_use_in_bytes / etcd_mvcc_db_total_size_in_bytes) < 0.25
+          max by (namespace, cluster, pod) (etcd_mvcc_db_total_size_in_use_in_bytes) / max by (namespace, cluster, pod) (etcd_mvcc_db_total_size_in_bytes) < 0.25
         )
         * on (namespace, cluster) group_left (resource_id)
         label_replace(

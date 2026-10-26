@@ -142,9 +142,9 @@ tests:
   # ========================================
 
   input_series:
-  - series: 'etcd_mvcc_db_total_size_in_bytes{cluster="test-hcp-cluster",namespace="ocm-test-hcp-namespace"}'
+  - series: 'etcd_mvcc_db_total_size_in_bytes{cluster="test-hcp-cluster",namespace="ocm-test-hcp-namespace",pod="etcd-0"}'
     values: "8000000000+0x370"
-  - series: 'etcd_mvcc_db_total_size_in_use_in_bytes{cluster="test-hcp-cluster",namespace="ocm-test-hcp-namespace"}'
+  - series: 'etcd_mvcc_db_total_size_in_use_in_bytes{cluster="test-hcp-cluster",namespace="ocm-test-hcp-namespace",pod="etcd-0"}'
     values: "1000000000+0x370"
   - series: 'kube_namespace_annotations{job="kube-state-metrics",cluster="test-hcp-cluster",namespace="ocm-test-hcp-namespace",annotation_azure_microsoft_com_hcp_cluster_azure_resource_id="/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster"}'
     values: "1+0x370"
@@ -162,6 +162,7 @@ tests:
         exclude_internal_subscriptions: "true"
         cluster: test-hcp-cluster
         namespace: ocm-test-hcp-namespace
+        pod: etcd-0
         component: hcp
         resource_id: "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster"
         subscription_id: "00000000-0000-0000-0000-000000000000"
@@ -173,9 +174,9 @@ tests:
 # Scenario 2: Database in-use ratio healthy (no fragmentation) — does not fire
 - interval: 1m
   input_series:
-  - series: 'etcd_mvcc_db_total_size_in_bytes{cluster="test-hcp-cluster",namespace="test-hcp-cluster-healthy"}'
+  - series: 'etcd_mvcc_db_total_size_in_bytes{cluster="test-hcp-cluster",namespace="test-hcp-cluster-healthy",pod="etcd-0"}'
     values: "8000000000+0x15"
-  - series: 'etcd_mvcc_db_total_size_in_use_in_bytes{cluster="test-hcp-cluster",namespace="test-hcp-cluster-healthy"}'
+  - series: 'etcd_mvcc_db_total_size_in_use_in_bytes{cluster="test-hcp-cluster",namespace="test-hcp-cluster-healthy",pod="etcd-0"}'
     values: "6000000000+0x15"
   alert_rule_test:
   - eval_time: 11m
@@ -184,9 +185,9 @@ tests:
 # Scenario 3: Ratio temporarily low then recovers — does not fire
 - interval: 1m
   input_series:
-  - series: 'etcd_mvcc_db_total_size_in_bytes{cluster="test-hcp-cluster",namespace="test-hcp-cluster-transient"}'
+  - series: 'etcd_mvcc_db_total_size_in_bytes{cluster="test-hcp-cluster",namespace="test-hcp-cluster-transient",pod="etcd-0"}'
     values: "8000000000+0x15"
-  - series: 'etcd_mvcc_db_total_size_in_use_in_bytes{cluster="test-hcp-cluster",namespace="test-hcp-cluster-transient"}'
+  - series: 'etcd_mvcc_db_total_size_in_use_in_bytes{cluster="test-hcp-cluster",namespace="test-hcp-cluster-transient",pod="etcd-0"}'
     values: "1000000000 1000000000 6000000000+0x13"
   alert_rule_test:
   - eval_time: 15m
