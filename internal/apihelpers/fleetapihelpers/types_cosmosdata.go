@@ -99,3 +99,19 @@ func ToControlPlaneVersionRolloutResourceIDString(ystreamChannel string) string 
 		"/providers", fleetapi.ControlPlaneVersionRolloutResourceType.String(), ystreamChannel,
 	))
 }
+
+// ToStuckClusterCleanupResourceID constructs the full resource ID for a stuck
+// cluster cleanup document nested under a management cluster:
+// /providers/Microsoft.RedHatOpenShift/stamps/{stampIdentifier}/managementClusters/default/stuckClusterCleanups/{name}
+func ToStuckClusterCleanupResourceID(stampIdentifier, name string) (*azcorearm.ResourceID, error) {
+	return azcorearm.ParseResourceID(ToStuckClusterCleanupResourceIDString(stampIdentifier, name))
+}
+
+// ToStuckClusterCleanupResourceIDString returns the lowercased resource ID
+// string for a stuck cluster cleanup document.
+func ToStuckClusterCleanupResourceIDString(stampIdentifier, name string) string {
+	return strings.ToLower(path.Join(
+		ToManagementClusterResourceIDString(stampIdentifier),
+		fleetapi.StuckClusterCleanupResourceTypeName, name,
+	))
+}
