@@ -35,6 +35,14 @@ const (
 	// ExternalAuth.Status.UserFacingConditions and returned through the ARM
 	// API. All messages must be safe for external consumption.
 	ExternalAuthOIDCClientsDegradedCondition = "OIDCClientsDegraded"
+
+	// ExternalAuthOIDCIssuerCACertificateInvalidCondition is the condition
+	// type set on ServiceProviderExternalAuth when any certificate in the issuer
+	// CA bundle has a validity problem — either expired (NotAfter in the past)
+	// or not yet valid (NotBefore in the future). A single condition type covers
+	// both failure modes; the Message lists the specific certificates and their
+	// issue (expired vs not-yet-valid).
+	ExternalAuthOIDCIssuerCACertificateInvalidCondition = "OIDCIssuerCACertificateInvalid"
 )
 
 // Reasons used with the OIDCClientsDegraded condition on
@@ -97,12 +105,31 @@ const (
 	// exposed.
 	ExternalAuthMessageGenericNotWorking = "External authentication provider is not working."
 
-	// ExternalAuthMessageAllOperational is the message when all OIDC
+	// ExternalAuthMessageOIDCClientsAllOperational is the message when all OIDC
 	// clients are operational.
-	ExternalAuthMessageAllOperational = "All OIDC clients are operational"
+	ExternalAuthMessageOIDCClientsAllOperational = "All OIDC clients are operational"
 
 	// ExternalAuthMessageObservabilityUnsupported is the user-facing message
 	// when the cluster version does not support External Auth OIDC
 	// observability. The supported OCP version are release-5.0, 4.23, 4.22, 4.21, 4.20.41+
 	ExternalAuthMessageObservabilityUnsupported = "External Auth observability is not supported on this cluster version. The minimum supported OCP version is 4.20.41."
+)
+
+// Reasons used with the ExternalAuthOIDCConfigurationDegradedCondition condition on
+// ServiceProviderExternalAuth.
+const (
+	// ExternalAuthOIDCCACertificateDegradationReason indicates at least
+	// one OIDC client has an issue with CA Certificate.
+	ExternalAuthOIDCCACertificateDegradationReason = "OIDCCACertificateInvalid"
+
+	// ExternalAuthOIDCCACertificateDegradedReasonAsExpected indicates all OIDC
+	// clients have a valid CA Certificate.
+	ExternalAuthOIDCCACertificateDegradedReasonAsExpected = "AsExpected"
+)
+
+// User-facing message constants for OIDC configuration degraded messages.
+const (
+	// ExternalAuthMessageOIDCCACertificateValid is the message when all OIDC
+	// client have a valid CA Certificate.
+	ExternalAuthMessageOIDCCACertificateValid = "All OIDC clients have a valid CA Certificate"
 )
