@@ -143,6 +143,12 @@ confirmed Azure/Kubernetes existence.
 - Review gate edges against source, especially create preconditions, resource
   cleanup sequencing, and operation completion. Label uncertain or intentionally
   omitted details; do not invent a sequence.
+- For cluster deletion, distinguish the provider cleanup and operation poller's
+  all-ApplyDesire gates from the final cluster controller's independent gate.
+  Verify each missing-placement/client fallback separately. Show that the
+  operation deadline precedes its gate, and document both `applyDesires` counts
+  and upstream `resourceTeardown` diagnostics. Check that an unavailable
+  kube-applier client does not discard Resources DB descendant counts.
 - Keep this prompt in `docs/prompts/controller-data-flow.md`; link it from the
   reference and update any repository guidance that points to the old inline prompt.
 - Regeneration is a documentation task. Do not change runtime behavior or contact

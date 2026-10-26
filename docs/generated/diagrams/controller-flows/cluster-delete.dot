@@ -18,9 +18,9 @@ digraph cluster_delete {
   children [label="Node-pool and external-auth\ndeletion flows complete", fillcolor="#e4f2e5", color="#4c8053"];
   group [label="EnsureManagedResourceGroup", fillcolor="#e6f0fa", color="#35648a"];
   certificates [label="KubeAPIServerTLSCertificate +\nIngressTLSCertificate\neach: GET its own vault ref;\n404 clears that reference\nread-only, no Key Vault deletes", fillcolor="#e6f0fa", color="#35648a"];
-  cleanup [label="ClusterChildResourcesCleanupController\nboth timestamps + nil CS ID; child pipelines gone\nexclude Controller docs / child subtrees\nprovider: no MRG / TLS refs / bundles\ndesire gate skipped if placement/client absent", fillcolor="#e6f0fa", color="#35648a"];
+  cleanup [label="ClusterChildResourcesCleanupController\nboth timestamps + nil CS ID; child pipelines gone\nexclude Controller docs / child subtrees\nprovider: no MRG / TLS refs / bundles\nANY remaining ApplyDesire blocks provider deletion\ndesire gate skipped if placement/client absent", fillcolor="#e6f0fa", color="#35648a"];
   final [label="ClusterDeletionController\nno TLS refs / bundles / eligible children\nno ApplyDesires if cached placement known\nknown placement + missing client waits", fillcolor="#e6f0fa", color="#35648a"];
-  op [label="OperationClusterDelete\ndeadline checked before normal CS guards\nbackground cleanup continues after failure", fillcolor="#e6f0fa", color="#35648a"];
+  op [label="OperationClusterDelete\ncluster absent: complete; otherwise check deadline\nthen ANY remaining ApplyDesire holds operation\nmissing provider / placement / client skips gate\nthen normal CS guards and status polling\nbackground cleanup continues after failure", fillcolor="#e6f0fa", color="#35648a"];
   done [label="ARM Delete Operation Succeeded", fillcolor="#e4f2e5", color="#4c8053"];
   failed [label="ARM Delete Operation Failed\ndeadline: InternalServerError + diagnostics\nCS Error: converted code / message", fillcolor="#fbe4e4", color="#9b4d4d"];
   schedules [label="BackupSchedule + kube-applier\nDelete-type desires remove Schedules", fillcolor="#e6f0fa", color="#35648a"];
@@ -79,6 +79,7 @@ digraph cluster_delete {
   cs -> op [label="both timestamps + CS ID: poll status\n404 / Ready wait for document absence"];
   op -> failed [label="document remains past deadline\nor CS Error before deadline"];
   op -> done [label="document absence observed"];
+  op -> op [label="ApplyDesires remain before deadline\nretry; numeric count + controller breakdown", style=dashed, color="#857456", constraint=false];
   clear -> clear [label="external deletion pending", style=dashed, color="#857456", constraint=false];
   group -> group [label="group still exists: observe again\n(or delete if orphaned)", style=dashed, color="#857456", constraint=false];
 }

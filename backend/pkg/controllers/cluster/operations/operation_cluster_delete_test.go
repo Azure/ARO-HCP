@@ -333,6 +333,34 @@ func TestOperationClusterDelete_SynchronizeOperation_DeadlineIncludesApplyDesire
 	assert.Contains(t, op.Error.Message, "[applyDesires] 4 ApplyDesire(s) still exist: 2 for controller alpha-controller, 1 for controller unknown, 1 for controller zeta-controller")
 }
 
+func TestOperationClusterDelete_RemainingDescendantsWithoutKubeApplierClient(t *testing.T) {
+	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+	fixture := operationtesting.NewClusterTestFixture()
+	cluster := fixture.NewCluster(nil)
+	spcResourceID := metadataapi.Must(azcorearm.ParseResourceID(
+		fixture.ClusterResourceID.String() + "/serviceProviderClusters/" + coreapi.ServiceProviderClusterResourceName))
+	spc := &coreapi.ServiceProviderCluster{
+		CosmosMetadata: coreapi.CosmosMetadata{
+			ResourceID:   spcResourceID,
+			PartitionKey: strings.ToLower(spcResourceID.SubscriptionID),
+		},
+		Status: coreapi.ServiceProviderClusterStatus{
+			ManagementClusterResourceID: metadataapi.Must(azcorearm.ParseResourceID(
+				"/providers/microsoft.redhatopenshift/stamps/1/managementclusters/unregistered")),
+		},
+	}
+	resources, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, spc})
+	require.NoError(t, err)
+	controller := &operationClusterDelete{
+		resourcesDBClient:    resources,
+		kubeApplierDBClients: kubeappliercosmosstoragetesting.NewMockKubeApplierDBClients(),
+	}
+	state, err := controller.remainingDescendantResources(ctx, cluster)
+	require.NoError(t, err)
+	assert.Equal(t, coreapi.ProvisioningStateDeleting, state.ProvisioningState)
+	assert.Equal(t, "remaining resources: 1 "+spcResourceID.ResourceType.String(), state.Message)
+}
+
 func TestOperationClusterDelete_SynchronizeOperation_ApplyDesiresGate(t *testing.T) {
 	fixedTime := operationtesting.MustParseTime("2025-01-20T10:30:00Z")
 	fixture := operationtesting.NewClusterTestFixture()

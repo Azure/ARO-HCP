@@ -1,5 +1,10 @@
 # Controller and Resource Data Flow
 
+Targeted cluster-delete reconciliation: `94bfe705161b723e9acb4af2818f51704fb891ad`
+plus review fixes, following [the generation prompt](../prompts/controller-data-flow.md).
+Scope: provider/operation ApplyDesire gates, independent final-cluster fallback,
+timeout diagnostics, descendant counting, and the cluster-delete DOT/PNG.
+
 This reference covers every concrete controller in the current checkout: backend,
 fleet, kube-applier, management-agent, sessiongate, and shared informer management.
 It maps their inputs, decisions and effects across Cosmos DB, Azure, Cluster Service
@@ -1842,7 +1847,7 @@ After checking the delete deadline, an additional gate holds the operation nonte
 
 Live-reads the nonterminal Delete operation and cluster. Resource absence invokes shared delete completion and async notification, without an initial active-ID check. If the document still exists and the clock is strictly past `DeleteOperationCompletionDeadline`, fails with **InternalServerError**, not DeadlineExceeded, before normal CS-dispatch/ID guards or status evaluation. A missing deadline disables this check. Otherwise requires both deletion timestamps and nonnil CS ID before polling Cluster Service: 404 or Ready waits for independent document cleanup; other states use [ConvertClusterStatus](../../backend/pkg/utils/operationutils/utils.go), including CS Error failure with its provision code/message (or translated failed inflight checks). Shared resource-status persistence enforces the active-operation ID and clears it on terminal state; background deletion controllers continue independently.
 
-Timeout diagnostics combine five sources: deletion dispatch/ID, live CS status, filtered recursive Resources and kube-applier descendants, retained mirrored HostedCluster content, and cached ClusterResources-owned ApplyDesire teardown groups. These are diagnostic observations, not additional completion gates. Counts exclude Controller, ManagementClusterContent and ReadDesire types, plus Delete-type ApplyDesires. Ordinary diagnostic errors are logged and remaining sources still form the message. A source limitation remains in `remainingDescendantResources`: when actual placement exists it dereferences the kube-applier client without a nil check, although client discovery can return nil; that unavailable-client path can interrupt timeout reporting rather than produce the intended failure update.
+Timeout diagnostics combine six sources: deletion dispatch/ID, live CS status, filtered recursive Resources and kube-applier descendants, retained mirrored HostedCluster content, cached ClusterResources-owned ApplyDesire teardown groups (`resourceTeardown`), and all remaining cluster-scoped ApplyDesires grouped by controller (`applyDesires`). These observations do not gate the deadline-failure path. Descendant counts exclude Controller, ManagementClusterContent and ReadDesire types, plus Delete-type ApplyDesires; the separate all-ApplyDesire gate/count includes Delete-type desires. Ordinary diagnostic errors are logged and remaining sources still form the message. An unavailable kube-applier client skips kube-applier descendant enumeration without discarding Resources DB counts. The operation gate and timeout count share `countRemainingApplyDesires`; the provider gate shares the lower-level summary helper, while the final cluster controller retains its independent check and different unavailable-client behavior.
 
 #### ClusterDegradedAggregator
 
