@@ -125,6 +125,8 @@ tests:
     values: "0+95x15"
   - series: 'etcd_disk_backend_commit_duration_seconds_bucket{cluster="test-hcp-cluster",namespace="test-hcp-cluster-healthy",pod="etcd-0",le="+Inf"}'
     values: "0+100x15"
+  - series: 'kube_namespace_annotations{job="kube-state-metrics",cluster="test-hcp-cluster",namespace="test-hcp-cluster-healthy",annotation_azure_microsoft_com_hcp_cluster_azure_resource_id="/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster-healthy"}'
+    values: "1+0x15"
   alert_rule_test:
   - eval_time: 11m
     alertname: userJourneyEtcdBackendCommitDurationHigh1h5m
@@ -178,6 +180,8 @@ tests:
     values: "8000000000+0x15"
   - series: 'etcd_mvcc_db_total_size_in_use_in_bytes{cluster="test-hcp-cluster",namespace="test-hcp-cluster-healthy",pod="etcd-0"}'
     values: "6000000000+0x15"
+  - series: 'kube_namespace_annotations{job="kube-state-metrics",cluster="test-hcp-cluster",namespace="test-hcp-cluster-healthy",annotation_azure_microsoft_com_hcp_cluster_azure_resource_id="/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster-healthy"}'
+    values: "1+0x15"
   alert_rule_test:
   - eval_time: 11m
     alertname: userJourneyEtcdDatabaseHighFragmentation
@@ -189,6 +193,8 @@ tests:
     values: "8000000000+0x15"
   - series: 'etcd_mvcc_db_total_size_in_use_in_bytes{cluster="test-hcp-cluster",namespace="test-hcp-cluster-transient",pod="etcd-0"}'
     values: "1000000000 1000000000 6000000000+0x13"
+  - series: 'kube_namespace_annotations{job="kube-state-metrics",cluster="test-hcp-cluster",namespace="test-hcp-cluster-transient",annotation_azure_microsoft_com_hcp_cluster_azure_resource_id="/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster-transient"}'
+    values: "1+0x15"
   alert_rule_test:
   - eval_time: 15m
     alertname: userJourneyEtcdDatabaseHighFragmentation
@@ -238,6 +244,8 @@ tests:
     values: "6000000000+0x15"
   - series: 'etcd_server_quota_backend_bytes{cluster="test-hcp-cluster",namespace="test-hcp-cluster-healthy"}'
     values: "8000000000+0x15"
+  - series: 'kube_namespace_annotations{job="kube-state-metrics",cluster="test-hcp-cluster",namespace="test-hcp-cluster-healthy",annotation_azure_microsoft_com_hcp_cluster_azure_resource_id="/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster-healthy"}'
+    values: "1+0x15"
   alert_rule_test:
   - eval_time: 11m
     alertname: userJourneyEtcdDatabaseSizeExceeded
@@ -249,6 +257,8 @@ tests:
     values: "6000000000 7000000000 7000000000 6000000000+0x12"
   - series: 'etcd_server_quota_backend_bytes{cluster="test-hcp-cluster",namespace="test-hcp-cluster-transient"}'
     values: "8000000000+0x15"
+  - series: 'kube_namespace_annotations{job="kube-state-metrics",cluster="test-hcp-cluster",namespace="test-hcp-cluster-transient",annotation_azure_microsoft_com_hcp_cluster_azure_resource_id="/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster-transient"}'
+    values: "1+0x15"
   alert_rule_test:
   - eval_time: 15m
     alertname: userJourneyEtcdDatabaseSizeExceeded
@@ -291,6 +301,8 @@ tests:
   input_series:
   - series: 'etcd_server_leader_changes_seen_total{cluster="test-hcp-cluster",namespace="test-hcp-cluster-healthy"}'
     values: "0 0 0 1 1 1 1 1 1 1 1 1 1 1 1 2"
+  - series: 'kube_namespace_annotations{job="kube-state-metrics",cluster="test-hcp-cluster",namespace="test-hcp-cluster-healthy",annotation_azure_microsoft_com_hcp_cluster_azure_resource_id="/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster-healthy"}'
+    values: "1+0x16"
   alert_rule_test:
   - eval_time: 15m
     alertname: userJourneyEtcdFrequentLeaderChanges
@@ -300,6 +312,8 @@ tests:
   input_series:
   - series: 'etcd_server_leader_changes_seen_total{cluster="test-hcp-cluster",namespace="test-hcp-cluster-transient"}'
     values: "0 0 0 0 0 1 1 1 1 1 2 2 2 2 2 3"
+  - series: 'kube_namespace_annotations{job="kube-state-metrics",cluster="test-hcp-cluster",namespace="test-hcp-cluster-transient",annotation_azure_microsoft_com_hcp_cluster_azure_resource_id="/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster-transient"}'
+    values: "1+0x16"
   alert_rule_test:
   - eval_time: 15m
     alertname: userJourneyEtcdFrequentLeaderChanges
@@ -345,6 +359,8 @@ tests:
   input_series:
   - series: 'etcd_server_has_leader{cluster="test-hcp-cluster",namespace="test-hcp-cluster-healthy"}'
     values: "1+0x15"
+  - series: 'kube_namespace_annotations{job="kube-state-metrics",cluster="test-hcp-cluster",namespace="test-hcp-cluster-healthy",annotation_azure_microsoft_com_hcp_cluster_azure_resource_id="/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster-healthy"}'
+    values: "1+0x15"
   alert_rule_test:
   - eval_time: 10m
     alertname: userJourneyEtcdNoLeader
@@ -354,6 +370,8 @@ tests:
   input_series:
   - series: 'etcd_server_has_leader{cluster="test-hcp-cluster",namespace="test-hcp-cluster-transient"}'
     values: "1 0 0 0 1+0x12"
+  - series: 'kube_namespace_annotations{job="kube-state-metrics",cluster="test-hcp-cluster",namespace="test-hcp-cluster-transient",annotation_azure_microsoft_com_hcp_cluster_azure_resource_id="/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster-transient"}'
+    values: "1+0x16"
   alert_rule_test:
   - eval_time: 10m
     alertname: userJourneyEtcdNoLeader
@@ -482,6 +500,8 @@ tests:
     values: "0+95x15"
   - series: 'etcd_network_peer_round_trip_time_seconds_bucket{cluster="test-hcp-cluster",namespace="test-hcp-cluster-healthy",le="+Inf"}'
     values: "0+100x15"
+  - series: 'kube_namespace_annotations{job="kube-state-metrics",cluster="test-hcp-cluster",namespace="test-hcp-cluster-healthy",annotation_azure_microsoft_com_hcp_cluster_azure_resource_id="/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster-healthy"}'
+    values: "1+0x15"
   alert_rule_test:
   - eval_time: 11m
     alertname: userJourneyEtcdPeerRoundTripTimeHigh1h5m
@@ -603,6 +623,8 @@ tests:
     values: "0+195x15"
   - series: 'etcd_disk_wal_fsync_duration_seconds_bucket{cluster="test-hcp-cluster",namespace="test-hcp-cluster-healthy",pod="etcd-0",le="+Inf"}'
     values: "0+200x15"
+  - series: 'kube_namespace_annotations{job="kube-state-metrics",cluster="test-hcp-cluster",namespace="test-hcp-cluster-healthy",annotation_azure_microsoft_com_hcp_cluster_azure_resource_id="/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster-healthy"}'
+    values: "1+0x15"
   alert_rule_test:
   - eval_time: 11m
     alertname: userJourneyEtcdWALFsyncDurationHigh1h5m
