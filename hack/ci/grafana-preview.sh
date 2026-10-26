@@ -15,6 +15,18 @@
 
 set -euo pipefail
 
+GITHUB_REPO_OWNER="${GITHUB_REPO_OWNER:-Azure}"
+GITHUB_REPO_NAME="${GITHUB_REPO_NAME:-ARO-HCP}"
+
+# Exit early when another repository's pull request started this job. Without
+# this guard, PULL_BASE_SHA points at a commit that is absent from the ARO-HCP
+# history, and the preview comment goes to the wrong pull request.
+if [[ -n "${REPO_OWNER:-}${REPO_NAME:-}" \
+    && "${REPO_OWNER:-}/${REPO_NAME:-}" != "${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}" ]]; then
+    echo "This job runs for ${REPO_OWNER:-}/${REPO_NAME:-}, not ${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}. Skipping the dashboard preview."
+    exit 0
+fi
+
 for tool in az curl jq git grep sed tr head tail mktemp sha1sum; do
     if ! command -v "${tool}" &>/dev/null; then
         echo "ERROR: ${tool} is required but not found" >&2
@@ -38,8 +50,6 @@ GITHUB_API="https://api.github.com"
 : "${GRAFANA_RESOURCE_GROUP:?GRAFANA_RESOURCE_GROUP must be set}"
 
 PULL_PULL_SHA="${PULL_PULL_SHA:-$(git rev-parse HEAD)}"
-REPO_OWNER="${REPO_OWNER:-Azure}"
-REPO_NAME="${REPO_NAME:-ARO-HCP}"
 
 detect_changed_dashboards() {
     if ! git cat-file -e "${PULL_BASE_SHA}^{commit}" 2>/dev/null; then
@@ -166,7 +176,7 @@ github_request() {
 
 # Fetch every issue comment, following the "Link: next" header across all pages.
 list_all_issue_comments() {
-    local url="${GITHUB_API}/repos/${REPO_OWNER}/${REPO_NAME}/issues/${PULL_NUMBER}/comments?per_page=100"
+    local url="${GITHUB_API}/repos/${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}/issues/${PULL_NUMBER}/comments?per_page=100"
     local headers body next
     while [[ -n "${url}" ]]; do
         headers=$(mktemp)
@@ -203,7 +213,7 @@ ${comment_body}"
              | sort_by(.id) | .[].id')
 
     if [[ -z "${marker_ids}" ]]; then
-        github_request POST "/repos/${REPO_OWNER}/${REPO_NAME}/issues/${PULL_NUMBER}/comments" \
+        github_request POST "/repos/${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}/issues/${PULL_NUMBER}/comments" \
             -H "Content-Type: application/json" \
             -d "${payload}" > /dev/null
         echo "Posted new PR comment" >&2
@@ -216,11 +226,11 @@ ${comment_body}"
 
     while IFS= read -r old_id; do
         [[ -z "${old_id}" || "${old_id}" == "${latest_id}" ]] && continue
-        github_request DELETE "/repos/${REPO_OWNER}/${REPO_NAME}/issues/comments/${old_id}" > /dev/null
+        github_request DELETE "/repos/${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}/issues/comments/${old_id}" > /dev/null
         echo "Deleted stale preview comment ${old_id}" >&2
     done <<< "${marker_ids}"
 
-    github_request PATCH "/repos/${REPO_OWNER}/${REPO_NAME}/issues/comments/${latest_id}" \
+    github_request PATCH "/repos/${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}/issues/comments/${latest_id}" \
         -H "Content-Type: application/json" \
         -d "${payload}" > /dev/null
     echo "Updated existing PR comment ${latest_id}" >&2
