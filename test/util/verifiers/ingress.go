@@ -15,8 +15,12 @@
 package verifiers
 
 import (
+	"bytes"
 	"context"
+	"crypto/x509"
+	"encoding/pem"
 	"fmt"
+	"slices"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -76,7 +80,8 @@ type verifyDefaultIngressServingCertificateSecretWiring struct {
 
 // VerifyDefaultIngressServingCertificateSecretWiring returns a verifier that checks the
 // openshift-ingress/default-ingress-cert Secret exists with non-empty TLS data and
-// is referenced by IngressController/default's defaultCertificate.
+// is referenced by IngressController/default's defaultCertificate. Its certificate
+// must be valid PEM without the internal fallback leaf identity.
 func VerifyDefaultIngressServingCertificateSecretWiring(timeout time.Duration) HostedClusterVerifier {
 	return verifyDefaultIngressServingCertificateSecretWiring{timeout: timeout}
 }
@@ -115,6 +120,42 @@ func checkDefaultIngressServingCertificateSecretWiring(ctx context.Context, kube
 	}
 	if controller.Spec.DefaultCertificate == nil || controller.Spec.DefaultCertificate.Name != secretName {
 		return fmt.Errorf("IngressController/default references %v, expected secret %q", controller.Spec.DefaultCertificate, secretName)
+	}
+	if err := verifyIngressSecretCertificate(secret); err != nil {
+		return fmt.Errorf("default ingress serving certificate secret openshift-ingress/%s: %w", secretName, err)
+	}
+	return nil
+}
+
+func verifyIngressSecretCertificate(secret *corev1.Secret) error {
+	certificateBegin := []byte("-----BEGIN CERTIFICATE-----")
+	remaining := bytes.TrimSpace(secret.Data[corev1.TLSCertKey])
+	if len(remaining) == 0 {
+		return fmt.Errorf("tls.crt is missing or empty")
+	}
+	for index := 0; len(remaining) > 0; index++ {
+		if !bytes.HasPrefix(remaining, certificateBegin) {
+			return fmt.Errorf("tls.crt certificate %d is not certificate PEM", index+1)
+		}
+		encoded := remaining
+		if nextBlock := bytes.Index(remaining[len(certificateBegin):], []byte("\n-----BEGIN ")); nextBlock >= 0 {
+			encoded = remaining[:len(certificateBegin)+nextBlock+1]
+		}
+		block, rest := pem.Decode(encoded)
+		if block == nil || block.Type != "CERTIFICATE" {
+			return fmt.Errorf("tls.crt certificate %d has invalid certificate PEM", index+1)
+		}
+		certificate, err := x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			return fmt.Errorf("tls.crt certificate %d is not a valid X.509 certificate", index+1)
+		}
+		if index == 0 && certificate.Subject.CommonName == "openshift-ingress" &&
+			slices.Contains(certificate.Subject.Organization, "openshift") &&
+			certificate.Issuer.CommonName == "root-ca" &&
+			slices.Contains(certificate.Issuer.OrganizationalUnit, "openshift") {
+			return fmt.Errorf("tls.crt leaf has the internal fallback identity (subject CN=openshift-ingress, O=openshift; issuer CN=root-ca, OU=openshift), expected the delivered ingress certificate")
+		}
+		remaining = bytes.TrimSpace(remaining[len(encoded)-len(rest):])
 	}
 	return nil
 }

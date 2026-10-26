@@ -252,8 +252,8 @@ var _ = Describe("ARO-HCP", func() {
 				appsWildcard := fmt.Sprintf("*.apps.aro.%s.%s", baseDomainPrefix, baseDomain)
 				consoleHostURL, err := url.Parse(consoleFixture.ConsoleURL)
 				Expect(err).NotTo(HaveOccurred(), "failed to parse console URL %q for cluster %q", consoleFixture.ConsoleURL, clusterName)
-				Expect(verifiers.VerifyDefaultIngressCertificate(consoleHostURL.Host, appsWildcard, 5*time.Minute).Verify(ctx, adminRESTConfig)).To(Succeed(), "console must serve the delivered default ingress certificate for cluster %q", clusterName)
 				Expect(verifiers.VerifyDefaultIngressServingCertificateSecretWiring(10*time.Minute).Verify(ctx, adminRESTConfig)).To(Succeed(), "default-ingress-cert must exist and be referenced by IngressController/default for cluster %q", clusterName)
+				Expect(verifiers.VerifyDefaultIngressCertificate(consoleHostURL.Host, appsWildcard, 5*time.Minute).Verify(ctx, adminRESTConfig)).To(Succeed(), "console must serve the delivered default ingress certificate for cluster %q", clusterName)
 			}
 
 			By("verifying ACM's ingress certificate secret is absent, as HyperShift delivers it directly")
