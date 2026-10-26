@@ -143,6 +143,8 @@ The config file (e.g., `observability.yaml`) defines:
 - `grafana-dashboards.dashboardFolders`: List of folders with `name` and `path` to dashboard JSON files
 - `grafana-dashboards.azureManagedFolders`: List of folder names managed by Azure (will not be modified)
 
+Sync only touches the folders named in the config file. It leaves every other folder in the instance alone, including the `PR-<number>` preview folders that CI creates for dashboard PRs (See [PR preview](../../docs/grafana-dashboards.md#pr-preview)).
+
 ## Error Handling
 
 - The tool includes retry logic for transient Azure API failures
