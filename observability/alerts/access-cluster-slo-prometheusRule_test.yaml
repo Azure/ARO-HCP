@@ -33,7 +33,7 @@ tests:
       exp_annotations:
         summary: "mgmt-1: Credential operation for /sub/3/cluster/stuck stuck in accepted for over 1 hour"
         description: "Credential operation for /sub/3/cluster/stuck has been in accepted phase for over 1 hour. Stuck operations are invisible to success/failure SLIs and require investigation."
-        runbook_url: "aka.ms/arohcp-runbook-access-cluster"
+        runbook_url: "https://aka.ms/arohcp-runbook-access-cluster"
 # ========================================
 # Test 5: No stuck operation — requestcredential in "provisioning" for < 1 hour
 # ========================================
@@ -67,7 +67,7 @@ tests:
       exp_annotations:
         summary: "mgmt-1: Credential controller workqueue OperationRequestCredential depth is high"
         description: "Credential controller workqueue OperationRequestCredential has had a depth > 10 for more than 5 minutes, indicating work is accumulating faster than it can be processed."
-        runbook_url: "aka.ms/arohcp-runbook-access-cluster"
+        runbook_url: "https://aka.ms/arohcp-runbook-access-cluster"
 # ========================================
 # Test 8: Queue depth normal — below threshold, no alert
 # ========================================
@@ -99,7 +99,7 @@ tests:
       exp_annotations:
         summary: "mgmt-1: Credential controller workqueue OperationRequestCredential retry hot loop"
         description: "Credential controller workqueue OperationRequestCredential has a retry ratio > 50% sustained over 10 minutes, indicating most queue activity is failed retries rather than fresh work."
-        runbook_url: "aka.ms/arohcp-runbook-access-cluster"
+        runbook_url: "https://aka.ms/arohcp-runbook-access-cluster"
 # ========================================
 # Test 10: Retry hot loop — low retry ratio, no alert
 # ========================================
@@ -154,7 +154,7 @@ tests:
       exp_annotations:
         summary: "mgmt-1: Credential operation for /sub/7/cluster/stuck-revoke stuck in deleting for over 1 hour"
         description: "Credential operation for /sub/7/cluster/stuck-revoke has been in deleting phase for over 1 hour. Stuck operations are invisible to success/failure SLIs and require investigation."
-        runbook_url: "aka.ms/arohcp-runbook-access-cluster"
+        runbook_url: "https://aka.ms/arohcp-runbook-access-cluster"
 # ========================================
 # Test 13: Stuck operation fires for all subscriptions at YAML level
 # ========================================
@@ -186,7 +186,7 @@ tests:
       exp_annotations:
         summary: "mgmt-1: Credential operation for /sub/e2e/cluster/stuck stuck in accepted for over 1 hour"
         description: "Credential operation for /sub/e2e/cluster/stuck has been in accepted phase for over 1 hour. Stuck operations are invisible to success/failure SLIs and require investigation."
-        runbook_url: aka.ms/arohcp-runbook-access-cluster
+        runbook_url: https://aka.ms/arohcp-runbook-access-cluster
 # ========================================
 # Windowed error alert tests (stateless, last_transition-windowed)
 # ========================================
@@ -230,7 +230,7 @@ tests:
       exp_annotations:
         summary: "mgmt-1: Credential operations failing fast (>72% of recent operations)"
         description: "More than 72% of completed credential operations (requestcredential/revokecredentials) on mgmt-1 failed over the last hour with at least 3 failures, a 14.4x burn of the 95% SLO budget."
-        runbook_url: "aka.ms/arohcp-runbook-access-cluster"
+        runbook_url: "https://aka.ms/arohcp-runbook-access-cluster"
 # Volume guard: a single recent failed credential op (ratio 100% but one failure)
 # must NOT page, because failed_1h < 3 and the 6h/3d completion floors are unmet.
 - interval: 1m
@@ -306,7 +306,7 @@ tests:
       exp_annotations:
         summary: "mgmt-1: Credential operation error rate elevated (>30% over 6h)"
         description: "More than 30% of completed credential operations on mgmt-1 failed over the last 6 hours (at least 5 completions), a 6x burn of the 95% SLO budget."
-        runbook_url: "aka.ms/arohcp-runbook-access-cluster"
+        runbook_url: "https://aka.ms/arohcp-runbook-access-cluster"
   - eval_time: 140m
     alertname: userJourneyAccessClusterErrors1h5m
 # Slow burn (3d) positive: 2 failed + 8 succeeded credential ops complete inside the 3d
@@ -388,7 +388,7 @@ tests:
       exp_annotations:
         summary: "mgmt-1: Credential operation error budget burning (>5% over 3d)"
         description: "More than 5% of completed credential operations on mgmt-1 failed over the last 3 days (at least 10 completions and 2 failures), a 1x burn that exhausts the 95% SLO error budget over the window."
-        runbook_url: "aka.ms/arohcp-runbook-access-cluster"
+        runbook_url: "https://aka.ms/arohcp-runbook-access-cluster"
   - eval_time: 365m
     alertname: userJourneyAccessClusterErrors6h30m
   - eval_time: 365m
@@ -533,7 +533,7 @@ tests:
       exp_annotations:
         summary: "mgmt-1: Credential operation failure rate exceeds 15% over 6h"
         description: "More than 15% of completed credential operations on mgmt-1 failed over the last 6 hours (at least 5 completions), an early warning of degradation before the burn-rate alerts fire."
-        runbook_url: "aka.ms/arohcp-runbook-access-cluster"
+        runbook_url: "https://aka.ms/arohcp-runbook-access-cluster"
 # Degradation (early warning) negative: a single failure on an otherwise quiet window
 # must not fire. 1 failed + 4 succeeded credential ops reach terminal at 40m, so
 # total_6h = 5 (>= 5) and error_rate_6h = 0.2 (> 0.15), but failed_6h = 1 is below the
@@ -604,7 +604,7 @@ tests:
       exp_annotations:
         summary: "mgmt-1: Credential operation for /sub/rcv/cluster/stuck stuck in accepted for over 1 hour"
         description: "Credential operation for /sub/rcv/cluster/stuck has been in accepted phase for over 1 hour. Stuck operations are invisible to success/failure SLIs and require investigation."
-        runbook_url: "aka.ms/arohcp-runbook-access-cluster"
+        runbook_url: "https://aka.ms/arohcp-runbook-access-cluster"
   # After phase_info drops to 0 at t=95m, condition no longer holds → alert resolves
   - eval_time: 100m
     alertname: userJourneyAccessClusterStuckOperation
@@ -627,7 +627,7 @@ tests:
       exp_annotations:
         summary: "mgmt-1: Credential controller workqueue OperationRequestCredential depth is high"
         description: "Credential controller workqueue OperationRequestCredential has had a depth > 10 for more than 5 minutes, indicating work is accumulating faster than it can be processed."
-        runbook_url: "aka.ms/arohcp-runbook-access-cluster"
+        runbook_url: "https://aka.ms/arohcp-runbook-access-cluster"
   # After depth drops to 5 at t=10m → alert resolves
   - eval_time: 15m
     alertname: userJourneyAccessClusterSaturationQueueDepth
@@ -654,7 +654,7 @@ tests:
       exp_annotations:
         summary: "mgmt-1: Credential controller workqueue OperationRequestCredential retry hot loop"
         description: "Credential controller workqueue OperationRequestCredential has a retry ratio > 50% sustained over 10 minutes, indicating most queue activity is failed retries rather than fresh work."
-        runbook_url: "aka.ms/arohcp-runbook-access-cluster"
+        runbook_url: "https://aka.ms/arohcp-runbook-access-cluster"
   # After ratio drops below 50% → alert resolves
   - eval_time: 38m
     alertname: userJourneyAccessClusterSaturationRetryHotLoop
@@ -701,7 +701,7 @@ tests:
       exp_annotations:
         summary: "mgmt-1: Credential operations failing fast (>72% of recent operations)"
         description: "More than 72% of completed credential operations (requestcredential/revokecredentials) on mgmt-1 failed over the last hour with at least 3 failures, a 14.4x burn of the 95% SLO budget."
-        runbook_url: "aka.ms/arohcp-runbook-access-cluster"
+        runbook_url: "https://aka.ms/arohcp-runbook-access-cluster"
   # At 115m, failures have aged out of the 5m short window → alert resolves
   - eval_time: 115m
     alertname: userJourneyAccessClusterErrors1h5m
@@ -748,7 +748,7 @@ tests:
       exp_annotations:
         summary: "mgmt-1: Credential operation error rate elevated (>30% over 6h)"
         description: "More than 30% of completed credential operations on mgmt-1 failed over the last 6 hours (at least 5 completions), a 6x burn of the 95% SLO budget."
-        runbook_url: "aka.ms/arohcp-runbook-access-cluster"
+        runbook_url: "https://aka.ms/arohcp-runbook-access-cluster"
   # At 180m, failures have aged out of the 30m short window → alert resolves
   - eval_time: 180m
     alertname: userJourneyAccessClusterErrors6h30m
@@ -807,7 +807,7 @@ tests:
       exp_annotations:
         summary: "mgmt-1: Credential operation failure rate exceeds 15% over 6h"
         description: "More than 15% of completed credential operations on mgmt-1 failed over the last 6 hours (at least 5 completions), an early warning of degradation before the burn-rate alerts fire."
-        runbook_url: "aka.ms/arohcp-runbook-access-cluster"
+        runbook_url: "https://aka.ms/arohcp-runbook-access-cluster"
   # At 180m, failures have aged out of the 30m short window → alert resolves
   - eval_time: 180m
     alertname: userJourneyAccessClusterErrorsDegradation

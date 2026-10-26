@@ -36,7 +36,7 @@ resource arohcpAccessClusterSloErrorAlerts 'Microsoft.AlertsManagement/prometheu
           correlationId: 'userJourneyAccessClusterStuckOperation/{{ $labels.cluster }}/{{ $labels.resource_id }}/{{ $labels.phase }}'
           description: 'Credential operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 1 hour. Stuck operations are invisible to success/failure SLIs and require investigation.'
           info: 'Credential operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 1 hour. Stuck operations are invisible to success/failure SLIs and require investigation.'
-          runbook_url: 'aka.ms/arohcp-runbook-access-cluster'
+          runbook_url: 'https://aka.ms/arohcp-runbook-access-cluster'
           summary: '{{ $labels.cluster }}: Credential operation for {{ $labels.resource_id }} stuck in {{ $labels.phase }} for over 1 hour'
           title: '{{ $labels.cluster }}: Credential operation for {{ $labels.resource_id }} stuck in {{ $labels.phase }} for over 1 hour'
         }
@@ -77,7 +77,7 @@ resource arohcpAccessClusterSaturationAlerts 'Microsoft.AlertsManagement/prometh
           correlationId: 'userJourneyAccessClusterSaturationQueueDepth/{{ $labels.cluster }}/{{ $labels.name }}'
           description: 'Credential controller workqueue {{ $labels.name }} has had a depth > 10 for more than 5 minutes, indicating work is accumulating faster than it can be processed.'
           info: 'Credential controller workqueue {{ $labels.name }} has had a depth > 10 for more than 5 minutes, indicating work is accumulating faster than it can be processed.'
-          runbook_url: 'aka.ms/arohcp-runbook-access-cluster'
+          runbook_url: 'https://aka.ms/arohcp-runbook-access-cluster'
           summary: '{{ $labels.cluster }}: Credential controller workqueue {{ $labels.name }} depth is high'
           title: '{{ $labels.cluster }}: Credential controller workqueue {{ $labels.name }} depth is high'
         }
@@ -105,7 +105,7 @@ resource arohcpAccessClusterSaturationAlerts 'Microsoft.AlertsManagement/prometh
           correlationId: 'userJourneyAccessClusterSaturationRetryHotLoop/{{ $labels.cluster }}/{{ $labels.name }}'
           description: 'Credential controller workqueue {{ $labels.name }} has a retry ratio > 50% sustained over 10 minutes, indicating most queue activity is failed retries rather than fresh work.'
           info: 'Credential controller workqueue {{ $labels.name }} has a retry ratio > 50% sustained over 10 minutes, indicating most queue activity is failed retries rather than fresh work.'
-          runbook_url: 'aka.ms/arohcp-runbook-access-cluster'
+          runbook_url: 'https://aka.ms/arohcp-runbook-access-cluster'
           summary: '{{ $labels.cluster }}: Credential controller workqueue {{ $labels.name }} retry hot loop'
           title: '{{ $labels.cluster }}: Credential controller workqueue {{ $labels.name }} retry hot loop'
         }
@@ -149,11 +149,11 @@ resource arohcpAccessClusterSloWindowedErrorAlerts 'Microsoft.AlertsManagement/p
           correlationId: 'userJourneyAccessClusterErrors1h5m/{{ $labels.cluster }}'
           description: 'More than 72% of completed credential operations (requestcredential/revokecredentials) on {{ $labels.cluster }} failed over the last hour with at least 3 failures, a 14.4x burn of the 95% SLO budget.'
           info: 'More than 72% of completed credential operations (requestcredential/revokecredentials) on {{ $labels.cluster }} failed over the last hour with at least 3 failures, a 14.4x burn of the 95% SLO budget.'
-          runbook_url: 'aka.ms/arohcp-runbook-access-cluster'
+          runbook_url: 'https://aka.ms/arohcp-runbook-access-cluster'
           summary: '{{ $labels.cluster }}: Credential operations failing fast (>72% of recent operations)'
           title: '{{ $labels.cluster }}: Credential operations failing fast (>72% of recent operations)'
         }
-        expression: 'errors:backend_credential_operation:failed_1h >= 3 and errors:backend_credential_operation:error_rate_1h > 0.72'
+        expression: 'errors:backend_credential_operation:failed_1h >= 3 and errors:backend_credential_operation:error_rate_1h > 0.72 and errors:backend_credential_operation:error_rate_5m > 0.72'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -180,11 +180,11 @@ resource arohcpAccessClusterSloWindowedErrorAlerts 'Microsoft.AlertsManagement/p
           correlationId: 'userJourneyAccessClusterErrors6h30m/{{ $labels.cluster }}'
           description: 'More than 30% of completed credential operations on {{ $labels.cluster }} failed over the last 6 hours (at least 5 completions), a 6x burn of the 95% SLO budget.'
           info: 'More than 30% of completed credential operations on {{ $labels.cluster }} failed over the last 6 hours (at least 5 completions), a 6x burn of the 95% SLO budget.'
-          runbook_url: 'aka.ms/arohcp-runbook-access-cluster'
+          runbook_url: 'https://aka.ms/arohcp-runbook-access-cluster'
           summary: '{{ $labels.cluster }}: Credential operation error rate elevated (>30% over 6h)'
           title: '{{ $labels.cluster }}: Credential operation error rate elevated (>30% over 6h)'
         }
-        expression: 'errors:backend_credential_operation:total_6h >= 5 and errors:backend_credential_operation:error_rate_6h > 0.3'
+        expression: 'errors:backend_credential_operation:total_6h >= 5 and errors:backend_credential_operation:error_rate_6h > 0.3 and errors:backend_credential_operation:error_rate_30m > 0.3'
         for: 'PT30M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -210,7 +210,7 @@ resource arohcpAccessClusterSloWindowedErrorAlerts 'Microsoft.AlertsManagement/p
           correlationId: 'userJourneyAccessClusterErrors3d/{{ $labels.cluster }}'
           description: 'More than 5% of completed credential operations on {{ $labels.cluster }} failed over the last 3 days (at least 10 completions and 2 failures), a 1x burn that exhausts the 95% SLO error budget over the window.'
           info: 'More than 5% of completed credential operations on {{ $labels.cluster }} failed over the last 3 days (at least 10 completions and 2 failures), a 1x burn that exhausts the 95% SLO error budget over the window.'
-          runbook_url: 'aka.ms/arohcp-runbook-access-cluster'
+          runbook_url: 'https://aka.ms/arohcp-runbook-access-cluster'
           summary: '{{ $labels.cluster }}: Credential operation error budget burning (>5% over 3d)'
           title: '{{ $labels.cluster }}: Credential operation error budget burning (>5% over 3d)'
         }
@@ -234,17 +234,18 @@ resource arohcpAccessClusterSloWindowedErrorAlerts 'Microsoft.AlertsManagement/p
           component: 'slo'
           long_window: '6h'
           severity: '4'
+          short_window: '30m'
           slo: 'access-cluster-errors'
         }
         annotations: {
           correlationId: 'userJourneyAccessClusterErrorsDegradation/{{ $labels.cluster }}'
           description: 'More than 15% of completed credential operations on {{ $labels.cluster }} failed over the last 6 hours (at least 5 completions), an early warning of degradation before the burn-rate alerts fire.'
           info: 'More than 15% of completed credential operations on {{ $labels.cluster }} failed over the last 6 hours (at least 5 completions), an early warning of degradation before the burn-rate alerts fire.'
-          runbook_url: 'aka.ms/arohcp-runbook-access-cluster'
+          runbook_url: 'https://aka.ms/arohcp-runbook-access-cluster'
           summary: '{{ $labels.cluster }}: Credential operation failure rate exceeds 15% over 6h'
           title: '{{ $labels.cluster }}: Credential operation failure rate exceeds 15% over 6h'
         }
-        expression: 'errors:backend_credential_operation:total_6h >= 5 and errors:backend_credential_operation:failed_6h >= 2 and errors:backend_credential_operation:error_rate_6h > 0.15'
+        expression: 'errors:backend_credential_operation:total_6h >= 5 and errors:backend_credential_operation:failed_6h >= 2 and errors:backend_credential_operation:error_rate_6h > 0.15 and errors:backend_credential_operation:error_rate_30m > 0.15'
         for: 'PT30M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
@@ -329,7 +330,7 @@ resource arohcpClusterProvisionSloWindowedErrorAlerts 'Microsoft.AlertsManagemen
           summary: '{{ $labels.cluster }}: Cluster create operations failing fast (>72% of recent operations)'
           title: '{{ $labels.cluster }}: Cluster create operations failing fast (>72% of recent operations)'
         }
-        expression: 'errors:backend_cluster_provision:failed_1h >= 3 and errors:backend_cluster_provision:error_rate_1h > 0.72'
+        expression: 'errors:backend_cluster_provision:failed_1h >= 3 and errors:backend_cluster_provision:error_rate_1h > 0.72 and errors:backend_cluster_provision:error_rate_5m > 0.72'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }
@@ -360,7 +361,7 @@ resource arohcpClusterProvisionSloWindowedErrorAlerts 'Microsoft.AlertsManagemen
           summary: '{{ $labels.cluster }}: Cluster create operation error rate elevated (>30% over 6h)'
           title: '{{ $labels.cluster }}: Cluster create operation error rate elevated (>30% over 6h)'
         }
-        expression: 'errors:backend_cluster_provision:total_6h >= 5 and errors:backend_cluster_provision:error_rate_6h > 0.3'
+        expression: 'errors:backend_cluster_provision:total_6h >= 5 and errors:backend_cluster_provision:error_rate_6h > 0.3 and errors:backend_cluster_provision:error_rate_30m > 0.3'
         for: 'PT30M'
         severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }
@@ -410,6 +411,7 @@ resource arohcpClusterProvisionSloWindowedErrorAlerts 'Microsoft.AlertsManagemen
           component: 'slo'
           long_window: '6h'
           severity: '4'
+          short_window: '30m'
           slo: 'cluster-provision-errors'
         }
         annotations: {
@@ -420,7 +422,7 @@ resource arohcpClusterProvisionSloWindowedErrorAlerts 'Microsoft.AlertsManagemen
           summary: '{{ $labels.cluster }}: Cluster create operation failure rate exceeds 15% over 6h'
           title: '{{ $labels.cluster }}: Cluster create operation failure rate exceeds 15% over 6h'
         }
-        expression: 'errors:backend_cluster_provision:total_6h >= 5 and errors:backend_cluster_provision:failed_6h >= 2 and errors:backend_cluster_provision:error_rate_6h > 0.15'
+        expression: 'errors:backend_cluster_provision:total_6h >= 5 and errors:backend_cluster_provision:failed_6h >= 2 and errors:backend_cluster_provision:error_rate_6h > 0.15 and errors:backend_cluster_provision:error_rate_30m > 0.15'
         for: 'PT30M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
@@ -625,7 +627,7 @@ resource arohcpNodepoolSloWindowedErrorAlerts 'Microsoft.AlertsManagement/promet
           summary: '{{ $labels.cluster }}: Node Pool operations failing fast (>72% of recent operations)'
           title: '{{ $labels.cluster }}: Node Pool operations failing fast (>72% of recent operations)'
         }
-        expression: 'errors:backend_nodepool_operation:failed_1h >= 3 and errors:backend_nodepool_operation:error_rate_1h > 0.72'
+        expression: 'errors:backend_nodepool_operation:failed_1h >= 3 and errors:backend_nodepool_operation:error_rate_1h > 0.72 and errors:backend_nodepool_operation:error_rate_5m > 0.72'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
@@ -656,7 +658,7 @@ resource arohcpNodepoolSloWindowedErrorAlerts 'Microsoft.AlertsManagement/promet
           summary: '{{ $labels.cluster }}: Node Pool operation error rate elevated (>30% over 6h)'
           title: '{{ $labels.cluster }}: Node Pool operation error rate elevated (>30% over 6h)'
         }
-        expression: 'errors:backend_nodepool_operation:total_6h >= 5 and errors:backend_nodepool_operation:error_rate_6h > 0.3'
+        expression: 'errors:backend_nodepool_operation:total_6h >= 5 and errors:backend_nodepool_operation:error_rate_6h > 0.3 and errors:backend_nodepool_operation:error_rate_30m > 0.3'
         for: 'PT30M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
@@ -706,6 +708,7 @@ resource arohcpNodepoolSloWindowedErrorAlerts 'Microsoft.AlertsManagement/promet
           component: 'slo'
           long_window: '6h'
           severity: '4'
+          short_window: '30m'
           slo: 'nodepool-errors'
         }
         annotations: {
@@ -716,7 +719,7 @@ resource arohcpNodepoolSloWindowedErrorAlerts 'Microsoft.AlertsManagement/promet
           summary: '{{ $labels.cluster }}: Node Pool operation failure rate exceeds 15% over 6h'
           title: '{{ $labels.cluster }}: Node Pool operation failure rate exceeds 15% over 6h'
         }
-        expression: 'errors:backend_nodepool_operation:total_6h >= 5 and errors:backend_nodepool_operation:failed_6h >= 2 and errors:backend_nodepool_operation:error_rate_6h > 0.15'
+        expression: 'errors:backend_nodepool_operation:total_6h >= 5 and errors:backend_nodepool_operation:failed_6h >= 2 and errors:backend_nodepool_operation:error_rate_6h > 0.15 and errors:backend_nodepool_operation:error_rate_30m > 0.15'
         for: 'PT30M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
