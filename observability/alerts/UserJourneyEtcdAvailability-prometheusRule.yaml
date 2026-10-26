@@ -45,9 +45,9 @@ spec:
     - alert: userJourneyEtcdBackendCommitDurationHigh1h5m
       expr: |
         (
-          histogram_quantile(0.99, sum by (namespace, cluster, pod, le) (rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~"ocm-.*"}[5m]))) > 0.100
+          histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate5m) > 0.100
           and
-          histogram_quantile(0.99, sum by (namespace, cluster, pod, le) (rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~"ocm-.*"}[1h]))) > 0.100
+          histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate1h) > 0.100
         )
         * on (namespace, cluster) group_left (resource_id)
         label_replace(
@@ -75,9 +75,9 @@ spec:
     - alert: userJourneyEtcdBackendCommitDurationHigh6h30m
       expr: |
         (
-          histogram_quantile(0.99, sum by (namespace, cluster, pod, le) (rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~"ocm-.*"}[30m]))) > 0.100
+          histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate30m) > 0.100
           and
-          histogram_quantile(0.99, sum by (namespace, cluster, pod, le) (rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~"ocm-.*"}[6h]))) > 0.100
+          histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate6h) > 0.100
         )
         * on (namespace, cluster) group_left (resource_id)
         label_replace(
@@ -105,9 +105,9 @@ spec:
     - alert: userJourneyEtcdBackendCommitDurationHigh3d6h
       expr: |
         (
-          histogram_quantile(0.99, sum by (namespace, cluster, pod, le) (rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~"ocm-.*"}[6h]))) > 0.100
+          histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate6h) > 0.100
           and
-          histogram_quantile(0.99, sum by (namespace, cluster, pod, le) (rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~"ocm-.*"}[3d]))) > 0.100
+          histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate3d) > 0.100
         )
         * on (namespace, cluster) group_left (resource_id)
         label_replace(
@@ -254,9 +254,9 @@ spec:
     - alert: userJourneyEtcdPeerRoundTripTimeHigh1h5m
       expr: |
         (
-          histogram_quantile(0.99, sum by (namespace, cluster, le) (rate(etcd_network_peer_round_trip_time_seconds_bucket{namespace=~"ocm-.*"}[5m]))) > 0.1
+          histogram_quantile(0.99, namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate5m) > 0.1
           and
-          histogram_quantile(0.99, sum by (namespace, cluster, le) (rate(etcd_network_peer_round_trip_time_seconds_bucket{namespace=~"ocm-.*"}[1h]))) > 0.1
+          histogram_quantile(0.99, namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate1h) > 0.1
         )
         * on (namespace, cluster) group_left (resource_id)
         label_replace(
@@ -284,9 +284,9 @@ spec:
     - alert: userJourneyEtcdPeerRoundTripTimeHigh6h30m
       expr: |
         (
-          histogram_quantile(0.99, sum by (namespace, cluster, le) (rate(etcd_network_peer_round_trip_time_seconds_bucket{namespace=~"ocm-.*"}[30m]))) > 0.1
+          histogram_quantile(0.99, namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate30m) > 0.1
           and
-          histogram_quantile(0.99, sum by (namespace, cluster, le) (rate(etcd_network_peer_round_trip_time_seconds_bucket{namespace=~"ocm-.*"}[6h]))) > 0.1
+          histogram_quantile(0.99, namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate6h) > 0.1
         )
         * on (namespace, cluster) group_left (resource_id)
         label_replace(
@@ -314,9 +314,9 @@ spec:
     - alert: userJourneyEtcdPeerRoundTripTimeHigh3d6h
       expr: |
         (
-          histogram_quantile(0.99, sum by (namespace, cluster, le) (rate(etcd_network_peer_round_trip_time_seconds_bucket{namespace=~"ocm-.*"}[6h]))) > 0.1
+          histogram_quantile(0.99, namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate6h) > 0.1
           and
-          histogram_quantile(0.99, sum by (namespace, cluster, le) (rate(etcd_network_peer_round_trip_time_seconds_bucket{namespace=~"ocm-.*"}[3d]))) > 0.1
+          histogram_quantile(0.99, namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate3d) > 0.1
         )
         * on (namespace, cluster) group_left (resource_id)
         label_replace(
@@ -347,9 +347,9 @@ spec:
     - alert: userJourneyEtcdWALFsyncDurationHigh1h5m
       expr: |
         (
-          histogram_quantile(0.99, sum by (namespace, cluster, pod, le) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~"ocm-.*"}[5m]))) > 0.05
+          histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate5m) > 0.05
           and
-          histogram_quantile(0.99, sum by (namespace, cluster, pod, le) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~"ocm-.*"}[1h]))) > 0.05
+          histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate1h) > 0.05
         )
         * on (namespace, cluster) group_left (resource_id)
         label_replace(
@@ -377,9 +377,9 @@ spec:
     - alert: userJourneyEtcdWALFsyncDurationHigh6h30m
       expr: |
         (
-          histogram_quantile(0.99, sum by (namespace, cluster, pod, le) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~"ocm-.*"}[30m]))) > 0.05
+          histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate30m) > 0.05
           and
-          histogram_quantile(0.99, sum by (namespace, cluster, pod, le) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~"ocm-.*"}[6h]))) > 0.05
+          histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate6h) > 0.05
         )
         * on (namespace, cluster) group_left (resource_id)
         label_replace(
@@ -407,9 +407,9 @@ spec:
     - alert: userJourneyEtcdWALFsyncDurationHigh3d6h
       expr: |
         (
-          histogram_quantile(0.99, sum by (namespace, cluster, pod, le) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~"ocm-.*"}[6h]))) > 0.05
+          histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate6h) > 0.05
           and
-          histogram_quantile(0.99, sum by (namespace, cluster, pod, le) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~"ocm-.*"}[3d]))) > 0.05
+          histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate3d) > 0.05
         )
         * on (namespace, cluster) group_left (resource_id)
         label_replace(

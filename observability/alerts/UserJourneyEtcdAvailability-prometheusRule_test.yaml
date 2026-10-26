@@ -1,5 +1,6 @@
 rule_files:
 - namespace-hcp-cluster-resource-id-recordingRule.yaml
+- UserJourneyEtcdAvailabilityRecord-prometheusRule.yaml
 - UserJourneyEtcdAvailability-prometheusRule.yaml
 evaluation_interval: 1m
 tests:
