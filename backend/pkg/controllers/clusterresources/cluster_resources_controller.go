@@ -22,7 +22,6 @@ import (
 	"strings"
 	"time"
 
-	semver "github.com/blang/semver/v4"
 	ocmv1 "open-cluster-management.io/api/work/v1"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -214,24 +213,24 @@ func (c *clusterResourcesController) SyncOnce(ctx context.Context, key controlle
 	}
 
 	clusterServiceID := *cluster.ServiceProviderProperties.ClusterServiceID
-	if err := c.fetchAndProcessClusterResources(ctx, key, managementCluster, clusterServiceID, spc.Spec.ControlPlaneVersion.DesiredVersion); err != nil {
+	if err := c.fetchAndProcessClusterResources(ctx, key, managementCluster, clusterServiceID); err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get cluster resources: %w", err))
 	}
 
 	return nil
 }
 
-// Fetches the Cluster Service resource set and processes the cluster resources.
-// A cached response is reused for resourcesCacheTTL; processing still runs.
+// fetchAndProcessClusterResources calls the Cluster Service SDK to get cluster resources information
+// and processes the resources. A cached response is reused for resourcesCacheTTL; processing still runs.
 func (c *clusterResourcesController) fetchAndProcessClusterResources(ctx context.Context,
-	key controllerutils.HCPClusterKey, managementCluster *azcorearm.ResourceID, clusterServiceID metadataapi.InternalID, version *semver.Version) error {
+	key controllerutils.HCPClusterKey, managementCluster *azcorearm.ResourceID, clusterServiceID metadataapi.InternalID) error {
 	resources, err := c.getClusterResources(ctx, clusterServiceID)
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
 	if resources != nil {
-		if err := c.processClusterResources(ctx, key, managementCluster, resources, clusterServiceID.ID(), version); err != nil {
+		if err := c.processClusterResources(ctx, key, managementCluster, resources, clusterServiceID.ID()); err != nil {
 			return utils.TrackError(fmt.Errorf("failed to process cluster resources: %w", err))
 		}
 	}
@@ -239,7 +238,7 @@ func (c *clusterResourcesController) fetchAndProcessClusterResources(ctx context
 	return nil
 }
 
-// Returns the Cluster Service resource set, reusing a
+// getClusterResources returns the Cluster Service resource set, reusing a
 // successful response until resourcesCacheTTL has elapsed. Errors are not
 // cached, so the next sync calls Cluster Service again.
 func (c *clusterResourcesController) getClusterResources(ctx context.Context, id metadataapi.InternalID) (*arohcpv1alpha1.ClusterResources, error) {
@@ -264,10 +263,9 @@ func (c *clusterResourcesController) getClusterResources(ctx context.Context, id
 	return resources, nil
 }
 
-// Converts each cluster resource to ApplyDesire documents.
+// processClusterResources converts each resource to ApplyDesire documents
 func (c *clusterResourcesController) processClusterResources(ctx context.Context, key controllerutils.HCPClusterKey,
-	managementCluster *azcorearm.ResourceID, resources *arohcpv1alpha1.ClusterResources, clusterServiceID string,
-	version *semver.Version) error {
+	managementCluster *azcorearm.ResourceID, resources *arohcpv1alpha1.ClusterResources, clusterServiceID string) error {
 
 	kubeApplierDBClient := c.kubeApplierDBClients.For(ctx, managementCluster)
 	if kubeApplierDBClient == nil {
@@ -287,16 +285,6 @@ func (c *clusterResourcesController) processClusterResources(ctx context.Context
 		return utils.TrackError(fmt.Errorf("failed to get Subscription from cache: %w", err))
 	}
 	hasExperimentalFeature := subscription != nil && subscription.HasRegisteredFeature(metadataapi.FeatureExperimentalReleaseFeatures)
-
-	existingIngressConfig, err := applyDesireCRUD.Get(ctx, strings.ToLower(DesireNameDefaultIngressConfigMap))
-	if err != nil && !cosmosstorageutils.IsNotFoundError(err) {
-		return utils.TrackError(fmt.Errorf("failed to get default ingress ConfigMap ApplyDesire: %w", err))
-	}
-	acmCertificateAlreadySelected, err := defaultIngressConfigSelectsACMCertificate(existingIngressConfig)
-	if err != nil {
-		return utils.TrackError(err)
-	}
-	acmCertificateSelected := selectACMIngressCertificate(version, acmCertificateAlreadySelected)
 	resourceMap := resources.Resources()
 	desiredResourceIDs := make(map[string]bool, len(resourceMap))
 	var errs []error
@@ -327,13 +315,9 @@ func (c *clusterResourcesController) processClusterResources(ctx context.Context
 
 		// Unset the ManagedCluster CR and ACM-path ingress bits because HyperShift
 		// manages the ingress certificate when the subscription's experimental
-		// release-features AFEC is registered, but only for versions whose HCCO
-		// consumes the service-provider ingress certificate (natively or via a
-		// CPO override) and guests never pointed at the ACM-delivered
-		// certificate. Others still need the legacy ACM wiring to deliver and
-		// renew a trusted ingress certificate (AROSLSRE-2529).
+		// release-features AFEC is registered.
 		// CS still emits them all, we do this to allow ourselves testing.
-		if hasExperimentalFeature && suppressLegacyIngressDesire(classified.desireName, version, acmCertificateSelected) {
+		if hasExperimentalFeature && legacyACMBasedIngressCertificateWiringDesireName(classified.desireName) {
 			continue
 		}
 
@@ -407,12 +391,6 @@ func (c *clusterResourcesController) processClusterResources(ctx context.Context
 				}
 				if err := ensureHostedClusterAutoscaling(&unstructuredObj); err != nil {
 					errs = append(errs, utils.TrackError(fmt.Errorf("failed to set HostedCluster autoscaling for %s: %w", resourceKey, err)))
-					continue
-				}
-			}
-			if classified.desireName == DesireNameDefaultIngressConfigMap {
-				if err := ensureDefaultIngressConfigCertificateName(&unstructuredObj, acmCertificateSelected); err != nil {
-					errs = append(errs, utils.TrackError(fmt.Errorf("failed to set default ingress certificate name for %s: %w", resourceKey, err)))
 					continue
 				}
 			}
@@ -884,7 +862,6 @@ func (c *clusterResourcesController) deleteStaleApplyDesires(
 	return nil
 }
 
-// Reports whether a desire belongs to legacy ACM ingress certificate delivery.
 func legacyACMBasedIngressCertificateWiringDesireName(desireName string) bool {
 	switch desireName {
 	case DesireNameManagedCluster, DesireNameDefaultIngressConfigMap,
