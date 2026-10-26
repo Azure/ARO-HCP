@@ -255,7 +255,6 @@ func TestOperationClusterDelete_SynchronizeOperation_DeadlineIncludesApplyDesire
 	deadline := metav1.NewTime(fixedTime.Add(-time.Minute))
 	fixture := operationtesting.NewClusterTestFixture()
 	operation := fixture.NewOperation(cosmosstorageutils.OperationRequestDelete)
-	operation.UsesNewClusterDeletionApproach = true
 	cluster := fixture.NewCluster(nil)
 	cluster.ServiceProviderProperties.DeletionTimestamp = &deadline
 	cluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &deadline
@@ -320,6 +319,7 @@ func TestOperationClusterDelete_SynchronizeOperation_DeadlineIncludesApplyDesire
 		billingDBClient:      billingcosmosstoragetesting.NewMockBillingDBClient(),
 		kubeApplierDBClients: mockKubeApplierDBClients,
 		readDesireLister:     &kubeapplierlistertesting.SliceReadDesireLister{},
+		applyDesireLister:    &kubeapplierlistertesting.SliceApplyDesireLister{},
 		clusterServiceClient: mockCSClient,
 	}
 	require.NoError(t, controller.SynchronizeOperation(ctx, fixture.OperationKey()))
@@ -449,7 +449,6 @@ func TestOperationClusterDelete_SynchronizeOperation_ApplyDesiresGate(t *testing
 			defer ctrl.Finish()
 
 			operation := fixture.NewOperation(cosmosstorageutils.OperationRequestDelete)
-			operation.UsesNewClusterDeletionApproach = true
 
 			resources := []any{operation, clusterPassingReconcileGate()}
 			if tc.spc != nil {
