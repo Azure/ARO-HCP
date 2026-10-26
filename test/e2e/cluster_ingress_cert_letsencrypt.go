@@ -524,6 +524,9 @@ var _ = Describe("Customer", func() {
 				}
 			})
 
+			By("verifying ACM's ingress certificate must not be created")
+			Expect(verifiers.VerifyACMIngressCertificateAbsent().Verify(ctx, adminRESTConfig)).To(Succeed(), "ACM must not create its ingress certificate secret")
+
 			By("pointing IngressController/default at the customer's Let's Encrypt certificate")
 			icPatch := []byte(fmt.Sprintf(`{"spec":{"defaultCertificate":{"name":%q}}}`, ingressSecretName))
 			icGVR := schema.GroupVersionResource{Group: "operator.openshift.io", Version: "v1", Resource: "ingresscontrollers"}
@@ -540,6 +543,9 @@ var _ = Describe("Customer", func() {
 
 			By("verifying the sample application serves the exact customer-specified certificate with a valid Let's Encrypt chain")
 			Expect(verifiers.VerifyCustomIngressCertificate(sampleApp.RouteHost, appsWildcard, customerCertificate, roots, 10*time.Minute).Verify(ctx, adminRESTConfig)).To(Succeed(), "sample application must serve the exact customer-specified certificate with a valid Let's Encrypt chain")
+
+			By("verifying ACM's ingress certificate must remain absent after the customer's override")
+			Expect(verifiers.VerifyACMIngressCertificateAbsent().Verify(ctx, adminRESTConfig)).To(Succeed(), "ACM's ingress certificate must remain absent after the customer's override")
 		},
 		// TODO move to complete_cluster_create_multiversion.go test in a follow up PR
 		Entry("for cluster version 4.20", "4.20"),
