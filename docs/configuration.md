@@ -194,6 +194,10 @@ identity. The `swift-vnet-permissions` step grants the selected identity Network
 Contributor and Tag Contributor on the management resource group and exports its
 resource ID to both the `swift-vnet` Shell launcher and its nested VNet container.
 Other deployment steps retain their existing identities.
+When the override is non-empty, this step also grants Azure Container Instances
+Contributor Role to the selected identity on the management resource group for
+nested-container creation, inspection, logs and cleanup. Empty overrides do not
+add this grant.
 
 Environment-specific identity selections belong in the private
 `sdp-pipelines/hcp/config.msft.sensitive.clouds-overlay.yaml` overlay.
@@ -203,12 +207,13 @@ run with that identity's existing privileges, including any PROD access. Limit
 that selection to the required deployment environment and region.
 
 Before deployment, verify that EV2 can attach the selected identity to the Shell
-launcher, and that the selected identity can create, read, log and delete container
-groups in the management resource group and assign itself to the nested container
-(`Microsoft.ManagedIdentity/userAssignedIdentities/assign/action`). The ARM
-deployment must also be able to read the identity and create the management
-resource-group role assignments. The VNet RBAC step does not grant these launcher
-or identity-assignment permissions.
+launcher and that the selected identity can assign itself to the nested container
+(`Microsoft.ManagedIdentity/userAssignedIdentities/assign/action`). These
+identity-assignment permissions are not granted by `swift-vnet-permissions`.
+The ARM deployment must be authorized to read the identity and assign the Network,
+Tag and, for a non-empty override, Container Instances Contributor roles on the
+management resource group. The default global launcher retains its existing
+container-management permissions.
 
 SWIFTv2 uses the onboarded writer identity to stamp `CreatorServiceName` on the
 management VNet. DNC validates that value against the customer subnet's SAL
