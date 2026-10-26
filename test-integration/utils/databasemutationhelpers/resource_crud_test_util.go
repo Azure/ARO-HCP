@@ -38,8 +38,9 @@ import (
 )
 
 type ResourceMutationTest struct {
-	testDir  fs.FS
-	withMock bool
+	APIVersion string
+	testDir    fs.FS
+	withMock   bool
 
 	steps []IntegrationTestStep
 }
@@ -177,6 +178,7 @@ func (tt *ResourceMutationTest) RunTest(t *testing.T) {
 	require.NoError(t, err)
 
 	stepInput := NewCosmosStepInput(testInfo)
+	stepInput.APIVersion = tt.APIVersion
 	stepInput.FrontendURL = testInfo.FrontendURL
 	stepInput.AdminURL = testInfo.AdminURL
 	stepInput.ClusterServiceMockInfo = testInfo.ClusterServiceMock
@@ -499,6 +501,10 @@ type ResourceKey struct {
 	// If empty, falls back to StepInput.APIVersion, then DefaultTestAPIVersion.
 	// Only used by HTTP step types; non-HTTP steps (e.g., completeOperation) ignore this field.
 	APIVersion string `json:"apiVersion,omitempty"`
+
+	// Optional assertions on the final httpGet response, including error responses.
+	ExpectedStatusCode int               `json:"expectedStatusCode,omitempty"`
+	ExpectedHeaders    map[string]string `json:"expectedHeaders,omitempty"`
 }
 
 func (s StepInput) HTTPTestAccessor(key ResourceKey) HTTPTestAccessor {

@@ -1,5 +1,12 @@
 Load all of CLAUDE.md for context
 
+## API Field Documentation
+
+Every API struct field must have GoDoc explaining its meaning and when and why
+it is populated. Include readiness, compatibility, or retirement semantics where
+relevant. For persisted fields, keep the `Written by:` trailer after that
+description; the writer annotation alone is not sufficient documentation.
+
 ## Image Bumps
 
 For all image bump related tasks, see [tooling/image-updater/AGENTS.md](tooling/image-updater/AGENTS.md).
