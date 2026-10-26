@@ -242,6 +242,8 @@ var _ = Describe("ARO-HCP", func() {
 			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig,
 				verifiers.VerifyIngressDNSRecord(cred, subscriptionID, managedResourceGroupName, delegatedDNSZone, framework.IngressDNSVerifyTimeout),
 				verifiers.VerifyCloudNetworkConfigEgressIP(computeClientFactory, networkClientFactory, sampleNode.Name, egressIP, framework.CloudNetworkConfigVerifyTimeout),
+				verifiers.VerifyAzureDiskCSIVolume(framework.CSIVolumeVerifyTimeout),
+				verifiers.VerifyAzureFileCSIVolume(framework.CSIVolumeVerifyTimeout),
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to verify cluster operators on cluster %q", clusterName)
 		},
