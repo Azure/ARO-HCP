@@ -7939,7 +7939,7 @@
   occurrence: 1
   input: |
     (
-      (etcd_mvcc_db_total_size_in_use_in_bytes / etcd_mvcc_db_total_size_in_bytes) < 0.25
+      max by (namespace, cluster, pod) (etcd_mvcc_db_total_size_in_use_in_bytes) / max by (namespace, cluster, pod) (etcd_mvcc_db_total_size_in_bytes) < 0.25
     )
     * on (namespace, cluster) group_left (resource_id)
     label_replace(
@@ -7952,12 +7952,12 @@
       "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)"
     )
   plan:
-    expression: ((etcd_mvcc_db_total_size_in_use_in_bytes / etcd_mvcc_db_total_size_in_bytes) < 0.25) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
+    expression: (max by (namespace, cluster, pod) (etcd_mvcc_db_total_size_in_use_in_bytes) / max by (namespace, cluster, pod) (etcd_mvcc_db_total_size_in_bytes) < 0.25) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
     conditions:
-      - expression: ((etcd_mvcc_db_total_size_in_use_in_bytes / etcd_mvcc_db_total_size_in_bytes) < 0.25) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
+      - expression: (max by (namespace, cluster, pod) (etcd_mvcc_db_total_size_in_use_in_bytes) / max by (namespace, cluster, pod) (etcd_mvcc_db_total_size_in_bytes) < 0.25) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
         path: root
         queries:
-          - expression: ((etcd_mvcc_db_total_size_in_use_in_bytes / etcd_mvcc_db_total_size_in_bytes) < 0.25) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
+          - expression: (max by (namespace, cluster, pod) (etcd_mvcc_db_total_size_in_use_in_bytes) / max by (namespace, cluster, pod) (etcd_mvcc_db_total_size_in_bytes) < 0.25) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
             role: signal
         thresholds: []
         unsupported: ""
