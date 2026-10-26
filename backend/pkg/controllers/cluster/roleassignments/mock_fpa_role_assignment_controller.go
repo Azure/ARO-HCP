@@ -41,8 +41,13 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-const MockFPARoleAssignmentControllerName = "MockFPARoleAssignment"
-const mockFPAOwnerRoleDefinitionID = "/providers/Microsoft.Authorization/roleDefinitions/8e3af657-a8ff-443c-a75c-2fe8c4bcb635"
+const (
+	MockFPARoleAssignmentControllerName = "MockFPARoleAssignment"
+	// ownerRoleDefinitionID identifies Azure's built-in Owner role, used here to give
+	// the mock FPA Owner permissions on a cluster's managed resource group.
+	// https://learn.microsoft.com/en-us/azure/role-based-access-control/built-in-roles/privileged#owner
+	ownerRoleDefinitionID = "/providers/Microsoft.Authorization/roleDefinitions/8e3af657-a8ff-443c-a75c-2fe8c4bcb635"
+)
 
 type resourceGroupsClientBuilder interface {
 	ResourceGroupsClient(tenantID, subscriptionID string) (azureclient.ResourceGroupsClient, error)
@@ -94,7 +99,7 @@ func mockFPARoleAssignmentID(cluster *coreapi.Cluster, principalID string) (*azc
 	if scope.ResourceType.String() != azcorearm.ResourceGroupResourceType.String() || scope.ResourceGroupName != managedResourceGroupName || scope.String() != scopeString {
 		return nil, fmt.Errorf("invalid managed resource group scope %q", scopeString)
 	}
-	return azcorearm.ParseResourceID(roleassignment.ManagedResourceGroupScopedRoleAssignmentResourceID(scopeString, principalID, mockFPAOwnerRoleDefinitionID))
+	return azcorearm.ParseResourceID(roleassignment.ManagedResourceGroupScopedRoleAssignmentResourceID(scopeString, principalID, ownerRoleDefinitionID))
 }
 
 func (c *mockFPARoleAssignmentSyncer) needsWork(serviceProviderCluster *coreapi.ServiceProviderCluster) bool {
@@ -173,7 +178,7 @@ func (c *mockFPARoleAssignmentSyncer) SyncOnce(ctx context.Context, key controll
 		_, err = client.Create(ctx, scope, expectedID.Name, armauthorization.RoleAssignmentCreateParameters{
 			Properties: &armauthorization.RoleAssignmentProperties{
 				PrincipalID:      ptr.To(c.principalID),
-				RoleDefinitionID: ptr.To(mockFPAOwnerRoleDefinitionID),
+				RoleDefinitionID: ptr.To(ownerRoleDefinitionID),
 				PrincipalType:    ptr.To(armauthorization.PrincipalTypeServicePrincipal),
 			},
 		}, nil)
