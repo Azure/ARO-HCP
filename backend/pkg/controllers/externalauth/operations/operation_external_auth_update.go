@@ -199,5 +199,14 @@ func (c *operationExternalAuthUpdate) determineOperationState(ctx context.Contex
 	}
 
 	logger.Info("determined external auth update operation status", "operationStates", operationStates)
-	return operationbase.SummarizeOperationStates(operationStates, errs...)
+	state, err := operationbase.SummarizeOperationStates(operationStates, errs...)
+	var logValues []any
+	if state != nil {
+		logValues = append(logValues, "provisioningState", state.ProvisioningState, "message", state.Message)
+	}
+	if err != nil {
+		logValues = append(logValues, "error", err)
+	}
+	logger.Info("summarized operation state", logValues...)
+	return state, err
 }

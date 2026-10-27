@@ -235,7 +235,16 @@ func (c *operationClusterCreate) determineOperationState(ctx context.Context, op
 	}
 
 	logger.Info("determined cluster create operation status", "operationStates", operationStates)
-	return operationbase.SummarizeOperationStates(operationStates, errs...)
+	state, err := operationbase.SummarizeOperationStates(operationStates, errs...)
+	var logValues []any
+	if state != nil {
+		logValues = append(logValues, "provisioningState", state.ProvisioningState, "message", state.Message)
+	}
+	if err != nil {
+		logValues = append(logValues, "error", err)
+	}
+	logger.Info("summarized operation state", logValues...)
+	return state, err
 }
 
 func (c *operationClusterCreate) clusterServiceCreateOperationState(ctx context.Context, operation *coreapi.Operation, cluster *coreapi.Cluster) (*operationbase.OperationState, error) {
