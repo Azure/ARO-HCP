@@ -177,7 +177,10 @@ func (c *operationExternalAuthUpdate) determineOperationState(ctx context.Contex
 	logger := utils.LoggerFromContext(ctx)
 
 	externalAuthCSID := existingExternalAuth.ServiceProviderProperties.ClusterServiceID
-	csExternalAuth, err := c.clusterServiceClient.GetExternalAuth(ctx, *externalAuthCSID)
+	csCtx, cancel := context.WithTimeout(ctx, controllerutils.CSReadTimeout)
+	defer cancel()
+
+	csExternalAuth, err := c.clusterServiceClient.GetExternalAuth(csCtx, *externalAuthCSID)
 	if err != nil {
 		return nil, utils.TrackError(fmt.Errorf("failed to get external auth from cluster service: %w", err))
 	}

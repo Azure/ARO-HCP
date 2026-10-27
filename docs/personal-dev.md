@@ -30,7 +30,7 @@ az account set --subscription 1d3378d3-5a3f-4712-85a1-2485495dfc4b
 
 The following additional tools are also required:
 
-- `make`
+- GNU Make 4.x or newer - macOS's bundled GNU Make 3.81 fails with "multiple target patterns" at `test/Makefile:77`. Install with `brew install make` and use `gmake`, or put `$(brew --prefix make)/libexec/gnubin` first on `PATH`.
 - `kubectl` at the latest version - use `az aks install-cli` to add this to your system
 
 All other tools should be transparently installed by the `make` targets that require them - if you find any missing dependencies, please send a pull request to make sure that the next person to onboard doesn't hit any issues!
@@ -44,7 +44,7 @@ All other tools should be transparently installed by the `make` targets that req
 > [!CAUTION] Cleanup-sensitive naming patterns
 > The following resource group naming patterns trigger special cleanup rules. Avoid them for custom `DEPLOY_ENV` values or ad-hoc resource groups. See [`resourcegroups.policy.yaml`](../tooling/cleanup-sweeper/resourcegroups.policy.yaml) for details.
 >
-> **Prefixes:** `hcp-underlay-pers-`, `hcp-underlay-prow-`, `hcp-underlay-ci`, `hcp-underlay-cspr-`, `hcp-underlay-dev-`, `hcp-underlay-perf-`, `hcp-underlay-int-`, `hcp-underlay-stg-`, `hcp-underlay-prod-`
+> **Prefixes:** `hcp-underlay-pers-`, `hcp-underlay-prow-`, `hcp-underlay-ci`, `hcp-underlay-dev-`, `hcp-underlay-perf-`, `hcp-underlay-int-`, `hcp-underlay-stg-`, `hcp-underlay-prod-`
 >
 > **Suffixes:** `-shared-resources`
 

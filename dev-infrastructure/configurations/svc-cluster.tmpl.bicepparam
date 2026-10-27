@@ -43,10 +43,7 @@ param infraZoneRedundantMode = '{{ .svc.aks.infraAgentPool.zoneRedundantMode }}'
 param infraOsDiskSizeGB = {{ .svc.aks.infraAgentPool.osDiskSizeGB }}
 param userOsDiskSizeGB = {{ .svc.aks.userAgentPool.osDiskSizeGB }}
 param aksClusterOutboundIPAddressIPTags = '{{ .svc.aks.clusterOutboundIPAddressIPTags }}'
-// istioVersions intentionally not passed — mesh revisions are managed by the
-// IstioUpgrade pipeline step, not baked into the ARM template. Passing them
-// here would cause every ARM deployment to overwrite revisions the pipeline
-// step had already advanced, potentially rolling back an in-progress upgrade.
+param istioVersions = '{{ .svc.istio.versions }}'
 param aksNetworkDataplane = '{{ .svc.aks.networkDataplane }}'
 param aksNetworkPolicy = '{{ .svc.aks.networkPolicy }}'
 param aksUpgradeSettingsMaxSurge = '{{ .svc.aks.upgradeSettings.maxSurge }}'

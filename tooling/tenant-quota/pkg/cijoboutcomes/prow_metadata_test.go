@@ -187,7 +187,11 @@ func TestFetchProwRunStartTime(t *testing.T) {
 				metadata = `{"metadata":{"annotations":{"ev2.rollout/build":"00123"}},` + strings.TrimPrefix(metadata, "{")
 				metadata = strings.ReplaceAll(metadata, ",}", "}")
 			}
-			objects := map[string]string{artifactTestPrefix + "/prowjob.json": metadata}
+			objects := map[string]string{
+				artifactTestPrefix + "/prowjob.json":     metadata,
+				artifactTestPrefix + "/artifacts/":       `{"prefixes":["` + artifactTestRoot + `"]}`,
+				artifactTestRoot + slotStateArtifactPath: validSlotState,
+			}
 			if tc.started != "" {
 				objects[artifactTestPrefix+"/started.json"] = tc.started
 			}

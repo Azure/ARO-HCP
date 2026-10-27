@@ -51,7 +51,6 @@ func (k ControlPlaneVersionRolloutKey) AddLoggerValues(logger logr.Logger) logr.
 // ControlPlaneVersionRollout watching controller.
 type ControlPlaneVersionRolloutSyncer interface {
 	SyncOnce(ctx context.Context, key ControlPlaneVersionRolloutKey) error
-	CooldownChecker() controllerutil.CooldownChecker
 }
 
 type controlPlaneVersionRolloutWatchingController struct {
@@ -95,7 +94,12 @@ func (c *controlPlaneVersionRolloutWatchingController) SyncOnce(ctx context.Cont
 }
 
 func (c *controlPlaneVersionRolloutWatchingController) CooldownChecker() controllerutil.CooldownChecker {
-	return c.syncer.CooldownChecker()
+	if syncer, ok := c.syncer.(interface {
+		CooldownChecker() controllerutil.CooldownChecker
+	}); ok {
+		return syncer.CooldownChecker()
+	}
+	return nil
 }
 
 func (c *controlPlaneVersionRolloutWatchingController) MakeKey(resourceID *azcorearm.ResourceID) ControlPlaneVersionRolloutKey {

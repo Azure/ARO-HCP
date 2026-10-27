@@ -371,32 +371,6 @@ var allQueries = []querySpec{
 		},
 	},
 	{
-		component:    "clustersService",
-		queryName:    "maestroBundleAssociations",
-		templatePath: "queries/clustersService/maestroBundleAssociations/query.kql",
-		database:     "service",
-		category:     categoryResourceDiscovery,
-		ready: func(d queryData) bool {
-			return d.ClusterID != ""
-		},
-		prerequisites: "ClusterID",
-		// Maestro readonly bundles are being phased out in favor of ReadDesires,
-		// so empty results are acceptable. Query stays informational for older snapshots.
-	},
-	{
-		component:    "backend",
-		queryName:    "maestroBundleAssociations",
-		templatePath: "queries/backend/maestroBundleAssociations/query.kql",
-		database:     "service",
-		category:     categoryResourceDiscovery,
-		ready: func(d queryData) bool {
-			return d.SubscriptionID != "" && d.ResourceGroup != "" && d.ClusterResourceID != "" && d.ServiceProviderResourceType != ""
-		},
-		prerequisites: "SubscriptionID, ResourceGroup, ClusterResourceID, ServiceProviderResourceType",
-		// Maestro readonly bundles are being phased out in favor of ReadDesires,
-		// so empty results are acceptable. Query stays informational for older snapshots.
-	},
-	{
 		component:    "hypershift",
 		queryName:    "hostedClusterMetadata",
 		templatePath: "queries/hypershift/hostedClusterMetadata/query.kql",
@@ -597,54 +571,6 @@ var allQueries = []querySpec{
 		prerequisites: "ResourceID, ResourceType is cluster",
 		requiredWhen:  isClusterType,
 	},
-	{
-		component:    "maestro",
-		queryName:    "serverLogs",
-		templatePath: "queries/maestro/serverLogs/query.kql",
-		database:     "service",
-		category:     categoryLogs,
-		ready: func(d queryData) bool {
-			return d.ClusterID != "" || (d.SubscriptionID != "" && d.ResourceGroup != "" && d.ClusterResourceID != "" && d.ServiceProviderResourceType != "")
-		},
-		prerequisites: "ClusterID, or SubscriptionID + ResourceGroup + ClusterResourceID + ServiceProviderResourceType",
-		requiredWhen:  isClusterOrNodePool,
-	},
-	{
-		component:    "maestro",
-		queryName:    "agentLogs",
-		templatePath: "queries/maestro/agentLogs/query.kql",
-		database:     "service",
-		category:     categoryLogs,
-		ready: func(d queryData) bool {
-			return d.ClusterID != "" || (d.SubscriptionID != "" && d.ResourceGroup != "" && d.ClusterResourceID != "" && d.ServiceProviderResourceType != "")
-		},
-		prerequisites: "ClusterID, or SubscriptionID + ResourceGroup + ClusterResourceID + ServiceProviderResourceType",
-		requiredWhen:  isClusterOrNodePool,
-	},
-	{
-		component:    "maestro",
-		queryName:    "mgmtAuditLogs",
-		templatePath: "queries/maestro/mgmtAuditLogs/query.kql",
-		database:     "service",
-		category:     categoryLogs,
-		ready: func(d queryData) bool {
-			return d.ClusterID != "" || (d.SubscriptionID != "" && d.ResourceGroup != "" && d.ClusterResourceID != "" && d.ServiceProviderResourceType != "")
-		},
-		prerequisites: "ClusterID, or SubscriptionID + ResourceGroup + ClusterResourceID + ServiceProviderResourceType",
-	},
-	{
-		component:    "maestro",
-		queryName:    "transitions",
-		templatePath: "queries/maestro/transitions/query.kql",
-		database:     "service",
-		category:     categoryState,
-		ready: func(d queryData) bool {
-			return d.ClusterID != "" || (d.SubscriptionID != "" && d.ResourceGroup != "" && d.ClusterResourceID != "" && d.ServiceProviderResourceType != "")
-		},
-		prerequisites: "ClusterID, or SubscriptionID + ResourceGroup + ClusterResourceID + ServiceProviderResourceType",
-		requiredWhen:  isClusterOrNodePool,
-	},
-
 	// --- kube-applier: desire reconciliation logs ---
 	{
 		component:    "kubeApplier",
@@ -671,7 +597,8 @@ var allQueries = []querySpec{
 			return d.ClusterID != "" && strings.EqualFold(d.ResourceType, "microsoft.redhatopenshift/hcpopenshiftclusters")
 		},
 		prerequisites: "ClusterID, ResourceType is cluster",
-		requiredWhen:  isClusterType,
+		// The ManagedCluster CR is being phased out, so empty results are acceptable.
+		// Query stays informational for clusters that still have one.
 	},
 	{
 		component:    "acm",
@@ -719,13 +646,6 @@ var allQueries = []querySpec{
 		category:     categoryEvents,
 	},
 	{
-		component:    "maestro",
-		queryName:    "events",
-		templatePath: "queries/maestro/events/query.kql",
-		database:     "service",
-		category:     categoryEvents,
-	},
-	{
 		component:    "hypershift",
 		queryName:    "events",
 		templatePath: "queries/hypershift/events/query.kql",
@@ -749,6 +669,17 @@ var allQueries = []querySpec{
 	},
 	{
 		component:    "hypershift",
+		queryName:    "ignitionServerEvents",
+		templatePath: "queries/hypershift/ignitionServerEvents/query.kql",
+		database:     "service",
+		category:     categoryResourceEvents,
+		ready: func(d queryData) bool {
+			return d.HostedClusterNamespace != "" && isClusterOrNodePool(d)
+		},
+		prerequisites: "HostedClusterNamespace, ResourceType is cluster or nodepool",
+	},
+	{
+		component:    "hypershift",
 		queryName:    "pkiOperatorEvents",
 		templatePath: "queries/hypershift/pkiOperatorEvents/query.kql",
 		database:     "service",
@@ -766,6 +697,17 @@ var allQueries = []querySpec{
 		category:     categoryLogs,
 		ready: func(d queryData) bool {
 			return d.HostedClusterNamespace != "" && (strings.EqualFold(d.ResourceType, "microsoft.redhatopenshift/hcpopenshiftclusters") || strings.EqualFold(d.ResourceType, "microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"))
+		},
+		prerequisites: "HostedClusterNamespace, ResourceType is cluster or nodepool",
+	},
+	{
+		component:    "hypershift",
+		queryName:    "ignitionServerLogs",
+		templatePath: "queries/hypershift/ignitionServerLogs/query.kql",
+		database:     "hcp",
+		category:     categoryLogs,
+		ready: func(d queryData) bool {
+			return d.HostedClusterNamespace != "" && isClusterOrNodePool(d)
 		},
 		prerequisites: "HostedClusterNamespace, ResourceType is cluster or nodepool",
 	},
@@ -886,7 +828,6 @@ func renderQuery(templatePath string, data queryData) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to parse query template %s: %w", templatePath, err)
 	}
-	// Parse shared partial templates so queries can use {{ template "bundleMap" . }} etc.
 	partials, err := fs.Glob(queriesFS, "queries/partials/*.kql")
 	if err != nil {
 		return "", fmt.Errorf("failed to glob partial templates: %w", err)

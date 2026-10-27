@@ -60,8 +60,7 @@
 			"provisioningState": "Accepted"
 		},
 		"serviceProviderProperties": {
-			"activeOperationId": "60df392c-42ba-4384-95b4-5e4601df2f3e",
-			"usesNewExternalAuthDeletionApproach": false
+			"activeOperationId": "60df392c-42ba-4384-95b4-5e4601df2f3e"
 		},
 		"status": {},
 		"systemData": {

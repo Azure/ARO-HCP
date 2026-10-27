@@ -1,0 +1,27 @@
+digraph nodepool_delete {
+  graph [rankdir=TB, bgcolor="white", pad="0.3", nodesep="0.4", ranksep="0.55", fontname="DejaVu Sans", fontsize=18, labelloc=t, label="Node pool delete · controller flow", dpi=110];
+  node [shape=box, style="rounded,filled", fillcolor="#e6f0fa", color="#35648a", fontname="DejaVu Sans", fontsize=12, margin="0.16,0.10"];
+  edge [color="#536577", fontname="DejaVu Sans", fontsize=10, arrowsize=0.7];
+  api [label="Frontend DELETE node pool\nbest-effort last-pool check: cached siblings\nthen deletion timestamp + Delete Operation", fillcolor="#eee7fb", color="#7b59a4"];
+  dispatch [label="NodePoolClusterServiceDelete\nDispatch", fillcolor="#e6f0fa", color="#35648a"];
+  cs [label="Cluster Service / external \ncleanup", fillcolor="#fff0da", color="#b27624"];
+  clear [label="NodePoolDeletionClusterServiceID\nClearer", fillcolor="#e6f0fa", color="#35648a"];
+  resources [label="ClusterResources", fillcolor="#e6f0fa", color="#35648a"];
+  cleanup [label="NodePoolChildResourcesCleanupController\nboth timestamps + nil CS ID\nretain controller-owned ApplyDesires /\nClusterResources-owned ReadDesires\nprovider gate: no bundles / scoped desires*\n*missing placement or client skips desire gate", fillcolor="#e6f0fa", color="#35648a"];
+  final [label="NodePoolDeletionController\nno ApplyDesires* / bundles / non-controller children\n*missing parent placement bypasses desire checks;\nknown placement without client waits here", fillcolor="#e6f0fa", color="#35648a"];
+  op [label="OperationNodePoolDelete\nno local delete deadline", fillcolor="#e6f0fa", color="#35648a"];
+  done [label="ARM Delete Operation Succeeded", fillcolor="#e4f2e5", color="#4c8053"];
+  failed [label="ARM Delete Operation Failed\nInternalServerError + CS message", fillcolor="#fbe4e4", color="#9b4d4d"];
+  api -> dispatch [label="deletion requested"];
+  api -> resources [label="skip deleting node pool; reap\nintents"];
+  dispatch -> cs [label="DELETE; stamp dispatch timestamp\n404: wait through 120s first-observed grace\nparent already uninstalling also accepted"];
+  dispatch -> cleanup [label="nil ID: stamp after 120s first-observed grace\n(empty nonnil ID does not pass cleanup)"];
+  cs -> clear [label="GET not found"];
+  clear -> cleanup [label="ClusterServiceID cleared"];
+  cleanup -> final [label="remove eligible descendants;\nController documents excluded"];
+  cs -> op [label="both timestamps + CS ID: status\n404 / Ready wait for document removal"];
+  op -> failed [label="CS Error / RecoverableError"];
+  final -> op [label="node-pool document deleted"];
+  op -> done [label="absence observed"];
+  clear -> clear [label="external deletion pending", style=dashed, color="#857456", constraint=false];
+}

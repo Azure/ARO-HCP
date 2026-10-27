@@ -4,6 +4,17 @@ Replace:
 - Regex: 'sha256.[a-fA-F0-9]{64}'
   Replacement: 'sha256:1234567890'
 # Components exempt from requiring resources.requests.memory
+# ServiceMonitors/PodMonitors exempt from requiring the microsoft_metrics_include_label=service
+# routing label (without the label, scraped series are dropped by the filtered services DCR).
+MetricsRoutingLabelAllowlist:
+# Upstream kube-prometheus-stack operator self-monitoring ServiceMonitor
+- ServiceMonitor/prometheus-operator
+# ServiceMonitors/PodMonitors whose series route to a different data collection
+# rule and must therefore set a non-default microsoft_metrics_include_label value.
+# Maps a "Kind/name" glob pattern to the required replacement value.
+MetricsRoutingLabelOverrides:
+  # KSM custom-resource metrics route to the HCP data collection rule, not the services DCR.
+  ServiceMonitor/kube-state-metrics-crs: hcp
 ResourceRequestsAllowlist:
 # Standing exemptions
 # (no standing exemptions for requests at the moment)

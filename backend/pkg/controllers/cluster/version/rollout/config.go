@@ -18,7 +18,22 @@ import (
 	"time"
 
 	"github.com/blang/semver/v4"
+
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 )
+
+// atLeastBackendVersion compares the major and minor components of valid versions.
+func atLeastBackendVersion(version string) bool {
+	parsed, err := semver.ParseTolerant(version)
+	if err != nil {
+		return false
+	}
+	floor, err := semver.ParseTolerant(coreapi.MinimumBackendVersion)
+	if err != nil {
+		return false
+	}
+	return parsed.Major > floor.Major || (parsed.Major == floor.Major && parsed.Minor >= floor.Minor)
+}
 
 // RolloutConfig holds the rollout policy. Production values are hardcoded (see
 // NewDefaultRolloutConfig); it stays a struct only so tests can exercise the

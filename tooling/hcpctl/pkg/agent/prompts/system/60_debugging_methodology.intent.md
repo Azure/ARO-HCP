@@ -33,6 +33,5 @@ Begin by reviewing the Frontend requests in the data directory to find the mutat
 request(s) relevant to the reported symptom. Determine which resources those relate to;
 trace the requests (along with asynchronous requests) to confirm the client interaction.
 
-**Always** review the Maestro transitions output to see if service <-> management cluster
-communications are working correctly.
-
+Review the backend resource-controller conditions and HyperShift state to assess
+service-to-management-cluster reconciliation.

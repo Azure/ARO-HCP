@@ -77,6 +77,12 @@ kube-prometheus-stack:
   kube-state-metrics:
     metricLabelsAllowlist:
     - nodes=[node.kubernetes.io/instance-type,kubernetes.azure.com/agentpool]
+    prometheus:
+      monitor:
+        relabelings:
+        - action: replace
+          replacement: service
+          targetLabel: microsoft_metrics_include_label
     image:
       registry: "{{ .mgmt.prometheus.kubeStateMetrics.image.registry }}"
       repository: "{{ .mgmt.prometheus.kubeStateMetrics.image.repository }}"

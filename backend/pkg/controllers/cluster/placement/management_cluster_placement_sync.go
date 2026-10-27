@@ -21,6 +21,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
@@ -74,6 +75,9 @@ func NewManagementClusterPlacementSyncController(
 		5*time.Minute, // Check every 5 minutes
 		syncer,
 	)
+	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
+	controller.AddInterestingResource(coreapi.ServiceProviderClusterResourceType, coreapi.ServiceProviderClusterResourceName)
+	controller.AddInterestingResource(fleetapi.ManagementClusterResourceType, fleetapi.ManagementClusterResourceName)
 
 	return controller
 }
@@ -134,7 +138,10 @@ func (c *managementClusterPlacementSyncer) SyncOnce(ctx context.Context, key con
 	}
 
 	// Get the provision shard from Cluster Service via the dedicated endpoint.
-	csShard, err := c.clusterServiceClient.GetClusterProvisionShard(ctx, *cachedCluster.ServiceProviderProperties.ClusterServiceID)
+	csCtx, cancel := context.WithTimeout(ctx, controllerutils.CSReadTimeout)
+	defer cancel()
+
+	csShard, err := c.clusterServiceClient.GetClusterProvisionShard(csCtx, *cachedCluster.ServiceProviderProperties.ClusterServiceID)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get provision shard from Cluster Service: %w", err))
 	}

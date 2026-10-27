@@ -24,6 +24,7 @@ import (
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
@@ -70,6 +71,8 @@ func NewTriggerNodePoolUpgradeController(
 		5*time.Minute,
 		syncer,
 	)
+	controller.AddInterestingResource(coreapi.NodePoolResourceType, "*")
+	controller.AddInterestingResource(coreapi.ServiceProviderNodePoolResourceType, coreapi.ServiceProviderNodePoolResourceName)
 
 	return controller
 }
@@ -138,10 +141,13 @@ func (c *triggerNodePoolUpgradeSyncer) createUpgradePolicyIfNeeded(ctx context.C
 	logger := utils.LoggerFromContext(ctx)
 
 	// Query existing node pool upgrade policies from Cluster Service
+	csCtx, cancel := context.WithTimeout(ctx, controllerutils.CSWriteTimeout)
+	defer cancel()
+
 	iterator := c.clusterServiceClient.ListNodePoolUpgradePolicies(nodePoolServiceID, "creation_timestamp desc")
 
 	// Only create a new upgrade policy if the latest created policy doesn't match the desired version
-	for policy := range iterator.Items(ctx) {
+	for policy := range iterator.Items(csCtx) {
 		// Only check the first (latest) policy
 		if latestPolicyVersion, ok := policy.GetVersion(); ok {
 			if latestPolicyVersion == desiredVersion.String() {
@@ -158,7 +164,7 @@ func (c *triggerNodePoolUpgradeSyncer) createUpgradePolicyIfNeeded(ctx context.C
 	// Create a new node pool upgrade policy for the desired version
 	logger.Info("Creating node pool upgrade policy", "desiredVersion", desiredVersion)
 
-	_, policyErr := c.clusterServiceClient.PostNodePoolUpgradePolicy(ctx, nodePoolServiceID, arohcpv1alpha1.NewNodePoolUpgradePolicy().Version(desiredVersion.String()))
+	_, policyErr := c.clusterServiceClient.PostNodePoolUpgradePolicy(csCtx, nodePoolServiceID, arohcpv1alpha1.NewNodePoolUpgradePolicy().Version(desiredVersion.String()))
 	if policyErr != nil {
 		return utils.TrackError(fmt.Errorf("failed to create node pool upgrade policy: %w", policyErr))
 	}

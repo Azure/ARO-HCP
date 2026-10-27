@@ -15,14 +15,7 @@ prow:
   repository:
     org: "{{ .opstool.tenantQuota.prow.repository.org }}"
     name: "{{ .opstool.tenantQuota.prow.repository.name }}"
-{{- if .opstool.tenantQuota.prow.excludeJobs }}
-  excludeJobs:
-{{- range .opstool.tenantQuota.prow.excludeJobs }}
-  - "{{ . }}"
-{{- end }}
-{{- else }}
-  excludeJobs: []
-{{- end }}
+  excludeJobs: "{{ .opstool.tenantQuota.prow.excludeJobs }}"
 ciJobOutcomes:
   enabled: {{ .opstool.tenantQuota.ciJobOutcomes.enabled }}
   clusterURI: "{{ .opstool.tenantQuota.ciJobOutcomes.clusterURI }}"
@@ -57,18 +50,31 @@ ciJobOutcomes:
   cacheSize: {{ .opstool.tenantQuota.ciJobOutcomes.cacheSize }}
   cacheTTL: "{{ .opstool.tenantQuota.ciJobOutcomes.cacheTTL }}"
 tenants:
-{{- range .opstool.tenantQuota.tenants }}
-- tenantId: "{{ .tenantId }}"
-  tenantName: "{{ .tenantName }}"
-  servicePrincipalClientId: "{{ .servicePrincipalClientId }}"
-  keyVaultSecretName: "{{ .keyVaultSecretName }}"
-  directoryQuota: {{ .directoryQuota }}
-  subscriptions:
-{{- range .subscriptions }}
-    - name: "{{ .name }}"
-      regions:
-{{- range .regions }}
-        - "{{ . }}"
-{{- end }}
-{{- end }}
-{{- end }}
+  redHat0:
+    tenantId: "{{ .opstool.tenantQuota.tenants.redHat0.tenantId }}"
+    tenantName: "{{ .opstool.tenantQuota.tenants.redHat0.tenantName }}"
+    servicePrincipalClientId: "{{ .opstool.tenantQuota.tenants.redHat0.servicePrincipalClientId }}"
+    keyVaultSecretName: "{{ .opstool.tenantQuota.tenants.redHat0.keyVaultSecretName }}"
+    directoryQuota: {{ .opstool.tenantQuota.tenants.redHat0.directoryQuota }}
+  testTestAro:
+    tenantId: "{{ .opstool.tenantQuota.tenants.testTestAro.tenantId }}"
+    tenantName: "{{ .opstool.tenantQuota.tenants.testTestAro.tenantName }}"
+    servicePrincipalClientId: "{{ .opstool.tenantQuota.tenants.testTestAro.servicePrincipalClientId }}"
+    keyVaultSecretName: "{{ .opstool.tenantQuota.tenants.testTestAro.keyVaultSecretName }}"
+    directoryQuota: {{ .opstool.tenantQuota.tenants.testTestAro.directoryQuota }}
+    subscriptionName: "{{ .opstool.tenantQuota.tenants.testTestAro.subscriptionName }}"
+    regions: "{{ .opstool.tenantQuota.tenants.testTestAro.regions }}"
+ci:
+  dev:
+    regions: "{{ .ci.dev.regions }}"
+    e2eSubscriptions: "{{ .ci.dev.e2eSubscriptions }}"
+    infrastructureSubscriptions: "{{ .ci.dev.infrastructureSubscriptions }}"
+  int:
+    regions: "{{ .ci.int.regions }}"
+    e2eSubscriptions: "{{ .ci.int.e2eSubscriptions }}"
+  stg:
+    regions: "{{ .ci.stg.regions }}"
+    e2eSubscriptions: "{{ .ci.stg.e2eSubscriptions }}"
+  prod:
+    regions: "{{ .ci.prod.regions }}"
+    e2eSubscriptions: "{{ .ci.prod.e2eSubscriptions }}"

@@ -189,7 +189,6 @@ func CommonRoundTripFuzzFuncs() []interface{} {
 			j.ManagedIdentitiesDataPlaneIdentityURL = ""
 			j.ClusterUID = ""
 			j.BillingDocumentCosmosID = ""
-			j.UsesNewClusterDeletionApproach = false
 			j.DeleteOperationCompletionTimeout = nil
 			j.DeleteOperationCompletionDeadline = nil
 		},
@@ -197,13 +196,11 @@ func CommonRoundTripFuzzFuncs() []interface{} {
 			c.FillNoCustom(j)
 			j.ActiveOperationID = ""
 			j.ClusterServiceID = nil
-			j.UsesNewNodePoolDeletionApproach = false
 		},
 		func(j *coreapi.ExternalAuthServiceProviderProperties, c randfill.Continue) {
 			c.FillNoCustom(j)
 			j.ActiveOperationID = ""
 			j.ClusterServiceID = nil
-			j.UsesNewExternalAuthDeletionApproach = false
 		},
 		func(j *coreapi.CustomerManagedEncryptionProfile, c randfill.Continue) {
 			c.FillNoCustom(j)

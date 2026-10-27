@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -66,6 +67,10 @@ type GenericWatchingController[T comparable] struct {
 	syncer         GenericSyncer[T]
 	reconcileTotal *prometheus.CounterVec
 
+	// interestingResources maps lowercase resource types to lowercase resource names.
+	// "*" matches every name of a registered type. An empty map accepts all events.
+	interestingResources map[string][]string
+
 	// queue is where incoming work is placed to de-dup and to allow "easy"
 	// rate limited requeues on errors
 	queue workqueue.TypedRateLimitingInterface[T]
@@ -75,10 +80,11 @@ type GenericWatchingController[T comparable] struct {
 // informers and delegates reconciliation to syncer.
 func NewGenericWatchingController[T comparable](name string, resourceType azcorearm.ResourceType, syncer GenericSyncer[T], reconcileTotal *prometheus.CounterVec) *GenericWatchingController[T] {
 	c := &GenericWatchingController[T]{
-		name:           name,
-		resourceType:   resourceType,
-		syncer:         syncer,
-		reconcileTotal: reconcileTotal,
+		name:                 name,
+		resourceType:         resourceType,
+		syncer:               syncer,
+		reconcileTotal:       reconcileTotal,
+		interestingResources: make(map[string][]string),
 		queue: workqueue.NewTypedRateLimitingQueueWithConfig(
 			workqueue.DefaultTypedControllerRateLimiter[T](),
 			workqueue.TypedRateLimitingQueueConfig[T]{
@@ -88,6 +94,15 @@ func NewGenericWatchingController[T comparable](name string, resourceType azcore
 	}
 
 	return c
+}
+
+// AddInterestingResource accepts events for a resource type and name, ignoring case.
+// The name "*" accepts every resource of that type. With no registrations all
+// events are accepted. Register interests before informers start delivering
+// resource events; registrations are not safe to mutate concurrently with events.
+func (c *GenericWatchingController[T]) AddInterestingResource(resourceType azcorearm.ResourceType, resourceName string) {
+	key := strings.ToLower(resourceType.String())
+	c.interestingResources[key] = append(c.interestingResources[key], strings.ToLower(resourceName))
 }
 
 func (c *GenericWatchingController[T]) Enqueue(keyObj any) {
@@ -192,6 +207,28 @@ func (c *GenericWatchingController[T]) QueueForInformers(resyncDuration time.Dur
 // maxDepth -1 (or any negative value) means no limit. The parent walk continues until a match or nil parent is reached.
 // It is exposed so that individual controllers can add other items to requeue based on easily.
 func (c *GenericWatchingController[T]) QueueForInformersWithMaxDepth(resyncDuration time.Duration, maxDepth int, notifiers ...Notifier) error {
+	return c.queueForInformers(resyncDuration, maxDepth, notifiers...)
+}
+
+// QueueForChildInformers subscribes to direct children of the controller's key
+// resource. Like all generic watches, it observes deletions:
+// removing a child can unblock teardown or change a status aggregate. Resource
+// interests still filter the original child before the one-hop owner mapping.
+func (c *GenericWatchingController[T]) QueueForChildInformers(resyncDuration time.Duration, notifiers ...Notifier) error {
+	return c.queueForInformers(resyncDuration, 1, notifiers...)
+}
+
+// QueueForDescendantInformers extends child mapping to an explicit depth, for
+// controllers consuming both direct children and node-pool-nested documents.
+// It uses resource IDs already carried by the event; no lookup is required.
+func (c *GenericWatchingController[T]) QueueForDescendantInformers(resyncDuration time.Duration, maxDepth int, notifiers ...Notifier) error {
+	if maxDepth < 1 {
+		return fmt.Errorf("descendant watches require a positive maximum depth")
+	}
+	return c.queueForInformers(resyncDuration, maxDepth, notifiers...)
+}
+
+func (c *GenericWatchingController[T]) queueForInformers(resyncDuration time.Duration, maxDepth int, notifiers ...Notifier) error {
 	errs := []error{}
 
 	logger := utils.DefaultLogger()
@@ -200,16 +237,41 @@ func (c *GenericWatchingController[T]) QueueForInformersWithMaxDepth(resyncDurat
 	)
 
 	for _, notifier := range notifiers {
-		_, err := notifier.AddEventHandlerWithOptions(
-			cache.ResourceEventHandlerFuncs{
-				AddFunc:    c.enqueueCosmosAddFunc(maxDepth),
-				UpdateFunc: c.enqueueCosmosUpdateFunc(maxDepth),
-			},
+		handler := cache.ResourceEventHandlerFuncs{
+			AddFunc:    c.enqueueCosmosAddFunc(maxDepth),
+			UpdateFunc: c.enqueueCosmosUpdateFunc(maxDepth),
+		}
+		handler.DeleteFunc = func(obj any) {
+			switch tombstone := obj.(type) {
+			case cache.DeletedFinalStateUnknown:
+				obj = tombstone.Obj
+			case *cache.DeletedFinalStateUnknown:
+				if tombstone == nil {
+					return
+				}
+				obj = tombstone.Obj
+			}
+			if resource, ok := obj.(coreapi.CosmosPersistable); ok && resource.GetCosmosData() != nil {
+				c.EnqueueResourceIDAddWithMaxDepth(resource.GetCosmosData().GetResourceID(), true, maxDepth)
+			}
+		}
+		registration, err := notifier.AddEventHandlerWithOptions(
+			handler,
 			cache.HandlerOptions{
 				Logger:       &logger,
 				ResyncPeriod: ptr.To(resyncDuration),
 			})
 		errs = append(errs, err)
+		if err == nil {
+			// Sources can be ordinary informers or a union notifier. The union's
+			// aggregate discovery barrier remains supplied by WithCacheSyncs.
+			if source, ok := notifier.(interface{ HasSynced() bool }); ok {
+				c.AddCacheSyncs(source.HasSynced)
+			}
+			if registration != nil {
+				c.AddCacheSyncs(registration.HasSynced)
+			}
+		}
 	}
 	return errors.Join(errs...)
 }
@@ -221,6 +283,23 @@ func (c *GenericWatchingController[T]) EnqueueResourceIDAdd(resourceID *azcorear
 	c.EnqueueResourceIDAddWithMaxDepth(resourceID, changed, -1)
 }
 
+func (c *GenericWatchingController[T]) isResourceInteresting(resourceID *azcorearm.ResourceID) bool {
+	if len(c.interestingResources) == 0 {
+		return true
+	}
+	currResourceType := strings.ToLower(resourceID.ResourceType.String())
+	currResourceName := strings.ToLower(resourceID.Name)
+	for _, interestingResourceName := range c.interestingResources[currResourceType] {
+		if interestingResourceName == "*" {
+			return true
+		}
+		if currResourceName == interestingResourceName {
+			return true
+		}
+	}
+	return false
+}
+
 // EnqueueResourceIDAddWithMaxDepth traverses resourceID and its parents according to maxDepth until it
 // finds a resourceID that is of the resource type of c.resourceType and adds it if found. Each walk to Parent consumes one level.
 // maxDepth is the maximum number of parent hops to traverse when searching for a resourceID of type c.resourceType.
@@ -229,20 +308,27 @@ func (c *GenericWatchingController[T]) EnqueueResourceIDAdd(resourceID *azcorear
 // It is exposed so that individual controllers can add other items to requeue based on easily.
 // When there's a match of resourceType: when changed is true, the resourceID is added to the queue immediately. Otherwise, the
 // resourceID is added to the queue only if the cooldown checker allows it.
+// Interesting-resource filters apply to the original event, not the ancestors
+// visited while resolving the controller's key.
 func (c *GenericWatchingController[T]) EnqueueResourceIDAddWithMaxDepth(resourceID *azcorearm.ResourceID, changed bool, maxDepth int) {
 	if resourceID == nil {
 		return
 	}
-	if !metadataapi.ResourceTypeEqual(resourceID.ResourceType, c.resourceType) {
+	if !c.isResourceInteresting(resourceID) {
+		return
+	}
+
+	for !metadataapi.ResourceTypeEqual(resourceID.ResourceType, c.resourceType) {
 		if maxDepth == 0 {
 			return
 		}
-		nextDepth := maxDepth
 		if maxDepth > 0 {
-			nextDepth = maxDepth - 1
+			maxDepth--
 		}
-		c.EnqueueResourceIDAddWithMaxDepth(resourceID.Parent, changed, nextDepth)
-		return
+		resourceID = resourceID.Parent
+		if resourceID == nil {
+			return
+		}
 	}
 
 	key := c.syncer.MakeKey(resourceID)

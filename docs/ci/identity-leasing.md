@@ -103,7 +103,7 @@ They acquire a slot and write configuration without provisioning infrastructure.
 Both workflows return leases through `aro-hcp-lease-release` in their post-steps.
 
 The acquire step calls `./test/aro-hcp-tests slot-manager acquire`. See the
-design's [acquisition and admission](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#acquisition-and-admission)
+design's [acquisition lifecycle](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#acquire-persist-fail-release)
 and [runtime contract](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#runtime-contract)
 sections for the lifecycle and exported values.
 
@@ -111,18 +111,15 @@ Downstream steps source `${SHARED_DIR}/aro-hcp-slot.env` and map
 `SELECTED_LOCATION` to the runtime `LOCATION` they consume. The test framework
 receives `LEASED_MSI_CONTAINERS` through this contract rather than directly from
 a ci-operator lease.
-The same contract supplies `ARO_HCP_E2E_VM_FAMILY_POLICY`, resolved from the
-acquired pool's optional `vm_family_policy` against its runtime region. Pools
-without policy export `{}`. The suite rejects a subsequent location override
-that differs from `SELECTED_LOCATION`, so select the desired region during
-acquisition rather than after sourcing the contract.
+The slot contract also supplies `ARO_HCP_E2E_VM_FAMILY_POLICY`; see the
+[slot-manager design](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#vm--worker-sku-policy)
+and [E2E SKU selection guidance](../../test/e2e/README.md#selecting-vm-sizes-skus).
+
 
 The acquire step mounts cluster-profile credentials. Slot-manager authenticates
 directly from the selected profile; a prior `az login` is not required. See
-[credentials](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#credentials)
-for the required files and permissions, and
-[subscriptions](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#subscriptions)
-for the infrastructure opt-in contract used by persistent environments.
+[credential and subscription requirements](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#catalog)
+for the required files, permissions, and infrastructure opt-in contract.
 
 ### Subscription Sharding And Region Selection
 
@@ -131,7 +128,7 @@ The slot-manager path is what lets CI shard `e2e-parallel` across multiple custo
 The inventory lives in `test/e2e-config/e2e-slots.yaml`. See the design's
 [catalog](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#catalog) section for
 deployment and subscription bindings, region selection, and asset-pool sizing.
-Check [implementation status](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#implementation-status)
+Check the design's [asset lifecycle](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#asset-lifecycle)
 before enabling a new asset.
 
 For workflow configuration:
@@ -233,7 +230,10 @@ worst-case cost of `5 * (((58 - 1) * 26) + (1 * 41)) = 7615` assignments.
 Against the requested 8000-assignment quota, that leaves 385 assignments total,
 including the 100-assignment reserve and the subscription's persistent baseline.
 
-Every environment's E2E identity asset exports the resolved acquired names in `LEASED_MSI_CONTAINERS`. Integration, Stage, and PROD parallel suites explicitly opt in to a worker default derived from that list; specialized suites and `upgrade/in-place` retain their fallback and participant-based defaults. The lease does not assign `ARO_HCP_SUITE_PARALLELISM`, which remains an exported user or CI override parsed once during CLI construction. Worker precedence is explicit `--max-concurrency`, then the user override, then the opt-in acquired count, then the suite fallback. An explicitly empty user value opts out of acquired defaults. See [Acquired identity count and suite defaults](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#acquired-identity-count-and-suite-defaults) for suite selection and validation. Worker overrides do not increase the independent `mi-containers` resource budget.
+
+Suite worker precedence is documented in the design's
+[leased-identity parallelism section](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#suite-parallelism-from-leased-identities).
+This guide retains the quota and capacity formulas below.
 
 `run-cost` is the cost of a single run. To answer whether a change fits within a
 subscription's quota — the question that arises whenever role assignments are
@@ -371,9 +371,9 @@ containers, and all other pools retain their
 existing counts. This expands capacity within one suite run, not the number of
 simultaneous CI jobs.
 
-For environment parallel-suite defaults and override precedence, see
-[Acquired identity count and suite defaults](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#acquired-identity-count-and-suite-defaults).
-The default follows the acquired identity-container count, not the physical
+For suite worker precedence, see the design's
+[leased-identity parallelism section](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#suite-parallelism-from-leased-identities).
+The default follows the acquired identity-container count, not physical
 inventory or reserve capacity.
 
 An explicit CLI `--max-concurrency` overrides the derived suite worker default.
@@ -443,9 +443,9 @@ Common failure modes:
     [admission opt-out contract](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#emergency-admission-opt-out)
 - **slot-manager acquisition or release failure**
   - inspect the acquire/release step logs and `${SHARED_DIR}/aro-hcp-slot-state.yaml`
-  - follow the design's [failure behavior](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#failure-behavior)
-    and [acquired-state recovery rules](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#acquired-state)
-    before retrying or manually returning a lease
+  - follow the design's [acquire, persist, fail, release](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#acquire-persist-fail-release)
+    rules before retrying or manually returning a lease
+
 - **`expected envvar LEASED_MSI_CONTAINERS to not be empty`**
   - inspect `aro-hcp-lease-acquire` and the runtime slot env export
 - **`no assigned identity containers available for <specID>`**

@@ -789,9 +789,11 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 				// this indicates something really strange happened, return an error for it.
 				return utils.TrackError(err)
 			}
+			options := validation.BuildValidationOptions(subscription.GetRegisteredFeatures(), metadataapi.APIVersion(versionedInterface.String()))
+			options[validation.ManagedIdentitiesDataPlaneIdentityURLOptionalOperationOption] = true
 			op := operation.Operation{
 				Type:    operation.Create,
-				Options: append(validation.BuildValidationOptions(subscription.GetRegisteredFeatures(), metadataapi.APIVersion(versionedInterface.String())), validation.ManagedIdentitiesDataPlaneIdentityURLOptionalOperationOption),
+				Options: options,
 			}
 			admissionContext, ctxErr := f.newClusterAdmissionContext(ctx, op, subscription, newInternalCluster, nil)
 			if ctxErr != nil {

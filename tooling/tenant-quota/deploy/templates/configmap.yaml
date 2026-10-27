@@ -18,25 +18,35 @@ data:
       repository:
         org: "{{ .Values.prow.repository.org }}"
         name: "{{ .Values.prow.repository.name }}"
-      excludeJobs: {{ .Values.prow.excludeJobs | toJson }}
+      excludeJobs: {{ if .Values.prow.excludeJobs }}{{ splitList "," .Values.prow.excludeJobs | toJson }}{{ else }}[]{{ end }}
     ciJobOutcomes:
       {{- toYaml .Values.ciJobOutcomes | nindent 6 }}
     tenants:
-      {{- range .Values.tenants }}
+      {{- with .Values.tenants.redHat0 }}
       - tenantId: "{{ .tenantId }}"
         tenantName: "{{ .tenantName }}"
         servicePrincipalClientId: "{{ .servicePrincipalClientId }}"
         keyVaultSecretName: "{{ .keyVaultSecretName }}"
         scope: "https://graph.microsoft.com/.default"
-        directoryQuota: {{ if or (eq .directoryQuota true) (eq .directoryQuota false) }}{{ .directoryQuota }}{{ else }}true{{ end }}
-        {{- if .subscriptions }}
+        directoryQuota: {{ .directoryQuota }}
         subscriptions:
-          {{- range .subscriptions }}
-          - name: "{{ .name }}"
+          {{- include "tenant-quota.subscriptions" (dict "subscriptions" $.Values.ci.dev.infrastructureSubscriptions "regions" $.Values.ci.dev.regions) | nindent 10 }}
+          {{- include "tenant-quota.subscriptions" (dict "subscriptions" $.Values.ci.dev.e2eSubscriptions "regions" $.Values.ci.dev.regions) | nindent 10 }}
+          {{- include "tenant-quota.subscriptions" (dict "subscriptions" $.Values.ci.int.e2eSubscriptions "regions" $.Values.ci.int.regions) | nindent 10 }}
+          {{- include "tenant-quota.subscriptions" (dict "subscriptions" $.Values.ci.stg.e2eSubscriptions "regions" $.Values.ci.stg.regions) | nindent 10 }}
+          {{- include "tenant-quota.subscriptions" (dict "subscriptions" $.Values.ci.prod.e2eSubscriptions "regions" $.Values.ci.prod.regions) | nindent 10 }}
+      {{- end }}
+      {{- with .Values.tenants.testTestAro }}
+      - tenantId: "{{ .tenantId }}"
+        tenantName: "{{ .tenantName }}"
+        servicePrincipalClientId: "{{ .servicePrincipalClientId }}"
+        keyVaultSecretName: "{{ .keyVaultSecretName }}"
+        scope: "https://graph.microsoft.com/.default"
+        directoryQuota: {{ .directoryQuota }}
+        subscriptions:
+          - name: "{{ .subscriptionName }}"
             regions:
-              {{- range .regions }}
+              {{- range splitList "," .regions }}
               - "{{ . }}"
               {{- end }}
-          {{- end }}
-        {{- end }}
       {{- end }}

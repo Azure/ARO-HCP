@@ -129,3 +129,14 @@ environments:
 		}
 	}
 }
+
+func TestBuiltInRegistryIncludesInfrastructureIdentities(t *testing.T) {
+	t.Parallel()
+	registry, err := newAssetRegistry()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, found := registry.GetHandler(assets.KindInfrastructureIdentities); !found {
+		t.Fatal("built-in registry must include the infrastructure identities handler")
+	}
+}

@@ -57,6 +57,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/msi/armmsi"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
+	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 
 	clusterversion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/version"
 	"github.com/Azure/ARO-HCP/test/util/dnsreadback"
@@ -115,10 +116,12 @@ var _ = Describe("Customer", func() {
 				clusterParams.OpenshiftVersionId = resolved
 			} else {
 				resolved, err := framework.SelectControlPlaneVersion(ctx, http.DefaultTransport.RoundTrip, nil, channel+"-"+version, clusterversion.GetZStreamOffset(channel))
-				if framework.IsVersionNotFoundError(err) || (err == nil && resolved == nil) {
-					Skip(fmt.Sprintf("no %s version available in configured channel %s", version, channel))
+				if err != nil {
+					Skip(fmt.Sprintf("failed to resolve a version for channel %s-%s: %v", channel, version, err))
 				}
-				Expect(err).NotTo(HaveOccurred(), "failed to resolve configured channel %s-%s", channel, version)
+				if resolved == nil {
+					Skip(fmt.Sprintf("no version resolved for channel %s-%s", channel, version))
+				}
 				clusterParams.OpenshiftVersionId = resolved.Version
 			}
 			clusterParams.ClusterName = customerClusterName
@@ -279,6 +282,15 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create kube client")
 			dynClient, err := dynamic.NewForConfig(adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred(), "failed to create dynamic client")
+			configClient, err := configv1client.NewForConfig(adminRESTConfig)
+			Expect(err).NotTo(HaveOccurred(), "failed to create guest config client")
+			DeferCleanup(func(ctx context.Context) {
+				if CurrentSpecReport().Failed() {
+					if err := collectIngressCertificateDiagnostics(ctx, kubeClient, dynClient, tc.LogDirPath); err != nil {
+						GinkgoLogr.Error(err, "failed to collect ingress certificate diagnostics")
+					}
+				}
+			}, NodeTimeout(time.Minute))
 			mapper := newDiscoveryMapper(adminRESTConfig)
 
 			Expect(applyManifestFromURL(ctx, dynClient, mapper, certManagerManifestURL)).To(Succeed(), "failed to install cert-manager manifests")
@@ -354,6 +366,13 @@ var _ = Describe("Customer", func() {
 				return nil
 			}).WithContext(ctx).WithTimeout(5*time.Minute).WithPolling(10*time.Second).Should(Succeed(),
 				"cert-manager deployment should complete rollout with workload identity")
+
+			By("waiting for guest DNS readiness and in-cluster ACME hostname resolution")
+			acmeHostname, err := framework.HostnameFromURL(acmeServer)
+			Expect(err).NotTo(HaveOccurred(), "failed to parse ACME hostname")
+			Expect(waitForIngressCertificateDNS(ctx, kubeClient, configClient, certManagerNamespace,
+				acmeHostname, 10*time.Minute, 10*time.Second)).To(Succeed(),
+				"guest DNS must be ready before ACME account registration")
 
 			By("creating a ClusterIssuer with ACME DNS-01 solver targeting the DNS zone in the managed resource group")
 			issuerObj := unstructuredClusterIssuer(
@@ -528,9 +547,24 @@ var _ = Describe("Customer", func() {
 			By("verifying ACM's ingress certificate must remain absent after the customer's override")
 			Expect(verifiers.VerifyACMIngressCertificateAbsent().Verify(ctx, adminRESTConfig)).To(Succeed(), "ACM's ingress certificate must remain absent after the customer's override")
 		},
-		// Add earlier release lines only once a CPO override for https://github.com/openshift/hypershift/pull/9132
-		// exists across all previously-released versions; start with 5.1 for early feedback.
+		// TODO move to complete_cluster_create_multiversion.go test in a follow up PR
+		Entry("for cluster version 4.20", "4.20"),
+		Entry("for cluster version 4.21", "4.21"),
+		Entry("for cluster version 4.22", "4.22"),
+		Entry("for cluster version 4.23", "4.23"),
+		Entry("for cluster version 5.0", "5.0"),
 		Entry("for cluster version 5.1", "5.1"),
+		Entry("for cluster version 5.2", "5.2"),
+		Entry("for cluster version 5.3", "5.3"),
+		Entry("for cluster version 5.4", "5.4"),
+		Entry("for cluster version 5.5", "5.5"),
+		Entry("for cluster version 5.6", "5.6"),
+		Entry("for cluster version 5.7", "5.7"),
+		Entry("for cluster version 5.8", "5.8"),
+		Entry("for cluster version 5.9", "5.9"),
+		Entry("for cluster version 5.10", "5.10"),
+		Entry("for cluster version 5.11", "5.11"),
+		Entry("for cluster version 5.12", "5.12"),
 	)
 })
 

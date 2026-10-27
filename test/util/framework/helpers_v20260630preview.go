@@ -487,13 +487,14 @@ func BuildHCPClusterFromParams20260630(
 	}
 
 	tags, vnetIntegrationSubnetID := buildClusterNetworking(parameters.DisableSwift, parameters.Tags, parameters.VnetIntegrationSubnetID)
+	versionID, tags := buildControlPlaneVersion(parameters.OpenshiftVersionId, tags)
 	return hcpsdk20260630preview.HcpOpenShiftCluster{
 		Location: to.Ptr(location),
 		Identity: identity,
 		Tags:     tags,
 		Properties: &hcpsdk20260630preview.HcpOpenShiftClusterProperties{
 			Version: &hcpsdk20260630preview.VersionProfile{
-				ID:           to.Ptr(parameters.OpenshiftVersionId),
+				ID:           to.Ptr(versionID),
 				ChannelGroup: to.Ptr(parameters.ChannelGroup),
 			},
 			Platform: &hcpsdk20260630preview.PlatformProfile{
@@ -584,7 +585,7 @@ func CreateHCPClusterAndWait20260630(
 		case hcpsdk20260630preview.HcpOpenShiftClustersClientCreateOrUpdateResponse:
 			return &m.HcpOpenShiftCluster, nil
 		default:
-			fmt.Printf("unknown type %T: content=%v", m, spew.Sdump(m))
+			ginkgo.GinkgoLogr.Info("unexpected operation result", "type", fmt.Sprintf("%T", m), "content", spew.Sdump(m))
 			return nil, fmt.Errorf("unknown type %T", m)
 		}
 	} else {

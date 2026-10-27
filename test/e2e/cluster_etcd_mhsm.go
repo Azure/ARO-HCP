@@ -55,12 +55,6 @@ var _ = Describe("Cluster Etcd Managed HSM Encryption", func() {
 			By("probing v20261001 API availability before creating any Azure resources")
 			probePager := tc.Get20261001ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient().NewListBySubscriptionPager(nil)
 			_, probeErr := probePager.NextPage(ctx)
-			if framework.IsAPINotDeployedError(probeErr) {
-				if time.Now().Before(framework.V20261001DeploymentDeadline) {
-					Skip(fmt.Sprintf("v20261001 API not yet deployed; skipping until %s", framework.V20261001DeploymentDeadline.Format(time.RFC3339)))
-				}
-				Fail(fmt.Sprintf("v20261001 API still not deployed as of %s deadline", framework.V20261001DeploymentDeadline.Format(time.RFC3339)))
-			}
 			Expect(probeErr).NotTo(HaveOccurred(), "failed to probe v20261001 API availability")
 
 			if tc.UsePooledIdentities() {

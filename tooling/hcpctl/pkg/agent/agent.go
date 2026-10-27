@@ -69,6 +69,11 @@ type AgentConfig struct {
 	// Model overrides the default model for Copilot sessions.
 	Model string
 
+	// ReasoningEffort sets the reasoning effort for every session created by
+	// the client (one of CopilotReasoningEfforts). Empty keeps the model's
+	// default. It only has an effect on models that support reasoning effort.
+	ReasoningEffort string
+
 	// MaxRounds is the maximum number of tool-call rounds per session.
 	MaxRounds int
 
@@ -97,6 +102,10 @@ type CopilotClient struct {
 // The underlying CLI process is started lazily on first session creation
 // (AutoStart defaults to true).
 func NewCopilotClient(cfg *AgentConfig) (*CopilotClient, error) {
+	if err := ValidateCopilotReasoningEffort(cfg.ReasoningEffort); err != nil {
+		return nil, err
+	}
+
 	clientOpts := &copilot.ClientOptions{}
 
 	if cfg.Verbosity >= 5 {
@@ -168,6 +177,7 @@ type Session struct {
 func (c *CopilotClient) buildSessionConfig(ctx context.Context, cfg SessionConfig) (*copilot.SessionConfig, error) {
 	sessionCfg := &copilot.SessionConfig{
 		Model:               cfg.Model,
+		ReasoningEffort:     c.cfg.ReasoningEffort,
 		SystemMessage:       cfg.SystemMessage,
 		Tools:               cfg.Tools,
 		WorkingDirectory:    cfg.WorkingDirectory,
@@ -218,7 +228,7 @@ func (c *CopilotClient) CreateSession(ctx context.Context, logger logr.Logger, c
 	}
 
 	logger = logger.WithValues("sessionID", session.SessionID)
-	logger.Info("Created Copilot session.")
+	logger.Info("Created Copilot session.", "reasoningEffort", sessionCfg.ReasoningEffort)
 	usageProvider := "github-copilot"
 	usageDimensions := map[string]string{"backend": "github"}
 	if c.cfg.AuthMode == CopilotAuthModeBYOK {

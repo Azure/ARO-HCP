@@ -48,10 +48,10 @@ resourceGroups:
     variables:
     - name: ENV_NAME
       value: dev
-    - name: SUBSCRIPTION_IDS
-      value: '{{ range .ci.dev.e2eSubscriptions }}{{ .id }} {{ end }}'
+    - name: SUBSCRIPTIONS
+      value: '{{ .ci.dev.e2eSubscriptions }}'
     - name: PROVIDER_NAMESPACES
-      value: '{{ range .ci.e2eSubscriptionProviders }}{{ . }} {{ end }}'
+      value: '{{ .ci.e2eSubscriptionProviders }}'
   - name: register-providers-int
     action: Shell
     command: ./e2e-register-providers.sh
@@ -64,10 +64,10 @@ resourceGroups:
     variables:
     - name: ENV_NAME
       value: int
-    - name: SUBSCRIPTION_IDS
-      value: '{{ range .ci.int.e2eSubscriptions }}{{ .id }} {{ end }}'
+    - name: SUBSCRIPTIONS
+      value: '{{ .ci.int.e2eSubscriptions }}'
     - name: PROVIDER_NAMESPACES
-      value: '{{ range .ci.e2eSubscriptionProviders }}{{ . }} {{ end }}'
+      value: '{{ .ci.e2eSubscriptionProviders }}'
   - name: register-providers-stg
     action: Shell
     command: ./e2e-register-providers.sh
@@ -80,10 +80,10 @@ resourceGroups:
     variables:
     - name: ENV_NAME
       value: stg
-    - name: SUBSCRIPTION_IDS
-      value: '{{ range .ci.stg.e2eSubscriptions }}{{ .id }} {{ end }}'
+    - name: SUBSCRIPTIONS
+      value: '{{ .ci.stg.e2eSubscriptions }}'
     - name: PROVIDER_NAMESPACES
-      value: '{{ range .ci.e2eSubscriptionProviders }}{{ . }} {{ end }}'
+      value: '{{ .ci.e2eSubscriptionProviders }}'
   - name: register-providers-prod
     action: Shell
     command: ./e2e-register-providers.sh
@@ -96,7 +96,7 @@ resourceGroups:
     variables:
     - name: ENV_NAME
       value: prod
-    - name: SUBSCRIPTION_IDS
-      value: '{{ range .ci.prod.e2eSubscriptions }}{{ .id }} {{ end }}'
+    - name: SUBSCRIPTIONS
+      value: '{{ .ci.prod.e2eSubscriptions }}'
     - name: PROVIDER_NAMESPACES
-      value: '{{ range .ci.e2eSubscriptionProviders }}{{ . }} {{ end }}'
+      value: '{{ .ci.e2eSubscriptionProviders }}'

@@ -2,6 +2,30 @@ rule_files:
 - backend-prometheusRule.yaml
 evaluation_interval: 1m
 tests:
+- name: Cosmos migration backlog never alerts, with or without mock identities
+  interval: 1m
+  input_series:
+  - series: 'workqueue_depth{name="cosmos_migration", namespace="aro-hcp", cluster="real"}'
+    values: "1000x120"
+  - series: 'workqueue_depth{name="CosmosMigration", namespace="aro-hcp", cluster="real"}'
+    values: "1000x120"
+  - series: 'workqueue_depth{name="cosmosmigration", namespace="aro-hcp", cluster="real"}'
+    values: "1000x120"
+  - series: 'workqueue_depth{name="cosmos_migration", namespace="aro-hcp", cluster="mock"}'
+    values: "1000x120"
+  - series: 'workqueue_depth{name="CosmosMigration", namespace="aro-hcp", cluster="mock"}'
+    values: "1000x120"
+  - series: 'workqueue_depth{name="cosmosmigration", namespace="aro-hcp", cluster="mock"}'
+    values: "1000x120"
+  - series: 'backend_insecure_mock_managed_identities_enabled{namespace="aro-hcp", cluster="mock"}'
+    values: "1x120"
+  alert_rule_test:
+  - eval_time: 16m
+    alertname: BackendControllerQueueDepthHigh
+    exp_alerts: []
+  - eval_time: 120m
+    alertname: BackendControllerQueueDepthHigh
+    exp_alerts: []
 # Test: BackendControllerQueueDepthHigh fires when depth > 10 for 15m
 - interval: 1m
   input_series:

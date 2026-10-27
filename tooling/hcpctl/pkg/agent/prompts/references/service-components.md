@@ -50,12 +50,6 @@ management cluster.
 
 **Failure modes:** Agent not connected, bundle apply failure, ManifestWork rejected, stale bundles.
 
-**Key Notes:** When reviewing Maestro transitions from logs, expect to see the spec and status
-sides equal - that is, if the server sees N client pings on spec, we should see the server send
-N specs to the broker, and the agent should get N specs from the broker and apply all of them to
-the cluster. If the agent sees X status updates from the cluster, we should see X status events
-to the broker, X status events processed by the server and at least X notifications to subscribers. 
-
 ## Kube Applier (`kube-applier`)
 
 Bridge from the backend (service cluster) to the management cluster kube-apiserver without direct

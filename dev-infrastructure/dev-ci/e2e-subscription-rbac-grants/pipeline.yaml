@@ -58,8 +58,8 @@ resourceGroups:
     variables:
     - name: ENV_NAME
       value: dev-cost-management
-    - name: SUBSCRIPTION_IDS
-      value: '{{ range .ci.dev.e2eSubscriptions }}{{ .id }} {{ end }}{{ range .ci.dev.infrastructureSubscriptions }}{{ if index . "costTagInheritance" }}{{ .id }} {{ end }}{{ end }}'
+    - name: SUBSCRIPTIONS
+      value: '{{ .ci.dev.e2eSubscriptions }},{{ .ci.dev.infrastructureSubscriptionsCostTags }}'
     - name: PROVIDER_NAMESPACES
       value: Microsoft.CostManagement
   - name: cost-tag-inheritance
@@ -72,8 +72,8 @@ resourceGroups:
         step: global-identity
         name: globalMSIId
     variables:
-    - name: SUBSCRIPTION_IDS
-      value: '{{ range .ci.dev.e2eSubscriptions }}{{ .id }} {{ end }}{{ range .ci.dev.infrastructureSubscriptions }}{{ if index . "costTagInheritance" }}{{ .id }} {{ end }}{{ end }}'
+    - name: SUBSCRIPTIONS
+      value: '{{ .ci.dev.e2eSubscriptions }},{{ .ci.dev.infrastructureSubscriptionsCostTags }}'
     dependsOn:
     - resourceGroup: grants
       step: register-costmanagement

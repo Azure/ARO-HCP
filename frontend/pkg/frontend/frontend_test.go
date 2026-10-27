@@ -460,7 +460,7 @@ func TestDeploymentPreflight(t *testing.T) {
 							"activeKey": map[string]any{
 								"name":      "test-key",
 								"vaultName": "test-vault",
-								"version":   "test-version",
+								"version":   "4e832b5c8f1e4e3d9c6b2a1f3e7d9c5b",
 							},
 						},
 					},
@@ -1277,9 +1277,8 @@ func TestDeleteCluster(t *testing.T) {
 						},
 					},
 					ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
-						ProvisioningState:              test.clusterProvisioningState,
-						ClusterServiceID:               &clusterInternalID,
-						UsesNewClusterDeletionApproach: true,
+						ProvisioningState: test.clusterProvisioningState,
+						ClusterServiceID:  &clusterInternalID,
 					},
 				}
 				// Set DeletionTimestamp only if test specifies it should have one
@@ -1329,9 +1328,6 @@ func TestDeleteCluster(t *testing.T) {
 
 				// Verify ProvisioningState is set to Deleting
 				assert.Equal(t, coreapi.ProvisioningStateDeleting, updatedCluster.ServiceProviderProperties.ProvisioningState)
-
-				// Verify UsesNewClusterDeletionApproach is set to true
-				assert.True(t, updatedCluster.ServiceProviderProperties.UsesNewClusterDeletionApproach, "UsesNewClusterDeletionApproach should be set to true after DELETE")
 
 				// Verify ActiveOperationID is set
 				assert.NotEmpty(t, updatedCluster.ServiceProviderProperties.ActiveOperationID, "ActiveOperationID should be set")

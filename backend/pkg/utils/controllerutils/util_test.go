@@ -24,6 +24,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
@@ -71,6 +72,10 @@ func (f *fakeControllerCRUD) Replace(ctx context.Context, newObj *coreapi.Contro
 func (f *fakeControllerCRUD) Delete(ctx context.Context, resourceID string) error {
 	delete(f.controllers, resourceID)
 	return nil
+}
+
+func (f *fakeControllerCRUD) DeleteWithETag(context.Context, string, azcore.ETag) error {
+	panic("not implemented")
 }
 
 func (f *fakeControllerCRUD) AddCreateToTransaction(ctx context.Context, transaction cosmosstorageutils.DBTransaction, newObj *coreapi.Controller, opts *azcosmos.TransactionalBatchItemOptions) (string, error) {

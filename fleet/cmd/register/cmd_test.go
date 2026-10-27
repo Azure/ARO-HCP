@@ -57,10 +57,11 @@ func validRegisterOptions(t *testing.T, fleetDBClient *fleetcosmosstoragetesting
 			hostedClustersSecretsKeyVaultURL:           "https://kv-secrets.vault.azure.net",
 			hostedClustersManagedIdentitiesKeyVaultURL: "https://kv-mi.vault.azure.net",
 			hostedClustersSecretsKeyVaultManagedIdentityClientID: "12345678-1234-1234-1234-123456789012",
-			maestroConsumerName:            "hcp-underlay-westus3-mgmt-1",
-			maestroRESTAPIURL:              "http://maestro.maestro.svc.cluster.local:8000",
-			maestroGRPCTarget:              "maestro-grpc.maestro.svc.cluster.local:8090",
-			kubeApplierCosmosContainerName: "Manifests-MC-1",
+			maestroConsumerName:                "hcp-underlay-westus3-mgmt-1",
+			maestroRESTAPIURL:                  "http://maestro.maestro.svc.cluster.local:8000",
+			maestroGRPCTarget:                  "maestro-grpc.maestro.svc.cluster.local:8090",
+			kubeApplierCosmosContainerName:     "Manifests-MC-1",
+			kubeApplierCosmosContainerMaxScale: int32(19000),
 		},
 	}
 }
@@ -169,6 +170,7 @@ func TestRun(t *testing.T) {
 						MaestroRESTAPIURL:                                    "http://maestro.maestro.svc.cluster.local:8000",
 						MaestroGRPCTarget:                                    "maestro-grpc.maestro.svc.cluster.local:8090",
 						KubeApplierCosmosContainerName:                       "Manifests-MC-1",
+						KubeApplierCosmosContainerMaxScale:                   19000,
 					},
 				}
 				return []any{stamp, managementCluster}
@@ -203,6 +205,7 @@ func TestRun(t *testing.T) {
 						MaestroRESTAPIURL:                                    "http://maestro.maestro.svc.cluster.local:8000",
 						MaestroGRPCTarget:                                    "maestro-grpc.maestro.svc.cluster.local:8090",
 						KubeApplierCosmosContainerName:                       "Manifests-MC-1",
+						KubeApplierCosmosContainerMaxScale:                   19000,
 					},
 				}
 				return []any{stamp, managementCluster}
@@ -234,6 +237,7 @@ func TestRun(t *testing.T) {
 						MaestroRESTAPIURL:                                    "http://maestro.maestro.svc.cluster.local:8000",
 						MaestroGRPCTarget:                                    "maestro-grpc.maestro.svc.cluster.local:8090",
 						KubeApplierCosmosContainerName:                       "Manifests-MC-1",
+						KubeApplierCosmosContainerMaxScale:                   19000,
 					},
 				}
 				return []any{stamp, managementCluster}

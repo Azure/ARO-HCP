@@ -20,43 +20,41 @@ initial headroom (vCPUs):
 fully allocated: true
 
 initial capacity:
-  system:  cpu=0    memory=0GiB     swiftNICs=0
-  infra:   cpu=0    memory=0GiB     swiftNICs=0
   worker:  cpu=576  memory=4608GiB  swiftNICs=126
 
-role floor:
-  system:  cpu=0    memory=0GiB     swiftNICs=0
-  infra:   cpu=0    memory=0GiB     swiftNICs=0
-  worker:  cpu=576  memory=4608GiB  swiftNICs=126
+role-zone floor:
+  worker zone 1:  cpu=192  memory=1536GiB  swiftNICs=42
+  worker zone 2:  cpu=192  memory=1536GiB  swiftNICs=42
+  worker zone 3:  cpu=192  memory=1536GiB  swiftNICs=42
 
 actions:
   margins above floor after each action (c = vCPU, G = memory GiB, n = Swift NICs)
 
-     #  action            role    pool  vm size   change         role margin            quota left
-     1  Create            worker  new1  E32ds_v6  min=1   max=6   +192c  +1536G   +42n  Edsv6 768c
-     2  Create            worker  new2  E32ds_v6  min=1   max=6   +384c  +3072G   +84n  Edsv6 576c
-     3  Create            worker  new3  E32ds_v6  min=1   max=6   +576c  +4608G  +126n  Edsv6 384c
-     4  SetScalingBounds  worker  old1  E32ds_v6  min=1   max=4   +512c  +4096G  +112n  Edsv6 448c
-     5  SetScalingBounds  worker  old2  E32ds_v6  min=1   max=4   +448c  +3584G   +98n  Edsv6 512c
-     6  SetScalingBounds  worker  old3  E32ds_v6  min=1   max=4   +384c  +3072G   +84n  Edsv6 576c
-     7  Freeze            worker  old1  E32ds_v6  count=4         +384c  +3072G   +84n
-     8  Freeze            worker  old2  E32ds_v6  count=4         +384c  +3072G   +84n
-     9  Freeze            worker  old3  E32ds_v6  count=4         +384c  +3072G   +84n
-    10  Reduce            worker  old1  E32ds_v6  count=3         +352c  +2816G   +77n  Edsv6 608c
-    11  Reduce            worker  old1  E32ds_v6  count=2         +320c  +2560G   +70n  Edsv6 640c
-    12  Reduce            worker  old1  E32ds_v6  count=1         +288c  +2304G   +63n  Edsv6 672c
-    13  Reduce            worker  old1  E32ds_v6  count=0         +256c  +2048G   +56n  Edsv6 704c
-    14  Reduce            worker  old2  E32ds_v6  count=3         +224c  +1792G   +49n  Edsv6 736c
-    15  Reduce            worker  old2  E32ds_v6  count=2         +192c  +1536G   +42n  Edsv6 768c
-    16  Reduce            worker  old2  E32ds_v6  count=1         +160c  +1280G   +35n  Edsv6 800c
-    17  Reduce            worker  old2  E32ds_v6  count=0         +128c  +1024G   +28n  Edsv6 832c
-    18  Reduce            worker  old3  E32ds_v6  count=3          +96c   +768G   +21n  Edsv6 864c
-    19  Reduce            worker  old3  E32ds_v6  count=2          +64c   +512G   +14n  Edsv6 896c
-    20  Reduce            worker  old3  E32ds_v6  count=1          +32c   +256G    +7n  Edsv6 928c
-    21  Reduce            worker  old3  E32ds_v6  count=0           +0c     +0G    +0n  Edsv6 960c
-    22  Delete            worker  old1  E32ds_v6                    +0c     +0G    +0n
-    23  Delete            worker  old2  E32ds_v6                    +0c     +0G    +0n
-    24  Delete            worker  old3  E32ds_v6                    +0c     +0G    +0n
+     #  action            role    pool  vm size   zone  change         margin                 quota left
+     1  Create            worker  new1  E32ds_v6  1     min=1   max=6   +192c  +1536G   +42n  Edsv6 768c
+     2  Create            worker  new2  E32ds_v6  2     min=1   max=6   +192c  +1536G   +42n  Edsv6 576c
+     3  Create            worker  new3  E32ds_v6  3     min=1   max=6   +192c  +1536G   +42n  Edsv6 384c
+     4  SetScalingBounds  worker  old1  E32ds_v6  1     min=1   max=4   +128c  +1024G   +28n  Edsv6 448c
+     5  SetScalingBounds  worker  old2  E32ds_v6  2     min=1   max=4   +128c  +1024G   +28n  Edsv6 512c
+     6  SetScalingBounds  worker  old3  E32ds_v6  3     min=1   max=4   +128c  +1024G   +28n  Edsv6 576c
+     7  Freeze            worker  old1  E32ds_v6  1     count=4         +128c  +1024G   +28n
+     8  Freeze            worker  old2  E32ds_v6  2     count=4         +128c  +1024G   +28n
+     9  Freeze            worker  old3  E32ds_v6  3     count=4         +128c  +1024G   +28n
+    10  Reduce            worker  old1  E32ds_v6  1     count=3          +96c   +768G   +21n  Edsv6 608c
+    11  Reduce            worker  old1  E32ds_v6  1     count=2          +64c   +512G   +14n  Edsv6 640c
+    12  Reduce            worker  old1  E32ds_v6  1     count=1          +32c   +256G    +7n  Edsv6 672c
+    13  Reduce            worker  old1  E32ds_v6  1     count=0           +0c     +0G    +0n  Edsv6 704c
+    14  Reduce            worker  old2  E32ds_v6  2     count=3          +96c   +768G   +21n  Edsv6 736c
+    15  Reduce            worker  old2  E32ds_v6  2     count=2          +64c   +512G   +14n  Edsv6 768c
+    16  Reduce            worker  old2  E32ds_v6  2     count=1          +32c   +256G    +7n  Edsv6 800c
+    17  Reduce            worker  old2  E32ds_v6  2     count=0           +0c     +0G    +0n  Edsv6 832c
+    18  Reduce            worker  old3  E32ds_v6  3     count=3          +96c   +768G   +21n  Edsv6 864c
+    19  Reduce            worker  old3  E32ds_v6  3     count=2          +64c   +512G   +14n  Edsv6 896c
+    20  Reduce            worker  old3  E32ds_v6  3     count=1          +32c   +256G    +7n  Edsv6 928c
+    21  Reduce            worker  old3  E32ds_v6  3     count=0           +0c     +0G    +0n  Edsv6 960c
+    22  Delete            worker  old1  E32ds_v6  1                       +0c     +0G    +0n
+    23  Delete            worker  old2  E32ds_v6  2                       +0c     +0G    +0n
+    24  Delete            worker  old3  E32ds_v6  3                       +0c     +0G    +0n
 
 steps:      24
 converged:  true

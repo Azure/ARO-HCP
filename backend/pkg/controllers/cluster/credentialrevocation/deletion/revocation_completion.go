@@ -26,6 +26,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
@@ -67,7 +68,7 @@ func NewRevocationCompletionController(
 		readDesireLister:  readDesireLister,
 	}
 
-	return controllerutils.NewSystemAdminCredentialRevocationWatchingController(
+	controller := controllerutils.NewSystemAdminCredentialRevocationWatchingController(
 		SystemAdminCredentialRevocationCompletionControllerName,
 		resourcesDBClient,
 		backendInformers,
@@ -75,6 +76,10 @@ func NewRevocationCompletionController(
 		1*time.Minute,
 		syncer,
 	)
+	controller.AddInterestingResource(coreapi.SystemAdminCredentialRevocationResourceType, "*")
+	controller.AddInterestingResource(kubeapplierapi.SystemAdminCredentialRevocationScopedReadDesireResourceType, kubeapplierapi.SystemAdminCredentialRevocationDesireName)
+
+	return controller
 }
 
 func (c *revocationCompletion) SyncOnce(ctx context.Context, key controllerutils.SystemAdminCredentialRevocationKey) error {

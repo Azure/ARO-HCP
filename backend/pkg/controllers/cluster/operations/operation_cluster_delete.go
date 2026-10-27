@@ -200,11 +200,14 @@ func (c *operationClusterDelete) reconcileOperationAndResourceStatus(ctx context
 
 	clusterCSID := cluster.ServiceProviderProperties.ClusterServiceID
 
-	csClusterStatus, err := c.clusterServiceClient.GetClusterStatus(ctx, *clusterCSID)
+	csCtx, cancel := context.WithTimeout(ctx, controllerutils.CSReadTimeout)
+	defer cancel()
+
+	csClusterStatus, err := c.clusterServiceClient.GetClusterStatus(csCtx, *clusterCSID)
 	if err != nil {
 		var ocmError *ocmerrors.Error
 		if !errors.As(err, &ocmError) || ocmError.Status() != http.StatusNotFound {
-			return utils.TrackError(fmt.Errorf("failed to get cluster-service Cluster status: %w", err))
+			return utils.TrackError(fmt.Errorf("failed to get cluster-service Cluster status: %w", ocm.StripVolatileErrorFields(err)))
 		}
 		// 404 - CS has finished deleting. clusterClusterServiceIDClearer will clear the ID.
 		logger.Info("cluster-service Cluster gone - skipping operation update", "clusterServiceID", clusterCSID.String())
@@ -218,7 +221,7 @@ func (c *operationClusterDelete) reconcileOperationAndResourceStatus(ctx context
 		return nil
 	}
 
-	newOperationStatus, newOperationError, err := operationbase.ConvertClusterStatus(ctx, c.clusterServiceClient, operation, csClusterStatus, *clusterCSID)
+	newOperationStatus, newOperationError, err := operationbase.ConvertClusterStatus(csCtx, c.clusterServiceClient, operation, csClusterStatus, *clusterCSID)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -307,13 +310,16 @@ func (c *operationClusterDelete) clusterServiceStatusForDeletion(ctx context.Con
 		return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, ""), nil
 	}
 
-	csClusterStatus, err := c.clusterServiceClient.GetClusterStatus(ctx, *cluster.ServiceProviderProperties.ClusterServiceID)
+	csCtx, cancel := context.WithTimeout(ctx, controllerutils.CSReadTimeout)
+	defer cancel()
+
+	csClusterStatus, err := c.clusterServiceClient.GetClusterStatus(csCtx, *cluster.ServiceProviderProperties.ClusterServiceID)
 	if err != nil {
 		var ocmError *ocmerrors.Error
 		if errors.As(err, &ocmError) && ocmError.Status() == http.StatusNotFound {
 			return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, ""), nil
 		}
-		return nil, fmt.Errorf("failed to get ClusterService status: %w", err)
+		return nil, fmt.Errorf("failed to get ClusterService status: %w", ocm.StripVolatileErrorFields(err))
 	}
 
 	return operationbase.NewOperationState(coreapi.ProvisioningStateDeleting, fmt.Sprintf("ClusterService state is %q", csClusterStatus.State())), nil

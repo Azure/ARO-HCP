@@ -1,4 +1,5 @@
 schedulingRole: "infra"
+monitoringApiGroup: monitoring.coreos.com
 kube-prometheus-stack:
   fullnameOverride: "prometheus"
   crds:
@@ -49,6 +50,12 @@ kube-prometheus-stack:
         sha: "{{ .opstool.prometheus.prometheusConfigReloader.image.sha }}"
   cleanPrometheusOperatorObjectNames: true
   kube-state-metrics:
+    prometheus:
+      monitor:
+        relabelings:
+        - action: replace
+          replacement: service
+          targetLabel: microsoft_metrics_include_label
     image:
       registry: "{{ .opstool.prometheus.kubeStateMetrics.image.registry }}"
       repository: "{{ .opstool.prometheus.kubeStateMetrics.image.repository }}"

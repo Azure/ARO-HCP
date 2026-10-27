@@ -19,8 +19,10 @@ import (
 	"embed"
 	"fmt"
 	"net/http"
+	"net/url"
 	"sort"
 	"strings"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -29,6 +31,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/rand"
+	"k8s.io/client-go/kubernetes"
 
 	configv1 "github.com/openshift/api/config/v1"
 	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
@@ -41,6 +44,34 @@ import (
 
 //go:embed test-artifacts
 var TestArtifactsFS embed.FS
+
+// shouldSkipDefaultIngressCertVerification reports whether the default ingress certificate
+// verifications should be skipped for the given channel group and resolved control plane version.
+//
+// HyperShift's CNTRLPLANE-4159 fix ("Maintain ingress serving cert for HostedCluster ingress",
+// https://github.com/openshift/hypershift/pull/9604, a backport of upstream #9132) landed on
+// HyperShift's release-4.23 (aka release-5.0) branch on 2026-09-21, two days after 4.23.0-ec.1 pinned
+// its hypershift component at commit f17305a432f0 (2026-09-19) -- confirmed by direct inspection of
+// api/hypershift/v1beta1/hostedcluster_conditions.go at each commit: the IngressDefaultCertificateSynced
+// condition is absent at 4.23.0-ec.1's pin and present at the fix commit. Before this fix, HyperShift
+// can serve its own internal self-signed ingress certificate instead of delivering the real default
+// ingress certificate, so the caller must skip the verifications for affected candidate builds. The
+// fix only landed in the 4.23 line, so only candidate builds of 4.23 can be affected. 4.23.0-ec.2 does
+// not exist yet; once it is cut it will include the fix, so this bound is written in anticipation of it.
+func shouldSkipDefaultIngressCertVerification(channelGroup, resolvedControlPlaneVersion string) (bool, error) {
+	if channelGroup != "candidate" {
+		return false, nil
+	}
+	resolvedSemver, err := semver.ParseTolerant(resolvedControlPlaneVersion)
+	if err != nil {
+		return false, fmt.Errorf("failed to parse resolved control plane version %q: %w", resolvedControlPlaneVersion, err)
+	}
+	if resolvedSemver.Major != 4 || resolvedSemver.Minor != 23 {
+		return false, nil
+	}
+	minControlPlaneVersionWithDefaultIngressCertFix := semver.MustParse("4.23.0-ec.2")
+	return resolvedSemver.LT(minControlPlaneVersionWithDefaultIngressCertFix), nil
+}
 
 var _ = Describe("ARO-HCP", func() {
 
@@ -122,10 +153,12 @@ var _ = Describe("ARO-HCP", func() {
 			)
 			Expect(err).NotTo(HaveOccurred(), "HCP cluster %s/%s should provision", *resourceGroup.Name, clusterName)
 
+			hcpClient := tc.Get20260901ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
+
 			By("verifying the cluster is viable")
 			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20260901(
 				ctx,
-				tc.Get20260901ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
+				hcpClient,
 				*resourceGroup.Name,
 				clusterName,
 				framework.GetAdminRESTConfigTimeout,
@@ -133,6 +166,17 @@ var _ = Describe("ARO-HCP", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to get admin REST config for cluster %q", clusterName)
 			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred(), "failed to verify HCP cluster %q is viable", clusterName)
+
+			By("fetching the cluster's DNS domain for default ingress certificate verification")
+			clusterResp, err := hcpClient.Get(ctx, *resourceGroup.Name, clusterName, nil)
+			Expect(err).NotTo(HaveOccurred(), "failed to get HCP cluster %q", clusterName)
+			Expect(clusterResp.Properties).NotTo(BeNil(), "cluster %q Properties was nil", clusterName)
+			Expect(clusterResp.Properties.DNS).NotTo(BeNil(), "cluster %q Properties.DNS was nil", clusterName)
+			Expect(clusterResp.Properties.DNS.BaseDomain).NotTo(BeNil(), "cluster %q DNS.BaseDomain was nil", clusterName)
+			Expect(clusterResp.Properties.DNS.BaseDomainPrefix).NotTo(BeNil(), "cluster %q DNS.BaseDomainPrefix was nil", clusterName)
+			baseDomain := *clusterResp.Properties.DNS.BaseDomain
+			baseDomainPrefix := *clusterResp.Properties.DNS.BaseDomainPrefix
+			delegatedDNSZone := fmt.Sprintf("aro.%s.%s", baseDomainPrefix, baseDomain)
 
 			nodePoolName := "np-" + suffix
 			nodePoolParams := framework.NewDefaultNodePoolParams20240610()
@@ -184,9 +228,65 @@ var _ = Describe("ARO-HCP", func() {
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to validate DiskStorageAccountType for node pool %q in cluster %q", nodePoolName, clusterName)
 
-			By("verifying a simple web app can run")
-			err = verifiers.VerifySimpleWebApp().Verify(ctx, adminRESTConfig)
-			Expect(err).NotTo(HaveOccurred(), "failed to verify simple web app runs on cluster %q", clusterName)
+			missingDefaultIngressCertFix, err := shouldSkipDefaultIngressCertVerification(channelGroup, parseableVersions[0])
+			Expect(err).NotTo(HaveOccurred(), "failed to determine default ingress certificate verification applicability for cluster %q", clusterName)
+
+			if missingDefaultIngressCertFix {
+				reason := fmt.Sprintf("control plane version %q predates HyperShift's default-ingress-cert fix (CNTRLPLANE-4159); ingress-dependent verifications (simple web app, Console login, default ingress certificate) were skipped for cluster %q", parseableVersions[0], clusterName)
+				By("skipping ingress-dependent verifications: " + reason)
+				AddReportEntry("ingress-dependent verifications skipped", reason)
+			} else {
+				By("verifying a simple web app can run")
+				err = verifiers.VerifySimpleWebApp().Verify(ctx, adminRESTConfig)
+				Expect(err).NotTo(HaveOccurred(), "failed to verify simple web app runs on cluster %q", clusterName)
+
+				By("configuring an ephemeral Dex provider for Console login")
+				consoleFixture, err := tc.SetupConsoleFixture20240610(ctx, *resourceGroup.Name, clusterName, adminRESTConfig, 15*time.Minute)
+				Expect(err).NotTo(HaveOccurred(), "failed to set up Console login fixture for cluster %q", clusterName)
+
+				By("verifying Console login and access to a namespaced marker")
+				err = verifiers.VerifyConsoleLogin(consoleFixture, 15*time.Minute).Verify(ctx, adminRESTConfig)
+				Expect(err).NotTo(HaveOccurred(), "failed to verify Console login for cluster %q", clusterName)
+
+				By("verifying the console serves the default ingress certificate")
+				appsWildcard := fmt.Sprintf("*.apps.aro.%s.%s", baseDomainPrefix, baseDomain)
+				consoleHostURL, err := url.Parse(consoleFixture.ConsoleURL)
+				Expect(err).NotTo(HaveOccurred(), "failed to parse console URL %q for cluster %q", consoleFixture.ConsoleURL, clusterName)
+				Expect(verifiers.VerifyDefaultIngressCertificate(consoleHostURL.Host, appsWildcard, 5*time.Minute).Verify(ctx, adminRESTConfig)).To(Succeed(), "console must serve the delivered default ingress certificate for cluster %q", clusterName)
+				Expect(verifiers.VerifyDefaultIngressServingCertificateSecretWiring(10*time.Minute).Verify(ctx, adminRESTConfig)).To(Succeed(), "default-ingress-cert must exist and be referenced by IngressController/default for cluster %q", clusterName)
+			}
+
+			By("verifying ACM's ingress certificate secret is absent, as HyperShift delivers it directly")
+			Expect(verifiers.VerifyACMIngressCertificateAbsent().Verify(ctx, adminRESTConfig)).To(Succeed(), "ACM must not create its ingress certificate secret for cluster %q", clusterName)
+
+			subscriptionID, err := tc.SubscriptionID(ctx)
+			Expect(err).NotTo(HaveOccurred(), "failed to get subscription ID")
+			cred, err := tc.AzureCredential()
+			Expect(err).NotTo(HaveOccurred(), "failed to get Azure credential")
+
+			By("picking a candidate egress IP from a worker node's subnet for the cloud-network-config check")
+			kubeClient, err := kubernetes.NewForConfig(adminRESTConfig)
+			Expect(err).NotTo(HaveOccurred(), "failed to create kubernetes client")
+			nodeList, err := kubeClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
+			Expect(err).NotTo(HaveOccurred(), "failed to list nodes")
+			Expect(nodeList.Items).NotTo(BeEmpty(), "no nodes found on cluster %q", clusterName)
+			sampleNode := &nodeList.Items[0]
+
+			computeClientFactory := tc.GetARMComputeClientFactoryOrDie(ctx)
+			networkClientFactory, err := tc.GetARMNetworkClientFactory(ctx)
+			Expect(err).NotTo(HaveOccurred(), "failed to get ARM network client factory")
+
+			egressIP, err := framework.PickAvailableIPInNodeSubnet(ctx, computeClientFactory, networkClientFactory, sampleNode)
+			Expect(err).NotTo(HaveOccurred(), "failed to pick an available egress IP for cluster %q", clusterName)
+
+			By("verifying cluster operators")
+			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig,
+				verifiers.VerifyIngressDNSRecord(cred, subscriptionID, managedResourceGroupName, delegatedDNSZone, framework.IngressDNSVerifyTimeout),
+				verifiers.VerifyCloudNetworkConfigEgressIP(computeClientFactory, networkClientFactory, sampleNode.Name, egressIP, framework.CloudNetworkConfigVerifyTimeout),
+				verifiers.VerifyAzureDiskCSIVolume(framework.CSIVolumeVerifyTimeout),
+				verifiers.VerifyAzureFileCSIVolume(framework.CSIVolumeVerifyTimeout),
+			)
+			Expect(err).NotTo(HaveOccurred(), "failed to verify cluster operators on cluster %q", clusterName)
 		},
 		Entry("for 4.20", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible,
 			labels.AllowRetry, // owner: @raelga, tracking: AROSLSRE-1747. Known-issue test, retriable during EV2 gating. Remove this label when the issue is fixed.
@@ -203,7 +303,9 @@ var _ = Describe("ARO-HCP", func() {
 		Entry("for 5.0", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible,
 			labels.AllowRetry, // owner: @raelga, tracking: AROSLSRE-1747. Known-issue test, retriable during EV2 gating. Remove this label when the issue is fixed.
 			"5.0"),
-		Entry("for 5.1", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "5.1"),
+		Entry("for 5.1", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible,
+			labels.AllowRetry, // owner: @hbhushan3, tracking: AROSLSRE-1586. Known-issue test, retriable during EV2 gating. Remove this label when the issue is fixed.
+			"5.1"),
 		Entry("for 5.2", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "5.2"),
 		Entry("for 5.3", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "5.3"),
 		Entry("for 5.4", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "5.4"),

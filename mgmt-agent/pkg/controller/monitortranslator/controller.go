@@ -304,13 +304,19 @@ func injectIncludeLabel(spec map[string]any, key string) {
 		if !ok {
 			continue
 		}
-		relabelConfigs, _ := endpointMap["metricRelabelings"].([]any)
+		// The routing label must be injected as a target relabeling (relabelings
+		// / relabel_configs), not a metric relabeling. Prometheus does not run
+		// metric_relabel_configs over synthetic per-target series (up, scrape_*),
+		// so a metric-level marker would be absent from up and the series dropped
+		// by the HCP data collection rule's labelIncludeFilter. Target relabeling
+		// applies to every series the target emits, including up.
+		relabelConfigs, _ := endpointMap["relabelings"].([]any)
 		if hasIncludeLabel(relabelConfigs) {
 			// The source already carries the marker (e.g. the KSM monitor sets
 			// it at creation time); avoid appending a duplicate relabel rule.
 			continue
 		}
-		endpointMap["metricRelabelings"] = append(relabelConfigs, map[string]any{
+		endpointMap["relabelings"] = append(relabelConfigs, map[string]any{
 			"targetLabel": includeLabelTargetLabel,
 			"replacement": "hcp",
 			"action":      "replace",

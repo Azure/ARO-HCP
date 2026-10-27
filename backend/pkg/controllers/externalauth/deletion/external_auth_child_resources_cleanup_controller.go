@@ -57,13 +57,16 @@ func NewExternalAuthChildResourcesCleanupController(
 		resourcesDBClient:  resourcesDBClient,
 	}
 
-	return controllerutils.NewExternalAuthWatchingController(
+	controller := controllerutils.NewExternalAuthWatchingController(
 		ExternalAuthChildResourcesCleanupControllerControllerName,
 		resourcesDBClient,
 		informers,
 		time.Minute,
 		syncer,
 	)
+	controller.AddInterestingResource(coreapi.ExternalAuthResourceType, "*")
+
+	return controller
 }
 
 func (c *externalAuthChildResourcesCleanupController) NeedsWork(externalAuth *coreapi.ExternalAuth) bool {

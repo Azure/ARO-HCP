@@ -68,7 +68,7 @@ func NewClusterWatchingController(
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 	resyncDuration time.Duration,
 	syncer ClusterSyncer,
-) Controller {
+) WatchingController {
 
 	controller := &clusterWatchingController{
 		name:              name,
@@ -81,13 +81,17 @@ func NewClusterWatchingController(
 	serviceProviderInformer, _ := informers.ServiceProviderClusters()
 	controller.clusterLister = clusterLister
 
-	err := clusterController.QueueForInformers(resyncDuration, clusterInformer, serviceProviderInformer)
+	err := clusterController.QueueForInformers(resyncDuration, clusterInformer)
+	if err != nil {
+		panic(err)
+	}
+	err = clusterController.QueueForInformers(0, serviceProviderInformer)
 	if err != nil {
 		panic(err) // coding error
 	}
 	managementClusterContentInformer, _ := informers.ManagementClusterContents()
 	// Limit the max depth of ManagementClusterContent to 1 to only consider the cluster-scoped ManagementClusterContents
-	err = clusterController.QueueForInformersWithMaxDepth(resyncDuration, 1, managementClusterContentInformer)
+	err = clusterController.QueueForInformersWithMaxDepth(0, 1, managementClusterContentInformer)
 	if err != nil {
 		panic(err) // coding error
 	}
@@ -102,11 +106,11 @@ func NewClusterWatchingController(
 		// now folds cluster-scoped ApplyDesire Degraded status into the cluster
 		// condition; Delete desires are still not wired in.
 		readDesireInformer, _ := kubeApplierInformers.ReadDesires()
-		if err := clusterController.QueueForInformersWithMaxDepth(resyncDuration, 1, readDesireInformer); err != nil {
+		if err := clusterController.QueueForInformersWithMaxDepth(0, 1, readDesireInformer); err != nil {
 			panic(err) // coding error
 		}
 		applyDesireInformer, _ := kubeApplierInformers.ApplyDesires()
-		if err := clusterController.QueueForInformersWithMaxDepth(resyncDuration, 1, applyDesireInformer); err != nil {
+		if err := clusterController.QueueForInformersWithMaxDepth(0, 1, applyDesireInformer); err != nil {
 			panic(err) // coding error
 		}
 	}

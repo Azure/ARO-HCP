@@ -17,6 +17,9 @@ var locationAvailabilityZoneList = csvToArray(locationAvailabilityZones)
 @description('AKS cluster name')
 param aksClusterName string
 
+@description('Configured Istio revisions used only when the service cluster does not exist.')
+param istioVersions string
+
 @description('CI only: use an untainted system pool without creating worker or infra pools. Existing pools are not removed.')
 param systemPoolOnly bool = false
 
@@ -664,9 +667,13 @@ module nodeSubnetCreation '../modules/network/aks-node-subnet.bicep' = {
   ]
 }
 
-// istioVersions intentionally omitted — mesh revisions are managed by the
-// IstioUpgrade pipeline step, not baked into the ARM template. Passing them
-// here would roll the mesh profile back on every deployment.
+// Discover the cluster before deployment. Existing clusters retain their live
+// revision list, including both revisions of an in-progress canary upgrade.
+@nullIfNotFound()
+resource existingSvcCluster 'Microsoft.ContainerService/managedClusters@2026-04-02-preview' existing = {
+  name: aksClusterName
+}
+
 module svcCluster '../modules/aks-cluster-base.bicep' = {
   name: 'cluster-${uniqueString(resourceGroup().name)}'
   scope: resourceGroup()
@@ -681,6 +688,7 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
     aksClusterOutboundIPAddressIPTags: aksClusterOutboundIPAddressIPTags
     kubernetesVersion: kubernetesVersion
     deployIstio: true
+    istioVersions: existingSvcCluster == null ? csvToArray(istioVersions) : []
     vnetName: vnetName
     nodeSubnetId: nodeSubnetCreation.outputs.subnetId
     podSubnetPrefix: podSubnetPrefix

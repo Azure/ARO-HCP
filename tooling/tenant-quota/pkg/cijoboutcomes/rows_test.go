@@ -18,6 +18,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"testing"
 	"time"
 
@@ -59,7 +60,7 @@ func TestProwOutcomeFor(t *testing.T) {
 				OverallResult: result, Failed: result != "SUCCESS", StartedAt: started.UTC(), FinishedAt: finished.UTC(),
 				SvcCluster: "svc", MgmtCluster: "mgmt", ADOBuildID: "00123",
 			}
-			if got != want {
+			if !reflect.DeepEqual(got, want) {
 				t.Fatalf("outcome = %+v, want %+v", got, want)
 			}
 		})

@@ -36,6 +36,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v6"
@@ -449,18 +450,45 @@ func (b *azureFailureBundle) collectEffectiveNetwork(ctx context.Context, networ
 	})
 	children.Go(func() {
 		b.operation(ctx, rg, "effective-network-security-groups", nic, func(op *azureFailureOperation) error {
-			poller, err := client.BeginListEffectiveNetworkSecurityGroups(ctx, rg, nic, nil)
-			if err != nil {
-				return err
+			var response *http.Response
+			nsgCtx := policy.WithCaptureResponse(ctx, &response)
+			poller, err := client.BeginListEffectiveNetworkSecurityGroups(nsgCtx, rg, nic, nil)
+			if err == nil {
+				_, err = poller.PollUntilDone(nsgCtx, &runtime.PollUntilDoneOptions{Frequency: time.Second})
 			}
-			result, err := poller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{Frequency: time.Second})
 			if err != nil {
+				var responseError *azcore.ResponseError
+				// The pinned SDK formats decoding errors without wrapping them.
+				// Recover only its object-valued tagMap error; a final GET failure
+				// can leave the captured response pointing at a successful status poll.
+				const tagMapDecodeError = "unmarshalling type *armnetwork.EffectiveNetworkSecurityGroup: struct field TagMap: json: cannot unmarshal object into Go value of type string"
+				if response == nil || response.StatusCode != http.StatusOK || (poller != nil && !poller.Done()) ||
+					errors.As(err, &responseError) || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) ||
+					!strings.HasSuffix(err.Error(), tagMapDecodeError) {
+					return err
+				}
+			}
+			var result struct {
+				Value    []*azureEffectiveNetworkSecurityGroup `json:"value"`
+				NextLink *string                               `json:"nextLink"`
+			}
+			if err := runtime.UnmarshalAsJSON(response, &result); err != nil {
 				return err
 			}
 			return collectEffectivePages(ctx, b, op, result.Value, result.NextLink)
 		})
 	})
 	children.Wait()
+}
+
+// armnetwork/v6 expects tagMap to be a string, but Azure returns an object.
+// Keep the SDK's other effective-NSG fields and retain either tagMap shape without
+// changing the SDK, ARM API version, or the projection of unknown response fields.
+type azureEffectiveNetworkSecurityGroup struct {
+	Association            *armnetwork.EffectiveNetworkSecurityGroupAssociation `json:"association,omitempty"`
+	EffectiveSecurityRules []*armnetwork.EffectiveNetworkSecurityRule           `json:"effectiveSecurityRules,omitempty"`
+	NetworkSecurityGroup   *armnetwork.SubResource                              `json:"networkSecurityGroup,omitempty"`
+	TagMap                 json.RawMessage                                      `json:"tagMap,omitempty"`
 }
 
 var errEffectiveNetworkIncomplete = errors.New("effective networking continuation unavailable or outside the ARM endpoint/resource scope")

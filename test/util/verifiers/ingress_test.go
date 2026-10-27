@@ -32,7 +32,7 @@ import (
 	operatorfake "github.com/openshift/client-go/operator/clientset/versioned/fake"
 )
 
-func TestHyperShiftIngressCertificateWiring(test *testing.T) {
+func TestDefaultIngressServingCertificateSecretWiring(test *testing.T) {
 	for _, testCase := range []struct {
 		name          string
 		secretType    corev1.SecretType
@@ -45,7 +45,7 @@ func TestHyperShiftIngressCertificateWiring(test *testing.T) {
 		{name: "wired", reference: "default-ingress-cert"},
 		{name: "Opaque secret", secretType: corev1.SecretTypeOpaque, reference: "default-ingress-cert"},
 		{name: "TLS secret", secretType: corev1.SecretTypeTLS, reference: "default-ingress-cert"},
-		{name: "secret missing", secretMissing: true, wantError: "getting HyperShift ingress secret"},
+		{name: "secret missing", secretMissing: true, wantError: "getting default ingress serving certificate secret"},
 		{name: "certificate missing", certMissing: true, wantError: "must contain non-empty tls.crt and tls.key data"},
 		{name: "key missing", keyMissing: true, wantError: "must contain non-empty tls.crt and tls.key data"},
 		{name: "reference missing", wantError: "expected secret"},
@@ -69,7 +69,7 @@ func TestHyperShiftIngressCertificateWiring(test *testing.T) {
 				controller.Spec.DefaultCertificate = &corev1.LocalObjectReference{Name: testCase.reference}
 			}
 			operatorClient := operatorfake.NewClientset(controller)
-			err := verifyHyperShiftIngressCertificateWiring(test.Context(), kubeClient, operatorClient)
+			err := checkDefaultIngressServingCertificateSecretWiring(test.Context(), kubeClient, operatorClient)
 			if testCase.wantError == "" {
 				require.NoError(test, err)
 			} else {

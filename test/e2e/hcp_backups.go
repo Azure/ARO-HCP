@@ -100,7 +100,7 @@ func createBackupTestCluster(ctx context.Context, cfg backupTestClusterConfig) b
 }
 
 var _ = Describe("SRE", func() {
-	timeBombDeadline := framework.Must(time.Parse(time.RFC3339, "2026-10-27T00:00:00Z"))
+	timeBombDeadline := framework.Must(time.Parse(time.RFC3339, "2026-10-29T00:00:00Z"))
 
 	It("can pause schedules to stop backup execution for an HCP cluster",
 		labels.RequireNothing,

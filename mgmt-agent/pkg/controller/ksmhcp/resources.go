@@ -214,6 +214,18 @@ func buildServiceMonitor(namespace, apiGroup string, ownerRef metav1.OwnerRefere
 				{
 					Port:     "http-metrics",
 					Interval: "30s",
+					// Target relabeling (relabel_configs) applies to every series the
+					// target emits, including the synthetic per-target series (up,
+					// scrape_*). The routing label must live here so up carries it and
+					// survives the HCP data collection rule's labelIncludeFilter; set via
+					// MetricRelabelConfigs it would be absent from up and dropped.
+					RelabelConfigs: []monitoringv1.RelabelConfig{
+						{
+							TargetLabel: "microsoft_metrics_include_label",
+							Replacement: ptr.To("hcp"),
+							Action:      "replace",
+						},
+					},
 					MetricRelabelConfigs: []monitoringv1.RelabelConfig{
 						{
 							TargetLabel: "hostedcontrolplane",
@@ -221,15 +233,12 @@ func buildServiceMonitor(namespace, apiGroup string, ownerRef metav1.OwnerRefere
 							Action:      "replace",
 						},
 						{
+							// exported_namespace exists only on scraped KSM samples, not
+							// on synthetic series, so this rename stays metric-level.
 							SourceLabels: []monitoringv1.LabelName{"exported_namespace"},
 							TargetLabel:  "namespace",
 							Regex:        "(.+)",
 							Action:       "replace",
-						},
-						{
-							TargetLabel: "microsoft_metrics_include_label",
-							Replacement: ptr.To("hcp"),
-							Action:      "replace",
 						},
 					},
 				},

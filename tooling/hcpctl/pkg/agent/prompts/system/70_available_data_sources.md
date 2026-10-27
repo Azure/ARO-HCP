@@ -31,7 +31,7 @@ resource. Review the manifest's `directory_layout` for the full structure. Key l
 Each environment has two databases:
 
 - **`ServiceLogs`**: Frontend (`frontendLogs`), Backend (`backendLogs`), Clusters
-  Service (`clustersServiceLogs`), Maestro server/agent (`containerLogs`), Kubernetes
+  Service (`clustersServiceLogs`), general service/container logs (`containerLogs`), Kubernetes
   events (`kubernetesEvents`), audit logs (`kubeAudit`), Kubernetes resource snapshots
   (`kubernetesResourceSnapshots`), Cosmos DB document snapshots
   (`cosmosResourceSnapshots`). Management cluster data
@@ -131,4 +131,3 @@ Review ingest mappings and schemas at `dev-infrastructure/modules/logs/kusto/tab
 
 Repository checkouts are listed in the initial prompt. Use `code` proofs to cite
 specific files and line ranges.
-

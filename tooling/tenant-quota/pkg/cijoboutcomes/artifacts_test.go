@@ -370,8 +370,10 @@ func TestE2ETimingLoggerRetainsSourceContext(t *testing.T) {
 func TestFetchJobOutcomeDetailDoesNotReadTestSources(t *testing.T) {
 	for _, body := range []string{`{"metadata":{"annotations":{"ev2.rollout/build":"00123"}}}`, `{`} {
 		objects := map[string]string{
-			artifactTestPrefix + "/prowjob.json": body,
-			artifactTestPrefix + "/started.json": `{"timestamp":1787696844}`,
+			artifactTestPrefix + "/prowjob.json":     body,
+			artifactTestPrefix + "/started.json":     `{"timestamp":1787696844}`,
+			artifactTestPrefix + "/artifacts/":       `{"prefixes":["` + artifactTestRoot + `"]}`,
+			artifactTestRoot + slotStateArtifactPath: validSlotState,
 		}
 		detail, err := fetchJobOutcomeDetail(t.Context(), artifactClient(t, objects, nil), artifactTestURL)
 		if err != nil || detail.StartedAt.IsZero() || !detail.FinishedAt.IsZero() {
@@ -401,9 +403,10 @@ func TestFetchJobOutcomeDetailPRConfig(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			objects := map[string]string{
-				prefix + "/prowjob.json": `{"status":{"startTime":"2026-01-01T00:00:00Z"}}`,
-				prefix + "/artifacts/":   `{"prefixes":["` + root + `"]}`,
-				configPath:               tc.config,
+				prefix + "/prowjob.json":     `{"status":{"startTime":"2026-01-01T00:00:00Z"}}`,
+				prefix + "/artifacts/":       `{"prefixes":["` + root + `"]}`,
+				configPath:                   tc.config,
+				root + slotStateArtifactPath: validSlotState,
 			}
 			statuses := map[string]int{configPath: tc.status}
 			if tc.fallback {
@@ -442,8 +445,10 @@ func TestJobArtifactProblemReporting(t *testing.T) {
 		for _, reason := range []string{"absent", "malformed", "transient"} {
 			t.Run(filename+"/"+reason, func(t *testing.T) {
 				objects := map[string]string{
-					artifactTestPrefix + "/prowjob.json": `{}`,
-					artifactTestPrefix + "/started.json": `{"timestamp":1787696844}`,
+					artifactTestPrefix + "/prowjob.json":     `{}`,
+					artifactTestPrefix + "/started.json":     `{"timestamp":1787696844}`,
+					artifactTestPrefix + "/artifacts/":       `{"prefixes":["` + artifactTestRoot + `"]}`,
+					artifactTestRoot + slotStateArtifactPath: validSlotState,
 				}
 				path := artifactTestPrefix + "/" + filename
 				statuses := map[string]int{}

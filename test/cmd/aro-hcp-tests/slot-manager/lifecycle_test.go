@@ -512,20 +512,20 @@ func TestIndependentAssetLifecycleAndRollback(t *testing.T) {
 
 func TestUnsupportedAssetsAndConflictingSelectorsFailBeforeNetwork(t *testing.T) {
 	t.Parallel()
-	for _, scenario := range []string{"unsupported", "missing demanded infra binding", "conflicting selector", "unknown admission kind"} {
+	for _, scenario := range []string{"missing demanded infra binding", "conflicting selector", "unknown admission kind"} {
 		t.Run(scenario, func(t *testing.T) {
 			server, acquired, _ := newTestLeaseProxyServer(t, nil)
 			defer server.Close()
 			options := lifecycleOptions(t, lifecycleCatalog, server.URL, nil)
-			expected := "without an implemented handler"
-			if scenario == "missing demanded infra binding" {
+			expected := "deployment_environment.infrastructure_subscription"
+			switch scenario {
+			case "missing demanded infra binding":
 				options.CatalogPath = writeAcquireTestCatalogFromYAML(t, strings.Replace(lifecycleCatalog, "name: ci01, infrastructure_subscription: dev-infra", "name: ci01", 1))
-				expected = "deployment_environment.infrastructure_subscription"
-			} else if scenario == "unknown admission kind" {
+			case "unknown admission kind":
 				options.CatalogPath = writeAcquireTestCatalog(t, slots.RegionModeFixed, "westus3")
 				options.DisabledAssetAdmission = []string{"e2e-identities"}
 				expected = `--disable-asset-admission: unknown asset kind "e2e-identities"`
-			} else if scenario != "unsupported" {
+			case "conflicting selector":
 				options.CatalogPath = writeAcquireTestCatalog(t, slots.RegionModeFixed, "westus3")
 				options.DeployEnv = "prod"
 				expected = "no candidate pool with deploy_env"
@@ -566,8 +566,8 @@ func TestPoolCommandsPreserveWholeCatalogInventory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := runPoolAssetsCommand(context.Background(), builtIn, assetCommandOptionsForTest(assetCommandOptions{Environment: "dev", SlotCatalog: path}), true); err == nil || !strings.Contains(err.Error(), "without an implemented handler") {
-		t.Fatalf("unsupported asset management must fail before Azure access: %v", err)
+	if _, found := builtIn.GetHandler(assets.KindInfrastructureIdentities); !found {
+		t.Fatal("built-in registry must include the infrastructure identities handler")
 	}
 }
 

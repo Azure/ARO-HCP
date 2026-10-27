@@ -85,7 +85,7 @@ func NewDesiresCreatorController(
 		readDesireLister:             readDesireLister,
 	}
 
-	return controllerutils.NewSystemAdminCredentialRequestWatchingController(
+	controller := controllerutils.NewSystemAdminCredentialRequestWatchingController(
 		DesiresCreatorControllerName,
 		resourcesDBClient,
 		backendInformers,
@@ -93,6 +93,14 @@ func NewDesiresCreatorController(
 		1*time.Minute,
 		syncer,
 	)
+	controller.AddInterestingResource(coreapi.SystemAdminCredentialRequestResourceType, "*")
+	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
+	controller.AddInterestingResource(coreapi.ServiceProviderClusterResourceType, coreapi.ServiceProviderClusterResourceName)
+	controller.AddInterestingResource(kubeapplierapi.SystemAdminCredentialRequestScopedApplyDesireResourceType, kubeapplierapi.SystemAdminCredentialCSRDesireName)
+	controller.AddInterestingResource(kubeapplierapi.SystemAdminCredentialRequestScopedApplyDesireResourceType, kubeapplierapi.SystemAdminCredentialCSRApprovalDesireName)
+	controller.AddInterestingResource(kubeapplierapi.SystemAdminCredentialRequestScopedReadDesireResourceType, kubeapplierapi.SystemAdminCredentialCSRDesireName)
+
+	return controller
 }
 
 // needsWork reports whether the desires-creator has anything to do for this
@@ -194,7 +202,7 @@ func (c *desiresCreator) ensureDesires(
 	}
 
 	// 1. CSR ApplyDesire
-	csrDesireName := "systemadmincredentialcsr"
+	csrDesireName := kubeapplierapi.SystemAdminCredentialCSRDesireName
 	csrObj := systemadmincredential.BuildCSR(owner, credName, controlPlaneNamespace, []byte(cred.Spec.CertificateSigningRequestPEM))
 	csrDesire, err := buildCredentialRequestApplyDesire(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName,
 		credName, csrDesireName, mcResourceID, csrTarget(csrObj), csrObj)
@@ -206,7 +214,7 @@ func (c *desiresCreator) ensureDesires(
 	}
 
 	// 2. CSRApproval ApplyDesire
-	csrApprovalDesireName := "systemadmincredentialcsrapproval"
+	csrApprovalDesireName := kubeapplierapi.SystemAdminCredentialCSRApprovalDesireName
 	csrApprovalObj := systemadmincredential.BuildCSRApproval(owner, credName, controlPlaneNamespace)
 	csrApprovalTarget := kubeapplierapi.ResourceReference{
 		Group:     "certificates.hypershift.openshift.io",

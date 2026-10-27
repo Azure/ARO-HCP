@@ -24,20 +24,25 @@ import (
 
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/tools/cache"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
+	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/fleetcosmosstoragetesting"
+	"github.com/Azure/ARO-HCP/internal/database/listers/fleetlisters"
 )
 
 // fakeManagementClusterSyncer is a ManagementClusterSyncer whose SyncOnce
 // returns a configured error.
 type fakeManagementClusterSyncer struct {
-	err error
+	err    error
+	called bool
 }
 
 func (f *fakeManagementClusterSyncer) SyncOnce(_ context.Context, _ ManagementClusterKey) error {
+	f.called = true
 	return f.err
 }
 
@@ -87,41 +92,67 @@ func TestManagementClusterWatchingControllerSyncOnce(t *testing.T) {
 	const controllerName = "NodePoolController"
 	key := ManagementClusterKey{StampIdentifier: stampID}
 
-	t.Run("successful sync writes Degraded=False and returns nil", func(t *testing.T) {
-		mockDB := fleetcosmosstoragetesting.NewMockFleetDBClient()
-		c := &managementClusterWatchingController{
-			name:          controllerName,
-			fleetDBClient: mockDB,
-			syncer:        &fakeManagementClusterSyncer{},
-		}
+	for _, tc := range []struct {
+		name    string
+		present bool
+		readErr error
+		syncErr error
+	}{
+		{name: "missing parent"},
+		{name: "parent read error", readErr: errors.New("parent cache read failed")},
+		{name: "successful sync", present: true},
+		{name: "sync error", present: true, syncErr: errors.New("sync boom")},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			mockDB := fleetcosmosstoragetesting.NewMockFleetDBClient()
+			indexer := cache.NewIndexer(func(any) (string, error) { return key.GetResourceID().String(), nil }, cache.Indexers{})
+			if tc.present {
+				require.NoError(t, indexer.Add(&fleetapi.ManagementCluster{}))
+			}
+			if tc.readErr != nil {
+				indexer = parentReadErrorIndexer{Indexer: indexer, err: tc.readErr}
+			}
+			syncer := &fakeManagementClusterSyncer{err: tc.syncErr}
+			c := &managementClusterWatchingController{
+				name:                    controllerName,
+				fleetDBClient:           mockDB,
+				syncer:                  syncer,
+				managementClusterLister: fleetlisters.NewManagementClusterLister(indexer),
+			}
 
-		err := c.SyncOnce(testContext(), key)
-		require.NoError(t, err, "SyncOnce")
+			err := c.SyncOnce(testContext(), key)
+			switch {
+			case tc.readErr != nil:
+				require.ErrorIs(t, err, tc.readErr)
+			case tc.syncErr != nil:
+				require.ErrorIs(t, err, tc.syncErr)
+			default:
+				require.NoError(t, err)
+			}
+			require.Equal(t, tc.present, syncer.called, "sync only runs with a known parent")
+			if !tc.present {
+				require.Empty(t, mockDB.GetAllDocuments(), "must not create orphaned status")
+				return
+			}
+			stored, err := mockDB.Stamps().ManagementClusters(stampID).Controllers().Get(testContext(), controllerName)
+			require.NoError(t, err, "Get controller document")
+			cond := apimeta.FindStatusCondition(stored.Status.Conditions, "Degraded")
+			require.NotNil(t, cond, "expected Degraded condition")
+			if tc.syncErr != nil {
+				assert.Equal(t, metav1.ConditionTrue, cond.Status)
+				assert.Contains(t, cond.Message, tc.syncErr.Error())
+			} else {
+				assert.Equal(t, metav1.ConditionFalse, cond.Status)
+			}
+		})
+	}
+}
 
-		stored, err := mockDB.Stamps().ManagementClusters(stampID).Controllers().Get(testContext(), controllerName)
-		require.NoError(t, err, "Get controller document")
-		cond := apimeta.FindStatusCondition(stored.Status.Conditions, "Degraded")
-		require.NotNil(t, cond, "expected Degraded condition")
-		assert.Equal(t, metav1.ConditionFalse, cond.Status, "Degraded status")
-	})
+type parentReadErrorIndexer struct {
+	cache.Indexer
+	err error
+}
 
-	t.Run("sync error is returned and written as Degraded=True", func(t *testing.T) {
-		mockDB := fleetcosmosstoragetesting.NewMockFleetDBClient()
-		syncErr := errors.New("sync boom")
-		c := &managementClusterWatchingController{
-			name:          controllerName,
-			fleetDBClient: mockDB,
-			syncer:        &fakeManagementClusterSyncer{err: syncErr},
-		}
-
-		err := c.SyncOnce(testContext(), key)
-		assert.ErrorIs(t, err, syncErr, "SyncOnce must return the syncer error")
-
-		stored, err := mockDB.Stamps().ManagementClusters(stampID).Controllers().Get(testContext(), controllerName)
-		require.NoError(t, err, "Get controller document")
-		cond := apimeta.FindStatusCondition(stored.Status.Conditions, "Degraded")
-		require.NotNil(t, cond, "expected Degraded condition")
-		assert.Equal(t, metav1.ConditionTrue, cond.Status, "Degraded status")
-		assert.Contains(t, cond.Message, "sync boom", "Degraded message carries the sync error")
-	})
+func (i parentReadErrorIndexer) GetByKey(string) (any, bool, error) {
+	return nil, false, i.err
 }

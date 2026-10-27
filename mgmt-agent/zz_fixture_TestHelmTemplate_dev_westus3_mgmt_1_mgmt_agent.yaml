@@ -36,6 +36,141 @@ data:
   config.yaml: |
     enabled: true
 ---
+# Source: mgmt-agent/templates/backuprepositorycleanup-crd.yaml
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: backuprepositorycleanups.mgmtagent.aro-hcp.azure.com
+  labels:
+    app.kubernetes.io/name: mgmt-agent
+spec:
+  group: mgmtagent.aro-hcp.azure.com
+  names:
+    kind: BackupRepositoryCleanup
+    listKind: BackupRepositoryCleanupList
+    plural: backuprepositorycleanups
+    singular: backuprepositorycleanup
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    served: true
+    storage: true
+    subresources:
+      status: {}
+    additionalPrinterColumns:
+    - name: Repository
+      type: string
+      jsonPath: .spec.repository.name
+    - name: Complete
+      type: string
+      jsonPath: .status.conditions[?(@.type=="Complete")].status
+    - name: Reason
+      type: string
+      jsonPath: .status.conditions[?(@.type=="Complete")].reason
+    schema:
+      openAPIV3Schema:
+        type: object
+        required:
+        - spec
+        properties:
+          apiVersion:
+            type: string
+          kind:
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: Immutable cleanup obligation; no credentials or owner references to the retired repository.
+            type: object
+            required:
+            - repository
+            - storage
+            x-kubernetes-validations:
+            - rule: self == oldSelf
+              message: Cleanup identity and storage target are immutable.
+            properties:
+              repository:
+                type: object
+                required:
+                - name
+                - uid
+                - volumeNamespace
+                properties:
+                  name:
+                    type: string
+                    minLength: 1
+                    maxLength: 253
+                  uid:
+                    type: string
+                    minLength: 1
+                    maxLength: 64
+                  volumeNamespace:
+                    type: string
+                    minLength: 1
+                    maxLength: 63
+                    pattern: ^ocm-[a-z][a-z0-9]{0,9}-[a-z0-9]{32}(-[a-z0-9]([-a-z0-9]*[a-z0-9])?)?$
+              storage:
+                type: object
+                required:
+                - accountURL
+                - container
+                - prefix
+                properties:
+                  accountURL:
+                    type: string
+                    maxLength: 128
+                    pattern: ^https://[a-z0-9]{3,24}\.blob\.core\.windows\.net/?$
+                  container:
+                    type: string
+                    minLength: 3
+                    maxLength: 63
+                    pattern: ^[a-z0-9]+(-[a-z0-9]+)*$
+                  prefix:
+                    type: string
+                    minLength: 1
+                    maxLength: 1024
+          status:
+            type: object
+            properties:
+              conditions:
+                type: array
+                x-kubernetes-list-type: map
+                x-kubernetes-list-map-keys:
+                - type
+                items:
+                  type: object
+                  required:
+                  - type
+                  - status
+                  - lastTransitionTime
+                  - reason
+                  - message
+                  properties:
+                    type:
+                      type: string
+                      enum:
+                      - Complete
+                    status:
+                      type: string
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
+                    observedGeneration:
+                      type: integer
+                      format: int64
+                      minimum: 0
+                    lastTransitionTime:
+                      type: string
+                      format: date-time
+                    reason:
+                      type: string
+                      minLength: 1
+                      maxLength: 1024
+                    message:
+                      type: string
+                      maxLength: 32768
+---
 # Source: mgmt-agent/templates/capacityreport-crd.yaml
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
@@ -177,7 +312,7 @@ spec:
                         x-kubernetes-int-or-string: true
               usage:
                 description: >-
-                  Actual resource consumption across HCP workloads in ocm-* namespaces, sourced from metrics-server PodMetrics.
+                  Consumption across HCP namespaces from PodMetrics, except aro.openshift.io/swift-nic usage, which equals its requested allocation.
                 type: object
                 maxProperties: 16
                 additionalProperties:
@@ -189,7 +324,7 @@ spec:
                   x-kubernetes-int-or-string: true
               requested:
                 description: >-
-                  Sum of resource requests across regular (non-init) containers of non-terminal pods (phase is not Succeeded or Failed) in ocm-* namespaces. This approximates steady-state reservation.
+                  Sum of regular-container requests for Pending and Running pods in HCP namespaces, excluding init containers and pod overhead. This approximates steady-state reservation and may differ from actual usage.
                 type: object
                 maxProperties: 16
                 additionalProperties:
@@ -201,7 +336,7 @@ spec:
                   x-kubernetes-int-or-string: true
               hostedControlPlanes:
                 description: >-
-                  Reported as a single atomic unit: the whole object is replaced on every apply, since mgmt-agent is the sole writer and there is no need to track ownership of readyResourceIDs/notReadyResourceIDs individually.
+                  Reported as a single atomic unit: the whole object is replaced on every apply, since mgmt-agent is the sole writer. This removes stale identities and size buckets, including the final named bucket. Resource totals measure HCP workloads; overall identity lists and per-size ready counts deduplicate ARM resource IDs by exact, case-sensitive string equality, rather than counting measured HCP objects. Legacy reports may omit resources, readyResources and byClusterSizingConfiguration. Failed collections preserve the existing payload, including absent fields.
                 type: object
                 x-kubernetes-map-type: atomic
                 properties:
@@ -219,6 +354,132 @@ spec:
                     items:
                       type: string
                     x-kubernetes-list-type: set
+                  resources:
+                    description: >-
+                      Usage and requests for all HCPs, including HCPs without usable size attribution. Absence means not reported, not zero. Successful collections by new collectors always include this object and dual-write the same totals to the legacy status.usage and status.requested. Both maps include CPU, memory and aro.openshift.io/swift-nic, with zero values when no matching workload exists.
+                    type: object
+                    required:
+                    - usage
+                    - requested
+                    properties:
+                      usage:
+                        description: >-
+                          Consumption from PodMetrics, except aro.openshift.io/swift-nic usage, which equals its requested allocation.
+                        type: object
+                        maxProperties: 16
+                        additionalProperties:
+                          anyOf:
+                          - type: integer
+                          - type: string
+                          # Standard Kubernetes resource.Quantity validation pattern
+                          pattern: "^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$"
+                          x-kubernetes-int-or-string: true
+                      requested:
+                        description: >-
+                          Sum of regular-container requests for Pending and Running pods, excluding init containers and pod overhead.
+                        type: object
+                        maxProperties: 16
+                        additionalProperties:
+                          anyOf:
+                          - type: integer
+                          - type: string
+                          # Standard Kubernetes resource.Quantity validation pattern
+                          pattern: "^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$"
+                          x-kubernetes-int-or-string: true
+                  readyResources:
+                    description: >-
+                      Usage and requests for all HCPs whose Available condition is True, including HCPs without usable size attribution. Absence means not reported, not zero. Successful collections by new collectors always include this object and CPU, memory and aro.openshift.io/swift-nic in both maps, with zero values when no HCP is ready.
+                    type: object
+                    required:
+                    - usage
+                    - requested
+                    properties:
+                      usage:
+                        description: >-
+                          Consumption from PodMetrics, except aro.openshift.io/swift-nic usage, which equals its requested allocation.
+                        type: object
+                        maxProperties: 16
+                        additionalProperties:
+                          anyOf:
+                          - type: integer
+                          - type: string
+                          # Standard Kubernetes resource.Quantity validation pattern
+                          pattern: "^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$"
+                          x-kubernetes-int-or-string: true
+                      requested:
+                        description: >-
+                          Sum of regular-container requests for Pending and Running pods, excluding init containers and pod overhead.
+                        type: object
+                        maxProperties: 16
+                        additionalProperties:
+                          anyOf:
+                          - type: integer
+                          - type: string
+                          # Standard Kubernetes resource.Quantity validation pattern
+                          pattern: "^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$"
+                          x-kubernetes-int-or-string: true
+                  byClusterSizingConfiguration:
+                    description: >-
+                      HCP populations grouped by the associated HostedCluster's observed hypershift.openshift.io/hosted-cluster-size label. The HCP's hypershift.openshift.io/cluster annotation identifies that HostedCluster as namespace/name. Missing associations or noncanonical/reserved labels contribute only to overall accounting, so named buckets are not exhaustive. When no HCP has usable attribution this list is omitted or empty; that alone does not indicate a legacy report. Resource totals measure each bucket's HCP workloads; readyCount counts distinct ready ARM resource IDs, not measured HCP objects.
+                    type: array
+                    x-kubernetes-list-type: map
+                    x-kubernetes-list-map-keys:
+                    - size
+                    items:
+                      type: object
+                      required:
+                      - size
+                      - readyResources
+                      - readyCount
+                      properties:
+                        size:
+                          description: >-
+                            Canonical lowercase observed HostedCluster size label value, excluding the reserved name default.
+                          type: string
+                          minLength: 1
+                          maxLength: 63
+                          pattern: '^[a-z0-9]([-a-z0-9_.]*[a-z0-9])?$'
+                          x-kubernetes-validations:
+                          - rule: "self != 'default'"
+                            message: default is reserved for overall accounting
+                        readyResources:
+                          description: >-
+                            Usage and requests for HCPs in this size bucket whose Available condition is True. Required even when no HCP in the bucket is ready. Successful collections include CPU, memory and aro.openshift.io/swift-nic in both maps, with zero values for an empty ready population.
+                          type: object
+                          required:
+                          - usage
+                          - requested
+                          properties:
+                            usage:
+                              description: >-
+                                Consumption from PodMetrics, except aro.openshift.io/swift-nic usage, which equals its requested allocation.
+                              type: object
+                              maxProperties: 16
+                              additionalProperties:
+                                anyOf:
+                                - type: integer
+                                - type: string
+                                # Standard Kubernetes resource.Quantity validation pattern
+                                pattern: "^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$"
+                                x-kubernetes-int-or-string: true
+                            requested:
+                              description: >-
+                                Sum of regular-container requests for Pending and Running pods, excluding init containers and pod overhead.
+                              type: object
+                              maxProperties: 16
+                              additionalProperties:
+                                anyOf:
+                                - type: integer
+                                - type: string
+                                # Standard Kubernetes resource.Quantity validation pattern
+                                pattern: "^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$"
+                                x-kubernetes-int-or-string: true
+                        readyCount:
+                          description: >-
+                            Number of distinct ARM resource IDs of HCPs in this size bucket whose Available condition is True, using exact, case-sensitive string equality. Zero when no HCP in the bucket is ready.
+                          type: integer
+                          format: int32
+                          minimum: 0
               averageHCPResourceUsage:
                 description: >-
                   Average actual resource consumption per ready HCP. Omitted when readyResourceIDs is empty.
@@ -374,6 +635,15 @@ rules:
   - pods
   verbs:
   - list
+- apiGroups:
+  - ""
+  resources:
+  - persistentvolumeclaims
+  verbs:
+  - get
+  - list
+  - watch
+  - update
 ---
 # Source: mgmt-agent/templates/clusterrolebinding.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -403,8 +673,12 @@ rules:
   resources:
   - backups
   - backuprepositories
+  - backupstoragelocations
+  - schedules
   - datauploads
   - datadownloads
+  - podvolumebackups
+  - podvolumerestores
   - restores
   verbs:
   - get
@@ -415,8 +689,51 @@ rules:
   resources:
   - deletebackuprequests
   verbs:
+  - get
   - list
   - create
+  - patch
+  - delete
+- apiGroups:
+  - velero.io
+  resources:
+  - backuprepositories
+  verbs:
+  - patch
+  - delete
+- apiGroups:
+  - mgmtagent.aro-hcp.azure.com
+  resources:
+  - backuprepositorycleanups
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - patch
+- apiGroups:
+  - mgmtagent.aro-hcp.azure.com
+  resources:
+  - backuprepositorycleanups/status
+  verbs:
+  - patch
+- apiGroups:
+  - batch
+  resources:
+  - jobs
+  verbs:
+  - get
+  - list
+  - watch
+  - delete
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - get
+  - list
+  - watch
   - delete
 ---
 # Source: mgmt-agent/templates/leader_election_role.yaml
@@ -602,6 +919,10 @@ spec:
     path: /metrics
     port: metrics
     scheme: http
+    relabelings:
+    - action: replace
+      replacement: service
+      targetLabel: microsoft_metrics_include_label
   namespaceSelector:
     matchNames:
     - 'mgmt-agent'
@@ -609,4 +930,39 @@ spec:
     matchLabels:
       app.kubernetes.io/name: mgmt-agent
       port: metrics
+---
+# Source: mgmt-agent/templates/snapshot-pvc-finalizer-policy.yaml
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: mgmt-agent-snapshot-pvc-finalizer-cleanup
+  labels:
+    app.kubernetes.io/name: mgmt-agent
+spec:
+  failurePolicy: Fail
+  matchConditions:
+  - name: mgmt-agent-service-account
+    expression: "request.userInfo.username == 'system:serviceaccount:mgmt-agent:mgmt-agent'"
+  matchConstraints:
+    resourceRules:
+    - apiGroups: [""]
+      apiVersions: ["v1"]
+      operations: ["UPDATE"]
+      resources: ["persistentvolumeclaims"]
+      scope: Namespaced
+  validations:
+  - expression: "has(oldObject.metadata.deletionTimestamp) && 'snapshot.storage.kubernetes.io/pvc-as-source-protection' in oldObject.metadata.?finalizers.orValue([]) && object.metadata.?finalizers.orValue([]) == oldObject.metadata.?finalizers.orValue([]).filter(f, f != 'snapshot.storage.kubernetes.io/pvc-as-source-protection') && object.spec == oldObject.spec && object.status == oldObject.status && object.metadata.?labels == oldObject.metadata.?labels && object.metadata.?annotations == oldObject.metadata.?annotations && object.metadata.?ownerReferences == oldObject.metadata.?ownerReferences && object.metadata.?deletionTimestamp == oldObject.metadata.?deletionTimestamp && object.metadata.?deletionGracePeriodSeconds == oldObject.metadata.?deletionGracePeriodSeconds"
+    message: mgmt-agent may only remove the snapshot source-protection finalizer from a deleting PVC
+    reason: Forbidden
+---
+# Source: mgmt-agent/templates/snapshot-pvc-finalizer-policy-binding.yaml
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: mgmt-agent-snapshot-pvc-finalizer-cleanup
+  labels:
+    app.kubernetes.io/name: mgmt-agent
+spec:
+  policyName: mgmt-agent-snapshot-pvc-finalizer-cleanup
+  validationActions: [Deny]
 
