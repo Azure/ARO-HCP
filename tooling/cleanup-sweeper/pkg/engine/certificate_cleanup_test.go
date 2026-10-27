@@ -18,12 +18,18 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"regexp"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	azpolicy "github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armsubscriptions"
+
+	"github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/pkg/policy"
 )
 
 type fakeSubscriptionLister struct {
@@ -79,5 +85,46 @@ func TestResolveSubscriptionIDs(t *testing.T) {
 				t.Fatalf("ids = %v, error = %v, want %q", ids, err, test.wantErr)
 			}
 		})
+	}
+}
+
+// failingCredential fails every token request, so any Azure call made with it
+// fails before reaching the network.
+type failingCredential struct{}
+
+func (failingCredential) GetToken(context.Context, azpolicy.TokenRequestOptions) (azcore.AccessToken, error) {
+	return azcore.AccessToken{}, errors.New("no credentials in tests")
+}
+
+func TestCertificateCleanupWorkflowResolvesOwnerSubscriptionsOnlyForActiveDeletion(t *testing.T) {
+	certificatePolicy := policy.CertificatePolicy{
+		VaultURL:       "https://example.vault.azure.net",
+		OwnerInventory: policy.CertificateOwnerInventory{Subscriptions: []string{"Example Subscription"}},
+		Discovery: policy.CertificateDiscoveryPolicy{
+			ProtectedTags: map[string]string{"persist": "true"},
+			Rules: []policy.CertificateDiscoveryRule{{
+				Name:       "guarded",
+				Action:     policy.CertificateDiscoveryActionDelete,
+				Match:      policy.CertificateDiscoveryMatch{NameRegex: regexp.MustCompile(`^x-(?P<owner>[a-z0-9]+)$`), OwnerCaptureGroup: "owner"},
+				Conditions: policy.CertificateDiscoveryConditions{OwnerResourceGroupAbsent: true},
+				OlderThan:  24 * time.Hour,
+			}},
+		},
+	}
+	options := func(deleteActive bool) CertificateWorkflowOptions {
+		return CertificateWorkflowOptions{
+			DryRun: true, DeleteActive: deleteActive, PurgeDeleted: true,
+			MaxDeletions: 1, MaxPurges: 1, Parallelism: 1, Policy: certificatePolicy,
+		}
+	}
+
+	// A purge-only run must not need visibility of the owner subscriptions, even
+	// though the policy contains a guarded delete rule.
+	if _, err := CertificateCleanupWorkflow(t.Context(), failingCredential{}, options(false)); err != nil {
+		t.Fatalf("purge-only workflow must not resolve owner subscriptions: %v", err)
+	}
+	// Deleting active certificates does need them, and fails closed without them.
+	if _, err := CertificateCleanupWorkflow(t.Context(), failingCredential{}, options(true)); err == nil || !strings.Contains(err.Error(), "failed to list subscriptions") {
+		t.Fatalf("error = %v, want subscription listing failure", err)
 	}
 }

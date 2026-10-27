@@ -51,7 +51,8 @@ type CertificateWorkflowOptions struct {
 // purges) eligible active certificates first, then purges eligible deleted
 // certificates, including any tombstone the first step could not purge.
 // Resource-group ownership is read from the policy's owner inventory
-// subscriptions, resolved by display name, whenever a rule needs an owner guard.
+// subscriptions, resolved by display name, when active certificates are deleted
+// under a rule that needs an owner guard.
 func CertificateCleanupWorkflow(ctx context.Context, credential azcore.TokenCredential, opts CertificateWorkflowOptions) (*runner.Engine, error) {
 	if credential == nil {
 		return nil, fmt.Errorf("azure credential is required")
@@ -64,8 +65,10 @@ func CertificateCleanupWorkflow(ctx context.Context, credential azcore.TokenCred
 		return nil, fmt.Errorf("failed to create certificates client: %w", err)
 	}
 
+	// Only active deletions use the owner guard. A purge-only run must not need
+	// visibility of the owner subscriptions.
 	var owners certsteps.OwnerInventoryFn
-	if opts.Policy.Discovery.RequiresOwnerInventory() {
+	if opts.DeleteActive && opts.Policy.Discovery.RequiresOwnerInventory() {
 		subscriptionsClient, err := armsubscriptions.NewClient(credential, nil)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create subscriptions client: %w", err)

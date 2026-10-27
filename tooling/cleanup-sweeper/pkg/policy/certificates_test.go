@@ -21,6 +21,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"k8s.io/apimachinery/pkg/util/sets"
 )
 
 func TestLoadCertificates_ParsesRegexDurationAndOwnerCapture(t *testing.T) {
@@ -262,6 +264,112 @@ func TestCertificateDiscovery_ProtectedTagsAreConfigurable(t *testing.T) {
 	}
 	if _, decision := pol.SelectDeleted(tagged("keep", "yes")); decision != CertificateDecisionProtectedTag {
 		t.Fatalf("deleted certificate decision = %q, want protected-tag", decision)
+	}
+}
+
+func TestCertificateMatchValidate_RequiresWholeNameAnchoring(t *testing.T) {
+	t.Parallel()
+
+	for _, pattern := range []string{
+		`^a$`, `^a$|^b$`, `^(?:a|b)$`, `^(a|b)$`, `^(?P<o>x)-y$`, `(?i)^a$`, `^(?:a$|b$)`, `^(?:(?:a|b)-(?P<o>[a-z0-9]+))$`,
+	} {
+		t.Run("accepts "+pattern, func(t *testing.T) {
+			t.Parallel()
+			match := CertificateDiscoveryMatch{NameRegex: regexp.MustCompile(pattern)}
+			if err := match.Validate("match"); err != nil {
+				t.Fatalf("expected %s to be accepted: %v", pattern, err)
+			}
+		})
+	}
+	// Each of these matches names outside the intended set, for example "a-production".
+	for _, pattern := range []string{
+		`^a|b$`, `^a|^b`, `a$|b$`, `^a|b`, `^(a|b$)`, `(?m)^a$`, `a`, `^a`, `a$`, `^a$|b`,
+	} {
+		t.Run("rejects "+pattern, func(t *testing.T) {
+			t.Parallel()
+			match := CertificateDiscoveryMatch{NameRegex: regexp.MustCompile(pattern)}
+			if err := match.Validate("match"); err == nil || !strings.Contains(err.Error(), "anchored") {
+				t.Fatalf("error = %v, want an anchoring error for %s", err, pattern)
+			}
+		})
+	}
+}
+
+func TestCertificateDiscoveryValidate_RejectsAmbiguousProtectedTagKeys(t *testing.T) {
+	t.Parallel()
+
+	rule := CertificateDiscoveryRule{
+		Name: "r", Action: CertificateDiscoveryActionSkip,
+		Match: CertificateDiscoveryMatch{NameRegex: regexp.MustCompile(`^x$`)},
+	}
+	pol := CertificateDiscoveryPolicy{
+		ProtectedTags: map[string]string{"persist": "true", " Persist ": "false"},
+		Rules:         []CertificateDiscoveryRule{rule},
+	}
+	if err := pol.Validate("discovery"); err == nil || !strings.Contains(err.Error(), "name the same tag") {
+		t.Fatalf("error = %v, want duplicate protected tag key error", err)
+	}
+	pol.ProtectedTags = map[string]string{"persist": "true", "doNotTouch": "true"}
+	if err := pol.Validate("discovery"); err != nil {
+		t.Fatalf("distinct keys must be accepted: %v", err)
+	}
+}
+
+func TestCertificateDiscovery_EveryCaseVariantOfAProtectedTagProtects(t *testing.T) {
+	t.Parallel()
+
+	old := time.Date(2026, time.January, 1, 0, 0, 0, 0, time.UTC)
+	now := old.Add(30 * 24 * time.Hour)
+	pol := CertificateDiscoveryPolicy{
+		ProtectedTags: map[string]string{"persist": "true"},
+		Rules: []CertificateDiscoveryRule{{
+			Name: "all", Action: CertificateDiscoveryActionDelete, AllowWithoutOwnerGuard: true,
+			Match: CertificateDiscoveryMatch{NameRegex: regexp.MustCompile(`^.*$`)}, OlderThan: 24 * time.Hour,
+		}},
+	}
+	falseValue, trueValue := "false", "true"
+	// Map iteration order is random; the veto must hold whichever key is seen first.
+	for range 50 {
+		cert := CertificateMetadata{Name: "c", Created: &old, Updated: &old, Tags: map[string]*string{"persist": &falseValue, "PERSIST": &trueValue}}
+		if _, decision := pol.SelectActive(cert, nil, now); decision != CertificateDecisionProtectedTag {
+			t.Fatalf("decision = %q, want protected-tag", decision)
+		}
+		if _, decision := pol.SelectDeleted(cert); decision != CertificateDecisionProtectedTag {
+			t.Fatalf("deleted decision = %q, want protected-tag", decision)
+		}
+	}
+}
+
+func TestCertificateDiscovery_GuardedOwnerMustBeASingleToken(t *testing.T) {
+	t.Parallel()
+
+	old := time.Date(2026, time.January, 1, 0, 0, 0, 0, time.UTC)
+	now := old.Add(30 * 24 * time.Hour)
+	pol := CertificateDiscoveryPolicy{
+		ProtectedTags: map[string]string{"persist": "true"},
+		Rules: []CertificateDiscoveryRule{{
+			Name: "personal", Action: CertificateDiscoveryActionDelete,
+			Match:      CertificateDiscoveryMatch{NameRegex: regexp.MustCompile(`^frontend-cert-pers-(?P<owner>[a-z0-9-]+)$`), OwnerCaptureGroup: "owner"},
+			Conditions: CertificateDiscoveryConditions{OwnerResourceGroupAbsent: true},
+			OlderThan:  24 * time.Hour,
+		}},
+	}
+	// The inventory splits "hcp-underlay-pers-west-us3-svc" into west, us3, ...,
+	// so "west-us3" can never be found there: the guard must fail closed.
+	if got := OwnerTokens("hcp-underlay-pers-West-US3-svc"); strings.Join(got, ",") != "hcp,underlay,pers,west,us3,svc" {
+		t.Fatalf("tokens = %v", got)
+	}
+	cert := CertificateMetadata{Name: "frontend-cert-pers-west-us3", Created: &old, Updated: &old}
+	if _, decision := pol.SelectActive(cert, sets.New("west", "us3"), now); decision != CertificateDecisionInvalidOwner {
+		t.Fatalf("decision = %q, want invalid-owner", decision)
+	}
+	// A tombstone is not guarded, so the same name is still selectable there.
+	if _, decision := pol.SelectDeleted(cert); !decision.Selected() {
+		t.Fatalf("deleted decision = %q, want selected", decision)
+	}
+	single := CertificateMetadata{Name: "frontend-cert-pers-westus3", Created: &old, Updated: &old}
+	if _, decision := pol.SelectActive(single, sets.New("westus3"), now); decision != CertificateDecisionLiveOwner {
+		t.Fatalf("decision = %q, want live-owner", decision)
 	}
 }
 

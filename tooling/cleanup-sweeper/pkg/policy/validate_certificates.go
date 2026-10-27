@@ -17,6 +17,8 @@ package policy
 import (
 	"fmt"
 	"net/url"
+	"regexp"
+	"regexp/syntax"
 	"strings"
 	"time"
 )
@@ -72,6 +74,20 @@ func (o *CertificateOwnerInventory) validate(fieldPrefix string, required bool) 
 func (p *CertificateDiscoveryPolicy) Validate(fieldPrefix string) error {
 	if len(p.ProtectedTags) == 0 {
 		return fmt.Errorf("%s.protectedTags: must define at least one protected tag", fieldPrefix)
+	}
+	// Keys that differ only in case or whitespace would collapse into one entry
+	// in an unspecified order, so which value protects would be arbitrary.
+	seenKeys := make(map[string]string, len(p.ProtectedTags))
+	for key := range p.ProtectedTags {
+		normalized := strings.ToLower(strings.TrimSpace(key))
+		if other, duplicate := seenKeys[normalized]; duplicate && normalized != "" {
+			first, second := other, key
+			if first > second {
+				first, second = second, first
+			}
+			return fmt.Errorf("%s.protectedTags: keys %q and %q name the same tag", fieldPrefix, first, second)
+		}
+		seenKeys[normalized] = key
 	}
 	protectedTags, err := normalizeTagMap(p.ProtectedTags, fieldPrefix+".protectedTags")
 	if err != nil {
@@ -137,15 +153,74 @@ func (r *CertificateDiscoveryRule) Validate(fieldPrefix string) error {
 	return nil
 }
 
+// matchesWholeName reports whether every match of the pattern necessarily starts
+// at the beginning and ends at the end of the text. Checking only the first and
+// last character of the pattern is not enough: "^a|b$" has both anchors yet also
+// matches names such as "a-production" and "production-b".
+func matchesWholeName(re *regexp.Regexp) bool {
+	parsed, err := syntax.Parse(re.String(), syntax.Perl)
+	if err != nil {
+		return false
+	}
+	return startsAtBeginning(parsed) && endsAtEnd(parsed)
+}
+
+func startsAtBeginning(re *syntax.Regexp) bool {
+	switch re.Op {
+	case syntax.OpBeginText:
+		return true
+	case syntax.OpConcat:
+		for _, sub := range re.Sub {
+			if sub.Op == syntax.OpEmptyMatch {
+				continue
+			}
+			return startsAtBeginning(sub)
+		}
+	case syntax.OpAlternate:
+		for _, sub := range re.Sub {
+			if !startsAtBeginning(sub) {
+				return false
+			}
+		}
+		return len(re.Sub) > 0
+	case syntax.OpCapture:
+		return startsAtBeginning(re.Sub[0])
+	}
+	return false
+}
+
+func endsAtEnd(re *syntax.Regexp) bool {
+	switch re.Op {
+	case syntax.OpEndText:
+		return true
+	case syntax.OpConcat:
+		for i := len(re.Sub) - 1; i >= 0; i-- {
+			if re.Sub[i].Op == syntax.OpEmptyMatch {
+				continue
+			}
+			return endsAtEnd(re.Sub[i])
+		}
+	case syntax.OpAlternate:
+		for _, sub := range re.Sub {
+			if !endsAtEnd(sub) {
+				return false
+			}
+		}
+		return len(re.Sub) > 0
+	case syntax.OpCapture:
+		return endsAtEnd(re.Sub[0])
+	}
+	return false
+}
+
 // Validate validates a certificate name matcher.
 func (m *CertificateDiscoveryMatch) Validate(fieldPrefix string) error {
 	m.OwnerCaptureGroup = strings.TrimSpace(m.OwnerCaptureGroup)
 	if m.NameRegex == nil {
 		return fmt.Errorf("%s.nameRegex: is required", fieldPrefix)
 	}
-	pattern := m.NameRegex.String()
-	if !strings.HasPrefix(pattern, "^") || !strings.HasSuffix(pattern, "$") {
-		return fmt.Errorf("%s.nameRegex: must be anchored with ^ and $", fieldPrefix)
+	if !matchesWholeName(m.NameRegex) {
+		return fmt.Errorf("%s.nameRegex: every alternative must be anchored with ^ and $ so the pattern always matches the whole name", fieldPrefix)
 	}
 	if m.OwnerCaptureGroup != "" && m.NameRegex.SubexpIndex(m.OwnerCaptureGroup) < 0 {
 		return fmt.Errorf("%s.ownerCaptureGroup: named capture %q is not present in nameRegex", fieldPrefix, m.OwnerCaptureGroup)

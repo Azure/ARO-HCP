@@ -29,6 +29,15 @@ certificates:
         ownerResourceGroupAbsent: true
       olderThan: 168h
 
+    # Protect Maestro certificates of persistent shared environments (the CSPR
+    # environment uses the bare regional name; nightly is a shared environment).
+    # Their names look like personal certificates, but their owner token is not
+    # part of any live resource group name, so the owner guard would not hold.
+    - name: protect-shared-environment-maestro-certificates
+      action: skip
+      match:
+        nameRegex: "^maestro-server-(?:usw3|nightly)$"
+
     # Delete personal service, Maestro, and ephemeral performance certificates
     # after 15d when no owner resource group remains.
     - name: personal-and-ephemeral-certificates

@@ -95,8 +95,9 @@ func NewSession(cfg Config) (*Session, error) {
 	if err := cfg.Policy.Validate("certificates.discovery"); err != nil {
 		return nil, err
 	}
-	if cfg.Policy.RequiresOwnerInventory() && cfg.Owners == nil {
-		return nil, errors.New("owner inventory is required by the certificate policy")
+	// Only active deletions use the owner guard; tombstones are purged without it.
+	if cfg.DeleteActive && cfg.Policy.RequiresOwnerInventory() && cfg.Owners == nil {
+		return nil, errors.New("owner inventory is required to delete active certificates under this certificate policy")
 	}
 
 	s := &Session{

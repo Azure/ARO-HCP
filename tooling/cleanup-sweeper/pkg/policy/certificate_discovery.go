@@ -17,6 +17,7 @@ package policy
 import (
 	"strings"
 	"time"
+	"unicode"
 
 	"k8s.io/apimachinery/pkg/util/sets"
 )
@@ -39,6 +40,10 @@ const (
 	CertificateDecisionSkippedByRule CertificateDecision = "rule-skip"
 	// CertificateDecisionMissingOwner means the owner capture group did not yield a token.
 	CertificateDecisionMissingOwner CertificateDecision = "missing-owner"
+	// CertificateDecisionInvalidOwner means the captured owner is not a single token, so
+	// the resource-group owner inventory could never contain it and the guard would be
+	// meaningless. The certificate is retained.
+	CertificateDecisionInvalidOwner CertificateDecision = "invalid-owner"
 	// CertificateDecisionLiveOwner means the owner token still matches a resource group.
 	CertificateDecisionLiveOwner CertificateDecision = "live-owner"
 	// CertificateDecisionInvalidReferenceTime means retention could not be evaluated without a reference time.
@@ -126,6 +131,9 @@ func (p *CertificateDiscoveryPolicy) selectCertificate(
 		if !active {
 			return selection, CertificateDecisionSelected
 		}
+		if rule.Conditions.OwnerResourceGroupAbsent && !IsOwnerToken(selection.OwnerToken) {
+			return selection, CertificateDecisionInvalidOwner
+		}
 		if rule.Conditions.OwnerResourceGroupAbsent && knownOwnerTokens.Has(selection.OwnerToken) {
 			return selection, CertificateDecisionLiveOwner
 		}
@@ -148,13 +156,36 @@ func (p *CertificateDiscoveryPolicy) selectCertificate(
 	return CertificateSelection{}, CertificateDecisionNoRuleMatch
 }
 
-// protects reports whether any protected tag is present with its protected value.
+// protects reports whether any protected tag is present with its protected
+// value. Every actual tag is checked: keys that differ only in case can coexist
+// in certificate metadata, and a protective one must not be hidden by another.
 func (p *CertificateDiscoveryPolicy) protects(tags map[string]*string) bool {
-	for key, value := range p.ProtectedTags {
-		actual, ok := lookupTag(tags, key)
-		if ok && strings.EqualFold(strings.TrimSpace(actual), strings.TrimSpace(value)) {
-			return true
+	for key, value := range tags {
+		if value == nil {
+			continue
+		}
+		for protectedKey, protectedValue := range p.ProtectedTags {
+			if strings.EqualFold(key, protectedKey) && strings.EqualFold(strings.TrimSpace(*value), strings.TrimSpace(protectedValue)) {
+				return true
+			}
 		}
 	}
 	return false
+}
+
+// OwnerTokens splits a resource group name into the lower-cased tokens the owner
+// guard compares certificate owners against. Everything that is not a letter or
+// digit separates tokens.
+func OwnerTokens(resourceGroupName string) []string {
+	return strings.FieldsFunc(strings.ToLower(resourceGroupName), isOwnerSeparator)
+}
+
+// IsOwnerToken reports whether a captured owner is a single token that
+// OwnerTokens could produce, and so can be found in the owner inventory.
+func IsOwnerToken(owner string) bool {
+	return owner != "" && !strings.ContainsFunc(owner, isOwnerSeparator)
+}
+
+func isOwnerSeparator(r rune) bool {
+	return !unicode.IsLetter(r) && !unicode.IsDigit(r)
 }

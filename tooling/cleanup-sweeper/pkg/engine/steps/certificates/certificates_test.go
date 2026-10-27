@@ -648,6 +648,17 @@ func TestRepositoryRecurringPolicy(t *testing.T) {
 			updated:     referenceTime.Add(-30 * 24 * time.Hour),
 		},
 		{
+			name:        "retains the persistent CSPR Maestro certificate whose live resource groups do not carry its owner token",
+			certificate: "maestro-server-usw3",
+			updated:     referenceTime.Add(-30 * 24 * time.Hour),
+			ownerRG:     "hcp-underlay-cspr-westus3-svc",
+		},
+		{
+			name:        "retains the shared nightly Maestro certificate",
+			certificate: "maestro-server-nightly",
+			updated:     referenceTime.Add(-30 * 24 * time.Hour),
+		},
+		{
 			name:        "retains placeholder job certificate",
 			certificate: "maestro-server-j0000001",
 			updated:     referenceTime.Add(-30 * 24 * time.Hour),
@@ -1171,6 +1182,12 @@ func TestNewSession(t *testing.T) {
 	}
 	if _, err := NewSession(valid()); err != nil {
 		t.Fatal(err)
+	}
+	// Tombstones are purged without the owner guard, so a purge-only run needs no owner inventory.
+	purgeOnly := valid()
+	purgeOnly.DeleteActive, purgeOnly.PurgeDeleted, purgeOnly.MaxPurges, purgeOnly.Owners = false, true, 1, nil
+	if _, err := NewSession(purgeOnly); err != nil {
+		t.Fatalf("purge-only session must not require an owner inventory: %v", err)
 	}
 	for name, mutate := range map[string]func(*Config){
 		"no actions":                       func(c *Config) { c.DeleteActive = false },

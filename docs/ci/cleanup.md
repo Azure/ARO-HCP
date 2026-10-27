@@ -151,8 +151,14 @@ older than the configured retention. The owner
 guard is mandatory: every delete rule must set `ownerResourceGroupAbsent: true`
 (with a named `ownerCaptureGroup`), which requires no matching resource group in
 any owner inventory subscription, or explicitly opt out with
-`allowWithoutOwnerGuard: true`. The policy file is parsed strictly, so a
-misspelled key fails instead of silently dropping a safeguard. Job placeholder
+`allowWithoutOwnerGuard: true`. The captured owner must be a single token: the
+owner inventory splits resource group names on every character that is not a
+letter or digit, so a capture such as `west-us3` could never be found and the
+certificate is retained instead. Name patterns must match the whole name, which
+validation enforces for every alternative (`^a$|^b$` is accepted, `^a|b$` is
+not). The policy file is parsed strictly, so a misspelled key fails instead of
+silently dropping a safeguard, and protected tag keys that differ only in case
+are rejected as ambiguous. Job placeholder
 and fixture certificates (`j0000000`-`j0000099`, `j7654321`) are protected by
 the first rule of the policy file, which is a `skip` rule; keep it first when
 editing. Incomplete owner inventory or uncertain certificate metadata favors

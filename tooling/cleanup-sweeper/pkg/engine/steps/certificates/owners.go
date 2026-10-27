@@ -18,12 +18,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"sync"
 	"time"
-	"unicode"
 
 	"k8s.io/apimachinery/pkg/util/sets"
+
+	cleanuppolicy "github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/pkg/policy"
 )
 
 // ownerMaxAge bounds how stale an owner inventory may be when a certificate is
@@ -60,10 +60,8 @@ func NewOwnerInventory(subscriptions []string, groups map[string]ResourceGroupLi
 					}
 					// Any token in any RG name can veto a rule that extracts the same
 					// owner token, including deleting resource groups.
-					for _, token := range strings.FieldsFunc(strings.ToLower(*group.Name), func(r rune) bool { return !unicode.IsLetter(r) && !unicode.IsDigit(r) }) {
-						if token != "" {
-							owners.Insert(token)
-						}
+					for _, token := range cleanuppolicy.OwnerTokens(*group.Name) {
+						owners.Insert(token)
 					}
 				}
 			}
