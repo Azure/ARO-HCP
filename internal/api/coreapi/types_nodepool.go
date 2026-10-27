@@ -105,7 +105,7 @@ type NodePoolProperties struct {
 	// Written by: Frontend PUT/PATCH NodePool
 	Labels map[string]string `json:"labels,omitempty"`
 	// Written by: Frontend PUT/PATCH NodePool
-	Taints []Taint `json:"taints,omitempty"`
+	Taints []Taint `json:"taints,omitzero"`
 	// Written by: Frontend PUT/PATCH NodePool
 	NodeDrainTimeoutMinutes *int32 `json:"nodeDrainTimeoutMinutes,omitempty"`
 }
