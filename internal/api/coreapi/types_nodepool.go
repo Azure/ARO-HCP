@@ -185,10 +185,10 @@ type OSDiskProfile struct {
 
 // NodePoolAutoScaling represents a node pool autoscaling configuration.
 // Visibility for the entire struct is "read create update".
-// Min must be >= 1. Cluster Service rejects min_replica < 1 because scaling a
-// node pool down to zero is not yet supported end to end. If admitted here,
-// Min=0 would be rejected by Cluster Service and leave the node pool Updating.
-// TODO(ARO-26333): lower the floor back to 0 once scale-to-zero is supported.
+// Min must be >= 1: a node pool cannot scale its replicas to zero, because the
+// PodDisruptionBudgets HyperShift/OCP set on core workloads block draining the
+// last nodes. Cluster Service rejects min_replica < 1 for that reason.
+// TODO(OCPBUGS-85364): drop the floor to 0 once that is resolved.
 // max=200 for both Min and Max when the node pool's Platform.AvailabilityZone is unset.
 type NodePoolAutoScaling struct {
 	Min int32 `json:"min,omitempty"`
