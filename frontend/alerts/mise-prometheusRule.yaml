@@ -15,16 +15,15 @@ spec:
       component: frontend
     rules:
     - alert: MiseEnvoyScrapeDown
-      # Get list of all `svc` clusters (returns 1 for each)
-      # Remove clusters that have the istio-proxy metric UP
+      # Inventory remains present even when all cluster telemetry disappears.
       expr: |
-        group by (cluster) (up{job="kube-state-metrics", cluster=~".*-svc(-[0-9]+)?$"})
+        group by (cluster) (underlay_clusters{cluster=~".*-svc(-[0-9]+)?$"})
         unless on(cluster)
-        group by (cluster) (up{endpoint="http-envoy-prom", container="istio-proxy", namespace="mise"} == 1)
+        group by (cluster) (kube_pod_status_ready{namespace="mise", pod=~"mise-.*", condition="true"} == 1)
       for: 5m
       labels:
         severity: info
       annotations:
-        summary: "Envoy scrape target down for namespace=mise"
-        description: "Prometheus scrape for envoy-stats job in namespace mise is failing or missing."
+        summary: "Mise pod not ready for namespace=mise"
+        description: "No mise pod is Ready in namespace mise on this svc cluster, so the envoy-stats scrape target is unavailable."
         runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/mise-tsg.html'

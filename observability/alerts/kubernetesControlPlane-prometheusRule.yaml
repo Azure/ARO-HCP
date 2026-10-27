@@ -597,7 +597,9 @@ spec:
         runbook_url: https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubeapidown
         summary: Target disappeared from Prometheus target discovery.
       expr: |
-        count by (cluster) (up{job="apiserver"} == 1) == 0
+        group by (cluster) (kube_node_info)
+        unless on (cluster)
+        group by (cluster) (apiserver_request_total{job="apiserver"})
       for: 15m
       labels:
         severity: critical
@@ -743,7 +745,9 @@ spec:
         runbook_url: https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubeletdown
         summary: Target disappeared from Prometheus target discovery.
       expr: |
-        count by (cluster) (up{job="kubelet", metrics_path="/metrics"} == 1) == 0
+        group by (cluster) (kube_node_info)
+        unless on (cluster)
+        group by (cluster) (kubelet_node_name{job="kubelet", metrics_path="/metrics"})
       for: 15m
       labels:
         severity: critical
@@ -757,7 +761,9 @@ spec:
         runbook_url: https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubeschedulerdown
         summary: Target disappeared from Prometheus target discovery.
       expr: |
-        count by (cluster) (up{job="kube-scheduler"} == 1) == 0
+        group by (cluster) (kube_node_info)
+        unless on (cluster)
+        group by (cluster) (rest_client_requests_total{job="kube-scheduler"})
       for: 15m
       labels:
         severity: critical
@@ -771,7 +777,9 @@ spec:
         runbook_url: https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubecontrollermanagerdown
         summary: Target disappeared from Prometheus target discovery.
       expr: |
-        count by (cluster) (up{job="kube-controller-manager"} == 1) == 0
+        group by (cluster) (kube_node_info)
+        unless on (cluster)
+        group by (cluster) (workqueue_adds_total{job="kube-controller-manager"})
       for: 15m
       labels:
         severity: critical

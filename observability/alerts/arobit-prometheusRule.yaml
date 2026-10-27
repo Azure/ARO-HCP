@@ -10,15 +10,15 @@ spec:
       component: monitoring-infrastructure
     rules:
     - alert: ArobitForwarderJobUp
-      expr: group by (cluster) (up{job="kube-state-metrics"}) unless on(cluster) group by (cluster) (up{job="arobit-forwarder",namespace="arobit"} == 1)
+      expr: group by (cluster) (underlay_clusters) unless on(cluster) group by (cluster) (kube_daemonset_status_number_ready{namespace="arobit", daemonset="arobit-forwarder"} > 0)
       for: 15m
       labels:
         severity: warning
       annotations:
         description: |
-          The Arobit forwarder metrics endpoint on cluster {{ $labels.cluster }} has been unreachable for 15 minutes.
+          The Arobit forwarder DaemonSet on cluster {{ $labels.cluster }} has had no Ready pods for 15 minutes, or its readiness metrics are missing.
         runbook_url: https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/arobit.html
-        summary: Arobit forwarder metrics endpoint is unreachable on cluster {{ $labels.cluster }}.
+        summary: Arobit forwarder has no Ready pods on cluster {{ $labels.cluster }}.
     - alert: FluentBitIngestionPaused
       expr: sum(fluentbit_input_ingestion_paused) by (cluster, pod) > 0
       for: 5m

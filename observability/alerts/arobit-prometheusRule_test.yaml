@@ -5,9 +5,9 @@ tests:
 # ArobitForwarderJobUp - alert fires
 - interval: 1m
   input_series:
-  - series: 'up{job="kube-state-metrics",cluster="test"}'
+  - series: 'underlay_clusters{cluster="test",source="bicep"}'
     values: "1+0x15"
-  - series: 'up{job="arobit-forwarder",namespace="arobit",cluster="test"}'
+  - series: 'kube_daemonset_status_number_ready{daemonset="arobit-forwarder",namespace="arobit",cluster="test"}'
     values: "0+0x15"
   alert_rule_test:
   - eval_time: 15m
@@ -20,9 +20,39 @@ tests:
         severity: warning
       exp_annotations:
         description: |
-          The Arobit forwarder metrics endpoint on cluster test has been unreachable for 15 minutes.
+          The Arobit forwarder DaemonSet on cluster test has had no Ready pods for 15 minutes, or its readiness metrics are missing.
         runbook_url: https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/arobit.html
-        summary: Arobit forwarder metrics endpoint is unreachable on cluster test.
+        summary: Arobit forwarder has no Ready pods on cluster test.
+# Ready forwarder pods suppress the alert without an up series.
+- interval: 1m
+  input_series:
+  - series: 'underlay_clusters{cluster="test",source="bicep"}'
+    values: "1+0x15"
+  - series: 'kube_daemonset_status_number_ready{daemonset="arobit-forwarder",namespace="arobit",cluster="test"}'
+    values: "2+0x15"
+  alert_rule_test:
+  - eval_time: 15m
+    alertname: ArobitForwarderJobUp
+    exp_alerts: []
+# Inventory alone detects a cluster with no KSM or workload telemetry.
+- interval: 1m
+  input_series:
+  - series: 'underlay_clusters{cluster="test",source="bicep"}'
+    values: "1+0x15"
+  alert_rule_test:
+  - eval_time: 15m
+    alertname: ArobitForwarderJobUp
+    exp_alerts:
+    - exp_labels:
+        alertname: ArobitForwarderJobUp
+        cluster: test
+        component: monitoring-infrastructure
+        severity: warning
+      exp_annotations:
+        description: |
+          The Arobit forwarder DaemonSet on cluster test has had no Ready pods for 15 minutes, or its readiness metrics are missing.
+        runbook_url: https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/arobit.html
+        summary: Arobit forwarder has no Ready pods on cluster test.
 # FluentBitIngestionPaused - alert fires
 - interval: 1m
   input_series:
