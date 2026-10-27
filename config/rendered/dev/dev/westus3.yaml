@@ -699,7 +699,7 @@ mgmt:
       vmSize: Standard_E8s_v3
       zoneRedundantMode: Auto
       zones: ""
-    tags: clusterType=mgmt-cluster,persist=true
+    tags: clusterType=mgmt-cluster
     upgradeSettings:
       maxSurge: 10%
       maxUnavailable: "0"
@@ -1079,7 +1079,7 @@ svc:
       zoneRedundantMode: Auto
       zones: ""
     systemPoolOnly: false
-    tags: clusterType=svc-cluster,persist=true
+    tags: clusterType=svc-cluster
     upgradeSettings:
       maxSurge: 10%
       maxUnavailable: "0"

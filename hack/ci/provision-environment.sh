@@ -44,6 +44,19 @@ EXTRA_ARGS="--region ${LOCATION}"
 if [[ "${ARO_HCP_PROVISION_ABORT_IF_EXISTS:-true}" == "true" ]]; then
   EXTRA_ARGS+=" --abort-if-regional-exist"
 fi
+# Run cost attribution: jobs opt in by setting RUN_COST_TAG_VALUE in the
+# openshift/release job configuration. The literal BUILD_ID resolves to this
+# job's Prow build ID, because ci-operator configuration cannot expand
+# $(BUILD_ID) itself. The tag key matches the config override generator's
+# RunCostTagKey; templatize sets it on resource groups this run creates and
+# only replaces it on existing groups that already carry it.
+if [[ -n "${RUN_COST_TAG_VALUE:-}" ]]; then
+  if [[ "${RUN_COST_TAG_VALUE}" == "BUILD_ID" ]]; then
+    : "${BUILD_ID:?BUILD_ID must be set when RUN_COST_TAG_VALUE is BUILD_ID}"
+    RUN_COST_TAG_VALUE="${BUILD_ID}"
+  fi
+  EXTRA_ARGS+=" --resource-group-tags=jobID.aro-hcp-ci.redhat.com=${RUN_COST_TAG_VALUE}"
+fi
 
 STEP_NAME="${PROVISION_STEP_NAME:-entrypoint}"
 STEP_NAME="${STEP_NAME//[^a-zA-Z0-9_-]/}"
