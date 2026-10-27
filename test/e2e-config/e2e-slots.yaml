@@ -208,6 +208,18 @@ environments:
           resource_group_prefix: aro-hcp-msi-container-stg-shard0
           # provisionShardClusterLimit is configured to 25 in STG
           resource_group_count: 25
+    - name: shard1
+      subscriptions:
+        e2e: "ARO HCP E2E Hosted Clusters - Stage - 01 (MCA Sponsorship)"
+      region: uksouth
+      region_mode: runtime-selected
+      resource_type: aro-hcp-stg-shard1-slot
+      slot_count: 1
+      slot_assets:
+        e2e_identities:
+          allocation: dedicated
+          resource_group_prefix: aro-hcp-msi-container-stg-shard1
+          resource_group_count: 25
   prod:
     deployment_environment:
       name: prod

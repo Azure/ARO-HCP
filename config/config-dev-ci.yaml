@@ -310,7 +310,7 @@ clouds:
             applicationName: "OpenShift Release Bot - STG"
           # Regions charted on the Stg quota dashboard.
           regions: "uksouth,westus3"
-          e2eSubscriptions: "dee2f1be-a999-4e19-b027-221e7adaf7d3=ARO HCP E2E Hosted Clusters - Stage - 00"
+          e2eSubscriptions: "dee2f1be-a999-4e19-b027-221e7adaf7d3=ARO HCP E2E Hosted Clusters - Stage - 00,07f00d63-65c4-42b3-accd-b173b6a2cd05=ARO HCP E2E Hosted Clusters - Stage - 01 (MCA Sponsorship)"
         prod:
           bot:
             applicationName: "OpenShift Release Bot - Prod"

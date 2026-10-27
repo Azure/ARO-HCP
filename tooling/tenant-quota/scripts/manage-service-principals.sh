@@ -119,6 +119,7 @@ setup_redhat() {
         "ARO HCP E2E Hosted Clusters - Dev - 04"
         "ARO SRE Team - INT (EA Subscription 3)"
         "ARO HCP E2E Hosted Clusters - Stage - 00"
+        "ARO HCP E2E Hosted Clusters - Stage - 01 (MCA Sponsorship)"
         "ARO HCP E2E Hosted Clusters - Prod - 00"
         "ARO HCP E2E Hosted Clusters - Prod - 01"
     )
