@@ -96,7 +96,7 @@ func TestDesireUpdatesDoNotRefetchLiveClusterResources(t *testing.T) {
 		union := unioninformers.NewUnionKubeApplierInformers()
 		require.NoError(t, union.Add(testManagementClusterResourceID, desires))
 		client := &countingResourcesClient{}
-		controller := NewClusterResourcesController(corecosmosstoragetesting.NewMockResourcesDBClient(), nil, nil, backend, union, client)
+		controller := NewClusterResourcesController(corecosmosstoragetesting.NewMockResourcesDBClient(), nil, backend, union, client)
 		ctx, cancel := context.WithCancel(t.Context())
 		defer cancel()
 		go controller.Run(ctx, 1)
