@@ -293,19 +293,6 @@ Region access is separate from quota. Once the flag is `Registered`, file the pe
 
 6. Validate by running a rehearsal E2E job against the new subscription.
 
-### PROD-02 through PROD-05 Bootstrap Inventory
-
-Story AROSLSRE-2597 adds the following RedHat0 tenant (`64dc69e4-d083-49fc-9569-ebece1dd1408`) subscriptions for bootstrap (AROSLSRE-2601) and quota monitoring (AROSLSRE-2603), without enabling normal CI traffic:
-
-| Pool | Exact subscription display name | Subscription ID |
-| :--- | :--- | :--- |
-| `shard2` | `ARO HCP E2E Hosted Clusters - Prod - 02 (MCA Sponsorship)` | `f831d154-dd5c-47e6-a251-74813ac487cc` |
-| `shard3` | `ARO HCP E2E Hosted Clusters - Prod - 03 (MCA Sponsorship)` | `fd538f12-d2a7-4841-8af1-f1d7fb331716` |
-| `shard4` | `ARO HCP E2E Hosted Clusters - Prod - 04 (MCA Sponsorship)` | `acac6421-6480-46bb-ad3a-df8b59cf47bf` |
-| `shard5` | `ARO HCP E2E Hosted Clusters - Prod - 05 (MCA Sponsorship)` | `32ca24e1-a9fb-44ca-8849-53a0ba96ab35` |
-
-Each pool follows the managed PROD model: three runtime-selected slots with 25 dedicated E2E identity containers per slot and UK South as the default region. The existing PROD monitoring region CSV remains unchanged.
-
 ## See Also
 
 - [CI Overview](README.md)
