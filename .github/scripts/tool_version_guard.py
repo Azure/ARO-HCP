@@ -31,7 +31,13 @@ def defer_inflight_proposal(output, prs):
         pr["number"] for pr in prs
         if pr["user"]["login"] == OWNER
         and pr["base"]["ref"] == "main"
-        and any(label["name"] == LABEL for label in pr["labels"])
+        and (
+            any(label["name"] == LABEL for label in pr["labels"])
+            or (
+                pr.get("title", "").startswith("chore(tools): ")
+                and "<!-- agentic-tool-family:" in pr.get("body", "")
+            )
+        )
     ]
     if not active or not any(item["type"] == "create_pull_request" for item in output["items"]):
         return
@@ -53,7 +59,7 @@ def main():
     result = subprocess.run(
         ["gh", "api", "--paginate", "--slurp",
          f"repos/{args.repository}/pulls?state=open&per_page=100"],
-        check=True, capture_output=True, text=True,
+        check=True, stdout=subprocess.PIPE, text=True,
     )
     prs = [pr for page in json.loads(result.stdout) for pr in page]
     defer_inflight_proposal(output, prs)
