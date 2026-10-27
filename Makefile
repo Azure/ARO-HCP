@@ -98,11 +98,11 @@ verify-kql:
 	hack/kql-verify.sh
 .PHONY: verify-kql
 
-verify-bicep-fixtures:
+verify-bicep-fixtures: $(JQ)
 	hack/verify-bicep-fixtures.sh
 .PHONY: verify-bicep-fixtures
 
-update-bicep-golden:
+update-bicep-golden: $(JQ)
 	hack/generate-bicep-golden.sh
 .PHONY: update-bicep-golden
 
@@ -110,7 +110,7 @@ verify-tool-versions:
 	$(MAKE) -C dev-infrastructure/openshift-ci verify
 .PHONY: verify-tool-versions
 
-verify-tool-automation:
+verify-tool-automation: $(JQ)
 	python3 -m unittest discover -s .github/scripts -p 'test_tool*.py'
 .PHONY: verify-tool-automation
 
