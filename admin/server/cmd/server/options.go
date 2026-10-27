@@ -140,22 +140,16 @@ func (opts *RawOptions) BindOptions(cmd *cobra.Command) error {
 }
 
 // alertProcessingRuleAMWResourceIDs builds the fully-qualified Azure Monitor
-// Workspace resource IDs that scope alert processing rules from the subscription,
-// regional resource group, and workspace names. Each ID is round-tripped through
-// azcorearm so it is validated and emitted in canonical ARM form, keeping it
-// byte-for-byte comparable with the scopes clients supply on PUT.
-func alertProcessingRuleAMWResourceIDs(subscriptionID, resourceGroup string, workspaceNames ...string) ([]string, error) {
-	ids := make([]string, 0, len(workspaceNames))
-	for _, name := range workspaceNames {
-		raw := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Monitor/accounts/%s",
-			subscriptionID, resourceGroup, name)
-		parsed, err := azcorearm.ParseResourceID(raw)
-		if err != nil {
-			return nil, utils.TrackError(fmt.Errorf("failed to build AMW resource ID for workspace %q: %w", name, err))
-		}
-		ids = append(ids, parsed.String())
+// Workspace resource ID that scope alert processing rules from the subscription,
+// regional resource group, and workspace name.
+func alertProcessingRuleAMWResourceIDs(subscriptionID, resourceGroup string, workspaceName string) (string, error) {
+	raw := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Monitor/accounts/%s",
+		subscriptionID, resourceGroup, workspaceName)
+	parsed, err := azcorearm.ParseResourceID(raw)
+	if err != nil {
+		return "", utils.TrackError(fmt.Errorf("failed to build AMW resource ID for workspace %q: %w", workspaceName, err))
 	}
-	return ids, nil
+	return parsed.String(), nil
 }
 
 func getEnvDuration(key string, defaultDuration time.Duration) time.Duration {
@@ -198,9 +192,10 @@ type completedOptions struct {
 	Registry                *prometheus.Registry
 	KubeApplierDBClients    kubeappliercosmosstorage.KubeApplierDBClients
 
-	AprClient         *armalertprocessingrules.Client
-	AprResourceGroup  string
-	AprAmwResourceIDs []string
+	AprClient        *armalertprocessingrules.Client
+	AprResourceGroup string
+	SvcAmwResourceID string
+	HcpAmwResourceID string
 }
 
 type Options struct {
@@ -240,7 +235,10 @@ func (o *RawOptions) Validate() (*ValidatedOptions, error) {
 		if o.AprHcpAmwName == "" {
 			return nil, fmt.Errorf("apr-hcp-amw-name is required when alert processing rules are configured")
 		}
-		if _, err := alertProcessingRuleAMWResourceIDs(o.AprSubscriptionID, o.AprResourceGroup, o.AprSvcAmwName, o.AprHcpAmwName); err != nil {
+		if _, err := alertProcessingRuleAMWResourceIDs(o.AprSubscriptionID, o.AprResourceGroup, o.AprSvcAmwName); err != nil {
+			return nil, err
+		}
+		if _, err := alertProcessingRuleAMWResourceIDs(o.AprSubscriptionID, o.AprResourceGroup, o.AprHcpAmwName); err != nil {
 			return nil, err
 		}
 	}
@@ -367,9 +365,14 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 
 	// Create the alert processing rules client when the feature is configured.
 	var alertProcessingRulesClient *armalertprocessingrules.Client
-	var aprAmwResourceIDs []string
+	var svcAmwResourceID string
+	var hcpAmwResourceID string
 	if o.AprSubscriptionID != "" {
-		aprAmwResourceIDs, err = alertProcessingRuleAMWResourceIDs(o.AprSubscriptionID, o.AprResourceGroup, o.AprSvcAmwName, o.AprHcpAmwName)
+		svcAmwResourceID, err = alertProcessingRuleAMWResourceIDs(o.AprSubscriptionID, o.AprResourceGroup, o.AprSvcAmwName)
+		if err != nil {
+			return nil, err
+		}
+		hcpAmwResourceID, err = alertProcessingRuleAMWResourceIDs(o.AprSubscriptionID, o.AprResourceGroup, o.AprHcpAmwName)
 		if err != nil {
 			return nil, err
 		}
@@ -411,7 +414,8 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 			KubeApplierDBClients:    kubeApplierDBClients,
 			AprClient:               alertProcessingRulesClient,
 			AprResourceGroup:        o.AprResourceGroup,
-			AprAmwResourceIDs:       aprAmwResourceIDs,
+			SvcAmwResourceID:        svcAmwResourceID,
+			HcpAmwResourceID:        hcpAmwResourceID,
 		},
 	}, nil
 }
@@ -472,7 +476,8 @@ func (opts *Options) Run(ctx context.Context) error {
 		opts.KubeApplierDBClients,
 		opts.AprClient,
 		opts.AprResourceGroup,
-		opts.AprAmwResourceIDs,
+		opts.SvcAmwResourceID,
+		opts.HcpAmwResourceID,
 	)
 
 	runErrCh := make(chan error, 1)

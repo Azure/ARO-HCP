@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -40,13 +39,20 @@ import (
 const (
 	testResourceGroup = "rg-region"
 	testSubscription  = "00000000-0000-0000-0000-000000000000"
-	testAmw           = "amw-region"
+	testServicesAmw   = "amw-services"
+	testHcpsAmw       = "amw-hcps"
 	scopeFormat       = "/subscriptions/%s/resourceGroups/%s/providers/microsoft.monitor/accounts/%s"
 )
 
-var testScopes = []string{
-	fmt.Sprintf(scopeFormat, testSubscription, testResourceGroup, testAmw),
-}
+var (
+	// servicesAmwID and hcpsAmwID are the pre-configured AMW resource ids the PUT
+	// handler maps the "services"/"hcps" scope keys to.
+	servicesAmwID = fmt.Sprintf(scopeFormat, testSubscription, testResourceGroup, testServicesAmw)
+	hcpsAmwID     = fmt.Sprintf(scopeFormat, testSubscription, testResourceGroup, testHcpsAmw)
+
+	// testScopes is the scope set carried on sample rules returned by the fakes.
+	testScopes = []string{servicesAmwID}
+)
 
 // newFakeClient builds an armalertprocessingrules.Client whose transport is
 // backed by the provided fake server.
@@ -208,15 +214,16 @@ func TestAlertProcessingRulePutHandler(t *testing.T) {
 				return resp, azfake.ErrorResponder{}
 			},
 		}
-		handler := NewAlertProcessingRulePutHandler(newFakeClient(t, srv), testResourceGroup, testScopes)
+		handler := NewAlertProcessingRulePutHandler(newFakeClient(t, srv), testResourceGroup, servicesAmwID, hcpsAmwID)
 
 		body := AlertProcessingRulePutRequest{
 			AlertRuleName:     "MyAlert",
 			ResourceFilter:    "np-skip-minor",
 			StartTime:         "2026-09-22T00:00:00",
 			EndTime:           "2026-09-23T00:00:00",
-			IncidentReference: "ICM-123",
-			Scopes:            testScopes,
+			Description:       "planned maintenance",
+			IncidentReference: "ARO-12345",
+			AmwScopes:         []string{svcAmwKey},
 		}
 		rec := httptest.NewRecorder()
 		req := newJSONRequest(t, http.MethodPut, "/admin/v1/alertprocessingrules/rule-a", body)
@@ -230,7 +237,8 @@ func TestAlertProcessingRulePutHandler(t *testing.T) {
 		require.Equal(t, "Global", derefString(captured.Location))
 		require.NotNil(t, captured.Properties)
 		require.True(t, *captured.Properties.Enabled, "enabled should default to true")
-		require.Equal(t, testScopes, derefStringSlice(captured.Properties.Scopes))
+		// The "services" scope key resolves to its configured AMW resource id.
+		require.Equal(t, []string{servicesAmwID}, derefStringSlice(captured.Properties.Scopes))
 
 		// Suppression action.
 		require.Len(t, captured.Properties.Actions, 1)
@@ -256,7 +264,7 @@ func TestAlertProcessingRulePutHandler(t *testing.T) {
 		require.Equal(t, "2026-09-22T00:00:00", derefString(captured.Properties.Schedule.EffectiveFrom))
 		require.Equal(t, "2026-09-23T00:00:00", derefString(captured.Properties.Schedule.EffectiveUntil))
 		require.Equal(t, aroHCPPurposeTagValue, derefString(captured.Tags[aroHCPPurposeTagKey]))
-		require.Equal(t, "ICM-123", derefString(captured.Tags[incidentTagKey]))
+		require.Equal(t, "ARO-12345", derefString(captured.Tags[incidentTagKey]))
 	})
 
 	t.Run("omits the AlertContext condition when no resource filter", func(t *testing.T) {
@@ -270,15 +278,16 @@ func TestAlertProcessingRulePutHandler(t *testing.T) {
 				return resp, azfake.ErrorResponder{}
 			},
 		}
-		handler := NewAlertProcessingRulePutHandler(newFakeClient(t, srv), testResourceGroup, testScopes)
+		handler := NewAlertProcessingRulePutHandler(newFakeClient(t, srv), testResourceGroup, servicesAmwID, hcpsAmwID)
 
 		body := AlertProcessingRulePutRequest{
-			AlertRuleName: "MyAlert",
-			StartTime:     "2026-09-22T00:00:00",
-			EndTime:       "2026-09-23T00:00:00",
-			Description:   "planned maintenance",
-			Enabled:       to.Ptr(false),
-			Scopes:        testScopes,
+			AlertRuleName:     "MyAlert",
+			StartTime:         "2026-09-22T00:00:00",
+			EndTime:           "2026-09-23T00:00:00",
+			Description:       "planned maintenance",
+			IncidentReference: "ARO-12345",
+			Enabled:           to.Ptr(false),
+			AmwScopes:         []string{svcAmwKey},
 		}
 		rec := httptest.NewRecorder()
 		req := newJSONRequest(t, http.MethodPut, "/admin/v1/alertprocessingrules/rule-a", body)
@@ -290,7 +299,7 @@ func TestAlertProcessingRulePutHandler(t *testing.T) {
 		require.Equal(t, "planned maintenance", derefString(captured.Properties.Description))
 	})
 
-	t.Run("accepts extra scopes when at least one known AMW is present", func(t *testing.T) {
+	t.Run("resolves multiple AMW scope keys and appends additional scopes", func(t *testing.T) {
 		t.Parallel()
 		var captured armalertprocessingrules.AlertProcessingRule
 		srv := armaprfake.Server{
@@ -301,16 +310,17 @@ func TestAlertProcessingRulePutHandler(t *testing.T) {
 				return resp, azfake.ErrorResponder{}
 			},
 		}
-		handler := NewAlertProcessingRulePutHandler(newFakeClient(t, srv), testResourceGroup, testScopes)
+		handler := NewAlertProcessingRulePutHandler(newFakeClient(t, srv), testResourceGroup, servicesAmwID, hcpsAmwID)
 
 		extraScope := "/subscriptions/" + testSubscription + "/resourceGroups/other/providers/microsoft.monitor/accounts/amw-other"
-		scopes := append(slices.Clone(testScopes), extraScope)
 		body := AlertProcessingRulePutRequest{
-			AlertRuleName: "MyAlert",
-			StartTime:     "2026-09-22T00:00:00",
-			EndTime:       "2026-09-23T00:00:00",
-			Description:   "planned maintenance",
-			Scopes:        scopes,
+			AlertRuleName:     "MyAlert",
+			StartTime:         "2026-09-22T00:00:00",
+			EndTime:           "2026-09-23T00:00:00",
+			Description:       "planned maintenance",
+			IncidentReference: "ARO-12345",
+			AmwScopes:         []string{svcAmwKey, hcpAmwKey},
+			AdditionalScopes:  []string{extraScope},
 		}
 		rec := httptest.NewRecorder()
 		req := newJSONRequest(t, http.MethodPut, "/admin/v1/alertprocessingrules/rule-a", body)
@@ -318,11 +328,14 @@ func TestAlertProcessingRulePutHandler(t *testing.T) {
 
 		require.NoError(t, handler.ServeHTTP(rec, req))
 		require.Equal(t, http.StatusOK, rec.Code)
-		// All scopes (known AMW plus extras) are forwarded to ARM unchanged.
-		require.Equal(t, scopes, derefStringSlice(captured.Properties.Scopes))
+		// Additional scopes come first (parsed/canonicalized), then the resolved AMW
+		// resource ids in the order their keys were supplied.
+		wantExtra, err := azcorearm.ParseResourceID(extraScope)
+		require.NoError(t, err, "extra scope should parse")
+		require.Equal(t, []string{wantExtra.String(), servicesAmwID, hcpsAmwID}, derefStringSlice(captured.Properties.Scopes))
 	})
 
-	t.Run("accepts an AMW scope that differs only in casing", func(t *testing.T) {
+	t.Run("canonicalizes additional scopes preserving resource-name casing", func(t *testing.T) {
 		t.Parallel()
 		var captured armalertprocessingrules.AlertProcessingRule
 		srv := armaprfake.Server{
@@ -333,16 +346,19 @@ func TestAlertProcessingRulePutHandler(t *testing.T) {
 				return resp, azfake.ErrorResponder{}
 			},
 		}
-		configuredScope := "/subscriptions/" + testSubscription + "/resourceGroups/" + testResourceGroup + "/providers/Microsoft.Monitor/accounts/hcps-region"
-		requestScope := "/subscriptions/" + testSubscription + "/resourcegroups/" + testResourceGroup + "/providers/microsoft.monitor/accounts/HCPS-REGION"
-		handler := NewAlertProcessingRulePutHandler(newFakeClient(t, srv), testResourceGroup, []string{configuredScope})
+		handler := NewAlertProcessingRulePutHandler(newFakeClient(t, srv), testResourceGroup, servicesAmwID, hcpsAmwID)
 
+		// Additional scope with lowercased resourcegroups/provider segments but a
+		// mixed-case resource name.
+		additionalScope := "/subscriptions/" + testSubscription + "/resourcegroups/other/providers/microsoft.monitor/accounts/AMW-Other"
 		body := AlertProcessingRulePutRequest{
-			AlertRuleName: "MyAlert",
-			StartTime:     "2026-09-22T00:00:00",
-			EndTime:       "2026-09-23T00:00:00",
-			Description:   "planned maintenance",
-			Scopes:        []string{requestScope},
+			AlertRuleName:     "MyAlert",
+			StartTime:         "2026-09-22T00:00:00",
+			EndTime:           "2026-09-23T00:00:00",
+			Description:       "planned maintenance",
+			IncidentReference: "ARO-12345",
+			AmwScopes:         []string{svcAmwKey},
+			AdditionalScopes:  []string{additionalScope},
 		}
 		rec := httptest.NewRecorder()
 		req := newJSONRequest(t, http.MethodPut, "/admin/v1/alertprocessingrules/rule-a", body)
@@ -350,15 +366,16 @@ func TestAlertProcessingRulePutHandler(t *testing.T) {
 
 		require.NoError(t, handler.ServeHTTP(rec, req))
 		require.Equal(t, http.StatusOK, rec.Code)
-		// The client's parsed scope is forwarded to ARM with its provider-namespace
-		// and resource-name casing preserved (e.g. "HCPS-REGION", not lowercased).
-		wantParsed, err := azcorearm.ParseResourceID(requestScope)
-		require.NoError(t, err, "request scope should parse")
-		require.Equal(t, []string{wantParsed.String()}, derefStringSlice(captured.Properties.Scopes))
+		// The additional scope is forwarded canonicalized, with the resource-name
+		// casing preserved (e.g. "AMW-Other", not lowercased).
+		wantParsed, err := azcorearm.ParseResourceID(additionalScope)
+		require.NoError(t, err, "additional scope should parse")
+		require.Equal(t, []string{wantParsed.String(), servicesAmwID}, derefStringSlice(captured.Properties.Scopes))
 	})
 
 	t.Run("validation failures return 400 and do not call ARM", func(t *testing.T) {
 		t.Parallel()
+		unparseableScope := "not-a-resource-id"
 		tests := []struct {
 			name string
 			body AlertProcessingRulePutRequest
@@ -366,28 +383,33 @@ func TestAlertProcessingRulePutHandler(t *testing.T) {
 		}{
 			{
 				name: "missing alertRuleName",
-				body: AlertProcessingRulePutRequest{StartTime: "s", EndTime: "e", Description: "r"},
+				body: AlertProcessingRulePutRequest{StartTime: "s", EndTime: "e", Description: "r", IncidentReference: "ICM-1", AmwScopes: []string{svcAmwKey}},
 				msg:  "alertRuleName",
 			},
 			{
 				name: "missing times",
-				body: AlertProcessingRulePutRequest{AlertRuleName: "a", Description: "r"},
+				body: AlertProcessingRulePutRequest{AlertRuleName: "a", Description: "r", IncidentReference: "ICM-1", AmwScopes: []string{svcAmwKey}},
 				msg:  "startTime",
 			},
 			{
 				name: "missing reason and incident",
-				body: AlertProcessingRulePutRequest{AlertRuleName: "a", StartTime: "s", EndTime: "e"},
-				msg:  "description",
+				body: AlertProcessingRulePutRequest{AlertRuleName: "a", StartTime: "s", EndTime: "e", AmwScopes: []string{svcAmwKey}},
+				msg:  "at least one of",
 			},
 			{
-				name: "empty scopes",
-				body: AlertProcessingRulePutRequest{AlertRuleName: "a", StartTime: "s", EndTime: "e", Description: "r"},
-				msg:  "scopes",
+				name: "missing amwScopes",
+				body: AlertProcessingRulePutRequest{AlertRuleName: "a", StartTime: "s", EndTime: "e", Description: "r", IncidentReference: "ICM-1"},
+				msg:  "AMW scope",
 			},
 			{
-				name: "scopes without a known AMW",
-				body: AlertProcessingRulePutRequest{AlertRuleName: "a", StartTime: "s", EndTime: "e", Description: "r", Scopes: []string{"/subscriptions/" + testSubscription + "/resourceGroups/other/providers/microsoft.monitor/accounts/amw-unknown"}},
-				msg:  "scopes",
+				name: "unknown amwScope key",
+				body: AlertProcessingRulePutRequest{AlertRuleName: "a", StartTime: "s", EndTime: "e", Description: "r", IncidentReference: "ICM-1", AmwScopes: []string{"bogus"}},
+				msg:  "not a valid AMW scope",
+			},
+			{
+				name: "unparseable additional scope",
+				body: AlertProcessingRulePutRequest{AlertRuleName: "a", StartTime: "s", EndTime: "e", Description: "r", IncidentReference: "ICM-1", AmwScopes: []string{svcAmwKey}, AdditionalScopes: []string{unparseableScope}},
+				msg:  "Invalid scope",
 			},
 		}
 		for _, tc := range tests {
@@ -399,7 +421,7 @@ func TestAlertProcessingRulePutHandler(t *testing.T) {
 						return azfake.Responder[armalertprocessingrules.ClientCreateOrUpdateResponse]{}, azfake.ErrorResponder{}
 					},
 				}
-				handler := NewAlertProcessingRulePutHandler(newFakeClient(t, srv), testResourceGroup, testScopes)
+				handler := NewAlertProcessingRulePutHandler(newFakeClient(t, srv), testResourceGroup, servicesAmwID, hcpsAmwID)
 
 				rec := httptest.NewRecorder()
 				req := newJSONRequest(t, http.MethodPut, "/admin/v1/alertprocessingrules/rule-a", tc.body)

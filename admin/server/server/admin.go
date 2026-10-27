@@ -90,7 +90,8 @@ func NewAdminAPI(
 	kubeApplierDBClients kubeappliercosmosstorage.KubeApplierDBClients,
 	alertProcessingRulesClient *armalertprocessingrules.Client,
 	alertProcessingRulesResourceGroup string,
-	alertProcessingRulesScopes []string,
+	svcAmwResourceID string,
+	hcpAmwResourceID string,
 ) *AdminAPI {
 	// Pre-mux middleware (runs on all admin routes before pattern matching)
 	middlewareMux := middleware.NewMiddlewareMux(
@@ -173,7 +174,7 @@ func NewAdminAPI(
 		middlewareMux.Handle("GET /admin/v1/alertprocessingrules/{name}",
 			errorutils.ReportError(alertmanagement.NewAlertProcessingRuleGetHandler(alertProcessingRulesClient, alertProcessingRulesResourceGroup).ServeHTTP))
 		middlewareMux.Handle("PUT /admin/v1/alertprocessingrules/{name}",
-			errorutils.ReportError(alertmanagement.NewAlertProcessingRulePutHandler(alertProcessingRulesClient, alertProcessingRulesResourceGroup, alertProcessingRulesScopes).ServeHTTP))
+			errorutils.ReportError(alertmanagement.NewAlertProcessingRulePutHandler(alertProcessingRulesClient, alertProcessingRulesResourceGroup, svcAmwResourceID, hcpAmwResourceID).ServeHTTP))
 		middlewareMux.Handle("DELETE /admin/v1/alertprocessingrules/{name}",
 			errorutils.ReportError(alertmanagement.NewAlertProcessingRuleDeleteHandler(alertProcessingRulesClient, alertProcessingRulesResourceGroup).ServeHTTP))
 	}
