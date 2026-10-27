@@ -314,9 +314,7 @@ clouds:
         prod:
           bot:
             applicationName: "OpenShift Release Bot - Prod"
-          # Regions charted on the Prod quota dashboard, shared identically by
-          # every Prod E2E subscription. Monitoring a region does not establish
-          # quota readiness or authorize CI activation there.
+          # Regions collected and charted for every PROD E2E subscription.
           regions: "eastus2euap,uksouth,switzerlandnorth,canadacentral,australiaeast,westeurope,centralindia,brazilsouth,eastus2"
           e2eSubscriptions: "8d696692-794f-4cdb-ba25-9250c9e9ec4c=ARO HCP E2E Hosted Clusters - Prod - 00,ec435068-e722-475f-8504-c91b72a5dc51=ARO HCP E2E Hosted Clusters - Prod - 01,f831d154-dd5c-47e6-a251-74813ac487cc=ARO HCP E2E Hosted Clusters - Prod - 02 (MCA Sponsorship),fd538f12-d2a7-4841-8af1-f1d7fb331716=ARO HCP E2E Hosted Clusters - Prod - 03 (MCA Sponsorship),acac6421-6480-46bb-ad3a-df8b59cf47bf=ARO HCP E2E Hosted Clusters - Prod - 04 (MCA Sponsorship),32ca24e1-a9fb-44ca-8849-53a0ba96ab35=ARO HCP E2E Hosted Clusters - Prod - 05 (MCA Sponsorship)"
     environments:

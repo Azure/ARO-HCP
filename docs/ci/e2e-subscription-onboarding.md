@@ -304,11 +304,7 @@ Story AROSLSRE-2597 adds the following RedHat0 tenant (`64dc69e4-d083-49fc-9569-
 | `shard4` | `ARO HCP E2E Hosted Clusters - Prod - 04 (MCA Sponsorship)` | `acac6421-6480-46bb-ad3a-df8b59cf47bf` |
 | `shard5` | `ARO HCP E2E Hosted Clusters - Prod - 05 (MCA Sponsorship)` | `32ca24e1-a9fb-44ca-8849-53a0ba96ab35` |
 
-Each pool follows the managed PROD model: three slots with 25 dedicated E2E identity containers per slot. The existing PROD monitoring region CSV remains unchanged and therefore monitors these subscriptions in all configured PROD regions; that broader visibility is not evidence of quota readiness. A pool's UK South default does not restrict runtime-selected jobs to that region.
-
-The collector's runtime configuration and dashboards derive their subscription inventory from `ci.prod.e2eSubscriptions`. Subscription Reader grants are reconciled separately with `tooling/tenant-quota/scripts/manage-service-principals.sh --tenant redhat`; adding inventory alone does not grant access. Render the effective collector configuration with `make -C tooling/tenant-quota render-config` before deployment.
-
-Before activating a subscription in any region, complete the privileged bootstrap, confirm all providers from `ci.e2eSubscriptionProviders` and the required PROD AFEC flags are `Registered`, provision and validate the pool's assets, install the matching cluster-profile keys, and verify that region's worker-family quota, SKU/zone eligibility, and service-principal access. EUAP additionally requires its separate region-access approval. Deploy the updated tenant-quota configuration and confirm the new subscriptions appear in monitoring. Subscription inventory is not evidence that these live prerequisites have completed. Keep the existing PROD-00/01 and cross-tenant canary selection unchanged until the release-side activation is separately approved.
+Each pool follows the managed PROD model: three runtime-selected slots with 25 dedicated E2E identity containers per slot and UK South as the default region. The existing PROD monitoring region CSV remains unchanged.
 
 ## See Also
 
