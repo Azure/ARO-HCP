@@ -205,7 +205,7 @@ func (c *operationNodePoolUpdate) determineOperationState(ctx context.Context, o
 		}
 	}
 	if nodePoolCSID == nil || nodePoolCSID.String() == "" {
-		operationStates = append(operationStates, operationbase.NewOperationState(coreapi.ProvisioningStateAccepted, "Waiting for Cluster Service node pool creation").WithSource("clusterService"))
+		operationStates = append(operationStates, operationbase.NewOperationState(coreapi.ProvisioningStateUpdating, "Waiting for Cluster Service node pool creation").WithSource("clusterService"))
 	} else if existingCSNodePool, err := c.clusterServiceClient.GetNodePool(csCtx, *nodePoolCSID); err != nil {
 		errs = append(errs, utils.TrackError(fmt.Errorf("failed to get node pool from cluster service: %w", err)))
 	} else {

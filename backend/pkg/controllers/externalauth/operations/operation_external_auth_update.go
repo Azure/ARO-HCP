@@ -181,7 +181,7 @@ func (c *operationExternalAuthUpdate) determineOperationState(ctx context.Contex
 	defer cancel()
 
 	if externalAuthCSID == nil || externalAuthCSID.String() == "" {
-		operationStates = append(operationStates, operationbase.NewOperationState(coreapi.ProvisioningStateAccepted, "Waiting for Cluster Service external auth creation").WithSource("clusterService"))
+		operationStates = append(operationStates, operationbase.NewOperationState(coreapi.ProvisioningStateUpdating, "Waiting for Cluster Service external auth creation").WithSource("clusterService"))
 	} else if csExternalAuth, err := c.clusterServiceClient.GetExternalAuth(csCtx, *externalAuthCSID); err != nil {
 		errs = append(errs, utils.TrackError(fmt.Errorf("failed to get external auth from cluster service: %w", err)))
 	} else {
