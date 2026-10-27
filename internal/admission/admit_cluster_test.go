@@ -354,14 +354,12 @@ func TestMutateCluster(t *testing.T) {
 			name:         "AFEC registered with backup-schedule-override alongside other experimental tags",
 			subscription: afecRegistered,
 			tags: map[string]string{
-				metadataapi.TagClusterSingleReplica:          string(coreapi.SingleReplicaControlPlane),
 				metadataapi.TagClusterSizeOverride:           string(coreapi.MinimalControlPlanePodSizing),
 				metadataapi.TagClusterBackupScheduleOverride: string(coreapi.BackupScheduleStateEnabled),
 			},
-			expectErrors:                     []utils.ExpectedError{},
-			expectedControlPlaneAvailability: coreapi.SingleReplicaControlPlane,
-			expectedControlPlanePodSizing:    coreapi.MinimalControlPlanePodSizing,
-			expectedBackupScheduleOverride:   coreapi.BackupScheduleStateEnabled,
+			expectErrors:                   []utils.ExpectedError{},
+			expectedControlPlanePodSizing:  coreapi.MinimalControlPlanePodSizing,
+			expectedBackupScheduleOverride: coreapi.BackupScheduleStateEnabled,
 		},
 	}
 
