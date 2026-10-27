@@ -29,7 +29,7 @@ spec:
       annotations:
         summary: "{{ $labels.region }}/{{ $labels.key_vault }}: Certificate {{ $labels.certificate_name }} rotation is overdue"
         description: "Certificate '{{ $labels.certificate_name }}' in Key Vault '{{ $labels.key_vault }}' ({{ $labels.region }}) exceeded the rotation safety threshold. Current lifetime: {{ $value | humanizePercentage }}. Safety threshold: 65%. Expected rotation: 50%."
-        runbook_url: TBD
+        runbook_url: "https://aka.ms/arohcp-runbook-cert-rotation"
     - alert: userJourneyCertificateDisabled
       expr: |
         certificate:keyvault_certificate:enabled == 0
@@ -39,7 +39,7 @@ spec:
       annotations:
         summary: "{{ $labels.region }}/{{ $labels.key_vault }}: Certificate {{ $labels.certificate_name }} is disabled"
         description: "Certificate '{{ $labels.certificate_name }}' in Key Vault '{{ $labels.key_vault }}' ({{ $labels.region }}) has remained disabled for at least one hour."
-        runbook_url: TBD
+        runbook_url: "https://aka.ms/arohcp-runbook-cert-rotation"
     - alert: userJourneyCertificateCollectionStale
       expr: |
         certificate:keyvault_certificate:collector_fresh == 0
@@ -49,7 +49,7 @@ spec:
       annotations:
         summary: "{{ $labels.region }}/{{ $labels.key_vault }}: Certificate collection is stale"
         description: "Certificate metadata collection for Key Vault '{{ $labels.key_vault }}' ({{ $labels.region }}) has not completed successfully within the last hour."
-        runbook_url: TBD
+        runbook_url: "https://aka.ms/arohcp-runbook-cert-rotation"
     - alert: userJourneyCertificateExporterUnavailable
       expr: |
         max by (cluster, environment, region) (
@@ -70,4 +70,4 @@ spec:
       annotations:
         summary: "Certificate exporter target is unavailable"
         description: "The ARO HCP exporter has had no healthy Prometheus scrape target for at least one hour, so certificate collection health cannot be evaluated."
-        runbook_url: TBD
+        runbook_url: "https://aka.ms/arohcp-runbook-cert-rotation"
