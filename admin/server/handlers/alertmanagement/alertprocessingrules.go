@@ -118,10 +118,10 @@ type AlertProcessingRulePutRequest struct {
 	// suffix). Both required.
 	StartTime string `json:"startTime"`
 	EndTime   string `json:"endTime"`
-	// Description and/or IncidentReference document why the rule exists. At least one
-	// is required.
-	Description       string `json:"description,omitempty"`
-	IncidentReference string `json:"incidentReference,omitempty"`
+	// Description of the alert processing rule, required.
+	Description string `json:"description"`
+	// IncidentReference for the alert processing rule, required.
+	IncidentReference string `json:"incidentReference"`
 	// Enabled defaults to true when omitted.
 	Enabled *bool `json:"enabled,omitempty"`
 	// AmwScopes the alert processing rule should apply to. Valid values are `services` or `hcps`.
@@ -204,9 +204,13 @@ func (h *AlertProcessingRulePutHandler) ServeHTTP(w http.ResponseWriter, request
 		return coreapi.NewCloudError(http.StatusBadRequest, coreapi.CloudErrorCodeInvalidRequestContent, "",
 			"\"startTime\" and \"endTime\" are required")
 	}
-	if body.Description == "" && body.IncidentReference == "" {
+	if body.Description == "" {
 		return coreapi.NewCloudError(http.StatusBadRequest, coreapi.CloudErrorCodeInvalidRequestContent, "",
-			"at least one of \"description\" or \"incidentReference\" is required")
+			"\"description\" is required")
+	}
+	if body.IncidentReference == "" {
+		return coreapi.NewCloudError(http.StatusBadRequest, coreapi.CloudErrorCodeInvalidRequestContent, "",
+			"\"incidentReference\" is required")
 	}
 	if len(body.AmwScopes) == 0 {
 		return coreapi.NewCloudError(http.StatusBadRequest, coreapi.CloudErrorCodeInvalidRequestContent, "",
@@ -249,9 +253,7 @@ func (h *AlertProcessingRulePutHandler) ServeHTTP(w http.ResponseWriter, request
 	}
 
 	tags := map[string]string{aroHCPPurposeTagKey: aroHCPPurposeTagValue}
-	if body.IncidentReference != "" {
-		tags[incidentTagKey] = body.IncidentReference
-	}
+	tags[incidentTagKey] = body.IncidentReference
 
 	enabled := true
 	if body.Enabled != nil {
@@ -274,9 +276,7 @@ func (h *AlertProcessingRulePutHandler) ServeHTTP(w http.ResponseWriter, request
 			},
 		},
 	}
-	if body.Description != "" {
-		rule.Properties.Description = to.Ptr(body.Description)
-	}
+	rule.Properties.Description = to.Ptr(body.Description)
 
 	result, err := h.client.CreateOrUpdate(ctx, h.resourceGroup, name, rule, nil)
 	if err != nil {

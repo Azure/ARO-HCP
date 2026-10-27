@@ -383,32 +383,37 @@ func TestAlertProcessingRulePutHandler(t *testing.T) {
 		}{
 			{
 				name: "missing alertRuleName",
-				body: AlertProcessingRulePutRequest{StartTime: "s", EndTime: "e", Description: "r", IncidentReference: "ICM-1", AmwScopes: []string{svcAmwKey}},
+				body: AlertProcessingRulePutRequest{StartTime: "s", EndTime: "e", Description: "r", IncidentReference: "ARO-12345", AmwScopes: []string{svcAmwKey}},
 				msg:  "alertRuleName",
 			},
 			{
 				name: "missing times",
-				body: AlertProcessingRulePutRequest{AlertRuleName: "a", Description: "r", IncidentReference: "ICM-1", AmwScopes: []string{svcAmwKey}},
+				body: AlertProcessingRulePutRequest{AlertRuleName: "a", Description: "r", IncidentReference: "ARO-12345", AmwScopes: []string{svcAmwKey}},
 				msg:  "startTime",
 			},
 			{
-				name: "missing reason and incident",
-				body: AlertProcessingRulePutRequest{AlertRuleName: "a", StartTime: "s", EndTime: "e", AmwScopes: []string{svcAmwKey}},
-				msg:  "at least one of",
+				name: "missing description",
+				body: AlertProcessingRulePutRequest{AlertRuleName: "a", StartTime: "s", EndTime: "e", IncidentReference: "ARO-12345", AmwScopes: []string{svcAmwKey}},
+				msg:  "description",
+			},
+			{
+				name: "missing incidentReference",
+				body: AlertProcessingRulePutRequest{AlertRuleName: "a", StartTime: "s", EndTime: "e", Description: "r", AmwScopes: []string{svcAmwKey}},
+				msg:  "incidentReference",
 			},
 			{
 				name: "missing amwScopes",
-				body: AlertProcessingRulePutRequest{AlertRuleName: "a", StartTime: "s", EndTime: "e", Description: "r", IncidentReference: "ICM-1"},
+				body: AlertProcessingRulePutRequest{AlertRuleName: "a", StartTime: "s", EndTime: "e", Description: "r", IncidentReference: "ARO-12345"},
 				msg:  "AMW scope",
 			},
 			{
 				name: "unknown amwScope key",
-				body: AlertProcessingRulePutRequest{AlertRuleName: "a", StartTime: "s", EndTime: "e", Description: "r", IncidentReference: "ICM-1", AmwScopes: []string{"bogus"}},
+				body: AlertProcessingRulePutRequest{AlertRuleName: "a", StartTime: "s", EndTime: "e", Description: "r", IncidentReference: "ARO-12345", AmwScopes: []string{"bogus"}},
 				msg:  "not a valid AMW scope",
 			},
 			{
 				name: "unparseable additional scope",
-				body: AlertProcessingRulePutRequest{AlertRuleName: "a", StartTime: "s", EndTime: "e", Description: "r", IncidentReference: "ICM-1", AmwScopes: []string{svcAmwKey}, AdditionalScopes: []string{unparseableScope}},
+				body: AlertProcessingRulePutRequest{AlertRuleName: "a", StartTime: "s", EndTime: "e", Description: "r", IncidentReference: "ARO-12345", AmwScopes: []string{svcAmwKey}, AdditionalScopes: []string{unparseableScope}},
 				msg:  "Invalid scope",
 			},
 		}

@@ -620,8 +620,8 @@ type AlertProcessingRuleRequest struct {
 	ResourceFilter    string   `json:"resourceFilter,omitempty"`
 	StartTime         string   `json:"startTime"`
 	EndTime           string   `json:"endTime"`
-	Description       string   `json:"description,omitempty"`
-	IncidentReference string   `json:"incidentReference,omitempty"`
+	Description       string   `json:"description"`
+	IncidentReference string   `json:"incidentReference"`
 	Enabled           *bool    `json:"enabled,omitempty"`
 	AmwScopes         []string `json:"amwScopes"`
 	AdditionalScopes  []string `json:"additionalScopes,omitempty"`
