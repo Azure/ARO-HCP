@@ -132,7 +132,10 @@ func TestRoleGrantCoversMissingActions(t *testing.T) {
 		{name: "unrelated reader role", permissions: []*armauthorization.Permission{permission([]string{"Microsoft.Network/networkSecurityGroups/read"})}, want: false},
 		{name: "direct write", permissions: []*armauthorization.Permission{permission([]string{"Microsoft.Network/networkSecurityGroups/write"})}, want: true},
 		{name: "wildcard write", permissions: []*armauthorization.Permission{permission([]string{"Microsoft.Network/*"})}, want: true},
+		{name: "internal wildcard grant", permissions: []*armauthorization.Permission{permission([]string{"Microsoft.Network/*/write"})}, want: true},
 		{name: "excluded write", permissions: []*armauthorization.Permission{permission([]string{"Microsoft.Network/*"}, "Microsoft.Network/networkSecurityGroups/write")}, want: false},
+		{name: "internal wildcard exclusion", permissions: []*armauthorization.Permission{permission([]string{"Microsoft.Network/*"}, "Microsoft.Network/*/write")}, want: false},
+		{name: "read-only wildcard does not grant write", permissions: []*armauthorization.Permission{permission([]string{"Microsoft.Network/*/read"})}, want: false},
 		{name: "data grant does not cover control-plane action", permissions: []*armauthorization.Permission{{DataActions: []*string{ptr.To("Microsoft.Network/networkSecurityGroups/write")}}}, want: false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -254,7 +257,6 @@ func TestFailureWithPropagationGuidance(t *testing.T) {
 		wantWindowExpired  float64
 		wantInternalSubstr string
 		wantUserSubstr     string
-		wantReason         string
 	}{
 		{
 			name:        "nil detector never adds guidance",
@@ -358,25 +360,21 @@ func TestFailureWithPropagationGuidance(t *testing.T) {
 			},
 		},
 		{
-			name:    "client build failure returns Unknown and is counted",
+			name:    "client build failure keeps the failure and is counted",
 			missing: []*identityResourceMissingPermissions{{Resource: nsgID, Identity: identityID, Decisions: notAllowed}},
 			setupMocks: func(builder *azureclient.MockFirstPartyApplicationClientBuilder, _ *azureclient.MockRoleAssignmentsClient) {
 				builder.EXPECT().RoleAssignmentsClient(propagationTestTenantID, propagationTestSubscriptionID).Return(nil, errors.New("no credential"))
 			},
-			wantGuidance:     true,
 			wantLookupErrors: 1,
-			wantReason:       "RoleAssignmentPropagationCheckFailed",
 		},
 		{
-			name:    "list failure returns Unknown and is counted",
+			name:    "list failure keeps the failure and is counted",
 			missing: []*identityResourceMissingPermissions{{Resource: nsgID, Identity: identityID, Decisions: notAllowed}},
 			setupMocks: func(builder *azureclient.MockFirstPartyApplicationClientBuilder, client *azureclient.MockRoleAssignmentsClient) {
 				builder.EXPECT().RoleAssignmentsClient(propagationTestTenantID, propagationTestSubscriptionID).Return(client, nil)
 				client.EXPECT().NewListForScopePager("/subscriptions/"+propagationTestSubscriptionID, gomock.Any()).Return(newRoleAssignmentsPager(errors.New("connection reset"), nil))
 			},
-			wantGuidance:     true,
 			wantLookupErrors: 1,
-			wantReason:       "RoleAssignmentPropagationCheckFailed",
 		},
 	}
 
@@ -420,34 +418,18 @@ func TestFailureWithPropagationGuidance(t *testing.T) {
 				return
 			}
 			require.NoError(t, result.Validate())
-			wantReason := tt.wantReason
-			if wantReason == "" {
-				wantReason = missingPermissionsPendingPropagationReason
-			}
-			assert.Equal(t, wantReason, result.Reason())
+			assert.Equal(t, missingPermissionsPendingPropagationReason, result.Reason())
 			assert.Contains(t, result.InternalMessage(), tt.wantInternalSubstr)
-			userMessage := ""
-			if wantReason == missingPermissionsPendingPropagationReason {
-				assert.Equal(t, OutcomeTypeFailed, result.Outcome.Type)
-				userMessage = result.Outcome.Failed.UserMessage
-			} else {
-				assert.Equal(t, OutcomeTypeUnknown, result.Outcome.Type)
-				userMessage = result.Outcome.Unknown.UserMessage
-			}
+			assert.Equal(t, OutcomeTypeFailed, result.Outcome.Type)
+			userMessage := result.Outcome.Failed.UserMessage
 			assert.Contains(t, userMessage, missingPermissionsMessage, "the customer still needs to know which permissions are missing")
 			if tt.wantUserSubstr != "" {
 				assert.Contains(t, userMessage, tt.wantUserSubstr)
 			}
-			if wantReason == missingPermissionsPendingPropagationReason {
-				assert.Contains(t, userMessage, "retry the operation", "the guidance must tell the customer what to do")
-			}
+			assert.Contains(t, userMessage, "retry the operation", "the guidance must tell the customer what to do")
 			require.NotNil(t, result.EarliestRetryAfter)
-			if wantReason == missingPermissionsPendingPropagationReason {
-				assert.Equal(t, roleAssignmentPropagationRetryAfter, *result.EarliestRetryAfter)
-			}
-			if wantReason == missingPermissionsPendingPropagationReason {
-				assert.Equal(t, detectionsBefore+1, testutil.ToFloat64(roleAssignmentPropagationDetections.WithLabelValues(validationName)))
-			}
+			assert.Equal(t, roleAssignmentPropagationRetryAfter, *result.EarliestRetryAfter)
+			assert.Equal(t, detectionsBefore+1, testutil.ToFloat64(roleAssignmentPropagationDetections.WithLabelValues(validationName)))
 		})
 	}
 }

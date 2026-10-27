@@ -48,11 +48,6 @@ const roleAssignmentPropagationRetryAfter = 30 * time.Second
 
 const missingPermissionsPendingPropagationReason = "RoleAssignmentPropagationPending"
 
-// propagationCheckFailedReason is the Unknown reason reported when the role-assignment
-// lookup itself failed (throttling, connection resets, ARM 5xx) while checking for
-// propagation delay, so propagation could be neither confirmed nor ruled out.
-const propagationCheckFailedReason = "RoleAssignmentPropagationCheckFailed"
-
 var (
 	// roleAssignmentPropagationDetections counts runs where every missing action has a recent
 	// matching role grant and the failure carries propagation guidance.
@@ -296,10 +291,22 @@ func actionGrantedByPermission(action string, allowed, excluded []*string) bool 
 
 func matchesRoleAction(pattern, action string) bool {
 	pattern, action = strings.ToLower(pattern), strings.ToLower(action)
-	if strings.HasSuffix(pattern, "*") {
-		return strings.HasPrefix(action, strings.TrimSuffix(pattern, "*"))
+	parts := strings.Split(pattern, "*")
+	if !strings.HasPrefix(action, parts[0]) {
+		return false
 	}
-	return pattern == action
+	action = action[len(parts[0]):]
+	for index, part := range parts[1:] {
+		if index == len(parts)-2 {
+			return strings.HasSuffix(action, part)
+		}
+		position := strings.Index(action, part)
+		if position < 0 {
+			return false
+		}
+		action = action[position+len(part):]
+	}
+	return action == ""
 }
 
 // isRecentCoveringAssignment reports whether assignment grants principalID a role that is
@@ -361,20 +368,7 @@ func failureWithPropagationGuidance(ctx context.Context, detector *RoleAssignmen
 	found, err := detector.findPropagationEvidence(ctx, tenantID, missing, principalIDs)
 	if err != nil {
 		recordPropagationCheckFailure(ctx, validationName, err)
-		if azureclient.IsForbiddenErr(err) {
-			// 403 means the first-party application cannot read role assignments at all, so
-			// there is never propagation evidence; the plain Failed is the honest result.
-			return ValidationResult{}, false
-		}
-		// Non-403 errors (throttling, connection resets, ARM 5xx) are transient: we cannot
-		// determine whether propagation explains the failure, so report Unknown rather
-		// than potentially failing an operation whose only problem is a slow ARM call.
-		return UnknownValidation(
-			propagationCheckFailedReason,
-			fmt.Sprintf("%s. Unable to verify whether recently created role assignments explain the missing permissions (lookup error). The operation will be retried.", missingPermissionsMessage),
-			fmt.Sprintf("%s; role assignment lookup failed: %v", missingPermissionsMessage, err),
-			ControllerReportingPolicyTypeLogOnly,
-		), true
+		return ValidationResult{}, false
 	}
 	if found.WindowExpired {
 		roleAssignmentPropagationWindowExpired.WithLabelValues(validationName).Inc()
