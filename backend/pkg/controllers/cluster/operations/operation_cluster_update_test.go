@@ -599,7 +599,7 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, coreapi.ProvisioningStateAccepted, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateUpdating, op.Status)
 			},
 		},
 		{

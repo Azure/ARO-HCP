@@ -213,7 +213,7 @@ func (c *operationClusterUpdate) determineOperationState(ctx context.Context, op
 		}
 	}
 	if clusterCSID == nil || clusterCSID.String() == "" {
-		operationStates = append(operationStates, operationbase.NewOperationState(coreapi.ProvisioningStateAccepted, "Waiting for Cluster Service cluster creation").WithSource("clusterService"))
+		operationStates = append(operationStates, operationbase.NewOperationState(coreapi.ProvisioningStateUpdating, "Waiting for Cluster Service cluster creation").WithSource("clusterService"))
 	} else if existingCSCluster, err := c.clusterServiceClient.GetCluster(csCtx, *clusterCSID); err != nil {
 		errs = append(errs, utils.TrackError(fmt.Errorf("failed to get cluster from cluster service: %w", err)))
 	} else {
