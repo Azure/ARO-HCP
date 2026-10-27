@@ -77,8 +77,8 @@ github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20261015161319-19f2993c1807 h
 github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20261015161319-19f2993c1807/go.mod h1:Hq5LK9gmFFn2cJDjbGr4/raeLiAznJQU5Jy920Z5krg=
 github.com/Azure/ARO-Tools/tools/helm v0.0.0-20261015161319-19f2993c1807 h1:q3kMQLGJ8E7jsy5AMQCitPsLfGJx6SLxvzI5XdZPTtA=
 github.com/Azure/ARO-Tools/tools/helm v0.0.0-20261015161319-19f2993c1807/go.mod h1:CcCgS8Zi/QJQ57S6YzNSoNq8CT80OM3q700esNyc3II=
-github.com/Azure/ARO-Tools/tools/istio-upgrade v0.0.0-20261015161319-19f2993c1807 h1:oxiDoqp/kwMuMsj4Eximj/LcwYrMJb2lzCtiMubo9q8=
-github.com/Azure/ARO-Tools/tools/istio-upgrade v0.0.0-20261015161319-19f2993c1807/go.mod h1:ZsCllVb2HlwcGOpy3TifDVUu/Xxzi4rdLe470Aq8uRg=
+github.com/Azure/ARO-Tools/tools/istio-upgrade v0.0.0-20261026080510-e37eb4c5f882 h1:g3aKM2mvotbb6yGh5Gaim0txX5sWoie3reRrggqbwAE=
+github.com/Azure/ARO-Tools/tools/istio-upgrade v0.0.0-20261026080510-e37eb4c5f882/go.mod h1:ZsCllVb2HlwcGOpy3TifDVUu/Xxzi4rdLe470Aq8uRg=
 github.com/Azure/ARO-Tools/tools/kustoctl v0.0.0-20261015161319-19f2993c1807 h1:aiZmT0kUtH3iEsoekJCBl8uqmnkkHikDrPirSmZuBZU=
 github.com/Azure/ARO-Tools/tools/kustoctl v0.0.0-20261015161319-19f2993c1807/go.mod h1:FdRvFfSwI5YxpAPBRL/QrT5hhGgoTz/xhV8GCdODiUg=
 github.com/Azure/ARO-Tools/tools/prow-job-executor v0.0.0-20261015161319-19f2993c1807 h1:N0I6JquBjUOqIwpNUH/BzG9SdykOWoVbSfZl9YYLKpI=

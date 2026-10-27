@@ -32,9 +32,3 @@ To inspect the actual config variables available during templating with the `gen
 
 - Retrieve values from a single configuration file according to the cloud, environment, and region.
 - Replace `region`, `regionStamp` and `cxStamp` values.
-
-## Istio upgrade timeouts
-
-The local pipeline runner embeds the `tools/istio-upgrade` module pinned in `go.mod`.
-Istio ARM operations allow up to 20 minutes for polling, bounded by the caller context.
-The subsequent provisioning health check has a separate five-minute timeout and checks every 15 seconds.
