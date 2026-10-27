@@ -418,14 +418,20 @@ func mutateDeleteOperationCompletionTimeout(_ context.Context, admissionContext 
 // must carry the prefetched ServiceProviderCluster and ClusterNodePools.
 func AdmitCluster(ctx context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, newObj, oldObj *coreapi.Cluster) field.ErrorList {
 	errs := field.ErrorList{}
-	if op.Type == operation.Update && oldObj != nil && oldObj.ServiceProviderProperties.DeletionTimestamp != nil {
-		errs = append(errs, field.Forbidden(field.NewPath(""), "cluster is being deleted and cannot be updated"))
-	}
+
+	errs = append(errs, admitClusterNotDeleting(op, oldObj)...)
 
 	// CustomerProperties ClusterCustomerProperties `json:"customerProperties,omitempty"`
 	errs = append(errs, admitClusterCustomerProperties(ctx, admissionContext, op, field.NewPath("properties"), &newObj.CustomerProperties, safe.Field(oldObj, validation.ToClusterCustomerProperties))...)
 
 	return errs
+}
+
+func admitClusterNotDeleting(op operation.Operation, oldObj *coreapi.Cluster) field.ErrorList {
+	if op.Type == operation.Update && oldObj != nil && oldObj.ServiceProviderProperties.DeletionTimestamp != nil {
+		return field.ErrorList{field.Forbidden(field.NewPath(""), "cluster is being deleted and cannot be updated")}
+	}
+	return nil
 }
 
 // admitClusterCustomerProperties drills down into the customer-facing portion
