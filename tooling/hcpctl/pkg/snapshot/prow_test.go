@@ -15,6 +15,7 @@
 package snapshot
 
 import (
+	"reflect"
 	"testing"
 )
 
@@ -169,5 +170,91 @@ func TestParseProwURL(t *testing.T) {
 				t.Errorf("IsPullRequest() = %v, want %v", got.IsPullRequest(), tt.wantIsPR)
 			}
 		})
+	}
+}
+
+func TestManagementClusterNames(t *testing.T) {
+	for _, tt := range []struct {
+		testName string
+		input    string
+		count    int
+		want     []string
+	}{
+		{
+			testName: "multiple stamps expanded",
+			input:    "ci01-j123-mgmt-1",
+			count:    2,
+			want:     []string{"ci01-j123-mgmt-1", "ci01-j123-mgmt-2"},
+		},
+		{
+			testName: "single stamp unchanged",
+			input:    "dev-j123-mgmt-1",
+			count:    1,
+			want:     []string{"dev-j123-mgmt-1"},
+		},
+		{
+			testName: "count not set",
+			input:    "dev-j123-mgmt-1",
+			count:    0,
+			want:     []string{"dev-j123-mgmt-1"},
+		},
+		{
+			testName: "configured stamp is not first",
+			input:    "ci01-j123-mgmt-2",
+			count:    3,
+			want:     []string{"ci01-j123-mgmt-1", "ci01-j123-mgmt-2", "ci01-j123-mgmt-3"},
+		},
+		{
+			testName: "no stamp index suffix",
+			input:    "ci01-j123-mgmt",
+			count:    2,
+			want:     []string{"ci01-j123-mgmt"},
+		},
+		{
+			testName: "non-numeric suffix",
+			input:    "ci01-j123-mgmt-x",
+			count:    2,
+			want:     []string{"ci01-j123-mgmt-x"},
+		},
+		{
+			testName: "empty name",
+			input:    "",
+			count:    2,
+			want:     nil,
+		},
+	} {
+		t.Run(tt.testName, func(t *testing.T) {
+			got := managementClusterNames(tt.input, tt.count)
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("managementClusterNames(%q, %d) = %v, want %v", tt.input, tt.count, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestParseConfigManagementClusterNames(t *testing.T) {
+	cfg := []byte(`
+kusto:
+  kustoName: hcp-dev-us-2
+  location: eastus2
+svc:
+  aks:
+    name: ci01-j123-svc
+mgmt:
+  aks:
+    name: ci01-j123-mgmt-1
+  stamps:
+    count: 2
+`)
+	parsed, err := ParseConfig(cfg)
+	if err != nil {
+		t.Fatalf("ParseConfig failed: %v", err)
+	}
+	if parsed.ManagementClusterName != "ci01-j123-mgmt-1" {
+		t.Errorf("ManagementClusterName = %q, want ci01-j123-mgmt-1", parsed.ManagementClusterName)
+	}
+	want := []string{"ci01-j123-mgmt-1", "ci01-j123-mgmt-2"}
+	if !reflect.DeepEqual(parsed.ManagementClusterNames, want) {
+		t.Errorf("ManagementClusterNames = %v, want %v", parsed.ManagementClusterNames, want)
 	}
 }

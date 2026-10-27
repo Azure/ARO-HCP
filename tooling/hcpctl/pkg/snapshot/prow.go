@@ -88,9 +88,12 @@ type ProwJobConfig struct {
 	// ServiceClusterName and ManagementClusterName are the AKS cluster names
 	// used to filter Kusto queries to only relevant clusters. These are only
 	// populated for PR (pull-ci) jobs where the shared Kusto database contains
-	// data from multiple clusters.
-	ServiceClusterName    string
-	ManagementClusterName string
+	// data from multiple clusters. ManagementClusterName is the first
+	// management cluster stamp; ManagementClusterNames holds every stamp when
+	// the environment deploys more than one (mgmt.stamps.count).
+	ServiceClusterName     string
+	ManagementClusterName  string
+	ManagementClusterNames []string
 }
 
 // prowJobMetadata is the minimal subset of a Kubernetes ProwJob object
@@ -682,7 +685,7 @@ func ExtractResourceGroup(output string) string {
 type sourceConfig struct {
 	Kusto sourceKusto `json:"kusto"`
 	Svc   sourceAKS   `json:"svc"`
-	Mgmt  sourceAKS   `json:"mgmt"`
+	Mgmt  sourceMgmt  `json:"mgmt"`
 }
 
 type sourceKusto struct {
@@ -699,6 +702,15 @@ type sourceAKS struct {
 
 type sourceAKSName struct {
 	Name string `json:"name"`
+}
+
+type sourceMgmt struct {
+	AKS    sourceAKSName `json:"aks"`
+	Stamps sourceStamps  `json:"stamps"`
+}
+
+type sourceStamps struct {
+	Count int `json:"count"`
 }
 
 // ParseConfig parses a rendered environment config YAML and extracts the
@@ -720,7 +732,44 @@ func ParseConfig(data []byte) (*ProwJobConfig, error) {
 		MonitoringEventsDatabase: src.Kusto.MonitoringEventsDatabase,
 		ServiceClusterName:       src.Svc.AKS.Name,
 		ManagementClusterName:    src.Mgmt.AKS.Name,
+		ManagementClusterNames:   managementClusterNames(src.Mgmt.AKS.Name, src.Mgmt.Stamps.Count),
 	}, nil
+}
+
+// managementClusterNames expands a management cluster stamp name (e.g.
+// "env-j123-mgmt-1") into the names of all stamps when the environment
+// deploys more than one. HCP namespaces are spread across all stamps, so
+// query filters must cover every stamp or events and logs from clusters on
+// the other stamps are silently missed. If the name does not end in a stamp
+// index or the count is not greater than one, only the given name is
+// returned.
+func managementClusterNames(name string, count int) []string {
+	if name == "" || count <= 1 {
+		if name == "" {
+			return nil
+		}
+		return []string{name}
+	}
+
+	idx := strings.LastIndex(name, "-")
+	if idx < 0 || idx == len(name)-1 {
+		return []string{name}
+	}
+	suffix := name[idx+1:]
+	n, err := strconv.Atoi(suffix)
+	if err != nil {
+		return []string{name}
+	}
+
+	names := make([]string, 0, count)
+	for i := 1; i <= count; i++ {
+		if i == n {
+			names = append(names, name)
+			continue
+		}
+		names = append(names, fmt.Sprintf("%s-%d", name[:idx], i))
+	}
+	return names
 }
 
 // findArtifactDir lists subdirectories under artifacts/ and returns the one

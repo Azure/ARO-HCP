@@ -60,15 +60,15 @@ type ValidatedOptions struct {
 }
 
 type completedOptions struct {
-	OutputDir             string
-	KustoEndpoint         string
-	ServiceDB             string
-	HCPDB                 string
-	MonitoringEventsDB    string
-	ServiceClusterName    string
-	ManagementClusterName string
-	TestTimingInfo        map[string]timing.TimingInfo
-	kustoClient           *azkustodata.Client
+	OutputDir              string
+	KustoEndpoint          string
+	ServiceDB              string
+	HCPDB                  string
+	MonitoringEventsDB     string
+	ServiceClusterName     string
+	ManagementClusterNames []string
+	TestTimingInfo         map[string]timing.TimingInfo
+	kustoClient            *azkustodata.Client
 }
 
 type Options struct {
@@ -181,15 +181,15 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 	}
 
 	return &Options{completedOptions: &completedOptions{
-		OutputDir:             o.OutputDir,
-		KustoEndpoint:         kustoEndpoint.String(),
-		ServiceDB:             jobConfig.ServiceDatabase,
-		HCPDB:                 jobConfig.HCPDatabase,
-		MonitoringEventsDB:    jobConfig.MonitoringEventsDatabase,
-		ServiceClusterName:    jobConfig.ServiceClusterName,
-		ManagementClusterName: jobConfig.ManagementClusterName,
-		TestTimingInfo:        testTimingInfo,
-		kustoClient:           kustoClient,
+		OutputDir:              o.OutputDir,
+		KustoEndpoint:          kustoEndpoint.String(),
+		ServiceDB:              jobConfig.ServiceDatabase,
+		HCPDB:                  jobConfig.HCPDatabase,
+		MonitoringEventsDB:     jobConfig.MonitoringEventsDatabase,
+		ServiceClusterName:     jobConfig.ServiceClusterName,
+		ManagementClusterNames: jobConfig.ManagementClusterNames,
+		TestTimingInfo:         testTimingInfo,
+		kustoClient:            kustoClient,
 	}}, nil
 }
 
@@ -236,7 +236,7 @@ func (o Options) Run(ctx context.Context) error {
 				MonitoringEventsDatabase: o.MonitoringEventsDB,
 				ResourceGroup:            rg,
 				ServiceClusterName:       o.ServiceClusterName,
-				ManagementClusterName:    o.ManagementClusterName,
+				ManagementClusterNames:   o.ManagementClusterNames,
 				TimeWindow: snapshot.TimeWindow{
 					Start:           ti.StartTime,
 					End:             ti.EndTime,

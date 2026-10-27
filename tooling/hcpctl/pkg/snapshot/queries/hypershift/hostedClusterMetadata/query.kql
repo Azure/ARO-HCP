@@ -1,7 +1,7 @@
 cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('cosmosResourceSnapshots')
 | where timestamp between ({{ kqlDatetime .FullStartTime }} .. {{ kqlDatetime .FullEndTime }})
-{{- if and .ServiceClusterName .ManagementClusterName }}
-| where cluster in ('{{ .ServiceClusterName }}', '{{ .ManagementClusterName }}')
+{{- if .ClusterFilterValues }}
+| where cluster in ({{ .ClusterFilterValues }})
 {{- end }}
 | where subscriptionID == '{{ .SubscriptionID }}'
 | where resourceGroup =~ '{{ .ResourceGroup }}'

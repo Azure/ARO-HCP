@@ -186,7 +186,7 @@ func (p *ProwJobContext) GatherOptionsForTest(ctx context.Context, test *TestRes
 		HCPDatabase:              p.JobConfig.HCPDatabase,
 		MonitoringEventsDatabase: p.JobConfig.MonitoringEventsDatabase,
 		ServiceClusterName:       p.JobConfig.ServiceClusterName,
-		ManagementClusterName:    p.JobConfig.ManagementClusterName,
+		ManagementClusterNames:   p.JobConfig.ManagementClusterNames,
 		SiblingTests:             p.SiblingTests,
 		NodeConsoleLogs:          nodeConsoleLogs,
 		AzureLog:                 azureLog,

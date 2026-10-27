@@ -118,11 +118,12 @@ type queryData struct {
 	MonitoringEventsDatabase string
 	ResourceGroup            string
 
-	// ServiceClusterName and ManagementClusterName are AKS cluster names
-	// used to filter queries for PR jobs. When both are non-empty, queries
-	// include a "| where cluster in (...)" filter.
-	ServiceClusterName    string
-	ManagementClusterName string
+	// ServiceClusterName and ManagementClusterNames are AKS cluster names
+	// used to filter queries for PR jobs. When the filter list is non-empty,
+	// queries include a "| where cluster in (...)" filter (see
+	// ClusterFilterValues).
+	ServiceClusterName     string
+	ManagementClusterNames []string
 
 	// FullStartTime and FullEndTime define the entire snapshot window. Use
 	// these for broad timestamp pre-filters (Kusto partition pruning) and
@@ -162,6 +163,24 @@ type queryData struct {
 	// all child resource types that exist under this resource in
 	// cosmosResourceSnapshots. Populated by the cosmosResourceDiscovery query.
 	ChildResourceTypes map[string]bool
+}
+
+// ClusterFilterValues renders the quoted, comma-separated KQL list of cluster
+// names for the "| where cluster in (...)" pre-filter, e.g.
+// 'ci01-j123-svc', 'ci01-j123-mgmt-1', 'ci01-j123-mgmt-2'. It returns an
+// empty string when no cluster names are set, disabling the filter.
+func (d queryData) ClusterFilterValues() string {
+	names := make([]string, 0, 1+len(d.ManagementClusterNames))
+	if d.ServiceClusterName != "" {
+		names = append(names, d.ServiceClusterName)
+	}
+	names = append(names, d.ManagementClusterNames...)
+
+	quoted := make([]string, 0, len(names))
+	for _, n := range names {
+		quoted = append(quoted, "'"+n+"'")
+	}
+	return strings.Join(quoted, ", ")
 }
 
 // hasChildResourceType returns true if a child resource type with the given
