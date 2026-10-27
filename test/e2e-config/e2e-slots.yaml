@@ -245,6 +245,57 @@ environments:
           allocation: dedicated
           resource_group_prefix: aro-hcp-msi-container-prod
           resource_group_count: 25
+    # Prod-02..05 are bootstrap inventory only until release-side allowlists
+    # explicitly activate them. UK South is the initial readiness baseline;
+    # runtime-selected regions additionally require quota and access validation.
+    - name: shard2
+      subscriptions:
+        e2e: "ARO HCP E2E Hosted Clusters - Prod - 02 (MCA Sponsorship)"
+      region: uksouth
+      region_mode: runtime-selected
+      resource_type: aro-hcp-prod-shard2-slot
+      slot_count: 3
+      slot_assets:
+        e2e_identities:
+          allocation: dedicated
+          resource_group_prefix: aro-hcp-msi-container-prod
+          resource_group_count: 25
+    - name: shard3
+      subscriptions:
+        e2e: "ARO HCP E2E Hosted Clusters - Prod - 03 (MCA Sponsorship)"
+      region: uksouth
+      region_mode: runtime-selected
+      resource_type: aro-hcp-prod-shard3-slot
+      slot_count: 3
+      slot_assets:
+        e2e_identities:
+          allocation: dedicated
+          resource_group_prefix: aro-hcp-msi-container-prod
+          resource_group_count: 25
+    - name: shard4
+      subscriptions:
+        e2e: "ARO HCP E2E Hosted Clusters - Prod - 04 (MCA Sponsorship)"
+      region: uksouth
+      region_mode: runtime-selected
+      resource_type: aro-hcp-prod-shard4-slot
+      slot_count: 3
+      slot_assets:
+        e2e_identities:
+          allocation: dedicated
+          resource_group_prefix: aro-hcp-msi-container-prod
+          resource_group_count: 25
+    - name: shard5
+      subscriptions:
+        e2e: "ARO HCP E2E Hosted Clusters - Prod - 05 (MCA Sponsorship)"
+      region: uksouth
+      region_mode: runtime-selected
+      resource_type: aro-hcp-prod-shard5-slot
+      slot_count: 3
+      slot_assets:
+        e2e_identities:
+          allocation: dedicated
+          resource_group_prefix: aro-hcp-msi-container-prod
+          resource_group_count: 25
     # Test-Test tenant (MSFT) prod sub "ARO HCP E2E" (403d9de9). Cross-tenant, so
     # identities are provisioned externally (provisioning: unmanaged).
     # Kept in the pool so the single prod gating job can lease it for the canary

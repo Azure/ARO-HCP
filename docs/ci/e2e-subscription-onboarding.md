@@ -279,17 +279,36 @@ Region access is separate from quota. Once the flag is `Registered`, file the pe
 
 ### Step 2: CI Infrastructure Setup
 
-1. Add the subscription to `config/config-dev-ci.yaml` under the appropriate `ci.<env>.e2eSubscriptions` section, by appending `<subscription-id>=<display name>` to the comma-separated `ci.<env>.e2eSubscriptions` string (display names must not contain commas, equals signs, quotes (`'` `"`), backslashes, `$` or backticks). This is the only file to edit — the provider-registration pipeline reads the inventory directly and picks up the new entry by its `id`.
+1. Add the subscription to `config/config-dev-ci.yaml` under the appropriate `ci.<env>.e2eSubscriptions` section, by appending `<subscription-id>=<display name>` to the comma-separated `ci.<env>.e2eSubscriptions` string (display names must not contain commas, equals signs, quotes (`'` `"`), backslashes, `$` or backticks). No separate provider-registration inventory edit is needed: that pipeline reads the subscription's `id` from this list. The same list feeds quota monitoring; `ci.<env>.regions` is shared by every subscription in the environment, not a per-subscription readiness or activation allowlist.
 
 2. Run the `Microsoft.Azure.ARO.HCP.DevCI.Privileged` entrypoint (`make dev-ci-privileged-local-run`). This grants the environment's CI bot (e.g. `OpenShift Release Bot - STG`) the required RBAC on the new subscription **and** registers all required resource providers (see `ci.e2eSubscriptionProviders` in `config/config-dev-ci.yaml`). Both run on demand via an OWNERS-group member; the RBAC grants require **Owner** on the target subscription, while provider registration needs only `*/register/action`.
 
-3. Add the pool to `test/e2e-config/e2e-slots.yaml` under the environment's `pools` list.
+   The same privileged entrypoint applies the `createdAt` resource-group tag policy to the managed DEV and PROD subscription inventories. PROD subscription additions therefore receive both the bot grants and cleanup policy without adding per-subscription pipeline steps.
 
-4. Sync the Boskos inventory and update CI job configs in `openshift/release` (slot catalog, cleanup jobs, `make update`).
+3. Add the pool to `test/e2e-config/e2e-slots.yaml` under the environment's `pools` list. Provision its managed assets with `make -C test apply-pool-assets ENVIRONMENT=<env> POOL=<pool>` and validate with `make -C test validate-pool-assets ENVIRONMENT=<env> POOL=<pool>`. These Make targets rebuild the test binary and its generated Bicep artifacts; do not hand-edit generated artifacts.
 
-5. Update the Vault cluster profile secret (e.g. `kv/selfservice/hcm-aro/aro-hcp-<env>-rh`) with the new subscription's `customer-shard0-subscription-name` and `customer-shard0-subscription-id`.
+4. Sync the Boskos inventory and update CI job configs in `openshift/release` (slot catalog, cleanup jobs, `make update`) only when activation is approved. Bootstrap-only onboarding must leave the existing release-side pool allowlists unchanged. Catalog entries alone do not enforce that restriction: any consumer selecting all PROD pools must be checked before syncing inventory or changing job selection. A `runtime-selected` pool's `region: uksouth` is a default, not a regional restriction.
+
+5. Update the Vault cluster profile secret (e.g. `kv/selfservice/hcm-aro/aro-hcp-<env>-rh`) with the new subscription's matching `customer-shardN-subscription-name` and `customer-shardN-subscription-id` keys, where `N` is the pool's shard number. Preserve existing subscription keys, including the separate cross-tenant canary profile.
 
 6. Validate by running a rehearsal E2E job against the new subscription.
+
+### PROD-02 through PROD-05 Bootstrap Inventory
+
+Story AROSLSRE-2597 adds the following RedHat0 tenant (`64dc69e4-d083-49fc-9569-ebece1dd1408`) subscriptions for bootstrap (AROSLSRE-2601) and quota monitoring (AROSLSRE-2603), without enabling normal CI traffic:
+
+| Pool | Exact subscription display name | Subscription ID |
+| :--- | :--- | :--- |
+| `shard2` | `ARO HCP E2E Hosted Clusters - Prod - 02 (MCA Sponsorship)` | `f831d154-dd5c-47e6-a251-74813ac487cc` |
+| `shard3` | `ARO HCP E2E Hosted Clusters - Prod - 03 (MCA Sponsorship)` | `fd538f12-d2a7-4841-8af1-f1d7fb331716` |
+| `shard4` | `ARO HCP E2E Hosted Clusters - Prod - 04 (MCA Sponsorship)` | `acac6421-6480-46bb-ad3a-df8b59cf47bf` |
+| `shard5` | `ARO HCP E2E Hosted Clusters - Prod - 05 (MCA Sponsorship)` | `32ca24e1-a9fb-44ca-8849-53a0ba96ab35` |
+
+Each pool follows the managed PROD model: three slots with 25 dedicated E2E identity containers per slot. The existing PROD monitoring region CSV remains unchanged and therefore monitors these subscriptions in all configured PROD regions; that broader visibility is not evidence of quota readiness. A pool's UK South default does not restrict runtime-selected jobs to that region.
+
+The collector's runtime configuration and dashboards derive their subscription inventory from `ci.prod.e2eSubscriptions`. Subscription Reader grants are reconciled separately with `tooling/tenant-quota/scripts/manage-service-principals.sh --tenant redhat`; adding inventory alone does not grant access. Render the effective collector configuration with `make -C tooling/tenant-quota render-config` before deployment.
+
+Before activating a subscription in any region, complete the privileged bootstrap, confirm all providers from `ci.e2eSubscriptionProviders` and the required PROD AFEC flags are `Registered`, provision and validate the pool's assets, install the matching cluster-profile keys, and verify that region's worker-family quota, SKU/zone eligibility, and service-principal access. EUAP additionally requires its separate region-access approval. Deploy the updated tenant-quota configuration and confirm the new subscriptions appear in monitoring. Subscription inventory is not evidence that these live prerequisites have completed. Keep the existing PROD-00/01 and cross-tenant canary selection unchanged until the release-side activation is separately approved.
 
 ## See Also
 
