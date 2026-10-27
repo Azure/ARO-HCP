@@ -80,14 +80,14 @@ apply-identity-pool validate-identity-pool apply-pool-assets validate-pool-asset
 
 apply-identity-pool: $(ARO_HCP_TESTS)
 	$(ARO_HCP_TESTS) slot-manager apply-pool-assets \
-		--environment "$${ENVIRONMENT:?ENVIRONMENT must be set (e.g. dev, int, stg, prod)}" \
+		--environment "$${ENVIRONMENT:?ENVIRONMENT must be set (e.g. dev, dev-xs, int, stg, prod)}" \
 		--asset e2e_identities \
 		$${SUBSCRIPTION:+--subscription "$$SUBSCRIPTION"}
 .PHONY: apply-identity-pool
 
 apply-pool-assets: $(ARO_HCP_TESTS)
 	$(ARO_HCP_TESTS) slot-manager apply-pool-assets \
-		--environment "$${ENVIRONMENT:?ENVIRONMENT must be set (e.g. dev, int, stg, prod)}" \
+		--environment "$${ENVIRONMENT:?ENVIRONMENT must be set (e.g. dev, dev-xs, int, stg, prod)}" \
 		$${ASSET:+--asset "$$ASSET"} \
 		$${POOL:+--pool "$$POOL"} \
 		$${SUBSCRIPTION:+--subscription "$$SUBSCRIPTION"}
@@ -98,14 +98,14 @@ apply-pool-assets: $(ARO_HCP_TESTS)
 # as apply-identity-pool.
 validate-identity-pool: $(ARO_HCP_TESTS)
 	$(ARO_HCP_TESTS) slot-manager validate-pool-assets \
-		--environment "$${ENVIRONMENT:?ENVIRONMENT must be set (e.g. dev, int, stg, prod)}" \
+		--environment "$${ENVIRONMENT:?ENVIRONMENT must be set (e.g. dev, dev-xs, int, stg, prod)}" \
 		--asset e2e_identities \
 		$${SUBSCRIPTION:+--subscription "$$SUBSCRIPTION"}
 .PHONY: validate-identity-pool
 
 validate-pool-assets: $(ARO_HCP_TESTS)
 	$(ARO_HCP_TESTS) slot-manager validate-pool-assets \
-		--environment "$${ENVIRONMENT:?ENVIRONMENT must be set (e.g. dev, int, stg, prod)}" \
+		--environment "$${ENVIRONMENT:?ENVIRONMENT must be set (e.g. dev, dev-xs, int, stg, prod)}" \
 		$${ASSET:+--asset "$$ASSET"} \
 		$${POOL:+--pool "$$POOL"} \
 		$${SUBSCRIPTION:+--subscription "$$SUBSCRIPTION"}
