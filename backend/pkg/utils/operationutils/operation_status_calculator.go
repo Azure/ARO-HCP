@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"reflect"
 	"slices"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
@@ -43,7 +44,7 @@ type OperationStatusCalculators[Input any] map[string]OperationStatusCalculator[
 func NewOperationStatusCalculators[Input any](calculators ...OperationStatusCalculator[Input]) (OperationStatusCalculators[Input], error) {
 	ret := make(OperationStatusCalculators[Input], len(calculators))
 	for _, calculator := range calculators {
-		if calculator == nil {
+		if isNilOperationStatusCalculator(calculator) {
 			return nil, errors.New("nil operation status calculator")
 		}
 		source := calculator.GetSourceName()
@@ -58,6 +59,20 @@ func NewOperationStatusCalculators[Input any](calculators ...OperationStatusCalc
 	return ret, nil
 }
 
+// Interfaces containing typed nils must be rejected before invoking any methods.
+func isNilOperationStatusCalculator(calculator any) bool {
+	if calculator == nil {
+		return true
+	}
+	value := reflect.ValueOf(calculator)
+	switch value.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+		return value.IsNil()
+	default:
+		return false
+	}
+}
+
 // CalculateOperationStatus evaluates every source, joining evaluation errors
 // instead of returning a partial state. It preserves the existing provisioning
 // state/message precedence and uses source-name order to break exact ties, so
@@ -66,7 +81,7 @@ func (calculators OperationStatusCalculators[Input]) CalculateOperationStatus(ct
 	logger := utils.LoggerFromContext(ctx)
 
 	if len(calculators) == 0 {
-		return nil, errors.New("no operation states")
+		return nil, errors.New("no operation status calculators")
 	}
 
 	// TODO should we separate observation errors from other errors?
@@ -76,7 +91,7 @@ func (calculators OperationStatusCalculators[Input]) CalculateOperationStatus(ct
 	var errs []error
 	for _, source := range slices.Sorted(maps.Keys(calculators)) {
 		calculator := calculators[source]
-		if calculator == nil || source == "" || calculator.GetSourceName() != source {
+		if isNilOperationStatusCalculator(calculator) || source == "" || calculator.GetSourceName() != source {
 			errs = append(errs, fmt.Errorf("invalid operation status calculator for source %q", source))
 			continue
 		}

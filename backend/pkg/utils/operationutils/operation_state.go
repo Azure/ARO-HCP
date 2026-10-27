@@ -26,6 +26,10 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 )
 
+// DesiredVersionResolutionTimeout allows assignment controllers two informer
+// relist intervals to resolve the customer's requested version.
+const DesiredVersionResolutionTimeout = 129 * time.Second
+
 type OperationState struct {
 	// Source is a name that identifies the source of the operation state.
 	Source            string                    `json:"source"`
