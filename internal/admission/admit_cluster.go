@@ -172,10 +172,10 @@ func mutateClusterExperimentalFeatures(_ context.Context, admissionContext *Clus
 	singleReplicaValue := lookupTag(tags, metadataapi.TagClusterSingleReplica)
 	switch coreapi.ControlPlaneAvailability(singleReplicaValue) {
 	case coreapi.SingleReplicaControlPlane:
-		if op.Type != operation.Update || oldObj == nil || oldObj.ControlPlaneAvailability != coreapi.SingleReplicaControlPlane {
-			errs = append(errs, field.Forbidden(tagsPath.Key(metadataapi.TagClusterSingleReplica), "single-replica control planes cannot be enabled"))
-		} else {
+		if op.Type == operation.Update && oldObj != nil && oldObj.ControlPlaneAvailability == coreapi.SingleReplicaControlPlane {
 			experimentalFeatures.ControlPlaneAvailability = coreapi.SingleReplicaControlPlane
+		} else {
+			errs = append(errs, field.Forbidden(tagsPath.Key(metadataapi.TagClusterSingleReplica), "single-replica control planes cannot be enabled"))
 		}
 	case coreapi.DefaultControlPlaneAvailability:
 		// absent or empty
