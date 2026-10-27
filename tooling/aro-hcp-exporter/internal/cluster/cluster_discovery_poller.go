@@ -17,6 +17,7 @@ package cluster
 import (
 	"context"
 	"fmt"
+	"math/bits"
 	"slices"
 	"strings"
 	"sync"
@@ -46,9 +47,6 @@ const (
 	// random jitter, so that exporters in different regions do not retry in
 	// lockstep against the same tenant-wide Resource Graph quota.
 	discoveryBackoffJitter = 0.2
-	// maxDiscoveryBackoffShift bounds the doubling exponent so the shift cannot
-	// overflow for unusually large poll intervals.
-	maxDiscoveryBackoffShift = 16
 )
 
 // DiscoverResult holds the cluster names and subscription IDs found by
@@ -210,17 +208,29 @@ func (c *ClusterDiscoveryPoller) retryDelay() time.Duration {
 		return wait.Jitter(c.sleepTime, discoveryBackoffJitter)
 	}
 
+	maxBase := maxDiscoveryBackoffBase
+	if c.sleepTime > maxBase {
+		maxBase = c.sleepTime
+	}
+
 	shift := c.consecutiveFailures - 1
 	if shift < 0 {
 		shift = 0
 	}
-	if shift > maxDiscoveryBackoffShift {
-		shift = maxDiscoveryBackoffShift
-	}
-
-	maxBase := maxDiscoveryBackoffBase
-	if c.sleepTime > maxBase {
-		maxBase = c.sleepTime
+	// Bound the exponent by the ceiling rather than by a fixed constant. A
+	// fixed cap does not prevent overflow: for a large enough poll interval
+	// `c.sleepTime << shift` wraps int64 and can land on a small *positive*
+	// value, which slips past both the ceiling and the `<= 0` check below and
+	// collapses the backoff into a hot retry loop.
+	//
+	// maxBase >= c.sleepTime > 0 here, so the multiplier is at least 1 and
+	// bits.Len64 is at least 1. Taking the full bit length (rather than
+	// length-1) keeps the ceiling reachable: the shift is allowed to overshoot
+	// maxBase by less than 2x and is then clamped to it, so the schedule still
+	// tops out at exactly maxBase.
+	maxShift := bits.Len64(uint64(maxBase / c.sleepTime))
+	if shift > maxShift {
+		shift = maxShift
 	}
 
 	base := c.sleepTime << shift

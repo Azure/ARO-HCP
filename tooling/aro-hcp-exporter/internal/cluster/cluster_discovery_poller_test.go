@@ -248,6 +248,30 @@ func TestClusterDiscoveryPoller_retryDelay(t *testing.T) {
 	}
 }
 
+// TestClusterDiscoveryPoller_retryDelay_NoOverflowForHugePollInterval guards
+// the shift. A fixed exponent cap does not prevent overflow: with a large
+// enough poll interval `sleepTime << shift` wraps int64 onto a small positive
+// value, which passes both the ceiling and the `<= 0` check and turns the
+// backoff into a hot retry loop. (1<<48)+1 ns with 17 failures used to yield
+// 65.536µs.
+func TestClusterDiscoveryPoller_retryDelay_NoOverflowForHugePollInterval(t *testing.T) {
+	hugeInterval := time.Duration(1<<48) + 1
+
+	poller := NewClusterDiscoveryPoller(nil, "eastus", []string{"svc-cluster"}, "", hugeInterval)
+	poller.discovered = true
+
+	for _, failures := range []int{1, 2, 16, 17, 18, 64, 1 << 20} {
+		poller.consecutiveFailures = failures
+
+		delay := poller.retryDelay()
+
+		assert.GreaterOrEqual(t, delay, hugeInterval,
+			"delay collapsed below one poll interval after %d failures", failures)
+		assert.LessOrEqual(t, delay, time.Duration(float64(hugeInterval)*(1+discoveryBackoffJitter)),
+			"delay exceeded the jittered ceiling after %d failures", failures)
+	}
+}
+
 // TestClusterDiscoveryPoller_retryDelay_FlatUntilFirstSuccess pins the recovery
 // window while the exporter has published nothing. Escalating here would widen
 // the gap in which a recovered Resource Graph goes unnoticed, with no cached
