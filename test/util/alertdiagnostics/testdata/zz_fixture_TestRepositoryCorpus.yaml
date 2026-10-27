@@ -6197,6 +6197,72 @@
             value: 0
         unsupported: ""
 - source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+  group: arohcp_certificate_rotation_alerts
+  alert: userJourneyCertificateCollectionStale
+  occurrence: 1
+  input: certificate:keyvault_certificate:collector_fresh == 0
+  plan:
+    expression: certificate:keyvault_certificate:collector_fresh == 0
+    conditions:
+      - expression: certificate:keyvault_certificate:collector_fresh == 0
+        path: root
+        queries:
+          - expression: certificate:keyvault_certificate:collector_fresh
+            role: signal
+        thresholds:
+          - operator: ==
+            value: 0
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+  group: arohcp_certificate_rotation_alerts
+  alert: userJourneyCertificateDisabled
+  occurrence: 1
+  input: certificate:keyvault_certificate:enabled == 0
+  plan:
+    expression: certificate:keyvault_certificate:enabled == 0
+    conditions:
+      - expression: certificate:keyvault_certificate:enabled == 0
+        path: root
+        queries:
+          - expression: certificate:keyvault_certificate:enabled
+            role: signal
+        thresholds:
+          - operator: ==
+            value: 0
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+  group: arohcp_certificate_rotation_alerts
+  alert: userJourneyCertificateExporterUnavailable
+  occurrence: 1
+  input: max by (cluster, environment, region) (kube_deployment_spec_replicas{deployment="aro-hcp-exporter",namespace="aro-hcp-exporter"} > 0) unless on (cluster, environment, region) max by (cluster, environment, region) (up{namespace="aro-hcp-exporter"} == 1)
+  plan:
+    expression: max by (cluster, environment, region) (kube_deployment_spec_replicas{deployment="aro-hcp-exporter",namespace="aro-hcp-exporter"} > 0) unless on (cluster, environment, region) max by (cluster, environment, region) (up{namespace="aro-hcp-exporter"} == 1)
+    conditions:
+      - expression: (max by (cluster, environment, region) (kube_deployment_spec_replicas{deployment="aro-hcp-exporter",namespace="aro-hcp-exporter"} > 0)) unless on (cluster, environment, region) (max by (cluster, environment, region) (up{namespace="aro-hcp-exporter"} == 1))
+        path: root/unless:left
+        queries:
+          - expression: (max by (cluster, environment, region) (kube_deployment_spec_replicas{deployment="aro-hcp-exporter",namespace="aro-hcp-exporter"} > 0)) unless on (cluster, environment, region) (max by (cluster, environment, region) (up{namespace="aro-hcp-exporter"} == 1))
+            role: signal
+        thresholds: []
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+  group: arohcp_certificate_rotation_alerts
+  alert: userJourneyCertificateRotationFailure
+  occurrence: 1
+  input: certificate:keyvault_certificate:lifetime_ratio > 0.65
+  plan:
+    expression: certificate:keyvault_certificate:lifetime_ratio > 0.65
+    conditions:
+      - expression: certificate:keyvault_certificate:lifetime_ratio > 0.65
+        path: root
+        queries:
+          - expression: certificate:keyvault_certificate:lifetime_ratio
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.65
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
   group: arohcp_cluster_deletion_saturation_alerts
   alert: userJourneyClusterDeletionQueueDepth
   occurrence: 1
@@ -8614,6 +8680,87 @@
         thresholds:
           - operator: '>'
             value: 0
+        unsupported: ""
+- source: observability/alerts/certificate-rotation-prometheusRule.yaml
+  group: arohcp_certificate_rotation_alerts
+  alert: userJourneyCertificateCollectionStale
+  occurrence: 1
+  input: |
+    certificate:keyvault_certificate:collector_fresh == 0
+  plan:
+    expression: certificate:keyvault_certificate:collector_fresh == 0
+    conditions:
+      - expression: certificate:keyvault_certificate:collector_fresh == 0
+        path: root
+        queries:
+          - expression: certificate:keyvault_certificate:collector_fresh
+            role: signal
+        thresholds:
+          - operator: ==
+            value: 0
+        unsupported: ""
+- source: observability/alerts/certificate-rotation-prometheusRule.yaml
+  group: arohcp_certificate_rotation_alerts
+  alert: userJourneyCertificateDisabled
+  occurrence: 1
+  input: |
+    certificate:keyvault_certificate:enabled == 0
+  plan:
+    expression: certificate:keyvault_certificate:enabled == 0
+    conditions:
+      - expression: certificate:keyvault_certificate:enabled == 0
+        path: root
+        queries:
+          - expression: certificate:keyvault_certificate:enabled
+            role: signal
+        thresholds:
+          - operator: ==
+            value: 0
+        unsupported: ""
+- source: observability/alerts/certificate-rotation-prometheusRule.yaml
+  group: arohcp_certificate_rotation_alerts
+  alert: userJourneyCertificateExporterUnavailable
+  occurrence: 1
+  input: |
+    max by (cluster, environment, region) (
+      kube_deployment_spec_replicas{
+        namespace="aro-hcp-exporter",
+        deployment="aro-hcp-exporter"
+      } > 0
+    )
+    unless on (cluster, environment, region)
+    max by (cluster, environment, region) (
+      up{
+        namespace="aro-hcp-exporter"
+      } == 1
+    )
+  plan:
+    expression: max by (cluster, environment, region) (kube_deployment_spec_replicas{deployment="aro-hcp-exporter",namespace="aro-hcp-exporter"} > 0) unless on (cluster, environment, region) max by (cluster, environment, region) (up{namespace="aro-hcp-exporter"} == 1)
+    conditions:
+      - expression: (max by (cluster, environment, region) (kube_deployment_spec_replicas{deployment="aro-hcp-exporter",namespace="aro-hcp-exporter"} > 0)) unless on (cluster, environment, region) (max by (cluster, environment, region) (up{namespace="aro-hcp-exporter"} == 1))
+        path: root/unless:left
+        queries:
+          - expression: (max by (cluster, environment, region) (kube_deployment_spec_replicas{deployment="aro-hcp-exporter",namespace="aro-hcp-exporter"} > 0)) unless on (cluster, environment, region) (max by (cluster, environment, region) (up{namespace="aro-hcp-exporter"} == 1))
+            role: signal
+        thresholds: []
+        unsupported: ""
+- source: observability/alerts/certificate-rotation-prometheusRule.yaml
+  group: arohcp_certificate_rotation_alerts
+  alert: userJourneyCertificateRotationFailure
+  occurrence: 1
+  input: |
+    certificate:keyvault_certificate:lifetime_ratio > 0.65
+  plan:
+    expression: certificate:keyvault_certificate:lifetime_ratio > 0.65
+    conditions:
+      - expression: certificate:keyvault_certificate:lifetime_ratio > 0.65
+        path: root
+        queries:
+          - expression: certificate:keyvault_certificate:lifetime_ratio
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.65
         unsupported: ""
 - source: observability/alerts/cluster-deletion-slo-prometheusRule.yaml
   group: arohcp_cluster_deletion_saturation_alerts

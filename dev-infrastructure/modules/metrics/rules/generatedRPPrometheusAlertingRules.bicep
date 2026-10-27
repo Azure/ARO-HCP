@@ -1725,3 +1725,128 @@ resource arohcpBackupSloMetricsAbsentAlerts 'Microsoft.AlertsManagement/promethe
     ]
   }
 }
+
+resource arohcpCertificateRotationAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_certificate_rotation_alerts'
+  location: location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyCertificateRotationFailure'
+        enabled: true
+        labels: {
+          component: 'certificate-rotation'
+          severity: '3'
+        }
+        annotations: {
+          correlationId: 'userJourneyCertificateRotationFailure/{{ $labels.cluster }}/{{ $labels.certificate_name }}/{{ $labels.key_vault }}/{{ $labels.region }}'
+          description: 'Certificate \'{{ $labels.certificate_name }}\' in Key Vault \'{{ $labels.key_vault }}\' ({{ $labels.region }}) exceeded the rotation safety threshold. Current lifetime: {{ $value | humanizePercentage }}. Safety threshold: 65%. Expected rotation: 50%.'
+          info: 'Certificate \'{{ $labels.certificate_name }}\' in Key Vault \'{{ $labels.key_vault }}\' ({{ $labels.region }}) exceeded the rotation safety threshold. Current lifetime: {{ $value | humanizePercentage }}. Safety threshold: 65%. Expected rotation: 50%.'
+          runbook_url: 'https://aka.ms/arohcp-runbook-cert-rotation'
+          summary: '{{ $labels.region }}/{{ $labels.key_vault }}: Certificate {{ $labels.certificate_name }} rotation is overdue'
+          title: '{{ $labels.region }}/{{ $labels.key_vault }}: Certificate {{ $labels.certificate_name }} rotation is overdue'
+        }
+        expression: 'certificate:keyvault_certificate:lifetime_ratio > 0.65'
+        for: 'PT1H'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyCertificateDisabled'
+        enabled: true
+        labels: {
+          component: 'certificate-rotation'
+          severity: '3'
+        }
+        annotations: {
+          correlationId: 'userJourneyCertificateDisabled/{{ $labels.cluster }}/{{ $labels.certificate_name }}/{{ $labels.key_vault }}/{{ $labels.region }}'
+          description: 'Certificate \'{{ $labels.certificate_name }}\' in Key Vault \'{{ $labels.key_vault }}\' ({{ $labels.region }}) has remained disabled for at least one hour.'
+          info: 'Certificate \'{{ $labels.certificate_name }}\' in Key Vault \'{{ $labels.key_vault }}\' ({{ $labels.region }}) has remained disabled for at least one hour.'
+          runbook_url: 'https://aka.ms/arohcp-runbook-cert-rotation'
+          summary: '{{ $labels.region }}/{{ $labels.key_vault }}: Certificate {{ $labels.certificate_name }} is disabled'
+          title: '{{ $labels.region }}/{{ $labels.key_vault }}: Certificate {{ $labels.certificate_name }} is disabled'
+        }
+        expression: 'certificate:keyvault_certificate:enabled == 0'
+        for: 'PT1H'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyCertificateCollectionStale'
+        enabled: true
+        labels: {
+          component: 'certificate-rotation'
+          severity: '3'
+        }
+        annotations: {
+          correlationId: 'userJourneyCertificateCollectionStale/{{ $labels.cluster }}/{{ $labels.key_vault }}/{{ $labels.region }}'
+          description: 'Certificate metadata collection for Key Vault \'{{ $labels.key_vault }}\' ({{ $labels.region }}) has not completed successfully within the last hour.'
+          info: 'Certificate metadata collection for Key Vault \'{{ $labels.key_vault }}\' ({{ $labels.region }}) has not completed successfully within the last hour.'
+          runbook_url: 'https://aka.ms/arohcp-runbook-cert-rotation'
+          summary: '{{ $labels.region }}/{{ $labels.key_vault }}: Certificate collection is stale'
+          title: '{{ $labels.region }}/{{ $labels.key_vault }}: Certificate collection is stale'
+        }
+        expression: 'certificate:keyvault_certificate:collector_fresh == 0'
+        for: 'PT1H'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyCertificateExporterUnavailable'
+        enabled: true
+        labels: {
+          component: 'certificate-rotation'
+          severity: '3'
+        }
+        annotations: {
+          correlationId: 'userJourneyCertificateExporterUnavailable/{{ $labels.cluster }}'
+          description: 'The ARO HCP exporter has had no healthy Prometheus scrape target for at least one hour, so certificate collection health cannot be evaluated.'
+          info: 'The ARO HCP exporter has had no healthy Prometheus scrape target for at least one hour, so certificate collection health cannot be evaluated.'
+          runbook_url: 'https://aka.ms/arohcp-runbook-cert-rotation'
+          summary: 'Certificate exporter target is unavailable'
+          title: 'Certificate exporter target is unavailable'
+        }
+        expression: 'max by (cluster, environment, region) (kube_deployment_spec_replicas{deployment="aro-hcp-exporter",namespace="aro-hcp-exporter"} > 0) unless on (cluster, environment, region) max by (cluster, environment, region) (up{namespace="aro-hcp-exporter"} == 1)'
+        for: 'PT1H'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}

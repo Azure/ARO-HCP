@@ -7,6 +7,7 @@ prometheusRules:
   - alerts/frontend-slo-prometheusRule.yaml
   - alerts/cluster-deletion-slo-prometheusRule.yaml
   - alerts/backup-slo-prometheusRule.yaml
+  - alerts/certificate-rotation-prometheusRule.yaml
   untestedRules: []
   testDependencies:
   - recording-rules-services.yaml
