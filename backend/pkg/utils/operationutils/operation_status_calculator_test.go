@@ -172,6 +172,7 @@ func TestOperationStatusCalculatorRegistration(t *testing.T) {
 	}{
 		{name: "duplicate", calculators: []OperationStatusCalculator[struct{}]{check, check}, wantError: "duplicate operation status source"},
 		{name: "nil", calculators: []OperationStatusCalculator[struct{}]{nil}, wantError: "nil operation status calculator"},
+		{name: "typed nil", calculators: []OperationStatusCalculator[struct{}]{(*stubOperationStatusCalculator[struct{}])(nil)}, wantError: "nil operation status calculator"},
 		{name: "unnamed", calculators: []OperationStatusCalculator[struct{}]{&stubOperationStatusCalculator[struct{}]{}}, wantError: "empty operation status source name"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -186,9 +187,10 @@ func TestOperationStatusCalculatorRegistration(t *testing.T) {
 		calculators OperationStatusCalculators[struct{}]
 		wantError   string
 	}{
-		{name: "empty", wantError: "no operation states"},
+		{name: "empty", wantError: "no operation status calculators"},
 		{name: "mismatched key", calculators: OperationStatusCalculators[struct{}]{"different-source": check}, wantError: "invalid operation status calculator"},
 		{name: "nil entry", calculators: OperationStatusCalculators[struct{}]{"source": nil}, wantError: "invalid operation status calculator"},
+		{name: "typed nil entry", calculators: OperationStatusCalculators[struct{}]{"source": (*stubOperationStatusCalculator[struct{}])(nil)}, wantError: "invalid operation status calculator"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

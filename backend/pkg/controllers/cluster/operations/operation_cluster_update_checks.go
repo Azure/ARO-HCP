@@ -125,11 +125,12 @@ func (c *clusterUpdateDesiredVersionCheck) CalculateOperationStatus(ctx context.
 		c.desiredVersionMismatchFirstSeen.Add(operation.ResourceID.String(), c.clock.Now())
 		return pending, nil
 	}
-	if c.clock.Since(firstSeen.(time.Time)) <= 129*time.Second {
+	if c.clock.Since(firstSeen.(time.Time)) <= operationbase.DesiredVersionResolutionTimeout {
 		return pending, nil
 	}
 	msg := fmt.Sprintf(
-		"timed out after 129s waiting for resolution of desired version from %s",
+		"timed out after %.0fs waiting for resolution of desired version from %s",
+		operationbase.DesiredVersionResolutionTimeout.Seconds(),
 		mismatchDetail,
 	)
 	c.desiredVersionMismatchFirstSeen.Remove(operation.ResourceID.String())

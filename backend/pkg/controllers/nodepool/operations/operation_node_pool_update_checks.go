@@ -68,7 +68,10 @@ func (c *nodePoolUpdateDesiredVersionCheck) CalculateOperationStatus(ctx context
 		return nil, utils.TrackError(fmt.Errorf("service provider node pool has no desired version"))
 	}
 
-	customerDesiredVersion := semver.MustParse(existingNodePool.Properties.Version.ID)
+	customerDesiredVersion, err := semver.Parse(existingNodePool.Properties.Version.ID)
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to parse node pool version %q: %w", existingNodePool.Properties.Version.ID, err))
+	}
 
 	operationID := strings.ToLower(operation.ResourceID.String())
 	// If the operation is cancelled, its desiredVersionMismatchFirstSeen entry is never
@@ -112,11 +115,12 @@ func (c *nodePoolUpdateDesiredVersionCheck) CalculateOperationStatus(ctx context
 			c.desiredVersionMismatchFirstSeen.Add(operationID, c.clock.Now())
 			return pending, nil
 		}
-		if c.clock.Since(firstSeen.(time.Time)) <= 129*time.Second {
+		if c.clock.Since(firstSeen.(time.Time)) <= operationbase.DesiredVersionResolutionTimeout {
 			return pending, nil
 		}
 		msg := fmt.Sprintf(
-			"timed out after 129s waiting for resolution of desired version from '%s' node pool version",
+			"timed out after %.0fs waiting for resolution of desired version from '%s' node pool version",
+			operationbase.DesiredVersionResolutionTimeout.Seconds(),
 			existingNodePool.Properties.Version.ID,
 		)
 		c.desiredVersionMismatchFirstSeen.Remove(operationID)
