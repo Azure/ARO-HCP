@@ -278,9 +278,8 @@ data:
         # ocm.logs record as cluster_id, plus its resource group as resource_group,
         # read directly from the pod's namespace annotation
         # azure.microsoft.com/hcp-cluster-azure-resource-id (enriched by the kubernetes
-        # filter's Namespace_annotations On). This is the namespace-annotation
-        # alternative to resolving the ID from the ACM-managed /shoebox-config file
-        # mapping. Only mgmt clusters emit ocm.logs to the containerLogs Kusto table.
+        # filter's Namespace_annotations On). Only mgmt clusters emit ocm.logs to the
+        # containerLogs Kusto table.
         # Fail-soft: records without the annotation are left unchanged. This runs before
         # the shoebox re-tag so transform-shoebox.lua can reuse the normalized cluster_id.
         Name            lua
@@ -509,8 +508,8 @@ data:
     end
   set-cluster-id-from-annotation.lua: |
     -- Lua script for stamping the HCP cluster's Azure ARM resource ID onto
-    -- control-plane container logs. Unlike the ACM /shoebox-config file lookup,
-    -- this reads the resource ID directly from the pod's NAMESPACE annotation
+    -- control-plane container logs. It reads the resource ID directly from the
+    -- pod's NAMESPACE annotation
     -- "azure.microsoft.com/hcp-cluster-azure-resource-id", which the kubernetes
     -- filter enriches onto every record when "Namespace_annotations On" is set.
     -- It stamps two top-level fields:
@@ -1074,7 +1073,7 @@ spec:
         app: arobit-forwarder
         azure.workload.identity/use: "true"
       annotations:
-        checksum/configmap: 4435dc9ce8ff072b9d901c8a29bd97b3051d70522f1fbd5483f127cc853c6cc4
+        checksum/configmap: f470b296a648e59f096f3b2cff432806a1ec6cb0c5d3d7cad8ffcba5fce49b01
     spec:
       priorityClassName: service-lifecycle-critical
       serviceAccountName: 'arobit-forwarder'
@@ -1152,9 +1151,6 @@ spec:
               readOnly: true
             - name: flb-config
               mountPath: /forwarder/etc
-              readOnly: true
-            - name: shoebox-mappings
-              mountPath: /shoebox-config
               readOnly: true
         - name: watson-agent
           image: mcr.microsoft.com/azure-watson/agent/azlinux3@sha256:1234567890
@@ -1413,10 +1409,6 @@ spec:
           hostPath:
             type: DirectoryOrCreate
             path: "/home/docker/azure-watson"
-        - name: shoebox-mappings
-          configMap:
-            name: namespace-resourceid-mapping
-            optional: true
         - name: geneva-certs-clusterlogs
           csi:
             driver: secrets-store.csi.k8s.io
