@@ -16,7 +16,7 @@ resource throttledRequestsHigh 'Microsoft.Insights/metricAlerts@2018-03-01' = {
   name: 'Cosmos DB Throttled Requests High - ${cosmosDbName}'
   location: 'global'
   properties: {
-    description: 'Cosmos DB throttled request percentage is above 5% averaged over a 15-minute window, evaluated every minute. Sustained throttling at this level means clients are being rate-limited beyond what SDK retries absorb; investigate hot partitions or increase provisioned throughput. Replaces the previous NormalizedRUConsumption alerts, which fired on single-hot-partition utilization spikes that are healthy while the throttling rate stays low. https://learn.microsoft.com/azure/cosmos-db/troubleshoot-request-rate-too-large'
+    description: 'Cosmos DB throttled request percentage is above 5% averaged over a 15-minute window, evaluated every minute. Elevated throttling can increase latency or exhaust client retries, though SDK retries may recover throttled requests. Investigate hot partitions or increase provisioned throughput. Replaces the previous NormalizedRUConsumption alerts, which fired on single-hot-partition utilization spikes that are healthy while the throttling rate stays low. https://learn.microsoft.com/azure/cosmos-db/troubleshoot-request-rate-too-large'
     severity: 3
     enabled: enabled
     autoMitigate: true
