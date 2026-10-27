@@ -27,6 +27,8 @@ data:
     @INCLUDE /forwarder/etc/input.conf
 
     @INCLUDE /forwarder/etc/filter.conf
+
+    @INCLUDE /forwarder/etc/output-metrics.conf
     @INCLUDE /forwarder/etc/output.conf
   service.conf: |
     [SERVICE]
@@ -110,7 +112,7 @@ data:
         Alias             tail.container
         Tag               kubernetes.*
         Path              /var/log/containers/*.log
-        Exclude_Path      /var/log/containers/*log-tailer*,/var/log/containers/*geneva-logger*,/var/log/containers/*arobit*
+        Exclude_Path      /var/log/containers/*log-tailer*,/var/log/containers/*geneva-logger*
         multiline.parser  cri
         # Docker_Mode       On
         # Parser            none
@@ -197,7 +199,7 @@ data:
         Match                 kubernetes.*
         multiline.parser      klog
         multiline.key_content log
-        Emitter_Mem_Buf_Limit 50M
+        Emitter_Mem_Buf_Limit 10M
 
     [FILTER]
         # Drop noisy kube-proxy topology.go INFO messages that generate 10x log volume
@@ -250,6 +252,20 @@ data:
         Buffer_Size         64k
 
     [FILTER]
+        Name               log_to_metrics
+        Alias              filter.metrics_reroute_namespace_router
+        Match              kubernetes.var.log.containers.*
+        Regex              $kubernetes['namespace_name'] ^ocm-.*
+        Metric_Mode        counter
+        Metric_Namespace   arobit
+        Metric_Subsystem   routing_reroute
+        Metric_Name        namespace_router_matched_total
+        Metric_Description Records matching reroute rules in namespace_router
+        Tag                metrics.fluentbit
+        Emitter_Name       metrics_reroute_namespace_router
+        Flush_Interval_Sec 5
+
+    [FILTER]
         # Only re-tag ocm-* namespaces (minority of traffic). Non-ocm records keep
         # their original kubernetes.* tag and flow directly to outputs — no copy needed.
         Name            rewrite_tag
@@ -257,8 +273,36 @@ data:
         Match           kubernetes.var.log.containers.*
         Rule            $kubernetes['namespace_name'] ^ocm-.* ocm.logs false
         Emitter_Name    re_emitted_namespace_router
-        Emitter_Mem_Buf_Limit  40M
+        Emitter_Mem_Buf_Limit  10M
         Emitter_Storage.type   filesystem
+
+    [FILTER]
+        Name               log_to_metrics
+        Alias              filter.metrics_reroute_container_name_router
+        Match              kubernetes.var.log.containers.*
+        Regex              $kubernetes['container_name'] ^(aro-hcp-frontend*|aro-hcp-backend*|clusters-service*|fleet-controller*|kube-applier*|kube-events*|swift-recorder$)
+        Metric_Mode        counter
+        Metric_Namespace   arobit
+        Metric_Subsystem   routing_reroute
+        Metric_Name        container_name_router_matched_total
+        Metric_Description Records matching reroute rules in container_name_router
+        Tag                metrics.fluentbit
+        Emitter_Name       metrics_reroute_container_name_router
+        Flush_Interval_Sec 5
+
+    [FILTER]
+        Name               log_to_metrics
+        Alias              filter.metrics_copy_container_name_router
+        Match              kubernetes.var.log.containers.*
+        Regex              $kubernetes['container_name'] ^mgmt-agent-controller*
+        Metric_Mode        counter
+        Metric_Namespace   arobit
+        Metric_Subsystem   routing_copy
+        Metric_Name        container_name_router_matched_total
+        Metric_Description Records matching copy rules in container_name_router
+        Tag                metrics.fluentbit
+        Emitter_Name       metrics_copy_container_name_router
+        Flush_Interval_Sec 5
 
     [FILTER]
         Name            rewrite_tag
@@ -273,7 +317,7 @@ data:
         Rule            $kubernetes['container_name'] ^mgmt-agent-controller* mgmt-agent.logs true
         Rule            $kubernetes['container_name'] ^swift-recorder$ kubernetes.swift-recorder.logs false
         Emitter_Name    re_emitted_container_name_router
-        Emitter_Mem_Buf_Limit  40M
+        Emitter_Mem_Buf_Limit  10M
         Emitter_Storage.type   filesystem
 
     [FILTER]
@@ -296,6 +340,20 @@ data:
         Reserve_Data On
 
     [FILTER]
+        Name               log_to_metrics
+        Alias              filter.metrics_reroute_resource_snapshot_router
+        Match              mgmt-agent.logs
+        Regex              $snapshotType ^kubernetes$
+        Metric_Mode        counter
+        Metric_Namespace   arobit
+        Metric_Subsystem   routing_reroute
+        Metric_Name        resource_snapshot_router_matched_total
+        Metric_Description Records matching reroute rules in resource_snapshot_router
+        Tag                metrics.fluentbit
+        Emitter_Name       metrics_reroute_resource_snapshot_router
+        Flush_Interval_Sec 5
+
+    [FILTER]
         # Route mgmt-agent logs with snapshotType=kubernetes
         # to a dedicated tag for the kubernetesResourceSnapshots Kusto table.
         Name            rewrite_tag
@@ -303,7 +361,7 @@ data:
         Match           mgmt-agent.logs
         Rule            $snapshotType ^kubernetes$ resource-snapshots.logs false
         Emitter_Name    re_emitted_resource_snapshot_router
-        Emitter_Mem_Buf_Limit  40M
+        Emitter_Mem_Buf_Limit  10M
         Emitter_Storage.type   filesystem
 
     [FILTER]
@@ -319,6 +377,20 @@ data:
         Exclude snapshotType ^(kubernetes|cosmos)$
 
     [FILTER]
+        Name               log_to_metrics
+        Alias              filter.metrics_reroute_cosmos_snapshot_router
+        Match              aro-hcp-backend.logs
+        Regex              $snapshotType ^cosmos$
+        Metric_Mode        counter
+        Metric_Namespace   arobit
+        Metric_Subsystem   routing_reroute
+        Metric_Name        cosmos_snapshot_router_matched_total
+        Metric_Description Records matching reroute rules in cosmos_snapshot_router
+        Tag                metrics.fluentbit
+        Emitter_Name       metrics_reroute_cosmos_snapshot_router
+        Flush_Interval_Sec 5
+
+    [FILTER]
         # Route backend logs with snapshotType=cosmos
         # to a dedicated tag for the cosmosResourceSnapshots Kusto table.
         Name            rewrite_tag
@@ -326,8 +398,22 @@ data:
         Match           aro-hcp-backend.logs
         Rule            $snapshotType ^cosmos$ cosmos-snapshots.logs false
         Emitter_Name    re_emitted_cosmos_snapshot_router
-        Emitter_Mem_Buf_Limit  40M
+        Emitter_Mem_Buf_Limit  10M
         Emitter_Storage.type   filesystem
+
+    [FILTER]
+        Name               log_to_metrics
+        Alias              filter.metrics_reroute_cosmos_snapshot_router_frontend
+        Match              aro-hcp-frontend.logs
+        Regex              $snapshotType ^cosmos$
+        Metric_Mode        counter
+        Metric_Namespace   arobit
+        Metric_Subsystem   routing_reroute
+        Metric_Name        cosmos_snapshot_router_frontend_matched_total
+        Metric_Description Records matching reroute rules in cosmos_snapshot_router_frontend
+        Tag                metrics.fluentbit
+        Emitter_Name       metrics_reroute_cosmos_snapshot_router_frontend
+        Flush_Interval_Sec 5
 
     [FILTER]
         # Route frontend logs with snapshotType=cosmos
@@ -337,8 +423,22 @@ data:
         Match           aro-hcp-frontend.logs
         Rule            $snapshotType ^cosmos$ cosmos-snapshots.logs false
         Emitter_Name    re_emitted_cosmos_snapshot_router_frontend
-        Emitter_Mem_Buf_Limit  40M
+        Emitter_Mem_Buf_Limit  10M
         Emitter_Storage.type   filesystem
+
+    [FILTER]
+        Name               log_to_metrics
+        Alias              filter.metrics_copy_cosmos_snapshot_router_fleet
+        Match              fleet-controller.logs
+        Regex              $snapshotType ^cosmos$
+        Metric_Mode        counter
+        Metric_Namespace   arobit
+        Metric_Subsystem   routing_copy
+        Metric_Name        cosmos_snapshot_router_fleet_matched_total
+        Metric_Description Records matching copy rules in cosmos_snapshot_router_fleet
+        Tag                metrics.fluentbit
+        Emitter_Name       metrics_copy_cosmos_snapshot_router_fleet
+        Flush_Interval_Sec 5
 
     [FILTER]
         # Route fleet controller logs with snapshotType=cosmos
@@ -349,15 +449,17 @@ data:
         Match           fleet-controller.logs
         Rule            $snapshotType ^cosmos$ cosmos-snapshots.logs true
         Emitter_Name    re_emitted_cosmos_snapshot_router_fleet
-        Emitter_Mem_Buf_Limit  40M
+        Emitter_Mem_Buf_Limit  10M
         Emitter_Storage.type   filesystem
-  output.conf: |
+  output-metrics.conf: |
     [OUTPUT]
         Name  prometheus_exporter
         Alias exporter.fluentbit
         Match metrics.fluentbit
         Host  0.0.0.0
         Port  9090
+
+  output.conf: |
 
     [OUTPUT]
         Match aro-hcp-frontend.logs
@@ -738,7 +840,7 @@ spec:
         app: arobit-forwarder
         azure.workload.identity/use: "true"
       annotations:
-        checksum/configmap: 8ea7f1f2c0e3158881a92b1f1d0e8e379c3ade4bdddda5453d6d978b887749c4
+        checksum/configmap: a1c3a84fc4a2a381bdb2102fa151adca58d37bb31b9d998adb718e886afc19a9
     spec:
       priorityClassName: service-lifecycle-critical
       serviceAccountName: 'arobit-forwarder'

@@ -176,6 +176,85 @@ Configuration is in `config/config.yaml`.
 
 ## Monitoring and Verification
 
+### Rewrite-tag routing metrics
+
+Every `rewrite_tag` router has preceding `log_to_metrics` counters that count
+records matching its rules before the emitter can reject them. Two metric
+families distinguish the intended operation:
+
+- `arobit_routing_reroute_<router>_matched_total` counts full reroutes (`KEEP false`).
+- `arobit_routing_copy_<router>_matched_total` counts copies (`KEEP true`).
+
+Both are Prometheus counters. The routers are `namespace_router`,
+`container_name_router`, `resource_snapshot_router`, `cosmos_snapshot_router`,
+`cosmos_snapshot_router_frontend`, `cosmos_snapshot_router_fleet`, and
+`shoebox_router` (the last is present only on management clusters with MDSD).
+
+Compare each matched counter with
+`fluentbit_filter_emit_records_total{name="filter.<router>"}`, which counts
+successful rewrite emissions. The container-name router has both types: its
+mgmt-agent rule copies records, while its other rules fully reroute them.
+Sum its reroute and copy counters before comparing with
+`filter.container_name_router`; the native emitted counter does not distinguish
+these operations. The Shoebox router has two disjoint copy counters,
+`arobit_routing_copy_shoebox_router_container_matched_total` and
+`arobit_routing_copy_shoebox_router_pod_matched_total`; sum them before comparing
+with `filter.shoebox_router`. The second counter excludes matches of the first
+rule so a record matching both is counted once.
+An emitted series can be absent until the first successful emission; treat
+that absence as zero when a matched counter exists.
+
+This comparison also covers intentional `KEEP true` copies: retaining the
+original mgmt-agent, fleet, or Shoebox record is expected and is not itself a
+failed rewrite. A positive matched-minus-emitted gap, after metric publication
+has caught up, identifies failed emissions. It does not measure records that
+never matched because metadata was missing, or records lost before the router.
+The counters describe routing attempts, not confirmed Kusto ingestion.
+
+`Flush_Interval_Sec 5` publishes cumulative metric snapshots every five seconds
+instead of generating a metric event for each matching log. Matching records
+still increment the counter immediately and continue through log processing
+unchanged. Publication does not delay log forwarding. Internal Fluent Bit
+metrics refresh every 15 seconds and Prometheus scrapes every 30 seconds, so
+short-lived differences between the counters can be publication skew. Metrics
+use the existing exporter on port 9090, including when Kusto forwarding is
+disabled, and add no per-record or customer labels. The metrics emitter is
+itself buffered, so these are operational measurements rather than a durable
+record-by-record accounting ledger.
+
+`FluentBitRoutingEmissionFailed` alerts in the Dev queue at Sev3 when matched
+records exceed successful emissions for two minutes. It treats an absent native
+emission counter as zero and allows the short publication skew described above.
+The alert identifies the cluster, pod, router, and `routing_type` (`reroute`,
+`copy`, or `mixed` for the container-name router). It combines both Shoebox
+predicates and both container-name operation types before comparing totals.
+An isolated failed emission leaves a cumulative deficit, so the alert can remain
+active until the counters reset when the forwarder restarts. This is evidence
+of failed emission, rather than an exact count of lost or misrouted records;
+metric loss or persistent publication delays can also affect the comparison.
+
+The Dev queue in `observability/alerts-dev-services.yaml` includes
+`FluentBitMultilineTruncated` for multiline truncation events and
+`FluentBitTailRingBufferDropped` for exhausted container-tail enqueue retries.
+Both alert on a single counter increase without a sustained-pause requirement.
+They also detect a first observed nonzero counter, since some counters do not
+publish a zero series before the first failure. The ring-buffer counter counts
+discarded batches, not the number of log records inside those batches.
+
+To exercise the production routing filters and counters with Fluent Bit,
+including emitter rejection for exclusive and copy routes, run the following
+with `promtool` installed. The test replays captured Fluent Bit counter values
+through the production alert rule: both rejection cases must fire, while the
+healthy case must stay quiet. Promtool advances the two-minute grace period
+without waiting in real time.
+
+```bash
+FLUENT_BIT_IMAGE=mcr.microsoft.com/oss/v2/fluent/fluent-bit@sha256:70dea5e158860b7b59a9e9aae0e79fc5ab51f2c356fcc14aef38ce1ff6d7d577 \
+  go test -C tooling/helmtest ./testrunner -run '^TestArobitRoutingMetricsFluentBit$' -count=1 -v
+```
+
+### Log ingestion verification
+
 E2E tests verify log ingestion (`test/e2e/kusto_logs_present.go`, `test/util/verifiers/kusto.go`). The verifier checks for logs from:
 - `aro-hcp` namespace: `aro-hcp-frontend`, `aro-hcp-backend` containers
 - `clusters-service` namespace: `clusters-service-server` container
