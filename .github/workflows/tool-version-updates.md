@@ -23,6 +23,9 @@ network:
   allowed:
     - defaults
     - go
+    - api.github.com
+    - github.com
+    - release-assets.githubusercontent.com
 
 steps:
   - name: Checkout
@@ -148,6 +151,8 @@ unverified bump or suppress a genuine infrastructure/authentication error.
   Do not rewrite golden fixtures or rule tests to accept a regression. These
   Dockerfile changes also select the existing Prow baseimage-generator image
   build and Go smoke test before merge.
+  Official release API requests and binary redirects are restricted to the
+  declared GitHub release hosts; retain network isolation when changing them.
 - **Bingo:** use the currently pinned Bingo to run
   `bingo get <existing-tool>@<resolved-version>` for every tool in the selected
   upstream family. Do not hand-edit generated module, checksum or helper files.
