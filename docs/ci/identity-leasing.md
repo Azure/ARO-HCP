@@ -53,7 +53,8 @@ Regardless of how CI acquired the pool, the runtime behavior inside the test bin
   - Each spec is identified by a stable `specID()`, derived from the Ginkgo spec text and the OS process ID.
   - At the start of a spec, `AssignIdentityContainers()` atomically reserves the required number of containers by transitioning `free -> assigned`. If there are not enough free entries, it returns `ErrNotEnoughFreeIdentityContainers` and retries with backoff until containers become available or the context is cancelled.
   - When a spec actually needs a container, `ResolveIdentitiesForTemplate()` or `DeployManagedIdentities()` calls `useNextAssigned(specID)`, which transitions a single entry from `assigned -> busy` and returns its resource group name.
-  - During cleanup, `releaseLeasedIdentities()` transitions all containers leased by that spec back to `free` and performs best-effort cleanup of federated identity credentials and role assignments in the identity-container resource group.
+  - During cleanup, `releaseLeasedIdentities()` applies the [configured consumer policy](#temporary-identity-consumer-guard) before deleting identity credentials or role assignments.
+  - A busy container becomes `free` only after tracked role assignments and its container cleanup succeed. Failed cleanup or a crashed process leaves busy entries reserved in the state file. New jobs must pass admission again, even if teardown never ran.
 - **Identity naming**
   - The set of managed identities in each container is fixed and defined in `NewDefaultIdentities()` in `identities_helper.go`, including names such as `cluster-api-azure`, `control-plane`, `cloud-controller-manager`, `image-registry`, and `service`.
   - In pooled mode these canonical names are reused as-is in every identity-container resource group.
@@ -115,6 +116,11 @@ The slot contract also supplies `ARO_HCP_E2E_VM_FAMILY_POLICY`; see the
 [slot-manager design](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#vm--worker-sku-policy)
 and [E2E SKU selection guidance](../../test/e2e/README.md#selecting-vm-sizes-skus).
 
+
+For INT, STG and PROD, the [consumer guard](#temporary-identity-consumer-guard)
+selects which containers can be cleaned and handed to tests. The slot keeps
+ownership of the full set; `admitted_identity_containers` records the selected
+subset before it is exported.
 
 The acquire step mounts cluster-profile credentials. Slot-manager authenticates
 directly from the selected profile; a prior `az login` is not required. See
@@ -437,10 +443,21 @@ Common failure modes:
     to `e2e_identities`
   - other asset kinds still run admission by default; repeated flags or a
     comma-separated list can explicitly disable additional kinds
-  - this skips E2E identity verification and stale FIC/RBAC cleanup, not leasing,
-    structural validation, exports, or release; each actual skip is logged as a warning
-  - clear the parameter after mitigation to restore clean-reuse checks; see the
-    [admission opt-out contract](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#emergency-admission-opt-out)
+  - this skips E2E identity verification and stale RBAC cleanup, not the
+    ARM consumer check, leasing, structural validation, exports, or release;
+    each cleanup skip is logged as a warning
+  - clear the parameter after mitigation to restore admission cleanup; see the
+    [identity consumer policy](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#identity-consumer-policy)
+- **identity still referenced by a cluster or node pool**
+  - enforcement leaves that container untouched, including for Failed or Deleting
+    consumers, and proceeds with the safe remainder
+  - acquisition stops before cleanup if the scan is incomplete or the configured
+    minimum safe capacity is unavailable; let consumers finish teardown or resolve
+    the scan error before retrying
+  - the cleanup opt-out does not bypass an enabled guard; the catalog explicitly
+    enables enforcement for persistent environments
+  - API version `2026-10-01` and cluster/node-pool list permissions are
+    required; an unsupported API blocks enforcement
 - **slot-manager acquisition or release failure**
   - inspect the acquire/release step logs and `${SHARED_DIR}/aro-hcp-slot-state.yaml`
   - follow the design's [acquire, persist, fail, release](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#acquire-persist-fail-release)
@@ -452,6 +469,82 @@ Common failure modes:
   - the spec tried to consume more containers than it reserved, or skipped the normal reservation path
 - **persistent FIC or role-assignment leakage in identity-container resource groups**
   - investigate the container resource group directly in Azure; repeated leftovers usually mean permission issues or unexpected extra resources
+
+### Temporary identity consumer guard
+
+The guard protects identities still needed by surviving HCPs or node pools.
+The catalog explicitly sets `identity_consumer_guard: enforce` for **INT, STG
+and PROD**. Unconfigured environments and direct test runs default to `disabled`.
+There is no environment-name bypass; an explicit policy works in any environment.
+
+#### Acquisition
+
+Enforcement scans every HCP and node-pool page once per acquisition, not once
+per container. Failed and Deleting resources still count as consumers.
+
+```mermaid
+flowchart TD
+    scan["Scan all HCPs and node pools"] --> complete{"Complete inventory?"}
+    complete -->|No| stop["Stop before cleanup"]
+    complete -->|Yes| exclude["Exclude in-use containers"]
+    exclude --> capacity{"Configured safe capacity available?"}
+    capacity -->|No| stop
+    capacity -->|Yes| clean["Clean only the safe containers"]
+    clean -->|Success| publish["Persist and export the safe subset"]
+```
+
+Excluded containers stay untouched and owned by the slot. Admission requires the
+full slot capacity by default. An explicit
+`--asset-admission-option=e2e_identities.minimum-containers=N` accepts a positive
+minimum for reduced-capacity runs. Size this for the suite's reservation and
+parallelism needs, not merely one spec. Cleanup failures prevent publication.
+
+#### Teardown
+
+Enforcement inventories consumers once for the spec, then cleans and releases
+safe containers independently. Referenced containers retain their FICs, RBAC,
+and busy reservations. Tracked assignments are associated with containers by
+principal; a busy principal's assignments remain protected even at another
+container's scope. Ambiguous tracked assignments remain when any container is
+in use. An incomplete inventory blocks all cleanup. A container becomes free
+only after its tracked assignments and container cleanup succeed.
+
+A node-pool list `404` triggers a GET of its exact parent HCP. Only a confirmed
+`ResourceNotFound` or `ResourceGroupNotFound` permits the scan to discard that
+consumer and continue. A surviving parent or any other failure remains blocking.
+
+#### Controls and logs
+
+| Setting | Consumer protection | Identity cleanup |
+| --- | --- | --- |
+| `--identity-consumer-guard=disabled` (unconfigured default) | No consumer ARM calls | Full set |
+| `--identity-consumer-guard=enforce` | Excludes in-use containers; blocks on incomplete scans | Safe containers only |
+| `--identity-consumer-guard=audit` | Logs findings but allows reuse, even after scan errors | Full set |
+| `--disable-asset-admission=e2e_identities` | Configured guard still applies | Skipped during acquisition only |
+
+Acquisition cleans RBAC only; per-spec teardown also cleans FICs.
+
+Policy precedence is CLI flag, `ARO_HCP_IDENTITY_CONSUMER_GUARD`, catalog
+environment policy, then `disabled`. Slot-manager exports the resolved mode to
+tests. Direct test runs can set the variable themselves. Unknown values are
+rejected. Cleanup errors still block reuse in every mode.
+
+Enabled scans log phase, mode, subscription, containers, job/build and decision.
+Matches identify the consumer and identity; teardown also records the spec.
+
+**Audit mode removes protection, not cleanup.** Keep enforcement until RP
+recovery after missing RBAC is verified. This temporary guard cannot repair
+already-stuck clusters or prevent an external writer from creating a consumer
+after the scan.
+
+#### Local validation
+
+Run `go test ./cmd/aro-hcp-tests/... ./util/framework` from `test/` before
+requesting E2E validation. The CLI package's concurrency and upgrade-cohort
+tests consume a published admitted lease; slot-manager-only tests do not cover
+that boundary. Lease fixtures must distinguish owned containers from the
+admitted subset available to the runner.
+
 
 ## MSI Mock Service Principal Pool
 

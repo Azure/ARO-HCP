@@ -39,6 +39,8 @@ type AcquiredSlotState struct {
 	RuntimeRegion      string       `yaml:"runtime_region"`
 	Slot               ExpandedSlot `yaml:"slot"`
 	LeasedResourceName string       `yaml:"leased_resource_name"`
+
+	AdmittedIdentityContainers []string `yaml:"admitted_identity_containers,omitempty"`
 }
 
 type Lease struct {
@@ -174,7 +176,7 @@ func (s *AcquiredSlotState) ValidateForRelease() error {
 	return nil
 }
 
-// Validate requires a fully resolved state suitable for runtime publication.
+// Validate checks resolved ownership and admitted runtime containers.
 func (s *AcquiredSlotState) Validate() error {
 	if err := s.ValidateForRelease(); err != nil {
 		return err
@@ -220,6 +222,14 @@ func (s *AcquiredSlotState) Validate() error {
 	}
 	if err := s.Slot.ValidateResolvedAssets(); err != nil {
 		return err
+	}
+	admitted := map[string]bool{}
+	owned := s.Slot.IdentityContainerNames()
+	for _, container := range s.AdmittedIdentityContainers {
+		if admitted[container] || !slices.Contains(owned, container) {
+			return fmt.Errorf("invalid admitted identity container %q: must be a unique owned container", container)
+		}
+		admitted[container] = true
 	}
 	if s.Slot.RequiresInfrastructureSubscription() {
 		leases := s.Leases.Assets[KindInfrastructureIdentities]

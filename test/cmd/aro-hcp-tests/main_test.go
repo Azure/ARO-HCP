@@ -460,12 +460,15 @@ func TestSuiteConcurrencyMetadata(t *testing.T) {
 func sourceIdentityLease(t *testing.T) string {
 	t.Helper()
 	contract := slots.NewRuntimeContractBuilder()
-	request := assets.LeaseRequest{AcquiredSlotState: &slots.AcquiredSlotState{Slot: slots.ExpandedSlot{
-		IdentityContainerCount: 10,
-		Assets: slots.ResolvedAssets{E2EIdentities: &slots.ResolvedE2EIdentitiesAsset{
-			ResourceGroups: []string{"identity-rg-02", "identity-rg-01"},
-		}},
-	}}}
+	request := assets.LeaseRequest{AcquiredSlotState: &slots.AcquiredSlotState{
+		AdmittedIdentityContainers: []string{"identity-rg-02", "identity-rg-01"},
+		Slot: slots.ExpandedSlot{
+			IdentityContainerCount: 10,
+			Assets: slots.ResolvedAssets{E2EIdentities: &slots.ResolvedE2EIdentitiesAsset{
+				ResourceGroups: []string{"identity-rg-02", "identity-rg-01", "identity-rg-03"},
+			}},
+		},
+	}}
 	if err := e2eidentities.NewHandler().PublishLease(context.Background(), request, contract); err != nil {
 		t.Fatal(err)
 	}
