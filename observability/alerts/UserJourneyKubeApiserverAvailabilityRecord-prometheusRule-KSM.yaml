@@ -7,7 +7,18 @@ spec:
   groups:
   - name: userjourney-kubeapiserver-availability-recording-rules
     rules:
-    - record: hostedClusterAPI_kubeapiserver_available:sli_sum_5m
+    # These sli_sum_*_excl_known/sli_count_*_excl_known rules feed only the
+    # userJourneyKubeApiserverAvailability burn-rate alerts (not shared with any dashboard),
+    # so each one applies `unless on (...) hostedClusterAPI_alert_excluded:any == 1` inside
+    # its own subquery step. That drops a known-inactionable instant (e.g. invalid BYOK KMS
+    # config) from both the sum and the count at exactly that timestamp, as if it never
+    # happened -- sample-level, self-expiring, and with no blind spot for a new, unrelated
+    # failure on the same cluster a step later. The `_excl_known` suffix matches
+    # sli_sum_6h_excl_known/sli_count_6h_excl_known in HCPkasRecord-prometheusRule-KSM.yaml,
+    # so every window an alert reads is consistently named, regardless of whether its raw
+    # (unexcluded) counterpart happens to also be charted on a dashboard. See
+    # UserJourneyKubeApiserverAvailabilityAlertExclusions-prometheusRule-KSM.yaml.
+    - record: hostedClusterAPI_kubeapiserver_available:sli_sum_5m_excl_known
       expr: |
         sum by (name, namespace, _id, resource_id, cluster) (
           sum_over_time(
@@ -15,12 +26,14 @@ spec:
               hostedClusterAPI_kubeapiserver_available{status="True"}
               and on (name, namespace, _id, resource_id, cluster)
               max by (name, namespace, _id, resource_id, cluster) ((hostedClusterAPI_kubeapiserver_available offset 15m) >= 0)
+              unless on (name, namespace, _id, resource_id, cluster)
+              hostedClusterAPI_alert_excluded:any == 1
             )[5m:1m]
           )
         )
         and on (name, namespace, _id, resource_id, cluster)
         count by (name, namespace, _id, resource_id, cluster) (hostedClusterAPI_kubeapiserver_available)
-    - record: hostedClusterAPI_kubeapiserver_available:sli_count_5m
+    - record: hostedClusterAPI_kubeapiserver_available:sli_count_5m_excl_known
       expr: |
         sum by (name, namespace, _id, resource_id, cluster) (
           count_over_time(
@@ -28,12 +41,14 @@ spec:
               max by (name, namespace, _id, resource_id, cluster) (hostedClusterAPI_kubeapiserver_available)
               and on (name, namespace, _id, resource_id, cluster)
               max by (name, namespace, _id, resource_id, cluster) ((hostedClusterAPI_kubeapiserver_available offset 15m) >= 0)
+              unless on (name, namespace, _id, resource_id, cluster)
+              hostedClusterAPI_alert_excluded:any == 1
             )[5m:1m]
           )
         )
         and on (name, namespace, _id, resource_id, cluster)
         count by (name, namespace, _id, resource_id, cluster) (hostedClusterAPI_kubeapiserver_available)
-    - record: hostedClusterAPI_kubeapiserver_available:sli_sum_1h
+    - record: hostedClusterAPI_kubeapiserver_available:sli_sum_1h_excl_known
       expr: |
         sum by (name, namespace, _id, resource_id, cluster) (
           sum_over_time(
@@ -41,12 +56,14 @@ spec:
               hostedClusterAPI_kubeapiserver_available{status="True"}
               and on (name, namespace, _id, resource_id, cluster)
               max by (name, namespace, _id, resource_id, cluster) ((hostedClusterAPI_kubeapiserver_available offset 15m) >= 0)
+              unless on (name, namespace, _id, resource_id, cluster)
+              hostedClusterAPI_alert_excluded:any == 1
             )[1h:1m]
           )
         )
         and on (name, namespace, _id, resource_id, cluster)
         count by (name, namespace, _id, resource_id, cluster) (hostedClusterAPI_kubeapiserver_available)
-    - record: hostedClusterAPI_kubeapiserver_available:sli_count_1h
+    - record: hostedClusterAPI_kubeapiserver_available:sli_count_1h_excl_known
       expr: |
         sum by (name, namespace, _id, resource_id, cluster) (
           count_over_time(
@@ -54,12 +71,14 @@ spec:
               max by (name, namespace, _id, resource_id, cluster) (hostedClusterAPI_kubeapiserver_available)
               and on (name, namespace, _id, resource_id, cluster)
               max by (name, namespace, _id, resource_id, cluster) ((hostedClusterAPI_kubeapiserver_available offset 15m) >= 0)
+              unless on (name, namespace, _id, resource_id, cluster)
+              hostedClusterAPI_alert_excluded:any == 1
             )[1h:1m]
           )
         )
         and on (name, namespace, _id, resource_id, cluster)
         count by (name, namespace, _id, resource_id, cluster) (hostedClusterAPI_kubeapiserver_available)
-    - record: hostedClusterAPI_kubeapiserver_available:sli_sum_30m
+    - record: hostedClusterAPI_kubeapiserver_available:sli_sum_30m_excl_known
       expr: |
         sum by (name, namespace, _id, resource_id, cluster) (
           sum_over_time(
@@ -67,12 +86,14 @@ spec:
               hostedClusterAPI_kubeapiserver_available{status="True"}
               and on (name, namespace, _id, resource_id, cluster)
               max by (name, namespace, _id, resource_id, cluster) ((hostedClusterAPI_kubeapiserver_available offset 15m) >= 0)
+              unless on (name, namespace, _id, resource_id, cluster)
+              hostedClusterAPI_alert_excluded:any == 1
             )[30m:1m]
           )
         )
         and on (name, namespace, _id, resource_id, cluster)
         count by (name, namespace, _id, resource_id, cluster) (hostedClusterAPI_kubeapiserver_available)
-    - record: hostedClusterAPI_kubeapiserver_available:sli_count_30m
+    - record: hostedClusterAPI_kubeapiserver_available:sli_count_30m_excl_known
       expr: |
         sum by (name, namespace, _id, resource_id, cluster) (
           count_over_time(
@@ -80,6 +101,8 @@ spec:
               max by (name, namespace, _id, resource_id, cluster) (hostedClusterAPI_kubeapiserver_available)
               and on (name, namespace, _id, resource_id, cluster)
               max by (name, namespace, _id, resource_id, cluster) ((hostedClusterAPI_kubeapiserver_available offset 15m) >= 0)
+              unless on (name, namespace, _id, resource_id, cluster)
+              hostedClusterAPI_alert_excluded:any == 1
             )[30m:1m]
           )
         )

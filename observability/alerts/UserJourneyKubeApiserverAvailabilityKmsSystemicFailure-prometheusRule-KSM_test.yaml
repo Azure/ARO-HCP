@@ -1,0 +1,221 @@
+rule_files:
+- UserJourneyKubeApiserverAvailabilityAlertExclusions-prometheusRule-KSM.yaml
+- UserJourneyKubeApiserverAvailabilityKmsSystemicFailure-prometheusRule-KSM.yaml
+group_eval_order:
+- userjourney-kubeapiserver-availability-alert-exclusion-recording-rules
+- rp-userjourney-kas-kms-systemic-failure-rules
+evaluation_interval: 1m
+tests:
+# One broken cluster out of five is well below both thresholds -- exactly the
+# single-customer case the per-cluster exclusion already handles.
+- interval: 1m
+  name: "Test 1: A single customer's KMS failure is not systemic"
+  input_series:
+  # One hosted cluster reporting an invalid (customer-caused) KMS config
+  - series: 'hostedClusterAPI_valid_azure_kms_config{status="False", name="a-broken", namespace="clusters", _id="a-broken-id", cluster="mgmt-a", resource_id="a-broken-rid"}'
+    values: "1+0x40"
+  # Four sibling hosted clusters on the same management cluster, all healthy
+  - series: 'hostedClusterAPI_valid_azure_kms_config{status="True", name="a-ok-1", namespace="clusters", _id="a-ok-1-id", cluster="mgmt-a", resource_id="a-ok-1-rid"}'
+    values: "1+0x40"
+  - series: 'hostedClusterAPI_valid_azure_kms_config{status="True", name="a-ok-2", namespace="clusters", _id="a-ok-2-id", cluster="mgmt-a", resource_id="a-ok-2-rid"}'
+    values: "1+0x40"
+  - series: 'hostedClusterAPI_valid_azure_kms_config{status="True", name="a-ok-3", namespace="clusters", _id="a-ok-3-id", cluster="mgmt-a", resource_id="a-ok-3-rid"}'
+    values: "1+0x40"
+  - series: 'hostedClusterAPI_valid_azure_kms_config{status="True", name="a-ok-4", namespace="clusters", _id="a-ok-4-id", cluster="mgmt-a", resource_id="a-ok-4-rid"}'
+    values: "1+0x40"
+  alert_rule_test:
+  # One broken cluster out of five never comes close to either threshold, at any point in time
+  - eval_time: 40m
+    alertname: userJourneyKubeApiserverAvailabilityKmsSystemicFailure
+    exp_alerts: []
+# A real majority outage (4 of 5) clears both thresholds immediately and fires once the 10m for-timer elapses.
+- interval: 1m
+  name: "Test 2: A majority KMS outage fires once the for timer elapses"
+  input_series:
+  # Four hosted clusters all report an invalid KMS config at the same time
+  - series: 'hostedClusterAPI_valid_azure_kms_config{status="False", name="b-broken-1", namespace="clusters", _id="b-broken-1-id", cluster="mgmt-b", resource_id="b-broken-1-rid"}'
+    values: "1+0x40"
+  - series: 'hostedClusterAPI_valid_azure_kms_config{status="False", name="b-broken-2", namespace="clusters", _id="b-broken-2-id", cluster="mgmt-b", resource_id="b-broken-2-rid"}'
+    values: "1+0x40"
+  - series: 'hostedClusterAPI_valid_azure_kms_config{status="False", name="b-broken-3", namespace="clusters", _id="b-broken-3-id", cluster="mgmt-b", resource_id="b-broken-3-rid"}'
+    values: "1+0x40"
+  - series: 'hostedClusterAPI_valid_azure_kms_config{status="False", name="b-broken-4", namespace="clusters", _id="b-broken-4-id", cluster="mgmt-b", resource_id="b-broken-4-rid"}'
+    values: "1+0x40"
+  # One sibling hosted cluster on the same management cluster stays healthy throughout
+  - series: 'hostedClusterAPI_valid_azure_kms_config{status="True", name="b-ok-1", namespace="clusters", _id="b-ok-1-id", cluster="mgmt-b", resource_id="b-ok-1-rid"}'
+    values: "1+0x40"
+  alert_rule_test:
+  # The condition has been true since t=0, but the 10m "for" timer has only run 9m
+  - eval_time: 9m
+    alertname: userJourneyKubeApiserverAvailabilityKmsSystemicFailure
+    exp_alerts: []
+  # The "for" timer completes at t=10m and the alert is firing one minute later, keyed only on
+  # the management cluster -- not on any individual hosted cluster
+  - eval_time: 11m
+    alertname: userJourneyKubeApiserverAvailabilityKmsSystemicFailure
+    exp_alerts:
+    - exp_labels:
+        cluster: mgmt-b
+        component: slo
+        severity: "3"
+        slo: kas-availability
+        scope: mgmt-cluster
+      exp_annotations:
+        summary: "[HCPKASAvailableKMSSystemic] Azure KMS failing across hosted clusters on mgmt-b"
+        description: "At least half (minimum 3) of the hosted clusters on management cluster mgmt-b are not reporting ValidAzureKMSConfig=True (80% affected) -- independent customer BYOK failures don't correlate like this, so treat it as a shared Azure dependency failure (management cluster KMS managed identity / IMDS, control-plane-operator rollout, or a regional Key Vault / AAD outage), not a per-customer issue. This is NOT per-cluster actionable: confirm the blast radius and declare an incident if confirmed. Per-cluster KMS failures are already excluded from the userJourneyKubeApiserverAvailability burn-rate alerts; this is the only notification path for the systemic case."
+        runbook_url: https://aka.ms/arohcp-runbook-ujkasavailable-kms-systemic
+        correlationId: "userJourneyKubeApiserverAvailabilityKmsSystemicFailure/mgmt-b"
+# 100% of a two-cluster population still doesn't fire -- the count floor
+# guards against a tiny denominator looking systemic.
+- interval: 1m
+  name: "Test 3: A small population never trips the count floor"
+  input_series:
+  # The only two KMS-enabled hosted clusters on this management cluster, both broken
+  - series: 'hostedClusterAPI_valid_azure_kms_config{status="False", name="c-broken-1", namespace="clusters", _id="c-broken-1-id", cluster="mgmt-c", resource_id="c-broken-1-rid"}'
+    values: "1+0x40"
+  - series: 'hostedClusterAPI_valid_azure_kms_config{status="False", name="c-broken-2", namespace="clusters", _id="c-broken-2-id", cluster="mgmt-c", resource_id="c-broken-2-rid"}'
+    values: "1+0x40"
+  alert_rule_test:
+  # 100% of two clusters still fails the "at least 3" floor, so the alert never fires
+  - eval_time: 40m
+    alertname: userJourneyKubeApiserverAvailabilityKmsSystemicFailure
+    exp_alerts: []
+# Unknown counts as failing, not healthy (see the alert's header comment) --
+# 1 False + 4 Unknown clears the threshold where 1 False alone (10%) would not.
+- interval: 1m
+  name: "Test 4: Unknown clusters count as failing, not as healthy"
+  input_series:
+  # One hosted cluster reports an explicitly invalid KMS config
+  - series: 'hostedClusterAPI_valid_azure_kms_config{status="False", name="d-broken-1", namespace="clusters", _id="d-broken-1-id", cluster="mgmt-d", resource_id="d-broken-1-rid"}'
+    values: "1+0x40"
+  # Four sibling hosted clusters report Unknown -- not explicitly False, but also not the
+  # healthy True state every cluster is expected to reach
+  - series: 'hostedClusterAPI_valid_azure_kms_config{status="Unknown", name="d-unknown-1", namespace="clusters", _id="d-unknown-1-id", cluster="mgmt-d", resource_id="d-unknown-1-rid"}'
+    values: "1+0x40"
+  - series: 'hostedClusterAPI_valid_azure_kms_config{status="Unknown", name="d-unknown-2", namespace="clusters", _id="d-unknown-2-id", cluster="mgmt-d", resource_id="d-unknown-2-rid"}'
+    values: "1+0x40"
+  - series: 'hostedClusterAPI_valid_azure_kms_config{status="Unknown", name="d-unknown-3", namespace="clusters", _id="d-unknown-3-id", cluster="mgmt-d", resource_id="d-unknown-3-rid"}'
+    values: "1+0x40"
+  - series: 'hostedClusterAPI_valid_azure_kms_config{status="Unknown", name="d-unknown-4", namespace="clusters", _id="d-unknown-4-id", cluster="mgmt-d", resource_id="d-unknown-4-rid"}'
+    values: "1+0x40"
+  # Five sibling hosted clusters on the same management cluster are healthy
+  - series: 'hostedClusterAPI_valid_azure_kms_config{status="True", name="d-ok-1", namespace="clusters", _id="d-ok-1-id", cluster="mgmt-d", resource_id="d-ok-1-rid"}'
+    values: "1+0x40"
+  - series: 'hostedClusterAPI_valid_azure_kms_config{status="True", name="d-ok-2", namespace="clusters", _id="d-ok-2-id", cluster="mgmt-d", resource_id="d-ok-2-rid"}'
+    values: "1+0x40"
+  - series: 'hostedClusterAPI_valid_azure_kms_config{status="True", name="d-ok-3", namespace="clusters", _id="d-ok-3-id", cluster="mgmt-d", resource_id="d-ok-3-rid"}'
+    values: "1+0x40"
+  - series: 'hostedClusterAPI_valid_azure_kms_config{status="True", name="d-ok-4", namespace="clusters", _id="d-ok-4-id", cluster="mgmt-d", resource_id="d-ok-4-rid"}'
+    values: "1+0x40"
+  - series: 'hostedClusterAPI_valid_azure_kms_config{status="True", name="d-ok-5", namespace="clusters", _id="d-ok-5-id", cluster="mgmt-d", resource_id="d-ok-5-rid"}'
+    values: "1+0x40"
+  alert_rule_test:
+  # 1 False + 4 Unknown out of 10 total is 50%, count 5 -- both thresholds are met, so the
+  # alert fires even though only one cluster is explicitly reporting False
+  - eval_time: 20m
+    alertname: userJourneyKubeApiserverAvailabilityKmsSystemicFailure
+    exp_alerts:
+    - exp_labels:
+        cluster: mgmt-d
+        component: slo
+        severity: "3"
+        slo: kas-availability
+        scope: mgmt-cluster
+      exp_annotations:
+        summary: "[HCPKASAvailableKMSSystemic] Azure KMS failing across hosted clusters on mgmt-d"
+        description: "At least half (minimum 3) of the hosted clusters on management cluster mgmt-d are not reporting ValidAzureKMSConfig=True (50% affected) -- independent customer BYOK failures don't correlate like this, so treat it as a shared Azure dependency failure (management cluster KMS managed identity / IMDS, control-plane-operator rollout, or a regional Key Vault / AAD outage), not a per-customer issue. This is NOT per-cluster actionable: confirm the blast radius and declare an incident if confirmed. Per-cluster KMS failures are already excluded from the userJourneyKubeApiserverAvailability burn-rate alerts; this is the only notification path for the systemic case."
+        runbook_url: https://aka.ms/arohcp-runbook-ujkasavailable-kms-systemic
+        correlationId: "userJourneyKubeApiserverAvailabilityKmsSystemicFailure/mgmt-d"
+# Clearing the count floor (3 of 7) isn't enough on its own -- 43% is still below the ratio threshold.
+- interval: 1m
+  name: "Test 5: Clearing the count floor alone does not fire without the ratio"
+  input_series:
+  # Three hosted clusters report an invalid KMS config
+  - series: 'hostedClusterAPI_valid_azure_kms_config{status="False", name="e-broken-1", namespace="clusters", _id="e-broken-1-id", cluster="mgmt-e", resource_id="e-broken-1-rid"}'
+    values: "1+0x40"
+  - series: 'hostedClusterAPI_valid_azure_kms_config{status="False", name="e-broken-2", namespace="clusters", _id="e-broken-2-id", cluster="mgmt-e", resource_id="e-broken-2-rid"}'
+    values: "1+0x40"
+  - series: 'hostedClusterAPI_valid_azure_kms_config{status="False", name="e-broken-3", namespace="clusters", _id="e-broken-3-id", cluster="mgmt-e", resource_id="e-broken-3-rid"}'
+    values: "1+0x40"
+  # Four sibling hosted clusters on the same management cluster stay healthy
+  - series: 'hostedClusterAPI_valid_azure_kms_config{status="True", name="e-ok-1", namespace="clusters", _id="e-ok-1-id", cluster="mgmt-e", resource_id="e-ok-1-rid"}'
+    values: "1+0x40"
+  - series: 'hostedClusterAPI_valid_azure_kms_config{status="True", name="e-ok-2", namespace="clusters", _id="e-ok-2-id", cluster="mgmt-e", resource_id="e-ok-2-rid"}'
+    values: "1+0x40"
+  - series: 'hostedClusterAPI_valid_azure_kms_config{status="True", name="e-ok-3", namespace="clusters", _id="e-ok-3-id", cluster="mgmt-e", resource_id="e-ok-3-rid"}'
+    values: "1+0x40"
+  - series: 'hostedClusterAPI_valid_azure_kms_config{status="True", name="e-ok-4", namespace="clusters", _id="e-ok-4-id", cluster="mgmt-e", resource_id="e-ok-4-rid"}'
+    values: "1+0x40"
+  alert_rule_test:
+  # 3 of 7 clears the count floor but is only 43%, below the 50% ratio threshold -- silent
+  - eval_time: 40m
+    alertname: userJourneyKubeApiserverAvailabilityKmsSystemicFailure
+    exp_alerts: []
+# The alert resolves once KMS recovers everywhere, rather than latching.
+- interval: 1m
+  name: "Test 6: The alert resolves once KMS recovers, rather than latching"
+  input_series:
+  # Three hosted clusters report an invalid KMS config for the first 20 minutes...
+  - series: 'hostedClusterAPI_valid_azure_kms_config{status="False", name="f-1", namespace="clusters", _id="f-1-id", cluster="mgmt-f", resource_id="f-1-rid"}'
+    values: "1+0x20"
+  - series: 'hostedClusterAPI_valid_azure_kms_config{status="False", name="f-2", namespace="clusters", _id="f-2-id", cluster="mgmt-f", resource_id="f-2-rid"}'
+    values: "1+0x20"
+  - series: 'hostedClusterAPI_valid_azure_kms_config{status="False", name="f-3", namespace="clusters", _id="f-3-id", cluster="mgmt-f", resource_id="f-3-rid"}'
+    values: "1+0x20"
+  # ...then the same three clusters report a healthy KMS config from minute 21 onward
+  - series: 'hostedClusterAPI_valid_azure_kms_config{status="True", name="f-1", namespace="clusters", _id="f-1-id", cluster="mgmt-f", resource_id="f-1-rid"}'
+    values: "_x20 1+0x40"
+  - series: 'hostedClusterAPI_valid_azure_kms_config{status="True", name="f-2", namespace="clusters", _id="f-2-id", cluster="mgmt-f", resource_id="f-2-rid"}'
+    values: "_x20 1+0x40"
+  - series: 'hostedClusterAPI_valid_azure_kms_config{status="True", name="f-3", namespace="clusters", _id="f-3-id", cluster="mgmt-f", resource_id="f-3-rid"}'
+    values: "_x20 1+0x40"
+  alert_rule_test:
+  # Firing while all three hosted clusters are still broken
+  - eval_time: 15m
+    alertname: userJourneyKubeApiserverAvailabilityKmsSystemicFailure
+    exp_alerts:
+    - exp_labels:
+        cluster: mgmt-f
+        component: slo
+        severity: "3"
+        slo: kas-availability
+        scope: mgmt-cluster
+      exp_annotations:
+        summary: "[HCPKASAvailableKMSSystemic] Azure KMS failing across hosted clusters on mgmt-f"
+        description: "At least half (minimum 3) of the hosted clusters on management cluster mgmt-f are not reporting ValidAzureKMSConfig=True (100% affected) -- independent customer BYOK failures don't correlate like this, so treat it as a shared Azure dependency failure (management cluster KMS managed identity / IMDS, control-plane-operator rollout, or a regional Key Vault / AAD outage), not a per-customer issue. This is NOT per-cluster actionable: confirm the blast radius and declare an incident if confirmed. Per-cluster KMS failures are already excluded from the userJourneyKubeApiserverAvailability burn-rate alerts; this is the only notification path for the systemic case."
+        runbook_url: https://aka.ms/arohcp-runbook-ujkasavailable-kms-systemic
+        correlationId: "userJourneyKubeApiserverAvailabilityKmsSystemicFailure/mgmt-f"
+  # Well past recovery and past the default 5m staleness lookback: resolved, not latched
+  - eval_time: 35m
+    alertname: userJourneyKubeApiserverAvailabilityKmsSystemicFailure
+    exp_alerts: []
+# An all-Unknown population (e.g. a broken condition-exporter) is just as
+# systemic as an all-False one -- no explicit False sample needed.
+- interval: 1m
+  name: "Test 7: An all-Unknown population is systemic too, not just all-False"
+  input_series:
+  # Four hosted clusters all report Unknown -- the condition never resolves to True or False
+  - series: 'hostedClusterAPI_valid_azure_kms_config{status="Unknown", name="g-unknown-1", namespace="clusters", _id="g-unknown-1-id", cluster="mgmt-g", resource_id="g-unknown-1-rid"}'
+    values: "1+0x40"
+  - series: 'hostedClusterAPI_valid_azure_kms_config{status="Unknown", name="g-unknown-2", namespace="clusters", _id="g-unknown-2-id", cluster="mgmt-g", resource_id="g-unknown-2-rid"}'
+    values: "1+0x40"
+  - series: 'hostedClusterAPI_valid_azure_kms_config{status="Unknown", name="g-unknown-3", namespace="clusters", _id="g-unknown-3-id", cluster="mgmt-g", resource_id="g-unknown-3-rid"}'
+    values: "1+0x40"
+  - series: 'hostedClusterAPI_valid_azure_kms_config{status="Unknown", name="g-unknown-4", namespace="clusters", _id="g-unknown-4-id", cluster="mgmt-g", resource_id="g-unknown-4-rid"}'
+    values: "1+0x40"
+  alert_rule_test:
+  # 4 of 4 Unknown is 100%, count 4 -- both thresholds are met with no False sample at all
+  - eval_time: 20m
+    alertname: userJourneyKubeApiserverAvailabilityKmsSystemicFailure
+    exp_alerts:
+    - exp_labels:
+        cluster: mgmt-g
+        component: slo
+        severity: "3"
+        slo: kas-availability
+        scope: mgmt-cluster
+      exp_annotations:
+        summary: "[HCPKASAvailableKMSSystemic] Azure KMS failing across hosted clusters on mgmt-g"
+        description: "At least half (minimum 3) of the hosted clusters on management cluster mgmt-g are not reporting ValidAzureKMSConfig=True (100% affected) -- independent customer BYOK failures don't correlate like this, so treat it as a shared Azure dependency failure (management cluster KMS managed identity / IMDS, control-plane-operator rollout, or a regional Key Vault / AAD outage), not a per-customer issue. This is NOT per-cluster actionable: confirm the blast radius and declare an incident if confirmed. Per-cluster KMS failures are already excluded from the userJourneyKubeApiserverAvailability burn-rate alerts; this is the only notification path for the systemic case."
+        runbook_url: https://aka.ms/arohcp-runbook-ujkasavailable-kms-systemic
+        correlationId: "userJourneyKubeApiserverAvailabilityKmsSystemicFailure/mgmt-g"
