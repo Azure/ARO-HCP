@@ -22,6 +22,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
 
+	ocmsdk "github.com/openshift-online/ocm-sdk-go"
 	configv1 "github.com/openshift/api/config/v1"
 	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 )
@@ -53,6 +54,11 @@ func (v verifyInsightsOperatorHealthy) checkOnce(ctx context.Context, adminRESTC
 		return fmt.Errorf("failed to get ClusterOperator %q: %w", insightsOperatorName, err)
 	}
 
+	disabled := getClusterOperatorCondition(co.Status.Conditions, "Disabled")
+	if disabled != nil && disabled.Status == configv1.ConditionTrue {
+		return fmt.Errorf("ClusterOperator %q is still Disabled (reason=%s, %s)", insightsOperatorName, disabled.Reason, formatConditions(co.Status.Conditions))
+	}
+
 	degraded := getClusterOperatorCondition(co.Status.Conditions, configv1.OperatorDegraded)
 	if degraded != nil && degraded.Status == configv1.ConditionTrue {
 		return fmt.Errorf("ClusterOperator %q is Degraded (%s)", insightsOperatorName, formatConditions(co.Status.Conditions))
@@ -62,52 +68,64 @@ func (v verifyInsightsOperatorHealthy) checkOnce(ctx context.Context, adminRESTC
 }
 
 // VerifyInsightsOperatorHealthy polls until the "insights" ClusterOperator
-// reports Degraded!=True, or the timeout expires.
+// reports Disabled!=True and Degraded!=True, or the timeout expires.
 func VerifyInsightsOperatorHealthy(timeout time.Duration) HostedClusterVerifier {
 	return verifyInsightsOperatorHealthy{timeout: timeout}
 }
 
-type verifyInsightsOperatorDisabledNoToken struct {
+type verifyClusterVisibleInConsole struct {
+	token   string
 	timeout time.Duration
 }
 
-func (v verifyInsightsOperatorDisabledNoToken) Name() string {
-	return "VerifyInsightsOperatorDisabledNoToken"
+func (v verifyClusterVisibleInConsole) Name() string {
+	return "VerifyClusterVisibleInConsole"
 }
 
-func (v verifyInsightsOperatorDisabledNoToken) Verify(ctx context.Context, adminRESTConfig *rest.Config) error {
-	return pollUntilReady(ctx, v.Name(), v.timeout, DefaultPollInterval, adminRESTConfig, DefaultDiagnoseTimeout, nil, func(ctx context.Context) error {
-		return v.checkOnce(ctx, adminRESTConfig)
-	})
-}
-
-func (v verifyInsightsOperatorDisabledNoToken) checkOnce(ctx context.Context, adminRESTConfig *rest.Config) error {
+func (v verifyClusterVisibleInConsole) Verify(ctx context.Context, adminRESTConfig *rest.Config) error {
 	configClient, err := configv1client.NewForConfig(adminRESTConfig)
 	if err != nil {
 		return fmt.Errorf("failed to create config client: %w", err)
 	}
 
-	co, err := configClient.ClusterOperators().Get(ctx, insightsOperatorName, metav1.GetOptions{})
+	clusterVersion, err := configClient.ClusterVersions().Get(ctx, "version", metav1.GetOptions{})
 	if err != nil {
-		return fmt.Errorf("failed to get ClusterOperator %q: %w", insightsOperatorName, err)
+		return fmt.Errorf("failed to get ClusterVersion: %w", err)
 	}
 
-	disabled := getClusterOperatorCondition(co.Status.Conditions, "Disabled")
-	if disabled == nil {
-		return fmt.Errorf("ClusterOperator %q has no Disabled condition yet (%s)", insightsOperatorName, formatConditions(co.Status.Conditions))
+	clusterID := string(clusterVersion.Spec.ClusterID)
+	if clusterID == "" {
+		return fmt.Errorf("ClusterVersion spec.clusterID is empty")
 	}
-	if disabled.Status != configv1.ConditionTrue {
-		return fmt.Errorf("ClusterOperator %q Disabled=%s, expected True (%s)", insightsOperatorName, disabled.Status, formatConditions(co.Status.Conditions))
+
+	connection, err := ocmsdk.NewConnectionBuilder().
+		Tokens(v.token).
+		Build()
+	if err != nil {
+		return fmt.Errorf("failed to create OCM connection: %w", err)
 	}
-	if disabled.Reason != "NoToken" {
-		return fmt.Errorf("ClusterOperator %q Disabled reason=%q, expected NoToken (%s)", insightsOperatorName, disabled.Reason, formatConditions(co.Status.Conditions))
-	}
-	return nil
+	defer connection.Close()
+
+	return pollUntilReady(ctx, v.Name(), v.timeout, DefaultPollInterval, adminRESTConfig, DefaultDiagnoseTimeout, nil, func(ctx context.Context) error {
+		response, err := connection.ClustersMgmt().V1().Clusters().List().
+			Search(fmt.Sprintf("external_id = '%s'", clusterID)).
+			Size(1).
+			SendContext(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to query OCM clusters API for external_id %q: %w", clusterID, err)
+		}
+
+		if response.Total() == 0 {
+			return fmt.Errorf("cluster with external_id %q not yet visible in console.redhat.com", clusterID)
+		}
+
+		return nil
+	})
 }
 
-// VerifyInsightsOperatorDisabledNoToken polls until the "insights" ClusterOperator
-// reports Disabled=True with Reason=NoToken, confirming the operator is deployed
-// and correctly detects the absence of the cloud.openshift.com token.
-func VerifyInsightsOperatorDisabledNoToken(timeout time.Duration) HostedClusterVerifier {
-	return verifyInsightsOperatorDisabledNoToken{timeout: timeout}
+// VerifyClusterVisibleInConsole polls the OCM clusters_mgmt API until the
+// cluster (identified by ClusterVersion.Spec.ClusterID) appears, confirming
+// the Insights Operator has registered it with console.redhat.com.
+func VerifyClusterVisibleInConsole(token string, timeout time.Duration) HostedClusterVerifier {
+	return verifyClusterVisibleInConsole{token: token, timeout: timeout}
 }
