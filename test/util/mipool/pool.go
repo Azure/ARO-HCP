@@ -1,0 +1,245 @@
+// Copyright 2026 Microsoft Corporation
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Package mipool implements the parent-side MI (managed identity) container
+// pool allocator. It lives under test/util rather than test/cmd/aro-hcp-tests
+// because two independent processes need it: the run-suite parent process
+// (test/cmd/aro-hcp-tests) allocates and cleans up containers, while the
+// child test framework (test/util/framework) consumes the
+// ASSIGNED_MI_CONTAINERS environment variable the parent sets using the same
+// contract (AssignedMIContainersEnvvar). Keeping mipool under test/cmd's
+// internal/ package would make it unimportable from test/util/framework.
+package mipool
+
+import (
+	"errors"
+	"fmt"
+	"slices"
+	"strings"
+	"sync"
+)
+
+// AssignedMIContainersEnvvar is the environment variable the parent sets on
+// each child process to communicate which MI containers are assigned to it.
+// The value is a space-separated list of container resource group names.
+const AssignedMIContainersEnvvar = "ASSIGNED_MI_CONTAINERS"
+
+// Pool manages a fixed set of MI container resource groups. It tracks which
+// containers are free and which are assigned to a running test. All methods
+// are safe for concurrent use.
+//
+// Pool is designed to be used by the parent (run-suite) process only. The
+// mutex protects the free/assigned bookkeeping but is never held during
+// network calls — callers must perform Azure cleanup outside of Allocate/Release.
+type Pool struct {
+	mu          sync.Mutex
+	free        []string
+	assigned    map[string][]string // testName -> container RG names
+	releasing   map[int][]string    // in-flight ReleaseWithCleanup ownership
+	quarantined []string            // cleanup failed; held out of Allocate until resolved
+	nextRel     int
+}
+
+// New creates a pool from the space-separated container resource group names
+// in containers. Returns an error if containers is empty or contains
+// duplicate resource group names — checked case-insensitively, since Azure
+// resource group names are case-insensitive, so a duplicate would otherwise
+// let two tests be handed the same underlying container.
+func New(containers string) (*Pool, error) {
+	names := strings.Fields(containers)
+	if len(names) == 0 {
+		return nil, fmt.Errorf("no MI containers provided")
+	}
+	seen := make(map[string]string, len(names))
+	for _, name := range names {
+		key := strings.ToLower(name)
+		if dup, ok := seen[key]; ok {
+			return nil, fmt.Errorf("duplicate MI container %q (also given as %q)", name, dup)
+		}
+		seen[key] = name
+	}
+	free := make([]string, len(names))
+	copy(free, names)
+	return &Pool{
+		free:      free,
+		assigned:  make(map[string][]string),
+		releasing: make(map[int][]string),
+	}, nil
+}
+
+// Allocate reserves n containers for the named test. It returns the container
+// resource group names. Returns an error if n is negative, if n containers
+// are not available, or if the test already has an allocation. n == 0 is
+// allowed and records an empty (non-nil) allocation, so a subsequent
+// Release/ReleaseWithCleanup call succeeds instead of failing with "no
+// allocation to release".
+func (p *Pool) Allocate(testName string, n int) ([]string, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if _, exists := p.assigned[testName]; exists {
+		return nil, fmt.Errorf("test %q already has an allocation", testName)
+	}
+	if n < 0 {
+		return nil, fmt.Errorf("invalid allocation request for test %q: n must be >= 0, got %d", testName, n)
+	}
+	if n == 0 {
+		p.assigned[testName] = []string{}
+		return []string{}, nil
+	}
+	if n > len(p.free) {
+		return nil, fmt.Errorf("requested %d containers but only %d free", n, len(p.free))
+	}
+
+	internal := slices.Clone(p.free[:n])
+	p.free = p.free[n:]
+	p.assigned[testName] = internal
+	return slices.Clone(internal), nil
+}
+
+// Release returns the containers assigned to testName back to the free pool.
+// Callers must complete any Azure cleanup before calling Release — the
+// containers become immediately available for reuse.
+// Returns an error if testName has no allocation.
+func (p *Pool) Release(testName string) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	containers, exists := p.assigned[testName]
+	if !exists {
+		return fmt.Errorf("test %q has no allocation to release", testName)
+	}
+	p.free = append(p.free, containers...)
+	delete(p.assigned, testName)
+	return nil
+}
+
+// ReleaseWithCleanup runs cleanupFn on each container assigned to testName.
+// Containers for which cleanupFn succeeds are returned to the free pool;
+// containers for which it fails are quarantined (held out of Allocate)
+// instead, since they may still carry residual FICs or role assignments —
+// handing one to the next test immediately could leak that state into it,
+// and CleanupAllContainers only sweeps at process startup. Quarantined
+// containers are visible via Quarantined() so a caller can retry or alert.
+func (p *Pool) ReleaseWithCleanup(testName string, cleanupFn func(resourceGroup string) error) error {
+	p.mu.Lock()
+	containers, exists := p.assigned[testName]
+	if !exists {
+		p.mu.Unlock()
+		return fmt.Errorf("test %q has no allocation to release", testName)
+	}
+	// Take ownership of the assignment under the lock so a concurrent
+	// Release cannot return the same containers to the free pool twice.
+	delete(p.assigned, testName)
+	copied := slices.Clone(containers)
+	id := p.nextRel
+	p.nextRel++
+	p.releasing[id] = copied
+	p.mu.Unlock()
+
+	var cleaned, failed []string
+	defer func() {
+		p.mu.Lock()
+		p.free = append(p.free, cleaned...)
+		p.quarantined = append(p.quarantined, failed...)
+		delete(p.releasing, id)
+		p.mu.Unlock()
+	}()
+
+	var errs []error
+	for _, rg := range copied {
+		if err := cleanupFn(rg); err != nil {
+			errs = append(errs, fmt.Errorf("cleanup %s: %w", rg, err))
+			failed = append(failed, rg)
+			continue
+		}
+		cleaned = append(cleaned, rg)
+	}
+
+	if len(errs) > 0 {
+		return fmt.Errorf("cleanup errors for %s: %w", testName, errors.Join(errs...))
+	}
+	return nil
+}
+
+// Free returns the number of currently available containers.
+func (p *Pool) Free() int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return len(p.free)
+}
+
+// Size returns the total number of containers in the pool.
+func (p *Pool) Size() int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return len(p.free) + p.assignedCount() + p.releasingCount() + len(p.quarantined)
+}
+
+func (p *Pool) assignedCount() int {
+	n := 0
+	for _, v := range p.assigned {
+		n += len(v)
+	}
+	return n
+}
+
+func (p *Pool) releasingCount() int {
+	n := 0
+	for _, v := range p.releasing {
+		n += len(v)
+	}
+	return n
+}
+
+// Allocated returns the containers currently assigned to testName, or nil
+// if the test has no allocation.
+func (p *Pool) Allocated(testName string) []string {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return slices.Clone(p.assigned[testName])
+}
+
+// Quarantined returns the containers currently held out of the free pool
+// because a previous ReleaseWithCleanup cleanup attempt failed for them.
+func (p *Pool) Quarantined() []string {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return slices.Clone(p.quarantined)
+}
+
+// AllContainers returns every container resource group name in the pool,
+// regardless of assignment state.
+func (p *Pool) AllContainers() []string {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	all := make([]string, 0, len(p.free)+p.assignedCount()+p.releasingCount()+len(p.quarantined))
+	all = append(all, p.free...)
+	for _, v := range p.assigned {
+		all = append(all, v...)
+	}
+	for _, v := range p.releasing {
+		all = append(all, v...)
+	}
+	all = append(all, p.quarantined...)
+	return all
+}
+
+// FormatEnv formats the allocated containers for testName as a space-separated
+// string suitable for setting as the ASSIGNED_MI_CONTAINERS environment variable.
+func (p *Pool) FormatEnv(testName string) string {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return strings.Join(p.assigned[testName], " ")
+}
