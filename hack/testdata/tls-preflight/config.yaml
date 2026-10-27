@@ -1,0 +1,26 @@
+# Synthetic config exercising the TLS preflight parser: templated values at
+# the top of defaults:, a flat component with trailing digest comments, and
+# a nested component whose image lives deeper in the tree.
+defaults:
+  azureGeoShortId: "{{ .ev2.geoShortId }}"
+  environmentName: "{{ .ctx.environment }}"
+  # AKS Runtime Image
+  aksCommandRuntime:
+    image:
+      registry: mcr.microsoft.com
+      repository: aks/command/runtime
+      digest: sha256:37df117f1179d78fd372fd35878d53ff30dfb350fb571fb197f3a2bee48bd157 # master.261001.6 (2026-10-01 00:00)
+  # Arobit
+  arobit:
+    forwarder:
+      image:
+        registry: mcr.microsoft.com
+        repository: oss/v2/fluent/fluent-bit
+        digest: sha256:413bd678fbaa1544fb6decaead554f63fa40e88907779fd69f0f69a27b399bda # v5.1.4 (2026-10-13 10:58)
+      resources:
+        requests: {}
+  # A component with an image block that carries no digest
+  digestless:
+    image:
+      registry: mcr.microsoft.com
+      repository: aks/digestless
