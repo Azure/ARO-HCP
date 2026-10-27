@@ -288,7 +288,7 @@ Regenerate the marked regions of `docs/ops/hcp-cluster-creation-flow.md` (using 
 - `internal/api/kubeapplierapi/` — desire document types, specs, or status fields used by debug commands
 - `tooling/hcpctl/` — must-gather flags, Cosmos snapshot output paths, or document serialization
 - deployment manifests / topology config (`config/`) — namespace or deployment names referenced in the debug commands
-- `docs/cosmos-data-flow.md` — changes to the [Cluster create](docs/cosmos-data-flow.md#cluster-create) or [Cluster create: convergence and completion](docs/cosmos-data-flow.md#cluster-create-convergence-and-completion) controller digraphs
+- `docs/generated/service-provider-control-flow.md` — changes to the [Cluster create](docs/generated/service-provider-control-flow.md#cluster-create) or [Cluster create: convergence and completion](docs/generated/service-provider-control-flow.md#cluster-create-convergence-and-completion) controller digraphs
 
 Keep the flow diagram consistent with those cluster-create and convergence controller digraphs.
 

@@ -34,7 +34,7 @@ The individual components are described in the [service components overview](../
 > [!NOTE]
 > The creation flow above is kube-applier-only. If a NodePool CR unexpectedly reappears during deletion, check for residual delivery artifacts tracked by [ARO-27508](https://issues.redhat.com/browse/ARO-27508); that cleanup churn is bounded and is not an alternate creation path.
 
-<!-- BEGIN GENERATED: flow-diagram (component/topology view of the cluster-creation write path; the step-numbered edges follow the same ARM->RP->CS->CosmosDB->kube-applier ordering narrated above, and complement the "Cluster create" and "Cluster create: convergence and completion" controller digraphs in ../cosmos-data-flow.md#cluster-create and ../cosmos-data-flow.md#cluster-create-convergence-and-completion; regenerate via the "Generation Prompt" at the bottom of this file — do not hand-edit) -->
+<!-- BEGIN GENERATED: flow-diagram (component/topology view of the cluster-creation write path; the step-numbered edges follow the same ARM->RP->CS->CosmosDB->kube-applier ordering narrated above, and complement the "Cluster create" and "Cluster create: convergence and completion" controller digraphs in ../generated/service-provider-control-flow.md#cluster-create and ../generated/service-provider-control-flow.md#cluster-create-convergence-and-completion; regenerate via the "Generation Prompt" at the bottom of this file — do not hand-edit) -->
 ```mermaid
 ---
 config:
@@ -266,13 +266,13 @@ This shows the `HostedCluster` resources in the `ocm-xxx-${CLUSTER_ID}` namespac
 
 ### Check on control plane pods
 
-The `ocm-xxx-${CLUSTER_ID}-${CLUSTERNAME}` namespace contains the hosted control plane (e.g. pods, secrets, ...).
+The `ocm-xxx-${CLUSTER_ID}-${CLUSTER_NAME}` namespace contains the hosted control plane (e.g. pods, secrets, ...).
 
 ```sh
 kubectl get pods -n ocm-xxx-${CLUSTER_ID}-${CLUSTER_NAME}
 ```
 
-The `ocm-xxx-${CLUSTER_ID}-${CLUSTERNAME}` namespace contains the hosted control plane (e.g. pods, secrets, ...).
+The `ocm-xxx-${CLUSTER_ID}-${CLUSTER_NAME}` namespace contains the hosted control plane (e.g. pods, secrets, ...).
 
 ## Generation Prompt
 
@@ -309,8 +309,8 @@ Regenerate each region from source:
    cluster-creation write path, with step-numbered edges tracing the ARM -> RP -> CS
    -> CosmosDB -> kube-applier ordering from the numbered narrative above. This is a
    component view; consult the "Cluster create" and "Cluster create: convergence
-   and completion" controller digraphs in docs/cosmos-data-flow.md#cluster-create
-   and docs/cosmos-data-flow.md#cluster-create-convergence-and-completion for the
+   and completion" controller digraphs in docs/generated/service-provider-control-flow.md#cluster-create
+   and docs/generated/service-provider-control-flow.md#cluster-create-convergence-and-completion for the
    field-level gating between controllers. Keep the existing service-cluster / management-cluster
    subgraph layout and step-number edge labels.
 
