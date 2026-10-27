@@ -24,12 +24,10 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/go-logr/logr"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	azpolicy "github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	"github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/cmd/workflow"
 )
 
 func TestRunPropagatesAttribution(t *testing.T) {
@@ -38,10 +36,22 @@ func TestRunPropagatesAttribution(t *testing.T) {
 	t.Setenv("PROW_JOB_ID", "prow-uuid")
 	var runIDs []string
 	for range 2 {
+		registry, err := newRegistry()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := registry.ApplyOptions("shared-leftovers", []string{"shared-leftovers.subscription-id=test-subscription"}); err != nil {
+			t.Fatal(err)
+		}
+		selected, err := registry.Get("shared-leftovers")
+		if err != nil {
+			t.Fatal(err)
+		}
+
 		var logs bytes.Buffer
 		ctx := logr.NewContext(context.Background(), logr.FromSlogHandler(slog.NewJSONHandler(&logs, nil)))
 		opts := Options{completedOptions: &completedOptions{
-			Workflow: WorkflowSharedLeftovers, SubscriptionID: "test-subscription", DryRun: true,
+			Workflow: selected, Common: workflow.Common{DryRun: true, Parallelism: 1},
 		}}
 		if err := opts.Run(ctx); err == nil {
 			t.Fatal("expected missing credential error")
@@ -88,86 +98,6 @@ rgOrdered:
         olderThan: "1h"
 `
 
-func TestRawOptionsValidate_RGOrderedRejectsWhitespaceOnlyResourceGroup(t *testing.T) {
-	t.Parallel()
-
-	policyPath := writePolicyFile(t)
-	testCases := []struct {
-		name        string
-		opts        RawOptions
-		expectErr   bool
-		errContains string
-	}{
-		{
-			name: "rg-ordered accepts whitespace-only resource group and relies on policy discovery",
-			opts: RawOptions{
-				SubscriptionID: "sub-id",
-				Workflow:       string(WorkflowRGOrdered),
-				PolicyFile:     policyPath,
-				DryRun:         true,
-				Parallelism:    1,
-				ResourceGroups: []string{"   "},
-			},
-			expectErr: false,
-		},
-		{
-			name: "rg-ordered allows trimmed non-empty resource group",
-			opts: RawOptions{
-				SubscriptionID: "sub-id",
-				Workflow:       string(WorkflowRGOrdered),
-				PolicyFile:     policyPath,
-				DryRun:         true,
-				Parallelism:    1,
-				ResourceGroups: []string{"   rg-one   "},
-			},
-			expectErr: false,
-		},
-		{
-			name: "shared-leftovers ignores whitespace selectors",
-			opts: RawOptions{
-				SubscriptionID: "sub-id",
-				Workflow:       string(WorkflowSharedLeftovers),
-				DryRun:         true,
-				Parallelism:    1,
-				ResourceGroups: []string{"   "},
-			},
-			expectErr: false,
-		},
-		{
-			name: "shared-leftovers rejects explicit rg selectors",
-			opts: RawOptions{
-				SubscriptionID: "sub-id",
-				Workflow:       string(WorkflowSharedLeftovers),
-				DryRun:         true,
-				Parallelism:    1,
-				ResourceGroups: []string{"rg-one"},
-			},
-			expectErr:   true,
-			errContains: "rg-ordered selectors are not allowed for shared-leftovers workflow",
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			_, err := tc.opts.Validate(context.Background())
-			if tc.expectErr {
-				if err == nil {
-					t.Fatalf("expected validation error")
-				}
-				if tc.errContains != "" && !strings.Contains(err.Error(), tc.errContains) {
-					t.Fatalf("unexpected error: %v", err)
-				}
-				return
-			}
-
-			if err != nil {
-				t.Fatalf("expected validation success, got %v", err)
-			}
-		})
-	}
-}
-
 func writePolicyFile(t *testing.T) string {
 	t.Helper()
 
@@ -178,59 +108,89 @@ func writePolicyFile(t *testing.T) string {
 	return path
 }
 
-type fakeTokenCredential struct{}
+func TestRawOptionsValidate_DeprecatedAliasesTargetTheSelectedWorkflow(t *testing.T) {
+	t.Parallel()
 
-func (fakeTokenCredential) GetToken(context.Context, azpolicy.TokenRequestOptions) (azcore.AccessToken, error) {
-	return azcore.AccessToken{}, nil
+	policyPath := writePolicyFile(t)
+	testCases := []struct {
+		name        string
+		opts        RawOptions
+		errContains string
+	}{
+		{
+			name: "rg-ordered ignores whitespace-only resource group and relies on policy discovery",
+			opts: RawOptions{
+				SubscriptionID: "sub-id", Workflow: "rg-ordered", PolicyFile: policyPath, DryRun: true,
+				Parallelism: 1, ResourceGroups: []string{"   "},
+			},
+		},
+		{
+			name: "rg-ordered allows trimmed non-empty resource group",
+			opts: RawOptions{
+				SubscriptionID: "sub-id", Workflow: "rg-ordered", PolicyFile: policyPath, DryRun: true,
+				Parallelism: 1, ResourceGroups: []string{"   rg-one   "},
+			},
+		},
+		{
+			name: "shared-leftovers ignores whitespace selectors",
+			opts: RawOptions{
+				SubscriptionID: "sub-id", Workflow: "shared-leftovers", DryRun: true,
+				Parallelism: 1, ResourceGroups: []string{"   "},
+			},
+		},
+		{
+			name: "shared-leftovers rejects explicit rg selectors",
+			opts: RawOptions{
+				SubscriptionID: "sub-id", Workflow: "shared-leftovers", DryRun: true,
+				Parallelism: 1, ResourceGroups: []string{"rg-one"},
+			},
+			errContains: `workflow "shared-leftovers" has no option "resource-group"`,
+		},
+		{
+			name: "subscription is required",
+			opts: RawOptions{
+				Workflow: "shared-leftovers", DryRun: true, Parallelism: 1,
+			},
+			errContains: "shared-leftovers.subscription-id is required",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			_, err := tc.opts.Validate(context.Background())
+			if tc.errContains == "" {
+				if err != nil {
+					t.Fatalf("expected validation success, got %v", err)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), tc.errContains) {
+				t.Fatalf("error = %v, want %q", err, tc.errContains)
+			}
+		})
+	}
 }
 
-func TestNewGraphCredential(t *testing.T) {
-	fallback := fakeTokenCredential{}
+func TestRawOptionsValidate_ExplicitOptionsOverrideDeprecatedAliases(t *testing.T) {
+	t.Parallel()
 
-	t.Run("falls back when no GRAPH_AZURE_* variables are set", func(t *testing.T) {
-		t.Setenv("GRAPH_AZURE_TENANT_ID", "")
-		t.Setenv("GRAPH_AZURE_CLIENT_ID", "")
-		t.Setenv("GRAPH_AZURE_CLIENT_SECRET", "")
-
-		got, err := newGraphCredential(fallback)
-		if err != nil {
-			t.Fatalf("expected no error, got %v", err)
-		}
-		if got != fallback {
-			t.Fatalf("expected fallback credential to be returned")
-		}
-	})
-
-	t.Run("errors when GRAPH_AZURE_* variables are partially set", func(t *testing.T) {
-		t.Setenv("GRAPH_AZURE_TENANT_ID", "00000000-0000-0000-0000-000000000000")
-		t.Setenv("GRAPH_AZURE_CLIENT_ID", "")
-		t.Setenv("GRAPH_AZURE_CLIENT_SECRET", "secret")
-
-		_, err := newGraphCredential(fallback)
-		if err == nil {
-			t.Fatalf("expected error for partial configuration")
-		}
-		if !strings.Contains(err.Error(), "must all be set") {
-			t.Fatalf("unexpected error: %v", err)
-		}
-	})
-
-	t.Run("builds a dedicated credential when all GRAPH_AZURE_* variables are set", func(t *testing.T) {
-		t.Setenv("GRAPH_AZURE_TENANT_ID", "00000000-0000-0000-0000-000000000000")
-		t.Setenv("GRAPH_AZURE_CLIENT_ID", "11111111-1111-1111-1111-111111111111")
-		t.Setenv("GRAPH_AZURE_CLIENT_SECRET", "secret")
-
-		got, err := newGraphCredential(fallback)
-		if err != nil {
-			t.Fatalf("expected no error, got %v", err)
-		}
-		if got == nil {
-			t.Fatalf("expected a credential")
-		}
-		if got == azcore.TokenCredential(fallback) {
-			t.Fatalf("expected a dedicated credential, not the fallback")
-		}
-	})
+	registry, err := newRegistry()
+	if err != nil {
+		t.Fatal(err)
+	}
+	opts := RawOptions{
+		registry: registry, Workflow: "shared-leftovers", Parallelism: 1,
+		SubscriptionID: "from-alias",
+		Options:        []string{"shared-leftovers.subscription-id=from-options"},
+	}
+	validated, err := opts.Validate(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := validated.workflow.LogValues(); len(got) != 2 || got[1] != "from-options" {
+		t.Fatalf("log values = %v, want the explicit option to win", got)
+	}
 }
 
 const certificatePolicyHeader = "certificates:\n  vaultURL: https://example.vault.azure.net\n  ownerInventory:\n    subscriptions: [Example Subscription]\n"
@@ -244,14 +204,15 @@ func writeCertificatePolicy(t *testing.T, content string) string {
 	return path
 }
 
-func TestCertificatesWorkflowFlags(t *testing.T) {
-	// Without credentials configured, a run that passes validation fails while
-	// creating the credential, which proves the flags were accepted without ever
-	// contacting Azure.
+// TestWorkflowOptionsThroughTheCommand drives the real command. Without
+// credentials configured, a run that passes validation fails while creating the
+// credential, which proves the arguments were accepted without ever contacting
+// Azure.
+func TestWorkflowOptionsThroughTheCommand(t *testing.T) {
 	t.Setenv("AZURE_TOKEN_CREDENTIALS", "")
 	const accepted = "failed to create Azure credential"
 
-	policyFile := "../../certificates.policy.yaml"
+	certificatePolicy := "../../certificates.policy.yaml"
 	unguarded := writeCertificatePolicy(t, certificatePolicyHeader+"  discovery:\n    protectedTags: {persist: \"true\"}\n    rules:\n    - {name: r, action: delete, match: {nameRegex: \"^x$\"}, olderThan: 168h}\n")
 	misspelled := writeCertificatePolicy(t, certificatePolicyHeader+"  discovery:\n    protectedTags: {persist: \"true\"}\n    rules:\n    - {name: r, action: skip, match: {nameRegex: \"^x$\"}, olderThen: 1h}\n")
 	rgPolicy := writePolicyFile(t)
@@ -261,27 +222,43 @@ func TestCertificatesWorkflowFlags(t *testing.T) {
 		args    []string
 		message string
 	}{
-		{"valid", []string{"--workflow=certificates", "--dry-run=true", "--policy=" + policyFile}, accepted},
-		{"apply", []string{"--workflow=certificates", "--dry-run=false", "--policy=" + policyFile, "--max-deletions=5", "--max-purges=5", "--parallelism=2", "--timeout=10m"}, accepted},
-		{"purge only", []string{"--workflow=certificates", "--dry-run=true", "--delete-active=false", "--policy=" + policyFile}, accepted},
-		{"dry-run must be explicit", []string{"--workflow=certificates", "--policy=" + policyFile}, "--dry-run must be set explicitly"},
-		{"policy required", []string{"--workflow=certificates", "--dry-run=true"}, "--policy is required for certificates workflow"},
-		{"policy missing file", []string{"--workflow=certificates", "--dry-run=true", "--policy=/does/not/exist"}, "failed to read policy file"},
-		{"policy unknown key", []string{"--workflow=certificates", "--dry-run=true", "--policy=" + misspelled}, "unknown field"},
-		{"policy unguarded delete rule", []string{"--workflow=certificates", "--dry-run=true", "--policy=" + unguarded}, "delete rules must set conditions.ownerResourceGroupAbsent"},
-		{"rg policy is not a certificate policy", []string{"--workflow=certificates", "--dry-run=true", "--policy=" + rgPolicy}, "unknown field"},
-		{"subscription id rejected", []string{"--workflow=certificates", "--dry-run=true", "--policy=" + policyFile, "--subscription-id=x"}, "--subscription-id is not valid with --workflow=certificates"},
-		{"resource group rejected", []string{"--workflow=certificates", "--dry-run=true", "--policy=" + policyFile, "--resource-group=rg"}, "--resource-group is not valid with --workflow=certificates"},
-		{"wait rejected", []string{"--workflow=certificates", "--dry-run=true", "--policy=" + policyFile, "--wait=false"}, "--wait is not valid with --workflow=certificates"},
-		{"no actions", []string{"--workflow=certificates", "--dry-run=true", "--delete-active=false", "--purge-deleted=false"}, "at least one of --delete-active or --purge-deleted must be enabled"},
-		{"zero deletions", []string{"--workflow=certificates", "--dry-run=true", "--max-deletions=0"}, "--max-deletions must be positive"},
-		{"zero purges", []string{"--workflow=certificates", "--dry-run=true", "--max-purges=-1"}, "--max-purges must be positive"},
-		{"zero parallelism", []string{"--workflow=certificates", "--dry-run=true", "--parallelism=0"}, "--parallelism must be >= 1"},
-		{"negative timeout", []string{"--workflow=certificates", "--dry-run=true", "--timeout=-1s"}, "--timeout must not be negative"},
-		{"certificate flags rejected for rg-ordered", []string{"--subscription-id=x", "--policy=" + rgPolicy, "--max-deletions=5"}, "--max-deletions is only valid with --workflow=certificates"},
-		{"certificate flags rejected for shared-leftovers", []string{"--workflow=shared-leftovers", "--subscription-id=x", "--delete-active=false"}, "--delete-active is only valid with --workflow=certificates"},
+		// rg-ordered and shared-leftovers.
+		{"rg-ordered options", []string{"--policy=" + rgPolicy, "--options=rg-ordered.subscription-id=x", "--options=rg-ordered.resource-group=a", "--options=rg-ordered.wait=false"}, accepted},
+		{"rg-ordered deprecated aliases", []string{"--policy=" + rgPolicy, "--subscription-id=x", "--resource-group=a", "--wait=false"}, accepted},
+		{"rg-ordered requires a subscription", []string{"--policy=" + rgPolicy}, "rg-ordered.subscription-id is required"},
+		{"rg-ordered requires a policy", []string{"--options=rg-ordered.subscription-id=x"}, "--policy is required for rg-ordered workflow"},
+		{"shared-leftovers options", []string{"--workflow=shared-leftovers", "--options=shared-leftovers.subscription-id=x", "--options=shared-leftovers.wait=false"}, accepted},
+		{"shared-leftovers rejects rg options", []string{"--workflow=shared-leftovers", "--options=shared-leftovers.subscription-id=x", "--options=shared-leftovers.resource-group=a"}, `no option "resource-group"`},
+
+		// certificates.
+		{"certificates", []string{"--workflow=certificates", "--dry-run=true", "--policy=" + certificatePolicy}, accepted},
+		{"certificates without --dry-run", []string{"--workflow=certificates", "--policy=" + certificatePolicy}, accepted},
+		{"certificates apply with options", []string{"--workflow=certificates", "--dry-run=false", "--policy=" + certificatePolicy, "--options=certificates.max-deletions=5", "--options=certificates.max-purges=5", "--parallelism=2", "--timeout=10m"}, accepted},
+		{"certificates purge only", []string{"--workflow=certificates", "--policy=" + certificatePolicy, "--options=certificates.delete-active=false"}, accepted},
+		{"certificates policy required", []string{"--workflow=certificates"}, "--policy is required for certificates workflow"},
+		{"certificates policy missing file", []string{"--workflow=certificates", "--policy=/does/not/exist"}, "failed to read policy file"},
+		{"certificates policy unknown key", []string{"--workflow=certificates", "--policy=" + misspelled}, "unknown field"},
+		{"certificates policy unguarded delete rule", []string{"--workflow=certificates", "--policy=" + unguarded}, "delete rules must set conditions.ownerResourceGroupAbsent"},
+		{"rg policy is not a certificate policy", []string{"--workflow=certificates", "--policy=" + rgPolicy}, "unknown field"},
+		{"certificates rejects deprecated subscription alias", []string{"--workflow=certificates", "--policy=" + certificatePolicy, "--subscription-id=x"}, `workflow "certificates" has no option "subscription-id"`},
+		{"certificates rejects deprecated resource-group alias", []string{"--workflow=certificates", "--policy=" + certificatePolicy, "--resource-group=rg"}, `no option "resource-group"`},
+		{"certificates rejects deprecated wait alias", []string{"--workflow=certificates", "--policy=" + certificatePolicy, "--wait=false"}, `no option "wait"`},
+		{"certificates no actions", []string{"--workflow=certificates", "--options=certificates.delete-active=false", "--options=certificates.purge-deleted=false"}, "at least one of certificates.delete-active or certificates.purge-deleted must be enabled"},
+		{"certificates zero deletions", []string{"--workflow=certificates", "--options=certificates.max-deletions=0"}, "certificates.max-deletions must be positive"},
+		{"certificates negative purges", []string{"--workflow=certificates", "--options=certificates.max-purges=-1"}, "certificates.max-purges must be positive"},
+		{"certificates invalid value", []string{"--workflow=certificates", "--options=certificates.max-purges=many"}, "certificates.max-purges:"},
+
+		// Common options and --options handling.
+		{"unknown workflow", []string{"--workflow=nope"}, `--workflow: unknown workflow "nope" (available: rg-ordered, shared-leftovers, certificates)`},
+		{"zero parallelism", []string{"--workflow=certificates", "--parallelism=0"}, "--parallelism must be >= 1"},
+		{"negative timeout", []string{"--workflow=certificates", "--timeout=-1s"}, "--timeout must not be negative"},
+		{"malformed option", []string{"--workflow=certificates", "--options=max-deletions=5"}, "must have the form <workflow>.<key>=<value>"},
+		{"unknown option key lists valid keys", []string{"--workflow=certificates", "--options=certificates.nope=1"}, "(valid: delete-active, max-deletions, max-purges, purge-deleted)"},
+		{"option of another workflow", []string{"--workflow=certificates", "--options=rg-ordered.wait=true"}, `options for workflow "rg-ordered" cannot be used with --workflow=certificates`},
+		{"unknown option workflow", []string{"--workflow=certificates", "--options=nope.key=1"}, `unknown workflow "nope"`},
 		{"removed subcommand", []string{"ci-certificates"}, "unknown command"},
 		{"removed min-age flag", []string{"--workflow=certificates", "--min-age=24h"}, "unknown flag"},
+		{"certificate settings are no longer flags", []string{"--workflow=certificates", "--max-deletions=5"}, "unknown flag"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			cmd, err := NewCommand()
@@ -299,8 +276,26 @@ func TestCertificatesWorkflowFlags(t *testing.T) {
 	}
 }
 
-func TestCertificatesTimeoutDefault(t *testing.T) {
-	if defaultCertificatesTimeout != 30*time.Minute {
-		t.Fatalf("certificates keep a bounded default run time, got %s", defaultCertificatesTimeout)
+func TestHelpDocumentsWorkflowOptionsAndHidesDeprecatedAliases(t *testing.T) {
+	cmd, err := NewCommand()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var help bytes.Buffer
+	cmd.SetOut(&help)
+	cmd.SetErr(&help)
+	cmd.SetArgs([]string{"--help"})
+	if err := cmd.ExecuteContext(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"--options", "rg-ordered.subscription-id=<string>", "certificates.max-deletions=<int> (default 1000)", "shared-leftovers.wait=<bool>"} {
+		if !strings.Contains(help.String(), want) {
+			t.Errorf("help missing %q:\n%s", want, help.String())
+		}
+	}
+	for _, hidden := range []string{"--subscription-id", "--resource-group", "--wait "} {
+		if strings.Contains(help.String(), hidden) {
+			t.Errorf("deprecated flag %q must be hidden from help:\n%s", hidden, help.String())
+		}
 	}
 }

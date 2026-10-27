@@ -98,7 +98,8 @@ Manual certificate sweeps use the policy in
 AZURE_TOKEN_CREDENTIALS=dev \
   go run ./tooling/cleanup-sweeper --workflow=certificates \
     --dry-run=true --policy=tooling/cleanup-sweeper/certificates.policy.yaml \
-    --max-deletions=1000 --max-purges=1000 \
+    --options=certificates.max-deletions=1000 \
+    --options=certificates.max-purges=1000 \
     --parallelism=2 --timeout=30m
 ```
 
@@ -108,14 +109,21 @@ To apply the current policy after reviewing the dry-run output:
 AZURE_TOKEN_CREDENTIALS=dev \
   go run ./tooling/cleanup-sweeper --workflow=certificates \
     --dry-run=false --policy=tooling/cleanup-sweeper/certificates.policy.yaml \
-    --max-deletions=1000 --max-purges=1000 \
+    --options=certificates.max-deletions=1000 \
+    --options=certificates.max-purges=1000 \
     --parallelism=2 --timeout=30m
 ```
 
-The `certificates` workflow requires `--policy` and an explicit `--dry-run`
-(there is deliberately no default, so `--dry-run=false` is always a conscious
-choice). It rejects `--subscription-id`, `--resource-group` and `--wait`: the
-policy's `vaultURL` is the only vault it touches, and no flag overrides it. Policy rules are
+The `certificates` workflow requires `--policy`. Like every workflow it applies
+changes unless `--dry-run=true` is passed, so always start with a dry run.
+Workflow-specific settings are passed as `--options=<workflow>.<key>=<value>`;
+for this workflow they are `delete-active`, `purge-deleted`, `max-deletions` and
+`max-purges`, and `cleanup-sweeper --help` lists the options of every workflow.
+It has no subscription or resource-group settings: the policy's `vaultURL` is
+the only vault it touches, and nothing overrides it. (The former
+`--subscription-id`, `--resource-group` and `--wait` flags still work for the
+other workflows as deprecated aliases of `--options=<workflow>.subscription-id`,
+`.resource-group` and `.wait`.) Policy rules are
 first-match-wins; unmatched certificates are retained. Delete eligibility also
 requires that no tag listed in the policy's mandatory `protectedTags` is present
 (`persist: "true"` in the shipped policy) and that both latest-version
@@ -151,11 +159,11 @@ editing. Incomplete owner inventory or uncertain certificate metadata favors
 retention.
 
 The sweeper continues paging through Key Vault inventory until mutation budgets
-are filled or the inventory is exhausted. `--max-deletions` bounds active
+are filled or the inventory is exhausted. `max-deletions` bounds active
 certificate mutations, not metadata inspection; each deleted active certificate
-is purged immediately when purging is enabled. `--max-purges` independently
+is purged immediately when purging is enabled. `max-purges` independently
 bounds the previously deleted certificates (tombstones) purged, so a run can
-purge up to `--max-deletions + --max-purges` certificates. Tombstones are
+purge up to `max-deletions + max-purges` certificates. Tombstones are
 selected by the same rules and protected tags but are not subject to retention
 or the owner guard: the certificate is already deleted, and a lingering
 tombstone only blocks reuse of its name. Ineligible objects do not consume

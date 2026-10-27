@@ -20,10 +20,15 @@ import (
 
 // NewCommand builds the root cleanup-sweeper cobra command.
 func NewCommand() (*cobra.Command, error) {
+	registry, err := newRegistry()
+	if err != nil {
+		return nil, err
+	}
 	opts := DefaultOptions()
 	cmd := &cobra.Command{
 		Use:           "cleanup-sweeper",
 		Short:         "Policy-driven cleanup sweeper for leftover resources.",
+		Long:          "Policy-driven cleanup sweeper for leftover resources.\n\nWorkflow-specific settings are passed as --options=<workflow>.<key>=<value>:\n" + registry.OptionsUsage(),
 		SilenceErrors: true,
 		SilenceUsage:  true,
 		Args:          cobra.NoArgs,
@@ -42,7 +47,7 @@ func NewCommand() (*cobra.Command, error) {
 			HiddenDefaultCmd: true,
 		},
 	}
-	if err := BindOptions(opts, cmd); err != nil {
+	if err := BindOptions(opts, cmd, registry); err != nil {
 		return nil, err
 	}
 	return cmd, nil

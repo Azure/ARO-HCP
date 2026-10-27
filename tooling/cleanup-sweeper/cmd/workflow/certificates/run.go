@@ -41,13 +41,13 @@ type RunOptions struct {
 // Validate checks the options that do not need the policy file.
 func (o RunOptions) Validate() error {
 	if !o.DeleteActive && !o.PurgeDeleted {
-		return fmt.Errorf("at least one of --delete-active or --purge-deleted must be enabled")
+		return fmt.Errorf("at least one of %s.delete-active or %s.purge-deleted must be enabled", Name, Name)
 	}
 	if o.DeleteActive && o.MaxDeletions <= 0 {
-		return fmt.Errorf("--max-deletions must be positive")
+		return fmt.Errorf("%s.max-deletions must be positive", Name)
 	}
 	if o.PurgeDeleted && o.MaxPurges <= 0 {
-		return fmt.Errorf("--max-purges must be positive")
+		return fmt.Errorf("%s.max-purges must be positive", Name)
 	}
 	if o.Parallelism <= 0 {
 		return fmt.Errorf("--parallelism must be positive")
@@ -61,7 +61,7 @@ func Run(ctx context.Context, opts RunOptions) error {
 		return err
 	}
 	if opts.Policy == nil {
-		return fmt.Errorf("--policy is required")
+		return fmt.Errorf("--policy is required for %s workflow", Name)
 	}
 	if err := opts.Policy.Validate("certificates"); err != nil {
 		return fmt.Errorf("invalid certificate policy: %w", err)
