@@ -49,6 +49,26 @@ class ToolNetworkPolicyTests(unittest.TestCase):
                 shutil.copyfile(tools / name, scratch / name)
             commands = scratch / "bin"
             commands.mkdir()
+            # Discover dependencies before isolating PATH. CI installs pinned
+            # gojq as /usr/local/bin/jq, not necessarily /usr/bin/jq.
+            for name in ("dirname", "grep", "sort", "tail", "sed"):
+                executable = shutil.which(name)
+                if executable is None:
+                    self.fail(f"Fixture requires executable: {name}")
+                (commands / name).symlink_to(Path(executable).resolve())
+            jq = shutil.which("jq")
+            if jq is None:
+                self.fail("Fixture requires the repository-pinned jq executable on PATH")
+            jq = str(Path(jq).resolve())
+            external = scratch / "external-tools"
+            external.mkdir()
+            jq_trace = scratch / "jq-executions"
+            jq_wrapper = external / "jq"
+            jq_wrapper.write_text(
+                "#!/bin/bash\nset -euo pipefail\n"
+                f"printf '%s\\n' {shlex.quote(jq)} >>\"$JQ_TRACE\"\n"
+                f"exec {shlex.quote(jq)} \"$@\"\n")
+            jq_wrapper.chmod(0o755)
             curl = commands / "curl"
             curl.write_text("#!/bin/bash\nset -euo pipefail\n"
                             "for argument in \"$@\"; do\n"
@@ -56,10 +76,15 @@ class ToolNetworkPolicyTests(unittest.TestCase):
                             "done\nprintf '%s\\n' '{\"tag_name\":\"v0.0.0\"}'\n")
             curl.chmod(0o755)
             request_log = scratch / "requests"
-            subprocess.run(["/bin/bash", str(scratch / "update-tool-versions.sh")],
-                           env={"PATH": f"{commands}:/usr/bin:/bin", "HOME": temporary,
-                                "URL_LOG": str(request_log)},
-                           check=True, capture_output=True, text=True, timeout=10)
+            result = subprocess.run(["/bin/bash", str(scratch / "update-tool-versions.sh")],
+                                    env={"PATH": f"{commands}:{external}", "HOME": temporary,
+                                         "URL_LOG": str(request_log), "JQ_TRACE": str(jq_trace)},
+                                    capture_output=True, text=True, timeout=10)
+            self.assertEqual(result.returncode, 0,
+                             f"Updater failed ({result.returncode})\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}")
+            # The fixture must use the selected external executable even on
+            # developer hosts that also have a system jq.
+            self.assertEqual(set(jq_trace.read_text().splitlines()), {jq})
             requests = request_log.read_text().splitlines()
         self.assertEqual({urlsplit(url).hostname for url in requests}, {"api.github.com"})
         for url in requests + [
