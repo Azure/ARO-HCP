@@ -15,39 +15,26 @@
 package e2e
 
 import (
-	"bytes"
 	"context"
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/hex"
 	"encoding/pem"
-	"errors"
 	"fmt"
-	"io"
-	"net/http"
 	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/google/uuid"
-
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	utilyaml "k8s.io/apimachinery/pkg/util/yaml"
-	"k8s.io/client-go/discovery"
-	memory "k8s.io/client-go/discovery/cached/memory"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
-	"k8s.io/client-go/restmapper"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	armauthorization "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v3"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/msi/armmsi"
@@ -471,94 +458,4 @@ func unstructuredExternalSecretTLS(name, namespace, storeName, akvCertName, refr
 			},
 		},
 	}}
-}
-
-// applyManifestFromURL fetches a multi-doc YAML manifest, splits it, and
-// Creates each object via the dynamic client. IsAlreadyExists is treated as
-// success so the helper is re-runnable.
-func applyManifestFromURL(ctx context.Context, dyn dynamic.Interface, mapper meta.RESTMapper, manifestURL string) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, manifestURL, nil)
-	if err != nil {
-		return err
-	}
-	httpClient := &http.Client{Timeout: 2 * time.Minute}
-	resp, err := httpClient.Do(req)
-	if err != nil {
-		return fmt.Errorf("fetching %s: %w", manifestURL, err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("GET %s: HTTP %d", manifestURL, resp.StatusCode)
-	}
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
-
-	decoder := utilyaml.NewYAMLOrJSONDecoder(bytes.NewReader(body), 4096)
-	for {
-		obj := &unstructured.Unstructured{}
-		if err := decoder.Decode(obj); err != nil {
-			if err == io.EOF {
-				break
-			}
-			return fmt.Errorf("decoding manifest doc: %w", err)
-		}
-		if len(obj.Object) == 0 {
-			continue
-		}
-		gvk := obj.GroupVersionKind()
-		mapping, err := mapper.RESTMapping(gvk.GroupKind(), gvk.Version)
-		if err != nil {
-			return fmt.Errorf("mapping %v: %w", gvk, err)
-		}
-		var ri dynamic.ResourceInterface
-		if mapping.Scope.Name() == meta.RESTScopeNameNamespace {
-			ri = dyn.Resource(mapping.Resource).Namespace(obj.GetNamespace())
-		} else {
-			ri = dyn.Resource(mapping.Resource)
-		}
-		if _, err := ri.Create(ctx, obj, metav1.CreateOptions{}); err != nil && !apierrors.IsAlreadyExists(err) {
-			return fmt.Errorf("creating %s %s/%s: %w", gvk.Kind, obj.GetNamespace(), obj.GetName(), err)
-		}
-	}
-	return nil
-}
-
-func newDiscoveryMapper(cfg *rest.Config) meta.RESTMapper {
-	dc := discovery.NewDiscoveryClientForConfigOrDie(cfg)
-	return restmapper.NewDeferredDiscoveryRESTMapper(memory.NewMemCacheClient(dc))
-}
-
-// assignBuiltInRoleAtScope assigns an Azure built-in role to principalID at
-// the given scope. The assignment name is a deterministic UUID over
-// (scope, principal, roleDef) so re-runs hit the idempotent "already exists"
-// path rather than creating duplicates.
-func assignBuiltInRoleAtScope(
-	ctx context.Context,
-	client *armauthorization.RoleAssignmentsClient,
-	subscriptionID, scope, principalID, roleDefinitionID string,
-) error {
-	roleDefResourceID := fmt.Sprintf("/subscriptions/%s/providers/Microsoft.Authorization/roleDefinitions/%s", subscriptionID, roleDefinitionID)
-	assignmentName := uuid.NewSHA1(uuid.NameSpaceDNS, []byte(strings.Join([]string{scope, principalID, roleDefinitionID}, "|"))).String()
-
-	_, err := client.Create(ctx, scope, assignmentName, armauthorization.RoleAssignmentCreateParameters{
-		Properties: &armauthorization.RoleAssignmentProperties{
-			PrincipalID:      to.Ptr(principalID),
-			RoleDefinitionID: to.Ptr(roleDefResourceID),
-		},
-	}, nil)
-	if err != nil {
-		var respErr *azcore.ResponseError
-		if errors.As(err, &respErr) && respErr.ErrorCode == "RoleAssignmentExists" {
-			return nil
-		}
-		return fmt.Errorf("assigning role %s on %s to %s: %w", roleDefinitionID, scope, principalID, err)
-	}
-	return nil
-}
-
-func isPrincipalNotFoundError(err error) bool {
-	var respErr *azcore.ResponseError
-	return errors.As(err, &respErr) && respErr.ErrorCode == "PrincipalNotFound"
 }
