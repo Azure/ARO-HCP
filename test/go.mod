@@ -91,7 +91,7 @@ require (
 	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20261015161319-19f2993c1807 // indirect
 	github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20261015161319-19f2993c1807 // indirect
 	github.com/Azure/ARO-Tools/tools/helm v0.0.0-20261015161319-19f2993c1807 // indirect
-	github.com/Azure/ARO-Tools/tools/istio-upgrade v0.0.0-20261015161319-19f2993c1807 // indirect
+	github.com/Azure/ARO-Tools/tools/istio-upgrade v0.0.0-20261026080510-e37eb4c5f882 // indirect
 	github.com/Azure/ARO-Tools/tools/kustoctl v0.0.0-20261015161319-19f2993c1807 // indirect
 	github.com/Azure/ARO-Tools/tools/registration v0.0.0-20261015161319-19f2993c1807 // indirect
 	github.com/Azure/ARO-Tools/tools/secret-sync v0.0.0-20261015161319-19f2993c1807 // indirect
