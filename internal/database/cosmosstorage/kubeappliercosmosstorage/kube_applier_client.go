@@ -348,7 +348,7 @@ type kubeApplierDBClients struct {
 	url                string
 	databaseName       string
 	options            cosmosclient.Options
-	bucketForContainer func(string) (*cosmosratelimit.TokenBucket, error)
+	bucketForContainer func(string, int32) (*cosmosratelimit.TokenBucket, error)
 
 	// The lister resolves uncached clients; successful clients are process-lifetime snapshots.
 	mcLister ManagementClusterLister
@@ -367,7 +367,7 @@ var _ KubeApplierDBClients = &kubeApplierDBClients{}
 // cached on first access via For(). bucketForContainer must retain the same
 // budget for repeated lookups of a container, and may assign independent budgets
 // to different containers. The actual container client requires a TokenBucket.
-func NewKubeApplierDBClients(url, databaseName string, options cosmosclient.Options, bucketForContainer func(string) (*cosmosratelimit.TokenBucket, error), mcLister ManagementClusterLister) KubeApplierDBClients {
+func NewKubeApplierDBClients(url, databaseName string, options cosmosclient.Options, bucketForContainer func(string, int32) (*cosmosratelimit.TokenBucket, error), mcLister ManagementClusterLister) KubeApplierDBClients {
 	if bucketForContainer == nil {
 		panic("kube-applier storage clients require a token bucket provider")
 	}
@@ -412,7 +412,7 @@ func (c *kubeApplierDBClients) For(ctx context.Context, managementClusterResourc
 		logger.Info("management cluster found but Status.KubeApplierCosmosContainerName is empty; kube-applier client cannot be built and per-cluster ReadDesires will not be written")
 		return nil, fmt.Errorf("management cluster %s: KubeApplierCosmosContainerName is empty", managementClusterResourceID)
 	}
-	bucket, err := c.bucketForContainer(containerName)
+	bucket, err := c.bucketForContainer(containerName, mc.Status.KubeApplierCosmosContainerMaxScale)
 	if err != nil {
 		logger.Error(err, "failed to resolve kube-applier Cosmos RU budget", "containerName", containerName)
 		return nil, fmt.Errorf("management cluster %s container %s: resolve Cosmos RU budget: %w", managementClusterResourceID, containerName, err)

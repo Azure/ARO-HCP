@@ -72,7 +72,7 @@ func newFakeMC(t *testing.T, stampIdentifier, containerName, consumerName string
 // TestKubeApplierDBClients_ForReturnsNilForUnknownMC documents the contract: an
 // unknown resourceID yields nil so callers can decide how to handle the gap.
 func TestKubeApplierDBClients_ForReturnsNilForUnknownMC(t *testing.T) {
-	clients := NewKubeApplierDBClients("https://cosmos.test", "test", cosmosclient.Options{}, func(string) (*cosmosratelimit.TokenBucket, error) {
+	clients := NewKubeApplierDBClients("https://cosmos.test", "test", cosmosclient.Options{}, func(string, int32) (*cosmosratelimit.TokenBucket, error) {
 		return cosmosratelimit.NewUnlimitedTokenBucket("test"), nil
 	}, &fakeManagementClusterLister{})
 	rid := mustParseResourceIDForKubeApplierTest(t, "/providers/microsoft.redhatopenshift/stamps/1/managementclusters/default")
@@ -89,7 +89,7 @@ func TestKubeApplierDBClients_ForUsesLister_ReturnsNilWhenMissing(t *testing.T) 
 	lister := &fakeManagementClusterLister{
 		mcs: []*fleetapi.ManagementCluster{newFakeMC(t, "present", "container-a", "mc-a")},
 	}
-	clients := NewKubeApplierDBClients("https://cosmos.test", "test", cosmosclient.Options{}, func(string) (*cosmosratelimit.TokenBucket, error) {
+	clients := NewKubeApplierDBClients("https://cosmos.test", "test", cosmosclient.Options{}, func(string, int32) (*cosmosratelimit.TokenBucket, error) {
 		return cosmosratelimit.NewUnlimitedTokenBucket("test"), nil
 	}, lister)
 
@@ -105,7 +105,7 @@ func TestKubeApplierDBClients_ForUsesLister_ReturnsNilWhenMissing(t *testing.T) 
 // lister, and unknown-rid lookups consistently return nil. Run under -race to
 // verify the mutex actually protects the maps.
 func TestKubeApplierDBClients_ForIsThreadSafe_UnknownReturnsNilUnderRace(t *testing.T) {
-	clients := NewKubeApplierDBClients("https://cosmos.test", "test", cosmosclient.Options{}, func(string) (*cosmosratelimit.TokenBucket, error) {
+	clients := NewKubeApplierDBClients("https://cosmos.test", "test", cosmosclient.Options{}, func(string, int32) (*cosmosratelimit.TokenBucket, error) {
 		return cosmosratelimit.NewUnlimitedTokenBucket("test"), nil
 	}, &fakeManagementClusterLister{})
 	rid := mustParseResourceIDForKubeApplierTest(t, "/providers/microsoft.redhatopenshift/stamps/1/managementclusters/default")
@@ -141,7 +141,7 @@ func TestKubeApplierClientFailuresAreNotAbsenceOrCached(t *testing.T) {
 			credential, err := azcosmos.NewKeyCredential("ZmFrZQ==")
 			require.NoError(t, err)
 			failed := true
-			clients := NewKubeApplierDBClients("https://cosmos.test", "test", cosmosclient.Options{KeyCredential: &credential}, func(string) (*cosmosratelimit.TokenBucket, error) {
+			clients := NewKubeApplierDBClients("https://cosmos.test", "test", cosmosclient.Options{KeyCredential: &credential}, func(string, int32) (*cosmosratelimit.TokenBucket, error) {
 				if failed && failure == "bucket" {
 					return nil, injected
 				}
@@ -205,7 +205,7 @@ func TestKubeApplierClientLookupCompatibility(t *testing.T) {
 			require.NoError(t, err)
 			lister := &fakeManagementClusterLister{mcs: testCase.clusters}
 			var containerNames []string
-			clients := NewKubeApplierDBClients("https://cosmos.test", "test", cosmosclient.Options{KeyCredential: &credential}, func(containerName string) (*cosmosratelimit.TokenBucket, error) {
+			clients := NewKubeApplierDBClients("https://cosmos.test", "test", cosmosclient.Options{KeyCredential: &credential}, func(containerName string, _ int32) (*cosmosratelimit.TokenBucket, error) {
 				containerNames = append(containerNames, containerName)
 				return cosmosratelimit.NewUnlimitedTokenBucket("test"), nil
 			}, lister)
@@ -242,7 +242,7 @@ func TestKubeApplierClientCacheCompatibility(t *testing.T) {
 			credential, err := azcosmos.NewKeyCredential("ZmFrZQ==")
 			require.NoError(t, err)
 			budgetCalls := 0
-			clients := NewKubeApplierDBClients("https://cosmos.test", "test", cosmosclient.Options{KeyCredential: &credential}, func(string) (*cosmosratelimit.TokenBucket, error) {
+			clients := NewKubeApplierDBClients("https://cosmos.test", "test", cosmosclient.Options{KeyCredential: &credential}, func(string, int32) (*cosmosratelimit.TokenBucket, error) {
 				budgetCalls++
 				return cosmosratelimit.NewUnlimitedTokenBucket("test"), nil
 			}, lister).(*kubeApplierDBClients)

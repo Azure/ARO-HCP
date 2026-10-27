@@ -47,7 +47,7 @@ func TestDumpKubeApplierInventoryUnavailable(t *testing.T) {
 			if failure != nil {
 				require.ErrorIs(t, err, failure)
 			} else {
-				require.NoError(t, err)
+				require.ErrorContains(t, err, "inventory unavailable")
 			}
 		})
 	}

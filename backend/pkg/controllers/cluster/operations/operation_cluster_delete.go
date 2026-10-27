@@ -270,25 +270,27 @@ func (c *operationClusterDelete) buildDeletionTimeoutMessage(ctx context.Context
 		states = append(states, currState.WithSource("resourceTeardown"))
 	}
 
+	prefix := "cluster deletion did not complete before the deadline"
 	if err := errors.Join(errs...); err != nil {
 		logger.Error(err, "errors building deletion timeout message")
+		prefix += "; deletion diagnostics incomplete"
 	}
 	if len(states) == 0 {
-		return "cluster deletion did not complete before the deadline"
+		return prefix
 	}
 	slices.SortStableFunc(states, operationbase.CompareOperationState)
 
 	picked, err := operationbase.PickWorstOperationState(states)
 	if err != nil {
 		logger.Error(err, "failed to pick worst deletion state")
-		return "cluster deletion did not complete before the deadline"
+		return prefix
 	}
 
 	message := picked.Message
 	if len(message) == 0 {
-		return "cluster deletion did not complete before the deadline"
+		return prefix
 	}
-	return fmt.Sprintf("cluster deletion did not complete before the deadline; %s", message)
+	return fmt.Sprintf("%s; %s", prefix, message)
 }
 
 // TODO scale this out better. We likely want something we can aggregate, e.g. a UserFacingDeleteProgress condition.
@@ -350,7 +352,6 @@ func (c *operationClusterDelete) shouldCountChild(child *cosmosstorageutils.Type
 }
 
 func (c *operationClusterDelete) remainingDescendantResources(ctx context.Context, cluster *coreapi.Cluster) (*operationbase.OperationState, error) {
-	logger := utils.LoggerFromContext(ctx)
 	typeCounts := map[string]int{}
 
 	resourcesCRUD, err := c.resourcesDBClient.UntypedCRUD(*cluster.ID)
@@ -363,7 +364,7 @@ func (c *operationClusterDelete) remainingDescendantResources(ctx context.Contex
 
 	spc, err := c.resourcesDBClient.ServiceProviderClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName, cluster.ID.Name).Get(ctx, coreapi.ServiceProviderClusterResourceName)
 	if err != nil && !cosmosstorageutils.IsNotFoundError(err) {
-		logger.Error(err, "failed to get ServiceProviderCluster for kube-applier resource count")
+		return nil, fmt.Errorf("get ServiceProviderCluster for kube-applier resource count: %w", err)
 	}
 	if spc != nil && spc.Status.ManagementClusterResourceID != nil {
 		kaClient, err := c.kubeApplierDBClients.For(ctx, spc.Status.ManagementClusterResourceID)
@@ -375,9 +376,9 @@ func (c *operationClusterDelete) remainingDescendantResources(ctx context.Contex
 		}
 		kaCRUD, kaErr := kaClient.UntypedCRUD(*cluster.ID)
 		if kaErr != nil {
-			logger.Error(kaErr, "failed to create kube-applier untyped CRUD")
+			return nil, fmt.Errorf("create kube-applier untyped CRUD: %w", kaErr)
 		} else if err := countDescendants(ctx, kaCRUD, c.shouldCountChild, typeCounts); err != nil {
-			logger.Error(err, "failed to count kube-applier descendant resources")
+			return nil, fmt.Errorf("count kube-applier descendant resources: %w", err)
 		}
 	}
 

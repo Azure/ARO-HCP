@@ -18,6 +18,11 @@ separate database name/URL inputs. Backend discovers the endpoint and canonical
 SQL database through ARM using its managed identity, which requires account-scoped
 Reader in addition to existing Cosmos data-plane permissions.
 
+Startup reads configured Resources, Billing and Fleet throughput from ARM;
+kube-applier budgets use each management cluster's registered positive maximum.
+Budgets are cached until restart: update registration and restart backend after
+throughput changes, coordinating decreases to avoid stale larger budgets.
+
 ### Personal DEV Environment deployment
 
 The local code can also be deployed directly into a personal DEV environment by running `make deploy`. Understand that this requires such an environment to be created first via `make personal-dev-env` from the root of the repository.

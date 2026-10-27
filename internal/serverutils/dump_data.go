@@ -168,7 +168,7 @@ func dumpKubeApplierData(
 			continue
 		}
 		if client == nil {
-			mcLogger.Error(nil, "no kube-applier client configured for management cluster; skipping")
+			errs = append(errs, fmt.Errorf("kube-applier inventory unavailable for management cluster %s", mcResourceID))
 			continue
 		}
 

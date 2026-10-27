@@ -602,7 +602,7 @@ func TestNodePoolChildResourcesCleanupController_SyncOnce(t *testing.T) {
 					CosmosMetadata: coreapi.CosmosMetadata{ResourceID: managementClusterResourceID},
 					Status:         fleetapi.ManagementClusterStatus{KubeApplierCosmosContainerName: "container"},
 				}}}
-				syncer.kubeApplierDBClients = kubeappliercosmosstorage.NewKubeApplierDBClients("https://cosmos.test", "test", cosmosclient.Options{KeyCredential: &credential}, func(string) (*cosmosratelimit.TokenBucket, error) {
+				syncer.kubeApplierDBClients = kubeappliercosmosstorage.NewKubeApplierDBClients("https://cosmos.test", "test", cosmosclient.Options{KeyCredential: &credential}, func(string, int32) (*cosmosratelimit.TokenBucket, error) {
 					return nil, tc.clientError
 				}, lister)
 			}
@@ -665,7 +665,7 @@ func TestChildCleanupGateResolutionErrors(t *testing.T) {
 			lister := &fleetlistertesting.SliceManagementClusterLister{ManagementClusters: testCase.managementClusters}
 			credential, err := azcosmos.NewKeyCredential("ZmFrZQ==")
 			require.NoError(t, err)
-			clients := kubeappliercosmosstorage.NewKubeApplierDBClients("https://cosmos.test", "test", cosmosclient.Options{KeyCredential: &credential}, func(string) (*cosmosratelimit.TokenBucket, error) {
+			clients := kubeappliercosmosstorage.NewKubeApplierDBClients("https://cosmos.test", "test", cosmosclient.Options{KeyCredential: &credential}, func(string, int32) (*cosmosratelimit.TokenBucket, error) {
 				return nil, testCase.resolutionError
 			}, lister)
 

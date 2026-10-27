@@ -31,6 +31,7 @@ type databaseAccountsClient interface {
 }
 
 type sqlResourcesClient interface {
+	GetSQLContainerThroughput(context.Context, string, string, string, string, *armcosmos.SQLResourcesClientGetSQLContainerThroughputOptions) (armcosmos.SQLResourcesClientGetSQLContainerThroughputResponse, error)
 	GetSQLDatabase(context.Context, string, string, string, *armcosmos.SQLResourcesClientGetSQLDatabaseOptions) (armcosmos.SQLResourcesClientGetSQLDatabaseResponse, error)
 }
 
@@ -110,4 +111,24 @@ func (account *Account) Discover(ctx context.Context) (*DiscoveredAccount, error
 		return nil, fmt.Errorf("cosmos database must match account name %q", accountName)
 	}
 	return &DiscoveredAccount{resourceGroupName: account.id.ResourceGroupName, sqlResourcesClient: account.sqlResourcesClient, databaseName: *result.Properties.Resource.ID, endpoint: endpoint}, nil
+}
+
+func (account *DiscoveredAccount) ContainerThroughput(ctx context.Context, container string) (float64, error) {
+	ctx, cancel := context.WithTimeout(ctx, time.Minute)
+	defer cancel()
+	result, err := account.sqlResourcesClient.GetSQLContainerThroughput(ctx, account.resourceGroupName, account.databaseName, account.databaseName, container, nil)
+	if err != nil {
+		return 0, fmt.Errorf("get Cosmos container %q throughput: %w", container, err)
+	}
+	if result.Properties != nil && result.Properties.Resource != nil {
+		resource := result.Properties.Resource
+		throughput := resource.Throughput
+		if resource.AutoscaleSettings != nil {
+			throughput = resource.AutoscaleSettings.MaxThroughput
+		}
+		if throughput != nil && *throughput > 0 {
+			return float64(*throughput), nil
+		}
+	}
+	return 0, fmt.Errorf("cosmos container %q has no positive configured throughput", container)
 }
