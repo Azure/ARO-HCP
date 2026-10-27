@@ -840,8 +840,14 @@ spec:
             cpu: 100m
           - containerName: etcd
             deploymentName: etcd
-            memory: 100Mi
-            cpu: 100m
+            # etcd is latency-sensitive: with a 100m CPU request on a contended
+            # management-cluster node it restarts under load, and HyperShift's auto
+            # etcd-recovery is triggered by a single container restart, taking the
+            # control plane down for ~45 minutes (ARO-30373). Give it enough
+            # guaranteed CPU share to survive a loaded node while keeping the
+            # e2e_minimal profile minimal.
+            memory: 512Mi
+            cpu: 500m
           - containerName: ovnkube-control-plane
             deploymentName: ovnkube-control-plane
             memory: 100Mi
