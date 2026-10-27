@@ -104,6 +104,12 @@ competing update branches. PRs are ready for the repository's existing CI/Tide
 auto-merge path; do not request reviewers, add approvals, bypass checks, or
 change merge policy.
 
+Immediately before publication, the trusted guard derives changed paths from
+the proposal's patch and bundle artifacts and rechecks every open PR targeting
+`main`, regardless of author or labels. It defers overlapping proposals, including
+shared Bingo helpers and the CI image version/Dockerfile pair, and fails closed
+when an artifact or PR file inventory is incomplete.
+
 ## Inspect every pin before selecting work
 
 1. Read `tool-version-open-prs.json`. If an open PR by `aro-hcp-robot[bot]` on
