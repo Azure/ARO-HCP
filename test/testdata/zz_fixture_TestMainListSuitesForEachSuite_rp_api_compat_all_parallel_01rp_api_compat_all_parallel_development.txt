@@ -73,6 +73,7 @@ Engineering want metrics from HCP to be present in Azure Monitor Workspace
 Customer should respect cluster-wide node limits with nodepool autoscaling
 Customer should be able to list available HCP OpenShift versions and validate response content
 SRE should be able to perform alert processing rule CRUD operations
+Customer should be able to source the default ingress serving certificate from an Azure Key Vault and have rotations propagate automatically
 Customer should be able to issue the default ingress serving certificate from Let's Encrypt using cert-manager with ACME DNS-01 challenges for cluster version 5.2
 Customer should be able to issue the default ingress serving certificate from Let's Encrypt using cert-manager with ACME DNS-01 challenges for cluster version 5.3
 Customer should be able to issue the default ingress serving certificate from Let's Encrypt using cert-manager with ACME DNS-01 challenges for cluster version 5.4
