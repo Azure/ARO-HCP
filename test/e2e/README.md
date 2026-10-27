@@ -323,6 +323,13 @@ backend selected for an individual connection.
 ### Shared Directory (SHARED_DIR)
 Set the **SHARED_DIR** environment variable to specify a directory for sharing files between different CI steps or test invocations. This directory is used for storing files that need to be accessed across multiple test runs or scripts.
 
+### Cluster-creation start pacing (ARO_HCP_E2E_CLUSTER_CREATE_PACING)
+Set the **ARO_HCP_E2E_CLUSTER_CREATE_PACING** environment variable to "<max>/<window>" (default "12/6m") to rate-limit HCP cluster-creation *starts* across the spec subprocesses of a run. Before a cluster creation begins, the framework records a timestamp in `cluster-create-pacing-state.yaml` inside `ARTIFACT_DIR` (flock-protected, the same shared-state pattern as the managed identities pool) and waits until fewer than `max` starts were recorded within the trailing `window`. Nothing is held for a cluster's lifetime, so a crashed spec strands nothing.
+
+Once the window has filled, a persisted next-admission timestamp additionally spaces subsequent starts at least `window`/`max` apart (one per 30s at the default): without it, the capacity freed by the initial burst aging out would be refilled as another synchronized batch of `max` starts — re-forming the very wave pacing exists to spread. The result is an initial burst of 12 starts, then one start per 30s.
+
+This spreads the synchronized wave of cluster bring-ups that otherwise saturates subscription-level ARM quotas roughly ten minutes after a parallel suite starts — the trigger behind the ARO-29937 ingress/DNS failures. The default delays nothing in runs with fewer than 12 concurrent cluster creations. "0", "off" or "disabled" turns pacing off, and pacing is off entirely when `ARTIFACT_DIR` is unset. The pacer fails open: state-file errors or a wait exceeding 30 minutes proceed unpaced, and only context cancellation while waiting aborts the creation. The wait happens before the per-call creation timeout is armed, so it consumes the spec's budget rather than `ClusterCreationTimeout`.
+
 ### Azure Location (LOCATION)
 Set the **LOCATION** environment variable to the Azure region (e.g., "uksouth") where resources should be provisioned and tests should run. This allows you to control the geographic location of your test resources.
 
