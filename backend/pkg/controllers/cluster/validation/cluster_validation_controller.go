@@ -210,18 +210,8 @@ func (c *clusterValidationSyncer) SyncOnce(ctx context.Context, key controllerut
 	} else {
 		previousCondition := meta.FindStatusCondition(existingServiceProviderCluster.Status.Validations, c.validation.Name())
 		desiredCondition := result.ToCondition(c.validation.Name())
-		// A transient role-assignment lookup failure must not end an established
-		// propagation deferral: keep the Pending reason while its evidence can still
-		// be valid, so the operations controller keeps holding the operation open.
-		desiredCondition = validationutils.PreservePropagationDeferral(previousCondition, desiredCondition, time.Now())
-
 		consecutiveUnknowns := c.trackConsecutiveUnknowns(key, desiredCondition)
-		// A propagation-pending result bypasses the consecutive-Unknown suppression: the
-		// condition it would be hidden behind is an older stored failure, and the
-		// operation controllers can terminally fail on that stale failure while the
-		// propagation deferral that would hold them open is never stored. Other Unknown
-		// results keep the normal suppression.
-		if c.shouldWriteCondition(previousCondition, consecutiveUnknowns) || validationutils.IsPropagationPending(desiredCondition) {
+		if c.shouldWriteCondition(previousCondition, consecutiveUnknowns) {
 			meta.SetStatusCondition(&replacement.Status.Validations, desiredCondition)
 		}
 	}

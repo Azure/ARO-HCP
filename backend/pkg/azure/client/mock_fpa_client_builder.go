@@ -350,6 +350,45 @@ func (c *MockFirstPartyApplicationClientBuilderRoleAssignmentsClientCall) DoAndR
 	return c
 }
 
+// RoleDefinitionsClient mocks base method.
+func (m *MockFirstPartyApplicationClientBuilder) RoleDefinitionsClient(tenantID string) (RoleDefinitionsClient, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RoleDefinitionsClient", tenantID)
+	ret0, _ := ret[0].(RoleDefinitionsClient)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// RoleDefinitionsClient indicates an expected call of RoleDefinitionsClient.
+func (mr *MockFirstPartyApplicationClientBuilderMockRecorder) RoleDefinitionsClient(tenantID any) *MockFirstPartyApplicationClientBuilderRoleDefinitionsClientCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RoleDefinitionsClient", reflect.TypeOf((*MockFirstPartyApplicationClientBuilder)(nil).RoleDefinitionsClient), tenantID)
+	return &MockFirstPartyApplicationClientBuilderRoleDefinitionsClientCall{Call: call}
+}
+
+// MockFirstPartyApplicationClientBuilderRoleDefinitionsClientCall wrap *gomock.Call
+type MockFirstPartyApplicationClientBuilderRoleDefinitionsClientCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockFirstPartyApplicationClientBuilderRoleDefinitionsClientCall) Return(arg0 RoleDefinitionsClient, arg1 error) *MockFirstPartyApplicationClientBuilderRoleDefinitionsClientCall {
+	c.Call = c.Call.Return(arg0, arg1)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockFirstPartyApplicationClientBuilderRoleDefinitionsClientCall) Do(f func(string) (RoleDefinitionsClient, error)) *MockFirstPartyApplicationClientBuilderRoleDefinitionsClientCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockFirstPartyApplicationClientBuilderRoleDefinitionsClientCall) DoAndReturn(f func(string) (RoleDefinitionsClient, error)) *MockFirstPartyApplicationClientBuilderRoleDefinitionsClientCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
 // UsageClient mocks base method.
 func (m *MockFirstPartyApplicationClientBuilder) UsageClient(tenantID, subscriptionID string) (UsageClient, error) {
 	m.ctrl.T.Helper()

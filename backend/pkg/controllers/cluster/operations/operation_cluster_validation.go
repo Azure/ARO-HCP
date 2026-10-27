@@ -28,7 +28,6 @@ import (
 	"k8s.io/component-base/metrics/legacyregistry"
 
 	operationbase "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
-	"github.com/Azure/ARO-HCP/backend/pkg/utils/validationutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -37,13 +36,9 @@ import (
 // clusterValidationFailureTimeout is how long a validation must have been continuously failing,
 // on an operation at least as old, before the operation is failed terminally.
 //
-// It encodes "if this has not resolved itself by now, it never will, so fail and let the customer
-// act". Ten minutes keeps that promise quick: a failed create or update is cheap to retry
-// relative to holding an operation open against an eventually-consistent Azure control plane.
-// Raising it further is not the right fix for a slow dependency — #6495 and #7218 both widened
-// this window blindly and were each re-defeated by a longer tail. Diagnose the specific cause and
-// report it (see missingPermissionsPendingPropagationReason) rather than waiting longer.
-const clusterValidationFailureTimeout = 10 * time.Minute
+// Fifteen minutes gives the documented typical Azure RBAC propagation time (~10 minutes)
+// some margin without extending a genuine missing-permission error to the operation deadline.
+const clusterValidationFailureTimeout = 15 * time.Minute
 
 var (
 	// validationStaleProbeDeferrals counts operation evaluations in which a
@@ -141,13 +136,4 @@ func clusterValidationOperationState(serviceProviderCluster *coreapi.ServiceProv
 		})
 	}
 	return state
-}
-
-// isPropagationPending reports whether a non-passing validation condition represents a known
-// Azure RBAC propagation delay rather than a customer-actionable problem. These conditions are
-// Unknown (not False) and carry the RoleAssignmentPropagationPending reason; they hold the
-// operation in Provisioning but do not terminally fail it, because the role assignments the
-// customer already created will eventually take effect.
-func isPropagationPending(validation metav1.Condition) bool {
-	return validationutils.IsPropagationPending(validation)
 }

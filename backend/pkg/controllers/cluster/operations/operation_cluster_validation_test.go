@@ -354,32 +354,3 @@ func TestOperationClusterCreate_ClusterValidationNotCached(t *testing.T) {
 	assert.Equal(t, coreapi.CloudErrorCodeInternalServerError, got.CloudErrorCode)
 	assert.Equal(t, "ServiceProviderCluster not cached yet", got.Message)
 }
-
-// TestClusterValidationPropagationDeferralGate pins both sides of the propagation-deferral
-// contract at the operation gate: an established RoleAssignmentPropagationPending condition
-// holds the operation open regardless of age, while a RoleAssignmentPropagationCheckFailed
-// condition is not a deferral and fails the operation once old enough. That asymmetry is why
-// the validation syncer must preserve the Pending reason across transient lookup failures
-// (see validationutils.PreservePropagationDeferral): a single ARM 5xx must not terminally
-// fail an operation whose permissions were already granted and are still propagating.
-func TestClusterValidationPropagationDeferralGate(t *testing.T) {
-	t.Parallel()
-	now := operationtesting.MustParseTime("2026-09-23T12:00:00Z")
-	spc := &coreapi.ServiceProviderCluster{Status: coreapi.ServiceProviderClusterStatus{
-		Validations: []metav1.Condition{{
-			Type:               "DataPlaneIdentitiesPermissions",
-			Status:             metav1.ConditionUnknown,
-			Reason:             "RoleAssignmentPropagationPending",
-			LastTransitionTime: metav1.NewTime(now.Add(-time.Hour)),
-		}},
-	}}
-
-	assert.Equal(t, coreapi.ProvisioningStateProvisioning,
-		clusterValidationOperationState(spc, now.Add(-time.Hour), now).ProvisioningState,
-		"an established propagation deferral holds the operation open")
-
-	spc.Status.Validations[0].Reason = "RoleAssignmentPropagationCheckFailed"
-	assert.Equal(t, coreapi.ProvisioningStateFailed,
-		clusterValidationOperationState(spc, now.Add(-time.Hour), now).ProvisioningState,
-		"a lookup-failure condition is not a deferral and fails the operation once old enough")
-}

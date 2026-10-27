@@ -680,6 +680,7 @@ func instantiateControlPlaneIdentitiesPermissionsValidationController(controller
 			controllerContext.MIDataplaneBasedIdentityAccessTokenRetrieverBuilder,
 			controllerContext.CloudEnvironment.CheckAccessV2Scope(),
 			newRoleAssignmentPropagationDetector(controllerContext),
+			serviceProviderClusterLister,
 		),
 		controllerContext.ResourcesDBClient,
 		serviceProviderClusterLister,

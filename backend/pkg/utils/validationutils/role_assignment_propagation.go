@@ -17,17 +17,18 @@ package validationutils
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/component-base/metrics/legacyregistry"
 	utilsclock "k8s.io/utils/clock"
 	"k8s.io/utils/ptr"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v2"
 	azurecheckaccessv2client "github.com/Azure/checkaccess-v2-go-sdk/client"
 
@@ -35,16 +36,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-// DefaultRoleAssignmentPropagationWindow is how long after a role assignment is created that a
-// NotAllowed CheckAccessV2 decision for its principal is attributed to Azure RBAC propagation
-// delay rather than to a genuinely missing permission. Azure documents propagation of up to
-// ~10 minutes in most cases with no guarantee; the longest delay measured on this validation
-// path is ~31 minutes (ARO-30179, 2026-10-20; AROSLSRE-2484 tracks measuring the tail), so the
-// window is sized to cover that with margin.
-//
-// The window only selects which failure the customer is told about. It never extends how long an
-// operation runs: a permission validation that keeps failing still fails the operation on the
-// usual schedule whether or not propagation explains it.
+// DefaultRoleAssignmentPropagationWindow limits how long a matching grant can be considered
+// potential propagation evidence. It changes the failure guidance, not the operation deadline.
 const DefaultRoleAssignmentPropagationWindow = 60 * time.Minute
 
 // roleAssignmentPropagationRetryAfter is how soon a permission validation attributed to
@@ -53,10 +46,6 @@ const DefaultRoleAssignmentPropagationWindow = 60 * time.Minute
 // recovers on its own, without the customer having to retry at all.
 const roleAssignmentPropagationRetryAfter = 30 * time.Second
 
-// missingPermissionsPendingPropagationReason is the Failed reason used when the missing
-// permissions are explained by recently created role assignments. It is distinct from the plain
-// MissingRequiredPermissions reason so that the two cases are separable in conditions, logs and
-// support escalations, even though both are terminal failures on the same schedule.
 const missingPermissionsPendingPropagationReason = "RoleAssignmentPropagationPending"
 
 // propagationCheckFailedReason is the Unknown reason reported when the role-assignment
@@ -65,21 +54,18 @@ const missingPermissionsPendingPropagationReason = "RoleAssignmentPropagationPen
 const propagationCheckFailedReason = "RoleAssignmentPropagationCheckFailed"
 
 var (
-	// roleAssignmentPropagationDetections counts permission validation runs whose missing
-	// permissions were all backed by a recently created role assignment, and which therefore
-	// failed with propagation guidance instead of the plain missing-permissions message.
+	// roleAssignmentPropagationDetections counts runs where every missing action has a recent
+	// matching role grant and the failure carries propagation guidance.
 	roleAssignmentPropagationDetections = promauto.With(legacyregistry.Registerer()).NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "backend_cluster_validation_rbac_propagation_detections_total",
-			Help: "Total number of permission validation failures attributed to recently created role assignments that may still be propagating.",
+			Help: "Total number of permission validation runs with recent covering role grants that may still be propagating.",
 		},
 		[]string{"validation"},
 	)
 
-	// roleAssignmentPropagationLookupErrors counts failures to look up role assignments (or, for
-	// control plane identities, their principal IDs) while checking for propagation. The
-	// validation still reports its plain missing-permissions failure; see
-	// recordPropagationCheckFailure.
+	// roleAssignmentPropagationLookupErrors counts failures to look up role assignments or
+	// role definitions while checking for propagation guidance.
 	roleAssignmentPropagationLookupErrors = promauto.With(legacyregistry.Registerer()).NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "backend_cluster_validation_rbac_propagation_lookup_errors_total",
@@ -88,11 +74,8 @@ var (
 		[]string{"validation"},
 	)
 
-	// roleAssignmentPropagationLookupForbidden counts role assignment (or principal ID) lookups
-	// that were rejected as unauthorized. It is tracked separately from other lookup failures
-	// because it is an ARO-side gap — the first-party application is missing
-	// Microsoft.Authorization/roleAssignments/read on a scope the permission validations check —
-	// rather than a transient fault, and it silently disables the propagation guidance.
+	// roleAssignmentPropagationLookupForbidden counts role-assignment or role-definition
+	// lookups rejected as unauthorized, which disables propagation guidance.
 	roleAssignmentPropagationLookupForbidden = promauto.With(legacyregistry.Registerer()).NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "backend_cluster_validation_rbac_propagation_lookup_forbidden_total",
@@ -101,51 +84,17 @@ var (
 		[]string{"validation"},
 	)
 
-	// roleAssignmentPropagationWindowExpired counts permission validation runs that reported Failed
-	// even though every missing permission was covered by a role assignment created within twice
-	// the propagation window, with at least one only older than the window. A sustained rate
-	// suggests the window is too short for observed propagation delays. It is a tuning signal, not
-	// proof: a cluster that is genuinely misconfigured can also have a recent, unrelated assignment.
+	// roleAssignmentPropagationWindowExpired counts checks with matching grants younger than twice
+	// the window but at least one older than the window. This is a tuning signal, not proof of lag.
 	roleAssignmentPropagationWindowExpired = promauto.With(legacyregistry.Registerer()).NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "backend_cluster_validation_rbac_propagation_window_expired_total",
-			Help: "Total number of permission validation runs that failed while every missing permission was covered by a role assignment created within twice the propagation window but at least one was older than the window.",
+			Help: "Total number of permission validation runs with covering role grants created within twice the propagation window but at least one older than the window.",
 		},
 		[]string{"validation"},
 	)
 )
 
-// RoleAssignmentPropagationDetector decides whether missing permissions reported by CheckAccessV2
-// can be explained by role assignments that were created recently and have not yet propagated.
-//
-// Azure RBAC is eventually consistent: a role assignment is visible through the ARM API before
-// authorization decisions honour it. Customers commonly create the cluster's role assignments
-// immediately before creating the cluster, so a permission validation that runs in that gap
-// reports a MissingRequiredPermissions failure naming permissions the customer has in fact
-// already granted — leaving them nothing to act on.
-//
-// The detector does not change whether such a validation fails, only what the failure says. When
-// it attributes the missing permissions to propagation, the customer is told that the grant is
-// in flight and that retrying is sufficient, instead of being told to fix permissions that are
-// already correct.
-//
-// The detector is deliberately conservative. It only reports propagation as the likely cause
-// when every missing (resource, identity) pair:
-//   - has only NotAllowed decisions (an explicit Denied comes from a deny assignment and is never
-//     a propagation artifact), and
-//   - has at least one role assignment for the identity's principal, at or above the resource
-//     scope, created within the propagation window.
-//
-// Any role definition is accepted as evidence because customers may grant equivalent built-in or
-// custom roles; the propagation window bounds how long an assignment counts as evidence.
-//
-// Limitation: the detector does not resolve the assigned role's definition to verify that it
-// grants the specific missing actions. A recent Reader assignment therefore qualifies as
-// propagation evidence even when the missing permission is a write action, which can delay a
-// terminal failure for a genuinely misconfigured cluster. The propagation window bounds this
-// exposure, and the window-expired metric surfaces clusters where the deferral outlived the
-// window. Resolving role definitions would require an additional ARM API call per missing
-// permission and is tracked as a follow-up.
 type RoleAssignmentPropagationDetector struct {
 	fpaClientBuilder azureclient.FirstPartyApplicationClientBuilder
 	window           time.Duration
@@ -180,39 +129,50 @@ type propagationEvidenceResult struct {
 }
 
 // findPropagationEvidence checks whether every entry in missing can be attributed to propagation.
-// principalIDs maps the lowercased identity resource ID to its Entra principal ID. A nil detector
-// never finds evidence.
+// principalIDs maps the lowercased identity resource ID to its Entra principal ID.
 func (d *RoleAssignmentPropagationDetector) findPropagationEvidence(ctx context.Context, tenantID string, missing []*identityResourceMissingPermissions, principalIDs map[string]string) (propagationEvidenceResult, error) {
-	if d == nil || len(missing) == 0 {
+	if len(missing) == 0 {
 		return propagationEvidenceResult{}, nil
 	}
 	for _, entry := range missing {
 		if !onlyNotAllowedDecisions(entry.Decisions) {
 			return propagationEvidenceResult{}, nil
 		}
-		if _, ok := principalIDs[strings.ToLower(entry.Identity.String())]; !ok {
+		if principalIDs[strings.ToLower(entry.Identity.String())] == "" {
 			return propagationEvidenceResult{}, nil
 		}
 	}
 
 	clients := map[string]azureclient.RoleAssignmentsClient{}
+	roleDefinitions := map[string]armauthorization.RoleDefinition{}
+	assignmentsByPrincipal := map[string][]*armauthorization.RoleAssignment{}
 	now := d.clock.Now()
 	evidence := make([]roleAssignmentPropagationEvidence, 0, len(missing))
 	windowExpired := false
 	for _, entry := range missing {
 		subscriptionID := entry.Resource.SubscriptionID
-		client, ok := clients[subscriptionID]
+		principalID := principalIDs[strings.ToLower(entry.Identity.String())]
+		cacheKey := strings.ToLower(subscriptionID + "/" + principalID)
+		assignments, ok := assignmentsByPrincipal[cacheKey]
 		if !ok {
-			var err error
-			client, err = d.fpaClientBuilder.RoleAssignmentsClient(tenantID, subscriptionID)
-			if err != nil {
-				return propagationEvidenceResult{}, utils.TrackError(fmt.Errorf("failed to build role assignments client for subscription %q: %w", subscriptionID, err))
+			client, exists := clients[subscriptionID]
+			if !exists {
+				var err error
+				client, err = d.fpaClientBuilder.RoleAssignmentsClient(tenantID, subscriptionID)
+				if err != nil {
+					return propagationEvidenceResult{}, utils.TrackError(fmt.Errorf("failed to build role assignments client for subscription %q: %w", subscriptionID, err))
+				}
+				clients[subscriptionID] = client
 			}
-			clients[subscriptionID] = client
+			var err error
+			assignments, err = d.listAssignments(ctx, client, "/subscriptions/"+subscriptionID, principalID)
+			if err != nil {
+				return propagationEvidenceResult{}, err
+			}
+			assignmentsByPrincipal[cacheKey] = assignments
 		}
 
-		principalID := principalIDs[strings.ToLower(entry.Identity.String())]
-		found, expired, err := d.mostRecentAssignment(ctx, client, entry.Resource.String(), principalID, now)
+		found, expired, err := d.mostRecentAssignment(ctx, tenantID, assignments, entry, principalID, now, roleDefinitions)
 		if err != nil {
 			return propagationEvidenceResult{}, err
 		}
@@ -236,34 +196,110 @@ func (d *RoleAssignmentPropagationDetector) findPropagationEvidence(ctx context.
 	return propagationEvidenceResult{Evidence: evidence}, nil
 }
 
-// mostRecentAssignment returns the most recently created role assignment for principalID at or
-// above scope that falls within the propagation window, or nil if there is none. When there is
-// none, expired reports whether a covering assignment was created within twice the window.
-func (d *RoleAssignmentPropagationDetector) mostRecentAssignment(ctx context.Context, client azureclient.RoleAssignmentsClient, scope string, principalID string, now time.Time) (*armauthorization.RoleAssignment, bool, error) {
-	filter := fmt.Sprintf("principalId eq '%s'", principalID)
+func (d *RoleAssignmentPropagationDetector) listAssignments(ctx context.Context, client azureclient.RoleAssignmentsClient, scope string, principalID string) ([]*armauthorization.RoleAssignment, error) {
+	filter := url.QueryEscape(fmt.Sprintf("principalId eq '%s'", principalID))
 	pager := client.NewListForScopePager(scope, &armauthorization.RoleAssignmentsClientListForScopeOptions{Filter: &filter})
 
-	var mostRecent *armauthorization.RoleAssignment
-	expired := false
+	var assignments []*armauthorization.RoleAssignment
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			return nil, false, utils.TrackError(fmt.Errorf("failed to list role assignments for scope %q: %w", scope, err))
+			return nil, utils.TrackError(fmt.Errorf("failed to list role assignments for scope %q: %w", scope, err))
 		}
-		for _, assignment := range page.Value {
-			if !isRecentCoveringAssignment(assignment, scope, principalID, now, 2*d.window) {
-				continue
+		assignments = append(assignments, page.Value...)
+	}
+	return assignments, nil
+}
+
+func (d *RoleAssignmentPropagationDetector) mostRecentAssignment(ctx context.Context, tenantID string, assignments []*armauthorization.RoleAssignment, entry *identityResourceMissingPermissions, principalID string, now time.Time, roleDefinitions map[string]armauthorization.RoleDefinition) (*armauthorization.RoleAssignment, bool, error) {
+	var mostRecent *armauthorization.RoleAssignment
+	expired := false
+	for _, assignment := range assignments {
+		if !isRecentCoveringAssignment(assignment, entry.Resource.String(), principalID, now, 2*d.window) {
+			continue
+		}
+		if assignment.Properties.RoleDefinitionID == nil || assignment.Properties.Condition != nil || assignment.Properties.DelegatedManagedIdentityResourceID != nil {
+			continue
+		}
+		roleID := *assignment.Properties.RoleDefinitionID
+		parsed, err := azcorearm.ParseResourceID(roleID)
+		if err != nil || !strings.EqualFold(parsed.ResourceType.String(), "Microsoft.Authorization/roleDefinitions") ||
+			(parsed.SubscriptionID != "" && !strings.EqualFold(parsed.SubscriptionID, entry.Resource.SubscriptionID)) {
+			continue
+		}
+		role, ok := roleDefinitions[strings.ToLower(roleID)]
+		if !ok {
+			client, err := d.fpaClientBuilder.RoleDefinitionsClient(tenantID)
+			if err != nil {
+				return nil, false, utils.TrackError(fmt.Errorf("failed to build role definitions client: %w", err))
 			}
-			if now.Sub(*assignment.Properties.CreatedOn) > d.window {
-				expired = true
-				continue
+			response, err := client.GetByID(ctx, roleID, nil)
+			if err != nil {
+				return nil, false, utils.TrackError(fmt.Errorf("failed to get role definition %q: %w", roleID, err))
 			}
-			if mostRecent == nil || assignment.Properties.CreatedOn.After(*mostRecent.Properties.CreatedOn) {
-				mostRecent = assignment
-			}
+			role = response.RoleDefinition
+			roleDefinitions[strings.ToLower(roleID)] = role
+		}
+		if !roleGrantsAllMissingActions(role, entry.Decisions) {
+			continue
+		}
+		if now.Sub(*assignment.Properties.CreatedOn) > d.window {
+			expired = true
+			continue
+		}
+		if mostRecent == nil || assignment.Properties.CreatedOn.After(*mostRecent.Properties.CreatedOn) {
+			mostRecent = assignment
 		}
 	}
 	return mostRecent, mostRecent == nil && expired, nil
+}
+
+func roleGrantsAllMissingActions(role armauthorization.RoleDefinition, decisions []*checkaccessv2AuthorizationDecisionData) bool {
+	if role.Properties == nil || len(role.Properties.Permissions) == 0 {
+		return false
+	}
+	for _, decision := range decisions {
+		if decision == nil || decision.ActionID == "" {
+			return false
+		}
+		covered := false
+		for _, permission := range role.Properties.Permissions {
+			if permission == nil {
+				continue
+			}
+			if decision.IsDataAction && actionGrantedByPermission(decision.ActionID, permission.DataActions, permission.NotDataActions) ||
+				!decision.IsDataAction && actionGrantedByPermission(decision.ActionID, permission.Actions, permission.NotActions) {
+				covered = true
+				break
+			}
+		}
+		if !covered {
+			return false
+		}
+	}
+	return true
+}
+
+func actionGrantedByPermission(action string, allowed, excluded []*string) bool {
+	for _, pattern := range excluded {
+		if pattern != nil && matchesRoleAction(*pattern, action) {
+			return false
+		}
+	}
+	for _, pattern := range allowed {
+		if pattern != nil && matchesRoleAction(*pattern, action) {
+			return true
+		}
+	}
+	return false
+}
+
+func matchesRoleAction(pattern, action string) bool {
+	pattern, action = strings.ToLower(pattern), strings.ToLower(action)
+	if strings.HasSuffix(pattern, "*") {
+		return strings.HasPrefix(action, strings.TrimSuffix(pattern, "*"))
+	}
+	return pattern == action
 }
 
 // isRecentCoveringAssignment reports whether assignment grants principalID a role that is
@@ -286,23 +322,10 @@ func isRecentCoveringAssignment(assignment *armauthorization.RoleAssignment, sco
 	return age >= -time.Minute && age <= window
 }
 
-// scopeCovers reports whether a role assignment at assignmentScope applies to resourceScope.
-// ListForScope without atScope() also returns assignments on child resources, which do not apply
-// to the resource itself and are excluded. Assignments above the subscription (management groups,
-// root) are returned by ARM only when they are ancestors, so they are accepted as-is.
 func scopeCovers(assignmentScope string, resourceScope string) bool {
 	assignment := strings.TrimSuffix(strings.ToLower(assignmentScope), "/")
 	resource := strings.TrimSuffix(strings.ToLower(resourceScope), "/")
-	if assignment == resource || assignment == "" {
-		return true
-	}
-	if strings.HasPrefix(assignment, resource+"/") {
-		return false
-	}
-	if strings.HasPrefix(resource, assignment+"/") {
-		return true
-	}
-	return strings.HasPrefix(assignment, "/providers/microsoft.management/managementgroups/")
+	return assignment != "" && (assignment == resource || strings.HasPrefix(resource, assignment+"/"))
 }
 
 func onlyNotAllowedDecisions(decisions []*checkaccessv2AuthorizationDecisionData) bool {
@@ -331,20 +354,6 @@ func onlyNotAllowedMissingPermissions(missing []*identityResourceMissingPermissi
 	return true
 }
 
-// failureWithPropagationGuidance restates a missing-permissions finding as an Unknown result that
-// tells the customer the permissions they already granted have not taken effect yet and that
-// retrying is all that is needed. It returns false when the caller should report its plain
-// missing-permissions failure: when there is no detector, when the evidence does not attribute
-// every missing permission to propagation, or when the lookup was rejected as unauthorized
-// (HTTP 403 — see recordPropagationCheckFailure). For other lookup errors (throttling, connection
-// resets, ARM server errors) it returns an Unknown result with reason
-// RoleAssignmentPropagationCheckFailed, because we cannot distinguish a genuine missing
-// permission from one that propagation evidence would have explained.
-//
-// The outcome is Unknown (not Failed): a propagation-pending validation holds the operation in
-// Provisioning but does not terminally fail it (see isPropagationPending in the operations
-// controller). The 30-second retry means a propagation tail that clears resolves on its own
-// without the customer having to retry at all.
 func failureWithPropagationGuidance(ctx context.Context, detector *RoleAssignmentPropagationDetector, validationName string, tenantID string, missing []*identityResourceMissingPermissions, principalIDs map[string]string, missingPermissionsMessage string) (ValidationResult, bool) {
 	if detector == nil {
 		return ValidationResult{}, false
@@ -379,67 +388,17 @@ func failureWithPropagationGuidance(ctx context.Context, detector *RoleAssignmen
 	roleAssignmentPropagationDetections.WithLabelValues(validationName).Inc()
 	utils.LoggerFromContext(ctx).Info("missing permissions are covered by recently created role assignments that may still be propagating", "validation", validationName, "window", detector.window.String(), "evidence", formatPropagationEvidence(evidence))
 
-	userMessage := fmt.Sprintf("%s. Role assignments granting these permissions were created recently (most recently at %s) and have not taken effect yet. Azure applies role assignment changes asynchronously, usually within a few minutes but sometimes considerably longer. No configuration change is required: wait for the role assignments to take effect, then retry the operation.",
+	userMessage := fmt.Sprintf("%s. Role assignments that include these permissions were created recently (most recently at %s), but access checks still report them missing. Azure may still be applying the grants. If the role assignments are correct, wait for them to take effect and retry the operation; if this persists, verify the assignments and any deny rules.",
 		missingPermissionsMessage, newestEvidenceTime(evidence).UTC().Format(time.RFC3339))
 	internalMessage := fmt.Sprintf("%s; covered by role assignments created within the last %s that may still be propagating: %s", missingPermissionsMessage, detector.window, formatPropagationEvidence(evidence))
 
-	result := UnknownValidation(
-		missingPermissionsPendingPropagationReason,
-		userMessage,
-		internalMessage,
-		ControllerReportingPolicyTypeLogOnly,
-	)
+	result := FailedValidation(missingPermissionsPendingPropagationReason, userMessage, internalMessage)
 	// Re-check sooner than a plain failure would. A propagation tail that clears inside the
 	// operation's overall budget resolves on its own without customer intervention.
 	result.EarliestRetryAfter = ptr.To(roleAssignmentPropagationRetryAfter)
 	return result, true
 }
 
-// IsPropagationPending reports whether condition represents a detected RBAC propagation
-// delay: an Unknown condition carrying the RoleAssignmentPropagationPending reason. Such
-// conditions hold an operation open (see the operations controller's propagation gate) and
-// must be written to storage as soon as they are detected, not suppressed behind an older
-// stored failure.
-func IsPropagationPending(condition metav1.Condition) bool {
-	return condition.Status == metav1.ConditionUnknown &&
-		condition.Reason == missingPermissionsPendingPropagationReason
-}
-
-// PreservePropagationDeferral keeps an established propagation deferral intact across a
-// transient lookup failure. The operations controller holds an operation open only while
-// its validation condition carries the RoleAssignmentPropagationPending reason; a single
-// ARM 5xx during the lookup would otherwise flip the reason to
-// RoleAssignmentPropagationCheckFailed, and because meta.SetStatusCondition does not
-// refresh LastTransitionTime for a reason-only change, an old condition would terminally
-// fail the operation on the next reconciliation. While the stored deferral is younger
-// than the propagation window — past which its evidence cannot still be valid — a
-// CheckFailed result therefore keeps the Pending reason and only contributes its message.
-// Past the window the CheckFailed reason is written as-is, so a persistent lookup failure
-// still fails the operation on the usual schedule instead of deferring indefinitely.
-func PreservePropagationDeferral(previousCondition *metav1.Condition, desired metav1.Condition, now time.Time) metav1.Condition {
-	if previousCondition == nil ||
-		previousCondition.Status != metav1.ConditionUnknown ||
-		previousCondition.Reason != missingPermissionsPendingPropagationReason ||
-		desired.Status != metav1.ConditionUnknown ||
-		desired.Reason != propagationCheckFailedReason {
-		return desired
-	}
-	if now.Sub(previousCondition.LastTransitionTime.Time) > DefaultRoleAssignmentPropagationWindow {
-		return desired
-	}
-	desired.Reason = missingPermissionsPendingPropagationReason
-	return desired
-}
-
-// recordPropagationCheckFailure records that the missing permissions could not be checked for
-// propagation delay. The caller always reports its plain missing-permissions failure: without the
-// lookup there is no evidence to attribute the failure to propagation, and a validation that is
-// already failing should not be held open on the chance that it might have been attributable.
-//
-// Authorization errors (HTTP 403) are counted separately. They mean the first-party application
-// lacks Microsoft.Authorization/roleAssignments/read on a checked scope, which disables the
-// propagation guidance entirely rather than intermittently, so they need to be distinguishable
-// from transient ARM faults in the metric.
 func recordPropagationCheckFailure(ctx context.Context, validationName string, err error) {
 	if azureclient.IsForbiddenErr(err) {
 		roleAssignmentPropagationLookupForbidden.WithLabelValues(validationName).Inc()

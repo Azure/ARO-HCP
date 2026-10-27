@@ -32,8 +32,8 @@ type RoleAssignmentsClient interface {
 	// (for example "{scope}/providers/Microsoft.Authorization/roleAssignments/{name}").
 	GetByID(ctx context.Context, roleAssignmentID string, options *armauthorization.RoleAssignmentsClientGetByIDOptions) (armauthorization.RoleAssignmentsClientGetByIDResponse, error)
 	Create(ctx context.Context, scope string, roleAssignmentName string, parameters armauthorization.RoleAssignmentCreateParameters, options *armauthorization.RoleAssignmentsClientCreateOptions) (armauthorization.RoleAssignmentsClientCreateResponse, error)
-	// NewListForScopePager lists the role assignments for the given scope. Without an atScope()
-	// filter the result includes assignments at, above, and below the scope.
+	// NewListForScopePager lists role assignments for a scope. The atScope() filter includes
+	// assignments at and above it; principalId eq '{id}' also includes assignments below it.
 	NewListForScopePager(scope string, options *armauthorization.RoleAssignmentsClientListForScopeOptions) *runtime.Pager[armauthorization.RoleAssignmentsClientListForScopeResponse]
 }
 
