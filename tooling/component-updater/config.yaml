@@ -1,0 +1,15 @@
+components:
+  istio-mesh-revision:
+    provider: azure-istio
+    # Pause automatic updates while managing a regional override manually.
+    paused: false
+    locations:
+    # Discover Azure's mesh-supported locations automatically; no list to maintain.
+    # Query mesh catalogs in parallel (up to eight regions at once).
+    # Missing, empty, or failed catalogs block updates; no region is skipped.
+    # The Helm chart can attempt to install this shared version where it does not exist.
+    - all
+    kubernetesVersionPath: defaults.svc.aks.kubernetesVersion
+    targets:
+    - jsonPath: defaults.svc.istio.versions
+      filePath: ../../config/config.yaml

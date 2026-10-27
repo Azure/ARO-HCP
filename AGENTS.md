@@ -4,6 +4,12 @@ Load all of CLAUDE.md for context
 
 For all image bump related tasks, see [tooling/image-updater/AGENTS.md](tooling/image-updater/AGENTS.md).
 
+## Component version bumps
+
+For shared version bumps via `tooling/component-updater` (Istio mesh revision
+today; AKS/Grafana later), see
+[tooling/component-updater/AGENTS.md](tooling/component-updater/AGENTS.md).
+
 ## Operational Troubleshooting Context
 
 When assisting with operational troubleshooting tasks (stuck clusters, deletion issues, resource cleanup), the following context is essential.
