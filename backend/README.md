@@ -13,6 +13,11 @@ The `Makefile` has access to a set of environment variables representing configu
 
 Using the `make run` target, the Backend binary can be run locally.
 
+Set `--cosmos-account-resource-id` or `COSMOS_ACCOUNT_RESOURCE_ID` instead of
+separate database name/URL inputs. Backend discovers the endpoint and canonical
+SQL database through ARM using its managed identity, which requires account-scoped
+Reader in addition to existing Cosmos data-plane permissions.
+
 ### Personal DEV Environment deployment
 
 The local code can also be deployed directly into a personal DEV environment by running `make deploy`. Understand that this requires such an environment to be created first via `make personal-dev-env` from the root of the repository.
