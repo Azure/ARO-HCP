@@ -73,6 +73,7 @@ type capacityReportingSyncer struct {
 func NewCapacityReportingController(
 	readDesireNotifier controllerutils.Notifier,
 	managementClusterInformer cache.SharedIndexInformer,
+	stampInformer cache.SharedIndexInformer,
 	fleetDBClient fleetcosmosstorage.FleetDBClient,
 	readDesireLister kubeapplierlisters.ReadDesireLister,
 	cfg fleetcontrollers.StampWatchingControllerConfig,
@@ -84,11 +85,14 @@ func NewCapacityReportingController(
 
 	controller := fleetcontrollers.NewStampWatchingController(
 		CapacityReportingControllerName,
+		stampInformer,
+		capacityReportingResyncPeriod,
 		syncer,
 		cfg,
 	)
 
-	if err := controller.QueueForInformers(capacityReportingResyncPeriod, readDesireNotifier, managementClusterInformer); err != nil {
+	// Stamp keys already resync once; other inputs only enqueue on changes.
+	if err := controller.QueueForInformers(0, readDesireNotifier, managementClusterInformer); err != nil {
 		panic(err) // coding error
 	}
 

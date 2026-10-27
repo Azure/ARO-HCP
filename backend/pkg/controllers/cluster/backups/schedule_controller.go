@@ -68,7 +68,7 @@ func NewBackupScheduleController(
 
 	_, clusterLister := informers.Clusters()
 	_, serviceProviderClusterLister := informers.ServiceProviderClusters()
-	applyDesireInformer, applyDesireLister := kubeApplierInformers.ApplyDesires()
+	_, applyDesireLister := kubeApplierInformers.ApplyDesires()
 	_, readDesireLister := kubeApplierInformers.ReadDesires()
 
 	syncer := &backupScheduleSyncer{
@@ -96,15 +96,8 @@ func NewBackupScheduleController(
 	controller.AddInterestingResource(kubeapplierapi.ClusterScopedApplyDesireResourceType, "*")
 	controller.AddInterestingResource(kubeapplierapi.ClusterScopedReadDesireResourceType, "*")
 
-	if kubeApplierInformers != nil {
-		// React to ApplyDesire creation so that a missing ReadDesire can be
-		// created promptly rather than waiting for the next resync cycle.
-		// NewClusterWatchingController only wires ReadDesires (which carry
-		// kube-applier status), so we add the ApplyDesire informer here.
-		if err := controller.QueueForInformers(5*time.Minute, applyDesireInformer); err != nil {
-			panic(err)
-		}
-	}
+	// NewClusterWatchingController already watches ApplyDesire changes with no
+	// resync. Resync cluster keys once, not once for every input.
 
 	return controller
 }

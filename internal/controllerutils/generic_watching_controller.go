@@ -195,7 +195,9 @@ func (c *GenericWatchingController[T]) processNextWorkItem(ctx context.Context) 
 }
 
 // QueueForInformers is equivalent to calling QueueForInformersWithMaxDepth with maxDepth of -1.
-// See QueueForInformersWithMaxDepth for more details.
+// Only the key resource should request a resync: resync keys once per interval,
+// not once for every input. Pass 0 for other inputs to receive changes without
+// periodic resyncs. See QueueForInformersWithMaxDepth for more details.
 func (c *GenericWatchingController[T]) QueueForInformers(resyncDuration time.Duration, notifiers ...Notifier) error {
 	return c.QueueForInformersWithMaxDepth(resyncDuration, -1, notifiers...)
 }
@@ -258,7 +260,8 @@ func (c *GenericWatchingController[T]) queueForInformers(resyncDuration time.Dur
 		registration, err := notifier.AddEventHandlerWithOptions(
 			handler,
 			cache.HandlerOptions{
-				Logger:       &logger,
+				Logger: &logger,
+				// An explicit zero disables resync; nil would use the informer default.
 				ResyncPeriod: ptr.To(resyncDuration),
 			})
 		errs = append(errs, err)

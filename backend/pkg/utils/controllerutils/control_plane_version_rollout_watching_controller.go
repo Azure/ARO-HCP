@@ -81,6 +81,8 @@ func NewControlPlaneVersionRolloutWatchingController(
 	// Nil informers is the "no triggering" mode used by unit tests.
 	if fleetInformers != nil {
 		rolloutInformer, _ := fleetInformers.ControlPlaneVersionRollouts()
+		// Resync only the key resource so each key is resynced once per interval,
+		// not once for every input. Use 0 (no resync) for all other watches.
 		if err := controller.QueueForInformers(resyncDuration, rolloutInformer); err != nil {
 			panic(err) // coding error
 		}
