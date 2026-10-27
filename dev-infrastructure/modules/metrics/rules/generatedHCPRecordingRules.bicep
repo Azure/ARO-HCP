@@ -358,10 +358,6 @@ resource arohcpClusterAutoscalerRecordingRules 'Microsoft.AlertsManagement/prome
         record: 'health:cluster_autoscaler:metrics_availability'
         expression: '(max by (cluster, namespace, region) (present_over_time(cluster_autoscaler_last_activity{activity="main",namespace=~"ocm-.*"}[1m]))) or on (cluster, namespace) ((present_over_time(kas:apiserver_request_total:rate5m{namespace=~"ocm-.*"}[1m]) unless on (cluster, namespace) max by (cluster, namespace, region) (present_over_time(cluster_autoscaler_last_activity{activity="main",namespace=~"ocm-.*"}[1m]))) * 0)'
       }
-      {
-        record: 'health:cluster_autoscaler:fleet_metrics_absent'
-        expression: 'absent_over_time(max without (prometheus_replica) (cluster_autoscaler_last_activity{activity="main",namespace=~"ocm-.*"})[15m:])'
-      }
     ]
   }
 }

@@ -108,7 +108,7 @@ tests:
   - eval_time: 27m
     alertname: UserJourneyClusterAutoscalerSafetyDisabled
 # ========================================
-# Test 6: Scale-up failures — UserJourneyClusterAutoscalerScaleUpFailures fires
+# Test 4: Scale-up failures — UserJourneyClusterAutoscalerScaleUpFailures fires
 # ========================================
 - interval: 1m
   input_series:
@@ -150,7 +150,7 @@ tests:
   - eval_time: 20m
     alertname: UserJourneyClusterAutoscalerErrors
 # ========================================
-# Test 7: Autoscaler internal errors — UserJourneyClusterAutoscalerErrors fires
+# Test 5: Autoscaler internal errors — UserJourneyClusterAutoscalerErrors fires
 # ========================================
 - interval: 1m
   input_series:
@@ -186,10 +186,9 @@ tests:
   - eval_time: 20m
     alertname: UserJourneyClusterAutoscalerScaleUpFailures
 # ========================================
-# Test 8: Unsafe cluster (safe_to_autoscale=0) with pending pods AND headroom.
+# Test 6: Unsafe cluster (safe_to_autoscale=0) with pending pods AND headroom.
 # The autoscaler has disabled itself for safety, so unschedulable pods pile up
-# below max — but ScaleUpStuck must NOT fire (that root cause is owned by
-# SafetyDisabled). Exactly one incident fires: SafetyDisabled.
+# below max. Exactly one incident fires: SafetyDisabled.
 # ========================================
 - interval: 1m
   input_series:

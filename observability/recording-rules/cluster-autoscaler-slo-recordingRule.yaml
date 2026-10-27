@@ -168,19 +168,3 @@ spec:
             )
           ) * 0
         )
-    # Fleet-wide absence check: 1 when NO autoscaler has reported metrics
-    # in the last 5 minutes across all hosted clusters. Uses
-    # absent_over_time() to detect total loss of autoscaler telemetry —
-    # e.g. PrometheusAgent pipeline broken, remote-write down, or every
-    # autoscaler pod dead. The 5m window is short enough to surface an
-    # outage quickly while tolerating a couple of missed scrapes. The
-    # inner max-without deduplicates the two PrometheusAgent replicas
-    # (same pattern as all other rules in this file) so that stale data
-    # from one replica cannot mask a true outage.
-    - record: health:cluster_autoscaler:fleet_metrics_absent
-      expr: |
-        absent_over_time(
-          max without (prometheus_replica) (
-            cluster_autoscaler_last_activity{activity="main", namespace=~"ocm-.*"}
-          )[15m:]
-        )

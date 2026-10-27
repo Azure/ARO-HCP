@@ -78,8 +78,7 @@ tests:
 # present). mgmt-1 keeps emitting autoscaler metrics; mgmt-2's autoscaler
 # stops after minute 9. Within 5m of stopping mgmt-2 still reads 1 (fresh
 # samples in the 5m window); by 20m it reads 0 because KAS is present but the
-# autoscaler is silent. The fleet-wide fleet_metrics_absent rule is covered
-# separately.
+# autoscaler is silent.
 # ========================================
 - interval: 1m
   input_series:
@@ -168,35 +167,6 @@ tests:
     exp_samples:
     - labels: '{cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
       value: 1
-# ========================================
-# fleet_metrics_absent: 1 when NO autoscaler reports anywhere in the fleet,
-# including the recovery transition back to resolved. Timeline: reporting
-# 0-5m, silent 6-30m, reporting again from 31m. While samples remain inside
-# the 15m subquery window the rule emits nothing; after >15m of silence it
-# fires a fleet-wide 1; once reporting resumes and refills the window it must
-# stop firing (resolve).
-# ========================================
-- interval: 1m
-  input_series:
-  - series: 'cluster_autoscaler_last_activity{activity="main", cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
-    # value is irrelevant here (fleet_metrics_absent only checks presence):
-    # reports 0-5m, silent 6-30m, reports again from 31m.
-    values: "1x5 _x25 1x25"
-  promql_expr_test:
-  # autoscaler still reporting -> no absence
-  - expr: health:cluster_autoscaler:fleet_metrics_absent
-    eval_time: 5m
-    exp_samples: []
-  # fleet silent well beyond the 15m window -> fires 1
-  - expr: health:cluster_autoscaler:fleet_metrics_absent
-    eval_time: 28m
-    exp_samples:
-    - labels: 'health:cluster_autoscaler:fleet_metrics_absent'
-      value: 1
-  # reporting resumed and the 15m window has refilled -> resolved (no series)
-  - expr: health:cluster_autoscaler:fleet_metrics_absent
-    eval_time: 50m
-    exp_samples: []
 # ========================================
 # metrics_availability recovery: a cluster goes silent then resumes. It must
 # transition 1 -> 0 -> 1 and NOT stay stuck at 0 after the autoscaler returns.

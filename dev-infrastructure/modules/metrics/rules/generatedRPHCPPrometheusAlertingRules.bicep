@@ -223,7 +223,7 @@ resource arohcpClusterAutoscalerHealthAlerts 'Microsoft.AlertsManagement/prometh
           summary: 'Fleet-wide cluster autoscaler metrics absent'
           title: 'Fleet-wide cluster autoscaler metrics absent'
         }
-        expression: 'health:cluster_autoscaler:fleet_metrics_availability == 0'
+        expression: 'health:cluster_autoscaler:metrics_availability == 0'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }

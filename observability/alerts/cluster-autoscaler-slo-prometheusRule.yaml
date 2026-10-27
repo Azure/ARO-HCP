@@ -63,7 +63,7 @@ spec:
     # down. Per-hosted-cluster absence detection is a follow-up.
     - alert: UserJourneyClusterAutoscalerMetricsAbsent
       expr: |
-        health:cluster_autoscaler:fleet_metrics_availability == 0
+        health:cluster_autoscaler:metrics_availability == 0
       for: 5m
       labels:
         severity: "3"
