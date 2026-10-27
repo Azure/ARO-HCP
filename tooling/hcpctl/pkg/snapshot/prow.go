@@ -96,6 +96,16 @@ type ProwJobConfig struct {
 	ManagementClusterNames []string
 }
 
+// clearClusterFilters disables cluster name filtering for jobs whose Kusto
+// database is dedicated to a single environment (non-PR jobs). It must clear
+// every cluster name field: a leftover name produces a partial filter that
+// silently drops other clusters' records.
+func (p *ProwJobConfig) clearClusterFilters() {
+	p.ServiceClusterName = ""
+	p.ManagementClusterName = ""
+	p.ManagementClusterNames = nil
+}
+
 // prowJobMetadata is the minimal subset of a Kubernetes ProwJob object
 // needed to extract ev2.rollout/* annotations from prowjob.json.
 type prowJobMetadata struct {
@@ -359,8 +369,7 @@ func fetchNonPRJobConfig(ctx context.Context, info *ProwJobInfo, sdpPipelinesDir
 	}
 	// Non-PR jobs don't need cluster name filtering since each environment
 	// has its own Kusto database.
-	jobConfig.ServiceClusterName = ""
-	jobConfig.ManagementClusterName = ""
+	jobConfig.clearClusterFilters()
 
 	logger.V(1).Info("Parsed non-PR job config from sdp-pipelines",
 		"region", jobConfig.Region,

@@ -258,3 +258,68 @@ mgmt:
 		t.Errorf("ManagementClusterNames = %v, want %v", parsed.ManagementClusterNames, want)
 	}
 }
+
+func TestClearClusterFilters(t *testing.T) {
+	// Regression test: fetchNonPRJobConfig disables cluster filtering via
+	// clearClusterFilters. A leftover ManagementClusterNames slice would
+	// produce a management-only filter that drops service-cluster records.
+	cfg := &ProwJobConfig{
+		ServiceClusterName:     "ci01-j123-svc",
+		ManagementClusterName:  "ci01-j123-mgmt-1",
+		ManagementClusterNames: []string{"ci01-j123-mgmt-1", "ci01-j123-mgmt-2"},
+	}
+	cfg.clearClusterFilters()
+
+	if cfg.ServiceClusterName != "" {
+		t.Errorf("ServiceClusterName = %q, want empty", cfg.ServiceClusterName)
+	}
+	if cfg.ManagementClusterName != "" {
+		t.Errorf("ManagementClusterName = %q, want empty", cfg.ManagementClusterName)
+	}
+	if cfg.ManagementClusterNames != nil {
+		t.Errorf("ManagementClusterNames = %v, want nil", cfg.ManagementClusterNames)
+	}
+
+	data := queryData{
+		ServiceClusterName:     cfg.ServiceClusterName,
+		ManagementClusterNames: cfg.ManagementClusterNames,
+	}
+	if got := data.ClusterFilterValues(); got != "" {
+		t.Errorf("ClusterFilterValues() after clearClusterFilters = %q, want empty (no cluster filter)", got)
+	}
+}
+
+func TestClusterFilterValues(t *testing.T) {
+	for _, tt := range []struct {
+		testName string
+		data     queryData
+		want     string
+	}{
+		{
+			testName: "service plus all mgmt stamps",
+			data: queryData{
+				ServiceClusterName:     "ci01-j123-svc",
+				ManagementClusterNames: []string{"ci01-j123-mgmt-1", "ci01-j123-mgmt-2"},
+			},
+			want: "'ci01-j123-svc', 'ci01-j123-mgmt-1', 'ci01-j123-mgmt-2'",
+		},
+		{
+			testName: "mgmt names only still produces a filter",
+			data: queryData{
+				ManagementClusterNames: []string{"ci01-j123-mgmt-1"},
+			},
+			want: "'ci01-j123-mgmt-1'",
+		},
+		{
+			testName: "no names produces no filter",
+			data:     queryData{},
+			want:     "",
+		},
+	} {
+		t.Run(tt.testName, func(t *testing.T) {
+			if got := tt.data.ClusterFilterValues(); got != tt.want {
+				t.Errorf("ClusterFilterValues() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
