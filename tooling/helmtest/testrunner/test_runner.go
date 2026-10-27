@@ -135,6 +135,19 @@ func runTest(ctx context.Context, settings *internal.Settings, testCase internal
 	return fmt.Sprintf("%s\n%s", manifest, allHooks), nil
 }
 
+// daemonSetUpdateStrategyExceptions lists DaemonSets that deliberately roll
+// with a maxUnavailable other than the standard 100%, keyed by
+// namespace/name. Every entry needs a reason here.
+//
+// kube-system/set-kubelet-parameters-for-scale restarts kubelet on the host
+// as part of its rollout, so it rolls at 25% to bound concurrent kubelet
+// restarts to a quarter of the worker pool; 100% would restart every kubelet
+// on a management cluster at once. See 25f2cf4f0 and the rollout notes in
+// mgmt-fixes/README.md.
+var daemonSetUpdateStrategyExceptions = map[string]string{
+	"kube-system/set-kubelet-parameters-for-scale": "25%",
+}
+
 func validateDaemonSetUpdateStrategies(t *testing.T, manifest string) {
 	t.Helper()
 
@@ -168,9 +181,13 @@ func validateDaemonSetUpdateStrategies(t *testing.T, manifest string) {
 			continue
 		}
 
+		expected, ok := daemonSetUpdateStrategyExceptions[obj.Metadata.Namespace+"/"+obj.Metadata.Name]
+		if !ok {
+			expected = "100%"
+		}
 		if obj.Spec.UpdateStrategy.Type != "RollingUpdate" ||
-			fmt.Sprint(obj.Spec.UpdateStrategy.RollingUpdate.MaxUnavailable) != "100%" {
-			t.Errorf("DaemonSet %s/%s must set spec.updateStrategy.type=RollingUpdate and spec.updateStrategy.rollingUpdate.maxUnavailable=100%%", obj.Metadata.Namespace, obj.Metadata.Name)
+			fmt.Sprint(obj.Spec.UpdateStrategy.RollingUpdate.MaxUnavailable) != expected {
+			t.Errorf("DaemonSet %s/%s must set spec.updateStrategy.type=RollingUpdate and spec.updateStrategy.rollingUpdate.maxUnavailable=%s", obj.Metadata.Namespace, obj.Metadata.Name, expected)
 		}
 	}
 }
