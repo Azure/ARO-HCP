@@ -195,17 +195,17 @@ func (c *externalAuthOIDCCACertValidityController) getCACertValidityCondition(ca
 
 	var messageParts []string
 	if len(expiredCACerts) > 0 {
-		messageParts = append(messageParts, formatCACertExpiredMessage(expiredCACerts))
+		messageParts = append(messageParts, c.formatCACertExpiredMessage(expiredCACerts))
 	}
 	if len(notYetValidCACerts) > 0 {
-		messageParts = append(messageParts, formatCACertNotYetValidMessage(notYetValidCACerts))
+		messageParts = append(messageParts, c.formatCACertNotYetValidMessage(notYetValidCACerts))
 	}
 	condition.Message = strings.Join(messageParts, "; ")
 
 	return condition, nil
 }
 
-func formatCACertExpiredMessage(certs []*x509.Certificate) string {
+func (c *externalAuthOIDCCACertValidityController) formatCACertExpiredMessage(certs []*x509.Certificate) string {
 	parts := make([]string, len(certs))
 	for i, cert := range certs {
 		parts[i] = fmt.Sprintf("CN=%s (NotAfter %s)", cert.Subject.CommonName, cert.NotAfter.UTC().Format(time.RFC3339))
@@ -213,7 +213,7 @@ func formatCACertExpiredMessage(certs []*x509.Certificate) string {
 	return fmt.Sprintf("%d CA certificate(s) in the issuer bundle have expired: %s", len(certs), strings.Join(parts, "; "))
 }
 
-func formatCACertNotYetValidMessage(certs []*x509.Certificate) string {
+func (c *externalAuthOIDCCACertValidityController) formatCACertNotYetValidMessage(certs []*x509.Certificate) string {
 	parts := make([]string, len(certs))
 	for i, cert := range certs {
 		parts[i] = fmt.Sprintf("CN=%s (NotBefore %s)", cert.Subject.CommonName, cert.NotBefore.UTC().Format(time.RFC3339))
