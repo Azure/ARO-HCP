@@ -17,8 +17,6 @@ certificates:
       action: skip
       match:
         nameRegex: "^(?:(?:frontend-cert|admin-api-cert|sessiongate-cert)-(?:prow|ci00|ci01)|maestro-server)-j(?:00000[0-9]{2}|7654321)$"
-
-
     # Delete current Prow/ci00/ci01 certificates after 7d when no job RG remains.
     - name: current-ci-job-certificates
       action: delete
@@ -28,7 +26,6 @@ certificates:
       conditions:
         ownerResourceGroupAbsent: true
       olderThan: 168h
-
     # Protect Maestro certificates of persistent shared environments (the CSPR
     # environment uses the bare regional name; nightly is a shared environment).
     # Their names look like personal certificates, but their owner token is not
@@ -37,7 +34,6 @@ certificates:
       action: skip
       match:
         nameRegex: "^maestro-server-(?:usw3|nightly)$"
-
     # Delete personal service, Maestro, and ephemeral performance certificates
     # after 15d when no owner resource group remains.
     - name: personal-and-ephemeral-certificates
