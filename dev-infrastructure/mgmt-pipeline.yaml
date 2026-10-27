@@ -569,6 +569,7 @@ resourceGroups:
       - "Resource is in Updating state"
       - "There was a problem communicating with the identity service"
       - "DeploymentScriptExceededMaxAllowedTime"
+      - "ConcurrentFederatedIdentityCredentialsWritesForSingleManagedIdentity"
       # Retry transient RBAC propagation failures in post-cluster wiring.
       - "ForbiddenByRbac"
       maximumRetryCount: 3
