@@ -1,0 +1,24 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: hosted-cluster-deletion-stuck
+  namespace: prometheus
+spec:
+  groups:
+  - name: rp-hosted-cluster-deletion-stuck
+    labels:
+      component: cluster-deletion
+    rules:
+    - alert: HostedClusterDeletionStuck
+      expr: |
+        max by (name, namespace, _id, subscription_id, resource_id, cluster, region) (
+          hostedClusterAPI_deleting{deletion_timestamp!=""}
+        ) == 1
+      for: 48h
+      labels:
+        severity: "4"
+      annotations:
+        summary: "HostedCluster {{ $labels.cluster }}/{{ $labels.namespace }}/{{ $labels.name }} continuously observed deleting for 48h ({{ $labels._id }}, {{ $labels.subscription_id }}, {{ $labels.resource_id }})"
+        description: "Resource {{ $labels.resource_id }} (cluster ID {{ $labels._id }}, subscription {{ $labels.subscription_id }}) has been continuously observed with a non-empty deletion timestamp for 48h. This measures observation time, not timestamp age. Check deletion progress and telemetry before concluding deletion succeeded."
+        runbook_url: https://aka.ms/cluster-deletion-tsg
+        correlationId: "HostedClusterDeletionStuck/{{ $labels.cluster }}/{{ $labels.namespace }}/{{ $labels.name }}/{{ $labels._id }}/{{ $labels.subscription_id }}/{{ $labels.resource_id }}"

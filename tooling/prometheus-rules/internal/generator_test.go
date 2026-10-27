@@ -1414,6 +1414,10 @@ func TestParseToAzureDurationString(t *testing.T) {
 		{(*monitoringv1.Duration)(ptr.To("336h")), ptr.To("PT336H")},
 		{(*monitoringv1.Duration)(ptr.To("24h")), ptr.To("PT24H")},
 		{(*monitoringv1.Duration)(ptr.To("168h")), ptr.To("PT168H")},
+		{(*monitoringv1.Duration)(ptr.To("2d")), ptr.To("PT48H")},
+		{(*monitoringv1.Duration)(ptr.To("1w")), ptr.To("PT168H")},
+		{(*monitoringv1.Duration)(ptr.To("1h30m15s")), ptr.To("PT1H30M15S")},
+		{(*monitoringv1.Duration)(ptr.To("1m500ms")), ptr.To("PT1M0.500S")},
 	}
 
 	for _, tt := range tests {

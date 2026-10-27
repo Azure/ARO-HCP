@@ -10,6 +10,47 @@ param severityCeiling int = 0
 #disable-next-line no-unused-params
 param location string = resourceGroup().location
 
+resource rpHostedClusterDeletionStuck 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'rp-hosted-cluster-deletion-stuck'
+  location: location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'HostedClusterDeletionStuck'
+        enabled: true
+        labels: {
+          component: 'cluster-deletion'
+          severity: '4'
+        }
+        annotations: {
+          correlationId: 'HostedClusterDeletionStuck/{{ $labels.cluster }}/{{ $labels.namespace }}/{{ $labels.name }}/{{ $labels._id }}/{{ $labels.subscription_id }}/{{ $labels.resource_id }}'
+          description: 'Resource {{ $labels.resource_id }} (cluster ID {{ $labels._id }}, subscription {{ $labels.subscription_id }}) has been continuously observed with a non-empty deletion timestamp for 48h. This measures observation time, not timestamp age. Check deletion progress and telemetry before concluding deletion succeeded.'
+          info: 'Resource {{ $labels.resource_id }} (cluster ID {{ $labels._id }}, subscription {{ $labels.subscription_id }}) has been continuously observed with a non-empty deletion timestamp for 48h. This measures observation time, not timestamp age. Check deletion progress and telemetry before concluding deletion succeeded.'
+          runbook_url: 'https://aka.ms/cluster-deletion-tsg'
+          summary: 'HostedCluster {{ $labels.cluster }}/{{ $labels.namespace }}/{{ $labels.name }} continuously observed deleting for 48h ({{ $labels._id }}, {{ $labels.subscription_id }}, {{ $labels.resource_id }})'
+          title: 'HostedCluster {{ $labels.cluster }}/{{ $labels.namespace }}/{{ $labels.name }} continuously observed deleting for 48h ({{ $labels._id }}, {{ $labels.subscription_id }}, {{ $labels.resource_id }})'
+        }
+        expression: 'max by (name, namespace, _id, subscription_id, resource_id, cluster, region) (hostedClusterAPI_deleting{deletion_timestamp!=""}) == 1'
+        for: 'PT48H'
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
+
 resource rpUserjourneyKasAvailabilityMonitorRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'rp-userjourney-kas-availability-monitor-rules'
   location: location

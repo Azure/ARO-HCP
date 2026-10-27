@@ -878,6 +878,7 @@ func parseToAzureDurationString(d *monitoringv1.Duration) *string {
 	hours := int64(total / time.Hour)
 	minutes := int64((total % time.Hour) / time.Minute)
 	seconds := int64((total % time.Minute) / time.Second)
+	milliseconds := int64((total % time.Second) / time.Millisecond)
 
 	var sb strings.Builder
 	sb.WriteString("PT")
@@ -887,7 +888,9 @@ func parseToAzureDurationString(d *monitoringv1.Duration) *string {
 	if minutes > 0 {
 		fmt.Fprintf(&sb, "%dM", minutes)
 	}
-	if seconds > 0 || (hours == 0 && minutes == 0) {
+	if milliseconds > 0 {
+		fmt.Fprintf(&sb, "%d.%03dS", seconds, milliseconds)
+	} else if seconds > 0 || (hours == 0 && minutes == 0) {
 		fmt.Fprintf(&sb, "%dS", seconds)
 	}
 	return ptr.To(sb.String())

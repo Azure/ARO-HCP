@@ -1,0 +1,349 @@
+rule_files:
+- hosted-cluster-deletion-stuck-prometheusRule.yaml
+evaluation_interval: 1m
+tests:
+- name: missing and empty deletion timestamps never fire
+  interval: 1m
+  input_series:
+  - series: hostedClusterAPI_deleting{name="hc-a",namespace="ocm-a",_id="id-a",subscription_id="sub-a",resource_id="/subscriptions/sub-a/resourceGroups/rg-a/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hc-a",cluster="mgmt-a",region="eastus"}
+    values: 1x3000
+  - series: hostedClusterAPI_deleting{name="hc-a",namespace="ocm-a",_id="id-a",subscription_id="sub-a",resource_id="/subscriptions/sub-a/resourceGroups/rg-a/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hc-a",cluster="mgmt-a",region="eastus",deletion_timestamp="",pod="other"}
+    values: 1x3000
+  alert_rule_test:
+  - eval_time: 50h
+    alertname: HostedClusterDeletionStuck
+    exp_alerts: []
+- name: old timestamp waits a full observation period without operation records
+  interval: 1m
+  input_series:
+  - series: hostedClusterAPI_deleting{name="hc-a",namespace="ocm-a",_id="id-a",subscription_id="sub-a",resource_id="/subscriptions/sub-a/resourceGroups/rg-a/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hc-a",cluster="mgmt-a",region="eastus",deletion_timestamp="2000-01-01T00:00:00Z"}
+    values: 1x2881
+  alert_rule_test:
+  - eval_time: 0m
+    alertname: HostedClusterDeletionStuck
+    exp_alerts: []
+  - eval_time: 47h59m
+    alertname: HostedClusterDeletionStuck
+    exp_alerts: []
+  - eval_time: 48h
+    alertname: HostedClusterDeletionStuck
+    exp_alerts:
+    - exp_labels:
+        name: hc-a
+        namespace: ocm-a
+        _id: id-a
+        subscription_id: sub-a
+        resource_id: /subscriptions/sub-a/resourceGroups/rg-a/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hc-a
+        cluster: mgmt-a
+        region: eastus
+        component: cluster-deletion
+        severity: '4'
+      exp_annotations:
+        summary: HostedCluster mgmt-a/ocm-a/hc-a continuously observed deleting for 48h (id-a, sub-a, /subscriptions/sub-a/resourceGroups/rg-a/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hc-a)
+        description: Resource /subscriptions/sub-a/resourceGroups/rg-a/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hc-a (cluster ID id-a, subscription sub-a) has been continuously observed with a non-empty deletion timestamp for 48h. This measures observation time, not timestamp age. Check deletion progress and telemetry before concluding deletion succeeded.
+        runbook_url: https://aka.ms/cluster-deletion-tsg
+        correlationId: HostedClusterDeletionStuck/mgmt-a/ocm-a/hc-a/id-a/sub-a//subscriptions/sub-a/resourceGroups/rg-a/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hc-a
+  - eval_time: 48h1m
+    alertname: HostedClusterDeletionStuck
+    exp_alerts:
+    - exp_labels:
+        name: hc-a
+        namespace: ocm-a
+        _id: id-a
+        subscription_id: sub-a
+        resource_id: /subscriptions/sub-a/resourceGroups/rg-a/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hc-a
+        cluster: mgmt-a
+        region: eastus
+        component: cluster-deletion
+        severity: '4'
+      exp_annotations:
+        summary: HostedCluster mgmt-a/ocm-a/hc-a continuously observed deleting for 48h (id-a, sub-a, /subscriptions/sub-a/resourceGroups/rg-a/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hc-a)
+        description: Resource /subscriptions/sub-a/resourceGroups/rg-a/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hc-a (cluster ID id-a, subscription sub-a) has been continuously observed with a non-empty deletion timestamp for 48h. This measures observation time, not timestamp age. Check deletion progress and telemetry before concluding deletion succeeded.
+        runbook_url: https://aka.ms/cluster-deletion-tsg
+        correlationId: HostedClusterDeletionStuck/mgmt-a/ocm-a/hc-a/id-a/sub-a//subscriptions/sub-a/resourceGroups/rg-a/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hc-a
+- name: Failed operation records do not suppress deletion observation
+  interval: 1m
+  input_series:
+  - series: hostedClusterAPI_deleting{name="hc-a",namespace="ocm-a",_id="id-a",subscription_id="sub-a",resource_id="/subscriptions/sub-a/resourceGroups/rg-a/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hc-a",cluster="mgmt-a",region="eastus",deletion_timestamp="2000-01-01T00:00:00Z"}
+    values: 1x2881
+  - series: backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="failed",resource_id="/subscriptions/sub-a/resourceGroups/rg-a/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hc-a",subscription_id="sub-a",cluster="svc-a"}
+    values: 1x2881
+  alert_rule_test:
+  - eval_time: 48h
+    alertname: HostedClusterDeletionStuck
+    exp_alerts:
+    - exp_labels:
+        name: hc-a
+        namespace: ocm-a
+        _id: id-a
+        subscription_id: sub-a
+        resource_id: /subscriptions/sub-a/resourceGroups/rg-a/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hc-a
+        cluster: mgmt-a
+        region: eastus
+        component: cluster-deletion
+        severity: '4'
+      exp_annotations:
+        summary: HostedCluster mgmt-a/ocm-a/hc-a continuously observed deleting for 48h (id-a, sub-a, /subscriptions/sub-a/resourceGroups/rg-a/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hc-a)
+        description: Resource /subscriptions/sub-a/resourceGroups/rg-a/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hc-a (cluster ID id-a, subscription sub-a) has been continuously observed with a non-empty deletion timestamp for 48h. This measures observation time, not timestamp age. Check deletion progress and telemetry before concluding deletion succeeded.
+        runbook_url: https://aka.ms/cluster-deletion-tsg
+        correlationId: HostedClusterDeletionStuck/mgmt-a/ocm-a/hc-a/id-a/sub-a//subscriptions/sub-a/resourceGroups/rg-a/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hc-a
+- name: identities fire independently even in the same namespace and management cluster
+  interval: 1m
+  input_series:
+  - series: hostedClusterAPI_deleting{name="hc-a",namespace="ocm-a",_id="id-a",subscription_id="sub-a",resource_id="/subscriptions/sub-a/resourceGroups/rg-a/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hc-a",cluster="mgmt-a",region="eastus",deletion_timestamp="2000-01-01T00:00:00Z"}
+    values: 1x2941
+  - series: hostedClusterAPI_deleting{name="hc-b",namespace="ocm-a",_id="id-b",subscription_id="sub-b",resource_id="/subscriptions/sub-b/resourceGroups/rg-b/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hc-b",cluster="mgmt-a",region="eastus",deletion_timestamp="2000-01-01T00:00:00Z"}
+    values: _x60 1x2881
+  alert_rule_test:
+  - eval_time: 48h
+    alertname: HostedClusterDeletionStuck
+    exp_alerts:
+    - exp_labels:
+        name: hc-a
+        namespace: ocm-a
+        _id: id-a
+        subscription_id: sub-a
+        resource_id: /subscriptions/sub-a/resourceGroups/rg-a/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hc-a
+        cluster: mgmt-a
+        region: eastus
+        component: cluster-deletion
+        severity: '4'
+      exp_annotations:
+        summary: HostedCluster mgmt-a/ocm-a/hc-a continuously observed deleting for 48h (id-a, sub-a, /subscriptions/sub-a/resourceGroups/rg-a/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hc-a)
+        description: Resource /subscriptions/sub-a/resourceGroups/rg-a/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hc-a (cluster ID id-a, subscription sub-a) has been continuously observed with a non-empty deletion timestamp for 48h. This measures observation time, not timestamp age. Check deletion progress and telemetry before concluding deletion succeeded.
+        runbook_url: https://aka.ms/cluster-deletion-tsg
+        correlationId: HostedClusterDeletionStuck/mgmt-a/ocm-a/hc-a/id-a/sub-a//subscriptions/sub-a/resourceGroups/rg-a/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hc-a
+  - eval_time: 48h59m
+    alertname: HostedClusterDeletionStuck
+    exp_alerts:
+    - exp_labels:
+        name: hc-a
+        namespace: ocm-a
+        _id: id-a
+        subscription_id: sub-a
+        resource_id: /subscriptions/sub-a/resourceGroups/rg-a/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hc-a
+        cluster: mgmt-a
+        region: eastus
+        component: cluster-deletion
+        severity: '4'
+      exp_annotations:
+        summary: HostedCluster mgmt-a/ocm-a/hc-a continuously observed deleting for 48h (id-a, sub-a, /subscriptions/sub-a/resourceGroups/rg-a/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hc-a)
+        description: Resource /subscriptions/sub-a/resourceGroups/rg-a/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hc-a (cluster ID id-a, subscription sub-a) has been continuously observed with a non-empty deletion timestamp for 48h. This measures observation time, not timestamp age. Check deletion progress and telemetry before concluding deletion succeeded.
+        runbook_url: https://aka.ms/cluster-deletion-tsg
+        correlationId: HostedClusterDeletionStuck/mgmt-a/ocm-a/hc-a/id-a/sub-a//subscriptions/sub-a/resourceGroups/rg-a/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hc-a
+  - eval_time: 49h
+    alertname: HostedClusterDeletionStuck
+    exp_alerts:
+    - exp_labels:
+        name: hc-a
+        namespace: ocm-a
+        _id: id-a
+        subscription_id: sub-a
+        resource_id: /subscriptions/sub-a/resourceGroups/rg-a/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hc-a
+        cluster: mgmt-a
+        region: eastus
+        component: cluster-deletion
+        severity: '4'
+      exp_annotations:
+        summary: HostedCluster mgmt-a/ocm-a/hc-a continuously observed deleting for 48h (id-a, sub-a, /subscriptions/sub-a/resourceGroups/rg-a/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hc-a)
+        description: Resource /subscriptions/sub-a/resourceGroups/rg-a/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hc-a (cluster ID id-a, subscription sub-a) has been continuously observed with a non-empty deletion timestamp for 48h. This measures observation time, not timestamp age. Check deletion progress and telemetry before concluding deletion succeeded.
+        runbook_url: https://aka.ms/cluster-deletion-tsg
+        correlationId: HostedClusterDeletionStuck/mgmt-a/ocm-a/hc-a/id-a/sub-a//subscriptions/sub-a/resourceGroups/rg-a/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hc-a
+    - exp_labels:
+        name: hc-b
+        namespace: ocm-a
+        _id: id-b
+        subscription_id: sub-b
+        resource_id: /subscriptions/sub-b/resourceGroups/rg-b/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hc-b
+        cluster: mgmt-a
+        region: eastus
+        component: cluster-deletion
+        severity: '4'
+      exp_annotations:
+        summary: HostedCluster mgmt-a/ocm-a/hc-b continuously observed deleting for 48h (id-b, sub-b, /subscriptions/sub-b/resourceGroups/rg-b/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hc-b)
+        description: Resource /subscriptions/sub-b/resourceGroups/rg-b/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hc-b (cluster ID id-b, subscription sub-b) has been continuously observed with a non-empty deletion timestamp for 48h. This measures observation time, not timestamp age. Check deletion progress and telemetry before concluding deletion succeeded.
+        runbook_url: https://aka.ms/cluster-deletion-tsg
+        correlationId: HostedClusterDeletionStuck/mgmt-a/ocm-a/hc-b/id-b/sub-b//subscriptions/sub-b/resourceGroups/rg-b/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hc-b
+- name: duplicate scrape replicas and churn preserve one pending alert
+  interval: 1m
+  input_series:
+  - series: hostedClusterAPI_deleting{name="hc-a",namespace="ocm-a",_id="id-a",subscription_id="sub-a",resource_id="/subscriptions/sub-a/resourceGroups/rg-a/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hc-a",cluster="mgmt-a",region="eastus",deletion_timestamp="2000-01-01T00:00:00Z",pod="ksm-a",instance="a",job="old",api_url="old.example",customresource_kind="HostedCluster",customresource_group="hypershift.openshift.io",customresource_version="v1beta1"}
+    values: 1x1439 stale
+  - series: hostedClusterAPI_deleting{name="hc-a",namespace="ocm-a",_id="id-a",subscription_id="sub-a",resource_id="/subscriptions/sub-a/resourceGroups/rg-a/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hc-a",cluster="mgmt-a",region="eastus",deletion_timestamp="2000-01-01T00:00:00Z",pod="ksm-b",instance="b",job="stable"}
+    values: 1x2881
+  - series: hostedClusterAPI_deleting{name="hc-a",namespace="ocm-a",_id="id-a",subscription_id="sub-a",resource_id="/subscriptions/sub-a/resourceGroups/rg-a/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hc-a",cluster="mgmt-a",region="eastus",deletion_timestamp="2000-01-01T00:00:00Z",pod="ksm-c",instance="c",job="new",api_url="new.example"}
+    values: _x1439 1x1441
+  alert_rule_test:
+  - eval_time: 47h59m
+    alertname: HostedClusterDeletionStuck
+    exp_alerts: []
+  - eval_time: 48h
+    alertname: HostedClusterDeletionStuck
+    exp_alerts:
+    - exp_labels:
+        name: hc-a
+        namespace: ocm-a
+        _id: id-a
+        subscription_id: sub-a
+        resource_id: /subscriptions/sub-a/resourceGroups/rg-a/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hc-a
+        cluster: mgmt-a
+        region: eastus
+        component: cluster-deletion
+        severity: '4'
+      exp_annotations:
+        summary: HostedCluster mgmt-a/ocm-a/hc-a continuously observed deleting for 48h (id-a, sub-a, /subscriptions/sub-a/resourceGroups/rg-a/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hc-a)
+        description: Resource /subscriptions/sub-a/resourceGroups/rg-a/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hc-a (cluster ID id-a, subscription sub-a) has been continuously observed with a non-empty deletion timestamp for 48h. This measures observation time, not timestamp age. Check deletion progress and telemetry before concluding deletion succeeded.
+        runbook_url: https://aka.ms/cluster-deletion-tsg
+        correlationId: HostedClusterDeletionStuck/mgmt-a/ocm-a/hc-a/id-a/sub-a//subscriptions/sub-a/resourceGroups/rg-a/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hc-a
+  - eval_time: 48h1m
+    alertname: HostedClusterDeletionStuck
+    exp_alerts:
+    - exp_labels:
+        name: hc-a
+        namespace: ocm-a
+        _id: id-a
+        subscription_id: sub-a
+        resource_id: /subscriptions/sub-a/resourceGroups/rg-a/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hc-a
+        cluster: mgmt-a
+        region: eastus
+        component: cluster-deletion
+        severity: '4'
+      exp_annotations:
+        summary: HostedCluster mgmt-a/ocm-a/hc-a continuously observed deleting for 48h (id-a, sub-a, /subscriptions/sub-a/resourceGroups/rg-a/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hc-a)
+        description: Resource /subscriptions/sub-a/resourceGroups/rg-a/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hc-a (cluster ID id-a, subscription sub-a) has been continuously observed with a non-empty deletion timestamp for 48h. This measures observation time, not timestamp age. Check deletion progress and telemetry before concluding deletion succeeded.
+        runbook_url: https://aka.ms/cluster-deletion-tsg
+        correlationId: HostedClusterDeletionStuck/mgmt-a/ocm-a/hc-a/id-a/sub-a//subscriptions/sub-a/resourceGroups/rg-a/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hc-a
+- name: removal of deleting state clears the alert
+  interval: 1m
+  input_series:
+  - series: hostedClusterAPI_deleting{name="hc-a",namespace="ocm-a",_id="id-a",subscription_id="sub-a",resource_id="/subscriptions/sub-a/resourceGroups/rg-a/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hc-a",cluster="mgmt-a",region="eastus",deletion_timestamp="2000-01-01T00:00:00Z"}
+    values: 1x2880 stale
+  - series: hostedClusterAPI_deleting{name="hc-a",namespace="ocm-a",_id="id-a",subscription_id="sub-a",resource_id="/subscriptions/sub-a/resourceGroups/rg-a/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hc-a",cluster="mgmt-a",region="eastus",deletion_timestamp=""}
+    values: _x2880 1x10
+  alert_rule_test:
+  - eval_time: 48h
+    alertname: HostedClusterDeletionStuck
+    exp_alerts:
+    - exp_labels:
+        name: hc-a
+        namespace: ocm-a
+        _id: id-a
+        subscription_id: sub-a
+        resource_id: /subscriptions/sub-a/resourceGroups/rg-a/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hc-a
+        cluster: mgmt-a
+        region: eastus
+        component: cluster-deletion
+        severity: '4'
+      exp_annotations:
+        summary: HostedCluster mgmt-a/ocm-a/hc-a continuously observed deleting for 48h (id-a, sub-a, /subscriptions/sub-a/resourceGroups/rg-a/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hc-a)
+        description: Resource /subscriptions/sub-a/resourceGroups/rg-a/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hc-a (cluster ID id-a, subscription sub-a) has been continuously observed with a non-empty deletion timestamp for 48h. This measures observation time, not timestamp age. Check deletion progress and telemetry before concluding deletion succeeded.
+        runbook_url: https://aka.ms/cluster-deletion-tsg
+        correlationId: HostedClusterDeletionStuck/mgmt-a/ocm-a/hc-a/id-a/sub-a//subscriptions/sub-a/resourceGroups/rg-a/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hc-a
+  - eval_time: 48h1m
+    alertname: HostedClusterDeletionStuck
+    exp_alerts: []
+- name: stale series clears firing and reappearance waits another full period
+  interval: 1m
+  input_series:
+  - series: hostedClusterAPI_deleting{name="hc-a",namespace="ocm-a",_id="id-a",subscription_id="sub-a",resource_id="/subscriptions/sub-a/resourceGroups/rg-a/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hc-a",cluster="mgmt-a",region="eastus",deletion_timestamp="2000-01-01T00:00:00Z"}
+    values: 1x2880 stale _x58 1x2881
+  alert_rule_test:
+  - eval_time: 48h
+    alertname: HostedClusterDeletionStuck
+    exp_alerts:
+    - exp_labels:
+        name: hc-a
+        namespace: ocm-a
+        _id: id-a
+        subscription_id: sub-a
+        resource_id: /subscriptions/sub-a/resourceGroups/rg-a/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hc-a
+        cluster: mgmt-a
+        region: eastus
+        component: cluster-deletion
+        severity: '4'
+      exp_annotations:
+        summary: HostedCluster mgmt-a/ocm-a/hc-a continuously observed deleting for 48h (id-a, sub-a, /subscriptions/sub-a/resourceGroups/rg-a/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hc-a)
+        description: Resource /subscriptions/sub-a/resourceGroups/rg-a/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hc-a (cluster ID id-a, subscription sub-a) has been continuously observed with a non-empty deletion timestamp for 48h. This measures observation time, not timestamp age. Check deletion progress and telemetry before concluding deletion succeeded.
+        runbook_url: https://aka.ms/cluster-deletion-tsg
+        correlationId: HostedClusterDeletionStuck/mgmt-a/ocm-a/hc-a/id-a/sub-a//subscriptions/sub-a/resourceGroups/rg-a/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hc-a
+  - eval_time: 48h1m
+    alertname: HostedClusterDeletionStuck
+    exp_alerts: []
+  - eval_time: 96h59m
+    alertname: HostedClusterDeletionStuck
+    exp_alerts: []
+  - eval_time: 97h
+    alertname: HostedClusterDeletionStuck
+    exp_alerts:
+    - exp_labels:
+        name: hc-a
+        namespace: ocm-a
+        _id: id-a
+        subscription_id: sub-a
+        resource_id: /subscriptions/sub-a/resourceGroups/rg-a/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hc-a
+        cluster: mgmt-a
+        region: eastus
+        component: cluster-deletion
+        severity: '4'
+      exp_annotations:
+        summary: HostedCluster mgmt-a/ocm-a/hc-a continuously observed deleting for 48h (id-a, sub-a, /subscriptions/sub-a/resourceGroups/rg-a/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hc-a)
+        description: Resource /subscriptions/sub-a/resourceGroups/rg-a/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hc-a (cluster ID id-a, subscription sub-a) has been continuously observed with a non-empty deletion timestamp for 48h. This measures observation time, not timestamp age. Check deletion progress and telemetry before concluding deletion succeeded.
+        runbook_url: https://aka.ms/cluster-deletion-tsg
+        correlationId: HostedClusterDeletionStuck/mgmt-a/ocm-a/hc-a/id-a/sub-a//subscriptions/sub-a/resourceGroups/rg-a/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hc-a
+- name: missing samples clear after lookback without proving successful deletion
+  interval: 1m
+  input_series:
+  - series: hostedClusterAPI_deleting{name="hc-a",namespace="ocm-a",_id="id-a",subscription_id="sub-a",resource_id="/subscriptions/sub-a/resourceGroups/rg-a/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hc-a",cluster="mgmt-a",region="eastus",deletion_timestamp="2000-01-01T00:00:00Z"}
+    values: 1x2880 _x10
+  alert_rule_test:
+  - eval_time: 48h
+    alertname: HostedClusterDeletionStuck
+    exp_alerts:
+    - exp_labels:
+        name: hc-a
+        namespace: ocm-a
+        _id: id-a
+        subscription_id: sub-a
+        resource_id: /subscriptions/sub-a/resourceGroups/rg-a/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hc-a
+        cluster: mgmt-a
+        region: eastus
+        component: cluster-deletion
+        severity: '4'
+      exp_annotations:
+        summary: HostedCluster mgmt-a/ocm-a/hc-a continuously observed deleting for 48h (id-a, sub-a, /subscriptions/sub-a/resourceGroups/rg-a/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hc-a)
+        description: Resource /subscriptions/sub-a/resourceGroups/rg-a/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hc-a (cluster ID id-a, subscription sub-a) has been continuously observed with a non-empty deletion timestamp for 48h. This measures observation time, not timestamp age. Check deletion progress and telemetry before concluding deletion succeeded.
+        runbook_url: https://aka.ms/cluster-deletion-tsg
+        correlationId: HostedClusterDeletionStuck/mgmt-a/ocm-a/hc-a/id-a/sub-a//subscriptions/sub-a/resourceGroups/rg-a/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hc-a
+  - eval_time: 48h6m
+    alertname: HostedClusterDeletionStuck
+    exp_alerts: []
+- name: disappearance while pending resets observation on reappearance
+  interval: 1m
+  input_series:
+  - series: hostedClusterAPI_deleting{name="hc-a",namespace="ocm-a",_id="id-a",subscription_id="sub-a",resource_id="/subscriptions/sub-a/resourceGroups/rg-a/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hc-a",cluster="mgmt-a",region="eastus",deletion_timestamp="2000-01-01T00:00:00Z"}
+    values: 1x1439 stale _ 1x2881
+  alert_rule_test:
+  - eval_time: 48h
+    alertname: HostedClusterDeletionStuck
+    exp_alerts: []
+  - eval_time: 72h1m
+    alertname: HostedClusterDeletionStuck
+    exp_alerts: []
+  - eval_time: 72h2m
+    alertname: HostedClusterDeletionStuck
+    exp_alerts:
+    - exp_labels:
+        name: hc-a
+        namespace: ocm-a
+        _id: id-a
+        subscription_id: sub-a
+        resource_id: /subscriptions/sub-a/resourceGroups/rg-a/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hc-a
+        cluster: mgmt-a
+        region: eastus
+        component: cluster-deletion
+        severity: '4'
+      exp_annotations:
+        summary: HostedCluster mgmt-a/ocm-a/hc-a continuously observed deleting for 48h (id-a, sub-a, /subscriptions/sub-a/resourceGroups/rg-a/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hc-a)
+        description: Resource /subscriptions/sub-a/resourceGroups/rg-a/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hc-a (cluster ID id-a, subscription sub-a) has been continuously observed with a non-empty deletion timestamp for 48h. This measures observation time, not timestamp age. Check deletion progress and telemetry before concluding deletion succeeded.
+        runbook_url: https://aka.ms/cluster-deletion-tsg
+        correlationId: HostedClusterDeletionStuck/mgmt-a/ocm-a/hc-a/id-a/sub-a//subscriptions/sub-a/resourceGroups/rg-a/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hc-a
