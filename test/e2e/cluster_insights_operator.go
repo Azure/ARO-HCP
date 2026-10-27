@@ -26,10 +26,6 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
-
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
@@ -45,12 +41,9 @@ var _ = Describe("Customer", func() {
 		func(ctx context.Context) {
 			const (
 				customerClusterName = "insights-hcp-cluster"
-				pullSecretName      = "additional-pull-secret"
-				pullSecretNamespace = "kube-system"
 				cloudOpenShiftHost  = "cloud.openshift.com"
 
-				pullSecretMergeTimeout    = 10 * time.Minute
-				insightsTransitionTimeout = 30 * time.Minute
+				insightsOperatorTimeout = 10 * time.Minute
 			)
 			tc := framework.NewTestContext()
 
@@ -67,10 +60,7 @@ var _ = Describe("Customer", func() {
 			err = json.Unmarshal(pullSecretFileData, &pullSecretConfig)
 			Expect(err).NotTo(HaveOccurred(), "failed to parse pull-secret file")
 
-			cloudOpenShiftAuth, hasToken := pullSecretConfig.Auths[cloudOpenShiftHost]
-			if !hasToken {
-				Skip("cloud.openshift.com token not found in pull-secret file, skipping Insights Operator test")
-			}
+			_, hasToken := pullSecretConfig.Auths[cloudOpenShiftHost]
 
 			if tc.UsePooledIdentities() {
 				err = tc.AssignIdentityContainers(ctx, 1, framework.IdentityContainerAssignmentRetryInterval)
@@ -120,39 +110,17 @@ var _ = Describe("Customer", func() {
 			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred(), "failed to verify HCP cluster viability")
 
-			By("creating additional-pull-secret with cloud.openshift.com token")
-			kubeClient, err := kubernetes.NewForConfig(adminRESTConfig)
-			Expect(err).NotTo(HaveOccurred(), "failed to create kubernetes client")
-
-			dockerConfigBytes, err := json.Marshal(framework.DockerConfigJSON{
-				Auths: map[string]framework.RegistryAuth{
-					cloudOpenShiftHost: cloudOpenShiftAuth,
-				},
-			})
-			Expect(err).NotTo(HaveOccurred(), "failed to marshal docker config for cloud.openshift.com")
-
-			cloudPullSecret := &corev1.Secret{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      pullSecretName,
-					Namespace: pullSecretNamespace,
-				},
-				Type: corev1.SecretTypeDockerConfigJson,
-				Data: map[string][]byte{
-					corev1.DockerConfigJsonKey: dockerConfigBytes,
-				},
+			if !hasToken {
+				By("verifying Insights Operator is deployed and in Disabled/NoToken state (conformance)")
+				err = verifiers.VerifyInsightsOperatorDisabledNoToken(insightsOperatorTimeout).
+					Verify(ctx, adminRESTConfig)
+				Expect(err).NotTo(HaveOccurred(), "Insights Operator was not deployed or did not reach Disabled/NoToken state")
+				return
 			}
 
-			_, err = kubeClient.CoreV1().Secrets(pullSecretNamespace).Create(ctx, cloudPullSecret, metav1.CreateOptions{})
-			Expect(err).NotTo(HaveOccurred(), "failed to create additional-pull-secret with cloud.openshift.com token")
-
-			By("waiting for HCCO to merge cloud.openshift.com token into global-pull-secret")
-			err = verifiers.VerifyPullSecretMergedIntoGlobal(cloudOpenShiftHost, pullSecretMergeTimeout).
+			By("verifying the Insights Operator is healthy")
+			err = verifiers.VerifyInsightsOperatorHealthy(insightsOperatorTimeout).
 				Verify(ctx, adminRESTConfig)
-			Expect(err).NotTo(HaveOccurred(), "failed to wait for cloud.openshift.com token to be merged into global-pull-secret by HCCO")
-
-			By("verifying the Insights Operator detects the token and becomes healthy")
-			err = verifiers.VerifyInsightsOperatorHealthy(insightsTransitionTimeout).
-				Verify(ctx, adminRESTConfig)
-			Expect(err).NotTo(HaveOccurred(), "failed to wait for Insights Operator to become healthy after cloud.openshift.com token was added")
+			Expect(err).NotTo(HaveOccurred(), "Insights Operator is not healthy")
 		})
 })
