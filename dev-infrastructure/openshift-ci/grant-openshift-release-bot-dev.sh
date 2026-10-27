@@ -8,6 +8,12 @@ SUBSCRIPTIONS=(
     "ARO HCP E2E Hosted Clusters 2 (EA Subscription)"
     "ARO HCP E2E Hosted Clusters - Dev - 02"
     "ARO HCP E2E Hosted Clusters - Dev - 03"
+    "ARO HCP E2E Hosted Clusters - Dev - 05 (MCA Sponsorship)"
+    "ARO HCP E2E Hosted Clusters - Dev - 06 (MCA Sponsorship)"
+    "ARO HCP E2E Hosted Clusters - Dev - 07 (MCA Sponsorship)"
+    "ARO HCP E2E Hosted Clusters - Dev - 08 (MCA Sponsorship)"
+    "ARO HCP E2E Hosted Clusters - Dev - 09 (MCA Sponsorship)"
+    "ARO HCP E2E Hosted Clusters - Dev - 10 (MCA Sponsorship)"
     "ARO Hosted Control Planes (EA Subscription 1)"
 )
 GLOBAL_SUBSCRIPTION_NAME="ARO Hosted Control Planes (EA Subscription 1)"

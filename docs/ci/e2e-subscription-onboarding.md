@@ -45,6 +45,7 @@ The DEV bootstrap layer currently grants access for these shared identities:
 - `aro-dev-arm-helper2`
 - `aro-dev-msi-mock2`
 - the pooled `aro-dev-msi-mock-pool-<i>` identities used by presubmit jobs
+- the pooled `aro-dev-arm-helper-pool-<i>` identities used by presubmit jobs
 
 For the current mixed-management model of the pooled MSI mock identities, see [CI Identity Leasing](identity-leasing.md).
 
@@ -58,9 +59,10 @@ A brand-new subscription typically has no Azure resource providers registered be
 
 1. Add the new pool to `test/e2e-config/e2e-slots.yaml`.
    - Follow the v2 [catalog contract](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#catalog): name the pool, set `subscriptions.e2e`, and declare dedicated `slot_assets.e2e_identities`.
-   - Pick the next shard number and a unique `resource_type`.
+   - Match the subscription's shard number, preserve existing shard mappings, and choose a unique `resource_type`.
    - Set `slot_count` to the intended concurrency for the new subscription.
    - Keep the existing DEV identity-container pattern aligned unless there is a deliberate reason to diverge.
+   - DEV pools use `region_mode: weighted` with `westus3`, `centralus`, and `canadacentral`; dedicated E2E identity containers are provisioned in `westus3`, and infrastructure identities are leased from `dev-infrastructure-identities`.
 
 2. Request the Azure quota increases for the new subscription.
    - File a quota request for every region the new pool runs in. The current per-region targets are:
@@ -87,6 +89,7 @@ A brand-new subscription typically has no Azure resource providers registered be
 5. Provision the slot-backed identity containers in the new subscription.
    - Run the apply via the Make target:
      - `make -C test apply-pool-assets ENVIRONMENT=dev` (or `ENVIRONMENT=dev-xs` for the ci02 pools)
+   - Use the Make target so the binary embeds ARM artifacts regenerated from the source Bicep.
    - To scope to a single subscription or asset kind:
      - `make -C test apply-pool-assets ENVIRONMENT=dev SUBSCRIPTION="<subscription display name>"`
      - `make -C test apply-pool-assets ENVIRONMENT=dev ASSET=e2e_identities`
@@ -97,7 +100,8 @@ A brand-new subscription typically has no Azure resource providers registered be
    - Append `<subscription-id>=<display name>` to the comma-separated string `ci.dev.e2eSubscriptions` in `config/config-dev-ci.yaml` (display names must not contain commas, equals signs, quotes (`'` `"`), backslashes, `$` or backticks).
    - That list feeds both the `dev-ci` RBAC grants and Cost Management tag-inheritance rollout. A new hosted-cluster subscription needs no per-index template edits. The E2E infrastructure subscription opts in separately via `costTagInheritance: true`; do not enable it for the global infrastructure subscription.
    - No separate tenant-quota entry is needed: the `tenant-quota-collector` chart derives the `redHat0` tenant's subscriptions from `ci.<env>.e2eSubscriptions` (and `ci.dev.infrastructureSubscriptions`), monitoring them in the regions listed in `ci.<env>.regions`. Make sure that CSV covers the regions the pool runs in; the collector retrieves the Role Assignment quota limit directly from Azure.
-   - In a normal onboarding flow, `homeSubscription`, `sharedPrincipals`, and `msiMockPool.principals` should not need to change.
+   - Include the subscription's exact display name in `dev-infrastructure/openshift-ci/grant-openshift-release-bot-dev.sh` and the Red Hat tenant inventory in `tooling/tenant-quota/scripts/manage-service-principals.sh` so manual CI bot and quota-reader bootstrap grants cover it.
+   - Existing `ci.dev.mockIdentities` application names and pool sizes do not need to change. The mock RBAC template resolves shared and pooled principal IDs through Microsoft Graph and grants them on every subscription in `ci.dev.e2eSubscriptions`.
    - Apply the **privileged** customer-subscription grants, createdAt tag policy, and Cost Management tag inheritance. The rollout requires **Owner** for subscription-scoped RBAC; its operator also needs permission to edit Cost Management settings on every target subscription (Cost Management Contributor). It is **not** run by the `dev-ci` postsubmit — ask an OWNERS-group member with the required access to run it from the repo root:
      - `make dev-ci-privileged-local-run`
    - Before deploying the billing setting, the pipeline registers `Microsoft.CostManagement` on the same hosted-cluster and opted-in infrastructure subscriptions and waits for `Registered`. The sibling general-provider branch does not cover the E2E infrastructure subscription or order itself before the billing deployment.
@@ -131,6 +135,8 @@ Those steps only become necessary if the shared identities or the Boskos-backed 
 - `dev-infrastructure/dev-ci/e2e-subscription-rbac/pipeline.yaml`
 - `dev-infrastructure/dev-ci/e2e-subscription-rbac-grants/pipeline.yaml`
 - `dev-infrastructure/configurations/mock-identity-rbac.tmpl.bicepparam`
+- `dev-infrastructure/openshift-ci/grant-openshift-release-bot-dev.sh`: manual CI bot bootstrap subscription inventory
+- `tooling/tenant-quota/scripts/manage-service-principals.sh`: manual quota-reader bootstrap subscription inventory
 - `dev-infrastructure/scripts/e2e-enable-cost-tag-inheritance.sh` — applies and verifies the billing setting through REST; the provider's GET response lacks `kind`, which causes ARM deployments to report failure after persisting the setting.
 - [Dev-CI Topology](dev-ci-topology.md)
 - [CI Identity Leasing](identity-leasing.md)
