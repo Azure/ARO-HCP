@@ -33,8 +33,6 @@ tests:
     alertname: UserJourneyClusterAutoscalerErrors
   - eval_time: 22m
     alertname: UserJourneyClusterAutoscalerScaleUpFailures
-  - eval_time: 22m
-    alertname: UserJourneyClusterAutoscalerScaleUpStuck
 # ========================================
 # Test 2: Unsafe to autoscale — UserJourneyClusterAutoscalerSafetyDisabled fires
 # ========================================
@@ -71,8 +69,6 @@ tests:
         runbook_url: "https://aka.ms/arohcp-runbook-cluster-autoscaler"
   - eval_time: 20m
     alertname: UserJourneyClusterAutoscalerStalled
-  - eval_time: 20m
-    alertname: UserJourneyClusterAutoscalerScaleUpStuck
 # ========================================
 # Test 3: Main loop stalled — UserJourneyClusterAutoscalerStalled fires
 # ========================================
@@ -111,68 +107,6 @@ tests:
         runbook_url: "https://aka.ms/arohcp-runbook-cluster-autoscaler"
   - eval_time: 27m
     alertname: UserJourneyClusterAutoscalerSafetyDisabled
-# ========================================
-# Test 4: Scale-up stuck — pending pods WITH headroom (ready < max)
-# UserJourneyClusterAutoscalerScaleUpStuck fires.
-# ========================================
-- interval: 1m
-  input_series:
-  - series: 'cluster_autoscaler_cluster_safe_to_autoscale{cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
-    values: "1x70"
-  - series: 'cluster_autoscaler_unschedulable_pods_count{cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
-    values: "3x70"
-  - series: 'cluster_autoscaler_nodes_count{state="ready", cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
-    values: "3x70"
-  - series: 'cluster_autoscaler_max_nodes_count{cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
-    values: "6x70"
-  - series: 'cluster_autoscaler_last_activity{activity="main", cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
-    values: "0+60x70"
-  - series: 'cluster_autoscaler_failed_scale_ups_total{reason="failed", cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
-    values: "0x70"
-  - series: 'cluster_autoscaler_errors_total{type="cloudProviderError", cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
-    values: "0x70"
-  alert_rule_test:
-  - eval_time: 22m
-    alertname: UserJourneyClusterAutoscalerScaleUpStuck
-    exp_alerts:
-    - exp_labels:
-        cluster: "mgmt-1"
-        namespace: "ocm-dev-abc-cluster21-01"
-        component: slo
-        severity: "3"
-        slo: cluster-autoscaler-scaling
-      exp_annotations:
-        summary: "ocm-dev-abc-cluster21-01: cluster autoscaler scale-up appears stuck (pending pods with headroom)"
-        description: "For over 20 minutes the cluster autoscaler for hosted cluster ocm-dev-abc-cluster21-01 has had unschedulable pods while still below its maximum node count (headroom available) and while it is safe to act (safe_to_autoscale=1). Demand exists and the autoscaler is willing to add nodes, but the pods are not being scheduled — the scale-up operation is blocked (e.g. provisioning stuck or a small number of nodes failing to join). This is distinct from a cluster at its configured max (not alerted) and from the autoscaler having disabled itself for safety (see UserJourneyClusterAutoscalerSafetyDisabled). SRE investigation needed."
-        correlationId: 'UserJourneyClusterAutoscalerScaleUpStuck/mgmt-1/ocm-dev-abc-cluster21-01'
-        runbook_url: "https://aka.ms/arohcp-runbook-cluster-autoscaler"
-  - eval_time: 22m
-    alertname: UserJourneyClusterAutoscalerScaleUpFailures
-# ========================================
-# Test 5: Customer at configured max — pending pods but ready >= max.
-# UserJourneyClusterAutoscalerScaleUpStuck must NOT fire (customer's own ceiling).
-# ========================================
-- interval: 1m
-  input_series:
-  - series: 'cluster_autoscaler_cluster_safe_to_autoscale{cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
-    values: "1x70"
-  - series: 'cluster_autoscaler_unschedulable_pods_count{cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
-    values: "2x70"
-  - series: 'cluster_autoscaler_nodes_count{state="ready", cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
-    values: "5x70"
-  - series: 'cluster_autoscaler_max_nodes_count{cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
-    values: "5x70"
-  - series: 'cluster_autoscaler_last_activity{activity="main", cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
-    values: "0+60x70"
-  - series: 'cluster_autoscaler_failed_scale_ups_total{reason="failed", cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
-    values: "0x70"
-  - series: 'cluster_autoscaler_errors_total{type="cloudProviderError", cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
-    values: "0x70"
-  alert_rule_test:
-  - eval_time: 22m
-    alertname: UserJourneyClusterAutoscalerScaleUpStuck
-  - eval_time: 22m
-    alertname: UserJourneyClusterAutoscalerScaleUpFailures
 # ========================================
 # Test 6: Scale-up failures — UserJourneyClusterAutoscalerScaleUpFailures fires
 # ========================================
@@ -274,10 +208,6 @@ tests:
   - series: 'cluster_autoscaler_errors_total{type="cloudProviderError", cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
     values: "0x70"
   alert_rule_test:
-  # Gated on safe_to_autoscale==1, so ScaleUpStuck must stay silent despite
-  # pending pods with headroom.
-  - eval_time: 22m
-    alertname: UserJourneyClusterAutoscalerScaleUpStuck
   # The unsafe condition is owned by SafetyDisabled.
   - eval_time: 22m
     alertname: UserJourneyClusterAutoscalerSafetyDisabled

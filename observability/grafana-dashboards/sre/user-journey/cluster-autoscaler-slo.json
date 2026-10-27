@@ -31,7 +31,7 @@
       "type": "text"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "$datasource" },
+      "datasource": { "type": "datasource", "uid": "-- Mixed --" },
       "description": "1 = autoscaler considers the cluster safe to autoscale; 0 = it has stopped making scaling decisions.",
       "fieldConfig": {
         "defaults": {
@@ -68,7 +68,7 @@
       "type": "stat"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "$datasource" },
+      "datasource": { "type": "datasource", "uid": "-- Mixed --" },
       "description": "Ready worker nodes the autoscaler currently manages (summed across selected hosted clusters).",
       "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [ { "color": "blue" } ] } }, "overrides": [] },
       "gridPos": { "h": 6, "w": 4, "x": 4, "y": 4 },
@@ -96,7 +96,7 @@
       "type": "stat"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "$datasource" },
+      "datasource": { "type": "datasource", "uid": "-- Mixed --" },
       "description": "Maximum nodes the autoscaler may scale to (ceiling).",
       "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [ { "color": "purple" } ] } }, "overrides": [] },
       "gridPos": { "h": 6, "w": 4, "x": 8, "y": 4 },
@@ -124,7 +124,7 @@
       "type": "stat"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "$datasource" },
+      "datasource": { "type": "datasource", "uid": "-- Mixed --" },
       "description": "Fraction of the node ceiling in use. Near 100% means little headroom to absorb new pods.",
       "fieldConfig": {
         "defaults": {
@@ -162,7 +162,7 @@
       "type": "stat"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "$datasource" },
+      "datasource": { "type": "datasource", "uid": "-- Mixed --" },
       "description": "Pods the scheduler could not place, which the autoscaler is trying to resolve. Sustained > 0 means unmet demand.",
       "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [ { "color": "green" }, { "color": "yellow", "value": 1 }, { "color": "red", "value": 10 } ] } }, "overrides": [] },
       "gridPos": { "h": 6, "w": 4, "x": 16, "y": 4 },
@@ -190,7 +190,7 @@
       "type": "stat"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "$datasource" },
+      "datasource": { "type": "datasource", "uid": "-- Mixed --" },
       "description": "Worker nodes currently pending deletion by the autoscaler (summed across selected hosted clusters).",
       "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [ { "color": "orange" } ] } }, "overrides": [] },
       "gridPos": { "h": 6, "w": 4, "x": 20, "y": 4 },
@@ -218,7 +218,7 @@
       "type": "stat"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "$datasource" },
+      "datasource": { "type": "datasource", "uid": "-- Mixed --" },
       "description": "Ready nodes vs the ceiling per hosted cluster. When Ready meets Max with pending pods, the ceiling needs raising.",
       "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2, "showPoints": "never" }, "unit": "short" }, "overrides": [] },
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 10 },
@@ -245,7 +245,7 @@
       "type": "timeseries"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "$datasource" },
+      "datasource": { "type": "datasource", "uid": "-- Mixed --" },
       "description": "Unschedulable pods over time per hosted cluster.",
       "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "line", "fillOpacity": 20, "lineWidth": 2, "showPoints": "never" }, "unit": "short" }, "overrides": [] },
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 10 },
@@ -265,7 +265,7 @@
       "type": "timeseries"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "$datasource" },
+      "datasource": { "type": "datasource", "uid": "-- Mixed --" },
       "description": "Scale-up and scale-down node events (per-second rate, 15m window) driven by the autoscaler.",
       "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2, "showPoints": "never" }, "unit": "short" }, "overrides": [] },
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 18 },
@@ -292,7 +292,7 @@
       "type": "timeseries"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "$datasource" },
+      "datasource": { "type": "datasource", "uid": "-- Mixed --" },
       "description": "Failed scale-up attempts and internal autoscaler errors (per-second rate, 15m window). Non-zero means the autoscaler cannot satisfy demand.",
       "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2, "showPoints": "never" }, "unit": "short" }, "overrides": [] },
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 18 },
@@ -319,7 +319,7 @@
       "type": "timeseries"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "$datasource" },
+      "datasource": { "type": "datasource", "uid": "-- Mixed --" },
       "description": "Per-cluster autoscaler telemetry availability: 1 = metrics flowing for this hosted cluster, 0 = this cluster's autoscaler metrics stopped recently (pod down or telemetry path broken). Gap = no autoscaler expected or silent for over an hour.",
       "fieldConfig": {
         "defaults": {
@@ -351,7 +351,7 @@
       "type": "timeseries"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "$datasource" },
+      "datasource": { "type": "datasource", "uid": "-- Mixed --" },
       "description": "Seconds since the autoscaler main loop last ran, per hosted cluster. Sustained growth indicates a stalled (wedged-but-running) autoscaler. When the pod is down, this panel goes empty — absent-detection is a separate concern.",
       "fieldConfig": {
         "defaults": {
@@ -379,7 +379,7 @@
       "type": "timeseries"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "$datasource" },
+      "datasource": { "type": "datasource", "uid": "-- Mixed --" },
       "description": "Node capacity utilisation (ready / max) per hosted cluster over time.",
       "fieldConfig": {
         "defaults": {
@@ -409,7 +409,7 @@
       "type": "timeseries"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "$datasource" },
+      "datasource": { "type": "datasource", "uid": "-- Mixed --" },
       "description": "Current per-hosted-cluster autoscaler state.",
       "fieldConfig": {
         "defaults": { "color": { "mode": "thresholds" }, "custom": { "align": "auto", "cellOptions": { "type": "auto" } }, "thresholds": { "mode": "absolute", "steps": [ { "color": "green" } ] } },

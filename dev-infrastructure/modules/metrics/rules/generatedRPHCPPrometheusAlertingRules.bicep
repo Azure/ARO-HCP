@@ -298,35 +298,6 @@ resource arohcpClusterAutoscalerScalingAlerts 'Microsoft.AlertsManagement/promet
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'UserJourneyClusterAutoscalerScaleUpStuck'
-        enabled: true
-        labels: {
-          component: 'slo'
-          severity: '3'
-          slo: 'cluster-autoscaler-scaling'
-        }
-        annotations: {
-          correlationId: 'UserJourneyClusterAutoscalerScaleUpStuck/{{ $labels.cluster }}/{{ $labels.namespace }}'
-          description: 'For over 20 minutes the cluster autoscaler for hosted cluster {{ $labels.namespace }} has had unschedulable pods while still below its maximum node count (headroom available) and while it is safe to act (safe_to_autoscale=1). Demand exists and the autoscaler is willing to add nodes, but the pods are not being scheduled — the scale-up operation is blocked (e.g. provisioning stuck or a small number of nodes failing to join). This is distinct from a cluster at its configured max (not alerted) and from the autoscaler having disabled itself for safety (see UserJourneyClusterAutoscalerSafetyDisabled). SRE investigation needed.'
-          info: 'For over 20 minutes the cluster autoscaler for hosted cluster {{ $labels.namespace }} has had unschedulable pods while still below its maximum node count (headroom available) and while it is safe to act (safe_to_autoscale=1). Demand exists and the autoscaler is willing to add nodes, but the pods are not being scheduled — the scale-up operation is blocked (e.g. provisioning stuck or a small number of nodes failing to join). This is distinct from a cluster at its configured max (not alerted) and from the autoscaler having disabled itself for safety (see UserJourneyClusterAutoscalerSafetyDisabled). SRE investigation needed.'
-          runbook_url: 'https://aka.ms/arohcp-runbook-cluster-autoscaler'
-          summary: '{{ $labels.namespace }}: cluster autoscaler scale-up appears stuck (pending pods with headroom)'
-          title: '{{ $labels.namespace }}: cluster autoscaler scale-up appears stuck (pending pods with headroom)'
-        }
-        expression: '(pods:cluster_autoscaler:unschedulable_count > 0) and on (cluster, namespace) (nodes:cluster_autoscaler:ready_count < nodes:cluster_autoscaler:max_count) and on (cluster, namespace) (health:cluster_autoscaler:safe_to_autoscale == 1)'
-        for: 'PT20M'
-        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
-      }
     ]
     scopes: [
       azureMonitoring

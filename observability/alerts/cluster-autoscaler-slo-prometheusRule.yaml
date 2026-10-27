@@ -112,33 +112,3 @@ spec:
         description: "The cluster autoscaler for hosted cluster {{ $labels.namespace }} has been recording failed scale-up attempts for over 15 minutes. Common causes are Azure quota exhaustion, lack of capacity in the target zone/VM size, or provider errors — all SRE/infra concerns. Pending pods will not receive new nodes until this clears."
         correlationId: 'UserJourneyClusterAutoscalerScaleUpFailures/{{ $labels.cluster }}/{{ $labels.namespace }}'
         runbook_url: "https://aka.ms/arohcp-runbook-cluster-autoscaler"
-    # Scale-up is stuck: pods are unschedulable AND there is still headroom below
-    # the max (ready < max) AND the autoscaler is safe to act (safe_to_autoscale=1),
-    # yet the demand is not being resolved. The autoscaler is allowed and needs to
-    # add nodes but isn't succeeding — a blocked scaling operation. This is kept
-    # distinct from (a) a customer simply hitting their configured ceiling (not
-    # alerted) and (b) the autoscaler having disabled itself for safety, which is
-    # owned by UserJourneyClusterAutoscalerSafetyDisabled. The safe_to_autoscale==1
-    # gate prevents a duplicate incident for that same root cause.
-    - alert: UserJourneyClusterAutoscalerScaleUpStuck
-      expr: |
-        (
-          pods:cluster_autoscaler:unschedulable_count > 0
-        )
-        and on (cluster, namespace)
-        (
-          nodes:cluster_autoscaler:ready_count < nodes:cluster_autoscaler:max_count
-        )
-        and on (cluster, namespace)
-        (
-          health:cluster_autoscaler:safe_to_autoscale == 1
-        )
-      for: 20m
-      labels:
-        severity: "3"
-        slo: cluster-autoscaler-scaling
-      annotations:
-        summary: "{{ $labels.namespace }}: cluster autoscaler scale-up appears stuck (pending pods with headroom)"
-        description: "For over 20 minutes the cluster autoscaler for hosted cluster {{ $labels.namespace }} has had unschedulable pods while still below its maximum node count (headroom available) and while it is safe to act (safe_to_autoscale=1). Demand exists and the autoscaler is willing to add nodes, but the pods are not being scheduled — the scale-up operation is blocked (e.g. provisioning stuck or a small number of nodes failing to join). This is distinct from a cluster at its configured max (not alerted) and from the autoscaler having disabled itself for safety (see UserJourneyClusterAutoscalerSafetyDisabled). SRE investigation needed."
-        correlationId: 'UserJourneyClusterAutoscalerScaleUpStuck/{{ $labels.cluster }}/{{ $labels.namespace }}'
-        runbook_url: "https://aka.ms/arohcp-runbook-cluster-autoscaler"
