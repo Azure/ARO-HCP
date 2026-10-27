@@ -28,7 +28,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
-	hcpsdk20260630preview "github.com/Azure/ARO-HCP/test/sdk/v20260630preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	hcpsdk20260901preview "github.com/Azure/ARO-HCP/test/sdk/v20260901preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 )
@@ -63,7 +63,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for fully private with KV test")
 
 			By("creating cluster parameters with all visibility set to Private")
-			clusterParams := framework.NewDefaultClusterParams20260630()
+			clusterParams := framework.NewDefaultClusterParams20260901()
 			clusterParams.ClusterName = customerClusterName
 			clusterParams.ManagedResourceGroupName = framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			clusterParams.APIVisibility = "Private"
@@ -85,7 +85,7 @@ var _ = Describe("Customer", func() {
 			clusterParams.OpenshiftVersionId = openshiftVersionID
 
 			By("creating customer resources with private KeyVault")
-			clusterParams, err = tc.CreateClusterCustomerResources20260630(ctx,
+			clusterParams, err = tc.CreateClusterCustomerResources20260901(ctx,
 				resourceGroup,
 				clusterParams,
 				map[string]interface{}{
@@ -101,35 +101,29 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to deploy test VM for fully private with KV verification")
 
 			By("creating the HCP cluster with all private settings")
-			clusterResource, err := framework.BuildHCPClusterFromParams20260630(clusterParams, tc.Location(), nil)
+			clusterResource, err := framework.BuildHCPClusterFromParams20260901(clusterParams, tc.Location(), nil)
 			Expect(err).NotTo(HaveOccurred(), "failed to build HCP cluster resource from params")
 
 			if clusterResource.Properties != nil && clusterResource.Properties.Etcd != nil &&
 				clusterResource.Properties.Etcd.DataEncryption != nil &&
 				clusterResource.Properties.Etcd.DataEncryption.CustomerManaged != nil &&
 				clusterResource.Properties.Etcd.DataEncryption.CustomerManaged.Kms != nil {
-				clusterResource.Properties.Etcd.DataEncryption.CustomerManaged.Kms.Visibility = to.Ptr(hcpsdk20260630preview.KeyVaultVisibilityPrivate)
+				clusterResource.Properties.Etcd.DataEncryption.CustomerManaged.Kms.Visibility = to.Ptr(hcpsdk20260901preview.KeyVaultVisibilityPrivate)
 			}
 
-			_, err = framework.CreateHCPClusterAndWait20260630(
+			_, err = framework.CreateHCPClusterAndWait20260901(
 				ctx,
 				GinkgoLogr,
-				tc.Get20260630ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
+				tc.Get20260901ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
 				customerClusterName,
 				clusterResource,
 				framework.ClusterCreationTimeout,
 			)
-			if framework.IsAPINotDeployedError(err) {
-				if time.Now().Before(framework.V20260630PreviewDeploymentDeadline) {
-					Skip(fmt.Sprintf("v20260630preview API not yet deployed; skipping until %s", framework.V20260630PreviewDeploymentDeadline.Format(time.RFC3339)))
-				}
-				Fail(fmt.Sprintf("v20260630preview API still not deployed as of %s deadline", framework.V20260630PreviewDeploymentDeadline.Format(time.RFC3339)))
-			}
 			Expect(err).NotTo(HaveOccurred(), "failed to create fully private HCP cluster %q with private KV", customerClusterName)
 
 			By("verifying all visibility settings are Private via ARM GET")
-			hcpClient := tc.Get20260630ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
+			hcpClient := tc.Get20260901ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
 			cluster, err := hcpClient.Get(ctx, *resourceGroup.Name, customerClusterName, nil)
 			Expect(err).NotTo(HaveOccurred(), "failed to get cluster %q to verify fully private config with KV", customerClusterName)
 
@@ -137,12 +131,12 @@ var _ = Describe("Customer", func() {
 
 			Expect(cluster.Properties.API).ToNot(BeNil(), "cluster %q Properties.API was nil", customerClusterName)
 			Expect(cluster.Properties.API.Visibility).ToNot(BeNil(), "cluster %q Properties.API.Visibility was nil", customerClusterName)
-			Expect(*cluster.Properties.API.Visibility).To(Equal(hcpsdk20260630preview.VisibilityPrivate),
+			Expect(*cluster.Properties.API.Visibility).To(Equal(hcpsdk20260901preview.VisibilityPrivate),
 				"cluster %q API visibility should be Private", customerClusterName)
 
 			Expect(cluster.Properties.Ingress).ToNot(BeNil(), "cluster %q Properties.Ingress was nil", customerClusterName)
 			Expect(cluster.Properties.Ingress.Type).ToNot(BeNil(), "cluster %q Properties.Ingress.Type was nil", customerClusterName)
-			Expect(*cluster.Properties.Ingress.Type).To(Equal(hcpsdk20260630preview.IngressTypePrivate),
+			Expect(*cluster.Properties.Ingress.Type).To(Equal(hcpsdk20260901preview.IngressTypePrivate),
 				"cluster %q ingress type should be Private", customerClusterName)
 
 			Expect(cluster.Properties.Etcd).ToNot(BeNil(), "cluster %q Properties.Etcd was nil", customerClusterName)
@@ -150,7 +144,7 @@ var _ = Describe("Customer", func() {
 			Expect(cluster.Properties.Etcd.DataEncryption.CustomerManaged).ToNot(BeNil(), "cluster %q Properties.Etcd.DataEncryption.CustomerManaged was nil", customerClusterName)
 			Expect(cluster.Properties.Etcd.DataEncryption.CustomerManaged.Kms).ToNot(BeNil(), "cluster %q Properties.Etcd.DataEncryption.CustomerManaged.Kms was nil", customerClusterName)
 			Expect(cluster.Properties.Etcd.DataEncryption.CustomerManaged.Kms.Visibility).ToNot(BeNil(), "cluster %q KV Visibility was nil", customerClusterName)
-			Expect(*cluster.Properties.Etcd.DataEncryption.CustomerManaged.Kms.Visibility).To(Equal(hcpsdk20260630preview.KeyVaultVisibilityPrivate),
+			Expect(*cluster.Properties.Etcd.DataEncryption.CustomerManaged.Kms.Visibility).To(Equal(hcpsdk20260901preview.KeyVaultVisibilityPrivate),
 				"cluster %q KeyVault visibility should be Private", customerClusterName)
 
 			Expect(cluster.Properties.API.URL).ToNot(BeNil(), "cluster %q Properties.API.URL was nil", customerClusterName)
@@ -182,12 +176,12 @@ var _ = Describe("Customer", func() {
 				"API hostname %q resolved to %v but expected it to include internal KAS LB IP %s — DNS may be pointing to wrong endpoint (ARO-29270)", apiHost, ips, lbIP)
 
 			By("creating the node pool")
-			nodePoolParams := framework.NewDefaultNodePoolParams20260630()
+			nodePoolParams := framework.NewDefaultNodePoolParams20260901()
 			nodePoolParams.ClusterName = customerClusterName
 			nodePoolParams.NodePoolName = customerNodePoolName
 			nodePoolParams.Replicas = int32(2)
 
-			err = tc.CreateNodePoolFromParam20260630(ctx,
+			err = tc.CreateNodePoolFromParam20260901(ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
 				clusterParams.ManagedResourceGroupName,
