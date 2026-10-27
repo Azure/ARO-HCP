@@ -255,11 +255,11 @@ type ServiceProviderClusterStatus struct {
 	// Failed run. Unlike the Validations conditions' LastTransitionTime, which
 	// only advances when the outcome changes, these timestamps keep advancing
 	// while the validation keeps failing (rewritten at most once per
-	// validationutils.ValidationProbeRewriteInterval); Unknown and timed-out
-	// runs leave them untouched. They let the operation controllers
+	// validationutils.ValidationProbeRewriteInterval); Unknown runs leave
+	// them untouched. They let the operation controllers
 	// distinguish a failure that was recently re-confirmed from one that
 	// simply has not been re-checked lately (a stalled validation controller
-	// or runs that keep timing out) before failing a create or update
+	// or inconclusive checks) before failing a create or update
 	// operation terminally. Entries are removed when their validation passes
 	// or is skipped.
 	// Written by: ClusterValidation* controllers (one entry per validation)

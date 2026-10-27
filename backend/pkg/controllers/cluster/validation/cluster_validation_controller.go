@@ -16,7 +16,6 @@ package validation
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
@@ -88,9 +87,6 @@ type clusterValidationSyncer struct {
 
 	// clock provides the time recorded in Status.ValidationProbeTimes and the run duration metric.
 	clock utilsclock.PassiveClock
-
-	// runTimeout bounds a single validation run; see validationutils.ValidationRunTimeout.
-	runTimeout time.Duration
 }
 
 var _ controllerutils.ClusterSyncer = (*clusterValidationSyncer)(nil)
@@ -121,7 +117,6 @@ func NewNamedClusterValidationController(
 		consecutiveUnknownCounts:     lru.New(consecutiveUnknownCountsCacheCapacity),
 		probeWriteTimes:              lru.New(consecutiveUnknownCountsCacheCapacity),
 		clock:                        utilsclock.RealClock{},
-		runTimeout:                   validationutils.ValidationRunTimeout,
 	}
 
 	controller := controllerutils.NewClusterWatchingController(
@@ -184,7 +179,7 @@ func (c *clusterValidationSyncer) SyncOnce(ctx context.Context, key controllerut
 	}
 
 	probeStartTime := c.clock.Now()
-	result := c.runValidation(ctx, subscription, existingCluster)
+	result := c.validation.Validate(ctx, subscription, existingCluster)
 	if err := result.Validate(); err != nil {
 		return utils.TrackError(fmt.Errorf("validation %s returned invalid ValidationResult: %w", c.validation.Name(), err))
 	}
@@ -280,30 +275,6 @@ func (c *clusterValidationSyncer) SyncOnce(ctx context.Context, key controllerut
 	}
 
 	return nil
-}
-
-// runValidation executes the validation bounded by runTimeout. A run that hits the timeout is
-// reported as Unknown regardless of what the validation returned: a validation interrupted
-// mid-flight may have reached a partial conclusion, and Unknown keeps the operation controllers
-// from treating it as a confirmed failure.
-//
-// The timeout only interrupts work that honors context cancellation (Azure SDK calls do). A
-// validation that blocks while ignoring ctx still holds the worker until it returns.
-func (c *clusterValidationSyncer) runValidation(ctx context.Context, subscription *coreapi.Subscription, cluster *coreapi.Cluster) validationutils.ValidationResult {
-	if c.runTimeout <= 0 {
-		return c.validation.Validate(ctx, subscription, cluster)
-	}
-
-	runCtx, cancel := context.WithTimeout(ctx, c.runTimeout)
-	defer cancel()
-
-	result := c.validation.Validate(runCtx, subscription, cluster)
-	if ctx.Err() == nil && errors.Is(runCtx.Err(), context.DeadlineExceeded) {
-		validationRunTimeouts.WithLabelValues(c.validation.Name()).Inc()
-		message := fmt.Sprintf("validation did not complete within %s", c.runTimeout)
-		return validationutils.UnknownValidation("Timeout", "Validation is taking longer than expected; it will be retried.", message, validationutils.ControllerReportingPolicyTypeError)
-	}
-	return result
 }
 
 // handleConflictRequeue schedules the next run after this run's result was lost to a concurrent

@@ -33,13 +33,4 @@ var (
 		},
 		[]string{"validation", "outcome"},
 	)
-
-	// validationRunTimeouts counts validation runs that were cut off by validationRunTimeout.
-	validationRunTimeouts = promauto.With(legacyregistry.Registerer()).NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "backend_cluster_validation_run_timeouts_total",
-			Help: "Total number of cluster validation runs that exceeded the per-run timeout.",
-		},
-		[]string{"validation"},
-	)
 )

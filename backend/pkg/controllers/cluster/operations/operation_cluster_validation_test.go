@@ -303,7 +303,7 @@ func TestClusterValidationProbeFreshnessMetrics(t *testing.T) {
 			Type: validationType, Status: metav1.ConditionFalse, Reason: "InvalidSubnet",
 			LastTransitionTime: metav1.NewTime(now.Add(-time.Hour)),
 		}},
-		ValidationProbeTimes: map[string]metav1.Time{validationType: metav1.NewTime(now.Add(-10 * time.Minute))},
+		ValidationProbeTimes: map[string]metav1.Time{validationType: metav1.NewTime(now.Add(-validationutils.ValidationProbeFreshnessWindow - time.Second))},
 	}}
 	deferralsBefore := testutil.ToFloat64(validationStaleProbeDeferrals.WithLabelValues(validationType))
 	failuresBefore := testutil.ToFloat64(validationTerminalFailures.WithLabelValues(validationType))

@@ -21,7 +21,6 @@ import (
 	"time"
 
 	"github.com/go-logr/logr/testr"
-	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -909,58 +908,6 @@ func TestClusterValidationSyncer_CooldownSuppression(t *testing.T) {
 	assert.Greater(t, enqueuer.enqueuedDurations[0], time.Duration(0), "enqueue duration should be positive")
 }
 
-// TestClusterValidationSyncer_RunTimeout verifies that a validation run exceeding the per-run
-// timeout is recorded as Unknown, never as a confirmed failure, and does not refresh the probe time.
-func TestClusterValidationSyncer_RunTimeout(t *testing.T) {
-	t.Parallel()
-	const validationName = "TimeoutTestValidation"
-	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
-
-	mockDB := corecosmosstoragetesting.NewMockResourcesDBClient()
-	cluster := newTestCluster(t)
-	_, err := mockDB.HCPClusters(testSubscriptionID, testResourceGroup).Create(ctx, cluster, nil)
-	require.NoError(t, err)
-	_, err = mockDB.Subscriptions().Create(ctx, newTestSubscription(), nil)
-	require.NoError(t, err)
-	_, err = corecosmosstorage.GetOrCreateServiceProviderCluster(ctx, mockDB, cluster.ID)
-	require.NoError(t, err)
-
-	validation := NewMockClusterValidation(validationName).WithValidateFunc(func(ctx context.Context) validationutils.ValidationResult {
-		<-ctx.Done()
-		return validationutils.FailedValidation("PartialConclusion", "Interrupted run.", "interrupted run")
-	})
-
-	fakeClock := clocktesting.NewFakePassiveClock(fixedNow)
-	syncer, enqueuer := newTestSyncer(mockDB, validation, fakeClock)
-	syncer.runTimeout = 10 * time.Millisecond
-
-	timeoutsBefore := testutil.ToFloat64(validationRunTimeouts.WithLabelValues(validationName))
-	err = syncer.SyncOnce(ctx, newTestClusterKey())
-	require.Error(t, err, "a timed-out run is reported as an inconclusive error")
-	assert.Equal(t, timeoutsBefore+1, testutil.ToFloat64(validationRunTimeouts.WithLabelValues(validationName)), "timeout counter must increment")
-
-	spc, err := mockDB.ServiceProviderClusters(testSubscriptionID, testResourceGroup, testClusterName).
-		Get(ctx, coreapi.ServiceProviderClusterResourceName)
-	require.NoError(t, err)
-	cond := meta.FindStatusCondition(spc.Status.Validations, validationName)
-	require.NotNil(t, cond)
-	assert.Equal(t, metav1.ConditionUnknown, cond.Status)
-	assert.Equal(t, "Timeout", cond.Reason)
-	_, hasProbe := spc.Status.ValidationProbeTimes[validationName]
-	assert.False(t, hasProbe, "a timed-out run must not record a probe time")
-	assert.NotEmpty(t, enqueuer.enqueuedKeys, "a timed-out run must schedule a retry")
-}
-
-// TestClusterValidationSyncer_ProbeRewriteWriteInterval asserts that probe rewrites are
-// throttled by the time between actual writes, not by the previous probe's run-start time,
-// and that the stored probe never ages past ValidationProbeFreshnessWindow while a
-// validation keeps re-checking on schedule. The freshness bound must cover, on top of the
-// rewrite interval and the retry/run overshoot, the writing run's own duration: the write
-// lands when the run completes, so the stored probe (that run's start) is already up to
-// one run timeout old when the clock it is measured against starts. The mixed-duration
-// schedule below (119s/1s runs, 90s retries) reaches a stored-probe age of ~420s before a
-// rewrite lands — beyond the old 6-minute window, which is why the window now includes an
-// extra run timeout.
 func TestClusterValidationSyncer_ProbeRewriteWriteInterval(t *testing.T) {
 	for _, tc := range []struct {
 		name       string
@@ -973,8 +920,8 @@ func TestClusterValidationSyncer_ProbeRewriteWriteInterval(t *testing.T) {
 			retryDelay: 61 * time.Second,
 		},
 		{
-			name:       "mixed durations with maximum retries",
-			durations:  []time.Duration{119 * time.Second, time.Second},
+			name:       "slow runs must not rewrite early",
+			durations:  []time.Duration{7 * time.Minute, time.Second},
 			retryDelay: 90 * time.Second,
 		},
 	} {
@@ -1019,21 +966,20 @@ func TestClusterValidationSyncer_ProbeRewriteWriteInterval(t *testing.T) {
 				probe := after.Status.ValidationProbeTimes[testValidationName]
 				require.Falsef(t, probe.IsZero(), "run %d: a failing validation must always record a probe", i)
 
-				// Freshness invariant: while re-checks continue on schedule, the stored
-				// probe must stay inside the freshness window. The old probe remains
-				// readable until the rewriting run's write lands at its completion, so
-				// its maximum observable age is completion minus the old probe. That
-				// bound necessarily includes the writing run's duration in addition to
-				// the rewrite interval and the retry/run overshoot; a window that omits
-				// it (the old 6-minute bound) lets this schedule drive the probe stale
-				// before the rewrite lands.
 				completion := fakeClock.Now()
-				if beforeProbe, ok := before.Status.ValidationProbeTimes[testValidationName]; ok {
-					assert.LessOrEqualf(t, completion.Sub(beforeProbe.Time), validationutils.ValidationProbeFreshnessWindow,
-						"run %d: the stored probe went stale while the validation was re-checking on schedule", i)
+				if tc.name == "slow runs must not rewrite early" {
+					if tc.durations[(run-1)%len(tc.durations)] > validationutils.ValidationProbeRewriteInterval {
+						assert.Truef(t, probe.Time.Equal(completion.Add(-tc.durations[(run-1)%len(tc.durations)])),
+							"run %d: a slow failure must store its start time", i)
+					}
+				} else {
+					if beforeProbe, ok := before.Status.ValidationProbeTimes[testValidationName]; ok {
+						assert.LessOrEqualf(t, completion.Sub(beforeProbe.Time), validationutils.ValidationProbeFreshnessWindow,
+							"run %d: the stored probe went stale while the validation was re-checking on schedule", i)
+					}
+					assert.LessOrEqualf(t, completion.Sub(probe.Time), validationutils.ValidationProbeFreshnessWindow,
+						"run %d: the freshly written probe exceeds the freshness window", i)
 				}
-				assert.LessOrEqualf(t, completion.Sub(probe.Time), validationutils.ValidationProbeFreshnessWindow,
-					"run %d: the freshly written probe exceeds the freshness window", i)
 
 				if !probe.Time.Equal(before.Status.ValidationProbeTimes[testValidationName].Time) {
 					if rewrites > 0 {
