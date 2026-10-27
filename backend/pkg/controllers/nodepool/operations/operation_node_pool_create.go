@@ -192,7 +192,16 @@ func (c *operationNodePoolCreate) determineOperationState(ctx context.Context, o
 	}
 
 	logger.Info("determined node pool create operation status", "operationStates", operationStates)
-	return operationbase.SummarizeOperationStates(operationStates, errs...)
+	state, err := operationbase.SummarizeOperationStates(operationStates, errs...)
+	var logValues []any
+	if state != nil {
+		logValues = append(logValues, "provisioningState", state.ProvisioningState, "message", state.Message)
+	}
+	if err != nil {
+		logValues = append(logValues, "error", err)
+	}
+	logger.Info("summarized operation state", logValues...)
+	return state, err
 }
 
 func (c *operationNodePoolCreate) nodePoolServiceCreateOperationState(ctx context.Context, operation *coreapi.Operation, nodePool *coreapi.NodePool) (*operationbase.OperationState, error) {

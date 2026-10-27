@@ -181,7 +181,16 @@ func (c *operationExternalAuthCreate) determineOperationState(ctx context.Contex
 	}
 
 	logger.Info("determined external auth create operation status", "operationStates", operationStates)
-	return operationbase.SummarizeOperationStates(operationStates, errs...)
+	state, err := operationbase.SummarizeOperationStates(operationStates, errs...)
+	var logValues []any
+	if state != nil {
+		logValues = append(logValues, "provisioningState", state.ProvisioningState, "message", state.Message)
+	}
+	if err != nil {
+		logValues = append(logValues, "error", err)
+	}
+	logger.Info("summarized operation state", logValues...)
+	return state, err
 }
 
 func (c *operationExternalAuthCreate) externalAuthClusterServiceCreateOperationState(ctx context.Context, externalAuth *coreapi.ExternalAuth) (*operationbase.OperationState, error) {
