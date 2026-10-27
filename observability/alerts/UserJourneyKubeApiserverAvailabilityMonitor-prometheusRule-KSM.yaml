@@ -9,20 +9,24 @@ spec:
     labels:
       component: slo
     rules:
+    # Exclusion of known inactionable conditions (registered in
+    # UserJourneyKubeApiserverAvailabilityAlertExclusions-prometheusRule-KSM.yaml -- add new
+    # exclusions there, not here) is already applied per-sample inside sli_sum_*/sli_count_*
+    # themselves, so this alert expression needs no unless clause of its own.
     - alert: userJourneyKubeApiserverAvailability1h5m
       expr: |
         (
-          1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_5m / hostedClusterAPI_kubeapiserver_available:sli_count_5m)
+          1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_5m_excl_known / hostedClusterAPI_kubeapiserver_available:sli_count_5m_excl_known)
           > (14.4 * (1 - 0.9995))
           and on (name, namespace, _id, resource_id, cluster)
-          hostedClusterAPI_kubeapiserver_available:sli_count_5m > 3
+          hostedClusterAPI_kubeapiserver_available:sli_count_5m_excl_known > 3
         )
         and on (name, namespace, _id, resource_id, cluster)
         (
-          1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_1h / hostedClusterAPI_kubeapiserver_available:sli_count_1h)
+          1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_1h_excl_known / hostedClusterAPI_kubeapiserver_available:sli_count_1h_excl_known)
           > (14.4 * (1 - 0.9995))
           and on (name, namespace, _id, resource_id, cluster)
-          hostedClusterAPI_kubeapiserver_available:sli_count_1h > 54
+          hostedClusterAPI_kubeapiserver_available:sli_count_1h_excl_known > 54
         )
       for: 10m
       labels:
@@ -38,22 +42,25 @@ spec:
           Namespace: {{ $labels.namespace }}
         runbook_url: https://aka.ms/arohcp-runbook-ujkasavailable
         correlationId: "userJourneyKubeApiserverAvailability/{{ $labels.cluster }}/{{ $labels.namespace }}"
+    # sli_sum_30m_excl_known/sli_count_30m_excl_known: userJourneyKubeApiserverAvailabilityRecord-prometheusRule-KSM.yaml
+    # sli_sum_6h_excl_known/sli_count_6h_excl_known: HCPkasRecord-prometheusRule-KSM.yaml
+    # Every window here carries the _excl_known suffix (alerting-only, exclusion-applied);
+    # the kas_golden_signals dashboard charts the raw/unexcluded sli_sum_6h/sli_count_6h instead.
+    # Excludes conditions registered in UserJourneyKubeApiserverAvailabilityAlertExclusions-prometheusRule-KSM.yaml -- add new exclusions there, not here.
     - alert: userJourneyKubeApiserverAvailability6h30m
-      # sli_sum_30m, sli_count_30m are in userJourneyKubeApiserverAvailabilityRecord-prometheusRule-KSM.yaml
-      # sli_sum_6h, sli_count_6h are in HCPkasRecord-prometheusRule-KSM.yaml
       expr: |
         (
-          1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_30m / hostedClusterAPI_kubeapiserver_available:sli_count_30m)
+          1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_30m_excl_known / hostedClusterAPI_kubeapiserver_available:sli_count_30m_excl_known)
           > (6 * (1 - 0.9995))
           and on (name, namespace, _id, resource_id, cluster)
-          hostedClusterAPI_kubeapiserver_available:sli_count_30m > 27
+          hostedClusterAPI_kubeapiserver_available:sli_count_30m_excl_known > 27
         )
         and on (name, namespace, _id, resource_id, cluster)
         (
-          1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_6h / hostedClusterAPI_kubeapiserver_available:sli_count_6h)
+          1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_6h_excl_known / hostedClusterAPI_kubeapiserver_available:sli_count_6h_excl_known)
           > (6 * (1 - 0.9995))
           and on (name, namespace, _id, resource_id, cluster)
-          hostedClusterAPI_kubeapiserver_available:sli_count_6h > 64
+          hostedClusterAPI_kubeapiserver_available:sli_count_6h_excl_known > 64
         )
       for: 30m
       labels:
@@ -69,22 +76,25 @@ spec:
           Namespace: {{ $labels.namespace }}
         runbook_url: https://aka.ms/arohcp-runbook-ujkasavailable
         correlationId: "userJourneyKubeApiserverAvailability/{{ $labels.cluster }}/{{ $labels.namespace }}"
+    # sli_sum_3d_excl_known/sli_count_3d_excl_known and sli_sum_6h_excl_known/sli_count_6h_excl_known
+    # are recording rules in HCPkasRecord-prometheusRule-KSM.yaml. Every window here carries
+    # the _excl_known suffix; the kas_golden_signals dashboard charts the raw/unexcluded
+    # sli_sum_6h/sli_count_6h instead.
+    # Excludes conditions registered in UserJourneyKubeApiserverAvailabilityAlertExclusions-prometheusRule-KSM.yaml -- add new exclusions there, not here.
     - alert: userJourneyKubeApiserverAvailability3d6h
-      # sli_sum_3d, sli_count_3d (long window) and sli_sum_6h, sli_count_6h (short window)
-      # are recording rules defined in HCPkasRecord-prometheusRule-KSM.yaml
       expr: |
         (
-          1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_6h / hostedClusterAPI_kubeapiserver_available:sli_count_6h)
+          1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_6h_excl_known / hostedClusterAPI_kubeapiserver_available:sli_count_6h_excl_known)
           > (1 * (1 - 0.9995))
           and on (name, namespace, _id, resource_id, cluster)
-          hostedClusterAPI_kubeapiserver_available:sli_count_6h > 64
+          hostedClusterAPI_kubeapiserver_available:sli_count_6h_excl_known > 64
         )
         and on (name, namespace, _id, resource_id, cluster)
         (
-          1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_3d / hostedClusterAPI_kubeapiserver_available:sli_count_3d)
+          1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_3d_excl_known / hostedClusterAPI_kubeapiserver_available:sli_count_3d_excl_known)
           > (1 * (1 - 0.9995))
           and on (name, namespace, _id, resource_id, cluster)
-          hostedClusterAPI_kubeapiserver_available:sli_count_3d > 130
+          hostedClusterAPI_kubeapiserver_available:sli_count_3d_excl_known > 130
         )
       for: 3h
       labels:

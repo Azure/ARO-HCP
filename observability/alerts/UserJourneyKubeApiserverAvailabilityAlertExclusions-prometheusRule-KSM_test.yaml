@@ -1,0 +1,100 @@
+rule_files:
+- UserJourneyKubeApiserverAvailabilityAlertExclusions-prometheusRule-KSM.yaml
+evaluation_interval: 1m
+tests:
+# An invalid BYOK KMS config classifies as customer-caused and joins the exclusion aggregate.
+- interval: 1m
+  name: "Case A: ValidAzureKMSConfig=False classifies as customer-caused"
+  input_series:
+  # A cluster reporting ValidAzureKMSConfig=False
+  - series: 'hostedClusterAPI_valid_azure_kms_config{status="False", name="case-a", namespace="clusters", _id="case-a-id", cluster="mgmt-cluster", resource_id="case-a-resource"}'
+    values: "1+0x10"
+  promql_expr_test:
+  # The condition is classified as customer-caused
+  - expr: hostedClusterAPI_valid_azure_kms_config:is_customer_caused{name="case-a"}
+    eval_time: 10m
+    exp_samples:
+    - labels: '{__name__="hostedClusterAPI_valid_azure_kms_config:is_customer_caused", name="case-a", namespace="clusters", _id="case-a-id", cluster="mgmt-cluster", resource_id="case-a-resource"}'
+      value: 1
+  # The cluster is included in the alert-exclusion aggregate
+  - expr: hostedClusterAPI_alert_excluded:any{name="case-a"}
+    eval_time: 10m
+    exp_samples:
+    - labels: '{__name__="hostedClusterAPI_alert_excluded:any", name="case-a", namespace="clusters", _id="case-a-id", cluster="mgmt-cluster", resource_id="case-a-resource"}'
+      value: 1
+# A healthy config produces no sample at all (not 0) -- the acceptance bar for the trailing `== 1` comparator.
+# The StateSet metric type emits all three enum values per resource (KSM behavior, see
+# observability/prometheus/values-mgmt.yaml), so a real healthy cluster also reports an
+# explicit status="False" series pinned to 0 -- include it here so the `== 1` filter on
+# that series is actually exercised, not just satisfied by the series being absent.
+- interval: 1m
+  name: "Case B: ValidAzureKMSConfig=True produces absence, not a 0 sample"
+  input_series:
+  # A cluster reporting ValidAzureKMSConfig=True (healthy)
+  - series: 'hostedClusterAPI_valid_azure_kms_config{status="True", name="case-b", namespace="clusters", _id="case-b-id", cluster="mgmt-cluster", resource_id="case-b-resource"}'
+    values: "1+0x10"
+  # The same StateSet also reports status="False" pinned to 0 while healthy
+  - series: 'hostedClusterAPI_valid_azure_kms_config{status="False", name="case-b", namespace="clusters", _id="case-b-id", cluster="mgmt-cluster", resource_id="case-b-resource"}'
+    values: "0+0x10"
+  promql_expr_test:
+  # No classification sample exists for a healthy config
+  - expr: hostedClusterAPI_valid_azure_kms_config:is_customer_caused{name="case-b"}
+    eval_time: 10m
+    exp_samples: []
+  # The cluster is not included in the alert-exclusion aggregate
+  - expr: hostedClusterAPI_alert_excluded:any{name="case-b"}
+    eval_time: 10m
+    exp_samples: []
+# Simulates cluster deletion: once the series goes stale, classification disappears within Prometheus's default staleness lookback rather than lingering.
+- interval: 1m
+  name: "Case C: series disappearing stops classification without lingering"
+  input_series:
+  # A cluster reporting ValidAzureKMSConfig=False, which then stops reporting after t=9m
+  - series: 'hostedClusterAPI_valid_azure_kms_config{status="False", name="case-c", namespace="clusters", _id="case-c-id", cluster="mgmt-cluster", resource_id="case-c-resource"}'
+    values: "1+0x9"
+  promql_expr_test:
+  # While the series is still reporting, the rule classifies it as customer-caused
+  - expr: hostedClusterAPI_valid_azure_kms_config:is_customer_caused{name="case-c"}
+    eval_time: 9m
+    exp_samples:
+    - labels: '{__name__="hostedClusterAPI_valid_azure_kms_config:is_customer_caused", name="case-c", namespace="clusters", _id="case-c-id", cluster="mgmt-cluster", resource_id="case-c-resource"}'
+      value: 1
+  # Well past the last sample (t=9m) and past the default 5m staleness lookback, the series
+  # is gone and so is the recording rule output -- it does not linger
+  - expr: hostedClusterAPI_valid_azure_kms_config:is_customer_caused{name="case-c"}
+    eval_time: 20m
+    exp_samples: []
+  - expr: hostedClusterAPI_alert_excluded:any{name="case-c"}
+    eval_time: 20m
+    exp_samples: []
+# Unknown status is never classified as customer-caused -- treated conservatively so real outages keep alerting.
+- interval: 1m
+  name: "Case D: ValidAzureKMSConfig=Unknown is never customer-caused"
+  input_series:
+  # A cluster reporting ValidAzureKMSConfig=Unknown
+  - series: 'hostedClusterAPI_valid_azure_kms_config{status="Unknown", name="case-d", namespace="clusters", _id="case-d-id", cluster="mgmt-cluster", resource_id="case-d-resource"}'
+    values: "1+0x10"
+  promql_expr_test:
+  # An unknown state is never classified as customer-caused
+  - expr: hostedClusterAPI_valid_azure_kms_config:is_customer_caused{name="case-d"}
+    eval_time: 10m
+    exp_samples: []
+  - expr: hostedClusterAPI_alert_excluded:any{name="case-d"}
+    eval_time: 10m
+    exp_samples: []
+# A cluster that never reports the condition at all lands on the same conservative absence default as Case D.
+- interval: 1m
+  name: "Case E: condition never reported at all produces no classification"
+  input_series:
+  # A sibling cluster's series, included only so the rule group has something to evaluate
+  # against -- the cluster under test (case-e-no-kms-cluster) has no series at all
+  - series: 'hostedClusterAPI_valid_azure_kms_config{status="False", name="case-e-sibling", namespace="clusters", _id="case-e-sibling-id", cluster="mgmt-cluster", resource_id="case-e-sibling-resource"}'
+    values: "1+0x10"
+  promql_expr_test:
+  # No classification sample exists for a cluster with no condition reported at all
+  - expr: hostedClusterAPI_valid_azure_kms_config:is_customer_caused{name="case-e-no-kms-cluster"}
+    eval_time: 10m
+    exp_samples: []
+  - expr: hostedClusterAPI_alert_excluded:any{name="case-e-no-kms-cluster"}
+    eval_time: 10m
+    exp_samples: []
