@@ -22,14 +22,32 @@ import (
 	"time"
 )
 
-// CertificatePolicy configures certificate candidate discovery.
+// CertificatePolicy configures which vault is swept, which resource groups
+// count as certificate owners, and which certificates are cleaned up.
 type CertificatePolicy struct {
-	Discovery CertificateDiscoveryPolicy `json:"discovery" yaml:"discovery"`
+	// VaultURL is the only vault the sweep reads and mutates.
+	VaultURL string `json:"vaultURL" yaml:"vaultURL"`
+	// OwnerInventory names the subscriptions whose resource groups decide whether
+	// an owner is still alive. Required when a rule uses ownerResourceGroupAbsent.
+	OwnerInventory CertificateOwnerInventory  `json:"ownerInventory,omitempty" yaml:"ownerInventory,omitempty"`
+	Discovery      CertificateDiscoveryPolicy `json:"discovery" yaml:"discovery"`
 }
 
-// CertificateDiscoveryPolicy contains first-match-wins certificate rules.
+// CertificateOwnerInventory configures the resource-group owner inventory.
+type CertificateOwnerInventory struct {
+	// Subscriptions are subscription display names, resolved to IDs at run time
+	// so that IDs stay out of the repository.
+	Subscriptions []string `json:"subscriptions,omitempty" yaml:"subscriptions,omitempty"`
+}
+
+// CertificateDiscoveryPolicy contains the protected tags and the first-match-wins
+// certificate rules.
 type CertificateDiscoveryPolicy struct {
-	Rules []CertificateDiscoveryRule `json:"rules" yaml:"rules"`
+	// ProtectedTags is a mandatory veto evaluated before any rule: a certificate
+	// carrying any of these tags (key and value compared case-insensitively) is
+	// never selected, whatever rule it would match.
+	ProtectedTags map[string]string          `json:"protectedTags" yaml:"protectedTags"`
+	Rules         []CertificateDiscoveryRule `json:"rules" yaml:"rules"`
 }
 
 // CertificateDiscoveryAction is the action a certificate rule takes on match.

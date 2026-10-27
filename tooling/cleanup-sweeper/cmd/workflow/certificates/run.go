@@ -66,14 +66,14 @@ func Run(ctx context.Context, opts RunOptions) error {
 	if err := opts.Policy.Validate("certificates"); err != nil {
 		return fmt.Errorf("invalid certificate policy: %w", err)
 	}
-	workflow, err := cleanupengine.CertificateCleanupWorkflow(opts.AzureCredential, cleanupengine.CertificateWorkflowOptions{
+	workflow, err := cleanupengine.CertificateCleanupWorkflow(ctx, opts.AzureCredential, cleanupengine.CertificateWorkflowOptions{
 		DryRun:       opts.DryRun,
 		DeleteActive: opts.DeleteActive,
 		PurgeDeleted: opts.PurgeDeleted,
 		MaxDeletions: opts.MaxDeletions,
 		MaxPurges:    opts.MaxPurges,
 		Parallelism:  opts.Workers,
-		Policy:       opts.Policy.Discovery,
+		Policy:       *opts.Policy,
 	})
 	if err != nil {
 		return err

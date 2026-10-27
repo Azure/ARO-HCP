@@ -16,17 +16,73 @@ package policy
 
 import (
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
 )
 
 // Validate validates certificate cleanup policy sections.
 func (p *CertificatePolicy) Validate(fieldPrefix string) error {
-	return p.Discovery.Validate(fieldPrefix + ".discovery")
+	vaultURL, err := normalizeVaultURL(p.VaultURL)
+	if err != nil {
+		return fmt.Errorf("%s.vaultURL: %w", fieldPrefix, err)
+	}
+	p.VaultURL = vaultURL
+	if err := p.Discovery.Validate(fieldPrefix + ".discovery"); err != nil {
+		return err
+	}
+	return p.OwnerInventory.validate(fieldPrefix+".ownerInventory", p.Discovery.RequiresOwnerInventory())
+}
+
+func normalizeVaultURL(raw string) (string, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return "", fmt.Errorf("is required")
+	}
+	u, err := url.Parse(trimmed)
+	if err != nil {
+		return "", fmt.Errorf("invalid URL: %w", err)
+	}
+	if u.Scheme != "https" || u.Host == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || (u.Path != "" && u.Path != "/") {
+		return "", fmt.Errorf("must be an https URL with only a host, got %q", raw)
+	}
+	return "https://" + u.Host, nil
+}
+
+func (o *CertificateOwnerInventory) validate(fieldPrefix string, required bool) error {
+	if required && len(o.Subscriptions) == 0 {
+		return fmt.Errorf("%s.subscriptions: must name at least one subscription when a rule requires the owner resource group to be absent", fieldPrefix)
+	}
+	seen := make(map[string]bool, len(o.Subscriptions))
+	for idx, name := range o.Subscriptions {
+		name = strings.TrimSpace(name)
+		if name == "" {
+			return fmt.Errorf("%s.subscriptions[%d]: cannot be empty", fieldPrefix, idx)
+		}
+		if seen[name] {
+			return fmt.Errorf("%s.subscriptions[%d]: duplicate subscription %q", fieldPrefix, idx, name)
+		}
+		seen[name] = true
+		o.Subscriptions[idx] = name
+	}
+	return nil
 }
 
 // Validate validates certificate discovery configuration.
 func (p *CertificateDiscoveryPolicy) Validate(fieldPrefix string) error {
+	if len(p.ProtectedTags) == 0 {
+		return fmt.Errorf("%s.protectedTags: must define at least one protected tag", fieldPrefix)
+	}
+	protectedTags, err := normalizeTagMap(p.ProtectedTags, fieldPrefix+".protectedTags")
+	if err != nil {
+		return err
+	}
+	for key, value := range protectedTags {
+		if value == "" {
+			return fmt.Errorf("%s.protectedTags.%s: value is required", fieldPrefix, key)
+		}
+	}
+	p.ProtectedTags = protectedTags
 	if len(p.Rules) == 0 {
 		return fmt.Errorf("%s.rules: must define at least one discovery rule", fieldPrefix)
 	}

@@ -52,6 +52,9 @@ func TestDefaultsAndRegistration(t *testing.T) {
 	}
 }
 
+// policyHeader is the scope section every valid certificate policy starts with.
+const policyHeader = "certificates:\n  vaultURL: https://example.vault.azure.net\n  ownerInventory:\n    subscriptions: [Example Subscription]\n"
+
 func writePolicy(t *testing.T, content string) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "policy.yaml")
@@ -81,8 +84,8 @@ func TestInvalidFlagsFailBeforeCredentials(t *testing.T) {
 		{[]string{"--subscription-id=one-subscription"}, "unknown flag"},
 		{[]string{}, "--policy is required"},
 		{[]string{"--policy=/does/not/exist"}, "failed to read policy file"},
-		{[]string{"--policy=" + writePolicy(t, "certificates:\n  discovery:\n    rules:\n    - name: r\n      action: delete\n      match: {nameRegex: \"^x$\"}\n      olderThan: 168h\n")}, "delete rules must set conditions.ownerResourceGroupAbsent"},
-		{[]string{"--policy=" + writePolicy(t, "certificates:\n  discovery:\n    rules:\n    - name: r\n      action: delete\n      match: {nameRegex: \"^x-(?P<o>a)$\", ownerCaptureGroup: o}\n      conditions: {ownerResourceGroupAbsnt: true}\n      olderThan: 168h\n")}, "unknown field"},
+		{[]string{"--policy=" + writePolicy(t, policyHeader+"  discovery:\n    protectedTags: {persist: \"true\"}\n    rules:\n    - name: r\n      action: delete\n      match: {nameRegex: \"^x$\"}\n      olderThan: 168h\n")}, "delete rules must set conditions.ownerResourceGroupAbsent"},
+		{[]string{"--policy=" + writePolicy(t, policyHeader+"  discovery:\n    protectedTags: {persist: \"true\"}\n    rules:\n    - name: r\n      action: delete\n      match: {nameRegex: \"^x-(?P<o>a)$\", ownerCaptureGroup: o}\n      conditions: {ownerResourceGroupAbsnt: true}\n      olderThan: 168h\n")}, "unknown field"},
 		{[]string{"unexpected"}, "unknown command"},
 	} {
 		t.Run(strings.Join(test.args, " "), func(t *testing.T) {
@@ -140,7 +143,7 @@ func TestRootFlagIsolation(t *testing.T) {
 			if err == nil || !strings.Contains(err.Error(), test.message) {
 				t.Fatalf("error = %v, want %q", err, test.message)
 			}
-			if strings.Contains(test.message, "rejects parent") && !strings.Contains(err.Error(), "scope is fixed to https://aro-hcp-dev-svc-kv.vault.azure.net and both DEV infrastructure guard subscriptions") {
+			if strings.Contains(test.message, "rejects parent") && !strings.Contains(err.Error(), "scope comes from --policy") {
 				t.Fatalf("error does not explain the fixed scope: %v", err)
 			}
 		})

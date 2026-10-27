@@ -28,7 +28,11 @@ func TestLoadCertificates_ParsesRegexDurationAndOwnerCapture(t *testing.T) {
 
 	loaded, err := LoadCertificates(writeTemp(t, `
 certificates:
+  vaultURL: https://example.vault.azure.net/
+  ownerInventory:
+    subscriptions: [Example Subscription]
   discovery:
+    protectedTags: {Persist: " true "}
     rules:
     - name: personal
       action: delete
@@ -41,6 +45,12 @@ certificates:
 `))
 	if err != nil {
 		t.Fatalf("expected policy to load: %v", err)
+	}
+	if loaded.VaultURL != "https://example.vault.azure.net" {
+		t.Fatalf("vaultURL=%q, want normalized host URL", loaded.VaultURL)
+	}
+	if got := loaded.Discovery.ProtectedTags; len(got) != 1 || got["persist"] != "true" {
+		t.Fatalf("protectedTags=%v, want normalized persist=true", got)
 	}
 	rule := loaded.Discovery.Rules[0]
 	if rule.OlderThan != 7*24*time.Hour {
@@ -151,6 +161,107 @@ func TestCertificateRuleValidate_OwnerGuardIsMandatoryWithExplicitOptOut(t *test
 				t.Fatalf("error = %v, want %q", err, tc.wantErr)
 			}
 		})
+	}
+}
+
+func TestCertificatePolicyValidate_ScopeAndProtectedTags(t *testing.T) {
+	t.Parallel()
+
+	guarded := CertificateDiscoveryRule{
+		Name:       "r",
+		Action:     CertificateDiscoveryActionDelete,
+		Match:      CertificateDiscoveryMatch{NameRegex: regexp.MustCompile(`^x-(?P<owner>[a-z0-9]+)$`), OwnerCaptureGroup: "owner"},
+		Conditions: CertificateDiscoveryConditions{OwnerResourceGroupAbsent: true},
+		OlderThan:  24 * time.Hour,
+	}
+	unguarded := CertificateDiscoveryRule{
+		Name:                   "r",
+		Action:                 CertificateDiscoveryActionDelete,
+		Match:                  CertificateDiscoveryMatch{NameRegex: regexp.MustCompile(`^x$`)},
+		AllowWithoutOwnerGuard: true,
+		OlderThan:              24 * time.Hour,
+	}
+	valid := func(mutate func(*CertificatePolicy)) CertificatePolicy {
+		pol := CertificatePolicy{
+			VaultURL:       "https://example.vault.azure.net",
+			OwnerInventory: CertificateOwnerInventory{Subscriptions: []string{"Sub A", "Sub B"}},
+			Discovery: CertificateDiscoveryPolicy{
+				ProtectedTags: map[string]string{"persist": "true"},
+				Rules:         []CertificateDiscoveryRule{guarded},
+			},
+		}
+		if mutate != nil {
+			mutate(&pol)
+		}
+		return pol
+	}
+
+	testCases := []struct {
+		name    string
+		mutate  func(*CertificatePolicy)
+		wantErr string
+	}{
+		{name: "valid"},
+		{name: "no subscriptions needed without guarded rules", mutate: func(p *CertificatePolicy) {
+			p.OwnerInventory = CertificateOwnerInventory{}
+			p.Discovery.Rules = []CertificateDiscoveryRule{unguarded}
+		}},
+		{name: "missing vault", mutate: func(p *CertificatePolicy) { p.VaultURL = "" }, wantErr: "vaultURL: is required"},
+		{name: "http vault", mutate: func(p *CertificatePolicy) { p.VaultURL = "http://example.vault.azure.net" }, wantErr: "https URL"},
+		{name: "vault with path", mutate: func(p *CertificatePolicy) { p.VaultURL = "https://example.vault.azure.net/certificates" }, wantErr: "https URL"},
+		{name: "vault name instead of URL", mutate: func(p *CertificatePolicy) { p.VaultURL = "example" }, wantErr: "https URL"},
+		{name: "missing protected tags", mutate: func(p *CertificatePolicy) { p.Discovery.ProtectedTags = nil }, wantErr: "protectedTags: must define at least one"},
+		{name: "empty protected tag key", mutate: func(p *CertificatePolicy) { p.Discovery.ProtectedTags = map[string]string{" ": "true"} }, wantErr: "cannot contain empty keys"},
+		{name: "empty protected tag value", mutate: func(p *CertificatePolicy) { p.Discovery.ProtectedTags = map[string]string{"persist": " "} }, wantErr: "value is required"},
+		{name: "guarded rule without subscriptions", mutate: func(p *CertificatePolicy) { p.OwnerInventory = CertificateOwnerInventory{} }, wantErr: "must name at least one subscription"},
+		{name: "empty subscription name", mutate: func(p *CertificatePolicy) { p.OwnerInventory.Subscriptions = []string{"Sub A", " "} }, wantErr: "cannot be empty"},
+		{name: "duplicate subscription", mutate: func(p *CertificatePolicy) { p.OwnerInventory.Subscriptions = []string{"Sub A", "Sub A"} }, wantErr: "duplicate subscription"},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			pol := valid(tc.mutate)
+			err := pol.Validate("certificates")
+			switch {
+			case tc.wantErr == "" && err != nil:
+				t.Fatalf("unexpected error: %v", err)
+			case tc.wantErr != "" && (err == nil || !strings.Contains(err.Error(), tc.wantErr)):
+				t.Fatalf("error = %v, want %q", err, tc.wantErr)
+			}
+		})
+	}
+}
+
+func TestCertificateDiscovery_ProtectedTagsAreConfigurable(t *testing.T) {
+	t.Parallel()
+
+	old := time.Date(2026, time.January, 1, 0, 0, 0, 0, time.UTC)
+	now := old.Add(30 * 24 * time.Hour)
+	pol := CertificateDiscoveryPolicy{
+		ProtectedTags: map[string]string{"keep": "yes"},
+		Rules: []CertificateDiscoveryRule{{
+			Name:                   "all",
+			Action:                 CertificateDiscoveryActionDelete,
+			Match:                  CertificateDiscoveryMatch{NameRegex: regexp.MustCompile(`^.*$`)},
+			AllowWithoutOwnerGuard: true,
+			OlderThan:              24 * time.Hour,
+		}},
+	}
+	tagged := func(key, value string) CertificateMetadata {
+		return CertificateMetadata{Name: "c", Created: &old, Updated: &old, Tags: map[string]*string{key: &value}}
+	}
+	if _, decision := pol.SelectActive(tagged("KEEP", " YES "), nil, now); decision != CertificateDecisionProtectedTag {
+		t.Fatalf("configured tag decision = %q, want protected-tag", decision)
+	}
+	// Only configured tags protect: persist is not special-cased in code.
+	if _, decision := pol.SelectActive(tagged("persist", "true"), nil, now); !decision.Selected() {
+		t.Fatalf("unconfigured persist tag decision = %q, want selected", decision)
+	}
+	if _, decision := pol.SelectActive(tagged("keep", "no"), nil, now); !decision.Selected() {
+		t.Fatalf("different value decision = %q, want selected", decision)
+	}
+	if _, decision := pol.SelectDeleted(tagged("keep", "yes")); decision != CertificateDecisionProtectedTag {
+		t.Fatalf("deleted certificate decision = %q, want protected-tag", decision)
 	}
 }
 

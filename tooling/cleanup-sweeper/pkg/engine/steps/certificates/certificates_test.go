@@ -212,8 +212,8 @@ func (f *fakeGroups) NewListPager(*armresources.ResourceGroupsClientListOptions)
 }
 
 const (
-	globalInfrastructureSubscription = "1d3378d3-5a3f-4712-85a1-2485495dfc4b"
-	ci01InfrastructureSubscription   = "0ef1ad54-9296-44cd-9600-5dc8e9a74034"
+	testSubscriptionA = "subscription-a"
+	testSubscriptionB = "subscription-b"
 )
 
 // testSweeper wires a Session to fakes. Fields of the embedded Session may be
@@ -243,7 +243,7 @@ func newTestSweeper(names ...string) (*testSweeper, *fakeCertificates, *fakeGrou
 	}
 	a, b := &fakeGroups{}, &fakeGroups{}
 	s := &testSweeper{groups: map[string]ResourceGroupLister{
-		globalInfrastructureSubscription: a, ci01InfrastructureSubscription: b,
+		testSubscriptionA: a, testSubscriptionB: b,
 	}}
 	s.Session = &Session{
 		client:    f,
@@ -253,7 +253,7 @@ func newTestSweeper(names ...string) (*testSweeper, *fakeCertificates, *fakeGrou
 		counts:    newSummary(),
 	}
 	s.guard = &ownerGuard{
-		owners: NewOwnerInventory([]string{globalInfrastructureSubscription, ci01InfrastructureSubscription}, s.groups, func() time.Time { return s.now() }),
+		owners: NewOwnerInventory([]string{testSubscriptionA, testSubscriptionB}, s.groups, func() time.Time { return s.now() }),
 		now:    func() time.Time { return s.now() },
 	}
 	s.policy = repositoryPolicyForTests().Discovery
@@ -349,9 +349,12 @@ func TestEligibility(t *testing.T) {
 		}, "future-timestamp"},
 		{"disabled", func(c *azcertificates.CertificateProperties) { c.Attributes.Enabled = to.Ptr(false) }, cleanuppolicy.CertificateDecisionSelected},
 		{"persist", func(c *azcertificates.CertificateProperties) { c.Tags = map[string]*string{"persist": to.Ptr("true")} }, "protected-tag"},
-		{"doNotDelete", func(c *azcertificates.CertificateProperties) {
-			c.Tags = map[string]*string{"DONOTDELETE": to.Ptr(" True ")}
+		{"persist key and value are case-insensitive", func(c *azcertificates.CertificateProperties) {
+			c.Tags = map[string]*string{"PERSIST": to.Ptr(" True ")}
 		}, "protected-tag"},
+		{"unlisted tag is not protective", func(c *azcertificates.CertificateProperties) {
+			c.Tags = map[string]*string{"doNotDelete": to.Ptr("true")}
+		}, cleanuppolicy.CertificateDecisionSelected},
 		{"nil tag", func(c *azcertificates.CertificateProperties) { c.Tags = map[string]*string{"persist": nil} }, cleanuppolicy.CertificateDecisionSelected},
 		{"missing ID", func(c *azcertificates.CertificateProperties) { c.ID = nil }, "invalid-id"},
 		{"other vault", func(c *azcertificates.CertificateProperties) {
@@ -548,7 +551,7 @@ func TestInventoryFailsClosed(t *testing.T) {
 				b.pages = [][]string{{"other"}, {}}
 				b.listError = 2
 			case "missing subscription":
-				delete(s.groups, ci01InfrastructureSubscription)
+				delete(s.groups, testSubscriptionB)
 			case "missing RG name":
 				b.pages = [][]string{{""}}
 			case "duplicate certificate":
@@ -714,9 +717,6 @@ func TestApplyRevalidation(t *testing.T) {
 		{name: "missing created", mutate: func(c *azcertificates.GetCertificateResponse) { c.Attributes.Created = nil }},
 		{name: "missing updated", mutate: func(c *azcertificates.GetCertificateResponse) { c.Attributes.Updated = nil }},
 		{name: "new persistent tag", mutate: func(c *azcertificates.GetCertificateResponse) { c.Tags = map[string]*string{"persist": to.Ptr("true")} }},
-		{name: "new doNotDelete tag", mutate: func(c *azcertificates.GetCertificateResponse) {
-			c.Tags = map[string]*string{"doNotDelete": to.Ptr("true")}
-		}},
 		{name: "new thumbprint", mutate: func(c *azcertificates.GetCertificateResponse) { c.X509Thumbprint = []byte{4} }},
 		{name: "unversioned GET", mutate: func(c *azcertificates.GetCertificateResponse) { c.ID = oldCertificate("maestro-server-j1234567").ID }},
 		{name: "wrong name", mutate: func(c *azcertificates.GetCertificateResponse) {
@@ -840,7 +840,7 @@ func TestPurgeRevalidation(t *testing.T) {
 	}{
 		{name: "unchanged", purged: true},
 		{name: "protected", mutate: func(c *azcertificates.GetDeletedCertificateResponse) {
-			c.Tags = map[string]*string{"doNotDelete": to.Ptr("true")}
+			c.Tags = map[string]*string{"persist": to.Ptr("true")}
 		}},
 		{name: "not purgeable", mutate: func(c *azcertificates.GetDeletedCertificateResponse) {
 			c.Attributes.RecoveryLevel = to.Ptr("Recoverable")
@@ -1184,6 +1184,7 @@ func TestNewSession(t *testing.T) {
 			}}}
 		},
 		"foreign vault URL": func(c *Config) { c.VaultURL = "not a url" },
+		"no protected tags": func(c *Config) { c.Policy.ProtectedTags = nil },
 	} {
 		t.Run(name, func(t *testing.T) {
 			cfg := valid()

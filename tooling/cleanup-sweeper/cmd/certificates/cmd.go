@@ -28,7 +28,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 
 	certificates "github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/cmd/workflow/certificates"
-	cleanupengine "github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/pkg/engine"
 	"github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/pkg/policy"
 )
 
@@ -47,13 +46,13 @@ func NewCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "ci-certificates",
 		Short: "Remove old active and deleted CI certificates from the shared dev service vault.",
-		Long: `Sweep only aro-hcp-dev-svc-kv.vault.azure.net, guarding both fixed DEV infrastructure subscriptions.
-Required guard subscriptions: 1d3378d3-5a3f-4712-85a1-2485495dfc4b and 0ef1ad54-9296-44cd-9600-5dc8e9a74034.
-Scope cannot be overridden. Root workflow flags are rejected; place certificate flags after ci-certificates.
---policy is required: it configures first-match-wins name rules, retention windows, and owner guards.
+		Long: `Sweep only the Key Vault named by the policy's vaultURL, guarding the resource groups of the subscriptions
+named in its ownerInventory.subscriptions (display names, resolved to IDs at run time).
+The scope comes from the policy file only; no flag overrides it. Root workflow flags are rejected; place certificate flags after ci-certificates.
+--policy is required: it configures the scope, mandatory protected tags, first-match-wins name rules, retention windows, and owner guards.
 Every delete rule must require its owner resource group to be absent or explicitly opt out with allowWithoutOwnerGuard.
 Both latest created and updated timestamps must be older than the matching rule retention; renewals postpone cleanup.
-Eligible soft-deleted certificates are purgeable tombstones matching the same policy rules and protected-tag safeguard;
+Eligible soft-deleted certificates are purgeable tombstones matching the same policy rules and protected tags;
 neither retention nor the owner guard is reapplied because the certificate is already deleted and the tombstone only blocks reuse of the name.
 Dry-run lists metadata only. --delete-active and --purge-deleted independently select the enabled actions.
 Apply rechecks active and deleted certificate metadata and, when active deletion is enabled, refreshes the owner inventory
@@ -78,7 +77,7 @@ The command never deletes keys or secrets directly.`,
 				})
 			}
 			if len(parentFlags) > 0 {
-				return fmt.Errorf("ci-certificates rejects parent command flags %s; scope is fixed to %s and both DEV infrastructure guard subscriptions; place certificate flags after ci-certificates", strings.Join(parentFlags, ", "), cleanupengine.CertificateVaultURL)
+				return fmt.Errorf("ci-certificates rejects parent command flags %s; scope comes from --policy; place certificate flags after ci-certificates", strings.Join(parentFlags, ", "))
 			}
 			if err := opts.Validate(); err != nil {
 				return err
@@ -109,7 +108,7 @@ The command never deletes keys or secrets directly.`,
 	cmd.Flags().BoolVar(&opts.DryRun, "dry-run", opts.DryRun, "Report only; set --dry-run=false to soft-delete active certificates and purge eligible tombstones.")
 	cmd.Flags().BoolVar(&opts.DeleteActive, "delete-active", opts.DeleteActive, "Discover and soft-delete old, unowned active CI certificates.")
 	cmd.Flags().BoolVar(&opts.PurgeDeleted, "purge-deleted", opts.PurgeDeleted, "Discover and permanently purge eligible deleted CI certificate tombstones.")
-	cmd.Flags().StringVar(&policyFile, "policy", policyFile, "Certificate cleanup policy file (required): first-match-wins name rules, retention windows, and mandatory owner guards.")
+	cmd.Flags().StringVar(&policyFile, "policy", policyFile, "Certificate cleanup policy file (required): first-match-wins name rules, protected tags, retention windows, and mandatory owner guards.")
 	cmd.Flags().IntVar(&opts.MaxDeletions, "max-deletions", opts.MaxDeletions, "Maximum active certificate mutations selected per run; inventory continues until this budget is filled or exhausted (must be positive; also caps dry-run selections).")
 	cmd.Flags().IntVar(&opts.MaxPurges, "max-purges", opts.MaxPurges, "Maximum previously deleted certificates (tombstones) purged per run; the immediate purge of each deleted active certificate is bounded by --max-deletions instead (must be positive; also caps dry-run selections).")
 	cmd.Flags().IntVar(&opts.Workers, "workers", opts.Workers, "Maximum concurrent certificate delete/purge chains (must be positive).")

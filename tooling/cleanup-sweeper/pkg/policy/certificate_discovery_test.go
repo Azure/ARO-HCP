@@ -27,7 +27,7 @@ func TestCertificateDiscoveryFirstMatchRetentionAndOwner(t *testing.T) {
 
 	now := time.Date(2026, time.September, 30, 8, 0, 0, 0, time.UTC)
 	old := now.Add(-8 * 24 * time.Hour)
-	pol := CertificateDiscoveryPolicy{Rules: []CertificateDiscoveryRule{
+	pol := CertificateDiscoveryPolicy{ProtectedTags: map[string]string{"persist": "true"}, Rules: []CertificateDiscoveryRule{
 		{
 			Name:   "protect-shared",
 			Action: CertificateDiscoveryActionSkip,
@@ -116,7 +116,7 @@ func TestCertificateDiscoveryFirstMatchRetentionAndOwner(t *testing.T) {
 func TestCertificateDiscoveryDeletedIgnoresOwnerGuardAndRetention(t *testing.T) {
 	t.Parallel()
 
-	pol := CertificateDiscoveryPolicy{Rules: []CertificateDiscoveryRule{
+	pol := CertificateDiscoveryPolicy{ProtectedTags: map[string]string{"persist": "true"}, Rules: []CertificateDiscoveryRule{
 		{
 			Name:   "protect-shared",
 			Action: CertificateDiscoveryActionSkip,

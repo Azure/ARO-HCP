@@ -31,7 +31,7 @@ const (
 	CertificateDecisionSelected CertificateDecision = "selected"
 	// CertificateDecisionInvalidID means the certificate has no usable name.
 	CertificateDecisionInvalidID CertificateDecision = "invalid-id"
-	// CertificateDecisionProtectedTag means a persist or doNotDelete tag protects the certificate.
+	// CertificateDecisionProtectedTag means a tag listed in protectedTags protects the certificate.
 	CertificateDecisionProtectedTag CertificateDecision = "protected-tag"
 	// CertificateDecisionNoRuleMatch means no rule matched; unmatched certificates are retained.
 	CertificateDecisionNoRuleMatch CertificateDecision = "no-rule-match"
@@ -98,7 +98,7 @@ func (p *CertificateDiscoveryPolicy) selectCertificate(
 	if name == "" {
 		return CertificateSelection{}, CertificateDecisionInvalidID
 	}
-	if protectedCertificateTags(certificate.Tags) {
+	if p.protects(certificate.Tags) {
 		return CertificateSelection{}, CertificateDecisionProtectedTag
 	}
 
@@ -148,13 +148,11 @@ func (p *CertificateDiscoveryPolicy) selectCertificate(
 	return CertificateSelection{}, CertificateDecisionNoRuleMatch
 }
 
-func protectedCertificateTags(tags map[string]*string) bool {
-	for key, value := range tags {
-		if value == nil {
-			continue
-		}
-		if (strings.EqualFold(key, "persist") || strings.EqualFold(key, "doNotDelete")) &&
-			strings.EqualFold(strings.TrimSpace(*value), "true") {
+// protects reports whether any protected tag is present with its protected value.
+func (p *CertificateDiscoveryPolicy) protects(tags map[string]*string) bool {
+	for key, value := range p.ProtectedTags {
+		actual, ok := lookupTag(tags, key)
+		if ok && strings.EqualFold(strings.TrimSpace(actual), strings.TrimSpace(value)) {
 			return true
 		}
 	}

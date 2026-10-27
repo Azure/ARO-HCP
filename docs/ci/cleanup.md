@@ -112,15 +112,18 @@ AZURE_TOKEN_CREDENTIALS=dev \
     --workers=2 --timeout=30m
 ```
 
-The command defaults to dry-run, requires `--policy`, and has no vault or
-subscription override. It targets only `aro-hcp-dev-svc-kv`. Policy rules are
+The command defaults to dry-run and requires `--policy`. The policy's
+`vaultURL` is the only vault it touches; no flag overrides it. Policy rules are
 first-match-wins; unmatched certificates are retained. Delete eligibility also
-requires unprotected tags and both latest-version timestamps to be older than
-the rule's retention.
+requires that no tag listed in the policy's mandatory `protectedTags` is present
+(`persist: "true"` in the shipped policy) and that both latest-version
+timestamps are older than the rule's retention.
 
 Apply revalidates certificate metadata immediately before deletion. Rules with
-owner-resource-group guards require a fresh inventory across both DEV
-infrastructure subscriptions. The command emits JSON candidate and summary
+owner-resource-group guards require a fresh inventory across the subscriptions
+listed in `ownerInventory.subscriptions`. They are named by display name and
+resolved to IDs at run time, which keeps subscription IDs out of the repository;
+a name that is unknown or ambiguous aborts the run before any change. The command emits JSON candidate and summary
 logs. Its `--workers` pool defaults to two to limit Key Vault and Resource
 Manager throttling.
 
@@ -130,11 +133,13 @@ credential or private-key/secret reads are required.
 
 Candidate discovery follows the first matching rule in
 `tooling/cleanup-sweeper/certificates.policy.yaml`; unmatched certificates are
-retained. All delete rules require unprotected tags and both latest-version
-creation and update timestamps older than the configured retention. The owner
+retained. Certificates carrying a `protectedTags` tag are never selected by any
+rule (the list is mandatory; tag keys and values compare case-insensitively),
+and all delete rules require both latest-version creation and update timestamps
+older than the configured retention. The owner
 guard is mandatory: every delete rule must set `ownerResourceGroupAbsent: true`
 (with a named `ownerCaptureGroup`), which requires no matching resource group in
-either DEV infrastructure subscription, or explicitly opt out with
+any owner inventory subscription, or explicitly opt out with
 `allowWithoutOwnerGuard: true`. The policy file is parsed strictly, so a
 misspelled key fails instead of silently dropping a safeguard. Job placeholder
 and fixture certificates (`j0000000`-`j0000099`, `j7654321`) are protected by
