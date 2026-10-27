@@ -18,6 +18,7 @@ The CI step `aro-hcp-gather-observability` runs `aro-hcp-tests gather-observabil
 | `observability-summary.html` | **single tabbed page** with one tab for the Azure Monitor alerts view and one tab per metrics **panel** (charts) | `options.go` (`Run`) assembles `[]observabilityTab` from `renderAlertsHTML` + `runQueries`→`renderPanelHTML`, then `renderObservabilityPage` (`render.go`) writes one page using `artifacts/observability.html.tmpl` |
 | `alerts.json` | Azure Monitor alerts that fired (raw data) | `options.go` (`Run`) + `alerts.go` |
 | `junit_alerts.xml` | alerts as JUnit (fails the step) | `junit.go` (`alertsToJUnit`) |
+| `run-clusters.json` | per-run cluster inventory (persistent-env mode only) | `env_alerts.go` (`runEnv`) |
 
 Each tab's HTML is a full, self-contained page (the existing alerts and metrics
 panel templates, unchanged) embedded into its own same-origin `<iframe srcdoc>`
@@ -29,6 +30,24 @@ The `-summary.html` suffix is **required**: Prow's Spyglass HTML lens only rende
 files matching `.*-summary.*\.html` inline. Emitting **one** such file (rather
 than one per panel) means Spyglass shows a single inline iframe with tabs instead
 of a separate collapsible section per panel.
+
+### Persistent-environment mode (`--persistent-env`)
+
+INT/STG/PROD runs have no per-run management cluster and no Azure Monitor
+resource-group scope to list alerts by — their alerts fire from standing shared
+infrastructure and are only attributable through the run's per-test HCP cluster
+namespaces. With `--persistent-env`, `runEnv` (`env_alerts.go`) resolves the
+environment Kusto cluster from the rendered config (same `kusto.kustoName` /
+`kusto.location` keys `gather-snapshot` reads) and runs the validated
+attribution chain test RGs → cluster names (`frontendLogs` request paths) →
+cids (`clustersServiceLogs` resource IDs) → alerts (`alertEvents` by namespace
+cid and window). It writes the **same artifacts as dev runs** (so the
+`ciJobOutcomes` collector ingests them unchanged) plus `run-clusters.json`,
+the durable RG → cluster → cid → namespace inventory (test cleanup deletes the
+RGs during the run, so this is the only post-hoc record). Collection failures
+degrade gracefully — errors surface in `alerts.json`/JUnit but do not fail the
+step, since the CI credential may not reach the Microsoft-tenant environment
+Kusto until a credential grant lands; un-annotated fired alerts still gate.
 
 ### Adding or changing a chart
 

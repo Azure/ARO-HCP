@@ -58,11 +58,13 @@ func BindOptions(opts *RawOptions, cmd *cobra.Command) error {
 	cmd.Flags().StringVar(&opts.StartTimeFallback, "start-time-fallback", opts.StartTimeFallback, "Optional RFC3339 time to use as start time fallback when steps and test timing are unavailable.")
 	cmd.Flags().StringVar(&opts.SeverityThreshold, "severity-threshold", opts.SeverityThreshold, "Include alerts at this severity level or more critical (Sev0=critical .. Sev4=verbose). E.g. Sev2 includes Sev0, Sev1, Sev2. If not set, all severities are shown.")
 	cmd.Flags().BoolVar(&opts.AMWOnly, "amw-only", false, "Collect only bounded AMW/DCR platform metrics and render the AMW pane; no Prometheus queries or alert evaluation.")
+	cmd.Flags().BoolVar(&opts.PersistentEnv, "persistent-env", false, "Collect alerts for a persistent environment (int/stg/prod) via the environment Kusto clusters instead of Azure Monitor; requires the rendered environment config.")
 	return nil
 }
 
 type RawOptions struct {
 	AMWOnly           bool
+	PersistentEnv     bool
 	TimingInputDir    string
 	OutputDir         string
 	RenderedConfig    string
@@ -82,6 +84,7 @@ type ValidatedOptions struct {
 
 type completedOptions struct {
 	AMWOnly           bool
+	PersistentEnv     bool
 	OutputDir         string
 	Workspaces        map[string]azcorearm.ResourceID
 	MetricResources   map[string]azcorearm.ResourceID
@@ -95,6 +98,13 @@ type completedOptions struct {
 	queriesError      error
 	knownIssuesError  error
 	cosmosError       error
+	// testTimingInfo is the per-test timing metadata from the run; in
+	// persistent-env mode it is the source of the run's resource groups.
+	testTimingInfo map[string]timing.TimingInfo
+	// envKusto is the environment Kusto connection used in persistent-env
+	// mode; envKustoError records why it could not be set up.
+	envKusto      envKustoConfig
+	envKustoError error
 	// cosmosAutoscaleMax resolves a Cosmos container's configured autoscale
 	// ceiling (RU/s) by CollectionName, used to normalize AutoscaledRU into a
 	// percentage. Nil-safe callers tolerate an unset lookup.
@@ -122,6 +132,9 @@ func (o *RawOptions) Validate() (*ValidatedOptions, error) {
 	minSev, err := ParseSeverityThreshold(o.SeverityThreshold)
 	if err != nil {
 		return nil, err
+	}
+	if o.AMWOnly && o.PersistentEnv {
+		return nil, fmt.Errorf("--amw-only and --persistent-env are mutually exclusive")
 	}
 	return &ValidatedOptions{
 		validatedOptions: &validatedOptions{RawOptions: o, severityThreshold: minSev},
@@ -242,8 +255,22 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 	}
 	logger.Info("loaded known issues config", "patterns", len(knownIssues))
 
+	// Persistent-environment (int/stg/prod) mode resolves the environment
+	// Kusto cluster from the same rendered config the job runs with. Setup
+	// failures are deferred to collection time so the step degrades
+	// gracefully (see runEnv).
+	var envKusto envKustoConfig
+	var envKustoError error
+	if o.PersistentEnv {
+		envKusto, envKustoError = setupEnvKusto(o.RenderedConfig, cred)
+		if envKustoError != nil {
+			logger.Error(envKustoError, "environment Kusto unavailable; alert collection will degrade")
+		}
+	}
+
 	return &Options{completedOptions: &completedOptions{
 		AMWOnly:            o.AMWOnly,
+		PersistentEnv:      o.PersistentEnv,
 		OutputDir:          o.OutputDir,
 		Workspaces:         workspaces,
 		MetricResources:    metricResources,
@@ -258,6 +285,9 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 		knownIssuesError:   knownIssuesError,
 		cosmosError:        cosmosError,
 		cosmosAutoscaleMax: cosmosAutoscaleMax,
+		testTimingInfo:     testTimingInfo,
+		envKusto:           envKusto,
+		envKustoError:      envKustoError,
 	}}, nil
 }
 
@@ -342,6 +372,9 @@ func (o Options) run(ctx context.Context, deps gatherDependencies) error {
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
 		return fmt.Errorf("logger not found in context: %w", err)
+	}
+	if o.PersistentEnv {
+		return o.runEnv(ctx, deps)
 	}
 	if o.AMWOnly {
 		tab, err := o.runAMW(ctx, deps)
