@@ -98,10 +98,13 @@ got=$(classify_result 2 "$DATA/panic-broken-runtime.txt")
 check "$got" "panic" "classifier: real AROSLSRE-2481 panic output is detected"
 
 got=$(classify_result 0 "$DATA/http-success.txt")
-check "$got" "pass" "classifier: exit 0 with an HTTP response passes"
+check "$got" "pass" "classifier: TLS 1.3 server response passes"
+
+got=$(classify_result 0 "$DATA/connection-refused.txt")
+check "$got" "inconclusive" "classifier: exit 0 without server response cannot pass"
 
 got=$(classify_result 1 "$DATA/http-error.txt")
-check "$got" "pass" "classifier: kubectl HTTP-layer error passes (handshake completed)"
+check "$got" "inconclusive" "classifier: unverified HTTP-like error cannot pass"
 
 got=$(classify_result 125 "$DATA/pull-error.txt")
 check "$got" "runtime-error" "classifier: podman pull failure (rc 125) is a runtime error"

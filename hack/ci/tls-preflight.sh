@@ -129,41 +129,24 @@ image_ref() {
   printf '%s/%s@%s\n' "$registry" "$repository" "$digest"
 }
 
-# Classify one kubectl invocation. $1 is the exit code of the container
-# runtime invocation, $2 the file holding the combined output (read with
-# grep, never with shell substitution: Go panic traces contain null bytes).
-# Prints exactly one verdict:
-#   pass           TLS 1.3 handshake completed (kubectl reached the HTTP layer)
-#   panic          the AROSLSRE-2021/2481 regression signature
-#   runtime-error  container runtime failed (e.g. image pull); knows nothing
-#                  about kubectl and must never be reported as a pass
-#   harness-error  kubectl rejected the check invocation itself
-#   inconclusive   connection-level result; retry, then fail closed
 classify_result() {
   local rc="$1" output_file="$2"
-  if grep -q 'panic:\|OSSL_PARAM' "$output_file"; then
+  if grep -aq 'panic:\|OSSL_PARAM' "$output_file"; then
     echo panic
     return
   fi
   if [[ "$rc" -eq 125 || "$rc" -eq 126 || "$rc" -eq 127 ]] \
-    || grep -q '^Trying to pull \|Unable to find image\|Error response from daemon' "$output_file"; then
+    || grep -aq '^Trying to pull \|Unable to find image\|Error response from daemon' "$output_file"; then
     echo runtime-error
     return
   fi
-  if [[ "$rc" -eq 0 ]]; then
-    echo pass
-    return
-  fi
-  # These kubectl-worded errors can only be produced after a response was
-  # received and decoded, so the handshake completed. Docker/podman pull
-  # errors contain bare status words instead and are already classified
-  # above; generic "error:" prefixes are deliberately not accepted.
-  if grep -q 'Error from server\|the server has asked\|You must be logged in' "$output_file"; then
-    echo pass
-    return
-  fi
-  if grep -q 'unknown flag\|flag provided but not defined\|error loading config file' "$output_file"; then
+  if grep -aq 'unknown flag\|flag provided but not defined\|error loading config file' "$output_file"; then
     echo harness-error
+    return
+  fi
+  if [[ "$rc" -eq 0 ]] && grep -aFq '<HTML><BODY BGCOLOR="#ffffff">' "$output_file" \
+    && grep -aq 'New, TLSv1.3, Cipher is ' "$output_file"; then
+    echo pass
     return
   fi
   echo inconclusive
@@ -205,9 +188,6 @@ check_component() {
   local attempt rc verdict
   for attempt in $(seq 1 "$TLS_PREFLIGHT_ATTEMPTS"); do
     echo "--- attempt ${attempt}/${TLS_PREFLIGHT_ATTEMPTS}"
-    # Output goes to a file: Go panic traces contain null bytes that bash
-    # command substitution would strip (with a warning), and the file keeps
-    # container-runtime errors strictly separate from kubectl's own output.
     set +e
     timeout "$TLS_PREFLIGHT_TIMEOUT" "$CONTAINER_RUNTIME" run --rm --network host \
       --entrypoint kubectl "$image" \

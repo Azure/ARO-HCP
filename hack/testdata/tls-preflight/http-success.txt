@@ -1,1 +1,3 @@
-<HTML><BODY BGCOLOR="#ffffff"><pre>s_server -www</pre></BODY></HTML>
+<HTML><BODY BGCOLOR="#ffffff"><pre>
+New, TLSv1.3, Cipher is TLS_AES_256_GCM_SHA384
+</pre></BODY></HTML>

@@ -62,15 +62,17 @@ executes [`hack/ci/tls-preflight.sh`] from this repository:
 4. **Verdicts** (fail closed):
    - kubectl panic / `OSSL_PARAM` output -> **fail** immediately, with the
      AROSLSRE-2021/2481 remediation hint
-   - kubectl exit 0, or a kubectl-worded HTTP-layer error -> handshake
-     completed -> **pass**
+   - kubectl exit 0 **and** the local server's HTML session report showing
+     `New, TLSv1.3, Cipher is ...` -> **pass**. Exit 0 alone, generic error
+     prefixes, or HTTP-looking errors without that response cannot pass.
    - container-runtime failure (image pull, exit 125/126/127) -> knows
      nothing about kubectl, never reported as a pass; retried
-   - connection-level results -> retried; still inconclusive after 3
-     attempts -> **fail**, so an unverified digest cannot merge
+   - connection-level or otherwise unverified results -> retried; still
+     inconclusive after 3 attempts -> **fail**, so an unverified digest
+     cannot merge
 
-The pass output embeds the server's session report (`Protocol : TLSv1.3`),
-which doubles as evidence that the handshake really negotiated TLS 1.3.
+The pass condition requires the TLS 1.3-only server's session report in
+kubectl's output, not merely a successful kubectl exit code.
 
 ## What it covers
 
