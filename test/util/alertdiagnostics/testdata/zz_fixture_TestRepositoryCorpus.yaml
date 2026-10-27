@@ -7849,9 +7849,9 @@
   occurrence: 1
   input: |
     (
-      histogram_quantile(0.99, sum by (namespace, cluster, pod, le) (rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~"ocm-.*"}[5m]))) > 0.100
+      histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate5m) > 0.100
       and
-      histogram_quantile(0.99, sum by (namespace, cluster, pod, le) (rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~"ocm-.*"}[1h]))) > 0.100
+      histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate1h) > 0.100
     )
     * on (namespace, cluster) group_left (resource_id)
     label_replace(
@@ -7864,12 +7864,12 @@
       "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)"
     )
   plan:
-    expression: (histogram_quantile(0.99, sum by (namespace, cluster, pod, le) (rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~"ocm-.*"}[5m]))) > 0.1 and histogram_quantile(0.99, sum by (namespace, cluster, pod, le) (rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~"ocm-.*"}[1h]))) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
+    expression: (histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate5m) > 0.1 and histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate1h) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
     conditions:
-      - expression: (histogram_quantile(0.99, sum by (namespace, cluster, pod, le) (rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~"ocm-.*"}[5m]))) > 0.1 and histogram_quantile(0.99, sum by (namespace, cluster, pod, le) (rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~"ocm-.*"}[1h]))) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
+      - expression: (histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate5m) > 0.1 and histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate1h) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
         path: root
         queries:
-          - expression: (histogram_quantile(0.99, sum by (namespace, cluster, pod, le) (rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~"ocm-.*"}[5m]))) > 0.1 and histogram_quantile(0.99, sum by (namespace, cluster, pod, le) (rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~"ocm-.*"}[1h]))) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
+          - expression: (histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate5m) > 0.1 and histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate1h) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
             role: signal
         thresholds: []
         unsupported: ""
@@ -7879,9 +7879,9 @@
   occurrence: 1
   input: |
     (
-      histogram_quantile(0.99, sum by (namespace, cluster, pod, le) (rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~"ocm-.*"}[6h]))) > 0.100
+      histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate6h) > 0.100
       and
-      histogram_quantile(0.99, sum by (namespace, cluster, pod, le) (rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~"ocm-.*"}[3d]))) > 0.100
+      histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate3d) > 0.100
     )
     * on (namespace, cluster) group_left (resource_id)
     label_replace(
@@ -7894,12 +7894,12 @@
       "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)"
     )
   plan:
-    expression: (histogram_quantile(0.99, sum by (namespace, cluster, pod, le) (rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~"ocm-.*"}[6h]))) > 0.1 and histogram_quantile(0.99, sum by (namespace, cluster, pod, le) (rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~"ocm-.*"}[3d]))) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
+    expression: (histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate6h) > 0.1 and histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate3d) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
     conditions:
-      - expression: (histogram_quantile(0.99, sum by (namespace, cluster, pod, le) (rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~"ocm-.*"}[6h]))) > 0.1 and histogram_quantile(0.99, sum by (namespace, cluster, pod, le) (rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~"ocm-.*"}[3d]))) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
+      - expression: (histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate6h) > 0.1 and histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate3d) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
         path: root
         queries:
-          - expression: (histogram_quantile(0.99, sum by (namespace, cluster, pod, le) (rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~"ocm-.*"}[6h]))) > 0.1 and histogram_quantile(0.99, sum by (namespace, cluster, pod, le) (rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~"ocm-.*"}[3d]))) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
+          - expression: (histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate6h) > 0.1 and histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate3d) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
             role: signal
         thresholds: []
         unsupported: ""
@@ -7909,9 +7909,9 @@
   occurrence: 1
   input: |
     (
-      histogram_quantile(0.99, sum by (namespace, cluster, pod, le) (rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~"ocm-.*"}[30m]))) > 0.100
+      histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate30m) > 0.100
       and
-      histogram_quantile(0.99, sum by (namespace, cluster, pod, le) (rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~"ocm-.*"}[6h]))) > 0.100
+      histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate6h) > 0.100
     )
     * on (namespace, cluster) group_left (resource_id)
     label_replace(
@@ -7924,12 +7924,12 @@
       "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)"
     )
   plan:
-    expression: (histogram_quantile(0.99, sum by (namespace, cluster, pod, le) (rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~"ocm-.*"}[30m]))) > 0.1 and histogram_quantile(0.99, sum by (namespace, cluster, pod, le) (rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~"ocm-.*"}[6h]))) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
+    expression: (histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate30m) > 0.1 and histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate6h) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
     conditions:
-      - expression: (histogram_quantile(0.99, sum by (namespace, cluster, pod, le) (rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~"ocm-.*"}[30m]))) > 0.1 and histogram_quantile(0.99, sum by (namespace, cluster, pod, le) (rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~"ocm-.*"}[6h]))) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
+      - expression: (histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate30m) > 0.1 and histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate6h) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
         path: root
         queries:
-          - expression: (histogram_quantile(0.99, sum by (namespace, cluster, pod, le) (rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~"ocm-.*"}[30m]))) > 0.1 and histogram_quantile(0.99, sum by (namespace, cluster, pod, le) (rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~"ocm-.*"}[6h]))) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
+          - expression: (histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate30m) > 0.1 and histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate6h) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
             role: signal
         thresholds: []
         unsupported: ""
@@ -8081,9 +8081,9 @@
   occurrence: 1
   input: |
     (
-      histogram_quantile(0.99, sum by (namespace, cluster, le) (rate(etcd_network_peer_round_trip_time_seconds_bucket{namespace=~"ocm-.*"}[5m]))) > 0.1
+      histogram_quantile(0.99, namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate5m) > 0.1
       and
-      histogram_quantile(0.99, sum by (namespace, cluster, le) (rate(etcd_network_peer_round_trip_time_seconds_bucket{namespace=~"ocm-.*"}[1h]))) > 0.1
+      histogram_quantile(0.99, namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate1h) > 0.1
     )
     * on (namespace, cluster) group_left (resource_id)
     label_replace(
@@ -8096,12 +8096,12 @@
       "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)"
     )
   plan:
-    expression: (histogram_quantile(0.99, sum by (namespace, cluster, le) (rate(etcd_network_peer_round_trip_time_seconds_bucket{namespace=~"ocm-.*"}[5m]))) > 0.1 and histogram_quantile(0.99, sum by (namespace, cluster, le) (rate(etcd_network_peer_round_trip_time_seconds_bucket{namespace=~"ocm-.*"}[1h]))) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
+    expression: (histogram_quantile(0.99, namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate5m) > 0.1 and histogram_quantile(0.99, namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate1h) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
     conditions:
-      - expression: (histogram_quantile(0.99, sum by (namespace, cluster, le) (rate(etcd_network_peer_round_trip_time_seconds_bucket{namespace=~"ocm-.*"}[5m]))) > 0.1 and histogram_quantile(0.99, sum by (namespace, cluster, le) (rate(etcd_network_peer_round_trip_time_seconds_bucket{namespace=~"ocm-.*"}[1h]))) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
+      - expression: (histogram_quantile(0.99, namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate5m) > 0.1 and histogram_quantile(0.99, namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate1h) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
         path: root
         queries:
-          - expression: (histogram_quantile(0.99, sum by (namespace, cluster, le) (rate(etcd_network_peer_round_trip_time_seconds_bucket{namespace=~"ocm-.*"}[5m]))) > 0.1 and histogram_quantile(0.99, sum by (namespace, cluster, le) (rate(etcd_network_peer_round_trip_time_seconds_bucket{namespace=~"ocm-.*"}[1h]))) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
+          - expression: (histogram_quantile(0.99, namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate5m) > 0.1 and histogram_quantile(0.99, namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate1h) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
             role: signal
         thresholds: []
         unsupported: ""
@@ -8111,9 +8111,9 @@
   occurrence: 1
   input: |
     (
-      histogram_quantile(0.99, sum by (namespace, cluster, le) (rate(etcd_network_peer_round_trip_time_seconds_bucket{namespace=~"ocm-.*"}[6h]))) > 0.1
+      histogram_quantile(0.99, namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate6h) > 0.1
       and
-      histogram_quantile(0.99, sum by (namespace, cluster, le) (rate(etcd_network_peer_round_trip_time_seconds_bucket{namespace=~"ocm-.*"}[3d]))) > 0.1
+      histogram_quantile(0.99, namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate3d) > 0.1
     )
     * on (namespace, cluster) group_left (resource_id)
     label_replace(
@@ -8126,12 +8126,12 @@
       "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)"
     )
   plan:
-    expression: (histogram_quantile(0.99, sum by (namespace, cluster, le) (rate(etcd_network_peer_round_trip_time_seconds_bucket{namespace=~"ocm-.*"}[6h]))) > 0.1 and histogram_quantile(0.99, sum by (namespace, cluster, le) (rate(etcd_network_peer_round_trip_time_seconds_bucket{namespace=~"ocm-.*"}[3d]))) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
+    expression: (histogram_quantile(0.99, namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate6h) > 0.1 and histogram_quantile(0.99, namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate3d) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
     conditions:
-      - expression: (histogram_quantile(0.99, sum by (namespace, cluster, le) (rate(etcd_network_peer_round_trip_time_seconds_bucket{namespace=~"ocm-.*"}[6h]))) > 0.1 and histogram_quantile(0.99, sum by (namespace, cluster, le) (rate(etcd_network_peer_round_trip_time_seconds_bucket{namespace=~"ocm-.*"}[3d]))) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
+      - expression: (histogram_quantile(0.99, namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate6h) > 0.1 and histogram_quantile(0.99, namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate3d) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
         path: root
         queries:
-          - expression: (histogram_quantile(0.99, sum by (namespace, cluster, le) (rate(etcd_network_peer_round_trip_time_seconds_bucket{namespace=~"ocm-.*"}[6h]))) > 0.1 and histogram_quantile(0.99, sum by (namespace, cluster, le) (rate(etcd_network_peer_round_trip_time_seconds_bucket{namespace=~"ocm-.*"}[3d]))) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
+          - expression: (histogram_quantile(0.99, namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate6h) > 0.1 and histogram_quantile(0.99, namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate3d) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
             role: signal
         thresholds: []
         unsupported: ""
@@ -8141,9 +8141,9 @@
   occurrence: 1
   input: |
     (
-      histogram_quantile(0.99, sum by (namespace, cluster, le) (rate(etcd_network_peer_round_trip_time_seconds_bucket{namespace=~"ocm-.*"}[30m]))) > 0.1
+      histogram_quantile(0.99, namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate30m) > 0.1
       and
-      histogram_quantile(0.99, sum by (namespace, cluster, le) (rate(etcd_network_peer_round_trip_time_seconds_bucket{namespace=~"ocm-.*"}[6h]))) > 0.1
+      histogram_quantile(0.99, namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate6h) > 0.1
     )
     * on (namespace, cluster) group_left (resource_id)
     label_replace(
@@ -8156,12 +8156,12 @@
       "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)"
     )
   plan:
-    expression: (histogram_quantile(0.99, sum by (namespace, cluster, le) (rate(etcd_network_peer_round_trip_time_seconds_bucket{namespace=~"ocm-.*"}[30m]))) > 0.1 and histogram_quantile(0.99, sum by (namespace, cluster, le) (rate(etcd_network_peer_round_trip_time_seconds_bucket{namespace=~"ocm-.*"}[6h]))) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
+    expression: (histogram_quantile(0.99, namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate30m) > 0.1 and histogram_quantile(0.99, namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate6h) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
     conditions:
-      - expression: (histogram_quantile(0.99, sum by (namespace, cluster, le) (rate(etcd_network_peer_round_trip_time_seconds_bucket{namespace=~"ocm-.*"}[30m]))) > 0.1 and histogram_quantile(0.99, sum by (namespace, cluster, le) (rate(etcd_network_peer_round_trip_time_seconds_bucket{namespace=~"ocm-.*"}[6h]))) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
+      - expression: (histogram_quantile(0.99, namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate30m) > 0.1 and histogram_quantile(0.99, namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate6h) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
         path: root
         queries:
-          - expression: (histogram_quantile(0.99, sum by (namespace, cluster, le) (rate(etcd_network_peer_round_trip_time_seconds_bucket{namespace=~"ocm-.*"}[30m]))) > 0.1 and histogram_quantile(0.99, sum by (namespace, cluster, le) (rate(etcd_network_peer_round_trip_time_seconds_bucket{namespace=~"ocm-.*"}[6h]))) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
+          - expression: (histogram_quantile(0.99, namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate30m) > 0.1 and histogram_quantile(0.99, namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate6h) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
             role: signal
         thresholds: []
         unsupported: ""
@@ -8171,9 +8171,9 @@
   occurrence: 1
   input: |
     (
-      histogram_quantile(0.99, sum by (namespace, cluster, pod, le) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~"ocm-.*"}[5m]))) > 0.05
+      histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate5m) > 0.05
       and
-      histogram_quantile(0.99, sum by (namespace, cluster, pod, le) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~"ocm-.*"}[1h]))) > 0.05
+      histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate1h) > 0.05
     )
     * on (namespace, cluster) group_left (resource_id)
     label_replace(
@@ -8186,12 +8186,12 @@
       "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)"
     )
   plan:
-    expression: (histogram_quantile(0.99, sum by (namespace, cluster, pod, le) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~"ocm-.*"}[5m]))) > 0.05 and histogram_quantile(0.99, sum by (namespace, cluster, pod, le) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~"ocm-.*"}[1h]))) > 0.05) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
+    expression: (histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate5m) > 0.05 and histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate1h) > 0.05) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
     conditions:
-      - expression: (histogram_quantile(0.99, sum by (namespace, cluster, pod, le) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~"ocm-.*"}[5m]))) > 0.05 and histogram_quantile(0.99, sum by (namespace, cluster, pod, le) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~"ocm-.*"}[1h]))) > 0.05) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
+      - expression: (histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate5m) > 0.05 and histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate1h) > 0.05) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
         path: root
         queries:
-          - expression: (histogram_quantile(0.99, sum by (namespace, cluster, pod, le) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~"ocm-.*"}[5m]))) > 0.05 and histogram_quantile(0.99, sum by (namespace, cluster, pod, le) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~"ocm-.*"}[1h]))) > 0.05) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
+          - expression: (histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate5m) > 0.05 and histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate1h) > 0.05) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
             role: signal
         thresholds: []
         unsupported: ""
@@ -8201,9 +8201,9 @@
   occurrence: 1
   input: |
     (
-      histogram_quantile(0.99, sum by (namespace, cluster, pod, le) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~"ocm-.*"}[6h]))) > 0.05
+      histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate6h) > 0.05
       and
-      histogram_quantile(0.99, sum by (namespace, cluster, pod, le) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~"ocm-.*"}[3d]))) > 0.05
+      histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate3d) > 0.05
     )
     * on (namespace, cluster) group_left (resource_id)
     label_replace(
@@ -8216,12 +8216,12 @@
       "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)"
     )
   plan:
-    expression: (histogram_quantile(0.99, sum by (namespace, cluster, pod, le) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~"ocm-.*"}[6h]))) > 0.05 and histogram_quantile(0.99, sum by (namespace, cluster, pod, le) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~"ocm-.*"}[3d]))) > 0.05) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
+    expression: (histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate6h) > 0.05 and histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate3d) > 0.05) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
     conditions:
-      - expression: (histogram_quantile(0.99, sum by (namespace, cluster, pod, le) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~"ocm-.*"}[6h]))) > 0.05 and histogram_quantile(0.99, sum by (namespace, cluster, pod, le) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~"ocm-.*"}[3d]))) > 0.05) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
+      - expression: (histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate6h) > 0.05 and histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate3d) > 0.05) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
         path: root
         queries:
-          - expression: (histogram_quantile(0.99, sum by (namespace, cluster, pod, le) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~"ocm-.*"}[6h]))) > 0.05 and histogram_quantile(0.99, sum by (namespace, cluster, pod, le) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~"ocm-.*"}[3d]))) > 0.05) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
+          - expression: (histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate6h) > 0.05 and histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate3d) > 0.05) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
             role: signal
         thresholds: []
         unsupported: ""
@@ -8231,9 +8231,9 @@
   occurrence: 1
   input: |
     (
-      histogram_quantile(0.99, sum by (namespace, cluster, pod, le) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~"ocm-.*"}[30m]))) > 0.05
+      histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate30m) > 0.05
       and
-      histogram_quantile(0.99, sum by (namespace, cluster, pod, le) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~"ocm-.*"}[6h]))) > 0.05
+      histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate6h) > 0.05
     )
     * on (namespace, cluster) group_left (resource_id)
     label_replace(
@@ -8246,12 +8246,12 @@
       "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)"
     )
   plan:
-    expression: (histogram_quantile(0.99, sum by (namespace, cluster, pod, le) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~"ocm-.*"}[30m]))) > 0.05 and histogram_quantile(0.99, sum by (namespace, cluster, pod, le) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~"ocm-.*"}[6h]))) > 0.05) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
+    expression: (histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate30m) > 0.05 and histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate6h) > 0.05) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
     conditions:
-      - expression: (histogram_quantile(0.99, sum by (namespace, cluster, pod, le) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~"ocm-.*"}[30m]))) > 0.05 and histogram_quantile(0.99, sum by (namespace, cluster, pod, le) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~"ocm-.*"}[6h]))) > 0.05) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
+      - expression: (histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate30m) > 0.05 and histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate6h) > 0.05) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
         path: root
         queries:
-          - expression: (histogram_quantile(0.99, sum by (namespace, cluster, pod, le) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~"ocm-.*"}[30m]))) > 0.05 and histogram_quantile(0.99, sum by (namespace, cluster, pod, le) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~"ocm-.*"}[6h]))) > 0.05) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
+          - expression: (histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate30m) > 0.05 and histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate6h) > 0.05) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
             role: signal
         thresholds: []
         unsupported: ""
