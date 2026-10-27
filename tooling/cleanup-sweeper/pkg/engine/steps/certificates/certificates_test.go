@@ -20,6 +20,8 @@ import (
 	"errors"
 	"log/slog"
 	"reflect"
+	"regexp"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -27,18 +29,25 @@ import (
 
 	"github.com/go-logr/logr"
 
+	"k8s.io/apimachinery/pkg/util/sets"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 	"github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azcertificates"
+
+	"github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/pkg/engine/runner"
+	cleanuppolicy "github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/pkg/policy"
 )
+
+const testVaultURL = "https://aro-hcp-dev-svc-kv.vault.azure.net"
 
 var referenceTime = time.Date(2026, 9, 18, 12, 0, 0, 0, time.UTC)
 
 func oldCertificate(name string) *azcertificates.CertificateProperties {
 	return &azcertificates.CertificateProperties{
-		ID: to.Ptr(azcertificates.ID(VaultURL + "/certificates/" + name)),
+		ID: to.Ptr(azcertificates.ID(testVaultURL + "/certificates/" + name)),
 		Attributes: &azcertificates.CertificateAttributes{
 			Created: to.Ptr(referenceTime.Add(-30 * 24 * time.Hour)),
 			Updated: to.Ptr(referenceTime.Add(-8 * 24 * time.Hour)),
@@ -49,8 +58,8 @@ func oldCertificate(name string) *azcertificates.CertificateProperties {
 
 func deletedCertificate(name string) *azcertificates.DeletedCertificateProperties {
 	return &azcertificates.DeletedCertificateProperties{
-		ID:                 to.Ptr(azcertificates.ID(VaultURL + "/certificates/" + name + "/version1")),
-		RecoveryID:         to.Ptr(VaultURL + "/deletedcertificates/" + name),
+		ID:                 to.Ptr(azcertificates.ID(testVaultURL + "/certificates/" + name + "/version1")),
+		RecoveryID:         to.Ptr(testVaultURL + "/deletedcertificates/" + name),
 		Attributes:         &azcertificates.CertificateAttributes{RecoveryLevel: to.Ptr("Recoverable+Purgeable")},
 		DeletedDate:        to.Ptr(referenceTime.Add(-time.Hour)),
 		ScheduledPurgeDate: to.Ptr(referenceTime.Add(89 * 24 * time.Hour)),
@@ -202,7 +211,29 @@ func (f *fakeGroups) NewListPager(*armresources.ResourceGroupsClientListOptions)
 	})
 }
 
-func newTestSweeper(names ...string) (*sweeper, *fakeCertificates, *fakeGroups, *fakeGroups) {
+const (
+	testSubscriptionA = "subscription-a"
+	testSubscriptionB = "subscription-b"
+)
+
+// testSweeper wires a Session to fakes. Fields of the embedded Session may be
+// tweaked per test before run.
+type testSweeper struct {
+	*Session
+	groups map[string]ResourceGroupLister
+}
+
+type testOptions struct {
+	DryRun       bool
+	DeleteActive bool
+	PurgeDeleted bool
+	MaxDeletions int
+	MaxPurges    int
+	Workers      int
+	Policy       *cleanuppolicy.CertificatePolicy
+}
+
+func newTestSweeper(names ...string) (*testSweeper, *fakeCertificates, *fakeGroups, *fakeGroups) {
 	f := &fakeCertificates{
 		pages:        [][]*azcertificates.CertificateProperties{{}},
 		deletedPages: [][]*azcertificates.DeletedCertificateProperties{{}},
@@ -211,38 +242,91 @@ func newTestSweeper(names ...string) (*sweeper, *fakeCertificates, *fakeGroups, 
 		f.pages[0] = append(f.pages[0], oldCertificate(name))
 	}
 	a, b := &fakeGroups{}, &fakeGroups{}
-	return &sweeper{certificates: f, groups: map[string]resourceGroupClient{
-		devInfrastructureSubscription: a, devSharedInfrastructureSubscription: b,
-	}, now: func() time.Time { return referenceTime }}, f, a, b
+	s := &testSweeper{groups: map[string]ResourceGroupLister{
+		testSubscriptionA: a, testSubscriptionB: b,
+	}}
+	s.Session = &Session{
+		client:    f,
+		vaultURL:  testVaultURL,
+		vaultHost: strings.TrimPrefix(testVaultURL, "https://"),
+		now:       func() time.Time { return referenceTime },
+		counts:    newSummary(),
+	}
+	s.guard = &ownerGuard{
+		owners: NewOwnerInventory([]string{testSubscriptionA, testSubscriptionB}, s.groups, func() time.Time { return s.now() }),
+		now:    func() time.Time { return s.now() },
+	}
+	s.policy = repositoryPolicyForTests().Discovery
+	return s, f, a, b
 }
 
-func options(dryRun bool) Options {
-	return Options{
+func sweeperOnly() *testSweeper {
+	s, _, _, _ := newTestSweeper()
+	return s
+}
+
+var cachedPolicy *cleanuppolicy.CertificatePolicy
+
+func repositoryPolicyForTests() *cleanuppolicy.CertificatePolicy {
+	if cachedPolicy == nil {
+		loaded, err := cleanuppolicy.LoadCertificates("../../../../certificates.policy.yaml")
+		if err != nil {
+			panic(err)
+		}
+		cachedPolicy = loaded
+	}
+	return cachedPolicy
+}
+
+func options(dryRun bool) testOptions {
+	return testOptions{
 		DryRun:       dryRun,
 		DeleteActive: true,
 		PurgeDeleted: true,
-		MinAge:       168 * time.Hour,
 		MaxDeletions: 1000,
 		MaxPurges:    1000,
 		Workers:      1,
 	}
 }
 
+// run applies opts to the session and executes the workflow exactly as the
+// engine workflow builder assembles it.
+func (s *testSweeper) run(ctx context.Context, opts testOptions) error {
+	if _, err := logr.FromContext(ctx); err != nil {
+		ctx = logr.NewContext(ctx, logr.Discard())
+	}
+	if opts.Policy != nil {
+		s.policy = opts.Policy.Discovery
+	}
+	s.dryRun, s.deleteActive, s.purgeDeleted = opts.DryRun, opts.DeleteActive, opts.PurgeDeleted
+	s.maxDeletions, s.maxPurges = opts.MaxDeletions, opts.MaxPurges
+	engine := &runner.Engine{
+		Steps:       s.Steps(),
+		Parallelism: opts.Workers,
+		DryRun:      opts.DryRun,
+		Wait:        true,
+		PostRunFn:   s.Finish,
+	}
+	return engine.Run(ctx)
+}
+
 func TestEligibility(t *testing.T) {
 	for _, name := range []string{"frontend-cert-prow-j1234567", "admin-api-cert-ci00-j1234567", "sessiongate-cert-ci01-j1234567", "maestro-server-j1234567", "frontend-cert-ci00-j0000100"} {
-		if _, _, reason := eligible(oldCertificate(name), referenceTime, referenceTime.Add(-168*time.Hour)); reason != "" {
+		if _, _, reason := sweeperOnly().eligible(oldCertificate(name), nil, referenceTime); !reason.Selected() {
 			t.Errorf("%s: %s", name, reason)
 		}
+
 	}
-	for _, name := range []string{"frontend-cert-dev-j1234567", "frontend-cert-pers-j1234567", "frontend-cert-cspr-j1234567", "frontend-cert-mocked-j1234567", "frontend-cert-pool-j1234567", "maestro-server-prow-j1234567", "frontend-cert-ci00-j123456", "frontend-cert-ci00-j12345678", "frontend-cert-ci00-j1234567-extra", "FRONTEND-cert-ci00-j1234567", "frontend-cert-ci00-j0000000", "frontend-cert-ci00-j0000099", "maestro-server-j7654321"} {
-		if _, _, reason := eligible(oldCertificate(name), referenceTime, referenceTime.Add(-168*time.Hour)); reason == "" {
+	for _, name := range []string{"frontend-cert-dev-j1234567", "frontend-cert-cspr-j1234567", "frontend-cert-mocked-j1234567", "frontend-cert-pool-j1234567", "maestro-server-ci01-j1234567", "frontend-cert-ci00-j123456", "frontend-cert-ci00-j12345678", "frontend-cert-ci00-j1234567-extra", "FRONTEND-cert-ci00-j1234567", "frontend-cert-ci00-j0000000", "frontend-cert-ci00-j0000099", "maestro-server-j7654321"} {
+		if _, _, reason := sweeperOnly().eligible(oldCertificate(name), nil, referenceTime); reason.Selected() {
 			t.Errorf("accepted %s", name)
 		}
 	}
+
 	for _, test := range []struct {
 		name   string
 		mutate func(*azcertificates.CertificateProperties)
-		reason string
+		reason cleanuppolicy.CertificateDecision
 	}{
 		{"missing attributes", func(c *azcertificates.CertificateProperties) { c.Attributes = nil }, "missing-timestamp"},
 		{"missing created", func(c *azcertificates.CertificateProperties) { c.Attributes.Created = nil }, "missing-timestamp"},
@@ -263,12 +347,15 @@ func TestEligibility(t *testing.T) {
 		{"future updated", func(c *azcertificates.CertificateProperties) {
 			c.Attributes.Updated = to.Ptr(referenceTime.Add(time.Hour))
 		}, "future-timestamp"},
-		{"disabled", func(c *azcertificates.CertificateProperties) { c.Attributes.Enabled = to.Ptr(false) }, ""},
+		{"disabled", func(c *azcertificates.CertificateProperties) { c.Attributes.Enabled = to.Ptr(false) }, cleanuppolicy.CertificateDecisionSelected},
 		{"persist", func(c *azcertificates.CertificateProperties) { c.Tags = map[string]*string{"persist": to.Ptr("true")} }, "protected-tag"},
-		{"doNotDelete", func(c *azcertificates.CertificateProperties) {
-			c.Tags = map[string]*string{"DONOTDELETE": to.Ptr(" True ")}
+		{"persist key and value are case-insensitive", func(c *azcertificates.CertificateProperties) {
+			c.Tags = map[string]*string{"PERSIST": to.Ptr(" True ")}
 		}, "protected-tag"},
-		{"nil tag", func(c *azcertificates.CertificateProperties) { c.Tags = map[string]*string{"persist": nil} }, ""},
+		{"unlisted tag is not protective", func(c *azcertificates.CertificateProperties) {
+			c.Tags = map[string]*string{"doNotDelete": to.Ptr("true")}
+		}, cleanuppolicy.CertificateDecisionSelected},
+		{"nil tag", func(c *azcertificates.CertificateProperties) { c.Tags = map[string]*string{"persist": nil} }, cleanuppolicy.CertificateDecisionSelected},
 		{"missing ID", func(c *azcertificates.CertificateProperties) { c.ID = nil }, "invalid-id"},
 		{"other vault", func(c *azcertificates.CertificateProperties) {
 			c.ID = to.Ptr(azcertificates.ID("https://other.vault.azure.net/certificates/maestro-server-j1234567"))
@@ -278,42 +365,42 @@ func TestEligibility(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			cert := oldCertificate("frontend-cert-prow-j1234567")
 			test.mutate(cert)
-			_, _, reason := eligible(cert, referenceTime, referenceTime.Add(-168*time.Hour))
+			_, _, reason := sweeperOnly().eligible(cert, nil, referenceTime)
 			if reason != test.reason {
 				t.Fatalf("reason = %q, want %q", reason, test.reason)
 			}
 		})
 	}
-	if _, _, reason := eligible(nil, referenceTime, referenceTime); reason != "invalid-id" {
+	if _, _, reason := sweeperOnly().eligible(nil, nil, referenceTime); reason != "invalid-id" {
 		t.Fatalf("nil certificate reason = %q", reason)
 	}
 }
 
 func TestDeletedEligibility(t *testing.T) {
 	for _, name := range []string{"frontend-cert-prow-j1234567", "admin-api-cert-ci00-j1234567", "sessiongate-cert-ci01-j1234567", "maestro-server-j1234567"} {
-		if _, _, reason := eligibleDeleted(deletedCertificate(name)); reason != "" {
+		if _, _, reason := sweeperOnly().eligibleDeleted(deletedCertificate(name)); !reason.Selected() {
 			t.Errorf("%s: %s", name, reason)
 		}
 	}
 	for _, test := range []struct {
 		name   string
 		mutate func(*azcertificates.DeletedCertificateProperties)
-		reason string
+		reason cleanuppolicy.CertificateDecision
 	}{
 		{"wrong name", func(c *azcertificates.DeletedCertificateProperties) {
 			c.ID = deletedCertificate("frontend-cert-dev-j1234567").ID
-			c.RecoveryID = to.Ptr(VaultURL + "/deletedcertificates/frontend-cert-dev-j1234567")
-		}, "name"},
+			c.RecoveryID = to.Ptr(testVaultURL + "/deletedcertificates/frontend-cert-dev-j1234567")
+		}, "no-rule-match"},
 		{"placeholder", func(c *azcertificates.DeletedCertificateProperties) {
 			c.ID = deletedCertificate("maestro-server-j0000001").ID
-			c.RecoveryID = to.Ptr(VaultURL + "/deletedcertificates/maestro-server-j0000001")
-		}, "placeholder"},
+			c.RecoveryID = to.Ptr(testVaultURL + "/deletedcertificates/maestro-server-j0000001")
+		}, cleanuppolicy.CertificateDecisionSkippedByRule},
 		{"protected tag", func(c *azcertificates.DeletedCertificateProperties) {
 			c.Tags = map[string]*string{"persist": to.Ptr("true")}
 		}, "protected-tag"},
 		{"missing recovery ID", func(c *azcertificates.DeletedCertificateProperties) { c.RecoveryID = nil }, "invalid-recovery-id"},
 		{"wrong recovery name", func(c *azcertificates.DeletedCertificateProperties) {
-			c.RecoveryID = to.Ptr(VaultURL + "/deletedcertificates/maestro-server-j2345678")
+			c.RecoveryID = to.Ptr(testVaultURL + "/deletedcertificates/maestro-server-j2345678")
 		}, "invalid-recovery-id"},
 		{"other recovery vault", func(c *azcertificates.DeletedCertificateProperties) {
 			c.RecoveryID = to.Ptr("https://other.vault.azure.net/deletedcertificates/maestro-server-j1234567")
@@ -328,13 +415,13 @@ func TestDeletedEligibility(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			cert := deletedCertificate("maestro-server-j1234567")
 			test.mutate(cert)
-			_, _, reason := eligibleDeleted(cert)
+			_, _, reason := sweeperOnly().eligibleDeleted(cert)
 			if reason != test.reason {
 				t.Fatalf("reason = %q, want %q", reason, test.reason)
 			}
 		})
 	}
-	if _, _, reason := eligibleDeleted(nil); reason != "invalid-id" {
+	if _, _, reason := sweeperOnly().eligibleDeleted(nil); reason != "invalid-id" {
 		t.Fatalf("nil deleted certificate reason = %q", reason)
 	}
 }
@@ -353,7 +440,7 @@ func TestDryRunInventoryAndLimit(t *testing.T) {
 	ctx := logr.NewContext(t.Context(), logr.FromSlogHandler(slog.NewJSONHandler(&logs, nil)))
 	opts := options(true)
 	opts.MaxDeletions = 1
-	opts.MaxPurges = 2
+	opts.MaxPurges = 1
 	if err := s.run(ctx, opts); err != nil {
 		t.Fatal(err)
 	}
@@ -373,6 +460,15 @@ func TestDryRunInventoryAndLimit(t *testing.T) {
 	}
 	if strings.Count(logs.String(), "Selected deleted CI certificate") != 1 {
 		t.Fatalf("expected exactly one purge candidate log: %s", logs.String())
+	}
+	for _, expected := range []string{
+		`"policyRule":"current-ci-job-certificates"`,
+		`"reason":"rule[1]-expired"`,
+		`"reason":"rule[1]-deleted"`,
+	} {
+		if !strings.Contains(logs.String(), expected) {
+			t.Errorf("missing candidate policy detail %s in %s", expected, logs.String())
+		}
 	}
 }
 
@@ -408,7 +504,7 @@ func TestMutationLimitsScanPastIneligibleCertificates(t *testing.T) {
 	t.Run("deleted", func(t *testing.T) {
 		s, f, _, _ := newTestSweeper()
 		ineligible := deletedCertificate("frontend-cert-dev-j1234567")
-		ineligible.RecoveryID = to.Ptr(VaultURL + "/deletedcertificates/frontend-cert-dev-j1234567")
+		ineligible.RecoveryID = to.Ptr(testVaultURL + "/deletedcertificates/frontend-cert-dev-j1234567")
 		f.deletedPages = [][]*azcertificates.DeletedCertificateProperties{
 			{ineligible},
 			{deletedCertificate("maestro-server-j2345678")},
@@ -455,7 +551,7 @@ func TestInventoryFailsClosed(t *testing.T) {
 				b.pages = [][]string{{"other"}, {}}
 				b.listError = 2
 			case "missing subscription":
-				delete(s.groups, devSharedInfrastructureSubscription)
+				delete(s.groups, testSubscriptionB)
 			case "missing RG name":
 				b.pages = [][]string{{""}}
 			case "duplicate certificate":
@@ -478,6 +574,15 @@ func TestInventoryFailsClosed(t *testing.T) {
 			if err := s.run(t.Context(), options(false)); err == nil {
 				t.Fatal("expected closed failure")
 			}
+			if strings.Contains(test, "deleted certificate") {
+				// Active certificates are cleaned before tombstones are listed, so
+				// only the tombstone phase is gated on its own inventory: nothing
+				// listed there may be purged.
+				if slices.Contains(f.purges, "maestro-server-j2345678") {
+					t.Fatalf("purged a tombstone from an incomplete inventory: purges=%v", f.purges)
+				}
+				return
+			}
 			if len(f.deletes) != 0 || len(f.purges) != 0 {
 				t.Fatalf("changed certificates despite incomplete inventory: deletes=%v purges=%v", f.deletes, f.purges)
 			}
@@ -489,13 +594,114 @@ func TestOwnerTokens(t *testing.T) {
 	s, _, a, b := newTestSweeper()
 	a.pages = [][]string{{"ci00-j1234567-rg", "J2345678", "other_j3456789.j4567890"}}
 	b.pages = [][]string{{"xj5678901", "j67890123", "j7890123x", "j123456-j8901234"}}
-	owners, _, err := s.owners(t.Context())
+	owners, _, err := s.guard.owners(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := map[string]bool{"j1234567": true, "j2345678": true, "j3456789": true, "j4567890": true, "j8901234": true}
-	if !reflect.DeepEqual(owners, want) {
+
+	want := []string{"ci00", "j123456", "j1234567", "j2345678", "j3456789", "j4567890", "j67890123", "j7890123x", "j8901234", "other", "rg", "xj5678901"}
+	if !reflect.DeepEqual(sets.List(owners), want) {
 		t.Fatalf("owners = %v, want %v", owners, want)
+	}
+}
+
+func TestRepositoryRecurringPolicy(t *testing.T) {
+	testCases := []struct {
+		name        string
+		certificate string
+		updated     time.Time
+		ownerRG     string
+		deleted     bool
+	}{
+		{
+			name:        "deletes ownerless personal frontend certificate after retention",
+			certificate: "frontend-cert-pers-usw3rvaz",
+			updated:     referenceTime.Add(-16 * 24 * time.Hour),
+			deleted:     true,
+		},
+		{
+			name:        "retains personal frontend certificate with live owner",
+			certificate: "frontend-cert-pers-usw3rvaz",
+			updated:     referenceTime.Add(-16 * 24 * time.Hour),
+			ownerRG:     "hcp-underlay-pers-usw3rvaz-svc",
+		},
+		{
+			name:        "enforces the personal retention window",
+			certificate: "frontend-cert-pers-usw3rvaz",
+			updated:     referenceTime.Add(-8 * 24 * time.Hour),
+		},
+		{
+			name:        "deletes ownerless personal Maestro certificate",
+			certificate: "maestro-server-usw3rvaz",
+			updated:     referenceTime.Add(-16 * 24 * time.Hour),
+			deleted:     true,
+		},
+		{
+			name:        "deletes ownerless ephemeral performance certificate",
+			certificate: "frontend-cert-perf-usw3rvaz",
+			updated:     referenceTime.Add(-16 * 24 * time.Hour),
+			deleted:     true,
+		},
+		{
+			name:        "retains unmatched old-schema frontend certificate",
+			certificate: "frontend-cert-usw3rvaz",
+			updated:     referenceTime.Add(-30 * 24 * time.Hour),
+		},
+		{
+			name:        "retains the persistent CSPR Maestro certificate whose live resource groups do not carry its owner token",
+			certificate: "maestro-server-usw3",
+			updated:     referenceTime.Add(-30 * 24 * time.Hour),
+			ownerRG:     "hcp-underlay-cspr-westus3-svc",
+		},
+		{
+			name:        "retains the shared nightly Maestro certificate",
+			certificate: "maestro-server-nightly",
+			updated:     referenceTime.Add(-30 * 24 * time.Hour),
+		},
+		{
+			name:        "retains placeholder job certificate",
+			certificate: "maestro-server-j0000001",
+			updated:     referenceTime.Add(-30 * 24 * time.Hour),
+		},
+		{
+			name:        "retains fixture job certificate",
+			certificate: "frontend-cert-prow-j7654321",
+			updated:     referenceTime.Add(-30 * 24 * time.Hour),
+		},
+		{
+			name:        "retains unscoped CSPR frontend certificate",
+			certificate: "frontend-cert-cspr",
+			updated:     referenceTime.Add(-30 * 24 * time.Hour),
+		},
+	}
+
+	loadedPolicy, err := cleanuppolicy.LoadCertificates("../../../../certificates.policy.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			s, f, a, _ := newTestSweeper(tc.certificate)
+			f.pages[0][0].Attributes.Updated = to.Ptr(tc.updated)
+			f.get = func(name string) (azcertificates.GetCertificateResponse, error) {
+				response := latestCertificate(name)
+				response.Attributes.Updated = to.Ptr(tc.updated)
+				return response, nil
+			}
+			if tc.ownerRG != "" {
+				a.pages = [][]string{{tc.ownerRG}}
+			}
+			opts := options(false)
+			opts.Policy = loadedPolicy
+			opts.PurgeDeleted = false
+			if err := s.run(t.Context(), opts); err != nil {
+				t.Fatal(err)
+			}
+			if got := len(f.deletes) == 1; got != tc.deleted {
+				t.Fatalf("deletes=%v, want deletion=%t", f.deletes, tc.deleted)
+			}
+		})
 	}
 }
 
@@ -522,22 +728,19 @@ func TestApplyRevalidation(t *testing.T) {
 		{name: "missing created", mutate: func(c *azcertificates.GetCertificateResponse) { c.Attributes.Created = nil }},
 		{name: "missing updated", mutate: func(c *azcertificates.GetCertificateResponse) { c.Attributes.Updated = nil }},
 		{name: "new persistent tag", mutate: func(c *azcertificates.GetCertificateResponse) { c.Tags = map[string]*string{"persist": to.Ptr("true")} }},
-		{name: "new doNotDelete tag", mutate: func(c *azcertificates.GetCertificateResponse) {
-			c.Tags = map[string]*string{"doNotDelete": to.Ptr("true")}
-		}},
 		{name: "new thumbprint", mutate: func(c *azcertificates.GetCertificateResponse) { c.X509Thumbprint = []byte{4} }},
 		{name: "unversioned GET", mutate: func(c *azcertificates.GetCertificateResponse) { c.ID = oldCertificate("maestro-server-j1234567").ID }},
 		{name: "wrong name", mutate: func(c *azcertificates.GetCertificateResponse) {
-			c.ID = to.Ptr(azcertificates.ID(VaultURL + "/certificates/maestro-server-j2345678/version1"))
+			c.ID = to.Ptr(azcertificates.ID(testVaultURL + "/certificates/maestro-server-j2345678/version1"))
 		}},
 		{name: "version changed", mutate: func(c *azcertificates.GetCertificateResponse) {
-			c.ID = to.Ptr(azcertificates.ID(VaultURL + "/certificates/maestro-server-j1234567/version2"))
+			c.ID = to.Ptr(azcertificates.ID(testVaultURL + "/certificates/maestro-server-j1234567/version2"))
 		}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			s, f, a, b := newTestSweeper("maestro-server-j1234567")
 			if test.name == "version changed" {
-				f.pages[0][0].ID = to.Ptr(azcertificates.ID(VaultURL + "/certificates/maestro-server-j1234567/version1"))
+				f.pages[0][0].ID = to.Ptr(azcertificates.ID(testVaultURL + "/certificates/maestro-server-j1234567/version1"))
 			}
 			f.get = func(name string) (azcertificates.GetCertificateResponse, error) {
 				c := latestCertificate(name)
@@ -562,7 +765,7 @@ func TestApplyRevalidation(t *testing.T) {
 func TestOwnerRefresh(t *testing.T) {
 	for _, when := range []string{"before first delete", "after 30 seconds", "refresh failure after delete", "slow certificate GET", "refresh failure after slow certificate GET"} {
 		t.Run(when, func(t *testing.T) {
-			s, f, _, b := newTestSweeper("maestro-server-j1234567", "frontend-cert-prow-j2345678")
+			s, f, _, b := newTestSweeper("maestro-server-j1234567", "frontend-cert-ci01-j2345678")
 			clock := referenceTime
 			s.now = func() time.Time { return clock }
 			b.onList = func(g *fakeGroups) {
@@ -604,10 +807,39 @@ func TestOwnerRefresh(t *testing.T) {
 			if len(f.deletes) != wantDeletes {
 				t.Fatalf("deletes = %v, want %d", f.deletes, wantDeletes)
 			}
-			if when == "slow certificate GET" && f.deletes[0] != "frontend-cert-prow-j2345678" {
+			if when == "slow certificate GET" && f.deletes[0] != "frontend-cert-ci01-j2345678" {
 				t.Fatalf("did not defer the certificate with stale owner inventory: %v", f.deletes)
 			}
 		})
+	}
+}
+
+func TestOwnerlessPolicyDoesNotRequireOwnerInventory(t *testing.T) {
+	s, f, a, b := newTestSweeper("temporary-certificate")
+	s.policy = cleanuppolicy.CertificateDiscoveryPolicy{Rules: []cleanuppolicy.CertificateDiscoveryRule{{
+		Name:                   "ownerless-certificate",
+		AllowWithoutOwnerGuard: true,
+		Action:                 cleanuppolicy.CertificateDiscoveryActionDelete,
+		Match:                  cleanuppolicy.CertificateDiscoveryMatch{NameRegex: regexp.MustCompile(`^temporary-certificate$`)},
+		OlderThan:              24 * time.Hour,
+	}}}
+	clock := referenceTime
+	s.now = func() time.Time { return clock }
+	f.get = func(name string) (azcertificates.GetCertificateResponse, error) {
+		clock = clock.Add(ownerMaxAge)
+		return latestCertificate(name), nil
+	}
+	opts := options(false)
+	opts.Policy = &cleanuppolicy.CertificatePolicy{Discovery: s.policy}
+	opts.PurgeDeleted = false
+	if err := s.run(t.Context(), opts); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(f.deletes, []string{"temporary-certificate"}) {
+		t.Fatalf("deletes = %v, want temporary-certificate", f.deletes)
+	}
+	if a.lists != 0 || b.lists != 0 {
+		t.Fatalf("owner inventory was loaded for ownerless policy: %d, %d", a.lists, b.lists)
 	}
 }
 
@@ -619,7 +851,7 @@ func TestPurgeRevalidation(t *testing.T) {
 	}{
 		{name: "unchanged", purged: true},
 		{name: "protected", mutate: func(c *azcertificates.GetDeletedCertificateResponse) {
-			c.Tags = map[string]*string{"doNotDelete": to.Ptr("true")}
+			c.Tags = map[string]*string{"persist": to.Ptr("true")}
 		}},
 		{name: "not purgeable", mutate: func(c *azcertificates.GetDeletedCertificateResponse) {
 			c.Attributes.RecoveryLevel = to.Ptr("Recoverable")
@@ -631,7 +863,7 @@ func TestPurgeRevalidation(t *testing.T) {
 			c.ScheduledPurgeDate = to.Ptr(referenceTime.Add(88 * 24 * time.Hour))
 		}},
 		{name: "wrong recovery ID", mutate: func(c *azcertificates.GetDeletedCertificateResponse) {
-			c.RecoveryID = to.Ptr(VaultURL + "/deletedcertificates/maestro-server-j2345678")
+			c.RecoveryID = to.Ptr(testVaultURL + "/deletedcertificates/maestro-server-j2345678")
 		}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
@@ -663,7 +895,7 @@ func TestPurgeRevalidation(t *testing.T) {
 	}
 }
 
-func TestPurgeOnlySkipsActiveInventoryAndOwnerGuards(t *testing.T) {
+func TestPurgeOnlySkipsActiveInventoryAndOwnerInventory(t *testing.T) {
 	s, f, a, b := newTestSweeper("maestro-server-j1234567")
 	f.deletedPages = [][]*azcertificates.DeletedCertificateProperties{
 		{deletedCertificate("maestro-server-j2345678")},
@@ -683,7 +915,7 @@ func TestPurgeOnlySkipsActiveInventoryAndOwnerGuards(t *testing.T) {
 		t.Fatalf("must stop Key Vault paging at purge limit; read %d pages", f.deletedPagesRead)
 	}
 	if a.lists != 0 || b.lists != 0 {
-		t.Fatalf("purge-only must not require owner inventory: %d, %d", a.lists, b.lists)
+		t.Fatalf("tombstones are not subject to the owner guard, but owners were inventoried: %d, %d", a.lists, b.lists)
 	}
 	if len(f.deletes) != 0 || !reflect.DeepEqual(f.purges, []string{"maestro-server-j2345678"}) {
 		t.Fatalf("unexpected changes: deletes=%v purges=%v", f.deletes, f.purges)
@@ -725,7 +957,7 @@ func TestImmediatePurgeWaitsForTombstone(t *testing.T) {
 	}
 }
 
-func TestPurgeBudgetIncludesImmediatePurges(t *testing.T) {
+func TestPurgeBudgetsAreIndependent(t *testing.T) {
 	s, f, _, _ := newTestSweeper(
 		"maestro-server-j1234567",
 		"maestro-server-j2345678",
@@ -733,19 +965,38 @@ func TestPurgeBudgetIncludesImmediatePurges(t *testing.T) {
 	)
 	f.deletedPages = [][]*azcertificates.DeletedCertificateProperties{{
 		deletedCertificate("maestro-server-j4567890"),
+		deletedCertificate("maestro-server-j5678901"),
 	}}
 	opts := options(false)
-	opts.MaxDeletions = 3
-	opts.MaxPurges = 2
+	opts.MaxDeletions = 2
+	opts.MaxPurges = 1
 
 	if err := s.run(t.Context(), opts); err != nil {
 		t.Fatal(err)
 	}
-	if len(f.deletes) != 2 || len(f.purges) != 2 {
-		t.Fatalf("shared purge budget exceeded: deletes=%v purges=%v", f.deletes, f.purges)
+	// --max-deletions bounds active deletes (each purged immediately);
+	// --max-purges bounds only the previously deleted tombstones.
+	if len(f.deletes) != 2 {
+		t.Fatalf("deletes = %v, want 2", f.deletes)
 	}
-	if f.deletedLists != 0 {
-		t.Fatalf("deleted-certificate inventory read without remaining purge budget: %d", f.deletedLists)
+	want := []string{"maestro-server-j1234567", "maestro-server-j2345678", "maestro-server-j4567890"}
+	if !reflect.DeepEqual(f.purges, want) {
+		t.Fatalf("purges = %v, want %v", f.purges, want)
+	}
+}
+
+func TestTombstonePurgeIgnoresLiveOwner(t *testing.T) {
+	s, f, a, _ := newTestSweeper()
+	a.pages = [][]string{{"hcp-j1234567-rg"}}
+	f.deletedPages = [][]*azcertificates.DeletedCertificateProperties{{deletedCertificate("maestro-server-j1234567")}}
+	opts := options(false)
+	opts.DeleteActive = false
+
+	if err := s.run(t.Context(), opts); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(f.purges, []string{"maestro-server-j1234567"}) {
+		t.Fatalf("purges = %v; a lingering tombstone must be purged even if its owner token is live", f.purges)
 	}
 }
 
@@ -918,25 +1169,72 @@ func TestCancellation(t *testing.T) {
 	}
 }
 
-func TestOptions(t *testing.T) {
-	for _, opts := range []Options{
-		{},
-		{DeleteActive: true, MinAge: 23 * time.Hour, MaxDeletions: 1, Workers: 1},
-		{DeleteActive: true, MinAge: 168 * time.Hour, Workers: 1},
-		{DeleteActive: true, MinAge: 168 * time.Hour, MaxDeletions: -1, Workers: 1},
-		{PurgeDeleted: true, Workers: 1},
-		{PurgeDeleted: true, MaxPurges: 1},
-	} {
-		if opts.Validate() == nil {
-			t.Fatalf("accepted unsafe options: %+v", opts)
+func TestNewSession(t *testing.T) {
+	valid := func() Config {
+		return Config{
+			Client:       &fakeCertificates{},
+			VaultURL:     testVaultURL,
+			Policy:       repositoryPolicyForTests().Discovery,
+			Owners:       func(context.Context) (sets.Set[string], time.Time, error) { return nil, time.Time{}, nil },
+			DeleteActive: true,
+			MaxDeletions: 1,
 		}
 	}
-	for _, opts := range []Options{
-		{DeleteActive: true, MinAge: 24 * time.Hour, MaxDeletions: 1, Workers: 1},
-		{PurgeDeleted: true, MaxPurges: 1, Workers: 1},
+	if _, err := NewSession(valid()); err != nil {
+		t.Fatal(err)
+	}
+	// Tombstones are purged without the owner guard, so a purge-only run needs no owner inventory.
+	purgeOnly := valid()
+	purgeOnly.DeleteActive, purgeOnly.PurgeDeleted, purgeOnly.MaxPurges, purgeOnly.Owners = false, true, 1, nil
+	if _, err := NewSession(purgeOnly); err != nil {
+		t.Fatalf("purge-only session must not require an owner inventory: %v", err)
+	}
+	for name, mutate := range map[string]func(*Config){
+		"no actions":                       func(c *Config) { c.DeleteActive = false },
+		"zero deletion budget":             func(c *Config) { c.MaxDeletions = 0 },
+		"zero purge budget":                func(c *Config) { c.PurgeDeleted = true },
+		"owner guard rule needs inventory": func(c *Config) { c.Owners = nil },
+		"unguarded delete rule": func(c *Config) {
+			c.Policy = cleanuppolicy.CertificateDiscoveryPolicy{Rules: []cleanuppolicy.CertificateDiscoveryRule{{
+				Name: "r", Action: cleanuppolicy.CertificateDiscoveryActionDelete, OlderThan: 24 * time.Hour,
+				Match: cleanuppolicy.CertificateDiscoveryMatch{NameRegex: regexp.MustCompile(`^x$`)},
+			}}}
+		},
+		"foreign vault URL": func(c *Config) { c.VaultURL = "not a url" },
+		"no protected tags": func(c *Config) { c.Policy.ProtectedTags = nil },
 	} {
-		if err := opts.Validate(); err != nil {
-			t.Fatal(err)
+		t.Run(name, func(t *testing.T) {
+			cfg := valid()
+			mutate(&cfg)
+			if _, err := NewSession(cfg); err == nil {
+				t.Fatal("accepted invalid config")
+			}
+		})
+	}
+}
+
+func TestTombstoneLeftByFailedImmediatePurgeIsPurgedInSameRun(t *testing.T) {
+	s, f, _, _ := newTestSweeper("maestro-server-j1234567")
+	// The tombstone listing is read after active certificates were deleted, so
+	// it contains the tombstone whose immediate purge failed.
+	f.deletedPages = [][]*azcertificates.DeletedCertificateProperties{{deletedCertificate("maestro-server-j1234567")}}
+	purges := 0
+	f.purge = func(string) error {
+		purges++
+		if purges == 1 {
+			return errors.New("purge failed")
 		}
+		return nil
+	}
+	s.pollInterval = time.Millisecond
+
+	if err := s.run(t.Context(), options(false)); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(f.deletes, []string{"maestro-server-j1234567"}) {
+		t.Fatalf("deletes = %v", f.deletes)
+	}
+	if !reflect.DeepEqual(f.purges, []string{"maestro-server-j1234567", "maestro-server-j1234567"}) {
+		t.Fatalf("expected failed immediate purge to be retried by the tombstone step, purges = %v", f.purges)
 	}
 }
