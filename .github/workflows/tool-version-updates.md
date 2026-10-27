@@ -86,6 +86,7 @@ safe-outputs:
     protected-files:
       policy: blocked
       exclude:
+        - .bingo/
         - .bingo/*.mod
         - .bingo/*.sum
         - .bingo/Variables.mk
@@ -126,6 +127,17 @@ change merge policy.
    version changes overlap other changes to the same version/Dockerfile pair.
    Defer an overlapping family and continue inspecting independent families.
 
+Try no more than two eligible candidate families in one run, prioritizing the
+oldest pinned release. For each family, create a temporary detached worktree at
+`origin/main` and run its selected gate there first with the currently pinned
+executable. Then run the same gate on the candidate in the same runner
+environment with the proposed executable; keep the baseline worktree separate
+from candidate scratch changes. Use the repository-pinned jq for both Bicep
+fixture comparisons. If the baseline gate fails, classify the family as blocked
+by the runner/environment. If the baseline passes and the candidate fails,
+classify it as blocked by a regression. Restore scratch changes in both cases
+and try the next eligible family within the two-family limit.
+
 ## Prepare one verified family
 
 Use a clean branch from `main`. Keep `GOTOOLCHAIN=local` while updating and
@@ -141,10 +153,12 @@ unverified bump or suppress a genuine infrastructure/authentication error.
   result equals the resolved stable target, then run
   `make -C dev-infrastructure/openshift-ci verify`.
   Download the exact proposed release's Linux amd64 binary to a temporary
-  directory and verify its reported version. For bicep, run
-  `BICEP=/absolute/path/to/proposed/bicep make verify-bicep-fixtures` against
-  the committed golden fixtures. For promtool, prepend the proposed binary's
-  directory to PATH and run
+  directory and verify its reported version. For Bicep, run
+  `BICEP=/absolute/path/to/pinned/bicep make verify-bicep-fixtures` on the
+  unmodified baseline, then run it with the proposed executable on the candidate.
+  Both runs use the repository-pinned jq executable. For promtool, prepend the
+  current pinned binary's directory to PATH for the baseline, then the proposed
+  binary's directory for the candidate, and run
   `go -C tooling/prometheus-rules test -count=1 ./...`.
   These consumer tests exercise PrometheusRule conversion and rule tests with
   the proposed binary; raw Kubernetes CRDs are not direct promtool inputs.
@@ -178,8 +192,8 @@ PR template with the actual old/new versions and exercised regression checks.
 Record the family with `<!-- agentic-tool-family: <upstream module or repo> -->`
 in the body. Do not claim local checks prove the later Prow jobs succeeded.
 
-If every family is current, already covered, or blocked by compatibility or
-regression checks, call `noop` with a concise inspection summary and the concrete
-waiting reasons. An execution with no mutation must always emit an explicit
-`noop`; do not create routine reports or use missing-data outputs for expected
-waiting states.
+If candidate checks are blocked, report one aggregated `report_incomplete` with
+each family, gate, baseline/candidate classification, and the concise failure
+signature. Keep already-current or already-covered families silent. If all
+families are current or already covered and there are no blocked candidates,
+call `noop` with a concise inspection summary. Do not create routine reports.
