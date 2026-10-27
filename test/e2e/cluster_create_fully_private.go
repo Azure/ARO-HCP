@@ -26,13 +26,13 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	hcpsdk20260630preview "github.com/Azure/ARO-HCP/test/sdk/v20260630preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	hcpsdk20260901preview "github.com/Azure/ARO-HCP/test/sdk/v20260901preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 )
 
 // This test creates a fully private cluster (api.visibility: Private AND
-// ingress.type: Private) and verifies that:
+// ingress.type: Private) using the v2026-09-01-preview API and verifies that:
 //   - Both KAS and ingress are only reachable from within the VNet
 //   - Neither KAS nor ingress is reachable from outside the VNet
 //   - The cluster is healthy and workloads are operational
@@ -62,7 +62,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for fully private test")
 
 			By("creating cluster parameters with private KAS and private ingress")
-			clusterParams := framework.NewDefaultClusterParams20260630()
+			clusterParams := framework.NewDefaultClusterParams20260901()
 			clusterParams.ClusterName = customerClusterName
 			clusterParams.ManagedResourceGroupName = framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			clusterParams.APIVisibility = "Private"
@@ -83,7 +83,7 @@ var _ = Describe("Customer", func() {
 			clusterParams.OpenshiftVersionId = openshiftVersionID
 
 			By("creating customer resources (infrastructure and managed identities)")
-			clusterParams, err = tc.CreateClusterCustomerResources20260630(ctx,
+			clusterParams, err = tc.CreateClusterCustomerResources20260901(ctx,
 				resourceGroup,
 				clusterParams,
 				map[string]interface{}{},
@@ -97,33 +97,27 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to deploy test VM for fully private verification")
 
 			By("creating the HCP cluster with private KAS and private ingress")
-			err = tc.CreateHCPClusterFromParam20260630(ctx,
+			err = tc.CreateHCPClusterFromParam20260901(ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
 				clusterParams,
 				nil,
 				framework.ClusterCreationTimeout,
 			)
-			if framework.IsAPINotDeployedError(err) {
-				if time.Now().Before(framework.V20260630PreviewDeploymentDeadline) {
-					Skip(fmt.Sprintf("v20260630preview API not yet deployed; skipping until %s", framework.V20260630PreviewDeploymentDeadline.Format(time.RFC3339)))
-				}
-				Fail(fmt.Sprintf("v20260630preview API still not deployed as of %s deadline", framework.V20260630PreviewDeploymentDeadline.Format(time.RFC3339)))
-			}
 			Expect(err).NotTo(HaveOccurred(), "failed to create fully private HCP cluster %q", customerClusterName)
 
 			By("verifying cluster API visibility and ingress type are Private via ARM GET")
-			hcpClient := tc.Get20260630ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
+			hcpClient := tc.Get20260901ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
 			cluster, err := hcpClient.Get(ctx, *resourceGroup.Name, customerClusterName, nil)
 			Expect(err).NotTo(HaveOccurred(), "failed to get cluster %q to verify fully private config", customerClusterName)
 			Expect(cluster.Properties).ToNot(BeNil(), "cluster %q Properties was nil", customerClusterName)
 			Expect(cluster.Properties.API).ToNot(BeNil(), "cluster %q Properties.API was nil", customerClusterName)
 			Expect(cluster.Properties.API.Visibility).ToNot(BeNil(), "cluster %q Properties.API.Visibility was nil", customerClusterName)
-			Expect(*cluster.Properties.API.Visibility).To(Equal(hcpsdk20260630preview.VisibilityPrivate),
+			Expect(*cluster.Properties.API.Visibility).To(Equal(hcpsdk20260901preview.VisibilityPrivate),
 				"cluster %q API visibility should be Private", customerClusterName)
 			Expect(cluster.Properties.Ingress).ToNot(BeNil(), "cluster %q Properties.Ingress was nil", customerClusterName)
 			Expect(cluster.Properties.Ingress.Type).ToNot(BeNil(), "cluster %q Properties.Ingress.Type was nil", customerClusterName)
-			Expect(*cluster.Properties.Ingress.Type).To(Equal(hcpsdk20260630preview.IngressTypePrivate),
+			Expect(*cluster.Properties.Ingress.Type).To(Equal(hcpsdk20260901preview.IngressTypePrivate),
 				"cluster %q ingress type should be Private", customerClusterName)
 			Expect(cluster.Properties.API.URL).ToNot(BeNil(), "cluster %q Properties.API.URL was nil", customerClusterName)
 			apiURL := *cluster.Properties.API.URL
@@ -151,12 +145,12 @@ var _ = Describe("Customer", func() {
 				"API hostname %q resolved to %v but expected it to include internal KAS LB IP %s — DNS may be pointing to wrong endpoint (ARO-29270)", apiHost, ips, lbIP)
 
 			By("creating the node pool")
-			nodePoolParams := framework.NewDefaultNodePoolParams20260630()
+			nodePoolParams := framework.NewDefaultNodePoolParams20260901()
 			nodePoolParams.ClusterName = customerClusterName
 			nodePoolParams.NodePoolName = customerNodePoolName
 			nodePoolParams.Replicas = int32(2)
 
-			err = tc.CreateNodePoolFromParam20260630(ctx,
+			err = tc.CreateNodePoolFromParam20260901(ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
 				clusterParams.ManagedResourceGroupName,
