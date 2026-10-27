@@ -146,6 +146,8 @@ spec:
         - name: APR_SUBSCRIPTION_ID
           value: "__subscriptionId__"
         - name: APR_RESOURCE_GROUP
+          value: "hcp-underlay-dev-westus3-alert-processing-rules"
+        - name: APR_AMW_RESOURCE_GROUP
           value: "hcp-underlay-dev-westus3"
         - name: APR_SVC_AMW_NAME
           value: "services-usw3"

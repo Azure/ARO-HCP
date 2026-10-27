@@ -74,6 +74,7 @@ func DefaultOptions() *RawOptions {
 		KustoEndpoint:           os.Getenv("KUSTO_ENDPOINT"),
 		AprSubscriptionID:       os.Getenv("APR_SUBSCRIPTION_ID"),
 		AprResourceGroup:        os.Getenv("APR_RESOURCE_GROUP"),
+		AprAmwResourceGroup:     os.Getenv("APR_AMW_RESOURCE_GROUP"),
 		AprSvcAmwName:           os.Getenv("APR_SVC_AMW_NAME"),
 		AprHcpAmwName:           os.Getenv("APR_HCP_AMW_NAME"),
 		FpaCertBundlePath:       os.Getenv("FPA_CERT_BUNDLE_PATH"),
@@ -100,6 +101,7 @@ type RawOptions struct {
 	KustoEndpoint           string
 	AprSubscriptionID       string
 	AprResourceGroup        string
+	AprAmwResourceGroup     string
 	AprSvcAmwName           string
 	AprHcpAmwName           string
 	FpaCertBundlePath       string
@@ -124,6 +126,7 @@ func (opts *RawOptions) BindOptions(cmd *cobra.Command) error {
 	cmd.Flags().StringVar(&opts.KustoEndpoint, "kusto-endpoint", opts.KustoEndpoint, "Endpoint of the Kusto cluster.")
 	cmd.Flags().StringVar(&opts.AprSubscriptionID, "apr-subscription-id", opts.AprSubscriptionID, "Azure subscription ID hosting the Azure Monitor Workspaces that scope alert processing rules.")
 	cmd.Flags().StringVar(&opts.AprResourceGroup, "apr-resource-group", opts.AprResourceGroup, "Azure resource group in which to manage alert processing rules.")
+	cmd.Flags().StringVar(&opts.AprAmwResourceGroup, "apr-amw-resource-group", opts.AprAmwResourceGroup, "Azure resource group hosting the Azure Monitor Workspaces that scope alert processing rules.")
 	cmd.Flags().StringVar(&opts.AprSvcAmwName, "apr-svc-amw-name", opts.AprSvcAmwName, "Name of the services Azure Monitor Workspace used as a scope for alert processing rules.")
 	cmd.Flags().StringVar(&opts.AprHcpAmwName, "apr-hcp-amw-name", opts.AprHcpAmwName, "Name of the HCP Azure Monitor Workspace used as a scope for alert processing rules.")
 	cmd.Flags().StringVar(&opts.FpaClientID, "fpa-client-id", opts.FpaClientID, "Client ID of the FPA application.")
@@ -140,8 +143,8 @@ func (opts *RawOptions) BindOptions(cmd *cobra.Command) error {
 }
 
 // alertProcessingRuleAMWResourceIDs builds the fully-qualified Azure Monitor
-// Workspace resource ID that scope alert processing rules from the subscription,
-// regional resource group, and workspace name.
+// Workspace resource ID that scopes alert processing rules from the subscription,
+// the resource group hosting the workspaces, and the workspace name.
 func alertProcessingRuleAMWResourceIDs(subscriptionID, resourceGroup string, workspaceName string) (string, error) {
 	raw := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Monitor/accounts/%s",
 		subscriptionID, resourceGroup, workspaceName)
@@ -229,16 +232,19 @@ func (o *RawOptions) Validate() (*ValidatedOptions, error) {
 		if o.AprResourceGroup == "" {
 			return nil, fmt.Errorf("apr-resource-group is required when alert processing rules are configured")
 		}
+		if o.AprAmwResourceGroup == "" {
+			return nil, fmt.Errorf("apr-amw-resource-group is required when alert processing rules are configured")
+		}
 		if o.AprSvcAmwName == "" {
 			return nil, fmt.Errorf("apr-svc-amw-name is required when alert processing rules are configured")
 		}
 		if o.AprHcpAmwName == "" {
 			return nil, fmt.Errorf("apr-hcp-amw-name is required when alert processing rules are configured")
 		}
-		if _, err := alertProcessingRuleAMWResourceIDs(o.AprSubscriptionID, o.AprResourceGroup, o.AprSvcAmwName); err != nil {
+		if _, err := alertProcessingRuleAMWResourceIDs(o.AprSubscriptionID, o.AprAmwResourceGroup, o.AprSvcAmwName); err != nil {
 			return nil, err
 		}
-		if _, err := alertProcessingRuleAMWResourceIDs(o.AprSubscriptionID, o.AprResourceGroup, o.AprHcpAmwName); err != nil {
+		if _, err := alertProcessingRuleAMWResourceIDs(o.AprSubscriptionID, o.AprAmwResourceGroup, o.AprHcpAmwName); err != nil {
 			return nil, err
 		}
 	}
@@ -368,11 +374,11 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 	var svcAmwResourceID string
 	var hcpAmwResourceID string
 	if o.AprSubscriptionID != "" {
-		svcAmwResourceID, err = alertProcessingRuleAMWResourceIDs(o.AprSubscriptionID, o.AprResourceGroup, o.AprSvcAmwName)
+		svcAmwResourceID, err = alertProcessingRuleAMWResourceIDs(o.AprSubscriptionID, o.AprAmwResourceGroup, o.AprSvcAmwName)
 		if err != nil {
 			return nil, err
 		}
-		hcpAmwResourceID, err = alertProcessingRuleAMWResourceIDs(o.AprSubscriptionID, o.AprResourceGroup, o.AprHcpAmwName)
+		hcpAmwResourceID, err = alertProcessingRuleAMWResourceIDs(o.AprSubscriptionID, o.AprAmwResourceGroup, o.AprHcpAmwName)
 		if err != nil {
 			return nil, err
 		}
