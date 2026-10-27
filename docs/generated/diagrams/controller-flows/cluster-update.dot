@@ -26,7 +26,7 @@ digraph cluster_update {
   cs -> op [label="Cluster Service state + spec checks"];
   mirror -> op [label="HostedCluster configuration (not status);\nautoscaler Available + RolloutComplete\nwhen lowest active version >= 4.20"];
   active -> op [label="reported active versions\nselect autoscaler gate"];
-  validation -> op [label="non-True (False / Unknown): InvalidResource;\ncondition + operation ages >= 10m: Failed;\nnonzero timestamps; all True: ready"];
+  validation -> op [label="non-True (False / Unknown): InvalidResource;\nages >= 10m + fresh probe: Failed;\nprobe absent: legacy age-only; stale: wait;\nall True: ready"];
   op -> done [label="completion / failure checks;\npending past deadline: selected code + reasons;\nonly InternalServerError becomes DeadlineExceeded"];
   observed [label="Customer resource Status.ActiveVersions\nmajor.minor versions", fillcolor="#e4f2e5", color="#4c8053"];
   active -> observed [label="separate Cosmos replace"];
