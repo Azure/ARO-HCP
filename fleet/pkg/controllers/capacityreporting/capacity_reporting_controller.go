@@ -126,14 +126,6 @@ func evaluateCapacityCondition(report *capacityreportv1alpha1.CapacityReport) me
 			Message: "CapacityReport CR's ReportCurrent condition is not True",
 		}
 	}
-	if !HasResourceTotals(report.Status.HostedControlPlanes.Resources) {
-		return metav1.Condition{
-			Type:    fleetapi.ConditionTypeCapacityDataCurrent,
-			Status:  metav1.ConditionFalse,
-			Reason:  "ResourcesNotReported",
-			Message: "CapacityReport does not contain complete all-HCP resource totals",
-		}
-	}
 	return metav1.Condition{
 		Type:   fleetapi.ConditionTypeCapacityDataCurrent,
 		Status: metav1.ConditionTrue,

@@ -40,9 +40,6 @@ func computeConfigurationRequirements(reports []*capacityreportv1alpha1.Capacity
 
 	for _, report := range reports {
 		population := report.Status.HostedControlPlanes
-		if !capacityreporting.HasResourceTotals(population.ReadyResources) {
-			continue
-		}
 		totals := population.ReadyResources
 		count := int64(len(population.ReadyResourceIDs))
 		if configuration != fleetapi.HCPResourceRequirementsResourceName {

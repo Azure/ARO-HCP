@@ -31,6 +31,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/fleetlistertesting"
+	"github.com/Azure/ARO-HCP/internal/kuberesources"
 )
 
 func contentionSchedulingDoc(stamp string, now time.Time) *fleetapi.ManagementClusterScheduling {
@@ -42,9 +43,11 @@ func contentionSchedulingDoc(stamp string, now time.Time) *fleetapi.ManagementCl
 		},
 		Requests: corev1.ResourceList{
 			corev1.ResourceCPU: resource.MustParse("1"), corev1.ResourceMemory: resource.MustParse("2Gi"),
+			kuberesources.SwiftNICResourceName: resource.MustParse("0"),
 		},
 		Usage: corev1.ResourceList{
 			corev1.ResourceCPU: resource.MustParse("500m"), corev1.ResourceMemory: resource.MustParse("1Gi"),
+			kuberesources.SwiftNICResourceName: resource.MustParse("0"),
 		},
 	}
 	return doc
@@ -246,7 +249,7 @@ func TestEvaluateManagementClusters_ContentionSelection(t *testing.T) {
 		{
 			name: "all unknown keeps NIC ordering", want: "1",
 			mutate: func(a, b *fleetapi.ManagementClusterScheduling) {
-				a.Status.ObservedResources.Usage = nil
+				a.Status.ObservedResources.Usage = swiftResourceList(0)
 				b.Status.ObservedResources.Capacity = nil
 				b.Status.ScaleCeiling.Capacity = swiftResourceList(3)
 			},

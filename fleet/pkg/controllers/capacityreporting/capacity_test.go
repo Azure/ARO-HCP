@@ -15,6 +15,7 @@
 package capacityreporting
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -227,7 +228,7 @@ func withZeroFloor(values corev1.ResourceList) corev1.ResourceList {
 }
 
 func TestNewResourceTotalsAvailability(t *testing.T) {
-	for _, scenario := range []string{"missing", "nil-maps", "empty-maps", "partial", "zero"} {
+	for _, scenario := range []string{"missing", "nil-maps", "empty-maps", "partial", "usage-only", "requests-only", "zero"} {
 		t.Run(scenario, func(t *testing.T) {
 			report := &capacityreportv1alpha1.CapacityReport{}
 			report.Status.Conditions = []metav1.Condition{{Type: capacityreportv1alpha1.ConditionTypeReportCurrent, Status: metav1.ConditionTrue}}
@@ -239,6 +240,12 @@ func TestNewResourceTotalsAvailability(t *testing.T) {
 			if scenario == "partial" {
 				delete(report.Status.HostedControlPlanes.Resources.Requested, corev1.ResourceMemory)
 			}
+			if scenario == "usage-only" {
+				report.Status.HostedControlPlanes.Resources.Requested = nil
+			}
+			if scenario == "requests-only" {
+				report.Status.HostedControlPlanes.Resources.Usage = nil
+			}
 			if scenario == "nil-maps" {
 				report.Status.HostedControlPlanes.Resources = &capacityreportv1alpha1.HostedControlPlaneResourceTotals{}
 			}
@@ -247,14 +254,29 @@ func TestNewResourceTotalsAvailability(t *testing.T) {
 			}
 			observed := ComputeObservedResources(report)
 			condition := evaluateCapacityCondition(report)
-			if scenario == "zero" {
-				assertResourceListEqual(t, withZeroFloor(nil), observed.Usage, "zero usage")
-				assertResourceListEqual(t, withZeroFloor(nil), observed.Requests, "zero requests")
-				require.Equal(t, metav1.ConditionTrue, condition.Status)
+			require.Equal(t, metav1.ConditionTrue, condition.Status)
+			if scenario == "zero" || scenario == "partial" || scenario == "usage-only" || scenario == "requests-only" {
+				assertResourceListEqual(t, report.Status.HostedControlPlanes.Resources.Usage, observed.Usage, "preserved usage")
+				assertResourceListEqual(t, report.Status.HostedControlPlanes.Resources.Requested, observed.Requests, "preserved requests")
 			} else {
 				require.Nil(t, observed.Usage)
 				require.Nil(t, observed.Requests)
-				require.Equal(t, metav1.ConditionFalse, condition.Status)
+			}
+			encoded, err := json.Marshal(observed)
+			require.NoError(t, err)
+			var serialized map[string]json.RawMessage
+			require.NoError(t, json.Unmarshal(encoded, &serialized))
+			for name, values := range map[string]corev1.ResourceList{"usage": observed.Usage, "requests": observed.Requests} {
+				if len(values) == 0 {
+					require.NotContains(t, serialized, name)
+					continue
+				}
+				var quantities map[string]string
+				require.NoError(t, json.Unmarshal(serialized[name], &quantities))
+				require.Len(t, quantities, len(values))
+				for resourceName := range values {
+					require.Equal(t, "0", quantities[string(resourceName)])
+				}
 			}
 		})
 	}

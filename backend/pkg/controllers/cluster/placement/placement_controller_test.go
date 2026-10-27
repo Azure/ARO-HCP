@@ -145,7 +145,7 @@ func schedulingDoc(stamp string, ceiling, usage, notReady, pending int64) *fleet
 				{Type: fleetapi.ConditionTypeCapacityDataCurrent, Status: metav1.ConditionTrue, Reason: "Test"},
 				{Type: fleetapi.ConditionTypeScalingDataCurrent, Status: metav1.ConditionTrue, Reason: "Test"},
 			},
-			ObservedResources:       fleetapi.ObservedResources{Usage: swiftResourceList(usage)},
+			ObservedResources:       fleetapi.ObservedResources{Usage: swiftResourceList(usage), Requests: swiftResourceList(usage)},
 			ScaleCeiling:            fleetapi.ScaleCeiling{Capacity: swiftResourceList(ceiling)},
 			NotReadyResourceIDs:     notReadyIDs,
 			PendingAssignedClusters: dummyResourceIDs(int(pending)),
@@ -218,7 +218,7 @@ func TestAvailableResources_MixedControlPlaneAvailability(t *testing.T) {
 			notReady := append(namedClusterResourceIDs("ha-nr", tc.haNotReady), namedClusterResourceIDs("sr-nr", tc.srNotReady)...)
 			doc := &fleetapi.ManagementClusterScheduling{
 				Status: fleetapi.ManagementClusterSchedulingStatus{
-					ObservedResources:       fleetapi.ObservedResources{Usage: swiftResourceList(tc.usage)},
+					ObservedResources:       fleetapi.ObservedResources{Usage: swiftResourceList(tc.usage), Requests: swiftResourceList(tc.usage)},
 					ScaleCeiling:            fleetapi.ScaleCeiling{Capacity: swiftResourceList(tc.ceiling)},
 					PendingAssignedClusters: pending,
 					NotReadyResourceIDs:     notReady,
@@ -231,6 +231,97 @@ func TestAvailableResources_MixedControlPlaneAvailability(t *testing.T) {
 			all = append(all, notReady...)
 			syncer := &placementSyncer{clusterLister: clusterListerForAvailability(all)}
 			assert.Equal(t, tc.expected, swiftNICCount(syncer.availableResources(context.Background(), doc)))
+		})
+	}
+}
+
+func TestResourceSpecificAvailability(t *testing.T) {
+	for _, scenario := range []string{"known", "missing-ceiling", "missing-usage", "missing-requests", "nil-maps", "empty-maps", "nil-document", "zero", "requests-higher"} {
+		t.Run(scenario, func(t *testing.T) {
+			document := schedulingDoc("s", 12, 2, 1, 1)
+			switch scenario {
+			case "missing-ceiling":
+				delete(document.Status.ScaleCeiling.Capacity, kuberesources.SwiftNICResourceName)
+			case "missing-usage":
+				delete(document.Status.ObservedResources.Usage, kuberesources.SwiftNICResourceName)
+			case "missing-requests":
+				delete(document.Status.ObservedResources.Requests, kuberesources.SwiftNICResourceName)
+			case "nil-maps":
+				document.Status.ObservedResources.Usage = nil
+				document.Status.ObservedResources.Requests = nil
+			case "empty-maps":
+				document.Status.ObservedResources.Usage = corev1.ResourceList{}
+				document.Status.ObservedResources.Requests = corev1.ResourceList{}
+			case "nil-document":
+				document = nil
+			case "zero":
+				document = schedulingDoc("s", 0, 0, 0, 0)
+			case "requests-higher":
+				document.Status.ObservedResources.Requests = swiftResourceList(4)
+			}
+			if document != nil {
+				document.Status.ScaleCeiling.Capacity[corev1.ResourceCPU] = resource.MustParse("8")
+				document.Status.ObservedResources.Capacity = corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("8")}
+				document.Status.ObservedResources.LastReportedAt = ptr.To(metav1.Now())
+			}
+			before := document.DeepCopy()
+			syncer := &placementSyncer{}
+			available := syncer.availableResources(t.Context(), document)
+			require.Equal(t, before, document)
+			require.NotContains(t, available, corev1.ResourceCPU)
+			require.Nil(t, resourceContention(document, time.Now()))
+			quantity, known := available[kuberesources.SwiftNICResourceName]
+			expectedKnown := scenario == "known" || scenario == "zero" || scenario == "requests-higher"
+			require.Equal(t, expectedKnown, known)
+			if expectedKnown {
+				expected := int64(4)
+				switch scenario {
+				case "zero":
+					expected = 0
+				case "requests-higher":
+					expected = 2
+				}
+				require.Equal(t, expected, quantity.Value())
+			}
+			for _, needed := range []int64{0, 1, 3} {
+				candidate := eligibleCandidate("s", 0)
+				candidate.availableResources = available
+				candidate.scheduling = document
+				chosen, _, condition := selectByCapacity([]managementClusterEvaluation{candidate}, needed)
+				switch {
+				case !known:
+					require.Nil(t, chosen)
+					require.Equal(t, metav1.ConditionUnknown, condition.Status)
+					require.Equal(t, coreapi.CapacityReasonEvaluationIncomplete, condition.Reason)
+				case quantity.Value() < needed:
+					require.Nil(t, chosen)
+					require.Equal(t, coreapi.CapacityReasonInsufficientCapacity, condition.Reason)
+				default:
+					require.NotNil(t, chosen)
+					require.Equal(t, metav1.ConditionTrue, condition.Status)
+				}
+			}
+		})
+	}
+}
+
+func TestSelectByCapacityUnknownResources(t *testing.T) {
+	for _, needed := range []int64{0, 1, 3} {
+		t.Run(fmt.Sprint(needed), func(t *testing.T) {
+			unknown := eligibleCandidate("unknown", 99)
+			unknown.availableResources = nil
+			fit := eligibleCandidate("fit", needed)
+			insufficient := eligibleCandidate("insufficient", -1)
+			for _, candidates := range [][]managementClusterEvaluation{{unknown, fit}, {fit, unknown}, {insufficient, unknown, fit}} {
+				chosen, _, condition := selectByCapacity(candidates, needed)
+				require.Equal(t, fit.resourceID, chosen)
+				require.Equal(t, metav1.ConditionTrue, condition.Status)
+			}
+			chosen, _, condition := selectByCapacity([]managementClusterEvaluation{insufficient, unknown}, needed)
+			require.Nil(t, chosen)
+			require.Equal(t, metav1.ConditionUnknown, condition.Status)
+			_, _, condition = selectByCapacity([]managementClusterEvaluation{insufficient}, needed)
+			require.Equal(t, metav1.ConditionFalse, condition.Status)
 		})
 	}
 }
@@ -314,7 +405,8 @@ func TestAvailableResources_MixedNetworkingModes(t *testing.T) {
 func TestAvailableResources_IgnoresNilEntries(t *testing.T) {
 	doc := &fleetapi.ManagementClusterScheduling{
 		Status: fleetapi.ManagementClusterSchedulingStatus{
-			ScaleCeiling: fleetapi.ScaleCeiling{Capacity: swiftResourceList(9)},
+			ObservedResources: fleetapi.ObservedResources{Usage: swiftResourceList(0), Requests: swiftResourceList(0)},
+			ScaleCeiling:      fleetapi.ScaleCeiling{Capacity: swiftResourceList(9)},
 			// One nil entry (must not reserve) + one real entry (reserves 3).
 			PendingAssignedClusters: []*azcorearm.ResourceID{
 				nil,

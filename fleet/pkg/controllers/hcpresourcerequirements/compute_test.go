@@ -336,11 +336,15 @@ func TestSyncOnceEligibilityAndConfigurationRetirement(t *testing.T) {
 				wantCount, wantCPU = 4, "4"
 			}
 			for _, name := range []string{"default", "small"} {
+				expectedCount, expectedCPU := wantCount, wantCPU
+				if name == "small" && (scenario == "legacy" || scenario == "partial") {
+					expectedCount, expectedCPU = 4, "4"
+				}
 				document, err := database.HCPResourceRequirements().Get(ctx, name)
 				require.NoError(t, err)
-				require.Equal(t, wantCount, document.Status.SampleSize)
-				assertResourceListEqual(t, readyTotals(wantCPU).Usage, document.Status.AverageUsage, name)
-				assertResourceListEqual(t, readyTotals(wantCPU).Requested, document.Status.AverageRequests, name)
+				require.Equal(t, expectedCount, document.Status.SampleSize)
+				assertResourceListEqual(t, readyTotals(expectedCPU).Usage, document.Status.AverageUsage, name)
+				assertResourceListEqual(t, readyTotals(expectedCPU).Requested, document.Status.AverageRequests, name)
 				require.True(t, meta.IsStatusConditionTrue(document.Status.Conditions, fleetapi.ConditionTypeDataCurrent))
 			}
 			previous, err := database.HCPResourceRequirements().Get(ctx, "small")
@@ -427,14 +431,34 @@ func TestConfigurationRequirements(t *testing.T) {
 				delete(report.Status.HostedControlPlanes.ByClusterSizingConfiguration[0].ReadyResources.Requested, corev1.ResourceMemory)
 			}
 			usage, requests, count := computeConfigurationRequirements([]*capacityreportv1alpha1.CapacityReport{report}, "small")
-			if scenario == "zero" {
+			switch scenario {
+			case "missing", "partial":
+				require.Equal(t, 2, count)
+				assertResourceListEqual(t, readyTotals("2").Usage, usage, "selected bucket usage")
+				assertResourceListEqual(t, readyTotals("2").Requested, requests, "selected bucket requests")
+				usage, requests, count = computeAverageRequirements([]*capacityreportv1alpha1.CapacityReport{report})
+				require.Zero(t, count)
+				require.Nil(t, usage)
+				require.Nil(t, requests)
+			case "zero":
 				require.Equal(t, 2, count)
 				assertResourceListEqual(t, readyTotals("0").Usage, usage, "explicit zero")
-			} else {
+			default:
 				require.Zero(t, count)
 				require.Nil(t, usage)
 				require.Nil(t, requests)
 			}
+			usage, requests, count = computeConfigurationRequirements([]*capacityreportv1alpha1.CapacityReport{report, second}, "small")
+			expectedCount, expectedCPU := 6, "3"
+			switch scenario {
+			case "missing", "partial":
+				expectedCount, expectedCPU = 8, "3"
+			case "zero":
+				expectedCount, expectedCPU = 8, "2"
+			}
+			require.Equal(t, expectedCount, count)
+			assertResourceListEqual(t, readyTotals(expectedCPU).Usage, usage, "mixed usage")
+			assertResourceListEqual(t, readyTotals(expectedCPU).Requested, requests, "mixed requests")
 		})
 	}
 }

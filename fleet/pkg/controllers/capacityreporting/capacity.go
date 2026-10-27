@@ -54,7 +54,7 @@ func ComputeObservedResources(report *capacityreportv1alpha1.CapacityReport) fle
 	}
 
 	var usage, requests corev1.ResourceList
-	if HasResourceTotals(report.Status.HostedControlPlanes.Resources) {
+	if report.Status.HostedControlPlanes.Resources != nil {
 		usage = filterSchedulingResources(report.Status.HostedControlPlanes.Resources.Usage)
 		requests = filterSchedulingResources(report.Status.HostedControlPlanes.Resources.Requested)
 	}
