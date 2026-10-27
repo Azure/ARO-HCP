@@ -221,11 +221,11 @@ find "$OUTPUT_DIR/cosmosContent" -type f \
   \( -path '*applydesires*.json' -o -path '*readdesires*.json' \) \
   -exec jq -r '
     . as $doc |
-    ($doc.properties.status.conditions // [])[] |
+    ($doc.status.conditions // [])[] |
     [
       input_filename,
-      ($doc.resourceType | split("/") | last),
-      ($doc.properties.spec.type // "Read"),
+      ($doc.cosmosMetadata.resourceID | split("/") | .[-2]),
+      ($doc.spec.type // "Read"),
       .type,
       .status,
       .reason,
@@ -237,7 +237,7 @@ find "$OUTPUT_DIR/cosmosContent" -type f \
 To inspect a specific document, including its spec, conditions, and observed Kubernetes content, run:
 
 ```sh
-jq '{resourceID, resourceType, spec: .properties.spec, status: .properties.status}' \
+jq '{resourceID: .cosmosMetadata.resourceID, resourceType: (.cosmosMetadata.resourceID | split("/") | .[-2]), spec: .spec, status: .status}' \
   '<desire-document.json>'
 ```
 <!-- END GENERATED: kube-applier-debug -->
