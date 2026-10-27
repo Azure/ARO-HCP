@@ -106,7 +106,15 @@ func NewCopilotClient(cfg *AgentConfig) (*CopilotClient, error) {
 		return nil, err
 	}
 
-	clientOpts := &copilot.ClientOptions{}
+	// hcpctl uses the installed CLI rather than bundling the SDK runtime.
+	// Preserve the SDK's runtime override and fall back to copilot on PATH.
+	cliPath := os.Getenv("COPILOT_CLI_PATH")
+	if cliPath == "" {
+		cliPath = "copilot"
+	}
+	clientOpts := &copilot.ClientOptions{
+		Connection: copilot.StdioConnection{Path: cliPath},
+	}
 
 	if cfg.Verbosity >= 5 {
 		clientOpts.LogLevel = "debug"
