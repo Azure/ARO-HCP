@@ -33,7 +33,7 @@ type RunOptions struct {
 	PurgeDeleted bool
 	MaxDeletions int
 	MaxPurges    int
-	Workers      int
+	Parallelism  int
 
 	Policy *policy.CertificatePolicy
 }
@@ -49,8 +49,8 @@ func (o RunOptions) Validate() error {
 	if o.PurgeDeleted && o.MaxPurges <= 0 {
 		return fmt.Errorf("--max-purges must be positive")
 	}
-	if o.Workers <= 0 {
-		return fmt.Errorf("--workers must be positive")
+	if o.Parallelism <= 0 {
+		return fmt.Errorf("--parallelism must be positive")
 	}
 	return nil
 }
@@ -72,7 +72,7 @@ func Run(ctx context.Context, opts RunOptions) error {
 		PurgeDeleted: opts.PurgeDeleted,
 		MaxDeletions: opts.MaxDeletions,
 		MaxPurges:    opts.MaxPurges,
-		Parallelism:  opts.Workers,
+		Parallelism:  opts.Parallelism,
 		Policy:       *opts.Policy,
 	})
 	if err != nil {

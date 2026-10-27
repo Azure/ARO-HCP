@@ -32,6 +32,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 
 	"github.com/Azure/ARO-HCP/internal/version"
+	certificatesworkflow "github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/cmd/workflow/certificates"
 	resourcegroupworkflow "github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/cmd/workflow/resourcegroup"
 	sharedworkflow "github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/cmd/workflow/shared"
 	cleanuprunner "github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/pkg/engine/runner"
@@ -46,28 +47,47 @@ const (
 	WorkflowRGOrdered WorkflowMode = "rg-ordered"
 	// WorkflowSharedLeftovers runs cleanup for shared leftovers.
 	WorkflowSharedLeftovers WorkflowMode = "shared-leftovers"
+	// WorkflowCertificates runs cleanup of certificates in the Key Vault named by
+	// the certificate policy.
+	WorkflowCertificates WorkflowMode = "certificates"
 )
+
+// defaultCertificatesTimeout bounds a certificates run when --timeout is unset;
+// the other workflows have no overall timeout by default.
+const defaultCertificatesTimeout = 30 * time.Minute
 
 // DefaultOptions returns the default CLI options.
 func DefaultOptions() *RawOptions {
 	return &RawOptions{
-		Workflow:    string(WorkflowRGOrdered),
-		Wait:        true,
-		Parallelism: cleanuprunner.DefaultParallelism,
+		Workflow:     string(WorkflowRGOrdered),
+		Wait:         true,
+		Parallelism:  cleanuprunner.DefaultParallelism,
+		DeleteActive: true,
+		PurgeDeleted: true,
+		MaxDeletions: 1000,
+		MaxPurges:    1000,
 	}
 }
 
 // BindOptions binds CLI flags into RawOptions.
 func BindOptions(opts *RawOptions, cmd *cobra.Command) error {
-	cmd.Flags().StringVar(&opts.SubscriptionID, "subscription-id", opts.SubscriptionID, "Subscription ID to clean.")
-	cmd.Flags().StringVar(&opts.PolicyFile, "policy", opts.PolicyFile, "Path to sweeper policy file (required for rg-ordered workflow).")
+	opts.flagChanged = cmd.Flags().Changed
 
-	cmd.Flags().StringVar(&opts.Workflow, "workflow", opts.Workflow, "Workflow to run: rg-ordered|shared-leftovers.")
-	cmd.Flags().BoolVar(&opts.DryRun, "dry-run", opts.DryRun, fmt.Sprintf("Preview only; discover and report what would be deleted (default: %t).", opts.DryRun))
-	cmd.Flags().BoolVar(&opts.Wait, "wait", opts.Wait, "Wait for long-running deletions to complete.")
+	cmd.Flags().StringVar(&opts.SubscriptionID, "subscription-id", opts.SubscriptionID, "Subscription ID to clean (rg-ordered and shared-leftovers workflows).")
+	cmd.Flags().StringVar(&opts.PolicyFile, "policy", opts.PolicyFile, "Path to sweeper policy file (required for the rg-ordered and certificates workflows; each has its own policy document).")
+
+	cmd.Flags().StringVar(&opts.Workflow, "workflow", opts.Workflow, "Workflow to run: rg-ordered|shared-leftovers|certificates.")
+	cmd.Flags().BoolVar(&opts.DryRun, "dry-run", opts.DryRun, fmt.Sprintf("Preview only; discover and report what would be deleted (default: %t). Must be set explicitly for the certificates workflow.", opts.DryRun))
+	cmd.Flags().BoolVar(&opts.Wait, "wait", opts.Wait, "Wait for long-running deletions to complete (rg-ordered and shared-leftovers workflows).")
 	cmd.Flags().IntVar(&opts.Parallelism, "parallelism", opts.Parallelism, "Maximum parallel deletions per step.")
+	cmd.Flags().DurationVar(&opts.Timeout, "timeout", opts.Timeout, fmt.Sprintf("Overall timeout, including discovery and all Azure requests (default: none; %s for the certificates workflow).", defaultCertificatesTimeout))
 
 	cmd.Flags().StringSliceVar(&opts.ResourceGroups, "resource-group", opts.ResourceGroups, "Explicit resource group target (repeatable). Optional; when omitted, rg-ordered discovery rules drive candidate selection.")
+
+	cmd.Flags().BoolVar(&opts.DeleteActive, "delete-active", opts.DeleteActive, "Certificates workflow: discover and soft-delete old, unowned active certificates.")
+	cmd.Flags().BoolVar(&opts.PurgeDeleted, "purge-deleted", opts.PurgeDeleted, "Certificates workflow: purge each deleted certificate immediately and discover and purge eligible previously deleted certificates (tombstones).")
+	cmd.Flags().IntVar(&opts.MaxDeletions, "max-deletions", opts.MaxDeletions, "Certificates workflow: maximum active certificates selected for deletion per run; inventory continues until this budget is filled or exhausted (must be positive; also caps dry-run selections).")
+	cmd.Flags().IntVar(&opts.MaxPurges, "max-purges", opts.MaxPurges, "Certificates workflow: maximum previously deleted certificates (tombstones) purged per run; the immediate purge of each deleted active certificate is bounded by --max-deletions instead (must be positive; also caps dry-run selections).")
 
 	return nil
 }
@@ -81,15 +101,31 @@ type RawOptions struct {
 	DryRun      bool
 	Wait        bool
 	Parallelism int
+	Timeout     time.Duration
 
 	ResourceGroups []string
+
+	// Certificates workflow settings.
+	DeleteActive bool
+	PurgeDeleted bool
+	MaxDeletions int
+	MaxPurges    int
+
+	// flagChanged reports whether a flag was set explicitly on the command line.
+	// It is nil for options not bound to a command, where nothing counts as set.
+	flagChanged func(name string) bool
+}
+
+func (o *RawOptions) changed(name string) bool {
+	return o.flagChanged != nil && o.flagChanged(name)
 }
 
 type validatedOptions struct {
 	*RawOptions
 
-	workflow WorkflowMode
-	policy   *policy.Policy
+	workflow          WorkflowMode
+	policy            *policy.Policy
+	certificatePolicy *policy.CertificatePolicy
 }
 
 // ValidatedOptions wraps options that passed validation.
@@ -103,8 +139,9 @@ type completedOptions struct {
 	// by the shared-leftovers workflow. It defaults to AzureCredential unless a
 	// dedicated Graph identity is supplied via the GRAPH_AZURE_* environment
 	// variables.
-	GraphCredential azcore.TokenCredential
-	Policy          *policy.Policy
+	GraphCredential   azcore.TokenCredential
+	Policy            *policy.Policy
+	CertificatePolicy *policy.CertificatePolicy
 
 	Workflow WorkflowMode
 
@@ -115,8 +152,14 @@ type completedOptions struct {
 	DryRun      bool
 	Wait        bool
 	Parallelism int
+	Timeout     time.Duration
 
 	ResourceGroups sets.Set[string]
+
+	DeleteActive bool
+	PurgeDeleted bool
+	MaxDeletions int
+	MaxPurges    int
 }
 
 // Options contains completed runtime options after validation and completion.
@@ -126,16 +169,26 @@ type Options struct {
 
 // Validate validates and normalizes raw CLI options.
 func (o *RawOptions) Validate(_ context.Context) (*ValidatedOptions, error) {
-	if o.SubscriptionID == "" {
-		return nil, fmt.Errorf("--subscription-id is required")
-	}
-	if o.Parallelism < 1 {
-		return nil, fmt.Errorf("--parallelism must be >= 1, got %d", o.Parallelism)
-	}
-
 	workflow, err := parseWorkflowMode(o.Workflow)
 	if err != nil {
 		return nil, err
+	}
+	if o.Timeout < 0 {
+		return nil, fmt.Errorf("--timeout must not be negative, got %s", o.Timeout)
+	}
+
+	if workflow != WorkflowCertificates {
+		if o.SubscriptionID == "" {
+			return nil, fmt.Errorf("--subscription-id is required")
+		}
+		for _, name := range []string{"delete-active", "purge-deleted", "max-deletions", "max-purges"} {
+			if o.changed(name) {
+				return nil, fmt.Errorf("--%s is only valid with --workflow=%s", name, WorkflowCertificates)
+			}
+		}
+	}
+	if o.Parallelism < 1 {
+		return nil, fmt.Errorf("--parallelism must be >= 1, got %d", o.Parallelism)
 	}
 	normalizedResourceGroups := setFromTrimmed(o.ResourceGroups)
 
@@ -161,13 +214,55 @@ func (o *RawOptions) Validate(_ context.Context) (*ValidatedOptions, error) {
 		}
 	}
 
+	var certificatePolicy *policy.CertificatePolicy
+	if workflow == WorkflowCertificates {
+		certificatePolicy, err = o.validateCertificates()
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	return &ValidatedOptions{
 		validatedOptions: &validatedOptions{
-			RawOptions: o,
-			workflow:   workflow,
-			policy:     pol,
+			RawOptions:        o,
+			workflow:          workflow,
+			policy:            pol,
+			certificatePolicy: certificatePolicy,
 		},
 	}, nil
+}
+
+// validateCertificates checks the certificates workflow options and loads its
+// policy. The scope (vault and owner subscriptions) comes from the policy, so
+// flags that select a subscription or resource group are rejected, and the
+// destructive-by-default root --dry-run must be chosen explicitly.
+func (o *RawOptions) validateCertificates() (*policy.CertificatePolicy, error) {
+	if o.SubscriptionID != "" || o.changed("subscription-id") {
+		return nil, fmt.Errorf("--subscription-id is not valid with --workflow=%s; its scope comes from --policy", WorkflowCertificates)
+	}
+	if len(o.ResourceGroups) > 0 || o.changed("resource-group") {
+		return nil, fmt.Errorf("--resource-group is not valid with --workflow=%s; its scope comes from --policy", WorkflowCertificates)
+	}
+	if o.changed("wait") {
+		return nil, fmt.Errorf("--wait is not valid with --workflow=%s", WorkflowCertificates)
+	}
+	if o.flagChanged != nil && !o.changed("dry-run") {
+		return nil, fmt.Errorf("--dry-run must be set explicitly with --workflow=%s (--dry-run=false applies deletions)", WorkflowCertificates)
+	}
+	if err := (certificatesworkflow.RunOptions{
+		DryRun:       o.DryRun,
+		DeleteActive: o.DeleteActive,
+		PurgeDeleted: o.PurgeDeleted,
+		MaxDeletions: o.MaxDeletions,
+		MaxPurges:    o.MaxPurges,
+		Parallelism:  o.Parallelism,
+	}).Validate(); err != nil {
+		return nil, err
+	}
+	if o.PolicyFile == "" {
+		return nil, fmt.Errorf("--policy is required for %s workflow", WorkflowCertificates)
+	}
+	return policy.LoadCertificates(o.PolicyFile)
 }
 
 // Complete resolves validated options into runtime dependencies.
@@ -195,19 +290,30 @@ func (o *ValidatedOptions) Complete(_ context.Context) (*Options, error) {
 		}
 	}
 
+	timeout := o.Timeout
+	if o.workflow == WorkflowCertificates && timeout == 0 {
+		timeout = defaultCertificatesTimeout
+	}
+
 	return &Options{
 		completedOptions: &completedOptions{
-			AzureCredential: cred,
-			GraphCredential: graphCred,
-			Policy:          o.policy,
-			Workflow:        o.workflow,
-			SubscriptionID:  subscriptionID,
-			PolicyFile:      policyFile,
-			ReferenceTime:   referenceTime,
-			DryRun:          o.DryRun,
-			Wait:            o.Wait,
-			Parallelism:     o.Parallelism,
-			ResourceGroups:  resourceGroups,
+			AzureCredential:   cred,
+			GraphCredential:   graphCred,
+			Policy:            o.policy,
+			CertificatePolicy: o.certificatePolicy,
+			Workflow:          o.workflow,
+			SubscriptionID:    subscriptionID,
+			PolicyFile:        policyFile,
+			ReferenceTime:     referenceTime,
+			DryRun:            o.DryRun,
+			Wait:              o.Wait,
+			Parallelism:       o.Parallelism,
+			Timeout:           timeout,
+			ResourceGroups:    resourceGroups,
+			DeleteActive:      o.DeleteActive,
+			PurgeDeleted:      o.PurgeDeleted,
+			MaxDeletions:      o.MaxDeletions,
+			MaxPurges:         o.MaxPurges,
 		},
 	}, nil
 }
@@ -238,6 +344,11 @@ func (o *Options) Run(ctx context.Context) error {
 		}
 	}
 	ctx = logr.NewContext(ctx, logger)
+	if o.Timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, o.Timeout)
+		defer cancel()
+	}
 	logger.Info("Starting cleanup-sweeper")
 
 	switch o.Workflow {
@@ -263,6 +374,20 @@ func (o *Options) Run(ctx context.Context) error {
 			DryRun:          o.DryRun,
 			Wait:            o.Wait,
 			Parallelism:     o.Parallelism,
+		})
+		if err != nil {
+			return err
+		}
+	case WorkflowCertificates:
+		err := certificatesworkflow.Run(ctx, certificatesworkflow.RunOptions{
+			AzureCredential: o.AzureCredential,
+			DryRun:          o.DryRun,
+			DeleteActive:    o.DeleteActive,
+			PurgeDeleted:    o.PurgeDeleted,
+			MaxDeletions:    o.MaxDeletions,
+			MaxPurges:       o.MaxPurges,
+			Parallelism:     o.Parallelism,
+			Policy:          o.CertificatePolicy,
 		})
 		if err != nil {
 			return err
@@ -307,8 +432,10 @@ func parseWorkflowMode(raw string) (WorkflowMode, error) {
 		return WorkflowRGOrdered, nil
 	case WorkflowSharedLeftovers:
 		return WorkflowSharedLeftovers, nil
+	case WorkflowCertificates:
+		return WorkflowCertificates, nil
 	default:
-		return "", fmt.Errorf("--workflow must be one of: %s, %s", WorkflowRGOrdered, WorkflowSharedLeftovers)
+		return "", fmt.Errorf("--workflow must be one of: %s, %s, %s", WorkflowRGOrdered, WorkflowSharedLeftovers, WorkflowCertificates)
 	}
 }
 

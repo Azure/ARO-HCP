@@ -16,8 +16,6 @@ package root
 
 import (
 	"github.com/spf13/cobra"
-
-	"github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/cmd/certificates"
 )
 
 // NewCommand builds the root cleanup-sweeper cobra command.
@@ -47,6 +45,5 @@ func NewCommand() (*cobra.Command, error) {
 	if err := BindOptions(opts, cmd); err != nil {
 		return nil, err
 	}
-	cmd.AddCommand(certificates.NewCommand())
 	return cmd, nil
 }

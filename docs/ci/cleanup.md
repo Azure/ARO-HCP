@@ -96,24 +96,26 @@ Manual certificate sweeps use the policy in
 
 ```bash
 AZURE_TOKEN_CREDENTIALS=dev \
-  go run ./tooling/cleanup-sweeper ci-certificates \
+  go run ./tooling/cleanup-sweeper --workflow=certificates \
     --dry-run=true --policy=tooling/cleanup-sweeper/certificates.policy.yaml \
     --max-deletions=1000 --max-purges=1000 \
-    --workers=2 --timeout=30m
+    --parallelism=2 --timeout=30m
 ```
 
 To apply the current policy after reviewing the dry-run output:
 
 ```bash
 AZURE_TOKEN_CREDENTIALS=dev \
-  go run ./tooling/cleanup-sweeper ci-certificates \
+  go run ./tooling/cleanup-sweeper --workflow=certificates \
     --dry-run=false --policy=tooling/cleanup-sweeper/certificates.policy.yaml \
     --max-deletions=1000 --max-purges=1000 \
-    --workers=2 --timeout=30m
+    --parallelism=2 --timeout=30m
 ```
 
-The command defaults to dry-run and requires `--policy`. The policy's
-`vaultURL` is the only vault it touches; no flag overrides it. Policy rules are
+The `certificates` workflow requires `--policy` and an explicit `--dry-run`
+(there is deliberately no default, so `--dry-run=false` is always a conscious
+choice). It rejects `--subscription-id`, `--resource-group` and `--wait`: the
+policy's `vaultURL` is the only vault it touches, and no flag overrides it. Policy rules are
 first-match-wins; unmatched certificates are retained. Delete eligibility also
 requires that no tag listed in the policy's mandatory `protectedTags` is present
 (`persist: "true"` in the shipped policy) and that both latest-version
@@ -123,9 +125,10 @@ Apply revalidates certificate metadata immediately before deletion. Rules with
 owner-resource-group guards require a fresh inventory across the subscriptions
 listed in `ownerInventory.subscriptions`. They are named by display name and
 resolved to IDs at run time, which keeps subscription IDs out of the repository;
-a name that is unknown or ambiguous aborts the run before any change. The command emits JSON candidate and summary
-logs. Its `--workers` pool defaults to two to limit Key Vault and Resource
-Manager throttling.
+a name that is unknown or ambiguous aborts the run before any change. The
+workflow emits structured candidate and summary logs. Pass `--parallelism=2`
+(the root default is four) to limit Key Vault and Resource Manager throttling,
+and `--timeout` to bound the run (30 minutes when unset for this workflow).
 
 Certificate metadata access is required for discovery. Apply also requires
 certificate delete and purge permissions for the enabled actions. No Graph
@@ -157,15 +160,14 @@ selected by the same rules and protected tags but are not subject to retention
 or the owner guard: the certificate is already deleted, and a lingering
 tombstone only blocks reuse of its name. Ineligible objects do not consume
 either budget. The overall timeout
-limits discovery and apply runtime. The command emits JSON candidate and summary
+limits discovery and apply runtime. The workflow emits structured candidate and summary
 logs.
 
 Active certificates are deleted as complete certificate objects, including all
 versions and their policy; backing certificate material can become unavailable.
 Apply revalidates certificate metadata immediately before deletion. When the
 policy uses owner-resource-group guards, owner inventory is refreshed before
-apply and must be no more than 30 seconds old. The `--workers` pool defaults to
-two to limit Key Vault and Resource Manager throttling.
+apply and must be no more than 30 seconds old.
 
 The command never issues separate key or secret delete calls. Failures are
 reported at the end. Azure does not provide an atomic owner-check/certificate-
@@ -272,7 +274,7 @@ find the decision and job metadata. Azure does not guarantee that every header
 appears in Activity Log, and empty response ID fields mean Azure did not return
 them. A shared caller identity or user agent alone does not identify the process.
 Missing or incomplete historical sweeper logs cannot prove that the sweeper did
-not issue a request. The dedicated `ci-certificates` data-plane command and
+not issue a request. The data-plane `certificates` workflow and
 other cleanup programs are outside this ARM audit path.
 
 #### Resource-group policy

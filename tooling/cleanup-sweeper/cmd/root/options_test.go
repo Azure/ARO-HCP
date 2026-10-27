@@ -18,11 +18,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/go-logr/logr"
 
@@ -229,4 +231,76 @@ func TestNewGraphCredential(t *testing.T) {
 			t.Fatalf("expected a dedicated credential, not the fallback")
 		}
 	})
+}
+
+const certificatePolicyHeader = "certificates:\n  vaultURL: https://example.vault.azure.net\n  ownerInventory:\n    subscriptions: [Example Subscription]\n"
+
+func writeCertificatePolicy(t *testing.T, content string) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "certificates.yaml")
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+func TestCertificatesWorkflowFlags(t *testing.T) {
+	// Without credentials configured, a run that passes validation fails while
+	// creating the credential, which proves the flags were accepted without ever
+	// contacting Azure.
+	t.Setenv("AZURE_TOKEN_CREDENTIALS", "")
+	const accepted = "failed to create Azure credential"
+
+	policyFile := "../../certificates.policy.yaml"
+	unguarded := writeCertificatePolicy(t, certificatePolicyHeader+"  discovery:\n    protectedTags: {persist: \"true\"}\n    rules:\n    - {name: r, action: delete, match: {nameRegex: \"^x$\"}, olderThan: 168h}\n")
+	misspelled := writeCertificatePolicy(t, certificatePolicyHeader+"  discovery:\n    protectedTags: {persist: \"true\"}\n    rules:\n    - {name: r, action: skip, match: {nameRegex: \"^x$\"}, olderThen: 1h}\n")
+	rgPolicy := writePolicyFile(t)
+
+	for _, test := range []struct {
+		name    string
+		args    []string
+		message string
+	}{
+		{"valid", []string{"--workflow=certificates", "--dry-run=true", "--policy=" + policyFile}, accepted},
+		{"apply", []string{"--workflow=certificates", "--dry-run=false", "--policy=" + policyFile, "--max-deletions=5", "--max-purges=5", "--parallelism=2", "--timeout=10m"}, accepted},
+		{"purge only", []string{"--workflow=certificates", "--dry-run=true", "--delete-active=false", "--policy=" + policyFile}, accepted},
+		{"dry-run must be explicit", []string{"--workflow=certificates", "--policy=" + policyFile}, "--dry-run must be set explicitly"},
+		{"policy required", []string{"--workflow=certificates", "--dry-run=true"}, "--policy is required for certificates workflow"},
+		{"policy missing file", []string{"--workflow=certificates", "--dry-run=true", "--policy=/does/not/exist"}, "failed to read policy file"},
+		{"policy unknown key", []string{"--workflow=certificates", "--dry-run=true", "--policy=" + misspelled}, "unknown field"},
+		{"policy unguarded delete rule", []string{"--workflow=certificates", "--dry-run=true", "--policy=" + unguarded}, "delete rules must set conditions.ownerResourceGroupAbsent"},
+		{"rg policy is not a certificate policy", []string{"--workflow=certificates", "--dry-run=true", "--policy=" + rgPolicy}, "unknown field"},
+		{"subscription id rejected", []string{"--workflow=certificates", "--dry-run=true", "--policy=" + policyFile, "--subscription-id=x"}, "--subscription-id is not valid with --workflow=certificates"},
+		{"resource group rejected", []string{"--workflow=certificates", "--dry-run=true", "--policy=" + policyFile, "--resource-group=rg"}, "--resource-group is not valid with --workflow=certificates"},
+		{"wait rejected", []string{"--workflow=certificates", "--dry-run=true", "--policy=" + policyFile, "--wait=false"}, "--wait is not valid with --workflow=certificates"},
+		{"no actions", []string{"--workflow=certificates", "--dry-run=true", "--delete-active=false", "--purge-deleted=false"}, "at least one of --delete-active or --purge-deleted must be enabled"},
+		{"zero deletions", []string{"--workflow=certificates", "--dry-run=true", "--max-deletions=0"}, "--max-deletions must be positive"},
+		{"zero purges", []string{"--workflow=certificates", "--dry-run=true", "--max-purges=-1"}, "--max-purges must be positive"},
+		{"zero parallelism", []string{"--workflow=certificates", "--dry-run=true", "--parallelism=0"}, "--parallelism must be >= 1"},
+		{"negative timeout", []string{"--workflow=certificates", "--dry-run=true", "--timeout=-1s"}, "--timeout must not be negative"},
+		{"certificate flags rejected for rg-ordered", []string{"--subscription-id=x", "--policy=" + rgPolicy, "--max-deletions=5"}, "--max-deletions is only valid with --workflow=certificates"},
+		{"certificate flags rejected for shared-leftovers", []string{"--workflow=shared-leftovers", "--subscription-id=x", "--delete-active=false"}, "--delete-active is only valid with --workflow=certificates"},
+		{"removed subcommand", []string{"ci-certificates"}, "unknown command"},
+		{"removed min-age flag", []string{"--workflow=certificates", "--min-age=24h"}, "unknown flag"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			cmd, err := NewCommand()
+			if err != nil {
+				t.Fatal(err)
+			}
+			cmd.SetOut(io.Discard)
+			cmd.SetErr(io.Discard)
+			cmd.SetArgs(test.args)
+			err = cmd.ExecuteContext(logr.NewContext(t.Context(), logr.Discard()))
+			if err == nil || !strings.Contains(err.Error(), test.message) {
+				t.Fatalf("error = %v, want %q", err, test.message)
+			}
+		})
+	}
+}
+
+func TestCertificatesTimeoutDefault(t *testing.T) {
+	if defaultCertificatesTimeout != 30*time.Minute {
+		t.Fatalf("certificates keep a bounded default run time, got %s", defaultCertificatesTimeout)
+	}
 }
