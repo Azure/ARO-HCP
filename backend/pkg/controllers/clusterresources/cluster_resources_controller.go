@@ -94,7 +94,6 @@ type cachedClusterResources struct {
 
 // clusterResourcesController polls the Cluster Service SDK endpoint for cluster resources information
 type clusterResourcesController struct {
-	subscriptionLister           corelisters.SubscriptionLister
 	clusterLister                corelisters.ClusterLister
 	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
 	nodePoolLister               corelisters.NodePoolLister
@@ -111,7 +110,6 @@ var _ controllerutils.ClusterSyncer = (*clusterResourcesController)(nil)
 
 func NewClusterResourcesController(
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
-	subscriptionLister corelisters.SubscriptionLister,
 	kubeApplierDBClients kubeappliercosmosstorage.KubeApplierDBClients,
 	informers coreinformers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
@@ -124,7 +122,6 @@ func NewClusterResourcesController(
 	_, readDesireLister := kubeApplierInformers.ReadDesires()
 
 	syncer := &clusterResourcesController{
-		subscriptionLister:           subscriptionLister,
 		clusterLister:                clusterLister,
 		serviceProviderClusterLister: serviceProviderClusterLister,
 		nodePoolLister:               nodePoolLister,
@@ -280,11 +277,6 @@ func (c *clusterResourcesController) processClusterResources(ctx context.Context
 		kubeapplierapi.TagControllerName: ClusterResourcesControllerName,
 	}
 
-	subscription, err := c.subscriptionLister.Get(ctx, key.SubscriptionID)
-	if err != nil && !cosmosstorageutils.IsNotFoundError(err) {
-		return utils.TrackError(fmt.Errorf("failed to get Subscription from cache: %w", err))
-	}
-	hasExperimentalFeature := subscription != nil && subscription.HasRegisteredFeature(metadataapi.FeatureExperimentalReleaseFeatures)
 	resourceMap := resources.Resources()
 	desiredResourceIDs := make(map[string]bool, len(resourceMap))
 	var errs []error
@@ -313,11 +305,8 @@ func (c *clusterResourcesController) processClusterResources(ctx context.Context
 			continue
 		}
 
-		// Unset the ManagedCluster CR and ACM-path ingress bits because HyperShift
-		// manages the ingress certificate when the subscription's experimental
-		// release-features AFEC is registered.
-		// CS still emits them all, we do this to allow ourselves testing.
-		if hasExperimentalFeature && legacyACMBasedIngressCertificateWiringDesireName(classified.desireName) {
+		// HyperShift now manages the ingress certificate directly, so stop writing new ACM-path ingress certificate wiring desires (pre-existing ones are left alone; see deleteStaleApplyDesires).
+		if legacyACMBasedIngressCertificateWiringDesireName(classified.desireName) {
 			continue
 		}
 
@@ -815,6 +804,10 @@ func (c *clusterResourcesController) deleteStaleApplyDesires(
 		if managedByKubeAPIServerServingCertificate(desire.ResourceID.Name) {
 			continue
 		}
+		// Pre-existing ACM-path ingress certificate wiring desires are no longer reasserted (see processClusterResources), so don't reap them as stale; the full-cluster teardown chain removes them once the cluster is deleted.
+		if legacyACMBasedIngressCertificateWiringDesireName(desire.ResourceID.Name) {
+			continue
+		}
 		if desire.Tags == nil ||
 			desire.Tags[kubeapplierapi.TagControllerName] != ClusterResourcesControllerName {
 			continue
@@ -863,11 +856,8 @@ func (c *clusterResourcesController) deleteStaleApplyDesires(
 }
 
 func legacyACMBasedIngressCertificateWiringDesireName(desireName string) bool {
-	switch desireName {
-	case DesireNameManagedCluster, DesireNameDefaultIngressConfigMap,
-		DesireNameDefaultIngressWildcardCertSecretSync, DesireNameDefaultIngressWildcardCertSecretProviderClass:
-		return true
-	default:
-		return false
-	}
+	return strings.EqualFold(desireName, DesireNameManagedCluster) ||
+		strings.EqualFold(desireName, DesireNameDefaultIngressConfigMap) ||
+		strings.EqualFold(desireName, DesireNameDefaultIngressWildcardCertSecretSync) ||
+		strings.EqualFold(desireName, DesireNameDefaultIngressWildcardCertSecretProviderClass)
 }
