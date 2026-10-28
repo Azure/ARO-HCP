@@ -245,9 +245,6 @@ environments:
           allocation: dedicated
           resource_group_prefix: aro-hcp-msi-container-prod
           resource_group_count: 25
-    # Prod-02..05 are bootstrap inventory only until release-side allowlists
-    # explicitly activate them. UK South is the initial readiness baseline;
-    # runtime-selected regions additionally require quota and access validation.
     - name: shard2
       subscriptions:
         e2e: "ARO HCP E2E Hosted Clusters - Prod - 02 (MCA Sponsorship)"
