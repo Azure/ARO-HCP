@@ -20,7 +20,12 @@ import (
 	"crypto/x509"
 	"encoding/hex"
 	"encoding/pem"
+	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
+	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -37,7 +42,9 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	armauthorization "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v3"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dns/armdns"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/msi/armmsi"
+	"github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azcertificates"
 
 	graphutil "github.com/Azure/ARO-HCP/internal/graph/util"
 	"github.com/Azure/ARO-HCP/test/util/framework"
@@ -55,20 +62,43 @@ var _ = Describe("Customer", func() {
 		labels.Positive,
 		labels.CreateCluster,
 		labels.AroRpApiCompatible,
+		labels.MIContainers(1),
 		func(ctx context.Context) {
 			const (
 				customerClusterName  = "ingress-cert-kv"
 				customerNodePoolName = "np-1"
 				kvCertName           = "ingress-default"
+				kvIssuerName         = "digicert"
 				esoNamespace         = "external-secrets"
 				esoServiceAccount    = "eso-azure-kv"
 				ingressSecretName    = "ingress-tls"
 				ingressNamespace     = "openshift-ingress"
 				//ingressOperatorNS    = "openshift-ingress-operator"
-				refreshInterval = "30s"
+				refreshInterval            = "30s"
+				certificateIssuanceTimeout = 15 * time.Minute
 			)
 
 			tc := framework.NewTestContext()
+
+			By("reading DigiCert credentials from mounted files")
+			readCredential := func(field string) string {
+				path := filepath.Join(tc.DigiCertCredentialsPath(), field)
+				data, err := os.ReadFile(path)
+				if errors.Is(err, os.ErrNotExist) {
+					Skip(fmt.Sprintf("DigiCert credential file not found at %s, skipping test", path))
+				}
+				Expect(err).NotTo(HaveOccurred(), "failed to read DigiCert credential file %s", path)
+				value := strings.TrimSpace(string(data))
+				Expect(value).NotTo(BeEmpty(), "DigiCert credential file %s must not be empty", path)
+				return value
+			}
+			digiCertAccountID := readCredential("account-id")
+			digiCertAPIKey := readCredential("api-key")
+			digiCertOrganizationID := readCredential("organization-id")
+			organizationID, err := strconv.ParseInt(digiCertOrganizationID, 10, 64)
+			// Avoid logging the file contents through strconv's error message.
+			Expect(err == nil && organizationID > 0).To(BeTrue(),
+				"DigiCert organization-id file must contain a positive integer")
 
 			if tc.UsePooledIdentities() {
 				err := tc.AssignIdentityContainers(ctx, 1, framework.IdentityContainerAssignmentRetryInterval)
@@ -147,6 +177,11 @@ var _ = Describe("Customer", func() {
 			consoleURL := *clusterResp.Properties.Console.URL
 			appsBaseDomain := strings.TrimSuffix(strings.Replace(consoleURL, "https://console-openshift-console.", "", 1), "/")
 			Expect(appsBaseDomain).NotTo(BeEmpty(), "could not derive apps base domain from console URL %s", consoleURL)
+			Expect(clusterResp.Properties.DNS).NotTo(BeNil(), "cluster Properties.DNS was nil")
+			Expect(clusterResp.Properties.DNS.BaseDomain).NotTo(BeNil(), "cluster DNS.BaseDomain was nil")
+			Expect(clusterResp.Properties.DNS.BaseDomainPrefix).NotTo(BeNil(), "cluster DNS.BaseDomainPrefix was nil")
+			delegatedDomain := fmt.Sprintf("aro.%s.%s", *clusterResp.Properties.DNS.BaseDomainPrefix, *clusterResp.Properties.DNS.BaseDomain)
+			Expect(appsBaseDomain).To(Equal("apps."+delegatedDomain), "console apps domain should belong to the cluster's delegated DNS zone")
 
 			GinkgoLogr.Info("cluster identity", "oidcIssuer", oidcIssuerURL, "appsBaseDomain", appsBaseDomain)
 
@@ -217,21 +252,110 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "looking up the e2e caller's OID from its ARM token")
 			Expect(assignBuiltInRoleAtScope(ctx, roleAssignmentsClient, subscriptionID, kvScope, callerOID, "a4417e6f-fecd-4de8-b567-7b0420556985")).To(Succeed(), "failed to assign KV Certificates Officer to test caller")
 
-			By("creating cert v1 in the customer Key Vault with a rotation policy")
+			By("configuring the DigiCert certificate issuer in the customer Key Vault")
 			vaultURL := fmt.Sprintf("https://%s.vault.azure.net", clusterParams.KeyVaultName)
+			certificatesClient, err := azcertificates.NewClient(vaultURL, cred, nil)
+			Expect(err).NotTo(HaveOccurred(), "failed to create Key Vault certificates client")
+			issuerParams := azcertificates.SetIssuerParameters{
+				Provider: to.Ptr("DigiCert"),
+				Attributes: &azcertificates.IssuerAttributes{
+					Enabled: to.Ptr(true),
+				},
+				Credentials: &azcertificates.IssuerCredentials{
+					AccountID: to.Ptr(digiCertAccountID),
+					Password:  to.Ptr(digiCertAPIKey),
+				},
+				OrganizationDetails: &azcertificates.OrganizationDetails{
+					ID: to.Ptr(digiCertOrganizationID),
+				},
+			}
 			// Azure RBAC propagation on a KV can lag by 30-60s after the
-			// role assignment lands, so we retry the first cert create until
+			// role assignment lands, so we retry issuer configuration until
 			// the 403 clears.
-			var v1 *framework.KeyVaultCertResult
 			Eventually(func() error {
-				out, err := framework.CreateOrRotateSelfSignedKVCert(ctx, cred, vaultURL, kvCertName, appsBaseDomain, 12, 80)
-				if err != nil {
-					return err
-				}
-				v1 = out
-				return nil
+				_, err := certificatesClient.SetIssuer(ctx, kvIssuerName, issuerParams, nil)
+				return err
 			}).WithContext(ctx).WithTimeout(3*time.Minute).WithPolling(15*time.Second).Should(Succeed(),
-				"creating cert v1 should succeed once RBAC propagates")
+				"configuring the DigiCert issuer should succeed once RBAC propagates")
+
+			By("registering the apps domain for OV validation in DigiCert CertCentral")
+			// Use the issuer's credentials so DCV and Key Vault issuance share the
+			// same account and organization. The organization must already be OV validated.
+			digiCert, err := framework.NewDigiCertClient(*issuerParams.Credentials.Password)
+			Expect(err).NotTo(HaveOccurred(), "failed to create CertCentral client")
+			domain, created, err := digiCert.EnsureDomain(ctx, appsBaseDomain, organizationID)
+			if created {
+				createdDomainID := domain.ID
+				DeferCleanup(func(ctx context.Context) {
+					cleanupCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+					defer cancel()
+					Expect(digiCert.DeleteDomain(cleanupCtx, createdDomainID)).To(Succeed(), "failed to remove test-owned DigiCert domain %d (%s)", createdDomainID, appsBaseDomain)
+				})
+			}
+			Expect(err).NotTo(HaveOccurred(), "failed to register or find DigiCert domain %s", appsBaseDomain)
+			// Capture the ID before a revalidation response replaces domain.
+			domainID := domain.ID
+			GinkgoLogr.Info("DigiCert domain", "domain", appsBaseDomain, "domainID", domainID, "created", created)
+			if !domain.OVValidated() {
+				if !created {
+					domain, err = digiCert.SubmitDNSValidation(ctx, domainID)
+					Expect(err).NotTo(HaveOccurred(), "failed to submit DigiCert domain %d for DNS TXT validation", domainID)
+				}
+				Expect(domain.DCVToken.Token).NotTo(BeEmpty(), "DigiCert domain %d returned no DNS TXT validation token", domainID)
+				if domain.DCVToken.ExpirationDate != "" {
+					expires, err := time.Parse(time.RFC3339, domain.DCVToken.ExpirationDate)
+					Expect(err).NotTo(HaveOccurred(), "invalid DigiCert token expiration for domain %d", domainID)
+					Expect(expires.After(time.Now())).To(BeTrue(), "DigiCert DNS token for domain %d has expired", domainID)
+				}
+
+				By("publishing the DigiCert validation token in the cluster's Azure DNS zone")
+				recordSetsClient, err := armdns.NewRecordSetsClient(subscriptionID, cred, nil)
+				Expect(err).NotTo(HaveOccurred(), "failed to create Azure DNS record sets client")
+				cleanupTXT, err := framework.PresentAzureDNSTXT(ctx, recordSetsClient, managedResourceGroupName, delegatedDomain, "apps", domain.DCVToken.Token)
+				if cleanupTXT != nil {
+					DeferCleanup(func(ctx context.Context) {
+						cleanupCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+						defer cancel()
+						Expect(cleanupTXT(cleanupCtx)).To(Succeed(), "failed to remove DigiCert validation TXT value for %s", appsBaseDomain)
+					})
+				}
+				Expect(err).NotTo(HaveOccurred(), "failed to publish DigiCert DNS TXT for %s in resource group %s", appsBaseDomain, managedResourceGroupName)
+
+				By("waiting for DigiCert's TXT token to appear in public DNS")
+				zonesClient, err := armdns.NewZonesClient(subscriptionID, cred, nil)
+				Expect(err).NotTo(HaveOccurred(), "failed to create Azure DNS zones client")
+				zone, err := zonesClient.Get(ctx, managedResourceGroupName, delegatedDomain, nil)
+				Expect(err).NotTo(HaveOccurred(), "failed to get authoritative nameservers for %s", delegatedDomain)
+				Expect(zone.Properties).NotTo(BeNil(), "DNS zone %s properties were nil", delegatedDomain)
+				Expect(zone.Properties.NameServers).NotTo(BeEmpty(), "DNS zone %s has no authoritative nameservers", delegatedDomain)
+				var nameservers []string
+				for _, nameserver := range zone.Properties.NameServers {
+					Expect(nameserver).NotTo(BeNil(), "DNS zone %s nameserver was nil", delegatedDomain)
+					nameservers = append(nameservers, strings.ToLower(strings.TrimSuffix(*nameserver, "."))+".")
+				}
+				slices.Sort(nameservers)
+				nameserverAddresses := map[string]string{}
+				var lastDNSState string
+				Eventually(func(ctx context.Context) error {
+					err := readbackIngressDNS(ctx, delegatedDomain, nameservers, nameserverAddresses, appsBaseDomain+".", domain.DCVToken.Token)
+					if err != nil && err.Error() != lastDNSState {
+						lastDNSState = err.Error()
+						GinkgoLogr.Info("waiting for DigiCert TXT propagation", "domainID", domainID, "domain", appsBaseDomain, "error", lastDNSState)
+					}
+					return err
+				}).WithContext(ctx).WithTimeout(5*time.Minute).WithPolling(15*time.Second).Should(Succeed(),
+					"DigiCert validation TXT for %s (domain ID %d) should be visible on all public authoritative nameservers", appsBaseDomain, domainID)
+
+				By("asking DigiCert to validate the DNS TXT token and waiting for OV domain approval")
+				Expect(digiCert.CheckAndWaitForDNSValidation(ctx, domainID, 10*time.Minute)).To(Succeed(),
+					"DigiCert domain %d (%s) should pass DNS validation before Key Vault certificate issuance", domainID, appsBaseDomain)
+			} else {
+				GinkgoLogr.Info("reusing current DigiCert OV domain validation", "domainID", domainID, "domain", appsBaseDomain)
+			}
+
+			By("issuing cert v1 through the customer Key Vault's DigiCert issuer with a rotation policy")
+			v1, err := framework.CreateOrRotateDigiCertKVCert(ctx, cred, vaultURL, kvCertName, kvIssuerName, appsBaseDomain, 6, 80, certificateIssuanceTimeout)
+			Expect(err).NotTo(HaveOccurred(), "failed to issue cert v1 through the Key Vault DigiCert integration")
 			GinkgoLogr.Info("issued cert v1", "version", v1.Version, "sha256", v1.SHA256)
 
 			By("installing External Secrets Operator from the pinned upstream release manifest")
@@ -330,19 +454,10 @@ var _ = Describe("Customer", func() {
 			//	return expectServedCertSHA256(ctx, consoleHostPort, v1.SHA256)
 			//}).WithContext(ctx).WithTimeout(10 * time.Minute).WithPolling(15 * time.Second).Should(Succeed())
 
-			By("rotating: creating cert v2 in the customer Key Vault")
-			var v2 *framework.KeyVaultCertResult
-			Eventually(func() error {
-				out, err := framework.CreateOrRotateSelfSignedKVCert(ctx, cred, vaultURL, kvCertName, appsBaseDomain, 12, 80)
-				if err != nil {
-					return err
-				}
-				if out.SHA256 == v1.SHA256 {
-					return fmt.Errorf("v2 SHA equals v1 SHA — rotation did not produce a new cert version")
-				}
-				v2 = out
-				return nil
-			}).WithContext(ctx).WithTimeout(3*time.Minute).WithPolling(15*time.Second).Should(Succeed(), "failed to rotate cert in customer key vault")
+			By("rotating: issuing cert v2 through the customer Key Vault's DigiCert issuer")
+			v2, err := framework.CreateOrRotateDigiCertKVCert(ctx, cred, vaultURL, kvCertName, kvIssuerName, appsBaseDomain, 6, 80, certificateIssuanceTimeout)
+			Expect(err).NotTo(HaveOccurred(), "failed to rotate the cert through the Key Vault DigiCert integration")
+			Expect(v2.SHA256).NotTo(Equal(v1.SHA256), "rotation should produce a different certificate")
 			GinkgoLogr.Info("issued cert v2", "version", v2.Version, "sha256", v2.SHA256)
 
 			By("waiting for the ingress-tls Secret to pick up cert v2")

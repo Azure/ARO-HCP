@@ -1405,6 +1405,11 @@ func (tc *perItOrDescribeTestContext) PullSecretPath() string {
 	return tc.perBinaryInvocationTestContext.pullSecretPath
 }
 
+// DigiCertCredentialsPath returns the directory containing DigiCert credentials.
+func (tc *perItOrDescribeTestContext) DigiCertCredentialsPath() string {
+	return tc.perBinaryInvocationTestContext.digiCertCredentialsPath
+}
+
 // AvailableZones returns the sorted list of non-restricted availability zones
 // for the given VM SKU in the current test location, querying the Azure Resource
 // SKUs API. Zone-restricted zones (e.g. SkuNotAvailable for the subscription)
