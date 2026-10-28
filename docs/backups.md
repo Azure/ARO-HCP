@@ -79,7 +79,7 @@ Volume snapshots are enabled. Snapshot data is moved to the backup storage locat
 
 `velero.enableInstantAccess` controls whether `azure-disk-snapclass` requests
 60 minutes of Azure instant access. It defaults to `true`, but is `false` for
-the dev `ci00` and `ci01` e2e environments. When disabled, the snapshot class
+the dev `ci00`, `ci01` and `ci02` e2e environments. When disabled, the snapshot class
 omits `instantAccessDurationMinutes`; it does not set a zero duration.
 
 Velero's CSI data mover restores snapshots into temporary PVCs before uploading

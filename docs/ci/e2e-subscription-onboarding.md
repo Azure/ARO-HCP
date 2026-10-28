@@ -85,10 +85,13 @@ A brand-new subscription typically has no Azure resource providers registered be
    - `N` must match the intended shard number and should remain stable once jobs depend on that mapping.
 
 5. Provision the slot-backed identity containers in the new subscription.
-   - Run:
-     - `go run ./test/cmd/aro-hcp-tests slot-manager apply-identity-pool --environment dev`
-   - The built `aro-hcp-tests` binary can be used instead of `go run` if preferred.
-   - Verify that the deployment stacks and identity-container resource groups are created in the new subscription.
+   - Run the apply via the Make target:
+     - `make -C test apply-pool-assets ENVIRONMENT=dev` (or `ENVIRONMENT=dev-xs` for the ci02 pools)
+   - To scope to a single subscription or asset kind:
+     - `make -C test apply-pool-assets ENVIRONMENT=dev SUBSCRIPTION="<subscription display name>"`
+     - `make -C test apply-pool-assets ENVIRONMENT=dev ASSET=e2e_identities`
+   - Validate that the deployment stacks and identity-container resource groups match the catalog:
+     - `make -C test validate-pool-assets ENVIRONMENT=dev` (or `ENVIRONMENT=dev-xs`)
 
 6. Extend the DEV bootstrap RBAC and quota-monitoring inventory.
    - Append `<subscription-id>=<display name>` to the comma-separated string `ci.dev.e2eSubscriptions` in `config/config-dev-ci.yaml` (display names must not contain commas, equals signs, quotes (`'` `"`), backslashes, `$` or backticks).

@@ -1,7 +1,7 @@
 # Service Cluster Consolidation
 
-`svc.aks.systemPoolOnly` is enabled only in `ci00`, `ci01` and `pers`. It
-defaults to false, and schema validation rejects enabling it in other
+`svc.aks.systemPoolOnly` is enabled only in `ci00`, `ci01`, `ci02` and `pers`.
+It defaults to false, and schema validation rejects enabling it in other
 environments or on management clusters. Personal DEV uses three to five
 `Standard_D4ds_v5` nodes with 64 GB OS disks instead of the CI sizing below;
 see [Service Cluster Node Pools](../personal-dev.md#service-cluster-node-pools).

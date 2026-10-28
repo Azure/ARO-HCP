@@ -137,8 +137,8 @@ func normalizeValues(parts []string) []string {
 func BindAcquireOptions(opts *RawAcquireOptions, cmd *cobra.Command) error {
 	cmd.Flags().StringVar(&opts.ClusterProfileDir, "cluster-profile-dir", opts.ClusterProfileDir, "Path to CLUSTER_PROFILE_DIR")
 	cmd.Flags().StringSliceVar(&opts.ClusterProfileDirs, "cluster-profile-dirs", opts.ClusterProfileDirs, "Optional list of cluster profile dirs to resolve the leased subscription's owning tenant/credentials across. Falls back to --cluster-profile-dir when unset.")
-	cmd.Flags().StringVar(&opts.Environment, "environment", opts.Environment, "Logical slot environment (dev, int, stg, prod).")
-	cmd.Flags().StringVar(&opts.DeployEnv, "deploy-env", opts.DeployEnv, "Optional deploy environment compatibility selector/assertion (ci00, ci01, int, stg, prod).")
+	cmd.Flags().StringVar(&opts.Environment, "environment", opts.Environment, "Logical slot environment (dev, dev-xs, int, stg, prod).")
+	cmd.Flags().StringVar(&opts.DeployEnv, "deploy-env", opts.DeployEnv, "Optional deploy environment compatibility selector/assertion (ci00, ci01, ci02, int, stg, prod).")
 	cmd.Flags().StringSliceVar(&opts.AllowedSubscriptions, "allowed-subscriptions", opts.AllowedSubscriptions, "Optional catalog subscriptions.e2e values allowed for candidate pool selection.")
 	cmd.Flags().StringSliceVar(&opts.AllowedLocations, "allowed-locations", opts.AllowedLocations, "Optional Azure regions allowed for fixed-mode candidate pool selection.")
 	cmd.Flags().StringVar(&opts.LocationWeights, "location-weights", opts.LocationWeights, "Weighted-mode location weights as comma-separated location=weight entries.")

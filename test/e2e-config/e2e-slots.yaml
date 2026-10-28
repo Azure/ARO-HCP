@@ -115,6 +115,42 @@ environments:
         infrastructure_identities:
           allocation: leased
           asset_pool: dev-infrastructure-identities
+  # dev-xs is a separate environment for smaller workloads such as upgrade/
+  # in-place tests and CAPZ on-demand testing. It uses deploy_env ci02 so
+  # these jobs and e2e-parallel jobs (ci00/ci01) never compete for the same
+  # Boskos pools. ci02 maps to a dedicated templatize environment with
+  # cluster sizing tuned for fewer concurrent HCPs.
+  dev-xs:
+    deployment_environment:
+      name: ci02
+      infrastructure_subscription: "ARO HCP E2E Infrastructure (EA Subscription)"
+    pools:
+    # Dedicated subscription for upgrade and CAPZ on-demand testing.
+    # 30 slots support peak concurrent PR activity + merge pool.
+    # Each slot supports up to 6 concurrent HCPs (matching ci02 MGMT sizing).
+    # After the 6th spec is merged, no additional specs can be added without
+    # first increasing identity_container_count here (and resyncing the boskos
+    # config) — otherwise excess specs block waiting for a free identity
+    # container and the suite eventually times out.
+    - name: shard4
+      subscriptions:
+        e2e: "ARO HCP E2E Hosted Clusters - Dev - 04"
+      region_mode: weighted
+      regions:
+      - westus3
+      - centralus
+      - canadacentral
+      resource_type: aro-hcp-dev-shard4-slot
+      slot_count: 30
+      slot_assets:
+        e2e_identities:
+          allocation: dedicated
+          provisioning_region: westus3
+          resource_group_prefix: aro-hcp-msi-container-dev-shard4
+          resource_group_count: 6
+        infrastructure_identities:
+          allocation: leased
+          asset_pool: dev-infrastructure-identities
   int:
     deployment_environment:
       name: int
