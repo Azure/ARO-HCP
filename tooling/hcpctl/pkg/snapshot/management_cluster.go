@@ -175,7 +175,7 @@ func clusterResourceIDFromARMID(resourceID string) string {
 	if err != nil {
 		return ""
 	}
-	for current := &parsed; current != nil; current = current.Parent {
+	for current := parsed; current != nil; current = current.Parent {
 		if strings.EqualFold(current.ResourceType.String(), hcpOpenShiftClusterResourceType) && strings.TrimSpace(current.Name) != "" {
 			return normalizeClusterResourceID(current.String())
 		}
