@@ -69,6 +69,7 @@ func (b *Backend) newControllerContext(ctx context.Context) ControllerContext {
 		MaestroSourceEnvironmentIdentifier:                  b.options.MaestroSourceEnvironmentIdentifier,
 		MetricsRegisterer:                                   b.options.MetricsRegisterer,
 		SMIClientBuilder:                                    b.options.SMIClientBuilder,
+		ClusterOIDCIssuerBaseURL:                            b.options.ClusterOIDCIssuerBaseURL,
 		Clock:                                               b.clock,
 		AsyncOperationNotificationClient:                    http.DefaultClient,
 		BackendInformers:                                    backendInformers,

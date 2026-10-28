@@ -17,6 +17,7 @@ package creation
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -28,6 +29,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
@@ -169,6 +171,14 @@ func (c *clusterClusterServiceCreateSyncer) SyncOnce(ctx context.Context, key co
 		return nil
 	}
 
+	ready, err = c.createPreconditionDataPlaneOIDCFederationCreated(ctx, cluster, existingServiceProviderCluster)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+	if !ready {
+		return nil
+	}
+
 	subscription, err := c.subscriptionLister.Get(ctx, key.SubscriptionID)
 	if err != nil {
 		return utils.TrackError(err)
@@ -252,6 +262,39 @@ func (c *clusterClusterServiceCreateSyncer) createPreconditionDenyAssignmentsCre
 	}
 	logger.Info("Deny assignments not yet created, waiting for ClusterDenyAssignment controller",
 		"pendingDenyAssignmentTypes", pendingTypes)
+	return false, nil
+}
+
+// createPreconditionDataPlaneOIDCFederationCreated reports whether the
+// DataPlaneOIDCFederation controller has ensured OIDC federation for every
+// data-plane operator identity the cluster currently requires. Each operator
+// is checked individually against
+// ServiceProviderCluster.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation
+// rather than inspecting whichever assignments already exist there: an
+// operator whose identity metadata has not resolved yet has no entry in that
+// map at all, so a check that only iterated the map would report readiness
+// before every required operator was even considered. Every operator is
+// checked, even after the first miss, so the logged message names every
+// operator still pending rather than only the first one found.
+// Returns (false, nil) when this controller should wait and retry.
+func (c *clusterClusterServiceCreateSyncer) createPreconditionDataPlaneOIDCFederationCreated(ctx context.Context, cluster *coreapi.Cluster, serviceProviderCluster *coreapi.ServiceProviderCluster) (bool, error) {
+	logger := utils.LoggerFromContext(ctx)
+
+	dataPlaneOIDCFederation := serviceProviderCluster.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation
+	var pending []string
+	for operatorName, resourceID := range cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators {
+		key := coreapi.DataplaneOIDCFederationAssignmentKey{IdentityResourceID: strings.ToLower(resourceID.String()), OperatorName: operatorName}
+		status := dataPlaneOIDCFederation[key]
+		if status == nil || !coreapihelpers.IsDataplaneOIDCFederationAssignmentTargetIdentityEnsured(status) {
+			pending = append(pending, fmt.Sprintf("%s: %s", operatorName, resourceID))
+		}
+	}
+	if len(pending) == 0 {
+		return true, nil
+	}
+	slices.Sort(pending)
+	logger.Info("Data-plane OIDC federation not yet ensured, waiting for DataPlaneOIDCFederation controller",
+		"pendingDataPlaneOIDCFederation", pending)
 	return false, nil
 }
 
