@@ -67,7 +67,7 @@
           "showLineNumbers": false,
           "showMiniMap": false
         },
-        "content": "### ExternalAuth Lifecycle Overview\n\nFleet-wide and per-resource view of ExternalAuth provisioning health.\nUse the **Subscription** and **Resource ID** dropdowns above to drill into specific resources.\n\n**User Journey**: `PUT ExternalAuth \u2192 Accepted \u2192 AwaitingSecret \u2192 Provisioning \u2192 Succeeded`\n\n**SLO Targets** (PROPOSED \u2014 pending formal review via ARO-25935)\n| SLI | Target | Metric |\n| --- | --- | --- |\n| Availability | 99% in Succeeded state | `backend_externalauth_provision_state` |\n| Timeliness | 95% of creates < 15 min | `backend_resource_operation_*` |\n| Error Rate | < 1% operations Failed | `backend_resource_operation_phase_info` |\n| Degraded Health | 95% non-degraded | `backend_externalauth_degraded` |\n| Saturation | CPU < 85% of requests | `container_cpu_usage_seconds_total` |\n\n**Runbook**: Pending publication via [ARO-25934](https://redhat.atlassian.net/browse/ARO-25934)",
+        "content": "### ExternalAuth Lifecycle Overview\n\nFleet-wide and per-resource view of ExternalAuth provisioning health.\nUse the **Subscription** and **Resource ID** dropdowns above to drill into specific resources.\n\n**User Journey**: `PUT ExternalAuth → Accepted → AwaitingSecret → Provisioning → Succeeded`\n\n**SLO Targets** (PROPOSED — pending formal review via ARO-25935)\n| SLI | Target | Metric |\n| --- | --- | --- |\n| Availability | 99% in Succeeded state | `backend_externalauth_provision_state` |\n| Timeliness | 95% of creates < 15 min | `backend_resource_operation_*` |\n| Error Rate | < 1% operations Failed | `backend_resource_operation_phase_info` |\n| Degraded Health | 95% non-degraded | `backend_externalauth_degraded` |\n| Saturation | CPU < 85% of requests | `container_cpu_usage_seconds_total` |\n\n**Runbook**: Pending publication via [ARO-25934](https://redhat.atlassian.net/browse/ARO-25934)",
         "mode": "markdown"
       },
       "pluginVersion": "11.6.0",
@@ -429,7 +429,7 @@
       ],
       "title": "Delete >15m",
       "type": "stat",
-      "description": "Number of ExternalAuth delete operations running longer than 15 minutes. Only covers direct DELETE operations \u2014 ExternalAuths removed by parent cluster deletion do not create operations and are not tracked here."
+      "description": "Number of ExternalAuth delete operations running longer than 15 minutes. Only covers direct DELETE operations — ExternalAuths removed by parent cluster deletion do not create operations and are not tracked here."
     },
     {
       "datasource": {
@@ -783,8 +783,8 @@
       },
       "gridPos": {
         "h": 8,
-        "w": 8,
-        "x": 16,
+        "w": 12,
+        "x": 12,
         "y": 17
       },
       "id": 705,
@@ -1553,7 +1553,7 @@
           }
         }
       ],
-      "description": "All currently in-flight ExternalAuth operations with their elapsed duration. Includes AwaitingSecret (customer-blocked). Color indicates severity: green (<5m), yellow (5-15m), red (>15m). Note: only shows direct CRUD operations \u2014 ExternalAuths removed by parent cluster deletion do not create operations."
+      "description": "All currently in-flight ExternalAuth operations with their elapsed duration. Includes AwaitingSecret (customer-blocked). Color indicates severity: green (<5m), yellow (5-15m), red (>15m). Note: only shows direct CRUD operations — ExternalAuths removed by parent cluster deletion do not create operations."
     },
     {
       "datasource": {
@@ -2266,7 +2266,7 @@
       },
       "gridPos": {
         "h": 5,
-        "w": 4,
+        "w": 5,
         "x": 0,
         "y": 68
       },
@@ -2303,7 +2303,7 @@
       ],
       "title": "Provisioned Ratio",
       "type": "stat",
-      "description": "Percentage of ExternalAuth resources currently in Succeeded provisioning state. Note: this does NOT reflect runtime health \u2014 use the Degraded Health section for true availability."
+      "description": "Percentage of ExternalAuth resources currently in Succeeded provisioning state. Note: this does NOT reflect runtime health — use the Degraded Health section for true availability."
     },
     {
       "datasource": {
@@ -2340,8 +2340,8 @@
       },
       "gridPos": {
         "h": 5,
-        "w": 4,
-        "x": 4,
+        "w": 5,
+        "x": 5,
         "y": 68
       },
       "id": 810,
@@ -2377,7 +2377,7 @@
       ],
       "title": "True Availability (Non-Degraded)",
       "type": "stat",
-      "description": "Percentage of ExternalAuth resources that are NOT degraded. This is the true availability signal \u2014 an ExternalAuth can be Succeeded but degraded (OIDC clients failing)."
+      "description": "Percentage of ExternalAuth resources that are NOT degraded. This is the true availability signal — an ExternalAuth can be Succeeded but degraded (OIDC clients failing)."
     },
     {
       "datasource": {
@@ -2414,8 +2414,8 @@
       },
       "gridPos": {
         "h": 5,
-        "w": 6,
-        "x": 8,
+        "w": 5,
+        "x": 10,
         "y": 68
       },
       "id": 24,
@@ -2451,7 +2451,7 @@
       ],
       "title": "Timeliness SLO (Create <15m)",
       "type": "stat",
-      "description": "Percentage of successful ExternalAuth create operations that finished within 15 minutes. Failed/canceled operations are excluded \u2014 only successful creates count toward timeliness."
+      "description": "Percentage of successful ExternalAuth create operations that finished within 15 minutes. Failed/canceled operations are excluded — only successful creates count toward timeliness."
     },
     {
       "datasource": {
@@ -2488,8 +2488,8 @@
       },
       "gridPos": {
         "h": 5,
-        "w": 6,
-        "x": 14,
+        "w": 5,
+        "x": 15,
         "y": 68
       },
       "id": 25,
@@ -2562,7 +2562,7 @@
       },
       "gridPos": {
         "h": 5,
-        "w": 6,
+        "w": 4,
         "x": 20,
         "y": 68
       },
@@ -2666,7 +2666,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 78
+        "y": 73
       },
       "id": 27,
       "options": {
@@ -2760,7 +2760,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 78
+        "y": 73
       },
       "id": 28,
       "options": {
@@ -2832,7 +2832,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 86
+        "y": 81
       },
       "id": 550,
       "panels": [],
@@ -2864,7 +2864,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 87
+        "y": 82
       },
       "id": 40,
       "options": {
@@ -2941,7 +2941,7 @@
         "h": 8,
         "w": 16,
         "x": 8,
-        "y": 87
+        "y": 82
       },
       "id": 41,
       "options": {
@@ -2999,7 +2999,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 95
+        "y": 90
       },
       "id": 600,
       "panels": [],
@@ -3054,7 +3054,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 96
+        "y": 91
       },
       "id": 29,
       "options": {
@@ -3143,7 +3143,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 96
+        "y": 91
       },
       "id": 30,
       "options": {
@@ -3232,7 +3232,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 96
+        "y": 91
       },
       "id": 31,
       "options": {
@@ -3344,7 +3344,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 104
+        "y": 99
       },
       "id": 32,
       "options": {
@@ -3404,7 +3404,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 112
+        "y": 107
       },
       "id": 900,
       "panels": [],
@@ -3472,7 +3472,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 113
+        "y": 108
       },
       "id": 901,
       "options": {
@@ -3584,7 +3584,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 113
+        "y": 108
       },
       "id": 902,
       "options": {
@@ -3627,7 +3627,7 @@
           "refId": "B"
         }
       ],
-      "title": "Backend Saturation \u2014 CPU & Memory (SLO 85%)",
+      "title": "Backend Saturation — CPU & Memory (SLO 85%)",
       "type": "timeseries",
       "description": "Backend pod CPU and memory utilization as a percentage of resource requests. Red line at 85% SLO threshold."
     },
@@ -3668,7 +3668,7 @@
         "h": 5,
         "w": 4,
         "x": 0,
-        "y": 121
+        "y": 116
       },
       "id": 903,
       "options": {
@@ -3701,7 +3701,7 @@
           "refId": "A"
         }
       ],
-      "title": "Saturation \u2014 CPU",
+      "title": "Saturation — CPU",
       "type": "stat",
       "description": "Current backend CPU utilization as percentage of requests."
     },
@@ -3742,7 +3742,7 @@
         "h": 5,
         "w": 4,
         "x": 4,
-        "y": 121
+        "y": 116
       },
       "id": 904,
       "options": {
@@ -3775,7 +3775,7 @@
           "refId": "A"
         }
       ],
-      "title": "Saturation \u2014 Memory",
+      "title": "Saturation — Memory",
       "type": "stat",
       "description": "Current backend memory utilization as percentage of requests."
     },
@@ -3808,7 +3808,7 @@
         "h": 5,
         "w": 4,
         "x": 8,
-        "y": 121
+        "y": 116
       },
       "id": 905,
       "options": {
@@ -3882,7 +3882,7 @@
         "h": 5,
         "w": 4,
         "x": 12,
-        "y": 121
+        "y": 116
       },
       "id": 906,
       "options": {
